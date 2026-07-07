@@ -60,6 +60,7 @@ import {
   UpdatePickemInput,
   BossPullHistoryResponse,
   RaidAnalytics,
+  RaidBossProgressionComparison,
   RaidAnalyticsListItem,
   GuildNetworkMeta,
   GuildNetworkUniverse,
@@ -1152,6 +1153,14 @@ export const api = {
     const response = await fetch(`${API_URL}/api/raid-analytics/all`);
     if (!response.ok) {
       throw new Error("Failed to fetch all raid analytics");
+    }
+    return response.json();
+  },
+
+  async getRaidBossProgressionComparison(): Promise<RaidBossProgressionComparison> {
+    const response = await fetch(`${API_URL}/api/raid-analytics/boss-progression`);
+    if (!response.ok) {
+      throw new Error("Failed to fetch raid boss progression comparison");
     }
     return response.json();
   },

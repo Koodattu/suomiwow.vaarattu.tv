@@ -292,6 +292,11 @@ class CacheWarmerService {
         await cacheService.set(cacheService.getRaidAnalyticsAllKey(), allAnalytics, cacheService.RAID_ANALYTICS_TTL);
       }
 
+      const bossProgression = await raidAnalyticsService.getBossProgressionComparison();
+      if (bossProgression) {
+        await cacheService.set(cacheService.getRaidAnalyticsBossProgressionKey(), bossProgression, cacheService.RAID_ANALYTICS_TTL);
+      }
+
       // Warm available raids
       const raids = await raidAnalyticsService.getAvailableRaids();
       if (raids) {

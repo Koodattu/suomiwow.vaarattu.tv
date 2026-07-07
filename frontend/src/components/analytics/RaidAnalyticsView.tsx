@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useRaids, useBosses, useRaidAnalyticsRaids, useRaidAnalytics, useAllRaidAnalytics } from "@/lib/queries";
 import RaidSelector from "@/components/RaidSelector";
 import IconImage from "@/components/IconImage";
+import RaidBossProgressionComparison from "@/components/analytics/RaidBossProgressionComparison";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 
 // Format seconds to hours and minutes
@@ -441,6 +442,8 @@ export default function RaidAnalyticsPage() {
           <div className="text-sm text-gray-500">
             {t("showingOverallStatsForAllRaids")} ({allAnalytics.length} raids)
           </div>
+
+          <RaidBossProgressionComparison raids={raids} enabled={selectedRaidId === null} />
 
           {allAnalytics.map((raidAnalytics) => (
             <div key={raidAnalytics.raidId} className="bg-gray-900/60 rounded border border-gray-800/50 overflow-hidden">

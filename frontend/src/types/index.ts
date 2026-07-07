@@ -1613,6 +1613,32 @@ export interface RaidAnalyticsListItem {
   lastCalculated: string;
 }
 
+export interface RaidBossProgressionMilestone {
+  key: string;
+  type: "boss" | "clear";
+  bossIndex?: number;
+  bossId?: number;
+  bossName: string;
+  isFinalBoss?: boolean;
+  guildsKilled: number;
+  weeklyProgression: WeeklyProgressionEntry[];
+}
+
+export interface RaidBossProgressionComparisonRaid {
+  raidId: number;
+  raidName: string;
+  raidStart?: string;
+  raidEnd?: string;
+  totalBosses: number;
+  lastCalculated: string;
+  milestones: RaidBossProgressionMilestone[];
+}
+
+export interface RaidBossProgressionComparison {
+  generatedAt: string;
+  raids: RaidBossProgressionComparisonRaid[];
+}
+
 // ============================================================================
 // GUILD NETWORK TYPES
 // ============================================================================

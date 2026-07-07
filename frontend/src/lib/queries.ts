@@ -61,6 +61,7 @@ export const queryKeys = {
     raids: ["raidAnalytics", "raids"] as const,
     detail: (raidId: number) => ["raidAnalytics", "detail", raidId] as const,
     all: ["raidAnalytics", "all"] as const,
+    bossProgression: ["raidAnalytics", "bossProgression"] as const,
   },
   guildNetwork: {
     meta: ["guildNetwork", "meta"] as const,
@@ -315,6 +316,14 @@ export function useAllRaidAnalytics(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.raidAnalytics.all,
     queryFn: () => api.getAllRaidAnalytics(),
+    enabled,
+  });
+}
+
+export function useRaidBossProgressionComparison(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.raidAnalytics.bossProgression,
+    queryFn: () => api.getRaidBossProgressionComparison(),
     enabled,
   });
 }

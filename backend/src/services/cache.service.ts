@@ -945,6 +945,13 @@ class CacheService {
   }
 
   /**
+   * Get cache key for raid analytics boss progression comparison.
+   */
+  getRaidAnalyticsBossProgressionKey(): string {
+    return "raid-analytics:boss-progression";
+  }
+
+  /**
    * Get cache key for specific raid analytics.
    */
   getRaidAnalyticsKey(raidId: number): string {

@@ -36,6 +36,32 @@ interface IGuildEntryWithValues {
   progressRaidTimeSpent?: number;
 }
 
+export interface RaidBossProgressionMilestone {
+  key: string;
+  type: "boss" | "clear";
+  bossIndex?: number;
+  bossId?: number;
+  bossName: string;
+  isFinalBoss?: boolean;
+  guildsKilled: number;
+  weeklyProgression: IWeeklyProgressionEntry[];
+}
+
+export interface RaidBossProgressionComparisonRaid {
+  raidId: number;
+  raidName: string;
+  raidStart?: Date;
+  raidEnd?: Date;
+  totalBosses: number;
+  lastCalculated: Date;
+  milestones: RaidBossProgressionMilestone[];
+}
+
+export interface RaidBossProgressionComparison {
+  generatedAt: Date;
+  raids: RaidBossProgressionComparisonRaid[];
+}
+
 /**
  * Format seconds to hours and minutes for display labels
  */
@@ -565,6 +591,56 @@ class RaidAnalyticsService {
       raidEnd: a.raidEnd,
       lastCalculated: a.lastCalculated,
     }));
+  }
+
+  /**
+   * Get boss-level weekly progression for all raids in a comparison-friendly shape.
+   * Uses pre-calculated raid analytics documents, so this stays cheap to serve.
+   */
+  async getBossProgressionComparison(): Promise<RaidBossProgressionComparison> {
+    const analytics = await RaidAnalytics.find({})
+      .select("raidId raidName bosses overall raidStart raidEnd lastCalculated")
+      .lean();
+
+    const raids = [...analytics].sort((a, b) => compareRaidIdsByPriority(a.raidId, b.raidId)).map((raid) => {
+      const bosses = raid.bosses ?? [];
+      const totalBosses = bosses.length;
+
+      const bossMilestones: RaidBossProgressionMilestone[] = bosses.map((boss, index) => ({
+        key: `boss-${index + 1}`,
+        type: "boss",
+        bossIndex: index + 1,
+        bossId: boss.bossId,
+        bossName: boss.bossName,
+        isFinalBoss: index === totalBosses - 1,
+        guildsKilled: boss.guildsKilled,
+        weeklyProgression: boss.weeklyProgression ?? [],
+      }));
+
+      return {
+        raidId: raid.raidId,
+        raidName: raid.raidName,
+        raidStart: raid.raidStart,
+        raidEnd: raid.raidEnd,
+        totalBosses,
+        lastCalculated: raid.lastCalculated,
+        milestones: [
+          ...bossMilestones,
+          {
+            key: "clear",
+            type: "clear" as const,
+            bossName: "Full clear",
+            guildsKilled: raid.overall.guildsCleared,
+            weeklyProgression: raid.overall.weeklyProgression ?? [],
+          },
+        ],
+      };
+    });
+
+    return {
+      generatedAt: new Date(),
+      raids,
+    };
   }
 
   /**

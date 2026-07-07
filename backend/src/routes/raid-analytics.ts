@@ -50,6 +50,28 @@ router.get(
 );
 
 /**
+ * Get boss kill progression comparison for all raids
+ * Returns boss-level weekly data shaped for cross-tier charts
+ * GET /api/raid-analytics/boss-progression
+ */
+router.get(
+  "/boss-progression",
+  cacheMiddleware(
+    () => cacheService.getRaidAnalyticsBossProgressionKey(),
+    () => cacheService.RAID_ANALYTICS_TTL,
+  ),
+  async (req: Request, res: Response) => {
+    try {
+      const progression = await raidAnalyticsService.getBossProgressionComparison();
+      res.json(progression);
+    } catch (error) {
+      logger.error("Error fetching raid boss progression comparison:", error);
+      res.status(500).json({ error: "Failed to fetch raid boss progression comparison" });
+    }
+  },
+);
+
+/**
  * Get analytics for a specific raid
  * Returns full data including boss breakdown
  * GET /api/raid-analytics/:raidId
