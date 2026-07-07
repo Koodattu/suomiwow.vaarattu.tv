@@ -657,6 +657,18 @@
     "noMetricData": "Mittaridataa ei ole saatavilla",
     "noBossKills": "Talle bossille ei ole viela kiltatappoja"
   },
+  "guildProfileHighlights": {
+    "mainstays": "Vakiokasvot",
+    "topPerformers": "Parhaat suoriutujat",
+    "account": "Tili",
+    "inferredAccount": "Paatelty tili",
+    "characterCount": "{count, plural, one {# hahmo} other {# hahmoa}}",
+    "reports": "{count, plural, one {# raportti} other {# raporttia}}",
+    "raids": "{count, plural, one {# raidi} other {# raidia}}",
+    "pulls": "{count, plural, one {# pulli} other {# pullia}}",
+    "since": "Alkaen {date}",
+    "firstSeen": "Ensin"
+  },
   "characterRankingsPage": {
     "titleAllStars": "Pistesijoitukset",
     "titleForBoss": "Vahinkosijoitukset pomolle",

@@ -22,6 +22,7 @@ import logger, { getGuildLogger, releaseGuildLogger } from "../utils/logger";
 import Character from "../models/Character";
 import characterService from "./character.service";
 import fightVodService from "./fight-vod.service";
+import guildProfileHighlightsService from "./guild-profile-highlights.service";
 import { yieldToEventLoop } from "../utils/yield";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
@@ -5872,9 +5873,10 @@ class GuildService {
       : undefined;
 
     // Get supplemental profile summaries in parallel.
-    const [tierScores, latestReports] = await Promise.all([
+    const [tierScores, latestReports, profileHighlights] = await Promise.all([
       this.getGuildTierScores(guildObj._id.toString()),
       this.getLatestReportSummaries(guildObj._id, 3),
+      guildProfileHighlightsService.getHighlightsForGuild(guildObj._id),
     ]);
 
     return {
@@ -5896,6 +5898,7 @@ class GuildService {
       streamers: streamers,
       tierScores: tierScores,
       latestReports,
+      profileHighlights,
     };
   }
 

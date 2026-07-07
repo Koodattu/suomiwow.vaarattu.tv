@@ -8,6 +8,7 @@ import characterService from "./character.service";
 import characterMechanicsService from "./character-mechanics.service";
 import raidAnalyticsService from "./raid-analytics.service";
 import guildNetworkService from "./guild-network.service";
+import guildProfileHighlightsService from "./guild-profile-highlights.service";
 import cacheService from "./cache.service";
 import cacheWarmerService from "./cache-warmer.service";
 import taskTracker from "./task-tracker.service";
@@ -114,6 +115,7 @@ class UpdateScheduler {
   private isQueueingCharacterAchievementBackfill: boolean = false;
   private isUpdatingCharacterRaidParticipations: boolean = false;
   private isRebuildingGuildNetworkSnapshot: boolean = false;
+  private isRebuildingGuildProfileHighlights: boolean = false;
   private isUpdatingRaidAnalytics: boolean = false;
   private isCheckingHiatus: boolean = false;
   private isUpdatingRaiderIOGuilds: boolean = false;
@@ -1465,6 +1467,9 @@ class UpdateScheduler {
       const result = await characterMechanicsService.buildCurrentRaidMechanicsLeaderboards();
       this.characterMechanicsRebuildPending = false;
       await taskTracker.complete(taskId, result);
+      await this.rebuildGuildProfileHighlights().catch((error) => {
+        logger.error("[GuildProfileHighlights] Rebuild after character mechanics failed:", error);
+      });
     } catch (error) {
       logger.error("[Nightly/CharacterMechanics] Error:", error);
       this.characterMechanicsRebuildPending = true;
@@ -1516,6 +1521,37 @@ class UpdateScheduler {
     } finally {
       this.isRebuildingGuildNetworkSnapshot = false;
     }
+  }
+
+  private async rebuildGuildProfileHighlights(): Promise<void> {
+    if (this.isRebuildingGuildProfileHighlights) {
+      logger.info("[GuildProfileHighlights] Previous rebuild still in progress, skipping...");
+      return;
+    }
+
+    this.isRebuildingGuildProfileHighlights = true;
+    const taskId = await taskTracker.start("Rebuild Guild Profile Highlights");
+
+    try {
+      const result = await guildProfileHighlightsService.rebuildHighlights();
+      await taskTracker.complete(taskId, result);
+    } catch (error) {
+      logger.error("[GuildProfileHighlights] Rebuild error:", error);
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+      throw error;
+    } finally {
+      this.isRebuildingGuildProfileHighlights = false;
+    }
+  }
+
+  triggerGuildProfileHighlightsRebuild(): boolean {
+    if (this.isRebuildingGuildProfileHighlights) {
+      return false;
+    }
+    this.rebuildGuildProfileHighlights()
+      .then(() => logger.info("[Admin] Guild profile highlights rebuild completed"))
+      .catch((err) => logger.error("[Admin] Guild profile highlights rebuild failed:", err));
+    return true;
   }
 
   async resolveFightVodLinks(): Promise<void> {

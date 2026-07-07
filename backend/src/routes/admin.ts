@@ -2708,6 +2708,24 @@ router.post("/trigger/rebuild-character-account-groups", async (req: Request, re
   }
 });
 
+// Rebuild compact guild profile highlight cards from stored participation and mechanics rows
+router.post("/trigger/rebuild-guild-profile-highlights", async (_req: Request, res: Response) => {
+  try {
+    const started = scheduler.triggerGuildProfileHighlightsRebuild();
+    if (!started) {
+      return res.status(409).json({ error: "Guild profile highlights rebuild is already running" });
+    }
+
+    res.json({
+      success: true,
+      message: "Guild profile highlights rebuild started",
+    });
+  } catch (error) {
+    logger.error("Error triggering guild profile highlights rebuild:", error);
+    res.status(500).json({ error: "Failed to trigger guild profile highlights rebuild" });
+  }
+});
+
 // Rebuild historical character ranking leaderboards from stored Ranking rows (no WCL API calls)
 router.post("/trigger/rebuild-character-ranking-leaderboards", async (req: Request, res: Response) => {
   try {

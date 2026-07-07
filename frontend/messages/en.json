@@ -657,6 +657,18 @@
     "noMetricData": "No metric data available",
     "noBossKills": "No guild kills for this boss yet"
   },
+  "guildProfileHighlights": {
+    "mainstays": "Mainstays",
+    "topPerformers": "Top performers",
+    "account": "Account",
+    "inferredAccount": "Inferred account",
+    "characterCount": "{count, plural, one {# character} other {# characters}}",
+    "reports": "{count, plural, one {# report} other {# reports}}",
+    "raids": "{count, plural, one {# raid} other {# raids}}",
+    "pulls": "{count, plural, one {# pull} other {# pulls}}",
+    "since": "Since {date}",
+    "firstSeen": "First"
+  },
   "characterRankingsPage": {
     "titleAllStars": "All Star Rankings",
     "titleForBoss": "Rankings for",

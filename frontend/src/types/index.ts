@@ -301,6 +301,61 @@ export interface GuildLatestReport {
   bosses: GuildLatestReportBossSummary[];
 }
 
+export type GuildProfileHighlightKind = "character" | "account";
+
+export interface GuildProfileHighlightMember {
+  kind: GuildProfileHighlightKind;
+  characterId?: string | null;
+  accountGroupId?: string | null;
+  accountSlug?: string | null;
+  accountDisplayName?: string | null;
+  name: string;
+  realm: string;
+  region: string;
+  classID: number;
+  characterCount: number;
+  reportCount: number;
+  raidCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export interface GuildProfileHighlightTopPerformer {
+  kind: GuildProfileHighlightKind;
+  characterId?: string | null;
+  accountGroupId?: string | null;
+  accountSlug?: string | null;
+  accountDisplayName?: string | null;
+  name: string;
+  realm: string;
+  region: string;
+  classID: number;
+  characterCount: number;
+  reportCount: number;
+  raidCount: number;
+  performanceRaidCount: number;
+  firstSeenAt?: string | null;
+  lastSeenAt?: string | null;
+  score: number;
+  parseScore: number;
+  survivalScore: number | null;
+  pulls: number;
+  deaths: number;
+  earlyDeaths: number;
+  metric: "dps" | "hps";
+  role: "dps" | "healer" | "tank";
+  specName: string;
+  zoneId: number;
+  raidName: string;
+}
+
+export interface GuildProfileHighlights {
+  generatedAt: string;
+  sourceUpdatedAt?: string | null;
+  mainstays: GuildProfileHighlightMember[];
+  topPerformers: GuildProfileHighlightTopPerformer[];
+}
+
 // Guild with summary progress (for guild profile page initial load)
 export interface GuildSummary {
   _id: string;
@@ -321,6 +376,7 @@ export interface GuildSummary {
   streamers?: Streamer[]; // Twitch streamers for this guild
   tierScores?: GuildTierScores | null; // Tier list scores for this guild
   latestReports?: GuildLatestReport[]; // Recent WCL reports with compact pull summaries
+  profileHighlights?: GuildProfileHighlights | null; // Compact guild-only character/account cards
 }
 
 export interface WorldRankHistoryEntry {
