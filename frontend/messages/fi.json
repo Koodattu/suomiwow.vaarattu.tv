@@ -254,6 +254,8 @@
     "combined": "Yhdistetty",
     "generated": "Luotu",
     "myTierList": "Oma Tier Lista",
+    "createMyTierList": "Luo oma Tier Lista",
+    "viewGeneratedTierList": "Näytä luotu Tier Lista",
     "unplaced": "Sijoittamatta",
     "generatedBaseline": "Luotu vertailulista",
     "signInToSave": "Kirjaudu tallentaaksesi",
@@ -715,6 +717,10 @@
     "pulls": "{count, plural, one {# pulli} other {# pullia}}",
     "since": "Alkaen {date}",
     "firstSeen": "Ensin"
+  },
+  "characterProfile": {
+    "firstSeen": "Ensimmäinen havainto",
+    "lastSeen": "Viimeisin havainto"
   },
   "raidAchievements": {
     "title": "Raidi-achievementit",

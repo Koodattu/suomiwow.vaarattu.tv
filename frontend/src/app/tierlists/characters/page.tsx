@@ -90,57 +90,59 @@ export default function CharacterTierListsPage() {
   return (
     <main className="min-h-screen bg-gray-950 px-4 py-6 text-white md:px-6 md:py-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">{t("globalTitle")}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-gray-400">{t("globalSubtitle")}</p>
-        </div>
-
-        <div className="grid gap-3 rounded-lg border border-gray-800 bg-gray-900/70 p-3 md:grid-cols-[minmax(260px,420px)_auto_auto_auto] md:items-end">
-          <div>
-            <RaidSelector raids={raids} selectedRaidId={selectedRaidId} onRaidSelect={(raidId) => setSelectedRaidId(raidId)} />
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="min-w-0 xl:max-w-sm">
+            <h1 className="text-2xl font-bold lg:text-3xl">{t("globalTitle")}</h1>
+            <p className="mt-1 text-sm text-gray-400">{t("globalSubtitle")}</p>
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("minReports")}</label>
-            <input
-              type="number"
-              min={1}
-              max={999}
-              value={minReports}
-              onChange={(event) => setMinReports(Math.max(1, Number(event.target.value) || 1))}
-              className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 md:w-28"
-            />
-          </div>
+          <div className="grid gap-3 rounded-lg border border-gray-800 bg-gray-900/70 p-3 sm:grid-cols-2 sm:items-end xl:grid-cols-[minmax(260px,350px)_auto_auto_auto] xl:shrink-0">
+            <div>
+              <RaidSelector raids={raids} selectedRaidId={selectedRaidId} onRaidSelect={(raidId) => setSelectedRaidId(raidId)} />
+            </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("role")}</label>
-            <select
-              value={role}
-              onChange={(event) => setRole(event.target.value as CharacterTierListRole | "all")}
-              className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 md:w-36"
-            >
-              {ROLE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {t(option.labelKey)}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("minReports")}</label>
+              <input
+                type="number"
+                min={1}
+                max={999}
+                value={minReports}
+                onChange={(event) => setMinReports(Math.max(1, Number(event.target.value) || 1))}
+                className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-28"
+              />
+            </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("class")}</label>
-            <select
-              value={classId}
-              onChange={(event) => setClassId(event.target.value === "all" ? "all" : Number(event.target.value))}
-              className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 md:w-44"
-            >
-              <option value="all">{t("allClasses")}</option>
-              {classes.map((classInfo) => (
-                <option key={classInfo.id} value={classInfo.id}>
-                  {classInfo.name}
-                </option>
-              ))}
-            </select>
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("role")}</label>
+              <select
+                value={role}
+                onChange={(event) => setRole(event.target.value as CharacterTierListRole | "all")}
+                className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-36"
+              >
+                {ROLE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {t(option.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("class")}</label>
+              <select
+                value={classId}
+                onChange={(event) => setClassId(event.target.value === "all" ? "all" : Number(event.target.value))}
+                className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-44"
+              >
+                <option value="all">{t("allClasses")}</option>
+                {classes.map((classInfo) => (
+                  <option key={classInfo.id} value={classInfo.id}>
+                    {classInfo.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 

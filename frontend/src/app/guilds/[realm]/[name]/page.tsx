@@ -1089,7 +1089,7 @@ export default function GuildProfilePage({ params }: PageProps) {
                                       event.stopPropagation();
                                       handleRaidCharactersClick(raid);
                                     }}
-                                    className="inline-flex min-h-10 items-center justify-center rounded-md bg-gray-800 px-3 text-xs font-semibold text-gray-100 transition-colors hover:bg-gray-700 active:scale-[0.98]"
+                                    className="inline-flex min-h-10 items-center justify-center rounded-md bg-blue-700 px-3 text-xs font-semibold text-white transition-colors hover:bg-blue-600 active:scale-[0.98]"
                                   >
                                     {t("view")}
                                   </button>

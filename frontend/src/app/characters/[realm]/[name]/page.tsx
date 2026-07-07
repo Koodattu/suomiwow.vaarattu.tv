@@ -11,7 +11,7 @@ import { useRaids } from "@/lib/queries";
 import { buildRaidOrderIndex, compareRaidIdsByListOrder } from "@/lib/raid-priority";
 import { formatRealmName, formatSpecName, formatTime, getClassInfoById, getGuildProfileUrl, getParseColor, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
-import RaidAchievementsSection from "@/components/RaidAchievementsSection";
+import RaidAchievementsSection, { RaidAchievementMetric } from "@/components/RaidAchievementsSection";
 
 interface PageProps {
   params: Promise<{ realm: string; name: string }>;
@@ -797,6 +797,7 @@ function CharacterChoicesView({ name, realm, choices }: { name: string; realm: s
 export default function CharacterProfilePage({ params }: PageProps) {
   const resolvedParams = use(params);
   const tRaidAchievements = useTranslations("raidAchievements");
+  const tCharacterProfile = useTranslations("characterProfile");
   const realm = decodeURIComponent(resolvedParams.realm);
   const name = decodeURIComponent(resolvedParams.name);
   const searchParams = useSearchParams();
@@ -1071,7 +1072,7 @@ export default function CharacterProfilePage({ params }: PageProps) {
 
   const character = profile.character;
   const classInfo = getClassInfoById(character.classID);
-  const seenRange = `${formatShortDate(character.firstReportSeenAt)} - ${formatShortDate(character.lastReportSeenAt)}`;
+  const characterAchievements = character.raidAchievements?.achievements ?? [];
   const externalUrls = getCharacterExternalUrls(character.region, character.realm, character.name);
   const nameHistory = character.nameHistory ?? [];
   const activePerformanceConfig = CHARACTER_PERFORMANCE_TABS.find((tab) => tab.id === activePerformanceTab) ?? CHARACTER_PERFORMANCE_TABS[0];
@@ -1158,22 +1159,34 @@ export default function CharacterProfilePage({ params }: PageProps) {
                 <div className="text-xl font-bold tabular-nums text-gray-100 md:text-2xl">{profile.character.guildHistory.length}</div>
               </div>
               <div>
-                <div className="text-gray-500">{tRaidAchievements("cuttingEdgeShort")}</div>
-                <div className="text-xl font-bold tabular-nums text-gray-100 md:text-2xl">{character.raidAchievements?.cuttingEdgeCount ?? "-"}</div>
+                <RaidAchievementMetric
+                  type="cutting_edge"
+                  title={tRaidAchievements("cuttingEdge")}
+                  shortTitle={tRaidAchievements("cuttingEdgeShort")}
+                  count={character.raidAchievements?.cuttingEdgeCount}
+                  achievements={characterAchievements.filter((achievement) => achievement.type === "cutting_edge")}
+                />
               </div>
               <div>
-                <div className="text-gray-500">{tRaidAchievements("aheadOfTheCurveShort")}</div>
-                <div className="text-xl font-bold tabular-nums text-gray-100 md:text-2xl">{character.raidAchievements?.aheadOfTheCurveCount ?? "-"}</div>
+                <RaidAchievementMetric
+                  type="ahead_of_the_curve"
+                  title={tRaidAchievements("aheadOfTheCurve")}
+                  shortTitle={tRaidAchievements("aheadOfTheCurveShort")}
+                  count={character.raidAchievements?.aheadOfTheCurveCount}
+                  achievements={characterAchievements.filter((achievement) => achievement.type === "ahead_of_the_curve")}
+                />
               </div>
               <div>
-                <div className="text-gray-500">Seen</div>
-                <div className="text-lg font-bold tabular-nums text-gray-100 md:text-xl">{seenRange}</div>
+                <div className="text-gray-500">{tCharacterProfile("firstSeen")}</div>
+                <div className="text-lg font-bold tabular-nums text-gray-100 md:text-xl">{formatShortDate(character.firstReportSeenAt)}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">{tCharacterProfile("lastSeen")}</div>
+                <div className="text-lg font-bold tabular-nums text-gray-100 md:text-xl">{formatShortDate(character.lastReportSeenAt)}</div>
               </div>
             </div>
           </div>
         </header>
-
-        <CharacterMythicPlusSection mythicPlus={profile.mythicPlus} classId={character.classID} />
 
         <RaidAchievementsSection summary={character.raidAchievements} />
 
@@ -1450,6 +1463,8 @@ export default function CharacterProfilePage({ params }: PageProps) {
             <div className="px-4 py-8 text-center text-gray-400">{activeMechanicsEmptyLabel}</div>
           )}
         </section>
+
+        <CharacterMythicPlusSection mythicPlus={profile.mythicPlus} classId={character.classID} />
       </div>
     </main>
   );

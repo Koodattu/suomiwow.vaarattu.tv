@@ -254,6 +254,8 @@
     "combined": "Combined",
     "generated": "Generated",
     "myTierList": "My Tier List",
+    "createMyTierList": "Create my own tier list",
+    "viewGeneratedTierList": "View generated tier list",
     "unplaced": "Unplaced",
     "generatedBaseline": "Generated baseline",
     "signInToSave": "Sign in to save",
@@ -715,6 +717,10 @@
     "pulls": "{count, plural, one {# pull} other {# pulls}}",
     "since": "Since {date}",
     "firstSeen": "First"
+  },
+  "characterProfile": {
+    "firstSeen": "First Seen",
+    "lastSeen": "Last Seen"
   },
   "raidAchievements": {
     "title": "Raid Achievements",

@@ -240,6 +240,7 @@ function GuildScoresTable({ guilds, onGuildClick, calculatedAt, t }: GuildScores
 
 export default function TierListsPage() {
   const t = useTranslations("tierListsPage");
+  const navigationT = useTranslations("navigation");
   const router = useRouter();
   const [selectedRaidId, setSelectedRaidId] = useState<number | null>(null);
   const [initialized, setInitialized] = useState(false);
@@ -314,11 +315,16 @@ export default function TierListsPage() {
         <div className="min-w-0">
           <h1 className="text-2xl lg:text-3xl font-bold text-white text-balance">{t("title")}</h1>
           <p className="text-sm text-gray-500 text-pretty">{t("subtitle")}</p>
-          <Link href="/tierlists/characters" className="mt-3 inline-flex min-h-9 items-center rounded-md border border-gray-700 px-3 text-sm font-semibold text-gray-200 transition-colors hover:bg-gray-800">
-            {t("characterTierLists")}
-          </Link>
         </div>
-        <div className="flex flex-col gap-2 lg:items-end lg:shrink-0">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-end lg:shrink-0">
+          <div className="flex shrink-0 self-start rounded bg-gray-900 border border-gray-800 p-1 sm:self-end">
+            <Link href="/tierlists" aria-current="page" className="rounded bg-blue-600 px-3 py-2 text-sm text-white transition-colors">
+              {navigationT("guildType")}
+            </Link>
+            <Link href="/tierlists/characters" className="rounded px-3 py-2 text-sm text-gray-400 transition-colors hover:text-white">
+              {navigationT("characterType")}
+            </Link>
+          </div>
           <div className="flex items-end gap-3">
             <RaidSelector raids={raids} selectedRaidId={selectedRaidId} onRaidSelect={handleRaidSelect} showOverall={true} />
             {dataLoading && <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500 mb-2"></div>}

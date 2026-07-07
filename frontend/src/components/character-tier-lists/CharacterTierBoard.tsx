@@ -28,7 +28,7 @@ export type CharacterTierBoardItem = {
 const TIERS = ["Crown", "S", "A", "B", "C", "D", "E", "F"] as const;
 const MANUAL_TIERS = ["S", "A", "B", "C", "D", "E", "F"] as const;
 
-const TIER_COLORS: Record<CharacterTierName, string> = {
+export const CHARACTER_TIER_COLORS: Record<CharacterTierName, string> = {
   Crown: "bg-purple-400 text-gray-950",
   S: "bg-red-400 text-gray-950",
   A: "bg-orange-300 text-gray-950",
@@ -226,7 +226,7 @@ export default function CharacterTierBoard({
       <div className="overflow-hidden rounded-lg border border-gray-700">
         {tiers.map((tier) => (
           <div key={tier} className="flex border-b border-gray-700 last:border-b-0">
-            <div className={`flex min-h-20 w-14 shrink-0 items-center justify-center text-base font-black md:w-20 md:text-2xl ${TIER_COLORS[tier]}`}>{tier === "Crown" ? "TOP" : tier}</div>
+            <div className={`flex min-h-20 w-14 shrink-0 items-center justify-center text-base font-black md:w-20 md:text-2xl ${CHARACTER_TIER_COLORS[tier]}`}>{tier === "Crown" ? "TOP" : tier}</div>
             <div className="flex min-h-20 flex-1 flex-wrap content-start gap-2 bg-gray-900 p-2">
               {tierGroups[tier].map((character) => (
                 <div key={character.characterKey} className="w-full sm:w-[calc(50%-0.25rem)] xl:w-[calc(33.333%-0.34rem)]">

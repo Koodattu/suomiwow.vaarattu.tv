@@ -12,7 +12,7 @@ interface PageProps {
   params: Promise<{ realm: string; name: string; raidId: string }>;
 }
 
-type Tab = "generated" | "custom";
+type PageMode = "generated" | "custom";
 type GeneratedView = "roles" | "combined";
 
 function toBoardItem(character: CharacterTierListCharacter): CharacterTierBoardItem {
@@ -42,7 +42,7 @@ export default function GuildCharacterTierListPage({ params }: PageProps) {
   const name = decodeURIComponent(resolvedParams.name);
   const raidId = parseInt(resolvedParams.raidId, 10);
 
-  const [tab, setTab] = useState<Tab>("generated");
+  const [mode, setMode] = useState<PageMode>("generated");
   const [view, setView] = useState<GeneratedView>("roles");
   const [minReports, setMinReports] = useState(1);
   const [classId, setClassId] = useState<number | "all">("all");
@@ -58,8 +58,8 @@ export default function GuildCharacterTierListPage({ params }: PageProps) {
     [classId, minReports],
   );
 
-  const { data, isLoading, error } = useGuildCharacterTierList(realm, name, Number.isFinite(raidId) ? raidId : null, filters, tab === "generated");
-  const { data: customData, isLoading: customLoading, error: customError } = useCustomCharacterTierList(realm, name, Number.isFinite(raidId) ? raidId : null, tab === "custom");
+  const { data, isLoading, error } = useGuildCharacterTierList(realm, name, Number.isFinite(raidId) ? raidId : null, filters, mode === "generated");
+  const { data: customData, isLoading: customLoading, error: customError } = useCustomCharacterTierList(realm, name, Number.isFinite(raidId) ? raidId : null, mode === "custom");
   const characters = useMemo(() => data?.characters.map(toBoardItem) ?? [], [data]);
 
   const roleGroups = useMemo(
@@ -74,79 +74,72 @@ export default function GuildCharacterTierListPage({ params }: PageProps) {
   return (
     <main className="min-h-screen bg-gray-950 px-4 py-6 text-white md:px-6 md:py-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div>
-          <p className="text-sm text-gray-400">
-            {name} / {realm}
-          </p>
-          <h1 className="text-3xl font-bold">{t("guildTitle")}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-gray-400">{t("guildSubtitle")}</p>
-        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-sm text-gray-400">
+              {name} / {realm}
+            </p>
+            <h1 className="text-3xl font-bold">{t("guildTitle")}</h1>
+            <p className="mt-2 text-sm text-gray-400">{t("guildSubtitle")}</p>
+          </div>
 
-        <div className="flex flex-wrap gap-2 border-b border-gray-800">
-          <button
-            type="button"
-            onClick={() => setTab("generated")}
-            className={`min-h-10 border-b-2 px-4 text-sm font-semibold transition-colors ${
-              tab === "generated" ? "border-blue-400 text-white" : "border-transparent text-gray-400 hover:text-gray-200"
-            }`}
-          >
-            {t("generated")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("custom")}
-            className={`min-h-10 border-b-2 px-4 text-sm font-semibold transition-colors ${
-              tab === "custom" ? "border-blue-400 text-white" : "border-transparent text-gray-400 hover:text-gray-200"
-            }`}
-          >
-            {t("myTierList")}
-          </button>
-        </div>
-
-        {tab === "generated" && (
-          <>
-            <div className="grid gap-3 rounded-lg border border-gray-800 bg-gray-900/70 p-3 sm:grid-cols-2 md:grid-cols-[auto_auto_auto] md:items-end">
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("minReports")}</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={999}
-                  value={minReports}
-                  onChange={(event) => setMinReports(Math.max(1, Number(event.target.value) || 1))}
-                  className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 md:w-28"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("class")}</label>
-                <select
-                  value={classId}
-                  onChange={(event) => setClassId(event.target.value === "all" ? "all" : Number(event.target.value))}
-                  className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 md:w-44"
-                >
-                  <option value="all">{t("allClasses")}</option>
-                  {classes.map((classInfo) => (
-                    <option key={classInfo.id} value={classInfo.id}>
-                      {classInfo.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("view")}</label>
-                <div className="inline-flex min-h-10 overflow-hidden rounded-md border border-gray-700 bg-gray-800">
-                  <button type="button" onClick={() => setView("roles")} className={`px-3 text-sm font-semibold ${view === "roles" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
-                    {t("byRole")}
-                  </button>
-                  <button type="button" onClick={() => setView("combined")} className={`px-3 text-sm font-semibold ${view === "combined" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
-                    {t("combined")}
-                  </button>
+          <div className="flex flex-wrap items-end gap-3 lg:justify-end">
+            {mode === "generated" && (
+              <>
+                <div className="w-full sm:w-auto">
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("minReports")}</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={minReports}
+                    onChange={(event) => setMinReports(Math.max(1, Number(event.target.value) || 1))}
+                    className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-28"
+                  />
                 </div>
-              </div>
-            </div>
 
+                <div className="w-full sm:w-auto">
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("class")}</label>
+                  <select
+                    value={classId}
+                    onChange={(event) => setClassId(event.target.value === "all" ? "all" : Number(event.target.value))}
+                    className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-44"
+                  >
+                    <option value="all">{t("allClasses")}</option>
+                    {classes.map((classInfo) => (
+                      <option key={classInfo.id} value={classInfo.id}>
+                        {classInfo.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="w-full sm:w-auto">
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("view")}</label>
+                  <div className="inline-flex min-h-10 w-full overflow-hidden rounded-md border border-gray-700 bg-gray-800 sm:w-auto">
+                    <button type="button" onClick={() => setView("roles")} className={`flex-1 px-3 text-sm font-semibold sm:flex-none ${view === "roles" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
+                      {t("byRole")}
+                    </button>
+                    <button type="button" onClick={() => setView("combined")} className={`flex-1 px-3 text-sm font-semibold sm:flex-none ${view === "combined" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
+                      {t("combined")}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setMode((currentMode) => (currentMode === "generated" ? "custom" : "generated"))}
+              className="min-h-10 w-full rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-500 sm:w-auto"
+            >
+              {mode === "generated" ? t("createMyTierList") : t("viewGeneratedTierList")}
+            </button>
+          </div>
+        </div>
+
+        {mode === "generated" && (
+          <>
             {isLoading && <div className="rounded-lg border border-gray-800 bg-gray-900 px-4 py-8 text-center text-gray-400">{t("loading")}</div>}
             {error && <div className="rounded-lg border border-red-900 bg-red-950/40 px-4 py-8 text-center text-red-200">{t("error")}</div>}
             {!isLoading && !error && data && (
@@ -169,7 +162,7 @@ export default function GuildCharacterTierListPage({ params }: PageProps) {
           </>
         )}
 
-        {tab === "custom" && (
+        {mode === "custom" && (
           <>
             {customLoading && <div className="rounded-lg border border-gray-800 bg-gray-900 px-4 py-8 text-center text-gray-400">{t("loading")}</div>}
             {customError && <div className="rounded-lg border border-red-900 bg-red-950/40 px-4 py-8 text-center text-red-200">{t("error")}</div>}

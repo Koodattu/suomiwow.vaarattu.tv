@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { CharacterAccountResponse } from "@/types";
 import { formatRealmName, getClassInfoById } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
-import RaidAchievementsSection from "@/components/RaidAchievementsSection";
+import RaidAchievementsSection, { RaidAchievementMetric } from "@/components/RaidAchievementsSection";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -142,6 +142,7 @@ export default function AccountPage({ params }: PageProps) {
   const primaryCharacter = account.characters[0];
   const primaryClass = primaryCharacter ? getClassInfoById(primaryCharacter.classID) : null;
   const missingRaidAchievementSummaries = account.characters.filter((character) => !character.raidAchievements).length;
+  const accountAchievements = account.account.raidAchievements?.achievements ?? [];
 
   return (
     <main className="min-h-screen px-4 py-8">
@@ -169,12 +170,22 @@ export default function AccountPage({ params }: PageProps) {
                 <div className="text-xl font-bold tabular-nums text-gray-100">{account.account.totalReportCount}</div>
               </div>
               <div>
-                <div className="text-gray-500">{tRaidAchievements("cuttingEdgeShort")}</div>
-                <div className="text-xl font-bold tabular-nums text-gray-100">{account.account.raidAchievements?.cuttingEdgeCount ?? "-"}</div>
+                <RaidAchievementMetric
+                  type="cutting_edge"
+                  title={tRaidAchievements("cuttingEdge")}
+                  shortTitle={tRaidAchievements("cuttingEdgeShort")}
+                  count={account.account.raidAchievements?.cuttingEdgeCount}
+                  achievements={accountAchievements.filter((achievement) => achievement.type === "cutting_edge")}
+                />
               </div>
               <div>
-                <div className="text-gray-500">{tRaidAchievements("aheadOfTheCurveShort")}</div>
-                <div className="text-xl font-bold tabular-nums text-gray-100">{account.account.raidAchievements?.aheadOfTheCurveCount ?? "-"}</div>
+                <RaidAchievementMetric
+                  type="ahead_of_the_curve"
+                  title={tRaidAchievements("aheadOfTheCurve")}
+                  shortTitle={tRaidAchievements("aheadOfTheCurveShort")}
+                  count={account.account.raidAchievements?.aheadOfTheCurveCount}
+                  achievements={accountAchievements.filter((achievement) => achievement.type === "ahead_of_the_curve")}
+                />
               </div>
               <div>
                 <div className="text-gray-500">Confidence</div>
