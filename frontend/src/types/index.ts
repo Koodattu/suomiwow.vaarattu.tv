@@ -1305,6 +1305,133 @@ export type CharacterRankingRow = {
   }>;
 };
 
+export type MythicPlusScoreBucket = "all" | "dps" | "healer" | "tank" | "spec_0" | "spec_1" | "spec_2" | "spec_3";
+
+export type MythicPlusScores = {
+  all: number;
+  dps: number;
+  healer: number;
+  tank: number;
+  spec_0: number;
+  spec_1: number;
+  spec_2: number;
+  spec_3: number;
+};
+
+export type MythicPlusDungeonOption = {
+  id: number;
+  challengeModeId?: number | null;
+  slug?: string | null;
+  name: string;
+  shortName?: string | null;
+  iconUrl?: string | null;
+};
+
+export type MythicPlusSeasonOption = {
+  slug: string;
+  name: string;
+  shortName?: string | null;
+  expansionId?: number | null;
+  dungeons: MythicPlusDungeonOption[];
+};
+
+export type MythicPlusOptionsResponse = {
+  seasons: MythicPlusSeasonOption[];
+  defaultSelection: {
+    season: string | null;
+  };
+};
+
+export type MythicPlusRunSummary = {
+  dungeonId: number;
+  challengeModeId?: number | null;
+  dungeonName: string;
+  dungeonShortName?: string | null;
+  dungeonIconUrl?: string | null;
+  mythicLevel: number;
+  score: number;
+  clearTimeMs?: number | null;
+  parTimeMs?: number | null;
+  completedAt?: string | null;
+  url?: string | null;
+};
+
+export type MythicPlusLeaderboardRow = {
+  rank: number;
+  character: {
+    id: string;
+    wclCanonicalCharacterId: number;
+    name: string;
+    realm: string;
+    region: string;
+    classID: number;
+    guild?: {
+      name: string;
+      realm: string;
+    } | null;
+  };
+  season: string;
+  score: {
+    bucket: MythicPlusScoreBucket;
+    value: number;
+  };
+  scores?: MythicPlusScores;
+  bestSpec?: {
+    name?: string | null;
+    slug?: string | null;
+    score: number;
+  } | null;
+  dungeon?: MythicPlusDungeonOption | null;
+  run?: {
+    keystoneRunId?: number | null;
+    mythicLevel: number;
+    score: number;
+    clearTimeMs?: number | null;
+    parTimeMs?: number | null;
+    upgrades?: number | null;
+    completedAt?: string | null;
+    url?: string | null;
+  } | null;
+  dungeonRuns: MythicPlusRunSummary[];
+  updatedAt?: string;
+};
+
+export type MythicPlusLeaderboardResponse = {
+  data: MythicPlusLeaderboardRow[];
+  pagination: {
+    totalItems: number;
+    totalRankedItems: number;
+    totalPages: number;
+    currentPage: number;
+    pageSize: number;
+  };
+};
+
+export type CharacterMythicPlusProfile = {
+  seasons: Array<{
+    season: string;
+    seasonName: string;
+    shortName?: string | null;
+    expansionId?: number | null;
+    scores: MythicPlusScores;
+    bestSpec?: {
+      name?: string | null;
+      slug?: string | null;
+      score: number;
+    } | null;
+    specScores: Array<{
+      field: MythicPlusScoreBucket;
+      specName?: string | null;
+      specSlug?: string | null;
+      role?: "dps" | "healer" | "tank" | null;
+      score: number;
+      color?: string | null;
+    }>;
+    dungeonRuns: MythicPlusRunSummary[];
+    fetchedAt: string;
+  }>;
+};
+
 export type GuildRaidCharacter = {
   wclCanonicalCharacterId: number | null;
   name: string;
@@ -1455,6 +1582,7 @@ export type CharacterProfileResponse = {
     deathDataAvailable: boolean;
     updatedAt?: string;
   }>;
+  mythicPlus: CharacterMythicPlusProfile;
 };
 
 export type CharacterProfileChoice = {

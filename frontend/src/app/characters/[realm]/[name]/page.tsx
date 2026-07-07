@@ -654,6 +654,121 @@ function CharacterChoiceCard({ choice }: { choice: CharacterProfileChoice }) {
   );
 }
 
+function formatMythicPlusTime(ms?: number | null) {
+  if (!ms || !Number.isFinite(ms) || ms <= 0) return "-";
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function MythicPlusRunTile({ run }: { run: CharacterProfileResponse["mythicPlus"]["seasons"][number]["dungeonRuns"][number] }) {
+  const content = (
+    <>
+      <IconImage iconFilename={run.dungeonIconUrl ?? undefined} alt={run.dungeonName} width={26} height={26} className="h-[26px] w-[26px] rounded object-cover" />
+      <div className="max-w-full truncate text-xs font-semibold text-gray-300">{run.dungeonShortName || run.dungeonName}</div>
+      <div className="text-sm font-bold tabular-nums text-gray-100">+{run.mythicLevel}</div>
+      <div className="text-[11px] font-semibold tabular-nums text-gray-500">{formatMythicPlusTime(run.clearTimeMs)}</div>
+    </>
+  );
+  const className = `flex min-w-0 flex-col items-center justify-start gap-1 rounded-md px-2 py-2 ring-1 ring-gray-800 ${run.url ? "transition-colors hover:bg-gray-800" : ""}`;
+
+  if (!run.url) {
+    return (
+      <div className={className} title={run.dungeonName}>
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <a href={run.url} target="_blank" rel="noopener noreferrer" className={className} title={run.dungeonName}>
+      {content}
+    </a>
+  );
+}
+
+function CharacterMythicPlusSection({ mythicPlus, classId }: { mythicPlus: CharacterProfileResponse["mythicPlus"]; classId: number }) {
+  const seasons = mythicPlus?.seasons ?? [];
+
+  return (
+    <section className="rounded-lg border border-gray-700 bg-gray-900">
+      <div className="border-b border-gray-700 px-4 py-3">
+        <h2 className="text-lg font-semibold text-white">Mythic+</h2>
+        <p className="text-sm text-gray-400">Season score and best dungeon runs from Raider.IO.</p>
+      </div>
+      {seasons.length ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1120px] border-collapse">
+            <colgroup>
+              <col className="w-[220px]" />
+              <col className="w-[112px]" />
+              <col className="w-[150px]" />
+              <col className="w-[190px]" />
+              <col />
+            </colgroup>
+            <thead>
+              <tr className="border-b border-gray-800 text-left text-xs font-semibold text-gray-400">
+                <th className="px-4 py-2.5">Season</th>
+                <th className="px-3 py-2.5 text-right">Score</th>
+                <th className="px-3 py-2.5 text-right">Best spec</th>
+                <th className="px-3 py-2.5 text-right">Roles</th>
+                <th className="px-3 py-2.5">Dungeons</th>
+              </tr>
+            </thead>
+            <tbody>
+              {seasons.map((season) => (
+                <tr key={season.season} className="border-b border-gray-800 last:border-0">
+                  <td className="px-4 py-4">
+                    <div className="font-semibold text-gray-100">{season.shortName || season.seasonName}</div>
+                    <div className="mt-0.5 text-xs text-gray-500">{season.season}</div>
+                  </td>
+                  <td className="px-3 py-4 text-right font-bold tabular-nums text-cyan-300">{formatNullableScore(season.scores.all)}</td>
+                  <td className="px-3 py-4 text-right">
+                    {season.bestSpec?.name ? (
+                      <span className="inline-flex items-center justify-end gap-1.5 font-semibold text-gray-200">
+                        <span>{season.bestSpec.name}</span>
+                        <span className="tabular-nums text-gray-500">{formatNullableScore(season.bestSpec.score)}</span>
+                        <IconImage
+                          iconFilename={season.bestSpec.slug ? getSpecIconUrl(classId, season.bestSpec.slug) : undefined}
+                          alt={season.bestSpec.name}
+                          width={18}
+                          height={18}
+                          className="h-[18px] w-[18px] rounded"
+                        />
+                      </span>
+                    ) : (
+                      <span className="text-gray-600">-</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-4 text-right text-xs font-semibold tabular-nums text-gray-300">
+                    <div>DPS {formatNullableScore(season.scores.dps)}</div>
+                    <div>Heal {formatNullableScore(season.scores.healer)}</div>
+                    <div>Tank {formatNullableScore(season.scores.tank)}</div>
+                  </td>
+                  <td className="px-3 py-3">
+                    {season.dungeonRuns.length ? (
+                      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(season.dungeonRuns.length, 1)}, minmax(92px, 1fr))` }}>
+                        {season.dungeonRuns.map((run) => (
+                          <MythicPlusRunTile key={`${season.season}-${run.dungeonId}`} run={run} />
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-600">No dungeon runs fetched</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="px-4 py-8 text-center text-gray-400">No Mythic+ data has been fetched for this character.</div>
+      )}
+    </section>
+  );
+}
+
 function CharacterChoicesView({ name, realm, choices }: { name: string; realm: string; choices: CharacterProfileChoice[] }) {
   return (
     <main className="min-h-screen px-4 py-8">
@@ -1046,6 +1161,8 @@ export default function CharacterProfilePage({ params }: PageProps) {
             </div>
           </div>
         </header>
+
+        <CharacterMythicPlusSection mythicPlus={profile.mythicPlus} classId={character.classID} />
 
         <section className="rounded-lg border border-gray-700 bg-gray-900">
           <div className="border-b border-gray-700 px-4 py-3">

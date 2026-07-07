@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useCharacterMechanics, useCharacterMechanicsOptions, useCharacterRankingOptions, useBosses, useCharacterRankings } from "@/lib/queries";
 import { RankingTableWrapper } from "@/components/RankingTableWrapper";
 import CharacterRankingsRaidPartitionSelector, { type CharacterRankingsSelection } from "@/components/CharacterRankingsRaidPartitionSelector";
+import MythicPlusLeaderboard from "@/components/MythicPlusLeaderboard";
 
 type Filters = {
   zoneId?: number;
@@ -19,7 +20,7 @@ type Filters = {
   scoreType?: "combined" | "survival";
 };
 
-type CharacterTab = "rankings" | "mechanics" | "combined";
+type CharacterTab = "rankings" | "mechanics" | "combined" | "mythic-plus";
 
 const CHARACTER_TABS: Array<{
   id: CharacterTab;
@@ -45,6 +46,12 @@ const CHARACTER_TABS: Array<{
     title: "Combined Score",
     description: "Combined parse and survival score by raid.",
   },
+  {
+    id: "mythic-plus",
+    label: "Mythic+",
+    title: "Mythic+ Leaderboard",
+    description: "Season score and dungeon best runs by character.",
+  },
 ];
 
 function buildQuery(filters: Filters) {
@@ -68,12 +75,13 @@ export default function CharacterRankingsPage() {
   // ─── React Query hooks ───────────────────────────────────────────────────────
 
   const isMechanicsBackedTab = activeTab === "mechanics" || activeTab === "combined";
+  const isMythicPlusTab = activeTab === "mythic-plus";
   const activeTabConfig = CHARACTER_TABS.find((tab) => tab.id === activeTab) ?? CHARACTER_TABS[0];
   const { data: rankingOptionsData, isLoading: rankingOptionsLoading, error: rankingOptionsError } = useCharacterRankingOptions();
   const { data: mechanicsOptionsData, isLoading: mechanicsOptionsLoading, error: mechanicsOptionsError } = useCharacterMechanicsOptions();
   const optionsData = isMechanicsBackedTab ? (mechanicsOptionsData ?? rankingOptionsData) : rankingOptionsData;
-  const optionsLoading = isMechanicsBackedTab ? mechanicsOptionsLoading && !rankingOptionsData : rankingOptionsLoading;
-  const optionsError = isMechanicsBackedTab ? (mechanicsOptionsError ?? rankingOptionsError) : rankingOptionsError;
+  const optionsLoading = isMythicPlusTab ? false : isMechanicsBackedTab ? mechanicsOptionsLoading && !rankingOptionsData : rankingOptionsLoading;
+  const optionsError = isMythicPlusTab ? null : isMechanicsBackedTab ? (mechanicsOptionsError ?? rankingOptionsError) : rankingOptionsError;
   const { data: bosses = [] } = useBosses(selectedRaidPartition?.zoneId ?? null);
 
   const queryFilters = useMemo<Filters>(() => {
@@ -168,30 +176,36 @@ export default function CharacterRankingsPage() {
               </button>
             ))}
           </div>
-          <CharacterRankingsRaidPartitionSelector
-            raids={raidOptions}
-            selected={selectedRaidPartition}
-            onChange={handleRaidPartitionChange}
-            label={isMechanicsBackedTab ? "Raid" : undefined}
-            showPartitions={!isMechanicsBackedTab}
-          />
+          {!isMythicPlusTab ? (
+            <CharacterRankingsRaidPartitionSelector
+              raids={raidOptions}
+              selected={selectedRaidPartition}
+              onChange={handleRaidPartitionChange}
+              label={isMechanicsBackedTab ? "Raid" : undefined}
+              showPartitions={!isMechanicsBackedTab}
+            />
+          ) : null}
         </div>
       </div>
 
-      <RankingTableWrapper
-        key={`${activeTab}-${selectedRaidPartition?.zoneId ?? "none"}`}
-        data={rows}
-        bosses={bosses}
-        variant={activeTab}
-        partitionOptions={[]}
-        showPartitionSelector={false}
-        loading={loading}
-        error={error}
-        pagination={pagination}
-        onFiltersChange={(newFilters) => {
-          setFilters((prev) => ({ ...prev, ...newFilters }));
-        }}
-      />
+      {isMythicPlusTab ? (
+        <MythicPlusLeaderboard />
+      ) : (
+        <RankingTableWrapper
+          key={`${activeTab}-${selectedRaidPartition?.zoneId ?? "none"}`}
+          data={rows}
+          bosses={bosses}
+          variant={activeTab}
+          partitionOptions={[]}
+          showPartitionSelector={false}
+          loading={loading}
+          error={error}
+          pagination={pagination}
+          onFiltersChange={(newFilters) => {
+            setFilters((prev) => ({ ...prev, ...newFilters }));
+          }}
+        />
+      )}
     </div>
   );
 }

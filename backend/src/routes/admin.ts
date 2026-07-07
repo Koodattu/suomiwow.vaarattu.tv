@@ -27,6 +27,7 @@ import characterService from "../services/character.service";
 import characterMechanicsService from "../services/character-mechanics.service";
 import characterRankingBackfillService from "../services/character-ranking-backfill.service";
 import characterAchievementService from "../services/character-achievement.service";
+import mythicPlusService from "../services/mythic-plus.service";
 import wclService from "../services/warcraftlogs.service";
 import wclUserAuthService from "../services/warcraftlogs-user-auth.service";
 import blizzardService from "../services/blizzard.service";
@@ -1946,6 +1947,16 @@ router.get("/character-ranking-backfill/status", async (req: Request, res: Respo
   }
 });
 
+router.get("/mythic-plus-crawler/status", async (_req: Request, res: Response) => {
+  try {
+    const status = await mythicPlusService.getStatus();
+    res.json(status);
+  } catch (error) {
+    logger.error("Error fetching Mythic+ crawler status:", error);
+    res.status(500).json({ error: "Failed to fetch Mythic+ crawler status" });
+  }
+});
+
 // ============================================================
 // CHARACTER ACHIEVEMENT ACCOUNT MATCHING
 // ============================================================
@@ -2673,6 +2684,34 @@ router.post("/trigger/backfill-character-rankings", async (req: Request, res: Re
   } catch (error) {
     logger.error("Error triggering character ranking backfill:", error);
     res.status(500).json({ error: "Failed to trigger character ranking backfill" });
+  }
+});
+
+// Queue and start Raider.IO Mythic+ score/run crawler
+router.post("/trigger/crawl-mythic-plus", async (req: Request, res: Response) => {
+  try {
+    const limitRaw = Number(req.body?.limit ?? 500);
+    const maxJobsRaw = Number(req.body?.maxJobs ?? 0);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 10000) : 500;
+    const maxJobs = Number.isFinite(maxJobsRaw) && maxJobsRaw > 0 ? Math.floor(maxJobsRaw) : undefined;
+    const result = await mythicPlusService.triggerCrawl({
+      limit,
+      maxJobs,
+      refreshProfiles: req.body?.refreshProfiles === true,
+      process: req.body?.process !== false,
+      syncStatic: req.body?.syncStatic !== false,
+    });
+
+    res.json({
+      success: true,
+      message: result.started
+        ? `Mythic+ crawler started: ${result.enqueue.queued} new profile job(s), ${result.enqueue.existing} existing/updated`
+        : `Mythic+ profile jobs queued: ${result.enqueue.queued} new, ${result.enqueue.existing} existing/updated`,
+      ...result,
+    });
+  } catch (error) {
+    logger.error("Error triggering Mythic+ crawler:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to trigger Mythic+ crawler" });
   }
 });
 

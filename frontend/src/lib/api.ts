@@ -66,6 +66,8 @@ import {
   GuildNetworkUniverse,
   CharacterRankingRow,
   CharacterRankingsFilterOptionsResponse,
+  MythicPlusLeaderboardResponse,
+  MythicPlusOptionsResponse,
   CharacterSearchResponse,
   GlobalSearchResponse,
   GuildRaidCharactersResponse,
@@ -1122,6 +1124,24 @@ export const api = {
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.error || "Failed to fetch character mechanics options");
+    }
+    return response.json();
+  },
+
+  async getMythicPlusOptions(): Promise<MythicPlusOptionsResponse> {
+    const response = await fetch(`${API_URL}/api/mythic-plus/options`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || "Failed to fetch Mythic+ options");
+    }
+    return response.json();
+  },
+
+  async getMythicPlusLeaderboard(queryString = ""): Promise<MythicPlusLeaderboardResponse> {
+    const response = await fetch(`${API_URL}/api/mythic-plus${queryString}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || "Failed to fetch Mythic+ leaderboard");
     }
     return response.json();
   },

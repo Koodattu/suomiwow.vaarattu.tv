@@ -16,6 +16,7 @@ import Report from "../models/Report";
 import logger from "../utils/logger";
 import { resolveRole, slugifySpecName } from "../utils/spec";
 import cacheService from "./cache.service";
+import mythicPlusService, { CharacterMythicPlusProfileResponse } from "./mythic-plus.service";
 import rateLimitService from "./rate-limit.service";
 import wclService from "./warcraftlogs.service";
 import mongoose from "mongoose";
@@ -305,6 +306,7 @@ export type CharacterProfileResponse = {
     deathDataAvailable: boolean;
     updatedAt?: Date;
   }>;
+  mythicPlus: CharacterMythicPlusProfileResponse;
 };
 
 export type CharacterProfileChoice = {
@@ -2628,6 +2630,7 @@ class CharacterService {
         }).lean()
       : null;
     const accountCharacters = accountGroup ? await this.buildAccountCharacters([...(accountGroup.members ?? [])]) : [];
+    const mythicPlus = profileCharacterDoc ? await mythicPlusService.getCharacterProfileMythicPlus(profileCharacterDoc._id) : { seasons: [] };
 
     return {
       type: "profile",
@@ -2707,6 +2710,7 @@ class CharacterService {
         deathDataAvailable: row.deathDataAvailable === true,
         updatedAt: row.updatedAt,
       })),
+      mythicPlus,
     };
   }
 

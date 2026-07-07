@@ -54,6 +54,10 @@ export const queryKeys = {
     options: ["characterMechanics", "options"] as const,
     list: (query: string) => ["characterMechanics", "list", query] as const,
   },
+  mythicPlus: {
+    options: ["mythicPlus", "options"] as const,
+    leaderboard: (query: string) => ["mythicPlus", "leaderboard", query] as const,
+  },
   characters: {
     search: (query: string) => ["characters", "search", query] as const,
   },
@@ -281,6 +285,22 @@ export function useCharacterMechanics(query: string, enabled: boolean = true) {
   return useQuery({
     queryKey: queryKeys.characterMechanics.list(query),
     queryFn: () => api.getCharacterMechanics(query),
+    enabled,
+  });
+}
+
+export function useMythicPlusOptions() {
+  return useQuery({
+    queryKey: queryKeys.mythicPlus.options,
+    queryFn: () => api.getMythicPlusOptions(),
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useMythicPlusLeaderboard(query: string, enabled: boolean = true) {
+  return useQuery({
+    queryKey: queryKeys.mythicPlus.leaderboard(query),
+    queryFn: () => api.getMythicPlusLeaderboard(query),
     enabled,
   });
 }
