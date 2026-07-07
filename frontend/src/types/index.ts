@@ -1543,10 +1543,11 @@ export interface ClearProgressionEntry {
   clearCount: number;
 }
 
-// Guild entry for distribution bucket tooltips (stripped - name and realm only)
+// Guild entry for distribution bucket tooltips
 export interface GuildDistributionEntry {
   name: string;
   realm: string;
+  value?: number;
 }
 
 // Pre-calculated distribution bucket
@@ -1587,8 +1588,10 @@ export interface RaidOverallAnalytics {
   guildsProgressing: number;
   pullCount: AnalyticsPullStats;
   timeSpent: AnalyticsTimeStats;
+  progressRaidTimeSpent?: AnalyticsTimeStats;
   pullDistribution?: Distribution;
   timeDistribution?: Distribution;
+  progressRaidTimeDistribution?: Distribution;
   weeklyProgression?: WeeklyProgressionEntry[];
 }
 
@@ -2310,6 +2313,8 @@ export interface AdminReport {
   endTime?: number;
   fightCount: number;
   fightsByDifficulty: AdminReportFightsByDifficulty;
+  importSource?: "manual_admin";
+  manualImportedAt?: string;
   createdAt: string;
   lastProcessed: string;
 }
@@ -2332,4 +2337,17 @@ export interface AdminDeleteReportResponse {
   message: string;
   deletedFights: number;
   reportCode: string;
+}
+
+export interface AdminImportReportResponse {
+  success: boolean;
+  message: string;
+  guildId: string;
+  guildName: string;
+  reportId: string;
+  reportCode: string;
+  alreadyImported: boolean;
+  totalFightCount: number;
+  trackedFightCount: number;
+  affectedRaidIds: number[];
 }

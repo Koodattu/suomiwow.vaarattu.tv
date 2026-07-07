@@ -599,7 +599,12 @@
     "killed": "killed",
     "progressing": "progressing",
     "noBossKills": "No guilds have killed this boss yet",
-    "showingOverallStatsForAllRaids": "Showing overall statistics for all raids"
+    "showingOverallStatsForAllRaids": "Showing overall statistics for all raids",
+    "pullDistribution": "Pull Distribution",
+    "progressTimeDistribution": "Progress Time (Combat)",
+    "progressTimeWithBreaksDistribution": "Progress Time + Breaks",
+    "noData": "No data",
+    "guildCount": "{count} guilds"
   },
   "comparePage": {
     "title": "Compare",

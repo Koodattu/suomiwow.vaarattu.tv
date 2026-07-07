@@ -107,6 +107,31 @@ interface CalculateGuildStatisticsOptions {
   createEvents?: boolean;
 }
 
+type GuildReportImportErrorCode = "guild_not_found" | "report_conflict" | "report_not_found" | "invalid_report" | "no_tracked_fights" | "wcl_fetch_failed";
+
+export class GuildReportImportError extends Error {
+  statusCode: number;
+  code: GuildReportImportErrorCode;
+
+  constructor(statusCode: number, code: GuildReportImportErrorCode, message: string) {
+    super(message);
+    this.name = "GuildReportImportError";
+    this.statusCode = statusCode;
+    this.code = code;
+  }
+}
+
+export interface GuildReportImportResult {
+  guildId: string;
+  guildName: string;
+  reportId: string;
+  reportCode: string;
+  alreadyImported: boolean;
+  totalFightCount: number;
+  trackedFightCount: number;
+  affectedRaidIds: number[];
+}
+
 type LatestReportDifficulty = "mythic" | "heroic" | "normal" | "lfr" | "unknown";
 
 interface LatestReportBossSummary {
@@ -825,6 +850,44 @@ class GuildService {
     }
 
     return raidIdByEncounterId;
+  }
+
+  private async getTrackedRaidIdByEncounterId(): Promise<Map<number, number>> {
+    const raidIdByEncounterId = new Map<number, number>();
+
+    for (const raidId of TRACKED_RAIDS) {
+      const raid = await this.getRaidData(raidId);
+      if (!raid?.bosses) continue;
+
+      for (const boss of raid.bosses) {
+        raidIdByEncounterId.set(boss.id, raidId);
+      }
+    }
+
+    return raidIdByEncounterId;
+  }
+
+  private inferReportZoneIdFromTrackedFights(report: any, raidIdByEncounterId: Map<number, number>): number {
+    if (!Array.isArray(report.fights)) {
+      return 0;
+    }
+
+    const pullsByRaidId = new Map<number, number>();
+    for (const fight of report.fights) {
+      const encounterId = Number(fight.encounterID);
+      const raidId = raidIdByEncounterId.get(encounterId);
+      if (!raidId) continue;
+
+      pullsByRaidId.set(raidId, (pullsByRaidId.get(raidId) || 0) + 1);
+    }
+
+    const [dominantRaidId] =
+      Array.from(pullsByRaidId.entries()).sort((a, b) => {
+        if (b[1] !== a[1]) return b[1] - a[1];
+        return b[0] - a[0];
+      })[0] || [];
+
+    return dominantRaidId || 0;
   }
 
   // Check if a fight is a duplicate based on unique characteristics with tolerance
@@ -2915,6 +2978,308 @@ class GuildService {
 
     guildLog.info(`Update complete: ${allReportsToFetch.length} reports processed, ${totalFightsSaved} new fights saved`);
     return totalFightsSaved > 0;
+  }
+
+  private getManualImportUserObjectId(importedByUserId?: mongoose.Types.ObjectId | string): mongoose.Types.ObjectId | undefined {
+    if (!importedByUserId) {
+      return undefined;
+    }
+
+    if (importedByUserId instanceof mongoose.Types.ObjectId) {
+      return importedByUserId;
+    }
+
+    return mongoose.Types.ObjectId.isValid(importedByUserId) ? new mongoose.Types.ObjectId(importedByUserId) : undefined;
+  }
+
+  private async persistManualReportForGuild(params: {
+    guild: IGuild;
+    report: any;
+    raidIdByEncounterId: Map<number, number>;
+    importedByUserId?: mongoose.Types.ObjectId | string;
+  }): Promise<Omit<GuildReportImportResult, "guildId" | "guildName" | "alreadyImported">> {
+    const { guild, report, raidIdByEncounterId } = params;
+    const guildLog = getGuildLogger(guild.name, guild.realm);
+    const guildObjectId = guild._id as mongoose.Types.ObjectId;
+    const reportCode = typeof report?.code === "string" ? report.code.trim() : "";
+    const fights = Array.isArray(report?.fights) ? report.fights : [];
+
+    if (!reportCode) {
+      throw new GuildReportImportError(400, "invalid_report", "Warcraft Logs returned a report without a code");
+    }
+
+    const reportStartTime = Number(report.startTime);
+    if (!Number.isFinite(reportStartTime) || reportStartTime <= 0) {
+      throw new GuildReportImportError(400, "invalid_report", "Warcraft Logs returned a report without a valid start time");
+    }
+
+    const trackedFights = fights.filter((fight: any) => raidIdByEncounterId.has(Number(fight.encounterID)));
+    if (trackedFights.length === 0) {
+      throw new GuildReportImportError(400, "no_tracked_fights", "Report does not contain any tracked raid boss fights");
+    }
+
+    const conflictingFight = await Fight.findOne({
+      reportCode,
+      guildId: { $ne: guildObjectId },
+    })
+      .select("guildId fightId")
+      .lean();
+
+    if (conflictingFight) {
+      throw new GuildReportImportError(409, "report_conflict", "Report fights are already stored for another guild");
+    }
+
+    const reportZoneId = this.inferReportZoneIdFromTrackedFights(report, raidIdByEncounterId);
+    const reportEndTimeValue = Number(report.endTime || 0);
+    const reportEndTime = Number.isFinite(reportEndTimeValue) && reportEndTimeValue > 0 ? reportEndTimeValue : 0;
+    const thirtyMinutesMs = 30 * 60 * 1000;
+    const isOngoing = !reportEndTime || Date.now() - reportEndTime < thirtyMinutesMs;
+    const manualImportedByUserId = this.getManualImportUserObjectId(params.importedByUserId);
+
+    const reportUpdateSet: Record<string, unknown> = {
+      code: reportCode,
+      guildId: guildObjectId,
+      zoneId: reportZoneId,
+      startTime: reportStartTime,
+      endTime: reportEndTime,
+      isOngoing,
+      fightCount: fights.length,
+      fightSequence: this.buildReportFightSequence(report),
+      lastProcessed: new Date(),
+      importSource: "manual_admin",
+      manualImportedAt: new Date(),
+    };
+
+    if (manualImportedByUserId) {
+      reportUpdateSet.manualImportedByUserId = manualImportedByUserId;
+    }
+
+    const trackedFightIds = Array.from(
+      new Set<number>(
+        trackedFights
+          .map((fight: any) => Number(fight.id ?? fight.fightId))
+          .filter((fightId: number): fightId is number => Number.isFinite(fightId)),
+      ),
+    ).sort((a, b) => a - b);
+
+    let deathsByFight = new Map<number, any[]>();
+    let deathEventsFetchedAt: Date | null = null;
+    if (this.fetchDeathEvents && trackedFightIds.length > 0) {
+      try {
+        const deathData = await wclService.getDeathEventsForReport(reportCode, trackedFightIds);
+        if (deathData.reportData?.report) {
+          const actors = deathData.reportData.report.masterData?.actors || [];
+          deathsByFight = wclService.parseDeathEventsByFight(deathData.reportData.report, actors, fights);
+          deathEventsFetchedAt = new Date();
+        }
+      } catch (error) {
+        guildLog.warn(`Failed to fetch deaths for manually imported report ${reportCode}:`, error instanceof Error ? error.message : "Unknown error");
+      }
+    }
+
+    const affectedRaidIds = new Set<number>();
+    const fightWrites: any[] = [];
+    const encounterPhases = Array.isArray(report.phases) ? report.phases : [];
+
+    for (const fight of trackedFights) {
+      const fightId = Number(fight.id ?? fight.fightId);
+      const encounterId = Number(fight.encounterID);
+      const fightZoneId = raidIdByEncounterId.get(encounterId) || reportZoneId;
+      const fightStartTime = Number(fight.startTime);
+      const fightEndTime = Number(fight.endTime);
+
+      if (!Number.isFinite(fightId) || !Number.isFinite(encounterId) || !fightZoneId || !Number.isFinite(fightStartTime) || !Number.isFinite(fightEndTime) || fightEndTime < fightStartTime) {
+        continue;
+      }
+
+      const difficulty = Number(fight.difficulty) || 0;
+      const bossPercent = Number(fight.bossPercentage || 0);
+      const fightPercent = Number(fight.fightPercentage || 0);
+      const duration = fightEndTime - fightStartTime;
+      const phaseInfo = wclService.determinePhaseInfo(fight, encounterPhases);
+      const deaths = deathsByFight.get(fightId) || [];
+      const deathEventsFetchUpdate =
+        deathEventsFetchedAt !== null
+          ? {
+              deaths,
+              deathEventsFetchStatus: "fetched",
+              deathEventsFetchedAt,
+            }
+          : {};
+
+      affectedRaidIds.add(fightZoneId);
+
+      fightWrites.push({
+        updateOne: {
+          filter: { reportCode, fightId },
+          update: {
+            $set: {
+              reportCode,
+              guildId: guildObjectId,
+              fightId,
+              zoneId: fightZoneId,
+              encounterID: encounterId,
+              encounterName: fight.name || `Boss ${encounterId}`,
+              difficulty,
+              isKill: fight.kill === true,
+              bossPercentage: Number.isFinite(bossPercent) ? bossPercent : 0,
+              fightPercentage: Number.isFinite(fightPercent) ? fightPercent : 0,
+              lastPhaseId: phaseInfo.lastPhase?.phaseId,
+              lastPhaseName: phaseInfo.lastPhase?.phaseName,
+              phaseTransitions: Array.isArray(fight.phaseTransitions)
+                ? fight.phaseTransitions.map((pt: any) => ({
+                    id: pt.id,
+                    startTime: pt.startTime,
+                    name: encounterPhases.find((ep: any) => ep.encounterID === encounterId)?.phases?.find((p: any) => p.id === pt.id)?.name,
+                  }))
+                : undefined,
+              progressDisplay: phaseInfo.progressDisplay,
+              ...deathEventsFetchUpdate,
+              reportStartTime,
+              reportEndTime,
+              fightStartTime,
+              fightEndTime,
+              duration,
+              timestamp: new Date(reportStartTime + fightStartTime),
+            },
+          },
+          upsert: true,
+        },
+      });
+    }
+
+    if (fightWrites.length === 0) {
+      throw new GuildReportImportError(400, "no_tracked_fights", "Report does not contain any valid tracked raid boss fights");
+    }
+
+    const storedReport = await Report.findOneAndUpdate(
+      { code: reportCode },
+      {
+        $set: reportUpdateSet,
+        $setOnInsert: {
+          charactersFetchStatus: "pending",
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+
+    if (!storedReport) {
+      throw new GuildReportImportError(500, "invalid_report", "Failed to store report metadata");
+    }
+
+    await Fight.bulkWrite(fightWrites, { ordered: false });
+
+    return {
+      reportId: (storedReport._id as mongoose.Types.ObjectId).toString(),
+      reportCode,
+      totalFightCount: fights.length,
+      trackedFightCount: fightWrites.length,
+      affectedRaidIds: Array.from(affectedRaidIds).sort((a, b) => a - b),
+    };
+  }
+
+  async importSpecificReportForGuild(guildId: string, reportCode: string, importedByUserId?: mongoose.Types.ObjectId | string): Promise<GuildReportImportResult> {
+    const trimmedReportCode = reportCode.trim();
+    const guild = await Guild.findById(guildId);
+
+    if (!guild) {
+      throw new GuildReportImportError(404, "guild_not_found", "Guild not found");
+    }
+
+    const guildObjectId = guild._id as mongoose.Types.ObjectId;
+    const guildIdString = guildObjectId.toString();
+    const existingReport = await Report.findOne({ code: trimmedReportCode }).select("_id code guildId fightCount").lean();
+
+    if (existingReport) {
+      const existingGuildId = existingReport.guildId?.toString();
+      if (existingGuildId && existingGuildId !== guildIdString) {
+        throw new GuildReportImportError(409, "report_conflict", "Report is already attributed to another guild");
+      }
+
+      const existingFightCount = await Fight.countDocuments({
+        reportCode: trimmedReportCode,
+        guildId: guildObjectId,
+      });
+
+      if (existingFightCount > 0) {
+        return {
+          guildId: guildIdString,
+          guildName: guild.name,
+          reportId: existingReport._id.toString(),
+          reportCode: trimmedReportCode,
+          alreadyImported: true,
+          totalFightCount: existingReport.fightCount || existingFightCount,
+          trackedFightCount: existingFightCount,
+          affectedRaidIds: [],
+        };
+      }
+    }
+
+    let wclReport: any = null;
+    try {
+      const reportData = await wclService.getReportByCodeAllDifficulties(trimmedReportCode);
+      wclReport = reportData.reportData?.report;
+
+      if (!wclReport && (await wclService.hasUserAuthConnected())) {
+        const userReportData = await wclService.getReportByCodeAllDifficulties(trimmedReportCode, { forceUserEndpoint: true });
+        wclReport = userReportData.reportData?.report;
+      }
+    } catch (error) {
+      getGuildLogger(guild.name, guild.realm).warn(`Failed to fetch manually imported report ${trimmedReportCode}:`, error instanceof Error ? error.message : "Unknown error");
+      throw new GuildReportImportError(502, "wcl_fetch_failed", "Failed to fetch Warcraft Logs report");
+    }
+
+    if (!wclReport) {
+      throw new GuildReportImportError(404, "report_not_found", "Warcraft Logs report was not found or is not accessible");
+    }
+
+    const canonicalReportCode = typeof wclReport.code === "string" ? wclReport.code.trim() : trimmedReportCode;
+    if (canonicalReportCode !== trimmedReportCode) {
+      const canonicalExistingReport = await Report.findOne({ code: canonicalReportCode }).select("_id guildId").lean();
+      const canonicalGuildId = canonicalExistingReport?.guildId?.toString();
+      if (canonicalExistingReport && canonicalGuildId !== guildIdString) {
+        throw new GuildReportImportError(409, "report_conflict", "Report is already attributed to another guild");
+      }
+    }
+
+    const raidIdByEncounterId = await this.getTrackedRaidIdByEncounterId();
+    const persisted = await this.persistManualReportForGuild({
+      guild,
+      report: wclReport,
+      raidIdByEncounterId,
+      importedByUserId,
+    });
+
+    for (const raidId of persisted.affectedRaidIds) {
+      await this.calculateGuildStatistics(guild, raidId, { createEvents: false });
+    }
+
+    if (wclReport.endTime) {
+      const importedReportEnd = new Date(Number(wclReport.endTime));
+      if (!Number.isNaN(importedReportEnd.getTime()) && (!guild.lastLogEndTime || importedReportEnd > guild.lastLogEndTime)) {
+        guild.lastLogEndTime = importedReportEnd;
+      }
+    }
+
+    guild.lastFetched = new Date();
+    await guild.save();
+
+    for (const raidId of persisted.affectedRaidIds) {
+      await this.calculateGuildRankingsForRaid(raidId);
+    }
+
+    await Promise.all([
+      cacheService.invalidateGuildSpecificCaches(guild.realm, guild.name),
+      cacheService.invalidate(cacheService.getGuildListKey()),
+      ...persisted.affectedRaidIds.map((raidId) => cacheService.invalidateRaidCaches(raidId)),
+    ]);
+
+    return {
+      guildId: guildIdString,
+      guildName: guild.name,
+      alreadyImported: false,
+      ...persisted,
+    };
   }
 
   // Calculate guild statistics from database fights

@@ -599,7 +599,12 @@
     "killed": "tappanut",
     "progressing": "edistymässä",
     "noBossKills": "Yksikään kilta ei ole vielä tappanut tätä bossia",
-    "showingOverallStatsForAllRaids": "Näytetään kokonaistilastot kaikille raideille"
+    "showingOverallStatsForAllRaids": "Näytetään kokonaistilastot kaikille raideille",
+    "pullDistribution": "Yritysten jakauma",
+    "progressTimeDistribution": "Edistymisaika (taistelu)",
+    "progressTimeWithBreaksDistribution": "Edistymisaika + tauot",
+    "noData": "Ei dataa",
+    "guildCount": "{count} kiltaa"
   },
   "comparePage": {
     "title": "Vertailu",

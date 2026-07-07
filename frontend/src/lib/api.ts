@@ -108,6 +108,7 @@ import {
   AdminRaidOption,
   AdminGuildReportsResponse,
   AdminDeleteReportResponse,
+  AdminImportReportResponse,
   RaidCompare,
 } from "@/types";
 
@@ -1819,6 +1820,20 @@ export async function getAdminGuildReports(guildId: string): Promise<AdminGuildR
     credentials: "include",
   });
   if (!response.ok) throw new Error("Failed to fetch guild reports");
+  return response.json();
+}
+
+export async function importAdminGuildReport(guildId: string, reportCode: string): Promise<AdminImportReportResponse> {
+  const response = await fetch(`${API_URL}/api/admin/guilds/${guildId}/reports/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ reportCode }),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || "Failed to import report");
+  }
   return response.json();
 }
 

@@ -17,6 +17,10 @@ function formatTime(seconds: number): string {
   return `${hours}h ${minutes}m`;
 }
 
+function formatPullCount(value: number): string {
+  return `${Math.round(value)}`;
+}
+
 // Format date for display
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("en-US", {
@@ -66,12 +70,22 @@ function CompactStat({ label, average, min, max, formatValue }: { label: string;
 }
 
 // Distribution chart - bar chart showing guild count in pre-calculated buckets
-function DistributionChart({ buckets, title }: { buckets: { label: string; count: number; guilds: GuildDistributionEntry[] }[]; title: string }) {
+function DistributionChart({
+  buckets,
+  title,
+  valueFormatter = formatPullCount,
+}: {
+  buckets: { label: string; count: number; guilds: GuildDistributionEntry[] }[];
+  title: string;
+  valueFormatter?: (value: number) => string;
+}) {
+  const t = useTranslations("raidAnalyticsPage");
+
   if (!buckets || buckets.length === 0) {
     return (
       <div className="p-3">
         <div className="text-xs uppercase tracking-wider text-gray-500 mb-2">{title}</div>
-        <div className="text-xs text-gray-600">No data</div>
+        <div className="text-xs text-gray-600">{t("noData")}</div>
       </div>
     );
   }
@@ -92,12 +106,15 @@ function DistributionChart({ buckets, title }: { buckets: { label: string; count
                 return (
                   <div className="bg-gray-950 border border-gray-700 rounded px-2 py-1.5 text-xs max-w-xs">
                     <div className="text-white font-bold mb-1">{data.label}</div>
-                    <div className="text-blue-400 mb-1">{data.count} guilds</div>
+                    <div className="text-blue-400 mb-1">{t("guildCount", { count: data.count })}</div>
                     {data.guilds && Array.isArray(data.guilds) && data.guilds.length > 0 && (
                       <div className="text-gray-400 text-[10px] max-h-32 overflow-y-auto">
                         {data.guilds.map((guild: GuildDistributionEntry, idx: number) => (
-                          <div key={idx} className="truncate">
-                            {guild.name}-{guild.realm}
+                          <div key={idx} className="flex min-w-0 items-center justify-between gap-3">
+                            <span className="truncate">
+                              {guild.name}-{guild.realm}
+                            </span>
+                            {typeof guild.value === "number" && <span className="shrink-0 text-gray-500 tabular-nums">{valueFormatter(guild.value)}</span>}
                           </div>
                         ))}
                       </div>
@@ -121,11 +138,13 @@ function DistributionChart({ buckets, title }: { buckets: { label: string; count
 
 // Compact progression chart using pre-calculated weekly data
 function ProgressionChart({ weeklyData, label }: { weeklyData: WeeklyProgressionEntry[]; label: string }) {
+  const t = useTranslations("raidAnalyticsPage");
+
   if (!weeklyData || weeklyData.length === 0) {
     return (
       <div className="p-3">
         <div className="text-xs uppercase tracking-wider text-gray-500 mb-2">{label}</div>
-        <div className="text-xs text-gray-600">No data available</div>
+        <div className="text-xs text-gray-600">{t("noData")}</div>
       </div>
     );
   }
@@ -164,10 +183,11 @@ function ProgressionChart({ weeklyData, label }: { weeklyData: WeeklyProgression
   );
 }
 
-// Stats section with 3 charts in a single row
+// Stats section with distribution and progression charts
 function StatsSection({
   pullDistribution,
   timeDistribution,
+  progressRaidTimeDistribution,
   weeklyProgression,
   progressionLabel,
   raidStart,
@@ -175,23 +195,34 @@ function StatsSection({
 }: {
   pullDistribution?: Distribution;
   timeDistribution?: Distribution;
+  progressRaidTimeDistribution?: Distribution;
   weeklyProgression?: WeeklyProgressionEntry[];
   progressionLabel: string;
   raidStart?: string;
   raidEnd?: string;
 }) {
+  const t = useTranslations("raidAnalyticsPage");
+
   // Handle undefined or missing distribution data
   const safePullDistribution = pullDistribution?.buckets ?? [];
   const safeTimeDistribution = timeDistribution?.buckets ?? [];
+  const safeProgressRaidTimeDistribution = progressRaidTimeDistribution?.buckets ?? [];
   const safeWeeklyProgression = clampWeeklyProgression(weeklyProgression ?? [], raidStart, raidEnd);
+  const hasProgressRaidTimeDistribution = safeProgressRaidTimeDistribution.length > 0;
+  const gridClassName = hasProgressRaidTimeDistribution ? "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4" : "grid grid-cols-1 gap-4 lg:grid-cols-3";
 
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className={gridClassName}>
       {/* Pull Distribution Chart */}
-      <DistributionChart buckets={safePullDistribution} title="Pull Distribution" />
+      <DistributionChart buckets={safePullDistribution} title={t("pullDistribution")} valueFormatter={formatPullCount} />
 
       {/* Time Distribution Chart */}
-      <DistributionChart buckets={safeTimeDistribution} title="Time Distribution" />
+      <DistributionChart buckets={safeTimeDistribution} title={t("progressTimeDistribution")} valueFormatter={formatTime} />
+
+      {/* Progress Raid Time Distribution Chart */}
+      {hasProgressRaidTimeDistribution && (
+        <DistributionChart buckets={safeProgressRaidTimeDistribution} title={t("progressTimeWithBreaksDistribution")} valueFormatter={formatTime} />
+      )}
 
       {/* Progression Chart */}
       <ProgressionChart weeklyData={safeWeeklyProgression} label={progressionLabel} />
@@ -332,6 +363,7 @@ export default function RaidAnalyticsPage() {
             <StatsSection
               pullDistribution={analytics.overall.pullDistribution}
               timeDistribution={analytics.overall.timeDistribution}
+              progressRaidTimeDistribution={analytics.overall.progressRaidTimeDistribution}
               weeklyProgression={analytics.overall.weeklyProgression}
               progressionLabel={t("clearProgression")}
               raidStart={analytics.raidStart}
@@ -456,6 +488,7 @@ export default function RaidAnalyticsPage() {
                 <StatsSection
                   pullDistribution={raidAnalytics.overall.pullDistribution}
                   timeDistribution={raidAnalytics.overall.timeDistribution}
+                  progressRaidTimeDistribution={raidAnalytics.overall.progressRaidTimeDistribution}
                   weeklyProgression={raidAnalytics.overall.weeklyProgression}
                   progressionLabel={t("clearProgression")}
                   raidStart={raidAnalytics.raidStart}

@@ -19,10 +19,13 @@ interface GuildRaidData {
   guildRealm: string;
   totalPulls: number;
   totalTimeSpent: number;
+  progressRaidTimeSpent: number;
   bossesKilled: number;
   totalBosses: number;
   lastBossKillTime?: Date;
 }
+
+type DistributionValueKey = "pullCount" | "timeSpent" | "progressRaidTimeSpent";
 
 /** Internal type for distribution calculation that includes values */
 interface IGuildEntryWithValues {
@@ -30,6 +33,7 @@ interface IGuildEntryWithValues {
   realm: string;
   pullCount: number;
   timeSpent: number;
+  progressRaidTimeSpent?: number;
 }
 
 /**
@@ -41,6 +45,63 @@ function formatTime(seconds: number): string {
   const minutes = Math.floor((seconds % 3600) / 60);
   if (hours === 0) return `${minutes}m`;
   return `${hours}h ${minutes}m`;
+}
+
+function isTimeDistribution(valueKey: DistributionValueKey): boolean {
+  return valueKey === "timeSpent" || valueKey === "progressRaidTimeSpent";
+}
+
+function getNiceNumberStep(rawStep: number): number {
+  if (!Number.isFinite(rawStep) || rawStep <= 1) return 1;
+
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const normalized = rawStep / magnitude;
+  const multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
+
+  return Math.max(1, Math.ceil(multiplier * magnitude));
+}
+
+function getNiceTimeStep(rawStep: number): number {
+  const niceTimeSteps = [
+    5 * 60,
+    10 * 60,
+    15 * 60,
+    30 * 60,
+    60 * 60,
+    2 * 60 * 60,
+    3 * 60 * 60,
+    4 * 60 * 60,
+    6 * 60 * 60,
+    8 * 60 * 60,
+    12 * 60 * 60,
+    24 * 60 * 60,
+    48 * 60 * 60,
+    72 * 60 * 60,
+    7 * 24 * 60 * 60,
+    14 * 24 * 60 * 60,
+  ];
+
+  return niceTimeSteps.find((step) => step >= rawStep) ?? getNiceNumberStep(rawStep);
+}
+
+function getDistributionStep(rawStep: number, valueKey: DistributionValueKey): number {
+  return isTimeDistribution(valueKey) ? getNiceTimeStep(rawStep) : getNiceNumberStep(rawStep);
+}
+
+function formatDistributionValue(value: number, valueKey: DistributionValueKey): string {
+  return isTimeDistribution(valueKey) ? formatTime(Math.floor(value)) : `${Math.floor(value)}`;
+}
+
+function formatDistributionLabel(start: number, endExclusive: number, valueKey: DistributionValueKey): string {
+  if (valueKey === "pullCount") {
+    const labelStart = Math.max(0, Math.ceil(start));
+    const labelEnd = Math.max(labelStart, Math.ceil(endExclusive) - 1);
+    return labelStart === labelEnd ? `${labelStart}` : `${labelStart}-${labelEnd}`;
+  }
+
+  const labelStart = Math.max(0, Math.floor(start));
+  const labelEnd = Math.max(labelStart, Math.ceil(endExclusive));
+  return labelStart === labelEnd ? formatTime(labelStart) : `${formatTime(labelStart)}-${formatTime(labelEnd)}`;
 }
 
 class RaidAnalyticsService {
@@ -112,11 +173,14 @@ class RaidAnalyticsService {
         }
 
         if (totalPulls > 0) {
+          const progressRaidTimeSpent = Math.max(mythicProgress.progressRaidTimeSpent ?? 0, totalTimeSpent);
+
           guildRaidDataList.push({
             guildName: guild.name,
             guildRealm: guild.realm,
             totalPulls,
             totalTimeSpent,
+            progressRaidTimeSpent,
             bossesKilled,
             totalBosses,
             lastBossKillTime: bossesKilled === totalBosses ? lastBossKillTime : undefined,
@@ -226,95 +290,83 @@ class RaidAnalyticsService {
   }
 
   /**
-   * Calculate quantile-based distribution buckets
-   * Mirrors the frontend bucketing logic exactly
-   * Takes guilds with values for calculation, outputs stripped guild entries (name/realm only)
+   * Calculate rounded value-range distribution buckets.
+   * Bucket widths represent metric ranges; counts show how many guilds fall into each range.
    */
-  private calculateDistribution(guilds: IGuildEntryWithValues[], valueKey: "pullCount" | "timeSpent"): IDistribution {
+  private calculateDistribution(guilds: IGuildEntryWithValues[], valueKey: DistributionValueKey): IDistribution {
     if (guilds.length === 0) {
       return { buckets: [] };
     }
 
-    const values = guilds.map((g) => g[valueKey]);
+    const guildsWithValues = guilds
+      .map((guild) => ({ guild, value: guild[valueKey] }))
+      .filter((entry): entry is { guild: IGuildEntryWithValues; value: number } => typeof entry.value === "number" && Number.isFinite(entry.value) && entry.value >= 0)
+      .sort((a, b) => a.value - b.value);
+
+    if (guildsWithValues.length === 0) {
+      return { buckets: [] };
+    }
+
+    const values = guildsWithValues.map((entry) => entry.value);
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
     const range = maxValue - minValue;
 
-    const numGuilds = guilds.length;
+    const numGuilds = guildsWithValues.length;
     const targetBuckets = numGuilds < 5 ? numGuilds : 5;
 
-    // Helper to strip guild entries to name/realm only
-    const stripGuilds = (guildList: IGuildEntryWithValues[]): IGuildEntry[] => guildList.map((g) => ({ name: g.name, realm: g.realm }));
+    const stripGuilds = (guildList: { guild: IGuildEntryWithValues; value: number }[]): IGuildEntry[] =>
+      guildList.map(({ guild, value }) => ({ name: guild.name, realm: guild.realm, value: Math.round(value) }));
 
-    // Single bucket case: all guilds have same value or few guilds
+    // Single bucket case: all guilds have the same value or only one guild has data.
     if (range === 0 || targetBuckets === 1) {
-      const label = valueKey === "timeSpent" ? formatTime(Math.floor(minValue)) : `${Math.floor(minValue)}`;
+      const label = formatDistributionValue(minValue, valueKey);
 
       return {
         buckets: [
           {
             label,
-            count: guilds.length,
-            guilds: stripGuilds(guilds),
+            count: guildsWithValues.length,
+            guilds: stripGuilds(guildsWithValues),
           },
         ],
       };
     }
 
-    // Sort guilds by value for quantile calculation
-    const sortedGuilds = [...guilds].sort((a, b) => a[valueKey] - b[valueKey]);
+    let step = getDistributionStep(range / targetBuckets, valueKey);
+    let bucketStart = Math.max(0, Math.floor(minValue / step) * step);
+    let bucketCount = Math.max(1, Math.ceil((maxValue - bucketStart + 1) / step));
 
-    // Calculate quantile boundaries
-    const bucketBoundaries: number[] = [minValue];
-    for (let i = 1; i < targetBuckets; i++) {
-      const quantileIndex = Math.floor((i / targetBuckets) * sortedGuilds.length);
-      bucketBoundaries.push(sortedGuilds[quantileIndex][valueKey]);
-    }
-    bucketBoundaries.push(maxValue + 1);
+    for (let guard = 0; bucketCount > targetBuckets + 1 && guard < 8; guard++) {
+      const nextStep = getDistributionStep(step * 1.01, valueKey);
+      if (nextStep <= step) break;
 
-    // Create buckets based on quantile boundaries
-    const buckets: { min: number; max: number; guilds: IGuildEntryWithValues[]; sortValue: number }[] = [];
-
-    for (let i = 0; i < targetBuckets; i++) {
-      const bucketMin = bucketBoundaries[i];
-      const bucketMax = bucketBoundaries[i + 1];
-
-      const guildsInBucket = sortedGuilds.filter((guild) => guild[valueKey] >= bucketMin && guild[valueKey] < bucketMax);
-
-      // For last bucket, include guilds at max boundary
-      if (i === targetBuckets - 1) {
-        guildsInBucket.push(...sortedGuilds.filter((guild) => guild[valueKey] === bucketMax - 1 && !guildsInBucket.includes(guild)));
-      }
-
-      buckets.push({
-        min: bucketMin,
-        max: bucketMax - 1,
-        guilds: guildsInBucket,
-        sortValue: guildsInBucket[0]?.[valueKey] ?? 0,
-      });
+      step = nextStep;
+      bucketStart = Math.max(0, Math.floor(minValue / step) * step);
+      bucketCount = Math.max(1, Math.ceil((maxValue - bucketStart + 1) / step));
     }
 
-    // Convert to final format with labels and stripped guilds
-    const resultBuckets = buckets
-      .filter((bucket) => bucket.guilds.length > 0)
-      .map((bucket) => {
-        let label: string;
-        if (valueKey === "timeSpent") {
-          const bucketAverage = (bucket.min + bucket.max) / 2;
-          label = formatTime(Math.floor(bucketAverage));
-        } else {
-          label = `${Math.floor(bucket.min)}-${Math.floor(bucket.max)}`;
-        }
+    const buckets = Array.from({ length: bucketCount }, (_, index) => {
+      const min = bucketStart + index * step;
+      const maxExclusive = min + step;
 
-        return {
-          label,
-          count: bucket.guilds.length,
-          guilds: stripGuilds(bucket.guilds),
-          sortValue: bucket.sortValue,
-        };
-      })
-      .sort((a, b) => a.sortValue - b.sortValue)
-      .map(({ label, count, guilds }) => ({ label, count, guilds }));
+      return {
+        min,
+        maxExclusive,
+        guilds: [] as { guild: IGuildEntryWithValues; value: number }[],
+      };
+    });
+
+    for (const entry of guildsWithValues) {
+      const bucketIndex = Math.max(0, Math.min(bucketCount - 1, Math.floor((entry.value - bucketStart) / step)));
+      buckets[bucketIndex].guilds.push(entry);
+    }
+
+    const resultBuckets = buckets.map((bucket) => ({
+      label: formatDistributionLabel(bucket.min, bucket.maxExclusive, valueKey),
+      count: bucket.guilds.length,
+      guilds: stripGuilds(bucket.guilds),
+    }));
 
     return { buckets: resultBuckets };
   }
@@ -417,17 +469,36 @@ class RaidAnalyticsService {
       };
     }
 
+    // Progress raid time stats include breaks between valid progression pulls.
+    let progressRaidTimeStats = {
+      average: 0,
+      lowest: 0,
+      highest: 0,
+    } as IRaidOverallAnalytics["progressRaidTimeSpent"];
+
+    if (clearedGuilds.length > 0) {
+      const times = clearedGuilds.map((g) => g.progressRaidTimeSpent);
+
+      progressRaidTimeStats = {
+        average: Math.round(times.reduce((a, b) => a + b, 0) / times.length),
+        lowest: Math.min(...times),
+        highest: Math.max(...times),
+      };
+    }
+
     // Create internal guild entries with values for distribution calculation
     const guildEntriesWithValues: IGuildEntryWithValues[] = clearedGuilds.map((g) => ({
       name: g.guildName,
       realm: g.guildRealm,
       pullCount: g.totalPulls,
       timeSpent: g.totalTimeSpent,
+      progressRaidTimeSpent: g.progressRaidTimeSpent,
     }));
 
     // Calculate distributions
     const pullDistribution = this.calculateDistribution(guildEntriesWithValues, "pullCount");
     const timeDistribution = this.calculateDistribution(guildEntriesWithValues, "timeSpent");
+    const progressRaidTimeDistribution = this.calculateDistribution(guildEntriesWithValues, "progressRaidTimeSpent");
 
     // Calculate weekly clear progression
     const clearDates = clearedGuilds.filter((g) => g.lastBossKillTime).map((g) => g.lastBossKillTime!);
@@ -438,8 +509,10 @@ class RaidAnalyticsService {
       guildsProgressing: progressingGuilds.length,
       pullCount: pullStats,
       timeSpent: timeStats,
+      progressRaidTimeSpent: progressRaidTimeStats,
       pullDistribution,
       timeDistribution,
+      progressRaidTimeDistribution,
       weeklyProgression,
     };
   }

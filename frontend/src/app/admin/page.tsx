@@ -44,6 +44,7 @@ import {
   queueGuildBackfillReportCharacters,
   verifyGuildReports,
   getAdminGuildReports,
+  importAdminGuildReport,
   deleteAdminReport,
   getAdminRaids,
 } from "@/lib/api";
@@ -243,6 +244,8 @@ export default function AdminPage() {
   const [showReportManagement, setShowReportManagement] = useState(false);
   const [guildReports, setGuildReports] = useState<AdminGuildReportsResponse | null>(null);
   const [reportsLoading, setReportsLoading] = useState(false);
+  const [manualReportCode, setManualReportCode] = useState("");
+  const [manualReportImporting, setManualReportImporting] = useState(false);
   const [deletingReportId, setDeletingReportId] = useState<string | null>(null);
   const [reportDeleteConfirm, setReportDeleteConfirm] = useState<{ id: string; code: string; fightCount: number } | null>(null);
 
@@ -865,6 +868,7 @@ export default function AdminPage() {
     setShowReportManagement(true);
     setGuildReports(null);
     setReportDeleteConfirm(null);
+    setManualReportCode("");
     try {
       const data = await getAdminGuildReports(guildId);
       setGuildReports(data);
@@ -872,6 +876,38 @@ export default function AdminPage() {
       console.error("Failed to fetch guild reports:", error);
     } finally {
       setReportsLoading(false);
+    }
+  };
+
+  const handleImportReport = async (guildId: string) => {
+    const reportCode = manualReportCode.trim();
+    if (!reportCode) {
+      setTriggerMessage({ type: "error", text: "Enter a report code" });
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9]+$/.test(reportCode)) {
+      setTriggerMessage({ type: "error", text: "Report code can only contain letters and numbers" });
+      return;
+    }
+
+    setManualReportImporting(true);
+    try {
+      const result = await importAdminGuildReport(guildId, reportCode);
+      setTriggerMessage({ type: "success", text: result.message });
+      setManualReportCode("");
+
+      const [reports, detail] = await Promise.all([getAdminGuildReports(guildId), getAdminGuildDetail(guildId)]);
+      setGuildReports(reports);
+      setSelectedGuild(detail);
+      setTimeout(() => setTriggerMessage(null), 5000);
+    } catch (error) {
+      setTriggerMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to import report",
+      });
+    } finally {
+      setManualReportImporting(false);
     }
   };
 
@@ -4218,6 +4254,7 @@ export default function AdminPage() {
                     setShowReportManagement(false);
                     setGuildReports(null);
                     setReportDeleteConfirm(null);
+                    setManualReportCode("");
                   }}
                   className="text-gray-400 hover:text-white text-2xl"
                 >
@@ -4227,6 +4264,32 @@ export default function AdminPage() {
 
               {/* Modal Content */}
               <div className="p-4">
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    handleImportReport(selectedGuild.id);
+                  }}
+                  className="mb-4 rounded-lg border border-gray-700 bg-gray-900/40 p-3"
+                >
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Add WCL Report</label>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="text"
+                      value={manualReportCode}
+                      onChange={(event) => setManualReportCode(event.target.value)}
+                      placeholder="Report code"
+                      className="min-w-0 flex-1 rounded border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-amber-500 focus:outline-none disabled:opacity-60"
+                      disabled={manualReportImporting}
+                    />
+                    <button
+                      type="submit"
+                      disabled={manualReportImporting || !manualReportCode.trim()}
+                      className="rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {manualReportImporting ? "Adding..." : "Add Report"}
+                    </button>
+                  </div>
+                </form>
                 {reportsLoading ? (
                   <div className="text-center py-8 text-gray-400">Loading reports...</div>
                 ) : guildReports ? (
@@ -4272,14 +4335,17 @@ export default function AdminPage() {
                                   return (
                                     <tr key={report.id} className="border-t border-gray-700 hover:bg-gray-700/30">
                                       <td className="px-4 py-2">
-                                        <a
-                                          href={`https://www.warcraftlogs.com/reports/${report.code}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-amber-400 hover:text-amber-300 underline"
-                                        >
-                                          {report.code}
-                                        </a>
+                                        <div className="flex min-w-0 items-center gap-2">
+                                          <a
+                                            href={`https://www.warcraftlogs.com/reports/${report.code}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="truncate text-amber-400 hover:text-amber-300 underline"
+                                          >
+                                            {report.code}
+                                          </a>
+                                          {report.importSource === "manual_admin" && <span className="shrink-0 rounded bg-amber-900/60 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">Manual</span>}
+                                        </div>
                                       </td>
                                       <td className="px-4 py-2 text-gray-300">{reportDate}</td>
                                       <td className="px-4 py-2 text-center text-white">{report.fightCount}</td>

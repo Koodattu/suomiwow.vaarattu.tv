@@ -22,7 +22,7 @@ import GuildProcessingQueue, { ProcessingStatus } from "../models/GuildProcessin
 import taskTracker from "../services/task-tracker.service";
 import logger from "../utils/logger";
 import scheduler from "../services/scheduler.service";
-import guildService from "../services/guild.service";
+import guildService, { GuildReportImportError } from "../services/guild.service";
 import characterService from "../services/character.service";
 import characterMechanicsService from "../services/character-mechanics.service";
 import characterRankingBackfillService from "../services/character-ranking-backfill.service";
@@ -946,6 +946,8 @@ router.get("/guilds/:guildId/reports", async (req: Request, res: Response) => {
           endTime: report.endTime,
           fightCount,
           fightsByDifficulty,
+          importSource: report.importSource,
+          manualImportedAt: report.manualImportedAt,
           createdAt: report.createdAt,
           lastProcessed: report.lastProcessed,
         };
@@ -967,6 +969,39 @@ router.get("/guilds/:guildId/reports", async (req: Request, res: Response) => {
   } catch (error) {
     logger.error("Error fetching guild reports:", error);
     res.status(500).json({ error: "Failed to fetch guild reports" });
+  }
+});
+
+// Import a specific Warcraft Logs report code and attribute it to this guild.
+router.post("/guilds/:guildId/reports/import", async (req: Request, res: Response) => {
+  try {
+    const { guildId } = req.params;
+    const reportCode = typeof req.body?.reportCode === "string" ? req.body.reportCode.trim() : "";
+
+    if (!/^[a-zA-Z0-9]+$/.test(reportCode)) {
+      return res.status(400).json({ error: "A valid report code is required" });
+    }
+
+    const adminUser = (req as any).user;
+    const result = await guildService.importSpecificReportForGuild(guildId, reportCode, adminUser?._id);
+
+    res.json({
+      success: true,
+      message: result.alreadyImported
+        ? `Report ${result.reportCode} is already stored for ${result.guildName}`
+        : `Report ${result.reportCode} imported for ${result.guildName} with ${result.trackedFightCount} tracked fights`,
+      ...result,
+    });
+  } catch (error) {
+    if (error instanceof GuildReportImportError) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+        code: error.code,
+      });
+    }
+
+    logger.error("Error importing guild report:", error);
+    res.status(500).json({ error: "Failed to import report" });
   }
 });
 

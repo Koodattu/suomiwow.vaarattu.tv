@@ -4,6 +4,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IGuildEntry {
   name: string;
   realm: string;
+  value?: number;
 }
 
 // Pre-calculated distribution bucket
@@ -62,9 +63,15 @@ export interface IRaidOverallAnalytics {
     lowest: number;
     highest: number;
   };
+  progressRaidTimeSpent: {
+    average: number; // in seconds, includes breaks between progression pulls
+    lowest: number;
+    highest: number;
+  };
   // Pre-calculated distributions
   pullDistribution: IDistribution;
   timeDistribution: IDistribution;
+  progressRaidTimeDistribution: IDistribution;
   // Pre-calculated weekly progression
   weeklyProgression: IWeeklyProgressionEntry[];
 }
@@ -86,6 +93,7 @@ const GuildEntrySchema = new Schema(
   {
     name: { type: String, required: true },
     realm: { type: String, required: true },
+    value: { type: Number },
   },
   { _id: false },
 );
@@ -152,8 +160,14 @@ const RaidOverallAnalyticsSchema = new Schema(
       lowest: { type: Number, default: 0 },
       highest: { type: Number, default: 0 },
     },
+    progressRaidTimeSpent: {
+      average: { type: Number, default: 0 },
+      lowest: { type: Number, default: 0 },
+      highest: { type: Number, default: 0 },
+    },
     pullDistribution: { type: DistributionSchema, default: { buckets: [] } },
     timeDistribution: { type: DistributionSchema, default: { buckets: [] } },
+    progressRaidTimeDistribution: { type: DistributionSchema, default: { buckets: [] } },
     weeklyProgression: [WeeklyProgressionEntrySchema],
   },
   { _id: false },

@@ -27,6 +27,9 @@ export interface IReport extends Document {
     };
   };
   lastProcessed: Date;
+  importSource?: "manual_admin";
+  manualImportedAt?: Date;
+  manualImportedByUserId?: mongoose.Types.ObjectId;
   charactersFetchStatus?: "pending" | "fetched" | "failed";
   charactersFetchedAt?: Date;
   charactersFetchFailedAt?: Date;
@@ -64,6 +67,13 @@ const ReportSchema: Schema = new Schema(
     fightSequence: [ReportFightSequenceSchema],
     encounterFights: { type: Map, of: Object, default: new Map() },
     lastProcessed: { type: Date, default: Date.now },
+    importSource: {
+      type: String,
+      enum: ["manual_admin"],
+      index: true,
+    },
+    manualImportedAt: { type: Date },
+    manualImportedByUserId: { type: Schema.Types.ObjectId, ref: "User" },
     charactersFetchStatus: {
       type: String,
       enum: ["pending", "fetched", "failed"],

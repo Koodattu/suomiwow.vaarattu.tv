@@ -383,8 +383,7 @@ class WarcraftLogsService {
   }
 
   // Get a single report by code with fights - ALL difficulties (not filtered)
-  async getReportByCodeAllDifficulties(reportCode: string, options: { includeRankedCharacters?: boolean } = {}) {
-    logger.info(`[API REQUEST] WarcraftLogsService.getReportByCodeAllDifficulties - POST https://www.warcraftlogs.com/api/v2/client (report: ${reportCode})`);
+  async getReportByCodeAllDifficulties(reportCode: string, options: { includeRankedCharacters?: boolean; forceUserEndpoint?: boolean } = {}) {
     const query = `
       query($reportCode: String!, $includeRankedCharacters: Boolean!) {
         rateLimitData {
@@ -460,7 +459,32 @@ class WarcraftLogsService {
       includeRankedCharacters: options.includeRankedCharacters === true,
     };
 
-    return this.query<any>(query, variables);
+    if (options.forceUserEndpoint) {
+      logger.info(`[API REQUEST] WarcraftLogsService.getReportByCodeAllDifficulties - POST https://www.warcraftlogs.com/api/v2/user (forced, report: ${reportCode})`);
+      return this.queryUser<any>(query, variables);
+    }
+
+    try {
+      logger.info(`[API REQUEST] WarcraftLogsService.getReportByCodeAllDifficulties - POST https://www.warcraftlogs.com/api/v2/client (report: ${reportCode})`);
+      return await this.query<any>(query, variables);
+    } catch (error) {
+      if (!this.shouldRetryReportWithUserEndpoint(error)) {
+        throw error;
+      }
+
+      if (!(await this.hasUserAuthConnected())) {
+        throw error;
+      }
+
+      try {
+        logger.info(`[API REQUEST] WarcraftLogsService.getReportByCodeAllDifficulties - POST https://www.warcraftlogs.com/api/v2/user (user-auth retry, report: ${reportCode})`);
+        return await this.queryUser<any>(query, variables);
+      } catch (userError) {
+        const originalMessage = error instanceof Error ? error.message : String(error);
+        const userMessage = userError instanceof Error ? userError.message : String(userError);
+        throw new Error(`${originalMessage}; WCL /user retry failed: ${userMessage}`);
+      }
+    }
   }
 
   async getReportRankingsCharacters(reportCode: string, difficulty = 5): Promise<
