@@ -2,10 +2,12 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { CharacterAccountResponse } from "@/types";
 import { formatRealmName, getClassInfoById } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
+import RaidAchievementsSection from "@/components/RaidAchievementsSection";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -47,11 +49,14 @@ function getCharacterProfileHref(realm: string, name: string, classID: number) {
 
 function AccountCharacterRow({ character }: { character: CharacterAccountResponse["characters"][number] }) {
   const classInfo = getClassInfoById(character.classID);
+  const tRaidAchievements = useTranslations("raidAchievements");
+  const ceCount = character.raidAchievements?.cuttingEdgeCount;
+  const aotcCount = character.raidAchievements?.aheadOfTheCurveCount;
 
   return (
     <Link
       href={getCharacterProfileHref(character.realm, character.name, character.classID)}
-      className="grid min-h-[72px] grid-cols-[40px_minmax(0,1fr)_96px] items-center gap-3 border-b border-gray-800 px-4 py-3 transition-colors last:border-0 hover:bg-gray-800/45 focus-visible:bg-gray-800/45 focus-visible:outline focus-visible:outline-blue-400 md:grid-cols-[44px_minmax(0,1fr)_120px_120px]"
+      className="grid min-h-[72px] grid-cols-[40px_minmax(0,1fr)_64px_64px_80px] items-center gap-3 border-b border-gray-800 px-4 py-3 transition-colors last:border-0 hover:bg-gray-800/45 focus-visible:bg-gray-800/45 focus-visible:outline focus-visible:outline-blue-400 md:grid-cols-[44px_minmax(0,1fr)_84px_84px_120px_120px]"
     >
       <span className="relative h-10 w-10 overflow-hidden rounded md:h-11 md:w-11">
         <IconImage iconFilename={classInfo.iconUrl} alt={classInfo.name} fill style={{ objectFit: "cover" }} />
@@ -68,6 +73,12 @@ function AccountCharacterRow({ character }: { character: CharacterAccountRespons
           <span className="shrink-0 tabular-nums md:hidden">{formatShortDate(character.lastSeenAt ?? character.lastMythicSeenAt)}</span>
         </span>
       </span>
+      <span className="text-right text-sm font-semibold tabular-nums text-gray-300" title={tRaidAchievements("cuttingEdge")}>
+        {ceCount ?? "-"}
+      </span>
+      <span className="text-right text-sm font-semibold tabular-nums text-gray-300" title={tRaidAchievements("aheadOfTheCurve")}>
+        {aotcCount ?? "-"}
+      </span>
       <span className="text-right text-sm font-semibold tabular-nums text-gray-300">{character.reportCount}</span>
       <span className="hidden text-right text-sm tabular-nums text-gray-400 md:block">{formatShortDate(character.lastSeenAt ?? character.lastMythicSeenAt)}</span>
     </Link>
@@ -76,6 +87,7 @@ function AccountCharacterRow({ character }: { character: CharacterAccountRespons
 
 export default function AccountPage({ params }: PageProps) {
   const resolvedParams = use(params);
+  const tRaidAchievements = useTranslations("raidAchievements");
   const slug = decodeURIComponent(resolvedParams.slug);
   const [account, setAccount] = useState<CharacterAccountResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -129,6 +141,7 @@ export default function AccountPage({ params }: PageProps) {
 
   const primaryCharacter = account.characters[0];
   const primaryClass = primaryCharacter ? getClassInfoById(primaryCharacter.classID) : null;
+  const missingRaidAchievementSummaries = account.characters.filter((character) => !character.raidAchievements).length;
 
   return (
     <main className="min-h-screen px-4 py-8">
@@ -146,7 +159,7 @@ export default function AccountPage({ params }: PageProps) {
                 <p className="mt-1 text-sm font-semibold text-gray-500">Inferred character account</p>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-5 text-sm md:text-right">
+            <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-5 md:text-right">
               <div>
                 <div className="text-gray-500">Characters</div>
                 <div className="text-xl font-bold tabular-nums text-gray-100">{account.account.characterCount}</div>
@@ -156,6 +169,14 @@ export default function AccountPage({ params }: PageProps) {
                 <div className="text-xl font-bold tabular-nums text-gray-100">{account.account.totalReportCount}</div>
               </div>
               <div>
+                <div className="text-gray-500">{tRaidAchievements("cuttingEdgeShort")}</div>
+                <div className="text-xl font-bold tabular-nums text-gray-100">{account.account.raidAchievements?.cuttingEdgeCount ?? "-"}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">{tRaidAchievements("aheadOfTheCurveShort")}</div>
+                <div className="text-xl font-bold tabular-nums text-gray-100">{account.account.raidAchievements?.aheadOfTheCurveCount ?? "-"}</div>
+              </div>
+              <div>
                 <div className="text-gray-500">Confidence</div>
                 <div className="text-xl font-bold tabular-nums text-gray-100">{Math.round(account.account.avgScore)}</div>
               </div>
@@ -163,10 +184,14 @@ export default function AccountPage({ params }: PageProps) {
           </div>
         </header>
 
+        <RaidAchievementsSection summary={account.account.raidAchievements} missingCharacterCount={missingRaidAchievementSummaries} />
+
         <section className="rounded-lg border border-gray-700 bg-gray-900">
-          <div className="grid grid-cols-[40px_minmax(0,1fr)_96px] gap-3 border-b border-gray-700 px-4 py-3 text-xs font-semibold uppercase text-gray-500 md:grid-cols-[44px_minmax(0,1fr)_120px_120px]">
+          <div className="grid grid-cols-[40px_minmax(0,1fr)_64px_64px_80px] gap-3 border-b border-gray-700 px-4 py-3 text-xs font-semibold uppercase text-gray-500 md:grid-cols-[44px_minmax(0,1fr)_84px_84px_120px_120px]">
             <span />
             <span>Character</span>
+            <span className="text-right">{tRaidAchievements("cuttingEdgeShort")}</span>
+            <span className="text-right">{tRaidAchievements("aheadOfTheCurveShort")}</span>
             <span className="text-right">Reports</span>
             <span className="hidden text-right md:block">Last Seen</span>
           </div>

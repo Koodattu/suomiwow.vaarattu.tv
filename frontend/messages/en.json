@@ -536,6 +536,11 @@
       "statusCompleted": "Completed",
       "statusFailed": "Failed",
       "noTasks": "No task activity recorded yet."
+    },
+    "characterIdentity": {
+      "refreshAllAchievementData": "Refresh All Achievement Data",
+      "raidSummaries": "{count} raid summaries",
+      "raidAchievementTargets": "{count} CE/AOTC targets"
     }
   },
   "pickemsPage": {
@@ -668,6 +673,19 @@
     "pulls": "{count, plural, one {# pull} other {# pulls}}",
     "since": "Since {date}",
     "firstSeen": "First"
+  },
+  "raidAchievements": {
+    "title": "Raid Achievements",
+    "subtitle": "Fetched {updatedAt}",
+    "partialSubtitle": "Fetched {updatedAt}; {count, plural, one {# character not fetched yet} other {# characters not fetched yet}}",
+    "cuttingEdge": "Cutting Edge",
+    "aheadOfTheCurve": "Ahead of the Curve",
+    "cuttingEdgeShort": "CE",
+    "aheadOfTheCurveShort": "AOTC",
+    "notFetched": "Not fetched yet",
+    "notFetchedDetail": "Achievement data has not been fetched for this character yet.",
+    "noneFound": "No Cutting Edge or Ahead of the Curve achievements found.",
+    "noneForType": "None found"
   },
   "characterRankingsPage": {
     "titleAllStars": "All Star Rankings",

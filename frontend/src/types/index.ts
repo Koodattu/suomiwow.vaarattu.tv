@@ -505,6 +505,25 @@ export interface CharacterRankingsFilterOptionsResponse {
   };
 }
 
+export type CharacterRaidAchievementType = "cutting_edge" | "ahead_of_the_curve";
+
+export interface CharacterRaidAchievementEntry {
+  achievementId: number;
+  name: string;
+  type: CharacterRaidAchievementType;
+  completedTimestamp: number;
+  completedAt: string;
+}
+
+export interface CharacterRaidAchievementSummary {
+  version: string;
+  fetchedAt: string;
+  cuttingEdgeCount: number;
+  aheadOfTheCurveCount: number;
+  totalCount: number;
+  achievements: CharacterRaidAchievementEntry[];
+}
+
 // Full raid info with bosses and dates - for backward compatibility
 export interface Raid extends RaidInfo {
   starts?: RegionDates;
@@ -1512,6 +1531,7 @@ export type CharacterProfileResponse = {
       lastSeenAt: string;
       reportCount: number;
     }>;
+    raidAchievements: CharacterRaidAchievementSummary | null;
     account?: {
       groupId: string;
       slug?: string | null;
@@ -1533,6 +1553,7 @@ export type CharacterProfileResponse = {
         lastSeenAt?: string | null;
         lastMythicSeenAt?: string | null;
         reportCount?: number;
+        raidAchievements: CharacterRaidAchievementSummary | null;
       }>;
     };
   };
@@ -1625,6 +1646,7 @@ export type CharacterAccountResponse = {
     minScore: number;
     maxScore: number;
     avgScore: number;
+    raidAchievements: CharacterRaidAchievementSummary | null;
   };
   characters: Array<{
     characterId: string;
@@ -1637,6 +1659,7 @@ export type CharacterAccountResponse = {
     lastSeenAt?: string | null;
     lastMythicSeenAt?: string | null;
     reportCount: number;
+    raidAchievements: CharacterRaidAchievementSummary | null;
   }>;
 };
 
@@ -2331,6 +2354,9 @@ export interface CharacterAchievementBackfillStatusResponse {
   groups: number;
   signalVersion: string;
   signalAchievementCount: number;
+  raidAchievementSummaryVersion: string;
+  raidAchievementTargetCount: number;
+  raidAchievementSummaries: number;
   recentFailures: CharacterAchievementBackfillItem[];
   updatedAt: string;
 }
@@ -2343,6 +2369,8 @@ export interface CharacterAchievementBackfillTriggerResponse extends TriggerResp
     existing: number;
     updated: number;
     skippedWithFingerprint: number;
+    skippedWithRaidAchievementSummary: number;
+    missingRaidAchievementSummary: number;
   };
   status: CharacterAchievementBackfillStatusResponse;
 }

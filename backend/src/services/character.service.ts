@@ -8,6 +8,10 @@ import CharacterAccountGroup from "../models/CharacterAccountGroup";
 import CharacterLeaderboard from "../models/CharacterLeaderboard";
 import CharacterMechanicsLeaderboard from "../models/CharacterMechanicsLeaderboard";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
+import CharacterRaidAchievementSummary, {
+  CHARACTER_RAID_ACHIEVEMENT_SUMMARY_VERSION,
+  ICharacterRaidAchievementSummary,
+} from "../models/CharacterRaidAchievementSummary";
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import Guild from "../models/Guild";
 import Ranking from "../models/Ranking";
@@ -212,6 +216,23 @@ export type GuildRaidCharacterRosterResponse = {
   }>;
 };
 
+export type CharacterRaidAchievementType = "cutting_edge" | "ahead_of_the_curve";
+
+export type CharacterRaidAchievementSummaryResponse = {
+  version: string;
+  fetchedAt: Date;
+  cuttingEdgeCount: number;
+  aheadOfTheCurveCount: number;
+  totalCount: number;
+  achievements: Array<{
+    achievementId: number;
+    name: string;
+    type: CharacterRaidAchievementType;
+    completedTimestamp: number;
+    completedAt: Date;
+  }>;
+};
+
 export type CharacterProfileResponse = {
   type: "profile";
   character: {
@@ -236,6 +257,7 @@ export type CharacterProfileResponse = {
       lastSeenAt: Date;
       reportCount: number;
     }>;
+    raidAchievements: CharacterRaidAchievementSummaryResponse | null;
     account?: {
       groupId: string;
       slug?: string | null;
@@ -257,6 +279,7 @@ export type CharacterProfileResponse = {
         lastSeenAt?: Date | null;
         lastMythicSeenAt?: Date | null;
         reportCount?: number;
+        raidAchievements: CharacterRaidAchievementSummaryResponse | null;
       }>;
     };
   };
@@ -349,6 +372,7 @@ export type CharacterAccountResponse = {
     minScore: number;
     maxScore: number;
     avgScore: number;
+    raidAchievements: CharacterRaidAchievementSummaryResponse | null;
   };
   characters: Array<{
     characterId: string;
@@ -361,6 +385,7 @@ export type CharacterAccountResponse = {
     lastSeenAt?: Date | null;
     lastMythicSeenAt?: Date | null;
     reportCount: number;
+    raidAchievements: CharacterRaidAchievementSummaryResponse | null;
   }>;
 };
 
@@ -469,6 +494,60 @@ class CharacterService {
     return date;
   }
 
+  private formatRaidAchievementSummary(summary?: ICharacterRaidAchievementSummary | null): CharacterRaidAchievementSummaryResponse | null {
+    if (!summary) return null;
+
+    const achievements = [...(summary.achievements ?? [])]
+      .map((achievement) => ({
+        achievementId: achievement.achievementId,
+        name: achievement.name,
+        type: achievement.type,
+        completedTimestamp: achievement.completedTimestamp,
+        completedAt: achievement.completedAt,
+      }))
+      .sort((a, b) => a.completedTimestamp - b.completedTimestamp || a.achievementId - b.achievementId);
+
+    return {
+      version: summary.version,
+      fetchedAt: summary.fetchedAt,
+      cuttingEdgeCount: summary.cuttingEdgeCount,
+      aheadOfTheCurveCount: summary.aheadOfTheCurveCount,
+      totalCount: summary.cuttingEdgeCount + summary.aheadOfTheCurveCount,
+      achievements,
+    };
+  }
+
+  private buildAccountRaidAchievementSummary(summaries: CharacterRaidAchievementSummaryResponse[]): CharacterRaidAchievementSummaryResponse | null {
+    if (summaries.length === 0) return null;
+
+    const achievementsById = new Map<number, CharacterRaidAchievementSummaryResponse["achievements"][number]>();
+    let fetchedAt = summaries[0].fetchedAt;
+
+    for (const summary of summaries) {
+      if (summary.fetchedAt > fetchedAt) fetchedAt = summary.fetchedAt;
+
+      for (const achievement of summary.achievements) {
+        const existing = achievementsById.get(achievement.achievementId);
+        if (!existing || achievement.completedTimestamp < existing.completedTimestamp) {
+          achievementsById.set(achievement.achievementId, achievement);
+        }
+      }
+    }
+
+    const achievements = Array.from(achievementsById.values()).sort((a, b) => a.completedTimestamp - b.completedTimestamp || a.achievementId - b.achievementId);
+    const cuttingEdgeCount = achievements.filter((achievement) => achievement.type === "cutting_edge").length;
+    const aheadOfTheCurveCount = achievements.filter((achievement) => achievement.type === "ahead_of_the_curve").length;
+
+    return {
+      version: CHARACTER_RAID_ACHIEVEMENT_SUMMARY_VERSION,
+      fetchedAt,
+      cuttingEdgeCount,
+      aheadOfTheCurveCount,
+      totalCount: cuttingEdgeCount + aheadOfTheCurveCount,
+      achievements,
+    };
+  }
+
   private async buildAccountCharacters(
     members: Array<{
       characterId: mongoose.Types.ObjectId;
@@ -484,17 +563,28 @@ class CharacterService {
   ): Promise<CharacterAccountResponse["characters"]> {
     const characterIds = members.map((member) => member.characterId);
     const latestByCharacterId = new Map<string, { lastReportSeenAt?: Date | null; lastMythicSeenAt?: Date | null }>();
+    const raidAchievementsByCharacterId = new Map<string, CharacterRaidAchievementSummaryResponse | null>();
 
     if (characterIds.length > 0) {
-      const latestRows = await Character.find({ _id: { $in: characterIds } })
-        .select("_id lastReportSeenAt lastMythicSeenAt")
-        .lean<Array<{ _id: mongoose.Types.ObjectId; lastReportSeenAt?: Date | null; lastMythicSeenAt?: Date | null }>>();
+      const [latestRows, raidAchievementRows] = await Promise.all([
+        Character.find({ _id: { $in: characterIds } })
+          .select("_id lastReportSeenAt lastMythicSeenAt")
+          .lean<Array<{ _id: mongoose.Types.ObjectId; lastReportSeenAt?: Date | null; lastMythicSeenAt?: Date | null }>>(),
+        CharacterRaidAchievementSummary.find({
+          characterId: { $in: characterIds },
+          version: CHARACTER_RAID_ACHIEVEMENT_SUMMARY_VERSION,
+        }).lean<ICharacterRaidAchievementSummary[]>(),
+      ]);
 
       latestRows.forEach((row) => {
         latestByCharacterId.set(row._id.toString(), {
           lastReportSeenAt: row.lastReportSeenAt,
           lastMythicSeenAt: row.lastMythicSeenAt,
         });
+      });
+
+      raidAchievementRows.forEach((row) => {
+        raidAchievementsByCharacterId.set(row.characterId.toString(), this.formatRaidAchievementSummary(row));
       });
     }
 
@@ -515,6 +605,7 @@ class CharacterService {
           lastSeenAt,
           lastMythicSeenAt,
           reportCount: member.reportCount ?? 0,
+          raidAchievements: raidAchievementsByCharacterId.get(member.characterId.toString()) ?? null,
         };
       })
       .sort((a, b) => {
@@ -2199,6 +2290,9 @@ class CharacterService {
     if (!group) return null;
 
     const characters = await this.buildAccountCharacters([...(group.members ?? [])]);
+    const raidAchievements = this.buildAccountRaidAchievementSummary(
+      characters.map((character) => character.raidAchievements).filter((summary): summary is CharacterRaidAchievementSummaryResponse => summary !== null),
+    );
 
     return {
       account: {
@@ -2213,6 +2307,7 @@ class CharacterService {
         minScore: group.minScore,
         maxScore: group.maxScore,
         avgScore: group.avgScore,
+        raidAchievements,
       },
       characters,
     };
@@ -2630,6 +2725,13 @@ class CharacterService {
         }).lean()
       : null;
     const accountCharacters = accountGroup ? await this.buildAccountCharacters([...(accountGroup.members ?? [])]) : [];
+    const profileRaidAchievementRow = profileCharacterDoc
+      ? await CharacterRaidAchievementSummary.findOne({
+          characterId: profileCharacterDoc._id,
+          version: CHARACTER_RAID_ACHIEVEMENT_SUMMARY_VERSION,
+        }).lean<ICharacterRaidAchievementSummary>()
+      : null;
+    const profileRaidAchievements = this.formatRaidAchievementSummary(profileRaidAchievementRow);
     const mythicPlus = profileCharacterDoc ? await mythicPlusService.getCharacterProfileMythicPlus(profileCharacterDoc._id) : { seasons: [] };
 
     return {
@@ -2649,6 +2751,7 @@ class CharacterService {
           lastSeenAt: entry.lastSeenAt,
         })),
         nameHistory,
+        raidAchievements: profileRaidAchievements,
         account: accountGroup
           ? {
               groupId: accountGroup._id.toString(),

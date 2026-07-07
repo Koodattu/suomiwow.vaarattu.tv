@@ -1694,12 +1694,12 @@ export async function triggerBackfillCharacterRankings(refreshCandidates = false
   return response.json();
 }
 
-export async function triggerBackfillCharacterAchievements(refreshCandidates = false): Promise<CharacterAchievementBackfillTriggerResponse> {
+export async function triggerBackfillCharacterAchievements(refreshCandidates = false, refreshAll = false): Promise<CharacterAchievementBackfillTriggerResponse> {
   const response = await fetch(`${API_URL}/api/admin/trigger/backfill-character-achievements`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshCandidates }),
+    body: JSON.stringify({ refreshCandidates, refreshAll }),
   });
   if (!response.ok) throw new Error("Failed to trigger character achievement backfill");
   return response.json();

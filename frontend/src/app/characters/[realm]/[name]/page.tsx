@@ -4,12 +4,14 @@ import { type KeyboardEvent, use, useCallback, useEffect, useMemo, useRef, useSt
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { Boss, CharacterProfileChoice, CharacterProfileLookupResponse, CharacterProfileResponse, CharacterRaidReportsResponse, RaidInfo } from "@/types";
 import { useRaids } from "@/lib/queries";
 import { buildRaidOrderIndex, compareRaidIdsByListOrder } from "@/lib/raid-priority";
 import { formatRealmName, formatSpecName, formatTime, getClassInfoById, getGuildProfileUrl, getParseColor, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
+import RaidAchievementsSection from "@/components/RaidAchievementsSection";
 
 interface PageProps {
   params: Promise<{ realm: string; name: string }>;
@@ -794,6 +796,7 @@ function CharacterChoicesView({ name, realm, choices }: { name: string; realm: s
 
 export default function CharacterProfilePage({ params }: PageProps) {
   const resolvedParams = use(params);
+  const tRaidAchievements = useTranslations("raidAchievements");
   const realm = decodeURIComponent(resolvedParams.realm);
   const name = decodeURIComponent(resolvedParams.name);
   const searchParams = useSearchParams();
@@ -1155,6 +1158,14 @@ export default function CharacterProfilePage({ params }: PageProps) {
                 <div className="text-xl font-bold tabular-nums text-gray-100 md:text-2xl">{profile.character.guildHistory.length}</div>
               </div>
               <div>
+                <div className="text-gray-500">{tRaidAchievements("cuttingEdgeShort")}</div>
+                <div className="text-xl font-bold tabular-nums text-gray-100 md:text-2xl">{character.raidAchievements?.cuttingEdgeCount ?? "-"}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">{tRaidAchievements("aheadOfTheCurveShort")}</div>
+                <div className="text-xl font-bold tabular-nums text-gray-100 md:text-2xl">{character.raidAchievements?.aheadOfTheCurveCount ?? "-"}</div>
+              </div>
+              <div>
                 <div className="text-gray-500">Seen</div>
                 <div className="text-lg font-bold tabular-nums text-gray-100 md:text-xl">{seenRange}</div>
               </div>
@@ -1163,6 +1174,8 @@ export default function CharacterProfilePage({ params }: PageProps) {
         </header>
 
         <CharacterMythicPlusSection mythicPlus={profile.mythicPlus} classId={character.classID} />
+
+        <RaidAchievementsSection summary={character.raidAchievements} />
 
         <section className="rounded-lg border border-gray-700 bg-gray-900">
           <div className="border-b border-gray-700 px-4 py-3">

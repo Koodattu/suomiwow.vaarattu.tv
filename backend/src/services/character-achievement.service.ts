@@ -2,14 +2,24 @@ import fetch, { Response } from "node-fetch";
 import mongoose from "mongoose";
 import { createHash } from "crypto";
 import { CHARACTER_ACCOUNT_SIGNAL_ACHIEVEMENT_ID_SET, CHARACTER_ACCOUNT_SIGNAL_VERSION } from "../config/achievement-signals";
-import { AuthToken } from "../models/Achievement";
+import { Achievement, AuthToken } from "../models/Achievement";
 import Character, { ICharacter } from "../models/Character";
 import CharacterAccountGroup from "../models/CharacterAccountGroup";
 import CharacterAccountMatch, { CharacterAccountMatchConfidence } from "../models/CharacterAccountMatch";
 import CharacterAchievementFetchQueue, { CharacterAchievementFetchStatus, ICharacterAchievementFetchQueue } from "../models/CharacterAchievementFetchQueue";
 import CharacterAchievementFingerprint, { ICharacterAchievementFingerprint, ICharacterAchievementSignal } from "../models/CharacterAchievementFingerprint";
 import CharacterAchievementToken from "../models/CharacterAchievementToken";
+import CharacterRaidAchievementSummary, {
+  CHARACTER_RAID_ACHIEVEMENT_SUMMARY_VERSION,
+  ICharacterRaidAchievementSummary,
+} from "../models/CharacterRaidAchievementSummary";
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
+import {
+  buildFeaturedAchievementTargets,
+  countFeaturedAchievements,
+  extractCompletedFeaturedAchievements,
+  FeaturedAchievementTarget,
+} from "../utils/featured-achievements";
 import logger from "../utils/logger";
 import cacheService from "./cache.service";
 import taskTracker from "./task-tracker.service";
@@ -97,6 +107,9 @@ export interface CharacterAchievementBackfillStatusResponse {
   groups: number;
   signalVersion: string;
   signalAchievementCount: number;
+  raidAchievementSummaryVersion: string;
+  raidAchievementTargetCount: number;
+  raidAchievementSummaries: number;
   recentFailures: CharacterAchievementQueueItemSummary[];
   updatedAt: Date;
 }
@@ -107,6 +120,8 @@ export interface CharacterAchievementBackfillEnqueueResult {
   existing: number;
   updated: number;
   skippedWithFingerprint: number;
+  skippedWithRaidAchievementSummary: number;
+  missingRaidAchievementSummary: number;
 }
 
 export interface CharacterAchievementBackfillTriggerResult {
@@ -189,6 +204,7 @@ class CharacterAchievementService {
   private lastMessage: string | null = null;
   private startedAt: Date | null = null;
   private lastBlizzardRequestAt = 0;
+  private featuredAchievementTargets: FeaturedAchievementTarget[] | null = null;
   private readonly oauthUrl = "https://oauth.battle.net/token";
   private readonly regionApiUrls: Record<string, string> = {
     us: "https://us.api.blizzard.com",
@@ -197,8 +213,12 @@ class CharacterAchievementService {
     tw: "https://tw.api.blizzard.com",
   };
 
-  async triggerBackfill(options: { refreshCandidates?: boolean } = {}): Promise<CharacterAchievementBackfillTriggerResult> {
-    const enqueue = await this.enqueueMissingItems({ refreshExistingQueue: options.refreshCandidates === true });
+  async triggerBackfill(options: { refreshCandidates?: boolean; refreshAll?: boolean } = {}): Promise<CharacterAchievementBackfillTriggerResult> {
+    this.featuredAchievementTargets = null;
+    const enqueue = await this.enqueueMissingItems({
+      refreshExistingQueue: options.refreshCandidates === true,
+      refreshAll: options.refreshAll === true,
+    });
     let started = false;
 
     if (!this.isRunning) {
@@ -251,19 +271,25 @@ class CharacterAchievementService {
     return this.startProcessing();
   }
 
-  async enqueueMissingItems(options: { refreshExistingQueue?: boolean } = {}): Promise<CharacterAchievementBackfillEnqueueResult> {
+  async enqueueMissingItems(options: { refreshExistingQueue?: boolean; refreshAll?: boolean } = {}): Promise<CharacterAchievementBackfillEnqueueResult> {
     const characters = await Character.find({})
       .select("_id wclCanonicalCharacterId name realm region classID")
       .lean<Array<Pick<ICharacter, "_id" | "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID">>>();
 
     const characterIds = characters.map((character) => character._id);
-    const [fingerprints, queueItems] = await Promise.all([
+    const [fingerprints, raidAchievementSummaries, queueItems] = await Promise.all([
       CharacterAchievementFingerprint.find({
         characterId: { $in: characterIds },
         signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
       })
         .select("characterId")
         .lean<Array<Pick<ICharacterAchievementFingerprint, "characterId">>>(),
+      CharacterRaidAchievementSummary.find({
+        characterId: { $in: characterIds },
+        version: CHARACTER_RAID_ACHIEVEMENT_SUMMARY_VERSION,
+      })
+        .select("characterId")
+        .lean<Array<Pick<ICharacterRaidAchievementSummary, "characterId">>>(),
       CharacterAchievementFetchQueue.find({
         characterId: { $in: characterIds },
         signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
@@ -273,24 +299,42 @@ class CharacterAchievementService {
     ]);
 
     const fingerprintCharacterIds = new Set(fingerprints.map((fingerprint) => String(fingerprint.characterId)));
+    const raidAchievementSummaryCharacterIds = new Set(raidAchievementSummaries.map((summary) => String(summary.characterId)));
     const queueByCharacterId = new Map(queueItems.map((item) => [String(item.characterId), item]));
     const operations: any[] = [];
     let skippedWithFingerprint = 0;
+    let skippedWithRaidAchievementSummary = 0;
+    let missingRaidAchievementSummary = 0;
 
     for (const character of characters) {
       const characterId = String(character._id);
-      if (fingerprintCharacterIds.has(characterId)) {
-        skippedWithFingerprint += 1;
-        continue;
+      const hasFingerprint = fingerprintCharacterIds.has(characterId);
+      const hasRaidAchievementSummary = raidAchievementSummaryCharacterIds.has(characterId);
+      if (!hasRaidAchievementSummary) {
+        missingRaidAchievementSummary += 1;
       }
 
       const existingQueueItem = queueByCharacterId.get(characterId);
       const snapshotKey = this.buildSnapshotKey(character);
       const snapshotChanged = Boolean(existingQueueItem && existingQueueItem.snapshotKey !== snapshotKey);
       const isActiveQueueItem = existingQueueItem?.status === "in_progress";
-      const shouldResetExisting = !isActiveQueueItem && (options.refreshExistingQueue === true || !existingQueueItem || snapshotChanged);
+      const missingRequiredData = !hasFingerprint || !hasRaidAchievementSummary;
+      const shouldQueueMissingRaidSummary = hasFingerprint && !hasRaidAchievementSummary;
+      const shouldQueueNewMissingFingerprint = !hasFingerprint && !existingQueueItem;
+      const shouldQueueCompletedButIncomplete = existingQueueItem?.status === "completed" && missingRequiredData;
+      const shouldRefreshExistingMissingItem =
+        options.refreshExistingQueue === true && missingRequiredData && existingQueueItem?.status !== "pending" && existingQueueItem?.status !== "in_progress";
+      const shouldResetExisting =
+        !isActiveQueueItem &&
+        (options.refreshAll === true || snapshotChanged || shouldQueueMissingRaidSummary || shouldQueueNewMissingFingerprint || shouldQueueCompletedButIncomplete || shouldRefreshExistingMissingItem);
 
       if (!shouldResetExisting) {
+        if (hasFingerprint) {
+          skippedWithFingerprint += 1;
+        }
+        if (hasRaidAchievementSummary) {
+          skippedWithRaidAchievementSummary += 1;
+        }
         continue;
       }
 
@@ -333,6 +377,7 @@ class CharacterAchievementService {
       });
     }
 
+    const scheduled = operations.length;
     let queued = 0;
     let updated = 0;
     const batchSize = 1000;
@@ -342,9 +387,9 @@ class CharacterAchievementService {
       updated += result.modifiedCount ?? 0;
     }
 
-    const existing = characters.length - skippedWithFingerprint - queued;
+    const existing = characters.length - scheduled;
     logger.info(
-      `[CharacterAchievementBackfill] Enqueue complete: candidates=${characters.length}, queued=${queued}, existing=${existing}, updated=${updated}, skippedWithFingerprint=${skippedWithFingerprint}`,
+      `[CharacterAchievementBackfill] Enqueue complete: candidates=${characters.length}, queued=${queued}, existing=${existing}, updated=${updated}, skippedWithFingerprint=${skippedWithFingerprint}, skippedWithRaidAchievementSummary=${skippedWithRaidAchievementSummary}, missingRaidAchievementSummary=${missingRaidAchievementSummary}, refreshAll=${options.refreshAll === true}`,
     );
 
     return {
@@ -353,11 +398,13 @@ class CharacterAchievementService {
       existing,
       updated,
       skippedWithFingerprint,
+      skippedWithRaidAchievementSummary,
+      missingRaidAchievementSummary,
     };
   }
 
   async getStatus(): Promise<CharacterAchievementBackfillStatusResponse> {
-    const [queueRows, recentFailures, dbCurrentItem, fingerprintCount, tokenCount, matchRows, groupCount] = await Promise.all([
+    const [queueRows, recentFailures, dbCurrentItem, fingerprintCount, raidAchievementSummaryCount, raidAchievementTargets, tokenCount, matchRows, groupCount] = await Promise.all([
       CharacterAchievementFetchQueue.aggregate<{ _id: CharacterAchievementFetchStatus; count: number }>([
         { $match: { signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION } },
         { $group: { _id: "$status", count: { $sum: 1 } } },
@@ -376,6 +423,8 @@ class CharacterAchievementService {
         .sort({ lastActivityAt: -1 })
         .lean<ICharacterAchievementFetchQueue>(),
       CharacterAchievementFingerprint.countDocuments({ signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION }),
+      CharacterRaidAchievementSummary.countDocuments({ version: CHARACTER_RAID_ACHIEVEMENT_SUMMARY_VERSION }),
+      this.getFeaturedAchievementTargets(),
       CharacterAchievementToken.countDocuments({ signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION }),
       CharacterAccountMatch.aggregate<{ _id: CharacterAccountMatchConfidence; count: number }>([
         { $match: { signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION } },
@@ -432,6 +481,9 @@ class CharacterAchievementService {
       groups: groupCount,
       signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
       signalAchievementCount: CHARACTER_ACCOUNT_SIGNAL_ACHIEVEMENT_ID_SET.size,
+      raidAchievementSummaryVersion: CHARACTER_RAID_ACHIEVEMENT_SUMMARY_VERSION,
+      raidAchievementTargetCount: raidAchievementTargets.length,
+      raidAchievementSummaries: raidAchievementSummaryCount,
       recentFailures: recentFailures.map((item) => summarizeQueueItem(item)),
       updatedAt: new Date(),
     };
@@ -697,6 +749,9 @@ class CharacterAchievementService {
     await this.waitForRateSlot();
     const summary = await this.fetchAchievementSummary(item.region, item.realm, item.name);
     const fingerprint = this.extractFingerprintSignals(summary);
+    const featuredAchievementTargets = await this.getFeaturedAchievementTargets();
+    const raidAchievements = extractCompletedFeaturedAchievements(summary, featuredAchievementTargets);
+    const raidAchievementCounts = countFeaturedAchievements(raidAchievements);
     const signalTokens = fingerprint.signals.map((signal) => this.toToken(signal));
     const oldFingerprint = await CharacterAchievementFingerprint.findOne({
       characterId: item.characterId,
@@ -730,12 +785,39 @@ class CharacterAchievementService {
       { upsert: true },
     );
 
+    await CharacterRaidAchievementSummary.findOneAndUpdate(
+      {
+        characterId: item.characterId,
+        version: CHARACTER_RAID_ACHIEVEMENT_SUMMARY_VERSION,
+      },
+      {
+        $set: {
+          wclCanonicalCharacterId: item.wclCanonicalCharacterId,
+          name: item.name,
+          realm: item.realm,
+          region: item.region,
+          classID: item.classID,
+          achievementPoints: fingerprint.achievementPoints,
+          totalQuantity: fingerprint.totalQuantity,
+          achievements: raidAchievements,
+          cuttingEdgeCount: raidAchievementCounts.cuttingEdgeCount,
+          aheadOfTheCurveCount: raidAchievementCounts.aheadOfTheCurveCount,
+          fetchedAt: new Date(),
+        },
+        $setOnInsert: {
+          characterId: item.characterId,
+          version: CHARACTER_RAID_ACHIEVEMENT_SUMMARY_VERSION,
+        },
+      },
+      { upsert: true },
+    );
+
     await this.updateTokenIndex(item.characterId, oldFingerprint?.signalTokens ?? [], signalTokens);
     await this.updateMatchesForCharacter(item.characterId, signalTokens, fingerprint.signals);
 
     return {
       status: "completed",
-      reason: `Stored ${signalTokens.length}/${CHARACTER_ACCOUNT_SIGNAL_ACHIEVEMENT_ID_SET.size} signal achievements`,
+      reason: `Stored ${signalTokens.length}/${CHARACTER_ACCOUNT_SIGNAL_ACHIEVEMENT_ID_SET.size} signal achievements and ${raidAchievementCounts.totalCount}/${featuredAchievementTargets.length} raid achievements`,
       httpStatus: 200,
       errorCode: null,
       isPermanentError: false,
@@ -844,6 +926,23 @@ class CharacterAchievementService {
     }
 
     return (await response.json()) as BlizzardAchievementSummaryResponse;
+  }
+
+  private async getFeaturedAchievementTargets(): Promise<FeaturedAchievementTarget[]> {
+    if (this.featuredAchievementTargets) {
+      return this.featuredAchievementTargets;
+    }
+
+    const achievements = await Achievement.find({})
+      .select("id name -_id")
+      .lean<Array<{ id: number; name: string }>>();
+    this.featuredAchievementTargets = buildFeaturedAchievementTargets(achievements);
+
+    if (this.featuredAchievementTargets.length === 0) {
+      logger.warn("[CharacterAchievementBackfill] No Cutting Edge or Ahead of the Curve achievements found in the Blizzard achievement catalog");
+    }
+
+    return this.featuredAchievementTargets;
   }
 
   private extractFingerprintSignals(summary: BlizzardAchievementSummaryResponse): {

@@ -716,7 +716,12 @@ export default function AdminPage() {
         const status = await api.getAdminCharacterRankingBackfillStatus();
         setCharacterRankingBackfillStatus(status);
       }
-      if (triggerName === "backfill-character-achievements" || triggerName === "refresh-character-achievement-candidates" || triggerName === "rebuild-character-account-groups") {
+      if (
+        triggerName === "backfill-character-achievements" ||
+        triggerName === "refresh-character-achievement-candidates" ||
+        triggerName === "refresh-character-achievement-all" ||
+        triggerName === "rebuild-character-account-groups"
+      ) {
         const status = await api.getAdminCharacterAchievementBackfillStatus();
         setCharacterAchievementBackfillStatus(status);
       }
@@ -1624,6 +1629,7 @@ export default function AdminPage() {
                   <ManualActionGroup title="1. Achievement fingerprints">
                     {renderTriggerButton("backfill-character-achievements", "Start Achievement Backfill", triggerBackfillCharacterAchievements)}
                     {renderTriggerButton("refresh-character-achievement-candidates", "Retry Missing Achievement Fingerprints", () => triggerBackfillCharacterAchievements(true))}
+                    {renderTriggerButton("refresh-character-achievement-all", t("characterIdentity.refreshAllAchievementData"), () => triggerBackfillCharacterAchievements(false, true))}
                   </ManualActionGroup>
                   <ManualActionGroup title="2. Account groups">
                     {renderTriggerButton("rebuild-character-account-groups", "Rebuild Character Account Groups", triggerRebuildCharacterAccountGroups, {
@@ -1688,6 +1694,10 @@ export default function AdminPage() {
                       <div className="flex items-center justify-between text-gray-500 tabular-nums">
                         <span>{characterAchievementBackfillStatus.signalAchievementCount} signal achievements</span>
                         <span>{characterAchievementBackfillStatus.tokens} indexed tokens</span>
+                      </div>
+                      <div className="flex items-center justify-between text-gray-500 tabular-nums">
+                        <span>{t("characterIdentity.raidSummaries", { count: characterAchievementBackfillStatus.raidAchievementSummaries })}</span>
+                        <span>{t("characterIdentity.raidAchievementTargets", { count: characterAchievementBackfillStatus.raidAchievementTargetCount })}</span>
                       </div>
                       {characterAchievementBackfillStatus.processor.currentItem && (
                         <div className="text-gray-400 truncate">

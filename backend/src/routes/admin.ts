@@ -2749,8 +2749,11 @@ router.post("/trigger/crawl-mythic-plus", async (req: Request, res: Response) =>
 router.post("/trigger/backfill-character-achievements", async (req: Request, res: Response) => {
   try {
     const refreshCandidates = req.body?.refreshCandidates === true;
-    const result = await characterAchievementService.triggerBackfill({ refreshCandidates });
-    const queueMessage = `${result.enqueue.queued} new character achievement item(s) queued, ${result.enqueue.existing} already tracked, ${result.enqueue.skippedWithFingerprint} already fingerprinted`;
+    const refreshAll = req.body?.refreshAll === true;
+    const result = await characterAchievementService.triggerBackfill({ refreshCandidates, refreshAll });
+    const queueMessage =
+      `${result.enqueue.queued} new character achievement item(s) queued, ${result.enqueue.updated} updated, ` +
+      `${result.enqueue.existing} already tracked, ${result.enqueue.missingRaidAchievementSummary} missing raid achievement summaries`;
     res.json({
       success: true,
       message: result.started ? `Character achievement backfill started: ${queueMessage}` : `Character achievement backfill is already running: ${queueMessage}`,

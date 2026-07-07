@@ -536,6 +536,11 @@
       "statusCompleted": "Valmis",
       "statusFailed": "Epäonnistui",
       "noTasks": "Ei tehtäväaktiviteettia vielä."
+    },
+    "characterIdentity": {
+      "refreshAllAchievementData": "Päivitä kaikki achievement-data",
+      "raidSummaries": "{count} raid-yhteenvetoa",
+      "raidAchievementTargets": "{count} CE/AOTC-kohdetta"
     }
   },
   "pickemsPage": {
@@ -668,6 +673,19 @@
     "pulls": "{count, plural, one {# pulli} other {# pullia}}",
     "since": "Alkaen {date}",
     "firstSeen": "Ensin"
+  },
+  "raidAchievements": {
+    "title": "Raidi-achievementit",
+    "subtitle": "Haettu {updatedAt}",
+    "partialSubtitle": "Haettu {updatedAt}; {count, plural, one {# hahmon data puuttuu} other {# hahmon data puuttuu}}",
+    "cuttingEdge": "Cutting Edge",
+    "aheadOfTheCurve": "Ahead of the Curve",
+    "cuttingEdgeShort": "CE",
+    "aheadOfTheCurveShort": "AOTC",
+    "notFetched": "Ei vielä haettu",
+    "notFetchedDetail": "Achievement-dataa ei ole vielä haettu tälle hahmolle.",
+    "noneFound": "Cutting Edge- tai Ahead of the Curve -achievementteja ei löytynyt.",
+    "noneForType": "Ei löytynyt"
   },
   "characterRankingsPage": {
     "titleAllStars": "Pistesijoitukset",
