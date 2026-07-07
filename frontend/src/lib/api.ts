@@ -83,6 +83,7 @@ import {
   RateLimitStatus,
   WarcraftLogsUserAuthStatus,
   WarcraftLogsUserReportProbeResponse,
+  TwitchChatBotStatus,
   DeathEventsResetResponse,
   ProcessingQueueStatsResponse,
   ProcessingQueueResponse,
@@ -1388,6 +1389,43 @@ export const api = {
     return data;
   },
 
+  async getAdminTwitchBotStatus(): Promise<TwitchChatBotStatus> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-bot/status`, {
+      credentials: "include",
+    });
+    if (!response.ok) throw new Error("Failed to fetch Twitch bot status");
+    return response.json();
+  },
+
+  async getAdminTwitchBotAuthUrl(): Promise<{ url: string }> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-bot/authorize`, {
+      credentials: "include",
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to create Twitch bot authorization URL");
+    return data;
+  },
+
+  async verifyAdminTwitchBotAuth(): Promise<{ success: boolean; user: { id: string; login: string; displayName: string }; status?: Partial<TwitchChatBotStatus> }> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-bot/verify`, {
+      method: "POST",
+      credentials: "include",
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to verify Twitch bot authorization");
+    return data;
+  },
+
+  async disconnectAdminTwitchBotAuth(): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-bot`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to disconnect Twitch bot authorization");
+    return data;
+  },
+
   async resetAdminFailedArchivedDeathEvents(statuses: Array<"failed" | "archived"> = ["failed", "archived"], queue = true): Promise<DeathEventsResetResponse> {
     const response = await fetch(`${API_URL}/api/admin/death-events/reset-failed-archived`, {
       method: "POST",
@@ -1656,6 +1694,24 @@ export async function triggerCheckTwitchStreams(): Promise<TriggerResponse> {
     credentials: "include",
   });
   if (!response.ok) throw new Error("Failed to trigger Twitch stream check");
+  return response.json();
+}
+
+export async function triggerTwitchBotReconnect(): Promise<TriggerResponse> {
+  const response = await fetch(`${API_URL}/api/admin/trigger/twitch-bot/reconnect`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error("Failed to reconnect Twitch bot");
+  return response.json();
+}
+
+export async function triggerTwitchBotReconcile(): Promise<TriggerResponse> {
+  const response = await fetch(`${API_URL}/api/admin/trigger/twitch-bot/reconcile`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error("Failed to reconcile Twitch bot channels");
   return response.json();
 }
 

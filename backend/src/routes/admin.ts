@@ -32,6 +32,8 @@ import mythicPlusService from "../services/mythic-plus.service";
 import wclService from "../services/warcraftlogs.service";
 import wclUserAuthService from "../services/warcraftlogs-user-auth.service";
 import blizzardService from "../services/blizzard.service";
+import twitchBotAuthService from "../services/twitch-bot-auth.service";
+import twitchChatBotService from "../services/twitch-chat-bot.service";
 
 const router = Router();
 let isSyncingRaidsFromWCL = false;
@@ -190,6 +192,76 @@ router.delete("/wcl-user", async (req: Request, res: Response) => {
   } catch (error) {
     logger.error("Error disconnecting WCL user auth:", error);
     res.status(500).json({ error: "Failed to disconnect WCL user authorization" });
+  }
+});
+
+// ============================================================
+// TWITCH BOT OAUTH
+// ============================================================
+
+router.get("/twitch-bot/status", async (_req: Request, res: Response) => {
+  try {
+    res.json(await twitchChatBotService.getStatus());
+  } catch (error) {
+    logger.error("Error fetching Twitch bot status:", error);
+    res.status(500).json({ error: "Failed to fetch Twitch bot status" });
+  }
+});
+
+router.get("/twitch-bot/authorize", async (req: Request, res: Response) => {
+  try {
+    const adminUser = (req as any).user;
+    const url = twitchBotAuthService.createAuthorizationUrl(adminUser._id.toString());
+    res.json({ url });
+  } catch (error) {
+    logger.error("Error creating Twitch bot authorization URL:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create Twitch bot authorization URL" });
+  }
+});
+
+router.get("/twitch-bot/callback", async (req: Request, res: Response) => {
+  try {
+    const adminUser = (req as any).user;
+    const { code, state } = req.query;
+    const oauthError = typeof req.query.error === "string" ? req.query.error : null;
+
+    if (oauthError) {
+      return res.redirect(`${getFrontendUrl()}/admin?twitchBot=error&reason=${encodeURIComponent(oauthError)}`);
+    }
+
+    if (!code || typeof code !== "string" || !state || typeof state !== "string") {
+      return res.redirect(`${getFrontendUrl()}/admin?twitchBot=error&reason=missing_code_or_state`);
+    }
+
+    if (!twitchBotAuthService.validateState(state, adminUser._id.toString())) {
+      return res.redirect(`${getFrontendUrl()}/admin?twitchBot=error&reason=invalid_state`);
+    }
+
+    await twitchBotAuthService.exchangeCodeAndStore(code, adminUser);
+    res.redirect(`${getFrontendUrl()}/admin?twitchBot=connected`);
+  } catch (error) {
+    logger.error("Error in Twitch bot OAuth callback:", error);
+    res.redirect(`${getFrontendUrl()}/admin?twitchBot=error&reason=callback_failed`);
+  }
+});
+
+router.post("/twitch-bot/verify", async (_req: Request, res: Response) => {
+  try {
+    const user = await twitchBotAuthService.verifyCurrentUser();
+    res.json({ success: true, user, status: await twitchChatBotService.getStatus() });
+  } catch (error) {
+    logger.error("Error verifying Twitch bot auth:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to verify Twitch bot authorization" });
+  }
+});
+
+router.delete("/twitch-bot", async (_req: Request, res: Response) => {
+  try {
+    await twitchBotAuthService.disconnect();
+    res.json({ success: true, message: "Twitch bot authorization disconnected" });
+  } catch (error) {
+    logger.error("Error disconnecting Twitch bot auth:", error);
+    res.status(500).json({ error: "Failed to disconnect Twitch bot authorization" });
   }
 });
 
@@ -2457,6 +2529,30 @@ router.post("/trigger/check-twitch-streams", async (req: Request, res: Response)
   } catch (error) {
     logger.error("Error triggering Twitch stream check:", error);
     res.status(500).json({ error: "Failed to trigger Twitch stream check" });
+  }
+});
+
+router.post("/trigger/twitch-bot/reconnect", async (_req: Request, res: Response) => {
+  try {
+    await twitchChatBotService.reconnect();
+    res.json({ success: true, message: "Twitch bot reconnect requested" });
+  } catch (error) {
+    logger.error("Error reconnecting Twitch bot:", error);
+    res.status(500).json({ error: "Failed to reconnect Twitch bot" });
+  }
+});
+
+router.post("/trigger/twitch-bot/reconcile", async (_req: Request, res: Response) => {
+  try {
+    const result = await twitchChatBotService.reconcileChannels();
+    res.json({
+      success: true,
+      message: `Twitch bot reconciled ${result.joinedChannels.length}/${result.desiredChannels.length} channels`,
+      ...result,
+    });
+  } catch (error) {
+    logger.error("Error reconciling Twitch bot channels:", error);
+    res.status(500).json({ error: "Failed to reconcile Twitch bot channels" });
   }
 });
 

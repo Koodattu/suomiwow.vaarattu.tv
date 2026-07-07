@@ -35,6 +35,7 @@ import discordRouter from "./routes/discord";
 import guildNetworkRouter from "./routes/guild-network";
 import pickemService from "./services/pickem.service";
 import discordBotService from "./services/discord-bot.service";
+import twitchChatBotService from "./services/twitch-chat-bot.service";
 import backgroundGuildProcessor from "./services/background-guild-processor.service";
 import { analyticsMiddleware, flushAnalytics } from "./middleware/analytics.middleware";
 import cacheService from "./services/cache.service";
@@ -341,6 +342,10 @@ async function runBackgroundInitialization(): Promise<void> {
     discordBotService.startEventPublisher();
   });
 
+  await runStartupTask("Start Twitch chat bot", async () => {
+    twitchChatBotService.start();
+  });
+
   // Log death events fetching status
   const fetchDeathEvents = process.env.FETCH_DEATH_EVENTS === "true";
   if (fetchDeathEvents) {
@@ -593,6 +598,7 @@ process.on("SIGINT", async () => {
     scheduler.stop();
     backgroundGuildProcessor.stop();
     discordBotService.stopEventPublisher();
+    await twitchChatBotService.stop();
   }
   await flushAnalytics();
   process.exit(0);
@@ -604,6 +610,7 @@ process.on("SIGTERM", async () => {
     scheduler.stop();
     backgroundGuildProcessor.stop();
     discordBotService.stopEventPublisher();
+    await twitchChatBotService.stop();
   }
   await flushAnalytics();
   process.exit(0);

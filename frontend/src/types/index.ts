@@ -2142,6 +2142,46 @@ export interface WarcraftLogsUserReportProbeResponse {
   } | null;
 }
 
+export interface TwitchChatBotStatus {
+  enabled: boolean;
+  connected: boolean;
+  redirectUri: string;
+  scopes: string[];
+  tokenExpiresAt?: string;
+  connectedAt?: string;
+  connectedByUsername?: string;
+  twitchUserId?: string;
+  twitchLogin?: string;
+  twitchDisplayName?: string;
+  lastRefreshAt?: string;
+  lastRefreshError?: string;
+  lastVerifiedAt?: string;
+  lastVerifiedError?: string;
+  botEnabled: boolean;
+  chat: {
+    running: boolean;
+    connected: boolean;
+    desiredChannels: string[];
+    joinedChannels: string[];
+    desiredCount: number;
+    joinedCount: number;
+    lastStartedAt?: string;
+    lastStoppedAt?: string;
+    lastConnectedAt?: string;
+    lastDisconnectedAt?: string;
+    lastReconciledAt?: string;
+    lastMessageAt?: string;
+    lastErrorAt?: string;
+    lastError?: string;
+  };
+  deliveries: {
+    pending: number;
+    failed: number;
+    expired: number;
+    sent24h: number;
+  };
+}
+
 export interface DeathEventsResetResponse {
   success: boolean;
   message: string;

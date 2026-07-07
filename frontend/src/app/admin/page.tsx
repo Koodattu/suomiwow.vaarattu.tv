@@ -37,6 +37,8 @@ import {
   triggerRefreshCharacterRankings,
   triggerSyncRaidsFromWCL,
   triggerUpdateRaiderIOGuilds,
+  triggerTwitchBotReconnect,
+  triggerTwitchBotReconcile,
   getAdminGuildDetail,
   recalculateGuildStats,
   updateGuildWorldRanks,
@@ -91,6 +93,7 @@ import {
   AdminReportRaidGroup,
   WarcraftLogsUserAuthStatus,
   WarcraftLogsUserReportProbeResponse,
+  TwitchChatBotStatus,
 } from "@/types";
 
 type TabType = "overview" | "users" | "guilds" | "characters" | "pickems" | "system" | "tasks";
@@ -284,6 +287,7 @@ export default function AdminPage() {
   const [wclUserAuthStatus, setWclUserAuthStatus] = useState<WarcraftLogsUserAuthStatus | null>(null);
   const [wclProbeReportCode, setWclProbeReportCode] = useState("");
   const [wclProbeResult, setWclProbeResult] = useState<WarcraftLogsUserReportProbeResponse | null>(null);
+  const [twitchBotStatus, setTwitchBotStatus] = useState<TwitchChatBotStatus | null>(null);
   const [processorStatus, setProcessorStatus] = useState<ProcessorStatus | null>(null);
   const [queueStats, setQueueStats] = useState<QueueStatistics | null>(null);
   const [characterRankingBackfillStatus, setCharacterRankingBackfillStatus] = useState<CharacterRankingBackfillStatusResponse | null>(null);
@@ -420,13 +424,18 @@ export default function AdminPage() {
 
     const params = new URLSearchParams(window.location.search);
     const wclUserResult = params.get("wclUser");
-    if (!wclUserResult) return;
+    const twitchBotResult = params.get("twitchBot");
+    if (!wclUserResult && !twitchBotResult) return;
 
     setActiveTab("system");
     if (wclUserResult === "connected") {
       setTriggerMessage({ type: "success", text: "Warcraft Logs user authorization connected" });
-    } else {
+    } else if (wclUserResult) {
       setTriggerMessage({ type: "error", text: `Warcraft Logs authorization failed: ${params.get("reason") || "unknown error"}` });
+    } else if (twitchBotResult === "connected") {
+      setTriggerMessage({ type: "success", text: "Twitch bot authorization connected" });
+    } else {
+      setTriggerMessage({ type: "error", text: `Twitch bot authorization failed: ${params.get("reason") || "unknown error"}` });
     }
     setTimeout(() => setTriggerMessage(null), 7000);
     router.replace("/admin");
@@ -501,9 +510,10 @@ export default function AdminPage() {
           }
 
           case "system": {
-            const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
+            const [rateLimitData, wclUserAuthData, twitchBotData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
               api.getAdminRateLimitStatus(),
               api.getAdminWarcraftLogsUserAuthStatus(),
+              api.getAdminTwitchBotStatus(),
               api.getAdminProcessingQueueStats(),
               api.getAdminProcessingQueue(queuePage, 20, queueFilter || undefined),
               api.getAdminProcessingQueueErrors(1, 50),
@@ -514,6 +524,7 @@ export default function AdminPage() {
             setRateLimitStatus(rateLimitData.status);
             setRateLimitConfig(rateLimitData.config);
             setWclUserAuthStatus(wclUserAuthData);
+            setTwitchBotStatus(twitchBotData);
             setProcessorStatus(queueStatsData.processor);
             setQueueStats(queueStatsData.queue);
             setQueueItems(queueData.items);
@@ -576,9 +587,10 @@ export default function AdminPage() {
     if (activeTab === "system" && user?.isAdmin) {
       const interval = setInterval(async () => {
         try {
-          const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
+          const [rateLimitData, wclUserAuthData, twitchBotData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
             api.getAdminRateLimitStatus(),
             api.getAdminWarcraftLogsUserAuthStatus(),
+            api.getAdminTwitchBotStatus(),
             api.getAdminProcessingQueueStats(),
             api.getAdminProcessingQueue(queuePage, 20, queueFilter || undefined),
             api.getAdminProcessingQueueErrors(1, 50),
@@ -589,6 +601,7 @@ export default function AdminPage() {
           setRateLimitStatus(rateLimitData.status);
           setRateLimitConfig(rateLimitData.config);
           setWclUserAuthStatus(wclUserAuthData);
+          setTwitchBotStatus(twitchBotData);
           setProcessorStatus(queueStatsData.processor);
           setQueueStats(queueStatsData.queue);
           setQueueItems(queueData.items);
@@ -733,6 +746,9 @@ export default function AdminPage() {
         const adminRaidsData = await getAdminRaids();
         setAdminRaids(adminRaidsData.raids);
       }
+      if (triggerName === "twitch-bot-reconnect" || triggerName === "twitch-bot-reconcile") {
+        await refreshTwitchBotStatus();
+      }
 
       // Set cooldown for this specific button
       setTriggerCooldowns((prev) => ({ ...prev, [triggerName]: true }));
@@ -773,6 +789,12 @@ export default function AdminPage() {
   const refreshWclUserAuthStatus = async () => {
     const status = await api.getAdminWarcraftLogsUserAuthStatus();
     setWclUserAuthStatus(status);
+    return status;
+  };
+
+  const refreshTwitchBotStatus = async () => {
+    const status = await api.getAdminTwitchBotStatus();
+    setTwitchBotStatus(status);
     return status;
   };
 
@@ -892,6 +914,62 @@ export default function AdminPage() {
       setTriggerMessage({
         type: "error",
         text: error instanceof Error ? error.message : "Failed to disconnect Warcraft Logs user authorization",
+      });
+    } finally {
+      setTriggerLoading(null);
+    }
+  };
+
+  const handleConnectTwitchBot = async () => {
+    setTriggerLoading("twitch-bot-connect");
+    setTriggerMessage(null);
+    try {
+      const { url } = await api.getAdminTwitchBotAuthUrl();
+      window.location.href = url;
+    } catch (error) {
+      setTriggerMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to start Twitch bot authorization",
+      });
+      setTriggerLoading(null);
+    }
+  };
+
+  const handleVerifyTwitchBot = async () => {
+    setTriggerLoading("twitch-bot-verify");
+    setTriggerMessage(null);
+    try {
+      const result = await api.verifyAdminTwitchBotAuth();
+      await refreshTwitchBotStatus();
+      setTriggerMessage({ type: "success", text: `Twitch bot verified: ${result.user.displayName}` });
+      setTimeout(() => setTriggerMessage(null), 5000);
+    } catch (error) {
+      setTriggerMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to verify Twitch bot",
+      });
+    } finally {
+      setTriggerLoading(null);
+    }
+  };
+
+  const handleDisconnectTwitchBot = async () => {
+    if (!confirm("Disconnect the stored Twitch bot authorization? The bot will leave chat after the worker notices the disconnected token.")) {
+      return;
+    }
+
+    setTriggerLoading("twitch-bot-disconnect");
+    setTriggerMessage(null);
+    try {
+      const result = await api.disconnectAdminTwitchBotAuth();
+      await triggerTwitchBotReconnect().catch(() => undefined);
+      await refreshTwitchBotStatus();
+      setTriggerMessage({ type: "success", text: result.message });
+      setTimeout(() => setTriggerMessage(null), 5000);
+    } catch (error) {
+      setTriggerMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to disconnect Twitch bot authorization",
       });
     } finally {
       setTriggerLoading(null);
@@ -3328,6 +3406,113 @@ export default function AdminPage() {
                             {wclProbeResult.deathEventProbe ? `${wclProbeResult.deathEventProbe.eventCount ?? "?"} from ${wclProbeResult.deathEventProbe.fightsTested} fights` : "No stored fights"}
                           </span>
                         </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Twitch Bot */}
+            <div>
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <span>💬</span> Twitch Bot
+              </h2>
+              {twitchBotStatus && (
+                <div className="bg-gray-800 rounded-lg p-6 space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h4 className="text-gray-400 text-sm">OAuth</h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`inline-block w-3 h-3 rounded-full ${twitchBotStatus.enabled ? "bg-green-500" : "bg-red-500"}`} />
+                        <span className={`text-lg font-bold ${twitchBotStatus.enabled ? "text-green-400" : "text-red-400"}`}>
+                          {twitchBotStatus.enabled ? "Configured" : "Missing"}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500 break-all">{twitchBotStatus.redirectUri}</p>
+                    </div>
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h4 className="text-gray-400 text-sm">Bot Account</h4>
+                      <p className={`text-lg font-bold mt-1 ${twitchBotStatus.connected ? "text-white" : "text-amber-400"}`}>
+                        {twitchBotStatus.twitchDisplayName || twitchBotStatus.twitchLogin || (twitchBotStatus.connected ? "Connected" : "Not connected")}
+                      </p>
+                      {twitchBotStatus.connectedByUsername && <p className="text-sm text-gray-500">by {twitchBotStatus.connectedByUsername}</p>}
+                      {twitchBotStatus.tokenExpiresAt && <p className="text-sm text-gray-500">token: {formatDate(twitchBotStatus.tokenExpiresAt)}</p>}
+                      {twitchBotStatus.scopes.length > 0 && <p className="mt-1 text-xs text-gray-500 break-all">{twitchBotStatus.scopes.join(", ")}</p>}
+                    </div>
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h4 className="text-gray-400 text-sm">Chat</h4>
+                      <p className={`text-lg font-bold mt-1 ${twitchBotStatus.chat.connected ? "text-green-400" : "text-amber-400"}`}>
+                        {twitchBotStatus.chat.connected ? "Connected" : twitchBotStatus.chat.running ? "Waiting" : "Stopped"}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {twitchBotStatus.chat.joinedCount}/{twitchBotStatus.chat.desiredCount} channels
+                      </p>
+                      {twitchBotStatus.chat.lastReconciledAt && <p className="text-sm text-gray-500">reconciled: {formatDate(twitchBotStatus.chat.lastReconciledAt)}</p>}
+                    </div>
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h4 className="text-gray-400 text-sm">Deliveries</h4>
+                      <p className="text-sm text-gray-300 mt-2">
+                        <span className="text-amber-300 font-semibold">{twitchBotStatus.deliveries.pending}</span> pending
+                      </p>
+                      <p className="text-sm text-gray-300">
+                        <span className="text-red-300 font-semibold">{twitchBotStatus.deliveries.failed}</span> failed
+                      </p>
+                      <p className="text-sm text-gray-300">
+                        <span className="text-green-300 font-semibold">{twitchBotStatus.deliveries.sent24h}</span> sent in 24h
+                      </p>
+                    </div>
+                  </div>
+
+                  {twitchBotStatus.chat.lastError && (
+                    <div className="rounded-lg border border-red-500/40 bg-red-950/30 px-4 py-3 text-sm text-red-200">
+                      {twitchBotStatus.chat.lastError}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
+                    <button
+                      onClick={handleConnectTwitchBot}
+                      disabled={!twitchBotStatus.enabled || triggerLoading === "twitch-bot-connect"}
+                      className="min-h-10 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {twitchBotStatus.connected ? "Reconnect Bot Account" : "Connect Bot Account"}
+                    </button>
+                    <button
+                      onClick={handleVerifyTwitchBot}
+                      disabled={!twitchBotStatus.connected || triggerLoading === "twitch-bot-verify"}
+                      className="min-h-10 px-3 py-2 bg-gray-700 text-gray-200 text-sm rounded hover:bg-gray-600 disabled:opacity-50"
+                    >
+                      Verify Bot
+                    </button>
+                    {renderTriggerButton("twitch-bot-reconnect", "Reconnect Chat", triggerTwitchBotReconnect, {
+                      disabled: !twitchBotStatus.connected,
+                    })}
+                    {renderTriggerButton("twitch-bot-reconcile", "Reconcile Channels", triggerTwitchBotReconcile, {
+                      disabled: !twitchBotStatus.connected,
+                    })}
+                    <button
+                      onClick={handleDisconnectTwitchBot}
+                      disabled={!twitchBotStatus.connected || triggerLoading === "twitch-bot-disconnect"}
+                      className="min-h-10 px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+
+                  {(twitchBotStatus.chat.joinedChannels.length > 0 || twitchBotStatus.chat.desiredChannels.length > 0) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div className="rounded-lg border border-gray-700 bg-gray-900 p-4">
+                        <h4 className="text-gray-400 mb-2">Joined Channels</h4>
+                        <p className="text-gray-200 break-words">
+                          {twitchBotStatus.chat.joinedChannels.slice(0, 30).map((channel) => `#${channel}`).join(", ") || "None"}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-700 bg-gray-900 p-4">
+                        <h4 className="text-gray-400 mb-2">Desired Channels</h4>
+                        <p className="text-gray-200 break-words">
+                          {twitchBotStatus.chat.desiredChannels.slice(0, 30).map((channel) => `#${channel}`).join(", ") || "None"}
+                        </p>
                       </div>
                     </div>
                   )}
