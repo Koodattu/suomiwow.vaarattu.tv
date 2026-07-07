@@ -472,8 +472,7 @@ class TwitchChatBotService {
   private async enqueueNewEventDeliveries(): Promise<void> {
     let state = await TwitchBotRuntimeState.findOne({ key: RUNTIME_STATE_KEY });
     if (!state) {
-      await TwitchBotRuntimeState.create({
-        key: RUNTIME_STATE_KEY,
+      await this.writeRuntimeState({
         enabled: this.isEnabled(),
         running: this.running,
         connected: this.connected,
@@ -663,6 +662,7 @@ class TwitchChatBotService {
     connected: boolean;
     desiredChannels: string[];
     joinedChannels: string[];
+    lastEventCreatedAt: Date;
     lastStartedAt: Date;
     lastStoppedAt: Date;
     lastConnectedAt: Date;
@@ -683,14 +683,24 @@ class TwitchChatBotService {
       }
     }
 
-    await TwitchBotRuntimeState.updateOne(
-      { key: RUNTIME_STATE_KEY },
-      {
-        $set: set,
-        ...(Object.keys(unset).length > 0 ? { $unset: unset } : {}),
-      },
-      { upsert: true },
-    );
+    const mongoUpdate = {
+      $set: set,
+      ...(Object.keys(unset).length > 0 ? { $unset: unset } : {}),
+    };
+
+    try {
+      await TwitchBotRuntimeState.updateOne({ key: RUNTIME_STATE_KEY }, mongoUpdate, { upsert: true });
+    } catch (error) {
+      if (!this.isDuplicateKeyError(error)) {
+        throw error;
+      }
+
+      await TwitchBotRuntimeState.updateOne({ key: RUNTIME_STATE_KEY }, mongoUpdate);
+    }
+  }
+
+  private isDuplicateKeyError(error: unknown): boolean {
+    return typeof error === "object" && error !== null && "code" in error && (error as { code?: number }).code === 11000;
   }
 
   private async recordError(message: string, error: unknown): Promise<void> {
