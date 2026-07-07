@@ -52,14 +52,14 @@ export default function RaidSelector({ raids, selectedRaidId, onRaidSelect, show
   });
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative w-full sm:w-auto" ref={dropdownRef}>
       <label htmlFor="raid-select" className="text-xs text-gray-400 mb-1 block">
         {t("selectRaid")}
       </label>
       <button
         id="raid-select"
         onClick={() => setIsOpen(!isOpen)}
-        className="bg-gray-800 text-white px-4 py-2 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2 min-w-[350px] justify-between hover:bg-gray-750 transition-colors"
+        className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-white transition-colors hover:bg-gray-750 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-w-[350px]"
       >
         <div className="flex items-center gap-2">
           {selectedRaid?.iconUrl && <IconImage iconFilename={selectedRaid.iconUrl} alt="Raid icon" width={24} height={24} className="rounded" />}

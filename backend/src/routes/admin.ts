@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { requireAdmin } from "../middleware/admin.middleware";
+import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
 import User from "../models/User";
 import Guild from "../models/Guild";
 import Report from "../models/Report";
@@ -2795,6 +2796,34 @@ router.post("/trigger/rebuild-guild-profile-highlights", async (_req: Request, r
   } catch (error) {
     logger.error("Error triggering guild profile highlights rebuild:", error);
     res.status(500).json({ error: "Failed to trigger guild profile highlights rebuild" });
+  }
+});
+
+// Rebuild generated character tier lists from stored participation and mechanics rows
+router.post("/trigger/rebuild-character-tier-lists", async (req: Request, res: Response) => {
+  try {
+    const requestedRaidId = req.body?.raidId !== undefined ? parseInt(String(req.body.raidId), 10) : null;
+    const scope = req.body?.scope === "all" ? "all" : "current";
+    const zoneIds =
+      requestedRaidId && Number.isFinite(requestedRaidId) && requestedRaidId > 0
+        ? [requestedRaidId]
+        : scope === "all"
+          ? TRACKED_RAIDS
+          : CURRENT_RAID_IDS;
+
+    const started = scheduler.triggerCharacterTierListsRebuild(zoneIds);
+    if (!started) {
+      return res.status(409).json({ error: "Character tier list rebuild is already running" });
+    }
+
+    res.json({
+      success: true,
+      message: "Character tier list rebuild started",
+      raidIds: zoneIds,
+    });
+  } catch (error) {
+    logger.error("Error triggering character tier list rebuild:", error);
+    res.status(500).json({ error: "Failed to trigger character tier list rebuild" });
   }
 });
 

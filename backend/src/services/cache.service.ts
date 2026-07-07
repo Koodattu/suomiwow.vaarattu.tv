@@ -125,6 +125,7 @@ class CacheService {
     /^guilds:horse-race-uma-reservations$/,
     /^events:/,
     /^characters:profile:/,
+    /^character-tierlists:/,
     /^raids:list$/,
     /^raid:\d+:dates$/,
     /^raid:\d+:bosses$/,
@@ -157,6 +158,7 @@ class CacheService {
   // Static data - rarely changes, long TTL (invalidated by backend triggers)
   public readonly STATIC_TTL = 24 * 60 * 60 * 1000; // 24 hours
   public readonly TIER_LIST_TTL = 24 * 60 * 60 * 1000; // 24 hours (recalculated nightly)
+  public readonly CHARACTER_TIER_LIST_TTL = 24 * 60 * 60 * 1000; // 24 hours (rebuilt after character mechanics)
   public readonly RAID_ANALYTICS_TTL = 24 * 60 * 60 * 1000; // 24 hours (recalculated nightly)
   public readonly OLDER_RAID_TTL = 24 * 60 * 60 * 1000; // 24 hours for historical raids
 
@@ -937,6 +939,26 @@ class CacheService {
     return "tierlists:raids";
   }
 
+  private formatCharacterTierListFilterSegment(filters: { minReports?: number; role?: string | null; classId?: number | null; limit?: number | null }): string {
+    const minReports = Number.isFinite(filters.minReports) ? filters.minReports : "default";
+    const role = filters.role || "all";
+    const classId = Number.isFinite(filters.classId) ? filters.classId : "all";
+    const limit = Number.isFinite(filters.limit) ? filters.limit : "default";
+    return `reports:${minReports}:role:${role}:class:${classId}:limit:${limit}`;
+  }
+
+  getCharacterTierListRaidsKey(): string {
+    return "character-tierlists:raids";
+  }
+
+  getCharacterTierListGlobalKey(raidId: number, filters: { minReports?: number; role?: string | null; classId?: number | null; limit?: number | null }): string {
+    return `character-tierlists:global:${raidId}:${this.formatCharacterTierListFilterSegment(filters)}`;
+  }
+
+  getCharacterTierListGuildKey(realm: string, name: string, raidId: number, filters: { minReports?: number; role?: string | null; classId?: number | null; limit?: number | null }): string {
+    return `character-tierlists:guild:${realm.toLowerCase()}:${name.toLowerCase()}:${raidId}:${this.formatCharacterTierListFilterSegment(filters)}`;
+  }
+
   /**
    * Get cache key for raid analytics all overview.
    */
@@ -1010,6 +1032,13 @@ class CacheService {
    */
   getTierListTTL(): number {
     return this.TIER_LIST_TTL;
+  }
+
+  /**
+   * Get TTL for character tier lists.
+   */
+  getCharacterTierListTTL(): number {
+    return this.CHARACTER_TIER_LIST_TTL;
   }
 
   /**
@@ -1199,6 +1228,15 @@ class CacheService {
   async invalidateTierListCaches(): Promise<void> {
     await this.invalidatePattern(/^tierlists:/);
     logger.info("Tier list caches invalidated");
+  }
+
+  /**
+   * Invalidate all character tier list caches.
+   * Called after character tier list entries are rebuilt.
+   */
+  async invalidateCharacterTierListCaches(): Promise<void> {
+    await this.invalidatePattern(/^character-tierlists:/);
+    logger.info("Character tier list caches invalidated");
   }
 
   /**
@@ -1406,6 +1444,7 @@ class CacheService {
    */
   private inferTTLFromKey(key: string): number {
     if (key.startsWith("tierlists:")) return this.TIER_LIST_TTL;
+    if (key.startsWith("character-tierlists:")) return this.CHARACTER_TIER_LIST_TTL;
     if (key.startsWith("raid-analytics:")) return this.RAID_ANALYTICS_TTL;
     if (key.startsWith("progress:")) {
       // Extract raid ID and determine TTL

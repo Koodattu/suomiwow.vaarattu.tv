@@ -3,6 +3,7 @@
 import { use, useEffect, useState, useCallback, useRef, Fragment, useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { Guild, RaidProgressSummary, RaidInfo, Boss, RaidSchedule, GuildRaidCharactersResponse } from "@/types";
 import { api } from "@/lib/api";
 import { useGuildSummaryByRealmName, useRaids, useGuildEventsByRealmName } from "@/lib/queries";
@@ -189,6 +190,7 @@ function RaidScheduleBadges({ raidSchedule, variant, className = "" }: { raidSch
 
 export default function GuildProfilePage({ params }: PageProps) {
   const resolvedParams = use(params);
+  const t = useTranslations("guildProfilePage");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -440,6 +442,13 @@ export default function GuildProfilePage({ params }: PageProps) {
       router.push(`/characters/${encodeURIComponent(characterRealm)}/${encodeURIComponent(characterName)}?class=${encodeURIComponent(String(classID))}`);
     },
     [router],
+  );
+
+  const handleRaidTierListNavigate = useCallback(
+    (raidId: number) => {
+      router.push(`/guilds/${encodeURIComponent(realm)}/${encodeURIComponent(name)}/raids/${raidId}/tierlist`);
+    },
+    [name, realm, router],
   );
 
   // Handle raid info click - navigate to main page with raid selected
@@ -858,13 +867,20 @@ export default function GuildProfilePage({ params }: PageProps) {
                                 )}
                               </div>
                             </div>
-                            <div className="border-t border-gray-700/50 px-2 py-2">
+                            <div className="grid grid-cols-2 gap-2 border-t border-gray-700/50 px-2 py-2">
                               <button
                                 type="button"
                                 onClick={() => handleRaidCharactersClick(raid)}
                                 className="inline-flex min-h-10 w-full items-center justify-center rounded-md bg-gray-700 px-3 text-xs font-semibold text-gray-100 transition-colors hover:bg-gray-600 active:scale-[0.99]"
                               >
-                                Characters
+                                {t("characters")}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRaidTierListNavigate(raid.id)}
+                                className="inline-flex min-h-10 w-full items-center justify-center rounded-md bg-blue-700 px-3 text-xs font-semibold text-white transition-colors hover:bg-blue-600 active:scale-[0.99]"
+                              >
+                                {t("tierList")}
                               </button>
                             </div>
                           </div>
@@ -1066,16 +1082,28 @@ export default function GuildProfilePage({ params }: PageProps) {
                                 onMouseEnter={() => hasProgress && setHoveredRaidProgressRow(raid.id)}
                                 onMouseLeave={() => setHoveredRaidProgressRow(null)}
                               >
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    handleRaidCharactersClick(raid);
-                                  }}
-                                  className="inline-flex min-h-10 items-center justify-center rounded-md bg-gray-800 px-3 text-xs font-semibold text-gray-100 transition-colors hover:bg-gray-700 active:scale-[0.98]"
-                                >
-                                  View
-                                </button>
+                                <div className="flex justify-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleRaidCharactersClick(raid);
+                                    }}
+                                    className="inline-flex min-h-10 items-center justify-center rounded-md bg-gray-800 px-3 text-xs font-semibold text-gray-100 transition-colors hover:bg-gray-700 active:scale-[0.98]"
+                                  >
+                                    {t("view")}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleRaidTierListNavigate(raid.id);
+                                    }}
+                                    className="inline-flex min-h-10 items-center justify-center rounded-md bg-blue-700 px-3 text-xs font-semibold text-white transition-colors hover:bg-blue-600 active:scale-[0.98]"
+                                  >
+                                    {t("tierList")}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { GuildTierScore } from "@/types";
 import { useTranslations } from "next-intl";
 import GuildCrest from "@/components/GuildCrest";
@@ -313,6 +314,9 @@ export default function TierListsPage() {
         <div className="min-w-0">
           <h1 className="text-2xl lg:text-3xl font-bold text-white text-balance">{t("title")}</h1>
           <p className="text-sm text-gray-500 text-pretty">{t("subtitle")}</p>
+          <Link href="/tierlists/characters" className="mt-3 inline-flex min-h-9 items-center rounded-md border border-gray-700 px-3 text-sm font-semibold text-gray-200 transition-colors hover:bg-gray-800">
+            {t("characterTierLists")}
+          </Link>
         </div>
         <div className="flex flex-col gap-2 lg:items-end lg:shrink-0">
           <div className="flex items-end gap-3">

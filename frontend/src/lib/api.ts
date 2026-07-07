@@ -19,6 +19,11 @@ import {
   OverallTierListResponse,
   RaidTierListResponse,
   TierListRaidInfo,
+  CharacterTierListRaidInfo,
+  CharacterTierListResponse,
+  CharacterTierListRole,
+  CustomCharacterTierListResponse,
+  SaveCustomCharacterTierListInput,
   AnalyticsOverview,
   AnalyticsHourly,
   AnalyticsDaily,
@@ -397,6 +402,88 @@ export const api = {
   async getTierListRaids(): Promise<TierListRaidInfo[]> {
     const response = await fetch(`${API_URL}/api/tierlists/raids`);
     if (!response.ok) throw new Error("Failed to fetch tier list raids");
+    return response.json();
+  },
+
+  async getCharacterTierListRaids(): Promise<CharacterTierListRaidInfo[]> {
+    const response = await fetch(`${API_URL}/api/character-tierlists/raids`);
+    if (!response.ok) throw new Error("Failed to fetch character tier list raids");
+    return response.json();
+  },
+
+  async getGlobalCharacterTierList(
+    raidId: number,
+    filters: { minReports?: number; role?: CharacterTierListRole | null; classId?: number | null; limit?: number } = {},
+  ): Promise<CharacterTierListResponse> {
+    const params = new URLSearchParams();
+    if (filters.minReports !== undefined) params.set("minReports", String(filters.minReports));
+    if (filters.role) params.set("role", filters.role);
+    if (filters.classId) params.set("classId", String(filters.classId));
+    if (filters.limit !== undefined) params.set("limit", String(filters.limit));
+
+    const query = params.toString();
+    const response = await fetch(`${API_URL}/api/character-tierlists/raids/${raidId}${query ? `?${query}` : ""}`);
+    if (!response.ok) throw new Error("Failed to fetch character tier list");
+    return response.json();
+  },
+
+  async getGuildCharacterTierList(
+    realm: string,
+    name: string,
+    raidId: number,
+    filters: { minReports?: number; role?: CharacterTierListRole | null; classId?: number | null; limit?: number } = {},
+  ): Promise<CharacterTierListResponse> {
+    const encodedRealm = encodeURIComponent(realm);
+    const encodedName = encodeURIComponent(name);
+    const params = new URLSearchParams();
+    if (filters.minReports !== undefined) params.set("minReports", String(filters.minReports));
+    if (filters.role) params.set("role", filters.role);
+    if (filters.classId) params.set("classId", String(filters.classId));
+    if (filters.limit !== undefined) params.set("limit", String(filters.limit));
+
+    const query = params.toString();
+    const response = await fetch(`${API_URL}/api/character-tierlists/guilds/${encodedRealm}/${encodedName}/raids/${raidId}${query ? `?${query}` : ""}`);
+    if (!response.ok) throw new Error("Failed to fetch guild character tier list");
+    return response.json();
+  },
+
+  async getCustomCharacterTierList(realm: string, name: string, raidId: number): Promise<CustomCharacterTierListResponse> {
+    const encodedRealm = encodeURIComponent(realm);
+    const encodedName = encodeURIComponent(name);
+    const response = await fetch(`${API_URL}/api/character-tierlists/guilds/${encodedRealm}/${encodedName}/raids/${raidId}/custom`, {
+      credentials: "include",
+    });
+    if (!response.ok) throw new Error("Failed to fetch custom character tier list");
+    return response.json();
+  },
+
+  async saveCustomCharacterTierList(realm: string, name: string, raidId: number, input: SaveCustomCharacterTierListInput): Promise<CustomCharacterTierListResponse> {
+    const encodedRealm = encodeURIComponent(realm);
+    const encodedName = encodeURIComponent(name);
+    const response = await fetch(`${API_URL}/api/character-tierlists/guilds/${encodedRealm}/${encodedName}/raids/${raidId}/custom`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || "Failed to save custom character tier list");
+    }
+    return response.json();
+  },
+
+  async deleteCustomCharacterTierList(realm: string, name: string, raidId: number): Promise<CustomCharacterTierListResponse> {
+    const encodedRealm = encodeURIComponent(realm);
+    const encodedName = encodeURIComponent(name);
+    const response = await fetch(`${API_URL}/api/character-tierlists/guilds/${encodedRealm}/${encodedName}/raids/${raidId}/custom`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || "Failed to reset custom character tier list");
+    }
     return response.json();
   },
 

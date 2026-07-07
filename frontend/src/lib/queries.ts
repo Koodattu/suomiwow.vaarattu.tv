@@ -1,9 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { EventFilters } from "@/types";
+import type { CharacterTierListRole, EventFilters } from "@/types";
 
 const LIVE_STATUS_STALE_TIME = 15 * 60 * 1000;
 const LIVE_STATUS_REFETCH_INTERVAL = 15 * 60 * 1000;
+
+export type CharacterTierListQueryFilters = {
+  minReports?: number;
+  role?: CharacterTierListRole | null;
+  classId?: number | null;
+  limit?: number;
+};
 
 // Query Key Factory
 // Centralized query keys for cache management and invalidation.
@@ -41,6 +48,12 @@ export const queryKeys = {
     overall: ["tierLists", "overall"] as const,
     forRaid: (raidId: number) => ["tierLists", "forRaid", raidId] as const,
     raids: ["tierLists", "raids"] as const,
+  },
+  characterTierLists: {
+    raids: ["characterTierLists", "raids"] as const,
+    global: (raidId: number, filters: CharacterTierListQueryFilters) => ["characterTierLists", "global", raidId, filters] as const,
+    guild: (realm: string, name: string, raidId: number, filters: CharacterTierListQueryFilters) => ["characterTierLists", "guild", realm, name, raidId, filters] as const,
+    custom: (realm: string, name: string, raidId: number) => ["characterTierLists", "custom", realm, name, raidId] as const,
   },
   pickems: {
     guilds: ["pickems", "guilds"] as const,
@@ -242,6 +255,38 @@ export function useTierListForRaid(raidId: number | null) {
     queryKey: queryKeys.tierLists.forRaid(raidId!),
     queryFn: () => api.getTierListForRaid(raidId!),
     enabled: raidId !== null && raidId > 0,
+  });
+}
+
+export function useCharacterTierListRaids() {
+  return useQuery({
+    queryKey: queryKeys.characterTierLists.raids,
+    queryFn: () => api.getCharacterTierListRaids(),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useGlobalCharacterTierList(raidId: number | null, filters: CharacterTierListQueryFilters, enabled: boolean = true) {
+  return useQuery({
+    queryKey: queryKeys.characterTierLists.global(raidId!, filters),
+    queryFn: () => api.getGlobalCharacterTierList(raidId!, filters),
+    enabled: enabled && raidId !== null && raidId > 0,
+  });
+}
+
+export function useGuildCharacterTierList(realm: string, name: string, raidId: number | null, filters: CharacterTierListQueryFilters, enabled: boolean = true) {
+  return useQuery({
+    queryKey: queryKeys.characterTierLists.guild(realm, name, raidId!, filters),
+    queryFn: () => api.getGuildCharacterTierList(realm, name, raidId!, filters),
+    enabled: enabled && !!realm && !!name && raidId !== null && raidId > 0,
+  });
+}
+
+export function useCustomCharacterTierList(realm: string, name: string, raidId: number | null, enabled: boolean = true) {
+  return useQuery({
+    queryKey: queryKeys.characterTierLists.custom(realm, name, raidId!),
+    queryFn: () => api.getCustomCharacterTierList(realm, name, raidId!),
+    enabled: enabled && !!realm && !!name && raidId !== null && raidId > 0,
   });
 }
 

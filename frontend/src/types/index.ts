@@ -634,6 +634,141 @@ export interface TierListRaidInfo {
   raidName: string;
 }
 
+export type CharacterTierListRole = "dps" | "healer" | "tank";
+export type CharacterTierListMetric = "dps" | "hps";
+export type CharacterTierName = "Crown" | "S" | "A" | "B" | "C" | "D" | "E" | "F";
+export type CustomCharacterTierName = Exclude<CharacterTierName, "Crown">;
+
+export interface CharacterTierListRaidInfo {
+  raidId: number;
+  raidName: string;
+  generatedAt: string | null;
+  characterCount: number;
+}
+
+export interface CharacterTierListBossScore {
+  encounterId: number;
+  encounterName: string;
+  score: number;
+  parseScore: number;
+  survivalScore: number | null;
+  pulls: number;
+  deaths: number;
+  survivedPulls: number;
+  earlyDeaths: number;
+  averageDeathPercent: number | null;
+  deathDataAvailable: boolean;
+  specName: string;
+  rankPercent: number;
+}
+
+export interface CharacterTierListCharacter {
+  characterKey: string;
+  characterId: string | null;
+  wclCanonicalCharacterId: number | null;
+  name: string;
+  realm: string;
+  region: string;
+  classID: number;
+  role: CharacterTierListRole;
+  metric: CharacterTierListMetric;
+  specName: string;
+  bestSpecName: string | null;
+  ilvl: number;
+  score: number;
+  parseScore: number;
+  survivalScore: number | null;
+  rankPercent: number;
+  medianPercent: number;
+  totalKills: number;
+  pulls: number;
+  deaths: number;
+  survivedPulls: number;
+  earlyDeaths: number;
+  averageDeathPercent: number | null;
+  deathDataAvailable: boolean;
+  bossScores: CharacterTierListBossScore[];
+  reportCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  sourceUpdatedAt: string;
+}
+
+export interface CharacterTierListFilters {
+  minReports: number;
+  role: CharacterTierListRole | null;
+  classId: number | null;
+  limit: number;
+}
+
+export interface CharacterTierListResponse {
+  raid: {
+    id: number;
+    name: string;
+  };
+  guild?: {
+    id: string;
+    name: string;
+    realm: string;
+  } | null;
+  filters: CharacterTierListFilters;
+  generatedAt: string | null;
+  characters: CharacterTierListCharacter[];
+  total: number;
+}
+
+export interface CharacterTierListRosterCharacter {
+  characterKey: string;
+  characterId: string | null;
+  wclCanonicalCharacterId: number | null;
+  name: string;
+  realm: string;
+  region: string;
+  classID: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  reportCount: number;
+  score: number | null;
+  parseScore: number | null;
+  survivalScore: number | null;
+  role: CharacterTierListRole | null;
+  metric: CharacterTierListMetric | null;
+  specName: string | null;
+  bestSpecName: string | null;
+  pulls: number | null;
+  deaths: number | null;
+}
+
+export interface CustomCharacterTierBucket {
+  tier: CustomCharacterTierName;
+  characterKeys: string[];
+}
+
+export interface CustomCharacterTierListResponse {
+  guild: {
+    id: string;
+    name: string;
+    realm: string;
+  };
+  raid: {
+    id: number;
+    name: string;
+  };
+  roster: CharacterTierListRosterCharacter[];
+  canSave: boolean;
+  customList: {
+    saved: boolean;
+    updatedAt: string | null;
+    tiers: CustomCharacterTierBucket[];
+    unplacedCharacterKeys: string[];
+  };
+}
+
+export interface SaveCustomCharacterTierListInput {
+  tiers: CustomCharacterTierBucket[];
+  unplacedCharacterKeys: string[];
+}
+
 // Analytics types
 export interface AnalyticsPeriodStats {
   totalRequests: number;

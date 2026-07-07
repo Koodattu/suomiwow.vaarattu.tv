@@ -6,6 +6,7 @@ import twitchService, { StreamStatus } from "./twitch.service";
 import tierListService from "./tierlist.service";
 import characterService from "./character.service";
 import characterMechanicsService from "./character-mechanics.service";
+import characterTierListService from "./character-tierlist.service";
 import raidAnalyticsService from "./raid-analytics.service";
 import guildNetworkService from "./guild-network.service";
 import guildProfileHighlightsService from "./guild-profile-highlights.service";
@@ -110,6 +111,7 @@ class UpdateScheduler {
   private isUpdatingTierLists: boolean = false;
   private isUpdatingCharacterRankings: boolean = false;
   private isUpdatingCharacterMechanics: boolean = false;
+  private isRebuildingCharacterTierLists: boolean = false;
   private characterMechanicsRebuildPending: boolean = false;
   private isQueueingDeathEventBackfill: boolean = false;
   private isQueueingReportCharacterBackfill: boolean = false;
@@ -1514,6 +1516,9 @@ class UpdateScheduler {
       const result = await characterMechanicsService.buildCurrentRaidMechanicsLeaderboards();
       this.characterMechanicsRebuildPending = false;
       await taskTracker.complete(taskId, result);
+      await this.rebuildCharacterTierLists(result.zones.map((zone) => zone.zoneId)).catch((error) => {
+        logger.error("[CharacterTierLists] Rebuild after character mechanics failed:", error);
+      });
       await this.rebuildGuildProfileHighlights().catch((error) => {
         logger.error("[GuildProfileHighlights] Rebuild after character mechanics failed:", error);
       });
@@ -1591,6 +1596,28 @@ class UpdateScheduler {
     }
   }
 
+  async rebuildCharacterTierLists(zoneIds: number[] = CURRENT_RAID_IDS): Promise<void> {
+    if (this.isRebuildingCharacterTierLists) {
+      logger.info("[CharacterTierLists] Previous rebuild still in progress, skipping...");
+      return;
+    }
+
+    this.isRebuildingCharacterTierLists = true;
+    const taskId = await taskTracker.start("Rebuild Character Tier Lists", { zoneIds });
+
+    try {
+      const result = await characterTierListService.rebuildCharacterTierLists(zoneIds);
+      await cacheService.invalidateCharacterTierListCaches();
+      await taskTracker.complete(taskId, result);
+    } catch (error) {
+      logger.error("[CharacterTierLists] Rebuild error:", error);
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+      throw error;
+    } finally {
+      this.isRebuildingCharacterTierLists = false;
+    }
+  }
+
   triggerGuildProfileHighlightsRebuild(): boolean {
     if (this.isRebuildingGuildProfileHighlights) {
       return false;
@@ -1598,6 +1625,16 @@ class UpdateScheduler {
     this.rebuildGuildProfileHighlights()
       .then(() => logger.info("[Admin] Guild profile highlights rebuild completed"))
       .catch((err) => logger.error("[Admin] Guild profile highlights rebuild failed:", err));
+    return true;
+  }
+
+  triggerCharacterTierListsRebuild(zoneIds: number[] = CURRENT_RAID_IDS): boolean {
+    if (this.isRebuildingCharacterTierLists) {
+      return false;
+    }
+    this.rebuildCharacterTierLists(zoneIds)
+      .then(() => logger.info("[Admin] Character tier list rebuild completed"))
+      .catch((err) => logger.error("[Admin] Character tier list rebuild failed:", err));
     return true;
   }
 

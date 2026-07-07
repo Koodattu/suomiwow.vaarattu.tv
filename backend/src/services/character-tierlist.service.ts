@@ -1,0 +1,929 @@
+import mongoose from "mongoose";
+import { AnyBulkWriteOperation } from "mongoose";
+import CharacterMechanicsLeaderboard, { IMechanicsBossScore } from "../models/CharacterMechanicsLeaderboard";
+import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
+import CharacterTierListEntry, { ICharacterTierListEntry, CharacterTierListRole, CharacterTierListMetric } from "../models/CharacterTierListEntry";
+import CustomCharacterTierList, { CustomCharacterTier, ICustomCharacterTierList } from "../models/CustomCharacterTierList";
+import Guild from "../models/Guild";
+import Raid from "../models/Raid";
+import { TRACKED_RAIDS } from "../config/guilds";
+import logger from "../utils/logger";
+
+const MYTHIC_DIFFICULTY = 5;
+const DEFAULT_TIERS: CustomCharacterTier[] = ["S", "A", "B", "C", "D", "E", "F"];
+const MAX_QUERY_LIMIT = 2000;
+
+type MechanicsRow = {
+  characterId: mongoose.Types.ObjectId;
+  wclCanonicalCharacterId: number;
+  name: string;
+  realm: string;
+  region: string;
+  classID: number;
+  role: CharacterTierListRole;
+  metric: CharacterTierListMetric;
+  specName: string;
+  bestSpecName?: string | null;
+  ilvl?: number;
+  score: number;
+  parseScore: number;
+  survivalScore: number | null;
+  rankPercent?: number;
+  medianPercent?: number;
+  totalKills?: number;
+  pulls?: number;
+  deaths?: number;
+  survivedPulls?: number;
+  earlyDeaths?: number;
+  averageDeathPercent?: number | null;
+  deathDataAvailable?: boolean;
+  bossScores?: IMechanicsBossScore[];
+  updatedAt?: Date;
+};
+
+type ParticipationRow = {
+  characterId?: mongoose.Types.ObjectId | null;
+  wclCanonicalCharacterId?: number | null;
+  zoneId: number;
+  reportGuildId: mongoose.Types.ObjectId;
+  reportGuildName: string;
+  reportGuildRealm: string;
+  characterName: string;
+  characterRealm: string;
+  characterRegion: string;
+  classID: number;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+  reportCount: number;
+  updatedAt?: Date;
+};
+
+type ParticipationAggregate = {
+  characterKey: string;
+  characterId?: mongoose.Types.ObjectId | null;
+  wclCanonicalCharacterId?: number | null;
+  name: string;
+  realm: string;
+  region: string;
+  classID: number;
+  reportCount: number;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+  sourceUpdatedAt: Date;
+};
+
+type GuildParticipationAggregate = ParticipationAggregate & {
+  guildId: mongoose.Types.ObjectId;
+  guildName: string;
+  guildRealm: string;
+};
+
+export type CharacterTierListFilters = {
+  minReports?: number;
+  role?: CharacterTierListRole | null;
+  classId?: number | null;
+  limit?: number | null;
+};
+
+type NormalizedCharacterTierListFilters = {
+  minReports: number;
+  role: CharacterTierListRole | null;
+  classId: number | null;
+  limit: number;
+};
+
+export type CharacterTierListCharacter = {
+  characterKey: string;
+  characterId: string | null;
+  wclCanonicalCharacterId: number | null;
+  name: string;
+  realm: string;
+  region: string;
+  classID: number;
+  role: CharacterTierListRole;
+  metric: CharacterTierListMetric;
+  specName: string;
+  bestSpecName: string | null;
+  ilvl: number;
+  score: number;
+  parseScore: number;
+  survivalScore: number | null;
+  rankPercent: number;
+  medianPercent: number;
+  totalKills: number;
+  pulls: number;
+  deaths: number;
+  survivedPulls: number;
+  earlyDeaths: number;
+  averageDeathPercent: number | null;
+  deathDataAvailable: boolean;
+  bossScores: IMechanicsBossScore[];
+  reportCount: number;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+  sourceUpdatedAt: Date;
+};
+
+export type CharacterTierListRosterCharacter = {
+  characterKey: string;
+  characterId: string | null;
+  wclCanonicalCharacterId: number | null;
+  name: string;
+  realm: string;
+  region: string;
+  classID: number;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+  reportCount: number;
+  score: number | null;
+  parseScore: number | null;
+  survivalScore: number | null;
+  role: CharacterTierListRole | null;
+  metric: CharacterTierListMetric | null;
+  specName: string | null;
+  bestSpecName: string | null;
+  pulls: number | null;
+  deaths: number | null;
+};
+
+export type CharacterTierListResponse = {
+  raid: { id: number; name: string };
+  guild?: { id: string; name: string; realm: string } | null;
+  filters: NormalizedCharacterTierListFilters;
+  generatedAt: Date | null;
+  characters: CharacterTierListCharacter[];
+  total: number;
+};
+
+export type CustomCharacterTierListResponse = {
+  guild: { id: string; name: string; realm: string };
+  raid: { id: number; name: string };
+  roster: CharacterTierListRosterCharacter[];
+  canSave: boolean;
+  customList: {
+    saved: boolean;
+    updatedAt: Date | null;
+    tiers: Array<{ tier: CustomCharacterTier; characterKeys: string[] }>;
+    unplacedCharacterKeys: string[];
+  };
+};
+
+export class CharacterTierListServiceError extends Error {
+  statusCode: number;
+
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
+class CharacterTierListService {
+  async rebuildCharacterTierLists(zoneIds: number[]): Promise<{ zones: Array<{ zoneId: number; entries: number; characters: number; guildEntries: number }>; entries: number }> {
+    const uniqueZoneIds = Array.from(new Set(zoneIds.filter((zoneId) => Number.isInteger(zoneId) && zoneId > 0)));
+    const zones: Array<{ zoneId: number; entries: number; characters: number; guildEntries: number }> = [];
+    let entries = 0;
+
+    for (const zoneId of uniqueZoneIds) {
+      const result = await this.rebuildZone(zoneId);
+      zones.push(result);
+      entries += result.entries;
+    }
+
+    return { zones, entries };
+  }
+
+  async getAvailableRaids(): Promise<Array<{ raidId: number; raidName: string; generatedAt: Date | null; characterCount: number }>> {
+    const rows = await CharacterTierListEntry.aggregate([
+      { $match: { scope: "global" } },
+      {
+        $group: {
+          _id: "$zoneId",
+          raidName: { $first: "$raidName" },
+          generatedAt: { $max: "$generatedAt" },
+          characterCount: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const order = new Map(TRACKED_RAIDS.map((raidId, index) => [raidId, index]));
+    return rows
+      .map((row) => ({
+        raidId: row._id as number,
+        raidName: row.raidName as string,
+        generatedAt: (row.generatedAt as Date | undefined) ?? null,
+        characterCount: row.characterCount as number,
+      }))
+      .sort((a, b) => (order.get(a.raidId) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.raidId) ?? Number.MAX_SAFE_INTEGER) || b.raidId - a.raidId);
+  }
+
+  async getGlobalTierList(zoneId: number, filters: CharacterTierListFilters = {}): Promise<CharacterTierListResponse> {
+    const raid = await this.getRaidInfo(zoneId);
+    const normalizedFilters = this.normalizeFilters(filters, 3);
+    const query = this.buildEntryQuery(zoneId, normalizedFilters, null);
+
+    const [characters, total] = await Promise.all([
+      CharacterTierListEntry.find(query)
+        .sort({ score: -1, reportCount: -1, lastSeenAt: -1, name: 1 })
+        .limit(normalizedFilters.limit)
+        .lean<ICharacterTierListEntry[]>(),
+      CharacterTierListEntry.countDocuments(query),
+    ]);
+
+    return {
+      raid,
+      guild: null,
+      filters: normalizedFilters,
+      generatedAt: characters[0]?.generatedAt ?? null,
+      characters: characters.map((entry) => this.formatGeneratedCharacter(entry)),
+      total,
+    };
+  }
+
+  async getGuildTierList(realm: string, name: string, zoneId: number, filters: CharacterTierListFilters = {}): Promise<CharacterTierListResponse | null> {
+    const guild = await this.findGuild(realm, name);
+    if (!guild) return null;
+
+    const raid = await this.getRaidInfo(zoneId);
+    const normalizedFilters = this.normalizeFilters(filters, 1);
+    const query = this.buildEntryQuery(zoneId, normalizedFilters, guild._id);
+
+    const [characters, total] = await Promise.all([
+      CharacterTierListEntry.find(query)
+        .sort({ score: -1, reportCount: -1, lastSeenAt: -1, name: 1 })
+        .limit(normalizedFilters.limit)
+        .lean<ICharacterTierListEntry[]>(),
+      CharacterTierListEntry.countDocuments(query),
+    ]);
+
+    return {
+      raid,
+      guild: { id: guild._id.toString(), name: guild.name, realm: guild.realm },
+      filters: normalizedFilters,
+      generatedAt: characters[0]?.generatedAt ?? null,
+      characters: characters.map((entry) => this.formatGeneratedCharacter(entry)),
+      total,
+    };
+  }
+
+  async getCustomTierList(userId: string | null, realm: string, name: string, zoneId: number): Promise<CustomCharacterTierListResponse | null> {
+    const context = await this.getGuildRosterContext(realm, name, zoneId);
+    if (!context) return null;
+
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return this.buildCustomResponse(context, null, false);
+    }
+
+    const customList = await CustomCharacterTierList.findOne({
+      userId: new mongoose.Types.ObjectId(userId),
+      guildId: context.guildObjectId,
+      zoneId,
+    }).lean<ICustomCharacterTierList | null>();
+
+    return this.buildCustomResponse(context, customList, true);
+  }
+
+  async saveCustomTierList(
+    userId: string,
+    realm: string,
+    name: string,
+    zoneId: number,
+    payload: { tiers?: Array<{ tier?: string; characterKeys?: unknown }>; unplacedCharacterKeys?: unknown },
+  ): Promise<CustomCharacterTierListResponse | null> {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new CharacterTierListServiceError(401, "Login is required");
+    }
+
+    const context = await this.getGuildRosterContext(realm, name, zoneId);
+    if (!context) return null;
+
+    const normalized = this.normalizeCustomPayload(payload, context.roster.map((character) => character.characterKey));
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    const saved = await CustomCharacterTierList.findOneAndUpdate(
+      { userId: userObjectId, guildId: context.guildObjectId, zoneId },
+      {
+        $set: {
+          userId: userObjectId,
+          guildId: context.guildObjectId,
+          guildName: context.guild.name,
+          guildRealm: context.guild.realm,
+          zoneId,
+          raidName: context.raid.name,
+          tiers: normalized.tiers,
+          unplacedCharacterKeys: normalized.unplacedCharacterKeys,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    ).lean<ICustomCharacterTierList>();
+
+    return this.buildCustomResponse(context, saved, true);
+  }
+
+  async deleteCustomTierList(userId: string, realm: string, name: string, zoneId: number): Promise<CustomCharacterTierListResponse | null> {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new CharacterTierListServiceError(401, "Login is required");
+    }
+
+    const context = await this.getGuildRosterContext(realm, name, zoneId);
+    if (!context) return null;
+
+    await CustomCharacterTierList.deleteOne({
+      userId: new mongoose.Types.ObjectId(userId),
+      guildId: context.guildObjectId,
+      zoneId,
+    });
+
+    return this.buildCustomResponse(context, null, true);
+  }
+
+  private async rebuildZone(zoneId: number): Promise<{ zoneId: number; entries: number; characters: number; guildEntries: number }> {
+    const startedAt = Date.now();
+    const generatedAt = new Date();
+    const raid = await this.getRaidInfo(zoneId);
+
+    logger.info(`[CharacterTierList] Rebuilding character tier list entries for ${raid.name} (${zoneId})`);
+
+    const [mechanicsRows, participationRows] = await Promise.all([
+      CharacterMechanicsLeaderboard.find({
+        zoneId,
+        difficulty: MYTHIC_DIFFICULTY,
+        type: "overall",
+        encounterId: null,
+        survivalScore: { $ne: null },
+      })
+        .select(
+          "characterId wclCanonicalCharacterId name realm region classID role metric specName bestSpecName ilvl score parseScore survivalScore rankPercent medianPercent totalKills pulls deaths survivedPulls earlyDeaths averageDeathPercent deathDataAvailable bossScores updatedAt",
+        )
+        .lean<MechanicsRow[]>(),
+      CharacterRaidParticipation.find({ zoneId })
+        .select("characterId wclCanonicalCharacterId zoneId reportGuildId reportGuildName reportGuildRealm characterName characterRealm characterRegion classID firstSeenAt lastSeenAt reportCount updatedAt")
+        .lean<ParticipationRow[]>(),
+    ]);
+
+    const bestMechanicsRows = this.getBestMechanicsRows(mechanicsRows);
+    const participation = this.aggregateParticipation(participationRows);
+    const operations: AnyBulkWriteOperation<ICharacterTierListEntry>[] = [];
+    let guildEntries = 0;
+
+    for (const mechanicsRow of bestMechanicsRows.values()) {
+      const aliases = this.getIdentityKeys(mechanicsRow);
+      const globalParticipation = this.findByAliases(participation.globalByAlias, aliases);
+      if (!globalParticipation) continue;
+
+      const globalEntry = this.createGeneratedEntry({
+        scope: "global",
+        raid,
+        mechanicsRow,
+        participation: globalParticipation,
+        generatedAt,
+      });
+      operations.push(this.createEntryUpsert(globalEntry));
+
+      const guildAggregates = this.findGuildAggregatesByAliases(participation.guildsByAlias, aliases);
+      for (const guildParticipation of guildAggregates) {
+        const guildEntry = this.createGeneratedEntry({
+          scope: "guild",
+          raid,
+          mechanicsRow,
+          participation: guildParticipation,
+          generatedAt,
+        });
+        operations.push(this.createEntryUpsert(guildEntry));
+        guildEntries++;
+      }
+    }
+
+    if (operations.length > 0) {
+      await CharacterTierListEntry.bulkWrite(operations, { ordered: false });
+    }
+
+    await CharacterTierListEntry.deleteMany({ zoneId, generatedAt: { $lt: generatedAt } });
+
+    const duration = Math.round((Date.now() - startedAt) / 1000);
+    logger.info(`[CharacterTierList] Rebuilt ${operations.length} entries for raid ${zoneId} in ${duration}s`);
+
+    return {
+      zoneId,
+      entries: operations.length,
+      characters: bestMechanicsRows.size,
+      guildEntries,
+    };
+  }
+
+  private getBestMechanicsRows(rows: MechanicsRow[]): Map<string, MechanicsRow> {
+    const bestRows = new Map<string, MechanicsRow>();
+
+    for (const row of rows) {
+      if (!row.characterId || !Number.isFinite(row.score)) continue;
+      const characterKey = this.buildCharacterKey(row);
+      const existing = bestRows.get(characterKey);
+      if (!existing || this.isBetterMechanicsRow(row, existing)) {
+        bestRows.set(characterKey, row);
+      }
+    }
+
+    return bestRows;
+  }
+
+  private isBetterMechanicsRow(candidate: MechanicsRow, existing: MechanicsRow): boolean {
+    const candidateMetricFitsRole = this.metricFitsRole(candidate);
+    const existingMetricFitsRole = this.metricFitsRole(existing);
+    if (candidateMetricFitsRole !== existingMetricFitsRole) return candidateMetricFitsRole;
+
+    const scoreDiff = (candidate.score ?? 0) - (existing.score ?? 0);
+    if (Math.abs(scoreDiff) > 0.001) return scoreDiff > 0;
+
+    const pullsDiff = (candidate.pulls ?? 0) - (existing.pulls ?? 0);
+    if (pullsDiff !== 0) return pullsDiff > 0;
+
+    const candidateUpdated = candidate.updatedAt ? new Date(candidate.updatedAt).getTime() : 0;
+    const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+    if (candidateUpdated !== existingUpdated) return candidateUpdated > existingUpdated;
+
+    return `${candidate.name}-${candidate.realm}`.localeCompare(`${existing.name}-${existing.realm}`) < 0;
+  }
+
+  private metricFitsRole(row: Pick<MechanicsRow, "role" | "metric">): boolean {
+    return row.role === "healer" ? row.metric === "hps" : row.metric === "dps";
+  }
+
+  private aggregateParticipation(rows: ParticipationRow[]): {
+    globalByAlias: Map<string, ParticipationAggregate>;
+    guildsByAlias: Map<string, Map<string, GuildParticipationAggregate>>;
+  } {
+    const globalByPrimary = new Map<string, ParticipationAggregate>();
+    const globalByAlias = new Map<string, ParticipationAggregate>();
+    const guildByPrimary = new Map<string, GuildParticipationAggregate>();
+    const guildsByAlias = new Map<string, Map<string, GuildParticipationAggregate>>();
+
+    for (const row of rows) {
+      const primaryKey = this.buildCharacterKey(row);
+      const aliases = this.getIdentityKeys(row);
+      const sourceUpdatedAt = row.updatedAt ?? row.lastSeenAt;
+
+      let global = globalByPrimary.get(primaryKey);
+      if (!global) {
+        global = {
+          characterKey: primaryKey,
+          characterId: row.characterId ?? null,
+          wclCanonicalCharacterId: row.wclCanonicalCharacterId ?? null,
+          name: row.characterName,
+          realm: row.characterRealm,
+          region: row.characterRegion,
+          classID: row.classID,
+          reportCount: 0,
+          firstSeenAt: row.firstSeenAt,
+          lastSeenAt: row.lastSeenAt,
+          sourceUpdatedAt,
+        };
+        globalByPrimary.set(primaryKey, global);
+      }
+
+      this.mergeParticipation(global, row, sourceUpdatedAt);
+      for (const alias of aliases) {
+        globalByAlias.set(alias, global);
+      }
+
+      const guildPrimaryKey = `${row.reportGuildId.toString()}:${primaryKey}`;
+      let guild = guildByPrimary.get(guildPrimaryKey);
+      if (!guild) {
+        guild = {
+          characterKey: primaryKey,
+          characterId: row.characterId ?? null,
+          wclCanonicalCharacterId: row.wclCanonicalCharacterId ?? null,
+          name: row.characterName,
+          realm: row.characterRealm,
+          region: row.characterRegion,
+          classID: row.classID,
+          reportCount: 0,
+          firstSeenAt: row.firstSeenAt,
+          lastSeenAt: row.lastSeenAt,
+          sourceUpdatedAt,
+          guildId: row.reportGuildId,
+          guildName: row.reportGuildName,
+          guildRealm: row.reportGuildRealm,
+        };
+        guildByPrimary.set(guildPrimaryKey, guild);
+      }
+
+      this.mergeParticipation(guild, row, sourceUpdatedAt);
+      for (const alias of aliases) {
+        let guildMap = guildsByAlias.get(alias);
+        if (!guildMap) {
+          guildMap = new Map<string, GuildParticipationAggregate>();
+          guildsByAlias.set(alias, guildMap);
+        }
+        guildMap.set(guildPrimaryKey, guild);
+      }
+    }
+
+    return { globalByAlias, guildsByAlias };
+  }
+
+  private mergeParticipation(aggregate: ParticipationAggregate, row: ParticipationRow, sourceUpdatedAt: Date): void {
+    aggregate.reportCount += Math.max(row.reportCount ?? 0, 0);
+
+    if (row.firstSeenAt < aggregate.firstSeenAt) {
+      aggregate.firstSeenAt = row.firstSeenAt;
+    }
+
+    if (row.lastSeenAt > aggregate.lastSeenAt) {
+      aggregate.lastSeenAt = row.lastSeenAt;
+      aggregate.name = row.characterName;
+      aggregate.realm = row.characterRealm;
+      aggregate.region = row.characterRegion;
+      aggregate.classID = row.classID;
+      aggregate.characterId = row.characterId ?? aggregate.characterId ?? null;
+      aggregate.wclCanonicalCharacterId = row.wclCanonicalCharacterId ?? aggregate.wclCanonicalCharacterId ?? null;
+    }
+
+    if (sourceUpdatedAt > aggregate.sourceUpdatedAt) {
+      aggregate.sourceUpdatedAt = sourceUpdatedAt;
+    }
+  }
+
+  private createGeneratedEntry(params: {
+    scope: "global" | "guild";
+    raid: { id: number; name: string };
+    mechanicsRow: MechanicsRow;
+    participation: ParticipationAggregate | GuildParticipationAggregate;
+    generatedAt: Date;
+  }): Omit<ICharacterTierListEntry, keyof mongoose.Document> {
+    const { scope, raid, mechanicsRow, participation, generatedAt } = params;
+    const guildParticipation = "guildId" in participation ? participation : null;
+    const sourceUpdatedAt = new Date(Math.max(participation.sourceUpdatedAt.getTime(), mechanicsRow.updatedAt ? new Date(mechanicsRow.updatedAt).getTime() : 0));
+
+    return {
+      scope,
+      zoneId: raid.id,
+      raidName: raid.name,
+      guildId: guildParticipation?.guildId ?? null,
+      guildName: guildParticipation?.guildName ?? null,
+      guildRealm: guildParticipation?.guildRealm ?? null,
+      characterId: mechanicsRow.characterId,
+      characterKey: participation.characterKey,
+      wclCanonicalCharacterId: mechanicsRow.wclCanonicalCharacterId ?? participation.wclCanonicalCharacterId ?? null,
+      name: participation.name,
+      realm: participation.realm,
+      region: participation.region,
+      classID: participation.classID,
+      role: mechanicsRow.role,
+      metric: mechanicsRow.metric,
+      specName: mechanicsRow.specName,
+      bestSpecName: mechanicsRow.bestSpecName ?? null,
+      ilvl: mechanicsRow.ilvl ?? 0,
+      score: Math.round((mechanicsRow.score ?? 0) * 100) / 100,
+      parseScore: Math.round((mechanicsRow.parseScore ?? 0) * 100) / 100,
+      survivalScore: mechanicsRow.survivalScore === null || mechanicsRow.survivalScore === undefined ? null : Math.round(mechanicsRow.survivalScore * 100) / 100,
+      rankPercent: mechanicsRow.rankPercent ?? 0,
+      medianPercent: mechanicsRow.medianPercent ?? 0,
+      totalKills: mechanicsRow.totalKills ?? 0,
+      pulls: mechanicsRow.pulls ?? 0,
+      deaths: mechanicsRow.deaths ?? 0,
+      survivedPulls: mechanicsRow.survivedPulls ?? 0,
+      earlyDeaths: mechanicsRow.earlyDeaths ?? 0,
+      averageDeathPercent: mechanicsRow.averageDeathPercent ?? null,
+      deathDataAvailable: mechanicsRow.deathDataAvailable ?? false,
+      bossScores: mechanicsRow.bossScores ?? [],
+      reportCount: participation.reportCount,
+      firstSeenAt: participation.firstSeenAt,
+      lastSeenAt: participation.lastSeenAt,
+      sourceUpdatedAt,
+      generatedAt,
+    };
+  }
+
+  private createEntryUpsert(entry: Omit<ICharacterTierListEntry, keyof mongoose.Document>): AnyBulkWriteOperation<ICharacterTierListEntry> {
+    return {
+      replaceOne: {
+        filter: {
+          scope: entry.scope,
+          zoneId: entry.zoneId,
+          guildId: entry.guildId ?? null,
+          characterKey: entry.characterKey,
+        },
+        replacement: entry as ICharacterTierListEntry,
+        upsert: true,
+      },
+    };
+  }
+
+  private async getGuildRosterContext(realm: string, name: string, zoneId: number): Promise<{
+    guildObjectId: mongoose.Types.ObjectId;
+    guild: { id: string; name: string; realm: string };
+    raid: { id: number; name: string };
+    roster: CharacterTierListRosterCharacter[];
+  } | null> {
+    const guild = await this.findGuild(realm, name);
+    if (!guild) return null;
+
+    const raid = await this.getRaidInfo(zoneId);
+    const [participationRows, generatedEntries] = await Promise.all([
+      CharacterRaidParticipation.find({ reportGuildId: guild._id, zoneId })
+        .sort({ classID: 1, characterName: 1 })
+        .select("characterId wclCanonicalCharacterId characterName characterRealm characterRegion classID firstSeenAt lastSeenAt reportCount updatedAt")
+        .lean<ParticipationRow[]>(),
+      CharacterTierListEntry.find({ scope: "guild", guildId: guild._id, zoneId }).lean<ICharacterTierListEntry[]>(),
+    ]);
+
+    const generatedByKey = new Map(generatedEntries.map((entry) => [entry.characterKey, entry]));
+    const roster = participationRows
+      .map((row) => {
+        const characterKey = this.buildCharacterKey(row);
+        const generated = generatedByKey.get(characterKey);
+        return {
+          characterKey,
+          characterId: row.characterId?.toString() ?? null,
+          wclCanonicalCharacterId: row.wclCanonicalCharacterId ?? null,
+          name: row.characterName,
+          realm: row.characterRealm,
+          region: row.characterRegion,
+          classID: row.classID,
+          firstSeenAt: row.firstSeenAt,
+          lastSeenAt: row.lastSeenAt,
+          reportCount: row.reportCount,
+          score: generated?.score ?? null,
+          parseScore: generated?.parseScore ?? null,
+          survivalScore: generated?.survivalScore ?? null,
+          role: generated?.role ?? null,
+          metric: generated?.metric ?? null,
+          specName: generated?.specName ?? null,
+          bestSpecName: generated?.bestSpecName ?? null,
+          pulls: generated?.pulls ?? null,
+          deaths: generated?.deaths ?? null,
+        };
+      })
+      .sort((a, b) => {
+        const scoreA = a.score ?? -1;
+        const scoreB = b.score ?? -1;
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        if (a.reportCount !== b.reportCount) return b.reportCount - a.reportCount;
+        return a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm);
+      });
+
+    return {
+      guildObjectId: guild._id,
+      guild: { id: guild._id.toString(), name: guild.name, realm: guild.realm },
+      raid,
+      roster,
+    };
+  }
+
+  private buildCustomResponse(
+    context: {
+      guild: { id: string; name: string; realm: string };
+      raid: { id: number; name: string };
+      roster: CharacterTierListRosterCharacter[];
+    },
+    customList: ICustomCharacterTierList | null,
+    canSave: boolean,
+  ): CustomCharacterTierListResponse {
+    const normalized = this.normalizeSavedCustomList(customList, context.roster.map((character) => character.characterKey));
+
+    return {
+      guild: context.guild,
+      raid: context.raid,
+      roster: context.roster,
+      canSave,
+      customList: normalized,
+    };
+  }
+
+  private normalizeSavedCustomList(
+    customList: ICustomCharacterTierList | null,
+    rosterKeys: string[],
+  ): CustomCharacterTierListResponse["customList"] {
+    if (!customList) {
+      return {
+        saved: false,
+        updatedAt: null,
+        tiers: DEFAULT_TIERS.map((tier) => ({ tier, characterKeys: [] })),
+        unplacedCharacterKeys: rosterKeys,
+      };
+    }
+
+    const normalized = this.normalizeCustomPayload({ tiers: customList.tiers, unplacedCharacterKeys: customList.unplacedCharacterKeys }, rosterKeys);
+    return {
+      saved: true,
+      updatedAt: customList.updatedAt ?? null,
+      ...normalized,
+    };
+  }
+
+  private normalizeCustomPayload(
+    payload: { tiers?: Array<{ tier?: string; characterKeys?: unknown }>; unplacedCharacterKeys?: unknown },
+    rosterKeys: string[],
+  ): { tiers: Array<{ tier: CustomCharacterTier; characterKeys: string[] }>; unplacedCharacterKeys: string[] } {
+    const validKeys = new Set(rosterKeys);
+    const usedKeys = new Set<string>();
+    const byTier = new Map<CustomCharacterTier, string[]>(DEFAULT_TIERS.map((tier) => [tier, []]));
+
+    for (const bucket of payload.tiers ?? []) {
+      if (!this.isCustomTier(bucket.tier)) {
+        throw new CharacterTierListServiceError(400, "Tier list contains an invalid tier");
+      }
+
+      if (!Array.isArray(bucket.characterKeys)) {
+        throw new CharacterTierListServiceError(400, "Tier list contains invalid characters");
+      }
+
+      const keys = byTier.get(bucket.tier)!;
+      for (const characterKey of bucket.characterKeys) {
+        if (typeof characterKey !== "string" || !validKeys.has(characterKey)) {
+          throw new CharacterTierListServiceError(400, "Tier list contains a character that is not in this guild raid roster");
+        }
+        if (usedKeys.has(characterKey)) {
+          throw new CharacterTierListServiceError(400, "A character can only appear once in a custom tier list");
+        }
+        usedKeys.add(characterKey);
+        keys.push(characterKey);
+      }
+    }
+
+    const unplacedCharacterKeys: string[] = [];
+    if (Array.isArray(payload.unplacedCharacterKeys)) {
+      for (const characterKey of payload.unplacedCharacterKeys) {
+        if (typeof characterKey !== "string" || !validKeys.has(characterKey)) {
+          throw new CharacterTierListServiceError(400, "Tier list contains a character that is not in this guild raid roster");
+        }
+        if (usedKeys.has(characterKey)) continue;
+        usedKeys.add(characterKey);
+        unplacedCharacterKeys.push(characterKey);
+      }
+    }
+
+    for (const characterKey of rosterKeys) {
+      if (!usedKeys.has(characterKey)) {
+        usedKeys.add(characterKey);
+        unplacedCharacterKeys.push(characterKey);
+      }
+    }
+
+    return {
+      tiers: DEFAULT_TIERS.map((tier) => ({ tier, characterKeys: byTier.get(tier) ?? [] })),
+      unplacedCharacterKeys,
+    };
+  }
+
+  private isCustomTier(value: unknown): value is CustomCharacterTier {
+    return typeof value === "string" && (DEFAULT_TIERS as string[]).includes(value);
+  }
+
+  private buildEntryQuery(zoneId: number, filters: NormalizedCharacterTierListFilters, guildId: mongoose.Types.ObjectId | null): Record<string, unknown> {
+    const query: Record<string, unknown> = {
+      zoneId,
+      scope: guildId ? "guild" : "global",
+      guildId,
+      reportCount: { $gte: filters.minReports },
+    };
+
+    if (filters.role) {
+      query.role = filters.role;
+    }
+
+    if (filters.classId) {
+      query.classID = filters.classId;
+    }
+
+    return query;
+  }
+
+  private normalizeFilters(filters: CharacterTierListFilters, defaultMinReports: number): NormalizedCharacterTierListFilters {
+    return {
+      minReports: Math.max(1, Math.min(999, Math.floor(filters.minReports ?? defaultMinReports))),
+      role: filters.role ?? null,
+      classId: filters.classId ?? null,
+      limit: Math.max(1, Math.min(MAX_QUERY_LIMIT, Math.floor(filters.limit ?? 400))),
+    };
+  }
+
+  private async getRaidInfo(zoneId: number): Promise<{ id: number; name: string }> {
+    const raid = await Raid.findOne({ id: zoneId }).select("id name -_id").lean<{ id: number; name: string } | null>();
+    return raid ? { id: raid.id, name: raid.name } : { id: zoneId, name: `Raid ${zoneId}` };
+  }
+
+  private async findGuild(realm: string, name: string): Promise<{ _id: mongoose.Types.ObjectId; name: string; realm: string } | null> {
+    return Guild.findOne({
+      realm: new RegExp(`^${this.escapeRegex(realm)}$`, "i"),
+      name: new RegExp(`^${this.escapeRegex(name)}$`, "i"),
+    })
+      .select("_id name realm")
+      .lean<{ _id: mongoose.Types.ObjectId; name: string; realm: string } | null>();
+  }
+
+  private formatGeneratedCharacter(entry: ICharacterTierListEntry): CharacterTierListCharacter {
+    return {
+      characterKey: entry.characterKey,
+      characterId: entry.characterId?.toString() ?? null,
+      wclCanonicalCharacterId: entry.wclCanonicalCharacterId ?? null,
+      name: entry.name,
+      realm: entry.realm,
+      region: entry.region,
+      classID: entry.classID,
+      role: entry.role,
+      metric: entry.metric,
+      specName: entry.specName,
+      bestSpecName: entry.bestSpecName ?? null,
+      ilvl: entry.ilvl,
+      score: entry.score,
+      parseScore: entry.parseScore,
+      survivalScore: entry.survivalScore,
+      rankPercent: entry.rankPercent,
+      medianPercent: entry.medianPercent,
+      totalKills: entry.totalKills,
+      pulls: entry.pulls,
+      deaths: entry.deaths,
+      survivedPulls: entry.survivedPulls,
+      earlyDeaths: entry.earlyDeaths,
+      averageDeathPercent: entry.averageDeathPercent,
+      deathDataAvailable: entry.deathDataAvailable,
+      bossScores: entry.bossScores ?? [],
+      reportCount: entry.reportCount,
+      firstSeenAt: entry.firstSeenAt,
+      lastSeenAt: entry.lastSeenAt,
+      sourceUpdatedAt: entry.sourceUpdatedAt,
+    };
+  }
+
+  private findByAliases<T>(map: Map<string, T>, aliases: string[]): T | null {
+    for (const alias of aliases) {
+      const value = map.get(alias);
+      if (value) return value;
+    }
+    return null;
+  }
+
+  private findGuildAggregatesByAliases(map: Map<string, Map<string, GuildParticipationAggregate>>, aliases: string[]): GuildParticipationAggregate[] {
+    const byKey = new Map<string, GuildParticipationAggregate>();
+    for (const alias of aliases) {
+      const guildMap = map.get(alias);
+      if (!guildMap) continue;
+      for (const [key, value] of guildMap) {
+        byKey.set(key, value);
+      }
+    }
+    return Array.from(byKey.values());
+  }
+
+  private getIdentityKeys(parts: {
+    characterId?: mongoose.Types.ObjectId | null;
+    wclCanonicalCharacterId?: number | null;
+    classID: number;
+    region?: string;
+    realm?: string;
+    name?: string;
+    characterRegion?: string;
+    characterRealm?: string;
+    characterName?: string;
+  }): string[] {
+    const keys: string[] = [];
+    const canonicalId = parts.wclCanonicalCharacterId;
+    if (typeof canonicalId === "number" && Number.isFinite(canonicalId)) {
+      keys.push(`canonical:${canonicalId}:${parts.classID}`);
+    }
+    if (parts.characterId) {
+      keys.push(`character:${parts.characterId.toString()}`);
+    }
+    const region = parts.region ?? parts.characterRegion;
+    const realm = parts.realm ?? parts.characterRealm;
+    const name = parts.name ?? parts.characterName;
+    if (region && realm && name) {
+      keys.push(`fallback:${this.normalizeIdentityPart(region)}:${this.normalizeIdentityPart(realm)}:${this.normalizeIdentityPart(name)}:${parts.classID}`);
+    }
+    return Array.from(new Set(keys));
+  }
+
+  private buildCharacterKey(parts: {
+    characterId?: mongoose.Types.ObjectId | null;
+    wclCanonicalCharacterId?: number | null;
+    classID: number;
+    region?: string;
+    realm?: string;
+    name?: string;
+    characterRegion?: string;
+    characterRealm?: string;
+    characterName?: string;
+  }): string {
+    const aliases = this.getIdentityKeys({
+      ...parts,
+      realm: parts.realm ?? parts.characterRealm ?? "",
+      name: parts.name ?? parts.characterName ?? "",
+    });
+
+    if (aliases.length === 0) {
+      throw new CharacterTierListServiceError(500, "Character identity is missing");
+    }
+
+    return aliases[0];
+  }
+
+  private normalizeIdentityPart(value: string): string {
+    return value.trim().toLowerCase().replace(/\s+/g, "-");
+  }
+
+  private escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+}
+
+export default new CharacterTierListService();
