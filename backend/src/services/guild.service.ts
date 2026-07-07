@@ -1508,7 +1508,7 @@ class GuildService {
   }
 
   // Update world rankings for all current raids
-  // Skip if guild has completed the raid (all mythic bosses defeated)
+  // By default, completed raids with full rank data are skipped unless the caller forces a refresh.
   // Updates both mythic and heroic progress entries with world rank data
   async updateCurrentRaidsWorldRanking(guildId: string): Promise<void> {
     await this.updateWorldRankingForRaids(guildId, CURRENT_RAID_IDS);
@@ -1516,7 +1516,7 @@ class GuildService {
 
   // Update world rankings for specific raids
   // Fetches from BOTH WarcraftLogs and Raider.IO, stores each separately, and picks the best
-  async updateWorldRankingForRaids(guildId: string, raidIds: number[]): Promise<void> {
+  async updateWorldRankingForRaids(guildId: string, raidIds: number[], options: { refreshCompleted?: boolean } = {}): Promise<void> {
     const guild = await Guild.findById(guildId);
     if (!guild) {
       logger.error(`Guild not found: ${guildId}`);
@@ -1558,7 +1558,7 @@ class GuildService {
       const rioSupported = Boolean(raidData.rioSlug || RAID_RIO_SLUG_OVERRIDES[raidData.id]);
       const missingSupportedSourceRank = !hasWclWorldRank || (rioSupported && !hasRioWorldRank);
 
-      if (hasCompletedMythic && hasExistingWorldRank && !missingSupportedSourceRank) {
+      if (!options.refreshCompleted && hasCompletedMythic && hasExistingWorldRank && !missingSupportedSourceRank) {
         guildLog.info(`Has completed raid ${raidId} mythic (${mythicProgress.bossesDefeated}/${raidData.bosses.length}), world rank is final - skipping update`);
         continue;
       }

@@ -1371,11 +1371,11 @@ class UpdateScheduler {
   // WCL sometimes updates world ranks with a delay, so this ensures we catch those updates
   async updateAllGuildsWorldRanks(raidId?: number): Promise<void> {
     const targetRaidIds = raidId ? [raidId] : CURRENT_RAID_IDS;
-    await this.updateWorldRanksForRaids(targetRaidIds);
+    await this.updateWorldRanksForRaids(targetRaidIds, { refreshCompleted: true });
   }
 
   // Update world ranks for all guilds for specific raid IDs
-  async updateWorldRanksForRaids(raidIds: number[]): Promise<void> {
+  async updateWorldRanksForRaids(raidIds: number[], options: { refreshCompleted?: boolean } = {}): Promise<void> {
     this.isUpdatingNightlyWorldRanks = true;
     const taskId = await taskTracker.start("Update World Ranks", { raidIds });
 
@@ -1397,7 +1397,7 @@ class UpdateScheduler {
         logger.info(`[Nightly/WorldRanks] Guild ${i + 1}/${guilds.length}: ${guild.name}`);
 
         try {
-          await guildService.updateWorldRankingForRaids((guild._id as mongoose.Types.ObjectId).toString(), raidIds);
+          await guildService.updateWorldRankingForRaids((guild._id as mongoose.Types.ObjectId).toString(), raidIds, options);
 
           // Yield to event loop periodically (every 5 guilds) to allow request handling
           if ((i + 1) % 5 === 0) {
