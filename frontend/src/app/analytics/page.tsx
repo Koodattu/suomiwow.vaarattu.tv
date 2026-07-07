@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FaArrowRight, FaChartLine, FaNetworkWired } from "react-icons/fa6";
+import { FaArrowRight, FaChartLine, FaNetworkWired, FaScaleBalanced } from "react-icons/fa6";
 
 const ANALYTICS_OPTIONS = [
   {
@@ -9,6 +9,14 @@ const ANALYTICS_OPTIONS = [
     Icon: FaChartLine,
     iconClass: "bg-blue-500/15 text-blue-200 shadow-[0_0_0_1px_rgba(96,165,250,0.22)]",
     hoverShadow: "hover:shadow-[0_0_0_1px_rgba(96,165,250,0.28),0_18px_50px_rgba(37,99,235,0.16)]",
+  },
+  {
+    href: "/analytics/compare",
+    title: "Compare",
+    description: "Compare guild tier metrics by progress, pulls, raid time, combat time, and boss kills.",
+    Icon: FaScaleBalanced,
+    iconClass: "bg-amber-500/15 text-amber-200 shadow-[0_0_0_1px_rgba(251,191,36,0.22)]",
+    hoverShadow: "hover:shadow-[0_0_0_1px_rgba(251,191,36,0.28),0_18px_50px_rgba(217,119,6,0.14)]",
   },
   {
     href: "/analytics/network",
@@ -27,10 +35,10 @@ export default function AnalyticsPage() {
         <div className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-wide text-blue-300">Analytics</p>
           <h1 className="mt-3 text-3xl font-bold text-balance md:text-5xl">Choose an analytics view</h1>
-          <p className="mt-4 max-w-2xl text-base text-gray-400 text-pretty md:text-lg">Start with raid progression metrics, or open the character guild network for relationship and movement analysis.</p>
+          <p className="mt-4 max-w-2xl text-base text-gray-400 text-pretty md:text-lg">Start with raid progression metrics, compare guild effort, or open the character guild network for relationship and movement analysis.</p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
           {ANALYTICS_OPTIONS.map(({ href, title, description, Icon, iconClass, hoverShadow }) => (
             <Link
               key={href}

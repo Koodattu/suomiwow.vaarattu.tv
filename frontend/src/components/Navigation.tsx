@@ -28,7 +28,6 @@ const NAVIGATION_LINKS = [
   { href: "/", labelKey: "progressLeaderboard" },
   { href: "/guilds", labelKey: "allGuilds" },
   { href: "/characters", labelKey: "characterRankings" },
-  { href: "/compare", labelKey: "compare" },
   { href: "/tierlists", labelKey: "tierLists" },
   { href: "/analytics", labelKey: "raidAnalytics" },
   { href: "/timetable", labelKey: "raidTimetable" },

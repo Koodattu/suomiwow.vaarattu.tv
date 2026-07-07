@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const ANALYTICS_TABS = [
   { href: "/analytics/raids", label: "Raid Analytics" },
+  { href: "/analytics/compare", label: "Compare" },
   { href: "/analytics/network", label: "Character Guild Network" },
 ] as const;
 

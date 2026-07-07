@@ -12,10 +12,12 @@ import { QueryProvider } from "@/lib/query-provider";
 import { getLocale, LOCALE_CHANGE_EVENT, type Locale } from "@/lib/locale";
 import {
   buildWebSiteStructuredData,
+  EMBED_IMAGE_HEIGHT,
+  EMBED_IMAGE_WIDTH,
   getCanonicalUrl,
+  getPageEmbedImageUrl,
   getPageMetadata,
   SEO_KEYWORDS,
-  SITE_IMAGE,
   SITE_IMAGE_ALT,
   SITE_NAME,
 } from "@/lib/seo";
@@ -80,6 +82,8 @@ export default function RootLayout({
   const pageMetadata = useMemo(() => getPageMetadata(pathname, locale), [pathname, locale]);
   const fullTitle = `${pageMetadata.title} | ${SITE_NAME}`;
   const canonicalUrl = getCanonicalUrl(pathname);
+  const embedImage = getPageEmbedImageUrl(pageMetadata);
+  const embedImageAlt = pageMetadata.imageAlt || SITE_IMAGE_ALT;
 
   if (!messages) {
     return (
@@ -98,20 +102,20 @@ export default function RootLayout({
           <meta property="og:url" content={canonicalUrl} />
           <meta property="og:title" content={fullTitle} />
           <meta property="og:description" content={pageMetadata.description} />
-          <meta property="og:image" content={SITE_IMAGE} />
-          <meta property="og:image:secure_url" content={SITE_IMAGE} />
+          <meta property="og:image" content={embedImage} />
+          <meta property="og:image:secure_url" content={embedImage} />
           <meta property="og:image:type" content="image/png" />
-          <meta property="og:image:width" content="1187" />
-          <meta property="og:image:height" content="536" />
-          <meta property="og:image:alt" content={SITE_IMAGE_ALT} />
+          <meta property="og:image:width" content={String(EMBED_IMAGE_WIDTH)} />
+          <meta property="og:image:height" content={String(EMBED_IMAGE_HEIGHT)} />
+          <meta property="og:image:alt" content={embedImageAlt} />
           <meta property="og:site_name" content={SITE_NAME} />
           <meta property="og:locale" content="en_US" />
-          <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:card" content="summary" />
           <meta name="twitter:url" content={canonicalUrl} />
           <meta name="twitter:title" content={fullTitle} />
           <meta name="twitter:description" content={pageMetadata.description} />
-          <meta name="twitter:image" content={SITE_IMAGE} />
-          <meta name="twitter:image:alt" content={SITE_IMAGE_ALT} />
+          <meta name="twitter:image" content={embedImage} />
+          <meta name="twitter:image:alt" content={embedImageAlt} />
           {isHomePage && (
             <script
               type="application/ld+json"
@@ -156,22 +160,22 @@ export default function RootLayout({
         <meta property="og:url" content={canonicalUrl} />
         <meta property="og:title" content={fullTitle} />
         <meta property="og:description" content={pageMetadata.description} />
-        <meta property="og:image" content={SITE_IMAGE} />
-        <meta property="og:image:secure_url" content={SITE_IMAGE} />
+        <meta property="og:image" content={embedImage} />
+        <meta property="og:image:secure_url" content={embedImage} />
         <meta property="og:image:type" content="image/png" />
-        <meta property="og:image:width" content="1187" />
-        <meta property="og:image:height" content="536" />
-        <meta property="og:image:alt" content={SITE_IMAGE_ALT} />
+        <meta property="og:image:width" content={String(EMBED_IMAGE_WIDTH)} />
+        <meta property="og:image:height" content={String(EMBED_IMAGE_HEIGHT)} />
+        <meta property="og:image:alt" content={embedImageAlt} />
         <meta property="og:site_name" content={SITE_NAME} />
         <meta property="og:locale" content={locale === "fi" ? "fi_FI" : "en_US"} />
 
         {/* Twitter */}
-        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:card" content="summary" />
         <meta name="twitter:url" content={canonicalUrl} />
         <meta name="twitter:title" content={fullTitle} />
         <meta name="twitter:description" content={pageMetadata.description} />
-        <meta name="twitter:image" content={SITE_IMAGE} />
-        <meta name="twitter:image:alt" content={SITE_IMAGE_ALT} />
+        <meta name="twitter:image" content={embedImage} />
+        <meta name="twitter:image:alt" content={embedImageAlt} />
 
         {isHomePage && (
           <script

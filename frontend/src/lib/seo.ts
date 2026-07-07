@@ -4,8 +4,10 @@ export const SITE_URL = (
 export const SITE_NAME = "Suomi WoW";
 export const SITE_DESCRIPTION =
   "Suomi WoW tracks Finnish World of Warcraft guild progress, suomalaiset WoW-killat, raid progression, boss kills, schedules, livestreams, and events.";
-export const SITE_IMAGE = `${SITE_URL}/logo.png`;
-export const SITE_IMAGE_ALT = "Suomi WoW Finnish World of Warcraft guild progress tracker";
+export const SITE_IMAGE = `${SITE_URL}/api/og`;
+export const SITE_IMAGE_ALT = "Suomi WoW Finnish World of Warcraft page preview";
+export const EMBED_IMAGE_WIDTH = 512;
+export const EMBED_IMAGE_HEIGHT = 512;
 
 export const SEO_KEYWORDS = [
   "Suomi WoW",
@@ -26,13 +28,17 @@ type Locale = "en" | "fi";
 export type PageSeoMetadata = {
   title: string;
   description: string;
+  embedLabel: string;
+  imageAlt: string;
 };
+
+type PageSeoCopy = Pick<PageSeoMetadata, "title" | "description">;
 
 export const PUBLIC_ROUTES = [
   { path: "/", changeFrequency: "hourly", priority: 1 },
   { path: "/guilds", changeFrequency: "daily", priority: 0.9 },
   { path: "/characters", changeFrequency: "daily", priority: 0.75 },
-  { path: "/compare", changeFrequency: "daily", priority: 0.75 },
+  { path: "/analytics/compare", changeFrequency: "daily", priority: 0.75 },
   { path: "/raid-analytics", changeFrequency: "daily", priority: 0.75 },
   { path: "/timetable", changeFrequency: "daily", priority: 0.75 },
   { path: "/livestreams", changeFrequency: "hourly", priority: 0.7 },
@@ -49,13 +55,62 @@ export function getCanonicalUrl(pathname: string = "/") {
   return `${SITE_URL}${normalizedPathname}`;
 }
 
+export function getPageEmbedImageUrl(metadata: PageSeoMetadata) {
+  const params = new URLSearchParams({
+    title: metadata.title,
+    description: metadata.description,
+    label: metadata.embedLabel,
+  });
+
+  return `${SITE_IMAGE}?${params.toString()}`;
+}
+
+function decodePathSegment(segment: string) {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+function getEmbedLabel(pathname: string) {
+  if (pathname === "/" || pathname === "/progress") return "Guild progress";
+  if (pathname.startsWith("/guilds/")) return "Guild profile";
+  if (pathname === "/guilds") return "Guild directory";
+  if (pathname.startsWith("/characters/")) return "Character profile";
+  if (pathname === "/characters") return "Character rankings";
+  if (pathname === "/compare" || pathname === "/analytics/compare") return "Guild comparison";
+  if (pathname === "/analytics/network") return "Guild network";
+  if (pathname.startsWith("/analytics")) return "Analytics";
+  if (pathname === "/raid-analytics") return "Raid analytics";
+  if (pathname === "/events") return "Live events";
+  if (pathname === "/livestreams") return "Livestreams";
+  if (pathname === "/timetable") return "Raid timetable";
+  if (pathname === "/tierlists") return "Tier lists";
+  if (pathname === "/pickems") return "Pickems";
+  if (pathname === "/pickems-rules") return "Pickems rules";
+  if (pathname === "/privacy") return "Privacy";
+  if (pathname === "/terms") return "Terms";
+  if (pathname.startsWith("/profile")) return "Profile";
+
+  return "Finnish WoW";
+}
+
+function withEmbedMetadata(pathname: string, metadata: PageSeoCopy): PageSeoMetadata {
+  return {
+    ...metadata,
+    embedLabel: getEmbedLabel(pathname),
+    imageAlt: `${metadata.title} preview on ${SITE_NAME}`,
+  };
+}
+
 export function getPageMetadata(
   pathname: string,
   locale: Locale,
 ): PageSeoMetadata {
   const isEnglish = locale === "en";
 
-  const pages: Record<string, PageSeoMetadata> = {
+  const pages: Record<string, PageSeoCopy> = {
     "/": {
       title: isEnglish
         ? "Finnish WoW Guild Progress"
@@ -85,6 +140,14 @@ export function getPageMetadata(
         : "Katso suomalaisten WoW-kiltojen hahmorankingit roolin, specin ja raid-suoritusten mukaan.",
     },
     "/compare": {
+      title: isEnglish
+        ? "Compare Finnish WoW Guilds"
+        : "Vertaile suomalaisia WoW-kiltoja",
+      description: isEnglish
+        ? "Compare Finnish WoW guild raid metrics by raid tier, progress, pulls, and boss kills."
+        : "Vertaile suomalaisten WoW-kiltojen raid-mittareita raidin, edistymisen, yritysten ja boss-tappojen mukaan.",
+    },
+    "/analytics/compare": {
       title: isEnglish
         ? "Compare Finnish WoW Guilds"
         : "Vertaile suomalaisia WoW-kiltoja",
@@ -168,18 +231,31 @@ export function getPageMetadata(
 
   if (pathname.startsWith("/guilds/") && pathname.split("/").length >= 4) {
     const parts = pathname.split("/");
-    const realm = decodeURIComponent(parts[2] || "");
-    const guildName = decodeURIComponent(parts[3] || "");
+    const realm = decodePathSegment(parts[2] || "");
+    const guildName = decodePathSegment(parts[3] || "");
 
-    return {
+    return withEmbedMetadata(pathname, {
       title: `${guildName} - ${realm}`,
       description: isEnglish
         ? `View ${guildName} raid progression, boss kills, logs, streams, and guild details on ${realm}.`
         : `Katso ${guildName}-killan raid-edistyminen, boss-tapot, logit, striimit ja tiedot realmilla ${realm}.`,
-    };
+    });
   }
 
-  return pages[pathname] || pages["/"];
+  if (pathname.startsWith("/characters/") && pathname.split("/").length >= 4) {
+    const parts = pathname.split("/");
+    const realm = decodePathSegment(parts[2] || "");
+    const characterName = decodePathSegment(parts[3] || "");
+
+    return withEmbedMetadata(pathname, {
+      title: `${characterName} - ${realm}`,
+      description: isEnglish
+        ? `View ${characterName}'s raid rankings, guild history, mechanics, and logs on ${realm}.`
+        : `Katso hahmon ${characterName} raid-rankingit, kiltahistoria, mekaniikat ja logit realmilla ${realm}.`,
+    });
+  }
+
+  return withEmbedMetadata(pathname, pages[pathname] || pages["/"]);
 }
 
 export function buildWebSiteStructuredData() {
