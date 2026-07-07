@@ -30,6 +30,8 @@ export interface CompareGuildMetric {
   rioWorldRank?: number;
   totalPulls: number;
   totalTimeSpent: number;
+  totalCombatTimeSpent: number;
+  progressRaidTimeSpent: number;
   bossesDefeated: number;
   totalBosses: number;
   bosses: CompareGuildBossMetric[];
@@ -142,6 +144,8 @@ class CompareService {
         rioWorldRank: progress.rioWorldRank,
         totalPulls,
         totalTimeSpent: progress.totalTimeSpent ?? 0,
+        totalCombatTimeSpent: progress.totalCombatTimeSpent ?? 0,
+        progressRaidTimeSpent: progress.progressRaidTimeSpent ?? 0,
         bossesDefeated: progress.bossesDefeated ?? 0,
         totalBosses: progress.totalBosses ?? bossInfo.length,
         bosses,

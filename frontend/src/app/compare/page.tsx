@@ -10,7 +10,7 @@ import IconImage from "@/components/IconImage";
 import RaidSelector from "@/components/RaidSelector";
 import { useRaidCompare, useRaids } from "@/lib/queries";
 import { getLeaderboardRankColor, getWorldRankColor } from "@/lib/utils";
-import { CompareGuildMetric, RaidCompare } from "@/types";
+import { CompareGuildBossMetric, CompareGuildMetric, RaidCompare } from "@/types";
 
 type ViewMode = "table" | "visual";
 
@@ -33,6 +33,19 @@ type SortState = {
   key: string;
   direction: SortDirection;
 } | null;
+
+type CompareBossAverage = {
+  pulls: number | null;
+  timeSpent: number | null;
+};
+
+type CompareTableAverages = {
+  totalPulls: number | null;
+  progressTime: number | null;
+  progressRaidTime: number | null;
+  combatTime: number | null;
+  bosses: Map<number, CompareBossAverage>;
+};
 
 type MetricPointShapeProps = {
   cx?: number;
@@ -58,6 +71,16 @@ function formatNumber(value?: number): string {
   return value.toLocaleString("en-US");
 }
 
+function formatAverageNumber(value?: number | null): string {
+  if (!value) return "-";
+  return Math.round(value).toLocaleString("en-US");
+}
+
+function formatAverageTime(value?: number | null): string {
+  if (!value) return "-";
+  return formatTime(Math.round(value));
+}
+
 function formatChartNumber(value?: number): string {
   if (!value) return "-";
   return String(Math.round(value));
@@ -71,6 +94,44 @@ function bossMetric(guild: CompareGuildMetric, bossId: number) {
   return guild.bosses.find((boss) => boss.bossId === bossId);
 }
 
+function getCombatTime(guild: CompareGuildMetric): number {
+  return guild.totalCombatTimeSpent || guild.totalTimeSpent;
+}
+
+function isFullClear(guild: CompareGuildMetric): boolean {
+  return guild.totalBosses > 0 && guild.bossesDefeated >= guild.totalBosses;
+}
+
+function averagePositiveValues(values: number[]): number | null {
+  const validValues = values.filter((value) => Number.isFinite(value) && value > 0);
+  if (validValues.length === 0) return null;
+  return validValues.reduce((sum, value) => sum + value, 0) / validValues.length;
+}
+
+function calculateCompareTableAverages(compare: RaidCompare): CompareTableAverages {
+  const clearedGuilds = compare.guilds.filter(isFullClear);
+  const bosses = new Map<number, CompareBossAverage>();
+
+  for (const boss of compare.raid.bosses) {
+    const killedMetrics = compare.guilds
+      .map((guild) => bossMetric(guild, boss.id))
+      .filter((metric): metric is CompareGuildBossMetric => !!metric && metric.kills > 0);
+
+    bosses.set(boss.id, {
+      pulls: averagePositiveValues(killedMetrics.map((metric) => metric.pulls)),
+      timeSpent: averagePositiveValues(killedMetrics.map((metric) => metric.timeSpent)),
+    });
+  }
+
+  return {
+    totalPulls: averagePositiveValues(clearedGuilds.map((guild) => guild.totalPulls)),
+    progressTime: averagePositiveValues(clearedGuilds.map((guild) => guild.totalTimeSpent)),
+    progressRaidTime: averagePositiveValues(clearedGuilds.map((guild) => guild.progressRaidTimeSpent)),
+    combatTime: averagePositiveValues(clearedGuilds.map(getCombatTime)),
+    bosses,
+  };
+}
+
 function defaultGuildCompare(a: CompareGuildMetric, b: CompareGuildMetric): number {
   const rankCompare = (a.guildRank ?? 99999) - (b.guildRank ?? 99999);
   if (rankCompare !== 0) return rankCompare;
@@ -81,8 +142,14 @@ function getTableSortValue(guild: CompareGuildMetric, key: string): string | num
   if (key === "guild") return guild.name.toLowerCase();
   if (key === "rank") return guild.guildRank ?? null;
   if (key === "worldRank") return guild.worldRank ?? null;
+  if (key === "progress") return guild.totalBosses > 0 ? guild.bossesDefeated : null;
   if (key === "totalPulls") return guild.totalPulls > 0 ? guild.totalPulls : null;
-  if (key === "totalTime") return guild.totalTimeSpent > 0 ? guild.totalTimeSpent : null;
+  if (key === "progressTime") return guild.totalTimeSpent > 0 ? guild.totalTimeSpent : null;
+  if (key === "progressRaidTime") return guild.progressRaidTimeSpent > 0 ? guild.progressRaidTimeSpent : null;
+  if (key === "combatTime") {
+    const combatTime = getCombatTime(guild);
+    return combatTime > 0 ? combatTime : null;
+  }
 
   const bossMatch = key.match(/^boss:(\d+):(pulls|time)$/);
   if (!bossMatch) return null;
@@ -333,9 +400,22 @@ function MetricToggleChart({
   );
 }
 
+function StackedHeaderLabel({ label }: { label: string }) {
+  return (
+    <span className="flex flex-col items-end leading-tight">
+      {label.split(" ").map((word, index) => (
+        <span key={`${word}-${index}`}>{word}</span>
+      ))}
+    </span>
+  );
+}
+
 function CompareTable({ compare, t }: { compare: RaidCompare; t: ReturnType<typeof useTranslations> }) {
   const [sort, setSort] = useState<SortState>(null);
   const sortedGuilds = useMemo(() => sortGuildsForTable(compare.guilds, sort), [compare.guilds, sort]);
+  const averages = useMemo(() => calculateCompareTableAverages(compare), [compare]);
+  const tableCellHoverClass = "group-hover:bg-gray-900/50";
+  const averageCellClass = "bg-sky-950/25";
 
   const toggleSort = (key: string) => {
     setSort((current) => {
@@ -382,16 +462,25 @@ function CompareTable({ compare, t }: { compare: RaidCompare; t: ReturnType<type
               <SortableHeader sortKey="guild">{t("guild")}</SortableHeader>
             </th>
             <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
-              <SortableHeader sortKey="rank" className="justify-end">{t("rank")}</SortableHeader>
+              <SortableHeader sortKey="rank" className="justify-end"><StackedHeaderLabel label={t("rank")} /></SortableHeader>
             </th>
             <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
-              <SortableHeader sortKey="worldRank" className="justify-end">{t("worldRank")}</SortableHeader>
+              <SortableHeader sortKey="worldRank" className="justify-end"><StackedHeaderLabel label={t("worldRank")} /></SortableHeader>
             </th>
             <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
-              <SortableHeader sortKey="totalPulls" className="justify-end">{t("totalPulls")}</SortableHeader>
+              <SortableHeader sortKey="progress" className="justify-end"><StackedHeaderLabel label={t("progress")} /></SortableHeader>
             </th>
             <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
-              <SortableHeader sortKey="totalTime" className="justify-end">{t("combatTime")}</SortableHeader>
+              <SortableHeader sortKey="totalPulls" className="justify-end"><StackedHeaderLabel label={t("totalPulls")} /></SortableHeader>
+            </th>
+            <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
+              <SortableHeader sortKey="progressTime" className="justify-end"><StackedHeaderLabel label={t("progressTime")} /></SortableHeader>
+            </th>
+            <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
+              <SortableHeader sortKey="progressRaidTime" className="justify-end"><StackedHeaderLabel label={t("progressTimeWithBreaks")} /></SortableHeader>
+            </th>
+            <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
+              <SortableHeader sortKey="combatTime" className="justify-end"><StackedHeaderLabel label={t("combatTime")} /></SortableHeader>
             </th>
             {compare.raid.bosses.map((boss) => (
               <th key={boss.id} colSpan={2} className="border-l border-gray-800 px-2 py-2 text-center font-semibold" title={boss.name}>
@@ -420,9 +509,29 @@ function CompareTable({ compare, t }: { compare: RaidCompare; t: ReturnType<type
           </tr>
         </thead>
         <tbody>
+          <tr className="border-t border-sky-900/40">
+            <td className={`sticky left-0 z-10 px-3 py-3 text-gray-300 ${averageCellClass}`}>{t("average")}</td>
+            <td className={`px-3 py-3 text-right text-gray-500 ${averageCellClass}`}>-</td>
+            <td className={`px-3 py-3 text-right text-gray-500 ${averageCellClass}`}>-</td>
+            <td className={`px-3 py-3 text-right text-gray-500 ${averageCellClass}`}>-</td>
+            <td className={`px-3 py-3 text-right tabular-nums text-gray-200 ${averageCellClass}`}>{formatAverageNumber(averages.totalPulls)}</td>
+            <td className={`px-3 py-3 text-right tabular-nums text-gray-200 ${averageCellClass}`}>{formatAverageTime(averages.progressTime)}</td>
+            <td className={`px-3 py-3 text-right tabular-nums text-gray-200 ${averageCellClass}`}>{formatAverageTime(averages.progressRaidTime)}</td>
+            <td className={`px-3 py-3 text-right tabular-nums text-gray-200 ${averageCellClass}`}>{formatAverageTime(averages.combatTime)}</td>
+            {compare.raid.bosses.map((boss) => {
+              const bossAverage = averages.bosses.get(boss.id);
+
+              return (
+                <Fragment key={`average-${boss.id}`}>
+                  <td className={`border-l border-gray-800 px-3 py-3 text-right tabular-nums text-gray-200 ${averageCellClass}`}>{formatAverageNumber(bossAverage?.pulls)}</td>
+                  <td className={`px-3 py-3 text-right tabular-nums text-gray-200 ${averageCellClass}`}>{formatAverageTime(bossAverage?.timeSpent)}</td>
+                </Fragment>
+              );
+            })}
+          </tr>
           {sortedGuilds.map((guild) => (
-            <tr key={guild.id} className="group border-t border-gray-800/80 hover:bg-gray-900/50">
-              <td className="sticky left-0 z-10 bg-gray-950 px-3 py-3 group-hover:bg-gray-900/50">
+            <tr key={guild.id} className="group border-t border-gray-800/80">
+              <td className={`sticky left-0 z-10 bg-gray-950 px-3 py-3 ${tableCellHoverClass}`}>
                 <div className="flex items-center gap-2">
                   <div className="h-8 w-8 shrink-0">
                     <GuildCrest crest={guild.crest} faction={guild.faction} size={128} className="scale-[0.25] origin-top-left" />
@@ -435,22 +544,25 @@ function CompareTable({ compare, t }: { compare: RaidCompare; t: ReturnType<type
                   </div>
                 </div>
               </td>
-              <td className={`px-3 py-3 text-right tabular-nums font-semibold ${guild.guildRank ? getLeaderboardRankColor(guild.guildRank) : "text-gray-500"}`}>{guild.guildRank ?? "-"}</td>
-              <td className="px-3 py-3 text-right tabular-nums font-semibold" style={{ color: guild.worldRank ? getWorldRankColor(guild.worldRank) : "var(--rank-gray)" }}>
+              <td className={`px-3 py-3 text-right tabular-nums font-semibold ${tableCellHoverClass} ${guild.guildRank ? getLeaderboardRankColor(guild.guildRank) : "text-gray-500"}`}>{guild.guildRank ?? "-"}</td>
+              <td className={`px-3 py-3 text-right tabular-nums font-semibold ${tableCellHoverClass}`} style={{ color: guild.worldRank ? getWorldRankColor(guild.worldRank) : "var(--rank-gray)" }}>
                 {guild.worldRank ? formatNumber(guild.worldRank) : "-"}
               </td>
-              <td className="px-3 py-3 text-right tabular-nums text-gray-300">{formatNumber(guild.totalPulls)}</td>
-              <td className="px-3 py-3 text-right tabular-nums text-gray-300">{formatTime(guild.totalTimeSpent)}</td>
+              <td className={`px-3 py-3 text-right tabular-nums text-gray-300 ${tableCellHoverClass}`}>{guild.totalBosses > 0 ? `${guild.bossesDefeated}/${guild.totalBosses}` : "-"}</td>
+              <td className={`px-3 py-3 text-right tabular-nums text-gray-300 ${tableCellHoverClass}`}>{formatNumber(guild.totalPulls)}</td>
+              <td className={`px-3 py-3 text-right tabular-nums text-gray-300 ${tableCellHoverClass}`}>{formatTime(guild.totalTimeSpent)}</td>
+              <td className={`px-3 py-3 text-right tabular-nums text-gray-300 ${tableCellHoverClass}`}>{formatTime(guild.progressRaidTimeSpent)}</td>
+              <td className={`px-3 py-3 text-right tabular-nums text-gray-300 ${tableCellHoverClass}`}>{formatTime(getCombatTime(guild))}</td>
               {compare.raid.bosses.map((boss) => {
                 const metric = bossMetric(guild, boss.id);
                 const killed = (metric?.kills ?? 0) > 0;
 
                 return (
                   <Fragment key={`${guild.id}-${boss.id}`}>
-                    <td key={`${guild.id}-${boss.id}-pulls`} className={`border-l border-gray-800 px-3 py-3 text-right tabular-nums ${killed ? "text-gray-200" : "text-gray-500"}`}>
+                    <td key={`${guild.id}-${boss.id}-pulls`} className={`border-l border-gray-800 px-3 py-3 text-right tabular-nums ${tableCellHoverClass} ${killed ? "text-gray-200" : "text-gray-500"}`}>
                       {metric?.pulls ? formatNumber(metric.pulls) : "-"}
                     </td>
-                    <td key={`${guild.id}-${boss.id}-time`} className={`px-3 py-3 text-right tabular-nums ${killed ? "text-gray-200" : "text-gray-500"}`}>
+                    <td key={`${guild.id}-${boss.id}-time`} className={`px-3 py-3 text-right tabular-nums ${tableCellHoverClass} ${killed ? "text-gray-200" : "text-gray-500"}`}>
                       {metric?.timeSpent ? formatTime(metric.timeSpent) : "-"}
                     </td>
                   </Fragment>

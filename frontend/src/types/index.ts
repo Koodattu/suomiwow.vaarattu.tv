@@ -1684,6 +1684,8 @@ export interface CompareGuildMetric {
   rioWorldRank?: number;
   totalPulls: number;
   totalTimeSpent: number;
+  totalCombatTimeSpent: number;
+  progressRaidTimeSpent: number;
   bossesDefeated: number;
   totalBosses: number;
   bosses: CompareGuildBossMetric[];
