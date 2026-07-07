@@ -24,6 +24,7 @@ import {
   CharacterTierListRole,
   CustomCharacterTierListResponse,
   SaveCustomCharacterTierListInput,
+  SharedCharacterTierListResponse,
   AnalyticsOverview,
   AnalyticsHourly,
   AnalyticsDaily,
@@ -484,6 +485,44 @@ export const api = {
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.error || "Failed to reset custom character tier list");
+    }
+    return response.json();
+  },
+
+  async createSharedCharacterTierList(realm: string, name: string, raidId: number, input: SaveCustomCharacterTierListInput): Promise<SharedCharacterTierListResponse> {
+    const encodedRealm = encodeURIComponent(realm);
+    const encodedName = encodeURIComponent(name);
+    const response = await fetch(`${API_URL}/api/character-tierlists/guilds/${encodedRealm}/${encodedName}/raids/${raidId}/shared`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || "Failed to share character tier list");
+    }
+    return response.json();
+  },
+
+  async getSharedCharacterTierList(shareId: string): Promise<SharedCharacterTierListResponse> {
+    const response = await fetch(`${API_URL}/api/character-tierlists/shared/${encodeURIComponent(shareId)}`, {
+      credentials: "include",
+    });
+    if (!response.ok) throw new Error("Failed to fetch shared character tier list");
+    return response.json();
+  },
+
+  async updateSharedCharacterTierList(shareId: string, input: SaveCustomCharacterTierListInput): Promise<SharedCharacterTierListResponse> {
+    const response = await fetch(`${API_URL}/api/character-tierlists/shared/${encodeURIComponent(shareId)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || "Failed to update shared character tier list");
     }
     return response.json();
   },

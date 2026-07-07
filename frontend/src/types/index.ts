@@ -764,6 +764,16 @@ export interface CustomCharacterTierListResponse {
   };
 }
 
+export interface SharedCharacterTierListResponse extends CustomCharacterTierListResponse {
+  share: {
+    shareId: string;
+    createdAt: string;
+    updatedAt: string;
+    owner: boolean;
+    canEdit: boolean;
+  };
+}
+
 export interface SaveCustomCharacterTierListInput {
   tiers: CustomCharacterTierBucket[];
   unplacedCharacterKeys: string[];

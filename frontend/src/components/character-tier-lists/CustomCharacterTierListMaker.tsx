@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { FaCopy, FaShareAlt } from "react-icons/fa";
 import {
   DndContext,
   DragEndEvent,
@@ -31,7 +32,7 @@ import IconImage from "@/components/IconImage";
 import { CHARACTER_TIER_COLORS } from "@/components/character-tier-lists/CharacterTierBoard";
 import { formatSpecName, getClassInfoById, getParseColor, getSpecIconUrl } from "@/lib/utils";
 import type { CharacterTierBoardItem } from "@/components/character-tier-lists/CharacterTierBoard";
-import type { CustomCharacterTierListResponse, CustomCharacterTierName } from "@/types";
+import type { CustomCharacterTierListResponse, CustomCharacterTierName, SaveCustomCharacterTierListInput } from "@/types";
 
 const TIERS: CustomCharacterTierName[] = ["S", "A", "B", "C", "D", "E", "F"];
 const UNPLACED = "unplaced";
@@ -39,6 +40,15 @@ type ContainerId = CustomCharacterTierName | typeof UNPLACED;
 type Containers = Record<ContainerId, string[]>;
 
 const animateLayoutChanges: AnimateLayoutChanges = (args) => defaultAnimateLayoutChanges({ ...args, wasDragging: true });
+
+function getSharedTierListPath({ realm, name, raidId, shareId }: { realm: string; name: string; raidId: number; shareId: string }): string {
+  return `/guilds/${encodeURIComponent(realm)}/${encodeURIComponent(name)}/raids/${raidId}/tierlist/shared/${encodeURIComponent(shareId)}`;
+}
+
+function getSharedTierListUrl(params: { realm: string; name: string; raidId: number; shareId: string }): string {
+  const path = getSharedTierListPath(params);
+  return typeof window === "undefined" ? path : `${window.location.origin}${path}`;
+}
 
 function formatScore(value: number): string {
   return value.toFixed(value % 1 === 0 ? 0 : 1);
@@ -51,6 +61,7 @@ function CharacterTile({
   dragRef,
   isDragging,
   isOverlay,
+  isStatic,
   style,
 }: {
   item: CharacterTierBoardItem;
@@ -59,6 +70,7 @@ function CharacterTile({
   dragRef?: (node: HTMLElement | null) => void;
   isDragging?: boolean;
   isOverlay?: boolean;
+  isStatic?: boolean;
   style?: CSSProperties;
 }) {
   const classInfo = getClassInfoById(item.classID);
@@ -71,7 +83,7 @@ function CharacterTile({
       style={style}
       title={`${item.name} / ${specLabel}`}
       className={`group relative h-20 w-20 shrink-0 touch-none select-none overflow-hidden rounded-sm bg-gray-800 shadow-sm ring-1 ring-white/10 transition-[opacity,scale,transform] duration-150 ease-out ${
-        isOverlay ? "cursor-grabbing scale-105 shadow-xl ring-2 ring-blue-300" : "cursor-grab active:scale-[0.96] active:cursor-grabbing"
+        isOverlay ? "cursor-grabbing scale-105 shadow-xl ring-2 ring-blue-300" : isStatic ? "cursor-default" : "cursor-grab active:scale-[0.96] active:cursor-grabbing"
       } ${
         isDragging ? "opacity-30 ring-2 ring-blue-400" : ""
       }`}
@@ -161,6 +173,55 @@ function DroppableCharacterPool({
           })}
         </div>
       </SortableContext>
+    </section>
+  );
+}
+
+function ReadOnlyTierRow({
+  tier,
+  characterKeys,
+  charactersByKey,
+}: {
+  tier: CustomCharacterTierName;
+  characterKeys: string[];
+  charactersByKey: Map<string, CharacterTierBoardItem>;
+}) {
+  return (
+    <div className="flex border-b border-gray-800 last:border-b-0">
+      <div className={`flex min-h-24 w-14 shrink-0 items-center justify-center px-2 text-center text-base font-black md:w-20 md:text-2xl ${CHARACTER_TIER_COLORS[tier]}`}>{tier}</div>
+      <div className="flex min-h-24 flex-1 flex-wrap content-start gap-2 bg-gray-900 p-2">
+        {characterKeys.map((characterKey) => {
+          const character = charactersByKey.get(characterKey);
+          return character ? <CharacterTile key={characterKey} item={character} isStatic /> : null;
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ReadOnlyCharacterPool({
+  label,
+  characterKeys,
+  charactersByKey,
+}: {
+  label: string;
+  characterKeys: string[];
+  charactersByKey: Map<string, CharacterTierBoardItem>;
+}) {
+  if (characterKeys.length === 0) return null;
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-gray-700">
+      <div className="flex min-h-10 items-center justify-between border-b border-gray-800 bg-gray-900 px-3">
+        <h3 className="text-sm font-semibold text-gray-200">{label}</h3>
+        <span className="text-xs tabular-nums text-gray-500">{characterKeys.length}</span>
+      </div>
+      <div className="flex min-h-24 flex-wrap content-start gap-2 bg-gray-900 p-2">
+        {characterKeys.map((characterKey) => {
+          const character = charactersByKey.get(characterKey);
+          return character ? <CharacterTile key={characterKey} item={character} isStatic /> : null;
+        })}
+      </div>
     </section>
   );
 }
@@ -283,13 +344,50 @@ function buildInitialContainers(data: CustomCharacterTierListResponse): Containe
   return containers;
 }
 
-export default function CustomCharacterTierListMaker({ realm, name, raidId, data }: { realm: string; name: string; raidId: number; data: CustomCharacterTierListResponse }) {
+export function CharacterTierListSnapshotBoard({ data }: { data: CustomCharacterTierListResponse }) {
+  const t = useTranslations("characterTierListsPage");
+  const containers = useMemo(() => buildInitialContainers(data), [data]);
+  const characters = useMemo(() => data.roster.map(toBoardItem), [data.roster]);
+  const charactersByKey = useMemo(() => new Map(characters.map((character) => [character.characterKey, character])), [characters]);
+
+  return (
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-lg border border-gray-700">
+        {TIERS.map((tier) => (
+          <ReadOnlyTierRow key={tier} tier={tier} characterKeys={containers[tier]} charactersByKey={charactersByKey} />
+        ))}
+      </div>
+      <ReadOnlyCharacterPool label={t("unplaced")} characterKeys={containers[UNPLACED]} charactersByKey={charactersByKey} />
+    </div>
+  );
+}
+
+export default function CustomCharacterTierListMaker({
+  realm,
+  name,
+  raidId,
+  data,
+  sourceShareId,
+  canUpdateSharedList = false,
+}: {
+  realm: string;
+  name: string;
+  raidId: number;
+  data: CustomCharacterTierListResponse;
+  sourceShareId?: string | null;
+  canUpdateSharedList?: boolean;
+}) {
   const t = useTranslations("characterTierListsPage");
   const { user, login } = useAuth();
   const queryClient = useQueryClient();
   const [containers, setContainers] = useState<Containers>(() => buildInitialContainers(data));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(() =>
+    sourceShareId ? getSharedTierListUrl({ realm: data.guild.realm, name: data.guild.name, raidId: data.raid.id, shareId: sourceShareId }) : null,
+  );
+  const [shareCopied, setShareCopied] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const dragStartContainers = useRef<Containers | null>(null);
@@ -297,9 +395,11 @@ export default function CustomCharacterTierListMaker({ realm, name, raidId, data
 
   useEffect(() => {
     setContainers(buildInitialContainers(data));
+    setShareUrl(sourceShareId ? getSharedTierListUrl({ realm: data.guild.realm, name: data.guild.name, raidId: data.raid.id, shareId: sourceShareId }) : null);
+    setShareCopied(false);
     setMessage(null);
     setError(null);
-  }, [data]);
+  }, [data, sourceShareId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -309,6 +409,21 @@ export default function CustomCharacterTierListMaker({ realm, name, raidId, data
   const characters = useMemo(() => data.roster.map(toBoardItem), [data.roster]);
   const charactersByKey = useMemo(() => new Map(characters.map((character) => [character.characterKey, character])), [characters]);
   const activeCharacter = activeId ? charactersByKey.get(activeId) : null;
+  const shareButtonLabel = sourceShareId && canUpdateSharedList ? t("updateSharedLink") : t("share");
+
+  const getCurrentPayload = useCallback(
+    (): SaveCustomCharacterTierListInput => ({
+      tiers: TIERS.map((tier) => ({ tier, characterKeys: containers[tier] })),
+      unplacedCharacterKeys: containers[UNPLACED],
+    }),
+    [containers],
+  );
+
+  const copyShareUrl = useCallback(async (nextShareUrl: string) => {
+    if (!navigator.clipboard) return;
+    await navigator.clipboard.writeText(nextShareUrl);
+    setShareCopied(true);
+  }, []);
 
   const collisionDetectionStrategy = useCallback<CollisionDetection>(
     (args) => {
@@ -391,10 +506,7 @@ export default function CustomCharacterTierListMaker({ realm, name, raidId, data
     setError(null);
 
     try {
-      await api.saveCustomCharacterTierList(realm, name, raidId, {
-        tiers: TIERS.map((tier) => ({ tier, characterKeys: containers[tier] })),
-        unplacedCharacterKeys: containers[UNPLACED],
-      });
+      await api.saveCustomCharacterTierList(realm, name, raidId, getCurrentPayload());
       await invalidateCustomList();
       setMessage(t("saved"));
     } catch (saveError) {
@@ -404,13 +516,46 @@ export default function CustomCharacterTierListMaker({ realm, name, raidId, data
     }
   };
 
+  const handleShare = async () => {
+    setIsSharing(true);
+    setShareCopied(false);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const shared = sourceShareId && canUpdateSharedList ? await api.updateSharedCharacterTierList(sourceShareId, getCurrentPayload()) : await api.createSharedCharacterTierList(realm, name, raidId, getCurrentPayload());
+      await queryClient.invalidateQueries({ queryKey: queryKeys.characterTierLists.shared(shared.share.shareId) });
+
+      const nextShareUrl = getSharedTierListUrl({
+        realm: shared.guild.realm,
+        name: shared.guild.name,
+        raidId: shared.raid.id,
+        shareId: shared.share.shareId,
+      });
+      setShareUrl(nextShareUrl);
+      setMessage(t(sourceShareId && canUpdateSharedList ? "sharedLinkUpdated" : "sharedLinkReady"));
+
+      try {
+        await copyShareUrl(nextShareUrl);
+      } catch {
+        setShareCopied(false);
+      }
+    } catch (shareError) {
+      setError(shareError instanceof Error ? shareError.message : t("shareFailed"));
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   const handleReset = async () => {
     setIsSaving(true);
     setMessage(null);
     setError(null);
 
     try {
-      if (user && data.customList.saved) {
+      if (sourceShareId) {
+        setContainers(buildInitialContainers(data));
+      } else if (user && data.customList.saved) {
         await api.deleteCustomCharacterTierList(realm, name, raidId);
         await invalidateCustomList();
       } else {
@@ -441,6 +586,15 @@ export default function CustomCharacterTierListMaker({ realm, name, raidId, data
           <p className="text-sm text-gray-400">{t("customCount", { count: data.roster.length })}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleShare}
+            disabled={isSharing}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-[scale,background-color] duration-150 ease-out hover:bg-blue-500 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
+          >
+            <FaShareAlt className="h-3.5 w-3.5" aria-hidden="true" />
+            {isSharing ? t("sharing") : shareButtonLabel}
+          </button>
           {!user && (
             <button type="button" onClick={login} className="min-h-10 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-500">
               {t("signInToSave")}
@@ -467,6 +621,31 @@ export default function CustomCharacterTierListMaker({ realm, name, raidId, data
 
       {message && <div className="rounded-md border border-emerald-700 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-200">{message}</div>}
       {error && <div className="rounded-md border border-red-700 bg-red-950/40 px-3 py-2 text-sm text-red-200">{error}</div>}
+      {shareUrl && (
+        <div className="flex flex-col gap-2 rounded-md border border-gray-700 bg-gray-900 p-3 sm:flex-row sm:items-center">
+          <input
+            readOnly
+            value={shareUrl}
+            onFocus={(event) => event.currentTarget.select()}
+            className="min-h-10 min-w-0 flex-1 rounded-md border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            aria-label={t("sharedLink")}
+          />
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await copyShareUrl(shareUrl);
+              } catch {
+                setShareCopied(false);
+              }
+            }}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-gray-600 px-4 text-sm font-semibold text-gray-100 transition-[scale,background-color] duration-150 ease-out hover:bg-gray-800 active:scale-[0.96]"
+          >
+            <FaCopy className="h-3.5 w-3.5" aria-hidden="true" />
+            {shareCopied ? t("copied") : t("copyLink")}
+          </button>
+        </div>
+      )}
 
       <DndContext
         sensors={sensors}

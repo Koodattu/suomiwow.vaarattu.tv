@@ -54,6 +54,7 @@ export const queryKeys = {
     global: (raidId: number, filters: CharacterTierListQueryFilters) => ["characterTierLists", "global", raidId, filters] as const,
     guild: (realm: string, name: string, raidId: number, filters: CharacterTierListQueryFilters) => ["characterTierLists", "guild", realm, name, raidId, filters] as const,
     custom: (realm: string, name: string, raidId: number) => ["characterTierLists", "custom", realm, name, raidId] as const,
+    shared: (shareId: string) => ["characterTierLists", "shared", shareId] as const,
   },
   pickems: {
     guilds: ["pickems", "guilds"] as const,
@@ -287,6 +288,14 @@ export function useCustomCharacterTierList(realm: string, name: string, raidId: 
     queryKey: queryKeys.characterTierLists.custom(realm, name, raidId!),
     queryFn: () => api.getCustomCharacterTierList(realm, name, raidId!),
     enabled: enabled && !!realm && !!name && raidId !== null && raidId > 0,
+  });
+}
+
+export function useSharedCharacterTierList(shareId: string | null, enabled: boolean = true) {
+  return useQuery({
+    queryKey: queryKeys.characterTierLists.shared(shareId ?? ""),
+    queryFn: () => api.getSharedCharacterTierList(shareId!),
+    enabled: enabled && !!shareId,
   });
 }
 

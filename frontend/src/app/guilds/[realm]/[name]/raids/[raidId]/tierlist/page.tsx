@@ -4,12 +4,13 @@ import { use, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import CharacterTierBoard, { CharacterTierBoardItem } from "@/components/character-tier-lists/CharacterTierBoard";
 import CustomCharacterTierListMaker from "@/components/character-tier-lists/CustomCharacterTierListMaker";
-import { useCustomCharacterTierList, useGuildCharacterTierList } from "@/lib/queries";
+import { useCustomCharacterTierList, useGuildCharacterTierList, useSharedCharacterTierList } from "@/lib/queries";
 import { getAllClasses } from "@/lib/utils";
 import type { CharacterTierListCharacter, CharacterTierListRole } from "@/types";
 
 interface PageProps {
   params: Promise<{ realm: string; name: string; raidId: string }>;
+  searchParams: Promise<{ fromShare?: string }>;
 }
 
 type PageMode = "generated" | "custom";
@@ -35,14 +36,16 @@ function toBoardItem(character: CharacterTierListCharacter): CharacterTierBoardI
   };
 }
 
-export default function GuildCharacterTierListPage({ params }: PageProps) {
+export default function GuildCharacterTierListPage({ params, searchParams }: PageProps) {
   const resolvedParams = use(params);
+  const resolvedSearchParams = use(searchParams);
   const t = useTranslations("characterTierListsPage");
   const realm = decodeURIComponent(resolvedParams.realm);
   const name = decodeURIComponent(resolvedParams.name);
   const raidId = parseInt(resolvedParams.raidId, 10);
+  const fromShareId = resolvedSearchParams.fromShare ? decodeURIComponent(resolvedSearchParams.fromShare) : null;
 
-  const [mode, setMode] = useState<PageMode>("generated");
+  const [mode, setMode] = useState<PageMode>(fromShareId ? "custom" : "generated");
   const [view, setView] = useState<GeneratedView>("roles");
   const [minReports, setMinReports] = useState(1);
   const [classId, setClassId] = useState<number | "all">("all");
@@ -58,8 +61,13 @@ export default function GuildCharacterTierListPage({ params }: PageProps) {
     [classId, minReports],
   );
 
-  const { data, isLoading, error } = useGuildCharacterTierList(realm, name, Number.isFinite(raidId) ? raidId : null, filters, mode === "generated");
-  const { data: customData, isLoading: customLoading, error: customError } = useCustomCharacterTierList(realm, name, Number.isFinite(raidId) ? raidId : null, mode === "custom");
+  const validRaidId = Number.isFinite(raidId) ? raidId : null;
+  const { data, isLoading, error } = useGuildCharacterTierList(realm, name, validRaidId, filters, mode === "generated");
+  const { data: customData, isLoading: customLoading, error: customError } = useCustomCharacterTierList(realm, name, validRaidId, mode === "custom" && !fromShareId);
+  const { data: sharedData, isLoading: sharedLoading, error: sharedError } = useSharedCharacterTierList(fromShareId, mode === "custom" && !!fromShareId);
+  const activeCustomData = fromShareId ? sharedData : customData;
+  const activeCustomLoading = fromShareId ? sharedLoading : customLoading;
+  const activeCustomError = fromShareId ? sharedError : customError;
   const characters = useMemo(() => data?.characters.map(toBoardItem) ?? [], [data]);
 
   const roleGroups = useMemo(
@@ -164,9 +172,9 @@ export default function GuildCharacterTierListPage({ params }: PageProps) {
 
         {mode === "custom" && (
           <>
-            {customLoading && <div className="rounded-lg border border-gray-800 bg-gray-900 px-4 py-8 text-center text-gray-400">{t("loading")}</div>}
-            {customError && <div className="rounded-lg border border-red-900 bg-red-950/40 px-4 py-8 text-center text-red-200">{t("error")}</div>}
-            {!customLoading && !customError && customData && <CustomCharacterTierListMaker realm={realm} name={name} raidId={raidId} data={customData} />}
+            {activeCustomLoading && <div className="rounded-lg border border-gray-800 bg-gray-900 px-4 py-8 text-center text-gray-400">{t("loading")}</div>}
+            {activeCustomError && <div className="rounded-lg border border-red-900 bg-red-950/40 px-4 py-8 text-center text-red-200">{t("error")}</div>}
+            {!activeCustomLoading && !activeCustomError && activeCustomData && <CustomCharacterTierListMaker realm={realm} name={name} raidId={raidId} data={activeCustomData} sourceShareId={fromShareId} canUpdateSharedList={sharedData?.share.canEdit ?? false} />}
           </>
         )}
       </div>

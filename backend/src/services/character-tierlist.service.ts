@@ -1,9 +1,11 @@
+import { randomBytes } from "crypto";
 import mongoose from "mongoose";
 import { AnyBulkWriteOperation } from "mongoose";
 import CharacterMechanicsLeaderboard, { IMechanicsBossScore } from "../models/CharacterMechanicsLeaderboard";
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import CharacterTierListEntry, { ICharacterTierListEntry, CharacterTierListRole, CharacterTierListMetric } from "../models/CharacterTierListEntry";
 import CustomCharacterTierList, { CustomCharacterTier, ICustomCharacterTierList } from "../models/CustomCharacterTierList";
+import SharedCharacterTierList, { ISharedCharacterTierList } from "../models/SharedCharacterTierList";
 import Guild from "../models/Guild";
 import Raid from "../models/Raid";
 import { TRACKED_RAIDS } from "../config/guilds";
@@ -12,6 +14,19 @@ import logger from "../utils/logger";
 const MYTHIC_DIFFICULTY = 5;
 const DEFAULT_TIERS: CustomCharacterTier[] = ["S", "A", "B", "C", "D", "E", "F"];
 const MAX_QUERY_LIMIT = 2000;
+const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{8,32}$/;
+
+type CustomCharacterTierListPayload = {
+  tiers?: Array<{ tier?: string; characterKeys?: unknown }>;
+  unplacedCharacterKeys?: unknown;
+};
+
+type NormalizedCustomCharacterTierList = {
+  tiers: Array<{ tier: CustomCharacterTier; characterKeys: string[] }>;
+  unplacedCharacterKeys: string[];
+};
+
+type SavedCustomCharacterTierListLike = Pick<ICustomCharacterTierList | ISharedCharacterTierList, "tiers" | "unplacedCharacterKeys" | "updatedAt">;
 
 type MechanicsRow = {
   characterId: mongoose.Types.ObjectId;
@@ -168,6 +183,16 @@ export type CustomCharacterTierListResponse = {
   };
 };
 
+export type SharedCharacterTierListResponse = CustomCharacterTierListResponse & {
+  share: {
+    shareId: string;
+    createdAt: Date;
+    updatedAt: Date;
+    owner: boolean;
+    canEdit: boolean;
+  };
+};
+
 export class CharacterTierListServiceError extends Error {
   statusCode: number;
 
@@ -287,7 +312,7 @@ class CharacterTierListService {
     realm: string,
     name: string,
     zoneId: number,
-    payload: { tiers?: Array<{ tier?: string; characterKeys?: unknown }>; unplacedCharacterKeys?: unknown },
+    payload: CustomCharacterTierListPayload,
   ): Promise<CustomCharacterTierListResponse | null> {
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       throw new CharacterTierListServiceError(401, "Login is required");
@@ -334,6 +359,79 @@ class CharacterTierListService {
     });
 
     return this.buildCustomResponse(context, null, true);
+  }
+
+  async createSharedTierList(
+    userId: string | null,
+    realm: string,
+    name: string,
+    zoneId: number,
+    payload: CustomCharacterTierListPayload,
+  ): Promise<SharedCharacterTierListResponse | null> {
+    const context = await this.getGuildRosterContext(realm, name, zoneId);
+    if (!context) return null;
+
+    const normalized = this.normalizeCustomPayload(payload, context.roster.map((character) => character.characterKey));
+    const userObjectId = this.toUserObjectId(userId);
+    const shareId = await this.createShareId();
+
+    const shared = await SharedCharacterTierList.create({
+      shareId,
+      userId: userObjectId,
+      guildId: context.guildObjectId,
+      guildName: context.guild.name,
+      guildRealm: context.guild.realm,
+      zoneId,
+      raidName: context.raid.name,
+      tiers: normalized.tiers,
+      unplacedCharacterKeys: normalized.unplacedCharacterKeys,
+    });
+
+    return this.buildSharedResponse(context, shared, userObjectId);
+  }
+
+  async getSharedTierList(userId: string | null, shareId: string): Promise<SharedCharacterTierListResponse | null> {
+    this.validateShareId(shareId);
+
+    const shared = await SharedCharacterTierList.findOne({ shareId }).lean<ISharedCharacterTierList | null>();
+    if (!shared) return null;
+
+    const context = await this.getGuildRosterContext(shared.guildRealm, shared.guildName, shared.zoneId);
+    if (!context) return null;
+
+    return this.buildSharedResponse(context, shared, this.toUserObjectId(userId));
+  }
+
+  async updateSharedTierList(userId: string | undefined, shareId: string, payload: CustomCharacterTierListPayload): Promise<SharedCharacterTierListResponse | null> {
+    this.validateShareId(shareId);
+
+    const userObjectId = this.requireUserObjectId(userId);
+    const shared = await SharedCharacterTierList.findOne({ shareId }).lean<ISharedCharacterTierList | null>();
+    if (!shared) return null;
+
+    if (!this.isSharedOwner(shared, userObjectId)) {
+      throw new CharacterTierListServiceError(403, "Only the owner can edit this shared tier list");
+    }
+
+    const context = await this.getGuildRosterContext(shared.guildRealm, shared.guildName, shared.zoneId);
+    if (!context) return null;
+
+    const normalized = this.normalizeCustomPayload(payload, context.roster.map((character) => character.characterKey));
+    const updated = await SharedCharacterTierList.findOneAndUpdate(
+      { shareId },
+      {
+        $set: {
+          tiers: normalized.tiers,
+          unplacedCharacterKeys: normalized.unplacedCharacterKeys,
+          guildName: context.guild.name,
+          guildRealm: context.guild.realm,
+          raidName: context.raid.name,
+        },
+      },
+      { new: true },
+    ).lean<ISharedCharacterTierList | null>();
+
+    return updated ? this.buildSharedResponse(context, updated, userObjectId) : null;
   }
 
   private async rebuildZone(zoneId: number): Promise<{ zoneId: number; entries: number; characters: number; guildEntries: number }> {
@@ -689,8 +787,36 @@ class CharacterTierListService {
     };
   }
 
+  private buildSharedResponse(
+    context: {
+      guild: { id: string; name: string; realm: string };
+      raid: { id: number; name: string };
+      roster: CharacterTierListRosterCharacter[];
+    },
+    sharedList: SavedCustomCharacterTierListLike & Pick<ISharedCharacterTierList, "shareId" | "createdAt" | "userId">,
+    userObjectId: mongoose.Types.ObjectId | null,
+  ): SharedCharacterTierListResponse {
+    const owner = this.isSharedOwner(sharedList, userObjectId);
+    const normalized = this.normalizeSavedCustomList(sharedList, context.roster.map((character) => character.characterKey));
+
+    return {
+      guild: context.guild,
+      raid: context.raid,
+      roster: context.roster,
+      canSave: !!userObjectId,
+      customList: normalized,
+      share: {
+        shareId: sharedList.shareId,
+        createdAt: sharedList.createdAt,
+        updatedAt: sharedList.updatedAt ?? sharedList.createdAt,
+        owner,
+        canEdit: owner,
+      },
+    };
+  }
+
   private normalizeSavedCustomList(
-    customList: ICustomCharacterTierList | null,
+    customList: SavedCustomCharacterTierListLike | null,
     rosterKeys: string[],
   ): CustomCharacterTierListResponse["customList"] {
     if (!customList) {
@@ -763,6 +889,38 @@ class CharacterTierListService {
       tiers: DEFAULT_TIERS.map((tier) => ({ tier, characterKeys: byTier.get(tier) ?? [] })),
       unplacedCharacterKeys,
     };
+  }
+
+  private async createShareId(): Promise<string> {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const shareId = randomBytes(9).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      const existing = await SharedCharacterTierList.exists({ shareId });
+      if (!existing) return shareId;
+    }
+
+    throw new CharacterTierListServiceError(500, "Failed to create shared tier list link");
+  }
+
+  private validateShareId(shareId: string): void {
+    if (!SHARE_ID_PATTERN.test(shareId)) {
+      throw new CharacterTierListServiceError(400, "Invalid shared tier list link");
+    }
+  }
+
+  private toUserObjectId(userId: string | null | undefined): mongoose.Types.ObjectId | null {
+    return userId && mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null;
+  }
+
+  private requireUserObjectId(userId: string | undefined): mongoose.Types.ObjectId {
+    const userObjectId = this.toUserObjectId(userId);
+    if (!userObjectId) {
+      throw new CharacterTierListServiceError(401, "Login is required");
+    }
+    return userObjectId;
+  }
+
+  private isSharedOwner(sharedList: Pick<ISharedCharacterTierList, "userId">, userObjectId: mongoose.Types.ObjectId | null): boolean {
+    return !!sharedList.userId && !!userObjectId && sharedList.userId.toString() === userObjectId.toString();
   }
 
   private isCustomTier(value: unknown): value is CustomCharacterTier {

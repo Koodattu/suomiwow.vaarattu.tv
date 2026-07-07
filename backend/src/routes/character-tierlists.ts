@@ -88,6 +88,33 @@ router.get(
   },
 );
 
+router.get("/shared/:shareId", async (req: Request, res: Response) => {
+  try {
+    const userId = req.session.userId ?? null;
+    const tierList = await characterTierListService.getSharedTierList(userId, req.params.shareId);
+    if (!tierList) {
+      return res.status(404).json({ error: "Shared tier list not found" });
+    }
+
+    res.json(tierList);
+  } catch (error) {
+    handleError(res, "Failed to fetch shared character tier list", error);
+  }
+});
+
+router.put("/shared/:shareId", async (req: Request, res: Response) => {
+  try {
+    const tierList = await characterTierListService.updateSharedTierList(req.session.userId, req.params.shareId, req.body ?? {});
+    if (!tierList) {
+      return res.status(404).json({ error: "Shared tier list not found" });
+    }
+
+    res.json(tierList);
+  } catch (error) {
+    handleError(res, "Failed to update shared character tier list", error);
+  }
+});
+
 router.get(
   "/guilds/:realm/:name/raids/:raidId",
   cacheMiddleware(
@@ -132,6 +159,24 @@ router.get("/guilds/:realm/:name/raids/:raidId/custom", async (req: Request, res
     res.json(tierList);
   } catch (error) {
     handleError(res, "Failed to fetch custom character tier list", error);
+  }
+});
+
+router.post("/guilds/:realm/:name/raids/:raidId/shared", async (req: Request, res: Response) => {
+  try {
+    const realm = decodeURIComponent(req.params.realm);
+    const name = decodeURIComponent(req.params.name);
+    const raidId = parseRaidId(req);
+    const userId = req.session.userId ?? null;
+
+    const tierList = await characterTierListService.createSharedTierList(userId, realm, name, raidId, req.body ?? {});
+    if (!tierList) {
+      return res.status(404).json({ error: "Guild not found" });
+    }
+
+    res.status(201).json(tierList);
+  } catch (error) {
+    handleError(res, "Failed to share custom character tier list", error);
   }
 });
 
