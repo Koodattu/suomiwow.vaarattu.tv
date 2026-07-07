@@ -14,6 +14,7 @@ import logger from "../utils/logger";
 const MYTHIC_DIFFICULTY = 5;
 const DEFAULT_TIERS: CustomCharacterTier[] = ["S", "A", "B", "C", "D", "E", "F"];
 const MAX_QUERY_LIMIT = 2000;
+const CUSTOM_TIER_LIST_MIN_REPORTS = 2;
 const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{8,32}$/;
 
 type CustomCharacterTierListPayload = {
@@ -717,7 +718,7 @@ class CharacterTierListService {
 
     const raid = await this.getRaidInfo(zoneId);
     const [participationRows, generatedEntries] = await Promise.all([
-      CharacterRaidParticipation.find({ reportGuildId: guild._id, zoneId })
+      CharacterRaidParticipation.find({ reportGuildId: guild._id, zoneId, reportCount: { $gte: CUSTOM_TIER_LIST_MIN_REPORTS } })
         .sort({ classID: 1, characterName: 1 })
         .select("characterId wclCanonicalCharacterId characterName characterRealm characterRegion classID firstSeenAt lastSeenAt reportCount updatedAt")
         .lean<ParticipationRow[]>(),
