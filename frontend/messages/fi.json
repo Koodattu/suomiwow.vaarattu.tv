@@ -738,6 +738,9 @@
     "firstSeen": "Ensimmäinen havainto",
     "lastSeen": "Viimeisin havainto"
   },
+  "accountProfile": {
+    "mostSeenCharacter": "Eniten nähty hahmo"
+  },
   "raidAchievements": {
     "title": "Raidi-achievementit",
     "subtitle": "Haettu {updatedAt}",

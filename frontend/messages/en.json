@@ -738,6 +738,9 @@
     "firstSeen": "First Seen",
     "lastSeen": "Last Seen"
   },
+  "accountProfile": {
+    "mostSeenCharacter": "Most seen character"
+  },
   "raidAchievements": {
     "title": "Raid Achievements",
     "subtitle": "Fetched {updatedAt}",

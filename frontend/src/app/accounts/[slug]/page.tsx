@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { CharacterAccountResponse } from "@/types";
 import { formatRealmName, getClassInfoById } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
-import RaidAchievementsSection, { RaidAchievementMetric } from "@/components/RaidAchievementsSection";
+import { RaidAchievementMetric } from "@/components/RaidAchievementMetric";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -88,6 +88,7 @@ function AccountCharacterRow({ character }: { character: CharacterAccountRespons
 export default function AccountPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const tRaidAchievements = useTranslations("raidAchievements");
+  const tAccountProfile = useTranslations("accountProfile");
   const slug = decodeURIComponent(resolvedParams.slug);
   const [account, setAccount] = useState<CharacterAccountResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,9 +140,8 @@ export default function AccountPage({ params }: PageProps) {
     );
   }
 
-  const primaryCharacter = account.characters[0];
-  const primaryClass = primaryCharacter ? getClassInfoById(primaryCharacter.classID) : null;
-  const missingRaidAchievementSummaries = account.characters.filter((character) => !character.raidAchievements).length;
+  const mostSeenCharacter = account.characters[0];
+  const primaryClass = mostSeenCharacter ? getClassInfoById(mostSeenCharacter.classID) : null;
   const accountAchievements = account.account.raidAchievements?.achievements ?? [];
 
   return (
@@ -156,11 +156,14 @@ export default function AccountPage({ params }: PageProps) {
                 </span>
               ) : null}
               <div className="min-w-0">
-                <h1 className="truncate text-3xl font-bold text-white md:text-4xl">{account.account.displayName}</h1>
-                <p className="mt-1 text-sm font-semibold text-gray-500">Inferred character account</p>
+                <h1 className="truncate text-3xl font-bold text-white md:text-4xl">{mostSeenCharacter?.name ?? account.account.displayName}</h1>
+                <p className="mt-1 text-sm font-semibold text-gray-500">
+                  {tAccountProfile("mostSeenCharacter")}
+                  {mostSeenCharacter ? ` - ${formatRealmName(mostSeenCharacter.realm)}` : ""}
+                </p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-5 md:text-right">
+            <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4 md:text-right">
               <div>
                 <div className="text-gray-500">Characters</div>
                 <div className="text-xl font-bold tabular-nums text-gray-100">{account.account.characterCount}</div>
@@ -187,15 +190,9 @@ export default function AccountPage({ params }: PageProps) {
                   achievements={accountAchievements.filter((achievement) => achievement.type === "ahead_of_the_curve")}
                 />
               </div>
-              <div>
-                <div className="text-gray-500">Confidence</div>
-                <div className="text-xl font-bold tabular-nums text-gray-100">{Math.round(account.account.avgScore)}</div>
-              </div>
             </div>
           </div>
         </header>
-
-        <RaidAchievementsSection summary={account.account.raidAchievements} missingCharacterCount={missingRaidAchievementSummaries} />
 
         <section className="rounded-lg border border-gray-700 bg-gray-900">
           <div className="grid grid-cols-[40px_minmax(0,1fr)_64px_64px_80px] gap-3 border-b border-gray-700 px-4 py-3 text-xs font-semibold uppercase text-gray-500 md:grid-cols-[44px_minmax(0,1fr)_84px_84px_120px_120px]">

@@ -11,7 +11,7 @@ import { useRaids } from "@/lib/queries";
 import { buildRaidOrderIndex, compareRaidIdsByListOrder } from "@/lib/raid-priority";
 import { formatRealmName, formatSpecName, formatTime, getClassInfoById, getGuildProfileUrl, getParseColor, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
-import RaidAchievementsSection, { RaidAchievementMetric } from "@/components/RaidAchievementsSection";
+import { RaidAchievementMetric } from "@/components/RaidAchievementMetric";
 
 interface PageProps {
   params: Promise<{ realm: string; name: string }>;
@@ -1187,8 +1187,6 @@ export default function CharacterProfilePage({ params }: PageProps) {
             </div>
           </div>
         </header>
-
-        <RaidAchievementsSection summary={character.raidAchievements} />
 
         <section className="rounded-lg border border-gray-700 bg-gray-900">
           <div className="border-b border-gray-700 px-4 py-3">
