@@ -14,6 +14,7 @@ import cacheWarmerService from "./cache-warmer.service";
 import taskTracker from "./task-tracker.service";
 import fightVodService from "./fight-vod.service";
 import characterAchievementService from "./character-achievement.service";
+import mythicPlusService from "./mythic-plus.service";
 import { CURRENT_RAID_IDS } from "../config/guilds";
 import logger from "../utils/logger";
 
@@ -119,6 +120,7 @@ class UpdateScheduler {
   private isUpdatingRaidAnalytics: boolean = false;
   private isCheckingHiatus: boolean = false;
   private isUpdatingRaiderIOGuilds: boolean = false;
+  private isUpdatingMythicPlusCurrentSeason: boolean = false;
   private lastCacheWarmTime: number = 0;
 
   private getBlockingDatabaseMaintenanceJob(): string | null {
@@ -444,6 +446,21 @@ class UpdateScheduler {
       },
     );
 
+    // NIGHTLY: Refresh current-season Mythic+ scores and dungeon runs for active/stale characters (at 2 AM Finnish time)
+    cron.schedule(
+      "0 2 * * *",
+      async () => {
+        if (this.isUpdatingMythicPlusCurrentSeason || mythicPlusService.isProcessing()) {
+          logger.info("[Nightly/MythicPlus] Previous crawler run still in progress, skipping...");
+          return;
+        }
+        await this.refreshMythicPlusCurrentSeason();
+      },
+      {
+        timezone: "Europe/Helsinki",
+      },
+    );
+
     // NIGHTLY: Update all guilds' world ranks for current raid (at 4 AM Finnish time)
     // WCL sometimes updates world ranks with a delay, so this ensures we catch those updates
     cron.schedule(
@@ -667,6 +684,7 @@ class UpdateScheduler {
     logger.info("  - Nightly jobs (Europe/Helsinki):");
     logger.info("    * Report character backfill queue: daily at 01:00");
     logger.info("    * Character achievement account matching backfill: daily at 01:30");
+    logger.info("    * Mythic+ current season refresh: daily at 02:00");
     logger.info("    * Fight VOD cleanup: daily at 02:30");
     logger.info("    * Refetch recent reports: daily at 03:00");
     logger.info("    * World ranks update: daily at 04:00");
@@ -836,6 +854,35 @@ class UpdateScheduler {
       await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
     } finally {
       this.isQueueingCharacterAchievementBackfill = false;
+    }
+  }
+
+  async refreshMythicPlusCurrentSeason(): Promise<void> {
+    if (mythicPlusService.isProcessing()) {
+      logger.info("[Nightly/MythicPlus] Mythic+ crawler is already running, skipping current-season refresh");
+      return;
+    }
+
+    this.isUpdatingMythicPlusCurrentSeason = true;
+    const taskId = await taskTracker.start("Refresh Mythic+ Current Season");
+
+    try {
+      const result = await mythicPlusService.triggerCurrentSeasonCrawl();
+      logger.info(
+        `[Nightly/MythicPlus] Current season refresh queued for ${result.enqueue.currentSeason ?? "unknown season"}: ${result.enqueue.profileJobs.candidates} profile candidate(s), ${result.enqueue.detailJobs.candidates} dungeon candidate(s), processorStarted=${result.started}`,
+      );
+      await taskTracker.complete(taskId, {
+        currentSeason: result.enqueue.currentSeason,
+        candidates: result.enqueue.candidates,
+        profileJobs: result.enqueue.profileJobs,
+        detailJobs: result.enqueue.detailJobs,
+        processorStarted: result.started,
+      });
+    } catch (error) {
+      logger.error("[Nightly/MythicPlus] Error queueing current-season refresh:", error);
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+    } finally {
+      this.isUpdatingMythicPlusCurrentSeason = false;
     }
   }
 

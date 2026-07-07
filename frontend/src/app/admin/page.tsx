@@ -26,6 +26,8 @@ import {
   triggerBackfillReportCharacters,
   triggerBackfillCharacterRankings,
   triggerBackfillCharacterAchievements,
+  triggerBackfillMythicPlusHistorical,
+  triggerRefreshMythicPlusCurrentSeason,
   triggerRebuildCharacterAccountGroups,
   triggerRebuildGuildNetworkSnapshot,
   triggerRebuildCharacterRankingLeaderboards,
@@ -80,6 +82,7 @@ import {
   AdminCharacterStats,
   CharacterRankingBackfillStatusResponse,
   CharacterAchievementBackfillStatusResponse,
+  MythicPlusCrawlerStatusResponse,
   AdminRaidOption,
   DeleteCharacterRankingsPreviewResponse,
   TaskLogEntry,
@@ -152,6 +155,82 @@ function ManualActionGroup({ title, children }: { title: string; children: React
   );
 }
 
+function MythicPlusCrawlerStatusPanel({ status }: { status: MythicPlusCrawlerStatusResponse }) {
+  const queue = status.queue;
+  const progressPercent = queue.total > 0 ? Math.round((queue.terminal / queue.total) * 100) : 0;
+  const currentJob = status.processor.currentJob;
+
+  return (
+    <div className="rounded bg-gray-900/60 border border-gray-700 p-3 text-xs text-gray-300 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-medium text-white">Mythic+ crawler</span>
+        <span className={status.processor.isRunning ? "text-blue-400" : "text-gray-400"}>{status.processor.isRunning ? "Running" : "Idle"}</span>
+      </div>
+      <div className="w-full bg-gray-700 rounded-full h-1.5">
+        <div className="h-1.5 rounded-full bg-cyan-500" style={{ width: `${Math.min(100, progressPercent)}%` }} />
+      </div>
+      <div className="grid grid-cols-5 gap-2 text-center tabular-nums">
+        <div>
+          <div className="text-amber-400 font-semibold">{queue.pending}</div>
+          <div className="text-gray-500">pending</div>
+        </div>
+        <div>
+          <div className="text-blue-400 font-semibold">{queue.inProgress}</div>
+          <div className="text-gray-500">running</div>
+        </div>
+        <div>
+          <div className="text-green-400 font-semibold">{queue.completed}</div>
+          <div className="text-gray-500">done</div>
+        </div>
+        <div>
+          <div className="text-cyan-300 font-semibold">{queue.rateLimited}</div>
+          <div className="text-gray-500">delayed</div>
+        </div>
+        <div>
+          <div className="text-red-400 font-semibold">{queue.failed}</div>
+          <div className="text-gray-500">failed</div>
+        </div>
+      </div>
+      <div className="flex items-center justify-between text-gray-500 tabular-nums">
+        <span>{progressPercent}% complete</span>
+        <span>
+          {status.processor.requestsInWindow}/{status.processor.maxRequestsPerHour} requests
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-center tabular-nums">
+        <div>
+          <div className="text-cyan-300 font-semibold">{queue.profileSeasonsWritten.toLocaleString()}</div>
+          <div className="text-gray-500">season rows</div>
+        </div>
+        <div>
+          <div className="text-sky-300 font-semibold">{queue.detailJobsQueued.toLocaleString()}</div>
+          <div className="text-gray-500">detail jobs</div>
+        </div>
+        <div>
+          <div className="text-emerald-300 font-semibold">{queue.dungeonRunsWritten.toLocaleString()}</div>
+          <div className="text-gray-500">run rows</div>
+        </div>
+      </div>
+      {(queue.notFound > 0 || queue.classMismatch > 0 || queue.skipped > 0) && (
+        <div className="flex items-center justify-between text-gray-500 tabular-nums">
+          <span>{queue.skipped} skipped</span>
+          <span>
+            {queue.notFound} missing / {queue.classMismatch} class mismatch
+          </span>
+        </div>
+      )}
+      {currentJob && (
+        <div className="text-gray-400 truncate">
+          Current: {currentJob.name}-{currentJob.realm}
+          {currentJob.season ? ` / ${currentJob.season}` : currentJob.targetSeasons.length ? ` / ${currentJob.targetSeasons.join(", ")}` : ""}
+        </div>
+      )}
+      {status.processor.lastMessage && <div className="text-gray-500 truncate">{status.processor.lastMessage}</div>}
+      {status.recentFailures.length > 0 && <div className="text-red-400 truncate">{status.recentFailures.length} recent failure(s)</div>}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
@@ -209,6 +288,7 @@ export default function AdminPage() {
   const [queueStats, setQueueStats] = useState<QueueStatistics | null>(null);
   const [characterRankingBackfillStatus, setCharacterRankingBackfillStatus] = useState<CharacterRankingBackfillStatusResponse | null>(null);
   const [characterAchievementBackfillStatus, setCharacterAchievementBackfillStatus] = useState<CharacterAchievementBackfillStatusResponse | null>(null);
+  const [mythicPlusCrawlerStatus, setMythicPlusCrawlerStatus] = useState<MythicPlusCrawlerStatusResponse | null>(null);
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [queuePage, setQueuePage] = useState(1);
   const [queueTotalPages, setQueueTotalPages] = useState(1);
@@ -367,13 +447,14 @@ export default function AdminPage() {
       try {
         switch (activeTab) {
           case "overview": {
-            const [overviewData, rateLimitData, queueStatsData, adminRaidsData, characterRankingBackfillData, characterAchievementBackfillData] = await Promise.all([
+            const [overviewData, rateLimitData, queueStatsData, adminRaidsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
               api.getAdminOverview(),
               api.getAdminRateLimitStatus(),
               api.getAdminProcessingQueueStats(),
               getAdminRaids(),
               api.getAdminCharacterRankingBackfillStatus(),
               api.getAdminCharacterAchievementBackfillStatus(),
+              api.getAdminMythicPlusCrawlerStatus(),
             ]);
             setOverview(overviewData);
             setRateLimitStatus(rateLimitData.status);
@@ -383,6 +464,7 @@ export default function AdminPage() {
             setAdminRaids(adminRaidsData.raids);
             setCharacterRankingBackfillStatus(characterRankingBackfillData);
             setCharacterAchievementBackfillStatus(characterAchievementBackfillData);
+            setMythicPlusCrawlerStatus(mythicPlusCrawlerData);
             break;
           }
 
@@ -419,7 +501,7 @@ export default function AdminPage() {
           }
 
           case "system": {
-            const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData] = await Promise.all([
+            const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
               api.getAdminRateLimitStatus(),
               api.getAdminWarcraftLogsUserAuthStatus(),
               api.getAdminProcessingQueueStats(),
@@ -427,6 +509,7 @@ export default function AdminPage() {
               api.getAdminProcessingQueueErrors(1, 50),
               api.getAdminCharacterRankingBackfillStatus(),
               api.getAdminCharacterAchievementBackfillStatus(),
+              api.getAdminMythicPlusCrawlerStatus(),
             ]);
             setRateLimitStatus(rateLimitData.status);
             setRateLimitConfig(rateLimitData.config);
@@ -438,6 +521,7 @@ export default function AdminPage() {
             setErrorItems(errorsData.items);
             setCharacterRankingBackfillStatus(characterRankingBackfillData);
             setCharacterAchievementBackfillStatus(characterAchievementBackfillData);
+            setMythicPlusCrawlerStatus(mythicPlusCrawlerData);
             break;
           }
 
@@ -492,7 +576,7 @@ export default function AdminPage() {
     if (activeTab === "system" && user?.isAdmin) {
       const interval = setInterval(async () => {
         try {
-          const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData] = await Promise.all([
+          const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
             api.getAdminRateLimitStatus(),
             api.getAdminWarcraftLogsUserAuthStatus(),
             api.getAdminProcessingQueueStats(),
@@ -500,6 +584,7 @@ export default function AdminPage() {
             api.getAdminProcessingQueueErrors(1, 50),
             api.getAdminCharacterRankingBackfillStatus(),
             api.getAdminCharacterAchievementBackfillStatus(),
+            api.getAdminMythicPlusCrawlerStatus(),
           ]);
           setRateLimitStatus(rateLimitData.status);
           setRateLimitConfig(rateLimitData.config);
@@ -511,6 +596,7 @@ export default function AdminPage() {
           setErrorItems(errorsData.items);
           setCharacterRankingBackfillStatus(characterRankingBackfillData);
           setCharacterAchievementBackfillStatus(characterAchievementBackfillData);
+          setMythicPlusCrawlerStatus(mythicPlusCrawlerData);
         } catch (err) {
           console.error("Error refreshing system data:", err);
         }
@@ -530,15 +616,17 @@ export default function AdminPage() {
 
     const interval = setInterval(async () => {
       try {
-        const [rateLimitData, characterRankingBackfillData, characterAchievementBackfillData] = await Promise.all([
+        const [rateLimitData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
           api.getAdminRateLimitStatus(),
           api.getAdminCharacterRankingBackfillStatus(),
           api.getAdminCharacterAchievementBackfillStatus(),
+          api.getAdminMythicPlusCrawlerStatus(),
         ]);
         setRateLimitStatus(rateLimitData.status);
         setRateLimitConfig(rateLimitData.config);
         setCharacterRankingBackfillStatus(characterRankingBackfillData);
         setCharacterAchievementBackfillStatus(characterAchievementBackfillData);
+        setMythicPlusCrawlerStatus(mythicPlusCrawlerData);
       } catch (err) {
         console.error("Error refreshing overview status:", err);
       }
@@ -600,6 +688,9 @@ export default function AdminPage() {
   const characterAchievementQueue = characterAchievementBackfillStatus?.queue;
   const characterAchievementPercent =
     characterAchievementQueue && characterAchievementQueue.total > 0 ? Math.round((characterAchievementQueue.terminal / characterAchievementQueue.total) * 100) : 0;
+  const mythicPlusQueue = mythicPlusCrawlerStatus?.queue;
+  const mythicPlusActiveJobs = mythicPlusQueue ? mythicPlusQueue.pending + mythicPlusQueue.inProgress + mythicPlusQueue.rateLimited : 0;
+  const mythicPlusPercent = mythicPlusQueue && mythicPlusQueue.total > 0 ? Math.round((mythicPlusQueue.terminal / mythicPlusQueue.total) * 100) : 0;
   const characterRankingPipelineBusy = characterRankingBackfillStatus?.processor.isRunning || characterRankingBackfillStatus?.leaderboardRebuild.isRunning;
   const queueTotalCount = queueStats ? queueStats.pending + queueStats.inProgress + queueStats.completed + queueStats.failed + queueStats.paused : 0;
 
@@ -628,6 +719,10 @@ export default function AdminPage() {
       if (triggerName === "backfill-character-achievements" || triggerName === "refresh-character-achievement-candidates" || triggerName === "rebuild-character-account-groups") {
         const status = await api.getAdminCharacterAchievementBackfillStatus();
         setCharacterAchievementBackfillStatus(status);
+      }
+      if (triggerName === "backfill-mythic-plus-historical" || triggerName === "refresh-mythic-plus-current") {
+        const status = await api.getAdminMythicPlusCrawlerStatus();
+        setMythicPlusCrawlerStatus(status);
       }
       if (triggerName === "sync-raids-from-wcl") {
         const adminRaidsData = await getAdminRaids();
@@ -1325,6 +1420,24 @@ export default function AdminPage() {
                     </p>
                   </div>
                 )}
+
+                {mythicPlusCrawlerStatus && mythicPlusQueue && (
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <h3 className="text-gray-400 text-sm font-medium flex items-center gap-1">
+                      <span>🗝️</span> Mythic+ Crawler
+                    </h3>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-3xl font-bold text-white">{mythicPlusActiveJobs}</span>
+                      <span className="text-gray-500">active</span>
+                    </div>
+                    <div className="w-full bg-gray-600 rounded-full h-1.5 mt-2">
+                      <div className="h-1.5 rounded-full bg-cyan-500" style={{ width: `${Math.min(100, mythicPlusPercent)}%` }} />
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {mythicPlusCrawlerStatus.processor.isRunning ? <span className="text-blue-400">Running</span> : "Idle"} • {mythicPlusPercent}% complete
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1491,6 +1604,20 @@ export default function AdminPage() {
                       )}
                     </div>
                   )}
+                </ManualActionCard>
+
+                <ManualActionCard icon="🗝️" title="Mythic+ Pipeline">
+                  <ManualActionGroup title="Historical data">
+                    {renderTriggerButton("backfill-mythic-plus-historical", "Start Full Historical Backfill", triggerBackfillMythicPlusHistorical, {
+                      disabled: mythicPlusCrawlerStatus?.processor.isRunning,
+                    })}
+                  </ManualActionGroup>
+                  <ManualActionGroup title="Current season">
+                    {renderTriggerButton("refresh-mythic-plus-current", "Refresh Current Season", triggerRefreshMythicPlusCurrentSeason, {
+                      disabled: mythicPlusCrawlerStatus?.processor.isRunning,
+                    })}
+                  </ManualActionGroup>
+                  {mythicPlusCrawlerStatus && <MythicPlusCrawlerStatusPanel status={mythicPlusCrawlerStatus} />}
                 </ManualActionCard>
 
                 <ManualActionCard icon="🧬" title="Character Identity Pipeline">
@@ -3196,6 +3323,28 @@ export default function AdminPage() {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Mythic+ Crawler */}
+            <div>
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <span>🗝️</span> Mythic+ Crawler
+              </h2>
+              <div className="bg-gray-800 rounded-lg p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {renderTriggerButton("backfill-mythic-plus-historical", "Start Full Historical Backfill", triggerBackfillMythicPlusHistorical, {
+                    disabled: mythicPlusCrawlerStatus?.processor.isRunning,
+                  })}
+                  {renderTriggerButton("refresh-mythic-plus-current", "Refresh Current Season", triggerRefreshMythicPlusCurrentSeason, {
+                    disabled: mythicPlusCrawlerStatus?.processor.isRunning,
+                  })}
+                </div>
+                {mythicPlusCrawlerStatus ? (
+                  <MythicPlusCrawlerStatusPanel status={mythicPlusCrawlerStatus} />
+                ) : (
+                  <div className="rounded bg-gray-900/60 border border-gray-700 p-3 text-sm text-gray-400">Mythic+ crawler status has not loaded yet.</div>
+                )}
+              </div>
             </div>
 
             {/* Processing Queue */}

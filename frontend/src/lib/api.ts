@@ -87,6 +87,8 @@ import {
   QueueItem,
   ErrorType,
   TriggerResponse,
+  MythicPlusCrawlerStatusResponse,
+  MythicPlusCrawlerTriggerResponse,
   CharacterRankingBackfillStatusResponse,
   CharacterRankingBackfillTriggerResponse,
   CharacterRankingLeaderboardRebuildTriggerResponse,
@@ -1335,6 +1337,14 @@ export const api = {
     return response.json();
   },
 
+  async getAdminMythicPlusCrawlerStatus(): Promise<MythicPlusCrawlerStatusResponse> {
+    const response = await fetch(`${API_URL}/api/admin/mythic-plus-crawler/status`, {
+      credentials: "include",
+    });
+    if (!response.ok) throw new Error("Failed to fetch Mythic+ crawler status");
+    return response.json();
+  },
+
   async getAdminProcessingQueue(page: number = 1, limit: number = 20, status?: ProcessingStatus): Promise<ProcessingQueueResponse> {
     const params = new URLSearchParams({
       page: String(page),
@@ -1693,6 +1703,30 @@ export async function triggerBackfillCharacterAchievements(refreshCandidates = f
   });
   if (!response.ok) throw new Error("Failed to trigger character achievement backfill");
   return response.json();
+}
+
+export async function triggerBackfillMythicPlusHistorical(): Promise<MythicPlusCrawlerTriggerResponse> {
+  const response = await fetch(`${API_URL}/api/admin/trigger/crawl-mythic-plus`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "historical" }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Failed to trigger Mythic+ historical backfill");
+  return data;
+}
+
+export async function triggerRefreshMythicPlusCurrentSeason(): Promise<MythicPlusCrawlerTriggerResponse> {
+  const response = await fetch(`${API_URL}/api/admin/trigger/crawl-mythic-plus`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "current" }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Failed to trigger Mythic+ current season refresh");
+  return data;
 }
 
 export async function triggerRebuildCharacterAccountGroups(): Promise<CharacterAccountGroupRebuildResponse> {

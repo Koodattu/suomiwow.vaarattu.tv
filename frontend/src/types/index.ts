@@ -2097,6 +2097,94 @@ export interface TriggerResponse {
   currentTierOnly?: boolean;
 }
 
+export type MythicPlusCrawlerJobStatus = "pending" | "in_progress" | "completed" | "skipped" | "not_found" | "class_mismatch" | "rate_limited" | "failed";
+
+export interface MythicPlusCrawlerJob {
+  id: string;
+  jobType: "profile" | "season_progress";
+  characterId: string;
+  wclCanonicalCharacterId: number;
+  name: string;
+  realm: string;
+  region: string;
+  classID: number;
+  season?: string | null;
+  targetSeasons: string[];
+  status: MythicPlusCrawlerJobStatus;
+  attempts: number;
+  maxAttempts: number;
+  profileSeasonsWritten: number;
+  detailJobsQueued: number;
+  dungeonRunsWritten: number;
+  completionReason?: string | null;
+  lastError?: string | null;
+  lastErrorAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  lastActivityAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MythicPlusCrawlerStatusResponse {
+  processor: {
+    isRunning: boolean;
+    currentJob: MythicPlusCrawlerJob | null;
+    lastMessage: string | null;
+    requestsInWindow: number;
+    maxRequestsPerHour: number;
+  };
+  queue: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    skipped: number;
+    notFound: number;
+    classMismatch: number;
+    rateLimited: number;
+    failed: number;
+    total: number;
+    terminal: number;
+    profileSeasonsWritten: number;
+    detailJobsQueued: number;
+    dungeonRunsWritten: number;
+  };
+  recentFailures: MythicPlusCrawlerJob[];
+  updatedAt: string;
+}
+
+export interface MythicPlusCrawlerTriggerResponse extends TriggerResponse {
+  mode: "historical" | "current";
+  started: boolean;
+  static: {
+    seasons: number;
+    dungeons: number;
+  };
+  enqueue:
+    | {
+        candidates: number;
+        queued: number;
+        existing: number;
+      }
+    | {
+        currentSeason: string | null;
+        candidates: number;
+        activeSince: string | null;
+        profileStaleBefore: string | null;
+        runStaleBefore: string | null;
+        profileJobs: {
+          candidates: number;
+          queued: number;
+          existing: number;
+        };
+        detailJobs: {
+          candidates: number;
+          queued: number;
+        };
+      };
+  status: MythicPlusCrawlerStatusResponse;
+}
+
 export type CharacterRankingBackfillItemStatus = "pending" | "in_progress" | "completed" | "skipped" | "failed";
 
 export interface CharacterRankingBackfillItem {

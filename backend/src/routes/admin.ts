@@ -2690,23 +2690,53 @@ router.post("/trigger/backfill-character-rankings", async (req: Request, res: Re
 // Queue and start Raider.IO Mythic+ score/run crawler
 router.post("/trigger/crawl-mythic-plus", async (req: Request, res: Response) => {
   try {
+    const mode = req.body?.mode === "historical" || req.body?.mode === "current" ? req.body.mode : "limited";
     const limitRaw = Number(req.body?.limit ?? 500);
     const maxJobsRaw = Number(req.body?.maxJobs ?? 0);
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 10000) : 500;
     const maxJobs = Number.isFinite(maxJobsRaw) && maxJobsRaw > 0 ? Math.floor(maxJobsRaw) : undefined;
-    const result = await mythicPlusService.triggerCrawl({
-      limit,
-      maxJobs,
-      refreshProfiles: req.body?.refreshProfiles === true,
-      process: req.body?.process !== false,
-      syncStatic: req.body?.syncStatic !== false,
-    });
+    const process = req.body?.process !== false;
+    const syncStatic = req.body?.syncStatic !== false;
+    const result =
+      mode === "historical"
+        ? await mythicPlusService.triggerHistoricalBackfill({ maxJobs, process, syncStatic })
+        : mode === "current"
+          ? await mythicPlusService.triggerCurrentSeasonCrawl({
+              maxJobs,
+              process,
+              syncStatic,
+              characterLimit: Number.isFinite(Number(req.body?.characterLimit)) ? Number(req.body.characterLimit) : undefined,
+              activeSinceDays: Number.isFinite(Number(req.body?.activeSinceDays)) ? Number(req.body.activeSinceDays) : undefined,
+              profileStaleHours: Number.isFinite(Number(req.body?.profileStaleHours)) ? Number(req.body.profileStaleHours) : undefined,
+              runStaleHours: Number.isFinite(Number(req.body?.runStaleHours)) ? Number(req.body.runStaleHours) : undefined,
+            })
+          : await mythicPlusService.triggerCrawl({
+              limit,
+              maxJobs,
+              refreshProfiles: req.body?.refreshProfiles === true,
+              process,
+              syncStatic,
+            });
+
+    const queuedProfileJobs = "profileJobs" in result.enqueue ? result.enqueue.profileJobs.queued : result.enqueue.queued;
+    const existingProfileJobs = "profileJobs" in result.enqueue ? result.enqueue.profileJobs.existing : result.enqueue.existing;
+    const currentProfileCandidates = "profileJobs" in result.enqueue ? result.enqueue.profileJobs.candidates : queuedProfileJobs;
+    const currentDetailCandidates = "detailJobs" in result.enqueue ? result.enqueue.detailJobs.candidates : 0;
 
     res.json({
       success: true,
-      message: result.started
-        ? `Mythic+ crawler started: ${result.enqueue.queued} new profile job(s), ${result.enqueue.existing} existing/updated`
-        : `Mythic+ profile jobs queued: ${result.enqueue.queued} new, ${result.enqueue.existing} existing/updated`,
+      message:
+        mode === "historical"
+          ? result.started
+            ? `Mythic+ historical backfill started: ${queuedProfileJobs} new profile job(s), ${existingProfileJobs} existing/updated`
+            : `Mythic+ historical profile jobs queued: ${queuedProfileJobs} new, ${existingProfileJobs} existing/updated`
+          : mode === "current"
+            ? result.started
+              ? `Mythic+ current season refresh started: ${currentProfileCandidates} profile candidate(s), ${currentDetailCandidates} dungeon candidate(s)`
+              : `Mythic+ current season refresh queued: ${currentProfileCandidates} profile candidate(s), ${currentDetailCandidates} dungeon candidate(s)`
+            : result.started
+              ? `Mythic+ crawler started: ${queuedProfileJobs} new profile job(s), ${existingProfileJobs} existing/updated`
+              : `Mythic+ profile jobs queued: ${queuedProfileJobs} new, ${existingProfileJobs} existing/updated`,
       ...result,
     });
   } catch (error) {
