@@ -43,7 +43,6 @@ type CompareTableAverages = {
   totalPulls: number | null;
   progressTime: number | null;
   progressRaidTime: number | null;
-  combatTime: number | null;
   bosses: Map<number, CompareBossAverage>;
 };
 
@@ -94,10 +93,6 @@ function bossMetric(guild: CompareGuildMetric, bossId: number) {
   return guild.bosses.find((boss) => boss.bossId === bossId);
 }
 
-function getCombatTime(guild: CompareGuildMetric): number {
-  return guild.totalCombatTimeSpent || guild.totalTimeSpent;
-}
-
 function isFullClear(guild: CompareGuildMetric): boolean {
   return guild.totalBosses > 0 && guild.bossesDefeated >= guild.totalBosses;
 }
@@ -127,7 +122,6 @@ function calculateCompareTableAverages(compare: RaidCompare): CompareTableAverag
     totalPulls: averagePositiveValues(clearedGuilds.map((guild) => guild.totalPulls)),
     progressTime: averagePositiveValues(clearedGuilds.map((guild) => guild.totalTimeSpent)),
     progressRaidTime: averagePositiveValues(clearedGuilds.map((guild) => guild.progressRaidTimeSpent)),
-    combatTime: averagePositiveValues(clearedGuilds.map(getCombatTime)),
     bosses,
   };
 }
@@ -146,10 +140,6 @@ function getTableSortValue(guild: CompareGuildMetric, key: string): string | num
   if (key === "totalPulls") return guild.totalPulls > 0 ? guild.totalPulls : null;
   if (key === "progressTime") return guild.totalTimeSpent > 0 ? guild.totalTimeSpent : null;
   if (key === "progressRaidTime") return guild.progressRaidTimeSpent > 0 ? guild.progressRaidTimeSpent : null;
-  if (key === "combatTime") {
-    const combatTime = getCombatTime(guild);
-    return combatTime > 0 ? combatTime : null;
-  }
 
   const bossMatch = key.match(/^boss:(\d+):(pulls|time)$/);
   if (!bossMatch) return null;
@@ -479,9 +469,6 @@ function CompareTable({ compare, t }: { compare: RaidCompare; t: ReturnType<type
             <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
               <SortableHeader sortKey="progressRaidTime" className="justify-end"><StackedHeaderLabel label={t("progressTimeWithBreaks")} /></SortableHeader>
             </th>
-            <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
-              <SortableHeader sortKey="combatTime" className="justify-end"><StackedHeaderLabel label={t("combatTime")} /></SortableHeader>
-            </th>
             {compare.raid.bosses.map((boss) => (
               <th key={boss.id} colSpan={2} className="border-l border-gray-800 px-2 py-2 text-center font-semibold" title={boss.name}>
                 <span className="flex justify-center">
@@ -517,7 +504,6 @@ function CompareTable({ compare, t }: { compare: RaidCompare; t: ReturnType<type
             <td className={`px-3 py-3 text-right tabular-nums text-gray-200 ${averageCellClass}`}>{formatAverageNumber(averages.totalPulls)}</td>
             <td className={`px-3 py-3 text-right tabular-nums text-gray-200 ${averageCellClass}`}>{formatAverageTime(averages.progressTime)}</td>
             <td className={`px-3 py-3 text-right tabular-nums text-gray-200 ${averageCellClass}`}>{formatAverageTime(averages.progressRaidTime)}</td>
-            <td className={`px-3 py-3 text-right tabular-nums text-gray-200 ${averageCellClass}`}>{formatAverageTime(averages.combatTime)}</td>
             {compare.raid.bosses.map((boss) => {
               const bossAverage = averages.bosses.get(boss.id);
 
@@ -552,7 +538,6 @@ function CompareTable({ compare, t }: { compare: RaidCompare; t: ReturnType<type
               <td className={`px-3 py-3 text-right tabular-nums text-gray-300 ${tableCellHoverClass}`}>{formatNumber(guild.totalPulls)}</td>
               <td className={`px-3 py-3 text-right tabular-nums text-gray-300 ${tableCellHoverClass}`}>{formatTime(guild.totalTimeSpent)}</td>
               <td className={`px-3 py-3 text-right tabular-nums text-gray-300 ${tableCellHoverClass}`}>{formatTime(guild.progressRaidTimeSpent)}</td>
-              <td className={`px-3 py-3 text-right tabular-nums text-gray-300 ${tableCellHoverClass}`}>{formatTime(getCombatTime(guild))}</td>
               {compare.raid.bosses.map((boss) => {
                 const metric = bossMetric(guild, boss.id);
                 const killed = (metric?.kills ?? 0) > 0;

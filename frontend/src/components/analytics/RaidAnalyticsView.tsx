@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useState } from "react";
 import { GuildDistributionEntry, Distribution, WeeklyProgressionEntry } from "@/types";
 import { useTranslations } from "next-intl";
-import { useRaids, useBosses, useRaidAnalyticsRaids, useRaidAnalytics, useAllRaidAnalytics } from "@/lib/queries";
+import { useRaids, useBosses, useRaidAnalytics, useAllRaidAnalytics } from "@/lib/queries";
 import RaidSelector from "@/components/RaidSelector";
 import IconImage from "@/components/IconImage";
 import RaidBossProgressionComparison from "@/components/analytics/RaidBossProgressionComparison";
@@ -234,27 +234,15 @@ function StatsSection({
 export default function RaidAnalyticsPage() {
   const t = useTranslations("raidAnalyticsPage");
   const [selectedRaidId, setSelectedRaidId] = useState<number | null>(null);
-  const initializedRef = useRef(false);
 
   // Data fetching via React Query
   const { data: raids = [], isLoading: raidsLoading } = useRaids();
-  const { data: raidAnalyticsRaids, isLoading: analyticsRaidsLoading } = useRaidAnalyticsRaids();
   const { data: analytics, isLoading: analyticsLoading, error: analyticsError } = useRaidAnalytics(selectedRaidId);
   const { data: allAnalytics, isLoading: allAnalyticsLoading, error: allAnalyticsError } = useAllRaidAnalytics(selectedRaidId === null);
   const { data: bosses = [] } = useBosses(selectedRaidId);
 
-  // Set initial selectedRaidId when raid analytics list loads (only once)
-  useEffect(() => {
-    if (!initializedRef.current && raidAnalyticsRaids && raidAnalyticsRaids.length > 0 && raids.length > 0) {
-      initializedRef.current = true;
-      const analyticsRaidIds = new Set(raidAnalyticsRaids.map((raid) => raid.raidId));
-      const primaryRaidId = raids.find((raid) => raid.isPrimary && analyticsRaidIds.has(raid.id))?.id;
-      setSelectedRaidId(primaryRaidId ?? raidAnalyticsRaids[0].raidId);
-    }
-  }, [raidAnalyticsRaids, raids]);
-
   // Derive loading and error states
-  const loading = raidsLoading || analyticsRaidsLoading;
+  const loading = raidsLoading;
   const dataLoading = selectedRaidId === null ? allAnalyticsLoading : analyticsLoading;
   const rawError = selectedRaidId === null ? allAnalyticsError : analyticsError;
   const error = rawError ? (rawError.message.includes("No analytics") ? t("noAnalyticsAvailable") : t("failedToLoad")) : null;
