@@ -6,8 +6,10 @@ import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import CharacterTierListEntry, { ICharacterTierListEntry, CharacterTierListRole, CharacterTierListMetric } from "../models/CharacterTierListEntry";
 import CustomCharacterTierList, { CustomCharacterTier, ICustomCharacterTierList } from "../models/CustomCharacterTierList";
 import SharedCharacterTierList, { ISharedCharacterTierList } from "../models/SharedCharacterTierList";
+import CharacterAccountGroup from "../models/CharacterAccountGroup";
 import Guild from "../models/Guild";
 import Raid from "../models/Raid";
+import { CHARACTER_ACCOUNT_SIGNAL_VERSION } from "../config/achievement-signals";
 import { TRACKED_RAIDS } from "../config/guilds";
 import logger from "../utils/logger";
 
@@ -28,6 +30,11 @@ type NormalizedCustomCharacterTierList = {
 };
 
 type SavedCustomCharacterTierListLike = Pick<ICustomCharacterTierList | ISharedCharacterTierList, "tiers" | "unplacedCharacterKeys" | "updatedAt">;
+
+type AccountGroupRow = {
+  _id: mongoose.Types.ObjectId;
+  characterIds?: Array<mongoose.Types.ObjectId | string>;
+};
 
 type MechanicsRow = {
   characterId: mongoose.Types.ObjectId;
@@ -725,8 +732,10 @@ class CharacterTierListService {
       CharacterTierListEntry.find({ scope: "guild", guildId: guild._id, zoneId }).lean<ICharacterTierListEntry[]>(),
     ]);
 
+    const accountGroupIdByCharacterId = await this.getAccountGroupIdsByCharacterId(participationRows);
+    const rosterRows = this.selectMostPlayedRosterRows(participationRows, accountGroupIdByCharacterId);
     const generatedByKey = new Map(generatedEntries.map((entry) => [entry.characterKey, entry]));
-    const roster = participationRows
+    const roster = rosterRows
       .map((row) => {
         const characterKey = this.buildCharacterKey(row);
         const generated = generatedByKey.get(characterKey);
@@ -766,6 +775,63 @@ class CharacterTierListService {
       raid,
       roster,
     };
+  }
+
+  private async getAccountGroupIdsByCharacterId(rows: ParticipationRow[]): Promise<Map<string, string>> {
+    const characterIdsByString = new Map<string, mongoose.Types.ObjectId>();
+    for (const row of rows) {
+      if (!row.characterId) continue;
+      characterIdsByString.set(row.characterId.toString(), row.characterId);
+    }
+
+    if (characterIdsByString.size === 0) return new Map();
+
+    const accountGroups = await CharacterAccountGroup.find({
+      signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
+      characterIds: { $in: Array.from(characterIdsByString.values()) },
+    })
+      .select("_id characterIds")
+      .lean<AccountGroupRow[]>();
+
+    const accountGroupIdByCharacterId = new Map<string, string>();
+    for (const accountGroup of accountGroups) {
+      const accountGroupId = accountGroup._id.toString();
+      for (const characterId of accountGroup.characterIds ?? []) {
+        const characterIdString = characterId.toString();
+        if (characterIdsByString.has(characterIdString)) {
+          accountGroupIdByCharacterId.set(characterIdString, accountGroupId);
+        }
+      }
+    }
+
+    return accountGroupIdByCharacterId;
+  }
+
+  private selectMostPlayedRosterRows(rows: ParticipationRow[], accountGroupIdByCharacterId: Map<string, string>): ParticipationRow[] {
+    const selectedRows = new Map<string, ParticipationRow>();
+
+    for (const row of rows) {
+      const characterId = row.characterId?.toString() ?? null;
+      const accountGroupId = characterId ? accountGroupIdByCharacterId.get(characterId) : null;
+      const rosterKey = accountGroupId ? `account:${accountGroupId}` : `character:${this.buildCharacterKey(row)}`;
+      const current = selectedRows.get(rosterKey);
+
+      if (!current || this.isBetterRosterRepresentative(row, current)) {
+        selectedRows.set(rosterKey, row);
+      }
+    }
+
+    return Array.from(selectedRows.values());
+  }
+
+  private isBetterRosterRepresentative(candidate: ParticipationRow, current: ParticipationRow): boolean {
+    if (candidate.reportCount !== current.reportCount) return candidate.reportCount > current.reportCount;
+
+    const candidateLastSeenAt = candidate.lastSeenAt ? new Date(candidate.lastSeenAt).getTime() : 0;
+    const currentLastSeenAt = current.lastSeenAt ? new Date(current.lastSeenAt).getTime() : 0;
+    if (candidateLastSeenAt !== currentLastSeenAt) return candidateLastSeenAt > currentLastSeenAt;
+
+    return this.buildCharacterKey(candidate).localeCompare(this.buildCharacterKey(current)) < 0;
   }
 
   private buildCustomResponse(
