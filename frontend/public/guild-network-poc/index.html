@@ -902,6 +902,7 @@
       const ALLUVIAL_K = 0.9; // vertical px per character
       const ALLUVIAL_NODE_W = 26;
       const ALLUVIAL_COL_PITCH = 215;
+      const IGNORED_MOVEMENT_RAID_IDS = new Set([50, 22]); // Sporefall, Crucible of Storms
 
       /* ============================== state ============================== */
 
@@ -927,6 +928,25 @@
         playTimer: null,
         fitted: { galaxy: false, all: false, flow: false },
       };
+
+      function isMovementIgnoredTier(t) {
+        const tier = M.tiers[t];
+        return !!tier && IGNORED_MOVEMENT_RAID_IDS.has(tier.id);
+      }
+
+      function firstMovementTier() {
+        return F.movementTiers?.[0] ?? 0;
+      }
+
+      function lastMovementTier() {
+        return F.movementTiers?.[F.movementTiers.length - 1] ?? Math.max(0, M.tiers.length - 1);
+      }
+
+      function adjacentMovementTier(t, direction) {
+        if (!F.prevMovementTier || !F.nextMovementTier) return null;
+        const next = direction > 0 ? F.nextMovementTier[t] : F.prevMovementTier[t];
+        return next >= 0 ? next : null;
+      }
 
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
@@ -1381,7 +1401,26 @@
         const tierSecondaries = Array.from({ length: TC }, () => []);
         const pairW = new Map();
         const charTiers = new Array(CC).fill(null);
+        const charMovementTiers = new Array(CC).fill(null);
         const firstTier = new Int32Array(CC).fill(-1);
+        const firstMovementTierByChar = new Int32Array(CC).fill(-1);
+        const movementTiers = [];
+        const prevMovementTier = new Int32Array(TC).fill(-1);
+        const nextMovementTier = new Int32Array(TC).fill(-1);
+
+        let previousMovementTier = -1;
+        for (let t = 0; t < TC; t += 1) {
+          prevMovementTier[t] = previousMovementTier;
+          if (!isMovementIgnoredTier(t)) {
+            movementTiers.push(t);
+            previousMovementTier = t;
+          }
+        }
+        let followingMovementTier = -1;
+        for (let t = TC - 1; t >= 0; t -= 1) {
+          nextMovementTier[t] = followingMovementTier;
+          if (!isMovementIgnoredTier(t)) followingMovementTier = t;
+        }
 
         for (let c = 0; c < CC; c += 1) {
           const mem = M.chars[c].mem;
@@ -1405,10 +1444,14 @@
               for (let k = 0; k < entries.length; k += 2) {
                 const g = entries[k];
                 if (g !== best) tierSecondaries[t].push(c, g);
-                if (!careerGuilds.includes(g)) careerGuilds.push(g);
+                if (!isMovementIgnoredTier(t) && !careerGuilds.includes(g)) careerGuilds.push(g);
               }
               (charTiers[c] || (charTiers[c] = [])).push(t);
               if (firstTier[c] === -1) firstTier[c] = t;
+              if (!isMovementIgnoredTier(t)) {
+                (charMovementTiers[c] || (charMovementTiers[c] = [])).push(t);
+                if (firstMovementTierByChar[c] === -1) firstMovementTierByChar[c] = t;
+              }
             }
             i = j;
           }
@@ -1553,8 +1596,9 @@
         for (let t = 0; t < TC; t += 1) {
           const td = tiers[t];
           const st = { present: td.count, guilds: td.roster.size, stayed: 0, switched: 0, newFaces: 0, returning: 0, departed: 0 };
-          if (t > 0) {
-            const prev = tiers[t - 1];
+          const prevMovement = prevMovementTier[t];
+          if (!isMovementIgnoredTier(t) && prevMovement >= 0) {
+            const prev = tiers[prevMovement];
             const flowMap = new Map(); // gPrev*100000+gCur -> { n, cs: sample char idxs }
             for (let s = 0; s < td.count; s += 1) {
               const c = td.c[s];
@@ -1568,7 +1612,7 @@
                 if (!flow) flowMap.set(key, (flow = { n: 0, cs: [] }));
                 flow.n += 1;
                 if (flow.cs.length < 30) flow.cs.push(c);
-              } else if (firstTier[c] === t) {
+              } else if (firstMovementTierByChar[c] === t) {
                 st.newFaces += 1;
               } else {
                 st.returning += 1;
@@ -1586,7 +1630,12 @@
         F.flows = flows;
         F.stats = stats;
         F.charTiers = charTiers;
+        F.charMovementTiers = charMovementTiers;
         F.firstTier = firstTier;
+        F.firstMovementTier = firstMovementTierByChar;
+        F.movementTiers = movementTiers;
+        F.prevMovementTier = prevMovementTier;
+        F.nextMovementTier = nextMovementTier;
         F.gx = gx;
         F.gy = gy;
         F.guildMax = guildMax;
@@ -1635,12 +1684,14 @@
           columns.push({ nodes, byG, height: y });
         }
 
-        for (let t = 1; t < TC; t += 1) {
+        for (let t = 0; t < TC; t += 1) {
           const raw = F.flows[t];
           if (!raw) continue;
+          const sourceTier = F.prevMovementTier[t];
+          if (sourceTier < 0) continue;
           const agg = new Map();
           for (const [key, f] of raw) {
-            const a = lumpOf(t - 1, Math.floor(key / 100000));
+            const a = lumpOf(sourceTier, Math.floor(key / 100000));
             const b = lumpOf(t, key % 100000);
             const k2 = (a + 2) * 100000 + (b + 2);
             let cur = agg.get(k2);
@@ -1653,10 +1704,10 @@
             const a = Math.floor(k2 / 100000) - 2;
             const b = (k2 % 100000) - 2;
             if (f.n < 2 && a !== b) continue;
-            list.push({ a, b, n: f.n, cs: f.cs });
+            list.push({ a, b, n: f.n, cs: f.cs, sourceTier, targetTier: t });
           }
 
-          const prevCol = columns[t - 1];
+          const prevCol = columns[sourceTier];
           const col = columns[t];
           const yOf = (byG, g) => { const node = byG.get(g); return node ? node.y + node.h / 2 : 0; };
 
@@ -1878,6 +1929,8 @@
           const mem = M.chars[c].mem;
           const totals = new Map();
           for (let i = 0; i < mem.length; i += 3) {
+            const tier = mem[i];
+            if (isMovementIgnoredTier(tier)) continue;
             if (mem[i + 2] >= mr) totals.set(mem[i + 1], (totals.get(mem[i + 1]) || 0) + mem[i + 2]);
           }
           if (!totals.size) continue;
@@ -1988,13 +2041,14 @@
         view.fitted.all = true;
       }
 
-      // characters whose guild changed since the previous tier, as ready-to-draw lines
+      // characters whose guild changed since the previous counted tier, as ready-to-draw lines
       function tierTrails(t) {
         const td = F.tiers[t];
         if (td.trailsAll) return td.trailsAll;
         const out = [];
-        if (t > 0) {
-          const prev = F.tiers[t - 1];
+        const prevMovement = isMovementIgnoredTier(t) ? -1 : F.prevMovementTier[t];
+        if (prevMovement >= 0) {
+          const prev = F.tiers[prevMovement];
           for (let s = 0; s < td.count; s += 1) {
             const ps = prev.slotOf.get(td.c[s]);
             if (ps !== undefined && prev.g[ps] !== td.g[s]) {
@@ -2093,14 +2147,20 @@
         renderInspector();
       }
 
+      function moveToAdjacentMovementTier(direction) {
+        const next = adjacentMovementTier(view.tier, direction);
+        if (next === null) return false;
+        setTier(next);
+        return true;
+      }
+
       function startPlay() {
         if (view.playing) return;
         view.playing = true;
         els.playBtn.textContent = "❚❚";
-        if (view.tier >= M.tiers.length - 1) setTier(0);
+        if (view.tier >= lastMovementTier() || adjacentMovementTier(view.tier, 1) === null) setTier(firstMovementTier());
         view.playTimer = setInterval(() => {
-          if (view.tier >= M.tiers.length - 1) { stopPlay(); return; }
-          setTier(view.tier + 1);
+          if (!moveToAdjacentMovementTier(1)) stopPlay();
         }, PLAY_MS);
       }
 
@@ -2119,8 +2179,8 @@
           els.titleMain.textContent = tier.name;
           els.titleSub.textContent = `${tier.expansion} · ${monthYear(tier.start)} · tier ${view.tier + 1} of ${M.tiers.length}`;
         } else if (view.mode === "all") {
-          const first = M.tiers[0];
-          const last = M.tiers[M.tiers.length - 1];
+          const first = M.tiers[firstMovementTier()] || M.tiers[0];
+          const last = M.tiers[lastMovementTier()] || M.tiers[M.tiers.length - 1];
           els.titleMain.textContent = "All raids combined";
           els.titleSub.textContent = `${monthYear(first.start)} → ${monthYear(last.start)} · multi-guild ${entityPlural()} float between every guild of their career`;
         } else {
@@ -2144,7 +2204,7 @@
             ["New", st.newFaces],
             ["Gone", st.departed],
           ];
-          if (view.tier === 0) items = items.slice(0, 2);
+          if (isMovementIgnoredTier(view.tier) || F.prevMovementTier[view.tier] < 0) items = items.slice(0, 2);
         } else if (view.mode === "all") {
           const at = buildAllTime();
           items = [
@@ -2176,7 +2236,7 @@
       function buildTimeline() {
         els.tierCells.innerHTML = M.tiers
           .map((tier, t) => `
-            <button class="tier-cell" type="button" data-t="${t}" title="${esc(tier.name)} · ${esc(tier.expansion)} · ${monthYear(tier.start)}">
+            <button class="tier-cell" type="button" data-t="${t}" title="${esc(tier.name)} · ${esc(tier.expansion)} · ${monthYear(tier.start)}${isMovementIgnoredTier(t) ? " · movement skipped" : ""}">
               <span class="bar" style="background:${expColor(tier.expansion)}"></span>
               <span class="abbr">${esc(tierAbbr(tier.name))}</span>
               <span class="yr">${tier.start ? new Date(tier.start).getFullYear() : ""}</span>
@@ -2249,6 +2309,11 @@
           }
           moves.sort((p, q) => q[2].n - p[2].n);
         }
+        const movementEmptyText = isMovementIgnoredTier(t)
+          ? "Movement calculations skip this raid tier."
+          : F.prevMovementTier[t] < 0
+            ? "First counted tier - no previous tier."
+            : `No multi-${entitySingular()} moves under this filter.`;
 
         els.insBody.innerHTML = `
           <section class="panel">
@@ -2261,9 +2326,9 @@
             </div>
           </section>
           <section class="panel">
-            <h3>Biggest moves vs previous tier</h3>
+            <h3>Biggest moves vs previous counted tier</h3>
             <div class="list">
-              ${moves.length === 0 ? `<div class="card"><div class="row-sub">${t === 0 ? "First tracked tier — no previous tier." : `No multi-${entitySingular()} moves under this filter.`}</div></div>` : ""}
+              ${moves.length === 0 ? `<div class="card"><div class="row-sub">${movementEmptyText}</div></div>` : ""}
               ${moves.slice(0, 10).map(([a, b, flow]) => `
                 <div class="card">
                   <div class="row-main">
@@ -2279,8 +2344,8 @@
 
       function renderAllPanel() {
         const at = buildAllTime();
-        const first = M.tiers[0];
-        const last = M.tiers[M.tiers.length - 1];
+        const first = M.tiers[firstMovementTier()] || M.tiers[0];
+        const last = M.tiers[lastMovementTier()] || M.tiers[M.tiers.length - 1];
         els.insTitle.textContent = "All raids combined";
         els.insSub.textContent = `${monthYear(first.start)} → ${monthYear(last.start)} · ${fmt(at.count)} ${entityPlural()}, ${fmt(at.multiCount)} of them in 2+ guilds`;
 
@@ -2357,6 +2422,7 @@
         // tenure of current/overall members in this guild
         const tenure = new Map();
         for (let i = 0; i < M.tiers.length; i += 1) {
+          if (isMovementIgnoredTier(i)) continue;
           const slots = F.tiers[i].members.get(g);
           if (!slots) continue;
           for (const s of slots) {
@@ -2368,15 +2434,16 @@
 
         const inflow = [];
         const outflow = [];
-        if (F.flows[t]) {
+        if (!isMovementIgnoredTier(t) && F.flows[t]) {
           for (const [key, flow] of F.flows[t]) {
             const a = Math.floor(key / 100000);
             const b = key % 100000;
             if (b === g && a !== g) inflow.push([a, flow]);
           }
         }
-        if (F.flows[t + 1]) {
-          for (const [key, flow] of F.flows[t + 1]) {
+        const nextMovement = isMovementIgnoredTier(t) ? -1 : F.nextMovementTier[t];
+        if (nextMovement >= 0 && F.flows[nextMovement]) {
+          for (const [key, flow] of F.flows[nextMovement]) {
             const a = Math.floor(key / 100000);
             const b = key % 100000;
             if (a === g && b !== g) outflow.push([b, flow]);
@@ -2389,6 +2456,9 @@
         const joinedRows = allMode ? careerFlows.joined : inflow;
         const leftRows = allMode ? careerFlows.left : outflow;
         const at = allMode ? buildAllTime() : null;
+        const tierMovementSkipped = !allMode && isMovementIgnoredTier(t);
+        const joinedEmptyText = tierMovementSkipped ? "Movement calculations skip this raid tier." : allMode ? "No tracked arrivals from another guild." : "No tracked arrivals from the previous counted tier.";
+        const leftEmptyText = tierMovementSkipped ? "Movement calculations skip this raid tier." : allMode ? "No tracked departures to another guild." : "No tracked departures to the next counted tier.";
 
         els.insTitle.textContent = guild.name;
         els.insSub.textContent = allMode
@@ -2410,7 +2480,7 @@
           <section class="panel">
             <h3>${allMode ? "Joined across all tiers from" : "Joined this tier from"}</h3>
             <div class="list">
-              ${joinedRows.length === 0 ? `<div class="card"><div class="row-sub">${allMode ? "No tracked arrivals from another guild." : "No tracked arrivals from the previous tier."}</div></div>` : ""}
+              ${joinedRows.length === 0 ? `<div class="card"><div class="row-sub">${joinedEmptyText}</div></div>` : ""}
               ${joinedRows.slice(0, allMode ? 8 : 6).map(([a, flow]) => `
                 <div class="card">
                   <div class="row-main"><span class="glink" data-sel-guild="${a}">${guildIdentityHtml(a, { realmIfDuplicate: true })}</span><span>+${fmt(flow.n)}</span></div>
@@ -2419,9 +2489,9 @@
             </div>
           </section>
           <section class="panel">
-            <h3>${allMode ? "Left across all tiers for" : "Left for (next tier)"}</h3>
+            <h3>${allMode ? "Left across all tiers for" : "Left for (next counted tier)"}</h3>
             <div class="list">
-              ${leftRows.length === 0 ? `<div class="card"><div class="row-sub">${allMode ? "No tracked departures to another guild." : "No tracked departures to the next tier."}</div></div>` : ""}
+              ${leftRows.length === 0 ? `<div class="card"><div class="row-sub">${leftEmptyText}</div></div>` : ""}
               ${leftRows.slice(0, allMode ? 8 : 6).map(([b, flow]) => `
                 <div class="card">
                   <div class="row-main"><span class="glink" data-sel-guild="${b}">${guildIdentityHtml(b, { realmIfDuplicate: true })}</span><span>−${fmt(flow.n)}</span></div>
@@ -2666,7 +2736,8 @@
       function selectedCharacterGuilds() {
         if (view.selChar < 0) return null;
         const guilds = new Set();
-        for (const tt of F.charTiers[view.selChar] || []) {
+        const tierList = F.charMovementTiers[view.selChar] || F.charTiers[view.selChar] || [];
+        for (const tt of tierList) {
           const td = F.tiers[tt];
           const s = td.slotOf.get(view.selChar);
           if (s !== undefined) guilds.add(td.g[s]);
@@ -2712,8 +2783,10 @@
       }
 
       function drawPreviousTierContext(t, current) {
-        if (view.tier <= 0) return;
-        const prev = F.tiers[view.tier - 1];
+        if (isMovementIgnoredTier(view.tier)) return;
+        const prevTier = F.prevMovementTier[view.tier];
+        if (prevTier < 0) return;
+        const prev = F.tiers[prevTier];
 
         ctx.save();
         ctx.setLineDash([5 / t.k, 5 / t.k]);
@@ -2807,7 +2880,7 @@
           }
         }
 
-        // aggregated migration arrows from the previous tier
+        // aggregated migration arrows from the previous counted tier
         if (view.showFlows && F.flows[view.tier]) {
           for (const [key, flow] of F.flows[view.tier]) {
             const a = Math.floor(key / 100000);
@@ -2846,7 +2919,7 @@
           ctx.stroke();
         }
 
-        // persistent per-character migration lines from the previous tier
+        // persistent per-character migration lines from the previous counted tier
         if (view.showTrails && view.tier > 0) {
           const lines = tierTrails(view.tier);
           if (lines.length) {
@@ -3031,7 +3104,7 @@
       }
 
       function drawCareerPath(c, t) {
-        const tiersAttended = F.charTiers[c] || [];
+        const tiersAttended = F.charMovementTiers[c] || [];
         if (!tiersAttended.length) return;
         const points = tiersAttended.map((tt) => {
           const td = F.tiers[tt];
@@ -3254,12 +3327,13 @@
 
         const selG = view.selGuild;
         const hover = view.hover;
-        const selTiers = view.selChar >= 0 ? F.charTiers[view.selChar] || [] : [];
+        const selTiers = view.selChar >= 0 ? F.charMovementTiers[view.selChar] || [] : [];
 
         // ribbons
         for (let i = 1; i < columns.length; i += 1) {
           if (!flows[i]) continue;
-          const x0 = (i - 1) * ALLUVIAL_COL_PITCH + ALLUVIAL_NODE_W;
+          const sourceTier = flows[i][0]?.sourceTier ?? i - 1;
+          const x0 = sourceTier * ALLUVIAL_COL_PITCH + ALLUVIAL_NODE_W;
           const x1 = i * ALLUVIAL_COL_PITCH;
           const cpx = (x1 - x0) * 0.45;
           for (const f of flows[i]) {
@@ -3407,8 +3481,9 @@
           if (d < hullRadius(n) && d < bestGD) { bestGD = d; bestG = g; }
         }
         if (bestG !== null) return { kind: "guild", g: bestG };
-        if (view.tier > 0) {
-          const prev = F.tiers[view.tier - 1];
+        const prevTier = isMovementIgnoredTier(view.tier) ? -1 : F.prevMovementTier[view.tier];
+        if (prevTier >= 0) {
+          const prev = F.tiers[prevTier];
           const prevLabelG = hitVisibleGalaxyLabel(world, transform, Array.from(prev.roster).filter(([g]) => !td.roster.has(g)), F, true);
           if (prevLabelG !== null) return { kind: "guild", g: prevLabelG, previous: true };
           for (const [g, n] of prev.roster) {
@@ -3443,21 +3518,23 @@
         }
 
         // ribbons
-        const gap = Math.ceil(world.x / ALLUVIAL_COL_PITCH);
-        if (gap >= 1 && gap < columns.length && flows[gap]) {
-          const x0 = (gap - 1) * ALLUVIAL_COL_PITCH + ALLUVIAL_NODE_W;
-          const x1 = gap * ALLUVIAL_COL_PITCH;
+        for (let target = 1; target < columns.length; target += 1) {
+          const list = flows[target];
+          if (!list) continue;
+          const sourceTier = list[0]?.sourceTier ?? target - 1;
+          const x0 = sourceTier * ALLUVIAL_COL_PITCH + ALLUVIAL_NODE_W;
+          const x1 = target * ALLUVIAL_COL_PITCH;
           if (world.x > x0 && world.x < x1) {
             const u = (world.x - x0) / (x1 - x0);
             const su = u * u * (3 - 2 * u);
             let best = null;
-            for (const f of flows[gap]) {
+            for (const f of list) {
               const yTop = f.ya + (f.yb - f.ya) * su;
               if (world.y >= yTop - 1 && world.y <= yTop + f.w + 1) {
                 if (!best || f.w < best.w) best = f;
               }
             }
-            if (best) return { kind: "flow", f: best, t: gap };
+            if (best) return { kind: "flow", f: best, t: target };
           }
         }
         return null;
@@ -3489,7 +3566,7 @@
       function tooltipFor(hit) {
         if (hit.kind === "char") {
           const ch = M.chars[hit.c];
-          const tiersAttended = (F.charTiers[hit.c] || []).length;
+          const tiersAttended = ((view.mode === "all" ? F.charMovementTiers[hit.c] : F.charTiers[hit.c]) || []).length;
           if (view.mode === "all") {
             const at = F.allTime;
             const classID = at.classID[hit.s];
@@ -3511,10 +3588,11 @@
             return `<b>${esc(guildLabel(hit.g))}</b><br>${fmt(at.roster.get(hit.g) || 0)} distinct ${entityPlural()} all time · click to inspect`;
           }
           const n = F.tiers[view.tier].roster.get(hit.g) || 0;
-          if (!n && hit.previous && view.tier > 0) {
-            const prev = F.tiers[view.tier - 1];
+          const prevTier = F.prevMovementTier?.[view.tier] ?? -1;
+          if (!n && hit.previous && prevTier >= 0) {
+            const prev = F.tiers[prevTier];
             const prevN = prev.roster.get(hit.g) || 0;
-            return `<b>${esc(guildLabel(hit.g))}</b><br>${fmt(prevN)} ${entityPlural()} in previous tier · click to inspect`;
+            return `<b>${esc(guildLabel(hit.g))}</b><br>${fmt(prevN)} ${entityPlural()} in previous counted tier · click to inspect`;
           }
           return `<b>${esc(guildLabel(hit.g))}</b><br>${fmt(n)} ${entityPlural()} this tier · click to inspect`;
         }
@@ -3523,7 +3601,7 @@
         }
         if (hit.kind === "flow") {
           const f = hit.f;
-          const from = M.tiers[hit.t - 1];
+          const from = M.tiers[f.sourceTier ?? hit.t - 1];
           const to = M.tiers[hit.t];
           if (f.a === f.b) {
             return `<b>${esc(guildLabel(f.a))}</b><br>${fmt(f.n)} ${entityPlural()} stayed from ${esc(tierAbbr(from.name))} to ${esc(tierAbbr(to.name))}${flowNames(f)}`;
@@ -3708,8 +3786,8 @@
 
       window.addEventListener("keydown", (event) => {
         if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
-        if (event.key === "ArrowRight") { stopPlay(); setTier(view.tier + 1); }
-        else if (event.key === "ArrowLeft") { stopPlay(); setTier(view.tier - 1); }
+        if (event.key === "ArrowRight") { stopPlay(); moveToAdjacentMovementTier(1); }
+        else if (event.key === "ArrowLeft") { stopPlay(); moveToAdjacentMovementTier(-1); }
         else if (event.key === " ") { event.preventDefault(); view.playing ? stopPlay() : startPlay(); }
         else if (event.key === "Escape") clearSelection();
       }, { signal: listenerSignal });
