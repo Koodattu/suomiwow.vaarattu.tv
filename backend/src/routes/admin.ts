@@ -266,6 +266,105 @@ router.delete("/twitch-bot", async (_req: Request, res: Response) => {
   }
 });
 
+type AdminTrackedTwitchGuild = {
+  _id: unknown;
+  name: string;
+  realm: string;
+  region: string;
+  parent_guild?: string;
+  isCurrentlyRaiding?: boolean;
+  activityStatus?: "active" | "inactive";
+  streamers?: Array<{
+    channelName?: string;
+    isLive?: boolean;
+    isPlayingWoW?: boolean;
+    gameName?: string;
+    twitchUserId?: string;
+    currentStreamId?: string;
+    streamStartedAt?: Date;
+    lastStreamId?: string;
+    lastStreamStartedAt?: Date;
+    lastStreamEndedAt?: Date;
+    lastLiveAt?: Date;
+    lastChecked?: Date;
+  }>;
+};
+
+// List every Twitch channel currently configured on tracked guilds.
+router.get("/twitch-streams", async (_req: Request, res: Response) => {
+  try {
+    const guilds = (await Guild.find({ "streamers.0": { $exists: true } })
+      .select({
+        name: 1,
+        realm: 1,
+        region: 1,
+        parent_guild: 1,
+        isCurrentlyRaiding: 1,
+        activityStatus: 1,
+        streamers: 1,
+      })
+      .sort({ name: 1, realm: 1 })
+      .lean()) as AdminTrackedTwitchGuild[];
+
+    const uniqueChannels = new Set<string>();
+    const streams = guilds.flatMap((guild) =>
+      (guild.streamers || [])
+        .map((streamer) => {
+          const channelName = streamer.channelName?.trim();
+          if (!channelName) return null;
+
+          uniqueChannels.add(channelName.toLowerCase());
+          return {
+            channelName,
+            twitchUrl: `https://www.twitch.tv/${encodeURIComponent(channelName)}`,
+            isLive: Boolean(streamer.isLive),
+            isPlayingWoW: Boolean(streamer.isPlayingWoW),
+            gameName: streamer.gameName,
+            twitchUserId: streamer.twitchUserId,
+            currentStreamId: streamer.currentStreamId,
+            streamStartedAt: streamer.streamStartedAt,
+            lastStreamId: streamer.lastStreamId,
+            lastStreamStartedAt: streamer.lastStreamStartedAt,
+            lastStreamEndedAt: streamer.lastStreamEndedAt,
+            lastLiveAt: streamer.lastLiveAt,
+            lastChecked: streamer.lastChecked,
+            guild: {
+              id: String(guild._id),
+              name: guild.name,
+              realm: guild.realm,
+              region: guild.region,
+              parentGuild: guild.parent_guild,
+              isCurrentlyRaiding: Boolean(guild.isCurrentlyRaiding),
+              activityStatus: guild.activityStatus || "active",
+            },
+          };
+        })
+        .filter((stream): stream is NonNullable<typeof stream> => stream !== null),
+    );
+
+    streams.sort((a, b) => {
+      if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
+      if (a.isPlayingWoW !== b.isPlayingWoW) return a.isPlayingWoW ? -1 : 1;
+      const channelCompare = a.channelName.localeCompare(b.channelName);
+      if (channelCompare !== 0) return channelCompare;
+      return a.guild.name.localeCompare(b.guild.name);
+    });
+
+    res.json({
+      streams,
+      stats: {
+        total: streams.length,
+        uniqueChannels: uniqueChannels.size,
+        live: streams.filter((stream) => stream.isLive).length,
+        livePlayingWoW: streams.filter((stream) => stream.isLive && stream.isPlayingWoW).length,
+      },
+    });
+  } catch (error) {
+    logger.error("Error fetching tracked Twitch streams:", error);
+    res.status(500).json({ error: "Failed to fetch tracked Twitch streams" });
+  }
+});
+
 router.post("/death-events/reset-failed-archived", async (req: Request, res: Response) => {
   try {
     const statuses = getAllowedDeathResetStatuses(req.body?.statuses);

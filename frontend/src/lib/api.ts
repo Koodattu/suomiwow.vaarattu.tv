@@ -48,6 +48,7 @@ import {
   AdminUsersResponse,
   AdminUserPickemsResponse,
   AdminGuildsResponse,
+  AdminTwitchStreamsResponse,
   AdminUserStats,
   AdminGuildStats,
   AdminOverview,
@@ -917,6 +918,14 @@ export const api = {
       credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to fetch guild stats");
+    return response.json();
+  },
+
+  async getAdminTwitchStreams(): Promise<AdminTwitchStreamsResponse> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-streams`, {
+      credentials: "include",
+    });
+    if (!response.ok) throw new Error("Failed to fetch tracked Twitch streams");
     return response.json();
   },
 

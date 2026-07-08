@@ -1155,6 +1155,41 @@ export interface AdminGuildsResponse {
   pagination: AdminPagination;
 }
 
+export interface AdminTwitchStream {
+  channelName: string;
+  twitchUrl: string;
+  isLive: boolean;
+  isPlayingWoW: boolean;
+  gameName?: string;
+  twitchUserId?: string;
+  currentStreamId?: string;
+  streamStartedAt?: string;
+  lastStreamId?: string;
+  lastStreamStartedAt?: string;
+  lastStreamEndedAt?: string;
+  lastLiveAt?: string;
+  lastChecked?: string;
+  guild: {
+    id: string;
+    name: string;
+    realm: string;
+    region: string;
+    parentGuild?: string;
+    isCurrentlyRaiding: boolean;
+    activityStatus: "active" | "inactive";
+  };
+}
+
+export interface AdminTwitchStreamsResponse {
+  streams: AdminTwitchStream[];
+  stats: {
+    total: number;
+    uniqueChannels: number;
+    live: number;
+    livePlayingWoW: number;
+  };
+}
+
 export interface AdminUserStats {
   total: number;
   active: {

@@ -57,6 +57,8 @@ import {
   AdminUser,
   AdminUserPickemsResponse,
   AdminGuild,
+  AdminTwitchStream,
+  AdminTwitchStreamsResponse,
   AdminUserStats,
   AdminGuildStats,
   AdminOverview,
@@ -97,7 +99,7 @@ import {
   TwitchChatBotStatus,
 } from "@/types";
 
-type TabType = "overview" | "users" | "guilds" | "characters" | "pickems" | "system" | "tasks";
+type TabType = "overview" | "users" | "guilds" | "streams" | "characters" | "pickems" | "system" | "tasks";
 
 // Sortable item for finalization ranking with remove button
 function SortableRankingItem({ id, rank, onRemove }: { id: string; rank: number; onRemove?: (id: string) => void }) {
@@ -266,6 +268,9 @@ export default function AdminPage() {
   const [guildsTotalPages, setGuildsTotalPages] = useState(1);
   const [guildSearch, setGuildSearch] = useState("");
   const [guildSearchDebounced, setGuildSearchDebounced] = useState("");
+  const [twitchStreams, setTwitchStreams] = useState<AdminTwitchStream[]>([]);
+  const [twitchStreamStats, setTwitchStreamStats] = useState<AdminTwitchStreamsResponse["stats"] | null>(null);
+  const [twitchStreamSearch, setTwitchStreamSearch] = useState("");
 
   // Characters data
   const [characters, setCharacters] = useState<AdminCharacter[]>([]);
@@ -447,7 +452,7 @@ export default function AdminPage() {
     if (!user?.isAdmin) return;
 
     const fetchData = async () => {
-      const isInitialLoad = !overview && !users.length && !guilds.length && !characters.length && !pickems.length && !rateLimitStatus;
+      const isInitialLoad = !overview && !users.length && !guilds.length && !twitchStreams.length && !characters.length && !pickems.length && !rateLimitStatus;
       if (isInitialLoad) {
         setLoading(true);
       }
@@ -491,6 +496,13 @@ export default function AdminPage() {
             setGuilds(guildsData.guilds);
             setGuildsTotalPages(guildsData.pagination.totalPages);
             setGuildStats(guildStatsData);
+            break;
+          }
+
+          case "streams": {
+            const streamsData = await api.getAdminTwitchStreams();
+            setTwitchStreams(streamsData.streams);
+            setTwitchStreamStats(streamsData.stats);
             break;
           }
 
@@ -707,6 +719,13 @@ export default function AdminPage() {
   const mythicPlusPercent = mythicPlusQueue && mythicPlusQueue.total > 0 ? Math.round((mythicPlusQueue.terminal / mythicPlusQueue.total) * 100) : 0;
   const characterRankingPipelineBusy = characterRankingBackfillStatus?.processor.isRunning || characterRankingBackfillStatus?.leaderboardRebuild.isRunning;
   const queueTotalCount = queueStats ? queueStats.pending + queueStats.inProgress + queueStats.completed + queueStats.failed + queueStats.paused : 0;
+  const twitchStreamSearchTerm = twitchStreamSearch.trim().toLowerCase();
+  const filteredTwitchStreams = twitchStreamSearchTerm
+    ? twitchStreams.filter((stream) => {
+        const guildLabel = `${stream.guild.name} ${stream.guild.parentGuild || ""} ${stream.guild.realm} ${stream.guild.region}`;
+        return [stream.channelName, stream.gameName, stream.twitchUserId, guildLabel].some((value) => value?.toLowerCase().includes(twitchStreamSearchTerm));
+      })
+    : twitchStreams;
 
   const getSelectedStatRaidTarget = () => {
     const raidId = selectedStatRaidId !== "all" && selectedStatRaidId !== "current" ? Number(selectedStatRaidId) : undefined;
@@ -1412,7 +1431,7 @@ export default function AdminPage() {
 
         {/* Tabs */}
         <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-700 pb-4">
-          {(["overview", "users", "guilds", "characters", "pickems", "system", "tasks"] as TabType[]).map((tab) => (
+          {(["overview", "users", "guilds", "streams", "characters", "pickems", "system", "tasks"] as TabType[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -2083,6 +2102,131 @@ export default function AdminPage() {
                   >
                     {t("pagination.next")}
                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Streams Tab */}
+        {!loading && activeTab === "streams" && (
+          <div>
+            {twitchStreamStats && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <h4 className="text-gray-400 text-sm">Tracked Entries</h4>
+                  <p className="text-2xl font-bold text-white">{twitchStreamStats.total}</p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <h4 className="text-gray-400 text-sm">Unique Channels</h4>
+                  <p className="text-2xl font-bold text-purple-400">{twitchStreamStats.uniqueChannels}</p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <h4 className="text-gray-400 text-sm">Live Now</h4>
+                  <p className="text-2xl font-bold text-green-400">{twitchStreamStats.live}</p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <h4 className="text-gray-400 text-sm">Live in WoW</h4>
+                  <p className="text-2xl font-bold text-blue-400">{twitchStreamStats.livePlayingWoW}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="mb-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-white">Tracked Twitch Streams</h2>
+                <p className="text-sm text-gray-400">
+                  Showing {filteredTwitchStreams.length} of {twitchStreams.length} configured streamer entries
+                </p>
+              </div>
+
+              <div className="relative w-full sm:w-80">
+                <input
+                  type="text"
+                  value={twitchStreamSearch}
+                  onChange={(e) => setTwitchStreamSearch(e.target.value)}
+                  placeholder="Search channel, guild, realm, or game..."
+                  className="w-full px-4 py-2 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {twitchStreamSearch && (
+                  <button onClick={() => setTwitchStreamSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="relative">
+              {tableLoading && (
+                <div className="absolute inset-0 bg-gray-900/50 flex items-center justify-center z-10 rounded-lg">
+                  <div className="text-amber-400">Loading...</div>
+                </div>
+              )}
+              <div className="bg-gray-800 rounded-lg overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[980px]">
+                    <thead className="bg-gray-900">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Channel</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Game</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Guild</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Last Checked</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Last Live</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700">
+                      {filteredTwitchStreams.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                            No tracked streams found.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredTwitchStreams.map((stream) => {
+                          const statusClass = stream.isLive
+                            ? stream.isPlayingWoW
+                              ? "bg-green-900/50 text-green-300"
+                              : "bg-blue-900/50 text-blue-300"
+                            : "bg-gray-700 text-gray-400";
+                          const statusLabel = stream.isLive ? (stream.isPlayingWoW ? "Live WoW" : "Live") : "Offline";
+
+                          return (
+                            <tr key={`${stream.guild.id}-${stream.channelName}`} className="hover:bg-gray-750">
+                              <td className="px-4 py-3">
+                                <a href={stream.twitchUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-purple-300 hover:text-purple-200 underline">
+                                  {stream.channelName}
+                                </a>
+                                {stream.twitchUserId && <div className="text-xs text-gray-500">ID: {stream.twitchUserId}</div>}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusClass}`}>{statusLabel}</span>
+                              </td>
+                              <td className="px-4 py-3 text-gray-300">{stream.gameName || "-"}</td>
+                              <td className="px-4 py-3">
+                                <button onClick={() => handleGuildClick(stream.guild.id)} className="text-left text-amber-400 hover:text-amber-300">
+                                  {stream.guild.name}
+                                  {stream.guild.parentGuild && <span className="text-gray-500 text-sm ml-2">({stream.guild.parentGuild})</span>}
+                                </button>
+                                <div className="text-xs text-gray-500">
+                                  {stream.guild.realm} - {stream.guild.region.toUpperCase()}
+                                </div>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {stream.guild.isCurrentlyRaiding && <span className="px-1.5 py-0.5 rounded bg-green-900/40 text-green-300 text-[10px] uppercase">Raiding</span>}
+                                  {stream.guild.activityStatus === "inactive" && <span className="px-1.5 py-0.5 rounded bg-gray-700 text-gray-400 text-[10px] uppercase">Inactive</span>}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-gray-400 text-sm">{stream.lastChecked ? formatDate(stream.lastChecked) : "-"}</td>
+                              <td className="px-4 py-3 text-gray-400 text-sm">{stream.lastLiveAt ? formatDate(stream.lastLiveAt) : "-"}</td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
