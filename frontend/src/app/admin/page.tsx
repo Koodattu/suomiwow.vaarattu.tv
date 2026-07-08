@@ -100,6 +100,8 @@ import {
   TwitchBotDifficulty,
   TwitchBotEventType,
   TwitchBotFollowsResponse,
+  TwitchBotMessageTemplateKey,
+  TwitchBotMessageTemplates,
   TwitchBotSettings,
 } from "@/types";
 
@@ -118,6 +120,31 @@ const TWITCH_BOT_DIFFICULTY_OPTIONS: Array<{ value: TwitchBotDifficulty; label: 
   { value: "mythic", label: "Mythic" },
   { value: "heroic", label: "Heroic" },
 ];
+
+const TWITCH_BOT_TEMPLATE_OPTIONS: Array<{ key: TwitchBotMessageTemplateKey; label: string }> = [
+  { key: "bossKill", label: "Boss kill" },
+  { key: "bestPull", label: "Best pull" },
+  { key: "progressUpdate", label: "Progress update" },
+];
+
+const TWITCH_BOT_TEMPLATE_PLACEHOLDERS = [
+  { token: "guild_name", label: "Guild" },
+  { token: "boss_name", label: "Boss" },
+  { token: "difficulty", label: "Difficulty" },
+  { token: "difficulty_short", label: "Diff short" },
+  { token: "pulls", label: "Pulls" },
+  { token: "pulls_phrase", label: "Pull phrase" },
+  { token: "progress", label: "Progress" },
+  { token: "url", label: "URL" },
+  { token: "url_suffix", label: "URL suffix" },
+  { token: "event_type", label: "Event type" },
+] as const;
+
+const TWITCH_BOT_DEFAULT_MESSAGE_TEMPLATES: TwitchBotMessageTemplates = {
+  bossKill: "{difficulty} kill: {guild_name} defeated {boss_name}{pulls_phrase}.{url_suffix}",
+  bestPull: "Best pull: {guild_name} reached {progress} on {boss_name}{pulls_phrase}.{url_suffix}",
+  progressUpdate: "{difficulty}: {guild_name} updated progress on {boss_name}.{url_suffix}",
+};
 
 // Sortable item for finalization ranking with remove button
 function SortableRankingItem({ id, rank, onRemove }: { id: string; rank: number; onRemove?: (id: string) => void }) {
@@ -294,6 +321,7 @@ export default function AdminPage() {
   const [twitchBotFollows, setTwitchBotFollows] = useState<TwitchBotFollowsResponse | null>(null);
   const [twitchBotFollowsLoading, setTwitchBotFollowsLoading] = useState(false);
   const [twitchBotSettingsSaving, setTwitchBotSettingsSaving] = useState(false);
+  const [activeTwitchTemplateKey, setActiveTwitchTemplateKey] = useState<TwitchBotMessageTemplateKey>("bossKill");
 
   // Characters data
   const [characters, setCharacters] = useState<AdminCharacter[]>([]);
@@ -762,6 +790,7 @@ export default function AdminPage() {
     twitchBotSettingsDraft && twitchBotStatus
       ? JSON.stringify(twitchBotSettingsDraft) !== JSON.stringify(twitchBotStatus.settings)
       : false;
+  const activeTwitchTemplateLabel = TWITCH_BOT_TEMPLATE_OPTIONS.find((option) => option.key === activeTwitchTemplateKey)?.label || "Template";
 
   const getSelectedStatRaidTarget = () => {
     const raidId = selectedStatRaidId !== "all" && selectedStatRaidId !== "current" ? Number(selectedStatRaidId) : undefined;
@@ -882,6 +911,76 @@ export default function AdminPage() {
       const difficulties = selected ? settings.difficulties.filter((value) => value !== difficulty) : [...settings.difficulties, difficulty];
       return { ...settings, difficulties };
     });
+  };
+
+  const updateTwitchBotTemplate = (templateKey: TwitchBotMessageTemplateKey, value: string) => {
+    setTwitchBotSettingsDraft((settings) => {
+      if (!settings) return settings;
+      return {
+        ...settings,
+        messageTemplates: {
+          ...settings.messageTemplates,
+          [templateKey]: value,
+        },
+      };
+    });
+  };
+
+  const resetTwitchBotTemplate = (templateKey: TwitchBotMessageTemplateKey) => {
+    updateTwitchBotTemplate(templateKey, TWITCH_BOT_DEFAULT_MESSAGE_TEMPLATES[templateKey]);
+  };
+
+  const insertTwitchBotTemplatePlaceholder = (token: string) => {
+    const placeholder = `{${token}}`;
+
+    setTwitchBotSettingsDraft((settings) => {
+      if (!settings) return settings;
+
+      const templateKey = activeTwitchTemplateKey;
+      const currentValue = settings.messageTemplates[templateKey] || "";
+      const activeElement = document.activeElement;
+      const textarea =
+        activeElement instanceof HTMLTextAreaElement && activeElement.dataset.twitchBotTemplate === templateKey
+          ? activeElement
+          : document.querySelector<HTMLTextAreaElement>(`textarea[data-twitch-bot-template="${templateKey}"]`);
+      const selectionStart = textarea?.selectionStart ?? currentValue.length;
+      const selectionEnd = textarea?.selectionEnd ?? selectionStart;
+      const insertion = selectionStart > 0 && !/\s$/.test(currentValue.slice(0, selectionStart)) ? ` ${placeholder}` : placeholder;
+      const nextValue = `${currentValue.slice(0, selectionStart)}${insertion}${currentValue.slice(selectionEnd)}`;
+
+      window.requestAnimationFrame(() => {
+        textarea?.focus();
+        const cursorPosition = selectionStart + insertion.length;
+        textarea?.setSelectionRange(cursorPosition, cursorPosition);
+      });
+
+      return {
+        ...settings,
+        messageTemplates: {
+          ...settings.messageTemplates,
+          [templateKey]: nextValue,
+        },
+      };
+    });
+  };
+
+  const previewTwitchBotTemplate = (template: string): string => {
+    const sampleUrl = "https://suomiwow.vaarattu.tv/guilds/tarren-mill/Example";
+    const includeUrl = twitchBotSettingsDraft?.includeUrl ?? true;
+    const values: Record<string, string> = {
+      guild_name: "Example",
+      boss_name: "Chrome King Gallywix",
+      difficulty: "Mythic",
+      difficulty_short: "M",
+      pulls: "124",
+      pulls_phrase: " after 124 pulls",
+      progress: "12.3%",
+      url: includeUrl ? sampleUrl : "",
+      url_suffix: includeUrl ? ` ${sampleUrl}` : "",
+      event_type: "boss_kill",
+    };
+
+    return template.replace(/\{([a-z0-9_]+)\}/gi, (match, key: string) => values[key] ?? match);
   };
 
   const handleSaveTwitchBotSettings = async () => {
@@ -2416,6 +2515,84 @@ export default function AdminPage() {
                                 );
                               })}
                             </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg bg-gray-900/70 p-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <h4 className="text-sm font-medium text-white">Message Templates</h4>
+                              <p className="mt-1 text-xs text-gray-500">Templates are saved as one-line Twitch chat messages.</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => resetTwitchBotTemplate(activeTwitchTemplateKey)}
+                              className="min-h-9 rounded bg-gray-800 px-3 py-2 text-sm text-gray-200 transition-[background-color,transform] hover:bg-gray-700 active:scale-[0.96]"
+                            >
+                              Reset {activeTwitchTemplateLabel}
+                            </button>
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3" role="tablist" aria-label="Twitch bot message templates">
+                            {TWITCH_BOT_TEMPLATE_OPTIONS.map((option) => {
+                              const selected = option.key === activeTwitchTemplateKey;
+                              return (
+                                <button
+                                  key={option.key}
+                                  type="button"
+                                  onClick={() => setActiveTwitchTemplateKey(option.key)}
+                                  className={`min-h-10 rounded px-3 py-2 text-sm font-medium transition-[background-color,color,transform] active:scale-[0.96] ${
+                                    selected ? "bg-amber-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white"
+                                  }`}
+                                  role="tab"
+                                  aria-selected={selected}
+                                >
+                                  {option.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div className="mt-4">
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                              <label htmlFor={`twitch-template-${activeTwitchTemplateKey}`} className="text-sm font-medium text-gray-200">
+                                {activeTwitchTemplateLabel}
+                              </label>
+                              <span className="text-xs text-gray-500 tabular-nums">
+                                {(twitchBotSettingsDraft.messageTemplates[activeTwitchTemplateKey] || "").length}/450
+                              </span>
+                            </div>
+                            <textarea
+                              id={`twitch-template-${activeTwitchTemplateKey}`}
+                              data-twitch-bot-template={activeTwitchTemplateKey}
+                              value={twitchBotSettingsDraft.messageTemplates[activeTwitchTemplateKey] || ""}
+                              onFocus={() => setActiveTwitchTemplateKey(activeTwitchTemplateKey)}
+                              onChange={(event) => updateTwitchBotTemplate(activeTwitchTemplateKey, event.target.value)}
+                              maxLength={450}
+                              rows={3}
+                              className="w-full resize-y rounded border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 outline-none transition-[border-color,box-shadow] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30"
+                            />
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {TWITCH_BOT_TEMPLATE_PLACEHOLDERS.map((placeholder) => (
+                              <button
+                                key={placeholder.token}
+                                type="button"
+                                onClick={() => insertTwitchBotTemplatePlaceholder(placeholder.token)}
+                                title={placeholder.label}
+                                className="max-w-full rounded bg-gray-800 px-2.5 py-1.5 font-mono text-xs text-gray-200 transition-[background-color,transform] hover:bg-gray-700 active:scale-[0.96]"
+                              >
+                                {`{${placeholder.token}}`}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="mt-4">
+                            <div className="mb-2 text-xs font-medium uppercase text-gray-500">Preview</div>
+                            <p className="min-h-10 rounded bg-gray-800 px-3 py-2 text-sm text-gray-200 break-words">
+                              {previewTwitchBotTemplate(twitchBotSettingsDraft.messageTemplates[activeTwitchTemplateKey] || "")}
+                            </p>
                           </div>
                         </div>
                       </div>

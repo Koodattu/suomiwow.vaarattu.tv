@@ -34,7 +34,7 @@ import wclService from "../services/warcraftlogs.service";
 import wclUserAuthService from "../services/warcraftlogs-user-auth.service";
 import blizzardService from "../services/blizzard.service";
 import twitchBotAuthService from "../services/twitch-bot-auth.service";
-import twitchChatBotService from "../services/twitch-chat-bot.service";
+import twitchChatBotService, { TwitchBotSettingsValidationError } from "../services/twitch-chat-bot.service";
 
 const router = Router();
 let isSyncingRaidsFromWCL = false;
@@ -216,9 +216,14 @@ router.put("/twitch-bot/settings", async (req: Request, res: Response) => {
       eventTypes: req.body?.eventTypes,
       difficulties: req.body?.difficulties,
       includeUrl: req.body?.includeUrl,
+      messageTemplates: req.body?.messageTemplates,
     });
     res.json(settings);
   } catch (error) {
+    if (error instanceof TwitchBotSettingsValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
+
     logger.error("Error updating Twitch bot settings:", error);
     res.status(500).json({ error: "Failed to update Twitch bot settings" });
   }

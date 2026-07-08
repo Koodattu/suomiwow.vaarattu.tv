@@ -1193,12 +1193,15 @@ export interface AdminTwitchStreamsResponse {
 
 export type TwitchBotEventType = "boss_kill" | "best_pull" | "milestone" | "hiatus" | "regress" | "reproge";
 export type TwitchBotDifficulty = "mythic" | "heroic";
+export type TwitchBotMessageTemplateKey = "bossKill" | "bestPull" | "progressUpdate";
+export type TwitchBotMessageTemplates = Record<TwitchBotMessageTemplateKey, string>;
 
 export interface TwitchBotSettings {
   eventPublishingEnabled: boolean;
   eventTypes: TwitchBotEventType[];
   difficulties: TwitchBotDifficulty[];
   includeUrl: boolean;
+  messageTemplates: TwitchBotMessageTemplates;
 }
 
 export interface TwitchBotFollowedChannel {

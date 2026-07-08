@@ -3,7 +3,7 @@ import { ChatClient } from "@twurple/chat";
 import mongoose from "mongoose";
 import Event, { EventType, IEvent } from "../models/Event";
 import Guild from "../models/Guild";
-import TwitchBotSettings, { type TwitchBotDifficulty } from "../models/TwitchBotSettings";
+import TwitchBotSettings, { type TwitchBotDifficulty, type TwitchBotMessageTemplateKey, type TwitchBotMessageTemplates } from "../models/TwitchBotSettings";
 import TwitchBotRuntimeState from "../models/TwitchBotRuntimeState";
 import TwitchEventDelivery from "../models/TwitchEventDelivery";
 import logger from "../utils/logger";
@@ -17,6 +17,7 @@ export interface TwitchBotSettingsSnapshot {
   eventTypes: EventType[];
   difficulties: TwitchEventDifficulty[];
   includeUrl: boolean;
+  messageTemplates: TwitchBotMessageTemplates;
 }
 
 export interface TwitchChatBotStatus extends TwitchBotAuthStatus {
@@ -48,9 +49,39 @@ export interface TwitchChatBotStatus extends TwitchBotAuthStatus {
 
 const VALID_EVENT_TYPES: EventType[] = ["boss_kill", "best_pull", "milestone", "hiatus", "regress", "reproge"];
 const VALID_DIFFICULTIES: TwitchEventDifficulty[] = ["mythic", "heroic"];
+const MESSAGE_TEMPLATE_KEYS: TwitchBotMessageTemplateKey[] = ["bossKill", "bestPull", "progressUpdate"];
+const MESSAGE_TEMPLATE_MAX_LENGTH = 450;
+const MESSAGE_TEMPLATE_PLACEHOLDERS = [
+  "guild_name",
+  "boss_name",
+  "difficulty",
+  "difficulty_short",
+  "pulls",
+  "pulls_phrase",
+  "progress",
+  "url",
+  "url_suffix",
+  "event_type",
+] as const;
+const DEFAULT_MESSAGE_TEMPLATES: TwitchBotMessageTemplates = {
+  bossKill: "{difficulty} kill: {guild_name} defeated {boss_name}{pulls_phrase}.{url_suffix}",
+  bestPull: "Best pull: {guild_name} reached {progress} on {boss_name}{pulls_phrase}.{url_suffix}",
+  progressUpdate: "{difficulty}: {guild_name} updated progress on {boss_name}.{url_suffix}",
+};
 const RUNTIME_STATE_KEY = "runtime";
 const SETTINGS_KEY = "global";
 const MAX_DELIVERY_ATTEMPTS = 5;
+
+type TwitchBotMessagePlaceholder = (typeof MESSAGE_TEMPLATE_PLACEHOLDERS)[number];
+type TwitchBotMessageTemplateValues = Record<TwitchBotMessagePlaceholder, string>;
+type TwitchBotSettingsInput = Partial<Omit<TwitchBotSettingsSnapshot, "messageTemplates">> & { messageTemplates?: unknown };
+
+export class TwitchBotSettingsValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TwitchBotSettingsValidationError";
+  }
+}
 
 class TwitchChatBotService {
   private chatClient: ChatClient | null = null;
@@ -203,10 +234,11 @@ class TwitchChatBotService {
       eventTypes: stored.eventTypes,
       difficulties: stored.difficulties,
       includeUrl: stored.includeUrl,
+      messageTemplates: stored.messageTemplates,
     });
   }
 
-  async updateSettings(input: Partial<TwitchBotSettingsSnapshot>): Promise<TwitchBotSettingsSnapshot> {
+  async updateSettings(input: TwitchBotSettingsInput): Promise<TwitchBotSettingsSnapshot> {
     const existing = await this.getSettings();
     const next = this.normalizeSettings({
       ...existing,
@@ -222,6 +254,7 @@ class TwitchChatBotService {
           eventTypes: next.eventTypes,
           difficulties: next.difficulties,
           includeUrl: next.includeUrl,
+          messageTemplates: next.messageTemplates,
         },
       },
       { upsert: true },
@@ -704,23 +737,43 @@ class TwitchChatBotService {
   }
 
   private formatEventMessage(event: IEvent, settings: TwitchBotSettingsSnapshot): string {
-    const difficulty = event.difficulty === "mythic" ? "Mythic" : "Heroic";
-    const bossName = event.bossName || "a boss";
-    const guildUrl = event.guildRealm ? `${this.getFrontendBaseUrl()}/guilds/${encodeURIComponent(event.guildRealm)}/${encodeURIComponent(event.guildName)}` : this.getFrontendBaseUrl();
-    const urlSuffix = settings.includeUrl ? ` ${guildUrl}` : "";
+    const values = this.getEventMessageValues(event, settings);
 
     if (event.type === "boss_kill") {
-      const pulls = typeof event.data.pullCount === "number" ? ` after ${event.data.pullCount} pulls` : "";
-      return this.limitMessage(`${difficulty} kill: ${event.guildName} defeated ${bossName}${pulls}.${urlSuffix}`);
+      return this.limitMessage(this.renderMessageTemplate(settings.messageTemplates.bossKill, values));
     }
 
     if (event.type === "best_pull") {
-      const progress = event.data.progressDisplay || (typeof event.data.bestPercent === "number" ? `${event.data.bestPercent.toFixed(1)}%` : "a new best pull");
-      const pulls = typeof event.data.pullCount === "number" ? ` after ${event.data.pullCount} pulls` : "";
-      return this.limitMessage(`Best pull: ${event.guildName} reached ${progress} on ${bossName}${pulls}.${urlSuffix}`);
+      return this.limitMessage(this.renderMessageTemplate(settings.messageTemplates.bestPull, values));
     }
 
-    return this.limitMessage(`${difficulty}: ${event.guildName} updated progress on ${bossName}.${urlSuffix}`);
+    return this.limitMessage(this.renderMessageTemplate(settings.messageTemplates.progressUpdate, values));
+  }
+
+  private getEventMessageValues(event: IEvent, settings: TwitchBotSettingsSnapshot): TwitchBotMessageTemplateValues {
+    const difficulty = event.difficulty === "mythic" ? "Mythic" : "Heroic";
+    const difficultyShort = event.difficulty === "mythic" ? "M" : "HC";
+    const guildUrl = event.guildRealm ? `${this.getFrontendBaseUrl()}/guilds/${encodeURIComponent(event.guildRealm)}/${encodeURIComponent(event.guildName)}` : this.getFrontendBaseUrl();
+    const pulls = typeof event.data.pullCount === "number" ? String(event.data.pullCount) : "";
+    const progress = event.data.progressDisplay || (typeof event.data.bestPercent === "number" ? `${event.data.bestPercent.toFixed(1)}%` : "a new best pull");
+    const url = settings.includeUrl ? guildUrl : "";
+
+    return {
+      guild_name: event.guildName,
+      boss_name: event.bossName || "a boss",
+      difficulty,
+      difficulty_short: difficultyShort,
+      pulls,
+      pulls_phrase: pulls ? ` after ${pulls} pulls` : "",
+      progress,
+      url,
+      url_suffix: url ? ` ${url}` : "",
+      event_type: event.type,
+    };
+  }
+
+  private renderMessageTemplate(template: string, values: TwitchBotMessageTemplateValues): string {
+    return template.replace(/\{([a-z0-9_]+)\}/gi, (match, key: string) => values[key as TwitchBotMessagePlaceholder] ?? match);
   }
 
   private normalizeChannelName(channelName: string): string | null {
@@ -803,10 +856,11 @@ class TwitchChatBotService {
       eventTypes: this.getDefaultEventTypes(),
       difficulties: this.getDefaultDifficulties(),
       includeUrl: process.env.TWITCH_BOT_INCLUDE_URL !== "false",
+      messageTemplates: DEFAULT_MESSAGE_TEMPLATES,
     };
   }
 
-  private normalizeSettings(input: Partial<TwitchBotSettingsSnapshot>): TwitchBotSettingsSnapshot {
+  private normalizeSettings(input: TwitchBotSettingsInput): TwitchBotSettingsSnapshot {
     const defaults = this.getDefaultSettings();
     const rawEventTypes = Array.isArray(input.eventTypes) ? input.eventTypes : [];
     const rawDifficulties = Array.isArray(input.difficulties) ? input.difficulties : [];
@@ -822,7 +876,57 @@ class TwitchChatBotService {
       eventTypes: eventTypes.length > 0 ? Array.from(new Set(eventTypes)) : defaults.eventTypes,
       difficulties: difficulties.length > 0 ? Array.from(new Set(difficulties)) : defaults.difficulties,
       includeUrl: typeof input.includeUrl === "boolean" ? input.includeUrl : defaults.includeUrl,
+      messageTemplates: this.normalizeMessageTemplates(input.messageTemplates, defaults.messageTemplates),
     };
+  }
+
+  private normalizeMessageTemplates(input: unknown, defaults: TwitchBotMessageTemplates): TwitchBotMessageTemplates {
+    const source = input && typeof input === "object" && !Array.isArray(input) ? (input as Partial<Record<TwitchBotMessageTemplateKey, unknown>>) : {};
+    const templates: TwitchBotMessageTemplates = { ...defaults };
+
+    for (const key of MESSAGE_TEMPLATE_KEYS) {
+      const rawTemplate = source[key];
+      if (rawTemplate === undefined || rawTemplate === null || String(rawTemplate).trim() === "") {
+        templates[key] = defaults[key];
+        continue;
+      }
+
+      const template = String(rawTemplate).replace(/\s+/g, " ").trim();
+      this.validateMessageTemplate(key, template);
+      templates[key] = template;
+    }
+
+    return templates;
+  }
+
+  private validateMessageTemplate(key: TwitchBotMessageTemplateKey, template: string): void {
+    if (template.length > MESSAGE_TEMPLATE_MAX_LENGTH) {
+      throw new TwitchBotSettingsValidationError(`${this.formatTemplateKey(key)} template must be ${MESSAGE_TEMPLATE_MAX_LENGTH} characters or fewer`);
+    }
+
+    const allowedPlaceholders = new Set<string>(MESSAGE_TEMPLATE_PLACEHOLDERS);
+    const unknownPlaceholders = Array.from(template.matchAll(/\{([^{}]+)\}/g))
+      .map((match) => match[1])
+      .filter((placeholder) => !allowedPlaceholders.has(placeholder));
+
+    if (unknownPlaceholders.length > 0) {
+      throw new TwitchBotSettingsValidationError(
+        `${this.formatTemplateKey(key)} template has unknown placeholder(s): ${Array.from(new Set(unknownPlaceholders))
+          .map((placeholder) => `{${placeholder}}`)
+          .join(", ")}`,
+      );
+    }
+
+    const withoutPlaceholders = template.replace(/\{[^{}]+\}/g, "");
+    if (/[{}]/.test(withoutPlaceholders)) {
+      throw new TwitchBotSettingsValidationError(`${this.formatTemplateKey(key)} template has malformed placeholder braces`);
+    }
+  }
+
+  private formatTemplateKey(key: TwitchBotMessageTemplateKey): string {
+    if (key === "bossKill") return "Boss kill";
+    if (key === "bestPull") return "Best pull";
+    return "Progress update";
   }
 
   private getDefaultEventTypes(): EventType[] {
