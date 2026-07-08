@@ -58,7 +58,7 @@ router.get(
   "/raids",
   cacheMiddleware(
     () => cacheService.getCharacterTierListRaidsKey(),
-    () => cacheService.CHARACTER_TIER_LIST_TTL,
+    () => cacheService.DEFAULT_TTL,
   ),
   async (_req: Request, res: Response) => {
     try {

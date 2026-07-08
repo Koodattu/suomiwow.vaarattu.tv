@@ -255,22 +255,21 @@ class CharacterTierListService {
     const normalizedFilters = this.normalizeFilters(filters, 3);
     const query = this.buildEntryQuery(zoneId, normalizedFilters, null);
 
-    const [characters, total] = await Promise.all([
-      CharacterTierListEntry.find(query)
-        .sort({ score: -1, reportCount: -1, lastSeenAt: -1, name: 1 })
-        .limit(normalizedFilters.limit)
-        .lean<ICharacterTierListEntry[]>(),
-      CharacterTierListEntry.countDocuments(query),
-    ]);
+    const characters = await CharacterTierListEntry.find(query)
+      .sort({ score: -1, reportCount: -1, lastSeenAt: -1, name: 1 })
+      .limit(MAX_QUERY_LIMIT)
+      .lean<ICharacterTierListEntry[]>();
     const accountGroupIdByCharacterId = await this.getAccountGroupIdsByCharacterId(characters);
+    const accountRepresentatives = this.selectMostPlayedGeneratedEntries(characters, accountGroupIdByCharacterId);
+    const limitedCharacters = accountRepresentatives.slice(0, normalizedFilters.limit);
 
     return {
       raid,
       guild: null,
       filters: normalizedFilters,
       generatedAt: characters[0]?.generatedAt ?? null,
-      characters: characters.map((entry) => this.formatGeneratedCharacter(entry, accountGroupIdByCharacterId)),
-      total,
+      characters: limitedCharacters.map((entry) => this.formatGeneratedCharacter(entry, accountGroupIdByCharacterId)),
+      total: accountRepresentatives.length,
     };
   }
 

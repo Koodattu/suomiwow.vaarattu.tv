@@ -125,7 +125,6 @@ class CacheService {
     /^guilds:horse-race-uma-reservations$/,
     /^events:/,
     /^characters:profile:/,
-    /^character-tierlists:/,
     /^raids:list$/,
     /^raid:\d+:dates$/,
     /^raid:\d+:bosses$/,
@@ -948,15 +947,15 @@ class CacheService {
   }
 
   getCharacterTierListRaidsKey(): string {
-    return "character-tierlists:v3:raids";
+    return "character-tierlists:v4:raids";
   }
 
   getCharacterTierListGlobalKey(raidId: number, filters: { minReports?: number; role?: string | null; classId?: number | null; limit?: number | null }): string {
-    return `character-tierlists:v3:global:${raidId}:${this.formatCharacterTierListFilterSegment(filters)}`;
+    return `character-tierlists:v4:global:${raidId}:${this.formatCharacterTierListFilterSegment(filters)}`;
   }
 
   getCharacterTierListGuildKey(realm: string, name: string, raidId: number, filters: { minReports?: number; role?: string | null; classId?: number | null; limit?: number | null }): string {
-    return `character-tierlists:v3:guild:${realm.toLowerCase()}:${name.toLowerCase()}:${raidId}:${this.formatCharacterTierListFilterSegment(filters)}`;
+    return `character-tierlists:v4:guild:${realm.toLowerCase()}:${name.toLowerCase()}:${raidId}:${this.formatCharacterTierListFilterSegment(filters)}`;
   }
 
   /**
