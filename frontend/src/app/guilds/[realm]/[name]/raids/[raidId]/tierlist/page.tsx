@@ -46,8 +46,8 @@ export default function GuildCharacterTierListPage({ params, searchParams }: Pag
   const fromShareId = resolvedSearchParams.fromShare ? decodeURIComponent(resolvedSearchParams.fromShare) : null;
 
   const [mode, setMode] = useState<PageMode>(fromShareId ? "custom" : "generated");
-  const [view, setView] = useState<GeneratedView>("roles");
-  const [minReports, setMinReports] = useState(1);
+  const [view, setView] = useState<GeneratedView>("combined");
+  const [minReports, setMinReports] = useState(2);
   const [classId, setClassId] = useState<number | "all">("all");
   const classes = useMemo(() => getAllClasses(), []);
 
@@ -98,10 +98,10 @@ export default function GuildCharacterTierListPage({ params, searchParams }: Pag
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("minReports")}</label>
                   <input
                     type="number"
-                    min={1}
+                    min={2}
                     max={999}
                     value={minReports}
-                    onChange={(event) => setMinReports(Math.max(1, Number(event.target.value) || 1))}
+                    onChange={(event) => setMinReports(Math.max(2, Number(event.target.value) || 2))}
                     className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-28"
                   />
                 </div>
@@ -157,12 +157,12 @@ export default function GuildCharacterTierListPage({ params, searchParams }: Pag
                   {data.generatedAt && <span>{t("lastCalculated", { date: new Date(data.generatedAt).toLocaleString() })}</span>}
                 </div>
                 {view === "combined" ? (
-                  <CharacterTierBoard characters={characters} emptyMessage={t("noScoredCharacters")} />
+                  <CharacterTierBoard characters={characters} showCrown={false} emptyMessage={t("noScoredCharacters")} />
                 ) : (
                   <div className="grid gap-5 xl:grid-cols-3">
-                    <CharacterTierBoard title={t("tank")} characters={roleGroups.tank} emptyMessage={t("noScoredCharacters")} />
-                    <CharacterTierBoard title={t("healer")} characters={roleGroups.healer} emptyMessage={t("noScoredCharacters")} />
-                    <CharacterTierBoard title={t("dps")} characters={roleGroups.dps} emptyMessage={t("noScoredCharacters")} />
+                    <CharacterTierBoard title={t("tank")} characters={roleGroups.tank} showCrown={false} emptyMessage={t("noScoredCharacters")} />
+                    <CharacterTierBoard title={t("healer")} characters={roleGroups.healer} showCrown={false} emptyMessage={t("noScoredCharacters")} />
+                    <CharacterTierBoard title={t("dps")} characters={roleGroups.dps} showCrown={false} emptyMessage={t("noScoredCharacters")} />
                   </div>
                 )}
               </div>

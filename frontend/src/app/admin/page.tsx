@@ -32,6 +32,7 @@ import {
   triggerRebuildGuildNetworkSnapshot,
   triggerRebuildCharacterRankingLeaderboards,
   triggerRebuildCharacterMechanicsLeaderboards,
+  triggerRebuildCharacterTierLists,
   triggerPruneCharacterRankingsWithoutMythicEvidence,
   triggerRebuildCharacterRaidParticipations,
   triggerRefreshCharacterRankings,
@@ -1590,6 +1591,10 @@ export default function AdminPage() {
                     {renderTriggerButton("character-mechanics", "Calculate Mechanics Scores", () => {
                       const { raidId, scope } = getSelectedStatRaidTarget();
                       return triggerRebuildCharacterMechanicsLeaderboards(raidId, scope);
+                    })}
+                    {renderTriggerButton("character-tier-lists", "Rebuild Character Tier Lists", () => {
+                      const { raidId, scope } = getSelectedStatRaidTarget();
+                      return triggerRebuildCharacterTierLists(raidId, scope);
                     })}
                     {renderTriggerButton("world-ranks", "Update World Ranks", () => {
                       const { raidId, scope } = getSelectedStatRaidTarget();

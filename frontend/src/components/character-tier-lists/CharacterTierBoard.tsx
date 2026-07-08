@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { CSSProperties, Ref } from "react";
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core/dist/hooks/useDraggable";
 import IconImage from "@/components/IconImage";
-import { formatRealmName, formatSpecName, getClassInfoById, getParseColor, getSpecIconUrl } from "@/lib/utils";
+import { getClassInfoById, getParseColor } from "@/lib/utils";
 import type { CharacterTierName, CharacterTierListRole } from "@/types";
 
 export type CharacterTierBoardItem = {
@@ -110,6 +110,9 @@ export function CharacterTierCard({
   dragRef,
   style,
   isDragging,
+  isOverlay,
+  isStatic,
+  showScore = true,
   link = true,
 }: {
   item: CharacterTierBoardItem;
@@ -118,50 +121,43 @@ export function CharacterTierCard({
   dragRef?: (node: HTMLElement | null) => void;
   style?: CSSProperties;
   isDragging?: boolean;
+  isOverlay?: boolean;
+  isStatic?: boolean;
+  showScore?: boolean;
   link?: boolean;
 }) {
   const classInfo = getClassInfoById(item.classID);
-  const specIcon = item.specName ? getSpecIconUrl(item.classID, item.specName) : undefined;
-  const roleLabel = item.role ? item.role.charAt(0).toUpperCase() + item.role.slice(1) : null;
-  const specLabel = item.specName ? formatSpecName(item.specName) : roleLabel;
+  const combinedScore = item.score;
+  const title = showScore && combinedScore !== null && combinedScore !== undefined ? `${item.name} / ${formatScore(combinedScore)}` : item.name;
   const content = (
     <>
-      <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-md border border-white/10 bg-gray-950">
-        <IconImage iconFilename={specIcon ?? classInfo.iconUrl} alt={specLabel ?? classInfo.name} fill style={{ objectFit: "cover" }} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="truncate text-sm font-semibold text-gray-100">{item.name}</span>
-          <span className="shrink-0 text-xs tabular-nums" style={{ color: getParseColor(item.score ?? 0) }}>
-            {formatScore(item.score)}
-          </span>
-        </div>
-        <div className="flex min-w-0 items-center gap-1 text-xs text-gray-400">
-          <span className="truncate">{formatRealmName(item.realm)}</span>
-          {specLabel && <span className="truncate text-gray-500">/ {specLabel}</span>}
-        </div>
-      </div>
-      <div className="shrink-0 text-right text-[11px] leading-tight text-gray-400">
-        <div>{item.reportCount} rpt</div>
-        {item.pulls !== null && item.pulls !== undefined && <div>{item.pulls} pulls</div>}
+      <IconImage iconFilename={classInfo.iconUrl} alt={classInfo.name} fill style={{ objectFit: "cover" }} />
+      {showScore && combinedScore !== null && combinedScore !== undefined && (
+        <span className="absolute right-1 top-1 rounded-sm bg-black/75 px-1 text-[10px] font-bold tabular-nums shadow-sm" style={{ color: getParseColor(combinedScore) }}>
+          {formatScore(combinedScore)}
+        </span>
+      )}
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent px-1.5 pb-1 pt-5">
+        <div className="truncate text-center text-[11px] font-semibold leading-tight text-white">{item.name}</div>
       </div>
     </>
   );
 
-  const className = `flex min-h-12 w-full items-center gap-2 rounded-md border border-gray-700 bg-gray-800/85 px-2 py-2 shadow-sm transition-colors hover:border-gray-600 hover:bg-gray-750 ${
-    isDragging ? "opacity-70 ring-2 ring-blue-400" : ""
+  const interactionClass = isOverlay ? "cursor-grabbing scale-105 shadow-xl ring-2 ring-blue-300" : isStatic ? "cursor-default" : link ? "cursor-pointer active:scale-[0.96]" : "cursor-grab active:scale-[0.96] active:cursor-grabbing";
+  const className = `group relative h-20 w-20 shrink-0 ${link ? "" : "touch-none"} select-none overflow-hidden rounded-sm bg-gray-800 shadow-sm ring-1 ring-white/10 transition-[opacity,scale,transform] duration-150 ease-out ${interactionClass} ${
+    isDragging ? "opacity-30 ring-2 ring-blue-400" : ""
   }`;
 
   if (!link) {
     return (
-      <div ref={dragRef as Ref<HTMLDivElement>} style={style} className={className} {...dragAttributes} {...dragListeners}>
+      <div ref={dragRef as Ref<HTMLDivElement>} style={style} title={title} className={className} {...dragAttributes} {...dragListeners}>
         {content}
       </div>
     );
   }
 
   return (
-    <Link href={getCharacterHref(item)} className={className}>
+    <Link href={getCharacterHref(item)} title={title} className={className}>
       {content}
     </Link>
   );
@@ -229,9 +225,7 @@ export default function CharacterTierBoard({
             <div className={`flex min-h-20 w-14 shrink-0 items-center justify-center text-base font-black md:w-20 md:text-2xl ${CHARACTER_TIER_COLORS[tier]}`}>{tier === "Crown" ? "TOP" : tier}</div>
             <div className="flex min-h-20 flex-1 flex-wrap content-start gap-2 bg-gray-900 p-2">
               {tierGroups[tier].map((character) => (
-                <div key={character.characterKey} className="w-full sm:w-[calc(50%-0.25rem)] xl:w-[calc(33.333%-0.34rem)]">
-                  <CharacterTierCard item={character} />
-                </div>
+                <CharacterTierCard key={character.characterKey} item={character} />
               ))}
             </div>
           </div>

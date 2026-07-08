@@ -289,11 +289,11 @@ function extractAffixes(compactRun: any, rawRun: any): number[] {
 }
 
 function compareRuns(a: any, b: any): number {
-  const scoreDiff = toFiniteNumber(b.score) - toFiniteNumber(a.score);
-  if (scoreDiff !== 0) return scoreDiff;
-
   const levelDiff = toFiniteNumber(b.mythicLevel ?? b.mythic_level) - toFiniteNumber(a.mythicLevel ?? a.mythic_level);
   if (levelDiff !== 0) return levelDiff;
+
+  const scoreDiff = toFiniteNumber(b.score) - toFiniteNumber(a.score);
+  if (scoreDiff !== 0) return scoreDiff;
 
   const clearA = toFiniteNumber(a.clearTimeMs ?? a.clear_time_ms, Number.MAX_SAFE_INTEGER);
   const clearB = toFiniteNumber(b.clearTimeMs ?? b.clear_time_ms, Number.MAX_SAFE_INTEGER);

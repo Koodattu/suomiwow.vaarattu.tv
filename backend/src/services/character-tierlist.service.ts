@@ -280,21 +280,17 @@ class CharacterTierListService {
     const normalizedFilters = this.normalizeFilters(filters, 1);
     const query = this.buildEntryQuery(zoneId, normalizedFilters, guild._id);
 
-    const [characters, total] = await Promise.all([
-      CharacterTierListEntry.find(query)
-        .sort({ score: -1, reportCount: -1, lastSeenAt: -1, name: 1 })
-        .limit(normalizedFilters.limit)
-        .lean<ICharacterTierListEntry[]>(),
-      CharacterTierListEntry.countDocuments(query),
-    ]);
+    const characters = await CharacterTierListEntry.find(query).sort({ score: -1, reportCount: -1, lastSeenAt: -1, name: 1 }).lean<ICharacterTierListEntry[]>();
+    const accountRepresentatives = await this.selectMostPlayedGeneratedEntries(characters);
+    const limitedCharacters = accountRepresentatives.slice(0, normalizedFilters.limit);
 
     return {
       raid,
       guild: { id: guild._id.toString(), name: guild.name, realm: guild.realm },
       filters: normalizedFilters,
       generatedAt: characters[0]?.generatedAt ?? null,
-      characters: characters.map((entry) => this.formatGeneratedCharacter(entry)),
-      total,
+      characters: limitedCharacters.map((entry) => this.formatGeneratedCharacter(entry)),
+      total: accountRepresentatives.length,
     };
   }
 
@@ -777,7 +773,7 @@ class CharacterTierListService {
     };
   }
 
-  private async getAccountGroupIdsByCharacterId(rows: ParticipationRow[]): Promise<Map<string, string>> {
+  private async getAccountGroupIdsByCharacterId(rows: Array<{ characterId?: mongoose.Types.ObjectId | null }>): Promise<Map<string, string>> {
     const characterIdsByString = new Map<string, mongoose.Types.ObjectId>();
     for (const row of rows) {
       if (!row.characterId) continue;
@@ -805,6 +801,33 @@ class CharacterTierListService {
     }
 
     return accountGroupIdByCharacterId;
+  }
+
+  private async selectMostPlayedGeneratedEntries(entries: ICharacterTierListEntry[]): Promise<ICharacterTierListEntry[]> {
+    const accountGroupIdByCharacterId = await this.getAccountGroupIdsByCharacterId(entries);
+    const selectedEntries = new Map<string, ICharacterTierListEntry>();
+
+    for (const entry of entries) {
+      const accountGroupId = accountGroupIdByCharacterId.get(entry.characterId.toString());
+      const entryKey = accountGroupId ? `account:${accountGroupId}` : `character:${entry.characterKey}`;
+      const current = selectedEntries.get(entryKey);
+
+      if (!current || this.isBetterGeneratedRepresentative(entry, current)) {
+        selectedEntries.set(entryKey, entry);
+      }
+    }
+
+    return Array.from(selectedEntries.values()).sort((a, b) => b.score - a.score || b.reportCount - a.reportCount || a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm));
+  }
+
+  private isBetterGeneratedRepresentative(candidate: ICharacterTierListEntry, current: ICharacterTierListEntry): boolean {
+    if (candidate.reportCount !== current.reportCount) return candidate.reportCount > current.reportCount;
+
+    const candidateLastSeenAt = candidate.lastSeenAt ? new Date(candidate.lastSeenAt).getTime() : 0;
+    const currentLastSeenAt = current.lastSeenAt ? new Date(current.lastSeenAt).getTime() : 0;
+    if (candidateLastSeenAt !== currentLastSeenAt) return candidateLastSeenAt > currentLastSeenAt;
+
+    return candidate.characterKey.localeCompare(current.characterKey) < 0;
   }
 
   private selectMostPlayedRosterRows(rows: ParticipationRow[], accountGroupIdByCharacterId: Map<string, string>): ParticipationRow[] {

@@ -50,7 +50,7 @@ const CHARACTER_TABS: Array<{
     id: "mythic-plus",
     label: "Mythic+",
     title: "Mythic+ Leaderboard",
-    description: "Season score and dungeon best runs by character.",
+    description: "Season score and highest dungeon keys by character.",
   },
 ];
 

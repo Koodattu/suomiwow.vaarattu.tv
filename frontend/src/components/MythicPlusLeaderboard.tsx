@@ -50,8 +50,27 @@ function formatRunTime(ms?: number | null) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-function getRunForDungeon(row: MythicPlusLeaderboardRow, dungeonId: number) {
-  return row.dungeonRuns.find((run) => run.dungeonId === dungeonId);
+type DungeonRunSummary = MythicPlusLeaderboardRow["dungeonRuns"][number];
+
+function isBetterDungeonKey(candidate: DungeonRunSummary, current: DungeonRunSummary | null) {
+  if (!current) return true;
+
+  const levelDiff = candidate.mythicLevel - current.mythicLevel;
+  if (levelDiff !== 0) return levelDiff > 0;
+
+  const scoreDiff = candidate.score - current.score;
+  if (scoreDiff !== 0) return scoreDiff > 0;
+
+  const candidateTime = candidate.clearTimeMs ?? Number.MAX_SAFE_INTEGER;
+  const currentTime = current.clearTimeMs ?? Number.MAX_SAFE_INTEGER;
+  return candidateTime < currentTime;
+}
+
+function getHighestKeyForDungeon(row: MythicPlusLeaderboardRow, dungeonId: number) {
+  return row.dungeonRuns.reduce<DungeonRunSummary | null>((bestRun, run) => {
+    if (run.dungeonId !== dungeonId) return bestRun;
+    return isBetterDungeonKey(run, bestRun) ? run : bestRun;
+  }, null);
 }
 
 function CharacterCell({ row }: { row: MythicPlusLeaderboardRow }) {
@@ -73,20 +92,21 @@ function CharacterCell({ row }: { row: MythicPlusLeaderboardRow }) {
 
 function DungeonHeader({ dungeon }: { dungeon: MythicPlusDungeonOption }) {
   return (
-    <div className="flex justify-center" title={dungeon.name}>
-      <IconImage iconFilename={dungeon.iconUrl ?? undefined} alt={dungeon.name} width={24} height={24} className="h-6 w-6 rounded object-cover" />
+    <div className="mx-auto flex min-w-[80px] flex-col items-center gap-1" title={`${dungeon.name} highest key`} aria-label={`${dungeon.name} highest key`}>
+      <IconImage iconFilename={dungeon.iconUrl ?? undefined} alt="" width={24} height={24} className="h-6 w-6 rounded object-cover ring-1 ring-white/10" />
+      <span className="max-w-[86px] truncate text-[11px] font-semibold leading-tight text-gray-300">{dungeon.shortName || dungeon.name}</span>
     </div>
   );
 }
 
 function DungeonCell({ row, dungeon }: { row: MythicPlusLeaderboardRow; dungeon: MythicPlusDungeonOption }) {
-  const run = getRunForDungeon(row, dungeon.id);
+  const run = getHighestKeyForDungeon(row, dungeon.id);
   if (!run) return <span className="text-gray-700">-</span>;
 
   return (
-    <span className="inline-flex min-w-[54px] flex-col items-center justify-center tabular-nums">
-      <span className="font-semibold text-gray-100">+{run.mythicLevel}</span>
-      <span className="text-[11px] font-semibold text-cyan-300">{formatScore(run.score)}</span>
+    <span className="inline-flex min-w-[80px] flex-col items-center justify-center gap-0.5 tabular-nums" title={`${dungeon.name}: +${run.mythicLevel}, ${formatScore(run.score)} score`}>
+      <span className="font-bold text-gray-100">+{run.mythicLevel}</span>
+      <span className="text-[11px] font-semibold leading-none text-cyan-300">{formatScore(run.score)}</span>
     </span>
   );
 }
@@ -158,6 +178,9 @@ export default function MythicPlusLeaderboard() {
   const pagination = data?.pagination;
   const loading = optionsLoading || leaderboardLoading;
   const error = optionsError?.message ?? leaderboardError?.message ?? null;
+  const dungeonColumns = selectedSeason?.dungeons ?? [];
+  const tableColumnCount = selectedDungeon ? 7 : 5 + dungeonColumns.length;
+  const tableMinWidth = selectedDungeon ? 980 : Math.max(1100, 780 + dungeonColumns.length * 96);
 
   useEffect(() => {
     if (!options?.defaultSelection.season) return;
@@ -245,7 +268,7 @@ export default function MythicPlusLeaderboard() {
       </div>
 
       <div className="overflow-x-auto border border-gray-700">
-        <table className="w-full min-w-[980px] border-collapse text-xs md:text-sm">
+        <table className="w-full border-collapse text-xs md:text-sm" style={{ minWidth: tableMinWidth }}>
           <thead>
             <tr className="border-b border-gray-700 bg-gray-900 text-center font-semibold text-gray-200">
               <th className="w-16 border-r border-gray-700 px-3 py-3">Rank</th>
@@ -255,11 +278,11 @@ export default function MythicPlusLeaderboard() {
               <th className="border-r border-gray-700 px-3 py-3">Best spec</th>
               {selectedDungeon ? (
                 <>
-                  <th className="border-r border-gray-700 px-3 py-3">Key</th>
+                  <th className="border-r border-gray-700 px-3 py-3">Highest key</th>
                   <th className="border-r border-gray-700 px-3 py-3">Time</th>
                 </>
               ) : (
-                selectedSeason?.dungeons.map((dungeon) => (
+                dungeonColumns.map((dungeon) => (
                   <th key={dungeon.id} className="border-r border-gray-700 px-2 py-3">
                     <DungeonHeader dungeon={dungeon} />
                   </th>
@@ -271,14 +294,14 @@ export default function MythicPlusLeaderboard() {
             {loading ? (
               Array.from({ length: 8 }).map((_, rowIndex) => (
                 <tr key={`skeleton-${rowIndex}`} className={`border-b border-gray-800 ${rowIndex % 2 === 0 ? "bg-gray-950" : "bg-gray-900"}`}>
-                  <td colSpan={selectedDungeon ? 7 : 5 + (selectedSeason?.dungeons.length ?? 0)} className="px-3 py-3">
+                  <td colSpan={tableColumnCount} className="px-3 py-3">
                     <div className="h-5 w-full animate-pulse rounded bg-gray-800" />
                   </td>
                 </tr>
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={selectedDungeon ? 7 : 5 + (selectedSeason?.dungeons.length ?? 0)} className="px-4 py-8 text-center font-semibold text-gray-400">
+                <td colSpan={tableColumnCount} className="px-4 py-8 text-center font-semibold text-gray-400">
                   No Mythic+ data has been fetched for this view.
                 </td>
               </tr>
@@ -317,7 +340,7 @@ export default function MythicPlusLeaderboard() {
                         <td className="border-r border-gray-700 px-3 py-3 text-center font-semibold tabular-nums text-gray-300">{formatRunTime(run?.clearTimeMs)}</td>
                       </>
                     ) : (
-                      selectedSeason?.dungeons.map((dungeon) => (
+                      dungeonColumns.map((dungeon) => (
                         <td key={dungeon.id} className="border-r border-gray-700 px-2 py-2 text-center">
                           <DungeonCell row={row} dungeon={dungeon} />
                         </td>

@@ -26,6 +26,7 @@ import scheduler from "../services/scheduler.service";
 import guildService, { GuildReportImportError } from "../services/guild.service";
 import characterService from "../services/character.service";
 import characterMechanicsService from "../services/character-mechanics.service";
+import characterTierListService from "../services/character-tierlist.service";
 import characterRankingBackfillService from "../services/character-ranking-backfill.service";
 import characterAchievementService from "../services/character-achievement.service";
 import mythicPlusService from "../services/mythic-plus.service";
@@ -3058,7 +3059,11 @@ router.post("/trigger/rebuild-character-mechanics-leaderboards", async (req: Req
       .buildMechanicsLeaderboards(zoneIds)
       .then(async (result) => {
         logger.info(`[Admin] Character mechanics leaderboard rebuild completed for ${targetLabel}`);
-        await taskTracker.complete(taskId, result);
+        const rebuiltZoneIds = result.zones.map((zone) => zone.zoneId);
+        const tierListResult = await characterTierListService.rebuildCharacterTierLists(rebuiltZoneIds);
+        await cacheService.invalidateCharacterTierListCaches();
+        logger.info(`[Admin] Character tier list rebuild completed after mechanics rebuild: ${tierListResult.entries} entries`);
+        await taskTracker.complete(taskId, { ...result, characterTierLists: tierListResult });
       })
       .catch(async (err) => {
         logger.error("[Admin] Character mechanics leaderboard rebuild failed:", err);

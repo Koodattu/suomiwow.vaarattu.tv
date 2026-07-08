@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FaCopy, FaShareAlt } from "react-icons/fa";
 import {
@@ -28,9 +28,7 @@ import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
 import { useAuth } from "@/context/AuthContext";
-import IconImage from "@/components/IconImage";
-import { CHARACTER_TIER_COLORS } from "@/components/character-tier-lists/CharacterTierBoard";
-import { formatSpecName, getClassInfoById, getParseColor, getSpecIconUrl } from "@/lib/utils";
+import { CHARACTER_TIER_COLORS, CharacterTierCard } from "@/components/character-tier-lists/CharacterTierBoard";
 import type { CharacterTierBoardItem } from "@/components/character-tier-lists/CharacterTierBoard";
 import type { CustomCharacterTierListResponse, CustomCharacterTierName, SaveCustomCharacterTierListInput } from "@/types";
 
@@ -50,59 +48,6 @@ function getSharedTierListUrl(params: { realm: string; name: string; raidId: num
   return typeof window === "undefined" ? path : `${window.location.origin}${path}`;
 }
 
-function formatScore(value: number): string {
-  return value.toFixed(value % 1 === 0 ? 0 : 1);
-}
-
-function CharacterTile({
-  item,
-  dragAttributes,
-  dragListeners,
-  dragRef,
-  isDragging,
-  isOverlay,
-  isStatic,
-  style,
-}: {
-  item: CharacterTierBoardItem;
-  dragAttributes?: ReturnType<typeof useSortable>["attributes"];
-  dragListeners?: ReturnType<typeof useSortable>["listeners"];
-  dragRef?: (node: HTMLElement | null) => void;
-  isDragging?: boolean;
-  isOverlay?: boolean;
-  isStatic?: boolean;
-  style?: CSSProperties;
-}) {
-  const classInfo = getClassInfoById(item.classID);
-  const specIcon = item.specName ? getSpecIconUrl(item.classID, item.specName) : undefined;
-  const specLabel = item.specName ? formatSpecName(item.specName) : classInfo.name;
-
-  return (
-    <div
-      ref={dragRef}
-      style={style}
-      title={`${item.name} / ${specLabel}`}
-      className={`group relative h-20 w-20 shrink-0 touch-none select-none overflow-hidden rounded-sm bg-gray-800 shadow-sm ring-1 ring-white/10 transition-[opacity,scale,transform] duration-150 ease-out ${
-        isOverlay ? "cursor-grabbing scale-105 shadow-xl ring-2 ring-blue-300" : isStatic ? "cursor-default" : "cursor-grab active:scale-[0.96] active:cursor-grabbing"
-      } ${
-        isDragging ? "opacity-30 ring-2 ring-blue-400" : ""
-      }`}
-      {...dragAttributes}
-      {...dragListeners}
-    >
-      <IconImage iconFilename={specIcon ?? classInfo.iconUrl} alt={specLabel} fill style={{ objectFit: "cover" }} />
-      {item.score !== null && item.score !== undefined && (
-        <span className="absolute right-1 top-1 rounded-sm bg-black/75 px-1 text-[10px] font-bold tabular-nums shadow-sm" style={{ color: getParseColor(item.score) }}>
-          {formatScore(item.score)}
-        </span>
-      )}
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent px-1.5 pb-1 pt-5">
-        <div className="truncate text-center text-[11px] font-semibold leading-tight text-white">{item.name}</div>
-      </div>
-    </div>
-  );
-}
-
 function SortableCharacterTile({ item }: { item: CharacterTierBoardItem }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.characterKey,
@@ -115,7 +60,7 @@ function SortableCharacterTile({ item }: { item: CharacterTierBoardItem }) {
     zIndex: isDragging ? 30 : undefined,
   };
 
-  return <CharacterTile item={item} dragRef={setNodeRef} dragAttributes={attributes} dragListeners={listeners} style={style} isDragging={isDragging} />;
+  return <CharacterTierCard item={item} link={false} dragRef={setNodeRef} dragAttributes={attributes} dragListeners={listeners} style={style} isDragging={isDragging} showScore={false} />;
 }
 
 function DroppableTierRow({
@@ -192,7 +137,7 @@ function ReadOnlyTierRow({
       <div className="flex min-h-24 flex-1 flex-wrap content-start gap-2 bg-gray-900 p-2">
         {characterKeys.map((characterKey) => {
           const character = charactersByKey.get(characterKey);
-          return character ? <CharacterTile key={characterKey} item={character} isStatic /> : null;
+          return character ? <CharacterTierCard key={characterKey} item={character} link={false} isStatic showScore={false} /> : null;
         })}
       </div>
     </div>
@@ -219,7 +164,7 @@ function ReadOnlyCharacterPool({
       <div className="flex min-h-24 flex-wrap content-start gap-2 bg-gray-900 p-2">
         {characterKeys.map((characterKey) => {
           const character = charactersByKey.get(characterKey);
-          return character ? <CharacterTile key={characterKey} item={character} isStatic /> : null;
+          return character ? <CharacterTierCard key={characterKey} item={character} link={false} isStatic showScore={false} /> : null;
         })}
       </div>
     </section>
@@ -665,7 +610,7 @@ export default function CustomCharacterTierListMaker({
           <DroppableCharacterPool id={UNPLACED} label={t("unplaced")} characterKeys={containers[UNPLACED]} charactersByKey={charactersByKey} />
         </div>
         <DragOverlay adjustScale={false} dropAnimation={{ duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" }}>
-          {activeCharacter ? <CharacterTile item={activeCharacter} isOverlay /> : null}
+          {activeCharacter ? <CharacterTierCard item={activeCharacter} link={false} isOverlay showScore={false} /> : null}
         </DragOverlay>
       </DndContext>
     </div>
