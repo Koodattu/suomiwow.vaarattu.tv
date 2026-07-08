@@ -37,6 +37,7 @@ import pickemService from "./services/pickem.service";
 import discordBotService from "./services/discord-bot.service";
 import twitchChatBotService from "./services/twitch-chat-bot.service";
 import backgroundGuildProcessor from "./services/background-guild-processor.service";
+import taskTracker from "./services/task-tracker.service";
 import { analyticsMiddleware, flushAnalytics } from "./middleware/analytics.middleware";
 import cacheService from "./services/cache.service";
 import cacheWarmerService from "./services/cache-warmer.service";
@@ -241,12 +242,15 @@ app.get("/health/startup", (req: Request, res: Response) => {
  */
 async function runStartupTask(taskName: string, task: () => Promise<void>): Promise<boolean> {
   setStartupTask(taskName);
+  const taskId = await taskTracker.start(`Startup: ${taskName}`);
   try {
     await task();
     completeStartupTask(taskName);
+    await taskTracker.complete(taskId);
     return true;
   } catch (error) {
     failStartupTask(taskName, error);
+    await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
     return false;
   }
 }

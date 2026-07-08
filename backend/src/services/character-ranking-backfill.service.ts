@@ -11,8 +11,11 @@ import logger from "../utils/logger";
 import { resolveRole, slugifySpecName } from "../utils/spec";
 import cacheService from "./cache.service";
 import rateLimitService from "./rate-limit.service";
+import taskTracker from "./task-tracker.service";
 import wclService from "./warcraftlogs.service";
 
+const TASK_NAME = "Character Ranking Backfill";
+const LEADERBOARD_REBUILD_TASK_NAME = "Rebuild Character Ranking Tables";
 const MYTHIC_DIFFICULTY = 5;
 const ALL_PARTITIONS = -1;
 const ESTIMATED_POINTS_PER_RANKING_ALIAS = 5;
@@ -288,17 +291,26 @@ class CharacterRankingBackfillService {
 
   async triggerBackfill(options: { refreshCandidates?: boolean } = {}): Promise<CharacterRankingBackfillTriggerResult> {
     const existingQueueItems = await CharacterRankingBackfill.countDocuments({});
-    const enqueue =
-      existingQueueItems > 0 && options.refreshCandidates !== true
-        ? {
-            candidates: 0,
-            queued: 0,
-            existing: existingQueueItems,
-            updated: 0,
-            skippedWithoutCharacter: 0,
-            discoverySkipped: true,
-          }
-        : await this.enqueueMissingItems();
+    let enqueue: CharacterRankingBackfillEnqueueResult;
+    if (existingQueueItems > 0 && options.refreshCandidates !== true) {
+      enqueue = {
+        candidates: 0,
+        queued: 0,
+        existing: existingQueueItems,
+        updated: 0,
+        skippedWithoutCharacter: 0,
+        discoverySkipped: true,
+      };
+    } else {
+      const taskId = await taskTracker.start("Queue Character Ranking Backfill", { refreshCandidates: options.refreshCandidates === true });
+      try {
+        enqueue = await this.enqueueMissingItems();
+        await taskTracker.complete(taskId, { ...enqueue });
+      } catch (error) {
+        await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+    }
 
     if (enqueue.discoverySkipped) {
       logger.info(`[CharacterRankingBackfill] Candidate discovery skipped; ${enqueue.existing} persistent queue items already exist`);
@@ -720,42 +732,53 @@ class CharacterRankingBackfillService {
     };
 
     logger.info("[CharacterRankingBackfill] Rebuilding character leaderboards from stored rankings");
+    const taskId = await taskTracker.start(LEADERBOARD_REBUILD_TASK_NAME);
 
-    const pairs = await Ranking.aggregate<{ _id: { characterId: mongoose.Types.ObjectId; zoneId: number } }>([
-      {
-        $group: {
-          _id: {
-            characterId: "$characterId",
-            zoneId: "$zoneId",
+    try {
+      const pairs = await Ranking.aggregate<{ _id: { characterId: mongoose.Types.ObjectId; zoneId: number } }>([
+        {
+          $group: {
+            _id: {
+              characterId: "$characterId",
+              zoneId: "$zoneId",
+            },
           },
         },
-      },
-      { $sort: { "_id.zoneId": -1 } },
-    ]).allowDiskUse(true);
+        { $sort: { "_id.zoneId": -1 } },
+      ]).allowDiskUse(true);
 
-    this.leaderboardRebuild.totalPairs = pairs.length;
-    this.leaderboardRebuild.lastMessage = `Rebuilding ${pairs.length} character/raid leaderboard pairs`;
-    logger.info(`[CharacterRankingBackfill] Character leaderboard rebuild found ${pairs.length} character/raid pairs`);
+      this.leaderboardRebuild.totalPairs = pairs.length;
+      this.leaderboardRebuild.lastMessage = `Rebuilding ${pairs.length} character/raid leaderboard pairs`;
+      logger.info(`[CharacterRankingBackfill] Character leaderboard rebuild found ${pairs.length} character/raid pairs`);
 
-    for (const pair of pairs) {
-      const count = await this.rebuildLeaderboardForCharacterZone(pair._id.characterId, pair._id.zoneId, false);
-      this.leaderboardRebuild.processedPairs += 1;
-      this.leaderboardRebuild.writtenEntries += count;
+      for (const pair of pairs) {
+        const count = await this.rebuildLeaderboardForCharacterZone(pair._id.characterId, pair._id.zoneId, false);
+        this.leaderboardRebuild.processedPairs += 1;
+        this.leaderboardRebuild.writtenEntries += count;
 
-      if (this.leaderboardRebuild.processedPairs % 100 === 0 || this.leaderboardRebuild.processedPairs === pairs.length) {
-        this.leaderboardRebuild.lastMessage = `Rebuilt ${this.leaderboardRebuild.processedPairs}/${pairs.length} character/raid pairs`;
-        logger.info(
-          `[CharacterRankingBackfill] Character leaderboard rebuild progress ${this.leaderboardRebuild.processedPairs}/${pairs.length}, entries=${this.leaderboardRebuild.writtenEntries}`,
-        );
+        if (this.leaderboardRebuild.processedPairs % 100 === 0 || this.leaderboardRebuild.processedPairs === pairs.length) {
+          this.leaderboardRebuild.lastMessage = `Rebuilt ${this.leaderboardRebuild.processedPairs}/${pairs.length} character/raid pairs`;
+          logger.info(
+            `[CharacterRankingBackfill] Character leaderboard rebuild progress ${this.leaderboardRebuild.processedPairs}/${pairs.length}, entries=${this.leaderboardRebuild.writtenEntries}`,
+          );
+        }
       }
+
+      await cacheService.invalidate(cacheService.getCharacterRankingsOptionsKey());
+
+      this.leaderboardRebuild.isRunning = false;
+      this.leaderboardRebuild.completedAt = new Date();
+      this.leaderboardRebuild.lastMessage = `Rebuild complete: ${this.leaderboardRebuild.processedPairs} pairs, ${this.leaderboardRebuild.writtenEntries} leaderboard entries`;
+      logger.info(`[CharacterRankingBackfill] ${this.leaderboardRebuild.lastMessage}`);
+      await taskTracker.complete(taskId, {
+        totalPairs: this.leaderboardRebuild.totalPairs,
+        processedPairs: this.leaderboardRebuild.processedPairs,
+        writtenEntries: this.leaderboardRebuild.writtenEntries,
+      });
+    } catch (error) {
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+      throw error;
     }
-
-    await cacheService.invalidate(cacheService.getCharacterRankingsOptionsKey());
-
-    this.leaderboardRebuild.isRunning = false;
-    this.leaderboardRebuild.completedAt = new Date();
-    this.leaderboardRebuild.lastMessage = `Rebuild complete: ${this.leaderboardRebuild.processedPairs} pairs, ${this.leaderboardRebuild.writtenEntries} leaderboard entries`;
-    logger.info(`[CharacterRankingBackfill] ${this.leaderboardRebuild.lastMessage}`);
   }
 
   private async findPairsWithoutMythicEvidence(): Promise<Array<{ wclCanonicalCharacterId: number; classID: number; zoneId: number }>> {
@@ -860,7 +883,10 @@ class CharacterRankingBackfillService {
 
   private async processLoop(): Promise<void> {
     let processedThisRun = 0;
+    let taskId = "";
     try {
+      taskId = await taskTracker.start(TASK_NAME);
+
       while (this.isRunning) {
         const item = await CharacterRankingBackfill.findOneAndUpdate(
           { status: "pending" },
@@ -933,6 +959,10 @@ class CharacterRankingBackfillService {
           );
         }
       }
+      await taskTracker.complete(taskId, { processedThisRun });
+    } catch (error) {
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+      throw error;
     } finally {
       this.isRunning = false;
       this.isWaitingForRateLimit = false;

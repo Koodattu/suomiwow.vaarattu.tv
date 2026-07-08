@@ -402,6 +402,10 @@ class TwitchChatBotService {
       return;
     }
 
+    if (!(await this.isChannelAllowedToChat(channelName))) {
+      return;
+    }
+
     if (this.isOnCooldown(channelName, user, parsed.name)) {
       return;
     }
@@ -415,6 +419,21 @@ class TwitchChatBotService {
       await this.recordError("Failed to handle Twitch chat command", error);
       await this.queueSay(channelName, "Command failed. Please try again.");
     }
+  }
+
+  private async isChannelAllowedToChat(channelName: string): Promise<boolean> {
+    return Boolean(
+      await Guild.exists({
+        isCurrentlyRaiding: true,
+        streamers: {
+          $elemMatch: {
+            channelName: new RegExp(`^${channelName}$`, "i"),
+            isLive: true,
+            isPlayingWoW: true,
+          },
+        },
+      }),
+    );
   }
 
   private isOnCooldown(channelName: string, user: string, commandName: string): boolean {

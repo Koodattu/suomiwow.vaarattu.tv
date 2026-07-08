@@ -215,10 +215,21 @@ class CharacterAchievementService {
 
   async triggerBackfill(options: { refreshCandidates?: boolean; refreshAll?: boolean } = {}): Promise<CharacterAchievementBackfillTriggerResult> {
     this.featuredAchievementTargets = null;
-    const enqueue = await this.enqueueMissingItems({
-      refreshExistingQueue: options.refreshCandidates === true,
+    const taskId = await taskTracker.start("Queue Character Achievement Backfill", {
+      refreshCandidates: options.refreshCandidates === true,
       refreshAll: options.refreshAll === true,
     });
+    let enqueue: CharacterAchievementBackfillEnqueueResult;
+    try {
+      enqueue = await this.enqueueMissingItems({
+        refreshExistingQueue: options.refreshCandidates === true,
+        refreshAll: options.refreshAll === true,
+      });
+      await taskTracker.complete(taskId, { ...enqueue });
+    } catch (error) {
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+      throw error;
+    }
     let started = false;
 
     if (!this.isRunning) {

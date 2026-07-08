@@ -21,6 +21,7 @@ import MythicPlusDungeon from "../models/MythicPlusDungeon";
 import MythicPlusSeason from "../models/MythicPlusSeason";
 import logger from "../utils/logger";
 import cacheService from "./cache.service";
+import taskTracker from "./task-tracker.service";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
 const RAIDER_IO_API_BASE_URL = "https://raider.io/api/v1";
@@ -1222,30 +1223,39 @@ class MythicPlusService {
   }
 
   private async processLoop(maxJobs?: number): Promise<number> {
-    await this.resetInterruptedJobs();
+    const taskId = await taskTracker.start("Mythic+ Crawler", maxJobs ? { maxJobs } : undefined);
     let processed = 0;
 
-    while (!maxJobs || processed < maxJobs) {
-      const job = await this.claimNextJob();
-      if (!job) break;
+    try {
+      await this.resetInterruptedJobs();
 
-      this.currentJob = this.summarizeJob(job);
-      try {
-        await this.processJob(job);
-      } catch (error) {
-        await this.handleJobError(job, error);
+      while (!maxJobs || processed < maxJobs) {
+        const job = await this.claimNextJob();
+        if (!job) break;
+
+        this.currentJob = this.summarizeJob(job);
+        try {
+          await this.processJob(job);
+        } catch (error) {
+          await this.handleJobError(job, error);
+        }
+
+        processed += 1;
+        if (processed % PROCESS_LOG_INTERVAL === 0) {
+          logger.info(`[MythicPlus] Processed ${processed} crawler jobs`);
+        }
       }
 
-      processed += 1;
-      if (processed % PROCESS_LOG_INTERVAL === 0) {
-        logger.info(`[MythicPlus] Processed ${processed} crawler jobs`);
-      }
+      await taskTracker.complete(taskId, { processed });
+      return processed;
+    } catch (error) {
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+      throw error;
+    } finally {
+      this.isRunning = false;
+      this.currentJob = null;
+      this.lastMessage = `Mythic+ crawler idle after ${processed} job(s)`;
     }
-
-    this.isRunning = false;
-    this.currentJob = null;
-    this.lastMessage = `Mythic+ crawler idle after ${processed} job(s)`;
-    return processed;
   }
 
   private async claimNextJob(): Promise<ICharacterMythicPlusFetchJob | null> {

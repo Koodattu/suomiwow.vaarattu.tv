@@ -15,6 +15,7 @@ import raiderIOService from "./raiderio.service";
 import type { RaiderIORaidDifficultyRankings } from "./raiderio.service";
 import cacheService from "./cache.service";
 import backgroundGuildProcessor from "./background-guild-processor.service";
+import taskTracker from "./task-tracker.service";
 import { GUILDS_DEV, TRACKED_RAIDS, CURRENT_RAID_IDS, PRIMARY_RAID_ID, DIFFICULTIES, GUILDS_PROD, MANUAL_RAID_DATES, RAID_RIO_SLUG_OVERRIDES } from "../config/guilds";
 import { filterUniqueGuilds } from "../utils/filterUniqueGuilds";
 import mongoose from "mongoose";
@@ -1079,6 +1080,13 @@ class GuildService {
     }
 
     this.existingGuildStatisticsRecalculationRunning = true;
+    const taskId = await taskTracker.start("Recalculate Guild Statistics", { currentTierOnly, raidIds });
+    let totalGuilds = 0;
+    let processedGuilds = 0;
+    let recalculatedGuilds = 0;
+    let skippedGuilds = 0;
+    let failedGuilds = 0;
+
     logger.info("Recalculating statistics for existing guilds...");
     if (raidIds) {
       logger.info(`Mode: Specific raids [${raidIds.join(", ")}]`);
@@ -1088,16 +1096,16 @@ class GuildService {
     this.logMemoryUsage("statistics recalculation start");
 
     try {
-      const totalGuilds = await Guild.countDocuments();
+      totalGuilds = await Guild.countDocuments();
 
       if (totalGuilds === 0) {
         logger.info("No guilds found in database, skipping statistics recalculation");
+        await taskTracker.complete(taskId, { totalGuilds, processedGuilds, recalculatedGuilds, skippedGuilds, failedGuilds });
         return;
       }
 
       logger.info(`Found ${totalGuilds} guilds to recalculate statistics for`);
 
-      let processedGuilds = 0;
       const guildCursor = Guild.find().cursor({ batchSize: 1 });
 
       // Process each guild without keeping all guild documents in memory.
@@ -1111,6 +1119,7 @@ class GuildService {
 
           if (!hasReports) {
             getGuildLogger(guild.name, guild.realm).info("No reports found, skipping statistics recalculation");
+            skippedGuilds++;
             continue;
           }
 
@@ -1129,8 +1138,10 @@ class GuildService {
 
           // Save the guild with updated statistics
           await guild.save();
+          recalculatedGuilds++;
           getGuildLogger(guild.name, guild.realm).info("Statistics recalculation complete and saved");
         } catch (error) {
+          failedGuilds++;
           getGuildLogger(guild.name, guild.realm).error("Error recalculating statistics:", error instanceof Error ? error.message : "Unknown error");
           // Continue with next guild even if one fails
         } finally {
@@ -1149,8 +1160,10 @@ class GuildService {
       }
 
       logger.info("Finished recalculating statistics and rankings for all guilds");
+      await taskTracker.complete(taskId, { totalGuilds, processedGuilds, recalculatedGuilds, skippedGuilds, failedGuilds });
     } catch (error) {
       logger.error("Error in recalculateExistingGuildStatistics:", error);
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
       throw error;
     } finally {
       this.logMemoryUsage("statistics recalculation finish");

@@ -2722,8 +2722,10 @@ router.post("/trigger/update-guild-crests", async (req: Request, res: Response) 
 
 // Queue all guilds for death events rescan
 router.post("/trigger/rescan-death-events", async (req: Request, res: Response) => {
+  const taskId = await taskTracker.start("Queue Death Event Backfill", { source: "manual" });
   try {
     const result = await guildService.queueAllGuildsForDeathRescan();
+    await taskTracker.complete(taskId, result);
     res.json({
       success: true,
       message: `Death events rescan queued: ${result.queued} guilds queued, ${result.skipped} skipped`,
@@ -2731,14 +2733,17 @@ router.post("/trigger/rescan-death-events", async (req: Request, res: Response) 
     });
   } catch (error) {
     logger.error("Error triggering death events rescan:", error);
+    await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: "Failed to trigger death events rescan" });
   }
 });
 
 // Queue all guilds for character rescan
 router.post("/trigger/rescan-characters", async (req: Request, res: Response) => {
+  const taskId = await taskTracker.start("Queue Character Rescan", { source: "manual" });
   try {
     const result = await guildService.queueAllGuildsForCharacterRescan();
+    await taskTracker.complete(taskId, result);
     res.json({
       success: true,
       message: `Character rescan queued: ${result.queued} guilds queued, ${result.skipped} skipped`,
@@ -2746,14 +2751,17 @@ router.post("/trigger/rescan-characters", async (req: Request, res: Response) =>
     });
   } catch (error) {
     logger.error("Error triggering character rescan:", error);
+    await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: "Failed to trigger character rescan" });
   }
 });
 
 // Queue all guilds for report-level character backfill
 router.post("/trigger/backfill-report-characters", async (req: Request, res: Response) => {
+  const taskId = await taskTracker.start("Queue Report Character Backfill", { source: "manual" });
   try {
     const result = await guildService.queueAllGuildsForReportCharacterBackfill();
+    await taskTracker.complete(taskId, result);
     res.json({
       success: true,
       message: `Report character backfill queued: ${result.queued} guilds queued, ${result.skipped} skipped`,
@@ -2761,6 +2769,7 @@ router.post("/trigger/backfill-report-characters", async (req: Request, res: Res
     });
   } catch (error) {
     logger.error("Error triggering report character backfill:", error);
+    await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: "Failed to trigger report character backfill" });
   }
 });
@@ -2864,8 +2873,10 @@ router.post("/trigger/backfill-character-achievements", async (req: Request, res
 
 // Rebuild character account groups from stored high-confidence achievement matches (no Blizzard API calls)
 router.post("/trigger/rebuild-character-account-groups", async (req: Request, res: Response) => {
+  const taskId = await taskTracker.start("Rebuild Character Account Groups", { source: "manual" });
   try {
     const result = await characterAchievementService.rebuildAccountGroups();
+    await taskTracker.complete(taskId, { ...result });
     res.json({
       success: true,
       message: `Character account groups rebuilt: ${result.groups} groups, ${result.matchedCharacters} characters, ${result.highConfidenceEdges} high-confidence edges`,
@@ -2873,6 +2884,7 @@ router.post("/trigger/rebuild-character-account-groups", async (req: Request, re
     });
   } catch (error) {
     logger.error("Error rebuilding character account groups:", error);
+    await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: "Failed to rebuild character account groups" });
   }
 });
@@ -2939,8 +2951,10 @@ router.post("/trigger/rebuild-character-ranking-leaderboards", async (req: Reque
 
 // Remove derived character ranking rows that have no stored Mythic report-ranking evidence (no WCL API calls)
 router.post("/trigger/prune-character-rankings-without-mythic-evidence", async (req: Request, res: Response) => {
+  const taskId = await taskTracker.start("Prune Character Rankings Without Mythic Evidence", { source: "manual" });
   try {
     const result = await characterRankingBackfillService.pruneRankingsWithoutMythicEvidence();
+    await taskTracker.complete(taskId, { ...result });
     res.json({
       success: true,
       message:
@@ -2950,6 +2964,7 @@ router.post("/trigger/prune-character-rankings-without-mythic-evidence", async (
     });
   } catch (error) {
     logger.error("Error pruning character rankings without Mythic evidence:", error);
+    await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: error instanceof Error ? error.message : "Failed to prune character rankings" });
   }
 });
@@ -3015,13 +3030,16 @@ router.post("/trigger/rebuild-guild-network", async (req: Request, res: Response
 
 // Rebuild the materialized leaderboard collection (fast, no WCL API calls)
 router.get("/trigger/rebuild-leaderboard", async (req: Request, res: Response) => {
+  const taskId = await taskTracker.start("Rebuild Character Leaderboards", { source: "manual" });
   try {
     const startTime = Date.now();
     await characterService.buildCharacterLeaderboards();
     const duration = Math.round((Date.now() - startTime) / 1000);
+    await taskTracker.complete(taskId, { durationSeconds: duration });
     res.json({ success: true, message: `Leaderboard rebuilt in ${duration}s` });
   } catch (error) {
     logger.error("Error rebuilding leaderboard:", error);
+    await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: "Failed to rebuild leaderboard" });
   }
 });
@@ -3034,11 +3052,18 @@ router.post("/trigger/rebuild-character-mechanics-leaderboards", async (req: Req
     const raidId = req.body?.raidId ? Number(req.body.raidId) : undefined;
     const zoneIds = Number.isFinite(raidId) ? [raidId as number] : scope === "all" ? TRACKED_RAIDS : CURRENT_RAID_IDS;
     const targetLabel = Number.isFinite(raidId) ? `raid ${raidId}` : scope === "all" ? "all tracked raids" : "current tier";
+    const taskId = await taskTracker.start("Rebuild Character Mechanics Leaderboard", { source: "manual", zoneIds });
 
     characterMechanicsService
       .buildMechanicsLeaderboards(zoneIds)
-      .then(() => logger.info(`[Admin] Character mechanics leaderboard rebuild completed for ${targetLabel}`))
-      .catch((err) => logger.error("[Admin] Character mechanics leaderboard rebuild failed:", err));
+      .then(async (result) => {
+        logger.info(`[Admin] Character mechanics leaderboard rebuild completed for ${targetLabel}`);
+        await taskTracker.complete(taskId, result);
+      })
+      .catch(async (err) => {
+        logger.error("[Admin] Character mechanics leaderboard rebuild failed:", err);
+        await taskTracker.fail(taskId, err instanceof Error ? err.message : String(err));
+      });
 
     res.json({
       success: true,

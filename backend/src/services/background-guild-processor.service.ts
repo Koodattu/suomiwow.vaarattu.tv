@@ -16,6 +16,7 @@ import logger, { getGuildLogger } from "../utils/logger";
 import mongoose from "mongoose";
 import { classifyError, ErrorType } from "../utils/error-classifier";
 import characterService from "./character.service";
+import taskTracker from "./task-tracker.service";
 
 /**
  * Queue processing configuration
@@ -213,27 +214,56 @@ class BackgroundGuildProcessor {
 
       logger.info(`[BackgroundProcessor] Processing guild: ${queueItem.guildName}-${queueItem.guildRealm} (ID: ${queueItem.guildId}, job: ${queueItem.jobType})`);
 
-      // Route to appropriate processing method based on job type
-      switch (queueItem.jobType) {
-        case "rescan_deaths":
-          await this.processGuildDeathRescan(queueItem);
-          break;
-        case "rescan_characters":
-          await this.processGuildCharacterRescan(queueItem);
-          break;
-        case "backfill_report_characters":
-          await this.processGuildReportCharacterBackfill(queueItem);
-          break;
-        case "recalculate_stats":
-          await this.processGuildStatsRecalculation(queueItem);
-          break;
-        case "full_rescan":
-        default:
-          await this.processGuild(queueItem);
-          break;
-      }
+      const taskId = await taskTracker.start(`Process Guild Queue: ${queueItem.jobType}`, {
+        guildId: queueItem.guildId,
+        guildName: queueItem.guildName,
+        guildRealm: queueItem.guildRealm,
+        guildRegion: queueItem.guildRegion,
+        jobType: queueItem.jobType,
+      });
 
-      this.currentGuildQueue = null;
+      try {
+        // Route to appropriate processing method based on job type
+        switch (queueItem.jobType) {
+          case "rescan_deaths":
+            await this.processGuildDeathRescan(queueItem);
+            break;
+          case "rescan_characters":
+            await this.processGuildCharacterRescan(queueItem);
+            break;
+          case "backfill_report_characters":
+            await this.processGuildReportCharacterBackfill(queueItem);
+            break;
+          case "recalculate_stats":
+            await this.processGuildStatsRecalculation(queueItem);
+            break;
+          case "full_rescan":
+          default:
+            await this.processGuild(queueItem);
+            break;
+        }
+
+        const finishedItem = await GuildProcessingQueue.findById(queueItem._id).lean<Pick<IGuildProcessingQueue, "status" | "lastError" | "failureReason" | "progress">>();
+        const metadata = {
+          guildId: queueItem.guildId,
+          guildName: queueItem.guildName,
+          guildRealm: queueItem.guildRealm,
+          jobType: queueItem.jobType,
+          status: finishedItem?.status,
+          progress: finishedItem?.progress,
+        };
+
+        if (finishedItem?.status === "failed") {
+          await taskTracker.fail(taskId, finishedItem.failureReason || finishedItem.lastError || "Queue item failed");
+        } else {
+          await taskTracker.complete(taskId, metadata);
+        }
+      } catch (error) {
+        await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+        throw error;
+      } finally {
+        this.currentGuildQueue = null;
+      }
 
       // Check for next item immediately
       this.scheduleNextCheck(this.config.activeCheckInterval);

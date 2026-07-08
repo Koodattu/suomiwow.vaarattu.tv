@@ -365,10 +365,13 @@ class UpdateScheduler {
       }
 
       this.isRefreshingHomeCache = true;
+      const taskId = await taskTracker.start("Refresh Home Cache");
       try {
         await cacheWarmerService.warmHomeCacheData();
+        await taskTracker.complete(taskId);
       } catch (error) {
         logger.error("[HomeCache] Error refreshing home cache:", error);
+        await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
       } finally {
         this.isRefreshingHomeCache = false;
       }
@@ -837,7 +840,7 @@ class UpdateScheduler {
 
   async queueCharacterAchievementBackfill(): Promise<void> {
     this.isQueueingCharacterAchievementBackfill = true;
-    const taskId = await taskTracker.start("Queue Character Achievement Backfill");
+    const taskId = await taskTracker.start("Schedule Character Achievement Backfill");
 
     try {
       const result = await characterAchievementService.triggerBackfill();
@@ -1278,29 +1281,43 @@ class UpdateScheduler {
 
   // Manually trigger update of all guilds
   async updateAllGuilds(): Promise<void> {
+    const taskId = await taskTracker.start("Update All Guilds");
+    let attempted = 0;
+    let succeeded = 0;
+    let failed = 0;
+
     logger.info("Starting full update of all guilds...");
-    const guilds = await Guild.find({ wclStatus: { $ne: "not_found" } });
+    try {
+      const guilds = await Guild.find({ wclStatus: { $ne: "not_found" } });
 
-    for (let i = 0; i < guilds.length; i++) {
-      const guild = guilds[i];
-      logger.info(`Updating ${i + 1}/${guilds.length}: ${guild.name}`);
+      for (let i = 0; i < guilds.length; i++) {
+        const guild = guilds[i];
+        attempted++;
+        logger.info(`Updating ${i + 1}/${guilds.length}: ${guild.name}`);
 
-      try {
-        await guildService.updateGuildProgress((guild._id as mongoose.Types.ObjectId).toString());
+        try {
+          await guildService.updateGuildProgress((guild._id as mongoose.Types.ObjectId).toString());
+          succeeded++;
 
-        // Yield to event loop periodically (every 5 guilds) to allow request handling
-        if ((i + 1) % 5 === 0) {
-          await yieldToEventLoop();
+          // Yield to event loop periodically (every 5 guilds) to allow request handling
+          if ((i + 1) % 5 === 0) {
+            await yieldToEventLoop();
+          }
+
+          // Small delay between guilds to avoid rate limiting
+          await throttleDelay(2000);
+        } catch (error) {
+          failed++;
+          logger.error(`Failed to update ${guild.name}:`, error);
         }
-
-        // Small delay between guilds to avoid rate limiting
-        await throttleDelay(2000);
-      } catch (error) {
-        logger.error(`Failed to update ${guild.name}:`, error);
       }
-    }
 
-    logger.info("Full update completed");
+      logger.info("Full update completed");
+      await taskTracker.complete(taskId, { attempted, succeeded, failed });
+    } catch (error) {
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+      throw error;
+    }
   }
 
   // NIGHTLY: Update guilds that only have Raider.IO data (no WarcraftLogs)
