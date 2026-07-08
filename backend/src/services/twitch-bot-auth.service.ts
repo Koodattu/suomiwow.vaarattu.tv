@@ -20,6 +20,19 @@ interface TwitchHelixUserResponse {
   }>;
 }
 
+interface TwitchFollowedChannelsResponse {
+  total?: number;
+  data: Array<{
+    broadcaster_id: string;
+    broadcaster_login: string;
+    broadcaster_name: string;
+    followed_at: string;
+  }>;
+  pagination?: {
+    cursor?: string;
+  };
+}
+
 export interface TwitchBotAccessToken {
   accessToken: string;
   refreshToken: string;
@@ -39,6 +52,8 @@ export interface TwitchBotAuthStatus {
   connected: boolean;
   redirectUri: string;
   scopes: string[];
+  requiredScopes: string[];
+  missingScopes: string[];
   tokenExpiresAt?: Date;
   connectedAt?: Date;
   connectedByUsername?: string;
@@ -50,6 +65,25 @@ export interface TwitchBotAuthStatus {
   lastVerifiedAt?: Date;
   lastVerifiedError?: string;
 }
+
+export interface TwitchBotFollowedChannel {
+  broadcasterId: string;
+  broadcasterLogin: string;
+  broadcasterName: string;
+  followedAt: string;
+}
+
+export interface TwitchBotFollowsStatus {
+  enabled: boolean;
+  connected: boolean;
+  requiredScope: string;
+  hasRequiredScope: boolean;
+  total: number;
+  channels: TwitchBotFollowedChannel[];
+  fetchedAt?: Date;
+}
+
+const FOLLOWED_CHANNELS_SCOPE = "user:read:follows";
 
 class TwitchBotAuthService {
   private readonly stateTtlMs = 10 * 60 * 1000;
@@ -75,10 +109,11 @@ class TwitchBotAuthService {
   }
 
   getScopes(): string[] {
-    return (process.env.TWITCH_BOT_SCOPES || "chat:read chat:edit")
+    const configured = (process.env.TWITCH_BOT_SCOPES || "")
       .split(/[,\s]+/)
       .map((scope) => scope.trim())
       .filter(Boolean);
+    return Array.from(new Set([...configured, "chat:read", "chat:edit", FOLLOWED_CHANNELS_SCOPE]));
   }
 
   isEnabled(): boolean {
@@ -163,12 +198,16 @@ class TwitchBotAuthService {
 
   async getStatus(): Promise<TwitchBotAuthStatus> {
     const auth = await TwitchBotAuth.findOne({ key: "global" }).lean();
+    const requiredScopes = this.getScopes();
+    const scopes = auth?.scope?.length ? auth.scope : requiredScopes;
 
     return {
       enabled: this.isEnabled(),
       connected: Boolean(auth?.refreshToken),
       redirectUri: this.redirectUri,
-      scopes: auth?.scope?.length ? auth.scope : this.getScopes(),
+      scopes,
+      requiredScopes,
+      missingScopes: auth?.refreshToken ? requiredScopes.filter((scope) => !scopes.includes(scope)) : [],
       tokenExpiresAt: auth?.tokenExpiresAt,
       connectedAt: auth?.connectedAt,
       connectedByUsername: auth?.connectedByUsername,
@@ -193,6 +232,82 @@ class TwitchBotAuthService {
   async getBotLogin(): Promise<string | null> {
     const auth = await TwitchBotAuth.findOne({ key: "global" }).select("twitchLogin").lean();
     return auth?.twitchLogin || null;
+  }
+
+  async getFollowedChannels(maxChannels = 1000): Promise<TwitchBotFollowsStatus> {
+    const auth = await TwitchBotAuth.findOne({ key: "global" });
+    if (!auth?.refreshToken) {
+      return {
+        enabled: this.isEnabled(),
+        connected: false,
+        requiredScope: FOLLOWED_CHANNELS_SCOPE,
+        hasRequiredScope: false,
+        total: 0,
+        channels: [],
+      };
+    }
+
+    if (!auth.scope?.includes(FOLLOWED_CHANNELS_SCOPE)) {
+      return {
+        enabled: this.isEnabled(),
+        connected: true,
+        requiredScope: FOLLOWED_CHANNELS_SCOPE,
+        hasRequiredScope: false,
+        total: 0,
+        channels: [],
+      };
+    }
+
+    const twitchUserId = auth.twitchUserId || (await this.verifyCurrentUser(auth)).id;
+    const accessToken = await this.getAccessToken();
+    const channels: TwitchBotFollowedChannel[] = [];
+    let cursor: string | undefined;
+    let total = 0;
+
+    do {
+      const first = Math.min(100, Math.max(1, maxChannels - channels.length));
+      const params = new URLSearchParams({
+        user_id: twitchUserId,
+        first: first.toString(),
+      });
+      if (cursor) {
+        params.set("after", cursor);
+      }
+
+      logger.info(`[API REQUEST] TwitchBotAuthService.getFollowedChannels - GET https://api.twitch.tv/helix/channels/followed?${params.toString()}`);
+      const response = await fetch(`https://api.twitch.tv/helix/channels/followed?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Client-ID": this.clientId,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Twitch followed channels request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const payload = (await response.json()) as TwitchFollowedChannelsResponse;
+      total = typeof payload.total === "number" ? payload.total : Math.max(total, channels.length + payload.data.length);
+      channels.push(
+        ...payload.data.map((channel) => ({
+          broadcasterId: channel.broadcaster_id,
+          broadcasterLogin: channel.broadcaster_login,
+          broadcasterName: channel.broadcaster_name,
+          followedAt: channel.followed_at,
+        })),
+      );
+      cursor = payload.pagination?.cursor;
+    } while (cursor && channels.length < maxChannels);
+
+    return {
+      enabled: this.isEnabled(),
+      connected: true,
+      requiredScope: FOLLOWED_CHANNELS_SCOPE,
+      hasRequiredScope: true,
+      total,
+      channels,
+      fetchedAt: new Date(),
+    };
   }
 
   async getAccessToken(): Promise<string> {

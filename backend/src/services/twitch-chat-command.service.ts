@@ -10,6 +10,10 @@ export interface ParsedTwitchChatCommand {
   args: string;
 }
 
+export interface TwitchChatCommandOptions {
+  includeUrl: boolean;
+}
+
 type GuildLookupResult = Pick<IGuild, "name" | "realm" | "region" | "isCurrentlyRaiding" | "progress" | "officialProgress"> & {
   _id: unknown;
 };
@@ -30,15 +34,15 @@ class TwitchChatCommandService {
     };
   }
 
-  async handle(command: ParsedTwitchChatCommand, channelName: string): Promise<string | null> {
+  async handle(command: ParsedTwitchChatCommand, channelName: string, options: TwitchChatCommandOptions): Promise<string | null> {
     if (command.name === "search") {
-      return this.handleSearch(command.args);
+      return this.handleSearch(command.args, options);
     }
 
-    return this.handleBest(command.args, channelName);
+    return this.handleBest(command.args, channelName, options);
   }
 
-  private async handleSearch(query: string): Promise<string> {
+  private async handleSearch(query: string, options: TwitchChatCommandOptions): Promise<string> {
     if (query.trim().length < 2) {
       return "Usage: !search <guild or character>";
     }
@@ -48,11 +52,11 @@ class TwitchChatCommandService {
       return `No guilds or characters found for "${query}".`;
     }
 
-    const formatted = results.map((result) => this.formatSearchResult(result)).join(" | ");
+    const formatted = results.map((result) => this.formatSearchResult(result, options)).join(" | ");
     return this.limitMessage(`Found: ${formatted}`);
   }
 
-  private async handleBest(query: string, channelName: string): Promise<string> {
+  private async handleBest(query: string, channelName: string, options: TwitchChatCommandOptions): Promise<string> {
     const guild = query.trim().length > 0 ? await this.findGuildFromQuery(query) : await this.findGuildForChannel(channelName);
 
     if (!guild) {
@@ -61,7 +65,7 @@ class TwitchChatCommandService {
         : "I could not tell which guild this stream belongs to. Try !best <guild>";
     }
 
-    return this.limitMessage(this.formatBestPull(guild));
+    return this.limitMessage(this.formatBestPull(guild, options));
   }
 
   private async findGuildForChannel(channelName: string): Promise<GuildLookupResult | null> {
@@ -113,17 +117,18 @@ class TwitchChatCommandService {
       .lean()) as GuildLookupResult | null;
   }
 
-  private formatBestPull(guild: GuildLookupResult): string {
+  private formatBestPull(guild: GuildLookupResult, options: TwitchChatCommandOptions): string {
     const progress = this.selectBestProgress(guild.progress || []);
     const guildUrl = `${this.getFrontendBaseUrl()}/guilds/${encodeURIComponent(guild.realm)}/${encodeURIComponent(guild.name)}`;
+    const urlSuffix = options.includeUrl ? ` ${guildUrl}` : "";
 
     if (!progress) {
       const official = this.selectOfficialProgress(guild);
       if (official) {
-        return `${guild.name}: official progress ${official.summary}. ${guildUrl}`;
+        return `${guild.name}: official progress ${official.summary}.${urlSuffix}`;
       }
 
-      return `${guild.name}: no current raid progress found yet. ${guildUrl}`;
+      return `${guild.name}: no current raid progress found yet.${urlSuffix}`;
     }
 
     const difficulty = progress.difficulty === "mythic" ? "M" : "HC";
@@ -133,18 +138,18 @@ class TwitchChatCommandService {
     if (!nextBoss) {
       const lastKill = this.findLastKilledBoss(progress);
       if (lastKill) {
-        return `${guild.name} ${summary}, raid cleared. Last kill: ${lastKill.bossName} after ${lastKill.pullCount} pulls. ${guildUrl}`;
+        return `${guild.name} ${summary}, raid cleared. Last kill: ${lastKill.bossName} after ${lastKill.pullCount} pulls.${urlSuffix}`;
       }
 
-      return `${guild.name} ${summary}, raid cleared. ${guildUrl}`;
+      return `${guild.name} ${summary}, raid cleared.${urlSuffix}`;
     }
 
     if (nextBoss.pullCount <= 0 && nextBoss.bestPercent >= 100) {
-      return `${guild.name} ${summary}, next: ${nextBoss.bossName}. No logged pulls yet. ${guildUrl}`;
+      return `${guild.name} ${summary}, next: ${nextBoss.bossName}. No logged pulls yet.${urlSuffix}`;
     }
 
     const progressDisplay = this.formatBossProgress(nextBoss);
-    return `${guild.name} ${summary}, ${nextBoss.bossName}: ${progressDisplay} after ${nextBoss.pullCount} pulls. ${guildUrl}`;
+    return `${guild.name} ${summary}, ${nextBoss.bossName}: ${progressDisplay} after ${nextBoss.pullCount} pulls.${urlSuffix}`;
   }
 
   private selectBestProgress(progress: IRaidProgress[]): IRaidProgress | null {
@@ -205,15 +210,16 @@ class TwitchChatCommandService {
     return difficulty === "mythic" ? 2 : 1;
   }
 
-  private formatSearchResult(result: SearchResult): string {
+  private formatSearchResult(result: SearchResult, options: TwitchChatCommandOptions): string {
     const title = `${result.name}-${this.formatRealmName(result.realm)}`;
     const url = `${this.getFrontendBaseUrl()}${result.href}`;
+    const urlSuffix = options.includeUrl ? ` ${url}` : "";
 
     if (result.type === "character" && result.guild) {
-      return `${title} (character, ${result.guild.name}-${this.formatRealmName(result.guild.realm)}) ${url}`;
+      return `${title} (character, ${result.guild.name}-${this.formatRealmName(result.guild.realm)})${urlSuffix}`;
     }
 
-    return `${title} (${result.type}) ${url}`;
+    return `${title} (${result.type})${urlSuffix}`;
   }
 
   private formatRealmName(value: string): string {

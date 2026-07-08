@@ -86,6 +86,8 @@ import {
   WarcraftLogsUserAuthStatus,
   WarcraftLogsUserReportProbeResponse,
   TwitchChatBotStatus,
+  TwitchBotFollowsResponse,
+  TwitchBotSettings,
   DeathEventsResetResponse,
   ProcessingQueueStatsResponse,
   ProcessingQueueResponse,
@@ -1443,6 +1445,27 @@ export const api = {
     });
     if (!response.ok) throw new Error("Failed to fetch Twitch bot status");
     return response.json();
+  },
+
+  async updateAdminTwitchBotSettings(settings: TwitchBotSettings): Promise<TwitchBotSettings> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-bot/settings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(settings),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to update Twitch bot settings");
+    return data;
+  },
+
+  async getAdminTwitchBotFollows(): Promise<TwitchBotFollowsResponse> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-bot/follows`, {
+      credentials: "include",
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to fetch Twitch bot followed channels");
+    return data;
   },
 
   async getAdminTwitchBotAuthUrl(): Promise<{ url: string }> {

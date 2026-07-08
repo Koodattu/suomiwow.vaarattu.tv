@@ -97,9 +97,27 @@ import {
   WarcraftLogsUserAuthStatus,
   WarcraftLogsUserReportProbeResponse,
   TwitchChatBotStatus,
+  TwitchBotDifficulty,
+  TwitchBotEventType,
+  TwitchBotFollowsResponse,
+  TwitchBotSettings,
 } from "@/types";
 
 type TabType = "overview" | "users" | "guilds" | "streams" | "characters" | "pickems" | "system" | "tasks";
+
+const TWITCH_BOT_EVENT_TYPE_OPTIONS: Array<{ value: TwitchBotEventType; label: string }> = [
+  { value: "boss_kill", label: "Boss kills" },
+  { value: "best_pull", label: "Best pulls" },
+  { value: "milestone", label: "Milestones" },
+  { value: "hiatus", label: "Hiatus" },
+  { value: "regress", label: "Regressions" },
+  { value: "reproge", label: "Reprogression" },
+];
+
+const TWITCH_BOT_DIFFICULTY_OPTIONS: Array<{ value: TwitchBotDifficulty; label: string }> = [
+  { value: "mythic", label: "Mythic" },
+  { value: "heroic", label: "Heroic" },
+];
 
 // Sortable item for finalization ranking with remove button
 function SortableRankingItem({ id, rank, onRemove }: { id: string; rank: number; onRemove?: (id: string) => void }) {
@@ -271,6 +289,11 @@ export default function AdminPage() {
   const [twitchStreams, setTwitchStreams] = useState<AdminTwitchStream[]>([]);
   const [twitchStreamStats, setTwitchStreamStats] = useState<AdminTwitchStreamsResponse["stats"] | null>(null);
   const [twitchStreamSearch, setTwitchStreamSearch] = useState("");
+  const [twitchBotStatus, setTwitchBotStatus] = useState<TwitchChatBotStatus | null>(null);
+  const [twitchBotSettingsDraft, setTwitchBotSettingsDraft] = useState<TwitchBotSettings | null>(null);
+  const [twitchBotFollows, setTwitchBotFollows] = useState<TwitchBotFollowsResponse | null>(null);
+  const [twitchBotFollowsLoading, setTwitchBotFollowsLoading] = useState(false);
+  const [twitchBotSettingsSaving, setTwitchBotSettingsSaving] = useState(false);
 
   // Characters data
   const [characters, setCharacters] = useState<AdminCharacter[]>([]);
@@ -293,7 +316,6 @@ export default function AdminPage() {
   const [wclUserAuthStatus, setWclUserAuthStatus] = useState<WarcraftLogsUserAuthStatus | null>(null);
   const [wclProbeReportCode, setWclProbeReportCode] = useState("");
   const [wclProbeResult, setWclProbeResult] = useState<WarcraftLogsUserReportProbeResponse | null>(null);
-  const [twitchBotStatus, setTwitchBotStatus] = useState<TwitchChatBotStatus | null>(null);
   const [processorStatus, setProcessorStatus] = useState<ProcessorStatus | null>(null);
   const [queueStats, setQueueStats] = useState<QueueStatistics | null>(null);
   const [characterRankingBackfillStatus, setCharacterRankingBackfillStatus] = useState<CharacterRankingBackfillStatusResponse | null>(null);
@@ -433,7 +455,7 @@ export default function AdminPage() {
     const twitchBotResult = params.get("twitchBot");
     if (!wclUserResult && !twitchBotResult) return;
 
-    setActiveTab("system");
+    setActiveTab(twitchBotResult && !wclUserResult ? "streams" : "system");
     if (wclUserResult === "connected") {
       setTriggerMessage({ type: "success", text: "Warcraft Logs user authorization connected" });
     } else if (wclUserResult) {
@@ -500,9 +522,16 @@ export default function AdminPage() {
           }
 
           case "streams": {
-            const streamsData = await api.getAdminTwitchStreams();
+            const [streamsData, twitchBotData, twitchBotFollowsData] = await Promise.all([
+              api.getAdminTwitchStreams(),
+              api.getAdminTwitchBotStatus(),
+              api.getAdminTwitchBotFollows().catch(() => null),
+            ]);
             setTwitchStreams(streamsData.streams);
             setTwitchStreamStats(streamsData.stats);
+            setTwitchBotStatus(twitchBotData);
+            setTwitchBotSettingsDraft(twitchBotData.settings);
+            setTwitchBotFollows(twitchBotFollowsData);
             break;
           }
 
@@ -523,10 +552,9 @@ export default function AdminPage() {
           }
 
           case "system": {
-            const [rateLimitData, wclUserAuthData, twitchBotData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
+            const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
               api.getAdminRateLimitStatus(),
               api.getAdminWarcraftLogsUserAuthStatus(),
-              api.getAdminTwitchBotStatus(),
               api.getAdminProcessingQueueStats(),
               api.getAdminProcessingQueue(queuePage, 20, queueFilter || undefined),
               api.getAdminProcessingQueueErrors(1, 50),
@@ -537,7 +565,6 @@ export default function AdminPage() {
             setRateLimitStatus(rateLimitData.status);
             setRateLimitConfig(rateLimitData.config);
             setWclUserAuthStatus(wclUserAuthData);
-            setTwitchBotStatus(twitchBotData);
             setProcessorStatus(queueStatsData.processor);
             setQueueStats(queueStatsData.queue);
             setQueueItems(queueData.items);
@@ -600,10 +627,9 @@ export default function AdminPage() {
     if (activeTab === "system" && user?.isAdmin) {
       const interval = setInterval(async () => {
         try {
-          const [rateLimitData, wclUserAuthData, twitchBotData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
+          const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
             api.getAdminRateLimitStatus(),
             api.getAdminWarcraftLogsUserAuthStatus(),
-            api.getAdminTwitchBotStatus(),
             api.getAdminProcessingQueueStats(),
             api.getAdminProcessingQueue(queuePage, 20, queueFilter || undefined),
             api.getAdminProcessingQueueErrors(1, 50),
@@ -614,7 +640,6 @@ export default function AdminPage() {
           setRateLimitStatus(rateLimitData.status);
           setRateLimitConfig(rateLimitData.config);
           setWclUserAuthStatus(wclUserAuthData);
-          setTwitchBotStatus(twitchBotData);
           setProcessorStatus(queueStatsData.processor);
           setQueueStats(queueStatsData.queue);
           setQueueItems(queueData.items);
@@ -726,6 +751,17 @@ export default function AdminPage() {
         return [stream.channelName, stream.gameName, stream.twitchUserId, guildLabel].some((value) => value?.toLowerCase().includes(twitchStreamSearchTerm));
       })
     : twitchStreams;
+  const twitchTrackedChannelMap = new Map(twitchStreams.map((stream) => [stream.channelName.toLowerCase(), stream]));
+  const twitchFollowedTrackedCount = twitchBotFollows?.channels.filter((channel) => twitchTrackedChannelMap.has(channel.broadcasterLogin.toLowerCase())).length || 0;
+  const twitchTrackedUnfollowedCount = twitchBotFollows?.hasRequiredScope
+    ? Array.from(new Set(twitchStreams.map((stream) => stream.channelName.toLowerCase()))).filter(
+        (channelName) => !twitchBotFollows.channels.some((channel) => channel.broadcasterLogin.toLowerCase() === channelName),
+      ).length
+    : null;
+  const twitchBotSettingsChanged =
+    twitchBotSettingsDraft && twitchBotStatus
+      ? JSON.stringify(twitchBotSettingsDraft) !== JSON.stringify(twitchBotStatus.settings)
+      : false;
 
   const getSelectedStatRaidTarget = () => {
     const raidId = selectedStatRaidId !== "all" && selectedStatRaidId !== "current" ? Number(selectedStatRaidId) : undefined;
@@ -815,7 +851,63 @@ export default function AdminPage() {
   const refreshTwitchBotStatus = async () => {
     const status = await api.getAdminTwitchBotStatus();
     setTwitchBotStatus(status);
+    setTwitchBotSettingsDraft(status.settings);
     return status;
+  };
+
+  const refreshTwitchBotFollows = async () => {
+    setTwitchBotFollowsLoading(true);
+    try {
+      const follows = await api.getAdminTwitchBotFollows();
+      setTwitchBotFollows(follows);
+      return follows;
+    } finally {
+      setTwitchBotFollowsLoading(false);
+    }
+  };
+
+  const toggleTwitchBotEventType = (eventType: TwitchBotEventType) => {
+    setTwitchBotSettingsDraft((settings) => {
+      if (!settings) return settings;
+      const selected = settings.eventTypes.includes(eventType);
+      const eventTypes = selected ? settings.eventTypes.filter((value) => value !== eventType) : [...settings.eventTypes, eventType];
+      return { ...settings, eventTypes };
+    });
+  };
+
+  const toggleTwitchBotDifficulty = (difficulty: TwitchBotDifficulty) => {
+    setTwitchBotSettingsDraft((settings) => {
+      if (!settings) return settings;
+      const selected = settings.difficulties.includes(difficulty);
+      const difficulties = selected ? settings.difficulties.filter((value) => value !== difficulty) : [...settings.difficulties, difficulty];
+      return { ...settings, difficulties };
+    });
+  };
+
+  const handleSaveTwitchBotSettings = async () => {
+    if (!twitchBotSettingsDraft) return;
+
+    if (twitchBotSettingsDraft.eventTypes.length === 0 || twitchBotSettingsDraft.difficulties.length === 0) {
+      setTriggerMessage({ type: "error", text: "Choose at least one event type and one difficulty." });
+      return;
+    }
+
+    setTwitchBotSettingsSaving(true);
+    setTriggerMessage(null);
+    try {
+      const settings = await api.updateAdminTwitchBotSettings(twitchBotSettingsDraft);
+      setTwitchBotSettingsDraft(settings);
+      setTwitchBotStatus((status) => (status ? { ...status, settings } : status));
+      setTriggerMessage({ type: "success", text: "Twitch bot settings saved" });
+      setTimeout(() => setTriggerMessage(null), 5000);
+    } catch (error) {
+      setTriggerMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to save Twitch bot settings",
+      });
+    } finally {
+      setTwitchBotSettingsSaving(false);
+    }
   };
 
   const refreshSystemQueueState = async () => {
@@ -961,6 +1053,7 @@ export default function AdminPage() {
     try {
       const result = await api.verifyAdminTwitchBotAuth();
       await refreshTwitchBotStatus();
+      await refreshTwitchBotFollows().catch(() => undefined);
       setTriggerMessage({ type: "success", text: `Twitch bot verified: ${result.user.displayName}` });
       setTimeout(() => setTriggerMessage(null), 5000);
     } catch (error) {
@@ -984,6 +1077,7 @@ export default function AdminPage() {
       const result = await api.disconnectAdminTwitchBotAuth();
       await triggerTwitchBotReconnect().catch(() => undefined);
       await refreshTwitchBotStatus();
+      setTwitchBotFollows(null);
       setTriggerMessage({ type: "success", text: result.message });
       setTimeout(() => setTriggerMessage(null), 5000);
     } catch (error) {
@@ -2111,6 +2205,323 @@ export default function AdminPage() {
         {/* Streams Tab */}
         {!loading && activeTab === "streams" && (
           <div>
+            {triggerMessage && (
+              <div className={`rounded-lg p-4 mb-4 ${triggerMessage.type === "success" ? "bg-green-900/50 border border-green-500" : "bg-red-900/50 border border-red-500"}`}>
+                <p className={triggerMessage.type === "success" ? "text-green-300" : "text-red-300"}>{triggerMessage.text}</p>
+              </div>
+            )}
+
+            {twitchBotStatus && (
+              <div className="mb-6 space-y-4">
+                <div className="bg-gray-800 rounded-lg p-5 space-y-5">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <h2 className="text-xl font-bold text-white text-balance">Twitch Bot</h2>
+                      <p className="mt-1 text-sm text-gray-400 text-pretty">
+                        Bot account, joined chat channels, event publishing, and followed channels for stream discovery.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={handleConnectTwitchBot}
+                        disabled={!twitchBotStatus.enabled || triggerLoading === "twitch-bot-connect"}
+                        className="min-h-10 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
+                      >
+                        {twitchBotStatus.connected ? "Reconnect Bot Account" : "Connect Bot Account"}
+                      </button>
+                      <button
+                        onClick={handleVerifyTwitchBot}
+                        disabled={!twitchBotStatus.connected || triggerLoading === "twitch-bot-verify"}
+                        className="min-h-10 px-3 py-2 bg-gray-700 text-gray-200 text-sm rounded hover:bg-gray-600 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
+                      >
+                        Verify Bot
+                      </button>
+                      <button
+                        onClick={handleDisconnectTwitchBot}
+                        disabled={!twitchBotStatus.connected || triggerLoading === "twitch-bot-disconnect"}
+                        className="min-h-10 px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                    <div className="rounded-lg bg-gray-900/70 p-4">
+                      <h4 className="text-gray-400 text-sm">OAuth</h4>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className={`inline-block h-3 w-3 rounded-full ${twitchBotStatus.enabled ? "bg-green-500" : "bg-red-500"}`} />
+                        <span className={`text-lg font-bold ${twitchBotStatus.enabled ? "text-green-400" : "text-red-400"}`}>
+                          {twitchBotStatus.enabled ? "Configured" : "Missing"}
+                        </span>
+                      </div>
+                      <p className="mt-2 break-all text-xs text-gray-500">{twitchBotStatus.redirectUri}</p>
+                    </div>
+                    <div className="rounded-lg bg-gray-900/70 p-4">
+                      <h4 className="text-gray-400 text-sm">Bot Account</h4>
+                      <p className={`mt-1 text-lg font-bold ${twitchBotStatus.connected ? "text-white" : "text-amber-400"}`}>
+                        {twitchBotStatus.twitchDisplayName || twitchBotStatus.twitchLogin || (twitchBotStatus.connected ? "Connected" : "Not connected")}
+                      </p>
+                      {twitchBotStatus.connectedByUsername && <p className="text-sm text-gray-500">by {twitchBotStatus.connectedByUsername}</p>}
+                      {twitchBotStatus.tokenExpiresAt && <p className="text-sm text-gray-500">token: {formatDate(twitchBotStatus.tokenExpiresAt)}</p>}
+                      {twitchBotStatus.missingScopes.length > 0 ? (
+                        <p className="mt-1 text-xs text-amber-300">Missing scope: {twitchBotStatus.missingScopes.join(", ")}</p>
+                      ) : (
+                        twitchBotStatus.scopes.length > 0 && <p className="mt-1 break-all text-xs text-gray-500">{twitchBotStatus.scopes.join(", ")}</p>
+                      )}
+                    </div>
+                    <div className="rounded-lg bg-gray-900/70 p-4">
+                      <h4 className="text-gray-400 text-sm">Chat</h4>
+                      <p className={`mt-1 text-lg font-bold ${twitchBotStatus.chat.connected ? "text-green-400" : "text-amber-400"}`}>
+                        {twitchBotStatus.chat.connected ? "Connected" : twitchBotStatus.chat.running ? "Waiting" : "Stopped"}
+                      </p>
+                      <p className="text-sm text-gray-500 tabular-nums">
+                        {twitchBotStatus.chat.joinedCount}/{twitchBotStatus.chat.desiredCount} channels
+                      </p>
+                      {twitchBotStatus.chat.lastReconciledAt && <p className="text-sm text-gray-500">reconciled: {formatDate(twitchBotStatus.chat.lastReconciledAt)}</p>}
+                    </div>
+                    <div className="rounded-lg bg-gray-900/70 p-4">
+                      <h4 className="text-gray-400 text-sm">Deliveries</h4>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-sm text-gray-300 tabular-nums">
+                        <div>
+                          <span className="block text-amber-300 font-semibold">{twitchBotStatus.deliveries.pending}</span>
+                          <span className="text-gray-500">pending</span>
+                        </div>
+                        <div>
+                          <span className="block text-red-300 font-semibold">{twitchBotStatus.deliveries.failed}</span>
+                          <span className="text-gray-500">failed</span>
+                        </div>
+                        <div>
+                          <span className="block text-green-300 font-semibold">{twitchBotStatus.deliveries.sent24h}</span>
+                          <span className="text-gray-500">24h</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {twitchBotStatus.chat.lastError && (
+                    <div className="rounded-lg border border-red-500/40 bg-red-950/30 px-4 py-3 text-sm text-red-200">{twitchBotStatus.chat.lastError}</div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {renderTriggerButton("twitch-bot-reconnect", "Reconnect Chat", triggerTwitchBotReconnect, {
+                      disabled: !twitchBotStatus.connected,
+                    })}
+                    {renderTriggerButton("twitch-bot-reconcile", "Reconcile Channels", triggerTwitchBotReconcile, {
+                      disabled: !twitchBotStatus.connected,
+                    })}
+                  </div>
+
+                  {(twitchBotStatus.chat.joinedChannels.length > 0 || twitchBotStatus.chat.desiredChannels.length > 0) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div className="rounded-lg bg-gray-900/70 p-4">
+                        <h4 className="text-gray-400 mb-2">Joined Channels</h4>
+                        <p className="text-gray-200 break-words">
+                          {twitchBotStatus.chat.joinedChannels.slice(0, 30).map((channel) => `#${channel}`).join(", ") || "None"}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-gray-900/70 p-4">
+                        <h4 className="text-gray-400 mb-2">Desired Channels</h4>
+                        <p className="text-gray-200 break-words">
+                          {twitchBotStatus.chat.desiredChannels.slice(0, 30).map((channel) => `#${channel}`).join(", ") || "None"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] gap-4">
+                  <div className="bg-gray-800 rounded-lg p-5 space-y-5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-white text-balance">Bot Settings</h3>
+                        <p className="mt-1 text-sm text-gray-400 text-pretty">Controls for automated progress messages sent to live raiding streams.</p>
+                      </div>
+                      <button
+                        onClick={handleSaveTwitchBotSettings}
+                        disabled={!twitchBotSettingsDraft || !twitchBotSettingsChanged || twitchBotSettingsSaving}
+                        className="min-h-10 px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
+                      >
+                        {twitchBotSettingsSaving ? "Saving..." : twitchBotSettingsChanged ? "Save Settings" : "Saved"}
+                      </button>
+                    </div>
+
+                    {twitchBotSettingsDraft && (
+                      <div className="space-y-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <label className="flex min-h-11 items-center justify-between gap-4 rounded-lg bg-gray-900/70 px-4 py-3">
+                            <span>
+                              <span className="block text-sm font-medium text-white">Event publishing</span>
+                              <span className="block text-xs text-gray-500">Send boss kill and progress events to joined Twitch chats.</span>
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={twitchBotSettingsDraft.eventPublishingEnabled}
+                              onChange={(event) => setTwitchBotSettingsDraft({ ...twitchBotSettingsDraft, eventPublishingEnabled: event.target.checked })}
+                              className="h-5 w-5 rounded border-gray-600 bg-gray-800 text-amber-500 focus:ring-amber-500"
+                            />
+                          </label>
+                          <label className="flex min-h-11 items-center justify-between gap-4 rounded-lg bg-gray-900/70 px-4 py-3">
+                            <span>
+                              <span className="block text-sm font-medium text-white">Include URLs</span>
+                              <span className="block text-xs text-gray-500">Append SuomiWoW links to bot replies and event messages.</span>
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={twitchBotSettingsDraft.includeUrl}
+                              onChange={(event) => setTwitchBotSettingsDraft({ ...twitchBotSettingsDraft, includeUrl: event.target.checked })}
+                              className="h-5 w-5 rounded border-gray-600 bg-gray-800 text-amber-500 focus:ring-amber-500"
+                            />
+                          </label>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          <div className="rounded-lg bg-gray-900/70 p-4">
+                            <h4 className="text-sm font-medium text-white">Event Types</h4>
+                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {TWITCH_BOT_EVENT_TYPE_OPTIONS.map((option) => {
+                                const selected = twitchBotSettingsDraft.eventTypes.includes(option.value);
+                                return (
+                                  <label key={option.value} className="flex min-h-10 items-center gap-3 rounded bg-gray-800 px-3 py-2 text-sm text-gray-200">
+                                    <input
+                                      type="checkbox"
+                                      checked={selected}
+                                      disabled={selected && twitchBotSettingsDraft.eventTypes.length === 1}
+                                      onChange={() => toggleTwitchBotEventType(option.value)}
+                                      className="h-4 w-4 rounded border-gray-600 bg-gray-900 text-amber-500 focus:ring-amber-500 disabled:opacity-50"
+                                    />
+                                    <span>{option.label}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg bg-gray-900/70 p-4">
+                            <h4 className="text-sm font-medium text-white">Difficulties</h4>
+                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {TWITCH_BOT_DIFFICULTY_OPTIONS.map((option) => {
+                                const selected = twitchBotSettingsDraft.difficulties.includes(option.value);
+                                return (
+                                  <label key={option.value} className="flex min-h-10 items-center gap-3 rounded bg-gray-800 px-3 py-2 text-sm text-gray-200">
+                                    <input
+                                      type="checkbox"
+                                      checked={selected}
+                                      disabled={selected && twitchBotSettingsDraft.difficulties.length === 1}
+                                      onChange={() => toggleTwitchBotDifficulty(option.value)}
+                                      className="h-4 w-4 rounded border-gray-600 bg-gray-900 text-amber-500 focus:ring-amber-500 disabled:opacity-50"
+                                    />
+                                    <span>{option.label}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-gray-800 rounded-lg p-5 space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold text-white text-balance">Bot Follows</h3>
+                        <p className="mt-1 text-sm text-gray-400 text-pretty">Channels followed by the connected bot account, matched against tracked streamers.</p>
+                      </div>
+                      <button
+                        onClick={() => refreshTwitchBotFollows().catch((error) => setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to refresh follows" }))}
+                        disabled={!twitchBotStatus.connected || twitchBotFollowsLoading}
+                        className="min-h-10 px-3 py-2 bg-gray-700 text-gray-200 text-sm rounded hover:bg-gray-600 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
+                      >
+                        {twitchBotFollowsLoading ? "Refreshing..." : "Refresh"}
+                      </button>
+                    </div>
+
+                    {!twitchBotStatus.connected ? (
+                      <div className="rounded-lg bg-gray-900/70 px-4 py-3 text-sm text-gray-400">Connect a bot account to read followed channels.</div>
+                    ) : twitchBotFollows && !twitchBotFollows.hasRequiredScope ? (
+                      <div className="rounded-lg border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
+                        Reconnect the bot account to grant {twitchBotFollows.requiredScope} and show followed channels.
+                      </div>
+                    ) : twitchBotFollows ? (
+                      <>
+                        <div className="grid grid-cols-3 gap-2 text-center text-sm tabular-nums">
+                          <div className="rounded-lg bg-gray-900/70 p-3">
+                            <div className="text-lg font-semibold text-white">{twitchBotFollows.total}</div>
+                            <div className="text-xs text-gray-500">follows</div>
+                          </div>
+                          <div className="rounded-lg bg-gray-900/70 p-3">
+                            <div className="text-lg font-semibold text-green-300">{twitchFollowedTrackedCount}</div>
+                            <div className="text-xs text-gray-500">tracked</div>
+                          </div>
+                          <div className="rounded-lg bg-gray-900/70 p-3">
+                            <div className="text-lg font-semibold text-amber-300">{twitchTrackedUnfollowedCount ?? "-"}</div>
+                            <div className="text-xs text-gray-500">not followed</div>
+                          </div>
+                        </div>
+
+                        <div className="max-h-80 overflow-y-auto rounded-lg bg-gray-900/70">
+                          <table className="w-full min-w-[520px] text-sm">
+                            <thead className="sticky top-0 bg-gray-900">
+                              <tr>
+                                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-400">Channel</th>
+                                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-400">Tracked Guild</th>
+                                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-400">Followed</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800">
+                              {twitchBotFollows.channels.length === 0 ? (
+                                <tr>
+                                  <td colSpan={3} className="px-3 py-6 text-center text-gray-400">
+                                    The bot account is not following any channels.
+                                  </td>
+                                </tr>
+                              ) : (
+                                twitchBotFollows.channels.map((channel) => {
+                                  const trackedStream = twitchTrackedChannelMap.get(channel.broadcasterLogin.toLowerCase());
+                                  return (
+                                    <tr key={channel.broadcasterId} className="hover:bg-gray-750">
+                                      <td className="px-3 py-2">
+                                        <a
+                                          href={`https://www.twitch.tv/${encodeURIComponent(channel.broadcasterLogin)}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="font-medium text-purple-300 underline hover:text-purple-200"
+                                        >
+                                          {channel.broadcasterName || channel.broadcasterLogin}
+                                        </a>
+                                        <div className="text-xs text-gray-500">{channel.broadcasterLogin}</div>
+                                      </td>
+                                      <td className="px-3 py-2 text-gray-300">
+                                        {trackedStream ? (
+                                          <button onClick={() => handleGuildClick(trackedStream.guild.id)} className="text-left text-amber-400 hover:text-amber-300">
+                                            {trackedStream.guild.name}
+                                            <span className="block text-xs text-gray-500">
+                                              {trackedStream.guild.realm} - {trackedStream.guild.region.toUpperCase()}
+                                            </span>
+                                          </button>
+                                        ) : (
+                                          <span className="text-gray-500">Not tracked</span>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-xs text-gray-500">{formatDate(channel.followedAt)}</td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                        {twitchBotFollows.fetchedAt && <p className="text-xs text-gray-500">Updated {formatDate(twitchBotFollows.fetchedAt)}</p>}
+                      </>
+                    ) : (
+                      <div className="rounded-lg bg-gray-900/70 px-4 py-3 text-sm text-gray-400">Followed channels have not loaded yet.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {twitchStreamStats && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <div className="bg-gray-800 rounded-lg p-4">
@@ -3555,113 +3966,6 @@ export default function AdminPage() {
                             {wclProbeResult.deathEventProbe ? `${wclProbeResult.deathEventProbe.eventCount ?? "?"} from ${wclProbeResult.deathEventProbe.fightsTested} fights` : "No stored fights"}
                           </span>
                         </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Twitch Bot */}
-            <div>
-              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <span>💬</span> Twitch Bot
-              </h2>
-              {twitchBotStatus && (
-                <div className="bg-gray-800 rounded-lg p-6 space-y-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-gray-400 text-sm">OAuth</h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`inline-block w-3 h-3 rounded-full ${twitchBotStatus.enabled ? "bg-green-500" : "bg-red-500"}`} />
-                        <span className={`text-lg font-bold ${twitchBotStatus.enabled ? "text-green-400" : "text-red-400"}`}>
-                          {twitchBotStatus.enabled ? "Configured" : "Missing"}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xs text-gray-500 break-all">{twitchBotStatus.redirectUri}</p>
-                    </div>
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-gray-400 text-sm">Bot Account</h4>
-                      <p className={`text-lg font-bold mt-1 ${twitchBotStatus.connected ? "text-white" : "text-amber-400"}`}>
-                        {twitchBotStatus.twitchDisplayName || twitchBotStatus.twitchLogin || (twitchBotStatus.connected ? "Connected" : "Not connected")}
-                      </p>
-                      {twitchBotStatus.connectedByUsername && <p className="text-sm text-gray-500">by {twitchBotStatus.connectedByUsername}</p>}
-                      {twitchBotStatus.tokenExpiresAt && <p className="text-sm text-gray-500">token: {formatDate(twitchBotStatus.tokenExpiresAt)}</p>}
-                      {twitchBotStatus.scopes.length > 0 && <p className="mt-1 text-xs text-gray-500 break-all">{twitchBotStatus.scopes.join(", ")}</p>}
-                    </div>
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-gray-400 text-sm">Chat</h4>
-                      <p className={`text-lg font-bold mt-1 ${twitchBotStatus.chat.connected ? "text-green-400" : "text-amber-400"}`}>
-                        {twitchBotStatus.chat.connected ? "Connected" : twitchBotStatus.chat.running ? "Waiting" : "Stopped"}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {twitchBotStatus.chat.joinedCount}/{twitchBotStatus.chat.desiredCount} channels
-                      </p>
-                      {twitchBotStatus.chat.lastReconciledAt && <p className="text-sm text-gray-500">reconciled: {formatDate(twitchBotStatus.chat.lastReconciledAt)}</p>}
-                    </div>
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-gray-400 text-sm">Deliveries</h4>
-                      <p className="text-sm text-gray-300 mt-2">
-                        <span className="text-amber-300 font-semibold">{twitchBotStatus.deliveries.pending}</span> pending
-                      </p>
-                      <p className="text-sm text-gray-300">
-                        <span className="text-red-300 font-semibold">{twitchBotStatus.deliveries.failed}</span> failed
-                      </p>
-                      <p className="text-sm text-gray-300">
-                        <span className="text-green-300 font-semibold">{twitchBotStatus.deliveries.sent24h}</span> sent in 24h
-                      </p>
-                    </div>
-                  </div>
-
-                  {twitchBotStatus.chat.lastError && (
-                    <div className="rounded-lg border border-red-500/40 bg-red-950/30 px-4 py-3 text-sm text-red-200">
-                      {twitchBotStatus.chat.lastError}
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
-                    <button
-                      onClick={handleConnectTwitchBot}
-                      disabled={!twitchBotStatus.enabled || triggerLoading === "twitch-bot-connect"}
-                      className="min-h-10 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {twitchBotStatus.connected ? "Reconnect Bot Account" : "Connect Bot Account"}
-                    </button>
-                    <button
-                      onClick={handleVerifyTwitchBot}
-                      disabled={!twitchBotStatus.connected || triggerLoading === "twitch-bot-verify"}
-                      className="min-h-10 px-3 py-2 bg-gray-700 text-gray-200 text-sm rounded hover:bg-gray-600 disabled:opacity-50"
-                    >
-                      Verify Bot
-                    </button>
-                    {renderTriggerButton("twitch-bot-reconnect", "Reconnect Chat", triggerTwitchBotReconnect, {
-                      disabled: !twitchBotStatus.connected,
-                    })}
-                    {renderTriggerButton("twitch-bot-reconcile", "Reconcile Channels", triggerTwitchBotReconcile, {
-                      disabled: !twitchBotStatus.connected,
-                    })}
-                    <button
-                      onClick={handleDisconnectTwitchBot}
-                      disabled={!twitchBotStatus.connected || triggerLoading === "twitch-bot-disconnect"}
-                      className="min-h-10 px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50"
-                    >
-                      Disconnect
-                    </button>
-                  </div>
-
-                  {(twitchBotStatus.chat.joinedChannels.length > 0 || twitchBotStatus.chat.desiredChannels.length > 0) && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                      <div className="rounded-lg border border-gray-700 bg-gray-900 p-4">
-                        <h4 className="text-gray-400 mb-2">Joined Channels</h4>
-                        <p className="text-gray-200 break-words">
-                          {twitchBotStatus.chat.joinedChannels.slice(0, 30).map((channel) => `#${channel}`).join(", ") || "None"}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-gray-700 bg-gray-900 p-4">
-                        <h4 className="text-gray-400 mb-2">Desired Channels</h4>
-                        <p className="text-gray-200 break-words">
-                          {twitchBotStatus.chat.desiredChannels.slice(0, 30).map((channel) => `#${channel}`).join(", ") || "None"}
-                        </p>
                       </div>
                     </div>
                   )}

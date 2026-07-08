@@ -1191,6 +1191,33 @@ export interface AdminTwitchStreamsResponse {
   };
 }
 
+export type TwitchBotEventType = "boss_kill" | "best_pull" | "milestone" | "hiatus" | "regress" | "reproge";
+export type TwitchBotDifficulty = "mythic" | "heroic";
+
+export interface TwitchBotSettings {
+  eventPublishingEnabled: boolean;
+  eventTypes: TwitchBotEventType[];
+  difficulties: TwitchBotDifficulty[];
+  includeUrl: boolean;
+}
+
+export interface TwitchBotFollowedChannel {
+  broadcasterId: string;
+  broadcasterLogin: string;
+  broadcasterName: string;
+  followedAt: string;
+}
+
+export interface TwitchBotFollowsResponse {
+  enabled: boolean;
+  connected: boolean;
+  requiredScope: string;
+  hasRequiredScope: boolean;
+  total: number;
+  channels: TwitchBotFollowedChannel[];
+  fetchedAt?: string;
+}
+
 export interface AdminUserStats {
   total: number;
   active: {
@@ -2193,6 +2220,8 @@ export interface TwitchChatBotStatus {
   connected: boolean;
   redirectUri: string;
   scopes: string[];
+  requiredScopes: string[];
+  missingScopes: string[];
   tokenExpiresAt?: string;
   connectedAt?: string;
   connectedByUsername?: string;
@@ -2204,6 +2233,7 @@ export interface TwitchChatBotStatus {
   lastVerifiedAt?: string;
   lastVerifiedError?: string;
   botEnabled: boolean;
+  settings: TwitchBotSettings;
   chat: {
     running: boolean;
     connected: boolean;

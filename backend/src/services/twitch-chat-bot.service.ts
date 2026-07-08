@@ -3,6 +3,7 @@ import { ChatClient } from "@twurple/chat";
 import mongoose from "mongoose";
 import Event, { EventType, IEvent } from "../models/Event";
 import Guild from "../models/Guild";
+import TwitchBotSettings, { type TwitchBotDifficulty } from "../models/TwitchBotSettings";
 import TwitchBotRuntimeState from "../models/TwitchBotRuntimeState";
 import TwitchEventDelivery from "../models/TwitchEventDelivery";
 import logger from "../utils/logger";
@@ -11,8 +12,16 @@ import twitchChatCommandService from "./twitch-chat-command.service";
 
 type TwitchEventDifficulty = "mythic" | "heroic";
 
+export interface TwitchBotSettingsSnapshot {
+  eventPublishingEnabled: boolean;
+  eventTypes: EventType[];
+  difficulties: TwitchEventDifficulty[];
+  includeUrl: boolean;
+}
+
 export interface TwitchChatBotStatus extends TwitchBotAuthStatus {
   botEnabled: boolean;
+  settings: TwitchBotSettingsSnapshot;
   chat: {
     running: boolean;
     connected: boolean;
@@ -40,6 +49,7 @@ export interface TwitchChatBotStatus extends TwitchBotAuthStatus {
 const VALID_EVENT_TYPES: EventType[] = ["boss_kill", "best_pull", "milestone", "hiatus", "regress", "reproge"];
 const VALID_DIFFICULTIES: TwitchEventDifficulty[] = ["mythic", "heroic"];
 const RUNTIME_STATE_KEY = "runtime";
+const SETTINGS_KEY = "global";
 const MAX_DELIVERY_ATTEMPTS = 5;
 
 class TwitchChatBotService {
@@ -141,11 +151,12 @@ class TwitchChatBotService {
   }
 
   async getStatus(): Promise<TwitchChatBotStatus> {
-    const [authStatus, runtime, deliveryCounts, sentCount] = await Promise.all([
+    const [authStatus, runtime, deliveryCounts, sentCount, settings] = await Promise.all([
       twitchBotAuthService.getStatus(),
       TwitchBotRuntimeState.findOne({ key: RUNTIME_STATE_KEY }).lean(),
       TwitchEventDelivery.aggregate([{ $match: { status: { $in: ["pending", "failed", "expired"] } } }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
       TwitchEventDelivery.countDocuments({ status: "sent", sentAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } }),
+      this.getSettings(),
     ]);
     const countsByStatus = new Map(deliveryCounts.map((entry: { _id: string; count: number }) => [entry._id, entry.count]));
     const desiredChannels = runtime?.desiredChannels?.length ? runtime.desiredChannels : Array.from(this.desiredChannels).sort();
@@ -154,6 +165,7 @@ class TwitchChatBotService {
     return {
       ...authStatus,
       botEnabled: this.isEnabled(),
+      settings,
       chat: {
         running: runtime?.running ?? this.running,
         connected: runtime?.connected ?? this.connected,
@@ -177,6 +189,45 @@ class TwitchChatBotService {
         sent24h: sentCount,
       },
     };
+  }
+
+  async getSettings(): Promise<TwitchBotSettingsSnapshot> {
+    const defaults = this.getDefaultSettings();
+    const stored = await TwitchBotSettings.findOne({ key: SETTINGS_KEY }).lean();
+    if (!stored) {
+      return defaults;
+    }
+
+    return this.normalizeSettings({
+      eventPublishingEnabled: stored.eventPublishingEnabled,
+      eventTypes: stored.eventTypes,
+      difficulties: stored.difficulties,
+      includeUrl: stored.includeUrl,
+    });
+  }
+
+  async updateSettings(input: Partial<TwitchBotSettingsSnapshot>): Promise<TwitchBotSettingsSnapshot> {
+    const existing = await this.getSettings();
+    const next = this.normalizeSettings({
+      ...existing,
+      ...input,
+    });
+
+    await TwitchBotSettings.updateOne(
+      { key: SETTINGS_KEY },
+      {
+        $set: {
+          key: SETTINGS_KEY,
+          eventPublishingEnabled: next.eventPublishingEnabled,
+          eventTypes: next.eventTypes,
+          difficulties: next.difficulties,
+          includeUrl: next.includeUrl,
+        },
+      },
+      { upsert: true },
+    );
+
+    return next;
   }
 
   private async ensureConnectedAndReconcile(): Promise<void> {
@@ -411,7 +462,8 @@ class TwitchChatBotService {
     }
 
     try {
-      const response = await twitchChatCommandService.handle(parsed, channelName);
+      const settings = await this.getSettings();
+      const response = await twitchChatCommandService.handle(parsed, channelName, { includeUrl: settings.includeUrl });
       if (response) {
         await this.queueSay(channelName, response);
       }
@@ -479,8 +531,14 @@ class TwitchChatBotService {
 
     this.publishing = true;
     try {
-      await this.enqueueNewEventDeliveries();
-      await this.sendDueEventDeliveries();
+      const settings = await this.getSettings();
+      if (!settings.eventPublishingEnabled) {
+        await this.expireStaleEventDeliveries();
+        return;
+      }
+
+      await this.enqueueNewEventDeliveries(settings);
+      await this.sendDueEventDeliveries(settings);
     } catch (error) {
       await this.recordError("Twitch event publisher error", error);
     } finally {
@@ -488,7 +546,7 @@ class TwitchChatBotService {
     }
   }
 
-  private async enqueueNewEventDeliveries(): Promise<void> {
+  private async enqueueNewEventDeliveries(settings: TwitchBotSettingsSnapshot): Promise<void> {
     let state = await TwitchBotRuntimeState.findOne({ key: RUNTIME_STATE_KEY });
     if (!state) {
       await this.writeRuntimeState({
@@ -510,8 +568,8 @@ class TwitchChatBotService {
 
     const events = await Event.find({
       createdAt: { $gt: state.lastEventCreatedAt },
-      type: { $in: this.getEventTypes() },
-      difficulty: { $in: this.getDifficulties() },
+      type: { $in: settings.eventTypes },
+      difficulty: { $in: settings.difficulties },
     })
       .sort({ createdAt: 1 })
       .limit(100);
@@ -552,12 +610,9 @@ class TwitchChatBotService {
     }
   }
 
-  private async sendDueEventDeliveries(): Promise<void> {
+  private async sendDueEventDeliveries(settings: TwitchBotSettingsSnapshot): Promise<void> {
     const now = new Date();
-    await TwitchEventDelivery.updateMany(
-      { status: { $in: ["pending", "failed"] }, expiresAt: { $lte: now } },
-      { $set: { status: "expired", lastError: "Delivery expired before it could be sent" } },
-    );
+    await this.expireStaleEventDeliveries(now);
 
     const deliveries = await TwitchEventDelivery.find({
       status: { $in: ["pending", "failed"] },
@@ -602,7 +657,7 @@ class TwitchChatBotService {
           continue;
         }
 
-        await this.queueSay(channel, this.formatEventMessage(event));
+        await this.queueSay(channel, this.formatEventMessage(event, settings));
         delivery.status = "sent";
         delivery.sentAt = new Date();
         delivery.lastError = undefined;
@@ -616,6 +671,13 @@ class TwitchChatBotService {
         await delivery.save();
       }
     }
+  }
+
+  private async expireStaleEventDeliveries(now = new Date()): Promise<void> {
+    await TwitchEventDelivery.updateMany(
+      { status: { $in: ["pending", "failed"] }, expiresAt: { $lte: now } },
+      { $set: { status: "expired", lastError: "Delivery expired before it could be sent" } },
+    );
   }
 
   private async queueSay(channel: string, message: string): Promise<void> {
@@ -641,23 +703,24 @@ class TwitchChatBotService {
     return task;
   }
 
-  private formatEventMessage(event: IEvent): string {
+  private formatEventMessage(event: IEvent, settings: TwitchBotSettingsSnapshot): string {
     const difficulty = event.difficulty === "mythic" ? "Mythic" : "Heroic";
     const bossName = event.bossName || "a boss";
     const guildUrl = event.guildRealm ? `${this.getFrontendBaseUrl()}/guilds/${encodeURIComponent(event.guildRealm)}/${encodeURIComponent(event.guildName)}` : this.getFrontendBaseUrl();
+    const urlSuffix = settings.includeUrl ? ` ${guildUrl}` : "";
 
     if (event.type === "boss_kill") {
       const pulls = typeof event.data.pullCount === "number" ? ` after ${event.data.pullCount} pulls` : "";
-      return this.limitMessage(`${difficulty} kill: ${event.guildName} defeated ${bossName}${pulls}. ${guildUrl}`);
+      return this.limitMessage(`${difficulty} kill: ${event.guildName} defeated ${bossName}${pulls}.${urlSuffix}`);
     }
 
     if (event.type === "best_pull") {
       const progress = event.data.progressDisplay || (typeof event.data.bestPercent === "number" ? `${event.data.bestPercent.toFixed(1)}%` : "a new best pull");
       const pulls = typeof event.data.pullCount === "number" ? ` after ${event.data.pullCount} pulls` : "";
-      return this.limitMessage(`Best pull: ${event.guildName} reached ${progress} on ${bossName}${pulls}. ${guildUrl}`);
+      return this.limitMessage(`Best pull: ${event.guildName} reached ${progress} on ${bossName}${pulls}.${urlSuffix}`);
     }
 
-    return this.limitMessage(`${difficulty}: ${event.guildName} updated progress on ${bossName}. ${guildUrl}`);
+    return this.limitMessage(`${difficulty}: ${event.guildName} updated progress on ${bossName}.${urlSuffix}`);
   }
 
   private normalizeChannelName(channelName: string): string | null {
@@ -734,7 +797,35 @@ class TwitchChatBotService {
     });
   }
 
-  private getEventTypes(): EventType[] {
+  private getDefaultSettings(): TwitchBotSettingsSnapshot {
+    return {
+      eventPublishingEnabled: process.env.TWITCH_BOT_EVENT_PUBLISHING_ENABLED !== "false",
+      eventTypes: this.getDefaultEventTypes(),
+      difficulties: this.getDefaultDifficulties(),
+      includeUrl: process.env.TWITCH_BOT_INCLUDE_URL !== "false",
+    };
+  }
+
+  private normalizeSettings(input: Partial<TwitchBotSettingsSnapshot>): TwitchBotSettingsSnapshot {
+    const defaults = this.getDefaultSettings();
+    const rawEventTypes = Array.isArray(input.eventTypes) ? input.eventTypes : [];
+    const rawDifficulties = Array.isArray(input.difficulties) ? input.difficulties : [];
+    const eventTypes = rawEventTypes
+      .map((value) => String(value).trim())
+      .filter((value): value is EventType => VALID_EVENT_TYPES.includes(value as EventType));
+    const difficulties = rawDifficulties
+      .map((value) => String(value).trim())
+      .filter((value): value is TwitchBotDifficulty => VALID_DIFFICULTIES.includes(value as TwitchBotDifficulty));
+
+    return {
+      eventPublishingEnabled: typeof input.eventPublishingEnabled === "boolean" ? input.eventPublishingEnabled : defaults.eventPublishingEnabled,
+      eventTypes: eventTypes.length > 0 ? Array.from(new Set(eventTypes)) : defaults.eventTypes,
+      difficulties: difficulties.length > 0 ? Array.from(new Set(difficulties)) : defaults.difficulties,
+      includeUrl: typeof input.includeUrl === "boolean" ? input.includeUrl : defaults.includeUrl,
+    };
+  }
+
+  private getDefaultEventTypes(): EventType[] {
     const configured = (process.env.TWITCH_BOT_EVENT_TYPES || "boss_kill,best_pull")
       .split(/[,\s]+/)
       .map((value) => value.trim())
@@ -742,7 +833,7 @@ class TwitchChatBotService {
     return configured.length > 0 ? configured : ["boss_kill", "best_pull"];
   }
 
-  private getDifficulties(): TwitchEventDifficulty[] {
+  private getDefaultDifficulties(): TwitchEventDifficulty[] {
     const configured = (process.env.TWITCH_BOT_DIFFICULTIES || "mythic")
       .split(/[,\s]+/)
       .map((value) => value.trim())

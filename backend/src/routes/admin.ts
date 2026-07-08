@@ -209,6 +209,30 @@ router.get("/twitch-bot/status", async (_req: Request, res: Response) => {
   }
 });
 
+router.put("/twitch-bot/settings", async (req: Request, res: Response) => {
+  try {
+    const settings = await twitchChatBotService.updateSettings({
+      eventPublishingEnabled: req.body?.eventPublishingEnabled,
+      eventTypes: req.body?.eventTypes,
+      difficulties: req.body?.difficulties,
+      includeUrl: req.body?.includeUrl,
+    });
+    res.json(settings);
+  } catch (error) {
+    logger.error("Error updating Twitch bot settings:", error);
+    res.status(500).json({ error: "Failed to update Twitch bot settings" });
+  }
+});
+
+router.get("/twitch-bot/follows", async (_req: Request, res: Response) => {
+  try {
+    res.json(await twitchBotAuthService.getFollowedChannels());
+  } catch (error) {
+    logger.error("Error fetching Twitch bot followed channels:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to fetch Twitch bot followed channels" });
+  }
+});
+
 router.get("/twitch-bot/authorize", async (req: Request, res: Response) => {
   try {
     const adminUser = (req as any).user;
