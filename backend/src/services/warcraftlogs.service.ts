@@ -19,6 +19,8 @@ class WarcraftLogsService {
 
   // Minimum delay between requests to avoid bursting
   private readonly REQUEST_DELAY_MS = 100;
+  private readonly NETWORK_RETRY_ATTEMPTS = 3;
+  private readonly NETWORK_RETRY_BASE_DELAY_MS = 1000;
 
   private async authenticate(): Promise<string> {
     // Check if we have a valid token
@@ -38,14 +40,14 @@ class WarcraftLogsService {
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
     logger.info(`[API REQUEST] POST https://www.warcraftlogs.com/oauth/token`);
-    const response = await fetch("https://www.warcraftlogs.com/oauth/token", {
+    const response = await this.fetchWithNetworkRetry("https://www.warcraftlogs.com/oauth/token", {
       method: "POST",
       headers: {
         Authorization: `Basic ${credentials}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: "grant_type=client_credentials",
-    });
+    }, "authentication");
 
     if (!response.ok) {
       throw new Error(`WCL authentication failed: ${response.statusText}`);
@@ -76,6 +78,61 @@ class WarcraftLogsService {
     if (rateLimitData) {
       rateLimitService.updateFromResponse(rateLimitData);
     }
+  }
+
+  private formatError(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message || error.name;
+    }
+
+    return String(error);
+  }
+
+  private isRetryableNetworkError(error: unknown): boolean {
+    const candidate = error as { code?: unknown; cause?: { code?: unknown }; name?: unknown; message?: unknown };
+    const code = typeof candidate?.code === "string" ? candidate.code : typeof candidate?.cause?.code === "string" ? candidate.cause.code : undefined;
+
+    if (
+      code &&
+      ["ECONNRESET", "ETIMEDOUT", "ESOCKETTIMEDOUT", "EAI_AGAIN", "ENOTFOUND", "ECONNREFUSED", "EPIPE", "ERR_SOCKET_CONNECTION_TIMEOUT"].includes(code)
+    ) {
+      return true;
+    }
+
+    if (candidate?.name === "FetchError" || candidate?.name === "AbortError") {
+      return true;
+    }
+
+    return /request to .* failed|network timeout|socket hang up|client network socket disconnected|tls/i.test(String(candidate?.message || ""));
+  }
+
+  private async fetchWithNetworkRetry(url: string, options: Parameters<typeof fetch>[1], context: string): ReturnType<typeof fetch> {
+    let attempt = 0;
+    let lastError: unknown;
+
+    while (attempt <= this.NETWORK_RETRY_ATTEMPTS) {
+      try {
+        return await fetch(url, options);
+      } catch (error) {
+        lastError = error;
+
+        if (!this.isRetryableNetworkError(error) || attempt === this.NETWORK_RETRY_ATTEMPTS) {
+          break;
+        }
+
+        const waitTime = this.NETWORK_RETRY_BASE_DELAY_MS * 2 ** attempt;
+        const retriesLeft = this.NETWORK_RETRY_ATTEMPTS - attempt;
+        logger.warn(`WCL ${context} network request failed: ${this.formatError(error)}; retrying in ${waitTime}ms (${retriesLeft} retries left)`);
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+        attempt++;
+      }
+    }
+
+    if (this.isRetryableNetworkError(lastError)) {
+      throw new Error(`WCL ${context} network request failed after ${this.NETWORK_RETRY_ATTEMPTS + 1} attempts: ${this.formatError(lastError)}`);
+    }
+
+    throw lastError instanceof Error ? lastError : new Error(this.formatError(lastError));
   }
 
   getPrimaryGuildInfo(character: any): {
@@ -118,14 +175,14 @@ class WarcraftLogsService {
 
     const token = endpoint === "client" ? await this.authenticate() : await wclUserAuthService.getAccessToken();
 
-    const response = await fetch(`https://www.warcraftlogs.com/api/v2/${endpoint}`, {
+    const response = await this.fetchWithNetworkRetry(`https://www.warcraftlogs.com/api/v2/${endpoint}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ query, variables }),
-    });
+    }, `${endpoint} API`);
 
     // Handle rate limiting with retry
     if (response.status === 429) {
