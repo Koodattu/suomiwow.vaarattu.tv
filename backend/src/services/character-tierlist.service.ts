@@ -118,6 +118,7 @@ type NormalizedCharacterTierListFilters = {
 export type CharacterTierListCharacter = {
   characterKey: string;
   characterId: string | null;
+  accountGroupId: string | null;
   wclCanonicalCharacterId: number | null;
   name: string;
   realm: string;
@@ -261,13 +262,14 @@ class CharacterTierListService {
         .lean<ICharacterTierListEntry[]>(),
       CharacterTierListEntry.countDocuments(query),
     ]);
+    const accountGroupIdByCharacterId = await this.getAccountGroupIdsByCharacterId(characters);
 
     return {
       raid,
       guild: null,
       filters: normalizedFilters,
       generatedAt: characters[0]?.generatedAt ?? null,
-      characters: characters.map((entry) => this.formatGeneratedCharacter(entry)),
+      characters: characters.map((entry) => this.formatGeneratedCharacter(entry, accountGroupIdByCharacterId)),
       total,
     };
   }
@@ -281,7 +283,8 @@ class CharacterTierListService {
     const query = this.buildEntryQuery(zoneId, normalizedFilters, guild._id);
 
     const characters = await CharacterTierListEntry.find(query).sort({ score: -1, reportCount: -1, lastSeenAt: -1, name: 1 }).lean<ICharacterTierListEntry[]>();
-    const accountRepresentatives = await this.selectMostPlayedGeneratedEntries(characters);
+    const accountGroupIdByCharacterId = await this.getAccountGroupIdsByCharacterId(characters);
+    const accountRepresentatives = this.selectMostPlayedGeneratedEntries(characters, accountGroupIdByCharacterId);
     const limitedCharacters = accountRepresentatives.slice(0, normalizedFilters.limit);
 
     return {
@@ -289,7 +292,7 @@ class CharacterTierListService {
       guild: { id: guild._id.toString(), name: guild.name, realm: guild.realm },
       filters: normalizedFilters,
       generatedAt: characters[0]?.generatedAt ?? null,
-      characters: limitedCharacters.map((entry) => this.formatGeneratedCharacter(entry)),
+      characters: limitedCharacters.map((entry) => this.formatGeneratedCharacter(entry, accountGroupIdByCharacterId)),
       total: accountRepresentatives.length,
     };
   }
@@ -803,8 +806,7 @@ class CharacterTierListService {
     return accountGroupIdByCharacterId;
   }
 
-  private async selectMostPlayedGeneratedEntries(entries: ICharacterTierListEntry[]): Promise<ICharacterTierListEntry[]> {
-    const accountGroupIdByCharacterId = await this.getAccountGroupIdsByCharacterId(entries);
+  private selectMostPlayedGeneratedEntries(entries: ICharacterTierListEntry[], accountGroupIdByCharacterId: Map<string, string>): ICharacterTierListEntry[] {
     const selectedEntries = new Map<string, ICharacterTierListEntry>();
 
     for (const entry of entries) {
@@ -1059,10 +1061,11 @@ class CharacterTierListService {
       .lean<{ _id: mongoose.Types.ObjectId; name: string; realm: string } | null>();
   }
 
-  private formatGeneratedCharacter(entry: ICharacterTierListEntry): CharacterTierListCharacter {
+  private formatGeneratedCharacter(entry: ICharacterTierListEntry, accountGroupIdByCharacterId: Map<string, string> = new Map()): CharacterTierListCharacter {
     return {
       characterKey: entry.characterKey,
       characterId: entry.characterId?.toString() ?? null,
+      accountGroupId: entry.characterId ? accountGroupIdByCharacterId.get(entry.characterId.toString()) ?? null : null,
       wclCanonicalCharacterId: entry.wclCanonicalCharacterId ?? null,
       name: entry.name,
       realm: entry.realm,

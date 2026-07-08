@@ -19,6 +19,7 @@ type GeneratedView = "roles" | "combined";
 function toBoardItem(character: CharacterTierListCharacter): CharacterTierBoardItem {
   return {
     characterKey: character.characterKey,
+    accountGroupId: character.accountGroupId,
     name: character.name,
     realm: character.realm,
     region: character.region,
@@ -33,6 +34,7 @@ function toBoardItem(character: CharacterTierListCharacter): CharacterTierBoardI
     bestSpecName: character.bestSpecName,
     pulls: character.pulls,
     deaths: character.deaths,
+    lastSeenAt: character.lastSeenAt,
   };
 }
 

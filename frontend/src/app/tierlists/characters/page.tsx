@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import RaidSelector from "@/components/RaidSelector";
-import CharacterTierBoard, { CharacterTierBoardItem } from "@/components/character-tier-lists/CharacterTierBoard";
+import CharacterTierBoard, { CharacterTierBoardItem, groupCharactersIntoTiers } from "@/components/character-tier-lists/CharacterTierBoard";
 import { useCharacterTierListRaids, useGlobalCharacterTierList, useRaids } from "@/lib/queries";
 import { getAllClasses } from "@/lib/utils";
 import type { CharacterTierListRole } from "@/types";
@@ -17,6 +17,7 @@ const ROLE_OPTIONS: Array<{ value: CharacterTierListRole | "all"; labelKey: stri
 
 function toBoardItem(character: {
   characterKey: string;
+  accountGroupId?: string | null;
   name: string;
   realm: string;
   region: string;
@@ -31,9 +32,11 @@ function toBoardItem(character: {
   bestSpecName: string | null;
   pulls: number;
   deaths: number;
+  lastSeenAt?: string | Date | null;
 }): CharacterTierBoardItem {
   return {
     characterKey: character.characterKey,
+    accountGroupId: character.accountGroupId,
     name: character.name,
     realm: character.realm,
     region: character.region,
@@ -48,6 +51,7 @@ function toBoardItem(character: {
     bestSpecName: character.bestSpecName,
     pulls: character.pulls,
     deaths: character.deaths,
+    lastSeenAt: character.lastSeenAt,
   };
 }
 
@@ -86,6 +90,10 @@ export default function CharacterTierListsPage() {
 
   const { data, isLoading, error } = useGlobalCharacterTierList(selectedRaidId, filters, selectedRaidId !== null);
   const characters = useMemo(() => data?.characters.map(toBoardItem) ?? [], [data]);
+  const visibleCharacterCount = useMemo(() => {
+    const tierGroups = groupCharactersIntoTiers(characters, false);
+    return Object.values(tierGroups).reduce((count, tierCharacters) => count + tierCharacters.length, 0);
+  }, [characters]);
 
   return (
     <main className="min-h-screen bg-gray-950 px-4 py-6 text-white md:px-6 md:py-8">
@@ -151,10 +159,10 @@ export default function CharacterTierListsPage() {
         {!isLoading && !error && data && (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-400">
-              <span>{t("characterCount", { visible: data.characters.length, total: data.total })}</span>
+              <span>{t("characterCount", { visible: visibleCharacterCount, total: data.total })}</span>
               {data.generatedAt && <span>{t("lastCalculated", { date: new Date(data.generatedAt).toLocaleString() })}</span>}
             </div>
-            <CharacterTierBoard characters={characters} emptyMessage={t("noScoredCharacters")} />
+            <CharacterTierBoard characters={characters} showCrown={false} emptyMessage={t("noScoredCharacters")} />
           </div>
         )}
       </div>

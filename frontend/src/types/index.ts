@@ -665,6 +665,7 @@ export interface CharacterTierListBossScore {
 export interface CharacterTierListCharacter {
   characterKey: string;
   characterId: string | null;
+  accountGroupId: string | null;
   wclCanonicalCharacterId: number | null;
   name: string;
   realm: string;

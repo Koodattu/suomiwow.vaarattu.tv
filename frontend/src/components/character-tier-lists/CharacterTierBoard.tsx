@@ -9,6 +9,7 @@ import type { CharacterTierName, CharacterTierListRole } from "@/types";
 
 export type CharacterTierBoardItem = {
   characterKey: string;
+  accountGroupId?: string | null;
   name: string;
   realm: string;
   region: string;
@@ -23,6 +24,7 @@ export type CharacterTierBoardItem = {
   bestSpecName?: string | null;
   pulls?: number | null;
   deaths?: number | null;
+  lastSeenAt?: string | Date | null;
 };
 
 const TIERS = ["Crown", "S", "A", "B", "C", "D", "E", "F"] as const;
@@ -103,6 +105,44 @@ function getCharacterHref(item: CharacterTierBoardItem) {
   return `/characters/${encodeURIComponent(item.realm)}/${encodeURIComponent(item.name)}?class=${encodeURIComponent(String(item.classID))}`;
 }
 
+function getRepresentativeKey(character: CharacterTierBoardItem): string {
+  return character.accountGroupId ? `account:${character.accountGroupId}` : `character:${character.characterKey}`;
+}
+
+function getTime(value: string | Date | null | undefined): number {
+  if (!value) return 0;
+  const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function isBetterTierRepresentative(candidate: CharacterTierBoardItem, current: CharacterTierBoardItem): boolean {
+  if (candidate.reportCount !== current.reportCount) return candidate.reportCount > current.reportCount;
+
+  const candidateLastSeenAt = getTime(candidate.lastSeenAt);
+  const currentLastSeenAt = getTime(current.lastSeenAt);
+  if (candidateLastSeenAt !== currentLastSeenAt) return candidateLastSeenAt > currentLastSeenAt;
+
+  return candidate.characterKey.localeCompare(current.characterKey) < 0;
+}
+
+function sortTierCharacters(a: CharacterTierBoardItem, b: CharacterTierBoardItem): number {
+  return (b.score ?? 0) - (a.score ?? 0) || b.reportCount - a.reportCount || a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm);
+}
+
+function selectTierRepresentatives(characters: CharacterTierBoardItem[]): CharacterTierBoardItem[] {
+  const selectedCharacters = new Map<string, CharacterTierBoardItem>();
+
+  for (const character of characters) {
+    const representativeKey = getRepresentativeKey(character);
+    const current = selectedCharacters.get(representativeKey);
+    if (!current || isBetterTierRepresentative(character, current)) {
+      selectedCharacters.set(representativeKey, character);
+    }
+  }
+
+  return Array.from(selectedCharacters.values()).sort(sortTierCharacters);
+}
+
 export function CharacterTierCard({
   item,
   dragAttributes,
@@ -164,7 +204,7 @@ export function CharacterTierCard({
 }
 
 export function groupCharactersIntoTiers(characters: CharacterTierBoardItem[], showCrown = true): Record<CharacterTierName, CharacterTierBoardItem[]> {
-  const sorted = [...characters].filter((character) => character.score !== null).sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || b.reportCount - a.reportCount || a.name.localeCompare(b.name));
+  const sorted = [...characters].filter((character) => character.score !== null).sort(sortTierCharacters);
   const groups: Record<CharacterTierName, CharacterTierBoardItem[]> = {
     Crown: [],
     S: [],
@@ -188,6 +228,10 @@ export function groupCharactersIntoTiers(characters: CharacterTierBoardItem[], s
       groups[getTierByScore(character.score ?? 0, thresholds)].push(character);
     }
   });
+
+  for (const tier of TIERS) {
+    groups[tier] = selectTierRepresentatives(groups[tier]);
+  }
 
   return groups;
 }

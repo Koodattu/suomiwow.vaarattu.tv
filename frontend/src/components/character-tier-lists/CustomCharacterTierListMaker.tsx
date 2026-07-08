@@ -188,6 +188,7 @@ function toBoardItem(character: CustomCharacterTierListResponse["roster"][number
     bestSpecName: character.bestSpecName,
     pulls: character.pulls,
     deaths: character.deaths,
+    lastSeenAt: character.lastSeenAt,
   };
 }
 
