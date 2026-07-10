@@ -443,6 +443,7 @@ class GuildService {
       .filter(Boolean)
       .map((channelName) => ({
         channelName,
+        adminManaged: true,
         isLive: false,
         isPlayingWoW: false,
         gameName: undefined,

@@ -979,6 +979,17 @@ export const api = {
     return response.json();
   },
 
+  async removeAdminGuildStreamer(guildId: string, channelName: string): Promise<void> {
+    const response = await fetch(`${API_URL}/api/admin/guilds/${guildId}/streamers/${encodeURIComponent(channelName)}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to remove guild streamer");
+    }
+  },
+
   async toggleGuildRaidExclusion(guildId: string, raidId: number, excluded: boolean): Promise<ToggleGuildRaidExclusionResponse> {
     const response = await fetch(`${API_URL}/api/admin/guilds/${guildId}/excluded-raids`, {
       method: "PUT",

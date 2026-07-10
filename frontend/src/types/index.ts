@@ -2653,7 +2653,7 @@ export interface AdminGuildDetail {
   warcraftlogsId?: number;
   horseRaceUmaImage?: string;
   parentGuild?: string;
-  streamers?: Array<{ channelName: string; isLive?: boolean; isPlayingWoW?: boolean }>;
+  streamers?: Array<{ channelName: string; adminManaged?: boolean; isLive?: boolean; isPlayingWoW?: boolean }>;
   isCurrentlyRaiding: boolean;
   activityStatus?: "active" | "inactive";
   lastFetched?: string;

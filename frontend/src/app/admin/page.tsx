@@ -1463,7 +1463,11 @@ export default function AdminPage() {
     setEditGuildTarget({ id: selectedGuild.id, name: selectedGuild.name });
     setEditGuildForm({
       parent_guild: selectedGuild.parentGuild || "",
-      streamers: selectedGuild.streamers?.map((s: { channelName: string }) => s.channelName).join(", ") || "",
+      streamers:
+        selectedGuild.streamers
+          ?.filter((streamer) => streamer.adminManaged !== false)
+          .map((streamer) => streamer.channelName)
+          .join(", ") || "",
       activityStatus: selectedGuild.activityStatus || "active",
       horseRaceUmaImage: selectedGuild.horseRaceUmaImage || "",
     });
@@ -1504,6 +1508,26 @@ export default function AdminPage() {
       setTriggerMessage({
         type: "error",
         text: error instanceof Error ? error.message : "Failed to update guild",
+      });
+    } finally {
+      setEditGuildLoading(false);
+    }
+  };
+
+  const handleRemoveSelfManagedStreamer = async (channelName: string) => {
+    if (!editGuildTarget || !confirm(`Remove ${channelName} from ${editGuildTarget.name} entirely? The user will be able to select the guild again later.`)) return;
+
+    setEditGuildLoading(true);
+    try {
+      await api.removeAdminGuildStreamer(editGuildTarget.id, channelName);
+      const detail = await getAdminGuildDetail(editGuildTarget.id);
+      setSelectedGuild(detail);
+      setTriggerMessage({ type: "success", text: `${channelName} removed from ${editGuildTarget.name}` });
+      setTimeout(() => setTriggerMessage(null), 5000);
+    } catch (error) {
+      setTriggerMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to remove guild streamer",
       });
     } finally {
       setEditGuildLoading(false);
@@ -5529,7 +5553,29 @@ export default function AdminPage() {
                     className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                     placeholder="streamer1, streamer2, streamer3"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Comma-separated Twitch channel names</p>
+                  <p className="mt-1 text-xs text-gray-500">Comma-separated admin-managed Twitch channel names</p>
+                  {selectedGuild?.streamers?.some((streamer) => streamer.adminManaged === false) && (
+                    <div className="mt-3 rounded-lg bg-gray-900/60 p-2 shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
+                      <p className="px-1 pb-1 text-xs text-gray-400 text-pretty">Self-managed streamers are kept when the admin list changes. Remove one entirely only when moderation requires it.</p>
+                      <div className="divide-y divide-gray-700/80">
+                        {selectedGuild.streamers
+                          .filter((streamer) => streamer.adminManaged === false)
+                          .map((streamer) => (
+                            <div key={streamer.channelName} className="flex min-h-12 items-center justify-between gap-3 px-1 py-1">
+                              <span className="truncate text-sm text-gray-200">{streamer.channelName}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSelfManagedStreamer(streamer.channelName)}
+                                disabled={editGuildLoading}
+                                className="min-h-10 shrink-0 rounded-md bg-red-950/70 px-3 text-xs font-medium text-red-300 shadow-[0_0_0_1px_rgba(248,113,113,0.25)] transition-transform duration-150 ease-out hover:bg-red-950 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Remove entirely
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Horse Race Uma */}

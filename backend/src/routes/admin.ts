@@ -55,6 +55,92 @@ function getAllowedDeathResetStatuses(value: unknown): Array<"failed" | "archive
   return statuses.length > 0 ? Array.from(new Set(statuses)) : ["failed", "archived"];
 }
 
+function normalizeStreamerChannels(channelNames: string[]): string[] {
+  return Array.from(new Set(channelNames.map((channelName) => channelName.trim().toLowerCase()).filter(Boolean)));
+}
+
+async function syncAdminStreamerClaims(guildId: string, channelNames: string[]): Promise<void> {
+  const normalizedChannels = normalizeStreamerChannels(channelNames);
+
+  // Reconcile the admin claim in one database update. Existing status and user
+  // ownership fields are preserved, and a self-service-only entry survives when
+  // it is absent from the admin list.
+  await Guild.updateOne({ _id: guildId }, [
+    {
+      $set: {
+        streamers: {
+          $let: {
+            vars: {
+              existing: { $ifNull: ["$streamers", []] },
+              requested: { $literal: normalizedChannels },
+            },
+            in: {
+              $concatArrays: [
+                {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$$existing",
+                        as: "streamer",
+                        cond: {
+                          $or: [
+                            { $in: [{ $toLower: "$$streamer.channelName" }, "$$requested"] },
+                            { $ne: [{ $ifNull: ["$$streamer.managedByUserId", ""] }, ""] },
+                          ],
+                        },
+                      },
+                    },
+                    as: "streamer",
+                    in: {
+                      $mergeObjects: [
+                        "$$streamer",
+                        { adminManaged: { $in: [{ $toLower: "$$streamer.channelName" }, "$$requested"] } },
+                      ],
+                    },
+                  },
+                },
+                {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$$requested",
+                        as: "channelName",
+                        cond: {
+                          $not: [
+                            {
+                              $in: [
+                                "$$channelName",
+                                {
+                                  $map: {
+                                    input: "$$existing",
+                                    as: "streamer",
+                                    in: { $toLower: "$$streamer.channelName" },
+                                  },
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                      },
+                    },
+                    as: "channelName",
+                    in: {
+                      channelName: "$$channelName",
+                      adminManaged: true,
+                      isLive: false,
+                      isPlayingWoW: false,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+  ]);
+}
+
 // ============================================================
 // WARCRAFT LOGS USER OAUTH
 // ============================================================
@@ -1313,12 +1399,11 @@ router.post("/guilds", async (req: Request, res: Response) => {
 
     // Format streamers array
     const formattedStreamers = streamers
-      ? streamers.map((channelName: string) => ({
-          channelName: channelName.trim().toLowerCase(),
+      ? normalizeStreamerChannels(streamers).map((channelName) => ({
+          channelName,
+          adminManaged: true,
           isLive: false,
           isPlayingWoW: false,
-          gameName: null,
-          lastChecked: null,
         }))
       : [];
 
@@ -1460,13 +1545,6 @@ router.put("/guilds/:guildId", async (req: Request, res: Response) => {
       if (!streamers.every((s: unknown) => typeof s === "string")) {
         return res.status(400).json({ error: "All streamer entries must be strings" });
       }
-      guild.streamers = streamers.map((channelName: string) => ({
-        channelName: channelName.trim().toLowerCase(),
-        isLive: false,
-        isPlayingWoW: false,
-        gameName: undefined,
-        lastChecked: undefined,
-      }));
     }
 
     if (activityStatus !== undefined) {
@@ -1485,6 +1563,13 @@ router.put("/guilds/:guildId", async (req: Request, res: Response) => {
     }
 
     await guild.save();
+    if (streamers !== undefined) {
+      await syncAdminStreamerClaims(guildId, streamers);
+    }
+    const updatedGuild = streamers !== undefined ? await Guild.findById(guildId) : guild;
+    if (!updatedGuild) {
+      return res.status(404).json({ error: "Guild not found" });
+    }
     cacheService.refreshCurrentRaidCaches().catch((error) => {
       logger.warn("Failed to refresh current raid caches after admin guild update:", error);
     });
@@ -1501,15 +1586,46 @@ router.put("/guilds/:guildId", async (req: Request, res: Response) => {
         name: guild.name,
         realm: guild.realm,
         region: guild.region,
-        horseRaceUmaImage: guild.horseRaceUmaImage,
-        parent_guild: guild.parent_guild,
-        streamers: guild.streamers,
-        activityStatus: guild.activityStatus,
+        horseRaceUmaImage: updatedGuild.horseRaceUmaImage,
+        parent_guild: updatedGuild.parent_guild,
+        streamers: updatedGuild.streamers,
+        activityStatus: updatedGuild.activityStatus,
       },
     });
   } catch (error) {
     logger.error("Error updating guild:", error);
     res.status(500).json({ error: "Failed to update guild" });
+  }
+});
+
+// Remove an association completely, including both admin and self-service claims.
+router.delete("/guilds/:guildId/streamers/:channelName", async (req: Request, res: Response) => {
+  try {
+    const { guildId } = req.params;
+    const channelName = req.params.channelName.trim().toLowerCase();
+    if (!channelName) {
+      return res.status(400).json({ error: "Twitch channel name is required" });
+    }
+
+    const guild = await Guild.findById(guildId).select("name realm").lean();
+    if (!guild) {
+      return res.status(404).json({ error: "Guild not found" });
+    }
+
+    const result = await Guild.updateOne({ _id: guildId }, { $pull: { streamers: { channelName } } });
+    if (result.modifiedCount === 0) {
+      return res.status(404).json({ error: "Streamer association not found" });
+    }
+
+    await cacheService.invalidateGuildSpecificCaches(guild.realm, guild.name);
+    cacheService.refreshCurrentRaidCaches().catch((error) => {
+      logger.warn("Failed to refresh current raid caches after removing guild streamer:", error);
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error("Error removing guild streamer:", error);
+    res.status(500).json({ error: "Failed to remove guild streamer" });
   }
 });
 

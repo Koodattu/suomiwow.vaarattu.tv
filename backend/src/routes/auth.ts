@@ -65,8 +65,11 @@ async function getEligibleStreamerGuilds(user: IUser): Promise<EligibleStreamerG
 
   const guilds = await Guild.find({
     $or: uniquePairs.map((pair) => ({
-      name: { $regex: new RegExp(`^${escapeRegex(pair.name)}$`, "i") },
       realm: { $regex: new RegExp(`^${escapeRegex(pair.realm)}$`, "i") },
+      $or: [
+        { name: { $regex: new RegExp(`^${escapeRegex(pair.name)}$`, "i") } },
+        { parent_guild: { $regex: new RegExp(`^${escapeRegex(pair.name)}$`, "i") } },
+      ],
     })),
   })
     .select("_id name realm region parent_guild")
@@ -81,8 +84,8 @@ async function getEligibleStreamerGuilds(user: IUser): Promise<EligibleStreamerG
   }));
 }
 
-async function getSelectedStreamerGuildId(channelName: string, eligibleGuilds: EligibleStreamerGuild[]): Promise<string | null> {
-  const activeGuilds = await Guild.find({ "streamers.channelName": channelName }).select("_id").lean();
+async function getSelectedStreamerGuildId(userId: string, eligibleGuilds: EligibleStreamerGuild[]): Promise<string | null> {
+  const activeGuilds = await Guild.find({ "streamers.managedByUserId": userId }).select("_id").lean();
   if (activeGuilds.length === 0) {
     return null;
   }
@@ -101,24 +104,81 @@ async function invalidateStreamerGuildCaches(guilds: EligibleStreamerGuild[]): P
   });
 }
 
-async function removeStreamerChannel(channelName: string): Promise<void> {
-  const affectedGuilds = await Guild.find({ "streamers.channelName": channelName }).select("_id name realm region parent_guild").lean();
+function toEligibleStreamerGuild(guild: any): EligibleStreamerGuild {
+  return {
+    id: guild._id.toString(),
+    name: guild.name,
+    realm: guild.realm,
+    region: guild.region,
+    parent_guild: guild.parent_guild,
+  };
+}
 
+async function removeUserStreamerClaims(userId: string, exceptGuildId?: string): Promise<EligibleStreamerGuild[]> {
+  const filter: Record<string, unknown> = { "streamers.managedByUserId": userId };
+  if (exceptGuildId) {
+    filter._id = { $ne: exceptGuildId };
+  }
+
+  const affectedGuilds = await Guild.find(filter).select("_id name realm region parent_guild").lean();
   if (affectedGuilds.length === 0) {
+    return [];
+  }
+
+  // User-only associations can be removed. For overlapping admin/user
+  // associations, remove only the user's claim and leave the admin pin intact.
+  await Guild.updateMany(filter, {
+    $pull: { streamers: { managedByUserId: userId, adminManaged: false } },
+  });
+  await Guild.updateMany(
+    filter,
+    { $unset: { "streamers.$[streamer].managedByUserId": "" } },
+    { arrayFilters: [{ "streamer.managedByUserId": userId }] },
+  );
+
+  return affectedGuilds.map(toEligibleStreamerGuild);
+}
+
+async function clearUserStreamerClaims(userId: string): Promise<void> {
+  const affectedGuilds = await removeUserStreamerClaims(userId);
+  if (affectedGuilds.length > 0) {
+    await invalidateStreamerGuildCaches(affectedGuilds);
+  }
+}
+
+async function addUserStreamerClaim(guildId: string, channelName: string, userId: string): Promise<void> {
+  const claimExisting = () =>
+    Guild.updateOne(
+      { _id: guildId, "streamers.channelName": channelName },
+      { $set: { "streamers.$[streamer].managedByUserId": userId } },
+      { arrayFilters: [{ "streamer.channelName": channelName }] },
+    );
+
+  const existingResult = await claimExisting();
+  if (existingResult.matchedCount > 0) {
     return;
   }
 
-  await Guild.updateMany({ "streamers.channelName": channelName }, { $pull: { streamers: { channelName } } });
-
-  await invalidateStreamerGuildCaches(
-    affectedGuilds.map((guild: any) => ({
-      id: guild._id.toString(),
-      name: guild.name,
-      realm: guild.realm,
-      region: guild.region,
-      parent_guild: guild.parent_guild,
-    })),
+  const addResult = await Guild.updateOne(
+    { _id: guildId, "streamers.channelName": { $ne: channelName } },
+    {
+      $push: {
+        streamers: {
+          channelName,
+          adminManaged: false,
+          managedByUserId: userId,
+          isLive: false,
+          isPlayingWoW: false,
+        },
+      },
+    },
   );
+
+  // An admin may have added the same channel between the first lookup and the
+  // push. Attach the user's claim to that entry instead of creating a duplicate.
+  if (addResult.matchedCount === 0) {
+    await claimExisting();
+  }
 }
 
 async function updateUserStreamerGuild(user: IUser, guildId: string | null): Promise<{ selectedGuildId: string | null; eligibleGuilds: EligibleStreamerGuild[] }> {
@@ -131,6 +191,7 @@ async function updateUserStreamerGuild(user: IUser, guildId: string | null): Pro
   }
 
   const channelName = user.twitch.login.trim().toLowerCase();
+  const userId = user._id.toString();
   const eligibleGuilds = await getEligibleStreamerGuilds(user);
   const targetGuild = guildId ? eligibleGuilds.find((guild) => guild.id === guildId) : null;
 
@@ -138,41 +199,14 @@ async function updateUserStreamerGuild(user: IUser, guildId: string | null): Pro
     throw new Error("You must select a tracked guild from one of your selected characters");
   }
 
-  const affectedGuilds = await Guild.find({ "streamers.channelName": channelName }).select("_id name realm region parent_guild").lean();
-
-  await Guild.updateMany(
-    {
-      "streamers.channelName": channelName,
-      ...(guildId ? { _id: { $ne: guildId } } : {}),
-    },
-    { $pull: { streamers: { channelName } } },
-  );
+  const affectedGuilds = await removeUserStreamerClaims(userId, guildId || undefined);
 
   if (guildId) {
-    await Guild.updateOne(
-      { _id: guildId, "streamers.channelName": { $ne: channelName } },
-      {
-        $push: {
-          streamers: {
-            channelName,
-            isLive: false,
-            isPlayingWoW: false,
-            gameName: undefined,
-            lastChecked: undefined,
-          },
-        },
-      },
-    );
+    await addUserStreamerClaim(guildId, channelName, userId);
   }
 
   await invalidateStreamerGuildCaches([
-    ...affectedGuilds.map((guild: any) => ({
-      id: guild._id.toString(),
-      name: guild.name,
-      realm: guild.realm,
-      region: guild.region,
-      parent_guild: guild.parent_guild,
-    })),
+    ...affectedGuilds,
     ...(targetGuild ? [targetGuild] : []),
   ]);
 
@@ -187,15 +221,15 @@ async function sanitizeUserStreamerGuild(user: IUser): Promise<void> {
     return;
   }
 
-  const channelName = user.twitch.login.trim().toLowerCase();
+  const userId = user._id.toString();
 
   if (!user.battlenet) {
-    await removeStreamerChannel(channelName);
+    await clearUserStreamerClaims(userId);
     return;
   }
 
   const eligibleGuilds = await getEligibleStreamerGuilds(user);
-  const activeGuilds = await Guild.find({ "streamers.channelName": channelName }).select("_id name realm region parent_guild").lean();
+  const activeGuilds = await Guild.find({ "streamers.managedByUserId": userId }).select("_id name realm region parent_guild").lean();
   if (activeGuilds.length === 0) {
     return;
   }
@@ -204,22 +238,13 @@ async function sanitizeUserStreamerGuild(user: IUser): Promise<void> {
   const selectedGuild = activeGuilds.find((guild: any) => eligibleIds.has(guild._id.toString()));
 
   if (!selectedGuild) {
-    await removeStreamerChannel(channelName);
+    await clearUserStreamerClaims(userId);
     return;
   }
 
-  const extraGuilds = activeGuilds.filter((guild: any) => guild._id.toString() !== selectedGuild._id.toString());
-  if (extraGuilds.length > 0) {
-    await Guild.updateMany({ _id: { $in: extraGuilds.map((guild: any) => guild._id) } }, { $pull: { streamers: { channelName } } });
-    await invalidateStreamerGuildCaches(
-      extraGuilds.map((guild: any) => ({
-        id: guild._id.toString(),
-        name: guild.name,
-        realm: guild.realm,
-        region: guild.region,
-        parent_guild: guild.parent_guild,
-      })),
-    );
+  const affectedGuilds = await removeUserStreamerClaims(userId, selectedGuild._id.toString());
+  if (affectedGuilds.length > 0) {
+    await invalidateStreamerGuildCaches(affectedGuilds);
   }
 }
 
@@ -567,11 +592,8 @@ router.post("/twitch/disconnect", async (req: Request, res: Response) => {
       await twitchAuthService.revokeToken(user.twitch.accessToken);
     }
 
-    const channelName = user.twitch?.login?.trim().toLowerCase();
     await twitchAuthService.disconnectTwitchAccount(user._id.toString());
-    if (channelName) {
-      await removeStreamerChannel(channelName);
-    }
+    await clearUserStreamerClaims(user._id.toString());
     res.json({ success: true });
   } catch (error) {
     logger.error("Error disconnecting Twitch:", error);
@@ -658,11 +680,8 @@ router.post("/battlenet/disconnect", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    const channelName = user.twitch?.login?.trim().toLowerCase();
     await battlenetAuthService.disconnectBattleNetAccount(user._id.toString());
-    if (channelName) {
-      await removeStreamerChannel(channelName);
-    }
+    await clearUserStreamerClaims(user._id.toString());
     res.json({ success: true });
   } catch (error) {
     logger.error("Error disconnecting Battle.net:", error);
@@ -773,10 +792,8 @@ router.get("/me/streamer-settings", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    await sanitizeUserStreamerGuild(user);
-
     const eligibleGuilds = await getEligibleStreamerGuilds(user);
-    const selectedGuildId = user.twitch ? await getSelectedStreamerGuildId(user.twitch.login.trim().toLowerCase(), eligibleGuilds) : null;
+    const selectedGuildId = user.twitch ? await getSelectedStreamerGuildId(user._id.toString(), eligibleGuilds) : null;
 
     res.json({
       selectedGuildId,
@@ -881,6 +898,7 @@ router.delete("/me", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
+    await clearUserStreamerClaims(user._id.toString());
     await User.deleteOne({ _id: user._id });
 
     req.session.destroy((err) => {

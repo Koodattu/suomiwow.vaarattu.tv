@@ -64,6 +64,29 @@ function throttleDelay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function updateStreamerStatusFields(guildId: mongoose.Types.ObjectId, channelName: string, statusFields: Record<string, unknown>): Promise<void> {
+  const setFields: Record<string, unknown> = {};
+  const unsetFields: Record<string, ""> = {};
+
+  for (const [field, value] of Object.entries(statusFields)) {
+    const path = `streamers.$[streamer].${field}`;
+    if (value === undefined) {
+      unsetFields[path] = "";
+    } else {
+      setFields[path] = value;
+    }
+  }
+
+  await Guild.updateOne(
+    { _id: guildId, "streamers.channelName": channelName },
+    {
+      $set: setFields,
+      ...(Object.keys(unsetFields).length > 0 ? { $unset: unsetFields } : {}),
+    },
+    { arrayFilters: [{ "streamer.channelName": channelName }] },
+  );
+}
+
 /** Minimum interval between cache warming operations (in ms) */
 const CACHE_WARM_DEBOUNCE_MS = 5 * 60 * 1000; // 5 minutes
 const HOME_CACHE_REFRESH_MS = parseInt(process.env.HOME_CACHE_REFRESH_MINUTES || "4", 10) * 60 * 1000;
@@ -1823,11 +1846,22 @@ class UpdateScheduler {
         });
 
         if (hasChanges) {
-          await Guild.updateOne(
-            { _id: guild._id },
-            {
-              $set: { streamers: updatedStreamers },
-            },
+          await Promise.all(
+            updatedStreamers.map((updatedStreamer) =>
+              updateStreamerStatusFields(guild._id, updatedStreamer.channelName, {
+                isLive: updatedStreamer.isLive,
+                isPlayingWoW: updatedStreamer.isPlayingWoW,
+                gameName: updatedStreamer.gameName,
+                twitchUserId: updatedStreamer.twitchUserId,
+                currentStreamId: updatedStreamer.currentStreamId,
+                streamStartedAt: updatedStreamer.streamStartedAt,
+                lastStreamId: updatedStreamer.lastStreamId,
+                lastStreamStartedAt: updatedStreamer.lastStreamStartedAt,
+                lastStreamEndedAt: updatedStreamer.lastStreamEndedAt,
+                lastLiveAt: updatedStreamer.lastLiveAt,
+                lastChecked: updatedStreamer.lastChecked,
+              }),
+            ),
           );
           changedGuildSummaries.push({ realm: guild.realm, name: guild.name });
         }
@@ -1897,11 +1931,22 @@ class UpdateScheduler {
           lastChecked: now,
         }));
 
-        await Guild.updateOne(
-          { _id: guild._id },
-          {
-            $set: { streamers: updatedStreamers },
-          },
+        await Promise.all(
+          updatedStreamers.map((updatedStreamer) =>
+            updateStreamerStatusFields(guild._id, updatedStreamer.channelName, {
+              isLive: updatedStreamer.isLive,
+              isPlayingWoW: updatedStreamer.isPlayingWoW,
+              gameName: updatedStreamer.gameName,
+              twitchUserId: updatedStreamer.twitchUserId,
+              currentStreamId: updatedStreamer.currentStreamId,
+              streamStartedAt: updatedStreamer.streamStartedAt,
+              lastStreamId: updatedStreamer.lastStreamId,
+              lastStreamStartedAt: updatedStreamer.lastStreamStartedAt,
+              lastStreamEndedAt: updatedStreamer.lastStreamEndedAt,
+              lastLiveAt: updatedStreamer.lastLiveAt,
+              lastChecked: updatedStreamer.lastChecked,
+            }),
+          ),
         );
         changedGuildSummaries.push({ realm: guild.realm, name: guild.name });
       }

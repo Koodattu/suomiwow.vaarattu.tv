@@ -2,6 +2,9 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export interface IStreamer {
   channelName: string; // Twitch channel name (login name)
+  // Missing adminManaged on legacy records is intentionally treated as true.
+  adminManaged?: boolean; // Whether an admin explicitly attached this channel to the guild
+  managedByUserId?: string; // Site user who selected this guild through self-service
   isLive: boolean; // Current live status
   isPlayingWoW: boolean; // Whether the streamer is playing World of Warcraft
   gameName?: string; // Current game being played
@@ -18,6 +21,8 @@ export interface IStreamer {
 const StreamerSchema = new Schema<IStreamer>(
   {
     channelName: { type: String, required: true },
+    adminManaged: { type: Boolean, default: true },
+    managedByUserId: { type: String },
     isLive: { type: Boolean, required: true, default: false },
     isPlayingWoW: { type: Boolean, required: true, default: false },
     gameName: { type: String },
