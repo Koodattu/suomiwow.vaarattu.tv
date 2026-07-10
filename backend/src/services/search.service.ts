@@ -32,6 +32,13 @@ type ScoredSearchResult = SearchResult & {
   lastSeenAt?: Date;
 };
 
+type BotCharacterGuild = {
+  name: string;
+  realm: string;
+  reportCount: number;
+  lastSeenAt: Date;
+};
+
 const normalizeSearchText = (value: string): string =>
   value
     .normalize("NFD")
@@ -105,11 +112,11 @@ class SearchService {
       return [selectedValueResult];
     }
 
-    const namePrefix = new RegExp(`^${escapeRegex(trimmedQuery)}`, "i");
+    const nameMatch = new RegExp(escapeRegex(trimmedQuery), "i");
     const perTypeLimit = limit;
 
     const [guilds, characters] = await Promise.all([
-      Guild.find({ name: namePrefix }).sort({ name: 1, realm: 1 }).limit(perTypeLimit).select("name realm iconUrl crest faction -_id").lean(),
+      Guild.find({ name: nameMatch }).sort({ name: 1, realm: 1 }).limit(perTypeLimit).select("name realm iconUrl crest faction -_id").lean(),
       characterService.searchCharacters(trimmedQuery, perTypeLimit),
     ]);
 
@@ -145,7 +152,46 @@ class SearchService {
       return [];
     }
 
-    const [guildCandidates, characterCandidates] = await Promise.all([this.loadBotGuildCandidates(), this.loadBotCharacterCandidates()]);
+    const [guildCandidates, currentCharacterCandidates, directCharacters] = await Promise.all([
+      this.loadBotGuildCandidates(),
+      this.loadBotCharacterCandidates(),
+      characterService.searchCharacters(trimmedQuery, limit),
+    ]);
+    const characterCandidates = currentCharacterCandidates.map((candidate) => ({ ...candidate, searchText: [...candidate.searchText] }));
+    const currentCharacterByKey = new Map(characterCandidates.map((candidate) => [`${candidate.href}:${candidate.classID}`, candidate]));
+
+    for (const character of directCharacters) {
+      const href = `/characters/${encodeURIComponent(character.realm)}/${encodeURIComponent(character.name)}`;
+      const key = `${href}:${character.classID}`;
+      const currentCandidate = currentCharacterByKey.get(key);
+      const matchedName = character.matchedName ?? character.name;
+      const matchedRealm = character.matchedRealm ?? character.realm;
+      const searchText = [
+        character.name,
+        `${character.name} ${character.realm}`,
+        `${character.name}-${character.realm}`,
+        matchedName,
+        `${matchedName} ${matchedRealm}`,
+        `${matchedName}-${matchedRealm}`,
+      ].map(normalizeSearchText);
+
+      if (currentCandidate) {
+        currentCandidate.searchText = Array.from(new Set([...currentCandidate.searchText, ...searchText]));
+        continue;
+      }
+
+      characterCandidates.push({
+        name: character.name,
+        realm: character.realm,
+        type: "character",
+        href,
+        classID: character.classID,
+        guild: null,
+        lastSeenAt: character.lastReportSeenAt,
+        searchText: Array.from(new Set(searchText)),
+      });
+    }
+
     const scored = [...guildCandidates, ...characterCandidates]
       .map((candidate): ScoredSearchResult | null => {
         const score = Math.max(...candidate.searchText.map((text) => scoreSearchCandidate(normalizedQuery, text)));
@@ -169,10 +215,11 @@ class SearchService {
         if (seenDiff !== 0) return seenDiff;
 
         return a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm);
-      })
-      .slice(0, limit);
+      });
 
-    return scored.map(({ score, lastSeenAt, ...result }) => result);
+    const selected = scored[0]?.score === 100 ? scored.slice(0, 1) : scored.slice(0, limit);
+
+    return selected.map(({ score, lastSeenAt, ...result }) => result);
   }
 
   private async loadBotGuildCandidates(): Promise<BotSearchCandidate[]> {
@@ -199,37 +246,82 @@ class SearchService {
     }
 
     const rows = await CharacterRaidParticipation.find({ zoneId: { $in: CURRENT_RAID_IDS } })
-      .sort({ lastSeenAt: -1 })
-      .limit(3000)
-      .select("wclCanonicalCharacterId characterName characterRealm classID reportGuildName reportGuildRealm lastSeenAt -_id")
+      .select("wclCanonicalCharacterId characterName characterRealm characterRegion classID reportGuildId reportGuildName reportGuildRealm reportCount lastSeenAt -_id")
       .lean();
 
-    const byCharacter = new Map<string, (typeof rows)[number]>();
+    type BotCharacterRow = (typeof rows)[number];
+    type BotCharacterGroup = {
+      latest: BotCharacterRow;
+      searchText: Set<string>;
+      guilds: Map<string, BotCharacterGuild>;
+    };
+
+    const byCharacter = new Map<string, BotCharacterGroup>();
     for (const row of rows) {
       const key =
         typeof row.wclCanonicalCharacterId === "number"
           ? `wcl:${row.wclCanonicalCharacterId}:${row.classID}`
-          : `name:${normalizeSearchText(row.characterName)}:${normalizeSearchText(row.characterRealm)}:${row.classID}`;
-      if (!byCharacter.has(key)) {
-        byCharacter.set(key, row);
+          : `name:${normalizeSearchText(row.characterRegion)}:${normalizeSearchText(row.characterName)}:${normalizeSearchText(row.characterRealm)}:${row.classID}`;
+      let character = byCharacter.get(key);
+      if (!character) {
+        character = {
+          latest: row,
+          searchText: new Set<string>(),
+          guilds: new Map<string, BotCharacterGuild>(),
+        };
+        byCharacter.set(key, character);
+      } else if (row.lastSeenAt.getTime() > character.latest.lastSeenAt.getTime()) {
+        character.latest = row;
+      }
+
+      [row.characterName, `${row.characterName} ${row.characterRealm}`, `${row.characterName}-${row.characterRealm}`]
+        .map(normalizeSearchText)
+        .forEach((text) => character.searchText.add(text));
+
+      const guildKey = row.reportGuildId.toString();
+      const guild = character.guilds.get(guildKey);
+      if (!guild) {
+        character.guilds.set(guildKey, {
+          name: row.reportGuildName,
+          realm: row.reportGuildRealm,
+          reportCount: row.reportCount,
+          lastSeenAt: row.lastSeenAt,
+        });
+      } else {
+        guild.reportCount += row.reportCount;
+        if (row.lastSeenAt.getTime() > guild.lastSeenAt.getTime()) {
+          guild.name = row.reportGuildName;
+          guild.realm = row.reportGuildRealm;
+          guild.lastSeenAt = row.lastSeenAt;
+        }
       }
     }
 
-    const candidates = Array.from(byCharacter.values()).map((character) => ({
-      name: character.characterName,
-      realm: character.characterRealm,
-      type: "character" as const,
-      href: `/characters/${encodeURIComponent(character.characterRealm)}/${encodeURIComponent(character.characterName)}`,
-      classID: character.classID,
-      guild: character.reportGuildName
-        ? {
-            name: character.reportGuildName,
-            realm: character.reportGuildRealm,
-          }
-        : null,
-      lastSeenAt: character.lastSeenAt,
-      searchText: [character.characterName, `${character.characterName} ${character.characterRealm}`, `${character.characterName}-${character.characterRealm}`].map(normalizeSearchText),
-    }));
+    const candidates = Array.from(byCharacter.values()).map((character) => {
+      const popularGuild = Array.from(character.guilds.values()).sort(
+        (a, b) =>
+          b.reportCount - a.reportCount ||
+          b.lastSeenAt.getTime() - a.lastSeenAt.getTime() ||
+          a.name.localeCompare(b.name) ||
+          a.realm.localeCompare(b.realm),
+      )[0];
+
+      return {
+        name: character.latest.characterName,
+        realm: character.latest.characterRealm,
+        type: "character" as const,
+        href: `/characters/${encodeURIComponent(character.latest.characterRealm)}/${encodeURIComponent(character.latest.characterName)}`,
+        classID: character.latest.classID,
+        guild: popularGuild
+          ? {
+              name: popularGuild.name,
+              realm: popularGuild.realm,
+            }
+          : null,
+        lastSeenAt: character.latest.lastSeenAt,
+        searchText: Array.from(character.searchText),
+      };
+    });
 
     this.botCharacterCandidateCache = {
       expiresAt: Date.now() + 5 * 60 * 1000,

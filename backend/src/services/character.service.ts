@@ -2165,12 +2165,12 @@ class CharacterService {
     if (trimmedQuery.length < 2) return [];
 
     const safeLimit = Math.min(Math.max(limit, 1), 10);
-    const namePrefix = this.getAccentInsensitiveRegex(trimmedQuery, { prefix: true });
+    const nameMatch = this.getAccentInsensitiveRegex(trimmedQuery);
 
     const aliasRows = await CharacterRaidParticipation.aggregate([
       {
         $match: {
-          characterName: namePrefix,
+          characterName: nameMatch,
         },
       },
       { $sort: { lastSeenAt: -1 } },

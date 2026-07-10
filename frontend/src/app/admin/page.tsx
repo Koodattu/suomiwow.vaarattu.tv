@@ -779,13 +779,7 @@ export default function AdminPage() {
         return [stream.channelName, stream.gameName, stream.twitchUserId, guildLabel].some((value) => value?.toLowerCase().includes(twitchStreamSearchTerm));
       })
     : twitchStreams;
-  const twitchTrackedChannelMap = new Map(twitchStreams.map((stream) => [stream.channelName.toLowerCase(), stream]));
-  const twitchFollowedTrackedCount = twitchBotFollows?.channels.filter((channel) => twitchTrackedChannelMap.has(channel.broadcasterLogin.toLowerCase())).length || 0;
-  const twitchTrackedUnfollowedCount = twitchBotFollows?.hasRequiredScope
-    ? Array.from(new Set(twitchStreams.map((stream) => stream.channelName.toLowerCase()))).filter(
-        (channelName) => !twitchBotFollows.channels.some((channel) => channel.broadcasterLogin.toLowerCase() === channelName),
-      ).length
-    : null;
+  const twitchBotFollowedChannels = new Set(twitchBotFollows?.channels.map((channel) => channel.broadcasterLogin.toLowerCase()) || []);
   const twitchBotSettingsChanged =
     twitchBotSettingsDraft && twitchBotStatus
       ? JSON.stringify(twitchBotSettingsDraft) !== JSON.stringify(twitchBotStatus.settings)
@@ -2453,8 +2447,7 @@ export default function AdminPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] gap-4">
-                  <div className="bg-gray-800 rounded-lg p-5 space-y-5">
+                <div className="bg-gray-800 rounded-lg p-5 space-y-5">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <h3 className="text-lg font-semibold text-white text-balance">Bot Settings</h3>
@@ -2621,104 +2614,6 @@ export default function AdminPage() {
                         </div>
                       </div>
                     )}
-                  </div>
-
-                  <div className="bg-gray-800 rounded-lg p-5 space-y-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-lg font-semibold text-white text-balance">Bot Follows</h3>
-                        <p className="mt-1 text-sm text-gray-400 text-pretty">Channels followed by the connected bot account, matched against tracked streamers.</p>
-                      </div>
-                      <button
-                        onClick={() => refreshTwitchBotFollows().catch((error) => setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to refresh follows" }))}
-                        disabled={!twitchBotStatus.connected || twitchBotFollowsLoading}
-                        className="min-h-10 px-3 py-2 bg-gray-700 text-gray-200 text-sm rounded hover:bg-gray-600 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
-                      >
-                        {twitchBotFollowsLoading ? "Refreshing..." : "Refresh"}
-                      </button>
-                    </div>
-
-                    {!twitchBotStatus.connected ? (
-                      <div className="rounded-lg bg-gray-900/70 px-4 py-3 text-sm text-gray-400">Connect a bot account to read followed channels.</div>
-                    ) : twitchBotFollows && !twitchBotFollows.hasRequiredScope ? (
-                      <div className="rounded-lg border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
-                        Reconnect the bot account to grant {twitchBotFollows.requiredScope} and show followed channels.
-                      </div>
-                    ) : twitchBotFollows ? (
-                      <>
-                        <div className="grid grid-cols-3 gap-2 text-center text-sm tabular-nums">
-                          <div className="rounded-lg bg-gray-900/70 p-3">
-                            <div className="text-lg font-semibold text-white">{twitchBotFollows.total}</div>
-                            <div className="text-xs text-gray-500">follows</div>
-                          </div>
-                          <div className="rounded-lg bg-gray-900/70 p-3">
-                            <div className="text-lg font-semibold text-green-300">{twitchFollowedTrackedCount}</div>
-                            <div className="text-xs text-gray-500">tracked</div>
-                          </div>
-                          <div className="rounded-lg bg-gray-900/70 p-3">
-                            <div className="text-lg font-semibold text-amber-300">{twitchTrackedUnfollowedCount ?? "-"}</div>
-                            <div className="text-xs text-gray-500">not followed</div>
-                          </div>
-                        </div>
-
-                        <div className="max-h-80 overflow-y-auto rounded-lg bg-gray-900/70">
-                          <table className="w-full min-w-[520px] text-sm">
-                            <thead className="sticky top-0 bg-gray-900">
-                              <tr>
-                                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-400">Channel</th>
-                                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-400">Tracked Guild</th>
-                                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-400">Followed</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-800">
-                              {twitchBotFollows.channels.length === 0 ? (
-                                <tr>
-                                  <td colSpan={3} className="px-3 py-6 text-center text-gray-400">
-                                    The bot account is not following any channels.
-                                  </td>
-                                </tr>
-                              ) : (
-                                twitchBotFollows.channels.map((channel) => {
-                                  const trackedStream = twitchTrackedChannelMap.get(channel.broadcasterLogin.toLowerCase());
-                                  return (
-                                    <tr key={channel.broadcasterId} className="hover:bg-gray-750">
-                                      <td className="px-3 py-2">
-                                        <a
-                                          href={`https://www.twitch.tv/${encodeURIComponent(channel.broadcasterLogin)}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="font-medium text-purple-300 underline hover:text-purple-200"
-                                        >
-                                          {channel.broadcasterName || channel.broadcasterLogin}
-                                        </a>
-                                        <div className="text-xs text-gray-500">{channel.broadcasterLogin}</div>
-                                      </td>
-                                      <td className="px-3 py-2 text-gray-300">
-                                        {trackedStream ? (
-                                          <button onClick={() => handleGuildClick(trackedStream.guild.id)} className="text-left text-amber-400 hover:text-amber-300">
-                                            {trackedStream.guild.name}
-                                            <span className="block text-xs text-gray-500">
-                                              {trackedStream.guild.realm} - {trackedStream.guild.region.toUpperCase()}
-                                            </span>
-                                          </button>
-                                        ) : (
-                                          <span className="text-gray-500">Not tracked</span>
-                                        )}
-                                      </td>
-                                      <td className="px-3 py-2 text-xs text-gray-500">{formatDate(channel.followedAt)}</td>
-                                    </tr>
-                                  );
-                                })
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                        {twitchBotFollows.fetchedAt && <p className="text-xs text-gray-500">Updated {formatDate(twitchBotFollows.fetchedAt)}</p>}
-                      </>
-                    ) : (
-                      <div className="rounded-lg bg-gray-900/70 px-4 py-3 text-sm text-gray-400">Followed channels have not loaded yet.</div>
-                    )}
-                  </div>
                 </div>
               </div>
             )}
@@ -2752,22 +2647,31 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              <div className="relative w-full sm:w-80">
-                <input
-                  type="text"
-                  value={twitchStreamSearch}
-                  onChange={(e) => setTwitchStreamSearch(e.target.value)}
-                  placeholder="Search channel, guild, realm, or game..."
-                  className="w-full px-4 py-2 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                />
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                {twitchStreamSearch && (
-                  <button onClick={() => setTwitchStreamSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
-                    ×
-                  </button>
-                )}
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                <button
+                  onClick={() => refreshTwitchBotFollows().catch((error) => setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to refresh follows" }))}
+                  disabled={!twitchBotStatus?.connected || twitchBotFollowsLoading}
+                  className="min-h-10 px-3 py-2 bg-gray-700 text-gray-200 text-sm rounded hover:bg-gray-600 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
+                >
+                  {twitchBotFollowsLoading ? "Refreshing..." : "Refresh follows"}
+                </button>
+                <div className="relative w-full sm:w-80">
+                  <input
+                    type="text"
+                    value={twitchStreamSearch}
+                    onChange={(e) => setTwitchStreamSearch(e.target.value)}
+                    placeholder="Search channel, guild, realm, or game..."
+                    className="w-full px-4 py-2 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  />
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  {twitchStreamSearch && (
+                    <button onClick={() => setTwitchStreamSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                      ×
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -2779,13 +2683,14 @@ export default function AdminPage() {
               )}
               <div className="bg-gray-800 rounded-lg overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[980px]">
+                  <table className="w-full min-w-[1080px]">
                     <thead className="bg-gray-900">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Channel</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Status</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Game</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Guild</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Bot Follows</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Last Checked</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Last Live</th>
                       </tr>
@@ -2793,7 +2698,7 @@ export default function AdminPage() {
                     <tbody className="divide-y divide-gray-700">
                       {filteredTwitchStreams.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                          <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                             No tracked streams found.
                           </td>
                         </tr>
@@ -2805,6 +2710,7 @@ export default function AdminPage() {
                               : "bg-blue-900/50 text-blue-300"
                             : "bg-gray-700 text-gray-400";
                           const statusLabel = stream.isLive ? (stream.isPlayingWoW ? "Live WoW" : "Live") : "Offline";
+                          const botFollows = twitchBotFollows?.hasRequiredScope ? twitchBotFollowedChannels.has(stream.channelName.toLowerCase()) : null;
 
                           return (
                             <tr key={`${stream.guild.id}-${stream.channelName}`} className="hover:bg-gray-750">
@@ -2830,6 +2736,16 @@ export default function AdminPage() {
                                   {stream.guild.isCurrentlyRaiding && <span className="px-1.5 py-0.5 rounded bg-green-900/40 text-green-300 text-[10px] uppercase">Raiding</span>}
                                   {stream.guild.activityStatus === "inactive" && <span className="px-1.5 py-0.5 rounded bg-gray-700 text-gray-400 text-[10px] uppercase">Inactive</span>}
                                 </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  title={botFollows === null ? "Follow status is unavailable." : undefined}
+                                  className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                                    botFollows === null ? "bg-gray-700 text-gray-400" : botFollows ? "bg-green-900/50 text-green-300" : "bg-amber-900/40 text-amber-300"
+                                  }`}
+                                >
+                                  {botFollows === null ? "Unknown" : botFollows ? "Yes" : "No"}
+                                </span>
                               </td>
                               <td className="px-4 py-3 text-gray-400 text-sm">{stream.lastChecked ? formatDate(stream.lastChecked) : "-"}</td>
                               <td className="px-4 py-3 text-gray-400 text-sm">{stream.lastLiveAt ? formatDate(stream.lastLiveAt) : "-"}</td>
