@@ -3,6 +3,7 @@ import { compareRaidIdsByPriority } from "../utils/raidPriority";
 import { CLASSES } from "../config/classes";
 import { ROLE_BY_CLASS_AND_SPEC } from "../config/specs";
 import { CHARACTER_ACCOUNT_SIGNAL_VERSION } from "../config/achievement-signals";
+import { MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } from "../config/character-eligibility";
 import Character from "../models/Character";
 import CharacterAccountGroup from "../models/CharacterAccountGroup";
 import CharacterLeaderboard from "../models/CharacterLeaderboard";
@@ -2106,7 +2107,7 @@ class CharacterService {
       await tempCollection.rename(targetCollectionName, { dropTarget: true });
       logger.info(`[CharacterRaidParticipation] Step 7/7 complete: replaced ${previousRows} rows with ${inserted} rows (${elapsed()})`);
 
-      await cacheService.invalidatePattern(/^characters:profile:/);
+      await Promise.all([cacheService.invalidatePattern(/^characters:profile:/), cacheService.invalidatePattern(/^mythic-plus:/)]);
 
       logger.info(
         `[CharacterRaidParticipation] Rebuild complete in ${elapsed()}: relinked ${relinkedCanonicalClasses.relinkedGroups}/${relinkedCanonicalClasses.groups} canonical-class groups across ${relinkedCanonicalClasses.canonicalIds} multi-class canonical IDs, matched ${matchedFallbackAppearances} fallback appearances, corrected ${reconciledRankedCharacterClasses} rankedCharacters classes, deleted ${previousRows}, inserted ${inserted}`,
@@ -2134,7 +2135,11 @@ class CharacterService {
 
     const [raid, characters] = await Promise.all([
       Raid.findOne({ id: zoneId }).select("id name -_id").lean(),
-      CharacterRaidParticipation.find({ reportGuildId: guild._id, zoneId })
+      CharacterRaidParticipation.find({
+        reportGuildId: guild._id,
+        zoneId,
+        reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY },
+      })
         .sort({ classID: 1, characterName: 1 })
         .select("wclCanonicalCharacterId characterName characterRealm characterRegion classID firstSeenAt lastSeenAt reportCount -_id")
         .lean(),

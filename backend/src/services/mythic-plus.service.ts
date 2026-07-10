@@ -1,6 +1,7 @@
 import fetch from "node-fetch";
 import mongoose from "mongoose";
 import { CLASSES, getSpecRole } from "../config/classes";
+import { MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } from "../config/character-eligibility";
 import {
   MYTHIC_PLUS_ROLE_BUCKETS,
   MYTHIC_PLUS_SCORE_BUCKETS,
@@ -17,6 +18,7 @@ import CharacterMythicPlusFetchJob, {
   ICharacterMythicPlusFetchJob,
 } from "../models/CharacterMythicPlusFetchJob";
 import CharacterMythicPlusSeasonScore, { IMythicPlusScores } from "../models/CharacterMythicPlusSeasonScore";
+import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import MythicPlusDungeon from "../models/MythicPlusDungeon";
 import MythicPlusSeason from "../models/MythicPlusSeason";
 import logger from "../utils/logger";
@@ -315,6 +317,26 @@ class MythicPlusService {
   private isRunning = false;
   private currentJob: ReturnType<MythicPlusService["summarizeJob"]> | null = null;
   private lastMessage: string | null = null;
+
+  private async getEligibleCharacterIds(characterIds?: mongoose.Types.ObjectId[]): Promise<mongoose.Types.ObjectId[]> {
+    if (characterIds && characterIds.length === 0) return [];
+
+    const filter: Record<string, unknown> = {
+      characterId: characterIds ? { $in: characterIds } : { $ne: null },
+      reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY },
+    };
+    const eligibleIds = await CharacterRaidParticipation.distinct("characterId", filter);
+    return eligibleIds.filter((id): id is mongoose.Types.ObjectId => id instanceof mongoose.Types.ObjectId);
+  }
+
+  private async isCharacterEligible(characterId: mongoose.Types.ObjectId): Promise<boolean> {
+    return Boolean(
+      await CharacterRaidParticipation.exists({
+        characterId,
+        reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY },
+      }),
+    );
+  }
 
   private async waitForRateLimit(): Promise<void> {
     const oneHourAgo = Date.now() - 3600 * 1000;
@@ -851,11 +873,15 @@ class MythicPlusService {
   async enqueueProfileJobs(options: EnqueueProfileJobsOptions = {}) {
     const limit = options.limit && options.limit > 0 ? options.limit : 0;
     const targetSeasons = Array.from(new Set((options.targetSeasons ?? []).filter((season) => typeof season === "string" && season.trim()).map((season) => season.trim())));
-    const characterFilter: any = { wclProfileHidden: { $ne: true } };
+    let requestedCharacterIds: mongoose.Types.ObjectId[] | undefined;
     if (options.characterIds?.length) {
-      const ids = options.characterIds.filter((id) => mongoose.Types.ObjectId.isValid(id)).map((id) => new mongoose.Types.ObjectId(id));
-      characterFilter._id = { $in: ids };
+      requestedCharacterIds = options.characterIds.filter((id) => mongoose.Types.ObjectId.isValid(id)).map((id) => new mongoose.Types.ObjectId(id));
     }
+    const eligibleCharacterIds = await this.getEligibleCharacterIds(requestedCharacterIds);
+    const characterFilter: any = {
+      _id: { $in: eligibleCharacterIds },
+      wclProfileHidden: { $ne: true },
+    };
 
     const query = Character.find(characterFilter)
       .select("_id wclCanonicalCharacterId name realm region classID guildName guildRealm lastMythicSeenAt")
@@ -1035,8 +1061,10 @@ class MythicPlusService {
     const activeSince = new Date(Date.now() - activeSinceDays * 24 * 60 * 60 * 1000);
     const profileStaleBefore = new Date(Date.now() - profileStaleHours * 60 * 60 * 1000);
     const runStaleBefore = new Date(Date.now() - runStaleHours * 60 * 60 * 1000);
+    const eligibleCharacterIds = await this.getEligibleCharacterIds();
 
     const recentCharacters = await Character.find({
+      _id: { $in: eligibleCharacterIds },
       wclProfileHidden: { $ne: true },
       lastMythicSeenAt: { $gte: activeSince },
     })
@@ -1302,6 +1330,13 @@ class MythicPlusService {
   }
 
   private async processJob(job: ICharacterMythicPlusFetchJob): Promise<void> {
+    if (!(await this.isCharacterEligible(job.characterId))) {
+      await this.markJob(job, "skipped", {
+        completionReason: `Requires at least ${MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY} Heroic/Mythic reports for the same guild and raid`,
+      });
+      return;
+    }
+
     if (job.jobType === "profile") {
       await this.processProfileJob(job);
       return;
@@ -1427,8 +1462,13 @@ class MythicPlusService {
   }
 
   async getOptions(): Promise<MythicPlusOptionsResponse> {
-    const scoreSeasons = await CharacterMythicPlusSeasonScore.distinct("season", { "scores.all": { $gt: 0 } });
+    const eligibleCharacterIds = await this.getEligibleCharacterIds();
+    const scoreSeasons = await CharacterMythicPlusSeasonScore.distinct("season", {
+      characterId: { $in: eligibleCharacterIds },
+      "scores.all": { $gt: 0 },
+    });
     const runRows = await CharacterMythicPlusDungeonRun.aggregate<{ _id: { season: string; dungeonId: number } }>([
+      { $match: { characterId: { $in: eligibleCharacterIds } } },
       {
         $group: {
           _id: {
@@ -1520,18 +1560,28 @@ class MythicPlusService {
     const pageSize = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
     const currentPage = Math.max(options.page ?? 1, 1);
     const skip = (currentPage - 1) * pageSize;
-
-    if (options.dungeonId && options.dungeonId > 0) {
-      return this.getDungeonLeaderboard({ ...options, season, bucket, pageSize, currentPage, skip });
+    const eligibleCharacterIds = await this.getEligibleCharacterIds();
+    if (eligibleCharacterIds.length === 0) {
+      return {
+        data: [],
+        pagination: { totalItems: 0, totalRankedItems: 0, totalPages: 0, currentPage, pageSize },
+      };
     }
 
-    return this.getSeasonLeaderboard({ ...options, season, bucket, pageSize, currentPage, skip });
+    if (options.dungeonId && options.dungeonId > 0) {
+      return this.getDungeonLeaderboard({ ...options, season, bucket, pageSize, currentPage, skip, eligibleCharacterIds });
+    }
+
+    return this.getSeasonLeaderboard({ ...options, season, bucket, pageSize, currentPage, skip, eligibleCharacterIds });
   }
 
   private async getSeasonLeaderboard(options: any): Promise<MythicPlusLeaderboardResponse> {
     const characterRegex = buildPartialRegex(options.characterName);
     const guildRegex = buildPartialRegex(options.guildName);
-    const match: any = { season: options.season };
+    const match: any = {
+      season: options.season,
+      characterId: { $in: options.eligibleCharacterIds },
+    };
     if (options.classId !== undefined) match.classID = options.classId;
     if (options.role) match[`scores.${options.role}`] = { $gt: 0 };
     if (characterRegex) match.name = characterRegex;
@@ -1600,6 +1650,7 @@ class MythicPlusService {
       season: options.season,
       bucket,
       raiderIoDungeonId: options.dungeonId,
+      characterId: { $in: options.eligibleCharacterIds },
     };
     if (options.classId !== undefined) match.classID = options.classId;
     if (options.specName) match.specSlug = options.specName;
@@ -1726,6 +1777,8 @@ class MythicPlusService {
   }
 
   async getCharacterProfileMythicPlus(characterId: mongoose.Types.ObjectId): Promise<CharacterMythicPlusProfileResponse> {
+    if (!(await this.isCharacterEligible(characterId))) return { seasons: [] };
+
     const scoreRows = await CharacterMythicPlusSeasonScore.find({ characterId, "scores.all": { $gt: 0 } }).lean();
     if (scoreRows.length === 0) return { seasons: [] };
 

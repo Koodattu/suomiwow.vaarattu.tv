@@ -26,7 +26,7 @@ function parseStringQuery(value: unknown): string | undefined {
 router.get(
   "/options",
   cacheMiddleware(
-    () => "mythic-plus:options:v1",
+    () => "mythic-plus:options:v2",
     () => cacheService.STATIC_TTL,
   ),
   async (_req: Request, res: Response) => {

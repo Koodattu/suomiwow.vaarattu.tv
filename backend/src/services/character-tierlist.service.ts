@@ -10,13 +10,13 @@ import CharacterAccountGroup from "../models/CharacterAccountGroup";
 import Guild from "../models/Guild";
 import Raid from "../models/Raid";
 import { CHARACTER_ACCOUNT_SIGNAL_VERSION } from "../config/achievement-signals";
+import { MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } from "../config/character-eligibility";
 import { TRACKED_RAIDS } from "../config/guilds";
 import logger from "../utils/logger";
 
 const MYTHIC_DIFFICULTY = 5;
 const DEFAULT_TIERS: CustomCharacterTier[] = ["S", "A", "B", "C", "D", "E", "F"];
 const MAX_QUERY_LIMIT = 2000;
-const CUSTOM_TIER_LIST_MIN_REPORTS = 2;
 const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{8,32}$/;
 
 type CustomCharacterTierListPayload = {
@@ -723,7 +723,7 @@ class CharacterTierListService {
 
     const raid = await this.getRaidInfo(zoneId);
     const [participationRows, generatedEntries] = await Promise.all([
-      CharacterRaidParticipation.find({ reportGuildId: guild._id, zoneId, reportCount: { $gte: CUSTOM_TIER_LIST_MIN_REPORTS } })
+      CharacterRaidParticipation.find({ reportGuildId: guild._id, zoneId, reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } })
         .sort({ classID: 1, characterName: 1 })
         .select("characterId wclCanonicalCharacterId characterName characterRealm characterRegion classID firstSeenAt lastSeenAt reportCount updatedAt")
         .lean<ParticipationRow[]>(),

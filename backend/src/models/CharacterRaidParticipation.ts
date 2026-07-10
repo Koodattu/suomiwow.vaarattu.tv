@@ -42,6 +42,7 @@ const CharacterRaidParticipationSchema = new Schema<ICharacterRaidParticipation>
 CharacterRaidParticipationSchema.index({ reportGuildId: 1, zoneId: 1, classID: 1, characterName: 1 });
 CharacterRaidParticipationSchema.index({ characterRealm: 1, characterName: 1, classID: 1 });
 CharacterRaidParticipationSchema.index({ zoneId: 1, lastSeenAt: -1 });
+CharacterRaidParticipationSchema.index({ reportCount: -1, characterId: 1 });
 CharacterRaidParticipationSchema.index({ characterRealm: 1, characterName: 1, zoneId: 1, lastSeenAt: -1 }, { collation: CASE_INSENSITIVE_COLLATION });
 CharacterRaidParticipationSchema.index({ characterRealm: 1, characterName: 1, reportGuildId: 1, zoneId: 1, classID: 1 }, { collation: CASE_INSENSITIVE_COLLATION });
 CharacterRaidParticipationSchema.index({ wclCanonicalCharacterId: 1, classID: 1, zoneId: 1, firstSeenAt: 1 });
