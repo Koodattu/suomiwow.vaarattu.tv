@@ -320,6 +320,7 @@ export default function AdminPage() {
   const [twitchBotSettingsDraft, setTwitchBotSettingsDraft] = useState<TwitchBotSettings | null>(null);
   const [twitchBotFollows, setTwitchBotFollows] = useState<TwitchBotFollowsResponse | null>(null);
   const [twitchBotFollowsLoading, setTwitchBotFollowsLoading] = useState(false);
+  const [twitchBotTableDataLoading, setTwitchBotTableDataLoading] = useState(false);
   const [twitchBotSettingsSaving, setTwitchBotSettingsSaving] = useState(false);
   const [activeTwitchTemplateKey, setActiveTwitchTemplateKey] = useState<TwitchBotMessageTemplateKey>("bossKill");
 
@@ -780,6 +781,8 @@ export default function AdminPage() {
       })
     : twitchStreams;
   const twitchBotFollowedChannels = new Set(twitchBotFollows?.channels.map((channel) => channel.broadcasterLogin.toLowerCase()) || []);
+  const twitchBotBannedChannels = new Map(twitchBotStatus?.chat.bannedChannels.map((ban) => [ban.channelName.toLowerCase(), ban]) || []);
+  const twitchBotJoinedChannels = new Set(twitchBotStatus?.chat.joinedChannels.map((channel) => channel.toLowerCase()) || []);
   const twitchBotSettingsChanged =
     twitchBotSettingsDraft && twitchBotStatus
       ? JSON.stringify(twitchBotSettingsDraft) !== JSON.stringify(twitchBotStatus.settings)
@@ -886,6 +889,17 @@ export default function AdminPage() {
       return follows;
     } finally {
       setTwitchBotFollowsLoading(false);
+    }
+  };
+
+  const refreshTwitchBotTableData = async () => {
+    setTwitchBotTableDataLoading(true);
+    try {
+      const [follows, status] = await Promise.all([api.getAdminTwitchBotFollows(), api.getAdminTwitchBotStatus()]);
+      setTwitchBotFollows(follows);
+      setTwitchBotStatus((current) => ({ ...status, settings: current?.settings || status.settings }));
+    } finally {
+      setTwitchBotTableDataLoading(false);
     }
   };
 
@@ -2649,11 +2663,15 @@ export default function AdminPage() {
 
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                 <button
-                  onClick={() => refreshTwitchBotFollows().catch((error) => setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to refresh follows" }))}
-                  disabled={!twitchBotStatus?.connected || twitchBotFollowsLoading}
+                  onClick={() =>
+                    refreshTwitchBotTableData().catch((error) =>
+                      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to refresh Twitch bot data" }),
+                    )
+                  }
+                  disabled={!twitchBotStatus?.connected || twitchBotTableDataLoading}
                   className="min-h-10 px-3 py-2 bg-gray-700 text-gray-200 text-sm rounded hover:bg-gray-600 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
                 >
-                  {twitchBotFollowsLoading ? "Refreshing..." : "Refresh follows"}
+                  {twitchBotTableDataLoading ? "Refreshing..." : "Refresh bot data"}
                 </button>
                 <div className="relative w-full sm:w-80">
                   <input
@@ -2683,7 +2701,7 @@ export default function AdminPage() {
               )}
               <div className="bg-gray-800 rounded-lg overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1080px]">
+                  <table className="w-full min-w-[1220px]">
                     <thead className="bg-gray-900">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Channel</th>
@@ -2691,6 +2709,7 @@ export default function AdminPage() {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Game</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Guild</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Bot Follows</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Bot Chat</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Last Checked</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Last Live</th>
                       </tr>
@@ -2698,7 +2717,7 @@ export default function AdminPage() {
                     <tbody className="divide-y divide-gray-700">
                       {filteredTwitchStreams.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                          <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
                             No tracked streams found.
                           </td>
                         </tr>
@@ -2711,6 +2730,15 @@ export default function AdminPage() {
                             : "bg-gray-700 text-gray-400";
                           const statusLabel = stream.isLive ? (stream.isPlayingWoW ? "Live WoW" : "Live") : "Offline";
                           const botFollows = twitchBotFollows?.hasRequiredScope ? twitchBotFollowedChannels.has(stream.channelName.toLowerCase()) : null;
+                          const botChatBan = twitchBotBannedChannels.get(stream.channelName.toLowerCase());
+                          const botChatJoined = twitchBotJoinedChannels.has(stream.channelName.toLowerCase());
+                          const botChatRetryLabel = botChatBan
+                            ? new Date(botChatBan.nextRetryAt).getTime() > Date.now()
+                              ? `Retry ${formatDate(botChatBan.nextRetryAt)}`
+                              : stream.isLive && stream.isPlayingWoW && stream.guild.isCurrentlyRaiding
+                                ? "Retry pending"
+                                : "Retry when live"
+                            : null;
 
                           return (
                             <tr key={`${stream.guild.id}-${stream.channelName}`} className="hover:bg-gray-750">
@@ -2746,6 +2774,28 @@ export default function AdminPage() {
                                 >
                                   {botFollows === null ? "Unknown" : botFollows ? "Yes" : "No"}
                                 </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                {botChatBan ? (
+                                  <div>
+                                    <span
+                                      title={`Detected ${formatDate(botChatBan.detectedAt)}; observed ${botChatBan.failureCount} ${botChatBan.failureCount === 1 ? "time" : "times"}.`}
+                                      className="inline-flex items-center rounded-full bg-red-900/50 px-2 py-1 text-xs font-medium text-red-300"
+                                    >
+                                      Banned
+                                    </span>
+                                    <div className="mt-1 text-xs text-gray-500 tabular-nums">{botChatRetryLabel}</div>
+                                  </div>
+                                ) : botChatJoined ? (
+                                  <span className="inline-flex items-center rounded-full bg-green-900/50 px-2 py-1 text-xs font-medium text-green-300">Joined</span>
+                                ) : (
+                                  <span
+                                    title="The bot only checks chat access while a tracked raid stream is live in WoW."
+                                    className="text-xs text-gray-500"
+                                  >
+                                    {twitchBotStatus?.chat.connected ? "Not checked" : "Bot offline"}
+                                  </span>
+                                )}
                               </td>
                               <td className="px-4 py-3 text-gray-400 text-sm">{stream.lastChecked ? formatDate(stream.lastChecked) : "-"}</td>
                               <td className="px-4 py-3 text-gray-400 text-sm">{stream.lastLiveAt ? formatDate(stream.lastLiveAt) : "-"}</td>

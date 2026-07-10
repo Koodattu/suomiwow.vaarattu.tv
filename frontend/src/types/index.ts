@@ -2242,6 +2242,14 @@ export interface TwitchChatBotStatus {
     connected: boolean;
     desiredChannels: string[];
     joinedChannels: string[];
+    bannedChannels: Array<{
+      channelName: string;
+      reason: "msg_banned";
+      detectedAt: string;
+      lastAttemptAt: string;
+      nextRetryAt: string;
+      failureCount: number;
+    }>;
     desiredCount: number;
     joinedCount: number;
     lastStartedAt?: string;

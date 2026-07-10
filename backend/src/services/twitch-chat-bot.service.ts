@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 import Event, { EventType, IEvent } from "../models/Event";
 import Guild from "../models/Guild";
 import TwitchBotSettings, { type TwitchBotDifficulty, type TwitchBotMessageTemplateKey, type TwitchBotMessageTemplates } from "../models/TwitchBotSettings";
-import TwitchBotRuntimeState from "../models/TwitchBotRuntimeState";
+import TwitchBotRuntimeState, { type ITwitchBotChannelBan } from "../models/TwitchBotRuntimeState";
 import TwitchEventDelivery from "../models/TwitchEventDelivery";
 import logger from "../utils/logger";
 import twitchBotAuthService, { TwitchBotAuthStatus, TwitchBotRefreshedAccessToken } from "./twitch-bot-auth.service";
@@ -28,6 +28,7 @@ export interface TwitchChatBotStatus extends TwitchBotAuthStatus {
     connected: boolean;
     desiredChannels: string[];
     joinedChannels: string[];
+    bannedChannels: Array<ITwitchBotChannelBan & { channelName: string }>;
     desiredCount: number;
     joinedCount: number;
     lastStartedAt?: Date;
@@ -71,6 +72,8 @@ const DEFAULT_MESSAGE_TEMPLATES: TwitchBotMessageTemplates = {
 const RUNTIME_STATE_KEY = "runtime";
 const SETTINGS_KEY = "global";
 const MAX_DELIVERY_ATTEMPTS = 5;
+const BANNED_CHANNEL_RETRY_BASE_MS = 60 * 60 * 1000;
+const BANNED_CHANNEL_RETRY_MAX_MS = 12 * 60 * 60 * 1000;
 
 type TwitchBotMessagePlaceholder = (typeof MESSAGE_TEMPLATE_PLACEHOLDERS)[number];
 type TwitchBotMessageTemplateValues = Record<TwitchBotMessagePlaceholder, string>;
@@ -80,6 +83,16 @@ export class TwitchBotSettingsValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "TwitchBotSettingsValidationError";
+  }
+}
+
+class TwitchBotChannelBackoffError extends Error {
+  constructor(
+    readonly channel: string,
+    readonly nextRetryAt: Date,
+  ) {
+    super(`Twitch bot is banned from #${channel}; next join retry is ${nextRetryAt.toISOString()}`);
+    this.name = "TwitchBotChannelBackoffError";
   }
 }
 
@@ -94,6 +107,11 @@ class TwitchChatBotService {
   private publishing = false;
   private desiredChannels = new Set<string>();
   private joinedChannels = new Set<string>();
+  private channelBans = new Map<string, ITwitchBotChannelBan>();
+  private channelBansBotUserId: string | null = null;
+  private botUserId: string | null = null;
+  private botLogin: string | null = null;
+  private channelJoinAttempts = new Map<string, Promise<void>>();
   private missingSince = new Map<string, number>();
   private userCooldowns = new Map<string, number>();
   private channelCommandCooldowns = new Map<string, number>();
@@ -192,6 +210,8 @@ class TwitchChatBotService {
     const countsByStatus = new Map(deliveryCounts.map((entry: { _id: string; count: number }) => [entry._id, entry.count]));
     const desiredChannels = runtime?.desiredChannels?.length ? runtime.desiredChannels : Array.from(this.desiredChannels).sort();
     const joinedChannels = runtime?.joinedChannels?.length ? runtime.joinedChannels : Array.from(this.joinedChannels).sort();
+    const bannedChannels =
+      authStatus.twitchUserId && runtime?.channelBansBotUserId === authStatus.twitchUserId ? this.serializeChannelBans(runtime.channelBans) : [];
 
     return {
       ...authStatus,
@@ -202,6 +222,7 @@ class TwitchChatBotService {
         connected: runtime?.connected ?? this.connected,
         desiredChannels,
         joinedChannels,
+        bannedChannels,
         desiredCount: desiredChannels.length,
         joinedCount: joinedChannels.length,
         lastStartedAt: runtime?.lastStartedAt,
@@ -268,13 +289,19 @@ class TwitchChatBotService {
       return;
     }
 
-    if (!(await twitchBotAuthService.hasConnectedBot())) {
+    const botAuthStatus = await twitchBotAuthService.getStatus();
+    if (!botAuthStatus.connected) {
       if (this.connected || this.chatClient) {
         await this.disconnectClient();
       } else {
         await this.writeRuntimeState({ enabled: true, running: this.running, connected: false });
       }
       return;
+    }
+
+    if (this.connected && this.botUserId && botAuthStatus.twitchUserId && botAuthStatus.twitchUserId !== this.botUserId) {
+      logger.info("[TwitchBot] Connected bot account changed; reconnecting Twitch IRC");
+      await this.disconnectClient();
     }
 
     if (!this.connected && !this.connecting) {
@@ -301,6 +328,14 @@ class TwitchChatBotService {
       }
 
       const tokenData = await twitchBotAuthService.getTwurpleTokenData();
+      const botAuthStatus = await twitchBotAuthService.getStatus();
+      if (!botAuthStatus.twitchUserId || !botAuthStatus.twitchLogin) {
+        throw new Error("Twitch bot identity is unavailable; verify the connected bot account");
+      }
+      this.botUserId = botAuthStatus.twitchUserId;
+      this.botLogin = botAuthStatus.twitchLogin.toLowerCase();
+      await this.loadChannelBans(this.botUserId);
+
       const authProvider = new RefreshingAuthProvider({
         clientId: process.env.TWITCH_CLIENT_ID,
         clientSecret: process.env.TWITCH_CLIENT_SECRET,
@@ -313,6 +348,11 @@ class TwitchChatBotService {
       const chatClient = new ChatClient({ authProvider, channels: [] });
       chatClient.onMessage(async (channel, user, text) => {
         await this.handleMessage(channel, user, text);
+      });
+      chatClient.onBan((channel, user) => {
+        if (user.toLowerCase() === this.botLogin) {
+          void this.handleBotBan(channel).catch((error) => logger.error(`[TwitchBot] Failed to record ban in #${channel}:`, error));
+        }
       });
 
       await chatClient.connect();
@@ -330,6 +370,8 @@ class TwitchChatBotService {
     } catch (error) {
       this.connected = false;
       this.chatClient = null;
+      this.botUserId = null;
+      this.botLogin = null;
       await this.recordError("Failed to connect to Twitch IRC", error);
     } finally {
       this.connecting = false;
@@ -340,6 +382,8 @@ class TwitchChatBotService {
     const client = this.chatClient;
     this.chatClient = null;
     this.connected = false;
+    this.botUserId = null;
+    this.botLogin = null;
 
     if (client) {
       try {
@@ -374,8 +418,14 @@ class TwitchChatBotService {
       for (const channel of desiredSet) {
         this.missingSince.delete(channel);
         if (!this.joinedChannels.has(channel)) {
-          await this.joinChannel(channel);
-          await this.sleep(this.getJoinDelayMs());
+          try {
+            await this.joinChannel(channel);
+            await this.sleep(this.getJoinDelayMs());
+          } catch (error) {
+            if (!(error instanceof TwitchBotChannelBackoffError)) {
+              await this.recordError(`Failed to join Twitch channel #${channel}`, error);
+            }
+          }
         }
       }
 
@@ -451,13 +501,62 @@ class TwitchChatBotService {
   }
 
   private async joinChannel(channel: string): Promise<void> {
-    if (!this.chatClient || this.joinedChannels.has(channel)) {
+    const chatClient = this.chatClient;
+    if (!chatClient || this.joinedChannels.has(channel)) {
       return;
     }
 
-    await this.chatClient.join(channel);
+    const activeAttempt = this.channelJoinAttempts.get(channel);
+    if (activeAttempt) {
+      return activeAttempt;
+    }
+
+    const attempt = this.attemptChannelJoin(channel, chatClient);
+    this.channelJoinAttempts.set(channel, attempt);
+    try {
+      await attempt;
+    } finally {
+      if (this.channelJoinAttempts.get(channel) === attempt) {
+        this.channelJoinAttempts.delete(channel);
+      }
+    }
+  }
+
+  private async attemptChannelJoin(channel: string, chatClient: ChatClient): Promise<void> {
+    const existingBan = this.channelBans.get(channel);
+    if (existingBan && existingBan.nextRetryAt.getTime() > Date.now()) {
+      throw new TwitchBotChannelBackoffError(channel, existingBan.nextRetryAt);
+    }
+
+    try {
+      await chatClient.join(channel);
+    } catch (error) {
+      if (this.getTwitchChatFailureReason(error) === "msg_banned") {
+        const ban = await this.recordChannelBan(channel);
+        logger.warn(`[TwitchBot] Bot is banned from #${channel}; retry scheduled for ${ban.nextRetryAt.toISOString()}`);
+        throw new TwitchBotChannelBackoffError(channel, ban.nextRetryAt);
+      }
+      throw error;
+    }
+
+    if (existingBan) {
+      await this.clearChannelBan(channel);
+      logger.info(`[TwitchBot] Ban cleared after successfully rejoining #${channel}`);
+    }
     this.joinedChannels.add(channel);
     logger.info(`[TwitchBot] Joined #${channel}`);
+  }
+
+  private async handleBotBan(channel: string): Promise<void> {
+    const channelName = this.normalizeChannelName(channel);
+    if (!channelName) {
+      return;
+    }
+
+    this.joinedChannels.delete(channelName);
+    const ban = await this.recordChannelBan(channelName);
+    await this.writeRuntimeState({ joinedChannels: Array.from(this.joinedChannels).sort() });
+    logger.warn(`[TwitchBot] Bot was banned from #${channelName}; retry scheduled for ${ban.nextRetryAt.toISOString()}`);
   }
 
   private async partChannel(channel: string): Promise<void> {
@@ -696,6 +795,14 @@ class TwitchChatBotService {
         delivery.lastError = undefined;
         await delivery.save();
       } catch (error) {
+        if (error instanceof TwitchBotChannelBackoffError) {
+          delivery.status = "failed";
+          delivery.lastError = error.message;
+          delivery.nextAttemptAt = error.nextRetryAt;
+          await delivery.save();
+          continue;
+        }
+
         const attempts = delivery.attempts + 1;
         delivery.status = "failed";
         delivery.attempts = attempts;
@@ -791,12 +898,130 @@ class TwitchChatBotService {
     };
   }
 
+  private serializeChannelBans(value: unknown): Array<ITwitchBotChannelBan & { channelName: string }> {
+    const entries = value instanceof Map ? Array.from(value.entries()) : value && typeof value === "object" ? Object.entries(value) : [];
+
+    return entries
+      .flatMap(([storageKey, rawBan]) => {
+        const channelName = this.getChannelNameFromBanStorageKey(storageKey);
+        if (!channelName) {
+          return [];
+        }
+        if (!rawBan || typeof rawBan !== "object") {
+          return [];
+        }
+
+        const ban = rawBan as Partial<Record<keyof ITwitchBotChannelBan, unknown>>;
+        const detectedAt = new Date(ban.detectedAt as Date | string);
+        const lastAttemptAt = new Date(ban.lastAttemptAt as Date | string);
+        const nextRetryAt = new Date(ban.nextRetryAt as Date | string);
+        const failureCount = Number(ban.failureCount);
+        if (
+          ban.reason !== "msg_banned" ||
+          !Number.isFinite(detectedAt.getTime()) ||
+          !Number.isFinite(lastAttemptAt.getTime()) ||
+          !Number.isFinite(nextRetryAt.getTime()) ||
+          !Number.isInteger(failureCount) ||
+          failureCount < 1
+        ) {
+          return [];
+        }
+
+        return [
+          {
+            channelName,
+            reason: "msg_banned" as const,
+            detectedAt,
+            lastAttemptAt,
+            nextRetryAt,
+            failureCount,
+          },
+        ];
+      })
+      .sort((a, b) => a.channelName.localeCompare(b.channelName));
+  }
+
+  private async loadChannelBans(botUserId: string): Promise<void> {
+    const runtime = await TwitchBotRuntimeState.findOne({ key: RUNTIME_STATE_KEY }).select("channelBansBotUserId channelBans");
+    if (runtime?.channelBansBotUserId !== botUserId) {
+      this.channelBans.clear();
+      this.channelBansBotUserId = botUserId;
+      await this.writeRuntimeState({ channelBansBotUserId: botUserId, channelBans: {} });
+      return;
+    }
+
+    this.channelBans.clear();
+    for (const [storageKey, ban] of runtime.channelBans?.entries() || []) {
+      const channelName = this.getChannelNameFromBanStorageKey(storageKey);
+      if (!channelName) {
+        continue;
+      }
+      this.channelBans.set(channelName, {
+        reason: "msg_banned",
+        detectedAt: new Date(ban.detectedAt),
+        lastAttemptAt: new Date(ban.lastAttemptAt),
+        nextRetryAt: new Date(ban.nextRetryAt),
+        failureCount: ban.failureCount,
+      });
+    }
+    this.channelBansBotUserId = botUserId;
+  }
+
+  private async recordChannelBan(channel: string): Promise<ITwitchBotChannelBan> {
+    if (!this.botUserId || this.channelBansBotUserId !== this.botUserId) {
+      throw new Error("Twitch bot identity is unavailable while recording a channel ban");
+    }
+
+    const now = new Date();
+    const existing = this.channelBans.get(channel);
+    const failureCount = (existing?.failureCount || 0) + 1;
+    const retryDelay = Math.min(BANNED_CHANNEL_RETRY_BASE_MS * 2 ** (failureCount - 1), BANNED_CHANNEL_RETRY_MAX_MS);
+    const ban: ITwitchBotChannelBan = {
+      reason: "msg_banned",
+      detectedAt: existing?.detectedAt || now,
+      lastAttemptAt: now,
+      nextRetryAt: new Date(now.getTime() + retryDelay),
+      failureCount,
+    };
+
+    await TwitchBotRuntimeState.updateOne(
+      { key: RUNTIME_STATE_KEY },
+      {
+        $set: {
+          channelBansBotUserId: this.botUserId,
+          [`channelBans.${this.getChannelBanStorageKey(channel)}`]: ban,
+        },
+      },
+    );
+    this.channelBans.set(channel, ban);
+    return ban;
+  }
+
+  private async clearChannelBan(channel: string): Promise<void> {
+    await TwitchBotRuntimeState.updateOne({ key: RUNTIME_STATE_KEY }, { $unset: { [`channelBans.${this.getChannelBanStorageKey(channel)}`]: 1 } });
+    this.channelBans.delete(channel);
+  }
+
+  private getChannelBanStorageKey(channel: string): string {
+    return `channel_${channel}`;
+  }
+
+  private getChannelNameFromBanStorageKey(storageKey: string): string | null {
+    return storageKey.startsWith("channel_") ? this.normalizeChannelName(storageKey.slice("channel_".length)) : null;
+  }
+
+  private getTwitchChatFailureReason(error: unknown): string {
+    return typeof error === "string" ? error : error instanceof Error ? error.message : String(error);
+  }
+
   private async writeRuntimeState(update: Partial<{
     enabled: boolean;
     running: boolean;
     connected: boolean;
     desiredChannels: string[];
     joinedChannels: string[];
+    channelBansBotUserId: string;
+    channelBans: Record<string, ITwitchBotChannelBan>;
     lastEventCreatedAt: Date;
     lastStartedAt: Date;
     lastStoppedAt: Date;
