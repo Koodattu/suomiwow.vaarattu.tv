@@ -1,6 +1,7 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import Link from "next/link";
+import { use, useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import CharacterTierBoard, { CharacterTierBoardItem } from "@/components/character-tier-lists/CharacterTierBoard";
 import CustomCharacterTierListMaker from "@/components/character-tier-lists/CustomCharacterTierListMaker";
@@ -10,11 +11,14 @@ import type { CharacterTierListCharacter, CharacterTierListRole } from "@/types"
 
 interface PageProps {
   params: Promise<{ realm: string; name: string; raidId: string }>;
-  searchParams: Promise<{ fromShare?: string }>;
+  searchParams: Promise<{ fromShare?: string; mode?: string }>;
 }
 
 type PageMode = "generated" | "custom";
 type GeneratedView = "roles" | "combined";
+
+const MODE_LINK_CLASS_NAME =
+  "inline-flex min-h-10 w-full items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-[scale,background-color] duration-150 ease-out hover:bg-blue-500 active:scale-[0.96] sm:w-auto";
 
 function toBoardItem(character: CharacterTierListCharacter): CharacterTierBoardItem {
   return {
@@ -47,7 +51,7 @@ export default function GuildCharacterTierListPage({ params, searchParams }: Pag
   const raidId = parseInt(resolvedParams.raidId, 10);
   const fromShareId = resolvedSearchParams.fromShare ? decodeURIComponent(resolvedSearchParams.fromShare) : null;
 
-  const [mode, setMode] = useState<PageMode>(fromShareId ? "custom" : "generated");
+  const mode: PageMode = fromShareId || resolvedSearchParams.mode === "custom" ? "custom" : "generated";
   const [view, setView] = useState<GeneratedView>("combined");
   const [minReports, setMinReports] = useState(2);
   const [classId, setClassId] = useState<number | "all">("all");
@@ -81,72 +85,72 @@ export default function GuildCharacterTierListPage({ params, searchParams }: Pag
     [characters],
   );
 
+  const tierListPath = `/guilds/${encodeURIComponent(realm)}/${encodeURIComponent(name)}/raids/${raidId}/tierlist`;
+  const customTierListPath = `${tierListPath}?mode=custom`;
+  const renderPageHeader = (actions: ReactNode) => (
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="max-w-3xl">
+        <p className="text-sm text-gray-400">
+          {name} / {realm}
+        </p>
+        <h1 className="text-3xl font-bold">{t("guildTitle")}</h1>
+        <p className="mt-2 text-sm text-gray-400">{t("guildSubtitle")}</p>
+      </div>
+      {actions}
+    </div>
+  );
+
   return (
     <main className="min-h-screen bg-gray-950 px-4 py-6 text-white md:px-6 md:py-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-sm text-gray-400">
-              {name} / {realm}
-            </p>
-            <h1 className="text-3xl font-bold">{t("guildTitle")}</h1>
-            <p className="mt-2 text-sm text-gray-400">{t("guildSubtitle")}</p>
-          </div>
+        {mode === "generated" &&
+          renderPageHeader(
+            <div className="flex flex-wrap items-end gap-3 lg:justify-end">
+              <div className="w-full sm:w-auto">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("minReports")}</label>
+                <input
+                  type="number"
+                  min={2}
+                  max={999}
+                  value={minReports}
+                  onChange={(event) => setMinReports(Math.max(2, Number(event.target.value) || 2))}
+                  className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-28"
+                />
+              </div>
 
-          <div className="flex flex-wrap items-end gap-3 lg:justify-end">
-            {mode === "generated" && (
-              <>
-                <div className="w-full sm:w-auto">
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("minReports")}</label>
-                  <input
-                    type="number"
-                    min={2}
-                    max={999}
-                    value={minReports}
-                    onChange={(event) => setMinReports(Math.max(2, Number(event.target.value) || 2))}
-                    className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-28"
-                  />
+              <div className="w-full sm:w-auto">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("class")}</label>
+                <select
+                  value={classId}
+                  onChange={(event) => setClassId(event.target.value === "all" ? "all" : Number(event.target.value))}
+                  className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-44"
+                >
+                  <option value="all">{t("allClasses")}</option>
+                  {classes.map((classInfo) => (
+                    <option key={classInfo.id} value={classInfo.id}>
+                      {classInfo.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="w-full sm:w-auto">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("view")}</label>
+                <div className="inline-flex min-h-10 w-full overflow-hidden rounded-md border border-gray-700 bg-gray-800 sm:w-auto">
+                  <button type="button" onClick={() => setView("roles")} className={`flex-1 px-3 text-sm font-semibold sm:flex-none ${view === "roles" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
+                    {t("byRole")}
+                  </button>
+                  <button type="button" onClick={() => setView("combined")} className={`flex-1 px-3 text-sm font-semibold sm:flex-none ${view === "combined" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
+                    {t("combined")}
+                  </button>
                 </div>
+              </div>
 
-                <div className="w-full sm:w-auto">
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("class")}</label>
-                  <select
-                    value={classId}
-                    onChange={(event) => setClassId(event.target.value === "all" ? "all" : Number(event.target.value))}
-                    className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-44"
-                  >
-                    <option value="all">{t("allClasses")}</option>
-                    {classes.map((classInfo) => (
-                      <option key={classInfo.id} value={classInfo.id}>
-                        {classInfo.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="w-full sm:w-auto">
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("view")}</label>
-                  <div className="inline-flex min-h-10 w-full overflow-hidden rounded-md border border-gray-700 bg-gray-800 sm:w-auto">
-                    <button type="button" onClick={() => setView("roles")} className={`flex-1 px-3 text-sm font-semibold sm:flex-none ${view === "roles" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
-                      {t("byRole")}
-                    </button>
-                    <button type="button" onClick={() => setView("combined")} className={`flex-1 px-3 text-sm font-semibold sm:flex-none ${view === "combined" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
-                      {t("combined")}
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setMode((currentMode) => (currentMode === "generated" ? "custom" : "generated"))}
-              className="min-h-10 w-full rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-500 sm:w-auto"
-            >
-              {mode === "generated" ? t("createMyTierList") : t("viewGeneratedTierList")}
-            </button>
-          </div>
-        </div>
+              <Link href={customTierListPath} className={MODE_LINK_CLASS_NAME}>
+                {t("createMyTierList")}
+              </Link>
+            </div>,
+          )}
 
         {mode === "generated" && (
           <>
@@ -174,9 +178,36 @@ export default function GuildCharacterTierListPage({ params, searchParams }: Pag
 
         {mode === "custom" && (
           <>
+            {(activeCustomLoading || activeCustomError || !activeCustomData) &&
+              renderPageHeader(
+                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                  <Link href={tierListPath} className={MODE_LINK_CLASS_NAME}>
+                    {t("viewGeneratedTierList")}
+                  </Link>
+                </div>,
+              )}
             {activeCustomLoading && <div className="rounded-lg border border-gray-800 bg-gray-900 px-4 py-8 text-center text-gray-400">{t("loading")}</div>}
             {activeCustomError && <div className="rounded-lg border border-red-900 bg-red-950/40 px-4 py-8 text-center text-red-200">{t("error")}</div>}
-            {!activeCustomLoading && !activeCustomError && activeCustomData && <CustomCharacterTierListMaker realm={realm} name={name} raidId={raidId} data={activeCustomData} sourceShareId={fromShareId} canUpdateSharedList={sharedData?.share.canEdit ?? false} />}
+            {!activeCustomLoading && !activeCustomError && activeCustomData && (
+              <CustomCharacterTierListMaker
+                realm={realm}
+                name={name}
+                raidId={raidId}
+                data={activeCustomData}
+                sourceShareId={fromShareId}
+                canUpdateSharedList={sharedData?.share.canEdit ?? false}
+                renderHeader={(actions) =>
+                  renderPageHeader(
+                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                      {actions}
+                      <Link href={tierListPath} className={MODE_LINK_CLASS_NAME}>
+                        {t("viewGeneratedTierList")}
+                      </Link>
+                    </div>,
+                  )
+                }
+              />
+            )}
           </>
         )}
       </div>

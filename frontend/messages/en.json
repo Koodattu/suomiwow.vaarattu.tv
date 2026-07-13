@@ -253,7 +253,6 @@
     "byRole": "By role",
     "combined": "Combined",
     "generated": "Generated",
-    "myTierList": "My Tier List",
     "createMyTierList": "Create my own tier list",
     "viewGeneratedTierList": "View generated tier list",
     "share": "Share",
@@ -286,7 +285,6 @@
     "error": "Failed to load character tier list.",
     "noScoredCharacters": "No scored characters match these filters.",
     "characterCount": "{visible} of {total} characters",
-    "customCount": "{count} characters in this guild roster",
     "lastCalculated": "Last calculated: {date}"
   },
   "guildProfilePage": {
@@ -726,14 +724,11 @@
   "guildProfileHighlights": {
     "mainstays": "Mainstays",
     "topPerformers": "Top performers",
-    "account": "Account",
     "inferredAccount": "Inferred account",
-    "characterCount": "{count, plural, one {# character} other {# characters}}",
     "reports": "{count, plural, one {# report} other {# reports}}",
     "raids": "{count, plural, one {# raid} other {# raids}}",
-    "pulls": "{count, plural, one {# pull} other {# pulls}}",
     "since": "Since {date}",
-    "firstSeen": "First"
+    "combined": "Combined"
   },
   "characterProfile": {
     "firstSeen": "First Seen",

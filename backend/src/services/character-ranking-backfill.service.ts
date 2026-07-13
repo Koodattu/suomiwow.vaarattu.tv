@@ -10,6 +10,7 @@ import Ranking from "../models/Ranking";
 import logger from "../utils/logger";
 import { resolveRole, slugifySpecName } from "../utils/spec";
 import cacheService from "./cache.service";
+import { getPrimaryCharacterRaidGuilds } from "./character-raid-guild.service";
 import rateLimitService from "./rate-limit.service";
 import taskTracker from "./task-tracker.service";
 import wclService from "./warcraftlogs.service";
@@ -1280,9 +1281,9 @@ class CharacterRankingBackfillService {
 
   private async rebuildLeaderboardForCharacterZone(characterId: mongoose.Types.ObjectId, zoneId: number, invalidateOptions = true): Promise<number> {
     const characterObjectId = new mongoose.Types.ObjectId(String(characterId));
-    const character = await Character.findById(characterObjectId).select("guildName guildRealm").lean();
-    const guildName = character?.guildName ?? null;
-    const guildRealm = character?.guildRealm ?? null;
+    const guild = (await getPrimaryCharacterRaidGuilds(zoneId, [characterObjectId])).get(String(characterObjectId));
+    const guildName = guild?.name ?? null;
+    const guildRealm = guild?.realm ?? null;
 
     const baseMatch = {
       characterId: characterObjectId,

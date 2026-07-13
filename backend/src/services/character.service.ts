@@ -21,6 +21,7 @@ import Report from "../models/Report";
 import logger from "../utils/logger";
 import { resolveRole, slugifySpecName } from "../utils/spec";
 import cacheService from "./cache.service";
+import { getPrimaryCharacterRaidGuilds } from "./character-raid-guild.service";
 import mythicPlusService, { CharacterMythicPlusProfileResponse } from "./mythic-plus.service";
 import rateLimitService from "./rate-limit.service";
 import wclService from "./warcraftlogs.service";
@@ -3473,17 +3474,9 @@ class CharacterService {
 
       logger.info(`[Leaderboard] Found ${encounterIds.length} encounters, ${partitions.length} partitions`);
 
-      // Build global guild map once (characterId → guild info)
+      // Build a raid-scoped guild map once (characterId → guild with the most reports)
       const allCharacterIds = await Ranking.distinct("characterId", { zoneId: CURRENT_TIER_ID, difficulty: MYTHIC_DIFFICULTY });
-      const characters = await Character.find({ _id: { $in: allCharacterIds } })
-        .select("_id guildName guildRealm")
-        .lean();
-      const guildMap = new Map<string, { name: string; realm: string } | null>();
-      for (const c of characters) {
-        const gn = c.guildName ?? null;
-        const gr = c.guildRealm ?? null;
-        guildMap.set(String(c._id), gn && gr ? { name: gn, realm: gr } : null);
-      }
+      const guildMap = await getPrimaryCharacterRaidGuilds(CURRENT_TIER_ID, allCharacterIds);
 
       const entries: any[] = [];
 

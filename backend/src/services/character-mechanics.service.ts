@@ -1,12 +1,12 @@
 import mongoose from "mongoose";
 import { CURRENT_RAID_IDS } from "../config/guilds";
-import Character from "../models/Character";
 import CharacterMechanicsLeaderboard, { IMechanicsBossScore } from "../models/CharacterMechanicsLeaderboard";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
 import Fight, { IPlayerDeath } from "../models/Fight";
 import GuildProcessingQueue from "../models/GuildProcessingQueue";
 import Ranking from "../models/Ranking";
 import cacheService from "./cache.service";
+import { getPrimaryCharacterRaidGuilds } from "./character-raid-guild.service";
 import logger from "../utils/logger";
 
 const MYTHIC_DIFFICULTY = 5;
@@ -199,16 +199,10 @@ class CharacterMechanicsService {
     const survivalBuild = await this.buildSurvivalStatsFromFetchedFights(zoneId, encounterIds);
     const survivalByCharacterEncounter = survivalBuild.stats;
 
-    const characterIds = Array.from(new Set(parseRows.map((row) => String(row.characterId))));
-    const characters = await Character.find({ _id: { $in: characterIds } })
-      .select("_id guildName guildRealm")
-      .lean();
-    const guildByCharacter = new Map<string, { name: string; realm: string } | null>();
-    for (const character of characters) {
-      const guildName = character.guildName ?? null;
-      const guildRealm = character.guildRealm ?? null;
-      guildByCharacter.set(String(character._id), guildName && guildRealm ? { name: guildName, realm: guildRealm } : null);
-    }
+    const guildByCharacter = await getPrimaryCharacterRaidGuilds(
+      zoneId,
+      parseRows.map((row) => row.characterId),
+    );
 
     const bossEntries = parseRows.flatMap((row) => {
       const survival = survivalByCharacterEncounter.get(this.getCharacterEncounterKey(row.characterId, row.encounterId));

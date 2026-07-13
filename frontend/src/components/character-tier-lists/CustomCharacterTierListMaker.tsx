@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FaCopy, FaShareAlt } from "react-icons/fa";
 import {
@@ -313,6 +313,7 @@ export default function CustomCharacterTierListMaker({
   name,
   raidId,
   data,
+  renderHeader,
   sourceShareId,
   canUpdateSharedList = false,
 }: {
@@ -320,6 +321,7 @@ export default function CustomCharacterTierListMaker({
   name: string;
   raidId: number;
   data: CustomCharacterTierListResponse;
+  renderHeader: (actions: ReactNode) => ReactNode;
   sourceShareId?: string | null;
   canUpdateSharedList?: boolean;
 }) {
@@ -525,13 +527,9 @@ export default function CustomCharacterTierListMaker({
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-white">{t("myTierList")}</h2>
-          <p className="text-sm text-gray-400">{t("customCount", { count: data.roster.length })}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <>
+      {renderHeader(
+        <>
           <button
             type="button"
             onClick={handleShare}
@@ -562,58 +560,60 @@ export default function CustomCharacterTierListMaker({
           >
             {isSaving ? t("saving") : t("save")}
           </button>
-        </div>
-      </div>
-
-      {message && <div className="rounded-md border border-emerald-700 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-200">{message}</div>}
-      {error && <div className="rounded-md border border-red-700 bg-red-950/40 px-3 py-2 text-sm text-red-200">{error}</div>}
-      {shareUrl && (
-        <div className="flex flex-col gap-2 rounded-md border border-gray-700 bg-gray-900 p-3 sm:flex-row sm:items-center">
-          <input
-            readOnly
-            value={shareUrl}
-            onFocus={(event) => event.currentTarget.select()}
-            className="min-h-10 min-w-0 flex-1 rounded-md border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-            aria-label={t("sharedLink")}
-          />
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                await copyShareUrl(shareUrl);
-              } catch {
-                setShareCopied(false);
-              }
-            }}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-gray-600 px-4 text-sm font-semibold text-gray-100 transition-[scale,background-color] duration-150 ease-out hover:bg-gray-800 active:scale-[0.96]"
-          >
-            <FaCopy className="h-3.5 w-3.5" aria-hidden="true" />
-            {shareCopied ? t("copied") : t("copyLink")}
-          </button>
-        </div>
+        </>,
       )}
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={collisionDetectionStrategy}
-        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <div className="space-y-4">
-          <div className="overflow-hidden rounded-lg border border-gray-700">
-            {TIERS.map((tier) => (
-              <DroppableTierRow key={tier} id={tier} label={tier} characterKeys={containers[tier]} charactersByKey={charactersByKey} />
-            ))}
+      <div className="space-y-5">
+        {message && <div className="rounded-md border border-emerald-700 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-200">{message}</div>}
+        {error && <div className="rounded-md border border-red-700 bg-red-950/40 px-3 py-2 text-sm text-red-200">{error}</div>}
+        {shareUrl && (
+          <div className="flex flex-col gap-2 rounded-md border border-gray-700 bg-gray-900 p-3 sm:flex-row sm:items-center">
+            <input
+              readOnly
+              value={shareUrl}
+              onFocus={(event) => event.currentTarget.select()}
+              className="min-h-10 min-w-0 flex-1 rounded-md border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+              aria-label={t("sharedLink")}
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await copyShareUrl(shareUrl);
+                } catch {
+                  setShareCopied(false);
+                }
+              }}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-gray-600 px-4 text-sm font-semibold text-gray-100 transition-[scale,background-color] duration-150 ease-out hover:bg-gray-800 active:scale-[0.96]"
+            >
+              <FaCopy className="h-3.5 w-3.5" aria-hidden="true" />
+              {shareCopied ? t("copied") : t("copyLink")}
+            </button>
           </div>
-          <DroppableCharacterPool id={UNPLACED} label={t("unplaced")} characterKeys={containers[UNPLACED]} charactersByKey={charactersByKey} />
-        </div>
-        <DragOverlay adjustScale={false} dropAnimation={{ duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" }}>
-          {activeCharacter ? <CharacterTierCard item={activeCharacter} link={false} isOverlay showScore={false} /> : null}
-        </DragOverlay>
-      </DndContext>
-    </div>
+        )}
+
+        <DndContext
+          sensors={sensors}
+          collisionDetection={collisionDetectionStrategy}
+          measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <div className="space-y-4">
+            <div className="overflow-hidden rounded-lg border border-gray-700">
+              {TIERS.map((tier) => (
+                <DroppableTierRow key={tier} id={tier} label={tier} characterKeys={containers[tier]} charactersByKey={charactersByKey} />
+              ))}
+            </div>
+            <DroppableCharacterPool id={UNPLACED} label={t("unplaced")} characterKeys={containers[UNPLACED]} charactersByKey={charactersByKey} />
+          </div>
+          <DragOverlay adjustScale={false} dropAnimation={{ duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" }}>
+            {activeCharacter ? <CharacterTierCard item={activeCharacter} link={false} isOverlay showScore={false} /> : null}
+          </DragOverlay>
+        </DndContext>
+      </div>
+    </>
   );
 }

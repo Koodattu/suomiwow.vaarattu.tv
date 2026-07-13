@@ -342,11 +342,6 @@ export interface GuildProfileHighlightTopPerformer {
   pulls: number;
   deaths: number;
   earlyDeaths: number;
-  metric: "dps" | "hps";
-  role: "dps" | "healer" | "tank";
-  specName: string;
-  zoneId: number;
-  raidName: string;
 }
 
 export interface GuildProfileHighlights {

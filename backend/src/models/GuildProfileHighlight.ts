@@ -41,11 +41,6 @@ export interface IGuildProfileHighlightTopPerformer {
   pulls: number;
   deaths: number;
   earlyDeaths: number;
-  metric: "dps" | "hps";
-  role: "dps" | "healer" | "tank";
-  specName: string;
-  zoneId: number;
-  raidName: string;
 }
 
 export interface IGuildProfileHighlight extends Document {
@@ -96,11 +91,6 @@ const GuildProfileHighlightTopPerformerSchema = new Schema<IGuildProfileHighligh
     pulls: { type: Number, required: true, default: 0 },
     deaths: { type: Number, required: true, default: 0 },
     earlyDeaths: { type: Number, required: true, default: 0 },
-    metric: { type: String, enum: ["dps", "hps"], required: true },
-    role: { type: String, enum: ["dps", "healer", "tank"], required: true },
-    specName: { type: String, required: true },
-    zoneId: { type: Number, required: true },
-    raidName: { type: String, required: true },
   },
   { _id: false },
 );

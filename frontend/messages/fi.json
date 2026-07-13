@@ -253,7 +253,6 @@
     "byRole": "Rooleittain",
     "combined": "Yhdistetty",
     "generated": "Luotu",
-    "myTierList": "Oma Tier Lista",
     "createMyTierList": "Luo oma Tier Lista",
     "viewGeneratedTierList": "Näytä luotu Tier Lista",
     "share": "Jaa",
@@ -286,7 +285,6 @@
     "error": "Hahmojen tier listan lataaminen epäonnistui.",
     "noScoredCharacters": "Näillä suodattimilla ei löytynyt pisteytettyjä hahmoja.",
     "characterCount": "{visible} / {total} hahmoa",
-    "customCount": "{count} hahmoa killan rosterissa",
     "lastCalculated": "Viimeksi laskettu: {date}"
   },
   "guildProfilePage": {
@@ -726,14 +724,11 @@
   "guildProfileHighlights": {
     "mainstays": "Vakiokasvot",
     "topPerformers": "Parhaat suoriutujat",
-    "account": "Tili",
     "inferredAccount": "Paatelty tili",
-    "characterCount": "{count, plural, one {# hahmo} other {# hahmoa}}",
     "reports": "{count, plural, one {# raportti} other {# raporttia}}",
     "raids": "{count, plural, one {# raidi} other {# raidia}}",
-    "pulls": "{count, plural, one {# pulli} other {# pullia}}",
     "since": "Alkaen {date}",
-    "firstSeen": "Ensin"
+    "combined": "Yhteispisteet"
   },
   "characterProfile": {
     "firstSeen": "Ensimmäinen havainto",

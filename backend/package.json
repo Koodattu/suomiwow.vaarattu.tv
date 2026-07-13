@@ -9,7 +9,7 @@
     "build": "tsc",
     "test:featured-achievements": "ts-node src/scripts/test-featured-achievements.ts",
     "start": "node --max-old-space-size=1536 dist/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test -r ts-node/register \"test/**/*.test.ts\""
   },
   "keywords": [],
   "author": "",
