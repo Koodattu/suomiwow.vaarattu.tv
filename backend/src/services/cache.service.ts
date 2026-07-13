@@ -942,20 +942,20 @@ class CacheService {
     const minReports = Number.isFinite(filters.minReports) ? filters.minReports : "default";
     const role = filters.role || "all";
     const classId = Number.isFinite(filters.classId) ? filters.classId : "all";
-    const limit = Number.isFinite(filters.limit) ? filters.limit : "default";
+    const limit = filters.limit === null ? "all" : Number.isFinite(filters.limit) ? filters.limit : "default";
     return `reports:${minReports}:role:${role}:class:${classId}:limit:${limit}`;
   }
 
   getCharacterTierListRaidsKey(): string {
-    return "character-tierlists:v4:raids";
+    return "character-tierlists:v5:raids";
   }
 
   getCharacterTierListGlobalKey(raidId: number, filters: { minReports?: number; role?: string | null; classId?: number | null; limit?: number | null }): string {
-    return `character-tierlists:v4:global:${raidId}:${this.formatCharacterTierListFilterSegment(filters)}`;
+    return `character-tierlists:v5:global:${raidId}:${this.formatCharacterTierListFilterSegment(filters)}`;
   }
 
   getCharacterTierListGuildKey(realm: string, name: string, raidId: number, filters: { minReports?: number; role?: string | null; classId?: number | null; limit?: number | null }): string {
-    return `character-tierlists:v4:guild:${realm.toLowerCase()}:${name.toLowerCase()}:${raidId}:${this.formatCharacterTierListFilterSegment(filters)}`;
+    return `character-tierlists:v5:guild:${realm.toLowerCase()}:${name.toLowerCase()}:${raidId}:${this.formatCharacterTierListFilterSegment(filters)}`;
   }
 
   /**

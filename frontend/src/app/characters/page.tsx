@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useCharacterMechanics, useCharacterMechanicsOptions, useCharacterRankingOptions, useBosses, useCharacterRankings } from "@/lib/queries";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { useCharacterMechanics, useCharacterMechanicsOptions, useCharacterRankingOptions, useBosses, useCharacterRankings, useMythicPlusOptions } from "@/lib/queries";
 import { RankingTableWrapper } from "@/components/RankingTableWrapper";
 import CharacterRankingsRaidPartitionSelector, { type CharacterRankingsSelection } from "@/components/CharacterRankingsRaidPartitionSelector";
-import MythicPlusLeaderboard from "@/components/MythicPlusLeaderboard";
+import MythicPlusLeaderboard, { type MythicPlusLeaderboardFilters } from "@/components/MythicPlusLeaderboard";
 
 type Filters = {
   zoneId?: number;
@@ -54,6 +57,17 @@ const CHARACTER_TABS: Array<{
   },
 ];
 
+const DEFAULT_MYTHIC_PLUS_FILTERS: MythicPlusLeaderboardFilters = {
+  bucket: "all",
+  dungeonSort: "score",
+  page: 1,
+  limit: 100,
+};
+
+function getCharacterTab(value: string | null): CharacterTab {
+  return CHARACTER_TABS.some((tab) => tab.id === value) ? (value as CharacterTab) : "rankings";
+}
+
 function buildQuery(filters: Filters) {
   const sp = new URLSearchParams();
   Object.entries(filters).forEach(([k, v]) => {
@@ -64,13 +78,17 @@ function buildQuery(filters: Filters) {
   return s ? `?${s}` : "";
 }
 
-export default function CharacterRankingsPage() {
-  const [activeTab, setActiveTab] = useState<CharacterTab>("rankings");
+function CharacterRankingsContent() {
+  const searchParams = useSearchParams();
+  const t = useTranslations("characterRankingsPage");
+  const activeTab = getCharacterTab(searchParams.get("tab"));
   const [selectedRaidPartition, setSelectedRaidPartition] = useState<CharacterRankingsSelection | null>(null);
   const [filters, setFilters] = useState<Filters>({
     limit: 100,
     page: 1,
   });
+  const [mythicPlusFilters, setMythicPlusFilters] = useState<MythicPlusLeaderboardFilters>({ ...DEFAULT_MYTHIC_PLUS_FILTERS });
+  const previousActiveTab = useRef(activeTab);
 
   // ─── React Query hooks ───────────────────────────────────────────────────────
 
@@ -79,6 +97,7 @@ export default function CharacterRankingsPage() {
   const activeTabConfig = CHARACTER_TABS.find((tab) => tab.id === activeTab) ?? CHARACTER_TABS[0];
   const { data: rankingOptionsData, isLoading: rankingOptionsLoading, error: rankingOptionsError } = useCharacterRankingOptions();
   const { data: mechanicsOptionsData, isLoading: mechanicsOptionsLoading, error: mechanicsOptionsError } = useCharacterMechanicsOptions();
+  const { data: mythicPlusOptions, isLoading: mythicPlusOptionsLoading, error: mythicPlusOptionsError } = useMythicPlusOptions(isMythicPlusTab);
   const optionsData = isMechanicsBackedTab ? (mechanicsOptionsData ?? rankingOptionsData) : rankingOptionsData;
   const optionsLoading = isMythicPlusTab ? false : isMechanicsBackedTab ? mechanicsOptionsLoading && !rankingOptionsData : rankingOptionsLoading;
   const optionsError = isMythicPlusTab ? null : isMechanicsBackedTab ? (mechanicsOptionsError ?? rankingOptionsError) : rankingOptionsError;
@@ -130,6 +149,36 @@ export default function CharacterRankingsPage() {
     }));
   }, [isMechanicsBackedTab, optionsData, raidOptions, selectedRaidPartition]);
 
+  useEffect(() => {
+    if (!isMythicPlusTab || !mythicPlusOptions) return;
+
+    const defaultSeason =
+      mythicPlusOptions.seasons.find((season) => season.slug === mythicPlusOptions.defaultSelection.season)?.slug ?? mythicPlusOptions.seasons[0]?.slug ?? null;
+    if (!defaultSeason) return;
+
+    setMythicPlusFilters((prev) => {
+      const selectedSeasonIsAvailable = !!prev.season && mythicPlusOptions.seasons.some((season) => season.slug === prev.season);
+      return selectedSeasonIsAvailable ? prev : { ...prev, season: defaultSeason, dungeonId: null, page: 1 };
+    });
+  }, [isMythicPlusTab, mythicPlusOptions]);
+
+  useEffect(() => {
+    const previousTab = previousActiveTab.current;
+    if (previousTab === activeTab) return;
+
+    previousActiveTab.current = activeTab;
+    setFilters((prev) => ({
+      ...prev,
+      partition: activeTab === "rankings" ? (selectedRaidPartition?.partition ?? null) : undefined,
+      encounterId: undefined,
+      page: 1,
+    }));
+
+    if (previousTab === "mythic-plus") {
+      setMythicPlusFilters({ ...DEFAULT_MYTHIC_PLUS_FILTERS });
+    }
+  }, [activeTab, selectedRaidPartition?.partition]);
+
   // ─── Handlers ─────────────────────────────────────────────────────────────────
 
   const handleRaidPartitionChange = (selection: CharacterRankingsSelection) => {
@@ -143,15 +192,8 @@ export default function CharacterRankingsPage() {
     }));
   };
 
-  const handleTabChange = (tab: CharacterTab) => {
-    if (tab === activeTab) return;
-    setActiveTab(tab);
-    setFilters((prev) => ({
-      ...prev,
-      partition: tab === "rankings" ? (selectedRaidPartition?.partition ?? null) : undefined,
-      encounterId: undefined,
-      page: 1,
-    }));
+  const handleMythicPlusFiltersChange = (patch: Partial<MythicPlusLeaderboardFilters>) => {
+    setMythicPlusFilters((prev) => ({ ...prev, ...patch, page: patch.page ?? 1 }));
   };
 
   return (
@@ -163,20 +205,45 @@ export default function CharacterRankingsPage() {
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-end lg:ml-auto">
           <div className="inline-flex self-start rounded-md bg-gray-900/80 p-1 ring-1 ring-white/10 sm:self-auto">
-            {CHARACTER_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => handleTabChange(tab.id)}
-                className={`min-h-10 rounded px-4 py-2 text-sm font-semibold transition-[background-color,color,transform] active:scale-[0.96] ${
-                  activeTab === tab.id ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+            {CHARACTER_TABS.map((tab) => {
+              const params = new URLSearchParams(searchParams.toString());
+              params.set("tab", tab.id);
+
+              return (
+                <Link
+                  key={tab.id}
+                  href={`?${params.toString()}`}
+                  scroll={false}
+                  aria-current={activeTab === tab.id ? "page" : undefined}
+                  className={`flex min-h-10 items-center rounded px-3 py-2 text-sm font-semibold transition-[background-color,color,transform] active:scale-[0.96] sm:px-4 ${
+                    activeTab === tab.id ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </Link>
+              );
+            })}
           </div>
-          {!isMythicPlusTab ? (
+          {isMythicPlusTab ? (
+            <div className="w-full sm:w-auto">
+              <label htmlFor="mythic-plus-season-select" className="mb-1 block text-xs text-gray-400">
+                {t("season")}
+              </label>
+              <select
+                id="mythic-plus-season-select"
+                value={mythicPlusFilters.season ?? ""}
+                disabled={mythicPlusOptionsLoading || !mythicPlusOptions?.seasons.length}
+                onChange={(event) => handleMythicPlusFiltersChange({ season: event.target.value || null, dungeonId: null })}
+                className="min-h-10 w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[220px]"
+              >
+                {mythicPlusOptions?.seasons.map((season) => (
+                  <option key={season.slug} value={season.slug}>
+                    {season.shortName || season.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
             <CharacterRankingsRaidPartitionSelector
               raids={raidOptions}
               selected={selectedRaidPartition}
@@ -184,12 +251,18 @@ export default function CharacterRankingsPage() {
               label={isMechanicsBackedTab ? "Raid" : undefined}
               showPartitions={!isMechanicsBackedTab}
             />
-          ) : null}
+          )}
         </div>
       </div>
 
       {isMythicPlusTab ? (
-        <MythicPlusLeaderboard />
+        <MythicPlusLeaderboard
+          filters={mythicPlusFilters}
+          onFiltersChange={handleMythicPlusFiltersChange}
+          options={mythicPlusOptions}
+          optionsLoading={mythicPlusOptionsLoading}
+          optionsError={mythicPlusOptionsError}
+        />
       ) : (
         <RankingTableWrapper
           key={`${activeTab}-${selectedRaidPartition?.zoneId ?? "none"}`}
@@ -207,5 +280,13 @@ export default function CharacterRankingsPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function CharacterRankingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <CharacterRankingsContent />
+    </Suspense>
   );
 }

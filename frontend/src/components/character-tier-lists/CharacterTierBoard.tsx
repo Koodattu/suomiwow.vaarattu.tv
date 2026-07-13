@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { CSSProperties, Ref } from "react";
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core/dist/hooks/useDraggable";
 import IconImage from "@/components/IconImage";
-import { getClassInfoById, getParseColor } from "@/lib/utils";
+import { getClassInfoById, getParseColor, getSpecIconUrl } from "@/lib/utils";
 import type { CharacterTierName, CharacterTierListRole } from "@/types";
 
 export type CharacterTierBoardItem = {
@@ -14,6 +14,7 @@ export type CharacterTierBoardItem = {
   realm: string;
   region: string;
   classID: number;
+  guildName?: string | null;
   reportCount: number;
   score: number | null;
   parseScore?: number | null;
@@ -153,6 +154,7 @@ export function CharacterTierCard({
   isOverlay,
   isStatic,
   showScore = true,
+  showSpecIcon = false,
   link = true,
 }: {
   item: CharacterTierBoardItem;
@@ -164,14 +166,16 @@ export function CharacterTierCard({
   isOverlay?: boolean;
   isStatic?: boolean;
   showScore?: boolean;
+  showSpecIcon?: boolean;
   link?: boolean;
 }) {
   const classInfo = getClassInfoById(item.classID);
+  const specIcon = showSpecIcon && item.specName ? getSpecIconUrl(item.classID, item.specName) : undefined;
   const combinedScore = item.score;
   const title = showScore && combinedScore !== null && combinedScore !== undefined ? `${item.name} / ${formatScore(combinedScore)}` : item.name;
   const content = (
     <>
-      <IconImage iconFilename={classInfo.iconUrl} alt={classInfo.name} fill style={{ objectFit: "cover" }} />
+      <IconImage iconFilename={specIcon ?? classInfo.iconUrl} alt={specIcon ? item.specName ?? classInfo.name : classInfo.name} fill style={{ objectFit: "cover" }} />
       {showScore && combinedScore !== null && combinedScore !== undefined && (
         <span className="absolute right-1 top-1 rounded-sm bg-black/75 px-1 text-[10px] font-bold tabular-nums shadow-sm" style={{ color: getParseColor(combinedScore) }}>
           {formatScore(combinedScore)}
@@ -179,6 +183,7 @@ export function CharacterTierCard({
       )}
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent px-1.5 pb-1 pt-5">
         <div className="truncate text-center text-[11px] font-semibold leading-tight text-white">{item.name}</div>
+        {item.guildName && <div className="truncate text-center text-[9px] font-medium leading-tight text-gray-300">{item.guildName}</div>}
       </div>
     </>
   );
@@ -240,11 +245,13 @@ export default function CharacterTierBoard({
   title,
   characters,
   showCrown = true,
+  showSpecIcons = false,
   emptyMessage,
 }: {
   title?: string;
   characters: CharacterTierBoardItem[];
   showCrown?: boolean;
+  showSpecIcons?: boolean;
   emptyMessage: string;
 }) {
   const tierGroups = groupCharactersIntoTiers(characters, showCrown);
@@ -269,7 +276,7 @@ export default function CharacterTierBoard({
             <div className={`flex min-h-20 w-14 shrink-0 items-center justify-center text-base font-black md:w-20 md:text-2xl ${CHARACTER_TIER_COLORS[tier]}`}>{tier === "Crown" ? "TOP" : tier}</div>
             <div className="flex min-h-20 flex-1 flex-wrap content-start gap-2 bg-gray-900 p-2">
               {tierGroups[tier].map((character) => (
-                <CharacterTierCard key={character.characterKey} item={character} />
+                <CharacterTierCard key={character.characterKey} item={character} showSpecIcon={showSpecIcons} />
               ))}
             </div>
           </div>

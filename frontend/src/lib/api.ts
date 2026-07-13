@@ -411,14 +411,14 @@ export const api = {
   },
 
   async getCharacterTierListRaids(): Promise<CharacterTierListRaidInfo[]> {
-    const response = await fetch(`${API_URL}/api/character-tierlists/raids?v=4`);
+    const response = await fetch(`${API_URL}/api/character-tierlists/raids?v=5`);
     if (!response.ok) throw new Error("Failed to fetch character tier list raids");
     return response.json();
   },
 
   async getGlobalCharacterTierList(
     raidId: number,
-    filters: { minReports?: number; role?: CharacterTierListRole | null; classId?: number | null; limit?: number } = {},
+    filters: { minReports?: number; role?: CharacterTierListRole | null; classId?: number | null; limit?: number | "all" } = {},
   ): Promise<CharacterTierListResponse> {
     const params = new URLSearchParams();
     if (filters.minReports !== undefined) params.set("minReports", String(filters.minReports));
@@ -436,7 +436,7 @@ export const api = {
     realm: string,
     name: string,
     raidId: number,
-    filters: { minReports?: number; role?: CharacterTierListRole | null; classId?: number | null; limit?: number } = {},
+    filters: { minReports?: number; role?: CharacterTierListRole | null; classId?: number | null; limit?: number | "all" } = {},
   ): Promise<CharacterTierListResponse> {
     const encodedRealm = encodeURIComponent(realm);
     const encodedName = encodeURIComponent(name);

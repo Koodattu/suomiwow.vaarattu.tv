@@ -8,7 +8,8 @@ const router = Router();
 
 function parseFilters(req: Request, defaultMinReports: number): CharacterTierListFilters {
   const minReports = req.query.minReports ? parseInt(req.query.minReports as string, 10) : defaultMinReports;
-  const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 400;
+  const limitParam = typeof req.query.limit === "string" ? req.query.limit : null;
+  const limit = limitParam === "all" ? null : limitParam ? parseInt(limitParam, 10) : 400;
   const role = typeof req.query.role === "string" ? req.query.role : null;
   const classId = req.query.classId ? parseInt(req.query.classId as string, 10) : null;
 
@@ -16,7 +17,7 @@ function parseFilters(req: Request, defaultMinReports: number): CharacterTierLis
     throw new CharacterTierListServiceError(400, "minReports must be at least 1");
   }
 
-  if (!Number.isFinite(limit) || limit < 1) {
+  if (limit !== null && (!Number.isFinite(limit) || limit < 1)) {
     throw new CharacterTierListServiceError(400, "limit must be at least 1");
   }
 

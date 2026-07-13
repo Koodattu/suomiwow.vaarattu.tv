@@ -666,6 +666,7 @@ export interface CharacterTierListCharacter {
   realm: string;
   region: string;
   classID: number;
+  guildName: string | null;
   role: CharacterTierListRole;
   metric: CharacterTierListMetric;
   specName: string;
@@ -694,7 +695,7 @@ export interface CharacterTierListFilters {
   minReports: number;
   role: CharacterTierListRole | null;
   classId: number | null;
-  limit: number;
+  limit: number | null;
 }
 
 export interface CharacterTierListResponse {

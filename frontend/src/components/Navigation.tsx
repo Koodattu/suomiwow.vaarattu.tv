@@ -336,16 +336,17 @@ export default function Navigation() {
 
             {/* Right side buttons */}
             <div className="flex items-center gap-2">
-              <div className="relative h-9 w-9 shrink-0" ref={searchDropdownRef}>
+              <div className="relative h-9 shrink-0" ref={searchDropdownRef}>
                 <button
                   type="button"
                   onClick={() => setIsSearchDropdownOpen((isOpen) => !isOpen)}
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md bg-emerald-600 text-white shadow-sm shadow-black/30 transition-[background-color,transform] hover:bg-emerald-500 active:scale-[0.96]"
+                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md bg-emerald-600 text-white shadow-sm shadow-black/30 transition-[background-color,transform] hover:bg-emerald-500 active:scale-[0.96] sm:w-auto sm:gap-2 sm:pl-3 sm:pr-3.5"
                   title={t("search")}
                   aria-label={t("search")}
                   aria-expanded={isSearchDropdownOpen}
                 >
                   <FaMagnifyingGlass className="h-[17px] w-[17px]" aria-hidden="true" />
+                  <span className="hidden text-sm font-medium sm:inline">{t("search")}</span>
                 </button>
 
                 {isSearchDropdownOpen && (

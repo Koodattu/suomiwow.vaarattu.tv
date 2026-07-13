@@ -9,7 +9,7 @@ export type CharacterTierListQueryFilters = {
   minReports?: number;
   role?: CharacterTierListRole | null;
   classId?: number | null;
-  limit?: number;
+  limit?: number | "all";
 };
 
 // Query Key Factory
@@ -343,11 +343,12 @@ export function useCharacterMechanics(query: string, enabled: boolean = true) {
   });
 }
 
-export function useMythicPlusOptions() {
+export function useMythicPlusOptions(enabled: boolean = true) {
   return useQuery({
     queryKey: queryKeys.mythicPlus.options,
     queryFn: () => api.getMythicPlusOptions(),
     staleTime: 10 * 60 * 1000,
+    enabled,
   });
 }
 

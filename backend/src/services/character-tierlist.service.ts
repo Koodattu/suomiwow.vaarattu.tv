@@ -12,6 +12,7 @@ import Raid from "../models/Raid";
 import { CHARACTER_ACCOUNT_SIGNAL_VERSION } from "../config/achievement-signals";
 import { MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } from "../config/character-eligibility";
 import { TRACKED_RAIDS } from "../config/guilds";
+import { getPrimaryCharacterRaidGuilds, type CharacterRaidGuild } from "./character-raid-guild.service";
 import logger from "../utils/logger";
 
 const MYTHIC_DIFFICULTY = 5;
@@ -112,7 +113,7 @@ type NormalizedCharacterTierListFilters = {
   minReports: number;
   role: CharacterTierListRole | null;
   classId: number | null;
-  limit: number;
+  limit: number | null;
 };
 
 export type CharacterTierListCharacter = {
@@ -124,6 +125,7 @@ export type CharacterTierListCharacter = {
   realm: string;
   region: string;
   classID: number;
+  guildName: string | null;
   role: CharacterTierListRole;
   metric: CharacterTierListMetric;
   specName: string;
@@ -255,20 +257,25 @@ class CharacterTierListService {
     const normalizedFilters = this.normalizeFilters(filters, 3);
     const query = this.buildEntryQuery(zoneId, normalizedFilters, null);
 
-    const characters = await CharacterTierListEntry.find(query)
-      .sort({ score: -1, reportCount: -1, lastSeenAt: -1, name: 1 })
-      .limit(MAX_QUERY_LIMIT)
-      .lean<ICharacterTierListEntry[]>();
+    const characterQuery = CharacterTierListEntry.find(query).sort({ score: -1, reportCount: -1, lastSeenAt: -1, name: 1 });
+    if (normalizedFilters.limit !== null) {
+      characterQuery.limit(MAX_QUERY_LIMIT);
+    }
+    const characters = await characterQuery.lean<ICharacterTierListEntry[]>();
     const accountGroupIdByCharacterId = await this.getAccountGroupIdsByCharacterId(characters);
     const accountRepresentatives = this.selectMostPlayedGeneratedEntries(characters, accountGroupIdByCharacterId);
-    const limitedCharacters = accountRepresentatives.slice(0, normalizedFilters.limit);
+    const limitedCharacters = normalizedFilters.limit === null ? accountRepresentatives : accountRepresentatives.slice(0, normalizedFilters.limit);
+    const primaryGuildByCharacterId = await getPrimaryCharacterRaidGuilds(
+      zoneId,
+      limitedCharacters.map((entry) => entry.characterId),
+    );
 
     return {
       raid,
       guild: null,
       filters: normalizedFilters,
       generatedAt: characters[0]?.generatedAt ?? null,
-      characters: limitedCharacters.map((entry) => this.formatGeneratedCharacter(entry, accountGroupIdByCharacterId)),
+      characters: limitedCharacters.map((entry) => this.formatGeneratedCharacter(entry, accountGroupIdByCharacterId, primaryGuildByCharacterId)),
       total: accountRepresentatives.length,
     };
   }
@@ -284,7 +291,7 @@ class CharacterTierListService {
     const characters = await CharacterTierListEntry.find(query).sort({ score: -1, reportCount: -1, lastSeenAt: -1, name: 1 }).lean<ICharacterTierListEntry[]>();
     const accountGroupIdByCharacterId = await this.getAccountGroupIdsByCharacterId(characters);
     const accountRepresentatives = this.selectMostPlayedGeneratedEntries(characters, accountGroupIdByCharacterId);
-    const limitedCharacters = accountRepresentatives.slice(0, normalizedFilters.limit);
+    const limitedCharacters = normalizedFilters.limit === null ? accountRepresentatives : accountRepresentatives.slice(0, normalizedFilters.limit);
 
     return {
       raid,
@@ -1042,7 +1049,7 @@ class CharacterTierListService {
       minReports: Math.max(1, Math.min(999, Math.floor(filters.minReports ?? defaultMinReports))),
       role: filters.role ?? null,
       classId: filters.classId ?? null,
-      limit: Math.max(1, Math.min(MAX_QUERY_LIMIT, Math.floor(filters.limit ?? 400))),
+      limit: filters.limit === null ? null : Math.max(1, Math.min(MAX_QUERY_LIMIT, Math.floor(filters.limit ?? 400))),
     };
   }
 
@@ -1060,16 +1067,24 @@ class CharacterTierListService {
       .lean<{ _id: mongoose.Types.ObjectId; name: string; realm: string } | null>();
   }
 
-  private formatGeneratedCharacter(entry: ICharacterTierListEntry, accountGroupIdByCharacterId: Map<string, string> = new Map()): CharacterTierListCharacter {
+  private formatGeneratedCharacter(
+    entry: ICharacterTierListEntry,
+    accountGroupIdByCharacterId: Map<string, string> = new Map(),
+    primaryGuildByCharacterId: Map<string, CharacterRaidGuild> = new Map(),
+  ): CharacterTierListCharacter {
+    const characterId = entry.characterId?.toString() ?? null;
+    const primaryGuild = characterId ? primaryGuildByCharacterId.get(characterId) : null;
+
     return {
       characterKey: entry.characterKey,
-      characterId: entry.characterId?.toString() ?? null,
-      accountGroupId: entry.characterId ? accountGroupIdByCharacterId.get(entry.characterId.toString()) ?? null : null,
+      characterId,
+      accountGroupId: characterId ? accountGroupIdByCharacterId.get(characterId) ?? null : null,
       wclCanonicalCharacterId: entry.wclCanonicalCharacterId ?? null,
       name: entry.name,
       realm: entry.realm,
       region: entry.region,
       classID: entry.classID,
+      guildName: primaryGuild?.name ?? entry.guildName ?? null,
       role: entry.role,
       metric: entry.metric,
       specName: entry.specName,

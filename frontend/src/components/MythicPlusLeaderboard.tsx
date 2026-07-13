@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import IconImage from "@/components/IconImage";
-import { useMythicPlusLeaderboard, useMythicPlusOptions } from "@/lib/queries";
+import { useMythicPlusLeaderboard } from "@/lib/queries";
 import { formatRealmName, formatSpecName, getAllClasses, getClassInfoById, getGuildProfileUrl, getSpecIconUrl } from "@/lib/utils";
-import type { ClassInfo, MythicPlusDungeonOption, MythicPlusLeaderboardRow, MythicPlusScoreBucket } from "@/types";
+import type { ClassInfo, MythicPlusDungeonOption, MythicPlusLeaderboardRow, MythicPlusOptionsResponse, MythicPlusScoreBucket } from "@/types";
 
-type Filters = {
+export type MythicPlusLeaderboardFilters = {
   season?: string | null;
   bucket: MythicPlusScoreBucket;
   dungeonId?: number | null;
@@ -20,6 +21,14 @@ type Filters = {
   limit: number;
 };
 
+interface MythicPlusLeaderboardProps {
+  filters: MythicPlusLeaderboardFilters;
+  onFiltersChange: (patch: Partial<MythicPlusLeaderboardFilters>) => void;
+  options?: MythicPlusOptionsResponse;
+  optionsLoading: boolean;
+  optionsError: Error | null;
+}
+
 const BUCKET_OPTIONS: Array<{ value: MythicPlusScoreBucket; label: string }> = [
   { value: "all", label: "Overall" },
   { value: "dps", label: "DPS" },
@@ -27,7 +36,7 @@ const BUCKET_OPTIONS: Array<{ value: MythicPlusScoreBucket; label: string }> = [
   { value: "tank", label: "Tank" },
 ];
 
-function buildQuery(filters: Filters) {
+function buildQuery(filters: MythicPlusLeaderboardFilters) {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
     if (value === undefined || value === null || value === "") return;
@@ -75,11 +84,10 @@ function getHighestKeyForDungeon(row: MythicPlusLeaderboardRow, dungeonId: numbe
 
 function CharacterCell({ row }: { row: MythicPlusLeaderboardRow }) {
   const classInfo = getClassInfoById(row.character.classID);
-  const specIcon = row.bestSpec?.slug ? getSpecIconUrl(row.character.classID, row.bestSpec.slug) : undefined;
 
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <IconImage iconFilename={specIcon ?? classInfo.iconUrl} alt={row.character.name} width={24} height={24} className="h-6 w-6 shrink-0 rounded" />
+      <IconImage iconFilename={classInfo.iconUrl} alt={classInfo.name} width={24} height={24} className="h-6 w-6 shrink-0 rounded" />
       <div className="min-w-0">
         <Link href={`/characters/${encodeURIComponent(row.character.realm)}/${encodeURIComponent(row.character.name)}?class=${row.character.classID}`} className="truncate font-semibold text-gray-100 hover:text-blue-300">
           {row.character.name}
@@ -122,6 +130,7 @@ function ClassSpecFilters({
   onClassChange: (classId: number | null) => void;
   onSpecChange: (specName: string | null) => void;
 }) {
+  const t = useTranslations("characterRankingsPage");
   const classes = getAllClasses();
   const selectedClass = selectedClassId ? classes.find((classInfo) => classInfo.id === selectedClassId) : null;
 
@@ -136,7 +145,7 @@ function ClassSpecFilters({
         }}
         className="min-h-10 min-w-[150px] rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
-        <option value="">All classes</option>
+        <option value="">{t("allClasses")}</option>
         {classes.map((classInfo: ClassInfo) => (
           <option key={classInfo.id} value={classInfo.id}>
             {classInfo.name}
@@ -148,9 +157,9 @@ function ClassSpecFilters({
         value={selectedSpecName ?? ""}
         disabled={!selectedClass}
         onChange={(event) => onSpecChange(event.target.value || null)}
-        className="min-h-10 min-w-[150px] rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="min-h-10 min-w-[150px] rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
-        <option value="">All specs</option>
+        <option value="">{selectedClass ? t("allSpecs") : t("selectClassFirst")}</option>
         {selectedClass?.specs.map((spec) => (
           <option key={spec.name} value={spec.name}>
             {formatSpecName(spec.name)}
@@ -161,14 +170,7 @@ function ClassSpecFilters({
   );
 }
 
-export default function MythicPlusLeaderboard() {
-  const [filters, setFilters] = useState<Filters>({
-    bucket: "all",
-    dungeonSort: "score",
-    page: 1,
-    limit: 100,
-  });
-  const { data: options, isLoading: optionsLoading, error: optionsError } = useMythicPlusOptions();
+export default function MythicPlusLeaderboard({ filters, onFiltersChange: updateFilters, options, optionsLoading, optionsError }: MythicPlusLeaderboardProps) {
   const selectedSeason = options?.seasons.find((season) => season.slug === filters.season) ?? options?.seasons[0] ?? null;
   const selectedDungeon = selectedSeason?.dungeons.find((dungeon) => dungeon.id === filters.dungeonId) ?? null;
   const queryString = useMemo(() => buildQuery(filters), [filters]);
@@ -181,15 +183,6 @@ export default function MythicPlusLeaderboard() {
   const dungeonColumns = selectedSeason?.dungeons ?? [];
   const tableColumnCount = selectedDungeon ? 7 : 5 + dungeonColumns.length;
   const tableMinWidth = selectedDungeon ? 980 : Math.max(1100, 780 + dungeonColumns.length * 96);
-
-  useEffect(() => {
-    if (!options?.defaultSelection.season) return;
-    setFilters((prev) => (prev.season ? prev : { ...prev, season: options.defaultSelection.season, page: 1 }));
-  }, [options?.defaultSelection.season]);
-
-  const updateFilters = (patch: Partial<Filters>) => {
-    setFilters((prev) => ({ ...prev, ...patch, page: patch.page ?? 1 }));
-  };
 
   const page = pagination?.currentPage ?? filters.page;
   const totalPages = pagination?.totalPages ?? 1;
@@ -215,17 +208,6 @@ export default function MythicPlusLeaderboard() {
           placeholder="Search guild"
           className="min-h-10 min-w-[180px] flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <select
-          value={filters.season ?? ""}
-          onChange={(event) => updateFilters({ season: event.target.value || null, dungeonId: null })}
-          className="min-h-10 min-w-[170px] rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {options?.seasons.map((season) => (
-            <option key={season.slug} value={season.slug}>
-              {season.shortName || season.name}
-            </option>
-          ))}
-        </select>
         <select
           value={filters.bucket}
           onChange={(event) => updateFilters({ bucket: event.target.value as MythicPlusScoreBucket })}
@@ -273,7 +255,7 @@ export default function MythicPlusLeaderboard() {
             <tr className="border-b border-gray-700 bg-gray-900 text-center font-semibold text-gray-200">
               <th className="w-16 border-r border-gray-700 px-3 py-3">Rank</th>
               <th className="border-r border-gray-700 px-3 py-3 text-left">Character</th>
-              <th className="border-r border-gray-700 px-3 py-3 text-left">Guild</th>
+              <th className="border-r border-gray-700 px-3 py-3">Guild</th>
               <th className="border-r border-gray-700 px-3 py-3">Score</th>
               <th className="border-r border-gray-700 px-3 py-3">Best spec</th>
               {selectedDungeon ? (
@@ -314,7 +296,7 @@ export default function MythicPlusLeaderboard() {
                     <td className="border-r border-gray-700 px-3 py-3">
                       <CharacterCell row={row} />
                     </td>
-                    <td className="border-r border-gray-700 px-3 py-3">
+                    <td className="border-r border-gray-700 px-3 py-3 text-center">
                       {row.character.guild?.name && row.character.guild.realm ? (
                         <Link href={getGuildProfileUrl(row.character.guild.realm, row.character.guild.name)} className="font-semibold text-gray-200 hover:text-blue-300">
                           {row.character.guild.name}
