@@ -3,15 +3,15 @@
 import { GuildListItem, RaidProgressSummary } from "@/types";
 import {
   formatTime,
-  formatPercent,
-  formatPhaseDisplay,
   getWorldRankColor,
   getBestWorldRank,
   getLeaderboardRankColor,
   getRaiderIOGuildUrl,
   getEffectiveProgress,
 } from "@/lib/utils";
+import { getEffectivePullProgress } from "@/lib/raid-progress-display";
 import GuildCrest from "./GuildCrest";
+import BestPullValue from "./BestPullValue";
 import Image from "next/image";
 import Link from "next/link";
 import { useState, memo, useCallback, useEffect, useRef, type ReactNode } from "react";
@@ -41,49 +41,6 @@ function StackedTimeValue({ primary, secondary }: { primary?: number | null; sec
       <div className="mt-0.5 text-[11px] text-gray-500">({formatOptionalTime(secondary)})</div>
     </div>
   );
-}
-
-function getPullProgressDisplay(progress: RaidProgressSummary | null) {
-  const currentBossPulls = progress?.currentBossPulls || 0;
-  const bestPullPercent = progress?.bestPullPercent || 0;
-  const bestPullDisplay = progress?.bestPullPhase?.displayString || "";
-  const hasCurrentBossProgress = currentBossPulls > 0 || bestPullDisplay || (bestPullPercent > 0 && bestPullPercent < 100);
-
-  if (hasCurrentBossProgress) {
-    return {
-      pulls: currentBossPulls,
-      bestPull: bestPullPercent,
-      bestPullDisplay,
-      isKilledBoss: false,
-    };
-  }
-
-  return {
-    pulls: progress?.lastKilledBossPulls || 0,
-    bestPull: 0,
-    bestPullDisplay: "",
-    isKilledBoss: (progress?.lastKilledBossPulls || 0) > 0,
-  };
-}
-
-function hasProgressDisplayData(progress: RaidProgressSummary | null, pullDisplay: ReturnType<typeof getPullProgressDisplay>) {
-  return (
-    pullDisplay.pulls > 0 ||
-    pullDisplay.bestPull > 0 ||
-    !!pullDisplay.bestPullDisplay ||
-    (progress?.totalTimeSpent ?? 0) > 0 ||
-    (progress?.totalCombatTimeSpent ?? 0) > 0 ||
-    (progress?.progressRaidTimeSpent ?? 0) > 0 ||
-    (progress?.totalRaidTimeSpent ?? 0) > 0
-  );
-}
-
-function BestPullValue({ display, className }: { display: ReturnType<typeof getPullProgressDisplay>; className?: string }) {
-  if (display.isKilledBoss) {
-    return <span className={className ? `text-white ${className}` : "text-white"}>✓</span>;
-  }
-
-  return <>{display.bestPullDisplay ? formatPhaseDisplay(display.bestPullDisplay) : display.bestPull > 0 ? formatPercent(display.bestPull) : "-"}</>;
 }
 
 function getLiveStreamerChannelNames(guild: GuildListItem) {
@@ -283,7 +240,7 @@ function HeaderWithTooltip({ label, tooltip, tooltipId }: { label: ReactNode; to
       {label}
       <button
         type="button"
-        className="group relative inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-500 transition-colors hover:text-gray-300 focus:outline-none focus-visible:text-gray-300 focus-visible:ring-2 focus-visible:ring-gray-500/60"
+        className="group relative inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-500 transition-colors after:absolute after:left-1/2 after:top-1/2 after:h-10 after:w-10 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] hover:text-gray-300 focus:outline-none focus-visible:text-gray-300 focus-visible:ring-2 focus-visible:ring-gray-500/60"
         aria-label={tooltip}
         aria-describedby={tooltipId}
       >
@@ -413,19 +370,13 @@ const GuildTableRow = memo(
   }) => {
     const mythicProgress = getLatestProgress(guild, "mythic");
     const heroicProgress = getLatestProgress(guild, "heroic");
-    const mythicPullDisplay = getPullProgressDisplay(mythicProgress);
-    const heroicPullDisplay = getPullProgressDisplay(heroicProgress);
-    const hasMythicPullData = hasProgressDisplayData(mythicProgress, mythicPullDisplay);
+    const { pullDisplay: effectivePullDisplay, progress: effectiveTimeProgress, isHeroicFallback } = getEffectivePullProgress(mythicProgress, heroicProgress);
     const guildRank = mythicProgress?.guildRank || heroicProgress?.guildRank || index + 1;
     const worldRank = getBestWorldRank(mythicProgress) || getBestWorldRank(heroicProgress);
     const official = guild.officialProgress?.[0];
     const mythicDisplay = getEffectiveProgress(mythicProgress, official, "mythic");
     const heroicDisplay = getEffectiveProgress(heroicProgress, official, "heroic");
 
-    // Use heroic data for pulls/progress/time columns when no mythic pull data exists
-    const effectivePullDisplay = hasMythicPullData ? mythicPullDisplay : heroicPullDisplay;
-    const effectiveTimeProgress = hasMythicPullData ? mythicProgress : heroicProgress;
-    const isHeroicFallback = !hasMythicPullData && hasProgressDisplayData(heroicProgress, heroicPullDisplay);
     const fallbackTextColor = isHeroicFallback ? "text-purple-400" : "text-gray-300";
 
     return (
@@ -509,10 +460,10 @@ const GuildTableRow = memo(
             {heroicDisplay.isOfficial && <span className="text-[10px] text-purple-400/60 ml-0.5">*</span>}
           </span>
         </td>
-        <td className={`guild-table-progress-cell px-4 py-3 text-center text-sm ${fallbackTextColor} cursor-pointer transition-colors`} onClick={() => onRaidProgressClick(guild)}>
+        <td className={`guild-table-progress-cell px-4 py-3 text-center text-sm tabular-nums ${fallbackTextColor} cursor-pointer transition-colors`} onClick={() => onRaidProgressClick(guild)}>
           {effectivePullDisplay.pulls > 0 ? effectivePullDisplay.pulls : "-"}
         </td>
-        <td className={`guild-table-progress-cell px-4 py-3 text-center text-sm ${fallbackTextColor} cursor-pointer transition-colors`} onClick={() => onRaidProgressClick(guild)}>
+        <td className={`guild-table-progress-cell px-4 py-3 text-center text-sm tabular-nums ${fallbackTextColor} cursor-pointer transition-colors`} onClick={() => onRaidProgressClick(guild)}>
           <BestPullValue display={effectivePullDisplay} />
         </td>
         <td className={`guild-table-progress-cell px-4 py-3 text-center text-sm ${fallbackTextColor} cursor-pointer transition-colors`} onClick={() => onRaidProgressClick(guild)}>
@@ -546,18 +497,13 @@ export default function GuildTable({ guilds, onGuildClick, onRaidProgressClick, 
   const MobileGuildCard = ({ guild, index }: { guild: GuildListItem; index: number }) => {
     const mythicProgress = getLatestProgress(guild, "mythic");
     const heroicProgress = getLatestProgress(guild, "heroic");
-    const mythicPullDisplay = getPullProgressDisplay(mythicProgress);
-    const heroicPullDisplay = getPullProgressDisplay(heroicProgress);
-    const hasMythicPullData = hasProgressDisplayData(mythicProgress, mythicPullDisplay);
+    const { pullDisplay: effectivePullDisplay, progress: effectiveTimeProgress, isHeroicFallback } = getEffectivePullProgress(mythicProgress, heroicProgress);
     const guildRank = mythicProgress?.guildRank || heroicProgress?.guildRank || index + 1;
     const worldRank = getBestWorldRank(mythicProgress) || getBestWorldRank(heroicProgress);
     const official = guild.officialProgress?.[0];
     const mythicDisplay = getEffectiveProgress(mythicProgress, official, "mythic");
     const heroicDisplay = getEffectiveProgress(heroicProgress, official, "heroic");
 
-    const effectivePullDisplay = hasMythicPullData ? mythicPullDisplay : heroicPullDisplay;
-    const effectiveTimeProgress = hasMythicPullData ? mythicProgress : heroicProgress;
-    const isHeroicFallback = !hasMythicPullData && hasProgressDisplayData(heroicProgress, heroicPullDisplay);
     const fallbackTextColor = isHeroicFallback ? "text-purple-400" : "text-gray-300";
     const progressTime = effectiveTimeProgress?.totalTimeSpent;
 
@@ -641,7 +587,9 @@ export default function GuildTable({ guilds, onGuildClick, onRaidProgressClick, 
               <th className="px-4 py-3 text-center text-sm font-semibold text-gray-300 border-l-2 border-gray-700">{t("schedule")}</th>
               <th className="px-4 py-3 text-center text-sm font-semibold text-orange-500">{t("mythic")}</th>
               <th className="px-4 py-3 text-center text-sm font-semibold text-purple-500">{t("heroic")}</th>
-              <th className="px-4 py-3 text-center text-sm font-semibold text-gray-300">{t("pulls")}</th>
+              <th className="px-4 py-3 text-center text-sm font-semibold text-gray-300">
+                <HeaderWithTooltip label={t("pulls")} tooltip={t("pullsTooltip")} tooltipId="guild-pulls-tooltip" />
+              </th>
               <th className="px-4 py-3 text-center text-sm font-semibold text-gray-300">%</th>
               <th className="px-4 py-3 text-center text-sm font-semibold text-gray-300">
                 <HeaderWithTooltip label={t("progress")} tooltip={t("progressTooltip")} tooltipId="guild-progress-tooltip" />

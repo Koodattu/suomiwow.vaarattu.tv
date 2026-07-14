@@ -10,9 +10,7 @@ import { useGuildSummaryByRealmName, useRaids, useGuildEventsByRealmName } from 
 import { buildRaidOrderIndex, compareRaidsByListOrder } from "@/lib/raid-priority";
 import {
   formatTime,
-  formatPercent,
   getIconUrl,
-  formatPhaseDisplay,
   getWorldRankColor,
   getBestWorldRank,
   getLeaderboardRankColor,
@@ -25,7 +23,9 @@ import {
   getAllClasses,
   formatRealmName,
 } from "@/lib/utils";
+import { getEffectivePullProgress } from "@/lib/raid-progress-display";
 import RaidDetailModal from "@/components/RaidDetailModal";
+import BestPullValue from "@/components/BestPullValue";
 import GuildCrest from "@/components/GuildCrest";
 import HorizontalEventsFeed from "@/components/HorizontalEventsFeed";
 import LatestReportsFeed from "@/components/LatestReportsFeed";
@@ -791,12 +791,8 @@ export default function GuildProfilePage({ params }: PageProps) {
                       {raidEntries.map(({ raid, mythicProgress, heroicProgress }) => {
                         const iconUrl = getIconUrl(raid.iconUrl);
                         const { progressTime, totalTime, progressRaidTime, totalRaidTime } = getRaidTimeMetrics(mythicProgress, heroicProgress, combineHeroicMythicTimes);
-                        const currentBossPulls = mythicProgress?.currentBossPulls || 0;
-                        const bestProgress = mythicProgress?.bestPullPhase?.displayString
-                          ? formatPhaseDisplay(mythicProgress.bestPullPhase.displayString)
-                          : mythicProgress && mythicProgress.bestPullPercent < 100
-                            ? formatPercent(mythicProgress.bestPullPercent)
-                            : null;
+                        const { pullDisplay: effectivePullDisplay, isHeroicFallback } = getEffectivePullProgress(mythicProgress, heroicProgress);
+                        const pullTextColor = isHeroicFallback ? "text-purple-400" : "text-gray-300";
                         const guildRank = mythicProgress?.guildRank || heroicProgress?.guildRank;
                         const worldRank = getBestWorldRank(mythicProgress) || getBestWorldRank(heroicProgress);
                         const hasProgress = mythicProgress || heroicProgress;
@@ -858,10 +854,10 @@ export default function GuildProfilePage({ params }: PageProps) {
                                     </div>
                                   </>
                                 ) : (
-                                  (currentBossPulls > 0 || bestProgress) && (
+                                  (effectivePullDisplay.pulls > 0 || effectivePullDisplay.bestPull > 0 || effectivePullDisplay.bestPullDisplay || effectivePullDisplay.isKilledBoss) && (
                                     <div className="text-center">
-                                      <div className="text-gray-300">{currentBossPulls > 0 ? currentBossPulls : bestProgress || "-"}</div>
-                                      <div className="text-[9px] text-gray-500">{currentBossPulls > 0 ? "pulls" : "best"}</div>
+                                      <div className={pullTextColor}>{effectivePullDisplay.pulls > 0 ? effectivePullDisplay.pulls : <BestPullValue display={effectivePullDisplay} />}</div>
+                                      <div className="text-[9px] text-gray-500">{effectivePullDisplay.pulls > 0 ? "pulls" : "best"}</div>
                                     </div>
                                   )
                                 )}
@@ -943,12 +939,8 @@ export default function GuildProfilePage({ params }: PageProps) {
                         {raidEntries.map(({ raid, mythicProgress, heroicProgress }) => {
                           const iconUrl = getIconUrl(raid.iconUrl);
                           const { progressTime, totalTime, progressRaidTime, totalRaidTime } = getRaidTimeMetrics(mythicProgress, heroicProgress, combineHeroicMythicTimes);
-                          const currentBossPulls = mythicProgress?.currentBossPulls || 0;
-                          const bestProgress = mythicProgress?.bestPullPhase?.displayString
-                            ? formatPhaseDisplay(mythicProgress.bestPullPhase.displayString)
-                            : mythicProgress && mythicProgress.bestPullPercent < 100
-                              ? formatPercent(mythicProgress.bestPullPercent)
-                              : "-";
+                          const { pullDisplay: effectivePullDisplay, isHeroicFallback } = getEffectivePullProgress(mythicProgress, heroicProgress);
+                          const pullTextColor = isHeroicFallback ? "text-purple-400" : "text-gray-300";
 
                           // Get guild rank - prefer mythic, fall back to heroic
                           const guildRank = mythicProgress?.guildRank || heroicProgress?.guildRank;
@@ -1055,24 +1047,24 @@ export default function GuildProfilePage({ params }: PageProps) {
                                 <StackedTimeValue primary={totalTime} secondary={totalRaidTime} />
                               </td>
                               <td
-                                className={`px-2 md:px-4 py-2 md:py-3 text-center text-[10px] md:text-sm text-gray-300 transition-colors ${
+                                className={`px-2 md:px-4 py-2 md:py-3 text-center text-[10px] md:text-sm tabular-nums ${pullTextColor} transition-colors ${
                                   hoveredRaidProgressRow === raid.id ? "bg-gray-700/45" : ""
                                 } ${hasProgress ? "cursor-pointer" : "opacity-40 cursor-not-allowed"}`}
                                 onClick={() => hasProgress && handleRaidClick(raid.id)}
                                 onMouseEnter={() => hasProgress && setHoveredRaidProgressRow(raid.id)}
                                 onMouseLeave={() => setHoveredRaidProgressRow(null)}
                               >
-                                {currentBossPulls > 0 ? currentBossPulls : "-"}
+                                {effectivePullDisplay.pulls > 0 ? effectivePullDisplay.pulls : "-"}
                               </td>
                               <td
-                                className={`px-2 md:px-4 py-2 md:py-3 text-center text-[10px] md:text-sm text-gray-300 transition-colors ${
+                                className={`px-2 md:px-4 py-2 md:py-3 text-center text-[10px] md:text-sm tabular-nums ${pullTextColor} transition-colors ${
                                   hoveredRaidProgressRow === raid.id ? "bg-gray-700/45" : ""
                                 } ${hasProgress ? "cursor-pointer" : "opacity-40 cursor-not-allowed"}`}
                                 onClick={() => hasProgress && handleRaidClick(raid.id)}
                                 onMouseEnter={() => hasProgress && setHoveredRaidProgressRow(raid.id)}
                                 onMouseLeave={() => setHoveredRaidProgressRow(null)}
                               >
-                                {bestProgress}
+                                <BestPullValue display={effectivePullDisplay} />
                               </td>
                               <td
                                 className={`px-2 md:px-4 py-2 md:py-3 text-center transition-colors ${

@@ -4839,6 +4839,12 @@ class GuildService {
     });
   }
 
+  private getTotalPullsForSummary(bosses: any[] = [], totalBosses = 0): number | null {
+    if (totalBosses <= 0 || bosses.filter((boss) => boss.kills > 0).length < totalBosses) return null;
+
+    return bosses.reduce((total, boss) => total + (boss.pullCount || 0), 0);
+  }
+
   private hasProgressPullData(progress: any | null | undefined): boolean {
     if (!progress) return false;
 
@@ -5105,6 +5111,7 @@ class GuildService {
           progressRaidTimeSpent: p.progressRaidTimeSpent,
           totalRaidTimeSpent: p.totalRaidTimeSpent,
           currentBossPulls: currentBoss?.pullCount || 0,
+          totalPulls: this.getTotalPullsForSummary(p.bosses, p.totalBosses),
           bestPullPercent: currentBoss?.bestPercent || 0,
           bestPullPhase: currentBoss?.bestPullPhase,
           lastKillTime: lastKilledBoss?.firstKillTime || null,
@@ -5782,6 +5789,7 @@ class GuildService {
         progressRaidTimeSpent: p.progressRaidTimeSpent,
         totalRaidTimeSpent: p.totalRaidTimeSpent,
         currentBossPulls: currentBoss?.pullCount || 0,
+        totalPulls: this.getTotalPullsForSummary(p.bosses, p.totalBosses),
         bestPullPercent: currentBoss?.bestPercent || 0,
         bestPullPhase: currentBoss?.bestPullPhase,
         lastKillTime: lastKilledBoss?.firstKillTime || null,
@@ -5855,6 +5863,7 @@ class GuildService {
         progressRaidTimeSpent: p.progressRaidTimeSpent,
         totalRaidTimeSpent: p.totalRaidTimeSpent,
         currentBossPulls: currentBoss?.pullCount || 0,
+        totalPulls: this.getTotalPullsForSummary(p.bosses, p.totalBosses),
         bestPullPercent: currentBoss?.bestPercent || 0,
         bestPullPhase: currentBoss?.bestPullPhase,
         lastKillTime: lastKilledBoss?.firstKillTime || null,

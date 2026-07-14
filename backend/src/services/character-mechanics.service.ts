@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY } from "../config/character-eligibility";
 import { CURRENT_RAID_IDS } from "../config/guilds";
 import CharacterMechanicsLeaderboard, { IMechanicsBossScore } from "../models/CharacterMechanicsLeaderboard";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
@@ -16,7 +17,6 @@ const REPORT_LOOKUP_BATCH_SIZE = 500;
 const REPORT_GROUP_BATCH_SIZE = 200;
 const FIGHT_CURSOR_BATCH_SIZE = 1000;
 const DEATH_TIMING_EXPONENT = 1.15;
-const MIN_MECHANICS_LEADERBOARD_PULLS = 50;
 
 type Metric = "dps" | "hps";
 type Role = "dps" | "healer" | "tank";
@@ -629,7 +629,7 @@ class CharacterMechanicsService {
       metric,
       deathDataAvailable: true,
       survivalScore: { $ne: null },
-      pulls: { $gte: MIN_MECHANICS_LEADERBOARD_PULLS },
+      pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
     };
 
     if (classId !== undefined) baseQuery.classID = classId;
@@ -731,7 +731,7 @@ class CharacterMechanicsService {
       entry.earlyDeaths = totals.earlyDeaths;
       entry.averageDeathPercent = totals.averageDeathPercent;
       entry.deathDataAvailable = totals.deathDataAvailable;
-      if (entry.pulls < MIN_MECHANICS_LEADERBOARD_PULLS) continue;
+      if (entry.pulls < MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY) continue;
       entry.specName = normalizedSpecName;
       scoredEntries.push(entry);
     }

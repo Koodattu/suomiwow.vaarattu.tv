@@ -90,6 +90,7 @@
     "progress": "Progress",
     "time": "Time",
     "total": "Total",
+    "pullsTooltip": "Pulls on the current boss. Before the next boss is pulled, this shows pulls on the most recently killed boss. After the raid is cleared, it shows logged pulls across all bosses combined.",
     "progressTooltip": "How long the first kill took. Top number: time spent in combat. Parentheses: full raid time, including breaks between pulls.",
     "totalTooltip": "All attempts in this raid tier. Top number: total combat time. Parentheses: full raid time, including breaks between pulls.",
     "live": "Live",

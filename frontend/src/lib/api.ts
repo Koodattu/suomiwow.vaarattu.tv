@@ -411,7 +411,7 @@ export const api = {
   },
 
   async getCharacterTierListRaids(): Promise<CharacterTierListRaidInfo[]> {
-    const response = await fetch(`${API_URL}/api/character-tierlists/raids?v=5`);
+    const response = await fetch(`${API_URL}/api/character-tierlists/raids?v=6`);
     if (!response.ok) throw new Error("Failed to fetch character tier list raids");
     return response.json();
   },

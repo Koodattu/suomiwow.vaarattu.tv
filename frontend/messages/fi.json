@@ -90,6 +90,7 @@
     "progress": "Edistyminen",
     "time": "Aika",
     "total": "Yhteensä",
+    "pullsTooltip": "Nykyisen bossin yritykset. Ennen kuin seuraavaa bossia on yritetty, näytetään viimeksi tapetun bossin yritykset. Kun raidi on läpäisty, näytetään kaikkien bossien lokitetut yritykset yhteensä.",
     "progressTooltip": "Kuinka kauan ensimmäiseen tappoon meni. Ylempi aika on taisteluaika. Sulkeissa on koko raidiin käytetty aika, myös pullien väliset tauot.",
     "totalTooltip": "Kaikki tämän tierin yritykset. Ylempi aika on taisteluaika yhteensä. Sulkeissa on raideihin käytetty aika yhteensä, myös pullien väliset tauot.",
     "live": "Live",

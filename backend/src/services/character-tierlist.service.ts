@@ -10,7 +10,10 @@ import CharacterAccountGroup from "../models/CharacterAccountGroup";
 import Guild from "../models/Guild";
 import Raid from "../models/Raid";
 import { CHARACTER_ACCOUNT_SIGNAL_VERSION } from "../config/achievement-signals";
-import { MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } from "../config/character-eligibility";
+import {
+  MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY,
+  MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY,
+} from "../config/character-eligibility";
 import { TRACKED_RAIDS } from "../config/guilds";
 import { getPrimaryCharacterRaidGuilds, type CharacterRaidGuild } from "./character-raid-guild.service";
 import logger from "../utils/logger";
@@ -230,7 +233,7 @@ class CharacterTierListService {
 
   async getAvailableRaids(): Promise<Array<{ raidId: number; raidName: string; generatedAt: Date | null; characterCount: number }>> {
     const rows = await CharacterTierListEntry.aggregate([
-      { $match: { scope: "global" } },
+      { $match: { scope: "global", pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY } } },
       {
         $group: {
           _id: "$zoneId",
@@ -461,6 +464,7 @@ class CharacterTierListService {
         type: "overall",
         encounterId: null,
         survivalScore: { $ne: null },
+        pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
       })
         .select(
           "characterId wclCanonicalCharacterId name realm region classID role metric specName bestSpecName ilvl score parseScore survivalScore rankPercent medianPercent totalKills pulls deaths survivedPulls earlyDeaths averageDeathPercent deathDataAvailable bossScores updatedAt",
@@ -734,7 +738,12 @@ class CharacterTierListService {
         .sort({ classID: 1, characterName: 1 })
         .select("characterId wclCanonicalCharacterId characterName characterRealm characterRegion classID firstSeenAt lastSeenAt reportCount updatedAt")
         .lean<ParticipationRow[]>(),
-      CharacterTierListEntry.find({ scope: "guild", guildId: guild._id, zoneId }).lean<ICharacterTierListEntry[]>(),
+      CharacterTierListEntry.find({
+        scope: "guild",
+        guildId: guild._id,
+        zoneId,
+        pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
+      }).lean<ICharacterTierListEntry[]>(),
     ]);
 
     const accountGroupIdByCharacterId = await this.getAccountGroupIdsByCharacterId(participationRows);
@@ -1031,6 +1040,7 @@ class CharacterTierListService {
       scope: guildId ? "guild" : "global",
       guildId,
       reportCount: { $gte: filters.minReports },
+      pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
     };
 
     if (filters.role) {

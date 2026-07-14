@@ -121,6 +121,7 @@ export interface RaidProgressSummary {
   progressRaidTimeSpent?: number;
   totalRaidTimeSpent?: number;
   currentBossPulls: number;
+  totalPulls?: number | null; // Combined pulls when every boss has logged kill data
   bestPullPercent: number;
   bestPullPhase?: BestPullPhase;
   lastKillTime?: string | null; // Timestamp of the most recent boss kill
