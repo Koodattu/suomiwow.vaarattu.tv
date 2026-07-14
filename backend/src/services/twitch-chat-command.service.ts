@@ -1,9 +1,11 @@
 import Guild, { IBossProgress, IGuild, IRaidProgress } from "../models/Guild";
+import type { Types } from "mongoose";
 import { CURRENT_RAID_IDS } from "../config/guilds";
 import { compareRaidIdsByPriority } from "../utils/raidPriority";
+import bossKillPredictionService, { MostRecentlyPulledBoss } from "./boss-kill-prediction.service";
 import searchService, { SearchResult } from "./search.service";
 
-export type TwitchChatCommandName = "best" | "search";
+export type TwitchChatCommandName = "best" | "prediction" | "search";
 
 export interface ParsedTwitchChatCommand {
   name: TwitchChatCommandName;
@@ -15,21 +17,92 @@ export interface TwitchChatCommandOptions {
 }
 
 type GuildLookupResult = Pick<IGuild, "name" | "realm" | "region" | "isCurrentlyRaiding" | "progress" | "officialProgress"> & {
-  _id: unknown;
+  _id: Types.ObjectId;
 };
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const GUILD_LOOKUP_FIELDS = [
+  "name",
+  "realm",
+  "region",
+  "isCurrentlyRaiding",
+  "officialProgress",
+  "progress.raidId",
+  "progress.raidName",
+  "progress.difficulty",
+  "progress.bossesDefeated",
+  "progress.totalBosses",
+  "progress.bosses.bossId",
+  "progress.bosses.bossName",
+  "progress.bosses.kills",
+  "progress.bosses.bestPercent",
+  "progress.bosses.pullCount",
+  "progress.bosses.firstKillTime",
+  "progress.bosses.killOrder",
+  "progress.bosses.bestPullPhase",
+].join(" ");
+
+const getDifficultyRank = (difficulty: IRaidProgress["difficulty"]): number => (difficulty === "mythic" ? 2 : 1);
+
+const selectBestProgress = (progress: IRaidProgress[]): IRaidProgress | null => {
+  const sorted = [...progress]
+    .filter((raidProgress) => raidProgress.totalBosses > 0)
+    .sort((a, b) => {
+      const currentDiff = Number(CURRENT_RAID_IDS.includes(b.raidId)) - Number(CURRENT_RAID_IDS.includes(a.raidId));
+      if (currentDiff !== 0) return currentDiff;
+
+      const difficultyDiff = getDifficultyRank(b.difficulty) - getDifficultyRank(a.difficulty);
+      if (difficultyDiff !== 0) return difficultyDiff;
+
+      const raidDiff = compareRaidIdsByPriority(a.raidId, b.raidId);
+      if (raidDiff !== 0) return raidDiff;
+
+      return b.bossesDefeated - a.bossesDefeated;
+    });
+
+  return sorted[0] || null;
+};
+
+export const selectPredictionTarget = (
+  progress: IRaidProgress[],
+  mostRecentlyPulledBoss: MostRecentlyPulledBoss | null,
+): { progress: IRaidProgress; boss: IBossProgress | null } | null => {
+  const currentProgress = progress.filter((raidProgress) => CURRENT_RAID_IDS.includes(raidProgress.raidId));
+  const activeProgress = currentProgress.filter((raidProgress) => (raidProgress.bosses || []).some((boss) => boss.kills === 0 && boss.pullCount > 0));
+  const fallbackProgress = selectBestProgress(activeProgress) || selectBestProgress(currentProgress);
+  if (!fallbackProgress) {
+    return null;
+  }
+
+  if (mostRecentlyPulledBoss) {
+    const recentProgress = activeProgress.find(
+      (raidProgress) => raidProgress.raidId === mostRecentlyPulledBoss.raidId && raidProgress.difficulty === mostRecentlyPulledBoss.difficulty,
+    );
+    const recentBoss = recentProgress?.bosses.find((boss) => boss.bossId === mostRecentlyPulledBoss.bossId && boss.kills === 0 && boss.pullCount > 0);
+    if (recentProgress && recentBoss) {
+      return { progress: recentProgress, boss: recentBoss };
+    }
+  }
+
+  return {
+    progress: fallbackProgress,
+    boss: fallbackProgress.bosses.find((boss) => boss.kills === 0 && boss.pullCount > 0) || null,
+  };
+};
+
 class TwitchChatCommandService {
   parse(text: string): ParsedTwitchChatCommand | null {
     const trimmed = text.trim();
-    const match = /^!(best|paras|search)(?:\s+(.*))?$/i.exec(trimmed);
+    const match = /^!(best|paras|prediction|ennustus|search)(?:\s+(.*))?$/i.exec(trimmed);
     if (!match) {
       return null;
     }
 
+    const commandName = match[1].toLowerCase();
+
     return {
-      name: match[1].toLowerCase() === "search" ? "search" : "best",
+      name: commandName === "search" ? "search" : commandName === "prediction" || commandName === "ennustus" ? "prediction" : "best",
       args: (match[2] || "").trim(),
     };
   }
@@ -37,6 +110,10 @@ class TwitchChatCommandService {
   async handle(command: ParsedTwitchChatCommand, channelName: string, options: TwitchChatCommandOptions): Promise<string | null> {
     if (command.name === "search") {
       return this.handleSearch(command.args, options);
+    }
+
+    if (command.name === "prediction") {
+      return this.handlePrediction(command.args, channelName, options);
     }
 
     return this.handleBest(command.args, channelName, options);
@@ -68,10 +145,65 @@ class TwitchChatCommandService {
     return this.limitMessage(this.formatBestPull(guild, options));
   }
 
+  private async handlePrediction(query: string, channelName: string, options: TwitchChatCommandOptions): Promise<string> {
+    const guild = query.trim().length > 0 ? await this.findGuildFromQuery(query) : await this.findGuildForChannel(channelName);
+
+    if (!guild) {
+      return query.trim().length > 0
+        ? `No tracked guild found for "${query}". Try !search ${query}`
+        : "I could not tell which guild this stream belongs to. Try !prediction <guild>";
+    }
+
+    const guildProgress = guild.progress || [];
+    const hasActiveBoss = guildProgress.some(
+      (raidProgress) => CURRENT_RAID_IDS.includes(raidProgress.raidId) && (raidProgress.bosses || []).some((boss) => boss.kills === 0 && boss.pullCount > 0),
+    );
+    const mostRecentlyPulledBoss = hasActiveBoss ? await bossKillPredictionService.findMostRecentlyPulledBoss(guild._id, CURRENT_RAID_IDS) : null;
+    const target = selectPredictionTarget(guildProgress, mostRecentlyPulledBoss);
+    if (!target) {
+      return `${guild.name}: no current raid progress found yet.`;
+    }
+
+    const { progress, boss: currentBoss } = target;
+
+    if (progress.bossesDefeated >= progress.totalBosses) {
+      return `${guild.name} has already cleared ${progress.raidName} on ${progress.difficulty}.`;
+    }
+
+    if (!currentBoss) {
+      return `${guild.name}: no active current-raid boss with logged pulls found yet.`;
+    }
+
+    const prediction = await bossKillPredictionService.predict({
+      targetGuildId: guild._id,
+      raidId: progress.raidId,
+      difficulty: progress.difficulty,
+      bossId: currentBoss.bossId,
+      target: {
+        pullCount: currentBoss.pullCount,
+        bestPercent: currentBoss.bestPercent,
+      },
+    });
+    if (!prediction) {
+      return `${guild.name}: no logged pulls found for ${currentBoss.bossName}.`;
+    }
+
+    const difficulty = progress.difficulty === "mythic" ? "M" : "HC";
+    const guessLabel = prediction.confidence === "low" ? "Very rough guess" : "Wild guess";
+    const remainingLabel = prediction.estimatedRemainingPulls === 1 ? "pull" : "pulls";
+    const killedGuildLabel = prediction.killedGuilds === 1 ? "guild" : "guilds";
+    const guildUrl = `${this.getFrontendBaseUrl()}/guilds/${encodeURIComponent(guild.realm)}/${encodeURIComponent(guild.name)}`;
+    const urlSuffix = options.includeUrl ? ` ${guildUrl}` : "";
+
+    return this.limitMessage(
+      `${guessLabel} for ${guild.name} on ${currentBoss.bossName} (${difficulty}): around pull ${prediction.estimatedKillPull} (~${prediction.estimatedRemainingPulls} ${remainingLabel} left). Sample: ${prediction.killedGuilds} tracked ${killedGuildLabel} killed, ${prediction.progressingGuilds} still progressing.${urlSuffix}`,
+    );
+  }
+
   private async findGuildForChannel(channelName: string): Promise<GuildLookupResult | null> {
     const channelRegex = new RegExp(`^${escapeRegex(channelName)}$`, "i");
     const guilds = (await Guild.find({ "streamers.channelName": channelRegex })
-      .select("name realm region isCurrentlyRaiding progress officialProgress streamers")
+      .select(`${GUILD_LOOKUP_FIELDS} streamers`)
       .lean()) as Array<GuildLookupResult & { streamers?: Array<{ channelName: string; isLive: boolean; isPlayingWoW: boolean }> }>;
 
     if (guilds.length === 0) {
@@ -113,12 +245,12 @@ class TwitchChatCommandService {
       name: new RegExp(`^${escapeRegex(guildResult.name)}$`, "i"),
       realm: new RegExp(`^${escapeRegex(guildResult.realm)}$`, "i"),
     })
-      .select("name realm region isCurrentlyRaiding progress officialProgress")
+      .select(GUILD_LOOKUP_FIELDS)
       .lean()) as GuildLookupResult | null;
   }
 
   private formatBestPull(guild: GuildLookupResult, options: TwitchChatCommandOptions): string {
-    const progress = this.selectBestProgress(guild.progress || []);
+    const progress = selectBestProgress(guild.progress || []);
     const guildUrl = `${this.getFrontendBaseUrl()}/guilds/${encodeURIComponent(guild.realm)}/${encodeURIComponent(guild.name)}`;
     const urlSuffix = options.includeUrl ? ` ${guildUrl}` : "";
 
@@ -150,25 +282,6 @@ class TwitchChatCommandService {
 
     const progressDisplay = this.formatBossProgress(nextBoss);
     return `${guild.name} ${summary}, ${nextBoss.bossName}: ${progressDisplay} after ${nextBoss.pullCount} pulls.${urlSuffix}`;
-  }
-
-  private selectBestProgress(progress: IRaidProgress[]): IRaidProgress | null {
-    const sorted = [...progress]
-      .filter((raidProgress) => raidProgress.totalBosses > 0)
-      .sort((a, b) => {
-        const currentDiff = Number(CURRENT_RAID_IDS.includes(b.raidId)) - Number(CURRENT_RAID_IDS.includes(a.raidId));
-        if (currentDiff !== 0) return currentDiff;
-
-        const difficultyDiff = this.getDifficultyRank(b.difficulty) - this.getDifficultyRank(a.difficulty);
-        if (difficultyDiff !== 0) return difficultyDiff;
-
-        const raidDiff = compareRaidIdsByPriority(a.raidId, b.raidId);
-        if (raidDiff !== 0) return raidDiff;
-
-        return b.bossesDefeated - a.bossesDefeated;
-      });
-
-    return sorted[0] || null;
   }
 
   private selectOfficialProgress(guild: GuildLookupResult): { summary: string } | null {
@@ -204,10 +317,6 @@ class TwitchChatCommandService {
     }
 
     return "no best pull recorded";
-  }
-
-  private getDifficultyRank(difficulty: IRaidProgress["difficulty"]): number {
-    return difficulty === "mythic" ? 2 : 1;
   }
 
   private formatSearchResult(result: SearchResult, options: TwitchChatCommandOptions): string {
