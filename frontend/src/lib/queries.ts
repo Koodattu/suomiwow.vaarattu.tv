@@ -28,6 +28,8 @@ export const queryKeys = {
     bossProgress: (realm: string, name: string, raidId: number) => ["guilds", "bossProgress", realm, name, raidId] as const,
     bossPullHistory: (realm: string, name: string, raidId: number, bossId: number, difficulty: string) =>
       ["guilds", "bossPullHistory", realm, name, raidId, bossId, difficulty] as const,
+    bossPrediction: (realm: string, name: string, raidId: number, bossId: number, difficulty: string) =>
+      ["guilds", "bossPrediction", realm, name, raidId, bossId, difficulty] as const,
     schedules: ["guilds", "schedules"] as const,
     raidingToday: ["guilds", "raidingToday"] as const,
     liveStreamers: ["guilds", "liveStreamers"] as const,
@@ -152,6 +154,16 @@ export function useBossPullHistory(realm: string, name: string, raidId: number, 
     queryKey: queryKeys.guilds.bossPullHistory(realm, name, raidId, bossId, difficulty),
     queryFn: () => api.getBossPullHistory(realm, name, raidId, bossId, difficulty),
     enabled: !!realm && !!name && raidId > 0 && bossId > 0,
+  });
+}
+
+export function useBossPrediction(realm: string, name: string, raidId: number, bossId: number, difficulty: "mythic" | "heroic") {
+  return useQuery({
+    queryKey: queryKeys.guilds.bossPrediction(realm, name, raidId, bossId, difficulty),
+    queryFn: () => api.getBossPrediction(realm, name, raidId, bossId, difficulty),
+    enabled: !!realm && !!name && raidId > 0 && bossId > 0,
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 }
 

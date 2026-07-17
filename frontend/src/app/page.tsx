@@ -212,6 +212,7 @@ function HomeContent() {
             selectedRaidId={selectedRaidId}
             raids={raids}
             bosses={bossesForSelectedRaid}
+            isCurrentRaid={Boolean(raids.find((raid) => raid.id === selectedRaidId)?.isCurrent)}
             loading={modalLoading}
           />
         )}

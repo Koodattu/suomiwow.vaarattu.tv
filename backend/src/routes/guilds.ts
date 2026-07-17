@@ -1,9 +1,11 @@
 import { Router, Request, Response } from "express";
 import guildService from "../services/guild.service";
 import characterService from "../services/character.service";
+import bossKillPredictionService from "../services/boss-kill-prediction.service";
 import logger from "../utils/logger";
 import cacheService from "../services/cache.service";
 import { cacheMiddleware } from "../middleware/cache.middleware";
+import { CURRENT_RAID_IDS } from "../config/guilds";
 
 const router = Router();
 
@@ -177,6 +179,35 @@ router.get("/:realm/:name/raids/:raidId/bosses/:bossId/pull-history", async (req
   } catch (error) {
     logger.error("Error fetching boss pull history:", error);
     res.status(500).json({ error: "Failed to fetch boss pull history" });
+  }
+});
+
+// Get an on-demand kill prediction for a specific progressing boss
+router.get("/:realm/:name/raids/:raidId/bosses/:bossId/prediction", async (req: Request, res: Response) => {
+  try {
+    const realm = req.params.realm;
+    const name = req.params.name;
+    const raidId = Number(req.params.raidId);
+    const bossId = Number(req.params.bossId);
+    const difficulty = req.query.difficulty;
+
+    if (!Number.isInteger(raidId) || raidId <= 0 || !Number.isInteger(bossId) || bossId <= 0) {
+      return res.status(400).json({ error: "Invalid raid or boss ID" });
+    }
+
+    if (difficulty !== "mythic" && difficulty !== "heroic") {
+      return res.status(400).json({ error: "difficulty must be mythic or heroic" });
+    }
+
+    if (!CURRENT_RAID_IDS.includes(raidId)) {
+      return res.json({ available: false, reason: "raid_not_current" });
+    }
+
+    const result = await bossKillPredictionService.predictForGuildBoss(realm, name, raidId, bossId, difficulty);
+    res.json(result);
+  } catch (error) {
+    logger.error("Error calculating boss kill prediction:", error);
+    res.status(500).json({ error: "Failed to calculate boss kill prediction" });
   }
 });
 

@@ -600,8 +600,17 @@ class TwitchChatBotService {
         await this.queueSay(channelName, response);
       }
     } catch (error) {
-      await this.recordError("Failed to handle Twitch chat command", error);
-      await this.queueSay(channelName, "Command failed. Please try again.");
+      try {
+        await this.recordError(`Failed to handle Twitch chat command !${parsed.name} in #${channelName}`, error);
+      } catch (recordingError) {
+        logger.error("[TwitchBot] Failed to persist the Twitch chat command error:", recordingError);
+      }
+
+      try {
+        await this.queueSay(channelName, "Command failed. Please try again.");
+      } catch (replyError) {
+        logger.error(`[TwitchBot] Failed to send the fallback command reply in #${channelName}:`, replyError);
+      }
     }
   }
 

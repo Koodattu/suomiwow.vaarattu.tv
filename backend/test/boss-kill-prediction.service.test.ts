@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
+import { Types } from "mongoose";
+import Guild from "../src/models/Guild";
+import bossKillPredictionService, {
   BossPredictionPhaseCount,
   BossPredictionSample,
   BossPredictionTarget,
@@ -28,6 +30,7 @@ test("uses the median of later kill samples instead of being pulled by an outlie
   assert.ok(withOutlier);
   assert.ok(withOutlier.estimatedKillPull < 200);
   assert.equal(normal.confidence, "medium");
+  assert.equal(normal.medianKillPull, 80);
 });
 
 test("uses progressing guilds only as a floor when they have survived longer", () => {
@@ -102,4 +105,98 @@ test("always predicts at least one more pull after the target has passed every k
 
 test("returns null when the target has no pulls", () => {
   assert.equal(estimateBossKillPull(target({ pullCount: 0 }), []), null);
+});
+
+test("returns the exact-boss prediction facts from aggregated counts", async () => {
+  const originalAggregate = Guild.aggregate;
+  const targetGuildId = new Types.ObjectId();
+  const capturedPipelines: unknown[][] = [];
+  let aggregateCalls = 0;
+
+  Guild.aggregate = ((pipeline: unknown[]) => {
+    capturedPipelines.push(pipeline);
+    aggregateCalls += 1;
+
+    if (aggregateCalls === 1) {
+      return {
+        collation: async () => [
+          {
+            guildId: targetGuildId,
+            guildName: "Test Guild",
+            raidName: "Test Raid",
+            bossName: "Test Boss",
+            kills: 0,
+            pullCount: 50,
+            bestPercent: 25,
+            phaseCounts: [
+              { phase: "P1", count: 30 },
+              { phase: "P2", count: 20 },
+            ],
+          },
+        ],
+      };
+    }
+
+    return Promise.resolve([
+      { guildId: targetGuildId, kills: 0, pullCount: 50, phaseCounts: [] },
+      { guildId: new Types.ObjectId(), kills: 1, pullCount: 70, phaseCounts: [] },
+      { guildId: new Types.ObjectId(), kills: 1, pullCount: 80, phaseCounts: [] },
+      { guildId: new Types.ObjectId(), kills: 1, pullCount: 90, phaseCounts: [] },
+      { guildId: new Types.ObjectId(), kills: 0, pullCount: 60, phaseCounts: [] },
+    ]);
+  }) as unknown as typeof Guild.aggregate;
+
+  try {
+    const result = await bossKillPredictionService.predictForGuildBoss("Realm", "Test Guild", 46, 123, "mythic");
+
+    assert.equal(result.available, true);
+    if (!result.available) return;
+
+    assert.equal(result.boss.name, "Test Boss");
+    assert.equal(result.facts.currentPulls, 50);
+    assert.equal(result.facts.bestPercent, 25);
+    assert.deepEqual(result.facts.phaseCounts, [
+      { phase: "P1", count: 30 },
+      { phase: "P2", count: 20 },
+    ]);
+    assert.equal(result.facts.killedGuilds, 3);
+    assert.equal(result.facts.progressingGuilds, 1);
+    assert.equal(result.facts.medianKillPull, 80);
+    assert.deepEqual((capturedPipelines[0][0] as { $match: { excludedRaidIds: unknown } }).$match.excludedRaidIds, { $ne: 46 });
+  } finally {
+    Guild.aggregate = originalAggregate;
+  }
+});
+
+test("does not query peers when the exact boss has no active pulls", async () => {
+  const originalAggregate = Guild.aggregate;
+  const targetGuildId = new Types.ObjectId();
+  let aggregateCalls = 0;
+
+  Guild.aggregate = (() => {
+    aggregateCalls += 1;
+    return {
+      collation: async () => [
+        {
+          guildId: targetGuildId,
+          guildName: "Test Guild",
+          raidName: "Test Raid",
+          bossName: "Test Boss",
+          kills: 0,
+          pullCount: 0,
+          bestPercent: 100,
+          phaseCounts: [],
+        },
+      ],
+    };
+  }) as unknown as typeof Guild.aggregate;
+
+  try {
+    const result = await bossKillPredictionService.predictForGuildBoss("Realm", "Test Guild", 46, 123, "mythic");
+
+    assert.deepEqual(result, { available: false, reason: "boss_not_progressing" });
+    assert.equal(aggregateCalls, 1);
+  } finally {
+    Guild.aggregate = originalAggregate;
+  }
 });

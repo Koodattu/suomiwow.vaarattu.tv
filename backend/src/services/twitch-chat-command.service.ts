@@ -2,7 +2,8 @@ import Guild, { IBossProgress, IGuild, IRaidProgress } from "../models/Guild";
 import type { Types } from "mongoose";
 import { CURRENT_RAID_IDS } from "../config/guilds";
 import { compareRaidIdsByPriority } from "../utils/raidPriority";
-import bossKillPredictionService, { MostRecentlyPulledBoss } from "./boss-kill-prediction.service";
+import logger from "../utils/logger";
+import bossKillPredictionService, { BossKillPrediction, MostRecentlyPulledBoss } from "./boss-kill-prediction.service";
 import searchService, { SearchResult } from "./search.service";
 
 export type TwitchChatCommandName = "best" | "prediction" | "search";
@@ -158,7 +159,15 @@ class TwitchChatCommandService {
     const hasActiveBoss = guildProgress.some(
       (raidProgress) => CURRENT_RAID_IDS.includes(raidProgress.raidId) && (raidProgress.bosses || []).some((boss) => boss.kills === 0 && boss.pullCount > 0),
     );
-    const mostRecentlyPulledBoss = hasActiveBoss ? await bossKillPredictionService.findMostRecentlyPulledBoss(guild._id, CURRENT_RAID_IDS) : null;
+    let mostRecentlyPulledBoss: MostRecentlyPulledBoss | null = null;
+    if (hasActiveBoss) {
+      try {
+        mostRecentlyPulledBoss = await bossKillPredictionService.findMostRecentlyPulledBoss(guild._id, CURRENT_RAID_IDS);
+      } catch (error) {
+        logger.warn(`[TwitchBot] Prediction recency lookup failed for ${guild.name}-${guild.realm}; using the current-progress fallback:`, error);
+      }
+    }
+
     const target = selectPredictionTarget(guildProgress, mostRecentlyPulledBoss);
     if (!target) {
       return `${guild.name}: no current raid progress found yet.`;
@@ -174,16 +183,27 @@ class TwitchChatCommandService {
       return `${guild.name}: no active current-raid boss with logged pulls found yet.`;
     }
 
-    const prediction = await bossKillPredictionService.predict({
-      targetGuildId: guild._id,
-      raidId: progress.raidId,
-      difficulty: progress.difficulty,
-      bossId: currentBoss.bossId,
-      target: {
-        pullCount: currentBoss.pullCount,
-        bestPercent: currentBoss.bestPercent,
-      },
-    });
+    const startedAt = Date.now();
+    let prediction: BossKillPrediction | null;
+    try {
+      prediction = await bossKillPredictionService.predict({
+        targetGuildId: guild._id,
+        raidId: progress.raidId,
+        difficulty: progress.difficulty,
+        bossId: currentBoss.bossId,
+        target: {
+          pullCount: currentBoss.pullCount,
+          bestPercent: currentBoss.bestPercent,
+        },
+      });
+    } catch (error) {
+      logger.error(
+        `[TwitchBot] Prediction failed for ${guild.name}-${guild.realm}, raid ${progress.raidId}, boss ${currentBoss.bossId} after ${Date.now() - startedAt}ms:`,
+        error,
+      );
+      return `${guild.name}: prediction for ${currentBoss.bossName} is temporarily unavailable. Try again soon.`;
+    }
+
     if (!prediction) {
       return `${guild.name}: no logged pulls found for ${currentBoss.bossName}.`;
     }

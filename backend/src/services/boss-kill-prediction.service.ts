@@ -1,5 +1,5 @@
 import Guild, { IRaidProgress } from "../models/Guild";
-import type { Types } from "mongoose";
+import type { PipelineStage, Types } from "mongoose";
 
 export interface BossPredictionPhaseCount {
   phase: string;
@@ -23,6 +23,7 @@ export interface BossKillPrediction {
   estimatedRemainingPulls: number;
   killedGuilds: number;
   progressingGuilds: number;
+  medianKillPull: number | null;
   confidence: "low" | "medium" | "high";
   usedPhaseData: boolean;
 }
@@ -32,6 +33,37 @@ export interface MostRecentlyPulledBoss {
   difficulty: IRaidProgress["difficulty"];
   bossId: number;
 }
+
+export type BossPredictionUnavailableReason = "guild_or_boss_not_found" | "boss_not_progressing";
+
+export type GuildBossPredictionResult =
+  | {
+      available: false;
+      reason: BossPredictionUnavailableReason;
+    }
+  | {
+      available: true;
+      boss: {
+        id: number;
+        name: string;
+        raidName: string;
+        difficulty: IRaidProgress["difficulty"];
+      };
+      estimate: {
+        killPull: number;
+        remainingPulls: number;
+        confidence: BossKillPrediction["confidence"];
+      };
+      facts: {
+        currentPulls: number;
+        bestPercent: number;
+        phaseCounts: BossPredictionPhaseCount[];
+        killedGuilds: number;
+        progressingGuilds: number;
+        medianKillPull: number | null;
+        usedPhaseData: boolean;
+      };
+    };
 
 interface BossPredictionQuery {
   targetGuildId: Types.ObjectId;
@@ -44,6 +76,15 @@ interface BossPredictionQuery {
 interface AggregatedBossPredictionSample extends BossPredictionSample {
   guildId: Types.ObjectId;
 }
+
+interface AggregatedGuildBossTarget extends AggregatedBossPredictionSample {
+  guildName: string;
+  raidName: string;
+  bossName: string;
+  bestPercent: number;
+}
+
+const PREDICTION_QUERY_TIMEOUT_MS = 10_000;
 
 const clamp = (value: number, minimum: number, maximum: number): number => Math.min(Math.max(value, minimum), maximum);
 
@@ -182,6 +223,7 @@ export const estimateBossKillPull = (target: BossPredictionTarget, rawPeers: Bos
     estimatedRemainingPulls,
     killedGuilds,
     progressingGuilds: progressingPeers.length,
+    medianKillPull: killedPullMedian,
     confidence: comparableKilledGuilds >= 10 ? "high" : comparableKilledGuilds >= 3 ? "medium" : "low",
     usedPhaseData: phaseAdjustment.usedPhaseData,
   };
@@ -209,29 +251,38 @@ class BossKillPredictionService {
       { $match: { "progress.raidId": { $in: raidIds } } },
       { $unwind: "$progress.bosses" },
       { $match: { "progress.bosses.kills": 0, "progress.bosses.pullCount": { $gt: 0 } } },
-      { $unwind: { path: "$progress.bosses.pullHistory", preserveNullAndEmptyArrays: true } },
       {
-        $group: {
-          _id: {
-            raidId: "$progress.raidId",
-            difficulty: "$progress.difficulty",
-            bossId: "$progress.bosses.bossId",
+        $project: {
+          _id: 0,
+          raidId: "$progress.raidId",
+          difficulty: "$progress.difficulty",
+          bossId: "$progress.bosses.bossId",
+          latestPullAt: {
+            $reduce: {
+              input: { $ifNull: ["$progress.bosses.pullHistory", []] },
+              initialValue: null,
+              in: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: [{ $type: "$$this.timestamp" }, "date"] },
+                      {
+                        $or: [{ $eq: ["$$value", null] }, { $gt: ["$$this.timestamp", "$$value"] }],
+                      },
+                    ],
+                  },
+                  "$$this.timestamp",
+                  "$$value",
+                ],
+              },
+            },
           },
-          latestPullAt: { $max: "$progress.bosses.pullHistory.timestamp" },
         },
       },
       { $match: { latestPullAt: { $type: "date" } } },
       { $sort: { latestPullAt: -1 } },
       { $limit: 1 },
-      {
-        $project: {
-          _id: 0,
-          raidId: "$_id.raidId",
-          difficulty: "$_id.difficulty",
-          bossId: "$_id.bossId",
-        },
-      },
-    ]);
+    ], { maxTimeMS: PREDICTION_QUERY_TIMEOUT_MS });
 
     return bosses[0] || null;
   }
@@ -249,6 +300,110 @@ class BossKillPredictionService {
       },
       peers,
     );
+  }
+
+  async predictForGuildBoss(
+    realm: string,
+    name: string,
+    raidId: number,
+    bossId: number,
+    difficulty: IRaidProgress["difficulty"],
+  ): Promise<GuildBossPredictionResult> {
+    const target = await this.getGuildBossTarget(realm, name, raidId, bossId, difficulty);
+    if (!target) {
+      return { available: false, reason: "guild_or_boss_not_found" };
+    }
+
+    if (target.kills > 0 || target.pullCount <= 0) {
+      return { available: false, reason: "boss_not_progressing" };
+    }
+
+    const samples = await this.getSamples({
+      targetGuildId: target.guildId,
+      raidId,
+      difficulty,
+      bossId,
+      target: {
+        pullCount: target.pullCount,
+        bestPercent: target.bestPercent,
+      },
+    });
+    const targetGuildId = String(target.guildId);
+    const peers = samples.filter((sample) => String(sample.guildId) !== targetGuildId);
+    const prediction = estimateBossKillPull(
+      {
+        pullCount: target.pullCount,
+        bestPercent: target.bestPercent,
+        phaseCounts: target.phaseCounts,
+      },
+      peers,
+    );
+
+    if (!prediction) {
+      return { available: false, reason: "boss_not_progressing" };
+    }
+
+    return {
+      available: true,
+      boss: {
+        id: bossId,
+        name: target.bossName,
+        raidName: target.raidName,
+        difficulty,
+      },
+      estimate: {
+        killPull: prediction.estimatedKillPull,
+        remainingPulls: prediction.estimatedRemainingPulls,
+        confidence: prediction.confidence,
+      },
+      facts: {
+        currentPulls: target.pullCount,
+        bestPercent: target.bestPercent,
+        phaseCounts: target.phaseCounts,
+        killedGuilds: prediction.killedGuilds,
+        progressingGuilds: prediction.progressingGuilds,
+        medianKillPull: prediction.medianKillPull,
+        usedPhaseData: prediction.usedPhaseData,
+      },
+    };
+  }
+
+  private async getGuildBossTarget(
+    realm: string,
+    name: string,
+    raidId: number,
+    bossId: number,
+    difficulty: IRaidProgress["difficulty"],
+  ): Promise<AggregatedGuildBossTarget | null> {
+    const targets = await Guild.aggregate<AggregatedGuildBossTarget>([
+      {
+        $match: {
+          realm,
+          name,
+          excludedRaidIds: { $ne: raidId },
+          progress: {
+            $elemMatch: {
+              raidId,
+              difficulty,
+              bosses: { $elemMatch: { bossId } },
+            },
+          },
+        },
+      },
+      { $unwind: "$progress" },
+      { $match: { "progress.raidId": raidId, "progress.difficulty": difficulty } },
+      { $unwind: "$progress.bosses" },
+      { $match: { "progress.bosses.bossId": bossId } },
+      ...this.getBossSampleProjectionStages({
+        guildName: "$name",
+        raidName: "$progress.raidName",
+        bossName: "$progress.bosses.bossName",
+        bestPercent: "$progress.bosses.bestPercent",
+      }),
+      { $limit: 1 },
+    ], { maxTimeMS: PREDICTION_QUERY_TIMEOUT_MS }).collation({ locale: "en", strength: 2 });
+
+    return targets[0] || null;
   }
 
   private async getSamples(query: BossPredictionQuery): Promise<AggregatedBossPredictionSample[]> {
@@ -271,42 +426,62 @@ class BossKillPredictionService {
       { $match: { "progress.raidId": raidId, "progress.difficulty": difficulty } },
       { $unwind: "$progress.bosses" },
       { $match: { "progress.bosses.bossId": bossId, "progress.bosses.pullCount": { $gt: 0 } } },
-      { $unwind: { path: "$progress.bosses.pullHistory", preserveNullAndEmptyArrays: true } },
+      ...this.getBossSampleProjectionStages(),
+    ], { maxTimeMS: PREDICTION_QUERY_TIMEOUT_MS });
+  }
+
+  private getBossSampleProjectionStages(extraFields: Record<string, string> = {}): PipelineStage[] {
+    return [
       {
-        $group: {
-          _id: {
-            guildId: "$_id",
-            phase: { $ifNull: ["$progress.bosses.pullHistory.phase", ""] },
+        $set: {
+          predictionPhaseNames: {
+            $setUnion: [
+              {
+                $filter: {
+                  input: {
+                    $map: {
+                      input: { $ifNull: ["$progress.bosses.pullHistory", []] },
+                      as: "pull",
+                      in: { $ifNull: ["$$pull.phase", ""] },
+                    },
+                  },
+                  as: "phase",
+                  cond: { $ne: ["$$phase", ""] },
+                },
+              },
+              [],
+            ],
           },
-          kills: { $first: "$progress.bosses.kills" },
-          pullCount: { $first: "$progress.bosses.pullCount" },
-          phasePulls: { $sum: 1 },
-        },
-      },
-      {
-        $group: {
-          _id: "$_id.guildId",
-          kills: { $first: "$kills" },
-          pullCount: { $first: "$pullCount" },
-          phaseCounts: { $push: { phase: "$_id.phase", count: "$phasePulls" } },
         },
       },
       {
         $project: {
           _id: 0,
           guildId: "$_id",
-          kills: 1,
-          pullCount: 1,
+          kills: "$progress.bosses.kills",
+          pullCount: "$progress.bosses.pullCount",
           phaseCounts: {
-            $filter: {
-              input: "$phaseCounts",
-              as: "phaseCount",
-              cond: { $ne: ["$$phaseCount.phase", ""] },
+            $map: {
+              input: "$predictionPhaseNames",
+              as: "phase",
+              in: {
+                phase: "$$phase",
+                count: {
+                  $size: {
+                    $filter: {
+                      input: { $ifNull: ["$progress.bosses.pullHistory", []] },
+                      as: "pull",
+                      cond: { $eq: ["$$pull.phase", "$$phase"] },
+                    },
+                  },
+                },
+              },
             },
           },
+          ...extraFields,
         },
       },
-    ]);
+    ];
   }
 }
 

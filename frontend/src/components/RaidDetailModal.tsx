@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { FaExternalLinkAlt, FaTwitch } from "react-icons/fa";
+import { useTranslations } from "next-intl";
+import { FaDice, FaExternalLinkAlt, FaTwitch } from "react-icons/fa";
 import { Guild, RaidProgress, BossProgress, RaidInfo, Boss, WorldRankHistoryEntry, BossBestPull, RaidSchedule } from "@/types";
 import { formatTime, formatPercent, getDifficultyColor, getKillLogUrl, formatPhaseDisplay, getGuildProfileUrl, getRaiderIOGuildUrl } from "@/lib/utils";
 import IconImage from "./IconImage";
@@ -12,6 +13,7 @@ import PullProgressChart from "./PullProgressChart";
 import PhaseDistributionChart from "./PhaseDistributionChart";
 import { useBossPullHistory } from "@/lib/queries";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import BossPredictionDialog from "./BossPredictionDialog";
 
 type BestPullVodLink = NonNullable<BossBestPull["vodLinks"]>[number];
 type VodPhaseLink = {
@@ -351,7 +353,13 @@ interface RaidDetailModalProps {
   selectedRaidId: number | null;
   raids: RaidInfo[];
   bosses: Boss[];
+  isCurrentRaid: boolean;
   loading?: boolean;
+}
+
+interface PredictionTarget {
+  boss: BossProgress;
+  difficulty: "mythic" | "heroic";
 }
 
 // Sub-component that fetches and renders pull history charts when a boss is expanded.
@@ -411,8 +419,10 @@ function BossPullHistoryContent({
   );
 }
 
-export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids, bosses, loading }: RaidDetailModalProps) {
+export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids, bosses, isCurrentRaid, loading }: RaidDetailModalProps) {
+  const t = useTranslations("raidDetailModal");
   const [expandedBosses, setExpandedBosses] = useState<Set<string>>(new Set());
+  const [predictionTarget, setPredictionTarget] = useState<PredictionTarget | null>(null);
   const wclGuildUrl = guild.warcraftlogsId ? `https://www.warcraftlogs.com/guild/id/${guild.warcraftlogsId}` : null;
   const guildProfileUrl = getGuildProfileUrl(guild.realm, guild.name);
   const raiderIoGuildUrl = getRaiderIOGuildUrl(guild.region, guild.realm, guild.name);
@@ -435,6 +445,8 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
     const boss = bosses.find((b) => b.id === bossId) ?? bosses.find((b) => b.name === bossName);
     return boss?.iconUrl;
   };
+
+  const canPredictBoss = (boss: BossProgress): boolean => isCurrentRaid && boss.kills === 0 && boss.pullCount > 0;
 
   const handleBossClick = (boss: BossProgress) => {
     if (boss.kills > 0) {
@@ -488,6 +500,19 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
               )}
             </div>
             <CompactVodLinks links={boss.bestVodLinks} className="mt-1" />
+            {canPredictBoss(boss) && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setPredictionTarget({ boss, difficulty });
+                }}
+                className="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-[11px] font-semibold text-blue-200 transition-colors duration-150 hover:border-blue-400/70 hover:bg-blue-500/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 active:bg-blue-500/30"
+              >
+                <FaDice className="h-3 w-3" aria-hidden="true" />
+                {t("prediction.action")}
+              </button>
+            )}
           </div>
 
           {/* Stats in compact row */}
@@ -581,16 +606,32 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
             {boss.firstKillTime ? new Date(boss.firstKillTime).toLocaleDateString("fi-FI") : "-"}
           </td>
           <td className="px-1 md:px-2 py-2 md:py-3 text-center text-xs md:text-sm">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleBossExpanded(boss.bossId, difficulty);
-              }}
-              className="text-gray-500 hover:text-gray-300 transition-colors p-1"
-              title={isExpanded ? "Hide pull progress" : "Show pull progress"}
-            >
-              {isExpanded ? "▼" : "▶"}
-            </button>
+            <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+              {canPredictBoss(boss) && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setPredictionTarget({ boss, difficulty });
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-xs font-semibold text-blue-200 transition-colors duration-150 hover:border-blue-400/70 hover:bg-blue-500/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 active:bg-blue-500/30"
+                >
+                  <FaDice className="h-3 w-3" aria-hidden="true" />
+                  {t("prediction.action")}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleBossExpanded(boss.bossId, difficulty);
+                }}
+                className="rounded p-1 text-gray-500 transition-colors hover:bg-gray-800 hover:text-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                title={isExpanded ? "Hide pull progress" : "Show pull progress"}
+              >
+                {isExpanded ? "▼" : "▶"}
+              </button>
+            </div>
           </td>
         </tr>
         {isExpanded && (
@@ -711,7 +752,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
                 <th className="px-2 md:px-4 py-2 text-center text-xs md:text-sm font-semibold text-gray-300">Best</th>
                 <th className="px-2 md:px-4 py-2 text-center text-xs md:text-sm font-semibold text-gray-300">Time</th>
                 <th className="px-2 md:px-4 py-2 text-center text-xs md:text-sm font-semibold text-gray-300">Kill Date</th>
-                <th className="px-1 md:px-2 py-2 text-center text-sm font-semibold text-gray-300 w-8 md:w-10"></th>
+                <th className="px-1 md:px-2 py-2 text-center text-xs md:text-sm font-semibold text-gray-300">{t("actions")}</th>
               </tr>
             </thead>
             <tbody>{sortedBosses.map((boss) => renderBossRow(boss, bossDisplayNumberMap.get(boss.bossId)!, progress.difficulty))}</tbody>
@@ -722,7 +763,8 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-start justify-center overflow-y-auto z-50" onClick={onClose}>
+    <>
+      <div className="fixed inset-0 bg-black/80 flex items-start justify-center overflow-y-auto z-50" onClick={onClose}>
       <div className="bg-gray-900 rounded-lg shadow-2xl max-w-[92rem] w-full my-4 md:my-8 border border-gray-700" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 z-20 bg-gray-900 border-b border-gray-700 px-3 md:px-6 py-3 md:py-4 flex items-center gap-3 rounded-t-lg">
           <div className="flex flex-1 items-center gap-3 min-w-0">
@@ -838,7 +880,19 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
             <div className="text-center py-12 text-gray-500">No progress data available for this guild yet.</div>
           )}
         </div>
+        </div>
       </div>
-    </div>
+      {predictionTarget && selectedRaidId && (
+        <BossPredictionDialog
+          guildName={guild.name}
+          realm={guild.realm}
+          raidId={selectedRaidId}
+          bossId={predictionTarget.boss.bossId}
+          bossName={predictionTarget.boss.bossName}
+          difficulty={predictionTarget.difficulty}
+          onClose={() => setPredictionTarget(null)}
+        />
+      )}
+    </>
   );
 }

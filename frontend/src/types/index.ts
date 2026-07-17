@@ -59,6 +59,37 @@ export interface BossPullHistoryResponse {
   bestPulls: BossBestPull[];
 }
 
+export type BossPredictionUnavailableReason = "raid_not_current" | "guild_or_boss_not_found" | "boss_not_progressing";
+
+export type BossPredictionResponse =
+  | {
+      available: false;
+      reason: BossPredictionUnavailableReason;
+    }
+  | {
+      available: true;
+      boss: {
+        id: number;
+        name: string;
+        raidName: string;
+        difficulty: "mythic" | "heroic";
+      };
+      estimate: {
+        killPull: number;
+        remainingPulls: number;
+        confidence: "low" | "medium" | "high";
+      };
+      facts: {
+        currentPulls: number;
+        bestPercent: number;
+        phaseCounts: PhaseDistribution[];
+        killedGuilds: number;
+        progressingGuilds: number;
+        medianKillPull: number | null;
+        usedPhaseData: boolean;
+      };
+    };
+
 export interface GuildCrest {
   emblem: {
     id: number;

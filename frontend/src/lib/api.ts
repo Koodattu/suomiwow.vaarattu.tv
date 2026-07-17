@@ -125,6 +125,7 @@ import {
   AdminDeleteReportResponse,
   AdminImportReportResponse,
   RaidCompare,
+  BossPredictionResponse,
 } from "@/types";
 
 // For client-side: use NEXT_PUBLIC_API_URL (browser requests)
@@ -232,6 +233,14 @@ export const api = {
     const encodedName = encodeURIComponent(name);
     const response = await fetch(`${API_URL}/api/guilds/${encodedRealm}/${encodedName}/raids/${raidId}/bosses/${bossId}/pull-history?difficulty=${difficulty}`);
     if (!response.ok) throw new Error("Failed to fetch boss pull history");
+    return response.json();
+  },
+
+  async getBossPrediction(realm: string, name: string, raidId: number, bossId: number, difficulty: "mythic" | "heroic"): Promise<BossPredictionResponse> {
+    const encodedRealm = encodeURIComponent(realm);
+    const encodedName = encodeURIComponent(name);
+    const response = await fetch(`${API_URL}/api/guilds/${encodedRealm}/${encodedName}/raids/${raidId}/bosses/${bossId}/prediction?difficulty=${difficulty}`);
+    if (!response.ok) throw new Error("Failed to fetch boss prediction");
     return response.json();
   },
 

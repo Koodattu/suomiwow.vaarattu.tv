@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { IRaidProgress } from "../src/models/Guild";
+import { Types } from "mongoose";
+import Guild, { IRaidProgress } from "../src/models/Guild";
+import bossKillPredictionService from "../src/services/boss-kill-prediction.service";
 import twitchChatCommandService, { selectPredictionTarget } from "../src/services/twitch-chat-command.service";
 
 const raidProgress = (raidId: number, bossId: number, bossName: string): IRaidProgress => ({
@@ -53,4 +55,44 @@ test("selects the most recently pulled boss across current raids", () => {
 
   assert.equal(fallback?.boss?.bossName, "Primary raid boss");
   assert.equal(recent?.boss?.bossName, "Most recent boss");
+});
+
+test("returns a visible unavailable reply when prediction lookups fail", async () => {
+  const originalFind = Guild.find;
+  const originalFindMostRecentlyPulledBoss = bossKillPredictionService.findMostRecentlyPulledBoss;
+  const originalPredict = bossKillPredictionService.predict;
+  const progress = raidProgress(46, 1001, "Test Boss");
+
+  Guild.find = (() => ({
+    select: () => ({
+      lean: async () => [
+        {
+          _id: new Types.ObjectId(),
+          name: "Test Guild",
+          realm: "Test Realm",
+          region: "EU",
+          isCurrentlyRaiding: true,
+          progress: [progress],
+          officialProgress: [],
+          streamers: [{ channelName: "testchannel", isLive: true, isPlayingWoW: true }],
+        },
+      ],
+    }),
+  })) as unknown as typeof Guild.find;
+  bossKillPredictionService.findMostRecentlyPulledBoss = (async () => {
+    throw new Error("recency lookup failed");
+  }) as typeof bossKillPredictionService.findMostRecentlyPulledBoss;
+  bossKillPredictionService.predict = (async () => {
+    throw new Error("prediction lookup failed");
+  }) as typeof bossKillPredictionService.predict;
+
+  try {
+    const response = await twitchChatCommandService.handle({ name: "prediction", args: "" }, "testchannel", { includeUrl: false });
+
+    assert.equal(response, "Test Guild: prediction for Test Boss is temporarily unavailable. Try again soon.");
+  } finally {
+    Guild.find = originalFind;
+    bossKillPredictionService.findMostRecentlyPulledBoss = originalFindMostRecentlyPulledBoss;
+    bossKillPredictionService.predict = originalPredict;
+  }
 });
