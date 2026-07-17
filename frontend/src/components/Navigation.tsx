@@ -11,17 +11,22 @@ import { setLocale, getLocale, LOCALE_CHANGE_EVENT, type Locale } from "@/lib/lo
 import { formatRealmName, getClassInfoById } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
 import { useAuth } from "@/context/AuthContext";
-import { HorseRaceMode, useHorseRaceMode } from "@/lib/horse-race-preferences";
+import { HorseRaceMode, HorseRaceVisibility, useHorseRaceMode } from "@/lib/horse-race-preferences";
 import { useHomePagePreferences } from "@/lib/homepage-preferences";
 import { DIFFICULTIES, EVENT_TYPES, useEventFilterPreferences } from "@/lib/useEventFilters";
 import type { GlobalSearchResult } from "@/types";
 
-const HORSE_RACE_MODE_OPTIONS: Array<{ mode: HorseRaceMode; labelKey: "horseRaceRandom" | "horseRaceCrest" | "horseRaceJapanese" | "horseRaceUma" | "horseRaceOff" }> = [
+const HORSE_RACE_VISIBILITY_OPTIONS: Array<{ visibility: HorseRaceVisibility; labelKey: "horseRaceAuto" | "horseRaceShow" | "horseRaceHide" }> = [
+  { visibility: "auto", labelKey: "horseRaceAuto" },
+  { visibility: "show", labelKey: "horseRaceShow" },
+  { visibility: "hide", labelKey: "horseRaceHide" },
+];
+
+const HORSE_RACE_MODE_OPTIONS: Array<{ mode: HorseRaceMode; labelKey: "horseRaceRandom" | "horseRaceCrest" | "horseRaceJapanese" | "horseRaceUma" }> = [
   { mode: "random", labelKey: "horseRaceRandom" },
   { mode: "crest", labelKey: "horseRaceCrest" },
   { mode: "japanese", labelKey: "horseRaceJapanese" },
   { mode: "uma", labelKey: "horseRaceUma" },
-  { mode: "off", labelKey: "horseRaceOff" },
 ];
 
 const NAVIGATION_LINKS = [
@@ -113,9 +118,11 @@ export default function Navigation() {
   const { user, isLoading, login, logout } = useAuth();
   const {
     mode: horseRaceMode,
+    visibility: horseRaceVisibility,
     showCharacters: showHorseRaceCharacters,
     showBackground: showHorseRaceBackground,
     setMode: setHorseRaceMode,
+    setVisibility: setHorseRaceVisibility,
     setShowCharacters: setShowHorseRaceCharacters,
     setShowBackground: setShowHorseRaceBackground,
   } = useHorseRaceMode();
@@ -459,6 +466,21 @@ export default function Navigation() {
 
                     <div className="mt-3 border-t border-white/10 pt-3">
                       <div className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">{t("horseRaceSettings")}</div>
+                      <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-gray-600">{t("horseRaceVisibility")}</div>
+                      <div className="flex overflow-hidden rounded bg-gray-950/55 p-1 shadow-inner shadow-black/25 ring-1 ring-white/5">
+                        {HORSE_RACE_VISIBILITY_OPTIONS.map((option) => (
+                          <button
+                            key={option.visibility}
+                            type="button"
+                            onClick={() => setHorseRaceVisibility(option.visibility)}
+                            className={getHorseRaceSegmentClass(horseRaceVisibility === option.visibility)}
+                            aria-pressed={horseRaceVisibility === option.visibility}
+                          >
+                            {t(option.labelKey)}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="mt-3 mb-1.5 text-[11px] font-medium uppercase tracking-wide text-gray-600">{t("horseRaceStyle")}</div>
                       <div className="flex overflow-hidden rounded bg-gray-950/55 p-1 shadow-inner shadow-black/25 ring-1 ring-white/5">
                         {HORSE_RACE_MODE_OPTIONS.map((option) => (
                           <button
@@ -466,6 +488,7 @@ export default function Navigation() {
                             type="button"
                             onClick={() => setHorseRaceMode(option.mode)}
                             className={getHorseRaceSegmentClass(horseRaceMode === option.mode)}
+                            aria-pressed={horseRaceMode === option.mode}
                           >
                             {t(option.labelKey)}
                           </button>

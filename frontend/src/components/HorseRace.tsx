@@ -4,7 +4,7 @@ import Link from "next/link";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import GuildCrest from "@/components/GuildCrest";
 import { formatPercent, formatPhaseDisplay } from "@/lib/utils";
-import { useHorseRaceMode, HorseRaceMode } from "@/lib/horse-race-preferences";
+import { useHorseRaceMode, HorseRaceMode, HorseRaceVisibility } from "@/lib/horse-race-preferences";
 import { isUmaImage, UMA_IMAGES, UmaImage } from "@/lib/uma-images";
 import { GuildCrest as GuildCrestType, GuildListItem, RaidProgressSummary } from "@/types";
 
@@ -32,7 +32,7 @@ interface RaceEntry {
 
 type BaseRaceEntry = Omit<RaceEntry, "displayProgress" | "labelPosition">;
 type HorseRaceDisplayMode = Exclude<HorseRaceMode, "random">;
-type RandomHorseRaceMode = Exclude<HorseRaceDisplayMode, "off">;
+type RandomHorseRaceMode = HorseRaceDisplayMode;
 
 const TRACK_MIN = 3;
 const TRACK_MAX = 97;
@@ -47,6 +47,9 @@ const START_WIDTH = 34;
 const MIN_TRACK_WIDTH = 680;
 const HORSE_RACER_SRC = "/horse/racer.png";
 const RANDOM_HORSE_RACE_MODES: RandomHorseRaceMode[] = ["crest", "japanese", "uma"];
+const AUTO_SHOW_MIN_GUILDS = 2;
+const AUTO_HIDE_MIN_CLEARS = 11;
+const AUTO_HIDE_MAX_CONTENDERS = 2;
 const EMPTY_RESERVED_UMA_IMAGES: string[] = [];
 const tintedRacerCache = new Map<string, string>();
 let racerImagePromise: Promise<HTMLImageElement> | null = null;
@@ -220,6 +223,16 @@ function buildEntries(guilds: GuildListItem[], selectedRaidId: number) {
     finished: positionedFinished,
     maxStackDepth: positionedUnfinished.maxStackDepth,
   };
+}
+
+function shouldShowRace(visibility: HorseRaceVisibility, contenderCount: number, finishedCount: number) {
+  if (visibility === "hide") return false;
+  if (visibility === "show") return true;
+
+  const entryCount = contenderCount + finishedCount;
+  const raceHasStarted = entryCount >= AUTO_SHOW_MIN_GUILDS;
+  const raceHasEnded = finishedCount >= AUTO_HIDE_MIN_CLEARS && contenderCount <= AUTO_HIDE_MAX_CONTENDERS;
+  return raceHasStarted && !raceHasEnded;
 }
 
 function colorFromCrest(crest?: GuildCrestType, fallback = "84 168 247") {
@@ -449,7 +462,7 @@ function assignUmaImages(entries: RaceEntry[], umaDeck: UmaImage[], reservedUmaI
 }
 
 export default function HorseRace({ guilds, selectedRaidId, currentRaidId, reservedUmaImages = EMPTY_RESERVED_UMA_IMAGES }: HorseRaceProps) {
-  const { mode, showCharacters, showBackground } = useHorseRaceMode();
+  const { mode, visibility, showCharacters, showBackground } = useHorseRaceMode();
   const [randomMode] = useState<RandomHorseRaceMode>(() => getRandomHorseRaceMode());
   const activeMode: HorseRaceDisplayMode = mode === "random" ? randomMode : mode;
   const [umaDeck, setUmaDeck] = useState(() => shuffleUmaImages());
@@ -466,9 +479,11 @@ export default function HorseRace({ guilds, selectedRaidId, currentRaidId, reser
   }, [currentRaidId, guilds, selectedRaidId]);
   const umaAssignments = useMemo(() => assignUmaImages([...race.notStarted, ...race.unfinished, ...race.finished], umaDeck, reservedUmaImages), [race, reservedUmaImages, umaDeck]);
 
-  const entryCount = race.notStarted.length + race.unfinished.length + race.finished.length;
+  const isCurrentRaid = selectedRaidId !== null && selectedRaidId === currentRaidId;
+  const contenderCount = race.notStarted.length + race.unfinished.length;
+  const finishedCount = race.finished.length;
 
-  if (activeMode === "off" || entryCount === 0) return null;
+  if (!isCurrentRaid || !shouldShowRace(visibility, contenderCount, finishedCount)) return null;
 
   const startWidth = Math.max(START_WIDTH, 28 + race.notStarted.length * FINISHED_SLOT_WIDTH);
   const finishWidth = Math.max(92, 28 + race.finished.length * FINISHED_SLOT_WIDTH);
