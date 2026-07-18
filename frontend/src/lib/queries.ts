@@ -59,6 +59,7 @@ export const queryKeys = {
     shared: (shareId: string) => ["characterTierLists", "shared", shareId] as const,
   },
   pickems: {
+    list: ["pickems", "list"] as const,
     guilds: ["pickems", "guilds"] as const,
     rwfGuilds: ["pickems", "rwfGuilds"] as const,
   },
@@ -312,6 +313,16 @@ export function useSharedCharacterTierList(shareId: string | null, enabled: bool
 }
 
 // Pickems
+
+export function usePickems() {
+  return useQuery({
+    queryKey: queryKeys.pickems.list,
+    queryFn: () => api.getPickems(),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: false,
+  });
+}
 
 export function usePickemsGuilds(raidType: string) {
   return useQuery({

@@ -12,6 +12,7 @@ import IntegratedRaidSelector from "@/components/IntegratedRaidSelector";
 import HorizontalEventsFeed from "@/components/HorizontalEventsFeed";
 import FeaturedStreamers from "@/components/FeaturedStreamers";
 import HorseRace from "@/components/HorseRace";
+import HomeHighlights from "@/components/HomeHighlights";
 import RaidDetailModal from "@/components/RaidDetailModal";
 import RaidingTodayStrip from "@/components/RaidingTodayStrip";
 
@@ -36,7 +37,7 @@ function HomeContent() {
   const raids = homeData?.raids ?? [];
   const homeRaidId = homeData?.raid.id ?? null;
   const primaryRaidId = raids.find((raid) => raid.isPrimary)?.id ?? homeRaidId ?? raids[0]?.id ?? null;
-  const { showEvents, showLivestreams, showRaidingToday } = useHomePagePreferences();
+  const { showEvents, showLivestreams, showHighlights, showRaidingToday } = useHomePagePreferences();
   const eventFilters = useEventFiltersFromLocalStorage();
   const { data: eventsData, error: eventsError } = useEventsPaginated(1, 5, eventFilters, showEvents);
   const events = eventsData?.events ?? homeData?.events ?? [];
@@ -199,6 +200,7 @@ function HomeContent() {
 
         {/* Integrated Raid Selector + Guild Leaderboard */}
         <div>
+          {showHighlights && <HomeHighlights />}
           {showRaidingToday && <RaidingTodayStrip />}
           {raids.length > 0 && <IntegratedRaidSelector raids={raids} selectedRaidId={selectedRaidId} onRaidSelect={handleRaidSelect} raidDates={raidDates ?? null} />}
           <GuildTable guilds={guilds} onGuildClick={handleGuildClick} onRaidProgressClick={handleRaidProgressClick} selectedRaidId={selectedRaidId} />

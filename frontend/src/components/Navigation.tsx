@@ -126,7 +126,8 @@ export default function Navigation() {
     setShowCharacters: setShowHorseRaceCharacters,
     setShowBackground: setShowHorseRaceBackground,
   } = useHorseRaceMode();
-  const { showEvents, showLivestreams, showRaidingToday, setShowEvents, setShowLivestreams, setShowRaidingToday } = useHomePagePreferences();
+  const { showEvents, showLivestreams, showHighlights, showRaidingToday, setShowEvents, setShowLivestreams, setShowHighlights, setShowRaidingToday } =
+    useHomePagePreferences();
   const { selectedEventTypes, selectedDifficulties, selectedGuild, setEventTypes, setDifficulties, setSelectedGuild } = useEventFilterPreferences();
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
   const [isContactDropdownOpen, setIsContactDropdownOpen] = useState(false);
@@ -431,6 +432,7 @@ export default function Navigation() {
                     <div className="space-y-1.5">
                       <SettingsToggle label={t("showEventsOnHome")} checked={showEvents} onChange={setShowEvents} />
                       <SettingsToggle label={t("showLivestreamsOnHome")} checked={showLivestreams} onChange={setShowLivestreams} />
+                      <SettingsToggle label={t("showHighlightsOnHome")} checked={showHighlights} onChange={setShowHighlights} />
                       <SettingsToggle label={t("showRaidingTodayOnHome")} checked={showRaidingToday} onChange={setShowRaidingToday} />
                     </div>
 

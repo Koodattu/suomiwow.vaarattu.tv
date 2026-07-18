@@ -37,6 +37,7 @@
     "generalSettings": "General",
     "showEventsOnHome": "Show events",
     "showLivestreamsOnHome": "Show livestreams",
+    "showHighlightsOnHome": "Show what's happening",
     "showRaidingTodayOnHome": "Show guilds raiding today",
     "eventFilters": "Event filters",
     "horseRaceSettings": "Horse race",
@@ -117,6 +118,30 @@
     "raidingTodayMore": "and {count} more",
     "raidingTodayShowLess": "show less",
     "updated": "Updated"
+  },
+  "homeHighlights": {
+    "title": "What's happening",
+    "pickemsOpen": "Pickems open",
+    "featureHighlights": "Explore",
+    "openNow": "Open now",
+    "prizePool": "{amount} gold prize pool",
+    "regularPickem": "Finnish guild raid race",
+    "rwfPickem": "Race to World First",
+    "openPickem": "Open {name}",
+    "features": {
+      "compare": {
+        "title": "Compare guilds",
+        "description": "Progress, pulls and raid time"
+      },
+      "tierLists": {
+        "title": "Character tier lists",
+        "description": "Performance by role and class"
+      },
+      "mythicPlus": {
+        "title": "Mythic+ rankings",
+        "description": "Finland's top characters"
+      }
+    }
   },
   "guildsPage": {
     "title": "All Guilds",

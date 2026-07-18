@@ -37,6 +37,7 @@
     "generalSettings": "Yleiset",
     "showEventsOnHome": "Näytä tapahtumat",
     "showLivestreamsOnHome": "Näytä suoratoistot",
+    "showHighlightsOnHome": "Näytä ajankohtaista",
     "showRaidingTodayOnHome": "Näytä tänään raidaavat killat",
     "eventFilters": "Tapahtumasuodattimet",
     "horseRaceSettings": "Horse race",
@@ -117,6 +118,30 @@
     "raidingTodayMore": "ja {count} lisää",
     "raidingTodayShowLess": "näytä vähemmän",
     "updated": "Päivitetty"
+  },
+  "homeHighlights": {
+    "title": "Ajankohtaista",
+    "pickemsOpen": "Veikkaukset auki",
+    "featureHighlights": "Tutustu myös",
+    "openNow": "Auki nyt",
+    "prizePool": "{amount} kultaa palkintoina",
+    "regularPickem": "Suomalaisten kiltojen raidikisa",
+    "rwfPickem": "Race to World First",
+    "openPickem": "Avaa {name}",
+    "features": {
+      "compare": {
+        "title": "Vertaile kiltoja",
+        "description": "Edistyminen, pullit ja raidiajat"
+      },
+      "tierLists": {
+        "title": "Hahmojen tier-listat",
+        "description": "Suoritukset roolin ja luokan mukaan"
+      },
+      "mythicPlus": {
+        "title": "Mythic+-ranking",
+        "description": "Suomen parhaat hahmot"
+      }
+    }
   },
   "guildsPage": {
     "title": "Kaikki Kiltat",
