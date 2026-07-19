@@ -937,12 +937,12 @@ class UpdateScheduler {
 
   async ensureGuildNetworkSnapshotOnStartup(): Promise<void> {
     const existing = await guildNetworkService.getActiveMeta();
-    if (existing) {
+    if (existing?.movementReady) {
       logger.info(`[GuildNetwork] Active snapshot already exists (${existing.characterCount} characters, generated ${existing.generatedAt.toISOString()})`);
       return;
     }
 
-    logger.info("[GuildNetwork] No active snapshot found; building initial snapshot");
+    logger.info(existing ? "[GuildNetwork] Active snapshot has no movement data; rebuilding" : "[GuildNetwork] No active snapshot found; building initial snapshot");
     await this.rebuildGuildNetworkSnapshot();
   }
 

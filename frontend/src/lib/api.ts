@@ -1353,6 +1353,10 @@ export const api = {
     return `${API_URL}/api/guild-network/universe`;
   },
 
+  getGuildNetworkMovementUrlTemplate(): string {
+    return `${API_URL}/api/guild-network/raids/{raidId}/movement`;
+  },
+
   async getGuildNetworkMeta(): Promise<GuildNetworkMeta> {
     const response = await fetch(`${API_URL}/api/guild-network/meta`);
     if (!response.ok) {

@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { TRACKED_RAIDS } from "../config/guilds";
 import guildNetworkService from "../services/guild-network.service";
 import logger from "../utils/logger";
 
@@ -31,6 +32,33 @@ router.get("/universe", async (req: Request, res: Response) => {
     logger.error("Error streaming guild network universe:", error);
     if (!res.headersSent) {
       res.status(500).json({ error: "Failed to fetch guild network universe" });
+    } else {
+      res.end();
+    }
+  }
+});
+
+router.get("/raids/:raidId/movement", async (req: Request, res: Response) => {
+  const raidId = Number(req.params.raidId);
+  if (!Number.isInteger(raidId) || raidId <= 0) {
+    res.status(400).json({ error: "Invalid raid ID" });
+    return;
+  }
+  if (!TRACKED_RAIDS.includes(raidId)) {
+    res.status(404).json({ error: "Raid is not available in the guild network" });
+    return;
+  }
+
+  try {
+    const ifNoneMatch = typeof req.headers["if-none-match"] === "string" ? req.headers["if-none-match"] : undefined;
+    const streamed = await guildNetworkService.streamActiveRaidMovement(raidId, ifNoneMatch, res);
+    if (!streamed && !res.headersSent) {
+      res.status(404).json({ error: "Raid movement snapshot has not been built yet" });
+    }
+  } catch (error) {
+    logger.error(`Error streaming guild network movement for raid ${raidId}:`, error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to fetch raid movement" });
     } else {
       res.end();
     }

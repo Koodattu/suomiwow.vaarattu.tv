@@ -9,8 +9,9 @@ import GuildNetworkSnapshot, { IGuildNetworkSnapshot } from "../models/GuildNetw
 import GuildNetworkSnapshotChunk from "../models/GuildNetworkSnapshotChunk";
 import Raid from "../models/Raid";
 import logger from "../utils/logger";
+import guildNetworkMovementService from "./guild-network-movement.service";
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const CHUNK_SIZE = 512 * 1024;
 const RETAIN_SNAPSHOTS = 3;
 
@@ -63,17 +64,18 @@ type GuildNetworkMeta = {
   byteLength: number;
   chunkCount: number;
   etag: string;
+  movementReady: boolean;
 };
 
 class GuildNetworkService {
   private isRebuilding = false;
 
   async getActiveSnapshot(): Promise<IGuildNetworkSnapshot | null> {
-    return GuildNetworkSnapshot.findOne({ active: true }).sort({ generatedAt: -1 });
+    return GuildNetworkSnapshot.findOne({ active: true }).sort({ generatedAt: -1, _id: -1 });
   }
 
   async getActiveMeta(): Promise<GuildNetworkMeta | null> {
-    const snapshot = await GuildNetworkSnapshot.findOne({ active: true }).sort({ generatedAt: -1 }).lean();
+    const snapshot = await GuildNetworkSnapshot.findOne({ active: true }).sort({ generatedAt: -1, _id: -1 }).lean();
     if (!snapshot) return null;
 
     return {
@@ -87,6 +89,7 @@ class GuildNetworkService {
       byteLength: snapshot.byteLength,
       chunkCount: snapshot.chunkCount,
       etag: snapshot.etag,
+      movementReady: Boolean(snapshot.movementBatchId),
     };
   }
 
@@ -117,6 +120,12 @@ class GuildNetworkService {
     return true;
   }
 
+  async streamActiveRaidMovement(raidId: number, reqEtag: string | undefined, res: Response): Promise<boolean> {
+    const snapshot = await this.getActiveSnapshot();
+    if (!snapshot?.movementBatchId) return false;
+    return guildNetworkMovementService.streamSnapshot(snapshot.movementBatchId, raidId, reqEtag, res);
+  }
+
   triggerRebuild(): boolean {
     if (this.isRebuilding) return false;
     this.rebuildSnapshot()
@@ -132,9 +141,18 @@ class GuildNetworkService {
 
     this.isRebuilding = true;
     const startedAt = Date.now();
+    let movementBatchId: string | null = null;
+    let snapshotId: mongoose.Types.ObjectId | null = null;
+    let published = false;
     try {
       logger.info("[GuildNetwork] Building universe snapshot from CharacterRaidParticipation");
       const payload = await this.buildUniversePayload();
+      movementBatchId = crypto.randomUUID();
+      logger.info(`[GuildNetwork] Building movement snapshot batch ${movementBatchId}`);
+      await guildNetworkMovementService.rebuildBatch(
+        movementBatchId,
+        payload.tiers.map((tier) => tier.id),
+      );
       const json = JSON.stringify(payload);
       const etag = `"${crypto.createHash("sha256").update(json).digest("hex")}"`;
       const byteLength = Buffer.byteLength(json, "utf8");
@@ -153,9 +171,10 @@ class GuildNetworkService {
         chunkCount,
         chunkSize: CHUNK_SIZE,
         etag,
+        movementBatchId,
       });
 
-      const snapshotId = snapshot._id as mongoose.Types.ObjectId;
+      snapshotId = snapshot._id as mongoose.Types.ObjectId;
       const chunks = [];
       for (let index = 0; index < chunkCount; index += 1) {
         chunks.push({
@@ -168,10 +187,29 @@ class GuildNetworkService {
         await GuildNetworkSnapshotChunk.insertMany(chunks, { ordered: true });
       }
 
-      await GuildNetworkSnapshot.updateMany({ _id: { $ne: snapshotId }, active: true }, { $set: { active: false } });
       snapshot.active = true;
       await snapshot.save();
-      await this.pruneOldSnapshots();
+      published = true;
+      try {
+        await GuildNetworkSnapshot.updateMany(
+          {
+            _id: { $ne: snapshotId },
+            active: true,
+            $or: [
+              { generatedAt: { $lt: snapshot.generatedAt } },
+              { generatedAt: snapshot.generatedAt, _id: { $lt: snapshotId } },
+            ],
+          },
+          { $set: { active: false } },
+        );
+      } catch (deactivationError) {
+        logger.error("[GuildNetwork] New snapshot is live, but older active snapshots could not be deactivated:", deactivationError);
+      }
+      try {
+        await this.pruneOldSnapshots();
+      } catch (pruneError) {
+        logger.error("[GuildNetwork] New snapshot is live, but stale snapshot pruning failed:", pruneError);
+      }
 
       const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
       logger.info(`[GuildNetwork] Active snapshot ready in ${duration}s (${(byteLength / 1024 / 1024).toFixed(1)} MB, ${chunkCount} chunks)`);
@@ -187,7 +225,23 @@ class GuildNetworkService {
         byteLength: snapshot.byteLength,
         chunkCount: snapshot.chunkCount,
         etag: snapshot.etag,
+        movementReady: true,
       };
+    } catch (error) {
+      if (!published) {
+        try {
+          if (snapshotId) {
+            await GuildNetworkSnapshotChunk.deleteMany({ snapshotId });
+            await GuildNetworkSnapshot.deleteOne({ _id: snapshotId });
+          }
+          if (movementBatchId) {
+            await guildNetworkMovementService.discardBatch(movementBatchId);
+          }
+        } catch (cleanupError) {
+          logger.error("[GuildNetwork] Failed to clean up an unpublished snapshot:", cleanupError);
+        }
+      }
+      throw error;
     } finally {
       this.isRebuilding = false;
     }
@@ -201,6 +255,7 @@ class GuildNetworkService {
     tiers: UniverseTier[];
     realms: string[];
     guilds: Array<[string, number]>;
+    guildKeys: string[];
     characters: CharacterEntry[];
     accounts: AccountEntry[];
   }> {
@@ -256,6 +311,7 @@ class GuildNetworkService {
     };
 
     const guilds: Array<[string, number]> = [];
+    const guildKeys: string[] = [];
     const guildIndexes = new Map<string, number>();
     const guildIndex = (row: ParticipationRow): number => {
       const key = String(row.reportGuildId);
@@ -263,6 +319,7 @@ class GuildNetworkService {
       if (existing !== undefined) return existing;
       const next = guilds.length;
       guilds.push([row.reportGuildName || "Unknown", realmIndex(row.reportGuildRealm)]);
+      guildKeys.push(key);
       guildIndexes.set(key, next);
       return next;
     };
@@ -352,6 +409,7 @@ class GuildNetworkService {
       tiers,
       realms,
       guilds,
+      guildKeys,
       characters,
       accounts,
     };
@@ -368,15 +426,18 @@ class GuildNetworkService {
   }
 
   private async pruneOldSnapshots(): Promise<void> {
-    const keep = await GuildNetworkSnapshot.find().sort({ generatedAt: -1 }).limit(RETAIN_SNAPSHOTS).select("_id").lean();
+    const keep = await GuildNetworkSnapshot.find().sort({ generatedAt: -1, _id: -1 }).limit(RETAIN_SNAPSHOTS).select("_id").lean();
     const keepIds = keep.map((snapshot) => snapshot._id);
+    const retainedSnapshots = await GuildNetworkSnapshot.find({ _id: { $in: keepIds } }).select("movementBatchId -_id").lean<Array<{ movementBatchId?: string | null }>>();
+    const keepMovementBatchIds = retainedSnapshots.map((snapshot) => snapshot.movementBatchId).filter((batchId): batchId is string => Boolean(batchId));
     const oldSnapshots = await GuildNetworkSnapshot.find({ _id: { $nin: keepIds }, active: false }).select("_id").lean();
     const oldIds = oldSnapshots.map((snapshot) => snapshot._id);
-    if (oldIds.length === 0) return;
-
-    await GuildNetworkSnapshotChunk.deleteMany({ snapshotId: { $in: oldIds } });
-    await GuildNetworkSnapshot.deleteMany({ _id: { $in: oldIds } });
-    logger.info(`[GuildNetwork] Pruned ${oldIds.length} old snapshots`);
+    if (oldIds.length > 0) {
+      await GuildNetworkSnapshotChunk.deleteMany({ snapshotId: { $in: oldIds } });
+      await GuildNetworkSnapshot.deleteMany({ _id: { $in: oldIds } });
+      logger.info(`[GuildNetwork] Pruned ${oldIds.length} old snapshots`);
+    }
+    await guildNetworkMovementService.pruneBatches(keepMovementBatchIds);
   }
 }
 

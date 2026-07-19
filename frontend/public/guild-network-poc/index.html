@@ -91,13 +91,29 @@
 
       .mode-row {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 6px;
       }
 
       .mode-row .button {
         font-size: 0.72rem;
         padding: 0 4px;
+      }
+
+      .scope-stack {
+        display: grid;
+        gap: 8px;
+      }
+
+      .scope-group {
+        display: grid;
+        gap: 5px;
+      }
+
+      .scope-label {
+        color: var(--muted);
+        font-size: 0.68rem;
+        font-weight: 700;
       }
 
       .identity-row {
@@ -146,7 +162,8 @@
         background: var(--blue-strong);
       }
 
-      .button:disabled {
+      .button:disabled,
+      .button[aria-disabled="true"] {
         cursor: not-allowed;
         opacity: 0.46;
       }
@@ -200,6 +217,10 @@
         width: 16px;
         height: 16px;
         accent-color: var(--blue);
+      }
+
+      .hidden {
+        display: none !important;
       }
 
       .search-results {
@@ -430,6 +451,37 @@
         min-width: 0;
       }
 
+      .movement-scrubber {
+        display: grid;
+        grid-template-columns: minmax(110px, 180px) minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 1px 6px;
+      }
+
+      .movement-scrubber select {
+        width: 100%;
+        min-width: 0;
+        height: 28px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .movement-scrubber input[type="range"] {
+        width: 100%;
+        min-width: 0;
+        accent-color: var(--blue);
+      }
+
+      .movement-scrubber output {
+        min-width: 112px;
+        color: var(--muted);
+        font-size: 0.7rem;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+
       .tier-cell {
         flex: 1 1 0;
         min-width: 0;
@@ -654,6 +706,33 @@
         cursor: default;
       }
 
+      .movement-note {
+        color: var(--muted);
+        font-size: 0.76rem;
+        line-height: 1.5;
+      }
+
+      .movement-change {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--muted);
+        font-size: 0.7rem;
+        line-height: 1.4;
+        padding: 0 6px;
+      }
+
+      .movement-change::before {
+        content: "↓";
+        color: var(--amber);
+        font-weight: 800;
+      }
+
+      .ambiguous-card {
+        border-color: rgba(251, 191, 36, 0.4);
+        background: rgba(251, 191, 36, 0.07);
+      }
+
       .char-refs {
         display: flex;
         flex-wrap: wrap;
@@ -776,57 +855,79 @@
           right: 372px;
         }
       }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+        }
+      }
     </style>
   </head>
   <body>
     <div class="app">
       <aside class="sidebar">
         <div class="side-section view-island">
-          <h3>View</h3>
-          <div class="mode-row">
-            <button class="button active" id="modeGalaxy" type="button">Raid view</button>
-            <button class="button" id="modeAll" type="button">All raids</button>
-            <button class="button" id="modeFlow" type="button">Lineages</button>
+          <h3 id="viewHeading"></h3>
+          <div class="scope-stack">
+            <div class="scope-group">
+              <span class="scope-label" id="selectedRaidLabel"></span>
+              <div class="mode-row">
+                <button class="button active" id="modeGalaxy" type="button" aria-pressed="true"></button>
+                <button class="button" id="modeMovement" type="button" aria-pressed="false"></button>
+              </div>
+            </div>
+            <div class="scope-group">
+              <span class="scope-label" id="allRaidsLabel"></span>
+              <div class="mode-row">
+                <button class="button" id="modeAll" type="button" aria-pressed="false"></button>
+                <button class="button" id="modeFlow" type="button" aria-pressed="false"></button>
+              </div>
+            </div>
           </div>
           <div class="identity-row">
-            <button class="button active" id="identityCharacter" type="button">Character</button>
-            <button class="button" id="identityAccount" type="button">Accounts</button>
+            <button class="button active" id="identityCharacter" type="button" aria-pressed="true"></button>
+            <button class="button" id="identityAccount" type="button" aria-pressed="false"></button>
           </div>
         </div>
 
         <div class="side-section filters-island">
-          <h3>Filters</h3>
+          <h3 id="filtersHeading"></h3>
           <div class="filter-body">
             <div class="field">
-              <label for="minReports">Min reports per guild &amp; tier</label>
+              <label for="minReports" id="minReportsLabel"></label>
               <select id="minReports">
-                <option value="1">1+ · everyone</option>
-                <option value="2" selected>2+ · regulars</option>
-                <option value="3">3+ · core raiders</option>
-                <option value="5">5+ · committed core</option>
-                <option value="10">10+ · die-hards</option>
+                <option value="1"></option>
+                <option value="2" selected></option>
+                <option value="3"></option>
+                <option value="5"></option>
+                <option value="10"></option>
               </select>
             </div>
-            <label class="toggle"><span>Migration flows</span><input id="tglFlows" type="checkbox" checked /></label>
-            <label class="toggle"><span>Migration lines</span><input id="tglTrails" type="checkbox" /></label>
-            <label class="toggle"><span>Cross-guild fibers</span><input id="tglFibers" type="checkbox" /></label>
-            <label class="toggle"><span>Guild labels</span><input id="tglLabels" type="checkbox" checked /></label>
+            <label class="toggle" id="flowsToggle"><span id="flowsLabel"></span><input id="tglFlows" type="checkbox" checked /></label>
+            <label class="toggle" id="trailsToggle"><span id="trailsLabel"></span><input id="tglTrails" type="checkbox" /></label>
+            <label class="toggle" id="fibersToggle"><span id="fibersLabel"></span><input id="tglFibers" type="checkbox" /></label>
+            <label class="toggle"><span id="labelsLabel"></span><input id="tglLabels" type="checkbox" checked /></label>
             <div class="clear-row">
-              <button class="button" id="resetView" type="button">Reset view</button>
-              <button class="button" id="clearSel" type="button">Clear selection</button>
+              <button class="button" id="resetView" type="button"></button>
+              <button class="button" id="clearSel" type="button"></button>
             </div>
           </div>
         </div>
 
         <div class="side-section search-island">
-          <h3>Search</h3>
-          <input id="search" type="text" autocomplete="off" spellcheck="false" placeholder="Search characters, accounts, or guilds…" />
+          <h3 id="searchHeading"></h3>
+          <input id="search" type="text" autocomplete="off" spellcheck="false" />
           <div class="search-results" id="searchResults"></div>
         </div>
       </aside>
 
       <main class="stage" id="stage">
-        <canvas id="canvas"></canvas>
+        <canvas id="canvas" role="img"></canvas>
         <div class="stage-top">
           <div class="stage-title">
             <h2 id="titleMain">Loading…</h2>
@@ -835,19 +936,19 @@
           <div class="stat-strip" id="stats"></div>
         </div>
         <div class="timeline" id="timeline" style="display: none">
-          <button class="play-btn" id="playBtn" type="button" title="Play through tiers">▶</button>
+          <button class="play-btn" id="playBtn" type="button">▶</button>
           <div class="tier-cells" id="tierCells"></div>
         </div>
         <div class="tooltip" id="tooltip"></div>
         <div class="overlay visible" id="loading">
           <div class="notice">
-            <strong>Loading the universe</strong>
-            <p id="loadingText">Fetching every character × guild × tier…</p>
+            <strong id="loadingTitle"></strong>
+            <p id="loadingText"></p>
           </div>
         </div>
         <div class="overlay" id="errorBox">
           <div class="notice">
-            <strong>Something broke</strong>
+            <strong id="errorTitle"></strong>
             <p id="errorText"></p>
           </div>
         </div>
@@ -855,8 +956,8 @@
 
       <aside class="inspector" id="inspectorPanel">
         <div class="inspector-header">
-          <h2 id="insTitle">Inspector</h2>
-          <p id="insSub">Click a character dot, account dot, or guild cluster.</p>
+          <h2 id="insTitle"></h2>
+          <p id="insSub"></p>
         </div>
         <div class="inspector-body" id="insBody"></div>
       </aside>
@@ -864,6 +965,11 @@
 
     <script>
       "use strict";
+
+      const networkCopy = {};
+      const networkLocale = "en";
+      const movementUrlTemplate = "/api/guild-network/raids/{raidId}/movement";
+      const movementReady = true;
 
       /* ============================== constants ============================== */
 
@@ -897,22 +1003,37 @@
       const HULL_PAD = 10;
       const TRANS_MS = 950;
       const PLAY_MS = 2600;
+      const MOVEMENT_PLAY_MS = 700;
       const LUMP = -1; // alluvial pseudo-guild that pools tiny rosters
       const ALLUVIAL_MIN_ROSTER = 4;
       const ALLUVIAL_K = 0.9; // vertical px per character
       const ALLUVIAL_NODE_W = 26;
       const ALLUVIAL_COL_PITCH = 215;
       const IGNORED_MOVEMENT_RAID_IDS = new Set([50, 22]); // Sporefall, Crucible of Storms
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
       /* ============================== state ============================== */
 
-      const M = { tiers: [], realms: [], guilds: [], baseChars: [], chars: [], accountGroups: [], accountChars: null }; // loaded model
+      const M = {
+        tiers: [],
+        realms: [],
+        guilds: [],
+        guildIndexByKey: new Map(),
+        baseChars: [],
+        chars: [],
+        accountGroups: [],
+        accountChars: null,
+        movement: new Map(),
+        movementCurrent: null,
+      }; // loaded model
       const F = {}; // filtered + derived model, rebuilt by rebuild()
       const view = {
         mode: "galaxy",
         identity: "character",
         tier: 0,
         minReports: 2,
+        movementMinReports: 1,
+        movementStep: -1,
         classFilter: new Set(),
         showFlows: true,
         showTrails: false,
@@ -920,13 +1041,14 @@
         showLabels: true,
         inspectorOpen: true,
         selChar: -1,
+        selMovement: -1,
         selGuild: -1,
         hover: null, // {kind:"char"|"guild"|"flow", ...}
-        tf: { galaxy: { x: 0, y: 0, k: 1 }, all: { x: 0, y: 0, k: 1 }, flow: { x: 0, y: 0, k: 1 } },
+        tf: { galaxy: { x: 0, y: 0, k: 1 }, movement: { x: 0, y: 0, k: 1 }, all: { x: 0, y: 0, k: 1 }, flow: { x: 0, y: 0, k: 1 } },
         trans: null, // tier transition animation
         playing: false,
         playTimer: null,
-        fitted: { galaxy: false, all: false, flow: false },
+        fitted: { galaxy: false, movement: false, all: false, flow: false },
       };
 
       function isMovementIgnoredTier(t) {
@@ -953,10 +1075,12 @@
       const stage = document.getElementById("stage");
       const tooltip = document.getElementById("tooltip");
       const els = Object.fromEntries(
-        ["titleMain", "titleSub", "stats", "timeline", "tierCells", "playBtn", "loading", "loadingText",
+        ["titleMain", "titleSub", "stats", "timeline", "tierCells", "playBtn", "loading", "loadingTitle", "loadingText",
          "errorBox", "errorText", "insTitle", "insSub", "insBody", "search", "searchResults", "classGrid",
-         "modeGalaxy", "modeAll", "modeFlow", "identityCharacter", "identityAccount", "minReports", "tglFlows", "tglTrails", "tglFibers",
-         "tglLabels", "resetView", "clearSel", "inspectorPanel"]
+         "modeGalaxy", "modeMovement", "modeAll", "modeFlow", "identityCharacter", "identityAccount", "minReports", "tglFlows", "tglTrails", "tglFibers",
+         "tglLabels", "resetView", "clearSel", "inspectorPanel", "viewHeading", "selectedRaidLabel", "allRaidsLabel", "filtersHeading",
+         "minReportsLabel", "flowsToggle", "flowsLabel", "trailsToggle", "trailsLabel", "fibersToggle", "fibersLabel", "labelsLabel",
+         "searchHeading", "errorTitle"]
           .map((id) => [id, document.getElementById(id)]),
       );
       const listenerController = new AbortController();
@@ -966,6 +1090,36 @@
       let frameId = null;
       let resizeObserver = null;
       let universeController = null;
+      let movementController = null;
+
+      function applyStaticCopy() {
+        document.documentElement.lang = networkLocale;
+        document.title = networkCopy.iframeTitle || "Raider Constellation";
+        els.viewHeading.textContent = networkCopy.view;
+        els.selectedRaidLabel.textContent = networkCopy.selectedRaid;
+        els.allRaidsLabel.textContent = networkCopy.allRaids;
+        els.modeGalaxy.textContent = networkCopy.roster;
+        els.modeMovement.textContent = networkCopy.movement;
+        els.modeMovement.setAttribute("aria-disabled", String(!movementReady));
+        if (!movementReady) els.modeMovement.setAttribute("aria-description", networkCopy.movementUnavailable);
+        els.modeMovement.title = movementReady ? networkCopy.movementDescription : networkCopy.movementUnavailable;
+        els.modeAll.textContent = networkCopy.combined;
+        els.modeFlow.textContent = networkCopy.lineages;
+        els.identityCharacter.textContent = networkCopy.character;
+        els.identityAccount.textContent = networkCopy.accounts;
+        els.filtersHeading.textContent = networkCopy.filters;
+        els.flowsLabel.textContent = networkCopy.migrationFlows;
+        els.trailsLabel.textContent = networkCopy.migrationLines;
+        els.fibersLabel.textContent = networkCopy.crossGuildFibers;
+        els.labelsLabel.textContent = networkCopy.guildLabels;
+        els.resetView.textContent = networkCopy.resetView;
+        els.clearSel.textContent = networkCopy.clearSelection;
+        els.searchHeading.textContent = networkCopy.search;
+        els.loadingTitle.textContent = networkCopy.loadingUniverseTitle;
+        els.loadingText.textContent = networkCopy.loadingUniverseBody;
+        els.errorTitle.textContent = networkCopy.errorTitle;
+        updateFilterControls();
+      }
 
       function defer(callback, delay) {
         const timer = setTimeout(() => {
@@ -989,7 +1143,7 @@
       /* ============================== helpers ============================== */
 
       const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[m]);
-      const fmt = (v) => new Intl.NumberFormat("en-US").format(v || 0);
+      const fmt = (v) => new Intl.NumberFormat(networkLocale).format(v || 0);
       const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
       const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
@@ -1044,7 +1198,20 @@
 
       function monthYear(iso) {
         if (!iso) return "";
-        return new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" }).format(new Date(iso));
+        return new Intl.DateTimeFormat(networkLocale, { month: "short", year: "numeric" }).format(new Date(iso));
+      }
+
+      function movementDate(value, includeYear = false) {
+        if (!value) return "";
+        return new Intl.DateTimeFormat(networkLocale, {
+          day: "numeric",
+          month: "short",
+          ...(includeYear ? { year: "numeric" } : {}),
+        }).format(new Date(value));
+      }
+
+      function reportCountLabel(count) {
+        return `${fmt(count)} ${count === 1 ? networkCopy.report : networkCopy.reports}`;
       }
 
       function expColor(expansion) {
@@ -1083,6 +1250,30 @@
 
       function isAccountMode() {
         return view.identity === "account";
+      }
+
+      function isMovementMode() {
+        return view.mode === "movement";
+      }
+
+      function updateFilterControls() {
+        const movement = isMovementMode();
+        els.minReportsLabel.textContent = movement ? networkCopy.minimumStintReports : networkCopy.minimumRosterReports;
+        const labels = movement
+          ? [networkCopy.filterAllStints, networkCopy.filterEstablishedStints, networkCopy.filterLongStints, networkCopy.filterSustainedStints, networkCopy.filterCoreStints]
+          : [networkCopy.filterEveryone, networkCopy.filterRegulars, networkCopy.filterCore, networkCopy.filterCommitted, networkCopy.filterDieHards];
+        Array.from(els.minReports.options).forEach((option, index) => {
+          option.textContent = labels[index] || option.value;
+        });
+        els.minReports.value = String(movement ? view.movementMinReports : view.minReports);
+        els.flowsLabel.textContent = movement ? networkCopy.movementFlows : networkCopy.migrationFlows;
+        els.trailsToggle.classList.toggle("hidden", movement);
+        els.fibersToggle.classList.toggle("hidden", movement);
+      }
+
+      function setPressed(button, pressed) {
+        button.classList.toggle("active", pressed);
+        button.setAttribute("aria-pressed", String(pressed));
       }
 
       function entitySingular() {
@@ -1313,7 +1504,8 @@
 
       async function boot() {
         try {
-          els.loadingText.textContent = "Fetching every character × guild × tier…";
+          els.loadingTitle.textContent = networkCopy.loadingUniverseTitle;
+          els.loadingText.textContent = networkCopy.loadingUniverseBody;
           const params = new URLSearchParams(window.location.search);
           const universeUrl = params.get("universe") || "/api/guild-network/universe";
           const controller = new AbortController();
@@ -1326,6 +1518,7 @@
           M.tiers = data.tiers;
           M.realms = data.realms;
           M.guilds = data.guilds.map(([name, realmIdx], g) => ({
+            key: Array.isArray(data.guildKeys) ? data.guildKeys[g] || "" : "",
             name,
             realm: M.realms[realmIdx] || "Unknown",
             hue: hash32(name + "::" + g) % 360,
@@ -1336,6 +1529,11 @@
           const guildNameCounts = new Map();
           for (const guild of M.guilds) guildNameCounts.set(guild.nameKey, (guildNameCounts.get(guild.nameKey) || 0) + 1);
           for (const guild of M.guilds) guild.duplicateName = (guildNameCounts.get(guild.nameKey) || 0) > 1;
+          M.guildIndexByKey = new Map();
+          M.guilds.forEach((guild, index) => {
+            if (guild.key) M.guildIndexByKey.set(guild.key, index);
+            M.guildIndexByKey.set(`label:${normalizeSearch(guild.name)}:${normalizeSearch(guild.realm)}`, index);
+          });
 
           M.baseChars = data.characters.map(([name, realmIdx, classID, mem, aliases]) => {
             const realm = M.realms[realmIdx] || "Unknown";
@@ -1364,7 +1562,7 @@
           M.chars = M.baseChars;
           updateIdentityButtons();
 
-          els.loadingText.textContent = `Laying out ${fmt(M.chars.length)} ${entityPlural()} across ${M.tiers.length} tiers…`;
+          els.loadingText.textContent = networkCopy.loadingLayout;
           await delay(30); // let the text paint
           if (destroyed) return;
 
@@ -1381,11 +1579,570 @@
         } catch (err) {
           if (destroyed || (err instanceof DOMException && err.name === "AbortError")) return;
           els.loading.classList.remove("visible");
-          els.errorText.textContent = err instanceof Error ? err.message : "Failed to load guild network universe";
+          els.errorText.textContent = err instanceof Error ? err.message : networkCopy.shellLoadError;
           els.errorBox.classList.add("visible");
         } finally {
           universeController = null;
         }
+      }
+
+      /* ============================== selected-raid movement ============================== */
+
+      function movementRequestUrl(raidId) {
+        return movementUrlTemplate.replace("{raidId}", encodeURIComponent(String(raidId)));
+      }
+
+      function movementCharacterLabel(model, characterIndex, full = false) {
+        const character = model.characters[characterIndex];
+        if (!character) return "Unknown";
+        return full ? `${character.name}-${realmLabel(character.realm)}` : character.name;
+      }
+
+      function registerMovementGuild(key, name, realm) {
+        const normalizedName = normalizeSearch(name);
+        const normalizedRealm = normalizeSearch(realm);
+        const labelKey = `label:${normalizedName}:${normalizedRealm}`;
+        const existing = M.guildIndexByKey.get(String(key)) ?? M.guildIndexByKey.get(labelKey);
+        if (existing !== undefined) return existing;
+
+        const g = M.guilds.length;
+        const guild = {
+          key: String(key),
+          name: String(name || "Unknown"),
+          realm: String(realm || "Unknown"),
+          hue: hash32(`${name}::${key}`) % 360,
+          searchKey: normalizeSearch(`${name} ${realm}`),
+          nameKey: normalizedName,
+          duplicateName: false,
+        };
+        M.guilds.push(guild);
+        M.guildIndexByKey.set(guild.key, g);
+        M.guildIndexByKey.set(labelKey, g);
+
+        const matchingNames = M.guilds.filter((candidate) => candidate.nameKey === guild.nameKey);
+        if (matchingNames.length > 1) {
+          for (const candidate of matchingNames) candidate.duplicateName = true;
+        }
+        return g;
+      }
+
+      function parseMovementPayload(data) {
+        const guilds = (Array.isArray(data.guilds) ? data.guilds : []).map(([key, name, realm]) => {
+          return {
+            key: String(key),
+            name: String(name || "Unknown"),
+            realm: String(realm || "Unknown"),
+            g: registerMovementGuild(key, name, realm),
+          };
+        });
+        const characters = (Array.isArray(data.characters) ? data.characters : []).map(([key, name, realm, classID, aliases]) => ({
+          key: String(key),
+          name: String(name || "Unknown"),
+          realm: String(realm || "Unknown"),
+          classID: CLASS_NAMES[classID] ? classID : 0,
+          aliases: Array.isArray(aliases) ? aliases : [],
+        }));
+        const reports = [];
+        const observationsByCharacter = Array.from({ length: characters.length }, () => []);
+        for (const tuple of Array.isArray(data.reports) ? data.reports : []) {
+          const [code, startTime, endTime, guildIndex, characterIndexes] = tuple;
+          const guild = guilds[guildIndex];
+          if (!guild || !Number.isFinite(startTime)) continue;
+          const report = {
+            code: String(code),
+            time: Number(startTime),
+            end: Number.isFinite(endTime) ? Number(endTime) : Number(startTime),
+            g: guild.g,
+          };
+          reports.push(report);
+          for (const characterIndex of Array.isArray(characterIndexes) ? characterIndexes : []) {
+            if (!observationsByCharacter[characterIndex]) continue;
+            observationsByCharacter[characterIndex].push({
+              ...report,
+              altIndexes: [characterIndex],
+            });
+          }
+        }
+        reports.sort((a, b) => a.time - b.time || a.code.localeCompare(b.code));
+        for (const observations of observationsByCharacter) observations.sort((a, b) => a.time - b.time || a.code.localeCompare(b.code));
+
+        const accountGroups = (Array.isArray(data.accounts) ? data.accounts : [])
+          .map(([name, slug, memberIndexes]) => ({
+            name: String(name || "Account"),
+            slug: slug ? String(slug) : null,
+            members: Array.from(new Set((Array.isArray(memberIndexes) ? memberIndexes : []).filter((index) => observationsByCharacter[index]))),
+          }))
+          .filter((group) => group.members.length > 0);
+
+        return {
+          raid: data.raid,
+          guilds,
+          characters,
+          reports,
+          observationsByCharacter,
+          accountGroups,
+          derived: new Map(),
+        };
+      }
+
+      function buildMovementEntities(model, identity) {
+        if (identity === "character") {
+          return model.characters.map((character, characterIndex) => ({
+            key: character.key,
+            name: character.name,
+            realm: character.realm,
+            classID: character.classID,
+            memberIndexes: [characterIndex],
+            observations: model.observationsByCharacter[characterIndex],
+            isAccount: false,
+            searchKey: normalizeSearch(`${character.name} ${character.realm} ${(character.aliases || []).join(" ")}`),
+          }));
+        }
+
+        const grouped = new Set();
+        const entities = [];
+        for (const group of model.accountGroups) {
+          for (const member of group.members) grouped.add(member);
+          const byReport = new Map();
+          for (const member of group.members) {
+            for (const observation of model.observationsByCharacter[member]) {
+              const key = `${observation.code}\u0000${observation.g}`;
+              let merged = byReport.get(key);
+              if (!merged) {
+                merged = { ...observation, altIndexes: [] };
+                byReport.set(key, merged);
+              }
+              if (!merged.altIndexes.includes(member)) merged.altIndexes.push(member);
+            }
+          }
+          const observations = Array.from(byReport.values()).sort((a, b) => a.time - b.time || a.code.localeCompare(b.code));
+          entities.push({
+            key: `account:${group.slug || group.name}`,
+            name: group.name,
+            realm: "",
+            classID: 0,
+            memberIndexes: group.members,
+            observations,
+            isAccount: true,
+            searchKey: normalizeSearch(`${group.name} ${group.slug || ""} ${group.members.map((member) => movementCharacterLabel(model, member, true)).join(" ")}`),
+          });
+        }
+        for (let characterIndex = 0; characterIndex < model.characters.length; characterIndex += 1) {
+          if (grouped.has(characterIndex)) continue;
+          const character = model.characters[characterIndex];
+          entities.push({
+            key: `singleton:${character.key}`,
+            name: character.name,
+            realm: character.realm,
+            classID: character.classID,
+            memberIndexes: [characterIndex],
+            observations: model.observationsByCharacter[characterIndex],
+            isAccount: false,
+            searchKey: normalizeSearch(`${character.name} ${character.realm} ${(character.aliases || []).join(" ")}`),
+          });
+        }
+        return entities;
+      }
+
+      function reduceMovementEntity(entity, minimumReports) {
+        const stints = [];
+        const ambiguous = [];
+        const sequence = [];
+        const transitions = [];
+        let current = null;
+
+        for (let index = 0; index < entity.observations.length; ) {
+          const time = entity.observations[index].time;
+          const atTime = [];
+          let next = index;
+          while (next < entity.observations.length && entity.observations[next].time === time) {
+            atTime.push(entity.observations[next]);
+            next += 1;
+          }
+          const byGuild = new Map();
+          for (const observation of atTime) {
+            let entry = byGuild.get(observation.g);
+            if (!entry) {
+              entry = { g: observation.g, observations: [], altIndexes: new Set() };
+              byGuild.set(observation.g, entry);
+            }
+            entry.observations.push(observation);
+            for (const alt of observation.altIndexes) entry.altIndexes.add(alt);
+          }
+
+          if (byGuild.size > 1) {
+            const event = {
+              kind: "ambiguous",
+              start: time,
+              end: Math.max(...atTime.map((observation) => observation.end)),
+              guilds: Array.from(byGuild.values()).map((entry) => ({
+                g: entry.g,
+                reportCount: entry.observations.length,
+                observations: entry.observations,
+                altIndexes: Array.from(entry.altIndexes),
+              })),
+            };
+            ambiguous.push(event);
+            sequence.push(event);
+            current = null;
+          } else {
+            const entry = byGuild.values().next().value;
+            if (current && current.g === entry.g) {
+              current.end = Math.max(current.end, ...entry.observations.map((observation) => observation.end));
+              current.observations.push(...entry.observations);
+              for (const alt of entry.altIndexes) current.altIndexes.add(alt);
+              current.reportCount = current.observations.length;
+            } else {
+              const previous = current;
+              current = {
+                kind: "stint",
+                index: stints.length,
+                g: entry.g,
+                start: time,
+                end: Math.max(...entry.observations.map((observation) => observation.end)),
+                reportCount: entry.observations.length,
+                observations: entry.observations.slice(),
+                altIndexes: new Set(entry.altIndexes),
+              };
+              stints.push(current);
+              sequence.push(current);
+              if (previous) {
+                transitions.push({
+                  from: previous,
+                  to: current,
+                  time,
+                  altIndexes: Array.from(entry.altIndexes),
+                });
+              }
+            }
+          }
+          index = next;
+        }
+
+        const keptStints = new Set(stints.filter((stint) => stint.reportCount >= minimumReports));
+        const visibleSequence = sequence
+          .map((item) => {
+            if (item.kind === "stint") return keptStints.has(item) ? item : null;
+            const guilds = item.guilds.filter((entry) => entry.reportCount >= minimumReports);
+            return guilds.length ? { ...item, guilds } : null;
+          })
+          .filter(Boolean);
+        const visibleTransitions = transitions.filter((transition) => keptStints.has(transition.from) && keptStints.has(transition.to));
+        return {
+          entity,
+          stints,
+          ambiguous,
+          sequence,
+          transitions,
+          visibleSequence,
+          visibleTransitions,
+        };
+      }
+
+      function practicalMovementBuckets(reports) {
+        const days = [];
+        let day = "";
+        for (const report of reports) {
+          const nextDay = new Date(report.time).toISOString().slice(0, 10);
+          if (nextDay === day) {
+            days[days.length - 1] = report.time;
+          } else {
+            day = nextDay;
+            days.push(report.time);
+          }
+        }
+        if (days.length <= 36) return days;
+        const sampled = [];
+        for (let index = 0; index < 36; index += 1) {
+          const source = Math.round((index / 35) * (days.length - 1));
+          if (sampled[sampled.length - 1] !== days[source]) sampled.push(days[source]);
+        }
+        return sampled;
+      }
+
+      function buildMovementGuildPositions(model) {
+        if (model.guildPositions) return model.guildPositions;
+        const positions = new Map();
+        const anchored = [];
+        const fallback = Array.from(new Set(model.guilds.map((guild) => guild.g)))
+          .filter((g) => g >= 0)
+          .sort((a, b) => (M.guilds[a]?.key || "").localeCompare(M.guilds[b]?.key || ""));
+
+        for (let index = fallback.length - 1; index >= 0; index -= 1) {
+          const g = fallback[index];
+          const x = Number(F.gx?.[g]);
+          const y = Number(F.gy?.[g]);
+          if ((F.guildMax?.[g] || 0) > 0 && Number.isFinite(x) && Number.isFinite(y)) {
+            positions.set(g, { x, y });
+            anchored.push({ x, y });
+            fallback.splice(index, 1);
+          }
+        }
+
+        if (fallback.length) {
+          const center = anchored.length
+            ? {
+                x: anchored.reduce((sum, point) => sum + point.x, 0) / anchored.length,
+                y: anchored.reduce((sum, point) => sum + point.y, 0) / anchored.length,
+              }
+            : { x: 0, y: 0 };
+          const furthestAnchor = anchored.reduce(
+            (furthest, point) => Math.max(furthest, Math.hypot(point.x - center.x, point.y - center.y)),
+            0,
+          );
+          const radius = anchored.length
+            ? Math.max(240, furthestAnchor + 220, fallback.length * 55)
+            : fallback.length === 1
+              ? 0
+              : Math.max(180, fallback.length * 48);
+          const startAngle = ((hash32(`movement:${model.raid?.id || 0}`) % 6283) / 1000) - Math.PI;
+          fallback.forEach((g, index) => {
+            const angle = startAngle + (index / Math.max(1, fallback.length)) * Math.PI * 2;
+            positions.set(g, {
+              x: center.x + Math.cos(angle) * radius,
+              y: center.y + Math.sin(angle) * radius,
+            });
+          });
+        }
+
+        model.guildPositions = positions;
+        return positions;
+      }
+
+      function movementGuildPoint(derived, g) {
+        return derived?.guildPositions?.get(g) || { x: Number(F.gx?.[g]) || 0, y: Number(F.gy?.[g]) || 0 };
+      }
+
+      function movementGuildLayout(positions) {
+        const layout = { gx: [], gy: [] };
+        for (const [g, point] of positions) {
+          layout.gx[g] = point.x;
+          layout.gy[g] = point.y;
+        }
+        return layout;
+      }
+
+      function buildMovementDerived(model) {
+        const key = `${view.identity}:${view.movementMinReports}`;
+        const cached = model.derived.get(key);
+        if (cached) return cached;
+        const entities = buildMovementEntities(model, view.identity);
+        const timelines = entities.map((entity) => reduceMovementEntity(entity, view.movementMinReports));
+        const guildPositions = buildMovementGuildPositions(model);
+        const derived = {
+          model,
+          entities,
+          timelines,
+          buckets: practicalMovementBuckets(model.reports),
+          guildPositions,
+          guildLayout: movementGuildLayout(guildPositions),
+          frame: null,
+        };
+        model.derived.set(key, derived);
+        return derived;
+      }
+
+      function latestMovementObservation(item, cutoff) {
+        if (item.kind === "ambiguous") {
+          const observations = item.guilds.flatMap((entry) => entry.observations).filter((observation) => observation.time <= cutoff);
+          return observations.sort((a, b) => b.time - a.time || b.code.localeCompare(a.code))[0] || null;
+        }
+        const observations = item.observations.filter((observation) => observation.time <= cutoff);
+        return observations[observations.length - 1] || null;
+      }
+
+      function movementItemReportCount(item, cutoff) {
+        if (item.kind === "ambiguous") {
+          return item.guilds.reduce(
+            (sum, guild) => sum + guild.observations.filter((observation) => observation.time <= cutoff).length,
+            0,
+          );
+        }
+        return item.observations.filter((observation) => observation.time <= cutoff).length;
+      }
+
+      function buildMovementFrame(derived) {
+        const cutoff = derived.buckets.length && view.movementStep >= 0
+          ? derived.buckets[clamp(view.movementStep, 0, derived.buckets.length - 1)]
+          : Number.POSITIVE_INFINITY;
+        const nodes = [];
+        const roster = new Map();
+        const guildActivity = new Map();
+        const flows = new Map();
+        const activeEntities = [];
+        const guildsSeen = new Set();
+        let observations = 0;
+        let multiGuild = 0;
+        let changes = 0;
+
+        derived.timelines.forEach((timeline, entityIndex) => {
+          const visible = timeline.visibleSequence.filter((item) => item.start <= cutoff);
+          if (!visible.length) return;
+          const latest = visible[visible.length - 1];
+          const distinctGuilds = new Set();
+          for (const item of visible) {
+            if (item.kind === "stint") {
+              distinctGuilds.add(item.g);
+              observations += item.observations.filter((observation) => observation.time <= cutoff).length;
+            } else {
+              for (const guild of item.guilds) {
+                distinctGuilds.add(guild.g);
+                observations += guild.observations.filter((observation) => observation.time <= cutoff).length;
+              }
+            }
+          }
+          if (distinctGuilds.size > 1) multiGuild += 1;
+          for (const g of distinctGuilds) {
+            guildsSeen.add(g);
+            guildActivity.set(g, (guildActivity.get(g) || 0) + 1);
+          }
+
+          for (const transition of timeline.visibleTransitions) {
+            if (transition.time > cutoff) continue;
+            const key = `${transition.from.g}:${transition.to.g}`;
+            let flow = flows.get(key);
+            if (!flow) {
+              flow = { a: transition.from.g, b: transition.to.g, n: 0, entities: [] };
+              flows.set(key, flow);
+            }
+            flow.n += 1;
+            if (flow.entities.length < 30) flow.entities.push(entityIndex);
+            changes += 1;
+          }
+
+          const observation = latestMovementObservation(latest, cutoff);
+          const altIndex = observation?.altIndexes?.[0] ?? derived.entities[entityIndex].memberIndexes[0];
+          const classID = derived.model.characters[altIndex]?.classID || derived.entities[entityIndex].classID || 0;
+          const guildList = latest.kind === "stint" ? [latest.g] : latest.guilds.map((entry) => entry.g);
+          const g = latest.kind === "stint" ? latest.g : -1;
+          if (g >= 0) roster.set(g, (roster.get(g) || 0) + 1);
+          else for (const guild of guildList) roster.set(guild, (roster.get(guild) || 0) + 1);
+          activeEntities.push(entityIndex);
+          nodes.push({
+            entityIndex,
+            g,
+            guilds: guildList,
+            x: 0,
+            y: 0,
+            classID,
+            latest,
+            latestReportCount: movementItemReportCount(latest, cutoff),
+            observation,
+          });
+        });
+
+        const members = new Map();
+        for (const node of nodes) {
+          if (node.g < 0) continue;
+          const list = members.get(node.g) || [];
+          list.push(node);
+          members.set(node.g, list);
+        }
+        for (const [g, guildNodes] of members) {
+          const guildPoint = movementGuildPoint(derived, g);
+          guildNodes.sort((a, b) => hash32(derived.entities[a.entityIndex].key) - hash32(derived.entities[b.entityIndex].key));
+          ensurePhyllo(guildNodes.length);
+          guildNodes.forEach((node, index) => {
+            node.x = guildPoint.x + phX[index];
+            node.y = guildPoint.y + phY[index];
+          });
+        }
+        for (const node of nodes) {
+          if (node.g >= 0) continue;
+          let x = 0;
+          let y = 0;
+          for (const g of node.guilds) {
+            const point = movementGuildPoint(derived, g);
+            x += point.x;
+            y += point.y;
+          }
+          const count = Math.max(1, node.guilds.length);
+          const angle = (hash32(derived.entities[node.entityIndex].key) % 6283) / 1000;
+          node.x = x / count + Math.cos(angle) * 8;
+          node.y = y / count + Math.sin(angle) * 8;
+        }
+
+        const nodeByEntity = new Map(nodes.map((node) => [node.entityIndex, node]));
+        const frame = {
+          cutoff,
+          nodes,
+          nodeByEntity,
+          roster,
+          guildActivity,
+          flows: Array.from(flows.values()),
+          metrics: {
+            entities: activeEntities.length,
+            guilds: guildsSeen.size,
+            multiGuild,
+            changes,
+            observations,
+          },
+          grid: null,
+        };
+        derived.frame = frame;
+        return frame;
+      }
+
+      function activateMovementModel(model, resetStep = false) {
+        const derived = buildMovementDerived(model);
+        M.movementCurrent = derived;
+        if (resetStep || view.movementStep < 0) view.movementStep = Math.max(0, derived.buckets.length - 1);
+        else view.movementStep = clamp(view.movementStep, 0, Math.max(0, derived.buckets.length - 1));
+        buildMovementFrame(derived);
+        view.fitted.movement = false;
+        buildTimeline();
+        fitMovement();
+        updateHud();
+        renderInspector();
+        runSearch();
+      }
+
+      async function loadMovementForTier(tierIndex, resetStep = true) {
+        const tier = M.tiers[tierIndex];
+        if (!tier) return;
+        if (movementController) {
+          movementController.abort();
+          movementController = null;
+        }
+        const cached = M.movement.get(tier.id);
+        if (cached) {
+          activateMovementModel(cached, resetStep);
+          return;
+        }
+
+        const controller = new AbortController();
+        movementController = controller;
+        els.loadingTitle.textContent = networkCopy.loadingMovementTitle;
+        els.loadingText.textContent = networkCopy.loadingMovementBody;
+        els.loading.classList.add("visible");
+        try {
+          const response = await fetch(movementRequestUrl(tier.id), { cache: "force-cache", signal: controller.signal });
+          const data = await response.json();
+          if (!response.ok) throw new Error(networkCopy.movementLoadError);
+          const model = parseMovementPayload(data);
+          M.movement.set(tier.id, model);
+          if (destroyed || view.mode !== "movement" || view.tier !== tierIndex) return;
+          activateMovementModel(model, resetStep);
+        } catch (error) {
+          if (destroyed || controller.signal.aborted) return;
+          M.movementCurrent = { error: networkCopy.movementLoadError, buckets: [], frame: null, timelines: [], entities: [] };
+          buildTimeline();
+          updateHud();
+          renderInspector();
+        } finally {
+          if (movementController === controller) movementController = null;
+          if (!destroyed && view.mode === "movement" && view.tier === tierIndex) els.loading.classList.remove("visible");
+        }
+      }
+
+      function setMovementStep(step) {
+        const derived = M.movementCurrent;
+        if (!derived || derived.error || !derived.buckets.length) return;
+        view.movementStep = clamp(step, 0, derived.buckets.length - 1);
+        buildMovementFrame(derived);
+        renderTimeline();
+        updateHud();
+        renderInspector();
       }
 
       /* ============================== rebuild (filter → layout → tiers → flows) ============================== */
@@ -1759,14 +2516,20 @@
         return { x: (px - t.x) / t.k, y: (py - t.y) / t.k };
       }
 
-      function fitBounds(t, x0, y0, x1, y1) {
+      function fitBounds(t, x0, y0, x1, y1, insets = {}) {
         const rect = stage.getBoundingClientRect();
         const w = Math.max(1, x1 - x0);
         const h = Math.max(1, y1 - y0);
-        const k = clamp(Math.min((rect.width - 60) / w, (rect.height - 140) / h), 0.02, 2.5);
+        const left = insets.left ?? 30;
+        const right = insets.right ?? 30;
+        const top = insets.top ?? 40;
+        const bottom = insets.bottom ?? 100;
+        const availableWidth = Math.max(160, rect.width - left - right);
+        const availableHeight = Math.max(160, rect.height - top - bottom);
+        const k = clamp(Math.min(availableWidth / w, availableHeight / h), 0.02, 2.5);
         t.k = k;
-        t.x = rect.width / 2 - (x0 + w / 2) * k;
-        t.y = (rect.height - 60) / 2 - (y0 + h / 2) * k;
+        t.x = left + availableWidth / 2 - (x0 + w / 2) * k;
+        t.y = top + availableHeight / 2 - (y0 + h / 2) * k;
       }
 
       function fitGalaxy() {
@@ -1788,6 +2551,45 @@
         view.fitted.galaxy = true;
       }
 
+      function fitMovement() {
+        const derived = M.movementCurrent;
+        const frame = derived?.frame;
+        if (!frame?.guildActivity?.size) {
+          fitBounds(view.tf.movement, -100, -100, 100, 100);
+          view.fitted.movement = true;
+          return;
+        }
+        let weight = 0;
+        let mx = 0;
+        let my = 0;
+        for (const [g, n] of frame.guildActivity) {
+          const point = movementGuildPoint(derived, g);
+          weight += n;
+          mx += point.x * n;
+          my += point.y * n;
+        }
+        mx /= weight;
+        my /= weight;
+        let vx = 0;
+        let vy = 0;
+        for (const [g, n] of frame.guildActivity) {
+          const point = movementGuildPoint(derived, g);
+          vx += n * (point.x - mx) ** 2;
+          vy += n * (point.y - my) ** 2;
+        }
+        const rx = Math.max(260, Math.sqrt(vx / weight) * 2.3);
+        const ry = Math.max(260, Math.sqrt(vy / weight) * 2.3);
+        fitBounds(
+          view.tf.movement,
+          mx - rx,
+          my - ry,
+          mx + rx,
+          my + ry,
+          { left: 260, right: 380, top: 120, bottom: 90 },
+        );
+        view.fitted.movement = true;
+      }
+
       function fitFlow() {
         const cols = F.alluvial.columns;
         const maxH = Math.max(120, ...cols.map((c) => c.height));
@@ -1800,6 +2602,19 @@
         const t = tf();
         t.x = rect.width / 2 - wx * t.k;
         t.y = (rect.height - 60) / 2 - wy * t.k;
+      }
+
+      function panMovementTo(wx, wy) {
+        const rect = stage.getBoundingClientRect();
+        const t = view.tf.movement;
+        const left = 260;
+        const right = 380;
+        const top = 120;
+        const bottom = 90;
+        const availableWidth = Math.max(160, rect.width - left - right);
+        const availableHeight = Math.max(160, rect.height - top - bottom);
+        t.x = left + availableWidth / 2 - wx * t.k;
+        t.y = top + availableHeight / 2 - wy * t.k;
       }
 
       /* ============================== all-time career graph ============================== */
@@ -2116,11 +2931,24 @@
       function setTier(t, animate = true) {
         t = clamp(t, 0, M.tiers.length - 1);
         if (t === view.tier) return;
+        if (view.mode === "movement") {
+          stopPlay();
+          view.tier = t;
+          view.selMovement = -1;
+          view.selGuild = -1;
+          view.hover = null;
+          M.movementCurrent = null;
+          buildTimeline();
+          updateHud();
+          renderInspector();
+          loadMovementForTier(t);
+          return;
+        }
         const from = F.tiers[view.tier];
         const to = F.tiers[t];
         view.tier = t;
 
-        if (animate && view.mode === "galaxy") {
+        if (animate && !prefersReducedMotion && view.mode === "galaxy") {
           const prevX = new Float32Array(to.count).fill(NaN);
           const prevY = new Float32Array(to.count).fill(NaN);
           const trails = [];
@@ -2156,8 +2984,25 @@
 
       function startPlay() {
         if (view.playing) return;
+        if (view.mode === "movement") {
+          const derived = M.movementCurrent;
+          if (!derived?.buckets?.length) return;
+          view.playing = true;
+          els.playBtn.textContent = "❚❚";
+          els.playBtn.title = networkCopy.pauseMovement;
+          if (view.movementStep >= derived.buckets.length - 1) setMovementStep(0);
+          view.playTimer = setInterval(() => {
+            if (view.movementStep >= derived.buckets.length - 1) {
+              stopPlay();
+            } else {
+              setMovementStep(view.movementStep + 1);
+            }
+          }, prefersReducedMotion ? MOVEMENT_PLAY_MS * 1.5 : MOVEMENT_PLAY_MS);
+          return;
+        }
         view.playing = true;
         els.playBtn.textContent = "❚❚";
+        els.playBtn.title = networkCopy.pauseTiers;
         if (view.tier >= lastMovementTier() || adjacentMovementTier(view.tier, 1) === null) setTier(firstMovementTier());
         view.playTimer = setInterval(() => {
           if (!moveToAdjacentMovementTier(1)) stopPlay();
@@ -2167,6 +3012,7 @@
       function stopPlay() {
         view.playing = false;
         els.playBtn.textContent = "▶";
+        els.playBtn.title = view.mode === "movement" ? networkCopy.playMovement : networkCopy.playTiers;
         if (view.playTimer) clearInterval(view.playTimer);
         view.playTimer = null;
       }
@@ -2178,6 +3024,17 @@
         if (view.mode === "galaxy") {
           els.titleMain.textContent = tier.name;
           els.titleSub.textContent = `${tier.expansion} · ${monthYear(tier.start)} · tier ${view.tier + 1} of ${M.tiers.length}`;
+        } else if (view.mode === "movement") {
+          els.titleMain.textContent = `${tier.name} · ${networkCopy.movement}`;
+          const derived = M.movementCurrent;
+          if (derived?.error) {
+            els.titleSub.textContent = derived.error;
+          } else {
+            const range = derived?.model?.raid?.start
+              ? `${movementDate(derived.model.raid.start, true)} → ${movementDate(derived.model.raid.end || derived.model.raid.start, true)} · `
+              : "";
+            els.titleSub.textContent = `${range}${isAccountMode() ? networkCopy.accountMovementDescription : networkCopy.movementDescription}`;
+          }
         } else if (view.mode === "all") {
           const first = M.tiers[firstMovementTier()] || M.tiers[0];
           const last = M.tiers[lastMovementTier()] || M.tiers[M.tiers.length - 1];
@@ -2187,6 +3044,7 @@
           els.titleMain.textContent = "Guild lineages";
           els.titleSub.textContent = `Each band is a guild's roster flowing through time. Ribbons are ${entityPlural()} who stayed or moved.`;
         }
+        canvas.setAttribute("aria-label", `${els.titleMain.textContent}. ${els.titleSub.textContent}`);
         renderStats();
         renderTimeline();
       }
@@ -2205,6 +3063,15 @@
             ["Gone", st.departed],
           ];
           if (isMovementIgnoredTier(view.tier) || F.prevMovementTier[view.tier] < 0) items = items.slice(0, 2);
+        } else if (view.mode === "movement") {
+          const metrics = M.movementCurrent?.frame?.metrics || { entities: 0, guilds: 0, multiGuild: 0, changes: 0, observations: 0 };
+          items = [
+            [networkCopy.entitiesObserved, metrics.entities],
+            [networkCopy.guildsObserved, metrics.guilds],
+            [networkCopy.multiGuildEntities, metrics.multiGuild],
+            [networkCopy.observedChanges, metrics.changes],
+            [networkCopy.reportObservations, metrics.observations],
+          ];
         } else if (view.mode === "all") {
           const at = buildAllTime();
           items = [
@@ -2234,6 +3101,32 @@
       }
 
       function buildTimeline() {
+        if (view.mode === "movement") {
+          const derived = M.movementCurrent;
+          const max = Math.max(0, (derived?.buckets?.length || 1) - 1);
+          els.tierCells.innerHTML = `
+            <div class="movement-scrubber">
+              <select id="movementRaid" aria-label="${esc(networkCopy.raidSelectorLabel)}">
+                ${M.tiers.map((tier, t) => `<option value="${t}" ${t === view.tier ? "selected" : ""}>${esc(tier.name)}</option>`).join("")}
+              </select>
+              <input id="movementRange" type="range" min="0" max="${max}" value="${clamp(view.movementStep, 0, max)}"
+                ${derived?.buckets?.length ? "" : "disabled"} aria-label="${esc(networkCopy.timelineLabel)}" />
+              <output id="movementDate" aria-live="polite"></output>
+            </div>`;
+          const raidSelect = document.getElementById("movementRaid");
+          raidSelect.addEventListener("change", () => setTier(Number(raidSelect.value)), { signal: listenerSignal });
+          const range = document.getElementById("movementRange");
+          range.addEventListener("input", () => {
+            stopPlay();
+            setMovementStep(Number(range.value));
+          }, { signal: listenerSignal });
+          els.playBtn.disabled = !derived?.buckets?.length;
+          els.playBtn.title = view.playing ? networkCopy.pauseMovement : networkCopy.playMovement;
+          renderTimeline();
+          return;
+        }
+        els.playBtn.disabled = false;
+        els.playBtn.title = view.playing ? networkCopy.pauseTiers : networkCopy.playTiers;
         els.tierCells.innerHTML = M.tiers
           .map((tier, t) => `
             <button class="tier-cell" type="button" data-t="${t}" title="${esc(tier.name)} · ${esc(tier.expansion)} · ${monthYear(tier.start)}${isMovementIgnoredTier(t) ? " · movement skipped" : ""}">
@@ -2253,6 +3146,24 @@
       }
 
       function renderTimeline() {
+        if (view.mode === "movement") {
+          const derived = M.movementCurrent;
+          const range = document.getElementById("movementRange");
+          const output = document.getElementById("movementDate");
+          if (!range || !output || !derived?.buckets?.length) {
+            if (output) output.textContent = networkCopy.movementEmptyTitle;
+            return;
+          }
+          range.value = String(view.movementStep);
+          if (view.movementStep >= derived.buckets.length - 1) {
+            const first = derived.buckets[0];
+            const last = derived.buckets[derived.buckets.length - 1];
+            output.textContent = `${networkCopy.wholeTier} · ${movementDate(first)}–${movementDate(last, true)}`;
+          } else {
+            output.textContent = movementDate(derived.buckets[view.movementStep], true);
+          }
+          return;
+        }
         for (const cell of els.tierCells.querySelectorAll("[data-t]")) {
           cell.classList.toggle("active", view.mode !== "all" && Number(cell.dataset.t) === view.tier);
         }
@@ -2266,10 +3177,188 @@
       }
 
       function renderInspector() {
+        if (view.mode === "movement") return renderMovementInspector();
         if (view.selChar >= 0) return renderCharPanel(view.selChar);
         if (view.selGuild >= 0) return renderGuildPanel(view.selGuild);
         if (view.mode === "all") return renderAllPanel();
         renderTierPanel();
+      }
+
+      function movementAltHtml(derived, altIndexes) {
+        const unique = Array.from(new Set(altIndexes || []));
+        return unique
+          .map((index) => {
+            const character = derived.model.characters[index];
+            if (!character) return "";
+            const color = CLASS_COLORS[character.classID] || CLASS_COLORS[0];
+            return `<span class="char-ref static">
+              ${classIconHtml(character.classID)}
+              <span class="char-ref-name" style="color:${color}"><span class="name">${esc(character.name)}</span>${realmInline(character.realm)}</span>
+            </span>`;
+          })
+          .join("");
+      }
+
+      function renderMovementSummary(derived) {
+        const frame = derived.frame;
+        els.insTitle.textContent = networkCopy.movementSummary;
+        els.insSub.textContent = networkCopy.clickMovementEntity;
+        const flows = frame.flows.slice().sort((a, b) => b.n - a.n || a.a - b.a || a.b - b.b);
+        els.insBody.innerHTML = `
+          <section class="panel">
+            <div class="card movement-note">${esc(isAccountMode() ? networkCopy.accountMovementDescription : networkCopy.movementDescription)}</div>
+          </section>
+          <section class="panel">
+            <h3>${esc(networkCopy.biggestFlows)}</h3>
+            <div class="list">
+              ${flows.length ? flows.slice(0, 10).map((flow) => `
+                <div class="card">
+                  <div class="row-main">
+                    <span><span class="glink" data-sel-guild="${flow.a}">${guildIdentityHtml(flow.a, { realmIfDuplicate: true })}</span> → <span class="glink" data-sel-guild="${flow.b}">${guildIdentityHtml(flow.b, { realmIfDuplicate: true })}</span></span>
+                    <span>${fmt(flow.n)}</span>
+                  </div>
+                  <div class="char-refs">
+                    ${flow.entities.slice(0, 8).map((entityIndex) => {
+                      const entity = derived.entities[entityIndex];
+                      const timeline = derived.timelines[entityIndex];
+                      const transition = timeline.visibleTransitions.find((candidate) => candidate.from.g === flow.a && candidate.to.g === flow.b && candidate.time <= frame.cutoff);
+                      const classID = derived.model.characters[transition?.altIndexes?.[0] ?? entity.memberIndexes[0]]?.classID || entity.classID;
+                      return `<button class="chip" type="button" data-sel-movement="${entityIndex}" style="color:${CLASS_COLORS[classID] || CLASS_COLORS[0]}">${esc(entity.name)}</button>`;
+                    }).join("")}
+                  </div>
+                </div>`).join("") : `<div class="card"><div class="row-sub">${esc(networkCopy.noObservedChanges)}</div></div>`}
+            </div>
+          </section>`;
+        bindInspectorActions();
+      }
+
+      function renderMovementEntityPanel(derived, entityIndex) {
+        const timeline = derived.timelines[entityIndex];
+        const entity = derived.entities[entityIndex];
+        if (!timeline || !entity) {
+          view.selMovement = -1;
+          return renderMovementSummary(derived);
+        }
+        const cutoff = derived.frame.cutoff;
+        const sequence = timeline.visibleSequence.filter((item) => item.start <= cutoff);
+        const guildsSeen = new Set();
+        for (const item of sequence) {
+          if (item.kind === "stint") guildsSeen.add(item.g);
+          else for (const guild of item.guilds) guildsSeen.add(guild.g);
+        }
+        const transitionsByTarget = new Map(
+          timeline.visibleTransitions.filter((transition) => transition.time <= cutoff).map((transition) => [transition.to, transition]),
+        );
+        const memberCount = entity.memberIndexes.length;
+        els.insTitle.textContent = entity.name;
+        els.insSub.textContent = entity.isAccount
+          ? `${networkCopy.inferredAccount} · ${fmt(memberCount)} ${networkCopy.linkedCharacters} · ${fmt(guildsSeen.size)} ${networkCopy.guildsObserved.toLowerCase()}`
+          : `${realmLabel(entity.realm)} · ${CLASS_NAMES[entity.classID] || "Unknown"} · ${fmt(guildsSeen.size)} ${networkCopy.guildsObserved.toLowerCase()}`;
+
+        els.insBody.innerHTML = `
+          <section class="panel">
+            <h3>${esc(networkCopy.stints)}</h3>
+            <div class="list">
+              ${sequence.length ? sequence.map((item) => {
+                if (item.kind === "ambiguous") {
+                  return `<div class="card ambiguous-card">
+                    <div class="row-main"><span>${esc(networkCopy.ambiguousTitle)}</span><span>${movementDate(item.start, true)}</span></div>
+                    <div class="row-sub">${esc(networkCopy.ambiguousBody)}</div>
+                    <div class="list" style="margin-top:8px">
+                      ${item.guilds.map((guild) => {
+                        const observations = guild.observations.filter((observation) => observation.time <= cutoff);
+                        const altIndexes = Array.from(new Set(observations.flatMap((observation) => observation.altIndexes || [])));
+                        return `
+                          <button class="card" type="button" data-sel-guild="${guild.g}">
+                            <div class="row-main">${guildIdentityHtml(guild.g, { realmIfDuplicate: true })}<span>${esc(reportCountLabel(observations.length))}</span></div>
+                            ${entity.isAccount ? `<div class="char-refs">${movementAltHtml(derived, altIndexes)}</div>` : ""}
+                          </button>`;
+                      }).join("")}
+                    </div>
+                  </div>`;
+                }
+                const transition = transitionsByTarget.get(item);
+                const visibleObservations = item.observations.filter((observation) => observation.time <= cutoff);
+                const reportCount = visibleObservations.length;
+                const visibleEnd = visibleObservations[visibleObservations.length - 1]?.end ?? item.start;
+                const altIndexes = transition?.altIndexes || visibleObservations[0]?.altIndexes || Array.from(item.altIndexes);
+                const changeText = transition ? networkCopy.changedTo : networkCopy.firstSeenWith;
+                return `
+                  <div class="movement-change">${esc(changeText)} · ${movementDate(item.start, true)}${entity.isAccount ? ` · ${esc(networkCopy.responsibleAlt)}` : ""}</div>
+                  ${entity.isAccount ? `<div class="char-refs">${movementAltHtml(derived, altIndexes)}</div>` : ""}
+                  <button class="card" type="button" data-sel-guild="${item.g}">
+                    <div class="row-main">${guildIdentityHtml(item.g, { realmIfDuplicate: true })}<span>${esc(reportCountLabel(reportCount))}</span></div>
+                    <div class="row-sub">${movementDate(item.start, true)} → ${movementDate(visibleEnd, true)}</div>
+                  </button>`;
+              }).join("") : `<div class="card"><div class="row-sub">${esc(networkCopy.noStintsUnderFilter)}</div></div>`}
+            </div>
+          </section>
+          ${entity.isAccount ? `<section class="panel">
+            <h3>${esc(networkCopy.linkedCharacters)}</h3>
+            <div class="char-refs">${movementAltHtml(derived, entity.memberIndexes)}</div>
+          </section>` : ""}`;
+        bindInspectorActions();
+      }
+
+      function renderMovementGuildPanel(derived, g) {
+        const frame = derived.frame;
+        const guild = M.guilds[g];
+        const related = [];
+        derived.timelines.forEach((timeline, entityIndex) => {
+          const reports = timeline.visibleSequence.reduce((sum, item) => {
+            if (item.start > frame.cutoff) return sum;
+            if (item.kind === "stint") return sum + (item.g === g ? item.observations.filter((observation) => observation.time <= frame.cutoff).length : 0);
+            const ambiguousGuild = item.guilds.find((entry) => entry.g === g);
+            return sum + (ambiguousGuild ? ambiguousGuild.observations.filter((observation) => observation.time <= frame.cutoff).length : 0);
+          }, 0);
+          if (reports) related.push([entityIndex, reports]);
+        });
+        related.sort((a, b) => b[1] - a[1]);
+        const relatedReportCount = related.reduce((sum, entry) => sum + entry[1], 0);
+        const incoming = frame.flows.filter((flow) => flow.b === g).sort((a, b) => b.n - a.n);
+        const outgoing = frame.flows.filter((flow) => flow.a === g).sort((a, b) => b.n - a.n);
+        els.insTitle.textContent = guild.name;
+        els.insSub.textContent = `${realmLabel(guild.realm)} · ${fmt(frame.guildActivity.get(g) || 0)} ${networkCopy.entitiesObserved.toLowerCase()} · ${fmt(relatedReportCount)} ${networkCopy.reportObservations.toLowerCase()}`;
+        const flowRows = (rows, direction) => rows.slice(0, 8).map((flow) => {
+          const other = direction === "in" ? flow.a : flow.b;
+          return `<button class="card" type="button" data-sel-guild="${other}">
+            <div class="row-main">${guildIdentityHtml(other, { realmIfDuplicate: true })}<span>${fmt(flow.n)}</span></div>
+          </button>`;
+        }).join("");
+        els.insBody.innerHTML = `
+          <section class="panel">
+            <h3>${esc(networkCopy.entitiesObserved)}</h3>
+            <div class="list">
+              ${related.slice(0, 16).map(([entityIndex, reports]) => {
+                const entity = derived.entities[entityIndex];
+                return `<button class="card" type="button" data-sel-movement="${entityIndex}">
+                  <div class="row-main"><span>${esc(entity.name)}</span><span>${esc(reportCountLabel(reports))}</span></div>
+                </button>`;
+              }).join("")}
+            </div>
+          </section>
+          <section class="panel">
+            <h3>${esc(networkCopy.observedFrom)}</h3>
+            <div class="list">${flowRows(incoming, "in") || `<div class="card"><div class="row-sub">${esc(networkCopy.noObservedChanges)}</div></div>`}</div>
+          </section>
+          <section class="panel">
+            <h3>${esc(networkCopy.observedTo)}</h3>
+            <div class="list">${flowRows(outgoing, "out") || `<div class="card"><div class="row-sub">${esc(networkCopy.noObservedChanges)}</div></div>`}</div>
+          </section>`;
+        bindInspectorActions();
+      }
+
+      function renderMovementInspector() {
+        const derived = M.movementCurrent;
+        if (!derived || derived.error || !derived.frame || !derived.buckets?.length) {
+          els.insTitle.textContent = derived?.error ? networkCopy.errorTitle : networkCopy.movementEmptyTitle;
+          els.insSub.textContent = derived?.error || networkCopy.movementEmptyBody;
+          els.insBody.innerHTML = `<div class="card movement-note">${esc(derived?.error || networkCopy.movementEmptyBody)}</div>`;
+          return;
+        }
+        if (view.selMovement >= 0) return renderMovementEntityPanel(derived, view.selMovement);
+        if (view.selGuild >= 0) return renderMovementGuildPanel(derived, view.selGuild);
+        renderMovementSummary(derived);
       }
 
       function nameChips(flow, max = 8) {
@@ -2286,6 +3375,9 @@
         }
         for (const el of els.insBody.querySelectorAll("[data-sel-char]")) {
           el.addEventListener("click", () => selectChar(Number(el.dataset.selChar)), { signal: listenerSignal });
+        }
+        for (const el of els.insBody.querySelectorAll("[data-sel-movement]")) {
+          el.addEventListener("click", () => selectMovementEntity(Number(el.dataset.selMovement)), { signal: listenerSignal });
         }
         for (const el of els.insBody.querySelectorAll("[data-go-tier]")) {
           el.addEventListener("click", () => { stopPlay(); setTier(Number(el.dataset.goTier)); }, { signal: listenerSignal });
@@ -2567,12 +3659,14 @@
       function selectGuild(g) {
         view.selGuild = g === LUMP ? -1 : g;
         view.selChar = -1;
+        view.selMovement = -1;
         setInspectorOpen(true);
         renderInspector();
       }
 
       function selectChar(c) {
         view.selChar = c;
+        view.selMovement = -1;
         view.selGuild = -1;
         setInspectorOpen(true);
         const tiersAttended = F.charTiers[c] || [];
@@ -2583,8 +3677,19 @@
         renderInspector();
       }
 
+      function selectMovementEntity(entityIndex) {
+        view.selMovement = entityIndex;
+        view.selChar = -1;
+        view.selGuild = -1;
+        setInspectorOpen(true);
+        const node = M.movementCurrent?.frame?.nodeByEntity?.get(entityIndex);
+        if (node) panMovementTo(node.x, node.y);
+        renderInspector();
+      }
+
       function clearSelection() {
         view.selChar = -1;
+        view.selMovement = -1;
         view.selGuild = -1;
         renderInspector();
       }
@@ -2612,6 +3717,7 @@
       function focusGuild(g) {
         view.selGuild = g;
         view.selChar = -1;
+        view.selMovement = -1;
         setInspectorOpen(true);
         if (view.mode === "galaxy" && !F.tiers[view.tier].roster.has(g)) {
           for (let t = M.tiers.length - 1; t >= 0; t -= 1) {
@@ -2621,6 +3727,9 @@
         if (view.mode === "all") {
           const at = buildAllTime();
           panTo(at.gx[g], at.gy[g]);
+        } else if (view.mode === "movement") {
+          const point = movementGuildPoint(M.movementCurrent, g);
+          panMovementTo(point.x, point.y);
         } else if (view.mode !== "flow") {
           panTo(F.gx[g], F.gy[g]);
         }
@@ -2628,6 +3737,63 @@
       }
 
       let searchTimer = null;
+      function runMovementSearch(q) {
+        const derived = M.movementCurrent;
+        if (!derived?.frame) {
+          els.searchResults.classList.remove("visible");
+          els.searchResults.innerHTML = "";
+          return;
+        }
+        const hits = [];
+        derived.entities.forEach((entity, entityIndex) => {
+          if (!entity.searchKey.includes(q) || !derived.frame.nodeByEntity.has(entityIndex)) return;
+          hits.push({
+            type: "entity",
+            id: entityIndex,
+            score: normalizeSearch(entity.name).startsWith(q) ? 0 : 1,
+            weight: entity.observations.length,
+            label: entity.name,
+          });
+        });
+        for (const [g, count] of derived.frame.guildActivity) {
+          const guild = M.guilds[g];
+          if (!guild.searchKey.includes(q)) continue;
+          hits.push({
+            type: "guild",
+            id: g,
+            score: guild.nameKey.startsWith(q) ? 0 : 1,
+            weight: count,
+            label: guild.name,
+          });
+        }
+        hits.sort((a, b) => a.score - b.score || b.weight - a.weight || a.label.localeCompare(b.label));
+        els.searchResults.innerHTML = hits.slice(0, 20).map((hit) => {
+          if (hit.type === "guild") {
+            const guild = M.guilds[hit.id];
+            return `<button class="search-result" type="button" data-search-kind="movement-guild" data-search-id="${hit.id}">
+              <div class="row-main">${guildIdentityHtml(hit.id, { color: `hsl(${guild.hue} 70% 72%)` })}<span class="search-kind guild">${esc(networkCopy.guild)}</span></div>
+              <div class="row-sub">${esc(realmLabel(guild.realm))} · ${fmt(hit.weight)} ${esc(networkCopy.entitiesObserved.toLowerCase())}</div>
+            </button>`;
+          }
+          const entity = derived.entities[hit.id];
+          const node = derived.frame.nodeByEntity.get(hit.id);
+          const classID = node?.classID || entity.classID || 0;
+          return `<button class="search-result" type="button" data-search-kind="movement-entity" data-search-id="${hit.id}">
+            <div class="row-main"><span style="color:${CLASS_COLORS[classID]}">${esc(entity.name)}</span><span class="search-kind">${esc(entity.isAccount ? networkCopy.account : networkCopy.character)}</span></div>
+            <div class="row-sub">${fmt(hit.weight)} ${esc(networkCopy.reportObservations.toLowerCase())}${entity.isAccount ? ` · ${esc(networkCopy.inferredAccount)}` : ""}</div>
+          </button>`;
+        }).join("");
+        els.searchResults.classList.toggle("visible", hits.length > 0);
+        for (const button of els.searchResults.querySelectorAll("[data-search-kind]")) {
+          button.addEventListener("click", () => {
+            const id = Number(button.dataset.searchId);
+            if (button.dataset.searchKind === "movement-guild") focusGuild(id);
+            else selectMovementEntity(id);
+            els.searchResults.classList.remove("visible");
+          }, { signal: listenerSignal });
+        }
+      }
+
       function runSearch() {
         const q = normalizeSearch(els.search.value);
         if (q.length < 2) {
@@ -2635,6 +3801,7 @@
           els.searchResults.innerHTML = "";
           return;
         }
+        if (view.mode === "movement") return runMovementSearch(q);
         const hits = [];
         for (let c = 0; c < M.chars.length; c += 1) {
           const ch = M.chars[c];
@@ -2734,6 +3901,17 @@
       }
 
       function selectedCharacterGuilds() {
+        if (view.mode === "movement" && view.selMovement >= 0) {
+          const timeline = M.movementCurrent?.timelines?.[view.selMovement];
+          if (!timeline) return null;
+          const guilds = new Set();
+          for (const item of timeline.visibleSequence) {
+            if (item.start > M.movementCurrent.frame.cutoff) continue;
+            if (item.kind === "stint") guilds.add(item.g);
+            else for (const guild of item.guilds) guilds.add(guild.g);
+          }
+          return guilds;
+        }
         if (view.selChar < 0) return null;
         const guilds = new Set();
         const tierList = F.charMovementTiers[view.selChar] || F.charTiers[view.selChar] || [];
@@ -2843,6 +4021,178 @@
           ctx.fillStyle = isSel || isHover ? "#e2e8f0" : "rgba(203, 213, 225, 0.68)";
           ctx.fillText(label, x, y);
         }
+      }
+
+      function movementNodeAlpha(node) {
+        let alpha = 0.92;
+        if (view.classFilter.size && !view.classFilter.has(node.classID)) alpha *= 0.1;
+        if (view.selGuild >= 0 && node.g !== view.selGuild && !node.guilds.includes(view.selGuild)) alpha *= 0.18;
+        if (view.selMovement >= 0) alpha *= node.entityIndex === view.selMovement ? 1 : 0.1;
+        return alpha;
+      }
+
+      function drawSelectedMovementPath(derived, t) {
+        if (view.selMovement < 0) return;
+        const timeline = derived.timelines[view.selMovement];
+        const node = derived.frame.nodeByEntity.get(view.selMovement);
+        if (!timeline || !node) return;
+        const transitions = timeline.visibleTransitions.filter((transition) => transition.time <= derived.frame.cutoff);
+        transitions.forEach((transition, index) => {
+          const from = movementGuildPoint(derived, transition.from.g);
+          const to = movementGuildPoint(derived, transition.to.g);
+          const x0 = from.x;
+          const y0 = from.y;
+          const x1 = to.x;
+          const y1 = to.y;
+          const direction = index % 2 ? -1 : 1;
+          const bend = 0.1 + Math.min(0.08, index * 0.012);
+          const cx = (x0 + x1) / 2 - (y1 - y0) * bend * direction;
+          const cy = (y0 + y1) / 2 + (x1 - x0) * bend * direction;
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.quadraticCurveTo(cx, cy, x1, y1);
+          ctx.strokeStyle = "rgba(251, 191, 36, 0.78)";
+          ctx.lineWidth = 1.8 / Math.sqrt(t.k);
+          ctx.stroke();
+          drawQuadraticArrowheads(x0, y0, cx, cy, x1, y1, 3, 4 / Math.sqrt(t.k), "rgba(251, 191, 36, 0.9)");
+        });
+
+        const ambiguous = timeline.visibleSequence.filter((item) => item.kind === "ambiguous" && item.start <= derived.frame.cutoff);
+        if (ambiguous.length) {
+          ctx.save();
+          ctx.setLineDash([4 / t.k, 4 / t.k]);
+          ctx.lineWidth = 1 / t.k;
+          ctx.strokeStyle = "rgba(251, 191, 36, 0.5)";
+          for (const item of ambiguous) {
+            let cx = 0;
+            let cy = 0;
+            for (const guild of item.guilds) {
+              const point = movementGuildPoint(derived, guild.g);
+              cx += point.x;
+              cy += point.y;
+            }
+            cx /= item.guilds.length;
+            cy /= item.guilds.length;
+            for (const guild of item.guilds) {
+              const point = movementGuildPoint(derived, guild.g);
+              ctx.beginPath();
+              ctx.moveTo(cx, cy);
+              ctx.lineTo(point.x, point.y);
+              ctx.stroke();
+            }
+          }
+          ctx.restore();
+        }
+
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, 6 / Math.sqrt(t.k), 0, Math.PI * 2);
+        ctx.strokeStyle = "#fbbf24";
+        ctx.lineWidth = 1.8 / t.k;
+        ctx.stroke();
+      }
+
+      function drawMovement() {
+        const derived = M.movementCurrent;
+        const frame = derived?.frame;
+        if (!frame) return;
+        const t = tf();
+        ctx.save();
+        ctx.translate(t.x, t.y);
+        ctx.scale(t.k, t.k);
+
+        for (const [g, n] of frame.guildActivity) {
+          const r = hullRadius(n);
+          const guild = M.guilds[g];
+          const point = movementGuildPoint(derived, g);
+          const selected = g === view.selGuild;
+          const hovered = view.hover?.kind === "guild" && view.hover.g === g;
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, r, 0, Math.PI * 2);
+          ctx.fillStyle = `hsl(${guild.hue} 65% 58% / ${selected || hovered ? 0.16 : 0.07})`;
+          ctx.fill();
+          if (selected || hovered) {
+            ctx.lineWidth = 1.6 / t.k;
+            ctx.strokeStyle = `hsl(${guild.hue} 70% 65% / 0.8)`;
+            ctx.stroke();
+          }
+        }
+
+        if (view.showFlows) {
+          for (const flow of frame.flows) {
+            if (flow.a === flow.b) continue;
+            const from = movementGuildPoint(derived, flow.a);
+            const to = movementGuildPoint(derived, flow.b);
+            const x0 = from.x;
+            const y0 = from.y;
+            const x1 = to.x;
+            const y1 = to.y;
+            const direction = flow.a < flow.b ? 1 : -1;
+            const cx = (x0 + x1) / 2 - (y1 - y0) * 0.12 * direction;
+            const cy = (y0 + y1) / 2 + (x1 - x0) * 0.12 * direction;
+            ctx.beginPath();
+            ctx.moveTo(x0, y0);
+            ctx.quadraticCurveTo(cx, cy, x1, y1);
+            ctx.strokeStyle = `rgba(251, 191, 36, ${Math.min(0.56, 0.12 + flow.n * 0.035)})`;
+            ctx.lineWidth = Math.min(7, 0.8 + Math.sqrt(flow.n));
+            ctx.stroke();
+            drawQuadraticArrowheads(
+              x0,
+              y0,
+              cx,
+              cy,
+              x1,
+              y1,
+              clamp(Math.floor(Math.hypot(x1 - x0, y1 - y0) / 80), 2, 6),
+              Math.min(12, 3.5 + Math.sqrt(flow.n) * 1.4),
+              `rgba(251, 191, 36, ${Math.min(0.68, 0.22 + flow.n * 0.035)})`,
+            );
+          }
+        }
+
+        const buckets = new Map();
+        for (const node of frame.nodes) {
+          const alpha = movementNodeAlpha(node);
+          if (alpha < 0.02) continue;
+          const bucket = node.classID * 16 + Math.min(15, Math.round(alpha * 10));
+          let path = buckets.get(bucket);
+          if (!path) buckets.set(bucket, (path = new Path2D()));
+          const reportCount = node.latestReportCount;
+          const radius = 1.9 + Math.min(2.5, Math.sqrt(reportCount) * 0.45);
+          path.moveTo(node.x + radius, node.y);
+          path.arc(node.x, node.y, radius, 0, Math.PI * 2);
+        }
+        for (const [bucket, path] of buckets) {
+          ctx.globalAlpha = (bucket % 16) / 10;
+          ctx.fillStyle = CLASS_COLORS[Math.floor(bucket / 16)] || CLASS_COLORS[0];
+          ctx.fill(path);
+        }
+        ctx.globalAlpha = 1;
+
+        for (const node of frame.nodes) {
+          if (node.g >= 0) continue;
+          ctx.save();
+          ctx.setLineDash([2.5 / t.k, 2.5 / t.k]);
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, 5 / Math.sqrt(t.k), 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(251, 191, 36, 0.9)";
+          ctx.lineWidth = 1.3 / t.k;
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        drawSelectedMovementPath(derived, t);
+        if (view.hover?.kind === "movementEntity") {
+          const node = frame.nodeByEntity.get(view.hover.entityIndex);
+          if (node) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, 5 / Math.sqrt(t.k), 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(255,255,255,0.9)";
+            ctx.lineWidth = 1.4 / t.k;
+            ctx.stroke();
+          }
+        }
+        if (view.showLabels) drawGuildLabels(t, frame.guildActivity, derived.guildLayout);
+        ctx.restore();
       }
 
       function drawGalaxy(now) {
@@ -3035,7 +4385,7 @@
         ctx.restore();
       }
 
-      function drawGuildLabels(t, roster) {
+      function drawGuildLabels(t, roster, positions = F) {
         const visibleGuilds = selectedCharacterGuilds();
         ctx.textAlign = "center";
         ctx.textBaseline = "bottom";
@@ -3047,8 +4397,8 @@
           const label = guildLabel(g);
           const fontPx = clamp(11 / t.k, 4, 200);
           ctx.font = `700 ${fontPx}px Inter, system-ui, sans-serif`;
-          const x = F.gx[g];
-          const y = F.gy[g] - hullRadius(n) - 3 / t.k;
+          const x = positions.gx[g];
+          const y = positions.gy[g] - hullRadius(n) - 3 / t.k;
           ctx.lineWidth = 3 / t.k;
           ctx.strokeStyle = "rgba(5, 7, 17, 0.85)";
           ctx.strokeText(label, x, y);
@@ -3427,6 +4777,7 @@
         ctx.clearRect(0, 0, rect.width, rect.height);
         if (F.tiers) {
           if (view.mode === "galaxy") drawGalaxy(now);
+          else if (view.mode === "movement") drawMovement();
           else if (view.mode === "all") drawAll();
           else drawFlow();
         }
@@ -3492,6 +4843,86 @@
             if (d < hullRadius(n) && d < bestGD) { bestGD = d; bestG = g; }
           }
           if (bestG !== null) return { kind: "guild", g: bestG, previous: true };
+        }
+        return null;
+      }
+
+      function buildMovementGrid(frame) {
+        if (frame.grid) return frame.grid;
+        const cell = 22;
+        const grid = new Map();
+        for (const node of frame.nodes) {
+          const key = `${Math.floor(node.x / cell)}:${Math.floor(node.y / cell)}`;
+          const list = grid.get(key) || [];
+          list.push(node);
+          grid.set(key, list);
+        }
+        frame.grid = { cell, grid };
+        return frame.grid;
+      }
+
+      function hitMovement(px, py) {
+        const derived = M.movementCurrent;
+        const frame = derived?.frame;
+        if (!frame) return null;
+        const world = toWorld(px, py);
+        const transform = tf();
+        const { cell, grid } = buildMovementGrid(frame);
+        const reach = Math.max(6, 8 / transform.k);
+        let closest = null;
+        let closestDistance = reach;
+        const cx = Math.floor(world.x / cell);
+        const cy = Math.floor(world.y / cell);
+        for (let ix = cx - 1; ix <= cx + 1; ix += 1) {
+          for (let iy = cy - 1; iy <= cy + 1; iy += 1) {
+            for (const node of grid.get(`${ix}:${iy}`) || []) {
+              const distance = Math.hypot(world.x - node.x, world.y - node.y);
+              if (distance < closestDistance) {
+                closest = node;
+                closestDistance = distance;
+              }
+            }
+          }
+        }
+        if (closest) return { kind: "movementEntity", entityIndex: closest.entityIndex, node: closest };
+
+        const labelG = hitVisibleGalaxyLabel(world, transform, frame.guildActivity, derived.guildLayout);
+        if (labelG !== null) return { kind: "guild", g: labelG };
+        let bestGuild = null;
+        let bestGuildDistance = Infinity;
+        for (const [g, n] of frame.guildActivity) {
+          const point = movementGuildPoint(derived, g);
+          const distance = Math.hypot(world.x - point.x, world.y - point.y);
+          if (distance < hullRadius(n) && distance < bestGuildDistance) {
+            bestGuild = g;
+            bestGuildDistance = distance;
+          }
+        }
+        if (bestGuild !== null) return { kind: "guild", g: bestGuild };
+
+        if (view.showFlows) {
+          let bestFlow = null;
+          let bestFlowDistance = 8 / transform.k;
+          for (const flow of frame.flows) {
+            const from = movementGuildPoint(derived, flow.a);
+            const to = movementGuildPoint(derived, flow.b);
+            const x0 = from.x;
+            const y0 = from.y;
+            const x1 = to.x;
+            const y1 = to.y;
+            const direction = flow.a < flow.b ? 1 : -1;
+            const curveX = (x0 + x1) / 2 - (y1 - y0) * 0.12 * direction;
+            const curveY = (y0 + y1) / 2 + (x1 - x0) * 0.12 * direction;
+            for (let sample = 0; sample <= 20; sample += 1) {
+              const point = quadraticPoint(x0, y0, curveX, curveY, x1, y1, sample / 20);
+              const distance = Math.hypot(world.x - point.x, world.y - point.y);
+              if (distance < bestFlowDistance) {
+                bestFlowDistance = distance;
+                bestFlow = flow;
+              }
+            }
+          }
+          if (bestFlow) return { kind: "movementFlow", flow: bestFlow };
         }
         return null;
       }
@@ -3564,6 +4995,27 @@
       }
 
       function tooltipFor(hit) {
+        if (hit.kind === "movementEntity") {
+          const derived = M.movementCurrent;
+          const entity = derived.entities[hit.entityIndex];
+          const node = hit.node;
+          const classID = node.classID || entity.classID || 0;
+          const guildText = node.g >= 0
+            ? guildLabel(node.g)
+            : node.guilds.map((g) => guildLabel(g)).join(" / ");
+          const latestCount = node.latestReportCount;
+          const altIndex = node.observation?.altIndexes?.[0];
+          const altText = entity.isAccount && altIndex !== undefined
+            ? `<br>${esc(networkCopy.responsibleAlt)} ${esc(movementCharacterLabel(derived.model, altIndex, true))}`
+            : "";
+          return `<b style="color:${CLASS_COLORS[classID] || CLASS_COLORS[0]}">${esc(entity.name)}</b><br>
+            ${esc(guildText)} · ${esc(reportCountLabel(latestCount))}${altText}<br>
+            ${node.g < 0 ? esc(networkCopy.ambiguousBody) : esc(networkCopy.clickMovementEntity)}`;
+        }
+        if (hit.kind === "movementFlow") {
+          return `<b>${esc(guildLabel(hit.flow.a))} → ${esc(guildLabel(hit.flow.b))}</b><br>
+            ${fmt(hit.flow.n)} ${esc(networkCopy.observedChanges.toLowerCase())}`;
+        }
         if (hit.kind === "char") {
           const ch = M.chars[hit.c];
           const tiersAttended = ((view.mode === "all" ? F.charMovementTiers[hit.c] : F.charTiers[hit.c]) || []).length;
@@ -3583,6 +5035,10 @@
             ${fmt(reports)} reports this tier · ${tiersAttended} tiers tracked · click for career`;
         }
         if (hit.kind === "guild") {
+          if (view.mode === "movement") {
+            const count = M.movementCurrent?.frame?.roster?.get(hit.g) || 0;
+            return `<b>${esc(guildLabel(hit.g))}</b><br>${fmt(count)} ${esc(networkCopy.entitiesObserved.toLowerCase())} · ${esc(networkCopy.clickMovementEntity)}`;
+          }
           if (view.mode === "all") {
             const at = F.allTime;
             return `<b>${esc(guildLabel(hit.g))}</b><br>${fmt(at.roster.get(hit.g) || 0)} distinct ${entityPlural()} all time · click to inspect`;
@@ -3645,7 +5101,13 @@
           return;
         }
         if (!F.tiers) return;
-        const hit = view.mode === "galaxy" ? hitGalaxy(px, py) : view.mode === "all" ? hitAll(px, py) : hitFlow(px, py);
+        const hit = view.mode === "galaxy"
+          ? hitGalaxy(px, py)
+          : view.mode === "movement"
+            ? hitMovement(px, py)
+            : view.mode === "all"
+              ? hitAll(px, py)
+              : hitFlow(px, py);
         view.hover = hit;
         canvas.style.cursor = hit ? "pointer" : "default";
         if (hit) showTooltip(px, py, tooltipFor(hit));
@@ -3661,9 +5123,17 @@
         const rect = canvas.getBoundingClientRect();
         const px = event.clientX - rect.left;
         const py = event.clientY - rect.top;
-        const hit = view.mode === "galaxy" ? hitGalaxy(px, py) : view.mode === "all" ? hitAll(px, py) : hitFlow(px, py);
+        const hit = view.mode === "galaxy"
+          ? hitGalaxy(px, py)
+          : view.mode === "movement"
+            ? hitMovement(px, py)
+            : view.mode === "all"
+              ? hitAll(px, py)
+              : hitFlow(px, py);
         if (!hit) { clearSelection(); return; }
         if (hit.kind === "char") selectChar(hit.c);
+        else if (hit.kind === "movementEntity") selectMovementEntity(hit.entityIndex);
+        else if (hit.kind === "movementFlow") selectGuild(hit.flow.b);
         else if (hit.kind === "guild") selectGuild(hit.g);
         else if (hit.kind === "node") selectGuild(hit.node.g);
         else if (hit.kind === "header") { stopPlay(); setTier(hit.t, false); }
@@ -3688,12 +5158,12 @@
 
       function updateIdentityButtons() {
         const hasAccounts = M.accountGroups.length > 0;
-        els.identityCharacter.classList.toggle("active", view.identity === "character");
-        els.identityAccount.classList.toggle("active", view.identity === "account");
+        setPressed(els.identityCharacter, view.identity === "character");
+        setPressed(els.identityAccount, view.identity === "account");
         els.identityAccount.disabled = !hasAccounts;
-        els.identityAccount.title = hasAccounts ? "Show linked account groups" : "Rebuild the guild network snapshot to enable account mode";
-        els.search.placeholder = hasAccounts ? "Search characters, accounts, or guilds…" : "Search characters or guilds…";
-        els.insSub.textContent = isAccountMode() ? "Click an account dot or a guild cluster." : "Click a character dot or a guild cluster.";
+        els.identityAccount.title = networkCopy.accounts;
+        els.search.placeholder = hasAccounts ? networkCopy.searchAllPlaceholder : networkCopy.searchCharacterPlaceholder;
+        if (view.mode === "movement") els.insSub.textContent = networkCopy.clickMovementEntity;
       }
 
       function setIdentity(identity) {
@@ -3702,20 +5172,32 @@
         stopPlay();
         view.identity = identity;
         view.selChar = -1;
+        view.selMovement = -1;
         view.selGuild = -1;
         view.hover = null;
         view.trans = null;
         M.chars = identity === "account" ? buildAccountEntities() : M.baseChars;
-        view.fitted = { galaxy: false, all: false, flow: false };
+        view.fitted = { galaxy: false, movement: false, all: false, flow: false };
         F.allTime = null;
-        els.loadingText.textContent = `Laying out ${fmt(M.chars.length)} ${entityPlural()} across ${M.tiers.length} tiers…`;
+        els.loadingTitle.textContent = view.mode === "movement" ? networkCopy.loadingMovementTitle : networkCopy.loadingUniverseTitle;
+        els.loadingText.textContent = networkCopy.loadingLayout;
         els.loading.classList.add("visible");
         defer(() => {
           rebuild();
+          updateIdentityButtons();
+          if (view.mode === "movement") {
+            const model = M.movement.get(M.tiers[view.tier].id);
+            if (model) {
+              activateMovementModel(model, false);
+              els.loading.classList.remove("visible");
+            } else {
+              loadMovementForTier(view.tier, false);
+            }
+            return;
+          }
           if (view.mode === "galaxy") fitGalaxy();
           else if (view.mode === "all") fitAll();
           else fitFlow();
-          updateIdentityButtons();
           updateHud();
           renderInspector();
           runSearch();
@@ -3724,33 +5206,62 @@
       }
 
       function setMode(mode) {
+        if (mode === "movement" && !movementReady) return;
+        if (mode === view.mode) return;
+        stopPlay();
         view.mode = mode;
-        els.modeGalaxy.classList.toggle("active", mode === "galaxy");
-        els.modeAll.classList.toggle("active", mode === "all");
-        els.modeFlow.classList.toggle("active", mode === "flow");
+        view.selChar = -1;
+        view.selMovement = -1;
+        view.selGuild = -1;
+        if (mode !== "movement" && movementController) {
+          movementController.abort();
+          movementController = null;
+          els.loading.classList.remove("visible");
+        }
+        setPressed(els.modeGalaxy, mode === "galaxy");
+        setPressed(els.modeMovement, mode === "movement");
+        setPressed(els.modeAll, mode === "all");
+        setPressed(els.modeFlow, mode === "flow");
         els.timeline.classList.toggle("dimmed", mode === "all");
+        updateFilterControls();
         if (mode === "flow" && !view.fitted.flow) fitFlow();
         if (mode === "all" && !view.fitted.all) fitAll();
         if (mode === "galaxy" && !view.fitted.galaxy) fitGalaxy();
+        if (mode === "movement") {
+          M.movementCurrent = null;
+          view.movementStep = -1;
+          loadMovementForTier(view.tier);
+        }
         view.hover = null;
         hideTooltip();
+        buildTimeline();
         updateHud();
         renderInspector();
+        runSearch();
       }
 
       els.modeGalaxy.addEventListener("click", () => setMode("galaxy"), { signal: listenerSignal });
+      els.modeMovement.addEventListener("click", () => setMode("movement"), { signal: listenerSignal });
       els.modeAll.addEventListener("click", () => setMode("all"), { signal: listenerSignal });
       els.modeFlow.addEventListener("click", () => setMode("flow"), { signal: listenerSignal });
       els.identityCharacter.addEventListener("click", () => setIdentity("character"), { signal: listenerSignal });
       els.identityAccount.addEventListener("click", () => setIdentity("account"), { signal: listenerSignal });
 
       els.minReports.addEventListener("change", () => {
+        if (view.mode === "movement") {
+          view.movementMinReports = Number(els.minReports.value);
+          const model = M.movement.get(M.tiers[view.tier].id);
+          if (model) activateMovementModel(model, false);
+          return;
+        }
         view.minReports = Number(els.minReports.value);
-        els.loadingText.textContent = "Recomputing constellation…";
+        els.loadingTitle.textContent = networkCopy.loadingUniverseTitle;
+        els.loadingText.textContent = networkCopy.recomputing;
         els.loading.classList.add("visible");
         defer(() => {
           rebuild();
           view.fitted.galaxy = false;
+          view.fitted.movement = false;
           view.fitted.all = false;
           view.fitted.flow = false;
           if (view.mode === "galaxy") fitGalaxy();
@@ -3775,6 +5286,7 @@
 
       els.resetView.addEventListener("click", () => {
         if (view.mode === "galaxy") fitGalaxy();
+        else if (view.mode === "movement") fitMovement();
         else if (view.mode === "all") fitAll();
         else fitFlow();
       }, { signal: listenerSignal });
@@ -3786,8 +5298,16 @@
 
       window.addEventListener("keydown", (event) => {
         if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
-        if (event.key === "ArrowRight") { stopPlay(); moveToAdjacentMovementTier(1); }
-        else if (event.key === "ArrowLeft") { stopPlay(); moveToAdjacentMovementTier(-1); }
+        if (event.key === "ArrowRight") {
+          stopPlay();
+          if (view.mode === "movement") setMovementStep(view.movementStep + 1);
+          else moveToAdjacentMovementTier(1);
+        }
+        else if (event.key === "ArrowLeft") {
+          stopPlay();
+          if (view.mode === "movement") setMovementStep(view.movementStep - 1);
+          else moveToAdjacentMovementTier(-1);
+        }
         else if (event.key === " ") { event.preventDefault(); view.playing ? stopPlay() : startPlay(); }
         else if (event.key === "Escape") clearSelection();
       }, { signal: listenerSignal });
@@ -3803,6 +5323,7 @@
         destroyed = true;
         listenerController.abort();
         if (universeController) universeController.abort();
+        if (movementController) movementController.abort();
         if (frameId !== null) {
           cancelAnimationFrame(frameId);
           frameId = null;
@@ -3828,6 +5349,8 @@
         M.chars = [];
         M.accountGroups = [];
         M.accountChars = null;
+        M.movement.clear();
+        M.movementCurrent = null;
         for (const key of Object.keys(F)) delete F[key];
         canvas.width = 1;
         canvas.height = 1;
@@ -3837,6 +5360,7 @@
         if (!event.persisted) destroy();
       }, { signal: listenerSignal });
 
+      applyStaticCopy();
       resizeCanvas();
       boot();
     </script>

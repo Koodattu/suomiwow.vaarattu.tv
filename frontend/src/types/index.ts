@@ -2110,6 +2110,7 @@ export interface GuildNetworkUniverse {
   tiers: GuildNetworkTier[];
   realms: string[];
   guilds: GuildNetworkGuildTuple[];
+  guildKeys?: string[];
   characters: GuildNetworkCharacterTuple[];
   accounts?: GuildNetworkAccountTuple[];
 }
@@ -2125,6 +2126,35 @@ export interface GuildNetworkMeta {
   byteLength: number;
   chunkCount: number;
   etag: string;
+  movementReady: boolean;
+}
+
+export type GuildNetworkMovementGuildTuple = [key: string, name: string, realm: string];
+export type GuildNetworkMovementCharacterTuple = [key: string, name: string, realm: string, classID: number, aliases?: string[]];
+export type GuildNetworkMovementReportTuple = [
+  code: string,
+  startTime: number,
+  endTime: number | null,
+  guildIndex: number,
+  characterIndexes: number[],
+];
+
+export interface GuildNetworkMovement {
+  schemaVersion: number;
+  generatedAt: string;
+  sourceUpdatedAt: string | null;
+  rowCount: number;
+  raid: {
+    id: number;
+    name: string;
+    expansion: string;
+    start: string | null;
+    end: string | null;
+  };
+  guilds: GuildNetworkMovementGuildTuple[];
+  characters: GuildNetworkMovementCharacterTuple[];
+  accounts: GuildNetworkAccountTuple[];
+  reports: GuildNetworkMovementReportTuple[];
 }
 
 // ============================================================
