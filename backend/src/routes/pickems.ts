@@ -298,8 +298,8 @@ router.post("/:pickemId/predict", async (req: Request, res: Response) => {
     }
 
     // Validate user is logged in
-    const user = await getUserFromSession(req);
-    if (!user) {
+    const authenticatedUser = await getUserFromSession(req);
+    if (!authenticatedUser) {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
@@ -308,31 +308,40 @@ router.post("/:pickemId/predict", async (req: Request, res: Response) => {
     assertPickemAcceptingPredictions(pickem);
     const predictions = await validatePickemPredictions(pickem, predictionInput);
 
-    // Re-check against the server clock immediately before persisting.
-    const currentPickem = await pickemService.getPickemById(pickemId);
-    assertPickemAcceptingPredictions(currentPickem);
+    const existingEntryIndex = await pickemService.runWithMutationLock(pickemId, async () => {
+      // Re-check against the server clock while deletion is blocked.
+      const currentPickem = await pickemService.getPickemById(pickemId);
+      assertPickemAcceptingPredictions(currentPickem);
 
-    // Update or create the pickem entry
-    const existingEntryIndex = user.pickems?.findIndex((p: IPickemEntry) => p.pickemId === pickemId) ?? -1;
-
-    if (existingEntryIndex >= 0) {
-      // Update existing entry
-      user.pickems[existingEntryIndex].predictions = predictions;
-      user.pickems[existingEntryIndex].updatedAt = new Date();
-    } else {
-      // Create new entry
-      if (!user.pickems) {
-        user.pickems = [];
+      // Reload after acquiring the lock so queued submissions never mutate a stale snapshot.
+      const user = await getUserFromSession(req);
+      if (!user) {
+        throw new Error("Authenticated user not found");
       }
-      user.pickems.push({
-        pickemId,
-        predictions,
-        submittedAt: new Date(),
-        updatedAt: new Date(),
-      });
-    }
 
-    await user.save();
+      // Update or create the pickem entry
+      const entryIndex = user.pickems?.findIndex((p: IPickemEntry) => p.pickemId === pickemId) ?? -1;
+
+      if (entryIndex >= 0) {
+        // Update existing entry
+        user.pickems[entryIndex].predictions = predictions;
+        user.pickems[entryIndex].updatedAt = new Date();
+      } else {
+        // Create new entry
+        if (!user.pickems) {
+          user.pickems = [];
+        }
+        user.pickems.push({
+          pickemId,
+          predictions,
+          submittedAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+
+      await user.save();
+      return entryIndex;
+    });
 
     // Invalidate leaderboard cache so new prediction shows up immediately
     await cacheService.invalidate(cacheService.getPickemLeaderboardKey(pickemId));
@@ -370,13 +379,15 @@ router.post("/:pickemId/import-guest", async (req: Request, res: Response) => {
     assertPickemAcceptingPredictions(pickem);
     const predictions = await validatePickemPredictions(pickem, predictionInput);
 
-    // The client timestamp is intentionally ignored. Re-read the competition
-    // and use the server's time at the final authorization point.
-    const currentPickem = await pickemService.getPickemById(pickemId);
-    const acceptedAt = new Date();
-    assertPickemAcceptingPredictions(currentPickem, acceptedAt);
+    const created = await pickemService.runWithMutationLock(pickemId, async () => {
+      // The client timestamp is intentionally ignored. Re-read the competition
+      // and use the server's time at the final authorization point while deletion is blocked.
+      const currentPickem = await pickemService.getPickemById(pickemId);
+      const acceptedAt = new Date();
+      assertPickemAcceptingPredictions(currentPickem, acceptedAt);
 
-    const created = await createGuestPickemEntryIfAbsent(user._id, pickemId, predictions, acceptedAt);
+      return createGuestPickemEntryIfAbsent(user._id, pickemId, predictions, acceptedAt);
+    });
     if (!created) {
       throw new PickemSubmissionError("PICKEM_ALREADY_SUBMITTED", 409, "This account already has predictions for this pickem");
     }

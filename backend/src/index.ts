@@ -33,7 +33,6 @@ import searchRouter from "./routes/search";
 import pickemsRouter from "./routes/pickems";
 import discordRouter from "./routes/discord";
 import guildNetworkRouter from "./routes/guild-network";
-import pickemService from "./services/pickem.service";
 import discordBotService from "./services/discord-bot.service";
 import twitchChatBotService from "./services/twitch-chat-bot.service";
 import backgroundGuildProcessor from "./services/background-guild-processor.service";
@@ -300,11 +299,6 @@ async function runBackgroundInitialization(): Promise<void> {
   // Streamers are seeded for new guilds only and then managed in the admin panel.
   await runStartupTask("Sync guild config data", async () => {
     await guildService.syncGuildConfigData();
-  });
-
-  // Seed pickems from config
-  await runStartupTask("Seed pickems from config", async () => {
-    await pickemService.seedPickems();
   });
 
   // -------------------------------------------------------------------------

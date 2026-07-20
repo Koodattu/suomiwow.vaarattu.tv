@@ -575,7 +575,7 @@
       "edit": "Muokkaa veikkausta",
       "form": {
         "id": "Veikkauksen ID",
-        "idHelp": "Vain pienet kirjaimet, numerot ja viivat (esim. tww-s3)",
+        "idHelp": "Vain pienet kirjaimet, numerot ja viivat (esim. season-one)",
         "name": "Näyttönimi",
         "type": "Veikkaustyyppi",
         "typeRegular": "Tavallinen (Suomalaiset killat)",
@@ -628,7 +628,8 @@
         "activate": "Aktivoi",
         "deactivate": "Deaktivoi",
         "delete": "Poista",
-        "deleteConfirm": "Haluatko varmasti poistaa tämän veikkauksen? Tätä toimintoa ei voi perua.",
+        "deleteConfirm": "Haluatko varmasti poistaa tämän veikkauksen ja kaikki käyttäjien vastaukset? Tätä toimintoa ei voi perua.",
+        "deleteFailed": "Veikkauksen poistaminen epäonnistui. Yritä uudelleen.",
         "finalize": "Viimeistele",
         "finalizeRegularConfirm": "Haluatko varmasti viimeistellä tämän veikkauksen? Tämä lukitsee nykyiset sijoitukset lopullisiksi tuloksiksi.",
         "unfinalize": "Peruuta viimeistely",

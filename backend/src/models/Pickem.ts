@@ -30,7 +30,7 @@ export type PickemType = "regular" | "rwf";
 
 // Pickem document interface
 export interface IPickem extends Document {
-  pickemId: string; // Unique identifier (e.g., "tww-s2")
+  pickemId: string; // Unique identifier (e.g., "season-one")
   name: string; // Display name
   type: PickemType; // Type of pickem: "regular" for Finnish guilds, "rwf" for Race to World First
   raidIds: number[]; // Array of raid IDs included in this pickem (only used for regular type)

@@ -17,7 +17,7 @@ The product has two collection modes:
 
 Every raid tier is its own set and binder. Users receive five Current packs and five Legacy packs per day. Legacy pack credits can be spent on a user-selected Legacy raid set.
 
-Users may open packs without logging in. Guest cards are saved server-side and claimed when the visitor logs in. The first guest-to-account conversion also grants five additional Current packs.
+Users may open packs without logging in. A guest's Current and Legacy cards are saved server-side only for the Helsinki calendar day on which they were opened and can be claimed by logging in before that day's reset. Unclaimed guest cards expire at the reset. The first guest-to-account conversion also grants five additional Current packs after the guest cards have been claimed.
 
 ## Goals
 
@@ -86,9 +86,10 @@ Duplicates do not upgrade card rarity. Rarity represents the character's snapsho
 - Further copies of the same card and finish are exact duplicates.
 - A newly acquired Golden or Prismatic finish is new even if Standard is already owned.
 - Ownership stores and displays quantities such as `×2` and `×7`.
-- Every ten exact duplicate pulls award one bonus pack credit in the same mode.
+- For authenticated collections, every ten exact duplicate pulls award one bonus pack credit in the same mode.
 - Copies are not destroyed when the duplicate meter awards a pack.
 - Bonus-pack results can advance the duplicate meter normally.
+- Guest results are provisional: duplicate rewards are calculated against the authenticated collection during a valid same-day claim and no spendable guest bonus credit exists before login.
 
 The threshold must not start at five. A five-card pack producing another pack after five duplicates creates a self-reproducing loop once a collection is complete. A ten-duplicate threshold has a reproduction ratio of at most one-half and therefore converges.
 
@@ -234,11 +235,13 @@ The client never submits card IDs, grades, rarity buckets, finishes, or random r
 
 ### Guest identity
 
-- The backend creates a stable random guest token.
+- The backend creates a random guest token scoped to the current `Europe/Helsinki` calendar day.
 - The raw token is stored only in a Secure, HttpOnly, SameSite=Lax cookie.
 - MongoDB stores only a cryptographic hash of the token.
-- Guest data has a TTL; 30 days is the proposed starting value.
-- The UI tells guests that their collection is saved temporarily and can be permanently claimed by logging in.
+- The guest record, openings, ownership, and related progress use the same `dateKey` and expire at the next Helsinki daily reset.
+- Every guest read, opening, and claim validates `dateKey` and `expiresAt` in application code. MongoDB TTL cleanup is eventual and is not the security or product-behavior boundary.
+- An expired guest cookie is replaced with a new day-scoped token on the visitor's next CCG request. Data from the previous token is not carried forward.
+- The UI shows the time remaining to log in and clearly states that today's cards will be lost at the daily reset.
 
 Cookie resetting and other lightweight abuse are accepted product tradeoffs. Basic rate limiting and idempotency are still required to prevent accidental or automated request floods.
 
@@ -248,19 +251,25 @@ Guests receive:
 
 - Five Current packs per Helsinki day
 - Five Legacy packs per Helsinki day
-- Duplicate bonus packs under the same rules as authenticated users
+- Five cards per pack, for a maximum claimable haul of 25 Current and 25 Legacy card pull instances
+
+Guests cannot open duplicate-earned bonus packs while logged out. During claim, the backend reclassifies the day's results against the authenticated collection, advances the authenticated user's duplicate meters, and grants any resulting bonus pack credits. These cards and rewards are lost if the guest does not claim them before the daily reset.
 
 ### Claim on login
 
 The first successful guest-to-user claim:
 
-1. Merges exact card and finish quantities into the authenticated collection.
-2. Transfers persistent bonus pack credits and duplicate-meter progress.
-3. Preserves opening provenance.
-4. Marks the guest identity claimed so it cannot be claimed twice.
-5. Grants five additional Current pack credits as a one-time conversion bonus.
+1. Validates that the guest record and every opening belong to the current Helsinki `dateKey` and have not expired.
+2. Counts committed result entries before aggregating quantities and requires at most 25 Current and 25 Legacy pull instances.
+3. Merges exact card and finish quantities into the authenticated collection.
+4. Reclassifies the merged results against the authenticated collection and applies duplicate-meter progress and resulting bonus credits.
+5. Preserves opening provenance.
+6. Marks the guest identity claimed so it cannot be claimed twice.
+7. Grants five additional Current pack credits as a one-time conversion bonus.
 
-The conversion bonus is not granted on every login.
+The 25-card limits count result instances, not unique cards or ownership documents. A duplicate still consumes one of the 25 slots. The backend rejects and audits an over-limit claim instead of truncating it; valid server-created guest activity cannot exceed the limit because guests can open only five five-card packs per mode.
+
+The five conversion packs are granted only after a successful claim. They are authenticated pack credits, are not part of either 25-card guest limit, and are granted at most once per authenticated user rather than on every login or guest identity.
 
 Claiming must be an idempotent database transaction.
 
@@ -603,6 +612,7 @@ Application code must reject attempts to modify immutable snapshot fields after 
 ### `CcgGuest`
 
 - `tokenHash`
+- `dateKey`
 - `firstSeenAt`
 - `lastSeenAt`
 - `expiresAt`
@@ -613,6 +623,7 @@ Application code must reject attempts to modify immutable snapshot fields after 
 Indexes:
 
 - Unique `{tokenHash: 1}`
+- `{dateKey: 1, expiresAt: 1}`
 - TTL `{expiresAt: 1}`
 - `{claimedByUserId: 1}`
 
@@ -627,14 +638,18 @@ Use a polymorphic owner:
 - `quantity`
 - `firstAcquiredAt`
 - `lastAcquiredAt`
+- Guest-only `dateKey` and `expiresAt`; omit these fields for authenticated ownership
 
 Indexes:
 
 - Unique `{ownerType: 1, ownerId: 1, cardId: 1, finish: 1}`
 - `{ownerType: 1, ownerId: 1, lastAcquiredAt: -1}`
+- TTL `{expiresAt: 1}`; authenticated documents do not contain this field
 - Collection filter indexes should include the denormalized fields only if measurement shows lookup joins are insufficient.
 
 One document stores a quantity. Do not create one ownership document per duplicate copy.
+
+All other guest-owned temporary documents, including daily allowance, provisional progress, and opening documents, carry the same guest `dateKey` and `expiresAt` and have TTL indexes where applicable. Application queries must still reject expired guest data because MongoDB TTL deletion is not immediate.
 
 ### `CcgDailyAllowance`
 
@@ -653,7 +668,7 @@ Index:
 
 ### `CcgPackCredit`
 
-Persistent non-daily pack entitlements:
+Persistent non-daily pack entitlements for authenticated users:
 
 - `ownerType`
 - `ownerId`
@@ -663,7 +678,7 @@ Persistent non-daily pack entitlements:
 - source idempotency key
 - timestamps
 
-Legacy credits are not tied to a set until the user opens them, allowing the user to select a Legacy binder.
+Guests never receive a persistent credit document. Legacy credits are not tied to a set until the user opens them, allowing the user to select a Legacy binder.
 
 ### `CcgOwnerProgress`
 
@@ -681,6 +696,8 @@ One document per owner and mode:
 Index:
 
 - Unique `{ownerType: 1, ownerId: 1, mode: 1}`
+
+Guest progress is provisional and expires with the guest day. It can support same-day UI classification, but `bonusPacksEarned` remains zero until the claim transaction reclassifies the results and updates the authenticated user's progress.
 
 ### `CcgPackPool`
 
@@ -706,6 +723,7 @@ Pack opening must not sort or scan the whole card catalog.
 - ordered result list
 - per-result card id, finish, and new/duplicate classification
 - duplicate rewards produced by this opening
+- Guest-only `dateKey` and `expiresAt`
 - state
 - timestamps
 
@@ -714,6 +732,7 @@ Indexes:
 - Unique `{ownerType: 1, ownerId: 1, idempotencyKey: 1}`
 - `{ownerType: 1, ownerId: 1, createdAt: -1}`
 - `{setId: 1, createdAt: -1}`
+- TTL `{expiresAt: 1}`; authenticated openings do not contain this field
 
 ### `CcgLedgerEntry`
 
@@ -744,15 +763,15 @@ Within one transaction:
 1. Resolve the authenticated user or guest owner from trusted server context.
 2. Find an existing opening by idempotency key and return it if present.
 3. Validate Current/Legacy mode and selected set.
-4. Atomically reserve one daily allowance or persistent pack credit.
+4. Atomically reserve one daily allowance, or an authenticated owner's persistent pack credit. Guests can consume only the day's five normal packs per mode.
 5. Load the active versioned pack pool.
 6. Select card IDs with server-side cryptographic randomness.
 7. Apply the guaranteed `B`-or-better slot and optional duplicate protection.
 8. Roll each finish using the stored pack-rule version.
 9. Determine whether every result is new or an exact duplicate, including duplicates repeated within the same pack.
 10. Upsert ownership quantities.
-11. Add exact duplicates to the mode-specific duplicate meter.
-12. Convert every completed group of ten into a bonus pack credit.
+11. For an authenticated owner, add exact duplicates to the mode-specific duplicate meter and convert every completed group of ten into a bonus pack credit.
+12. For a guest, record only provisional same-day ownership and classifications; defer authenticated duplicate reclassification and rewards until claim.
 13. Write the immutable opening result and ledger entries.
 14. Commit.
 
@@ -762,18 +781,20 @@ If the transaction fails, no allowance, ownership, duplicate progress, or result
 
 Within one transaction:
 
-1. Validate the guest cookie and locate the unclaimed guest.
+1. Validate the guest cookie and locate an unclaimed, unexpired guest for the current Helsinki `dateKey`.
 2. Return the previous successful result if the claim is already complete for the same user.
-3. Upsert guest ownership quantities into user ownership.
-4. Merge mode-specific duplicate progress.
-5. Transfer persistent pack credits.
+3. Load the day's committed guest openings and count their result entries before grouping: reject and audit more than 25 Current or more than 25 Legacy entries.
+4. Reclassify results against the authenticated collection, then upsert no more than the validated quantities into user ownership.
+5. Apply mode-specific duplicate progress and materialize any bonus credits earned by the claimed results.
 6. Associate or annotate historical opening provenance with the claiming user.
 7. Grant five Current conversion credits using a unique source key.
 8. Mark the guest claimed and invalidate further guest writes.
-9. Write claim ledger entries.
+9. Write claim ledger entries, including the validated per-mode result counts.
 10. Commit.
 
-The claim must remain safe under concurrent login callbacks and repeated browser requests.
+The count check is server-side and independent of client state. It counts result instances across openings, including duplicate cards and different finishes. The conversion credits are granted after validation and do not count toward either guest limit.
+
+The claim must remain safe under concurrent login callbacks and repeated browser requests. An expired guest receives no partial claim or conversion bonus.
 
 ## API surface
 
@@ -815,11 +836,30 @@ Administrative writes use existing authorization patterns and TaskLog/audit infr
 
 ## Background jobs
 
-### Character media fetcher
+All schedules use the IANA timezone `Europe/Helsinki`, not a fixed UTC offset, so daylight-saving changes are handled correctly. Store the last successful cursor or source watermark for every producer job. Every job is idempotent, uses the existing task/audit infrastructure, and can be rerun manually for a specified date or set.
 
-- Continuously processes the character-media queue.
+### Scheduled-job matrix
+
+| Job | Schedule (`Europe/Helsinki`) | Purpose |
+| --- | --- | --- |
+| Guest expiry reconciliation | Daily at 00:15 | Remove expired guest child documents left behind by eventual TTL cleanup and report anomalies. Product enforcement still happens synchronously at the 00:00 date boundary. |
+| New-character media discovery | Daily at 01:30 | Find characters newly observed by achievements, raid participation, rankings, or character ingestion since the last cursor; enqueue missing avatar and full-render media. |
+| Active-character media refresh enqueue | Daily at 01:50 | Enqueue active Current candidates whose profile avatar/render metadata is stale. Spread work with `nextMediaRefreshAt`; do not refetch every known character every night. |
+| Media queue recovery | Every 15 minutes | Return stale `processing` jobs to retry state and make transient failures eligible after backoff. |
+| Weekly Current snapshot workflow | Wednesday at 03:00 | Capture the canonical site-week performance population during the Tuesday-to-Wednesday night, build candidates, grade newly eligible characters, and prepare the publication wave. |
+| Weekly Current publication | Wednesday at 04:30 | Publish snapshot-ready candidates whose media is available, version and rebuild the Current pack pool, then warm/invalidate affected caches. Missing-media candidates remain pending and are reconsidered in the next wave or by an admin rerun. |
+
+The weekly times are initial operational defaults and should be configurable. The workflow must prevent overlapping snapshot or publication runs with a distributed lock keyed by set and snapshot date.
+
+The snapshot records its source watermarks and fails closed if required rankings or mechanics inputs are incomplete; publication must never use a partially refreshed population. Weekly snapshots and media refreshes never rewrite already published cards.
+
+### Character media discovery and fetcher
+
+- The nightly discovery jobs only enqueue work; bounded workers continuously process the character-media queue.
 - Gives Current candidates higher priority than general avatar backfill.
 - Recovers stale jobs and retries transient failures.
+- Uses per-character freshness metadata so normal nightly runs are incremental.
+- Never mutates media or crop fields of an already published `CcgCard`; refreshes update character-profile media and unpublished candidates only.
 - Exposes counts and recent failures to admin status.
 
 ### Current card candidate builder
@@ -828,15 +868,17 @@ Administrative writes use existing authorization patterns and TaskLog/audit infr
 - Joins character identity, rankings, mechanics, Mythic+, guild snapshot, and media readiness.
 - Produces a preview without publishing.
 - Reports exclusion reasons per candidate.
+- Runs as part of the Wednesday 03:00 snapshot workflow and may also run as an idempotent admin preview.
 
 ### Card publisher
 
-- Runs only through an explicit scheduled/configured wave or admin trigger.
-- Takes the canonical grading snapshot.
+- Runs in the scheduled Wednesday publication wave or through an explicit admin trigger.
+- Consumes the canonical grading snapshot produced by the snapshot workflow.
 - Assigns immutable grades, set numbers, crop values, theme version, and score provenance.
 - Inserts only characters not already published in the set.
 - Updates the versioned pack pool.
-- Invalidates/warm relevant caches.
+- Invalidates and warms relevant caches.
+- Uses the completed 03:00 snapshot as input; it does not recompute rankings while publishing.
 
 ### Legacy backfill
 
@@ -849,6 +891,13 @@ Administrative writes use existing authorization patterns and TaskLog/audit infr
 ### Daily allowance
 
 Allowance documents may be created lazily on first session/open request for the Helsinki date. A global midnight fan-out job is unnecessary.
+
+### Jobs that are not recurring cron work
+
+- Daily allowances are created lazily.
+- Media workers run continuously and are fed by scheduled discovery/recovery jobs.
+- Legacy backfill is an explicit resumable administrative batch.
+- Current-to-Legacy rollover is an explicit audited operation after the next set is configured, not an unattended date guess.
 
 ## Frontend architecture
 
@@ -935,6 +984,7 @@ Do not create a second card renderer for pack reveals and collection views. Use 
 - Rate-limit pack-open and guest-identity creation endpoints.
 - Store only guest token hashes.
 - Use Secure, HttpOnly, SameSite cookies.
+- Enforce the guest `dateKey`, expiry, five-pack-per-mode allowance, and 25-result-per-mode claim ceiling on the backend.
 - Treat client-provided set ids, modes, and filters as untrusted.
 - Validate that Current and selected Legacy sets are open for the requested operation.
 - Never expose Blizzard credentials or access tokens.
@@ -963,6 +1013,7 @@ Track:
 - Pack opens by mode and set
 - Daily allowance use
 - Guest-to-account conversion
+- Expired unclaimed guest results and rejected over-limit claims
 - New versus duplicate rates
 - Grade and finish distributions
 - Duplicate bonus packs earned
@@ -1018,9 +1069,9 @@ Never expose user-level private collection data in public operational dashboards
 
 ### Phase 4 — guest collection and claim
 
-- Add guest cookies and TTL records.
+- Add day-scoped guest cookies, synchronous expiry checks, and TTL cleanup.
 - Allow anonymous Current and Legacy openings.
-- Implement transactional claim and the five-pack Current conversion bonus.
+- Implement the transactional 25-result-per-mode claim ceiling, duplicate reclassification, and five-pack Current conversion bonus.
 - Verify concurrency and idempotency.
 
 ### Phase 5 — binder and pack UI
@@ -1056,7 +1107,9 @@ Never expose user-level private collection data in public operational dashboards
 - Duplicate classification, including repeated results in one pack
 - Ten-duplicate bonus conversion and remainder
 - Helsinki date-key generation
+- Next-reset expiry generation across daylight-saving transitions
 - Guest token hashing
+- Guest claim result-instance counting
 - Set state validation
 - Card immutability guards
 
@@ -1070,11 +1123,16 @@ Never expose user-level private collection data in public operational dashboards
 - New finish versus exact duplicate behavior
 - Duplicate-earned pack credit
 - Legacy set selection
-- Guest opening, claim, and repeated claim
+- Guest opening, same-day claim, and repeated claim
+- Expired previous-day guest claim rejection
+- Guest claim at exactly 25 and more than 25 results per mode
+- Guest claim counts duplicate pull instances rather than unique ownership rows
 - Concurrent login callbacks
 - One-time conversion bonus
 - Current-to-Legacy rollover
 - Media 404, transient retry, and stale-job recovery
+- Idempotent nightly media discovery from its stored cursor
+- Idempotent weekly snapshot and publication reruns
 
 ### Statistical tests
 
@@ -1096,7 +1154,7 @@ Statistical tests use tolerances; they must not depend on a fixed random sequenc
 - Binder pagination and missing slots
 - Quantity and finish switching
 - Current and Legacy selection
-- Guest expiry and login claim messaging
+- Guest daily-reset countdown, expiry, and login claim messaging
 - Character avatar fallback
 - Keyboard navigation
 - Screen-reader result summary
@@ -1121,8 +1179,10 @@ The initial feature is ready when:
 
 - A user or guest can receive and open five Current and five Legacy packs per day.
 - A Legacy pack can target a selected Legacy raid set.
-- Every committed result survives refresh and repeated requests.
-- Guest cards and persistent rewards merge exactly once on login.
+- Every committed result survives refresh and repeated requests during its retention window; authenticated results remain permanent.
+- Guest cards can be claimed only during the Helsinki day in which they were opened; unclaimed cards are inaccessible after reset and are removed by cleanup.
+- A guest claim persists at most 25 Current and 25 Legacy pull instances, enforced by the backend before quantities are aggregated.
+- Duplicate progress and rewards from a guest haul are applied only during a valid claim.
 - The first guest claim grants exactly five additional Current packs.
 - Cards remain immutable after publication and rollover.
 - Tier grade is the visible rarity and drives pack/style behavior.
@@ -1135,6 +1195,7 @@ The initial feature is ready when:
 - Full renders and raid backgrounds produce stable card compositions.
 - Reduced-motion, keyboard, mobile, and localization requirements are met.
 - Pack opening and guest claiming are transaction-backed and idempotent.
+- New-character media discovery runs nightly, while the Current performance snapshot and publication workflow runs during the Tuesday-to-Wednesday night.
 - Operational tooling can explain every grant, opening, claim, and failure.
 
 ## Configurable launch values
@@ -1149,7 +1210,9 @@ These values are intentionally configuration, even when this plan proposes defau
 - Guaranteed-slot grade
 - Soft duplicate protection
 - Golden and Prismatic odds
-- Guest TTL
+- Guest reset time and cleanup grace period
+- Nightly media-discovery and weekly snapshot/publication times
+- Active-character media freshness interval
 - Per-set background safe crop ranges
 - Pack reveal duration and sound policy
 

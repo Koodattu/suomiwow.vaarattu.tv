@@ -1,52 +1,35 @@
 import Pickem, { IPickem, IScoringConfig, IStreakConfig, IPrizeConfig, DEFAULT_SCORING_CONFIG, DEFAULT_STREAK_CONFIG, DEFAULT_PRIZE_CONFIG, PickemType } from "../models/Pickem";
-import { PICKEM_SEED_DATA } from "../config/pickems";
+import User from "../models/User";
 import { PICK_EM_RWF_GUILDS } from "../config/guilds";
 import logger from "../utils/logger";
 import { getRegularPickemRaidIdsValidationError, isPickemPlaceholderRaidIds } from "../utils/pickemRaid";
 
+export interface PickemDeletionResult {
+  pickemDeleted: boolean;
+  affectedUsers: number;
+}
+
 class PickemService {
-  /**
-   * Seed pickems from config to database
-   * Only creates pickems that don't already exist (by pickemId)
-   */
-  async seedPickems(): Promise<void> {
-    logger.info("Seeding pickems from configuration...");
+  private readonly mutationTails = new Map<string, Promise<void>>();
 
-    for (const seedData of PICKEM_SEED_DATA) {
-      try {
-        const existing = await Pickem.findOne({ pickemId: seedData.pickemId });
+  async runWithMutationLock<T>(pickemId: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.mutationTails.get(pickemId) ?? Promise.resolve();
+    let release: () => void = () => undefined;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const tail = previous.then(() => current);
+    this.mutationTails.set(pickemId, tail);
 
-        if (!existing) {
-          const type = seedData.type || "regular";
-          const guildCount = seedData.guildCount ?? 10;
-          const finalRankingsCount = seedData.finalRankingsCount ?? 0;
-          const scoreOutOfRangeGuilds = seedData.scoreOutOfRangeGuilds ?? false;
-
-          await Pickem.create({
-            pickemId: seedData.pickemId,
-            name: seedData.name,
-            type,
-            raidIds: seedData.raidIds || [],
-            guildCount,
-            finalRankingsCount,
-            scoreOutOfRangeGuilds,
-            votingStart: seedData.votingStart,
-            votingEnd: seedData.votingEnd,
-            active: seedData.active,
-            scoringConfig: seedData.scoringConfig || DEFAULT_SCORING_CONFIG,
-            streakConfig: seedData.streakConfig || DEFAULT_STREAK_CONFIG,
-            prizeConfig: seedData.prizeConfig || DEFAULT_PRIZE_CONFIG,
-          });
-          logger.info(`Created pickem: ${seedData.pickemId}`);
-        } else {
-          logger.debug(`Pickem already exists: ${seedData.pickemId}`);
-        }
-      } catch (error) {
-        logger.error(`Error seeding pickem ${seedData.pickemId}:`, error);
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+      if (this.mutationTails.get(pickemId) === tail) {
+        this.mutationTails.delete(pickemId);
       }
     }
-
-    logger.info("Pickem seeding complete");
   }
 
   /**
@@ -189,11 +172,21 @@ class PickemService {
   }
 
   /**
-   * Delete a pickem
+   * Delete a pickem and every user submission associated with it.
    */
-  async deletePickem(pickemId: string): Promise<boolean> {
-    const result = await Pickem.deleteOne({ pickemId });
-    return result.deletedCount > 0;
+  async deletePickem(pickemId: string): Promise<PickemDeletionResult> {
+    return this.runWithMutationLock(pickemId, async () => {
+      await Pickem.updateOne({ pickemId }, { $set: { active: false } });
+      const userResult = await User.updateMany({ "pickems.pickemId": pickemId }, { $pull: { pickems: { pickemId } } });
+      const pickemResult = await Pickem.deleteOne({ pickemId });
+      const result = {
+        pickemDeleted: pickemResult.deletedCount > 0,
+        affectedUsers: userResult.modifiedCount,
+      };
+
+      logger.info(`Deleted pickem ${pickemId}: document=${result.pickemDeleted}, affectedUsers=${result.affectedUsers}`);
+      return result;
+    });
   }
 
   /**

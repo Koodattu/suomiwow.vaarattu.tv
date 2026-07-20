@@ -565,7 +565,7 @@
       "edit": "Edit Pickem",
       "form": {
         "id": "Pickem ID",
-        "idHelp": "Lowercase letters, numbers, and dashes only (e.g., tww-s3)",
+        "idHelp": "Lowercase letters, numbers, and dashes only (e.g., season-one)",
         "name": "Display Name",
         "type": "Pickem Type",
         "typeRegular": "Regular (Finnish Guilds)",
@@ -618,7 +618,8 @@
         "activate": "Activate",
         "deactivate": "Deactivate",
         "delete": "Delete",
-        "deleteConfirm": "Are you sure you want to delete this pickem? This action cannot be undone.",
+        "deleteConfirm": "Are you sure you want to delete this pickem and all user submissions? This action cannot be undone.",
+        "deleteFailed": "The pickem could not be deleted. Please try again.",
         "finalize": "Finalize",
         "finalizeRegularConfirm": "Are you sure you want to finalize this pickem? This will lock the current rankings as final results.",
         "unfinalize": "Unfinalize",

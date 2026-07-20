@@ -3208,7 +3208,7 @@ export default function AdminPage() {
                           value={pickemForm.pickemId}
                           onChange={(e) => setPickemForm({ ...pickemForm, pickemId: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })}
                           className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                          placeholder="tww-s3"
+                          placeholder="season-one"
                           required
                         />
                         <p className="text-xs text-gray-500 mt-1">{t("pickems.form.idHelp")}</p>
@@ -3223,7 +3223,7 @@ export default function AdminPage() {
                         value={pickemForm.name}
                         onChange={(e) => setPickemForm({ ...pickemForm, name: e.target.value })}
                         className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                        placeholder="TWW Season 3: Manaforge Omega"
+                          placeholder="Season One"
                         required
                       />
                     </div>
@@ -3875,12 +3875,14 @@ export default function AdminPage() {
                               onClick={async () => {
                                 if (confirm(t("pickems.table.deleteConfirm"))) {
                                   try {
+                                    setError(null);
                                     await api.deleteAdminPickem(pickem.pickemId);
                                     const pickemsData = await api.getAdminPickems();
                                     setPickems(pickemsData.pickems);
                                     setPickemStats(pickemsData.stats);
                                   } catch (err) {
                                     console.error("Failed to delete pickem:", err);
+                                    setError(t("pickems.table.deleteFailed"));
                                   }
                                 }
                               }}

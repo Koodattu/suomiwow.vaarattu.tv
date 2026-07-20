@@ -2131,11 +2131,21 @@ router.delete("/pickems/:pickemId", async (req: Request, res: Response) => {
     const { pickemId } = req.params;
     const result = await pickemService.deletePickem(pickemId);
 
-    if (!result) {
+    if (!result.pickemDeleted && result.affectedUsers === 0) {
       return res.status(404).json({ error: "Pickem not found" });
     }
 
-    res.json({ success: true, message: "Pickem deleted" });
+    await Promise.all([
+      cacheService.invalidate(cacheService.getPickemLeaderboardKey(pickemId)),
+      cacheService.invalidate(cacheService.getPickemRankingsKey(pickemId)),
+      cacheService.invalidate("pickems:list"),
+    ]);
+
+    res.json({
+      success: true,
+      message: "Pickem and submissions deleted",
+      affectedUsers: result.affectedUsers,
+    });
   } catch (error) {
     logger.error("Error deleting pickem:", error);
     res.status(500).json({ error: "Failed to delete pickem" });

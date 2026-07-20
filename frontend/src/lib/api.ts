@@ -1210,7 +1210,7 @@ export const api = {
     return response.json();
   },
 
-  async deleteAdminPickem(pickemId: string): Promise<{ success: boolean; message: string }> {
+  async deleteAdminPickem(pickemId: string): Promise<{ success: boolean; message: string; affectedUsers: number }> {
     const response = await fetch(`${API_URL}/api/admin/pickems/${pickemId}`, {
       method: "DELETE",
       credentials: "include",
