@@ -8,7 +8,7 @@ import cacheService from "../services/cache.service";
 import { PICK_EM_RWF_GUILDS } from "../config/guilds";
 import { cacheMiddleware } from "../middleware/cache.middleware";
 import logger from "../utils/logger";
-import { isPickemPlaceholderRaidIds } from "../utils/pickemRaid";
+import { isPickemPlaceholderRaidIds, isPickemReferenceRaidId, PICKEM_REFERENCE_RANKINGS_LIMIT } from "../utils/pickemRaid";
 import {
   assertPickemAcceptingPredictions,
   createGuestPickemEntryIfAbsent,
@@ -141,6 +141,33 @@ router.get(
     }
   },
 );
+
+// Get a past raid's rankings as a reference while a Pickem uses the upcoming raid placeholder.
+router.get("/:pickemId/reference-rankings", async (req: Request, res: Response) => {
+  try {
+    const { pickemId } = req.params;
+    const pickem = await pickemService.getPickemById(pickemId);
+
+    if (!pickem || !pickem.active) {
+      return res.status(404).json({ error: "Pickem not found" });
+    }
+
+    if ((pickem.type || "regular") !== "regular" || !isPickemPlaceholderRaidIds(pickem.raidIds)) {
+      return res.status(409).json({ error: "Reference rankings are available only while raid rankings are pending" });
+    }
+
+    const raidId = typeof req.query.raidId === "string" ? Number(req.query.raidId) : NaN;
+    if (!isPickemReferenceRaidId(raidId)) {
+      return res.status(400).json({ error: "Select a past tracked raid tier" });
+    }
+
+    const rankings = await getGuildRankingsForPickem([raidId]);
+    res.json(rankings.slice(0, PICKEM_REFERENCE_RANKINGS_LIMIT));
+  } catch (error) {
+    logger.error("Error fetching Pickem reference rankings:", error);
+    res.status(500).json({ error: "Failed to fetch reference rankings" });
+  }
+});
 
 // Get a specific pickem with leaderboard and user's predictions
 router.get("/:pickemId", async (req: Request, res: Response) => {

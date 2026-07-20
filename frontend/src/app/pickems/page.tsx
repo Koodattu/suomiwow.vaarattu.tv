@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { usePickemsGuilds } from "@/lib/queries";
+import { usePickemReferenceRankings, usePickemsGuilds, useRaids } from "@/lib/queries";
 import {
   clearGuestPickemDraft,
   getGuestPickemDraftStorageKey,
@@ -117,6 +117,134 @@ function GuildAutocomplete({
         </Combobox.Options>
       </div>
     </Combobox>
+  );
+}
+
+function GuildRankingsTable({ rankings, cutoffRank }: { rankings: GuildRanking[]; cutoffRank?: number }) {
+  const t = useTranslations("pickemsPage");
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-gray-400 border-b border-gray-700 text-xs">
+            <th className="text-left py-1.5 px-2">#</th>
+            <th className="text-left py-1.5 px-2">{t("guild")}</th>
+            <th className="text-right py-1.5 px-2">{t("progress")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rankings.slice(0, 15).map((guild) => (
+            <tr
+              key={`${guild.name}-${guild.realm}`}
+              className={`border-b ${guild.rank === cutoffRank ? "border-b-2 border-blue-500/60" : "border-gray-700/50"} ${guild.isComplete ? "bg-green-900/20" : ""}`}
+            >
+              <td className="py-1.5 px-2 text-gray-300 font-medium text-xs">{guild.rank}</td>
+              <td className="py-1.5 px-2">
+                <div className="min-w-0">
+                  <span className="text-white font-medium block truncate text-sm leading-tight">{guild.name}</span>
+                  <span className="text-gray-500 text-xs block truncate leading-tight">{guild.realm}</span>
+                </div>
+              </td>
+              <td className="py-1.5 px-2 text-right whitespace-nowrap">
+                <span className={`text-xs ${guild.isComplete ? "text-green-400" : "text-gray-300"}`}>
+                  {guild.bossesKilled}/{guild.totalBosses}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function HistoricalGuildRankings({ pickemId }: { pickemId: string }) {
+  const t = useTranslations("pickemsPage");
+  const [selectedRaidId, setSelectedRaidId] = useState<number | null>(null);
+  const { data: raids = [], isLoading: raidsLoading, error: raidsError, refetch: refetchRaids } = useRaids();
+  const pastRaids = useMemo(() => raids.filter((raid) => !raid.isCurrent), [raids]);
+
+  useEffect(() => {
+    setSelectedRaidId((currentRaidId) => {
+      if (currentRaidId !== null && pastRaids.some((raid) => raid.id === currentRaidId)) {
+        return currentRaidId;
+      }
+      return pastRaids[0]?.id ?? null;
+    });
+  }, [pastRaids]);
+
+  const {
+    data: rankings = [],
+    isLoading: rankingsLoading,
+    error: rankingsError,
+    refetch: refetchRankings,
+  } = usePickemReferenceRankings(pickemId, selectedRaidId);
+
+  if (raidsLoading) {
+    return <div className="h-16 rounded-md bg-gray-700/50 animate-pulse motion-reduce:animate-none" aria-label={t("historicalRankingsLoading")} />;
+  }
+
+  if (raidsError) {
+    return (
+      <div className="rounded-md bg-red-950/40 px-3 py-3 text-sm text-red-200" role="alert">
+        <p>{t("historicalRaidsLoadFailed")}</p>
+        <button type="button" onClick={() => void refetchRaids()} className="mt-2 font-medium text-red-100 underline underline-offset-2 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300">
+          {t("retry")}
+        </button>
+      </div>
+    );
+  }
+
+  if (pastRaids.length === 0) {
+    return <p className="rounded-md bg-gray-900/50 px-3 py-4 text-sm text-gray-300">{t("noHistoricalRaids")}</p>;
+  }
+
+  return (
+    <div>
+      <label htmlFor={`pickem-reference-raid-${pickemId}`} className="mb-1.5 block text-xs font-medium text-gray-300">
+        {t("historicalRaidLabel")}
+      </label>
+      <select
+        id={`pickem-reference-raid-${pickemId}`}
+        value={selectedRaidId ?? ""}
+        onChange={(event) => setSelectedRaidId(Number(event.target.value))}
+        className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        {pastRaids.map((raid) => (
+          <option key={raid.id} value={raid.id}>
+            {raid.name} — {raid.expansion}
+          </option>
+        ))}
+      </select>
+      <p className="mt-1.5 text-xs leading-relaxed text-gray-400">{t("historicalRankingsHelp")}</p>
+
+      <div className="mt-3" aria-busy={rankingsLoading}>
+        {rankingsLoading ? (
+          <div className="space-y-1.5" role="status">
+            <span className="sr-only">{t("historicalRankingsLoading")}</span>
+            {Array.from({ length: 6 }, (_, index) => (
+              <div key={index} className="h-9 rounded bg-gray-700/50 animate-pulse motion-reduce:animate-none" />
+            ))}
+          </div>
+        ) : rankingsError ? (
+          <div className="rounded-md bg-red-950/40 px-3 py-3 text-sm text-red-200" role="alert">
+            <p>{t("historicalRankingsLoadFailed")}</p>
+            <button
+              type="button"
+              onClick={() => void refetchRankings()}
+              className="mt-2 font-medium text-red-100 underline underline-offset-2 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+            >
+              {t("retry")}
+            </button>
+          </div>
+        ) : rankings.length === 0 ? (
+          <p className="rounded-md bg-gray-900/50 px-3 py-4 text-sm text-gray-300">{t("historicalRankingsEmpty")}</p>
+        ) : (
+          <GuildRankingsTable rankings={rankings} />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1344,40 +1472,9 @@ export default function PickemsPage() {
               <div className="bg-gray-800 rounded-lg p-3 border border-gray-700 self-start">
                 <h3 className="text-base font-semibold text-white mb-2">{t("currentRankings")}</h3>
                 {rankingsPending ? (
-                  <p className="rounded-md bg-gray-900/50 px-3 py-4 text-sm text-gray-300">{t("rankingsPendingEmpty")}</p>
+                  <HistoricalGuildRankings key={pickemDetails.id} pickemId={pickemDetails.id} />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-gray-400 border-b border-gray-700 text-xs">
-                          <th className="text-left py-1.5 px-2">#</th>
-                          <th className="text-left py-1.5 px-2">{t("guild")}</th>
-                          <th className="text-right py-1.5 px-2">{t("progress")}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pickemDetails.guildRankings.slice(0, 15).map((guild) => (
-                          <tr
-                            key={`${guild.name}-${guild.realm}`}
-                            className={`border-b ${guild.rank === pickemDetails.guildCount ? "border-b-2 border-blue-500/60" : "border-gray-700/50"} ${guild.isComplete ? "bg-green-900/20" : ""}`}
-                          >
-                            <td className="py-1.5 px-2 text-gray-300 font-medium text-xs">{guild.rank}</td>
-                            <td className="py-1.5 px-2">
-                              <div className="min-w-0">
-                                <span className="text-white font-medium block truncate text-sm leading-tight">{guild.name}</span>
-                                <span className="text-gray-500 text-xs block truncate leading-tight">{guild.realm}</span>
-                              </div>
-                            </td>
-                            <td className="py-1.5 px-2 text-right whitespace-nowrap">
-                              <span className={`text-xs ${guild.isComplete ? "text-green-400" : "text-gray-300"}`}>
-                                {guild.bossesKilled}/{guild.totalBosses}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <GuildRankingsTable rankings={pickemDetails.guildRankings} cutoffRank={pickemDetails.guildCount} />
                 )}
               </div>
             )}

@@ -60,6 +60,7 @@ import {
   PickemSummary,
   PickemDetails,
   PickemPrediction,
+  GuildRanking,
   GuestPickemImportResult,
   SimpleGuild,
   AdminPickemsResponse,
@@ -1103,6 +1104,15 @@ export const api = {
       credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to fetch pickem details");
+    return response.json();
+  },
+
+  async getPickemReferenceRankings(pickemId: string, raidId: number): Promise<GuildRanking[]> {
+    const response = await fetch(`${API_URL}/api/pickems/${encodeURIComponent(pickemId)}/reference-rankings?raidId=${raidId}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || "Failed to fetch reference rankings");
+    }
     return response.json();
   },
 

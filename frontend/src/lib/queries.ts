@@ -62,6 +62,7 @@ export const queryKeys = {
     list: ["pickems", "list"] as const,
     guilds: ["pickems", "guilds"] as const,
     rwfGuilds: ["pickems", "rwfGuilds"] as const,
+    referenceRankings: (pickemId: string, raidId: number) => ["pickems", "referenceRankings", pickemId, raidId] as const,
   },
   characterRankings: {
     options: ["characterRankings", "options"] as const,
@@ -329,6 +330,15 @@ export function usePickemsGuilds(raidType: string) {
     queryKey: raidType === "overall" ? queryKeys.pickems.guilds : queryKeys.pickems.rwfGuilds,
     queryFn: () => (raidType === "overall" ? api.getPickemsGuilds() : api.getPickemsRwfGuilds()),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function usePickemReferenceRankings(pickemId: string, raidId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.pickems.referenceRankings(pickemId, raidId!),
+    queryFn: () => api.getPickemReferenceRankings(pickemId, raidId!),
+    enabled: !!pickemId && raidId !== null,
+    staleTime: 24 * 60 * 60 * 1000,
   });
 }
 
