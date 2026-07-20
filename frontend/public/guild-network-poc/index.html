@@ -133,6 +133,16 @@
         cursor: pointer;
       }
 
+      button.glink {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        padding: 0;
+        font: inherit;
+        font-weight: inherit;
+      }
+
       .glink:hover {
         color: var(--blue);
         text-decoration: underline;
@@ -710,6 +720,41 @@
         color: var(--muted);
         font-size: 0.76rem;
         line-height: 1.5;
+      }
+
+      .movement-route-total {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: baseline;
+        gap: 4px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .movement-route-unit {
+        color: var(--quiet);
+        font-size: 0.68rem;
+        font-weight: 700;
+      }
+
+      .movement-route-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 3px 5px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .movement-route-separator {
+        color: var(--quiet);
+      }
+
+      .movement-route-movers {
+        gap: 5px;
+      }
+
+      .movement-contribution {
+        font-variant-numeric: tabular-nums;
+        opacity: 0.72;
       }
 
       .movement-change {
@@ -2002,11 +2047,19 @@
             const key = `${transition.from.g}:${transition.to.g}`;
             let flow = flows.get(key);
             if (!flow) {
-              flow = { a: transition.from.g, b: transition.to.g, n: 0, entities: [] };
+              flow = { a: transition.from.g, b: transition.to.g, n: 0, contributors: new Map() };
               flows.set(key, flow);
             }
             flow.n += 1;
-            if (flow.entities.length < 30) flow.entities.push(entityIndex);
+            let contributor = flow.contributors.get(entityIndex);
+            if (!contributor) {
+              contributor = { count: 0, altCounts: new Map() };
+              flow.contributors.set(entityIndex, contributor);
+            }
+            contributor.count += 1;
+            for (const altIndex of transition.altIndexes || []) {
+              contributor.altCounts.set(altIndex, (contributor.altCounts.get(altIndex) || 0) + 1);
+            }
             changes += 1;
           }
 
@@ -3199,11 +3252,62 @@
           .join("");
       }
 
+      function movementRouteSummaries(flows) {
+        const routes = new Map();
+        for (const flow of flows) {
+          const a = Math.min(flow.a, flow.b);
+          const b = Math.max(flow.a, flow.b);
+          const key = `${a}:${b}`;
+          let route = routes.get(key);
+          if (!route) {
+            route = { a, b, total: 0, ab: 0, ba: 0, contributors: new Map() };
+            routes.set(key, route);
+          }
+          route.total += flow.n;
+          if (flow.a === a && flow.b === b) route.ab += flow.n;
+          else route.ba += flow.n;
+
+          for (const [entityIndex, contribution] of flow.contributors) {
+            let contributor = route.contributors.get(entityIndex);
+            if (!contributor) {
+              contributor = { count: 0, altCounts: new Map() };
+              route.contributors.set(entityIndex, contributor);
+            }
+            contributor.count += contribution.count;
+            for (const [altIndex, count] of contribution.altCounts) {
+              contributor.altCounts.set(altIndex, (contributor.altCounts.get(altIndex) || 0) + count);
+            }
+          }
+        }
+        return Array.from(routes.values()).sort((a, b) => b.total - a.total || a.a - b.a || a.b - b.b);
+      }
+
+      function movementEntityCountLabel(count) {
+        const label = isAccountMode()
+          ? count === 1 ? networkCopy.account : networkCopy.accountCountUnit
+          : count === 1 ? networkCopy.singleCharacter : networkCopy.characterCountUnit;
+        return `${fmt(count)} ${String(label).toLocaleLowerCase(networkLocale)}`;
+      }
+
+      function movementContributorClassID(derived, entityIndex, contributor) {
+        let representativeAlt = null;
+        let representativeCount = -1;
+        for (const [altIndex, count] of contributor.altCounts) {
+          if (count > representativeCount || (count === representativeCount && (representativeAlt === null || altIndex < representativeAlt))) {
+            representativeAlt = altIndex;
+            representativeCount = count;
+          }
+        }
+        const entity = derived.entities[entityIndex];
+        const altIndex = representativeAlt ?? entity.memberIndexes[0];
+        return derived.model.characters[altIndex]?.classID || entity.classID || 0;
+      }
+
       function renderMovementSummary(derived) {
         const frame = derived.frame;
         els.insTitle.textContent = networkCopy.movementSummary;
         els.insSub.textContent = networkCopy.clickMovementEntity;
-        const flows = frame.flows.slice().sort((a, b) => b.n - a.n || a.a - b.a || a.b - b.b);
+        const routes = movementRouteSummaries(frame.flows);
         els.insBody.innerHTML = `
           <section class="panel">
             <div class="card movement-note">${esc(isAccountMode() ? networkCopy.accountMovementDescription : networkCopy.movementDescription)}</div>
@@ -3211,22 +3315,44 @@
           <section class="panel">
             <h3>${esc(networkCopy.biggestFlows)}</h3>
             <div class="list">
-              ${flows.length ? flows.slice(0, 10).map((flow) => `
-                <div class="card">
+              ${routes.length ? routes.slice(0, 10).map((route) => {
+                const contributors = Array.from(route.contributors.entries()).sort((a, b) => {
+                  const countDifference = b[1].count - a[1].count;
+                  if (countDifference) return countDifference;
+                  return derived.entities[a[0]].name.localeCompare(derived.entities[b[0]].name) || a[0] - b[0];
+                });
+                const shown = contributors.slice(0, 4);
+                const extra = contributors.length - shown.length;
+                const changesLabel = route.total === 1 ? networkCopy.singleChange : networkCopy.changeCountUnit;
+                const direction = route.ab > 0 && route.ba > 0 ? "⇄" : route.ab > 0 ? "→" : "←";
+                const directionCounts = [
+                  route.ab > 0 ? `<span>${fmt(route.ab)} →</span>` : "",
+                  route.ba > 0 ? `<span>${fmt(route.ba)} ←</span>` : "",
+                ].filter(Boolean).join(`<span class="movement-route-separator">·</span>`);
+                return `<div class="card">
                   <div class="row-main">
-                    <span><span class="glink" data-sel-guild="${flow.a}">${guildIdentityHtml(flow.a, { realmIfDuplicate: true })}</span> → <span class="glink" data-sel-guild="${flow.b}">${guildIdentityHtml(flow.b, { realmIfDuplicate: true })}</span></span>
-                    <span>${fmt(flow.n)}</span>
+                    <span><button class="glink" type="button" data-sel-guild="${route.a}">${guildIdentityHtml(route.a, { realmIfDuplicate: true })}</button> ${direction} <button class="glink" type="button" data-sel-guild="${route.b}">${guildIdentityHtml(route.b, { realmIfDuplicate: true })}</button></span>
+                    <span class="movement-route-total">
+                      <span>${fmt(route.total)}</span>
+                      <span class="movement-route-unit">${esc(changesLabel)}</span>
+                    </span>
                   </div>
-                  <div class="char-refs">
-                    ${flow.entities.slice(0, 8).map((entityIndex) => {
+                  <div class="row-sub movement-route-meta">
+                    ${directionCounts}
+                    <span class="movement-route-separator">·</span>
+                    <span>${esc(movementEntityCountLabel(contributors.length))}</span>
+                  </div>
+                  <div class="char-refs movement-route-movers">
+                    ${shown.map(([entityIndex, contributor]) => {
                       const entity = derived.entities[entityIndex];
-                      const timeline = derived.timelines[entityIndex];
-                      const transition = timeline.visibleTransitions.find((candidate) => candidate.from.g === flow.a && candidate.to.g === flow.b && candidate.time <= frame.cutoff);
-                      const classID = derived.model.characters[transition?.altIndexes?.[0] ?? entity.memberIndexes[0]]?.classID || entity.classID;
-                      return `<button class="chip" type="button" data-sel-movement="${entityIndex}" style="color:${CLASS_COLORS[classID] || CLASS_COLORS[0]}">${esc(entity.name)}</button>`;
+                      const classID = movementContributorClassID(derived, entityIndex, contributor);
+                      const count = contributor.count > 1 ? `<span class="movement-contribution">×${fmt(contributor.count)}</span>` : "";
+                      return `<button class="chip" type="button" data-sel-movement="${entityIndex}" style="color:${CLASS_COLORS[classID] || CLASS_COLORS[0]}">${esc(entity.name)}${count}</button>`;
                     }).join("")}
+                    ${extra > 0 ? `<span class="char-more">+${fmt(extra)} ${esc(networkCopy.moreMovers)}</span>` : ""}
                   </div>
-                </div>`).join("") : `<div class="card"><div class="row-sub">${esc(networkCopy.noObservedChanges)}</div></div>`}
+                </div>`;
+              }).join("") : `<div class="card"><div class="row-sub">${esc(networkCopy.noObservedChanges)}</div></div>`}
             </div>
           </section>`;
         bindInspectorActions();
