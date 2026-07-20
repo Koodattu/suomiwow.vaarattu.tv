@@ -1,4 +1,10 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+
 export default function PickemsRules() {
+  const t = useTranslations("pickemsRulesPage");
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">
       <h1 className="text-4xl font-bold mb-8">Pickems Rules & Info</h1>
@@ -16,7 +22,7 @@ export default function PickemsRules() {
         <section>
           <h2 className="text-2xl font-semibold mb-3 text-white">2. How It Works</h2>
           <ul className="list-disc list-inside space-y-1 ml-2">
-            <li>Log in with your Discord account</li>
+            <li>{t("participation")}</li>
             <li>Find an active pickem on the Pickems page</li>
             <li>Drag and drop guilds into your predicted finishing order</li>
             <li>Submit your predictions before the deadline</li>
@@ -28,7 +34,19 @@ export default function PickemsRules() {
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold mb-3 text-white">3. Scoring</h2>
+          <h2 className="text-2xl font-semibold mb-3 text-white">3. {t("guestTitle")}</h2>
+          <p>{t("guestDescription")}</p>
+          <ul className="mt-3 list-disc list-inside space-y-1 ml-2">
+            <li>{t("guestLocalOnly")}</li>
+            <li>{t("guestEligibility")}</li>
+            <li>{t("guestImport")}</li>
+            <li>{t("guestDeadline")}</li>
+            <li>{t("guestExisting")}</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2 className="text-2xl font-semibold mb-3 text-white">4. Scoring</h2>
           <p className="mb-3">Your score is based on how close your predicted position is to each guild&apos;s actual finishing position. The default scoring system is:</p>
           <ul className="list-disc list-inside space-y-1 ml-2">
             <li>
@@ -57,7 +75,7 @@ export default function PickemsRules() {
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold mb-3 text-white">4. Prizes</h2>
+          <h2 className="text-2xl font-semibold mb-3 text-white">5. Prizes</h2>
           <p className="mb-3">
             The site creator may offer World of Warcraft in-game gold as prizes for top finishers. This is done purely for fun and to give the community something extra to compete
             for.
@@ -71,7 +89,7 @@ export default function PickemsRules() {
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold mb-3 text-white">5. Fair Play</h2>
+          <h2 className="text-2xl font-semibold mb-3 text-white">6. Fair Play</h2>
           <p className="mb-3">Keep it fair and fun for everyone:</p>
           <ul className="list-disc list-inside space-y-1 ml-2">
             <li>One entry per user per pickem — don&apos;t create multiple accounts</li>
@@ -82,7 +100,7 @@ export default function PickemsRules() {
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold mb-3 text-white">6. Important Notes</h2>
+          <h2 className="text-2xl font-semibold mb-3 text-white">7. Important Notes</h2>
           <ul className="list-disc list-inside space-y-1 ml-2">
             <li>Pickems is a community game run entirely for fun — it is not gambling</li>
             <li>No real money is involved at any point, only in-game WoW gold</li>
@@ -93,7 +111,7 @@ export default function PickemsRules() {
         </section>
 
         <div className="mt-8 pt-6 border-t border-gray-700 text-sm text-gray-400">
-          <p>Last updated: March 21, 2026</p>
+          <p>Last updated: July 20, 2026</p>
         </div>
       </div>
     </div>

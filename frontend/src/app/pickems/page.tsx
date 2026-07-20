@@ -4,6 +4,14 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { usePickemsGuilds } from "@/lib/queries";
+import {
+  clearGuestPickemDraft,
+  getGuestPickemDraftStorageKey,
+  GuestPickemDraft,
+  readGuestPickemDraft,
+  saveGuestPickemDraft,
+  setGuestPickemPendingImport,
+} from "@/lib/pickem-guest-drafts";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/context/AuthContext";
 import { PickemSummary, PickemDetails, PickemPrediction, SimpleGuild, LeaderboardEntry, GuildRanking, PrizeConfig } from "@/types";
@@ -635,16 +643,32 @@ function getUrlPickemId() {
   return new URLSearchParams(window.location.search).get("pickem");
 }
 
+type PredictionSource = "empty" | "server" | "guest";
+type GuestDraftNotice = "saved" | "storage_error" | "existing" | "closed" | null;
+
+function placePredictions(predictions: PickemPrediction[], guildCount: number): (PickemPrediction | null)[] {
+  const placedPredictions: (PickemPrediction | null)[] = Array(guildCount).fill(null);
+  predictions.forEach((prediction) => {
+    if (prediction.position >= 1 && prediction.position <= guildCount) {
+      placedPredictions[prediction.position - 1] = prediction;
+    }
+  });
+  return placedPredictions;
+}
+
 export default function PickemsPage() {
   const t = useTranslations("pickemsPage");
   const router = useRouter();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, login } = useAuth();
 
   const [pickems, setPickems] = useState<PickemSummary[]>([]);
   const [selectedPickemId, setSelectedPickemId] = useState<string | null>(null);
   const [pickemDetails, setPickemDetails] = useState<PickemDetails | null>(null);
 
   const [predictions, setPredictions] = useState<(PickemPrediction | null)[]>([]);
+  const [predictionSource, setPredictionSource] = useState<PredictionSource>("empty");
+  const [guestDraft, setGuestDraft] = useState<GuestPickemDraft | null>(null);
+  const [guestDraftNotice, setGuestDraftNotice] = useState<GuestDraftNotice>(null);
   const [loading, setLoading] = useState(true);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -652,15 +676,25 @@ export default function PickemsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showScoringInfo, setShowScoringInfo] = useState(false);
   const [droppingIndex, setDroppingIndex] = useState<number | null>(null);
+  const automaticImportAttemptRef = useRef<string | null>(null);
+  const selectedPickemIdRef = useRef<string | null>(null);
 
   const raidType = pickems.find((p) => p.id === selectedPickemId)?.type === "rwf" ? "rwf" : "overall";
   const { data: guildsData = [] } = usePickemsGuilds(raidType);
 
   useEffect(() => {
     const syncSelectedPickemFromUrl = () => {
-      setSelectedPickemId(getUrlPickemId());
+      const nextPickemId = getUrlPickemId();
+      selectedPickemIdRef.current = nextPickemId;
+      setSelectedPickemId(nextPickemId);
       setPickemDetails(null);
+      setDetailsLoading(nextPickemId !== null);
       setPredictions([]);
+      setPredictionSource("empty");
+      setGuestDraft(null);
+      setGuestDraftNotice(null);
+      automaticImportAttemptRef.current = null;
+      setSubmitting(false);
       setError(null);
       setSuccessMessage(null);
     };
@@ -671,9 +705,50 @@ export default function PickemsPage() {
     return () => window.removeEventListener("popstate", syncSelectedPickemFromUrl);
   }, []);
 
+  const hydratePickemDetails = useCallback((details: PickemDetails) => {
+    setPickemDetails(details);
+
+    const guildCount = details.guildCount || 10;
+    const storedGuestDraft = readGuestPickemDraft(details.id, guildCount);
+
+    if (details.userPredictions && details.userPredictions.length > 0) {
+      setPredictions(placePredictions(details.userPredictions, guildCount));
+      setPredictionSource("server");
+
+      if (storedGuestDraft?.pendingImport) {
+        const resolvedDraft = setGuestPickemPendingImport(details.id, guildCount, false);
+        setGuestDraft(resolvedDraft);
+        setGuestDraftNotice("existing");
+      } else {
+        setGuestDraft(storedGuestDraft);
+      }
+      return;
+    }
+
+    if (storedGuestDraft) {
+      setPredictions(storedGuestDraft.predictions);
+      setPredictionSource("guest");
+      setGuestDraft(storedGuestDraft);
+      return;
+    }
+
+    setPredictions(Array(guildCount).fill(null));
+    setPredictionSource("empty");
+    setGuestDraft(null);
+  }, []);
+
   const handlePickemSelect = useCallback(
     (id: string | null) => {
+      selectedPickemIdRef.current = id;
       setSelectedPickemId(id);
+      setPickemDetails(null);
+      setDetailsLoading(id !== null);
+      setPredictions([]);
+      setPredictionSource("empty");
+      setGuestDraft(null);
+      setGuestDraftNotice(null);
+      automaticImportAttemptRef.current = null;
+      setSubmitting(false);
       setError(null);
       setSuccessMessage(null);
       router.push(id ? `/pickems?pickem=${encodeURIComponent(id)}` : "/pickems");
@@ -714,48 +789,86 @@ export default function PickemsPage() {
   useEffect(() => {
     if (!selectedPickemId) {
       setPickemDetails(null);
+      setDetailsLoading(false);
       return;
     }
+
+    const requestedPickemId = selectedPickemId;
+    let cancelled = false;
 
     const fetchDetails = async () => {
       try {
         setDetailsLoading(true);
         setPickemDetails(null);
         setError(null);
-        const details = await api.getPickemDetails(selectedPickemId);
-        setPickemDetails(details);
-
-        const guildCount = details.guildCount || 10;
-
-        // Both RWF and regular pickems use the same prediction format
-        if (details.userPredictions && details.userPredictions.length > 0) {
-          const newPredictions: (PickemPrediction | null)[] = Array(guildCount).fill(null);
-          details.userPredictions.forEach((p) => {
-            if (p.position >= 1 && p.position <= guildCount) {
-              newPredictions[p.position - 1] = p;
-            }
-          });
-          setPredictions(newPredictions);
-        } else {
-          setPredictions(Array(guildCount).fill(null));
-        }
+        const details = await api.getPickemDetails(requestedPickemId);
+        if (cancelled || selectedPickemIdRef.current !== requestedPickemId || details.id !== requestedPickemId) return;
+        hydratePickemDetails(details);
       } catch (err) {
+        if (cancelled || selectedPickemIdRef.current !== requestedPickemId) return;
         setPickemDetails(null);
         setPredictions([]);
         setError("Failed to load pickem details");
         console.error(err);
       } finally {
+        if (cancelled || selectedPickemIdRef.current !== requestedPickemId) return;
         setDetailsLoading(false);
       }
     };
 
-    fetchDetails();
-  }, [selectedPickemId]);
+    void fetchDetails();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPickemId, user, hydratePickemDetails]);
+
+  useEffect(() => {
+    if (!selectedPickemId || !pickemDetails || predictionSource === "server") return;
+
+    const requestedPickemId = selectedPickemId;
+    const guildCount = pickemDetails.guildCount || 10;
+    const storageKey = getGuestPickemDraftStorageKey(requestedPickemId);
+
+    const syncGuestDraft = (event: StorageEvent) => {
+      if (event.key !== storageKey || selectedPickemIdRef.current !== requestedPickemId) return;
+
+      const storedGuestDraft = readGuestPickemDraft(requestedPickemId, guildCount);
+      setGuestDraft(storedGuestDraft);
+
+      if (storedGuestDraft) {
+        setPredictions(storedGuestDraft.predictions);
+        setPredictionSource("guest");
+      } else {
+        setPredictions(Array(guildCount).fill(null));
+        setPredictionSource("empty");
+      }
+    };
+
+    window.addEventListener("storage", syncGuestDraft);
+    return () => window.removeEventListener("storage", syncGuestDraft);
+  }, [selectedPickemId, pickemDetails, predictionSource]);
+
+  const persistGuestPredictions = useCallback(
+    (nextPredictions: (PickemPrediction | null)[]) => {
+      if (!selectedPickemId || !pickemDetails) return;
+
+      const savedDraft = saveGuestPickemDraft(selectedPickemId, pickemDetails.guildCount || 10, nextPredictions);
+      if (!savedDraft) {
+        setGuestDraftNotice("storage_error");
+        return;
+      }
+
+      setGuestDraft(savedDraft);
+      setPredictionSource("guest");
+      setGuestDraftNotice("saved");
+    },
+    [selectedPickemId, pickemDetails],
+  );
 
   // Handle prediction change (unified for both regular and RWF)
-  const handlePredictionChange = useCallback((position: number, guild: { guildName: string; realm: string } | null) => {
-    setPredictions((prev) => {
-      const newPredictions = [...prev];
+  const handlePredictionChange = useCallback(
+    (position: number, guild: { guildName: string; realm: string } | null) => {
+      const newPredictions = [...predictions];
       if (guild) {
         newPredictions[position - 1] = {
           guildName: guild.guildName,
@@ -765,74 +878,211 @@ export default function PickemsPage() {
       } else {
         newPredictions[position - 1] = null;
       }
-      return newPredictions;
-    });
-    setSuccessMessage(null);
-  }, []);
+
+      setPredictions(newPredictions);
+      if (!user || predictionSource === "guest") {
+        persistGuestPredictions(newPredictions);
+      }
+      setError(null);
+      setSuccessMessage(null);
+    },
+    [predictions, user, predictionSource, persistGuestPredictions],
+  );
 
   // Handle drag end with dnd-kit
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      setPredictions((prev) => {
-        const oldIndex = prev.findIndex((_, idx) => `prediction-${idx}` === active.id);
-        const newIndex = prev.findIndex((_, idx) => `prediction-${idx}` === over.id);
+      const oldIndex = predictions.findIndex((_, idx) => `prediction-${idx}` === active.id);
+      const newIndex = predictions.findIndex((_, idx) => `prediction-${idx}` === over.id);
 
-        if (oldIndex === -1 || newIndex === -1) return prev;
+      if (oldIndex === -1 || newIndex === -1) return;
 
-        setDroppingIndex(newIndex);
-        setTimeout(() => setDroppingIndex(null), 150);
+      setDroppingIndex(newIndex);
+      setTimeout(() => setDroppingIndex(null), 150);
 
-        const newPredictions = arrayMove(prev, oldIndex, newIndex);
-
-        return newPredictions.map((pred, idx) => {
-          if (pred) {
-            return { ...pred, position: idx + 1 };
-          }
-          return null;
-        });
+      const newPredictions = arrayMove(predictions, oldIndex, newIndex).map((prediction, index) => {
+        if (prediction) {
+          return { ...prediction, position: index + 1 };
+        }
+        return null;
       });
+
+      setPredictions(newPredictions);
+      if (!user || predictionSource === "guest") {
+        persistGuestPredictions(newPredictions);
+      }
+      setError(null);
       setSuccessMessage(null);
     }
   };
 
-  // Submit predictions (unified for both regular and RWF)
-  const handleSubmit = async () => {
-    if (!selectedPickemId || !pickemDetails) return;
-
+  const getCompletePredictions = useCallback((): PickemPrediction[] | null => {
+    if (!pickemDetails) return null;
     const guildCount = pickemDetails.guildCount || 10;
     const filledPredictions = predictions.filter((p): p is PickemPrediction => p !== null);
 
     if (filledPredictions.length !== guildCount) {
       setError(t("fillAllPositions", { count: guildCount }));
-      return;
+      return null;
     }
 
-    // Check for duplicates
     const guildKeys = new Set<string>();
     for (const pred of filledPredictions) {
-      const key = `${pred.guildName}-${pred.realm}`;
+      const key = `${pred.guildName}\u0000${pred.realm}`;
       if (guildKeys.has(key)) {
-        setError(`Duplicate guild: ${pred.guildName}`);
-        return;
+        setError(t("duplicateGuild", { guild: pred.guildName }));
+        return null;
       }
       guildKeys.add(key);
+    }
+
+    return filledPredictions;
+  }, [pickemDetails, predictions, t]);
+
+  const refreshSelectedPickemDetails = useCallback(async () => {
+    if (!selectedPickemId) return;
+    const requestedPickemId = selectedPickemId;
+    const details = await api.getPickemDetails(requestedPickemId);
+    if (selectedPickemIdRef.current !== requestedPickemId || details.id !== requestedPickemId) return;
+    hydratePickemDetails(details);
+  }, [selectedPickemId, hydratePickemDetails]);
+
+  const importGuestPredictions = useCallback(async () => {
+    if (!selectedPickemId || !pickemDetails || pickemDetails.id !== selectedPickemId) return;
+    const requestedPickemId = selectedPickemId;
+    const guildCount = pickemDetails.guildCount || 10;
+    const filledPredictions = getCompletePredictions();
+    if (!filledPredictions) {
+      const resolvedDraft = setGuestPickemPendingImport(requestedPickemId, guildCount, false);
+      if (selectedPickemIdRef.current === requestedPickemId) {
+        setGuestDraft(resolvedDraft);
+      }
+      return;
     }
 
     try {
       setSubmitting(true);
       setError(null);
-      const result = await api.submitPickemPredictions(selectedPickemId, filledPredictions);
-      setSuccessMessage(result.message);
-      setTimeout(() => setSuccessMessage(null), 3000);
+      const result = await api.importGuestPickemPredictions(requestedPickemId, filledPredictions);
 
-      const details = await api.getPickemDetails(selectedPickemId);
-      setPickemDetails(details);
+      if (result.status === "imported") {
+        clearGuestPickemDraft(requestedPickemId);
+        if (selectedPickemIdRef.current !== requestedPickemId) return;
+
+        setGuestDraft(null);
+        setGuestDraftNotice(null);
+        setSuccessMessage(t("guestImportSuccess"));
+        try {
+          await refreshSelectedPickemDetails();
+        } catch (refreshError) {
+          console.error("Guest predictions were imported, but Pickem details could not be refreshed:", refreshError);
+          if (selectedPickemIdRef.current === requestedPickemId) {
+            setPredictionSource("server");
+          }
+        }
+        return;
+      }
+
+      const resolvedDraft = setGuestPickemPendingImport(requestedPickemId, guildCount, false);
+      if (selectedPickemIdRef.current !== requestedPickemId) return;
+
+      setGuestDraft(resolvedDraft);
+
+      if (result.status === "already_exists") {
+        setGuestDraftNotice("existing");
+        try {
+          await refreshSelectedPickemDetails();
+        } catch (refreshError) {
+          console.error("Account predictions were preserved, but Pickem details could not be refreshed:", refreshError);
+        }
+      } else {
+        setGuestDraftNotice("closed");
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit predictions");
+      const resolvedDraft = setGuestPickemPendingImport(requestedPickemId, guildCount, false);
+      if (selectedPickemIdRef.current !== requestedPickemId) return;
+
+      setGuestDraft(resolvedDraft);
+      setError(err instanceof Error ? err.message : t("guestImportFailed"));
     } finally {
-      setSubmitting(false);
+      if (selectedPickemIdRef.current === requestedPickemId) {
+        setSubmitting(false);
+      }
+    }
+  }, [selectedPickemId, pickemDetails, getCompletePredictions, refreshSelectedPickemDetails, t]);
+
+  useEffect(() => {
+    if (!user || !selectedPickemId || !pickemDetails || predictionSource !== "guest" || !guestDraft?.pendingImport) {
+      return;
+    }
+
+    const attemptKey = `${user.discord.username}\u0000${selectedPickemId}\u0000${guestDraft.updatedAt}`;
+    if (automaticImportAttemptRef.current === attemptKey) {
+      return;
+    }
+    automaticImportAttemptRef.current = attemptKey;
+
+    if (!pickemDetails.isVotingOpen) {
+      const resolvedDraft = setGuestPickemPendingImport(selectedPickemId, pickemDetails.guildCount || 10, false);
+      setGuestDraft(resolvedDraft);
+      setGuestDraftNotice("closed");
+      return;
+    }
+
+    void importGuestPredictions();
+  }, [user, selectedPickemId, pickemDetails, predictionSource, guestDraft, importGuestPredictions]);
+
+  const handleGuestLogin = async () => {
+    if (!selectedPickemId || !pickemDetails) return;
+    const filledPredictions = getCompletePredictions();
+    if (!filledPredictions) return;
+
+    const pendingDraft = saveGuestPickemDraft(selectedPickemId, pickemDetails.guildCount || 10, filledPredictions, { pendingImport: true });
+    if (!pendingDraft) {
+      setGuestDraftNotice("storage_error");
+      return;
+    }
+
+    setGuestDraft(pendingDraft);
+    setPredictionSource("guest");
+    await login(`/pickems?pickem=${encodeURIComponent(selectedPickemId)}`);
+  };
+
+  // Submit or update account predictions.
+  const handleSubmit = async () => {
+    if (!selectedPickemId || !pickemDetails || pickemDetails.id !== selectedPickemId) return;
+
+    if (predictionSource === "guest") {
+      await importGuestPredictions();
+      return;
+    }
+
+    const requestedPickemId = selectedPickemId;
+    const filledPredictions = getCompletePredictions();
+    if (!filledPredictions) return;
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      const result = await api.submitPickemPredictions(requestedPickemId, filledPredictions);
+      if (selectedPickemIdRef.current !== requestedPickemId) return;
+
+      setSuccessMessage(result.message);
+      setTimeout(() => {
+        if (selectedPickemIdRef.current === requestedPickemId) {
+          setSuccessMessage(null);
+        }
+      }, 3000);
+      await refreshSelectedPickemDetails();
+    } catch (err) {
+      if (selectedPickemIdRef.current !== requestedPickemId) return;
+      setError(err instanceof Error ? err.message : t("submitFailed"));
+    } finally {
+      if (selectedPickemIdRef.current === requestedPickemId) {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -985,8 +1235,34 @@ export default function PickemsPage() {
                 <h3 className="text-base font-semibold text-white mb-3">{t("yourPredictions")}</h3>
 
                 {!user && !authLoading && (
-                  <div className="mb-3 p-2.5 bg-yellow-900/50 border border-yellow-700 rounded-md">
-                    <p className="text-yellow-300 text-sm">{t("loginToVote")}</p>
+                  <div className="mb-3 rounded-lg border border-blue-700/60 bg-blue-950/40 p-3">
+                    <p className="text-sm font-semibold text-blue-200">{t("guestModeTitle")}</p>
+                    <p className="mt-1 text-sm text-blue-100/80">{pickemDetails.isVotingOpen ? t("guestModeDescription") : t("guestModeClosed")}</p>
+                  </div>
+                )}
+
+                {user && predictionSource === "guest" && pickemDetails.isVotingOpen && (
+                  <div className="mb-3 rounded-lg border border-amber-700/60 bg-amber-950/35 p-3">
+                    <p className="text-sm font-semibold text-amber-200">{t("guestDraftReadyTitle")}</p>
+                    <p className="mt-1 text-sm text-amber-100/80">{t("guestDraftReadyDescription")}</p>
+                  </div>
+                )}
+
+                {guestDraftNotice === "existing" && (
+                  <div className="mb-3 rounded-lg border border-amber-700/60 bg-amber-950/35 p-3" role="status">
+                    <p className="text-sm text-amber-100">{t("guestImportExisting")}</p>
+                  </div>
+                )}
+
+                {(guestDraftNotice === "closed" || (user && predictionSource === "guest" && !pickemDetails.isVotingOpen)) && (
+                  <div className="mb-3 rounded-lg border border-amber-700/60 bg-amber-950/35 p-3" role="status">
+                    <p className="text-sm text-amber-100">{t("guestImportClosed")}</p>
+                  </div>
+                )}
+
+                {guestDraftNotice === "storage_error" && (
+                  <div className="mb-3 rounded-lg border border-red-700/60 bg-red-950/40 p-3" role="alert">
+                    <p className="text-sm text-red-200">{t("guestStorageFailed")}</p>
                   </div>
                 )}
 
@@ -1012,7 +1288,7 @@ export default function PickemsPage() {
                             key={`prediction-${i}`}
                             data={itemData}
                             guilds={sortedGuilds}
-                            disabled={!user || !pickemDetails.isVotingOpen}
+                            disabled={!pickemDetails.isVotingOpen || submitting}
                             excludeGuilds={getExcludedGuilds(position)}
                             onChange={handlePredictionChange}
                             droppingIndex={droppingIndex}
@@ -1023,25 +1299,40 @@ export default function PickemsPage() {
                   </SortableContext>
                 </DndContext>
 
-                {user &&
+                {predictionSource === "guest" && guestDraft && guestDraftNotice === "saved" && (
+                  <p className="mt-3 flex items-center gap-2 text-xs text-emerald-300" role="status">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+                    {t("guestDraftSaved")}
+                  </p>
+                )}
+
+                {!authLoading &&
                   pickemDetails.isVotingOpen &&
                   (successMessage ? (
                     <div className="mt-4 w-full px-4 py-3 bg-green-800/60 border border-green-600 rounded-md text-center">
                       <p className="text-green-300 text-sm font-medium">{successMessage}</p>
                     </div>
+                  ) : !user ? (
+                    <button
+                      onClick={handleGuestLogin}
+                      disabled={submitting}
+                      className="mt-4 w-full rounded-md bg-indigo-600 px-4 py-3 font-medium text-white transition-colors hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800 disabled:cursor-not-allowed disabled:bg-gray-600"
+                    >
+                      {t("guestLoginAndSubmit")}
+                    </button>
                   ) : (
                     <button
                       onClick={handleSubmit}
                       disabled={submitting}
-                      className="mt-4 w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-md transition-colors"
+                      className="mt-4 w-full rounded-md bg-blue-600 px-4 py-3 font-medium text-white transition-colors hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800 disabled:cursor-not-allowed disabled:bg-gray-600"
                     >
                       {submitting ? (
                         <span className="flex items-center justify-center gap-2">
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          {t("submitting")}
+                          {predictionSource === "guest" ? t("guestImporting") : t("submitting")}
                         </span>
                       ) : (
-                        t("submitPredictions")
+                        t(predictionSource === "guest" ? "guestImportButton" : "submitPredictions")
                       )}
                     </button>
                   ))}

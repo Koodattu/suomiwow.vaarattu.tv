@@ -1359,6 +1359,13 @@ export interface PickemPrediction {
   position: number;
 }
 
+export type GuestPickemImportStatus = "imported" | "already_exists" | "voting_closed";
+
+export interface GuestPickemImportResult {
+  status: GuestPickemImportStatus;
+  message?: string;
+}
+
 export interface UserPickemEntry {
   pickemId: string;
   pickemName: string | null;

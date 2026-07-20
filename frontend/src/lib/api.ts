@@ -60,6 +60,7 @@ import {
   PickemSummary,
   PickemDetails,
   PickemPrediction,
+  GuestPickemImportResult,
   SimpleGuild,
   AdminPickemsResponse,
   AdminPickem,
@@ -1119,6 +1120,35 @@ export const api = {
       throw new Error(error.error || "Failed to submit predictions");
     }
     return response.json();
+  },
+
+  async importGuestPickemPredictions(pickemId: string, predictions: PickemPrediction[]): Promise<GuestPickemImportResult> {
+    const response = await fetch(`${API_URL}/api/pickems/${pickemId}/import-guest`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ predictions }),
+    });
+
+    const body = (await response.json().catch(() => ({}))) as { message?: string; error?: string; code?: string };
+    if (response.ok) {
+      return {
+        status: "imported",
+        message: body.message,
+      };
+    }
+
+    if (body.code === "PICKEM_ALREADY_SUBMITTED") {
+      return { status: "already_exists" };
+    }
+
+    if (body.code === "PICKEM_FINALIZED" || body.code === "VOTING_NOT_OPEN" || body.code === "PICKEM_NOT_FOUND") {
+      return { status: "voting_closed" };
+    }
+
+    throw new Error(body.error || "Failed to import guest predictions");
   },
 
   // Admin Pickem endpoints

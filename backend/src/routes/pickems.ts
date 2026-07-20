@@ -9,6 +9,12 @@ import { PICK_EM_RWF_GUILDS } from "../config/guilds";
 import { cacheMiddleware } from "../middleware/cache.middleware";
 import logger from "../utils/logger";
 import { isPickemPlaceholderRaidIds } from "../utils/pickemRaid";
+import {
+  assertPickemAcceptingPredictions,
+  createGuestPickemEntryIfAbsent,
+  PickemSubmissionError,
+  validatePickemPredictions,
+} from "../services/pickem-submission.service";
 
 const router = Router();
 
@@ -31,6 +37,18 @@ function checkPredictRateLimit(sessionId: string): boolean {
   }
   entry.count++;
   return entry.count <= 10;
+}
+
+function sendPickemSubmissionError(res: Response, error: unknown): boolean {
+  if (!(error instanceof PickemSubmissionError)) {
+    return false;
+  }
+
+  res.status(error.status).json({
+    error: error.message,
+    code: error.code,
+  });
+  return true;
 }
 
 // Get all available pickems with their status
@@ -244,7 +262,7 @@ router.get("/:pickemId", async (req: Request, res: Response) => {
 router.post("/:pickemId/predict", async (req: Request, res: Response) => {
   try {
     const { pickemId } = req.params;
-    const { predictions } = req.body as { predictions: IPickemPrediction[] };
+    const predictionInput = (req.body as { predictions?: unknown } | undefined)?.predictions;
 
     // Rate limit prediction submissions
     const sessionId = req.session?.id || req.ip || "unknown";
@@ -260,91 +278,12 @@ router.post("/:pickemId/predict", async (req: Request, res: Response) => {
 
     // Validate pickem exists and voting is open
     const pickem = await pickemService.getPickemById(pickemId);
-    if (!pickem || !pickem.active) {
-      return res.status(404).json({ error: "Pickem not found" });
-    }
+    assertPickemAcceptingPredictions(pickem);
+    const predictions = await validatePickemPredictions(pickem, predictionInput);
 
-    const now = new Date();
-    if (now < new Date(pickem.votingStart) || now > new Date(pickem.votingEnd)) {
-      return res.status(400).json({ error: "Voting is not open for this pickem" });
-    }
-
-    const pickemType = pickem.type || "regular";
-    const guildCount = pickem.guildCount || 10;
-
-    // Validate predictions count matches pickem's guildCount
-    if (!predictions || !Array.isArray(predictions) || predictions.length !== guildCount) {
-      return res.status(400).json({ error: `Must provide exactly ${guildCount} predictions` });
-    }
-
-    // Sanitize and validate string inputs
-    for (const pred of predictions) {
-      if (typeof pred.guildName !== "string" || typeof pred.realm !== "string") {
-        return res.status(400).json({ error: "Invalid prediction data types" });
-      }
-      pred.guildName = pred.guildName.trim();
-      pred.realm = pred.realm.trim();
-      if (pred.guildName.length === 0 || pred.guildName.length > 100) {
-        return res.status(400).json({ error: "Invalid guild name length" });
-      }
-      if (pred.realm.length === 0 || pred.realm.length > 100) {
-        return res.status(400).json({ error: "Invalid realm name length" });
-      }
-    }
-
-    // Validate each prediction has required fields and positions are valid
-    const positions = new Set<number>();
-    for (const pred of predictions) {
-      if (!pred.guildName || !pred.realm || !pred.position) {
-        return res.status(400).json({ error: "Each prediction must have guildName, realm, and position" });
-      }
-      if (pred.position < 1 || pred.position > guildCount) {
-        return res.status(400).json({ error: `Position must be between 1 and ${guildCount}` });
-      }
-      if (positions.has(pred.position)) {
-        return res.status(400).json({ error: "Each position must be unique" });
-      }
-      positions.add(pred.position);
-    }
-
-    // Validate no duplicate guilds
-    const guildKeys = new Set<string>();
-    for (const pred of predictions) {
-      const key = `${pred.guildName}-${pred.realm}`;
-      if (guildKeys.has(key)) {
-        return res.status(400).json({ error: "Each guild must be unique in your predictions" });
-      }
-      guildKeys.add(key);
-    }
-
-    // Validate guilds based on pickem type
-    if (pickemType === "rwf") {
-      // For RWF pickems, validate against PICK_EM_RWF_GUILDS
-      for (const pred of predictions) {
-        if (!PICK_EM_RWF_GUILDS.includes(pred.guildName)) {
-          return res.status(400).json({ error: `Guild "${pred.guildName}" is not a valid RWF guild` });
-        }
-        // RWF guilds should have "RWF" as realm
-        if (pred.realm !== "RWF") {
-          return res.status(400).json({ error: `RWF guild "${pred.guildName}" must have realm "RWF"` });
-        }
-      }
-    } else {
-      // Batch validate all guilds in a single query — only accept parent guilds (no parent_guild set)
-      const guildQueries = predictions.map((p) => ({ name: p.guildName, realm: p.realm }));
-      const foundGuilds = await Guild.find({ $or: guildQueries }, { name: 1, realm: 1, parent_guild: 1 }).lean();
-      const foundGuildMap = new Map(foundGuilds.map((g) => [`${g.name}-${g.realm}`, g]));
-      for (const pred of predictions) {
-        const key = `${pred.guildName}-${pred.realm}`;
-        const guild = foundGuildMap.get(key);
-        if (!guild) {
-          return res.status(400).json({ error: `Guild "${pred.guildName}" on "${pred.realm}" not found` });
-        }
-        if (guild.parent_guild) {
-          return res.status(400).json({ error: `Guild "${pred.guildName}" is a sub-guild of "${guild.parent_guild}". Please pick the parent guild instead.` });
-        }
-      }
-    }
+    // Re-check against the server clock immediately before persisting.
+    const currentPickem = await pickemService.getPickemById(pickemId);
+    assertPickemAcceptingPredictions(currentPickem);
 
     // Update or create the pickem entry
     const existingEntryIndex = user.pickems?.findIndex((p: IPickemEntry) => p.pickemId === pickemId) ?? -1;
@@ -376,8 +315,57 @@ router.post("/:pickemId/predict", async (req: Request, res: Response) => {
       message: existingEntryIndex >= 0 ? "Predictions updated" : "Predictions submitted",
     });
   } catch (error) {
+    if (sendPickemSubmissionError(res, error)) {
+      return;
+    }
     logger.error("Error submitting predictions:", error);
     res.status(500).json({ error: "Failed to submit predictions" });
+  }
+});
+
+// Import a browser-only guest draft without ever replacing an account entry.
+router.post("/:pickemId/import-guest", async (req: Request, res: Response) => {
+  try {
+    const { pickemId } = req.params;
+    const predictionInput = (req.body as { predictions?: unknown } | undefined)?.predictions;
+
+    const sessionId = req.session?.id || req.ip || "unknown";
+    if (!checkPredictRateLimit(sessionId)) {
+      return res.status(429).json({ error: "Too many requests. Please wait a moment before trying again.", code: "RATE_LIMITED" });
+    }
+
+    const user = await getUserFromSession(req);
+    if (!user) {
+      return res.status(401).json({ error: "Not authenticated", code: "NOT_AUTHENTICATED" });
+    }
+
+    const pickem = await pickemService.getPickemById(pickemId);
+    assertPickemAcceptingPredictions(pickem);
+    const predictions = await validatePickemPredictions(pickem, predictionInput);
+
+    // The client timestamp is intentionally ignored. Re-read the competition
+    // and use the server's time at the final authorization point.
+    const currentPickem = await pickemService.getPickemById(pickemId);
+    const acceptedAt = new Date();
+    assertPickemAcceptingPredictions(currentPickem, acceptedAt);
+
+    const created = await createGuestPickemEntryIfAbsent(user._id, pickemId, predictions, acceptedAt);
+    if (!created) {
+      throw new PickemSubmissionError("PICKEM_ALREADY_SUBMITTED", 409, "This account already has predictions for this pickem");
+    }
+
+    await cacheService.invalidate(cacheService.getPickemLeaderboardKey(pickemId));
+
+    res.status(201).json({
+      success: true,
+      message: "Guest predictions imported",
+    });
+  } catch (error) {
+    if (sendPickemSubmissionError(res, error)) {
+      return;
+    }
+    logger.error("Error importing guest predictions:", error);
+    res.status(500).json({ error: "Failed to import guest predictions" });
   }
 });
 

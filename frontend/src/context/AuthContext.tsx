@@ -7,12 +7,54 @@ import { api } from "@/lib/api";
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
-  login: () => Promise<void>;
+  login: (returnTo?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const POST_LOGIN_RETURN_TO_KEY = "post-login-return-to";
+
+function normalizeSafeInternalPath(value: string): string | null {
+  if (typeof window === "undefined" || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+    return null;
+  }
+
+  try {
+    const resolvedUrl = new URL(value, window.location.origin);
+    if (resolvedUrl.origin !== window.location.origin) return null;
+    return `${resolvedUrl.pathname}${resolvedUrl.search}${resolvedUrl.hash}`;
+  } catch {
+    return null;
+  }
+}
+
+function storePostLoginReturnTo(returnTo?: string): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    const safeReturnTo = returnTo ? normalizeSafeInternalPath(returnTo) : null;
+    if (safeReturnTo) {
+      window.sessionStorage.setItem(POST_LOGIN_RETURN_TO_KEY, safeReturnTo);
+    } else {
+      window.sessionStorage.removeItem(POST_LOGIN_RETURN_TO_KEY);
+    }
+  } catch {
+    // Login still works when browser storage is unavailable.
+  }
+}
+
+function consumePostLoginReturnTo(): string | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const returnTo = window.sessionStorage.getItem(POST_LOGIN_RETURN_TO_KEY);
+    window.sessionStorage.removeItem(POST_LOGIN_RETURN_TO_KEY);
+    return returnTo;
+  } catch {
+    return null;
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -22,6 +64,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const currentUser = await api.getCurrentUser();
       setUser(currentUser);
+
+      if (currentUser && typeof window !== "undefined") {
+        const returnTo = consumePostLoginReturnTo();
+        const safeReturnTo = returnTo ? normalizeSafeInternalPath(returnTo) : null;
+        const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        if (safeReturnTo && currentPath !== safeReturnTo) {
+          window.location.replace(safeReturnTo);
+        }
+      }
     } catch (error) {
       console.error("Failed to fetch user:", error);
       setUser(null);
@@ -37,11 +88,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initAuth();
   }, [refreshUser]);
 
-  const login = async () => {
+  const login = async (returnTo?: string) => {
     try {
+      storePostLoginReturnTo(returnTo);
       const { url } = await api.getDiscordLoginUrl();
       window.location.href = url;
     } catch (error) {
+      storePostLoginReturnTo();
       console.error("Failed to get login URL:", error);
     }
   };

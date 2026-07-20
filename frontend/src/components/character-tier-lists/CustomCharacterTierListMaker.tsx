@@ -540,7 +540,7 @@ export default function CustomCharacterTierListMaker({
             {isSharing ? t("sharing") : shareButtonLabel}
           </button>
           {!user && (
-            <button type="button" onClick={login} className="min-h-10 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-500">
+            <button type="button" onClick={() => login()} className="min-h-10 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-500">
               {t("signInToSave")}
             </button>
           )}

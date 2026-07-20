@@ -724,7 +724,7 @@ export default function Navigation() {
                   </div>
                 ) : (
                   <button
-                    onClick={login}
+                    onClick={() => login()}
                     className="hidden h-9 cursor-pointer items-center gap-2 rounded-md bg-indigo-600 px-3 text-sm font-medium text-white shadow-sm shadow-black/30 transition-[background-color,transform] hover:bg-indigo-500 active:scale-[0.96] md:flex"
                     aria-label="Login with Discord"
                   >
