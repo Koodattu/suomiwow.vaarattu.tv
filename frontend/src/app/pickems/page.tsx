@@ -879,6 +879,8 @@ export default function PickemsPage() {
 
   // Whether this is an unfinalized RWF pickem (scores should show as pending)
   const isUnfinalizedRwf = pickemDetails?.type === "rwf" && !pickemDetails?.finalized;
+  const rankingsPending = pickemDetails?.rankingsPending ?? false;
+  const scoresPending = isUnfinalizedRwf || rankingsPending;
 
   // Prize config helpers for detail view
   const detailPrizeEnabled = pickemDetails?.prizeConfig?.enabled && (pickemDetails?.prizeConfig?.goldPool ?? 0) > 0;
@@ -918,9 +920,19 @@ export default function PickemsPage() {
         </div>
       ) : pickemDetails ? (
         <div className="space-y-4">
-          {/* Top Banners - RWF status and/or Prize Pool as wide banners */}
-          {(pickemDetails.type === "rwf" || detailPrizeEnabled) && (
+          {/* Top Banners - ranking status and/or Prize Pool as wide banners */}
+          {(pickemDetails.type === "rwf" || rankingsPending || detailPrizeEnabled) && (
             <div className="flex flex-col sm:flex-row gap-3">
+              {rankingsPending && (
+                <div className="flex-1 rounded-lg px-4 py-3 border border-amber-700/50 bg-amber-950/30 flex items-center gap-3">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-amber-400" />
+                  <div className="min-w-0">
+                    <span className="font-semibold text-sm text-amber-200">{t("rankingsPendingTitle")}</span>
+                    <p className="text-xs text-gray-300 mt-0.5">{t("rankingsPendingDescription")}</p>
+                  </div>
+                </div>
+              )}
+
               {/* RWF Status Banner */}
               {pickemDetails.type === "rwf" && (
                 <div
@@ -1040,38 +1052,42 @@ export default function PickemsPage() {
             {pickemDetails.type !== "rwf" && (
               <div className="bg-gray-800 rounded-lg p-3 border border-gray-700 self-start">
                 <h3 className="text-base font-semibold text-white mb-2">{t("currentRankings")}</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-gray-400 border-b border-gray-700 text-xs">
-                        <th className="text-left py-1.5 px-2">#</th>
-                        <th className="text-left py-1.5 px-2">{t("guild")}</th>
-                        <th className="text-right py-1.5 px-2">{t("progress")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pickemDetails.guildRankings.slice(0, 15).map((guild) => (
-                        <tr
-                          key={`${guild.name}-${guild.realm}`}
-                          className={`border-b ${guild.rank === pickemDetails.guildCount ? "border-b-2 border-blue-500/60" : "border-gray-700/50"} ${guild.isComplete ? "bg-green-900/20" : ""}`}
-                        >
-                          <td className="py-1.5 px-2 text-gray-300 font-medium text-xs">{guild.rank}</td>
-                          <td className="py-1.5 px-2">
-                            <div className="min-w-0">
-                              <span className="text-white font-medium block truncate text-sm leading-tight">{guild.name}</span>
-                              <span className="text-gray-500 text-xs block truncate leading-tight">{guild.realm}</span>
-                            </div>
-                          </td>
-                          <td className="py-1.5 px-2 text-right whitespace-nowrap">
-                            <span className={`text-xs ${guild.isComplete ? "text-green-400" : "text-gray-300"}`}>
-                              {guild.bossesKilled}/{guild.totalBosses}
-                            </span>
-                          </td>
+                {rankingsPending ? (
+                  <p className="rounded-md bg-gray-900/50 px-3 py-4 text-sm text-gray-300">{t("rankingsPendingEmpty")}</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-gray-400 border-b border-gray-700 text-xs">
+                          <th className="text-left py-1.5 px-2">#</th>
+                          <th className="text-left py-1.5 px-2">{t("guild")}</th>
+                          <th className="text-right py-1.5 px-2">{t("progress")}</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {pickemDetails.guildRankings.slice(0, 15).map((guild) => (
+                          <tr
+                            key={`${guild.name}-${guild.realm}`}
+                            className={`border-b ${guild.rank === pickemDetails.guildCount ? "border-b-2 border-blue-500/60" : "border-gray-700/50"} ${guild.isComplete ? "bg-green-900/20" : ""}`}
+                          >
+                            <td className="py-1.5 px-2 text-gray-300 font-medium text-xs">{guild.rank}</td>
+                            <td className="py-1.5 px-2">
+                              <div className="min-w-0">
+                                <span className="text-white font-medium block truncate text-sm leading-tight">{guild.name}</span>
+                                <span className="text-gray-500 text-xs block truncate leading-tight">{guild.realm}</span>
+                              </div>
+                            </td>
+                            <td className="py-1.5 px-2 text-right whitespace-nowrap">
+                              <span className={`text-xs ${guild.isComplete ? "text-green-400" : "text-gray-300"}`}>
+                                {guild.bossesKilled}/{guild.totalBosses}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1161,6 +1177,7 @@ export default function PickemsPage() {
                       </p>
                     )}
                     {isUnfinalizedRwf && <p className="mt-2 text-purple-400 font-medium">RWF scores are calculated when the race ends and admin finalizes the results.</p>}
+                    {rankingsPending && <p className="mt-2 text-amber-300 font-medium">{t("scoresPending")}</p>}
                   </div>
                 )}
               </div>
@@ -1181,7 +1198,7 @@ export default function PickemsPage() {
                         <div
                           key={entry.username}
                           className={`rounded-lg ${
-                            isUnfinalizedRwf
+                            scoresPending
                               ? "bg-gray-700/30"
                               : rank === 1
                                 ? "bg-yellow-900/30 border border-yellow-700/50"
@@ -1195,15 +1212,15 @@ export default function PickemsPage() {
                           <details className="group">
                             <summary className="p-2.5 cursor-pointer list-none hover:bg-gray-700/20 rounded-lg transition-colors">
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-gray-400 w-5 shrink-0">{isUnfinalizedRwf ? "—" : rank}</span>
+                                <span className="text-sm font-bold text-gray-400 w-5 shrink-0">{scoresPending ? "—" : rank}</span>
                                 <img src={entry.avatarUrl} alt={entry.username} className="w-6 h-6 rounded-full shrink-0" />
                                 <span className="text-white font-medium truncate text-sm flex-1 min-w-0">{entry.username}</span>
                                 <div className="flex items-center gap-1.5 shrink-0">
-                                  {detailPrizeEnabled && prize > 0 && !isUnfinalizedRwf && (
+                                  {detailPrizeEnabled && prize > 0 && !scoresPending && (
                                     <span className="text-amber-400 text-xs font-semibold bg-amber-900/30 px-1.5 py-0.5 rounded">🪙 {prize.toLocaleString()}g</span>
                                   )}
-                                  <span className={`text-base font-bold ${isUnfinalizedRwf ? "text-gray-500" : "text-blue-400"}`}>
-                                    {isUnfinalizedRwf ? "—" : entry.totalPoints}
+                                  <span className={`text-base font-bold ${scoresPending ? "text-gray-500" : "text-blue-400"}`}>
+                                    {scoresPending ? "—" : entry.totalPoints}
                                   </span>
                                 </div>
                               </div>
@@ -1213,7 +1230,7 @@ export default function PickemsPage() {
                                 <div key={`${pred.guildName}-${pred.predictedRank}`} className="flex items-center gap-1 text-gray-300 py-0.5 min-w-0">
                                   <span className="text-gray-500 shrink-0">#{pred.predictedRank}:</span>
                                   <span className="truncate flex-1">{pred.guildName}</span>
-                                  {!isUnfinalizedRwf && <PointsBadge points={pred.points} />}
+                                  {!scoresPending && <PointsBadge points={pred.points} />}
                                 </div>
                               ))}
                             </div>

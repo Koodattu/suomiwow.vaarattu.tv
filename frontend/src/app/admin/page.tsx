@@ -107,6 +107,8 @@ import {
 
 type TabType = "overview" | "users" | "guilds" | "streams" | "characters" | "pickems" | "system" | "tasks";
 
+const PICKEM_PLACEHOLDER_RAID_ID = -1;
+
 const TWITCH_BOT_EVENT_TYPE_OPTIONS: Array<{ value: TwitchBotEventType; label: string }> = [
   { value: "boss_kill", label: "Boss kills" },
   { value: "best_pull", label: "Best pulls" },
@@ -3286,6 +3288,23 @@ export default function AdminPage() {
                       <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">{t("pickems.form.raids")}</label>
                         <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto bg-gray-700 p-3 rounded-lg">
+                          <label className="col-span-2 flex items-start gap-2 rounded-md border border-amber-700/60 bg-amber-950/30 p-2.5 text-sm text-amber-100 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={pickemForm.raidIds.includes(PICKEM_PLACEHOLDER_RAID_ID)}
+                              onChange={(e) => {
+                                setPickemForm({
+                                  ...pickemForm,
+                                  raidIds: e.target.checked ? [PICKEM_PLACEHOLDER_RAID_ID] : [],
+                                });
+                              }}
+                              className="mt-0.5 rounded border-gray-500"
+                            />
+                            <span>
+                              <span className="block font-medium">{t("pickems.form.placeholderRaid")}</span>
+                              <span className="mt-0.5 block text-xs text-amber-200/80">{t("pickems.form.placeholderRaidHelp")}</span>
+                            </span>
+                          </label>
                           {raids.map((raid) => (
                             <label key={raid.id} className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
                               <input
@@ -3293,7 +3312,10 @@ export default function AdminPage() {
                                 checked={pickemForm.raidIds.includes(raid.id)}
                                 onChange={(e) => {
                                   if (e.target.checked) {
-                                    setPickemForm({ ...pickemForm, raidIds: [...pickemForm.raidIds, raid.id] });
+                                    setPickemForm({
+                                      ...pickemForm,
+                                      raidIds: [...pickemForm.raidIds.filter((id) => id !== PICKEM_PLACEHOLDER_RAID_ID), raid.id],
+                                    });
                                   } else {
                                     setPickemForm({ ...pickemForm, raidIds: pickemForm.raidIds.filter((id) => id !== raid.id) });
                                   }
@@ -3773,7 +3795,9 @@ export default function AdminPage() {
                         <td className="px-4 py-3 text-gray-300 text-sm">
                           {pickem.type === "rwf"
                             ? t("pickems.table.rwfGuilds", { count: pickem.guildCount })
-                            : pickem.raidIds.map((id) => raids.find((r) => r.id === id)?.name || id).join(", ")}
+                            : pickem.raidIds
+                                .map((id) => (id === PICKEM_PLACEHOLDER_RAID_ID ? t("pickems.table.placeholderRaid") : raids.find((r) => r.id === id)?.name || id))
+                                .join(", ")}
                         </td>
                         <td className="px-4 py-3 text-gray-400 text-sm">
                           <div>{new Date(pickem.votingStart).toLocaleDateString()}</div>
@@ -3886,7 +3910,7 @@ export default function AdminPage() {
                               </button>
                             )}
                             {/* Regular pickem finalization button */}
-                            {pickem.type === "regular" && !pickem.finalized && (
+                            {pickem.type === "regular" && !pickem.finalized && !pickem.raidIds.includes(PICKEM_PLACEHOLDER_RAID_ID) && (
                               <button
                                 onClick={async () => {
                                   if (confirm(t("pickems.table.finalizeRegularConfirm"))) {

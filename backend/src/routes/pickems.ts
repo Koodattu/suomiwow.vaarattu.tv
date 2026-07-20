@@ -8,6 +8,7 @@ import cacheService from "../services/cache.service";
 import { PICK_EM_RWF_GUILDS } from "../config/guilds";
 import { cacheMiddleware } from "../middleware/cache.middleware";
 import logger from "../utils/logger";
+import { isPickemPlaceholderRaidIds } from "../utils/pickemRaid";
 
 const router = Router();
 
@@ -49,6 +50,7 @@ router.get(
         name: p.name,
         type: p.type || "regular",
         raidIds: p.raidIds,
+        rankingsPending: (p.type || "regular") === "regular" && isPickemPlaceholderRaidIds(p.raidIds),
         guildCount: p.guildCount || 10,
         finalRankingsCount: p.finalRankingsCount || 0,
         scoreOutOfRangeGuilds: p.scoreOutOfRangeGuilds ?? false,
@@ -138,6 +140,7 @@ router.get("/:pickemId", async (req: Request, res: Response) => {
 
     const pickemType = pickem.type || "regular";
     const guildCount = pickem.guildCount || 10;
+    const rankingsPending = pickemType === "regular" && isPickemPlaceholderRaidIds(pickem.raidIds);
 
     // Get actual guild rankings based on pickem type
     let guildRankings: { rank: number; name: string; realm: string; bossesKilled?: number; totalBosses?: number; isComplete?: boolean; lastKillTime?: Date | null }[];
@@ -161,15 +164,19 @@ router.get("/:pickemId", async (req: Request, res: Response) => {
         }));
       }
     } else {
-      // For regular pickems, get rankings from cached guild progress data (two-tier cache)
-      const rankingsCacheKey = cacheService.getPickemRankingsKey(pickemId);
-      const cachedRankings = await cacheService.get<typeof guildRankings>(rankingsCacheKey);
-      if (cachedRankings) {
-        guildRankings = cachedRankings;
+      if (rankingsPending) {
+        guildRankings = [];
       } else {
-        guildRankings = await getGuildRankingsForPickem(pickem.raidIds);
-        // Cache rankings in two-tier cache (L1 memory + L2 MongoDB)
-        await cacheService.set(rankingsCacheKey, guildRankings, cacheService.PICKEM_RANKINGS_TTL);
+        // For regular pickems, get rankings from cached guild progress data (two-tier cache)
+        const rankingsCacheKey = cacheService.getPickemRankingsKey(pickemId);
+        const cachedRankings = await cacheService.get<typeof guildRankings>(rankingsCacheKey);
+        if (cachedRankings) {
+          guildRankings = cachedRankings;
+        } else {
+          guildRankings = await getGuildRankingsForPickem(pickem.raidIds);
+          // Cache rankings in two-tier cache (L1 memory + L2 MongoDB)
+          await cacheService.set(rankingsCacheKey, guildRankings, cacheService.PICKEM_RANKINGS_TTL);
+        }
       }
     }
 
@@ -208,6 +215,7 @@ router.get("/:pickemId", async (req: Request, res: Response) => {
       name: pickem.name,
       type: pickemType,
       raidIds: pickem.raidIds,
+      rankingsPending,
       guildCount,
       finalRankingsCount: pickem.finalRankingsCount || 0,
       scoreOutOfRangeGuilds: pickem.scoreOutOfRangeGuilds ?? false,
@@ -379,6 +387,10 @@ router.post("/:pickemId/predict", async (req: Request, res: Response) => {
 // Consolidates parent/child guilds: child guild progress is attributed to the parent guild,
 // and only the best-performing member of each guild family appears in the rankings.
 async function getGuildRankingsForPickem(raidIds: number[]) {
+  if (isPickemPlaceholderRaidIds(raidIds)) {
+    return [];
+  }
+
   // Try reading from the pre-warmed progress cache for each raid
   const cachedGuildsByRaid: Map<number, any[]> = new Map();
   let allCached = true;

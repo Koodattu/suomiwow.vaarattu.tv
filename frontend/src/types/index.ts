@@ -1337,6 +1337,7 @@ export interface PickemSummary {
   name: string;
   type: PickemType;
   raidIds: number[];
+  rankingsPending: boolean;
   guildCount: number;
   finalRankingsCount: number;
   scoreOutOfRangeGuilds: boolean;
@@ -1405,6 +1406,7 @@ export interface PickemDetails {
   name: string;
   type: PickemType;
   raidIds: number[];
+  rankingsPending: boolean;
   guildCount: number;
   finalRankingsCount: number;
   scoreOutOfRangeGuilds: boolean;

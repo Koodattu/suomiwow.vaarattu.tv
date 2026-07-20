@@ -2,6 +2,7 @@ import Pickem, { IPickem, IScoringConfig, IStreakConfig, IPrizeConfig, DEFAULT_S
 import { PICKEM_SEED_DATA } from "../config/pickems";
 import { PICK_EM_RWF_GUILDS } from "../config/guilds";
 import logger from "../utils/logger";
+import { getRegularPickemRaidIdsValidationError, isPickemPlaceholderRaidIds } from "../utils/pickemRaid";
 
 class PickemService {
   /**
@@ -92,6 +93,13 @@ class PickemService {
     const finalRankingsCount = data.finalRankingsCount ?? 0;
     const scoreOutOfRangeGuilds = data.scoreOutOfRangeGuilds ?? false;
 
+    if (type === "regular") {
+      const raidIdsError = getRegularPickemRaidIdsValidationError(data.raidIds);
+      if (raidIdsError) {
+        throw new Error(raidIdsError);
+      }
+    }
+
     const pickem = await Pickem.create({
       pickemId: data.pickemId,
       name: data.name,
@@ -133,6 +141,17 @@ class PickemService {
   ): Promise<IPickem | null> {
     const pickem = await Pickem.findOne({ pickemId });
     if (!pickem) return null;
+
+    if (data.raidIds !== undefined) {
+      if (pickem.type === "regular") {
+        const raidIdsError = getRegularPickemRaidIdsValidationError(data.raidIds);
+        if (raidIdsError) {
+          throw new Error(raidIdsError);
+        }
+      } else if (data.raidIds.length !== 0) {
+        throw new Error("raidIds must be empty for RWF pickems");
+      }
+    }
 
     if (data.name !== undefined) pickem.name = data.name;
     if (data.type !== undefined) pickem.type = data.type;
@@ -267,6 +286,10 @@ class PickemService {
 
     if (pickem.finalized) {
       return { success: false, error: "Pickem has already been finalized" };
+    }
+
+    if (isPickemPlaceholderRaidIds(pickem.raidIds)) {
+      return { success: false, error: "Replace the upcoming raid placeholder with the real raid before finalizing" };
     }
 
     pickem.finalized = true;

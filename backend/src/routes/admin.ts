@@ -22,6 +22,7 @@ import backgroundGuildProcessor from "../services/background-guild-processor.ser
 import GuildProcessingQueue, { ProcessingStatus } from "../models/GuildProcessingQueue";
 import taskTracker from "../services/task-tracker.service";
 import logger from "../utils/logger";
+import { getRegularPickemRaidIdsValidationError } from "../utils/pickemRaid";
 import scheduler from "../services/scheduler.service";
 import guildService, { GuildReportImportError } from "../services/guild.service";
 import characterService from "../services/character.service";
@@ -1994,8 +1995,9 @@ router.post("/pickems", async (req: Request, res: Response) => {
 
     // Validate raidIds for regular pickems
     if (pickemType === "regular") {
-      if (!raidIds || !Array.isArray(raidIds) || raidIds.length === 0) {
-        return res.status(400).json({ error: "raidIds must be a non-empty array for regular pickems" });
+      const raidIdsError = getRegularPickemRaidIdsValidationError(raidIds);
+      if (raidIdsError) {
+        return res.status(400).json({ error: raidIdsError });
       }
     }
 
@@ -2058,10 +2060,26 @@ router.put("/pickems/:pickemId", async (req: Request, res: Response) => {
   try {
     const { pickemId } = req.params;
     const updates = req.body;
+    const existingPickem = await pickemService.getPickemById(pickemId);
+
+    if (!existingPickem) {
+      return res.status(404).json({ error: "Pickem not found" });
+    }
 
     // Don't allow changing the pickemId or type (type changes could break existing predictions)
     delete updates.pickemId;
     delete updates.type;
+
+    if (updates.raidIds !== undefined) {
+      if (existingPickem.type === "regular") {
+        const raidIdsError = getRegularPickemRaidIdsValidationError(updates.raidIds);
+        if (raidIdsError) {
+          return res.status(400).json({ error: raidIdsError });
+        }
+      } else if (!Array.isArray(updates.raidIds) || updates.raidIds.length !== 0) {
+        return res.status(400).json({ error: "raidIds must be empty for RWF pickems" });
+      }
+    }
 
     // Validate dates if provided
     if (updates.votingStart) {
@@ -2095,10 +2113,6 @@ router.put("/pickems/:pickemId", async (req: Request, res: Response) => {
     }
 
     const pickem = await pickemService.updatePickem(pickemId, updates);
-
-    if (!pickem) {
-      return res.status(404).json({ error: "Pickem not found" });
-    }
 
     await cacheService.invalidate(cacheService.getPickemLeaderboardKey(pickemId));
     await cacheService.invalidate(cacheService.getPickemRankingsKey(pickemId));
