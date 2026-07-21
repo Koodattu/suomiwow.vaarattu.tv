@@ -149,10 +149,66 @@ class CcgService {
     return sets.filter((set) => set.enabledAt && set.cardCount > 0).map((set) => this.serializeSet(set, ownedBySet.get(String(set._id)) ?? 0));
   }
 
+  async getSetGuilds(owner: CcgOwner, setSlug: string): Promise<Record<string, unknown>> {
+    const set = await CcgSet.findOne({ slug: setSlug, enabledAt: { $ne: null } }).select("_id").lean();
+    if (!set) throw new CcgServiceError(404, "set_not_found", "Card set not found");
+
+    const guilds = await CcgCard.aggregate<{
+      _id: mongoose.Types.ObjectId;
+      name: string;
+      realm: string;
+      cardCount: number;
+      collectedCards: number;
+    }>([
+      { $match: { setId: set._id, guildId: { $type: "objectId" } } },
+      {
+        $lookup: {
+          from: CcgOwnership.collection.collectionName,
+          let: { cardId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$cardId", "$$cardId"] },
+                    { $eq: ["$ownerType", owner.ownerType] },
+                    { $eq: ["$ownerId", owner.ownerId] },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+          ],
+          as: "ownership",
+        },
+      },
+      {
+        $group: {
+          _id: "$guildId",
+          name: { $first: "$guildName" },
+          realm: { $first: "$guildRealm" },
+          cardCount: { $sum: 1 },
+          collectedCards: { $sum: { $cond: [{ $gt: [{ $size: "$ownership" }, 0] }, 1, 0] } },
+        },
+      },
+    ]);
+    const facets = guilds
+      .map((row) => ({
+        id: String(row._id),
+        name: row.name,
+        realm: row.realm,
+        cardCount: row.cardCount,
+        collectedCards: row.collectedCards,
+      }))
+      .sort((a, b) => b.collectedCards - a.collectedCards || a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm));
+
+    return { guilds: facets };
+  }
+
   async getCatalog(
     owner: CcgOwner,
     setSlug: string,
-    options: { page?: number; limit?: number; owned?: string; grade?: string },
+    options: { page?: number; limit?: number; owned?: string; grade?: string; guildId?: string },
   ): Promise<Record<string, unknown>> {
     const set = await CcgSet.findOne({ slug: setSlug, enabledAt: { $ne: null } }).lean();
     if (!set) throw new CcgServiceError(404, "set_not_found", "Card set not found");
@@ -161,6 +217,7 @@ class CcgService {
     const grade = CCG_TIER_GRADES.includes(options.grade as CcgTierGrade) ? (options.grade as CcgTierGrade) : null;
     const cardFilter: Record<string, unknown> = { setId: set._id };
     if (grade) cardFilter.tierGrade = grade;
+    if (options.guildId) cardFilter.guildId = validateObjectId(options.guildId, "guild ID");
 
     let ownedIds: mongoose.Types.ObjectId[] | null = null;
     if (options.owned === "owned" || options.owned === "missing") {
@@ -195,7 +252,7 @@ class CcgService {
 
   async getCollection(
     owner: CcgOwner,
-    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string },
+    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string },
   ): Promise<Record<string, unknown>> {
     const page = Math.max(1, Math.floor(options.page ?? 1));
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 18)));
@@ -208,6 +265,7 @@ class CcgService {
     if (options.setSlug) setId = (await CcgSet.findOne({ slug: options.setSlug, enabledAt: { $ne: null } }).select("_id").lean())?._id ?? null;
     if (options.setSlug && !setId) throw new CcgServiceError(404, "set_not_found", "Card set not found");
     if (setId) cardMatch["card.setId"] = setId;
+    if (options.guildId) cardMatch["card.guildId"] = validateObjectId(options.guildId, "guild ID");
 
     const rows = await CcgOwnership.aggregate<{
       _id: mongoose.Types.ObjectId;
@@ -827,6 +885,7 @@ class CcgService {
       name: card.name,
       realm: card.realm,
       region: card.region,
+      guildId: card.guildId ? String(card.guildId) : null,
       guildName: card.guildName ?? null,
       guildRealm: card.guildRealm ?? null,
       classID: card.classID,

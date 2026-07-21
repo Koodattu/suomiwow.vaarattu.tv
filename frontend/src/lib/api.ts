@@ -130,6 +130,7 @@ import {
   BossPredictionResponse,
   CcgCatalogResponse,
   CcgCollectionResponse,
+  CcgGuildsResponse,
   CcgMode,
   CcgOpening,
   CcgSession,
@@ -235,19 +236,26 @@ export const api = {
 
   async getCcgCatalog(
     setSlug: string,
-    options: { page?: number; limit?: number; owned?: "all" | "owned" | "missing"; grade?: string } = {},
+    options: { page?: number; limit?: number; owned?: "all" | "owned" | "missing"; grade?: string; guild?: string } = {},
   ): Promise<CcgCatalogResponse> {
     const params = new URLSearchParams();
     if (options.page) params.set("page", String(options.page));
     if (options.limit) params.set("limit", String(options.limit));
     if (options.owned && options.owned !== "all") params.set("owned", options.owned);
     if (options.grade) params.set("grade", options.grade);
+    if (options.guild) params.set("guild", options.guild);
     const response = await fetch(`${API_URL}/api/ccg/sets/${encodeURIComponent(setSlug)}/catalog?${params}`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to open this binder");
     return response.json();
   },
 
-  async getCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string } = {}): Promise<CcgCollectionResponse> {
+  async getCcgSetGuilds(setSlug: string): Promise<CcgGuildsResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/sets/${encodeURIComponent(setSlug)}/guilds`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load guild binders");
+    return response.json();
+  },
+
+  async getCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string } = {}): Promise<CcgCollectionResponse> {
     const params = new URLSearchParams();
     Object.entries(options).forEach(([key, value]) => {
       if (value !== undefined && value !== "") params.set(key, String(value));

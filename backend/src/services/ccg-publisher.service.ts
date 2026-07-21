@@ -14,7 +14,10 @@ import {
   CcgConfiguredSet,
   CcgTierGrade,
 } from "../config/ccg";
-import { MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY } from "../config/character-eligibility";
+import {
+  MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY,
+  MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY,
+} from "../config/character-eligibility";
 import CcgCard from "../models/CcgCard";
 import CcgJobLock from "../models/CcgJobLock";
 import CcgPackPool from "../models/CcgPackPool";
@@ -35,6 +38,7 @@ type SnapshotPayload = {
   name: string;
   realm: string;
   region: string;
+  guildId: mongoose.Types.ObjectId | null;
   guildName: string | null;
   guildRealm: string | null;
   classID: number;
@@ -49,6 +53,7 @@ type SnapshotPayload = {
   pulls: number;
   deaths: number;
   reportCount: number;
+  mythicReportCount: number;
   totalKills: number;
   performanceSnapshotAt: Date;
   sourcePartition: string;
@@ -166,10 +171,10 @@ class CcgPublisherService {
         scope: "global",
         zoneId,
         pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
-        reportCount: { $gte: 3 },
+        mythicReportCount: { $gte: MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY },
         survivalScore: { $ne: null },
       })
-        .sort({ score: -1, parseScore: -1, reportCount: -1, wclCanonicalCharacterId: 1, characterKey: 1 })
+        .sort({ score: -1, parseScore: -1, mythicReportCount: -1, reportCount: -1, wclCanonicalCharacterId: 1, characterKey: 1 })
         .lean();
 
       if (entries.length === 0) throw new Error(`No complete character tier-list population is available for raid ${zoneId}`);
@@ -197,6 +202,7 @@ class CcgPublisherService {
           name: entry.name,
           realm: entry.realm,
           region: entry.region,
+          guildId: guild?.id ?? null,
           guildName: guild?.name ?? null,
           guildRealm: guild?.realm ?? null,
           classID: entry.classID,
@@ -211,6 +217,7 @@ class CcgPublisherService {
           pulls: entry.pulls,
           deaths: entry.deaths,
           reportCount: entry.reportCount,
+          mythicReportCount: entry.mythicReportCount,
           totalKills: entry.totalKills,
           performanceSnapshotAt: now,
           sourcePartition: `character-tier-list:${zoneId}:global`,
@@ -287,6 +294,7 @@ class CcgPublisherService {
           name: payload.name,
           realm: payload.realm,
           region: payload.region,
+          guildId: payload.guildId,
           guildName: payload.guildName,
           guildRealm: payload.guildRealm,
           classID: payload.classID,
@@ -305,6 +313,7 @@ class CcgPublisherService {
           pulls: payload.pulls,
           deaths: payload.deaths,
           reportCount: payload.reportCount,
+          mythicReportCount: payload.mythicReportCount,
           totalKills: payload.totalKills,
           performanceSnapshotAt: payload.performanceSnapshotAt,
           mediaCapturedAt: media.fetchedAt ?? null,
@@ -372,7 +381,7 @@ class CcgPublisherService {
       scope: "global",
       zoneId,
       pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
-      reportCount: { $gte: 3 },
+      mythicReportCount: { $gte: MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY },
       survivalScore: { $ne: null },
     })
       .select("characterId")

@@ -29,7 +29,7 @@ export default function PackBalance({ session, mode }: { session: CcgSession; mo
         <span className="tabular-nums">{progress.remainder}/{progress.needed}</span>
       </div>
       <div className={`${styles.progressTrack} mt-1.5`} aria-label={t("duplicateMeter")}>
-        <div className={styles.progressFill} style={{ width: `${progressPercent}%` }} />
+        <div className={styles.progressFill} style={{ transform: `scaleX(${progressPercent / 100})` }} />
       </div>
     </div>
   );

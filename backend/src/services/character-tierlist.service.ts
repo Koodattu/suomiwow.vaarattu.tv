@@ -82,6 +82,7 @@ type ParticipationRow = {
   firstSeenAt: Date;
   lastSeenAt: Date;
   reportCount: number;
+  mythicReportCount: number;
   updatedAt?: Date;
 };
 
@@ -94,6 +95,7 @@ type ParticipationAggregate = {
   region: string;
   classID: number;
   reportCount: number;
+  mythicReportCount: number;
   firstSeenAt: Date;
   lastSeenAt: Date;
   sourceUpdatedAt: Date;
@@ -148,6 +150,7 @@ export type CharacterTierListCharacter = {
   deathDataAvailable: boolean;
   bossScores: IMechanicsBossScore[];
   reportCount: number;
+  mythicReportCount: number;
   firstSeenAt: Date;
   lastSeenAt: Date;
   sourceUpdatedAt: Date;
@@ -471,7 +474,7 @@ class CharacterTierListService {
         )
         .lean<MechanicsRow[]>(),
       CharacterRaidParticipation.find({ zoneId })
-        .select("characterId wclCanonicalCharacterId zoneId reportGuildId reportGuildName reportGuildRealm characterName characterRealm characterRegion classID firstSeenAt lastSeenAt reportCount updatedAt")
+        .select("characterId wclCanonicalCharacterId zoneId reportGuildId reportGuildName reportGuildRealm characterName characterRealm characterRegion classID firstSeenAt lastSeenAt reportCount mythicReportCount updatedAt")
         .lean<ParticipationRow[]>(),
     ]);
 
@@ -587,6 +590,7 @@ class CharacterTierListService {
           region: row.characterRegion,
           classID: row.classID,
           reportCount: 0,
+          mythicReportCount: 0,
           firstSeenAt: row.firstSeenAt,
           lastSeenAt: row.lastSeenAt,
           sourceUpdatedAt,
@@ -611,6 +615,7 @@ class CharacterTierListService {
           region: row.characterRegion,
           classID: row.classID,
           reportCount: 0,
+          mythicReportCount: 0,
           firstSeenAt: row.firstSeenAt,
           lastSeenAt: row.lastSeenAt,
           sourceUpdatedAt,
@@ -637,6 +642,7 @@ class CharacterTierListService {
 
   private mergeParticipation(aggregate: ParticipationAggregate, row: ParticipationRow, sourceUpdatedAt: Date): void {
     aggregate.reportCount += Math.max(row.reportCount ?? 0, 0);
+    aggregate.mythicReportCount += Math.max(row.mythicReportCount ?? 0, 0);
 
     if (row.firstSeenAt < aggregate.firstSeenAt) {
       aggregate.firstSeenAt = row.firstSeenAt;
@@ -701,6 +707,7 @@ class CharacterTierListService {
       deathDataAvailable: mechanicsRow.deathDataAvailable ?? false,
       bossScores: mechanicsRow.bossScores ?? [],
       reportCount: participation.reportCount,
+      mythicReportCount: participation.mythicReportCount,
       firstSeenAt: participation.firstSeenAt,
       lastSeenAt: participation.lastSeenAt,
       sourceUpdatedAt,
@@ -736,7 +743,7 @@ class CharacterTierListService {
     const [participationRows, generatedEntries] = await Promise.all([
       CharacterRaidParticipation.find({ reportGuildId: guild._id, zoneId, reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } })
         .sort({ classID: 1, characterName: 1 })
-        .select("characterId wclCanonicalCharacterId characterName characterRealm characterRegion classID firstSeenAt lastSeenAt reportCount updatedAt")
+        .select("characterId wclCanonicalCharacterId characterName characterRealm characterRegion classID firstSeenAt lastSeenAt reportCount mythicReportCount updatedAt")
         .lean<ParticipationRow[]>(),
       CharacterTierListEntry.find({
         scope: "guild",
@@ -1114,6 +1121,7 @@ class CharacterTierListService {
       deathDataAvailable: entry.deathDataAvailable,
       bossScores: entry.bossScores ?? [],
       reportCount: entry.reportCount,
+      mythicReportCount: entry.mythicReportCount,
       firstSeenAt: entry.firstSeenAt,
       lastSeenAt: entry.lastSeenAt,
       sourceUpdatedAt: entry.sourceUpdatedAt,

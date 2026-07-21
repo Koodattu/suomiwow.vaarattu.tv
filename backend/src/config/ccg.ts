@@ -12,7 +12,7 @@ export const CCG_DUPLICATES_PER_BONUS_PACK = 10;
 export const CCG_GUEST_COOKIE = "swccg_guest";
 export const CCG_PACK_RULE_VERSION = "pack-v2-mode-pools";
 export const CCG_GRADING_VERSION = "grade-v1";
-export const CCG_ELIGIBILITY_VERSION = "tier-list-v1";
+export const CCG_ELIGIBILITY_VERSION = "mythic-reports-v2";
 export const CCG_THEME_VERSION = "vault-v1";
 export const CCG_POOL_VERSION = "pool-v2";
 

@@ -94,7 +94,8 @@ export const queryKeys = {
   ccg: {
     session: ["ccg", "session"] as const,
     sets: ["ccg", "sets"] as const,
-    catalog: (setSlug: string, page: number, owned: string, grade: string) => ["ccg", "catalog", setSlug, page, owned, grade] as const,
+    catalog: (setSlug: string, page: number, owned: string, grade: string, guildId: string) => ["ccg", "catalog", setSlug, page, owned, grade, guildId] as const,
+    guilds: (setSlug: string) => ["ccg", "guilds", setSlug] as const,
     collection: (options: Record<string, unknown>) => ["ccg", "collection", options] as const,
     opening: (openingId: string) => ["ccg", "opening", openingId] as const,
   },
@@ -478,19 +479,29 @@ export function useCcgSets() {
   });
 }
 
-export function useCcgCatalog(setSlug: string, page: number, owned: "all" | "owned" | "missing", grade: string) {
+export function useCcgCatalog(setSlug: string, page: number, owned: "all" | "owned" | "missing", grade: string, guildId = "", enabled = true) {
   return useQuery({
-    queryKey: queryKeys.ccg.catalog(setSlug, page, owned, grade),
-    queryFn: () => api.getCcgCatalog(setSlug, { page, limit: 9, owned, grade: grade || undefined }),
-    enabled: Boolean(setSlug),
+    queryKey: queryKeys.ccg.catalog(setSlug, page, owned, grade, guildId),
+    queryFn: () => api.getCcgCatalog(setSlug, { page, limit: 9, owned, grade: grade || undefined, guild: guildId || undefined }),
+    enabled: Boolean(setSlug) && enabled,
     staleTime: 30 * 1000,
   });
 }
 
-export function useCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string }) {
+export function useCcgSetGuilds(setSlug: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.ccg.guilds(setSlug),
+    queryFn: () => api.getCcgSetGuilds(setSlug),
+    enabled: Boolean(setSlug) && enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string }, enabled = true) {
   return useQuery({
     queryKey: queryKeys.ccg.collection(options),
     queryFn: () => api.getCcgCollection(options),
+    enabled,
     staleTime: 30 * 1000,
   });
 }

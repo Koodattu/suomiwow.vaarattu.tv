@@ -2015,7 +2015,21 @@ class CharacterService {
             "fightSequence.difficulty": { $in: [4, 5] },
           },
         },
-        { $project: { _id: 0, code: 1 } },
+        {
+          $project: {
+            _id: 0,
+            code: 1,
+            hasMythicReport: {
+              $anyElementTrue: {
+                $map: {
+                  input: "$fightSequence",
+                  as: "fight",
+                  in: { $eq: ["$$fight.difficulty", 5] },
+                },
+              },
+            },
+          },
+        },
         {
           $lookup: {
             from: CharacterReportAppearance.collection.name,
@@ -2025,7 +2039,7 @@ class CharacterService {
           },
         },
         { $unwind: "$appearance" },
-        { $replaceRoot: { newRoot: "$appearance" } },
+        { $replaceRoot: { newRoot: { $mergeObjects: ["$appearance", { hasMythicReport: "$hasMythicReport" }] } } },
         { $match: { reportZoneId: { $gt: 0 } } },
         {
           $group: {
@@ -2064,6 +2078,7 @@ class CharacterService {
             firstSeenAt: { $min: "$reportStartTime" },
             lastSeenAt: { $max: "$reportStartTime" },
             reportCount: { $sum: 1 },
+            mythicReportCount: { $sum: { $cond: ["$hasMythicReport", 1, 0] } },
           },
         },
         {
@@ -2082,6 +2097,7 @@ class CharacterService {
             firstSeenAt: 1,
             lastSeenAt: 1,
             reportCount: 1,
+            mythicReportCount: 1,
             createdAt: "$$NOW",
             updatedAt: "$$NOW",
           },

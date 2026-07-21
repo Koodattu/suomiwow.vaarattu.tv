@@ -9,6 +9,7 @@ export interface ICcgCard extends Document {
   name: string;
   realm: string;
   region: string;
+  guildId?: mongoose.Types.ObjectId | null;
   guildName?: string | null;
   guildRealm?: string | null;
   classID: number;
@@ -27,6 +28,7 @@ export interface ICcgCard extends Document {
   pulls: number;
   deaths: number;
   reportCount: number;
+  mythicReportCount: number;
   totalKills: number;
   performanceSnapshotAt: Date;
   mediaCapturedAt?: Date | null;
@@ -47,6 +49,7 @@ const CcgCardSchema = new Schema<ICcgCard>(
     name: { type: String, required: true, index: true },
     realm: { type: String, required: true },
     region: { type: String, required: true },
+    guildId: { type: Schema.Types.ObjectId, ref: "Guild", default: null },
     guildName: { type: String, default: null, index: true },
     guildRealm: { type: String, default: null },
     classID: { type: Number, required: true, index: true },
@@ -69,6 +72,7 @@ const CcgCardSchema = new Schema<ICcgCard>(
     pulls: { type: Number, required: true, default: 0 },
     deaths: { type: Number, required: true, default: 0 },
     reportCount: { type: Number, required: true, default: 0 },
+    mythicReportCount: { type: Number, required: true, default: 0 },
     totalKills: { type: Number, required: true, default: 0 },
     performanceSnapshotAt: { type: Date, required: true },
     mediaCapturedAt: { type: Date, default: null },
@@ -85,6 +89,8 @@ const CcgCardSchema = new Schema<ICcgCard>(
 CcgCardSchema.index({ setId: 1, characterId: 1 }, { unique: true });
 CcgCardSchema.index({ setId: 1, setNumber: 1 }, { unique: true });
 CcgCardSchema.index({ setId: 1, tierGrade: 1, setNumber: 1 });
+CcgCardSchema.index({ setId: 1, guildId: 1, setNumber: 1 });
+CcgCardSchema.index({ setId: 1, guildId: 1, tierGrade: 1, setNumber: 1 });
 CcgCardSchema.index({ characterId: 1, publishedAt: -1 });
 
 const rejectPublishedCardMutation = () => {

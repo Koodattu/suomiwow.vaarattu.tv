@@ -1913,6 +1913,7 @@ export type CcgCard = {
   name: string;
   realm: string;
   region: string;
+  guildId: string | null;
   guildName: string | null;
   guildRealm: string | null;
   classID: number;
@@ -2028,6 +2029,18 @@ export type CcgCatalogResponse = {
   limit: number;
   total: number;
   pages: number;
+};
+
+export type CcgGuildFacet = {
+  id: string;
+  name: string;
+  realm: string;
+  cardCount: number;
+  collectedCards: number;
+};
+
+export type CcgGuildsResponse = {
+  guilds: CcgGuildFacet[];
 };
 
 export type CcgCollectionResponse = {

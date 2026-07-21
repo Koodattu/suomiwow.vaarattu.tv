@@ -12,8 +12,8 @@ SuomiWoW CCG turns Finnish World of Warcraft raid characters into collectible ca
 
 The product has two collection modes:
 
-- **Current** contains the active raid tier.
-- **Legacy** contains Uldir through the raid tier immediately preceding Current.
+- **Current** contains every enabled active raid.
+- **Legacy** contains every enabled past raid.
 
 Every raid tier is its own set and binder. Users receive ten Current packs and ten Legacy packs per day. Current packs draw from all enabled active raids; Legacy packs draw from all enabled past raids.
 
@@ -167,14 +167,17 @@ Keep the front readable. The focused card view or back may additionally show:
 
 A Current card candidate requires:
 
-- Mythic participation in the raid
+- At least two distinct Mythic reports in the raid
+- At least 50 Mythic boss-pull appearances across the raid tier
 - A stable internal `Character._id`
 - Valid role-performance data
 - Valid mechanics/survival data
 - A valid combined score
 - A successfully fetched Blizzard full character render
 
-The exact minimum participation threshold should be set-level configuration. Existing character tier-list eligibility and mechanics data should be reused where possible rather than adding a second inconsistent scoring pipeline.
+Mythic report count is materialized separately from the broader Heroic-or-Mythic participation count. Existing character tier-list eligibility and mechanics data remain the source of truth for the 50-pull threshold and scores rather than adding a second scoring pipeline.
+
+The card snapshots the stable guild ID, name, and realm of the guild with which the character recorded the most Mythic reports in that raid tier. Total qualifying reports, then most-recent appearance, provide deterministic tie-breakers. Guild attribution is not rewritten when the character later transfers.
 
 Achievement-completed characters are useful seeds for media fetching, but achievement completion does not itself make a character eligible for a card.
 
@@ -294,7 +297,8 @@ The primary collection experience resembles a physical card album:
 - Each binder cover uses its raid background and set identity.
 - Desktop binder pages use a 3×3 pocket layout.
 - Tablet and mobile reduce the pocket count without shrinking cards below readable sizes.
-- Missing cards appear as numbered dark silhouettes.
+- The default **All cards** view shows collected cards only.
+- The **By guild** view defaults to collected cards and can optionally reveal missing cards as numbered dark silhouettes.
 - Owned pockets display the highest owned finish and a visible total quantity.
 - Selecting a pocket opens the large card viewer.
 - The focused viewer lets the user switch between owned finishes and see quantities.
@@ -313,9 +317,10 @@ The binder is a real collection affordance, so a repeated card grid is appropria
 
 Useful collection controls:
 
-- Current or Legacy
 - Raid set
-- Owned or missing
+- All cards or By guild
+- Searchable raid-tier guild selector
+- Collected only or Show missing within a selected guild
 - Tier grade
 - Finish
 - Class
@@ -596,7 +601,7 @@ One immutable document per character and set:
 - `setNumber`
 - `characterId`
 - WCL canonical identity where available
-- Snapshotted name, realm, region, guild, and guild realm
+- Snapshotted name, realm, region, stable guild ID, guild name, and guild realm
 - `classID`, specialization, role, and metric
 - DPS/HPS, mechanics, combined, and Mythic+ scores
 - `tierGrade`
@@ -614,9 +619,11 @@ Indexes:
 - Unique `{setId: 1, characterId: 1}`
 - Unique `{setId: 1, setNumber: 1}`
 - `{setId: 1, tierGrade: 1, setNumber: 1}`
+- `{setId: 1, guildId: 1, setNumber: 1}`
+- `{setId: 1, guildId: 1, tierGrade: 1, setNumber: 1}`
 - `{setId: 1, rarityBucket: 1}`
 - `{characterId: 1, publishedAt: -1}`
-- Search-supporting indexes for name, guild, class, and role as required by final query design
+- Search-supporting indexes for name, class, and role as required by final query design
 
 Application code must reject attempts to modify immutable snapshot fields after publication.
 
@@ -821,8 +828,10 @@ Exact route naming can follow existing backend conventions. The expected capabil
   - Owner type, daily allowances, bonus credits, duplicate progress, and claim state
 - `GET /api/ccg/sets/:setSlug/catalog`
   - Paginated binder catalog with owned/missing state
+- `GET /api/ccg/sets/:setSlug/guilds`
+  - Raid-tier guild facets with published and collected card counts
 - `GET /api/ccg/collection`
-  - Paginated/filterable owned collection
+  - Paginated/filterable owned collection, optionally scoped to a raid-tier guild ID
 - `GET /api/ccg/cards/:cardId`
   - Full immutable card details
 - `POST /api/ccg/packs/open`

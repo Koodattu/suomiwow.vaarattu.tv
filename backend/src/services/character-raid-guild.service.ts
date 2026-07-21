@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 
 export type CharacterRaidGuild = {
+  id: mongoose.Types.ObjectId;
   name: string;
   realm: string;
 };
@@ -9,13 +10,16 @@ export type CharacterRaidGuild = {
 export type CharacterRaidGuildParticipation = {
   characterId?: mongoose.Types.ObjectId | string | null;
   zoneId: number;
+  reportGuildId: mongoose.Types.ObjectId;
   reportGuildName: string;
   reportGuildRealm: string;
   reportCount: number;
+  mythicReportCount: number;
   lastSeenAt: Date;
 };
 
 function isPreferredGuild(candidate: CharacterRaidGuildParticipation, current: CharacterRaidGuildParticipation): boolean {
+  if (candidate.mythicReportCount !== current.mythicReportCount) return candidate.mythicReportCount > current.mythicReportCount;
   if (candidate.reportCount !== current.reportCount) return candidate.reportCount > current.reportCount;
 
   const lastSeenDiff = candidate.lastSeenAt.getTime() - current.lastSeenAt.getTime();
@@ -44,6 +48,7 @@ export function selectPrimaryCharacterRaidGuilds(rows: readonly CharacterRaidGui
     Array.from(selectedRows, ([characterId, row]) => [
       characterId,
       {
+        id: row.reportGuildId,
         name: row.reportGuildName,
         realm: row.reportGuildRealm,
       },
@@ -65,7 +70,7 @@ export async function getPrimaryCharacterRaidGuilds(
     zoneId,
     characterId: { $in: uniqueCharacterIds },
   })
-    .select("characterId zoneId reportGuildName reportGuildRealm reportCount lastSeenAt -_id")
+    .select("characterId zoneId reportGuildId reportGuildName reportGuildRealm reportCount mythicReportCount lastSeenAt -_id")
     .lean<CharacterRaidGuildParticipation[]>();
 
   return selectPrimaryCharacterRaidGuilds(rows, zoneId);

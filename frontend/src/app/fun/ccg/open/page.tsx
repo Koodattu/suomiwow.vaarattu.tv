@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import type { CcgMode, CcgOpening } from "@/types";
+import type { CSSProperties } from "react";
+import type { CcgMode, CcgOpening, CcgSet } from "@/types";
 import { api } from "@/lib/api";
 import { queryKeys, useCcgOpening, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
@@ -13,9 +14,23 @@ import CollectibleCard from "@/components/ccg/CollectibleCard";
 import CardViewer from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import styles from "@/components/ccg/ccg.module.css";
+import packStyles from "@/components/ccg/pack-opening.module.css";
+
+type RevealPhase = "idle" | "tearing" | "dealing" | "ready";
+
+const fanAngles = [-8, -4, 0, 4, 8];
+const fanOffsets = [18, 6, 0, 6, 18];
 
 function makeIdempotencyKey(): string {
   return `pack_${window.crypto.randomUUID()}`;
+}
+
+function packTheme(set: CcgSet | undefined): CSSProperties {
+  return {
+    "--pack-accent": set?.theme.accent ?? "#5baeff",
+    "--pack-glow": set?.theme.glow ?? "rgba(91, 174, 255, 0.38)",
+    "--pack-art": set ? `url("${set.backgroundPath}")` : "none",
+  } as CSSProperties;
 }
 
 export default function CcgOpenPage() {
@@ -27,13 +42,17 @@ export default function CcgOpenPage() {
   const [opening, setOpening] = useState<CcgOpening | null>(null);
   const [recoveryId, setRecoveryId] = useState("");
   const [recoveryInitialized, setRecoveryInitialized] = useState(false);
-  const [visibleCards, setVisibleCards] = useState(0);
+  const [revealPhase, setRevealPhase] = useState<RevealPhase>("idle");
+  const [dealtCards, setDealtCards] = useState(0);
+  const [revealedCards, setRevealedCards] = useState<Set<number>>(() => new Set());
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const recoveryQuery = useCcgOpening(recoveryId);
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets ?? [];
   const modeSets = sets.filter((set) => set.state === mode && set.cardCount > 0);
   const selectedSet = mode === "current" ? modeSets[0] : undefined;
+  const featuredPackSet = selectedSet ?? modeSets[0];
   const poolTitle =
     mode === "legacy"
       ? t("open.legacyPool", { count: modeSets.length })
@@ -63,23 +82,45 @@ export default function CcgOpenPage() {
 
   useEffect(() => {
     if (!opening) return;
+    const total = opening.results.length;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setViewerIndex(null);
+
     if (reduced) {
-      setVisibleCards(opening.results.length);
+      setRevealPhase("ready");
+      setDealtCards(total);
+      setRevealedCards(new Set(opening.results.map((_, index) => index)));
       return;
     }
-    setVisibleCards(0);
-    const interval = window.setInterval(() => {
-      setVisibleCards((count) => {
-        if (count >= opening.results.length) {
-          window.clearInterval(interval);
-          return count;
+
+    setRevealPhase("tearing");
+    setDealtCards(0);
+    setRevealedCards(new Set());
+    let dealTimer: number | undefined;
+    const tearTimer = window.setTimeout(() => {
+      setRevealPhase("dealing");
+      let next = 1;
+      setDealtCards(1);
+      dealTimer = window.setInterval(() => {
+        next += 1;
+        setDealtCards(Math.min(next, total));
+        if (next >= total) {
+          if (dealTimer) window.clearInterval(dealTimer);
+          setRevealPhase("ready");
         }
-        return count + 1;
-      });
-    }, 420);
-    return () => window.clearInterval(interval);
+      }, 125);
+    }, 1050);
+
+    return () => {
+      window.clearTimeout(tearTimer);
+      if (dealTimer) window.clearInterval(dealTimer);
+    };
   }, [opening]);
+
+  useEffect(() => {
+    if (revealPhase !== "ready" || revealedCards.size > 0) return;
+    cardRefs.current[0]?.focus({ preventScroll: true });
+  }, [revealPhase, revealedCards.size]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -113,6 +154,7 @@ export default function CcgOpenPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.ccg.session });
       queryClient.invalidateQueries({ queryKey: ["ccg", "catalog"] });
       queryClient.invalidateQueries({ queryKey: ["ccg", "collection"] });
+      queryClient.invalidateQueries({ queryKey: ["ccg", "guilds"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.ccg.sets });
     },
   });
@@ -121,18 +163,41 @@ export default function CcgOpenPage() {
   const noPacks = session ? session.packs[mode].totalRemaining <= 0 : false;
   const clearSavedOpening = () => {
     setOpening(null);
-    setVisibleCards(0);
+    setRevealPhase("idle");
+    setDealtCards(0);
+    setRevealedCards(new Set());
+    setViewerIndex(null);
     setRecoveryId("");
     const url = new URL(window.location.href);
     url.searchParams.delete("opening");
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   };
 
+  const revealCard = (index: number) => {
+    if (revealPhase !== "ready" || index >= dealtCards) return;
+    if (revealedCards.has(index)) {
+      setViewerIndex(index);
+      return;
+    }
+    setRevealedCards((current) => new Set(current).add(index));
+  };
+
+  const revealAll = () => {
+    if (!opening || revealPhase !== "ready") return;
+    setRevealedCards(new Set(opening.results.map((_, index) => index)));
+  };
+
   const canOpen = recoveryInitialized && !recoveryId && Boolean(session) && !queryFailed && modeSets.length > 0 && !noPacks && !mutation.isPending;
+  const allRevealed = Boolean(opening) && revealedCards.size >= (opening?.results.length ?? 0);
   const revealedSummary = useMemo(
-    () => opening?.results.slice(0, visibleCards).map((row) => `${row.card.name}, ${row.finish}, ${row.isDuplicate ? t("open.duplicate") : t("open.newCard")}`).join(". ") ?? "",
-    [opening, visibleCards, t],
+    () => opening?.results
+      .filter((_, index) => revealedCards.has(index))
+      .map((row) => `${row.card.name}, ${t(`finish.${row.finish}`)}, ${row.isDuplicate ? t("open.duplicate") : t("open.newCard")}`)
+      .join(". ") ?? "",
+    [opening, revealedCards, t],
   );
+  const openingSet = opening?.results[0]?.card.set ?? opening?.sets[0] ?? featuredPackSet;
+  const stageTheme = packTheme(openingSet);
 
   if (queryFailed) {
     return <CcgShell><div className="mx-auto max-w-3xl px-4 py-12"><CcgLoadError onRetry={() => { void sessionQuery.refetch(); void setsQuery.refetch(); }} /></div></CcgShell>;
@@ -172,53 +237,123 @@ export default function CcgOpenPage() {
               ) : null}
               {mutation.error ? <p className="mt-4 text-sm text-red-300" role="alert">{mutation.error.message}</p> : null}
             </aside>
-            <section className={styles.packStage}>
-              <button
-                type="button"
-                className={styles.sealedPack}
-                disabled={!canOpen}
-                onClick={() => mutation.mutate()}
-                aria-label={t("open.openPack")}
-                style={selectedSet ? { boxShadow: `0 28px 80px rgba(0,0,0,.55), 0 0 48px ${selectedSet.theme.glow}` } : undefined}
-              >
-                <span className="absolute inset-6 flex flex-col items-center justify-center rounded-lg border border-white/15 bg-slate-950/25 px-4 text-center">
-                  <span className="text-[0.65rem] font-black uppercase tracking-[0.24em] text-cyan-200">SuomiWoW CCG</span>
-                  <span className="mt-4 text-2xl font-black leading-tight">{modeSets.length > 0 ? poolTitle : t("landing.preparing")}</span>
-                  <span className="mt-3 text-xs uppercase tracking-widest text-slate-300">{mutation.isPending ? t("open.opening") : t("open.openPack")}</span>
-                  <span className="mt-5 text-4xl font-black tabular-nums text-white">5</span>
-                  <span className="text-[0.65rem] uppercase tracking-[0.15em] text-slate-300">{t("landing.cards")}</span>
-                </span>
-              </button>
+
+            <section className={packStyles.packStage} style={packTheme(featuredPackSet)}>
+              <span className={packStyles.stageArt} />
+              <span className={packStyles.stageVeil} />
+              <span className={packStyles.vaultRing} aria-hidden="true" />
+              <span className={packStyles.vaultRingInner} aria-hidden="true" />
+              <div className={packStyles.packPresentation}>
+                <span className={packStyles.packMode}>{t(`mode.${mode}`)} · {featuredPackSet?.expansionName ?? "SuomiWoW"}</span>
+                <button
+                  type="button"
+                  className={`${packStyles.packButton} ${mutation.isPending ? packStyles.packButtonOpening : ""}`}
+                  disabled={!canOpen}
+                  onClick={() => mutation.mutate()}
+                  aria-label={t("open.openPack")}
+                  aria-busy={mutation.isPending}
+                >
+                  <span className={packStyles.packShadow} />
+                  <span className={packStyles.booster}>
+                    <span className={packStyles.wrapperArt} />
+                    <span className={packStyles.wrapperShade} />
+                    <span className={packStyles.wrapperFoil} />
+                    <span className={`${packStyles.crimp} ${packStyles.crimpTop}`} />
+                    <span className={`${packStyles.crimp} ${packStyles.crimpBottom}`} />
+                    <span className={packStyles.packBrand}>SuomiWoW <strong>CCG</strong></span>
+                    <span className={packStyles.packTitle}>{modeSets.length > 0 ? poolTitle : t("landing.preparing")}</span>
+                    <span className={packStyles.packSigil} aria-hidden="true"><span /></span>
+                    <span className={packStyles.packCount}><strong>5</strong><span>{t("landing.cards")}</span></span>
+                    <span className={packStyles.packSeal}>{featuredPackSet?.theme.mark ?? "CCG"}</span>
+                  </span>
+                </button>
+                <span className={packStyles.packHint}>{mutation.isPending ? t("open.openingHint") : t("open.packHint")}</span>
+              </div>
             </section>
           </div>
         ) : (
-          <section className={`${styles.packStage} py-6`}>
-            <div className="w-full">
-              <div className={styles.revealGrid}>
-                {opening.results.map((result, index) => (
-                  <div key={`${result.card.id}-${index}`} className={`${styles.revealCard} ${index < visibleCards ? styles.revealCardVisible : ""}`}>
-                    <CollectibleCard card={result.card} finish={result.finish} compact onSelect={() => setViewerIndex(index)} />
-                    <div className="mt-2 flex items-center justify-between gap-2 px-1 text-[0.68rem]">
-                      <span className={result.isDuplicate ? "text-slate-500" : "font-bold text-cyan-200"}>{t(result.isDuplicate ? "open.duplicate" : "open.newCard")}</span>
-                      <span className="capitalize text-slate-500">{t(`finish.${result.finish}`)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {visibleCards >= opening.results.length ? (
-                <div className="relative z-10 mx-auto flex max-w-lg flex-col items-center px-5 pb-5 text-center">
-                  {opening.duplicateRewards > 0 ? <p className="mb-3 text-sm font-bold text-violet-200">{t("open.bonusEarned", { count: opening.duplicateRewards })}</p> : null}
-                  <button
-                    type="button"
-                    className={styles.primaryButton}
-                    onClick={clearSavedOpening}
-                  >
-                    {t("open.openAnother")}
-                  </button>
-                </div>
-              ) : null}
+          <section className={`${packStyles.packStage} ${packStyles.revealStage}`} style={stageTheme}>
+            <span className={packStyles.stageArt} />
+            <span className={packStyles.stageVeil} />
+            <span className={packStyles.vaultRing} aria-hidden="true" />
+            <span className={packStyles.vaultRingInner} aria-hidden="true" />
+
+            <div className={`${packStyles.tearSequence} ${revealPhase !== "tearing" ? packStyles.tearSequenceComplete : ""}`} aria-hidden="true">
+              <span className={`${packStyles.tornHalf} ${packStyles.tornHalfLeft}`}><span /></span>
+              <span className={`${packStyles.tornHalf} ${packStyles.tornHalfRight}`}><span /></span>
+              <span className={packStyles.tearFlash} />
+              <span className={packStyles.tearShardOne} />
+              <span className={packStyles.tearShardTwo} />
+              <span className={packStyles.tearShardThree} />
             </div>
-            <p className="sr-only" aria-live="polite">{revealedSummary}</p>
+
+            <div className={`${packStyles.revealContent} ${revealPhase === "tearing" ? packStyles.revealContentWaiting : ""}`}>
+              <div className={packStyles.revealLead}>
+                <span>{opening.mode === "legacy" ? t("open.legacyPool", { count: opening.sets.length }) : openingSet?.raidName}</span>
+                <strong>{allRevealed ? t("open.allRevealed") : t("open.revealPrompt")}</strong>
+              </div>
+
+              <div className={packStyles.cardFanScroller}>
+                <div className={packStyles.cardFan}>
+                  {opening.results.map((result, index) => {
+                    const revealed = revealedCards.has(index);
+                    const dealt = index < dealtCards;
+                    const special = result.finish !== "standard" || result.card.tierGrade === "S" || result.card.tierGrade === "Crown";
+                    const cardStyle = {
+                      "--fan-angle": `${fanAngles[index] ?? 0}deg`,
+                      "--fan-y": `${fanOffsets[index] ?? 0}px`,
+                      "--deal-delay": `${index * 70}ms`,
+                    } as CSSProperties;
+                    return (
+                      <button
+                        key={`${result.card.id}-${index}`}
+                        type="button"
+                        className={`${packStyles.revealSlot} ${dealt ? packStyles.revealSlotDealt : ""} ${revealed ? packStyles.revealSlotRevealed : ""} ${special ? packStyles.revealSlotSpecial : ""}`}
+                        style={cardStyle}
+                        ref={(element) => { cardRefs.current[index] = element; }}
+                        disabled={!dealt || revealPhase !== "ready"}
+                        onClick={() => revealCard(index)}
+                        aria-label={revealed ? t("open.viewCard", { name: result.card.name }) : t("open.revealCard", { position: index + 1 })}
+                      >
+                        <span className={packStyles.cardFlip}>
+                          <span className={`${packStyles.cardFace} ${packStyles.cardBack}`} aria-hidden={revealed}>
+                            <span className={packStyles.cardBackField} />
+                            <span className={packStyles.cardBackSigil} aria-hidden="true"><span /></span>
+                            <span className={packStyles.cardBackBrand}>SuomiWoW <strong>CCG</strong></span>
+                            <span className={packStyles.cardBackSet}>{opening.mode === "current" ? openingSet?.raidName : t("mode.legacy")}</span>
+                          </span>
+                          <span className={`${packStyles.cardFace} ${packStyles.cardFront}`} aria-hidden={!revealed}>
+                            <CollectibleCard card={result.card} finish={result.finish} compact />
+                          </span>
+                        </span>
+                        <span className={packStyles.revealFlare} aria-hidden="true" />
+                        <span className={packStyles.pullStatus} aria-hidden={!revealed}>
+                          <strong>{t(result.isDuplicate ? "open.duplicate" : "open.newCard")}</strong>
+                          <span>{t(`finish.${result.finish}`)}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className={packStyles.revealControls}>
+                <div className={packStyles.revealProgress}>
+                  <span>{t("open.revealProgress", { revealed: revealedCards.size, total: opening.results.length })}</span>
+                  <span className={packStyles.progressPips} aria-hidden="true">
+                    {opening.results.map((_, index) => <i key={index} data-revealed={revealedCards.has(index)} />)}
+                  </span>
+                </div>
+                {revealPhase === "ready" && !allRevealed ? (
+                  <button type="button" className={styles.secondaryButton} onClick={revealAll}>{t("open.revealAll")}</button>
+                ) : null}
+                {allRevealed ? (
+                  <button type="button" className={styles.primaryButton} onClick={clearSavedOpening}>{t("open.openAnother")}</button>
+                ) : null}
+              </div>
+              {allRevealed && opening.duplicateRewards > 0 ? <p className={packStyles.bonusEarned}>{t("open.bonusEarned", { count: opening.duplicateRewards })}</p> : null}
+            </div>
+            <p className="sr-only" aria-live="polite">{revealPhase === "ready" && revealedCards.size === 0 ? t("open.cardsReady") : revealedSummary}</p>
           </section>
         )}
       </div>

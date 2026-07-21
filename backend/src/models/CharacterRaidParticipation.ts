@@ -16,6 +16,7 @@ export interface ICharacterRaidParticipation extends Document {
   firstSeenAt: Date;
   lastSeenAt: Date;
   reportCount: number;
+  mythicReportCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +36,7 @@ const CharacterRaidParticipationSchema = new Schema<ICharacterRaidParticipation>
     firstSeenAt: { type: Date, required: true },
     lastSeenAt: { type: Date, required: true },
     reportCount: { type: Number, required: true, default: 0 },
+    mythicReportCount: { type: Number, required: true, default: 0 },
   },
   { timestamps: true },
 );
@@ -43,6 +45,7 @@ CharacterRaidParticipationSchema.index({ reportGuildId: 1, zoneId: 1, classID: 1
 CharacterRaidParticipationSchema.index({ characterRealm: 1, characterName: 1, classID: 1 });
 CharacterRaidParticipationSchema.index({ zoneId: 1, lastSeenAt: -1 });
 CharacterRaidParticipationSchema.index({ reportCount: -1, characterId: 1 });
+CharacterRaidParticipationSchema.index({ zoneId: 1, mythicReportCount: -1, characterId: 1 });
 CharacterRaidParticipationSchema.index({ characterRealm: 1, characterName: 1, zoneId: 1, lastSeenAt: -1 }, { collation: CASE_INSENSITIVE_COLLATION });
 CharacterRaidParticipationSchema.index({ characterRealm: 1, characterName: 1, reportGuildId: 1, zoneId: 1, classID: 1 }, { collation: CASE_INSENSITIVE_COLLATION });
 CharacterRaidParticipationSchema.index({ wclCanonicalCharacterId: 1, classID: 1, zoneId: 1, firstSeenAt: 1 });

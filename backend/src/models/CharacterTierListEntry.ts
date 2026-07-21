@@ -44,6 +44,7 @@ export interface ICharacterTierListEntry extends Document {
   bossScores: IMechanicsBossScore[];
 
   reportCount: number;
+  mythicReportCount: number;
   firstSeenAt: Date;
   lastSeenAt: Date;
   sourceUpdatedAt: Date;
@@ -109,6 +110,7 @@ const CharacterTierListEntrySchema = new Schema<ICharacterTierListEntry>(
     bossScores: { type: [MechanicsBossScoreSchema], default: [] },
 
     reportCount: { type: Number, required: true, default: 0, index: true },
+    mythicReportCount: { type: Number, required: true, default: 0 },
     firstSeenAt: { type: Date, required: true },
     lastSeenAt: { type: Date, required: true },
     sourceUpdatedAt: { type: Date, required: true },
@@ -119,6 +121,7 @@ const CharacterTierListEntrySchema = new Schema<ICharacterTierListEntry>(
 
 CharacterTierListEntrySchema.index({ scope: 1, zoneId: 1, guildId: 1, characterKey: 1 }, { unique: true });
 CharacterTierListEntrySchema.index({ zoneId: 1, scope: 1, reportCount: -1, score: -1 });
+CharacterTierListEntrySchema.index({ zoneId: 1, scope: 1, mythicReportCount: -1, pulls: -1, score: -1 });
 CharacterTierListEntrySchema.index({ zoneId: 1, scope: 1, role: 1, classID: 1, reportCount: -1, score: -1 });
 CharacterTierListEntrySchema.index({ zoneId: 1, scope: 1, guildId: 1, role: 1, classID: 1, reportCount: -1, score: -1 });
 CharacterTierListEntrySchema.index({ zoneId: 1, generatedAt: -1 });
