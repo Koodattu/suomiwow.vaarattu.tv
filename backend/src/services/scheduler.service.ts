@@ -16,7 +16,11 @@ import taskTracker from "./task-tracker.service";
 import fightVodService from "./fight-vod.service";
 import characterAchievementService from "./character-achievement.service";
 import mythicPlusService from "./mythic-plus.service";
+import characterMediaService from "./character-media.service";
+import ccgPublisherService from "./ccg-publisher.service";
+import ccgService from "./ccg.service";
 import { CURRENT_RAID_IDS } from "../config/guilds";
+import { CCG_FEATURE_ENABLED } from "../config/ccg";
 import logger from "../utils/logger";
 
 // Polling intervals from environment (in minutes), with sensible defaults
@@ -146,6 +150,12 @@ class UpdateScheduler {
   private isCheckingHiatus: boolean = false;
   private isUpdatingRaiderIOGuilds: boolean = false;
   private isUpdatingMythicPlusCurrentSeason: boolean = false;
+  private isCleaningCcgGuests: boolean = false;
+  private isDiscoveringCcgMedia: boolean = false;
+  private isRefreshingCcgMedia: boolean = false;
+  private isRecoveringCcgMedia: boolean = false;
+  private isBuildingCcgSnapshot: boolean = false;
+  private isPublishingCcgWave: boolean = false;
   private lastCacheWarmTime: number = 0;
 
   private getBlockingDatabaseMaintenanceJob(): string | null {
@@ -459,6 +469,56 @@ class UpdateScheduler {
       },
     );
 
+    if (CCG_FEATURE_ENABLED) {
+      cron.schedule(
+        "15 0 * * *",
+        async () => {
+          if (!this.isCleaningCcgGuests) await this.cleanupCcgGuests();
+        },
+        { timezone: "Europe/Helsinki" },
+      );
+
+      cron.schedule(
+        "30 1 * * *",
+        async () => {
+          if (!this.isDiscoveringCcgMedia) await this.discoverCcgMedia();
+        },
+        { timezone: "Europe/Helsinki" },
+      );
+
+      cron.schedule(
+        "50 1 * * *",
+        async () => {
+          if (!this.isRefreshingCcgMedia) await this.refreshCcgMedia();
+        },
+        { timezone: "Europe/Helsinki" },
+      );
+
+      cron.schedule(
+        "*/15 * * * *",
+        async () => {
+          if (!this.isRecoveringCcgMedia) await this.recoverCcgMedia();
+        },
+        { timezone: "Europe/Helsinki" },
+      );
+
+      cron.schedule(
+        "0 3 * * 3",
+        async () => {
+          if (!this.isBuildingCcgSnapshot) await this.buildWeeklyCcgSnapshot();
+        },
+        { timezone: "Europe/Helsinki" },
+      );
+
+      cron.schedule(
+        "30 4 * * 3",
+        async () => {
+          if (!this.isPublishingCcgWave) await this.publishWeeklyCcgWave();
+        },
+        { timezone: "Europe/Helsinki" },
+      );
+    }
+
     // NIGHTLY: Queue character achievement fingerprints for account matching (at 1:30 AM Finnish time)
     cron.schedule(
       "30 1 * * *",
@@ -726,6 +786,16 @@ class UpdateScheduler {
     logger.info("    * Character mechanics pending retry: every 30 minutes from 09:00-15:30");
     logger.info("    * Hiatus event check: daily at 09:00");
     logger.info("    * Full cache warmup: daily at 11:00");
+    if (CCG_FEATURE_ENABLED) {
+      logger.info("  - SuomiWoW CCG jobs (Europe/Helsinki):");
+      logger.info("    * Guest expiry reconciliation: daily at 00:15");
+      logger.info("    * New-character media discovery: daily at 01:30");
+      logger.info("    * Active-character media refresh: daily at 01:50");
+      logger.info("    * Media queue recovery: every 15 minutes");
+      logger.info("    * Current snapshot: Wednesday at 03:00");
+      logger.info("    * Current publication: Wednesday at 04:30");
+      characterMediaService.startProcessing();
+    }
 
     characterAchievementService
       .resumeInterruptedBackfill()
@@ -817,6 +887,92 @@ class UpdateScheduler {
       .then(() => logger.info("[Admin] Character rankings refresh completed"))
       .catch((err) => logger.error("[Admin] Character rankings refresh failed:", err));
     return true;
+  }
+
+  private async cleanupCcgGuests(): Promise<void> {
+    this.isCleaningCcgGuests = true;
+    const taskId = await taskTracker.start("CCG Guest Expiry Reconciliation");
+    try {
+      const result = await ccgService.cleanupExpiredGuestData();
+      await taskTracker.complete(taskId, result);
+    } catch (error) {
+      logger.error("[CCG/GuestCleanup] Error:", error);
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+    } finally {
+      this.isCleaningCcgGuests = false;
+    }
+  }
+
+  private async discoverCcgMedia(): Promise<void> {
+    this.isDiscoveringCcgMedia = true;
+    const taskId = await taskTracker.start("CCG Character Media Discovery");
+    try {
+      const result = await characterMediaService.enqueueMissing();
+      await taskTracker.complete(taskId, result);
+    } catch (error) {
+      logger.error("[CCG/MediaDiscovery] Error:", error);
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+    } finally {
+      this.isDiscoveringCcgMedia = false;
+    }
+  }
+
+  private async refreshCcgMedia(): Promise<void> {
+    this.isRefreshingCcgMedia = true;
+    const taskId = await taskTracker.start("CCG Active Character Media Refresh");
+    try {
+      const result = await characterMediaService.enqueueActiveCurrent();
+      await taskTracker.complete(taskId, result);
+    } catch (error) {
+      logger.error("[CCG/MediaRefresh] Error:", error);
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+    } finally {
+      this.isRefreshingCcgMedia = false;
+    }
+  }
+
+  private async recoverCcgMedia(): Promise<void> {
+    this.isRecoveringCcgMedia = true;
+    try {
+      const recovered = await characterMediaService.recoverStaleProcessing();
+      if (recovered > 0) logger.info(`[CCG/MediaRecovery] Recovered ${recovered} stale item(s)`);
+    } catch (error) {
+      logger.error("[CCG/MediaRecovery] Error:", error);
+    } finally {
+      this.isRecoveringCcgMedia = false;
+    }
+  }
+
+  private async buildWeeklyCcgSnapshot(): Promise<void> {
+    this.isBuildingCcgSnapshot = true;
+    const taskId = await taskTracker.start("CCG Weekly Current Snapshot");
+    try {
+      const sets = await ccgPublisherService.getEnabledCurrentSets();
+      const results = [];
+      for (const set of sets) results.push({ zoneId: set.zoneId, slug: set.slug, ...(await ccgPublisherService.buildSnapshot(set.zoneId)) });
+      await taskTracker.complete(taskId, { sets: results });
+    } catch (error) {
+      logger.error("[CCG/Snapshot] Error:", error);
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+    } finally {
+      this.isBuildingCcgSnapshot = false;
+    }
+  }
+
+  private async publishWeeklyCcgWave(): Promise<void> {
+    this.isPublishingCcgWave = true;
+    const taskId = await taskTracker.start("CCG Weekly Current Publication");
+    try {
+      const sets = await ccgPublisherService.getEnabledCurrentSets();
+      const results = [];
+      for (const set of sets) results.push({ zoneId: set.zoneId, slug: set.slug, ...(await ccgPublisherService.publishLatestWave(set.slug)) });
+      await taskTracker.complete(taskId, { sets: results });
+    } catch (error) {
+      logger.error("[CCG/Publication] Error:", error);
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+    } finally {
+      this.isPublishingCcgWave = false;
+    }
   }
 
   triggerCharacterMechanicsLeaderboardRefresh(): boolean {

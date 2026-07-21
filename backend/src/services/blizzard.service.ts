@@ -40,6 +40,19 @@ interface BlizzardAchievementMedia {
   id: number;
 }
 
+export interface BlizzardCharacterMedia {
+  avatarUrl: string | null;
+  insetUrl: string | null;
+  mainRawUrl: string | null;
+}
+
+interface BlizzardCharacterMediaResponse {
+  assets?: Array<{
+    key?: string;
+    value?: string;
+  }>;
+}
+
 interface BlizzardGuildCrestIndex {
   _links: {
     self: {
@@ -594,6 +607,25 @@ export class BlizzardApiClient {
       logger.error(`Error fetching media for achievement ${achievementId}:`, error.message);
       return null;
     }
+  }
+
+  public async getCharacterMedia(characterName: string, realmSlug: string, region: string): Promise<BlizzardCharacterMedia> {
+    const regionLower = region.toLowerCase();
+    const apiUrl = this.regionApiUrls[regionLower];
+    if (!apiUrl) throw new Error(`Unsupported Blizzard region: ${region}`);
+
+    const nameSlug = encodeURIComponent(characterName.toLowerCase());
+    const normalizedRealmSlug = encodeURIComponent(realmSlug.toLowerCase());
+    const namespace = `profile-${regionLower}`;
+    const url = `${apiUrl}/profile/wow/character/${normalizedRealmSlug}/${nameSlug}/character-media?namespace=${namespace}&locale=${this.locale}`;
+    const response = await this.makeAuthenticatedRequest<BlizzardCharacterMediaResponse>(url, 0, 5);
+    const assets = new Map((response.assets ?? []).map((asset) => [asset.key, asset.value]));
+
+    return {
+      avatarUrl: assets.get("avatar") ?? null,
+      insetUrl: assets.get("inset") ?? null,
+      mainRawUrl: assets.get("main-raw") ?? assets.get("main") ?? null,
+    };
   }
 
   /**

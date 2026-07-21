@@ -4,6 +4,7 @@ dotenv.config();
 
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import session from "express-session";
 import MongoStore from "connect-mongo";
 import path from "path";
@@ -33,6 +34,8 @@ import searchRouter from "./routes/search";
 import pickemsRouter from "./routes/pickems";
 import discordRouter from "./routes/discord";
 import guildNetworkRouter from "./routes/guild-network";
+import ccgRouter from "./routes/ccg";
+import adminCcgRouter from "./routes/admin-ccg";
 import discordBotService from "./services/discord-bot.service";
 import twitchChatBotService from "./services/twitch-chat-bot.service";
 import backgroundGuildProcessor from "./services/background-guild-processor.service";
@@ -149,6 +152,7 @@ if (process.env.NODE_ENV === "production") {
 }
 
 app.use(session(sessionConfig));
+app.use(cookieParser());
 
 // Analytics middleware - tracks all requests automatically
 app.use(analyticsMiddleware);
@@ -182,6 +186,8 @@ app.use("/api/analytics", analyticsRouter);
 app.use("/api/raid-analytics", raidAnalyticsRouter);
 app.use("/api/compare", compareRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/ccg", ccgRouter);
+app.use("/api/admin/ccg", adminCcgRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/pickems", pickemsRouter);
 app.use("/api/character-rankings", characterRankingsRouter);
@@ -552,6 +558,7 @@ const startServer = async () => {
       workerApp.use(session(sessionConfig));
       workerApp.use(analyticsMiddleware);
       workerApp.use(express.json());
+      workerApp.use("/api/admin/ccg", adminCcgRouter);
       workerApp.use("/api/admin", adminRouter);
       workerApp.get("/health", (_req: Request, res: Response) => {
         res.json({ status: "ok", mode: "worker" });

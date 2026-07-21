@@ -52,7 +52,111 @@
     "horseRaceJapanese": "Horses",
     "horseRaceUma": "Umas",
     "horseRaceCharacters": "Characters",
-    "horseRaceBackground": "Background"
+    "horseRaceBackground": "Background",
+    "ccg": "CCG"
+  },
+  "ccg": {
+    "eyebrow": "Yhteisön korttiholvi",
+    "subtitle": "Avaa raidisettien pakkoja ja kerää jokaisen tierin hahmot talteen.",
+    "fanNotice": "Epävirallinen ja maksuton faniprojekti. World of Warcraft ja siihen liittyvä kuvitus ovat Blizzard Entertainmentin tavaramerkkejä tai tekijänoikeuksien alaista materiaalia. SuomiWoW ei ole Blizzard Entertainmentin yhteistyökumppani.",
+    "loading": "Korttiholvia ladataan",
+    "nav": {
+      "label": "CCG-navigaatio",
+      "home": "Holvi",
+      "open": "Avaa pakkoja",
+      "collection": "Kokoelma"
+    },
+    "mode": {
+      "current": "Nykyinen",
+      "legacy": "Legacy"
+    },
+    "packsRemaining": "pakkaa jäljellä",
+    "bonus": "bonus",
+    "duplicateMeter": "Tuplamittari",
+    "guest": {
+      "title": "Tämän päivän kortit odottavat sinua",
+      "body": "Avaa pakat nyt ja kirjaudu ennen Helsingin vuorokausivaihtoa, jotta saat pitää kaikki kortit. Ensimmäinen lunastus antaa lisäksi viisi Current-pakkaa.",
+      "expiresIn": "Lunasta {time} kuluessa",
+      "timeRemaining": "{hours} t {minutes} min",
+      "login": "Kirjaudu ja pidä kortit"
+    },
+    "landing": {
+      "title": "Kaksikymmentä ilmaista pakkaa joka päivä",
+      "body": "Jokainen kortti on muuttumaton otos tästä raid-tieristä: suoritus, mekaniikat, Mythic+, kilta, rooli ja hahmon ulkoasu.",
+      "packBody": "Avaa kymmenen Current- ja kymmenen Legacy-pakkaa jokaisena Helsingin vuorokautena. Täsmälleen samat tuplat täyttävät mittaria kohti lisäpakkaa.",
+      "dailyPacks": "Päivittäiset pakat",
+      "currentSet": "Current-setti",
+      "currentRaids": "{count} nykyistä raidia",
+      "preparing": "Seuraavaa settiä valmistellaan",
+      "openCurrent": "Avaa Current-pakkoja",
+      "collection": "Näytä kokoelma",
+      "cards": "korttia",
+      "collected": "kerätty",
+      "legacyTitle": "Raidihistoria, yksi kansio kerrallaan",
+      "legacyBody": "Jokainen Legacy-pakka arpoo kortteja kaikista käyttöön otetuista vanhoista raideista. Kansiot pysyvät raidikohtaisina.",
+      "openLegacy": "Avaa Legacy-pakkoja",
+      "legacyEmpty": "Legacy-kansiot ilmestyvät sitä mukaa, kun niiden snapshotit julkaistaan."
+    },
+    "open": {
+      "title": "Astu raidiholviin",
+      "body": "Valitse Current tai Legacy. Current sisältää vain aktiiviset raidit ja Legacy kaikki käyttöön otetut vanhat raidit. Sivun päivitys ei arvo pakkaa uudelleen.",
+      "chooseMode": "Pakkatyyppi",
+      "chooseLegacy": "Legacy-raid",
+      "currentPool": "Current-raidien kortit ({count})",
+      "legacyPool": "Legacy-arkisto ({count})",
+      "currentPoolBody": "Kortit voivat tulla mistä tahansa {count} aktiivisesta Current-raidista.",
+      "legacyPoolBody": "Kortit voivat tulla mistä tahansa {count} käyttöön otetusta historiallisesta raidista.",
+      "openPack": "Avaa pakka",
+      "opening": "Avataan…",
+      "noPacks": "Tämän tilan pakat on käytetty tältä päivältä. Tupla- ja kirjautumisbonukset ilmestyvät tähän automaattisesti.",
+      "newCard": "Uusi",
+      "duplicate": "Tupla",
+      "bonusEarned": "Tuplamittari antoi {count} bonuspakkaa.",
+      "recoveryFailed": "Tallennettua pakkaa ei voitu palauttaa. Tyhjennä se ennen uuden pakan avaamista.",
+      "dismissRecovery": "Tyhjennä tallennettu pakka",
+      "openAnother": "Avaa toinen pakka"
+    },
+    "collection": {
+      "title": "Raidikansiosi",
+      "body": "Selaa setin koko järjestystä, omistettuja viimeistelyjä, tarkkoja määriä ja vielä puuttuvia kortteja.",
+      "sets": "Raidisetit",
+      "cards": "Kortit",
+      "all": "Kaikki",
+      "owned": "Omistetut",
+      "missing": "Puuttuvat",
+      "notCollected": "Ei vielä kerätty",
+      "allGrades": "Kaikki tierit",
+      "emptyTitle": "Tämä kansiosivu on tyhjä",
+      "emptyBody": "Vaihda suodatinta, valitse toinen raid tai avaa pakka aloittaaksesi kansion täyttämisen.",
+      "previous": "Edellinen",
+      "next": "Seuraava",
+      "page": "Sivu {page}/{pages}"
+    },
+    "finish": {
+      "label": "Kortin viimeistely",
+      "standard": "Tavallinen",
+      "golden": "Kultainen",
+      "prismatic": "Prismaattinen"
+    },
+    "role": {
+      "tank": "Tankki",
+      "healer": "Parantaja",
+      "dps": "Vahinko"
+    },
+    "score": {
+      "mechanicsShort": "MEK",
+      "combinedShort": "YHT",
+      "mythicPlusShort": "M+"
+    },
+    "error": {
+      "title": "Korttiholvia ei voitu ladata",
+      "body": "Korttisi ja pakkasaldosi ovat turvassa. Yritä ladata holvi uudelleen.",
+      "retry": "Yritä uudelleen"
+    },
+    "close": "Sulje",
+    "snapshot": "Snapshot",
+    "tier": "Tier-luokka",
+    "mechanics": "Mekaniikat"
   },
   "infoDialog": {
     "title": "Tietoa Sivustosta",
@@ -486,7 +590,52 @@
       "pickems": "Veikkaukset",
       "analytics": "Analytiikka",
       "system": "Järjestelmä",
-      "tasks": "Tehtävät"
+      "tasks": "Tehtävät",
+      "ccg": "CCG"
+    },
+    "ccg": {
+      "title": "CCG-raidien julkaisu",
+      "description": "Tarkista datan kattavuus ja ota raidisetit peruuttamattomasti käyttöön Current- tai Legacy-pakoissa.",
+      "refresh": "Päivitä",
+      "retry": "Yritä uudelleen",
+      "loading": "Ladataan CCG-raidien tilaa…",
+      "enabledSets": "Käytössä olevat setit",
+      "candidateSets": "Odottaa käyttöönottoa",
+      "publishedCards": "Julkaistut kortit",
+      "packOpenings": "Avatut pakat",
+      "candidate": "Pois käytöstä",
+      "enabled": "Käytössä",
+      "excluded": "Rajattu pois",
+      "targetCurrent": "Current käyttöönoton jälkeen",
+      "targetLegacy": "Legacy käyttöönoton jälkeen",
+      "cards": "{count} korttia",
+      "wave": "Julkaisuerä {count}",
+      "enabledAt": "Otettu käyttöön {date}",
+      "checkReadiness": "Tarkista valmius",
+      "checking": "Tarkistetaan…",
+      "ready": "Valmis käyttöönottoon",
+      "notReady": "Ei vielä valmis",
+      "eligible": "Kelvolliset hahmot",
+      "mediaReady": "Renderit valmiina",
+      "mediaCoverage": "Renderien kattavuus",
+      "published": "Julkaistu ennestään",
+      "enable": "Ota CCG-setti käyttöön",
+      "enabling": "Valmistellaan ja otetaan käyttöön…",
+      "enableWarning": "Tämä julkaisee nykyisen snapshotin ja lisää raidin {raid} pysyvästi CCG-pakkoihin. Sitä ei voi poistaa käytöstä myöhemmin.",
+      "confirmEnable": "Ota pysyvästi käyttöön",
+      "cancel": "Peruuta",
+      "enableSuccess": "{raid} otettiin käyttöön {count} julkaistulla kortilla.",
+      "movedToLegacy": "{count} aiempaa Current-settiä siirtyi Legacyyn.",
+      "blockers": {
+        "eligible_population": "Kelvollisia hahmoja ei ole vielä tarpeeksi (vähintään {minimum}).",
+        "media_ready": "Hahmorendereitä ei ole vielä tarpeeksi (vähintään {minimum}).",
+        "media_coverage": "Renderien kattavuus alittaa {minimum}%.",
+        "already_enabled": "Tämä raid on jo otettu pysyvästi käyttöön."
+      },
+      "excludedTitle": "Pois rajatut raidit",
+      "excludedBody": "Raidit, joille ei ole CCG-teemaa ja taustakuvaa, pysyvät poissa käytöstä. Tämä koskee lyhyitä ja meemiraideja, ellei niitä myöhemmin määritetä tarkoituksella.",
+      "excludedEmpty": "Pois rajattuja raideja ei löytynyt.",
+      "noCandidates": "Yksikään määritetty CCG-raid ei odota käyttöönottoa."
     },
     "overview": {
       "totalUsers": "Käyttäjiä yhteensä",

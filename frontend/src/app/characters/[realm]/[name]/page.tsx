@@ -11,6 +11,7 @@ import { useRaids } from "@/lib/queries";
 import { buildRaidOrderIndex, compareRaidIdsByListOrder } from "@/lib/raid-priority";
 import { formatRealmName, formatSpecName, formatTime, getClassInfoById, getGuildProfileUrl, getParseColor, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
+import CharacterAvatar from "@/components/CharacterAvatar";
 import { RaidAchievementMetric } from "@/components/RaidAchievementMetric";
 
 interface PageProps {
@@ -1090,9 +1091,12 @@ export default function CharacterProfilePage({ params }: PageProps) {
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0 md:pr-6">
               <div className="flex min-w-0 items-center gap-4">
-                <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded md:h-16 md:w-16">
-                  <IconImage iconFilename={classInfo.iconUrl} alt={classInfo.name} fill style={{ objectFit: "cover" }} />
-                </span>
+                <CharacterAvatar
+                  avatarUrl={character.media?.avatarUrl}
+                  classIcon={classInfo.iconUrl}
+                  characterName={character.name}
+                  className="h-14 w-14 md:h-16 md:w-16"
+                />
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1">

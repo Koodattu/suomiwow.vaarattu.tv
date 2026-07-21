@@ -3,7 +3,7 @@ services:
     image: mongo:7
     container_name: wow-prog-db
     restart: unless-stopped
-    command: ["mongod", "--wiredTigerCacheSizeGB", "1"]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--wiredTigerCacheSizeGB", "1"]
     mem_limit: 2g
     ulimits:
       nofile:
@@ -15,6 +15,33 @@ services:
       - mongo_data:/data/db
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' | grep 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  mongo-init:
+    image: mongo:7
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        mongosh --host mongo:27017 --quiet --eval '
+          try { rs.status(); }
+          catch (error) {
+            const result = rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo:27017" }] });
+            if (!result.ok && result.codeName !== "AlreadyInitialized") throw result;
+          }
+        '
+        until mongosh --host mongo:27017 --quiet --eval 'if (db.hello().isWritablePrimary) quit(0); quit(1)'; do sleep 1; done
+    networks:
+      - app-network
 
   backend:
     build: ./backend
@@ -24,7 +51,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - MONGODB_URI=mongodb://mongo:27017/wow_guild_tracker
+      - MONGODB_URI=mongodb://mongo:27017/wow_guild_tracker?replicaSet=rs0
       - NODE_ENV=production
       - WORKER_MODE=api
       - ICON_CACHE_DIR=/app/data/icons
@@ -35,6 +62,9 @@ services:
     volumes:
       - ./data/icons:/app/data/icons
       - ./backend/logs:/app/logs
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -45,7 +75,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - MONGODB_URI=mongodb://mongo:27017/wow_guild_tracker
+      - MONGODB_URI=mongodb://mongo:27017/wow_guild_tracker?replicaSet=rs0
       - NODE_ENV=production
       - WORKER_MODE=worker
       - ICON_CACHE_DIR=/app/data/icons
@@ -58,6 +88,9 @@ services:
     volumes:
       - ./data/icons:/app/data/icons
       - ./backend/logs:/app/logs
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
     networks:
       - app-network
 

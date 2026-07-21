@@ -39,6 +39,7 @@ const NAVIGATION_LINKS = [
   { href: "/livestreams", labelKey: "livestreams" },
   { href: "/events", labelKey: "latestEvents" },
   { href: "/pickems", labelKey: "pickems" },
+  { href: "/fun/ccg", labelKey: "ccg" },
 ] as const;
 
 const getDesktopNavLinkClass = (isCurrent: boolean, previousIsCurrent: boolean, nextIsCurrent: boolean) =>

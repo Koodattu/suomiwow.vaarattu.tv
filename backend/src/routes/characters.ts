@@ -56,7 +56,7 @@ router.get(
       const classParam = typeof req.query.class === "string" ? req.query.class : undefined;
       const classId = classParam !== undefined ? Number(classParam) : undefined;
       if (classId !== undefined && !Number.isFinite(classId)) {
-        return `characters:profile:v2:${realm.toLowerCase()}:${name.toLowerCase()}:class:invalid:${classParam}`;
+        return `characters:profile:v3:${realm.toLowerCase()}:${name.toLowerCase()}:class:invalid:${classParam}`;
       }
       return cacheService.getCharacterProfileKey(realm, name, classId);
     },

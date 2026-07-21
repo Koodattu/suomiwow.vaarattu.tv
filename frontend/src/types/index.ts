@@ -1763,6 +1763,9 @@ export type CharacterProfileResponse = {
     realm: string;
     region: string;
     classID: number;
+    media: {
+      avatarUrl: string | null;
+    } | null;
     firstReportSeenAt?: string;
     lastReportSeenAt?: string;
     guildHistory: Array<{
@@ -1880,6 +1883,160 @@ export type CharacterProfileChoicesResponse = {
 };
 
 export type CharacterProfileLookupResponse = CharacterProfileResponse | CharacterProfileChoicesResponse;
+
+export type CcgMode = "current" | "legacy";
+export type CcgFinish = "standard" | "golden" | "prismatic";
+export type CcgTierGrade = "Crown" | "S" | "A" | "B" | "C" | "D" | "E" | "F";
+
+export type CcgSet = {
+  id: string;
+  slug: string;
+  zoneId: number;
+  raidName: string;
+  expansionName: string;
+  state: "draft" | "current" | "legacy" | "locked";
+  enabledAt: string | null;
+  themeKey: string;
+  theme: { mark: string; accent: string; glow: string };
+  backgroundPath: string;
+  cardCount: number;
+  ownedCards: number;
+  publicationWave: number;
+  lastPublishedAt: string | null;
+};
+
+export type CcgCardOwnership = { finish: CcgFinish; quantity: number };
+
+export type CcgCard = {
+  id: string;
+  setNumber: number;
+  name: string;
+  realm: string;
+  region: string;
+  guildName: string | null;
+  guildRealm: string | null;
+  classID: number;
+  specName: string;
+  role: "dps" | "healer" | "tank";
+  metric: "dps" | "hps";
+  itemLevel: number;
+  scores: { performance: number; mechanics: number; combined: number; mythicPlus: number | null };
+  tierGrade: CcgTierGrade;
+  avatarUrl: string | null;
+  renderUrl: string | null;
+  backgroundCrop: { x: number; y: number; scale: number };
+  performanceSnapshotAt: string;
+  mediaCapturedAt: string | null;
+  publicationWave: number;
+  publishedAt: string;
+  set: CcgSet;
+  ownership?: CcgCardOwnership[];
+  totalQuantity?: number;
+};
+
+export type CcgSession = {
+  ownerType: "user" | "guest";
+  dateKey: string;
+  resetAt: string;
+  claimableGuestCards: { current: number; legacy: number };
+  packs: Record<CcgMode, { dailyRemaining: number; bonusRemaining: number; totalRemaining: number }>;
+  duplicates: Record<CcgMode, { remainder: number; needed: number; total: number; bonusPacksEarned: number }>;
+  ownedFinishes: number;
+};
+
+export type CcgOpening = {
+  id: string;
+  mode: CcgMode;
+  sets: CcgSet[];
+  allowanceSource: "daily" | "credit";
+  duplicateRewards: number;
+  createdAt: string;
+  results: Array<{ position: number; finish: CcgFinish; isDuplicate: boolean; card: CcgCard }>;
+};
+
+export type CcgAdminSetStatus = {
+  id: string | null;
+  zoneId: number;
+  slug: string;
+  raidName: string;
+  expansionName: string;
+  targetMode: CcgMode;
+  state: "draft" | "current" | "legacy" | "locked";
+  availability: "candidate" | "enabled";
+  enabledAt: string | null;
+  enabledBy: string | null;
+  cardCount: number;
+  publicationWave: number;
+  lastSnapshotAt: string | null;
+  lastPublishedAt: string | null;
+  backgroundPath: string;
+  theme: { mark: string; accent: string; glow: string };
+};
+
+export type CcgAdminReadinessBlocker = "eligible_population" | "media_ready" | "media_coverage" | "already_enabled";
+
+export type CcgAdminSetReadiness = {
+  configured: {
+    zoneId: number;
+    slug: string;
+    raidName: string;
+    expansionName: string;
+  };
+  setId: string | null;
+  state: "draft" | "current" | "legacy" | "locked";
+  enabledAt: string | null;
+  targetMode: CcgMode;
+  eligible: number;
+  mediaReady: number;
+  mediaCoverage: number;
+  published: number;
+  poolCards: number;
+  readyToEnable: boolean;
+  blockers: CcgAdminReadinessBlocker[];
+  thresholds: { eligible: number; mediaReady: number; mediaCoverage: number };
+  checkedAt: string;
+};
+
+export type CcgAdminStatusResponse = {
+  sets: CcgAdminSetStatus[];
+  excludedRaids: Array<{
+    zoneId: number;
+    raidName: string;
+    slug: string;
+    expansionName: string;
+    availability: "excluded";
+  }>;
+  media: {
+    processorRunning: boolean;
+    queue: Record<string, number>;
+    media: Record<string, number>;
+    recentFailures: Array<{ characterId: string; name: string; realm: string; status: string; error: string | null }>;
+  };
+  totals: { cards: number; openings: number };
+};
+
+export type CcgAdminEnableResponse = {
+  readiness: CcgAdminSetReadiness;
+  publication: { snapshotKey: string; published: number; totalCards: number; poolVersion: string };
+  movedToLegacy: number;
+};
+
+export type CcgCatalogResponse = {
+  set: CcgSet;
+  cards: CcgCard[];
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+};
+
+export type CcgCollectionResponse = {
+  cards: CcgCard[];
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+};
 
 export type CharacterAccountResponse = {
   account: {

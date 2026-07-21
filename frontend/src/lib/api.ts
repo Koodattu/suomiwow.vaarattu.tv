@@ -128,6 +128,15 @@ import {
   AdminImportReportResponse,
   RaidCompare,
   BossPredictionResponse,
+  CcgCatalogResponse,
+  CcgCollectionResponse,
+  CcgMode,
+  CcgOpening,
+  CcgSession,
+  CcgSet,
+  CcgAdminEnableResponse,
+  CcgAdminSetReadiness,
+  CcgAdminStatusResponse,
 } from "@/types";
 
 // For client-side: use NEXT_PUBLIC_API_URL (browser requests)
@@ -142,6 +151,15 @@ const getApiUrl = () => {
 };
 
 const API_URL = getApiUrl();
+
+async function buildApiError(response: Response, fallback: string): Promise<Error> {
+  try {
+    const data = (await response.json()) as { error?: string };
+    return new Error(data.error || fallback);
+  } catch {
+    return new Error(fallback);
+  }
+}
 
 export const api = {
   // Home page endpoint - returns all data for the home page in a single request
@@ -200,6 +218,96 @@ export const api = {
     const query = params.toString();
     const response = await fetch(`${API_URL}/api/characters/${encodedRealm}/${encodedName}/raids/${raidId}/guilds/${encodedGuildId}/reports${query ? `?${query}` : ""}`);
     if (!response.ok) throw new Error("Failed to fetch character raid reports");
+    return response.json();
+  },
+
+  async getCcgSession(): Promise<CcgSession> {
+    const response = await fetch(`${API_URL}/api/ccg/session`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load the card vault");
+    return response.json();
+  },
+
+  async getCcgSets(): Promise<{ sets: CcgSet[] }> {
+    const response = await fetch(`${API_URL}/api/ccg/sets`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load card sets");
+    return response.json();
+  },
+
+  async getCcgCatalog(
+    setSlug: string,
+    options: { page?: number; limit?: number; owned?: "all" | "owned" | "missing"; grade?: string } = {},
+  ): Promise<CcgCatalogResponse> {
+    const params = new URLSearchParams();
+    if (options.page) params.set("page", String(options.page));
+    if (options.limit) params.set("limit", String(options.limit));
+    if (options.owned && options.owned !== "all") params.set("owned", options.owned);
+    if (options.grade) params.set("grade", options.grade);
+    const response = await fetch(`${API_URL}/api/ccg/sets/${encodeURIComponent(setSlug)}/catalog?${params}`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to open this binder");
+    return response.json();
+  },
+
+  async getCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string } = {}): Promise<CcgCollectionResponse> {
+    const params = new URLSearchParams();
+    Object.entries(options).forEach(([key, value]) => {
+      if (value !== undefined && value !== "") params.set(key, String(value));
+    });
+    const response = await fetch(`${API_URL}/api/ccg/collection?${params}`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load your collection");
+    return response.json();
+  },
+
+  async openCcgPack(input: { mode: CcgMode; idempotencyKey: string }): Promise<CcgOpening> {
+    const response = await fetch(`${API_URL}/api/ccg/packs/open`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw await buildApiError(response, "The pack could not be opened");
+    return response.json();
+  },
+
+  async getCcgOpening(openingId: string): Promise<CcgOpening> {
+    const response = await fetch(`${API_URL}/api/ccg/openings/${encodeURIComponent(openingId)}`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "The pack opening could not be recovered");
+    return response.json();
+  },
+
+  async getAdminCcgStatus(): Promise<CcgAdminStatusResponse> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/status`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load CCG administration");
+    return response.json();
+  },
+
+  async previewAdminCcgSet(zoneId: number): Promise<CcgAdminSetReadiness> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/sets/${zoneId}/preview`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to check CCG readiness");
+    return response.json();
+  },
+
+  async enableAdminCcgSet(zoneId: number): Promise<CcgAdminEnableResponse> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/sets/${zoneId}/enable`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!response.ok) throw await buildApiError(response, "Failed to enable this CCG raid");
+    return response.json();
+  },
+
+  async claimCcgGuest(idempotencyKey: string): Promise<{
+    claimed: boolean;
+    alreadyClaimed: boolean;
+    cards: { current: number; legacy: number };
+    conversionPacks: number;
+  }> {
+    const response = await fetch(`${API_URL}/api/ccg/guest/claim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ idempotencyKey }),
+    });
+    if (!response.ok) throw await buildApiError(response, "Today's guest cards could not be claimed");
     return response.json();
   },
 

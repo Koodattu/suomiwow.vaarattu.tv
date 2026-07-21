@@ -2,10 +2,36 @@ services:
   mongodb:
     container_name: wow-prog-db
     image: mongo:7.0
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     ports:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' | grep 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  mongodb-init:
+    image: mongo:7.0
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: "no"
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        mongosh --host mongodb:27017 --quiet --eval '
+          try { rs.status(); }
+          catch (error) {
+            const result = rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongodb:27017" }] });
+            if (!result.ok && result.codeName !== "AlreadyInitialized") throw result;
+          }
+        '
+        until mongosh --host mongodb:27017 --quiet --eval 'if (db.hello().isWritablePrimary) quit(0); quit(1)'; do sleep 1; done
 
   backend:
     container_name: wow-prog-backend
@@ -15,10 +41,11 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - MONGODB_URI=mongodb://mongodb:27017/wow_guild_tracker
+      - MONGODB_URI=mongodb://mongodb:27017/wow_guild_tracker?replicaSet=rs0
       - NODE_ENV=development
     depends_on:
-      - mongodb
+      mongodb-init:
+        condition: service_completed_successfully
     volumes:
       - ./backend/public/icons:/app/public/icons
       - ./backend/logs:/app/logs

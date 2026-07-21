@@ -91,6 +91,13 @@ export const queryKeys = {
   compare: {
     raid: (raidId: number) => ["compare", "raid", raidId] as const,
   },
+  ccg: {
+    session: ["ccg", "session"] as const,
+    sets: ["ccg", "sets"] as const,
+    catalog: (setSlug: string, page: number, owned: string, grade: string) => ["ccg", "catalog", setSlug, page, owned, grade] as const,
+    collection: (options: Record<string, unknown>) => ["ccg", "collection", options] as const,
+    opening: (openingId: string) => ["ccg", "opening", openingId] as const,
+  },
 } as const;
 
 // Home
@@ -452,5 +459,47 @@ export function useRaidCompare(raidId: number | null) {
     queryKey: queryKeys.compare.raid(raidId!),
     queryFn: () => api.getRaidCompare(raidId!),
     enabled: raidId !== null && raidId > 0,
+  });
+}
+
+export function useCcgSession() {
+  return useQuery({
+    queryKey: queryKeys.ccg.session,
+    queryFn: () => api.getCcgSession(),
+    staleTime: 15 * 1000,
+  });
+}
+
+export function useCcgSets() {
+  return useQuery({
+    queryKey: queryKeys.ccg.sets,
+    queryFn: () => api.getCcgSets(),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useCcgCatalog(setSlug: string, page: number, owned: "all" | "owned" | "missing", grade: string) {
+  return useQuery({
+    queryKey: queryKeys.ccg.catalog(setSlug, page, owned, grade),
+    queryFn: () => api.getCcgCatalog(setSlug, { page, limit: 9, owned, grade: grade || undefined }),
+    enabled: Boolean(setSlug),
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string }) {
+  return useQuery({
+    queryKey: queryKeys.ccg.collection(options),
+    queryFn: () => api.getCcgCollection(options),
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useCcgOpening(openingId: string) {
+  return useQuery({
+    queryKey: queryKeys.ccg.opening(openingId),
+    queryFn: () => api.getCcgOpening(openingId),
+    enabled: Boolean(openingId),
+    staleTime: Infinity,
   });
 }

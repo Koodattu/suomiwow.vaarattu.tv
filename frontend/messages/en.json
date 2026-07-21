@@ -52,7 +52,111 @@
     "horseRaceJapanese": "Horses",
     "horseRaceUma": "Umas",
     "horseRaceCharacters": "Characters",
-    "horseRaceBackground": "Background"
+    "horseRaceBackground": "Background",
+    "ccg": "CCG"
+  },
+  "ccg": {
+    "eyebrow": "Community card vault",
+    "subtitle": "Open raid-set packs and preserve the characters who shaped each tier.",
+    "fanNotice": "Unofficial, free fan project. World of Warcraft and related artwork are trademarks or copyrights of Blizzard Entertainment. SuomiWoW is not affiliated with Blizzard Entertainment.",
+    "loading": "Loading card vault",
+    "nav": {
+      "label": "CCG navigation",
+      "home": "Vault",
+      "open": "Open packs",
+      "collection": "Collection"
+    },
+    "mode": {
+      "current": "Current",
+      "legacy": "Legacy"
+    },
+    "packsRemaining": "packs remaining",
+    "bonus": "bonus",
+    "duplicateMeter": "Duplicate meter",
+    "guest": {
+      "title": "Today's pulls are waiting for you",
+      "body": "Open packs now, then log in before the Helsinki daily reset to keep every card. Your first claim also adds five Current packs.",
+      "expiresIn": "Claim within {time}",
+      "timeRemaining": "{hours} h {minutes} min",
+      "login": "Log in and keep cards"
+    },
+    "landing": {
+      "title": "Twenty free packs, every day",
+      "body": "Every card is an immutable snapshot from this raid tier: performance, mechanics, Mythic+, guild, role, and character appearance.",
+      "packBody": "Open ten Current packs and ten Legacy packs each Helsinki day. Exact duplicates fill the meter toward another pack.",
+      "dailyPacks": "Daily allowance",
+      "currentSet": "Featured Current set",
+      "currentRaids": "{count} current raids",
+      "preparing": "The next set is being prepared",
+      "openCurrent": "Open Current packs",
+      "collection": "View collection",
+      "cards": "cards",
+      "collected": "collected",
+      "legacyTitle": "Raid history, one binder at a time",
+      "legacyBody": "Every Legacy pack draws from all enabled past raids. The binders remain organized raid by raid.",
+      "openLegacy": "Open Legacy packs",
+      "legacyEmpty": "Legacy binders will appear as their snapshots are published."
+    },
+    "open": {
+      "title": "Enter the raid vault",
+      "body": "Choose Current or Legacy. Current draws only from active raids; Legacy draws from every enabled past raid. A refresh never rerolls your pack.",
+      "chooseMode": "Pack type",
+      "chooseLegacy": "Legacy raid",
+      "currentPool": "Current raid pool ({count})",
+      "legacyPool": "Legacy archive ({count})",
+      "currentPoolBody": "Cards can come from any of the {count} active Current raids.",
+      "legacyPoolBody": "Cards can come from any of the {count} enabled historical raids.",
+      "openPack": "Open pack",
+      "opening": "Opening…",
+      "noPacks": "No packs remain in this mode today. Duplicate and login bonus packs appear here automatically.",
+      "newCard": "New",
+      "duplicate": "Duplicate",
+      "bonusEarned": "The duplicate meter awarded {count} bonus pack(s).",
+      "recoveryFailed": "That saved pack could not be recovered. Clear it before opening another pack.",
+      "dismissRecovery": "Clear saved pack",
+      "openAnother": "Open another pack"
+    },
+    "collection": {
+      "title": "Your raid binders",
+      "body": "Browse complete set order, owned finishes, exact quantities, and the spaces still waiting to be found.",
+      "sets": "Raid sets",
+      "cards": "Cards",
+      "all": "All",
+      "owned": "Owned",
+      "missing": "Missing",
+      "notCollected": "Not collected yet",
+      "allGrades": "All grades",
+      "emptyTitle": "This binder page is empty",
+      "emptyBody": "Change the filter, choose another raid, or open a pack to begin filling it.",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {page} of {pages}"
+    },
+    "finish": {
+      "label": "Card finish",
+      "standard": "Standard",
+      "golden": "Golden",
+      "prismatic": "Prismatic"
+    },
+    "role": {
+      "tank": "Tank",
+      "healer": "Healer",
+      "dps": "Damage"
+    },
+    "score": {
+      "mechanicsShort": "MECH",
+      "combinedShort": "COMB",
+      "mythicPlusShort": "M+"
+    },
+    "error": {
+      "title": "The card vault did not load",
+      "body": "Your cards and pack balance are safe. Try loading the vault again.",
+      "retry": "Try again"
+    },
+    "close": "Close",
+    "snapshot": "Snapshot",
+    "tier": "Tier grade",
+    "mechanics": "Mechanics"
   },
   "infoDialog": {
     "title": "About This Site",
@@ -486,7 +590,52 @@
       "pickems": "Pickems",
       "analytics": "Analytics",
       "system": "System",
-      "tasks": "Tasks"
+      "tasks": "Tasks",
+      "ccg": "CCG"
+    },
+    "ccg": {
+      "title": "CCG raid publication",
+      "description": "Check data coverage and irreversibly enable raid sets for Current or Legacy packs.",
+      "refresh": "Refresh",
+      "retry": "Try again",
+      "loading": "Loading CCG raid status…",
+      "enabledSets": "Enabled sets",
+      "candidateSets": "Candidates",
+      "publishedCards": "Published cards",
+      "packOpenings": "Pack openings",
+      "candidate": "Disabled",
+      "enabled": "Enabled",
+      "excluded": "Excluded",
+      "targetCurrent": "Current when enabled",
+      "targetLegacy": "Legacy when enabled",
+      "cards": "{count} cards",
+      "wave": "Wave {count}",
+      "enabledAt": "Enabled {date}",
+      "checkReadiness": "Check readiness",
+      "checking": "Checking…",
+      "ready": "Ready to enable",
+      "notReady": "Not ready",
+      "eligible": "Eligible characters",
+      "mediaReady": "Renders ready",
+      "mediaCoverage": "Render coverage",
+      "published": "Already published",
+      "enable": "Enable CCG set",
+      "enabling": "Preparing and enabling…",
+      "enableWarning": "This publishes the current snapshot and permanently adds {raid} to CCG packs. It cannot be disabled afterward.",
+      "confirmEnable": "Enable permanently",
+      "cancel": "Cancel",
+      "enableSuccess": "{raid} is enabled with {count} published cards.",
+      "movedToLegacy": "{count} previous Current set(s) moved to Legacy.",
+      "blockers": {
+        "eligible_population": "Not enough eligible characters yet (minimum {minimum}).",
+        "media_ready": "Not enough character renders yet (minimum {minimum}).",
+        "media_coverage": "Render coverage is below {minimum}%.",
+        "already_enabled": "This raid is already permanently enabled."
+      },
+      "excludedTitle": "Excluded raids",
+      "excludedBody": "Raids without a CCG theme and background stay disabled. This includes short or meme raids unless they are deliberately configured later.",
+      "excludedEmpty": "No excluded raids were found.",
+      "noCandidates": "No configured CCG raids are waiting for activation."
     },
     "overview": {
       "totalUsers": "Total Users",

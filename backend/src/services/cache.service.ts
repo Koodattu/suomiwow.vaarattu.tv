@@ -886,7 +886,7 @@ class CacheService {
    */
   getCharacterProfileKey(realm: string, name: string, classId?: number): string {
     const classKey = Number.isFinite(classId) ? String(classId) : "any";
-    return `characters:profile:v2:${realm.toLowerCase()}:${name.toLowerCase()}:class:${classKey}`;
+    return `characters:profile:v3:${realm.toLowerCase()}:${name.toLowerCase()}:class:${classKey}`;
   }
 
   /**

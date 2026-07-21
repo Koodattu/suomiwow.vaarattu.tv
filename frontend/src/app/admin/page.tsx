@@ -7,6 +7,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/context/AuthContext";
+import CcgAdminPanel from "@/components/admin/CcgAdminPanel";
 import { api } from "@/lib/api";
 import { getUmaImageLabel, UMA_IMAGES } from "@/lib/uma-images";
 import {
@@ -105,7 +106,7 @@ import {
   TwitchBotSettings,
 } from "@/types";
 
-type TabType = "overview" | "users" | "guilds" | "streams" | "characters" | "pickems" | "system" | "tasks";
+type TabType = "overview" | "users" | "guilds" | "streams" | "characters" | "pickems" | "ccg" | "system" | "tasks";
 
 const PICKEM_PLACEHOLDER_RAID_ID = -1;
 
@@ -606,6 +607,9 @@ export default function AdminPage() {
             setMythicPlusCrawlerStatus(mythicPlusCrawlerData);
             break;
           }
+
+          case "ccg":
+            break;
 
           case "tasks": {
             const [logsData, latestData] = await Promise.all([api.getAdminTaskLogs(100), api.getAdminTaskLogsLatest()]);
@@ -1658,7 +1662,7 @@ export default function AdminPage() {
 
         {/* Tabs */}
         <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-700 pb-4">
-          {(["overview", "users", "guilds", "streams", "characters", "pickems", "system", "tasks"] as TabType[]).map((tab) => (
+          {(["overview", "users", "guilds", "streams", "characters", "pickems", "ccg", "system", "tasks"] as TabType[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1685,6 +1689,8 @@ export default function AdminPage() {
             <div className="text-amber-400">{t("loading")}</div>
           </div>
         )}
+
+        {!loading && activeTab === "ccg" && <CcgAdminPanel />}
 
         {/* Overview Tab */}
         {!loading && activeTab === "overview" && (

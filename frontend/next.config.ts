@@ -24,6 +24,11 @@ const nextConfig: NextConfig = {
         hostname: "**",
         pathname: "/icons/**",
       },
+      {
+        protocol: "https",
+        hostname: "render.worldofwarcraft.com",
+        pathname: "/**",
+      },
     ],
     // Disable image optimization for development to avoid issues with localhost images
     unoptimized: true, //process.env.NODE_ENV === "development",

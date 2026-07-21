@@ -151,13 +151,15 @@ The `TRACKED_RAIDS` array in the same file contains WarcraftLogs zone IDs for ra
 Create `backend/.env` with your API credentials:
 
 ```env
-MONGODB_URI=mongodb://localhost:27017/wow_guild_tracker
+MONGODB_URI=mongodb://localhost:27017/wow_guild_tracker?replicaSet=rs0
 WCL_CLIENT_ID=your_warcraftlogs_client_id
 WCL_CLIENT_SECRET=your_warcraftlogs_secret
 BLIZZARD_CLIENT_ID=your_blizzard_client_id
 BLIZZARD_CLIENT_SECRET=your_blizzard_secret
 RAIDER_IO_API_KEY=your_raiderio_key  # optional
 ```
+
+The CCG pack and guest-claim flows use MongoDB transactions, so local and production MongoDB must run as a replica set. The provided Docker Compose files initialize a single-node `rs0` replica set automatically. Character renders are refreshed from the Blizzard profile-media API by the background worker; set `CCG_FEATURE_ENABLED=false` to hide the feature without removing its data.
 
 ## 📄 License
 

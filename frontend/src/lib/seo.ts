@@ -46,6 +46,9 @@ export const PUBLIC_ROUTES = [
   { path: "/tierlists", changeFrequency: "weekly", priority: 0.65 },
   { path: "/pickems", changeFrequency: "daily", priority: 0.65 },
   { path: "/pickems-rules", changeFrequency: "monthly", priority: 0.35 },
+  { path: "/fun/ccg", changeFrequency: "daily", priority: 0.75 },
+  { path: "/fun/ccg/open", changeFrequency: "daily", priority: 0.65 },
+  { path: "/fun/ccg/collection", changeFrequency: "daily", priority: 0.65 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.2 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.2 },
 ] as const;
@@ -89,6 +92,7 @@ function getEmbedLabel(pathname: string) {
   if (pathname === "/tierlists") return "Tier lists";
   if (pathname === "/pickems") return "Pickems";
   if (pathname === "/pickems-rules") return "Pickems rules";
+  if (pathname.startsWith("/fun/ccg")) return "SuomiWoW CCG";
   if (pathname === "/privacy") return "Privacy";
   if (pathname === "/terms") return "Terms";
   if (pathname.startsWith("/profile")) return "Profile";
@@ -208,6 +212,24 @@ export function getPageMetadata(
       description: isEnglish
         ? "Rules and scoring information for Finnish WoW guild raid race pickems."
         : "Saannot ja pisteytys suomalaisten WoW-kiltojen raid race -veikkauksille.",
+    },
+    "/fun/ccg": {
+      title: isEnglish ? "SuomiWoW Character Cards" : "SuomiWoW-hahmokortit",
+      description: isEnglish
+        ? "Open free raid-set character card packs and collect immutable snapshots of Finnish WoW raiders."
+        : "Avaa maksuttomia raidisettien hahmokorttipakkoja ja kerää suomalaisten WoW-raidaajien snapshotteja.",
+    },
+    "/fun/ccg/open": {
+      title: isEnglish ? "Open Character Card Packs" : "Avaa hahmokorttipakkoja",
+      description: isEnglish
+        ? "Open daily Current and Legacy SuomiWoW CCG packs for free."
+        : "Avaa päivittäiset maksuttomat Current- ja Legacy-SuomiWoW CCG -pakat.",
+    },
+    "/fun/ccg/collection": {
+      title: isEnglish ? "Character Card Collection" : "Hahmokorttikokoelma",
+      description: isEnglish
+        ? "Browse raid binders, character card finishes, quantities, and missing cards in SuomiWoW CCG."
+        : "Selaa SuomiWoW CCG:n raidikansioita, korttien viimeistelyjä, määriä ja puuttuvia kortteja.",
     },
     "/privacy": {
       title: isEnglish ? "Privacy Policy" : "Tietosuojakaytanto",

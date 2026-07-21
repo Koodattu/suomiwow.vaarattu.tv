@@ -66,6 +66,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser);
 
       if (currentUser && typeof window !== "undefined") {
+        try {
+          await api.claimCcgGuest(`login_${window.crypto.randomUUID()}`);
+        } catch (error) {
+          console.warn("Today's guest cards could not be claimed yet:", error);
+        }
         const returnTo = consumePostLoginReturnTo();
         const safeReturnTo = returnTo ? normalizeSafeInternalPath(returnTo) : null;
         const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;

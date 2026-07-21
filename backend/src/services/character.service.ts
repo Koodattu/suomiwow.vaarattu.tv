@@ -7,6 +7,7 @@ import { MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } from "../config/char
 import Character from "../models/Character";
 import CharacterAccountGroup from "../models/CharacterAccountGroup";
 import CharacterLeaderboard from "../models/CharacterLeaderboard";
+import CharacterMedia from "../models/CharacterMedia";
 import CharacterMechanicsLeaderboard from "../models/CharacterMechanicsLeaderboard";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
 import CharacterRaidAchievementSummary, {
@@ -21,6 +22,7 @@ import Report from "../models/Report";
 import logger from "../utils/logger";
 import { resolveRole, slugifySpecName } from "../utils/spec";
 import cacheService from "./cache.service";
+import characterMediaService from "./character-media.service";
 import { getPrimaryCharacterRaidGuilds } from "./character-raid-guild.service";
 import mythicPlusService, { CharacterMythicPlusProfileResponse } from "./mythic-plus.service";
 import rateLimitService from "./rate-limit.service";
@@ -243,6 +245,9 @@ export type CharacterProfileResponse = {
     realm: string;
     region: string;
     classID: number;
+    media: {
+      avatarUrl: string | null;
+    } | null;
     firstReportSeenAt?: Date;
     lastReportSeenAt?: Date;
     guildHistory: Array<{
@@ -2730,6 +2735,12 @@ class CharacterService {
           characterIds: profileCharacterDoc._id,
         }).lean()
       : null;
+    const profileMedia = profileCharacterDoc ? await CharacterMedia.findOne({ characterId: profileCharacterDoc._id }).select("avatarUrl status").lean() : null;
+    if (profileCharacterDoc && (!profileMedia || profileMedia.status !== "available")) {
+      void characterMediaService.enqueueCharacter(String(profileCharacterDoc._id)).catch((error) =>
+        logger.warn(`[CharacterMedia] Failed to enqueue ${character.name}-${character.realm}: ${error instanceof Error ? error.message : String(error)}`),
+      );
+    }
     const accountCharacters = accountGroup ? await this.buildAccountCharacters([...(accountGroup.members ?? [])]) : [];
     const profileRaidAchievementRow = profileCharacterDoc
       ? await CharacterRaidAchievementSummary.findOne({
@@ -2748,6 +2759,7 @@ class CharacterService {
         realm: character.realm,
         region: character.region,
         classID: character.classID,
+        media: profileMedia?.status === "available" ? { avatarUrl: profileMedia.avatarUrl ?? null } : null,
         firstReportSeenAt: trackedFirstSeenAt,
         lastReportSeenAt: trackedLastSeenAt,
         guildHistory: trackedGuildHistory.map((entry) => ({
