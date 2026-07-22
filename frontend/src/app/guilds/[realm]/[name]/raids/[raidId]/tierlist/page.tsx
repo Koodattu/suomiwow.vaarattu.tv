@@ -163,12 +163,12 @@ export default function GuildCharacterTierListPage({ params, searchParams }: Pag
                   {data.generatedAt && <span>{t("lastCalculated", { date: new Date(data.generatedAt).toLocaleString() })}</span>}
                 </div>
                 {view === "combined" ? (
-                  <CharacterTierBoard characters={characters} showCrown={false} emptyMessage={t("noScoredCharacters")} />
+                  <CharacterTierBoard characters={characters} emptyMessage={t("noScoredCharacters")} />
                 ) : (
                   <div className="grid gap-5 xl:grid-cols-3">
-                    <CharacterTierBoard title={t("tank")} characters={roleGroups.tank} showCrown={false} emptyMessage={t("noScoredCharacters")} />
-                    <CharacterTierBoard title={t("healer")} characters={roleGroups.healer} showCrown={false} emptyMessage={t("noScoredCharacters")} />
-                    <CharacterTierBoard title={t("dps")} characters={roleGroups.dps} showCrown={false} emptyMessage={t("noScoredCharacters")} />
+                    <CharacterTierBoard title={t("tank")} characters={roleGroups.tank} emptyMessage={t("noScoredCharacters")} />
+                    <CharacterTierBoard title={t("healer")} characters={roleGroups.healer} emptyMessage={t("noScoredCharacters")} />
+                    <CharacterTierBoard title={t("dps")} characters={roleGroups.dps} emptyMessage={t("noScoredCharacters")} />
                   </div>
                 )}
               </div>

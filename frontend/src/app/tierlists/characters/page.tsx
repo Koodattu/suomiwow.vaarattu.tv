@@ -157,12 +157,12 @@ export default function CharacterTierListsPage() {
         {!isLoading && !error && data && (
           <div className="space-y-5">
             {view === "combined" ? (
-              <CharacterTierBoard characters={characters} showCrown={false} showSpecIcons emptyMessage={t("noScoredCharacters")} />
+              <CharacterTierBoard characters={characters} showSpecIcons emptyMessage={t("noScoredCharacters")} />
             ) : (
               <div className="grid gap-5 xl:grid-cols-3">
-                <CharacterTierBoard title={t("tank")} characters={roleGroups.tank} showCrown={false} showSpecIcons emptyMessage={t("noScoredCharacters")} />
-                <CharacterTierBoard title={t("healer")} characters={roleGroups.healer} showCrown={false} showSpecIcons emptyMessage={t("noScoredCharacters")} />
-                <CharacterTierBoard title={t("dps")} characters={roleGroups.dps} showCrown={false} showSpecIcons emptyMessage={t("noScoredCharacters")} />
+                <CharacterTierBoard title={t("tank")} characters={roleGroups.tank} showSpecIcons emptyMessage={t("noScoredCharacters")} />
+                <CharacterTierBoard title={t("healer")} characters={roleGroups.healer} showSpecIcons emptyMessage={t("noScoredCharacters")} />
+                <CharacterTierBoard title={t("dps")} characters={roleGroups.dps} showSpecIcons emptyMessage={t("noScoredCharacters")} />
               </div>
             )}
           </div>

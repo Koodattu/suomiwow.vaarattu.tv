@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, PointerEvent, SyntheticEvent } from "react";
 import type { CcgCard, CcgFinish } from "@/types";
-import { normalizeCcgTierGrade } from "@/lib/ccg";
 import { formatRealmName, getClassInfoById } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
 import AlphaFittedCharacterRender from "./AlphaFittedCharacterRender";
@@ -42,8 +41,7 @@ function score(value: number | null): string {
 export default function CollectibleCard({ card, finish = "standard", compact = false, quantity, onSelect, className = "" }: CollectibleCardProps) {
   const t = useTranslations("ccg");
   const classInfo = getClassInfoById(card.classID);
-  const tierGrade = normalizeCcgTierGrade(card.tierGrade);
-  const rarity = t(`rarity.${rarityKeys[tierGrade]}`);
+  const rarity = t(`rarity.${rarityKeys[card.tierGrade]}`);
   const cardStyle = {
     "--ccg-accent": card.set.theme.accent,
     "--ccg-glow": card.set.theme.glow,
@@ -80,7 +78,7 @@ export default function CollectibleCard({ card, finish = "standard", compact = f
   const content = (
     <span
       className={`${styles.card} ${styles[finish]} ${compact ? styles.compact : ""}`}
-      data-grade={tierGrade}
+      data-grade={card.tierGrade}
       data-finish={finish}
       style={cardStyle}
     >
@@ -91,7 +89,7 @@ export default function CollectibleCard({ card, finish = "standard", compact = f
 
         <span className={styles.cardHeader}>
           <span className={styles.gradeMedallion}>
-            <span className={styles.gradeValue}>{tierGrade}</span>
+            <span className={styles.gradeValue}>{card.tierGrade}</span>
             <span className={styles.gradeLabel}>{t("tierShort")}</span>
           </span>
           <span className={styles.titleGroup}>

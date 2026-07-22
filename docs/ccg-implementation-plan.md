@@ -62,7 +62,7 @@ The initial delay and publication cadence remain configurable per set.
 
 ### Tier grade is card rarity
 
-The snapshotted character tier grade determines the user-facing rarity. The CCG uses `S`, `A`, `B`, `C`, `D`, `E`, and `F`; Crown is not a CCG grade.
+The snapshotted character tier grade determines the user-facing rarity. The CCG uses `S`, `A`, `B`, `C`, `D`, `E`, and `F`.
 
 The grade maps to an internal rarity bucket for pack selection and visual styling:
 

@@ -28,11 +28,9 @@ export type CharacterTierBoardItem = {
   lastSeenAt?: string | Date | null;
 };
 
-const TIERS = ["Crown", "S", "A", "B", "C", "D", "E", "F"] as const;
-const MANUAL_TIERS = ["S", "A", "B", "C", "D", "E", "F"] as const;
+const TIERS = ["S", "A", "B", "C", "D", "E", "F"] as const;
 
 export const CHARACTER_TIER_COLORS: Record<CharacterTierName, string> = {
-  Crown: "bg-purple-400 text-gray-950",
   S: "bg-red-400 text-gray-950",
   A: "bg-orange-300 text-gray-950",
   B: "bg-yellow-300 text-gray-950",
@@ -42,7 +40,7 @@ export const CHARACTER_TIER_COLORS: Record<CharacterTierName, string> = {
   F: "bg-cyan-300 text-gray-950",
 };
 
-const TIER_PROPORTIONS: { tier: Exclude<CharacterTierName, "Crown">; fraction: number }[] = [
+const TIER_PROPORTIONS: { tier: CharacterTierName; fraction: number }[] = [
   { tier: "S", fraction: 0.1 },
   { tier: "A", fraction: 0.16 },
   { tier: "B", fraction: 0.16 },
@@ -52,7 +50,7 @@ const TIER_PROPORTIONS: { tier: Exclude<CharacterTierName, "Crown">; fraction: n
   { tier: "F", fraction: 0.1 },
 ];
 
-function calculateDynamicThresholds(scores: number[]): Record<Exclude<CharacterTierName, "Crown">, { min: number }> {
+function calculateDynamicThresholds(scores: number[]): Record<CharacterTierName, { min: number }> {
   if (scores.length === 0) {
     return { S: { min: 90 }, A: { min: 74 }, B: { min: 58 }, C: { min: 42 }, D: { min: 26 }, E: { min: 10 }, F: { min: 0 } };
   }
@@ -73,7 +71,7 @@ function calculateDynamicThresholds(scores: number[]): Record<Exclude<CharacterT
     };
   }
 
-  const thresholds = {} as Record<Exclude<CharacterTierName, "Crown">, { min: number }>;
+  const thresholds = {} as Record<CharacterTierName, { min: number }>;
   let cursor = maxScore;
 
   for (const { tier, fraction } of TIER_PROPORTIONS) {
@@ -87,7 +85,7 @@ function calculateDynamicThresholds(scores: number[]): Record<Exclude<CharacterT
   return thresholds;
 }
 
-function getTierByScore(score: number, thresholds: Record<Exclude<CharacterTierName, "Crown">, { min: number }>): Exclude<CharacterTierName, "Crown"> {
+function getTierByScore(score: number, thresholds: Record<CharacterTierName, { min: number }>): CharacterTierName {
   if (score >= thresholds.S.min) return "S";
   if (score >= thresholds.A.min) return "A";
   if (score >= thresholds.B.min) return "B";
@@ -208,10 +206,9 @@ export function CharacterTierCard({
   );
 }
 
-export function groupCharactersIntoTiers(characters: CharacterTierBoardItem[], showCrown = true): Record<CharacterTierName, CharacterTierBoardItem[]> {
+export function groupCharactersIntoTiers(characters: CharacterTierBoardItem[]): Record<CharacterTierName, CharacterTierBoardItem[]> {
   const sorted = [...characters].filter((character) => character.score !== null).sort(sortTierCharacters);
   const groups: Record<CharacterTierName, CharacterTierBoardItem[]> = {
-    Crown: [],
     S: [],
     A: [],
     B: [],
@@ -223,15 +220,10 @@ export function groupCharactersIntoTiers(characters: CharacterTierBoardItem[], s
 
   if (sorted.length === 0) return groups;
 
-  const thresholdSource = showCrown ? sorted.slice(1) : sorted;
-  const thresholds = calculateDynamicThresholds(thresholdSource.map((character) => character.score ?? 0));
+  const thresholds = calculateDynamicThresholds(sorted.map((character) => character.score ?? 0));
 
-  sorted.forEach((character, index) => {
-    if (showCrown && index === 0) {
-      groups.Crown.push(character);
-    } else {
-      groups[getTierByScore(character.score ?? 0, thresholds)].push(character);
-    }
+  sorted.forEach((character) => {
+    groups[getTierByScore(character.score ?? 0, thresholds)].push(character);
   });
 
   for (const tier of TIERS) {
@@ -244,18 +236,15 @@ export function groupCharactersIntoTiers(characters: CharacterTierBoardItem[], s
 export default function CharacterTierBoard({
   title,
   characters,
-  showCrown = true,
   showSpecIcons = false,
   emptyMessage,
 }: {
   title?: string;
   characters: CharacterTierBoardItem[];
-  showCrown?: boolean;
   showSpecIcons?: boolean;
   emptyMessage: string;
 }) {
-  const tierGroups = groupCharactersIntoTiers(characters, showCrown);
-  const tiers = showCrown ? TIERS : MANUAL_TIERS;
+  const tierGroups = groupCharactersIntoTiers(characters);
   const hasAnyCharacters = characters.some((character) => character.score !== null);
 
   if (!hasAnyCharacters) {
@@ -271,9 +260,9 @@ export default function CharacterTierBoard({
     <section className="min-w-0">
       {title && <h2 className="mb-3 text-center text-lg font-bold text-white">{title}</h2>}
       <div className="overflow-hidden rounded-lg border border-gray-700">
-        {tiers.map((tier) => (
+        {TIERS.map((tier) => (
           <div key={tier} className="flex border-b border-gray-700 last:border-b-0">
-            <div className={`flex min-h-20 w-14 shrink-0 items-center justify-center text-base font-black md:w-20 md:text-2xl ${CHARACTER_TIER_COLORS[tier]}`}>{tier === "Crown" ? "TOP" : tier}</div>
+            <div className={`flex min-h-20 w-14 shrink-0 items-center justify-center text-base font-black md:w-20 md:text-2xl ${CHARACTER_TIER_COLORS[tier]}`}>{tier}</div>
             <div className="flex min-h-20 flex-1 flex-wrap content-start gap-2 bg-gray-900 p-2">
               {tierGroups[tier].map((character) => (
                 <CharacterTierCard key={character.characterKey} item={character} showSpecIcon={showSpecIcons} />

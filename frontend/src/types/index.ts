@@ -663,8 +663,8 @@ export interface TierListRaidInfo {
 
 export type CharacterTierListRole = "dps" | "healer" | "tank";
 export type CharacterTierListMetric = "dps" | "hps";
-export type CharacterTierName = "Crown" | "S" | "A" | "B" | "C" | "D" | "E" | "F";
-export type CustomCharacterTierName = Exclude<CharacterTierName, "Crown">;
+export type CharacterTierName = "S" | "A" | "B" | "C" | "D" | "E" | "F";
+export type CustomCharacterTierName = CharacterTierName;
 
 export interface CharacterTierListRaidInfo {
   raidId: number;

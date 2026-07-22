@@ -5,7 +5,6 @@ import {
   CCG_CONFIGURED_SETS,
   CCG_DAILY_PACKS_PER_MODE,
   CCG_GUEST_CLAIM_CARD_LIMIT_PER_MODE,
-  normalizeCcgTierGrade,
 } from "../src/config/ccg";
 import { gradeForPercentile, resolveCardCrop, rollFinish } from "../src/utils/ccg-random";
 import { calculateDuplicateProgress, countGuestClaimPulls, guestClaimIsWithinLimit, planPackSelections, selectPackCards } from "../src/utils/ccg-pack";
@@ -19,7 +18,6 @@ test("canonical grading maps a 100-card population to the versioned S through F 
     counts.set(grade, (counts.get(grade) ?? 0) + 1);
   }
   assert.deepEqual(Object.fromEntries(counts), { S: 5, A: 10, B: 20, C: 20, D: 20, E: 15, F: 10 });
-  assert.equal(normalizeCcgTierGrade("Crown"), "S");
 });
 
 test("card crops are deterministic and stay inside each raid's safe flair range", () => {

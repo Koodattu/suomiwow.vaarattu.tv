@@ -13,7 +13,6 @@ import {
   CCG_TIER_GRADES,
   CcgConfiguredSet,
   CcgTierGrade,
-  normalizeCcgTierGrade,
 } from "../config/ccg";
 import {
   MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY,
@@ -307,7 +306,7 @@ class CcgPublisherService {
           survivalScore: payload.survivalScore,
           combinedScore: payload.combinedScore,
           mythicPlusScore: payload.mythicPlusScore,
-          tierGrade: normalizeCcgTierGrade(candidate.tierGrade),
+          tierGrade: candidate.tierGrade,
           avatarUrl: media.avatarUrl ?? null,
           renderUrl: media.mainRawUrl ?? null,
           backgroundCrop: resolveCardCrop(`${set.slug}:${candidate.characterId}`, set.backgroundSafeCrop),
@@ -356,7 +355,7 @@ class CcgPublisherService {
     const poolVersion = version ?? `${CCG_POOL_VERSION}-${set.publicationWave}`;
     const buckets = CCG_TIER_GRADES.map((grade) => ({
       grade,
-      cardIds: cards.filter((card) => normalizeCcgTierGrade(card.tierGrade) === grade).map((card) => card._id),
+      cardIds: cards.filter((card) => card.tierGrade === grade).map((card) => card._id),
     }));
     const session = await mongoose.startSession();
     try {

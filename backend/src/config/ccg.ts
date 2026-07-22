@@ -33,12 +33,6 @@ export const CCG_ENABLE_MIN_MEDIA_COVERAGE = ratio(process.env.CCG_ENABLE_MIN_ME
 export const CCG_TIER_GRADES: readonly CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
 export const CCG_B_OR_BETTER_GRADES = new Set<CcgTierGrade>(["S", "A", "B"]);
 
-export function normalizeCcgTierGrade(value: unknown): CcgTierGrade {
-  if (value === "Crown") return "S";
-  if (CCG_TIER_GRADES.includes(value as CcgTierGrade)) return value as CcgTierGrade;
-  throw new Error(`Invalid CCG tier grade: ${String(value)}`);
-}
-
 export const CCG_WEIGHTED_GRADE_ODDS: Readonly<Record<CcgTierGrade, number>> = {
   S: 30,
   A: 70,
