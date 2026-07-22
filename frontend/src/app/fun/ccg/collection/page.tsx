@@ -12,7 +12,7 @@ import CardViewer from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import styles from "@/components/ccg/ccg.module.css";
 
-const grades: CcgTierGrade[] = ["Crown", "S", "A", "B", "C", "D", "E", "F"];
+const grades: CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
 const finishOrder: CcgFinish[] = ["prismatic", "golden", "standard"];
 
 type CollectionView = "all" | "guild";

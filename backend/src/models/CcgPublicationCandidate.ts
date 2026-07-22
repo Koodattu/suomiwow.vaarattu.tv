@@ -18,7 +18,7 @@ const CcgPublicationCandidateSchema = new Schema<ICcgPublicationCandidate>(
     setId: { type: Schema.Types.ObjectId, ref: "CcgSet", required: true, index: true },
     characterId: { type: Schema.Types.ObjectId, ref: "Character", required: true, index: true },
     payload: { type: Schema.Types.Mixed, required: true },
-    tierGrade: { type: String, enum: ["Crown", "S", "A", "B", "C", "D", "E", "F"], required: true },
+    tierGrade: { type: String, enum: ["S", "A", "B", "C", "D", "E", "F"], required: true },
     status: { type: String, enum: ["ready", "missing_media", "published"], required: true, index: true },
   },
   { timestamps: true },

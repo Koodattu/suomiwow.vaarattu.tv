@@ -62,17 +62,18 @@ The initial delay and publication cadence remain configurable per set.
 
 ### Tier grade is card rarity
 
-The snapshotted character tier grade is the user-facing rarity. The card prints `Crown`, `S`, `A`, `B`, `C`, `D`, `E`, or `F`; it does not need a separate user-facing Common/Legendary label.
+The snapshotted character tier grade determines the user-facing rarity. The CCG uses `S`, `A`, `B`, `C`, `D`, `E`, and `F`; Crown is not a CCG grade.
 
 The grade maps to an internal rarity bucket for pack selection and visual styling:
 
 | Tier grade | Internal bucket | Baseline visual treatment |
 | --- | --- | --- |
-| Crown / S | Legendary | Maximum ornament, animated raid sigil, premium foil |
-| A | Epic | Layered frame, strong foil, portal lighting |
-| B | Rare | Foil surface and brighter frame detail |
-| C / D | Uncommon | Metallic class accents and modest ornament |
-| E / F | Common | Restrained matte frame |
+| S | Legendary | Yellow-orange; maximum ornament, animated raid sigil, premium foil |
+| A | Epic | Purple layered frame, strong foil, portal lighting |
+| B | Rare | Blue foil surface and brighter frame detail |
+| C | Uncommon | Green metallic accents and modest ornament |
+| D / E | Common | White, restrained matte frame |
+| F | Junk | Gray, minimal ornament |
 
 `tierGrade` is authoritative. `rarityBucket` may be stored as denormalized, indexed data, but must be derived from the set's versioned grade mapping.
 
@@ -126,7 +127,7 @@ Every card front contains:
 | Character | Class, specialization, and role icon |
 | Set | Raid tier name and set symbol |
 | Performance | DPS/HPS, Mechanics, Combined, and Mythic+ |
-| Tier | Crown or S–F grade |
+| Tier | S–F grade |
 | Finish | Golden or Prismatic marker when applicable |
 | Art | Blizzard full character render over the raid background |
 
@@ -138,7 +139,7 @@ The card does not show a numeric placement such as `#12`.
 - **Mechanics** is the survival/mechanics component. Use `survivalScore`.
 - **Combined** is the existing combined performance-mechanics score. The current implementation weights parse and survival equally.
 - **M+** is `scores.all` from the Raider.IO Mythic+ season explicitly mapped to the raid set.
-- **Tier grade** is the snapshotted canonical Crown/S–F classification.
+- **Tier grade** is the snapshotted canonical S–F classification.
 
 Mythic+ is supplementary. A missing Mythic+ score displays `—` and does not block card publication.
 
@@ -345,11 +346,12 @@ The card anatomy remains stable, while each raid season can change its frame, pa
 
 Ornament and motion increase with tier grade:
 
-- E/F remain largely matte and restrained.
-- C/D add metallic class accents.
-- B introduces foil and stronger edge treatment.
-- A adds layered depth and more active portal lighting.
-- S/Crown use the richest set ornament, sigils, and premium foil behavior.
+- F is gray Junk with minimal ornament.
+- D/E are white Common cards with a restrained matte treatment.
+- C is green Uncommon with metallic accents.
+- B is blue Rare with foil and stronger edge treatment.
+- A is purple Epic with layered depth and more active portal lighting.
+- S is yellow-orange Legendary with the richest set ornament, sigils, and premium foil behavior.
 
 The score panel stays engineered and legible at every grade. Higher rarity must not reduce readability.
 
@@ -381,7 +383,7 @@ Recommended sequence:
 3. Five face-down cards enter with an approximately 100 ms stagger.
 4. Edge lighting hints at tier without revealing the card prematurely.
 5. Cards reveal individually or with **Reveal all**.
-6. B, A, S/Crown, Golden, and Prismatic results progressively increase light, material, and sound treatment.
+6. B, A, S, Golden, and Prismatic results progressively increase light, material, and sound treatment.
 7. Keep the result visible until the user dismisses it.
 
 Because users may have ten or more packs available daily, support:

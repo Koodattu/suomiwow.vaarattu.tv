@@ -6,6 +6,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgCard, CcgFinish, CcgTierGrade, GuildCrest as GuildCrestData } from "@/types";
+import { normalizeCcgTierGrade } from "@/lib/ccg";
 import { useCcgCatalog, useCcgSets, useGuildSummaryByRealmName } from "@/lib/queries";
 import { formatRealmName, formatSpecName, getClassInfoById, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
@@ -22,15 +23,14 @@ const roleIcons: Record<CcgCard["role"], string> = {
   dps: "/ccg/role_damage.png",
 };
 
-const rarityKeys: Record<CcgTierGrade, "legendary" | "epic" | "rare" | "uncommon" | "common"> = {
-  Crown: "legendary",
+const rarityKeys: Record<CcgTierGrade, "legendary" | "epic" | "rare" | "uncommon" | "common" | "junk"> = {
   S: "legendary",
   A: "epic",
   B: "rare",
   C: "uncommon",
   D: "common",
   E: "common",
-  F: "common",
+  F: "junk",
 };
 
 const classColors: Record<string, string> = {
@@ -125,7 +125,8 @@ function PrototypeCard({
   const pendingMaterial = useRef<{ element: HTMLElement; x: number; y: number } | null>(null);
   const classInfo = getClassInfoById(card.classID);
   const specIcon = getSpecIconUrl(card.classID, card.specName);
-  const rarity = t(`rarity.${rarityKeys[card.tierGrade]}`);
+  const tierGrade = normalizeCcgTierGrade(card.tierGrade);
+  const rarity = t(`rarity.${rarityKeys[tierGrade]}`);
   const guild = card.guildName ? `<${card.guildName}>` : t("independent");
   const realm = formatRealmName(card.realm);
   const cardStyle = {
@@ -200,7 +201,7 @@ function PrototypeCard({
   return (
     <article
       className={`${styles.prototypeCard} ${styles.vaultRelic} ${styles[finish]} ${guides ? styles.guides : ""}`}
-      data-grade={card.tierGrade}
+      data-grade={tierGrade}
       data-finish={finish}
       data-frame={frameVariant}
       style={cardStyle}

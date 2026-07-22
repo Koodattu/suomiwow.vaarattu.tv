@@ -305,11 +305,24 @@
 .prototypeCard:hover {
   filter: brightness(1.045) saturate(1.06);
 }
+.prototypeCard[data-grade="F"] {
+  --rarity: #9ca3af;
+  --metal-light: #77808d;
+  --metal-mid: #3a424d;
+  --metal-dark: #0d1117;
+}
+.prototypeCard[data-grade="D"],
+.prototypeCard[data-grade="E"] {
+  --rarity: #f4f4f5;
+  --metal-light: #d8dce2;
+  --metal-mid: #737d8a;
+  --metal-dark: #151a21;
+}
 .prototypeCard[data-grade="C"] {
-  --rarity: #71ddd9;
-  --metal-light: #7ccdc9;
-  --metal-mid: #256e6b;
-  --metal-dark: #061d1d;
+  --rarity: #55d878;
+  --metal-light: #75c98b;
+  --metal-mid: #2b7541;
+  --metal-dark: #071f10;
 }
 .prototypeCard[data-grade="B"] {
   --rarity: #6db6ff;
@@ -323,12 +336,11 @@
   --metal-mid: #684298;
   --metal-dark: #180a2c;
 }
-.prototypeCard[data-grade="S"],
-.prototypeCard[data-grade="Crown"] {
-  --rarity: #f3cd71;
-  --metal-light: #e6ca84;
-  --metal-mid: #926424;
-  --metal-dark: #271705;
+.prototypeCard[data-grade="S"] {
+  --rarity: #ffbd52;
+  --metal-light: #f0cb79;
+  --metal-mid: #a4661f;
+  --metal-dark: #2b1503;
 }
 
 .outerFrame,

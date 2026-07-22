@@ -38,7 +38,7 @@ const ResultSchema = new Schema<ICcgPackResult>(
     cardId: { type: Schema.Types.ObjectId, ref: "CcgCard", required: true },
     setId: { type: Schema.Types.ObjectId, ref: "CcgSet", required: true },
     finish: { type: String, enum: ["standard", "golden", "prismatic"], required: true },
-    tierGrade: { type: String, enum: ["Crown", "S", "A", "B", "C", "D", "E", "F"], required: true },
+    tierGrade: { type: String, enum: ["S", "A", "B", "C", "D", "E", "F"], required: true },
     isDuplicate: { type: Boolean, required: true },
   },
   { _id: false },

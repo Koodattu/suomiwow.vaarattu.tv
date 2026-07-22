@@ -7,6 +7,7 @@ import Link from "next/link";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgMode, CcgOpening, CcgSet } from "@/types";
 import { api } from "@/lib/api";
+import { normalizeCcgTierGrade } from "@/lib/ccg";
 import { getCharacterRenderProxyUrl } from "@/lib/character-render";
 import { queryKeys, useCcgOpening, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
@@ -408,7 +409,7 @@ export default function CcgOpenPage() {
                   {opening.results.map((result, index) => {
                     const revealed = revealedCards.has(index);
                     const dealt = index < dealtCards;
-                    const special = result.finish !== "standard" || result.card.tierGrade === "S" || result.card.tierGrade === "Crown";
+                    const special = result.finish !== "standard" || normalizeCcgTierGrade(result.card.tierGrade) === "S";
                     const cardStyle = {
                       "--fan-angle": `${fanAngles[index] ?? 0}deg`,
                       "--fan-y": `${fanOffsets[index] ?? 0}px`,

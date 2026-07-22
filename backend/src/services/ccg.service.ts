@@ -12,6 +12,7 @@ import {
   CcgFinish,
   CcgMode,
   CcgTierGrade,
+  normalizeCcgTierGrade,
 } from "../config/ccg";
 import CcgCard, { ICcgCard } from "../models/CcgCard";
 import CcgDailyAllowance from "../models/CcgDailyAllowance";
@@ -722,12 +723,19 @@ class CcgService {
     }
 
     const plan = planPackSelections(
-      summaries.map((pool) => ({
-        poolId: String(pool._id),
-        setId: String(pool.setId),
-        version: pool.version,
-        counts: pool.counts,
-      })),
+      summaries.map((pool) => {
+        const counts = new Map<CcgTierGrade, number>();
+        for (const row of pool.counts) {
+          const grade = normalizeCcgTierGrade(row.grade);
+          counts.set(grade, (counts.get(grade) ?? 0) + row.count);
+        }
+        return {
+          poolId: String(pool._id),
+          setId: String(pool.setId),
+          version: pool.version,
+          counts: Array.from(counts, ([grade, count]) => ({ grade, count })),
+        };
+      }),
     );
     const selectedPoolIds = Array.from(new Set(plan.map((row) => row.poolId))).map((id) => new mongoose.Types.ObjectId(id));
     const selectedGrades = Array.from(new Set(plan.map((row) => row.tierGrade)));
@@ -738,19 +746,18 @@ class CcgService {
       { $match: { _id: { $in: selectedPoolIds }, active: true } },
       {
         $project: {
-          buckets: {
-            $filter: {
-              input: "$buckets",
-              as: "bucket",
-              cond: { $in: ["$$bucket.grade", selectedGrades] },
-            },
-          },
+          buckets: 1,
         },
       },
     ]).session(session);
     const cardsByBucket = new Map<string, mongoose.Types.ObjectId[]>();
     for (const row of bucketRows) {
-      for (const bucket of row.buckets) cardsByBucket.set(`${row._id}:${bucket.grade}`, bucket.cardIds);
+      for (const bucket of row.buckets) {
+        const grade = normalizeCcgTierGrade(bucket.grade);
+        if (!selectedGrades.includes(grade)) continue;
+        const key = `${row._id}:${grade}`;
+        cardsByBucket.set(key, [...(cardsByBucket.get(key) ?? []), ...bucket.cardIds]);
+      }
     }
     const results = plan.map((row) => {
       const cardIds = cardsByBucket.get(`${row.poolId}:${row.tierGrade}`);
@@ -899,7 +906,7 @@ class CcgService {
         combined: card.combinedScore,
         mythicPlus: card.mythicPlusScore ?? null,
       },
-      tierGrade: card.tierGrade,
+      tierGrade: normalizeCcgTierGrade(card.tierGrade),
       avatarUrl: card.avatarUrl ?? null,
       renderUrl: card.renderUrl ?? null,
       backgroundCrop: card.backgroundCrop,

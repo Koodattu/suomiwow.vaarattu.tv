@@ -152,7 +152,7 @@
       "noCards": "Tässä raidisetissä ei ole julkaistuja kortteja, joilla on hahmorenderöinti.",
       "hint": "Liikuta osoitinta kortin päällä kokeillaksesi materiaaliefektiä. Vaaleanpunainen rajaus näyttää hahmolle varatun alueen.",
       "rarityLabel": "Harvinaisuus",
-      "rarityExplainer": "Legendaarinen vastaa snapshotin parhaita tier-luokkia. A on Eeppinen, B Harvinainen, C Epätavallinen ja D–F Tavallinen. Kultainen ja Prismaattinen ovat erillisiä viimeistelyjä.",
+      "rarityExplainer": "S on Legendaarinen, A Eeppinen, B Harvinainen, C Epätavallinen, D–E Tavallinen ja F Roska. Kultainen ja Prismaattinen ovat erillisiä viimeistelyjä.",
       "realm": "Realm: {realm}",
       "frames": {
         "vaultSteel": {
@@ -245,7 +245,7 @@
       "rare": "Harvinainen",
       "epic": "Eeppinen",
       "legendary": "Legendaarinen",
-      "crown": "Kruunu"
+      "junk": "Roska"
     },
     "role": {
       "tank": "Tankki",

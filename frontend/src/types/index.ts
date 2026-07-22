@@ -1886,7 +1886,7 @@ export type CharacterProfileLookupResponse = CharacterProfileResponse | Characte
 
 export type CcgMode = "current" | "legacy";
 export type CcgFinish = "standard" | "golden" | "prismatic";
-export type CcgTierGrade = "Crown" | "S" | "A" | "B" | "C" | "D" | "E" | "F";
+export type CcgTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";
 
 export type CcgSet = {
   id: string;

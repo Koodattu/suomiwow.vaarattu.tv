@@ -61,7 +61,7 @@ const CcgCardSchema = new Schema<ICcgCard>(
     survivalScore: { type: Number, required: true },
     combinedScore: { type: Number, required: true },
     mythicPlusScore: { type: Number, default: null },
-    tierGrade: { type: String, enum: ["Crown", "S", "A", "B", "C", "D", "E", "F"], required: true, index: true },
+    tierGrade: { type: String, enum: ["S", "A", "B", "C", "D", "E", "F"], required: true, index: true },
     avatarUrl: { type: String, default: null },
     renderUrl: { type: String, default: null },
     backgroundCrop: {

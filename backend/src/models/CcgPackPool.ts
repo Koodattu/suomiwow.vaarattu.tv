@@ -13,7 +13,7 @@ export interface ICcgPackPool extends Document {
 
 const BucketSchema = new Schema(
   {
-    grade: { type: String, enum: ["Crown", "S", "A", "B", "C", "D", "E", "F"], required: true },
+    grade: { type: String, enum: ["S", "A", "B", "C", "D", "E", "F"], required: true },
     cardIds: { type: [Schema.Types.ObjectId], ref: "CcgCard", default: [] },
   },
   { _id: false },

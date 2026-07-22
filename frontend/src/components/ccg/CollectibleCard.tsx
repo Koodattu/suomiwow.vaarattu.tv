@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, PointerEvent, SyntheticEvent } from "react";
 import type { CcgCard, CcgFinish } from "@/types";
+import { normalizeCcgTierGrade } from "@/lib/ccg";
 import { formatRealmName, getClassInfoById } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
 import AlphaFittedCharacterRender from "./AlphaFittedCharacterRender";
@@ -15,15 +16,14 @@ const roleIcons: Record<CcgCard["role"], string> = {
   dps: "/icons/roleicon_damage.png",
 };
 
-const rarityKeys: Record<CcgCard["tierGrade"], "crown" | "legendary" | "epic" | "rare" | "uncommon" | "common"> = {
-  Crown: "crown",
+const rarityKeys: Record<CcgCard["tierGrade"], "legendary" | "epic" | "rare" | "uncommon" | "common" | "junk"> = {
   S: "legendary",
   A: "epic",
   B: "rare",
   C: "uncommon",
   D: "common",
   E: "common",
-  F: "common",
+  F: "junk",
 };
 
 type CollectibleCardProps = {
@@ -42,7 +42,8 @@ function score(value: number | null): string {
 export default function CollectibleCard({ card, finish = "standard", compact = false, quantity, onSelect, className = "" }: CollectibleCardProps) {
   const t = useTranslations("ccg");
   const classInfo = getClassInfoById(card.classID);
-  const rarity = t(`rarity.${rarityKeys[card.tierGrade]}`);
+  const tierGrade = normalizeCcgTierGrade(card.tierGrade);
+  const rarity = t(`rarity.${rarityKeys[tierGrade]}`);
   const cardStyle = {
     "--ccg-accent": card.set.theme.accent,
     "--ccg-glow": card.set.theme.glow,
@@ -79,7 +80,7 @@ export default function CollectibleCard({ card, finish = "standard", compact = f
   const content = (
     <span
       className={`${styles.card} ${styles[finish]} ${compact ? styles.compact : ""}`}
-      data-grade={card.tierGrade}
+      data-grade={tierGrade}
       data-finish={finish}
       style={cardStyle}
     >
@@ -90,8 +91,8 @@ export default function CollectibleCard({ card, finish = "standard", compact = f
 
         <span className={styles.cardHeader}>
           <span className={styles.gradeMedallion}>
-            <span className={styles.gradeValue}>{card.tierGrade === "Crown" ? "✦" : card.tierGrade}</span>
-            <span className={styles.gradeLabel}>{card.tierGrade === "Crown" ? t("rarity.crown") : t("tierShort")}</span>
+            <span className={styles.gradeValue}>{tierGrade}</span>
+            <span className={styles.gradeLabel}>{t("tierShort")}</span>
           </span>
           <span className={styles.titleGroup}>
             <span className={styles.name}>{card.name}</span>

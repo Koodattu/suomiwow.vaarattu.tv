@@ -59,8 +59,8 @@
   --metal-light: #687382;
   --metal-mid: #303946;
   --metal-dark: #0e141d;
-  --rarity: #a8b1bd;
-  --rarity-soft: rgba(168, 177, 189, 0.18);
+  --rarity: #9ca3af;
+  --rarity-soft: rgba(156, 163, 175, 0.18);
   --ornament-opacity: 0.12;
 }
 
@@ -68,8 +68,8 @@
   --metal-light: #788697;
   --metal-mid: #3a4655;
   --metal-dark: #101722;
-  --rarity: #bdc7d3;
-  --rarity-soft: rgba(189, 199, 211, 0.2);
+  --rarity: #f4f4f5;
+  --rarity-soft: rgba(244, 244, 245, 0.2);
   --ornament-opacity: 0.18;
 }
 
@@ -77,17 +77,17 @@
   --metal-light: #8b99a9;
   --metal-mid: #445162;
   --metal-dark: #121a26;
-  --rarity: #d4dce6;
-  --rarity-soft: rgba(212, 220, 230, 0.22);
+  --rarity: #f4f4f5;
+  --rarity-soft: rgba(244, 244, 245, 0.22);
   --ornament-opacity: 0.24;
 }
 
 .card[data-grade="C"] {
-  --metal-light: #8bd4d7;
-  --metal-mid: #2e7278;
-  --metal-dark: #09232a;
-  --rarity: #77eff0;
-  --rarity-soft: rgba(65, 220, 223, 0.24);
+  --metal-light: #80d197;
+  --metal-mid: #2f7745;
+  --metal-dark: #082511;
+  --rarity: #55d878;
+  --rarity-soft: rgba(85, 216, 120, 0.24);
   --ornament-opacity: 0.36;
 }
 
@@ -113,20 +113,9 @@
   --metal-light: #f4d58b;
   --metal-mid: #9e6d26;
   --metal-dark: #2e1905;
-  --rarity: #ffd77b;
-  --rarity-soft: rgba(224, 163, 52, 0.34);
+  --rarity: #ffbd52;
+  --rarity-soft: rgba(255, 189, 82, 0.34);
   --ornament-opacity: 0.84;
-}
-
-.card[data-grade="Crown"] {
-  --metal-light: #fff2b2;
-  --metal-mid: #b4832d;
-  --metal-dark: #271144;
-  --rarity: #ffe592;
-  --rarity-soft: rgba(219, 160, 57, 0.38);
-  --ornament-opacity: 1;
-  background:
-    linear-gradient(125deg, #e9c96f 0%, #442b12 13%, #bf8f34 25%, #361b58 41%, #4a9eae 55%, #d4a743 70%, #fff0aa 82%, #33200e 100%);
 }
 
 .cardWell {

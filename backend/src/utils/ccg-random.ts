@@ -12,7 +12,6 @@ export type CcgResolvedCrop = { x: number; y: number; scale: number };
 export function gradeForPercentile(index: number, populationSize: number): CcgTierGrade {
   if (populationSize <= 0 || index < 0 || index >= populationSize) throw new Error("Invalid grading population index");
   const percentile = (index + 1) / populationSize;
-  if (percentile <= 0.01) return "Crown";
   if (percentile <= 0.05) return "S";
   if (percentile <= 0.15) return "A";
   if (percentile <= 0.35) return "B";

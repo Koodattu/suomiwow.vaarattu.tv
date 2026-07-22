@@ -1,18 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CCG_B_OR_BETTER_GRADES, CCG_CONFIGURED_SETS, CCG_DAILY_PACKS_PER_MODE, CCG_GUEST_CLAIM_CARD_LIMIT_PER_MODE } from "../src/config/ccg";
+import {
+  CCG_B_OR_BETTER_GRADES,
+  CCG_CONFIGURED_SETS,
+  CCG_DAILY_PACKS_PER_MODE,
+  CCG_GUEST_CLAIM_CARD_LIMIT_PER_MODE,
+  normalizeCcgTierGrade,
+} from "../src/config/ccg";
 import { gradeForPercentile, resolveCardCrop, rollFinish } from "../src/utils/ccg-random";
 import { calculateDuplicateProgress, countGuestClaimPulls, guestClaimIsWithinLimit, planPackSelections, selectPackCards } from "../src/utils/ccg-pack";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../src/utils/helsinki-time";
 
-test("canonical grading maps a 100-card population to the versioned Crown through F bands", () => {
+test("canonical grading maps a 100-card population to the versioned S through F bands", () => {
   const counts = new Map<string, number>();
   for (let index = 0; index < 100; index += 1) {
     const grade = gradeForPercentile(index, 100);
     counts.set(grade, (counts.get(grade) ?? 0) + 1);
   }
-  assert.deepEqual(Object.fromEntries(counts), { Crown: 1, S: 4, A: 10, B: 20, C: 20, D: 20, E: 15, F: 10 });
+  assert.deepEqual(Object.fromEntries(counts), { S: 5, A: 10, B: 20, C: 20, D: 20, E: 15, F: 10 });
+  assert.equal(normalizeCcgTierGrade("Crown"), "S");
 });
 
 test("card crops are deterministic and stay inside each raid's safe flair range", () => {
@@ -35,7 +42,7 @@ test("finish boundaries preserve Prismatic and Golden odds", () => {
 });
 
 test("every selected pack has five cards and a B-or-better guaranteed slot", () => {
-  const grades = ["Crown", "S", "A", "B", "C", "D", "E", "F"] as const;
+  const grades = ["S", "A", "B", "C", "D", "E", "F"] as const;
   const buckets = grades.map((grade, index) => ({ grade, cardIds: [`card-${index}`] }));
   const selected = selectPackCards(buckets, (maximum) => maximum - 1);
   assert.equal(selected.length, 5);

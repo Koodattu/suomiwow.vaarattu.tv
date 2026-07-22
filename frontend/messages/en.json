@@ -152,7 +152,7 @@
       "noCards": "This raid set has no published cards with a character render.",
       "hint": "Move the pointer over the card to test the material response. The pink guide shows the area that may contain the character.",
       "rarityLabel": "Rarity",
-      "rarityExplainer": "Legendary represents the top snapshot grades. A is Epic, B is Rare, C is Uncommon, and D–F are Common. Golden and Prismatic are separate finishes.",
+      "rarityExplainer": "S is Legendary, A is Epic, B is Rare, C is Uncommon, D–E are Common, and F is Junk. Golden and Prismatic are separate finishes.",
       "realm": "Realm: {realm}",
       "frames": {
         "vaultSteel": {
@@ -245,7 +245,7 @@
       "rare": "Rare",
       "epic": "Epic",
       "legendary": "Legendary",
-      "crown": "Crown"
+      "junk": "Junk"
     },
     "role": {
       "tank": "Tank",

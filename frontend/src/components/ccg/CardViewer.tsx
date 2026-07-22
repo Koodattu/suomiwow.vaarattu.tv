@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { CcgCard, CcgFinish } from "@/types";
+import { normalizeCcgTierGrade } from "@/lib/ccg";
 import { formatRealmName } from "@/lib/utils";
 import CollectibleCard from "./CollectibleCard";
 import styles from "./ccg.module.css";
@@ -88,7 +89,7 @@ export default function CardViewer({ card, initialFinish = "standard", onClose }
             )}
             <dl className="mt-6 grid grid-cols-2 gap-x-5 gap-y-4 text-sm">
               <div><dt className="text-xs uppercase tracking-wider text-slate-500">{t("snapshot")}</dt><dd className="mt-1 text-slate-300">{new Date(card.performanceSnapshotAt).toLocaleDateString(locale)}</dd></div>
-              <div><dt className="text-xs uppercase tracking-wider text-slate-500">{t("tier")}</dt><dd className="mt-1 font-bold text-slate-100">{card.tierGrade}</dd></div>
+              <div><dt className="text-xs uppercase tracking-wider text-slate-500">{t("tier")}</dt><dd className="mt-1 font-bold text-slate-100">{normalizeCcgTierGrade(card.tierGrade)}</dd></div>
               <div><dt className="text-xs uppercase tracking-wider text-slate-500">{card.metric.toUpperCase()}</dt><dd className="mt-1 tabular-nums text-slate-300">{card.scores.performance.toFixed(1)}</dd></div>
               <div><dt className="text-xs uppercase tracking-wider text-slate-500">{t("mechanics")}</dt><dd className="mt-1 tabular-nums text-slate-300">{card.scores.mechanics.toFixed(1)}</dd></div>
             </dl>
