@@ -988,9 +988,12 @@
   height: 10.5%;
 }
 .vaultRelic .rarityPlate {
+  display: flex;
   bottom: 17.9%;
   left: 5.5%;
   min-width: 0;
+  align-items: center;
+  gap: 0.32rem;
   background: none;
   box-shadow: none;
   clip-path: none;
@@ -1000,10 +1003,38 @@
   color: color-mix(in srgb, var(--rarity) 82%, white);
   letter-spacing: 0.07em;
 }
+.vaultRelic .qualityDivider,
+.vaultRelic .qualityLabel {
+  font-size: clamp(0.46rem, 2.35cqw, 0.66rem);
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.vaultRelic .qualityDivider {
+  color: #9aa6b5;
+  font-weight: 650;
+}
+.vaultRelic .qualityLabel {
+  color: #aab4c1;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+.vaultRelic .rarityPlate[data-quality="golden"] .qualityLabel {
+  color: #f2c968;
+  font-weight: 800;
+}
+.vaultRelic .rarityPlate[data-quality="prismatic"] .qualityLabel {
+  background: linear-gradient(90deg, #73f3ff, #8b76ff 28%, #ff68d6 52%, #ffd86d 74%, #72f5d3);
+  background-clip: text;
+  color: transparent;
+  font-weight: 800;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
 .vaultRelic .characterMeta {
   right: 5.5%;
   bottom: 18%;
-  left: 30%;
+  left: 43%;
   justify-content: flex-end;
 }
 .vaultRelic .cardFooter,

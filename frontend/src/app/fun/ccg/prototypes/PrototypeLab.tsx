@@ -219,8 +219,10 @@ function PrototypeCard({
         </>
       ) : null}
 
-      <span className={styles.rarityPlate}>
+      <span className={styles.rarityPlate} data-quality={finish}>
         <strong>{rarity}</strong>
+        <span className={styles.qualityDivider} aria-hidden="true">·</span>
+        <span className={styles.qualityLabel}>{t(`finish.${finish}`)}</span>
       </span>
 
       <span className={styles.characterMeta}>
