@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgCard, CcgFinish, CcgTierGrade, GuildCrest as GuildCrestData } from "@/types";
@@ -51,6 +51,45 @@ const classColors: Record<string, string> = {
 const frameVariants = ["vaultSteel"] as const;
 
 type FrameVariant = (typeof frameVariants)[number];
+
+const frameRingPath = [
+  "M 24 4 H 476 Q 496 4 496 24 V 676 Q 496 696 476 696",
+  "H 24 Q 4 696 4 676 V 24 Q 4 4 24 4 Z",
+  "M 24 14 H 160 C 178 14 184 22 202 22 H 298 C 316 22 322 14 340 14",
+  "H 476 Q 486 14 486 24 V 676 Q 486 686 476 686",
+  "H 400 C 378 686 372 678 350 678 H 150 C 128 678 122 686 100 686",
+  "H 24 Q 14 686 14 676 V 24 Q 14 14 24 14 Z",
+].join(" ");
+
+const frameInnerEdgePath = [
+  "M 24 14 H 160 C 178 14 184 22 202 22 H 298 C 316 22 322 14 340 14",
+  "H 476 Q 486 14 486 24 V 676 Q 486 686 476 686",
+  "H 400 C 378 686 372 678 350 678 H 150 C 128 678 122 686 100 686",
+  "H 24 Q 14 686 14 676 V 24 Q 14 14 24 14",
+].join(" ");
+
+function FrameGeometry() {
+  const gradientId = `vault-frame-${useId().replace(/:/g, "")}`;
+
+  return (
+    <svg className={styles.frameGeometry} viewBox="0 0 500 700" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="var(--metal-light)" />
+          <stop offset="0.13" stopColor="var(--metal-dark)" />
+          <stop offset="0.28" stopColor="var(--metal-mid)" />
+          <stop offset="0.48" stopColor="#030507" />
+          <stop offset="0.66" stopColor="color-mix(in srgb, var(--lab-accent) 25%, var(--metal-light))" />
+          <stop offset="0.84" stopColor="var(--metal-dark)" />
+          <stop offset="1" stopColor="var(--metal-mid)" />
+        </linearGradient>
+      </defs>
+      <path d={frameRingPath} fill={`url(#${gradientId})`} fillRule="evenodd" />
+      <rect x="4.75" y="4.75" width="490.5" height="690.5" rx="19.25" fill="none" stroke="rgba(255, 255, 255, 0.38)" strokeWidth="1.5" />
+      <path d={frameInnerEdgePath} fill="none" stroke="color-mix(in srgb, var(--lab-accent) 42%, rgba(255, 255, 255, 0.34))" strokeWidth="1.5" />
+    </svg>
+  );
+}
 
 function score(value: number | null): string {
   return value === null ? "—" : value.toFixed(value >= 1000 ? 0 : 1);
@@ -135,6 +174,7 @@ function PrototypeCard({
     >
       <span className={styles.outerFrame} aria-hidden="true" />
       <span className={styles.innerFrame} aria-hidden="true" />
+      <FrameGeometry />
       <span className={styles.artworkClip} aria-hidden="true">
         <span className={styles.raidArt} />
         <span className={styles.raidShade} />
