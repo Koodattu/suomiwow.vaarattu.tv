@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgMode, CcgOpening, CcgSet } from "@/types";
 import { api } from "@/lib/api";
 import { CCG_RARITY_KEYS } from "@/lib/ccg";
@@ -67,6 +67,7 @@ export default function CcgOpenPage() {
   const [revealPhase, setRevealPhase] = useState<RevealPhase>("idle");
   const [dealtCards, setDealtCards] = useState(0);
   const [revealedCards, setRevealedCards] = useState<Set<number>>(() => new Set());
+  const [activeReveal, setActiveReveal] = useState<{ index: number; x: number; y: number } | null>(null);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [legacyArtSetId, setLegacyArtSetId] = useState("");
   const [showPrototypeLab, setShowPrototypeLab] = useState(false);
@@ -127,6 +128,7 @@ export default function CcgOpenPage() {
     const total = opening.results.length;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setViewerIndex(null);
+    setActiveReveal(null);
 
     if (reduced) {
       setRevealPhase("ready");
@@ -188,6 +190,7 @@ export default function CcgOpenPage() {
     setRevealPhase("idle");
     setDealtCards(0);
     setRevealedCards(new Set());
+    setActiveReveal(null);
     setViewerIndex(null);
     setRecoveryId("");
     if (mode === "legacy" && modeSets.length > 0) setLegacyArtSetId(modeSets[randomIndex(modeSets.length)].id);
@@ -196,17 +199,27 @@ export default function CcgOpenPage() {
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   };
 
-  const revealCard = (index: number) => {
+  const revealCard = (index: number, event?: ReactMouseEvent<HTMLButtonElement>) => {
     if (revealPhase !== "ready" || index >= dealtCards) return;
     if (revealedCards.has(index)) {
       setViewerIndex(index);
       return;
+    }
+    if (event && event.detail > 0 && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+      const surface = event.currentTarget.querySelector<HTMLElement>("[data-card-surface]");
+      const bounds = (surface ?? event.currentTarget).getBoundingClientRect();
+      setActiveReveal({
+        index,
+        x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
+        y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
+      });
     }
     setRevealedCards((current) => new Set(current).add(index));
   };
 
   const revealAll = () => {
     if (!opening || revealPhase !== "ready") return;
+    setActiveReveal(null);
     setRevealedCards(new Set(opening.results.map((_, index) => index)));
   };
 
@@ -465,12 +478,15 @@ export default function CcgOpenPage() {
                         ref={(element) => { cardRefs.current[index] = element; }}
                         disabled={!dealt || revealPhase !== "ready"}
                         onPointerMove={revealed ? undefined : updateSealedCardMotion}
-                        onPointerLeave={revealed ? undefined : resetSealedCardMotion}
-                        onClick={() => revealCard(index)}
+                        onPointerLeave={(event) => {
+                          if (!revealed) resetSealedCardMotion(event);
+                          setActiveReveal((current) => current?.index === index ? null : current);
+                        }}
+                        onClick={(event) => revealCard(index, event)}
                         aria-label={revealed ? t("open.viewCard", { name: result.card.name }) : `${t("open.revealCard", { position: index + 1 })}. ${sealedCardHint}`}
                       >
                         <span className={packStyles.sealedAura} aria-hidden="true" />
-                        <span className={packStyles.cardFlip}>
+                        <span className={packStyles.cardFlip} data-card-surface>
                           <span className={`${packStyles.cardFace} ${packStyles.cardBack}`} aria-hidden={revealed}>
                             <span className={packStyles.cardBackField} />
                             <span className={packStyles.cardBackFinish} />
@@ -479,7 +495,12 @@ export default function CcgOpenPage() {
                             <span className={packStyles.cardBackSet}>{opening.mode === "current" ? openingSet?.raidName : t("open.legacyPackTitle")}</span>
                           </span>
                           <span className={`${packStyles.cardFace} ${packStyles.cardFront}`} aria-hidden={!revealed}>
-                            <CollectibleCard card={result.card} finish={result.finish} compact />
+                            <CollectibleCard
+                              card={result.card}
+                              finish={result.finish}
+                              compact
+                              forcedPointer={activeReveal?.index === index ? activeReveal : undefined}
+                            />
                           </span>
                         </span>
                         <span className={packStyles.revealFlare} aria-hidden="true" />

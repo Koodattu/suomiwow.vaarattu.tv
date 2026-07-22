@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useLayoutEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgCard, CcgFinish } from "@/types";
@@ -71,6 +71,22 @@ function score(value: number | null): string {
   return value === null ? "—" : value.toFixed(value >= 1000 ? 0 : 1);
 }
 
+function applyCardMaterial(element: HTMLElement, x: number, y: number) {
+  const distance = Math.min(1, Math.hypot(x - 0.5, y - 0.5) / Math.SQRT1_2);
+  element.style.setProperty("--tilt-x", `${((0.5 - y) * 7).toFixed(2)}deg`);
+  element.style.setProperty("--tilt-y", `${((x - 0.5) * 8).toFixed(2)}deg`);
+  element.style.setProperty("--pointer-x", `${(x * 100).toFixed(1)}%`);
+  element.style.setProperty("--pointer-y", `${(y * 100).toFixed(1)}%`);
+  element.style.setProperty("--pointer-left", x.toFixed(3));
+  element.style.setProperty("--pointer-top", y.toFixed(3));
+  element.style.setProperty("--pointer-distance", distance.toFixed(3));
+  element.style.setProperty("--foil-x", `${(50 + (x - 0.5) * 54).toFixed(1)}%`);
+  element.style.setProperty("--foil-y", `${(50 + (y - 0.5) * 46).toFixed(1)}%`);
+  element.style.setProperty("--foil-x-reverse", `${(50 - (x - 0.5) * 76).toFixed(1)}%`);
+  element.style.setProperty("--foil-y-reverse", `${(50 - (y - 0.5) * 64).toFixed(1)}%`);
+  element.style.setProperty("--foil-angle", `${(118 + (x - 0.5) * 18 - (y - 0.5) * 10).toFixed(1)}deg`);
+}
+
 type CollectibleCardProps = {
   card: CcgCard;
   finish?: CcgFinish | "void";
@@ -82,6 +98,7 @@ type CollectibleCardProps = {
   guides?: boolean;
   hideCornerIcons?: boolean;
   hideBadges?: boolean;
+  forcedPointer?: { x: number; y: number };
 };
 
 export default function CollectibleCard({
@@ -95,10 +112,13 @@ export default function CollectibleCard({
   guides = false,
   hideCornerIcons = false,
   hideBadges = false,
+  forcedPointer,
 }: CollectibleCardProps) {
   const t = useTranslations("ccg");
   const materialFrame = useRef<number | null>(null);
   const pendingMaterial = useRef<{ element: HTMLElement; x: number; y: number } | null>(null);
+  const cardRef = useRef<HTMLSpanElement | null>(null);
+  const hadForcedPointer = useRef(false);
   const classInfo = getClassInfoById(card.classID);
   const specIcon = getSpecIconUrl(card.classID, card.specName);
   const rarity = t(`rarity.${CCG_RARITY_KEYS[card.tierGrade]}`);
@@ -134,22 +154,6 @@ export default function CollectibleCard({
     [],
   );
 
-  const applyMaterial = (element: HTMLElement, x: number, y: number) => {
-    const distance = Math.min(1, Math.hypot(x - 0.5, y - 0.5) / Math.SQRT1_2);
-    element.style.setProperty("--tilt-x", `${((0.5 - y) * 7).toFixed(2)}deg`);
-    element.style.setProperty("--tilt-y", `${((x - 0.5) * 8).toFixed(2)}deg`);
-    element.style.setProperty("--pointer-x", `${(x * 100).toFixed(1)}%`);
-    element.style.setProperty("--pointer-y", `${(y * 100).toFixed(1)}%`);
-    element.style.setProperty("--pointer-left", x.toFixed(3));
-    element.style.setProperty("--pointer-top", y.toFixed(3));
-    element.style.setProperty("--pointer-distance", distance.toFixed(3));
-    element.style.setProperty("--foil-x", `${(50 + (x - 0.5) * 54).toFixed(1)}%`);
-    element.style.setProperty("--foil-y", `${(50 + (y - 0.5) * 46).toFixed(1)}%`);
-    element.style.setProperty("--foil-x-reverse", `${(50 - (x - 0.5) * 76).toFixed(1)}%`);
-    element.style.setProperty("--foil-y-reverse", `${(50 - (y - 0.5) * 64).toFixed(1)}%`);
-    element.style.setProperty("--foil-angle", `${(118 + (x - 0.5) * 18 - (y - 0.5) * 10).toFixed(1)}deg`);
-  };
-
   const updateMaterial = (event: ReactPointerEvent<HTMLElement>) => {
     if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -159,7 +163,7 @@ export default function CollectibleCard({
     if (materialFrame.current !== null) return;
     materialFrame.current = requestAnimationFrame(() => {
       const material = pendingMaterial.current;
-      if (material) applyMaterial(material.element, material.x, material.y);
+      if (material) applyCardMaterial(material.element, material.x, material.y);
       pendingMaterial.current = null;
       materialFrame.current = null;
     });
@@ -169,17 +173,34 @@ export default function CollectibleCard({
     if (materialFrame.current !== null) cancelAnimationFrame(materialFrame.current);
     materialFrame.current = null;
     pendingMaterial.current = null;
-    applyMaterial(event.currentTarget, 0.5, 0.38);
+    applyCardMaterial(event.currentTarget, 0.5, 0.38);
     event.currentTarget.style.setProperty("--tilt-x", "0deg");
     event.currentTarget.style.setProperty("--tilt-y", "0deg");
   };
 
+  useLayoutEffect(() => {
+    const element = cardRef.current;
+    if (!element) return;
+    if (forcedPointer) {
+      hadForcedPointer.current = true;
+      applyCardMaterial(element, forcedPointer.x, forcedPointer.y);
+      return;
+    }
+    if (!hadForcedPointer.current) return;
+    hadForcedPointer.current = false;
+    applyCardMaterial(element, 0.5, 0.38);
+    element.style.setProperty("--tilt-x", "0deg");
+    element.style.setProperty("--tilt-y", "0deg");
+  }, [forcedPointer]);
+
   const cardNode = (
     <span
+      ref={cardRef}
       className={`${styles.prototypeCard} ${styles.vaultRelic} ${styles[finish]} ${guides ? styles.guides : ""}`}
       data-grade={card.tierGrade}
       data-finish={finish}
       data-frame="vaultSteel"
+      data-forced-hover={forcedPointer ? "true" : undefined}
       style={cardStyle}
       onPointerMove={updateMaterial}
       onPointerLeave={resetMaterial}

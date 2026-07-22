@@ -330,14 +330,14 @@
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.prototypeCard:hover {
+.prototypeCard:is(:hover, [data-forced-hover="true"]) {
   filter: brightness(1.045) saturate(1.06);
   transition-duration: 110ms, 180ms;
 }
 .prototypeCard.negative {
   filter: invert(1) contrast(1.06) saturate(0.92);
 }
-.prototypeCard.negative:hover {
+.prototypeCard.negative:is(:hover, [data-forced-hover="true"]) {
   filter: invert(1) contrast(1.06) saturate(0.92) brightness(1.045);
 }
 .prototypeCard[data-grade="F"] {
@@ -1177,28 +1177,28 @@
   mix-blend-mode: screen;
   opacity: 0.42;
 }
-.prototypeCard:hover .materialLight {
+.prototypeCard:is(:hover, [data-forced-hover="true"]) .materialLight {
   opacity: 0.74;
 }
-.prototypeCard.standard:hover .finishLayer {
+.prototypeCard.standard:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.28 + var(--pointer-distance) * 0.14);
 }
-.prototypeCard.foil:hover .finishLayer {
+.prototypeCard.foil:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.54 + var(--pointer-distance) * 0.16);
 }
-.prototypeCard.golden:hover .finishLayer {
+.prototypeCard.golden:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.64 + var(--pointer-distance) * 0.12);
 }
-.prototypeCard.holographic:hover .finishLayer {
+.prototypeCard.holographic:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.7 + var(--pointer-distance) * 0.16);
 }
-.prototypeCard.prismatic:hover .finishLayer {
+.prototypeCard.prismatic:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.78 + var(--pointer-distance) * 0.14);
 }
-.prototypeCard.void:hover .finishLayer {
+.prototypeCard.void:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.72 + var(--pointer-distance) * 0.08);
 }
-.prototypeCard.negative:hover .finishLayer {
+.prototypeCard.negative:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.58 + var(--pointer-distance) * 0.12);
 }
 .prototypeCard.foil .materialLight {
@@ -1207,25 +1207,25 @@
 .prototypeCard.golden .materialLight {
   filter: sepia(0.24) saturate(1.18);
 }
-.prototypeCard.golden:hover .materialLight {
+.prototypeCard.golden:is(:hover, [data-forced-hover="true"]) .materialLight {
   opacity: 0.62;
 }
 .prototypeCard.prismatic .materialLight {
   opacity: 0.34;
 }
-.prototypeCard.prismatic:hover .materialLight {
+.prototypeCard.prismatic:is(:hover, [data-forced-hover="true"]) .materialLight {
   opacity: 0.9;
 }
 .prototypeCard.holographic .materialLight {
   opacity: 0.42;
 }
-.prototypeCard.holographic:hover .materialLight {
+.prototypeCard.holographic:is(:hover, [data-forced-hover="true"]) .materialLight {
   opacity: 0.94;
 }
 .prototypeCard.void .materialLight {
   opacity: 0.08;
 }
-.prototypeCard.void:hover .materialLight {
+.prototypeCard.void:is(:hover, [data-forced-hover="true"]) .materialLight {
   opacity: 0.28;
 }
 
@@ -1279,22 +1279,22 @@
   .prototypeCard {
     animation: prototypeIdleDrift 5.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.standard:not(:hover) .finishLayer {
+  .prototypeCard.standard:not(:hover):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeStandardIdleGrain 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.foil:not(:hover) .finishLayer {
+  .prototypeCard.foil:not(:hover):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeGoldenIdleFoil 7.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.golden:not(:hover) .finishLayer {
+  .prototypeCard.golden:not(:hover):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeGoldenIdleFoil 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.holographic:not(:hover) .finishLayer {
+  .prototypeCard.holographic:not(:hover):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypePrismaticIdleFoil 5.1s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.prismatic:not(:hover) .finishLayer {
+  .prototypeCard.prismatic:not(:hover):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypePrismaticIdleFoil 5.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.prismatic:not(:hover) .statsPanel {
+  .prototypeCard.prismatic:not(:hover):not([data-forced-hover="true"]) .statsPanel {
     animation: prototypePrismaticStatsIdle 5.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
 }
@@ -1587,10 +1587,10 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-.prototypeCard.holographic:not(:hover) .qualityLabel {
+.prototypeCard.holographic:not(:hover):not([data-forced-hover="true"]) .qualityLabel {
   animation: prototypeHolographicTextSweep 3.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
 }
-.prototypeCard.holographic:hover .qualityLabel {
+.prototypeCard.holographic:is(:hover, [data-forced-hover="true"]) .qualityLabel {
   filter: brightness(calc(1.14 + var(--pointer-distance) * 0.3)) saturate(1.48);
 }
 .vaultRelic .rarityPlate[data-quality="prismatic"] .qualityLabel {
