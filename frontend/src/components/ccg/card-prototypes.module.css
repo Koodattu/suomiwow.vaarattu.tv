@@ -998,7 +998,7 @@
 }
 .vaultRelic .rarityPlate {
   display: flex;
-  bottom: 17.9%;
+  bottom: 17.5%;
   left: 5.5%;
   min-width: 0;
   align-items: center;
@@ -1037,7 +1037,7 @@
 }
 .vaultRelic .characterMeta {
   right: 5.5%;
-  bottom: 18%;
+  bottom: 17.5%;
   left: 43%;
   justify-content: flex-end;
   gap: 0.24rem;

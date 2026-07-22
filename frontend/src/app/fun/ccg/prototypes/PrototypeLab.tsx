@@ -78,7 +78,7 @@ function FrameGeometry() {
   return (
     <svg className={styles.frameGeometry} viewBox="0 0 500 700" preserveAspectRatio="none" aria-hidden="true">
       <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1" gradientTransform="rotate(-90 0.5 0.5)">
           <stop offset="0" stopColor="var(--metal-light)" />
           <stop offset="0.13" stopColor="var(--metal-dark)" />
           <stop offset="0.28" stopColor="var(--metal-mid)" />
@@ -179,9 +179,7 @@ function PrototypeCard({
       </span>
       <span className={styles.lowerDeck} aria-hidden="true" />
       <span className={styles.renderWindow} aria-hidden="true">
-        {card.renderUrl ? (
-          <AlphaFittedCharacterRender src={card.renderUrl} sizes={`${width}px`} className={styles.renderImage} />
-        ) : null}
+        {card.renderUrl ? <AlphaFittedCharacterRender src={card.renderUrl} sizes={`${width}px`} className={styles.renderImage} /> : null}
       </span>
 
       <span className={styles.identity}>
@@ -250,12 +248,18 @@ function PrototypeCard({
         </span>
       </span>
 
-      <span className={`${styles.cardBrand} ${styles.cardBrandLeft}`} aria-hidden="true">SUOMIWOW</span>
-      <span className={`${styles.cardBrand} ${styles.cardBrandRight}`} aria-hidden="true">{realm}</span>
+      <span className={`${styles.cardBrand} ${styles.cardBrandLeft}`} aria-hidden="true">
+        SUOMIWOW
+      </span>
+      <span className={`${styles.cardBrand} ${styles.cardBrandRight}`} aria-hidden="true">
+        {realm}
+      </span>
 
       <span className={styles.cardFooter}>
         <span>{realm}</span>
-        <span>{String(card.setNumber).padStart(3, "0")} / {String(card.set.cardCount).padStart(3, "0")}</span>
+        <span>
+          {String(card.setNumber).padStart(3, "0")} / {String(card.set.cardCount).padStart(3, "0")}
+        </span>
       </span>
 
       {finish !== "standard" ? (
@@ -285,9 +289,7 @@ export default function PrototypeLab() {
   useEffect(() => {
     if (sets.length === 0 || setSlug) return;
     const requested = new URLSearchParams(window.location.search).get("set");
-    const selected = sets.find((set) => set.slug === requested)
-      ?? sets.find((set) => set.state === "current" && set.cardCount > 0)
-      ?? sets.find((set) => set.cardCount > 0);
+    const selected = sets.find((set) => set.slug === requested) ?? sets.find((set) => set.state === "current" && set.cardCount > 0) ?? sets.find((set) => set.cardCount > 0);
     if (selected) setSetSlug(selected.slug);
   }, [setSlug, sets]);
 
@@ -295,10 +297,7 @@ export default function PrototypeLab() {
   const cards = useMemo(() => catalogQuery.data?.cards.filter((card) => card.renderUrl) ?? [], [catalogQuery.data?.cards]);
   const card = cards.find((candidate) => candidate.id === cardId) ?? cards[0];
   const samplePages = catalogQuery.data?.pages ?? 1;
-  const guildQuery = useGuildSummaryByRealmName(
-    SHOW_ROLE_AND_GUILD_CRESTS ? card?.guildRealm ?? "" : "",
-    SHOW_ROLE_AND_GUILD_CRESTS ? card?.guildName ?? "" : "",
-  );
+  const guildQuery = useGuildSummaryByRealmName(SHOW_ROLE_AND_GUILD_CRESTS ? (card?.guildRealm ?? "") : "", SHOW_ROLE_AND_GUILD_CRESTS ? (card?.guildName ?? "") : "");
 
   const changeSet = (slug: string) => {
     setSetSlug(slug);
@@ -318,40 +317,82 @@ export default function PrototypeLab() {
             <h1>{t("prototypes.title")}</h1>
             <p>{t("prototypes.body")}</p>
           </div>
-          <Link href="/fun/ccg/open" className={vaultStyles.secondaryButton}>{t("prototypes.back")}</Link>
+          <Link href="/fun/ccg/open" className={vaultStyles.secondaryButton}>
+            {t("prototypes.back")}
+          </Link>
         </header>
 
-        <section className={styles.controls} aria-label={t("prototypes.controls") }>
+        <section className={styles.controls} aria-label={t("prototypes.controls")}>
           <label>
             <span>{t("prototypes.set")}</span>
             <select value={setSlug} onChange={(event) => changeSet(event.target.value)}>
-              {sets.filter((set) => set.cardCount > 0).map((set) => <option key={set.id} value={set.slug}>{set.raidName}</option>)}
+              {sets
+                .filter((set) => set.cardCount > 0)
+                .map((set) => (
+                  <option key={set.id} value={set.slug}>
+                    {set.raidName}
+                  </option>
+                ))}
             </select>
           </label>
           <label>
             <span>{t("prototypes.sample")}</span>
             <select value={card?.id ?? ""} onChange={(event) => setCardId(event.target.value)} disabled={cards.length === 0}>
-              {cards.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name} · {formatRealmName(candidate.realm)}</option>)}
+              {cards.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name} · {formatRealmName(candidate.realm)}
+                </option>
+              ))}
             </select>
           </label>
           <div className={styles.pageControl}>
             <span>{t("prototypes.samplePage")}</span>
             <div>
-              <button type="button" onClick={() => { setSamplePage((page) => Math.max(1, page - 1)); setCardId(""); }} disabled={samplePage <= 1} aria-label={t("prototypes.previousPage")}>←</button>
-              <strong>{samplePage} / {samplePages}</strong>
-              <button type="button" onClick={() => { setSamplePage((page) => Math.min(samplePages, page + 1)); setCardId(""); }} disabled={samplePage >= samplePages} aria-label={t("prototypes.nextPage")}>→</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSamplePage((page) => Math.max(1, page - 1));
+                  setCardId("");
+                }}
+                disabled={samplePage <= 1}
+                aria-label={t("prototypes.previousPage")}
+              >
+                ←
+              </button>
+              <strong>
+                {samplePage} / {samplePages}
+              </strong>
+              <button
+                type="button"
+                onClick={() => {
+                  setSamplePage((page) => Math.min(samplePages, page + 1));
+                  setCardId("");
+                }}
+                disabled={samplePage >= samplePages}
+                aria-label={t("prototypes.nextPage")}
+              >
+                →
+              </button>
             </div>
           </div>
           <label>
             <span>{t("prototypes.finish")}</span>
             <select value={finish} onChange={(event) => setFinish(event.target.value as CcgFinish)}>
-              {(["standard", "golden", "prismatic"] as CcgFinish[]).map((value) => <option key={value} value={value}>{t(`finish.${value}`)}</option>)}
+              {(["standard", "golden", "prismatic"] as CcgFinish[]).map((value) => (
+                <option key={value} value={value}>
+                  {t(`finish.${value}`)}
+                </option>
+              ))}
             </select>
           </label>
           <label>
             <span>{t("prototypes.size")}</span>
             <select value={cardWidth} onChange={(event) => setCardWidth(Number(event.target.value))}>
-              {[320, 360, 400, 440].map((value) => <option key={value} value={value}>{value} px</option>)}
+              {[320, 360, 400, 440].map((value) => (
+                <option key={value} value={value}>
+                  {value} px
+                </option>
+              ))}
             </select>
           </label>
           <label className={styles.guideControl}>
@@ -369,7 +410,14 @@ export default function PrototypeLab() {
         </section>
 
         {setsQuery.isError || catalogQuery.isError ? (
-          <div className={styles.loadState}><CcgLoadError onRetry={() => { void setsQuery.refetch(); void catalogQuery.refetch(); }} /></div>
+          <div className={styles.loadState}>
+            <CcgLoadError
+              onRetry={() => {
+                void setsQuery.refetch();
+                void catalogQuery.refetch();
+              }}
+            />
+          </div>
         ) : !card ? (
           <div className={styles.loadState}>{setsQuery.isLoading || catalogQuery.isLoading ? t("prototypes.loading") : t("prototypes.noCards")}</div>
         ) : (
@@ -382,7 +430,10 @@ export default function PrototypeLab() {
               {frameVariants.map((frameVariant) => (
                 <section className={styles.prototypeStage} key={frameVariant}>
                   <header>
-                    <div><strong>{t(`prototypes.frames.${frameVariant}.title`)}</strong><span>{t(`prototypes.frames.${frameVariant}.tag`)}</span></div>
+                    <div>
+                      <strong>{t(`prototypes.frames.${frameVariant}.title`)}</strong>
+                      <span>{t(`prototypes.frames.${frameVariant}.tag`)}</span>
+                    </div>
                     <p>{t(`prototypes.frames.${frameVariant}.body`)}</p>
                   </header>
                   <div className={styles.cardMount}>
