@@ -1318,6 +1318,17 @@
   }
 }
 
+@keyframes prototypeHolographicTextSweep {
+  from {
+    background-position: 8% center;
+    filter: brightness(1.08) saturate(1.18);
+  }
+  to {
+    background-position: 92% center;
+    filter: brightness(1.3) saturate(1.5);
+  }
+}
+
 /* Hero Reliquary: ornamental header and a compact museum-plinth data deck. */
 .reliquary .identity {
   top: 3.5%;
@@ -1480,7 +1491,37 @@
   color: #dbe8ef;
 }
 .vaultRelic .rarityPlate[data-quality="holographic"] .qualityLabel {
-  color: #8fe9ff;
+  background: linear-gradient(
+    102deg,
+    #c9f7ff 0%,
+    #ffffff 12%,
+    #ff63d8 22%,
+    #fff2a3 33%,
+    #52ffe3 44%,
+    #879dff 54%,
+    #ffffff 61%,
+    #ff72de 70%,
+    #83ffd2 81%,
+    #ffffff 90%,
+    #bdeaff 100%
+  );
+  background-position: var(--pointer-x) center;
+  background-size: 240% 100%;
+  background-clip: text;
+  color: transparent;
+  filter: brightness(1.12) saturate(1.28);
+  text-shadow:
+    -0.45px 0 rgba(255, 63, 204, 0.92),
+    0.45px 0 rgba(61, 241, 255, 0.92),
+    0 1px 1px rgba(0, 0, 0, 0.88);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.prototypeCard.holographic:not(:hover) .qualityLabel {
+  animation: prototypeHolographicTextSweep 3.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+.prototypeCard.holographic:hover .qualityLabel {
+  filter: brightness(calc(1.14 + var(--pointer-distance) * 0.3)) saturate(1.48);
 }
 .vaultRelic .rarityPlate[data-quality="prismatic"] .qualityLabel {
   background: linear-gradient(90deg, #73f3ff, #8b76ff 28%, #ff68d6 52%, #ffd86d 74%, #72f5d3);
@@ -2357,6 +2398,7 @@
     animation: none;
   }
   .finishLayer::before,
+  .qualityLabel,
   .statsPanel {
     animation: none;
   }
