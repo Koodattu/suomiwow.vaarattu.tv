@@ -282,6 +282,7 @@
   --foil-angle: 118deg;
   position: relative;
   display: block;
+  box-sizing: content-box;
   cursor: default;
   user-select: none;
   -webkit-user-select: none;
@@ -289,12 +290,15 @@
   isolation: isolate;
   container-type: inline-size;
   aspect-ratio: 5 / 7;
+  margin: -5px;
   overflow: hidden;
-  border-radius: 0.8rem;
+  border: 5px solid transparent;
+  border-radius: calc(0.8rem + 5px);
   background: #05080d;
+  background-clip: padding-box;
   box-shadow:
-    0 8px 8px rgba(0, 0, 0, 0.64),
-    0 0 8px color-mix(in srgb, var(--lab-glow) 58%, transparent);
+    0 8px 8px -5px rgba(0, 0, 0, 0.64),
+    0 0 6px -5px color-mix(in srgb, var(--lab-glow) 58%, transparent);
   transform: perspective(1200px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
   transform-style: preserve-3d;
   transition-property: transform, filter;
