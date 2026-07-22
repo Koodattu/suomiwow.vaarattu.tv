@@ -196,6 +196,8 @@ function PrototypeCard({
     materialFrame.current = null;
     pendingMaterial.current = null;
     applyMaterial(event.currentTarget, 0.5, 0.38);
+    event.currentTarget.style.setProperty("--tilt-x", "0deg");
+    event.currentTarget.style.setProperty("--tilt-y", "0deg");
   };
 
   return (
