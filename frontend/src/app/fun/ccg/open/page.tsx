@@ -72,6 +72,8 @@ export default function CcgOpenPage() {
   const [showPrototypeLab, setShowPrototypeLab] = useState(false);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const packDragRef = useRef({ pointerId: -1, startX: 0, startY: 0, dragging: false, suppressClick: false });
+  const sealedMotionFrame = useRef<number | null>(null);
+  const pendingSealedMotion = useRef<{ element: HTMLButtonElement; x: number; y: number } | null>(null);
   const recoveryQuery = useCcgOpening(recoveryId);
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets;
@@ -105,6 +107,13 @@ export default function CcgOpenPage() {
     }
     setRecoveryInitialized(true);
   }, []);
+
+  useEffect(
+    () => () => {
+      if (sealedMotionFrame.current !== null) cancelAnimationFrame(sealedMotionFrame.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     const recovered = recoveryQuery.data;
@@ -244,6 +253,35 @@ export default function CcgOpenPage() {
     target.dataset.dragging = "true";
     target.style.setProperty("--pack-drag-x", `${Math.max(-76, Math.min(76, dx)).toFixed(1)}px`);
     target.style.setProperty("--pack-drag-y", `${Math.max(-52, Math.min(52, dy)).toFixed(1)}px`);
+  };
+
+  const applySealedCardMotion = (element: HTMLButtonElement, x: number, y: number) => {
+    element.style.setProperty("--sealed-tilt-x", `${((0.5 - y) * 2.4).toFixed(2)}deg`);
+    element.style.setProperty("--sealed-tilt-y", `${((x - 0.5) * 3.2).toFixed(2)}deg`);
+    element.style.setProperty("--sealed-finish-x", `${(50 + (x - 0.5) * 34).toFixed(1)}%`);
+    element.style.setProperty("--sealed-finish-y", `${(50 + (y - 0.5) * 24).toFixed(1)}%`);
+  };
+
+  const updateSealedCardMotion = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+    const y = Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height));
+    pendingSealedMotion.current = { element: event.currentTarget, x, y };
+    if (sealedMotionFrame.current !== null) return;
+    sealedMotionFrame.current = requestAnimationFrame(() => {
+      const motion = pendingSealedMotion.current;
+      if (motion) applySealedCardMotion(motion.element, motion.x, motion.y);
+      pendingSealedMotion.current = null;
+      sealedMotionFrame.current = null;
+    });
+  };
+
+  const resetSealedCardMotion = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (sealedMotionFrame.current !== null) cancelAnimationFrame(sealedMotionFrame.current);
+    sealedMotionFrame.current = null;
+    pendingSealedMotion.current = null;
+    applySealedCardMotion(event.currentTarget, 0.5, 0.5);
   };
 
   const startPackDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -426,6 +464,8 @@ export default function CcgOpenPage() {
                         data-grade={result.card.tierGrade}
                         ref={(element) => { cardRefs.current[index] = element; }}
                         disabled={!dealt || revealPhase !== "ready"}
+                        onPointerMove={revealed ? undefined : updateSealedCardMotion}
+                        onPointerLeave={revealed ? undefined : resetSealedCardMotion}
                         onClick={() => revealCard(index)}
                         aria-label={revealed ? t("open.viewCard", { name: result.card.name }) : `${t("open.revealCard", { position: index + 1 })}. ${sealedCardHint}`}
                       >
@@ -433,6 +473,7 @@ export default function CcgOpenPage() {
                         <span className={packStyles.cardFlip}>
                           <span className={`${packStyles.cardFace} ${packStyles.cardBack}`} aria-hidden={revealed}>
                             <span className={packStyles.cardBackField} />
+                            <span className={packStyles.cardBackFinish} />
                             <span className={packStyles.cardBackSigil} aria-hidden="true"><span /></span>
                             <span className={packStyles.cardBackBrand}>SuomiWoW <strong>CCG</strong></span>
                             <span className={packStyles.cardBackSet}>{opening.mode === "current" ? openingSet?.raidName : t("open.legacyPackTitle")}</span>

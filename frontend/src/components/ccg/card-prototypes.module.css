@@ -1276,9 +1276,8 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .prototypeCard:not(:hover) {
+  .prototypeCard {
     animation: prototypeIdleDrift 5.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
-    animation-delay: 420ms;
   }
   .prototypeCard.standard:not(:hover) .finishLayer {
     animation: prototypeStandardIdleGrain 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
@@ -1302,13 +1301,16 @@
 
 @keyframes prototypeIdleDrift {
   0% {
-    transform: perspective(1200px) rotateX(0deg) rotateY(0deg);
+    translate: 0 0;
+    rotate: 0deg;
   }
   50% {
-    transform: perspective(1200px) rotateX(1.18deg) rotateY(-0.3deg);
+    translate: 0 -1px;
+    rotate: -0.12deg;
   }
   100% {
-    transform: perspective(1200px) rotateX(-0.46deg) rotateY(2.05deg);
+    translate: 1px 0;
+    rotate: 0.2deg;
   }
 }
 
@@ -2429,6 +2431,8 @@
   .prototypeCard {
     animation: none;
     transform: none;
+    translate: none;
+    rotate: none;
   }
   .materialLight {
     opacity: 0.22;
@@ -2461,6 +2465,8 @@
   .prototypeCard {
     animation: none;
     transform: none;
+    translate: none;
+    rotate: none;
   }
   .finishLayer {
     animation: none;
