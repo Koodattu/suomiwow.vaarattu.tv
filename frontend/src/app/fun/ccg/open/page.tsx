@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import type { CSSProperties } from "react";
+import Link from "next/link";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgMode, CcgOpening, CcgSet } from "@/types";
 import { api } from "@/lib/api";
 import { queryKeys, useCcgOpening, useCcgSession, useCcgSets } from "@/lib/queries";
@@ -18,11 +19,30 @@ import packStyles from "@/components/ccg/pack-opening.module.css";
 
 type RevealPhase = "idle" | "tearing" | "dealing" | "ready";
 
-const fanAngles = [-8, -4, 0, 4, 8];
-const fanOffsets = [18, 6, 0, 6, 18];
+const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
+const fanOffsets = [15, 5, 0, 5, 15];
+const tearParticles = [
+  { x: -132, y: -74, rotate: -34, delay: 90 },
+  { x: -98, y: -126, rotate: -18, delay: 120 },
+  { x: -48, y: -146, rotate: 12, delay: 145 },
+  { x: 24, y: -154, rotate: 28, delay: 110 },
+  { x: 86, y: -118, rotate: 46, delay: 135 },
+  { x: 138, y: -62, rotate: 65, delay: 95 },
+  { x: -142, y: 30, rotate: -58, delay: 150 },
+  { x: -82, y: 82, rotate: -26, delay: 170 },
+  { x: 88, y: 76, rotate: 34, delay: 160 },
+  { x: 146, y: 24, rotate: 62, delay: 130 },
+];
 
 function makeIdempotencyKey(): string {
   return `pack_${window.crypto.randomUUID()}`;
+}
+
+function randomIndex(length: number): number {
+  if (length <= 1) return 0;
+  const value = new Uint32Array(1);
+  window.crypto.getRandomValues(value);
+  return value[0] % length;
 }
 
 function packTheme(set: CcgSet | undefined): CSSProperties {
@@ -46,21 +66,32 @@ export default function CcgOpenPage() {
   const [dealtCards, setDealtCards] = useState(0);
   const [revealedCards, setRevealedCards] = useState<Set<number>>(() => new Set());
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [legacyArtSetId, setLegacyArtSetId] = useState("");
+  const [showPrototypeLab, setShowPrototypeLab] = useState(false);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const packDragRef = useRef({ pointerId: -1, startX: 0, startY: 0, dragging: false, suppressClick: false });
   const recoveryQuery = useCcgOpening(recoveryId);
   const session = sessionQuery.data;
-  const sets = setsQuery.data?.sets ?? [];
-  const modeSets = sets.filter((set) => set.state === mode && set.cardCount > 0);
-  const selectedSet = mode === "current" ? modeSets[0] : undefined;
-  const featuredPackSet = selectedSet ?? modeSets[0];
+  const sets = setsQuery.data?.sets;
+  const modeSets = useMemo(() => (sets ?? []).filter((set) => set.state === mode && set.cardCount > 0), [mode, sets]);
+  const legacyPoolKey = modeSets.map((set) => set.id).join("|");
+  const featuredPackSet = mode === "legacy"
+    ? modeSets.find((set) => set.id === legacyArtSetId) ?? modeSets[0]
+    : modeSets[0];
   const poolTitle =
     mode === "legacy"
-      ? t("open.legacyPool", { count: modeSets.length })
+      ? t("open.legacyPackTitle")
       : modeSets.length === 1
         ? modeSets[0].raidName
         : t("open.currentPool", { count: modeSets.length });
 
   useEffect(() => {
+    if (mode !== "legacy" || modeSets.length === 0) return;
+    setLegacyArtSetId((current) => modeSets.some((set) => set.id === current) ? current : modeSets[randomIndex(modeSets.length)].id);
+  }, [legacyPoolKey, mode, modeSets]);
+
+  useEffect(() => {
+    setShowPrototypeLab(["localhost", "127.0.0.1", "::1"].includes(window.location.hostname));
     const params = new URLSearchParams(window.location.search);
     if (params.get("mode") === "legacy") setMode("legacy");
     const requestedOpening = params.get("opening");
@@ -96,24 +127,16 @@ export default function CcgOpenPage() {
     setRevealPhase("tearing");
     setDealtCards(0);
     setRevealedCards(new Set());
-    let dealTimer: number | undefined;
+    let readyTimer: number | undefined;
     const tearTimer = window.setTimeout(() => {
       setRevealPhase("dealing");
-      let next = 1;
-      setDealtCards(1);
-      dealTimer = window.setInterval(() => {
-        next += 1;
-        setDealtCards(Math.min(next, total));
-        if (next >= total) {
-          if (dealTimer) window.clearInterval(dealTimer);
-          setRevealPhase("ready");
-        }
-      }, 125);
-    }, 1050);
+      setDealtCards(total);
+      readyTimer = window.setTimeout(() => setRevealPhase("ready"), 560);
+    }, 640);
 
     return () => {
       window.clearTimeout(tearTimer);
-      if (dealTimer) window.clearInterval(dealTimer);
+      if (readyTimer) window.clearTimeout(readyTimer);
     };
   }, [opening]);
 
@@ -130,23 +153,11 @@ export default function CcgOpenPage() {
       url.searchParams.set("mode", result.mode);
       url.searchParams.set("opening", result.id);
       window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-      await Promise.all(
-        result.results.map(
-          (row) =>
-            new Promise<void>((resolve) => {
-              if (!row.card.renderUrl) return resolve();
-              const image = new window.Image();
-              const timeout = window.setTimeout(resolve, 2500);
-              const finish = () => {
-                window.clearTimeout(timeout);
-                resolve();
-              };
-              image.onload = finish;
-              image.onerror = finish;
-              image.src = row.card.renderUrl;
-            }),
-        ),
-      );
+      result.results.forEach((row) => {
+        if (!row.card.renderUrl) return;
+        const image = new window.Image();
+        image.src = row.card.renderUrl;
+      });
       return result;
     },
     onSuccess: (result) => {
@@ -168,6 +179,7 @@ export default function CcgOpenPage() {
     setRevealedCards(new Set());
     setViewerIndex(null);
     setRecoveryId("");
+    if (mode === "legacy" && modeSets.length > 0) setLegacyArtSetId(modeSets[randomIndex(modeSets.length)].id);
     const url = new URL(window.location.href);
     url.searchParams.delete("opening");
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
@@ -197,7 +209,80 @@ export default function CcgOpenPage() {
     [opening, revealedCards, t],
   );
   const openingSet = opening?.results[0]?.card.set ?? opening?.sets[0] ?? featuredPackSet;
-  const stageTheme = packTheme(openingSet);
+  const stageTheme = packTheme(opening?.mode === "legacy" ? featuredPackSet : openingSet);
+
+  const resetPackMotion = (target: HTMLButtonElement) => {
+    delete target.dataset.dragging;
+    target.style.setProperty("--pack-drag-x", "0px");
+    target.style.setProperty("--pack-drag-y", "0px");
+    target.style.setProperty("--pack-tilt-x", "0deg");
+    target.style.setProperty("--pack-tilt-y", "0deg");
+    target.style.setProperty("--pack-shine-x", "50%");
+    target.style.setProperty("--pack-shine-y", "38%");
+  };
+
+  const updatePackLight = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    const target = event.currentTarget;
+    const bounds = target.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+    const y = Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height));
+    target.style.setProperty("--pack-tilt-x", `${((0.5 - y) * 16).toFixed(2)}deg`);
+    target.style.setProperty("--pack-tilt-y", `${((x - 0.5) * 18).toFixed(2)}deg`);
+    target.style.setProperty("--pack-shine-x", `${(x * 100).toFixed(1)}%`);
+    target.style.setProperty("--pack-shine-y", `${(y * 100).toFixed(1)}%`);
+
+    const drag = packDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (!drag.dragging && Math.hypot(dx, dy) >= 7) drag.dragging = true;
+    if (!drag.dragging) return;
+    event.preventDefault();
+    target.dataset.dragging = "true";
+    target.style.setProperty("--pack-drag-x", `${Math.max(-76, Math.min(76, dx)).toFixed(1)}px`);
+    target.style.setProperty("--pack-drag-y", `${Math.max(-52, Math.min(52, dy)).toFixed(1)}px`);
+  };
+
+  const startPackDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!canOpen || event.button !== 0 || event.pointerType !== "mouse") return;
+    packDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      dragging: false,
+      suppressClick: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const finishPackDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = packDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    drag.suppressClick = drag.dragging;
+    drag.pointerId = -1;
+    drag.dragging = false;
+    resetPackMotion(event.currentTarget);
+  };
+
+  const cancelPackDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = packDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    drag.pointerId = -1;
+    drag.dragging = false;
+    drag.suppressClick = false;
+    resetPackMotion(event.currentTarget);
+  };
+
+  const openPack = () => {
+    if (packDragRef.current.suppressClick) {
+      packDragRef.current.suppressClick = false;
+      return;
+    }
+    mutation.mutate();
+  };
 
   if (queryFailed) {
     return <CcgShell><div className="mx-auto max-w-3xl px-4 py-12"><CcgLoadError onRetry={() => { void sessionQuery.refetch(); void setsQuery.refetch(); }} /></div></CcgShell>;
@@ -244,12 +329,22 @@ export default function CcgOpenPage() {
               <span className={packStyles.vaultRing} aria-hidden="true" />
               <span className={packStyles.vaultRingInner} aria-hidden="true" />
               <div className={packStyles.packPresentation}>
-                <span className={packStyles.packMode}>{t(`mode.${mode}`)} · {featuredPackSet?.expansionName ?? "SuomiWoW"}</span>
+                <span className={packStyles.packMode}>
+                  {mode === "legacy" ? t("open.legacyPackLabel") : `${t(`mode.${mode}`)} · ${featuredPackSet?.expansionName ?? "SuomiWoW"}`}
+                </span>
                 <button
                   type="button"
                   className={`${packStyles.packButton} ${mutation.isPending ? packStyles.packButtonOpening : ""}`}
                   disabled={!canOpen}
-                  onClick={() => mutation.mutate()}
+                  onClick={openPack}
+                  onPointerDown={startPackDrag}
+                  onPointerMove={updatePackLight}
+                  onPointerUp={finishPackDrag}
+                  onPointerCancel={cancelPackDrag}
+                  onPointerLeave={(event) => {
+                    if (packDragRef.current.pointerId === -1) resetPackMotion(event.currentTarget);
+                  }}
+                  onBlur={(event) => resetPackMotion(event.currentTarget)}
                   aria-label={t("open.openPack")}
                   aria-busy={mutation.isPending}
                 >
@@ -264,7 +359,7 @@ export default function CcgOpenPage() {
                     <span className={packStyles.packTitle}>{modeSets.length > 0 ? poolTitle : t("landing.preparing")}</span>
                     <span className={packStyles.packSigil} aria-hidden="true"><span /></span>
                     <span className={packStyles.packCount}><strong>5</strong><span>{t("landing.cards")}</span></span>
-                    <span className={packStyles.packSeal}>{featuredPackSet?.theme.mark ?? "CCG"}</span>
+                    <span className={packStyles.packSeal}>{mode === "legacy" ? t("open.legacySeal") : featuredPackSet?.theme.mark ?? "CCG"}</span>
                   </span>
                 </button>
                 <span className={packStyles.packHint}>{mutation.isPending ? t("open.openingHint") : t("open.packHint")}</span>
@@ -278,10 +373,24 @@ export default function CcgOpenPage() {
             <span className={packStyles.vaultRing} aria-hidden="true" />
             <span className={packStyles.vaultRingInner} aria-hidden="true" />
 
-            <div className={`${packStyles.tearSequence} ${revealPhase !== "tearing" ? packStyles.tearSequenceComplete : ""}`} aria-hidden="true">
+            <div className={`${packStyles.tearSequence} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`} aria-hidden="true">
               <span className={`${packStyles.tornHalf} ${packStyles.tornHalfLeft}`}><span /></span>
               <span className={`${packStyles.tornHalf} ${packStyles.tornHalfRight}`}><span /></span>
               <span className={packStyles.tearFlash} />
+              <span className={packStyles.tearBurst} />
+              <span className={packStyles.tearParticles}>
+                {tearParticles.map((particle, index) => (
+                  <i
+                    key={index}
+                    style={{
+                      "--particle-x": `${particle.x}px`,
+                      "--particle-y": `${particle.y}px`,
+                      "--particle-rotate": `${particle.rotate}deg`,
+                      "--particle-delay": `${particle.delay}ms`,
+                    } as CSSProperties}
+                  />
+                ))}
+              </span>
               <span className={packStyles.tearShardOne} />
               <span className={packStyles.tearShardTwo} />
               <span className={packStyles.tearShardThree} />
@@ -289,7 +398,7 @@ export default function CcgOpenPage() {
 
             <div className={`${packStyles.revealContent} ${revealPhase === "tearing" ? packStyles.revealContentWaiting : ""}`}>
               <div className={packStyles.revealLead}>
-                <span>{opening.mode === "legacy" ? t("open.legacyPool", { count: opening.sets.length }) : openingSet?.raidName}</span>
+                <span>{opening.mode === "legacy" ? t("open.legacyPackTitle") : openingSet?.raidName}</span>
                 <strong>{allRevealed ? t("open.allRevealed") : t("open.revealPrompt")}</strong>
               </div>
 
@@ -302,7 +411,7 @@ export default function CcgOpenPage() {
                     const cardStyle = {
                       "--fan-angle": `${fanAngles[index] ?? 0}deg`,
                       "--fan-y": `${fanOffsets[index] ?? 0}px`,
-                      "--deal-delay": `${index * 70}ms`,
+                      "--deal-delay": `${index * 52}ms`,
                     } as CSSProperties;
                     return (
                       <button
@@ -320,7 +429,7 @@ export default function CcgOpenPage() {
                             <span className={packStyles.cardBackField} />
                             <span className={packStyles.cardBackSigil} aria-hidden="true"><span /></span>
                             <span className={packStyles.cardBackBrand}>SuomiWoW <strong>CCG</strong></span>
-                            <span className={packStyles.cardBackSet}>{opening.mode === "current" ? openingSet?.raidName : t("mode.legacy")}</span>
+                            <span className={packStyles.cardBackSet}>{opening.mode === "current" ? openingSet?.raidName : t("open.legacyPackTitle")}</span>
                           </span>
                           <span className={`${packStyles.cardFace} ${packStyles.cardFront}`} aria-hidden={!revealed}>
                             <CollectibleCard card={result.card} finish={result.finish} compact />
@@ -348,7 +457,14 @@ export default function CcgOpenPage() {
                   <button type="button" className={styles.secondaryButton} onClick={revealAll}>{t("open.revealAll")}</button>
                 ) : null}
                 {allRevealed ? (
-                  <button type="button" className={styles.primaryButton} onClick={clearSavedOpening}>{t("open.openAnother")}</button>
+                  <>
+                    {showPrototypeLab ? (
+                      <Link href={`/fun/ccg/prototypes?set=${encodeURIComponent(opening.results[0]?.card.set.slug ?? "")}`} className={styles.secondaryButton}>
+                        {t("open.comparePrototypes")}
+                      </Link>
+                    ) : null}
+                    <button type="button" className={styles.primaryButton} onClick={clearSavedOpening}>{t("open.openAnother")}</button>
+                  </>
                 ) : null}
               </div>
               {allRevealed && opening.duplicateRewards > 0 ? <p className={packStyles.bonusEarned}>{t("open.bonusEarned", { count: opening.duplicateRewards })}</p> : null}

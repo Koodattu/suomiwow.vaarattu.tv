@@ -1,0 +1,1725 @@
+.labPage {
+  width: min(100%, 106rem);
+  margin-inline: auto;
+  padding: 2rem 1rem 4rem;
+  color: #e9f2ff;
+}
+
+.labHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-bottom: 1.5rem;
+}
+
+.labKicker {
+  color: #7de4ff !important;
+  font-size: 0.68rem !important;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.labHeader h1 {
+  margin-top: 0.3rem;
+  color: white;
+  font-size: 2.25rem;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.labHeader p:not(.labKicker) {
+  max-width: 66ch;
+  margin-top: 0.7rem;
+  color: #9cafca;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.controls {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(10rem, 1fr));
+  gap: 0.9rem 1rem;
+  background: #07101f;
+  box-shadow:
+    inset 0 0 0 1px rgba(137, 180, 238, 0.19),
+    inset 0 -7px 8px rgba(0, 0, 0, 0.22);
+  padding: 1rem;
+}
+
+.controls label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.42rem;
+  color: #91a5c1;
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.controls label > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.controls label strong {
+  color: #d8e8fb;
+  font-variant-numeric: tabular-nums;
+}
+
+.controls select {
+  min-width: 0;
+  min-height: 2.55rem;
+  border-radius: 0.45rem;
+  background: #0c182b;
+  box-shadow: inset 0 0 0 1px rgba(143, 180, 229, 0.24);
+  color: #edf5ff;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0 2.2rem 0 0.75rem;
+}
+
+.controls select:focus-visible,
+.controls input:focus-visible,
+.pageControl button:focus-visible {
+  outline: 2px solid #7de4ff;
+  outline-offset: 2px;
+}
+
+.pageControl {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.42rem;
+  color: #91a5c1;
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.pageControl > div {
+  display: grid;
+  min-height: 2.55rem;
+  grid-template-columns: 2.55rem 1fr 2.55rem;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 0.45rem;
+  background: #0c182b;
+  box-shadow: inset 0 0 0 1px rgba(143, 180, 229, 0.24);
+}
+
+.pageControl strong {
+  color: #edf5ff;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.pageControl button {
+  height: 100%;
+  border: 0;
+  background: rgba(92, 147, 220, 0.12);
+  color: #dcecff;
+  cursor: pointer;
+}
+
+.pageControl button:hover:not(:disabled) {
+  background: rgba(94, 200, 246, 0.2);
+}
+
+.pageControl button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.rangeControl {
+  grid-column: span 2;
+}
+
+.rangeControl input {
+  width: 100%;
+  accent-color: #57cdf5;
+}
+
+.guideControl {
+  grid-column: span 2;
+  min-height: 2.6rem;
+  flex-direction: row !important;
+  align-items: center;
+  align-self: end;
+  justify-content: flex-start;
+}
+
+.guideControl input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: #57cdf5;
+}
+
+.labNotes {
+  display: flex;
+  margin: 1.15rem auto 0;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem 1.25rem;
+  color: #91a5c1;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.labNotes p:last-child {
+  color: #d5c58f;
+}
+
+.loadState {
+  display: grid;
+  min-height: 24rem;
+  place-items: center;
+  color: #a9b9ce;
+}
+
+.prototypeGrid {
+  display: grid;
+  width: min(100%, 70rem);
+  margin-top: 1rem;
+  margin-inline: auto;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.2rem;
+}
+
+.prototypeStage {
+  min-width: 0;
+  background: #030814;
+  box-shadow:
+    inset 0 0 0 1px rgba(121, 165, 224, 0.15),
+    inset 0 -12px 18px rgba(0, 0, 0, 0.28);
+}
+
+.prototypeStage > header {
+  display: flex;
+  min-height: 5.5rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+}
+
+.prototypeStage > header div {
+  flex: 0 0 auto;
+}
+
+.prototypeStage > header strong,
+.prototypeStage > header span {
+  display: block;
+}
+
+.prototypeStage > header strong {
+  color: white;
+  font-size: 0.94rem;
+  font-weight: 820;
+}
+
+.prototypeStage > header span {
+  margin-top: 0.22rem;
+  color: #6fdcf8;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.prototypeStage > header p {
+  max-width: 38ch;
+  color: #8ea2bd;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.cardMount {
+  display: grid;
+  min-height: 43rem;
+  place-items: start center;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 42%, rgba(59, 155, 206, 0.13), transparent 22rem), linear-gradient(180deg, #050c18, #02050b);
+  padding: 1.5rem 1rem 2.5rem;
+  perspective: 1300px;
+}
+
+.prototypeCard {
+  --lab-accent: #62d7ff;
+  --lab-glow: rgba(78, 188, 255, 0.36);
+  --class-color: #ffffff;
+  --rarity: #aeb9c8;
+  --metal-light: #aeb9c7;
+  --metal-mid: #4b5664;
+  --metal-dark: #090d13;
+  --card-width: 400px;
+  --render-width: 250%;
+  --render-bottom: -50%;
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --pointer-x: 50%;
+  --pointer-y: 38%;
+  position: relative;
+  display: block;
+  width: min(var(--card-width), 84vw);
+  isolation: isolate;
+  container-type: inline-size;
+  aspect-ratio: 5 / 7;
+  overflow: hidden;
+  border-radius: 0.8rem;
+  background: #05080d;
+  box-shadow:
+    0 8px 8px rgba(0, 0, 0, 0.64),
+    0 0 8px color-mix(in srgb, var(--lab-glow) 58%, transparent);
+  transform: perspective(1200px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  transform-style: preserve-3d;
+  transition-property: transform, filter;
+  transition-duration: 220ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.prototypeCard:hover {
+  filter: brightness(1.045) saturate(1.06);
+}
+.prototypeCard[data-grade="C"] {
+  --rarity: #71ddd9;
+  --metal-light: #7ccdc9;
+  --metal-mid: #256e6b;
+  --metal-dark: #061d1d;
+}
+.prototypeCard[data-grade="B"] {
+  --rarity: #6db6ff;
+  --metal-light: #82afe4;
+  --metal-mid: #315d91;
+  --metal-dark: #07182f;
+}
+.prototypeCard[data-grade="A"] {
+  --rarity: #bb8cff;
+  --metal-light: #ba97e9;
+  --metal-mid: #684298;
+  --metal-dark: #180a2c;
+}
+.prototypeCard[data-grade="S"],
+.prototypeCard[data-grade="Crown"] {
+  --rarity: #f3cd71;
+  --metal-light: #e6ca84;
+  --metal-mid: #926424;
+  --metal-dark: #271705;
+}
+
+.outerFrame,
+.innerFrame,
+.renderWindow,
+.characterGround,
+.lowerDeck,
+.realmLabel,
+.identity,
+.cornerCrest,
+.roleCrest,
+.guildCrest,
+.rarityPlate,
+.characterMeta,
+.setChip,
+.statsPanel,
+.cardFooter,
+.finishMark,
+.finishLayer,
+.materialLight {
+  position: absolute;
+}
+
+.artworkClip,
+.raidArt,
+.raidShade {
+  position: absolute;
+}
+
+.outerFrame {
+  z-index: 15;
+  inset: 0;
+  background:
+    linear-gradient(132deg, rgba(255, 255, 255, 0.82), transparent 9% 22%, rgba(255, 255, 255, 0.3) 33%, transparent 47% 64%, rgba(255, 255, 255, 0.55) 78%, transparent 91%),
+    linear-gradient(146deg, var(--metal-light), var(--metal-dark) 12%, var(--metal-mid) 24%, #030507 43%, var(--metal-light) 61%, var(--metal-dark) 78%, var(--metal-mid));
+  clip-path: polygon(4% 0, 96% 0, 100% 3%, 100% 97%, 96% 100%, 4% 100%, 0 97%, 0 3%);
+  padding: 2.2%;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.innerFrame {
+  z-index: 16;
+  inset: 1.05%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    inset 0 0 0 4px rgba(0, 0, 0, 0.76),
+    inset 0 0 11px rgba(0, 0, 0, 0.82);
+  clip-path: polygon(3% 0, 97% 0, 100% 2.2%, 100% 97.8%, 97% 100%, 3% 100%, 0 97.8%, 0 2.2%);
+  pointer-events: none;
+}
+
+.artworkClip {
+  z-index: -4;
+  inset: 2.2%;
+  overflow: hidden;
+  border-radius: 0.46rem;
+}
+
+.raidArt,
+.raidShade {
+  inset: 0;
+  border-radius: inherit;
+}
+
+.raidArt {
+  z-index: 0;
+  background-image: var(--lab-art);
+  background-position: var(--crop-x) var(--crop-y);
+  background-repeat: no-repeat;
+  background-size: cover;
+  filter: saturate(1.08) brightness(0.8) contrast(1.1);
+  transform: scale(var(--crop-scale));
+}
+
+.raidShade {
+  z-index: 1;
+  background:
+    radial-gradient(circle at 50% 43%, color-mix(in srgb, var(--lab-accent) 24%, transparent), transparent 42%),
+    linear-gradient(180deg, rgba(0, 2, 8, 0.6), transparent 22% 60%, rgba(0, 2, 8, 0.94) 88%);
+}
+
+.renderWindow {
+  z-index: 2;
+  right: 2.6%;
+  left: 2.6%;
+  display: block;
+  overflow: hidden;
+  filter: drop-shadow(0 8px 5px rgba(0, 0, 0, 0.72));
+  transform: translateZ(18px);
+}
+
+.renderImage {
+  top: auto !important;
+  right: auto !important;
+  bottom: var(--render-bottom) !important;
+  left: 50% !important;
+  width: var(--render-width) !important;
+  height: auto !important;
+  max-width: none !important;
+  object-fit: contain;
+  object-position: center bottom;
+  transform: translateX(-50%);
+}
+
+.guides .renderWindow {
+  box-shadow: inset 0 0 0 2px rgba(255, 78, 189, 0.9);
+}
+.guides .renderWindow::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 78, 189, 0.1), transparent 10% 90%, rgba(255, 78, 189, 0.1));
+  content: "";
+}
+
+.characterGround {
+  z-index: 1;
+  right: 14%;
+  left: 14%;
+  height: 8%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--lab-accent) 52%, rgba(255, 255, 255, 0.12)), transparent 68%);
+  filter: blur(4px);
+  opacity: 0.82;
+  transform: perspective(100px) rotateX(72deg);
+}
+
+.lowerDeck {
+  z-index: 5;
+  right: 2.8%;
+  bottom: 2.8%;
+  left: 2.8%;
+  background: linear-gradient(168deg, rgba(24, 28, 34, 0.97), rgba(4, 6, 9, 0.99) 42%, rgba(14, 17, 22, 0.99));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--rarity) 36%, rgba(255, 255, 255, 0.1)),
+    inset 0 0 0 4px rgba(0, 0, 0, 0.54),
+    0 -5px 7px rgba(0, 0, 0, 0.44);
+}
+
+.identity,
+.cornerCrest,
+.roleCrest,
+.guildCrest,
+.rarityPlate,
+.characterMeta,
+.setChip,
+.statsPanel,
+.cardFooter,
+.finishMark {
+  z-index: 7;
+}
+
+.identity {
+  top: 3.3%;
+  right: 17%;
+  left: 17%;
+  min-width: 0;
+  text-align: center;
+  text-shadow:
+    0 2px 6px #000,
+    0 0 12px rgba(0, 0, 0, 0.84);
+}
+
+.characterName,
+.guildName {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.realmLabel {
+  display: none;
+}
+.characterName {
+  color: var(--class-color);
+  font-size: clamp(1.12rem, 7.5cqw, 2.05rem);
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.guildName {
+  margin-top: 0.28rem;
+  color: #edf3fb;
+  font-size: clamp(0.58rem, 3.45cqw, 0.92rem);
+  font-weight: 760;
+  line-height: 1;
+}
+
+.cornerCrest {
+  top: 2.6%;
+  display: flex;
+  width: 13.5%;
+  aspect-ratio: 1;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, var(--metal-light), var(--metal-dark) 18%, #070a0f 56%, var(--metal-mid));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    inset 0 0 0 4px rgba(0, 0, 0, 0.68),
+    0 3px 5px rgba(0, 0, 0, 0.62);
+  clip-path: polygon(50% 0, 92% 18%, 100% 58%, 72% 100%, 28% 100%, 0 58%, 8% 18%);
+}
+
+.classCrest {
+  left: 3.3%;
+}
+.specCrest {
+  right: 3.3%;
+}
+.cornerCrest > img,
+.cornerCrest > div {
+  width: 63% !important;
+  height: 63% !important;
+  object-fit: cover;
+  outline: 1px solid rgba(255, 255, 255, 0.12);
+}
+.cornerCrest span {
+  position: absolute;
+  top: 104%;
+  display: none;
+  color: #dfe8f4;
+  font-size: clamp(0.34rem, 1.7cqw, 0.47rem);
+  font-weight: 760;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.roleCrest {
+  display: flex;
+  align-items: center;
+  gap: 0.34rem;
+  color: #dce7f4;
+  font-size: clamp(0.43rem, 2.15cqw, 0.6rem);
+  font-weight: 780;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.roleCrest img {
+  width: clamp(0.78rem, 4.2cqw, 1.15rem);
+  height: clamp(0.78rem, 4.2cqw, 1.15rem);
+  object-fit: contain;
+}
+
+.guildCrest {
+  display: none;
+}
+
+.rarityPlate {
+  display: grid;
+  min-width: 18%;
+  place-items: center;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--rarity) 40%, #1a1d22), #040608 62%, color-mix(in srgb, var(--rarity) 18%, #080a0e));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--rarity) 68%, white 8%),
+    inset 0 0 0 3px rgba(0, 0, 0, 0.56);
+  clip-path: polygon(7% 0, 93% 0, 100% 28%, 93% 100%, 7% 100%, 0 72%, 0 28%);
+  padding: 2.2% 3%;
+}
+
+.rarityPlate strong {
+  color: color-mix(in srgb, var(--rarity) 82%, white);
+  font-size: clamp(0.46rem, 2.35cqw, 0.66rem);
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.characterMeta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem;
+  color: #becbda;
+  font-size: clamp(0.42rem, 2.15cqw, 0.6rem);
+  font-weight: 720;
+  line-height: 1;
+  text-shadow: 0 2px 4px #000;
+  text-transform: uppercase;
+}
+.characterMeta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.setChip {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 7, 13, 0.94);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--lab-accent) 40%, rgba(255, 255, 255, 0.12)),
+    inset 0 0 0 3px rgba(0, 0, 0, 0.44);
+  color: #f0f5fb;
+  font-size: clamp(0.47rem, 2.45cqw, 0.69rem);
+  font-weight: 820;
+  letter-spacing: 0.045em;
+  line-height: 1;
+  padding: 2.2% 4%;
+  text-align: center;
+  text-transform: uppercase;
+}
+.setChip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statsPanel {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: linear-gradient(180deg, rgba(18, 22, 28, 0.99), rgba(3, 5, 8, 0.99));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--rarity) 34%, rgba(255, 255, 255, 0.1)),
+    inset 0 0 0 3px rgba(0, 0, 0, 0.52);
+  padding: 2.4% 1.6%;
+}
+
+.stat {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  place-content: center;
+  text-align: center;
+}
+.stat + .stat::before {
+  position: absolute;
+  top: 9%;
+  bottom: 8%;
+  left: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--rarity) 25%, rgba(255, 255, 255, 0.1));
+  content: "";
+}
+.stat span,
+.stat strong {
+  display: block;
+}
+.stat span {
+  overflow: hidden;
+  color: #aab7c8;
+  font-size: clamp(0.36rem, 1.75cqw, 0.49rem);
+  font-weight: 800;
+  letter-spacing: 0.015em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.stat strong {
+  margin-top: 0.38rem;
+  color: white;
+  font-size: clamp(0.76rem, 4.75cqw, 1.25rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 850;
+  letter-spacing: -0.025em;
+  line-height: 1;
+}
+
+.cardFooter {
+  display: flex;
+  right: 6%;
+  left: 6%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  color: #b7c3d2;
+  font-size: clamp(0.39rem, 1.95cqw, 0.54rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1;
+}
+.cardFooter span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finishMark {
+  display: grid;
+  width: 8.5%;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 30%, #fff1b8, #b77918 38%, #2a1603 70%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 242, 184, 0.72),
+    inset 0 0 0 4px rgba(44, 24, 4, 0.72),
+    0 2px 5px rgba(0, 0, 0, 0.58);
+}
+
+.finishGlyph {
+  position: relative;
+  display: block;
+  width: 42%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #ffe79b;
+  box-shadow: 0 0 7px rgba(255, 218, 113, 0.72);
+}
+
+.finishGlyph::before,
+.finishGlyph::after {
+  position: absolute;
+  inset: 42% -45%;
+  background: currentColor;
+  color: #ffe79b;
+  content: "";
+}
+
+.finishGlyph::after {
+  transform: rotate(90deg);
+}
+
+.prismatic .finishMark {
+  border-radius: 22%;
+  background: linear-gradient(135deg, #73f3ff, #6b60ff 34%, #ff4fd8 57%, #ffd86d 79%, #72f5d3);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.82),
+    inset 0 0 0 4px rgba(12, 8, 39, 0.66),
+    0 0 8px rgba(105, 227, 255, 0.52);
+  transform: rotate(45deg);
+}
+
+.prismatic .finishGlyph {
+  border-radius: 18%;
+  background: white;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+  transform: rotate(-45deg);
+}
+
+.prismatic .finishGlyph::before,
+.prismatic .finishGlyph::after {
+  color: white;
+}
+
+.finishLayer,
+.materialLight {
+  z-index: 10;
+  inset: 2.2%;
+  overflow: hidden;
+  border-radius: 0.46rem;
+  pointer-events: none;
+}
+.finishLayer {
+  opacity: 0;
+  mix-blend-mode: screen;
+}
+.golden .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 238, 174, 0.4), transparent 24%),
+    linear-gradient(118deg, transparent 18%, rgba(255, 213, 105, 0.08) 30%, rgba(255, 236, 178, 0.38) 46%, rgba(181, 114, 22, 0.14) 59%, transparent 74%);
+  opacity: 0.8;
+}
+.prismatic .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.46), transparent 20%),
+    linear-gradient(
+      116deg,
+      transparent 8%,
+      rgba(0, 229, 255, 0.26) 24%,
+      rgba(109, 92, 255, 0.32) 38%,
+      rgba(255, 73, 209, 0.3) 50%,
+      rgba(255, 221, 88, 0.27) 63%,
+      rgba(80, 245, 225, 0.26) 77%,
+      transparent 92%
+    );
+  background-size: 180% 180%;
+  opacity: 0.9;
+  animation: prototypePrismatic 6.5s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+.materialLight {
+  z-index: 12;
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.3), transparent 17%),
+    linear-gradient(112deg, transparent 35%, rgba(255, 255, 255, 0.11) 47%, transparent 59%);
+  mix-blend-mode: screen;
+  opacity: 0.22;
+  transform: translateZ(30px);
+  transition-property: opacity;
+  transition-duration: 180ms;
+  transition-timing-function: ease-out;
+}
+.prototypeCard:hover .materialLight {
+  opacity: 0.68;
+}
+
+/* Hero Reliquary: ornamental header and a compact museum-plinth data deck. */
+.reliquary .identity {
+  top: 3.5%;
+}
+.reliquary .renderWindow {
+  top: 12%;
+  bottom: 28%;
+}
+.reliquary .characterGround {
+  bottom: 25%;
+}
+.reliquary .lowerDeck {
+  height: 26%;
+  clip-path: polygon(3% 0, 39% 0, 43% 4%, 57% 4%, 61% 0, 97% 0, 100% 7%, 100% 100%, 0 100%, 0 7%);
+}
+.reliquary .setChip {
+  right: 29%;
+  bottom: 23.6%;
+  left: 29%;
+  clip-path: polygon(5% 0, 95% 0, 100% 50%, 95% 100%, 5% 100%, 0 50%);
+}
+.reliquary .rarityPlate {
+  right: 4.1%;
+  bottom: 23.7%;
+}
+.reliquary .roleCrest {
+  bottom: 19.3%;
+  left: 7%;
+}
+.reliquary .characterMeta {
+  right: 7%;
+  bottom: 19.5%;
+  justify-content: flex-end;
+}
+.reliquary .statsPanel {
+  right: 4%;
+  bottom: 5.4%;
+  left: 4%;
+  height: 11.5%;
+}
+.reliquary .cardFooter {
+  bottom: 2.2%;
+}
+.reliquary .finishMark {
+  bottom: 24%;
+  left: 4.1%;
+}
+
+/* Vault Reliquary: the preferred hierarchy with a raid-reactive frame and restrained data deck. */
+.vaultRelic .outerFrame {
+  background:
+    linear-gradient(
+      132deg,
+      rgba(255, 255, 255, 0.68),
+      transparent 10% 38%,
+      color-mix(in srgb, var(--lab-accent) 38%, transparent) 51%,
+      transparent 68%,
+      rgba(255, 255, 255, 0.42) 86%,
+      transparent
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--lab-accent) 36%, var(--metal-light)),
+      var(--metal-dark) 13%,
+      var(--metal-mid) 28%,
+      #030507 48%,
+      color-mix(in srgb, var(--lab-accent) 25%, var(--metal-light)) 66%,
+      var(--metal-dark) 84%,
+      var(--metal-mid)
+    );
+}
+.vaultRelic .identity {
+  z-index: 20;
+  top: 4.05%;
+  right: 16%;
+  left: 16%;
+}
+.vaultRelic .realmLabel {
+  z-index: 20;
+  top: 0.15%;
+  left: 50%;
+  display: flex;
+  width: max-content;
+  min-width: 38%;
+  max-width: 62%;
+  min-height: 3.6%;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #151b23, #05070a 52%, #0d1218) padding-box,
+    linear-gradient(145deg, var(--metal-light), var(--metal-dark) 32%, var(--metal-mid) 68%, var(--metal-light)) border-box;
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 -1px rgba(0, 0, 0, 0.9);
+  clip-path: polygon(7% 0, 93% 0, 100% 50%, 93% 100%, 7% 100%, 0 50%);
+  color: #e7eef7;
+  font-size: clamp(0.4rem, 1.8cqw, 0.53rem);
+  font-weight: 780;
+  letter-spacing: 0.045em;
+  line-height: 1;
+  padding: 0.3% 5%;
+  text-shadow: 0 1px 2px #000;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.vaultRelic .characterName {
+  overflow: visible;
+  font-size: clamp(1.08rem, 6.8cqw, 1.88rem);
+  letter-spacing: -0.04em;
+  text-overflow: clip;
+}
+.vaultRelic .renderWindow {
+  top: 1.5%;
+  bottom: 16.2%;
+  filter: none;
+}
+.vaultRelic .lowerDeck {
+  display: none;
+}
+.vaultRelic .statsPanel {
+  right: 5%;
+  bottom: 5.7%;
+  left: 5%;
+  height: 10.5%;
+}
+.vaultRelic .rarityPlate {
+  bottom: 17.9%;
+  left: 5.5%;
+  min-width: 0;
+  background: none;
+  box-shadow: none;
+  clip-path: none;
+  padding: 0;
+}
+.vaultRelic .rarityPlate strong {
+  color: color-mix(in srgb, var(--rarity) 82%, white);
+  letter-spacing: 0.07em;
+}
+.vaultRelic .characterMeta {
+  right: 5.5%;
+  bottom: 18%;
+  left: 30%;
+  justify-content: flex-end;
+}
+.vaultRelic .cardFooter,
+.vaultRelic .finishMark {
+  display: none;
+}
+/* War Banner: a broad heraldic sash and two-by-two score standards. */
+.warBanner .outerFrame {
+  background: linear-gradient(118deg, #c2a66d, #241a0d 12%, #6d5937 30%, #14100b 51%, #9a7c47 72%, #2d2110 88%, #d1b774);
+}
+.warBanner .innerFrame::before {
+  width: 58%;
+  height: 2.5%;
+}
+.warBanner .identity {
+  top: 3.2%;
+  right: 18%;
+  left: 18%;
+}
+.warBanner .renderWindow {
+  top: 13%;
+  bottom: 34%;
+}
+.warBanner .characterGround {
+  bottom: 31%;
+}
+.warBanner .lowerDeck {
+  height: 32%;
+  background: linear-gradient(155deg, rgba(39, 29, 18, 0.98), rgba(7, 7, 7, 0.99) 52%, rgba(28, 21, 13, 0.99));
+  clip-path: polygon(0 7%, 8% 0, 92% 0, 100% 7%, 97% 100%, 3% 100%);
+}
+.warBanner .setChip {
+  right: 8%;
+  bottom: 28.6%;
+  left: 8%;
+  padding-block: 2.8%;
+  clip-path: polygon(0 50%, 7% 0, 93% 0, 100% 50%, 93% 100%, 7% 100%);
+}
+.warBanner .rarityPlate {
+  bottom: 34%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.warBanner .roleCrest {
+  right: 8%;
+  bottom: 23.1%;
+}
+.warBanner .characterMeta {
+  bottom: 23.3%;
+  left: 8%;
+  justify-content: flex-start;
+}
+.warBanner .statsPanel {
+  right: 6%;
+  bottom: 5.8%;
+  left: 6%;
+  height: 14.5%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  padding: 2.5%;
+}
+.warBanner .stat:nth-child(3)::before {
+  display: none;
+}
+.warBanner .stat:nth-child(n + 3) {
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+}
+.warBanner .cardFooter {
+  bottom: 2.2%;
+}
+.warBanner .finishMark {
+  bottom: 29.1%;
+  left: 4%;
+}
+
+/* Raid Gate: an architectural portal with a centered role keystone. */
+.raidGate .outerFrame {
+  background: linear-gradient(146deg, #91bcd0, #07141c 13%, #31586a 27%, #03070a 46%, #75a8bd 64%, #09141a 83%, #446f81);
+}
+.raidGate .innerFrame {
+  inset: 1.7%;
+  box-shadow:
+    inset 0 0 0 1px rgba(183, 236, 255, 0.32),
+    inset 0 0 0 5px rgba(0, 4, 8, 0.78),
+    inset 0 0 18px color-mix(in srgb, var(--lab-accent) 16%, transparent);
+}
+.raidGate .identity {
+  top: 3.6%;
+}
+.raidGate .cornerCrest {
+  top: 3.1%;
+  width: 12.5%;
+  clip-path: polygon(50% 0, 100% 36%, 82% 100%, 18% 100%, 0 36%);
+}
+.raidGate .renderWindow {
+  top: 12%;
+  bottom: 30.5%;
+}
+.raidGate .characterGround {
+  right: 8%;
+  bottom: 27.5%;
+  left: 8%;
+  height: 10%;
+}
+.raidGate .lowerDeck {
+  height: 28.5%;
+  clip-path: polygon(0 12%, 8% 0, 38% 0, 43% 4%, 57% 4%, 62% 0, 92% 0, 100% 12%, 100% 100%, 0 100%);
+}
+.raidGate .roleCrest {
+  bottom: 27.7%;
+  left: 50%;
+  width: 10%;
+  aspect-ratio: 1;
+  justify-content: center;
+  background: #07111b;
+  box-shadow:
+    inset 0 0 0 1px var(--lab-accent),
+    inset 0 0 0 4px #020508;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  transform: translateX(-50%);
+}
+.raidGate .roleCrest img {
+  width: 52%;
+  height: 52%;
+}
+.raidGate .roleCrest span {
+  display: none;
+}
+.raidGate .setChip {
+  right: 18%;
+  bottom: 24.8%;
+  left: 18%;
+}
+.raidGate .rarityPlate {
+  bottom: 20.2%;
+  left: 7%;
+}
+.raidGate .characterMeta {
+  right: 7%;
+  bottom: 20.8%;
+  justify-content: flex-end;
+}
+.raidGate .statsPanel {
+  right: 4.5%;
+  bottom: 5.3%;
+  left: 4.5%;
+  height: 11.7%;
+}
+.raidGate .cardFooter {
+  bottom: 2.1%;
+}
+.raidGate .finishMark {
+  bottom: 25.2%;
+  left: 4%;
+}
+
+/* Score Forge: an industrial right-side instrument rail leaves a full-height hero. */
+.scoreForge .outerFrame {
+  background: linear-gradient(102deg, #8f969d, #171b1f 10%, #4c5359 26%, #080a0c 47%, #b5babd 64%, #292e32 82%, #626a70);
+}
+.scoreForge .identity {
+  top: 3.5%;
+  right: 18%;
+  left: 18%;
+}
+.scoreForge .renderWindow {
+  top: 12%;
+  right: 2.6%;
+  bottom: 12%;
+}
+.scoreForge .characterGround {
+  right: 24%;
+  bottom: 9%;
+  left: 8%;
+}
+.scoreForge .lowerDeck {
+  top: 14%;
+  right: 3%;
+  bottom: 7%;
+  left: 75%;
+  height: auto;
+  background: linear-gradient(90deg, rgba(18, 22, 26, 0.94), rgba(3, 5, 7, 0.99));
+  clip-path: polygon(14% 0, 100% 0, 100% 100%, 14% 100%, 0 95%, 0 5%);
+}
+.scoreForge .statsPanel {
+  top: 27%;
+  right: 4.2%;
+  bottom: auto;
+  left: 76.8%;
+  height: 48%;
+  grid-template-columns: 1fr;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+.scoreForge .stat + .stat::before {
+  top: 0;
+  right: 12%;
+  bottom: auto;
+  left: 12%;
+  width: auto;
+  height: 1px;
+}
+.scoreForge .stat span {
+  white-space: normal;
+}
+.scoreForge .setChip {
+  right: 18%;
+  bottom: 7.5%;
+  left: 18%;
+}
+.scoreForge .rarityPlate {
+  top: 16%;
+  right: 4.3%;
+  bottom: auto;
+}
+.scoreForge .roleCrest {
+  right: 4.5%;
+  bottom: 17%;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+.scoreForge .characterMeta {
+  display: none;
+}
+.scoreForge .cardFooter {
+  bottom: 3.5%;
+}
+.scoreForge .finishMark {
+  bottom: 8%;
+  left: 4%;
+}
+
+/* Full Bleed: minimal frame, floating score stones, maximal raid art and character. */
+.fullBleed .outerFrame {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--rarity) 65%, white), #05070a 9%, #111720 46%, color-mix(in srgb, var(--rarity) 45%, #121922) 80%, #020305);
+}
+.fullBleed .innerFrame {
+  inset: 0.7%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.33),
+    inset 0 0 0 2px rgba(0, 0, 0, 0.7);
+}
+.fullBleed .identity {
+  top: 3%;
+  right: 17%;
+  left: 17%;
+}
+.fullBleed .cornerCrest {
+  top: 2.2%;
+  width: 12%;
+  background: rgba(2, 5, 9, 0.82);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+.fullBleed .renderWindow {
+  top: 10%;
+  bottom: 22%;
+}
+.fullBleed .characterGround {
+  right: 6%;
+  bottom: 19%;
+  left: 6%;
+  height: 11%;
+}
+.fullBleed .lowerDeck {
+  height: 19%;
+  background: linear-gradient(180deg, transparent, rgba(2, 4, 7, 0.97) 30%);
+  box-shadow: none;
+}
+.fullBleed .setChip {
+  right: 30%;
+  bottom: 17%;
+  left: 30%;
+  background: rgba(2, 5, 9, 0.88);
+  clip-path: polygon(8% 0, 92% 0, 100% 50%, 92% 100%, 8% 100%, 0 50%);
+}
+.fullBleed .rarityPlate {
+  bottom: 17.2%;
+  left: 4%;
+}
+.fullBleed .roleCrest {
+  right: 4%;
+  bottom: 17.6%;
+}
+.fullBleed .roleCrest span {
+  display: none;
+}
+.fullBleed .characterMeta {
+  display: none;
+}
+.fullBleed .statsPanel {
+  right: 3%;
+  bottom: 5.2%;
+  left: 3%;
+  height: 9.6%;
+  gap: 1%;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+.fullBleed .stat {
+  background: rgba(3, 6, 10, 0.92);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 -3px 0 color-mix(in srgb, var(--rarity) 58%, transparent);
+}
+.fullBleed .stat + .stat::before {
+  display: none;
+}
+.fullBleed .cardFooter {
+  bottom: 2%;
+}
+.fullBleed .finishMark {
+  top: 12%;
+  left: 3%;
+}
+
+/* Archive Seal: a dense two-column museum record with a circular raid seal. */
+.archiveSeal .outerFrame {
+  background: linear-gradient(128deg, #a89c82, #17130d 14%, #514a3c 29%, #060606 48%, #8d826d 69%, #211d17 84%, #5d5648);
+}
+.archiveSeal .identity {
+  top: 3.4%;
+}
+.archiveSeal .renderWindow {
+  top: 12%;
+  bottom: 36%;
+}
+.archiveSeal .characterGround {
+  bottom: 33%;
+}
+.archiveSeal .lowerDeck {
+  height: 34.5%;
+  background: linear-gradient(160deg, rgba(27, 26, 23, 0.99), rgba(5, 5, 5, 0.99) 52%, rgba(20, 18, 15, 0.99));
+  clip-path: polygon(4% 0, 38% 0, 43% 4%, 57% 4%, 62% 0, 96% 0, 100% 5%, 98% 100%, 2% 100%, 0 5%);
+}
+.archiveSeal .setChip {
+  right: 27%;
+  bottom: 30.8%;
+  left: 27%;
+  padding-block: 2.8%;
+}
+.archiveSeal .rarityPlate {
+  right: 4%;
+  bottom: 31.2%;
+}
+.archiveSeal .roleCrest {
+  bottom: 31.3%;
+  left: 4%;
+}
+.archiveSeal .roleCrest span {
+  display: none;
+}
+.archiveSeal .characterMeta {
+  right: 8%;
+  bottom: 25.9%;
+  left: 8%;
+}
+.archiveSeal .statsPanel {
+  right: 5%;
+  bottom: 5.8%;
+  left: 5%;
+  height: 16.8%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.archiveSeal .stat:nth-child(3)::before {
+  display: none;
+}
+.archiveSeal .stat:nth-child(n + 3) {
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+}
+.archiveSeal .cardFooter {
+  bottom: 2.3%;
+}
+.archiveSeal .finishMark {
+  top: 13%;
+  left: 4%;
+}
+
+/* Edge relic system: every experimental layout after the control card carries
+   four physical corner objects and a raid seal attached to the bottom frame. */
+.prototypeCard:not(.reliquary) {
+  overflow: visible;
+}
+
+.prototypeCard:not(.reliquary) .cornerCrest {
+  top: -3.7%;
+  width: 17%;
+  aspect-ratio: 1.18;
+  border: 1px solid color-mix(in srgb, var(--rarity) 42%, rgba(255, 255, 255, 0.28));
+  border-radius: 0.58rem;
+  background: linear-gradient(155deg, var(--metal-light), var(--metal-dark) 18%, #070a0f 60%, var(--metal-mid));
+  box-shadow:
+    inset 0 0 0 3px rgba(0, 0, 0, 0.7),
+    inset 0 1px rgba(255, 255, 255, 0.25),
+    0 6px 10px rgba(0, 0, 0, 0.7),
+    0 0 8px color-mix(in srgb, var(--rarity) 24%, transparent);
+  clip-path: none;
+}
+
+.prototypeCard:not(.reliquary) .classCrest {
+  left: -3.2%;
+}
+.prototypeCard:not(.reliquary) .specCrest {
+  right: -3.2%;
+}
+
+.prototypeCard:not(.reliquary) .cornerCrest > img,
+.prototypeCard:not(.reliquary) .cornerCrest > div {
+  width: 70% !important;
+  height: 70% !important;
+  border-radius: 0.28rem;
+  outline: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.prototypeCard:not(.reliquary) .roleCrest,
+.prototypeCard:not(.reliquary) .guildCrest {
+  bottom: -4.6%;
+  width: 16%;
+  aspect-ratio: 1;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 7px 6px rgba(0, 0, 0, 0.76));
+}
+
+.prototypeCard:not(.reliquary) .roleCrest {
+  right: auto;
+  left: -3.2%;
+  transform: none;
+}
+
+.prototypeCard:not(.reliquary) .roleCrest img {
+  width: 88%;
+  height: 88%;
+}
+
+.prototypeCard:not(.reliquary) .roleCrest span {
+  display: none;
+}
+
+.prototypeCard:not(.reliquary) .guildCrest {
+  right: -3.2%;
+  left: auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(17, 24, 34, 0.96) 0 51%, transparent 52%);
+}
+
+.prototypeCard:not(.reliquary) .setChip {
+  z-index: 19;
+  right: 24%;
+  bottom: -3.2%;
+  left: 24%;
+  min-height: 5.6%;
+  border: 1px solid color-mix(in srgb, var(--lab-accent) 38%, rgba(255, 255, 255, 0.22));
+  background: linear-gradient(180deg, #182131, #05080d 48%, #101725);
+  box-shadow:
+    inset 0 0 0 3px rgba(0, 0, 0, 0.58),
+    inset 0 1px rgba(255, 255, 255, 0.24),
+    0 6px 9px rgba(0, 0, 0, 0.7),
+    0 0 8px color-mix(in srgb, var(--lab-glow) 55%, transparent);
+  padding: 1.5% 4%;
+}
+
+.prototypeCard:not(.reliquary) .cardFooter {
+  right: 19%;
+  bottom: 4.2%;
+  left: 19%;
+}
+
+/* War Banner: warm bronze clasps and a wide military pennant. */
+.prototypeCard.warBanner .cornerCrest {
+  border-color: rgba(213, 185, 119, 0.58);
+  border-radius: 0.72rem 0.2rem 0.72rem 0.2rem;
+  background: linear-gradient(145deg, #d0b472, #271c0d 20%, #080706 61%, #806535);
+}
+.prototypeCard.warBanner .roleCrest {
+  filter: sepia(0.18) drop-shadow(0 7px 6px rgba(0, 0, 0, 0.76));
+}
+.prototypeCard.warBanner .guildCrest {
+  background: radial-gradient(circle, #2b2114 0 51%, transparent 52%);
+}
+.prototypeCard.warBanner .setChip {
+  right: 20%;
+  left: 20%;
+  border-radius: 0.18rem;
+  border-color: rgba(211, 179, 101, 0.52);
+  background: linear-gradient(180deg, #3a2b17, #090704 54%, #21170c);
+  clip-path: polygon(7% 0, 93% 0, 100% 50%, 93% 100%, 7% 100%, 0 50%);
+}
+
+/* Raid Gate: cool portal brackets and a pointed keystone seal. */
+.prototypeCard.raidGate .cornerCrest {
+  border-color: color-mix(in srgb, var(--lab-accent) 58%, white 10%);
+  border-radius: 0.18rem 0.8rem 0.18rem 0.8rem;
+  background: linear-gradient(160deg, #a4d6e7, #0c2934 18%, #03080b 62%, #376f83);
+}
+.prototypeCard.raidGate .guildCrest {
+  background: radial-gradient(circle, #071923 0 51%, transparent 52%);
+}
+.prototypeCard.raidGate .setChip {
+  right: 25%;
+  left: 25%;
+  border: 0;
+  background: linear-gradient(180deg, #234b5c, #040a0f 48%, #102d3a);
+  clip-path: polygon(10% 0, 90% 0, 100% 50%, 90% 100%, 10% 100%, 0 50%);
+}
+.raidGate .rarityPlate {
+  right: 34%;
+  bottom: 21.2%;
+  left: 34%;
+}
+.raidGate .characterMeta {
+  right: 9%;
+  bottom: 17.9%;
+  left: 9%;
+  justify-content: center;
+}
+
+/* Score Forge: squared instrument housings and an engraved equipment tag. */
+.prototypeCard.scoreForge .cornerCrest {
+  border-color: rgba(193, 205, 213, 0.5);
+  border-radius: 0.16rem;
+  background: linear-gradient(135deg, #c3c9cd, #242a2e 15%, #050709 64%, #687278);
+  box-shadow:
+    inset 0 0 0 3px #080a0c,
+    inset 4px 0 rgba(255, 255, 255, 0.1),
+    0 6px 10px rgba(0, 0, 0, 0.72);
+}
+.prototypeCard.scoreForge .guildCrest {
+  border-radius: 0.18rem;
+  background: #11161a;
+  box-shadow: inset 0 0 0 2px #4c565d;
+}
+.prototypeCard.scoreForge .setChip {
+  right: 21%;
+  left: 21%;
+  border-radius: 0.12rem;
+  border-color: rgba(188, 203, 214, 0.42);
+  background: linear-gradient(180deg, #2b3136, #050607 55%, #171b1f);
+}
+.scoreForge .finishMark {
+  bottom: 8%;
+  left: 3.5%;
+}
+
+/* Full Bleed: nearly frameless icon halos and a restrained floating raid tab. */
+.prototypeCard.fullBleed .cornerCrest {
+  width: 15%;
+  border-color: color-mix(in srgb, var(--rarity) 64%, rgba(255, 255, 255, 0.35));
+  border-radius: 50%;
+  background: rgba(2, 5, 9, 0.84);
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.8),
+    0 0 12px color-mix(in srgb, var(--rarity) 36%, transparent),
+    0 6px 9px rgba(0, 0, 0, 0.7);
+}
+.prototypeCard.fullBleed .cornerCrest > img,
+.prototypeCard.fullBleed .cornerCrest > div {
+  border-radius: 50%;
+}
+.prototypeCard.fullBleed .roleCrest,
+.prototypeCard.fullBleed .guildCrest {
+  width: 14.5%;
+}
+.prototypeCard.fullBleed .guildCrest {
+  background: radial-gradient(circle, rgba(2, 5, 9, 0.9) 0 51%, transparent 52%);
+}
+.prototypeCard.fullBleed .setChip {
+  right: 27%;
+  left: 27%;
+  border-radius: 999px;
+  background: rgba(2, 5, 9, 0.92);
+  clip-path: none;
+}
+
+/* Archive Seal: weighty blackened plaques and an octagonal catalog seal. */
+.prototypeCard.archiveSeal .cornerCrest {
+  border-color: rgba(190, 176, 143, 0.46);
+  border-radius: 0.12rem 0.12rem 0.7rem 0.7rem;
+  background: linear-gradient(150deg, #aca18a, #28241d 16%, #060605 62%, #5d5545);
+}
+.prototypeCard.archiveSeal .guildCrest {
+  border-radius: 0.22rem;
+  background: #171510;
+  box-shadow: inset 0 0 0 2px #5c5445;
+}
+.prototypeCard.archiveSeal .setChip {
+  right: 23%;
+  left: 23%;
+  border: 0;
+  background: linear-gradient(180deg, #3c382f, #080706 52%, #242019);
+  clip-path: polygon(8% 0, 92% 0, 100% 28%, 100% 72%, 92% 100%, 8% 100%, 0 72%, 0 28%);
+}
+.archiveSeal .rarityPlate {
+  right: 34%;
+  bottom: 30.8%;
+  left: 34%;
+}
+.archiveSeal .characterMeta {
+  right: 8%;
+  bottom: 26%;
+  left: 8%;
+}
+
+/* Shared icon hardware: simple top mounts, unframed lower emblems, all above the card frame. */
+.prototypeCard:not(.reliquary) .cornerCrest {
+  z-index: 21;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.55rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.68);
+  clip-path: none;
+}
+
+.prototypeCard:not(.reliquary) .roleCrest,
+.prototypeCard:not(.reliquary) .guildCrest {
+  z-index: 21;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  clip-path: none;
+  filter: drop-shadow(0 5px 4px rgba(0, 0, 0, 0.72));
+}
+
+.prototypeCard.vaultRelic .cornerCrest {
+  top: 0.8%;
+  width: 13.2%;
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 0.3rem;
+  background: rgba(2, 4, 7, 0.82);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 0 0 3px rgba(0, 0, 0, 0.72);
+}
+
+.prototypeCard.vaultRelic .cornerCrest > img,
+.prototypeCard.vaultRelic .cornerCrest > div {
+  position: relative;
+  z-index: 1;
+  width: 82% !important;
+  height: 82% !important;
+  border-radius: 0.22rem;
+  outline: 0;
+}
+
+.prototypeCard.vaultRelic .classCrest {
+  left: 2.1%;
+}
+.prototypeCard.vaultRelic .specCrest {
+  right: 2.1%;
+}
+.prototypeCard.vaultRelic .roleCrest {
+  bottom: -3.8%;
+  width: 14.5%;
+}
+.prototypeCard.vaultRelic .guildCrest {
+  right: -4.4%;
+  bottom: -4.1%;
+  width: 13.5%;
+}
+.prototypeCard.vaultRelic .roleCrest {
+  left: -3.8%;
+}
+.prototypeCard.vaultRelic .guildCrestCanvas,
+.prototypeCard.vaultRelic .guildCrestCanvas canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+.prototypeCard.vaultRelic .setChip {
+  z-index: 20;
+  right: auto;
+  bottom: 0.2%;
+  left: 50%;
+  width: max-content;
+  min-width: 52%;
+  max-width: 74%;
+  min-height: 4.8%;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #151b23, #030507 50%, #0d1218) padding-box,
+    linear-gradient(145deg, var(--metal-light), var(--metal-dark) 30%, var(--metal-mid) 70%, var(--metal-light)) border-box;
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 -1px rgba(0, 0, 0, 0.92);
+  clip-path: polygon(5% 0, 95% 0, 100% 50%, 95% 100%, 5% 100%, 0 50%);
+  font-size: clamp(0.43rem, 2.15cqw, 0.62rem);
+  padding: 0.45% 6%;
+  text-shadow: 0 1px 2px #000;
+  transform: translateX(-50%);
+}
+.prototypeCard.vaultRelic .setChip span {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes prototypePrismatic {
+  from {
+    background-position: 10% 36%;
+  }
+  to {
+    background-position: 88% 64%;
+  }
+}
+
+@media (max-width: 1120px) {
+  .prototypeGrid {
+    grid-template-columns: 1fr;
+  }
+  .controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .labPage {
+    padding-inline: 0.75rem;
+  }
+  .labHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .labHeader h1 {
+    font-size: 1.8rem;
+  }
+  .controls {
+    grid-template-columns: 1fr;
+  }
+  .rangeControl,
+  .guideControl {
+    grid-column: auto;
+  }
+  .prototypeStage > header {
+    flex-direction: column;
+  }
+  .cardMount {
+    min-height: 38rem;
+    padding-inline: 0.5rem;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .prototypeCard {
+    transform: none;
+  }
+  .materialLight {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prototypeCard,
+  .materialLight {
+    transition-duration: 1ms;
+  }
+  .prismatic .finishLayer {
+    animation: none;
+    background-position: 50% 50%;
+  }
+}

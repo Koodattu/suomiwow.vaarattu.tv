@@ -75,7 +75,7 @@
   position: relative;
   z-index: 2;
   display: flex;
-  width: min(100%, 34rem);
+  width: min(100%, 38rem);
   flex-direction: column;
   align-items: center;
   padding: 2.5rem 1rem;
@@ -94,12 +94,24 @@
 }
 
 .packButton {
+  --pack-drag-x: 0px;
+  --pack-drag-y: 0px;
+  --pack-lift: 0px;
+  --pack-scale: 1;
+  --pack-tilt-x: 0deg;
+  --pack-tilt-y: 0deg;
+  --pack-shine-x: 50%;
+  --pack-shine-y: 38%;
   position: relative;
   display: block;
-  width: min(72vw, 19rem);
-  aspect-ratio: 0.68;
-  cursor: pointer;
+  width: min(74vw, 21rem);
+  aspect-ratio: 0.66;
+  cursor: grab;
   transform-style: preserve-3d;
+}
+
+.packButton[data-dragging="true"] {
+  cursor: grabbing;
 }
 
 .packButton:focus-visible {
@@ -122,7 +134,7 @@
   background: #000;
   filter: blur(12px);
   opacity: 0.72;
-  transform: translateZ(-20px);
+  transform: translate3d(var(--pack-drag-x), calc(var(--pack-drag-y) + 3px), -20px) scale(0.94);
   transition-property: opacity, transform;
   transition-duration: 280ms;
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
@@ -142,26 +154,49 @@
     inset 0 0 0 5px rgba(1, 5, 14, 0.62),
     inset 10px 0 20px rgba(255, 255, 255, 0.05),
     inset -12px 0 18px rgba(0, 0, 0, 0.38);
-  clip-path: polygon(3% 0, 97% 0, 100% 2.4%, 98% 5%, 100% 8%, 98.5% 11%, 100% 14%, 98.5% 17%, 100% 20%, 98.5% 23%, 100% 26%, 98.5% 29%, 100% 32%, 98.5% 35%, 100% 38%, 98.5% 41%, 100% 44%, 98.5% 47%, 100% 50%, 98.5% 53%, 100% 56%, 98.5% 59%, 100% 62%, 98.5% 65%, 100% 68%, 98.5% 71%, 100% 74%, 98.5% 77%, 100% 80%, 98.5% 83%, 100% 86%, 98.5% 89%, 100% 92%, 98% 95%, 100% 98%, 97% 100%, 3% 100%, 0 98%, 2% 95%, 0 92%, 1.5% 89%, 0 86%, 1.5% 83%, 0 80%, 1.5% 77%, 0 74%, 1.5% 71%, 0 68%, 1.5% 65%, 0 62%, 1.5% 59%, 0 56%, 1.5% 53%, 0 50%, 1.5% 47%, 0 44%, 1.5% 41%, 0 38%, 1.5% 35%, 0 32%, 1.5% 29%, 0 26%, 1.5% 23%, 0 20%, 1.5% 17%, 0 14%, 1.5% 11%, 0 8%, 2% 5%, 0 2.4%);
-  transform: rotateX(1deg) rotateY(-2deg) translateY(0);
+  clip-path: polygon(0 4%, 3% 2%, 6% 0, 10% 2%, 14% 0, 18% 2%, 22% 0, 26% 2%, 30% 0, 34% 2%, 38% 0, 42% 2%, 46% 0, 50% 2%, 54% 0, 58% 2%, 62% 0, 66% 2%, 70% 0, 74% 2%, 78% 0, 82% 2%, 86% 0, 90% 2%, 94% 0, 97% 2%, 100% 4%, 100% 96%, 97% 98%, 94% 100%, 90% 98%, 86% 100%, 82% 98%, 78% 100%, 74% 98%, 70% 100%, 66% 98%, 62% 100%, 58% 98%, 54% 100%, 50% 98%, 46% 100%, 42% 98%, 38% 100%, 34% 98%, 30% 100%, 26% 98%, 22% 100%, 18% 98%, 14% 100%, 10% 98%, 6% 100%, 3% 98%, 0 96%);
+  transform: translate3d(var(--pack-drag-x), calc(var(--pack-drag-y) + var(--pack-lift)), 0) rotateX(var(--pack-tilt-x)) rotateY(var(--pack-tilt-y)) scale(var(--pack-scale));
   transform-style: preserve-3d;
   transition-property: transform, filter;
-  transition-duration: 360ms;
+  transition-duration: 430ms, 180ms;
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.booster::before,
+.booster::after {
+  position: absolute;
+  z-index: 4;
+  top: 5.5%;
+  bottom: 5.5%;
+  width: 4.8%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.04) 34%, rgba(0, 0, 0, 0.34) 78%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  content: "";
+  pointer-events: none;
+}
+
+.booster::before { left: 0.6%; }
+.booster::after { right: 0.6%; transform: scaleX(-1); }
+
 .packButton:hover:not(:disabled) .booster {
-  filter: brightness(1.08) saturate(1.08);
-  transform: rotateX(2deg) rotateY(3deg) translateY(-8px) scale(1.025);
+  --pack-lift: -8px;
+  --pack-scale: 1.018;
+  filter: brightness(1.05) saturate(1.06);
 }
 
 .packButton:hover:not(:disabled) .packShadow {
   opacity: 0.52;
-  transform: translateY(7px) scale(0.9) translateZ(-20px);
+  transform: translate3d(var(--pack-drag-x), calc(var(--pack-drag-y) + 9px), -20px) scale(0.88);
 }
 
-.packButton:active:not(:disabled) .booster {
-  transform: rotateX(0) rotateY(0) translateY(-2px) scale(0.96);
+.packButton:active:not(:disabled):not([data-dragging="true"]) .booster {
+  --pack-lift: -2px;
+  --pack-scale: 0.96;
+}
+
+.packButton[data-dragging="true"] .booster,
+.packButton[data-dragging="true"] .packShadow {
+  transition-duration: 0ms;
 }
 
 .packButton:disabled:not(.packButtonOpening) .booster {
@@ -169,8 +204,8 @@
   opacity: 0.68;
 }
 
-.packButtonOpening .booster {
-  animation: packCharge 820ms cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+.packButtonOpening .wrapperFoil {
+  animation: packCharge 620ms cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
 }
 
 .wrapperArt,
@@ -193,24 +228,27 @@
   background:
     linear-gradient(180deg, rgba(0, 3, 10, 0.64) 0 14%, transparent 32% 61%, rgba(0, 3, 10, 0.86) 86%),
     linear-gradient(90deg, rgba(255, 255, 255, 0.08), transparent 14% 76%, rgba(0, 0, 0, 0.4)),
+    linear-gradient(102deg, transparent 0 18%, rgba(255, 255, 255, 0.055) 20%, transparent 23% 68%, rgba(255, 255, 255, 0.04) 70%, transparent 73%),
+    linear-gradient(78deg, transparent 0 31%, rgba(0, 0, 0, 0.2) 34%, transparent 37% 82%, rgba(0, 0, 0, 0.18) 84%, transparent 87%),
     radial-gradient(circle at 50% 47%, transparent 0 28%, rgba(0, 3, 10, 0.3) 65%);
 }
 
 .wrapperFoil {
   background:
-    linear-gradient(112deg, transparent 0 35%, rgba(255, 255, 255, 0.2) 44%, rgba(100, 228, 255, 0.08) 51%, transparent 60%),
+    radial-gradient(circle at var(--pack-shine-x) var(--pack-shine-y), rgba(255, 255, 255, 0.52) 0, rgba(132, 234, 255, 0.18) 11%, transparent 27%),
+    linear-gradient(112deg, transparent 0 35%, rgba(255, 255, 255, 0.24) 44%, rgba(100, 228, 255, 0.1) 51%, transparent 60%),
     linear-gradient(90deg, rgba(255, 255, 255, 0.12), transparent 10% 90%, rgba(255, 255, 255, 0.08));
-  background-size: 220% 100%, 100% 100%;
+  background-size: 100% 100%, 220% 100%, 100% 100%;
   mix-blend-mode: screen;
-  opacity: 0.62;
+  opacity: 0.54;
   transition-property: background-position, opacity;
   transition-duration: 520ms;
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .packButton:hover:not(:disabled) .wrapperFoil {
-  background-position: 100% 0, 0 0;
-  opacity: 0.9;
+  background-position: 0 0, 100% 0, 0 0;
+  opacity: 0.96;
 }
 
 .crimp {
@@ -223,8 +261,18 @@
     linear-gradient(180deg, rgba(231, 245, 255, 0.28), rgba(3, 9, 21, 0.7) 28%, color-mix(in srgb, var(--pack-accent) 38%, #14233e) 53%, rgba(2, 7, 17, 0.82) 76%, rgba(224, 243, 255, 0.2));
   box-shadow:
     inset 0 1px rgba(255, 255, 255, 0.36),
+    inset 0 4px rgba(255, 255, 255, 0.06),
+    inset 0 -4px rgba(0, 0, 0, 0.2),
     inset 0 -1px rgba(0, 0, 0, 0.66),
     0 2px 4px rgba(0, 0, 0, 0.42);
+}
+
+.crimp::after {
+  position: absolute;
+  inset: 23% 2%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 24% 72%, rgba(0, 0, 0, 0.34));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.15), inset 0 -1px rgba(0, 0, 0, 0.5);
+  content: "";
 }
 
 .crimpTop {
@@ -269,10 +317,11 @@
   top: 21%;
   width: 76%;
   color: #fffefa;
-  font-size: clamp(1.26rem, 4vw, 1.82rem);
-  font-weight: 900;
-  letter-spacing: -0.03em;
-  line-height: 1.02;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.32rem, 4vw, 1.92rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
   text-wrap: balance;
 }
 
@@ -357,7 +406,7 @@
 }
 
 .revealStage {
-  min-height: min(76vh, 54rem);
+  min-height: min(82vh, 59rem);
   align-items: stretch;
 }
 
@@ -366,8 +415,8 @@
   z-index: 8;
   top: 50%;
   left: 50%;
-  width: min(66vw, 18rem);
-  aspect-ratio: 0.68;
+  width: min(68vw, 20rem);
+  aspect-ratio: 0.66;
   transform: translate(-50%, -50%);
 }
 
@@ -400,13 +449,13 @@
 
 .tornHalfLeft {
   clip-path: polygon(2% 0, 54% 0, 48% 12%, 55% 22%, 47% 33%, 55% 44%, 46% 54%, 54% 65%, 47% 76%, 54% 88%, 48% 100%, 2% 100%, 0 97%, 2% 92%, 0 86%, 2% 80%, 0 74%, 2% 68%, 0 62%, 2% 56%, 0 50%, 2% 44%, 0 38%, 2% 32%, 0 26%, 2% 20%, 0 14%, 2% 8%, 0 3%);
-  animation: tearLeft 1050ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: tearLeft 640ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   transform-origin: right center;
 }
 
 .tornHalfRight {
   clip-path: polygon(46% 0, 98% 0, 100% 3%, 98% 8%, 100% 14%, 98% 20%, 100% 26%, 98% 32%, 100% 38%, 98% 44%, 100% 50%, 98% 56%, 100% 62%, 98% 68%, 100% 74%, 98% 80%, 100% 86%, 98% 92%, 100% 97%, 98% 100%, 46% 100%, 52% 88%, 45% 76%, 53% 65%, 46% 54%, 55% 44%, 47% 33%, 55% 22%, 48% 12%);
-  animation: tearRight 1050ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: tearRight 640ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   transform-origin: left center;
 }
 
@@ -420,8 +469,47 @@
   border-radius: 50%;
   background: white;
   box-shadow: 0 0 34px 14px var(--pack-glow), 0 0 80px 24px color-mix(in srgb, var(--pack-accent) 42%, transparent);
-  animation: tearFlash 920ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: tearFlash 580ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transform: translate(-50%, -50%) scale(0.08);
+}
+
+.tearBurst {
+  position: absolute;
+  z-index: 9;
+  top: 47%;
+  left: 50%;
+  width: 82%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: conic-gradient(from 8deg, transparent 0 5%, color-mix(in srgb, var(--pack-accent) 72%, white) 5.5% 6%, transparent 6.5% 17%, rgba(255, 255, 255, 0.7) 17.5% 18%, transparent 18.5% 31%, color-mix(in srgb, var(--pack-accent) 68%, white) 31.5% 32%, transparent 32.5% 51%, rgba(255, 255, 255, 0.64) 51.5% 52%, transparent 52.5% 72%, color-mix(in srgb, var(--pack-accent) 72%, white) 72.5% 73%, transparent 73.5% 88%, rgba(255, 255, 255, 0.62) 88.5% 89%, transparent 89.5%);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.25) rotate(-12deg);
+  animation: tearBurst 620ms 80ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.tearParticles {
+  position: absolute;
+  z-index: 12;
+  top: 47%;
+  left: 50%;
+  width: 1px;
+  height: 1px;
+}
+
+.tearParticles i {
+  --particle-x: 0px;
+  --particle-y: 0px;
+  --particle-rotate: 0deg;
+  --particle-delay: 0ms;
+  position: absolute;
+  width: 1.15rem;
+  height: 0.16rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pack-accent) 62%, white);
+  box-shadow: 0 0 8px var(--pack-glow);
+  opacity: 0;
+  transform: translate(-50%, -50%) scaleX(0.2) rotate(var(--particle-rotate));
+  animation: tearParticle 480ms var(--particle-delay) cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .tearShardOne,
@@ -451,7 +539,7 @@
   min-width: 0;
   flex-direction: column;
   justify-content: center;
-  padding: 1.25rem 0 1.5rem;
+  padding: 1.1rem 0 1.4rem;
   opacity: 1;
   transition-property: opacity, transform;
   transition-duration: 380ms;
@@ -497,17 +585,17 @@
   min-width: 0;
   overflow: hidden;
   overscroll-behavior-inline: contain;
-  padding: 1.35rem 1rem 1.6rem;
+  padding: 1.45rem 0.45rem 1.7rem;
   scroll-padding-inline: 1rem;
 }
 
 .cardFan {
   display: grid;
-  width: min(calc(100% - 6rem), 78rem);
+  width: min(calc(100% - 0.75rem), 92rem);
   min-width: 0;
   margin-inline: auto;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: clamp(0.55rem, 1.25vw, 1rem);
+  gap: clamp(0.2rem, 0.55vw, 0.5rem);
   align-items: start;
   perspective: 1500px;
 }
@@ -525,7 +613,7 @@
   transform: translateY(calc(var(--fan-y) + 56px)) rotate(var(--fan-angle)) scale(0.86);
   transform-origin: center 88%;
   transition-property: opacity, transform, filter;
-  transition-duration: 420ms, 560ms, 180ms;
+  transition-duration: 240ms, 330ms, 140ms;
   transition-delay: var(--deal-delay);
   transition-timing-function: ease-out, cubic-bezier(0.16, 1, 0.3, 1), ease-out;
 }
@@ -560,7 +648,7 @@
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
   transition-property: transform;
-  transition-duration: 720ms;
+  transition-duration: 520ms;
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -771,12 +859,10 @@
 
 @keyframes packCharge {
   from {
-    filter: brightness(1) saturate(1);
-    transform: rotateX(1deg) rotateY(-2deg) translateY(-2px) scale(1);
+    opacity: 0.52;
   }
   to {
-    filter: brightness(1.2) saturate(1.2);
-    transform: rotateX(-1deg) rotateY(2deg) translateY(-8px) scale(1.035);
+    opacity: 1;
   }
 }
 
@@ -797,6 +883,18 @@
   28% { opacity: 0; }
   46% { opacity: 1; transform: translate(-50%, -50%) scale(0.45); }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(2.4); }
+}
+
+@keyframes tearBurst {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.25) rotate(-12deg); }
+  28% { opacity: 0.72; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.48) rotate(18deg); }
+}
+
+@keyframes tearParticle {
+  0% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.2) rotate(var(--particle-rotate)); }
+  20% { opacity: 0.95; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--particle-x)), calc(-50% + var(--particle-y))) scaleX(1) rotate(var(--particle-rotate)); }
 }
 
 @keyframes shardOne {
@@ -829,7 +927,7 @@
   }
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1250px) {
   .cardFanScroller {
     overflow-x: auto;
     overflow-y: hidden;
@@ -845,7 +943,7 @@
   .cardFan {
     width: max-content;
     min-width: 0;
-    grid-template-columns: repeat(5, minmax(14rem, 76vw));
+    grid-template-columns: repeat(5, minmax(18rem, 68vw));
     gap: 1rem;
   }
 
@@ -866,7 +964,7 @@
   }
 
   .revealStage {
-    min-height: 42rem;
+    min-height: 45rem;
   }
 
   .vaultRing {
@@ -885,6 +983,8 @@
 @media (hover: none), (pointer: coarse) {
   .packButton:hover:not(:disabled) .booster,
   .packButton:active:not(:disabled) .booster {
+    --pack-lift: 0px;
+    --pack-scale: 1;
     transform: none;
   }
 
@@ -894,10 +994,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .packButtonOpening .booster,
+  .packButtonOpening .wrapperFoil,
   .tornHalfLeft,
   .tornHalfRight,
   .tearFlash,
+  .tearBurst,
+  .tearParticles i,
   .tearShardOne,
   .tearShardTwo,
   .tearShardThree,

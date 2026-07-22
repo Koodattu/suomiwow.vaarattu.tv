@@ -104,11 +104,14 @@
       "chooseLegacy": "Legacy raid",
       "currentPool": "Current raid pool ({count})",
       "legacyPool": "Legacy archive ({count})",
+      "legacyPackTitle": "Legacy archive",
+      "legacyPackLabel": "All historical raids",
+      "legacySeal": "Archive",
       "currentPoolBody": "Cards can come from any of the {count} active Current raids.",
       "legacyPoolBody": "Cards can come from any of the {count} enabled historical raids.",
       "openPack": "Open pack",
       "opening": "Opening…",
-      "packHint": "Click the pack to break the seal",
+      "packHint": "Tilt or drag the pack, then click to break the seal",
       "openingHint": "The raid vault is opening…",
       "revealPrompt": "Choose a card to reveal",
       "cardsReady": "Five cards are ready. Focus is on the first card.",
@@ -123,7 +126,71 @@
       "bonusEarned": "The duplicate meter awarded {count} bonus pack(s).",
       "recoveryFailed": "That saved pack could not be recovered. Clear it before opening another pack.",
       "dismissRecovery": "Clear saved pack",
-      "openAnother": "Open another pack"
+      "openAnother": "Open another pack",
+      "comparePrototypes": "Refine the card layout"
+    },
+    "prototypes": {
+      "kicker": "Temporary design lab",
+      "title": "Refine the Vault Reliquary",
+      "body": "Test the selected card direction with real published characters. Change the sample, finish, size, and render framing before it replaces the production card.",
+      "back": "Back to packs",
+      "controls": "Card prototype controls",
+      "set": "Raid set",
+      "sample": "Character sample",
+      "samplePage": "Catalog sample page",
+      "previousPage": "Previous sample page",
+      "nextPage": "Next sample page",
+      "finish": "Finish",
+      "size": "Card width",
+      "renderScale": "Render zoom",
+      "renderOffset": "Render position",
+      "showGuides": "Show the protected character area",
+      "hideCornerIcons": "Hide corner icons",
+      "hideBadges": "Hide realm and raid badges",
+      "guildCrest": "Guild crest: {guild}",
+      "loading": "Loading real card data…",
+      "noCards": "This raid set has no published cards with a character render.",
+      "hint": "Move the pointer over the card to test the material response. The pink guide shows the area that may contain the character.",
+      "rarityLabel": "Rarity",
+      "rarityExplainer": "Legendary represents the top snapshot grades. A is Epic, B is Rare, C is Uncommon, and D–F are Common. Golden and Prismatic are separate finishes.",
+      "realm": "Realm: {realm}",
+      "layouts": {
+        "reliquary": {
+          "title": "Hero Reliquary",
+          "tag": "Ornamental plinth",
+          "body": "Class and spec become opposing crests around the class-colored name. The character stands above a compact museum-style score plinth."
+        },
+        "vaultRelic": {
+          "title": "Vault Reliquary",
+          "tag": "Composite study",
+          "body": "Realm, name, and guild lead into an uninterrupted portrait. Quality and combat identity share one line above a compact score deck and raid-themed lower seal."
+        },
+        "warBanner": {
+          "title": "War Banner",
+          "tag": "Heraldic and broad",
+          "body": "Warm bronze clasps hold the class and spec above a broad portrait. The raid name hangs from the bottom frame like a military pennant."
+        },
+        "raidGate": {
+          "title": "Raid Gate",
+          "tag": "Architectural portal",
+          "body": "Cool portal brackets hold class and spec above the character while role and guild crests anchor the lower corners."
+        },
+        "scoreForge": {
+          "title": "Score Forge",
+          "tag": "Instrument rail",
+          "body": "The character owns nearly the full card height while square instrument housings and a machined score rail define the edges."
+        },
+        "fullBleed": {
+          "title": "Full-Bleed Champion",
+          "tag": "Maximum artwork",
+          "body": "A near-borderless treatment gives the raid and character maximum space. Circular corner halos and floating scores keep the frame light."
+        },
+        "archiveSeal": {
+          "title": "Archive Seal",
+          "tag": "Museum record",
+          "body": "Blackened corner plaques and a dense two-column record make the card feel preserved, numbered, and built for a collection binder."
+        }
+      }
     },
     "collection": {
       "title": "Your raid binders",
@@ -179,6 +246,11 @@
       "dps": "Damage"
     },
     "score": {
+      "damage": "Damage",
+      "healing": "Healing",
+      "mechanics": "Mechanics",
+      "combined": "Combined",
+      "mythicPlus": "Mythic+",
       "mechanicsShort": "MECH",
       "combinedShort": "COMB",
       "mythicPlusShort": "M+"

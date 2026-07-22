@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { CcgCard, CcgFinish } from "@/types";
+import { formatRealmName } from "@/lib/utils";
 import CollectibleCard from "./CollectibleCard";
 import styles from "./ccg.module.css";
 
@@ -65,7 +66,7 @@ export default function CardViewer({ card, initialFinish = "standard", onClose }
           <div>
             <div className={styles.eyebrow}>#{String(card.setNumber).padStart(3, "0")} · {card.set.raidName}</div>
             <h2 className="mt-2 text-3xl font-black tracking-tight text-white">{card.name}</h2>
-            <p className="mt-1 text-sm text-slate-400">{card.guildName ? `<${card.guildName}> · ` : ""}{card.realm}</p>
+            <p className="mt-1 text-sm text-slate-400">{card.guildName ? `<${card.guildName}> · ` : ""}{formatRealmName(card.realm)}</p>
             {isOwned ? (
               <div className="mt-5 flex flex-wrap gap-2" aria-label={t("finish.label")}>
                 {ownedFinishes.map((row) => (

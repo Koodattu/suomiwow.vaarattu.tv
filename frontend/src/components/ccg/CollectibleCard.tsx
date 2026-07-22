@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, PointerEvent, SyntheticEvent } from "react";
 import type { CcgCard, CcgFinish } from "@/types";
-import { getClassInfoById } from "@/lib/utils";
+import { formatRealmName, getClassInfoById } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
 import styles from "./card.module.css";
 
@@ -140,7 +140,7 @@ export default function CollectibleCard({ card, finish = "standard", compact = f
           <span className={styles.affiliation}>
             <span>{card.guildName ? `<${card.guildName}>` : t("independent")}</span>
             <span aria-hidden="true">·</span>
-            <span>{card.realm}</span>
+            <span>{formatRealmName(card.realm)}</span>
           </span>
           <span className={styles.cardSerial}>{String(card.setNumber).padStart(3, "0")} / {String(card.set.cardCount).padStart(3, "0")}</span>
         </span>

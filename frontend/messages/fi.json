@@ -104,11 +104,14 @@
       "chooseLegacy": "Legacy-raid",
       "currentPool": "Current-raidien kortit ({count})",
       "legacyPool": "Legacy-arkisto ({count})",
+      "legacyPackTitle": "Legacy-arkisto",
+      "legacyPackLabel": "Kaikki historialliset raidit",
+      "legacySeal": "Arkisto",
       "currentPoolBody": "Kortit voivat tulla mistä tahansa {count} aktiivisesta Current-raidista.",
       "legacyPoolBody": "Kortit voivat tulla mistä tahansa {count} käyttöön otetusta historiallisesta raidista.",
       "openPack": "Avaa pakka",
       "opening": "Avataan…",
-      "packHint": "Riko sinetti napsauttamalla pakkaa",
+      "packHint": "Kallista tai vedä pakkaa ja riko sinetti napsauttamalla",
       "openingHint": "Raidiholvi avautuu…",
       "revealPrompt": "Valitse paljastettava kortti",
       "cardsReady": "Viisi korttia on valmiina. Kohdistus on ensimmäisessä kortissa.",
@@ -123,7 +126,71 @@
       "bonusEarned": "Tuplamittari antoi {count} bonuspakkaa.",
       "recoveryFailed": "Tallennettua pakkaa ei voitu palauttaa. Tyhjennä se ennen uuden pakan avaamista.",
       "dismissRecovery": "Tyhjennä tallennettu pakka",
-      "openAnother": "Avaa toinen pakka"
+      "openAnother": "Avaa toinen pakka",
+      "comparePrototypes": "Hio korttiasettelua"
+    },
+    "prototypes": {
+      "kicker": "Väliaikainen design-labra",
+      "title": "Hio holvireliikkiä",
+      "body": "Testaa valittua korttirakennetta oikeilla julkaistuilla hahmoilla. Vaihda hahmoa, viimeistelyä, kokoa ja renderöinnin rajausta ennen tuotantokortin korvaamista.",
+      "back": "Takaisin pakkoihin",
+      "controls": "Korttiprototyyppien asetukset",
+      "set": "Raidisetti",
+      "sample": "Esimerkkihahmo",
+      "samplePage": "Katalogin esimerkkisivu",
+      "previousPage": "Edellinen esimerkkisivu",
+      "nextPage": "Seuraava esimerkkisivu",
+      "finish": "Viimeistely",
+      "size": "Kortin leveys",
+      "renderScale": "Hahmon zoomaus",
+      "renderOffset": "Hahmon sijainti",
+      "showGuides": "Näytä hahmolle varattu alue",
+      "hideCornerIcons": "Piilota kulmaikonit",
+      "hideBadges": "Piilota realmin ja raidin tunnukset",
+      "guildCrest": "Killan tunnus: {guild}",
+      "loading": "Ladataan oikeita korttitietoja…",
+      "noCards": "Tässä raidisetissä ei ole julkaistuja kortteja, joilla on hahmorenderöinti.",
+      "hint": "Liikuta osoitinta kortin päällä kokeillaksesi materiaaliefektiä. Vaaleanpunainen rajaus näyttää hahmolle varatun alueen.",
+      "rarityLabel": "Harvinaisuus",
+      "rarityExplainer": "Legendaarinen vastaa snapshotin parhaita tier-luokkia. A on Eeppinen, B Harvinainen, C Epätavallinen ja D–F Tavallinen. Kultainen ja Prismaattinen ovat erillisiä viimeistelyjä.",
+      "realm": "Realm: {realm}",
+      "layouts": {
+        "reliquary": {
+          "title": "Sankarireliikki",
+          "tag": "Koristeellinen jalusta",
+          "body": "Class- ja spec-tunnukset kehystävät class-väristä nimeä. Hahmo seisoo tiiviin, museoesineen kaltaisen pistelaatan yllä."
+        },
+        "vaultRelic": {
+          "title": "Holvireliikki",
+          "tag": "Yhdistelmäversio",
+          "body": "Realm, nimi ja kilta johtavat yhtenäiseen muotokuvaan. Laatu ja taistelutiedot jakavat yhden rivin tiiviin pistetaulun ja raiditeemaisen alasinetin yllä."
+        },
+        "warBanner": {
+          "title": "Sotaviiri",
+          "tag": "Leveä ja heraldinen",
+          "body": "Lämpimät pronssisoljet kehystävät class- ja spec-tunnuksia muotokuvan yllä. Raidin nimi riippuu alakehyksestä sotaviirin tavoin."
+        },
+        "raidGate": {
+          "title": "Raidin portti",
+          "tag": "Arkkitehtoninen kehys",
+          "body": "Viileät porttisoljet kannattelevat class- ja spec-tunnuksia hahmon yllä, kun rooli- ja kiltatunnukset ankkuroivat alakulmat."
+        },
+        "scoreForge": {
+          "title": "Pistetaonta",
+          "tag": "Mittaripaneeli",
+          "body": "Hahmo hallitsee lähes koko kortin korkeutta, ja kulmikkaat mittarikotelot sekä koneistettu pisteraide jäsentävät reunoja."
+        },
+        "fullBleed": {
+          "title": "Koko alan sankari",
+          "tag": "Suurin kuvitus",
+          "body": "Lähes kehyksetön ratkaisu antaa raidille ja hahmolle eniten tilaa. Pyöreät kulmahalot ja irralliset pistelaatat pitävät kehyksen kevyenä."
+        },
+        "archiveSeal": {
+          "title": "Arkistosinetti",
+          "tag": "Museokortti",
+          "body": "Tummennetut kulmalaatat ja tiivis kaksipalstainen tietue tekevät kortista säilytetyn, numeroidun ja kansioon kuuluvan esineen."
+        }
+      }
     },
     "collection": {
       "title": "Raidikansiosi",
@@ -179,6 +246,11 @@
       "dps": "Vahinko"
     },
     "score": {
+      "damage": "Vahinko",
+      "healing": "Parannus",
+      "mechanics": "Mekaniikat",
+      "combined": "Yhdistetty",
+      "mythicPlus": "Mythic+",
       "mechanicsShort": "MEK",
       "combinedShort": "YHT",
       "mythicPlusShort": "M+"
