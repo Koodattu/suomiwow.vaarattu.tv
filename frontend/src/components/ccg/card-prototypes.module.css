@@ -1621,15 +1621,15 @@
 }
 
 .prototypeCard.vaultRelic .cornerCrest {
-  top: 0.8%;
+  top: 1.1%;
   width: 13.2%;
   aspect-ratio: 1;
   border: 0;
-  border-radius: 0.3rem;
+  border-radius: 0.5rem;
   background: rgba(2, 4, 7, 0.82);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
-    inset 0 0 0 3px rgba(0, 0, 0, 0.72);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 0 0 2px rgba(0, 0, 0, 0.72);
 }
 
 .prototypeCard.vaultRelic .cornerCrest > img,
@@ -1638,7 +1638,7 @@
   z-index: 1;
   width: 82% !important;
   height: 82% !important;
-  border-radius: 0.22rem;
+  border-radius: 0.38rem;
   outline: 0;
 }
 
