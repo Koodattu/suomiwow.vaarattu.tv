@@ -220,17 +220,13 @@ function PrototypeCard({
       ) : null}
 
       <span className={styles.rarityPlate} data-quality={finish}>
-        <strong>{rarity}</strong>
-        <span className={styles.qualityDivider} aria-hidden="true">·</span>
         <span className={styles.qualityLabel}>{t(`finish.${finish}`)}</span>
+        <strong>{rarity}</strong>
       </span>
 
       <span className={styles.characterMeta}>
-        <span>{classInfo.name}</span>
-        <span aria-hidden="true">·</span>
         <span>{formatSpecName(card.specName)}</span>
-        <span aria-hidden="true">·</span>
-        <span>{t(`role.${card.role}`)}</span>
+        <span>{classInfo.name}</span>
       </span>
 
       {!hideBadges ? (
@@ -257,6 +253,9 @@ function PrototypeCard({
           <strong>{score(card.scores.mythicPlus)}</strong>
         </span>
       </span>
+
+      <span className={`${styles.cardBrand} ${styles.cardBrandLeft}`} aria-hidden="true">SUOMIWOW</span>
+      <span className={`${styles.cardBrand} ${styles.cardBrandRight}`} aria-hidden="true">CCCG</span>
 
       <span className={styles.cardFooter}>
         <span>{realm}</span>
