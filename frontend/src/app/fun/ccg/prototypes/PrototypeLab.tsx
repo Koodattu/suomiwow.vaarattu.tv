@@ -57,7 +57,7 @@ type FrameVariant = (typeof frameVariants)[number];
 const frameRingPath = [
   "M 24 4 H 476 Q 496 4 496 24 V 676 Q 496 696 476 696",
   "H 24 Q 4 696 4 676 V 24 Q 4 4 24 4 Z",
-  "M 90 14 H 160 C 178 14 184 22 202 22 H 298 C 316 22 322 14 340 14 H 410",
+  "M 90 14 H 410",
   "C 418 14 422 18 422 26 V 62 Q 422 78 438 78 H 462 Q 486 78 486 102",
   "V 676 Q 486 686 476 686",
   "H 400 C 378 686 372 678 350 678 H 150 C 128 678 122 686 100 686",
@@ -66,7 +66,7 @@ const frameRingPath = [
 ].join(" ");
 
 const frameInnerEdgePath = [
-  "M 90 14 H 160 C 178 14 184 22 202 22 H 298 C 316 22 322 14 340 14 H 410",
+  "M 90 14 H 410",
   "C 418 14 422 18 422 26 V 62 Q 422 78 438 78 H 462 Q 486 78 486 102",
   "V 676 Q 486 686 476 686",
   "H 400 C 378 686 372 678 350 678 H 150 C 128 678 122 686 100 686",
@@ -186,8 +186,6 @@ function PrototypeCard({
         ) : null}
       </span>
 
-      {!hideBadges ? <span className={styles.realmLabel}>{realm}</span> : null}
-
       <span className={styles.identity}>
         <strong className={styles.characterName}>{card.name}</strong>
         <span className={styles.guildName}>{guild}</span>
@@ -255,7 +253,7 @@ function PrototypeCard({
       </span>
 
       <span className={`${styles.cardBrand} ${styles.cardBrandLeft}`} aria-hidden="true">SUOMIWOW</span>
-      <span className={`${styles.cardBrand} ${styles.cardBrandRight}`} aria-hidden="true">CCCG</span>
+      <span className={`${styles.cardBrand} ${styles.cardBrandRight}`} aria-hidden="true">{realm}</span>
 
       <span className={styles.cardFooter}>
         <span>{realm}</span>
