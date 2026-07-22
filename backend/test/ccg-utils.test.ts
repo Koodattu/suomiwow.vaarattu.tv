@@ -6,7 +6,7 @@ import {
   CCG_DAILY_PACKS_PER_MODE,
   CCG_GUEST_CLAIM_CARD_LIMIT_PER_MODE,
 } from "../src/config/ccg";
-import { emptyFinishPity, gradeForPercentile, nextFinish, resolveCardCrop, rollProtectedFinish } from "../src/utils/ccg-random";
+import { emptyFinishPity, finishChanceForCounter, gradeForPercentile, nextFinish, resolveCardCrop, rollProtectedFinish } from "../src/utils/ccg-random";
 import { calculateDuplicateProgress, countGuestClaimPulls, guestClaimIsWithinLimit, planPackSelections, selectPackCards } from "../src/utils/ccg-pack";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../src/utils/helsinki-time";
@@ -31,7 +31,7 @@ test("card crops are deterministic and stay inside each raid's safe flair range"
   }
 });
 
-test("quality protection grows per card, resets only the awarded finish, and honors duplicate upgrades", () => {
+test("quality protection follows a quadratic ramp, resets only the awarded finish, and honors duplicate upgrades", () => {
   const first = rollProtectedFinish(emptyFinishPity(), "standard", (maximum) => maximum - 1);
   assert.equal(first.finish, "standard");
   assert.deepEqual(first.pity, { foil: 1, golden: 1, prismatic: 1, holographic: 1, negative: 1 });
@@ -51,6 +51,23 @@ test("quality protection grows per card, resets only the awarded finish, and hon
   const followingCard = rollProtectedFinish(negative.pity, "standard", (maximum) => maximum - 1);
   assert.equal(negative.finish, "negative");
   assert.notEqual(followingCard.finish, "negative");
+});
+
+test("quality protection ramps slowly at first and accelerates near hard pity", () => {
+  assert.equal(finishChanceForCounter(1, 100), 0.01);
+  assert.ok(Math.abs(finishChanceForCounter(10, 100) - 0.018182) < 0.000001);
+  assert.ok(Math.abs(finishChanceForCounter(50, 100) - 0.252525) < 0.000001);
+  assert.ok(Math.abs(finishChanceForCounter(95, 100) - 0.902525) < 0.000001);
+  assert.equal(finishChanceForCounter(100, 100), 1);
+
+  const pity = { ...emptyFinishPity(), golden: 9 };
+  let rollIndex = 0;
+  const result = rollProtectedFinish(pity, "standard", (maximum) => {
+    rollIndex += 1;
+    return rollIndex === 2 ? Math.floor(maximum * 0.2) : maximum - 1;
+  });
+  assert.equal(result.finish, "standard");
+  assert.equal(result.pity.golden, 10);
 });
 
 test("every selected pack has five cards and an A-or-better guaranteed slot", () => {

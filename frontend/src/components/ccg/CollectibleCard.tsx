@@ -9,12 +9,12 @@ import IconImage from "@/components/IconImage";
 import AlphaFittedCharacterRender from "./AlphaFittedCharacterRender";
 import styles from "./card-prototypes.module.css";
 
-const rarityKeys: Record<CcgTierGrade, "legendary" | "epic" | "rare" | "uncommon" | "common" | "junk"> = {
-  S: "legendary",
-  A: "epic",
-  B: "rare",
-  C: "uncommon",
-  D: "common",
+const rarityKeys: Record<CcgTierGrade, "mythic" | "legendary" | "epic" | "rare" | "uncommon" | "common" | "junk"> = {
+  S: "mythic",
+  A: "legendary",
+  B: "epic",
+  C: "rare",
+  D: "uncommon",
   E: "common",
   F: "junk",
 };

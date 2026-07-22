@@ -152,7 +152,7 @@
       "noCards": "Tässä raidisetissä ei ole julkaistuja kortteja, joilla on hahmorenderöinti.",
       "hint": "Liikuta osoitinta kortin päällä kokeillaksesi materiaaliefektiä. Vaaleanpunainen rajaus näyttää hahmolle varatun alueen.",
       "rarityLabel": "Harvinaisuus",
-      "rarityExplainer": "S on Legendaarinen, A Eeppinen, B Harvinainen, C Epätavallinen, D–E Tavallinen ja F Roska. Viimeistely on erillinen harvinaisuudesta; laboratorion kokeelliset viimeistelyt ovat vain visuaalisia.",
+      "rarityExplainer": "S on Myyttinen, A Legendaarinen, B Eeppinen, C Harvinainen, D Epätavallinen, E Tavallinen ja F Roska. Viimeistely on erillinen harvinaisuudesta; laboratorion kokeelliset viimeistelyt ovat vain visuaalisia.",
       "realm": "Realm: {realm}",
       "frames": {
         "vaultSteel": {
@@ -250,6 +250,7 @@
       "rare": "Harvinainen",
       "epic": "Eeppinen",
       "legendary": "Legendaarinen",
+      "mythic": "Myyttinen",
       "junk": "Roska"
     },
     "role": {

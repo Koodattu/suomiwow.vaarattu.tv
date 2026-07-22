@@ -152,7 +152,7 @@
       "noCards": "This raid set has no published cards with a character render.",
       "hint": "Move the pointer over the card to test the material response. The pink guide shows the area that may contain the character.",
       "rarityLabel": "Rarity",
-      "rarityExplainer": "S is Legendary, A is Epic, B is Rare, C is Uncommon, D–E are Common, and F is Junk. Finish is separate from rarity; experimental finishes in this lab are visual only.",
+      "rarityExplainer": "S is Mythic, A is Legendary, B is Epic, C is Rare, D is Uncommon, E is Common, and F is Junk. Finish is separate from rarity; experimental finishes in this lab are visual only.",
       "realm": "Realm: {realm}",
       "frames": {
         "vaultSteel": {
@@ -250,6 +250,7 @@
       "rare": "Rare",
       "epic": "Epic",
       "legendary": "Legendary",
+      "mythic": "Mythic",
       "junk": "Junk"
     },
     "role": {

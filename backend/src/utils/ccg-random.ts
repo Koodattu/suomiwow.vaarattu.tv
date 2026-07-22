@@ -43,6 +43,16 @@ export type CcgFinishPity = Record<CcgProtectedFinish, number>;
 
 export const emptyFinishPity = (): CcgFinishPity => ({ foil: 0, golden: 0, prismatic: 0, holographic: 0, negative: 0 });
 
+const FINISH_ROLL_RESOLUTION = 100_000;
+
+export function finishChanceForCounter(counter: number, hardPity: number): number {
+  if (!Number.isInteger(hardPity) || hardPity < 2) throw new Error("Hard pity must be an integer greater than one");
+  const clampedCounter = Math.min(hardPity, Math.max(1, Math.floor(counter)));
+  const baseChance = 1 / hardPity;
+  const progress = (clampedCounter - 1) / (hardPity - 1);
+  return baseChance + (1 - baseChance) * progress ** 2;
+}
+
 export function compareFinish(left: CcgFinish, right: CcgFinish): number {
   return CCG_FINISH_ORDER.indexOf(left) - CCG_FINISH_ORDER.indexOf(right);
 }
@@ -62,9 +72,10 @@ export function rollProtectedFinish(
     const limit = CCG_FINISH_PITY_LIMITS[finish];
     const counter = Math.min(limit, Math.max(0, Math.floor(pity[finish])) + 1);
     next[finish] = counter;
-    const roll = random(limit);
-    if (!Number.isInteger(roll) || roll < 0 || roll >= limit) throw new Error("Random source returned an out-of-range value");
-    if (roll < counter) hits.push(finish);
+    const rollMaximum = limit * FINISH_ROLL_RESOLUTION;
+    const roll = random(rollMaximum);
+    if (!Number.isInteger(roll) || roll < 0 || roll >= rollMaximum) throw new Error("Random source returned an out-of-range value");
+    if (roll < Math.ceil(finishChanceForCounter(counter, limit) * rollMaximum)) hits.push(finish);
   }
   const rolled = hits.reduce<CcgFinish>((best, finish) => (compareFinish(finish, best) > 0 ? finish : best), "standard");
   const finish = compareFinish(minimum, rolled) > 0 ? minimum : rolled;

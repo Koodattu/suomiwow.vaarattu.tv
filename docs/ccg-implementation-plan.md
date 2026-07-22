@@ -68,11 +68,12 @@ The grade maps to an internal rarity bucket for pack selection and visual stylin
 
 | Tier grade | Internal bucket | Baseline visual treatment |
 | --- | --- | --- |
-| S | Legendary | Yellow-orange; maximum ornament, animated raid sigil, premium foil |
-| A | Epic | Purple layered frame, strong foil, portal lighting |
-| B | Rare | Blue foil surface and brighter frame detail |
-| C | Uncommon | Green metallic accents and modest ornament |
-| D / E | Common | White, restrained matte frame |
+| S | Mythic | Luminous light-purple metal; maximum ornament and strongest rarity glow |
+| A | Legendary | Yellow-orange; rich ornament and premium frame treatment |
+| B | Epic | Deep-purple layered frame and portal lighting |
+| C | Rare | Blue foil surface and brighter frame detail |
+| D | Uncommon | Green metallic accents and modest ornament |
+| E | Common | White, restrained matte frame |
 | F | Junk | Gray, minimal ornament |
 
 `tierGrade` is authoritative. `rarityBucket` may be stored as denormalized, indexed data, but must be derived from the set's versioned grade mapping.
@@ -110,7 +111,7 @@ Finish is independent of tier grade:
 
 Void remains a design-lab-only treatment and is not a production finish.
 
-Each non-Standard finish has a persistent per-owner protection counter. On each pulled card, its chance is `counter / hardPity`; the counter resets only when that finish is actually awarded. Finish rolls are independent, but a card receives only the highest finish that succeeds, so reaching one hard pity cannot turn the rest of a pack into the same premium finish.
+Each non-Standard finish has a persistent per-owner protection counter. Its chance follows a quadratic protection curve: `baseChance + (1 - baseChance) * progress²`, where `baseChance` is `1 / hardPity` and `progress` is the normalized distance from the first pull to hard pity. This keeps the early increase gentle, accelerates near the limit, and guarantees the Nth consecutive miss. The counter resets only when that finish is actually awarded. Finish rolls are independent, but a card receives only the highest finish that succeeds, so reaching one hard pity cannot turn the rest of a pack into the same premium finish.
 
 Initial hard-pity limits:
 
@@ -354,11 +355,12 @@ The card anatomy remains stable, while each raid season can change its frame, pa
 Ornament and motion increase with tier grade:
 
 - F is gray Junk with minimal ornament.
-- D/E are white Common cards with a restrained matte treatment.
-- C is green Uncommon with metallic accents.
-- B is blue Rare with foil and stronger edge treatment.
-- A is purple Epic with layered depth and more active portal lighting.
-- S is yellow-orange Legendary with the richest set ornament, sigils, and premium foil behavior.
+- E is white Common with a restrained matte treatment.
+- D is green Uncommon with metallic accents.
+- C is blue Rare with foil and stronger edge treatment.
+- B is deep-purple Epic with layered depth and more active portal lighting.
+- A is yellow-orange Legendary with rich ornament and premium frame behavior.
+- S is luminous light-purple Mythic with the strongest rarity glow and richest set treatment.
 
 The score panel stays engineered and legible at every grade. Higher rarity must not reduce readability.
 
@@ -1227,7 +1229,7 @@ The initial feature is ready when:
 - Duplicate characters increment visible quantities and the duplicate meter even when they come from different snapshots.
 - Every ten duplicate characters award one same-mode pack credit.
 - Every duplicate is guaranteed at least the next finish above that character's best owned finish, capped at Negative.
-- Finish protection grows per card to the configured hard pity and resets only the finish that was awarded.
+- Finish protection ramps quadratically from each configured base rate to its hard-pity guarantee and resets only the finish that was awarded.
 - The collection groups all owned snapshots of one character, shows the latest snapshot with the best owned finish, and exposes every owned variant in the viewer.
 - Current becomes Legacy without changing existing cards.
 - The binder displays owned, missing, quantities, finishes, and completion by raid set.

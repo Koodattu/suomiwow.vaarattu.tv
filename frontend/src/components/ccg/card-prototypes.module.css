@@ -346,36 +346,45 @@
   --metal-mid: #3a424d;
   --metal-dark: #0d1117;
 }
-.prototypeCard[data-grade="D"],
 .prototypeCard[data-grade="E"] {
   --rarity: #f4f4f5;
   --metal-light: #d8dce2;
   --metal-mid: #737d8a;
   --metal-dark: #151a21;
 }
-.prototypeCard[data-grade="C"] {
+.prototypeCard[data-grade="D"] {
   --rarity: #55d878;
   --metal-light: #75c98b;
   --metal-mid: #2b7541;
   --metal-dark: #071f10;
 }
-.prototypeCard[data-grade="B"] {
+.prototypeCard[data-grade="C"] {
   --rarity: #6db6ff;
   --metal-light: #82afe4;
   --metal-mid: #315d91;
   --metal-dark: #07182f;
 }
-.prototypeCard[data-grade="A"] {
+.prototypeCard[data-grade="B"] {
   --rarity: #bb8cff;
   --metal-light: #ba97e9;
   --metal-mid: #684298;
   --metal-dark: #180a2c;
 }
-.prototypeCard[data-grade="S"] {
+.prototypeCard[data-grade="A"] {
   --rarity: #ffbd52;
   --metal-light: #f0cb79;
   --metal-mid: #a4661f;
   --metal-dark: #2b1503;
+}
+.prototypeCard[data-grade="S"] {
+  --rarity: #dda0ff;
+  --metal-light: #f0d2ff;
+  --metal-mid: #995bd1;
+  --metal-dark: #250637;
+}
+
+.prototypeCard[data-grade="S"] .rarityPlate strong {
+  text-shadow: 0 0 0.45em rgba(218, 139, 255, 0.62);
 }
 
 .outerFrame,
@@ -524,6 +533,7 @@
   left: 2.6%;
   display: block;
   overflow: hidden;
+  pointer-events: none;
   filter: drop-shadow(0 8px 5px rgba(0, 0, 0, 0.72));
   transform: translateZ(18px);
 }
