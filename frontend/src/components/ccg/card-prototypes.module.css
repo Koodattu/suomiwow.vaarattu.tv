@@ -272,6 +272,14 @@
   --tilt-y: 0deg;
   --pointer-x: 50%;
   --pointer-y: 38%;
+  --pointer-left: 0.5;
+  --pointer-top: 0.38;
+  --pointer-distance: 0;
+  --foil-x: 50%;
+  --foil-y: 50%;
+  --foil-x-reverse: 50%;
+  --foil-y-reverse: 50%;
+  --foil-angle: 118deg;
   position: relative;
   display: block;
   cursor: default;
@@ -811,31 +819,82 @@
 .finishLayer,
 .materialLight {
   overflow: hidden;
+  border-radius: inherit;
+  clip-path: inset(1px round calc(0.8rem - 1px));
   pointer-events: none;
 }
 .finishLayer {
   z-index: 30;
-  inset: 0.8cqw;
-  border-radius: 3.2cqw;
-  clip-path: inset(0 round 3.2cqw);
+  inset: 0;
   opacity: 0;
-  mix-blend-mode: screen;
+  transition-property: opacity;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+.finishLayer::before,
+.finishLayer::after,
+.materialLight::before {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  content: "";
+}
+.standard .finishLayer {
+  background:
+    radial-gradient(circle at 22% 19%, rgba(255, 255, 255, 0.48) 0 0.7px, transparent 1.15px),
+    radial-gradient(circle at 73% 64%, rgba(255, 255, 255, 0.34) 0 0.75px, transparent 1.2px),
+    radial-gradient(circle at 44% 86%, rgba(0, 0, 0, 0.52) 0 0.8px, transparent 1.25px);
+  background-position:
+    calc(var(--pointer-left) * 18px) calc(var(--pointer-top) * 22px),
+    calc(var(--pointer-left) * -24px) calc(var(--pointer-top) * 16px),
+    calc(var(--pointer-left) * 14px) calc(var(--pointer-top) * -20px);
+  background-size: 7px 9px, 11px 13px, 13px 10px;
+  filter: contrast(1.16) brightness(calc(0.9 + var(--pointer-distance) * 0.32));
+  mix-blend-mode: overlay;
+  opacity: 0.17;
 }
 .golden .finishLayer {
   background:
-    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 220, 132, 0.32), transparent 17%),
-    linear-gradient(116deg, transparent 14%, rgba(188, 112, 18, 0.08) 27%, rgba(255, 228, 145, 0.32) 43%, rgba(158, 87, 10, 0.13) 54%, transparent 70%),
-    radial-gradient(ellipse at center, transparent 48%, rgba(204, 124, 18, 0.1) 76%, rgba(255, 211, 104, 0.22) 100%);
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 248, 215, 0.42), rgba(231, 172, 67, 0.13) 16%, transparent 34%),
+    radial-gradient(ellipse at var(--foil-x-reverse) var(--foil-y-reverse), transparent 24%, rgba(126, 65, 5, 0.12) 48%, rgba(255, 221, 130, 0.26) 66%, transparent 84%),
+    conic-gradient(from var(--foil-angle) at var(--pointer-x) var(--pointer-y), transparent 0 18%, rgba(255, 231, 153, 0.2) 25%, rgba(145, 76, 6, 0.12) 34%, transparent 43% 68%, rgba(255, 207, 99, 0.15) 77%, transparent 86%);
+  background-position: center, center, center;
+  background-size: 100% 100%, 150% 140%, 180% 180%;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 225, 143, 0.34),
-    inset 0 0 24px rgba(211, 132, 25, 0.16);
-  opacity: 0.8;
+    inset 0 0 0 1px rgba(255, 230, 158, 0.38),
+    inset 0 0 26px rgba(211, 132, 25, 0.2);
+  filter: contrast(1.08) saturate(1.12);
+  mix-blend-mode: screen;
+  opacity: 0.46;
+}
+.golden .finishLayer::before {
+  background:
+    radial-gradient(circle at 18% 23%, rgba(255, 244, 195, 0.9) 0 0.45px, transparent 0.8px),
+    radial-gradient(circle at 71% 68%, rgba(255, 211, 112, 0.72) 0 0.5px, transparent 0.9px),
+    radial-gradient(circle at 42% 84%, rgba(127, 66, 5, 0.82) 0 0.55px, transparent 0.95px);
+  background-position:
+    calc(var(--pointer-left) * 20px) calc(var(--pointer-top) * 24px),
+    calc(var(--pointer-left) * -28px) calc(var(--pointer-top) * 17px),
+    calc(var(--pointer-left) * 15px) calc(var(--pointer-top) * -22px);
+  background-size: 7px 9px, 11px 13px, 13px 10px;
+  filter: brightness(calc(0.84 + var(--pointer-distance) * 0.42));
+  mix-blend-mode: color-dodge;
+  opacity: 0.36;
+}
+.golden .finishLayer::after {
+  background:
+    radial-gradient(ellipse at var(--foil-x-reverse) var(--foil-y-reverse), transparent 30%, rgba(67, 31, 2, 0.16) 72%, rgba(255, 216, 119, 0.24)),
+    linear-gradient(var(--foil-angle), transparent 34%, rgba(255, 246, 208, 0.16) 48%, transparent 62%);
+  background-position: center, var(--foil-x) var(--foil-y);
+  background-size: 100% 100%, 210% 210%;
+  mix-blend-mode: overlay;
+  opacity: 0.66;
 }
 .prismatic .finishLayer {
   background:
-    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.46), transparent 20%),
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.48), transparent 20%),
     linear-gradient(
-      116deg,
+      var(--foil-angle),
       transparent 8%,
       rgba(0, 229, 255, 0.26) 24%,
       rgba(109, 92, 255, 0.32) 38%,
@@ -844,29 +903,182 @@
       rgba(80, 245, 225, 0.26) 77%,
       transparent 92%
     );
-  background-size: 210% 210%;
+  background-position: center, var(--foil-x) var(--foil-y);
+  background-size: 100% 100%, 210% 210%;
   box-shadow:
-    inset 0 0 0 1px rgba(210, 247, 255, 0.34),
-    inset 0 0 24px rgba(88, 221, 255, 0.16);
-  opacity: 0.9;
-  animation: prototypePrismatic 6.5s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+    inset 0 0 0 1px rgba(224, 250, 255, 0.42),
+    inset 0 0 28px color-mix(in srgb, var(--lab-accent) 18%, rgba(88, 221, 255, 0.12));
+  filter: brightness(calc(0.9 + var(--pointer-distance) * 0.18)) contrast(1.06) saturate(1.18);
+  mix-blend-mode: screen;
+  opacity: 0.58;
+}
+.prismatic .finishLayer::before {
+  background: linear-gradient(
+    calc(var(--foil-angle) + 88deg),
+    transparent 12%,
+    rgba(80, 245, 225, 0.13) 31%,
+    rgba(255, 221, 88, 0.14) 43%,
+    rgba(255, 73, 209, 0.15) 56%,
+    rgba(109, 92, 255, 0.15) 69%,
+    transparent 88%
+  );
+  background-position: var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size: 190% 220%;
+  mix-blend-mode: soft-light;
+  opacity: 0.78;
+}
+.prismatic .finishLayer::after {
+  background:
+    radial-gradient(circle at 18% 23%, rgba(112, 244, 255, 0.72) 0 0.45px, transparent 0.85px),
+    radial-gradient(circle at 71% 68%, rgba(255, 113, 221, 0.62) 0 0.5px, transparent 0.9px),
+    radial-gradient(circle at 42% 84%, rgba(255, 221, 88, 0.64) 0 0.55px, transparent 0.95px);
+  background-position:
+    calc(var(--pointer-left) * 22px) calc(var(--pointer-top) * 26px),
+    calc(var(--pointer-left) * -30px) calc(var(--pointer-top) * 18px),
+    calc(var(--pointer-left) * 17px) calc(var(--pointer-top) * -24px);
+  background-size: 9px 11px, 13px 15px, 15px 12px;
+  filter: brightness(calc(0.76 + var(--pointer-distance) * 0.4));
+  mix-blend-mode: color-dodge;
+  opacity: 0.36;
 }
 .materialLight {
-  z-index: 12;
-  inset: 2.2%;
-  border-radius: 0.46rem;
+  z-index: 31;
+  inset: 0;
   background:
-    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.3), transparent 17%),
-    linear-gradient(112deg, transparent 35%, rgba(255, 255, 255, 0.11) 47%, transparent 59%);
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.08) 14%, transparent 30%),
+    linear-gradient(var(--foil-angle), transparent 31%, rgba(255, 255, 255, 0.04) 41%, rgba(255, 255, 255, 0.2) 49%, rgba(255, 255, 255, 0.03) 57%, transparent 67%);
+  background-position: center, var(--foil-x) var(--foil-y);
+  background-size: 100% 100%, 190% 190%;
   mix-blend-mode: screen;
-  opacity: 0.22;
-  transform: translateZ(30px);
+  opacity: 0.16;
+  transform: translateZ(0.01px);
   transition-property: opacity;
   transition-duration: 180ms;
-  transition-timing-function: ease-out;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+.materialLight::before {
+  background: linear-gradient(calc(var(--foil-angle) + 8deg), transparent 38%, rgba(255, 255, 255, 0.14) 48%, transparent 58%);
+  background-position: var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size: 220% 220%;
+  mix-blend-mode: screen;
+  opacity: 0.42;
 }
 .prototypeCard:hover .materialLight {
-  opacity: 0.68;
+  opacity: 0.74;
+}
+.prototypeCard.standard:hover .finishLayer {
+  opacity: calc(0.28 + var(--pointer-distance) * 0.14);
+}
+.prototypeCard.golden:hover .finishLayer {
+  opacity: calc(0.64 + var(--pointer-distance) * 0.12);
+}
+.prototypeCard.prismatic:hover .finishLayer {
+  opacity: calc(0.78 + var(--pointer-distance) * 0.14);
+}
+.prototypeCard.golden .materialLight {
+  filter: sepia(0.24) saturate(1.18);
+}
+.prototypeCard.golden:hover .materialLight {
+  opacity: 0.62;
+}
+.prototypeCard.prismatic .materialLight {
+  opacity: 0.34;
+}
+.prototypeCard.prismatic:hover .materialLight {
+  opacity: 0.9;
+}
+
+.golden .statsPanel {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 221, 130, 0.17), transparent 58%),
+    linear-gradient(180deg, rgba(38, 27, 12, 0.99), rgba(8, 5, 2, 0.99));
+}
+
+.prismatic .statsPanel {
+  background:
+    linear-gradient(112deg, rgba(0, 229, 255, 0.12), rgba(109, 92, 255, 0.17), rgba(255, 73, 209, 0.13), rgba(255, 221, 88, 0.1), rgba(80, 245, 225, 0.12)),
+    linear-gradient(180deg, rgba(17, 18, 30, 0.99), rgba(3, 4, 10, 0.99));
+  background-position: var(--foil-x) center, center;
+  background-size: 190% 100%, 100% 100%;
+}
+
+.prototypeCard.prismatic .finishLayer::before {
+  animation: prototypePrismaticCounterDrift 5.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .prototypeCard:not(:hover) {
+    animation: prototypeIdleDrift 5.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.standard:not(:hover) .finishLayer {
+    animation: prototypeStandardIdleGrain 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.golden:not(:hover) .finishLayer {
+    animation: prototypeGoldenIdleFoil 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.prismatic:not(:hover) .finishLayer {
+    animation: prototypePrismaticIdleFoil 5.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.prismatic:not(:hover) .statsPanel {
+    animation: prototypePrismaticStatsIdle 5.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+}
+
+@keyframes prototypeIdleDrift {
+  0% {
+    transform: perspective(1200px) rotateX(-1.35deg) rotateY(-2deg);
+  }
+  50% {
+    transform: perspective(1200px) rotateX(1.18deg) rotateY(-0.3deg);
+  }
+  100% {
+    transform: perspective(1200px) rotateX(-0.46deg) rotateY(2.05deg);
+  }
+}
+
+@keyframes prototypeStandardIdleGrain {
+  from {
+    background-position: 3px 5px, -7px 4px, 4px -6px;
+  }
+  to {
+    background-position: 13px 16px, -18px 12px, 11px -15px;
+  }
+}
+
+@keyframes prototypeGoldenIdleFoil {
+  from {
+    background-position: 46% 43%, 55% 57%, 44% 54%;
+  }
+  to {
+    background-position: 56% 54%, 44% 45%, 57% 46%;
+  }
+}
+
+@keyframes prototypePrismaticIdleFoil {
+  from {
+    background-position: 45% 39%, 12% 26%;
+  }
+  to {
+    background-position: 58% 53%, 88% 76%;
+  }
+}
+
+@keyframes prototypePrismaticCounterDrift {
+  from {
+    background-position: 18% 32%;
+  }
+  to {
+    background-position: 82% 68%;
+  }
+}
+
+@keyframes prototypePrismaticStatsIdle {
+  from {
+    background-position: 18% center, center;
+  }
+  to {
+    background-position: 82% center, center;
+  }
 }
 
 /* Hero Reliquary: ornamental header and a compact museum-plinth data deck. */
@@ -1818,15 +2030,6 @@
   -webkit-text-stroke: 0.25px rgba(0, 0, 0, 0.55);
 }
 
-@keyframes prototypePrismatic {
-  from {
-    background-position: 10% 36%;
-  }
-  to {
-    background-position: 88% 64%;
-  }
-}
-
 @media (max-width: 1120px) {
   .prototypeGrid {
     grid-template-columns: 1fr;
@@ -1866,10 +2069,17 @@
 
 @media (hover: none), (pointer: coarse) {
   .prototypeCard {
+    animation: none;
     transform: none;
   }
   .materialLight {
-    opacity: 0.35;
+    opacity: 0.22;
+  }
+  .golden .finishLayer {
+    opacity: 0.52;
+  }
+  .prismatic .finishLayer {
+    opacity: 0.46;
   }
 }
 
@@ -1878,8 +2088,21 @@
   .materialLight {
     transition-duration: 1ms;
   }
-  .prismatic .finishLayer {
+  .prototypeCard {
     animation: none;
-    background-position: 50% 50%;
+    transform: none;
+  }
+  .finishLayer {
+    animation: none;
+  }
+  .finishLayer::before,
+  .statsPanel {
+    animation: none;
+  }
+  .finishLayer,
+  .finishLayer::before,
+  .materialLight,
+  .materialLight::before {
+    background-position: center;
   }
 }

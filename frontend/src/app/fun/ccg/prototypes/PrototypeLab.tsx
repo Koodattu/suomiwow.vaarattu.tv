@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgCard, CcgFinish, CcgTierGrade, GuildCrest as GuildCrestData } from "@/types";
@@ -121,6 +121,8 @@ function PrototypeCard({
   guildFaction?: string;
 }) {
   const t = useTranslations("ccg");
+  const materialFrame = useRef<number | null>(null);
+  const pendingMaterial = useRef<{ element: HTMLElement; x: number; y: number } | null>(null);
   const classInfo = getClassInfoById(card.classID);
   const specIcon = getSpecIconUrl(card.classID, card.specName);
   const rarity = t(`rarity.${rarityKeys[card.tierGrade]}`);
@@ -139,29 +141,65 @@ function PrototypeCard({
     "--tilt-y": "0deg",
     "--pointer-x": "50%",
     "--pointer-y": "38%",
+    "--pointer-left": 0.5,
+    "--pointer-top": 0.38,
+    "--pointer-distance": 0,
+    "--foil-x": "50%",
+    "--foil-y": "50%",
+    "--foil-x-reverse": "50%",
+    "--foil-y-reverse": "50%",
+    "--foil-angle": "118deg",
   } as CSSProperties;
+
+  useEffect(
+    () => () => {
+      if (materialFrame.current !== null) cancelAnimationFrame(materialFrame.current);
+    },
+    [],
+  );
+
+  const applyMaterial = (element: HTMLElement, x: number, y: number) => {
+    const distance = Math.min(1, Math.hypot(x - 0.5, y - 0.5) / Math.SQRT1_2);
+    element.style.setProperty("--tilt-x", `${((0.5 - y) * 7).toFixed(2)}deg`);
+    element.style.setProperty("--tilt-y", `${((x - 0.5) * 8).toFixed(2)}deg`);
+    element.style.setProperty("--pointer-x", `${(x * 100).toFixed(1)}%`);
+    element.style.setProperty("--pointer-y", `${(y * 100).toFixed(1)}%`);
+    element.style.setProperty("--pointer-left", x.toFixed(3));
+    element.style.setProperty("--pointer-top", y.toFixed(3));
+    element.style.setProperty("--pointer-distance", distance.toFixed(3));
+    element.style.setProperty("--foil-x", `${(50 + (x - 0.5) * 54).toFixed(1)}%`);
+    element.style.setProperty("--foil-y", `${(50 + (y - 0.5) * 46).toFixed(1)}%`);
+    element.style.setProperty("--foil-x-reverse", `${(50 - (x - 0.5) * 76).toFixed(1)}%`);
+    element.style.setProperty("--foil-y-reverse", `${(50 - (y - 0.5) * 64).toFixed(1)}%`);
+    element.style.setProperty("--foil-angle", `${(118 + (x - 0.5) * 18 - (y - 0.5) * 10).toFixed(1)}deg`);
+  };
 
   const updateMaterial = (event: ReactPointerEvent<HTMLElement>) => {
     if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const x = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
     const y = Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height));
-    event.currentTarget.style.setProperty("--tilt-x", `${((0.5 - y) * 7).toFixed(2)}deg`);
-    event.currentTarget.style.setProperty("--tilt-y", `${((x - 0.5) * 8).toFixed(2)}deg`);
-    event.currentTarget.style.setProperty("--pointer-x", `${(x * 100).toFixed(1)}%`);
-    event.currentTarget.style.setProperty("--pointer-y", `${(y * 100).toFixed(1)}%`);
+    pendingMaterial.current = { element: event.currentTarget, x, y };
+    if (materialFrame.current !== null) return;
+
+    materialFrame.current = requestAnimationFrame(() => {
+      const material = pendingMaterial.current;
+      if (material) applyMaterial(material.element, material.x, material.y);
+      pendingMaterial.current = null;
+      materialFrame.current = null;
+    });
   };
 
   const resetMaterial = (event: ReactPointerEvent<HTMLElement>) => {
-    event.currentTarget.style.setProperty("--tilt-x", "0deg");
-    event.currentTarget.style.setProperty("--tilt-y", "0deg");
-    event.currentTarget.style.setProperty("--pointer-x", "50%");
-    event.currentTarget.style.setProperty("--pointer-y", "38%");
+    if (materialFrame.current !== null) cancelAnimationFrame(materialFrame.current);
+    materialFrame.current = null;
+    pendingMaterial.current = null;
+    applyMaterial(event.currentTarget, 0.5, 0.38);
   };
 
   return (
     <article
-      className={`${styles.prototypeCard} ${styles.vaultRelic} ${finish === "standard" ? "" : styles[finish]} ${guides ? styles.guides : ""}`}
+      className={`${styles.prototypeCard} ${styles.vaultRelic} ${styles[finish]} ${guides ? styles.guides : ""}`}
       data-grade={card.tierGrade}
       data-finish={finish}
       data-frame={frameVariant}
