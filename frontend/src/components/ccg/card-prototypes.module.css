@@ -806,8 +806,9 @@
 }
 .finishLayer {
   z-index: 30;
-  inset: 0;
-  border-radius: inherit;
+  inset: 0.8cqw;
+  border-radius: 3.2cqw;
+  clip-path: inset(0 round 3.2cqw);
   opacity: 0;
   mix-blend-mode: screen;
 }
