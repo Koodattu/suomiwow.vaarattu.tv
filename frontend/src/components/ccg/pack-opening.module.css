@@ -616,7 +616,11 @@
   --fan-angle: 0deg;
   --fan-y: 0px;
   --deal-delay: 0ms;
+  --sealed-rarity: #9ca3af;
+  --sealed-material: linear-gradient(115deg, transparent 18%, var(--sealed-rarity) 48%, white 51%, var(--sealed-rarity) 54%, transparent 82%);
+  --sealed-material-opacity: 0.18;
   position: relative;
+  isolation: isolate;
   display: block;
   min-width: 0;
   padding-bottom: 2.2rem;
@@ -628,6 +632,39 @@
   transition-duration: 240ms, 330ms, 140ms;
   transition-delay: var(--deal-delay);
   transition-timing-function: ease-out, cubic-bezier(0.16, 1, 0.3, 1), ease-out;
+}
+
+.revealSlot[data-grade="F"] { --sealed-rarity: #7f8998; }
+.revealSlot[data-grade="E"] { --sealed-rarity: #edf2f9; }
+.revealSlot[data-grade="D"] { --sealed-rarity: #43dc78; }
+.revealSlot[data-grade="C"] { --sealed-rarity: #4aa8ff; }
+.revealSlot[data-grade="B"] { --sealed-rarity: #a970ff; }
+.revealSlot[data-grade="A"] { --sealed-rarity: #ff7a28; }
+.revealSlot[data-grade="S"] { --sealed-rarity: #dda0ff; }
+
+.revealSlot[data-finish="foil"] {
+  --sealed-material: linear-gradient(115deg, transparent 16%, #91a9bc 37%, #ffffff 49%, #bfeaff 54%, transparent 82%);
+  --sealed-material-opacity: 0.7;
+}
+
+.revealSlot[data-finish="golden"] {
+  --sealed-material: linear-gradient(115deg, transparent 12%, #a85f09 29%, #ffd76b 46%, #fff3bd 52%, #d98a13 64%, transparent 87%);
+  --sealed-material-opacity: 0.9;
+}
+
+.revealSlot[data-finish="prismatic"] {
+  --sealed-material: linear-gradient(115deg, #ff4c81, #ffb74d, #f4ff70, #58eea8, #59d9ff, #8d88ff, #ea78ff, #ff4c81);
+  --sealed-material-opacity: 0.96;
+}
+
+.revealSlot[data-finish="holographic"] {
+  --sealed-material: linear-gradient(115deg, #59eaff, #ffffff, #ff73d1, #9e8cff, #ffffff, #59eaff);
+  --sealed-material-opacity: 1;
+}
+
+.revealSlot[data-finish="negative"] {
+  --sealed-material: linear-gradient(115deg, #07080d, #f7f4ff, #423957, #ffffff, #08090f);
+  --sealed-material-opacity: 1;
 }
 
 .revealSlot:disabled {
@@ -654,8 +691,82 @@
   transform: translateY(calc(var(--fan-y) - 9px)) rotate(calc(var(--fan-angle) * 0.45)) scale(1.025);
 }
 
+.sealedAura {
+  position: absolute;
+  z-index: 0;
+  top: -0.82rem;
+  right: -0.82rem;
+  bottom: 1.38rem;
+  left: -0.82rem;
+  overflow: visible;
+  border-radius: clamp(1rem, 5.4cqw, 1.42rem);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.94);
+  transition-property: opacity, transform, filter;
+  transition-duration: 170ms, 260ms, 260ms;
+  transition-timing-function: ease-out, cubic-bezier(0.16, 1, 0.3, 1), ease-out;
+}
+
+.sealedAura::before,
+.sealedAura::after {
+  position: absolute;
+  content: "";
+}
+
+.sealedAura::before {
+  inset: 0.82rem;
+  border-radius: clamp(0.68rem, 4.4cqw, 1.08rem);
+  background: radial-gradient(ellipse at center, transparent 55%, color-mix(in srgb, var(--sealed-rarity) 20%, transparent) 78%, color-mix(in srgb, var(--sealed-rarity) 58%, transparent));
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--sealed-rarity) 84%, white 8%),
+    0 0 13px 4px color-mix(in srgb, var(--sealed-rarity) 78%, transparent),
+    0 0 32px 10px color-mix(in srgb, var(--sealed-rarity) 54%, transparent),
+    0 0 58px 18px color-mix(in srgb, var(--sealed-rarity) 24%, transparent);
+}
+
+.sealedAura::after {
+  inset: 0;
+  border-radius: inherit;
+  background: var(--sealed-material);
+  background-position: 0% 50%;
+  background-size: 240% 240%;
+  filter: blur(9px) saturate(1.35);
+  opacity: var(--sealed-material-opacity);
+  -webkit-mask-image: radial-gradient(ellipse at center, transparent 46%, #000 65%, #000 76%, transparent 92%);
+  mask-image: radial-gradient(ellipse at center, transparent 46%, #000 65%, #000 76%, transparent 92%);
+}
+
+.revealSlot[data-finish="negative"] .sealedAura::before {
+  box-shadow:
+    0 0 0 2px #06070c,
+    0 0 0 4px rgba(255, 255, 255, 0.92),
+    0 0 18px 6px rgba(231, 222, 255, 0.88),
+    0 0 52px 16px rgba(132, 113, 176, 0.48);
+}
+
+.revealSlot:not(.revealSlotRevealed):is(:hover, :focus-visible) .sealedAura {
+  opacity: 1;
+  filter: brightness(1.12);
+  transform: scale(1);
+}
+
+.revealSlot:not(.revealSlotRevealed):is(:hover, :focus-visible) .sealedAura::after {
+  animation: sealedAuraFlow 1500ms linear infinite;
+}
+
+.revealSlot[data-finish="standard"]:not(.revealSlotRevealed):is(:hover, :focus-visible) .sealedAura::after {
+  animation-duration: 2400ms;
+}
+
+.revealSlot[data-finish="prismatic"]:not(.revealSlotRevealed):is(:hover, :focus-visible) .sealedAura::after,
+.revealSlot[data-finish="holographic"]:not(.revealSlotRevealed):is(:hover, :focus-visible) .sealedAura::after {
+  animation-duration: 1050ms;
+}
+
 .cardFlip {
   position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   aspect-ratio: 5 / 7;
@@ -939,6 +1050,12 @@
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1.42); }
 }
 
+@keyframes sealedAuraFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
 @media (max-width: 1150px) {
   .revealStage {
     min-height: 48rem;
@@ -1022,7 +1139,8 @@
   .tearShardTwo,
   .tearShardThree,
   .revealSlotRevealed .revealFlare,
-  .revealSlotSpecial.revealSlotRevealed .revealFlare {
+  .revealSlotSpecial.revealSlotRevealed .revealFlare,
+  .sealedAura::after {
     animation: none;
   }
 
@@ -1031,6 +1149,7 @@
   .wrapperFoil,
   .revealContent,
   .revealSlot,
+  .sealedAura,
   .cardFlip,
   .pullStatus,
   .progressPips i {

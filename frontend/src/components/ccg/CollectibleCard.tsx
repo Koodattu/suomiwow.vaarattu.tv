@@ -3,21 +3,12 @@
 import { useEffect, useId, useRef } from "react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
-import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
+import type { CcgCard, CcgFinish } from "@/types";
+import { CCG_RARITY_KEYS } from "@/lib/ccg";
 import { formatRealmName, formatSpecName, getClassInfoById, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
 import AlphaFittedCharacterRender from "./AlphaFittedCharacterRender";
 import styles from "./card-prototypes.module.css";
-
-const rarityKeys: Record<CcgTierGrade, "mythic" | "legendary" | "epic" | "rare" | "uncommon" | "common" | "junk"> = {
-  S: "mythic",
-  A: "legendary",
-  B: "epic",
-  C: "rare",
-  D: "uncommon",
-  E: "common",
-  F: "junk",
-};
 
 const classColors: Record<string, string> = {
   "Death Knight": "#C41E3A",
@@ -110,7 +101,7 @@ export default function CollectibleCard({
   const pendingMaterial = useRef<{ element: HTMLElement; x: number; y: number } | null>(null);
   const classInfo = getClassInfoById(card.classID);
   const specIcon = getSpecIconUrl(card.classID, card.specName);
-  const rarity = t(`rarity.${rarityKeys[card.tierGrade]}`);
+  const rarity = t(`rarity.${CCG_RARITY_KEYS[card.tierGrade]}`);
   const guild = card.guildName ? `<${card.guildName}>` : t("independent");
   const realm = formatRealmName(card.realm);
   const cardStyle = {

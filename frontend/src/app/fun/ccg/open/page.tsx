@@ -7,6 +7,7 @@ import Link from "next/link";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgMode, CcgOpening, CcgSet } from "@/types";
 import { api } from "@/lib/api";
+import { CCG_RARITY_KEYS } from "@/lib/ccg";
 import { getCharacterRenderProxyUrl } from "@/lib/character-render";
 import { queryKeys, useCcgOpening, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
@@ -409,6 +410,7 @@ export default function CcgOpenPage() {
                     const revealed = revealedCards.has(index);
                     const dealt = index < dealtCards;
                     const special = result.finish !== "standard" || result.card.tierGrade === "S";
+                    const sealedCardHint = `${t(`finish.${result.finish}`)} · ${t(`rarity.${CCG_RARITY_KEYS[result.card.tierGrade]}`)}`;
                     const cardStyle = {
                       "--fan-angle": `${fanAngles[index] ?? 0}deg`,
                       "--fan-y": `${fanOffsets[index] ?? 0}px`,
@@ -420,11 +422,14 @@ export default function CcgOpenPage() {
                         type="button"
                         className={`${packStyles.revealSlot} ${dealt ? packStyles.revealSlotDealt : ""} ${revealed ? packStyles.revealSlotRevealed : ""} ${special ? packStyles.revealSlotSpecial : ""}`}
                         style={cardStyle}
+                        data-finish={result.finish}
+                        data-grade={result.card.tierGrade}
                         ref={(element) => { cardRefs.current[index] = element; }}
                         disabled={!dealt || revealPhase !== "ready"}
                         onClick={() => revealCard(index)}
-                        aria-label={revealed ? t("open.viewCard", { name: result.card.name }) : t("open.revealCard", { position: index + 1 })}
+                        aria-label={revealed ? t("open.viewCard", { name: result.card.name }) : `${t("open.revealCard", { position: index + 1 })}. ${sealedCardHint}`}
                       >
+                        <span className={packStyles.sealedAura} aria-hidden="true" />
                         <span className={packStyles.cardFlip}>
                           <span className={`${packStyles.cardFace} ${packStyles.cardBack}`} aria-hidden={revealed}>
                             <span className={packStyles.cardBackField} />
