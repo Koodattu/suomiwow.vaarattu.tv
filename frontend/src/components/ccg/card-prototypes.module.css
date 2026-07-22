@@ -1453,6 +1453,15 @@
   bottom: 15%;
   filter: none;
 }
+.prototypeCard:not(.standard) .renderWindow {
+  z-index: 17;
+  overflow: visible;
+}
+.prototypeCard:not(.standard) .rarityPlate,
+.prototypeCard:not(.standard) .characterMeta,
+.prototypeCard:not(.standard) .statsPanel {
+  z-index: 18;
+}
 .vaultRelic .lowerDeck {
   display: none;
 }
