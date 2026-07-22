@@ -6,6 +6,7 @@ import type { CSSProperties, PointerEvent, SyntheticEvent } from "react";
 import type { CcgCard, CcgFinish } from "@/types";
 import { formatRealmName, getClassInfoById } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
+import AlphaFittedCharacterRender from "./AlphaFittedCharacterRender";
 import styles from "./card.module.css";
 
 const roleIcons: Record<CcgCard["role"], string> = {
@@ -107,7 +108,7 @@ export default function CollectibleCard({ card, finish = "standard", compact = f
 
         <span className={styles.render}>
           {card.renderUrl ? (
-            <Image src={card.renderUrl} alt="" fill sizes={compact ? "260px" : "460px"} className={styles.renderImage} priority={!compact} />
+            <AlphaFittedCharacterRender src={card.renderUrl} sizes={compact ? "260px" : "460px"} className={styles.renderImage} priority={!compact} />
           ) : (
             <span className={styles.renderFallback}>
               <span className={styles.fallbackIcon}>

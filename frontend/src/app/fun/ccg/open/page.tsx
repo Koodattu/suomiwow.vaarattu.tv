@@ -7,6 +7,7 @@ import Link from "next/link";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgMode, CcgOpening, CcgSet } from "@/types";
 import { api } from "@/lib/api";
+import { getCharacterRenderProxyUrl } from "@/lib/character-render";
 import { queryKeys, useCcgOpening, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
 import GuestNotice from "@/components/ccg/GuestNotice";
@@ -156,7 +157,7 @@ export default function CcgOpenPage() {
       result.results.forEach((row) => {
         if (!row.card.renderUrl) return;
         const image = new window.Image();
-        image.src = row.card.renderUrl;
+        image.src = getCharacterRenderProxyUrl(row.card.renderUrl);
       });
       return result;
     },

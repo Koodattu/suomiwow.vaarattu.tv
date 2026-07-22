@@ -10,6 +10,7 @@ import { useCcgCatalog, useCcgSets, useGuildSummaryByRealmName } from "@/lib/que
 import { formatRealmName, formatSpecName, getClassInfoById, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
 import GuildCrest from "@/components/GuildCrest";
+import AlphaFittedCharacterRender from "@/components/ccg/AlphaFittedCharacterRender";
 import CcgShell from "@/components/ccg/CcgShell";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import vaultStyles from "@/components/ccg/ccg.module.css";
@@ -103,8 +104,6 @@ function PrototypeCard({
   card,
   finish,
   width,
-  renderWidth,
-  renderBottom,
   frameVariant,
   guides,
   hideCornerIcons,
@@ -115,8 +114,6 @@ function PrototypeCard({
   card: CcgCard;
   finish: CcgFinish;
   width: number;
-  renderWidth: number;
-  renderBottom: number;
   frameVariant: FrameVariant;
   guides: boolean;
   hideCornerIcons: boolean;
@@ -139,8 +136,6 @@ function PrototypeCard({
     "--crop-y": `${card.backgroundCrop.y}%`,
     "--crop-scale": card.backgroundCrop.scale,
     "--card-width": `${width}px`,
-    "--render-width": `${renderWidth}%`,
-    "--render-bottom": `${renderBottom}%`,
     "--tilt-x": "0deg",
     "--tilt-y": "0deg",
     "--pointer-x": "50%",
@@ -186,7 +181,7 @@ function PrototypeCard({
       <span className={styles.lowerDeck} aria-hidden="true" />
       <span className={styles.renderWindow} aria-hidden="true">
         {card.renderUrl ? (
-          <Image src={card.renderUrl} alt="" fill sizes={`${width}px`} className={styles.renderImage} unoptimized />
+          <AlphaFittedCharacterRender src={card.renderUrl} sizes={`${width}px`} className={styles.renderImage} />
         ) : null}
       </span>
 
@@ -281,8 +276,6 @@ export default function PrototypeLab() {
   const [cardId, setCardId] = useState("");
   const [finish, setFinish] = useState<CcgFinish>("standard");
   const [cardWidth, setCardWidth] = useState(400);
-  const [renderWidth, setRenderWidth] = useState(250);
-  const [renderBottom, setRenderBottom] = useState(-50);
   const [guides, setGuides] = useState(false);
   const [hideCornerIcons, setHideCornerIcons] = useState(false);
   const [hideBadges, setHideBadges] = useState(false);
@@ -356,14 +349,6 @@ export default function PrototypeLab() {
               {[320, 360, 400, 440].map((value) => <option key={value} value={value}>{value} px</option>)}
             </select>
           </label>
-          <label className={styles.rangeControl}>
-            <span>{t("prototypes.renderScale")} <strong>{renderWidth}%</strong></span>
-            <input type="range" min="180" max="320" step="1" value={renderWidth} onChange={(event) => setRenderWidth(Number(event.target.value))} />
-          </label>
-          <label className={styles.rangeControl}>
-            <span>{t("prototypes.renderOffset")} <strong>{renderBottom}%</strong></span>
-            <input type="range" min="-70" max="-10" step="1" value={renderBottom} onChange={(event) => setRenderBottom(Number(event.target.value))} />
-          </label>
           <label className={styles.guideControl}>
             <input type="checkbox" checked={guides} onChange={(event) => setGuides(event.target.checked)} />
             <span>{t("prototypes.showGuides")}</span>
@@ -400,8 +385,6 @@ export default function PrototypeLab() {
                       card={card}
                       finish={finish}
                       width={cardWidth}
-                      renderWidth={renderWidth}
-                      renderBottom={renderBottom}
                       frameVariant={frameVariant}
                       guides={guides}
                       hideCornerIcons={hideCornerIcons}

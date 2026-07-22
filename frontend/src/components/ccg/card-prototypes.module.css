@@ -262,8 +262,6 @@
   --metal-mid: #4b5664;
   --metal-dark: #090d13;
   --card-width: 400px;
-  --render-width: 250%;
-  --render-bottom: -50%;
   --tilt-x: 0deg;
   --tilt-y: 0deg;
   --pointer-x: 50%;
@@ -448,16 +446,20 @@
 }
 
 .renderImage {
-  top: auto !important;
+  top: var(--render-fit-top) !important;
   right: auto !important;
-  bottom: var(--render-bottom) !important;
+  bottom: auto !important;
   left: 50% !important;
-  width: var(--render-width) !important;
-  height: auto !important;
+  width: auto !important;
+  height: var(--render-fit-height) !important;
   max-width: none !important;
   object-fit: contain;
-  object-position: center bottom;
-  transform: translateX(-50%);
+  opacity: 0;
+  transform: translateX(var(--render-fit-translate-x));
+}
+
+.renderImage[data-fit-ready="true"] {
+  opacity: 1;
 }
 
 .guides .renderWindow {

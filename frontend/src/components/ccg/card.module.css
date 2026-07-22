@@ -359,17 +359,20 @@
 }
 
 .renderImage {
-  top: auto !important;
+  top: var(--render-fit-top) !important;
   right: auto !important;
-  bottom: -25% !important;
-  left: 52% !important;
-  width: 210% !important;
-  height: auto !important;
+  bottom: auto !important;
+  left: 50% !important;
+  width: auto !important;
+  height: var(--render-fit-height) !important;
   max-width: none !important;
   object-fit: contain;
-  object-position: center bottom;
-  transform: translateX(-50%);
-  transform-origin: center bottom;
+  opacity: 0;
+  transform: translateX(var(--render-fit-translate-x));
+}
+
+.renderImage[data-fit-ready="true"] {
+  opacity: 1;
 }
 
 .renderFallback {
