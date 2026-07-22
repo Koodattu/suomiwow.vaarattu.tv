@@ -115,9 +115,18 @@
 }
 
 .packButton:focus-visible {
-  border-radius: 0.7rem;
-  outline: 2px solid #9be9ff;
-  outline-offset: 6px;
+  outline: none;
+}
+
+.packButton:focus-visible .booster {
+  filter: brightness(1.08) saturate(1.08);
+  box-shadow:
+    0 8px 8px rgba(0, 0, 0, 0.55),
+    0 0 9px color-mix(in srgb, var(--pack-accent) 68%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--pack-accent) 72%, white),
+    inset 0 0 0 5px rgba(1, 5, 14, 0.62),
+    inset 10px 0 20px rgba(255, 255, 255, 0.05),
+    inset -12px 0 18px rgba(0, 0, 0, 0.38);
 }
 
 .packButton:disabled {
@@ -406,8 +415,11 @@
 }
 
 .revealStage {
-  min-height: min(82vh, 59rem);
+  left: 50%;
+  width: calc(100vw - 2rem);
+  min-height: min(86vh, 64rem);
   align-items: stretch;
+  transform: translateX(-50%);
 }
 
 .tearSequence {
@@ -583,21 +595,21 @@
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   overscroll-behavior-inline: contain;
-  padding: 1.45rem 0.45rem 1.7rem;
+  padding: 1.75rem clamp(2rem, 4vw, 5rem) 2rem;
   scroll-padding-inline: 1rem;
 }
 
 .cardFan {
   display: grid;
-  width: min(calc(100% - 0.75rem), 92rem);
+  width: min(100%, 108rem);
   min-width: 0;
   margin-inline: auto;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: clamp(0.2rem, 0.55vw, 0.5rem);
+  gap: clamp(0.45rem, 0.85vw, 0.9rem);
   align-items: start;
-  perspective: 1500px;
+  perspective: 1800px;
 }
 
 .revealSlot {
@@ -623,9 +635,12 @@
 }
 
 .revealSlot:focus-visible {
-  border-radius: 0.8rem;
-  outline: 2px solid #9be9ff;
-  outline-offset: 5px;
+  outline: none;
+}
+
+.revealSlot:focus-visible .cardBack,
+.revealSlotRevealed:focus-visible .cardFront {
+  filter: brightness(1.06);
 }
 
 .revealSlotDealt {
@@ -645,11 +660,13 @@
   width: 100%;
   aspect-ratio: 5 / 7;
   transform: rotateY(0deg);
+  transform-origin: center center;
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
-  transition-property: transform;
-  transition-duration: 520ms;
-  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  transition-property: transform, filter;
+  transition-duration: 760ms, 180ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1), ease-out;
+  will-change: transform;
 }
 
 .revealSlotRevealed .cardFlip {
@@ -662,15 +679,11 @@
   display: block;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  transform-style: preserve-3d;
-  -webkit-transform-style: preserve-3d;
-  transition-property: opacity;
-  transition-duration: 0ms;
-  transition-delay: 260ms;
+  transform-style: flat;
+  -webkit-transform-style: flat;
 }
 
 .cardBack {
-  opacity: 1;
   overflow: hidden;
   border-radius: clamp(0.68rem, 4.4cqw, 1.08rem);
   background:
@@ -681,6 +694,7 @@
     inset 0 0 0 2px rgba(255, 255, 255, 0.18),
     inset 0 0 0 6px rgba(0, 3, 10, 0.78);
   padding: 0.5rem;
+  transform: rotateY(0deg) translateZ(1px);
 }
 
 .cardBack::after {
@@ -750,16 +764,7 @@
 }
 
 .cardFront {
-  opacity: 0;
-  transform: rotateY(180deg);
-}
-
-.revealSlotRevealed .cardBack {
-  opacity: 0;
-}
-
-.revealSlotRevealed .cardFront {
-  opacity: 1;
+  transform: rotateY(180deg) translateZ(1px);
 }
 
 .revealFlare {
