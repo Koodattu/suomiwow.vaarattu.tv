@@ -820,7 +820,7 @@
 .materialLight {
   overflow: hidden;
   border-radius: inherit;
-  clip-path: inset(1px round calc(0.8rem - 1px));
+  clip-path: inset(4px round calc(0.8rem - 4px));
   pointer-events: none;
 }
 .finishLayer {
@@ -842,13 +842,15 @@
 .standard .finishLayer {
   background:
     radial-gradient(circle at 22% 19%, rgba(255, 255, 255, 0.48) 0 0.7px, transparent 1.15px),
-    radial-gradient(circle at 73% 64%, rgba(255, 255, 255, 0.34) 0 0.75px, transparent 1.2px),
-    radial-gradient(circle at 44% 86%, rgba(0, 0, 0, 0.52) 0 0.8px, transparent 1.25px);
+    radial-gradient(circle at 73% 64%, rgba(255, 255, 255, 0.34) 0 0.75px, transparent 1.2px), radial-gradient(circle at 44% 86%, rgba(0, 0, 0, 0.52) 0 0.8px, transparent 1.25px);
   background-position:
     calc(var(--pointer-left) * 18px) calc(var(--pointer-top) * 22px),
     calc(var(--pointer-left) * -24px) calc(var(--pointer-top) * 16px),
     calc(var(--pointer-left) * 14px) calc(var(--pointer-top) * -20px);
-  background-size: 7px 9px, 11px 13px, 13px 10px;
+  background-size:
+    7px 9px,
+    11px 13px,
+    13px 10px;
   filter: contrast(1.16) brightness(calc(0.9 + var(--pointer-distance) * 0.32));
   mix-blend-mode: overlay;
   opacity: 0.17;
@@ -857,9 +859,20 @@
   background:
     radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 248, 215, 0.42), rgba(231, 172, 67, 0.13) 16%, transparent 34%),
     radial-gradient(ellipse at var(--foil-x-reverse) var(--foil-y-reverse), transparent 24%, rgba(126, 65, 5, 0.12) 48%, rgba(255, 221, 130, 0.26) 66%, transparent 84%),
-    conic-gradient(from var(--foil-angle) at var(--pointer-x) var(--pointer-y), transparent 0 18%, rgba(255, 231, 153, 0.2) 25%, rgba(145, 76, 6, 0.12) 34%, transparent 43% 68%, rgba(255, 207, 99, 0.15) 77%, transparent 86%);
+    conic-gradient(
+      from var(--foil-angle) at var(--pointer-x) var(--pointer-y),
+      transparent 0 18%,
+      rgba(255, 231, 153, 0.2) 25%,
+      rgba(145, 76, 6, 0.12) 34%,
+      transparent 43% 68%,
+      rgba(255, 207, 99, 0.15) 77%,
+      transparent 86%
+    );
   background-position: center, center, center;
-  background-size: 100% 100%, 150% 140%, 180% 180%;
+  background-size:
+    100% 100%,
+    150% 140%,
+    180% 180%;
   box-shadow:
     inset 0 0 0 1px rgba(255, 230, 158, 0.38),
     inset 0 0 26px rgba(211, 132, 25, 0.2);
@@ -876,7 +889,10 @@
     calc(var(--pointer-left) * 20px) calc(var(--pointer-top) * 24px),
     calc(var(--pointer-left) * -28px) calc(var(--pointer-top) * 17px),
     calc(var(--pointer-left) * 15px) calc(var(--pointer-top) * -22px);
-  background-size: 7px 9px, 11px 13px, 13px 10px;
+  background-size:
+    7px 9px,
+    11px 13px,
+    13px 10px;
   filter: brightness(calc(0.84 + var(--pointer-distance) * 0.42));
   mix-blend-mode: color-dodge;
   opacity: 0.36;
@@ -885,8 +901,12 @@
   background:
     radial-gradient(ellipse at var(--foil-x-reverse) var(--foil-y-reverse), transparent 30%, rgba(67, 31, 2, 0.16) 72%, rgba(255, 216, 119, 0.24)),
     linear-gradient(var(--foil-angle), transparent 34%, rgba(255, 246, 208, 0.16) 48%, transparent 62%);
-  background-position: center, var(--foil-x) var(--foil-y);
-  background-size: 100% 100%, 210% 210%;
+  background-position:
+    center,
+    var(--foil-x) var(--foil-y);
+  background-size:
+    100% 100%,
+    210% 210%;
   mix-blend-mode: overlay;
   opacity: 0.66;
 }
@@ -903,8 +923,12 @@
       rgba(80, 245, 225, 0.26) 77%,
       transparent 92%
     );
-  background-position: center, var(--foil-x) var(--foil-y);
-  background-size: 100% 100%, 210% 210%;
+  background-position:
+    center,
+    var(--foil-x) var(--foil-y);
+  background-size:
+    100% 100%,
+    210% 210%;
   box-shadow:
     inset 0 0 0 1px rgba(224, 250, 255, 0.42),
     inset 0 0 28px color-mix(in srgb, var(--lab-accent) 18%, rgba(88, 221, 255, 0.12));
@@ -936,7 +960,10 @@
     calc(var(--pointer-left) * 22px) calc(var(--pointer-top) * 26px),
     calc(var(--pointer-left) * -30px) calc(var(--pointer-top) * 18px),
     calc(var(--pointer-left) * 17px) calc(var(--pointer-top) * -24px);
-  background-size: 9px 11px, 13px 15px, 15px 12px;
+  background-size:
+    9px 11px,
+    13px 15px,
+    15px 12px;
   filter: brightness(calc(0.76 + var(--pointer-distance) * 0.4));
   mix-blend-mode: color-dodge;
   opacity: 0.36;
@@ -947,8 +974,12 @@
   background:
     radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.08) 14%, transparent 30%),
     linear-gradient(var(--foil-angle), transparent 31%, rgba(255, 255, 255, 0.04) 41%, rgba(255, 255, 255, 0.2) 49%, rgba(255, 255, 255, 0.03) 57%, transparent 67%);
-  background-position: center, var(--foil-x) var(--foil-y);
-  background-size: 100% 100%, 190% 190%;
+  background-position:
+    center,
+    var(--foil-x) var(--foil-y);
+  background-size:
+    100% 100%,
+    190% 190%;
   mix-blend-mode: screen;
   opacity: 0.16;
   transform: translateZ(0.01px);
@@ -990,16 +1021,19 @@
 
 .golden .statsPanel {
   background:
-    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 221, 130, 0.17), transparent 58%),
-    linear-gradient(180deg, rgba(38, 27, 12, 0.99), rgba(8, 5, 2, 0.99));
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 221, 130, 0.17), transparent 58%), linear-gradient(180deg, rgba(38, 27, 12, 0.99), rgba(8, 5, 2, 0.99));
 }
 
 .prismatic .statsPanel {
   background:
     linear-gradient(112deg, rgba(0, 229, 255, 0.12), rgba(109, 92, 255, 0.17), rgba(255, 73, 209, 0.13), rgba(255, 221, 88, 0.1), rgba(80, 245, 225, 0.12)),
     linear-gradient(180deg, rgba(17, 18, 30, 0.99), rgba(3, 4, 10, 0.99));
-  background-position: var(--foil-x) center, center;
-  background-size: 190% 100%, 100% 100%;
+  background-position:
+    var(--foil-x) center,
+    center;
+  background-size:
+    190% 100%,
+    100% 100%;
 }
 
 .prototypeCard.prismatic .finishLayer::before {
@@ -1038,28 +1072,44 @@
 
 @keyframes prototypeStandardIdleGrain {
   from {
-    background-position: 3px 5px, -7px 4px, 4px -6px;
+    background-position:
+      3px 5px,
+      -7px 4px,
+      4px -6px;
   }
   to {
-    background-position: 13px 16px, -18px 12px, 11px -15px;
+    background-position:
+      13px 16px,
+      -18px 12px,
+      11px -15px;
   }
 }
 
 @keyframes prototypeGoldenIdleFoil {
   from {
-    background-position: 46% 43%, 55% 57%, 44% 54%;
+    background-position:
+      46% 43%,
+      55% 57%,
+      44% 54%;
   }
   to {
-    background-position: 56% 54%, 44% 45%, 57% 46%;
+    background-position:
+      56% 54%,
+      44% 45%,
+      57% 46%;
   }
 }
 
 @keyframes prototypePrismaticIdleFoil {
   from {
-    background-position: 45% 39%, 12% 26%;
+    background-position:
+      45% 39%,
+      12% 26%;
   }
   to {
-    background-position: 58% 53%, 88% 76%;
+    background-position:
+      58% 53%,
+      88% 76%;
   }
 }
 
@@ -1074,10 +1124,14 @@
 
 @keyframes prototypePrismaticStatsIdle {
   from {
-    background-position: 18% center, center;
+    background-position:
+      18% center,
+      center;
   }
   to {
-    background-position: 82% center, center;
+    background-position:
+      82% center,
+      center;
   }
 }
 
