@@ -50,6 +50,7 @@ const classColors: Record<string, string> = {
 };
 
 const frameVariants = ["vaultSteel"] as const;
+const SHOW_ROLE_AND_GUILD_CRESTS = false;
 
 type FrameVariant = (typeof frameVariants)[number];
 
@@ -203,14 +204,18 @@ function PrototypeCard({
             <span>{formatSpecName(card.specName)}</span>
           </span>
 
-          <span className={styles.roleCrest}>
-            <Image src={roleIcons[card.role]} alt="" width={28} height={28} />
-            <span>{t(`role.${card.role}`)}</span>
-          </span>
+          {SHOW_ROLE_AND_GUILD_CRESTS ? (
+            <>
+              <span className={styles.roleCrest}>
+                <Image src={roleIcons[card.role]} alt="" width={28} height={28} />
+                <span>{t(`role.${card.role}`)}</span>
+              </span>
 
-          <span className={styles.guildCrest} aria-label={t("prototypes.guildCrest", { guild: card.guildName ?? t("independent") })}>
-            <GuildCrest crest={guildCrest} faction={guildFaction} size={128} className={styles.guildCrestCanvas} />
-          </span>
+              <span className={styles.guildCrest} aria-label={t("prototypes.guildCrest", { guild: card.guildName ?? t("independent") })}>
+                <GuildCrest crest={guildCrest} faction={guildFaction} size={128} className={styles.guildCrestCanvas} />
+              </span>
+            </>
+          ) : null}
         </>
       ) : null}
 
@@ -293,7 +298,10 @@ export default function PrototypeLab() {
   const cards = useMemo(() => catalogQuery.data?.cards.filter((card) => card.renderUrl) ?? [], [catalogQuery.data?.cards]);
   const card = cards.find((candidate) => candidate.id === cardId) ?? cards[0];
   const samplePages = catalogQuery.data?.pages ?? 1;
-  const guildQuery = useGuildSummaryByRealmName(card?.guildRealm ?? "", card?.guildName ?? "");
+  const guildQuery = useGuildSummaryByRealmName(
+    SHOW_ROLE_AND_GUILD_CRESTS ? card?.guildRealm ?? "" : "",
+    SHOW_ROLE_AND_GUILD_CRESTS ? card?.guildName ?? "" : "",
+  );
 
   const changeSet = (slug: string) => {
     setSetSlug(slug);

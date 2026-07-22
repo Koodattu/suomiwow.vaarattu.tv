@@ -801,20 +801,24 @@
 
 .finishLayer,
 .materialLight {
-  z-index: 10;
-  inset: 2.2%;
   overflow: hidden;
-  border-radius: 0.46rem;
   pointer-events: none;
 }
 .finishLayer {
+  z-index: 30;
+  inset: 0;
+  border-radius: inherit;
   opacity: 0;
   mix-blend-mode: screen;
 }
 .golden .finishLayer {
   background:
-    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 238, 174, 0.4), transparent 24%),
-    linear-gradient(118deg, transparent 18%, rgba(255, 213, 105, 0.08) 30%, rgba(255, 236, 178, 0.38) 46%, rgba(181, 114, 22, 0.14) 59%, transparent 74%);
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 220, 132, 0.32), transparent 17%),
+    linear-gradient(116deg, transparent 14%, rgba(188, 112, 18, 0.08) 27%, rgba(255, 228, 145, 0.32) 43%, rgba(158, 87, 10, 0.13) 54%, transparent 70%),
+    radial-gradient(ellipse at center, transparent 48%, rgba(204, 124, 18, 0.1) 76%, rgba(255, 211, 104, 0.22) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 225, 143, 0.34),
+    inset 0 0 24px rgba(211, 132, 25, 0.16);
   opacity: 0.8;
 }
 .prismatic .finishLayer {
@@ -829,13 +833,18 @@
       rgba(255, 221, 88, 0.27) 63%,
       rgba(80, 245, 225, 0.26) 77%,
       transparent 92%
-    );
-  background-size: 180% 180%;
+  );
+  background-size: 210% 210%;
+  box-shadow:
+    inset 0 0 0 1px rgba(210, 247, 255, 0.34),
+    inset 0 0 24px rgba(88, 221, 255, 0.16);
   opacity: 0.9;
   animation: prototypePrismatic 6.5s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
 }
 .materialLight {
   z-index: 12;
+  inset: 2.2%;
+  border-radius: 0.46rem;
   background:
     radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.3), transparent 17%),
     linear-gradient(112deg, transparent 35%, rgba(255, 255, 255, 0.11) 47%, transparent 59%);
