@@ -305,6 +305,12 @@
 .prototypeCard:hover {
   filter: brightness(1.045) saturate(1.06);
 }
+.prototypeCard.negative {
+  filter: invert(1) contrast(1.06) saturate(0.92);
+}
+.prototypeCard.negative:hover {
+  filter: invert(1) contrast(1.06) saturate(0.92) brightness(1.045);
+}
 .prototypeCard[data-grade="F"] {
   --rarity: #9ca3af;
   --metal-light: #77808d;
@@ -1055,57 +1061,6 @@
   mix-blend-mode: screen;
   opacity: 0.62;
 }
-.chrome .finishLayer {
-  background:
-    radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.68), rgba(142, 160, 174, 0.18) 24%, rgba(3, 8, 12, 0.34) 58%, rgba(225, 237, 242, 0.26) 78%, rgba(9, 15, 20, 0.36)),
-    linear-gradient(var(--foil-angle), rgba(4, 8, 12, 0.3) 20%, rgba(242, 249, 252, 0.54) 46%, rgba(63, 78, 88, 0.24) 53%, rgba(220, 232, 238, 0.42) 72%, rgba(8, 13, 17, 0.3));
-  background-position:
-    center,
-    var(--foil-x) var(--foil-y);
-  background-size:
-    100% 100%,
-    230% 230%;
-  filter: contrast(1.38) saturate(0.18);
-  mix-blend-mode: hard-light;
-  opacity: 0.46;
-}
-.chrome .finishLayer::before {
-  background: linear-gradient(calc(var(--foil-angle) + 7deg), transparent 39%, rgba(255, 255, 255, 0.64) 48%, rgba(34, 43, 49, 0.32) 53%, transparent 62%);
-  background-position: var(--foil-x-reverse) var(--foil-y-reverse);
-  background-size: 260% 260%;
-  mix-blend-mode: screen;
-  opacity: 0.6;
-}
-.etchedFoil .finishLayer {
-  background:
-    radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), transparent 0 21%, rgba(235, 248, 255, 0.34) 21.4% 21.9%, transparent 22.3% 31%, rgba(155, 205, 223, 0.3) 31.4% 31.9%, transparent 32.3% 43%, rgba(239, 248, 255, 0.24) 43.4% 43.9%, transparent 44.3%),
-    radial-gradient(ellipse at var(--foil-x-reverse) var(--foil-y-reverse), transparent 0 17%, rgba(255, 255, 255, 0.22) 17.5% 18%, transparent 18.5% 36%, rgba(145, 203, 218, 0.24) 36.5% 37%, transparent 37.5%),
-    linear-gradient(var(--foil-angle), transparent 34%, rgba(225, 244, 249, 0.34) 49%, transparent 64%);
-  background-position:
-    center,
-    center,
-    var(--foil-x) var(--foil-y);
-  background-size:
-    118% 92%,
-    92% 118%,
-    230% 230%;
-  filter: contrast(1.38) saturate(0.68);
-  mix-blend-mode: color-dodge;
-  opacity: 0.4;
-}
-.etchedFoil .finishLayer::before {
-  background:
-    radial-gradient(circle at 20% 24%, rgba(255, 255, 255, 0.74) 0 0.4px, transparent 0.8px),
-    radial-gradient(circle at 70% 67%, rgba(180, 224, 238, 0.64) 0 0.45px, transparent 0.9px);
-  background-position:
-    calc(var(--pointer-left) * 14px) calc(var(--pointer-top) * 18px),
-    calc(var(--pointer-left) * -19px) calc(var(--pointer-top) * 15px);
-  background-size:
-    6px 8px,
-    9px 11px;
-  mix-blend-mode: screen;
-  opacity: 0.3;
-}
 .void .finishLayer {
   z-index: 6;
   background:
@@ -1123,10 +1078,6 @@
   box-shadow: inset 0 0 3px rgba(132, 80, 255, 0.78);
   mix-blend-mode: screen;
   opacity: 0.8;
-}
-.negative .artworkClip,
-.negative .renderWindow {
-  filter: invert(0.92) hue-rotate(180deg) contrast(1.08) saturate(1.12);
 }
 .negative .finishLayer {
   background:
@@ -1186,21 +1137,13 @@
 .prototypeCard.prismatic:hover .finishLayer {
   opacity: calc(0.78 + var(--pointer-distance) * 0.14);
 }
-.prototypeCard.chrome:hover .finishLayer {
-  opacity: calc(0.62 + var(--pointer-distance) * 0.14);
-}
-.prototypeCard.etchedFoil:hover .finishLayer {
-  opacity: calc(0.56 + var(--pointer-distance) * 0.14);
-}
 .prototypeCard.void:hover .finishLayer {
   opacity: calc(0.72 + var(--pointer-distance) * 0.08);
 }
 .prototypeCard.negative:hover .finishLayer {
   opacity: calc(0.58 + var(--pointer-distance) * 0.12);
 }
-.prototypeCard.foil .materialLight,
-.prototypeCard.chrome .materialLight,
-.prototypeCard.etchedFoil .materialLight {
+.prototypeCard.foil .materialLight {
   filter: saturate(0.4) contrast(1.2);
 }
 .prototypeCard.golden .materialLight {
@@ -1244,9 +1187,7 @@
     190% 100%,
     100% 100%;
 }
-.foil .statsPanel,
-.chrome .statsPanel,
-.etchedFoil .statsPanel {
+.foil .statsPanel {
   background:
     radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(200, 233, 243, 0.12), transparent 60%),
     linear-gradient(180deg, rgba(19, 27, 32, 0.99), rgba(4, 7, 10, 0.99));
@@ -1283,9 +1224,7 @@
   .prototypeCard.standard:not(:hover) .finishLayer {
     animation: prototypeStandardIdleGrain 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.foil:not(:hover) .finishLayer,
-  .prototypeCard.chrome:not(:hover) .finishLayer,
-  .prototypeCard.etchedFoil:not(:hover) .finishLayer {
+  .prototypeCard.foil:not(:hover) .finishLayer {
     animation: prototypeGoldenIdleFoil 7.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
   .prototypeCard.golden:not(:hover) .finishLayer {
@@ -1537,9 +1476,7 @@
   color: #f2c968;
   font-weight: 800;
 }
-.vaultRelic .rarityPlate[data-quality="foil"] .qualityLabel,
-.vaultRelic .rarityPlate[data-quality="chrome"] .qualityLabel,
-.vaultRelic .rarityPlate[data-quality="etchedFoil"] .qualityLabel {
+.vaultRelic .rarityPlate[data-quality="foil"] .qualityLabel {
   color: #dbe8ef;
 }
 .vaultRelic .rarityPlate[data-quality="holographic"] .qualityLabel {
@@ -2390,9 +2327,7 @@
   .golden .finishLayer {
     opacity: 0.52;
   }
-  .foil .finishLayer,
-  .chrome .finishLayer,
-  .etchedFoil .finishLayer {
+  .foil .finishLayer {
     opacity: 0.4;
   }
   .holographic .finishLayer {

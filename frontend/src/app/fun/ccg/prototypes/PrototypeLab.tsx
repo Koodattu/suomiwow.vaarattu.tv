@@ -49,7 +49,7 @@ const classColors: Record<string, string> = {
 };
 
 const frameVariants = ["vaultSteel"] as const;
-const prototypeFinishes = ["standard", "foil", "golden", "holographic", "prismatic", "chrome", "etchedFoil", "void", "negative"] as const;
+const prototypeFinishes = ["standard", "foil", "golden", "holographic", "prismatic", "void", "negative"] as const;
 const SHOW_ROLE_AND_GUILD_CRESTS = false;
 
 type FrameVariant = (typeof frameVariants)[number];
