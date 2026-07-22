@@ -48,6 +48,10 @@ const classColors: Record<string, string> = {
   Warrior: "#C69B6D",
 };
 
+const frameVariants = ["vaultSteel"] as const;
+
+type FrameVariant = (typeof frameVariants)[number];
+
 function score(value: number | null): string {
   return value === null ? "—" : value.toFixed(value >= 1000 ? 0 : 1);
 }
@@ -58,6 +62,7 @@ function PrototypeCard({
   width,
   renderWidth,
   renderBottom,
+  frameVariant,
   guides,
   hideCornerIcons,
   hideBadges,
@@ -69,6 +74,7 @@ function PrototypeCard({
   width: number;
   renderWidth: number;
   renderBottom: number;
+  frameVariant: FrameVariant;
   guides: boolean;
   hideCornerIcons: boolean;
   hideBadges: boolean;
@@ -121,6 +127,7 @@ function PrototypeCard({
       className={`${styles.prototypeCard} ${styles.vaultRelic} ${finish === "standard" ? "" : styles[finish]} ${guides ? styles.guides : ""}`}
       data-grade={card.tierGrade}
       data-finish={finish}
+      data-frame={frameVariant}
       style={cardStyle}
       onPointerMove={updateMaterial}
       onPointerLeave={resetMaterial}
@@ -338,26 +345,29 @@ export default function PrototypeLab() {
               <p>{t("prototypes.rarityExplainer")}</p>
             </div>
             <div className={styles.prototypeGrid}>
-              <section className={styles.prototypeStage}>
-                <header>
-                  <div><strong>{t("prototypes.layouts.vaultRelic.title")}</strong><span>{t("prototypes.layouts.vaultRelic.tag")}</span></div>
-                  <p>{t("prototypes.layouts.vaultRelic.body")}</p>
-                </header>
-                <div className={styles.cardMount}>
-                  <PrototypeCard
-                    card={card}
-                    finish={finish}
-                    width={cardWidth}
-                    renderWidth={renderWidth}
-                    renderBottom={renderBottom}
-                    guides={guides}
-                    hideCornerIcons={hideCornerIcons}
-                    hideBadges={hideBadges}
-                    guildCrest={guildQuery.data?.crest}
-                    guildFaction={guildQuery.data?.faction}
-                  />
-                </div>
-              </section>
+              {frameVariants.map((frameVariant) => (
+                <section className={styles.prototypeStage} key={frameVariant}>
+                  <header>
+                    <div><strong>{t(`prototypes.frames.${frameVariant}.title`)}</strong><span>{t(`prototypes.frames.${frameVariant}.tag`)}</span></div>
+                    <p>{t(`prototypes.frames.${frameVariant}.body`)}</p>
+                  </header>
+                  <div className={styles.cardMount}>
+                    <PrototypeCard
+                      card={card}
+                      finish={finish}
+                      width={cardWidth}
+                      renderWidth={renderWidth}
+                      renderBottom={renderBottom}
+                      frameVariant={frameVariant}
+                      guides={guides}
+                      hideCornerIcons={hideCornerIcons}
+                      hideBadges={hideBadges}
+                      guildCrest={guildQuery.data?.crest}
+                      guildFaction={guildQuery.data?.faction}
+                    />
+                  </div>
+                </section>
+              ))}
             </div>
           </>
         )}

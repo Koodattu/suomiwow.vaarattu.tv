@@ -154,6 +154,13 @@
       "rarityLabel": "Rarity",
       "rarityExplainer": "Legendary represents the top snapshot grades. A is Epic, B is Rare, C is Uncommon, and D–F are Common. Golden and Prismatic are separate finishes.",
       "realm": "Realm: {realm}",
+      "frames": {
+        "vaultSteel": {
+          "title": "Vault Steel",
+          "tag": "Selected frame direction",
+          "body": "The brushed-steel double bevel carries rarity metal and the raid's accent color around the perimeter."
+        }
+      },
       "layouts": {
         "reliquary": {
           "title": "Hero Reliquary",

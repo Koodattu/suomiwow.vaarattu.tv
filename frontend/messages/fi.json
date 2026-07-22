@@ -154,6 +154,13 @@
       "rarityLabel": "Harvinaisuus",
       "rarityExplainer": "Legendaarinen vastaa snapshotin parhaita tier-luokkia. A on Eeppinen, B Harvinainen, C Epätavallinen ja D–F Tavallinen. Kultainen ja Prismaattinen ovat erillisiä viimeistelyjä.",
       "realm": "Realm: {realm}",
+      "frames": {
+        "vaultSteel": {
+          "title": "Holviteräs",
+          "tag": "Valittu kehystyyli",
+          "body": "Harjatun teräksen kaksoisviiste kuljettaa harvinaisuusmetallia ja raidisetin korostusväriä koko reunuksen ympäri."
+        }
+      },
       "layouts": {
         "reliquary": {
           "title": "Sankarireliikki",
