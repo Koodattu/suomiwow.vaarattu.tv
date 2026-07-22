@@ -152,7 +152,7 @@
       "noCards": "Tässä raidisetissä ei ole julkaistuja kortteja, joilla on hahmorenderöinti.",
       "hint": "Liikuta osoitinta kortin päällä kokeillaksesi materiaaliefektiä. Vaaleanpunainen rajaus näyttää hahmolle varatun alueen.",
       "rarityLabel": "Harvinaisuus",
-      "rarityExplainer": "S on Legendaarinen, A Eeppinen, B Harvinainen, C Epätavallinen, D–E Tavallinen ja F Roska. Kultainen ja Prismaattinen ovat erillisiä viimeistelyjä.",
+      "rarityExplainer": "S on Legendaarinen, A Eeppinen, B Harvinainen, C Epätavallinen, D–E Tavallinen ja F Roska. Viimeistely on erillinen harvinaisuudesta; laboratorion kokeelliset viimeistelyt ovat vain visuaalisia.",
       "realm": "Realm: {realm}",
       "frames": {
         "vaultSteel": {
@@ -236,8 +236,14 @@
     "finish": {
       "label": "Kortin viimeistely",
       "standard": "Tavallinen",
+      "foil": "Folio",
       "golden": "Kultainen",
-      "prismatic": "Prismaattinen"
+      "holographic": "Holografinen",
+      "prismatic": "Prismaattinen",
+      "chrome": "Kromi",
+      "etchedFoil": "Kaiverrettu folio",
+      "void": "Tyhjyys",
+      "negative": "Negatiivi"
     },
     "rarity": {
       "common": "Tavallinen",

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
-import type { CcgCard, CcgFinish, CcgTierGrade, GuildCrest as GuildCrestData } from "@/types";
+import type { CcgCard, CcgTierGrade, GuildCrest as GuildCrestData } from "@/types";
 import { useCcgCatalog, useCcgSets, useGuildSummaryByRealmName } from "@/lib/queries";
 import { formatRealmName, formatSpecName, getClassInfoById, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
@@ -49,9 +49,11 @@ const classColors: Record<string, string> = {
 };
 
 const frameVariants = ["vaultSteel"] as const;
+const prototypeFinishes = ["standard", "foil", "golden", "holographic", "prismatic", "chrome", "etchedFoil", "void", "negative"] as const;
 const SHOW_ROLE_AND_GUILD_CRESTS = false;
 
 type FrameVariant = (typeof frameVariants)[number];
+type PrototypeFinish = (typeof prototypeFinishes)[number];
 
 const frameRingPath = [
   "M 24 4 H 476 Q 496 4 496 24 V 676 Q 496 696 476 696",
@@ -110,7 +112,7 @@ function PrototypeCard({
   guildFaction,
 }: {
   card: CcgCard;
-  finish: CcgFinish;
+  finish: PrototypeFinish;
   width: number;
   frameVariant: FrameVariant;
   guides: boolean;
@@ -317,7 +319,7 @@ export default function PrototypeLab() {
   const [setSlug, setSetSlug] = useState("");
   const [samplePage, setSamplePage] = useState(1);
   const [cardId, setCardId] = useState("");
-  const [finish, setFinish] = useState<CcgFinish>("standard");
+  const [finish, setFinish] = useState<PrototypeFinish>("standard");
   const [cardWidth, setCardWidth] = useState(400);
   const [guides, setGuides] = useState(false);
   const [hideCornerIcons, setHideCornerIcons] = useState(false);
@@ -414,8 +416,8 @@ export default function PrototypeLab() {
           </div>
           <label>
             <span>{t("prototypes.finish")}</span>
-            <select value={finish} onChange={(event) => setFinish(event.target.value as CcgFinish)}>
-              {(["standard", "golden", "prismatic"] as CcgFinish[]).map((value) => (
+            <select value={finish} onChange={(event) => setFinish(event.target.value as PrototypeFinish)}>
+              {prototypeFinishes.map((value) => (
                 <option key={value} value={value}>
                   {t(`finish.${value}`)}
                 </option>

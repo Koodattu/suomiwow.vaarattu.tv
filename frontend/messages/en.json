@@ -152,7 +152,7 @@
       "noCards": "This raid set has no published cards with a character render.",
       "hint": "Move the pointer over the card to test the material response. The pink guide shows the area that may contain the character.",
       "rarityLabel": "Rarity",
-      "rarityExplainer": "S is Legendary, A is Epic, B is Rare, C is Uncommon, D–E are Common, and F is Junk. Golden and Prismatic are separate finishes.",
+      "rarityExplainer": "S is Legendary, A is Epic, B is Rare, C is Uncommon, D–E are Common, and F is Junk. Finish is separate from rarity; experimental finishes in this lab are visual only.",
       "realm": "Realm: {realm}",
       "frames": {
         "vaultSteel": {
@@ -236,8 +236,14 @@
     "finish": {
       "label": "Card finish",
       "standard": "Standard",
+      "foil": "Foil",
       "golden": "Golden",
-      "prismatic": "Prismatic"
+      "holographic": "Holographic",
+      "prismatic": "Prismatic",
+      "chrome": "Chrome",
+      "etchedFoil": "Etched Foil",
+      "void": "Void",
+      "negative": "Negative"
     },
     "rarity": {
       "common": "Common",
