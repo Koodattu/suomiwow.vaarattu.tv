@@ -22,9 +22,10 @@ import CcgOwnership, { CcgOwnerType } from "../models/CcgOwnership";
 import CcgPackCredit from "../models/CcgPackCredit";
 import CcgPackOpening, { ICcgPackOpening, ICcgPackResult } from "../models/CcgPackOpening";
 import CcgPackPool from "../models/CcgPackPool";
+import CcgQualityProgress, { ICcgQualityProgress } from "../models/CcgQualityProgress";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
 import User from "../models/User";
-import { rollFinish } from "../utils/ccg-random";
+import { CcgFinishPity, compareFinish, emptyFinishPity, nextFinish, rollProtectedFinish } from "../utils/ccg-random";
 import { calculateDuplicateProgress, countGuestClaimPulls, guestClaimIsWithinLimit, planPackSelections } from "../utils/ccg-pack";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../utils/helsinki-time";
 import ccgPublisherService from "./ccg-publisher.service";
@@ -92,7 +93,7 @@ class CcgService {
     await ccgPublisherService.ensureConfiguredSets();
     const owner = await this.resolveOwner(req, res);
     const allowance = await this.ensureAllowance(owner);
-    const [creditRows, progressRows, ownershipCount, guestClaim] = await Promise.all([
+    const [creditRows, progressRows, qualityProgress, ownershipCount, guestClaim] = await Promise.all([
       owner.ownerType === "user"
         ? CcgPackCredit.aggregate<{ _id: CcgMode; remaining: number }>([
             { $match: { ownerId: owner.ownerId, remaining: { $gt: 0 } } },
@@ -100,6 +101,7 @@ class CcgService {
           ])
         : [],
       owner.ownerType === "user" ? CcgOwnerProgress.find({ ownerId: owner.ownerId }).lean() : [],
+      CcgQualityProgress.findOne({ ownerType: owner.ownerType, ownerId: owner.ownerId }).lean(),
       CcgOwnership.countDocuments({ ownerType: owner.ownerType, ownerId: owner.ownerId }),
       owner.ownerType === "user" ? this.findClaimableGuest(req) : null,
     ]);
@@ -128,6 +130,7 @@ class CcgService {
         current: this.serializeProgress(progress.get("current")),
         legacy: this.serializeProgress(progress.get("legacy")),
       },
+      qualityProtection: this.readFinishPity(qualityProgress ?? undefined),
       ownedFinishes: ownershipCount,
     };
   }
@@ -257,45 +260,93 @@ class CcgService {
     const page = Math.max(1, Math.floor(options.page ?? 1));
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 18)));
     const match: Record<string, unknown> = { ownerType: owner.ownerType, ownerId: owner.ownerId };
-    if (["standard", "golden", "prismatic"].includes(options.finish ?? "")) match.finish = options.finish;
-    const cardMatch: Record<string, unknown> = {};
-    if (CCG_TIER_GRADES.includes(options.grade as CcgTierGrade)) cardMatch["card.tierGrade"] = options.grade;
-    if (options.search?.trim()) cardMatch["card.name"] = { $regex: options.search.trim().slice(0, 60), $options: "i" };
+    if (["standard", "foil", "golden", "prismatic", "holographic", "negative"].includes(options.finish ?? "")) match.finish = options.finish;
+    const characterMatch: Record<string, unknown> = {};
+    const variantMatch: Record<string, unknown> = {};
+    if (CCG_TIER_GRADES.includes(options.grade as CcgTierGrade)) variantMatch["card.tierGrade"] = options.grade;
+    if (options.search?.trim()) characterMatch.name = { $regex: options.search.trim().slice(0, 60), $options: "i" };
     let setId: mongoose.Types.ObjectId | null = null;
     if (options.setSlug) setId = (await CcgSet.findOne({ slug: options.setSlug, enabledAt: { $ne: null } }).select("_id").lean())?._id ?? null;
     if (options.setSlug && !setId) throw new CcgServiceError(404, "set_not_found", "Card set not found");
-    if (setId) cardMatch["card.setId"] = setId;
-    if (options.guildId) cardMatch["card.guildId"] = validateObjectId(options.guildId, "guild ID");
+    if (setId) variantMatch["card.setId"] = setId;
+    if (options.guildId) variantMatch["card.guildId"] = validateObjectId(options.guildId, "guild ID");
+    if (Object.keys(variantMatch).length > 0) characterMatch.variants = { $elemMatch: variantMatch };
 
     const rows = await CcgOwnership.aggregate<{
       _id: mongoose.Types.ObjectId;
       totalQuantity: number;
-      finishes: Array<{ finish: CcgFinish; quantity: number }>;
+      finishGroups: Array<Array<{ finish: CcgFinish; quantity: number }>>;
       card: ICcgCard;
       set: ICcgSet;
+      variants: Array<{ card: ICcgCard; set: ICcgSet; finishes: Array<{ finish: CcgFinish; quantity: number }>; totalQuantity: number }>;
     }>([
       { $match: match },
-      { $group: { _id: "$cardId", totalQuantity: { $sum: "$quantity" }, finishes: { $push: { finish: "$finish", quantity: "$quantity" } } } },
-      { $lookup: { from: "ccgcards", localField: "_id", foreignField: "_id", as: "card" } },
+      { $lookup: { from: "ccgcards", localField: "cardId", foreignField: "_id", as: "card" } },
       { $unwind: "$card" },
-      ...(Object.keys(cardMatch).length > 0 ? [{ $match: cardMatch }] : []),
       { $lookup: { from: "ccgsets", localField: "card.setId", foreignField: "_id", as: "set" } },
       { $unwind: "$set" },
-      { $sort: { "set.zoneId": -1, "card.setNumber": 1 } },
+      {
+        $group: {
+          _id: { characterId: "$card.characterId", cardId: "$card._id" },
+          totalQuantity: { $sum: "$quantity" },
+          finishes: { $push: { finish: "$finish", quantity: "$quantity" } },
+          card: { $first: "$card" },
+          set: { $first: "$set" },
+        },
+      },
+      { $sort: { "card.performanceSnapshotAt": -1, "card.publishedAt": -1 } },
+      {
+        $group: {
+          _id: "$_id.characterId",
+          totalQuantity: { $sum: "$totalQuantity" },
+          finishGroups: { $push: "$finishes" },
+          card: { $first: "$card" },
+          set: { $first: "$set" },
+          variants: { $push: { card: "$card", set: "$set", finishes: "$finishes", totalQuantity: "$totalQuantity" } },
+          setIds: { $addToSet: "$card.setId" },
+          tierGrades: { $addToSet: "$card.tierGrade" },
+          guildIds: { $addToSet: "$card.guildId" },
+          name: { $first: "$card.name" },
+        },
+      },
+      ...(Object.keys(characterMatch).length > 0 ? [{ $match: characterMatch }] : []),
+      { $sort: { "set.zoneId": -1, "card.name": 1 } },
       {
         $facet: {
           items: [{ $skip: (page - 1) * limit }, { $limit: limit }],
           count: [{ $count: "total" }],
         },
       },
-    ]).then((result) => result[0] as unknown as { items: Array<{ _id: mongoose.Types.ObjectId; totalQuantity: number; finishes: Array<{ finish: CcgFinish; quantity: number }>; card: ICcgCard; set: ICcgSet }>; count: Array<{ total: number }> });
+    ]).then((result) => result[0] as unknown as {
+      items: Array<{
+        _id: mongoose.Types.ObjectId;
+        totalQuantity: number;
+        finishGroups: Array<Array<{ finish: CcgFinish; quantity: number }>>;
+        card: ICcgCard;
+        set: ICcgSet;
+        variants: Array<{ card: ICcgCard; set: ICcgSet; finishes: Array<{ finish: CcgFinish; quantity: number }>; totalQuantity: number }>;
+      }>;
+      count: Array<{ total: number }>;
+    });
     const total = rows.count[0]?.total ?? 0;
     return {
-      cards: rows.items.map((row) => ({
-        ...this.serializeCard(row.card, row.set),
-        ownership: row.finishes,
-        totalQuantity: row.totalQuantity,
-      })),
+      cards: rows.items.map((row) => {
+        const representative = (setId ? row.variants.find((variant) => String(variant.card.setId) === String(setId)) : null) ?? row.variants[0];
+        const finishTotals = new Map<CcgFinish, number>();
+        for (const finishes of row.finishGroups) {
+          for (const finish of finishes) finishTotals.set(finish.finish, (finishTotals.get(finish.finish) ?? 0) + finish.quantity);
+        }
+        return {
+          ...this.serializeCard(representative.card, representative.set),
+          ownership: Array.from(finishTotals, ([finish, quantity]) => ({ finish, quantity })),
+          totalQuantity: row.totalQuantity,
+          variants: row.variants.map((variant) => ({
+            card: this.serializeCard(variant.card, variant.set),
+            ownership: variant.finishes,
+            totalQuantity: variant.totalQuantity,
+          })),
+        };
+      }),
       page,
       limit,
       total,
@@ -341,25 +392,41 @@ class CcgService {
         }).session(session);
         const cardById = new Map(cards.map((card) => [String(card._id), card]));
         if (cardById.size === 0) throw new CcgServiceError(409, "pool_unavailable", "This card set has no available cards");
+        const characterIds = Array.from(new Set(cards.map((card) => String(card.characterId)))).map((id) => new mongoose.Types.ObjectId(id));
+        const characterSnapshots = await CcgCard.find({ characterId: { $in: characterIds } }).select("_id characterId").session(session).lean();
+        const characterByCardId = new Map(characterSnapshots.map((card) => [String(card._id), String(card.characterId)]));
         const ownershipRows = await CcgOwnership.find({
           ownerType: owner.ownerType,
           ownerId: owner.ownerId,
-          cardId: { $in: selected.map((result) => result.cardId) },
+          cardId: { $in: characterSnapshots.map((card) => card._id) },
         }).session(session);
-        const ownedKeys = new Set(ownershipRows.map((row) => `${row.cardId}:${row.finish}`));
+        const bestFinishByCharacter = new Map<string, CcgFinish>();
+        for (const row of ownershipRows) {
+          const characterId = characterByCardId.get(String(row.cardId));
+          if (!characterId) continue;
+          const current = bestFinishByCharacter.get(characterId);
+          if (!current || compareFinish(row.finish, current) > 0) bestFinishByCharacter.set(characterId, row.finish);
+        }
+        const qualityProgress = await this.ensureQualityProgress(owner, session);
+        let pity = this.readFinishPity(qualityProgress);
         const results: SelectedResult[] = [];
         for (const result of selected) {
           const card = cardById.get(String(result.cardId));
           if (!card) continue;
-          const finish = rollFinish();
-          const key = `${card._id}:${finish}`;
-          const isDuplicate = ownedKeys.has(key);
-          ownedKeys.add(key);
+          const characterId = String(card.characterId);
+          const bestOwnedFinish = bestFinishByCharacter.get(characterId);
+          const isDuplicate = Boolean(bestOwnedFinish);
+          const rolled = rollProtectedFinish(pity, bestOwnedFinish ? nextFinish(bestOwnedFinish) : "standard");
+          const finish = rolled.finish;
+          pity = rolled.pity;
+          if (!bestOwnedFinish || compareFinish(finish, bestOwnedFinish) > 0) bestFinishByCharacter.set(characterId, finish);
           results.push({ cardId: card._id, setId: card.setId, finish, tierGrade: card.tierGrade, isDuplicate });
         }
         if (results.length !== CCG_CARDS_PER_PACK) throw new CcgServiceError(409, "pool_invalid", "The pack pool is incomplete");
 
         openingId = new mongoose.Types.ObjectId();
+        this.writeFinishPity(qualityProgress, pity);
+        await qualityProgress.save({ session });
         await this.addOwnership(owner, results, session);
         const duplicateCount = results.filter((result) => result.isDuplicate).length;
         const duplicateRewards = owner.ownerType === "user" ? await this.applyDuplicateProgress(owner.ownerId, mode, duplicateCount, `opening:${openingId}`, session) : 0;
@@ -470,23 +537,29 @@ class CcgService {
         }
 
         const allResults = openings.flatMap((opening) => opening.results.map((result) => ({ ...result, mode: opening.mode })));
+        const resultCards = await CcgCard.find({ _id: { $in: allResults.map((result) => result.cardId) } }).select("_id characterId").session(session).lean();
+        const resultCharacterByCardId = new Map(resultCards.map((card) => [String(card._id), String(card.characterId)]));
+        const resultCharacterIds = Array.from(new Set(resultCards.map((card) => String(card.characterId)))).map((id) => new mongoose.Types.ObjectId(id));
+        const relatedCards = await CcgCard.find({ characterId: { $in: resultCharacterIds } }).select("_id characterId").session(session).lean();
+        const characterByCardId = new Map(relatedCards.map((card) => [String(card._id), String(card.characterId)]));
         const existing = await CcgOwnership.find({
           ownerType: "user",
           ownerId: userId,
-          cardId: { $in: allResults.map((result) => result.cardId) },
+          cardId: { $in: relatedCards.map((card) => card._id) },
         }).session(session);
-        const ownedKeys = new Set(existing.map((row) => `${row.cardId}:${row.finish}`));
+        const ownedCharacters = new Set(existing.map((row) => characterByCardId.get(String(row.cardId))).filter((value): value is string => Boolean(value)));
         const duplicates: Record<CcgMode, number> = { current: 0, legacy: 0 };
         const mergedResults: Array<SelectedResult & { mode: CcgMode }> = [];
         for (const result of allResults) {
-          const key = `${result.cardId}:${result.finish}`;
-          const isDuplicate = ownedKeys.has(key);
+          const characterId = resultCharacterByCardId.get(String(result.cardId));
+          const isDuplicate = Boolean(characterId && ownedCharacters.has(characterId));
           if (isDuplicate) duplicates[result.mode] += 1;
-          ownedKeys.add(key);
+          if (characterId) ownedCharacters.add(characterId);
           mergedResults.push({ cardId: result.cardId, setId: result.setId, finish: result.finish, tierGrade: result.tierGrade, isDuplicate, mode: result.mode });
         }
         const userOwner: CcgOwner = { ownerType: "user", ownerId: userId, dateKey: transactionalGuest.dateKey };
         await this.addOwnership(userOwner, mergedResults, session);
+        await this.mergeGuestQualityProgress(transactionalGuest._id, userOwner, session);
         const currentRewards = await this.applyDuplicateProgress(userId, "current", duplicates.current, `claim:${transactionalGuest._id}:current`, session);
         const legacyRewards = await this.applyDuplicateProgress(userId, "legacy", duplicates.legacy, `claim:${transactionalGuest._id}:legacy`, session);
 
@@ -595,11 +668,12 @@ class CcgService {
 
   async cleanupExpiredGuestData(): Promise<Record<string, number>> {
     const now = new Date();
-    const [ownership, allowances, openings, ledgers, guests] = await Promise.all([
+    const [ownership, allowances, openings, ledgers, qualityProgress, guests] = await Promise.all([
       CcgOwnership.deleteMany({ ownerType: "guest", expiresAt: { $lte: now } }),
       CcgDailyAllowance.deleteMany({ ownerType: "guest", expiresAt: { $lte: now } }),
       CcgPackOpening.deleteMany({ ownerType: "guest", expiresAt: { $lte: now } }),
       CcgLedgerEntry.deleteMany({ ownerType: "guest", expiresAt: { $lte: now } }),
+      CcgQualityProgress.deleteMany({ ownerType: "guest", expiresAt: { $lte: now } }),
       CcgGuest.deleteMany({ expiresAt: { $lte: now } }),
     ]);
     return {
@@ -607,6 +681,7 @@ class CcgService {
       allowances: allowances.deletedCount,
       openings: openings.deletedCount,
       ledgers: ledgers.deletedCount,
+      qualityProgress: qualityProgress.deletedCount,
       guests: guests.deletedCount,
     };
   }
@@ -618,6 +693,54 @@ class CcgService {
       total: row?.totalDuplicatePulls ?? 0,
       bonusPacksEarned: row?.bonusPacksEarned ?? 0,
     };
+  }
+
+  private readFinishPity(row?: Partial<ICcgQualityProgress> | null): CcgFinishPity {
+    return {
+      foil: row?.foil ?? 0,
+      golden: row?.golden ?? 0,
+      prismatic: row?.prismatic ?? 0,
+      holographic: row?.holographic ?? 0,
+      negative: row?.negative ?? 0,
+    };
+  }
+
+  private writeFinishPity(row: ICcgQualityProgress, pity: CcgFinishPity): void {
+    row.foil = pity.foil;
+    row.golden = pity.golden;
+    row.prismatic = pity.prismatic;
+    row.holographic = pity.holographic;
+    row.negative = pity.negative;
+  }
+
+  private async ensureQualityProgress(owner: CcgOwner, session: ClientSession): Promise<ICcgQualityProgress> {
+    return CcgQualityProgress.findOneAndUpdate(
+      { ownerType: owner.ownerType, ownerId: owner.ownerId },
+      {
+        $setOnInsert: {
+          ...emptyFinishPity(),
+          expiresAt: owner.ownerType === "guest" ? owner.expiresAt : null,
+        },
+      },
+      { upsert: true, new: true, session },
+    );
+  }
+
+  private async mergeGuestQualityProgress(guestId: mongoose.Types.ObjectId, userOwner: CcgOwner, session: ClientSession): Promise<void> {
+    const guestProgress = await CcgQualityProgress.findOne({ ownerType: "guest", ownerId: guestId }).session(session);
+    if (!guestProgress) return;
+    const userProgress = await this.ensureQualityProgress(userOwner, session);
+    const guestPity = this.readFinishPity(guestProgress);
+    const userPity = this.readFinishPity(userProgress);
+    this.writeFinishPity(userProgress, {
+      foil: Math.max(userPity.foil, guestPity.foil),
+      golden: Math.max(userPity.golden, guestPity.golden),
+      prismatic: Math.max(userPity.prismatic, guestPity.prismatic),
+      holographic: Math.max(userPity.holographic, guestPity.holographic),
+      negative: Math.max(userPity.negative, guestPity.negative),
+    });
+    await userProgress.save({ session });
+    await CcgQualityProgress.deleteOne({ _id: guestProgress._id }, { session });
   }
 
   private async ensureAllowance(owner: CcgOwner, session?: ClientSession) {
@@ -881,6 +1004,7 @@ class CcgService {
   private serializeCard(card: ICcgCard | Record<string, any>, set: ICcgSet | Record<string, any>): Record<string, unknown> {
     return {
       id: String(card._id),
+      characterId: String(card.characterId),
       setNumber: card.setNumber,
       name: card.name,
       realm: card.realm,

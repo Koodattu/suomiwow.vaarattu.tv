@@ -1,9 +1,11 @@
 import { createHash, randomInt } from "crypto";
 import {
-  CCG_FINISH_ODDS,
+  CCG_FINISH_ORDER,
+  CCG_FINISH_PITY_LIMITS,
   CCG_GRADING_VERSION,
   CcgBackgroundSafeCrop,
   CcgFinish,
+  CcgProtectedFinish,
   CcgTierGrade,
 } from "../config/ccg";
 
@@ -37,10 +39,37 @@ export function resolveCardCrop(seed: string, safe: CcgBackgroundSafeCrop): CcgR
   };
 }
 
-export function rollFinish(roll: number = randomInt(10000)): CcgFinish {
-  if (roll < CCG_FINISH_ODDS.prismaticBasisPoints) return "prismatic";
-  if (roll < CCG_FINISH_ODDS.prismaticBasisPoints + CCG_FINISH_ODDS.goldenBasisPoints) return "golden";
-  return "standard";
+export type CcgFinishPity = Record<CcgProtectedFinish, number>;
+
+export const emptyFinishPity = (): CcgFinishPity => ({ foil: 0, golden: 0, prismatic: 0, holographic: 0, negative: 0 });
+
+export function compareFinish(left: CcgFinish, right: CcgFinish): number {
+  return CCG_FINISH_ORDER.indexOf(left) - CCG_FINISH_ORDER.indexOf(right);
+}
+
+export function nextFinish(finish: CcgFinish): CcgFinish {
+  return CCG_FINISH_ORDER[Math.min(CCG_FINISH_ORDER.length - 1, CCG_FINISH_ORDER.indexOf(finish) + 1)];
+}
+
+export function rollProtectedFinish(
+  pity: CcgFinishPity,
+  minimum: CcgFinish = "standard",
+  random: (maximum: number) => number = randomInt,
+): { finish: CcgFinish; pity: CcgFinishPity } {
+  const next = emptyFinishPity();
+  const hits: CcgProtectedFinish[] = [];
+  for (const finish of Object.keys(CCG_FINISH_PITY_LIMITS) as CcgProtectedFinish[]) {
+    const limit = CCG_FINISH_PITY_LIMITS[finish];
+    const counter = Math.min(limit, Math.max(0, Math.floor(pity[finish])) + 1);
+    next[finish] = counter;
+    const roll = random(limit);
+    if (!Number.isInteger(roll) || roll < 0 || roll >= limit) throw new Error("Random source returned an out-of-range value");
+    if (roll < counter) hits.push(finish);
+  }
+  const rolled = hits.reduce<CcgFinish>((best, finish) => (compareFinish(finish, best) > 0 ? finish : best), "standard");
+  const finish = compareFinish(minimum, rolled) > 0 ? minimum : rolled;
+  if (finish !== "standard") next[finish] = 0;
+  return { finish, pity: next };
 }
 
 export function selectWeighted<T extends string>(weights: Readonly<Record<T, number>>): T {

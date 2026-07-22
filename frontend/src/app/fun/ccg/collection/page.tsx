@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
+import type { CcgCard, CcgTierGrade } from "@/types";
+import { bestOwnedFinish } from "@/lib/ccg";
 import { useCcgCatalog, useCcgCollection, useCcgSession, useCcgSetGuilds, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
 import GuestNotice from "@/components/ccg/GuestNotice";
@@ -13,15 +14,7 @@ import CcgLoadError from "@/components/ccg/CcgLoadError";
 import styles from "@/components/ccg/ccg.module.css";
 
 const grades: CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
-const finishOrder: CcgFinish[] = ["prismatic", "golden", "standard"];
-
 type CollectionView = "all" | "guild";
-
-function bestFinish(card: CcgCard): { finish: CcgFinish; quantity: number; total: number } | null {
-  if (!card.ownership?.length) return null;
-  const row = finishOrder.map((finish) => card.ownership!.find((item) => item.finish === finish)).find(Boolean);
-  return row ? { finish: row.finish, quantity: row.quantity, total: card.ownership.reduce((sum, item) => sum + item.quantity, 0) } : null;
-}
 
 export default function CcgCollectionPage() {
   const t = useTranslations("ccg");
@@ -272,7 +265,7 @@ export default function CcgCollectionPage() {
           ) : cardsData?.cards.length ? (
             <div className={styles.binderGrid}>
               {cardsData.cards.map((card) => {
-                const ownedFinish = bestFinish(card);
+                const ownedFinish = bestOwnedFinish(card);
                 return (
                   <div className={styles.binderPocket} key={card.id}>
                     {ownedFinish ? (
@@ -310,7 +303,7 @@ export default function CcgCollectionPage() {
           ) : null}
         </section>
       </div>
-      {viewerCard ? <CardViewer card={viewerCard} initialFinish={bestFinish(viewerCard)?.finish ?? "standard"} onClose={() => setViewerCard(null)} /> : null}
+      {viewerCard ? <CardViewer card={viewerCard} initialFinish={bestOwnedFinish(viewerCard)?.finish ?? "standard"} onClose={() => setViewerCard(null)} /> : null}
     </CcgShell>
   );
 }

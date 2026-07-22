@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  CCG_B_OR_BETTER_GRADES,
+  CCG_A_OR_BETTER_GRADES,
   CCG_CONFIGURED_SETS,
   CCG_DAILY_PACKS_PER_MODE,
   CCG_GUEST_CLAIM_CARD_LIMIT_PER_MODE,
 } from "../src/config/ccg";
-import { gradeForPercentile, resolveCardCrop, rollFinish } from "../src/utils/ccg-random";
+import { emptyFinishPity, gradeForPercentile, nextFinish, resolveCardCrop, rollProtectedFinish } from "../src/utils/ccg-random";
 import { calculateDuplicateProgress, countGuestClaimPulls, guestClaimIsWithinLimit, planPackSelections, selectPackCards } from "../src/utils/ccg-pack";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../src/utils/helsinki-time";
@@ -31,24 +31,38 @@ test("card crops are deterministic and stay inside each raid's safe flair range"
   }
 });
 
-test("finish boundaries preserve Prismatic and Golden odds", () => {
-  assert.equal(rollFinish(0), "prismatic");
-  assert.equal(rollFinish(9), "prismatic");
-  assert.equal(rollFinish(10), "golden");
-  assert.equal(rollFinish(109), "golden");
-  assert.equal(rollFinish(110), "standard");
+test("quality protection grows per card, resets only the awarded finish, and honors duplicate upgrades", () => {
+  const first = rollProtectedFinish(emptyFinishPity(), "standard", (maximum) => maximum - 1);
+  assert.equal(first.finish, "standard");
+  assert.deepEqual(first.pity, { foil: 1, golden: 1, prismatic: 1, holographic: 1, negative: 1 });
+
+  const foilPity = { ...emptyFinishPity(), foil: 4 };
+  const guaranteed = rollProtectedFinish(foilPity, "standard", (maximum) => maximum - 1);
+  assert.equal(guaranteed.finish, "foil");
+  assert.equal(guaranteed.pity.foil, 0);
+  assert.equal(guaranteed.pity.golden, 1);
+
+  const upgraded = rollProtectedFinish(emptyFinishPity(), nextFinish("prismatic"), (maximum) => maximum - 1);
+  assert.equal(upgraded.finish, "holographic");
+  assert.equal(upgraded.pity.holographic, 0);
+
+  const negativePity = { ...emptyFinishPity(), negative: 999 };
+  const negative = rollProtectedFinish(negativePity, "standard", (maximum) => maximum - 1);
+  const followingCard = rollProtectedFinish(negative.pity, "standard", (maximum) => maximum - 1);
+  assert.equal(negative.finish, "negative");
+  assert.notEqual(followingCard.finish, "negative");
 });
 
-test("every selected pack has five cards and a B-or-better guaranteed slot", () => {
+test("every selected pack has five cards and an A-or-better guaranteed slot", () => {
   const grades = ["S", "A", "B", "C", "D", "E", "F"] as const;
   const buckets = grades.map((grade, index) => ({ grade, cardIds: [`card-${index}`] }));
   const selected = selectPackCards(buckets, (maximum) => maximum - 1);
   assert.equal(selected.length, 5);
-  assert.equal(CCG_B_OR_BETTER_GRADES.has(selected[4].tierGrade), true);
+  assert.equal(CCG_A_OR_BETTER_GRADES.has(selected[4].tierGrade), true);
   assert.equal(selected[0].tierGrade, "F");
 });
 
-test("a pack cannot be produced when no B-or-better card exists", () => {
+test("a pack cannot be produced when no A-or-better card exists", () => {
   assert.throws(() => selectPackCards([{ grade: "F", cardIds: ["only-card"] }], () => 0), /no eligible cards/);
 });
 
@@ -73,13 +87,13 @@ test("a mode-wide pack plan can draw cards from multiple raid pools", () => {
   let cursor = 0;
   const plan = planPackSelections(
     [
-      { poolId: "pool-a", setId: "raid-a", version: "1", counts: [{ grade: "B", count: 2 }] },
-      { poolId: "pool-b", setId: "raid-b", version: "1", counts: [{ grade: "B", count: 3 }] },
+      { poolId: "pool-a", setId: "raid-a", version: "1", counts: [{ grade: "A", count: 2 }] },
+      { poolId: "pool-b", setId: "raid-b", version: "1", counts: [{ grade: "A", count: 3 }] },
     ],
     (maximum) => values[cursor++] % maximum,
   );
   assert.equal(plan.length, 5);
-  assert.equal(plan.every((row) => row.tierGrade === "B"), true);
+  assert.equal(plan.every((row) => row.tierGrade === "A"), true);
   assert.deepEqual(new Set(plan.map((row) => row.setId)), new Set(["raid-a", "raid-b"]));
 });
 

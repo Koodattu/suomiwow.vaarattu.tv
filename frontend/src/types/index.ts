@@ -1885,7 +1885,7 @@ export type CharacterProfileChoicesResponse = {
 export type CharacterProfileLookupResponse = CharacterProfileResponse | CharacterProfileChoicesResponse;
 
 export type CcgMode = "current" | "legacy";
-export type CcgFinish = "standard" | "golden" | "prismatic";
+export type CcgFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative";
 export type CcgTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";
 
 export type CcgSet = {
@@ -1909,6 +1909,7 @@ export type CcgCardOwnership = { finish: CcgFinish; quantity: number };
 
 export type CcgCard = {
   id: string;
+  characterId: string;
   setNumber: number;
   name: string;
   realm: string;
@@ -1933,6 +1934,13 @@ export type CcgCard = {
   set: CcgSet;
   ownership?: CcgCardOwnership[];
   totalQuantity?: number;
+  variants?: CcgCardVariant[];
+};
+
+export type CcgCardVariant = {
+  card: CcgCard;
+  ownership: CcgCardOwnership[];
+  totalQuantity: number;
 };
 
 export type CcgSession = {
@@ -1942,6 +1950,7 @@ export type CcgSession = {
   claimableGuestCards: { current: number; legacy: number };
   packs: Record<CcgMode, { dailyRemaining: number; bonusRemaining: number; totalRemaining: number }>;
   duplicates: Record<CcgMode, { remainder: number; needed: number; total: number; bonusPacksEarned: number }>;
+  qualityProtection: Record<Exclude<CcgFinish, "standard">, number>;
   ownedFinishes: number;
 };
 

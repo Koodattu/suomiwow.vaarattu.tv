@@ -259,6 +259,29 @@
   perspective: 1300px;
 }
 
+.cardHost,
+.cardButton {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  place-items: center;
+  perspective: 1300px;
+}
+
+.cardButton {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cardButton:focus-visible {
+  border-radius: 0.8rem;
+  outline: 2px solid #9be9ff;
+  outline-offset: 5px;
+}
+
 .prototypeCard {
   --lab-accent: #62d7ff;
   --lab-glow: rgba(78, 188, 255, 0.36);
@@ -287,6 +310,7 @@
   user-select: none;
   -webkit-user-select: none;
   width: min(var(--card-width), 84vw);
+  max-width: calc(100% - 10px);
   isolation: isolate;
   container-type: inline-size;
   aspect-ratio: 5 / 7;
@@ -373,6 +397,25 @@
 .finishLayer,
 .materialLight {
   position: absolute;
+}
+
+.quantity {
+  position: absolute;
+  z-index: 32;
+  top: 12.5%;
+  right: 4.5%;
+  display: grid;
+  min-width: 2.25em;
+  min-height: 2.25em;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(2, 6, 14, 0.84);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rarity) 52%, rgba(255, 255, 255, 0.22));
+  color: #fff;
+  font-size: 3.1cqw;
+  font-variant-numeric: tabular-nums;
+  font-weight: 850;
+  pointer-events: none;
 }
 
 .artworkClip,

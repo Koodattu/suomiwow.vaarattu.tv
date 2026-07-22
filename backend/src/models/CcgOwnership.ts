@@ -20,7 +20,7 @@ const CcgOwnershipSchema = new Schema<ICcgOwnership>(
     ownerType: { type: String, enum: ["user", "guest"], required: true, index: true },
     ownerId: { type: Schema.Types.ObjectId, required: true, index: true },
     cardId: { type: Schema.Types.ObjectId, ref: "CcgCard", required: true, index: true },
-    finish: { type: String, enum: ["standard", "golden", "prismatic"], required: true },
+    finish: { type: String, enum: ["standard", "foil", "golden", "prismatic", "holographic", "negative"], required: true },
     quantity: { type: Number, required: true, min: 1, default: 1 },
     firstAcquiredAt: { type: Date, required: true, default: Date.now },
     lastAcquiredAt: { type: Date, required: true, default: Date.now },

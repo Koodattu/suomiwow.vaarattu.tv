@@ -664,9 +664,13 @@
   -webkit-backface-visibility: hidden;
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
+  transition-property: opacity;
+  transition-duration: 0ms;
+  transition-delay: 260ms;
 }
 
 .cardBack {
+  opacity: 1;
   overflow: hidden;
   border-radius: clamp(0.68rem, 4.4cqw, 1.08rem);
   background:
@@ -746,7 +750,16 @@
 }
 
 .cardFront {
+  opacity: 0;
   transform: rotateY(180deg);
+}
+
+.revealSlotRevealed .cardBack {
+  opacity: 0;
+}
+
+.revealSlotRevealed .cardFront {
+  opacity: 1;
 }
 
 .revealFlare {

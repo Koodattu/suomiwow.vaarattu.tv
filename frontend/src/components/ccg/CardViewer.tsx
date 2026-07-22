@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { CcgCard, CcgFinish } from "@/types";
+import { bestOwnedFinish } from "@/lib/ccg";
 import { formatRealmName } from "@/lib/utils";
 import CollectibleCard from "./CollectibleCard";
 import styles from "./ccg.module.css";
@@ -11,10 +12,14 @@ export default function CardViewer({ card, initialFinish = "standard", onClose }
   const t = useTranslations("ccg");
   const locale = useLocale();
   const [finish, setFinish] = useState<CcgFinish>(initialFinish);
+  const [variantIndex, setVariantIndex] = useState(0);
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
-  const ownedFinishes = card.ownership ?? [];
+  const variants = card.variants?.length ? card.variants : [{ card, ownership: card.ownership ?? [], totalQuantity: card.totalQuantity ?? 0 }];
+  const selectedVariant = variants[Math.min(variantIndex, variants.length - 1)];
+  const displayedCard = selectedVariant.card;
+  const ownedFinishes = variantIndex === 0 ? (card.ownership ?? selectedVariant.ownership) : selectedVariant.ownership;
   const isOwned = ownedFinishes.length > 0;
   const quantity = ownedFinishes.find((row) => row.finish === finish)?.quantity ?? 0;
 
@@ -57,16 +62,37 @@ export default function CardViewer({ card, initialFinish = "standard", onClose }
 
   return (
     <div className={styles.viewerBackdrop} role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section ref={dialogRef} className={styles.viewer} role="dialog" aria-modal="true" aria-label={card.name}>
+      <section ref={dialogRef} className={styles.viewer} role="dialog" aria-modal="true" aria-label={displayedCard.name}>
         <div className="flex justify-end">
           <button ref={closeButtonRef} type="button" onClick={onClose} className={styles.secondaryButton}>{t("close")}</button>
         </div>
         <div className="mt-3 grid gap-6 md:grid-cols-[minmax(240px,360px)_1fr] md:items-center">
-          <CollectibleCard card={card} finish={finish} quantity={isOwned ? quantity : undefined} />
+          <CollectibleCard card={displayedCard} finish={finish} quantity={isOwned ? quantity : undefined} width={340} />
           <div>
-            <div className={styles.eyebrow}>#{String(card.setNumber).padStart(3, "0")} · {card.set.raidName}</div>
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-white">{card.name}</h2>
-            <p className="mt-1 text-sm text-slate-400">{card.guildName ? `<${card.guildName}> · ` : ""}{formatRealmName(card.realm)}</p>
+            <div className={styles.eyebrow}>#{String(displayedCard.setNumber).padStart(3, "0")} · {displayedCard.set.raidName}</div>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-white">{displayedCard.name}</h2>
+            <p className="mt-1 text-sm text-slate-400">{displayedCard.guildName ? `<${displayedCard.guildName}> · ` : ""}{formatRealmName(displayedCard.realm)}</p>
+            {variants.length > 1 ? (
+              <div className="mt-5">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">{t("collection.ownedSnapshots")}</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {variants.map((variant, index) => (
+                    <button
+                      type="button"
+                      aria-pressed={variantIndex === index}
+                      key={variant.card.id}
+                      onClick={() => {
+                        setVariantIndex(index);
+                        setFinish((index === 0 ? bestOwnedFinish(card) : bestOwnedFinish({ ...variant.card, ownership: variant.ownership }))?.finish ?? "standard");
+                      }}
+                      className={variantIndex === index ? styles.primaryButton : styles.secondaryButton}
+                    >
+                      {variant.card.set.raidName}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {isOwned ? (
               <div className="mt-5 flex flex-wrap gap-2" aria-label={t("finish.label")}>
                 {ownedFinishes.map((row) => (
@@ -87,10 +113,10 @@ export default function CardViewer({ card, initialFinish = "standard", onClose }
               </div>
             )}
             <dl className="mt-6 grid grid-cols-2 gap-x-5 gap-y-4 text-sm">
-              <div><dt className="text-xs uppercase tracking-wider text-slate-500">{t("snapshot")}</dt><dd className="mt-1 text-slate-300">{new Date(card.performanceSnapshotAt).toLocaleDateString(locale)}</dd></div>
-              <div><dt className="text-xs uppercase tracking-wider text-slate-500">{t("tier")}</dt><dd className="mt-1 font-bold text-slate-100">{card.tierGrade}</dd></div>
-              <div><dt className="text-xs uppercase tracking-wider text-slate-500">{card.metric.toUpperCase()}</dt><dd className="mt-1 tabular-nums text-slate-300">{card.scores.performance.toFixed(1)}</dd></div>
-              <div><dt className="text-xs uppercase tracking-wider text-slate-500">{t("mechanics")}</dt><dd className="mt-1 tabular-nums text-slate-300">{card.scores.mechanics.toFixed(1)}</dd></div>
+              <div><dt className="text-xs uppercase tracking-wider text-slate-500">{t("snapshot")}</dt><dd className="mt-1 text-slate-300">{new Date(displayedCard.performanceSnapshotAt).toLocaleDateString(locale)}</dd></div>
+              <div><dt className="text-xs uppercase tracking-wider text-slate-500">{t("tier")}</dt><dd className="mt-1 font-bold text-slate-100">{displayedCard.tierGrade}</dd></div>
+              <div><dt className="text-xs uppercase tracking-wider text-slate-500">{displayedCard.metric.toUpperCase()}</dt><dd className="mt-1 tabular-nums text-slate-300">{displayedCard.scores.performance.toFixed(1)}</dd></div>
+              <div><dt className="text-xs uppercase tracking-wider text-slate-500">{t("mechanics")}</dt><dd className="mt-1 tabular-nums text-slate-300">{displayedCard.scores.mechanics.toFixed(1)}</dd></div>
             </dl>
           </div>
         </div>

@@ -218,6 +218,7 @@
       "showMissing": "Näytä puuttuvat",
       "missing": "Puuttuvat",
       "notCollected": "Ei vielä kerätty",
+      "ownedSnapshots": "Kerätyt snapshotit",
       "allGrades": "Kaikki tierit",
       "selectGuildTitle": "Valitse kiltakansio",
       "selectGuildBody": "Etsi tämän raid-tierin kilta selataksesi sen hahmoja.",

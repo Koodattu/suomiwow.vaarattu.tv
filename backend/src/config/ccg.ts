@@ -1,5 +1,5 @@
 export type CcgMode = "current" | "legacy";
-export type CcgFinish = "standard" | "golden" | "prismatic";
+export type CcgFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative";
 export type CcgTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";
 export type CcgSetState = "draft" | "current" | "legacy" | "locked";
 
@@ -10,11 +10,11 @@ export const CCG_DAILY_PACKS_PER_MODE = 10;
 export const CCG_GUEST_CLAIM_CARD_LIMIT_PER_MODE = CCG_CARDS_PER_PACK * CCG_DAILY_PACKS_PER_MODE;
 export const CCG_DUPLICATES_PER_BONUS_PACK = 10;
 export const CCG_GUEST_COOKIE = "swccg_guest";
-export const CCG_PACK_RULE_VERSION = "pack-v3-rarity-ladder";
+export const CCG_PACK_RULE_VERSION = "pack-v4-character-duplicates-pity";
 export const CCG_GRADING_VERSION = "grade-v2-rarity-ladder";
 export const CCG_ELIGIBILITY_VERSION = "mythic-reports-v2";
 export const CCG_THEME_VERSION = "vault-v1";
-export const CCG_POOL_VERSION = "pool-v3-rarity-ladder";
+export const CCG_POOL_VERSION = "pool-v4-a-rank-guarantee";
 
 function positiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -31,7 +31,7 @@ export const CCG_ENABLE_MIN_MEDIA_READY_CHARACTERS = positiveInteger(process.env
 export const CCG_ENABLE_MIN_MEDIA_COVERAGE = ratio(process.env.CCG_ENABLE_MIN_MEDIA_COVERAGE, 0.75);
 
 export const CCG_TIER_GRADES: readonly CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
-export const CCG_B_OR_BETTER_GRADES = new Set<CcgTierGrade>(["S", "A", "B"]);
+export const CCG_A_OR_BETTER_GRADES = new Set<CcgTierGrade>(["S", "A"]);
 
 export const CCG_WEIGHTED_GRADE_ODDS: Readonly<Record<CcgTierGrade, number>> = {
   S: 30,
@@ -46,17 +46,24 @@ export const CCG_WEIGHTED_GRADE_ODDS: Readonly<Record<CcgTierGrade, number>> = {
 export const CCG_GUARANTEED_GRADE_ODDS: Readonly<Record<CcgTierGrade, number>> = {
   S: 60,
   A: 140,
-  B: 300,
+  B: 0,
   C: 0,
   D: 0,
   E: 0,
   F: 0,
 };
 
-export const CCG_FINISH_ODDS = {
-  goldenBasisPoints: 100,
-  prismaticBasisPoints: 10,
-} as const;
+export const CCG_FINISH_ORDER: readonly CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
+
+export type CcgProtectedFinish = Exclude<CcgFinish, "standard">;
+
+export const CCG_FINISH_PITY_LIMITS: Readonly<Record<CcgProtectedFinish, number>> = {
+  foil: 5,
+  golden: 25,
+  prismatic: 50,
+  holographic: 100,
+  negative: 1000,
+};
 
 export type CcgBackgroundSafeCrop = {
   x: number;

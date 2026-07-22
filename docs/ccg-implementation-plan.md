@@ -83,11 +83,12 @@ The grade is calculated once at publication from one canonical, unfiltered globa
 
 Duplicates do not upgrade card rarity. Rarity represents the character's snapshotted raid-tier performance and must remain truthful.
 
-- The first owned copy of a card and finish is new.
-- Further copies of the same card and finish are exact duplicates.
-- A newly acquired Golden or Prismatic finish is new even if Standard is already owned.
+- Duplicate identity is the character, not the immutable raid snapshot. Pulling the same character from another raid or weekly snapshot is still a duplicate.
+- A duplicate is guaranteed at least the next finish above that character's best owned finish, capped at Negative.
+- The first owned copy of a character is new; later pulls of that character advance duplicate progress even when they add a new snapshot or finish variant.
+- Different snapshots and finishes remain separately auditable and keep their own quantities in storage.
 - Ownership stores and displays quantities such as `×2` and `×7`.
-- For authenticated collections, every ten exact duplicate pulls award one bonus pack credit in the same mode.
+- For authenticated collections, every ten duplicate character pulls award one bonus pack credit in the same mode.
 - Copies are not destroyed when the duplicate meter awards a pack.
 - Bonus-pack results can advance the duplicate meter normally.
 - Guest results are provisional: duplicate rewards are calculated against the authenticated collection during a valid same-day claim and no spendable guest bonus credit exists before login.
@@ -101,16 +102,23 @@ Duplicate progress is displayed as a persistent meter, for example `7 / 10 — B
 Finish is independent of tier grade:
 
 - **Standard** uses the baseline treatment for the card's tier grade.
+- **Foil** adds a restrained reactive material and is the first upgraded finish.
 - **Golden** adds warm metallic treatment, enhanced frame detail, and restrained animated highlights.
 - **Prismatic** adds a spectral edge, microfoil, richer pointer-responsive lighting, and the premium reveal.
+- **Holographic** intensifies the spectral depth and animated diffraction beyond Prismatic.
+- **Negative** applies the rare full-card inverted treatment and is the highest production finish.
 
-Rare-or-better cards are already foil by baseline treatment. `Foil` therefore does not need to be a separate stored finish.
+Void remains a design-lab-only treatment and is not a production finish.
 
-Proposed initial per-card finish odds:
+Each non-Standard finish has a persistent per-owner protection counter. On each pulled card, its chance is `counter / hardPity`; the counter resets only when that finish is actually awarded. Finish rolls are independent, but a card receives only the highest finish that succeeds, so reaching one hard pity cannot turn the rest of a pack into the same premium finish.
 
-- Standard: 98.9%
-- Golden: 1.0%
-- Prismatic: 0.1%
+Initial hard-pity limits:
+
+- Foil: 5 cards
+- Golden: 25 cards
+- Prismatic: 50 cards
+- Holographic: 100 cards
+- Negative: 1,000 cards
 
 Odds are versioned configuration, not hard-coded business logic.
 
@@ -238,8 +246,7 @@ Initial pack configuration:
 
 - Five cards per pack
 - Four weighted slots
-- One guaranteed `B`-or-better slot
-- Optional soft duplicate protection on the guaranteed slot until the relevant pool is substantially collected
+- One guaranteed `A`-or-better slot
 - Server-side cryptographic random selection
 - Versioned odds and pool configuration stored with every opening
 
@@ -300,9 +307,9 @@ The primary collection experience resembles a physical card album:
 - Tablet and mobile reduce the pocket count without shrinking cards below readable sizes.
 - The default **All cards** view shows collected cards only.
 - The **By guild** view defaults to collected cards and can optionally reveal missing cards as numbered dark silhouettes.
-- Owned pockets display the highest owned finish and a visible total quantity.
+- Owned pockets group every snapshot of the same character and display the latest snapshot with the character's highest owned finish and total quantity.
 - Selecting a pocket opens the large card viewer.
-- The focused viewer lets the user switch between owned finishes and see quantities.
+- The focused viewer lets the user switch between all owned snapshot and finish variants and see quantities.
 - Set completion and duplicate progress remain visible near the binder controls.
 
 The binder is a real collection affordance, so a repeated card grid is appropriate here. A searchable index view can be added as a utility for large collections, but it is secondary to the binder.
@@ -654,7 +661,7 @@ Use a polymorphic owner:
 - `ownerType`: `user` or `guest`
 - `ownerId`
 - `cardId`
-- `finish`: `standard`, `golden`, or `prismatic`
+- `finish`: `standard`, `foil`, `golden`, `prismatic`, `holographic`, or `negative`
 - `quantity`
 - `firstAcquiredAt`
 - `lastAcquiredAt`
@@ -668,6 +675,10 @@ Indexes:
 - Collection filter indexes should include the denormalized fields only if measurement shows lookup joins are insufficient.
 
 One document stores a quantity. Do not create one ownership document per duplicate copy.
+
+### `CcgQualityProgress`
+
+Store one document per owner with persistent counters for `foil`, `golden`, `prismatic`, `holographic`, and `negative`. Counters are shared by Current and Legacy openings, advance once per pulled card, and reset independently only when that finish is awarded. Guest progress uses the same day-scoped expiry as other provisional guest state and is merged into authenticated progress during claim.
 
 All other guest-owned temporary documents, including daily allowance, provisional progress, and opening documents, carry the same guest `dateKey` and `expiresAt` and have TTL indexes where applicable. Application queries must still reject expired guest data because MongoDB TTL deletion is not immediate.
 
@@ -788,11 +799,11 @@ Within one transaction:
 4. Atomically reserve one daily allowance, or an authenticated owner's persistent pack credit. Guests can consume only the day's five normal packs per mode.
 5. Load the active versioned pack pool.
 6. Select card IDs with server-side cryptographic randomness.
-7. Apply the guaranteed `B`-or-better slot and optional duplicate protection.
-8. Roll each finish using the stored pack-rule version.
-9. Determine whether every result is new or an exact duplicate, including duplicates repeated within the same pack.
+7. Apply the guaranteed `A`-or-better slot.
+8. Resolve duplicate identity by character across all owned snapshots, including repeated characters within the same pack.
+9. Roll the protected finishes once per card using the stored pack-rule version, applying the duplicate's minimum next finish and persisting the resulting counters.
 10. Upsert ownership quantities.
-11. For an authenticated owner, add exact duplicates to the mode-specific duplicate meter and convert every completed group of ten into a bonus pack credit.
+11. For an authenticated owner, add duplicate characters to the mode-specific duplicate meter and convert every completed group of ten into a bonus pack credit.
 12. For a guest, record only provisional same-day ownership and classifications; defer authenticated duplicate reclassification and rewards until claim.
 13. Write the immutable opening result and ledger entries.
 14. Commit.
@@ -1110,7 +1121,7 @@ Never expose user-level private collection data in public operational dashboards
 ### Phase 6 — premium motion and seasonal theming
 
 - Implement rarity ornament escalation.
-- Add foil, Golden, and Prismatic materials.
+- Add Foil, Golden, Prismatic, Holographic, and Negative materials.
 - Add fine-pointer card tilt.
 - Add raid-themed pack sequences and reduced-motion alternatives.
 - Performance-test representative mobile and desktop devices.
@@ -1146,7 +1157,7 @@ Never expose user-level private collection data in public operational dashboards
 - Concurrent opening requests with one remaining pack
 - Transaction rollback after a mid-operation failure
 - Ownership quantity updates
-- New finish versus exact duplicate behavior
+- New character versus character-wide duplicate behavior across snapshots
 - Duplicate-earned pack credit
 - Legacy set selection
 - Guest opening, same-day claim, and repeated claim
@@ -1190,7 +1201,7 @@ Statistical tests use tolerances; they must not depend on a fixed random sequenc
 ### Manual visual QA
 
 - All tier-grade treatments
-- Standard, Golden, and Prismatic finishes
+- Standard, Foil, Golden, Prismatic, Holographic, and Negative finishes
 - Every raid background and its safe crop range
 - Long character, guild, realm, and raid names
 - Missing guild and missing Mythic+ values
@@ -1213,8 +1224,11 @@ The initial feature is ready when:
 - Cards remain immutable after publication and rollover.
 - Tier grade is the visible rarity and drives pack/style behavior.
 - Every pack contains five cards and satisfies its guaranteed slot.
-- Exact duplicates increment visible quantities and the duplicate meter.
-- Every ten exact duplicates award one same-mode pack credit.
+- Duplicate characters increment visible quantities and the duplicate meter even when they come from different snapshots.
+- Every ten duplicate characters award one same-mode pack credit.
+- Every duplicate is guaranteed at least the next finish above that character's best owned finish, capped at Negative.
+- Finish protection grows per card to the configured hard pity and resets only the finish that was awarded.
+- The collection groups all owned snapshots of one character, shows the latest snapshot with the best owned finish, and exposes every owned variant in the viewer.
 - Current becomes Legacy without changing existing cards.
 - The binder displays owned, missing, quantities, finishes, and completion by raid set.
 - Character pages display a Blizzard avatar with a reliable fallback.

@@ -218,6 +218,7 @@
       "showMissing": "Show missing",
       "missing": "Missing",
       "notCollected": "Not collected yet",
+      "ownedSnapshots": "Owned snapshots",
       "allGrades": "All grades",
       "selectGuildTitle": "Choose a guild binder",
       "selectGuildBody": "Search for a guild from this raid tier to browse its characters.",
