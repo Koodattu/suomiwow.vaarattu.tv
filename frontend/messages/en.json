@@ -289,7 +289,10 @@
     "independent": "Independent",
     "snapshot": "Snapshot",
     "tier": "Tier grade",
-    "mechanics": "Mechanics"
+    "mechanics": "Mechanics",
+    "cardNumber": "Card #{number}",
+    "viewCharacter": "View {name}",
+    "inspectCloseHint": "Press Escape or select the background to close the card."
   },
   "infoDialog": {
     "title": "About This Site",

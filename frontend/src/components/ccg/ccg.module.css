@@ -1049,21 +1049,201 @@
   position: fixed;
   z-index: 80;
   inset: 0;
-  display: grid;
   overflow-y: auto;
-  place-items: center;
-  background: rgba(0, 2, 8, 0.82);
-  padding: 1rem;
-  backdrop-filter: blur(10px);
+  isolation: isolate;
 }
 
-.viewer {
-  width: min(100%, 64rem);
-  border: 1px solid rgba(142, 184, 242, 0.22);
-  border-radius: 1rem;
-  background: #050b18;
-  box-shadow: 0 35px 100px rgba(0, 0, 0, 0.68);
-  padding: clamp(0.85rem, 2vw, 1.5rem);
+.viewerBackdrop::before {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  background: rgba(0, 2, 9, 0.78);
+  backdrop-filter: blur(0);
+  content: "";
+  opacity: 0;
+  transition-property: opacity, backdrop-filter;
+  transition-duration: 220ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.viewerBackdropOpen::before {
+  backdrop-filter: blur(12px);
+  opacity: 1;
+}
+
+.viewerBackdropClosing::before {
+  transition-duration: 260ms;
+}
+
+.viewerInspect {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 100%;
+  min-height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  grid-template-columns: minmax(0, auto) minmax(20rem, 29rem);
+  gap: clamp(2.25rem, 5vw, 6rem);
+  padding: clamp(1.5rem, 4vw, 4rem);
+  outline: none;
+  pointer-events: none;
+}
+
+.viewerCardMotion {
+  width: min(31rem, 42vw, calc((100dvh - 4rem) * 5 / 7));
+  min-width: 0;
+  opacity: 0.62;
+  pointer-events: auto;
+  transform: translate3d(var(--viewer-origin-x), var(--viewer-origin-y), 0) scale(var(--viewer-origin-scale));
+  transform-origin: center;
+  filter: blur(2px) brightness(0.82);
+  transition-property: transform, opacity, filter;
+  transition-duration: 420ms, 220ms, 260ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity, filter;
+}
+
+.viewerCard > [data-ccg-card] {
+  width: calc(100% - 10px);
+}
+
+.viewerBackdropOpen .viewerCardMotion {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: none;
+}
+
+.viewerBackdropClosing .viewerCardMotion {
+  transition-duration: 320ms, 200ms, 220ms;
+  transition-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+.viewerInfo {
+  width: 100%;
+  max-height: calc(100dvh - 4rem);
+  overflow-y: auto;
+  padding: 0.25rem 0.35rem 0.25rem 0;
+  opacity: 0;
+  pointer-events: auto;
+  scrollbar-width: thin;
+  transform: translate3d(1.25rem, 0, 0);
+  transition-property: transform, opacity;
+  transition-duration: 260ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.viewerBackdropOpen .viewerInfo {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition-delay: 90ms;
+}
+
+.viewerBackdropClosing .viewerInfo {
+  opacity: 0;
+  transform: translate3d(0.65rem, 0, 0);
+  transition-duration: 160ms;
+  transition-delay: 0ms;
+}
+
+.viewerSet {
+  color: #78dcff;
+  font-size: 0.75rem;
+  font-weight: 720;
+  letter-spacing: 0.04em;
+}
+
+.viewerInfo h2 {
+  margin-top: 0.45rem;
+  color: #fff;
+  font-size: clamp(2.2rem, 4vw, 3.75rem);
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  line-height: 0.96;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.viewerIdentity {
+  margin-top: 0.7rem;
+  color: #aebbd0;
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
+.viewerCharacterLink {
+  margin-top: 1.35rem;
+}
+
+.viewerControls {
+  margin-top: 1.6rem;
+}
+
+.viewerControls h3 {
+  color: #9ba9be;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.viewerControls > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.viewerControls .primaryButton,
+.viewerControls .secondaryButton {
+  min-height: 2.35rem;
+  padding: 0.45rem 0.72rem;
+  font-size: 0.75rem;
+}
+
+.viewerNotCollected {
+  margin-top: 1.6rem;
+  color: #b6c2d5;
+  font-size: 0.86rem;
+  font-weight: 680;
+}
+
+.viewerFacts {
+  display: grid;
+  margin-top: 1.75rem;
+  border-block: 1px solid rgba(142, 184, 242, 0.16);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.viewerFacts > div {
+  min-width: 0;
+  padding: 0.85rem 0;
+  border-top: 1px solid rgba(142, 184, 242, 0.1);
+}
+
+.viewerFacts > div:nth-child(-n + 2) {
+  border-top: 0;
+}
+
+.viewerFacts > div:nth-child(even) {
+  padding-left: 1.25rem;
+}
+
+.viewerFacts > div:nth-child(odd) {
+  padding-right: 1.25rem;
+}
+
+.viewerFacts dt {
+  color: #74839a;
+  font-size: 0.69rem;
+  font-weight: 650;
+}
+
+.viewerFacts dd {
+  margin-top: 0.24rem;
+  color: #eef4ff;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 760;
 }
 
 @keyframes foilSweep {
@@ -1082,9 +1262,38 @@
     justify-self: center;
   }
 
-  .viewerBackdrop {
-    align-items: start;
-    padding-block: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-bottom));
+  .viewerInspect {
+    min-height: 100dvh;
+    align-content: start;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+    padding: max(1.25rem, env(safe-area-inset-top)) 1rem max(2rem, env(safe-area-inset-bottom));
+  }
+
+  .viewerCardMotion {
+    width: min(86vw, 24rem, calc(62dvh * 5 / 7));
+    justify-self: center;
+  }
+
+  .viewerInfo {
+    width: min(100%, 32rem);
+    max-height: none;
+    overflow: visible;
+    padding: 0 0.35rem;
+    justify-self: center;
+    transform: translate3d(0, 0.75rem, 0);
+  }
+
+  .viewerBackdropClosing .viewerInfo {
+    transform: translate3d(0, 0.45rem, 0);
+  }
+
+  .viewerInfo h2 {
+    font-size: 2.35rem;
+  }
+
+  .viewerCharacterLink {
+    width: 100%;
   }
 }
 
@@ -1150,5 +1359,12 @@
   .collectionSkeleton {
     animation: none;
     transition-duration: 1ms;
+  }
+
+  .viewerBackdrop::before,
+  .viewerCardMotion,
+  .viewerInfo {
+    transition-duration: 1ms;
+    transition-delay: 0ms;
   }
 }

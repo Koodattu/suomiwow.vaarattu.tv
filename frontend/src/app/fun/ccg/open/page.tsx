@@ -695,6 +695,7 @@ export default function CcgOpenPage() {
         <CardViewer
           card={{ ...opening.results[viewerIndex].card, ownership: [{ finish: opening.results[viewerIndex].finish, quantity: 1 }] }}
           initialFinish={opening.results[viewerIndex].finish}
+          originElement={cardRefs.current[viewerIndex]}
           onClose={() => setViewerIndex(null)}
         />
       ) : null}

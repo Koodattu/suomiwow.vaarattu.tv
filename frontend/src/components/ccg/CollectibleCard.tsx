@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgCard, CcgFinish } from "@/types";
 import { CCG_RARITY_KEYS } from "@/lib/ccg";
 import { formatRealmName, formatSpecName, getClassInfoById, getSpecIconUrl } from "@/lib/utils";
@@ -92,7 +92,7 @@ type CollectibleCardProps = {
   finish?: CcgFinish | "void";
   compact?: boolean;
   quantity?: number;
-  onSelect?: () => void;
+  onSelect?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   className?: string;
   width?: number;
   guides?: boolean;
@@ -200,6 +200,7 @@ export default function CollectibleCard({
       data-grade={card.tierGrade}
       data-finish={finish}
       data-frame="vaultSteel"
+      data-ccg-card
       data-forced-hover={forcedPointer ? "true" : undefined}
       style={cardStyle}
       onPointerMove={updateMaterial}

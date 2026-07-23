@@ -289,7 +289,10 @@
     "independent": "Ei kiltaa",
     "snapshot": "Snapshot",
     "tier": "Tier-luokka",
-    "mechanics": "Mekaniikat"
+    "mechanics": "Mekaniikat",
+    "cardNumber": "Kortti #{number}",
+    "viewCharacter": "Näytä {name}",
+    "inspectCloseHint": "Sulje kortti painamalla Esc tai valitsemalla tausta."
   },
   "infoDialog": {
     "title": "Tietoa Sivustosta",

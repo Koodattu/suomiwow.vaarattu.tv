@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
 import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
@@ -48,6 +48,7 @@ export default function CcgCollectionPage() {
   const [grade, setGrade] = useState("");
   const [finish, setFinish] = useState<CcgFinish | "">("");
   const [viewerCard, setViewerCard] = useState<CcgCard | null>(null);
+  const viewerOriginRef = useRef<HTMLElement | null>(null);
   const selectedSet = sets.find((set) => set.slug === setSlug);
   const guildsQuery = useCcgSetGuilds(setSlug, view === "guild");
   const guilds = useMemo(
@@ -234,7 +235,10 @@ export default function CcgCollectionPage() {
                         quantity={ownedFinish?.total}
                         compact
                         className={ownedFinish ? "" : styles.collectionMissingCard}
-                        onSelect={() => setViewerCard(card)}
+                        onSelect={(event) => {
+                          viewerOriginRef.current = event.currentTarget;
+                          setViewerCard(card);
+                        }}
                       />
                     </div>
                   );
@@ -266,7 +270,14 @@ export default function CcgCollectionPage() {
           </button>
         </section>
       </div>
-      {viewerCard ? <CardViewer card={viewerCard} initialFinish={bestOwnedFinish(viewerCard)?.finish ?? "standard"} onClose={() => setViewerCard(null)} /> : null}
+      {viewerCard ? (
+        <CardViewer
+          card={viewerCard}
+          initialFinish={bestOwnedFinish(viewerCard)?.finish ?? "standard"}
+          originElement={viewerOriginRef.current}
+          onClose={() => setViewerCard(null)}
+        />
+      ) : null}
     </CcgShell>
   );
 }
