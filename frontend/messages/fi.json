@@ -132,7 +132,7 @@
       "recoveryFailed": "Tallennettua pakkaa ei voitu palauttaa. Tyhjennä se ennen uuden pakan avaamista.",
       "dismissRecovery": "Tyhjennä tallennettu pakka",
       "openAnother": "Avaa toinen pakka",
-      "comparePrototypes": "Hio korttiasettelua"
+      "chooseDifferent": "Valitse toinen pakka"
     },
     "prototypes": {
       "kicker": "Väliaikainen design-labra",

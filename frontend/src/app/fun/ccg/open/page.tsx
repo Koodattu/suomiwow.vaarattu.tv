@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgMode, CcgOpening, CcgSet } from "@/types";
 import { api } from "@/lib/api";
@@ -22,6 +21,7 @@ import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 
 type RevealPhase = "idle" | "tearing" | "dealing" | "ready";
+type PackSelection = { mode: CcgMode; setId?: string };
 
 const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
 const fanOffsets = [15, 5, 0, 5, 15];
@@ -100,7 +100,6 @@ export default function CcgOpenPage() {
   const [activeReveal, setActiveReveal] = useState<{ index: number; x: number; y: number } | null>(null);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [legacySetId, setLegacySetId] = useState(RANDOM_LEGACY_SET);
-  const [showPrototypeLab, setShowPrototypeLab] = useState(false);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const shuffleAudioRef = useRef<HTMLAudioElement | null>(null);
   const cardSlideAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
@@ -136,7 +135,6 @@ export default function CcgOpenPage() {
   }, [legacySetId, legacySets]);
 
   useEffect(() => {
-    setShowPrototypeLab(["localhost", "127.0.0.1", "::1"].includes(window.location.hostname));
     const params = new URLSearchParams(window.location.search);
     if (params.get("mode") === "legacy") setMode("legacy");
     const requestedOpening = params.get("opening");
@@ -208,11 +206,11 @@ export default function CcgOpenPage() {
   }, [revealPhase, revealedCards.size]);
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (selection: PackSelection) => {
       const result = await api.openCcgPack({
-        mode,
+        mode: selection.mode,
         idempotencyKey: makeIdempotencyKey(),
-        setId: mode === "legacy" && selectedLegacySet ? selectedLegacySet.id : undefined,
+        setId: selection.setId,
       });
       queryClient.setQueryData(queryKeys.ccg.opening(result.id), result);
       const url = new URL(window.location.href);
@@ -227,6 +225,8 @@ export default function CcgOpenPage() {
       return result;
     },
     onSuccess: (result) => {
+      setMode(result.mode);
+      if (result.mode === "legacy") setLegacySetId(result.targetSetId ?? RANDOM_LEGACY_SET);
       setOpening(result);
       queryClient.invalidateQueries({ queryKey: queryKeys.ccg.session });
       queryClient.invalidateQueries({ queryKey: ["ccg", "catalog"] });
@@ -279,6 +279,7 @@ export default function CcgOpenPage() {
 
   const canOpen = recoveryInitialized && !recoveryId && Boolean(session) && !queryFailed && modeSets.length > 0 && !noPacks && !mutation.isPending;
   const allRevealed = Boolean(opening) && revealedCards.size >= (opening?.results.length ?? 0);
+  const hasAnotherPack = Boolean(opening && session && session.packs[opening.mode].totalRemaining > 0);
   const revealedSummary = useMemo(
     () => opening?.results
       .filter((_, index) => revealedCards.has(index))
@@ -395,7 +396,13 @@ export default function CcgOpenPage() {
       packDragRef.current.suppressClick = false;
       return;
     }
-    mutation.mutate();
+    mutation.mutate({ mode, setId: mode === "legacy" ? selectedLegacySet?.id : undefined });
+  };
+
+  const openAnotherPack = () => {
+    if (!opening || mutation.isPending) return;
+    setRecoveryId("");
+    mutation.mutate({ mode: opening.mode, setId: opening.targetSetId ?? undefined });
   };
 
   if (queryFailed) {
@@ -645,7 +652,6 @@ export default function CcgOpenPage() {
                         </span>
                         <span className={packStyles.pullStatus} aria-hidden={!revealed}>
                           <strong>{t(result.isDuplicate ? "open.duplicate" : "open.newCard")}</strong>
-                          <span>{t(`finish.${result.finish}`)}</span>
                         </span>
                       </button>
                     );
@@ -654,26 +660,27 @@ export default function CcgOpenPage() {
               </div>
 
               <div className={packStyles.revealControls}>
-                <div className={packStyles.revealProgress}>
-                  <span>{t("open.revealProgress", { revealed: revealedCards.size, total: opening.results.length })}</span>
-                  <span className={packStyles.progressPips} aria-hidden="true">
-                    {opening.results.map((_, index) => <i key={index} data-revealed={revealedCards.has(index)} />)}
-                  </span>
-                </div>
-                {revealPhase === "ready" && !allRevealed ? (
-                  <button type="button" className={styles.secondaryButton} onClick={revealAll}>{t("open.revealAll")}</button>
-                ) : null}
-                {allRevealed ? (
-                  <>
-                    {showPrototypeLab ? (
-                      <Link href={`/fun/ccg/prototypes?set=${encodeURIComponent(opening.results[0]?.card.set.slug ?? "")}`} className={styles.secondaryButton}>
-                        {t("open.comparePrototypes")}
-                      </Link>
+                {!allRevealed ? (
+                  <div className={packStyles.revealProgress}>
+                    <span>{t("open.revealProgress", { revealed: revealedCards.size, total: opening.results.length })}</span>
+                    <button type="button" className={styles.secondaryButton} onClick={revealAll} disabled={revealPhase !== "ready"}>
+                      {t("open.revealAll")}
+                    </button>
+                  </div>
+                ) : (
+                  <div className={packStyles.nextPackActions}>
+                    {hasAnotherPack ? (
+                      <button type="button" className={styles.primaryButton} onClick={openAnotherPack} disabled={mutation.isPending}>
+                        {mutation.isPending ? t("open.opening") : t("open.openAnother")}
+                      </button>
                     ) : null}
-                    <button type="button" className={styles.primaryButton} onClick={clearSavedOpening}>{t("open.openAnother")}</button>
-                  </>
-                ) : null}
+                    <button type="button" className={styles.secondaryButton} onClick={clearSavedOpening} disabled={mutation.isPending}>
+                      {t("open.chooseDifferent")}
+                    </button>
+                  </div>
+                )}
               </div>
+              {allRevealed && mutation.error ? <p className={packStyles.packActionError} role="alert">{mutation.error.message}</p> : null}
               {allRevealed && opening.duplicateRewards > 0 ? <p className={packStyles.bonusEarned}>{t("open.bonusEarned", { count: opening.duplicateRewards })}</p> : null}
             </div>
             <div className={`${packStyles.burstOverlay} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`} aria-hidden="true">

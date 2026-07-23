@@ -132,7 +132,7 @@
       "recoveryFailed": "That saved pack could not be recovered. Clear it before opening another pack.",
       "dismissRecovery": "Clear saved pack",
       "openAnother": "Open another pack",
-      "comparePrototypes": "Refine the card layout"
+      "chooseDifferent": "Choose a different pack"
     },
     "prototypes": {
       "kicker": "Temporary design lab",
