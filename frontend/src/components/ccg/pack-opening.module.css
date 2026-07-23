@@ -1,3 +1,9 @@
+@font-face {
+  font-family: "LifeCraft";
+  src: url("/LifeCraft_Font.ttf") format("truetype");
+  font-display: swap;
+}
+
 .packStage {
   --pack-accent: #5baeff;
   --pack-glow: rgba(91, 174, 255, 0.38);
@@ -788,12 +794,12 @@
   overflow: hidden;
   border-radius: clamp(0.68rem, 4.4cqw, 1.08rem);
   background:
-    linear-gradient(135deg, #9aa8b9, #131b29 12%, #3b4b62 26%, #050912 47%, color-mix(in srgb, var(--pack-accent) 42%, #172438) 67%, #0a111e 84%, #77869a);
+    linear-gradient(132deg, rgba(255, 255, 255, 0.38), transparent 12% 44%, color-mix(in srgb, var(--pack-accent) 22%, transparent) 58%, transparent 79%, rgba(255, 255, 255, 0.22)),
+    linear-gradient(145deg, color-mix(in srgb, var(--pack-accent) 18%, #aab5c3), #151c27 16%, #586576 31%, #070b12 49%, color-mix(in srgb, var(--pack-accent) 22%, #788493) 69%, #121925 85%, #697687);
   box-shadow:
     0 7px 8px rgba(0, 0, 0, 0.54),
-    0 0 22px var(--pack-glow),
-    inset 0 0 0 2px rgba(255, 255, 255, 0.18),
-    inset 0 0 0 6px rgba(0, 3, 10, 0.78);
+    0 0 14px color-mix(in srgb, var(--pack-glow) 64%, transparent),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.24);
   padding: 0.5rem;
   transform: rotateY(0deg) translateZ(1px);
 }
@@ -872,19 +878,32 @@
 }
 
 .cardBackBrand {
-  top: 13%;
+  top: 10%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   color: white;
   font-size: clamp(0.58rem, 4cqw, 0.92rem);
   font-weight: 900;
   letter-spacing: 0.13em;
+  line-height: 0.92;
+}
+
+.cardBackBrand strong {
+  font-size: 1.12em;
 }
 
 .cardBackSet {
-  bottom: 11%;
-  color: #cbd7e8;
-  font-size: clamp(0.42rem, 2.5cqw, 0.6rem);
-  font-weight: 760;
-  letter-spacing: 0.08em;
+  bottom: 5.5%;
+  color: color-mix(in srgb, var(--pack-accent) 64%, white);
+  font-family: "LifeCraft", fantasy;
+  font-size: clamp(0.68rem, 4.6cqw, 1.04rem);
+  font-synthesis: none;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.88);
+  text-transform: none;
+  -webkit-text-stroke: 0.25px rgba(0, 0, 0, 0.55);
 }
 
 .cardFront {

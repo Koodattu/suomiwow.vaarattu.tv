@@ -491,7 +491,7 @@ export default function CcgOpenPage() {
                             <span className={packStyles.cardBackField} />
                             <span className={packStyles.cardBackFinish} />
                             <span className={packStyles.cardBackSigil} aria-hidden="true"><span /></span>
-                            <span className={packStyles.cardBackBrand}>SuomiWoW <strong>CCG</strong></span>
+                            <span className={packStyles.cardBackBrand}><span>SUOMIWOW</span><strong>CCG</strong></span>
                             <span className={packStyles.cardBackSet}>{opening.mode === "current" ? openingSet?.raidName : t("open.legacyPackTitle")}</span>
                           </span>
                           <span className={`${packStyles.cardFace} ${packStyles.cardFront}`} aria-hidden={!revealed}>
