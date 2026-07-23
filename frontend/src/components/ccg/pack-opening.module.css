@@ -6,7 +6,7 @@
 
 .openWorkspace {
   width: 100%;
-  height: calc(100dvh - 3.5625rem);
+  height: calc(100dvh - 3.625rem);
   min-height: 0;
   overflow: hidden;
 }
@@ -75,7 +75,6 @@
 .modeChoices {
   display: grid;
   gap: 0.5rem;
-  margin-top: 0.55rem;
 }
 
 .modeChoice {
@@ -349,7 +348,7 @@
   .packControls {
     position: absolute;
     top: 50%;
-    left: 1.25rem;
+    left: max(1.25rem, calc(50% - 32.5rem));
     width: min(21rem, calc(100% - 2.5rem));
     transform: translateY(-50%);
   }
@@ -749,7 +748,6 @@
 .packBrand,
 .packTitle,
 .packCount,
-.packSeal,
 .packSigil {
   position: absolute;
   z-index: 6;
@@ -778,7 +776,7 @@
   top: 21%;
   width: 76%;
   color: #fffefa;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "LifeCraft", Georgia, "Times New Roman", serif;
   font-size: clamp(1.32rem, 4vw, 1.92rem);
   font-weight: 700;
   letter-spacing: -0.015em;
@@ -803,8 +801,8 @@
   display: block;
   width: 100%;
   aspect-ratio: 1;
-  background: color-mix(in srgb, var(--pack-accent) 82%, white 18%);
-  filter: drop-shadow(0 0 8px var(--pack-glow));
+  background: var(--pack-logo-fill);
+  filter: drop-shadow(0 0 8px var(--pack-logo-glow));
   mask: url("/ccg/logo_ccg.png") center / contain no-repeat;
 }
 
@@ -830,23 +828,6 @@
   font-size: 0.58rem;
   font-weight: 800;
   letter-spacing: 0.17em;
-}
-
-.packSeal {
-  bottom: 7.4%;
-  display: grid;
-  min-width: 3.1rem;
-  min-height: 1.6rem;
-  place-items: center;
-  background: rgba(1, 5, 13, 0.78);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pack-accent) 58%, rgba(255, 255, 255, 0.18));
-  clip-path: polygon(12% 0, 88% 0, 100% 50%, 88% 100%, 12% 100%, 0 50%);
-  color: color-mix(in srgb, var(--pack-accent) 62%, white);
-  font-size: 0.58rem;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  padding: 0.3rem 0.7rem;
-  text-transform: uppercase;
 }
 
 .packHint {

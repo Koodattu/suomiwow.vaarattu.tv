@@ -60,6 +60,10 @@ function packTheme(set: CcgSet | undefined, randomLegacy = false): CSSProperties
     "--pack-stage-art": randomLegacy ? 'url("/ccg/general_wide.webp")' : set ? `url("${set.backgroundPath}")` : "none",
     "--pack-art": randomLegacy ? 'url("/ccg/general_tall.webp")' : set ? `url("${set.backgroundPath}")` : "none",
     "--pack-art-size": randomLegacy ? "cover" : "auto 100%",
+    "--pack-logo-fill": randomLegacy
+      ? "linear-gradient(145deg, #e6fbff 0%, #7ed8ef 58%, #d2aa61 100%)"
+      : "color-mix(in srgb, var(--pack-accent) 82%, white 18%)",
+    "--pack-logo-glow": randomLegacy ? "rgba(92, 207, 238, 0.46)" : "var(--pack-glow)",
   } as CSSProperties;
 }
 
@@ -419,8 +423,7 @@ export default function CcgOpenPage() {
       <div className={packStyles.openWorkspace}>
         {!opening ? (
           <div className={packStyles.packChooser}>
-            <aside className={`${styles.panel} ${packStyles.packControls}`}>
-              <label className="text-xs font-bold uppercase tracking-[0.13em] text-slate-500">{t("open.chooseMode")}</label>
+            <aside className={packStyles.packControls}>
               <div className={packStyles.modeChoices}>
                 <button type="button" aria-pressed={mode === "current"} onClick={() => setMode("current")} className={packStyles.modeChoice}>
                   <span className={packStyles.modeChoiceIcon}>
@@ -546,7 +549,6 @@ export default function CcgOpenPage() {
                     <span className={packStyles.packTitle}>{modeSets.length > 0 ? poolTitle : t("landing.preparing")}</span>
                     <span className={packStyles.packSigil} aria-hidden="true"><span /></span>
                     <span className={packStyles.packCount}><strong>5</strong><span>{t("landing.cards")}</span></span>
-                    <span className={packStyles.packSeal}>{mode === "legacy" && !selectedLegacySet ? t("open.legacySeal") : featuredPackSet?.theme.mark ?? "CCG"}</span>
                   </span>
                 </button>
                 <span className={packStyles.packHint}>{mutation.isPending ? t("open.openingHint") : t("open.packHint")}</span>
