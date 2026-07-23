@@ -36,7 +36,7 @@ export default function PrototypeLab() {
     if (selected) setSetSlug(selected.slug);
   }, [setSlug, sets]);
 
-  const catalogQuery = useCcgCatalog(setSlug, samplePage, "all", "", "", Boolean(setSlug));
+  const catalogQuery = useCcgCatalog(setSlug, samplePage, "all", "", "", "", Boolean(setSlug));
   const cards = useMemo(() => catalogQuery.data?.cards.filter((card) => card.renderUrl) ?? [], [catalogQuery.data?.cards]);
   const card = cards.find((candidate) => candidate.id === cardId) ?? cards[0];
   const samplePages = catalogQuery.data?.pages ?? 1;

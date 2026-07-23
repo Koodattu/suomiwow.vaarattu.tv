@@ -236,7 +236,7 @@ export const api = {
 
   async getCcgCatalog(
     setSlug: string,
-    options: { page?: number; limit?: number; owned?: "all" | "owned" | "missing"; grade?: string; guild?: string } = {},
+    options: { page?: number; limit?: number; owned?: "all" | "owned" | "missing"; grade?: string; guild?: string; finish?: string } = {},
   ): Promise<CcgCatalogResponse> {
     const params = new URLSearchParams();
     if (options.page) params.set("page", String(options.page));
@@ -244,6 +244,7 @@ export const api = {
     if (options.owned && options.owned !== "all") params.set("owned", options.owned);
     if (options.grade) params.set("grade", options.grade);
     if (options.guild) params.set("guild", options.guild);
+    if (options.finish) params.set("finish", options.finish);
     const response = await fetch(`${API_URL}/api/ccg/sets/${encodeURIComponent(setSlug)}/catalog?${params}`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to open this binder");
     return response.json();

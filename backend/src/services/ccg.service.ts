@@ -6,6 +6,7 @@ import {
   CCG_DAILY_PACKS_PER_MODE,
   CCG_DUPLICATES_PER_BONUS_PACK,
   CCG_FEATURE_ENABLED,
+  CCG_FINISH_ORDER,
   CCG_GUEST_COOKIE,
   CCG_PACK_RULE_VERSION,
   CCG_TIER_GRADES,
@@ -211,21 +212,30 @@ class CcgService {
   async getCatalog(
     owner: CcgOwner,
     setSlug: string,
-    options: { page?: number; limit?: number; owned?: string; grade?: string; guildId?: string },
+    options: { page?: number; limit?: number; owned?: string; grade?: string; finish?: string; guildId?: string },
   ): Promise<Record<string, unknown>> {
     const set = await CcgSet.findOne({ slug: setSlug, enabledAt: { $ne: null } }).lean();
     if (!set) throw new CcgServiceError(404, "set_not_found", "Card set not found");
     const page = Math.max(1, Math.floor(options.page ?? 1));
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 9)));
     const grade = CCG_TIER_GRADES.includes(options.grade as CcgTierGrade) ? (options.grade as CcgTierGrade) : null;
+    const finish = CCG_FINISH_ORDER.includes(options.finish as CcgFinish) ? (options.finish as CcgFinish) : null;
     const cardFilter: Record<string, unknown> = { setId: set._id };
     if (grade) cardFilter.tierGrade = grade;
     if (options.guildId) cardFilter.guildId = validateObjectId(options.guildId, "guild ID");
 
     let ownedIds: mongoose.Types.ObjectId[] | null = null;
-    if (options.owned === "owned" || options.owned === "missing") {
-      ownedIds = await CcgOwnership.distinct("cardId", { ownerType: owner.ownerType, ownerId: owner.ownerId });
-      cardFilter._id = options.owned === "owned" ? { $in: ownedIds } : { $nin: ownedIds };
+    if (options.owned === "owned" || options.owned === "missing" || finish) {
+      ownedIds = await CcgOwnership.distinct("cardId", {
+        ownerType: owner.ownerType,
+        ownerId: owner.ownerId,
+        ...(finish ? { finish } : {}),
+      });
+    }
+    if (options.owned === "owned" || finish) {
+      cardFilter._id = { $in: ownedIds ?? [] };
+    } else if (options.owned === "missing") {
+      cardFilter._id = { $nin: ownedIds ?? [] };
     }
     const [cards, total] = await Promise.all([
       CcgCard.find(cardFilter)

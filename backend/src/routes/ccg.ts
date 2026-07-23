@@ -81,6 +81,7 @@ router.get(
       limit: typeof req.query.limit === "string" ? Number(req.query.limit) : undefined,
       owned: typeof req.query.owned === "string" ? req.query.owned : undefined,
       grade: typeof req.query.grade === "string" ? req.query.grade : undefined,
+      finish: typeof req.query.finish === "string" ? req.query.finish : undefined,
       guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
     });
   }),

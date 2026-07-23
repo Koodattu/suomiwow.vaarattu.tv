@@ -20,13 +20,21 @@ export default function CcgShell({ children, context, compact = false }: { child
       <header className={styles.shellHeader}>
         <div className={styles.shellHeaderInner}>
           <div className={styles.shellBrand}>
-            <Link href="/fun/ccg" className={styles.shellBrandLink}>{t("brand")}</Link>
+            <Link href="/fun/ccg" className={styles.shellBrandLink}>
+              <span>{t("brandName")}</span>{" "}
+              <span className={styles.shellBrandAccent}>{t("brandSuffix")}</span>
+            </Link>
           </div>
           <nav className={styles.shellNav} aria-label={t("nav.label")}>
             {links.map((link) => {
               const active = link.href === "/fun/ccg" ? pathname === link.href : pathname.startsWith(link.href);
               return (
-                <Link key={link.href} href={link.href} className={`${styles.subnavLink} ${active ? styles.subnavLinkActive : ""}`}>
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`${styles.subnavLink} ${active ? styles.subnavLinkActive : ""}`}
+                >
                   {link.label}
                 </Link>
               );

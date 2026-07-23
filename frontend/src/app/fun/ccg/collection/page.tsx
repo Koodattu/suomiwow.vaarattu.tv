@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
-import type { CcgCard, CcgTierGrade } from "@/types";
+import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 import { bestOwnedFinish } from "@/lib/ccg";
 import { useCcgCatalog, useCcgCollection, useCcgSession, useCcgSetGuilds, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
@@ -14,7 +14,16 @@ import CardViewer from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import styles from "@/components/ccg/ccg.module.css";
 
-const grades: CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
+const rarities: Array<{ grade: CcgTierGrade; label: "artifact" | "legendary" | "epic" | "rare" | "uncommon" | "common" | "poor" }> = [
+  { grade: "S", label: "artifact" },
+  { grade: "A", label: "legendary" },
+  { grade: "B", label: "epic" },
+  { grade: "C", label: "rare" },
+  { grade: "D", label: "uncommon" },
+  { grade: "E", label: "common" },
+  { grade: "F", label: "poor" },
+];
+const finishes: CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
 const cardsPerPage = 12;
 type CollectionView = "all" | "guild";
 
@@ -37,6 +46,7 @@ export default function CcgCollectionPage() {
   const [includeMissing, setIncludeMissing] = useState(false);
   const [page, setPage] = useState(1);
   const [grade, setGrade] = useState("");
+  const [finish, setFinish] = useState<CcgFinish | "">("");
   const [viewerCard, setViewerCard] = useState<CcgCard | null>(null);
   const selectedSet = sets.find((set) => set.slug === setSlug);
   const guildsQuery = useCcgSetGuilds(setSlug, view === "guild");
@@ -51,11 +61,12 @@ export default function CcgCollectionPage() {
       limit: cardsPerPage,
       set: setSlug || undefined,
       grade: grade || undefined,
+      finish: finish || undefined,
       guild: view === "guild" ? guildId || undefined : undefined,
     },
     Boolean(setSlug) && !showCatalog,
   );
-  const catalogQuery = useCcgCatalog(setSlug, page, "all", grade, guildId, showCatalog, cardsPerPage);
+  const catalogQuery = useCcgCatalog(setSlug, page, "all", grade, guildId, finish, showCatalog, cardsPerPage);
   const cardsData = showCatalog ? catalogQuery.data : ownedQuery.data;
   const cardsLoading = showCatalog ? catalogQuery.isLoading : ownedQuery.isLoading;
   const cardsError = showCatalog ? catalogQuery.isError : ownedQuery.isError;
@@ -172,10 +183,18 @@ export default function CcgCollectionPage() {
             ) : null}
 
             <label className={styles.collectionSelect}>
-              <span>{t("tier")}</span>
+              <span>{t("collection.rarity")}</span>
               <select value={grade} onChange={(event) => updateFilter(() => setGrade(event.target.value))}>
-                <option value="">{t("collection.allGrades")}</option>
-                {grades.map((item) => <option key={item} value={item}>{item}</option>)}
+                <option value="">{t("collection.allRarities")}</option>
+                {rarities.map((item) => <option key={item.grade} value={item.grade}>{t(`rarity.${item.label}`)}</option>)}
+              </select>
+            </label>
+
+            <label className={styles.collectionSelect}>
+              <span>{t("collection.quality")}</span>
+              <select value={finish} onChange={(event) => updateFilter(() => setFinish(event.target.value as CcgFinish | ""))}>
+                <option value="">{t("collection.allQualities")}</option>
+                {finishes.map((item) => <option key={item} value={item}>{t(`finish.${item}`)}</option>)}
               </select>
             </label>
 
