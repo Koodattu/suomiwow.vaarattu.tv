@@ -1439,7 +1439,7 @@
   z-index: 0;
   top: -0.82rem;
   right: -0.82rem;
-  bottom: 1.38rem;
+  bottom: -0.82rem;
   left: -0.82rem;
   overflow: visible;
   border-radius: clamp(1rem, 5.4cqw, 1.42rem);
@@ -1656,6 +1656,10 @@
   transform: rotateY(180deg) translateZ(1px);
 }
 
+.openedCard > [data-frame="vaultSteel"] {
+  max-width: none;
+}
+
 .revealFlare {
   position: absolute;
   z-index: -1;
@@ -1848,7 +1852,7 @@
 .pullStatus {
   position: absolute;
   right: 0;
-  bottom: -0.95rem;
+  bottom: -0.7rem;
   left: 0;
   display: block;
   font-size: 0.66rem;

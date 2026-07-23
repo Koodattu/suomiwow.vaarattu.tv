@@ -640,6 +640,7 @@ export default function CcgOpenPage() {
                               card={result.card}
                               finish={result.finish}
                               compact
+                              className={packStyles.openedCard}
                               forcedPointer={activeReveal?.index === index ? activeReveal : undefined}
                             />
                           </span>
