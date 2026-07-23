@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
 import type { CcgCard, CcgFinish } from "@/types";
 import { bestOwnedFinish, CCG_RARITY_KEYS } from "@/lib/ccg";
+import { playCcgInspectSound } from "@/lib/ccg-audio";
 import { formatRealmName } from "@/lib/utils";
 import CollectibleCard from "./CollectibleCard";
 import styles from "./ccg.module.css";
@@ -41,6 +42,7 @@ export function openCardViewer(
   originElement: HTMLElement | null,
   update: (sharedTransition: boolean, originBounds: CardViewerOriginBounds | null) => void,
 ) {
+  playCcgInspectSound();
   const source = sourceCardElement(originElement);
   const viewTransitionDocument = document as ViewTransitionDocument;
   if (!source?.isConnected) {
@@ -135,6 +137,7 @@ export default function CardViewer({
   const requestClose = useCallback(() => {
     if (closingRef.current) return;
     closingRef.current = true;
+    playCcgInspectSound();
 
     const origin = sourceCardElement(originElement);
     const target = cardMotionRef.current?.querySelector<HTMLElement>("[data-ccg-card]");

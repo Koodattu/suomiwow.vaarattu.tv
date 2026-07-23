@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { FaArrowLeft } from "react-icons/fa6";
+import { CCG_INSPECT_AUDIO_ID } from "@/lib/ccg-audio";
 import CcgAccountMenu from "./CcgAccountMenu";
 import styles from "./ccg.module.css";
 
@@ -51,6 +52,7 @@ export default function CcgShell({ children, context, compact = false }: { child
         </div>
       </header>
       {children}
+      <audio id={CCG_INSPECT_AUDIO_ID} src="/ccg/audio/inspect.mp3" preload="auto" aria-hidden="true" />
     </main>
   );
 }

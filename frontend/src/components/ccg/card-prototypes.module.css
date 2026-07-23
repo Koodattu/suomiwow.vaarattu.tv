@@ -306,7 +306,7 @@
   position: relative;
   display: block;
   box-sizing: content-box;
-  cursor: default;
+  cursor: inherit;
   user-select: none;
   -webkit-user-select: none;
   width: min(var(--card-width), 84vw);
