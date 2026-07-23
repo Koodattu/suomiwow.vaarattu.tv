@@ -1156,22 +1156,23 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 0.12em;
   color: white;
-  font-size: clamp(0.58rem, 4cqw, 0.92rem);
+  font-size: clamp(0.68rem, 4.6cqw, 1.06rem);
   font-weight: 900;
   letter-spacing: 0.13em;
   line-height: 0.92;
 }
 
 .cardBackBrand strong {
-  font-size: 1.12em;
+  font-size: 1.18em;
 }
 
 .cardBackSet {
   bottom: 5.5%;
   color: color-mix(in srgb, var(--pack-accent) 64%, white);
   font-family: "LifeCraft", fantasy;
-  font-size: clamp(0.68rem, 4.6cqw, 1.04rem);
+  font-size: clamp(0.8rem, 5.35cqw, 1.22rem);
   font-synthesis: none;
   font-weight: 400;
   letter-spacing: normal;
