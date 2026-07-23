@@ -83,6 +83,7 @@ router.get(
       grade: typeof req.query.grade === "string" ? req.query.grade : undefined,
       finish: typeof req.query.finish === "string" ? req.query.finish : undefined,
       guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
+      sort: typeof req.query.sort === "string" ? req.query.sort : undefined,
     });
   }),
 );
@@ -100,6 +101,7 @@ router.get(
       finish: typeof req.query.finish === "string" ? req.query.finish : undefined,
       search: typeof req.query.search === "string" ? req.query.search : undefined,
       guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
+      sort: typeof req.query.sort === "string" ? req.query.sort : undefined,
     });
   }),
 );

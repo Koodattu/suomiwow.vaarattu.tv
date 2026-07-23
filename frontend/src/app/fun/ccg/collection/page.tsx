@@ -26,7 +26,7 @@ const rarities: Array<{ grade: CcgTierGrade; label: "artifact" | "legendary" | "
 ];
 const finishes: CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
 const cardsPerPage = 12;
-type CollectionView = "all" | "guild";
+type CollectionSort = "rarity" | "guild";
 
 function PageArrow({ direction }: { direction: "previous" | "next" }) {
   return (
@@ -42,9 +42,9 @@ export default function CcgCollectionPage() {
   const setsQuery = useCcgSets();
   const sets = setsQuery.data?.sets ?? [];
   const [setSlug, setSetSlug] = useState("");
-  const [view, setView] = useState<CollectionView>("all");
   const [guildId, setGuildId] = useState("");
   const [includeMissing, setIncludeMissing] = useState(false);
+  const [sort, setSort] = useState<CollectionSort>("rarity");
   const [page, setPage] = useState(1);
   const [grade, setGrade] = useState("");
   const [finish, setFinish] = useState<CcgFinish | "">("");
@@ -53,12 +53,12 @@ export default function CcgCollectionPage() {
   const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
   const [viewerSharedTransition, setViewerSharedTransition] = useState(false);
   const selectedSet = sets.find((set) => set.slug === setSlug);
-  const guildsQuery = useCcgSetGuilds(setSlug, view === "guild");
+  const guildsQuery = useCcgSetGuilds(setSlug);
   const guilds = useMemo(
     () => [...(guildsQuery.data?.guilds ?? [])].sort((a, b) => a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm)),
     [guildsQuery.data?.guilds],
   );
-  const showCatalog = view === "guild" && includeMissing;
+  const showCatalog = includeMissing;
   const ownedQuery = useCcgCollection(
     {
       page,
@@ -66,11 +66,12 @@ export default function CcgCollectionPage() {
       set: setSlug || undefined,
       grade: grade || undefined,
       finish: finish || undefined,
-      guild: view === "guild" ? guildId || undefined : undefined,
+      guild: guildId || undefined,
+      sort,
     },
     Boolean(setSlug) && !showCatalog,
   );
-  const catalogQuery = useCcgCatalog(setSlug, page, "all", grade, guildId, finish, showCatalog, cardsPerPage);
+  const catalogQuery = useCcgCatalog(setSlug, page, "all", grade, guildId, finish, showCatalog, cardsPerPage, sort);
   const cardsData = showCatalog ? catalogQuery.data : ownedQuery.data;
   const cardsLoading = showCatalog ? catalogQuery.isLoading : ownedQuery.isLoading;
   const cardsError = showCatalog ? catalogQuery.isError : ownedQuery.isError;
@@ -100,13 +101,6 @@ export default function CcgCollectionPage() {
 
   const selectSet = (nextSlug: string) => {
     setSetSlug(nextSlug);
-    setGuildId("");
-    setIncludeMissing(false);
-    setPage(1);
-  };
-
-  const selectView = (nextView: CollectionView) => {
-    setView(nextView);
     setGuildId("");
     setIncludeMissing(false);
     setPage(1);
@@ -154,10 +148,10 @@ export default function CcgCollectionPage() {
           </div>
 
           <div className={styles.collectionFilters}>
-            <div className={styles.collectionSegment} role="group" aria-label={t("collection.viewLabel")}>
-              {(["all", "guild"] as CollectionView[]).map((option) => (
-                <button key={option} type="button" aria-pressed={view === option} onClick={() => selectView(option)}>
-                  {t(option === "all" ? "collection.allView" : "collection.guildView")}
+            <div className={styles.collectionSegment} role="group" aria-label={t("collection.sortLabel")}>
+              {(["rarity", "guild"] as CollectionSort[]).map((option) => (
+                <button key={option} type="button" aria-pressed={sort === option} onClick={() => updateFilter(() => setSort(option))}>
+                  {t(`collection.${option}`)}
                 </button>
               ))}
             </div>
@@ -167,7 +161,7 @@ export default function CcgCollectionPage() {
                 aria-label={t("collection.guild")}
                 value={guildId}
                 onChange={(event) => updateFilter(() => setGuildId(event.target.value))}
-                disabled={view !== "guild" || guildsQuery.isLoading}
+                disabled={guildsQuery.isLoading}
               >
                 <option value="">{t("collection.allGuilds")}</option>
                 {guilds.map((guild) => (
@@ -176,36 +170,39 @@ export default function CcgCollectionPage() {
               </select>
             </label>
 
-            <div className={styles.collectionSegment} role="group" aria-label={t("collection.cardVisibility")}>
-              <button
-                type="button"
-                aria-pressed={!includeMissing}
-                disabled={view !== "guild"}
-                onClick={() => updateFilter(() => setIncludeMissing(false))}
-              >
-                {t("collection.collectedOnly")}
-              </button>
+            <div className={styles.collectionSegment}>
               <button
                 type="button"
                 aria-pressed={includeMissing}
-                disabled={view !== "guild"}
-                onClick={() => updateFilter(() => setIncludeMissing(true))}
+                onClick={() => updateFilter(() => setIncludeMissing((value) => !value))}
               >
                 {t("collection.showMissing")}
               </button>
             </div>
 
-            <label className={styles.collectionSelect}>
-              <select aria-label={t("collection.rarity")} value={grade} onChange={(event) => updateFilter(() => setGrade(event.target.value))}>
+            <label className={`${styles.collectionSelect} ${styles.collectionCompactSelect}`}>
+              <select
+                aria-label={t("collection.rarity")}
+                className={styles.collectionRaritySelect}
+                data-grade={grade || undefined}
+                value={grade}
+                onChange={(event) => updateFilter(() => setGrade(event.target.value))}
+              >
                 <option value="">{t("collection.allRarities")}</option>
-                {rarities.map((item) => <option key={item.grade} value={item.grade}>{t(`rarity.${item.label}`)}</option>)}
+                {rarities.map((item) => <option key={item.grade} value={item.grade} data-grade={item.grade}>{t(`rarity.${item.label}`)}</option>)}
               </select>
             </label>
 
-            <label className={styles.collectionSelect}>
-              <select aria-label={t("collection.quality")} value={finish} onChange={(event) => updateFilter(() => setFinish(event.target.value as CcgFinish | ""))}>
+            <label className={`${styles.collectionSelect} ${styles.collectionCompactSelect}`}>
+              <select
+                aria-label={t("collection.quality")}
+                className={styles.collectionQualitySelect}
+                data-finish={finish || undefined}
+                value={finish}
+                onChange={(event) => updateFilter(() => setFinish(event.target.value as CcgFinish | ""))}
+              >
                 <option value="">{t("collection.allQualities")}</option>
-                {finishes.map((item) => <option key={item} value={item}>{t(`finish.${item}`)}</option>)}
+                {finishes.map((item) => <option key={item} value={item} data-finish={item}>{t(`finish.${item}`)}</option>)}
               </select>
             </label>
 
@@ -227,6 +224,9 @@ export default function CcgCollectionPage() {
           </button>
 
           <div className={styles.collectionBinderBody}>
+            <div className={styles.collectionBinderLines} aria-hidden="true">
+              {Array.from({ length: cardsPerPage }, (_, index) => <span key={index} />)}
+            </div>
             {cardsLoading ? (
               <div className={styles.collectionBinderGrid}>
                 {Array.from({ length: cardsPerPage }, (_, index) => <div key={index} className={styles.collectionSkeleton} />)}
@@ -262,9 +262,9 @@ export default function CcgCollectionPage() {
             ) : (
               <div className={styles.collectionEmpty}>
                 <div>
-                  <h2>{t(view === "all" ? "collection.emptyOwnedTitle" : "collection.emptyGuildTitle")}</h2>
-                  <p>{t(view === "all" ? "collection.emptyOwnedBody" : includeMissing ? "collection.emptyGuildMissingBody" : "collection.emptyGuildBody")}</p>
-                  {view === "all" ? (
+                  <h2>{t(guildId ? "collection.emptyGuildTitle" : includeMissing ? "collection.emptyMissingTitle" : "collection.emptyOwnedTitle")}</h2>
+                  <p>{t(guildId ? includeMissing ? "collection.emptyGuildMissingBody" : "collection.emptyGuildBody" : includeMissing ? "collection.emptyMissingBody" : "collection.emptyOwnedBody")}</p>
+                  {!guildId && !includeMissing ? (
                     <Link href={`/fun/ccg/open?mode=${selectedSet?.state === "legacy" ? "legacy" : "current"}`} className={`${styles.primaryButton} mt-4`}>
                       {t("collection.openPacks")}
                     </Link>
