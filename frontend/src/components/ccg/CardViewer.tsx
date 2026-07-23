@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
 import type { CcgCard, CcgFinish } from "@/types";
@@ -11,11 +12,61 @@ import CollectibleCard from "./CollectibleCard";
 import styles from "./ccg.module.css";
 
 type ViewerPhase = "entering" | "open" | "closing";
+type ViewTransitionHandle = { finished: Promise<void> };
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (update: () => void) => ViewTransitionHandle;
+};
+
+const CARD_VIEW_TRANSITION_NAME = "ccg-card-inspect";
+export type CardViewerOriginBounds = Pick<DOMRect, "left" | "top" | "width" | "height">;
 
 function sourceCardElement(originElement: HTMLElement | null): HTMLElement | null {
   return originElement?.querySelector<HTMLElement>("[data-ccg-card]")
     ?? originElement?.querySelector<HTMLElement>("[data-card-surface]")
     ?? originElement;
+}
+
+function canUseCardViewTransition(): boolean {
+  if (typeof document === "undefined" || typeof window === "undefined") return false;
+  return typeof (document as ViewTransitionDocument).startViewTransition === "function"
+    && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function clearCardViewTransition(element: HTMLElement | null) {
+  element?.style.removeProperty("view-transition-name");
+  delete document.documentElement.dataset.ccgCardTransition;
+}
+
+export function openCardViewer(
+  originElement: HTMLElement | null,
+  update: (sharedTransition: boolean, originBounds: CardViewerOriginBounds | null) => void,
+) {
+  const source = sourceCardElement(originElement);
+  const viewTransitionDocument = document as ViewTransitionDocument;
+  if (!source?.isConnected) {
+    update(false, null);
+    return;
+  }
+  const { left, top, width, height } = source.getBoundingClientRect();
+  const originBounds = { left, top, width, height };
+  if (!canUseCardViewTransition() || !viewTransitionDocument.startViewTransition) {
+    update(false, originBounds);
+    return;
+  }
+
+  source.style.setProperty("view-transition-name", CARD_VIEW_TRANSITION_NAME);
+  document.documentElement.dataset.ccgCardTransition = "opening";
+
+  try {
+    const transition = viewTransitionDocument.startViewTransition(() => {
+      source.style.removeProperty("view-transition-name");
+      flushSync(() => update(true, originBounds));
+    });
+    void transition.finished.finally(() => clearCardViewTransition(source));
+  } catch {
+    clearCardViewTransition(source);
+    update(false, originBounds);
+  }
 }
 
 function score(value: number | null): string {
@@ -26,18 +77,22 @@ export default function CardViewer({
   card,
   initialFinish = "standard",
   originElement = null,
+  originBounds = null,
+  sharedTransition = false,
   onClose,
 }: {
   card: CcgCard;
   initialFinish?: CcgFinish;
   originElement?: HTMLElement | null;
+  originBounds?: CardViewerOriginBounds | null;
+  sharedTransition?: boolean;
   onClose: () => void;
 }) {
   const t = useTranslations("ccg");
   const locale = useLocale();
   const [finish, setFinish] = useState<CcgFinish>(initialFinish);
   const [variantIndex, setVariantIndex] = useState(0);
-  const [phase, setPhase] = useState<ViewerPhase>("entering");
+  const [phase, setPhase] = useState<ViewerPhase>(sharedTransition ? "open" : "entering");
   const viewerRef = useRef<HTMLDivElement>(null);
   const cardMotionRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<number | null>(null);
@@ -60,11 +115,11 @@ export default function CardViewer({
     const motionElement = cardMotionRef.current;
     const targetElement = motionElement?.querySelector<HTMLElement>("[data-ccg-card]");
     const origin = sourceCardElement(originElement);
-    if (!motionElement || !targetElement || !origin?.isConnected) return;
+    if (!motionElement || !targetElement) return;
 
-    const sourceBounds = origin.getBoundingClientRect();
+    const sourceBounds = originBounds ?? (origin?.isConnected ? origin.getBoundingClientRect() : null);
     const targetBounds = targetElement.getBoundingClientRect();
-    if (!sourceBounds.width || !targetBounds.width) return;
+    if (!sourceBounds?.width || !targetBounds.width) return;
 
     const sourceX = sourceBounds.left + sourceBounds.width / 2;
     const sourceY = sourceBounds.top + sourceBounds.height / 2;
@@ -75,11 +130,34 @@ export default function CardViewer({
     motionElement.style.setProperty("--viewer-origin-x", `${sourceX - targetX}px`);
     motionElement.style.setProperty("--viewer-origin-y", `${sourceY - targetY}px`);
     motionElement.style.setProperty("--viewer-origin-scale", String(scale));
-  }, [originElement]);
+  }, [originBounds, originElement]);
 
   const requestClose = useCallback(() => {
     if (closingRef.current) return;
     closingRef.current = true;
+
+    const origin = sourceCardElement(originElement);
+    const target = cardMotionRef.current?.querySelector<HTMLElement>("[data-ccg-card]");
+    const viewTransitionDocument = document as ViewTransitionDocument;
+    if (
+      sharedTransition
+      && origin?.isConnected
+      && target
+      && canUseCardViewTransition()
+      && viewTransitionDocument.startViewTransition
+    ) {
+      document.documentElement.dataset.ccgCardTransition = "closing";
+      try {
+        const transition = viewTransitionDocument.startViewTransition(() => {
+          origin.style.setProperty("view-transition-name", CARD_VIEW_TRANSITION_NAME);
+          flushSync(() => onCloseRef.current());
+        });
+        void transition.finished.finally(() => clearCardViewTransition(origin));
+        return;
+      } catch {
+        clearCardViewTransition(origin);
+      }
+    }
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       onCloseRef.current();
@@ -89,19 +167,29 @@ export default function CardViewer({
     setOriginTransform();
     setPhase("closing");
     closeTimerRef.current = window.setTimeout(() => onCloseRef.current(), 340);
-  }, [setOriginTransform]);
+  }, [originElement, setOriginTransform, sharedTransition]);
 
   useLayoutEffect(() => {
+    if (sharedTransition) return;
     setOriginTransform();
+    const source = sourceCardElement(originElement);
+    const hiddenOrigin = source?.closest<HTMLElement>("button") ?? source;
+    const originVisibility = hiddenOrigin?.style.visibility ?? "";
+    if (hiddenOrigin?.isConnected) {
+      hiddenOrigin.style.visibility = "hidden";
+    }
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setPhase("open");
-      return;
+    } else {
+      enterFrameRef.current = window.requestAnimationFrame(() => {
+        enterFrameRef.current = window.requestAnimationFrame(() => setPhase("open"));
+      });
     }
 
-    enterFrameRef.current = window.requestAnimationFrame(() => {
-      enterFrameRef.current = window.requestAnimationFrame(() => setPhase("open"));
-    });
-  }, [setOriginTransform]);
+    return () => {
+      if (hiddenOrigin?.isConnected) hiddenOrigin.style.visibility = originVisibility;
+    };
+  }, [originElement, setOriginTransform, sharedTransition]);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -167,7 +255,14 @@ export default function CardViewer({
       >
         <p id="ccg-card-viewer-hint" className="sr-only">{t("inspectCloseHint")}</p>
         <div ref={cardMotionRef} className={styles.viewerCardMotion} style={motionStyle}>
-          <CollectibleCard card={displayedCard} finish={finish} quantity={isOwned ? quantity : undefined} width={520} className={styles.viewerCard} />
+          <CollectibleCard
+            card={displayedCard}
+            finish={finish}
+            quantity={isOwned ? quantity : undefined}
+            width={520}
+            className={styles.viewerCard}
+            viewTransitionName={sharedTransition ? CARD_VIEW_TRANSITION_NAME : undefined}
+          />
         </div>
 
         <div className={styles.viewerInfo}>

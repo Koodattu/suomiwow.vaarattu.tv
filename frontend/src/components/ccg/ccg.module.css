@@ -1234,15 +1234,13 @@
 .viewerCardMotion {
   width: min(31rem, 42vw, calc((100dvh - 4rem) * 5 / 7));
   min-width: 0;
-  opacity: 0.62;
   pointer-events: auto;
   transform: translate3d(var(--viewer-origin-x), var(--viewer-origin-y), 0) scale(var(--viewer-origin-scale));
   transform-origin: center;
-  filter: blur(2px) brightness(0.82);
-  transition-property: transform, opacity, filter;
-  transition-duration: 420ms, 220ms, 260ms;
+  transition-property: transform;
+  transition-duration: 420ms;
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: transform, opacity, filter;
+  will-change: transform;
 }
 
 .viewerCard > [data-ccg-card] {
@@ -1250,14 +1248,37 @@
 }
 
 .viewerBackdropOpen .viewerCardMotion {
-  opacity: 1;
   transform: translate3d(0, 0, 0) scale(1);
-  filter: none;
 }
 
 .viewerBackdropClosing .viewerCardMotion {
-  transition-duration: 320ms, 200ms, 220ms;
+  transition-duration: 320ms;
   transition-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+:global(html[data-ccg-card-transition])::view-transition-group(ccg-card-inspect) {
+  z-index: 100;
+  animation-duration: 460ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:global(html[data-ccg-card-transition="closing"])::view-transition-group(ccg-card-inspect) {
+  animation-duration: 360ms;
+  animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+:global(html[data-ccg-card-transition])::view-transition-old(ccg-card-inspect),
+:global(html[data-ccg-card-transition])::view-transition-new(ccg-card-inspect) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+:global(html[data-ccg-card-transition])::view-transition-old(ccg-card-inspect) {
+  opacity: 1;
+}
+
+:global(html[data-ccg-card-transition])::view-transition-new(ccg-card-inspect) {
+  opacity: 0;
 }
 
 .viewerInfo {

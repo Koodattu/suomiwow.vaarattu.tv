@@ -15,7 +15,8 @@ import CcgShell from "@/components/ccg/CcgShell";
 import GuestNotice from "@/components/ccg/GuestNotice";
 import PackBalance from "@/components/ccg/PackBalance";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
-import CardViewer from "@/components/ccg/CardViewer";
+import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
+import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
@@ -104,6 +105,9 @@ export default function CcgOpenPage() {
   const [revealedCards, setRevealedCards] = useState<Set<number>>(() => new Set());
   const [activeReveal, setActiveReveal] = useState<{ index: number; x: number; y: number } | null>(null);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [viewerOriginElement, setViewerOriginElement] = useState<HTMLElement | null>(null);
+  const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
+  const [viewerSharedTransition, setViewerSharedTransition] = useState(false);
   const [legacySetId, setLegacySetId] = useState(RANDOM_LEGACY_SET);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const shuffleAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -171,6 +175,8 @@ export default function CcgOpenPage() {
     const total = opening.results.length;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setViewerIndex(null);
+    setViewerOriginElement(null);
+    setViewerOriginBounds(null);
     setActiveReveal(null);
     playPackSound(shuffleAudioRef.current, 0.42);
 
@@ -250,6 +256,8 @@ export default function CcgOpenPage() {
     setRevealedCards(new Set());
     setActiveReveal(null);
     setViewerIndex(null);
+    setViewerOriginElement(null);
+    setViewerOriginBounds(null);
     setRecoveryId("");
     const url = new URL(window.location.href);
     url.searchParams.delete("opening");
@@ -259,7 +267,13 @@ export default function CcgOpenPage() {
   const revealCard = (index: number, event?: ReactMouseEvent<HTMLButtonElement>) => {
     if (revealPhase !== "ready" || index >= dealtCards) return;
     if (revealedCards.has(index)) {
-      setViewerIndex(index);
+      const originElement = event?.currentTarget ?? cardRefs.current[index];
+      openCardViewer(originElement, (sharedTransition, originBounds) => {
+        setViewerOriginElement(originElement);
+        setViewerOriginBounds(originBounds);
+        setViewerSharedTransition(sharedTransition);
+        setViewerIndex(index);
+      });
       return;
     }
     if (event && event.detail > 0 && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
@@ -697,8 +711,15 @@ export default function CcgOpenPage() {
         <CardViewer
           card={{ ...opening.results[viewerIndex].card, ownership: [{ finish: opening.results[viewerIndex].finish, quantity: 1 }] }}
           initialFinish={opening.results[viewerIndex].finish}
-          originElement={cardRefs.current[viewerIndex]}
-          onClose={() => setViewerIndex(null)}
+          originElement={viewerOriginElement}
+          originBounds={viewerOriginBounds}
+          sharedTransition={viewerSharedTransition}
+          onClose={() => {
+            setViewerIndex(null);
+            setViewerOriginElement(null);
+            setViewerOriginBounds(null);
+            setViewerSharedTransition(false);
+          }}
         />
       ) : null}
       <audio ref={shuffleAudioRef} src="/ccg/audio/shuffle.wav" preload="auto" aria-hidden="true" />

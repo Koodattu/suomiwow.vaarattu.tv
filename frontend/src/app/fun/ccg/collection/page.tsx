@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
 import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
@@ -10,7 +10,8 @@ import { useCcgCatalog, useCcgCollection, useCcgSession, useCcgSetGuilds, useCcg
 import CcgShell from "@/components/ccg/CcgShell";
 import GuestNotice from "@/components/ccg/GuestNotice";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
-import CardViewer from "@/components/ccg/CardViewer";
+import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
+import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import styles from "@/components/ccg/ccg.module.css";
 
@@ -48,7 +49,9 @@ export default function CcgCollectionPage() {
   const [grade, setGrade] = useState("");
   const [finish, setFinish] = useState<CcgFinish | "">("");
   const [viewerCard, setViewerCard] = useState<CcgCard | null>(null);
-  const viewerOriginRef = useRef<HTMLElement | null>(null);
+  const [viewerOriginElement, setViewerOriginElement] = useState<HTMLElement | null>(null);
+  const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
+  const [viewerSharedTransition, setViewerSharedTransition] = useState(false);
   const selectedSet = sets.find((set) => set.slug === setSlug);
   const guildsQuery = useCcgSetGuilds(setSlug, view === "guild");
   const guilds = useMemo(
@@ -236,8 +239,13 @@ export default function CcgCollectionPage() {
                         compact
                         className={ownedFinish ? "" : styles.collectionMissingCard}
                         onSelect={(event) => {
-                          viewerOriginRef.current = event.currentTarget;
-                          setViewerCard(card);
+                          const originElement = event.currentTarget;
+                          openCardViewer(originElement, (sharedTransition, originBounds) => {
+                            setViewerOriginElement(originElement);
+                            setViewerOriginBounds(originBounds);
+                            setViewerSharedTransition(sharedTransition);
+                            setViewerCard(card);
+                          });
                         }}
                       />
                     </div>
@@ -274,8 +282,15 @@ export default function CcgCollectionPage() {
         <CardViewer
           card={viewerCard}
           initialFinish={bestOwnedFinish(viewerCard)?.finish ?? "standard"}
-          originElement={viewerOriginRef.current}
-          onClose={() => setViewerCard(null)}
+          originElement={viewerOriginElement}
+          originBounds={viewerOriginBounds}
+          sharedTransition={viewerSharedTransition}
+          onClose={() => {
+            setViewerCard(null);
+            setViewerOriginElement(null);
+            setViewerOriginBounds(null);
+            setViewerSharedTransition(false);
+          }}
         />
       ) : null}
     </CcgShell>

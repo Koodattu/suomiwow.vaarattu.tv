@@ -99,6 +99,7 @@ type CollectibleCardProps = {
   hideCornerIcons?: boolean;
   hideBadges?: boolean;
   forcedPointer?: { x: number; y: number };
+  viewTransitionName?: string;
 };
 
 export default function CollectibleCard({
@@ -113,6 +114,7 @@ export default function CollectibleCard({
   hideCornerIcons = false,
   hideBadges = false,
   forcedPointer,
+  viewTransitionName,
 }: CollectibleCardProps) {
   const t = useTranslations("ccg");
   const materialFrame = useRef<number | null>(null);
@@ -145,6 +147,7 @@ export default function CollectibleCard({
     "--foil-x-reverse": "50%",
     "--foil-y-reverse": "50%",
     "--foil-angle": "118deg",
+    viewTransitionName,
   } as CSSProperties;
 
   useEffect(
