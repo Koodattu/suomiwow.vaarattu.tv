@@ -27,9 +27,8 @@ export default function CcgLandingPage() {
   }
 
   return (
-    <CcgShell>
+    <CcgShell context={session ? <GuestNotice session={session} /> : null}>
       <div className="mx-auto max-w-[1500px] space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-        {session ? <GuestNotice session={session} /> : null}
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(290px,0.75fr)]">
           <div
             className={`${styles.setCover} ${styles.featuredSet}`}

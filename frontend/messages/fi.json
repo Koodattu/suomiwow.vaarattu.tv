@@ -56,6 +56,7 @@
     "ccg": "CCG"
   },
   "ccg": {
+    "brand": "SuomiWoW Community Collectible Card Game",
     "eyebrow": "Yhteisön korttiholvi",
     "subtitle": "Avaa raidisettien pakkoja ja kerää jokaisen tierin hahmot talteen.",
     "fanNotice": "Epävirallinen ja maksuton faniprojekti. World of Warcraft ja siihen liittyvä kuvitus ovat Blizzard Entertainmentin tavaramerkkejä tai tekijänoikeuksien alaista materiaalia. SuomiWoW ei ole Blizzard Entertainmentin yhteistyökumppani.",
@@ -74,7 +75,7 @@
     "bonus": "bonus",
     "duplicateMeter": "Tuplamittari",
     "guest": {
-      "title": "Tämän päivän kortit odottavat sinua",
+      "title": "Lunasta kortit",
       "body": "Avaa pakat nyt ja kirjaudu ennen Helsingin vuorokausivaihtoa, jotta saat pitää kaikki kortit. Ensimmäinen lunastus antaa lisäksi viisi Current-pakkaa.",
       "expiresIn": "Lunasta {time} kuluessa",
       "timeRemaining": "{hours} t {minutes} min",

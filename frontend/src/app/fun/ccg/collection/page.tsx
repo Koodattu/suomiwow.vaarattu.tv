@@ -15,7 +15,7 @@ import CcgLoadError from "@/components/ccg/CcgLoadError";
 import styles from "@/components/ccg/ccg.module.css";
 
 const grades: CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
-const cardsPerPage = 10;
+const cardsPerPage = 12;
 type CollectionView = "all" | "guild";
 
 function PageArrow({ direction }: { direction: "previous" | "next" }) {
@@ -115,16 +115,7 @@ export default function CcgCollectionPage() {
   return (
     <CcgShell
       compact
-      context={(
-        <div className={styles.openHeaderContext}>
-          <header className={styles.openHeaderIntro}>
-            <div className={styles.eyebrow}>{t("nav.collection")}</div>
-            <h1 className={styles.openHeaderTitle}>{t("collection.title")}</h1>
-            <p className={styles.openHeaderBody}>{t("collection.body")}</p>
-          </header>
-          {sessionQuery.data ? <GuestNotice session={sessionQuery.data} compact /> : null}
-        </div>
-      )}
+      context={sessionQuery.data ? <GuestNotice session={sessionQuery.data} /> : null}
     >
       <div className={styles.collectionPage}>
         <section className={styles.collectionToolbar}>

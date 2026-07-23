@@ -412,16 +412,7 @@ export default function CcgOpenPage() {
   return (
     <CcgShell
       compact
-      context={(
-        <div className={styles.openHeaderContext}>
-          <header className={styles.openHeaderIntro}>
-            <div className={styles.eyebrow}>{t("nav.open")}</div>
-            <h1 className={styles.openHeaderTitle}>{t("open.title")}</h1>
-            <p className={styles.openHeaderBody}>{t("open.body")}</p>
-          </header>
-          {session ? <GuestNotice session={session} compact /> : null}
-        </div>
-      )}
+      context={session ? <GuestNotice session={session} /> : null}
     >
       <div className="w-full px-4 py-2 sm:px-6 lg:px-8">
         {!opening ? (

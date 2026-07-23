@@ -20,41 +20,29 @@
   background: linear-gradient(180deg, rgba(10, 20, 43, 0.96), rgba(3, 8, 20, 0.94));
 }
 
-.shellHeader::before {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, transparent, rgba(104, 160, 255, 0.08), transparent),
-    repeating-linear-gradient(90deg, transparent 0 71px, rgba(255, 255, 255, 0.018) 72px);
-  content: "";
-  pointer-events: none;
-}
-
 .shellHeaderInner {
   position: relative;
   display: grid;
   width: 100%;
-  grid-template-columns: minmax(14rem, 1fr) auto;
+  min-height: 3.5rem;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: clamp(1rem, 2vw, 2.25rem);
-  padding: 0.9rem clamp(1rem, 2vw, 2rem);
-}
-
-.shellHeaderInner:has(.shellContext) {
-  grid-template-columns: minmax(14rem, 0.7fr) auto minmax(34rem, 2fr);
+  gap: clamp(0.75rem, 1.5vw, 1.5rem);
+  padding: 0.4rem clamp(1rem, 2vw, 2rem);
 }
 
 .shellBrand {
   min-width: 0;
 }
 
-.shellSubtitle {
-  max-width: 28rem;
-  margin-top: 0.1rem;
+.shellBrandLink {
+  display: block;
   overflow: hidden;
-  color: #8f9db5;
-  font-size: 0.76rem;
-  line-height: 1.3;
+  color: #f5f8ff;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -67,85 +55,46 @@
 }
 
 .shellContext {
+  display: flex;
   min-width: 0;
-}
-
-.openHeaderContext {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: center;
-  gap: clamp(1rem, 2vw, 2rem);
-}
-
-.openHeaderContext:has(.guestNoticeCompact) {
-  grid-template-columns: minmax(18rem, 0.75fr) minmax(25rem, 1.25fr);
-}
-
-.openHeaderIntro {
-  min-width: 0;
-}
-
-.openHeaderTitle {
-  margin-top: 0.08rem;
-  color: #f7fbff;
-  font-size: clamp(1.3rem, 1.45vw, 1.7rem);
-  font-weight: 850;
-  letter-spacing: -0.025em;
-  line-height: 1.08;
-  text-wrap: balance;
-}
-
-.openHeaderBody {
-  max-width: 48rem;
-  margin-top: 0.25rem;
-  color: #94a3bc;
-  font-size: 0.75rem;
-  line-height: 1.35;
-  text-wrap: pretty;
+  justify-content: flex-end;
 }
 
 .guestNoticeCompact {
-  display: grid;
+  display: flex;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 1rem;
-  border-left: 1px solid var(--vault-line);
-  padding-left: clamp(1rem, 2vw, 2rem);
+  justify-content: flex-end;
+  gap: 0.7rem;
+}
+
+.guestNoticeMeta {
+  display: grid;
+  justify-items: end;
+  gap: 0.15rem;
 }
 
 .guestNoticeTitle {
   color: #f6f9ff;
-  font-size: 0.78rem;
-  font-weight: 760;
-  line-height: 1.2;
-}
-
-.guestNoticeBody {
-  margin-top: 0.15rem;
-  overflow: hidden;
-  color: #8f9db5;
   font-size: 0.7rem;
-  line-height: 1.3;
-  text-overflow: ellipsis;
+  font-weight: 760;
+  line-height: 1;
   white-space: nowrap;
 }
 
 .guestNoticeCountdown {
-  margin-top: 0.3rem;
   color: #7ddcff;
-  font-size: 0.64rem;
+  font-size: 0.6rem;
   font-variant-numeric: tabular-nums;
   font-weight: 720;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
   line-height: 1;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .guestNoticeButton {
-  min-height: 2.5rem;
   flex-shrink: 0;
-  padding: 0.55rem 0.85rem;
   white-space: nowrap;
 }
 
@@ -170,18 +119,6 @@
   transition: color 150ms ease, background-color 150ms ease, transform 120ms ease;
 }
 
-@media (max-width: 1280px) {
-  .shellHeaderInner {
-    grid-template-columns: minmax(14rem, 1fr) auto;
-  }
-
-  .shellContext {
-    grid-column: 1 / -1;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--vault-line);
-  }
-}
-
 @media (max-width: 760px) {
   .shellHeaderInner {
     display: flex;
@@ -190,7 +127,9 @@
     gap: 0.75rem;
   }
 
-  .shellSubtitle {
+  .shellBrandLink {
+    overflow: visible;
+    text-overflow: clip;
     white-space: normal;
   }
 
@@ -202,25 +141,19 @@
     order: 3;
   }
 
-  .openHeaderContext:has(.guestNoticeCompact),
   .guestNoticeCompact {
-    grid-template-columns: 1fr;
-  }
-
-  .guestNoticeCompact {
-    gap: 0.75rem;
+    justify-content: space-between;
+    gap: 0.6rem;
     border-top: 1px solid var(--vault-line);
-    border-left: 0;
     padding-top: 0.75rem;
-    padding-left: 0;
   }
 
-  .guestNoticeBody {
-    white-space: normal;
+  .guestNoticeMeta {
+    justify-items: start;
   }
 
   .guestNoticeButton {
-    width: 100%;
+    width: auto;
   }
 }
 
@@ -270,6 +203,12 @@
   background: linear-gradient(135deg, #1d5fb5, #593da6);
   color: white;
   box-shadow: 0 9px 28px rgba(37, 88, 181, 0.25), inset 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.primaryButton.guestNoticeButton {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.72rem;
 }
 
 .primaryButton:hover {
@@ -695,7 +634,7 @@
 
 .collectionPage {
   display: grid;
-  height: calc(100dvh - 11.125rem);
+  height: calc(100dvh - 7.5rem);
   min-height: 38rem;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
@@ -920,7 +859,7 @@
   display: grid;
   height: 100%;
   min-height: 0;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
   align-items: center;
   justify-items: center;
@@ -1108,7 +1047,7 @@
 
 @media (max-width: 1280px) {
   .collectionPage {
-    height: calc(100dvh - 13rem);
+    height: calc(100dvh - 7.5rem);
   }
 
   .collectionToolbar {

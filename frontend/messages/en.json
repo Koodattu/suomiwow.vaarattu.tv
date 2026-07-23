@@ -56,6 +56,7 @@
     "ccg": "CCG"
   },
   "ccg": {
+    "brand": "SuomiWoW Community Collectible Card Game",
     "eyebrow": "Community card vault",
     "subtitle": "Open raid-set packs and preserve the characters who shaped each tier.",
     "fanNotice": "Unofficial, free fan project. World of Warcraft and related artwork are trademarks or copyrights of Blizzard Entertainment. SuomiWoW is not affiliated with Blizzard Entertainment.",
@@ -74,7 +75,7 @@
     "bonus": "bonus",
     "duplicateMeter": "Duplicate meter",
     "guest": {
-      "title": "Today's pulls are waiting for you",
+      "title": "Claim cards",
       "body": "Open packs now, then log in before the Helsinki daily reset to keep every card. Your first claim also adds five Current packs.",
       "expiresIn": "Claim within {time}",
       "timeRemaining": "{hours} h {minutes} min",

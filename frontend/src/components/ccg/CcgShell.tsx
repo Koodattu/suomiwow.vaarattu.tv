@@ -20,11 +20,7 @@ export default function CcgShell({ children, context, compact = false }: { child
       <header className={styles.shellHeader}>
         <div className={styles.shellHeaderInner}>
           <div className={styles.shellBrand}>
-            <div className={styles.eyebrow}>{t("eyebrow")}</div>
-            <Link href="/fun/ccg" className="mt-0.5 inline-block text-2xl font-black tracking-[-0.035em] text-white">
-              SuomiWoW <span className="text-cyan-300">CCG</span>
-            </Link>
-            <p className={styles.shellSubtitle}>{t("subtitle")}</p>
+            <Link href="/fun/ccg" className={styles.shellBrandLink}>{t("brand")}</Link>
           </div>
           <nav className={styles.shellNav} aria-label={t("nav.label")}>
             {links.map((link) => {
