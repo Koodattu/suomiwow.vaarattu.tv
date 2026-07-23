@@ -39,7 +39,10 @@ export default function CcgCollectionPage() {
   const t = useTranslations("ccg");
   const sessionQuery = useCcgSession();
   const setsQuery = useCcgSets();
-  const sets = setsQuery.data?.sets ?? [];
+  const sets = useMemo(
+    () => [...(setsQuery.data?.sets ?? [])].sort((a, b) => b.zoneId - a.zoneId),
+    [setsQuery.data?.sets],
+  );
   const [setSlug, setSetSlug] = useState("");
   const [guildId, setGuildId] = useState("");
   const [includeMissing, setIncludeMissing] = useState(false);

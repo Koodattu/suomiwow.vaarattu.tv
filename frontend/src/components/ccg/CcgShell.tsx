@@ -26,6 +26,10 @@ export default function CcgShell({ children, context, compact = false }: { child
           <div className={styles.shellBrand}>
             <Link href="/" className={styles.shellBrandLink} aria-label={t("nav.backToMain")}>
               <FaArrowLeft aria-hidden="true" />
+              <span className={styles.shellBackLabel} aria-hidden="true">
+                <span>{t("nav.backLabelTop")}</span>
+                <span>{t("nav.backLabelBottom")}</span>
+              </span>
               <Image src="/logo.png" alt="SuomiWoW" width={112} height={20} priority />
             </Link>
             <span className={styles.shellBrandTitle}>{t("brandSuffix")}</span>

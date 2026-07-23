@@ -618,10 +618,9 @@ export default function CcgOpenPage() {
                   <span className={packStyles.packHint}>{mutation.isPending ? t("open.openingHint") : t("open.packHint")}</span>
                 </div>
 
-                <aside className={packStyles.packBalancePanel}>
-                  {session ? <PackBalance session={session} mode={mode} /> : <div className={packStyles.balancePlaceholder} />}
-                  {noPacks ? <p className="mt-4 text-sm text-amber-200">{t("open.noPacks")}</p> : null}
-                  {recoveryQuery.isError ? (
+                  <aside className={packStyles.packBalancePanel}>
+                    {session ? <PackBalance session={session} mode={mode} /> : <div className={packStyles.balancePlaceholder} />}
+                    {recoveryQuery.isError ? (
                     <div className="mt-4 rounded-md border border-amber-300/20 bg-amber-300/[0.05] p-3" role="alert">
                       <p className="text-sm leading-5 text-amber-100">{t("open.recoveryFailed")}</p>
                       <button type="button" className={`${styles.secondaryButton} mt-3 w-full`} onClick={clearSavedOpening}>

@@ -64,6 +64,8 @@
     "nav": {
       "label": "CCG navigation",
       "backToMain": "Back to SuomiWoW",
+      "backLabelTop": "Back",
+      "backLabelBottom": "to",
       "home": "Vault",
       "open": "Open packs",
       "collection": "Collection"
@@ -127,7 +129,6 @@
       "viewCard": "View {name}",
       "revealAll": "Reveal all",
       "allRevealed": "Pack complete",
-      "noPacks": "No packs remain in this mode today. Duplicate and login bonus packs appear here automatically.",
       "newCard": "New",
       "duplicate": "Duplicate",
       "bonusEarned": "The duplicate meter awarded {count} bonus pack(s).",

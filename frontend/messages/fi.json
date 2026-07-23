@@ -64,6 +64,8 @@
     "nav": {
       "label": "CCG-navigaatio",
       "backToMain": "Takaisin SuomiWoWiin",
+      "backLabelTop": "Takaisin",
+      "backLabelBottom": "sivulle",
       "home": "Holvi",
       "open": "Avaa pakkoja",
       "collection": "Kokoelma"
@@ -127,7 +129,6 @@
       "viewCard": "Näytä {name}",
       "revealAll": "Paljasta kaikki",
       "allRevealed": "Pakka valmis",
-      "noPacks": "Tämän tilan pakat on käytetty tältä päivältä. Tupla- ja kirjautumisbonukset ilmestyvät tähän automaattisesti.",
       "newCard": "Uusi",
       "duplicate": "Tupla",
       "bonusEarned": "Tuplamittari antoi {count} bonuspakkaa.",
