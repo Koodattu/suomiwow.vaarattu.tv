@@ -94,7 +94,7 @@ export const queryKeys = {
   ccg: {
     session: ["ccg", "session"] as const,
     sets: ["ccg", "sets"] as const,
-    catalog: (setSlug: string, page: number, owned: string, grade: string, guildId: string) => ["ccg", "catalog", setSlug, page, owned, grade, guildId] as const,
+    catalog: (setSlug: string, page: number, owned: string, grade: string, guildId: string, limit: number) => ["ccg", "catalog", setSlug, page, owned, grade, guildId, limit] as const,
     guilds: (setSlug: string) => ["ccg", "guilds", setSlug] as const,
     collection: (options: Record<string, unknown>) => ["ccg", "collection", options] as const,
     opening: (openingId: string) => ["ccg", "opening", openingId] as const,
@@ -479,10 +479,10 @@ export function useCcgSets() {
   });
 }
 
-export function useCcgCatalog(setSlug: string, page: number, owned: "all" | "owned" | "missing", grade: string, guildId = "", enabled = true) {
+export function useCcgCatalog(setSlug: string, page: number, owned: "all" | "owned" | "missing", grade: string, guildId = "", enabled = true, limit = 9) {
   return useQuery({
-    queryKey: queryKeys.ccg.catalog(setSlug, page, owned, grade, guildId),
-    queryFn: () => api.getCcgCatalog(setSlug, { page, limit: 9, owned, grade: grade || undefined, guild: guildId || undefined }),
+    queryKey: queryKeys.ccg.catalog(setSlug, page, owned, grade, guildId, limit),
+    queryFn: () => api.getCcgCatalog(setSlug, { page, limit, owned, grade: grade || undefined, guild: guildId || undefined }),
     enabled: Boolean(setSlug) && enabled,
     staleTime: 30 * 1000,
   });

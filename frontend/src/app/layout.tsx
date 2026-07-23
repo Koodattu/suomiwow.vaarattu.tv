@@ -44,6 +44,7 @@ export default function RootLayout({
   const isLivestreamsPage = pathname === "/livestreams";
   const isNetworkAnalyticsPage = pathname === "/analytics/network";
   const isCcgOpenPage = pathname === "/fun/ccg/open";
+  const isCcgCollectionPage = pathname === "/fun/ccg/collection";
   const isHomePage = pathname === "/";
   const robotsContent =
     pathname.startsWith("/admin") || pathname.startsWith("/profile")
@@ -193,7 +194,7 @@ export default function RootLayout({
             <NextIntlClientProvider locale={locale} messages={messages}>
               <Navigation />
               {children}
-              {!isLivestreamsPage && !isNetworkAnalyticsPage && <Footer compact={isCcgOpenPage} />}
+              {!isLivestreamsPage && !isNetworkAnalyticsPage && !isCcgCollectionPage && <Footer compact={isCcgOpenPage} />}
             </NextIntlClientProvider>
           </AuthProvider>
         </QueryProvider>
