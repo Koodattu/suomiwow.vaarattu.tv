@@ -77,7 +77,11 @@
   padding: 0.6rem;
   color: #b8c5da;
   text-align: left;
-  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease, transform 120ms ease;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 120ms ease;
 }
 
 .modeChoice:hover {
@@ -246,7 +250,9 @@
   border-radius: 0.68rem;
   background: rgba(2, 8, 19, 0.72);
   padding: 0.52rem 0.65rem;
-  transition: border-color 150ms ease, background-color 150ms ease;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
 }
 
 .raidSelectButton:hover,
@@ -282,7 +288,9 @@
   border: 1px solid rgba(147, 184, 237, 0.24);
   border-radius: 0.75rem;
   background: rgba(3, 10, 23, 0.98);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.58), inset 0 1px rgba(255, 255, 255, 0.04);
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.58),
+    inset 0 1px rgba(255, 255, 255, 0.04);
   padding: 0.35rem;
   backdrop-filter: blur(18px);
 }
@@ -1676,16 +1684,17 @@
 }
 
 .revealSlotRevealed:is(
-  [data-grade="C"],
-  [data-grade="B"],
-  [data-grade="A"],
-  [data-grade="S"],
-  [data-finish="foil"],
-  [data-finish="golden"],
-  [data-finish="prismatic"],
-  [data-finish="holographic"],
-  [data-finish="negative"]
-) .revealFlare {
+    [data-grade="C"],
+    [data-grade="B"],
+    [data-grade="A"],
+    [data-grade="S"],
+    [data-finish="foil"],
+    [data-finish="golden"],
+    [data-finish="prismatic"],
+    [data-finish="holographic"],
+    [data-finish="negative"]
+  )
+  .revealFlare {
   animation: revealFlare 820ms 100ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -1780,27 +1789,26 @@
 
 .revealMotes {
   background:
-    radial-gradient(circle at 18% 31%, var(--reveal-color-secondary) 0 1px, transparent 2px),
-    radial-gradient(circle at 76% 18%, var(--reveal-color) 0 1.5px, transparent 2.5px),
-    radial-gradient(circle at 88% 58%, var(--reveal-color-secondary) 0 1px, transparent 2px),
-    radial-gradient(circle at 69% 84%, var(--reveal-color) 0 1px, transparent 2px),
-    radial-gradient(circle at 31% 79%, var(--reveal-color-secondary) 0 1.5px, transparent 2.5px),
-    radial-gradient(circle at 9% 62%, var(--reveal-color) 0 1px, transparent 2px),
+    radial-gradient(circle at 18% 31%, var(--reveal-color-secondary) 0 1px, transparent 2px), radial-gradient(circle at 76% 18%, var(--reveal-color) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 88% 58%, var(--reveal-color-secondary) 0 1px, transparent 2px), radial-gradient(circle at 69% 84%, var(--reveal-color) 0 1px, transparent 2px),
+    radial-gradient(circle at 31% 79%, var(--reveal-color-secondary) 0 1.5px, transparent 2.5px), radial-gradient(circle at 9% 62%, var(--reveal-color) 0 1px, transparent 2px),
     radial-gradient(circle at 53% 8%, var(--reveal-color-secondary) 0 1px, transparent 2px);
   filter: drop-shadow(0 0 4px var(--reveal-color));
 }
 
 .revealSlotRevealed:is(
-  [data-grade="C"],
-  [data-grade="B"],
-  [data-grade="A"],
-  [data-grade="S"],
-  [data-finish="foil"],
-  [data-finish="golden"],
-  [data-finish="prismatic"],
-  [data-finish="holographic"],
-  [data-finish="negative"]
-) .revealRings i {
+    [data-grade="C"],
+    [data-grade="B"],
+    [data-grade="A"],
+    [data-grade="S"],
+    [data-finish="foil"],
+    [data-finish="golden"],
+    [data-finish="prismatic"],
+    [data-finish="holographic"],
+    [data-finish="negative"]
+  )
+  .revealRings
+  i {
   animation-name: revealRingWave;
   animation-duration: max(var(--rarity-reveal-duration), var(--finish-reveal-duration));
   animation-delay: calc(300ms + var(--ring-delay));
@@ -1809,25 +1817,19 @@
 }
 
 .revealSlotRevealed:is(
-  [data-grade="B"],
-  [data-grade="A"],
-  [data-grade="S"],
-  [data-finish="golden"],
-  [data-finish="prismatic"],
-  [data-finish="holographic"],
-  [data-finish="negative"]
-) .revealRays {
+    [data-grade="B"],
+    [data-grade="A"],
+    [data-grade="S"],
+    [data-finish="golden"],
+    [data-finish="prismatic"],
+    [data-finish="holographic"],
+    [data-finish="negative"]
+  )
+  .revealRays {
   animation: revealRayBloom 1050ms 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.revealSlotRevealed:is(
-  [data-grade="A"],
-  [data-grade="S"],
-  [data-finish="golden"],
-  [data-finish="prismatic"],
-  [data-finish="holographic"],
-  [data-finish="negative"]
-) .revealMotes {
+.revealSlotRevealed:is([data-grade="A"], [data-grade="S"], [data-finish="golden"], [data-finish="prismatic"], [data-finish="holographic"], [data-finish="negative"]) .revealMotes {
   animation: revealMotes 1180ms 360ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -1852,7 +1854,7 @@
 .pullStatus {
   position: absolute;
   right: 0;
-  bottom: -0.82rem;
+  bottom: -1.5rem;
   left: 0;
   display: block;
   font-size: 0.66rem;
