@@ -504,6 +504,11 @@ export default function CcgOpenPage() {
                           </span>
                         </span>
                         <span className={packStyles.revealFlare} aria-hidden="true" />
+                        <span className={packStyles.revealCeremony} aria-hidden="true">
+                          <span className={packStyles.revealRays} />
+                          <span className={packStyles.revealRings}><i /><i /><i /><i /></span>
+                          <span className={packStyles.revealMotes} />
+                        </span>
                         <span className={packStyles.pullStatus} aria-hidden={!revealed}>
                           <strong>{t(result.isDuplicate ? "open.duplicate" : "open.newCard")}</strong>
                           <span>{t(`finish.${result.finish}`)}</span>
