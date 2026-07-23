@@ -68,13 +68,13 @@ The grade maps to an internal rarity bucket for pack selection and visual stylin
 
 | Tier grade | Internal bucket | Baseline visual treatment |
 | --- | --- | --- |
-| S | Mythic | Luminous light-purple metal; maximum ornament and strongest rarity glow |
+| S | Artifact | Light-gold metal; maximum ornament and strongest rarity glow |
 | A | Legendary | Yellow-orange; rich ornament and premium frame treatment |
 | B | Epic | Deep-purple layered frame and portal lighting |
 | C | Rare | Blue foil surface and brighter frame detail |
 | D | Uncommon | Green metallic accents and modest ornament |
 | E | Common | White, restrained matte frame |
-| F | Junk | Gray, minimal ornament |
+| F | Poor | Gray, minimal ornament |
 
 `tierGrade` is authoritative. `rarityBucket` may be stored as denormalized, indexed data, but must be derived from the set's versioned grade mapping.
 

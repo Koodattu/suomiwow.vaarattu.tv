@@ -553,16 +553,26 @@
 
 .tearSequence {
   position: absolute;
-  z-index: 8;
+  z-index: 30;
   top: 50%;
   left: 50%;
   width: min(68vw, 20rem);
   aspect-ratio: 0.66;
+  isolation: isolate;
+  pointer-events: none;
   transform: translate(-50%, -50%);
 }
 
 .tearSequenceComplete {
   display: none;
+}
+
+.burstOverlay {
+  position: absolute;
+  z-index: 50;
+  inset: 0;
+  isolation: isolate;
+  pointer-events: none;
 }
 
 .tornHalf {
@@ -670,15 +680,21 @@
   z-index: 10;
   top: 47%;
   left: 50%;
-  width: 46%;
+  width: min(38vw, 19rem);
   aspect-ratio: 1;
   border-radius: 50%;
-  background: white;
+  background: radial-gradient(
+    circle,
+    white 0 7%,
+    color-mix(in srgb, var(--pack-accent) 55%, white) 18%,
+    color-mix(in srgb, var(--pack-accent) 34%, transparent) 42%,
+    transparent 72%
+  );
   box-shadow:
     0 0 34px 14px var(--pack-glow),
     0 0 80px 24px color-mix(in srgb, var(--pack-accent) 42%, transparent);
-  animation: tearFlash 580ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  transform: translate(-50%, -50%) scale(0.08);
+  animation: tearFlash 720ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform: translate(-50%, -50%) scale(0.16);
 }
 
 .tearBurst {
@@ -686,7 +702,7 @@
   z-index: 9;
   top: 47%;
   left: 50%;
-  width: 82%;
+  width: min(54vw, 27rem);
   aspect-ratio: 1;
   border-radius: 50%;
   background: conic-gradient(
@@ -707,7 +723,42 @@
   );
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.25) rotate(-12deg);
-  animation: tearBurst 620ms 80ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  filter: drop-shadow(0 0 12px var(--pack-glow));
+  animation: tearBurst 700ms 70ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.tearShockwaves {
+  position: absolute;
+  z-index: 9;
+  top: 47%;
+  left: 50%;
+  width: min(34vw, 17rem);
+  aspect-ratio: 5 / 7;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.tearShockwaves i {
+  position: absolute;
+  inset: 0;
+  border: 2px solid color-mix(in srgb, var(--pack-accent) 68%, white);
+  border-radius: 0.8rem;
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--pack-glow) 88%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--pack-glow) 70%, transparent);
+  opacity: 0;
+  transform: scale(0.42);
+  animation: tearShockwave 740ms 125ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.tearShockwaves i:nth-child(2) {
+  border-width: 1.5px;
+  animation-delay: 205ms;
+}
+
+.tearShockwaves i:nth-child(3) {
+  border-width: 1px;
+  animation-delay: 285ms;
 }
 
 .tearParticles {
@@ -776,9 +827,14 @@
 }
 
 .revealContentWaiting {
-  opacity: 0;
+  opacity: 1;
   pointer-events: none;
-  transform: scale(0.96);
+  transform: none;
+}
+
+.revealContentWaiting .revealLead,
+.revealContentWaiting .revealControls {
+  opacity: 0;
 }
 
 .revealLead {
@@ -833,6 +889,8 @@
   --fan-angle: 0deg;
   --fan-y: 0px;
   --deal-delay: 0ms;
+  --deal-x: 0%;
+  --deal-angle: 0deg;
   --sealed-rarity: #9ca3af;
   --sealed-finish: none;
   --sealed-finish-blend: screen;
@@ -869,18 +927,19 @@
   display: block;
   min-width: 0;
   padding-bottom: 2.2rem;
-  opacity: 0;
+  opacity: 1;
   cursor: pointer;
-  transform: translateY(calc(var(--fan-y) + 56px)) rotate(var(--fan-angle)) scale(0.86);
-  transform-origin: center 88%;
-  transition-property: opacity, transform, filter;
-  transition-duration: 240ms, 330ms, 140ms;
+  pointer-events: none;
+  transform: translateX(var(--deal-x)) translateY(34px) rotate(var(--deal-angle)) scale(0.9);
+  transform-origin: center center;
+  transition-property: transform, filter;
+  transition-duration: 520ms, 140ms;
   transition-delay: var(--deal-delay);
   transition-timing-function: ease-out, cubic-bezier(0.16, 1, 0.3, 1), ease-out;
 }
 
 .revealSlot[data-grade="F"] {
-  --sealed-rarity: #7f8998;
+  --sealed-rarity: #9d9d9d;
 }
 .revealSlot[data-grade="E"] {
   --sealed-rarity: #edf2f9;
@@ -924,9 +983,9 @@
   --rarity-ring-glow: 16px;
 }
 .revealSlot[data-grade="S"] {
-  --sealed-rarity: #dda0ff;
-  --reveal-color: #c777ff;
-  --reveal-color-secondary: #f3dcff;
+  --sealed-rarity: #e6cc80;
+  --reveal-color: #e6cc80;
+  --reveal-color-secondary: #fff1bf;
   --rarity-ring-opacity: 1;
   --rarity-ray-opacity: 0.58;
   --rarity-mote-opacity: 1;
@@ -1063,7 +1122,17 @@
 
 .revealSlotDealt {
   opacity: 1;
+  pointer-events: auto;
   transform: translateY(var(--fan-y)) rotate(var(--fan-angle)) scale(1);
+}
+
+.revealSlotDealt:disabled {
+  pointer-events: none;
+}
+
+.revealSlotReady {
+  transition-duration: 240ms, 140ms;
+  transition-delay: 0ms;
 }
 
 .revealSlotDealt:not(:disabled):hover {
@@ -1605,18 +1674,15 @@
 @keyframes tearFlash {
   0% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.08);
+    transform: translate(-50%, -50%) scale(0.16);
   }
-  28% {
-    opacity: 0;
-  }
-  46% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(0.45);
+  24% {
+    opacity: 0.96;
+    transform: translate(-50%, -50%) scale(0.68);
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(2.4);
+    transform: translate(-50%, -50%) scale(2.75);
   }
 }
 
@@ -1631,6 +1697,20 @@
   100% {
     opacity: 0;
     transform: translate(-50%, -50%) scale(1.48) rotate(18deg);
+  }
+}
+
+@keyframes tearShockwave {
+  0% {
+    opacity: 0;
+    transform: scale(0.42);
+  }
+  22% {
+    opacity: 0.78;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.72);
   }
 }
 
@@ -1789,7 +1869,13 @@
   .revealSlot,
   .revealSlotDealt,
   .revealSlotDealt:not(:disabled):hover {
+    --deal-x: 0%;
     transform: translateY(0) rotate(0) scale(1);
+  }
+
+  .revealSlot:not(.revealSlotDealt) {
+    opacity: 1;
+    transform: translateY(38px) rotate(0) scale(0.92);
   }
 
   .revealSlot {
@@ -1838,6 +1924,7 @@
   .tornHalfRight,
   .tearFlash,
   .tearBurst,
+  .tearShockwaves i,
   .tearParticles i,
   .tearShardOne,
   .tearShardTwo,

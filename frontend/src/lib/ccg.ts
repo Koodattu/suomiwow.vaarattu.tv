@@ -2,14 +2,14 @@ import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 
 export const CCG_FINISH_ORDER: readonly CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
 
-export const CCG_RARITY_KEYS: Record<CcgTierGrade, "mythic" | "legendary" | "epic" | "rare" | "uncommon" | "common" | "junk"> = {
-  S: "mythic",
+export const CCG_RARITY_KEYS: Record<CcgTierGrade, "artifact" | "legendary" | "epic" | "rare" | "uncommon" | "common" | "poor"> = {
+  S: "artifact",
   A: "legendary",
   B: "epic",
   C: "rare",
   D: "uncommon",
   E: "common",
-  F: "junk",
+  F: "poor",
 };
 
 export function compareCcgFinish(left: CcgFinish, right: CcgFinish): number {

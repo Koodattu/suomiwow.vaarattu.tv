@@ -23,6 +23,9 @@ type RevealPhase = "idle" | "tearing" | "dealing" | "ready";
 
 const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
 const fanOffsets = [15, 5, 0, 5, 15];
+const dealOffsets = ["215%", "108%", "0%", "-108%", "-215%"];
+const dealAngles = [8, 4, 0, -4, -8];
+const cardSlideSounds = Array.from({ length: 8 }, (_, index) => `/ccg/audio/card-slide-${index + 1}.ogg`);
 const tearParticles = [
   { x: -132, y: -74, rotate: -34, delay: 90 },
   { x: -98, y: -126, rotate: -18, delay: 120 },
@@ -55,6 +58,20 @@ function packTheme(set: CcgSet | undefined): CSSProperties {
   } as CSSProperties;
 }
 
+function playPackSound(audio: HTMLAudioElement | null, volume: number, playbackRate = 1): void {
+  if (!audio) return;
+  audio.pause();
+  audio.currentTime = 0;
+  audio.volume = volume;
+  audio.playbackRate = playbackRate;
+  void audio.play().catch(() => undefined);
+}
+
+function playRandomPackSound(audios: Array<HTMLAudioElement | null>, volume: number): void {
+  const available = audios.filter((audio): audio is HTMLAudioElement => audio !== null);
+  playPackSound(available[randomIndex(available.length)] ?? null, volume);
+}
+
 export default function CcgOpenPage() {
   const t = useTranslations("ccg");
   const queryClient = useQueryClient();
@@ -72,6 +89,9 @@ export default function CcgOpenPage() {
   const [legacyArtSetId, setLegacyArtSetId] = useState("");
   const [showPrototypeLab, setShowPrototypeLab] = useState(false);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const shuffleAudioRef = useRef<HTMLAudioElement | null>(null);
+  const cardSlideAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
+  const drawAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
   const packDragRef = useRef({ pointerId: -1, startX: 0, startY: 0, dragging: false, suppressClick: false });
   const sealedMotionFrame = useRef<number | null>(null);
   const pendingSealedMotion = useRef<{ element: HTMLButtonElement; x: number; y: number } | null>(null);
@@ -129,6 +149,7 @@ export default function CcgOpenPage() {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setViewerIndex(null);
     setActiveReveal(null);
+    playPackSound(shuffleAudioRef.current, 0.42);
 
     if (reduced) {
       setRevealPhase("ready");
@@ -141,15 +162,23 @@ export default function CcgOpenPage() {
     setDealtCards(0);
     setRevealedCards(new Set());
     let readyTimer: number | undefined;
+    const drawSoundTimers: number[] = [];
     const tearTimer = window.setTimeout(() => {
       setRevealPhase("dealing");
       setDealtCards(total);
-      readyTimer = window.setTimeout(() => setRevealPhase("ready"), 560);
+      drawAudioRefs.current.slice(0, total).forEach((audio, index) => {
+        drawSoundTimers.push(window.setTimeout(
+          () => playPackSound(audio, 0.32, [0.96, 1.02, 0.99, 1.04, 0.97][index] ?? 1),
+          index * 58,
+        ));
+      });
+      readyTimer = window.setTimeout(() => setRevealPhase("ready"), 780);
     }, 640);
 
     return () => {
       window.clearTimeout(tearTimer);
       if (readyTimer) window.clearTimeout(readyTimer);
+      drawSoundTimers.forEach((timer) => window.clearTimeout(timer));
     };
   }, [opening]);
 
@@ -214,12 +243,14 @@ export default function CcgOpenPage() {
         y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
       });
     }
+    playRandomPackSound(cardSlideAudioRefs.current, 0.36);
     setRevealedCards((current) => new Set(current).add(index));
   };
 
   const revealAll = () => {
     if (!opening || revealPhase !== "ready") return;
     setActiveReveal(null);
+    playRandomPackSound(cardSlideAudioRefs.current, 0.32);
     setRevealedCards(new Set(opening.results.map((_, index) => index)));
   };
 
@@ -429,8 +460,6 @@ export default function CcgOpenPage() {
             <div className={`${packStyles.tearSequence} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`} aria-hidden="true">
               <span className={`${packStyles.tornHalf} ${packStyles.tornHalfLeft}`}><span /></span>
               <span className={`${packStyles.tornHalf} ${packStyles.tornHalfRight}`}><span /></span>
-              <span className={packStyles.tearFlash} />
-              <span className={packStyles.tearBurst} />
               <span className={packStyles.tearParticles}>
                 {tearParticles.map((particle, index) => (
                   <i
@@ -465,13 +494,15 @@ export default function CcgOpenPage() {
                     const cardStyle = {
                       "--fan-angle": `${fanAngles[index] ?? 0}deg`,
                       "--fan-y": `${fanOffsets[index] ?? 0}px`,
-                      "--deal-delay": `${index * 52}ms`,
+                      "--deal-x": dealOffsets[index] ?? "0%",
+                      "--deal-angle": `${dealAngles[index] ?? 0}deg`,
+                      "--deal-delay": `${index * 58}ms`,
                     } as CSSProperties;
                     return (
                       <button
                         key={`${result.card.id}-${index}`}
                         type="button"
-                        className={`${packStyles.revealSlot} ${dealt ? packStyles.revealSlotDealt : ""} ${revealed ? packStyles.revealSlotRevealed : ""} ${special ? packStyles.revealSlotSpecial : ""}`}
+                        className={`${packStyles.revealSlot} ${dealt ? packStyles.revealSlotDealt : ""} ${revealPhase === "ready" ? packStyles.revealSlotReady : ""} ${revealed ? packStyles.revealSlotRevealed : ""} ${special ? packStyles.revealSlotSpecial : ""}`}
                         style={cardStyle}
                         data-finish={result.finish}
                         data-grade={result.card.tierGrade}
@@ -542,6 +573,11 @@ export default function CcgOpenPage() {
               </div>
               {allRevealed && opening.duplicateRewards > 0 ? <p className={packStyles.bonusEarned}>{t("open.bonusEarned", { count: opening.duplicateRewards })}</p> : null}
             </div>
+            <div className={`${packStyles.burstOverlay} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`} aria-hidden="true">
+              <span className={packStyles.tearFlash} />
+              <span className={packStyles.tearBurst} />
+              <span className={packStyles.tearShockwaves}><i /><i /><i /></span>
+            </div>
             <p className="sr-only" aria-live="polite">{revealPhase === "ready" && revealedCards.size === 0 ? t("open.cardsReady") : revealedSummary}</p>
           </section>
         )}
@@ -553,6 +589,25 @@ export default function CcgOpenPage() {
           onClose={() => setViewerIndex(null)}
         />
       ) : null}
+      <audio ref={shuffleAudioRef} src="/ccg/audio/shuffle.wav" preload="auto" aria-hidden="true" />
+      {cardSlideSounds.map((src, index) => (
+        <audio
+          key={src}
+          ref={(element) => { cardSlideAudioRefs.current[index] = element; }}
+          src={src}
+          preload="auto"
+          aria-hidden="true"
+        />
+      ))}
+      {Array.from({ length: 5 }, (_, index) => (
+        <audio
+          key={index}
+          ref={(element) => { drawAudioRefs.current[index] = element; }}
+          src="/ccg/audio/draw.wav"
+          preload="auto"
+          aria-hidden="true"
+        />
+      ))}
     </CcgShell>
   );
 }

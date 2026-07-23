@@ -341,7 +341,7 @@
   filter: invert(1) contrast(1.06) saturate(0.92) brightness(1.045);
 }
 .prototypeCard[data-grade="F"] {
-  --rarity: #9ca3af;
+  --rarity: #9d9d9d;
   --metal-light: #77808d;
   --metal-mid: #3a424d;
   --metal-dark: #0d1117;
@@ -377,14 +377,14 @@
   --metal-dark: #2b1503;
 }
 .prototypeCard[data-grade="S"] {
-  --rarity: #dda0ff;
-  --metal-light: #f0d2ff;
-  --metal-mid: #995bd1;
-  --metal-dark: #250637;
+  --rarity: #e6cc80;
+  --metal-light: #fff0bd;
+  --metal-mid: #b3944f;
+  --metal-dark: #2b2108;
 }
 
 .prototypeCard[data-grade="S"] .rarityPlate strong {
-  text-shadow: 0 0 0.45em rgba(218, 139, 255, 0.62);
+  text-shadow: 0 0 0.45em rgba(230, 204, 128, 0.62);
 }
 
 .outerFrame,
