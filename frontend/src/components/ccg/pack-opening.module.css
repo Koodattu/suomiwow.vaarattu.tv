@@ -1852,7 +1852,7 @@
 .pullStatus {
   position: absolute;
   right: 0;
-  bottom: -0.7rem;
+  bottom: -0.82rem;
   left: 0;
   display: block;
   font-size: 0.66rem;
@@ -1898,6 +1898,13 @@
   font-variant-numeric: tabular-nums;
   font-weight: 720;
   text-align: center;
+}
+
+.revealProgress > span {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
 }
 
 .nextPackActions {
