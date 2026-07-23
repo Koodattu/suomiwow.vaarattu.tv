@@ -846,6 +846,29 @@
   display: none;
 }
 
+.tearSequenceHolding .tornHalfLeft,
+.tearSequenceHolding .tornHalfRight,
+.tearSequenceHolding .tearFlash,
+.tearSequenceHolding .tearBurst,
+.tearSequenceHolding .tearShockwaves i,
+.tearSequenceHolding .tearParticles i,
+.tearSequenceHolding .tearShardOne,
+.tearSequenceHolding .tearShardTwo,
+.tearSequenceHolding .tearShardThree {
+  animation-play-state: paused;
+}
+
+.tearSequenceHolding .tornHalf {
+  visibility: hidden;
+}
+
+.heldPack {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  cursor: default;
+}
+
 .burstOverlay {
   position: absolute;
   z-index: 50;
@@ -1125,6 +1148,9 @@
   padding: 0 1rem;
   text-align: center;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.84);
+  transition-property: opacity, transform;
+  transition-duration: 160ms;
+  transition-timing-function: ease-in;
 }
 
 .revealLead span {
@@ -1168,6 +1194,7 @@
   --fan-angle: 0deg;
   --fan-y: 0px;
   --deal-delay: 0ms;
+  --pack-exit-delay: 0ms;
   --deal-x: 0%;
   --deal-angle: 0deg;
   --sealed-rarity: #9ca3af;
@@ -1211,9 +1238,9 @@
   pointer-events: none;
   transform: translateX(var(--deal-x)) translateY(34px) rotate(var(--deal-angle)) scale(0.9);
   transform-origin: center center;
-  transition-property: transform, filter;
-  transition-duration: 520ms, 140ms;
-  transition-delay: var(--deal-delay);
+  transition-property: transform, filter, opacity;
+  transition-duration: 520ms, 140ms, 220ms;
+  transition-delay: var(--deal-delay), 0ms, 0ms;
   transition-timing-function: ease-out, cubic-bezier(0.16, 1, 0.3, 1), ease-out;
 }
 
@@ -1410,8 +1437,8 @@
 }
 
 .revealSlotReady {
-  transition-duration: 240ms, 140ms;
-  transition-delay: 0ms;
+  transition-duration: 240ms, 140ms, 200ms;
+  transition-delay: 0ms, 0ms, 0ms;
 }
 
 .revealSlotDealt:not(:disabled):hover {
@@ -1866,6 +1893,28 @@
   justify-content: center;
   gap: 0.8rem;
   padding: 0 1rem;
+  transition-property: opacity, transform;
+  transition-duration: 160ms;
+  transition-timing-function: ease-in;
+}
+
+.revealStageCycling .revealLead,
+.revealStageCycling .revealControls,
+.revealStageCycling .packActionError,
+.revealStageCycling .bonusEarned {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px);
+}
+
+.revealStageCycling .revealSlotDealt {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(var(--fan-y) - 18px)) rotate(calc(var(--fan-angle) * 0.5)) scale(0.985);
+  transition-property: transform, opacity;
+  transition-duration: 360ms, 320ms;
+  transition-delay: var(--pack-exit-delay), var(--pack-exit-delay);
+  transition-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
 }
 
 .revealProgress {
@@ -1901,6 +1950,9 @@
   color: #fca5a5;
   font-size: 0.76rem;
   text-align: center;
+  transition-property: opacity, transform;
+  transition-duration: 160ms;
+  transition-timing-function: ease-in;
 }
 
 .bonusEarned {
@@ -1910,6 +1962,9 @@
   font-size: 0.8rem;
   font-weight: 760;
   text-align: center;
+  transition-property: opacity, transform;
+  transition-duration: 160ms;
+  transition-timing-function: ease-in;
 }
 
 @keyframes packCharge {
@@ -2246,6 +2301,10 @@
   .wrapperFoil,
   .revealContent,
   .revealSlot,
+  .revealLead,
+  .revealControls,
+  .packActionError,
+  .bonusEarned,
   .sealedAura,
   .cardFlip,
   .pullStatus {
@@ -2258,6 +2317,10 @@
 
   .revealSlot:not(.revealSlotRevealed) .cardFlip {
     transform: none;
+  }
+
+  .revealStageCycling .revealSlotDealt {
+    transform: translateY(var(--fan-y)) rotate(var(--fan-angle)) scale(1);
   }
 
   .revealFlare,

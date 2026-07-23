@@ -20,7 +20,7 @@ import CcgLoadError from "@/components/ccg/CcgLoadError";
 import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 
-type RevealPhase = "idle" | "tearing" | "dealing" | "ready";
+type RevealPhase = "idle" | "holding" | "tearing" | "dealing" | "ready";
 type PackSelection = { mode: CcgMode; setId?: string };
 
 const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
@@ -75,6 +75,25 @@ function ArchiveIcon() {
   );
 }
 
+function PackBoosterVisual({ title, cardsLabel }: { title: string; cardsLabel: string }) {
+  return (
+    <>
+      <span className={packStyles.packShadow} />
+      <span className={packStyles.booster}>
+        <span className={packStyles.wrapperArt} />
+        <span className={packStyles.wrapperShade} />
+        <span className={packStyles.wrapperFoil} />
+        <span className={`${packStyles.crimp} ${packStyles.crimpTop}`} />
+        <span className={`${packStyles.crimp} ${packStyles.crimpBottom}`} />
+        <span className={packStyles.packBrand}>SuomiWoW <strong>CCG</strong></span>
+        <span className={packStyles.packTitle}>{title}</span>
+        <span className={packStyles.packSigil} aria-hidden="true"><span /></span>
+        <span className={packStyles.packCount}><strong>5</strong><span>{cardsLabel}</span></span>
+      </span>
+    </>
+  );
+}
+
 function playPackSound(audio: HTMLAudioElement | null, volume: number, playbackRate = 1): void {
   if (!audio) return;
   audio.pause();
@@ -108,6 +127,7 @@ export default function CcgOpenPage() {
   const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
   const [viewerSharedTransition, setViewerSharedTransition] = useState(false);
   const [legacySetId, setLegacySetId] = useState(RANDOM_LEGACY_SET);
+  const [isPackCycling, setIsPackCycling] = useState(false);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const shuffleAudioRef = useRef<HTMLAudioElement | null>(null);
   const cardSlideAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
@@ -115,6 +135,7 @@ export default function CcgOpenPage() {
   const packDragRef = useRef({ pointerId: -1, startX: 0, startY: 0, dragging: false, suppressClick: false });
   const sealedMotionFrame = useRef<number | null>(null);
   const pendingSealedMotion = useRef<{ element: HTMLButtonElement; x: number; y: number } | null>(null);
+  const nextPackTimerRef = useRef<number | null>(null);
   const recoveryQuery = useCcgOpening(recoveryId);
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets;
@@ -158,6 +179,7 @@ export default function CcgOpenPage() {
   useEffect(
     () => () => {
       if (sealedMotionFrame.current !== null) cancelAnimationFrame(sealedMotionFrame.current);
+      if (nextPackTimerRef.current !== null) window.clearTimeout(nextPackTimerRef.current);
     },
     [],
   );
@@ -177,34 +199,39 @@ export default function CcgOpenPage() {
     setViewerOriginElement(null);
     setViewerOriginBounds(null);
     setActiveReveal(null);
-    playPackSound(shuffleAudioRef.current, 0.42);
-
     if (reduced) {
+      playPackSound(shuffleAudioRef.current, 0.42);
       setRevealPhase("ready");
       setDealtCards(total);
       setRevealedCards(new Set(opening.results.map((_, index) => index)));
       return;
     }
 
-    setRevealPhase("tearing");
+    setRevealPhase("holding");
     setDealtCards(0);
     setRevealedCards(new Set());
+    let tearTimer: number | undefined;
     let readyTimer: number | undefined;
     const drawSoundTimers: number[] = [];
-    const tearTimer = window.setTimeout(() => {
-      setRevealPhase("dealing");
-      setDealtCards(total);
-      drawAudioRefs.current.slice(0, total).forEach((audio, index) => {
-        drawSoundTimers.push(window.setTimeout(
-          () => playPackSound(audio, 0.32, [0.96, 1.02, 0.99, 1.04, 0.97][index] ?? 1),
-          index * 58,
-        ));
-      });
-      readyTimer = window.setTimeout(() => setRevealPhase("ready"), 780);
-    }, 640);
+    const holdTimer = window.setTimeout(() => {
+      playPackSound(shuffleAudioRef.current, 0.42);
+      setRevealPhase("tearing");
+      tearTimer = window.setTimeout(() => {
+        setRevealPhase("dealing");
+        setDealtCards(total);
+        drawAudioRefs.current.slice(0, total).forEach((audio, index) => {
+          drawSoundTimers.push(window.setTimeout(
+            () => playPackSound(audio, 0.32, [0.96, 1.02, 0.99, 1.04, 0.97][index] ?? 1),
+            index * 58,
+          ));
+        });
+        readyTimer = window.setTimeout(() => setRevealPhase("ready"), 780);
+      }, 640);
+    }, 240);
 
     return () => {
-      window.clearTimeout(tearTimer);
+      window.clearTimeout(holdTimer);
+      if (tearTimer) window.clearTimeout(tearTimer);
       if (readyTimer) window.clearTimeout(readyTimer);
       drawSoundTimers.forEach((timer) => window.clearTimeout(timer));
     };
@@ -235,6 +262,11 @@ export default function CcgOpenPage() {
       return result;
     },
     onSuccess: (result) => {
+      setIsPackCycling(false);
+      setRevealPhase("holding");
+      setDealtCards(0);
+      setRevealedCards(new Set());
+      setActiveReveal(null);
       setMode(result.mode);
       if (result.mode === "legacy") setLegacySetId(result.targetSetId ?? RANDOM_LEGACY_SET);
       setOpening(result);
@@ -244,6 +276,7 @@ export default function CcgOpenPage() {
       queryClient.invalidateQueries({ queryKey: ["ccg", "guilds"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.ccg.sets });
     },
+    onError: () => setIsPackCycling(false),
   });
 
   const queryFailed = sessionQuery.isError || setsQuery.isError;
@@ -419,9 +452,21 @@ export default function CcgOpenPage() {
   };
 
   const openAnotherPack = () => {
-    if (!opening || mutation.isPending) return;
+    if (!opening || mutation.isPending || isPackCycling) return;
+    const selection = { mode: opening.mode, setId: opening.targetSetId ?? undefined };
     setRecoveryId("");
-    mutation.mutate({ mode: opening.mode, setId: opening.targetSetId ?? undefined });
+    setActiveReveal(null);
+    setIsPackCycling(true);
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      mutation.mutate(selection);
+      return;
+    }
+
+    nextPackTimerRef.current = window.setTimeout(() => {
+      nextPackTimerRef.current = null;
+      mutation.mutate(selection);
+    }, 470);
   };
 
   if (queryFailed) {
@@ -529,18 +574,10 @@ export default function CcgOpenPage() {
                     aria-label={t("open.openPack")}
                     aria-busy={mutation.isPending}
                   >
-                    <span className={packStyles.packShadow} />
-                    <span className={packStyles.booster}>
-                      <span className={packStyles.wrapperArt} />
-                      <span className={packStyles.wrapperShade} />
-                      <span className={packStyles.wrapperFoil} />
-                      <span className={`${packStyles.crimp} ${packStyles.crimpTop}`} />
-                      <span className={`${packStyles.crimp} ${packStyles.crimpBottom}`} />
-                      <span className={packStyles.packBrand}>SuomiWoW <strong>CCG</strong></span>
-                      <span className={packStyles.packTitle}>{modeSets.length > 0 ? poolTitle : t("landing.preparing")}</span>
-                      <span className={packStyles.packSigil} aria-hidden="true"><span /></span>
-                      <span className={packStyles.packCount}><strong>5</strong><span>{t("landing.cards")}</span></span>
-                    </span>
+                    <PackBoosterVisual
+                      title={modeSets.length > 0 ? poolTitle : t("landing.preparing")}
+                      cardsLabel={t("landing.cards")}
+                    />
                   </button>
                   <span className={packStyles.packHint}>{mutation.isPending ? t("open.openingHint") : t("open.packHint")}</span>
                 </div>
@@ -562,13 +599,22 @@ export default function CcgOpenPage() {
             </section>
           </div>
         ) : (
-          <section className={`${packStyles.packStage} ${packStyles.revealStage}`} style={stageTheme}>
+          <section
+            className={`${packStyles.packStage} ${packStyles.revealStage} ${isPackCycling ? packStyles.revealStageCycling : ""}`}
+            style={stageTheme}
+            aria-busy={isPackCycling || mutation.isPending}
+          >
             <span className={packStyles.stageArt} />
             <span className={packStyles.stageVeil} />
             <span className={packStyles.vaultRing} aria-hidden="true" />
             <span className={packStyles.vaultRingInner} aria-hidden="true" />
 
-            <div className={`${packStyles.tearSequence} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`} aria-hidden="true">
+            <div className={`${packStyles.tearSequence} ${revealPhase === "holding" ? packStyles.tearSequenceHolding : ""} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`} aria-hidden="true">
+              {revealPhase === "holding" ? (
+                <span className={`${packStyles.packButton} ${packStyles.heldPack}`}>
+                  <PackBoosterVisual title={openingPackName ?? t("open.legacyPackTitle")} cardsLabel={t("landing.cards")} />
+                </span>
+              ) : null}
               <span className={`${packStyles.tornHalf} ${packStyles.tornHalfLeft}`}><span /></span>
               <span className={`${packStyles.tornHalf} ${packStyles.tornHalfRight}`}><span /></span>
               <span className={packStyles.tearParticles}>
@@ -589,7 +635,7 @@ export default function CcgOpenPage() {
               <span className={packStyles.tearShardThree} />
             </div>
 
-            <div className={`${packStyles.revealContent} ${revealPhase === "tearing" ? packStyles.revealContentWaiting : ""}`}>
+            <div className={`${packStyles.revealContent} ${revealPhase === "holding" || revealPhase === "tearing" ? packStyles.revealContentWaiting : ""}`}>
               <div className={packStyles.revealLead}>
                 <span>{openingPackName}</span>
                 <strong>{allRevealed ? t("open.allRevealed") : t("open.revealPrompt")}</strong>
@@ -608,6 +654,7 @@ export default function CcgOpenPage() {
                       "--deal-x": dealOffsets[index] ?? "0%",
                       "--deal-angle": `${dealAngles[index] ?? 0}deg`,
                       "--deal-delay": `${index * 58}ms`,
+                      "--pack-exit-delay": `${index * 24}ms`,
                     } as CSSProperties;
                     return (
                       <button
@@ -618,7 +665,7 @@ export default function CcgOpenPage() {
                         data-finish={result.finish}
                         data-grade={result.card.tierGrade}
                         ref={(element) => { cardRefs.current[index] = element; }}
-                        disabled={!dealt || revealPhase !== "ready"}
+                        disabled={!dealt || revealPhase !== "ready" || isPackCycling}
                         onPointerMove={revealed ? undefined : updateSealedCardMotion}
                         onPointerLeave={(event) => {
                           if (!revealed) resetSealedCardMotion(event);
@@ -677,11 +724,11 @@ export default function CcgOpenPage() {
                 ) : (
                   <div className={packStyles.nextPackActions}>
                     {hasAnotherPack ? (
-                      <button type="button" className={styles.primaryButton} onClick={openAnotherPack} disabled={mutation.isPending}>
-                        {mutation.isPending ? t("open.opening") : t("open.openAnother")}
+                      <button type="button" className={styles.primaryButton} onClick={openAnotherPack} disabled={mutation.isPending || isPackCycling}>
+                        {mutation.isPending || isPackCycling ? t("open.opening") : t("open.openAnother")}
                       </button>
                     ) : null}
-                    <button type="button" className={styles.secondaryButton} onClick={clearSavedOpening} disabled={mutation.isPending}>
+                    <button type="button" className={styles.secondaryButton} onClick={clearSavedOpening} disabled={mutation.isPending || isPackCycling}>
                       {t("open.chooseDifferent")}
                     </button>
                   </div>
@@ -690,7 +737,7 @@ export default function CcgOpenPage() {
               {allRevealed && mutation.error ? <p className={packStyles.packActionError} role="alert">{mutation.error.message}</p> : null}
               {allRevealed && opening.duplicateRewards > 0 ? <p className={packStyles.bonusEarned}>{t("open.bonusEarned", { count: opening.duplicateRewards })}</p> : null}
             </div>
-            <div className={`${packStyles.burstOverlay} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`} aria-hidden="true">
+            <div className={`${packStyles.burstOverlay} ${revealPhase === "holding" ? packStyles.tearSequenceHolding : ""} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`} aria-hidden="true">
               <span className={packStyles.tearFlash} />
               <span className={packStyles.tearBurst} />
               <span className={packStyles.tearShockwaves}><i /><i /><i /></span>
