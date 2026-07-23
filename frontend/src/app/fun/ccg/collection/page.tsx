@@ -56,11 +56,8 @@ export default function CcgCollectionPage() {
     () => [...(guildsQuery.data?.guilds ?? [])].sort((a, b) => a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm)),
     [guildsQuery.data?.guilds],
   );
-  const guildLabel = guilds.find((guild) => guild.id === guildId)?.name ?? t("collection.allGuilds");
-  const rarityLabel = rarities.find((item) => item.grade === grade)?.label;
-  const selectedRarityLabel = rarityLabel ? t(`rarity.${rarityLabel}`) : t("collection.allRarities");
-  const selectedQualityLabel = finish ? t(`finish.${finish}`) : t("collection.allQualities");
   const showCatalog = includeMissing;
+  const filtersChanged = includeMissing || Boolean(guildId || grade || finish);
   const ownedQuery = useCcgCollection(
     {
       page,
@@ -97,6 +94,14 @@ export default function CcgCollectionPage() {
 
   const updateFilter = (callback: () => void) => {
     callback();
+    setPage(1);
+  };
+
+  const resetFilters = () => {
+    setIncludeMissing(false);
+    setGuildId("");
+    setGrade("");
+    setFinish("");
     setPage(1);
   };
 
@@ -149,6 +154,12 @@ export default function CcgCollectionPage() {
           </div>
 
           <div className={styles.collectionFilters}>
+            {filtersChanged ? (
+              <button type="button" className={styles.collectionResetButton} onClick={resetFilters}>
+                {t("collection.resetFilters")}
+              </button>
+            ) : null}
+
             <label className={`${styles.collectionMissingToggle} ${includeMissing ? styles.collectionMissingToggleActive : ""}`}>
               <input
                 type="checkbox"
@@ -158,10 +169,7 @@ export default function CcgCollectionPage() {
               <span>{t("collection.showMissing")}</span>
             </label>
 
-            <label
-              className={`${styles.collectionSelect} ${styles.collectionGuildSelect}`}
-              style={{ width: `${Math.max(14, guildLabel.length + 6)}ch` }}
-            >
+            <label className={styles.collectionSelect}>
               <select
                 aria-label={t("collection.guild")}
                 value={guildId}
@@ -175,10 +183,7 @@ export default function CcgCollectionPage() {
               </select>
             </label>
 
-            <label
-              className={`${styles.collectionSelect} ${styles.collectionRarityFilter}`}
-              style={{ width: `${Math.max(14, selectedRarityLabel.length + 6)}ch` }}
-            >
+            <label className={styles.collectionSelect}>
               <select
                 aria-label={t("collection.rarity")}
                 className={styles.collectionRaritySelect}
@@ -191,10 +196,7 @@ export default function CcgCollectionPage() {
               </select>
             </label>
 
-            <label
-              className={`${styles.collectionSelect} ${styles.collectionCompactSelect}`}
-              style={{ width: `${Math.max(14, selectedQualityLabel.length + 6)}ch` }}
-            >
+            <label className={styles.collectionSelect}>
               <select
                 aria-label={t("collection.quality")}
                 className={styles.collectionQualitySelect}

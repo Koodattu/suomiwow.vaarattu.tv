@@ -224,6 +224,7 @@
       "cardVisibility": "Korttien näkyvyys",
       "collectedOnly": "Kerätyt",
       "showMissing": "Puuttuvat",
+      "resetFilters": "Nollaa",
       "missing": "Puuttuvat",
       "notCollected": "Ei vielä kerätty",
       "ownedSnapshots": "Kerätyt snapshotit",

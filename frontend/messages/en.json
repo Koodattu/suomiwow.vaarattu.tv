@@ -224,6 +224,7 @@
       "cardVisibility": "Card visibility",
       "collectedOnly": "Collected",
       "showMissing": "Missing",
+      "resetFilters": "Reset",
       "missing": "Missing",
       "notCollected": "Not collected yet",
       "ownedSnapshots": "Owned snapshots",
