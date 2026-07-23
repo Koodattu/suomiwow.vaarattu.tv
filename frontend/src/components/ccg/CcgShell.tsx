@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import styles from "./ccg.module.css";
 
-export default function CcgShell({ children }: { children: ReactNode }) {
+export default function CcgShell({ children, context }: { children: ReactNode; context?: ReactNode }) {
   const pathname = usePathname();
   const t = useTranslations("ccg");
   const links = [
@@ -18,15 +18,15 @@ export default function CcgShell({ children }: { children: ReactNode }) {
   return (
     <main className={styles.vault}>
       <header className={styles.shellHeader}>
-        <div className="relative mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-6 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:px-8">
-          <div>
+        <div className={styles.shellHeaderInner}>
+          <div className={styles.shellBrand}>
             <div className={styles.eyebrow}>{t("eyebrow")}</div>
-            <Link href="/fun/ccg" className="mt-1 inline-block text-2xl font-black tracking-[-0.035em] text-white sm:text-3xl">
+            <Link href="/fun/ccg" className="mt-0.5 inline-block text-2xl font-black tracking-[-0.035em] text-white">
               SuomiWoW <span className="text-cyan-300">CCG</span>
             </Link>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">{t("subtitle")}</p>
+            <p className={styles.shellSubtitle}>{t("subtitle")}</p>
           </div>
-          <nav className="flex flex-wrap items-center gap-1" aria-label={t("nav.label")}>
+          <nav className={styles.shellNav} aria-label={t("nav.label")}>
             {links.map((link) => {
               const active = link.href === "/fun/ccg" ? pathname === link.href : pathname.startsWith(link.href);
               return (
@@ -36,6 +36,7 @@ export default function CcgShell({ children }: { children: ReactNode }) {
               );
             })}
           </nav>
+          {context ? <div className={styles.shellContext}>{context}</div> : null}
         </div>
       </header>
       {children}

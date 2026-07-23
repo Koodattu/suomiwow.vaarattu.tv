@@ -14,7 +14,7 @@ function remainingParts(resetAt: string, now: number): { hours: number; minutes:
   return { hours, minutes };
 }
 
-export default function GuestNotice({ session }: { session: CcgSession }) {
+export default function GuestNotice({ session, compact = false }: { session: CcgSession; compact?: boolean }) {
   const t = useTranslations("ccg");
   const pathname = usePathname();
   const { user, login } = useAuth();
@@ -29,15 +29,15 @@ export default function GuestNotice({ session }: { session: CcgSession }) {
   if (user || session.ownerType !== "guest") return null;
 
   return (
-    <aside className={`${styles.panel} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between`}>
+    <aside className={compact ? styles.guestNoticeCompact : `${styles.panel} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between`}>
       <div>
-        <div className="text-sm font-bold text-white">{t("guest.title")}</div>
-        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">{t("guest.body")}</p>
-        <div className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-300">
+        <div className={compact ? styles.guestNoticeTitle : "text-sm font-bold text-white"}>{t("guest.title")}</div>
+        <p className={compact ? styles.guestNoticeBody : "mt-1 max-w-3xl text-sm leading-6 text-slate-400"}>{t("guest.body")}</p>
+        <div className={compact ? styles.guestNoticeCountdown : "mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-300"}>
           {t("guest.expiresIn", { time: countdown })}
         </div>
       </div>
-      <button type="button" className={`${styles.primaryButton} shrink-0`} onClick={() => login(pathname)}>
+      <button type="button" className={`${styles.primaryButton} ${compact ? styles.guestNoticeButton : "shrink-0"}`} onClick={() => login(pathname)}>
         {t("guest.login")}
       </button>
     </aside>

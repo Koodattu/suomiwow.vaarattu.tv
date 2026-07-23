@@ -373,15 +373,19 @@ export default function CcgOpenPage() {
   }
 
   return (
-    <CcgShell>
-      <div className="mx-auto max-w-[1500px] space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-        {session ? <GuestNotice session={session} /> : null}
-        <header>
-          <div className={styles.eyebrow}>{t("nav.open")}</div>
-          <h1 className="mt-1 text-3xl font-black tracking-tight text-white sm:text-4xl">{t("open.title")}</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">{t("open.body")}</p>
-        </header>
-
+    <CcgShell
+      context={(
+        <div className={styles.openHeaderContext}>
+          <header className={styles.openHeaderIntro}>
+            <div className={styles.eyebrow}>{t("nav.open")}</div>
+            <h1 className={styles.openHeaderTitle}>{t("open.title")}</h1>
+            <p className={styles.openHeaderBody}>{t("open.body")}</p>
+          </header>
+          {session ? <GuestNotice session={session} compact /> : null}
+        </div>
+      )}
+    >
+      <div className="w-full px-4 py-5 sm:px-6 lg:px-8">
         {!opening ? (
           <div className="grid gap-6 lg:grid-cols-[minmax(250px,340px)_1fr]">
             <aside className={`${styles.panel} h-fit p-5`}>
