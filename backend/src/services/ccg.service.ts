@@ -212,7 +212,7 @@ class CcgService {
   async getCatalog(
     owner: CcgOwner,
     setSlug: string,
-    options: { page?: number; limit?: number; owned?: string; grade?: string; finish?: string; guildId?: string; sort?: string },
+    options: { page?: number; limit?: number; owned?: string; grade?: string; finish?: string; guildId?: string },
   ): Promise<Record<string, unknown>> {
     const set = await CcgSet.findOne({ slug: setSlug, enabledAt: { $ne: null } }).lean();
     if (!set) throw new CcgServiceError(404, "set_not_found", "Card set not found");
@@ -220,7 +220,6 @@ class CcgService {
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 9)));
     const grade = CCG_TIER_GRADES.includes(options.grade as CcgTierGrade) ? (options.grade as CcgTierGrade) : null;
     const finish = CCG_FINISH_ORDER.includes(options.finish as CcgFinish) ? (options.finish as CcgFinish) : null;
-    const sort = options.sort === "guild" ? "guild" : "rarity";
     const cardFilter: Record<string, unknown> = { setId: set._id };
     if (grade) cardFilter.tierGrade = grade;
     if (options.guildId) cardFilter.guildId = validateObjectId(options.guildId, "guild ID");
@@ -240,8 +239,7 @@ class CcgService {
     }
     const [cards, total] = await Promise.all([
       CcgCard.find(cardFilter)
-        .sort(sort === "guild" ? { guildName: 1, setNumber: 1 } : { setNumber: 1 })
-        .collation({ locale: "en", strength: 2 })
+        .sort({ setNumber: 1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .lean(),
@@ -267,11 +265,10 @@ class CcgService {
 
   async getCollection(
     owner: CcgOwner,
-    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string; sort?: string },
+    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string },
   ): Promise<Record<string, unknown>> {
     const page = Math.max(1, Math.floor(options.page ?? 1));
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 18)));
-    const sort = options.sort === "guild" ? "guild" : "rarity";
     const match: Record<string, unknown> = { ownerType: owner.ownerType, ownerId: owner.ownerId };
     if (["standard", "foil", "golden", "prismatic", "holographic", "negative"].includes(options.finish ?? "")) match.finish = options.finish;
     const characterMatch: Record<string, unknown> = {};
@@ -341,8 +338,7 @@ class CcgService {
             : "$card",
         },
       },
-      { $set: { sortGuild: { $toLower: { $ifNull: ["$sortCard.guildName", "\uffff"] } } } },
-      { $sort: sort === "guild" ? { sortGuild: 1, "sortCard.name": 1 } : { "sortCard.setNumber": 1, "sortCard.name": 1 } },
+      { $sort: { "sortCard.setNumber": 1, "sortCard.name": 1 } },
       {
         $facet: {
           items: [{ $skip: (page - 1) * limit }, { $limit: limit }],

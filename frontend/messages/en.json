@@ -216,7 +216,6 @@
       "allViewBody": "Every collected card from this raid. Missing cards stay out of the way.",
       "guildViewBody": "Browse collected cards from every guild, narrow the binder to one guild, or reveal the missing cards.",
       "guild": "Guild",
-      "sortLabel": "Sort cards",
       "allGuilds": "All guilds",
       "searchGuilds": "Find a guild",
       "searchGuildsPlaceholder": "Search by guild or realm",

@@ -26,7 +26,6 @@ const rarities: Array<{ grade: CcgTierGrade; label: "artifact" | "legendary" | "
 ];
 const finishes: CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
 const cardsPerPage = 12;
-type CollectionSort = "rarity" | "guild";
 
 function PageArrow({ direction }: { direction: "previous" | "next" }) {
   return (
@@ -44,7 +43,6 @@ export default function CcgCollectionPage() {
   const [setSlug, setSetSlug] = useState("");
   const [guildId, setGuildId] = useState("");
   const [includeMissing, setIncludeMissing] = useState(false);
-  const [sort, setSort] = useState<CollectionSort>("rarity");
   const [page, setPage] = useState(1);
   const [grade, setGrade] = useState("");
   const [finish, setFinish] = useState<CcgFinish | "">("");
@@ -58,6 +56,10 @@ export default function CcgCollectionPage() {
     () => [...(guildsQuery.data?.guilds ?? [])].sort((a, b) => a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm)),
     [guildsQuery.data?.guilds],
   );
+  const guildLabel = guilds.find((guild) => guild.id === guildId)?.name ?? t("collection.allGuilds");
+  const rarityLabel = rarities.find((item) => item.grade === grade)?.label;
+  const selectedRarityLabel = rarityLabel ? t(`rarity.${rarityLabel}`) : t("collection.allRarities");
+  const selectedQualityLabel = finish ? t(`finish.${finish}`) : t("collection.allQualities");
   const showCatalog = includeMissing;
   const ownedQuery = useCcgCollection(
     {
@@ -67,11 +69,10 @@ export default function CcgCollectionPage() {
       grade: grade || undefined,
       finish: finish || undefined,
       guild: guildId || undefined,
-      sort,
     },
     Boolean(setSlug) && !showCatalog,
   );
-  const catalogQuery = useCcgCatalog(setSlug, page, "all", grade, guildId, finish, showCatalog, cardsPerPage, sort);
+  const catalogQuery = useCcgCatalog(setSlug, page, "all", grade, guildId, finish, showCatalog, cardsPerPage);
   const cardsData = showCatalog ? catalogQuery.data : ownedQuery.data;
   const cardsLoading = showCatalog ? catalogQuery.isLoading : ownedQuery.isLoading;
   const cardsError = showCatalog ? catalogQuery.isError : ownedQuery.isError;
@@ -148,15 +149,19 @@ export default function CcgCollectionPage() {
           </div>
 
           <div className={styles.collectionFilters}>
-            <div className={styles.collectionSegment} role="group" aria-label={t("collection.sortLabel")}>
-              {(["rarity", "guild"] as CollectionSort[]).map((option) => (
-                <button key={option} type="button" aria-pressed={sort === option} onClick={() => updateFilter(() => setSort(option))}>
-                  {t(`collection.${option}`)}
-                </button>
-              ))}
-            </div>
+            <label className={`${styles.collectionMissingToggle} ${includeMissing ? styles.collectionMissingToggleActive : ""}`}>
+              <input
+                type="checkbox"
+                checked={includeMissing}
+                onChange={(event) => updateFilter(() => setIncludeMissing(event.target.checked))}
+              />
+              <span>{t("collection.showMissing")}</span>
+            </label>
 
-            <label className={`${styles.collectionSelect} ${styles.collectionGuildSelect}`}>
+            <label
+              className={`${styles.collectionSelect} ${styles.collectionGuildSelect}`}
+              style={{ width: `${Math.max(14, guildLabel.length + 6)}ch` }}
+            >
               <select
                 aria-label={t("collection.guild")}
                 value={guildId}
@@ -170,17 +175,10 @@ export default function CcgCollectionPage() {
               </select>
             </label>
 
-            <div className={styles.collectionSegment}>
-              <button
-                type="button"
-                aria-pressed={includeMissing}
-                onClick={() => updateFilter(() => setIncludeMissing((value) => !value))}
-              >
-                {t("collection.showMissing")}
-              </button>
-            </div>
-
-            <label className={`${styles.collectionSelect} ${styles.collectionCompactSelect}`}>
+            <label
+              className={`${styles.collectionSelect} ${styles.collectionRarityFilter}`}
+              style={{ width: `${Math.max(14, selectedRarityLabel.length + 6)}ch` }}
+            >
               <select
                 aria-label={t("collection.rarity")}
                 className={styles.collectionRaritySelect}
@@ -193,7 +191,10 @@ export default function CcgCollectionPage() {
               </select>
             </label>
 
-            <label className={`${styles.collectionSelect} ${styles.collectionCompactSelect}`}>
+            <label
+              className={`${styles.collectionSelect} ${styles.collectionCompactSelect}`}
+              style={{ width: `${Math.max(14, selectedQualityLabel.length + 6)}ch` }}
+            >
               <select
                 aria-label={t("collection.quality")}
                 className={styles.collectionQualitySelect}
@@ -206,9 +207,12 @@ export default function CcgCollectionPage() {
               </select>
             </label>
 
-            {cardsData && cardsData.pages > 0 ? (
-              <span className={styles.collectionPageCount}>{t("collection.page", { page, pages: cardsData.pages })}</span>
-            ) : null}
+            <span className={styles.collectionPageCount}>
+              {t("collection.page", {
+                page: cardsData && cardsData.pages > 0 ? page : 0,
+                pages: cardsData?.pages ?? 0,
+              })}
+            </span>
           </div>
         </section>
 

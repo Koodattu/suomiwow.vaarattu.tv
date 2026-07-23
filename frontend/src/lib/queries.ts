@@ -94,7 +94,7 @@ export const queryKeys = {
   ccg: {
     session: ["ccg", "session"] as const,
     sets: ["ccg", "sets"] as const,
-    catalog: (setSlug: string, page: number, owned: string, grade: string, guildId: string, finish: string, limit: number, sort: string) => ["ccg", "catalog", setSlug, page, owned, grade, guildId, finish, limit, sort] as const,
+    catalog: (setSlug: string, page: number, owned: string, grade: string, guildId: string, finish: string, limit: number) => ["ccg", "catalog", setSlug, page, owned, grade, guildId, finish, limit] as const,
     guilds: (setSlug: string) => ["ccg", "guilds", setSlug] as const,
     collection: (options: Record<string, unknown>) => ["ccg", "collection", options] as const,
     opening: (openingId: string) => ["ccg", "opening", openingId] as const,
@@ -479,10 +479,10 @@ export function useCcgSets() {
   });
 }
 
-export function useCcgCatalog(setSlug: string, page: number, owned: "all" | "owned" | "missing", grade: string, guildId = "", finish = "", enabled = true, limit = 9, sort: "rarity" | "guild" = "rarity") {
+export function useCcgCatalog(setSlug: string, page: number, owned: "all" | "owned" | "missing", grade: string, guildId = "", finish = "", enabled = true, limit = 9) {
   return useQuery({
-    queryKey: queryKeys.ccg.catalog(setSlug, page, owned, grade, guildId, finish, limit, sort),
-    queryFn: () => api.getCcgCatalog(setSlug, { page, limit, owned, grade: grade || undefined, guild: guildId || undefined, finish: finish || undefined, sort }),
+    queryKey: queryKeys.ccg.catalog(setSlug, page, owned, grade, guildId, finish, limit),
+    queryFn: () => api.getCcgCatalog(setSlug, { page, limit, owned, grade: grade || undefined, guild: guildId || undefined, finish: finish || undefined }),
     enabled: Boolean(setSlug) && enabled,
     staleTime: 30 * 1000,
   });
@@ -497,7 +497,7 @@ export function useCcgSetGuilds(setSlug: string, enabled = true) {
   });
 }
 
-export function useCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string; sort?: "rarity" | "guild" }, enabled = true) {
+export function useCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string }, enabled = true) {
   return useQuery({
     queryKey: queryKeys.ccg.collection(options),
     queryFn: () => api.getCcgCollection(options),

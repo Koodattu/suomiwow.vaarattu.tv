@@ -216,7 +216,6 @@
       "allViewBody": "Kaikki tästä raidista keräämäsi kortit. Puuttuvat kortit eivät täytä kansiota.",
       "guildViewBody": "Selaa kaikkien kiltojen kerättyjä kortteja, rajaa kansio yhteen kiltaan tai näytä puuttuvat kortit.",
       "guild": "Kilta",
-      "sortLabel": "Korttien järjestys",
       "allGuilds": "Kaikki killat",
       "searchGuilds": "Etsi kilta",
       "searchGuildsPlaceholder": "Hae killalla tai realmilla",

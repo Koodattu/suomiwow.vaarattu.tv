@@ -3,9 +3,7 @@
   --vault-panel: rgba(7, 14, 30, 0.88);
   --vault-line: rgba(144, 178, 236, 0.16);
   min-height: 100dvh;
-  background:
-    radial-gradient(circle at 50% -12%, rgba(67, 104, 198, 0.2), transparent 34rem),
-    linear-gradient(180deg, #020612 0%, #00030b 100%);
+  background: radial-gradient(circle at 50% -12%, rgba(67, 104, 198, 0.2), transparent 34rem), linear-gradient(180deg, #020612 0%, #00030b 100%);
   color: #eef5ff;
 }
 
@@ -45,7 +43,10 @@
   align-items: center;
   gap: 0.65rem;
   color: #f5f8ff;
-  transition: color 150ms ease, opacity 150ms ease, transform 120ms ease;
+  transition:
+    color 150ms ease,
+    opacity 150ms ease,
+    transform 120ms ease;
 }
 
 .shellBrandLink > svg {
@@ -178,7 +179,10 @@
   cursor: pointer;
   font-size: 0.78rem;
   font-weight: 700;
-  transition: background-color 150ms ease, border-color 150ms ease, transform 120ms ease;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 120ms ease;
 }
 
 .accountTrigger:hover {
@@ -225,7 +229,9 @@
   overflow: hidden;
   border-radius: 0.55rem;
   background: rgba(2, 7, 17, 0.98);
-  box-shadow: 0 8px 8px rgba(0, 0, 0, 0.48), inset 0 0 0 1px rgba(148, 178, 226, 0.16);
+  box-shadow:
+    0 8px 8px rgba(0, 0, 0, 0.48),
+    inset 0 0 0 1px rgba(148, 178, 226, 0.16);
 }
 
 .accountDropdown a,
@@ -243,7 +249,9 @@
   font-size: 0.78rem;
   font-weight: 620;
   text-align: left;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
 }
 
 .accountDropdown a:hover,
@@ -267,7 +275,9 @@
 }
 
 @keyframes accountSpin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .eyebrow {
@@ -285,12 +295,19 @@
   justify-content: center;
   border-radius: 0.38rem;
   background: linear-gradient(135deg, rgba(62, 83, 116, 0.5), rgba(67, 59, 91, 0.46));
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.055), inset 0 0 0 1px rgba(164, 184, 215, 0.08);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.055),
+    inset 0 0 0 1px rgba(164, 184, 215, 0.08);
   padding: 0.55rem 0.85rem;
   color: #c0cada;
   font-size: 0.82rem;
   font-weight: 650;
-  transition: color 150ms ease, background-color 150ms ease, transform 120ms ease, box-shadow 150ms ease, filter 150ms ease;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    transform 120ms ease,
+    box-shadow 150ms ease,
+    filter 150ms ease;
 }
 
 @media (max-width: 760px) {
@@ -333,13 +350,17 @@
 
 .subnavLink:not(.subnavLinkActive):hover {
   background: linear-gradient(135deg, rgba(65, 104, 161, 0.56), rgba(83, 69, 124, 0.54));
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.09), inset 0 0 0 1px rgba(164, 192, 235, 0.12);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.09),
+    inset 0 0 0 1px rgba(164, 192, 235, 0.12);
   color: #f7fbff;
 }
 
 .subnavLinkActive {
   background: linear-gradient(135deg, #1d5fb5, #593da6);
-  box-shadow: 0 4px 8px rgba(20, 55, 124, 0.26), inset 0 1px rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 4px 8px rgba(20, 55, 124, 0.26),
+    inset 0 1px rgba(255, 255, 255, 0.16);
   color: #fff;
 }
 
@@ -365,7 +386,9 @@
   border: 1px solid var(--vault-line);
   border-radius: 0.85rem;
   background: linear-gradient(145deg, rgba(11, 22, 43, 0.88), rgba(4, 9, 21, 0.92));
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28), inset 0 1px rgba(255, 255, 255, 0.025);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.28),
+    inset 0 1px rgba(255, 255, 255, 0.025);
 }
 
 .primaryButton,
@@ -379,14 +402,21 @@
   padding: 0.65rem 1rem;
   font-size: 0.88rem;
   font-weight: 720;
-  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, transform 120ms ease, box-shadow 150ms ease;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 120ms ease,
+    box-shadow 150ms ease;
 }
 
 .primaryButton {
   border: 1px solid rgba(125, 220, 255, 0.38);
   background: linear-gradient(135deg, #1d5fb5, #593da6);
   color: white;
-  box-shadow: 0 9px 28px rgba(37, 88, 181, 0.25), inset 0 1px rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 9px 28px rgba(37, 88, 181, 0.25),
+    inset 0 1px rgba(255, 255, 255, 0.18);
 }
 
 .primaryButton.guestNoticeButton {
@@ -396,7 +426,9 @@
 }
 
 .primaryButton:hover {
-  box-shadow: 0 12px 34px rgba(53, 119, 221, 0.36), inset 0 1px rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 12px 34px rgba(53, 119, 221, 0.36),
+    inset 0 1px rgba(255, 255, 255, 0.22);
   filter: brightness(1.08);
 }
 
@@ -453,7 +485,9 @@
   text-align: left;
   transform: perspective(900px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
   transform-style: preserve-3d;
-  transition: transform 170ms ease, filter 170ms ease;
+  transition:
+    transform 170ms ease,
+    filter 170ms ease;
 }
 
 .cardButton:hover {
@@ -493,7 +527,9 @@
 
 .card[data-grade="S"]::before {
   border-width: 2px;
-  box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.36), 0 0 16px var(--ccg-glow);
+  box-shadow:
+    inset 0 0 25px rgba(0, 0, 0, 0.36),
+    0 0 16px var(--ccg-glow);
 }
 
 .raidArt {
@@ -684,8 +720,7 @@
 }
 
 .prismatic .finishLayer {
-  background:
-    linear-gradient(115deg, transparent 18%, rgba(83, 226, 255, 0.28) 34%, rgba(202, 112, 255, 0.34) 48%, rgba(255, 225, 122, 0.24) 61%, transparent 76%);
+  background: linear-gradient(115deg, transparent 18%, rgba(83, 226, 255, 0.28) 34%, rgba(202, 112, 255, 0.34) 48%, rgba(255, 225, 122, 0.24) 61%, transparent 76%);
   background-size: 180% 180%;
   opacity: 0.92;
   animation: foilSweep 4.8s ease-in-out infinite alternate;
@@ -693,12 +728,20 @@
 
 .golden.card {
   border-color: #e8c46a;
-  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.48), 0 0 30px rgba(219, 166, 66, 0.3), inset 0 0 0 3px #110d05, inset 0 0 0 4px #ad8541;
+  box-shadow:
+    0 20px 52px rgba(0, 0, 0, 0.48),
+    0 0 30px rgba(219, 166, 66, 0.3),
+    inset 0 0 0 3px #110d05,
+    inset 0 0 0 4px #ad8541;
 }
 
 .prismatic.card {
   border-color: #9de9ff;
-  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.48), 0 0 34px rgba(139, 111, 255, 0.4), inset 0 0 0 3px #060611, inset 0 0 0 4px #75cbed;
+  box-shadow:
+    0 20px 52px rgba(0, 0, 0, 0.48),
+    0 0 34px rgba(139, 111, 255, 0.4),
+    inset 0 0 0 3px #060611,
+    inset 0 0 0 4px #75cbed;
 }
 
 .finishMark {
@@ -742,9 +785,7 @@
   overflow: hidden;
   border: 1px solid rgba(122, 171, 238, 0.16);
   border-radius: 1rem;
-  background:
-    radial-gradient(circle at 50% 45%, rgba(62, 116, 214, 0.18), transparent 23rem),
-    linear-gradient(145deg, rgba(7, 16, 35, 0.94), rgba(1, 5, 14, 0.98));
+  background: radial-gradient(circle at 50% 45%, rgba(62, 116, 214, 0.18), transparent 23rem), linear-gradient(145deg, rgba(7, 16, 35, 0.94), rgba(1, 5, 14, 0.98));
 }
 
 .packStage::before {
@@ -762,12 +803,15 @@
   overflow: hidden;
   border: 1px solid rgba(146, 206, 255, 0.48);
   border-radius: 0.85rem;
-  background:
-    linear-gradient(145deg, rgba(42, 99, 177, 0.86), rgba(44, 27, 92, 0.94)),
-    #0b1730;
-  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55), 0 0 44px rgba(86, 139, 237, 0.3), inset 0 0 0 5px rgba(3, 9, 21, 0.55);
+  background: linear-gradient(145deg, rgba(42, 99, 177, 0.86), rgba(44, 27, 92, 0.94)), #0b1730;
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.55),
+    0 0 44px rgba(86, 139, 237, 0.3),
+    inset 0 0 0 5px rgba(3, 9, 21, 0.55);
   color: white;
-  transition: transform 180ms ease, filter 180ms ease;
+  transition:
+    transform 180ms ease,
+    filter 180ms ease;
 }
 
 .sealedPack:hover {
@@ -813,7 +857,9 @@
 .revealCardVisible {
   opacity: 1;
   transform: translateY(0) scale(1);
-  transition: opacity 360ms ease, transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition:
+    opacity 360ms ease,
+    transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .collectionPage {
@@ -860,7 +906,11 @@
   cursor: pointer;
   padding: 0.45rem 0.7rem;
   text-align: left;
-  transition: color 150ms ease, box-shadow 150ms ease, filter 150ms ease, transform 120ms ease;
+  transition:
+    color 150ms ease,
+    box-shadow 150ms ease,
+    filter 150ms ease,
+    transform 120ms ease;
 }
 
 .collectionSet::after {
@@ -911,8 +961,9 @@
 
 .collectionSet small {
   margin-top: 0.22rem;
-  color: #8e9cb3;
-  font-size: 0.64rem;
+  color: #8f9db4;
+  font-size: 0.72rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
@@ -948,7 +999,10 @@
   font-size: 0.72rem;
   font-weight: 700;
   white-space: nowrap;
-  transition: color 150ms ease, background-color 150ms ease, transform 120ms ease;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    transform 120ms ease;
 }
 
 .collectionSegment button:hover {
@@ -981,6 +1035,80 @@
   transform: scale(0.96);
 }
 
+.collectionMissingToggle {
+  position: relative;
+  display: flex;
+  min-height: 2.5rem;
+  align-items: center;
+  border-radius: 0.45rem;
+  background: rgba(10, 21, 41, 0.78);
+  box-shadow: inset 0 0 0 1px rgba(151, 181, 229, 0.13);
+  color: #8f9db4;
+  cursor: pointer;
+  padding: 0 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    transform 120ms ease;
+}
+
+.collectionMissingToggle:hover {
+  color: #eaf5ff;
+}
+
+.collectionMissingToggleActive {
+  background: rgba(67, 119, 207, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(125, 220, 255, 0.2);
+  color: #fff;
+}
+
+.collectionMissingToggle:active {
+  transform: scale(0.96);
+}
+
+.collectionMissingToggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.collectionMissingToggle span {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.collectionMissingToggle span::before {
+  display: grid;
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.18rem;
+  box-shadow: inset 0 0 0 1px rgba(151, 181, 229, 0.38);
+  content: "";
+  color: #fff;
+  font-size: 0.64rem;
+  line-height: 1;
+}
+
+.collectionMissingToggle input:checked + span::before {
+  background: rgba(67, 119, 207, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(125, 220, 255, 0.38);
+  content: "✓";
+}
+
+.collectionMissingToggle input:focus-visible + span {
+  outline: 2px solid #7ddcff;
+  outline-offset: 4px;
+  border-radius: 0.2rem;
+}
+
 .collectionSelect {
   display: flex;
   min-height: 2.5rem;
@@ -998,12 +1126,17 @@
   width: 7.25rem;
 }
 
+.collectionRarityFilter {
+  width: 6.75rem;
+}
+
 .collectionSelect select {
   width: 100%;
   min-height: 2.5rem;
   border: 0;
   border-radius: 0.45rem;
   background: rgba(8, 18, 38, 0.86);
+  box-shadow: inset 0 0 0 1px rgba(151, 181, 229, 0.13);
   color: #d7e2f3;
   color-scheme: dark;
   cursor: pointer;
@@ -1097,8 +1230,9 @@
 
 .collectionPageCount {
   min-width: 5.5rem;
-  color: #71819b;
-  font-size: 0.68rem;
+  color: #8f9db4;
+  font-size: 0.72rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   text-align: center;
   white-space: nowrap;
@@ -1195,7 +1329,10 @@
 .collectionMissingCard {
   filter: grayscale(0.92) saturate(0.12) brightness(0.56);
   opacity: 0.58;
-  transition: filter 170ms ease, opacity 170ms ease, transform 170ms ease;
+  transition:
+    filter 170ms ease,
+    opacity 170ms ease,
+    transform 170ms ease;
 }
 
 .collectionMissingCard:hover {
@@ -1224,7 +1361,10 @@
   background: rgba(57, 109, 188, 0.045);
   color: #b1cae7;
   cursor: pointer;
-  transition: color 150ms ease, background-color 150ms ease, opacity 150ms ease;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    opacity 150ms ease;
 }
 
 .collectionPageTurn:first-child {
@@ -1276,8 +1416,12 @@
 }
 
 @keyframes collectionSkeleton {
-  from { background-position: 100% 0; }
-  to { background-position: -120% 0; }
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
 }
 
 .setCover {
@@ -1288,7 +1432,9 @@
   border-radius: 0.85rem;
   background-position: center;
   background-size: cover;
-  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35), 0 0 28px var(--set-glow);
+  box-shadow:
+    0 20px 45px rgba(0, 0, 0, 0.35),
+    0 0 28px var(--set-glow);
 }
 
 .featuredSet {
@@ -1532,8 +1678,12 @@
 }
 
 @keyframes foilSweep {
-  from { background-position: 10% 40%; }
-  to { background-position: 90% 62%; }
+  from {
+    background-position: 10% 40%;
+  }
+  to {
+    background-position: 90% 62%;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1674,6 +1824,7 @@
 
   .collectionSet,
   .collectionSegment button,
+  .collectionMissingToggle,
   .collectionMissingCard,
   .collectionSkeleton {
     animation: none;
