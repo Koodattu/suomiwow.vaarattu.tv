@@ -1,4 +1,4 @@
-import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
+import { CURRENT_RAID_IDS, PRIMARY_RAID_ID, TRACKED_RAIDS } from "../config/guilds";
 
 export const PICKEM_PLACEHOLDER_RAID_ID = -1;
 export const PICKEM_REFERENCE_RANKINGS_LIMIT = 15;
@@ -8,7 +8,7 @@ export function isPickemPlaceholderRaidIds(raidIds: readonly number[] | null | u
 }
 
 export function isPickemReferenceRaidId(raidId: number): boolean {
-  return Number.isInteger(raidId) && TRACKED_RAIDS.includes(raidId) && !CURRENT_RAID_IDS.includes(raidId);
+  return Number.isInteger(raidId) && TRACKED_RAIDS.includes(raidId) && (!CURRENT_RAID_IDS.includes(raidId) || raidId === PRIMARY_RAID_ID);
 }
 
 export function getRegularPickemRaidIdsValidationError(value: unknown): string | null {

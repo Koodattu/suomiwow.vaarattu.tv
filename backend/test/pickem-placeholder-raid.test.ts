@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../src/config/guilds";
+import { CURRENT_RAID_IDS, PRIMARY_RAID_ID, TRACKED_RAIDS } from "../src/config/guilds";
 import Pickem from "../src/models/Pickem";
 import pickemService from "../src/services/pickem.service";
 import {
@@ -25,11 +25,12 @@ test("keeps the Pickem placeholder out of provider-backed raid tracking", () => 
   assert.equal(CURRENT_RAID_IDS.includes(PICKEM_PLACEHOLDER_RAID_ID), false);
 });
 
-test("allows reference rankings only for past tracked raids", () => {
+test("allows reference rankings for past tracked raids and the primary current raid", () => {
   const pastRaidId = TRACKED_RAIDS.find((raidId) => !CURRENT_RAID_IDS.includes(raidId));
   assert.notEqual(pastRaidId, undefined);
   assert.equal(isPickemReferenceRaidId(pastRaidId!), true);
-  assert.equal(CURRENT_RAID_IDS.every((raidId) => !isPickemReferenceRaidId(raidId)), true);
+  assert.equal(isPickemReferenceRaidId(PRIMARY_RAID_ID), true);
+  assert.equal(CURRENT_RAID_IDS.filter((raidId) => raidId !== PRIMARY_RAID_ID).every((raidId) => !isPickemReferenceRaidId(raidId)), true);
   assert.equal(isPickemReferenceRaidId(PICKEM_PLACEHOLDER_RAID_ID), false);
   assert.equal(PICKEM_REFERENCE_RANKINGS_LIMIT, 15);
 });

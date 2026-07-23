@@ -142,7 +142,7 @@ router.get(
   },
 );
 
-// Get a past raid's rankings as a reference while a Pickem uses the upcoming raid placeholder.
+// Get an available raid's rankings as a reference while a Pickem uses the upcoming raid placeholder.
 router.get("/:pickemId/reference-rankings", async (req: Request, res: Response) => {
   try {
     const { pickemId } = req.params;
@@ -158,7 +158,7 @@ router.get("/:pickemId/reference-rankings", async (req: Request, res: Response) 
 
     const raidId = typeof req.query.raidId === "string" ? Number(req.query.raidId) : NaN;
     if (!isPickemReferenceRaidId(raidId)) {
-      return res.status(400).json({ error: "Select a past tracked raid tier" });
+      return res.status(400).json({ error: "Select an available tracked raid tier" });
     }
 
     const rankings = await getGuildRankingsForPickem([raidId]);

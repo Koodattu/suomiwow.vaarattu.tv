@@ -159,20 +159,25 @@ function GuildRankingsTable({ rankings, cutoffRank }: { rankings: GuildRanking[]
   );
 }
 
+const SPOREFALL_RAID_ID = 50;
+
 function HistoricalGuildRankings({ pickemId }: { pickemId: string }) {
   const t = useTranslations("pickemsPage");
   const [selectedRaidId, setSelectedRaidId] = useState<number | null>(null);
   const { data: raids = [], isLoading: raidsLoading, error: raidsError, refetch: refetchRaids } = useRaids();
-  const pastRaids = useMemo(() => raids.filter((raid) => !raid.isCurrent), [raids]);
+  const referenceRaids = useMemo(() => raids.filter((raid) => raid.id !== SPOREFALL_RAID_ID && (!raid.isCurrent || raid.isPrimary)), [raids]);
+  const selectedRaidIndex = referenceRaids.findIndex((raid) => raid.id === selectedRaidId);
+  const olderRaid = selectedRaidIndex >= 0 ? referenceRaids[selectedRaidIndex + 1] : undefined;
+  const newerRaid = selectedRaidIndex > 0 ? referenceRaids[selectedRaidIndex - 1] : undefined;
 
   useEffect(() => {
     setSelectedRaidId((currentRaidId) => {
-      if (currentRaidId !== null && pastRaids.some((raid) => raid.id === currentRaidId)) {
+      if (currentRaidId !== null && referenceRaids.some((raid) => raid.id === currentRaidId)) {
         return currentRaidId;
       }
-      return pastRaids[0]?.id ?? null;
+      return referenceRaids[0]?.id ?? null;
     });
-  }, [pastRaids]);
+  }, [referenceRaids]);
 
   const {
     data: rankings = [],
@@ -196,7 +201,7 @@ function HistoricalGuildRankings({ pickemId }: { pickemId: string }) {
     );
   }
 
-  if (pastRaids.length === 0) {
+  if (referenceRaids.length === 0) {
     return <p className="rounded-md bg-gray-900/50 px-3 py-4 text-sm text-gray-300">{t("noHistoricalRaids")}</p>;
   }
 
@@ -205,18 +210,44 @@ function HistoricalGuildRankings({ pickemId }: { pickemId: string }) {
       <label htmlFor={`pickem-reference-raid-${pickemId}`} className="mb-1.5 block text-xs font-medium text-gray-300">
         {t("historicalRaidLabel")}
       </label>
-      <select
-        id={`pickem-reference-raid-${pickemId}`}
-        value={selectedRaidId ?? ""}
-        onChange={(event) => setSelectedRaidId(Number(event.target.value))}
-        className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-      >
-        {pastRaids.map((raid) => (
-          <option key={raid.id} value={raid.id}>
-            {raid.name} — {raid.expansion}
-          </option>
-        ))}
-      </select>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => olderRaid && setSelectedRaidId(olderRaid.id)}
+          disabled={!olderRaid}
+          aria-label={t("olderRaid")}
+          title={t("olderRaid")}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-700 text-gray-200 transition-[background-color,color,transform] duration-150 hover:bg-gray-600 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 active:scale-[0.96] disabled:cursor-not-allowed disabled:text-gray-500 disabled:hover:bg-gray-700 disabled:active:scale-100"
+        >
+          <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="m12.5 15-5-5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <select
+          id={`pickem-reference-raid-${pickemId}`}
+          value={selectedRaidId ?? ""}
+          onChange={(event) => setSelectedRaidId(Number(event.target.value))}
+          className="min-w-0 flex-1 rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {referenceRaids.map((raid) => (
+            <option key={raid.id} value={raid.id}>
+              {raid.name} — {raid.expansion}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => newerRaid && setSelectedRaidId(newerRaid.id)}
+          disabled={!newerRaid}
+          aria-label={t("newerRaid")}
+          title={t("newerRaid")}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-700 text-gray-200 transition-[background-color,color,transform] duration-150 hover:bg-gray-600 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 active:scale-[0.96] disabled:cursor-not-allowed disabled:text-gray-500 disabled:hover:bg-gray-700 disabled:active:scale-100"
+        >
+          <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="m7.5 5 5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
       <p className="mt-1.5 text-xs leading-relaxed text-gray-400">{t("historicalRankingsHelp")}</p>
 
       <div className="mt-3" aria-busy={rankingsLoading}>

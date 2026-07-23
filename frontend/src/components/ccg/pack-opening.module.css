@@ -339,13 +339,6 @@
   display: grid;
   aspect-ratio: 1;
   place-items: center;
-  overflow: hidden;
-  border-radius: 50%;
-  background: rgba(1, 5, 13, 0.58);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--pack-accent) 68%, white 18%),
-    inset 0 0 18px rgba(1, 5, 13, 0.72),
-    0 0 24px var(--pack-glow);
 }
 
 .packSigil {
@@ -355,28 +348,12 @@
 
 .packSigil span,
 .cardBackSigil span {
-  position: relative;
   display: block;
-  width: 88%;
+  width: 100%;
   aspect-ratio: 1;
-  overflow: hidden;
-  border-radius: 50%;
-  background: url("/ccg/logo_ccg.png") center / cover no-repeat;
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--pack-accent) 62%, white 16%),
-    0 0 16px var(--pack-glow);
-  filter: grayscale(1) contrast(1.24) brightness(1.08);
-}
-
-.packSigil span::after,
-.cardBackSigil span::after {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: color-mix(in srgb, var(--pack-accent) 74%, transparent);
-  content: "";
-  mix-blend-mode: color;
-  pointer-events: none;
+  background: color-mix(in srgb, var(--pack-accent) 82%, white 18%);
+  filter: drop-shadow(0 0 8px var(--pack-glow));
+  mask: url("/ccg/logo_ccg.png") center / contain no-repeat;
 }
 
 .packCount {
