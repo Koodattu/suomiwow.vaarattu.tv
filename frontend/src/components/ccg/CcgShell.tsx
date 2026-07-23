@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { FaArrowLeft } from "react-icons/fa6";
+import CcgAccountMenu from "./CcgAccountMenu";
 import styles from "./ccg.module.css";
 
 export default function CcgShell({ children, context, compact = false }: { children: ReactNode; context?: ReactNode; compact?: boolean }) {
@@ -25,8 +26,8 @@ export default function CcgShell({ children, context, compact = false }: { child
             <Link href="/" className={styles.shellBrandLink} aria-label={t("nav.backToMain")}>
               <FaArrowLeft aria-hidden="true" />
               <Image src="/logo.png" alt="SuomiWoW" width={112} height={20} priority />
-              <span className={styles.shellBrandTitle}>{t("brandSuffix")}</span>
             </Link>
+            <span className={styles.shellBrandTitle}>{t("brandSuffix")}</span>
           </div>
           <nav className={styles.shellNav} aria-label={t("nav.label")}>
             {links.map((link) => {
@@ -43,7 +44,10 @@ export default function CcgShell({ children, context, compact = false }: { child
               );
             })}
           </nav>
-          {context ? <div className={styles.shellContext}>{context}</div> : null}
+          <div className={styles.shellContext}>
+            {context}
+            <CcgAccountMenu />
+          </div>
         </div>
       </header>
       {children}

@@ -422,14 +422,18 @@
   top: 12.5%;
   right: 4.5%;
   display: grid;
-  min-width: 2.25em;
-  min-height: 2.25em;
+  min-width: 2.65em;
+  min-height: 1.85em;
   place-items: center;
-  border-radius: 999px;
-  background: rgba(2, 6, 14, 0.84);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rarity) 52%, rgba(255, 255, 255, 0.22));
+  padding: 0 0.5em;
+  border: 1px solid color-mix(in srgb, var(--rarity) 58%, rgba(221, 235, 255, 0.28));
+  border-radius: 0.55em;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--rarity) 20%, #182235) 0%, rgba(3, 8, 18, 0.94) 62%);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.16),
+    0 2px 5px rgba(0, 0, 0, 0.48);
   color: #fff;
-  font-size: 3.1cqw;
+  font-size: 2.9cqw;
   font-variant-numeric: tabular-nums;
   font-weight: 850;
   pointer-events: none;

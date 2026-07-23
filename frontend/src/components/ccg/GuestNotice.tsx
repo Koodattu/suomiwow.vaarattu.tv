@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { CcgSession } from "@/types";
 import { useAuth } from "@/context/AuthContext";
@@ -16,8 +15,7 @@ function remainingParts(resetAt: string, now: number): { hours: number; minutes:
 
 export default function GuestNotice({ session }: { session: CcgSession }) {
   const t = useTranslations("ccg");
-  const pathname = usePathname();
-  const { user, login } = useAuth();
+  const { user } = useAuth();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -34,9 +32,6 @@ export default function GuestNotice({ session }: { session: CcgSession }) {
         <div className={styles.guestNoticeTitle}>{t("guest.title")}</div>
         <div className={styles.guestNoticeCountdown}>{t("guest.expiresIn", { time: countdown })}</div>
       </div>
-      <button type="button" className={`${styles.primaryButton} ${styles.guestNoticeButton}`} onClick={() => login(pathname)}>
-        {t("guest.login")}
-      </button>
     </aside>
   );
 }
