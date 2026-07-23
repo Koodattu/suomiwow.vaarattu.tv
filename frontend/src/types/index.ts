@@ -1957,6 +1957,7 @@ export type CcgSession = {
 export type CcgOpening = {
   id: string;
   mode: CcgMode;
+  targetSetId: string | null;
   sets: CcgSet[];
   allowanceSource: "daily" | "credit";
   duplicateRewards: number;

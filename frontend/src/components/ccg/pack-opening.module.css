@@ -8,6 +8,7 @@
   --pack-accent: #5baeff;
   --pack-glow: rgba(91, 174, 255, 0.38);
   --pack-art: none;
+  --pack-stage-art: var(--pack-art);
   position: relative;
   display: grid;
   min-height: min(64vh, 45rem);
@@ -32,12 +33,304 @@
 .stageArt {
   z-index: -5;
   inset: -8%;
-  background-image: var(--pack-art);
+  background-image: var(--pack-stage-art);
   background-position: center;
   background-size: cover;
   filter: saturate(0.92) brightness(0.48) contrast(1.08);
   opacity: 0.58;
   transform: scale(1.06);
+}
+
+.packChooser {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+}
+
+.packChooserStage {
+  width: 100%;
+}
+
+.packControls {
+  z-index: 10;
+  min-width: 0;
+  padding: 1.15rem;
+}
+
+.modeChoices {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+}
+
+.modeChoice {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 2.5rem minmax(0, 1fr) 0.8rem;
+  align-items: center;
+  gap: 0.7rem;
+  border: 1px solid rgba(142, 178, 230, 0.16);
+  border-radius: 0.72rem;
+  background: rgba(3, 10, 23, 0.58);
+  padding: 0.6rem;
+  color: #b8c5da;
+  text-align: left;
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease, transform 120ms ease;
+}
+
+.modeChoice:hover {
+  border-color: rgba(125, 220, 255, 0.34);
+  background: rgba(11, 27, 52, 0.78);
+  color: white;
+}
+
+.modeChoice[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--pack-accent, #5baeff) 56%, rgba(255, 255, 255, 0.16));
+  background: color-mix(in srgb, var(--pack-accent, #5baeff) 12%, rgba(8, 20, 41, 0.88));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pack-accent, #5baeff) 12%, transparent);
+  color: white;
+}
+
+.modeChoice:focus-visible,
+.raidSelectButton:focus-visible,
+.raidOption:focus-visible {
+  outline: 2px solid #7ddcff;
+  outline-offset: 2px;
+}
+
+.modeChoice:active {
+  transform: scale(0.985);
+}
+
+.modeChoiceIcon,
+.raidOptionIcon {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(192, 220, 255, 0.22);
+  border-radius: 0.55rem;
+  background: #061020;
+  box-shadow: inset 0 0 12px rgba(99, 177, 255, 0.08);
+}
+
+.modeChoiceIcon {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.modeChoiceIcon img,
+.raidOptionIcon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.modeChoiceFallback {
+  color: #8bdfff;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.modeChoiceCopy,
+.raidOptionCopy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.modeChoiceCopy small,
+.raidOptionCopy small {
+  overflow: hidden;
+  color: #71829e;
+  font-size: 0.58rem;
+  font-weight: 760;
+  letter-spacing: 0.1em;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.modeChoiceCopy strong,
+.raidOptionCopy strong {
+  margin-top: 0.2rem;
+  overflow: hidden;
+  font-size: 0.78rem;
+  font-weight: 740;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modeChoiceMark {
+  width: 0.46rem;
+  height: 0.46rem;
+  border: 1px solid rgba(140, 171, 218, 0.36);
+  border-radius: 50%;
+}
+
+.modeChoice[aria-pressed="true"] .modeChoiceMark {
+  border-color: #a9edff;
+  background: #6bdcff;
+  box-shadow: 0 0 9px rgba(107, 220, 255, 0.74);
+}
+
+.archiveIcon {
+  position: relative;
+  display: block;
+  width: 1.45rem;
+  height: 1.45rem;
+}
+
+.archiveIcon i {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.34rem;
+  width: 0.78rem;
+  height: 0.98rem;
+  border: 1px solid rgba(211, 225, 255, 0.58);
+  border-radius: 0.18rem;
+  background: linear-gradient(145deg, rgba(116, 198, 255, 0.42), rgba(113, 72, 207, 0.38));
+  box-shadow: 0 0 8px rgba(112, 166, 255, 0.22);
+}
+
+.archiveIcon i:first-child {
+  transform: translateX(-0.24rem) rotate(-10deg);
+}
+
+.archiveIcon i:nth-child(2) {
+  z-index: 1;
+}
+
+.archiveIcon i:last-child {
+  transform: translateX(0.24rem) rotate(10deg);
+}
+
+.legacyTarget {
+  margin-top: 0.9rem;
+}
+
+.controlLabel {
+  display: block;
+  margin-bottom: 0.38rem;
+  color: #71829e;
+  font-size: 0.62rem;
+  font-weight: 760;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.raidSelect {
+  position: relative;
+}
+
+.raidSelectButton,
+.raidOption {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: 2.15rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  color: #dce8f8;
+  text-align: left;
+}
+
+.raidSelectButton {
+  min-height: 3.25rem;
+  border: 1px solid rgba(145, 178, 230, 0.2);
+  border-radius: 0.68rem;
+  background: rgba(2, 8, 19, 0.72);
+  padding: 0.52rem 0.65rem;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.raidSelectButton:hover,
+.raidSelectButton[data-open] {
+  border-color: rgba(125, 220, 255, 0.38);
+  background: rgba(9, 23, 46, 0.94);
+}
+
+.raidOptionIcon {
+  width: 2.15rem;
+  height: 2.15rem;
+}
+
+.raidSelectChevron {
+  width: 1rem;
+  height: 1rem;
+  color: #7d8da7;
+  transition: transform 160ms ease;
+}
+
+.raidSelectButton[data-open] .raidSelectChevron {
+  transform: rotate(180deg);
+}
+
+.raidOptions {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.38rem);
+  right: 0;
+  left: 0;
+  max-height: min(23rem, 52vh);
+  overflow-y: auto;
+  border: 1px solid rgba(147, 184, 237, 0.24);
+  border-radius: 0.75rem;
+  background: rgba(3, 10, 23, 0.98);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.58), inset 0 1px rgba(255, 255, 255, 0.04);
+  padding: 0.35rem;
+  backdrop-filter: blur(18px);
+}
+
+.raidOption {
+  cursor: pointer;
+  border-radius: 0.55rem;
+  padding: 0.46rem 0.5rem;
+}
+
+.raidOption[data-focus] {
+  background: rgba(86, 151, 242, 0.13);
+}
+
+.raidOption[data-selected] {
+  background: rgba(117, 92, 229, 0.14);
+  color: white;
+}
+
+.raidOptionCheck {
+  color: #7ddcff;
+  font-size: 0.8rem;
+  opacity: 0;
+}
+
+.raidOption[data-selected] .raidOptionCheck {
+  opacity: 1;
+}
+
+.poolDescription {
+  margin-top: 0.85rem;
+  color: #8e9db5;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+@media (min-width: 1280px) {
+  .packChooser {
+    display: block;
+  }
+
+  .packControls {
+    position: absolute;
+    top: 50%;
+    left: 1.25rem;
+    width: min(21rem, calc(100% - 2.5rem));
+    transform: translateY(-50%);
+  }
 }
 
 .stageVeil {

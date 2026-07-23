@@ -370,6 +370,12 @@ class CcgService {
     requireFeature();
     const owner = await this.resolveOwner(req, res);
     const mode = validateMode(body.mode);
+    const targetSetId = body.setId === undefined || body.setId === null || body.setId === ""
+      ? null
+      : validateObjectId(String(body.setId), "card set ID");
+    if (targetSetId && mode !== "legacy") {
+      throw new CcgServiceError(400, "invalid_pack_target", "Only Legacy packs can target a specific raid");
+    }
     const idempotencyKey = validateIdempotencyKey(body.idempotencyKey);
     const existing = await CcgPackOpening.findOne({ ownerType: owner.ownerType, ownerId: owner.ownerId, idempotencyKey }).lean();
     if (existing) return this.serializeOpening(existing);
@@ -384,7 +390,7 @@ class CcgService {
           return;
         }
         const allowanceSource = await this.reservePack(owner, mode, session);
-        const pool = await this.selectModePackResults(mode, session);
+        const pool = await this.selectModePackResults(mode, session, targetSetId);
         const selected = pool.results;
         const cards = await CcgCard.find({
           _id: { $in: selected.map((result) => result.cardId) },
@@ -437,6 +443,7 @@ class CcgService {
               ownerType: owner.ownerType,
               ownerId: owner.ownerId,
               mode,
+              targetSetId,
               sourceSetIds: pool.sourceSetIds,
               allowanceSource: allowanceSource.source,
               creditId: allowanceSource.creditId ?? null,
@@ -463,6 +470,7 @@ class CcgService {
               amount: -1,
               metadata: {
                 openingId: String(openingId),
+                targetSetId: targetSetId ? String(targetSetId) : null,
                 setIds: Array.from(new Set(results.map((result) => String(result.setId)))),
                 allowanceSource: allowanceSource.source,
               },
@@ -803,17 +811,21 @@ class CcgService {
   private async selectModePackResults(
     mode: CcgMode,
     session: ClientSession,
+    targetSetId: mongoose.Types.ObjectId | null = null,
   ): Promise<{
     results: Array<{ cardId: mongoose.Types.ObjectId; setId: mongoose.Types.ObjectId; tierGrade: CcgTierGrade }>;
     sourceSetIds: mongoose.Types.ObjectId[];
     version: string;
   }> {
-    const sets = await CcgSet.find({ state: mode, enabledAt: { $ne: null }, cardCount: { $gt: 0 } })
+    const setFilter: Record<string, unknown> = { state: mode, enabledAt: { $ne: null }, cardCount: { $gt: 0 } };
+    if (targetSetId) setFilter._id = targetSetId;
+    const sets = await CcgSet.find(setFilter)
       .select("_id")
       .sort({ zoneId: 1 })
       .session(session)
       .lean();
     if (sets.length === 0) {
+      if (targetSetId) throw new CcgServiceError(409, "target_set_unavailable", "That Legacy raid is not available for pack opening");
       throw new CcgServiceError(409, `${mode}_unavailable`, `The ${mode === "current" ? "Current" : "Legacy"} card pool is still being prepared`);
     }
     const sourceSetIds = sets.map((set) => set._id);
@@ -888,7 +900,7 @@ class CcgService {
     return {
       results,
       sourceSetIds,
-      version: `${mode}:${createHash("sha256").update(versionSeed).digest("hex").slice(0, 20)}`,
+      version: `${mode}:${targetSetId ? String(targetSetId) : "random"}:${createHash("sha256").update(versionSeed).digest("hex").slice(0, 20)}`,
     };
   }
 
@@ -965,6 +977,7 @@ class CcgService {
     return {
       id: String(opening._id),
       mode: opening.mode,
+      targetSetId: opening.targetSetId ? String(opening.targetSetId) : null,
       sets: sets.map((set) => this.serializeSet(set)),
       allowanceSource: opening.allowanceSource,
       duplicateRewards: opening.duplicateRewards,

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
@@ -9,7 +10,8 @@ import type { CcgMode, CcgOpening, CcgSet } from "@/types";
 import { api } from "@/lib/api";
 import { CCG_RARITY_KEYS } from "@/lib/ccg";
 import { getCharacterRenderProxyUrl } from "@/lib/character-render";
-import { queryKeys, useCcgOpening, useCcgSession, useCcgSets } from "@/lib/queries";
+import { queryKeys, useCcgOpening, useCcgSession, useCcgSets, useRaids } from "@/lib/queries";
+import IconImage from "@/components/IconImage";
 import CcgShell from "@/components/ccg/CcgShell";
 import GuestNotice from "@/components/ccg/GuestNotice";
 import PackBalance from "@/components/ccg/PackBalance";
@@ -25,6 +27,7 @@ const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
 const fanOffsets = [15, 5, 0, 5, 15];
 const dealOffsets = ["215%", "108%", "0%", "-108%", "-215%"];
 const dealAngles = [8, 4, 0, -4, -8];
+const RANDOM_LEGACY_SET = "random";
 const cardSlideSounds = Array.from({ length: 8 }, (_, index) => `/ccg/audio/card-slide-${index + 1}.ogg`);
 const tearParticles = [
   { x: -132, y: -74, rotate: -34, delay: 90 },
@@ -50,12 +53,21 @@ function randomIndex(length: number): number {
   return value[0] % length;
 }
 
-function packTheme(set: CcgSet | undefined): CSSProperties {
+function packTheme(set: CcgSet | undefined, randomLegacy = false): CSSProperties {
   return {
-    "--pack-accent": set?.theme.accent ?? "#5baeff",
-    "--pack-glow": set?.theme.glow ?? "rgba(91, 174, 255, 0.38)",
-    "--pack-art": set ? `url("${set.backgroundPath}")` : "none",
+    "--pack-accent": randomLegacy ? "#9c7cff" : set?.theme.accent ?? "#5baeff",
+    "--pack-glow": randomLegacy ? "rgba(126, 105, 255, 0.42)" : set?.theme.glow ?? "rgba(91, 174, 255, 0.38)",
+    "--pack-stage-art": randomLegacy ? 'url("/ccg/general_wide.webp")' : set ? `url("${set.backgroundPath}")` : "none",
+    "--pack-art": randomLegacy ? 'url("/ccg/general_tall.webp")' : set ? `url("${set.backgroundPath}")` : "none",
   } as CSSProperties;
+}
+
+function ArchiveIcon() {
+  return (
+    <span className={packStyles.archiveIcon} aria-hidden="true">
+      <i /><i /><i />
+    </span>
+  );
 }
 
 function playPackSound(audio: HTMLAudioElement | null, volume: number, playbackRate = 1): void {
@@ -77,6 +89,7 @@ export default function CcgOpenPage() {
   const queryClient = useQueryClient();
   const sessionQuery = useCcgSession();
   const setsQuery = useCcgSets();
+  const raidsQuery = useRaids();
   const [mode, setMode] = useState<CcgMode>("current");
   const [opening, setOpening] = useState<CcgOpening | null>(null);
   const [recoveryId, setRecoveryId] = useState("");
@@ -86,7 +99,7 @@ export default function CcgOpenPage() {
   const [revealedCards, setRevealedCards] = useState<Set<number>>(() => new Set());
   const [activeReveal, setActiveReveal] = useState<{ index: number; x: number; y: number } | null>(null);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
-  const [legacyArtSetId, setLegacyArtSetId] = useState("");
+  const [legacySetId, setLegacySetId] = useState(RANDOM_LEGACY_SET);
   const [showPrototypeLab, setShowPrototypeLab] = useState(false);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const shuffleAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -99,21 +112,28 @@ export default function CcgOpenPage() {
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets;
   const modeSets = useMemo(() => (sets ?? []).filter((set) => set.state === mode && set.cardCount > 0), [mode, sets]);
-  const legacyPoolKey = modeSets.map((set) => set.id).join("|");
-  const featuredPackSet = mode === "legacy"
-    ? modeSets.find((set) => set.id === legacyArtSetId) ?? modeSets[0]
-    : modeSets[0];
+  const currentSets = useMemo(() => (sets ?? []).filter((set) => set.state === "current" && set.cardCount > 0), [sets]);
+  const legacySets = useMemo(() => (sets ?? []).filter((set) => set.state === "legacy" && set.cardCount > 0), [sets]);
+  const currentSet = currentSets[0];
+  const selectedLegacySet = legacySets.find((set) => set.id === legacySetId);
+  const randomLegacy = mode === "legacy" && !selectedLegacySet;
+  const featuredPackSet = mode === "legacy" ? selectedLegacySet : modeSets[0];
+  const raidIconByZone = useMemo(
+    () => new Map((raidsQuery.data ?? []).map((raid) => [raid.id, raid.iconUrl])),
+    [raidsQuery.data],
+  );
   const poolTitle =
     mode === "legacy"
-      ? t("open.legacyPackTitle")
+      ? selectedLegacySet?.raidName ?? t("open.legacyPackTitle")
       : modeSets.length === 1
         ? modeSets[0].raidName
         : t("open.currentPool", { count: modeSets.length });
 
   useEffect(() => {
-    if (mode !== "legacy" || modeSets.length === 0) return;
-    setLegacyArtSetId((current) => modeSets.some((set) => set.id === current) ? current : modeSets[randomIndex(modeSets.length)].id);
-  }, [legacyPoolKey, mode, modeSets]);
+    if (legacySetId !== RANDOM_LEGACY_SET && !legacySets.some((set) => set.id === legacySetId)) {
+      setLegacySetId(RANDOM_LEGACY_SET);
+    }
+  }, [legacySetId, legacySets]);
 
   useEffect(() => {
     setShowPrototypeLab(["localhost", "127.0.0.1", "::1"].includes(window.location.hostname));
@@ -189,7 +209,11 @@ export default function CcgOpenPage() {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const result = await api.openCcgPack({ mode, idempotencyKey: makeIdempotencyKey() });
+      const result = await api.openCcgPack({
+        mode,
+        idempotencyKey: makeIdempotencyKey(),
+        setId: mode === "legacy" && selectedLegacySet ? selectedLegacySet.id : undefined,
+      });
       queryClient.setQueryData(queryKeys.ccg.opening(result.id), result);
       const url = new URL(window.location.href);
       url.searchParams.set("mode", result.mode);
@@ -222,7 +246,6 @@ export default function CcgOpenPage() {
     setActiveReveal(null);
     setViewerIndex(null);
     setRecoveryId("");
-    if (mode === "legacy" && modeSets.length > 0) setLegacyArtSetId(modeSets[randomIndex(modeSets.length)].id);
     const url = new URL(window.location.href);
     url.searchParams.delete("opening");
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
@@ -264,7 +287,14 @@ export default function CcgOpenPage() {
     [opening, revealedCards, t],
   );
   const openingSet = opening?.results[0]?.card.set ?? opening?.sets[0] ?? featuredPackSet;
-  const stageTheme = packTheme(opening?.mode === "legacy" ? featuredPackSet : openingSet);
+  const openingTargetSet = opening?.targetSetId ? opening.sets.find((set) => set.id === opening.targetSetId) ?? openingSet : undefined;
+  const openingIsRandomLegacy = opening?.mode === "legacy" && !opening.targetSetId;
+  const openingPackName = opening?.mode === "legacy"
+    ? openingTargetSet?.raidName ?? t("open.legacyPackTitle")
+    : openingSet?.raidName;
+  const stageTheme = opening
+    ? packTheme(opening.mode === "legacy" ? openingTargetSet : openingSet, openingIsRandomLegacy)
+    : packTheme(featuredPackSet, randomLegacy);
 
   const resetPackMotion = (target: HTMLButtonElement) => {
     delete target.dataset.dragging;
@@ -388,17 +418,83 @@ export default function CcgOpenPage() {
     >
       <div className="w-full px-4 py-2 sm:px-6 lg:px-8">
         {!opening ? (
-          <div className="grid gap-6 lg:grid-cols-[minmax(250px,340px)_1fr]">
-            <aside className={`${styles.panel} h-fit p-5`}>
+          <div className={packStyles.packChooser}>
+            <aside className={`${styles.panel} ${packStyles.packControls}`}>
               <label className="text-xs font-bold uppercase tracking-[0.13em] text-slate-500">{t("open.chooseMode")}</label>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {(["current", "legacy"] as CcgMode[]).map((option) => (
-                  <button key={option} type="button" aria-pressed={mode === option} onClick={() => setMode(option)} className={mode === option ? styles.primaryButton : styles.secondaryButton}>
-                    {t(`mode.${option}`)}
-                  </button>
-                ))}
+              <div className={packStyles.modeChoices}>
+                <button type="button" aria-pressed={mode === "current"} onClick={() => setMode("current")} className={packStyles.modeChoice}>
+                  <span className={packStyles.modeChoiceIcon}>
+                    {currentSet && raidIconByZone.get(currentSet.zoneId) ? (
+                      <IconImage iconFilename={raidIconByZone.get(currentSet.zoneId)} alt="" width={40} height={40} />
+                    ) : <span className={packStyles.modeChoiceFallback} aria-hidden="true">C</span>}
+                  </span>
+                  <span className={packStyles.modeChoiceCopy}>
+                    <small>{t("open.currentTier")}</small>
+                    <strong>{currentSet?.raidName ?? t("landing.preparing")}</strong>
+                  </span>
+                  <span className={packStyles.modeChoiceMark} aria-hidden="true" />
+                </button>
+                <button type="button" aria-pressed={mode === "legacy"} onClick={() => setMode("legacy")} className={packStyles.modeChoice}>
+                  <span className={packStyles.modeChoiceIcon}><ArchiveIcon /></span>
+                  <span className={packStyles.modeChoiceCopy}>
+                    <small>{t("mode.legacy")}</small>
+                    <strong>{t("open.legacyRaids", { count: legacySets.length })}</strong>
+                  </span>
+                  <span className={packStyles.modeChoiceMark} aria-hidden="true" />
+                </button>
               </div>
-              <p className="mt-4 text-sm leading-5 text-slate-400">{t(mode === "legacy" ? "open.legacyPoolBody" : "open.currentPoolBody", { count: modeSets.length })}</p>
+
+              {mode === "legacy" ? (
+                <div className={packStyles.legacyTarget}>
+                  <label className={packStyles.controlLabel}>{t("open.chooseLegacy")}</label>
+                  <Listbox value={legacySetId} onChange={setLegacySetId}>
+                    <div className={packStyles.raidSelect}>
+                      <ListboxButton className={packStyles.raidSelectButton}>
+                        <span className={packStyles.raidOptionIcon}>
+                          {selectedLegacySet && raidIconByZone.get(selectedLegacySet.zoneId) ? (
+                            <IconImage iconFilename={raidIconByZone.get(selectedLegacySet.zoneId)} alt="" width={34} height={34} />
+                          ) : <ArchiveIcon />}
+                        </span>
+                        <span className={packStyles.raidOptionCopy}>
+                          <small>{selectedLegacySet ? selectedLegacySet.expansionName : t("open.randomLegacyEyebrow")}</small>
+                          <strong>{selectedLegacySet?.raidName ?? t("open.randomLegacy")}</strong>
+                        </span>
+                        <svg className={packStyles.raidSelectChevron} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                          <path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </ListboxButton>
+                      <ListboxOptions className={packStyles.raidOptions}>
+                        <ListboxOption value={RANDOM_LEGACY_SET} className={packStyles.raidOption}>
+                          <span className={packStyles.raidOptionIcon}><ArchiveIcon /></span>
+                          <span className={packStyles.raidOptionCopy}>
+                            <small>{t("open.randomLegacyEyebrow")}</small>
+                            <strong>{t("open.randomLegacy")}</strong>
+                          </span>
+                          <span className={packStyles.raidOptionCheck} aria-hidden="true">✓</span>
+                        </ListboxOption>
+                        {legacySets.map((set) => (
+                          <ListboxOption key={set.id} value={set.id} className={packStyles.raidOption}>
+                            <span className={packStyles.raidOptionIcon}>
+                              {raidIconByZone.get(set.zoneId) ? <IconImage iconFilename={raidIconByZone.get(set.zoneId)} alt="" width={34} height={34} /> : <ArchiveIcon />}
+                            </span>
+                            <span className={packStyles.raidOptionCopy}>
+                              <small>{set.expansionName}</small>
+                              <strong>{set.raidName}</strong>
+                            </span>
+                            <span className={packStyles.raidOptionCheck} aria-hidden="true">✓</span>
+                          </ListboxOption>
+                        ))}
+                      </ListboxOptions>
+                    </div>
+                  </Listbox>
+                </div>
+              ) : null}
+
+              <p className={packStyles.poolDescription}>
+                {mode === "legacy" && selectedLegacySet
+                  ? t("open.specificLegacyBody", { raid: selectedLegacySet.raidName })
+                  : t(mode === "legacy" ? "open.legacyPoolBody" : "open.currentPoolBody", { count: modeSets.length })}
+              </p>
               <div className="mt-5">{session ? <PackBalance session={session} mode={mode} /> : <div className="h-32 animate-pulse rounded-lg bg-white/5" />}</div>
               {noPacks ? <p className="mt-4 text-sm text-amber-200">{t("open.noPacks")}</p> : null}
               {recoveryQuery.isError ? (
@@ -412,14 +508,16 @@ export default function CcgOpenPage() {
               {mutation.error ? <p className="mt-4 text-sm text-red-300" role="alert">{mutation.error.message}</p> : null}
             </aside>
 
-            <section className={packStyles.packStage} style={packTheme(featuredPackSet)}>
+            <section className={`${packStyles.packStage} ${packStyles.packChooserStage}`} style={packTheme(featuredPackSet, randomLegacy)}>
               <span className={packStyles.stageArt} />
               <span className={packStyles.stageVeil} />
               <span className={packStyles.vaultRing} aria-hidden="true" />
               <span className={packStyles.vaultRingInner} aria-hidden="true" />
               <div className={packStyles.packPresentation}>
                 <span className={packStyles.packMode}>
-                  {mode === "legacy" ? t("open.legacyPackLabel") : `${t(`mode.${mode}`)} · ${featuredPackSet?.expansionName ?? "SuomiWoW"}`}
+                  {mode === "legacy"
+                    ? selectedLegacySet ? `${t("mode.legacy")} · ${selectedLegacySet.expansionName}` : t("open.legacyPackLabel")
+                    : `${t("open.currentTier")} · ${featuredPackSet?.expansionName ?? "SuomiWoW"}`}
                 </span>
                 <button
                   type="button"
@@ -448,7 +546,7 @@ export default function CcgOpenPage() {
                     <span className={packStyles.packTitle}>{modeSets.length > 0 ? poolTitle : t("landing.preparing")}</span>
                     <span className={packStyles.packSigil} aria-hidden="true"><span /></span>
                     <span className={packStyles.packCount}><strong>5</strong><span>{t("landing.cards")}</span></span>
-                    <span className={packStyles.packSeal}>{mode === "legacy" ? t("open.legacySeal") : featuredPackSet?.theme.mark ?? "CCG"}</span>
+                    <span className={packStyles.packSeal}>{mode === "legacy" && !selectedLegacySet ? t("open.legacySeal") : featuredPackSet?.theme.mark ?? "CCG"}</span>
                   </span>
                 </button>
                 <span className={packStyles.packHint}>{mutation.isPending ? t("open.openingHint") : t("open.packHint")}</span>
@@ -485,7 +583,7 @@ export default function CcgOpenPage() {
 
             <div className={`${packStyles.revealContent} ${revealPhase === "tearing" ? packStyles.revealContentWaiting : ""}`}>
               <div className={packStyles.revealLead}>
-                <span>{opening.mode === "legacy" ? t("open.legacyPackTitle") : openingSet?.raidName}</span>
+                <span>{openingPackName}</span>
                 <strong>{allRevealed ? t("open.allRevealed") : t("open.revealPrompt")}</strong>
               </div>
 
@@ -528,7 +626,7 @@ export default function CcgOpenPage() {
                             <span className={packStyles.cardBackFinish} />
                             <span className={packStyles.cardBackSigil} aria-hidden="true"><span /></span>
                             <span className={packStyles.cardBackBrand}><span>SUOMIWOW</span><strong>CCG</strong></span>
-                            <span className={packStyles.cardBackSet}>{opening.mode === "current" ? openingSet?.raidName : t("open.legacyPackTitle")}</span>
+                            <span className={packStyles.cardBackSet}>{openingPackName}</span>
                           </span>
                           <span className={`${packStyles.cardFace} ${packStyles.cardFront}`} aria-hidden={!revealed}>
                             <CollectibleCard

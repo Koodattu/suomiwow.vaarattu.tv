@@ -265,7 +265,7 @@ export const api = {
     return response.json();
   },
 
-  async openCcgPack(input: { mode: CcgMode; idempotencyKey: string }): Promise<CcgOpening> {
+  async openCcgPack(input: { mode: CcgMode; idempotencyKey: string; setId?: string }): Promise<CcgOpening> {
     const response = await fetch(`${API_URL}/api/ccg/packs/open`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

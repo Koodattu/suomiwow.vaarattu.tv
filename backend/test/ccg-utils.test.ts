@@ -114,6 +114,15 @@ test("a mode-wide pack plan can draw cards from multiple raid pools", () => {
   assert.deepEqual(new Set(plan.map((row) => row.setId)), new Set(["raid-a", "raid-b"]));
 });
 
+test("a targeted pack plan stays inside its selected raid pool", () => {
+  const plan = planPackSelections(
+    [{ poolId: "pool-a", setId: "raid-a", version: "1", counts: [{ grade: "A", count: 5 }] }],
+    () => 0,
+  );
+  assert.equal(plan.length, 5);
+  assert.equal(plan.every((row) => row.poolId === "pool-a" && row.setId === "raid-a"), true);
+});
+
 test("raid activation readiness fails closed and becomes irreversible after enablement", () => {
   assert.deepEqual(evaluateCcgReadiness({ eligible: 99, mediaReady: 49, enabled: false }).blockers, [
     "eligible_population",

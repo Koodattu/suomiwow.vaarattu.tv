@@ -16,6 +16,7 @@ export interface ICcgPackOpening extends Document {
   ownerType: CcgOwnerType;
   ownerId: mongoose.Types.ObjectId;
   mode: CcgMode;
+  targetSetId?: mongoose.Types.ObjectId | null;
   sourceSetIds: mongoose.Types.ObjectId[];
   allowanceSource: CcgAllowanceSource;
   creditId?: mongoose.Types.ObjectId | null;
@@ -49,6 +50,7 @@ const CcgPackOpeningSchema = new Schema<ICcgPackOpening>(
     ownerType: { type: String, enum: ["user", "guest"], required: true, index: true },
     ownerId: { type: Schema.Types.ObjectId, required: true, index: true },
     mode: { type: String, enum: ["current", "legacy"], required: true, index: true },
+    targetSetId: { type: Schema.Types.ObjectId, ref: "CcgSet", default: null },
     sourceSetIds: { type: [Schema.Types.ObjectId], ref: "CcgSet", required: true, default: [] },
     allowanceSource: { type: String, enum: ["daily", "credit"], required: true },
     creditId: { type: Schema.Types.ObjectId, ref: "CcgPackCredit", default: null },
