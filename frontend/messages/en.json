@@ -118,7 +118,7 @@
       "specificLegacyBody": "Every card in this pack comes from {raid}.",
       "openPack": "Open pack",
       "opening": "Opening…",
-      "packHint": "Tilt or drag the pack, then click to break the seal",
+      "packHint": "Click to break the seal",
       "openingHint": "The raid vault is opening…",
       "revealPrompt": "Choose a card to reveal",
       "cardsReady": "Five cards are ready. Focus is on the first card.",

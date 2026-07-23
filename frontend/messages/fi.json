@@ -118,7 +118,7 @@
       "specificLegacyBody": "Kaikki tämän pakan kortit tulevat raidista {raid}.",
       "openPack": "Avaa pakka",
       "opening": "Avataan…",
-      "packHint": "Kallista tai vedä pakkaa ja riko sinetti napsauttamalla",
+      "packHint": "Riko sinetti napsauttamalla",
       "openingHint": "Raidiholvi avautuu…",
       "revealPrompt": "Valitse paljastettava kortti",
       "cardsReady": "Viisi korttia on valmiina. Kohdistus on ensimmäisessä kortissa.",
