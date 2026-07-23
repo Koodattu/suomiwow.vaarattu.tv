@@ -2,12 +2,12 @@
 
 import { useTranslations } from "next-intl";
 
-export default function Footer() {
+export default function Footer({ compact = false }: { compact?: boolean }) {
   const t = useTranslations("footer");
   const tNav = useTranslations("navigation");
 
   return (
-    <footer className="mt-12 md:mt-20 mb-4 pt-6 md:pt-8 border-t border-gray-800 px-4">
+    <footer className={`${compact ? "mt-2 pt-4 md:mt-3 md:pt-4" : "mt-12 pt-6 md:mt-20 md:pt-8"} mb-4 border-t border-gray-800 px-4`}>
       <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6 text-sm text-gray-500 mb-4">
         <a
           href="https://github.com/Koodattu/wow-guild-progress-tracker"

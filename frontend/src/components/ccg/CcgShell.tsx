@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import styles from "./ccg.module.css";
 
-export default function CcgShell({ children, context }: { children: ReactNode; context?: ReactNode }) {
+export default function CcgShell({ children, context, compact = false }: { children: ReactNode; context?: ReactNode; compact?: boolean }) {
   const pathname = usePathname();
   const t = useTranslations("ccg");
   const links = [
@@ -16,7 +16,7 @@ export default function CcgShell({ children, context }: { children: ReactNode; c
   ];
 
   return (
-    <main className={styles.vault}>
+    <main className={`${styles.vault} ${compact ? styles.vaultCompact : ""}`}>
       <header className={styles.shellHeader}>
         <div className={styles.shellHeaderInner}>
           <div className={styles.shellBrand}>
@@ -40,9 +40,6 @@ export default function CcgShell({ children, context }: { children: ReactNode; c
         </div>
       </header>
       {children}
-      <footer className="mx-auto max-w-[1500px] px-4 py-10 text-xs leading-5 text-slate-500 sm:px-6 lg:px-8">
-        {t("fanNotice")}
-      </footer>
     </main>
   );
 }

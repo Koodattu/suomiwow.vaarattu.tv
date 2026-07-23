@@ -9,6 +9,10 @@
   color: #eef5ff;
 }
 
+.vaultCompact {
+  min-height: auto;
+}
+
 .shellHeader {
   position: relative;
   overflow: hidden;

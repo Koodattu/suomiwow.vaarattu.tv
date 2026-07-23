@@ -374,6 +374,7 @@ export default function CcgOpenPage() {
 
   return (
     <CcgShell
+      compact
       context={(
         <div className={styles.openHeaderContext}>
           <header className={styles.openHeaderIntro}>
@@ -385,7 +386,7 @@ export default function CcgOpenPage() {
         </div>
       )}
     >
-      <div className="w-full px-4 py-5 sm:px-6 lg:px-8">
+      <div className="w-full px-4 py-2 sm:px-6 lg:px-8">
         {!opening ? (
           <div className="grid gap-6 lg:grid-cols-[minmax(250px,340px)_1fr]">
             <aside className={`${styles.panel} h-fit p-5`}>
