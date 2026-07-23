@@ -775,10 +775,10 @@
 .packTitle {
   top: 21%;
   width: 76%;
-  color: #fffefa;
+  color: color-mix(in srgb, var(--pack-accent) 64%, white);
   font-family: "LifeCraft", Georgia, "Times New Roman", serif;
   font-size: clamp(1.32rem, 4vw, 1.92rem);
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: -0.015em;
   line-height: 1.05;
   text-wrap: balance;
