@@ -56,7 +56,6 @@
     "ccg": "CCG"
   },
   "ccg": {
-    "brandName": "SuomiWoW",
     "brandSuffix": "Community Collectible Card Game",
     "eyebrow": "Community card vault",
     "subtitle": "Open raid-set packs and preserve the characters who shaped each tier.",
@@ -64,6 +63,7 @@
     "loading": "Loading card vault",
     "nav": {
       "label": "CCG navigation",
+      "backToMain": "Back to SuomiWoW",
       "home": "Vault",
       "open": "Open packs",
       "collection": "Collection"

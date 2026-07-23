@@ -191,7 +191,7 @@ export default function RootLayout({
         <QueryProvider>
           <AuthProvider>
             <NextIntlClientProvider locale={locale} messages={messages}>
-              <Navigation />
+              {!isCcgPage && <Navigation />}
               {children}
               {!isLivestreamsPage && !isNetworkAnalyticsPage && !isCcgPage && <Footer />}
             </NextIntlClientProvider>

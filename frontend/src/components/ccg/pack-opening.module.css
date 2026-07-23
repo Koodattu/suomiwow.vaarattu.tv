@@ -4,6 +4,13 @@
   font-display: swap;
 }
 
+.openWorkspace {
+  width: 100%;
+  height: calc(100dvh - 3.5625rem);
+  min-height: 0;
+  overflow: hidden;
+}
+
 .packStage {
   --pack-accent: #5baeff;
   --pack-glow: rgba(91, 174, 255, 0.38);
@@ -44,8 +51,15 @@
 .packChooser {
   position: relative;
   display: grid;
+  height: 100%;
   min-width: 0;
   gap: 1rem;
+}
+
+.openWorkspace .packStage {
+  height: 100%;
+  min-height: 0;
+  border-radius: 0;
 }
 
 .packChooserStage {
@@ -594,7 +608,7 @@
 .wrapperArt {
   background-image: var(--pack-art);
   background-position: center;
-  background-size: auto 100%;
+  background-size: var(--pack-art-size);
   filter: saturate(1.1) contrast(1.08);
   opacity: 0.82;
 }
@@ -845,11 +859,9 @@
 }
 
 .revealStage {
-  left: 50%;
-  width: calc(100vw - 2rem);
+  width: 100%;
   min-height: min(76vh, 56rem);
   align-items: stretch;
-  transform: translateX(-50%);
 }
 
 .tearSequence {
@@ -1572,7 +1584,7 @@
   border-radius: 0.65rem;
   background:
     linear-gradient(180deg, rgba(1, 4, 11, 0.38), rgba(1, 4, 11, 0.78)),
-    var(--pack-art) center / auto 100% no-repeat,
+    var(--pack-art) center / var(--pack-art-size) no-repeat,
     #061020;
   filter: saturate(0.72) contrast(1.08);
 }
@@ -1651,7 +1663,7 @@
   bottom: 5.5%;
   color: color-mix(in srgb, var(--pack-accent) 64%, white);
   font-family: "LifeCraft", fantasy;
-  font-size: clamp(0.8rem, 5.35cqw, 1.22rem);
+  font-size: clamp(0.76rem, calc(5.35cqw * var(--card-back-set-scale, 1)), 1.55rem);
   font-synthesis: none;
   font-weight: 400;
   letter-spacing: normal;
@@ -2184,11 +2196,20 @@
 }
 
 @media (max-width: 760px) {
+  .openWorkspace {
+    height: auto;
+    overflow: visible;
+  }
+
+  .packChooser {
+    height: auto;
+  }
+
   .packStage {
     min-height: 36rem;
   }
 
-  .revealStage {
+  .openWorkspace .revealStage {
     min-height: 42rem;
   }
 

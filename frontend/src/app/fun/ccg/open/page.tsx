@@ -59,6 +59,7 @@ function packTheme(set: CcgSet | undefined, randomLegacy = false): CSSProperties
     "--pack-glow": randomLegacy ? "rgba(126, 105, 255, 0.42)" : set?.theme.glow ?? "rgba(91, 174, 255, 0.38)",
     "--pack-stage-art": randomLegacy ? 'url("/ccg/general_wide.webp")' : set ? `url("${set.backgroundPath}")` : "none",
     "--pack-art": randomLegacy ? 'url("/ccg/general_tall.webp")' : set ? `url("${set.backgroundPath}")` : "none",
+    "--pack-art-size": randomLegacy ? "cover" : "auto 100%",
   } as CSSProperties;
 }
 
@@ -293,6 +294,7 @@ export default function CcgOpenPage() {
   const openingPackName = opening?.mode === "legacy"
     ? openingTargetSet?.raidName ?? t("open.legacyPackTitle")
     : openingSet?.raidName;
+  const cardBackSetScale = Math.min(1.45, Math.max(0.78, 18 / (openingPackName?.trim().length || 18)));
   const stageTheme = opening
     ? packTheme(opening.mode === "legacy" ? openingTargetSet : openingSet, openingIsRandomLegacy)
     : packTheme(featuredPackSet, randomLegacy);
@@ -414,7 +416,7 @@ export default function CcgOpenPage() {
       compact
       context={session ? <GuestNotice session={session} /> : null}
     >
-      <div className="w-full px-4 py-2 sm:px-6 lg:px-8">
+      <div className={packStyles.openWorkspace}>
         {!opening ? (
           <div className={packStyles.packChooser}>
             <aside className={`${styles.panel} ${packStyles.packControls}`}>
@@ -624,7 +626,12 @@ export default function CcgOpenPage() {
                             <span className={packStyles.cardBackFinish} />
                             <span className={packStyles.cardBackSigil} aria-hidden="true"><span /></span>
                             <span className={packStyles.cardBackBrand}><span>SUOMIWOW</span><strong>CCG</strong></span>
-                            <span className={packStyles.cardBackSet}>{openingPackName}</span>
+                            <span
+                              className={packStyles.cardBackSet}
+                              style={{ "--card-back-set-scale": cardBackSetScale } as CSSProperties}
+                            >
+                              {openingPackName}
+                            </span>
                           </span>
                           <span className={`${packStyles.cardFace} ${packStyles.cardFront}`} aria-hidden={!revealed}>
                             <CollectibleCard

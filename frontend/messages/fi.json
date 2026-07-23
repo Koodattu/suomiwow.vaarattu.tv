@@ -56,7 +56,6 @@
     "ccg": "CCG"
   },
   "ccg": {
-    "brandName": "SuomiWoW",
     "brandSuffix": "Community Collectible Card Game",
     "eyebrow": "Yhteisön korttiholvi",
     "subtitle": "Avaa raidisettien pakkoja ja kerää jokaisen tierin hahmot talteen.",
@@ -64,6 +63,7 @@
     "loading": "Korttiholvia ladataan",
     "nav": {
       "label": "CCG-navigaatio",
+      "backToMain": "Takaisin SuomiWoWiin",
       "home": "Holvi",
       "open": "Avaa pakkoja",
       "collection": "Kokoelma"

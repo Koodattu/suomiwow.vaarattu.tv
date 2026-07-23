@@ -2,7 +2,7 @@
   --vault-ink: #020612;
   --vault-panel: rgba(7, 14, 30, 0.88);
   --vault-line: rgba(144, 178, 236, 0.16);
-  min-height: calc(100dvh - 4.0625rem);
+  min-height: 100dvh;
   background:
     radial-gradient(circle at 50% -12%, rgba(67, 104, 198, 0.2), transparent 34rem),
     linear-gradient(180deg, #020612 0%, #00030b 100%);
@@ -36,19 +36,48 @@
 }
 
 .shellBrandLink {
-  display: block;
-  overflow: hidden;
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.65rem;
   color: #f5f8ff;
-  font-size: 0.9rem;
-  font-weight: 800;
-  letter-spacing: -0.015em;
-  line-height: 1.15;
-  text-overflow: ellipsis;
+  transition: color 150ms ease, opacity 150ms ease, transform 120ms ease;
+}
+
+.shellBrandLink > svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  color: #59dcff;
+}
+
+.shellBrandLink > img {
+  flex-shrink: 0;
+  width: 7rem;
+  height: auto;
+}
+
+.shellBrandTitle {
+  color: #59dcff;
+  font-size: clamp(0.62rem, 0.72vw, 0.8rem);
+  font-weight: 760;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
   white-space: nowrap;
 }
 
-.shellBrandAccent {
-  color: #59dcff;
+.shellBrandLink:hover {
+  color: #7ddcff;
+  opacity: 0.86;
+}
+
+.shellBrandLink:focus-visible {
+  border-radius: 0.3rem;
+  outline: 2px solid #7ddcff;
+  outline-offset: 3px;
+}
+
+.shellBrandLink:active {
+  transform: scale(0.96);
 }
 
 .shellNav {
@@ -120,8 +149,10 @@
   align-items: center;
   justify-content: center;
   border-radius: 0.38rem;
+  background: linear-gradient(135deg, rgba(62, 83, 116, 0.5), rgba(67, 59, 91, 0.46));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.055), inset 0 0 0 1px rgba(164, 184, 215, 0.08);
   padding: 0.55rem 0.85rem;
-  color: #a7b4ca;
+  color: #c0cada;
   font-size: 0.82rem;
   font-weight: 650;
   transition: color 150ms ease, background-color 150ms ease, transform 120ms ease, box-shadow 150ms ease, filter 150ms ease;
@@ -133,12 +164,6 @@
     flex-direction: column;
     align-items: stretch;
     gap: 0.75rem;
-  }
-
-  .shellBrandLink {
-    overflow: visible;
-    text-overflow: clip;
-    white-space: normal;
   }
 
   .shellNav {
@@ -165,8 +190,9 @@
   }
 }
 
-.subnavLink:hover {
-  background: rgba(91, 139, 227, 0.13);
+.subnavLink:not(.subnavLinkActive):hover {
+  background: linear-gradient(135deg, rgba(65, 104, 161, 0.56), rgba(83, 69, 124, 0.54));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.09), inset 0 0 0 1px rgba(164, 192, 235, 0.12);
   color: #f7fbff;
 }
 
@@ -651,7 +677,7 @@
 
 .collectionPage {
   display: grid;
-  height: calc(100dvh - 7.625rem);
+  height: calc(100dvh - 3.5625rem);
   min-height: 0;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
@@ -1064,7 +1090,7 @@
 
 @media (max-width: 1280px) {
   .collectionPage {
-    height: calc(100dvh - 7.625rem);
+    height: calc(100dvh - 3.5625rem);
   }
 
   .collectionToolbar {
