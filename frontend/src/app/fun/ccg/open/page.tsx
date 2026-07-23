@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgMode, CcgOpening, CcgSet } from "@/types";
@@ -437,135 +436,128 @@ export default function CcgOpenPage() {
       <div className={packStyles.openWorkspace}>
         {!opening ? (
           <div className={packStyles.packChooser}>
-            <aside className={packStyles.packControls}>
-              <div className={packStyles.modeChoices}>
-                <button type="button" aria-pressed={mode === "current"} onClick={() => setMode("current")} className={packStyles.modeChoice}>
-                  <span className={packStyles.modeChoiceIcon}>
-                    {currentSet && raidIconByZone.get(currentSet.zoneId) ? (
-                      <IconImage iconFilename={raidIconByZone.get(currentSet.zoneId)} alt="" width={40} height={40} />
-                    ) : <span className={packStyles.modeChoiceFallback} aria-hidden="true">C</span>}
-                  </span>
-                  <span className={packStyles.modeChoiceCopy}>
-                    <small>{t("open.currentTier")}</small>
-                    <strong>{currentSet?.raidName ?? t("landing.preparing")}</strong>
-                  </span>
-                  <span className={packStyles.modeChoiceMark} aria-hidden="true" />
-                </button>
-                <button type="button" aria-pressed={mode === "legacy"} onClick={() => setMode("legacy")} className={packStyles.modeChoice}>
-                  <span className={packStyles.modeChoiceIcon}><ArchiveIcon /></span>
-                  <span className={packStyles.modeChoiceCopy}>
-                    <small>{t("mode.legacy")}</small>
-                    <strong>{t("open.legacyRaids", { count: legacySets.length })}</strong>
-                  </span>
-                  <span className={packStyles.modeChoiceMark} aria-hidden="true" />
-                </button>
-              </div>
-
-              {mode === "legacy" ? (
-                <div className={packStyles.legacyTarget}>
-                  <label className={packStyles.controlLabel}>{t("open.chooseLegacy")}</label>
-                  <Listbox value={legacySetId} onChange={setLegacySetId}>
-                    <div className={packStyles.raidSelect}>
-                      <ListboxButton className={packStyles.raidSelectButton}>
-                        <span className={packStyles.raidOptionIcon}>
-                          {selectedLegacySet && raidIconByZone.get(selectedLegacySet.zoneId) ? (
-                            <IconImage iconFilename={raidIconByZone.get(selectedLegacySet.zoneId)} alt="" width={34} height={34} />
-                          ) : <ArchiveIcon />}
-                        </span>
-                        <span className={packStyles.raidOptionCopy}>
-                          <small>{selectedLegacySet ? selectedLegacySet.expansionName : t("open.randomLegacyEyebrow")}</small>
-                          <strong>{selectedLegacySet?.raidName ?? t("open.randomLegacy")}</strong>
-                        </span>
-                        <svg className={packStyles.raidSelectChevron} viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                          <path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </ListboxButton>
-                      <ListboxOptions className={packStyles.raidOptions}>
-                        <ListboxOption value={RANDOM_LEGACY_SET} className={packStyles.raidOption}>
-                          <span className={packStyles.raidOptionIcon}><ArchiveIcon /></span>
-                          <span className={packStyles.raidOptionCopy}>
-                            <small>{t("open.randomLegacyEyebrow")}</small>
-                            <strong>{t("open.randomLegacy")}</strong>
-                          </span>
-                          <span className={packStyles.raidOptionCheck} aria-hidden="true">✓</span>
-                        </ListboxOption>
-                        {legacySets.map((set) => (
-                          <ListboxOption key={set.id} value={set.id} className={packStyles.raidOption}>
-                            <span className={packStyles.raidOptionIcon}>
-                              {raidIconByZone.get(set.zoneId) ? <IconImage iconFilename={raidIconByZone.get(set.zoneId)} alt="" width={34} height={34} /> : <ArchiveIcon />}
-                            </span>
-                            <span className={packStyles.raidOptionCopy}>
-                              <small>{set.expansionName}</small>
-                              <strong>{set.raidName}</strong>
-                            </span>
-                            <span className={packStyles.raidOptionCheck} aria-hidden="true">✓</span>
-                          </ListboxOption>
-                        ))}
-                      </ListboxOptions>
-                    </div>
-                  </Listbox>
-                </div>
-              ) : null}
-
-              <p className={packStyles.poolDescription}>
-                {mode === "legacy" && selectedLegacySet
-                  ? t("open.specificLegacyBody", { raid: selectedLegacySet.raidName })
-                  : t(mode === "legacy" ? "open.legacyPoolBody" : "open.currentPoolBody", { count: modeSets.length })}
-              </p>
-              <div className="mt-5">{session ? <PackBalance session={session} mode={mode} /> : <div className="h-32 animate-pulse rounded-lg bg-white/5" />}</div>
-              {noPacks ? <p className="mt-4 text-sm text-amber-200">{t("open.noPacks")}</p> : null}
-              {recoveryQuery.isError ? (
-                <div className="mt-4 rounded-md border border-amber-300/20 bg-amber-300/[0.05] p-3" role="alert">
-                  <p className="text-sm leading-5 text-amber-100">{t("open.recoveryFailed")}</p>
-                  <button type="button" className={`${styles.secondaryButton} mt-3 w-full`} onClick={clearSavedOpening}>
-                    {t("open.dismissRecovery")}
-                  </button>
-                </div>
-              ) : null}
-              {mutation.error ? <p className="mt-4 text-sm text-red-300" role="alert">{mutation.error.message}</p> : null}
-            </aside>
-
             <section className={`${packStyles.packStage} ${packStyles.packChooserStage}`} style={packTheme(featuredPackSet, randomLegacy)}>
               <span className={packStyles.stageArt} />
               <span className={packStyles.stageVeil} />
               <span className={packStyles.vaultRing} aria-hidden="true" />
               <span className={packStyles.vaultRingInner} aria-hidden="true" />
-              <div className={packStyles.packPresentation}>
-                <span className={packStyles.packMode}>
-                  {mode === "legacy"
-                    ? selectedLegacySet ? `${t("mode.legacy")} · ${selectedLegacySet.expansionName}` : t("open.legacyPackLabel")
-                    : `${t("open.currentTier")} · ${featuredPackSet?.expansionName ?? "SuomiWoW"}`}
-                </span>
-                <button
-                  type="button"
-                  className={`${packStyles.packButton} ${mutation.isPending ? packStyles.packButtonOpening : ""}`}
-                  disabled={!canOpen}
-                  onClick={openPack}
-                  onPointerDown={startPackDrag}
-                  onPointerMove={updatePackLight}
-                  onPointerUp={finishPackDrag}
-                  onPointerCancel={cancelPackDrag}
-                  onPointerLeave={(event) => {
-                    if (packDragRef.current.pointerId === -1) resetPackMotion(event.currentTarget);
-                  }}
-                  onBlur={(event) => resetPackMotion(event.currentTarget)}
-                  aria-label={t("open.openPack")}
-                  aria-busy={mutation.isPending}
-                >
-                  <span className={packStyles.packShadow} />
-                  <span className={packStyles.booster}>
-                    <span className={packStyles.wrapperArt} />
-                    <span className={packStyles.wrapperShade} />
-                    <span className={packStyles.wrapperFoil} />
-                    <span className={`${packStyles.crimp} ${packStyles.crimpTop}`} />
-                    <span className={`${packStyles.crimp} ${packStyles.crimpBottom}`} />
-                    <span className={packStyles.packBrand}>SuomiWoW <strong>CCG</strong></span>
-                    <span className={packStyles.packTitle}>{modeSets.length > 0 ? poolTitle : t("landing.preparing")}</span>
-                    <span className={packStyles.packSigil} aria-hidden="true"><span /></span>
-                    <span className={packStyles.packCount}><strong>5</strong><span>{t("landing.cards")}</span></span>
+              <div className={packStyles.packChooserLayout}>
+                <aside className={packStyles.packControls}>
+                  <div className={packStyles.modeChoices}>
+                    <button type="button" aria-pressed={mode === "current"} onClick={() => setMode("current")} className={packStyles.modeChoice}>
+                      <span className={packStyles.modeChoiceIcon}>
+                        {currentSet && raidIconByZone.get(currentSet.zoneId) ? (
+                          <IconImage iconFilename={raidIconByZone.get(currentSet.zoneId)} alt="" width={40} height={40} />
+                        ) : <span className={packStyles.modeChoiceFallback} aria-hidden="true">C</span>}
+                      </span>
+                      <span className={packStyles.modeChoiceCopy}>
+                        <small>{t("open.currentTier")}</small>
+                        <strong>{currentSet?.raidName ?? t("landing.preparing")}</strong>
+                      </span>
+                      <span className={packStyles.modeChoiceMark} aria-hidden="true" />
+                    </button>
+                    <button type="button" aria-pressed={mode === "legacy"} onClick={() => setMode("legacy")} className={packStyles.modeChoice}>
+                      <span className={packStyles.modeChoiceIcon}><ArchiveIcon /></span>
+                      <span className={packStyles.modeChoiceCopy}>
+                        <small>{t("mode.legacy")}</small>
+                        <strong>{t("open.legacyRaids", { count: legacySets.length })}</strong>
+                      </span>
+                      <span className={packStyles.modeChoiceMark} aria-hidden="true" />
+                    </button>
+                  </div>
+
+                  <div className={packStyles.legacyTarget} data-disabled={mode === "current"}>
+                    <div className={packStyles.raidList} role="listbox" aria-label={t("open.chooseLegacy")} aria-disabled={mode === "current"}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={legacySetId === RANDOM_LEGACY_SET}
+                        disabled={mode === "current"}
+                        className={packStyles.raidOption}
+                        onClick={() => setLegacySetId(RANDOM_LEGACY_SET)}
+                      >
+                        <span className={packStyles.raidOptionIcon}><ArchiveIcon /></span>
+                        <span className={packStyles.raidOptionCopy}>
+                          <small>{t("open.randomLegacyEyebrow")}</small>
+                          <strong>{t("open.randomLegacy")}</strong>
+                        </span>
+                        <span className={packStyles.raidOptionCheck} aria-hidden="true">✓</span>
+                      </button>
+                      {legacySets.map((set) => (
+                        <button
+                          key={set.id}
+                          type="button"
+                          role="option"
+                          aria-selected={legacySetId === set.id}
+                          disabled={mode === "current"}
+                          className={packStyles.raidOption}
+                          onClick={() => setLegacySetId(set.id)}
+                        >
+                          <span className={packStyles.raidOptionIcon}>
+                            {raidIconByZone.get(set.zoneId) ? <IconImage iconFilename={raidIconByZone.get(set.zoneId)} alt="" width={34} height={34} /> : <ArchiveIcon />}
+                          </span>
+                          <span className={packStyles.raidOptionCopy}>
+                            <small>{set.expansionName}</small>
+                            <strong>{set.raidName}</strong>
+                          </span>
+                          <span className={packStyles.raidOptionCheck} aria-hidden="true">✓</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </aside>
+
+                <div className={packStyles.packPresentation}>
+                  <span className={packStyles.packMode}>
+                    {mode === "legacy"
+                      ? selectedLegacySet ? `${t("mode.legacy")} · ${selectedLegacySet.expansionName}` : t("open.legacyPackLabel")
+                      : `${t("open.currentTier")} · ${featuredPackSet?.expansionName ?? "SuomiWoW"}`}
                   </span>
-                </button>
-                <span className={packStyles.packHint}>{mutation.isPending ? t("open.openingHint") : t("open.packHint")}</span>
+                  <button
+                    type="button"
+                    className={`${packStyles.packButton} ${mutation.isPending ? packStyles.packButtonOpening : ""}`}
+                    disabled={!canOpen}
+                    onClick={openPack}
+                    onPointerDown={startPackDrag}
+                    onPointerMove={updatePackLight}
+                    onPointerUp={finishPackDrag}
+                    onPointerCancel={cancelPackDrag}
+                    onPointerLeave={(event) => {
+                      if (packDragRef.current.pointerId === -1) resetPackMotion(event.currentTarget);
+                    }}
+                    onBlur={(event) => resetPackMotion(event.currentTarget)}
+                    aria-label={t("open.openPack")}
+                    aria-busy={mutation.isPending}
+                  >
+                    <span className={packStyles.packShadow} />
+                    <span className={packStyles.booster}>
+                      <span className={packStyles.wrapperArt} />
+                      <span className={packStyles.wrapperShade} />
+                      <span className={packStyles.wrapperFoil} />
+                      <span className={`${packStyles.crimp} ${packStyles.crimpTop}`} />
+                      <span className={`${packStyles.crimp} ${packStyles.crimpBottom}`} />
+                      <span className={packStyles.packBrand}>SuomiWoW <strong>CCG</strong></span>
+                      <span className={packStyles.packTitle}>{modeSets.length > 0 ? poolTitle : t("landing.preparing")}</span>
+                      <span className={packStyles.packSigil} aria-hidden="true"><span /></span>
+                      <span className={packStyles.packCount}><strong>5</strong><span>{t("landing.cards")}</span></span>
+                    </span>
+                  </button>
+                  <span className={packStyles.packHint}>{mutation.isPending ? t("open.openingHint") : t("open.packHint")}</span>
+                </div>
+
+                <aside className={packStyles.packBalancePanel}>
+                  {session ? <PackBalance session={session} mode={mode} /> : <div className={packStyles.balancePlaceholder} />}
+                  {noPacks ? <p className="mt-4 text-sm text-amber-200">{t("open.noPacks")}</p> : null}
+                  {recoveryQuery.isError ? (
+                    <div className="mt-4 rounded-md border border-amber-300/20 bg-amber-300/[0.05] p-3" role="alert">
+                      <p className="text-sm leading-5 text-amber-100">{t("open.recoveryFailed")}</p>
+                      <button type="button" className={`${styles.secondaryButton} mt-3 w-full`} onClick={clearSavedOpening}>
+                        {t("open.dismissRecovery")}
+                      </button>
+                    </div>
+                  ) : null}
+                  {mutation.error ? <p className="mt-4 text-sm text-red-300" role="alert">{mutation.error.message}</p> : null}
+                </aside>
               </div>
             </section>
           </div>
