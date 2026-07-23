@@ -160,8 +160,7 @@
   inset: 0;
   display: block;
   overflow: hidden;
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--pack-accent) 46%, #0c1834), #0a1022 48%, color-mix(in srgb, var(--pack-accent) 28%, #130d28));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--pack-accent) 46%, #0c1834), #0a1022 48%, color-mix(in srgb, var(--pack-accent) 28%, #130d28));
   box-shadow:
     0 8px 8px rgba(0, 0, 0, 0.55),
     0 0 24px var(--pack-glow),
@@ -169,7 +168,62 @@
     inset 0 0 0 5px rgba(1, 5, 14, 0.62),
     inset 10px 0 20px rgba(255, 255, 255, 0.05),
     inset -12px 0 18px rgba(0, 0, 0, 0.38);
-  clip-path: polygon(0 4%, 3% 2%, 6% 0, 10% 2%, 14% 0, 18% 2%, 22% 0, 26% 2%, 30% 0, 34% 2%, 38% 0, 42% 2%, 46% 0, 50% 2%, 54% 0, 58% 2%, 62% 0, 66% 2%, 70% 0, 74% 2%, 78% 0, 82% 2%, 86% 0, 90% 2%, 94% 0, 97% 2%, 100% 4%, 100% 96%, 97% 98%, 94% 100%, 90% 98%, 86% 100%, 82% 98%, 78% 100%, 74% 98%, 70% 100%, 66% 98%, 62% 100%, 58% 98%, 54% 100%, 50% 98%, 46% 100%, 42% 98%, 38% 100%, 34% 98%, 30% 100%, 26% 98%, 22% 100%, 18% 98%, 14% 100%, 10% 98%, 6% 100%, 3% 98%, 0 96%);
+  clip-path: polygon(
+    0 4%,
+    3% 2%,
+    6% 0,
+    10% 2%,
+    14% 0,
+    18% 2%,
+    22% 0,
+    26% 2%,
+    30% 0,
+    34% 2%,
+    38% 0,
+    42% 2%,
+    46% 0,
+    50% 2%,
+    54% 0,
+    58% 2%,
+    62% 0,
+    66% 2%,
+    70% 0,
+    74% 2%,
+    78% 0,
+    82% 2%,
+    86% 0,
+    90% 2%,
+    94% 0,
+    97% 2%,
+    100% 4%,
+    100% 96%,
+    97% 98%,
+    94% 100%,
+    90% 98%,
+    86% 100%,
+    82% 98%,
+    78% 100%,
+    74% 98%,
+    70% 100%,
+    66% 98%,
+    62% 100%,
+    58% 98%,
+    54% 100%,
+    50% 98%,
+    46% 100%,
+    42% 98%,
+    38% 100%,
+    34% 98%,
+    30% 100%,
+    26% 98%,
+    22% 100%,
+    18% 98%,
+    14% 100%,
+    10% 98%,
+    6% 100%,
+    3% 98%,
+    0 96%
+  );
   transform: translate3d(var(--pack-drag-x), calc(var(--pack-drag-y) + var(--pack-lift)), 0) rotateX(var(--pack-tilt-x)) rotateY(var(--pack-tilt-y)) scale(var(--pack-scale));
   transform-style: preserve-3d;
   transition-property: transform, filter;
@@ -190,8 +244,13 @@
   pointer-events: none;
 }
 
-.booster::before { left: 0.6%; }
-.booster::after { right: 0.6%; transform: scaleX(-1); }
+.booster::before {
+  left: 0.6%;
+}
+.booster::after {
+  right: 0.6%;
+  transform: scaleX(-1);
+}
 
 .packButton:hover:not(:disabled) .booster {
   --pack-lift: -8px;
@@ -253,7 +312,10 @@
     radial-gradient(circle at var(--pack-shine-x) var(--pack-shine-y), rgba(255, 255, 255, 0.52) 0, rgba(132, 234, 255, 0.18) 11%, transparent 27%),
     linear-gradient(112deg, transparent 0 35%, rgba(255, 255, 255, 0.24) 44%, rgba(100, 228, 255, 0.1) 51%, transparent 60%),
     linear-gradient(90deg, rgba(255, 255, 255, 0.12), transparent 10% 90%, rgba(255, 255, 255, 0.08));
-  background-size: 100% 100%, 220% 100%, 100% 100%;
+  background-size:
+    100% 100%,
+    220% 100%,
+    100% 100%;
   mix-blend-mode: screen;
   opacity: 0.54;
   transition-property: background-position, opacity;
@@ -262,7 +324,10 @@
 }
 
 .packButton:hover:not(:disabled) .wrapperFoil {
-  background-position: 0 0, 100% 0, 0 0;
+  background-position:
+    0 0,
+    100% 0,
+    0 0;
   opacity: 0.96;
 }
 
@@ -272,8 +337,14 @@
   right: 2%;
   left: 2%;
   height: 8.2%;
-  background:
-    linear-gradient(180deg, rgba(231, 245, 255, 0.28), rgba(3, 9, 21, 0.7) 28%, color-mix(in srgb, var(--pack-accent) 38%, #14233e) 53%, rgba(2, 7, 17, 0.82) 76%, rgba(224, 243, 255, 0.2));
+  background: linear-gradient(
+    180deg,
+    rgba(231, 245, 255, 0.28),
+    rgba(3, 9, 21, 0.7) 28%,
+    color-mix(in srgb, var(--pack-accent) 38%, #14233e) 53%,
+    rgba(2, 7, 17, 0.82) 76%,
+    rgba(224, 243, 255, 0.2)
+  );
   box-shadow:
     inset 0 1px rgba(255, 255, 255, 0.36),
     inset 0 4px rgba(255, 255, 255, 0.06),
@@ -286,18 +357,78 @@
   position: absolute;
   inset: 23% 2%;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 24% 72%, rgba(0, 0, 0, 0.34));
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.15), inset 0 -1px rgba(0, 0, 0, 0.5);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.15),
+    inset 0 -1px rgba(0, 0, 0, 0.5);
   content: "";
 }
 
 .crimpTop {
   top: 1.2%;
-  clip-path: polygon(0 12%, 4% 0, 8% 12%, 12% 0, 16% 12%, 20% 0, 24% 12%, 28% 0, 32% 12%, 36% 0, 40% 12%, 44% 0, 48% 12%, 52% 0, 56% 12%, 60% 0, 64% 12%, 68% 0, 72% 12%, 76% 0, 80% 12%, 84% 0, 88% 12%, 92% 0, 96% 12%, 100% 0, 100% 100%, 0 100%);
+  clip-path: polygon(
+    0 12%,
+    4% 0,
+    8% 12%,
+    12% 0,
+    16% 12%,
+    20% 0,
+    24% 12%,
+    28% 0,
+    32% 12%,
+    36% 0,
+    40% 12%,
+    44% 0,
+    48% 12%,
+    52% 0,
+    56% 12%,
+    60% 0,
+    64% 12%,
+    68% 0,
+    72% 12%,
+    76% 0,
+    80% 12%,
+    84% 0,
+    88% 12%,
+    92% 0,
+    96% 12%,
+    100% 0,
+    100% 100%,
+    0 100%
+  );
 }
 
 .crimpBottom {
   bottom: 1.2%;
-  clip-path: polygon(0 0, 100% 0, 100% 88%, 96% 100%, 92% 88%, 88% 100%, 84% 88%, 80% 100%, 76% 88%, 72% 100%, 68% 88%, 64% 100%, 60% 88%, 56% 100%, 52% 88%, 48% 100%, 44% 88%, 40% 100%, 36% 88%, 32% 100%, 28% 88%, 24% 100%, 20% 88%, 16% 100%, 12% 88%, 8% 100%, 4% 88%, 0 100%);
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% 88%,
+    96% 100%,
+    92% 88%,
+    88% 100%,
+    84% 88%,
+    80% 100%,
+    76% 88%,
+    72% 100%,
+    68% 88%,
+    64% 100%,
+    60% 88%,
+    56% 100%,
+    52% 88%,
+    48% 100%,
+    44% 88%,
+    40% 100%,
+    36% 88%,
+    32% 100%,
+    28% 88%,
+    24% 100%,
+    20% 88%,
+    16% 100%,
+    12% 88%,
+    8% 100%,
+    4% 88%,
+    0 100%
+  );
 }
 
 .packBrand,
@@ -442,7 +573,9 @@
     linear-gradient(180deg, rgba(0, 3, 10, 0.52), transparent 26% 62%, rgba(0, 3, 10, 0.84)),
     var(--pack-art) center / auto 100% no-repeat,
     color-mix(in srgb, var(--pack-accent) 34%, #08132a);
-  box-shadow: inset 0 0 0 2px rgba(216, 242, 255, 0.24), 0 0 25px var(--pack-glow);
+  box-shadow:
+    inset 0 0 0 2px rgba(216, 242, 255, 0.24),
+    0 0 25px var(--pack-glow);
 }
 
 .tornHalf span {
@@ -453,18 +586,81 @@
   aspect-ratio: 1;
   border-radius: 50%;
   background: color-mix(in srgb, var(--pack-accent) 38%, #061020);
-  box-shadow: inset 0 0 0 2px rgba(225, 246, 255, 0.42), inset 0 0 0 9px rgba(0, 4, 12, 0.72), 0 0 22px var(--pack-glow);
+  box-shadow:
+    inset 0 0 0 2px rgba(225, 246, 255, 0.42),
+    inset 0 0 0 9px rgba(0, 4, 12, 0.72),
+    0 0 22px var(--pack-glow);
   transform: translate(-50%, -50%);
 }
 
 .tornHalfLeft {
-  clip-path: polygon(2% 0, 54% 0, 48% 12%, 55% 22%, 47% 33%, 55% 44%, 46% 54%, 54% 65%, 47% 76%, 54% 88%, 48% 100%, 2% 100%, 0 97%, 2% 92%, 0 86%, 2% 80%, 0 74%, 2% 68%, 0 62%, 2% 56%, 0 50%, 2% 44%, 0 38%, 2% 32%, 0 26%, 2% 20%, 0 14%, 2% 8%, 0 3%);
+  clip-path: polygon(
+    2% 0,
+    54% 0,
+    48% 12%,
+    55% 22%,
+    47% 33%,
+    55% 44%,
+    46% 54%,
+    54% 65%,
+    47% 76%,
+    54% 88%,
+    48% 100%,
+    2% 100%,
+    0 97%,
+    2% 92%,
+    0 86%,
+    2% 80%,
+    0 74%,
+    2% 68%,
+    0 62%,
+    2% 56%,
+    0 50%,
+    2% 44%,
+    0 38%,
+    2% 32%,
+    0 26%,
+    2% 20%,
+    0 14%,
+    2% 8%,
+    0 3%
+  );
   animation: tearLeft 640ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   transform-origin: right center;
 }
 
 .tornHalfRight {
-  clip-path: polygon(46% 0, 98% 0, 100% 3%, 98% 8%, 100% 14%, 98% 20%, 100% 26%, 98% 32%, 100% 38%, 98% 44%, 100% 50%, 98% 56%, 100% 62%, 98% 68%, 100% 74%, 98% 80%, 100% 86%, 98% 92%, 100% 97%, 98% 100%, 46% 100%, 52% 88%, 45% 76%, 53% 65%, 46% 54%, 55% 44%, 47% 33%, 55% 22%, 48% 12%);
+  clip-path: polygon(
+    46% 0,
+    98% 0,
+    100% 3%,
+    98% 8%,
+    100% 14%,
+    98% 20%,
+    100% 26%,
+    98% 32%,
+    100% 38%,
+    98% 44%,
+    100% 50%,
+    98% 56%,
+    100% 62%,
+    98% 68%,
+    100% 74%,
+    98% 80%,
+    100% 86%,
+    98% 92%,
+    100% 97%,
+    98% 100%,
+    46% 100%,
+    52% 88%,
+    45% 76%,
+    53% 65%,
+    46% 54%,
+    55% 44%,
+    47% 33%,
+    55% 22%,
+    48% 12%
+  );
   animation: tearRight 640ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   transform-origin: left center;
 }
@@ -478,7 +674,9 @@
   aspect-ratio: 1;
   border-radius: 50%;
   background: white;
-  box-shadow: 0 0 34px 14px var(--pack-glow), 0 0 80px 24px color-mix(in srgb, var(--pack-accent) 42%, transparent);
+  box-shadow:
+    0 0 34px 14px var(--pack-glow),
+    0 0 80px 24px color-mix(in srgb, var(--pack-accent) 42%, transparent);
   animation: tearFlash 580ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transform: translate(-50%, -50%) scale(0.08);
 }
@@ -491,7 +689,22 @@
   width: 82%;
   aspect-ratio: 1;
   border-radius: 50%;
-  background: conic-gradient(from 8deg, transparent 0 5%, color-mix(in srgb, var(--pack-accent) 72%, white) 5.5% 6%, transparent 6.5% 17%, rgba(255, 255, 255, 0.7) 17.5% 18%, transparent 18.5% 31%, color-mix(in srgb, var(--pack-accent) 68%, white) 31.5% 32%, transparent 32.5% 51%, rgba(255, 255, 255, 0.64) 51.5% 52%, transparent 52.5% 72%, color-mix(in srgb, var(--pack-accent) 72%, white) 72.5% 73%, transparent 73.5% 88%, rgba(255, 255, 255, 0.62) 88.5% 89%, transparent 89.5%);
+  background: conic-gradient(
+    from 8deg,
+    transparent 0 5%,
+    color-mix(in srgb, var(--pack-accent) 72%, white) 5.5% 6%,
+    transparent 6.5% 17%,
+    rgba(255, 255, 255, 0.7) 17.5% 18%,
+    transparent 18.5% 31%,
+    color-mix(in srgb, var(--pack-accent) 68%, white) 31.5% 32%,
+    transparent 32.5% 51%,
+    rgba(255, 255, 255, 0.64) 51.5% 52%,
+    transparent 52.5% 72%,
+    color-mix(in srgb, var(--pack-accent) 72%, white) 72.5% 73%,
+    transparent 73.5% 88%,
+    rgba(255, 255, 255, 0.62) 88.5% 89%,
+    transparent 89.5%
+  );
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.25) rotate(-12deg);
   animation: tearBurst 620ms 80ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -537,9 +750,15 @@
   opacity: 0;
 }
 
-.tearShardOne { animation: shardOne 820ms 190ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.tearShardTwo { animation: shardTwo 820ms 210ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.tearShardThree { animation: shardThree 820ms 230ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.tearShardOne {
+  animation: shardOne 820ms 190ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.tearShardTwo {
+  animation: shardTwo 820ms 210ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.tearShardThree {
+  animation: shardThree 820ms 230ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
 
 .revealContent {
   position: relative;
@@ -638,13 +857,27 @@
   transition-timing-function: ease-out, cubic-bezier(0.16, 1, 0.3, 1), ease-out;
 }
 
-.revealSlot[data-grade="F"] { --sealed-rarity: #7f8998; }
-.revealSlot[data-grade="E"] { --sealed-rarity: #edf2f9; }
-.revealSlot[data-grade="D"] { --sealed-rarity: #43dc78; }
-.revealSlot[data-grade="C"] { --sealed-rarity: #4aa8ff; }
-.revealSlot[data-grade="B"] { --sealed-rarity: #a970ff; }
-.revealSlot[data-grade="A"] { --sealed-rarity: #ff7a28; }
-.revealSlot[data-grade="S"] { --sealed-rarity: #dda0ff; }
+.revealSlot[data-grade="F"] {
+  --sealed-rarity: #7f8998;
+}
+.revealSlot[data-grade="E"] {
+  --sealed-rarity: #edf2f9;
+}
+.revealSlot[data-grade="D"] {
+  --sealed-rarity: #43dc78;
+}
+.revealSlot[data-grade="C"] {
+  --sealed-rarity: #4aa8ff;
+}
+.revealSlot[data-grade="B"] {
+  --sealed-rarity: #a970ff;
+}
+.revealSlot[data-grade="A"] {
+  --sealed-rarity: #ff7a28;
+}
+.revealSlot[data-grade="S"] {
+  --sealed-rarity: #dda0ff;
+}
 
 .revealSlot[data-finish="foil"] {
   --sealed-finish:
@@ -655,8 +888,7 @@
 
 .revealSlot[data-finish="golden"] {
   --sealed-finish:
-    radial-gradient(ellipse at 28% 22%, rgba(255, 247, 211, 0.5), transparent 25%),
-    radial-gradient(ellipse at 74% 76%, rgba(188, 112, 18, 0.34), transparent 34%),
+    radial-gradient(ellipse at 28% 22%, rgba(255, 247, 211, 0.5), transparent 25%), radial-gradient(ellipse at 74% 76%, rgba(188, 112, 18, 0.34), transparent 34%),
     linear-gradient(122deg, transparent 9%, rgba(108, 58, 5, 0.28) 27%, rgba(255, 207, 88, 0.48) 43%, rgba(255, 249, 218, 0.62) 50%, rgba(211, 132, 23, 0.4) 59%, transparent 81%);
   --sealed-finish-size: 150% 150%;
   --sealed-finish-opacity: 0.36;
@@ -665,7 +897,18 @@
 .revealSlot[data-finish="prismatic"] {
   --sealed-finish:
     radial-gradient(ellipse at 68% 30%, rgba(255, 255, 255, 0.34), transparent 24%),
-    linear-gradient(116deg, transparent 2%, rgba(255, 76, 129, 0.46), rgba(255, 183, 77, 0.36), rgba(244, 255, 112, 0.32), rgba(88, 238, 168, 0.36), rgba(89, 217, 255, 0.44), rgba(141, 136, 255, 0.46), rgba(234, 120, 255, 0.42), transparent 98%);
+    linear-gradient(
+      116deg,
+      transparent 2%,
+      rgba(255, 76, 129, 0.46),
+      rgba(255, 183, 77, 0.36),
+      rgba(244, 255, 112, 0.32),
+      rgba(88, 238, 168, 0.36),
+      rgba(89, 217, 255, 0.44),
+      rgba(141, 136, 255, 0.46),
+      rgba(234, 120, 255, 0.42),
+      transparent 98%
+    );
   --sealed-finish-size: 190% 190%;
   --sealed-finish-opacity: 0.34;
 }
@@ -675,7 +918,15 @@
     radial-gradient(circle at 21% 29%, rgba(255, 255, 255, 0.72) 0 0.8px, transparent 1.5px),
     radial-gradient(circle at 74% 67%, rgba(187, 244, 255, 0.68) 0 1px, transparent 1.7px),
     conic-gradient(from 214deg at 28% 36%, transparent 0 12%, rgba(101, 239, 255, 0.48) 18%, transparent 27% 61%, rgba(255, 105, 218, 0.42) 69%, transparent 78%),
-    conic-gradient(from 32deg at 73% 64%, transparent 0 14%, rgba(255, 255, 255, 0.48) 21%, rgba(151, 122, 255, 0.4) 28%, transparent 37% 72%, rgba(92, 230, 255, 0.42) 81%, transparent 91%);
+    conic-gradient(
+      from 32deg at 73% 64%,
+      transparent 0 14%,
+      rgba(255, 255, 255, 0.48) 21%,
+      rgba(151, 122, 255, 0.4) 28%,
+      transparent 37% 72%,
+      rgba(92, 230, 255, 0.42) 81%,
+      transparent 91%
+    );
   --sealed-finish-size: 100% 100%, 100% 100%, 145% 145%, 155% 155%;
   --sealed-finish-opacity: 0.38;
 }
@@ -737,7 +988,12 @@
 .sealedAura::before {
   inset: 0.82rem;
   border-radius: clamp(0.68rem, 4.4cqw, 1.08rem);
-  background: radial-gradient(ellipse at center, transparent 55%, color-mix(in srgb, var(--sealed-rarity) 20%, transparent) 78%, color-mix(in srgb, var(--sealed-rarity) 58%, transparent));
+  background: radial-gradient(
+    ellipse at center,
+    transparent 55%,
+    color-mix(in srgb, var(--sealed-rarity) 20%, transparent) 78%,
+    color-mix(in srgb, var(--sealed-rarity) 58%, transparent)
+  );
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--sealed-rarity) 84%, white 8%),
     0 0 13px 4px color-mix(in srgb, var(--sealed-rarity) 78%, transparent),
@@ -794,27 +1050,45 @@
   overflow: hidden;
   border-radius: clamp(0.68rem, 4.4cqw, 1.08rem);
   background:
-    linear-gradient(132deg, rgba(255, 255, 255, 0.38), transparent 12% 44%, color-mix(in srgb, var(--pack-accent) 22%, transparent) 58%, transparent 79%, rgba(255, 255, 255, 0.22)),
-    linear-gradient(145deg, color-mix(in srgb, var(--pack-accent) 18%, #aab5c3), #151c27 16%, #586576 31%, #070b12 49%, color-mix(in srgb, var(--pack-accent) 22%, #788493) 69%, #121925 85%, #697687);
+    linear-gradient(
+      132deg,
+      rgba(255, 255, 255, 0.38),
+      transparent 12% 44%,
+      color-mix(in srgb, var(--pack-accent) 22%, transparent) 58%,
+      transparent 79%,
+      rgba(255, 255, 255, 0.22)
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--pack-accent) 18%, #aab5c3),
+      #151c27 16%,
+      #586576 31%,
+      #070b12 49%,
+      color-mix(in srgb, var(--pack-accent) 22%, #788493) 69%,
+      #121925 85%,
+      #697687
+    );
   box-shadow:
     0 7px 8px rgba(0, 0, 0, 0.54),
     0 0 14px color-mix(in srgb, var(--pack-glow) 64%, transparent),
     inset 0 0 0 1px rgba(255, 255, 255, 0.24);
-  padding: 0.5rem;
+  padding: 0.42rem;
   transform: rotateY(0deg) translateZ(1px);
 }
 
 .cardBack::after {
   position: absolute;
-  inset: 0.5rem;
+  inset: 0.42rem;
   border-radius: 0.65rem;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pack-accent) 42%, rgba(255, 255, 255, 0.12)), inset 0 0 22px rgba(0, 0, 0, 0.54);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--pack-accent) 42%, rgba(255, 255, 255, 0.12)),
+    inset 0 0 22px rgba(0, 0, 0, 0.54);
   content: "";
 }
 
 .cardBackField {
   position: absolute;
-  inset: 0.5rem;
+  inset: 0.42rem;
   overflow: hidden;
   border-radius: 0.65rem;
   background:
@@ -930,8 +1204,13 @@
 }
 
 .revealSlotSpecial.revealSlotRevealed .revealFlare {
-  background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.88) 0 4%, color-mix(in srgb, var(--pack-accent) 66%, #ffe49a) 15%, color-mix(in srgb, var(--pack-accent) 34%, transparent) 38%, transparent 69%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.88) 0 4%,
+    color-mix(in srgb, var(--pack-accent) 66%, #ffe49a) 15%,
+    color-mix(in srgb, var(--pack-accent) 34%, transparent) 38%,
+    transparent 69%
+  );
   filter: blur(6px);
   animation-duration: 1150ms;
 }
@@ -1028,58 +1307,133 @@
 }
 
 @keyframes tearLeft {
-  0% { opacity: 1; transform: translateX(0) rotateY(0) rotateZ(0) scale(1); }
-  24% { transform: translateX(-2%) rotateY(-7deg) rotateZ(-1deg) scale(1.03); }
-  100% { opacity: 0; transform: translateX(-88%) translateY(10%) rotateY(-32deg) rotateZ(-14deg) scale(0.82); }
+  0% {
+    opacity: 1;
+    transform: translateX(0) rotateY(0) rotateZ(0) scale(1);
+  }
+  24% {
+    transform: translateX(-2%) rotateY(-7deg) rotateZ(-1deg) scale(1.03);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-88%) translateY(10%) rotateY(-32deg) rotateZ(-14deg) scale(0.82);
+  }
 }
 
 @keyframes tearRight {
-  0% { opacity: 1; transform: translateX(0) rotateY(0) rotateZ(0) scale(1); }
-  24% { transform: translateX(2%) rotateY(7deg) rotateZ(1deg) scale(1.03); }
-  100% { opacity: 0; transform: translateX(88%) translateY(10%) rotateY(32deg) rotateZ(14deg) scale(0.82); }
+  0% {
+    opacity: 1;
+    transform: translateX(0) rotateY(0) rotateZ(0) scale(1);
+  }
+  24% {
+    transform: translateX(2%) rotateY(7deg) rotateZ(1deg) scale(1.03);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(88%) translateY(10%) rotateY(32deg) rotateZ(14deg) scale(0.82);
+  }
 }
 
 @keyframes tearFlash {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.08); }
-  28% { opacity: 0; }
-  46% { opacity: 1; transform: translate(-50%, -50%) scale(0.45); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(2.4); }
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.08);
+  }
+  28% {
+    opacity: 0;
+  }
+  46% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.45);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.4);
+  }
 }
 
 @keyframes tearBurst {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.25) rotate(-12deg); }
-  28% { opacity: 0.72; }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.48) rotate(18deg); }
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.25) rotate(-12deg);
+  }
+  28% {
+    opacity: 0.72;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.48) rotate(18deg);
+  }
 }
 
 @keyframes tearParticle {
-  0% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.2) rotate(var(--particle-rotate)); }
-  20% { opacity: 0.95; }
-  100% { opacity: 0; transform: translate(calc(-50% + var(--particle-x)), calc(-50% + var(--particle-y))) scaleX(1) rotate(var(--particle-rotate)); }
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scaleX(0.2) rotate(var(--particle-rotate));
+  }
+  20% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--particle-x)), calc(-50% + var(--particle-y))) scaleX(1) rotate(var(--particle-rotate));
+  }
 }
 
 @keyframes shardOne {
-  0% { opacity: 0; transform: translate(0, 0) rotate(0); }
-  30% { opacity: 1; }
-  100% { opacity: 0; transform: translate(-8rem, -5rem) rotate(-38deg); }
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-8rem, -5rem) rotate(-38deg);
+  }
 }
 
 @keyframes shardTwo {
-  0% { opacity: 0; transform: translate(0, 0) rotate(0); }
-  30% { opacity: 1; }
-  100% { opacity: 0; transform: translate(7rem, -6rem) rotate(42deg); }
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(7rem, -6rem) rotate(42deg);
+  }
 }
 
 @keyframes shardThree {
-  0% { opacity: 0; transform: translate(0, 0) rotate(0); }
-  30% { opacity: 1; }
-  100% { opacity: 0; transform: translate(6rem, 5rem) rotate(21deg); }
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(6rem, 5rem) rotate(21deg);
+  }
 }
 
 @keyframes revealFlare {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.25); }
-  34% { opacity: 0.82; }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.42); }
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.25);
+  }
+  34% {
+    opacity: 0.82;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.42);
+  }
 }
 
 @media (max-width: 1150px) {
