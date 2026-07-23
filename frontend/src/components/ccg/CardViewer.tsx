@@ -170,20 +170,22 @@ export default function CardViewer({
   }, [originElement, setOriginTransform, sharedTransition]);
 
   useLayoutEffect(() => {
-    if (sharedTransition) return;
-    setOriginTransform();
     const source = sourceCardElement(originElement);
     const hiddenOrigin = source?.closest<HTMLElement>("button") ?? source;
     const originVisibility = hiddenOrigin?.style.visibility ?? "";
     if (hiddenOrigin?.isConnected) {
       hiddenOrigin.style.visibility = "hidden";
     }
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setPhase("open");
-    } else {
-      enterFrameRef.current = window.requestAnimationFrame(() => {
-        enterFrameRef.current = window.requestAnimationFrame(() => setPhase("open"));
-      });
+
+    if (!sharedTransition) {
+      setOriginTransform();
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        setPhase("open");
+      } else {
+        enterFrameRef.current = window.requestAnimationFrame(() => {
+          enterFrameRef.current = window.requestAnimationFrame(() => setPhase("open"));
+        });
+      }
     }
 
     return () => {
