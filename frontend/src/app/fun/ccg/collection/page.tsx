@@ -162,41 +162,48 @@ export default function CcgCollectionPage() {
               ))}
             </div>
 
-            {view === "guild" ? (
-              <>
-                <label className={styles.collectionSelect}>
-                  <span>{t("collection.guild")}</span>
-                  <select value={guildId} onChange={(event) => updateFilter(() => setGuildId(event.target.value))} disabled={guildsQuery.isLoading}>
-                    <option value="">{t("collection.allGuilds")}</option>
-                    {guilds.map((guild) => (
-                      <option key={guild.id} value={guild.id}>
-                        {t("collection.guildOption", { name: guild.name, realm: guild.realm, collected: guild.collectedCards, total: guild.cardCount })}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className={styles.collectionSegment} role="group" aria-label={t("collection.cardVisibility")}>
-                  <button type="button" aria-pressed={!includeMissing} onClick={() => updateFilter(() => setIncludeMissing(false))}>
-                    {t("collection.collectedOnly")}
-                  </button>
-                  <button type="button" aria-pressed={includeMissing} onClick={() => updateFilter(() => setIncludeMissing(true))}>
-                    {t("collection.showMissing")}
-                  </button>
-                </div>
-              </>
-            ) : null}
+            <label className={`${styles.collectionSelect} ${styles.collectionGuildSelect}`}>
+              <select
+                aria-label={t("collection.guild")}
+                value={guildId}
+                onChange={(event) => updateFilter(() => setGuildId(event.target.value))}
+                disabled={view !== "guild" || guildsQuery.isLoading}
+              >
+                <option value="">{t("collection.allGuilds")}</option>
+                {guilds.map((guild) => (
+                  <option key={guild.id} value={guild.id}>{guild.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <div className={styles.collectionSegment} role="group" aria-label={t("collection.cardVisibility")}>
+              <button
+                type="button"
+                aria-pressed={!includeMissing}
+                disabled={view !== "guild"}
+                onClick={() => updateFilter(() => setIncludeMissing(false))}
+              >
+                {t("collection.collectedOnly")}
+              </button>
+              <button
+                type="button"
+                aria-pressed={includeMissing}
+                disabled={view !== "guild"}
+                onClick={() => updateFilter(() => setIncludeMissing(true))}
+              >
+                {t("collection.showMissing")}
+              </button>
+            </div>
 
             <label className={styles.collectionSelect}>
-              <span>{t("collection.rarity")}</span>
-              <select value={grade} onChange={(event) => updateFilter(() => setGrade(event.target.value))}>
+              <select aria-label={t("collection.rarity")} value={grade} onChange={(event) => updateFilter(() => setGrade(event.target.value))}>
                 <option value="">{t("collection.allRarities")}</option>
                 {rarities.map((item) => <option key={item.grade} value={item.grade}>{t(`rarity.${item.label}`)}</option>)}
               </select>
             </label>
 
             <label className={styles.collectionSelect}>
-              <span>{t("collection.quality")}</span>
-              <select value={finish} onChange={(event) => updateFilter(() => setFinish(event.target.value as CcgFinish | ""))}>
+              <select aria-label={t("collection.quality")} value={finish} onChange={(event) => updateFilter(() => setFinish(event.target.value as CcgFinish | ""))}>
                 <option value="">{t("collection.allQualities")}</option>
                 {finishes.map((item) => <option key={item} value={item}>{t(`finish.${item}`)}</option>)}
               </select>
