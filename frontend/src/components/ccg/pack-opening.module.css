@@ -1222,28 +1222,23 @@
   --sealed-finish-y: 50%;
   --sealed-tilt-x: 0deg;
   --sealed-tilt-y: 0deg;
-  --reveal-color: #4aa8ff;
-  --reveal-color-secondary: #b7e4ff;
+  --reveal-color: #9d9d9d;
+  --reveal-color-secondary: #d7d7d7;
   --rarity-ring-opacity: 0;
   --rarity-ray-opacity: 0;
   --rarity-mote-opacity: 0;
-  --rarity-ring-scale: 1.3;
-  --rarity-reveal-duration: 650ms;
-  --rarity-ring-two: 0;
-  --rarity-ring-three: 0;
-  --rarity-ring-four: 0;
-  --rarity-ring-width: 1px;
-  --rarity-ring-glow: 7px;
-  --finish-ring-opacity: 0;
+  --rarity-ring-scale: 1.2;
+  --rarity-reveal-duration: 520ms;
+  --rarity-ring-width: 0.8px;
+  --rarity-ring-glow: 4px;
+  --quality-ring-one: 0;
+  --quality-ring-two: 0;
+  --quality-ring-three: 0;
+  --quality-ring-four: 0;
+  --quality-ring-five: 0;
+  --quality-ring-six: 0;
   --finish-ray-opacity: 0;
   --finish-mote-opacity: 0;
-  --finish-ring-scale: 1.3;
-  --finish-reveal-duration: 650ms;
-  --finish-ring-two: 0;
-  --finish-ring-three: 0;
-  --finish-ring-four: 0;
-  --finish-ring-width: 1px;
-  --finish-ring-glow: 7px;
   position: relative;
   isolation: isolate;
   display: block;
@@ -1262,19 +1257,35 @@
 
 .revealSlot[data-grade="F"] {
   --sealed-rarity: #9d9d9d;
+  --reveal-color: #9d9d9d;
+  --reveal-color-secondary: #d7d7d7;
 }
 .revealSlot[data-grade="E"] {
   --sealed-rarity: #edf2f9;
+  --reveal-color: #edf2f9;
+  --reveal-color-secondary: #ffffff;
+  --rarity-ring-scale: 1.25;
+  --rarity-reveal-duration: 580ms;
+  --rarity-ring-width: 0.95px;
+  --rarity-ring-glow: 5px;
 }
 .revealSlot[data-grade="D"] {
   --sealed-rarity: #43dc78;
+  --reveal-color: #43dc78;
+  --reveal-color-secondary: #adf5c5;
+  --rarity-ring-opacity: 0.64;
+  --rarity-ring-scale: 1.3;
+  --rarity-reveal-duration: 640ms;
+  --rarity-ring-width: 1.1px;
+  --rarity-ring-glow: 7px;
 }
 .revealSlot[data-grade="C"] {
   --sealed-rarity: #4aa8ff;
   --reveal-color: #4aa8ff;
   --reveal-color-secondary: #b7e4ff;
   --rarity-ring-opacity: 0.72;
-  --rarity-reveal-duration: 650ms;
+  --rarity-ring-scale: 1.36;
+  --rarity-reveal-duration: 720ms;
   --rarity-ring-width: 1.25px;
   --rarity-ring-glow: 8px;
 }
@@ -1286,7 +1297,6 @@
   --rarity-ray-opacity: 0.2;
   --rarity-ring-scale: 1.42;
   --rarity-reveal-duration: 850ms;
-  --rarity-ring-two: 0.72;
   --rarity-ring-width: 1.6px;
   --rarity-ring-glow: 11px;
 }
@@ -1299,8 +1309,6 @@
   --rarity-mote-opacity: 0.82;
   --rarity-ring-scale: 1.58;
   --rarity-reveal-duration: 1100ms;
-  --rarity-ring-two: 0.86;
-  --rarity-ring-three: 0.68;
   --rarity-ring-width: 2.2px;
   --rarity-ring-glow: 16px;
 }
@@ -1313,9 +1321,6 @@
   --rarity-mote-opacity: 1;
   --rarity-ring-scale: 1.72;
   --rarity-reveal-duration: 1350ms;
-  --rarity-ring-two: 0.92;
-  --rarity-ring-three: 0.8;
-  --rarity-ring-four: 0.64;
   --rarity-ring-width: 2.8px;
   --rarity-ring-glow: 22px;
 }
@@ -1323,10 +1328,8 @@
 .revealSlot[data-finish="foil"] {
   --reveal-color: #b7d8e8;
   --reveal-color-secondary: #ffffff;
-  --finish-ring-opacity: 0.62;
-  --finish-reveal-duration: 700ms;
-  --finish-ring-width: 1.35px;
-  --finish-ring-glow: 9px;
+  --quality-ring-one: 0.62;
+  --quality-ring-two: 0.52;
   --sealed-finish:
     radial-gradient(circle at 72% 24%, rgba(255, 255, 255, 0.42), transparent 21%),
     linear-gradient(118deg, transparent 22%, rgba(145, 169, 188, 0.3) 40%, rgba(255, 255, 255, 0.55) 49%, rgba(191, 234, 255, 0.34) 56%, transparent 78%);
@@ -1336,13 +1339,11 @@
 .revealSlot[data-finish="golden"] {
   --reveal-color: #e6a72e;
   --reveal-color-secondary: #fff0a6;
-  --finish-ring-opacity: 0.86;
   --finish-ray-opacity: 0.34;
   --finish-mote-opacity: 0.52;
-  --finish-reveal-duration: 900ms;
-  --finish-ring-two: 0.58;
-  --finish-ring-width: 2.1px;
-  --finish-ring-glow: 15px;
+  --quality-ring-one: 0.86;
+  --quality-ring-two: 0.72;
+  --quality-ring-three: 0.5;
   --sealed-finish:
     radial-gradient(ellipse at 28% 22%, rgba(255, 247, 211, 0.5), transparent 25%), radial-gradient(ellipse at 74% 76%, rgba(188, 112, 18, 0.34), transparent 34%),
     linear-gradient(122deg, transparent 9%, rgba(108, 58, 5, 0.28) 27%, rgba(255, 207, 88, 0.48) 43%, rgba(255, 249, 218, 0.62) 50%, rgba(211, 132, 23, 0.4) 59%, transparent 81%);
@@ -1353,14 +1354,12 @@
 .revealSlot[data-finish="prismatic"] {
   --reveal-color: #66e6ff;
   --reveal-color-secondary: #ff87eb;
-  --finish-ring-opacity: 1;
   --finish-ray-opacity: 0.42;
   --finish-mote-opacity: 0.72;
-  --finish-reveal-duration: 1050ms;
-  --finish-ring-two: 0.76;
-  --finish-ring-three: 0.58;
-  --finish-ring-width: 2.4px;
-  --finish-ring-glow: 18px;
+  --quality-ring-one: 1;
+  --quality-ring-two: 0.8;
+  --quality-ring-three: 0.66;
+  --quality-ring-four: 0.5;
   --sealed-finish:
     radial-gradient(ellipse at 68% 30%, rgba(255, 255, 255, 0.34), transparent 24%),
     linear-gradient(
@@ -1382,16 +1381,13 @@
 .revealSlot[data-finish="holographic"] {
   --reveal-color: #77f5ff;
   --reveal-color-secondary: #d39bff;
-  --finish-ring-opacity: 1;
   --finish-ray-opacity: 0.5;
   --finish-mote-opacity: 0.9;
-  --finish-ring-scale: 1.65;
-  --finish-reveal-duration: 1200ms;
-  --finish-ring-two: 0.88;
-  --finish-ring-three: 0.74;
-  --finish-ring-four: 0.56;
-  --finish-ring-width: 2.8px;
-  --finish-ring-glow: 23px;
+  --quality-ring-one: 1;
+  --quality-ring-two: 0.88;
+  --quality-ring-three: 0.74;
+  --quality-ring-four: 0.62;
+  --quality-ring-five: 0.48;
   --sealed-finish:
     radial-gradient(circle at 21% 29%, rgba(255, 255, 255, 0.72) 0 0.8px, transparent 1.5px),
     radial-gradient(circle at 74% 67%, rgba(187, 244, 255, 0.68) 0 1px, transparent 1.7px),
@@ -1412,16 +1408,14 @@
 .revealSlot[data-finish="negative"] {
   --reveal-color: #f7f4ff;
   --reveal-color-secondary: #796c91;
-  --finish-ring-opacity: 1;
   --finish-ray-opacity: 0.66;
   --finish-mote-opacity: 0.76;
-  --finish-ring-scale: 1.82;
-  --finish-reveal-duration: 1300ms;
-  --finish-ring-two: 0.92;
-  --finish-ring-three: 0.8;
-  --finish-ring-four: 0.68;
-  --finish-ring-width: 3.2px;
-  --finish-ring-glow: 27px;
+  --quality-ring-one: 1;
+  --quality-ring-two: 0.94;
+  --quality-ring-three: 0.84;
+  --quality-ring-four: 0.74;
+  --quality-ring-five: 0.62;
+  --quality-ring-six: 0.5;
   --sealed-finish:
     radial-gradient(circle at 66% 32%, rgba(255, 255, 255, 0.42), transparent 22%),
     linear-gradient(118deg, rgba(7, 8, 13, 0.82), rgba(247, 244, 255, 0.5), rgba(66, 57, 87, 0.64), rgba(255, 255, 255, 0.48), rgba(8, 9, 15, 0.82));
@@ -1759,34 +1753,44 @@
 .revealRings i {
   position: absolute;
   inset: 0;
-  border: max(var(--rarity-ring-width), var(--finish-ring-width)) solid color-mix(in srgb, var(--reveal-color-secondary) 82%, transparent);
+  border: var(--rarity-ring-width) solid color-mix(in srgb, var(--reveal-color-secondary) 82%, transparent);
   border-radius: inherit;
   box-shadow:
-    0 0 max(var(--rarity-ring-glow), var(--finish-ring-glow)) color-mix(in srgb, var(--reveal-color) 88%, transparent),
-    0 0 calc(max(var(--rarity-ring-glow), var(--finish-ring-glow)) * 1.8) color-mix(in srgb, var(--reveal-color) 42%, transparent),
+    0 0 var(--rarity-ring-glow) color-mix(in srgb, var(--reveal-color) 88%, transparent),
+    0 0 calc(var(--rarity-ring-glow) * 1.8) color-mix(in srgb, var(--reveal-color) 42%, transparent),
     inset 0 0 10px color-mix(in srgb, var(--reveal-color-secondary) 68%, transparent);
   opacity: 0;
 }
 
 .revealRings i:first-child {
-  --ring-opacity: max(var(--rarity-ring-opacity), var(--finish-ring-opacity));
+  --ring-opacity: max(var(--rarity-ring-opacity), var(--quality-ring-one));
   --ring-delay: 0ms;
-  border-width: calc(max(var(--rarity-ring-width), var(--finish-ring-width)) + 0.6px);
+  border-width: calc(var(--rarity-ring-width) + 0.6px);
 }
 
 .revealRings i:nth-child(2) {
-  --ring-opacity: max(var(--rarity-ring-two), var(--finish-ring-two));
-  --ring-delay: 75ms;
+  --ring-opacity: var(--quality-ring-two);
+  --ring-delay: 70ms;
 }
 
 .revealRings i:nth-child(3) {
-  --ring-opacity: max(var(--rarity-ring-three), var(--finish-ring-three));
-  --ring-delay: 150ms;
+  --ring-opacity: var(--quality-ring-three);
+  --ring-delay: 140ms;
 }
 
 .revealRings i:nth-child(4) {
-  --ring-opacity: max(var(--rarity-ring-four), var(--finish-ring-four));
-  --ring-delay: 225ms;
+  --ring-opacity: var(--quality-ring-four);
+  --ring-delay: 210ms;
+}
+
+.revealRings i:nth-child(5) {
+  --ring-opacity: var(--quality-ring-five);
+  --ring-delay: 280ms;
+}
+
+.revealRings i:nth-child(6) {
+  --ring-opacity: var(--quality-ring-six);
+  --ring-delay: 350ms;
 }
 
 .revealRays {
@@ -1817,21 +1821,9 @@
   filter: drop-shadow(0 0 4px var(--reveal-color));
 }
 
-.revealSlotRevealed:is(
-    [data-grade="C"],
-    [data-grade="B"],
-    [data-grade="A"],
-    [data-grade="S"],
-    [data-finish="foil"],
-    [data-finish="golden"],
-    [data-finish="prismatic"],
-    [data-finish="holographic"],
-    [data-finish="negative"]
-  )
-  .revealRings
-  i {
+.revealSlotRevealed .revealRings i {
   animation-name: revealRingWave;
-  animation-duration: max(var(--rarity-reveal-duration), var(--finish-reveal-duration));
+  animation-duration: var(--rarity-reveal-duration);
   animation-delay: calc(300ms + var(--ring-delay));
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   animation-fill-mode: forwards;
@@ -2163,7 +2155,7 @@
   }
   100% {
     opacity: 0;
-    transform: scale(max(var(--rarity-ring-scale), var(--finish-ring-scale)));
+    transform: scale(var(--rarity-ring-scale));
   }
 }
 

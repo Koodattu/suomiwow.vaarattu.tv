@@ -710,6 +710,8 @@ export default function CcgOpenPage() {
                             <i />
                             <i />
                             <i />
+                            <i />
+                            <i />
                           </span>
                           <span className={packStyles.revealMotes} />
                         </span>
