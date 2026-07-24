@@ -690,6 +690,28 @@
   white-space: nowrap;
 }
 
+.balanceCard:not(.balanceCardStrip) .balanceLine {
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.balanceCard:not(.balanceCardStrip) .balanceRecharge {
+  order: -1;
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.balanceCard:not(.balanceCardStrip) .balanceCount {
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.balanceCard:not(.balanceCardStrip) .balanceCount strong {
+  font-size: 1.45rem;
+}
+
 .cardButton {
   --tilt-x: 0deg;
   --tilt-y: 0deg;
