@@ -818,7 +818,7 @@
         "quality": "Quality",
         "rarity": "Rarity",
         "size": "Preview size",
-        "raidArtOffset": "Raid art vertical offset",
+        "raidArtOffset": "Raid art horizontal offset",
         "showGuides": "Show protected area",
         "hideCornerIcons": "Hide corner icons",
         "hideBadges": "Hide frame labels",

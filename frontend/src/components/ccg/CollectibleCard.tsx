@@ -98,7 +98,7 @@ type CollectibleCardProps = {
   guides?: boolean;
   hideCornerIcons?: boolean;
   hideBadges?: boolean;
-  raidArtOffsetY?: number;
+  raidArtOffsetX?: number;
   forcedPointer?: { x: number; y: number };
   viewTransitionName?: string;
   onReady?: () => void;
@@ -115,7 +115,7 @@ export default function CollectibleCard({
   guides = false,
   hideCornerIcons = false,
   hideBadges = false,
-  raidArtOffsetY,
+  raidArtOffsetX,
   forcedPointer,
   viewTransitionName,
   onReady,
@@ -156,8 +156,8 @@ export default function CollectibleCard({
     "--lab-glow": card.set.theme.glow,
     "--class-color": classColors[classInfo.name] ?? "#ffffff",
     "--lab-art": `url("${card.set.backgroundPath}")`,
-    "--crop-x": `${card.backgroundCrop.x}%`,
-    "--crop-y": `${raidArtOffsetY ?? card.backgroundCrop.y}%`,
+    "--crop-x": `${raidArtOffsetX ?? card.backgroundCrop.x}%`,
+    "--crop-y": `${card.backgroundCrop.y}%`,
     "--crop-scale": card.backgroundCrop.scale,
     "--card-width": compact ? "100%" : `${width ?? 400}px`,
     "--tilt-x": "0deg",

@@ -818,7 +818,7 @@
         "quality": "Laatu",
         "rarity": "Harvinaisuus",
         "size": "Esikatselun koko",
-        "raidArtOffset": "Raidikuvan pystysiirtymä",
+        "raidArtOffset": "Raidikuvan vaakasiirtymä",
         "showGuides": "Näytä suojattu alue",
         "hideCornerIcons": "Piilota kulmakuvakkeet",
         "hideBadges": "Piilota kehyksen tekstit",

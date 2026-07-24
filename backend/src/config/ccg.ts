@@ -34,7 +34,7 @@ export const CCG_COMMUNITY_SET = {
   mark: "SW",
   accent: "#58D9E8",
   glow: "rgba(88, 217, 232, 0.36)",
-  crop: { x: 50, y: 50, scale: 1.08, xJitter: 5, yJitter: 4 },
+  crop: { x: 50, y: 50, scale: 1.08, xJitter: 5, yJitter: 10 },
 };
 
 function positiveInteger(value: string | undefined, fallback: number): number {
@@ -130,7 +130,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "ULD",
     accent: "#4FA8FF",
     glow: "rgba(79, 168, 255, 0.34)",
-    crop: crop(50, 50, 1.1, 5, 4),
+    crop: crop(50, 50, 1.1, 5, 10),
   },
   {
     zoneId: 21,
@@ -144,7 +144,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "BOD",
     accent: "#40D6D2",
     glow: "rgba(64, 214, 210, 0.32)",
-    crop: crop(48, 49, 1.11, 5, 4),
+    crop: crop(48, 50, 1.11, 5, 10),
   },
   {
     zoneId: 23,
@@ -158,7 +158,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "EP",
     accent: "#72D7FF",
     glow: "rgba(114, 215, 255, 0.32)",
-    crop: crop(50, 51, 1.1, 5, 4),
+    crop: crop(50, 50, 1.1, 5, 10),
   },
   {
     zoneId: 24,
@@ -172,7 +172,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "NYA",
     accent: "#8B7CFF",
     glow: "rgba(139, 124, 255, 0.36)",
-    crop: crop(49, 48, 1.13, 4, 3),
+    crop: crop(49, 50, 1.13, 4, 10),
   },
   {
     zoneId: 26,
@@ -186,7 +186,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "CN",
     accent: "#A47AFF",
     glow: "rgba(164, 122, 255, 0.34)",
-    crop: crop(51, 50, 1.12, 4, 3),
+    crop: crop(51, 50, 1.12, 4, 10),
   },
   {
     zoneId: 28,
@@ -200,7 +200,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "SOD",
     accent: "#6F8FFF",
     glow: "rgba(111, 143, 255, 0.34)",
-    crop: crop(49, 49, 1.12, 4, 3),
+    crop: crop(49, 50, 1.12, 4, 10),
   },
   {
     zoneId: 29,
@@ -214,7 +214,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "SFO",
     accent: "#8C82FF",
     glow: "rgba(140, 130, 255, 0.35)",
-    crop: crop(52, 50, 1.13, 4, 3),
+    crop: crop(52, 50, 1.13, 4, 10),
   },
   {
     zoneId: 31,
@@ -228,7 +228,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "VOTI",
     accent: "#4BC5FF",
     glow: "rgba(75, 197, 255, 0.34)",
-    crop: crop(50, 50, 1.1, 5, 4),
+    crop: crop(50, 50, 1.1, 5, 10),
   },
   {
     zoneId: 33,
@@ -242,7 +242,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "ABR",
     accent: "#747CFF",
     glow: "rgba(116, 124, 255, 0.35)",
-    crop: crop(51, 49, 1.12, 4, 3),
+    crop: crop(51, 50, 1.12, 4, 10),
   },
   {
     zoneId: 35,
@@ -256,7 +256,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "AMI",
     accent: "#53D5D5",
     glow: "rgba(83, 213, 213, 0.32)",
-    crop: crop(49, 50, 1.11, 5, 4),
+    crop: crop(49, 50, 1.11, 5, 10),
   },
   {
     zoneId: 38,
@@ -270,7 +270,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "NER",
     accent: "#7F7DFF",
     glow: "rgba(127, 125, 255, 0.36)",
-    crop: crop(52, 49, 1.13, 4, 3),
+    crop: crop(52, 50, 1.13, 4, 10),
   },
   {
     zoneId: 42,
@@ -284,7 +284,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "LOU",
     accent: "#5AAEFF",
     glow: "rgba(90, 174, 255, 0.34)",
-    crop: crop(48, 50, 1.11, 5, 4),
+    crop: crop(48, 50, 1.11, 5, 10),
   },
   {
     zoneId: 44,
@@ -298,7 +298,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "MFO",
     accent: "#967BFF",
     glow: "rgba(150, 123, 255, 0.36)",
-    crop: crop(51, 50, 1.1, 5, 4),
+    crop: crop(51, 50, 1.1, 5, 10),
   },
   {
     zoneId: 46,
@@ -312,7 +312,7 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     mark: "MQD",
     accent: "#46CFFF",
     glow: "rgba(70, 207, 255, 0.35)",
-    crop: crop(49, 49, 1.1, 5, 4),
+    crop: crop(49, 50, 1.1, 5, 10),
   },
 ] as const;
 
