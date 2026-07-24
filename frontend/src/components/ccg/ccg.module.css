@@ -907,6 +907,14 @@
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.collectionSetRail[data-dragging="true"],
+.collectionSetRail[data-dragging="true"] .collectionSet {
+  cursor: grabbing;
 }
 
 .collectionSetRail::-webkit-scrollbar {

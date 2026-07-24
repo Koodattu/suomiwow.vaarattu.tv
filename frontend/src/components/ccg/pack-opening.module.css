@@ -70,7 +70,7 @@
   display: grid;
   width: min(calc(100% - 3rem), 85rem);
   min-width: 0;
-  grid-template-columns: minmax(14rem, 20rem) minmax(17rem, 21rem) minmax(12rem, 17rem);
+  grid-template-columns: minmax(14rem, 20rem) minmax(17rem, 21rem) minmax(14rem, 20rem);
   align-items: stretch;
   justify-content: center;
   gap: clamp(0.75rem, 2.75vw, 3rem);
@@ -249,7 +249,7 @@
 
 .legacyTarget {
   display: flex;
-  height: min(24rem, max(12rem, calc(100dvh - 20rem)));
+  height: min(20rem, max(12rem, calc(100dvh - 23rem)));
   min-height: 0;
   flex: 0 1 auto;
   margin-top: 0.75rem;

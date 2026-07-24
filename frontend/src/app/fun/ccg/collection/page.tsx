@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { CSSProperties, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent } from "react";
+import type {
+  CSSProperties,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+  WheelEvent as ReactWheelEvent,
+} from "react";
 import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 import { bestOwnedFinish } from "@/lib/ccg";
 import { useCcgCatalog, useCcgCollection, useCcgSession, useCcgSetGuilds, useCcgSets } from "@/lib/queries";
@@ -89,6 +94,11 @@ export default function CcgCollectionPage() {
   const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
   const [viewerSharedTransition, setViewerSharedTransition] = useState(false);
   const setRailRef = useRef<HTMLDivElement>(null);
+  const setRailTargetRef = useRef(0);
+  const setRailAnimationRef = useRef<number | null>(null);
+  const setRailDragRef = useRef({ pointerId: -1, startX: 0, startScrollLeft: 0, moved: false });
+  const suppressSetClickRef = useRef(false);
+  const [draggingSetRail, setDraggingSetRail] = useState(false);
   const [canScrollSetsBack, setCanScrollSetsBack] = useState(false);
   const [canScrollSetsForward, setCanScrollSetsForward] = useState(false);
   const selectedSet = sets.find((set) => set.slug === setSlug);
@@ -137,6 +147,7 @@ export default function CcgCollectionPage() {
   const updateSetRailControls = useCallback(() => {
     const rail = setRailRef.current;
     if (!rail) return;
+    if (setRailAnimationRef.current === null) setRailTargetRef.current = rail.scrollLeft;
     const remaining = rail.scrollWidth - rail.clientWidth;
     setCanScrollSetsBack(rail.scrollLeft > 2);
     setCanScrollSetsForward(remaining - rail.scrollLeft > 2);
@@ -150,14 +161,38 @@ export default function CcgCollectionPage() {
     updateSetRailControls();
     rail.addEventListener("scroll", updateSetRailControls, { passive: true });
     return () => {
+      if (setRailAnimationRef.current !== null) {
+        cancelAnimationFrame(setRailAnimationRef.current);
+        setRailAnimationRef.current = null;
+      }
       resizeObserver.disconnect();
       rail.removeEventListener("scroll", updateSetRailControls);
     };
   }, [sets, updateSetRailControls]);
 
+  const animateSetRail = useCallback(() => {
+    const rail = setRailRef.current;
+    if (!rail) {
+      setRailAnimationRef.current = null;
+      return;
+    }
+    const distance = setRailTargetRef.current - rail.scrollLeft;
+    if (Math.abs(distance) < 0.5) {
+      rail.scrollLeft = setRailTargetRef.current;
+      setRailAnimationRef.current = null;
+      return;
+    }
+    rail.scrollLeft += distance * 0.22;
+    setRailAnimationRef.current = requestAnimationFrame(animateSetRail);
+  }, []);
+
   const scrollSetRail = (direction: -1 | 1) => {
     const rail = setRailRef.current;
     if (!rail) return;
+    if (setRailAnimationRef.current !== null) {
+      cancelAnimationFrame(setRailAnimationRef.current);
+      setRailAnimationRef.current = null;
+    }
     rail.scrollBy({
       left: direction * Math.max(176, rail.clientWidth * 0.72),
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
@@ -168,10 +203,59 @@ export default function CcgCollectionPage() {
     const rail = setRailRef.current;
     if (!rail || rail.scrollWidth <= rail.clientWidth) return;
     const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-    const canMove = delta < 0 ? rail.scrollLeft > 0 : rail.scrollLeft + rail.clientWidth < rail.scrollWidth;
-    if (!canMove) return;
+    const maximum = rail.scrollWidth - rail.clientWidth;
+    const target = Math.max(0, Math.min(maximum, setRailTargetRef.current + delta * 0.85));
+    if (target === setRailTargetRef.current) return;
     event.preventDefault();
-    rail.scrollLeft += delta;
+    setRailTargetRef.current = target;
+    if (setRailAnimationRef.current === null) {
+      setRailAnimationRef.current = requestAnimationFrame(animateSetRail);
+    }
+  };
+
+  const startSetRailDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const rail = setRailRef.current;
+    if (!rail || rail.scrollWidth <= rail.clientWidth) return;
+    if (setRailAnimationRef.current !== null) {
+      cancelAnimationFrame(setRailAnimationRef.current);
+      setRailAnimationRef.current = null;
+    }
+    setRailDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startScrollLeft: rail.scrollLeft,
+      moved: false,
+    };
+  };
+
+  const moveSetRailDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const rail = setRailRef.current;
+    const drag = setRailDragRef.current;
+    if (!rail || drag.pointerId !== event.pointerId) return;
+    const delta = event.clientX - drag.startX;
+    if (!drag.moved && Math.abs(delta) < 4) return;
+    if (!drag.moved) rail.setPointerCapture(event.pointerId);
+    drag.moved = true;
+    setDraggingSetRail(true);
+    rail.scrollLeft = drag.startScrollLeft - delta;
+    setRailTargetRef.current = rail.scrollLeft;
+    event.preventDefault();
+  };
+
+  const finishSetRailDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const rail = setRailRef.current;
+    const drag = setRailDragRef.current;
+    if (!rail || drag.pointerId !== event.pointerId) return;
+    if (rail.hasPointerCapture(event.pointerId)) rail.releasePointerCapture(event.pointerId);
+    if (drag.moved) {
+      suppressSetClickRef.current = true;
+      window.setTimeout(() => {
+        suppressSetClickRef.current = false;
+      }, 0);
+    }
+    setRailDragRef.current = { pointerId: -1, startX: 0, startScrollLeft: 0, moved: false };
+    setDraggingSetRail(false);
   };
 
   const updateFilter = (callback: () => void) => {
@@ -230,9 +314,19 @@ export default function CcgCollectionPage() {
             <div
               ref={setRailRef}
               className={styles.collectionSetRail}
+              data-dragging={draggingSetRail || undefined}
               role="group"
               aria-label={t("collection.sets")}
               onWheel={wheelSetRail}
+              onPointerDown={startSetRailDrag}
+              onPointerMove={moveSetRailDrag}
+              onPointerUp={finishSetRailDrag}
+              onPointerCancel={finishSetRailDrag}
+              onClickCapture={(event) => {
+                if (!suppressSetClickRef.current) return;
+                event.preventDefault();
+                event.stopPropagation();
+              }}
             >
               {sets.map((set) => (
                 <button
