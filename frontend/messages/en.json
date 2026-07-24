@@ -95,7 +95,6 @@
     "rechargeTime": "{hours} h {minutes} min",
     "guest": {
       "login": "Log in",
-      "packNotice": "Log in to add this pack to your collection.",
       "keepPack": "Log in and keep this pack"
     },
     "landing": {

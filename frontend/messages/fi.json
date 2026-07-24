@@ -95,7 +95,6 @@
     "rechargeTime": "{hours} t {minutes} min",
     "guest": {
       "login": "Kirjaudu",
-      "packNotice": "Kirjaudu lisätäksesi tämän pakan kokoelmaasi.",
       "keepPack": "Kirjaudu ja pidä tämä pakka"
     },
     "landing": {

@@ -734,28 +734,39 @@ export default function CcgOpenPage() {
                   </div>
                 ) : (
                   <div className={packStyles.nextPackActions}>
-                    {hasAnotherPack ? (
-                      <button type="button" className={styles.primaryButton} onClick={openAnotherPack} disabled={mutation.isPending || isPackCycling}>
-                        {mutation.isPending || isPackCycling ? t("open.opening") : t("open.openAnother")}
-                      </button>
-                    ) : null}
-                    <button type="button" className={styles.secondaryButton} onClick={clearSavedOpening} disabled={mutation.isPending || isPackCycling}>
-                      {t("open.chooseDifferent")}
-                    </button>
+                    {session?.ownerType === "guest" ? (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.primaryButton}
+                          onClick={() => login(`${window.location.pathname}${window.location.search}${window.location.hash}`, { ccgOpeningId: opening.id })}
+                        >
+                          {t("guest.keepPack")}
+                        </button>
+                        {hasAnotherPack ? (
+                          <button type="button" className={styles.secondaryButton} onClick={openAnotherPack} disabled={mutation.isPending || isPackCycling}>
+                            {mutation.isPending || isPackCycling ? t("open.opening") : t("open.openAnother")}
+                          </button>
+                        ) : (
+                          <button type="button" className={styles.secondaryButton} onClick={clearSavedOpening} disabled={mutation.isPending || isPackCycling}>
+                            {t("open.chooseDifferent")}
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {hasAnotherPack ? (
+                          <button type="button" className={styles.primaryButton} onClick={openAnotherPack} disabled={mutation.isPending || isPackCycling}>
+                            {mutation.isPending || isPackCycling ? t("open.opening") : t("open.openAnother")}
+                          </button>
+                        ) : null}
+                        <button type="button" className={styles.secondaryButton} onClick={clearSavedOpening} disabled={mutation.isPending || isPackCycling}>
+                          {t("open.chooseDifferent")}
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
-                {allRevealed && session?.ownerType === "guest" ? (
-                  <div className={packStyles.guestPackClaim}>
-                    <span>{t("guest.packNotice")}</span>
-                    <button
-                      type="button"
-                      className={styles.primaryButton}
-                      onClick={() => login(`${window.location.pathname}${window.location.search}${window.location.hash}`, { ccgOpeningId: opening.id })}
-                    >
-                      {t("guest.keepPack")}
-                    </button>
-                  </div>
-                ) : null}
               </div>
               {allRevealed && mutation.error ? (
                 <p className={packStyles.packActionError} role="alert">
