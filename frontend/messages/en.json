@@ -87,6 +87,8 @@
       "legacy": "Legacy"
     },
     "packsRemaining": "packs remaining",
+    "communityCard": "Community",
+    "cardType": "Card type",
     "bonus": "bonus",
     "duplicateMeter": "Duplicate meter",
     "rechargeMeter": "Recharge",
@@ -779,7 +781,7 @@
       "enabling": "Preparing and enabling…",
       "enableWarning": "This publishes the current snapshot and permanently adds {raid} to CCG packs. It cannot be disabled afterward.",
       "forceEnable": "Force enable",
-      "forceEnableWarning": "This bypasses CCG coverage requirements, publishes every usable historical character for {raid}, and permanently adds the raid to CCG packs.",
+      "forceEnableWarning": "This bypasses pool-size and media-coverage checks for {raid}. Character eligibility is still enforced, and the raid is permanently added to CCG packs.",
       "confirmForceEnable": "Force enable permanently",
       "confirmEnable": "Enable permanently",
       "cancel": "Cancel",
@@ -794,7 +796,32 @@
       "excludedTitle": "Excluded raids",
       "excludedBody": "Raids without a CCG theme and background stay disabled. This includes short or meme raids unless they are deliberately configured later.",
       "excludedEmpty": "No excluded raids were found.",
-      "noCandidates": "No configured CCG raids are waiting for activation."
+      "noCandidates": "No configured CCG raids are waiting for activation.",
+      "community": {
+        "title": "Community set",
+        "description": "Publish a Blizzard character directly into the Community binder. Community cards can appear in both Current and Legacy packs at reduced weight and do not use Warcraft Logs metrics.",
+        "cards": "{count} cards",
+        "name": "Character",
+        "realm": "Realm slug",
+        "region": "Region",
+        "rarity": "Rarity",
+        "add": "Add character",
+        "adding": "Fetching and publishing…",
+        "added": "Added {name}-{realm} to the Community set.",
+        "linked": "Database linked",
+        "blizzardOnly": "Blizzard only",
+        "noGuild": "No guild",
+        "empty": "No Community characters have been published.",
+        "rarityNames": {
+          "S": "Artifact",
+          "A": "Legendary",
+          "B": "Epic",
+          "C": "Rare",
+          "D": "Uncommon",
+          "E": "Common",
+          "F": "Poor"
+        }
+      }
     },
     "overview": {
       "totalUsers": "Total Users",

@@ -255,12 +255,16 @@ export default function CollectibleCard({
       <span className={styles.characterMeta}><span>{formatSpecName(card.specName)}</span><span>{classInfo.name}</span></span>
       {!hideBadges ? <span className={styles.setChip}><span>{card.set.raidName}</span></span> : null}
 
-      <span className={styles.statsPanel}>
-        <span className={styles.stat}><span>{t(card.role === "healer" ? "score.healing" : "score.damage")}</span><strong>{score(card.scores.performance)}</strong></span>
-        <span className={styles.stat}><span>{t("score.mechanics")}</span><strong>{score(card.scores.mechanics)}</strong></span>
-        <span className={styles.stat}><span>{t("score.combined")}</span><strong>{score(card.scores.combined)}</strong></span>
-        <span className={styles.stat}><span>{t("score.mythicPlus")}</span><strong>{score(card.scores.mythicPlus)}</strong></span>
-      </span>
+      {card.set.kind === "community" ? (
+        <span className={`${styles.statsPanel} ${styles.communityStats}`}><strong>{t("communityCard")}</strong></span>
+      ) : (
+        <span className={styles.statsPanel}>
+          <span className={styles.stat}><span>{t(card.role === "healer" ? "score.healing" : "score.damage")}</span><strong>{score(card.scores.performance)}</strong></span>
+          <span className={styles.stat}><span>{t("score.mechanics")}</span><strong>{score(card.scores.mechanics)}</strong></span>
+          <span className={styles.stat}><span>{t("score.combined")}</span><strong>{score(card.scores.combined)}</strong></span>
+          <span className={styles.stat}><span>{t("score.mythicPlus")}</span><strong>{score(card.scores.mythicPlus)}</strong></span>
+        </span>
+      )}
 
       <span className={`${styles.cardBrand} ${styles.cardBrandLeft}`} aria-hidden="true">SUOMIWOW</span>
       <span className={`${styles.cardBrand} ${styles.cardBrandRight}`} aria-hidden="true">{realm}</span>

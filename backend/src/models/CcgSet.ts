@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CcgSetState } from "../config/ccg";
+import { CcgSetKind, CcgSetState } from "../config/ccg";
 
 export interface ICcgSet extends Document {
   slug: string;
@@ -8,6 +8,7 @@ export interface ICcgSet extends Document {
   expansionName: string;
   mythicPlusSeason: string;
   state: CcgSetState;
+  kind: CcgSetKind;
   enabledAt?: Date | null;
   enabledBy?: mongoose.Types.ObjectId | null;
   opensAt?: Date | null;
@@ -37,6 +38,7 @@ const CcgSetSchema = new Schema<ICcgSet>(
     expansionName: { type: String, required: true },
     mythicPlusSeason: { type: String, required: true },
     state: { type: String, enum: ["draft", "current", "legacy", "locked"], required: true, index: true },
+    kind: { type: String, enum: ["raid", "community"], required: true, default: "raid", index: true },
     enabledAt: { type: Date, default: null, index: true },
     enabledBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     opensAt: { type: Date, default: null },

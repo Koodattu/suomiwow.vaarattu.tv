@@ -7,6 +7,7 @@ import CcgPackOpening from "../models/CcgPackOpening";
 import CcgSet from "../models/CcgSet";
 import Raid from "../models/Raid";
 import characterMediaService from "../services/character-media.service";
+import ccgCommunityService, { CcgCommunityError } from "../services/ccg-community.service";
 import ccgPublisherService, { CcgPublisherError } from "../services/ccg-publisher.service";
 import ccgService from "../services/ccg.service";
 import logger from "../utils/logger";
@@ -21,7 +22,9 @@ function adminRoute(handler: (req: Request, res: Response) => Promise<unknown>) 
       if (!res.headersSent) res.json(value);
     } catch (error) {
       logger.error("[Admin/CCG] Request failed:", error);
-      if (error instanceof CcgPublisherError) return res.status(error.status).json({ error: error.message, code: error.code });
+      if (error instanceof CcgPublisherError || error instanceof CcgCommunityError) {
+        return res.status(error.status).json({ error: error.message, code: error.code });
+      }
       res.status(500).json({ error: error instanceof Error ? error.message : "CCG administration request failed" });
     }
   };
@@ -32,12 +35,13 @@ router.get(
   adminRoute(async () => {
     await ccgPublisherService.ensureConfiguredSets();
     const minimumZoneId = Math.min(...CCG_CONFIGURED_SETS.map((set) => set.zoneId));
-    const [sets, knownRaids, media, cards, openings] = await Promise.all([
+    const [sets, knownRaids, media, cards, openings, communityCharacters] = await Promise.all([
       CcgSet.find().sort({ zoneId: 1 }).lean(),
       Raid.find({ id: { $gte: minimumZoneId } }).select("id name slug expansion").sort({ id: 1 }).lean(),
       characterMediaService.getStatus(),
       CcgCard.countDocuments(),
       CcgPackOpening.countDocuments(),
+      ccgCommunityService.list(),
     ]);
     const setByZone = new Map(sets.map((set) => [set.zoneId, set]));
     const configuredZoneIds = new Set(CCG_CONFIGURED_SETS.map((set) => set.zoneId));
@@ -68,6 +72,26 @@ router.get(
         .map((raid) => ({ zoneId: raid.id, raidName: raid.name, slug: raid.slug, expansionName: raid.expansion, availability: "excluded" as const })),
       media,
       totals: { cards, openings },
+      community: { characters: communityCharacters },
+    };
+  }),
+);
+
+router.post(
+  "/community",
+  adminRoute(async (req) => {
+    const userId = (req as Request & { user?: { _id?: mongoose.Types.ObjectId | string } }).user?._id;
+    if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) {
+      throw new CcgCommunityError(401, "admin_identity_missing", "Admin identity is unavailable");
+    }
+    return {
+      character: await ccgCommunityService.create({
+        name: req.body?.name,
+        realmSlug: req.body?.realmSlug,
+        region: req.body?.region,
+        tierGrade: req.body?.tierGrade,
+        createdBy: new mongoose.Types.ObjectId(String(userId)),
+      }),
     };
   }),
 );

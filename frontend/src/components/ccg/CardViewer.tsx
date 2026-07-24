@@ -93,7 +93,9 @@ export default function CardViewer({
   const t = useTranslations("ccg");
   const locale = useLocale();
   const [finish, setFinish] = useState<CcgFinish>(initialFinish);
-  const [variantIndex, setVariantIndex] = useState(0);
+  const variants = card.variants?.length ? card.variants : [{ card, ownership: card.ownership ?? [], totalQuantity: card.totalQuantity ?? 0 }];
+  const clickedVariantIndex = Math.max(0, variants.findIndex((variant) => variant.card.id === card.id));
+  const [variantIndex, setVariantIndex] = useState(clickedVariantIndex);
   const [phase, setPhase] = useState<ViewerPhase>(sharedTransition ? "open" : "entering");
   const viewerRef = useRef<HTMLDivElement>(null);
   const cardMotionRef = useRef<HTMLDivElement>(null);
@@ -101,7 +103,6 @@ export default function CardViewer({
   const enterFrameRef = useRef<number | null>(null);
   const closingRef = useRef(false);
   const onCloseRef = useRef(onClose);
-  const variants = card.variants?.length ? card.variants : [{ card, ownership: card.ownership ?? [], totalQuantity: card.totalQuantity ?? 0 }];
   const selectedVariant = variants[Math.min(variantIndex, variants.length - 1)];
   const displayedCard = selectedVariant.card;
   const ownedFinishes = variantIndex === 0 ? (card.ownership ?? selectedVariant.ownership) : selectedVariant.ownership;
@@ -325,10 +326,16 @@ export default function CardViewer({
           <dl className={styles.viewerFacts}>
             <div><dt>{t("snapshot")}</dt><dd>{new Date(displayedCard.performanceSnapshotAt).toLocaleDateString(locale)}</dd></div>
             <div><dt>{t("collection.rarity")}</dt><dd>{t(`rarity.${CCG_RARITY_KEYS[displayedCard.tierGrade]}`)}</dd></div>
-            <div><dt>{t(displayedCard.role === "healer" ? "score.healing" : "score.damage")}</dt><dd>{score(displayedCard.scores.performance)}</dd></div>
-            <div><dt>{t("score.mechanics")}</dt><dd>{score(displayedCard.scores.mechanics)}</dd></div>
-            <div><dt>{t("score.combined")}</dt><dd>{score(displayedCard.scores.combined)}</dd></div>
-            <div><dt>{t("score.mythicPlus")}</dt><dd>{score(displayedCard.scores.mythicPlus)}</dd></div>
+            {displayedCard.set.kind === "community" ? (
+              <div><dt>{t("cardType")}</dt><dd>{t("communityCard")}</dd></div>
+            ) : (
+              <>
+                <div><dt>{t(displayedCard.role === "healer" ? "score.healing" : "score.damage")}</dt><dd>{score(displayedCard.scores.performance)}</dd></div>
+                <div><dt>{t("score.mechanics")}</dt><dd>{score(displayedCard.scores.mechanics)}</dd></div>
+                <div><dt>{t("score.combined")}</dt><dd>{score(displayedCard.scores.combined)}</dd></div>
+                <div><dt>{t("score.mythicPlus")}</dt><dd>{score(displayedCard.scores.mythicPlus)}</dd></div>
+              </>
+            )}
           </dl>
         </div>
       </div>

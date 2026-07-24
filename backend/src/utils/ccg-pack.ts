@@ -93,3 +93,14 @@ export function planPackSelections(
 
   return Array.from({ length: CCG_CARDS_PER_PACK }, (_, index) => choose(index === CCG_CARDS_PER_PACK - 1));
 }
+
+export function selectCommunityCard<T>(
+  normalCount: number,
+  communityCards: readonly T[],
+  random: (maximum: number) => number = randomInt,
+): T | null {
+  if (normalCount <= 0 || communityCards.length === 0) return null;
+  if (random(normalCount + communityCards.length) < normalCount) return null;
+  if (random(2) !== 0) return null;
+  return communityCards[random(communityCards.length)];
+}

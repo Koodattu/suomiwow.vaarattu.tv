@@ -46,6 +46,16 @@ export interface BlizzardCharacterMedia {
   mainRawUrl: string | null;
 }
 
+export interface BlizzardCharacterProfile {
+  id: number;
+  name: string;
+  realm: { name: string; slug: string };
+  character_class: { id: number; name: string };
+  active_spec: { id: number; name: string };
+  guild?: { name: string; realm?: { name: string; slug: string } };
+  level: number;
+}
+
 interface BlizzardCharacterMediaResponse {
   assets?: Array<{
     key?: string;
@@ -626,6 +636,18 @@ export class BlizzardApiClient {
       insetUrl: assets.get("inset") ?? null,
       mainRawUrl: assets.get("main-raw") ?? assets.get("main") ?? null,
     };
+  }
+
+  public async getCharacterProfile(characterName: string, realmSlug: string, region: string): Promise<BlizzardCharacterProfile> {
+    const regionLower = region.toLowerCase();
+    const apiUrl = this.regionApiUrls[regionLower];
+    if (!apiUrl) throw new Error(`Unsupported Blizzard region: ${region}`);
+
+    const nameSlug = encodeURIComponent(characterName.toLowerCase());
+    const normalizedRealmSlug = encodeURIComponent(realmSlug.toLowerCase());
+    const namespace = `profile-${regionLower}`;
+    const url = `${apiUrl}/profile/wow/character/${normalizedRealmSlug}/${nameSlug}?namespace=${namespace}&locale=${this.locale}`;
+    return this.makeAuthenticatedRequest<BlizzardCharacterProfile>(url, 0, 5);
   }
 
   /**

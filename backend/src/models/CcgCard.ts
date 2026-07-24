@@ -5,6 +5,8 @@ export interface ICcgCard extends Document {
   setId: mongoose.Types.ObjectId;
   setNumber: number;
   characterId: mongoose.Types.ObjectId;
+  collectorKey?: string | null;
+  communityCharacterId?: mongoose.Types.ObjectId | null;
   wclCanonicalCharacterId?: number | null;
   name: string;
   realm: string;
@@ -45,6 +47,8 @@ const CcgCardSchema = new Schema<ICcgCard>(
     setId: { type: Schema.Types.ObjectId, ref: "CcgSet", required: true, index: true },
     setNumber: { type: Number, required: true },
     characterId: { type: Schema.Types.ObjectId, ref: "Character", required: true, index: true },
+    collectorKey: { type: String, default: null, index: true },
+    communityCharacterId: { type: Schema.Types.ObjectId, ref: "CcgCommunityCharacter", default: null, index: true },
     wclCanonicalCharacterId: { type: Number, default: null, index: true },
     name: { type: String, required: true, index: true },
     realm: { type: String, required: true },

@@ -138,6 +138,7 @@ import {
   CcgAdminEnableResponse,
   CcgAdminSetReadiness,
   CcgAdminStatusResponse,
+  CcgAdminCommunityCharacter,
 } from "@/types";
 
 // For client-side: use NEXT_PUBLIC_API_URL (browser requests)
@@ -286,6 +287,22 @@ export const api = {
   async getAdminCcgStatus(): Promise<CcgAdminStatusResponse> {
     const response = await fetch(`${API_URL}/api/admin/ccg/status`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load CCG administration");
+    return response.json();
+  },
+
+  async createAdminCcgCommunityCharacter(input: {
+    name: string;
+    realmSlug: string;
+    region: string;
+    tierGrade: string;
+  }): Promise<{ character: CcgAdminCommunityCharacter }> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/community`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw await buildApiError(response, "Failed to add the Community character");
     return response.json();
   },
 

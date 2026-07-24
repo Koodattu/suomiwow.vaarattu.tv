@@ -1895,6 +1895,7 @@ export type CcgSet = {
   raidName: string;
   expansionName: string;
   state: "draft" | "current" | "legacy" | "locked";
+  kind: "raid" | "community";
   enabledAt: string | null;
   themeKey: string;
   theme: { mark: string; accent: string; glow: string };
@@ -1922,7 +1923,7 @@ export type CcgCard = {
   role: "dps" | "healer" | "tank";
   metric: "dps" | "hps";
   itemLevel: number;
-  scores: { performance: number; mechanics: number; combined: number; mythicPlus: number | null };
+  scores: { performance: number | null; mechanics: number | null; combined: number | null; mythicPlus: number | null };
   tierGrade: CcgTierGrade;
   avatarUrl: string | null;
   renderUrl: string | null;
@@ -2024,6 +2025,25 @@ export type CcgAdminStatusResponse = {
     recentFailures: Array<{ characterId: string; name: string; realm: string; status: string; error: string | null }>;
   };
   totals: { cards: number; openings: number };
+  community: { characters: CcgAdminCommunityCharacter[] };
+};
+
+export type CcgAdminCommunityCharacter = {
+  id: string;
+  cardId: string | null;
+  name: string;
+  realm: string;
+  realmSlug: string;
+  region: string;
+  classID: number;
+  specName: string;
+  role: "dps" | "healer" | "tank";
+  guildName: string | null;
+  guildRealm: string | null;
+  tierGrade: CcgTierGrade;
+  linkedCharacterId: string | null;
+  renderUrl: string;
+  createdAt: string;
 };
 
 export type CcgAdminEnableResponse = {

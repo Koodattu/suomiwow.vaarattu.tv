@@ -52,13 +52,14 @@ export default function CcgLandingPage() {
   const setsQuery = useCcgSets();
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets ?? [];
-  const currentSets = sets.filter((set) => set.state === "current");
+  const currentSets = sets.filter((set) => set.kind === "raid" && set.state === "current");
   const current = currentSets[0];
   const currentCardCount = currentSets.reduce((total, set) => total + set.cardCount, 0);
   const currentOwnedCount = currentSets.reduce((total, set) => total + set.ownedCards, 0);
   const currentProgress = currentCardCount > 0 ? Math.min(100, (currentOwnedCount / currentCardCount) * 100) : 0;
-  const legacy = sets.filter((set) => set.state === "legacy").sort((left, right) => right.zoneId - left.zoneId);
-  const collectionSets = [...currentSets, ...legacy];
+  const legacy = sets.filter((set) => set.kind === "raid" && set.state === "legacy").sort((left, right) => right.zoneId - left.zoneId);
+  const community = sets.filter((set) => set.kind === "community");
+  const collectionSets = [...currentSets, ...community, ...legacy];
   const allCardCount = collectionSets.reduce((total, set) => total + set.cardCount, 0);
   const allOwnedCount = collectionSets.reduce((total, set) => total + set.ownedCards, 0);
   const allProgress = allCardCount > 0 ? Math.min(100, (allOwnedCount / allCardCount) * 100) : 0;

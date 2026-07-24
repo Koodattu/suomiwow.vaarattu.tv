@@ -87,6 +87,8 @@
       "legacy": "Legacy"
     },
     "packsRemaining": "pakkaa jäljellä",
+    "communityCard": "Community",
+    "cardType": "Korttityyppi",
     "bonus": "bonus",
     "duplicateMeter": "Tuplamittari",
     "rechargeMeter": "Lataus",
@@ -779,7 +781,7 @@
       "enabling": "Valmistellaan ja otetaan käyttöön…",
       "enableWarning": "Tämä julkaisee nykyisen snapshotin ja lisää raidin {raid} pysyvästi CCG-pakkoihin. Sitä ei voi poistaa käytöstä myöhemmin.",
       "forceEnable": "Pakota käyttöön",
-      "forceEnableWarning": "Tämä ohittaa CCG-kattavuusvaatimukset, julkaisee kaikki raidin {raid} käyttökelpoiset historialliset hahmot ja lisää raidin pysyvästi CCG-pakkoihin.",
+      "forceEnableWarning": "Tämä ohittaa raidin {raid} korttimäärä- ja mediakattavuustarkistukset. Hahmojen kelpoisuusvaatimukset pysyvät voimassa, ja raid lisätään pysyvästi CCG-pakkoihin.",
       "confirmForceEnable": "Pakota pysyvästi käyttöön",
       "confirmEnable": "Ota pysyvästi käyttöön",
       "cancel": "Peruuta",
@@ -794,7 +796,32 @@
       "excludedTitle": "Pois rajatut raidit",
       "excludedBody": "Raidit, joille ei ole CCG-teemaa ja taustakuvaa, pysyvät poissa käytöstä. Tämä koskee lyhyitä ja meemiraideja, ellei niitä myöhemmin määritetä tarkoituksella.",
       "excludedEmpty": "Pois rajattuja raideja ei löytynyt.",
-      "noCandidates": "Yksikään määritetty CCG-raid ei odota käyttöönottoa."
+      "noCandidates": "Yksikään määritetty CCG-raid ei odota käyttöönottoa.",
+      "community": {
+        "title": "Community-setti",
+        "description": "Julkaise Blizzard-hahmo suoraan Community-kansioon. Community-kortit voivat tulla sekä Current- että Legacy-pakoista pienemmällä painolla, eikä niillä käytetä Warcraft Logs -mittareita.",
+        "cards": "{count} korttia",
+        "name": "Hahmo",
+        "realm": "Realmin tunniste",
+        "region": "Alue",
+        "rarity": "Harvinaisuus",
+        "add": "Lisää hahmo",
+        "adding": "Haetaan ja julkaistaan…",
+        "added": "{name}-{realm} lisättiin Community-settiin.",
+        "linked": "Yhdistetty tietokantaan",
+        "blizzardOnly": "Vain Blizzard",
+        "noGuild": "Ei kiltaa",
+        "empty": "Community-hahmoja ei ole vielä julkaistu.",
+        "rarityNames": {
+          "S": "Artifact",
+          "A": "Legendary",
+          "B": "Epic",
+          "C": "Rare",
+          "D": "Uncommon",
+          "E": "Common",
+          "F": "Poor"
+        }
+      }
     },
     "overview": {
       "totalUsers": "Käyttäjiä yhteensä",

@@ -2,6 +2,7 @@ export type CcgMode = "current" | "legacy";
 export type CcgFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative";
 export type CcgTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";
 export type CcgSetState = "draft" | "current" | "legacy" | "locked";
+export type CcgSetKind = "raid" | "community";
 
 export const CCG_TIME_ZONE = "Europe/Helsinki";
 export const CCG_FEATURE_ENABLED = process.env.CCG_FEATURE_ENABLED !== "false";
@@ -20,6 +21,21 @@ export const CCG_GRADING_VERSION = "grade-v2-rarity-ladder";
 export const CCG_ELIGIBILITY_VERSION = "mythic-reports-v2";
 export const CCG_THEME_VERSION = "vault-v1";
 export const CCG_POOL_VERSION = "pool-v4-a-rank-guarantee";
+export const CCG_COMMUNITY_ZONE_ID = -1;
+export const CCG_COMMUNITY_SET = {
+  zoneId: CCG_COMMUNITY_ZONE_ID,
+  slug: "community",
+  raidName: "Community",
+  expansionName: "SuomiWoW",
+  mythicPlusSeason: "none",
+  state: "legacy" as const,
+  backgroundPath: "/ccg/general_wide.webp",
+  themeKey: "community",
+  mark: "SW",
+  accent: "#58D9E8",
+  glow: "rgba(88, 217, 232, 0.36)",
+  crop: { x: 50, y: 50, scale: 1.08, xJitter: 5, yJitter: 4 },
+};
 
 function positiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);

@@ -19,6 +19,16 @@ Every raid tier is its own set and binder. Legacy storage recharges by one pack 
 
 Guests begin with five packs in each mode. A first-time authenticated CCG player begins with 25 packs in each mode, including existing SuomiWoW accounts that have never played CCG. Guest openings are temporary: after revealing a pack, the guest may explicitly log in to add that one pack to an account that has no prior CCG activity. Logging in never silently imports the rest of a guest session, and an established CCG account cannot import guest pulls.
 
+### Community set
+
+`Community` is a CCG-only set for curated characters that do not meet normal raid eligibility or do not yet exist in the Warcraft Logs character database. It has its own collection binder but no dedicated pack.
+
+- Admins add a character by region, realm slug, name, and rarity. The backend resolves the public profile, active specialization, role, guild, avatar, and full render through Blizzard Profile APIs without fetching Warcraft Logs.
+- If the character already exists locally, the Community record links to it. Otherwise it retains a stable Blizzard identity that can be reconciled when the character later enters the normal raid pipeline.
+- Current, random Legacy, and targeted Legacy packs may all contain Community cards. Rarity is selected by the normal pack rules first. Within that rarity, a Community result must win both its proportional pool roll and a second 50/50 gate; a failed gate keeps the already selected raid card.
+- Community cards are immutable snapshots with no performance metrics. Their card metric panel displays `Community`.
+- A stable `collectorKey` groups Community and normal raid variants of the same character for duplicate detection and collection display. Existing cards without the field fall back to their local character ID.
+
 ## Goals
 
 - Make opening packs and discovering recognizable community characters feel exciting.
@@ -148,6 +158,8 @@ The card does not show a numeric placement such as `#12`.
 - **Mechanics** is the survival/mechanics component. Use `survivalScore`.
 - **Combined** is the existing combined performance-mechanics score. The current implementation weights parse and survival equally.
 - **M+** is `scores.all` from the Raider.IO Mythic+ season explicitly mapped to the raid set.
+- The mapping uses the raid's original progression season: Uldir through Ny'alotha map to BFA seasons 1–4; Castle Nathria, Sanctum, and Sepulcher map to Shadowlands seasons 1–3; Vault, Aberrus, and Amirdrassil map to Dragonflight seasons 1–3; and each later raid maps to its matching expansion season. Remix seasons such as Shadowlands season 4 and Dragonflight season 4 are deliberately excluded because they span multiple raids and are not the original tier snapshot.
+- Snapshot creation joins Mythic+ only on the set's exact configured season. It never falls back to the current season; a missing or zero historical score is displayed as unavailable.
 - **Tier grade** is the snapshotted canonical S–F classification.
 
 Mythic+ is supplementary. A missing Mythic+ score displays `—` and does not block card publication.
@@ -185,7 +197,7 @@ A Current card candidate requires:
 - A valid combined score
 - A successfully fetched Blizzard full character render
 
-Mythic report count is materialized separately from the broader Heroic-or-Mythic participation count. Existing character tier-list eligibility and mechanics data remain the source of truth for the 50-pull threshold and scores rather than adding a second scoring pipeline.
+Mythic report count is materialized separately from the broader Heroic-or-Mythic participation count. Snapshot creation reads the authoritative per-raid participation rows directly, sums report counts across guilds, and requires at least two Mythic reports even when an admin bypasses readiness coverage checks. Existing character tier-list mechanics data remains the source of truth for the 50-pull threshold and scores rather than adding a second scoring pipeline.
 
 The card snapshots the stable guild ID, name, and realm of the guild with which the character recorded the most Mythic reports in that raid tier. Total qualifying reports, then most-recent appearance, provide deterministic tie-breakers. Guild attribution is not rewritten when the character later transfers.
 

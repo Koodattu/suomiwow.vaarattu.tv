@@ -123,9 +123,9 @@ export default function CcgOpenPage() {
   const recoveryQuery = useCcgOpening(recoveryId);
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets;
-  const modeSets = useMemo(() => (sets ?? []).filter((set) => set.state === mode && set.cardCount > 0), [mode, sets]);
-  const currentSets = useMemo(() => (sets ?? []).filter((set) => set.state === "current" && set.cardCount > 0), [sets]);
-  const legacySets = useMemo(() => (sets ?? []).filter((set) => set.state === "legacy" && set.cardCount > 0), [sets]);
+  const modeSets = useMemo(() => (sets ?? []).filter((set) => set.kind === "raid" && set.state === mode && set.cardCount > 0), [mode, sets]);
+  const currentSets = useMemo(() => (sets ?? []).filter((set) => set.kind === "raid" && set.state === "current" && set.cardCount > 0), [sets]);
+  const legacySets = useMemo(() => (sets ?? []).filter((set) => set.kind === "raid" && set.state === "legacy" && set.cardCount > 0), [sets]);
   const currentSet = currentSets[0];
   const selectedLegacySet = legacySets.find((set) => set.id === legacySetId);
   const randomLegacy = mode === "legacy" && !selectedLegacySet;

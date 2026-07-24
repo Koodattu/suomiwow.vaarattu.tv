@@ -7,7 +7,8 @@ import {
   CCG_PACK_STORAGE_CAPS,
 } from "../src/config/ccg";
 import { emptyFinishPity, finishChanceForCounter, gradeForPercentile, nextFinish, resolveCardCrop, rollProtectedFinish } from "../src/utils/ccg-random";
-import { calculateDuplicateProgress, planPackSelections, selectPackCards } from "../src/utils/ccg-pack";
+import { calculateDuplicateProgress, planPackSelections, selectCommunityCard, selectPackCards } from "../src/utils/ccg-pack";
+import { createWowCharacterIdentityKey } from "../src/utils/ccg-identity";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeGrants } from "../src/utils/ccg-recharge";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../src/utils/helsinki-time";
@@ -34,6 +35,31 @@ test("card crops are deterministic and stay inside each raid's safe flair range"
 
 test("Crucible of Storms is excluded from CCG configuration", () => {
   assert.equal(CCG_CONFIGURED_SETS.some((set) => set.zoneId === 22), false);
+});
+
+test("every raid set is pinned to its original Mythic+ season", () => {
+  const expectedSeasons = new Map<number, string>([
+    [19, "season-bfa-1"],
+    [21, "season-bfa-2"],
+    [23, "season-bfa-3"],
+    [24, "season-bfa-4"],
+    [26, "season-sl-1"],
+    [28, "season-sl-2"],
+    [29, "season-sl-3"],
+    [31, "season-df-1"],
+    [33, "season-df-2"],
+    [35, "season-df-3"],
+    [38, "season-tww-1"],
+    [42, "season-tww-2"],
+    [44, "season-tww-3"],
+    [46, "season-mn-1"],
+  ]);
+
+  assert.deepEqual(
+    CCG_CONFIGURED_SETS.map((set) => [set.zoneId, set.mythicPlusSeason]),
+    Array.from(expectedSeasons),
+  );
+  assert.equal(CCG_CONFIGURED_SETS.some((set) => set.mythicPlusSeason === "season-sl-4" || set.mythicPlusSeason === "season-df-4"), false);
 });
 
 test("quality protection follows a quadratic ramp, resets only the awarded finish, and honors duplicate upgrades", () => {
@@ -137,6 +163,23 @@ test("a targeted pack plan stays inside its selected raid pool", () => {
   );
   assert.equal(plan.length, 5);
   assert.equal(plan.every((row) => row.poolId === "pool-a" && row.setId === "raid-a"), true);
+});
+
+test("community cards pass a second 50/50 gate after their pool roll", () => {
+  assert.equal(selectCommunityCard(9, ["community"], () => 0), null);
+
+  const rejectedRolls = [9, 1];
+  assert.equal(selectCommunityCard(9, ["community"], () => rejectedRolls.shift()!), null);
+
+  const acceptedRolls = [9, 0, 0];
+  assert.equal(selectCommunityCard(9, ["community"], () => acceptedRolls.shift()!), "community");
+});
+
+test("community identity matches display and slug forms of a realm", () => {
+  assert.equal(
+    createWowCharacterIdentityKey("EU", "Twisting Nether", "Example"),
+    createWowCharacterIdentityKey("eu", "twisting-nether", "example"),
+  );
 });
 
 test("raid activation readiness fails closed and becomes irreversible after enablement", () => {

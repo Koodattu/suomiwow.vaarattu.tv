@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import mongoose from "mongoose";
-import { CharacterRaidGuildParticipation, selectPrimaryCharacterRaidGuilds } from "../src/services/character-raid-guild.service";
+import {
+  CharacterRaidGuildParticipation,
+  selectPrimaryCharacterRaidGuilds,
+  summarizeCharacterRaidParticipation,
+} from "../src/services/character-raid-guild.service";
 
 const CHARACTER_ID = "507f1f77bcf86cd799439011";
 const OLD_GUILD_ID = new mongoose.Types.ObjectId("507f1f77bcf86cd799439012");
@@ -113,5 +117,19 @@ test("uses total qualifying reports before recency when Mythic counts tie", () =
     id: OLD_GUILD_ID,
     name: "More Reports",
     realm: "Realm A",
+  });
+});
+
+test("sums raid report eligibility across guilds while preserving the primary guild", () => {
+  const summary = summarizeCharacterRaidParticipation(rows, 46).get(CHARACTER_ID);
+
+  assert.deepEqual(summary, {
+    guild: {
+      id: LATEST_GUILD_ID,
+      name: "Latest Guild",
+      realm: "Realm B",
+    },
+    reportCount: 7,
+    mythicReportCount: 3,
   });
 });
