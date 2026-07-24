@@ -70,6 +70,18 @@
       "open": "Avaa pakkoja",
       "collection": "Kokoelma"
     },
+    "settings": {
+      "audioSettings": "Ääniasetukset",
+      "sound": "Äänet",
+      "effects": "Äänitehosteet",
+      "announcer": "Kuuluttaja",
+      "muteAll": "Mykistä kaikki äänet",
+      "unmuteAll": "Ota äänet käyttöön",
+      "enable": "Ota käyttöön: {channel}",
+      "disable": "Poista käytöstä: {channel}",
+      "volume": "Äänenvoimakkuus: {channel}",
+      "switchLanguage": "Vaihda kieleksi {language}"
+    },
     "mode": {
       "current": "Nykyinen",
       "legacy": "Legacy"

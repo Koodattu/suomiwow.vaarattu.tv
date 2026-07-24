@@ -70,6 +70,18 @@
       "open": "Open packs",
       "collection": "Collection"
     },
+    "settings": {
+      "audioSettings": "Audio settings",
+      "sound": "Sound",
+      "effects": "Sound effects",
+      "announcer": "Announcer",
+      "muteAll": "Mute all audio",
+      "unmuteAll": "Enable audio",
+      "enable": "Enable {channel}",
+      "disable": "Disable {channel}",
+      "volume": "{channel} volume",
+      "switchLanguage": "Switch to {language}"
+    },
     "mode": {
       "current": "Current",
       "legacy": "Legacy"

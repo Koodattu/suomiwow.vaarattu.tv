@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { FaArrowLeft } from "react-icons/fa6";
 import { CCG_INSPECT_AUDIO_ID } from "@/lib/ccg-audio";
 import CcgAccountMenu from "./CcgAccountMenu";
+import CcgControls from "./CcgControls";
 import styles from "./ccg.module.css";
 
 export default function CcgShell({ children, context, compact = false, viewportLocked = false }: { children: ReactNode; context?: ReactNode; compact?: boolean; viewportLocked?: boolean }) {
@@ -51,6 +52,7 @@ export default function CcgShell({ children, context, compact = false, viewportL
           </nav>
           <div className={styles.shellContext}>
             {context}
+            <CcgControls />
             <CcgAccountMenu />
           </div>
         </div>

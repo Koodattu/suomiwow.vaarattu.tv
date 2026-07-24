@@ -8,6 +8,7 @@ import type { CcgFinish, CcgMode, CcgOpening } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { CCG_RARITY_KEYS } from "@/lib/ccg";
+import { getCcgPlaybackVolume } from "@/lib/ccg-audio";
 import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
 import { getCharacterRenderProxyUrl } from "@/lib/character-render";
 import { queryKeys, useCcgOpening, useCcgSession, useCcgSets, useRaids } from "@/lib/queries";
@@ -67,9 +68,11 @@ function ArchiveIcon() {
 
 function playPackSound(audio: HTMLAudioElement | null, volume: number, playbackRate = 1): void {
   if (!audio) return;
+  const playbackVolume = getCcgPlaybackVolume("effects", volume);
+  if (playbackVolume <= 0) return;
   audio.pause();
   audio.currentTime = 0;
-  audio.volume = volume;
+  audio.volume = playbackVolume;
   audio.playbackRate = playbackRate;
   void audio.play().catch(() => undefined);
 }
