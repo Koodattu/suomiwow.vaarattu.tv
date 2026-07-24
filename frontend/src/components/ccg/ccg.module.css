@@ -882,21 +882,87 @@
 }
 
 .collectionToolbar {
-  display: flex;
+  display: grid;
   min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: clamp(0.65rem, 1.5vw, 1.25rem);
   border-bottom: 1px solid rgba(144, 178, 236, 0.12);
   padding: 0.55rem clamp(0.75rem, 2vw, 2rem);
 }
 
+.collectionSetRailViewport {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-self: stretch;
+  overflow: hidden;
+}
+
 .collectionSetRail {
   display: flex;
-  min-width: 12rem;
+  min-width: 0;
   flex: 1 1 auto;
   gap: 0.4rem;
   overflow-x: auto;
-  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.collectionSetRail::-webkit-scrollbar {
+  display: none;
+}
+
+.collectionSetRailArrow {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  display: grid;
+  width: 2.5rem;
+  place-items: center;
+  border: 0;
+  color: #bfeeff;
+  cursor: pointer;
+  opacity: 1;
+  transition:
+    color 150ms ease,
+    opacity 150ms ease,
+    transform 120ms ease;
+}
+
+.collectionSetRailArrow[data-direction="previous"] {
+  left: 0;
+  background: linear-gradient(90deg, #080f1d 40%, rgba(8, 15, 29, 0));
+}
+
+.collectionSetRailArrow[data-direction="next"] {
+  right: 0;
+  background: linear-gradient(270deg, #080f1d 40%, rgba(8, 15, 29, 0));
+}
+
+.collectionSetRailArrow svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  filter: drop-shadow(0 0 5px rgba(90, 205, 255, 0.42));
+}
+
+.collectionSetRailArrow:hover:not(:disabled) {
+  color: #fff;
+}
+
+.collectionSetRailArrow:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.collectionSetRailArrow:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.collectionSetRailArrow:focus-visible {
+  outline: 2px solid #7ddcff;
+  outline-offset: -3px;
 }
 
 .collectionSet {
@@ -1810,7 +1876,7 @@
 
   .collectionToolbar {
     align-items: stretch;
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.45rem;
   }
 

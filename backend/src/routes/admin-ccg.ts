@@ -89,7 +89,7 @@ router.post(
     if (!Number.isInteger(zoneId)) throw new CcgPublisherError(400, "invalid_zone", "A valid raid zone ID is required");
     const userId = (req as Request & { user?: { _id?: mongoose.Types.ObjectId | string } }).user?._id;
     if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) throw new CcgPublisherError(401, "admin_identity_missing", "Admin identity is unavailable");
-    return ccgPublisherService.enableSet(zoneId, new mongoose.Types.ObjectId(String(userId)));
+    return ccgPublisherService.enableSet(zoneId, new mongoose.Types.ObjectId(String(userId)), { force: req.body?.force === true });
   }),
 );
 

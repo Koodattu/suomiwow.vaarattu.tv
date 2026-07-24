@@ -150,7 +150,7 @@ class CcgPublisherService {
     this.configuredAt = Date.now();
   }
 
-  async buildSnapshot(zoneId: number): Promise<{
+  async buildSnapshot(zoneId: number, options: { relaxedEligibility?: boolean } = {}): Promise<{
     snapshotKey: string;
     candidates: number;
     ready: number;
@@ -167,13 +167,16 @@ class CcgPublisherService {
       const set = await CcgSet.findOne({ zoneId });
       if (!set) throw new Error(`CCG set ${zoneId} could not be initialized`);
       const snapshotKey = `${set.slug}:${getHelsinkiDateKey()}`;
-      const entries = await CharacterTierListEntry.find({
+      const entryFilter: Record<string, unknown> = {
         scope: "global",
         zoneId,
         pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
-        mythicReportCount: { $gte: MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY },
         survivalScore: { $ne: null },
-      })
+      };
+      if (!options.relaxedEligibility) {
+        entryFilter.mythicReportCount = { $gte: MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY };
+      }
+      const entries = await CharacterTierListEntry.find(entryFilter)
         .sort({ score: -1, parseScore: -1, mythicReportCount: -1, reportCount: -1, wclCanonicalCharacterId: 1, characterKey: 1 })
         .lean();
 
@@ -217,7 +220,7 @@ class CcgPublisherService {
           pulls: entry.pulls,
           deaths: entry.deaths,
           reportCount: entry.reportCount,
-          mythicReportCount: entry.mythicReportCount,
+          mythicReportCount: entry.mythicReportCount ?? 0,
           totalKills: entry.totalKills,
           performanceSnapshotAt: now,
           sourcePartition: `character-tier-list:${zoneId}:global`,
@@ -416,7 +419,7 @@ class CcgPublisherService {
     };
   }
 
-  async enableSet(zoneId: number, enabledBy: mongoose.Types.ObjectId): Promise<{
+  async enableSet(zoneId: number, enabledBy: mongoose.Types.ObjectId, options: { force?: boolean } = {}): Promise<{
     readiness: CcgSetReadiness;
     publication: { snapshotKey: string; published: number; totalCards: number; poolVersion: string };
     movedToLegacy: number;
@@ -430,11 +433,14 @@ class CcgPublisherService {
       await this.ensureConfiguredSets();
       const before = await this.preview(zoneId);
       if (before.enabledAt) throw new CcgPublisherError(409, "set_already_enabled", `${configured.raidName} is already enabled`);
-      if (!before.readyToEnable) throw new CcgPublisherError(409, "set_not_ready", `${configured.raidName} does not meet the CCG readiness requirements`);
+      if (!before.readyToEnable && !options.force) {
+        throw new CcgPublisherError(409, "set_not_ready", `${configured.raidName} does not meet the CCG readiness requirements`);
+      }
 
-      await this.buildSnapshot(zoneId);
+      await this.buildSnapshot(zoneId, { relaxedEligibility: options.force });
       const publication = await this.publishLatestWave(configured.slug);
-      if (publication.totalCards < CCG_ENABLE_MIN_MEDIA_READY_CHARACTERS) {
+      const minimumPublishedCards = options.force ? 1 : CCG_ENABLE_MIN_MEDIA_READY_CHARACTERS;
+      if (publication.totalCards < minimumPublishedCards) {
         throw new CcgPublisherError(409, "published_pool_too_small", `${configured.raidName} does not have enough publishable cards`);
       }
 

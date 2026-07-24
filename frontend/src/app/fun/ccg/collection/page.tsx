@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent } from "react";
 import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 import { bestOwnedFinish } from "@/lib/ccg";
 import { useCcgCatalog, useCcgCollection, useCcgSession, useCcgSetGuilds, useCcgSets } from "@/lib/queries";
@@ -88,6 +88,9 @@ export default function CcgCollectionPage() {
   const [viewerOriginElement, setViewerOriginElement] = useState<HTMLElement | null>(null);
   const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
   const [viewerSharedTransition, setViewerSharedTransition] = useState(false);
+  const setRailRef = useRef<HTMLDivElement>(null);
+  const [canScrollSetsBack, setCanScrollSetsBack] = useState(false);
+  const [canScrollSetsForward, setCanScrollSetsForward] = useState(false);
   const selectedSet = sets.find((set) => set.slug === setSlug);
   const guildsQuery = useCcgSetGuilds(setSlug);
   const guilds = useMemo(
@@ -131,6 +134,46 @@ export default function CcgCollectionPage() {
     setPage(cardsData.pages);
   }, [cardsData, page]);
 
+  const updateSetRailControls = useCallback(() => {
+    const rail = setRailRef.current;
+    if (!rail) return;
+    const remaining = rail.scrollWidth - rail.clientWidth;
+    setCanScrollSetsBack(rail.scrollLeft > 2);
+    setCanScrollSetsForward(remaining - rail.scrollLeft > 2);
+  }, []);
+
+  useEffect(() => {
+    const rail = setRailRef.current;
+    if (!rail) return;
+    const resizeObserver = new ResizeObserver(updateSetRailControls);
+    resizeObserver.observe(rail);
+    updateSetRailControls();
+    rail.addEventListener("scroll", updateSetRailControls, { passive: true });
+    return () => {
+      resizeObserver.disconnect();
+      rail.removeEventListener("scroll", updateSetRailControls);
+    };
+  }, [sets, updateSetRailControls]);
+
+  const scrollSetRail = (direction: -1 | 1) => {
+    const rail = setRailRef.current;
+    if (!rail) return;
+    rail.scrollBy({
+      left: direction * Math.max(176, rail.clientWidth * 0.72),
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  };
+
+  const wheelSetRail = (event: ReactWheelEvent<HTMLDivElement>) => {
+    const rail = setRailRef.current;
+    if (!rail || rail.scrollWidth <= rail.clientWidth) return;
+    const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    const canMove = delta < 0 ? rail.scrollLeft > 0 : rail.scrollLeft + rail.clientWidth < rail.scrollWidth;
+    if (!canMove) return;
+    event.preventDefault();
+    rail.scrollLeft += delta;
+  };
+
   const updateFilter = (callback: () => void) => {
     callback();
     setPage(1);
@@ -173,23 +216,51 @@ export default function CcgCollectionPage() {
     >
       <div className={styles.collectionPage}>
         <section className={styles.collectionToolbar}>
-          <div className={styles.collectionSetRail} role="group" aria-label={t("collection.sets")}>
-            {sets.map((set) => (
-              <button
-                type="button"
-                aria-pressed={set.slug === setSlug}
-                key={set.id}
-                onClick={() => selectSet(set.slug)}
-                className={styles.collectionSet}
-                style={{
-                  "--set-accent": set.theme.accent,
-                  backgroundImage: `linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("${set.backgroundPath}")`,
-                } as CSSProperties}
-              >
-                <span>{set.raidName}</span>
-                <small>{set.ownedCards}/{set.cardCount}</small>
-              </button>
-            ))}
+          <div className={styles.collectionSetRailViewport}>
+            <button
+              type="button"
+              className={styles.collectionSetRailArrow}
+              data-direction="previous"
+              disabled={!canScrollSetsBack}
+              onClick={() => scrollSetRail(-1)}
+              aria-label={t("collection.previous")}
+            >
+              <PageArrow direction="previous" />
+            </button>
+            <div
+              ref={setRailRef}
+              className={styles.collectionSetRail}
+              role="group"
+              aria-label={t("collection.sets")}
+              onWheel={wheelSetRail}
+            >
+              {sets.map((set) => (
+                <button
+                  type="button"
+                  aria-pressed={set.slug === setSlug}
+                  key={set.id}
+                  onClick={() => selectSet(set.slug)}
+                  className={styles.collectionSet}
+                  style={{
+                    "--set-accent": set.theme.accent,
+                    backgroundImage: `linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("${set.backgroundPath}")`,
+                  } as CSSProperties}
+                >
+                  <span>{set.raidName}</span>
+                  <small>{set.ownedCards}/{set.cardCount}</small>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className={styles.collectionSetRailArrow}
+              data-direction="next"
+              disabled={!canScrollSetsForward}
+              onClick={() => scrollSetRail(1)}
+              aria-label={t("collection.next")}
+            >
+              <PageArrow direction="next" />
+            </button>
           </div>
 
           <div className={styles.collectionFilters}>

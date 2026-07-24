@@ -27,6 +27,7 @@ export default function CcgAdminPanel() {
   const [checkingZone, setCheckingZone] = useState<number | null>(null);
   const [enablingZone, setEnablingZone] = useState<number | null>(null);
   const [confirmingZone, setConfirmingZone] = useState<number | null>(null);
+  const [forcingZone, setForcingZone] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const dateFormatter = useMemo(
@@ -64,17 +65,18 @@ export default function CcgAdminPanel() {
     }
   };
 
-  const enableSet = async (set: CcgAdminSetStatus) => {
+  const enableSet = async (set: CcgAdminSetStatus, force: boolean) => {
     setEnablingZone(set.zoneId);
     setError(null);
     setNotice(null);
     try {
-      const result = await api.enableAdminCcgSet(set.zoneId);
+      const result = await api.enableAdminCcgSet(set.zoneId, force);
       const messages = [t("enableSuccess", { raid: set.raidName, count: result.publication.totalCards })];
       if (result.movedToLegacy > 0) messages.push(t("movedToLegacy", { count: result.movedToLegacy }));
       setNotice(messages.join(" "));
       setReadiness((current) => ({ ...current, [set.zoneId]: result.readiness }));
       setConfirmingZone(null);
+      setForcingZone(null);
       setStatus(await api.getAdminCcgStatus());
     } catch (enableError) {
       setError(enableError instanceof Error ? enableError.message : t("retry"));
@@ -187,17 +189,38 @@ export default function CcgAdminPanel() {
                       {row.blockers.map((blocker) => <li key={blocker}>• {t(`blockers.${blocker}`, { minimum: readinessMinimum(row, blocker) })}</li>)}
                     </ul>
                   ) : null}
-                  {row.readyToEnable && confirmingZone !== set.zoneId ? (
-                    <button type="button" className={`${primaryButton} mt-4`} onClick={() => setConfirmingZone(set.zoneId)}>{t("enable")}</button>
+                  {confirmingZone !== set.zoneId ? (
+                    <button
+                      type="button"
+                      className={`${primaryButton} mt-4`}
+                      onClick={() => {
+                        setConfirmingZone(set.zoneId);
+                        setForcingZone(row.readyToEnable ? null : set.zoneId);
+                      }}
+                    >
+                      {t(row.readyToEnable ? "enable" : "forceEnable")}
+                    </button>
                   ) : null}
-                  {row.readyToEnable && confirmingZone === set.zoneId ? (
+                  {confirmingZone === set.zoneId ? (
                     <div className="mt-4 rounded-lg bg-amber-950/40 p-4 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.25)]" role="alert">
-                      <p className="text-sm leading-6 text-amber-100">{t("enableWarning", { raid: set.raidName })}</p>
+                      <p className="text-sm leading-6 text-amber-100">
+                        {t(forcingZone === set.zoneId ? "forceEnableWarning" : "enableWarning", { raid: set.raidName })}
+                      </p>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <button type="button" className={primaryButton} onClick={() => void enableSet(set)} disabled={isEnabling}>
-                          {isEnabling ? t("enabling") : t("confirmEnable")}
+                        <button type="button" className={primaryButton} onClick={() => void enableSet(set, forcingZone === set.zoneId)} disabled={isEnabling}>
+                          {isEnabling ? t("enabling") : t(forcingZone === set.zoneId ? "confirmForceEnable" : "confirmEnable")}
                         </button>
-                        <button type="button" className={secondaryButton} onClick={() => setConfirmingZone(null)} disabled={isEnabling}>{t("cancel")}</button>
+                        <button
+                          type="button"
+                          className={secondaryButton}
+                          onClick={() => {
+                            setConfirmingZone(null);
+                            setForcingZone(null);
+                          }}
+                          disabled={isEnabling}
+                        >
+                          {t("cancel")}
+                        </button>
                       </div>
                     </div>
                   ) : null}
