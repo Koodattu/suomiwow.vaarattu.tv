@@ -1668,7 +1668,7 @@
   min-width: 0;
   min-height: 0;
   align-items: stretch;
-  grid-template-columns: minmax(0, 1.25fr) minmax(26rem, 1fr);
+  grid-template-columns: minmax(0, 1.1fr) minmax(17rem, 0.52fr) minmax(20rem, 0.58fr);
   gap: 0.75rem;
 }
 
@@ -1773,6 +1773,22 @@
   min-height: 2.5rem;
   padding: 0.5rem 0.8rem;
   font-size: 0.78rem;
+}
+
+.vaultPackShortcuts {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  align-items: center;
+  justify-items: center;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0.5rem 0.2rem;
+}
+
+.vaultPackShortcut {
+  width: min(100%, 9.75rem);
+  cursor: pointer;
 }
 
 .vaultFeatured {
@@ -2038,7 +2054,7 @@
 
 @media (max-width: 1280px) and (min-width: 1101px) {
   .vaultDashboardTop {
-    grid-template-columns: minmax(0, 1.2fr) minmax(20rem, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.46fr) minmax(18rem, 0.56fr);
   }
 
   .vaultCurrentContent h1 {
@@ -2077,6 +2093,24 @@
     grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
   }
 
+  .vaultMainColumn {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .vaultPackShortcuts {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-height: 17rem;
+    grid-template-columns: repeat(2, minmax(0, 10rem));
+    justify-content: center;
+  }
+
+  .vaultFeatured {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
   .vaultCurrentSet {
     min-height: 22rem;
   }
@@ -2098,6 +2132,17 @@
 @media (max-width: 760px) {
   .vaultDashboardTop {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vaultMainColumn,
+  .vaultPackShortcuts,
+  .vaultFeatured {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .vaultPackShortcuts {
+    min-height: 18rem;
   }
 
   .vaultCurrentSet {

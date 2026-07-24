@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { CcgFinish, CcgMode, CcgOpening, CcgSet } from "@/types";
+import type { CcgFinish, CcgMode, CcgOpening } from "@/types";
 import { api } from "@/lib/api";
 import { CCG_RARITY_KEYS } from "@/lib/ccg";
 import { getCharacterRenderProxyUrl } from "@/lib/character-render";
@@ -17,6 +17,7 @@ import CollectibleCard from "@/components/ccg/CollectibleCard";
 import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
 import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
+import PackBoosterVisual, { getPackTheme } from "@/components/ccg/PackBoosterVisual";
 import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 
@@ -53,18 +54,6 @@ function randomIndex(length: number): number {
   return value[0] % length;
 }
 
-function packTheme(set: CcgSet | undefined, randomLegacy = false): CSSProperties {
-  return {
-    "--pack-accent": randomLegacy ? "#9c7cff" : (set?.theme.accent ?? "#5baeff"),
-    "--pack-glow": randomLegacy ? "rgba(126, 105, 255, 0.42)" : (set?.theme.glow ?? "rgba(91, 174, 255, 0.38)"),
-    "--pack-stage-art": randomLegacy ? 'url("/ccg/general_wide.webp")' : set ? `url("${set.backgroundPath}")` : "none",
-    "--pack-art": randomLegacy ? 'url("/ccg/general_tall.webp")' : set ? `url("${set.backgroundPath}")` : "none",
-    "--pack-art-size": randomLegacy ? "cover" : "auto 100%",
-    "--pack-logo-fill": randomLegacy ? "linear-gradient(145deg, #e6fbff 0%, #7ed8ef 58%, #d2aa61 100%)" : "color-mix(in srgb, var(--pack-accent) 82%, white 18%)",
-    "--pack-logo-glow": randomLegacy ? "rgba(92, 207, 238, 0.46)" : "var(--pack-glow)",
-  } as CSSProperties;
-}
-
 function ArchiveIcon() {
   return (
     <span className={packStyles.archiveIcon} aria-hidden="true">
@@ -72,32 +61,6 @@ function ArchiveIcon() {
       <i />
       <i />
     </span>
-  );
-}
-
-function PackBoosterVisual({ title, cardsLabel }: { title: string; cardsLabel: string }) {
-  return (
-    <>
-      <span className={packStyles.packShadow} />
-      <span className={packStyles.booster}>
-        <span className={packStyles.wrapperArt} />
-        <span className={packStyles.wrapperShade} />
-        <span className={packStyles.wrapperFoil} />
-        <span className={`${packStyles.crimp} ${packStyles.crimpTop}`} />
-        <span className={`${packStyles.crimp} ${packStyles.crimpBottom}`} />
-        <span className={packStyles.packBrand}>
-          SuomiWoW <strong>CCG</strong>
-        </span>
-        <span className={packStyles.packTitle}>{title}</span>
-        <span className={packStyles.packSigil} aria-hidden="true">
-          <span />
-        </span>
-        <span className={packStyles.packCount}>
-          <strong>5</strong>
-          <span>{cardsLabel}</span>
-        </span>
-      </span>
-    </>
   );
 }
 
@@ -364,7 +327,7 @@ export default function CcgOpenPage() {
   const openingIsRandomLegacy = opening?.mode === "legacy" && !opening.targetSetId;
   const openingPackName = opening?.mode === "legacy" ? (openingTargetSet?.raidName ?? t("open.legacyPackTitle")) : openingSet?.raidName;
   const cardBackSetScale = Math.min(1.45, Math.max(0.78, 18 / (openingPackName?.trim().length || 18)));
-  const stageTheme = opening ? packTheme(opening.mode === "legacy" ? openingTargetSet : openingSet, openingIsRandomLegacy) : packTheme(featuredPackSet, randomLegacy);
+  const stageTheme = opening ? getPackTheme(opening.mode === "legacy" ? openingTargetSet : openingSet, openingIsRandomLegacy) : getPackTheme(featuredPackSet, randomLegacy);
 
   const resetPackMotion = (target: HTMLButtonElement) => {
     delete target.dataset.dragging;
@@ -506,7 +469,7 @@ export default function CcgOpenPage() {
       <div className={packStyles.openWorkspace}>
         {!opening ? (
           <div className={packStyles.packChooser}>
-            <section className={`${packStyles.packStage} ${packStyles.packChooserStage}`} style={packTheme(featuredPackSet, randomLegacy)}>
+            <section className={`${packStyles.packStage} ${packStyles.packChooserStage}`} style={getPackTheme(featuredPackSet, randomLegacy)}>
               <span className={packStyles.stageArt} />
               <span className={packStyles.stageVeil} />
               <span className={packStyles.vaultRing} aria-hidden="true" />

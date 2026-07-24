@@ -100,6 +100,7 @@
       "legacyTitle": "Raid history, one binder at a time",
       "legacyBody": "Draw from the full archive or target one enabled past raid. The binders remain organized raid by raid.",
       "openLegacy": "Open Legacy packs",
+      "all": "All",
       "legacyEmpty": "Legacy binders will appear as their snapshots are published."
     },
     "open": {

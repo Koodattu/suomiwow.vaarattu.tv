@@ -13,7 +13,9 @@ import CollectibleCard from "@/components/ccg/CollectibleCard";
 import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
 import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
+import PackBoosterVisual, { getPackTheme } from "@/components/ccg/PackBoosterVisual";
 import styles from "@/components/ccg/ccg.module.css";
+import packStyles from "@/components/ccg/pack-opening.module.css";
 
 function FeaturedCard({ card, onSelect }: { card: CcgCard; onSelect: (event: ReactMouseEvent<HTMLButtonElement>) => void }) {
   const [ready, setReady] = useState(false);
@@ -51,7 +53,11 @@ export default function CcgLandingPage() {
   const currentOwnedCount = currentSets.reduce((total, set) => total + set.ownedCards, 0);
   const currentProgress = currentCardCount > 0 ? Math.min(100, (currentOwnedCount / currentCardCount) * 100) : 0;
   const legacy = sets.filter((set) => set.state === "legacy").sort((left, right) => right.zoneId - left.zoneId);
-  const legacyRows = Math.max(2, Math.ceil(legacy.length / 8));
+  const collectionSets = [...currentSets, ...legacy];
+  const allCardCount = collectionSets.reduce((total, set) => total + set.cardCount, 0);
+  const allOwnedCount = collectionSets.reduce((total, set) => total + set.ownedCards, 0);
+  const collectionItemCount = collectionSets.length + 1;
+  const collectionRows = Math.max(2, Math.ceil(collectionItemCount / 8));
   const featuredQuery = useCcgCatalog(current?.slug ?? "", 1, "all", "S", "", "", Boolean(current?.slug), 50);
   const featuredCards = featuredQuery.data?.cards ?? [];
   const featuredCard = featuredCards.length > 0
@@ -120,6 +126,25 @@ export default function CcgLandingPage() {
             </aside>
           </div>
 
+          <nav className={styles.vaultPackShortcuts} aria-label={t("nav.open")}>
+            <Link
+              href="/fun/ccg/open?mode=current"
+              className={`${packStyles.packButton} ${styles.vaultPackShortcut}`}
+              style={getPackTheme(current)}
+              aria-label={t("landing.openCurrent")}
+            >
+              <PackBoosterVisual title={current?.raidName ?? t("landing.preparing")} cardsLabel={t("landing.cards")} />
+            </Link>
+            <Link
+              href="/fun/ccg/open?mode=legacy"
+              className={`${packStyles.packButton} ${styles.vaultPackShortcut}`}
+              style={getPackTheme(undefined, true)}
+              aria-label={t("landing.openLegacy")}
+            >
+              <PackBoosterVisual title={t("open.legacyPackTitle")} cardsLabel={t("landing.cards")} />
+            </Link>
+          </nav>
+
           <aside className={styles.vaultFeatured} aria-label={t("landing.featuredCard")}>
             {featuredQuery.isPending ? (
               <div className={styles.vaultFeaturedStage}>
@@ -151,20 +176,35 @@ export default function CcgLandingPage() {
 
         <section className={styles.vaultLegacy}>
           <div className={styles.vaultLegacyHeader}>
-            <h2>{t("mode.legacy")}</h2>
+            <h2>{t("nav.collection")}</h2>
             <Link href="/fun/ccg/collection" className={styles.vaultCollectionAction}>
               {t("landing.collection")} <span aria-hidden="true">→</span>
             </Link>
           </div>
-          {legacy.length > 0 ? (
+          {collectionSets.length > 0 ? (
             <div
               className={styles.vaultLegacyGrid}
               style={{
-                "--legacy-columns": Math.ceil(legacy.length / legacyRows),
-                "--legacy-rows": legacyRows,
+                "--legacy-columns": Math.ceil(collectionItemCount / collectionRows),
+                "--legacy-rows": collectionRows,
               } as CSSProperties}
             >
-              {legacy.map((set) => (
+              <Link
+                href="/fun/ccg/collection"
+                className={styles.vaultLegacySet}
+                style={{
+                  "--set-accent": "#9c7cff",
+                  "--set-glow": "rgba(126, 105, 255, 0.42)",
+                  backgroundImage: 'url("/ccg/general_wide.webp")',
+                } as CSSProperties}
+              >
+                <span className={styles.vaultLegacyShade} aria-hidden="true" />
+                <span className={styles.vaultLegacyContent}>
+                  <strong>{t("landing.all")}</strong>
+                  <small>{allOwnedCount}/{allCardCount}</small>
+                </span>
+              </Link>
+              {collectionSets.map((set) => (
                 <Link
                   key={set.id}
                   href={`/fun/ccg/collection?set=${encodeURIComponent(set.slug)}`}

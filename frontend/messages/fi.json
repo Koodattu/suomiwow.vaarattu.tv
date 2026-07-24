@@ -100,6 +100,7 @@
       "legacyTitle": "Raidihistoria, yksi kansio kerrallaan",
       "legacyBody": "Arvo koko arkistosta tai kohdista pakka yhteen käyttöön otettuun vanhaan raidiin. Kansiot pysyvät raidikohtaisina.",
       "openLegacy": "Avaa Legacy-pakkoja",
+      "all": "Kaikki",
       "legacyEmpty": "Legacy-kansiot ilmestyvät sitä mukaa, kun niiden snapshotit julkaistaan."
     },
     "open": {
