@@ -6,8 +6,13 @@ export type CcgSetState = "draft" | "current" | "legacy" | "locked";
 export const CCG_TIME_ZONE = "Europe/Helsinki";
 export const CCG_FEATURE_ENABLED = process.env.CCG_FEATURE_ENABLED !== "false";
 export const CCG_CARDS_PER_PACK = 5;
-export const CCG_DAILY_PACKS_PER_MODE = 10;
-export const CCG_GUEST_CLAIM_CARD_LIMIT_PER_MODE = CCG_CARDS_PER_PACK * CCG_DAILY_PACKS_PER_MODE;
+export const CCG_PACK_STORAGE_CAPS: Readonly<Record<CcgMode, number>> = { current: 25, legacy: 25 };
+export const CCG_PACK_RECHARGE_INTERVAL_HOURS: Readonly<Record<CcgMode, number>> = { current: 2, legacy: 1 };
+export const CCG_INITIAL_PACKS = {
+  user: { current: 25, legacy: 25 },
+  guest: { current: 5, legacy: 5 },
+};
+export const CCG_PACK_BALANCE_VERSION = 2;
 export const CCG_DUPLICATES_PER_BONUS_PACK = 10;
 export const CCG_GUEST_COOKIE = "swccg_guest";
 export const CCG_PACK_RULE_VERSION = "pack-v6-quadratic-finish-pity";

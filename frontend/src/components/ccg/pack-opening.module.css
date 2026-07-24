@@ -88,8 +88,8 @@
 }
 
 .balancePlaceholder {
-  height: 8rem;
-  border-radius: 0.7rem;
+  height: 1.75rem;
+  border-radius: 0.35rem;
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -1917,7 +1917,8 @@
 .revealStageCycling .revealLead,
 .revealStageCycling .revealControls,
 .revealStageCycling .packActionError,
-.revealStageCycling .bonusEarned {
+.revealStageCycling .bonusEarned,
+.revealStageCycling .guestPackClaim {
   opacity: 0;
   pointer-events: none;
   transform: translateY(-6px);
@@ -1969,6 +1970,25 @@
   transition-property: opacity, transform;
   transition-duration: 160ms;
   transition-timing-function: ease-in;
+}
+
+.guestPackClaim {
+  display: flex;
+  max-width: 22rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  color: #aab9ce;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  text-wrap: pretty;
+  transition-property: opacity, transform;
+  transition-duration: 160ms;
+  transition-timing-function: ease-in;
+}
+
+.guestPackClaim > button {
+  flex-shrink: 0;
 }
 
 .bonusEarned {

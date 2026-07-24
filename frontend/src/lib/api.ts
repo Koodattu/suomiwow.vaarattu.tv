@@ -306,19 +306,19 @@ export const api = {
     return response.json();
   },
 
-  async claimCcgGuest(idempotencyKey: string): Promise<{
+  async claimCcgGuest(openingId: string, idempotencyKey: string): Promise<{
     claimed: boolean;
     alreadyClaimed: boolean;
     cards: { current: number; legacy: number };
-    conversionPacks: number;
+    startingPacks: number;
   }> {
     const response = await fetch(`${API_URL}/api/ccg/guest/claim`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ idempotencyKey }),
+      body: JSON.stringify({ openingId, idempotencyKey }),
     });
-    if (!response.ok) throw await buildApiError(response, "Today's guest cards could not be claimed");
+    if (!response.ok) throw await buildApiError(response, "This guest pack could not be claimed");
     return response.json();
   },
 

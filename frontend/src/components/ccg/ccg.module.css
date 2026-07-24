@@ -126,39 +126,6 @@
   gap: 0.65rem;
 }
 
-.guestNoticeCompact {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.7rem;
-}
-
-.guestNoticeMeta {
-  display: grid;
-  justify-items: end;
-  gap: 0.15rem;
-}
-
-.guestNoticeTitle {
-  color: #f6f9ff;
-  font-size: 0.7rem;
-  font-weight: 760;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.guestNoticeCountdown {
-  color: #7ddcff;
-  font-size: 0.6rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 720;
-  letter-spacing: 0.06em;
-  line-height: 1;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
 .guestNoticeButton {
   flex-shrink: 0;
   white-space: nowrap;
@@ -351,14 +318,6 @@
     padding-top: 0.75rem;
   }
 
-  .guestNoticeCompact {
-    justify-content: flex-start;
-  }
-
-  .guestNoticeMeta {
-    justify-items: start;
-  }
-
   .guestNoticeButton {
     width: auto;
   }
@@ -475,69 +434,48 @@
 
 .balanceCard {
   min-width: 0;
-  border: 1px solid rgba(145, 178, 230, 0.15);
-  border-radius: 0.7rem;
-  background: rgba(2, 8, 19, 0.58);
-  padding: 0.85rem;
+  padding: 0.35rem 0;
 }
 
 .balanceCardStrip {
-  display: grid;
-  min-width: 0;
-  align-items: center;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  grid-template-columns: minmax(6rem, auto) minmax(7rem, 1fr);
-  grid-template-rows: auto auto;
-  gap: 0 0.75rem;
-  padding: 0.55rem 0.75rem;
-  box-shadow: inset 1px 0 rgba(145, 178, 230, 0.14);
+  padding: 0;
 }
 
-.balanceCardStrip > div:first-child {
-  grid-row: 1 / 3;
+.balanceLine,
+.balanceCount {
+  display: flex;
   align-items: center;
 }
 
-.balanceCardStrip > div:first-child > div:first-child {
-  display: grid;
+.balanceLine {
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.balanceCount {
   align-items: baseline;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0 0.38rem;
+  gap: 0.3rem;
+  color: #8190a7;
+  font-size: 0.66rem;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.balanceCardStrip > div:first-child > div:first-child > :first-child {
-  grid-column: 1 / -1;
+.balanceCount strong {
+  color: #fff;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 850;
 }
 
-.balanceCardStrip > div:first-child > div:first-child > :nth-child(2) {
-  margin-top: 0;
-  font-size: 1.45rem;
-}
-
-.balanceCardStrip > div:nth-child(2) {
-  margin-top: 0;
-}
-
-.balanceCardStrip > div:last-child {
-  align-self: start;
-}
-
-.progressTrack {
-  height: 0.32rem;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(126, 149, 190, 0.14);
-}
-
-.progressFill {
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #4c9dff, #9373ff);
-  transform-origin: left center;
-  transition: transform 220ms ease;
+.balanceRecharge {
+  flex-shrink: 0;
+  color: #72dcef;
+  font-size: 0.64rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .cardButton {
@@ -1650,6 +1588,8 @@
 }
 
 .vaultDashboard {
+  --vault-pack-width: min(100%, clamp(12rem, 29dvh, 17rem));
+  --vault-card-width: min(100%, clamp(16rem, 39dvh, 23rem));
   display: grid;
   width: 100%;
   height: 100%;
@@ -1658,7 +1598,7 @@
   margin: 0 auto;
   overflow: hidden;
   align-content: start;
-  grid-template-rows: clamp(20rem, 52dvh, 33rem) auto;
+  grid-template-rows: clamp(24rem, 55dvh, 34.5rem) auto;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
 }
@@ -1668,16 +1608,8 @@
   min-width: 0;
   min-height: 0;
   align-items: stretch;
-  grid-template-columns: minmax(0, 1.1fr) minmax(17rem, 0.52fr) minmax(20rem, 0.58fr);
+  grid-template-columns: minmax(30rem, 1.24fr) minmax(25rem, 0.9fr) minmax(17rem, 0.62fr);
   gap: 0.75rem;
-}
-
-.vaultMainColumn {
-  display: grid;
-  min-width: 0;
-  min-height: 0;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 0.65rem;
 }
 
 .vaultCurrentSet {
@@ -1719,11 +1651,12 @@
 .vaultCurrentContent h1 {
   margin-top: 0.35rem;
   color: #fff;
-  font-size: 3rem;
+  font-size: 2.75rem;
   font-weight: 900;
   letter-spacing: -0.035em;
   line-height: 0.96;
-  text-wrap: balance;
+  text-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .vaultCurrentProgress {
@@ -1779,15 +1712,23 @@
   display: grid;
   min-width: 0;
   min-height: 0;
-  align-items: center;
+  align-items: start;
   justify-items: center;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
-  padding: 0.5rem 0.2rem;
+  gap: 0.15rem;
+  padding: 0;
 }
 
-.vaultPackShortcut {
-  width: min(100%, 9.75rem);
+.vaultPackShortcutColumn {
+  display: grid;
+  width: var(--vault-pack-width);
+  min-width: 0;
+  align-content: start;
+  gap: 0.25rem;
+}
+
+.vaultPackShortcutColumn > .vaultPackShortcut {
+  width: 100%;
   cursor: pointer;
 }
 
@@ -1795,10 +1736,10 @@
   display: grid;
   min-width: 0;
   min-height: 0;
-  align-content: center;
+  align-content: start;
   justify-items: center;
   grid-template-rows: minmax(0, 1fr);
-  padding: 0.15rem 0.5rem 0.25rem 0.9rem;
+  padding: 0 0 0 0.25rem;
   box-shadow: inset 1px 0 rgba(144, 178, 236, 0.13);
 }
 
@@ -1809,16 +1750,16 @@
   height: 100%;
   min-width: 0;
   min-height: 0;
-  place-items: center;
+  place-items: start center;
 }
 
 .vaultFeaturedCard {
   position: relative;
   display: grid;
-  width: min(100%, clamp(14rem, 37dvh, 22rem));
+  width: var(--vault-card-width);
   min-height: 0;
   aspect-ratio: 5 / 7;
-  align-self: center;
+  align-self: start;
   place-items: center;
   cursor: pointer;
   transition:
@@ -1850,7 +1791,7 @@
 
 .vaultFeaturedEmpty {
   display: grid;
-  width: min(100%, clamp(14rem, 37dvh, 22rem));
+  width: var(--vault-card-width);
   aspect-ratio: 5 / 7;
   place-items: center;
   border-radius: 0.8rem;
@@ -1912,31 +1853,11 @@
   outline-offset: 3px;
 }
 
-.vaultPackStrip {
-  display: grid;
-  min-width: 0;
-  min-height: 0;
-  align-items: stretch;
-  border-radius: 0.65rem;
-  background: rgba(4, 10, 23, 0.72);
-  box-shadow: inset 0 0 0 1px rgba(144, 178, 236, 0.13);
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.vaultPackBalances {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.vaultPackBalances > .balanceCardStrip:first-child {
-  box-shadow: none;
-}
-
 .vaultBalanceSkeleton {
-  min-height: 5.2rem;
+  width: 100%;
+  min-height: 1.65rem;
+  border-radius: 0.35rem;
   background: rgba(255, 255, 255, 0.035);
-  box-shadow: inset 1px 0 rgba(145, 178, 230, 0.14);
   animation: collectionSkeleton 1.5s ease-in-out infinite;
 }
 
@@ -1972,7 +1893,7 @@
   min-width: 0;
   min-height: 0;
   grid-template-columns: repeat(var(--legacy-columns), minmax(0, 1fr));
-  grid-template-rows: repeat(var(--legacy-rows), clamp(4.25rem, 8dvh, 5.25rem));
+  grid-template-rows: repeat(var(--legacy-rows), clamp(4.75rem, 9dvh, 5.75rem));
   gap: 0.45rem;
 }
 
@@ -2007,8 +1928,8 @@
 
 .vaultLegacyShade {
   position: absolute;
-  inset: 1px;
-  border-radius: calc(0.55rem - 1px);
+  inset: 0;
+  border-radius: inherit;
   background: linear-gradient(180deg, rgba(0, 3, 11, 0.08) 18%, rgba(0, 3, 11, 0.9) 100%);
 }
 
@@ -2017,6 +1938,12 @@
   right: 0.6rem;
   bottom: 0.5rem;
   left: 0.6rem;
+  display: grid;
+  min-width: 0;
+  gap: 0.38rem;
+}
+
+.vaultLegacySummary {
   display: flex;
   min-width: 0;
   align-items: flex-end;
@@ -2024,7 +1951,7 @@
   gap: 0.35rem;
 }
 
-.vaultLegacyContent strong {
+.vaultLegacySummary strong {
   display: -webkit-box;
   min-width: 0;
   overflow: hidden;
@@ -2036,12 +1963,29 @@
   -webkit-line-clamp: 2;
 }
 
-.vaultLegacyContent small {
+.vaultLegacySummary small {
   flex-shrink: 0;
   color: color-mix(in srgb, var(--set-accent) 78%, white);
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
   font-weight: 750;
+}
+
+.vaultLegacyTrack {
+  height: 0.22rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(154, 177, 213, 0.2);
+}
+
+.vaultLegacyTrack > i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--set-accent), color-mix(in srgb, var(--set-accent) 55%, #bca8ff));
+  transform-origin: left center;
+  transition: transform 220ms ease-out;
 }
 
 .vaultLegacyEmpty {
@@ -2054,22 +1998,17 @@
 
 @media (max-width: 1280px) and (min-width: 1101px) {
   .vaultDashboardTop {
-    grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.46fr) minmax(18rem, 0.56fr);
+    grid-template-columns: minmax(22rem, 1.05fr) minmax(23rem, 0.88fr) minmax(14rem, 0.62fr);
   }
 
   .vaultCurrentContent h1 {
-    font-size: 2.4rem;
+    font-size: 2rem;
   }
 
   .vaultCurrentContent {
     padding: 1.15rem;
   }
 
-  .balanceCardStrip {
-    grid-template-columns: minmax(5.5rem, auto) minmax(5rem, 1fr);
-    gap: 0 0.5rem;
-    padding-inline: 0.55rem;
-  }
 }
 
 @media (max-width: 1100px) {
@@ -2093,7 +2032,7 @@
     grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
   }
 
-  .vaultMainColumn {
+  .vaultCurrentSet {
     grid-column: 1;
     grid-row: 1;
   }
@@ -2102,7 +2041,7 @@
     grid-column: 1 / -1;
     grid-row: 2;
     min-height: 17rem;
-    grid-template-columns: repeat(2, minmax(0, 10rem));
+    grid-template-columns: repeat(2, minmax(0, 14rem));
     justify-content: center;
   }
 
@@ -2134,7 +2073,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .vaultMainColumn,
+  .vaultCurrentSet,
   .vaultPackShortcuts,
   .vaultFeatured {
     grid-column: 1;
@@ -2155,15 +2094,8 @@
   }
 
   .vaultCurrentContent h1 {
-    font-size: 2.35rem;
-  }
-
-  .vaultPackBalances {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .balanceCardStrip {
-    box-shadow: inset 0 1px rgba(145, 178, 230, 0.14);
+    font-size: 1.9rem;
+    letter-spacing: -0.025em;
   }
 
   .vaultFeatured {

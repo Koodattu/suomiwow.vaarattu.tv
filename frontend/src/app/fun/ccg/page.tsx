@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useCallback, useState } from "react";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgCard } from "@/types";
+import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
 import { useCcgCatalog, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
-import GuestNotice from "@/components/ccg/GuestNotice";
 import PackBalance from "@/components/ccg/PackBalance";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
@@ -16,6 +16,11 @@ import CcgLoadError from "@/components/ccg/CcgLoadError";
 import PackBoosterVisual, { getPackTheme } from "@/components/ccg/PackBoosterVisual";
 import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
+
+function updateVaultPackMotion(event: ReactPointerEvent<HTMLAnchorElement>): void {
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+  applyPackPointerMotion(event.currentTarget, event.clientX, event.clientY);
+}
 
 function FeaturedCard({ card, onSelect }: { card: CcgCard; onSelect: (event: ReactMouseEvent<HTMLButtonElement>) => void }) {
   const [ready, setReady] = useState(false);
@@ -56,6 +61,7 @@ export default function CcgLandingPage() {
   const collectionSets = [...currentSets, ...legacy];
   const allCardCount = collectionSets.reduce((total, set) => total + set.cardCount, 0);
   const allOwnedCount = collectionSets.reduce((total, set) => total + set.ownedCards, 0);
+  const allProgress = allCardCount > 0 ? Math.min(100, (allOwnedCount / allCardCount) * 100) : 0;
   const collectionItemCount = collectionSets.length + 1;
   const collectionRows = Math.max(2, Math.ceil(collectionItemCount / 8));
   const featuredQuery = useCcgCatalog(current?.slug ?? "", 1, "all", "S", "", "", Boolean(current?.slug), 50);
@@ -74,75 +80,71 @@ export default function CcgLandingPage() {
   }
 
   return (
-    <CcgShell viewportLocked context={session ? <GuestNotice session={session} /> : null}>
+    <CcgShell viewportLocked>
       <div className={styles.vaultDashboard}>
         <section className={styles.vaultDashboardTop}>
-          <div className={styles.vaultMainColumn}>
-            <div
-              className={styles.vaultCurrentSet}
-              style={{
-                "--set-accent": current?.theme.accent ?? "#46CFFF",
-                "--set-glow": current?.theme.glow ?? "rgba(70,207,255,.25)",
-                backgroundImage: current ? `url("${current.backgroundPath}")` : undefined,
-              } as CSSProperties}
-            >
-              <div className={styles.vaultCurrentShade} aria-hidden="true" />
-              <div className={styles.vaultCurrentContent}>
-                <div className={styles.eyebrow}>{t("landing.currentSet")}</div>
-                <h1>
-                  {currentSets.length > 1 ? t("landing.currentRaids", { count: currentSets.length }) : current?.raidName ?? t("landing.preparing")}
-                </h1>
-                <div className={styles.vaultCurrentProgress}>
-                  <div className={styles.vaultCurrentCount}>
-                    <strong>{currentOwnedCount}</strong>
-                    <span>/ {currentCardCount} {t("landing.collected")}</span>
-                  </div>
-                  <div className={styles.vaultCurrentTrack} aria-label={`${currentOwnedCount}/${currentCardCount} ${t("landing.collected")}`}>
-                    <span style={{ transform: `scaleX(${currentProgress / 100})` }} />
-                  </div>
+          <div
+            className={styles.vaultCurrentSet}
+            style={{
+              "--set-accent": current?.theme.accent ?? "#46CFFF",
+              "--set-glow": current?.theme.glow ?? "rgba(70,207,255,.25)",
+              backgroundImage: current ? `url("${current.backgroundPath}")` : undefined,
+            } as CSSProperties}
+          >
+            <div className={styles.vaultCurrentShade} aria-hidden="true" />
+            <div className={styles.vaultCurrentContent}>
+              <div className={styles.eyebrow}>{t("landing.currentSet")}</div>
+              <h1>
+                {currentSets.length > 1 ? t("landing.currentRaids", { count: currentSets.length }) : current?.raidName ?? t("landing.preparing")}
+              </h1>
+              <div className={styles.vaultCurrentProgress}>
+                <div className={styles.vaultCurrentCount}>
+                  <strong>{currentOwnedCount}</strong>
+                  <span>/ {currentCardCount} {t("landing.collected")}</span>
+                </div>
+                <div className={styles.vaultCurrentTrack} aria-label={`${currentOwnedCount}/${currentCardCount} ${t("landing.collected")}`}>
+                  <span style={{ transform: `scaleX(${currentProgress / 100})` }} />
                 </div>
               </div>
-              {currentCardCount > 0 ? (
-                <Link href="/fun/ccg/open?mode=current" className={`${styles.primaryButton} ${styles.vaultCurrentOpen}`}>{t("landing.openCurrent")}</Link>
-              ) : (
-                <span className={`${styles.primaryButton} ${styles.vaultCurrentOpen} cursor-not-allowed opacity-45`} aria-disabled="true">{t("landing.openCurrent")}</span>
-              )}
             </div>
-
-            <aside className={styles.vaultPackStrip}>
-              <div className={styles.vaultPackBalances}>
-                {session ? (
-                  <>
-                    <PackBalance session={session} mode="current" strip />
-                    <PackBalance session={session} mode="legacy" strip />
-                  </>
-                ) : (
-                  <>
-                    <div className={styles.vaultBalanceSkeleton} />
-                    <div className={styles.vaultBalanceSkeleton} />
-                  </>
-                )}
-              </div>
-            </aside>
+            {currentCardCount > 0 ? (
+              <Link href="/fun/ccg/open?mode=current" className={`${styles.primaryButton} ${styles.vaultCurrentOpen}`}>{t("landing.openCurrent")}</Link>
+            ) : (
+              <span className={`${styles.primaryButton} ${styles.vaultCurrentOpen} cursor-not-allowed opacity-45`} aria-disabled="true">{t("landing.openCurrent")}</span>
+            )}
           </div>
 
           <nav className={styles.vaultPackShortcuts} aria-label={t("nav.open")}>
-            <Link
-              href="/fun/ccg/open?mode=current"
-              className={`${packStyles.packButton} ${styles.vaultPackShortcut}`}
-              style={getPackTheme(current)}
-              aria-label={t("landing.openCurrent")}
-            >
-              <PackBoosterVisual title={current?.raidName ?? t("landing.preparing")} cardsLabel={t("landing.cards")} />
-            </Link>
-            <Link
-              href="/fun/ccg/open?mode=legacy"
-              className={`${packStyles.packButton} ${styles.vaultPackShortcut}`}
-              style={getPackTheme(undefined, true)}
-              aria-label={t("landing.openLegacy")}
-            >
-              <PackBoosterVisual title={t("open.legacyPackTitle")} cardsLabel={t("landing.cards")} />
-            </Link>
+            <div className={styles.vaultPackShortcutColumn}>
+              <Link
+                href="/fun/ccg/open?mode=current"
+                className={`${packStyles.packButton} ${styles.vaultPackShortcut}`}
+                style={getPackTheme(current)}
+                aria-label={t("landing.openCurrent")}
+                onPointerMove={updateVaultPackMotion}
+                onPointerLeave={(event) => resetPackMotion(event.currentTarget)}
+                onPointerCancel={(event) => resetPackMotion(event.currentTarget)}
+                onBlur={(event) => resetPackMotion(event.currentTarget)}
+              >
+                <PackBoosterVisual title={current?.raidName ?? t("landing.preparing")} cardsLabel={t("landing.cards")} />
+              </Link>
+              {session ? <PackBalance session={session} mode="current" strip /> : <div className={styles.vaultBalanceSkeleton} />}
+            </div>
+            <div className={styles.vaultPackShortcutColumn}>
+              <Link
+                href="/fun/ccg/open?mode=legacy"
+                className={`${packStyles.packButton} ${styles.vaultPackShortcut}`}
+                style={getPackTheme(undefined, true)}
+                aria-label={t("landing.openLegacy")}
+                onPointerMove={updateVaultPackMotion}
+                onPointerLeave={(event) => resetPackMotion(event.currentTarget)}
+                onPointerCancel={(event) => resetPackMotion(event.currentTarget)}
+                onBlur={(event) => resetPackMotion(event.currentTarget)}
+              >
+                <PackBoosterVisual title={t("open.legacyPackTitle")} cardsLabel={t("landing.cards")} />
+              </Link>
+              {session ? <PackBalance session={session} mode="legacy" strip /> : <div className={styles.vaultBalanceSkeleton} />}
+            </div>
           </nav>
 
           <aside className={styles.vaultFeatured} aria-label={t("landing.featuredCard")}>
@@ -200,8 +202,13 @@ export default function CcgLandingPage() {
               >
                 <span className={styles.vaultLegacyShade} aria-hidden="true" />
                 <span className={styles.vaultLegacyContent}>
-                  <strong>{t("landing.all")}</strong>
-                  <small>{allOwnedCount}/{allCardCount}</small>
+                  <span className={styles.vaultLegacySummary}>
+                    <strong>{t("landing.all")}</strong>
+                    <small>{allOwnedCount}/{allCardCount}</small>
+                  </span>
+                  <span className={styles.vaultLegacyTrack} aria-label={`${allOwnedCount}/${allCardCount} ${t("landing.collected")}`}>
+                    <i style={{ transform: `scaleX(${allProgress / 100})` }} />
+                  </span>
                 </span>
               </Link>
               {collectionSets.map((set) => (
@@ -217,8 +224,13 @@ export default function CcgLandingPage() {
                 >
                   <span className={styles.vaultLegacyShade} aria-hidden="true" />
                   <span className={styles.vaultLegacyContent}>
-                    <strong>{set.raidName}</strong>
-                    <small>{set.ownedCards}/{set.cardCount}</small>
+                    <span className={styles.vaultLegacySummary}>
+                      <strong>{set.raidName}</strong>
+                      <small>{set.ownedCards}/{set.cardCount}</small>
+                    </span>
+                    <span className={styles.vaultLegacyTrack} aria-label={`${set.ownedCards}/${set.cardCount} ${t("landing.collected")}`}>
+                      <i style={{ transform: `scaleX(${set.cardCount > 0 ? Math.min(1, set.ownedCards / set.cardCount) : 0})` }} />
+                    </span>
                   </span>
                 </Link>
               ))}

@@ -7,13 +7,16 @@ import { api } from "@/lib/api";
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (returnTo?: string) => Promise<void>;
+  login: (returnTo?: string, options?: { ccgOpeningId?: string }) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const POST_LOGIN_RETURN_TO_KEY = "post-login-return-to";
+const PENDING_CCG_CLAIM_KEY = "pending-ccg-guest-claim";
+
+type PendingCcgClaim = { openingId: string; idempotencyKey: string };
 
 function normalizeSafeInternalPath(value: string): string | null {
   if (typeof window === "undefined" || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
@@ -56,6 +59,42 @@ function consumePostLoginReturnTo(): string | null {
   }
 }
 
+function storePendingCcgClaim(openingId?: string): void {
+  if (typeof window === "undefined" || !openingId) return;
+  try {
+    const pending: PendingCcgClaim = {
+      openingId,
+      idempotencyKey: `login_${window.crypto.randomUUID()}`,
+    };
+    window.sessionStorage.setItem(PENDING_CCG_CLAIM_KEY, JSON.stringify(pending));
+  } catch {
+    // Login still works when browser storage is unavailable.
+  }
+}
+
+function readPendingCcgClaim(): PendingCcgClaim | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_CCG_CLAIM_KEY);
+    if (!raw) return null;
+    const pending = JSON.parse(raw) as Partial<PendingCcgClaim>;
+    return typeof pending.openingId === "string" && typeof pending.idempotencyKey === "string"
+      ? { openingId: pending.openingId, idempotencyKey: pending.idempotencyKey }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingCcgClaim(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(PENDING_CCG_CLAIM_KEY);
+  } catch {
+    // Nothing else needs to happen when browser storage is unavailable.
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,10 +105,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser);
 
       if (currentUser && typeof window !== "undefined") {
-        try {
-          await api.claimCcgGuest(`login_${window.crypto.randomUUID()}`);
-        } catch (error) {
-          console.warn("Today's guest cards could not be claimed yet:", error);
+        const pendingCcgClaim = readPendingCcgClaim();
+        if (pendingCcgClaim) {
+          try {
+            await api.claimCcgGuest(pendingCcgClaim.openingId, pendingCcgClaim.idempotencyKey);
+          } catch (error) {
+            console.warn("The selected guest pack could not be claimed:", error);
+          } finally {
+            clearPendingCcgClaim();
+          }
         }
         const returnTo = consumePostLoginReturnTo();
         const safeReturnTo = returnTo ? normalizeSafeInternalPath(returnTo) : null;
@@ -93,13 +137,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initAuth();
   }, [refreshUser]);
 
-  const login = async (returnTo?: string) => {
+  const login = async (returnTo?: string, options?: { ccgOpeningId?: string }) => {
     try {
       storePostLoginReturnTo(returnTo);
+      storePendingCcgClaim(options?.ccgOpeningId);
       const { url } = await api.getDiscordLoginUrl();
       window.location.href = url;
     } catch (error) {
       storePostLoginReturnTo();
+      if (options?.ccgOpeningId) clearPendingCcgClaim();
       console.error("Failed to get login URL:", error);
     }
   };

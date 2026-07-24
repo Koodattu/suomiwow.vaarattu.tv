@@ -1947,8 +1947,8 @@ export type CcgSession = {
   ownerType: "user" | "guest";
   dateKey: string;
   resetAt: string;
-  claimableGuestCards: { current: number; legacy: number };
-  packs: Record<CcgMode, { dailyRemaining: number; bonusRemaining: number; totalRemaining: number }>;
+  packs: Record<CcgMode, { regularRemaining: number; bonusRemaining: number; totalRemaining: number }>;
+  recharge: Record<CcgMode, { cap: number; intervalHours: number; nextAt: string }>;
   duplicates: Record<CcgMode, { remainder: number; needed: number; total: number; bonusPacksEarned: number }>;
   qualityProtection: Record<Exclude<CcgFinish, "standard">, number>;
   ownedFinishes: number;
@@ -1959,7 +1959,7 @@ export type CcgOpening = {
   mode: CcgMode;
   targetSetId: string | null;
   sets: CcgSet[];
-  allowanceSource: "daily" | "credit";
+  allowanceSource: "daily" | "recharge" | "credit";
   duplicateRewards: number;
   createdAt: string;
   results: Array<{ position: number; finish: CcgFinish; isDuplicate: boolean; card: CcgCard }>;

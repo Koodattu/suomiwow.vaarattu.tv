@@ -3,7 +3,6 @@ import {
   CCG_CARDS_PER_PACK,
   CCG_DUPLICATES_PER_BONUS_PACK,
   CCG_GUARANTEED_GRADE_ODDS,
-  CCG_GUEST_CLAIM_CARD_LIMIT_PER_MODE,
   CCG_TIER_GRADES,
   CCG_WEIGHTED_GRADE_ODDS,
   CcgTierGrade,
@@ -33,16 +32,6 @@ export function calculateDuplicateProgress(remainder: number, addedDuplicates: n
     remainder: total % CCG_DUPLICATES_PER_BONUS_PACK,
     earned: Math.floor(total / CCG_DUPLICATES_PER_BONUS_PACK),
   };
-}
-
-export function countGuestClaimPulls(openings: Array<{ mode: "current" | "legacy"; results: readonly unknown[] }>): { current: number; legacy: number } {
-  const pulls = { current: 0, legacy: 0 };
-  for (const opening of openings) pulls[opening.mode] += opening.results.length;
-  return pulls;
-}
-
-export function guestClaimIsWithinLimit(pulls: { current: number; legacy: number }): boolean {
-  return pulls.current <= CCG_GUEST_CLAIM_CARD_LIMIT_PER_MODE && pulls.legacy <= CCG_GUEST_CLAIM_CARD_LIMIT_PER_MODE;
 }
 
 function weightedGrade(

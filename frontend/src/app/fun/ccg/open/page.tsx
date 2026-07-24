@@ -5,13 +5,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgFinish, CcgMode, CcgOpening } from "@/types";
+import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { CCG_RARITY_KEYS } from "@/lib/ccg";
+import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
 import { getCharacterRenderProxyUrl } from "@/lib/character-render";
 import { queryKeys, useCcgOpening, useCcgSession, useCcgSets, useRaids } from "@/lib/queries";
 import IconImage from "@/components/IconImage";
 import CcgShell from "@/components/ccg/CcgShell";
-import GuestNotice from "@/components/ccg/GuestNotice";
 import PackBalance from "@/components/ccg/PackBalance";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
@@ -80,6 +81,7 @@ function playRandomPackSound(audios: Array<HTMLAudioElement | null>, volume: num
 
 export default function CcgOpenPage() {
   const t = useTranslations("ccg");
+  const { login } = useAuth();
   const queryClient = useQueryClient();
   const sessionQuery = useCcgSession();
   const setsQuery = useCcgSets();
@@ -329,26 +331,10 @@ export default function CcgOpenPage() {
   const cardBackSetScale = Math.min(1.45, Math.max(0.78, 18 / (openingPackName?.trim().length || 18)));
   const stageTheme = opening ? getPackTheme(opening.mode === "legacy" ? openingTargetSet : openingSet, openingIsRandomLegacy) : getPackTheme(featuredPackSet, randomLegacy);
 
-  const resetPackMotion = (target: HTMLButtonElement) => {
-    delete target.dataset.dragging;
-    target.style.setProperty("--pack-drag-x", "0px");
-    target.style.setProperty("--pack-drag-y", "0px");
-    target.style.setProperty("--pack-tilt-x", "0deg");
-    target.style.setProperty("--pack-tilt-y", "0deg");
-    target.style.setProperty("--pack-shine-x", "50%");
-    target.style.setProperty("--pack-shine-y", "38%");
-  };
-
   const updatePackLight = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
     const target = event.currentTarget;
-    const bounds = target.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
-    const y = Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height));
-    target.style.setProperty("--pack-tilt-x", `${((0.5 - y) * 16).toFixed(2)}deg`);
-    target.style.setProperty("--pack-tilt-y", `${((x - 0.5) * 18).toFixed(2)}deg`);
-    target.style.setProperty("--pack-shine-x", `${(x * 100).toFixed(1)}%`);
-    target.style.setProperty("--pack-shine-y", `${(y * 100).toFixed(1)}%`);
+    applyPackPointerMotion(target, event.clientX, event.clientY);
 
     const drag = packDragRef.current;
     if (drag.pointerId !== event.pointerId) return;
@@ -465,7 +451,7 @@ export default function CcgOpenPage() {
   }
 
   return (
-    <CcgShell compact context={session ? <GuestNotice session={session} /> : null}>
+    <CcgShell compact>
       <div className={packStyles.openWorkspace}>
         {!opening ? (
           <div className={packStyles.packChooser}>
@@ -753,6 +739,18 @@ export default function CcgOpenPage() {
                     </button>
                   </div>
                 )}
+                {allRevealed && session?.ownerType === "guest" ? (
+                  <div className={packStyles.guestPackClaim}>
+                    <span>{t("guest.packNotice")}</span>
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      onClick={() => login(`${window.location.pathname}${window.location.search}${window.location.hash}`, { ccgOpeningId: opening.id })}
+                    >
+                      {t("guest.keepPack")}
+                    </button>
+                  </div>
+                ) : null}
               </div>
               {allRevealed && mutation.error ? (
                 <p className={packStyles.packActionError} role="alert">

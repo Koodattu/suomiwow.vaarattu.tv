@@ -77,18 +77,20 @@
     "packsRemaining": "pakkaa jäljellä",
     "bonus": "bonus",
     "duplicateMeter": "Tuplamittari",
+    "rechargeMeter": "Lataus",
+    "storageFull": "Varasto täynnä",
+    "rechargeIn": "Seuraava pakka {time} kuluttua",
+    "rechargeTime": "{hours} t {minutes} min",
     "guest": {
-      "title": "Lunasta kortit",
-      "body": "Avaa pakat nyt ja kirjaudu ennen Helsingin vuorokausivaihtoa, jotta saat pitää kaikki kortit. Ensimmäinen lunastus antaa lisäksi viisi Current-pakkaa.",
-      "expiresIn": "Lunasta {time} kuluessa",
-      "timeRemaining": "{hours} t {minutes} min",
-      "login": "Kirjaudu ja pidä kortit"
+      "login": "Kirjaudu",
+      "packNotice": "Kirjaudu lisätäksesi tämän pakan kokoelmaasi.",
+      "keepPack": "Kirjaudu ja pidä tämä pakka"
     },
     "landing": {
-      "title": "Kaksikymmentä ilmaista pakkaa joka päivä",
+      "title": "Pakat latautuvat ympäri vuorokauden",
       "body": "Jokainen kortti on muuttumaton otos tästä raid-tieristä: suoritus, mekaniikat, Mythic+, kilta, rooli ja hahmon ulkoasu.",
-      "packBody": "Avaa kymmenen Current- ja kymmenen Legacy-pakkaa jokaisena Helsingin vuorokautena. Täsmälleen samat tuplat täyttävät mittaria kohti lisäpakkaa.",
-      "dailyPacks": "Päivittäiset pakat",
+      "packBody": "Legacy-pakka latautuu tunnin välein ja Current-pakka kahden tunnin välein, enintään 25 pakkaan asti kumpaakin.",
+      "dailyPacks": "Pakkojen lataus",
       "featuredCard": "Esittelyssä",
       "currentSet": "Current-setti",
       "currentRaids": "{count} nykyistä raidia",

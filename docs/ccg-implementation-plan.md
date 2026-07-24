@@ -15,9 +15,9 @@ The product has two collection modes:
 - **Current** contains every enabled active raid.
 - **Legacy** contains every enabled past raid.
 
-Every raid tier is its own set and binder. Users receive ten Current packs and ten Legacy packs per day. Current packs draw from all enabled active raids; Legacy packs draw from all enabled past raids.
+Every raid tier is its own set and binder. Legacy storage recharges by one pack every Helsinki hour, while Current storage recharges on even Helsinki hours. Both modes store up to 25 rechargeable packs. Current packs draw from all enabled active raids; Legacy packs draw from all enabled past raids.
 
-Users may open packs without logging in. A guest's Current and Legacy cards are saved server-side only for the Helsinki calendar day on which they were opened and can be claimed by logging in before that day's reset. Unclaimed guest cards expire at the reset. The first guest-to-account conversion also grants five additional Current packs after the guest cards have been claimed.
+Guests begin with five packs in each mode. A first-time authenticated CCG player begins with 25 packs in each mode, including existing SuomiWoW accounts that have never played CCG. Guest openings are temporary: after revealing a pack, the guest may explicitly log in to add that one pack to an account that has no prior CCG activity. Logging in never silently imports the rest of a guest session, and an established CCG account cannot import guest pulls.
 
 ## Goals
 
@@ -234,12 +234,12 @@ Grade odds remain global and versioned. Within the selected grade, every eligibl
 - Enabling a Current raid moves enabled Current raids from older Mythic+ seasons to Legacy; raids sharing the same current season may coexist.
 - Raids without an intentional CCG configuration, background, season mapping, and theme remain excluded. This keeps short or meme raids such as Sporefall disabled by default.
 
-### Daily reset
+### Recharge balances
 
-- Daily allowances use an explicit `Europe/Helsinki` calendar date key.
-- Current and Legacy allowances are independent.
-- Daily allowances do not need to become permanent inventory.
-- Earned duplicate and login bonus credits persist until opened.
+- Recharge boundaries use the `Europe/Helsinki` clock.
+- Current and Legacy balances are independent and both cap at 25 rechargeable packs.
+- Recharge is calculated lazily for the requesting owner; there is no hourly database-wide user scan.
+- Earned duplicate credits persist until opened and continue to use their existing mechanic.
 
 ### Pack contents
 
@@ -263,35 +263,34 @@ The client never submits card IDs, grades, rarity buckets, finishes, or random r
 - The guest record, openings, ownership, and related progress use the same `dateKey` and expire at the next Helsinki daily reset.
 - Every guest read, opening, and claim validates `dateKey` and `expiresAt` in application code. MongoDB TTL cleanup is eventual and is not the security or product-behavior boundary.
 - An expired guest cookie is replaced with a new day-scoped token on the visitor's next CCG request. Data from the previous token is not carried forward.
-- The UI shows the time remaining to log in and clearly states that today's cards will be lost at the daily reset.
+- The UI explains the temporary nature of guest cards only after a pack has been revealed and offers an explicit login action for that pack.
 
 Cookie resetting and other lightweight abuse are accepted product tradeoffs. Basic rate limiting and idempotency are still required to prevent accidental or automated request floods.
 
-### Guest allowances
+### Guest pack storage
 
 Guests receive:
 
-- Ten Current packs per Helsinki day
-- Ten Legacy packs per Helsinki day
-- Five cards per pack, for a maximum claimable haul of 50 Current and 50 Legacy card pull instances
+- Five initial Current packs with a 25-pack storage cap
+- One Current pack on every even Helsinki hour while storage is below the cap
+- Five initial Legacy packs with a 25-pack storage cap
+- One Legacy pack on every Helsinki hour while storage is below the cap
+- Five cards per pack
 
-Guests cannot open duplicate-earned bonus packs while logged out. During claim, the backend reclassifies the day's results against the authenticated collection, advances the authenticated user's duplicate meters, and grants any resulting bonus pack credits. These cards and rewards are lost if the guest does not claim them before the daily reset.
+Guests cannot open duplicate-earned bonus packs while logged out. An explicit claim reclassifies only the selected pack against the authenticated collection, advances the authenticated user's duplicate meter, and grants any resulting bonus pack credit. Other guest openings are not imported.
 
 ### Claim on login
 
-The first successful guest-to-user claim:
+An eligible guest-to-user claim:
 
-1. Validates that the guest record and every opening belong to the current Helsinki `dateKey` and have not expired.
-2. Counts committed result entries before aggregating quantities and requires at most 50 Current and 50 Legacy pull instances.
-3. Merges exact card and finish quantities into the authenticated collection.
-4. Reclassifies the merged results against the authenticated collection and applies duplicate-meter progress and resulting bonus credits.
-5. Preserves opening provenance.
-6. Marks the guest identity claimed so it cannot be claimed twice.
-7. Grants five additional Current pack credits as a one-time conversion bonus.
+1. Validates that the guest record and selected five-card opening belong together, are unclaimed, and have not expired.
+2. Requires the authenticated account's persistent CCG `hasPlayed` marker to be false.
+3. Merges only the selected opening's exact card and finish quantities into the authenticated collection.
+4. Reclassifies those five results and applies duplicate progress and any resulting bonus credit.
+5. Preserves opening provenance and marks both the opening and guest identity claimed.
+6. Leaves the account's first-time 25 Current and 25 Legacy starting balances intact.
 
-The 50-card limits count result instances, not unique cards or ownership documents. A duplicate still consumes one of the 50 slots. The backend rejects and audits an over-limit claim instead of truncating it; valid server-created guest activity cannot exceed the limit because guests can open only ten five-card packs per mode.
-
-The five conversion packs are granted only after a successful claim. They are authenticated pack credits, are not part of either 50-card guest limit, and are granted at most once per authenticated user rather than on every login or guest identity.
+`hasPlayed` becomes true when an authenticated account opens any rechargeable or bonus-credit pack, or when it claims its one eligible guest pack. Existing ownership and committed openings are also checked while migrating older account records. This prevents an established player from logging out, opening guest packs, and importing them later.
 
 Claiming must be an idempotent database transaction.
 
@@ -680,33 +679,38 @@ One document stores a quantity. Do not create one ownership document per duplica
 
 ### `CcgQualityProgress`
 
-Store one document per owner with persistent counters for `foil`, `golden`, `prismatic`, `holographic`, and `negative`. Counters are shared by Current and Legacy openings, advance once per pulled card, and reset independently only when that finish is awarded. Guest progress uses the same day-scoped expiry as other provisional guest state and is merged into authenticated progress during claim.
+Store one document per owner with persistent counters for `foil`, `golden`, `prismatic`, `holographic`, and `negative`. Counters are shared by Current and Legacy openings, advance once per pulled card, and reset independently only when that finish is awarded. Guest progress uses the same day-scoped expiry as other provisional guest state. A claim reclassifies the selected opening against the authenticated collection without importing the guest's wider pity state.
 
-All other guest-owned temporary documents, including daily allowance, provisional progress, and opening documents, carry the same guest `dateKey` and `expiresAt` and have TTL indexes where applicable. Application queries must still reject expired guest data because MongoDB TTL deletion is not immediate.
+All other guest-owned temporary documents, including pack balance, provisional progress, and opening documents, carry the same guest `dateKey` and `expiresAt` and have TTL indexes where applicable. Application queries must still reject expired guest data because MongoDB TTL deletion is not immediate.
 
-### `CcgDailyAllowance`
+### `CcgPackBalance`
 
 - `ownerType`
 - `ownerId`
-- `dateKey`
-- `currentGranted`
-- `currentOpened`
-- `legacyGranted`
-- `legacyOpened`
+- `currentRemaining`
+- `legacyRemaining`
+- `lastRechargeAt`
+- `grantVersion`
+- `hasPlayed`
+- `firstPlayedAt`
+- optional guest `expiresAt`
 - timestamps
 
 Index:
 
-- Unique `{ownerType: 1, ownerId: 1, dateKey: 1}`
+- Unique `{ownerType: 1, ownerId: 1}`
+- TTL `{expiresAt: 1}`
+
+Recharge is evaluated lazily against shared Helsinki hour boundaries whenever the owner loads a CCG session or opens a pack. The backend updates only that owner's balance and checkpoint, so there is no hourly fan-out across all users. Missed grants are discarded while storage is full.
 
 ### `CcgPackCredit`
 
-Persistent non-daily pack entitlements for authenticated users:
+Persistent bonus pack entitlements for authenticated users:
 
 - `ownerType`
 - `ownerId`
 - `mode`: `current` or `legacy`
-- `source`: `duplicate`, `login_conversion`, `admin`, or future supported sources
+- `source`: `duplicate`, `admin`, or future supported sources
 - `remaining`
 - source idempotency key
 - timestamps
@@ -773,8 +777,7 @@ Indexes:
 
 Append-only provenance for:
 
-- Daily grants
-- Login conversion grants
+- Initial and recharge grants
 - Duplicate reward grants
 - Pack consumption
 - Card acquisition quantities
@@ -798,7 +801,7 @@ Within one transaction:
 1. Resolve the authenticated user or guest owner from trusted server context.
 2. Find an existing opening by idempotency key and return it if present.
 3. Validate Current/Legacy mode and resolve every enabled set in that mode inside the transaction.
-4. Atomically reserve one daily allowance, or an authenticated owner's persistent pack credit. Guests can consume only the day's five normal packs per mode.
+4. Lazily apply shared-clock recharge up to the mode's storage cap, then atomically reserve one rechargeable pack or an authenticated owner's persistent pack credit.
 5. Load the active versioned pack pool.
 6. Select card IDs with server-side cryptographic randomness.
 7. Apply the guaranteed `A`-or-better slot.
@@ -818,18 +821,15 @@ Within one transaction:
 
 1. Validate the guest cookie and locate an unclaimed, unexpired guest for the current Helsinki `dateKey`.
 2. Return the previous successful result if the claim is already complete for the same user.
-3. Load the day's committed guest openings and count their result entries before grouping: reject and audit more than 50 Current or more than 50 Legacy entries.
-4. Reclassify results against the authenticated collection, then upsert no more than the validated quantities into user ownership.
-5. Apply mode-specific duplicate progress and materialize any bonus credits earned by the claimed results.
-6. Associate or annotate historical opening provenance with the claiming user.
-7. Grant five Current conversion credits using a unique source key.
-8. Mark the guest claimed and invalidate further guest writes.
-9. Write claim ledger entries, including the validated per-mode result counts.
-10. Commit.
+3. Load the explicitly selected committed five-card opening and verify that it belongs to the guest.
+4. Atomically require and flip the authenticated account's `hasPlayed` marker from false to true.
+5. Reclassify only those five results against the authenticated collection and upsert their quantities.
+6. Apply mode-specific duplicate progress and materialize any bonus credit earned by the selected pack.
+7. Associate the opening provenance with the claiming user.
+8. Mark the selected opening and guest identity claimed, invalidate further guest writes, and write the claim ledger entry.
+9. Commit.
 
-The count check is server-side and independent of client state. It counts result instances across openings, including duplicate cards and different finishes. The conversion credits are granted after validation and do not count toward either guest limit.
-
-The claim must remain safe under concurrent login callbacks and repeated browser requests. An expired guest receives no partial claim or conversion bonus.
+The claim must remain safe under concurrent login callbacks and repeated browser requests. An expired guest or an account with any prior CCG activity receives no partial claim.
 
 ## API surface
 
@@ -840,7 +840,7 @@ Exact route naming can follow existing backend conventions. The expected capabil
 - `GET /api/ccg/sets`
   - Enabled Current and Legacy sets
 - `GET /api/ccg/session`
-  - Owner type, daily allowances, bonus credits, duplicate progress, and claim state
+  - Owner type, rechargeable balances, caps, next recharge times, bonus credits, duplicate progress, and claim state
 - `GET /api/ccg/sets/:setSlug/catalog`
   - Paginated binder catalog with owned/missing state
 - `GET /api/ccg/sets/:setSlug/guilds`
@@ -926,13 +926,13 @@ The snapshot records its source watermarks and fails closed if required rankings
 - Clearly distinguishes historical performance time from media capture time.
 - Supports resumable batches and an admin preview before publication.
 
-### Daily allowance
+### Pack recharge
 
-Allowance documents may be created lazily on first session/open request for the Helsinki date. A global midnight fan-out job is unnecessary.
+Pack balances are created and recharged lazily on session/open requests. A global hourly fan-out job is unnecessary. New guests receive 5/5, first-time authenticated players receive 25/25, and both modes recharge only up to 25.
 
 ### Jobs that are not recurring cron work
 
-- Daily allowances are created lazily.
+- Pack balances and missed shared-clock recharge grants are calculated lazily.
 - Media workers run continuously and are fed by scheduled discovery/recovery jobs.
 - Legacy backfill is an explicit resumable administrative batch.
 - Current-to-Legacy movement happens inside the audited activation transaction for a newly enabled Current season, not from an unattended date guess or a separate promotion endpoint.
@@ -1049,8 +1049,8 @@ This plan is technical/product guidance, not legal advice.
 Track:
 
 - Pack opens by mode and set
-- Daily allowance use
-- Guest-to-account conversion
+- Recharge balance use
+- Guest-to-account pack claim
 - Expired unclaimed guest results and rejected over-limit claims
 - New versus duplicate rates
 - Grade and finish distributions
@@ -1110,7 +1110,7 @@ Never expose user-level private collection data in public operational dashboards
 
 - Add day-scoped guest cookies, synchronous expiry checks, and TTL cleanup.
 - Allow anonymous Current and Legacy openings.
-- Implement the transactional 25-result-per-mode claim ceiling, duplicate reclassification, and five-pack Current conversion bonus.
+- Implement the transactional one-opening claim, first-CCG-play guard, and duplicate reclassification.
 - Verify concurrency and idempotency.
 
 ### Phase 5 — binder and pack UI
@@ -1148,7 +1148,7 @@ Never expose user-level private collection data in public operational dashboards
 - Helsinki date-key generation
 - Next-reset expiry generation across daylight-saving transitions
 - Guest token hashing
-- Guest claim result-instance counting
+- Initial guest/user pack grants and recharge caps
 - Set state validation
 - Card immutability guards
 
@@ -1164,10 +1164,10 @@ Never expose user-level private collection data in public operational dashboards
 - Legacy set selection
 - Guest opening, same-day claim, and repeated claim
 - Expired previous-day guest claim rejection
-- Guest claim at exactly 25 and more than 25 results per mode
-- Guest claim counts duplicate pull instances rather than unique ownership rows
+- Guest claim accepts only the explicitly selected five-card opening
+- Existing CCG activity rejects a guest claim, including activity from pre-marker records
 - Concurrent login callbacks
-- One-time conversion bonus
+- First authenticated CCG session starts at 25/25 without guest conversion credits
 - Current-to-Legacy rollover
 - Media 404, transient retry, and stale-job recovery
 - Idempotent nightly media discovery from its stored cursor
@@ -1216,13 +1216,14 @@ Statistical tests use tolerances; they must not depend on a fixed random sequenc
 
 The initial feature is ready when:
 
-- A user or guest can receive and open ten Current and ten Legacy packs per day.
+- A user or guest receives one Legacy pack each Helsinki hour and one Current pack on even Helsinki hours while below the 25-pack storage cap for each mode.
+- A new guest starts with five packs per mode; a first-time authenticated CCG player starts with 25 packs per mode.
 - A Legacy pack can contain cards from any enabled historical raid.
 - Every committed result survives refresh and repeated requests during its retention window; authenticated results remain permanent.
 - Guest cards can be claimed only during the Helsinki day in which they were opened; unclaimed cards are inaccessible after reset and are removed by cleanup.
-- A guest claim persists at most 50 Current and 50 Legacy pull instances, enforced by the backend before quantities are aggregated.
-- Duplicate progress and rewards from a guest haul are applied only during a valid claim.
-- The first guest claim grants exactly five additional Current packs.
+- A guest claim persists only the explicitly selected five-card opening and never imports the rest of the guest session.
+- Duplicate progress and rewards from that pack are applied only during a valid claim.
+- An account with any prior CCG activity cannot claim guest cards; unrelated pre-CCG SuomiWoW account activity does not disqualify it.
 - Cards remain immutable after publication and rollover.
 - Tier grade is the visible rarity and drives pack/style behavior.
 - Every pack contains five cards and satisfies its guaranteed slot.

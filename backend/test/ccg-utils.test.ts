@@ -3,12 +3,13 @@ import test from "node:test";
 import {
   CCG_A_OR_BETTER_GRADES,
   CCG_CONFIGURED_SETS,
-  CCG_DAILY_PACKS_PER_MODE,
-  CCG_GUEST_CLAIM_CARD_LIMIT_PER_MODE,
+  CCG_INITIAL_PACKS,
+  CCG_PACK_STORAGE_CAPS,
 } from "../src/config/ccg";
 import { emptyFinishPity, finishChanceForCounter, gradeForPercentile, nextFinish, resolveCardCrop, rollProtectedFinish } from "../src/utils/ccg-random";
-import { calculateDuplicateProgress, countGuestClaimPulls, guestClaimIsWithinLimit, planPackSelections, selectPackCards } from "../src/utils/ccg-pack";
+import { calculateDuplicateProgress, planPackSelections, selectPackCards } from "../src/utils/ccg-pack";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
+import { applyPackRecharge, getNextPackRechargeAt, getRechargeGrants } from "../src/utils/ccg-recharge";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../src/utils/helsinki-time";
 
 test("canonical grading maps a 100-card population to the versioned S through F bands", () => {
@@ -93,14 +94,25 @@ test("ten exact duplicates award a pack while preserving the remainder", () => {
   assert.deepEqual(calculateDuplicateProgress(8, 23), { remainder: 1, earned: 3 });
 });
 
-test("guest claim limits count pull instances rather than unique cards", () => {
-  assert.equal(CCG_DAILY_PACKS_PER_MODE, 10);
-  assert.equal(CCG_GUEST_CLAIM_CARD_LIMIT_PER_MODE, 50);
-  const currentResults = Array.from({ length: 50 }, () => ({ cardId: "same-card" }));
-  const pulls = countGuestClaimPulls([{ mode: "current", results: currentResults }, { mode: "legacy", results: Array(50).fill(null) }]);
-  assert.deepEqual(pulls, { current: 50, legacy: 50 });
-  assert.equal(guestClaimIsWithinLimit(pulls), true);
-  assert.equal(guestClaimIsWithinLimit({ current: 51, legacy: 50 }), false);
+test("first-time pack grants distinguish guest and authenticated storage", () => {
+  assert.deepEqual(CCG_PACK_STORAGE_CAPS, { current: 25, legacy: 25 });
+  assert.deepEqual(CCG_INITIAL_PACKS.guest, { current: 5, legacy: 5 });
+  assert.deepEqual(CCG_INITIAL_PACKS.user, { current: 25, legacy: 25 });
+});
+
+test("pack recharge follows shared Helsinki hour boundaries and respects storage caps", () => {
+  const grants = getRechargeGrants(new Date("2026-01-01T07:00:00.000Z"), new Date("2026-01-01T10:05:00.000Z"));
+  assert.deepEqual(grants, { current: 2, legacy: 3 });
+  assert.equal(getNextPackRechargeAt("current", new Date("2026-07-24T10:30:00.000Z")).toISOString(), "2026-07-24T11:00:00.000Z");
+  assert.equal(getNextPackRechargeAt("legacy", new Date("2026-07-24T10:30:00.000Z")).toISOString(), "2026-07-24T11:00:00.000Z");
+
+  const recharged = applyPackRecharge(
+    { current: CCG_PACK_STORAGE_CAPS.current - 1, legacy: CCG_PACK_STORAGE_CAPS.legacy - 1 },
+    new Date("2026-01-01T07:00:00.000Z"),
+    new Date("2026-01-01T10:05:00.000Z"),
+  );
+  assert.deepEqual(recharged.balances, CCG_PACK_STORAGE_CAPS);
+  assert.equal(recharged.lastRechargeAt.toISOString(), "2026-01-01T10:00:00.000Z");
 });
 
 test("a mode-wide pack plan can draw cards from multiple raid pools", () => {

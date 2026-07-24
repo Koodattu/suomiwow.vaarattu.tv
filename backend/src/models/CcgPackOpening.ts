@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from "mongoose";
 import { CcgFinish, CcgMode, CcgTierGrade } from "../config/ccg";
 import { CcgOwnerType } from "./CcgOwnership";
 
-export type CcgAllowanceSource = "daily" | "credit";
+export type CcgAllowanceSource = "daily" | "recharge" | "credit";
 
 export interface ICcgPackResult {
   cardId: mongoose.Types.ObjectId;
@@ -52,7 +52,7 @@ const CcgPackOpeningSchema = new Schema<ICcgPackOpening>(
     mode: { type: String, enum: ["current", "legacy"], required: true, index: true },
     targetSetId: { type: Schema.Types.ObjectId, ref: "CcgSet", default: null },
     sourceSetIds: { type: [Schema.Types.ObjectId], ref: "CcgSet", required: true, default: [] },
-    allowanceSource: { type: String, enum: ["daily", "credit"], required: true },
+    allowanceSource: { type: String, enum: ["daily", "recharge", "credit"], required: true },
     creditId: { type: Schema.Types.ObjectId, ref: "CcgPackCredit", default: null },
     idempotencyKey: { type: String, required: true },
     poolVersion: { type: String, required: true },

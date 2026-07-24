@@ -13,7 +13,6 @@ import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 import { bestOwnedFinish } from "@/lib/ccg";
 import { useCcgCatalog, useCcgCollection, useCcgSession, useCcgSetGuilds, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
-import GuestNotice from "@/components/ccg/GuestNotice";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
 import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
@@ -294,10 +293,7 @@ export default function CcgCollectionPage() {
   }
 
   return (
-    <CcgShell
-      compact
-      context={sessionQuery.data ? <GuestNotice session={sessionQuery.data} /> : null}
-    >
+    <CcgShell compact>
       <div className={styles.collectionPage}>
         <section className={styles.collectionToolbar}>
           <div className={styles.collectionSetRailViewport}>

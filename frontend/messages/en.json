@@ -77,18 +77,20 @@
     "packsRemaining": "packs remaining",
     "bonus": "bonus",
     "duplicateMeter": "Duplicate meter",
+    "rechargeMeter": "Recharge",
+    "storageFull": "Storage full",
+    "rechargeIn": "Next pack in {time}",
+    "rechargeTime": "{hours} h {minutes} min",
     "guest": {
-      "title": "Claim cards",
-      "body": "Open packs now, then log in before the Helsinki daily reset to keep every card. Your first claim also adds five Current packs.",
-      "expiresIn": "Claim within {time}",
-      "timeRemaining": "{hours} h {minutes} min",
-      "login": "Log in and keep cards"
+      "login": "Log in",
+      "packNotice": "Log in to add this pack to your collection.",
+      "keepPack": "Log in and keep this pack"
     },
     "landing": {
-      "title": "Twenty free packs, every day",
+      "title": "Packs recharge around the clock",
       "body": "Every card is an immutable snapshot from this raid tier: performance, mechanics, Mythic+, guild, role, and character appearance.",
-      "packBody": "Open ten Current packs and ten Legacy packs each Helsinki day. Exact duplicates fill the meter toward another pack.",
-      "dailyPacks": "Daily allowance",
+      "packBody": "Legacy packs recharge hourly and Current packs every two hours, up to 25 of each.",
+      "dailyPacks": "Pack recharge",
       "featuredCard": "Featured card",
       "currentSet": "Featured Current set",
       "currentRaids": "{count} current raids",
