@@ -2042,8 +2042,16 @@ export type CcgAdminCommunityCharacter = {
   guildRealm: string | null;
   tierGrade: CcgTierGrade;
   linkedCharacterId: string | null;
+  avatarUrl: string | null;
   renderUrl: string;
+  active: boolean;
   createdAt: string;
+  updatedAt: string;
+};
+
+export type CcgAdminCardSearchResponse = {
+  search: string;
+  cards: CcgCard[];
 };
 
 export type CcgAdminEnableResponse = {

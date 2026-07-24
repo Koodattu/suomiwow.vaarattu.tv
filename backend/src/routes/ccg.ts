@@ -67,7 +67,16 @@ router.get(
   rateLimit(90, 60_000),
   asyncRoute(async (req, res) => {
     const owner = await ccgService.resolveOwner(req, res);
-    return ccgService.getSetGuilds(owner, req.params.setSlug);
+    return ccgService.getCollectionGuilds(owner, req.params.setSlug);
+  }),
+);
+
+router.get(
+  "/collection/guilds",
+  rateLimit(90, 60_000),
+  asyncRoute(async (req, res) => {
+    const owner = await ccgService.resolveOwner(req, res);
+    return ccgService.getCollectionGuilds(owner, typeof req.query.set === "string" ? req.query.set : undefined);
   }),
 );
 

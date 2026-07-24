@@ -150,6 +150,7 @@ class UpdateScheduler {
   private isCheckingHiatus: boolean = false;
   private isUpdatingRaiderIOGuilds: boolean = false;
   private isUpdatingMythicPlusCurrentSeason: boolean = false;
+  private isRepairingMythicPlusHistoricalScores: boolean = false;
   private isCleaningCcgGuests: boolean = false;
   private isDiscoveringCcgMedia: boolean = false;
   private isRefreshingCcgMedia: boolean = false;
@@ -549,6 +550,21 @@ class UpdateScheduler {
       },
     );
 
+    // NIGHTLY: Repair missing historical Mythic+ score rows before the weekly CCG snapshot (at 00:45 Finnish time)
+    cron.schedule(
+      "45 0 * * *",
+      async () => {
+        if (this.isRepairingMythicPlusHistoricalScores || mythicPlusService.isProcessing()) {
+          logger.info("[Nightly/MythicPlusRepair] Mythic+ crawler is still running, skipping historical score repair...");
+          return;
+        }
+        await this.repairMythicPlusHistoricalScores();
+      },
+      {
+        timezone: "Europe/Helsinki",
+      },
+    );
+
     // NIGHTLY: Update all guilds' world ranks for current raid (at 4 AM Finnish time)
     // WCL sometimes updates world ranks with a delay, so this ensures we catch those updates
     cron.schedule(
@@ -773,6 +789,7 @@ class UpdateScheduler {
     logger.info("    * Report character backfill queue: daily at 01:00");
     logger.info("    * Character achievement account matching backfill: daily at 01:30");
     logger.info("    * Mythic+ current season refresh: daily at 02:00");
+    logger.info("    * Mythic+ historical score repair: daily at 00:45");
     logger.info("    * Fight VOD cleanup: daily at 02:30");
     logger.info("    * Refetch recent reports: daily at 03:00");
     logger.info("    * World ranks update: daily at 04:00");
@@ -1067,6 +1084,34 @@ class UpdateScheduler {
       await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
     } finally {
       this.isUpdatingMythicPlusCurrentSeason = false;
+    }
+  }
+
+  async repairMythicPlusHistoricalScores(): Promise<void> {
+    if (mythicPlusService.isProcessing()) {
+      logger.info("[Nightly/MythicPlusRepair] Mythic+ crawler is already running, skipping historical score repair");
+      return;
+    }
+
+    this.isRepairingMythicPlusHistoricalScores = true;
+    const taskId = await taskTracker.start("Repair Mythic+ Historical Scores");
+
+    try {
+      const result = await mythicPlusService.triggerHistoricalScoreRepair();
+      logger.info(
+        `[Nightly/MythicPlusRepair] Queued ${result.enqueue.queued} character(s) covering ${result.enqueue.missingSeasonPairs} missing character-season score row(s); processorStarted=${result.started}`,
+      );
+      await taskTracker.complete(taskId, {
+        candidates: result.enqueue.candidates,
+        queued: result.enqueue.queued,
+        missingSeasonPairs: result.enqueue.missingSeasonPairs,
+        processorStarted: result.started,
+      });
+    } catch (error) {
+      logger.error("[Nightly/MythicPlusRepair] Error queueing historical score repair:", error);
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+    } finally {
+      this.isRepairingMythicPlusHistoricalScores = false;
     }
   }
 

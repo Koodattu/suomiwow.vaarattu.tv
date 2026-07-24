@@ -1421,6 +1421,16 @@
   border-radius: 0.2rem;
 }
 
+.collectionMissingToggleDisabled {
+  color: #59677d;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.collectionMissingToggleDisabled:hover {
+  color: #59677d;
+}
+
 .collectionSelect {
   position: relative;
   display: flex;
@@ -1475,6 +1485,15 @@
   color: #68778f;
   cursor: not-allowed;
   opacity: 0.58;
+}
+
+.collectionGuildSelect {
+  width: 16rem;
+  flex: 0 0 16rem;
+}
+
+.collectionGuildSelect select {
+  width: 100%;
 }
 
 .collectionRaritySelect[data-grade="F"],
@@ -1956,6 +1975,7 @@
 }
 
 .vaultPackShortcutColumn > .vaultPackShortcut {
+  --pack-hover-lift: 0px;
   width: 100%;
   cursor: pointer;
 }
@@ -2121,7 +2141,6 @@
 
 .vaultLegacySet:hover {
   filter: brightness(1.12) saturate(1.08);
-  transform: translateY(-2px);
 }
 
 .vaultLegacySet:active {

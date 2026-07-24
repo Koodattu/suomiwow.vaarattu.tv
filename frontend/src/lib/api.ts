@@ -132,6 +132,7 @@ import {
   CcgCollectionResponse,
   CcgGuildsResponse,
   CcgMode,
+  CcgTierGrade,
   CcgOpening,
   CcgSession,
   CcgSet,
@@ -139,6 +140,7 @@ import {
   CcgAdminSetReadiness,
   CcgAdminStatusResponse,
   CcgAdminCommunityCharacter,
+  CcgAdminCardSearchResponse,
 } from "@/types";
 
 // For client-side: use NEXT_PUBLIC_API_URL (browser requests)
@@ -251,8 +253,10 @@ export const api = {
     return response.json();
   },
 
-  async getCcgSetGuilds(setSlug: string): Promise<CcgGuildsResponse> {
-    const response = await fetch(`${API_URL}/api/ccg/sets/${encodeURIComponent(setSlug)}/guilds`, { credentials: "include" });
+  async getCcgCollectionGuilds(setSlug?: string): Promise<CcgGuildsResponse> {
+    const params = new URLSearchParams();
+    if (setSlug) params.set("set", setSlug);
+    const response = await fetch(`${API_URL}/api/ccg/collection/guilds?${params}`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load guild binders");
     return response.json();
   },
@@ -303,6 +307,36 @@ export const api = {
       body: JSON.stringify(input),
     });
     if (!response.ok) throw await buildApiError(response, "Failed to add the Community character");
+    return response.json();
+  },
+
+  async updateAdminCcgCommunityCharacter(
+    characterId: string,
+    input: { tierGrade?: CcgTierGrade; active?: boolean; refresh?: boolean },
+  ): Promise<{ character: CcgAdminCommunityCharacter }> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/community/${encodeURIComponent(characterId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw await buildApiError(response, "Failed to update the Community character");
+    return response.json();
+  },
+
+  async removeAdminCcgCommunityCharacter(characterId: string): Promise<{ character: CcgAdminCommunityCharacter }> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/community/${encodeURIComponent(characterId)}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) throw await buildApiError(response, "Failed to remove the Community character");
+    return response.json();
+  },
+
+  async searchAdminCcgCards(search: string, limit = 24): Promise<CcgAdminCardSearchResponse> {
+    const params = new URLSearchParams({ search, limit: String(limit) });
+    const response = await fetch(`${API_URL}/api/admin/ccg/cards?${params}`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to search CCG cards");
     return response.json();
   },
 

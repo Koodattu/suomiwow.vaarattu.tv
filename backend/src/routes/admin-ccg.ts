@@ -13,6 +13,7 @@ import ccgService from "../services/ccg.service";
 import logger from "../utils/logger";
 
 const router = Router();
+// This router is mounted only after session middleware. Keep the guard before every route declaration.
 router.use(requireAdmin);
 
 function adminRoute(handler: (req: Request, res: Response) => Promise<unknown>) {
@@ -94,6 +95,27 @@ router.post(
       }),
     };
   }),
+);
+
+router.patch(
+  "/community/:id",
+  adminRoute(async (req) => ({
+    character: await ccgCommunityService.update(req.params.id, {
+      tierGrade: req.body?.tierGrade,
+      active: req.body?.active,
+      refresh: req.body?.refresh,
+    }),
+  })),
+);
+
+router.delete(
+  "/community/:id",
+  adminRoute(async (req) => ({ character: await ccgCommunityService.remove(req.params.id) })),
+);
+
+router.get(
+  "/cards",
+  adminRoute(async (req) => ccgService.searchCardsForAdmin(req.query.search, req.query.limit)),
 );
 
 router.post(

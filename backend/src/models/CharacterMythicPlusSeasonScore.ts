@@ -34,6 +34,7 @@ export interface ICharacterMythicPlusSeasonScore extends Document {
   guildRealm?: string | null;
 
   season: string;
+  scoreStatus?: "available" | "no_score";
   scores: IMythicPlusScores;
   segments: Record<string, unknown>;
   specScores: ICharacterMythicPlusSpecScore[];
@@ -94,6 +95,7 @@ const CharacterMythicPlusSeasonScoreSchema = new Schema<ICharacterMythicPlusSeas
     guildRealm: { type: String, default: null },
 
     season: { type: String, required: true, index: true },
+    scoreStatus: { type: String, enum: ["available", "no_score"], default: undefined },
     scores: { type: MythicPlusScoresSchema, required: true, default: () => ({}) },
     segments: { type: Schema.Types.Mixed, default: {} },
     specScores: { type: [CharacterMythicPlusSpecScoreSchema], default: [] },

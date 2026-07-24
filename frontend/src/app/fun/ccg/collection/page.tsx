@@ -11,7 +11,7 @@ import type {
 } from "react";
 import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 import { bestOwnedFinish } from "@/lib/ccg";
-import { useCcgCatalog, useCcgCollection, useCcgSession, useCcgSetGuilds, useCcgSets } from "@/lib/queries";
+import { useCcgCatalog, useCcgCollection, useCcgCollectionGuilds, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
@@ -30,6 +30,7 @@ const rarities: Array<{ grade: CcgTierGrade; label: "artifact" | "legendary" | "
 ];
 const finishes: CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
 const cardsPerPage = 12;
+const allSetsSlug = "__all__";
 
 function PageArrow({ direction }: { direction: "previous" | "next" }) {
   return (
@@ -82,7 +83,7 @@ export default function CcgCollectionPage() {
     () => [...(setsQuery.data?.sets ?? [])].sort((a, b) => b.zoneId - a.zoneId),
     [setsQuery.data?.sets],
   );
-  const [setSlug, setSetSlug] = useState("");
+  const [setSlug, setSetSlug] = useState(allSetsSlug);
   const [guildId, setGuildId] = useState("");
   const [includeMissing, setIncludeMissing] = useState(false);
   const [page, setPage] = useState(1);
@@ -95,42 +96,48 @@ export default function CcgCollectionPage() {
   const setRailRef = useRef<HTMLDivElement>(null);
   const setRailTargetRef = useRef(0);
   const setRailAnimationRef = useRef<number | null>(null);
+  const requestedSetAppliedRef = useRef(false);
   const setRailDragRef = useRef({ pointerId: -1, startX: 0, startScrollLeft: 0, moved: false });
   const suppressSetClickRef = useRef(false);
   const [draggingSetRail, setDraggingSetRail] = useState(false);
   const [canScrollSetsBack, setCanScrollSetsBack] = useState(false);
   const [canScrollSetsForward, setCanScrollSetsForward] = useState(false);
+  const allSetsSelected = setSlug === allSetsSlug;
   const selectedSet = sets.find((set) => set.slug === setSlug);
-  const guildsQuery = useCcgSetGuilds(setSlug);
+  const collectionSetSlug = allSetsSelected ? undefined : setSlug;
+  const allCardCount = sets.reduce((total, set) => total + set.cardCount, 0);
+  const allOwnedCount = sets.reduce((total, set) => total + set.ownedCards, 0);
+  const guildsQuery = useCcgCollectionGuilds(collectionSetSlug);
   const guilds = useMemo(
     () => [...(guildsQuery.data?.guilds ?? [])].sort((a, b) => a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm)),
     [guildsQuery.data?.guilds],
   );
-  const showCatalog = includeMissing;
+  const showCatalog = includeMissing && !allSetsSelected;
   const filtersChanged = includeMissing || Boolean(guildId || grade || finish);
   const ownedQuery = useCcgCollection(
     {
       page,
       limit: cardsPerPage,
-      set: setSlug || undefined,
+      set: collectionSetSlug,
       grade: grade || undefined,
       finish: finish || undefined,
       guild: guildId || undefined,
     },
     Boolean(setSlug) && !showCatalog,
   );
-  const catalogQuery = useCcgCatalog(setSlug, page, "all", grade, guildId, finish, showCatalog, cardsPerPage);
+  const catalogQuery = useCcgCatalog(collectionSetSlug ?? "", page, "all", grade, guildId, finish, showCatalog, cardsPerPage);
   const cardsQuery = showCatalog ? catalogQuery : ownedQuery;
   const cardsData = cardsQuery.data;
-  const cardsLoading = setsQuery.isPending || (sets.length > 0 && !setSlug) || (Boolean(setSlug) && cardsQuery.isPending);
+  const cardsLoading = setsQuery.isPending || cardsQuery.isPending;
   const cardsError = cardsQuery.isError;
 
   useEffect(() => {
-    if (setSlug || sets.length === 0) return;
+    if (requestedSetAppliedRef.current || sets.length === 0) return;
     const requested = new URLSearchParams(window.location.search).get("set");
-    const next = sets.find((set) => set.slug === requested) ?? sets.find((set) => set.state === "current") ?? sets[0];
-    setSetSlug(next.slug);
-  }, [sets, setSlug]);
+    const next = sets.find((set) => set.slug === requested);
+    if (next) setSetSlug(next.slug);
+    requestedSetAppliedRef.current = true;
+  }, [sets]);
 
   useEffect(() => {
     if (!guildId || guilds.some((guild) => guild.id === guildId)) return;
@@ -324,6 +331,19 @@ export default function CcgCollectionPage() {
                 event.stopPropagation();
               }}
             >
+              <button
+                type="button"
+                aria-pressed={allSetsSelected}
+                onClick={() => selectSet(allSetsSlug)}
+                className={styles.collectionSet}
+                style={{
+                  "--set-accent": "#9c7cff",
+                  backgroundImage: 'linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("/ccg/general_wide.webp")',
+                } as CSSProperties}
+              >
+                <span>{t("landing.all")}</span>
+                <small>{allOwnedCount}/{allCardCount}</small>
+              </button>
               {sets.map((set) => (
                 <button
                   type="button"
@@ -363,16 +383,17 @@ export default function CcgCollectionPage() {
               {t("collection.resetFilters")}
             </button>
 
-            <label className={`${styles.collectionMissingToggle} ${includeMissing ? styles.collectionMissingToggleActive : ""}`}>
+            <label className={`${styles.collectionMissingToggle} ${includeMissing ? styles.collectionMissingToggleActive : ""} ${allSetsSelected ? styles.collectionMissingToggleDisabled : ""}`}>
               <input
                 type="checkbox"
                 checked={includeMissing}
+                disabled={allSetsSelected}
                 onChange={(event) => updateFilter(() => setIncludeMissing(event.target.checked))}
               />
               <span>{t("collection.showMissing")}</span>
             </label>
 
-            <label className={styles.collectionSelect}>
+            <label className={`${styles.collectionSelect} ${styles.collectionGuildSelect}`}>
               <select
                 aria-label={t("collection.guild")}
                 value={guildId}

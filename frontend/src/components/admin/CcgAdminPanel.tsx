@@ -1,17 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import CcgCardStudio from "@/components/admin/CcgCardStudio";
+import CcgCommunityManager from "@/components/admin/CcgCommunityManager";
 import { api } from "@/lib/api";
-import type { CcgAdminSetReadiness, CcgAdminSetStatus, CcgAdminStatusResponse, CcgTierGrade } from "@/types";
+import type { CcgAdminSetReadiness, CcgAdminSetStatus, CcgAdminStatusResponse } from "@/types";
 
 const secondaryButton =
   "min-h-10 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-gray-200 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09)] transition-transform duration-150 ease-out hover:bg-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
 const primaryButton =
   "min-h-10 rounded-md bg-amber-600 px-3 py-2 text-sm font-bold text-white transition-transform duration-150 ease-out hover:bg-amber-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
-const fieldClass =
-  "min-h-10 w-full rounded-md border border-white/10 bg-gray-950/70 px-3 text-sm text-white outline-none transition-colors placeholder:text-gray-600 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50";
-
 function readinessMinimum(readiness: CcgAdminSetReadiness, blocker: CcgAdminSetReadiness["blockers"][number]): number {
   if (blocker === "eligible_population") return readiness.thresholds.eligible;
   if (blocker === "media_ready") return readiness.thresholds.mediaReady;
@@ -31,13 +30,7 @@ export default function CcgAdminPanel() {
   const [confirmingZone, setConfirmingZone] = useState<number | null>(null);
   const [forcingZone, setForcingZone] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [communityForm, setCommunityForm] = useState<{ name: string; realmSlug: string; region: string; tierGrade: CcgTierGrade }>({
-    name: "",
-    realmSlug: "",
-    region: "eu",
-    tierGrade: "C",
-  });
-  const [addingCommunity, setAddingCommunity] = useState(false);
+  const [section, setSection] = useState<"studio" | "community" | "sets">("studio");
 
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }),
@@ -94,23 +87,6 @@ export default function CcgAdminPanel() {
     }
   };
 
-  const addCommunityCharacter = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setAddingCommunity(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const result = await api.createAdminCcgCommunityCharacter(communityForm);
-      setCommunityForm((current) => ({ ...current, name: "", realmSlug: "" }));
-      setNotice(t("community.added", { name: result.character.name, realm: result.character.realm }));
-      setStatus(await api.getAdminCcgStatus());
-    } catch (addError) {
-      setError(addError instanceof Error ? addError.message : t("retry"));
-    } finally {
-      setAddingCommunity(false);
-    }
-  };
-
   if (loading && !status) {
     return (
       <div className="space-y-4" aria-label={t("loading")}>
@@ -148,94 +124,47 @@ export default function CcgAdminPanel() {
       {error ? <div className="rounded-lg bg-red-950/50 p-4 text-sm text-red-200 shadow-[inset_0_0_0_1px_rgba(248,113,113,0.3)]" role="alert">{error}</div> : null}
       {notice ? <div className="rounded-lg bg-emerald-950/45 p-4 text-sm text-emerald-200 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.28)]" role="status">{notice}</div> : null}
 
-      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          [t("enabledSets"), enabledCount],
-          [t("candidateSets"), candidateCount],
-          [t("publishedCards"), status.totals.cards],
-          [t("packOpenings"), status.totals.openings],
-        ].map(([label, value]) => (
-          <div key={String(label)} className="rounded-lg bg-gray-800/75 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]">
-            <dt className="text-xs font-medium text-gray-400">{label}</dt>
-            <dd className="mt-1 text-2xl font-bold tabular-nums text-white">{value}</dd>
-          </div>
+      <nav className="flex flex-wrap gap-2 border-b border-white/8 pb-3" aria-label={t("sections.label")}>
+        {(["studio", "community", "sets"] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setSection(value)}
+            className={`min-h-10 rounded-md px-4 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 ${section === value ? "bg-cyan-950/80 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(103,232,249,.28)]" : "text-gray-400 hover:bg-white/5 hover:text-white"}`}
+            aria-current={section === value ? "page" : undefined}
+          >
+            {t(`sections.${value}`)}
+            {value === "community" ? <span className="ml-2 tabular-nums text-gray-500">{status.community.characters.filter((character) => character.active).length}</span> : null}
+          </button>
         ))}
-      </dl>
+      </nav>
 
-      <section className="overflow-hidden rounded-lg bg-[linear-gradient(135deg,rgba(8,47,73,.42),rgba(17,24,39,.84)_48%,rgba(30,27,75,.42))] shadow-[inset_0_0_0_1px_rgba(103,232,249,.14)]" aria-labelledby="ccg-community-title">
-        <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(24rem,.95fr)]">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 id="ccg-community-title" className="text-lg font-bold text-white">{t("community.title")}</h3>
-              <span className="rounded-full bg-cyan-950/80 px-2 py-0.5 text-xs font-semibold text-cyan-200">{t("community.cards", { count: status.community.characters.length })}</span>
+      {section === "studio" ? <CcgCardStudio /> : null}
+      {section === "community" ? (
+        <CcgCommunityManager
+          characters={status.community.characters}
+          onChanged={async () => setStatus(await api.getAdminCcgStatus())}
+          onError={(message) => { setError(message); setNotice(null); }}
+          onNotice={(message) => { setNotice(message); setError(null); }}
+        />
+      ) : null}
+
+      {section === "sets" ? <>
+        <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            [t("enabledSets"), enabledCount],
+            [t("candidateSets"), candidateCount],
+            [t("publishedCards"), status.totals.cards],
+            [t("packOpenings"), status.totals.openings],
+          ].map(([label, value]) => (
+            <div key={String(label)} className="rounded-lg bg-gray-800/75 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]">
+              <dt className="text-xs font-medium text-gray-400">{label}</dt>
+              <dd className="mt-1 text-2xl font-bold tabular-nums text-white">{value}</dd>
             </div>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-400">{t("community.description")}</p>
-            <form className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_5.5rem_9rem_auto]" onSubmit={(event) => void addCommunityCharacter(event)}>
-              <label className="grid gap-1 text-xs font-semibold text-gray-400">
-                {t("community.name")}
-                <input
-                  className={fieldClass}
-                  value={communityForm.name}
-                  onChange={(event) => setCommunityForm((current) => ({ ...current, name: event.target.value }))}
-                  autoComplete="off"
-                  required
-                  disabled={addingCommunity}
-                />
-              </label>
-              <label className="grid gap-1 text-xs font-semibold text-gray-400">
-                {t("community.realm")}
-                <input
-                  className={fieldClass}
-                  value={communityForm.realmSlug}
-                  onChange={(event) => setCommunityForm((current) => ({ ...current, realmSlug: event.target.value }))}
-                  placeholder="stormreaver"
-                  autoComplete="off"
-                  required
-                  disabled={addingCommunity}
-                />
-              </label>
-              <label className="grid gap-1 text-xs font-semibold text-gray-400">
-                {t("community.region")}
-                <select className={fieldClass} value={communityForm.region} onChange={(event) => setCommunityForm((current) => ({ ...current, region: event.target.value }))} disabled={addingCommunity}>
-                  {(["eu", "us", "kr", "tw"] as const).map((region) => <option key={region} value={region}>{region.toUpperCase()}</option>)}
-                </select>
-              </label>
-              <label className="grid gap-1 text-xs font-semibold text-gray-400">
-                {t("community.rarity")}
-                <select className={fieldClass} value={communityForm.tierGrade} onChange={(event) => setCommunityForm((current) => ({ ...current, tierGrade: event.target.value as CcgTierGrade }))} disabled={addingCommunity}>
-                  {(["S", "A", "B", "C", "D", "E", "F"] as const).map((grade) => <option key={grade} value={grade}>{t(`community.rarityNames.${grade}`)}</option>)}
-                </select>
-              </label>
-              <button type="submit" className={`${primaryButton} self-end whitespace-nowrap`} disabled={addingCommunity || !communityForm.name.trim() || !communityForm.realmSlug.trim()}>
-                {addingCommunity ? t("community.adding") : t("community.add")}
-              </button>
-            </form>
-          </div>
+          ))}
+        </dl>
 
-          <div className="min-h-28 border-t border-white/8 pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            {status.community.characters.length > 0 ? (
-              <ul className="max-h-52 divide-y divide-white/6 overflow-y-auto pr-1">
-                {status.community.characters.map((character) => (
-                  <li key={character.id} className="flex items-center justify-between gap-4 py-2.5 first:pt-0">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-white">{character.name} <span className="font-medium text-gray-500">· {character.realm}</span></p>
-                      <p className="truncate text-xs text-gray-400">{character.guildName ?? t("community.noGuild")} · {character.specName}</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="rounded bg-gray-950/75 px-2 py-1 text-xs font-bold text-gray-200">{t(`community.rarityNames.${character.tierGrade}`)}</span>
-                      <span className={`rounded px-2 py-1 text-xs font-semibold ${character.linkedCharacterId ? "bg-emerald-950/80 text-emerald-300" : "bg-sky-950/80 text-sky-300"}`}>
-                        {t(character.linkedCharacterId ? "community.linked" : "community.blizzardOnly")}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="flex min-h-24 items-center justify-center text-sm text-gray-500">{t("community.empty")}</p>}
-          </div>
-        </div>
-      </section>
-
-      <div className="space-y-3">
+        <div className="space-y-3">
         {status.sets.length === 0 ? (
           <div className="rounded-lg bg-gray-800/70 p-6 text-center text-sm text-gray-400 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">{t("noCandidates")}</div>
         ) : status.sets.map((set) => {
@@ -346,6 +275,7 @@ export default function CcgAdminPanel() {
           </ul>
         ) : <p className="mt-3 text-sm text-gray-500">{t("excludedEmpty")}</p>}
       </details>
+      </> : null}
     </section>
   );
 }

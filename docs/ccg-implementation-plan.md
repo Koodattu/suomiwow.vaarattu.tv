@@ -164,6 +164,8 @@ The card does not show a numeric placement such as `#12`.
 
 Mythic+ is supplementary. A missing Mythic+ score displays `—` and does not block card publication.
 
+The nightly Mythic+ maintenance has two bounded passes. At 00:45 Helsinki time, before the weekly CCG snapshot, a historical score-repair pass finds eligible characters that lack one or more stored main-season results, requests only those missing seasons, and does not fetch dungeon details. The current-season pass later refreshes active characters and dungeon runs. Positive scores are stored normally, while an explicit Raider.IO zero-score row is stored as `no_score` so it is not retried forever. A failed request or a requested season omitted from an otherwise successful response remains a gap and is retried by a later bounded pass. Published CCG cards remain immutable; repaired values are available to character views and future CCG snapshots.
+
 All dynamic numbers use tabular numerals in the UI.
 
 ### Card detail or back

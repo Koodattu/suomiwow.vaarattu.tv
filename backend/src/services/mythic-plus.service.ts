@@ -21,6 +21,7 @@ import CharacterMythicPlusSeasonScore, { IMythicPlusScores } from "../models/Cha
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import MythicPlusDungeon from "../models/MythicPlusDungeon";
 import MythicPlusSeason from "../models/MythicPlusSeason";
+import { getMissingMythicPlusSeasons, resolveMythicPlusSeasonRows } from "../utils/mythic-plus";
 import logger from "../utils/logger";
 import cacheService from "./cache.service";
 import taskTracker from "./task-tracker.service";
@@ -35,6 +36,7 @@ const DEFAULT_NIGHTLY_CURRENT_SEASON_LIMIT = Math.max(25, Number(process.env.RAI
 const DEFAULT_NIGHTLY_ACTIVE_DAYS = Math.max(1, Number(process.env.RAIDER_IO_MPLUS_NIGHTLY_ACTIVE_DAYS || 21));
 const DEFAULT_NIGHTLY_PROFILE_STALE_HOURS = Math.max(1, Number(process.env.RAIDER_IO_MPLUS_NIGHTLY_PROFILE_STALE_HOURS || 24));
 const DEFAULT_NIGHTLY_RUN_STALE_HOURS = Math.max(1, Number(process.env.RAIDER_IO_MPLUS_NIGHTLY_RUN_STALE_HOURS || 18));
+const DEFAULT_NIGHTLY_HISTORICAL_REPAIR_LIMIT = Math.max(25, Number(process.env.RAIDER_IO_MPLUS_NIGHTLY_REPAIR_LIMIT || 750));
 
 type RaiderIoHttpResult =
   | {
@@ -66,6 +68,7 @@ type EnqueueProfileJobsOptions = {
   refresh?: boolean;
   characterIds?: string[];
   targetSeasons?: string[];
+  fetchSeasonProgress?: boolean;
 };
 
 type BucketContext = {
@@ -302,12 +305,8 @@ function compareRuns(a: any, b: any): number {
   return clearA - clearB;
 }
 
-function getSeasonSlugFromProfileRow(row: any): string | null {
-  const candidates = [row?.season, row?.season_slug, row?.seasonSlug, row?.slug];
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
-  }
-  return null;
+function redactRaiderIoSecrets(value: string): string {
+  return value.replace(/([?&]access_key=)[^&\s]+/gi, "$1[redacted]");
 }
 
 class MythicPlusService {
@@ -385,7 +384,7 @@ class MythicPlusService {
           return {
             ok: false,
             status: response.status,
-            error: text.slice(0, 500) || response.statusText,
+            error: redactRaiderIoSecrets(text.slice(0, 500) || response.statusText),
             retryable: response.status >= 500,
           };
         }
@@ -399,7 +398,7 @@ class MythicPlusService {
         const retryable = error?.name === "AbortError" || error?.code === "ETIMEDOUT" || error?.code === "ECONNRESET";
         if (retryable && attempt < 3) {
           const delay = 1500 * Math.pow(2, attempt - 1);
-          logger.warn(`[MythicPlus] Network error for ${label}; retrying in ${delay}ms: ${error.message}`);
+          logger.warn(`[MythicPlus] Network error for ${label}; retrying in ${delay}ms`);
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
@@ -407,7 +406,7 @@ class MythicPlusService {
         return {
           ok: false,
           status: null,
-          error: error instanceof Error ? error.message : String(error),
+          error: `Raider.IO network error for ${label}: ${error?.name === "AbortError" ? "request timed out" : String(error?.code || error?.name || "request failed")}`,
           retryable,
         };
       }
@@ -530,6 +529,7 @@ class MythicPlusService {
       classID: job.classID,
       season: job.season ?? null,
       targetSeasons: Array.isArray(job.targetSeasons) ? job.targetSeasons : [],
+      fetchSeasonProgress: job.fetchSeasonProgress !== false,
       status: job.status,
       attempts: job.attempts,
       maxAttempts: job.maxAttempts,
@@ -669,18 +669,20 @@ class MythicPlusService {
     return this.fetchJson(url, `mythic-plus-progress ${character.region}/${character.realm}/${character.name} ${season}`);
   }
 
-  async upsertCharacterProfileScores(character: CharacterIdentity, profile: any, requestedSeasons: string[]): Promise<{ written: number; nonZeroSeasons: string[] }> {
+  async upsertCharacterProfileScores(
+    character: CharacterIdentity,
+    profile: any,
+    requestedSeasons: string[],
+  ): Promise<{ written: number; nonZeroSeasons: string[] }> {
     const rows = Array.isArray(profile?.mythic_plus_scores_by_season) ? profile.mythic_plus_scores_by_season : [];
     const fetchedAt = new Date();
     const rioLastCrawledAt = toNullableDate(profile?.last_crawled_at);
     const { mythic_plus_scores_by_season: _scoresBySeason, ...rawProfileMeta } = profile || {};
-    const canUseIndexFallback = rows.length === requestedSeasons.length;
     const operations: any[] = [];
     const nonZeroSeasons: string[] = [];
 
-    rows.forEach((row: any, index: number) => {
-      const season = getSeasonSlugFromProfileRow(row) ?? (canUseIndexFallback ? requestedSeasons[index] : null);
-      if (!season) return;
+    resolveMythicPlusSeasonRows(requestedSeasons, rows).forEach(({ season, row }) => {
+      if (!row) return;
 
       const scores = this.normalizeScores(row?.scores);
       const segments = row?.segments && typeof row.segments === "object" ? row.segments : {};
@@ -702,6 +704,7 @@ class MythicPlusService {
             guildName: character.guildName ?? null,
             guildRealm: character.guildRealm ?? null,
             season,
+            scoreStatus: scores.all > 0 ? "available" : "no_score",
             scores,
             segments,
             specScores,
@@ -873,6 +876,7 @@ class MythicPlusService {
   async enqueueProfileJobs(options: EnqueueProfileJobsOptions = {}) {
     const limit = options.limit && options.limit > 0 ? options.limit : 0;
     const targetSeasons = Array.from(new Set((options.targetSeasons ?? []).filter((season) => typeof season === "string" && season.trim()).map((season) => season.trim())));
+    const fetchSeasonProgress = options.fetchSeasonProgress !== false;
     let requestedCharacterIds: mongoose.Types.ObjectId[] | undefined;
     if (options.characterIds?.length) {
       requestedCharacterIds = options.characterIds.filter((id) => mongoose.Types.ObjectId.isValid(id)).map((id) => new mongoose.Types.ObjectId(id));
@@ -915,6 +919,7 @@ class MythicPlusService {
               guildName: character.guildName ?? null,
               guildRealm: character.guildRealm ?? null,
               targetSeasons,
+              fetchSeasonProgress,
               priority,
               lastActivityAt: new Date(),
               ...(options.refresh
@@ -922,8 +927,10 @@ class MythicPlusService {
                     status: "pending",
                     attempts: 0,
                     nextAttemptAt: new Date(),
+                    httpStatus: null,
                     lastError: null,
                     lastErrorAt: null,
+                    startedAt: null,
                     completedAt: null,
                     completionReason: null,
                   }
@@ -1154,6 +1161,156 @@ class MythicPlusService {
     };
   }
 
+  async enqueueHistoricalScoreRepairJobs(options: { limit?: number } = {}) {
+    const mainSeasons = await this.getMainSeasonSlugs();
+    const currentSeason = mainSeasons[0] ?? null;
+    const historicalSeasons = mainSeasons.filter((season) => season !== currentSeason);
+    const limit = Math.min(Math.max(Math.floor(options.limit ?? DEFAULT_NIGHTLY_HISTORICAL_REPAIR_LIMIT), 1), 10000);
+
+    if (historicalSeasons.length === 0) {
+      return { currentSeason, historicalSeasons, candidates: 0, queued: 0, missingSeasonPairs: 0 };
+    }
+
+    const eligibleCharacterIds = await this.getEligibleCharacterIds();
+    const candidates = await Character.aggregate<
+      CharacterIdentity & { storedSeasons: string[]; lastProfileJobAt?: Date | null }
+    >([
+      {
+        $match: {
+          _id: { $in: eligibleCharacterIds },
+          wclProfileHidden: { $ne: true },
+        },
+      },
+      {
+        $lookup: {
+          from: CharacterMythicPlusSeasonScore.collection.name,
+          let: { characterId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$characterId", "$$characterId"] },
+                    { $in: ["$season", historicalSeasons] },
+                  ],
+                },
+              },
+            },
+            { $project: { _id: 0, season: 1 } },
+          ],
+          as: "historicalScores",
+        },
+      },
+      { $set: { storedSeasons: "$historicalScores.season" } },
+      {
+        $match: {
+          $expr: {
+            $gt: [{ $size: { $setDifference: [historicalSeasons, "$storedSeasons"] } }, 0],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: CharacterMythicPlusFetchJob.collection.name,
+          let: { characterId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$characterId", "$$characterId"] },
+                    { $eq: ["$jobType", "profile"] },
+                    { $eq: ["$season", null] },
+                  ],
+                },
+              },
+            },
+            { $project: { _id: 0, updatedAt: 1 } },
+          ],
+          as: "profileJobs",
+        },
+      },
+      { $set: { lastProfileJobAt: { $arrayElemAt: ["$profileJobs.updatedAt", 0] } } },
+      { $sort: { lastProfileJobAt: 1, lastMythicSeenAt: -1, lastReportSeenAt: -1, updatedAt: -1, _id: 1 } },
+      { $limit: limit },
+      {
+        $project: {
+          _id: 1,
+          wclCanonicalCharacterId: 1,
+          name: 1,
+          realm: 1,
+          region: 1,
+          classID: 1,
+          guildName: 1,
+          guildRealm: 1,
+          lastMythicSeenAt: 1,
+          storedSeasons: 1,
+          lastProfileJobAt: 1,
+        },
+      },
+    ]);
+
+    const now = new Date();
+    const operations: any[] = candidates.map((character) => {
+      const targetSeasons = getMissingMythicPlusSeasons(historicalSeasons, character.storedSeasons ?? []);
+      return {
+        updateOne: {
+          filter: { characterId: character._id, jobType: "profile", season: null },
+          update: {
+            $set: {
+              characterId: character._id,
+              wclCanonicalCharacterId: character.wclCanonicalCharacterId,
+              name: character.name,
+              realm: character.realm,
+              region: character.region,
+              classID: character.classID,
+              guildName: character.guildName ?? null,
+              guildRealm: character.guildRealm ?? null,
+              targetSeasons,
+              fetchSeasonProgress: false,
+              priority: 20,
+              status: "pending",
+              attempts: 0,
+              nextAttemptAt: now,
+              httpStatus: null,
+              lastError: null,
+              lastErrorAt: null,
+              startedAt: null,
+              completedAt: null,
+              completionReason: "Queued to repair missing historical season scores",
+              lastActivityAt: now,
+            },
+            $setOnInsert: {
+              jobType: "profile",
+              season: null,
+              maxAttempts: 3,
+              profileSeasonsWritten: 0,
+              detailJobsQueued: 0,
+              dungeonRunsWritten: 0,
+            },
+          },
+          upsert: true,
+        },
+      };
+    });
+
+    if (operations.length === 0) {
+      return { currentSeason, historicalSeasons, candidates: 0, queued: 0, missingSeasonPairs: 0 };
+    }
+
+    const result = await CharacterMythicPlusFetchJob.bulkWrite(operations, { ordered: false });
+    return {
+      currentSeason,
+      historicalSeasons,
+      candidates: candidates.length,
+      queued: (result.upsertedCount ?? 0) + (result.modifiedCount ?? 0),
+      missingSeasonPairs: candidates.reduce(
+        (sum, character) => sum + getMissingMythicPlusSeasons(historicalSeasons, character.storedSeasons ?? []).length,
+        0,
+      ),
+    };
+  }
+
   async triggerHistoricalBackfill(options: { process?: boolean; maxJobs?: number; syncStatic?: boolean } = {}) {
     const staticResult = options.syncStatic === false ? { seasons: 0, dungeons: 0 } : await this.syncStaticData();
     const enqueue = await this.enqueueProfileJobs({ refresh: true, targetSeasons: [] });
@@ -1162,6 +1319,17 @@ class MythicPlusService {
       mode: "historical" as const,
       started,
       static: staticResult,
+      enqueue,
+      status: await this.getStatus(),
+    };
+  }
+
+  async triggerHistoricalScoreRepair(options: { process?: boolean; maxJobs?: number; limit?: number } = {}) {
+    const enqueue = await this.enqueueHistoricalScoreRepairJobs({ limit: options.limit });
+    const started = options.process === false || enqueue.queued === 0 ? false : this.startProcessing({ maxJobs: options.maxJobs });
+    return {
+      mode: "historical_repair" as const,
+      started,
       enqueue,
       status: await this.getStatus(),
     };
@@ -1362,12 +1530,15 @@ class MythicPlusService {
     }
 
     const writeResult = await this.upsertCharacterProfileScores(character, result.data, seasons);
-    const detailJobsQueued = await this.enqueueSeasonProgressJobs(character, writeResult.nonZeroSeasons, true);
+    const detailJobsQueued = job.fetchSeasonProgress === false ? 0 : await this.enqueueSeasonProgressJobs(character, writeResult.nonZeroSeasons, true);
 
     await this.markJob(job, "completed", {
       profileSeasonsWritten: writeResult.written,
       detailJobsQueued,
-      completionReason: `Stored ${writeResult.written} season score(s); queued ${detailJobsQueued} detail job(s)`,
+      completionReason:
+        job.fetchSeasonProgress === false
+          ? `Stored ${writeResult.written} season score(s); score-only repair`
+          : `Stored ${writeResult.written} season score(s); queued ${detailJobsQueued} detail job(s)`,
     });
   }
 

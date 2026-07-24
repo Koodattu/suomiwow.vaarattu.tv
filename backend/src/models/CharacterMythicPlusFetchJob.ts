@@ -23,6 +23,7 @@ export interface ICharacterMythicPlusFetchJob extends Document {
   guildRealm?: string | null;
   season?: string | null;
   targetSeasons: string[];
+  fetchSeasonProgress: boolean;
 
   status: CharacterMythicPlusFetchJobStatus;
   priority: number;
@@ -56,6 +57,7 @@ const CharacterMythicPlusFetchJobSchema = new Schema<ICharacterMythicPlusFetchJo
     guildRealm: { type: String, default: null },
     season: { type: String, default: null, index: true },
     targetSeasons: { type: [String], default: [] },
+    fetchSeasonProgress: { type: Boolean, required: true, default: true },
 
     status: {
       type: String,

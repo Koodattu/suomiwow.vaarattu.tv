@@ -39,13 +39,13 @@
 
 .stageArt {
   z-index: -5;
-  inset: -8%;
+  inset: 0;
   background-image: var(--pack-stage-art);
   background-position: center;
   background-size: cover;
-  filter: saturate(0.96) brightness(0.54) contrast(1.06);
-  opacity: 0.68;
-  transform: scale(1.06);
+  filter: saturate(1.02) brightness(0.7) contrast(1.04);
+  opacity: 0.86;
+  transform: scale(1.025);
 }
 
 .packChooser {
@@ -352,9 +352,9 @@
   z-index: -4;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(1, 4, 12, 0.38), rgba(1, 4, 12, 0.04) 40%, rgba(1, 4, 12, 0.64)),
-    radial-gradient(circle at 50% 48%, color-mix(in srgb, var(--pack-accent) 25%, transparent), transparent 30rem),
-    radial-gradient(ellipse at 50% 106%, rgba(1, 4, 12, 0.12), #01040c 70%);
+    radial-gradient(ellipse 68% 72% at 50% 48%, transparent 0 34%, rgba(1, 4, 12, 0.2) 58%, rgba(1, 4, 12, 0.82) 84%, rgba(1, 4, 12, 0.96) 100%),
+    linear-gradient(180deg, rgba(1, 4, 12, 0.52), transparent 16% 78%, rgba(1, 4, 12, 0.78)),
+    radial-gradient(circle at 50% 48%, color-mix(in srgb, var(--pack-accent) 22%, transparent), transparent 31rem);
 }
 
 .vaultRing,
@@ -414,6 +414,7 @@
 .packButton {
   --pack-drag-x: 0px;
   --pack-drag-y: 0px;
+  --pack-hover-lift: -8px;
   --pack-lift: 0px;
   --pack-scale: 1;
   --pack-tilt-x: 0deg;
@@ -565,7 +566,7 @@
 }
 
 .packButton:hover:not(:disabled) .booster {
-  --pack-lift: -8px;
+  --pack-lift: var(--pack-hover-lift);
   --pack-scale: 1.018;
   filter: brightness(1.05) saturate(1.06);
 }
@@ -767,13 +768,13 @@
 
 .packBrand strong,
 .cardBackBrand strong {
-  color: color-mix(in srgb, var(--pack-accent) 64%, white);
+  color: var(--pack-brand-color, color-mix(in srgb, var(--pack-accent) 64%, white));
 }
 
 .packTitle {
   top: 21%;
   width: 76%;
-  color: color-mix(in srgb, var(--pack-accent) 64%, white);
+  color: var(--pack-title-color, color-mix(in srgb, var(--pack-accent) 64%, white));
   font-family: "LifeCraft", Georgia, "Times New Roman", serif;
   font-size: clamp(1.32rem, 4vw, 1.92rem);
   font-weight: 400;
@@ -1664,7 +1665,7 @@
 
 .cardBackSet {
   bottom: 5.5%;
-  color: color-mix(in srgb, var(--pack-accent) 64%, white);
+  color: var(--pack-title-color, color-mix(in srgb, var(--pack-accent) 64%, white));
   font-family: "LifeCraft", fantasy;
   font-size: clamp(0.76rem, calc(5.35cqw * var(--card-back-set-scale, 1)), 1.55rem);
   font-synthesis: none;

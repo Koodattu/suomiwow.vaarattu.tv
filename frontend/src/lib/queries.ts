@@ -95,7 +95,7 @@ export const queryKeys = {
     session: ["ccg", "session"] as const,
     sets: ["ccg", "sets"] as const,
     catalog: (setSlug: string, page: number, owned: string, grade: string, guildId: string, finish: string, limit: number) => ["ccg", "catalog", setSlug, page, owned, grade, guildId, finish, limit] as const,
-    guilds: (setSlug: string) => ["ccg", "guilds", setSlug] as const,
+    guilds: (setSlug?: string) => ["ccg", "guilds", setSlug ?? "all"] as const,
     collection: (options: Record<string, unknown>) => ["ccg", "collection", options] as const,
     opening: (openingId: string) => ["ccg", "opening", openingId] as const,
   },
@@ -497,11 +497,11 @@ export function useCcgCatalog(setSlug: string, page: number, owned: "all" | "own
   });
 }
 
-export function useCcgSetGuilds(setSlug: string, enabled = true) {
+export function useCcgCollectionGuilds(setSlug?: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.ccg.guilds(setSlug),
-    queryFn: () => api.getCcgSetGuilds(setSlug),
-    enabled: Boolean(setSlug) && enabled,
+    queryFn: () => api.getCcgCollectionGuilds(setSlug),
+    enabled,
     staleTime: 5 * 60 * 1000,
   });
 }

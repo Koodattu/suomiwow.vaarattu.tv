@@ -445,7 +445,15 @@ class CcgPublisherService {
   async rebuildPool(setId: mongoose.Types.ObjectId, version?: string, existingSession?: mongoose.ClientSession): Promise<string> {
     const set = await CcgSet.findById(setId).session(existingSession ?? null).lean();
     if (!set) throw new Error("CCG set not found");
-    const cards = await CcgCard.find({ setId }).select("_id tierGrade").sort({ setNumber: 1 }).session(existingSession ?? null).lean();
+    const cardFilter: Record<string, unknown> = { setId };
+    if (set.kind === "community") {
+      const activeCharacters = await CcgCommunityCharacter.find({ active: { $ne: false } })
+        .select("_id")
+        .session(existingSession ?? null)
+        .lean();
+      cardFilter.communityCharacterId = { $in: activeCharacters.map((character) => character._id) };
+    }
+    const cards = await CcgCard.find(cardFilter).select("_id tierGrade").sort({ setNumber: 1 }).session(existingSession ?? null).lean();
     const poolVersion = version ?? `${CCG_POOL_VERSION}-${set.publicationWave}`;
     const buckets = CCG_TIER_GRADES.map((grade) => ({
       grade,

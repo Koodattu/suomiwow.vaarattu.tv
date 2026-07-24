@@ -31,15 +31,32 @@ type CreateCommunityCharacterInput = {
   createdBy: mongoose.Types.ObjectId;
 };
 
+type UpdateCommunityCharacterInput = {
+  tierGrade?: unknown;
+  active?: unknown;
+  refresh?: unknown;
+};
+
 function requiredSlug(value: unknown, field: string): string {
   if (typeof value !== "string" || !value.trim()) throw new CcgCommunityError(400, `invalid_${field}`, `${field} is required`);
   return value.trim().toLowerCase();
 }
 
+function validTierGrade(value: unknown): CcgTierGrade {
+  if (!CCG_TIER_GRADES.includes(value as CcgTierGrade)) {
+    throw new CcgCommunityError(400, "invalid_rarity", "A valid card rarity is required");
+  }
+  return value as CcgTierGrade;
+}
+
+function validId(value: string): mongoose.Types.ObjectId {
+  if (!mongoose.Types.ObjectId.isValid(value)) throw new CcgCommunityError(400, "invalid_community_id", "A valid Community character ID is required");
+  return new mongoose.Types.ObjectId(value);
+}
+
 class CcgCommunityService {
-  async list(): Promise<Array<Record<string, unknown>>> {
-    const rows = await CcgCommunityCharacter.find().sort({ createdAt: -1 }).lean();
-    return rows.map((row) => ({
+  private serialize(row: Record<string, any>): Record<string, unknown> {
+    return {
       id: String(row._id),
       cardId: row.cardId ? String(row.cardId) : null,
       name: row.name,
@@ -53,23 +70,15 @@ class CcgCommunityService {
       guildRealm: row.guildRealm ?? null,
       tierGrade: row.tierGrade,
       linkedCharacterId: row.linkedCharacterId ? String(row.linkedCharacterId) : null,
+      avatarUrl: row.avatarUrl ?? null,
       renderUrl: row.renderUrl,
+      active: row.active !== false,
       createdAt: row.createdAt,
-    }));
+      updatedAt: row.updatedAt,
+    };
   }
 
-  async create(input: CreateCommunityCharacterInput): Promise<Record<string, unknown>> {
-    const name = requiredSlug(input.name, "name");
-    const realmSlug = requiredSlug(input.realmSlug, "realm");
-    const region = requiredSlug(input.region, "region");
-    if (!new Set(["eu", "us", "kr", "tw"]).has(region)) throw new CcgCommunityError(400, "invalid_region", "Unsupported Blizzard region");
-    if (!CCG_TIER_GRADES.includes(input.tierGrade)) throw new CcgCommunityError(400, "invalid_rarity", "A valid card rarity is required");
-
-    const identityKey = createWowCharacterIdentityKey(region, realmSlug, name);
-    if (await CcgCommunityCharacter.exists({ identityKey })) {
-      throw new CcgCommunityError(409, "community_character_exists", "This character is already in the Community set");
-    }
-
+  private async resolveCharacter(name: string, realmSlug: string, region: string) {
     let profile;
     let media;
     try {
@@ -86,7 +95,6 @@ class CcgCommunityService {
     if (!classInfo) throw new CcgCommunityError(422, "class_not_supported", `Unsupported character class: ${profile.character_class.name}`);
     const specName = profile.active_spec.name;
     const role = resolveRole(classInfo.id, specName);
-
     const linkedCharacter = await Character.findOne({
       name: profile.name,
       realm: { $in: [profile.realm.name, profile.realm.slug] },
@@ -100,8 +108,41 @@ class CcgCommunityService {
     const existingCard = linkedCharacter
       ? await CcgCard.findOne({ characterId: linkedCharacter._id }).select("collectorKey").sort({ publishedAt: -1 }).lean()
       : null;
-    const collectorKey = existingCard?.collectorKey
-      ?? (linkedCharacter ? createCharacterCollectorKey(linkedCharacter._id) : identityKey);
+
+    return {
+      profile,
+      media,
+      classInfo,
+      specName,
+      role,
+      linkedCharacter,
+      guildName,
+      guildRealm,
+      guild,
+      collectorKey: existingCard?.collectorKey
+        ?? (linkedCharacter ? createCharacterCollectorKey(linkedCharacter._id) : createWowCharacterIdentityKey(region, realmSlug, name)),
+    };
+  }
+
+  async list(): Promise<Array<Record<string, unknown>>> {
+    const rows = await CcgCommunityCharacter.find().sort({ createdAt: -1 }).lean();
+    return rows.map((row) => this.serialize(row));
+  }
+
+  async create(input: CreateCommunityCharacterInput): Promise<Record<string, unknown>> {
+    const name = requiredSlug(input.name, "name");
+    const realmSlug = requiredSlug(input.realmSlug, "realm");
+    const region = requiredSlug(input.region, "region");
+    if (!new Set(["eu", "us", "kr", "tw"]).has(region)) throw new CcgCommunityError(400, "invalid_region", "Unsupported Blizzard region");
+    const tierGrade = validTierGrade(input.tierGrade);
+
+    const identityKey = createWowCharacterIdentityKey(region, realmSlug, name);
+    if (await CcgCommunityCharacter.exists({ identityKey })) {
+      throw new CcgCommunityError(409, "community_character_exists", "This character is already in the Community set");
+    }
+
+    const resolved = await this.resolveCharacter(name, realmSlug, region);
+    const { profile, media, classInfo, specName, role, linkedCharacter, guildName, guildRealm, guild, collectorKey } = resolved;
 
     await ccgPublisherService.ensureConfiguredSets();
     const set = await CcgSet.findOne({ zoneId: CCG_COMMUNITY_SET.zoneId });
@@ -124,9 +165,10 @@ class CcgCommunityService {
       guildId: guild?._id ?? null,
       guildName,
       guildRealm,
-      tierGrade: input.tierGrade,
+      tierGrade,
       avatarUrl: media.avatarUrl,
       renderUrl: media.mainRawUrl,
+      active: true,
       createdBy: input.createdBy,
     });
     const card = new CcgCard({
@@ -151,7 +193,7 @@ class CcgCommunityService {
       survivalScore: 0,
       combinedScore: 0,
       mythicPlusScore: null,
-      tierGrade: input.tierGrade,
+      tierGrade,
       avatarUrl: media.avatarUrl,
       renderUrl: media.mainRawUrl,
       backgroundCrop: resolveCardCrop(`${set.slug}:${identityKey}`, set.backgroundSafeCrop),
@@ -199,6 +241,95 @@ class CcgCommunityService {
     }
 
     return (await this.list()).find((row) => row.id === String(community._id))!;
+  }
+
+  async update(id: string, input: UpdateCommunityCharacterInput): Promise<Record<string, unknown>> {
+    const communityId = validId(id);
+    const community = await CcgCommunityCharacter.findById(communityId);
+    if (!community) throw new CcgCommunityError(404, "community_character_not_found", "Community character not found");
+    if (!community.cardId) throw new CcgCommunityError(409, "community_card_missing", "The Community card is unavailable");
+    const cardId = community.cardId;
+
+    const tierGrade = input.tierGrade === undefined ? community.tierGrade : validTierGrade(input.tierGrade);
+    if (input.active !== undefined && typeof input.active !== "boolean") {
+      throw new CcgCommunityError(400, "invalid_active_state", "Active must be true or false");
+    }
+    if (input.refresh !== undefined && typeof input.refresh !== "boolean") {
+      throw new CcgCommunityError(400, "invalid_refresh_state", "Refresh must be true or false");
+    }
+    const active = typeof input.active === "boolean" ? input.active : community.active !== false;
+    const resolved = input.refresh === true
+      ? await this.resolveCharacter(community.name, community.realmSlug, community.region)
+      : null;
+    const now = new Date();
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        community.tierGrade = tierGrade;
+        community.active = active;
+        if (resolved) {
+          community.blizzardCharacterId = resolved.profile.id;
+          community.name = resolved.profile.name;
+          community.realm = resolved.profile.realm.name;
+          community.realmSlug = resolved.profile.realm.slug;
+          community.classID = resolved.classInfo.id;
+          community.specName = resolved.specName;
+          community.role = resolved.role;
+          community.guildId = resolved.guild?._id ?? null;
+          community.guildName = resolved.guildName;
+          community.guildRealm = resolved.guildRealm;
+          community.avatarUrl = resolved.media.avatarUrl;
+          community.renderUrl = resolved.media.mainRawUrl!;
+        }
+        await community.save({ session });
+
+        const cardUpdate: Record<string, unknown> = { tierGrade };
+        if (resolved) {
+          Object.assign(cardUpdate, {
+            name: resolved.profile.name,
+            realm: resolved.profile.realm.name,
+            guildId: resolved.guild?._id ?? null,
+            guildName: resolved.guildName,
+            guildRealm: resolved.guildRealm,
+            classID: resolved.classInfo.id,
+            specName: resolved.specName,
+            role: resolved.role,
+            metric: resolved.role === "healer" ? "hps" : "dps",
+            avatarUrl: resolved.media.avatarUrl,
+            renderUrl: resolved.media.mainRawUrl,
+            mediaCapturedAt: now,
+          });
+        }
+        // Community cards are admin-managed records; raid snapshot cards remain immutable through the model hooks.
+        const cardResult = await CcgCard.collection.updateOne(
+          { _id: cardId, communityCharacterId: community._id, sourcePartition: "community-admin" },
+          { $set: cardUpdate },
+          { session },
+        );
+        if (cardResult.matchedCount !== 1) throw new CcgCommunityError(409, "community_card_missing", "The Community card is unavailable");
+
+        const set = await CcgSet.findOne({ zoneId: CCG_COMMUNITY_SET.zoneId, kind: "community" }).session(session);
+        if (!set) throw new CcgCommunityError(503, "community_set_unavailable", "The Community set is not available");
+        set.lastPublishedAt = now;
+        set.publicationWave += 1;
+        await set.save({ session });
+        await ccgPublisherService.rebuildPool(
+          set._id,
+          `${CCG_POOL_VERSION}-community-admin-${set.publicationWave}`,
+          session,
+        );
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    const updated = await CcgCommunityCharacter.findById(communityId).lean();
+    if (!updated) throw new CcgCommunityError(404, "community_character_not_found", "Community character not found");
+    return this.serialize(updated);
+  }
+
+  async remove(id: string): Promise<Record<string, unknown>> {
+    return this.update(id, { active: false });
   }
 }
 
