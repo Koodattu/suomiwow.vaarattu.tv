@@ -147,6 +147,17 @@ class CcgPublisherService {
       { zoneId: { $in: CCG_CONFIGURED_SETS.map((set) => set.zoneId) }, enabledAt: null, state: { $ne: "draft" } },
       { $set: { state: "draft", opensAt: null, closesAt: null } },
     );
+    const unconfiguredSets = await CcgSet.find({ zoneId: { $nin: CCG_CONFIGURED_SETS.map((set) => set.zoneId) } }).select("_id").lean();
+    if (unconfiguredSets.length > 0) {
+      const unconfiguredSetIds = unconfiguredSets.map((set) => set._id);
+      await Promise.all([
+        CcgSet.updateMany(
+          { _id: { $in: unconfiguredSetIds } },
+          { $set: { state: "locked", enabledAt: null, opensAt: null } },
+        ),
+        CcgPackPool.updateMany({ setId: { $in: unconfiguredSetIds } }, { $set: { active: false } }),
+      ]);
+    }
     this.configuredAt = Date.now();
   }
 

@@ -31,6 +31,10 @@ test("card crops are deterministic and stay inside each raid's safe flair range"
   }
 });
 
+test("Crucible of Storms is excluded from CCG configuration", () => {
+  assert.equal(CCG_CONFIGURED_SETS.some((set) => set.zoneId === 22), false);
+});
+
 test("quality protection follows a quadratic ramp, resets only the awarded finish, and honors duplicate upgrades", () => {
   const first = rollProtectedFinish(emptyFinishPity(), "standard", (maximum) => maximum - 1);
   assert.equal(first.finish, "standard");

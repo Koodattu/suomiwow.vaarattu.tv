@@ -295,6 +295,7 @@ class CcgService {
       { $unwind: "$card" },
       { $lookup: { from: "ccgsets", localField: "card.setId", foreignField: "_id", as: "set" } },
       { $unwind: "$set" },
+      { $match: { "set.enabledAt": { $ne: null } } },
       {
         $group: {
           _id: { characterId: "$card.characterId", cardId: "$card._id" },
