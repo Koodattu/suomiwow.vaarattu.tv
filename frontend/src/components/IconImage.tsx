@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface IconImageProps {
   iconFilename: string | undefined;
@@ -11,6 +11,7 @@ interface IconImageProps {
   fill?: boolean;
   className?: string;
   style?: React.CSSProperties;
+  onReady?: () => void;
 }
 
 /**
@@ -27,11 +28,24 @@ export default function IconImage({
   fill = false,
   className = "",
   style,
+  onReady,
 }: IconImageProps) {
   const [imageState, setImageState] = useState<
     "local" | "backend" | "placeholder"
   >("local");
   const [backendFailed, setBackendFailed] = useState(false);
+  const readyIcon = useRef<string | null>(null);
+
+  const notifyReady = () => {
+    const readyKey = iconFilename ?? "__missing__";
+    if (readyIcon.current === readyKey) return;
+    readyIcon.current = readyKey;
+    onReady?.();
+  };
+
+  useEffect(() => {
+    if (!iconFilename || imageState === "placeholder" || backendFailed) notifyReady();
+  }, [backendFailed, iconFilename, imageState]);
 
   if (!iconFilename) {
     return (
@@ -60,6 +74,7 @@ export default function IconImage({
         fill={fill}
         className={className}
         style={style}
+        onLoad={notifyReady}
         onError={() => setImageState("placeholder")}
       />
     );
@@ -91,6 +106,7 @@ export default function IconImage({
       fill={fill}
       className={className}
       style={style}
+      onLoad={notifyReady}
       onError={() => {
         if (imageState === "local") {
           // Local failed, try backend

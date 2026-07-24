@@ -16,6 +16,7 @@ type AlphaFittedCharacterRenderProps = {
   sizes: string;
   className?: string;
   priority?: boolean;
+  onReady?: () => void;
 };
 
 const MAX_MEASUREMENT_SIZE = 256;
@@ -59,7 +60,7 @@ function measureAlphaBounds(image: HTMLImageElement): AlphaBounds | null {
   };
 }
 
-export default function AlphaFittedCharacterRender({ src, sizes, className, priority = false }: AlphaFittedCharacterRenderProps) {
+export default function AlphaFittedCharacterRender({ src, sizes, className, priority = false, onReady }: AlphaFittedCharacterRenderProps) {
   const proxySrc = useMemo(() => getCharacterRenderProxyUrl(src), [src]);
   const [measurement, setMeasurement] = useState<{ src: string; bounds: AlphaBounds } | null>(() => {
     const bounds = boundsCache.get(src);
@@ -75,6 +76,7 @@ export default function AlphaFittedCharacterRender({ src, sizes, className, prio
     const cached = boundsCache.get(src);
     if (cached) {
       setMeasurement({ src, bounds: cached });
+      onReady?.();
       return;
     }
 
@@ -83,6 +85,7 @@ export default function AlphaFittedCharacterRender({ src, sizes, className, prio
       if (!bounds) return;
       boundsCache.set(src, bounds);
       setMeasurement({ src, bounds });
+      onReady?.();
     } catch {
       // Leave the render hidden when its pixels cannot be inspected safely.
     }

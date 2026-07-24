@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgCard, CcgFinish } from "@/types";
@@ -100,6 +100,7 @@ type CollectibleCardProps = {
   hideBadges?: boolean;
   forcedPointer?: { x: number; y: number };
   viewTransitionName?: string;
+  onReady?: () => void;
 };
 
 export default function CollectibleCard({
@@ -115,17 +116,39 @@ export default function CollectibleCard({
   hideBadges = false,
   forcedPointer,
   viewTransitionName,
+  onReady,
 }: CollectibleCardProps) {
   const t = useTranslations("ccg");
   const materialFrame = useRef<number | null>(null);
   const pendingMaterial = useRef<{ element: HTMLElement; x: number; y: number } | null>(null);
   const cardRef = useRef<HTMLSpanElement | null>(null);
   const hadForcedPointer = useRef(false);
+  const readyAssets = useRef(new Set<"render" | "class" | "spec">());
+  const readyCard = useRef<string | null>(null);
   const classInfo = getClassInfoById(card.classID);
   const specIcon = getSpecIconUrl(card.classID, card.specName);
   const rarity = t(`rarity.${CCG_RARITY_KEYS[card.tierGrade]}`);
   const guild = card.guildName ? `<${card.guildName}>` : t("independent");
   const realm = formatRealmName(card.realm);
+  const readyKey = `${card.id}:${card.renderUrl ?? ""}:${classInfo.iconUrl ?? ""}:${specIcon ?? ""}`;
+
+  if (readyCard.current !== readyKey) {
+    readyCard.current = readyKey;
+    readyAssets.current.clear();
+  }
+
+  const markReady = useCallback((asset: "render" | "class" | "spec") => {
+    readyAssets.current.add(asset);
+    if (readyAssets.current.size === 3) onReady?.();
+  }, [onReady]);
+
+  useEffect(() => {
+    if (!card.renderUrl) markReady("render");
+    if (hideCornerIcons) {
+      markReady("class");
+      markReady("spec");
+    }
+  }, [card.renderUrl, hideCornerIcons, markReady]);
   const cardStyle = {
     "--lab-accent": card.set.theme.accent,
     "--lab-glow": card.set.theme.glow,
@@ -216,15 +239,15 @@ export default function CollectibleCard({
       <span className={styles.artworkClip} aria-hidden="true"><span className={styles.raidArt} /><span className={styles.raidShade} /></span>
       <span className={styles.lowerDeck} aria-hidden="true" />
       <span className={styles.renderWindow} aria-hidden="true">
-        {card.renderUrl ? <AlphaFittedCharacterRender src={card.renderUrl} sizes={compact ? "280px" : `${width ?? 400}px`} className={styles.renderImage} /> : null}
+        {card.renderUrl ? <AlphaFittedCharacterRender src={card.renderUrl} sizes={compact ? "280px" : `${width ?? 400}px`} className={styles.renderImage} onReady={() => markReady("render")} /> : null}
       </span>
 
       <span className={styles.identity}><strong className={styles.characterName}>{card.name}</strong><span className={styles.guildName}>{guild}</span></span>
 
       {!hideCornerIcons ? (
         <>
-          <span className={`${styles.cornerCrest} ${styles.classCrest}`}><IconImage iconFilename={classInfo.iconUrl} alt="" width={40} height={40} /><span>{classInfo.name}</span></span>
-          <span className={`${styles.cornerCrest} ${styles.specCrest}`}><IconImage iconFilename={specIcon} alt="" width={40} height={40} /><span>{formatSpecName(card.specName)}</span></span>
+          <span className={`${styles.cornerCrest} ${styles.classCrest}`}><IconImage iconFilename={classInfo.iconUrl} alt="" width={40} height={40} onReady={() => markReady("class")} /><span>{classInfo.name}</span></span>
+          <span className={`${styles.cornerCrest} ${styles.specCrest}`}><IconImage iconFilename={specIcon} alt="" width={40} height={40} onReady={() => markReady("spec")} /><span>{formatSpecName(card.specName)}</span></span>
         </>
       ) : null}
 

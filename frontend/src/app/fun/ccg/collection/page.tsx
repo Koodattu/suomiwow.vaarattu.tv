@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { CSSProperties } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 import { bestOwnedFinish } from "@/lib/ccg";
 import { useCcgCatalog, useCcgCollection, useCcgSession, useCcgSetGuilds, useCcgSets } from "@/lib/queries";
@@ -32,6 +32,41 @@ function PageArrow({ direction }: { direction: "previous" | "next" }) {
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d={direction === "previous" ? "m15 5-7 7 7 7" : "m9 5 7 7-7 7"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+function CollectionCard({
+  card,
+  finish,
+  quantity,
+  missing,
+  onSelect,
+}: {
+  card: CcgCard;
+  finish: CcgFinish;
+  quantity?: number;
+  missing: boolean;
+  onSelect: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+}) {
+  const [ready, setReady] = useState(false);
+  const markReady = useCallback(() => setReady(true), []);
+
+  return (
+    <div className={styles.collectionCardSlot} aria-busy={!ready}>
+      <div
+        className={`${styles.collectionSkeleton} ${styles.collectionCardSkeleton} ${ready ? styles.collectionCardSkeletonHidden : ""}`}
+        aria-hidden="true"
+      />
+      <CollectibleCard
+        card={card}
+        finish={finish}
+        quantity={quantity}
+        compact
+        className={`${styles.collectionCardAsset} ${ready ? "" : styles.collectionCardAssetLoading} ${missing ? styles.collectionMissingCard : ""}`}
+        onReady={markReady}
+        onSelect={onSelect}
+      />
+    </div>
   );
 }
 
@@ -238,7 +273,11 @@ export default function CcgCollectionPage() {
             </div>
             {cardsLoading ? (
               <div className={styles.collectionBinderGrid}>
-                {Array.from({ length: cardsPerPage }, (_, index) => <div key={index} className={styles.collectionSkeleton} />)}
+                {Array.from({ length: cardsPerPage }, (_, index) => (
+                  <div key={index} className={styles.collectionCardSlot}>
+                    <div className={`${styles.collectionSkeleton} ${styles.collectionCardSkeleton}`} />
+                  </div>
+                ))}
               </div>
             ) : cardsError ? (
               <div className={styles.collectionEmpty}><CcgLoadError onRetry={retryCards} /></div>
@@ -247,24 +286,22 @@ export default function CcgCollectionPage() {
                 {cardsData.cards.map((card) => {
                   const ownedFinish = bestOwnedFinish(card);
                   return (
-                    <div className={styles.collectionCardSlot} key={card.id}>
-                      <CollectibleCard
-                        card={card}
-                        finish={ownedFinish?.finish ?? "standard"}
-                        quantity={ownedFinish?.total}
-                        compact
-                        className={ownedFinish ? "" : styles.collectionMissingCard}
-                        onSelect={(event) => {
-                          const originElement = event.currentTarget;
-                          openCardViewer(originElement, (sharedTransition, originBounds) => {
-                            setViewerOriginElement(originElement);
-                            setViewerOriginBounds(originBounds);
-                            setViewerSharedTransition(sharedTransition);
-                            setViewerCard(card);
-                          });
-                        }}
-                      />
-                    </div>
+                    <CollectionCard
+                      key={`${card.id}:${card.renderUrl ?? ""}`}
+                      card={card}
+                      finish={ownedFinish?.finish ?? "standard"}
+                      quantity={ownedFinish?.total}
+                      missing={!ownedFinish}
+                      onSelect={(event) => {
+                        const originElement = event.currentTarget;
+                        openCardViewer(originElement, (sharedTransition, originBounds) => {
+                          setViewerOriginElement(originElement);
+                          setViewerOriginBounds(originBounds);
+                          setViewerSharedTransition(sharedTransition);
+                          setViewerCard(card);
+                        });
+                      }}
+                    />
                   );
                 })}
               </div>
