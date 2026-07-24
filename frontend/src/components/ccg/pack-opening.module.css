@@ -16,6 +16,7 @@
   --pack-glow: rgba(91, 174, 255, 0.38);
   --pack-art: none;
   --pack-stage-art: var(--pack-art);
+  --pack-stage-brightness: 0.25;
   position: relative;
   display: grid;
   min-height: min(64vh, 45rem);
@@ -43,7 +44,7 @@
   background-image: var(--pack-stage-art);
   background-position: center;
   background-size: cover;
-  filter: saturate(1.02) brightness(0.7) contrast(1.04);
+  filter: saturate(1.02) brightness(var(--pack-stage-brightness)) contrast(1.04);
   opacity: 0.86;
   transform: scale(1.025);
 }

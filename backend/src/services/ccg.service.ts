@@ -35,6 +35,7 @@ import { calculateDuplicateProgress, planPackSelections, selectCommunityCard } f
 import { resolveCollectorKey } from "../utils/ccg-identity";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeHourStart } from "../utils/ccg-recharge";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../utils/helsinki-time";
+import { normalizeSearchText, scoreSearchCandidate } from "../utils/search";
 import ccgPublisherService from "./ccg-publisher.service";
 
 type CcgOwner = {
@@ -89,16 +90,23 @@ function hashGuestToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function isTransactionUnsupported(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /Transaction numbers are only allowed|replica set|does not support retryable writes/i.test(message);
 }
 
 class CcgService {
+  private adminCardSearchCache: {
+    expiresAt: number;
+    candidates: Array<{
+      cardIds: mongoose.Types.ObjectId[];
+      name: string;
+      realm: string;
+      publishedAt: Date;
+      searchText: string[];
+    }>;
+  } | null = null;
+
   async getSession(req: Request, res: Response): Promise<Record<string, unknown>> {
     requireFeature();
     await ccgPublisherService.ensureConfiguredSets();
@@ -454,29 +462,93 @@ class CcgService {
 
   async searchCardsForAdmin(rawSearch: unknown, rawLimit: unknown): Promise<Record<string, unknown>> {
     const search = typeof rawSearch === "string" ? rawSearch.trim().slice(0, 100) : "";
+    const normalizedSearch = normalizeSearchText(search);
     const requestedLimit = typeof rawLimit === "string" ? Number(rawLimit) : Number(rawLimit ?? 24);
     const limit = Number.isInteger(requestedLimit) ? Math.min(40, Math.max(1, requestedLimit)) : 24;
-    const tokens = search.split(/\s+/).filter(Boolean).slice(0, 4);
-    const filter: Record<string, unknown> = tokens.length > 0
-      ? {
-          $and: tokens.map((token) => {
-            const expression = new RegExp(escapeRegex(token), "i");
-            return { $or: [{ name: expression }, { realm: expression }, { guildName: expression }] };
-          }),
+    if (normalizedSearch.length < 2) return { search, cards: [] };
+
+    if (!this.adminCardSearchCache || this.adminCardSearchCache.expiresAt <= Date.now()) {
+      const candidates = await CcgCard.find({})
+        .select("_id characterId collectorKey name realm guildName publishedAt")
+        .lean();
+      const candidatesByCharacter = new Map<string, {
+        cardIds: mongoose.Types.ObjectId[];
+        name: string;
+        realm: string;
+        publishedAt: Date;
+        searchText: Set<string>;
+      }>();
+      for (const card of candidates) {
+        const collectorKey = resolveCollectorKey(card);
+        const searchText = [
+          card.name,
+          `${card.name} ${card.realm}`,
+          card.guildName ?? "",
+          card.guildName ? `${card.name} ${card.guildName}` : "",
+        ].map(normalizeSearchText).filter(Boolean);
+        const existing = candidatesByCharacter.get(collectorKey);
+        if (!existing) {
+          candidatesByCharacter.set(collectorKey, {
+            cardIds: [card._id],
+            name: card.name,
+            realm: card.realm,
+            publishedAt: card.publishedAt,
+            searchText: new Set(searchText),
+          });
+          continue;
         }
-      : {};
-    const cards = await CcgCard.find(filter)
-      .sort(search ? { name: 1, realm: 1, publishedAt: -1 } : { publishedAt: -1 })
-      .limit(limit)
+
+        existing.cardIds.push(card._id);
+        searchText.forEach((value) => existing.searchText.add(value));
+        if (card.publishedAt.getTime() > existing.publishedAt.getTime()) {
+          existing.name = card.name;
+          existing.realm = card.realm;
+          existing.publishedAt = card.publishedAt;
+        }
+      }
+      this.adminCardSearchCache = {
+        expiresAt: Date.now() + 2 * 60 * 1000,
+        candidates: Array.from(candidatesByCharacter.values(), (candidate) => ({
+          ...candidate,
+          searchText: Array.from(candidate.searchText),
+        })),
+      };
+    }
+
+    const selectedCandidates = this.adminCardSearchCache.candidates
+      .map((candidate) => ({
+        ...candidate,
+        score: Math.max(...candidate.searchText.map((text) => scoreSearchCandidate(normalizedSearch, text))),
+      }))
+      .filter((candidate) => candidate.score > 0)
+      .sort((a, b) => b.score - a.score || b.publishedAt.getTime() - a.publishedAt.getTime() || a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm))
+      .slice(0, limit);
+    const matchingCards = await CcgCard.find({ _id: { $in: selectedCandidates.flatMap((candidate) => candidate.cardIds) } })
+      .sort({ performanceSnapshotAt: -1, publishedAt: -1 })
       .lean();
-    const setIds = Array.from(new Set(cards.map((card) => String(card.setId))));
+    const cardById = new Map(matchingCards.map((card) => [String(card._id), card]));
+    const setIds = Array.from(new Set(matchingCards.map((card) => String(card.setId))));
     const sets = await CcgSet.find({ _id: { $in: setIds } }).lean();
     const setById = new Map(sets.map((set) => [String(set._id), set]));
     return {
       search,
-      cards: cards.flatMap((card) => {
-        const set = setById.get(String(card.setId));
-        return set ? [this.serializeCard(card, set)] : [];
+      cards: selectedCandidates.flatMap((candidate) => {
+        const variants = candidate.cardIds
+          .flatMap((id) => {
+            const card = cardById.get(String(id));
+            const set = card ? setById.get(String(card.setId)) : null;
+            return card && set ? [{ card, set }] : [];
+          })
+          .sort((a, b) => b.card.performanceSnapshotAt.getTime() - a.card.performanceSnapshotAt.getTime() || b.card.publishedAt.getTime() - a.card.publishedAt.getTime());
+        const representative = variants[0];
+        return representative ? [{
+          ...this.serializeCard(representative.card, representative.set),
+          variants: variants.map((variant) => ({
+            card: this.serializeCard(variant.card, variant.set),
+            ownership: [],
+            totalQuantity: 0,
+          })),
+        }] : [];
       }),
     };
   }

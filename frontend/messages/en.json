@@ -812,6 +812,8 @@
         "loadError": "Cards could not be loaded.",
         "empty": "No published cards match this search.",
         "selectCard": "Select a card to preview it.",
+        "variant": "Raid variant",
+        "variants": "{count, plural, one {# raid variant} other {# raid variants}}",
         "quality": "Quality",
         "rarity": "Rarity",
         "size": "Preview size",

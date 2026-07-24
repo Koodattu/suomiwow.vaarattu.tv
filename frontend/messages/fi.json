@@ -812,6 +812,8 @@
         "loadError": "Kortteja ei voitu ladata.",
         "empty": "Hakua vastaavia julkaistuja kortteja ei löytynyt.",
         "selectCard": "Valitse esikatseltava kortti.",
+        "variant": "Raidiversio",
+        "variants": "{count, plural, one {# raidiversio} other {# raidiversiota}}",
         "quality": "Laatu",
         "rarity": "Harvinaisuus",
         "size": "Esikatselun koko",
