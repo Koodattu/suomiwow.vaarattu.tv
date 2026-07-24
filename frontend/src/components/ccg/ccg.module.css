@@ -1588,7 +1588,7 @@
 }
 
 .vaultDashboard {
-  --vault-pack-width: min(100%, clamp(13rem, 32dvh, 19.25rem));
+  --vault-pack-width: min(100%, clamp(12.5rem, 30dvh, 18rem));
   --vault-card-width: min(100%, clamp(16rem, 36.5dvh, 23rem));
   display: grid;
   width: 100%;
@@ -1630,8 +1630,7 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(0, 3, 11, 0.92) 0%, rgba(0, 3, 11, 0.58) 44%, rgba(0, 3, 11, 0.08) 76%),
-    linear-gradient(180deg, rgba(1, 5, 14, 0.06), rgba(1, 5, 14, 0.54));
+    linear-gradient(90deg, rgba(0, 3, 11, 0.92) 0%, rgba(0, 3, 11, 0.58) 44%, rgba(0, 3, 11, 0.08) 76%), linear-gradient(180deg, rgba(1, 5, 14, 0.06), rgba(1, 5, 14, 0.54));
 }
 
 .vaultCurrentContent {
@@ -1736,12 +1735,12 @@
 
 .vaultPackShortcutColumn:first-child {
   justify-self: end;
-  transform: translateX(-1.25rem);
+  transform: translateX(-0.75rem);
 }
 
 .vaultPackShortcutColumn:last-child {
   justify-self: start;
-  transform: translateX(1.25rem);
+  transform: translateX(0.75rem);
 }
 
 .vaultPackShortcutColumn > .vaultPackShortcut {
@@ -2005,7 +2004,6 @@
   .vaultCurrentContent {
     padding: 1.15rem;
   }
-
 }
 
 @media (max-width: 1100px) {
