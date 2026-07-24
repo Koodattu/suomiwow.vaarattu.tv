@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgFinish, CcgMode, CcgOpening } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
-import { CCG_RARITY_KEYS } from "@/lib/ccg";
-import { getCcgPlaybackVolume } from "@/lib/ccg-audio";
+import { CCG_FINISH_ORDER, CCG_RARITY_KEYS } from "@/lib/ccg";
+import { getCcgAnnouncerSoundSources, getCcgPlaybackVolume, type CcgAudioChannel } from "@/lib/ccg-audio";
 import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
 import { getCharacterRenderProxyUrl } from "@/lib/character-render";
 import { queryKeys, useCcgOpening, useCcgSession, useCcgSets, useRaids } from "@/lib/queries";
@@ -66,15 +66,19 @@ function ArchiveIcon() {
   );
 }
 
-function playPackSound(audio: HTMLAudioElement | null, volume: number, playbackRate = 1): void {
+function playSound(audio: HTMLAudioElement | null, channel: CcgAudioChannel, volume: number, playbackRate = 1): void {
   if (!audio) return;
-  const playbackVolume = getCcgPlaybackVolume("effects", volume);
+  const playbackVolume = getCcgPlaybackVolume(channel, volume);
   if (playbackVolume <= 0) return;
   audio.pause();
   audio.currentTime = 0;
   audio.volume = playbackVolume;
   audio.playbackRate = playbackRate;
   void audio.play().catch(() => undefined);
+}
+
+function playPackSound(audio: HTMLAudioElement | null, volume: number, playbackRate = 1): void {
+  playSound(audio, "effects", volume, playbackRate);
 }
 
 function playRandomPackSound(audios: Array<HTMLAudioElement | null>, volume: number): void {
@@ -84,6 +88,7 @@ function playRandomPackSound(audios: Array<HTMLAudioElement | null>, volume: num
 
 export default function CcgOpenPage() {
   const t = useTranslations("ccg");
+  const locale = useLocale() === "fi" ? "fi" : "en";
   const { login } = useAuth();
   const queryClient = useQueryClient();
   const sessionQuery = useCcgSession();
@@ -108,7 +113,9 @@ export default function CcgOpenPage() {
   const cardSlideAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
   const drawAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
   const qualityAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
+  const announcerAudioRefs = useRef<Array<Array<HTMLAudioElement | null>>>([]);
   const qualitySoundTimersRef = useRef<number[]>([]);
+  const announcerSoundTimersRef = useRef<number[]>([]);
   const packDragRef = useRef({ pointerId: -1, startX: 0, startY: 0, dragging: false, suppressClick: false });
   const sealedMotionFrame = useRef<number | null>(null);
   const pendingSealedMotion = useRef<{ element: HTMLButtonElement; x: number; y: number } | null>(null);
@@ -155,6 +162,7 @@ export default function CcgOpenPage() {
       if (sealedMotionFrame.current !== null) cancelAnimationFrame(sealedMotionFrame.current);
       if (nextPackTimerRef.current !== null) window.clearTimeout(nextPackTimerRef.current);
       qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      announcerSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     },
     [],
   );
@@ -172,6 +180,8 @@ export default function CcgOpenPage() {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     qualitySoundTimersRef.current = [];
+    announcerSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    announcerSoundTimersRef.current = [];
     setViewerIndex(null);
     setViewerOriginElement(null);
     setViewerOriginBounds(null);
@@ -258,6 +268,8 @@ export default function CcgOpenPage() {
   const clearSavedOpening = () => {
     qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     qualitySoundTimersRef.current = [];
+    announcerSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    announcerSoundTimersRef.current = [];
     setOpening(null);
     setRevealPhase("idle");
     setDealtCards(0);
@@ -278,6 +290,17 @@ export default function CcgOpenPage() {
     const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 200;
     const timer = window.setTimeout(() => playPackSound(qualityAudioRefs.current[index] ?? null, 0.4), delay);
     qualitySoundTimersRef.current.push(timer);
+  };
+
+  const playAnnouncerAfterFlip = (index: number) => {
+    const available = (announcerAudioRefs.current[index] ?? []).filter((audio): audio is HTMLAudioElement => audio !== null);
+    if (available.length === 0) return;
+    const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 360;
+    const timer = window.setTimeout(
+      () => playSound(available[randomIndex(available.length)] ?? null, "announcer", 0.78),
+      delay,
+    );
+    announcerSoundTimersRef.current.push(timer);
   };
 
   const revealCard = (index: number, event?: ReactMouseEvent<HTMLButtonElement>) => {
@@ -303,6 +326,7 @@ export default function CcgOpenPage() {
     }
     playRandomPackSound(cardSlideAudioRefs.current, 0.36);
     playQualitySoundAfterFlip(index);
+    playAnnouncerAfterFlip(index);
     setRevealedCards((current) => new Set(current).add(index));
   };
 
@@ -313,6 +337,16 @@ export default function CcgOpenPage() {
     opening.results.forEach((result, index) => {
       if (!revealedCards.has(index) && result.finish !== "standard") playQualitySoundAfterFlip(index);
     });
+    const announcerIndex = opening.results
+      .map((result, index) => ({ result, index }))
+      .filter(({ index }) => !revealedCards.has(index) && announcerAudioRefs.current[index]?.some(Boolean))
+      .sort((left, right) => {
+        const finishDifference = CCG_FINISH_ORDER.indexOf(right.result.finish) - CCG_FINISH_ORDER.indexOf(left.result.finish);
+        if (finishDifference !== 0) return finishDifference;
+        return ["S", "A", "B", "C", "D", "E", "F"].indexOf(left.result.card.tierGrade)
+          - ["S", "A", "B", "C", "D", "E", "F"].indexOf(right.result.card.tierGrade);
+      })[0]?.index;
+    if (announcerIndex !== undefined) playAnnouncerAfterFlip(announcerIndex);
     setRevealedCards(new Set(opening.results.map((_, index) => index)));
   };
 
@@ -844,6 +878,22 @@ export default function CcgOpenPage() {
             aria-hidden="true"
           />
         );
+      })}
+      {Array.from({ length: 5 }, (_, index) => {
+        const result = opening?.results[index];
+        const sources = result ? getCcgAnnouncerSoundSources(locale, result.finish, result.card.tierGrade) : [];
+        return sources.map((src, variantIndex) => (
+          <audio
+            key={`announcer-${index}-${src}`}
+            ref={(element) => {
+              announcerAudioRefs.current[index] ??= [];
+              announcerAudioRefs.current[index][variantIndex] = element;
+            }}
+            src={src}
+            preload="auto"
+            aria-hidden="true"
+          />
+        ));
       })}
     </CcgShell>
   );
