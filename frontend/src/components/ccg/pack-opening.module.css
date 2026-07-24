@@ -11,6 +11,14 @@
   overflow: hidden;
 }
 
+.openWorkspace button:not(:disabled) {
+  cursor: pointer;
+}
+
+.openWorkspace button:disabled {
+  cursor: not-allowed;
+}
+
 .packStage {
   --pack-accent: #5baeff;
   --pack-glow: rgba(91, 174, 255, 0.38);
