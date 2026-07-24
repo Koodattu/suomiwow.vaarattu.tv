@@ -4,14 +4,14 @@ import { useTranslations } from "next-intl";
 import type { CcgMode, CcgSession } from "@/types";
 import styles from "./ccg.module.css";
 
-export default function PackBalance({ session, mode }: { session: CcgSession; mode: CcgMode }) {
+export default function PackBalance({ session, mode, strip = false }: { session: CcgSession; mode: CcgMode; strip?: boolean }) {
   const t = useTranslations("ccg");
   const packs = session.packs[mode];
   const progress = session.duplicates[mode];
   const progressPercent = Math.min(100, (progress.remainder / progress.needed) * 100);
 
   return (
-    <div className={styles.balanceCard}>
+    <div className={`${styles.balanceCard} ${strip ? styles.balanceCardStrip : ""}`}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t(`mode.${mode}`)}</div>

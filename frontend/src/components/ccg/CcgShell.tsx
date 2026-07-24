@@ -10,7 +10,7 @@ import { CCG_INSPECT_AUDIO_ID } from "@/lib/ccg-audio";
 import CcgAccountMenu from "./CcgAccountMenu";
 import styles from "./ccg.module.css";
 
-export default function CcgShell({ children, context, compact = false }: { children: ReactNode; context?: ReactNode; compact?: boolean }) {
+export default function CcgShell({ children, context, compact = false, viewportLocked = false }: { children: ReactNode; context?: ReactNode; compact?: boolean; viewportLocked?: boolean }) {
   const pathname = usePathname();
   const t = useTranslations("ccg");
   const links = [
@@ -20,7 +20,7 @@ export default function CcgShell({ children, context, compact = false }: { child
   ];
 
   return (
-    <main className={`${styles.vault} ${compact ? styles.vaultCompact : ""}`}>
+    <main className={`${styles.vault} ${compact ? styles.vaultCompact : ""} ${viewportLocked ? styles.vaultViewportLocked : ""}`}>
       <header className={styles.shellHeader}>
         <div className={styles.shellHeaderInner}>
           <div className={styles.shellBrand}>

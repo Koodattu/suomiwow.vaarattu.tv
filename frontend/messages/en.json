@@ -89,6 +89,7 @@
       "body": "Every card is an immutable snapshot from this raid tier: performance, mechanics, Mythic+, guild, role, and character appearance.",
       "packBody": "Open ten Current packs and ten Legacy packs each Helsinki day. Exact duplicates fill the meter toward another pack.",
       "dailyPacks": "Daily allowance",
+      "featuredCard": "Featured card",
       "currentSet": "Featured Current set",
       "currentRaids": "{count} current raids",
       "preparing": "The next set is being prepared",

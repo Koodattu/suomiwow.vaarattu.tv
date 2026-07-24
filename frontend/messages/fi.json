@@ -89,6 +89,7 @@
       "body": "Jokainen kortti on muuttumaton otos tästä raid-tieristä: suoritus, mekaniikat, Mythic+, kilta, rooli ja hahmon ulkoasu.",
       "packBody": "Avaa kymmenen Current- ja kymmenen Legacy-pakkaa jokaisena Helsingin vuorokautena. Täsmälleen samat tuplat täyttävät mittaria kohti lisäpakkaa.",
       "dailyPacks": "Päivittäiset pakat",
+      "featuredCard": "Esittelyssä",
       "currentSet": "Current-setti",
       "currentRaids": "{count} nykyistä raidia",
       "preparing": "Seuraavaa settiä valmistellaan",

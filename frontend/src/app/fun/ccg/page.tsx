@@ -2,12 +2,42 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useCcgSession, useCcgSets } from "@/lib/queries";
+import { useCallback, useState } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
+import type { CcgCard } from "@/types";
+import { useCcgCatalog, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
 import GuestNotice from "@/components/ccg/GuestNotice";
 import PackBalance from "@/components/ccg/PackBalance";
+import CollectibleCard from "@/components/ccg/CollectibleCard";
+import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
+import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import styles from "@/components/ccg/ccg.module.css";
+
+function FeaturedCard({ card, onSelect }: { card: CcgCard; onSelect: (event: ReactMouseEvent<HTMLButtonElement>) => void }) {
+  const [ready, setReady] = useState(false);
+  const markReady = useCallback(() => setReady(true), []);
+
+  return (
+    <div className={styles.vaultFeaturedStage} aria-busy={!ready}>
+      <div className={styles.vaultFeaturedCard}>
+        <div
+          className={`${styles.collectionSkeleton} ${styles.collectionCardSkeleton} ${styles.vaultFeaturedSkeleton} ${ready ? styles.collectionCardSkeletonHidden : ""}`}
+          aria-hidden="true"
+        />
+        <CollectibleCard
+          card={card}
+          finish="holographic"
+          compact
+          className={ready ? "" : styles.collectionCardAssetLoading}
+          onReady={markReady}
+          onSelect={onSelect}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function CcgLandingPage() {
   const t = useTranslations("ccg");
@@ -19,7 +49,18 @@ export default function CcgLandingPage() {
   const current = currentSets[0];
   const currentCardCount = currentSets.reduce((total, set) => total + set.cardCount, 0);
   const currentOwnedCount = currentSets.reduce((total, set) => total + set.ownedCards, 0);
-  const legacy = sets.filter((set) => set.state === "legacy");
+  const currentProgress = currentCardCount > 0 ? Math.min(100, (currentOwnedCount / currentCardCount) * 100) : 0;
+  const legacy = sets.filter((set) => set.state === "legacy").sort((left, right) => right.zoneId - left.zoneId);
+  const legacyRows = Math.max(2, Math.ceil(legacy.length / 8));
+  const featuredQuery = useCcgCatalog(current?.slug ?? "", 1, "all", "S", "", "", Boolean(current?.slug), 50);
+  const featuredCards = featuredQuery.data?.cards ?? [];
+  const featuredCard = featuredCards.length > 0
+    ? featuredCards[Math.floor(featuredQuery.dataUpdatedAt / 1000) % featuredCards.length]
+    : null;
+  const [viewerCard, setViewerCard] = useState<CcgCard | null>(null);
+  const [viewerOriginElement, setViewerOriginElement] = useState<HTMLElement | null>(null);
+  const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
+  const [viewerSharedTransition, setViewerSharedTransition] = useState(false);
   const queryFailed = sessionQuery.isError || setsQuery.isError;
 
   if (queryFailed) {
@@ -27,95 +68,141 @@ export default function CcgLandingPage() {
   }
 
   return (
-    <CcgShell context={session ? <GuestNotice session={session} /> : null}>
-      <div className="mx-auto max-w-[1500px] space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(290px,0.75fr)]">
-          <div
-            className={`${styles.setCover} ${styles.featuredSet}`}
-            style={{
-              "--set-accent": current?.theme.accent ?? "#46CFFF",
-              "--set-glow": current?.theme.glow ?? "rgba(70,207,255,.25)",
-              backgroundImage: current ? `url("${current.backgroundPath}")` : undefined,
-            } as React.CSSProperties}
-          >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_42%,transparent_0_10rem,rgba(2,6,15,.46)_34rem)]" />
-            <div className={`${styles.setCoverContent} max-w-2xl`}>
-              <div className={styles.eyebrow}>{t("landing.currentSet")}</div>
-              <h1 className="mt-2 text-4xl font-black tracking-[-0.03em] text-white sm:text-5xl">
-                {currentSets.length > 1 ? t("landing.currentRaids", { count: currentSets.length }) : current?.raidName ?? t("landing.preparing")}
-              </h1>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">{t("landing.body")}</p>
-              <div className="mt-6 flex flex-wrap gap-3">
-                {currentCardCount > 0 ? (
-                  <Link href="/fun/ccg/open?mode=current" className={styles.primaryButton}>{t("landing.openCurrent")}</Link>
-                ) : (
-                  <span className={`${styles.primaryButton} cursor-not-allowed opacity-45`} aria-disabled="true">{t("landing.openCurrent")}</span>
-                )}
-                <Link href="/fun/ccg/collection" className={styles.secondaryButton}>{t("landing.collection")}</Link>
+    <CcgShell viewportLocked context={session ? <GuestNotice session={session} /> : null}>
+      <div className={styles.vaultDashboard}>
+        <section className={styles.vaultDashboardTop}>
+          <div className={styles.vaultMainColumn}>
+            <div
+              className={styles.vaultCurrentSet}
+              style={{
+                "--set-accent": current?.theme.accent ?? "#46CFFF",
+                "--set-glow": current?.theme.glow ?? "rgba(70,207,255,.25)",
+                backgroundImage: current ? `url("${current.backgroundPath}")` : undefined,
+              } as CSSProperties}
+            >
+              <div className={styles.vaultCurrentShade} aria-hidden="true" />
+              <div className={styles.vaultCurrentContent}>
+                <div className={styles.eyebrow}>{t("landing.currentSet")}</div>
+                <h1>
+                  {currentSets.length > 1 ? t("landing.currentRaids", { count: currentSets.length }) : current?.raidName ?? t("landing.preparing")}
+                </h1>
+                <div className={styles.vaultCurrentProgress}>
+                  <div className={styles.vaultCurrentCount}>
+                    <strong>{currentOwnedCount}</strong>
+                    <span>/ {currentCardCount} {t("landing.collected")}</span>
+                  </div>
+                  <div className={styles.vaultCurrentTrack} aria-label={`${currentOwnedCount}/${currentCardCount} ${t("landing.collected")}`}>
+                    <span style={{ transform: `scaleX(${currentProgress / 100})` }} />
+                  </div>
+                </div>
               </div>
-              {current ? (
-                <div className="mt-5 flex gap-5 text-xs text-slate-400">
-                  <span><strong className="font-bold tabular-nums text-white">{currentCardCount}</strong> {t("landing.cards")}</span>
-                  <span><strong className="font-bold tabular-nums text-white">{currentOwnedCount}</strong> {t("landing.collected")}</span>
-                </div>
-              ) : null}
-            </div>
-          </div>
-          <aside className={`${styles.panel} p-5`}>
-            <div className={styles.eyebrow}>{t("landing.dailyPacks")}</div>
-            <h2 className="mt-2 text-xl font-black text-white">{t("landing.title")}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-400">{t("landing.packBody")}</p>
-            <div className="mt-5 grid gap-3">
-              {session ? (
-                <>
-                  <PackBalance session={session} mode="current" />
-                  <PackBalance session={session} mode="legacy" />
-                </>
+              {currentCardCount > 0 ? (
+                <Link href="/fun/ccg/open?mode=current" className={`${styles.primaryButton} ${styles.vaultCurrentOpen}`}>{t("landing.openCurrent")}</Link>
               ) : (
-                <div className="space-y-3" aria-label={t("loading")}>
-                  <div className="h-32 animate-pulse rounded-lg bg-white/5" />
-                  <div className="h-32 animate-pulse rounded-lg bg-white/5" />
-                </div>
+                <span className={`${styles.primaryButton} ${styles.vaultCurrentOpen} cursor-not-allowed opacity-45`} aria-disabled="true">{t("landing.openCurrent")}</span>
               )}
             </div>
+
+            <aside className={styles.vaultPackStrip}>
+              <div className={styles.vaultPackBalances}>
+                {session ? (
+                  <>
+                    <PackBalance session={session} mode="current" strip />
+                    <PackBalance session={session} mode="legacy" strip />
+                  </>
+                ) : (
+                  <>
+                    <div className={styles.vaultBalanceSkeleton} />
+                    <div className={styles.vaultBalanceSkeleton} />
+                  </>
+                )}
+              </div>
+            </aside>
+          </div>
+
+          <aside className={styles.vaultFeatured} aria-label={t("landing.featuredCard")}>
+            {featuredQuery.isPending ? (
+              <div className={styles.vaultFeaturedStage}>
+                <div className={styles.vaultFeaturedCard}>
+                  <div className={`${styles.collectionSkeleton} ${styles.collectionCardSkeleton} ${styles.vaultFeaturedSkeleton}`} aria-hidden="true" />
+                </div>
+              </div>
+            ) : featuredCard ? (
+              <FeaturedCard
+                key={`${featuredCard.id}:${featuredCard.renderUrl ?? ""}`}
+                card={featuredCard}
+                onSelect={(event) => {
+                  const originElement = event.currentTarget;
+                  openCardViewer(originElement, (sharedTransition, originBounds) => {
+                    setViewerOriginElement(originElement);
+                    setViewerOriginBounds(originBounds);
+                    setViewerSharedTransition(sharedTransition);
+                    setViewerCard(featuredCard);
+                  });
+                }}
+              />
+            ) : (
+              <div className={styles.vaultFeaturedStage}>
+                <Link href="/fun/ccg/collection" className={styles.vaultFeaturedEmpty}>{t("landing.collection")}</Link>
+              </div>
+            )}
           </aside>
         </section>
 
-        <section>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <div className={styles.eyebrow}>{t("mode.legacy")}</div>
-              <h2 className="mt-1 text-2xl font-black tracking-tight text-white">{t("landing.legacyTitle")}</h2>
-              <p className="mt-1 text-sm text-slate-400">{t("landing.legacyBody")}</p>
-            </div>
-            <Link href="/fun/ccg/open?mode=legacy" className={styles.secondaryButton}>{t("landing.openLegacy")}</Link>
+        <section className={styles.vaultLegacy}>
+          <div className={styles.vaultLegacyHeader}>
+            <h2>{t("mode.legacy")}</h2>
+            <Link href="/fun/ccg/collection" className={styles.vaultCollectionAction}>
+              {t("landing.collection")} <span aria-hidden="true">→</span>
+            </Link>
           </div>
           {legacy.length > 0 ? (
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div
+              className={styles.vaultLegacyGrid}
+              style={{
+                "--legacy-columns": Math.ceil(legacy.length / legacyRows),
+                "--legacy-rows": legacyRows,
+              } as CSSProperties}
+            >
               {legacy.map((set) => (
                 <Link
                   key={set.id}
                   href={`/fun/ccg/collection?set=${encodeURIComponent(set.slug)}`}
-                  className={`${styles.setCover} group min-h-48 transition-transform hover:-translate-y-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300`}
+                  className={styles.vaultLegacySet}
                   style={{
                     "--set-accent": set.theme.accent,
                     "--set-glow": set.theme.glow,
                     backgroundImage: `url("${set.backgroundPath}")`,
-                  } as React.CSSProperties}
+                  } as CSSProperties}
                 >
-                  <div className={styles.setCoverContent}>
-                    <div className="text-[0.65rem] font-bold uppercase tracking-[0.16em]" style={{ color: set.theme.accent }}>{set.theme.mark}</div>
-                    <h3 className="mt-1 text-lg font-black text-white">{set.raidName}</h3>
-                    <div className="mt-2 text-xs tabular-nums text-slate-400">{set.ownedCards}/{set.cardCount} {t("landing.collected")}</div>
-                  </div>
+                  <span className={styles.vaultLegacyShade} aria-hidden="true" />
+                  <span className={styles.vaultLegacyContent}>
+                    <strong>{set.raidName}</strong>
+                    <small>{set.ownedCards}/{set.cardCount}</small>
+                  </span>
                 </Link>
               ))}
             </div>
           ) : (
-            <div className={`${styles.panel} mt-5 p-8 text-center text-sm text-slate-500`}>{t("landing.legacyEmpty")}</div>
+            <div className={styles.vaultLegacyEmpty}>{t("landing.legacyEmpty")}</div>
           )}
         </section>
       </div>
+      {viewerCard ? (
+        <CardViewer
+          card={viewerCard}
+          initialFinish="holographic"
+          originElement={viewerOriginElement}
+          originBounds={viewerOriginBounds}
+          sharedTransition={viewerSharedTransition}
+          onClose={() => {
+            setViewerCard(null);
+            setViewerOriginElement(null);
+            setViewerOriginBounds(null);
+            setViewerSharedTransition(false);
+          }}
+        />
+      ) : null}
     </CcgShell>
   );
 }
