@@ -63,7 +63,8 @@ export default function CcgLandingPage() {
   const allOwnedCount = collectionSets.reduce((total, set) => total + set.ownedCards, 0);
   const allProgress = allCardCount > 0 ? Math.min(100, (allOwnedCount / allCardCount) * 100) : 0;
   const collectionItemCount = collectionSets.length + 1;
-  const collectionRows = Math.max(2, Math.ceil(collectionItemCount / 8));
+  const collectionColumns = Math.max(1, Math.ceil(collectionItemCount / 2) - 1);
+  const collectionRows = Math.max(2, Math.ceil(collectionItemCount / collectionColumns));
   const featuredQuery = useCcgCatalog(current?.slug ?? "", 1, "all", "S", "", "", Boolean(current?.slug), 50);
   const featuredCards = featuredQuery.data?.cards ?? [];
   const featuredCard = featuredCards.length > 0
@@ -107,11 +108,19 @@ export default function CcgLandingPage() {
                 </div>
               </div>
             </div>
-            {currentCardCount > 0 ? (
-              <Link href="/fun/ccg/open?mode=current" className={`${styles.primaryButton} ${styles.vaultCurrentOpen}`}>{t("landing.openCurrent")}</Link>
-            ) : (
-              <span className={`${styles.primaryButton} ${styles.vaultCurrentOpen} cursor-not-allowed opacity-45`} aria-disabled="true">{t("landing.openCurrent")}</span>
-            )}
+            <div className={styles.vaultCurrentActions}>
+              <Link
+                href={current ? `/fun/ccg/collection?set=${encodeURIComponent(current.slug)}` : "/fun/ccg/collection"}
+                className={`${styles.secondaryButton} ${styles.vaultCurrentAction}`}
+              >
+                {t("landing.viewInCollection")}
+              </Link>
+              {currentCardCount > 0 ? (
+                <Link href="/fun/ccg/open?mode=current" className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>{t("landing.openCurrent")}</Link>
+              ) : (
+                <span className={`${styles.primaryButton} ${styles.vaultCurrentAction} cursor-not-allowed opacity-45`} aria-disabled="true">{t("landing.openCurrent")}</span>
+              )}
+            </div>
           </div>
 
           <nav className={styles.vaultPackShortcuts} aria-label={t("nav.open")}>
@@ -176,21 +185,16 @@ export default function CcgLandingPage() {
           </aside>
         </section>
 
-        <section className={styles.vaultLegacy}>
-          <div className={styles.vaultLegacyHeader}>
-            <h2>{t("nav.collection")}</h2>
-            <Link href="/fun/ccg/collection" className={styles.vaultCollectionAction}>
-              {t("landing.collection")} <span aria-hidden="true">→</span>
-            </Link>
-          </div>
-          {collectionSets.length > 0 ? (
-            <div
-              className={styles.vaultLegacyGrid}
-              style={{
-                "--legacy-columns": Math.ceil(collectionItemCount / collectionRows),
-                "--legacy-rows": collectionRows,
-              } as CSSProperties}
-            >
+        <div className={styles.vaultDashboardBottom}>
+          <div className={styles.vaultLegacy}>
+            {collectionSets.length > 0 ? (
+              <div
+                className={styles.vaultLegacyGrid}
+                style={{
+                  "--legacy-columns": collectionColumns,
+                  "--legacy-rows": collectionRows,
+                } as CSSProperties}
+              >
               <Link
                 href="/fun/ccg/collection"
                 className={styles.vaultLegacySet}
@@ -234,11 +238,13 @@ export default function CcgLandingPage() {
                   </span>
                 </Link>
               ))}
-            </div>
-          ) : (
-            <div className={styles.vaultLegacyEmpty}>{t("landing.legacyEmpty")}</div>
-          )}
-        </section>
+              </div>
+            ) : (
+              <div className={styles.vaultLegacyEmpty}>{t("landing.legacyEmpty")}</div>
+            )}
+          </div>
+          <aside className={styles.vaultBottomPlaceholder} aria-hidden="true" />
+        </div>
       </div>
       {viewerCard ? (
         <CardViewer
