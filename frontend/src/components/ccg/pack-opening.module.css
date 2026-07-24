@@ -422,6 +422,12 @@
   --pack-tilt-y: 0deg;
   --pack-shine-x: 50%;
   --pack-shine-y: 38%;
+  --pack-light-angle: 112deg;
+  --pack-fold-x: 0px;
+  --pack-fold-y: 0px;
+  --pack-shadow-x: 0px;
+  --pack-shadow-y: 4px;
+  --pack-shadow-scale: 0.94;
   position: relative;
   display: block;
   width: 100%;
@@ -439,14 +445,19 @@
 }
 
 .packButton:focus-visible .booster {
-  filter: brightness(1.08) saturate(1.08);
+  filter:
+    brightness(1.08)
+    saturate(1.08)
+    drop-shadow(0 8px 5px rgba(0, 0, 0, 0.6))
+    drop-shadow(0 0 7px color-mix(in srgb, var(--pack-accent) 68%, transparent));
+}
+
+.packButton:focus-visible .wrapperBody {
   box-shadow:
-    0 8px 8px rgba(0, 0, 0, 0.55),
-    0 0 9px color-mix(in srgb, var(--pack-accent) 68%, transparent),
     inset 0 0 0 1px color-mix(in srgb, var(--pack-accent) 72%, white),
-    inset 0 0 0 5px rgba(1, 5, 14, 0.62),
-    inset 10px 0 20px rgba(255, 255, 255, 0.05),
-    inset -12px 0 18px rgba(0, 0, 0, 0.38);
+    inset 0 0 0 4px rgba(1, 5, 14, 0.56),
+    inset 8px 0 16px rgba(255, 255, 255, 0.045),
+    inset -10px 0 17px rgba(0, 0, 0, 0.38);
 }
 
 .packButton:disabled {
@@ -462,8 +473,8 @@
   border-radius: 50%;
   background: #000;
   filter: blur(12px);
-  opacity: 0.72;
-  transform: translate3d(var(--pack-drag-x), calc(var(--pack-drag-y) + 3px), -20px) scale(0.94);
+  opacity: 0.68;
+  transform: translate3d(calc(var(--pack-drag-x) + var(--pack-shadow-x)), calc(var(--pack-drag-y) + var(--pack-shadow-y)), -20px) scaleX(var(--pack-shadow-scale)) scaleY(0.72);
   transition-property: opacity, transform;
   transition-duration: 280ms;
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
@@ -473,108 +484,144 @@
   position: absolute;
   inset: 0;
   display: block;
-  overflow: hidden;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--pack-accent) 46%, #0c1834), #0a1022 48%, color-mix(in srgb, var(--pack-accent) 28%, #130d28));
-  box-shadow:
-    0 8px 8px rgba(0, 0, 0, 0.55),
-    0 0 24px var(--pack-glow),
-    inset 0 0 0 1px rgba(223, 244, 255, 0.38),
-    inset 0 0 0 5px rgba(1, 5, 14, 0.62),
-    inset 10px 0 20px rgba(255, 255, 255, 0.05),
-    inset -12px 0 18px rgba(0, 0, 0, 0.38);
-  clip-path: polygon(
-    0 4%,
-    3% 2%,
-    6% 0,
-    10% 2%,
-    14% 0,
-    18% 2%,
-    22% 0,
-    26% 2%,
-    30% 0,
-    34% 2%,
-    38% 0,
-    42% 2%,
-    46% 0,
-    50% 2%,
-    54% 0,
-    58% 2%,
-    62% 0,
-    66% 2%,
-    70% 0,
-    74% 2%,
-    78% 0,
-    82% 2%,
-    86% 0,
-    90% 2%,
-    94% 0,
-    97% 2%,
-    100% 4%,
-    100% 96%,
-    97% 98%,
-    94% 100%,
-    90% 98%,
-    86% 100%,
-    82% 98%,
-    78% 100%,
-    74% 98%,
-    70% 100%,
-    66% 98%,
-    62% 100%,
-    58% 98%,
-    54% 100%,
-    50% 98%,
-    46% 100%,
-    42% 98%,
-    38% 100%,
-    34% 98%,
-    30% 100%,
-    26% 98%,
-    22% 100%,
-    18% 98%,
-    14% 100%,
-    10% 98%,
-    6% 100%,
-    3% 98%,
-    0 96%
-  );
+  filter:
+    drop-shadow(0 8px 5px rgba(0, 0, 0, 0.58))
+    drop-shadow(0 0 9px var(--pack-glow));
   transform: translate3d(var(--pack-drag-x), calc(var(--pack-drag-y) + var(--pack-lift)), 0) rotateX(var(--pack-tilt-x)) rotateY(var(--pack-tilt-y)) scale(var(--pack-scale));
   transform-style: preserve-3d;
   transition-property: transform, filter;
   transition-duration: 430ms, 180ms;
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
 }
 
-.booster::before,
-.booster::after {
+.wrapperSurface {
   position: absolute;
-  z-index: 4;
-  top: 5.5%;
-  bottom: 5.5%;
-  width: 4.8%;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.04) 34%, rgba(0, 0, 0, 0.34) 78%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-  content: "";
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  isolation: isolate;
+  mask: url("/ccg/pack-pouch-mask.svg") center / 100% 100% no-repeat;
+  -webkit-mask: url("/ccg/pack-pouch-mask.svg") center / 100% 100% no-repeat;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--pack-accent) 52%, rgba(224, 242, 255, 0.26)),
+    inset 0 0 0 2px rgba(1, 5, 14, 0.34);
+}
+
+.wrapperBody {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--pack-accent) 46%, #0c1834), #0a1022 48%, color-mix(in srgb, var(--pack-accent) 28%, #130d28));
+  box-shadow:
+    inset 0 0 0 1px rgba(223, 244, 255, 0.18),
+    inset 8px 0 12px rgba(255, 255, 255, 0.035),
+    inset -9px 0 13px rgba(0, 0, 0, 0.24);
+}
+
+.wrapperStructure {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  display: block;
   pointer-events: none;
 }
 
-.booster::before {
-  left: 0.6%;
+.wrapperStructure svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
-.booster::after {
-  right: 0.6%;
+
+.wrapperSideFold {
+  opacity: 0.7;
+}
+
+.wrapperSideFoldRight {
+  transform-box: fill-box;
+  transform-origin: center;
   transform: scaleX(-1);
+}
+
+.wrapperSeal {
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.72));
+  opacity: 0.72;
+}
+
+.wrapperSealRelief {
+  fill: none;
+  stroke: rgba(221, 242, 255, 0.12);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.wrapperSealRelief path:nth-child(even) {
+  stroke: rgba(0, 2, 8, 0.62);
+}
+
+.wrapperSealSeam {
+  fill: none;
+  stroke: rgba(0, 2, 9, 0.78);
+  stroke-width: 1.35;
+  vector-effect: non-scaling-stroke;
+}
+
+.wrapperSideSeam {
+  fill: none;
+  stroke: color-mix(in srgb, var(--pack-accent) 42%, rgba(222, 243, 255, 0.28));
+  stroke-width: 0.85;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.44;
+}
+
+.wrapperPleats {
+  fill: color-mix(in srgb, var(--pack-accent) 24%, rgba(220, 242, 255, 0.14));
+  mix-blend-mode: screen;
+  opacity: 0.38;
+}
+
+.wrapperWrinkles {
+  fill: none;
+  stroke: rgba(224, 244, 255, 0.2);
+  stroke-width: 0.75;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.48;
+}
+
+.wrapperOuterContour,
+.wrapperInnerContour {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.wrapperOuterContour {
+  stroke: color-mix(in srgb, var(--pack-accent) 68%, #d8f4ff);
+  stroke-width: 1.1;
+  opacity: 0.62;
+}
+
+.wrapperInnerContour {
+  stroke: rgba(211, 239, 255, 0.24);
+  stroke-width: 0.8;
+  opacity: 0.7;
 }
 
 .packButton:hover:not(:disabled) .booster {
   --pack-lift: var(--pack-hover-lift);
-  --pack-scale: 1.018;
-  filter: brightness(1.05) saturate(1.06);
+  --pack-scale: 1.012;
+  filter:
+    brightness(1.04)
+    saturate(1.06)
+    drop-shadow(0 9px 6px rgba(0, 0, 0, 0.58))
+    drop-shadow(0 0 11px var(--pack-glow));
 }
 
 .packButton:hover:not(:disabled) .packShadow {
   opacity: 0.52;
-  transform: translate3d(var(--pack-drag-x), calc(var(--pack-drag-y) + 9px), -20px) scale(0.88);
+  transform: translate3d(calc(var(--pack-drag-x) + var(--pack-shadow-x)), calc(var(--pack-drag-y) + var(--pack-shadow-y) + 5px), -20px) scaleX(var(--pack-shadow-scale)) scaleY(0.66);
 }
 
 .packButton:active:not(:disabled):not([data-dragging="true"]) .booster {
@@ -592,13 +639,15 @@
   opacity: 0.68;
 }
 
-.packButtonOpening .wrapperFoil {
+.packButtonOpening .wrapperGlare {
   animation: packCharge 620ms cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
 }
 
 .wrapperArt,
 .wrapperShade,
-.wrapperFoil {
+.wrapperMetal,
+.wrapperCreases,
+.wrapperGlare {
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -614,135 +663,72 @@
 
 .wrapperShade {
   background:
-    linear-gradient(180deg, rgba(0, 3, 10, 0.64) 0 14%, transparent 32% 61%, rgba(0, 3, 10, 0.86) 86%),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08), transparent 14% 76%, rgba(0, 0, 0, 0.4)),
-    linear-gradient(102deg, transparent 0 18%, rgba(255, 255, 255, 0.055) 20%, transparent 23% 68%, rgba(255, 255, 255, 0.04) 70%, transparent 73%),
-    linear-gradient(78deg, transparent 0 31%, rgba(0, 0, 0, 0.2) 34%, transparent 37% 82%, rgba(0, 0, 0, 0.18) 84%, transparent 87%),
-    radial-gradient(circle at 50% 47%, transparent 0 28%, rgba(0, 3, 10, 0.3) 65%);
+    linear-gradient(180deg, rgba(0, 3, 10, 0.58) 0 8%, transparent 23% 72%, rgba(0, 3, 10, 0.78) 92%),
+    linear-gradient(90deg, rgba(0, 2, 8, 0.32), rgba(255, 255, 255, 0.035) 3%, transparent 8% 92%, rgba(0, 2, 8, 0.38)),
+    radial-gradient(ellipse at 50% 47%, transparent 0 30%, rgba(0, 3, 10, 0.32) 72%);
 }
 
-.wrapperFoil {
+.wrapperMetal {
+  z-index: 2;
   background:
-    radial-gradient(circle at var(--pack-shine-x) var(--pack-shine-y), rgba(255, 255, 255, 0.52) 0, rgba(132, 234, 255, 0.18) 11%, transparent 27%),
-    linear-gradient(112deg, transparent 0 35%, rgba(255, 255, 255, 0.24) 44%, rgba(100, 228, 255, 0.1) 51%, transparent 60%),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.12), transparent 10% 90%, rgba(255, 255, 255, 0.08));
-  background-size:
-    100% 100%,
-    220% 100%,
-    100% 100%;
-  mix-blend-mode: screen;
-  opacity: 0.54;
-  transition-property: background-position, opacity;
-  transition-duration: 520ms;
+    radial-gradient(ellipse at var(--pack-shine-x) var(--pack-shine-y), rgba(255, 255, 255, 0.28), color-mix(in srgb, var(--pack-accent) 16%, transparent) 18%, transparent 42%),
+    linear-gradient(var(--pack-light-angle), rgba(255, 255, 255, 0.14), transparent 23% 72%, rgba(0, 0, 0, 0.18));
+  mix-blend-mode: soft-light;
+  opacity: 0.38;
+  transition-property: opacity;
+  transition-duration: 180ms;
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.packButton:hover:not(:disabled) .wrapperFoil {
-  background-position:
-    0 0,
-    100% 0,
-    0 0;
-  opacity: 0.96;
-}
-
-.crimp {
+.wrapperMetal::after {
   position: absolute;
-  z-index: 5;
-  right: 2%;
-  left: 2%;
-  height: 8.2%;
-  background: linear-gradient(
-    180deg,
-    rgba(231, 245, 255, 0.28),
-    rgba(3, 9, 21, 0.7) 28%,
-    color-mix(in srgb, var(--pack-accent) 38%, #14233e) 53%,
-    rgba(2, 7, 17, 0.82) 76%,
-    rgba(224, 243, 255, 0.2)
-  );
-  box-shadow:
-    inset 0 1px rgba(255, 255, 255, 0.36),
-    inset 0 4px rgba(255, 255, 255, 0.06),
-    inset 0 -4px rgba(0, 0, 0, 0.2),
-    inset 0 -1px rgba(0, 0, 0, 0.66),
-    0 2px 4px rgba(0, 0, 0, 0.42);
-}
-
-.crimp::after {
-  position: absolute;
-  inset: 23% 2%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 24% 72%, rgba(0, 0, 0, 0.34));
-  box-shadow:
-    inset 0 1px rgba(255, 255, 255, 0.15),
-    inset 0 -1px rgba(0, 0, 0, 0.5);
+  inset: -22%;
+  background: linear-gradient(108deg, transparent 37%, rgba(255, 255, 255, 0.14) 47%, color-mix(in srgb, var(--pack-accent) 14%, transparent) 52%, transparent 62%);
+  background-position: 18% 50%;
+  background-size: 220% 100%;
   content: "";
+  animation: packMaterialDrift 8.5s ease-in-out infinite alternate;
 }
 
-.crimpTop {
-  top: 1.2%;
-  clip-path: polygon(
-    0 12%,
-    4% 0,
-    8% 12%,
-    12% 0,
-    16% 12%,
-    20% 0,
-    24% 12%,
-    28% 0,
-    32% 12%,
-    36% 0,
-    40% 12%,
-    44% 0,
-    48% 12%,
-    52% 0,
-    56% 12%,
-    60% 0,
-    64% 12%,
-    68% 0,
-    72% 12%,
-    76% 0,
-    80% 12%,
-    84% 0,
-    88% 12%,
-    92% 0,
-    96% 12%,
-    100% 0,
+.wrapperCreases {
+  z-index: 3;
+  background: radial-gradient(circle at var(--pack-shine-x) var(--pack-shine-y), rgba(255, 255, 255, 0.34), transparent 38%);
+  mix-blend-mode: soft-light;
+  opacity: 0.34;
+  transform: translate3d(var(--pack-fold-x), var(--pack-fold-y), 0) scale(1.01);
+  transition-property: opacity, transform;
+  transition-duration: 180ms, 260ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wrapperGlare {
+  z-index: 4;
+  background:
+    radial-gradient(circle at var(--pack-shine-x) var(--pack-shine-y), rgba(255, 255, 255, 0.58) 0, rgba(166, 232, 255, 0.18) 10%, transparent 28%),
+    linear-gradient(var(--pack-light-angle), transparent 33%, rgba(255, 255, 255, 0.27) 46%, color-mix(in srgb, var(--pack-accent) 22%, transparent) 52%, transparent 65%);
+  background-size:
     100% 100%,
-    0 100%
-  );
+    210% 100%;
+  background-position:
+    center,
+    var(--pack-shine-x) center;
+  mix-blend-mode: screen;
+  opacity: 0.3;
+  transition-property: background-position, opacity;
+  transition-duration: 260ms, 180ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.crimpBottom {
-  bottom: 1.2%;
-  clip-path: polygon(
-    0 0,
-    100% 0,
-    100% 88%,
-    96% 100%,
-    92% 88%,
-    88% 100%,
-    84% 88%,
-    80% 100%,
-    76% 88%,
-    72% 100%,
-    68% 88%,
-    64% 100%,
-    60% 88%,
-    56% 100%,
-    52% 88%,
-    48% 100%,
-    44% 88%,
-    40% 100%,
-    36% 88%,
-    32% 100%,
-    28% 88%,
-    24% 100%,
-    20% 88%,
-    16% 100%,
-    12% 88%,
-    8% 100%,
-    4% 88%,
-    0 100%
-  );
+.packButton:hover:not(:disabled) .wrapperMetal {
+  opacity: 0.56;
+}
+
+.packButton:hover:not(:disabled) .wrapperCreases {
+  opacity: 0.58;
+}
+
+.packButton:hover:not(:disabled) .wrapperGlare {
+  opacity: 0.76;
 }
 
 .packBrand,
@@ -796,7 +782,6 @@
   width: 34%;
 }
 
-.packSigil span,
 .cardBackSigil span {
   display: block;
   width: 100%;
@@ -804,6 +789,36 @@
   background: var(--pack-logo-fill);
   filter: drop-shadow(0 0 8px var(--pack-logo-glow));
   mask: url("/ccg/logo_ccg.png") center / contain no-repeat;
+}
+
+.packSigil span {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.packSigil span::before,
+.packSigil span::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  mask: url("/ccg/logo_ccg.png") center / contain no-repeat;
+  -webkit-mask: url("/ccg/logo_ccg.png") center / contain no-repeat;
+}
+
+.packSigil span::before {
+  background: rgba(0, 3, 10, 0.8);
+  filter: blur(0.35px);
+  transform: translate3d(1px, 1.5px, 0) scale(1.01);
+}
+
+.packSigil span::after {
+  background: var(--pack-logo-fill);
+  filter:
+    drop-shadow(-0.6px -0.8px 0 rgba(255, 255, 255, 0.34))
+    drop-shadow(0.7px 1px 0 rgba(0, 0, 0, 0.6))
+    drop-shadow(0 0 5px var(--pack-logo-glow));
 }
 
 .packCount {
@@ -1986,6 +2001,17 @@
   }
 }
 
+@keyframes packMaterialDrift {
+  from {
+    background-position: 12% 50%;
+    opacity: 0.72;
+  }
+  to {
+    background-position: 88% 50%;
+    opacity: 1;
+  }
+}
+
 @keyframes tearLeft {
   0% {
     opacity: 1;
@@ -2287,7 +2313,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .packButtonOpening .wrapperFoil,
+  .packButtonOpening .wrapperGlare,
+  .wrapperMetal::after,
   .tornHalfLeft,
   .tornHalfRight,
   .tearFlash,
@@ -2308,7 +2335,9 @@
 
   .booster,
   .packShadow,
-  .wrapperFoil,
+  .wrapperMetal,
+  .wrapperCreases,
+  .wrapperGlare,
   .revealContent,
   .revealSlot,
   .revealLead,
