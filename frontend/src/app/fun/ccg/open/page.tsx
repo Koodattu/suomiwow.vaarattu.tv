@@ -123,6 +123,7 @@ export default function CcgOpenPage() {
   const [isPackCycling, setIsPackCycling] = useState(false);
   const [rechargeNow, setRechargeNow] = useState(() => Date.now());
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const hoverAudioRef = useRef<HTMLAudioElement | null>(null);
   const shuffleAudioRef = useRef<HTMLAudioElement | null>(null);
   const cardSlideAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
   const drawAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
@@ -736,6 +737,11 @@ export default function CcgOpenPage() {
                           cardRefs.current[index] = element;
                         }}
                         disabled={!dealt || revealPhase !== "ready" || isPackCycling}
+                        onPointerEnter={(event) => {
+                          if (event.pointerType === "mouse" && dealt && revealPhase === "ready" && !isPackCycling) {
+                            playPackSound(hoverAudioRef.current, 0.28);
+                          }
+                        }}
                         onPointerMove={revealed ? undefined : updateSealedCardMotion}
                         onPointerLeave={(event) => {
                           if (!revealed) resetSealedCardMotion(event);
@@ -809,21 +815,27 @@ export default function CcgOpenPage() {
                           className={styles.primaryButton}
                           onClick={() => login(`${window.location.pathname}${window.location.search}${window.location.hash}`, { ccgOpeningId: opening.id })}
                         >
-                          {t("guest.keepPack")}
+                          {t(hasAnotherPack ? "guest.keepPack" : "guest.loginForPacks")}
                         </button>
-                        <button
-                          type="button"
-                          className={styles.secondaryButton}
-                          onClick={openAnotherPack}
-                          disabled={!hasAnotherPack || mutation.isPending || isPackCycling}
-                        >
-                          {mutation.isPending || isPackCycling ? t("open.opening") : hasAnotherPack ? t("open.openAnother") : nextPackLabel}
-                        </button>
-                        {!hasAnotherPack ? (
-                          <button type="button" className={styles.secondaryButton} onClick={clearSavedOpening} disabled={mutation.isPending || isPackCycling}>
+                        {hasAnotherPack ? (
+                          <button
+                            type="button"
+                            className={styles.secondaryButton}
+                            onClick={openAnotherPack}
+                            disabled={mutation.isPending || isPackCycling}
+                          >
+                            {mutation.isPending || isPackCycling ? t("open.opening") : t("open.openAnother")}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className={styles.secondaryButton}
+                            onClick={clearSavedOpening}
+                            disabled={mutation.isPending || isPackCycling}
+                          >
                             {t("open.chooseDifferent")}
                           </button>
-                        ) : null}
+                        )}
                       </>
                     ) : (
                       <>
@@ -883,6 +895,7 @@ export default function CcgOpenPage() {
           }}
         />
       ) : null}
+      <audio ref={hoverAudioRef} src="/ccg/audio/hover.mp3" preload="auto" aria-hidden="true" />
       <audio ref={shuffleAudioRef} src="/ccg/audio/shuffle.mp3" preload="auto" aria-hidden="true" />
       {cardSlideSounds.map((src, index) => (
         <audio

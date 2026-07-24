@@ -97,7 +97,8 @@
     "rechargeTime": "{hours} h {minutes} min",
     "guest": {
       "login": "Log in",
-      "keepPack": "Log in and keep this pack"
+      "keepPack": "Log in and keep this pack",
+      "loginForPacks": "Log in and receive 20 packs"
     },
     "landing": {
       "title": "Packs recharge around the clock",
@@ -817,6 +818,7 @@
         "quality": "Quality",
         "rarity": "Rarity",
         "size": "Preview size",
+        "raidArtOffset": "Raid art vertical offset",
         "showGuides": "Show protected area",
         "hideCornerIcons": "Hide corner icons",
         "hideBadges": "Hide frame labels",

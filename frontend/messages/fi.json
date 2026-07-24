@@ -97,7 +97,8 @@
     "rechargeTime": "{hours} t {minutes} min",
     "guest": {
       "login": "Kirjaudu",
-      "keepPack": "Kirjaudu ja pidä tämä pakka"
+      "keepPack": "Kirjaudu ja pidä tämä pakka",
+      "loginForPacks": "Kirjaudu ja saat 20 pakkaa"
     },
     "landing": {
       "title": "Pakat latautuvat ympäri vuorokauden",
@@ -817,6 +818,7 @@
         "quality": "Laatu",
         "rarity": "Harvinaisuus",
         "size": "Esikatselun koko",
+        "raidArtOffset": "Raidikuvan pystysiirtymä",
         "showGuides": "Näytä suojattu alue",
         "hideCornerIcons": "Piilota kulmakuvakkeet",
         "hideBadges": "Piilota kehyksen tekstit",

@@ -26,6 +26,7 @@ export default function CcgCardStudio() {
   const [finish, setFinish] = useState<PreviewFinish>("standard");
   const [tierGrade, setTierGrade] = useState<CcgTierGrade>("C");
   const [cardWidth, setCardWidth] = useState(400);
+  const [raidArtOffsetY, setRaidArtOffsetY] = useState(50);
   const [guides, setGuides] = useState(false);
   const [hideCornerIcons, setHideCornerIcons] = useState(false);
   const [hideBadges, setHideBadges] = useState(false);
@@ -74,7 +75,10 @@ export default function CcgCardStudio() {
     setSelectedVariantId(variants[0]?.id ?? "");
   }, [selectedCard?.id, variants]);
   useEffect(() => {
-    if (selectedVariant) setTierGrade(selectedVariant.tierGrade);
+    if (selectedVariant) {
+      setTierGrade(selectedVariant.tierGrade);
+      setRaidArtOffsetY(selectedVariant.backgroundCrop.y);
+    }
   }, [selectedVariant?.id]);
   const previewCard = useMemo(() => selectedVariant ? { ...selectedVariant, tierGrade } : null, [selectedVariant, tierGrade]);
 
@@ -169,6 +173,22 @@ export default function CcgCardStudio() {
               {[320, 360, 400, 440].map((value) => <option key={value} value={value}>{value} px</option>)}
             </select>
           </label>
+          <label className="col-span-2 grid gap-2 text-xs font-semibold text-gray-400">
+            <span className="flex items-center justify-between gap-3">
+              <span>{t("raidArtOffset")}</span>
+              <output className="font-mono text-cyan-300">{Math.round(raidArtOffsetY)}%</output>
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={raidArtOffsetY}
+              onChange={(event) => setRaidArtOffsetY(Number(event.target.value))}
+              disabled={!previewCard}
+              className="w-full accent-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+            />
+          </label>
         </div>
         <div className="mt-3 grid gap-2 text-sm text-gray-300">
           {[
@@ -188,7 +208,7 @@ export default function CcgCardStudio() {
         <div className="absolute inset-0 opacity-20" style={previewCard ? { background: `radial-gradient(circle at 50% 45%, ${previewCard.set.theme.glow}, transparent 55%), url(${previewCard.set.backgroundPath}) center/cover` } : undefined} aria-hidden="true" />
         {previewCard ? (
           <div className="relative z-10">
-            <CollectibleCard card={previewCard} finish={finish} width={cardWidth} guides={guides} hideCornerIcons={hideCornerIcons} hideBadges={hideBadges} />
+            <CollectibleCard card={previewCard} finish={finish} width={cardWidth} guides={guides} hideCornerIcons={hideCornerIcons} hideBadges={hideBadges} raidArtOffsetY={raidArtOffsetY} />
           </div>
         ) : (
           <p className="relative z-10 text-sm text-gray-500">{t("selectCard")}</p>
