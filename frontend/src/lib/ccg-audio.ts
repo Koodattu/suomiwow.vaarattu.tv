@@ -12,25 +12,29 @@ export type CcgAudioChannel = "effects" | "announcer";
 type AnnouncerVariant = "a" | "b";
 type AnnouncerKey = `${CcgFinish}-${(typeof CCG_RARITY_KEYS)[CcgTierGrade]}`;
 
+const CCG_ANNOUNCER_BASELINE_VOLUME = 0.5;
+
 const CCG_ANNOUNCER_VARIANTS: Record<Locale, Partial<Record<AnnouncerKey, readonly AnnouncerVariant[]>>> = {
   en: {
     "standard-artifact": ["a", "b"],
-    "standard-legendary": ["a"],
+    "standard-legendary": ["a", "b"],
     "standard-epic": ["a", "b"],
+    "standard-rare": ["a", "b"],
     "foil-artifact": ["a", "b"],
-    "foil-legendary": ["a"],
+    "foil-legendary": ["a", "b"],
     "foil-epic": ["a", "b"],
     "foil-rare": ["a", "b"],
-    "golden-artifact": ["b"],
-    "golden-legendary": ["a"],
-    "golden-epic": ["b"],
+    "golden-artifact": ["a", "b"],
+    "golden-legendary": ["a", "b"],
+    "golden-epic": ["a", "b"],
     "golden-rare": ["a", "b"],
     "golden-uncommon": ["a", "b"],
     "golden-common": ["a", "b"],
-    "golden-poor": ["a"],
-    "prismatic-artifact": ["b"],
+    "golden-poor": ["a", "b"],
+    "prismatic-artifact": ["a", "b"],
     "prismatic-legendary": ["a", "b"],
-    "prismatic-rare": ["b"],
+    "prismatic-epic": ["a", "b"],
+    "prismatic-rare": ["a", "b"],
     "prismatic-uncommon": ["a", "b"],
     "prismatic-common": ["a", "b"],
     "prismatic-poor": ["a", "b"],
@@ -40,13 +44,13 @@ const CCG_ANNOUNCER_VARIANTS: Record<Locale, Partial<Record<AnnouncerKey, readon
     "holographic-rare": ["a", "b"],
     "holographic-common": ["a", "b"],
     "holographic-poor": ["a", "b"],
-    "negative-artifact": ["b"],
+    "negative-artifact": ["a", "b"],
     "negative-legendary": ["a", "b"],
-    "negative-epic": ["a"],
+    "negative-epic": ["a", "b"],
     "negative-rare": ["a", "b"],
-    "negative-uncommon": ["a"],
+    "negative-uncommon": ["a", "b"],
     "negative-common": ["a", "b"],
-    "negative-poor": ["b"],
+    "negative-poor": ["a", "b"],
   },
   fi: {
     "standard-artifact": ["a"],
@@ -142,7 +146,8 @@ export function getCcgPlaybackVolume(channel: CcgAudioChannel, baseVolume = 1): 
   if (channel === "effects" && !preferences.effectsEnabled) return 0;
   if (channel === "announcer" && !preferences.announcerEnabled) return 0;
   const channelVolume = channel === "effects" ? preferences.effectsVolume : preferences.announcerVolume;
-  return clampVolume(baseVolume, 1) * preferences.volume * channelVolume;
+  const channelBaseline = channel === "announcer" ? CCG_ANNOUNCER_BASELINE_VOLUME : 1;
+  return clampVolume(baseVolume, 1) * channelBaseline * preferences.volume * channelVolume;
 }
 
 export function getCcgAnnouncerSoundSources(locale: Locale, finish: CcgFinish, tierGrade: CcgTierGrade): string[] {
@@ -151,7 +156,7 @@ export function getCcgAnnouncerSoundSources(locale: Locale, finish: CcgFinish, t
   const variants = CCG_ANNOUNCER_VARIANTS[locale][key] ?? [];
   const directory = finish === "standard" ? "standard-rarity-only" : finish;
   const localePrefix = locale === "fi" ? "fi-" : "";
-  return variants.map((variant) => `/ccg/audio/announcer/${locale}/${directory}/${localePrefix}${finish}-${rarity}-${variant}.wav`);
+  return variants.map((variant) => `/ccg/audio/announcer/${locale}/${directory}/${localePrefix}${finish}-${rarity}-${variant}.mp3`);
 }
 
 export function playCcgInspectSound(): void {

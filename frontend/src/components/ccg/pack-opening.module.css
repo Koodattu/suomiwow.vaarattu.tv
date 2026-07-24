@@ -486,7 +486,7 @@
   display: block;
   filter:
     drop-shadow(0 8px 5px rgba(0, 0, 0, 0.58))
-    drop-shadow(0 0 9px var(--pack-glow));
+    drop-shadow(0 0 8px color-mix(in srgb, var(--pack-glow) 78%, transparent));
   transform: translate3d(var(--pack-drag-x), calc(var(--pack-drag-y) + var(--pack-lift)), 0) rotateX(var(--pack-tilt-x)) rotateY(var(--pack-tilt-y)) scale(var(--pack-scale));
   transform-style: preserve-3d;
   transition-property: transform, filter;
@@ -562,6 +562,14 @@
   stroke: rgba(0, 2, 8, 0.62);
 }
 
+.wrapperSerratedEdge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--pack-accent) 42%, rgba(226, 245, 255, 0.34));
+  stroke-width: 0.7;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.7;
+}
+
 .wrapperSealSeam {
   fill: none;
   stroke: rgba(0, 2, 9, 0.78);
@@ -616,7 +624,7 @@
     brightness(1.04)
     saturate(1.06)
     drop-shadow(0 9px 6px rgba(0, 0, 0, 0.58))
-    drop-shadow(0 0 11px var(--pack-glow));
+    drop-shadow(0 0 10px color-mix(in srgb, var(--pack-glow) 82%, transparent));
 }
 
 .packButton:hover:not(:disabled) .packShadow {

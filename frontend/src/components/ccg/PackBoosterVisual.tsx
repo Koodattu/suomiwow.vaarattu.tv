@@ -177,6 +177,11 @@ export default function PackBoosterVisual({ title, cardsLabel }: { title: string
                 <path d="M6 448 Q150 452 294 448" />
               </g>
 
+              <g className={styles.wrapperSerratedEdge}>
+                <path d="M10 5 L17 0 L24 5 L31 0 L38 5 L45 0 L52 5 L59 0 L66 5 L73 0 L80 5 L87 0 L94 5 L101 0 L108 5 L115 0 L122 5 L129 0 L136 5 L143 0 L150 5 L157 0 L164 5 L171 0 L178 5 L185 0 L192 5 L199 0 L206 5 L213 0 L220 5 L227 0 L234 5 L241 0 L248 5 L255 0 L262 5 L269 0 L276 5 L283 0 L290 5" />
+                <path d="M10 450 L17 455 L24 450 L31 455 L38 450 L45 455 L52 450 L59 455 L66 450 L73 455 L80 450 L87 455 L94 450 L101 455 L108 450 L115 455 L122 450 L129 455 L136 450 L143 455 L150 450 L157 455 L164 450 L171 455 L178 450 L185 455 L192 450 L199 455 L206 450 L213 455 L220 450 L227 455 L234 450 L241 455 L248 450 L255 455 L262 450 L269 455 L276 450 L283 455 L290 450" />
+              </g>
+
               <g className={styles.wrapperPleats}>
                 <path d="M5 25 L10 27 C25 35 35 45 45 58 C29 46 18 37 5 25 Z" />
                 <path d="M295 25 L290 27 C275 35 265 45 255 58 C271 46 282 37 295 25 Z" />
