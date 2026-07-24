@@ -108,9 +108,10 @@ export default function CcgCollectionPage() {
     Boolean(setSlug) && !showCatalog,
   );
   const catalogQuery = useCcgCatalog(setSlug, page, "all", grade, guildId, finish, showCatalog, cardsPerPage);
-  const cardsData = showCatalog ? catalogQuery.data : ownedQuery.data;
-  const cardsLoading = showCatalog ? catalogQuery.isLoading : ownedQuery.isLoading;
-  const cardsError = showCatalog ? catalogQuery.isError : ownedQuery.isError;
+  const cardsQuery = showCatalog ? catalogQuery : ownedQuery;
+  const cardsData = cardsQuery.data;
+  const cardsLoading = setsQuery.isPending || (sets.length > 0 && !setSlug) || (Boolean(setSlug) && cardsQuery.isPending);
+  const cardsError = cardsQuery.isError;
 
   useEffect(() => {
     if (setSlug || sets.length === 0) return;
@@ -192,11 +193,14 @@ export default function CcgCollectionPage() {
           </div>
 
           <div className={styles.collectionFilters}>
-            {filtersChanged ? (
-              <button type="button" className={styles.collectionResetButton} onClick={resetFilters}>
-                {t("collection.resetFilters")}
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className={styles.collectionResetButton}
+              onClick={resetFilters}
+              disabled={!filtersChanged}
+            >
+              {t("collection.resetFilters")}
+            </button>
 
             <label className={`${styles.collectionMissingToggle} ${includeMissing ? styles.collectionMissingToggleActive : ""}`}>
               <input
