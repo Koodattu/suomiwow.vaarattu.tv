@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { CcgFinish, CcgMode, CcgOpening } from "@/types";
+import type { CcgFinish, CcgMode, CcgOpening, CcgTierGrade } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { CCG_FINISH_ORDER, CCG_RARITY_KEYS } from "@/lib/ccg";
@@ -32,6 +32,15 @@ const dealOffsets = ["215%", "108%", "0%", "-108%", "-215%"];
 const dealAngles = [8, 4, 0, -4, -8];
 const RANDOM_LEGACY_SET = "random";
 const cardSlideSounds = Array.from({ length: 8 }, (_, index) => `/ccg/audio/card-slide-${index + 1}.mp3`);
+const qualitySoundFiles: Record<CcgFinish, string> = {
+  standard: "1-standard.mp3",
+  foil: "2-foil.mp3",
+  golden: "3-golden.mp3",
+  prismatic: "4-prismatic.mp3",
+  holographic: "5-holographic.mp3",
+  negative: "6-negative.mp3",
+};
+const standardQualitySoundGrades = new Set<CcgTierGrade>(["S", "A", "B", "C", "D"]);
 const tearParticles = [
   { x: -132, y: -74, rotate: -34, delay: 90 },
   { x: -98, y: -126, rotate: -18, delay: 120 },
@@ -84,6 +93,10 @@ function playPackSound(audio: HTMLAudioElement | null, volume: number, playbackR
 function playRandomPackSound(audios: Array<HTMLAudioElement | null>, volume: number): void {
   const available = audios.filter((audio): audio is HTMLAudioElement => audio !== null);
   playPackSound(available[randomIndex(available.length)] ?? null, volume);
+}
+
+function hasQualityRevealSound(finish: CcgFinish, tierGrade: CcgTierGrade): boolean {
+  return finish !== "standard" || standardQualitySoundGrades.has(tierGrade);
 }
 
 export default function CcgOpenPage() {
@@ -291,8 +304,8 @@ export default function CcgOpenPage() {
   };
 
   const playQualitySoundAfterFlip = (index: number) => {
-    const finish = opening?.results[index]?.finish;
-    if (!finish || finish === "standard") return;
+    const result = opening?.results[index];
+    if (!result || !hasQualityRevealSound(result.finish, result.card.tierGrade)) return;
     const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 200;
     const timer = window.setTimeout(() => playPackSound(qualityAudioRefs.current[index] ?? null, 0.4), delay);
     qualitySoundTimersRef.current.push(timer);
@@ -341,7 +354,7 @@ export default function CcgOpenPage() {
     setActiveReveal(null);
     playRandomPackSound(cardSlideAudioRefs.current, 0.32);
     opening.results.forEach((result, index) => {
-      if (!revealedCards.has(index) && result.finish !== "standard") playQualitySoundAfterFlip(index);
+      if (!revealedCards.has(index) && hasQualityRevealSound(result.finish, result.card.tierGrade)) playQualitySoundAfterFlip(index);
     });
     const announcerIndex = opening.results
       .map((result, index) => ({ result, index }))
@@ -894,14 +907,16 @@ export default function CcgOpenPage() {
         />
       ))}
       {Array.from({ length: 5 }, (_, index) => {
-        const finish = opening?.results[index]?.finish as CcgFinish | undefined;
+        const result = opening?.results[index];
         return (
           <audio
             key={`quality-${index}`}
             ref={(element) => {
               qualityAudioRefs.current[index] = element;
             }}
-            src={finish && finish !== "standard" ? `/ccg/audio/quality/${finish}.mp3` : undefined}
+            src={result && hasQualityRevealSound(result.finish, result.card.tierGrade)
+              ? `/ccg/audio/quality/${qualitySoundFiles[result.finish]}`
+              : undefined}
             preload="auto"
             aria-hidden="true"
           />

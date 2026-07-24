@@ -17,9 +17,39 @@ import PackBoosterVisual, { getPackTheme } from "@/components/ccg/PackBoosterVis
 import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 
-function updateVaultPackMotion(event: ReactPointerEvent<HTMLAnchorElement>): void {
-  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-  applyPackPointerMotion(event.currentTarget, event.clientX, event.clientY);
+function VaultPackShortcut({
+  href,
+  theme,
+  label,
+  title,
+  cardsLabel,
+}: {
+  href: string;
+  theme: CSSProperties;
+  label: string;
+  title: string;
+  cardsLabel: string;
+}) {
+  const updateMotion = (event: ReactPointerEvent<HTMLAnchorElement>) => {
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    applyPackPointerMotion(event.currentTarget, event.clientX, event.clientY);
+  };
+
+  return (
+    <Link
+      href={href}
+      className={`${packStyles.packButton} ${styles.vaultPackShortcut}`}
+      style={theme}
+      aria-label={label}
+      draggable={false}
+      onPointerMove={updateMotion}
+      onPointerLeave={(event) => resetPackMotion(event.currentTarget)}
+      onPointerCancel={(event) => resetPackMotion(event.currentTarget)}
+      onBlur={(event) => resetPackMotion(event.currentTarget)}
+    >
+      <PackBoosterVisual title={title} cardsLabel={cardsLabel} />
+    </Link>
+  );
 }
 
 function FeaturedCard({ card, onSelect }: { card: CcgCard; onSelect: (event: ReactMouseEvent<HTMLButtonElement>) => void }) {
@@ -126,33 +156,23 @@ export default function CcgLandingPage() {
 
           <nav className={styles.vaultPackShortcuts} aria-label={t("nav.open")}>
             <div className={styles.vaultPackShortcutColumn}>
-              <Link
+              <VaultPackShortcut
                 href="/fun/ccg/open?mode=current"
-                className={`${packStyles.packButton} ${styles.vaultPackShortcut}`}
-                style={getPackTheme(current)}
-                aria-label={t("landing.openCurrent")}
-                onPointerMove={updateVaultPackMotion}
-                onPointerLeave={(event) => resetPackMotion(event.currentTarget)}
-                onPointerCancel={(event) => resetPackMotion(event.currentTarget)}
-                onBlur={(event) => resetPackMotion(event.currentTarget)}
-              >
-                <PackBoosterVisual title={current?.raidName ?? t("landing.preparing")} cardsLabel={t("landing.cards")} />
-              </Link>
+                theme={getPackTheme(current)}
+                label={t("landing.openCurrent")}
+                title={current?.raidName ?? t("landing.preparing")}
+                cardsLabel={t("landing.cards")}
+              />
               {session ? <PackBalance session={session} mode="current" strip /> : <div className={styles.vaultBalanceSkeleton} />}
             </div>
             <div className={styles.vaultPackShortcutColumn}>
-              <Link
+              <VaultPackShortcut
                 href="/fun/ccg/open?mode=legacy"
-                className={`${packStyles.packButton} ${styles.vaultPackShortcut}`}
-                style={getPackTheme(undefined, true)}
-                aria-label={t("landing.openLegacy")}
-                onPointerMove={updateVaultPackMotion}
-                onPointerLeave={(event) => resetPackMotion(event.currentTarget)}
-                onPointerCancel={(event) => resetPackMotion(event.currentTarget)}
-                onBlur={(event) => resetPackMotion(event.currentTarget)}
-              >
-                <PackBoosterVisual title={t("open.legacyPackTitle")} cardsLabel={t("landing.cards")} />
-              </Link>
+                theme={getPackTheme(undefined, true)}
+                label={t("landing.openLegacy")}
+                title={t("open.legacyPackTitle")}
+                cardsLabel={t("landing.cards")}
+              />
               {session ? <PackBalance session={session} mode="legacy" strip /> : <div className={styles.vaultBalanceSkeleton} />}
             </div>
           </nav>
