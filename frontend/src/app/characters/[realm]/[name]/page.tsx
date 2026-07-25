@@ -1092,7 +1092,6 @@ export default function CharacterProfilePage({ params }: PageProps) {
             <div className="min-w-0 md:pr-6">
               <div className="flex min-w-0 items-center gap-4">
                 <CharacterAvatar
-                  avatarUrl={character.media?.avatarUrl}
                   classIcon={classInfo.iconUrl}
                   characterName={character.name}
                   className="h-14 w-14 md:h-16 md:w-16"

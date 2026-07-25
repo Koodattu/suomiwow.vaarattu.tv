@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useTranslations } from "next-intl";
@@ -402,27 +403,6 @@ export default function CardViewer({
           {isOwned && showFinishControls ? (
             <section className={styles.viewerControls} aria-labelledby="ccg-viewer-finishes">
               <h3 id="ccg-viewer-finishes">{t("finish.label")}</h3>
-              {variants.length > 1 ? (
-                <div className={styles.viewerSnapshotControl}>
-                  <label htmlFor="ccg-viewer-snapshot">{t("collection.ownedSnapshots")}</label>
-                  <select
-                    id="ccg-viewer-snapshot"
-                    className={styles.viewerSnapshotSelect}
-                    value={displayedCard.id}
-                    onChange={(event) => selectVariant(variants.findIndex((variant) => variant.card.id === event.target.value))}
-                  >
-                    {variants.map((variant) => (
-                      <option key={variant.card.id} value={variant.card.id}>
-                        {t("collection.snapshotOption", {
-                          date: SNAPSHOT_DATE_FORMATTER.format(new Date(variant.card.performanceSnapshotAt)),
-                          grade: variant.card.tierGrade,
-                          rarity: t(`rarity.${CCG_RARITY_KEYS[variant.card.tierGrade]}`),
-                        })}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : null}
               <div>
                 {ownedFinishes.map((row) => (
                   <button
@@ -445,7 +425,45 @@ export default function CardViewer({
             <div><dt>{t("collection.quality")}</dt><dd>{t(`finish.${finish}`)}</dd></div>
             <div><dt>{t("collection.rarity")}</dt><dd>{t(`rarity.${CCG_RARITY_KEYS[displayedCard.tierGrade]}`)}</dd></div>
             <div><dt>{t("realm")}</dt><dd>{formatRealmName(displayedCard.realm)}</dd></div>
-            <div><dt>{t("snapshot")}</dt><dd>{SNAPSHOT_DATE_FORMATTER.format(new Date(displayedCard.performanceSnapshotAt))}</dd></div>
+            <div>
+              <dt>{t("snapshot")}</dt>
+              <dd>
+                {variants.length > 1 ? (
+                  <Listbox
+                    value={displayedCard.id}
+                    onChange={(cardId) => selectVariant(variants.findIndex((variant) => variant.card.id === cardId))}
+                  >
+                    <ListboxButton
+                      aria-label={t("collection.ownedSnapshots")}
+                      className={styles.viewerSnapshotButton}
+                    >
+                      <span>{SNAPSHOT_DATE_FORMATTER.format(new Date(displayedCard.performanceSnapshotAt))}</span>
+                      <span className={styles.viewerSnapshotChevron} aria-hidden="true" />
+                    </ListboxButton>
+                    <ListboxOptions
+                      anchor={{ to: "bottom end", gap: 6, padding: 12 }}
+                      portal
+                      modal={false}
+                      className={styles.viewerSnapshotOptions}
+                    >
+                      {variants.map((variant) => (
+                        <ListboxOption
+                          key={variant.card.id}
+                          value={variant.card.id}
+                          className={({ focus, selected }) => [
+                            styles.viewerSnapshotOption,
+                            focus ? styles.viewerSnapshotOptionFocused : "",
+                            selected ? styles.viewerSnapshotOptionSelected : "",
+                          ].filter(Boolean).join(" ")}
+                        >
+                          {SNAPSHOT_DATE_FORMATTER.format(new Date(variant.card.performanceSnapshotAt))}
+                        </ListboxOption>
+                      ))}
+                    </ListboxOptions>
+                  </Listbox>
+                ) : SNAPSHOT_DATE_FORMATTER.format(new Date(displayedCard.performanceSnapshotAt))}
+              </dd>
+            </div>
           </dl>
           <div className={styles.viewerActions}>
             <div>
