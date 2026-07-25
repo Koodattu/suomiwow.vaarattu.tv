@@ -3055,9 +3055,9 @@
   min-width: 2.75rem;
   min-height: 2.75rem;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.45rem;
-  padding: 0.55rem 0.65rem;
+  padding: 0.55rem 0.45rem;
   border: 0;
   border-radius: 0.35rem;
   background: transparent;
@@ -3066,6 +3066,7 @@
   font-size: 0.75rem;
   font-weight: 760;
   line-height: 1;
+  text-align: left;
   transition-property: transform, color, background-color;
   transition-duration: 150ms;
   transition-timing-function: ease-out;
@@ -3116,25 +3117,6 @@
   transition-property: opacity, filter, transform;
   transition-duration: 300ms;
   transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
-}
-
-.shareButtonLabels {
-  display: grid;
-}
-
-.shareButtonLabels > span {
-  grid-area: 1 / 1;
-  transition-property: opacity;
-  transition-duration: 150ms;
-  transition-timing-function: ease-out;
-}
-
-.shareLabelVisible {
-  opacity: 1;
-}
-
-.shareLabelHidden {
-  opacity: 0;
 }
 
 .shareIconVisible {

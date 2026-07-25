@@ -68,13 +68,13 @@ export default function CcgShareButton({
     resetTimerRef.current = window.setTimeout(() => setStatus("idle"), resetDelay);
   };
 
-  const labels = {
-    idle: t(target.kind === "card" ? "card" : "pack"),
-    creating: t("creating"),
-    copied: t("copied"),
-    error: t("error"),
-  };
-  const label = labels[status];
+  const label = status === "creating"
+    ? t("creating")
+    : status === "copied"
+      ? t("copied")
+      : status === "error"
+        ? t("error")
+        : t(target.kind === "card" ? "card" : "pack");
   const resultVisible = status === "copied" || status === "error";
 
   return (
@@ -92,14 +92,7 @@ export default function CcgShareButton({
         <FaCheck className={status === "copied" ? styles.shareIconVisible : styles.shareIconHidden} />
         <FaTriangleExclamation className={status === "error" ? styles.shareIconVisible : styles.shareIconHidden} />
       </span>
-      <span className={styles.shareButtonLabels} aria-hidden="true">
-        {(Object.keys(labels) as Array<keyof typeof labels>).map((value) => (
-          <span key={value} className={status === value ? styles.shareLabelVisible : styles.shareLabelHidden}>
-            {labels[value]}
-          </span>
-        ))}
-      </span>
-      <span className="sr-only" aria-live="polite">{label}</span>
+      <span aria-live="polite">{label}</span>
     </button>
   );
 }
