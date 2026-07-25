@@ -329,7 +329,12 @@ export default function CardViewer({
         tabIndex={-1}
       >
         <p id="ccg-card-viewer-hint" className="sr-only">{t("inspectCloseHint")}</p>
-        <div ref={cardMotionRef} className={styles.viewerCardMotion} style={motionStyle}>
+        <div
+          ref={cardMotionRef}
+          className={styles.viewerCardMotion}
+          style={motionStyle}
+          onPointerLeave={() => setForcedPointer(undefined)}
+        >
           <CollectibleCard
             card={displayedCard}
             finish={finish}
