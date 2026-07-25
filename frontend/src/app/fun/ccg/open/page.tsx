@@ -983,6 +983,7 @@ export default function CcgOpenPage() {
           originElement={viewerOriginElement}
           originBounds={viewerOriginBounds}
           sharedTransition={viewerSharedTransition}
+          showFinishControls={false}
           onClose={() => {
             setViewerIndex(null);
             setViewerOriginElement(null);
