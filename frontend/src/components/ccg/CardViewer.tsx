@@ -25,7 +25,10 @@ const SNAPSHOT_DATE_FORMATTER = new Intl.DateTimeFormat("fi-FI", {
   month: "2-digit",
   year: "numeric",
 });
-export type CardViewerOriginBounds = Pick<DOMRect, "left" | "top" | "width" | "height">;
+export type CardViewerOriginBounds = Pick<DOMRect, "left" | "top" | "width" | "height"> & {
+  activationPoint?: Pick<MouseEvent, "clientX" | "clientY">;
+};
+type CardViewerActivationPoint = Pick<MouseEvent, "clientX" | "clientY" | "detail">;
 
 function sourceCardElement(originElement: HTMLElement | null): HTMLElement | null {
   return originElement?.querySelector<HTMLElement>("[data-ccg-card]")
@@ -47,6 +50,7 @@ function clearCardViewTransition(element: HTMLElement | null) {
 export function openCardViewer(
   originElement: HTMLElement | null,
   update: (sharedTransition: boolean, originBounds: CardViewerOriginBounds | null) => void,
+  activationPoint?: CardViewerActivationPoint | null,
 ) {
   playCcgInspectSound();
   const source = sourceCardElement(originElement);
@@ -56,7 +60,15 @@ export function openCardViewer(
     return;
   }
   const { left, top, width, height } = source.getBoundingClientRect();
-  const originBounds = { left, top, width, height };
+  const originBounds = {
+    left,
+    top,
+    width,
+    height,
+    activationPoint: activationPoint?.detail && window.matchMedia("(hover: hover) and (pointer: fine)").matches
+      ? { clientX: activationPoint.clientX, clientY: activationPoint.clientY }
+      : undefined,
+  };
   if (!canUseCardViewTransition() || !viewTransitionDocument.startViewTransition) {
     update(false, originBounds);
     return;
@@ -110,6 +122,7 @@ export default function CardViewer({
   const [artVariant, setArtVariant] = useState<CcgArtVariant>(requestedInitialOwnership?.artVariant ?? bestInitialOwnership?.artVariant ?? initialArtVariant);
   const [variantIndex, setVariantIndex] = useState(clickedVariantIndex);
   const [phase, setPhase] = useState<ViewerPhase>(sharedTransition ? "open" : "entering");
+  const [forcedPointer, setForcedPointer] = useState<{ x: number; y: number }>();
   const viewerRef = useRef<HTMLDivElement>(null);
   const cardMotionRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<number | null>(null);
@@ -218,6 +231,31 @@ export default function CardViewer({
     };
   }, [originElement, setOriginTransform, sharedTransition]);
 
+  useLayoutEffect(() => {
+    const activationPoint = originBounds?.activationPoint;
+    const motionElement = cardMotionRef.current;
+    const targetElement = motionElement?.querySelector<HTMLElement>("[data-ccg-card]");
+    if (!activationPoint || !motionElement || !targetElement) return;
+
+    const previousTransform = motionElement.style.transform;
+    motionElement.style.transform = "none";
+    const bounds = targetElement.getBoundingClientRect();
+    if (previousTransform) motionElement.style.transform = previousTransform;
+    else motionElement.style.removeProperty("transform");
+
+    if (
+      activationPoint.clientX < bounds.left
+      || activationPoint.clientX > bounds.right
+      || activationPoint.clientY < bounds.top
+      || activationPoint.clientY > bounds.bottom
+    ) return;
+
+    setForcedPointer({
+      x: (activationPoint.clientX - bounds.left) / bounds.width,
+      y: (activationPoint.clientY - bounds.top) / bounds.height,
+    });
+  }, [originBounds]);
+
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
@@ -289,6 +327,7 @@ export default function CardViewer({
             quantity={isOwned ? quantity : undefined}
             width={520}
             className={`${styles.viewerCard} ${missing && !isOwned ? styles.viewerMissingCard : ""}`}
+            forcedPointer={forcedPointer}
             viewTransitionName={sharedTransition ? CARD_VIEW_TRANSITION_NAME : undefined}
           />
         </div>

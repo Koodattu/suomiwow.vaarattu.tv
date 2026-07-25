@@ -847,7 +847,7 @@
       },
       "alternativeArt": {
         "title": "Vaihtoehtoinen kuvitus ja repliikit",
-        "description": "Määritä hahmolle yksi vaihtoehtoinen ulkoasu ja valinnainen repliikki. Hahmokuva koskee kaikkia raidiversioita, taustakuva vain Community-kortteja ja kelvollinen kortti käyttää yhtä 1/4-kuvitusarvontaa.",
+        "description": "Määritä hahmolle yksi vaihtoehtoinen ulkoasu ja valinnainen repliikki. Hahmokuva koskee kaikkia raidiversioita, taustakuva vain Community-kortteja ja yksi onnistunut 1/4-kuvitusarvonta avaa ulkoasun kaikille hahmon korteille.",
         "search": "Etsi CCG-hahmo",
         "searchPlaceholder": "Hahmo, realm tai kilta",
         "loading": "Etsitään hahmoja…",

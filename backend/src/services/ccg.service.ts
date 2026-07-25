@@ -297,9 +297,10 @@ class CcgService {
         .lean(),
       CcgCard.countDocuments(cardFilter),
     ]);
-    const [ownership, alternativeByCollector] = await Promise.all([
+    const [ownership, alternativeByCollector, unlockedAlternativeCollectors] = await Promise.all([
       CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, cardId: { $in: cards.map((card) => card._id) } }).lean(),
       this.loadAlternativeArt(cards),
+      this.loadAlternativeArtUnlocks(owner, cards),
     ]);
     const ownershipByCard = new Map<string, Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>>();
     for (const row of ownership) {
@@ -310,10 +311,16 @@ class CcgService {
 
     return {
       set: this.serializeSet(set, ownedIds?.length ?? 0),
-      cards: cards.map((card) => ({
-        ...this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card))),
-        ownership: serializeOwnershipRows(ownershipByCard.get(String(card._id)) ?? []),
-      })),
+      cards: cards.map((card) => {
+        const collectorKey = resolveCollectorKey(card);
+        const alternativeArt = alternativeByCollector.get(collectorKey);
+        const alternativeArtUnlocked = unlockedAlternativeCollectors.has(collectorKey)
+          && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId));
+        return {
+          ...this.serializeCard(card, set, alternativeArt),
+          ownership: serializeOwnershipRows(ownershipByCard.get(String(card._id)) ?? [], alternativeArtUnlocked),
+        };
+      }),
       page,
       limit,
       total,
@@ -429,7 +436,11 @@ class CcgService {
       count: Array<{ total: number }>;
     });
     const total = rows.count[0]?.total ?? 0;
-    const alternativeByCollector = await this.loadAlternativeArt(rows.items.flatMap((row) => row.variants.map((variant) => variant.card)));
+    const collectionCards = rows.items.flatMap((row) => row.variants.map((variant) => variant.card));
+    const [alternativeByCollector, unlockedAlternativeCollectors] = await Promise.all([
+      this.loadAlternativeArt(collectionCards),
+      this.loadAlternativeArtUnlocks(owner, collectionCards),
+    ]);
     return {
       cards: rows.items.map((row) => {
         const representative = row.variants.find((variant) => (
@@ -438,25 +449,34 @@ class CcgService {
           && (!guildId || String(variant.card.guildId) === String(guildId))
         )) ?? row.variants[0];
         const orderedVariants = [representative, ...row.variants.filter((variant) => String(variant.card._id) !== String(representative.card._id))];
+        const representativeCollectorKey = resolveCollectorKey(representative.card);
+        const alternative = alternativeByCollector.get(representativeCollectorKey);
+        const alternativeArtUnlocked = unlockedAlternativeCollectors.has(representativeCollectorKey)
+          && hasApplicableAlternativeArt(alternative, Boolean(representative.card.communityCharacterId));
         const finishTotals = new Map<string, { finish: CcgFinish; artVariant: CcgArtVariant; quantity: number }>();
         for (const finishes of row.finishGroups) {
-          for (const ownership of serializeOwnershipRows(finishes)) {
+          for (const ownership of serializeOwnershipRows(finishes, alternativeArtUnlocked)) {
             const key = `${ownership.finish}:${ownership.artVariant}`;
             const current = finishTotals.get(key);
             if (current) current.quantity += ownership.quantity;
             else finishTotals.set(key, { ...ownership });
           }
         }
-        const alternative = alternativeByCollector.get(resolveCollectorKey(representative.card));
         return {
           ...this.serializeCard(representative.card, representative.set, alternative),
           ownership: Array.from(finishTotals.values()),
           totalQuantity: row.totalQuantity,
-          variants: orderedVariants.map((variant) => ({
-            card: this.serializeCard(variant.card, variant.set, alternative),
-            ownership: serializeOwnershipRows(variant.finishes),
-            totalQuantity: variant.totalQuantity,
-          })),
+          variants: orderedVariants.map((variant) => {
+            const collectorKey = resolveCollectorKey(variant.card);
+            const alternativeArt = alternativeByCollector.get(collectorKey);
+            const alternativeArtUnlocked = unlockedAlternativeCollectors.has(collectorKey)
+              && hasApplicableAlternativeArt(alternativeArt, Boolean(variant.card.communityCharacterId));
+            return {
+              card: this.serializeCard(variant.card, variant.set, alternativeArt),
+              ownership: serializeOwnershipRows(variant.finishes, alternativeArtUnlocked),
+              totalQuantity: variant.totalQuantity,
+            };
+          }),
         };
       }),
       page,
@@ -472,15 +492,22 @@ class CcgService {
     if (!card) throw new CcgServiceError(404, "card_not_found", "Card not found");
     const set = await CcgSet.findOne({ _id: card.setId, enabledAt: { $ne: null } }).lean();
     if (!set) throw new CcgServiceError(404, "card_not_found", "Card not found");
-    const [ownership, alternativeByCollector] = await Promise.all([
+    const [ownership, alternativeByCollector, unlockedAlternativeCollectors] = await Promise.all([
       owner
         ? CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, cardId: card._id }).select("finish quantity alternativeQuantity -_id").lean()
         : [],
       this.loadAlternativeArt([card]),
+      owner ? this.loadAlternativeArtUnlocks(owner, [card]) : new Set<string>(),
     ]);
+    const collectorKey = resolveCollectorKey(card);
+    const alternativeArt = alternativeByCollector.get(collectorKey);
     return {
-      ...this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card))),
-      ownership: serializeOwnershipRows(ownership),
+      ...this.serializeCard(card, set, alternativeArt),
+      ownership: serializeOwnershipRows(
+        ownership,
+        unlockedAlternativeCollectors.has(collectorKey)
+          && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)),
+      ),
     };
   }
 
@@ -1295,19 +1322,19 @@ class CcgService {
   }
 
   private async addOwnership(owner: CcgOwner, results: Array<Pick<SelectedResult, "cardId" | "finish" | "artVariant">>, session: ClientSession): Promise<void> {
-    const quantities = new Map<string, { cardId: mongoose.Types.ObjectId; finish: CcgFinish; quantity: number; alternativeQuantity: number }>();
+    const quantities = new Map<string, { cardId: mongoose.Types.ObjectId; finish: CcgFinish; quantity: number; alternativeUnlocked: boolean }>();
     for (const result of results) {
       const key = `${result.cardId}:${result.finish}`;
       const current = quantities.get(key);
       if (current) {
         current.quantity += 1;
-        if (result.artVariant === "alternative") current.alternativeQuantity += 1;
+        if (result.artVariant === "alternative") current.alternativeUnlocked = true;
       } else {
         quantities.set(key, {
           cardId: result.cardId,
           finish: result.finish,
           quantity: 1,
-          alternativeQuantity: result.artVariant === "alternative" ? 1 : 0,
+          alternativeUnlocked: result.artVariant === "alternative",
         });
       }
     }
@@ -1317,7 +1344,8 @@ class CcgService {
         updateOne: {
           filter: { ownerType: owner.ownerType, ownerId: owner.ownerId, cardId: row.cardId, finish: row.finish },
           update: {
-            $inc: { quantity: row.quantity, alternativeQuantity: row.alternativeQuantity },
+            $inc: { quantity: row.quantity },
+            ...(row.alternativeUnlocked ? { $max: { alternativeQuantity: 1 } } : {}),
             $set: { lastAcquiredAt: now },
             $setOnInsert: {
               firstAcquiredAt: now,
@@ -1439,6 +1467,34 @@ class CcgService {
     if (session) query.session(session);
     const rows = await query;
     return new Map(rows.map((row) => [row.collectorKey, row]));
+  }
+
+  private async loadAlternativeArtUnlocks(
+    owner: Pick<CcgOwner, "ownerType" | "ownerId">,
+    cards: ReadonlyArray<{ collectorKey?: string | null; characterId: mongoose.Types.ObjectId | string }>,
+    session?: ClientSession,
+  ): Promise<Set<string>> {
+    const collectorKeys = Array.from(new Set(cards.map(resolveCollectorKey)));
+    if (collectorKeys.length === 0) return new Set();
+    const characterIds = Array.from(new Set(cards.map((card) => String(card.characterId))));
+    const relatedCardsQuery = CcgCard.find({
+      $or: [
+        { collectorKey: { $in: collectorKeys } },
+        { characterId: { $in: characterIds } },
+      ],
+    }).select("_id characterId collectorKey").lean();
+    if (session) relatedCardsQuery.session(session);
+    const relatedCards = await relatedCardsQuery;
+    const collectorByCardId = new Map(relatedCards.map((card) => [String(card._id), resolveCollectorKey(card)]));
+    const unlocksQuery = CcgOwnership.find({
+      ownerType: owner.ownerType,
+      ownerId: owner.ownerId,
+      cardId: { $in: relatedCards.map((card) => card._id) },
+      alternativeQuantity: { $gt: 0 },
+    }).select("cardId").lean();
+    if (session) unlocksQuery.session(session);
+    const unlocks = await unlocksQuery;
+    return new Set(unlocks.map((row) => collectorByCardId.get(String(row.cardId))).filter((value): value is string => Boolean(value)));
   }
 
   private serializeCard(

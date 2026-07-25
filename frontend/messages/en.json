@@ -847,7 +847,7 @@
       },
       "alternativeArt": {
         "title": "Alternative artwork & quips",
-        "description": "Configure one alternative look and one optional quip per character. Character art follows every raid snapshot, backgrounds only apply to Community cards, and eligible pulls use one 1-in-4 artwork roll.",
+        "description": "Configure one alternative look and one optional quip per character. Character art follows every raid snapshot, backgrounds only apply to Community cards, and one successful 1-in-4 artwork roll unlocks the look globally for that character.",
         "search": "Find a CCG character",
         "searchPlaceholder": "Character, realm, or guild",
         "loading": "Searching characters…",

@@ -229,7 +229,7 @@ export default function CcgLandingPage() {
                     setViewerOriginBounds(originBounds);
                     setViewerSharedTransition(sharedTransition);
                     setViewerCard(featuredCard);
-                  });
+                  }, event);
                 }}
               />
             ) : (

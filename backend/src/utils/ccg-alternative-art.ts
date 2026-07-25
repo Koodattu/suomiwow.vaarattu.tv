@@ -96,13 +96,11 @@ export function serializeQuip(definition: CcgAlternativeArtDefinition | undefine
   };
 }
 
-export function serializeOwnershipRows(rows: readonly CcgStoredOwnership[]): CcgSerializedOwnership[] {
+export function serializeOwnershipRows(rows: readonly CcgStoredOwnership[], alternativeArtUnlocked = false): CcgSerializedOwnership[] {
   return rows.flatMap((row) => {
-    const alternativeQuantity = Math.min(row.quantity, Math.max(0, row.alternativeQuantity ?? 0));
-    const standardQuantity = row.quantity - alternativeQuantity;
     return [
-      ...(standardQuantity > 0 ? [{ finish: row.finish, artVariant: "standard" as const, quantity: standardQuantity }] : []),
-      ...(alternativeQuantity > 0 ? [{ finish: row.finish, artVariant: "alternative" as const, quantity: alternativeQuantity }] : []),
+      { finish: row.finish, artVariant: "standard" as const, quantity: row.quantity },
+      ...(alternativeArtUnlocked ? [{ finish: row.finish, artVariant: "alternative" as const, quantity: row.quantity }] : []),
     ];
   });
 }

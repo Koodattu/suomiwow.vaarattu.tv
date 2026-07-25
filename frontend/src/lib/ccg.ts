@@ -26,10 +26,14 @@ export function bestOwnedFinish(
     compareCcgFinish(right.finish, left.finish)
     || Number(right.artVariant === "alternative") - Number(left.artVariant === "alternative")
   ))[0];
+  const quantityByFinish = (card.ownership ?? []).reduce((quantities, item) => {
+    quantities.set(item.finish, Math.max(quantities.get(item.finish) ?? 0, item.quantity));
+    return quantities;
+  }, new Map<CcgFinish, number>());
   return {
     finish: row.finish,
     artVariant: row.artVariant,
     quantity: row.quantity,
-    total: card.ownership?.reduce((sum, item) => sum + item.quantity, 0) ?? row.quantity,
+    total: card.totalQuantity ?? Array.from(quantityByFinish.values()).reduce((sum, quantity) => sum + quantity, 0),
   };
 }

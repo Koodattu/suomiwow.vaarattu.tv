@@ -295,14 +295,22 @@ test("alternative art uses one 1-in-4 roll and only applies backgrounds to Commu
   assert.equal(rollArtVariant(false, () => 3), "standard");
 });
 
-test("legacy ownership stays standard while alternative quantities split exact finish variants", () => {
+test("alternative art is one global unlock and does not split finish quantities", () => {
   assert.deepEqual(serializeOwnershipRows([
     { finish: "standard", quantity: 3 },
     { finish: "foil", quantity: 4, alternativeQuantity: 3 },
   ]), [
     { finish: "standard", artVariant: "standard", quantity: 3 },
-    { finish: "foil", artVariant: "standard", quantity: 1 },
-    { finish: "foil", artVariant: "alternative", quantity: 3 },
+    { finish: "foil", artVariant: "standard", quantity: 4 },
+  ]);
+  assert.deepEqual(serializeOwnershipRows([
+    { finish: "standard", quantity: 3 },
+    { finish: "foil", quantity: 4, alternativeQuantity: 3 },
+  ], true), [
+    { finish: "standard", artVariant: "standard", quantity: 3 },
+    { finish: "standard", artVariant: "alternative", quantity: 3 },
+    { finish: "foil", artVariant: "standard", quantity: 4 },
+    { finish: "foil", artVariant: "alternative", quantity: 4 },
   ]);
 });
 

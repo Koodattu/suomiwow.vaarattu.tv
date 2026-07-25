@@ -362,7 +362,7 @@ export default function CcgOpenPage() {
         setViewerOriginBounds(originBounds);
         setViewerSharedTransition(sharedTransition);
         setViewerIndex(index);
-      });
+      }, event);
       return;
     }
     if (event && event.detail > 0 && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {

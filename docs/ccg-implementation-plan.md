@@ -100,6 +100,7 @@ Duplicates do not upgrade card rarity. Rarity represents the character's snapsho
 - A card is complete when Standard, Foil, Golden, Prismatic, Holographic, and Negative are all owned for that exact card.
 - Completing the final missing finish does not immediately award a pack. The first later duplicate on that already-complete card awards one pack credit for that card, and the idempotency key prevents that card from rewarding again.
 - A completed card in a Current raid awards a Current pack. A completed card in a Legacy raid awards a Legacy pack. Community cards do not award completion packs.
+- Alternative art is a separate collector-wide cosmetic unlock. It never affects duplicate classification or finish completion, and one unlock makes the alternative art available for every owned finish and raid card sharing that `collectorKey`.
 - Ownership stores and displays quantities such as `×2` and `×7`.
 - Copies are not destroyed when a completed-card reward is granted.
 - Guest results are provisional: completed-card rewards are calculated against the authenticated collection during a valid same-day claim and no spendable guest bonus credit exists before login.
@@ -676,6 +677,7 @@ Use a polymorphic owner:
 - `cardId`
 - `finish`: `standard`, `foil`, `golden`, `prismatic`, `holographic`, or `negative`
 - `quantity`
+- `alternativeQuantity`: an existing value above zero is global alternative-art unlock evidence; it does not split or add to finish quantities
 - `firstAcquiredAt`
 - `lastAcquiredAt`
 - Guest-only `dateKey` and `expiresAt`; omit these fields for authenticated ownership
@@ -1224,6 +1226,7 @@ The initial feature is ready when:
 - The same character in different raid sets is collected and completed as a different card.
 - A missing rolled finish is awarded unchanged; an exact-finish duplicate advances to the next missing finish for that card.
 - The first duplicate pulled after all six finishes are owned awards exactly one pack for that card: Current for a Current raid and Legacy for a Legacy raid.
+- Alternative art is one global cosmetic unlock per character and never contributes to duplicate or finish-completion state.
 - Finish protection ramps quadratically from each configured base rate to its hard-pity guarantee and resets only the finish that was awarded.
 - The collection displays each raid card separately and exposes every owned finish in the viewer.
 - Current becomes Legacy without changing existing cards.

@@ -507,7 +507,7 @@ export default function CcgCollectionPage() {
                           setViewerOriginBounds(originBounds);
                           setViewerSharedTransition(sharedTransition);
                           setViewerCard(card);
-                        });
+                        }, event);
                       }}
                     />
                   );
