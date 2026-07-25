@@ -92,7 +92,6 @@
     "communityCard": "Community",
     "cardType": "Card type",
     "bonus": "bonus",
-    "duplicateMeter": "Duplicate meter",
     "rechargeMeter": "Recharge",
     "storageFull": "Storage full",
     "rechargeIn": "Next pack in {time}",
@@ -120,6 +119,8 @@
       "legacyBody": "Draw from the full archive or target one enabled past raid. The binders remain organized raid by raid.",
       "openLegacy": "Open Legacy packs",
       "all": "All",
+      "allRaids": "All raids",
+      "completeCollection": "Complete collection",
       "legacyEmpty": "Legacy binders will appear as their snapshots are published."
     },
     "open": {
@@ -152,7 +153,7 @@
       "allRevealed": "Pack complete",
       "newCard": "New",
       "duplicate": "Duplicate",
-      "bonusEarned": "The duplicate meter awarded {count} bonus pack(s).",
+      "bonusEarned": "{count, plural, one {Completed card reward: # bonus pack.} other {Completed card rewards: # bonus packs.}}",
       "recoveryFailed": "That saved pack could not be recovered. Clear it before opening another pack.",
       "dismissRecovery": "Clear saved pack",
       "openAnother": "Open another pack",

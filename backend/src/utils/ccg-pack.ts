@@ -1,7 +1,6 @@
 import { randomInt } from "crypto";
 import {
   CCG_CARDS_PER_PACK,
-  CCG_DUPLICATES_PER_BONUS_PACK,
   CCG_GUARANTEED_GRADE_ODDS,
   CCG_TIER_GRADES,
   CCG_WEIGHTED_GRADE_ODDS,
@@ -23,16 +22,6 @@ export type CcgPackSelectionPlan = {
   tierGrade: CcgTierGrade;
   bucketOffset: number;
 };
-
-export function calculateDuplicateProgress(remainder: number, addedDuplicates: number): { remainder: number; earned: number } {
-  if (!Number.isInteger(remainder) || remainder < 0 || remainder >= CCG_DUPLICATES_PER_BONUS_PACK) throw new Error("Invalid duplicate remainder");
-  if (!Number.isInteger(addedDuplicates) || addedDuplicates < 0) throw new Error("Invalid duplicate count");
-  const total = remainder + addedDuplicates;
-  return {
-    remainder: total % CCG_DUPLICATES_PER_BONUS_PACK,
-    earned: Math.floor(total / CCG_DUPLICATES_PER_BONUS_PACK),
-  };
-}
 
 function weightedGrade(
   weights: Readonly<Record<CcgTierGrade, number>>,

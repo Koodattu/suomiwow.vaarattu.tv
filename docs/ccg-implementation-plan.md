@@ -27,7 +27,7 @@ Guests begin with five packs in each mode. A first-time authenticated CCG player
 - If the character already exists locally, the Community record links to it. Otherwise it retains a stable Blizzard identity that can be reconciled when the character later enters the normal raid pipeline.
 - Current, random Legacy, and targeted Legacy packs may all contain Community cards. Rarity is selected by the normal pack rules first. Within that rarity, a Community result must win both its proportional pool roll and a second 50/50 gate; a failed gate keeps the already selected raid card.
 - Community cards are immutable snapshots with no performance metrics. Their card metric panel displays `Community`.
-- A stable `collectorKey` groups Community and normal raid variants of the same character for duplicate detection and collection display. Existing cards without the field fall back to their local character ID.
+- A stable `collectorKey` links Community and normal raid variants of the same character for shared alternative art, quips, and administrative identity reconciliation. It does not define ownership or duplicate identity.
 
 ## Goals
 
@@ -94,19 +94,15 @@ The grade is calculated once at publication from one canonical, unfiltered globa
 
 Duplicates do not upgrade card rarity. Rarity represents the character's snapshotted raid-tier performance and must remain truthful.
 
-- Duplicate identity is the character, not the immutable raid snapshot. Pulling the same character from another raid or weekly snapshot is still a duplicate.
-- A duplicate is guaranteed at least the next finish above that character's best owned finish, capped at Negative.
-- The first owned copy of a character is new; later pulls of that character advance duplicate progress even when they add a new snapshot or finish variant.
-- Different snapshots and finishes remain separately auditable and keep their own quantities in storage.
+- Duplicate identity is the exact immutable raid card. The same character in another raid set is a different card.
+- A finish that is not yet owned for that card is awarded unchanged, even when another finish of the card is already owned.
+- If the rolled finish is already owned, the result advances to the next missing finish above it. If only lower gaps remain, it fills the first missing finish so every pre-completion duplicate advances the card.
+- A card is complete when Standard, Foil, Golden, Prismatic, Holographic, and Negative are all owned for that exact card.
+- Completing the final missing finish does not immediately award a pack. The first later duplicate on that already-complete card awards one pack credit for that card, and the idempotency key prevents that card from rewarding again.
+- A completed card in a Current raid awards a Current pack. A completed card in a Legacy raid awards a Legacy pack. Community cards do not award completion packs.
 - Ownership stores and displays quantities such as `×2` and `×7`.
-- For authenticated collections, every ten duplicate character pulls award one bonus pack credit in the same mode.
-- Copies are not destroyed when the duplicate meter awards a pack.
-- Bonus-pack results can advance the duplicate meter normally.
-- Guest results are provisional: duplicate rewards are calculated against the authenticated collection during a valid same-day claim and no spendable guest bonus credit exists before login.
-
-The threshold must not start at five. A five-card pack producing another pack after five duplicates creates a self-reproducing loop once a collection is complete. A ten-duplicate threshold has a reproduction ratio of at most one-half and therefore converges.
-
-Duplicate progress is displayed as a persistent meter, for example `7 / 10 — Bonus pack`.
+- Copies are not destroyed when a completed-card reward is granted.
+- Guest results are provisional: completed-card rewards are calculated against the authenticated collection during a valid same-day claim and no spendable guest bonus credit exists before login.
 
 ### Finishes
 
@@ -253,7 +249,7 @@ Grade odds remain global and versioned. Within the selected grade, every eligibl
 - Recharge boundaries use the `Europe/Helsinki` clock.
 - Current and Legacy balances are independent and both cap at 25 rechargeable packs.
 - Recharge is calculated lazily for the requesting owner; there is no hourly database-wide user scan.
-- Earned duplicate credits persist until opened and continue to use their existing mechanic.
+- Earned completed-card credits persist until opened.
 
 ### Pack contents
 
@@ -291,7 +287,7 @@ Guests receive:
 - One Legacy pack on every Helsinki hour while storage is below the cap
 - Five cards per pack
 
-Guests cannot open duplicate-earned bonus packs while logged out. An explicit claim reclassifies only the selected pack against the authenticated collection, advances the authenticated user's duplicate meter, and grants any resulting bonus pack credit. Other guest openings are not imported.
+Guests cannot open completed-card bonus packs while logged out. An explicit claim reclassifies only the selected pack against the authenticated collection and grants any resulting completed-card credit. Other guest openings are not imported.
 
 ### Claim on login
 
@@ -300,7 +296,7 @@ An eligible guest-to-user claim:
 1. Validates that the guest record and selected five-card opening belong together, are unclaimed, and have not expired.
 2. Requires the authenticated account's persistent CCG `hasPlayed` marker to be false.
 3. Merges only the selected opening's exact card and finish quantities into the authenticated collection.
-4. Reclassifies those five results and applies duplicate progress and any resulting bonus credit.
+4. Reclassifies those five results and applies any resulting one-time completed-card reward.
 5. Preserves opening provenance and marks both the opening and guest identity claimed.
 6. Leaves the account's first-time 25 Current and 25 Legacy starting balances intact.
 
@@ -321,10 +317,10 @@ The primary collection experience resembles a physical card album:
 - Tablet and mobile reduce the pocket count without shrinking cards below readable sizes.
 - The default **All cards** view shows collected cards only.
 - The **By guild** view defaults to collected cards and can optionally reveal missing cards as numbered dark silhouettes.
-- Owned pockets group every snapshot of the same character and display the latest snapshot with the character's highest owned finish and total quantity.
+- Owned pockets treat each raid card as a separate collectible, even when the same character appears in another raid.
 - Selecting a pocket opens the large card viewer.
-- The focused viewer lets the user switch between all owned snapshot and finish variants and see quantities.
-- Set completion and duplicate progress remain visible near the binder controls.
+- The focused viewer lets the user switch between owned finishes and see quantities.
+- Set and finish completion remain visible near the binder controls.
 
 The binder is a real collection affordance, so a repeated card grid is appropriate here. A searchable index view can be added as a utility for large collections, but it is secondary to the binder.
 
@@ -733,24 +729,7 @@ Persistent bonus pack entitlements for authenticated users:
 
 Guests never receive a persistent credit document. Credits belong to a mode rather than a raid set.
 
-### `CcgOwnerProgress`
-
-One document per owner and mode:
-
-- `ownerType`
-- `ownerId`
-- `mode`
-- `duplicateRemainder` from 0–9
-- `totalDuplicatePulls`
-- `bonusPacksEarned`
-- optional cached collection counts
-- timestamps
-
-Index:
-
-- Unique `{ownerType: 1, ownerId: 1, mode: 1}`
-
-Guest progress is provisional and expires with the guest day. It can support same-day UI classification, but `bonusPacksEarned` remains zero until the claim transaction reclassifies the results and updates the authenticated user's progress.
+Completed-card credits use a per-owner, per-card source idempotency key. This makes the reward permanent and one-time even after its credit has been consumed or the raid later moves from Current to Legacy.
 
 ### `CcgPackPool`
 
@@ -821,15 +800,15 @@ Within one transaction:
 5. Load the active versioned pack pool.
 6. Select card IDs with server-side cryptographic randomness.
 7. Apply the guaranteed `A`-or-better slot.
-8. Resolve duplicate identity by character across all owned snapshots, including repeated characters within the same pack.
-9. Roll the protected finishes once per card using the stored pack-rule version, applying the duplicate's minimum next finish and persisting the resulting counters.
+8. Resolve owned finishes by exact card ID, including repeated copies of that card within the same pack.
+9. Roll the protected finishes once per card using the stored pack-rule version. Keep a missing rolled finish; promote an exact-finish duplicate to the next missing finish and persist the resulting counters.
 10. Upsert ownership quantities.
-11. For an authenticated owner, add duplicate characters to the mode-specific duplicate meter and convert every completed group of ten into a bonus pack credit.
+11. For an authenticated owner, grant one idempotent mode-specific credit when a duplicate is pulled for an already-complete raid card that has not rewarded before.
 12. For a guest, record only provisional same-day ownership and classifications; defer authenticated duplicate reclassification and rewards until claim.
 13. Write the immutable opening result and ledger entries.
 14. Commit.
 
-If the transaction fails, no allowance, ownership, duplicate progress, or result is retained.
+If the transaction fails, no allowance, ownership, completed-card reward, or result is retained.
 
 ## Guest-claim transaction
 
@@ -840,7 +819,7 @@ Within one transaction:
 3. Load the explicitly selected committed five-card opening and verify that it belongs to the guest.
 4. Atomically require and flip the authenticated account's `hasPlayed` marker from false to true.
 5. Reclassify only those five results against the authenticated collection and upsert their quantities.
-6. Apply mode-specific duplicate progress and materialize any bonus credit earned by the selected pack.
+6. Materialize any one-time completed-card credit earned by the selected pack.
 7. Associate the opening provenance with the claiming user.
 8. Mark the selected opening and guest identity claimed, invalidate further guest writes, and write the claim ledger entry.
 9. Commit.
@@ -856,7 +835,7 @@ Exact route naming can follow existing backend conventions. The expected capabil
 - `GET /api/ccg/sets`
   - Enabled Current and Legacy sets
 - `GET /api/ccg/session`
-  - Owner type, rechargeable balances, caps, next recharge times, bonus credits, duplicate progress, and claim state
+  - Owner type, rechargeable balances, caps, next recharge times, bonus credits, and claim state
 - `GET /api/ccg/sets/:setSlug/catalog`
   - Paginated binder catalog with owned/missing state
 - `GET /api/ccg/sets/:setSlug/guilds`
@@ -980,7 +959,6 @@ Use the existing navigation and localization structures. Add all visible copy to
 - `CollectibleCard`
 - `CollectibleCardViewer`
 - `FinishSelector`
-- `DuplicateProgress`
 - `CharacterAvatar`
 - `CharacterRender`
 
@@ -992,7 +970,7 @@ Do not create a second card renderer for pack reveals and collection views. Use 
 - Do not optimistically invent pack results.
 - Treat the committed backend opening as the source of truth.
 - Reuse an opening result after refresh using its idempotency/opening id.
-- Invalidate only the affected session, collection, progress, and opening queries.
+- Invalidate only the affected session, collection, and opening queries.
 
 ### Image handling
 
@@ -1070,7 +1048,7 @@ Track:
 - Expired unclaimed guest results and rejected over-limit claims
 - New versus duplicate rates
 - Grade and finish distributions
-- Duplicate bonus packs earned
+- Completed-card bonus packs earned
 - Opening transaction failures and retries
 - Media queue throughput, 404s, and retry volume
 - Candidate exclusion reasons
@@ -1117,7 +1095,7 @@ Never expose user-level private collection data in public operational dashboards
 
 ### Phase 3 — authenticated pack and collection core
 
-- Add transaction-backed allowances, openings, ownership, progress, credits, and ledger.
+- Add transaction-backed allowances, openings, ownership, credits, and ledger.
 - Implement server-side pack selection and finish rolls.
 - Implement Current and all-history Legacy mode pools.
 - Add basic collection and opening APIs.
@@ -1132,7 +1110,7 @@ Never expose user-level private collection data in public operational dashboards
 ### Phase 5 — binder and pack UI
 
 - Build Current and Legacy binder navigation.
-- Add pack selection, opening, reveal recovery, card viewer, quantities, and duplicate meter.
+- Add pack selection, opening, reveal recovery, card viewer, quantities, and finish completion.
 - Add responsive and localized states.
 - Add avatar and media fallbacks.
 
@@ -1159,8 +1137,8 @@ Never expose user-level private collection data in public operational dashboards
 - Deterministic background crop generation and safe bounds
 - Finish odds boundaries
 - Guaranteed `B`-or-better slot
-- Duplicate classification, including repeated results in one pack
-- Ten-duplicate bonus conversion and remainder
+- Exact-card and exact-finish duplicate classification, including repeated results in one pack
+- Missing-finish promotion and completed-card reward eligibility
 - Helsinki date-key generation
 - Next-reset expiry generation across daylight-saving transitions
 - Guest token hashing
@@ -1175,8 +1153,8 @@ Never expose user-level private collection data in public operational dashboards
 - Concurrent opening requests with one remaining pack
 - Transaction rollback after a mid-operation failure
 - Ownership quantity updates
-- New character versus character-wide duplicate behavior across snapshots
-- Duplicate-earned pack credit
+- Same-character cards in different raid sets remain independent
+- One-time Current/Legacy completed-card pack credit
 - Legacy set selection
 - Guest opening, same-day claim, and repeated claim
 - Expired previous-day guest claim rejection
@@ -1238,16 +1216,16 @@ The initial feature is ready when:
 - Every committed result survives refresh and repeated requests during its retention window; authenticated results remain permanent.
 - Guest cards can be claimed only during the Helsinki day in which they were opened; unclaimed cards are inaccessible after reset and are removed by cleanup.
 - A guest claim persists only the explicitly selected five-card opening and never imports the rest of the guest session.
-- Duplicate progress and rewards from that pack are applied only during a valid claim.
+- Completed-card rewards from that pack are applied only during a valid claim.
 - An account with any prior CCG activity cannot claim guest cards; unrelated pre-CCG SuomiWoW account activity does not disqualify it.
 - Cards remain immutable after publication and rollover.
 - Tier grade is the visible rarity and drives pack/style behavior.
 - Every pack contains five cards and satisfies its guaranteed slot.
-- Duplicate characters increment visible quantities and the duplicate meter even when they come from different snapshots.
-- Every ten duplicate characters award one same-mode pack credit.
-- Every duplicate is guaranteed at least the next finish above that character's best owned finish, capped at Negative.
+- The same character in different raid sets is collected and completed as a different card.
+- A missing rolled finish is awarded unchanged; an exact-finish duplicate advances to the next missing finish for that card.
+- The first duplicate pulled after all six finishes are owned awards exactly one pack for that card: Current for a Current raid and Legacy for a Legacy raid.
 - Finish protection ramps quadratically from each configured base rate to its hard-pity guarantee and resets only the finish that was awarded.
-- The collection groups all owned snapshots of one character, shows the latest snapshot with the best owned finish, and exposes every owned variant in the viewer.
+- The collection displays each raid card separately and exposes every owned finish in the viewer.
 - Current becomes Legacy without changing existing cards.
 - The binder displays owned, missing, quantities, finishes, and completion by raid set.
 - Character pages display a Blizzard avatar with a reliable fallback.
@@ -1267,7 +1245,7 @@ These values are intentionally configuration, even when this plan proposes defau
 - Grade thresholds or proportions
 - Pack slot weights
 - Guaranteed-slot grade
-- Soft duplicate protection
+- Finish duplicate-promotion order
 - Golden and Prismatic odds
 - Guest reset time and cleanup grace period
 - Nightly media-discovery and weekly snapshot/publication times

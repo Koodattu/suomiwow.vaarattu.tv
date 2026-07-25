@@ -359,7 +359,7 @@ export default function CcgCollectionPage() {
                 className={styles.collectionSet}
                 style={{
                   "--set-accent": "#9c7cff",
-                  backgroundImage: 'linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("/ccg/general_alt_wide.png")',
+                  backgroundImage: 'linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("/ccg/general_wide.webp")',
                 } as CSSProperties}
               >
                 <span>{t("landing.all")}</span>
@@ -374,7 +374,7 @@ export default function CcgCollectionPage() {
                   className={styles.collectionSet}
                   style={{
                     "--set-accent": set.theme.accent,
-                    backgroundImage: `linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("${set.backgroundPath}")`,
+                    backgroundImage: `linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("${set.kind === "community" ? "/ccg/general_alt_wide.png" : set.backgroundPath}")`,
                   } as CSSProperties}
                 >
                   <span>{set.raidName}</span>

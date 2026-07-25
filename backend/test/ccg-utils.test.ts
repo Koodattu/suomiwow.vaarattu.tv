@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   CCG_A_OR_BETTER_GRADES,
   CCG_CONFIGURED_SETS,
+  CCG_FINISH_ORDER,
   CCG_INITIAL_PACKS,
   CCG_PACK_STORAGE_CAPS,
   normalizeCcgRaidName,
@@ -20,8 +21,18 @@ import {
   serializeOwnershipRows,
   serializeQuip,
 } from "../src/utils/ccg-alternative-art";
-import { emptyFinishPity, finishChanceForCounter, gradeForPercentile, nextFinish, resolveCardCrop, rollArtVariant, rollProtectedFinish } from "../src/utils/ccg-random";
-import { calculateDuplicateProgress, planPackSelections, selectCommunityCard, selectPackCards } from "../src/utils/ccg-pack";
+import {
+  emptyFinishPity,
+  finishChanceForCounter,
+  gradeForPercentile,
+  nextFinish,
+  resolveCardCrop,
+  resolveOwnedFinish,
+  rollArtVariant,
+  rollOwnedFinish,
+  rollProtectedFinish,
+} from "../src/utils/ccg-random";
+import { planPackSelections, selectCommunityCard, selectPackCards } from "../src/utils/ccg-pack";
 import { createWowCharacterIdentityKey } from "../src/utils/ccg-identity";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeGrants } from "../src/utils/ccg-recharge";
@@ -138,6 +149,44 @@ test("quality protection follows a quadratic ramp, resets only the awarded finis
   assert.notEqual(followingCard.finish, "negative");
 });
 
+test("owned finishes are resolved per raid card and only completed-card duplicates qualify for a reward", () => {
+  assert.deepEqual(resolveOwnedFinish("standard", new Set(["foil"])), {
+    finish: "standard",
+    isDuplicate: false,
+    isCompletedCardDuplicate: false,
+  });
+  assert.deepEqual(resolveOwnedFinish("foil", new Set(["standard", "foil"])), {
+    finish: "golden",
+    isDuplicate: true,
+    isCompletedCardDuplicate: false,
+  });
+  assert.deepEqual(resolveOwnedFinish("prismatic", new Set(["standard", "foil", "golden"])), {
+    finish: "prismatic",
+    isDuplicate: false,
+    isCompletedCardDuplicate: false,
+  });
+  assert.deepEqual(resolveOwnedFinish("negative", new Set(["standard", "golden", "prismatic", "holographic", "negative"])), {
+    finish: "foil",
+    isDuplicate: true,
+    isCompletedCardDuplicate: false,
+  });
+  assert.deepEqual(resolveOwnedFinish("prismatic", new Set(CCG_FINISH_ORDER)), {
+    finish: "prismatic",
+    isDuplicate: true,
+    isCompletedCardDuplicate: true,
+  });
+});
+
+test("a promoted duplicate resets protection for the awarded finish", () => {
+  const pity = { ...emptyFinishPity(), foil: 4, golden: 10 };
+  const result = rollOwnedFinish(pity, new Set(["standard", "foil"]), (maximum) => maximum - 1);
+  assert.equal(result.finish, "golden");
+  assert.equal(result.isDuplicate, true);
+  assert.equal(result.isCompletedCardDuplicate, false);
+  assert.equal(result.pity.foil, 5);
+  assert.equal(result.pity.golden, 0);
+});
+
 test("quality protection ramps slowly at first and accelerates near hard pity", () => {
   assert.equal(finishChanceForCounter(1, 100), 0.01);
   assert.ok(Math.abs(finishChanceForCounter(10, 100) - 0.018182) < 0.000001);
@@ -166,12 +215,6 @@ test("every selected pack has five cards and an A-or-better guaranteed slot", ()
 
 test("a pack cannot be produced when no A-or-better card exists", () => {
   assert.throws(() => selectPackCards([{ grade: "F", cardIds: ["only-card"] }], () => 0), /no eligible cards/);
-});
-
-test("ten exact duplicates award a pack while preserving the remainder", () => {
-  assert.deepEqual(calculateDuplicateProgress(4, 5), { remainder: 9, earned: 0 });
-  assert.deepEqual(calculateDuplicateProgress(9, 1), { remainder: 0, earned: 1 });
-  assert.deepEqual(calculateDuplicateProgress(8, 23), { remainder: 1, earned: 3 });
 });
 
 test("first-time pack grants distinguish guest and authenticated storage", () => {

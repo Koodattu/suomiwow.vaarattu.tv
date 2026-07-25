@@ -93,9 +93,9 @@ export default function CcgLandingPage() {
   const allCardCount = collectionSets.reduce((total, set) => total + set.cardCount, 0);
   const allOwnedCount = collectionSets.reduce((total, set) => total + set.ownedCards, 0);
   const allProgress = allCardCount > 0 ? Math.min(100, (allOwnedCount / allCardCount) * 100) : 0;
-  const collectionItemCount = collectionSets.length + 1;
-  const collectionColumns = Math.max(1, Math.ceil(collectionItemCount / 3));
-  const collectionRows = Math.max(2, Math.ceil(collectionItemCount / collectionColumns));
+  const gridSets = collectionSets.filter((set) => set.id !== current?.id);
+  const collectionColumns = Math.max(1, Math.ceil(gridSets.length / 3));
+  const collectionRows = Math.max(2, Math.ceil(gridSets.length / collectionColumns));
   const featuredQuery = useCcgCatalog(current?.slug ?? "", 1, "all", "S", "", "", Boolean(current?.slug), 50);
   const featuredCards = featuredQuery.data?.cards ?? [];
   const featuredCard = featuredCards.length > 0
@@ -115,42 +115,76 @@ export default function CcgLandingPage() {
     <CcgShell viewportLocked>
       <div className={styles.vaultDashboard}>
         <section className={styles.vaultDashboardTop}>
-          <div
-            className={styles.vaultCurrentSet}
-            style={{
-              "--set-accent": current?.theme.accent ?? "#46CFFF",
-              "--set-glow": current?.theme.glow ?? "rgba(70,207,255,.25)",
-              backgroundImage: current ? `url("${current.backgroundPath}")` : undefined,
-            } as CSSProperties}
-          >
-            <div className={styles.vaultCurrentShade} aria-hidden="true" />
-            <div className={styles.vaultCurrentContent}>
-              <div className={styles.eyebrow}>{t("landing.currentSet")}</div>
-              <h1>
-                {currentSets.length > 1 ? t("landing.currentRaids", { count: currentSets.length }) : current?.raidName ?? t("landing.preparing")}
-              </h1>
-              <div className={styles.vaultCurrentProgress}>
-                <div className={styles.vaultCurrentCount}>
-                  <strong>{currentOwnedCount}</strong>
-                  <span>/ {currentCardCount} {t("landing.collected")}</span>
-                </div>
-                <div className={styles.vaultCurrentTrack} aria-label={`${currentOwnedCount}/${currentCardCount} ${t("landing.collected")}`}>
-                  <span style={{ transform: `scaleX(${currentProgress / 100})` }} />
+          <div className={styles.vaultSetStack}>
+            <div
+              className={styles.vaultCurrentSet}
+              style={{
+                "--set-accent": current?.theme.accent ?? "#46CFFF",
+                "--set-glow": current?.theme.glow ?? "rgba(70,207,255,.25)",
+                backgroundImage: current ? `url("${current.backgroundPath}")` : undefined,
+              } as CSSProperties}
+            >
+              <div className={styles.vaultCurrentShade} aria-hidden="true" />
+              <div className={styles.vaultCurrentContent}>
+                <div className={styles.eyebrow}>{t("landing.currentSet")}</div>
+                <h1>
+                  {currentSets.length > 1 ? t("landing.currentRaids", { count: currentSets.length }) : current?.raidName ?? t("landing.preparing")}
+                </h1>
+                <div className={styles.vaultCurrentProgress}>
+                  <div className={styles.vaultCurrentCount}>
+                    <strong>{currentOwnedCount}</strong>
+                    <span>/ {currentCardCount} {t("landing.collected")}</span>
+                  </div>
+                  <div className={styles.vaultCurrentTrack} aria-label={`${currentOwnedCount}/${currentCardCount} ${t("landing.collected")}`}>
+                    <span style={{ transform: `scaleX(${currentProgress / 100})` }} />
+                  </div>
                 </div>
               </div>
+              <div className={styles.vaultCurrentActions}>
+                <Link
+                  href={current ? `/fun/ccg/collection?set=${encodeURIComponent(current.slug)}` : "/fun/ccg/collection"}
+                  className={`${styles.secondaryButton} ${styles.vaultCurrentAction}`}
+                >
+                  {t("landing.viewInCollection")}
+                </Link>
+                {currentCardCount > 0 ? (
+                  <Link href="/fun/ccg/open?mode=current" className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>{t("landing.openCurrent")}</Link>
+                ) : (
+                  <span className={`${styles.primaryButton} ${styles.vaultCurrentAction} cursor-not-allowed opacity-45`} aria-disabled="true">{t("landing.openCurrent")}</span>
+                )}
+              </div>
             </div>
-            <div className={styles.vaultCurrentActions}>
-              <Link
-                href={current ? `/fun/ccg/collection?set=${encodeURIComponent(current.slug)}` : "/fun/ccg/collection"}
-                className={`${styles.secondaryButton} ${styles.vaultCurrentAction}`}
-              >
-                {t("landing.viewInCollection")}
-              </Link>
-              {currentCardCount > 0 ? (
-                <Link href="/fun/ccg/open?mode=current" className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>{t("landing.openCurrent")}</Link>
-              ) : (
-                <span className={`${styles.primaryButton} ${styles.vaultCurrentAction} cursor-not-allowed opacity-45`} aria-disabled="true">{t("landing.openCurrent")}</span>
-              )}
+
+            <div
+              className={styles.vaultAllSet}
+              style={{
+                "--set-accent": "#9c7cff",
+                "--set-glow": "rgba(126, 105, 255, 0.42)",
+                backgroundImage: 'url("/ccg/general_wide.webp")',
+              } as CSSProperties}
+            >
+              <div className={styles.vaultAllShade} aria-hidden="true" />
+              <div className={styles.vaultAllContent}>
+                <div className={styles.eyebrow}>{t("landing.completeCollection")}</div>
+                <h2>{t("landing.allRaids")}</h2>
+                <div className={styles.vaultAllProgress}>
+                  <div className={styles.vaultCurrentCount}>
+                    <strong>{allOwnedCount}</strong>
+                    <span>/ {allCardCount} {t("landing.collected")}</span>
+                  </div>
+                  <div className={styles.vaultCurrentTrack} aria-label={`${allOwnedCount}/${allCardCount} ${t("landing.collected")}`}>
+                    <span style={{ transform: `scaleX(${allProgress / 100})` }} />
+                  </div>
+                </div>
+              </div>
+              <div className={styles.vaultAllActions}>
+                <Link href="/fun/ccg/collection" className={`${styles.secondaryButton} ${styles.vaultCurrentAction}`}>
+                  {t("landing.viewInCollection")}
+                </Link>
+                <Link href="/fun/ccg/open?mode=legacy" className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>
+                  {t("landing.openLegacy")}
+                </Link>
+              </div>
             </div>
           </div>
 
@@ -208,7 +242,7 @@ export default function CcgLandingPage() {
 
         <div className={styles.vaultDashboardBottom}>
           <div className={styles.vaultLegacy}>
-            {collectionSets.length > 0 ? (
+            {gridSets.length > 0 ? (
               <div
                 className={styles.vaultLegacyGrid}
                 style={{
@@ -216,27 +250,7 @@ export default function CcgLandingPage() {
                   "--legacy-rows": collectionRows,
                 } as CSSProperties}
               >
-              <Link
-                href="/fun/ccg/collection"
-                className={styles.vaultLegacySet}
-                style={{
-                  "--set-accent": "#9c7cff",
-                  "--set-glow": "rgba(126, 105, 255, 0.42)",
-                  backgroundImage: 'url("/ccg/general_alt_wide.png")',
-                } as CSSProperties}
-              >
-                <span className={styles.vaultLegacyShade} aria-hidden="true" />
-                <span className={styles.vaultLegacyContent}>
-                  <span className={styles.vaultLegacySummary}>
-                    <strong>{t("landing.all")}</strong>
-                    <small>{allOwnedCount}/{allCardCount}</small>
-                  </span>
-                  <span className={styles.vaultLegacyTrack} aria-label={`${allOwnedCount}/${allCardCount} ${t("landing.collected")}`}>
-                    <i style={{ transform: `scaleX(${allProgress / 100})` }} />
-                  </span>
-                </span>
-              </Link>
-              {collectionSets.map((set) => (
+              {gridSets.map((set) => (
                 <Link
                   key={set.id}
                   href={`/fun/ccg/collection?set=${encodeURIComponent(set.slug)}`}
@@ -244,7 +258,7 @@ export default function CcgLandingPage() {
                   style={{
                     "--set-accent": set.theme.accent,
                     "--set-glow": set.theme.glow,
-                    backgroundImage: `url("${set.backgroundPath}")`,
+                    backgroundImage: set.kind === "community" ? 'url("/ccg/general_alt_wide.png")' : `url("${set.backgroundPath}")`,
                   } as CSSProperties}
                 >
                   <span className={styles.vaultLegacyShade} aria-hidden="true" />

@@ -1968,7 +1968,6 @@ export type CcgSession = {
   resetAt: string;
   packs: Record<CcgMode, { regularRemaining: number; bonusRemaining: number; totalRemaining: number }>;
   recharge: Record<CcgMode, { cap: number; intervalHours: number; nextAt: string }>;
-  duplicates: Record<CcgMode, { remainder: number; needed: number; total: number; bonusPacksEarned: number }>;
   qualityProtection: Record<Exclude<CcgFinish, "standard">, number>;
   ownedFinishes: number;
 };

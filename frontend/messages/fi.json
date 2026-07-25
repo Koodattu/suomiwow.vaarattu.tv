@@ -92,7 +92,6 @@
     "communityCard": "Community",
     "cardType": "Korttityyppi",
     "bonus": "bonus",
-    "duplicateMeter": "Tuplamittari",
     "rechargeMeter": "Lataus",
     "storageFull": "Varasto täynnä",
     "rechargeIn": "Seuraava pakka {time} kuluttua",
@@ -120,6 +119,8 @@
       "legacyBody": "Arvo koko arkistosta tai kohdista pakka yhteen käyttöön otettuun vanhaan raidiin. Kansiot pysyvät raidikohtaisina.",
       "openLegacy": "Avaa Legacy-pakkoja",
       "all": "Kaikki",
+      "allRaids": "Kaikki raidit",
+      "completeCollection": "Koko kokoelma",
       "legacyEmpty": "Legacy-kansiot ilmestyvät sitä mukaa, kun niiden snapshotit julkaistaan."
     },
     "open": {
@@ -152,7 +153,7 @@
       "allRevealed": "Pakka valmis",
       "newCard": "Uusi",
       "duplicate": "Tupla",
-      "bonusEarned": "Tuplamittari antoi {count} bonuspakkaa.",
+      "bonusEarned": "{count, plural, one {Täyden kortin palkinto: # bonuspaketti.} other {Täysien korttien palkinnot: # bonuspakettia.}}",
       "recoveryFailed": "Tallennettua pakkaa ei voitu palauttaa. Tyhjennä se ennen uuden pakan avaamista.",
       "dismissRecovery": "Tyhjennä tallennettu pakka",
       "openAnother": "Avaa toinen pakka",

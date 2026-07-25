@@ -69,10 +69,29 @@ export function nextFinish(finish: CcgFinish): CcgFinish {
   return CCG_FINISH_ORDER[Math.min(CCG_FINISH_ORDER.length - 1, CCG_FINISH_ORDER.indexOf(finish) + 1)];
 }
 
-export function rollProtectedFinish(
+export type CcgOwnedFinishResolution = {
+  finish: CcgFinish;
+  isDuplicate: boolean;
+  isCompletedCardDuplicate: boolean;
+};
+
+export function resolveOwnedFinish(rolled: CcgFinish, ownedFinishes: ReadonlySet<CcgFinish>): CcgOwnedFinishResolution {
+  if (!ownedFinishes.has(rolled)) return { finish: rolled, isDuplicate: false, isCompletedCardDuplicate: false };
+  if (CCG_FINISH_ORDER.every((finish) => ownedFinishes.has(finish))) {
+    return { finish: rolled, isDuplicate: true, isCompletedCardDuplicate: true };
+  }
+
+  const rolledIndex = CCG_FINISH_ORDER.indexOf(rolled);
+  const nextMissing = CCG_FINISH_ORDER.slice(rolledIndex + 1).find((finish) => !ownedFinishes.has(finish))
+    ?? CCG_FINISH_ORDER.find((finish) => !ownedFinishes.has(finish));
+  if (!nextMissing) throw new Error("Incomplete card has no missing finish");
+  return { finish: nextMissing, isDuplicate: true, isCompletedCardDuplicate: false };
+}
+
+function rollProtectedFinishWithResolver(
   pity: CcgFinishPity,
-  minimum: CcgFinish = "standard",
-  random: (maximum: number) => number = randomInt,
+  resolveFinish: (rolled: CcgFinish) => CcgFinish,
+  random: (maximum: number) => number,
 ): { finish: CcgFinish; pity: CcgFinishPity } {
   const next = emptyFinishPity();
   const hits: CcgProtectedFinish[] = [];
@@ -86,9 +105,39 @@ export function rollProtectedFinish(
     if (roll < Math.ceil(finishChanceForCounter(counter, limit) * rollMaximum)) hits.push(finish);
   }
   const rolled = hits.reduce<CcgFinish>((best, finish) => (compareFinish(finish, best) > 0 ? finish : best), "standard");
-  const finish = compareFinish(minimum, rolled) > 0 ? minimum : rolled;
+  const finish = resolveFinish(rolled);
+  if (!CCG_FINISH_ORDER.includes(finish)) throw new Error("Finish resolver returned an invalid finish");
   if (finish !== "standard") next[finish] = 0;
   return { finish, pity: next };
+}
+
+export function rollProtectedFinish(
+  pity: CcgFinishPity,
+  minimum: CcgFinish = "standard",
+  random: (maximum: number) => number = randomInt,
+): { finish: CcgFinish; pity: CcgFinishPity } {
+  return rollProtectedFinishWithResolver(
+    pity,
+    (rolled) => (compareFinish(minimum, rolled) > 0 ? minimum : rolled),
+    random,
+  );
+}
+
+export function rollOwnedFinish(
+  pity: CcgFinishPity,
+  ownedFinishes: ReadonlySet<CcgFinish>,
+  random: (maximum: number) => number = randomInt,
+): CcgOwnedFinishResolution & { pity: CcgFinishPity } {
+  let resolution: CcgOwnedFinishResolution = { finish: "standard", isDuplicate: false, isCompletedCardDuplicate: false };
+  const rolled = rollProtectedFinishWithResolver(
+    pity,
+    (finish) => {
+      resolution = resolveOwnedFinish(finish, ownedFinishes);
+      return resolution.finish;
+    },
+    random,
+  );
+  return { ...resolution, ...rolled };
 }
 
 export function selectWeighted<T extends string>(weights: Readonly<Record<T, number>>): T {

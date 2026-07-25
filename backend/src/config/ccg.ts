@@ -15,9 +15,8 @@ export const CCG_INITIAL_PACKS = {
   guest: { current: 5, legacy: 5 },
 };
 export const CCG_PACK_BALANCE_VERSION = 2;
-export const CCG_DUPLICATES_PER_BONUS_PACK = 10;
 export const CCG_GUEST_COOKIE = "swccg_guest";
-export const CCG_PACK_RULE_VERSION = "pack-v8-alternative-art-quarter-chance";
+export const CCG_PACK_RULE_VERSION = "pack-v9-raid-card-completion-rewards";
 export const CCG_GRADING_VERSION = "grade-v2-rarity-ladder";
 export const CCG_ELIGIBILITY_VERSION = "complete-scores-mythic-reports-v3";
 export const CCG_THEME_VERSION = "vault-v1";
