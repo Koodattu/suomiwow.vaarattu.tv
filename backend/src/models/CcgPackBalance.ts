@@ -20,8 +20,8 @@ const CcgPackBalanceSchema = new Schema<ICcgPackBalance>(
   {
     ownerType: { type: String, enum: ["user", "guest"], required: true },
     ownerId: { type: Schema.Types.ObjectId, required: true },
-    currentRemaining: { type: Number, required: true, min: 0, max: CCG_PACK_STORAGE_CAPS.current, default: CCG_PACK_STORAGE_CAPS.current },
-    legacyRemaining: { type: Number, required: true, min: 0, max: CCG_PACK_STORAGE_CAPS.legacy, default: CCG_PACK_STORAGE_CAPS.legacy },
+    currentRemaining: { type: Number, required: true, min: 0, default: CCG_PACK_STORAGE_CAPS.current },
+    legacyRemaining: { type: Number, required: true, min: 0, default: CCG_PACK_STORAGE_CAPS.legacy },
     lastRechargeAt: { type: Date, required: true },
     grantVersion: { type: Number },
     hasPlayed: { type: Boolean },

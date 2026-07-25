@@ -14,6 +14,7 @@ import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
 import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import PackBoosterVisual, { getPackTheme } from "@/components/ccg/PackBoosterVisual";
+import CcgRedeemPanel from "@/components/ccg/CcgRedeemPanel";
 import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 
@@ -278,7 +279,9 @@ export default function CcgLandingPage() {
               <div className={styles.vaultLegacyEmpty}>{t("landing.legacyEmpty")}</div>
             )}
           </div>
-          <aside className={styles.vaultBottomPlaceholder} aria-hidden="true" />
+          <aside className={styles.vaultRedeemSlot}>
+            <CcgRedeemPanel currentSet={current} />
+          </aside>
         </div>
       </div>
       {viewerCard ? (

@@ -31,6 +31,14 @@ function adminRoute(handler: (req: Request, res: Response) => Promise<unknown>) 
   };
 }
 
+function getAdminUserId(req: Request): mongoose.Types.ObjectId {
+  const userId = (req as Request & { user?: { _id?: mongoose.Types.ObjectId | string } }).user?._id;
+  if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) {
+    throw new CcgServiceError(401, "admin_identity_missing", "Admin identity is unavailable");
+  }
+  return new mongoose.Types.ObjectId(String(userId));
+}
+
 router.get(
   "/status",
   adminRoute(async () => {
@@ -118,6 +126,21 @@ router.delete(
 router.get(
   "/cards",
   adminRoute(async (req) => ccgService.searchCardsForAdmin(req.query.search, req.query.limit)),
+);
+
+router.get(
+  "/redeem-codes",
+  adminRoute(async () => ccgService.getRedeemCodesForAdmin()),
+);
+
+router.post(
+  "/redeem-codes",
+  adminRoute(async (req) => ccgService.createRedeemCodeForAdmin(req.body ?? {}, getAdminUserId(req))),
+);
+
+router.patch(
+  "/redeem-codes/:id",
+  adminRoute(async (req) => ccgService.setRedeemCodeActiveForAdmin(req.params.id, req.body?.active)),
 );
 
 router.put(

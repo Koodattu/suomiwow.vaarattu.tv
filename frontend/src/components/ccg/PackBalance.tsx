@@ -10,7 +10,7 @@ export default function PackBalance({ session, mode, strip = false }: { session:
   const [now, setNow] = useState(() => Date.now());
   const packs = session.packs[mode];
   const recharge = session.recharge[mode];
-  const storageFull = packs.regularRemaining >= recharge.cap;
+  const storageFull = packs.totalRemaining >= recharge.cap;
   const rechargeRemaining = Math.max(0, new Date(recharge.nextAt).getTime() - now);
   const rechargeHours = Math.floor(rechargeRemaining / (60 * 60 * 1000));
   const rechargeMinutes = Math.max(0, Math.ceil((rechargeRemaining % (60 * 60 * 1000)) / (60 * 1000)));

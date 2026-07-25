@@ -1972,6 +1972,15 @@ export type CcgSession = {
   ownedFinishes: number;
 };
 
+export type CcgRedeemReward =
+  | { type: "packs"; currentPacks: number; legacyPacks: number }
+  | { type: "card"; finish: CcgFinish; artVariant: CcgArtVariant; card: CcgCard };
+
+export type CcgRedeemResult = {
+  code: string;
+  reward: CcgRedeemReward;
+};
+
 export type CcgOpening = {
   id: string;
   mode: CcgMode;
@@ -2070,6 +2079,28 @@ export type CcgAdminCommunityCharacter = {
 export type CcgAdminCardSearchResponse = {
   search: string;
   cards: CcgCard[];
+};
+
+export type CcgAdminRedeemCode = {
+  id: string;
+  code: string;
+  active: boolean;
+  redemptionCount: number;
+  createdAt: string;
+  updatedAt: string;
+  reward:
+    | { type: "packs"; currentPacks: number; legacyPacks: number }
+    | {
+        type: "card";
+        cardId: string | null;
+        finish: CcgFinish | null;
+        artVariant: CcgArtVariant | null;
+        card: CcgCard | null;
+      };
+};
+
+export type CcgAdminRedeemCodesResponse = {
+  codes: CcgAdminRedeemCode[];
 };
 
 export type CcgAdminAlternativeArtResponse = {

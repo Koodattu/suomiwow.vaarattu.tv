@@ -2214,6 +2214,323 @@
   box-shadow: inset 1px 0 rgba(144, 178, 236, 0.13);
 }
 
+.vaultRedeemSlot {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-column: 3;
+  padding-left: 0.75rem;
+  box-shadow: inset 1px 0 rgba(144, 178, 236, 0.13);
+}
+
+.redeemPanel {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 0.75rem;
+  padding: 0.35rem 0.5rem 0.5rem;
+}
+
+.redeemPanelCopy {
+  min-width: 0;
+}
+
+.redeemPanelCopy h2 {
+  color: #eef4ff;
+  font-size: 0.82rem;
+  font-weight: 780;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.redeemPanelCopy p {
+  max-width: 17rem;
+  margin-top: 0.3rem;
+  color: #7f8ea5;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.redeemForm {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.4rem;
+}
+
+.redeemForm input {
+  min-width: 0;
+  height: 2.5rem;
+  border: 1px solid rgba(137, 176, 222, 0.2);
+  border-radius: 0.45rem;
+  outline: none;
+  background: rgba(4, 11, 25, 0.72);
+  padding: 0 0.7rem;
+  color: #f8fbff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition-property: border-color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+
+.redeemForm input::placeholder {
+  color: #5f7088;
+  letter-spacing: 0.03em;
+}
+
+.redeemForm input:focus-visible {
+  border-color: rgba(125, 220, 255, 0.64);
+  box-shadow: 0 0 0 3px rgba(70, 207, 255, 0.1);
+}
+
+.redeemSubmitButton,
+.redeemLoginButton {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.72rem;
+}
+
+.redeemSubmitButton {
+  border-radius: 0.45rem;
+}
+
+.redeemLoginButton {
+  justify-self: start;
+}
+
+.redeemPanelSkeleton {
+  height: 2.5rem;
+  border-radius: 0.45rem;
+  background: rgba(255, 255, 255, 0.045);
+  animation: collectionSkeleton 1.5s ease-in-out infinite;
+}
+
+.redeemError {
+  color: #ffaaa7;
+  font-size: 0.67rem;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+
+.redeemDialogBackdrop {
+  position: fixed;
+  z-index: 70;
+  inset: 0;
+  display: grid;
+  overflow-x: hidden;
+  overflow-y: auto;
+  place-items: center;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  background: rgba(0, 2, 9, 0.78);
+  opacity: 0;
+  backdrop-filter: blur(0);
+  transition-property: opacity, backdrop-filter;
+  transition-duration: 220ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.redeemDialogBackdrop[data-phase="open"] {
+  opacity: 1;
+  backdrop-filter: blur(12px);
+}
+
+.redeemDialogBackdrop[data-phase="closing"] {
+  opacity: 0;
+  transition-duration: 160ms;
+  transition-timing-function: ease-in;
+}
+
+.redeemDialog {
+  display: grid;
+  width: 100%;
+  min-height: calc(100dvh - clamp(2rem, 6vw, 5rem));
+  align-content: center;
+  justify-items: center;
+  gap: clamp(0.85rem, 2dvh, 1.25rem);
+  padding: 1rem;
+  opacity: 0;
+  transform: translateY(0.75rem);
+  transition-property: opacity, transform;
+  transition-duration: 220ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.redeemDialogBackdrop[data-phase="open"] .redeemDialog {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.redeemDialogBackdrop[data-phase="closing"] .redeemDialog {
+  opacity: 0;
+  transform: translateY(-0.75rem);
+  transition-duration: 150ms;
+  transition-timing-function: ease-in;
+}
+
+.redeemDialog:focus {
+  outline: none;
+}
+
+.redeemDialogHeading {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  pointer-events: none;
+  text-align: center;
+}
+
+.redeemDialogHeading h2 {
+  color: #f8fbff;
+  font-size: clamp(1.65rem, 3.2vw, 2.2rem);
+  font-weight: 820;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  text-wrap: balance;
+}
+
+.redeemDialogHeading p {
+  max-width: min(90vw, 36rem);
+  color: #8a98ac;
+  font-size: 0.76rem;
+  font-weight: 620;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.redeemPackRewards {
+  display: grid;
+  width: min(100%, 37rem);
+  justify-self: center;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: clamp(0.75rem, 3vw, 2rem);
+  padding-block: clamp(0.75rem, 2.4dvh, 1.25rem);
+  pointer-events: none;
+}
+
+.redeemPackReward {
+  --reward-accent: #48d2ff;
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: clamp(0.8rem, 1.8dvh, 1rem);
+  perspective: 1200px;
+  text-align: center;
+}
+
+.redeemPackReward[data-mode="legacy"] {
+  --reward-accent: #a58aff;
+}
+
+.redeemPackVisual {
+  position: relative;
+  width: min(15rem, calc(54dvh * 0.66));
+  max-width: 100%;
+  aspect-ratio: 0.66;
+  pointer-events: auto;
+}
+
+.redeemPackCount {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.redeemPackCount > strong {
+  color: #fff;
+  font-size: 1.65rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 850;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+.redeemPackCount > span {
+  color: color-mix(in srgb, var(--reward-accent) 65%, white);
+  font-size: 0.72rem;
+  font-weight: 720;
+}
+
+.redeemCardReward {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 0.7rem;
+  pointer-events: none;
+  text-align: center;
+}
+
+.redeemRewardCardButton {
+  display: grid;
+  width: min(18rem, 43vw, calc(55dvh * 5 / 7));
+  max-width: 100%;
+  gap: 0.65rem;
+  border-radius: 0.9rem;
+  pointer-events: auto;
+  transition-property: scale, filter, translate;
+  transition-duration: 160ms;
+  transition-timing-function: ease-out;
+}
+
+.redeemRewardCardButton > [data-ccg-card] {
+  width: 100%;
+}
+
+.redeemRewardCardButton:hover {
+  filter: brightness(1.06);
+  translate: 0 -2px;
+}
+
+.redeemRewardCardButton:active {
+  scale: 0.96;
+}
+
+.redeemRewardCardButton:focus-visible {
+  outline: 2px solid #8de4ff;
+  outline-offset: 5px;
+}
+
+.redeemInspectHint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: #8494aa;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.redeemDialogActions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  pointer-events: auto;
+}
+
+.redeemDialogActions .primaryButton,
+.redeemDialogActions .secondaryButton {
+  min-width: 7rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.75rem;
+}
+
+.redeemDialogHint {
+  color: #728096;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  pointer-events: none;
+  text-align: center;
+  text-wrap: pretty;
+}
+
 .vaultLegacyGrid {
   --legacy-columns: 1;
   --legacy-rows: 2;
@@ -2386,6 +2703,13 @@
     display: none;
   }
 
+  .vaultRedeemSlot {
+    grid-column: 1;
+    margin-top: 0.5rem;
+    padding-left: 0;
+    box-shadow: none;
+  }
+
   .vaultSetStack {
     grid-column: 1;
     grid-row: 1;
@@ -2483,6 +2807,33 @@
 
   .vaultLegacyGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .redeemForm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .redeemDialog {
+    min-height: calc(100dvh - 2rem);
+    gap: 0.75rem;
+    padding: 1rem 0.25rem;
+  }
+
+  .redeemPackRewards {
+    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+    gap: 0.5rem;
+  }
+
+  .redeemPackVisual {
+    width: min(12rem, calc(44dvh * 0.66));
+  }
+
+  .redeemRewardCardButton {
+    width: min(74vw, 15.5rem, calc(54dvh * 5 / 7));
+  }
+
+  .redeemDialogActions {
+    flex-wrap: wrap;
   }
 }
 
@@ -2973,6 +3324,16 @@
   .vaultCurrentTrack > span,
   .vaultFeaturedSkeleton,
   .vaultBalanceSkeleton {
+    animation: none;
+    transition-duration: 1ms;
+  }
+
+  .redeemPanelSkeleton,
+  .redeemDialogBackdrop,
+  .redeemDialog,
+  .redeemRewardCardButton,
+  .redeemForm button,
+  .redeemLoginButton {
     animation: none;
     transition-duration: 1ms;
   }

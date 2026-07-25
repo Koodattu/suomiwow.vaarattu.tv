@@ -472,7 +472,7 @@ export function useCcgSession() {
       const session = query.state.data;
       if (!session) return false;
       const nextRecharge = (["current", "legacy"] as const)
-        .filter((mode) => session.packs[mode].regularRemaining < session.recharge[mode].cap)
+        .filter((mode) => session.packs[mode].totalRemaining < session.recharge[mode].cap)
         .map((mode) => new Date(session.recharge[mode].nextAt).getTime());
       if (nextRecharge.length === 0) return false;
       return Math.max(1_000, Math.min(...nextRecharge) - Date.now() + 1_000);

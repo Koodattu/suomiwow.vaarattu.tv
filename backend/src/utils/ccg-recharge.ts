@@ -40,12 +40,17 @@ export function applyPackRecharge(
   balances: CcgRechargeBalances,
   lastRechargeAt: Date,
   date: Date = new Date(),
+  additionalBalances: CcgRechargeBalances = { current: 0, legacy: 0 },
 ): { balances: CcgRechargeBalances; lastRechargeAt: Date } {
   const grants = getRechargeGrants(lastRechargeAt, date);
+  const rechargeBalance = (mode: CcgMode): number => {
+    const availableCapacity = Math.max(0, CCG_PACK_STORAGE_CAPS[mode] - balances[mode] - additionalBalances[mode]);
+    return balances[mode] + Math.min(grants[mode], availableCapacity);
+  };
   return {
     balances: {
-      current: Math.min(CCG_PACK_STORAGE_CAPS.current, balances.current + grants.current),
-      legacy: Math.min(CCG_PACK_STORAGE_CAPS.legacy, balances.legacy + grants.legacy),
+      current: rechargeBalance("current"),
+      legacy: rechargeBalance("legacy"),
     },
     lastRechargeAt: getRechargeHourStart(date),
   };

@@ -132,8 +132,11 @@ import {
   CcgCollectionResponse,
   CcgGuildsResponse,
   CcgMode,
+  CcgFinish,
+  CcgArtVariant,
   CcgTierGrade,
   CcgOpening,
+  CcgRedeemResult,
   CcgSession,
   CcgSet,
   CcgAdminEnableResponse,
@@ -142,6 +145,8 @@ import {
   CcgAdminCommunityCharacter,
   CcgAdminCardSearchResponse,
   CcgAdminAlternativeArtResponse,
+  CcgAdminRedeemCode,
+  CcgAdminRedeemCodesResponse,
 } from "@/types";
 
 // For client-side: use NEXT_PUBLIC_API_URL (browser requests)
@@ -157,12 +162,19 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl();
 
+export class ApiError extends Error {
+  constructor(message: string, public readonly code?: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function buildApiError(response: Response, fallback: string): Promise<Error> {
   try {
-    const data = (await response.json()) as { error?: string };
-    return new Error(data.error || fallback);
+    const data = (await response.json()) as { error?: string; code?: string };
+    return new ApiError(data.error || fallback, data.code);
   } catch {
-    return new Error(fallback);
+    return new ApiError(fallback);
   }
 }
 
@@ -289,6 +301,17 @@ export const api = {
     return response.json();
   },
 
+  async redeemCcgCode(code: string): Promise<CcgRedeemResult> {
+    const response = await fetch(`${API_URL}/api/ccg/redeem`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ code }),
+    });
+    if (!response.ok) throw await buildApiError(response, "The code could not be redeemed");
+    return response.json();
+  },
+
   async getAdminCcgStatus(): Promise<CcgAdminStatusResponse> {
     const response = await fetch(`${API_URL}/api/admin/ccg/status`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load CCG administration");
@@ -344,6 +367,42 @@ export const api = {
     const params = new URLSearchParams({ search, limit: String(limit) });
     const response = await fetch(`${API_URL}/api/admin/ccg/cards?${params}`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to search CCG cards");
+    return response.json();
+  },
+
+  async getAdminCcgRedeemCodes(): Promise<CcgAdminRedeemCodesResponse> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/redeem-codes`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load redeem codes");
+    return response.json();
+  },
+
+  async createAdminCcgRedeemCode(input: {
+    code: string;
+    rewardType: "packs" | "card";
+    currentPacks: number;
+    legacyPacks: number;
+    cardId: string | null;
+    finish: CcgFinish | null;
+    artVariant: CcgArtVariant | null;
+  }): Promise<{ code: CcgAdminRedeemCode }> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/redeem-codes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw await buildApiError(response, "Failed to create the redeem code");
+    return response.json();
+  },
+
+  async setAdminCcgRedeemCodeActive(codeId: string, active: boolean): Promise<{ code: CcgAdminRedeemCode }> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/redeem-codes/${encodeURIComponent(codeId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ active }),
+    });
+    if (!response.ok) throw await buildApiError(response, "Failed to update the redeem code");
     return response.json();
   },
 

@@ -34,6 +34,7 @@ import {
 } from "../src/utils/ccg-random";
 import { planPackSelections, selectCommunityCard, selectPackCards } from "../src/utils/ccg-pack";
 import { createWowCharacterIdentityKey } from "../src/utils/ccg-identity";
+import { normalizeCcgRedeemCode } from "../src/utils/ccg-redeem";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeGrants } from "../src/utils/ccg-recharge";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../src/utils/helsinki-time";
@@ -236,6 +237,30 @@ test("pack recharge follows shared Helsinki hour boundaries and respects storage
   );
   assert.deepEqual(recharged.balances, CCG_PACK_STORAGE_CAPS);
   assert.equal(recharged.lastRechargeAt.toISOString(), "2026-01-01T10:00:00.000Z");
+
+  const overCap = applyPackRecharge(
+    { current: 50, legacy: 26 },
+    new Date("2026-01-01T07:00:00.000Z"),
+    new Date("2026-01-01T10:05:00.000Z"),
+  );
+  assert.deepEqual(overCap.balances, { current: 50, legacy: 26 });
+
+  const blockedByBonusPacks = applyPackRecharge(
+    { current: 20, legacy: 20 },
+    new Date("2026-01-01T07:00:00.000Z"),
+    new Date("2026-01-01T10:05:00.000Z"),
+    { current: 10, legacy: 4 },
+  );
+  assert.deepEqual(blockedByBonusPacks.balances, { current: 20, legacy: 21 });
+});
+
+test("redeem codes normalize safely without accepting ambiguous separators", () => {
+  assert.equal(normalizeCcgRedeemCode("  vault-2026  "), "VAULT-2026");
+  assert.equal(normalizeCcgRedeemCode("PACK_DROP"), "PACK_DROP");
+  assert.equal(normalizeCcgRedeemCode("ab"), null);
+  assert.equal(normalizeCcgRedeemCode("PACK DROP"), null);
+  assert.equal(normalizeCcgRedeemCode("PACK--DROP"), null);
+  assert.equal(normalizeCcgRedeemCode("PÄCK"), null);
 });
 
 test("a mode-wide pack plan can draw cards from multiple raid pools", () => {

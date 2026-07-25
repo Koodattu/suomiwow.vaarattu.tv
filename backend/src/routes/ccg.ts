@@ -128,6 +128,12 @@ router.post(
   asyncRoute(async (req, res) => ccgService.openPack(req, res, req.body ?? {})),
 );
 
+router.post(
+  "/redeem",
+  rateLimit(10, 60_000),
+  asyncRoute(async (req) => ccgService.redeemCode(req, req.body ?? {})),
+);
+
 router.get(
   "/openings/:openingId",
   rateLimit(60, 60_000),

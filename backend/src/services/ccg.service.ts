@@ -28,6 +28,8 @@ import CcgPackCredit from "../models/CcgPackCredit";
 import CcgPackOpening, { ICcgPackOpening, ICcgPackResult } from "../models/CcgPackOpening";
 import CcgPackPool from "../models/CcgPackPool";
 import CcgQualityProgress, { ICcgQualityProgress } from "../models/CcgQualityProgress";
+import CcgRedeemClaim from "../models/CcgRedeemClaim";
+import CcgRedeemCode, { ICcgRedeemCode } from "../models/CcgRedeemCode";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
 import Character from "../models/Character";
 import User from "../models/User";
@@ -44,6 +46,7 @@ import {
 import { CcgFinishPity, emptyFinishPity, rollArtVariant, rollOwnedFinish } from "../utils/ccg-random";
 import { planPackSelections, selectCommunityCard } from "../utils/ccg-pack";
 import { resolveCollectorKey } from "../utils/ccg-identity";
+import { CCG_REDEEM_PACK_GRANT_MAX, normalizeCcgRedeemCode } from "../utils/ccg-redeem";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeHourStart } from "../utils/ccg-recharge";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../utils/helsinki-time";
 import { normalizeSearchText, scoreSearchCandidate } from "../utils/search";
@@ -64,6 +67,16 @@ type SelectedResult = {
   artVariant: CcgArtVariant;
   tierGrade: CcgTierGrade;
   isDuplicate: boolean;
+};
+
+type RedeemedCodeSnapshot = {
+  code: string;
+  rewardType: "packs" | "card";
+  currentPacks: number;
+  legacyPacks: number;
+  cardId: mongoose.Types.ObjectId | null;
+  finish: CcgFinish | null;
+  artVariant: CcgArtVariant | null;
 };
 
 export class CcgServiceError extends Error {
@@ -107,6 +120,18 @@ function isTransactionUnsupported(error: unknown): boolean {
   return /Transaction numbers are only allowed|replica set|does not support retryable writes/i.test(message);
 }
 
+function isDuplicateKeyError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === 11000;
+}
+
+function validatePackGrant(value: unknown, label: string): number {
+  const parsed = typeof value === "number" ? value : Number.NaN;
+  if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > CCG_REDEEM_PACK_GRANT_MAX) {
+    throw new CcgServiceError(400, "invalid_pack_grant", `${label} packs must be a whole number from 0 to ${CCG_REDEEM_PACK_GRANT_MAX}`);
+  }
+  return parsed;
+}
+
 class CcgService {
   private adminCardSearchCache: {
     expiresAt: number;
@@ -124,18 +149,12 @@ class CcgService {
     await ccgPublisherService.ensureConfiguredSets();
     const owner = await this.resolveOwner(req, res);
     const now = new Date();
-    const packBalance = await this.ensurePackBalance(owner, undefined, now);
-    const [creditRows, qualityProgress, ownershipCount] = await Promise.all([
-      owner.ownerType === "user"
-        ? CcgPackCredit.aggregate<{ _id: CcgMode; remaining: number }>([
-            { $match: { ownerId: owner.ownerId, remaining: { $gt: 0 } } },
-            { $group: { _id: "$mode", remaining: { $sum: "$remaining" } } },
-          ])
-        : [],
+    const creditBalances = await this.getPackCreditBalances(owner);
+    const packBalance = await this.ensurePackBalance(owner, undefined, now, creditBalances);
+    const [qualityProgress, ownershipCount] = await Promise.all([
       CcgQualityProgress.findOne({ ownerType: owner.ownerType, ownerId: owner.ownerId }).lean(),
       CcgOwnership.countDocuments({ ownerType: owner.ownerType, ownerId: owner.ownerId }),
     ]);
-    const credits = new Map(creditRows.map((row) => [row._id, row.remaining]));
     const resetAt = getNextHelsinkiReset();
 
     return {
@@ -145,13 +164,13 @@ class CcgService {
       packs: {
         current: {
           regularRemaining: packBalance.currentRemaining,
-          bonusRemaining: credits.get("current") ?? 0,
-          totalRemaining: packBalance.currentRemaining + (credits.get("current") ?? 0),
+          bonusRemaining: creditBalances.current,
+          totalRemaining: packBalance.currentRemaining + creditBalances.current,
         },
         legacy: {
           regularRemaining: packBalance.legacyRemaining,
-          bonusRemaining: credits.get("legacy") ?? 0,
-          totalRemaining: packBalance.legacyRemaining + (credits.get("legacy") ?? 0),
+          bonusRemaining: creditBalances.legacy,
+          totalRemaining: packBalance.legacyRemaining + creditBalances.legacy,
         },
       },
       recharge: {
@@ -682,6 +701,241 @@ class CcgService {
     };
   }
 
+  async getRedeemCodesForAdmin(): Promise<Record<string, unknown>> {
+    const codes = await CcgRedeemCode.find({}).sort({ createdAt: -1 }).lean();
+    return { codes: await this.serializeRedeemCodes(codes) };
+  }
+
+  async createRedeemCodeForAdmin(input: Record<string, unknown>, createdBy: mongoose.Types.ObjectId): Promise<Record<string, unknown>> {
+    const code = normalizeCcgRedeemCode(input.code);
+    if (!code) {
+      throw new CcgServiceError(400, "invalid_redeem_code", "Use 3–64 letters, numbers, hyphens, or underscores");
+    }
+    if (input.rewardType !== "packs" && input.rewardType !== "card") {
+      throw new CcgServiceError(400, "invalid_reward_type", "Choose either packs or one card");
+    }
+
+    const currentPacks = validatePackGrant(input.rewardType === "packs" ? input.currentPacks : 0, "Current");
+    const legacyPacks = validatePackGrant(input.rewardType === "packs" ? input.legacyPacks : 0, "Legacy");
+    let cardId: mongoose.Types.ObjectId | null = null;
+    let finish: CcgFinish | null = null;
+    let artVariant: CcgArtVariant | null = null;
+
+    if (input.rewardType === "packs") {
+      if (currentPacks + legacyPacks < 1) {
+        throw new CcgServiceError(400, "empty_pack_reward", "Grant at least one Current or Legacy pack");
+      }
+    } else {
+      cardId = validateObjectId(String(input.cardId ?? ""), "reward card ID");
+      if (typeof input.finish !== "string" || !CCG_FINISH_ORDER.includes(input.finish as CcgFinish)) {
+        throw new CcgServiceError(400, "invalid_card_finish", "Choose a valid card quality");
+      }
+      if (input.artVariant !== "standard" && input.artVariant !== "alternative") {
+        throw new CcgServiceError(400, "invalid_art_variant", "Choose regular or custom artwork");
+      }
+      finish = input.finish as CcgFinish;
+      artVariant = input.artVariant;
+
+      const card = await CcgCard.findById(cardId).lean();
+      if (!card || !await CcgSet.exists({ _id: card.setId })) {
+        throw new CcgServiceError(404, "card_not_found", "The selected published card no longer exists");
+      }
+      if (artVariant === "alternative") {
+        const alternativeArt = (await this.loadAlternativeArt([card])).get(resolveCollectorKey(card));
+        if (!hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))) {
+          throw new CcgServiceError(400, "alternative_art_unavailable", "This card does not have enabled custom artwork");
+        }
+      }
+    }
+
+    try {
+      const created = await CcgRedeemCode.create({
+        code,
+        rewardType: input.rewardType,
+        currentPacks,
+        legacyPacks,
+        cardId,
+        finish,
+        artVariant,
+        active: true,
+        createdBy,
+      });
+      const [serialized] = await this.serializeRedeemCodes([created.toObject()]);
+      return { code: serialized };
+    } catch (error) {
+      if (isDuplicateKeyError(error)) throw new CcgServiceError(409, "redeem_code_exists", "That redeem code already exists");
+      throw error;
+    }
+  }
+
+  async setRedeemCodeActiveForAdmin(codeId: string, activeValue: unknown): Promise<Record<string, unknown>> {
+    const id = validateObjectId(codeId, "redeem code ID");
+    if (typeof activeValue !== "boolean") throw new CcgServiceError(400, "invalid_active_state", "Active state must be true or false");
+    const code = await CcgRedeemCode.findByIdAndUpdate(id, { $set: { active: activeValue } }, { new: true }).lean();
+    if (!code) throw new CcgServiceError(404, "redeem_code_not_found", "Redeem code not found");
+    const [serialized] = await this.serializeRedeemCodes([code]);
+    return { code: serialized };
+  }
+
+  async redeemCode(req: Request, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+    requireFeature();
+    if (!req.session.userId || !mongoose.Types.ObjectId.isValid(req.session.userId)) {
+      throw new CcgServiceError(401, "authentication_required", "Log in to redeem codes");
+    }
+    const userId = new mongoose.Types.ObjectId(req.session.userId);
+    if (!await User.exists({ _id: userId })) throw new CcgServiceError(401, "authentication_required", "Log in to redeem codes");
+    const normalizedCode = normalizeCcgRedeemCode(input.code);
+    if (!normalizedCode) throw new CcgServiceError(400, "invalid_redeem_code", "Enter a valid redeem code");
+
+    const session = await mongoose.startSession();
+    let redeemed: RedeemedCodeSnapshot | null = null;
+    try {
+      await session.withTransaction(async () => {
+        redeemed = null;
+        const code = await CcgRedeemCode.findOne({ code: normalizedCode, active: true }).session(session);
+        if (!code) throw new CcgServiceError(404, "redeem_code_not_found", "That code is invalid or inactive");
+        if (await CcgRedeemClaim.exists({ codeId: code._id, userId }).session(session)) {
+          throw new CcgServiceError(409, "redeem_code_already_used", "You have already redeemed this code");
+        }
+
+        const reservedCode = await CcgRedeemCode.findOneAndUpdate(
+          { _id: code._id, active: true },
+          { $inc: { redemptionCount: 1 } },
+          { new: true, session },
+        );
+        if (!reservedCode) throw new CcgServiceError(404, "redeem_code_not_found", "That code is invalid or inactive");
+
+        const owner: CcgOwner = { ownerType: "user", ownerId: userId, dateKey: getHelsinkiDateKey() };
+        const now = new Date();
+        if (reservedCode.rewardType === "packs") {
+          const balance = await this.ensurePackBalance(owner, session, now);
+          const updated = await CcgPackBalance.findOneAndUpdate(
+            { _id: balance._id },
+            {
+              $inc: {
+                currentRemaining: reservedCode.currentPacks,
+                legacyRemaining: reservedCode.legacyPacks,
+              },
+              $set: {
+                hasPlayed: true,
+                firstPlayedAt: balance.firstPlayedAt ?? now,
+              },
+            },
+            { new: true, session },
+          );
+          if (!updated) throw new CcgServiceError(409, "pack_balance_busy", "Pack balance is being updated. Try again");
+        } else {
+          if (!reservedCode.cardId || !reservedCode.finish || !reservedCode.artVariant) {
+            throw new CcgServiceError(409, "reward_unavailable", "This code's card reward is unavailable");
+          }
+          const card = await CcgCard.findById(reservedCode.cardId).session(session);
+          if (!card || !await CcgSet.exists({ _id: card.setId }).session(session)) {
+            throw new CcgServiceError(409, "reward_unavailable", "This code's card reward is unavailable");
+          }
+          if (reservedCode.artVariant === "alternative") {
+            const alternativeArt = (await this.loadAlternativeArt([card], session)).get(resolveCollectorKey(card));
+            if (!hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))) {
+              throw new CcgServiceError(409, "reward_unavailable", "This code's custom artwork is unavailable");
+            }
+          }
+          await this.addOwnership(owner, [{
+            cardId: card._id,
+            finish: reservedCode.finish,
+            artVariant: reservedCode.artVariant,
+          }], session);
+        }
+
+        await CcgRedeemClaim.create([{
+          codeId: reservedCode._id,
+          userId,
+          rewardType: reservedCode.rewardType,
+          currentPacks: reservedCode.currentPacks,
+          legacyPacks: reservedCode.legacyPacks,
+          cardId: reservedCode.cardId ?? null,
+          finish: reservedCode.finish ?? null,
+          artVariant: reservedCode.artVariant ?? null,
+          redeemedAt: now,
+        }], { session });
+        await CcgLedgerEntry.create([{
+          ownerType: "user",
+          ownerId: userId,
+          action: "redeem_code",
+          mode: null,
+          idempotencyKey: `redeem-code:${reservedCode._id}`,
+          amount: reservedCode.rewardType === "packs" ? reservedCode.currentPacks + reservedCode.legacyPacks : 1,
+          metadata: {
+            codeId: String(reservedCode._id),
+            rewardType: reservedCode.rewardType,
+            currentPacks: reservedCode.currentPacks,
+            legacyPacks: reservedCode.legacyPacks,
+            cardId: reservedCode.cardId ? String(reservedCode.cardId) : null,
+            finish: reservedCode.finish ?? null,
+            artVariant: reservedCode.artVariant ?? null,
+          },
+        }], { session });
+
+        redeemed = {
+          code: reservedCode.code,
+          rewardType: reservedCode.rewardType,
+          currentPacks: reservedCode.currentPacks,
+          legacyPacks: reservedCode.legacyPacks,
+          cardId: reservedCode.cardId ?? null,
+          finish: reservedCode.finish ?? null,
+          artVariant: reservedCode.artVariant ?? null,
+        };
+      });
+    } catch (error) {
+      if (isTransactionUnsupported(error)) {
+        throw new CcgServiceError(503, "transactions_unavailable", "Code redemption is temporarily unavailable while collection storage is starting");
+      }
+      if (isDuplicateKeyError(error)) throw new CcgServiceError(409, "redeem_code_already_used", "You have already redeemed this code");
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+
+    const reward = redeemed as RedeemedCodeSnapshot | null;
+    if (!reward) throw new CcgServiceError(500, "redemption_failed", "Code redemption did not complete");
+    if (reward.rewardType === "packs") {
+      return {
+        code: reward.code,
+        reward: { type: "packs", currentPacks: reward.currentPacks, legacyPacks: reward.legacyPacks },
+      };
+    }
+    if (!reward.cardId || !reward.finish || !reward.artVariant) {
+      throw new CcgServiceError(500, "redemption_failed", "The card reward could not be recovered");
+    }
+
+    const card = await CcgCard.findById(reward.cardId).lean();
+    const set = card ? await CcgSet.findById(card.setId).lean() : null;
+    if (!card || !set) throw new CcgServiceError(500, "redemption_failed", "The card reward could not be recovered");
+    const owner: CcgOwner = { ownerType: "user", ownerId: userId, dateKey: getHelsinkiDateKey() };
+    const [ownership, alternativeByCollector, unlockedAlternativeCollectors] = await Promise.all([
+      CcgOwnership.find({ ownerType: "user", ownerId: userId, cardId: card._id }).select("finish quantity alternativeQuantity -_id").lean(),
+      this.loadAlternativeArt([card]),
+      this.loadAlternativeArtUnlocks(owner, [card]),
+    ]);
+    const collectorKey = resolveCollectorKey(card);
+    const alternativeArt = alternativeByCollector.get(collectorKey);
+    return {
+      code: reward.code,
+      reward: {
+        type: "card",
+        finish: reward.finish,
+        artVariant: reward.artVariant,
+        card: {
+          ...this.serializeCard(card, set, alternativeArt),
+          ownership: serializeOwnershipRows(
+            ownership,
+            unlockedAlternativeCollectors.has(collectorKey)
+              && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)),
+          ),
+          totalQuantity: ownership.reduce((total, row) => total + row.quantity, 0),
+        },
+      },
+    };
+  }
+
   async openPack(req: Request, res: Response, body: Record<string, unknown>): Promise<Record<string, unknown>> {
     requireFeature();
     const owner = await this.resolveOwner(req, res);
@@ -1064,7 +1318,25 @@ class CcgService {
     );
   }
 
-  private async ensurePackBalance(owner: CcgOwner, session?: ClientSession, date: Date = new Date()): Promise<ICcgPackBalance> {
+  private async getPackCreditBalances(owner: CcgOwner, session?: ClientSession): Promise<Record<CcgMode, number>> {
+    if (owner.ownerType === "guest") return { current: 0, legacy: 0 };
+    const aggregate = CcgPackCredit.aggregate<{ _id: CcgMode; remaining: number }>([
+      { $match: { ownerId: owner.ownerId, remaining: { $gt: 0 } } },
+      { $group: { _id: "$mode", remaining: { $sum: "$remaining" } } },
+    ]);
+    if (session) aggregate.session(session);
+    const rows = await aggregate;
+    const balances: Record<CcgMode, number> = { current: 0, legacy: 0 };
+    rows.forEach((row) => { balances[row._id] = row.remaining; });
+    return balances;
+  }
+
+  private async ensurePackBalance(
+    owner: CcgOwner,
+    session?: ClientSession,
+    date: Date = new Date(),
+    knownCreditBalances?: Record<CcgMode, number>,
+  ): Promise<ICcgPackBalance> {
     const filter = { ownerType: owner.ownerType, ownerId: owner.ownerId };
     let balance = await CcgPackBalance.findOne(filter).session(session ?? null);
     if (!balance) {
@@ -1101,8 +1373,8 @@ class CcgService {
         },
         {
           $set: {
-            currentRemaining: hasPlayed ? Math.min(balance.currentRemaining, CCG_PACK_STORAGE_CAPS.current) : initial.current,
-            legacyRemaining: hasPlayed ? Math.min(balance.legacyRemaining, CCG_PACK_STORAGE_CAPS.legacy) : initial.legacy,
+            currentRemaining: hasPlayed ? Math.max(0, balance.currentRemaining) : initial.current,
+            legacyRemaining: hasPlayed ? Math.max(0, balance.legacyRemaining) : initial.legacy,
             grantVersion: CCG_PACK_BALANCE_VERSION,
             hasPlayed,
             firstPlayedAt: hasPlayed ? (balance.firstPlayedAt ?? date) : null,
@@ -1118,11 +1390,13 @@ class CcgService {
       }
     }
 
+    const creditBalances = knownCreditBalances ?? await this.getPackCreditBalances(owner, session);
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const recharge = applyPackRecharge(
         { current: balance.currentRemaining, legacy: balance.legacyRemaining },
         balance.lastRechargeAt,
         date,
+        creditBalances,
       );
       if (
         recharge.lastRechargeAt.getTime() === balance.lastRechargeAt.getTime()
@@ -1406,6 +1680,51 @@ class CcgService {
       rewards.total += 1;
     }
     return rewards;
+  }
+
+  private async serializeRedeemCodes(
+    codes: ReadonlyArray<ICcgRedeemCode | Record<string, any>>,
+  ): Promise<Record<string, unknown>[]> {
+    const cardIds = codes.flatMap((code) => code.rewardType === "card" && code.cardId ? [code.cardId] : []);
+    const cards = cardIds.length > 0 ? await CcgCard.find({ _id: { $in: cardIds } }).lean() : [];
+    const sets = cards.length > 0
+      ? await CcgSet.find({ _id: { $in: Array.from(new Set(cards.map((card) => String(card.setId)))) } }).lean()
+      : [];
+    const cardById = new Map(cards.map((card) => [String(card._id), card]));
+    const setById = new Map(sets.map((set) => [String(set._id), set]));
+    const alternativeByCollector = await this.loadAlternativeArt(cards);
+
+    return codes.map((code) => {
+      const base = {
+        id: String(code._id),
+        code: code.code,
+        active: code.active,
+        redemptionCount: code.redemptionCount ?? 0,
+        createdAt: code.createdAt,
+        updatedAt: code.updatedAt,
+      };
+      if (code.rewardType === "packs") {
+        return {
+          ...base,
+          reward: { type: "packs", currentPacks: code.currentPacks, legacyPacks: code.legacyPacks },
+        };
+      }
+
+      const card = code.cardId ? cardById.get(String(code.cardId)) : null;
+      const set = card ? setById.get(String(card.setId)) : null;
+      return {
+        ...base,
+        reward: {
+          type: "card",
+          cardId: code.cardId ? String(code.cardId) : null,
+          finish: code.finish ?? null,
+          artVariant: code.artVariant ?? null,
+          card: card && set
+            ? this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card)))
+            : null,
+        },
+      };
+    });
   }
 
   private async serializeOpening(opening: ICcgPackOpening | Record<string, any>): Promise<Record<string, unknown>> {
