@@ -104,6 +104,7 @@
     "share": {
       "card": "Jaa kortti",
       "pack": "Jaa pakka",
+      "loginRequired": "Kirjaudu jakaaksesi",
       "creating": "Luodaan linkkiä…",
       "copied": "Linkki kopioitu",
       "error": "Linkkiä ei voitu kopioida",

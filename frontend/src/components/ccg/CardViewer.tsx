@@ -456,10 +456,11 @@ export default function CardViewer({
               </Link>
             </div>
             <div>
-              {footerAction ?? (canShare && user && isOwned ? (
+              {footerAction ?? (canShare && isOwned ? (
                 <CcgShareButton
                   key={`${displayedCard.id}:${finish}:${artVariant}`}
                   target={{ kind: "card", cardId: displayedCard.id, finish, artVariant }}
+                  loginRequired={!user}
                 />
               ) : null)}
             </div>

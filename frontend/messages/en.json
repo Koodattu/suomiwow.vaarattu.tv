@@ -104,6 +104,7 @@
     "share": {
       "card": "Share card",
       "pack": "Share pack",
+      "loginRequired": "Login to share",
       "creating": "Creating link…",
       "copied": "Link copied",
       "error": "Could not copy link",

@@ -3120,8 +3120,15 @@
 }
 
 .shareButton:disabled {
-  cursor: wait;
   opacity: 0.72;
+}
+
+.shareButton:disabled:not([data-login-required="true"]) {
+  cursor: wait;
+}
+
+.shareButton[data-login-required="true"] {
+  cursor: not-allowed;
 }
 
 .shareButton[data-status="copied"],

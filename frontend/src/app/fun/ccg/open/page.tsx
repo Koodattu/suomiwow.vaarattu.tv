@@ -943,11 +943,12 @@ export default function CcgOpenPage() {
               ) : null}
               {allRevealed && opening.duplicateRewards > 0 ? <p className={packStyles.bonusEarned}>{t("open.bonusEarned", { count: opening.duplicateRewards })}</p> : null}
             </div>
-            {allRevealed && user ? (
+            {allRevealed ? (
               <CcgShareButton
                 key={opening.id}
                 target={{ kind: "pack", openingId: opening.id }}
                 className={packStyles.packShareButton}
+                loginRequired={!user}
               />
             ) : null}
             <div

@@ -36,9 +36,11 @@ async function copyText(value: string): Promise<void> {
 export default function CcgShareButton({
   target,
   className = "",
+  loginRequired = false,
 }: {
   target: ShareTarget;
   className?: string;
+  loginRequired?: boolean;
 }) {
   const t = useTranslations("ccg.share");
   const [status, setStatus] = useState<"idle" | "creating" | "copied" | "error">("idle");
@@ -50,7 +52,7 @@ export default function CcgShareButton({
   }, []);
 
   const share = async () => {
-    if (status === "creating") return;
+    if (loginRequired || status === "creating") return;
     setStatus("creating");
     let resetDelay = 2400;
     try {
@@ -68,7 +70,7 @@ export default function CcgShareButton({
     resetTimerRef.current = window.setTimeout(() => setStatus("idle"), resetDelay);
   };
 
-  const actionLabel = t(target.kind === "card" ? "card" : "pack");
+  const actionLabel = loginRequired ? t("loginRequired") : t(target.kind === "card" ? "card" : "pack");
   const copiedLabel = t("copied");
   const statusLabel = status === "creating"
     ? t("creating")
@@ -84,8 +86,9 @@ export default function CcgShareButton({
       type="button"
       className={`${styles.shareButton} ${className}`}
       onClick={() => void share()}
-      disabled={status === "creating"}
+      disabled={loginRequired || status === "creating"}
       data-status={status}
+      data-login-required={loginRequired}
       aria-label={statusLabel}
       title={statusLabel}
     >
