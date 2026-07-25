@@ -432,7 +432,7 @@ export default function CardViewer({
             <p className={styles.viewerNotCollected}>{t("collection.notCollected")}</p>
           )}
 
-          <dl className={styles.viewerFacts}>
+          <dl className={`${styles.viewerFacts} ${styles.viewerFactsWithoutTopBorder}`}>
             <div><dt>{t("collection.quality")}</dt><dd>{t(`finish.${finish}`)}</dd></div>
             <div><dt>{t("collection.rarity")}</dt><dd>{t(`rarity.${CCG_RARITY_KEYS[displayedCard.tierGrade]}`)}</dd></div>
             <div><dt>{t("realm")}</dt><dd>{formatRealmName(displayedCard.realm)}</dd></div>
