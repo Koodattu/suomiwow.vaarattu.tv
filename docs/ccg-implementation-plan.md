@@ -246,6 +246,7 @@ Grade odds remain global and versioned. Within the selected grade, every eligibl
 - Enabling performs a fresh snapshot and publication before atomically recording `enabledAt`, `enabledBy`, and the target Current or Legacy lifecycle state.
 - Enabling is irreversible. There is no disable endpoint or UI control after activation.
 - Enabling a Current raid moves enabled Current raids from older Mythic+ seasons to Legacy; raids sharing the same current season may coexist.
+- An activation that moves an older Current season records an immutable, sequenced rollover event in the same transaction. The admin must confirm against the current activation revision so a stale preview cannot move an unexpected raid.
 - Raids without an intentional CCG configuration, background, season mapping, and theme remain excluded. This keeps Trial of Valor, Crucible of Storms, and short or meme raids such as Sporefall disabled by default.
 
 ### Recharge balances
@@ -254,6 +255,7 @@ Grade odds remain global and versioned. Within the selected grade, every eligibl
 - Current and Legacy balances are independent and both cap at 25 rechargeable packs.
 - Recharge is calculated lazily for the requesting owner; there is no hourly database-wide user scan.
 - Earned completed-card credits persist until opened.
+- Rollover reconciliation is also lazy. At the cutover timestamp, every unused Current balance and bonus credit becomes Legacy, authenticated Current storage is reset to 25, and guest Current storage is reset to 5.
 
 ### Pack contents
 
@@ -711,6 +713,7 @@ All other guest-owned temporary documents, including pack balance, provisional p
 - `currentRemaining`
 - `legacyRemaining`
 - `lastRechargeAt`
+- `lastRolloverSequence`
 - `grantVersion`
 - `hasPlayed`
 - `firstPlayedAt`
@@ -731,7 +734,7 @@ Persistent bonus pack entitlements for authenticated users:
 - `ownerType`
 - `ownerId`
 - `mode`: `current` or `legacy`
-- `source`: `duplicate`, `admin`, or future supported sources
+- `source`: `duplicate`, `admin`, `raid_rollover`, or future supported sources
 - `remaining`
 - source idempotency key
 - timestamps
@@ -739,6 +742,18 @@ Persistent bonus pack entitlements for authenticated users:
 Guests never receive a persistent credit document. Credits belong to a mode rather than a raid set.
 
 Completed-card credits use a per-owner, per-card source idempotency key. This makes the reward permanent and one-time even after its credit has been consumed or the raid later moves from Current to Legacy.
+
+### `CcgRollover`
+
+Immutable activation audit and lazy-reconciliation input:
+
+- monotonic `sequence`
+- previous Current set IDs and Mythic+ seasons
+- new Current set ID and Mythic+ season
+- `effectiveAt` and `activatedBy`
+- authenticated and guest Current refill amounts
+
+Balances created after a rollover start at its active sequence. Older balances replay every missing event in order, including recharge earned before each cutover, and write an idempotent per-owner rollover ledger entry.
 
 ### `CcgPackPool`
 
@@ -939,7 +954,7 @@ Pack balances are created and recharged lazily on session/open requests. A globa
 - Pack balances and missed shared-clock recharge grants are calculated lazily.
 - Media workers run continuously and are fed by scheduled discovery/recovery jobs.
 - Legacy backfill is an explicit resumable administrative batch.
-- Current-to-Legacy movement happens inside the audited activation transaction for a newly enabled Current season, not from an unattended date guess or a separate promotion endpoint.
+- Current-to-Legacy set movement and rollover-event creation happen inside the audited activation transaction for a newly enabled Current season. Per-owner pack conversion materializes transactionally on the next balance access, not from an unattended date guess, startup hook, or database-wide fan-out.
 
 ## Frontend architecture
 

@@ -36,6 +36,7 @@ import CcgPackPool from "../models/CcgPackPool";
 import CcgQualityProgress, { ICcgQualityProgress } from "../models/CcgQualityProgress";
 import CcgRedeemClaim from "../models/CcgRedeemClaim";
 import CcgRedeemCode, { ICcgRedeemCode } from "../models/CcgRedeemCode";
+import CcgRollover from "../models/CcgRollover";
 import CcgShare, { ICcgShare } from "../models/CcgShare";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
 import Character from "../models/Character";
@@ -55,6 +56,7 @@ import { planPackSelections, selectCommunityCard } from "../utils/ccg-pack";
 import { resolveCollectorKey } from "../utils/ccg-identity";
 import { CCG_REDEEM_PACK_GRANT_MAX, normalizeCcgRedeemCode } from "../utils/ccg-redeem";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeHourStart } from "../utils/ccg-recharge";
+import { applyCcgPackRollover } from "../utils/ccg-rollover";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../utils/helsinki-time";
 import logger from "../utils/logger";
 import { normalizeSearchText, scoreSearchCandidate } from "../utils/search";
@@ -203,8 +205,8 @@ class CcgService {
     await ccgPublisherService.ensureConfiguredSets();
     const owner = await this.resolveOwner(req, res);
     const now = new Date();
+    const packBalance = await this.ensurePackBalance(owner, undefined, now);
     const creditBalances = await this.getPackCreditBalances(owner);
-    const packBalance = await this.ensurePackBalance(owner, undefined, now, creditBalances);
     const [qualityProgress, ownershipCount] = await Promise.all([
       CcgQualityProgress.findOne({ ownerType: owner.ownerType, ownerId: owner.ownerId }).lean(),
       CcgOwnership.countDocuments({ ownerType: owner.ownerType, ownerId: owner.ownerId }),
@@ -1984,10 +1986,35 @@ class CcgService {
     owner: CcgOwner,
     session?: ClientSession,
     date: Date = new Date(),
-    knownCreditBalances?: Record<CcgMode, number>,
   ): Promise<ICcgPackBalance> {
+    if (session) return this.ensurePackBalanceInSession(owner, session, date);
+
+    const ownedSession = await mongoose.startSession();
+    let balanceId: mongoose.Types.ObjectId | null = null;
+    try {
+      await ownedSession.withTransaction(async () => {
+        const balance = await this.ensurePackBalanceInSession(owner, ownedSession, date);
+        balanceId = balance._id;
+      });
+    } catch (error) {
+      if (isTransactionUnsupported(error)) {
+        throw new CcgServiceError(503, "transactions_unavailable", "Pack balances are temporarily unavailable while collection storage is starting");
+      }
+      throw error;
+    } finally {
+      await ownedSession.endSession();
+    }
+    if (!balanceId) throw new CcgServiceError(500, "pack_balance_unavailable", "Pack balance could not be initialized");
+    const balance = await CcgPackBalance.findById(balanceId);
+    if (!balance) throw new CcgServiceError(500, "pack_balance_unavailable", "Pack balance could not be recovered");
+    return balance;
+  }
+
+  private async ensurePackBalanceInSession(owner: CcgOwner, session: ClientSession, date: Date): Promise<ICcgPackBalance> {
+    const latestRollover = await CcgRollover.findOne({}).select("sequence").sort({ sequence: -1 }).session(session).lean();
+    const activeRolloverSequence = latestRollover?.sequence ?? 0;
     const filter = { ownerType: owner.ownerType, ownerId: owner.ownerId };
-    let balance = await CcgPackBalance.findOne(filter).session(session ?? null);
+    let balance = await CcgPackBalance.findOne(filter).session(session);
     if (!balance) {
       const hasPlayed = await this.hasCcgActivity(owner, session);
       const initial = hasPlayed ? { current: 0, legacy: 0 } : CCG_INITIAL_PACKS[owner.ownerType];
@@ -1998,6 +2025,7 @@ class CcgService {
             currentRemaining: initial.current,
             legacyRemaining: initial.legacy,
             lastRechargeAt: getRechargeHourStart(date),
+            lastRolloverSequence: activeRolloverSequence,
             grantVersion: CCG_PACK_BALANCE_VERSION,
             hasPlayed,
             firstPlayedAt: hasPlayed ? date : null,
@@ -2012,70 +2040,103 @@ class CcgService {
     if (balance.grantVersion !== CCG_PACK_BALANCE_VERSION || typeof balance.hasPlayed !== "boolean") {
       const hasPlayed = balance.hasPlayed === true || await this.hasCcgActivity(owner, session);
       const initial = CCG_INITIAL_PACKS[owner.ownerType];
-      const migrated = await CcgPackBalance.findOneAndUpdate(
-        {
-          _id: balance._id,
-          $or: [
-            { grantVersion: { $ne: CCG_PACK_BALANCE_VERSION } },
-            { hasPlayed: { $exists: false } },
-          ],
-        },
-        {
-          $set: {
-            currentRemaining: hasPlayed ? Math.max(0, balance.currentRemaining) : initial.current,
-            legacyRemaining: hasPlayed ? Math.max(0, balance.legacyRemaining) : initial.legacy,
-            grantVersion: CCG_PACK_BALANCE_VERSION,
-            hasPlayed,
-            firstPlayedAt: hasPlayed ? (balance.firstPlayedAt ?? date) : null,
+      balance.currentRemaining = hasPlayed ? Math.max(0, balance.currentRemaining) : initial.current;
+      balance.legacyRemaining = hasPlayed ? Math.max(0, balance.legacyRemaining) : initial.legacy;
+      balance.grantVersion = CCG_PACK_BALANCE_VERSION;
+      balance.hasPlayed = hasPlayed;
+      balance.firstPlayedAt = hasPlayed ? (balance.firstPlayedAt ?? date) : null;
+    }
+
+    const lastRolloverSequence = balance.lastRolloverSequence ?? 0;
+    if (lastRolloverSequence > activeRolloverSequence) {
+      throw new CcgServiceError(500, "rollover_state_invalid", "Pack rollover history is inconsistent");
+    }
+    if (lastRolloverSequence < activeRolloverSequence) {
+      const rollovers = await CcgRollover.find({ sequence: { $gt: lastRolloverSequence, $lte: activeRolloverSequence } })
+        .sort({ sequence: 1 })
+        .session(session);
+      let expectedSequence = lastRolloverSequence + 1;
+      for (const rollover of rollovers) {
+        if (rollover.sequence !== expectedSequence) {
+          throw new CcgServiceError(503, "rollover_history_incomplete", "Pack rollover history is temporarily unavailable");
+        }
+        const creditBalances = await this.getPackCreditBalances(owner, session);
+        const applied = applyCcgPackRollover(
+          owner.ownerType,
+          { current: balance.currentRemaining, legacy: balance.legacyRemaining },
+          creditBalances,
+          balance.lastRechargeAt,
+          rollover.effectiveAt,
+          owner.ownerType === "user" ? rollover.userCurrentPacks : rollover.guestCurrentPacks,
+        );
+
+        if (owner.ownerType === "user") {
+          if (applied.regularCurrentMoved > 0) {
+            await CcgPackCredit.updateOne(
+              { ownerId: owner.ownerId, sourceKey: `raid-rollover:${rollover.sequence}:regular` },
+              {
+                $setOnInsert: {
+                  mode: "legacy",
+                  source: "raid_rollover",
+                  remaining: applied.regularCurrentMoved,
+                },
+              },
+              { upsert: true, session },
+            );
+          }
+          if (applied.bonusCurrentMoved > 0) {
+            await CcgPackCredit.updateMany(
+              { ownerId: owner.ownerId, mode: "current", remaining: { $gt: 0 } },
+              { $set: { mode: "legacy" } },
+              { session },
+            );
+          }
+        }
+
+        balance.currentRemaining = applied.balances.current;
+        balance.legacyRemaining = applied.balances.legacy;
+        balance.lastRechargeAt = applied.lastRechargeAt;
+        balance.lastRolloverSequence = rollover.sequence;
+        await CcgLedgerEntry.updateOne(
+          { ownerType: owner.ownerType, ownerId: owner.ownerId, idempotencyKey: `raid-rollover:${rollover.sequence}` },
+          {
+            $setOnInsert: {
+              action: "raid_rollover",
+              mode: null,
+              amount: applied.regularCurrentMoved + applied.bonusCurrentMoved,
+              metadata: {
+                sequence: rollover.sequence,
+                fromSetIds: rollover.fromSetIds.map(String),
+                toSetId: String(rollover.toSetId),
+                regularCurrentMoved: applied.regularCurrentMoved,
+                bonusCurrentMoved: applied.bonusCurrentMoved,
+                newCurrentPacks: applied.balances.current,
+              },
+              dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
+              expiresAt: owner.ownerType === "guest" ? owner.expiresAt : null,
+            },
           },
-        },
-        { new: true, session },
-      );
-      if (migrated) balance = migrated;
-      else {
-        const refreshed = await CcgPackBalance.findById(balance._id).session(session ?? null);
-        if (!refreshed) throw new CcgServiceError(500, "pack_balance_unavailable", "Pack balance could not be migrated");
-        balance = refreshed;
+          { upsert: true, session },
+        );
+        expectedSequence += 1;
+      }
+      if (expectedSequence - 1 !== activeRolloverSequence) {
+        throw new CcgServiceError(503, "rollover_history_incomplete", "Pack rollover history is temporarily unavailable");
       }
     }
 
-    const creditBalances = knownCreditBalances ?? await this.getPackCreditBalances(owner, session);
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const recharge = applyPackRecharge(
-        { current: balance.currentRemaining, legacy: balance.legacyRemaining },
-        balance.lastRechargeAt,
-        date,
-        creditBalances,
-      );
-      if (
-        recharge.lastRechargeAt.getTime() === balance.lastRechargeAt.getTime()
-        && recharge.balances.current === balance.currentRemaining
-        && recharge.balances.legacy === balance.legacyRemaining
-      ) {
-        return balance;
-      }
-      const updated = await CcgPackBalance.findOneAndUpdate(
-        {
-          _id: balance._id,
-          lastRechargeAt: balance.lastRechargeAt,
-          currentRemaining: balance.currentRemaining,
-          legacyRemaining: balance.legacyRemaining,
-        },
-        {
-          $set: {
-            currentRemaining: recharge.balances.current,
-            legacyRemaining: recharge.balances.legacy,
-            lastRechargeAt: recharge.lastRechargeAt,
-          },
-        },
-        { new: true, session },
-      );
-      if (updated) return updated;
-      const refreshed = await CcgPackBalance.findById(balance._id).session(session ?? null);
-      if (!refreshed) throw new CcgServiceError(500, "pack_balance_unavailable", "Pack balance could not be refreshed");
-      balance = refreshed;
-    }
-    throw new CcgServiceError(409, "pack_balance_busy", "Pack balance is being updated. Try again");
+    const creditBalances = await this.getPackCreditBalances(owner, session);
+    const recharge = applyPackRecharge(
+      { current: balance.currentRemaining, legacy: balance.legacyRemaining },
+      balance.lastRechargeAt,
+      date,
+      creditBalances,
+    );
+    balance.currentRemaining = recharge.balances.current;
+    balance.legacyRemaining = recharge.balances.legacy;
+    balance.lastRechargeAt = recharge.lastRechargeAt;
+    if (balance.isModified()) await balance.save({ session });
+    return balance;
   }
 
   private async reservePack(owner: CcgOwner, mode: CcgMode, session: ClientSession): Promise<{ source: "recharge" | "credit"; creditId?: mongoose.Types.ObjectId }> {

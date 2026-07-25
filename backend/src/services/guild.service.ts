@@ -27,6 +27,7 @@ import fightVodService from "./fight-vod.service";
 import guildProfileHighlightsService from "./guild-profile-highlights.service";
 import guildLogSourceService, { getGuildLogSourceSnapshot } from "./guild-log-source.service";
 import { yieldToEventLoop } from "../utils/yield";
+import { findDuplicateFight } from "../utils/fight-deduplication";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
 
@@ -893,42 +894,6 @@ class GuildService {
       })[0] || [];
 
     return dominantRaidId || 0;
-  }
-
-  // Check if a fight is a duplicate based on unique characteristics with tolerance
-  // A fight is considered duplicate if it has the same:
-  // - encounterID (exact match)
-  // - difficulty (exact match)
-  // - bossPercentage (within 0.1%)
-  // - fightPercentage (within 0.1%)
-  // - duration (within 1 second)
-  // This indicates the same log uploaded multiple times by different users
-  // Returns the canonical fight (first occurrence by timestamp) if this is a duplicate
-  private isDuplicateFightInMemory(fight: any, allFights: any[], seenFights: Map<string, any>): { isDuplicate: boolean; canonical?: any } {
-    // Tolerance values for fuzzy matching
-    const PERCENTAGE_TOLERANCE = 0.01; //0.1; // 0.1% tolerance for percentages
-    const DURATION_TOLERANCE = 100; //1000; // 1 second (1000ms) tolerance for duration
-
-    // Check against all previously seen fights for this encounter+difficulty
-    const lookupKey = `${fight.encounterID}-${fight.difficulty}`;
-    const candidateFights = seenFights.get(lookupKey) || [];
-
-    for (const seenFight of candidateFights) {
-      // Check if percentages and duration are within tolerance
-      const bossPercentageDiff = Math.abs((fight.bossPercentage || 0) - (seenFight.bossPercentage || 0));
-      const fightPercentageDiff = Math.abs((fight.fightPercentage || 0) - (seenFight.fightPercentage || 0));
-      const durationDiff = Math.abs((fight.duration || 0) - (seenFight.duration || 0));
-
-      if (bossPercentageDiff <= PERCENTAGE_TOLERANCE && fightPercentageDiff <= PERCENTAGE_TOLERANCE && durationDiff <= DURATION_TOLERANCE) {
-        // This is a duplicate
-        return { isDuplicate: true, canonical: seenFight };
-      }
-    }
-
-    // Not a duplicate - add to the list of seen fights for this encounter+difficulty
-    candidateFights.push(fight);
-    seenFights.set(lookupKey, candidateFights);
-    return { isDuplicate: false };
   }
 
   // Initialize all guilds from config
@@ -3926,18 +3891,18 @@ class GuildService {
     let duplicateCount = 0;
 
     for (const fight of filteredFights) {
-      const duplicateCheck = this.isDuplicateFightInMemory(fight, uniqueFights, seenFights);
+      const duplicateFight = findDuplicateFight(fight, seenFights);
 
-      if (duplicateCheck.isDuplicate) {
+      if (duplicateFight) {
         duplicateCount++;
-        guildLog.info(
-          `Skipping duplicate ${difficulty} fight: ${fight.encounterName} (${fight.reportCode}#${fight.fightId}) - duplicate of (${duplicateCheck.canonical.reportCode}#${duplicateCheck.canonical.fightId})`,
-        );
         continue;
       }
 
       uniqueFights.push(fight);
     }
+
+    if (filteredFights !== fights) filteredFights.length = 0;
+    fights.length = 0;
 
     if (duplicateCount > 0) {
       guildLog.info(`Filtered out ${duplicateCount} duplicate ${difficulty} fights for ${raidData.name}`);
@@ -4062,6 +4027,13 @@ class GuildService {
 
         const vodCandidates = vodCandidateFightsByBoss.get(encounterId) || [];
         vodCandidates.push(fight);
+        vodCandidates.sort((a, b) => {
+          const aProgress = a.isKill ? 0 : a.fightPercentage || 0;
+          const bProgress = b.isKill ? 0 : b.fightPercentage || 0;
+          if (aProgress !== bProgress) return aProgress - bProgress;
+          return b.timestamp.getTime() - a.timestamp.getTime();
+        });
+        if (vodCandidates.length > 5) vodCandidates.length = 5;
         vodCandidateFightsByBoss.set(encounterId, vodCandidates);
       }
 
@@ -4100,10 +4072,11 @@ class GuildService {
       }
     }
 
-    const [progressRaidTimeSpent, totalRaidTimeSpent] = await Promise.all([
-      this.calculateRaidTimeSpentFromFightChains(guild._id as mongoose.Types.ObjectId, progressionFights),
-      this.calculateRaidTimeSpentFromFightChains(guild._id as mongoose.Types.ObjectId, uniqueFights),
-    ]);
+    const progressRaidTimeSpent = await this.calculateRaidTimeSpentFromFightChains(guild._id as mongoose.Types.ObjectId, progressionFights);
+    progressionFights.length = 0;
+    const totalRaidTimeSpent = await this.calculateRaidTimeSpentFromFightChains(guild._id as mongoose.Types.ObjectId, uniqueFights);
+    uniqueFights.length = 0;
+    seenFights.clear();
 
     // Sort kill order by time and assign order numbers
     killOrderTracker.sort((a, b) => a.killTime.getTime() - b.killTime.getTime());
@@ -5462,8 +5435,8 @@ class GuildService {
       const uniqueHistoryFights: any[] = [];
 
       for (const fight of historyFights) {
-        const duplicateCheck = this.isDuplicateFightInMemory(fight, uniqueHistoryFights, seenHistoryFights);
-        if (duplicateCheck.isDuplicate) {
+        const duplicateFight = findDuplicateFight(fight, seenHistoryFights);
+        if (duplicateFight) {
           continue;
         }
         uniqueHistoryFights.push(fight);
@@ -5510,8 +5483,8 @@ class GuildService {
     const bestPulls: any[] = [];
 
     for (const fight of bestPullCandidates) {
-      const duplicateCheck = this.isDuplicateFightInMemory(fight, [], seenFights);
-      if (duplicateCheck.isDuplicate) {
+      const duplicateFight = findDuplicateFight(fight, seenFights);
+      if (duplicateFight) {
         continue;
       }
 

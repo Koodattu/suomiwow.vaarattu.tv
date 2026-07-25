@@ -39,6 +39,7 @@ import { nextCcgCardSnapshotVersion, shouldPublishCcgCardSnapshot } from "../src
 import { normalizeCcgRedeemCode } from "../src/utils/ccg-redeem";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeGrants } from "../src/utils/ccg-recharge";
+import { applyCcgPackRollover } from "../src/utils/ccg-rollover";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../src/utils/helsinki-time";
 
 test("canonical grading maps a 100-card population to the versioned S through F bands", () => {
@@ -306,6 +307,75 @@ test("pack recharge follows shared Helsinki hour boundaries and respects storage
     { current: 10, legacy: 4 },
   );
   assert.deepEqual(blockedByBonusPacks.balances, { current: 20, legacy: 21 });
+});
+
+test("authenticated raid rollover moves all Current packs to Legacy and refills Current storage", () => {
+  const rollover = applyCcgPackRollover(
+    "user",
+    { current: 10, legacy: 7 },
+    { current: 4, legacy: 2 },
+    new Date("2026-01-01T10:00:00.000Z"),
+    new Date("2026-01-01T10:00:00.000Z"),
+    25,
+  );
+
+  assert.deepEqual(rollover.balances, { current: 25, legacy: 7 });
+  assert.equal(rollover.regularCurrentMoved, 10);
+  assert.equal(rollover.bonusCurrentMoved, 4);
+  assert.equal(7 + 2 + rollover.regularCurrentMoved + rollover.bonusCurrentMoved, 23);
+});
+
+test("raid rollover includes lazy recharge accrued before the cutover", () => {
+  const rollover = applyCcgPackRollover(
+    "user",
+    { current: 20, legacy: 7 },
+    { current: 4, legacy: 2 },
+    new Date("2026-01-01T07:00:00.000Z"),
+    new Date("2026-01-01T10:05:00.000Z"),
+    25,
+  );
+
+  assert.deepEqual(rollover.balances, { current: 25, legacy: 10 });
+  assert.equal(rollover.regularCurrentMoved, 21);
+  assert.equal(rollover.lastRechargeAt.toISOString(), "2026-01-01T10:00:00.000Z");
+});
+
+test("guest rollover preserves old Current packs in Legacy and restores the guest allowance", () => {
+  const rollover = applyCcgPackRollover(
+    "guest",
+    { current: 3, legacy: 4 },
+    { current: 0, legacy: 0 },
+    new Date("2026-01-01T10:00:00.000Z"),
+    new Date("2026-01-01T10:00:00.000Z"),
+    5,
+  );
+
+  assert.deepEqual(rollover.balances, { current: 5, legacy: 7 });
+  assert.equal(rollover.regularCurrentMoved, 3);
+});
+
+test("each missed raid rollover carries the prior refill into Legacy", () => {
+  const first = applyCcgPackRollover(
+    "user",
+    { current: 10, legacy: 7 },
+    { current: 4, legacy: 2 },
+    new Date("2026-01-01T10:00:00.000Z"),
+    new Date("2026-01-01T10:00:00.000Z"),
+    25,
+  );
+  const creditsAfterFirst = { current: 0, legacy: 2 + 4 + first.regularCurrentMoved };
+  const second = applyCcgPackRollover(
+    "user",
+    first.balances,
+    creditsAfterFirst,
+    first.lastRechargeAt,
+    new Date("2026-01-01T10:00:00.000Z"),
+    25,
+  );
+
+  assert.equal(second.regularCurrentMoved, 25);
+  assert.deepEqual(second.balances, { current: 25, legacy: 7 });
+  assert.equal(second.balances.legacy + creditsAfterFirst.legacy + second.regularCurrentMoved, 48);
 });
 
 test("redeem codes normalize safely without accepting ambiguous separators", () => {

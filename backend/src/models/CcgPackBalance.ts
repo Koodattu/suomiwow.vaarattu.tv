@@ -8,6 +8,7 @@ export interface ICcgPackBalance extends Document {
   currentRemaining: number;
   legacyRemaining: number;
   lastRechargeAt: Date;
+  lastRolloverSequence?: number;
   grantVersion?: number;
   hasPlayed?: boolean;
   firstPlayedAt?: Date | null;
@@ -23,6 +24,7 @@ const CcgPackBalanceSchema = new Schema<ICcgPackBalance>(
     currentRemaining: { type: Number, required: true, min: 0, default: CCG_PACK_STORAGE_CAPS.current },
     legacyRemaining: { type: Number, required: true, min: 0, default: CCG_PACK_STORAGE_CAPS.legacy },
     lastRechargeAt: { type: Date, required: true },
+    lastRolloverSequence: { type: Number, min: 0, default: 0 },
     grantVersion: { type: Number },
     hasPlayed: { type: Boolean },
     firstPlayedAt: { type: Date, default: null },
@@ -32,6 +34,7 @@ const CcgPackBalanceSchema = new Schema<ICcgPackBalance>(
 );
 
 CcgPackBalanceSchema.index({ ownerType: 1, ownerId: 1 }, { unique: true });
+CcgPackBalanceSchema.index({ ownerType: 1, lastRolloverSequence: 1 });
 CcgPackBalanceSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model<ICcgPackBalance>("CcgPackBalance", CcgPackBalanceSchema);

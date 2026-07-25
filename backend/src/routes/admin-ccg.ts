@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import { CCG_CONFIGURED_SETS, normalizeCcgRaidName } from "../config/ccg";
 import { requireAdmin } from "../middleware/admin.middleware";
 import CcgCard from "../models/CcgCard";
+import CcgPackBalance from "../models/CcgPackBalance";
+import CcgRollover from "../models/CcgRollover";
 import CcgSet from "../models/CcgSet";
 import Raid from "../models/Raid";
 import characterMediaService, {
@@ -61,14 +63,33 @@ router.get(
   adminRoute(async () => {
     await ccgPublisherService.ensureConfiguredSets();
     const minimumZoneId = Math.min(...CCG_CONFIGURED_SETS.map((set) => set.zoneId));
-    const [sets, knownRaids, media, cards, analytics, communityCharacters] = await Promise.all([
+    const [sets, knownRaids, media, cards, analytics, communityCharacters, latestRollover] = await Promise.all([
       CcgSet.find().sort({ zoneId: 1 }).lean(),
       Raid.find({ id: { $gte: minimumZoneId } }).select("id name slug expansion").sort({ id: 1 }).lean(),
       characterMediaService.getStatus(),
       CcgCard.countDocuments(),
       ccgService.getAnalytics(),
       ccgCommunityService.list(),
+      CcgRollover.findOne({}).sort({ sequence: -1 }).lean(),
     ]);
+    const pendingRolloverBalances = latestRollover
+      ? await CcgPackBalance.countDocuments({
+          $and: [
+            {
+              $or: [
+                { lastRolloverSequence: { $lt: latestRollover.sequence } },
+                { lastRolloverSequence: { $exists: false } },
+              ],
+            },
+            {
+              $or: [
+                { ownerType: "user" },
+                { ownerType: "guest", expiresAt: { $gt: new Date() } },
+              ],
+            },
+          ],
+        })
+      : 0;
     const setByZone = new Map(sets.map((set) => [set.zoneId, set]));
     const configuredZoneIds = new Set(CCG_CONFIGURED_SETS.map((set) => set.zoneId));
     return {
@@ -100,6 +121,13 @@ router.get(
       media,
       totals: { cards, openings: analytics.packOpenings },
       community: { characters: communityCharacters },
+      rollover: latestRollover ? {
+        sequence: latestRollover.sequence,
+        effectiveAt: latestRollover.effectiveAt,
+        fromSetIds: latestRollover.fromSetIds.map(String),
+        toSetId: String(latestRollover.toSetId),
+        pendingBalances: pendingRolloverBalances,
+      } : null,
     };
   }),
 );
@@ -188,7 +216,10 @@ router.post(
     if (!Number.isInteger(zoneId)) throw new CcgPublisherError(400, "invalid_zone", "A valid raid zone ID is required");
     const userId = (req as Request & { user?: { _id?: mongoose.Types.ObjectId | string } }).user?._id;
     if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) throw new CcgPublisherError(401, "admin_identity_missing", "Admin identity is unavailable");
-    return ccgPublisherService.enableSet(zoneId, new mongoose.Types.ObjectId(String(userId)), { force: req.body?.force === true });
+    return ccgPublisherService.enableSet(zoneId, new mongoose.Types.ObjectId(String(userId)), {
+      force: req.body?.force === true,
+      expectedRevision: typeof req.body?.expectedRevision === "string" ? req.body.expectedRevision : undefined,
+    });
   }),
 );
 

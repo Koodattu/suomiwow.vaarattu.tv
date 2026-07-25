@@ -513,12 +513,12 @@ export const api = {
     return response.json();
   },
 
-  async enableAdminCcgSet(zoneId: number, force = false): Promise<CcgAdminEnableResponse> {
+  async enableAdminCcgSet(zoneId: number, expectedRevision: string, force = false): Promise<CcgAdminEnableResponse> {
     const response = await fetch(`${API_URL}/api/admin/ccg/sets/${zoneId}/enable`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ force }),
+      body: JSON.stringify({ force, expectedRevision }),
     });
     if (!response.ok) throw await buildApiError(response, "Failed to enable this CCG raid");
     return response.json();

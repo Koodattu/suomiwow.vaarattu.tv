@@ -1034,29 +1034,30 @@ router.post("/guilds/:targetGuildId/log-sources/migrate", async (req: Request, r
 
     const result = await guildLogSourceService.migrateExistingGuild(req.params.targetGuildId, sourceGuildId);
     const postProcessingWarnings: string[] = [...result.warnings];
-    let statisticsRecalculated = false;
+    let statisticsRecalculationQueued = false;
     try {
       const targetGuild = await Guild.findById(req.params.targetGuildId);
       if (!targetGuild) throw new Error("Target guild disappeared after migration");
-      await guildService.calculateGuildStatistics(targetGuild, null, { createEvents: false });
-      await targetGuild.save();
-      await guildService.calculateGuildRankingsForAllRaids();
-      statisticsRecalculated = true;
+      await backgroundGuildProcessor.queueGuild(targetGuild, 5, "recalculate_stats");
+      statisticsRecalculationQueued = true;
     } catch (postProcessingError) {
-      logger.error("Guild log source migration committed, but statistics recalculation failed:", postProcessingError);
-      postProcessingWarnings.push("The migration completed, but guild statistics must be recalculated manually.");
-    }
-
-    const derivedDataRebuildStarted = scheduler.triggerGuildAttributionDerivedDataRebuild();
-    if (!derivedDataRebuildStarted) {
-      postProcessingWarnings.push("A conflicting derived-data job is already running. Trigger the affected rebuilds from Admin after it completes.");
+      logger.error("Guild log source migration committed, but statistics recalculation could not be queued:", postProcessingError);
+      postProcessingWarnings.push("The migration completed, but guild statistics could not be queued. Use Recalculate stats from Admin.");
     }
 
     return res.json({
       success: true,
-      message: `${sourceGuild.name}-${sourceGuild.realm} is now a historical log source of the target guild`,
+      message: `${sourceGuild.name}-${sourceGuild.realm} is now a historical log source of the target guild${
+        statisticsRecalculationQueued ? ". Statistics will refresh in the processing queue" : ""
+      }`,
       result,
-      postProcessing: { statisticsRecalculated, derivedDataRebuildStarted, warnings: postProcessingWarnings },
+      postProcessing: {
+        statisticsRecalculated: false,
+        statisticsRecalculationQueued,
+        derivedDataRebuildStarted: false,
+        derivedDataRefreshScheduled: true,
+        warnings: postProcessingWarnings,
+      },
     });
   } catch (error) {
     return respondToGuildLogSourceError(res, error, "Failed to migrate existing guild to a log source");

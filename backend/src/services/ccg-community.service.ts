@@ -109,8 +109,8 @@ class CcgCommunityService {
       realm: { $in: [profile.realm.name, profile.realm.slug] },
       region,
     }).collation({ locale: "en", strength: 2 }).lean();
-    const guildName = linkedCharacter?.guildName ?? profile.guild?.name ?? null;
-    const guildRealm = linkedCharacter?.guildRealm ?? profile.guild?.realm?.name ?? (guildName ? profile.realm.name : null);
+    const guildName = profile.guild?.name ?? null;
+    const guildRealm = profile.guild?.realm?.name ?? (guildName ? profile.realm.name : null);
     const guild = guildName && guildRealm
       ? await Guild.findOne({ name: guildName, realm: guildRealm, region }).collation({ locale: "en", strength: 2 }).select("_id").lean()
       : null;

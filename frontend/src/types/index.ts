@@ -2049,6 +2049,14 @@ export type CcgAdminSetStatus = {
 
 export type CcgAdminReadinessBlocker = "eligible_population" | "media_ready" | "media_coverage" | "already_enabled";
 
+export type CcgAdminRolloverPreview = {
+  required: boolean;
+  fromSets: Array<{ id: string; raidName: string; mythicPlusSeason: string }>;
+  balanceOwners: { users: number; guests: number; total: number };
+  storedCurrentPacks: { regular: number; bonus: number; total: number };
+  newCurrentPacks: { users: number; guests: number; total: number };
+};
+
 export type CcgAdminSetReadiness = {
   configured: {
     zoneId: number;
@@ -2065,6 +2073,8 @@ export type CcgAdminSetReadiness = {
   mediaCoverage: number;
   published: number;
   poolCards: number;
+  activationRevision: string;
+  rollover: CcgAdminRolloverPreview;
   readyToEnable: boolean;
   blockers: CcgAdminReadinessBlocker[];
   thresholds: { eligible: number; mediaReady: number; mediaCoverage: number };
@@ -2112,6 +2122,13 @@ export type CcgAdminStatusResponse = {
   media: CcgAdminMediaStatus;
   totals: { cards: number; openings: number };
   community: { characters: CcgAdminCommunityCharacter[] };
+  rollover: {
+    sequence: number;
+    effectiveAt: string;
+    fromSetIds: string[];
+    toSetId: string;
+    pendingBalances: number;
+  } | null;
 };
 
 export type CcgAdminAnalyticsRange = 7 | 30 | 90;
@@ -2189,6 +2206,7 @@ export type CcgAdminEnableResponse = {
   readiness: CcgAdminSetReadiness;
   publication: { snapshotKey: string; published: number; unchanged: number; totalCards: number; poolVersion: string };
   movedToLegacy: number;
+  rollover: { sequence: number; effectiveAt: string; fromSetIds: string[] } | null;
 };
 
 export type CcgCatalogResponse = {
@@ -3117,7 +3135,9 @@ export interface GuildLogSourceMigrationResponse {
   };
   postProcessing: {
     statisticsRecalculated: boolean;
+    statisticsRecalculationQueued: boolean;
     derivedDataRebuildStarted: boolean;
+    derivedDataRefreshScheduled: boolean;
     warnings: string[];
   };
 }
