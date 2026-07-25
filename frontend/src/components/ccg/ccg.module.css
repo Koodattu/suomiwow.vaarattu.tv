@@ -82,10 +82,11 @@
   height: 0.85rem;
 }
 
-.shellBrandLink > img {
+.shellBrandLink > img,
+.shellCcgLogo {
   flex-shrink: 0;
-  width: 7rem;
-  height: auto;
+  width: auto;
+  height: 3.16rem;
 }
 
 .shellBrandTitle {
