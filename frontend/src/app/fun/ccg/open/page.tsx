@@ -329,10 +329,10 @@ export default function CcgOpenPage() {
     qualitySoundTimersRef.current.push(timer);
   };
 
-  const playQuipAfterFlip = (index: number): boolean => {
+  const playQuipAfterFlip = (index: number) => {
     const result = opening?.results[index];
     const audio = quipAudioRefs.current[index] ?? null;
-    if (!result?.card.quip?.audioPath || !audio || getCcgPlaybackVolume("quips", 0.9) <= 0) return false;
+    if (!result?.card.quip?.audioPath || !audio || getCcgPlaybackVolume("quips", 0.9) <= 0) return;
     const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 220;
     const timer = window.setTimeout(() => {
       quipAudioRefs.current.forEach((candidate) => {
@@ -343,15 +343,12 @@ export default function CcgOpenPage() {
       playSound(audio, "quips", 0.9);
     }, delay);
     quipSoundTimersRef.current.push(timer);
-    return true;
   };
 
-  const playAnnouncerAfterFlip = (index: number, delayForQuip = false) => {
+  const playAnnouncerAfterFlip = (index: number) => {
     const available = (announcerAudioRefs.current[index] ?? []).filter((audio): audio is HTMLAudioElement => audio !== null);
     if (available.length === 0) return;
-    const delay = delayForQuip
-      ? 1_360
-      : window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 360;
+    const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 360;
     const timer = window.setTimeout(
       () => playSound(available[randomIndex(available.length)] ?? null, "announcer", 0.78),
       delay,
@@ -382,8 +379,8 @@ export default function CcgOpenPage() {
     }
     playRandomPackSound(cardSlideAudioRefs.current, 0.36);
     playQualitySoundAfterFlip(index);
-    const quipWillPlay = playQuipAfterFlip(index);
-    playAnnouncerAfterFlip(index, quipWillPlay);
+    playQuipAfterFlip(index);
+    if (!opening?.results[index]?.card.quip?.audioPath) playAnnouncerAfterFlip(index);
     setRevealedCards((current) => new Set(current).add(index));
   };
 
@@ -408,9 +405,11 @@ export default function CcgOpenPage() {
       && Boolean(quipAudioRefs.current[index])
       && getCcgPlaybackVolume("quips", 0.9) > 0
     ))?.index;
-    const quipWillPlay = quipIndex !== undefined && playQuipAfterFlip(quipIndex);
-    const announcerIndex = prioritizedResults.find(({ index }) => announcerAudioRefs.current[index]?.some(Boolean))?.index;
-    if (announcerIndex !== undefined) playAnnouncerAfterFlip(announcerIndex, quipWillPlay);
+    if (quipIndex !== undefined) playQuipAfterFlip(quipIndex);
+    const announcerIndex = prioritizedResults.find(({ result, index }) => (
+      !result.card.quip?.audioPath && announcerAudioRefs.current[index]?.some(Boolean)
+    ))?.index;
+    if (announcerIndex !== undefined) playAnnouncerAfterFlip(announcerIndex);
     setRevealedCards(new Set(opening.results.map((_, index) => index)));
   };
 

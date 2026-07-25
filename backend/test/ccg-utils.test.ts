@@ -72,6 +72,39 @@ test("card crops are deterministic and stay inside each raid's safe flair range"
   }
 });
 
+test("every raid artwork uses its configured horizontal crop range", () => {
+  const expectedRanges = new Map<number, readonly [number, number]>([
+    [6, [0, 100]],
+    [7, [0, 61]],
+    [8, [0, 47]],
+    [10, [26, 88]],
+    [11, [15, 80]],
+    [13, [43, 81]],
+    [17, [21, 75]],
+    [19, [59, 85]],
+    [21, [49, 77]],
+    [23, [36, 90]],
+    [24, [0, 100]],
+    [26, [25, 63]],
+    [28, [50, 96]],
+    [29, [55, 97]],
+    [31, [58, 95]],
+    [33, [65, 97]],
+    [35, [40, 75]],
+    [38, [53, 89]],
+    [42, [39, 70]],
+    [44, [28, 64]],
+    [46, [26, 80]],
+  ]);
+
+  assert.equal(CCG_CONFIGURED_SETS.length, expectedRanges.size);
+  for (const set of CCG_CONFIGURED_SETS) {
+    const expected = expectedRanges.get(set.zoneId);
+    assert.ok(expected, `Missing expected range for ${set.raidName}`);
+    assert.deepEqual([set.crop.x - set.crop.xJitter, set.crop.x + set.crop.xJitter], expected);
+  }
+});
+
 test("short raids excluded from CCG stay excluded", () => {
   assert.equal(CCG_CONFIGURED_SETS.some((set) => set.zoneId === 22), false);
   assert.equal(CCG_CONFIGURED_SETS.some((set) => set.zoneId === 12), false);

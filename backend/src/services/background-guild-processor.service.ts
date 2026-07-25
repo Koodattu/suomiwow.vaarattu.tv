@@ -17,6 +17,8 @@ import mongoose from "mongoose";
 import { classifyError, ErrorType } from "../utils/error-classifier";
 import characterService from "./character.service";
 import taskTracker from "./task-tracker.service";
+import GuildLogSource, { IGuildLogSource } from "../models/GuildLogSource";
+import guildLogSourceService, { getGuildLogSourceSnapshot } from "./guild-log-source.service";
 
 /**
  * Queue processing configuration
@@ -56,6 +58,7 @@ export interface QueueItemSummary {
   guildName: string;
   guildRealm: string;
   guildRegion: string;
+  guildLogSourceId?: string;
   jobType: JobType;
   status: ProcessingStatus;
   priority: number;
@@ -109,6 +112,7 @@ class BackgroundGuildProcessor {
 
   private characterAppearanceIndexesSynced: boolean = false;
   private deathRescanIndexesCreated: boolean = false;
+  private queueIndexesReady: Promise<unknown> | null = null;
 
   /**
    * Start the background processor
@@ -126,8 +130,15 @@ class BackgroundGuildProcessor {
     rateLimitService.onPause(() => this.onRateLimitPause());
     rateLimitService.onResume(() => this.onRateLimitResume());
 
-    // Start the processing loop
-    this.scheduleNextCheck(this.config.idleCheckInterval);
+    // Wait for the additive queue index migration before claiming work. This
+    // allows one full-rescan queue item per Warcraft Logs source.
+    this.queueIndexesReady = GuildProcessingQueue.syncIndexes();
+    this.queueIndexesReady
+      .then(() => this.scheduleNextCheck(this.config.idleCheckInterval))
+      .catch((error) => {
+        logger.error("[BackgroundProcessor] Failed to synchronize queue indexes; processor will not start:", error);
+        this.isRunning = false;
+      });
   }
 
   private async ensureDeathRescanIndexes(): Promise<void> {
@@ -183,6 +194,7 @@ class BackgroundGuildProcessor {
     if (!this.isRunning) return;
 
     try {
+      await this.queueIndexesReady;
       await this.refreshProcessorPauseState();
       await rateLimitService.refreshSharedState();
 
@@ -219,6 +231,7 @@ class BackgroundGuildProcessor {
         guildName: queueItem.guildName,
         guildRealm: queueItem.guildRealm,
         guildRegion: queueItem.guildRegion,
+        guildLogSourceId: queueItem.guildLogSourceId,
         jobType: queueItem.jobType,
       });
 
@@ -290,25 +303,38 @@ class BackgroundGuildProcessor {
         return;
       }
 
+      const source = queueItem.guildLogSourceId
+        ? await GuildLogSource.findOne({ _id: queueItem.guildLogSourceId, guildId: guild._id, enabled: true })
+        : await guildLogSourceService.ensurePrimarySource(guild);
+      if (!source) {
+        await queueItem.markFailed("Guild log source not found or disabled", "unknown", true, "Guild log source is unavailable");
+        return;
+      }
+      guildLog.info(`Fetching Warcraft Logs source ${source.name}-${source.realm} (${source.region})`);
+
       // Get valid boss encounter IDs
       const validBossIds = await this.getValidBossEncounterIds();
       guildLog.info(`Tracking ${validBossIds.size} boss encounters across ${TRACKED_RAIDS.length} raids`);
 
       // Fetch WarcraftLogs guild ID if not present
-      if (!guild.warcraftlogsId) {
+      if (!source.warcraftlogsId) {
         guildLog.info("Fetching WarcraftLogs guild ID...");
         try {
-          const guildDetails = await wclService.getGuildDetails(guild.name, guild.realm.toLowerCase().replace(/\s+/g, "-"), guild.region.toLowerCase());
+          const guildDetails = await wclService.getGuildDetails(source.name, source.realm.toLowerCase().replace(/\s+/g, "-"), source.region.toLowerCase());
 
           if (guildDetails.guildData?.guild?.id) {
-            guild.warcraftlogsId = guildDetails.guildData.guild.id;
-            guildLog.info(`WarcraftLogs guild ID: ${guild.warcraftlogsId}`);
+            source.warcraftlogsId = guildDetails.guildData.guild.id;
+            guildLog.info(`WarcraftLogs guild ID: ${source.warcraftlogsId}`);
 
-            if (guildDetails.guildData.guild.faction?.name && !guild.faction) {
+            if (source.isPrimary && guildDetails.guildData.guild.faction?.name && !guild.faction) {
               guild.faction = guildDetails.guildData.guild.faction.name;
             }
 
-            await guild.save();
+            await source.save();
+            if (source.isPrimary) {
+              guild.warcraftlogsId = source.warcraftlogsId;
+              await guild.save();
+            }
           }
         } catch (error) {
           guildLog.error("Error fetching WarcraftLogs guild ID:", error instanceof Error ? error.message : "Unknown");
@@ -347,9 +373,9 @@ class BackgroundGuildProcessor {
         // Fetch page of reports
         try {
           const data = await wclService.getGuildReportsWithFights(
-            guild.name,
-            guild.realm.toLowerCase().replace(/\s+/g, "-"),
-            guild.region.toLowerCase(),
+            source.name,
+            source.realm.toLowerCase().replace(/\s+/g, "-"),
+            source.region.toLowerCase(),
             this.config.reportsPerPage,
             page,
             true, // retry on gateway timeout
@@ -368,7 +394,7 @@ class BackgroundGuildProcessor {
           consecutiveEmptyPages = 0;
 
           // Update guild faction if available
-          if (page === 1 && data.guildData?.guild?.faction?.name) {
+          if (source.isPrimary && page === 1 && data.guildData?.guild?.faction?.name) {
             guild.faction = data.guildData.guild.faction.name;
             await guild.save();
           }
@@ -378,7 +404,7 @@ class BackgroundGuildProcessor {
 
           // Process each report
           for (const report of pageReports) {
-            const fightsSavedInReport = await this.processReport(report, guild, validBossIds);
+            const fightsSavedInReport = await this.processReport(report, guild, source, validBossIds);
             totalFightsSaved += fightsSavedInReport;
             totalReportsFetched++;
           }
@@ -405,20 +431,25 @@ class BackgroundGuildProcessor {
 
           // Update guild wclStatus if guild not found on WCL
           if (classifiedError.type === ErrorType.GUILD_NOT_FOUND) {
-            await Guild.findByIdAndUpdate(queueItem.guildId, {
-              wclStatus: "not_found",
-              wclStatusUpdatedAt: new Date(),
-              initialFetchCompleted: true,
-              initialFetchCompletedAt: new Date(),
-              $inc: { wclNotFoundCount: 1 },
-            });
+            await guildLogSourceService.setSourceFetchFailed(source._id as mongoose.Types.ObjectId, true);
+            if (source.isPrimary) {
+              await Guild.findByIdAndUpdate(queueItem.guildId, {
+                wclStatus: "not_found",
+                wclStatusUpdatedAt: new Date(),
+                initialFetchCompleted: true,
+                initialFetchCompletedAt: new Date(),
+                $inc: { wclNotFoundCount: 1 },
+              });
+            }
 
             // Fall back to Raider.IO for progress data
-            guildLog.info("Guild not found on WCL, falling back to Raider.IO...");
-            try {
-              await guildService.updateGuildFromRaiderIO(queueItem.guildId.toString());
-            } catch (rioError) {
-              guildLog.warn("Raider.IO fallback also failed:", rioError instanceof Error ? rioError.message : "Unknown");
+            if (source.isPrimary) {
+              guildLog.info("Primary guild source not found on WCL, falling back to Raider.IO...");
+              try {
+                await guildService.updateGuildFromRaiderIO(queueItem.guildId.toString());
+              } catch (rioError) {
+                guildLog.warn("Raider.IO fallback also failed:", rioError instanceof Error ? rioError.message : "Unknown");
+              }
             }
           }
 
@@ -429,32 +460,40 @@ class BackgroundGuildProcessor {
         }
       }
 
-      // Update the guild's lastLogEndTime
-      const mostRecentReport = await Report.findOne({ guildId: guild._id }).sort({ endTime: -1 }).limit(1);
-      if (mostRecentReport && mostRecentReport.endTime) {
-        guild.lastLogEndTime = new Date(mostRecentReport.endTime);
-        guild.lastFetched = new Date();
-        await guild.save();
-      }
+      const [mostRecentSourceReport, mostRecentReport] = await Promise.all([
+        Report.findOne({ guildId: guild._id, warcraftLogsSourceId: source._id }).sort({ endTime: -1 }).limit(1),
+        Report.findOne({ guildId: guild._id }).sort({ endTime: -1 }).limit(1),
+      ]);
+      await guildLogSourceService.setSourceFetchSucceeded(source, {
+        warcraftlogsId: source.warcraftlogsId,
+        lastLogEndTime: mostRecentSourceReport?.endTime ? new Date(mostRecentSourceReport.endTime) : undefined,
+      });
+      if (mostRecentReport?.endTime) guild.lastLogEndTime = new Date(mostRecentReport.endTime);
+      if (source.isPrimary) guild.lastFetched = new Date();
+      await guild.save();
 
       // Reset guild's wclStatus to active on successful processing and mark initial fetch as complete
       // This flag ensures guilds with no WCL reports won't be re-queued on startup
-      await Guild.findByIdAndUpdate(queueItem.guildId, {
-        wclStatus: "active",
-        wclStatusUpdatedAt: new Date(),
-        wclNotFoundCount: 0,
-        initialFetchCompleted: true,
-        initialFetchCompletedAt: new Date(),
-      });
+      if (source.isPrimary) {
+        await Guild.findByIdAndUpdate(queueItem.guildId, {
+          wclStatus: "active",
+          wclStatusUpdatedAt: new Date(),
+          wclNotFoundCount: 0,
+          initialFetchCompleted: true,
+          initialFetchCompletedAt: new Date(),
+        });
+      }
 
       // Update world ranks for the guild first
-      guildLog.info("Updating world ranks for newly fetched guild");
-      try {
-        await guildService.updateGuildWorldRankings(guild._id.toString());
-        guildLog.info("World ranks update complete");
-      } catch (rankError) {
-        guildLog.error("Failed to update world ranks:", rankError instanceof Error ? rankError.message : "Unknown");
-        // Don't fail the queue item for world ranks failure
+      if (source.isPrimary) {
+        guildLog.info("Updating world ranks for newly fetched guild");
+        try {
+          await guildService.updateGuildWorldRankings(guild._id.toString());
+          guildLog.info("World ranks update complete");
+        } catch (rankError) {
+          guildLog.error("Failed to update world ranks:", rankError instanceof Error ? rankError.message : "Unknown");
+          // Don't fail the queue item for world ranks failure
+        }
       }
 
       // Trigger statistics calculation for the newly fetched guild
@@ -496,21 +535,30 @@ class BackgroundGuildProcessor {
 
       // Update guild wclStatus if guild not found on WCL
       if (classifiedError.type === ErrorType.GUILD_NOT_FOUND) {
-        await Guild.findByIdAndUpdate(queueItem.guildId, {
-          wclStatus: "not_found",
-          wclStatusUpdatedAt: new Date(),
-          initialFetchCompleted: true,
-          initialFetchCompletedAt: new Date(),
-          $inc: { wclNotFoundCount: 1 },
-        });
+        const failedSource = queueItem.guildLogSourceId ? await GuildLogSource.findById(queueItem.guildLogSourceId).select("isPrimary").lean() : null;
+        const isPrimaryFailure = !queueItem.guildLogSourceId || failedSource?.isPrimary === true;
+        if (queueItem.guildLogSourceId) {
+          await guildLogSourceService.setSourceFetchFailed(queueItem.guildLogSourceId, true);
+        }
+        if (isPrimaryFailure) {
+          await Guild.findByIdAndUpdate(queueItem.guildId, {
+            wclStatus: "not_found",
+            wclStatusUpdatedAt: new Date(),
+            initialFetchCompleted: true,
+            initialFetchCompletedAt: new Date(),
+            $inc: { wclNotFoundCount: 1 },
+          });
+        }
 
         // Fall back to Raider.IO for progress data
         const fatalGuildLog = getGuildLogger(queueItem.guildName, queueItem.guildRealm);
-        fatalGuildLog.info("Guild not found on WCL (fatal), falling back to Raider.IO...");
-        try {
-          await guildService.updateGuildFromRaiderIO(queueItem.guildId.toString());
-        } catch (rioError) {
-          fatalGuildLog.warn("Raider.IO fallback also failed:", rioError instanceof Error ? rioError.message : "Unknown");
+        if (isPrimaryFailure) {
+          fatalGuildLog.info("Primary guild source not found on WCL (fatal), falling back to Raider.IO...");
+          try {
+            await guildService.updateGuildFromRaiderIO(queueItem.guildId.toString());
+          } catch (rioError) {
+            fatalGuildLog.warn("Raider.IO fallback also failed:", rioError instanceof Error ? rioError.message : "Unknown");
+          }
         }
       }
 
@@ -549,7 +597,7 @@ class BackgroundGuildProcessor {
       .sort((a: IReportFightSequenceEntry, b: IReportFightSequenceEntry) => a.startTime - b.startTime || a.endTime - b.endTime || a.fightId - b.fightId);
   }
 
-  private async processReport(report: any, guild: IGuild, validBossIds: Set<number>): Promise<number> {
+  private async processReport(report: any, guild: IGuild, source: IGuildLogSource, validBossIds: Set<number>): Promise<number> {
     let fightsSaved = 0;
     const zoneId = report.zone?.id;
     const isOngoing = !report.endTime || report.endTime === 0;
@@ -560,6 +608,8 @@ class BackgroundGuildProcessor {
       {
         code: report.code,
         guildId: guild._id,
+        warcraftLogsSourceId: source._id,
+        sourceGuildSnapshot: getGuildLogSourceSnapshot(source),
         zoneId: zoneId || 0,
         startTime: report.startTime,
         endTime: report.endTime,
@@ -1213,17 +1263,47 @@ class BackgroundGuildProcessor {
   /**
    * Add a guild to the processing queue
    */
-  async queueGuild(guild: IGuild, priority: number = 10, jobType: JobType = "full_rescan"): Promise<IGuildProcessingQueue> {
-    // Don't queue guilds that are marked as not found on WarcraftLogs (except for rescan jobs on existing data)
-    if (guild.wclStatus === "not_found" && jobType === "full_rescan") {
-      logger.warn(`[BackgroundProcessor] Skipping guild ${guild.name}-${guild.realm}: marked as not found on WarcraftLogs`);
-      throw new Error(`Guild ${guild.name}-${guild.realm} is marked as not found on WarcraftLogs and cannot be queued`);
+  async queueGuild(
+    guild: IGuild,
+    priority: number = 10,
+    jobType: JobType = "full_rescan",
+    guildLogSourceId?: mongoose.Types.ObjectId | string,
+  ): Promise<IGuildProcessingQueue> {
+    const freshGuild = await Guild.findById(guild._id).select("logSourceMigrationLockToken logSourceMigrationLockedAt").lean();
+    if (!freshGuild) throw new Error("Guild no longer exists");
+    const migrationLockIsFresh =
+      freshGuild.logSourceMigrationLockToken &&
+      freshGuild.logSourceMigrationLockedAt &&
+      freshGuild.logSourceMigrationLockedAt.getTime() >= Date.now() - 2 * 60 * 60 * 1000;
+    if (migrationLockIsFresh) {
+      throw new Error("Guild is locked while an existing guild is being converted to a log source");
     }
+
+    let source: IGuildLogSource | null = null;
+    if (jobType === "full_rescan") {
+      source = guildLogSourceId
+        ? await GuildLogSource.findOne({ _id: guildLogSourceId, guildId: guild._id, enabled: true })
+        : await guildLogSourceService.ensurePrimarySource(guild);
+      if (!source) {
+        throw new Error("Guild log source was not found, is disabled, or belongs to another guild");
+      }
+
+      // A source explicitly reset by an administrator can be retried. All other
+      // not-found sources remain blocked so startup jobs cannot retry them forever.
+      if (source.wclStatus === "not_found") {
+        logger.warn(`[BackgroundProcessor] Skipping source ${source.name}-${source.realm}: marked as not found on WarcraftLogs`);
+        throw new Error(`Guild log source ${source.name}-${source.realm} is marked as not found on WarcraftLogs and cannot be queued`);
+      }
+    }
+
+    const queueSourceId = source?._id as mongoose.Types.ObjectId | undefined;
+    const queueIdentity = source || guild;
 
     // Check if already in queue with the same job type
     const existing = await GuildProcessingQueue.findOne({
       guildId: guild._id,
       jobType,
+      ...(queueSourceId ? { guildLogSourceId: queueSourceId } : { guildLogSourceId: { $exists: false } }),
     });
 
     if (existing) {
@@ -1241,21 +1321,28 @@ class BackgroundGuildProcessor {
           currentPage: 0,
           percentComplete: 0,
         };
+        existing.guildName = queueIdentity.name;
+        existing.guildRealm = queueIdentity.realm;
+        existing.guildRegion = queueIdentity.region;
+        existing.guildLogSourceId = queueSourceId;
         await existing.save();
-        logger.info(`[BackgroundProcessor] Re-queued guild: ${guild.name}-${guild.realm} (job: ${jobType})`);
+        logger.info(`[BackgroundProcessor] Re-queued guild source: ${queueIdentity.name}-${queueIdentity.realm} (job: ${jobType})`);
         return existing;
       }
 
-      logger.info(`[BackgroundProcessor] Guild already in queue: ${guild.name}-${guild.realm} (status: ${existing.status}, job: ${jobType})`);
+      logger.info(
+        `[BackgroundProcessor] Guild source already in queue: ${queueIdentity.name}-${queueIdentity.realm} (status: ${existing.status}, job: ${jobType})`,
+      );
       return existing;
     }
 
     // Create new queue entry
     const queueItem = await GuildProcessingQueue.create({
       guildId: guild._id,
-      guildName: guild.name,
-      guildRealm: guild.realm,
-      guildRegion: guild.region,
+      guildLogSourceId: queueSourceId,
+      guildName: queueIdentity.name,
+      guildRealm: queueIdentity.realm,
+      guildRegion: queueIdentity.region,
       jobType,
       priority,
       status: "pending",
@@ -1271,7 +1358,7 @@ class BackgroundGuildProcessor {
       maxRetries: 3,
     });
 
-    logger.info(`[BackgroundProcessor] Queued guild: ${guild.name}-${guild.realm} (priority: ${priority}, job: ${jobType})`);
+    logger.info(`[BackgroundProcessor] Queued guild source: ${queueIdentity.name}-${queueIdentity.realm} (priority: ${priority}, job: ${jobType})`);
     return queueItem;
   }
 
@@ -1315,6 +1402,7 @@ class BackgroundGuildProcessor {
         guildName: item.guildName,
         guildRealm: item.guildRealm,
         guildRegion: item.guildRegion,
+        guildLogSourceId: item.guildLogSourceId?.toString(),
         jobType: item.jobType,
         status: item.status,
         priority: item.priority,
@@ -1343,9 +1431,11 @@ class BackgroundGuildProcessor {
   /**
    * Pause a specific guild's processing
    */
-  async pauseGuild(guildId: string): Promise<boolean> {
+  async pauseGuild(guildId: string, queueItemId?: string): Promise<boolean> {
+    if (queueItemId && !mongoose.Types.ObjectId.isValid(queueItemId)) return false;
     const queueItem = await GuildProcessingQueue.findOne({
       guildId: new mongoose.Types.ObjectId(guildId),
+      ...(queueItemId ? { _id: new mongoose.Types.ObjectId(queueItemId) } : {}),
     });
 
     if (!queueItem) {
@@ -1363,9 +1453,11 @@ class BackgroundGuildProcessor {
   /**
    * Resume a specific guild's processing
    */
-  async resumeGuild(guildId: string): Promise<boolean> {
+  async resumeGuild(guildId: string, queueItemId?: string): Promise<boolean> {
+    if (queueItemId && !mongoose.Types.ObjectId.isValid(queueItemId)) return false;
     const queueItem = await GuildProcessingQueue.findOne({
       guildId: new mongoose.Types.ObjectId(guildId),
+      ...(queueItemId ? { _id: new mongoose.Types.ObjectId(queueItemId) } : {}),
     });
 
     if (!queueItem) {
@@ -1383,9 +1475,11 @@ class BackgroundGuildProcessor {
   /**
    * Retry a failed guild
    */
-  async retryGuild(guildId: string): Promise<boolean> {
+  async retryGuild(guildId: string, queueItemId?: string): Promise<boolean> {
+    if (queueItemId && !mongoose.Types.ObjectId.isValid(queueItemId)) return false;
     const queueItem = await GuildProcessingQueue.findOne({
       guildId: new mongoose.Types.ObjectId(guildId),
+      ...(queueItemId ? { _id: new mongoose.Types.ObjectId(queueItemId) } : {}),
     });
 
     if (!queueItem) {
@@ -1407,9 +1501,11 @@ class BackgroundGuildProcessor {
   /**
    * Remove a guild from the queue
    */
-  async removeFromQueue(guildId: string): Promise<boolean> {
+  async removeFromQueue(guildId: string, queueItemId?: string): Promise<boolean> {
+    if (queueItemId && !mongoose.Types.ObjectId.isValid(queueItemId)) return false;
     const result = await GuildProcessingQueue.deleteOne({
       guildId: new mongoose.Types.ObjectId(guildId),
+      ...(queueItemId ? { _id: new mongoose.Types.ObjectId(queueItemId) } : {}),
     });
 
     return result.deletedCount > 0;

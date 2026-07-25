@@ -12,6 +12,7 @@ export type JobType = "full_rescan" | "rescan_deaths" | "rescan_characters" | "b
  */
 export interface IGuildProcessingQueue extends Document {
   guildId: mongoose.Types.ObjectId;
+  guildLogSourceId?: mongoose.Types.ObjectId;
   guildName: string;
   guildRealm: string;
   guildRegion: string;
@@ -84,6 +85,10 @@ const GuildProcessingQueueSchema = new Schema<IGuildProcessingQueue>(
       enum: ["full_rescan", "rescan_deaths", "rescan_characters", "backfill_report_characters", "recalculate_stats"],
       required: true,
     },
+    guildLogSourceId: {
+      type: Schema.Types.ObjectId,
+      ref: "GuildLogSource",
+    },
 
     // Processing status
     status: {
@@ -136,8 +141,9 @@ const GuildProcessingQueueSchema = new Schema<IGuildProcessingQueue>(
 // Compound index for efficient queue queries
 GuildProcessingQueueSchema.index({ status: 1, priority: 1, createdAt: 1 });
 
-// Ensure one queue entry per guild
-GuildProcessingQueueSchema.index({ guildId: 1, jobType: 1 }, { unique: true });
+// Full rescans can be queued independently for each Warcraft Logs source.
+// Other job types omit guildLogSourceId and retain one queue entry per guild.
+GuildProcessingQueueSchema.index({ guildId: 1, jobType: 1, guildLogSourceId: 1 }, { unique: true });
 
 async function updateQueueDocument(queueItem: IGuildProcessingQueue, update: mongoose.UpdateQuery<IGuildProcessingQueue>): Promise<void> {
   const model = queueItem.constructor as mongoose.Model<IGuildProcessingQueue>;

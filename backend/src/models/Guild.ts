@@ -145,6 +145,10 @@ export interface IGuild extends Document {
   initialFetchCompleted?: boolean; // Whether initial background fetch was completed (even if no reports were found)
   initialFetchCompletedAt?: Date; // When the initial fetch was completed
   lastFetched?: Date;
+  wclUpdateLockToken?: string;
+  wclUpdateStartedAt?: Date;
+  logSourceMigrationLockToken?: string;
+  logSourceMigrationLockedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -291,6 +295,10 @@ const GuildSchema: Schema = new Schema(
     initialFetchCompleted: { type: Boolean, default: false }, // Whether initial background fetch was completed
     initialFetchCompletedAt: { type: Date }, // When the initial fetch was completed
     lastFetched: { type: Date },
+    wclUpdateLockToken: { type: String },
+    wclUpdateStartedAt: { type: Date },
+    logSourceMigrationLockToken: { type: String },
+    logSourceMigrationLockedAt: { type: Date },
   },
   {
     timestamps: true,
@@ -312,6 +320,7 @@ GuildSchema.index({ guildStatus: 1 });
 
 // Index for lastFetched (used in background processing to find outdated guilds)
 GuildSchema.index({ lastFetched: 1 });
+GuildSchema.index({ logSourceMigrationLockToken: 1 }, { sparse: true });
 
 // Index for lastLogEndTime (used to find inactive/recently active guilds)
 GuildSchema.index({ lastLogEndTime: 1 });

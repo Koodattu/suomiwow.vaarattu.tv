@@ -20,6 +20,7 @@ import cacheService from "../services/cache.service";
 import rateLimitService from "../services/rate-limit.service";
 import backgroundGuildProcessor from "../services/background-guild-processor.service";
 import GuildProcessingQueue, { ProcessingStatus } from "../models/GuildProcessingQueue";
+import GuildLogSource from "../models/GuildLogSource";
 import taskTracker from "../services/task-tracker.service";
 import logger from "../utils/logger";
 import { getRegularPickemRaidIdsValidationError } from "../utils/pickemRaid";
@@ -36,12 +37,21 @@ import wclUserAuthService from "../services/warcraftlogs-user-auth.service";
 import blizzardService from "../services/blizzard.service";
 import twitchBotAuthService from "../services/twitch-bot-auth.service";
 import twitchChatBotService, { TwitchBotSettingsValidationError } from "../services/twitch-chat-bot.service";
+import guildLogSourceService, { GuildLogSourceError } from "../services/guild-log-source.service";
 
 const router = Router();
 let isSyncingRaidsFromWCL = false;
 
 // Apply admin middleware to all routes
 router.use(requireAdmin);
+
+function respondToGuildLogSourceError(res: Response, error: unknown, fallbackMessage: string): Response {
+  if (error instanceof GuildLogSourceError) {
+    return res.status(error.statusCode).json({ error: error.message, code: error.code, details: error.details });
+  }
+  logger.error(fallbackMessage, error);
+  return res.status(500).json({ error: fallbackMessage });
+}
 
 function getFrontendUrl(): string {
   return process.env.NODE_ENV === "production" ? "https://suomiwow.vaarattu.tv" : "http://localhost:3000";
@@ -835,14 +845,31 @@ router.get("/guilds/:guildId", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Guild not found" });
     }
 
-    // Get report count
-    const reportCount = await Report.countDocuments({ guildId: guild._id });
-
-    // Get fight count
-    const fightCount = await Fight.countDocuments({ guildId: guild._id });
-
-    // Get queue status if exists
-    const queueItem = await GuildProcessingQueue.findOne({ guildId: guild._id }).lean();
+    const logSources = await guildLogSourceService.listForGuild(guild._id.toString());
+    const sourceIds = logSources.map((source) => source._id);
+    const [reportCount, fightCount, queueItem, sourceReportCounts, sourceQueueItems] = await Promise.all([
+      Report.countDocuments({ guildId: guild._id }),
+      Fight.countDocuments({ guildId: guild._id }),
+      GuildProcessingQueue.findOne({ guildId: guild._id }).sort({ updatedAt: -1 }).lean(),
+      Report.aggregate<{ _id: unknown; count: number }>([
+        { $match: { guildId: guild._id, warcraftLogsSourceId: { $in: sourceIds } } },
+        { $group: { _id: "$warcraftLogsSourceId", count: { $sum: 1 } } },
+      ]),
+      GuildProcessingQueue.find({
+        guildId: guild._id,
+        jobType: "full_rescan",
+        $or: [{ guildLogSourceId: { $in: sourceIds } }, { guildLogSourceId: { $exists: false } }],
+      })
+        .sort({ updatedAt: -1 })
+        .lean(),
+    ]);
+    const reportCountBySourceId = new Map(sourceReportCounts.map((row) => [String(row._id), row.count]));
+    const primarySource = logSources.find((source) => source.isPrimary);
+    const queueBySourceId = new Map<string, (typeof sourceQueueItems)[number]>();
+    for (const item of sourceQueueItems) {
+      const sourceId = item.guildLogSourceId?.toString() || primarySource?._id.toString();
+      if (sourceId && !queueBySourceId.has(sourceId)) queueBySourceId.set(sourceId, item);
+    }
 
     res.json({
       id: guild._id.toString(),
@@ -869,6 +896,38 @@ router.get("/guilds/:guildId", async (req: Request, res: Response) => {
       excludedRaidIds: guild.excludedRaidIds || [],
       reportCount,
       fightCount,
+      logSources: logSources.map((source) => {
+        const sourceQueue = queueBySourceId.get(source._id.toString());
+        return {
+          id: source._id.toString(),
+          name: source.name,
+          realm: source.realm,
+          region: source.region,
+          warcraftlogsId: source.warcraftlogsId,
+          isPrimary: source.isPrimary,
+          syncPolicy: source.syncPolicy,
+          enabled: source.enabled,
+          wclStatus: source.wclStatus,
+          wclStatusUpdatedAt: source.wclStatusUpdatedAt,
+          wclNotFoundCount: source.wclNotFoundCount,
+          initialFetchCompleted: source.initialFetchCompleted,
+          lastFetched: source.lastFetched,
+          lastLogEndTime: source.lastLogEndTime,
+          legacyGuildId: source.legacyGuildId?.toString(),
+          reportCount: reportCountBySourceId.get(source._id.toString()) || 0,
+          queueStatus: sourceQueue
+            ? {
+                id: sourceQueue._id.toString(),
+                status: sourceQueue.status,
+                progress: sourceQueue.progress,
+                lastError: sourceQueue.lastError,
+                createdAt: sourceQueue.createdAt,
+                startedAt: sourceQueue.startedAt,
+                completedAt: sourceQueue.completedAt,
+              }
+            : null,
+        };
+      }),
       queueStatus: queueItem
         ? {
             status: queueItem.status,
@@ -886,6 +945,121 @@ router.get("/guilds/:guildId", async (req: Request, res: Response) => {
   } catch (error) {
     logger.error("Error fetching guild details:", error);
     res.status(500).json({ error: "Failed to fetch guild details" });
+  }
+});
+
+router.post("/guilds/:guildId/log-sources", async (req: Request, res: Response) => {
+  try {
+    const { guildId } = req.params;
+    const guild = await Guild.findById(guildId);
+    if (!guild) return res.status(404).json({ error: "Guild not found" });
+
+    const source = await guildLogSourceService.createSource(guildId, {
+      name: req.body?.name,
+      realm: req.body?.realm,
+      region: req.body?.region,
+      syncPolicy: req.body?.syncPolicy,
+      enabled: req.body?.enabled,
+    });
+
+    let queueItem = null;
+    let queueWarning: string | undefined;
+    if (req.body?.queueInitialScan !== false && source.enabled) {
+      try {
+        queueItem = await backgroundGuildProcessor.queueGuild(guild, 5, "full_rescan", source._id.toString());
+      } catch (queueError) {
+        logger.error(`Guild log source ${source._id.toString()} was created, but its initial scan could not be queued:`, queueError);
+        queueWarning = "The source was added, but its initial scan could not be queued. Use Full rescan after checking the processing queue.";
+      }
+    }
+
+    return res.status(201).json({ success: true, source, queueId: queueItem?._id.toString(), warning: queueWarning });
+  } catch (error) {
+    return respondToGuildLogSourceError(res, error, "Failed to add guild log source");
+  }
+});
+
+router.put("/guilds/:guildId/log-sources/:sourceId", async (req: Request, res: Response) => {
+  try {
+    const source = await guildLogSourceService.updateSource(req.params.guildId, req.params.sourceId, {
+      enabled: req.body?.enabled,
+      syncPolicy: req.body?.syncPolicy,
+    });
+    return res.json({ success: true, source });
+  } catch (error) {
+    return respondToGuildLogSourceError(res, error, "Failed to update guild log source");
+  }
+});
+
+router.post("/guilds/:guildId/log-sources/:sourceId/queue-rescan", async (req: Request, res: Response) => {
+  try {
+    const guild = await Guild.findById(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: "Guild not found" });
+    const source = await GuildLogSource.findOne({ _id: req.params.sourceId, guildId: guild._id });
+    if (!source) throw new GuildLogSourceError(404, "source_not_found", "Guild log source not found");
+    if (!source.enabled) throw new GuildLogSourceError(400, "invalid_input", "Enable this guild log source before rescanning it");
+
+    source.wclStatus = "unknown";
+    source.wclStatusUpdatedAt = new Date();
+    source.wclNotFoundCount = 0;
+    await source.save();
+    const queueItem = await backgroundGuildProcessor.queueGuild(guild, 5, "full_rescan", source._id.toString());
+    return res.json({ success: true, queueId: queueItem._id.toString(), status: queueItem.status });
+  } catch (error) {
+    return respondToGuildLogSourceError(res, error, "Failed to queue guild log source rescan");
+  }
+});
+
+router.get("/guilds/:targetGuildId/log-sources/migration-preview/:sourceGuildId", async (req: Request, res: Response) => {
+  try {
+    const preview = await guildLogSourceService.getMigrationPreview(req.params.targetGuildId, req.params.sourceGuildId);
+    return res.json({
+      ...preview,
+      confirmationText: `${preview.sourceGuild.name}-${preview.sourceGuild.realm}`,
+    });
+  } catch (error) {
+    return respondToGuildLogSourceError(res, error, "Failed to preview guild log source migration");
+  }
+});
+
+router.post("/guilds/:targetGuildId/log-sources/migrate", async (req: Request, res: Response) => {
+  try {
+    const sourceGuildId = typeof req.body?.sourceGuildId === "string" ? req.body.sourceGuildId : "";
+    const sourceGuild = await Guild.findById(sourceGuildId).select("name realm").lean();
+    if (!sourceGuild) throw new GuildLogSourceError(404, "guild_not_found", "Source guild not found");
+    const expectedConfirmation = `${sourceGuild.name}-${sourceGuild.realm}`;
+    if (req.body?.confirmation !== expectedConfirmation) {
+      throw new GuildLogSourceError(400, "invalid_input", `Type ${expectedConfirmation} to confirm this migration`);
+    }
+
+    const result = await guildLogSourceService.migrateExistingGuild(req.params.targetGuildId, sourceGuildId);
+    const postProcessingWarnings: string[] = [...result.warnings];
+    let statisticsRecalculated = false;
+    try {
+      const targetGuild = await Guild.findById(req.params.targetGuildId);
+      if (!targetGuild) throw new Error("Target guild disappeared after migration");
+      await guildService.calculateGuildStatistics(targetGuild, null, { createEvents: false });
+      await targetGuild.save();
+      await guildService.calculateGuildRankingsForAllRaids();
+      statisticsRecalculated = true;
+    } catch (postProcessingError) {
+      logger.error("Guild log source migration committed, but statistics recalculation failed:", postProcessingError);
+      postProcessingWarnings.push("The migration completed, but guild statistics must be recalculated manually.");
+    }
+
+    const derivedDataRebuildStarted = scheduler.triggerGuildAttributionDerivedDataRebuild();
+    if (!derivedDataRebuildStarted) {
+      postProcessingWarnings.push("A conflicting derived-data job is already running. Trigger the affected rebuilds from Admin after it completes.");
+    }
+
+    return res.json({
+      success: true,
+      message: `${sourceGuild.name}-${sourceGuild.realm} is now a historical log source of the target guild`,
+      result,
+      postProcessing: { statisticsRecalculated, derivedDataRebuildStarted, warnings: postProcessingWarnings },
+    });
+  } catch (error) {
+    return respondToGuildLogSourceError(res, error, "Failed to migrate existing guild to a log source");
   }
 });
 
@@ -965,11 +1139,15 @@ router.post("/guilds/:guildId/queue-rescan", async (req: Request, res: Response)
       });
     }
 
-    // Check if already in queue and processing with same job type
+    const primarySource = await guildLogSourceService.ensurePrimarySource(guild);
+
+    // Check if this primary source is already processing. Historical sources
+    // have their own independent full-rescan queue entries.
     const existingQueue = await GuildProcessingQueue.findOne({
       guildId: guild._id,
       jobType: "full_rescan",
       status: { $in: ["pending", "in_progress"] },
+      $or: [{ guildLogSourceId: primarySource._id }, { guildLogSourceId: { $exists: false } }],
     });
 
     if (existingQueue) {
@@ -1115,17 +1293,21 @@ router.get("/guilds/:guildId/verify-reports", async (req: Request, res: Response
       return res.status(404).json({ error: "Guild not found" });
     }
 
-    // Get our stored reports
-    const storedReports = await Report.find({ guildId: guild._id }).select("code startTime endTime").lean();
+    const primarySource = await guildLogSourceService.ensurePrimarySource(guild);
+
+    // Verify the primary WCL identity against only its own reports. Historical
+    // source reports are intentionally part of the canonical guild but are not
+    // returned by the primary guild's WCL report listing.
+    const storedReports = await Report.find({ guildId: guild._id, warcraftLogsSourceId: primarySource._id }).select("code startTime endTime").lean();
 
     const storedReportCodes = new Set(storedReports.map((r) => r.code));
 
     // Fetch reports from WCL (just first page to get count/sample)
     try {
       const wclReports = await wclService.getGuildReports(
-        guild.name,
-        guild.realm.toLowerCase().replace(/\s+/g, "-"),
-        guild.region.toLowerCase(),
+        primarySource.name,
+        primarySource.realm.toLowerCase().replace(/\s+/g, "-"),
+        primarySource.region.toLowerCase(),
         1, // page
         100, // limit
       );
@@ -1236,6 +1418,7 @@ router.get("/guilds/:guildId/reports", async (req: Request, res: Response) => {
           endTime: report.endTime,
           fightCount,
           fightsByDifficulty,
+          sourceGuildSnapshot: report.sourceGuildSnapshot,
           importSource: report.importSource,
           manualImportedAt: report.manualImportedAt,
           createdAt: report.createdAt,
@@ -1267,13 +1450,14 @@ router.post("/guilds/:guildId/reports/import", async (req: Request, res: Respons
   try {
     const { guildId } = req.params;
     const reportCode = typeof req.body?.reportCode === "string" ? req.body.reportCode.trim() : "";
+    const guildLogSourceId = typeof req.body?.guildLogSourceId === "string" ? req.body.guildLogSourceId : undefined;
 
     if (!/^[a-zA-Z0-9]+$/.test(reportCode)) {
       return res.status(400).json({ error: "A valid report code is required" });
     }
 
     const adminUser = (req as any).user;
-    const result = await guildService.importSpecificReportForGuild(guildId, reportCode, adminUser?._id);
+    const result = await guildService.importSpecificReportForGuild(guildId, reportCode, adminUser?._id, guildLogSourceId);
 
     res.json({
       success: true,
@@ -1385,6 +1569,18 @@ router.post("/guilds", async (req: Request, res: Response) => {
       });
     }
 
+    const existingLogSource = await GuildLogSource.findOne({
+      name: normalizedName,
+      realm: normalizedRealm,
+      region: normalizedRegion,
+    }).collation({ locale: "en", strength: 2 });
+    if (existingLogSource) {
+      return res.status(409).json({
+        error: "This Warcraft Logs identity is already attached to another guild as a historical log source",
+        existingGuildId: existingLogSource.guildId.toString(),
+      });
+    }
+
     // Fetch guild crest and faction from Blizzard API
     let crest = null;
     let faction = undefined;
@@ -1481,12 +1677,13 @@ router.delete("/guilds/:guildId", async (req: Request, res: Response) => {
     ]);
 
     // Delete all associated data in parallel
-    const [reportResult, fightResult, eventResult, queueResult, appearanceResult, tierListOverallResult, tierListRaidsResult] = await Promise.all([
+    const [reportResult, fightResult, eventResult, queueResult, appearanceResult, logSourceResult, tierListOverallResult, tierListRaidsResult] = await Promise.all([
       Report.deleteMany({ guildId: guild._id }),
       Fight.deleteMany({ guildId: guild._id }),
       Event.deleteMany({ guildId: guild._id }),
       GuildProcessingQueue.deleteMany({ guildId: guild._id }),
       CharacterReportAppearance.deleteMany({ reportGuildId: guild._id }),
+      GuildLogSource.deleteMany({ guildId: guild._id }),
       // Remove guild from tier list overall array
       TierList.updateMany({}, { $pull: { overall: { guildId: guild._id } } }),
       // Remove guild from tier list raid arrays
@@ -1511,6 +1708,7 @@ router.delete("/guilds/:guildId", async (req: Request, res: Response) => {
         fights: fightResult.deletedCount,
         events: eventResult.deletedCount,
         queueItems: queueResult.deletedCount,
+        logSources: logSourceResult.deletedCount,
         tierListEntriesModified: tierListOverallResult.modifiedCount + tierListRaidsResult.modifiedCount,
       },
     });
@@ -2478,7 +2676,8 @@ router.post("/processing-queue/:guildId/pause", async (req: Request, res: Respon
   try {
     const { guildId } = req.params;
 
-    const success = await backgroundGuildProcessor.pauseGuild(guildId);
+    const queueItemId = typeof req.body?.queueItemId === "string" ? req.body.queueItemId : undefined;
+    const success = await backgroundGuildProcessor.pauseGuild(guildId, queueItemId);
 
     if (!success) {
       return res.status(404).json({ error: "Guild not found in processing queue or not in pausable state" });
@@ -2496,7 +2695,8 @@ router.post("/processing-queue/:guildId/resume", async (req: Request, res: Respo
   try {
     const { guildId } = req.params;
 
-    const success = await backgroundGuildProcessor.resumeGuild(guildId);
+    const queueItemId = typeof req.body?.queueItemId === "string" ? req.body.queueItemId : undefined;
+    const success = await backgroundGuildProcessor.resumeGuild(guildId, queueItemId);
 
     if (!success) {
       return res.status(404).json({ error: "Guild not found in processing queue or not in resumable state" });
@@ -2514,7 +2714,8 @@ router.post("/processing-queue/:guildId/retry", async (req: Request, res: Respon
   try {
     const { guildId } = req.params;
 
-    const success = await backgroundGuildProcessor.retryGuild(guildId);
+    const queueItemId = typeof req.body?.queueItemId === "string" ? req.body.queueItemId : undefined;
+    const success = await backgroundGuildProcessor.retryGuild(guildId, queueItemId);
 
     if (!success) {
       return res.status(404).json({ error: "Guild not found in processing queue or not in failed state" });
@@ -2618,7 +2819,8 @@ router.delete("/processing-queue/:guildId", async (req: Request, res: Response) 
   try {
     const { guildId } = req.params;
 
-    const success = await backgroundGuildProcessor.removeFromQueue(guildId);
+    const queueItemId = typeof req.query.queueItemId === "string" ? req.query.queueItemId : undefined;
+    const success = await backgroundGuildProcessor.removeFromQueue(guildId, queueItemId);
 
     if (!success) {
       return res.status(404).json({ error: "Guild not found in processing queue" });

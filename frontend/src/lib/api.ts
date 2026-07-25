@@ -109,6 +109,9 @@ import {
   CharacterAchievementBackfillTriggerResponse,
   CharacterAccountGroupRebuildResponse,
   AdminGuildDetail,
+  AdminGuildLogSource,
+  GuildLogSourceMigrationPreview,
+  GuildLogSourceMigrationResponse,
   VerifyReportsResponse,
   QueueRescanResponse,
   CreateGuildInput,
@@ -1932,35 +1935,42 @@ export const api = {
     return response.json();
   },
 
-  async pauseAdminProcessingQueueGuild(guildId: string): Promise<{ success: boolean }> {
+  async pauseAdminProcessingQueueGuild(guildId: string, queueItemId?: string): Promise<{ success: boolean }> {
     const response = await fetch(`${API_URL}/api/admin/processing-queue/${guildId}/pause`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       credentials: "include",
+      body: JSON.stringify({ queueItemId }),
     });
     if (!response.ok) throw new Error("Failed to pause guild processing");
     return response.json();
   },
 
-  async resumeAdminProcessingQueueGuild(guildId: string): Promise<{ success: boolean }> {
+  async resumeAdminProcessingQueueGuild(guildId: string, queueItemId?: string): Promise<{ success: boolean }> {
     const response = await fetch(`${API_URL}/api/admin/processing-queue/${guildId}/resume`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       credentials: "include",
+      body: JSON.stringify({ queueItemId }),
     });
     if (!response.ok) throw new Error("Failed to resume guild processing");
     return response.json();
   },
 
-  async retryAdminProcessingQueueGuild(guildId: string): Promise<{ success: boolean }> {
+  async retryAdminProcessingQueueGuild(guildId: string, queueItemId?: string): Promise<{ success: boolean }> {
     const response = await fetch(`${API_URL}/api/admin/processing-queue/${guildId}/retry`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       credentials: "include",
+      body: JSON.stringify({ queueItemId }),
     });
     if (!response.ok) throw new Error("Failed to retry guild processing");
     return response.json();
   },
 
-  async removeAdminProcessingQueueGuild(guildId: string): Promise<{ success: boolean }> {
-    const response = await fetch(`${API_URL}/api/admin/processing-queue/${guildId}`, {
+  async removeAdminProcessingQueueGuild(guildId: string, queueItemId?: string): Promise<{ success: boolean }> {
+    const query = queueItemId ? `?queueItemId=${encodeURIComponent(queueItemId)}` : "";
+    const response = await fetch(`${API_URL}/api/admin/processing-queue/${guildId}${query}`, {
       method: "DELETE",
       credentials: "include",
     });
@@ -2477,12 +2487,78 @@ export async function getAdminGuildReports(guildId: string): Promise<AdminGuildR
   return response.json();
 }
 
-export async function importAdminGuildReport(guildId: string, reportCode: string): Promise<AdminImportReportResponse> {
+async function throwAdminGuildLogSourceError(response: Response, fallback: string): Promise<never> {
+  const body = await response.json().catch(() => ({}));
+  throw new Error(typeof body.error === "string" ? body.error : fallback);
+}
+
+export async function createAdminGuildLogSource(
+  guildId: string,
+  input: { name: string; realm: string; region: string; queueInitialScan: boolean },
+): Promise<{ success: boolean; source: AdminGuildLogSource; queueId?: string; warning?: string }> {
+  const response = await fetch(`${API_URL}/api/admin/guilds/${guildId}/log-sources`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ ...input, syncPolicy: "historical", enabled: true }),
+  });
+  if (!response.ok) return throwAdminGuildLogSourceError(response, "Failed to add guild log source");
+  return response.json();
+}
+
+export async function updateAdminGuildLogSource(
+  guildId: string,
+  sourceId: string,
+  input: { enabled: boolean },
+): Promise<{ success: boolean; source: AdminGuildLogSource }> {
+  const response = await fetch(`${API_URL}/api/admin/guilds/${guildId}/log-sources/${sourceId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) return throwAdminGuildLogSourceError(response, "Failed to update guild log source");
+  return response.json();
+}
+
+export async function queueAdminGuildLogSourceRescan(guildId: string, sourceId: string): Promise<QueueRescanResponse> {
+  const response = await fetch(`${API_URL}/api/admin/guilds/${guildId}/log-sources/${sourceId}/queue-rescan`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) return throwAdminGuildLogSourceError(response, "Failed to queue guild log source rescan");
+  return response.json();
+}
+
+export async function getGuildLogSourceMigrationPreview(targetGuildId: string, sourceGuildId: string): Promise<GuildLogSourceMigrationPreview> {
+  const response = await fetch(`${API_URL}/api/admin/guilds/${targetGuildId}/log-sources/migration-preview/${sourceGuildId}`, {
+    credentials: "include",
+  });
+  if (!response.ok) return throwAdminGuildLogSourceError(response, "Failed to preview guild migration");
+  return response.json();
+}
+
+export async function migrateExistingGuildToLogSource(
+  targetGuildId: string,
+  sourceGuildId: string,
+  confirmation: string,
+): Promise<GuildLogSourceMigrationResponse> {
+  const response = await fetch(`${API_URL}/api/admin/guilds/${targetGuildId}/log-sources/migrate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ sourceGuildId, confirmation }),
+  });
+  if (!response.ok) return throwAdminGuildLogSourceError(response, "Failed to migrate existing guild");
+  return response.json();
+}
+
+export async function importAdminGuildReport(guildId: string, reportCode: string, guildLogSourceId?: string): Promise<AdminImportReportResponse> {
   const response = await fetch(`${API_URL}/api/admin/guilds/${guildId}/reports/import`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ reportCode }),
+    body: JSON.stringify({ reportCode, guildLogSourceId }),
   });
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));

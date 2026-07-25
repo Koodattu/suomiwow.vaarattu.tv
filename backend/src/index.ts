@@ -43,6 +43,7 @@ import taskTracker from "./services/task-tracker.service";
 import { analyticsMiddleware, flushAnalytics } from "./middleware/analytics.middleware";
 import cacheService from "./services/cache.service";
 import cacheWarmerService from "./services/cache-warmer.service";
+import guildLogSourceService from "./services/guild-log-source.service";
 
 // ============================================================================
 // WORKER MODE CONFIGURATION
@@ -305,6 +306,10 @@ async function runBackgroundInitialization(): Promise<void> {
   // Streamers are seeded for new guilds only and then managed in the admin panel.
   await runStartupTask("Sync guild config data", async () => {
     await guildService.syncGuildConfigData();
+  });
+
+  await runStartupTask("Initialize guild log sources", async () => {
+    await guildLogSourceService.ensurePrimarySourcesForAllGuilds();
   });
 
   // -------------------------------------------------------------------------

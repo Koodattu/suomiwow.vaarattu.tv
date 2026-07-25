@@ -2704,10 +2704,11 @@ export interface QueueItemProgress {
 export interface QueueItem {
   id: string;
   guildId: string;
+  guildLogSourceId?: string;
   guildName: string;
   guildRealm: string;
   guildRegion: string;
-  jobType: "full_rescan" | "rescan_deaths" | "rescan_characters" | "backfill_report_characters";
+  jobType: "full_rescan" | "rescan_deaths" | "rescan_characters" | "backfill_report_characters" | "recalculate_stats";
   status: ProcessingStatus;
   priority: number;
   progress: QueueItemProgress;
@@ -2733,7 +2734,7 @@ export interface ProcessingQueueErrorItem {
   guildName: string;
   guildRealm: string;
   guildRegion: string;
-  jobType: "full_rescan" | "rescan_deaths" | "rescan_characters" | "backfill_report_characters";
+  jobType: "full_rescan" | "rescan_deaths" | "rescan_characters" | "backfill_report_characters" | "recalculate_stats";
   status: ProcessingStatus;
   errorType?: ErrorType;
   isPermanentError?: boolean;
@@ -3033,6 +3034,70 @@ export interface AdminRaidOption {
   partitions: { id: number; name: string }[];
 }
 
+export interface AdminGuildLogSource {
+  id: string;
+  name: string;
+  realm: string;
+  region: string;
+  warcraftlogsId?: number;
+  isPrimary: boolean;
+  syncPolicy: "active" | "historical";
+  enabled: boolean;
+  wclStatus: "active" | "not_found" | "unclaimed" | "unknown";
+  wclStatusUpdatedAt?: string;
+  wclNotFoundCount: number;
+  initialFetchCompleted: boolean;
+  lastFetched?: string;
+  lastLogEndTime?: string;
+  legacyGuildId?: string;
+  reportCount: number;
+  queueStatus: {
+    id: string;
+    status: ProcessingStatus;
+    progress: QueueItemProgress;
+    lastError?: string;
+    createdAt: string;
+    startedAt?: string;
+    completedAt?: string;
+  } | null;
+}
+
+export interface GuildLogSourceMigrationPreview {
+  sourceGuild: { id: string; name: string; realm: string; region: string };
+  targetGuild: { id: string; name: string; realm: string; region: string };
+  counts: {
+    reports: number;
+    fights: number;
+    appearances: number;
+    participations: number;
+    events: number;
+    vodLinks: number;
+    logSources: number;
+    integrityMismatches: number;
+  };
+  blockers: string[];
+  warnings: string[];
+  canMigrate: boolean;
+  confirmationText: string;
+}
+
+export interface GuildLogSourceMigrationResponse {
+  success: boolean;
+  message: string;
+  result: {
+    sourceGuildId: string;
+    targetGuildId: string;
+    sourceId: string;
+    moved: { reports: number; fights: number; appearances: number; vodLinks: number; logSources: number };
+    warnings: string[];
+  };
+  postProcessing: {
+    statisticsRecalculated: boolean;
+    derivedDataRebuildStarted: boolean;
+    warnings: string[];
+  };
+}
+
 // Detailed Guild Info for Admin
 export interface AdminGuildDetail {
   id: string;
@@ -3065,6 +3130,7 @@ export interface AdminGuildDetail {
   excludedRaidIds: number[];
   reportCount: number;
   fightCount: number;
+  logSources: AdminGuildLogSource[];
   queueStatus: {
     status: ProcessingStatus;
     progress: QueueItemProgress;
@@ -3283,6 +3349,7 @@ export interface AdminReport {
   endTime?: number;
   fightCount: number;
   fightsByDifficulty: AdminReportFightsByDifficulty;
+  sourceGuildSnapshot?: { name?: string; realm?: string; region?: string; warcraftlogsId?: number };
   importSource?: "manual_admin";
   manualImportedAt?: string;
   createdAt: string;

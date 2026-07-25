@@ -1,4 +1,5 @@
 import Guild, { IGuild, IRaidProgress, IBossProgress, IOfficialRaidProgress } from "../models/Guild";
+import GuildLogSource, { IGuildLogSource } from "../models/GuildLogSource";
 import type { IStreamer } from "../models/Streamer";
 import Event from "../models/Event";
 import Raid, { IRaid } from "../models/Raid";
@@ -24,6 +25,7 @@ import Character from "../models/Character";
 import characterService from "./character.service";
 import fightVodService from "./fight-vod.service";
 import guildProfileHighlightsService from "./guild-profile-highlights.service";
+import guildLogSourceService, { getGuildLogSourceSnapshot } from "./guild-log-source.service";
 import { yieldToEventLoop } from "../utils/yield";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
@@ -949,6 +951,19 @@ class GuildService {
       });
 
       if (!existing) {
+        const existingLogSource = await GuildLogSource.findOne({
+          name: guildConfig.name,
+          realm: guildConfig.realm,
+          region: guildConfig.region,
+        }).collation(CASE_INSENSITIVE_COLLATION);
+        if (existingLogSource) {
+          logger.info(
+            `Skipping config guild ${guildConfig.name}-${guildConfig.realm}: it is already a Warcraft Logs source for guild ${existingLogSource.guildId.toString()}`,
+          );
+          existingGuildsCount++;
+          continue;
+        }
+
         // Fetch guild crest data from Blizzard API
         // Use parent_guild name if it exists, as that's the actual guild in Blizzard's system
         const blizzardGuildName = guildConfig.parent_guild || guildConfig.name;
@@ -1228,9 +1243,33 @@ class GuildService {
 
   // Fetch and update a single guild's progress
   async updateGuildProgress(guildId: string): Promise<GuildProgressUpdateResult | null> {
-    const guild = await Guild.findById(guildId);
+    const lockToken = new mongoose.Types.ObjectId().toHexString();
+    const now = new Date();
+    const staleUpdateLock = new Date(now.getTime() - 60 * 60 * 1000);
+    const staleMigrationLock = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+    const guild = await Guild.findOneAndUpdate(
+      {
+        _id: guildId,
+        $and: [
+          {
+            $or: [
+              { wclUpdateLockToken: { $exists: false } },
+              { wclUpdateStartedAt: { $lt: staleUpdateLock } },
+            ],
+          },
+          {
+            $or: [
+              { logSourceMigrationLockToken: { $exists: false } },
+              { logSourceMigrationLockedAt: { $lt: staleMigrationLock } },
+            ],
+          },
+        ],
+      },
+      { $set: { wclUpdateLockToken: lockToken, wclUpdateStartedAt: now } },
+      { new: true },
+    );
     if (!guild) {
-      logger.error(`Guild not found: ${guildId}`);
+      logger.info(`Guild ${guildId} was not updated because it is missing or already locked for processing`);
       return null;
     }
 
@@ -1238,6 +1277,7 @@ class GuildService {
 
     try {
       const wasCurrentlyRaiding = guild.isCurrentlyRaiding;
+      const primarySource = await guildLogSourceService.ensurePrimarySource(guild);
 
       // Determine if this is an initial fetch by checking if guild has any reports at all
       const hasAnyReports = await Report.exists({ guildId: guild._id });
@@ -1245,7 +1285,7 @@ class GuildService {
 
       // Fetch reports and process - scope depends on whether initial or update
       // Note: performUpdate now handles raiding status internally
-      const hasNewData = await this.fetchAndProcessReports(guild, isInitialFetch);
+      const hasNewData = await this.fetchAndProcessReports(guild, primarySource, isInitialFetch);
 
       // For initial fetch, ensure raiding status is set to false and mark as completed
       if (isInitialFetch) {
@@ -1256,6 +1296,10 @@ class GuildService {
 
       guild.lastFetched = new Date();
       await guild.save();
+      await guildLogSourceService.setSourceFetchSucceeded(primarySource, {
+        warcraftlogsId: guild.warcraftlogsId,
+        lastLogEndTime: guild.lastLogEndTime,
+      });
 
       const raidingStatusChanged = wasCurrentlyRaiding !== guild.isCurrentlyRaiding;
       if (hasNewData || raidingStatusChanged) {
@@ -1295,6 +1339,8 @@ class GuildService {
       // If guild not found on WarcraftLogs, mark it and don't retry automatically
       if (classifiedError.type === ErrorType.GUILD_NOT_FOUND) {
         getGuildLogger(guild.name, guild.realm).warn("Guild not found on WarcraftLogs, marking as not_found");
+        const primarySource = await guildLogSourceService.ensurePrimarySource(guild);
+        await guildLogSourceService.setSourceFetchFailed(primarySource._id as mongoose.Types.ObjectId, true);
         await Guild.findByIdAndUpdate(guild._id, {
           wclStatus: "not_found",
           wclStatusUpdatedAt: new Date(),
@@ -1303,6 +1349,11 @@ class GuildService {
       }
 
       return null;
+    } finally {
+      await Guild.updateOne(
+        { _id: guild._id, wclUpdateLockToken: lockToken },
+        { $unset: { wclUpdateLockToken: 1, wclUpdateStartedAt: 1 } },
+      );
     }
   }
 
@@ -2128,20 +2179,20 @@ class GuildService {
 
   // Fetch reports for a guild and process both Mythic and Heroic from the same data
   // Returns true if new data was found and processed
-  private async fetchAndProcessReports(guild: IGuild, isInitialFetch: boolean): Promise<boolean> {
+  private async fetchAndProcessReports(guild: IGuild, source: IGuildLogSource, isInitialFetch: boolean): Promise<boolean> {
     let hasNewData = false;
 
     if (isInitialFetch) {
       // Initial fetch: Get ALL reports across all content, filter by tracked raid bosses
       getGuildLogger(guild.name, guild.realm).info("INITIAL FETCH - fetching all historical reports");
-      hasNewData = await this.performInitialFetch(guild);
+      hasNewData = await this.performInitialFetch(guild, source);
 
       // Calculate statistics from database fights for ALL tracked raids (initial setup)
       await this.calculateGuildStatistics(guild, null, { createEvents: false });
     } else {
       // Update: Only check the current raids for new reports
       getGuildLogger(guild.name, guild.realm).info(`UPDATE - checking only current raids (IDs: ${CURRENT_RAID_IDS.join(", ")})`);
-      hasNewData = await this.performUpdate(guild);
+      hasNewData = await this.performUpdate(guild, source);
 
       // Only recalculate statistics for the current raids if we found new data
       if (hasNewData) {
@@ -2158,18 +2209,20 @@ class GuildService {
 
   // Initial fetch: Get ALL reports for guild (no zone filter), save to DB
   // Returns true if any data was found and saved
-  private async performInitialFetch(guild: IGuild): Promise<boolean> {
+  private async performInitialFetch(guild: IGuild, source: IGuildLogSource): Promise<boolean> {
     const guildLog = getGuildLogger(guild.name, guild.realm);
     guildLog.info("Performing initial fetch of all reports");
 
     // Fetch WarcraftLogs guild ID (only during initial fetch)
-    if (!guild.warcraftlogsId) {
+    if (!source.warcraftlogsId) {
       guildLog.info("Fetching WarcraftLogs guild ID...");
       try {
-        const guildDetails = await wclService.getGuildDetails(guild.name, guild.realm.toLowerCase().replace(/\s+/g, "-"), guild.region.toLowerCase());
+        const guildDetails = await wclService.getGuildDetails(source.name, source.realm.toLowerCase().replace(/\s+/g, "-"), source.region.toLowerCase());
 
         if (guildDetails.guildData?.guild?.id) {
-          guild.warcraftlogsId = guildDetails.guildData.guild.id;
+          source.warcraftlogsId = guildDetails.guildData.guild.id;
+          guild.warcraftlogsId = source.warcraftlogsId;
+          await source.save();
           guildLog.info(`WarcraftLogs guild ID: ${guild.warcraftlogsId}`);
 
           // Also update faction if available
@@ -2196,7 +2249,7 @@ class GuildService {
     let totalFightsSaved = 0;
 
     while (page <= maxPages) {
-      const data = await wclService.getGuildReportsWithFights(guild.name, guild.realm.toLowerCase().replace(/\s+/g, "-"), guild.region.toLowerCase(), reportsPerPage, page, true);
+      const data = await wclService.getGuildReportsWithFights(source.name, source.realm.toLowerCase().replace(/\s+/g, "-"), source.region.toLowerCase(), reportsPerPage, page, true);
 
       if (!data.reportData?.reports?.data || data.reportData.reports.data.length === 0) {
         guildLog.info(`No more reports found at page ${page}`);
@@ -2222,6 +2275,8 @@ class GuildService {
           {
             code: report.code,
             guildId: guild._id,
+            warcraftLogsSourceId: source._id,
+            sourceGuildSnapshot: getGuildLogSourceSnapshot(source),
             zoneId: zoneId || 0,
             startTime: report.startTime,
             endTime: report.endTime,
@@ -2377,7 +2432,7 @@ class GuildService {
 
   // Thoroughly refetch the 3 newest reports to ensure all fights are captured
   // This is called when a guild stops raiding to catch any fights that were missed during live polling
-  private async thoroughlyRefetchNewestReports(guild: IGuild): Promise<number> {
+  private async thoroughlyRefetchNewestReports(guild: IGuild, source: IGuildLogSource): Promise<number> {
     const guildLog = getGuildLogger(guild.name, guild.realm);
     guildLog.info("⚠️  THOROUGHLY REFETCHING 3 newest reports to ensure completeness...");
 
@@ -2385,7 +2440,7 @@ class GuildService {
 
     // Get the 3 most recent reports WITHOUT filtering by zone
     // This is critical because WCL might tag a report with a different zone than we expect
-    const checkData = await wclService.getRecentReports(guild.name, guild.realm.toLowerCase().replace(/\s+/g, "-"), guild.region.toLowerCase(), 3);
+    const checkData = await wclService.getRecentReports(source.name, source.realm.toLowerCase().replace(/\s+/g, "-"), source.region.toLowerCase(), 3);
 
     if (!checkData.reportData?.reports?.data || checkData.reportData.reports.data.length === 0) {
       guildLog.info("No reports found");
@@ -2448,6 +2503,8 @@ class GuildService {
         {
           code: report.code,
           guildId: guild._id,
+          warcraftLogsSourceId: source._id,
+          sourceGuildSnapshot: getGuildLogSourceSnapshot(source),
           zoneId: reportZoneId, // Use the zone we detected from fights
           startTime: report.startTime,
           endTime: reportEndTime,
@@ -2620,7 +2677,8 @@ class GuildService {
         logger.info(`[Refetch/Recent] Guild ${i + 1}/${guilds.length}: ${guild.name}`);
 
         try {
-          const recoveredFights = await this.thoroughlyRefetchNewestReports(guild);
+          const primarySource = await guildLogSourceService.ensurePrimarySource(guild);
+          const recoveredFights = await this.thoroughlyRefetchNewestReports(guild, primarySource);
 
           if (recoveredFights > 0) {
             guildLog.info(`✅ Recovered ${recoveredFights} missing fights`);
@@ -2647,7 +2705,7 @@ class GuildService {
 
   // Update: Check only the current raids for new reports
   // Returns true if new data was found and saved
-  private async performUpdate(guild: IGuild): Promise<boolean> {
+  private async performUpdate(guild: IGuild, source: IGuildLogSource): Promise<boolean> {
     const guildLog = getGuildLogger(guild.name, guild.realm);
     guildLog.info("Checking for updates...");
 
@@ -2663,7 +2721,7 @@ class GuildService {
 
     // Get the 3 most recent reports WITHOUT filtering by zone
     // This is critical because WCL might tag a report with a different zone than we expect
-    const checkData = await wclService.getRecentReports(guild.name, guild.realm.toLowerCase().replace(/\s+/g, "-"), guild.region.toLowerCase(), 3);
+    const checkData = await wclService.getRecentReports(source.name, source.realm.toLowerCase().replace(/\s+/g, "-"), source.region.toLowerCase(), 3);
 
     if (!checkData.reportData?.reports?.data || checkData.reportData.reports.data.length === 0) {
       guildLog.info("No reports found");
@@ -2745,7 +2803,7 @@ class GuildService {
         // Capture progress state BEFORE refetch/recalculation for regress detection
         const preRaidProgress = guild.progress.filter((p) => CURRENT_RAID_IDS.includes(p.raidId)).map((p) => JSON.parse(JSON.stringify(p))) as IRaidProgress[];
 
-        const recoveredFights = await this.thoroughlyRefetchNewestReports(guild);
+        const recoveredFights = await this.thoroughlyRefetchNewestReports(guild, source);
 
         // Check for regress events (no improvement during the raid night)
         try {
@@ -2816,6 +2874,8 @@ class GuildService {
         {
           code: report.code,
           guildId: guild._id,
+          warcraftLogsSourceId: source._id,
+          sourceGuildSnapshot: getGuildLogSourceSnapshot(source),
           zoneId: reportZoneId, // Use the zone we detected from fights
           startTime: report.startTime,
           endTime: reportEndTime,
@@ -3009,11 +3069,12 @@ class GuildService {
 
   private async persistManualReportForGuild(params: {
     guild: IGuild;
+    source: IGuildLogSource;
     report: any;
     raidIdByEncounterId: Map<number, number>;
     importedByUserId?: mongoose.Types.ObjectId | string;
   }): Promise<Omit<GuildReportImportResult, "guildId" | "guildName" | "alreadyImported">> {
-    const { guild, report, raidIdByEncounterId } = params;
+    const { guild, source, report, raidIdByEncounterId } = params;
     const guildLog = getGuildLogger(guild.name, guild.realm);
     const guildObjectId = guild._id as mongoose.Types.ObjectId;
     const reportCode = typeof report?.code === "string" ? report.code.trim() : "";
@@ -3054,6 +3115,8 @@ class GuildService {
     const reportUpdateSet: Record<string, unknown> = {
       code: reportCode,
       guildId: guildObjectId,
+      warcraftLogsSourceId: source._id,
+      sourceGuildSnapshot: getGuildLogSourceSnapshot(source),
       zoneId: reportZoneId,
       startTime: reportStartTime,
       endTime: reportEndTime,
@@ -3193,16 +3256,37 @@ class GuildService {
     };
   }
 
-  async importSpecificReportForGuild(guildId: string, reportCode: string, importedByUserId?: mongoose.Types.ObjectId | string): Promise<GuildReportImportResult> {
+  async importSpecificReportForGuild(
+    guildId: string,
+    reportCode: string,
+    importedByUserId?: mongoose.Types.ObjectId | string,
+    guildLogSourceId?: string,
+  ): Promise<GuildReportImportResult> {
     const trimmedReportCode = reportCode.trim();
     const guild = await Guild.findById(guildId);
 
     if (!guild) {
       throw new GuildReportImportError(404, "guild_not_found", "Guild not found");
     }
+    if (
+      guild.logSourceMigrationLockToken &&
+      guild.logSourceMigrationLockedAt &&
+      guild.logSourceMigrationLockedAt.getTime() >= Date.now() - 2 * 60 * 60 * 1000
+    ) {
+      throw new GuildReportImportError(409, "report_conflict", "Guild log sources are currently being migrated. Try again after the migration finishes.");
+    }
 
     const guildObjectId = guild._id as mongoose.Types.ObjectId;
     const guildIdString = guildObjectId.toString();
+    if (guildLogSourceId && !mongoose.Types.ObjectId.isValid(guildLogSourceId)) {
+      throw new GuildReportImportError(400, "invalid_report", "Choose a valid Warcraft Logs source for this guild");
+    }
+    const reportSource = guildLogSourceId
+      ? await GuildLogSource.findOne({ _id: guildLogSourceId, guildId: guildObjectId })
+      : await guildLogSourceService.ensurePrimarySource(guild);
+    if (!reportSource) {
+      throw new GuildReportImportError(400, "invalid_report", "Choose a valid Warcraft Logs source for this guild");
+    }
     const existingReport = await Report.findOne({ code: trimmedReportCode }).select("_id code guildId fightCount").lean();
 
     if (existingReport) {
@@ -3260,6 +3344,7 @@ class GuildService {
     const raidIdByEncounterId = await this.getTrackedRaidIdByEncounterId();
     const persisted = await this.persistManualReportForGuild({
       guild,
+      source: reportSource,
       report: wclReport,
       raidIdByEncounterId,
       importedByUserId,

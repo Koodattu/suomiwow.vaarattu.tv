@@ -12,6 +12,13 @@ export interface IReportFightSequenceEntry {
 export interface IReport extends Document {
   code: string; // WCL report code (unique)
   guildId: mongoose.Types.ObjectId;
+  warcraftLogsSourceId?: mongoose.Types.ObjectId;
+  sourceGuildSnapshot?: {
+    name: string;
+    realm: string;
+    region: string;
+    warcraftlogsId?: number;
+  };
   zoneId: number;
   startTime: number; // Unix timestamp
   endTime?: number; // Unix timestamp, undefined if ongoing
@@ -59,6 +66,14 @@ const ReportSchema: Schema = new Schema(
   {
     code: { type: String, required: true },
     guildId: { type: Schema.Types.ObjectId, ref: "Guild", required: true },
+    warcraftLogsSourceId: { type: Schema.Types.ObjectId, ref: "GuildLogSource", index: true },
+    sourceGuildSnapshot: {
+      name: { type: String },
+      realm: { type: String },
+      region: { type: String },
+      warcraftlogsId: { type: Number },
+      _id: false,
+    },
     zoneId: { type: Number, required: true },
     startTime: { type: Number, required: true },
     endTime: { type: Number },
@@ -105,5 +120,6 @@ ReportSchema.index({ code: 1 }, { unique: true });
 ReportSchema.index({ isOngoing: 1 });
 ReportSchema.index({ guildId: 1, charactersFetchStatus: 1, startTime: 1 });
 ReportSchema.index({ zoneId: 1, "fightSequence.difficulty": 1, code: 1 });
+ReportSchema.index({ warcraftLogsSourceId: 1, startTime: -1 });
 
 export default mongoose.model<IReport>("Report", ReportSchema);

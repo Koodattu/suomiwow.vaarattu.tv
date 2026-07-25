@@ -19,7 +19,7 @@ import mythicPlusService from "./mythic-plus.service";
 import characterMediaService from "./character-media.service";
 import ccgPublisherService from "./ccg-publisher.service";
 import ccgService from "./ccg.service";
-import { CURRENT_RAID_IDS } from "../config/guilds";
+import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
 import { CCG_FEATURE_ENABLED } from "../config/ccg";
 import logger from "../utils/logger";
 
@@ -147,6 +147,7 @@ class UpdateScheduler {
   private isRebuildingGuildNetworkSnapshot: boolean = false;
   private isRebuildingGuildProfileHighlights: boolean = false;
   private isUpdatingRaidAnalytics: boolean = false;
+  private isRebuildingGuildAttributionDerivedData: boolean = false;
   private isCheckingHiatus: boolean = false;
   private isUpdatingRaiderIOGuilds: boolean = false;
   private isUpdatingMythicPlusCurrentSeason: boolean = false;
@@ -1866,6 +1867,37 @@ class UpdateScheduler {
     this.rebuildGuildProfileHighlights()
       .then(() => logger.info("[Admin] Guild profile highlights rebuild completed"))
       .catch((err) => logger.error("[Admin] Guild profile highlights rebuild failed:", err));
+    return true;
+  }
+
+  triggerGuildAttributionDerivedDataRebuild(): boolean {
+    if (
+      this.isRebuildingGuildAttributionDerivedData ||
+      this.isUpdatingCharacterRaidParticipations ||
+      this.isRebuildingGuildNetworkSnapshot ||
+      this.isRebuildingGuildProfileHighlights ||
+      this.isRebuildingCharacterTierLists ||
+      this.isUpdatingTierLists ||
+      this.isUpdatingRaidAnalytics
+    ) {
+      return false;
+    }
+
+    this.isRebuildingGuildAttributionDerivedData = true;
+    void (async () => {
+      try {
+        await this.rebuildCharacterRaidParticipations();
+        await this.rebuildGuildProfileHighlights();
+        await this.rebuildCharacterTierLists(TRACKED_RAIDS);
+        await this.calculateTierLists();
+        await this.calculateRaidAnalytics();
+        logger.info("[Admin] Guild attribution derived-data rebuild completed");
+      } catch (error) {
+        logger.error("[Admin] Guild attribution derived-data rebuild failed:", error);
+      } finally {
+        this.isRebuildingGuildAttributionDerivedData = false;
+      }
+    })();
     return true;
   }
 

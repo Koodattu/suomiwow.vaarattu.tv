@@ -42,6 +42,11 @@ import {
   triggerTwitchBotReconnect,
   triggerTwitchBotReconcile,
   getAdminGuildDetail,
+  createAdminGuildLogSource,
+  updateAdminGuildLogSource,
+  queueAdminGuildLogSourceRescan,
+  getGuildLogSourceMigrationPreview,
+  migrateExistingGuildToLogSource,
   recalculateGuildStats,
   updateGuildWorldRanks,
   queueGuildRescan,
@@ -80,6 +85,7 @@ import {
   ProcessingQueueErrorItem,
   TriggerResponse,
   AdminGuildDetail,
+  GuildLogSourceMigrationPreview,
   VerifyReportsResponse,
   CreateGuildInput,
   DeleteGuildPreviewResponse,
@@ -383,12 +389,23 @@ export default function AdminPage() {
   const [showGuildDetail, setShowGuildDetail] = useState(false);
   const [guildDetailLoading, setGuildDetailLoading] = useState(false);
   const [verifyResult, setVerifyResult] = useState<VerifyReportsResponse | null>(null);
+  const [showAddLogSourceModal, setShowAddLogSourceModal] = useState(false);
+  const [addLogSourceForm, setAddLogSourceForm] = useState({ name: "", realm: "", region: "EU", queueInitialScan: true });
+  const [logSourceActionLoading, setLogSourceActionLoading] = useState<string | null>(null);
+  const [showMigrateGuildModal, setShowMigrateGuildModal] = useState(false);
+  const [migrationSearch, setMigrationSearch] = useState("");
+  const [migrationCandidates, setMigrationCandidates] = useState<AdminGuild[]>([]);
+  const [migrationCandidate, setMigrationCandidate] = useState<AdminGuild | null>(null);
+  const [migrationPreview, setMigrationPreview] = useState<GuildLogSourceMigrationPreview | null>(null);
+  const [migrationConfirmation, setMigrationConfirmation] = useState("");
+  const [migrationLoading, setMigrationLoading] = useState(false);
 
   // Report management modal
   const [showReportManagement, setShowReportManagement] = useState(false);
   const [guildReports, setGuildReports] = useState<AdminGuildReportsResponse | null>(null);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [manualReportCode, setManualReportCode] = useState("");
+  const [manualReportSourceId, setManualReportSourceId] = useState("");
   const [manualReportImporting, setManualReportImporting] = useState(false);
   const [deletingReportId, setDeletingReportId] = useState<string | null>(null);
   const [reportDeleteConfirm, setReportDeleteConfirm] = useState<{ id: string; code: string; fightCount: number } | null>(null);
@@ -1274,6 +1291,7 @@ export default function AdminPage() {
     setGuildReports(null);
     setReportDeleteConfirm(null);
     setManualReportCode("");
+    setManualReportSourceId(selectedGuild?.logSources.find((source) => source.isPrimary)?.id || "");
     try {
       const data = await getAdminGuildReports(guildId);
       setGuildReports(data);
@@ -1298,7 +1316,7 @@ export default function AdminPage() {
 
     setManualReportImporting(true);
     try {
-      const result = await importAdminGuildReport(guildId, reportCode);
+      const result = await importAdminGuildReport(guildId, reportCode, manualReportSourceId || undefined);
       setTriggerMessage({ type: "success", text: result.message });
       setManualReportCode("");
 
@@ -1422,6 +1440,126 @@ export default function AdminPage() {
         type: "error",
         text: error instanceof Error ? error.message : "Failed to recalculate stats",
       });
+    }
+  };
+
+  const handleAddLogSource = async () => {
+    if (!selectedGuild || !addLogSourceForm.name.trim() || !addLogSourceForm.realm.trim()) {
+      setTriggerMessage({ type: "error", text: "Source name and realm are required" });
+      return;
+    }
+
+    setLogSourceActionLoading("add");
+    try {
+      const result = await createAdminGuildLogSource(selectedGuild.id, {
+        name: addLogSourceForm.name.trim(),
+        realm: addLogSourceForm.realm.trim(),
+        region: addLogSourceForm.region,
+        queueInitialScan: addLogSourceForm.queueInitialScan,
+      });
+      setSelectedGuild(await getAdminGuildDetail(selectedGuild.id));
+      setShowAddLogSourceModal(false);
+      setAddLogSourceForm({ name: "", realm: "", region: selectedGuild.region.toUpperCase(), queueInitialScan: true });
+      setTriggerMessage({
+        type: result.warning ? "error" : "success",
+        text: result.warning || (result.queueId ? "Historical log source added and queued for its initial scan" : "Historical log source added"),
+      });
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to add guild log source" });
+    } finally {
+      setLogSourceActionLoading(null);
+    }
+  };
+
+  const handleToggleLogSource = async (sourceId: string, enabled: boolean) => {
+    if (!selectedGuild) return;
+    setLogSourceActionLoading(sourceId);
+    try {
+      await updateAdminGuildLogSource(selectedGuild.id, sourceId, { enabled });
+      setSelectedGuild(await getAdminGuildDetail(selectedGuild.id));
+      setTriggerMessage({ type: "success", text: enabled ? "Log source enabled" : "Log source disabled" });
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to update guild log source" });
+    } finally {
+      setLogSourceActionLoading(null);
+    }
+  };
+
+  const handleRescanLogSource = async (sourceId: string) => {
+    if (!selectedGuild) return;
+    setLogSourceActionLoading(sourceId);
+    try {
+      await queueAdminGuildLogSourceRescan(selectedGuild.id, sourceId);
+      setSelectedGuild(await getAdminGuildDetail(selectedGuild.id));
+      setTriggerMessage({ type: "success", text: "Guild log source queued for a full rescan" });
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to queue log source rescan" });
+    } finally {
+      setLogSourceActionLoading(null);
+    }
+  };
+
+  const openGuildMigration = () => {
+    if (!selectedGuild) return;
+    setMigrationSearch("");
+    setMigrationCandidates(guilds.filter((guild) => guild.id !== selectedGuild.id));
+    setMigrationCandidate(null);
+    setMigrationPreview(null);
+    setMigrationConfirmation("");
+    setShowMigrateGuildModal(true);
+  };
+
+  const handleSearchMigrationGuilds = async () => {
+    if (!selectedGuild) return;
+    setMigrationLoading(true);
+    try {
+      const response = await api.getAdminGuilds(1, 20, migrationSearch.trim() || undefined);
+      setMigrationCandidates(response.guilds.filter((guild) => guild.id !== selectedGuild.id));
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to search guilds" });
+    } finally {
+      setMigrationLoading(false);
+    }
+  };
+
+  const handleSelectMigrationGuild = async (candidate: AdminGuild) => {
+    if (!selectedGuild) return;
+    setMigrationCandidate(candidate);
+    setMigrationPreview(null);
+    setMigrationConfirmation("");
+    setMigrationLoading(true);
+    try {
+      setMigrationPreview(await getGuildLogSourceMigrationPreview(selectedGuild.id, candidate.id));
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to preview migration" });
+    } finally {
+      setMigrationLoading(false);
+    }
+  };
+
+  const handleMigrateGuildToLogSource = async () => {
+    if (!selectedGuild || !migrationCandidate || !migrationPreview) return;
+    setMigrationLoading(true);
+    try {
+      const result = await migrateExistingGuildToLogSource(selectedGuild.id, migrationCandidate.id, migrationConfirmation);
+      const [detail, guildsData, guildStatsData] = await Promise.all([
+        getAdminGuildDetail(selectedGuild.id),
+        api.getAdminGuilds(guildsPage, 20, guildSearchDebounced || undefined),
+        api.getAdminGuildStats(),
+      ]);
+      setSelectedGuild(detail);
+      setGuilds(guildsData.guilds);
+      setGuildsTotalPages(guildsData.pagination.totalPages);
+      setGuildStats(guildStatsData);
+      setShowMigrateGuildModal(false);
+      setTriggerMessage({
+        type: result.postProcessing.warnings.length > 0 ? "error" : "success",
+        text: [result.message, ...result.postProcessing.warnings].join(" "),
+      });
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to migrate existing guild" });
+    } finally {
+      setMigrationLoading(false);
     }
   };
 
@@ -4606,7 +4744,7 @@ export default function AdminPage() {
                               <button
                                 onClick={async () => {
                                   try {
-                                    await api.pauseAdminProcessingQueueGuild(item.guildId);
+                                    await api.pauseAdminProcessingQueueGuild(item.guildId, item.id);
                                     const data = await api.getAdminProcessingQueue(queuePage, 20, queueFilter || undefined);
                                     setQueueItems(data.items);
                                   } catch (err) {
@@ -4622,7 +4760,7 @@ export default function AdminPage() {
                               <button
                                 onClick={async () => {
                                   try {
-                                    await api.resumeAdminProcessingQueueGuild(item.guildId);
+                                    await api.resumeAdminProcessingQueueGuild(item.guildId, item.id);
                                     const data = await api.getAdminProcessingQueue(queuePage, 20, queueFilter || undefined);
                                     setQueueItems(data.items);
                                   } catch (err) {
@@ -4638,7 +4776,7 @@ export default function AdminPage() {
                               <button
                                 onClick={async () => {
                                   try {
-                                    await api.retryAdminProcessingQueueGuild(item.guildId);
+                                    await api.retryAdminProcessingQueueGuild(item.guildId, item.id);
                                     const data = await api.getAdminProcessingQueue(queuePage, 20, queueFilter || undefined);
                                     setQueueItems(data.items);
                                   } catch (err) {
@@ -4654,7 +4792,7 @@ export default function AdminPage() {
                               onClick={async () => {
                                 if (confirm(`Remove ${item.guildName} from queue?`)) {
                                   try {
-                                    await api.removeAdminProcessingQueueGuild(item.guildId);
+                                    await api.removeAdminProcessingQueueGuild(item.guildId, item.id);
                                     const data = await api.getAdminProcessingQueue(queuePage, 20, queueFilter || undefined);
                                     setQueueItems(data.items);
                                     const statsData = await api.getAdminProcessingQueueStats();
@@ -5031,6 +5169,96 @@ export default function AdminPage() {
                       </div>
                     </div>
 
+                    {/* Warcraft Logs Sources */}
+                    <section className="rounded-xl bg-gray-900/60 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h4 className="text-balance font-medium text-white">Warcraft Logs sources</h4>
+                          <p className="mt-1 max-w-2xl text-pretty text-sm text-gray-400">
+                            Reports from every source belong to this canonical guild. Historical sources are only fetched when you explicitly rescan them.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => {
+                              setAddLogSourceForm({ name: "", realm: "", region: selectedGuild.region.toUpperCase(), queueInitialScan: true });
+                              setShowAddLogSourceModal(true);
+                            }}
+                            className="min-h-10 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition-[scale,background-color] hover:bg-emerald-500 active:scale-[0.96]"
+                          >
+                            Add historical source
+                          </button>
+                          <button
+                            onClick={openGuildMigration}
+                            className="min-h-10 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white transition-[scale,background-color] hover:bg-violet-500 active:scale-[0.96]"
+                          >
+                            Convert existing guild
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        {selectedGuild.logSources.map((source) => {
+                          const sourceBusy = logSourceActionLoading === source.id;
+                          const scanRunning = source.queueStatus?.status === "pending" || source.queueStatus?.status === "in_progress" || source.queueStatus?.status === "paused";
+                          return (
+                            <div key={source.id} className={`rounded-lg bg-gray-800 p-3 ${source.enabled ? "" : "opacity-60"}`}>
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-medium text-white">{source.name}</span>
+                                    <span className="text-sm text-gray-400">
+                                      {source.realm} · {source.region}
+                                    </span>
+                                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${source.isPrimary ? "bg-blue-900 text-blue-200" : "bg-gray-700 text-gray-300"}`}>
+                                      {source.isPrimary ? "Primary · scheduled" : "Historical · manual"}
+                                    </span>
+                                    <span
+                                      className={`rounded px-2 py-0.5 text-xs font-medium ${
+                                        source.wclStatus === "active"
+                                          ? "bg-green-900 text-green-300"
+                                          : source.wclStatus === "not_found"
+                                            ? "bg-red-900 text-red-300"
+                                            : "bg-gray-700 text-gray-300"
+                                      }`}
+                                    >
+                                      {source.wclStatus.replace("_", " ")}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
+                                    <span className="tabular-nums">{source.reportCount.toLocaleString()} reports</span>
+                                    <span>WCL ID: {source.warcraftlogsId || "not resolved"}</span>
+                                    <span>Last fetched: {source.lastFetched ? formatDate(source.lastFetched) : "never"}</span>
+                                    {source.queueStatus && <span>Queue: {source.queueStatus.status.replace("_", " ")}</span>}
+                                  </div>
+                                  {source.queueStatus?.lastError && <p className="mt-1 text-pretty text-xs text-red-300">{source.queueStatus.lastError}</p>}
+                                </div>
+
+                                {!source.isPrimary && (
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => handleRescanLogSource(source.id)}
+                                      disabled={sourceBusy || scanRunning || !source.enabled}
+                                      className="min-h-10 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-[scale,background-color] hover:bg-blue-500 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      {sourceBusy ? "Working…" : scanRunning ? "Queued" : "Full rescan"}
+                                    </button>
+                                    <button
+                                      onClick={() => handleToggleLogSource(source.id, !source.enabled)}
+                                      disabled={sourceBusy || scanRunning}
+                                      className="min-h-10 rounded-lg bg-gray-700 px-3 py-2 text-sm font-medium text-gray-200 transition-[scale,background-color] hover:bg-gray-600 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      {source.enabled ? "Disable" : "Enable"}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+
                     {/* Queue Status */}
                     {selectedGuild.queueStatus && (
                       <div className="bg-gray-700 rounded-lg p-4">
@@ -5235,6 +5463,223 @@ export default function AdminPage() {
           </div>
         )}
 
+        {showAddLogSourceModal && selectedGuild && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4">
+            <div className="w-full max-w-lg rounded-xl bg-gray-800 p-5 shadow-2xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-balance text-xl font-bold text-white">Add historical log source</h2>
+                  <p className="mt-1 text-pretty text-sm text-gray-400">
+                    Add another Warcraft Logs guild identity to {selectedGuild.name}. If it already exists as a tracked guild, use Convert existing guild instead.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAddLogSourceModal(false)}
+                  aria-label="Close"
+                  className="min-h-10 min-w-10 rounded-lg text-2xl text-gray-400 transition-[scale,background-color] hover:bg-gray-700 hover:text-white active:scale-[0.96]"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form
+                className="mt-5 space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void handleAddLogSource();
+                }}
+              >
+                <label className="block">
+                  <span className="text-sm text-gray-300">Warcraft Logs guild name</span>
+                  <input
+                    value={addLogSourceForm.name}
+                    onChange={(event) => setAddLogSourceForm({ ...addLogSourceForm, name: event.target.value })}
+                    className="mt-1 min-h-10 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white outline-none focus:border-blue-400"
+                    autoFocus
+                  />
+                </label>
+                <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
+                  <label className="block">
+                    <span className="text-sm text-gray-300">Realm</span>
+                    <input
+                      value={addLogSourceForm.realm}
+                      onChange={(event) => setAddLogSourceForm({ ...addLogSourceForm, realm: event.target.value })}
+                      className="mt-1 min-h-10 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white outline-none focus:border-blue-400"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm text-gray-300">Region</span>
+                    <select
+                      value={addLogSourceForm.region}
+                      onChange={(event) => setAddLogSourceForm({ ...addLogSourceForm, region: event.target.value })}
+                      className="mt-1 min-h-10 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white outline-none focus:border-blue-400"
+                    >
+                      {['EU', 'US', 'KR', 'TW', 'CN'].map((region) => (
+                        <option key={region} value={region}>{region}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-gray-900/70 p-3">
+                  <input
+                    type="checkbox"
+                    checked={addLogSourceForm.queueInitialScan}
+                    onChange={(event) => setAddLogSourceForm({ ...addLogSourceForm, queueInitialScan: event.target.checked })}
+                    className="mt-1 h-4 w-4"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-white">Queue initial full scan</span>
+                    <span className="block text-pretty text-xs text-gray-400">Recommended unless this source will be scanned later during a quieter period.</span>
+                  </span>
+                </label>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddLogSourceModal(false)}
+                    className="min-h-10 rounded-lg bg-gray-700 px-4 py-2 text-white transition-[scale,background-color] hover:bg-gray-600 active:scale-[0.96]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={logSourceActionLoading === "add"}
+                    className="min-h-10 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-[scale,background-color] hover:bg-emerald-500 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {logSourceActionLoading === "add" ? "Adding…" : "Add source"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showMigrateGuildModal && selectedGuild && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4">
+            <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-gray-800 p-5 shadow-2xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-balance text-xl font-bold text-white">Convert existing guild to a log source</h2>
+                  <p className="mt-1 text-pretty text-sm text-gray-400">
+                    The selected guild will stop being a separate site guild. Its reports, fights, appearances, VOD links, integrations, and log-source history will move under {selectedGuild.name}.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowMigrateGuildModal(false)}
+                  aria-label="Close"
+                  className="min-h-10 min-w-10 rounded-lg text-2xl text-gray-400 transition-[scale,background-color] hover:bg-gray-700 hover:text-white active:scale-[0.96]"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="mt-5 flex gap-2">
+                <input
+                  value={migrationSearch}
+                  onChange={(event) => setMigrationSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void handleSearchMigrationGuilds();
+                  }}
+                  placeholder="Search tracked guilds by name or realm"
+                  className="min-h-10 flex-1 rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white outline-none focus:border-blue-400"
+                />
+                <button
+                  onClick={() => void handleSearchMigrationGuilds()}
+                  disabled={migrationLoading}
+                  className="min-h-10 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-[scale,background-color] hover:bg-blue-500 active:scale-[0.96] disabled:opacity-50"
+                >
+                  Search
+                </button>
+              </div>
+
+              <div className="mt-3 max-h-44 space-y-1 overflow-y-auto rounded-lg bg-gray-900/70 p-2">
+                {migrationCandidates.length === 0 ? (
+                  <p className="p-3 text-sm text-gray-400">No candidate guilds found.</p>
+                ) : (
+                  migrationCandidates.map((candidate) => (
+                    <button
+                      key={candidate.id}
+                      onClick={() => void handleSelectMigrationGuild(candidate)}
+                      className={`flex min-h-10 w-full items-center justify-between rounded-lg px-3 py-2 text-left transition-[scale,background-color] active:scale-[0.99] ${
+                        migrationCandidate?.id === candidate.id ? "bg-violet-700 text-white" : "text-gray-200 hover:bg-gray-700"
+                      }`}
+                    >
+                      <span className="font-medium">{candidate.name}</span>
+                      <span className="text-sm opacity-75">{candidate.realm} · {candidate.region}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {migrationLoading && migrationCandidate && !migrationPreview && <p className="mt-4 text-sm text-gray-400">Checking stored data and migration blockers…</p>}
+
+              {migrationPreview && (
+                <div className="mt-5 space-y-4">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {[
+                      ["Reports", migrationPreview.counts.reports],
+                      ["Fights", migrationPreview.counts.fights],
+                      ["Appearances", migrationPreview.counts.appearances],
+                      ["VOD links", migrationPreview.counts.vodLinks],
+                    ].map(([label, count]) => (
+                      <div key={String(label)} className="rounded-lg bg-gray-900/70 p-3">
+                        <span className="block text-xs text-gray-400">{label}</span>
+                        <span className="block text-lg font-semibold tabular-nums text-white">{Number(count).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {migrationPreview.blockers.length > 0 && (
+                    <div className="rounded-lg bg-red-950/70 p-3">
+                      <h3 className="font-medium text-red-200">Migration blocked</h3>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-pretty text-sm text-red-300">
+                        {migrationPreview.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {migrationPreview.warnings.length > 0 && (
+                    <div className="rounded-lg bg-amber-950/60 p-3">
+                      <h3 className="font-medium text-amber-200">What will be rebuilt or removed</h3>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-pretty text-sm text-amber-300">
+                        {migrationPreview.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {migrationPreview.canMigrate && (
+                    <label className="block rounded-lg bg-gray-900/70 p-3">
+                      <span className="text-pretty text-sm text-gray-300">
+                        This operation uses a database transaction and deletes the separate guild record. Type <strong className="text-white">{migrationPreview.confirmationText}</strong> to confirm.
+                      </span>
+                      <input
+                        value={migrationConfirmation}
+                        onChange={(event) => setMigrationConfirmation(event.target.value)}
+                        className="mt-3 min-h-10 w-full rounded-lg border border-gray-600 bg-gray-950 px-3 py-2 text-white outline-none focus:border-red-400"
+                      />
+                    </label>
+                  )}
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setShowMigrateGuildModal(false)}
+                      className="min-h-10 rounded-lg bg-gray-700 px-4 py-2 text-white transition-[scale,background-color] hover:bg-gray-600 active:scale-[0.96]"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => void handleMigrateGuildToLogSource()}
+                      disabled={!migrationPreview.canMigrate || migrationConfirmation !== migrationPreview.confirmationText || migrationLoading}
+                      className="min-h-10 rounded-lg bg-red-600 px-4 py-2 font-medium text-white transition-[scale,background-color] hover:bg-red-500 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {migrationLoading ? "Migrating…" : "Convert and merge data"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Report Management Modal */}
         {showReportManagement && selectedGuild && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-60 p-4">
@@ -5251,6 +5696,7 @@ export default function AdminPage() {
                     setGuildReports(null);
                     setReportDeleteConfirm(null);
                     setManualReportCode("");
+                    setManualReportSourceId("");
                   }}
                   className="text-gray-400 hover:text-white text-2xl"
                 >
@@ -5277,6 +5723,19 @@ export default function AdminPage() {
                       className="min-w-0 flex-1 rounded border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-amber-500 focus:outline-none disabled:opacity-60"
                       disabled={manualReportImporting}
                     />
+                    <select
+                      value={manualReportSourceId}
+                      onChange={(event) => setManualReportSourceId(event.target.value)}
+                      disabled={manualReportImporting}
+                      aria-label="Warcraft Logs source"
+                      className="min-h-10 rounded border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none disabled:opacity-60"
+                    >
+                      {selectedGuild.logSources.map((source) => (
+                        <option key={source.id} value={source.id}>
+                          {source.name} · {source.realm}
+                        </option>
+                      ))}
+                    </select>
                     <button
                       type="submit"
                       disabled={manualReportImporting || !manualReportCode.trim()}
@@ -5342,6 +5801,11 @@ export default function AdminPage() {
                                           </a>
                                           {report.importSource === "manual_admin" && <span className="shrink-0 rounded bg-amber-900/60 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">Manual</span>}
                                         </div>
+                                        {report.sourceGuildSnapshot?.name && (
+                                          <div className="mt-1 truncate text-xs text-gray-500">
+                                            {report.sourceGuildSnapshot.name} · {report.sourceGuildSnapshot.realm} · {report.sourceGuildSnapshot.region}
+                                          </div>
+                                        )}
                                       </td>
                                       <td className="px-4 py-2 text-gray-300">{reportDate}</td>
                                       <td className="px-4 py-2 text-center text-white">{report.fightCount}</td>
