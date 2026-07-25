@@ -1998,6 +1998,33 @@ export type CcgOpening = {
   results: Array<{ position: number; finish: CcgFinish; artVariant: CcgArtVariant; isDuplicate: boolean; card: CcgCard }>;
 };
 
+export type CcgShareLink = {
+  id: string;
+  kind: "card" | "pack";
+  path: string;
+};
+
+export type CcgShareAttribution = {
+  username: string;
+  avatarUrl: string;
+};
+
+export type CcgShare =
+  | {
+      id: string;
+      kind: "card";
+      createdAt: string;
+      unboxedBy: CcgShareAttribution;
+      card: { card: CcgCard; finish: CcgFinish; artVariant: CcgArtVariant };
+    }
+  | {
+      id: string;
+      kind: "pack";
+      createdAt: string;
+      unboxedBy: CcgShareAttribution;
+      pack: CcgOpening;
+    };
+
 export type CcgAdminSetStatus = {
   id: string | null;
   zoneId: number;

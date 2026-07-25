@@ -36,6 +36,7 @@ import CcgPackPool from "../models/CcgPackPool";
 import CcgQualityProgress, { ICcgQualityProgress } from "../models/CcgQualityProgress";
 import CcgRedeemClaim from "../models/CcgRedeemClaim";
 import CcgRedeemCode, { ICcgRedeemCode } from "../models/CcgRedeemCode";
+import CcgShare, { ICcgShare } from "../models/CcgShare";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
 import Character from "../models/Character";
 import User from "../models/User";
@@ -58,6 +59,7 @@ import { getHelsinkiDateKey, getNextHelsinkiReset } from "../utils/helsinki-time
 import logger from "../utils/logger";
 import { normalizeSearchText, scoreSearchCandidate } from "../utils/search";
 import ccgPublisherService from "./ccg-publisher.service";
+import discordService from "./discord.service";
 
 const CCG_ANALYTICS_KEY = "global";
 const CCG_ANALYTICS_SCHEMA_VERSION = 1;
@@ -114,6 +116,27 @@ function validateObjectId(value: string, label: string): mongoose.Types.ObjectId
 
 function validateMode(value: unknown): CcgMode {
   if (value !== "current" && value !== "legacy") throw new CcgServiceError(400, "invalid_mode", "Mode must be current or legacy");
+  return value;
+}
+
+function validateFinish(value: unknown): CcgFinish {
+  if (typeof value !== "string" || !CCG_FINISH_ORDER.includes(value as CcgFinish)) {
+    throw new CcgServiceError(400, "invalid_finish", "Choose a valid card finish");
+  }
+  return value as CcgFinish;
+}
+
+function validateArtVariant(value: unknown): CcgArtVariant {
+  if (value !== "standard" && value !== "alternative") {
+    throw new CcgServiceError(400, "invalid_art_variant", "Choose valid card artwork");
+  }
+  return value;
+}
+
+function validateSharePublicId(value: string): string {
+  if (!/^[A-Za-z0-9_-]{22}$/.test(value)) {
+    throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
+  }
   return value;
 }
 
@@ -633,6 +656,116 @@ class CcgService {
           && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)),
       ),
     };
+  }
+
+  async createCardShare(req: Request, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+    requireFeature();
+    const userId = await this.requireAuthenticatedUser(req);
+    const cardId = validateObjectId(String(body.cardId ?? ""), "card ID");
+    const finish = validateFinish(body.finish);
+    const artVariant = validateArtVariant(body.artVariant);
+    const [card, ownership] = await Promise.all([
+      CcgCard.findById(cardId).select("_id setId characterId collectorKey communityCharacterId").lean(),
+      CcgOwnership.findOne({ ownerType: "user", ownerId: userId, cardId, finish, quantity: { $gt: 0 } })
+        .select("_id")
+        .lean(),
+    ]);
+    if (!card || !(await CcgSet.exists({ _id: card.setId, enabledAt: { $ne: null } }))) {
+      throw new CcgServiceError(404, "card_not_found", "Card not found");
+    }
+    if (!ownership) {
+      throw new CcgServiceError(403, "card_not_owned", "Only cards in your collection can be shared");
+    }
+    if (artVariant === "alternative") {
+      const [alternativeByCollector, unlockedCollectors] = await Promise.all([
+        this.loadAlternativeArt([card]),
+        this.loadAlternativeArtUnlocks({ ownerType: "user", ownerId: userId }, [card]),
+      ]);
+      const collectorKey = resolveCollectorKey(card);
+      if (
+        !unlockedCollectors.has(collectorKey)
+        || !hasApplicableAlternativeArt(alternativeByCollector.get(collectorKey), Boolean(card.communityCharacterId))
+      ) {
+        throw new CcgServiceError(403, "card_not_owned", "Only cards in your collection can be shared");
+      }
+    }
+
+    const share = await this.createOrGetShare(
+      { kind: "card", userId, cardId, finish, artVariant },
+      { kind: "card", userId, cardId, finish, artVariant },
+    );
+    return this.serializeShareLink(share);
+  }
+
+  async createPackShare(req: Request, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+    requireFeature();
+    const userId = await this.requireAuthenticatedUser(req);
+    const openingId = validateObjectId(String(body.openingId ?? ""), "pack opening ID");
+    const opening = await CcgPackOpening.findOne({
+      _id: openingId,
+      state: "committed",
+      $or: [
+        { ownerType: "user", ownerId: userId },
+        { claimedByUserId: userId },
+      ],
+    }).lean();
+    if (!opening) throw new CcgServiceError(404, "opening_not_found", "Pack opening not found");
+
+    if (opening.ownerType === "guest") {
+      await CcgPackOpening.updateOne(
+        { _id: opening._id, claimedByUserId: userId },
+        { $set: { dateKey: null, expiresAt: null } },
+      );
+    }
+
+    const share = await this.createOrGetShare(
+      { kind: "pack", userId, openingId },
+      { kind: "pack", userId, openingId },
+    );
+    return this.serializeShareLink(share);
+  }
+
+  async getShare(rawPublicId: string): Promise<Record<string, unknown>> {
+    requireFeature();
+    const publicId = validateSharePublicId(rawPublicId);
+    const share = await CcgShare.findOne({ publicId }).lean();
+    if (!share) throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
+    const user = await User.findById(share.userId).select("discord.id discord.username discord.avatar").lean();
+    if (!user) throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
+
+    const response = {
+      id: share.publicId,
+      kind: share.kind,
+      createdAt: share.createdAt,
+      unboxedBy: {
+        username: user.discord.username,
+        avatarUrl: discordService.getAvatarUrl(user.discord.id, user.discord.avatar),
+      },
+    };
+
+    if (share.kind === "card") {
+      if (!share.cardId || !share.finish || !share.artVariant) {
+        throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
+      }
+      const card = await CcgCard.findById(share.cardId).lean();
+      if (!card) throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
+      const set = await CcgSet.findOne({ _id: card.setId, enabledAt: { $ne: null } }).lean();
+      if (!set) throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
+      const alternativeByCollector = await this.loadAlternativeArt([card]);
+      return {
+        ...response,
+        card: {
+          card: this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card))),
+          finish: share.finish,
+          artVariant: share.artVariant,
+        },
+      };
+    }
+
+    if (!share.openingId) throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
+    const opening = await CcgPackOpening.findOne({ _id: share.openingId, state: "committed" }).lean();
+    if (!opening) throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
+    return { ...response, pack: await this.serializeOpening(opening) };
   }
 
   async updateAlternativeArtForAdmin(cardId: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -2409,6 +2542,47 @@ class CcgService {
       publicationWave: card.publicationWave,
       publishedAt: card.publishedAt,
       set: this.serializeSet(set),
+    };
+  }
+
+  private async requireAuthenticatedUser(req: Request): Promise<mongoose.Types.ObjectId> {
+    const rawUserId = req.session.userId;
+    if (!rawUserId || !mongoose.Types.ObjectId.isValid(rawUserId)) {
+      throw new CcgServiceError(401, "authentication_required", "Log in to share cards and packs");
+    }
+    const userId = new mongoose.Types.ObjectId(rawUserId);
+    if (!(await User.exists({ _id: userId }))) {
+      throw new CcgServiceError(401, "authentication_required", "Log in to share cards and packs");
+    }
+    return userId;
+  }
+
+  private async createOrGetShare(
+    filter: Record<string, unknown>,
+    fields: Record<string, unknown>,
+  ): Promise<ICcgShare> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const share = await CcgShare.findOneAndUpdate(
+          filter,
+          { $setOnInsert: { ...fields, publicId: randomBytes(16).toString("base64url") } },
+          { upsert: true, new: true, setDefaultsOnInsert: true },
+        );
+        if (share) return share;
+      } catch (error) {
+        if (!isDuplicateKeyError(error)) throw error;
+        const existing = await CcgShare.findOne(filter);
+        if (existing) return existing;
+      }
+    }
+    throw new CcgServiceError(503, "share_unavailable", "The share link could not be created");
+  }
+
+  private serializeShareLink(share: Pick<ICcgShare, "publicId" | "kind">): Record<string, unknown> {
+    return {
+      id: share.publicId,
+      kind: share.kind,
+      path: `/fun/ccg/share/${share.kind}/${share.publicId}`,
     };
   }
 

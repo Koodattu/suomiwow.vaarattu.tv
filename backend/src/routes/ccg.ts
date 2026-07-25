@@ -131,6 +131,24 @@ router.get(
   }),
 );
 
+router.get(
+  "/shares/:shareId",
+  rateLimit(90, 60_000),
+  asyncRoute(async (req) => ccgService.getShare(req.params.shareId)),
+);
+
+router.post(
+  "/shares/card",
+  rateLimit(20, 60_000),
+  asyncRoute(async (req) => ccgService.createCardShare(req, req.body ?? {})),
+);
+
+router.post(
+  "/shares/pack",
+  rateLimit(20, 60_000),
+  asyncRoute(async (req) => ccgService.createPackShare(req, req.body ?? {})),
+);
+
 router.post(
   "/packs/open",
   rateLimit(20, 60_000),

@@ -19,6 +19,7 @@ import CollectibleCard from "@/components/ccg/CollectibleCard";
 import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
 import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
+import CcgShareButton from "@/components/ccg/CcgShareButton";
 import PackBoosterVisual, { getPackTheme } from "@/components/ccg/PackBoosterVisual";
 import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
@@ -103,7 +104,7 @@ function hasQualityRevealSound(finish: CcgFinish, tierGrade: CcgTierGrade): bool
 export default function CcgOpenPage() {
   const t = useTranslations("ccg");
   const locale = useLocale() === "fi" ? "fi" : "en";
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const queryClient = useQueryClient();
   const sessionQuery = useCcgSession();
   const setsQuery = useCcgSets();
@@ -942,6 +943,13 @@ export default function CcgOpenPage() {
               ) : null}
               {allRevealed && opening.duplicateRewards > 0 ? <p className={packStyles.bonusEarned}>{t("open.bonusEarned", { count: opening.duplicateRewards })}</p> : null}
             </div>
+            {allRevealed && user ? (
+              <CcgShareButton
+                key={opening.id}
+                target={{ kind: "pack", openingId: opening.id }}
+                className={packStyles.packShareButton}
+              />
+            ) : null}
             <div
               className={`${packStyles.burstOverlay} ${revealPhase === "holding" ? packStyles.tearSequenceHolding : ""} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`}
               aria-hidden="true"

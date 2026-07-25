@@ -3050,16 +3050,107 @@
   letter-spacing: 0.04em;
 }
 
-.viewerTitleRow {
-  display: flex;
+.shareButton {
+  display: inline-flex;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.7rem;
-  margin-top: 0.45rem;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: #aabbd0;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 760;
+  line-height: 1;
+  transition-property: transform, color, background-color;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+  white-space: nowrap;
+}
+
+.shareButton:hover:not(:disabled) {
+  background: rgba(102, 157, 218, 0.12);
+  color: #fff;
+}
+
+.shareButton:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.shareButton:focus-visible {
+  outline: 2px solid #7ddcff;
+  outline-offset: 2px;
+}
+
+.shareButton:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.shareButton[data-status="copied"],
+.shareButton[data-status="copied"]:hover {
+  color: #72e7a3;
+}
+
+.shareButton[data-status="error"],
+.shareButton[data-status="error"]:hover {
+  color: #ff9f9f;
+}
+
+.shareButtonIcon {
+  position: relative;
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 0.9rem;
+}
+
+.shareButtonIcon > svg {
+  position: absolute;
+  inset: 0;
+  width: 0.9rem;
+  height: 0.9rem;
+  transition-property: opacity, filter, transform;
+  transition-duration: 300ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.shareButtonLabels {
+  display: grid;
+}
+
+.shareButtonLabels > span {
+  grid-area: 1 / 1;
+  transition-property: opacity;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+
+.shareLabelVisible {
+  opacity: 1;
+}
+
+.shareLabelHidden {
+  opacity: 0;
+}
+
+.shareIconVisible {
+  filter: blur(0);
+  opacity: 1;
+  transform: scale(1);
+}
+
+.shareIconHidden {
+  filter: blur(4px);
+  opacity: 0;
+  transform: scale(0.25);
 }
 
 .viewerInfo h2 {
-  margin-top: 0.45rem;
+  margin-top: 0.25rem;
   color: #fff;
   font-size: clamp(2.2rem, 4vw, 3.75rem);
   font-weight: 900;
@@ -3069,14 +3160,10 @@
   text-wrap: balance;
 }
 
-.viewerTitleRow h2 {
-  margin-top: 0;
-}
-
 .viewerIdentity {
-  margin-top: 1rem;
+  margin-top: 0.5rem;
   color: #aebbd0;
-  font-size: 1.05rem;
+  font-size: 1.01rem;
   line-height: 1.45;
 }
 
@@ -3145,22 +3232,24 @@
 
 .viewerCharacterLink {
   display: inline-flex;
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   align-items: center;
   gap: 0.35rem;
-  padding: 0 0.25rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.35rem;
   color: #8fa0b8;
   font-size: 0.78rem;
   font-weight: 720;
   line-height: 1;
   text-decoration: none;
-  transition-property: color, transform;
+  transition-property: color, transform, background-color;
   transition-duration: 150ms;
   transition-timing-function: ease-out;
   white-space: nowrap;
 }
 
 .viewerCharacterLink:hover {
+  background: rgba(102, 157, 218, 0.12);
   color: #78dcff;
 }
 
@@ -3214,7 +3303,7 @@
 .viewerFacts {
   display: grid;
   margin-top: 1.75rem;
-  border-block: 1px solid rgba(142, 184, 242, 0.16);
+  border-top: 1px solid rgba(142, 184, 242, 0.16);
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -3248,6 +3337,238 @@
   font-size: 1rem;
   font-variant-numeric: tabular-nums;
   font-weight: 760;
+}
+
+.viewerActions {
+  display: grid;
+  border-block: 1px solid rgba(142, 184, 242, 0.16);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.viewerActions > div {
+  display: flex;
+  min-width: 0;
+  min-height: 3.6rem;
+  align-items: center;
+}
+
+.viewerActions > div:nth-child(even) {
+  padding-left: 1.25rem;
+}
+
+.viewerActions > div:nth-child(odd) {
+  padding-right: 1.25rem;
+}
+
+.sharedPage {
+  display: grid;
+  min-height: calc(100dvh - 3.625rem);
+}
+
+.sharedStage {
+  width: 100%;
+  height: calc(100dvh - 3.625rem);
+  min-height: calc(100dvh - 3.625rem);
+  align-items: stretch;
+  border-radius: 0;
+  --pack-stage-brightness: 0.24;
+}
+
+.sharedCardLayout {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: min(calc(100% - 3rem), 68rem);
+  min-height: 100%;
+  align-self: center;
+  justify-self: center;
+  align-items: center;
+  grid-template-columns: minmax(0, auto) minmax(20rem, 29rem);
+  gap: clamp(2.25rem, 5vw, 6rem);
+  padding-block: 2rem;
+}
+
+.sharedCardAsset {
+  width: min(31rem, 42vw, calc((100dvh - 9rem) * 5 / 7));
+  min-width: 0;
+}
+
+.sharedCardAsset > [data-ccg-card],
+.sharedPackCard > [data-ccg-card] {
+  width: calc(100% - 8px);
+}
+
+.sharedCardInfo {
+  max-height: calc(100dvh - 7.625rem);
+  overflow-y: auto;
+  opacity: 1;
+  transform: none;
+}
+
+.sharedCardInfo h1 {
+  margin-top: 0.45rem;
+  color: #fff;
+  font-size: clamp(2.2rem, 4vw, 3.75rem);
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  line-height: 0.96;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.sharedPackContent {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  align-self: center;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(1.25rem, 3vh, 2.5rem);
+  padding-block: 2rem;
+}
+
+.sharedPackHeader {
+  padding-inline: 1rem;
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.84);
+}
+
+.sharedPackHeader h1 {
+  margin-top: 0.3rem;
+  color: #fff;
+  font-size: clamp(1.3rem, 3vw, 2.25rem);
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  text-wrap: balance;
+}
+
+.sharedPackScroller {
+  width: 100%;
+  min-width: 0;
+  padding: 1.25rem 2rem;
+}
+
+.sharedPackCards {
+  display: grid;
+  width: min(100%, 79rem);
+  margin-inline: auto;
+  align-items: center;
+  grid-template-columns: repeat(5, minmax(8.5rem, 1fr));
+  gap: clamp(0.45rem, 1.2vw, 1.1rem);
+}
+
+.sharedPackCard {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  scale: 1;
+  transition-property: scale;
+  transition-duration: 180ms;
+  transition-timing-function: ease-out;
+}
+
+.sharedPackCard:hover {
+  scale: 1.025;
+}
+
+.sharedPackCard:active {
+  scale: 0.96;
+}
+
+.sharedPackCard:focus-visible {
+  border-radius: 0.45rem;
+  outline: 2px solid #7ddcff;
+  outline-offset: 4px;
+}
+
+.sharedPackCard:nth-child(1) {
+  transform: translateY(0.9rem) rotate(-4deg);
+}
+
+.sharedPackCard:nth-child(2) {
+  transform: translateY(0.3rem) rotate(-2deg);
+}
+
+.sharedPackCard:nth-child(4) {
+  transform: translateY(0.3rem) rotate(2deg);
+}
+
+.sharedPackCard:nth-child(5) {
+  transform: translateY(0.9rem) rotate(4deg);
+}
+
+.sharedAttribution {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  color: #91a2b9;
+  font-size: 0.75rem;
+}
+
+.sharedAttributionHeader {
+  justify-content: center;
+}
+
+.sharedAttributionAction {
+  min-width: 0;
+}
+
+.sharedAttributionAction strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sharedAttribution img {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  object-fit: cover;
+  outline: 1px solid rgba(255, 255, 255, 0.1);
+  outline-offset: -1px;
+}
+
+.sharedAttribution strong {
+  color: #f0f6ff;
+  font-weight: 760;
+}
+
+.sharedLoading,
+.sharedError {
+  display: grid;
+  min-height: calc(100dvh - 3.625rem);
+  place-content: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+.sharedLoading {
+  color: #aebbd0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.sharedError h1 {
+  color: #fff;
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.sharedError p {
+  max-width: 32rem;
+  margin-top: 0.75rem;
+  color: #9ba9be;
+  line-height: 1.6;
+  text-wrap: pretty;
 }
 
 @keyframes foilSweep {
@@ -3303,6 +3624,71 @@
 
   .viewerInfo h2 {
     font-size: 2.35rem;
+  }
+
+  .sharedCardLayout {
+    width: min(100% - 2rem, 32rem);
+    align-content: start;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+    min-height: 0;
+    padding-block: 2rem;
+  }
+
+  .sharedCardAsset {
+    width: min(86vw, 24rem, calc(58dvh * 5 / 7));
+    justify-self: center;
+  }
+
+  .sharedCardInfo {
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    padding-inline: 0.35rem;
+  }
+
+  .sharedCardInfo h1 {
+    font-size: 2.35rem;
+  }
+
+  .sharedPackContent {
+    gap: 1rem;
+    min-height: calc(100dvh - 3.625rem);
+    padding-block: 1.5rem 2rem;
+  }
+
+  .sharedPackScroller {
+    overflow-x: auto;
+    padding: 1.25rem max(1rem, calc((100vw - 72vw) / 2));
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .sharedPackScroller::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sharedPackCards {
+    width: max-content;
+    grid-template-columns: repeat(5, minmax(13rem, 72vw));
+    gap: 1rem;
+  }
+
+  .sharedPackCard,
+  .sharedPackCard:nth-child(1),
+  .sharedPackCard:nth-child(2),
+  .sharedPackCard:nth-child(4),
+  .sharedPackCard:nth-child(5) {
+    scroll-snap-align: center;
+    transform: none;
+  }
+
+  .sharedStage {
+    height: auto;
+  }
+
+  .sharedAttribution {
+    white-space: nowrap;
   }
 }
 

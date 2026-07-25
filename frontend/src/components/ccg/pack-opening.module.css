@@ -2039,6 +2039,13 @@
   transition-timing-function: ease-in;
 }
 
+.packShareButton {
+  position: absolute;
+  z-index: 8;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
 @keyframes packCharge {
   from {
     opacity: 0.52;

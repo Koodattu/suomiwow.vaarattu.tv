@@ -101,6 +101,18 @@
       "keepPack": "Log in and keep this pack",
       "loginForPacks": "Log in and receive 20 packs"
     },
+    "share": {
+      "card": "Share card",
+      "pack": "Share pack",
+      "creating": "Creating link…",
+      "copied": "Link copied",
+      "error": "Could not copy link",
+      "loading": "Loading shared opening",
+      "sharedPack": "Shared pack opening",
+      "unboxedBy": "Unboxed by",
+      "notFoundTitle": "This shared opening is unavailable",
+      "notFoundBody": "The link may be incomplete, expired, or no longer available."
+    },
     "redeem": {
       "title": "Redeem code",
       "description": "Enter a code to unlock packs or a card.",

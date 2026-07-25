@@ -101,6 +101,18 @@
       "keepPack": "Kirjaudu ja pidä tämä pakka",
       "loginForPacks": "Kirjaudu ja saat 20 pakkaa"
     },
+    "share": {
+      "card": "Jaa kortti",
+      "pack": "Jaa pakka",
+      "creating": "Luodaan linkkiä…",
+      "copied": "Linkki kopioitu",
+      "error": "Linkkiä ei voitu kopioida",
+      "loading": "Jaettua avausta ladataan",
+      "sharedPack": "Jaettu pakan avaus",
+      "unboxedBy": "Pakan avasi",
+      "notFoundTitle": "Jaettu avaus ei ole saatavilla",
+      "notFoundBody": "Linkki voi olla puutteellinen, vanhentunut tai poistunut käytöstä."
+    },
     "redeem": {
       "title": "Lunasta koodi",
       "description": "Syötä koodi ja lunasta pakkoja tai kortti.",

@@ -136,6 +136,8 @@ import {
   CcgArtVariant,
   CcgTierGrade,
   CcgOpening,
+  CcgShare,
+  CcgShareLink,
   CcgAnalytics,
   CcgRedeemResult,
   CcgSession,
@@ -307,6 +309,34 @@ export const api = {
   async getCcgOpening(openingId: string): Promise<CcgOpening> {
     const response = await fetch(`${API_URL}/api/ccg/openings/${encodeURIComponent(openingId)}`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "The pack opening could not be recovered");
+    return response.json();
+  },
+
+  async createCcgCardShare(input: { cardId: string; finish: CcgFinish; artVariant: CcgArtVariant }): Promise<CcgShareLink> {
+    const response = await fetch(`${API_URL}/api/ccg/shares/card`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw await buildApiError(response, "The card link could not be created");
+    return response.json();
+  },
+
+  async createCcgPackShare(openingId: string): Promise<CcgShareLink> {
+    const response = await fetch(`${API_URL}/api/ccg/shares/pack`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ openingId }),
+    });
+    if (!response.ok) throw await buildApiError(response, "The pack link could not be created");
+    return response.json();
+  },
+
+  async getCcgShare(shareId: string): Promise<CcgShare> {
+    const response = await fetch(`${API_URL}/api/ccg/shares/${encodeURIComponent(shareId)}`);
+    if (!response.ok) throw await buildApiError(response, "This shared opening could not be found");
     return response.json();
   },
 

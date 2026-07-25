@@ -7,10 +7,12 @@ import { useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
 import { FaArrowUpRightFromSquare, FaVolumeHigh } from "react-icons/fa6";
 import type { CcgArtVariant, CcgCard, CcgFinish } from "@/types";
+import { useAuth } from "@/context/AuthContext";
 import { bestOwnedFinish, CCG_RARITY_KEYS } from "@/lib/ccg";
 import { playCcgInspectSound, playCcgQuip } from "@/lib/ccg-audio";
 import { formatRealmName } from "@/lib/utils";
 import CollectibleCard from "./CollectibleCard";
+import CcgShareButton from "./CcgShareButton";
 import styles from "./ccg.module.css";
 
 type ViewerPhase = "entering" | "open" | "closing";
@@ -101,6 +103,7 @@ export default function CardViewer({
   originBounds = null,
   sharedTransition = false,
   missing = false,
+  canShare = true,
   onClose,
 }: {
   card: CcgCard;
@@ -110,9 +113,11 @@ export default function CardViewer({
   originBounds?: CardViewerOriginBounds | null;
   sharedTransition?: boolean;
   missing?: boolean;
+  canShare?: boolean;
   onClose: () => void;
 }) {
   const t = useTranslations("ccg");
+  const { user } = useAuth();
   const variants = card.variants?.length ? card.variants : [{ card, ownership: card.ownership ?? [], totalQuantity: card.totalQuantity ?? 0 }];
   const clickedVariantIndex = Math.max(0, variants.findIndex((variant) => variant.card.id === card.id));
   const initialVariant = variants[clickedVariantIndex];
@@ -339,19 +344,7 @@ export default function CardViewer({
 
         <div className={styles.viewerInfo}>
           <div className={styles.viewerSet}>{displayedCard.set.raidName}</div>
-          <div className={styles.viewerTitleRow}>
-            <h2>{displayedCard.name}</h2>
-            <Link
-              href={characterHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.viewerCharacterLink}
-              aria-label={t("viewCharacterLabel", { name: displayedCard.name })}
-            >
-              <span>{t("viewCharacter")}</span>
-              <FaArrowUpRightFromSquare aria-hidden="true" />
-            </Link>
-          </div>
+          <h2>{displayedCard.name}</h2>
           {displayedCard.guildName ? <p className={styles.viewerIdentity}>{`<${displayedCard.guildName}>`}</p> : null}
 
           {displayedCard.quip ? (
@@ -450,6 +443,28 @@ export default function CardViewer({
             <div><dt>{t("realm")}</dt><dd>{formatRealmName(displayedCard.realm)}</dd></div>
             <div><dt>{t("snapshot")}</dt><dd>{SNAPSHOT_DATE_FORMATTER.format(new Date(displayedCard.performanceSnapshotAt))}</dd></div>
           </dl>
+          <div className={styles.viewerActions}>
+            <div>
+              <Link
+                href={characterHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.viewerCharacterLink}
+                aria-label={t("viewCharacterLabel", { name: displayedCard.name })}
+              >
+                <span>{t("viewCharacter")}</span>
+                <FaArrowUpRightFromSquare aria-hidden="true" />
+              </Link>
+            </div>
+            <div>
+              {canShare && user && isOwned ? (
+                <CcgShareButton
+                  key={`${displayedCard.id}:${finish}:${artVariant}`}
+                  target={{ kind: "card", cardId: displayedCard.id, finish, artVariant }}
+                />
+              ) : null}
+            </div>
+          </div>
         </div>
       </div>
     </div>
