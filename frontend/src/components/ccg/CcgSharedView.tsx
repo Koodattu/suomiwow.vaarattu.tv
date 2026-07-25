@@ -63,7 +63,7 @@ function SharedCard({ share }: { share: Extract<CcgShare, { kind: "card" }> }) {
       <div className={styles.sharedCardLayout}>
         <CollectibleCard card={card} finish={finish} artVariant={artVariant} width={520} className={styles.sharedCardAsset} />
         <div className={`${styles.viewerInfo} ${styles.sharedCardInfo}`}>
-          <div className={styles.viewerSet}>{card.set.raidName}</div>
+          <div className={styles.viewerSet} style={{ color: card.set.theme.accent }}>{card.set.raidName}</div>
           <h1 id="ccg-shared-card-title">{card.name}</h1>
           {card.guildName ? <p className={styles.viewerIdentity}>{`<${card.guildName}>`}</p> : null}
 

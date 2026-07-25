@@ -346,7 +346,7 @@ export default function CardViewer({
         </div>
 
         <div className={styles.viewerInfo}>
-          <div className={styles.viewerSet}>{displayedCard.set.raidName}</div>
+          <div className={styles.viewerSet} style={{ color: displayedCard.set.theme.accent }}>{displayedCard.set.raidName}</div>
           <h2>{displayedCard.name}</h2>
           {displayedCard.guildName ? <p className={styles.viewerIdentity}>{`<${displayedCard.guildName}>`}</p> : null}
 
