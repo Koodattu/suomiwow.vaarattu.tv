@@ -238,10 +238,15 @@ export default function CardViewer({
     if (!activationPoint || !motionElement || !targetElement) return;
 
     const previousTransform = motionElement.style.transform;
+    const previousTransition = motionElement.style.transition;
+    motionElement.style.transition = "none";
     motionElement.style.transform = "none";
     const bounds = targetElement.getBoundingClientRect();
     if (previousTransform) motionElement.style.transform = previousTransform;
     else motionElement.style.removeProperty("transform");
+    void motionElement.offsetWidth;
+    if (previousTransition) motionElement.style.transition = previousTransition;
+    else motionElement.style.removeProperty("transition");
 
     if (
       activationPoint.clientX < bounds.left
