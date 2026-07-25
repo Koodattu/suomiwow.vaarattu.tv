@@ -317,10 +317,12 @@
     "tierShort": "Tier",
     "independent": "Independent",
     "snapshot": "Snapshot",
+    "realm": "Realm",
     "tier": "Tier grade",
     "mechanics": "Mechanics",
     "cardNumber": "Card #{number}",
-    "viewCharacter": "View {name}",
+    "viewCharacter": "View",
+    "viewCharacterLabel": "View {name}'s character profile in a new tab",
     "inspectCloseHint": "Press Escape or select the background to close the card.",
     "playQuip": "Play {name}'s quip"
   },

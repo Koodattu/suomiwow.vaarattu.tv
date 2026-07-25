@@ -317,10 +317,12 @@
     "tierShort": "Tier",
     "independent": "Ei kiltaa",
     "snapshot": "Snapshot",
+    "realm": "Realm",
     "tier": "Tier-luokka",
     "mechanics": "Mekaniikat",
     "cardNumber": "Kortti #{number}",
-    "viewCharacter": "Näytä {name}",
+    "viewCharacter": "Näytä",
+    "viewCharacterLabel": "Avaa hahmon {name} profiili uudessa välilehdessä",
     "inspectCloseHint": "Sulje kortti painamalla Esc tai valitsemalla tausta.",
     "playQuip": "Toista hahmon {name} repliikki"
   },

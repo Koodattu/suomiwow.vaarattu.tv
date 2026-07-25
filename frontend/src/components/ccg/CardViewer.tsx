@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { flushSync } from "react-dom";
 import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
-import { FaVolumeHigh } from "react-icons/fa6";
+import { FaArrowUpRightFromSquare, FaVolumeHigh } from "react-icons/fa6";
 import type { CcgArtVariant, CcgCard, CcgFinish } from "@/types";
 import { bestOwnedFinish, CCG_RARITY_KEYS } from "@/lib/ccg";
 import { playCcgInspectSound, playCcgQuip } from "@/lib/ccg-audio";
@@ -83,6 +83,7 @@ export default function CardViewer({
   originElement = null,
   originBounds = null,
   sharedTransition = false,
+  missing = false,
   onClose,
 }: {
   card: CcgCard;
@@ -91,6 +92,7 @@ export default function CardViewer({
   originElement?: HTMLElement | null;
   originBounds?: CardViewerOriginBounds | null;
   sharedTransition?: boolean;
+  missing?: boolean;
   onClose: () => void;
 }) {
   const t = useTranslations("ccg");
@@ -282,15 +284,27 @@ export default function CardViewer({
             artVariant={artVariant}
             quantity={isOwned ? quantity : undefined}
             width={520}
-            className={styles.viewerCard}
+            className={`${styles.viewerCard} ${missing && !isOwned ? styles.viewerMissingCard : ""}`}
             viewTransitionName={sharedTransition ? CARD_VIEW_TRANSITION_NAME : undefined}
           />
         </div>
 
         <div className={styles.viewerInfo}>
-          <div className={styles.viewerSet}>{t("cardNumber", { number: String(displayedCard.setNumber).padStart(3, "0") })} · {displayedCard.set.raidName}</div>
-          <h2>{displayedCard.name}</h2>
-          <p className={styles.viewerIdentity}>{displayedCard.guildName ? `<${displayedCard.guildName}> · ` : ""}{formatRealmName(displayedCard.realm)}</p>
+          <div className={styles.viewerSet}>{displayedCard.set.raidName}</div>
+          <div className={styles.viewerTitleRow}>
+            <h2>{displayedCard.name}</h2>
+            <Link
+              href={characterHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.viewerCharacterLink}
+              aria-label={t("viewCharacterLabel", { name: displayedCard.name })}
+            >
+              <span>{t("viewCharacter")}</span>
+              <FaArrowUpRightFromSquare aria-hidden="true" />
+            </Link>
+          </div>
+          {displayedCard.guildName ? <p className={styles.viewerIdentity}>{`<${displayedCard.guildName}>`}</p> : null}
 
           {displayedCard.quip ? (
             <div className={styles.viewerQuip}>
@@ -308,10 +322,6 @@ export default function CardViewer({
               ) : null}
             </div>
           ) : null}
-
-          <Link href={characterHref} className={`${styles.primaryButton} ${styles.viewerCharacterLink}`}>
-            {t("viewCharacter", { name: `@${displayedCard.name}` })}
-          </Link>
 
           {variants.length > 1 ? (
             <section className={styles.viewerControls} aria-labelledby="ccg-viewer-snapshots">
@@ -384,8 +394,9 @@ export default function CardViewer({
 
           <dl className={styles.viewerFacts}>
             <div><dt>{t("snapshot")}</dt><dd>{new Date(displayedCard.performanceSnapshotAt).toLocaleDateString(locale)}</dd></div>
+            <div><dt>{t("realm")}</dt><dd>{formatRealmName(displayedCard.realm)}</dd></div>
             <div><dt>{t("collection.rarity")}</dt><dd>{t(`rarity.${CCG_RARITY_KEYS[displayedCard.tierGrade]}`)}</dd></div>
-            {displayedCard.set.kind === "community" ? <div><dt>{t("cardType")}</dt><dd>{t("communityCard")}</dd></div> : null}
+            <div><dt>{t("collection.quality")}</dt><dd>{t(`finish.${finish}`)}</dd></div>
             <div><dt>{t(displayedCard.role === "healer" ? "score.healing" : "score.damage")}</dt><dd>{score(displayedCard.scores.performance)}</dd></div>
             <div><dt>{t("score.mechanics")}</dt><dd>{score(displayedCard.scores.mechanics)}</dd></div>
             <div><dt>{t("score.combined")}</dt><dd>{score(displayedCard.scores.combined)}</dd></div>

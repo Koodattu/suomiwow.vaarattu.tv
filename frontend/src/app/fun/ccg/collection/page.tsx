@@ -529,6 +529,7 @@ export default function CcgCollectionPage() {
           originElement={viewerOriginElement}
           originBounds={viewerOriginBounds}
           sharedTransition={viewerSharedTransition}
+          missing={!bestOwnedFinish(viewerCard)}
           onClose={() => {
             setViewerCard(null);
             setViewerOriginElement(null);

@@ -1688,16 +1688,19 @@
   transition: opacity 180ms ease-out;
 }
 
-.collectionMissingCard {
+.collectionMissingCard > [data-ccg-card],
+.viewerMissingCard > [data-ccg-card] {
   filter: grayscale(0.92) saturate(0.12) brightness(0.56);
   opacity: 0.58;
-  transition:
-    filter 170ms ease,
-    opacity 170ms ease,
-    transform 170ms ease;
 }
 
-.collectionMissingCard:hover {
+.collectionMissingCard > [data-ccg-card] {
+  transition-property: filter, opacity;
+  transition-duration: 170ms;
+  transition-timing-function: ease;
+}
+
+.collectionMissingCard:hover > [data-ccg-card] {
   filter: grayscale(0.86) saturate(0.18) brightness(0.66);
   opacity: 0.72;
 }
@@ -2505,6 +2508,14 @@
   letter-spacing: 0.04em;
 }
 
+.viewerTitleRow {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.7rem;
+  margin-top: 0.45rem;
+}
+
 .viewerInfo h2 {
   margin-top: 0.45rem;
   color: #fff;
@@ -2514,6 +2525,10 @@
   line-height: 0.96;
   overflow-wrap: anywhere;
   text-wrap: balance;
+}
+
+.viewerTitleRow h2 {
+  margin-top: 0;
 }
 
 .viewerIdentity {
@@ -2580,12 +2595,40 @@
   height: 0.95rem;
 }
 
-.viewerQuip + .viewerCharacterLink {
-  margin-top: 1rem;
+.viewerCharacterLink {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.25rem;
+  color: #8fa0b8;
+  font-size: 0.78rem;
+  font-weight: 720;
+  line-height: 1;
+  text-decoration: none;
+  transition-property: color, transform;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+  white-space: nowrap;
 }
 
-.viewerCharacterLink {
-  margin-top: 1.35rem;
+.viewerCharacterLink:hover {
+  color: #78dcff;
+}
+
+.viewerCharacterLink:active {
+  transform: scale(0.96);
+}
+
+.viewerCharacterLink:focus-visible {
+  border-radius: 0.25rem;
+  outline: 2px solid #7ddcff;
+  outline-offset: 2px;
+}
+
+.viewerCharacterLink > svg {
+  width: 0.7rem;
+  height: 0.7rem;
 }
 
 .viewerControls {
@@ -2714,9 +2757,6 @@
     font-size: 2.35rem;
   }
 
-  .viewerCharacterLink {
-    width: 100%;
-  }
 }
 
 @media (max-width: 1280px) {
@@ -2811,7 +2851,7 @@
   .collectionSegment button,
   .collectionResetButton,
   .collectionMissingToggle,
-  .collectionMissingCard,
+  .collectionMissingCard > [data-ccg-card],
   .collectionCardAsset,
   .collectionCardSkeleton,
   .collectionSkeleton,
