@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
 import { FaArrowUpRightFromSquare, FaVolumeHigh } from "react-icons/fa6";
 import type { CcgArtVariant, CcgCard, CcgFinish } from "@/types";
@@ -20,6 +20,11 @@ type ViewTransitionDocument = Document & {
 };
 
 const CARD_VIEW_TRANSITION_NAME = "ccg-card-inspect";
+const SNAPSHOT_DATE_FORMATTER = new Intl.DateTimeFormat("fi-FI", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
 export type CardViewerOriginBounds = Pick<DOMRect, "left" | "top" | "width" | "height">;
 
 function sourceCardElement(originElement: HTMLElement | null): HTMLElement | null {
@@ -96,7 +101,6 @@ export default function CardViewer({
   onClose: () => void;
 }) {
   const t = useTranslations("ccg");
-  const locale = useLocale();
   const variants = card.variants?.length ? card.variants : [{ card, ownership: card.ownership ?? [], totalQuantity: card.totalQuantity ?? 0 }];
   const clickedVariantIndex = Math.max(0, variants.findIndex((variant) => variant.card.id === card.id));
   const initialVariant = variants[clickedVariantIndex];
@@ -308,7 +312,6 @@ export default function CardViewer({
 
           {displayedCard.quip ? (
             <div className={styles.viewerQuip}>
-              {displayedCard.quip.text ? <blockquote>{displayedCard.quip.text}</blockquote> : null}
               {displayedCard.quip.audioPath ? (
                 <button
                   type="button"
@@ -320,6 +323,7 @@ export default function CardViewer({
                   <FaVolumeHigh aria-hidden="true" />
                 </button>
               ) : null}
+              {displayedCard.quip.text ? <blockquote>{displayedCard.quip.text}</blockquote> : null}
             </div>
           ) : null}
 
@@ -393,14 +397,14 @@ export default function CardViewer({
           )}
 
           <dl className={styles.viewerFacts}>
-            <div><dt>{t("snapshot")}</dt><dd>{new Date(displayedCard.performanceSnapshotAt).toLocaleDateString(locale)}</dd></div>
-            <div><dt>{t("realm")}</dt><dd>{formatRealmName(displayedCard.realm)}</dd></div>
-            <div><dt>{t("collection.rarity")}</dt><dd>{t(`rarity.${CCG_RARITY_KEYS[displayedCard.tierGrade]}`)}</dd></div>
             <div><dt>{t("collection.quality")}</dt><dd>{t(`finish.${finish}`)}</dd></div>
+            <div><dt>{t("collection.rarity")}</dt><dd>{t(`rarity.${CCG_RARITY_KEYS[displayedCard.tierGrade]}`)}</dd></div>
             <div><dt>{t(displayedCard.role === "healer" ? "score.healing" : "score.damage")}</dt><dd>{score(displayedCard.scores.performance)}</dd></div>
             <div><dt>{t("score.mechanics")}</dt><dd>{score(displayedCard.scores.mechanics)}</dd></div>
             <div><dt>{t("score.combined")}</dt><dd>{score(displayedCard.scores.combined)}</dd></div>
             <div><dt>{t("score.mythicPlus")}</dt><dd>{score(displayedCard.scores.mythicPlus)}</dd></div>
+            <div><dt>{t("realm")}</dt><dd>{formatRealmName(displayedCard.realm)}</dd></div>
+            <div><dt>{t("snapshot")}</dt><dd>{SNAPSHOT_DATE_FORMATTER.format(new Date(displayedCard.performanceSnapshotAt))}</dd></div>
           </dl>
         </div>
       </div>
