@@ -709,12 +709,14 @@
 }
 
 .balanceCard:not(.balanceCardStrip) .balanceCount {
-  gap: 0.4rem;
-  font-size: 0.8rem;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.9rem;
 }
 
 .balanceCard:not(.balanceCardStrip) .balanceCount strong {
-  font-size: 1.45rem;
+  font-size: 2rem;
 }
 
 .cardButton {

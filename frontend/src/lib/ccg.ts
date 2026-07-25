@@ -2,6 +2,14 @@ import type { CcgArtVariant, CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 
 export const CCG_FINISH_ORDER: readonly CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
 
+export const CCG_FINISH_PITY_LIMITS: Readonly<Record<Exclude<CcgFinish, "standard">, number>> = {
+  foil: 5,
+  golden: 25,
+  prismatic: 50,
+  holographic: 100,
+  negative: 1000,
+};
+
 export const CCG_RARITY_KEYS: Record<CcgTierGrade, "artifact" | "legendary" | "epic" | "rare" | "uncommon" | "common" | "poor"> = {
   S: "artifact",
   A: "legendary",

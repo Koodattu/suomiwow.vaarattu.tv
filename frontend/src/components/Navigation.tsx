@@ -359,7 +359,7 @@ export default function Navigation() {
                 </button>
 
                 {isSearchDropdownOpen && (
-                  <div className="absolute right-0 z-50 mt-2 w-[min(23rem,calc(100vw-1.5rem))] rounded-md bg-gray-950/95 p-2 shadow-2xl shadow-black/50 ring-1 ring-white/10">
+                  <div className="fixed inset-x-0 top-0 z-50 bg-gray-950/95 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] shadow-2xl shadow-black/50 ring-1 ring-white/10 lg:absolute lg:inset-x-auto lg:right-0 lg:top-auto lg:mt-2 lg:w-[min(23rem,calc(100vw-1.5rem))] lg:rounded-md lg:p-2">
                     <input
                       ref={searchInputRef}
                       type="search"
@@ -368,7 +368,7 @@ export default function Navigation() {
                       placeholder={t("searchPlaceholder")}
                       className="h-9 w-full rounded bg-gray-900 px-3 text-sm text-white outline-none ring-1 ring-white/10 transition-shadow placeholder:text-gray-500 focus:ring-2 focus:ring-emerald-500/70"
                     />
-                    <div className="mt-2 overflow-hidden rounded bg-gray-900/70 ring-1 ring-white/5">
+                    <div className="mt-2 max-h-[calc(100dvh_-_4.75rem_-_env(safe-area-inset-top))] overflow-y-auto rounded bg-gray-900/70 ring-1 ring-white/5 lg:max-h-none lg:overflow-hidden">
                       {trimmedSearchQuery.length < 2 ? (
                         <div className="px-3 py-2.5 text-sm text-gray-500">{t("searchMinCharacters")}</div>
                       ) : isSearchLoading ? (

@@ -7,7 +7,7 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as Reac
 import type { CcgFinish, CcgMode, CcgOpening, CcgTierGrade } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
-import { CCG_FINISH_ORDER, CCG_RARITY_KEYS } from "@/lib/ccg";
+import { CCG_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS } from "@/lib/ccg";
 import { getCcgAnnouncerSoundSources, getCcgPlaybackVolume, type CcgAudioChannel } from "@/lib/ccg-audio";
 import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
 import { getCharacterRenderProxyUrl } from "@/lib/character-render";
@@ -40,6 +40,7 @@ const qualitySoundFiles: Record<CcgFinish, string> = {
   holographic: "5-holographic.mp3",
   negative: "6-negative.mp3",
 };
+const protectedFinishes = CCG_FINISH_ORDER.filter((finish): finish is Exclude<CcgFinish, "standard"> => finish !== "standard");
 const standardQualitySoundGrades = new Set<CcgTierGrade>(["S", "A", "B", "C", "D"]);
 const tearParticles = [
   { x: -132, y: -74, rotate: -34, delay: 90 },
@@ -153,6 +154,10 @@ export default function CcgOpenPage() {
   const selectedLegacySet = legacySets.find((set) => set.id === legacySetId);
   const randomLegacy = mode === "legacy" && !selectedLegacySet;
   const featuredPackSet = mode === "legacy" ? selectedLegacySet : modeSets[0];
+  const selectedPackSets = mode === "legacy" && selectedLegacySet ? [selectedLegacySet] : modeSets;
+  const selectedPackCardCount = selectedPackSets.reduce((total, set) => total + set.cardCount, 0);
+  const selectedPackOwnedCount = selectedPackSets.reduce((total, set) => total + set.ownedCards, 0);
+  const selectedPackProgress = selectedPackCardCount > 0 ? Math.min(1, selectedPackOwnedCount / selectedPackCardCount) : 0;
   const raidIconByZone = useMemo(() => new Map((raidsQuery.data ?? []).map((raid) => [raid.id, raid.iconUrl])), [raidsQuery.data]);
   const poolTitle =
     mode === "legacy"
@@ -680,6 +685,51 @@ export default function CcgOpenPage() {
 
                   <aside className={packStyles.packBalancePanel}>
                     {session ? <PackBalance session={session} mode={mode} /> : <div className={packStyles.balancePlaceholder} />}
+                    {session ? (
+                      <div className={packStyles.qualityDetails}>
+                        {selectedPackCardCount > 0 ? (
+                          <section className={packStyles.qualityDetail}>
+                            <h2>{t("open.collectionProgressEyebrow")}</h2>
+                            <div className={packStyles.collectionProgressSummary}>
+                              <span>{poolTitle}</span>
+                              <strong>{selectedPackOwnedCount} / {selectedPackCardCount}</strong>
+                            </div>
+                            <div
+                              className={packStyles.collectionProgressTrack}
+                              role="progressbar"
+                              aria-label={`${poolTitle}: ${selectedPackOwnedCount}/${selectedPackCardCount} ${t("landing.collected")}`}
+                              aria-valuemin={0}
+                              aria-valuemax={selectedPackCardCount}
+                              aria-valuenow={selectedPackOwnedCount}
+                            >
+                              <span style={{ transform: `scaleX(${selectedPackProgress})` }} />
+                            </div>
+                          </section>
+                        ) : null}
+                        <section className={packStyles.qualityDetail}>
+                          <h2>{t("open.qualityProgressEyebrow")}</h2>
+                          <dl>
+                            {protectedFinishes.map((finish) => (
+                              <div key={finish}>
+                                <dt>{t(`finish.${finish}`)}</dt>
+                                <dd>{session.qualityProtection[finish]} / {CCG_FINISH_PITY_LIMITS[finish]}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        </section>
+                        <section className={packStyles.qualityDetail}>
+                          <h2>{t("open.qualityChancesEyebrow")}</h2>
+                          <dl>
+                            {protectedFinishes.map((finish) => (
+                              <div key={finish}>
+                                <dt>{t(`finish.${finish}`)}</dt>
+                                <dd>{t("open.qualityChance", { odds: CCG_FINISH_PITY_LIMITS[finish] })}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        </section>
+                      </div>
+                    ) : null}
                     {recoveryQuery.isError ? (
                     <div className="mt-4 rounded-md border border-amber-300/20 bg-amber-300/[0.05] p-3" role="alert">
                       <p className="text-sm leading-5 text-amber-100">{t("open.recoveryFailed")}</p>
