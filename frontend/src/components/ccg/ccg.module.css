@@ -1710,6 +1710,10 @@
   opacity: 0.72;
 }
 
+.viewerMissingCard > [data-ccg-card]:is(:hover, [data-forced-hover="true"]) {
+  filter: grayscale(0.92) saturate(0.12) brightness(0.56);
+}
+
 .collectionCardAssetLoading {
   opacity: 0;
   pointer-events: none;
