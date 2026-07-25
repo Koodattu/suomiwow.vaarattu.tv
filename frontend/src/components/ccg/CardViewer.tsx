@@ -91,10 +91,6 @@ export function openCardViewer(
   }
 }
 
-function score(value: number | null): string {
-  return value === null ? "—" : value.toFixed(value >= 1000 ? 0 : 1);
-}
-
 export default function CardViewer({
   card,
   initialFinish = "standard",
@@ -140,7 +136,6 @@ export default function CardViewer({
   const ownedArtVariants = (["standard", "alternative"] as const).filter((value) => ownership.some((row) => row.artVariant === value));
   const ownedFinishes = ownership.filter((row) => row.artVariant === artVariant);
   const isOwned = ownership.length > 0;
-  const quantity = ownedFinishes.find((row) => row.finish === finish)?.quantity ?? 0;
   const characterHref = `/characters/${encodeURIComponent(displayedCard.realm)}/${encodeURIComponent(displayedCard.name)}?class=${encodeURIComponent(String(displayedCard.classID))}`;
 
   useEffect(() => {
@@ -339,7 +334,6 @@ export default function CardViewer({
             card={displayedCard}
             finish={finish}
             artVariant={artVariant}
-            quantity={isOwned ? quantity : undefined}
             width={520}
             className={`${styles.viewerCard} ${missing && !isOwned ? styles.viewerMissingCard : ""}`}
             forcedPointer={forcedPointer}
@@ -429,7 +423,7 @@ export default function CardViewer({
                     onClick={() => setFinish(row.finish)}
                     className={finish === row.finish ? styles.primaryButton : styles.secondaryButton}
                   >
-                    {t(`finish.${row.finish}`)} <span className="tabular-nums">×{row.quantity}</span>
+                    {t(`finish.${row.finish}`)}
                   </button>
                 ))}
               </div>
@@ -441,10 +435,6 @@ export default function CardViewer({
           <dl className={styles.viewerFacts}>
             <div><dt>{t("collection.quality")}</dt><dd>{t(`finish.${finish}`)}</dd></div>
             <div><dt>{t("collection.rarity")}</dt><dd>{t(`rarity.${CCG_RARITY_KEYS[displayedCard.tierGrade]}`)}</dd></div>
-            <div><dt>{t(displayedCard.role === "healer" ? "score.healing" : "score.damage")}</dt><dd>{score(displayedCard.scores.performance)}</dd></div>
-            <div><dt>{t("score.mechanics")}</dt><dd>{score(displayedCard.scores.mechanics)}</dd></div>
-            <div><dt>{t("score.combined")}</dt><dd>{score(displayedCard.scores.combined)}</dd></div>
-            <div><dt>{t("score.mythicPlus")}</dt><dd>{score(displayedCard.scores.mythicPlus)}</dd></div>
             <div><dt>{t("realm")}</dt><dd>{formatRealmName(displayedCard.realm)}</dd></div>
             <div><dt>{t("snapshot")}</dt><dd>{SNAPSHOT_DATE_FORMATTER.format(new Date(displayedCard.performanceSnapshotAt))}</dd></div>
           </dl>

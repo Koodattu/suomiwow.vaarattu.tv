@@ -23,10 +23,6 @@ const SNAPSHOT_DATE_FORMATTER = new Intl.DateTimeFormat("fi-FI", {
   year: "numeric",
 });
 
-function score(value: number | null): string {
-  return value === null ? "—" : value.toFixed(value >= 1000 ? 0 : 1);
-}
-
 function Attribution({ person, className = "" }: { person: CcgShareAttribution; className?: string }) {
   const t = useTranslations("ccg.share");
   return (
@@ -87,10 +83,6 @@ function SharedCard({ share }: { share: Extract<CcgShare, { kind: "card" }> }) {
           <dl className={styles.viewerFacts}>
             <div><dt>{t("collection.quality")}</dt><dd>{t(`finish.${finish}`)}</dd></div>
             <div><dt>{t("collection.rarity")}</dt><dd>{t(`rarity.${CCG_RARITY_KEYS[card.tierGrade]}`)}</dd></div>
-            <div><dt>{t(card.role === "healer" ? "score.healing" : "score.damage")}</dt><dd>{score(card.scores.performance)}</dd></div>
-            <div><dt>{t("score.mechanics")}</dt><dd>{score(card.scores.mechanics)}</dd></div>
-            <div><dt>{t("score.combined")}</dt><dd>{score(card.scores.combined)}</dd></div>
-            <div><dt>{t("score.mythicPlus")}</dt><dd>{score(card.scores.mythicPlus)}</dd></div>
             <div><dt>{t("realm")}</dt><dd>{formatRealmName(card.realm)}</dd></div>
             <div><dt>{t("snapshot")}</dt><dd>{SNAPSHOT_DATE_FORMATTER.format(new Date(card.performanceSnapshotAt))}</dd></div>
           </dl>

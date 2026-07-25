@@ -335,8 +335,8 @@
     },
     "artwork": {
       "label": "Kuvitus",
-      "standard": "Tavallinen kuvitus",
-      "alternative": "Vaihtoehtoinen kuvitus"
+      "standard": "Tavallinen",
+      "alternative": "Vaihtoehtoinen"
     },
     "rarity": {
       "common": "Tavallinen",

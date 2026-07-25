@@ -335,8 +335,8 @@
     },
     "artwork": {
       "label": "Artwork",
-      "standard": "Regular art",
-      "alternative": "Alternative art"
+      "standard": "Regular",
+      "alternative": "Alternative"
     },
     "rarity": {
       "common": "Common",
