@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GuildLogSourceError, getGuildLogSourceSnapshot, normalizeGuildLogSourceInput } from "../src/services/guild-log-source.service";
+import Report from "../src/models/Report";
+import {
+  GuildLogSourceError,
+  getGuildLogSourceSnapshot,
+  normalizeGuildLogSourceInput,
+  withUpdatePipeline,
+} from "../src/services/guild-log-source.service";
 
 test("normalizes a historical Warcraft Logs source identity", () => {
   assert.deepEqual(
@@ -59,4 +65,12 @@ test("report provenance snapshots are stable and omit an unresolved Warcraft Log
     getGuildLogSourceSnapshot({ name: "HinausYhtiö", realm: "Twisting Nether", region: "EU", warcraftlogsId: 123 }),
     { name: "HinausYhtiö", realm: "Twisting Nether", region: "EU", warcraftlogsId: 123 },
   );
+});
+
+test("enables Mongoose aggregation-pipeline updates used by guild migration", () => {
+  const update = [{ $set: { guildId: "target-guild" } }];
+
+  assert.throws(() => Report.updateMany({}, update), /updatePipeline/);
+
+  assert.doesNotThrow(() => Report.updateMany({}, update, withUpdatePipeline({})));
 });

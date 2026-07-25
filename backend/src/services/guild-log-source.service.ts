@@ -113,6 +113,10 @@ export function getGuildLogSourceSnapshot(source: Pick<IGuildLogSource, "name" |
   };
 }
 
+export function withUpdatePipeline<T extends object>(options: T): T & { updatePipeline: true } {
+  return { ...options, updatePipeline: true };
+}
+
 function isTransactionUnsupported(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /Transaction numbers are only allowed|replica set member|mongos/i.test(message);
@@ -490,7 +494,7 @@ class GuildLogSourceService {
               },
             },
           ],
-          { session },
+          withUpdatePipeline({ session }),
         );
         fightResult = await Fight.updateMany({ guildId: sourceGuild._id }, { $set: { guildId: targetGuild._id } }, { session });
         appearanceResult = await CharacterReportAppearance.updateMany(
@@ -539,7 +543,7 @@ class GuildLogSourceService {
               },
             },
           ],
-          { session },
+          withUpdatePipeline({ session }),
         );
 
         await Guild.updateOne({ _id: targetGuild._id }, { $set: { streamers: mergedStreamers } }, { session });
