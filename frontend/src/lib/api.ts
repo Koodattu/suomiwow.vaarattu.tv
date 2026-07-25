@@ -143,6 +143,8 @@ import {
   CcgAdminEnableResponse,
   CcgAdminSetReadiness,
   CcgAdminStatusResponse,
+  CcgAdminAnalyticsRange,
+  CcgAdminAnalyticsResponse,
   CcgAdminCommunityCharacter,
   CcgAdminCardSearchResponse,
   CcgAdminAlternativeArtResponse,
@@ -322,6 +324,12 @@ export const api = {
   async getAdminCcgStatus(): Promise<CcgAdminStatusResponse> {
     const response = await fetch(`${API_URL}/api/admin/ccg/status`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load CCG administration");
+    return response.json();
+  },
+
+  async getAdminCcgAnalytics(days: CcgAdminAnalyticsRange): Promise<CcgAdminAnalyticsResponse> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/analytics?days=${days}`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load CCG analytics");
     return response.json();
   },
 

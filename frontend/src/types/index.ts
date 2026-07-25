@@ -2059,6 +2059,22 @@ export type CcgAdminStatusResponse = {
   community: { characters: CcgAdminCommunityCharacter[] };
 };
 
+export type CcgAdminAnalyticsRange = 7 | 30 | 90;
+
+export type CcgAdminAnalyticsResponse = {
+  rangeDays: CcgAdminAnalyticsRange;
+  series: Array<{ date: string; packOpenings: number; activeUsers: number }>;
+  totals: {
+    packOpenings: number;
+    cardsRevealed: number;
+    activeUsersToday: number;
+    averageDailyOpenings: number;
+    modes: Record<CcgMode, number>;
+  };
+  qualities: Array<{ key: CcgFinish; count: number; rate: number }>;
+  rarities: Array<{ key: CcgTierGrade; count: number; rate: number }>;
+};
+
 export type CcgAdminCommunityCharacter = {
   id: string;
   cardId: string | null;

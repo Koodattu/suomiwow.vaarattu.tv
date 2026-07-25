@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 import { CCG_CONFIGURED_SETS, normalizeCcgRaidName } from "../config/ccg";
 import { requireAdmin } from "../middleware/admin.middleware";
 import CcgCard from "../models/CcgCard";
-import CcgPackOpening from "../models/CcgPackOpening";
 import CcgSet from "../models/CcgSet";
 import Raid from "../models/Raid";
 import characterMediaService from "../services/character-media.service";
@@ -44,12 +43,12 @@ router.get(
   adminRoute(async () => {
     await ccgPublisherService.ensureConfiguredSets();
     const minimumZoneId = Math.min(...CCG_CONFIGURED_SETS.map((set) => set.zoneId));
-    const [sets, knownRaids, media, cards, openings, communityCharacters] = await Promise.all([
+    const [sets, knownRaids, media, cards, analytics, communityCharacters] = await Promise.all([
       CcgSet.find().sort({ zoneId: 1 }).lean(),
       Raid.find({ id: { $gte: minimumZoneId } }).select("id name slug expansion").sort({ id: 1 }).lean(),
       characterMediaService.getStatus(),
       CcgCard.countDocuments(),
-      CcgPackOpening.countDocuments(),
+      ccgService.getAnalytics(),
       ccgCommunityService.list(),
     ]);
     const setByZone = new Map(sets.map((set) => [set.zoneId, set]));
@@ -80,7 +79,7 @@ router.get(
         .filter((raid) => !configuredZoneIds.has(raid.id))
         .map((raid) => ({ zoneId: raid.id, raidName: normalizeCcgRaidName(raid.name), slug: raid.slug, expansionName: raid.expansion, availability: "excluded" as const })),
       media,
-      totals: { cards, openings },
+      totals: { cards, openings: analytics.packOpenings },
       community: { characters: communityCharacters },
     };
   }),
@@ -103,6 +102,11 @@ router.post(
       }),
     };
   }),
+);
+
+router.get(
+  "/analytics",
+  adminRoute(async (req) => ccgService.getAnalyticsForAdmin(req.query.days)),
 );
 
 router.patch(

@@ -153,8 +153,8 @@
       "completeCollection": "Complete collection",
       "legacyEmpty": "Legacy binders will appear as their snapshots are published.",
       "analytics": {
-        "title": "Vault activity",
-        "uniqueUsers": "Unique users",
+        "title": "Community activity",
+        "uniqueUsers": "Collectors",
         "packOpenings": "Packs opened"
       }
     },
@@ -848,10 +848,33 @@
       "sections": {
         "label": "CCG administration sections",
         "studio": "Card studio",
+        "analytics": "Analytics",
         "alternativeArt": "Artwork & quips",
         "redeemCodes": "Redeem codes",
         "community": "Community",
         "sets": "Raid sets"
+      },
+      "analytics": {
+        "title": "Pack opening analytics",
+        "description": "Track daily opening volume, active users, finish quality, and card rarity without scanning raw opening records.",
+        "loading": "Loading pack opening analytics…",
+        "loadError": "Pack opening analytics could not be loaded.",
+        "retry": "Try again",
+        "rangeLabel": "Analytics date range",
+        "range": "{days}D",
+        "packsOpened": "Packs opened",
+        "cardsRevealed": "Cards revealed",
+        "activeToday": "Active users today",
+        "dailyAverage": "Daily average",
+        "modeSplit": "{current} Current · {legacy} Legacy",
+        "activityTitle": "Opening activity",
+        "activityDescription": "Daily pack openings and unique active users in Helsinki time.",
+        "activeUsers": "Active users",
+        "empty": "No pack openings were recorded in this range.",
+        "qualityTitle": "Finish quality",
+        "qualityDescription": "Share of revealed cards by finish quality.",
+        "rarityTitle": "Card rarity",
+        "rarityDescription": "Share of revealed cards by S–F tier grade."
       },
       "redeemCodes": {
         "title": "Create redeem code",

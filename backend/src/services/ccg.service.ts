@@ -11,6 +11,7 @@ import {
   CCG_PACK_RECHARGE_INTERVAL_HOURS,
   CCG_PACK_RULE_VERSION,
   CCG_PACK_STORAGE_CAPS,
+  CCG_TIME_ZONE,
   CCG_TIER_GRADES,
   CcgArtVariant,
   CcgFinish,
@@ -19,6 +20,8 @@ import {
 } from "../config/ccg";
 import CcgCard, { ICcgCard } from "../models/CcgCard";
 import CcgAlternativeArt from "../models/CcgAlternativeArt";
+import CcgAnalyticsDaily from "../models/CcgAnalyticsDaily";
+import CcgAnalyticsDailyParticipant from "../models/CcgAnalyticsDailyParticipant";
 import CcgAnalyticsParticipant from "../models/CcgAnalyticsParticipant";
 import CcgAnalyticsSummary from "../models/CcgAnalyticsSummary";
 import CcgDailyAllowance from "../models/CcgDailyAllowance";
@@ -58,7 +61,8 @@ import ccgPublisherService from "./ccg-publisher.service";
 
 const CCG_ANALYTICS_KEY = "global";
 const CCG_ANALYTICS_SCHEMA_VERSION = 1;
-const CCG_ANALYTICS_INITIALIZATION_LOCK = "ccg-analytics-initialize-v1";
+const CCG_ANALYTICS_DETAILED_SCHEMA_VERSION = 1;
+const CCG_ANALYTICS_INITIALIZATION_LOCK = "ccg-analytics-initialize-v2";
 const CCG_ANALYTICS_INITIALIZATION_TIMEOUT_MS = 30_000;
 
 type CcgOwner = {
@@ -132,6 +136,12 @@ function wait(durationMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, durationMs));
 }
 
+function shiftDateKey(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return shifted.toISOString().slice(0, 10);
+}
+
 function isTransactionUnsupported(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /Transaction numbers are only allowed|replica set|does not support retryable writes/i.test(message);
@@ -152,6 +162,7 @@ function validatePackGrant(value: unknown, label: string): number {
 class CcgService {
   private analyticsInitialization: Promise<void> | null = null;
   private analyticsReady = false;
+  private analyticsDailyBucketKey: string | null = null;
 
   private adminCardSearchCache: {
     expiresAt: number;
@@ -221,6 +232,66 @@ class CcgService {
     return {
       uniqueUsers: summary.uniqueUsers,
       packOpenings: summary.packOpenings,
+    };
+  }
+
+  async getAnalyticsForAdmin(rawDays: unknown): Promise<Record<string, unknown>> {
+    requireFeature();
+    const days = rawDays === undefined ? 30 : Number(rawDays);
+    if (![7, 30, 90].includes(days)) {
+      throw new CcgServiceError(400, "invalid_analytics_range", "Analytics range must be 7, 30, or 90 days");
+    }
+    await this.ensureAnalyticsInitialized();
+
+    const endDateKey = getHelsinkiDateKey();
+    const startDateKey = shiftDateKey(endDateKey, -(days - 1));
+    const rows = await CcgAnalyticsDaily.find({ dateKey: { $gte: startDateKey, $lte: endDateKey } })
+      .sort({ dateKey: 1 })
+      .lean();
+    const rowByDate = new Map(rows.map((row) => [row.dateKey, row]));
+    const series = Array.from({ length: days }, (_, index) => {
+      const dateKey = shiftDateKey(startDateKey, index);
+      const row = rowByDate.get(dateKey);
+      return {
+        date: dateKey,
+        packOpenings: row?.packOpenings ?? 0,
+        activeUsers: row?.activeUsers ?? 0,
+      };
+    });
+
+    const finishes = Object.fromEntries(CCG_FINISH_ORDER.map((finish) => [finish, 0])) as Record<CcgFinish, number>;
+    const grades = Object.fromEntries(CCG_TIER_GRADES.map((grade) => [grade, 0])) as Record<CcgTierGrade, number>;
+    const modes: Record<CcgMode, number> = { current: 0, legacy: 0 };
+    let packOpenings = 0;
+    for (const row of rows) {
+      packOpenings += row.packOpenings;
+      modes.current += row.modes?.current ?? 0;
+      modes.legacy += row.modes?.legacy ?? 0;
+      CCG_FINISH_ORDER.forEach((finish) => { finishes[finish] += row.finishes?.[finish] ?? 0; });
+      CCG_TIER_GRADES.forEach((grade) => { grades[grade] += row.grades?.[grade] ?? 0; });
+    }
+    const cardsRevealed = Object.values(finishes).reduce((total, count) => total + count, 0);
+
+    return {
+      rangeDays: days,
+      series,
+      totals: {
+        packOpenings,
+        cardsRevealed,
+        activeUsersToday: series[series.length - 1]?.activeUsers ?? 0,
+        averageDailyOpenings: packOpenings / days,
+        modes,
+      },
+      qualities: CCG_FINISH_ORDER.map((finish) => ({
+        key: finish,
+        count: finishes[finish],
+        rate: cardsRevealed > 0 ? finishes[finish] / cardsRevealed : 0,
+      })),
+      rarities: CCG_TIER_GRADES.map((grade) => ({
+        key: grade,
+        count: grades[grade],
+        rate: cardsRevealed > 0 ? grades[grade] / cardsRevealed : 0,
+      })),
     };
   }
 
@@ -984,6 +1055,7 @@ class CcgService {
     const idempotencyKey = validateIdempotencyKey(body.idempotencyKey);
     const existing = await CcgPackOpening.findOne({ ownerType: owner.ownerType, ownerId: owner.ownerId, idempotencyKey }).lean();
     if (existing) return this.serializeOpening(existing);
+    await this.ensureAnalyticsDailyBucket(owner.dateKey);
     const session = await mongoose.startSession();
     let openingId: mongoose.Types.ObjectId | null = null;
 
@@ -1090,7 +1162,7 @@ class CcgService {
           ],
           { session },
         );
-        await this.recordPackOpeningAnalytics(owner, session);
+        await this.recordPackOpeningAnalytics(owner, mode, results, session);
       });
     } catch (error) {
       if (isTransactionUnsupported(error)) {
@@ -1230,6 +1302,17 @@ class CcgService {
           },
           { session },
         );
+        await CcgAnalyticsDailyParticipant.updateMany(
+          { ownerKey: getAnalyticsOwnerKey("guest", transactionalGuest._id) },
+          {
+            $set: {
+              ownerKey: getAnalyticsOwnerKey("user", userId),
+              ownerType: "user",
+              ownerId: userId,
+            },
+          },
+          { session },
+        );
         await CcgOwnership.deleteMany({ ownerType: "guest", ownerId: transactionalGuest._id }, { session });
         await CcgPackBalance.deleteMany({ ownerType: "guest", ownerId: transactionalGuest._id }, { session });
         await CcgDailyAllowance.deleteMany({ ownerType: "guest", ownerId: transactionalGuest._id }, { session });
@@ -1340,6 +1423,7 @@ class CcgService {
     const ready = await CcgAnalyticsSummary.exists({
       key: CCG_ANALYTICS_KEY,
       schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
+      detailedSchemaVersion: CCG_ANALYTICS_DETAILED_SCHEMA_VERSION,
     });
     if (ready) {
       this.analyticsReady = true;
@@ -1378,6 +1462,7 @@ class CcgService {
         const ready = await CcgAnalyticsSummary.exists({
           key: CCG_ANALYTICS_KEY,
           schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
+          detailedSchemaVersion: CCG_ANALYTICS_DETAILED_SCHEMA_VERSION,
         });
         if (ready) return;
         await wait(100);
@@ -1389,14 +1474,31 @@ class CcgService {
       const ready = await CcgAnalyticsSummary.exists({
         key: CCG_ANALYTICS_KEY,
         schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
+        detailedSchemaVersion: CCG_ANALYTICS_DETAILED_SCHEMA_VERSION,
       });
       if (ready) return;
 
       await Promise.all([
+        CcgAnalyticsDaily.init(),
+        CcgAnalyticsDailyParticipant.init(),
         CcgAnalyticsParticipant.init(),
         CcgAnalyticsSummary.init(),
       ]);
-      await CcgPackOpening.aggregate([
+      const summary = await CcgAnalyticsSummary.findOne({ key: CCG_ANALYTICS_KEY }).lean();
+      if (summary?.schemaVersion !== CCG_ANALYTICS_SCHEMA_VERSION) {
+        await this.initializeAnalyticsParticipants();
+      }
+      if (summary?.detailedSchemaVersion !== CCG_ANALYTICS_DETAILED_SCHEMA_VERSION) {
+        await this.initializeDetailedAnalytics();
+      }
+    } finally {
+      await CcgJobLock.deleteOne({ key: CCG_ANALYTICS_INITIALIZATION_LOCK, owner: lockOwner })
+        .catch((error) => logger.error("[CCG] Failed to release the analytics initialization lock:", error));
+    }
+  }
+
+  private async initializeAnalyticsParticipants(): Promise<void> {
+    await CcgPackOpening.aggregate([
         { $match: { state: "committed" } },
         {
           $lookup: {
@@ -1471,45 +1573,184 @@ class CcgService {
             whenNotMatched: "insert",
           },
         },
-      ]);
+    ]);
 
-      const [totals] = await CcgAnalyticsParticipant.aggregate<{
-        uniqueUsers: number;
-        packOpenings: number;
-      }>([
-        {
-          $group: {
-            _id: null,
-            uniqueUsers: { $sum: 1 },
-            packOpenings: { $sum: "$packOpenings" },
-          },
+    const [totals] = await CcgAnalyticsParticipant.aggregate<{
+      uniqueUsers: number;
+      packOpenings: number;
+    }>([
+      {
+        $group: {
+          _id: null,
+          uniqueUsers: { $sum: 1 },
+          packOpenings: { $sum: "$packOpenings" },
         },
-      ]);
-      await CcgAnalyticsSummary.findOneAndUpdate(
-        { key: CCG_ANALYTICS_KEY },
-        {
-          $set: {
-            schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
-            uniqueUsers: totals?.uniqueUsers ?? 0,
-            packOpenings: totals?.packOpenings ?? 0,
-            updatedAt: new Date(),
-          },
+      },
+    ]);
+    await CcgAnalyticsSummary.findOneAndUpdate(
+      { key: CCG_ANALYTICS_KEY },
+      {
+        $set: {
+          schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
+          uniqueUsers: totals?.uniqueUsers ?? 0,
+          packOpenings: totals?.packOpenings ?? 0,
+          updatedAt: new Date(),
         },
-        { upsert: true, new: true },
-      );
-    } finally {
-      await CcgJobLock.deleteOne({ key: CCG_ANALYTICS_INITIALIZATION_LOCK, owner: lockOwner })
-        .catch((error) => logger.error("[CCG] Failed to release the analytics initialization lock:", error));
-    }
+      },
+      { upsert: true, new: true },
+    );
   }
 
-  private async recordPackOpeningAnalytics(owner: CcgOwner, session: ClientSession): Promise<void> {
+  private async initializeDetailedAnalytics(): Promise<void> {
+    const dateKeyExpression = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: CCG_TIME_ZONE } };
+    await CcgPackOpening.aggregate([
+      { $match: { state: "committed" } },
+      {
+        $group: {
+          _id: dateKeyExpression,
+          packOpenings: { $sum: 1 },
+          current: { $sum: { $cond: [{ $eq: ["$mode", "current"] }, 1, 0] } },
+          legacy: { $sum: { $cond: [{ $eq: ["$mode", "legacy"] }, 1, 0] } },
+          updatedAt: { $max: "$createdAt" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          dateKey: "$_id",
+          packOpenings: 1,
+          activeUsers: { $literal: 0 },
+          modes: { current: "$current", legacy: "$legacy" },
+          finishes: { standard: 0, foil: 0, golden: 0, prismatic: 0, holographic: 0, negative: 0 },
+          grades: { S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 },
+          updatedAt: 1,
+        },
+      },
+      {
+        $merge: {
+          into: CcgAnalyticsDaily.collection.name,
+          on: "dateKey",
+          whenMatched: [{ $set: { packOpenings: "$$new.packOpenings", modes: "$$new.modes", updatedAt: "$$new.updatedAt" } }],
+          whenNotMatched: "insert",
+        },
+      },
+    ]);
+
+    const finishSums = Object.fromEntries(CCG_FINISH_ORDER.map((finish) => [
+      finish,
+      { $sum: { $cond: [{ $eq: ["$results.finish", finish] }, 1, 0] } },
+    ]));
+    const gradeSums = Object.fromEntries(CCG_TIER_GRADES.map((grade) => [
+      grade,
+      { $sum: { $cond: [{ $eq: ["$results.tierGrade", grade] }, 1, 0] } },
+    ]));
+    await CcgPackOpening.aggregate([
+      { $match: { state: "committed" } },
+      { $unwind: "$results" },
+      { $group: { _id: dateKeyExpression, ...finishSums, ...gradeSums } },
+      {
+        $project: {
+          _id: 0,
+          dateKey: "$_id",
+          finishes: Object.fromEntries(CCG_FINISH_ORDER.map((finish) => [finish, `$${finish}`])),
+          grades: Object.fromEntries(CCG_TIER_GRADES.map((grade) => [grade, `$${grade}`])),
+        },
+      },
+      {
+        $merge: {
+          into: CcgAnalyticsDaily.collection.name,
+          on: "dateKey",
+          whenMatched: [{ $set: { finishes: "$$new.finishes", grades: "$$new.grades" } }],
+          whenNotMatched: "discard",
+        },
+      },
+    ]);
+
+    await CcgPackOpening.aggregate([
+      { $match: { state: "committed" } },
+      {
+        $lookup: {
+          from: CcgGuest.collection.name,
+          localField: "ownerId",
+          foreignField: "_id",
+          as: "guest",
+        },
+      },
+      {
+        $set: {
+          effectiveUserId: {
+            $ifNull: ["$claimedByUserId", { $arrayElemAt: ["$guest.claimedByUserId", 0] }],
+          },
+        },
+      },
+      {
+        $project: {
+          dateKey: dateKeyExpression,
+          effectiveOwnerType: {
+            $cond: [{ $ne: [{ $ifNull: ["$effectiveUserId", null] }, null] }, "user", "$ownerType"],
+          },
+          effectiveOwnerId: { $ifNull: ["$effectiveUserId", "$ownerId"] },
+          createdAt: 1,
+        },
+      },
+      {
+        $group: {
+          _id: { dateKey: "$dateKey", ownerType: "$effectiveOwnerType", ownerId: "$effectiveOwnerId" },
+          firstOpenedAt: { $min: "$createdAt" },
+          lastOpenedAt: { $max: "$createdAt" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          dateKey: "$_id.dateKey",
+          ownerKey: { $concat: ["$_id.ownerType", ":", { $toString: "$_id.ownerId" }] },
+          ownerType: "$_id.ownerType",
+          ownerId: "$_id.ownerId",
+          firstOpenedAt: 1,
+          lastOpenedAt: 1,
+        },
+      },
+      {
+        $merge: {
+          into: CcgAnalyticsDailyParticipant.collection.name,
+          on: ["dateKey", "ownerKey"],
+          whenMatched: [{ $set: { ownerType: "$$new.ownerType", ownerId: "$$new.ownerId", firstOpenedAt: "$$new.firstOpenedAt", lastOpenedAt: "$$new.lastOpenedAt" } }],
+          whenNotMatched: "insert",
+        },
+      },
+    ]);
+    await CcgAnalyticsDailyParticipant.aggregate([
+      { $group: { _id: "$dateKey", activeUsers: { $sum: 1 } } },
+      { $project: { _id: 0, dateKey: "$_id", activeUsers: 1 } },
+      {
+        $merge: {
+          into: CcgAnalyticsDaily.collection.name,
+          on: "dateKey",
+          whenMatched: [{ $set: { activeUsers: "$$new.activeUsers" } }],
+          whenNotMatched: "discard",
+        },
+      },
+    ]);
+    await CcgAnalyticsSummary.updateOne(
+      { key: CCG_ANALYTICS_KEY, schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION },
+      { $set: { detailedSchemaVersion: CCG_ANALYTICS_DETAILED_SCHEMA_VERSION } },
+    );
+  }
+
+  private async recordPackOpeningAnalytics(
+    owner: CcgOwner,
+    mode: CcgMode,
+    results: SelectedResult[],
+    session: ClientSession,
+  ): Promise<void> {
     const openedAt = new Date();
+    const ownerKey = getAnalyticsOwnerKey(owner.ownerType, owner.ownerId);
     const participant = await CcgAnalyticsParticipant.updateOne(
-      { ownerKey: getAnalyticsOwnerKey(owner.ownerType, owner.ownerId) },
+      { ownerKey },
       {
         $setOnInsert: {
-          ownerKey: getAnalyticsOwnerKey(owner.ownerType, owner.ownerId),
+          ownerKey,
           ownerType: owner.ownerType,
           ownerId: owner.ownerId,
           firstOpenedAt: openedAt,
@@ -1519,10 +1760,43 @@ class CcgService {
       },
       { upsert: true, session },
     );
+    const dateKey = owner.dateKey;
+    const dailyParticipant = await CcgAnalyticsDailyParticipant.updateOne(
+      { dateKey, ownerKey },
+      {
+        $setOnInsert: {
+          dateKey,
+          ownerKey,
+          ownerType: owner.ownerType,
+          ownerId: owner.ownerId,
+          firstOpenedAt: openedAt,
+        },
+        $set: { lastOpenedAt: openedAt },
+      },
+      { upsert: true, session },
+    );
+    const dailyIncrements: Record<string, number> = {
+      packOpenings: 1,
+      activeUsers: dailyParticipant.upsertedCount,
+      [`modes.${mode}`]: 1,
+    };
+    results.forEach((result) => {
+      dailyIncrements[`finishes.${result.finish}`] = (dailyIncrements[`finishes.${result.finish}`] ?? 0) + 1;
+      dailyIncrements[`grades.${result.tierGrade}`] = (dailyIncrements[`grades.${result.tierGrade}`] ?? 0) + 1;
+    });
+    const daily = await CcgAnalyticsDaily.updateOne(
+      { dateKey },
+      {
+        $set: { updatedAt: openedAt },
+        $inc: dailyIncrements,
+      },
+      { session },
+    );
     const summary = await CcgAnalyticsSummary.updateOne(
       {
         key: CCG_ANALYTICS_KEY,
         schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
+        detailedSchemaVersion: CCG_ANALYTICS_DETAILED_SCHEMA_VERSION,
       },
       {
         $inc: {
@@ -1533,10 +1807,35 @@ class CcgService {
       },
       { session },
     );
-    if (summary.matchedCount !== 1) {
+    if (daily.matchedCount !== 1 || summary.matchedCount !== 1) {
       this.analyticsReady = false;
+      this.analyticsDailyBucketKey = null;
       throw new CcgServiceError(503, "analytics_unavailable", "Vault activity is temporarily unavailable");
     }
+  }
+
+  private async ensureAnalyticsDailyBucket(dateKey: string): Promise<void> {
+    if (this.analyticsDailyBucketKey === dateKey) return;
+    try {
+      await CcgAnalyticsDaily.updateOne(
+        { dateKey },
+        {
+          $setOnInsert: {
+            dateKey,
+            packOpenings: 0,
+            activeUsers: 0,
+            modes: { current: 0, legacy: 0 },
+            finishes: { standard: 0, foil: 0, golden: 0, prismatic: 0, holographic: 0, negative: 0 },
+            grades: { S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 },
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true, setDefaultsOnInsert: false },
+      );
+    } catch (error) {
+      if (!isDuplicateKeyError(error)) throw error;
+    }
+    this.analyticsDailyBucketKey = dateKey;
   }
 
   private readFinishPity(row?: Partial<ICcgQualityProgress> | null): CcgFinishPity {

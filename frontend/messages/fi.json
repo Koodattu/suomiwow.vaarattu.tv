@@ -153,8 +153,8 @@
       "completeCollection": "Koko kokoelma",
       "legacyEmpty": "Legacy-kansiot ilmestyvät sitä mukaa, kun niiden snapshotit julkaistaan.",
       "analytics": {
-        "title": "Holvin aktiivisuus",
-        "uniqueUsers": "Uniikit käyttäjät",
+        "title": "Yhteisön aktiivisuus",
+        "uniqueUsers": "Keräilijät",
         "packOpenings": "Avatut pakat"
       }
     },
@@ -848,10 +848,33 @@
       "sections": {
         "label": "CCG-hallinnan osiot",
         "studio": "Korttistudio",
+        "analytics": "Analytiikka",
         "alternativeArt": "Kuvitus ja repliikit",
         "redeemCodes": "Lunastuskoodit",
         "community": "Community",
         "sets": "Raidisetit"
+      },
+      "analytics": {
+        "title": "Pakkojen avausanalytiikka",
+        "description": "Seuraa päivittäisiä avauksia, aktiivisia käyttäjiä, korttien laatua ja harvinaisuutta ilman raakadatan läpikäyntiä.",
+        "loading": "Ladataan pakkojen avausanalytiikkaa…",
+        "loadError": "Pakkojen avausanalytiikkaa ei voitu ladata.",
+        "retry": "Yritä uudelleen",
+        "rangeLabel": "Analytiikan aikaväli",
+        "range": "{days} pv",
+        "packsOpened": "Avatut pakat",
+        "cardsRevealed": "Paljastetut kortit",
+        "activeToday": "Aktiiviset käyttäjät tänään",
+        "dailyAverage": "Päiväkeskiarvo",
+        "modeSplit": "{current} Current · {legacy} Legacy",
+        "activityTitle": "Avausaktiivisuus",
+        "activityDescription": "Päivittäiset pakka-avaukset ja uniikit aktiiviset käyttäjät Helsingin ajassa.",
+        "activeUsers": "Aktiiviset käyttäjät",
+        "empty": "Valitulla aikavälillä ei ole pakka-avauksia.",
+        "qualityTitle": "Korttien laatu",
+        "qualityDescription": "Paljastettujen korttien osuudet laatutasoittain.",
+        "rarityTitle": "Korttien harvinaisuus",
+        "rarityDescription": "Paljastettujen korttien osuudet S–F-harvinaisuusluokittain."
       },
       "redeemCodes": {
         "title": "Luo lunastuskoodi",
