@@ -648,7 +648,7 @@
   color: #edf3fb;
   font-size: clamp(0.58rem, 3.45cqw, 0.92rem);
   font-weight: 760;
-  line-height: 1;
+  line-height: 1.2;
 }
 
 .cornerCrest {
