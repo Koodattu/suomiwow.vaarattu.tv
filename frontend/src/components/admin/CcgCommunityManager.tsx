@@ -75,6 +75,7 @@ export default function CcgCommunityManager({ characters, onChanged, onError, on
   const [busyId, setBusyId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const activeCharacterCount = characters.filter((character) => character.active).length;
 
   useEffect(() => {
     setDrafts(Object.fromEntries(characters.map((character) => [character.id, draftFromCharacter(character)])));
@@ -131,163 +132,158 @@ export default function CcgCommunityManager({ characters, onChanged, onError, on
   };
 
   return (
-    <section className="space-y-5" aria-labelledby="ccg-community-title">
-      <div className="grid gap-5 xl:grid-cols-[minmax(24rem,.72fr)_minmax(32rem,1.28fr)]">
-        <form className="rounded-lg bg-gray-900/65 p-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" onSubmit={(event) => void addCharacter(event)}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 id="ccg-community-title" className="text-lg font-bold text-white">{t("addTitle")}</h3>
-              <p className="mt-1 text-sm leading-6 text-gray-400">{t("description")}</p>
-            </div>
-            <span className="shrink-0 rounded-full bg-cyan-950/80 px-2.5 py-1 text-xs font-semibold text-cyan-200">{t("cards", { count: characters.filter((character) => character.active).length })}</span>
-          </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-xs font-semibold text-gray-400">
-              {t("name")}
-              <input className={fieldClass} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} autoComplete="off" required disabled={adding} />
-            </label>
-            <label className="grid gap-1 text-xs font-semibold text-gray-400">
-              {t("realm")}
-              <input className={fieldClass} value={form.realmSlug} onChange={(event) => setForm((current) => ({ ...current, realmSlug: event.target.value }))} placeholder="stormreaver" autoComplete="off" required disabled={adding} />
-            </label>
-            <label className="grid gap-1 text-xs font-semibold text-gray-400">
-              {t("region")}
-              <select className={fieldClass} value={form.region} onChange={(event) => setForm((current) => ({ ...current, region: event.target.value }))} disabled={adding}>
-                {(["eu", "us", "kr", "tw"] as const).map((region) => <option key={region} value={region}>{region.toUpperCase()}</option>)}
-              </select>
-            </label>
-            <label className="grid gap-1 text-xs font-semibold text-gray-400">
-              {t("rarity")}
-              <select className={fieldClass} value={form.tierGrade} onChange={(event) => setForm((current) => ({ ...current, tierGrade: event.target.value as CcgTierGrade }))} disabled={adding}>
-                {grades.map((grade) => <option key={grade} value={grade}>{t(`rarityNames.${grade}`)}</option>)}
-              </select>
-            </label>
-          </div>
-          <button type="submit" className={`${primaryButton} mt-4 w-full`} disabled={adding || !form.name.trim() || !form.realmSlug.trim()}>
+    <section className="space-y-4" aria-labelledby="ccg-community-title">
+      <form className="rounded-xl bg-gray-900/65 p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.08)]" onSubmit={(event) => void addCharacter(event)}>
+        <div>
+          <h3 id="ccg-community-title" className="text-balance font-bold text-white">{t("addTitle")}</h3>
+          <p className="mt-1 max-w-4xl text-pretty text-xs leading-5 text-gray-500">{t("description")}</p>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(10rem,1.2fr)_minmax(10rem,1.2fr)_6rem_8rem_auto] xl:items-end">
+          <label className="grid gap-1 text-xs font-semibold text-gray-400">
+            {t("name")}
+            <input className={fieldClass} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} autoComplete="off" required disabled={adding} />
+          </label>
+          <label className="grid gap-1 text-xs font-semibold text-gray-400">
+            {t("realm")}
+            <input className={fieldClass} value={form.realmSlug} onChange={(event) => setForm((current) => ({ ...current, realmSlug: event.target.value }))} placeholder="stormreaver" autoComplete="off" required disabled={adding} />
+          </label>
+          <label className="grid gap-1 text-xs font-semibold text-gray-400">
+            {t("region")}
+            <select className={fieldClass} value={form.region} onChange={(event) => setForm((current) => ({ ...current, region: event.target.value }))} disabled={adding}>
+              {(["eu", "us", "kr", "tw"] as const).map((region) => <option key={region} value={region}>{region.toUpperCase()}</option>)}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-semibold text-gray-400">
+            {t("rarity")}
+            <select className={fieldClass} value={form.tierGrade} onChange={(event) => setForm((current) => ({ ...current, tierGrade: event.target.value as CcgTierGrade }))} disabled={adding}>
+              {grades.map((grade) => <option key={grade} value={grade}>{t(`rarityNames.${grade}`)}</option>)}
+            </select>
+          </label>
+          <button type="submit" className={`${primaryButton} w-full whitespace-nowrap sm:col-span-2 xl:col-span-1 xl:w-auto`} disabled={adding || !form.name.trim() || !form.realmSlug.trim()}>
             {adding ? t("adding") : t("add")}
           </button>
-        </form>
-
-        <div className="min-w-0 rounded-lg bg-gray-900/65 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 className="font-bold text-white">{t("manageTitle")}</h3>
-              <p className="mt-1 text-xs text-gray-500">{t("manageDescription")}</p>
-            </div>
-            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} className={`${fieldClass} sm:w-64`} placeholder={t("search")} autoComplete="off" />
-          </div>
-
-          <div className="mt-3 max-h-[32rem] overflow-y-auto rounded-md bg-gray-950/45">
-            {filtered.length === 0 ? (
-              <p className="p-5 text-center text-sm text-gray-500">{t(characters.length === 0 ? "empty" : "noResults")}</p>
-            ) : (
-              <ul className="divide-y divide-white/6">
-                {filtered.map((character) => {
-                  const busy = busyId === character.id;
-                  const draft = drafts[character.id] ?? draftFromCharacter(character);
-                  const savedDraft = draftFromCharacter(character);
-                  const scores = parseScores(draft);
-                  const changed = JSON.stringify(draft) !== JSON.stringify(savedDraft);
-                  return (
-                    <li key={character.id} className={`p-3 ${character.active ? "" : "opacity-60"}`}>
-                      <div className="grid gap-3 sm:grid-cols-[2.5rem_minmax(10rem,1fr)_9rem_auto] sm:items-center">
-                        <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-md bg-gray-800">
-                          {character.avatarUrl ? <img src={character.avatarUrl} alt="" className="h-full w-full object-cover outline outline-1 -outline-offset-1 outline-white/10" /> : <span className="text-xs text-gray-500">?</span>}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <strong className="truncate text-sm text-white">{character.name} <span className="font-medium text-gray-500">· {character.realm}</span></strong>
-                            <span className={`rounded px-1.5 py-0.5 text-[.65rem] font-semibold ${character.active ? "bg-emerald-950 text-emerald-300" : "bg-gray-800 text-gray-400"}`}>{t(character.active ? "active" : "inactive")}</span>
-                          </div>
-                          <p className="mt-0.5 truncate text-xs text-gray-500">{character.guildName ?? t("noGuild")} · {character.specName} · {t(character.linkedCharacterId ? "linked" : "blizzardOnly")}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">
-                          <label className="grid gap-1 text-[.68rem] font-semibold text-gray-500">
-                            {t("rarity")}
-                            <select
-                              className={fieldClass}
-                              value={draft.tierGrade}
-                              onChange={(event) => setDrafts((current) => ({
-                                ...current,
-                                [character.id]: { ...draft, tierGrade: event.target.value as CcgTierGrade },
-                              }))}
-                              aria-label={t("rarityFor", { name: character.name })}
-                              disabled={busy}
-                            >
-                              {grades.map((grade) => <option key={grade} value={grade}>{t(`rarityNames.${grade}`)}</option>)}
-                            </select>
-                          </label>
-                          <label className="grid gap-1 text-[.68rem] font-semibold text-gray-500">
-                            {t("role")}
-                            <select
-                              className={fieldClass}
-                              value={draft.role}
-                              onChange={(event) => setDrafts((current) => ({
-                                ...current,
-                                [character.id]: { ...draft, role: event.target.value as CommunityRole },
-                              }))}
-                              disabled={busy}
-                            >
-                              {(["dps", "healer", "tank"] as const).map((role) => <option key={role} value={role}>{ccgT(`role.${role}`)}</option>)}
-                            </select>
-                          </label>
-                        </div>
-                        <div className="flex flex-wrap justify-start gap-1.5 sm:justify-end">
-                          <button type="button" className={secondaryButton} onClick={() => void updateCharacter(character, { tierGrade: draft.tierGrade, role: draft.role, scores: scores ?? undefined }, "saved")} disabled={busy || !changed || !scores || !character.active}>{t("save")}</button>
-                          <button type="button" className={secondaryButton} onClick={() => void updateCharacter(character, { refresh: true }, "refreshed")} disabled={busy || !character.active}>{t("refresh")}</button>
-                          {character.active ? (
-                            confirmingId === character.id ? (
-                              <button type="button" className="min-h-10 rounded-md bg-red-950 px-3 py-2 text-xs font-bold text-red-200 shadow-[inset_0_0_0_1px_rgba(248,113,113,.3)] transition-[background-color,transform] duration-150 ease-out hover:bg-red-900 active:scale-[0.96]" onClick={() => void removeCharacter(character)} disabled={busy}>{t("confirmRemove")}</button>
-                            ) : (
-                              <button type="button" className={secondaryButton} onClick={() => setConfirmingId(character.id)} disabled={busy}>{t("remove")}</button>
-                            )
-                          ) : (
-                            <button type="button" className={secondaryButton} onClick={() => void updateCharacter(character, { active: true }, "restored")} disabled={busy}>{t("restore")}</button>
-                          )}
-                        </div>
-                      </div>
-
-                      <fieldset className="mt-3 rounded-lg bg-gray-950/55 p-3 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] sm:ml-[3.25rem]">
-                        <legend className="px-1 text-xs font-semibold text-gray-400">{t("metrics")}</legend>
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                          {metricKeys.map((key) => {
-                            const label = key === "performance"
-                              ? ccgT(draft.role === "healer" ? "score.healing" : "score.damage")
-                              : ccgT(`score.${key}`);
-                            return (
-                              <label key={key} className="grid gap-1 text-[.68rem] font-semibold text-gray-500">
-                                {label}
-                                <input
-                                  type="number"
-                                  inputMode="decimal"
-                                  min={0}
-                                  max={key === "mythicPlus" ? 100000 : 100}
-                                  step={key === "mythicPlus" ? 1 : 0.1}
-                                  value={draft.scores[key]}
-                                  onChange={(event) => setDrafts((current) => ({
-                                    ...current,
-                                    [character.id]: {
-                                      ...draft,
-                                      scores: { ...draft.scores, [key]: event.target.value },
-                                    },
-                                  }))}
-                                  className={`${fieldClass} tabular-nums`}
-                                  placeholder="—"
-                                  disabled={busy || !character.active}
-                                />
-                              </label>
-                            );
-                          })}
-                        </div>
-                        <p className={`mt-2 text-xs text-pretty ${scores ? "text-gray-600" : "text-red-300"}`}>{t(scores ? "metricsHelp" : "invalidMetric")}</p>
-                      </fieldset>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
         </div>
+      </form>
+
+      <div className="min-w-0 overflow-hidden rounded-xl bg-gray-900/65 shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-balance font-bold text-white">{t("manageTitle")}</h3>
+              <span className="rounded-full bg-cyan-950/80 px-2.5 py-1 text-xs font-semibold tabular-nums text-cyan-200">{t("cards", { count: activeCharacterCount })}</span>
+            </div>
+            <p className="mt-1 max-w-3xl text-pretty text-xs text-gray-500">{t("manageDescription")}</p>
+            <p className="mt-1 max-w-3xl text-pretty text-xs text-gray-600">{t("metricsHelp")}</p>
+          </div>
+          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} className={`${fieldClass} shrink-0 sm:w-64`} placeholder={t("search")} aria-label={t("search")} autoComplete="off" />
+        </div>
+
+        {filtered.length === 0 ? (
+          <p className="border-t border-white/6 bg-gray-950/35 p-6 text-center text-sm text-gray-500">{t(characters.length === 0 ? "empty" : "noResults")}</p>
+        ) : (
+          <ul className="divide-y divide-white/6 border-t border-white/6 bg-gray-950/35">
+            {filtered.map((character) => {
+              const busy = busyId === character.id;
+              const draft = drafts[character.id] ?? draftFromCharacter(character);
+              const savedDraft = draftFromCharacter(character);
+              const scores = parseScores(draft);
+              const changed = JSON.stringify(draft) !== JSON.stringify(savedDraft);
+              return (
+                <li key={character.id} className={`p-3 ${character.active ? "" : "opacity-60"}`}>
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[minmax(13rem,1.5fr)_7.5rem_7.5rem_repeat(4,minmax(4.75rem,.7fr))_auto] xl:items-end">
+                    <div className="col-span-2 flex min-w-0 items-center gap-3 md:col-span-4 xl:col-span-1 xl:self-center">
+                      <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md bg-gray-800">
+                        {character.avatarUrl ? <img src={character.avatarUrl} alt="" className="h-full w-full object-cover outline outline-1 -outline-offset-1 outline-white/10" /> : <span className="text-xs text-gray-500">?</span>}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <strong className="truncate text-sm text-white">{character.name} <span className="font-medium text-gray-500">· {character.realm}</span></strong>
+                          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[.65rem] font-semibold ${character.active ? "bg-emerald-950 text-emerald-300" : "bg-gray-800 text-gray-400"}`}>{t(character.active ? "active" : "inactive")}</span>
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-gray-500">{character.guildName ?? t("noGuild")} · {character.specName} · {t(character.linkedCharacterId ? "linked" : "blizzardOnly")}</p>
+                      </div>
+                    </div>
+
+                    <label className="grid gap-1 text-[.68rem] font-semibold text-gray-500">
+                      {t("rarity")}
+                      <select
+                        className={fieldClass}
+                        value={draft.tierGrade}
+                        onChange={(event) => setDrafts((current) => ({
+                          ...current,
+                          [character.id]: { ...draft, tierGrade: event.target.value as CcgTierGrade },
+                        }))}
+                        aria-label={t("rarityFor", { name: character.name })}
+                        disabled={busy}
+                      >
+                        {grades.map((grade) => <option key={grade} value={grade}>{t(`rarityNames.${grade}`)}</option>)}
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-[.68rem] font-semibold text-gray-500">
+                      {t("role")}
+                      <select
+                        className={fieldClass}
+                        value={draft.role}
+                        onChange={(event) => setDrafts((current) => ({
+                          ...current,
+                          [character.id]: { ...draft, role: event.target.value as CommunityRole },
+                        }))}
+                        disabled={busy}
+                      >
+                        {(["dps", "healer", "tank"] as const).map((role) => <option key={role} value={role}>{ccgT(`role.${role}`)}</option>)}
+                      </select>
+                    </label>
+
+                    {metricKeys.map((key) => {
+                      const label = key === "performance"
+                        ? ccgT(draft.role === "healer" ? "score.healing" : "score.damage")
+                        : ccgT(`score.${key}`);
+                      return (
+                        <label key={key} className="grid gap-1 text-[.68rem] font-semibold text-gray-500">
+                          {label}
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            max={key === "mythicPlus" ? 100000 : 100}
+                            step={key === "mythicPlus" ? 1 : 0.1}
+                            value={draft.scores[key]}
+                            onChange={(event) => setDrafts((current) => ({
+                              ...current,
+                              [character.id]: {
+                                ...draft,
+                                scores: { ...draft.scores, [key]: event.target.value },
+                              },
+                            }))}
+                            className={`${fieldClass} tabular-nums`}
+                            placeholder="—"
+                            disabled={busy || !character.active}
+                          />
+                        </label>
+                      );
+                    })}
+
+                    <div className="col-span-2 flex flex-wrap gap-1.5 md:col-span-4 xl:col-span-1 xl:flex-nowrap xl:justify-end">
+                      <button type="button" className={secondaryButton} onClick={() => void updateCharacter(character, { tierGrade: draft.tierGrade, role: draft.role, scores: scores ?? undefined }, "saved")} disabled={busy || !changed || !scores || !character.active}>{t("save")}</button>
+                      <button type="button" className={secondaryButton} onClick={() => void updateCharacter(character, { refresh: true }, "refreshed")} disabled={busy || !character.active}>{t("refresh")}</button>
+                      {character.active ? (
+                        confirmingId === character.id ? (
+                          <button type="button" className="min-h-10 rounded-md bg-red-950 px-3 py-2 text-xs font-bold text-red-200 shadow-[inset_0_0_0_1px_rgba(248,113,113,.3)] transition-[background-color,transform] duration-150 ease-out hover:bg-red-900 active:scale-[0.96]" onClick={() => void removeCharacter(character)} disabled={busy}>{t("confirmRemove")}</button>
+                        ) : (
+                          <button type="button" className={secondaryButton} onClick={() => setConfirmingId(character.id)} disabled={busy}>{t("remove")}</button>
+                        )
+                      ) : (
+                        <button type="button" className={secondaryButton} onClick={() => void updateCharacter(character, { active: true }, "restored")} disabled={busy}>{t("restore")}</button>
+                      )}
+                    </div>
+
+                    {!scores ? <p className="col-span-2 text-xs text-pretty text-red-300 md:col-span-4 xl:col-start-2 xl:col-span-6">{t("invalidMetric")}</p> : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </section>
   );

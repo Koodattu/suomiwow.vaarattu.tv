@@ -1621,8 +1621,10 @@ class CcgService {
           packOpenings: 1,
           activeUsers: { $literal: 0 },
           modes: { current: "$current", legacy: "$legacy" },
-          finishes: { standard: 0, foil: 0, golden: 0, prismatic: 0, holographic: 0, negative: 0 },
-          grades: { S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 },
+          finishes: {
+            $literal: { standard: 0, foil: 0, golden: 0, prismatic: 0, holographic: 0, negative: 0 },
+          },
+          grades: { $literal: { S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 } },
           updatedAt: 1,
         },
       },
