@@ -158,7 +158,7 @@ The card does not show a numeric placement such as `#12`.
 - **Mechanics** is the survival/mechanics component. Use `survivalScore`.
 - **Combined** is the existing combined performance-mechanics score. The current implementation weights parse and survival equally.
 - **M+** is `scores.all` from the Raider.IO Mythic+ season explicitly mapped to the raid set.
-- The mapping uses the raid's original progression season: Uldir through Ny'alotha map to BFA seasons 1–4; Castle Nathria, Sanctum, and Sepulcher map to Shadowlands seasons 1–3; Vault, Aberrus, and Amirdrassil map to Dragonflight seasons 1–3; and each later raid maps to its matching expansion season. Remix seasons such as Shadowlands season 4 and Dragonflight season 4 are deliberately excluded because they span multiple raids and are not the original tier snapshot.
+- Tomb of Sargeras maps to Raider.IO `season-7.2.5` and Antorus maps to `season-7.3.2`. Highmaul, Blackrock Foundry, Hellfire Citadel, Emerald Nightmare, and Nighthold intentionally have no CCG Mythic+ mapping, so their cards display `—` for M+. Uldir through Ny'alotha map to BFA seasons 1–4; Castle Nathria, Sanctum, and Sepulcher map to Shadowlands seasons 1–3; Vault, Aberrus, and Amirdrassil map to Dragonflight seasons 1–3; and each later raid maps to its matching expansion season. Remix seasons such as Shadowlands season 4 and Dragonflight season 4 are deliberately excluded because they span multiple raids and are not the original tier snapshot.
 - Snapshot creation joins Mythic+ only on the set's exact configured season. It never falls back to the current season; a missing or zero historical score is displayed as unavailable.
 - **Tier grade** is the snapshotted canonical S–F classification.
 
@@ -189,9 +189,9 @@ Keep the front readable. The focused card view or back may additionally show:
 
 ## Character eligibility
 
-A Current card candidate requires:
+A raid card candidate requires:
 
-- At least two distinct Mythic reports in the raid
+- At least three distinct Mythic reports in the raid
 - At least 50 Mythic boss-pull appearances across the raid tier
 - A stable internal `Character._id`
 - Valid role-performance data
@@ -199,7 +199,7 @@ A Current card candidate requires:
 - A valid combined score
 - A successfully fetched Blizzard full character render
 
-Mythic report count is materialized separately from the broader Heroic-or-Mythic participation count. Snapshot creation reads the authoritative per-raid participation rows directly, sums report counts across guilds, and requires at least two Mythic reports even when an admin bypasses readiness coverage checks. Existing character tier-list mechanics data remains the source of truth for the 50-pull threshold and scores rather than adding a second scoring pipeline.
+Mythic report count is materialized separately from the broader Heroic-or-Mythic participation count. Snapshot creation reads the authoritative per-raid participation rows directly, sums report counts across guilds, and requires at least three Mythic reports even when an admin bypasses readiness coverage checks. Existing character tier-list mechanics data remains the source of truth for the 50-pull threshold and requires calculated role-performance, mechanics, and combined scores rather than adding a second scoring pipeline.
 
 The card snapshots the stable guild ID, name, and realm of the guild with which the character recorded the most Mythic reports in that raid tier. Total qualifying reports, then most-recent appearance, provide deterministic tie-breakers. Guild attribution is not rewritten when the character later transfers.
 
@@ -230,7 +230,7 @@ The overall feature is called SuomiWoW CCG. The recommended user-facing tabs are
 
 ### Legacy
 
-- Contains Uldir through the set immediately preceding Current.
+- Contains enabled sets from Highmaul through the set immediately preceding Current. Trial of Valor and other intentionally unconfigured raids remain excluded.
 - Grants ten daily Legacy packs.
 - Draws across every enabled historical raid in one combined Legacy pool.
 - Preserves the originating raid set on every result and keeps the collection organized into raid-specific binders.
@@ -246,7 +246,7 @@ Grade odds remain global and versioned. Within the selected grade, every eligibl
 - Enabling performs a fresh snapshot and publication before atomically recording `enabledAt`, `enabledBy`, and the target Current or Legacy lifecycle state.
 - Enabling is irreversible. There is no disable endpoint or UI control after activation.
 - Enabling a Current raid moves enabled Current raids from older Mythic+ seasons to Legacy; raids sharing the same current season may coexist.
-- Raids without an intentional CCG configuration, background, season mapping, and theme remain excluded. This keeps short or meme raids such as Sporefall disabled by default.
+- Raids without an intentional CCG configuration, background, season mapping, and theme remain excluded. This keeps Trial of Valor, Crucible of Storms, and short or meme raids such as Sporefall disabled by default.
 
 ### Recharge balances
 
@@ -425,7 +425,9 @@ Raid backgrounds are stored in:
 
 `frontend/public/ccg/`
 
-The current folder contains 15 wide assets covering Uldir through March on Quel'Danas:
+The folder contains wide raid assets covering Highmaul through March on Quel'Danas. The original Uldir-and-later source set is listed below:
+
+The WoD and Legion expansion adds `highmaul.png`, `blackrock_foundry.png`, `hellfire_citadel.png`, `emerald_nightmare.png`, `nighthold.png`, `tomb_of_sargeras.png`, and `antorus.png`. Trial of Valor has no configured set.
 
 | File | Intended set |
 | --- | --- |
@@ -934,7 +936,7 @@ The snapshot records its source watermarks and fails closed if required rankings
 
 ### Legacy backfill
 
-- Processes one raid at a time from Uldir forward.
+- Processes one configured raid at a time from Highmaul forward.
 - Uses stored historical participation and scoring data.
 - Queues all recoverable character media.
 - Clearly distinguishes historical performance time from media capture time.
@@ -1144,7 +1146,7 @@ Never expose user-level private collection data in public operational dashboards
 
 ### Phase 7 — Legacy backfill and lifecycle tooling
 
-- Backfill Uldir forward, one set at a time.
+- Backfill Highmaul forward, one configured set at a time.
 - Review historical identity and missing-media handling.
 - Record activation-driven Current-to-Legacy lifecycle changes in the administrative audit trail.
 - Validate binder counts, pool composition, and historical provenance.

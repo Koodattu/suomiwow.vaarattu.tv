@@ -65,6 +65,12 @@ type SnapshotPayload = {
 
 type TierEntryRow = SnapshotPayload & { characterId: mongoose.Types.ObjectId };
 
+const COMPLETE_CCG_SCORE_FILTER = {
+  score: { $gte: 0 },
+  parseScore: { $gte: 0 },
+  survivalScore: { $gte: 0 },
+};
+
 export type CcgSetReadiness = {
   configured: CcgConfiguredSet;
   setId: string | null;
@@ -220,7 +226,7 @@ class CcgPublisherService {
         scope: "global",
         zoneId,
         pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
-        survivalScore: { $ne: null },
+        ...COMPLETE_CCG_SCORE_FILTER,
       };
       const rankedEntries = await CharacterTierListEntry.find(entryFilter)
         .sort({ score: -1, parseScore: -1, mythicReportCount: -1, reportCount: -1, wclCanonicalCharacterId: 1, characterKey: 1 })
@@ -488,7 +494,7 @@ class CcgPublisherService {
       scope: "global",
       zoneId,
       pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
-      survivalScore: { $ne: null },
+      ...COMPLETE_CCG_SCORE_FILTER,
     })
       .select("characterId")
       .lean();

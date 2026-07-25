@@ -7,6 +7,11 @@ import {
   CCG_PACK_STORAGE_CAPS,
 } from "../src/config/ccg";
 import {
+  MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY,
+  MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY,
+} from "../src/config/character-eligibility";
+import { RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SET } from "../src/config/mythic-plus";
+import {
   hasApplicableAlternativeArt,
   normalizeAlternativeArtFilename,
   normalizeQuipAudioFilename,
@@ -41,12 +46,20 @@ test("card crops are deterministic and stay inside each raid's safe flair range"
   }
 });
 
-test("Crucible of Storms is excluded from CCG configuration", () => {
+test("short raids excluded from CCG stay excluded", () => {
   assert.equal(CCG_CONFIGURED_SETS.some((set) => set.zoneId === 22), false);
+  assert.equal(CCG_CONFIGURED_SETS.some((set) => set.zoneId === 12), false);
 });
 
-test("every raid set is pinned to its original Mythic+ season", () => {
+test("every raid set is pinned to its intended Mythic+ season", () => {
   const expectedSeasons = new Map<number, string>([
+    [6, "none"],
+    [7, "none"],
+    [8, "none"],
+    [10, "none"],
+    [11, "none"],
+    [13, "season-7.2.5"],
+    [17, "season-7.3.2"],
     [19, "season-bfa-1"],
     [21, "season-bfa-2"],
     [23, "season-bfa-3"],
@@ -68,6 +81,31 @@ test("every raid set is pinned to its original Mythic+ season", () => {
     Array.from(expectedSeasons),
   );
   assert.equal(CCG_CONFIGURED_SETS.some((set) => set.mythicPlusSeason === "season-sl-4" || set.mythicPlusSeason === "season-df-4"), false);
+  for (const set of CCG_CONFIGURED_SETS) {
+    assert.equal(set.mythicPlusSeason === "none" || RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SET.has(set.mythicPlusSeason), true);
+  }
+});
+
+test("WoD and Legion CCG sets use their supplied backgrounds", () => {
+  const expectedBackgrounds = new Map<number, string>([
+    [6, "/ccg/highmaul.png"],
+    [7, "/ccg/blackrock_foundry.png"],
+    [8, "/ccg/hellfire_citadel.png"],
+    [10, "/ccg/emerald_nightmare.png"],
+    [11, "/ccg/nighthold.png"],
+    [13, "/ccg/tomb_of_sargeras.png"],
+    [17, "/ccg/antorus.png"],
+  ]);
+
+  assert.deepEqual(
+    CCG_CONFIGURED_SETS.filter((set) => expectedBackgrounds.has(set.zoneId)).map((set) => [set.zoneId, set.backgroundPath]),
+    Array.from(expectedBackgrounds),
+  );
+});
+
+test("CCG eligibility requires three Mythic reports and fifty pulls", () => {
+  assert.equal(MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY, 3);
+  assert.equal(MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY, 50);
 });
 
 test("quality protection follows a quadratic ramp, resets only the awarded finish, and honors duplicate upgrades", () => {

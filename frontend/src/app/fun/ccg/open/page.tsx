@@ -124,6 +124,7 @@ export default function CcgOpenPage() {
   const [rechargeNow, setRechargeNow] = useState(() => Date.now());
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const hoverAudioRef = useRef<HTMLAudioElement | null>(null);
+  const fadeOutAudioRef = useRef<HTMLAudioElement | null>(null);
   const shuffleAudioRef = useRef<HTMLAudioElement | null>(null);
   const cardSlideAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
   const drawAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
@@ -525,6 +526,7 @@ export default function CcgOpenPage() {
     setRecoveryId("");
     setActiveReveal(null);
     setIsPackCycling(true);
+    playPackSound(fadeOutAudioRef.current, 0.42);
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       mutation.mutate(selection);
@@ -942,6 +944,7 @@ export default function CcgOpenPage() {
         />
       ) : null}
       <audio ref={hoverAudioRef} src="/ccg/audio/hover.mp3" preload="auto" aria-hidden="true" />
+      <audio ref={fadeOutAudioRef} src="/ccg/audio/fade_out.mp3" preload="auto" aria-hidden="true" />
       <audio ref={shuffleAudioRef} src="/ccg/audio/shuffle.mp3" preload="auto" aria-hidden="true" />
       {cardSlideSounds.map((src, index) => (
         <audio

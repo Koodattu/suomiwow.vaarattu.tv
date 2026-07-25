@@ -1,6 +1,6 @@
 import type { CcgFinish, CcgTierGrade } from "@/types";
 import { CCG_RARITY_KEYS } from "@/lib/ccg";
-import type { Locale } from "@/lib/locale";
+import { getLocale, type Locale } from "@/lib/locale";
 
 export const CCG_INSPECT_AUDIO_ID = "ccg-inspect-audio";
 export const CCG_AUDIO_PREFERENCES_EVENT = "ccg-audio-preferences-change";
@@ -12,7 +12,10 @@ export type CcgAudioChannel = "effects" | "announcer" | "quips";
 type AnnouncerVariant = "a" | "b" | "c";
 type AnnouncerKey = `${CcgFinish}-${(typeof CCG_RARITY_KEYS)[CcgTierGrade]}`;
 
-const CCG_ANNOUNCER_BASELINE_VOLUME = 0.5;
+const CCG_ANNOUNCER_BASELINE_VOLUME: Record<Locale, number> = {
+  en: 0.5,
+  fi: 1,
+};
 
 const CCG_ANNOUNCER_VARIANTS: Record<Locale, Partial<Record<AnnouncerKey, readonly AnnouncerVariant[]>>> = {
   en: {
@@ -160,7 +163,7 @@ export function getCcgPlaybackVolume(channel: CcgAudioChannel, baseVolume = 1): 
     : channel === "announcer"
       ? preferences.announcerVolume
       : preferences.quipsVolume;
-  const channelBaseline = channel === "announcer" ? CCG_ANNOUNCER_BASELINE_VOLUME : 1;
+  const channelBaseline = channel === "announcer" ? CCG_ANNOUNCER_BASELINE_VOLUME[getLocale()] : 1;
   return clampVolume(baseVolume, 1) * channelBaseline * preferences.volume * channelVolume;
 }
 

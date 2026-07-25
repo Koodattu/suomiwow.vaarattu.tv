@@ -18,7 +18,7 @@ type TestableCharacterTierListService = {
   ): Record<string, unknown>;
 };
 
-test("requires at least 50 pulls when materializing and reading generated character tier lists", async () => {
+test("requires complete scores and at least 50 pulls when materializing generated character tier lists", async () => {
   const mechanicsModel = CharacterMechanicsLeaderboard as any;
   const participationModel = CharacterRaidParticipation as any;
   const entryModel = CharacterTierListEntry as any;
@@ -67,6 +67,9 @@ test("requires at least 50 pulls when materializing and reading generated charac
 
     const rebuildResult = await service.rebuildCharacterTierLists([46]);
     assert.equal(rebuildResult.entries, 0);
+    assert.deepEqual(captured.mechanicsQuery?.score, { $gte: 0 });
+    assert.deepEqual(captured.mechanicsQuery?.parseScore, { $gte: 0 });
+    assert.deepEqual(captured.mechanicsQuery?.survivalScore, { $gte: 0 });
     assert.deepEqual(captured.mechanicsQuery?.pulls, { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY });
 
     const filters = { minReports: 3, role: null, classId: null, limit: null };
