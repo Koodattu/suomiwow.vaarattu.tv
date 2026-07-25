@@ -40,6 +40,8 @@ interface BlizzardAchievementMedia {
   id: number;
 }
 
+const BLIZZARD_REQUEST_TIMEOUT_MS = 30_000;
+
 export interface BlizzardCharacterMedia {
   avatarUrl: string | null;
   insetUrl: string | null;
@@ -238,6 +240,7 @@ export class BlizzardApiClient {
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: "grant_type=client_credentials",
+        signal: AbortSignal.timeout(BLIZZARD_REQUEST_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -282,6 +285,7 @@ export class BlizzardApiClient {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        signal: AbortSignal.timeout(BLIZZARD_REQUEST_TIMEOUT_MS),
       });
 
       // Handle rate limiting with exponential backoff

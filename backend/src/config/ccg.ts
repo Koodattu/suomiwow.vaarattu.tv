@@ -34,7 +34,7 @@ export const CCG_COMMUNITY_SET = {
   mark: "SW",
   accent: "#58D9E8",
   glow: "rgba(88, 217, 232, 0.36)",
-  crop: { x: 50, y: 50, scale: 1.08, xJitter: 5, yJitter: 10 },
+  crop: { x: 50, y: 50, scale: 1.08, xJitter: 25, yJitter: 10 },
 };
 
 function positiveInteger(value: string | undefined, fallback: number): number {

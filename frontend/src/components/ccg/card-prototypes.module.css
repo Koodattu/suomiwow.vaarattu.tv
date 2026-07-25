@@ -1347,7 +1347,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .prototypeCard {
-    animation: prototypeIdleDrift 5.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+    animation: prototypeIdleDrift 6.5s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
   .prototypeCard.standard:not(:hover):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeStandardIdleGrain 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
@@ -1371,16 +1371,16 @@
 
 @keyframes prototypeIdleDrift {
   0% {
-    translate: 0 0;
-    rotate: 0deg;
+    translate: -0.5px 0;
+    rotate: -0.3deg;
   }
   50% {
     translate: 0 -1px;
-    rotate: -0.12deg;
+    rotate: 0deg;
   }
   100% {
-    translate: 1px 0;
-    rotate: 0.2deg;
+    translate: 0.5px 0;
+    rotate: 0.3deg;
   }
 }
 

@@ -16,6 +16,7 @@ import {
   CcgTierGrade,
 } from "../config/ccg";
 import {
+  COMPLETE_CCG_SCORE_FILTER,
   MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY,
   MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY,
 } from "../config/character-eligibility";
@@ -65,12 +66,6 @@ type SnapshotPayload = {
 };
 
 type TierEntryRow = SnapshotPayload & { characterId: mongoose.Types.ObjectId };
-
-const COMPLETE_CCG_SCORE_FILTER = {
-  score: { $gte: 0 },
-  parseScore: { $gte: 0 },
-  survivalScore: { $gte: 0 },
-};
 
 export type CcgSetReadiness = {
   configured: CcgConfiguredSet;

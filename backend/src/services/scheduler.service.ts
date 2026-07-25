@@ -483,7 +483,11 @@ class UpdateScheduler {
       cron.schedule(
         "30 1 * * *",
         async () => {
-          if (!this.isDiscoveringCcgMedia) await this.discoverCcgMedia();
+          if (this.isDiscoveringCcgMedia) {
+            logger.warn("[CCG/MediaDiscovery] Previous nightly discovery is still running; skipping this run");
+            return;
+          }
+          await this.discoverCcgMedia();
         },
         { timezone: "Europe/Helsinki" },
       );

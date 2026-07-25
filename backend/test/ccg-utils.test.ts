@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   CCG_A_OR_BETTER_GRADES,
+  CCG_COMMUNITY_SET,
   CCG_CONFIGURED_SETS,
   CCG_FINISH_ORDER,
   CCG_INITIAL_PACKS,
@@ -103,6 +104,13 @@ test("every raid artwork uses its configured horizontal crop range", () => {
     assert.ok(expected, `Missing expected range for ${set.raidName}`);
     assert.deepEqual([set.crop.x - set.crop.xJitter, set.crop.x + set.crop.xJitter], expected);
   }
+});
+
+test("Community artwork uses the default 25 to 75 horizontal crop range", () => {
+  assert.deepEqual(
+    [CCG_COMMUNITY_SET.crop.x - CCG_COMMUNITY_SET.crop.xJitter, CCG_COMMUNITY_SET.crop.x + CCG_COMMUNITY_SET.crop.xJitter],
+    [25, 75],
+  );
 });
 
 test("short raids excluded from CCG stay excluded", () => {
