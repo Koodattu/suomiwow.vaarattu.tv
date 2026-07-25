@@ -83,7 +83,11 @@ export default function CcgCollectionPage() {
   const sessionQuery = useCcgSession();
   const setsQuery = useCcgSets();
   const sets = useMemo(
-    () => [...(setsQuery.data?.sets ?? [])].sort((a, b) => b.zoneId - a.zoneId),
+    () => [...(setsQuery.data?.sets ?? [])].sort((a, b) => {
+      if (a.kind === "community") return b.kind === "community" ? 0 : 1;
+      if (b.kind === "community") return -1;
+      return b.zoneId - a.zoneId;
+    }),
     [setsQuery.data?.sets],
   );
   const [setSlug, setSetSlug] = useState(allSetsSlug);
@@ -341,7 +345,7 @@ export default function CcgCollectionPage() {
                 className={styles.collectionSet}
                 style={{
                   "--set-accent": "#9c7cff",
-                  backgroundImage: 'linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("/ccg/general_wide.webp")',
+                  backgroundImage: 'linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("/ccg/general_alt_wide.png")',
                 } as CSSProperties}
               >
                 <span>{t("landing.all")}</span>

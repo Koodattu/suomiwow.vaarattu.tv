@@ -89,7 +89,7 @@ export default function CcgLandingPage() {
   const currentProgress = currentCardCount > 0 ? Math.min(100, (currentOwnedCount / currentCardCount) * 100) : 0;
   const legacy = sets.filter((set) => set.kind === "raid" && set.state === "legacy").sort((left, right) => right.zoneId - left.zoneId);
   const community = sets.filter((set) => set.kind === "community");
-  const collectionSets = [...currentSets, ...community, ...legacy];
+  const collectionSets = [...currentSets, ...legacy, ...community];
   const allCardCount = collectionSets.reduce((total, set) => total + set.cardCount, 0);
   const allOwnedCount = collectionSets.reduce((total, set) => total + set.ownedCards, 0);
   const allProgress = allCardCount > 0 ? Math.min(100, (allOwnedCount / allCardCount) * 100) : 0;
@@ -222,7 +222,7 @@ export default function CcgLandingPage() {
                 style={{
                   "--set-accent": "#9c7cff",
                   "--set-glow": "rgba(126, 105, 255, 0.42)",
-                  backgroundImage: 'url("/ccg/general_wide.webp")',
+                  backgroundImage: 'url("/ccg/general_alt_wide.png")',
                 } as CSSProperties}
               >
                 <span className={styles.vaultLegacyShade} aria-hidden="true" />
