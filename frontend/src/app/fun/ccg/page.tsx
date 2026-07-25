@@ -94,7 +94,7 @@ export default function CcgLandingPage() {
   const allOwnedCount = collectionSets.reduce((total, set) => total + set.ownedCards, 0);
   const allProgress = allCardCount > 0 ? Math.min(100, (allOwnedCount / allCardCount) * 100) : 0;
   const collectionItemCount = collectionSets.length + 1;
-  const collectionColumns = Math.max(1, Math.ceil(collectionItemCount / 2) - 1);
+  const collectionColumns = Math.max(1, Math.ceil(collectionItemCount / 3));
   const collectionRows = Math.max(2, Math.ceil(collectionItemCount / collectionColumns));
   const featuredQuery = useCcgCatalog(current?.slug ?? "", 1, "all", "S", "", "", Boolean(current?.slug), 50);
   const featuredCards = featuredQuery.data?.cards ?? [];
