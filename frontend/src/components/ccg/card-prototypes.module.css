@@ -768,7 +768,7 @@
   line-height: 1;
   padding: 2.2% 4%;
   text-align: center;
-  text-transform: uppercase;
+  text-transform: lowercase;
 }
 .setChip span {
   overflow: hidden;
@@ -2477,7 +2477,7 @@
   font-synthesis: none;
   font-weight: 400;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.88);
-  text-transform: none;
+  text-transform: lowercase;
   -webkit-text-stroke: 0.25px rgba(0, 0, 0, 0.55);
 }
 

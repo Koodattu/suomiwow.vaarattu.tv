@@ -45,11 +45,13 @@ export default function CcgShell({
               </span>
               <Image src="/logo.png" alt="SuomiWoW" width={112} height={20} priority />
             </Link>
-            <Image className={styles.shellCcgLogo} src="/ccg/ccg_logo.png" alt="CCG" width={491} height={351} priority />
-            <span className={styles.shellBrandTitle}>
-              <span>{t("brandTitleTop")}</span>
-              <span>{t("brandTitleBottom")}</span>
-            </span>
+            <Link href="/fun/ccg" className={styles.shellVaultLink}>
+              <Image className={styles.shellCcgLogo} src="/ccg/ccg_logo.png" alt="CCG" width={491} height={351} priority />
+              <span className={styles.shellBrandTitle}>
+                <span>{t("brandTitleTop")}</span>
+                <span>{t("brandTitleBottom")}</span>
+              </span>
+            </Link>
           </div>
           <nav className={styles.shellNav} aria-label={t("nav.label")}>
             {links.map((link) => {

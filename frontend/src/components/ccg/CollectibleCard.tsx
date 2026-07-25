@@ -265,7 +265,7 @@ export default function CollectibleCard({
 
       <span className={styles.rarityPlate} data-quality={finish}><span className={styles.qualityLabel}>{t(`finish.${finish}`)}</span><strong>{rarity}</strong></span>
       <span className={styles.characterMeta}><span>{formatSpecName(card.specName)}</span><span>{classInfo.name}</span></span>
-      {!hideBadges ? <span className={styles.setChip}><span>{card.set.raidName}</span></span> : null}
+      {!hideBadges ? <span className={styles.setChip}><span>{card.set.raidName.toLowerCase()}</span></span> : null}
 
       <span className={styles.statsPanel}>
         <span className={styles.stat}><span>{t(card.role === "healer" ? "score.healing" : "score.damage")}</span><strong>{score(card.scores.performance)}</strong></span>
