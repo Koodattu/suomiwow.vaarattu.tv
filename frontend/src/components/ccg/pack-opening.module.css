@@ -361,7 +361,7 @@
 
 .legacyTarget {
   display: flex;
-  height: min(24rem, max(16rem, calc(100dvh - 19rem)));
+  height: min(26rem, max(16rem, calc(100dvh - 19rem)));
   min-height: 0;
   flex: 0 1 auto;
 }
