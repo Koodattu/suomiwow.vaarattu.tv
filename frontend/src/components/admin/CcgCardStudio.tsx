@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import { api } from "@/lib/api";
+import { hasAlternativeArtwork } from "@/lib/ccg";
 import { formatRealmName } from "@/lib/utils";
-import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
+import type { CcgArtVariant, CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 
 type PreviewFinish = CcgFinish | "void" | "chromaflow";
 
@@ -24,6 +25,7 @@ export default function CcgCardStudio() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [finish, setFinish] = useState<PreviewFinish>("standard");
+  const [artVariant, setArtVariant] = useState<CcgArtVariant>("standard");
   const [tierGrade, setTierGrade] = useState<CcgTierGrade>("C");
   const [cardWidth, setCardWidth] = useState(400);
   const [raidArtOffsetX, setRaidArtOffsetX] = useState(50);
@@ -74,6 +76,10 @@ export default function CcgCardStudio() {
   useEffect(() => {
     setSelectedVariantId(variants[0]?.id ?? "");
   }, [selectedCard?.id, variants]);
+  const alternativeArtAvailable = hasAlternativeArtwork(selectedVariant);
+  useEffect(() => {
+    if (artVariant === "alternative" && !alternativeArtAvailable) setArtVariant("standard");
+  }, [alternativeArtAvailable, artVariant]);
   useEffect(() => {
     if (selectedVariant) {
       setTierGrade(selectedVariant.tierGrade);
@@ -167,7 +173,14 @@ export default function CcgCardStudio() {
               {grades.map((grade) => <option key={grade} value={grade}>{t(`rarityNames.${grade}`)}</option>)}
             </select>
           </label>
-          <label className="col-span-2 grid gap-1 text-xs font-semibold text-gray-400">
+          <label className="grid gap-1 text-xs font-semibold text-gray-400">
+            {ccg("artwork.label")}
+            <select className={fieldClass} value={artVariant} onChange={(event) => setArtVariant(event.target.value as CcgArtVariant)}>
+              <option value="standard">{ccg("artwork.standard")}</option>
+              <option value="alternative" disabled={!alternativeArtAvailable}>{ccg("artwork.alternative")}</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-semibold text-gray-400">
             {t("size")}
             <select className={fieldClass} value={cardWidth} onChange={(event) => setCardWidth(Number(event.target.value))}>
               {[320, 360, 400, 440].map((value) => <option key={value} value={value}>{value} px</option>)}
@@ -208,7 +221,7 @@ export default function CcgCardStudio() {
         <div className="absolute inset-0 opacity-20" style={previewCard ? { background: `radial-gradient(circle at 50% 45%, ${previewCard.set.theme.glow}, transparent 55%), url(${previewCard.set.backgroundPath}) center/cover` } : undefined} aria-hidden="true" />
         {previewCard ? (
           <div className="relative z-10">
-            <CollectibleCard card={previewCard} finish={finish} width={cardWidth} guides={guides} hideCornerIcons={hideCornerIcons} hideBadges={hideBadges} raidArtOffsetX={raidArtOffsetX} />
+            <CollectibleCard card={previewCard} finish={finish} artVariant={artVariant} width={cardWidth} guides={guides} hideCornerIcons={hideCornerIcons} hideBadges={hideBadges} raidArtOffsetX={raidArtOffsetX} />
           </div>
         ) : (
           <p className="relative z-10 text-sm text-gray-500">{t("selectCard")}</p>

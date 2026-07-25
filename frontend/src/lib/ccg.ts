@@ -24,6 +24,12 @@ export function compareCcgFinish(left: CcgFinish, right: CcgFinish): number {
   return CCG_FINISH_ORDER.indexOf(left) - CCG_FINISH_ORDER.indexOf(right);
 }
 
+export function hasAlternativeArtwork(card: CcgCard | null): boolean {
+  if (!card?.alternativeArt) return false;
+  return card.alternativeArt.characterArtEnabled
+    || (card.set.kind === "community" && card.alternativeArt.backgroundArtEnabled);
+}
+
 export function bestOwnedFinish(
   card: CcgCard,
   artVariant?: CcgArtVariant,

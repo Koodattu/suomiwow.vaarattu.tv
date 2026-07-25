@@ -942,7 +942,7 @@
       },
       "studio": {
         "title": "Card studio",
-        "description": "Search every published card and preview any rarity and quality combination.",
+        "description": "Search every published card and preview its available artwork, rarity, and quality combinations.",
         "search": "Find a card",
         "searchPlaceholder": "Character, realm, or guild",
         "loading": "Searching cards…",
@@ -958,7 +958,7 @@
         "showGuides": "Show protected area",
         "hideCornerIcons": "Hide corner icons",
         "hideBadges": "Hide frame labels",
-        "previewOnly": "Rarity and quality changes are preview only.",
+        "previewOnly": "Artwork, rarity, and quality changes are preview only.",
         "rarityNames": {
           "S": "Artifact",
           "A": "Legendary",

@@ -942,7 +942,7 @@
       },
       "studio": {
         "title": "Korttistudio",
-        "description": "Etsi mikä tahansa julkaistu kortti ja esikatsele eri harvinaisuus- ja laatuvaihtoehtoja.",
+        "description": "Etsi mikä tahansa julkaistu kortti ja esikatsele sen saatavilla olevia kuvitus-, harvinaisuus- ja laatuvaihtoehtoja.",
         "search": "Etsi kortti",
         "searchPlaceholder": "Hahmo, realm tai kilta",
         "loading": "Etsitään kortteja…",
@@ -958,7 +958,7 @@
         "showGuides": "Näytä suojattu alue",
         "hideCornerIcons": "Piilota kulmakuvakkeet",
         "hideBadges": "Piilota kehyksen tekstit",
-        "previewOnly": "Harvinaisuus- ja laatumuutokset koskevat vain esikatselua.",
+        "previewOnly": "Kuvitus-, harvinaisuus- ja laatumuutokset koskevat vain esikatselua.",
         "rarityNames": {
           "S": "Artifact",
           "A": "Legendary",

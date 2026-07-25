@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { FaGift, FaIdCard, FaTicket } from "react-icons/fa6";
 import { api } from "@/lib/api";
+import { hasAlternativeArtwork } from "@/lib/ccg";
 import { formatRealmName } from "@/lib/utils";
 import type { CcgAdminRedeemCode, CcgArtVariant, CcgCard, CcgFinish } from "@/types";
 
@@ -34,12 +35,6 @@ const codePattern = /^[A-Z0-9]+(?:[-_][A-Z0-9]+)*$/;
 const fieldClass = "min-h-10 w-full rounded-md border border-white/10 bg-gray-950/75 px-3 text-sm text-white outline-none transition-[border-color,box-shadow] placeholder:text-gray-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50";
 const secondaryButton = "min-h-10 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-gray-200 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09)] transition-[background-color,scale] duration-150 ease-out hover:bg-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
 const primaryButton = "min-h-10 rounded-md bg-amber-600 px-4 py-2 text-sm font-bold text-white shadow-[0_1px_2px_rgba(0,0,0,.2)] transition-[background-color,scale] duration-150 ease-out hover:bg-amber-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
-
-function hasAlternativeArtwork(card: CcgCard | null): boolean {
-  if (!card?.alternativeArt) return false;
-  return card.alternativeArt.characterArtEnabled
-    || (card.set.kind === "community" && card.alternativeArt.backgroundArtEnabled);
-}
 
 export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
   const t = useTranslations("admin.ccg.redeemCodes");
