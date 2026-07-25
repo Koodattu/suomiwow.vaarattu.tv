@@ -1,6 +1,6 @@
 import { Request, Response, Router } from "express";
 import mongoose from "mongoose";
-import { CCG_CONFIGURED_SETS } from "../config/ccg";
+import { CCG_CONFIGURED_SETS, normalizeCcgRaidName } from "../config/ccg";
 import { requireAdmin } from "../middleware/admin.middleware";
 import CcgCard from "../models/CcgCard";
 import CcgPackOpening from "../models/CcgPackOpening";
@@ -70,7 +70,7 @@ router.get(
       }),
       excludedRaids: knownRaids
         .filter((raid) => !configuredZoneIds.has(raid.id))
-        .map((raid) => ({ zoneId: raid.id, raidName: raid.name, slug: raid.slug, expansionName: raid.expansion, availability: "excluded" as const })),
+        .map((raid) => ({ zoneId: raid.id, raidName: normalizeCcgRaidName(raid.name), slug: raid.slug, expansionName: raid.expansion, availability: "excluded" as const })),
       media,
       totals: { cards, openings },
       community: { characters: communityCharacters },

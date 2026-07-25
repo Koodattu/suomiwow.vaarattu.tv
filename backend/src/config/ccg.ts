@@ -118,7 +118,9 @@ const crop = (x: number, y: number, scale: number, xJitter: number, yJitter: num
   yJitter,
 });
 
-export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
+export const normalizeCcgRaidName = (raidName: string): string => raidName.split(",", 1)[0].trim();
+
+const CCG_CONFIGURED_SET_DEFINITIONS = [
   {
     zoneId: 6,
     slug: "highmaul",
@@ -413,6 +415,11 @@ export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = [
     glow: "rgba(70, 207, 255, 0.35)",
     crop: crop(49, 50, 1.1, 5, 10),
   },
-] as const;
+] as const satisfies readonly CcgConfiguredSet[];
+
+export const CCG_CONFIGURED_SETS: readonly CcgConfiguredSet[] = CCG_CONFIGURED_SET_DEFINITIONS.map((set) => ({
+  ...set,
+  raidName: normalizeCcgRaidName(set.raidName),
+}));
 
 export const getConfiguredCcgSet = (zoneId: number): CcgConfiguredSet | undefined => CCG_CONFIGURED_SETS.find((set) => set.zoneId === zoneId);

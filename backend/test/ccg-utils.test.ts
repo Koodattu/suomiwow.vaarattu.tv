@@ -5,6 +5,7 @@ import {
   CCG_CONFIGURED_SETS,
   CCG_INITIAL_PACKS,
   CCG_PACK_STORAGE_CAPS,
+  normalizeCcgRaidName,
 } from "../src/config/ccg";
 import {
   MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY,
@@ -49,6 +50,13 @@ test("card crops are deterministic and stay inside each raid's safe flair range"
 test("short raids excluded from CCG stay excluded", () => {
   assert.equal(CCG_CONFIGURED_SETS.some((set) => set.zoneId === 22), false);
   assert.equal(CCG_CONFIGURED_SETS.some((set) => set.zoneId === 12), false);
+});
+
+test("configured CCG raid names omit comma-qualified subtitles", () => {
+  assert.equal(CCG_CONFIGURED_SETS.find((set) => set.zoneId === 33)?.raidName, "Aberrus");
+  assert.equal(CCG_CONFIGURED_SETS.find((set) => set.zoneId === 35)?.raidName, "Amirdrassil");
+  assert.equal(CCG_CONFIGURED_SETS.every((set) => !set.raidName.includes(",")), true);
+  assert.equal(normalizeCcgRaidName("Future Raid, the Subtitle"), "Future Raid");
 });
 
 test("every raid set is pinned to its intended Mythic+ season", () => {
