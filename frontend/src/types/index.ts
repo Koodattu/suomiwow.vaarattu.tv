@@ -2071,6 +2071,35 @@ export type CcgAdminSetReadiness = {
   checkedAt: string;
 };
 
+export type CcgAdminMediaStatus = {
+  processorRunning: boolean;
+  discoveryRunning: boolean;
+  queue: Record<string, number>;
+  media: Record<string, number>;
+  lastDiscovery: {
+    status: "running" | "completed" | "failed";
+    startedAt: string;
+    completedAt: string | null;
+    durationMs: number | null;
+    error: string | null;
+    scanned: number | null;
+    candidates: number | null;
+    queued: number | null;
+    eligibleCandidates: number | null;
+    generalCandidates: number | null;
+  } | null;
+  recentFailures: Array<{ characterId: string; name: string; realm: string; status: string; error: string | null }>;
+};
+
+export type CcgAdminMediaDiscoveryResult = {
+  scanned: number;
+  candidates: number;
+  queued: number;
+  eligibleCandidates: number;
+  generalCandidates: number;
+  raidSets: Array<{ zoneId: number; raidName: string; candidates: number; queued: number }>;
+};
+
 export type CcgAdminStatusResponse = {
   sets: CcgAdminSetStatus[];
   excludedRaids: Array<{
@@ -2080,12 +2109,7 @@ export type CcgAdminStatusResponse = {
     expansionName: string;
     availability: "excluded";
   }>;
-  media: {
-    processorRunning: boolean;
-    queue: Record<string, number>;
-    media: Record<string, number>;
-    recentFailures: Array<{ characterId: string; name: string; realm: string; status: string; error: string | null }>;
-  };
+  media: CcgAdminMediaStatus;
   totals: { cards: number; openings: number };
   community: { characters: CcgAdminCommunityCharacter[] };
 };

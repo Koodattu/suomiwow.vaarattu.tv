@@ -5,10 +5,16 @@ import { requireAdmin } from "../middleware/admin.middleware";
 import CcgCard from "../models/CcgCard";
 import CcgSet from "../models/CcgSet";
 import Raid from "../models/Raid";
-import characterMediaService from "../services/character-media.service";
+import characterMediaService, {
+  CHARACTER_MEDIA_DISCOVERY_TASK_NAME,
+  CHARACTER_MEDIA_RECOVERY_TASK_NAME,
+  CHARACTER_MEDIA_REFRESH_TASK_NAME,
+  CHARACTER_MEDIA_RETRY_TASK_NAME,
+} from "../services/character-media.service";
 import ccgCommunityService, { CcgCommunityError } from "../services/ccg-community.service";
 import ccgPublisherService, { CcgPublisherError } from "../services/ccg-publisher.service";
 import ccgService, { CcgServiceError } from "../services/ccg.service";
+import taskTracker from "../services/task-tracker.service";
 import logger from "../utils/logger";
 
 const router = Router();
@@ -36,6 +42,18 @@ function getAdminUserId(req: Request): mongoose.Types.ObjectId {
     throw new CcgServiceError(401, "admin_identity_missing", "Admin identity is unavailable");
   }
   return new mongoose.Types.ObjectId(String(userId));
+}
+
+async function runTrackedMediaAction<T extends Record<string, unknown>>(taskName: string, action: () => Promise<T>): Promise<T> {
+  const taskId = await taskTracker.start(taskName, { source: "admin" });
+  try {
+    const result = await action();
+    await taskTracker.complete(taskId, result);
+    return result;
+  } catch (error) {
+    await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+    throw error;
+  }
 }
 
 router.get(
@@ -186,22 +204,27 @@ router.post(
 
 router.post(
   "/media/discover",
-  adminRoute(async () => characterMediaService.enqueueMissing()),
+  adminRoute(async () => runTrackedMediaAction(CHARACTER_MEDIA_DISCOVERY_TASK_NAME, () => characterMediaService.enqueueMissing())),
+);
+
+router.get(
+  "/media/status",
+  adminRoute(async () => characterMediaService.getStatus()),
 );
 
 router.post(
   "/media/refresh-current",
-  adminRoute(async () => characterMediaService.enqueueActiveCurrent()),
+  adminRoute(async () => runTrackedMediaAction(CHARACTER_MEDIA_REFRESH_TASK_NAME, () => characterMediaService.enqueueActiveCurrent())),
 );
 
 router.post(
   "/media/recover",
-  adminRoute(async () => ({ recovered: await characterMediaService.recoverStaleProcessing() })),
+  adminRoute(async () => runTrackedMediaAction(CHARACTER_MEDIA_RECOVERY_TASK_NAME, async () => ({ recovered: await characterMediaService.recoverStaleProcessing() }))),
 );
 
 router.post(
   "/media/retry",
-  adminRoute(async () => ({ retried: await characterMediaService.retryFailures() })),
+  adminRoute(async () => runTrackedMediaAction(CHARACTER_MEDIA_RETRY_TASK_NAME, async () => ({ retried: await characterMediaService.retryFailures() }))),
 );
 
 router.post(

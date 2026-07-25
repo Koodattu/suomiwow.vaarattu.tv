@@ -148,6 +148,8 @@ import {
   CcgAdminEnableResponse,
   CcgAdminSetReadiness,
   CcgAdminStatusResponse,
+  CcgAdminMediaStatus,
+  CcgAdminMediaDiscoveryResult,
   CcgAdminAnalyticsRange,
   CcgAdminAnalyticsResponse,
   CcgAdminCommunityCharacter,
@@ -357,6 +359,36 @@ export const api = {
   async getAdminCcgStatus(): Promise<CcgAdminStatusResponse> {
     const response = await fetch(`${API_URL}/api/admin/ccg/status`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load CCG administration");
+    return response.json();
+  },
+
+  async getAdminCcgMediaStatus(): Promise<CcgAdminMediaStatus> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/media/status`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load CCG media status");
+    return response.json();
+  },
+
+  async discoverAdminCcgMedia(): Promise<CcgAdminMediaDiscoveryResult> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/media/discover`, { method: "POST", credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to discover missing character renders");
+    return response.json();
+  },
+
+  async refreshAdminCcgMedia(): Promise<{ candidates: number; queued: number }> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/media/refresh-current`, { method: "POST", credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to refresh current character renders");
+    return response.json();
+  },
+
+  async recoverAdminCcgMedia(): Promise<{ recovered: number }> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/media/recover`, { method: "POST", credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to recover stuck character render requests");
+    return response.json();
+  },
+
+  async retryAdminCcgMedia(): Promise<{ retried: number }> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/media/retry`, { method: "POST", credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to retry character render errors");
     return response.json();
   },
 

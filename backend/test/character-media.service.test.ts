@@ -6,6 +6,7 @@ import CharacterMedia from "../src/models/CharacterMedia";
 import CharacterMediaFetchQueue from "../src/models/CharacterMediaFetchQueue";
 import CharacterRaidParticipation from "../src/models/CharacterRaidParticipation";
 import CharacterTierListEntry from "../src/models/CharacterTierListEntry";
+import TaskLog from "../src/models/TaskLog";
 import {
   CharacterMediaService,
   getCharacterMediaFailureTransition,
@@ -29,6 +30,7 @@ test("prioritizes missing CCG characters by newest raid before the general chara
   const queueModel = CharacterMediaFetchQueue as any;
   const originals = {
     aggregate: characterModel.aggregate,
+    countDocuments: characterModel.countDocuments,
     tierFind: tierEntryModel.find,
     participationFind: participationModel.find,
     bulkWrite: queueModel.bulkWrite,
@@ -56,6 +58,7 @@ test("prioritizes missing CCG characters by newest raid before the general chara
       },
       exec: async () => rows,
     });
+    characterModel.countDocuments = async () => 17;
     tierEntryModel.find = (filter: { zoneId: number }) => ({
       select() {
         return this;
@@ -110,6 +113,7 @@ test("prioritizes missing CCG characters by newest raid before the general chara
     assert.ok(queueWrites[0].priority > queueWrites[1].priority);
     assert.ok(queueWrites[1].priority > queueWrites[2].priority);
     assert.equal(result.candidates, 4);
+    assert.equal(result.scanned, 17);
     assert.equal(result.eligibleCandidates, 3);
     assert.equal(result.generalCandidates, 1);
     assert.equal(result.queued, 4);
@@ -117,6 +121,7 @@ test("prioritizes missing CCG characters by newest raid before the general chara
     assert.equal(result.raidSets.find((set) => set.zoneId === 44)?.candidates, 1);
   } finally {
     characterModel.aggregate = originals.aggregate;
+    characterModel.countDocuments = originals.countDocuments;
     tierEntryModel.find = originals.tierFind;
     participationModel.find = originals.participationFind;
     queueModel.bulkWrite = originals.bulkWrite;
@@ -228,5 +233,66 @@ test("moves an exhausted stale request into cooldown instead of leaving an uncla
     queueModel.updateMany = originals.queueUpdateMany;
     mediaModel.distinct = originals.mediaDistinct;
     mediaModel.bulkWrite = originals.mediaBulkWrite;
+  }
+});
+
+test("reports live queue totals and the latest persisted discovery progress", async () => {
+  const mediaModel = CharacterMedia as any;
+  const queueModel = CharacterMediaFetchQueue as any;
+  const taskLogModel = TaskLog as any;
+  const originals = {
+    queueAggregate: queueModel.aggregate,
+    queueFind: queueModel.find,
+    mediaAggregate: mediaModel.aggregate,
+    taskFindOne: taskLogModel.findOne,
+  };
+  const startedAt = new Date("2026-07-26T01:30:00.000Z");
+
+  try {
+    queueModel.aggregate = async () => [
+      { _id: "pending", count: 8 },
+      { _id: "completed", count: 21 },
+      { _id: "failed", count: 2 },
+    ];
+    mediaModel.aggregate = async () => [{ _id: "available", count: 19 }];
+    queueModel.find = () => ({
+      sort() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      select() {
+        return this;
+      },
+      lean: async () => [],
+    });
+    taskLogModel.findOne = () => ({
+      sort() {
+        return this;
+      },
+      lean: async () => ({
+        status: "completed",
+        startedAt,
+        completedAt: new Date(startedAt.getTime() + 12_000),
+        durationMs: 12_000,
+        metadata: { scanned: 100, candidates: 31, queued: 29, eligibleCandidates: 11, generalCandidates: 20 },
+      }),
+    });
+
+    const status = await new CharacterMediaService().getStatus();
+
+    assert.deepEqual(status.queue, { pending: 8, completed: 21, failed: 2 });
+    assert.deepEqual(status.media, { available: 19 });
+    assert.equal(status.discoveryRunning, false);
+    assert.equal(status.lastDiscovery?.status, "completed");
+    assert.equal(status.lastDiscovery?.scanned, 100);
+    assert.equal(status.lastDiscovery?.candidates, 31);
+    assert.equal(status.lastDiscovery?.queued, 29);
+  } finally {
+    queueModel.aggregate = originals.queueAggregate;
+    queueModel.find = originals.queueFind;
+    mediaModel.aggregate = originals.mediaAggregate;
+    taskLogModel.findOne = originals.taskFindOne;
   }
 });

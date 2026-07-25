@@ -16,7 +16,10 @@ import taskTracker from "./task-tracker.service";
 import fightVodService from "./fight-vod.service";
 import characterAchievementService from "./character-achievement.service";
 import mythicPlusService from "./mythic-plus.service";
-import characterMediaService from "./character-media.service";
+import characterMediaService, {
+  CHARACTER_MEDIA_DISCOVERY_TASK_NAME,
+  CHARACTER_MEDIA_REFRESH_TASK_NAME,
+} from "./character-media.service";
 import ccgPublisherService from "./ccg-publisher.service";
 import ccgService from "./ccg.service";
 import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
@@ -927,7 +930,7 @@ class UpdateScheduler {
 
   private async discoverCcgMedia(): Promise<void> {
     this.isDiscoveringCcgMedia = true;
-    const taskId = await taskTracker.start("CCG Character Media Discovery");
+    const taskId = await taskTracker.start(CHARACTER_MEDIA_DISCOVERY_TASK_NAME, { source: "scheduler" });
     try {
       const result = await characterMediaService.enqueueMissing();
       await taskTracker.complete(taskId, result);
@@ -941,7 +944,7 @@ class UpdateScheduler {
 
   private async refreshCcgMedia(): Promise<void> {
     this.isRefreshingCcgMedia = true;
-    const taskId = await taskTracker.start("CCG Active Character Media Refresh");
+    const taskId = await taskTracker.start(CHARACTER_MEDIA_REFRESH_TASK_NAME, { source: "scheduler" });
     try {
       const result = await characterMediaService.enqueueActiveCurrent();
       await taskTracker.complete(taskId, result);

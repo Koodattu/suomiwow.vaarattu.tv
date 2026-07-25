@@ -7,6 +7,7 @@ import CcgPackStudio from "@/components/admin/CcgPackStudio";
 import CcgAdminAnalytics from "@/components/admin/CcgAdminAnalytics";
 import CcgAlternativeArtManager from "@/components/admin/CcgAlternativeArtManager";
 import CcgCommunityManager from "@/components/admin/CcgCommunityManager";
+import CcgMediaOperations from "@/components/admin/CcgMediaOperations";
 import CcgRedeemCodeManager from "@/components/admin/CcgRedeemCodeManager";
 import { api } from "@/lib/api";
 import type { CcgAdminSetReadiness, CcgAdminSetStatus, CcgAdminStatusResponse } from "@/types";
@@ -34,7 +35,7 @@ export default function CcgAdminPanel() {
   const [confirmingZone, setConfirmingZone] = useState<number | null>(null);
   const [forcingZone, setForcingZone] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [section, setSection] = useState<"studio" | "packStudio" | "analytics" | "alternativeArt" | "redeemCodes" | "community" | "sets">("studio");
+  const [section, setSection] = useState<"studio" | "packStudio" | "analytics" | "alternativeArt" | "redeemCodes" | "community" | "media" | "sets">("studio");
   const handleError = useCallback((message: string) => {
     setError(message);
     setNotice(null);
@@ -137,7 +138,7 @@ export default function CcgAdminPanel() {
       {notice ? <div className="rounded-lg bg-emerald-950/45 p-4 text-sm text-emerald-200 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.28)]" role="status">{notice}</div> : null}
 
       <nav className="flex flex-wrap gap-2 border-b border-white/8 pb-3" aria-label={t("sections.label")}>
-        {(["studio", "packStudio", "analytics", "alternativeArt", "redeemCodes", "community", "sets"] as const).map((value) => (
+        {(["studio", "packStudio", "analytics", "alternativeArt", "redeemCodes", "community", "media", "sets"] as const).map((value) => (
           <button
             key={value}
             type="button"
@@ -168,6 +169,9 @@ export default function CcgAdminPanel() {
           onError={handleError}
           onNotice={handleNotice}
         />
+      ) : null}
+      {section === "media" ? (
+        <CcgMediaOperations initialStatus={status.media} onError={handleError} onNotice={handleNotice} />
       ) : null}
 
       {section === "sets" ? <>

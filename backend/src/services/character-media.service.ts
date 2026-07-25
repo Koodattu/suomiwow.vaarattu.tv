@@ -10,6 +10,7 @@ import CharacterMedia from "../models/CharacterMedia";
 import CharacterMediaFetchQueue, { ICharacterMediaFetchQueue } from "../models/CharacterMediaFetchQueue";
 import CharacterTierListEntry from "../models/CharacterTierListEntry";
 import CcgSet from "../models/CcgSet";
+import TaskLog from "../models/TaskLog";
 import logger from "../utils/logger";
 import cacheService from "./cache.service";
 import { getCharacterRaidParticipationSummaries } from "./character-raid-guild.service";
@@ -23,6 +24,11 @@ const GENERAL_DISCOVERY_PRIORITY = 10;
 const CCG_DISCOVERY_PRIORITY_BASE = 1000;
 const TRANSIENT_FAILURE_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
 const NOT_FOUND_RETRY_MS = 30 * 24 * 60 * 60 * 1000;
+
+export const CHARACTER_MEDIA_DISCOVERY_TASK_NAME = "CCG Character Media Discovery";
+export const CHARACTER_MEDIA_REFRESH_TASK_NAME = "CCG Active Character Media Refresh";
+export const CHARACTER_MEDIA_RECOVERY_TASK_NAME = "CCG Character Media Recovery";
+export const CHARACTER_MEDIA_RETRY_TASK_NAME = "CCG Character Media Retry";
 
 type CharacterMediaQueueRow = {
   _id: mongoose.Types.ObjectId;
@@ -67,52 +73,87 @@ function escapeRegExp(value: string): string {
 
 export type CharacterMediaQueueStatus = {
   processorRunning: boolean;
+  discoveryRunning: boolean;
   queue: Record<string, number>;
   media: Record<string, number>;
+  lastDiscovery: {
+    status: "running" | "completed" | "failed";
+    startedAt: Date;
+    completedAt: Date | null;
+    durationMs: number | null;
+    error: string | null;
+    scanned: number | null;
+    candidates: number | null;
+    queued: number | null;
+    eligibleCandidates: number | null;
+    generalCandidates: number | null;
+  } | null;
   recentFailures: Array<{ characterId: string; name: string; realm: string; status: string; error: string | null }>;
 };
 
+export type CharacterMediaDiscoveryResult = {
+  scanned: number;
+  candidates: number;
+  queued: number;
+  eligibleCandidates: number;
+  generalCandidates: number;
+  raidSets: Array<{ zoneId: number; raidName: string; candidates: number; queued: number }>;
+};
+
+function metadataNumber(metadata: Record<string, unknown> | undefined, key: string): number | null {
+  const value = metadata?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 export class CharacterMediaService {
   private isRunning = false;
+  private discoveryPromise: Promise<CharacterMediaDiscoveryResult> | null = null;
 
-  async enqueueMissing(): Promise<{
-    candidates: number;
-    queued: number;
-    eligibleCandidates: number;
-    generalCandidates: number;
-    raidSets: Array<{ zoneId: number; raidName: string; candidates: number; queued: number }>;
-  }> {
+  async enqueueMissing(): Promise<CharacterMediaDiscoveryResult> {
+    if (this.discoveryPromise) return this.discoveryPromise;
+    this.discoveryPromise = this.discoverMissing();
+    try {
+      return await this.discoveryPromise;
+    } finally {
+      this.discoveryPromise = null;
+    }
+  }
+
+  private async discoverMissing(): Promise<CharacterMediaDiscoveryResult> {
     const now = new Date();
-    const dueCharacters = await Character.aggregate<CharacterMediaQueueRow>([
-      {
-        $lookup: {
-          from: "charactermedias",
-          localField: "_id",
-          foreignField: "characterId",
-          as: "media",
+    const [dueCharacters, scanned] = await Promise.all([
+      Character.aggregate<CharacterMediaQueueRow>([
+        {
+          $lookup: {
+            from: "charactermedias",
+            localField: "_id",
+            foreignField: "characterId",
+            as: "media",
+          },
         },
-      },
-      {
-        $match: {
-          $or: [
-            { media: { $size: 0 } },
-            {
-              media: {
-                $elemMatch: {
-                  mainRawUrl: null,
-                  $or: [{ nextAttemptAt: null }, { nextAttemptAt: { $lte: now } }],
+        {
+          $match: {
+            $or: [
+              { media: { $size: 0 } },
+              {
+                media: {
+                  $elemMatch: {
+                    mainRawUrl: null,
+                    $or: [{ nextAttemptAt: null }, { nextAttemptAt: { $lte: now } }],
+                  },
                 },
               },
-            },
-          ],
+            ],
+          },
         },
-      },
-      { $sort: { updatedAt: -1 } },
-      { $project: { name: 1, realm: 1, region: 1 } },
-    ])
-      .allowDiskUse(true)
-      .option({ maxTimeMS: DISCOVERY_QUERY_MAX_TIME_MS })
-      .exec();
+        { $sort: { updatedAt: -1 } },
+        { $project: { name: 1, realm: 1, region: 1 } },
+      ])
+        .allowDiskUse(true)
+        .option({ maxTimeMS: DISCOVERY_QUERY_MAX_TIME_MS })
+        .exec(),
+      Character.countDocuments(),
+    ]);
 
     const dueByCharacterId = new Map(dueCharacters.map((character) => [String(character._id), character]));
     const assignedEligibleCharacterIds = new Set<string>();
@@ -165,6 +206,7 @@ export class CharacterMediaService {
     queued += generalQueued;
 
     return {
+      scanned,
       candidates: dueCharacters.length,
       queued,
       eligibleCandidates,
@@ -503,7 +545,7 @@ export class CharacterMediaService {
   }
 
   async getStatus(): Promise<CharacterMediaQueueStatus> {
-    const [queueRows, mediaRows, recentFailures] = await Promise.all([
+    const [queueRows, mediaRows, recentFailures, lastDiscovery] = await Promise.all([
       CharacterMediaFetchQueue.aggregate<{ _id: string; count: number }>([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
       CharacterMedia.aggregate<{ _id: string; count: number }>([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
       CharacterMediaFetchQueue.find({ status: { $in: ["failed", "not_found", "retry"] } })
@@ -511,11 +553,27 @@ export class CharacterMediaService {
         .limit(20)
         .select("characterId name realm status lastError")
         .lean(),
+      TaskLog.findOne({ taskName: CHARACTER_MEDIA_DISCOVERY_TASK_NAME }).sort({ startedAt: -1 }).lean(),
     ]);
     return {
       processorRunning: this.isRunning,
+      discoveryRunning: this.discoveryPromise !== null,
       queue: Object.fromEntries(queueRows.map((row) => [row._id, row.count])),
       media: Object.fromEntries(mediaRows.map((row) => [row._id, row.count])),
+      lastDiscovery: lastDiscovery
+        ? {
+            status: lastDiscovery.status,
+            startedAt: lastDiscovery.startedAt,
+            completedAt: lastDiscovery.completedAt ?? null,
+            durationMs: lastDiscovery.durationMs ?? null,
+            error: lastDiscovery.error ?? null,
+            scanned: metadataNumber(lastDiscovery.metadata, "scanned"),
+            candidates: metadataNumber(lastDiscovery.metadata, "candidates"),
+            queued: metadataNumber(lastDiscovery.metadata, "queued"),
+            eligibleCandidates: metadataNumber(lastDiscovery.metadata, "eligibleCandidates"),
+            generalCandidates: metadataNumber(lastDiscovery.metadata, "generalCandidates"),
+          }
+        : null,
       recentFailures: recentFailures.map((row) => ({
         characterId: String(row.characterId),
         name: row.name,
