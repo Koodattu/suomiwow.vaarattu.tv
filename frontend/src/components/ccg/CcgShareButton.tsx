@@ -68,13 +68,15 @@ export default function CcgShareButton({
     resetTimerRef.current = window.setTimeout(() => setStatus("idle"), resetDelay);
   };
 
-  const label = status === "creating"
+  const actionLabel = t(target.kind === "card" ? "card" : "pack");
+  const copiedLabel = t("copied");
+  const statusLabel = status === "creating"
     ? t("creating")
     : status === "copied"
-      ? t("copied")
+      ? copiedLabel
       : status === "error"
         ? t("error")
-        : t(target.kind === "card" ? "card" : "pack");
+        : actionLabel;
   const resultVisible = status === "copied" || status === "error";
 
   return (
@@ -84,15 +86,19 @@ export default function CcgShareButton({
       onClick={() => void share()}
       disabled={status === "creating"}
       data-status={status}
-      aria-label={label}
-      title={label}
+      aria-label={statusLabel}
+      title={statusLabel}
     >
       <span className={styles.shareButtonIcon} aria-hidden="true">
         <FaShareNodes className={resultVisible ? styles.shareIconHidden : styles.shareIconVisible} />
         <FaCheck className={status === "copied" ? styles.shareIconVisible : styles.shareIconHidden} />
         <FaTriangleExclamation className={status === "error" ? styles.shareIconVisible : styles.shareIconHidden} />
       </span>
-      <span aria-live="polite">{label}</span>
+      <span className={styles.shareButtonLabels} aria-hidden="true">
+        <span className={status === "copied" ? styles.shareLabelHidden : styles.shareLabelVisible}>{actionLabel}</span>
+        <span className={status === "copied" ? styles.shareLabelVisible : styles.shareLabelHidden}>{copiedLabel}</span>
+      </span>
+      <span className="sr-only" aria-live="polite">{status === "idle" ? "" : statusLabel}</span>
     </button>
   );
 }

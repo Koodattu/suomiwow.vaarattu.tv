@@ -3119,6 +3119,25 @@
   transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
+.shareButtonLabels {
+  display: grid;
+}
+
+.shareButtonLabels > span {
+  grid-area: 1 / 1;
+  transition-property: opacity;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+
+.shareLabelVisible {
+  opacity: 1;
+}
+
+.shareLabelHidden {
+  opacity: 0;
+}
+
 .shareIconVisible {
   filter: blur(0);
   opacity: 1;
