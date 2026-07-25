@@ -1149,6 +1149,53 @@
   mix-blend-mode: screen;
   opacity: 0.8;
 }
+.chromaflow .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.66), transparent 22%),
+    repeating-linear-gradient(
+      to top,
+      rgba(255, 253, 234, 0.7) 0%,
+      rgba(255, 253, 234, 0.7) 5%,
+      rgba(255, 244, 125, 0.7) 8%,
+      rgba(255, 75, 210, 0.78) 13%,
+      rgba(151, 80, 255, 0.76) 18%,
+      rgba(91, 219, 255, 0.72) 23%,
+      rgba(255, 253, 234, 0.7) 25%
+    );
+  background-position:
+    center,
+    0 100%;
+  background-size:
+    100% 100%,
+    100% 200%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.34),
+    inset 0 0 26px rgba(171, 83, 255, 0.16);
+  filter: brightness(calc(0.9 + var(--pointer-distance) * 0.18)) contrast(1.08) saturate(1.2);
+  mix-blend-mode: screen;
+  opacity: 0.64;
+  animation: prototypeChromaflowRise 5.6s linear infinite;
+}
+.chromaflow .finishLayer::before {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.92) 0 0.72px, transparent 1.12px);
+  background-position: 0 0;
+  background-size: 5px 5px;
+  mix-blend-mode: color-dodge;
+  opacity: 0.4;
+}
+.chromaflow .finishLayer::after {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.62), transparent 20%),
+    linear-gradient(var(--foil-angle), transparent 34%, rgba(255, 255, 255, 0.24) 49%, transparent 64%);
+  background-position:
+    center,
+    var(--foil-x) var(--foil-y);
+  background-size:
+    100% 100%,
+    220% 220%;
+  mix-blend-mode: screen;
+  opacity: 0.62;
+}
 .negative .finishLayer {
   background:
     radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.22), transparent 24%),
@@ -1210,6 +1257,9 @@
 .prototypeCard.void:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.72 + var(--pointer-distance) * 0.08);
 }
+.prototypeCard.chromaflow:is(:hover, [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.76 + var(--pointer-distance) * 0.12);
+}
 .prototypeCard.negative:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.58 + var(--pointer-distance) * 0.12);
 }
@@ -1239,6 +1289,12 @@
 }
 .prototypeCard.void:is(:hover, [data-forced-hover="true"]) .materialLight {
   opacity: 0.28;
+}
+.prototypeCard.chromaflow .materialLight {
+  opacity: 0.28;
+}
+.prototypeCard.chromaflow:is(:hover, [data-forced-hover="true"]) .materialLight {
+  opacity: 0.82;
 }
 
 .golden .statsPanel {
@@ -1275,6 +1331,11 @@
 .void .statsPanel {
   background: linear-gradient(180deg, rgba(14, 6, 24, 0.99), rgba(1, 1, 4, 0.99));
   box-shadow: inset 0 0 0 1px rgba(142, 93, 255, 0.18);
+}
+.chromaflow .statsPanel {
+  background:
+    linear-gradient(112deg, rgba(255, 244, 125, 0.1), rgba(255, 75, 210, 0.13), rgba(151, 80, 255, 0.14), rgba(91, 219, 255, 0.12)),
+    linear-gradient(180deg, rgba(20, 15, 31, 0.99), rgba(4, 5, 11, 0.99));
 }
 .negative .statsPanel {
   background: linear-gradient(110deg, rgba(126, 255, 213, 0.11), rgba(213, 120, 255, 0.09)), linear-gradient(180deg, rgba(13, 22, 22, 0.99), rgba(2, 6, 6, 0.99));
@@ -1396,6 +1457,19 @@
   to {
     background-position: 92% center;
     filter: brightness(1.3) saturate(1.5);
+  }
+}
+
+@keyframes prototypeChromaflowRise {
+  from {
+    background-position:
+      center,
+      0 100%;
+  }
+  to {
+    background-position:
+      center,
+      0 -100%;
   }
 }
 
@@ -1612,6 +1686,14 @@
 }
 .vaultRelic .rarityPlate[data-quality="void"] .qualityLabel {
   color: #ac8cff;
+}
+.vaultRelic .rarityPlate[data-quality="chromaflow"] .qualityLabel {
+  background: linear-gradient(90deg, #fffde9, #fff47d 20%, #ff4bd2 43%, #9750ff 66%, #5bdbff 88%, #fffde9);
+  background-clip: text;
+  color: transparent;
+  font-weight: 800;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 .vaultRelic .rarityPlate[data-quality="negative"] .qualityLabel {
   color: #a9ffdc;
@@ -2460,6 +2542,9 @@
   }
   .void .finishLayer {
     opacity: 0.68;
+  }
+  .chromaflow .finishLayer {
+    opacity: 0.7;
   }
   .negative .finishLayer {
     opacity: 0.44;

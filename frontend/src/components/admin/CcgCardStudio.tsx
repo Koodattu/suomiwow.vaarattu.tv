@@ -7,9 +7,9 @@ import { api } from "@/lib/api";
 import { formatRealmName } from "@/lib/utils";
 import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 
-type PreviewFinish = CcgFinish | "void";
+type PreviewFinish = CcgFinish | "void" | "chromaflow";
 
-const finishes: readonly PreviewFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative", "void"];
+const finishes: readonly PreviewFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative", "void", "chromaflow"];
 const grades: readonly CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
 const fieldClass = "min-h-10 w-full rounded-md border border-white/10 bg-gray-950/75 px-3 text-sm text-white outline-none transition-colors placeholder:text-gray-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/15";
 
