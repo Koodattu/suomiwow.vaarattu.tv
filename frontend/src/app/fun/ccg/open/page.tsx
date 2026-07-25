@@ -567,7 +567,7 @@ export default function CcgOpenPage() {
   }
 
   return (
-    <CcgShell compact>
+    <CcgShell compact onOpenPacksClick={clearSavedOpening}>
       <div className={packStyles.openWorkspace}>
         {!opening ? (
           <div className={packStyles.packChooser}>

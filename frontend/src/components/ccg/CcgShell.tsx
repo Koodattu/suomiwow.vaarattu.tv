@@ -11,7 +11,19 @@ import CcgAccountMenu from "./CcgAccountMenu";
 import CcgControls from "./CcgControls";
 import styles from "./ccg.module.css";
 
-export default function CcgShell({ children, context, compact = false, viewportLocked = false }: { children: ReactNode; context?: ReactNode; compact?: boolean; viewportLocked?: boolean }) {
+export default function CcgShell({
+  children,
+  context,
+  compact = false,
+  viewportLocked = false,
+  onOpenPacksClick,
+}: {
+  children: ReactNode;
+  context?: ReactNode;
+  compact?: boolean;
+  viewportLocked?: boolean;
+  onOpenPacksClick?: () => void;
+}) {
   const pathname = usePathname();
   const t = useTranslations("ccg");
   const links = [
@@ -45,6 +57,7 @@ export default function CcgShell({ children, context, compact = false, viewportL
                 <Link
                   key={link.href}
                   href={link.href}
+                  onClick={link.href === "/fun/ccg/open" ? onOpenPacksClick : undefined}
                   aria-current={active ? "page" : undefined}
                   className={`${styles.subnavLink} ${active ? styles.subnavLinkActive : ""}`}
                 >
