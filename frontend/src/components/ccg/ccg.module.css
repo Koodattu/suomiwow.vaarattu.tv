@@ -2551,7 +2551,7 @@
 .viewerQuip {
   display: flex;
   max-width: 26rem;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.35rem;
   margin-top: 1rem;
 }
