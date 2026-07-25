@@ -19,8 +19,11 @@ import {
 } from "../config/ccg";
 import CcgCard, { ICcgCard } from "../models/CcgCard";
 import CcgAlternativeArt from "../models/CcgAlternativeArt";
+import CcgAnalyticsParticipant from "../models/CcgAnalyticsParticipant";
+import CcgAnalyticsSummary from "../models/CcgAnalyticsSummary";
 import CcgDailyAllowance from "../models/CcgDailyAllowance";
 import CcgGuest, { ICcgGuest } from "../models/CcgGuest";
+import CcgJobLock from "../models/CcgJobLock";
 import CcgLedgerEntry from "../models/CcgLedgerEntry";
 import CcgOwnership, { CcgOwnerType } from "../models/CcgOwnership";
 import CcgPackBalance, { ICcgPackBalance } from "../models/CcgPackBalance";
@@ -49,8 +52,14 @@ import { resolveCollectorKey } from "../utils/ccg-identity";
 import { CCG_REDEEM_PACK_GRANT_MAX, normalizeCcgRedeemCode } from "../utils/ccg-redeem";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeHourStart } from "../utils/ccg-recharge";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../utils/helsinki-time";
+import logger from "../utils/logger";
 import { normalizeSearchText, scoreSearchCandidate } from "../utils/search";
 import ccgPublisherService from "./ccg-publisher.service";
+
+const CCG_ANALYTICS_KEY = "global";
+const CCG_ANALYTICS_SCHEMA_VERSION = 1;
+const CCG_ANALYTICS_INITIALIZATION_LOCK = "ccg-analytics-initialize-v1";
+const CCG_ANALYTICS_INITIALIZATION_TIMEOUT_MS = 30_000;
 
 type CcgOwner = {
   ownerType: CcgOwnerType;
@@ -115,6 +124,14 @@ function hashGuestToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+function getAnalyticsOwnerKey(ownerType: CcgOwnerType, ownerId: mongoose.Types.ObjectId): string {
+  return `${ownerType}:${ownerId}`;
+}
+
+function wait(durationMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, durationMs));
+}
+
 function isTransactionUnsupported(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /Transaction numbers are only allowed|replica set|does not support retryable writes/i.test(message);
@@ -133,6 +150,9 @@ function validatePackGrant(value: unknown, label: string): number {
 }
 
 class CcgService {
+  private analyticsInitialization: Promise<void> | null = null;
+  private analyticsReady = false;
+
   private adminCardSearchCache: {
     expiresAt: number;
     candidates: Array<{
@@ -187,6 +207,20 @@ class CcgService {
       },
       qualityProtection: this.readFinishPity(qualityProgress ?? undefined),
       ownedFinishes: ownershipCount,
+    };
+  }
+
+  async getAnalytics(): Promise<{ uniqueUsers: number; packOpenings: number }> {
+    requireFeature();
+    await this.ensureAnalyticsInitialized();
+    const summary = await CcgAnalyticsSummary.findOne({
+      key: CCG_ANALYTICS_KEY,
+      schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
+    }).lean();
+    if (!summary) throw new CcgServiceError(503, "analytics_unavailable", "Vault activity is temporarily unavailable");
+    return {
+      uniqueUsers: summary.uniqueUsers,
+      packOpenings: summary.packOpenings,
     };
   }
 
@@ -938,6 +972,7 @@ class CcgService {
 
   async openPack(req: Request, res: Response, body: Record<string, unknown>): Promise<Record<string, unknown>> {
     requireFeature();
+    await this.ensureAnalyticsInitialized();
     const owner = await this.resolveOwner(req, res);
     const mode = validateMode(body.mode);
     const targetSetId = body.setId === undefined || body.setId === null || body.setId === ""
@@ -1055,6 +1090,7 @@ class CcgService {
           ],
           { session },
         );
+        await this.recordPackOpeningAnalytics(owner, session);
       });
     } catch (error) {
       if (isTransactionUnsupported(error)) {
@@ -1083,6 +1119,7 @@ class CcgService {
 
   async claimGuest(req: Request, body: Record<string, unknown>): Promise<Record<string, unknown>> {
     requireFeature();
+    await this.ensureAnalyticsInitialized();
     if (!req.session.userId) throw new CcgServiceError(401, "authentication_required", "Log in to keep this pack");
     const userId = validateObjectId(req.session.userId, "user session");
     const idempotencyKey = validateIdempotencyKey(body.idempotencyKey);
@@ -1180,6 +1217,17 @@ class CcgService {
         await CcgGuest.updateOne(
           { _id: transactionalGuest._id, claimedAt: null },
           { $set: { claimedByUserId: userId, claimedAt: new Date() } },
+          { session },
+        );
+        await CcgAnalyticsParticipant.updateOne(
+          { ownerKey: getAnalyticsOwnerKey("guest", transactionalGuest._id) },
+          {
+            $set: {
+              ownerKey: getAnalyticsOwnerKey("user", userId),
+              ownerType: "user",
+              ownerId: userId,
+            },
+          },
           { session },
         );
         await CcgOwnership.deleteMany({ ownerType: "guest", ownerId: transactionalGuest._id }, { session });
@@ -1285,6 +1333,210 @@ class CcgService {
       qualityProgress: qualityProgress.deletedCount,
       guests: guests.deletedCount,
     };
+  }
+
+  private async ensureAnalyticsInitialized(): Promise<void> {
+    if (this.analyticsReady) return;
+    const ready = await CcgAnalyticsSummary.exists({
+      key: CCG_ANALYTICS_KEY,
+      schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
+    });
+    if (ready) {
+      this.analyticsReady = true;
+      return;
+    }
+
+    if (!this.analyticsInitialization) {
+      this.analyticsInitialization = this.initializeAnalytics().finally(() => {
+        this.analyticsInitialization = null;
+      });
+    }
+    await this.analyticsInitialization;
+    this.analyticsReady = true;
+  }
+
+  private async initializeAnalytics(): Promise<void> {
+    const lockOwner = randomBytes(16).toString("hex");
+    const startedAt = Date.now();
+    const now = new Date(startedAt);
+    await CcgJobLock.deleteOne({ key: CCG_ANALYTICS_INITIALIZATION_LOCK, expiresAt: { $lte: now } });
+
+    let acquired = false;
+    try {
+      await CcgJobLock.create({
+        key: CCG_ANALYTICS_INITIALIZATION_LOCK,
+        owner: lockOwner,
+        expiresAt: new Date(startedAt + CCG_ANALYTICS_INITIALIZATION_TIMEOUT_MS),
+      });
+      acquired = true;
+    } catch (error) {
+      if (!isDuplicateKeyError(error)) throw error;
+    }
+
+    if (!acquired) {
+      while (Date.now() - startedAt < CCG_ANALYTICS_INITIALIZATION_TIMEOUT_MS) {
+        const ready = await CcgAnalyticsSummary.exists({
+          key: CCG_ANALYTICS_KEY,
+          schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
+        });
+        if (ready) return;
+        await wait(100);
+      }
+      throw new CcgServiceError(503, "analytics_initializing", "Vault activity is still being prepared");
+    }
+
+    try {
+      const ready = await CcgAnalyticsSummary.exists({
+        key: CCG_ANALYTICS_KEY,
+        schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
+      });
+      if (ready) return;
+
+      await Promise.all([
+        CcgAnalyticsParticipant.init(),
+        CcgAnalyticsSummary.init(),
+      ]);
+      await CcgPackOpening.aggregate([
+        { $match: { state: "committed" } },
+        {
+          $lookup: {
+            from: CcgGuest.collection.name,
+            localField: "ownerId",
+            foreignField: "_id",
+            as: "guest",
+          },
+        },
+        {
+          $set: {
+            effectiveUserId: {
+              $ifNull: [
+                "$claimedByUserId",
+                { $arrayElemAt: ["$guest.claimedByUserId", 0] },
+              ],
+            },
+          },
+        },
+        {
+          $project: {
+            effectiveOwnerType: {
+              $cond: [
+                { $ne: [{ $ifNull: ["$effectiveUserId", null] }, null] },
+                "user",
+                "$ownerType",
+              ],
+            },
+            effectiveOwnerId: { $ifNull: ["$effectiveUserId", "$ownerId"] },
+            createdAt: 1,
+          },
+        },
+        {
+          $group: {
+            _id: {
+              ownerType: "$effectiveOwnerType",
+              ownerId: "$effectiveOwnerId",
+            },
+            packOpenings: { $sum: 1 },
+            firstOpenedAt: { $min: "$createdAt" },
+            lastOpenedAt: { $max: "$createdAt" },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            ownerKey: {
+              $concat: ["$_id.ownerType", ":", { $toString: "$_id.ownerId" }],
+            },
+            ownerType: "$_id.ownerType",
+            ownerId: "$_id.ownerId",
+            packOpenings: 1,
+            firstOpenedAt: 1,
+            lastOpenedAt: 1,
+          },
+        },
+        {
+          $merge: {
+            into: CcgAnalyticsParticipant.collection.name,
+            on: "ownerKey",
+            whenMatched: [
+              {
+                $set: {
+                  ownerType: "$$new.ownerType",
+                  ownerId: "$$new.ownerId",
+                  packOpenings: "$$new.packOpenings",
+                  firstOpenedAt: "$$new.firstOpenedAt",
+                  lastOpenedAt: "$$new.lastOpenedAt",
+                },
+              },
+            ],
+            whenNotMatched: "insert",
+          },
+        },
+      ]);
+
+      const [totals] = await CcgAnalyticsParticipant.aggregate<{
+        uniqueUsers: number;
+        packOpenings: number;
+      }>([
+        {
+          $group: {
+            _id: null,
+            uniqueUsers: { $sum: 1 },
+            packOpenings: { $sum: "$packOpenings" },
+          },
+        },
+      ]);
+      await CcgAnalyticsSummary.findOneAndUpdate(
+        { key: CCG_ANALYTICS_KEY },
+        {
+          $set: {
+            schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
+            uniqueUsers: totals?.uniqueUsers ?? 0,
+            packOpenings: totals?.packOpenings ?? 0,
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true, new: true },
+      );
+    } finally {
+      await CcgJobLock.deleteOne({ key: CCG_ANALYTICS_INITIALIZATION_LOCK, owner: lockOwner })
+        .catch((error) => logger.error("[CCG] Failed to release the analytics initialization lock:", error));
+    }
+  }
+
+  private async recordPackOpeningAnalytics(owner: CcgOwner, session: ClientSession): Promise<void> {
+    const openedAt = new Date();
+    const participant = await CcgAnalyticsParticipant.updateOne(
+      { ownerKey: getAnalyticsOwnerKey(owner.ownerType, owner.ownerId) },
+      {
+        $setOnInsert: {
+          ownerKey: getAnalyticsOwnerKey(owner.ownerType, owner.ownerId),
+          ownerType: owner.ownerType,
+          ownerId: owner.ownerId,
+          firstOpenedAt: openedAt,
+        },
+        $set: { lastOpenedAt: openedAt },
+        $inc: { packOpenings: 1 },
+      },
+      { upsert: true, session },
+    );
+    const summary = await CcgAnalyticsSummary.updateOne(
+      {
+        key: CCG_ANALYTICS_KEY,
+        schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
+      },
+      {
+        $inc: {
+          uniqueUsers: participant.upsertedCount,
+          packOpenings: 1,
+        },
+        $set: { updatedAt: openedAt },
+      },
+      { session },
+    );
+    if (summary.matchedCount !== 1) {
+      this.analyticsReady = false;
+      throw new CcgServiceError(503, "analytics_unavailable", "Vault activity is temporarily unavailable");
+    }
   }
 
   private readFinishPity(row?: Partial<ICcgQualityProgress> | null): CcgFinishPity {

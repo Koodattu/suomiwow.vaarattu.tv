@@ -151,7 +151,12 @@
       "all": "Kaikki",
       "allRaids": "Kaikki raidit",
       "completeCollection": "Koko kokoelma",
-      "legacyEmpty": "Legacy-kansiot ilmestyvät sitä mukaa, kun niiden snapshotit julkaistaan."
+      "legacyEmpty": "Legacy-kansiot ilmestyvät sitä mukaa, kun niiden snapshotit julkaistaan.",
+      "analytics": {
+        "title": "Holvin aktiivisuus",
+        "uniqueUsers": "Uniikit käyttäjät",
+        "packOpenings": "Avatut pakat"
+      }
     },
     "open": {
       "title": "Astu raidiholviin",

@@ -1,8 +1,10 @@
 import { NextFunction, Request, Response, Router } from "express";
+import { cacheMiddleware } from "../middleware/cache.middleware";
 import ccgService, { CcgServiceError } from "../services/ccg.service";
 import logger from "../utils/logger";
 
 const router = Router();
+const CCG_ANALYTICS_CACHE_TTL_MS = 15 * 60 * 1000;
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
 
 function pruneRateLimits(now: number): void {
@@ -46,6 +48,13 @@ function asyncRoute(handler: (req: Request, res: Response) => Promise<unknown>) 
     }
   };
 }
+
+router.get(
+  "/analytics",
+  rateLimit(90, 60_000),
+  cacheMiddleware(() => "ccg:analytics:v1", () => CCG_ANALYTICS_CACHE_TTL_MS),
+  asyncRoute(async () => ccgService.getAnalytics()),
+);
 
 router.get(
   "/session",

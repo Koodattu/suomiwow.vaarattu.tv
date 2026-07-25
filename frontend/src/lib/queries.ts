@@ -92,6 +92,7 @@ export const queryKeys = {
     raid: (raidId: number) => ["compare", "raid", raidId] as const,
   },
   ccg: {
+    analytics: ["ccg", "analytics"] as const,
     session: ["ccg", "session"] as const,
     sets: ["ccg", "sets"] as const,
     catalog: (setSlug: string, page: number, owned: string, grade: string, guildId: string, finish: string, limit: number) => ["ccg", "catalog", setSlug, page, owned, grade, guildId, finish, limit] as const,
@@ -477,6 +478,15 @@ export function useCcgSession() {
       if (nextRecharge.length === 0) return false;
       return Math.max(1_000, Math.min(...nextRecharge) - Date.now() + 1_000);
     },
+  });
+}
+
+export function useCcgAnalytics() {
+  return useQuery({
+    queryKey: queryKeys.ccg.analytics,
+    queryFn: () => api.getCcgAnalytics(),
+    staleTime: 15 * 60 * 1000,
+    refetchInterval: 15 * 60 * 1000,
   });
 }
 

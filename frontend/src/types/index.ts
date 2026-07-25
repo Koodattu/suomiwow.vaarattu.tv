@@ -1972,6 +1972,11 @@ export type CcgSession = {
   ownedFinishes: number;
 };
 
+export type CcgAnalytics = {
+  uniqueUsers: number;
+  packOpenings: number;
+};
+
 export type CcgRedeemReward =
   | { type: "packs"; currentPacks: number; legacyPacks: number }
   | { type: "card"; finish: CcgFinish; artVariant: CcgArtVariant; card: CcgCard };

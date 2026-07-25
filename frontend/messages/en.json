@@ -151,7 +151,12 @@
       "all": "All",
       "allRaids": "All raids",
       "completeCollection": "Complete collection",
-      "legacyEmpty": "Legacy binders will appear as their snapshots are published."
+      "legacyEmpty": "Legacy binders will appear as their snapshots are published.",
+      "analytics": {
+        "title": "Vault activity",
+        "uniqueUsers": "Unique users",
+        "packOpenings": "Packs opened"
+      }
     },
     "open": {
       "title": "Enter the raid vault",

@@ -136,6 +136,7 @@ import {
   CcgArtVariant,
   CcgTierGrade,
   CcgOpening,
+  CcgAnalytics,
   CcgRedeemResult,
   CcgSession,
   CcgSet,
@@ -241,6 +242,12 @@ export const api = {
   async getCcgSession(): Promise<CcgSession> {
     const response = await fetch(`${API_URL}/api/ccg/session`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load the card vault");
+    return response.json();
+  },
+
+  async getCcgAnalytics(): Promise<CcgAnalytics> {
+    const response = await fetch(`${API_URL}/api/ccg/analytics`);
+    if (!response.ok) throw await buildApiError(response, "Failed to load vault activity");
     return response.json();
   },
 

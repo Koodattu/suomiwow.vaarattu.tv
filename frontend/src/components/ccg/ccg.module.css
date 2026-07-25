@@ -2219,8 +2219,14 @@
   min-width: 0;
   min-height: 0;
   grid-column: 3;
+  grid-template-rows: minmax(0, 1fr) auto;
   padding-left: 0.75rem;
   box-shadow: inset 1px 0 rgba(144, 178, 236, 0.13);
+}
+
+.vaultRedeemTop {
+  min-width: 0;
+  min-height: 0;
 }
 
 .redeemPanel {
@@ -2250,6 +2256,70 @@
   font-size: 0.68rem;
   line-height: 1.45;
   text-wrap: pretty;
+}
+
+.vaultAnalyticsPanel {
+  display: grid;
+  min-width: 0;
+  align-content: end;
+  gap: 0.65rem;
+  padding: 0.85rem 0.5rem 0.5rem;
+  box-shadow: inset 0 1px rgba(144, 178, 236, 0.13);
+}
+
+.vaultAnalyticsPanel h2 {
+  color: #eef4ff;
+  font-size: 0.82rem;
+  font-weight: 780;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.vaultAnalyticsStats {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.vaultAnalyticsStat {
+  display: flex;
+  min-width: 0;
+  flex-direction: column-reverse;
+  gap: 0.18rem;
+}
+
+.vaultAnalyticsStat dt {
+  color: #74849c;
+  font-size: 0.62rem;
+  font-weight: 720;
+  letter-spacing: 0.045em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  text-wrap: pretty;
+}
+
+.vaultAnalyticsStat dd {
+  min-height: 1.55rem;
+  color: #c7edff;
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 850;
+  letter-spacing: -0.025em;
+  line-height: 1;
+}
+
+.vaultAnalyticsStat:last-child dd {
+  color: #d2c7ff;
+}
+
+.vaultAnalyticsValueSkeleton {
+  display: block;
+  width: 3.75rem;
+  height: 1.15rem;
+  border-radius: 0.3rem;
+  background: rgba(255, 255, 255, 0.045);
+  animation: collectionSkeleton 1.5s ease-in-out infinite;
 }
 
 .redeemForm {
@@ -3329,6 +3399,7 @@
   }
 
   .redeemPanelSkeleton,
+  .vaultAnalyticsValueSkeleton,
   .redeemDialogBackdrop,
   .redeemDialog,
   .redeemRewardCardButton,
