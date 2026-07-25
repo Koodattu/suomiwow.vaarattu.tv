@@ -448,9 +448,6 @@
     "updated": "Päivitetty"
   },
   "homeHighlights": {
-    "title": "Ajankohtaista",
-    "pickemsOpen": "Veikkaukset auki",
-    "featureHighlights": "Tutustu myös",
     "openNow": "Auki nyt",
     "prizePool": "{amount} kultaa palkintoina",
     "regularPickem": "Suomalaisten kiltojen raidikisa",

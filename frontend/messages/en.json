@@ -448,9 +448,6 @@
     "updated": "Updated"
   },
   "homeHighlights": {
-    "title": "What's happening",
-    "pickemsOpen": "Pickems open",
-    "featureHighlights": "Explore",
     "openNow": "Open now",
     "prizePool": "{amount} gold prize pool",
     "regularPickem": "Finnish guild raid race",

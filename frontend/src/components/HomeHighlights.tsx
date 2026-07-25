@@ -41,19 +41,21 @@ function PickemHighlight({ pickem }: { pickem: PickemSummary }) {
       href={`/pickems?pickem=${encodeURIComponent(pickem.id)}`}
       title={t("openPickem", { name: pickem.name })}
       aria-label={t("openPickem", { name: pickem.name })}
-      className="group grid min-h-16 min-w-[min(82vw,19rem)] snap-start grid-cols-[36px_minmax(0,1fr)_16px] items-center gap-2.5 rounded border border-emerald-800/70 bg-emerald-950/20 px-2.5 py-2 transition-colors duration-150 hover:border-emerald-600/70 hover:bg-emerald-950/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 motion-reduce:transition-none sm:min-w-0"
+      className="group grid min-h-[74px] min-w-[min(82vw,19rem)] snap-start grid-cols-[36px_minmax(0,1fr)_16px] items-center gap-2.5 rounded border border-emerald-800/70 bg-emerald-950/20 px-2.5 py-2 transition-colors duration-150 hover:border-emerald-600/70 hover:bg-emerald-950/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 motion-reduce:transition-none sm:min-w-0"
     >
       <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-amber-500/10 text-amber-300 ring-1 ring-inset ring-amber-400/20">
         <FaCoins className="h-4 w-4" aria-hidden="true" />
       </span>
 
       <span className="min-w-0">
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-300">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-          {t("openNow")}
+        <span className="block truncate text-sm font-semibold text-gray-100 transition-colors group-hover:text-white">{pickem.name}</span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-[11px] font-medium">
+          <span className="flex shrink-0 items-center gap-1.5 font-semibold text-emerald-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+            {t("openNow")}
+          </span>
+          <span className="truncate text-amber-200/80">{goldLabel}</span>
         </span>
-        <span className="mt-0.5 block truncate text-sm font-semibold text-gray-100 transition-colors group-hover:text-white">{pickem.name}</span>
-        <span className="mt-0.5 block truncate text-[11px] font-medium text-amber-200/80">{goldLabel}</span>
       </span>
 
       <FaArrowRight
@@ -67,7 +69,7 @@ function PickemHighlight({ pickem }: { pickem: PickemSummary }) {
 function PickemSkeleton() {
   return (
     <div
-      className="grid min-h-16 min-w-[min(82vw,19rem)] snap-start grid-cols-[36px_minmax(0,1fr)] items-center gap-2.5 rounded bg-gray-800/35 px-2.5 py-2 ring-1 ring-inset ring-gray-700/60 sm:min-w-0"
+      className="grid min-h-[74px] min-w-[min(82vw,19rem)] snap-start grid-cols-[36px_minmax(0,1fr)] items-center gap-2.5 rounded bg-gray-800/35 px-2.5 py-2 ring-1 ring-inset ring-gray-700/60 sm:min-w-0"
       aria-hidden="true"
     >
       <span className="h-9 w-9 animate-pulse rounded-md bg-gray-700/70 motion-reduce:animate-none" />
@@ -88,15 +90,10 @@ export default function HomeHighlights() {
   const showPickems = isLoading || highlightedPickems.length > 0;
 
   return (
-    <section className="mb-3" aria-labelledby="home-highlights-title">
-      <h2 id="home-highlights-title" className="mb-1.5 text-sm font-semibold text-gray-200">
-        {t("title")}
-      </h2>
-
+    <section className="mb-3">
       <div className={`grid gap-2.5 ${showPickems ? "xl:grid-cols-[minmax(0,1fr)_minmax(0,1.18fr)]" : ""}`}>
         {showPickems && (
           <div className="min-w-0">
-            <h3 className="mb-1 text-[11px] font-semibold text-gray-400">{t("pickemsOpen")}</h3>
             <div className="flex snap-x gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0">
               {isLoading ? (
                 <>
@@ -111,13 +108,12 @@ export default function HomeHighlights() {
         )}
 
         <div className="min-w-0">
-          <h3 className="mb-1 text-[11px] font-semibold text-gray-400">{t("featureHighlights")}</h3>
           <div className="flex snap-x gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
             {FEATURE_HIGHLIGHTS.map(({ id, href, Icon, iconClassName }) => (
               <Link
                 key={id}
                 href={href}
-                className="group grid min-h-[74px] min-w-[min(68vw,16rem)] snap-start grid-cols-[32px_minmax(0,1fr)] items-center gap-2 rounded border border-gray-700/70 bg-gray-800/45 px-2.5 py-2 transition-colors duration-150 hover:border-gray-600 hover:bg-gray-800/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 motion-reduce:transition-none sm:min-w-0"
+                className="group grid min-h-[74px] min-w-[min(68vw,16rem)] snap-start grid-cols-[32px_minmax(0,1fr)_16px] items-center gap-2 rounded border border-gray-700/70 bg-gray-800/45 px-2.5 py-2 transition-colors duration-150 hover:border-gray-600 hover:bg-gray-800/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 motion-reduce:transition-none sm:min-w-0"
               >
                 <span className={`inline-flex h-8 w-8 items-center justify-center rounded-md ring-1 ring-inset ${iconClassName}`}>
                   <Icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -128,6 +124,10 @@ export default function HomeHighlights() {
                   </span>
                   <span className="mt-0.5 block truncate text-[11px] text-gray-400">{t(`features.${id}.description`)}</span>
                 </span>
+                <FaArrowRight
+                  className="h-3.5 w-3.5 text-gray-500 transition-[color,transform] duration-150 ease-out group-hover:translate-x-0.5 group-hover:text-gray-300 motion-reduce:transform-none motion-reduce:transition-none"
+                  aria-hidden="true"
+                />
               </Link>
             ))}
           </div>
