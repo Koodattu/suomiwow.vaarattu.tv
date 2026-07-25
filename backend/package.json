@@ -7,6 +7,7 @@
     "dev": "nodemon src/index.ts",
     "dev:graph-poc": "node scripts/guild-network-poc.mjs",
     "build": "tsc",
+    "repair:mplus-monk-specs": "node dist/scripts/repair-mythic-plus-monk-specs.js",
     "test:featured-achievements": "ts-node src/scripts/test-featured-achievements.ts",
     "start": "node --max-old-space-size=1536 dist/index.js",
     "test": "node --test -r ts-node/register \"test/**/*.test.ts\""

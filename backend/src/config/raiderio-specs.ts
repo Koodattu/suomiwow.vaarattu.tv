@@ -124,8 +124,8 @@ export const RAIDER_IO_SPEC_SLOTS_BY_BLIZZARD_CLASS_ID: Record<number, RaiderIoC
     classSlug: "monk",
     specs: {
       spec_0: { blizzardSpecId: 268, blizzardSpecIndex: 1, specName: "Brewmaster", specSlug: "brewmaster" },
-      spec_1: { blizzardSpecId: 269, blizzardSpecIndex: 2, specName: "Windwalker", specSlug: "windwalker" },
-      spec_2: { blizzardSpecId: 270, blizzardSpecIndex: 3, specName: "Mistweaver", specSlug: "mistweaver" },
+      spec_1: { blizzardSpecId: 270, blizzardSpecIndex: 2, specName: "Mistweaver", specSlug: "mistweaver" },
+      spec_2: { blizzardSpecId: 269, blizzardSpecIndex: 3, specName: "Windwalker", specSlug: "windwalker" },
       spec_3: null,
     },
   },

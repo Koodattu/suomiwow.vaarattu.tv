@@ -595,59 +595,49 @@ export default function CcgOpenPage() {
                       </span>
                       <span className={packStyles.modeChoiceMark} aria-hidden="true" />
                     </button>
-                    <button type="button" aria-pressed={mode === "legacy"} onClick={() => setMode("legacy")} className={packStyles.modeChoice}>
-                      <span className={packStyles.modeChoiceIcon}>
-                        <ArchiveIcon />
-                      </span>
-                      <span className={packStyles.modeChoiceCopy}>
-                        <small>{t("mode.legacy")}</small>
-                        <strong>{t("open.legacyRaids", { count: legacySets.length })}</strong>
-                      </span>
-                      <span className={packStyles.modeChoiceMark} aria-hidden="true" />
-                    </button>
                   </div>
 
-                  <div className={packStyles.legacyTarget} data-disabled={mode === "current"}>
-                    <div className={packStyles.raidList} role="listbox" aria-label={t("open.chooseLegacy")} aria-disabled={mode === "current"}>
+                  <div className={packStyles.packChoiceDivider} aria-hidden="true" />
+
+                  <div className={packStyles.legacyTarget}>
+                    <div className={packStyles.raidList} aria-label={t("open.chooseLegacy")}>
                       <button
                         type="button"
-                        role="option"
-                        aria-selected={legacySetId === RANDOM_LEGACY_SET}
-                        disabled={mode === "current"}
-                        className={packStyles.raidOption}
-                        onClick={() => setLegacySetId(RANDOM_LEGACY_SET)}
+                        aria-pressed={mode === "legacy" && legacySetId === RANDOM_LEGACY_SET}
+                        className={packStyles.modeChoice}
+                        onClick={() => {
+                          setMode("legacy");
+                          setLegacySetId(RANDOM_LEGACY_SET);
+                        }}
                       >
-                        <span className={packStyles.raidOptionIcon}>
+                        <span className={packStyles.modeChoiceIcon}>
                           <ArchiveIcon />
                         </span>
-                        <span className={packStyles.raidOptionCopy}>
+                        <span className={packStyles.modeChoiceCopy}>
                           <small>{t("open.randomLegacyEyebrow")}</small>
                           <strong>{t("open.randomLegacy")}</strong>
                         </span>
-                        <span className={packStyles.raidOptionCheck} aria-hidden="true">
-                          ✓
-                        </span>
+                        <span className={packStyles.modeChoiceMark} aria-hidden="true" />
                       </button>
                       {legacySets.map((set) => (
                         <button
                           key={set.id}
                           type="button"
-                          role="option"
-                          aria-selected={legacySetId === set.id}
-                          disabled={mode === "current"}
-                          className={packStyles.raidOption}
-                          onClick={() => setLegacySetId(set.id)}
+                          aria-pressed={mode === "legacy" && legacySetId === set.id}
+                          className={packStyles.modeChoice}
+                          onClick={() => {
+                            setMode("legacy");
+                            setLegacySetId(set.id);
+                          }}
                         >
-                          <span className={packStyles.raidOptionIcon}>
-                            {raidIconByZone.get(set.zoneId) ? <IconImage iconFilename={raidIconByZone.get(set.zoneId)} alt="" width={34} height={34} /> : <ArchiveIcon />}
+                          <span className={packStyles.modeChoiceIcon}>
+                            {raidIconByZone.get(set.zoneId) ? <IconImage iconFilename={raidIconByZone.get(set.zoneId)} alt="" width={40} height={40} /> : <ArchiveIcon />}
                           </span>
-                          <span className={packStyles.raidOptionCopy}>
+                          <span className={packStyles.modeChoiceCopy}>
                             <small>{set.expansionName}</small>
                             <strong>{set.raidName}</strong>
                           </span>
-                          <span className={packStyles.raidOptionCheck} aria-hidden="true">
-                            ✓
-                          </span>
+                          <span className={packStyles.modeChoiceMark} aria-hidden="true" />
                         </button>
                       ))}
                     </div>

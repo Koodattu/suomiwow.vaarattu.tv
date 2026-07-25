@@ -71,7 +71,7 @@ type EnqueueProfileJobsOptions = {
   fetchSeasonProgress?: boolean;
 };
 
-type BucketContext = {
+export type BucketContext = {
   bucketType: "overall" | "role" | "spec";
   role: "dps" | "healer" | "tank" | null;
   specName: string | null;
@@ -439,7 +439,7 @@ class MythicPlusService {
     return normalizeClassName(profileClassName) === normalizeClassName(localClassName);
   }
 
-  private getBucketContext(classID: number, bucket: MythicPlusScoreBucket): BucketContext {
+  getBucketContext(classID: number, bucket: MythicPlusScoreBucket): BucketContext {
     if (bucket === "all") {
       return {
         bucketType: "overall",
@@ -497,7 +497,7 @@ class MythicPlusService {
     };
   }
 
-  private mapSpecScores(classID: number, scores: IMythicPlusScores, segments: Record<string, any>) {
+  mapSpecScores(classID: number, scores: IMythicPlusScores, segments: Record<string, any>) {
     const specMap = this.getClassSpecMap(classID);
     if (!specMap) return [];
 

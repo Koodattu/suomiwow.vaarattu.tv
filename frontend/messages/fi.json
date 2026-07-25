@@ -93,7 +93,7 @@
     "cardType": "Korttityyppi",
     "bonus": "bonus",
     "rechargeMeter": "Lataus",
-    "storageFull": "Varasto täynnä",
+    "storageFull": "Varasto täynnä, avaa pakka!",
     "rechargeIn": "Seuraava pakka {time} kuluttua",
     "rechargeTime": "{hours} t {minutes} min",
     "guest": {

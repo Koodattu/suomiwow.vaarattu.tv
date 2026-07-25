@@ -96,6 +96,7 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
+  padding-right: 0.75rem;
 }
 
 .qualityDetails {
@@ -207,6 +208,13 @@
   gap: 0.5rem;
 }
 
+.packChoiceDivider {
+  height: 1px;
+  flex: 0 0 auto;
+  margin: 0.75rem 0;
+  background: linear-gradient(90deg, transparent, rgba(145, 178, 230, 0.18) 12%, rgba(145, 178, 230, 0.18) 88%, transparent);
+}
+
 .modeChoice {
   position: relative;
   display: grid;
@@ -240,18 +248,16 @@
   color: white;
 }
 
-.modeChoice:focus-visible,
-.raidOption:focus-visible {
+.modeChoice:focus-visible {
   outline: 2px solid #7ddcff;
   outline-offset: 2px;
 }
 
-.modeChoice:active {
+.modeChoice:active:not(:disabled) {
   transform: scale(0.985);
 }
 
-.modeChoiceIcon,
-.raidOptionIcon {
+.modeChoiceIcon {
   position: relative;
   display: grid;
   flex: 0 0 auto;
@@ -268,8 +274,7 @@
   height: 2.5rem;
 }
 
-.modeChoiceIcon img,
-.raidOptionIcon img {
+.modeChoiceIcon img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -281,15 +286,13 @@
   font-weight: 850;
 }
 
-.modeChoiceCopy,
-.raidOptionCopy {
+.modeChoiceCopy {
   display: flex;
   min-width: 0;
   flex-direction: column;
 }
 
-.modeChoiceCopy small,
-.raidOptionCopy small {
+.modeChoiceCopy small {
   overflow: hidden;
   color: #71829e;
   font-size: 0.58rem;
@@ -301,8 +304,7 @@
   white-space: nowrap;
 }
 
-.modeChoiceCopy strong,
-.raidOptionCopy strong {
+.modeChoiceCopy strong {
   margin-top: 0.2rem;
   overflow: hidden;
   font-size: 0.78rem;
@@ -358,103 +360,43 @@
 
 .legacyTarget {
   display: flex;
-  height: min(20rem, max(12rem, calc(100dvh - 23rem)));
+  height: min(24rem, max(16rem, calc(100dvh - 19rem)));
   min-height: 0;
   flex: 0 1 auto;
-  margin-top: 0.75rem;
-  transition-property: filter, opacity;
-  transition-duration: 160ms;
-  transition-timing-function: ease;
-}
-
-.raidOption {
-  display: grid;
-  width: 100%;
-  min-width: 0;
-  grid-template-columns: 2.15rem minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.65rem;
-  color: #dce8f8;
-  text-align: left;
 }
 
 .raidList {
-  width: 100%;
+  display: grid;
+  width: calc(100% + 0.85rem);
   min-height: 0;
+  flex: none;
+  align-content: start;
+  gap: 0.3rem;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  scrollbar-gutter: stable;
-  border: 1px solid rgba(145, 178, 230, 0.2);
-  border-radius: 0.68rem;
-  background: rgba(2, 8, 19, 0.72);
-  padding: 0.3rem;
-  scrollbar-color: rgba(125, 220, 255, 0.46) rgba(3, 11, 25, 0.52);
+  scrollbar-gutter: auto;
+  padding: 0.15rem 0.25rem 0.15rem 0;
+  scrollbar-color: rgba(125, 220, 255, 0.24) transparent;
   scrollbar-width: thin;
 }
 
 .raidList::-webkit-scrollbar {
-  width: 0.55rem;
+  width: 0.3rem;
 }
 
 .raidList::-webkit-scrollbar-track {
-  border-radius: 999px;
-  background: rgba(3, 11, 25, 0.52);
+  background: transparent;
 }
 
 .raidList::-webkit-scrollbar-thumb {
   min-height: 2.5rem;
-  border: 2px solid transparent;
   border-radius: 999px;
-  background: rgba(125, 220, 255, 0.46);
-  background-clip: padding-box;
+  background: rgba(125, 220, 255, 0.24);
 }
 
 .raidList::-webkit-scrollbar-thumb:hover {
-  background: rgba(151, 229, 255, 0.68);
-  background-clip: padding-box;
-}
-
-.raidOptionIcon {
-  width: 2.15rem;
-  height: 2.15rem;
-}
-
-.raidOption {
-  cursor: pointer;
-  border-radius: 0.55rem;
-  padding: 0.46rem 0.5rem;
-  transition-property: background-color, color;
-  transition-duration: 140ms;
-  transition-timing-function: ease;
-}
-
-.raidOption:hover:not(:disabled) {
-  background: rgba(86, 151, 242, 0.13);
-}
-
-.raidOption[aria-selected="true"] {
-  background: rgba(117, 92, 229, 0.14);
-  color: white;
-}
-
-.raidOptionCheck {
-  color: #7ddcff;
-  font-size: 0.8rem;
-  opacity: 0;
-}
-
-.raidOption[aria-selected="true"] .raidOptionCheck {
-  opacity: 1;
-}
-
-.legacyTarget[data-disabled="true"] {
-  filter: grayscale(0.32);
-  opacity: 0.42;
-}
-
-.legacyTarget[data-disabled="true"] .raidOption {
-  cursor: default;
+  background: rgba(151, 229, 255, 0.44);
 }
 
 .stageVeil {
@@ -2374,7 +2316,7 @@
   }
 
   .legacyTarget {
-    height: 18rem;
+    height: 22rem;
     flex: none;
   }
 

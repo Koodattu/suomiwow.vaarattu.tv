@@ -93,7 +93,7 @@
     "cardType": "Card type",
     "bonus": "bonus",
     "rechargeMeter": "Recharge",
-    "storageFull": "Storage full",
+    "storageFull": "Storage is full, open a pack!",
     "rechargeIn": "Next pack in {time}",
     "rechargeTime": "{hours} h {minutes} min",
     "guest": {

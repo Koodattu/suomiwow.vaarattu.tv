@@ -6,9 +6,10 @@
     "locale": "en_US",
     "playableClassIndexUrl": "https://us.api.blizzard.com/data/wow/playable-class/index?namespace=static-us&locale=en_US"
   },
-  "mappingRule": "Raider.IO spec_N fields are the zero-based slots for the Blizzard playable class specialization order; spec_0 maps to Blizzard specialization position 1, spec_1 to position 2, and so on.",
+  "mappingRule": "Raider.IO spec_N fields are zero-based in-game specialization slots; spec_0 maps to specialization position 1, spec_1 to position 2, and so on.",
   "notes": [
     "The Blizzard class IDs in this document come from the Blizzard Playable Class API and are not interchangeable with WarcraftLogs/internal class IDs.",
+    "The Blizzard Playable Class API does not always return specializations in Raider.IO slot order; Monk is explicitly reordered to Brewmaster, Mistweaver, Windwalker.",
     "Unused Raider.IO fields are represented as null in the JSON artifact and as unused rows in the Markdown table."
   ],
   "classes": [
@@ -561,17 +562,17 @@
           "raiderIoField": "spec_1",
           "raiderIoSpecIndex": 1,
           "blizzardSpecIndex": 2,
-          "blizzardSpecId": 269,
-          "specName": "Windwalker",
-          "specSlug": "windwalker"
+          "blizzardSpecId": 270,
+          "specName": "Mistweaver",
+          "specSlug": "mistweaver"
         },
         {
           "raiderIoField": "spec_2",
           "raiderIoSpecIndex": 2,
           "blizzardSpecIndex": 3,
-          "blizzardSpecId": 270,
-          "specName": "Mistweaver",
-          "specSlug": "mistweaver"
+          "blizzardSpecId": 269,
+          "specName": "Windwalker",
+          "specSlug": "windwalker"
         }
       ],
       "raiderIoSlots": {
@@ -587,17 +588,17 @@
           "raiderIoField": "spec_1",
           "raiderIoSpecIndex": 1,
           "blizzardSpecIndex": 2,
-          "blizzardSpecId": 269,
-          "specName": "Windwalker",
-          "specSlug": "windwalker"
+          "blizzardSpecId": 270,
+          "specName": "Mistweaver",
+          "specSlug": "mistweaver"
         },
         "spec_2": {
           "raiderIoField": "spec_2",
           "raiderIoSpecIndex": 2,
           "blizzardSpecIndex": 3,
-          "blizzardSpecId": 270,
-          "specName": "Mistweaver",
-          "specSlug": "mistweaver"
+          "blizzardSpecId": 269,
+          "specName": "Windwalker",
+          "specSlug": "windwalker"
         },
         "spec_3": null
       }

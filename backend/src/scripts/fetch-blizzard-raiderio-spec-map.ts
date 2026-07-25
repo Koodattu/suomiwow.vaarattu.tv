@@ -14,7 +14,7 @@ type PlayableClassSummary = {
   href: string | null;
 };
 
-type PlayableSpecialization = {
+export type PlayableSpecialization = {
   id: number;
   name: string;
   href: string | null;
@@ -54,6 +54,13 @@ type GeneratedSpecMapping = {
   mappingRule: string;
   notes: string[];
   classes: ClassSpecMapping[];
+};
+
+// Raider.IO uses the in-game specialization slot order. Blizzard's playable
+// class response normally follows that order, but Monk is returned by spec ID
+// (Brewmaster, Windwalker, Mistweaver) instead of its in-game slot order.
+const RAIDER_IO_SPEC_ID_ORDER_OVERRIDES: Readonly<Record<number, readonly number[]>> = {
+  10: [268, 270, 269],
 };
 
 function getArg(name: string): string | undefined {
@@ -280,8 +287,24 @@ function parsePlayableClassDetails(payload: unknown, url: string): PlayableClass
   };
 }
 
+export function orderSpecializationsForRaiderIo(classId: number, specializations: PlayableSpecialization[]): PlayableSpecialization[] {
+  const override = RAIDER_IO_SPEC_ID_ORDER_OVERRIDES[classId];
+  if (!override) return [...specializations];
+
+  const specializationsById = new Map(specializations.map((spec) => [spec.id, spec]));
+  const ordered = override.map((specId) => {
+    const spec = specializationsById.get(specId);
+    if (!spec) {
+      throw new Error(`Raider.IO specialization order override for class ${classId} references missing Blizzard spec ${specId}.`);
+    }
+    return spec;
+  });
+  const overrideIds = new Set(override);
+  return [...ordered, ...specializations.filter((spec) => !overrideIds.has(spec.id))];
+}
+
 function buildClassSpecMapping(details: PlayableClassDetails, maxSlots: number): ClassSpecMapping {
-  const specializations = details.specializations.map((spec, index) => ({
+  const specializations = orderSpecializationsForRaiderIo(details.id, details.specializations).map((spec, index) => ({
     raiderIoField: `spec_${index}`,
     raiderIoSpecIndex: index,
     blizzardSpecIndex: index + 1,
@@ -420,9 +443,10 @@ async function main(): Promise<void> {
       playableClassIndexUrl: classIndexUrl,
     },
     mappingRule:
-      "Raider.IO spec_N fields are the zero-based slots for the Blizzard playable class specialization order; spec_0 maps to Blizzard specialization position 1, spec_1 to position 2, and so on.",
+      "Raider.IO spec_N fields are zero-based in-game specialization slots; spec_0 maps to specialization position 1, spec_1 to position 2, and so on.",
     notes: [
       "The Blizzard class IDs in this document come from the Blizzard Playable Class API and are not interchangeable with WarcraftLogs/internal class IDs.",
+      "The Blizzard Playable Class API does not always return specializations in Raider.IO slot order; Monk is explicitly reordered to Brewmaster, Mistweaver, Windwalker.",
       "Unused Raider.IO fields are represented as null in the JSON artifact and as unused rows in the Markdown table.",
     ],
     classes: classDetails.map((klass) => buildClassSpecMapping(klass, maxSlots)),
@@ -450,8 +474,10 @@ async function main(): Promise<void> {
   );
 }
 
-main().catch((error) => {
-  const message = error instanceof Error ? error.stack || error.message : String(error);
-  console.error(message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    const message = error instanceof Error ? error.stack || error.message : String(error);
+    console.error(message);
+    process.exit(1);
+  });
+}

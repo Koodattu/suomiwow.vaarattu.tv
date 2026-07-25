@@ -11,8 +11,9 @@ Generated from Blizzard Playable Class API on 2026-06-22T19:30:25.680Z.
 
 ## Mapping Rule
 
-- Raider.IO spec_N fields are the zero-based slots for the Blizzard playable class specialization order; spec_0 maps to Blizzard specialization position 1, spec_1 to position 2, and so on.
+- Raider.IO spec_N fields are zero-based in-game specialization slots; spec_0 maps to specialization position 1, spec_1 to position 2, and so on.
 - The Blizzard class IDs in this document come from the Blizzard Playable Class API and are not interchangeable with WarcraftLogs/internal class IDs.
+- The Blizzard Playable Class API does not always return specializations in Raider.IO slot order; Monk is explicitly reordered to Brewmaster, Mistweaver, Windwalker.
 - Unused Raider.IO fields are represented as null in the JSON artifact and as unused rows in the Markdown table.
 
 ## Mapping
@@ -56,8 +57,8 @@ Generated from Blizzard Playable Class API on 2026-06-22T19:30:25.680Z.
 | 9 | Warlock | `spec_2` | 3 | 267 | Destruction | `destruction` |
 | 9 | Warlock | `spec_3` | - | - | unused | - |
 | 10 | Monk | `spec_0` | 1 | 268 | Brewmaster | `brewmaster` |
-| 10 | Monk | `spec_1` | 2 | 269 | Windwalker | `windwalker` |
-| 10 | Monk | `spec_2` | 3 | 270 | Mistweaver | `mistweaver` |
+| 10 | Monk | `spec_1` | 2 | 270 | Mistweaver | `mistweaver` |
+| 10 | Monk | `spec_2` | 3 | 269 | Windwalker | `windwalker` |
 | 10 | Monk | `spec_3` | - | - | unused | - |
 | 11 | Druid | `spec_0` | 1 | 102 | Balance | `balance` |
 | 11 | Druid | `spec_1` | 2 | 103 | Feral | `feral` |
@@ -71,4 +72,3 @@ Generated from Blizzard Playable Class API on 2026-06-22T19:30:25.680Z.
 | 13 | Evoker | `spec_1` | 2 | 1468 | Preservation | `preservation` |
 | 13 | Evoker | `spec_2` | 3 | 1473 | Augmentation | `augmentation` |
 | 13 | Evoker | `spec_3` | - | - | unused | - |
-
