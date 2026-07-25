@@ -52,7 +52,7 @@
   background-image: var(--pack-stage-art);
   background-position: center;
   background-size: cover;
-  filter: saturate(1.02) brightness(var(--pack-stage-brightness)) contrast(1.04);
+  filter: blur(4px) saturate(1.02) brightness(var(--pack-stage-brightness)) contrast(1.04);
   opacity: 0.86;
   transform: scale(1.025);
 }
@@ -453,11 +453,7 @@
 }
 
 .packButton:focus-visible .booster {
-  filter:
-    brightness(1.08)
-    saturate(1.08)
-    drop-shadow(0 8px 5px rgba(0, 0, 0, 0.6))
-    drop-shadow(0 0 7px color-mix(in srgb, var(--pack-accent) 68%, transparent));
+  filter: brightness(1.08) saturate(1.08) drop-shadow(0 8px 5px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 7px color-mix(in srgb, var(--pack-accent) 68%, transparent));
 }
 
 .packButton:focus-visible .wrapperBody {
@@ -492,9 +488,7 @@
   position: absolute;
   inset: 0;
   display: block;
-  filter:
-    drop-shadow(0 8px 5px rgba(0, 0, 0, 0.58))
-    drop-shadow(0 0 8px color-mix(in srgb, var(--pack-glow) 78%, transparent));
+  filter: drop-shadow(0 8px 5px rgba(0, 0, 0, 0.58)) drop-shadow(0 0 8px color-mix(in srgb, var(--pack-glow) 78%, transparent));
   transform: translate3d(var(--pack-drag-x), calc(var(--pack-drag-y) + var(--pack-lift)), 0) rotateX(var(--pack-tilt-x)) rotateY(var(--pack-tilt-y)) scale(var(--pack-scale));
   transform-style: preserve-3d;
   transition-property: transform, filter;
@@ -628,16 +622,13 @@
 .packButton:hover:not(:disabled) .booster {
   --pack-lift: var(--pack-hover-lift);
   --pack-scale: 1.012;
-  filter:
-    brightness(1.04)
-    saturate(1.06)
-    drop-shadow(0 9px 6px rgba(0, 0, 0, 0.58))
-    drop-shadow(0 0 10px color-mix(in srgb, var(--pack-glow) 82%, transparent));
+  filter: brightness(1.04) saturate(1.06) drop-shadow(0 9px 6px rgba(0, 0, 0, 0.58)) drop-shadow(0 0 10px color-mix(in srgb, var(--pack-glow) 82%, transparent));
 }
 
 .packButton:hover:not(:disabled) .packShadow {
   opacity: 0.52;
-  transform: translate3d(calc(var(--pack-drag-x) + var(--pack-shadow-x)), calc(var(--pack-drag-y) + var(--pack-shadow-y) + 5px), -20px) scaleX(var(--pack-shadow-scale)) scaleY(0.66);
+  transform: translate3d(calc(var(--pack-drag-x) + var(--pack-shadow-x)), calc(var(--pack-drag-y) + var(--pack-shadow-y) + 5px), -20px) scaleX(var(--pack-shadow-scale))
+    scaleY(0.66);
 }
 
 .packButton:active:not(:disabled):not([data-dragging="true"]) .booster {
@@ -831,10 +822,7 @@
 
 .packSigil span::after {
   background: var(--pack-logo-fill);
-  filter:
-    drop-shadow(-0.6px -0.8px 0 rgba(255, 255, 255, 0.34))
-    drop-shadow(0.7px 1px 0 rgba(0, 0, 0, 0.6))
-    drop-shadow(0 0 5px var(--pack-logo-glow));
+  filter: drop-shadow(-0.6px -0.8px 0 rgba(255, 255, 255, 0.34)) drop-shadow(0.7px 1px 0 rgba(0, 0, 0, 0.6)) drop-shadow(0 0 5px var(--pack-logo-glow));
 }
 
 .packCount {
