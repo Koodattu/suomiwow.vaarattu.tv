@@ -34,13 +34,17 @@ function Attribution({ person, className = "" }: { person: CcgShareAttribution; 
   );
 }
 
-function StageBackground() {
+function StageBackground({ showRings = true }: { showRings?: boolean }) {
   return (
     <>
       <span className={packStyles.stageArt} />
       <span className={packStyles.stageVeil} />
-      <span className={packStyles.vaultRing} aria-hidden="true" />
-      <span className={packStyles.vaultRingInner} aria-hidden="true" />
+      {showRings ? (
+        <>
+          <span className={packStyles.vaultRing} aria-hidden="true" />
+          <span className={packStyles.vaultRingInner} aria-hidden="true" />
+        </>
+      ) : null}
     </>
   );
 }
@@ -55,7 +59,7 @@ function SharedCard({ share }: { share: Extract<CcgShare, { kind: "card" }> }) {
       style={getPackTheme(card.set)}
       aria-labelledby="ccg-shared-card-title"
     >
-      <StageBackground />
+      <StageBackground showRings={false} />
       <div className={styles.sharedCardLayout}>
         <CollectibleCard card={card} finish={finish} artVariant={artVariant} width={520} className={styles.sharedCardAsset} />
         <div className={`${styles.viewerInfo} ${styles.sharedCardInfo}`}>
