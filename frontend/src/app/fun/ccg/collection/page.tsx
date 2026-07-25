@@ -11,6 +11,7 @@ import type {
 } from "react";
 import type { CcgArtVariant, CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 import { bestOwnedFinish } from "@/lib/ccg";
+import { getCcgPlaybackVolume } from "@/lib/ccg-audio";
 import { useCcgCatalog, useCcgCollection, useCcgCollectionGuilds, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
@@ -101,6 +102,7 @@ export default function CcgCollectionPage() {
   const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
   const [viewerSharedTransition, setViewerSharedTransition] = useState(false);
   const setRailRef = useRef<HTMLDivElement>(null);
+  const pageFlipAudioRef = useRef<HTMLAudioElement>(null);
   const setRailTargetRef = useRef(0);
   const setRailAnimationRef = useRef<number | null>(null);
   const requestedSetAppliedRef = useRef(false);
@@ -296,6 +298,18 @@ export default function CcgCollectionPage() {
     else void ownedQuery.refetch();
   };
 
+  const turnPage = (direction: -1 | 1) => {
+    const audio = pageFlipAudioRef.current;
+    const volume = getCcgPlaybackVolume("effects");
+    if (audio && volume > 0) {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = volume;
+      void audio.play().catch(() => undefined);
+    }
+    setPage((value) => value + direction);
+  };
+
   if (sessionQuery.isError || setsQuery.isError) {
     return (
       <CcgShell>
@@ -454,7 +468,7 @@ export default function CcgCollectionPage() {
             type="button"
             className={styles.collectionPageTurn}
             disabled={!cardsData || page <= 1}
-            onClick={() => setPage((value) => value - 1)}
+            onClick={() => turnPage(-1)}
             aria-label={t("collection.previous")}
           >
             <PageArrow direction="previous" />
@@ -518,13 +532,14 @@ export default function CcgCollectionPage() {
             type="button"
             className={styles.collectionPageTurn}
             disabled={!cardsData || page >= cardsData.pages}
-            onClick={() => setPage((value) => value + 1)}
+            onClick={() => turnPage(1)}
             aria-label={t("collection.next")}
           >
             <PageArrow direction="next" />
           </button>
         </section>
       </div>
+      <audio ref={pageFlipAudioRef} src="/ccg/audio/page_flip.mp3" preload="auto" aria-hidden="true" />
       {viewerCard ? (
         <CardViewer
           card={viewerCard}
