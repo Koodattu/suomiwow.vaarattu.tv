@@ -852,6 +852,7 @@
       "sections": {
         "label": "CCG administration sections",
         "studio": "Card studio",
+        "packStudio": "Pack studio",
         "analytics": "Analytics",
         "alternativeArt": "Artwork & quips",
         "redeemCodes": "Redeem codes",
@@ -956,6 +957,19 @@
           "E": "Common",
           "F": "Poor"
         }
+      },
+      "packStudio": {
+        "title": "Pack studio",
+        "description": "Preview each raid pack and find the horizontal artwork offset that keeps its focal point visible.",
+        "raid": "Raid artwork",
+        "artOffset": "Horizontal offset",
+        "exactValue": "Exact value",
+        "reset": "Reset",
+        "configured": "Configured offset",
+        "preview": "Preview offset",
+        "previewOnly": "Studio changes are preview only. Send the raid name and chosen percentage to have it applied to live packs.",
+        "cards": "cards",
+        "empty": "No configured raid artwork is available."
       },
       "alternativeArt": {
         "title": "Alternative artwork & quips",

@@ -1901,6 +1901,7 @@ export type CcgSet = {
   themeKey: string;
   theme: { mark: string; accent: string; glow: string };
   backgroundPath: string;
+  packArtOffsetX: number;
   cardCount: number;
   ownedCards: number;
   publicationWave: number;
@@ -2013,6 +2014,7 @@ export type CcgAdminSetStatus = {
   lastSnapshotAt: string | null;
   lastPublishedAt: string | null;
   backgroundPath: string;
+  packArtOffsetX: number;
   theme: { mark: string; accent: string; glow: string };
 };
 

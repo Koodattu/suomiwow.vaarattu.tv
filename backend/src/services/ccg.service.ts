@@ -2322,6 +2322,7 @@ class CcgService {
       themeKey: set.themeKey,
       theme: set.theme,
       backgroundPath: set.backgroundPath,
+      packArtOffsetX: set.packArtOffsetX ?? 50,
       cardCount: set.cardCount,
       ownedCards,
       publicationWave: set.publicationWave,

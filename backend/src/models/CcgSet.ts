@@ -18,6 +18,7 @@ export interface ICcgSet extends Document {
   themeVersion: string;
   theme: { mark: string; accent: string; glow: string };
   backgroundPath: string;
+  packArtOffsetX: number;
   backgroundSafeCrop: { x: number; y: number; scale: number; xJitter: number; yJitter: number };
   eligibilityVersion: string;
   gradingVersion: string;
@@ -52,6 +53,7 @@ const CcgSetSchema = new Schema<ICcgSet>(
       glow: { type: String, required: true },
     },
     backgroundPath: { type: String, required: true },
+    packArtOffsetX: { type: Number, required: true, default: 50, min: 0, max: 100 },
     backgroundSafeCrop: {
       x: { type: Number, required: true },
       y: { type: Number, required: true },

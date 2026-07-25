@@ -72,6 +72,7 @@ router.get(
           lastSnapshotAt: set?.lastSnapshotAt ?? null,
           lastPublishedAt: set?.lastPublishedAt ?? null,
           backgroundPath: configured.backgroundPath,
+          packArtOffsetX: configured.packArtOffsetX ?? 50,
           theme: { mark: configured.mark, accent: configured.accent, glow: configured.glow },
         };
       }),

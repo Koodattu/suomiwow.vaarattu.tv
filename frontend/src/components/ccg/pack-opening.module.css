@@ -23,6 +23,7 @@
   --pack-accent: #5baeff;
   --pack-glow: rgba(91, 174, 255, 0.38);
   --pack-art: none;
+  --pack-art-position-x: 50%;
   --pack-stage-art: var(--pack-art);
   --pack-stage-brightness: 0.25;
   position: relative;
@@ -704,7 +705,7 @@
 
 .wrapperArt {
   background-image: var(--pack-art);
-  background-position: center;
+  background-position: var(--pack-art-position-x) center;
   background-size: var(--pack-art-size);
   filter: saturate(1.1) contrast(1.08);
   opacity: 0.82;
@@ -962,7 +963,7 @@
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(0, 3, 10, 0.52), transparent 26% 62%, rgba(0, 3, 10, 0.84)),
-    var(--pack-art) center / auto 100% no-repeat,
+    var(--pack-art) var(--pack-art-position-x) center / auto 100% no-repeat,
     color-mix(in srgb, var(--pack-accent) 34%, #08132a);
   box-shadow:
     inset 0 0 0 2px rgba(216, 242, 255, 0.24),
@@ -1650,7 +1651,7 @@
   border-radius: 0.65rem;
   background:
     linear-gradient(180deg, rgba(1, 4, 11, 0.38), rgba(1, 4, 11, 0.78)),
-    var(--pack-art) center / var(--pack-art-size) no-repeat,
+    var(--pack-art) var(--pack-art-position-x) center / var(--pack-art-size) no-repeat,
     #061020;
   filter: saturate(0.72) contrast(1.08);
 }

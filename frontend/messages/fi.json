@@ -852,6 +852,7 @@
       "sections": {
         "label": "CCG-hallinnan osiot",
         "studio": "Korttistudio",
+        "packStudio": "Pakkastudio",
         "analytics": "Analytiikka",
         "alternativeArt": "Kuvitus ja repliikit",
         "redeemCodes": "Lunastuskoodit",
@@ -956,6 +957,19 @@
           "E": "Common",
           "F": "Poor"
         }
+      },
+      "packStudio": {
+        "title": "Pakkastudio",
+        "description": "Esikatsele jokaisen raidipakan kuvitusta ja etsi vaakasiirtymä, joka pitää kuvan polttopisteen näkyvissä.",
+        "raid": "Raidikuvitus",
+        "artOffset": "Vaakasiirtymä",
+        "exactValue": "Tarkka arvo",
+        "reset": "Palauta",
+        "configured": "Määritetty siirtymä",
+        "preview": "Esikatselun siirtymä",
+        "previewOnly": "Studion muutokset ovat vain esikatselua varten. Lähetä raidin nimi ja valittu prosentti, niin se voidaan ottaa käyttöön oikeissa pakoissa.",
+        "cards": "korttia",
+        "empty": "Määritettyjä raidikuvituksia ei ole saatavilla."
       },
       "alternativeArt": {
         "title": "Vaihtoehtoinen kuvitus ja repliikit",
