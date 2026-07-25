@@ -3389,6 +3389,7 @@
   align-self: center;
   justify-self: center;
   align-items: center;
+  justify-content: center;
   grid-template-columns: minmax(0, auto) minmax(20rem, 29rem);
   gap: clamp(2.25rem, 5vw, 6rem);
   padding-block: 2rem;
@@ -3405,14 +3406,15 @@
 }
 
 .sharedCardInfo {
+  align-self: center;
   max-height: calc(100dvh - 7.625rem);
   overflow-y: auto;
   opacity: 1;
-  transform: none;
+  transform: translateY(-5rem);
 }
 
 .sharedCardInfo h1 {
-  margin-top: 0.45rem;
+  margin-top: 0.25rem;
   color: #fff;
   font-size: clamp(2.2rem, 4vw, 3.75rem);
   font-weight: 900;
@@ -3651,6 +3653,7 @@
     max-height: none;
     overflow: visible;
     padding-inline: 0.35rem;
+    transform: none;
   }
 
   .sharedCardInfo h1 {

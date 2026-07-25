@@ -84,7 +84,7 @@ function SharedCard({ share }: { share: Extract<CcgShare, { kind: "card" }> }) {
             </div>
           ) : null}
 
-          <dl className={styles.viewerFacts}>
+          <dl className={`${styles.viewerFacts} ${styles.viewerFactsWithoutTopBorder}`}>
             <div><dt>{t("collection.quality")}</dt><dd>{t(`finish.${finish}`)}</dd></div>
             <div><dt>{t("collection.rarity")}</dt><dd>{t(`rarity.${CCG_RARITY_KEYS[card.tierGrade]}`)}</dd></div>
             <div><dt>{t("realm")}</dt><dd>{formatRealmName(card.realm)}</dd></div>
