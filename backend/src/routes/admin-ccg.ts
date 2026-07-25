@@ -9,7 +9,7 @@ import Raid from "../models/Raid";
 import characterMediaService from "../services/character-media.service";
 import ccgCommunityService, { CcgCommunityError } from "../services/ccg-community.service";
 import ccgPublisherService, { CcgPublisherError } from "../services/ccg-publisher.service";
-import ccgService from "../services/ccg.service";
+import ccgService, { CcgServiceError } from "../services/ccg.service";
 import logger from "../utils/logger";
 
 const router = Router();
@@ -23,7 +23,7 @@ function adminRoute(handler: (req: Request, res: Response) => Promise<unknown>) 
       if (!res.headersSent) res.json(value);
     } catch (error) {
       logger.error("[Admin/CCG] Request failed:", error);
-      if (error instanceof CcgPublisherError || error instanceof CcgCommunityError) {
+      if (error instanceof CcgPublisherError || error instanceof CcgCommunityError || error instanceof CcgServiceError) {
         return res.status(error.status).json({ error: error.message, code: error.code });
       }
       res.status(500).json({ error: error instanceof Error ? error.message : "CCG administration request failed" });
@@ -116,6 +116,11 @@ router.delete(
 router.get(
   "/cards",
   adminRoute(async (req) => ccgService.searchCardsForAdmin(req.query.search, req.query.limit)),
+);
+
+router.put(
+  "/cards/:id/alternative-art",
+  adminRoute(async (req) => ccgService.updateAlternativeArtForAdmin(req.params.id, req.body ?? {})),
 );
 
 router.post(

@@ -13,11 +13,13 @@ import {
   CCG_PACK_RULE_VERSION,
   CCG_PACK_STORAGE_CAPS,
   CCG_TIER_GRADES,
+  CcgArtVariant,
   CcgFinish,
   CcgMode,
   CcgTierGrade,
 } from "../config/ccg";
 import CcgCard, { ICcgCard } from "../models/CcgCard";
+import CcgAlternativeArt from "../models/CcgAlternativeArt";
 import CcgDailyAllowance from "../models/CcgDailyAllowance";
 import CcgGuest, { ICcgGuest } from "../models/CcgGuest";
 import CcgLedgerEntry from "../models/CcgLedgerEntry";
@@ -30,7 +32,14 @@ import CcgPackPool from "../models/CcgPackPool";
 import CcgQualityProgress, { ICcgQualityProgress } from "../models/CcgQualityProgress";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
 import User from "../models/User";
-import { CcgFinishPity, compareFinish, emptyFinishPity, nextFinish, rollProtectedFinish } from "../utils/ccg-random";
+import {
+  CcgAlternativeArtDefinition,
+  hasApplicableAlternativeArt,
+  normalizeAlternativeArtFilename,
+  serializeAlternativeArt,
+  serializeOwnershipRows,
+} from "../utils/ccg-alternative-art";
+import { CcgFinishPity, compareFinish, emptyFinishPity, nextFinish, rollArtVariant, rollProtectedFinish } from "../utils/ccg-random";
 import { calculateDuplicateProgress, planPackSelections, selectCommunityCard } from "../utils/ccg-pack";
 import { resolveCollectorKey } from "../utils/ccg-identity";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeHourStart } from "../utils/ccg-recharge";
@@ -50,6 +59,7 @@ type SelectedResult = {
   cardId: mongoose.Types.ObjectId;
   setId: mongoose.Types.ObjectId;
   finish: CcgFinish;
+  artVariant: CcgArtVariant;
   tierGrade: CcgTierGrade;
   isDuplicate: boolean;
 };
@@ -291,17 +301,23 @@ class CcgService {
         .lean(),
       CcgCard.countDocuments(cardFilter),
     ]);
-    const ownership = await CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, cardId: { $in: cards.map((card) => card._id) } }).lean();
-    const ownershipByCard = new Map<string, Array<{ finish: string; quantity: number }>>();
+    const [ownership, alternativeByCollector] = await Promise.all([
+      CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, cardId: { $in: cards.map((card) => card._id) } }).lean(),
+      this.loadAlternativeArt(cards),
+    ]);
+    const ownershipByCard = new Map<string, Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>>();
     for (const row of ownership) {
       const list = ownershipByCard.get(String(row.cardId)) ?? [];
-      list.push({ finish: row.finish, quantity: row.quantity });
+      list.push({ finish: row.finish, quantity: row.quantity, alternativeQuantity: row.alternativeQuantity });
       ownershipByCard.set(String(row.cardId), list);
     }
 
     return {
       set: this.serializeSet(set, ownedIds?.length ?? 0),
-      cards: cards.map((card) => ({ ...this.serializeCard(card, set), ownership: ownershipByCard.get(String(card._id)) ?? [] })),
+      cards: cards.map((card) => ({
+        ...this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card))),
+        ownership: serializeOwnershipRows(ownershipByCard.get(String(card._id)) ?? []),
+      })),
       page,
       limit,
       total,
@@ -341,10 +357,10 @@ class CcgService {
     const rows = await CcgOwnership.aggregate<{
       _id: mongoose.Types.ObjectId;
       totalQuantity: number;
-      finishGroups: Array<Array<{ finish: CcgFinish; quantity: number }>>;
+      finishGroups: Array<Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>>;
       card: ICcgCard;
       set: ICcgSet;
-      variants: Array<{ card: ICcgCard; set: ICcgSet; finishes: Array<{ finish: CcgFinish; quantity: number }>; totalQuantity: number }>;
+      variants: Array<{ card: ICcgCard; set: ICcgSet; finishes: Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>; totalQuantity: number }>;
     }>([
       { $match: match },
       { $lookup: { from: "ccgcards", localField: "cardId", foreignField: "_id", as: "card" } },
@@ -359,7 +375,7 @@ class CcgService {
             cardId: "$card._id",
           },
           totalQuantity: { $sum: "$quantity" },
-          finishes: { $push: { finish: "$finish", quantity: "$quantity" } },
+          finishes: { $push: { finish: "$finish", quantity: "$quantity", alternativeQuantity: { $ifNull: ["$alternativeQuantity", 0] } } },
           card: { $first: "$card" },
           set: { $first: "$set" },
         },
@@ -410,14 +426,15 @@ class CcgService {
       items: Array<{
         _id: mongoose.Types.ObjectId;
         totalQuantity: number;
-        finishGroups: Array<Array<{ finish: CcgFinish; quantity: number }>>;
+        finishGroups: Array<Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>>;
         card: ICcgCard;
         set: ICcgSet;
-        variants: Array<{ card: ICcgCard; set: ICcgSet; finishes: Array<{ finish: CcgFinish; quantity: number }>; totalQuantity: number }>;
+        variants: Array<{ card: ICcgCard; set: ICcgSet; finishes: Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>; totalQuantity: number }>;
       }>;
       count: Array<{ total: number }>;
     });
     const total = rows.count[0]?.total ?? 0;
+    const alternativeByCollector = await this.loadAlternativeArt(rows.items.flatMap((row) => row.variants.map((variant) => variant.card)));
     return {
       cards: rows.items.map((row) => {
         const representative = row.variants.find((variant) => (
@@ -426,17 +443,23 @@ class CcgService {
           && (!guildId || String(variant.card.guildId) === String(guildId))
         )) ?? row.variants[0];
         const orderedVariants = [representative, ...row.variants.filter((variant) => String(variant.card._id) !== String(representative.card._id))];
-        const finishTotals = new Map<CcgFinish, number>();
+        const finishTotals = new Map<string, { finish: CcgFinish; artVariant: CcgArtVariant; quantity: number }>();
         for (const finishes of row.finishGroups) {
-          for (const finish of finishes) finishTotals.set(finish.finish, (finishTotals.get(finish.finish) ?? 0) + finish.quantity);
+          for (const ownership of serializeOwnershipRows(finishes)) {
+            const key = `${ownership.finish}:${ownership.artVariant}`;
+            const current = finishTotals.get(key);
+            if (current) current.quantity += ownership.quantity;
+            else finishTotals.set(key, { ...ownership });
+          }
         }
+        const alternative = alternativeByCollector.get(resolveCollectorKey(representative.card));
         return {
-          ...this.serializeCard(representative.card, representative.set),
-          ownership: Array.from(finishTotals, ([finish, quantity]) => ({ finish, quantity })),
+          ...this.serializeCard(representative.card, representative.set, alternative),
+          ownership: Array.from(finishTotals.values()),
           totalQuantity: row.totalQuantity,
           variants: orderedVariants.map((variant) => ({
-            card: this.serializeCard(variant.card, variant.set),
-            ownership: variant.finishes,
+            card: this.serializeCard(variant.card, variant.set, alternative),
+            ownership: serializeOwnershipRows(variant.finishes),
             totalQuantity: variant.totalQuantity,
           })),
         };
@@ -454,10 +477,68 @@ class CcgService {
     if (!card) throw new CcgServiceError(404, "card_not_found", "Card not found");
     const set = await CcgSet.findOne({ _id: card.setId, enabledAt: { $ne: null } }).lean();
     if (!set) throw new CcgServiceError(404, "card_not_found", "Card not found");
-    const ownership = owner
-      ? await CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, cardId: card._id }).select("finish quantity -_id").lean()
-      : [];
-    return { ...this.serializeCard(card, set), ownership };
+    const [ownership, alternativeByCollector] = await Promise.all([
+      owner
+        ? CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, cardId: card._id }).select("finish quantity alternativeQuantity -_id").lean()
+        : [],
+      this.loadAlternativeArt([card]),
+    ]);
+    return {
+      ...this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card))),
+      ownership: serializeOwnershipRows(ownership),
+    };
+  }
+
+  async updateAlternativeArtForAdmin(cardId: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const id = validateObjectId(cardId, "card ID");
+    const card = await CcgCard.findById(id).select("_id characterId collectorKey").lean();
+    if (!card) throw new CcgServiceError(404, "card_not_found", "Card not found");
+
+    let characterArtFilename: string | null;
+    let backgroundArtFilename: string | null;
+    try {
+      characterArtFilename = normalizeAlternativeArtFilename(input.characterArtFilename);
+      backgroundArtFilename = normalizeAlternativeArtFilename(input.backgroundArtFilename);
+    } catch (error) {
+      throw new CcgServiceError(400, "invalid_art_filename", error instanceof Error ? error.message : "Invalid artwork filename");
+    }
+    if (typeof input.characterArtEnabled !== "boolean" || typeof input.backgroundArtEnabled !== "boolean") {
+      throw new CcgServiceError(400, "invalid_art_state", "Artwork enabled state must be true or false");
+    }
+    if (input.characterArtEnabled && !characterArtFilename) {
+      throw new CcgServiceError(400, "character_art_filename_required", "Choose a character artwork filename before enabling it");
+    }
+
+    const collectorKey = resolveCollectorKey(card);
+    const hasCommunityVariant = Boolean(await CcgCard.exists({
+      ...(card.collectorKey ? { collectorKey } : { characterId: card.characterId }),
+      communityCharacterId: { $ne: null },
+    }));
+    if ((input.backgroundArtEnabled || backgroundArtFilename) && !hasCommunityVariant) {
+      throw new CcgServiceError(400, "community_background_only", "Alternative backgrounds are only available to Community characters");
+    }
+    if (input.backgroundArtEnabled && !backgroundArtFilename) {
+      throw new CcgServiceError(400, "background_art_filename_required", "Choose a background artwork filename before enabling it");
+    }
+
+    if (!characterArtFilename && !backgroundArtFilename && !input.characterArtEnabled && !input.backgroundArtEnabled) {
+      await CcgAlternativeArt.deleteOne({ collectorKey });
+      return { alternativeArt: null, hasCommunityVariant };
+    }
+
+    const alternativeArt = await CcgAlternativeArt.findOneAndUpdate(
+      { collectorKey },
+      {
+        $set: {
+          characterArtFilename,
+          characterArtEnabled: input.characterArtEnabled,
+          backgroundArtFilename,
+          backgroundArtEnabled: input.backgroundArtEnabled,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    ).lean();
+    return { alternativeArt: serializeAlternativeArt(alternativeArt ?? undefined), hasCommunityVariant };
   }
 
   async searchCardsForAdmin(rawSearch: unknown, rawLimit: unknown): Promise<Record<string, unknown>> {
@@ -530,6 +611,7 @@ class CcgService {
     const setIds = Array.from(new Set(matchingCards.map((card) => String(card.setId))));
     const sets = await CcgSet.find({ _id: { $in: setIds } }).lean();
     const setById = new Map(sets.map((set) => [String(set._id), set]));
+    const alternativeByCollector = await this.loadAlternativeArt(matchingCards);
     return {
       search,
       cards: selectedCandidates.flatMap((candidate) => {
@@ -542,9 +624,9 @@ class CcgService {
           .sort((a, b) => b.card.performanceSnapshotAt.getTime() - a.card.performanceSnapshotAt.getTime() || b.card.publishedAt.getTime() - a.card.publishedAt.getTime());
         const representative = variants[0];
         return representative ? [{
-          ...this.serializeCard(representative.card, representative.set),
+          ...this.serializeCard(representative.card, representative.set, alternativeByCollector.get(resolveCollectorKey(representative.card))),
           variants: variants.map((variant) => ({
-            card: this.serializeCard(variant.card, variant.set),
+            card: this.serializeCard(variant.card, variant.set, alternativeByCollector.get(resolveCollectorKey(variant.card))),
             ownership: [],
             totalQuantity: 0,
           })),
@@ -586,6 +668,7 @@ class CcgService {
         const cardById = new Map(cards.map((card) => [String(card._id), card]));
         if (cardById.size === 0) throw new CcgServiceError(409, "pool_unavailable", "This card set has no available cards");
         const collectorKeys = Array.from(new Set(cards.map(resolveCollectorKey)));
+        const alternativeByCollector = await this.loadAlternativeArt(cards, session);
         const characterIds = Array.from(new Set(cards.map((card) => String(card.characterId)))).map((id) => new mongoose.Types.ObjectId(id));
         const characterSnapshots = await CcgCard.find({
           $or: [{ collectorKey: { $in: collectorKeys } }, { characterId: { $in: characterIds } }],
@@ -614,9 +697,11 @@ class CcgService {
           const isDuplicate = Boolean(bestOwnedFinish);
           const rolled = rollProtectedFinish(pity, bestOwnedFinish ? nextFinish(bestOwnedFinish) : "standard");
           const finish = rolled.finish;
+          const alternativeArt = alternativeByCollector.get(collectorKey);
+          const artVariant = rollArtVariant(hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)));
           pity = rolled.pity;
           if (!bestOwnedFinish || compareFinish(finish, bestOwnedFinish) > 0) bestFinishByCollector.set(collectorKey, finish);
-          results.push({ cardId: card._id, setId: card.setId, finish, tierGrade: card.tierGrade, isDuplicate });
+          results.push({ cardId: card._id, setId: card.setId, finish, artVariant, tierGrade: card.tierGrade, isDuplicate });
         }
         if (results.length !== CCG_CARDS_PER_PACK) throw new CcgServiceError(409, "pool_invalid", "The pack pool is incomplete");
 
@@ -767,7 +852,15 @@ class CcgService {
           const isDuplicate = Boolean(collectorKey && ownedCollectors.has(collectorKey));
           if (isDuplicate) duplicates[result.mode] += 1;
           if (collectorKey) ownedCollectors.add(collectorKey);
-          mergedResults.push({ cardId: result.cardId, setId: result.setId, finish: result.finish, tierGrade: result.tierGrade, isDuplicate, mode: result.mode });
+          mergedResults.push({
+            cardId: result.cardId,
+            setId: result.setId,
+            finish: result.finish,
+            artVariant: result.artVariant ?? "standard",
+            tierGrade: result.tierGrade,
+            isDuplicate,
+            mode: result.mode,
+          });
         }
         await this.addOwnership(userOwner, mergedResults, session);
         const currentRewards = await this.applyDuplicateProgress(userId, "current", duplicates.current, `claim:${transactionalGuest._id}:current`, session);
@@ -1189,13 +1282,22 @@ class CcgService {
     };
   }
 
-  private async addOwnership(owner: CcgOwner, results: Array<Pick<SelectedResult, "cardId" | "finish">>, session: ClientSession): Promise<void> {
-    const quantities = new Map<string, { cardId: mongoose.Types.ObjectId; finish: CcgFinish; quantity: number }>();
+  private async addOwnership(owner: CcgOwner, results: Array<Pick<SelectedResult, "cardId" | "finish" | "artVariant">>, session: ClientSession): Promise<void> {
+    const quantities = new Map<string, { cardId: mongoose.Types.ObjectId; finish: CcgFinish; quantity: number; alternativeQuantity: number }>();
     for (const result of results) {
       const key = `${result.cardId}:${result.finish}`;
       const current = quantities.get(key);
-      if (current) current.quantity += 1;
-      else quantities.set(key, { cardId: result.cardId, finish: result.finish, quantity: 1 });
+      if (current) {
+        current.quantity += 1;
+        if (result.artVariant === "alternative") current.alternativeQuantity += 1;
+      } else {
+        quantities.set(key, {
+          cardId: result.cardId,
+          finish: result.finish,
+          quantity: 1,
+          alternativeQuantity: result.artVariant === "alternative" ? 1 : 0,
+        });
+      }
     }
     const now = new Date();
     await CcgOwnership.bulkWrite(
@@ -1203,7 +1305,7 @@ class CcgService {
         updateOne: {
           filter: { ownerType: owner.ownerType, ownerId: owner.ownerId, cardId: row.cardId, finish: row.finish },
           update: {
-            $inc: { quantity: row.quantity },
+            $inc: { quantity: row.quantity, alternativeQuantity: row.alternativeQuantity },
             $set: { lastAcquiredAt: now },
             $setOnInsert: {
               firstAcquiredAt: now,
@@ -1259,6 +1361,7 @@ class CcgService {
     const sets = await CcgSet.find({ _id: { $in: Array.from(new Set(cards.map((card) => String(card.setId)))) } }).lean();
     const cardById = new Map(cards.map((card) => [String(card._id), card]));
     const setById = new Map(sets.map((set) => [String(set._id), set]));
+    const alternativeByCollector = await this.loadAlternativeArt(cards);
     return {
       id: String(opening._id),
       mode: opening.mode,
@@ -1273,8 +1376,9 @@ class CcgService {
         return {
           position: index + 1,
           finish: result.finish,
+          artVariant: result.artVariant ?? "standard",
           isDuplicate: result.isDuplicate,
-          card: card && set ? this.serializeCard(card, set) : null,
+          card: card && set ? this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card))) : null,
         };
       }),
     };
@@ -1300,7 +1404,23 @@ class CcgService {
     };
   }
 
-  private serializeCard(card: ICcgCard | Record<string, any>, set: ICcgSet | Record<string, any>): Record<string, unknown> {
+  private async loadAlternativeArt(
+    cards: ReadonlyArray<{ collectorKey?: string | null; characterId: mongoose.Types.ObjectId | string }>,
+    session?: ClientSession,
+  ): Promise<Map<string, CcgAlternativeArtDefinition>> {
+    const collectorKeys = Array.from(new Set(cards.map(resolveCollectorKey)));
+    if (collectorKeys.length === 0) return new Map();
+    const query = CcgAlternativeArt.find({ collectorKey: { $in: collectorKeys } }).lean();
+    if (session) query.session(session);
+    const rows = await query;
+    return new Map(rows.map((row) => [row.collectorKey, row]));
+  }
+
+  private serializeCard(
+    card: ICcgCard | Record<string, any>,
+    set: ICcgSet | Record<string, any>,
+    alternativeArt?: CcgAlternativeArtDefinition,
+  ): Record<string, unknown> {
     return {
       id: String(card._id),
       characterId: String(card.characterId),
@@ -1325,6 +1445,7 @@ class CcgService {
       tierGrade: card.tierGrade,
       avatarUrl: card.avatarUrl ?? null,
       renderUrl: card.renderUrl ?? null,
+      alternativeArt: serializeAlternativeArt(alternativeArt),
       backgroundCrop: card.backgroundCrop,
       performanceSnapshotAt: card.performanceSnapshotAt,
       mediaCapturedAt: card.mediaCapturedAt ?? null,

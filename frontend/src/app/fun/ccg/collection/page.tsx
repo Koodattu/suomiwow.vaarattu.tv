@@ -9,7 +9,7 @@ import type {
   PointerEvent as ReactPointerEvent,
   WheelEvent as ReactWheelEvent,
 } from "react";
-import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
+import type { CcgArtVariant, CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 import { bestOwnedFinish } from "@/lib/ccg";
 import { useCcgCatalog, useCcgCollection, useCcgCollectionGuilds, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
@@ -43,12 +43,14 @@ function PageArrow({ direction }: { direction: "previous" | "next" }) {
 function CollectionCard({
   card,
   finish,
+  artVariant,
   quantity,
   missing,
   onSelect,
 }: {
   card: CcgCard;
   finish: CcgFinish;
+  artVariant: CcgArtVariant;
   quantity?: number;
   missing: boolean;
   onSelect: (event: ReactMouseEvent<HTMLButtonElement>) => void;
@@ -65,6 +67,7 @@ function CollectionCard({
       <CollectibleCard
         card={card}
         finish={finish}
+        artVariant={artVariant}
         quantity={quantity}
         compact
         className={`${styles.collectionCardAsset} ${ready ? "" : styles.collectionCardAssetLoading} ${missing ? styles.collectionMissingCard : ""}`}
@@ -476,6 +479,7 @@ export default function CcgCollectionPage() {
                       key={`${card.id}:${card.renderUrl ?? ""}`}
                       card={card}
                       finish={ownedFinish?.finish ?? "standard"}
+                      artVariant={ownedFinish?.artVariant ?? "standard"}
                       quantity={ownedFinish?.total}
                       missing={!ownedFinish}
                       onSelect={(event) => {
@@ -521,6 +525,7 @@ export default function CcgCollectionPage() {
         <CardViewer
           card={viewerCard}
           initialFinish={bestOwnedFinish(viewerCard)?.finish ?? "standard"}
+          initialArtVariant={bestOwnedFinish(viewerCard)?.artVariant ?? "standard"}
           originElement={viewerOriginElement}
           originBounds={viewerOriginBounds}
           sharedTransition={viewerSharedTransition}

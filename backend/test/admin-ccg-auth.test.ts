@@ -17,12 +17,13 @@ test("every Admin CCG route rejects an unauthenticated request", async () => {
   const server = app.listen(0);
   await new Promise<void>((resolve) => server.once("listening", resolve));
   const { port } = server.address() as AddressInfo;
-  const routes: Array<{ method: "GET" | "POST" | "PATCH" | "DELETE"; path: string }> = [
+  const routes: Array<{ method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; path: string }> = [
     { method: "GET", path: "/status" },
     { method: "POST", path: "/community" },
     { method: "PATCH", path: "/community/507f1f77bcf86cd799439011" },
     { method: "DELETE", path: "/community/507f1f77bcf86cd799439011" },
     { method: "GET", path: "/cards" },
+    { method: "PUT", path: "/cards/507f1f77bcf86cd799439011/alternative-art" },
     { method: "POST", path: "/sets/bootstrap" },
     { method: "GET", path: "/sets/1/preview" },
     { method: "POST", path: "/sets/1/enable" },

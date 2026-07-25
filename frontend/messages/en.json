@@ -278,6 +278,11 @@
       "void": "Void",
       "negative": "Negative"
     },
+    "artwork": {
+      "label": "Artwork",
+      "standard": "Regular art",
+      "alternative": "Alternative art"
+    },
     "rarity": {
       "common": "Common",
       "uncommon": "Uncommon",
@@ -801,6 +806,7 @@
       "sections": {
         "label": "CCG administration sections",
         "studio": "Card studio",
+        "alternativeArt": "Alternative art",
         "community": "Community",
         "sets": "Raid sets"
       },
@@ -832,6 +838,45 @@
           "E": "Common",
           "F": "Poor"
         }
+      },
+      "alternativeArt": {
+        "title": "Alternative artwork",
+        "description": "Configure one alternative look per character. Character art follows every raid snapshot, while backgrounds only apply to Community cards. Eligible pulls use one 50/50 artwork roll.",
+        "search": "Find a CCG character",
+        "searchPlaceholder": "Character, realm, or guild",
+        "loading": "Searching characters…",
+        "loadError": "Characters could not be loaded.",
+        "empty": "No published CCG characters match this search.",
+        "configured": "Configured",
+        "variants": "{count, plural, one {# card version} other {# card versions}}",
+        "communityEligible": "Community eligible",
+        "raidOnly": "Raid cards only",
+        "selectCharacter": "Select a character to configure alternative artwork.",
+        "filename": "Image filename",
+        "invalidFilename": "Enter a PNG, JPG, WebP, or AVIF filename without a directory path.",
+        "character": {
+          "enable": "Enable alternative character art",
+          "help": "Replaces the character render on every CCG version of this character when the alternative roll wins."
+        },
+        "background": {
+          "enable": "Enable alternative background",
+          "help": "Replaces the background on the Community card when the same alternative roll wins.",
+          "unavailable": "This character has no Community card. Alternative backgrounds cannot be configured."
+        },
+        "asset": {
+          "idle": "No file selected",
+          "loading": "Checking file…",
+          "ready": "File found",
+          "error": "File was not found in the public CCG directory"
+        },
+        "save": "Save alternative artwork",
+        "saving": "Saving…",
+        "saved": "Saved alternative artwork for {name}.",
+        "saveError": "Alternative artwork could not be saved.",
+        "previewVariant": "Preview card version",
+        "previewAlternative": "This preview shows the single alternative combination that can be found from packs.",
+        "previewRegular": "Enable at least one applicable asset to preview the alternative combination.",
+        "previewEmpty": "Select a character to preview its alternative card."
       },
       "community": {
         "addTitle": "Add Community character",

@@ -2547,7 +2547,7 @@
 
 .viewerControls .primaryButton,
 .viewerControls .secondaryButton {
-  min-height: 2.35rem;
+  min-height: 2.5rem;
   padding: 0.45rem 0.72rem;
   font-size: 0.75rem;
 }

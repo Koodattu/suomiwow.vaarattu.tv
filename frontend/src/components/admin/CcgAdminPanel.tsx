@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import CcgCardStudio from "@/components/admin/CcgCardStudio";
+import CcgAlternativeArtManager from "@/components/admin/CcgAlternativeArtManager";
 import CcgCommunityManager from "@/components/admin/CcgCommunityManager";
 import { api } from "@/lib/api";
 import type { CcgAdminSetReadiness, CcgAdminSetStatus, CcgAdminStatusResponse } from "@/types";
@@ -30,7 +31,7 @@ export default function CcgAdminPanel() {
   const [confirmingZone, setConfirmingZone] = useState<number | null>(null);
   const [forcingZone, setForcingZone] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [section, setSection] = useState<"studio" | "community" | "sets">("studio");
+  const [section, setSection] = useState<"studio" | "alternativeArt" | "community" | "sets">("studio");
 
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }),
@@ -125,7 +126,7 @@ export default function CcgAdminPanel() {
       {notice ? <div className="rounded-lg bg-emerald-950/45 p-4 text-sm text-emerald-200 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.28)]" role="status">{notice}</div> : null}
 
       <nav className="flex flex-wrap gap-2 border-b border-white/8 pb-3" aria-label={t("sections.label")}>
-        {(["studio", "community", "sets"] as const).map((value) => (
+        {(["studio", "alternativeArt", "community", "sets"] as const).map((value) => (
           <button
             key={value}
             type="button"
@@ -140,6 +141,12 @@ export default function CcgAdminPanel() {
       </nav>
 
       {section === "studio" ? <CcgCardStudio /> : null}
+      {section === "alternativeArt" ? (
+        <CcgAlternativeArtManager
+          onError={(message) => { setError(message); setNotice(null); }}
+          onNotice={(message) => { setNotice(message); setError(null); }}
+        />
+      ) : null}
       {section === "community" ? (
         <CcgCommunityManager
           characters={status.community.characters}

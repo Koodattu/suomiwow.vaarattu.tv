@@ -141,6 +141,7 @@ import {
   CcgAdminStatusResponse,
   CcgAdminCommunityCharacter,
   CcgAdminCardSearchResponse,
+  CcgAdminAlternativeArtResponse,
 } from "@/types";
 
 // For client-side: use NEXT_PUBLIC_API_URL (browser requests)
@@ -337,6 +338,25 @@ export const api = {
     const params = new URLSearchParams({ search, limit: String(limit) });
     const response = await fetch(`${API_URL}/api/admin/ccg/cards?${params}`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to search CCG cards");
+    return response.json();
+  },
+
+  async updateAdminCcgAlternativeArt(
+    cardId: string,
+    input: {
+      characterArtFilename: string | null;
+      characterArtEnabled: boolean;
+      backgroundArtFilename: string | null;
+      backgroundArtEnabled: boolean;
+    },
+  ): Promise<CcgAdminAlternativeArtResponse> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/cards/${encodeURIComponent(cardId)}/alternative-art`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw await buildApiError(response, "Failed to update alternative artwork");
     return response.json();
   },
 

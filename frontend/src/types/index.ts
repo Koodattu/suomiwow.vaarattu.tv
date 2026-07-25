@@ -1886,6 +1886,7 @@ export type CharacterProfileLookupResponse = CharacterProfileResponse | Characte
 
 export type CcgMode = "current" | "legacy";
 export type CcgFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative";
+export type CcgArtVariant = "standard" | "alternative";
 export type CcgTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";
 
 export type CcgSet = {
@@ -1906,7 +1907,16 @@ export type CcgSet = {
   lastPublishedAt: string | null;
 };
 
-export type CcgCardOwnership = { finish: CcgFinish; quantity: number };
+export type CcgCardOwnership = { finish: CcgFinish; artVariant: CcgArtVariant; quantity: number };
+
+export type CcgAlternativeArt = {
+  characterArtFilename: string | null;
+  characterArtPath: string | null;
+  characterArtEnabled: boolean;
+  backgroundArtFilename: string | null;
+  backgroundArtPath: string | null;
+  backgroundArtEnabled: boolean;
+};
 
 export type CcgCard = {
   id: string;
@@ -1927,6 +1937,7 @@ export type CcgCard = {
   tierGrade: CcgTierGrade;
   avatarUrl: string | null;
   renderUrl: string | null;
+  alternativeArt: CcgAlternativeArt | null;
   backgroundCrop: { x: number; y: number; scale: number };
   performanceSnapshotAt: string;
   mediaCapturedAt: string | null;
@@ -1963,7 +1974,7 @@ export type CcgOpening = {
   allowanceSource: "daily" | "recharge" | "credit";
   duplicateRewards: number;
   createdAt: string;
-  results: Array<{ position: number; finish: CcgFinish; isDuplicate: boolean; card: CcgCard }>;
+  results: Array<{ position: number; finish: CcgFinish; artVariant: CcgArtVariant; isDuplicate: boolean; card: CcgCard }>;
 };
 
 export type CcgAdminSetStatus = {
@@ -2052,6 +2063,11 @@ export type CcgAdminCommunityCharacter = {
 export type CcgAdminCardSearchResponse = {
   search: string;
   cards: CcgCard[];
+};
+
+export type CcgAdminAlternativeArtResponse = {
+  alternativeArt: CcgAlternativeArt | null;
+  hasCommunityVariant: boolean;
 };
 
 export type CcgAdminEnableResponse = {

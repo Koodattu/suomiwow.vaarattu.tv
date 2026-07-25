@@ -1,4 +1,4 @@
-import type { CcgCard, CcgFinish, CcgTierGrade } from "@/types";
+import type { CcgArtVariant, CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 
 export const CCG_FINISH_ORDER: readonly CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
 
@@ -16,8 +16,20 @@ export function compareCcgFinish(left: CcgFinish, right: CcgFinish): number {
   return CCG_FINISH_ORDER.indexOf(left) - CCG_FINISH_ORDER.indexOf(right);
 }
 
-export function bestOwnedFinish(card: CcgCard): { finish: CcgFinish; quantity: number; total: number } | null {
-  if (!card.ownership?.length) return null;
-  const row = [...card.ownership].sort((left, right) => compareCcgFinish(right.finish, left.finish))[0];
-  return { finish: row.finish, quantity: row.quantity, total: card.ownership.reduce((sum, item) => sum + item.quantity, 0) };
+export function bestOwnedFinish(
+  card: CcgCard,
+  artVariant?: CcgArtVariant,
+): { finish: CcgFinish; artVariant: CcgArtVariant; quantity: number; total: number } | null {
+  const ownership = card.ownership?.filter((row) => !artVariant || row.artVariant === artVariant) ?? [];
+  if (ownership.length === 0) return null;
+  const row = [...ownership].sort((left, right) => (
+    compareCcgFinish(right.finish, left.finish)
+    || Number(right.artVariant === "alternative") - Number(left.artVariant === "alternative")
+  ))[0];
+  return {
+    finish: row.finish,
+    artVariant: row.artVariant,
+    quantity: row.quantity,
+    total: card.ownership?.reduce((sum, item) => sum + item.quantity, 0) ?? row.quantity,
+  };
 }

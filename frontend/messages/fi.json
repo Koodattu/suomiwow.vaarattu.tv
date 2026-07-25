@@ -278,6 +278,11 @@
       "void": "Tyhjyys",
       "negative": "Negatiivi"
     },
+    "artwork": {
+      "label": "Kuvitus",
+      "standard": "Tavallinen kuvitus",
+      "alternative": "Vaihtoehtoinen kuvitus"
+    },
     "rarity": {
       "common": "Tavallinen",
       "uncommon": "Epätavallinen",
@@ -801,6 +806,7 @@
       "sections": {
         "label": "CCG-hallinnan osiot",
         "studio": "Korttistudio",
+        "alternativeArt": "Vaihtoehtoinen kuvitus",
         "community": "Community",
         "sets": "Raidisetit"
       },
@@ -832,6 +838,45 @@
           "E": "Common",
           "F": "Poor"
         }
+      },
+      "alternativeArt": {
+        "title": "Vaihtoehtoinen kuvitus",
+        "description": "Määritä hahmolle yksi vaihtoehtoinen ulkoasu. Hahmokuva koskee kaikkia raidiversioita ja taustakuva vain Community-kortteja. Kelvollinen kortti käyttää yhtä 50/50-kuvitusarvontaa.",
+        "search": "Etsi CCG-hahmo",
+        "searchPlaceholder": "Hahmo, realm tai kilta",
+        "loading": "Etsitään hahmoja…",
+        "loadError": "Hahmoja ei voitu ladata.",
+        "empty": "Hakua vastaavia julkaistuja CCG-hahmoja ei löytynyt.",
+        "configured": "Määritetty",
+        "variants": "{count, plural, one {# korttiversio} other {# korttiversiota}}",
+        "communityEligible": "Community-kelpoinen",
+        "raidOnly": "Vain raidikortteja",
+        "selectCharacter": "Valitse hahmo, jolle haluat määrittää vaihtoehtoisen kuvituksen.",
+        "filename": "Kuvatiedoston nimi",
+        "invalidFilename": "Anna PNG-, JPG-, WebP- tai AVIF-tiedoston nimi ilman hakemistopolkua.",
+        "character": {
+          "enable": "Ota vaihtoehtoinen hahmokuva käyttöön",
+          "help": "Korvaa hahmorenderin tämän hahmon kaikissa CCG-versioissa, kun vaihtoehtoinen arvonta voittaa."
+        },
+        "background": {
+          "enable": "Ota vaihtoehtoinen taustakuva käyttöön",
+          "help": "Korvaa Community-kortin taustan, kun sama vaihtoehtoinen arvonta voittaa.",
+          "unavailable": "Hahmolla ei ole Community-korttia, joten vaihtoehtoista taustakuvaa ei voi määrittää."
+        },
+        "asset": {
+          "idle": "Tiedostoa ei ole valittu",
+          "loading": "Tarkistetaan tiedostoa…",
+          "ready": "Tiedosto löytyi",
+          "error": "Tiedostoa ei löytynyt julkisesta CCG-hakemistosta"
+        },
+        "save": "Tallenna vaihtoehtoinen kuvitus",
+        "saving": "Tallennetaan…",
+        "saved": "Hahmon {name} vaihtoehtoinen kuvitus tallennettiin.",
+        "saveError": "Vaihtoehtoista kuvitusta ei voitu tallentaa.",
+        "previewVariant": "Esikatseltava korttiversio",
+        "previewAlternative": "Esikatselu näyttää yhden vaihtoehtoisen yhdistelmän, joka voidaan löytää pakoista.",
+        "previewRegular": "Ota vähintään yksi tähän korttiin sopiva kuva käyttöön nähdäksesi vaihtoehtoisen yhdistelmän.",
+        "previewEmpty": "Valitse hahmo esikatsellaksesi sen vaihtoehtoista korttia."
       },
       "community": {
         "addTitle": "Lisää Community-hahmo",

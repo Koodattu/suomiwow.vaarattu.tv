@@ -3,6 +3,7 @@ import {
   CCG_FINISH_ORDER,
   CCG_FINISH_PITY_LIMITS,
   CCG_GRADING_VERSION,
+  CcgArtVariant,
   CcgBackgroundSafeCrop,
   CcgFinish,
   CcgProtectedFinish,
@@ -10,6 +11,13 @@ import {
 } from "../config/ccg";
 
 export type CcgResolvedCrop = { x: number; y: number; scale: number };
+
+export function rollArtVariant(hasAlternative: boolean, random: (maximum: number) => number = randomInt): CcgArtVariant {
+  if (!hasAlternative) return "standard";
+  const roll = random(2);
+  if (!Number.isInteger(roll) || roll < 0 || roll >= 2) throw new Error("Random source returned an out-of-range value");
+  return roll === 0 ? "standard" : "alternative";
+}
 
 export function gradeForPercentile(index: number, populationSize: number): CcgTierGrade {
   if (populationSize <= 0 || index < 0 || index >= populationSize) throw new Error("Invalid grading population index");

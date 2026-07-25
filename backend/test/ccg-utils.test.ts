@@ -6,7 +6,12 @@ import {
   CCG_INITIAL_PACKS,
   CCG_PACK_STORAGE_CAPS,
 } from "../src/config/ccg";
-import { emptyFinishPity, finishChanceForCounter, gradeForPercentile, nextFinish, resolveCardCrop, rollProtectedFinish } from "../src/utils/ccg-random";
+import {
+  hasApplicableAlternativeArt,
+  normalizeAlternativeArtFilename,
+  serializeOwnershipRows,
+} from "../src/utils/ccg-alternative-art";
+import { emptyFinishPity, finishChanceForCounter, gradeForPercentile, nextFinish, resolveCardCrop, rollArtVariant, rollProtectedFinish } from "../src/utils/ccg-random";
 import { calculateDuplicateProgress, planPackSelections, selectCommunityCard, selectPackCards } from "../src/utils/ccg-pack";
 import { createWowCharacterIdentityKey } from "../src/utils/ccg-identity";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
@@ -173,6 +178,40 @@ test("community cards pass a second 50/50 gate after their pool roll", () => {
 
   const acceptedRolls = [9, 0, 0];
   assert.equal(selectCommunityCard(9, ["community"], () => acceptedRolls.shift()!), "community");
+});
+
+test("alternative art uses one 50/50 roll and only applies backgrounds to Community cards", () => {
+  const art = {
+    collectorKey: "character:laku",
+    characterArtFilename: "laku_clap.png",
+    characterArtEnabled: true,
+    backgroundArtFilename: "housing.png",
+    backgroundArtEnabled: true,
+  };
+  assert.equal(hasApplicableAlternativeArt(art, false), true);
+  assert.equal(hasApplicableAlternativeArt({ ...art, characterArtEnabled: false }, false), false);
+  assert.equal(hasApplicableAlternativeArt({ ...art, characterArtEnabled: false }, true), true);
+  assert.equal(rollArtVariant(true, () => 0), "standard");
+  assert.equal(rollArtVariant(true, () => 1), "alternative");
+  assert.equal(rollArtVariant(false, () => 1), "standard");
+});
+
+test("legacy ownership stays standard while alternative quantities split exact finish variants", () => {
+  assert.deepEqual(serializeOwnershipRows([
+    { finish: "standard", quantity: 3 },
+    { finish: "foil", quantity: 4, alternativeQuantity: 3 },
+  ]), [
+    { finish: "standard", artVariant: "standard", quantity: 3 },
+    { finish: "foil", artVariant: "standard", quantity: 1 },
+    { finish: "foil", artVariant: "alternative", quantity: 3 },
+  ]);
+});
+
+test("alternative artwork accepts image filenames but rejects paths", () => {
+  assert.equal(normalizeAlternativeArtFilename(" laku_clap.png "), "laku_clap.png");
+  assert.equal(normalizeAlternativeArtFilename(""), null);
+  assert.throws(() => normalizeAlternativeArtFilename("../laku.png"), /filename only/);
+  assert.throws(() => normalizeAlternativeArtFilename("laku.svg"), /filename only/);
 });
 
 test("community identity matches display and slug forms of a realm", () => {

@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CcgFinish, CcgMode, CcgTierGrade } from "../config/ccg";
+import { CcgArtVariant, CcgFinish, CcgMode, CcgTierGrade } from "../config/ccg";
 import { CcgOwnerType } from "./CcgOwnership";
 
 export type CcgAllowanceSource = "daily" | "recharge" | "credit";
@@ -8,6 +8,7 @@ export interface ICcgPackResult {
   cardId: mongoose.Types.ObjectId;
   setId: mongoose.Types.ObjectId;
   finish: CcgFinish;
+  artVariant?: CcgArtVariant;
   tierGrade: CcgTierGrade;
   isDuplicate: boolean;
 }
@@ -39,6 +40,7 @@ const ResultSchema = new Schema<ICcgPackResult>(
     cardId: { type: Schema.Types.ObjectId, ref: "CcgCard", required: true },
     setId: { type: Schema.Types.ObjectId, ref: "CcgSet", required: true },
     finish: { type: String, enum: ["standard", "foil", "golden", "prismatic", "holographic", "negative"], required: true },
+    artVariant: { type: String, enum: ["standard", "alternative"], required: true, default: "standard" },
     tierGrade: { type: String, enum: ["S", "A", "B", "C", "D", "E", "F"], required: true },
     isDuplicate: { type: Boolean, required: true },
   },

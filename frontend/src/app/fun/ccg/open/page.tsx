@@ -770,6 +770,7 @@ export default function CcgOpenPage() {
                             <CollectibleCard
                               card={result.card}
                               finish={result.finish}
+                              artVariant={result.artVariant}
                               compact
                               className={packStyles.openedCard}
                               forcedPointer={activeReveal?.index === index ? activeReveal : undefined}
@@ -882,8 +883,16 @@ export default function CcgOpenPage() {
       </div>
       {opening && viewerIndex !== null ? (
         <CardViewer
-          card={{ ...opening.results[viewerIndex].card, ownership: [{ finish: opening.results[viewerIndex].finish, quantity: 1 }] }}
+          card={{
+            ...opening.results[viewerIndex].card,
+            ownership: [{
+              finish: opening.results[viewerIndex].finish,
+              artVariant: opening.results[viewerIndex].artVariant,
+              quantity: 1,
+            }],
+          }}
           initialFinish={opening.results[viewerIndex].finish}
+          initialArtVariant={opening.results[viewerIndex].artVariant}
           originElement={viewerOriginElement}
           originBounds={viewerOriginBounds}
           sharedTransition={viewerSharedTransition}

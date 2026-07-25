@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { flushSync } from "react-dom";
 import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
-import type { CcgCard, CcgFinish } from "@/types";
+import type { CcgArtVariant, CcgCard, CcgFinish } from "@/types";
 import { bestOwnedFinish, CCG_RARITY_KEYS } from "@/lib/ccg";
 import { playCcgInspectSound } from "@/lib/ccg-audio";
 import { formatRealmName } from "@/lib/utils";
@@ -78,6 +78,7 @@ function score(value: number | null): string {
 export default function CardViewer({
   card,
   initialFinish = "standard",
+  initialArtVariant = "standard",
   originElement = null,
   originBounds = null,
   sharedTransition = false,
@@ -85,6 +86,7 @@ export default function CardViewer({
 }: {
   card: CcgCard;
   initialFinish?: CcgFinish;
+  initialArtVariant?: CcgArtVariant;
   originElement?: HTMLElement | null;
   originBounds?: CardViewerOriginBounds | null;
   sharedTransition?: boolean;
@@ -92,9 +94,13 @@ export default function CardViewer({
 }) {
   const t = useTranslations("ccg");
   const locale = useLocale();
-  const [finish, setFinish] = useState<CcgFinish>(initialFinish);
   const variants = card.variants?.length ? card.variants : [{ card, ownership: card.ownership ?? [], totalQuantity: card.totalQuantity ?? 0 }];
   const clickedVariantIndex = Math.max(0, variants.findIndex((variant) => variant.card.id === card.id));
+  const initialVariant = variants[clickedVariantIndex];
+  const requestedInitialOwnership = initialVariant.ownership.find((row) => row.finish === initialFinish && row.artVariant === initialArtVariant);
+  const bestInitialOwnership = bestOwnedFinish({ ...initialVariant.card, ownership: initialVariant.ownership });
+  const [finish, setFinish] = useState<CcgFinish>(requestedInitialOwnership?.finish ?? bestInitialOwnership?.finish ?? initialFinish);
+  const [artVariant, setArtVariant] = useState<CcgArtVariant>(requestedInitialOwnership?.artVariant ?? bestInitialOwnership?.artVariant ?? initialArtVariant);
   const [variantIndex, setVariantIndex] = useState(clickedVariantIndex);
   const [phase, setPhase] = useState<ViewerPhase>(sharedTransition ? "open" : "entering");
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -105,8 +111,10 @@ export default function CardViewer({
   const onCloseRef = useRef(onClose);
   const selectedVariant = variants[Math.min(variantIndex, variants.length - 1)];
   const displayedCard = selectedVariant.card;
-  const ownedFinishes = variantIndex === 0 ? (card.ownership ?? selectedVariant.ownership) : selectedVariant.ownership;
-  const isOwned = ownedFinishes.length > 0;
+  const ownership = selectedVariant.ownership;
+  const ownedArtVariants = (["standard", "alternative"] as const).filter((value) => ownership.some((row) => row.artVariant === value));
+  const ownedFinishes = ownership.filter((row) => row.artVariant === artVariant);
+  const isOwned = ownership.length > 0;
   const quantity = ownedFinishes.find((row) => row.finish === finish)?.quantity ?? 0;
   const characterHref = `/characters/${encodeURIComponent(displayedCard.realm)}/${encodeURIComponent(displayedCard.name)}?class=${encodeURIComponent(String(displayedCard.classID))}`;
 
@@ -264,6 +272,7 @@ export default function CardViewer({
           <CollectibleCard
             card={displayedCard}
             finish={finish}
+            artVariant={artVariant}
             quantity={isOwned ? quantity : undefined}
             width={520}
             className={styles.viewerCard}
@@ -290,12 +299,38 @@ export default function CardViewer({
                     aria-pressed={variantIndex === index}
                     key={variant.card.id}
                     onClick={() => {
+                      const best = bestOwnedFinish({ ...variant.card, ownership: variant.ownership });
                       setVariantIndex(index);
-                      setFinish((index === 0 ? bestOwnedFinish(card) : bestOwnedFinish({ ...variant.card, ownership: variant.ownership }))?.finish ?? "standard");
+                      setFinish(best?.finish ?? "standard");
+                      setArtVariant(best?.artVariant ?? "standard");
                     }}
                     className={variantIndex === index ? styles.primaryButton : styles.secondaryButton}
                   >
                     {variant.card.set.raidName}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {ownedArtVariants.length > 1 ? (
+            <section className={styles.viewerControls} aria-labelledby="ccg-viewer-artwork">
+              <h3 id="ccg-viewer-artwork">{t("artwork.label")}</h3>
+              <div>
+                {ownedArtVariants.map((value) => (
+                  <button
+                    type="button"
+                    aria-pressed={artVariant === value}
+                    key={value}
+                    onClick={() => {
+                      const sameFinish = ownership.find((row) => row.artVariant === value && row.finish === finish);
+                      const best = bestOwnedFinish({ ...displayedCard, ownership }, value);
+                      setArtVariant(value);
+                      setFinish(sameFinish?.finish ?? best?.finish ?? "standard");
+                    }}
+                    className={artVariant === value ? styles.primaryButton : styles.secondaryButton}
+                  >
+                    {t(`artwork.${value}`)}
                   </button>
                 ))}
               </div>

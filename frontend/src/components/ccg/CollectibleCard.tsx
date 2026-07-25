@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { CcgCard, CcgFinish } from "@/types";
+import type { CcgArtVariant, CcgCard, CcgFinish } from "@/types";
 import { CCG_RARITY_KEYS } from "@/lib/ccg";
 import { formatRealmName, formatSpecName, getClassInfoById, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
@@ -90,6 +90,7 @@ function applyCardMaterial(element: HTMLElement, x: number, y: number) {
 type CollectibleCardProps = {
   card: CcgCard;
   finish?: CcgFinish | "void";
+  artVariant?: CcgArtVariant;
   compact?: boolean;
   quantity?: number;
   onSelect?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
@@ -107,6 +108,7 @@ type CollectibleCardProps = {
 export default function CollectibleCard({
   card,
   finish = "standard",
+  artVariant = "standard",
   compact = false,
   quantity,
   onSelect,
@@ -132,7 +134,14 @@ export default function CollectibleCard({
   const rarity = t(`rarity.${CCG_RARITY_KEYS[card.tierGrade]}`);
   const guild = card.guildName ? `<${card.guildName}>` : t("independent");
   const realm = formatRealmName(card.realm);
-  const readyKey = `${card.id}:${card.renderUrl ?? ""}:${classInfo.iconUrl ?? ""}:${specIcon ?? ""}`;
+  const alternativeActive = artVariant === "alternative";
+  const renderUrl = alternativeActive && card.alternativeArt?.characterArtPath
+    ? card.alternativeArt.characterArtPath
+    : card.renderUrl;
+  const backgroundPath = alternativeActive && card.set.kind === "community" && card.alternativeArt?.backgroundArtPath
+    ? card.alternativeArt.backgroundArtPath
+    : card.set.backgroundPath;
+  const readyKey = `${card.id}:${artVariant}:${renderUrl ?? ""}:${classInfo.iconUrl ?? ""}:${specIcon ?? ""}`;
 
   if (readyCard.current !== readyKey) {
     readyCard.current = readyKey;
@@ -145,17 +154,17 @@ export default function CollectibleCard({
   }, [onReady]);
 
   useEffect(() => {
-    if (!card.renderUrl) markReady("render");
+    if (!renderUrl) markReady("render");
     if (hideCornerIcons) {
       markReady("class");
       markReady("spec");
     }
-  }, [card.renderUrl, hideCornerIcons, markReady]);
+  }, [hideCornerIcons, markReady, renderUrl]);
   const cardStyle = {
     "--lab-accent": card.set.theme.accent,
     "--lab-glow": card.set.theme.glow,
     "--class-color": classColors[classInfo.name] ?? "#ffffff",
-    "--lab-art": `url("${card.set.backgroundPath}")`,
+    "--lab-art": `url("${backgroundPath}")`,
     "--crop-x": `${raidArtOffsetX ?? card.backgroundCrop.x}%`,
     "--crop-y": `${card.backgroundCrop.y}%`,
     "--crop-scale": card.backgroundCrop.scale,
@@ -227,13 +236,14 @@ export default function CollectibleCard({
       className={`${styles.prototypeCard} ${styles.vaultRelic} ${styles[finish]} ${guides ? styles.guides : ""}`}
       data-grade={card.tierGrade}
       data-finish={finish}
+      data-art-variant={artVariant}
       data-frame="vaultSteel"
       data-ccg-card
       data-forced-hover={forcedPointer ? "true" : undefined}
       style={cardStyle}
       onPointerMove={updateMaterial}
       onPointerLeave={resetMaterial}
-      aria-label={`${card.name}, ${guild}, ${realm}, ${card.set.raidName}, ${formatSpecName(card.specName)} ${classInfo.name}, ${rarity}, ${t(`finish.${finish}`)}`}
+      aria-label={`${card.name}, ${guild}, ${realm}, ${card.set.raidName}, ${formatSpecName(card.specName)} ${classInfo.name}, ${rarity}, ${t(`finish.${finish}`)}, ${t(`artwork.${artVariant}`)}`}
     >
       <span className={styles.outerFrame} aria-hidden="true" />
       <span className={styles.innerFrame} aria-hidden="true" />
@@ -241,7 +251,7 @@ export default function CollectibleCard({
       <span className={styles.artworkClip} aria-hidden="true"><span className={styles.raidArt} /><span className={styles.raidShade} /></span>
       <span className={styles.lowerDeck} aria-hidden="true" />
       <span className={styles.renderWindow} aria-hidden="true">
-        {card.renderUrl ? <AlphaFittedCharacterRender src={card.renderUrl} sizes={compact ? "280px" : `${width ?? 400}px`} className={styles.renderImage} onReady={() => markReady("render")} /> : null}
+        {renderUrl ? <AlphaFittedCharacterRender src={renderUrl} sizes={compact ? "280px" : `${width ?? 400}px`} className={styles.renderImage} onReady={() => markReady("render")} /> : null}
       </span>
 
       <span className={styles.identity}><strong className={styles.characterName}>{card.name}</strong><span className={styles.guildName}>{guild}</span></span>
