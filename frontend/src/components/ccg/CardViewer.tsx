@@ -325,7 +325,18 @@ export default function CardViewer({
   return (
     <div
       className={`${styles.viewerBackdrop} ${phaseClass}`}
-      onPointerDown={(event) => event.target === event.currentTarget && requestClose()}
+      onClick={(event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (
+          cardMotionRef.current?.contains(target)
+          || target.closest(`.${styles.viewerControls}`)
+          || target.closest(
+            "button, a[href], input, select, textarea, summary, label, [contenteditable='true'], [role='button'], [role='link'], [role='option'], [role^='menuitem'], [role='checkbox'], [role='radio'], [role='switch'], [role='slider'], [role='spinbutton'], [role='textbox'], [role='combobox'], [role='listbox'], [tabindex]:not([tabindex='-1'])",
+          )
+        ) return;
+        requestClose();
+      }}
     >
       <div
         ref={viewerRef}
