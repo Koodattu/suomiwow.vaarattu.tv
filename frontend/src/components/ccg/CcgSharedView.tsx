@@ -113,6 +113,7 @@ function SharedCard({ share }: { share: Extract<CcgShare, { kind: "card" }> }) {
 
 function SharedPack({ share }: { share: Extract<CcgShare, { kind: "pack" }> }) {
   const t = useTranslations("ccg.share");
+  const openT = useTranslations("ccg.open");
   const [viewer, setViewer] = useState<{
     index: number;
     originElement: HTMLElement | null;
@@ -122,6 +123,9 @@ function SharedPack({ share }: { share: Extract<CcgShare, { kind: "pack" }> }) {
   const primarySet = share.pack.targetSetId
     ? share.pack.sets.find((set) => set.id === share.pack.targetSetId) ?? share.pack.sets[0]
     : share.pack.sets[0];
+  const packType = share.pack.mode === "legacy" && !share.pack.targetSetId
+    ? openT("legacyPackTitle")
+    : primarySet?.raidName;
   const inspectedResult = viewer ? share.pack.results[viewer.index] : null;
   return (
     <>
@@ -133,8 +137,11 @@ function SharedPack({ share }: { share: Extract<CcgShare, { kind: "pack" }> }) {
         <StageBackground />
         <div className={styles.sharedPackContent}>
           <header className={styles.sharedPackHeader}>
-            <Attribution person={share.unboxedBy} className={styles.sharedAttributionHeader} />
-            <h1 id="ccg-shared-pack-title">{t("sharedPack")}</h1>
+            <div className={styles.sharedPackType}>{packType}</div>
+            <h1 id="ccg-shared-pack-title" className={styles.sharedPackTitle}>
+              <img src={share.unboxedBy.avatarUrl} alt="" />
+              <span>{t("sharedPackBy", { username: share.unboxedBy.username })}</span>
+            </h1>
           </header>
           <div className={styles.sharedPackScroller}>
             <div className={styles.sharedPackCards}>
@@ -174,6 +181,8 @@ function SharedPack({ share }: { share: Extract<CcgShare, { kind: "pack" }> }) {
           originBounds={viewer.originBounds}
           sharedTransition={viewer.sharedTransition}
           canShare={false}
+          footerAction={<Attribution person={share.unboxedBy} className={styles.sharedAttributionAction} />}
+          showFinishControls={false}
           onClose={() => setViewer(null)}
         />
       ) : null}

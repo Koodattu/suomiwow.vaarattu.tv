@@ -3443,6 +3443,14 @@
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.84);
 }
 
+.sharedPackType {
+  color: color-mix(in srgb, var(--pack-accent) 60%, white);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
 .sharedPackHeader h1 {
   margin-top: 0.3rem;
   color: #fff;
@@ -3451,6 +3459,23 @@
   letter-spacing: -0.025em;
   line-height: 1;
   text-wrap: balance;
+}
+
+.sharedPackTitle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+}
+
+.sharedPackTitle img {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 2.25rem;
+  border-radius: 50%;
+  object-fit: cover;
+  outline: 1px solid rgba(255, 255, 255, 0.1);
+  outline-offset: -1px;
 }
 
 .sharedPackScroller {
@@ -3524,10 +3549,6 @@
   gap: 0.5rem;
   color: #91a2b9;
   font-size: 0.75rem;
-}
-
-.sharedAttributionHeader {
-  justify-content: center;
 }
 
 .sharedAttributionAction {

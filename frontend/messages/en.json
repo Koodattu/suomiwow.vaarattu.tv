@@ -109,6 +109,7 @@
       "error": "Could not copy link",
       "loading": "Loading shared opening",
       "sharedPack": "Shared pack opening",
+      "sharedPackBy": "{username}'s shared pack opening",
       "unboxedBy": "Unboxed by",
       "notFoundTitle": "This shared opening is unavailable",
       "notFoundBody": "The link may be incomplete, expired, or no longer available."
@@ -375,7 +376,7 @@
     "tier": "Tier grade",
     "mechanics": "Mechanics",
     "cardNumber": "Card #{number}",
-    "viewCharacter": "View",
+    "viewCharacter": "View character's profile",
     "viewCharacterLabel": "View {name}'s character profile in a new tab",
     "inspectCloseHint": "Press Escape or select the background to close the card.",
     "playQuip": "Play {name}'s quip"

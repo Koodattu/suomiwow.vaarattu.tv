@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useTranslations } from "next-intl";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { FaArrowUpRightFromSquare, FaVolumeHigh } from "react-icons/fa6";
 import type { CcgArtVariant, CcgCard, CcgFinish } from "@/types";
 import { useAuth } from "@/context/AuthContext";
@@ -100,6 +100,8 @@ export default function CardViewer({
   sharedTransition = false,
   missing = false,
   canShare = true,
+  footerAction,
+  showFinishControls = true,
   onClose,
 }: {
   card: CcgCard;
@@ -110,6 +112,8 @@ export default function CardViewer({
   sharedTransition?: boolean;
   missing?: boolean;
   canShare?: boolean;
+  footerAction?: ReactNode;
+  showFinishControls?: boolean;
   onClose: () => void;
 }) {
   const t = useTranslations("ccg");
@@ -411,7 +415,7 @@ export default function CardViewer({
             </section>
           ) : null}
 
-          {isOwned ? (
+          {isOwned && showFinishControls ? (
             <section className={styles.viewerControls} aria-labelledby="ccg-viewer-finishes">
               <h3 id="ccg-viewer-finishes">{t("finish.label")}</h3>
               <div>
@@ -428,9 +432,9 @@ export default function CardViewer({
                 ))}
               </div>
             </section>
-          ) : (
+          ) : !isOwned ? (
             <p className={styles.viewerNotCollected}>{t("collection.notCollected")}</p>
-          )}
+          ) : null}
 
           <dl className={`${styles.viewerFacts} ${styles.viewerFactsWithoutTopBorder}`}>
             <div><dt>{t("collection.quality")}</dt><dd>{t(`finish.${finish}`)}</dd></div>
@@ -452,12 +456,12 @@ export default function CardViewer({
               </Link>
             </div>
             <div>
-              {canShare && user && isOwned ? (
+              {footerAction ?? (canShare && user && isOwned ? (
                 <CcgShareButton
                   key={`${displayedCard.id}:${finish}:${artVariant}`}
                   target={{ kind: "card", cardId: displayedCard.id, finish, artVariant }}
                 />
-              ) : null}
+              ) : null)}
             </div>
           </div>
         </div>

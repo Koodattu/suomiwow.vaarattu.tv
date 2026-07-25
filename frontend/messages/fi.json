@@ -109,6 +109,7 @@
       "error": "Linkkiä ei voitu kopioida",
       "loading": "Jaettua avausta ladataan",
       "sharedPack": "Jaettu pakan avaus",
+      "sharedPackBy": "{username}: jaettu pakan avaus",
       "unboxedBy": "Pakan avasi",
       "notFoundTitle": "Jaettu avaus ei ole saatavilla",
       "notFoundBody": "Linkki voi olla puutteellinen, vanhentunut tai poistunut käytöstä."
@@ -375,7 +376,7 @@
     "tier": "Tier-luokka",
     "mechanics": "Mekaniikat",
     "cardNumber": "Kortti #{number}",
-    "viewCharacter": "Näytä",
+    "viewCharacter": "Näytä hahmon profiili",
     "viewCharacterLabel": "Avaa hahmon {name} profiili uudessa välilehdessä",
     "inspectCloseHint": "Sulje kortti painamalla Esc tai valitsemalla tausta.",
     "playQuip": "Toista hahmon {name} repliikki"
