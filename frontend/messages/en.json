@@ -56,7 +56,8 @@
     "ccg": "CCG"
   },
   "ccg": {
-    "brandSuffix": "Community Collectible Card Game",
+    "brandTitleTop": "Community",
+    "brandTitleBottom": "Card Game",
     "eyebrow": "Community card vault",
     "subtitle": "Open raid-set packs and preserve the characters who shaped each tier.",
     "fanNotice": "Unofficial, free fan project. World of Warcraft and related artwork are trademarks or copyrights of Blizzard Entertainment. SuomiWoW is not affiliated with Blizzard Entertainment.",

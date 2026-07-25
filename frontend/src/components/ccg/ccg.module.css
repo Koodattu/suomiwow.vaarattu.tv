@@ -60,18 +60,14 @@
     transform 120ms ease;
 }
 
-.shellBrandLink > svg {
-  width: 0.8rem;
-  height: 0.8rem;
-  color: #59dcff;
-}
-
 .shellBackLabel {
   display: flex;
+  min-width: 1.75rem;
   align-items: center;
   align-self: center;
   flex-direction: column;
   justify-content: center;
+  gap: 0.08rem;
   color: #59dcff;
   font-size: 0.46rem;
   font-weight: 800;
@@ -81,6 +77,11 @@
   text-transform: uppercase;
 }
 
+.shellBackLabel > svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
 .shellBrandLink > img {
   flex-shrink: 0;
   width: 7rem;
@@ -88,11 +89,13 @@
 }
 
 .shellBrandTitle {
+  display: flex;
+  flex-direction: column;
   color: #59dcff;
   font-size: clamp(0.62rem, 0.72vw, 0.8rem);
   font-weight: 760;
   letter-spacing: -0.01em;
-  line-height: 1.05;
+  line-height: 0.98;
   white-space: nowrap;
 }
 
