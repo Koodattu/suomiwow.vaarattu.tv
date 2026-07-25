@@ -461,7 +461,6 @@ class TwitchChatBotService {
   private async findDesiredChannels(): Promise<string[]> {
     const maxChannels = this.getMaxChannels();
     const guilds = await Guild.find({
-      isCurrentlyRaiding: true,
       streamers: { $elemMatch: { isLive: true, isPlayingWoW: true } },
     })
       .sort({ name: 1, realm: 1 })
@@ -489,8 +488,8 @@ class TwitchChatBotService {
   }
 
   private async findDesiredChannelsForGuild(guildId: mongoose.Types.ObjectId): Promise<string[]> {
-    const guild = await Guild.findById(guildId).select("isCurrentlyRaiding streamers.channelName streamers.isLive streamers.isPlayingWoW").lean();
-    if (!guild?.isCurrentlyRaiding) {
+    const guild = await Guild.findById(guildId).select("streamers.channelName streamers.isLive streamers.isPlayingWoW").lean();
+    if (!guild) {
       return [];
     }
 
@@ -617,7 +616,6 @@ class TwitchChatBotService {
   private async isChannelAllowedToChat(channelName: string): Promise<boolean> {
     return Boolean(
       await Guild.exists({
-        isCurrentlyRaiding: true,
         streamers: {
           $elemMatch: {
             channelName: new RegExp(`^${channelName}$`, "i"),
@@ -777,7 +775,7 @@ class TwitchChatBotService {
         const targetChannels = await this.findDesiredChannelsForGuild(delivery.guildId);
         if (!targetChannels.includes(channel)) {
           delivery.status = "expired";
-          delivery.lastError = "Twitch channel is no longer a live raiding target";
+          delivery.lastError = "Twitch channel is no longer a live WoW target";
           await delivery.save();
           continue;
         }

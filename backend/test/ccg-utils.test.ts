@@ -34,6 +34,7 @@ import {
 } from "../src/utils/ccg-random";
 import { planPackSelections, selectCommunityCard, selectPackCards } from "../src/utils/ccg-pack";
 import { createWowCharacterIdentityKey } from "../src/utils/ccg-identity";
+import { nextCcgCardSnapshotVersion, shouldPublishCcgCardSnapshot } from "../src/utils/ccg-card-snapshot";
 import { normalizeCcgRedeemCode } from "../src/utils/ccg-redeem";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeGrants } from "../src/utils/ccg-recharge";
@@ -46,6 +47,18 @@ test("canonical grading maps a 100-card population to the versioned S through F 
     counts.set(grade, (counts.get(grade) ?? 0) + 1);
   }
   assert.deepEqual(Object.fromEntries(counts), { S: 5, A: 10, B: 20, C: 20, D: 20, E: 15, F: 10 });
+});
+
+test("card snapshots publish only for a new character or a changed rarity grade", () => {
+  assert.equal(shouldPublishCcgCardSnapshot(null, "B"), true);
+  assert.equal(shouldPublishCcgCardSnapshot({ tierGrade: "B" }, "B"), false);
+  assert.equal(shouldPublishCcgCardSnapshot({ tierGrade: "B" }, "A"), true);
+});
+
+test("card snapshot versions advance without requiring a legacy version field", () => {
+  assert.equal(nextCcgCardSnapshotVersion(null), 1);
+  assert.equal(nextCcgCardSnapshotVersion({}), 2);
+  assert.equal(nextCcgCardSnapshotVersion({ snapshotVersion: 2 }), 3);
 });
 
 test("card crops are deterministic and stay inside each raid's safe flair range", () => {

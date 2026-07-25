@@ -1929,6 +1929,8 @@ export type CcgCard = {
   id: string;
   characterId: string;
   setNumber: number;
+  snapshotVersion: number;
+  snapshotKey: string | null;
   name: string;
   realm: string;
   region: string;
@@ -2161,7 +2163,7 @@ export type CcgAdminAlternativeArtResponse = {
 
 export type CcgAdminEnableResponse = {
   readiness: CcgAdminSetReadiness;
-  publication: { snapshotKey: string; published: number; totalCards: number; poolVersion: string };
+  publication: { snapshotKey: string; published: number; unchanged: number; totalCards: number; poolVersion: string };
   movedToLegacy: number;
 };
 

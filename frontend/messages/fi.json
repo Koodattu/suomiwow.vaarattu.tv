@@ -304,6 +304,7 @@
       "missing": "Puuttuvat",
       "notCollected": "Ei vielä kerätty",
       "ownedSnapshots": "Kerätyt snapshotit",
+      "snapshotOption": "{date} · {grade} · {rarity}",
       "rarity": "Harvinaisuus",
       "quality": "Laatu",
       "allRarities": "Kaikki harvinaisuudet",

@@ -8,7 +8,7 @@ The feature is free, non-tradable, and non-commercial. It does not include card 
 
 ## Product summary
 
-SuomiWoW CCG turns Finnish World of Warcraft raid characters into collectible cards. A card represents an immutable snapshot of one character in one raid tier. The same character can receive a new card in every raid tier, but an already published card never changes.
+SuomiWoW CCG turns Finnish World of Warcraft raid characters into collectible cards. A card represents an immutable snapshot of one character in one raid tier. A character receives a new snapshot in the same raid set only when its canonical S-F rarity grade changes; an already published card never changes.
 
 The product has two collection modes:
 
@@ -54,7 +54,10 @@ Guests begin with five packs in each mode. A first-time authenticated CCG player
 
 ### Card identity and immutability
 
-- There is at most one card per `{setId, characterId}`.
+- A character has one stable card series per `{setId, characterId}` and one immutable card document per published snapshot version.
+- The first eligible snapshot is published. Later snapshots are published only when `tierGrade` differs from the latest published version; metric-only changes do not create cards.
+- Pack pools and the catalog use the latest published version in each card series. Existing ownership and share links keep pointing to their exact historical version.
+- Collection completion counts a card series once. A collector who owns multiple versions sees the latest owned version by default and can select any owned snapshot in the card viewer.
 - A character appearing in a later raid tier receives a new card in that set.
 - Card identity, scores, guild, realm, class, specialization, role, grade, art source, crop, and publication metadata are immutable after publication.
 - The Current set becomes Legacy at raid rollover without modifying its cards.
@@ -64,7 +67,7 @@ Recommended publication schedule:
 
 1. Open the set approximately two weeks after the raid launches, once the data is meaningful.
 2. Publish all currently eligible characters.
-3. Publish newly eligible characters once per week.
+3. Publish newly eligible characters and rarity-changing versions once per week.
 4. Publish a final newcomer wave when the tier closes.
 5. Lock the set and move it to Legacy.
 
@@ -94,7 +97,7 @@ The grade is calculated once at publication from one canonical, unfiltered globa
 
 Duplicates do not upgrade card rarity. Rarity represents the character's snapshotted raid-tier performance and must remain truthful.
 
-- Duplicate identity is the exact immutable raid card. The same character in another raid set is a different card.
+- Duplicate identity is the exact immutable snapshot version. Another version in the same card series, or the same character in another raid set, is a different card.
 - A finish that is not yet owned for that card is awarded unchanged, even when another finish of the card is already owned.
 - If the rolled finish is already owned, the result advances to the next missing finish above it. If only lower gaps remain, it fills the first missing finish so every pre-completion duplicate advances the card.
 - A card is complete when Standard, Foil, Golden, Prismatic, Holographic, and Negative are all owned for that exact card.
@@ -222,7 +225,7 @@ The overall feature is called SuomiWoW CCG. The recommended user-facing tabs are
 - Contains every enabled raid in the active raid tier or season.
 - Grants ten daily Current packs.
 - Draws across the complete Current card pool automatically.
-- Receives weekly newcomer card publication waves.
+- Receives weekly publication waves for newcomers and rarity-grade changes.
 - Moves to Legacy when the next raid becomes Current.
 
 ### Legacy
@@ -618,10 +621,13 @@ Indexes:
 
 ### `CcgCard`
 
-One immutable document per character and set:
+One immutable document per published character snapshot version:
 
 - `setId`
 - `setNumber`
+- `snapshotVersion`, unique within the card series
+- `snapshotKey`
+- `supersedesCardId` for versions after the first
 - `characterId`
 - WCL canonical identity where available
 - Snapshotted name, realm, region, stable guild ID, guild name, and guild realm
@@ -639,8 +645,9 @@ One immutable document per character and set:
 
 Indexes:
 
-- Unique `{setId: 1, characterId: 1}`
-- Unique `{setId: 1, setNumber: 1}`
+- Unique `{setId: 1, characterId: 1, snapshotVersion: 1}`
+- Unique `{setId: 1, setNumber: 1, snapshotVersion: 1}`
+- `{setId: 1, characterId: 1, performanceSnapshotAt: -1, publishedAt: -1}`
 - `{setId: 1, tierGrade: 1, setNumber: 1}`
 - `{setId: 1, guildId: 1, setNumber: 1}`
 - `{setId: 1, guildId: 1, tierGrade: 1, setNumber: 1}`
@@ -881,8 +888,8 @@ All schedules use the IANA timezone `Europe/Helsinki`, not a fixed UTC offset, s
 | New-character media discovery | Daily at 01:30 | Find characters newly observed by achievements, raid participation, rankings, or character ingestion since the last cursor; enqueue missing avatar and full-render media. |
 | Active-character media refresh enqueue | Daily at 01:50 | Enqueue active Current candidates whose profile avatar/render metadata is stale. Spread work with `nextMediaRefreshAt`; do not refetch every known character every night. |
 | Media queue recovery | Every 15 minutes | Return stale `processing` jobs to retry state and make transient failures eligible after backoff. |
-| Weekly Current snapshot workflow | Wednesday at 03:00 | Query every enabled Current raid from MongoDB, capture each canonical site-week performance population during the Tuesday-to-Wednesday night, build candidates, grade newly eligible characters, and prepare the publication waves. |
-| Weekly Current publication | Wednesday at 04:30 | Publish snapshot-ready candidates for every enabled Current raid whose media is available, then version and rebuild the affected per-set pools. Missing-media candidates remain pending and are reconsidered in the next wave or by an admin rerun. |
+| Weekly Current snapshot workflow | Wednesday at 03:00 | Query every enabled Current raid from MongoDB, capture each canonical site-week performance population during the Tuesday-to-Wednesday night, build candidates, grade all eligible characters, and prepare the publication waves. |
+| Weekly Current publication | Wednesday at 04:30 | Publish newly eligible characters and characters whose rarity grade changed, then rebuild each affected per-set pool from the latest version of every card series. Unchanged candidates are recorded without creating cards. Missing-media candidates remain pending and are reconsidered in the next wave or by an admin rerun. |
 
 The weekly times are initial operational defaults and should be configurable. The workflow must prevent overlapping snapshot or publication runs with a distributed lock keyed by set and snapshot date.
 
@@ -909,9 +916,9 @@ The snapshot records its source watermarks and fails closed if required rankings
 
 - Runs in the scheduled Wednesday publication wave or through an explicit admin trigger.
 - Consumes the canonical grading snapshot produced by the snapshot workflow.
-- Assigns immutable grades, set numbers, crop values, theme version, and score provenance.
-- Inserts only characters not already published in the set.
-- Updates the versioned pack pool.
+- Assigns immutable grades, stable set numbers, snapshot versions, crop values, theme version, and score provenance.
+- Inserts the first card for a character and later versions only when the rarity grade changed.
+- Updates the versioned pack pool with only the latest version of each card series.
 - Invalidates and warms relevant caches.
 - Uses the completed 03:00 snapshot as input; it does not recompute rankings while publishing.
 
@@ -1168,6 +1175,10 @@ Never expose user-level private collection data in public operational dashboards
 - Media 404, transient retry, and stale-job recovery
 - Idempotent nightly media discovery from its stored cursor
 - Idempotent weekly snapshot and publication reruns
+- Unchanged grades do not create card versions, while changed grades do
+- Catalog and pack pools expose only the latest published version per card series
+- Collection groups owned versions and defaults to the latest owned snapshot
+- Sharing a selected historical snapshot preserves that exact card ID
 
 ### Statistical tests
 

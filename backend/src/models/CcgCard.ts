@@ -21,6 +21,9 @@ const CcgCommunityScoresSchema = new Schema<CcgCommunityScores>(
 export interface ICcgCard extends Document {
   setId: mongoose.Types.ObjectId;
   setNumber: number;
+  snapshotVersion: number;
+  snapshotKey?: string | null;
+  supersedesCardId?: mongoose.Types.ObjectId | null;
   characterId: mongoose.Types.ObjectId;
   collectorKey?: string | null;
   communityCharacterId?: mongoose.Types.ObjectId | null;
@@ -64,6 +67,9 @@ const CcgCardSchema = new Schema<ICcgCard>(
   {
     setId: { type: Schema.Types.ObjectId, ref: "CcgSet", required: true, index: true },
     setNumber: { type: Number, required: true },
+    snapshotVersion: { type: Number, required: true, min: 1, default: 1 },
+    snapshotKey: { type: String, default: null, index: true },
+    supersedesCardId: { type: Schema.Types.ObjectId, ref: "CcgCard", default: null },
     characterId: { type: Schema.Types.ObjectId, ref: "Character", required: true, index: true },
     collectorKey: { type: String, default: null, index: true },
     communityCharacterId: { type: Schema.Types.ObjectId, ref: "CcgCommunityCharacter", default: null, index: true },
@@ -109,8 +115,15 @@ const CcgCardSchema = new Schema<ICcgCard>(
   { timestamps: false },
 );
 
-CcgCardSchema.index({ setId: 1, characterId: 1 }, { unique: true });
-CcgCardSchema.index({ setId: 1, setNumber: 1 }, { unique: true });
+CcgCardSchema.index(
+  { setId: 1, characterId: 1, snapshotVersion: 1 },
+  { unique: true, name: "ccg_card_character_snapshot_version" },
+);
+CcgCardSchema.index(
+  { setId: 1, setNumber: 1, snapshotVersion: 1 },
+  { unique: true, name: "ccg_card_set_number_snapshot_version" },
+);
+CcgCardSchema.index({ setId: 1, characterId: 1, performanceSnapshotAt: -1, publishedAt: -1 });
 CcgCardSchema.index({ setId: 1, tierGrade: 1, setNumber: 1 });
 CcgCardSchema.index({ setId: 1, guildId: 1, setNumber: 1 });
 CcgCardSchema.index({ setId: 1, guildId: 1, tierGrade: 1, setNumber: 1 });

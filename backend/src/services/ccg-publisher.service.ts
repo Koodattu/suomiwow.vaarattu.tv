@@ -19,7 +19,7 @@ import {
   MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY,
   MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY,
 } from "../config/character-eligibility";
-import CcgCard from "../models/CcgCard";
+import CcgCard, { ICcgCard } from "../models/CcgCard";
 import CcgCommunityCharacter from "../models/CcgCommunityCharacter";
 import CcgJobLock from "../models/CcgJobLock";
 import CcgPackPool from "../models/CcgPackPool";
@@ -31,6 +31,7 @@ import CharacterTierListEntry from "../models/CharacterTierListEntry";
 import { gradeForPercentile, resolveCardCrop } from "../utils/ccg-random";
 import { createCharacterCollectorKey, createWowCharacterIdentityKey } from "../utils/ccg-identity";
 import { CcgReadinessBlocker, evaluateCcgReadiness } from "../utils/ccg-readiness";
+import { nextCcgCardSnapshotVersion, shouldPublishCcgCardSnapshot } from "../utils/ccg-card-snapshot";
 import { getHelsinkiDateKey } from "../utils/helsinki-time";
 import logger from "../utils/logger";
 import { getCharacterRaidParticipationSummaries } from "./character-raid-guild.service";
@@ -106,6 +107,37 @@ export class CcgPublisherError extends Error {
 class CcgPublisherService {
   private configuredAt = 0;
   private configuredPromise: Promise<void> | null = null;
+  private cardSnapshotIndexesPromise: Promise<void> | null = null;
+
+  private async ensureCardSnapshotIndexes(): Promise<void> {
+    if (!this.cardSnapshotIndexesPromise) {
+      this.cardSnapshotIndexesPromise = (async () => {
+        await CcgCard.collection.createIndex(
+          { setId: 1, characterId: 1, snapshotVersion: 1 },
+          { unique: true, name: "ccg_card_character_snapshot_version" },
+        );
+        await CcgCard.collection.createIndex(
+          { setId: 1, setNumber: 1, snapshotVersion: 1 },
+          { unique: true, name: "ccg_card_set_number_snapshot_version" },
+        );
+
+        const indexes = await CcgCard.collection.indexes();
+        const legacyKeys = new Set([
+          JSON.stringify({ setId: 1, characterId: 1 }),
+          JSON.stringify({ setId: 1, setNumber: 1 }),
+        ]);
+        for (const index of indexes) {
+          if (index.unique && index.name && legacyKeys.has(JSON.stringify(index.key))) {
+            await CcgCard.collection.dropIndex(index.name);
+          }
+        }
+      })().catch((error) => {
+        this.cardSnapshotIndexesPromise = null;
+        throw error;
+      });
+    }
+    await this.cardSnapshotIndexesPromise;
+  }
 
   async ensureConfiguredSets(): Promise<ICcgSet[]> {
     if (Date.now() - this.configuredAt >= 5 * 60 * 1000) {
@@ -347,7 +379,7 @@ class CcgPublisherService {
     }
   }
 
-  async publishLatestWave(setSlug: string): Promise<{ snapshotKey: string; published: number; totalCards: number; poolVersion: string }> {
+  async publishLatestWave(setSlug: string): Promise<{ snapshotKey: string; published: number; unchanged: number; totalCards: number; poolVersion: string }> {
     const set = await CcgSet.findOne({ slug: setSlug });
     if (!set) throw new Error(`Unknown CCG set: ${setSlug}`);
     if (!new Set(["current", "legacy", "draft"]).has(set.state)) throw new Error(`CCG set ${set.slug} is locked`);
@@ -355,20 +387,43 @@ class CcgPublisherService {
     if (!owner) throw new Error(`A CCG publication for ${set.slug} is already running`);
 
     try {
-      const latest = await CcgPublicationCandidate.findOne({ setId: set._id }).sort({ createdAt: -1 }).select("snapshotKey").lean();
+      await this.ensureCardSnapshotIndexes();
+      const latest = await CcgPublicationCandidate.findOne({ setId: set._id })
+        .sort({ "payload.performanceSnapshotAt": -1, createdAt: -1 })
+        .select("snapshotKey")
+        .lean();
       if (!latest) throw new Error(`No CCG snapshot is available for ${set.slug}`);
-      const candidates = await CcgPublicationCandidate.find({ setId: set._id, snapshotKey: latest.snapshotKey, status: { $ne: "published" } })
+      const candidates = await CcgPublicationCandidate.find({
+        setId: set._id,
+        snapshotKey: latest.snapshotKey,
+        status: { $nin: ["published", "unchanged"] },
+      })
         .sort({ "payload.snapshotRank": 1 })
         .lean();
-      const existingCharacterIds = new Set((await CcgCard.distinct("characterId", { setId: set._id })).map(String));
-      const unpublished = candidates.filter((candidate) => !existingCharacterIds.has(String(candidate.characterId)));
+      const existingCards = await CcgCard.find({
+        setId: set._id,
+        characterId: { $in: candidates.map((candidate) => candidate.characterId) },
+      })
+        .sort({ snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 })
+        .lean();
+      const latestCardByCharacter = new Map<string, (typeof existingCards)[number]>();
+      for (const card of existingCards) {
+        const characterId = String(card.characterId);
+        if (!latestCardByCharacter.has(characterId)) latestCardByCharacter.set(characterId, card);
+      }
+      const unchanged = candidates.filter((candidate) => (
+        !shouldPublishCcgCardSnapshot(latestCardByCharacter.get(String(candidate.characterId)), candidate.tierGrade)
+      ));
+      const publishable = candidates.filter((candidate) => (
+        shouldPublishCcgCardSnapshot(latestCardByCharacter.get(String(candidate.characterId)), candidate.tierGrade)
+      ));
       const mediaRows = await CharacterMedia.find({
-        characterId: { $in: unpublished.map((candidate) => candidate.characterId) },
+        characterId: { $in: publishable.map((candidate) => candidate.characterId) },
         status: "available",
         mainRawUrl: { $ne: null },
       }).lean();
       const mediaByCharacter = new Map(mediaRows.map((row) => [String(row.characterId), row]));
-      const ready = unpublished.filter((candidate) => mediaByCharacter.get(String(candidate.characterId))?.mainRawUrl);
+      const ready = publishable.filter((candidate) => mediaByCharacter.get(String(candidate.characterId))?.mainRawUrl);
       const communityCharacters = await CcgCommunityCharacter.find()
         .select("collectorKey identityKey linkedCharacterId")
         .lean();
@@ -379,17 +434,23 @@ class CcgPublisherService {
       );
       const communityCollectorByIdentity = new Map(communityCharacters.map((row) => [row.identityKey, row.collectorKey]));
       const maximum = await CcgCard.findOne({ setId: set._id }).sort({ setNumber: -1 }).select("setNumber").lean();
+      let nextSetNumber = (maximum?.setNumber ?? 0) + 1;
       const wave = set.publicationWave + 1;
       const now = new Date();
-      const docs = ready.map((candidate, index) => {
+      const docs = ready.map((candidate) => {
         const payload = candidate.payload as SnapshotPayload;
         const media = mediaByCharacter.get(String(candidate.characterId))!;
-        const collectorKey = communityCollectorByCharacter.get(String(candidate.characterId))
+        const previousCard = latestCardByCharacter.get(String(candidate.characterId));
+        const collectorKey = previousCard?.collectorKey
+          ?? communityCollectorByCharacter.get(String(candidate.characterId))
           ?? communityCollectorByIdentity.get(createWowCharacterIdentityKey(payload.region, payload.realm, payload.name))
           ?? createCharacterCollectorKey(candidate.characterId);
         return {
           setId: set._id,
-          setNumber: (maximum?.setNumber ?? 0) + index + 1,
+          setNumber: previousCard?.setNumber ?? nextSetNumber++,
+          snapshotVersion: nextCcgCardSnapshotVersion(previousCard),
+          snapshotKey: candidate.snapshotKey,
+          supersedesCardId: previousCard?._id ?? null,
           characterId: candidate.characterId,
           collectorKey,
           wclCanonicalCharacterId: payload.wclCanonicalCharacterId,
@@ -436,15 +497,21 @@ class CcgPublisherService {
         );
         if (inserted.length !== docs.length) throw new Error("CCG publication inserted an incomplete wave");
       }
+      if (unchanged.length > 0) {
+        await CcgPublicationCandidate.updateMany(
+          { _id: { $in: unchanged.map((candidate) => candidate._id) } },
+          { $set: { status: "unchanged" } },
+        );
+      }
 
-      const totalCards = await CcgCard.countDocuments({ setId: set._id });
       const poolVersion = `${CCG_POOL_VERSION}-${wave}`;
       await this.rebuildPool(set._id, poolVersion);
+      const totalCards = (await CcgCard.distinct("characterId", { setId: set._id })).length;
       await CcgSet.updateOne(
         { _id: set._id },
         { $set: { publicationWave: wave, cardCount: totalCards, lastPublishedAt: now } },
       );
-      return { snapshotKey: latest.snapshotKey, published: docs.length, totalCards, poolVersion };
+      return { snapshotKey: latest.snapshotKey, published: docs.length, unchanged: unchanged.length, totalCards, poolVersion };
     } finally {
       await this.releaseLock(`publish:${set._id}`, owner);
     }
@@ -461,7 +528,16 @@ class CcgPublisherService {
         .lean();
       cardFilter.communityCharacterId = { $in: activeCharacters.map((character) => character._id) };
     }
-    const cards = await CcgCard.find(cardFilter).select("_id tierGrade").sort({ setNumber: 1 }).session(existingSession ?? null).lean();
+    const latestCards = CcgCard.aggregate<Pick<ICcgCard, "_id" | "tierGrade" | "setNumber">>([
+      { $match: cardFilter },
+      { $sort: { snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 } },
+      { $group: { _id: "$characterId", card: { $first: "$$ROOT" } } },
+      { $replaceRoot: { newRoot: "$card" } },
+      { $sort: { setNumber: 1 } },
+      { $project: { _id: 1, tierGrade: 1, setNumber: 1 } },
+    ]);
+    if (existingSession) latestCards.session(existingSession);
+    const cards = await latestCards;
     const poolVersion = version ?? `${CCG_POOL_VERSION}-${set.publicationWave}`;
     const buckets = CCG_TIER_GRADES.map((grade) => ({
       grade,
@@ -510,7 +586,7 @@ class CcgPublisherService {
       )
       .map((entry) => entry.characterId);
     const [published, mediaReady, pool] = await Promise.all([
-      set ? CcgCard.countDocuments({ setId: set._id }) : 0,
+      set ? CcgCard.distinct("characterId", { setId: set._id }).then((characterIds) => characterIds.length) : 0,
       CharacterMedia.countDocuments({ characterId: { $in: ids }, status: "available", mainRawUrl: { $ne: null } }),
       set ? CcgPackPool.findOne({ setId: set._id, active: true }).select("totalCards").lean() : null,
     ]);
@@ -540,7 +616,7 @@ class CcgPublisherService {
 
   async enableSet(zoneId: number, enabledBy: mongoose.Types.ObjectId, options: { force?: boolean } = {}): Promise<{
     readiness: CcgSetReadiness;
-    publication: { snapshotKey: string; published: number; totalCards: number; poolVersion: string };
+    publication: { snapshotKey: string; published: number; unchanged: number; totalCards: number; poolVersion: string };
     movedToLegacy: number;
   }> {
     const configured = CCG_CONFIGURED_SETS.find((set) => set.zoneId === zoneId);

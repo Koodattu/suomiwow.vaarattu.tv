@@ -328,7 +328,8 @@ class CcgService {
         { $group: { _id: "$cardId" } },
         { $lookup: { from: "ccgcards", localField: "_id", foreignField: "_id", as: "card" } },
         { $unwind: "$card" },
-        { $group: { _id: "$card.setId", count: { $sum: 1 } } },
+        { $group: { _id: { setId: "$card.setId", characterId: "$card.characterId" } } },
+        { $group: { _id: "$_id.setId", count: { $sum: 1 } } },
       ]);
       rows.forEach((row) => ownedBySet.set(String(row._id), row.count));
     }
@@ -336,7 +337,7 @@ class CcgService {
   }
 
   async getCollectionGuilds(owner: CcgOwner, setSlug?: string): Promise<Record<string, unknown>> {
-    const cardMatch: Record<string, unknown> = { guildId: { $type: "objectId" } };
+    const cardMatch: Record<string, unknown> = {};
     if (setSlug) {
       const set = await CcgSet.findOne({ slug: setSlug, enabledAt: { $ne: null } }).select("_id").lean();
       if (!set) throw new CcgServiceError(404, "set_not_found", "Card set not found");
@@ -353,16 +354,25 @@ class CcgService {
       collectedCards: number;
     }>([
       { $match: cardMatch },
+      { $sort: { snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 } },
+      {
+        $group: {
+          _id: { setId: "$setId", characterId: "$characterId" },
+          card: { $first: "$$ROOT" },
+          cardIds: { $push: "$_id" },
+        },
+      },
+      { $match: { "card.guildId": { $type: "objectId" } } },
       {
         $lookup: {
           from: CcgOwnership.collection.collectionName,
-          let: { cardId: "$_id" },
+          let: { cardIds: "$cardIds" },
           pipeline: [
             {
               $match: {
                 $expr: {
                   $and: [
-                    { $eq: ["$cardId", "$$cardId"] },
+                    { $in: ["$cardId", "$$cardIds"] },
                     { $eq: ["$ownerType", owner.ownerType] },
                     { $eq: ["$ownerId", owner.ownerId] },
                   ],
@@ -376,22 +386,11 @@ class CcgService {
       },
       {
         $group: {
-          _id: {
-            guildId: "$guildId",
-            cardId: "$_id",
-          },
-          name: { $first: "$guildName" },
-          realm: { $first: "$guildRealm" },
-          collected: { $max: { $cond: [{ $gt: [{ $size: "$ownership" }, 0] }, 1, 0] } },
-        },
-      },
-      {
-        $group: {
-          _id: "$_id.guildId",
-          name: { $first: "$name" },
-          realm: { $first: "$realm" },
+          _id: "$card.guildId",
+          name: { $first: "$card.guildName" },
+          realm: { $first: "$card.guildRealm" },
           cardCount: { $sum: 1 },
-          collectedCards: { $sum: "$collected" },
+          collectedCards: { $sum: { $cond: [{ $gt: [{ $size: "$ownership" }, 0] }, 1, 0] } },
         },
       },
     ]);
@@ -419,31 +418,44 @@ class CcgService {
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 9)));
     const grade = CCG_TIER_GRADES.includes(options.grade as CcgTierGrade) ? (options.grade as CcgTierGrade) : null;
     const finish = CCG_FINISH_ORDER.includes(options.finish as CcgFinish) ? (options.finish as CcgFinish) : null;
-    const cardFilter: Record<string, unknown> = { setId: set._id };
+    const cardFilter: Record<string, unknown> = {};
     if (grade) cardFilter.tierGrade = grade;
     if (options.guildId) cardFilter.guildId = validateObjectId(options.guildId, "guild ID");
 
     let ownedIds: mongoose.Types.ObjectId[] | null = null;
+    let ownedCharacterIds: mongoose.Types.ObjectId[] | null = null;
     if (options.owned === "owned" || options.owned === "missing" || finish) {
       ownedIds = await CcgOwnership.distinct("cardId", {
         ownerType: owner.ownerType,
         ownerId: owner.ownerId,
         ...(finish ? { finish } : {}),
       });
+      ownedCharacterIds = await CcgCard.distinct("characterId", { setId: set._id, _id: { $in: ownedIds } });
     }
     if (options.owned === "owned" || finish) {
       cardFilter._id = { $in: ownedIds ?? [] };
     } else if (options.owned === "missing") {
       cardFilter._id = { $nin: ownedIds ?? [] };
     }
-    const [cards, total] = await Promise.all([
-      CcgCard.find(cardFilter)
-        .sort({ setNumber: 1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean(),
-      CcgCard.countDocuments(cardFilter),
-    ]);
+    const catalog = await CcgCard.aggregate<{
+      items: ICcgCard[];
+      count: Array<{ total: number }>;
+    }>([
+      { $match: { setId: set._id } },
+      { $sort: { snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 } },
+      { $group: { _id: "$characterId", card: { $first: "$$ROOT" } } },
+      { $replaceRoot: { newRoot: "$card" } },
+      ...(Object.keys(cardFilter).length > 0 ? [{ $match: cardFilter }] : []),
+      { $sort: { setNumber: 1 } },
+      {
+        $facet: {
+          items: [{ $skip: (page - 1) * limit }, { $limit: limit }],
+          count: [{ $count: "total" }],
+        },
+      },
+    ]).then((result) => result[0] ?? { items: [], count: [] });
+    const cards = catalog.items;
+    const total = catalog.count[0]?.total ?? 0;
     const [ownership, alternativeByCollector, unlockedAlternativeCollectors] = await Promise.all([
       CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, cardId: { $in: cards.map((card) => card._id) } }).lean(),
       this.loadAlternativeArt(cards),
@@ -457,7 +469,7 @@ class CcgService {
     }
 
     return {
-      set: this.serializeSet(set, ownedIds?.length ?? 0),
+      set: this.serializeSet(set, ownedCharacterIds?.length ?? 0),
       cards: cards.map((card) => {
         const collectorKey = resolveCollectorKey(card);
         const alternativeArt = alternativeByCollector.get(collectorKey);
@@ -483,31 +495,21 @@ class CcgService {
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 18)));
     const match: Record<string, unknown> = { ownerType: owner.ownerType, ownerId: owner.ownerId };
     if (["standard", "foil", "golden", "prismatic", "holographic", "negative"].includes(options.finish ?? "")) match.finish = options.finish;
-    const characterMatch: Record<string, unknown> = {};
-    const variantMatch: Record<string, unknown> = {};
+    const cardMatch: Record<string, unknown> = {};
     const grade = CCG_TIER_GRADES.includes(options.grade as CcgTierGrade) ? (options.grade as CcgTierGrade) : null;
-    if (grade) variantMatch["card.tierGrade"] = grade;
-    if (options.search?.trim()) characterMatch.name = { $regex: options.search.trim().slice(0, 60), $options: "i" };
+    if (grade) cardMatch["card.tierGrade"] = grade;
+    if (options.search?.trim()) cardMatch["card.name"] = { $regex: options.search.trim().slice(0, 60), $options: "i" };
     let setId: mongoose.Types.ObjectId | null = null;
     if (options.setSlug) setId = (await CcgSet.findOne({ slug: options.setSlug, enabledAt: { $ne: null } }).select("_id").lean())?._id ?? null;
     if (options.setSlug && !setId) throw new CcgServiceError(404, "set_not_found", "Card set not found");
-    if (setId) variantMatch["card.setId"] = setId;
+    if (setId) cardMatch["card.setId"] = setId;
     const guildId = options.guildId ? validateObjectId(options.guildId, "guild ID") : null;
-    if (guildId) variantMatch["card.guildId"] = guildId;
-    if (Object.keys(variantMatch).length > 0) characterMatch.variants = { $elemMatch: variantMatch };
-
-    const representativeConditions: Record<string, unknown>[] = [];
-    if (setId) representativeConditions.push({ $eq: ["$$variant.card.setId", setId] });
-    if (grade) representativeConditions.push({ $eq: ["$$variant.card.tierGrade", grade] });
-    if (guildId) representativeConditions.push({ $eq: ["$$variant.card.guildId", guildId] });
-    const representativeCondition = representativeConditions.length === 1
-      ? representativeConditions[0]
-      : { $and: representativeConditions };
+    if (guildId) cardMatch["card.guildId"] = guildId;
 
     const rows = await CcgOwnership.aggregate<{
-      _id: mongoose.Types.ObjectId;
+      _id: { setId: mongoose.Types.ObjectId; characterId: mongoose.Types.ObjectId };
       totalQuantity: number;
-      finishGroups: Array<Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>>;
+      finishes: Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>;
       card: ICcgCard;
       set: ICcgSet;
       variants: Array<{ card: ICcgCard; set: ICcgSet; finishes: Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>; totalQuantity: number }>;
@@ -520,62 +522,38 @@ class CcgService {
       { $match: { "set.enabledAt": { $ne: null } } },
       {
         $group: {
-          _id: {
-            cardId: "$card._id",
-          },
+          _id: "$card._id",
           totalQuantity: { $sum: "$quantity" },
           finishes: { $push: { finish: "$finish", quantity: "$quantity", alternativeQuantity: { $ifNull: ["$alternativeQuantity", 0] } } },
           card: { $first: "$card" },
           set: { $first: "$set" },
         },
       },
-      { $sort: { "card.performanceSnapshotAt": -1, "card.publishedAt": -1, "card._id": 1 } },
+      { $sort: { "card.snapshotVersion": -1, "card.performanceSnapshotAt": -1, "card.publishedAt": -1, "card._id": -1 } },
       {
         $group: {
-          _id: "$_id.cardId",
-          totalQuantity: { $sum: "$totalQuantity" },
-          finishGroups: { $push: "$finishes" },
+          _id: { setId: "$card.setId", characterId: "$card.characterId" },
+          totalQuantity: { $first: "$totalQuantity" },
+          finishes: { $first: "$finishes" },
           card: { $first: "$card" },
           set: { $first: "$set" },
           variants: { $push: { card: "$card", set: "$set", finishes: "$finishes", totalQuantity: "$totalQuantity" } },
-          setIds: { $addToSet: "$card.setId" },
-          tierGrades: { $addToSet: "$card.tierGrade" },
-          guildIds: { $addToSet: "$card.guildId" },
-          name: { $first: "$card.name" },
         },
       },
-      ...(Object.keys(characterMatch).length > 0 ? [{ $match: characterMatch }] : []),
-      {
-        $set: {
-          sortCard: representativeConditions.length > 0
-            ? {
-                $arrayElemAt: [
-                  {
-                    $map: {
-                      input: { $filter: { input: "$variants", as: "variant", cond: representativeCondition } },
-                      as: "variant",
-                      in: "$$variant.card",
-                    },
-                  },
-                  0,
-                ],
-              }
-            : "$card",
-        },
-      },
-      { $set: { sortGrade: { $indexOfArray: [[...CCG_TIER_GRADES], "$sortCard.tierGrade"] } } },
-      { $sort: { sortGrade: 1, "sortCard.setNumber": 1, "sortCard.name": 1, _id: 1 } },
+      ...(Object.keys(cardMatch).length > 0 ? [{ $match: cardMatch }] : []),
+      { $set: { sortGrade: { $indexOfArray: [[...CCG_TIER_GRADES], "$card.tierGrade"] } } },
+      { $sort: { sortGrade: 1, "card.setNumber": 1, "card.name": 1, _id: 1 } },
       {
         $facet: {
           items: [{ $skip: (page - 1) * limit }, { $limit: limit }],
           count: [{ $count: "total" }],
         },
       },
-    ]).then((result) => result[0] as unknown as {
+    ]).then((result) => (result[0] ?? { items: [], count: [] }) as unknown as {
       items: Array<{
-        _id: mongoose.Types.ObjectId;
+        _id: { setId: mongoose.Types.ObjectId; characterId: mongoose.Types.ObjectId };
         totalQuantity: number;
-        finishGroups: Array<Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>>;
+        finishes: Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>;
         card: ICcgCard;
         set: ICcgSet;
         variants: Array<{ card: ICcgCard; set: ICcgSet; finishes: Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>; totalQuantity: number }>;
@@ -590,30 +568,15 @@ class CcgService {
     ]);
     return {
       cards: rows.items.map((row) => {
-        const representative = row.variants.find((variant) => (
-          (!setId || String(variant.card.setId) === String(setId))
-          && (!grade || variant.card.tierGrade === grade)
-          && (!guildId || String(variant.card.guildId) === String(guildId))
-        )) ?? row.variants[0];
-        const orderedVariants = [representative, ...row.variants.filter((variant) => String(variant.card._id) !== String(representative.card._id))];
-        const representativeCollectorKey = resolveCollectorKey(representative.card);
+        const representativeCollectorKey = resolveCollectorKey(row.card);
         const alternative = alternativeByCollector.get(representativeCollectorKey);
         const alternativeArtUnlocked = unlockedAlternativeCollectors.has(representativeCollectorKey)
-          && hasApplicableAlternativeArt(alternative, Boolean(representative.card.communityCharacterId));
-        const finishTotals = new Map<string, { finish: CcgFinish; artVariant: CcgArtVariant; quantity: number }>();
-        for (const finishes of row.finishGroups) {
-          for (const ownership of serializeOwnershipRows(finishes, alternativeArtUnlocked)) {
-            const key = `${ownership.finish}:${ownership.artVariant}`;
-            const current = finishTotals.get(key);
-            if (current) current.quantity += ownership.quantity;
-            else finishTotals.set(key, { ...ownership });
-          }
-        }
+          && hasApplicableAlternativeArt(alternative, Boolean(row.card.communityCharacterId));
         return {
-          ...this.serializeCard(representative.card, representative.set, alternative),
-          ownership: Array.from(finishTotals.values()),
+          ...this.serializeCard(row.card, row.set, alternative),
+          ownership: serializeOwnershipRows(row.finishes, alternativeArtUnlocked),
           totalQuantity: row.totalQuantity,
-          variants: orderedVariants.map((variant) => {
+          variants: row.variants.map((variant) => {
             const collectorKey = resolveCollectorKey(variant.card);
             const alternativeArt = alternativeByCollector.get(collectorKey);
             const alternativeArtUnlocked = unlockedAlternativeCollectors.has(collectorKey)
@@ -2512,6 +2475,8 @@ class CcgService {
       id: String(card._id),
       characterId: String(card.characterId),
       setNumber: card.setNumber,
+      snapshotVersion: card.snapshotVersion ?? 1,
+      snapshotKey: card.snapshotKey ?? null,
       name: card.name,
       realm: card.realm,
       region: card.region,

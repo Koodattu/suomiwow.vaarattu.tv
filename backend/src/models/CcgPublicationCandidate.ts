@@ -7,7 +7,7 @@ export interface ICcgPublicationCandidate extends Document {
   characterId: mongoose.Types.ObjectId;
   payload: Record<string, unknown>;
   tierGrade: CcgTierGrade;
-  status: "ready" | "missing_media" | "published";
+  status: "ready" | "missing_media" | "published" | "unchanged";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,7 +19,7 @@ const CcgPublicationCandidateSchema = new Schema<ICcgPublicationCandidate>(
     characterId: { type: Schema.Types.ObjectId, ref: "Character", required: true, index: true },
     payload: { type: Schema.Types.Mixed, required: true },
     tierGrade: { type: String, enum: ["S", "A", "B", "C", "D", "E", "F"], required: true },
-    status: { type: String, enum: ["ready", "missing_media", "published"], required: true, index: true },
+    status: { type: String, enum: ["ready", "missing_media", "published", "unchanged"], required: true, index: true },
   },
   { timestamps: true },
 );

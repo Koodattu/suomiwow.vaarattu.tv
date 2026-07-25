@@ -141,6 +141,14 @@ export default function CardViewer({
   const ownedFinishes = ownership.filter((row) => row.artVariant === artVariant);
   const isOwned = ownership.length > 0;
   const characterHref = `/characters/${encodeURIComponent(displayedCard.realm)}/${encodeURIComponent(displayedCard.name)}?class=${encodeURIComponent(String(displayedCard.classID))}`;
+  const selectVariant = (index: number) => {
+    const variant = variants[index];
+    if (!variant) return;
+    const best = bestOwnedFinish({ ...variant.card, ownership: variant.ownership });
+    setVariantIndex(index);
+    setFinish(best?.finish ?? "standard");
+    setArtVariant(best?.artVariant ?? "standard");
+  };
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -367,30 +375,6 @@ export default function CardViewer({
             </div>
           ) : null}
 
-          {variants.length > 1 ? (
-            <section className={styles.viewerControls} aria-labelledby="ccg-viewer-snapshots">
-              <h3 id="ccg-viewer-snapshots">{t("collection.ownedSnapshots")}</h3>
-              <div>
-                {variants.map((variant, index) => (
-                  <button
-                    type="button"
-                    aria-pressed={variantIndex === index}
-                    key={variant.card.id}
-                    onClick={() => {
-                      const best = bestOwnedFinish({ ...variant.card, ownership: variant.ownership });
-                      setVariantIndex(index);
-                      setFinish(best?.finish ?? "standard");
-                      setArtVariant(best?.artVariant ?? "standard");
-                    }}
-                    className={variantIndex === index ? styles.primaryButton : styles.secondaryButton}
-                  >
-                    {variant.card.set.raidName}
-                  </button>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
           {ownedArtVariants.length > 1 ? (
             <section className={styles.viewerControls} aria-labelledby="ccg-viewer-artwork">
               <h3 id="ccg-viewer-artwork">{t("artwork.label")}</h3>
@@ -418,6 +402,27 @@ export default function CardViewer({
           {isOwned && showFinishControls ? (
             <section className={styles.viewerControls} aria-labelledby="ccg-viewer-finishes">
               <h3 id="ccg-viewer-finishes">{t("finish.label")}</h3>
+              {variants.length > 1 ? (
+                <div className={styles.viewerSnapshotControl}>
+                  <label htmlFor="ccg-viewer-snapshot">{t("collection.ownedSnapshots")}</label>
+                  <select
+                    id="ccg-viewer-snapshot"
+                    className={styles.viewerSnapshotSelect}
+                    value={displayedCard.id}
+                    onChange={(event) => selectVariant(variants.findIndex((variant) => variant.card.id === event.target.value))}
+                  >
+                    {variants.map((variant) => (
+                      <option key={variant.card.id} value={variant.card.id}>
+                        {t("collection.snapshotOption", {
+                          date: SNAPSHOT_DATE_FORMATTER.format(new Date(variant.card.performanceSnapshotAt)),
+                          grade: variant.card.tierGrade,
+                          rarity: t(`rarity.${CCG_RARITY_KEYS[variant.card.tierGrade]}`),
+                        })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               <div>
                 {ownedFinishes.map((row) => (
                   <button
