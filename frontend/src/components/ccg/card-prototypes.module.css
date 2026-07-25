@@ -786,19 +786,6 @@
   padding: 2.4% 1.6%;
 }
 
-.communityStats {
-  grid-template-columns: 1fr;
-  place-items: center;
-}
-
-.communityStats strong {
-  color: color-mix(in srgb, var(--lab-accent) 72%, white);
-  font-size: clamp(0.75rem, 4.2cqw, 1.15rem);
-  font-weight: 850;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
 .stat {
   position: relative;
   display: grid;

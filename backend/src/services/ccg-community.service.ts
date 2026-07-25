@@ -1,12 +1,13 @@
 import mongoose from "mongoose";
 import { CLASSES } from "../config/classes";
 import { CCG_COMMUNITY_SET, CCG_GRADING_VERSION, CCG_POOL_VERSION, CCG_THEME_VERSION, CCG_TIER_GRADES, CcgTierGrade } from "../config/ccg";
-import CcgCard from "../models/CcgCard";
+import CcgCard, { type CcgCommunityScores } from "../models/CcgCard";
 import CcgCommunityCharacter from "../models/CcgCommunityCharacter";
 import CcgSet from "../models/CcgSet";
 import Character from "../models/Character";
 import Guild from "../models/Guild";
 import { createCharacterCollectorKey, createWowCharacterIdentityKey } from "../utils/ccg-identity";
+import { normalizeCommunityScores } from "../utils/ccg-community";
 import { resolveCardCrop } from "../utils/ccg-random";
 import { resolveRole } from "../utils/spec";
 import blizzardService from "./blizzard.service";
@@ -33,6 +34,7 @@ type CreateCommunityCharacterInput = {
 
 type UpdateCommunityCharacterInput = {
   tierGrade?: unknown;
+  scores?: unknown;
   active?: unknown;
   refresh?: unknown;
 };
@@ -55,7 +57,7 @@ function validId(value: string): mongoose.Types.ObjectId {
 }
 
 class CcgCommunityService {
-  private serialize(row: Record<string, any>): Record<string, unknown> {
+  private serialize(row: Record<string, any>, scores?: CcgCommunityScores | null): Record<string, unknown> {
     return {
       id: String(row._id),
       cardId: row.cardId ? String(row.cardId) : null,
@@ -69,6 +71,12 @@ class CcgCommunityService {
       guildName: row.guildName ?? null,
       guildRealm: row.guildRealm ?? null,
       tierGrade: row.tierGrade,
+      scores: {
+        performance: scores?.performance ?? null,
+        mechanics: scores?.mechanics ?? null,
+        combined: scores?.combined ?? null,
+        mythicPlus: scores?.mythicPlus ?? null,
+      },
       linkedCharacterId: row.linkedCharacterId ? String(row.linkedCharacterId) : null,
       avatarUrl: row.avatarUrl ?? null,
       renderUrl: row.renderUrl,
@@ -126,7 +134,12 @@ class CcgCommunityService {
 
   async list(): Promise<Array<Record<string, unknown>>> {
     const rows = await CcgCommunityCharacter.find().sort({ createdAt: -1 }).lean();
-    return rows.map((row) => this.serialize(row));
+    const cardIds = rows.flatMap((row) => row.cardId ? [row.cardId] : []);
+    const cards = cardIds.length > 0
+      ? await CcgCard.find({ _id: { $in: cardIds }, sourcePartition: "community-admin" }).select("_id communityScores").lean()
+      : [];
+    const scoresByCardId = new Map(cards.map((card) => [String(card._id), card.communityScores ?? null]));
+    return rows.map((row) => this.serialize(row, row.cardId ? scoresByCardId.get(String(row.cardId)) : null));
   }
 
   async create(input: CreateCommunityCharacterInput): Promise<Record<string, unknown>> {
@@ -193,6 +206,12 @@ class CcgCommunityService {
       survivalScore: 0,
       combinedScore: 0,
       mythicPlusScore: null,
+      communityScores: {
+        performance: null,
+        mechanics: null,
+        combined: null,
+        mythicPlus: null,
+      },
       tierGrade,
       avatarUrl: media.avatarUrl,
       renderUrl: media.mainRawUrl,
@@ -251,6 +270,12 @@ class CcgCommunityService {
     const cardId = community.cardId;
 
     const tierGrade = input.tierGrade === undefined ? community.tierGrade : validTierGrade(input.tierGrade);
+    let scores: CcgCommunityScores | undefined;
+    try {
+      scores = input.scores === undefined ? undefined : normalizeCommunityScores(input.scores);
+    } catch (error) {
+      throw new CcgCommunityError(400, "invalid_scores", error instanceof Error ? error.message : "Invalid Community metrics");
+    }
     if (input.active !== undefined && typeof input.active !== "boolean") {
       throw new CcgCommunityError(400, "invalid_active_state", "Active must be true or false");
     }
@@ -284,6 +309,7 @@ class CcgCommunityService {
         await community.save({ session });
 
         const cardUpdate: Record<string, unknown> = { tierGrade };
+        if (scores !== undefined) cardUpdate.communityScores = scores;
         if (resolved) {
           Object.assign(cardUpdate, {
             name: resolved.profile.name,
@@ -323,9 +349,9 @@ class CcgCommunityService {
       await session.endSession();
     }
 
-    const updated = await CcgCommunityCharacter.findById(communityId).lean();
+    const updated = (await this.list()).find((row) => row.id === String(communityId));
     if (!updated) throw new CcgCommunityError(404, "community_character_not_found", "Community character not found");
-    return this.serialize(updated);
+    return updated;
   }
 
   async remove(id: string): Promise<Record<string, unknown>> {

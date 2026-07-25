@@ -102,6 +102,7 @@ router.patch(
   adminRoute(async (req) => ({
     character: await ccgCommunityService.update(req.params.id, {
       tierGrade: req.body?.tierGrade,
+      scores: req.body?.scores,
       active: req.body?.active,
       refresh: req.body?.refresh,
     }),

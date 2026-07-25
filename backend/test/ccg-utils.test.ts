@@ -9,7 +9,10 @@ import {
 import {
   hasApplicableAlternativeArt,
   normalizeAlternativeArtFilename,
+  normalizeQuipAudioFilename,
+  normalizeQuipText,
   serializeOwnershipRows,
+  serializeQuip,
 } from "../src/utils/ccg-alternative-art";
 import { emptyFinishPity, finishChanceForCounter, gradeForPercentile, nextFinish, resolveCardCrop, rollArtVariant, rollProtectedFinish } from "../src/utils/ccg-random";
 import { calculateDuplicateProgress, planPackSelections, selectCommunityCard, selectPackCards } from "../src/utils/ccg-pack";
@@ -180,7 +183,7 @@ test("community cards pass a second 50/50 gate after their pool roll", () => {
   assert.equal(selectCommunityCard(9, ["community"], () => acceptedRolls.shift()!), "community");
 });
 
-test("alternative art uses one 50/50 roll and only applies backgrounds to Community cards", () => {
+test("alternative art uses one 1-in-4 roll and only applies backgrounds to Community cards", () => {
   const art = {
     collectorKey: "character:laku",
     characterArtFilename: "laku_clap.png",
@@ -192,8 +195,15 @@ test("alternative art uses one 50/50 roll and only applies backgrounds to Commun
   assert.equal(hasApplicableAlternativeArt({ ...art, characterArtEnabled: false }, false), false);
   assert.equal(hasApplicableAlternativeArt({ ...art, characterArtEnabled: false }, true), true);
   assert.equal(rollArtVariant(true, () => 0), "standard");
-  assert.equal(rollArtVariant(true, () => 1), "alternative");
-  assert.equal(rollArtVariant(false, () => 1), "standard");
+  assert.equal(rollArtVariant(true, () => 1), "standard");
+  assert.equal(rollArtVariant(true, () => 2), "standard");
+  let rollMaximum = 0;
+  assert.equal(rollArtVariant(true, (maximum) => {
+    rollMaximum = maximum;
+    return maximum - 1;
+  }), "alternative");
+  assert.equal(rollMaximum, 4);
+  assert.equal(rollArtVariant(false, () => 3), "standard");
 });
 
 test("legacy ownership stays standard while alternative quantities split exact finish variants", () => {
@@ -212,6 +222,26 @@ test("alternative artwork accepts image filenames but rejects paths", () => {
   assert.equal(normalizeAlternativeArtFilename(""), null);
   assert.throws(() => normalizeAlternativeArtFilename("../laku.png"), /filename only/);
   assert.throws(() => normalizeAlternativeArtFilename("laku.svg"), /filename only/);
+});
+
+test("card quips normalize optional text and serialize safe public audio paths", () => {
+  assert.equal(normalizeQuipText("  We go again.  "), "We go again.");
+  assert.equal(normalizeQuipText(""), null);
+  assert.throws(() => normalizeQuipText("x".repeat(501)), /500 characters/);
+  assert.equal(normalizeQuipAudioFilename(" haisuli.wav "), "haisuli.wav");
+  assert.equal(normalizeQuipAudioFilename(null), null);
+  assert.throws(() => normalizeQuipAudioFilename("../quip.mp3"), /filename only/);
+  assert.throws(() => normalizeQuipAudioFilename("quip.txt"), /filename only/);
+  assert.deepEqual(serializeQuip({
+    collectorKey: "character:test",
+    quipText: "We go again.",
+    quipAudioFilename: "voice line.mp3",
+  }), {
+    text: "We go again.",
+    audioFilename: "voice line.mp3",
+    audioPath: "/ccg/audio/quips/voice%20line.mp3",
+  });
+  assert.equal(serializeQuip({ collectorKey: "character:test" }), null);
 });
 
 test("community identity matches display and slug forms of a realm", () => {

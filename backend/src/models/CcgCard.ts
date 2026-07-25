@@ -1,6 +1,23 @@
 import mongoose, { Document, Schema } from "mongoose";
 import { CcgTierGrade } from "../config/ccg";
 
+export type CcgCommunityScores = {
+  performance: number | null;
+  mechanics: number | null;
+  combined: number | null;
+  mythicPlus: number | null;
+};
+
+const CcgCommunityScoresSchema = new Schema<CcgCommunityScores>(
+  {
+    performance: { type: Number, min: 0, max: 100, default: null },
+    mechanics: { type: Number, min: 0, max: 100, default: null },
+    combined: { type: Number, min: 0, max: 100, default: null },
+    mythicPlus: { type: Number, min: 0, max: 100_000, default: null },
+  },
+  { _id: false },
+);
+
 export interface ICcgCard extends Document {
   setId: mongoose.Types.ObjectId;
   setNumber: number;
@@ -23,6 +40,7 @@ export interface ICcgCard extends Document {
   survivalScore: number;
   combinedScore: number;
   mythicPlusScore?: number | null;
+  communityScores?: CcgCommunityScores | null;
   tierGrade: CcgTierGrade;
   avatarUrl?: string | null;
   renderUrl?: string | null;
@@ -65,6 +83,7 @@ const CcgCardSchema = new Schema<ICcgCard>(
     survivalScore: { type: Number, required: true },
     combinedScore: { type: Number, required: true },
     mythicPlusScore: { type: Number, default: null },
+    communityScores: { type: CcgCommunityScoresSchema, default: undefined },
     tierGrade: { type: String, enum: ["S", "A", "B", "C", "D", "E", "F"], required: true, index: true },
     avatarUrl: { type: String, default: null },
     renderUrl: { type: String, default: null },

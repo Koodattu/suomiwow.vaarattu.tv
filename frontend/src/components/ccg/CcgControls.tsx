@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { FaBullhorn, FaChevronDown, FaGlobe, FaVolumeHigh, FaVolumeXmark } from "react-icons/fa6";
+import { FaBullhorn, FaChevronDown, FaGlobe, FaMicrophoneLines, FaVolumeHigh, FaVolumeXmark } from "react-icons/fa6";
 import {
   CCG_AUDIO_PREFERENCES_EVENT,
   CCG_AUDIO_PREFERENCES_KEY,
@@ -14,8 +14,8 @@ import {
 import { getLocale, LOCALE_CHANGE_EVENT, setLocale, type Locale } from "@/lib/locale";
 import styles from "./ccg.module.css";
 
-type AudioToggleKey = "enabled" | "effectsEnabled" | "announcerEnabled";
-type AudioVolumeKey = "volume" | "effectsVolume" | "announcerVolume";
+type AudioToggleKey = "enabled" | "effectsEnabled" | "announcerEnabled" | "quipsEnabled";
+type AudioVolumeKey = "volume" | "effectsVolume" | "announcerVolume" | "quipsVolume";
 
 export default function CcgControls() {
   const t = useTranslations("ccg.settings");
@@ -82,6 +82,7 @@ export default function CcgControls() {
     { label: t("sound"), toggleKey: "enabled", volumeKey: "volume", icon: FaVolumeHigh },
     { label: t("effects"), toggleKey: "effectsEnabled", volumeKey: "effectsVolume", icon: FaVolumeHigh },
     { label: t("announcer"), toggleKey: "announcerEnabled", volumeKey: "announcerVolume", icon: FaBullhorn },
+    { label: t("quips"), toggleKey: "quipsEnabled", volumeKey: "quipsVolume", icon: FaMicrophoneLines },
   ];
 
   return (

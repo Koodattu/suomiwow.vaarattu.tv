@@ -31,12 +31,16 @@ import CcgPackOpening, { ICcgPackOpening, ICcgPackResult } from "../models/CcgPa
 import CcgPackPool from "../models/CcgPackPool";
 import CcgQualityProgress, { ICcgQualityProgress } from "../models/CcgQualityProgress";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
+import Character from "../models/Character";
 import User from "../models/User";
 import {
   CcgAlternativeArtDefinition,
   hasApplicableAlternativeArt,
   normalizeAlternativeArtFilename,
+  normalizeQuipAudioFilename,
+  normalizeQuipText,
   serializeAlternativeArt,
+  serializeQuip,
   serializeOwnershipRows,
 } from "../utils/ccg-alternative-art";
 import { CcgFinishPity, compareFinish, emptyFinishPity, nextFinish, rollArtVariant, rollProtectedFinish } from "../utils/ccg-random";
@@ -496,11 +500,19 @@ class CcgService {
 
     let characterArtFilename: string | null;
     let backgroundArtFilename: string | null;
+    let quipText: string | null;
+    let quipAudioFilename: string | null;
     try {
       characterArtFilename = normalizeAlternativeArtFilename(input.characterArtFilename);
       backgroundArtFilename = normalizeAlternativeArtFilename(input.backgroundArtFilename);
     } catch (error) {
       throw new CcgServiceError(400, "invalid_art_filename", error instanceof Error ? error.message : "Invalid artwork filename");
+    }
+    try {
+      quipText = normalizeQuipText(input.quipText);
+      quipAudioFilename = normalizeQuipAudioFilename(input.quipAudioFilename);
+    } catch (error) {
+      throw new CcgServiceError(400, "invalid_quip", error instanceof Error ? error.message : "Invalid quip");
     }
     if (typeof input.characterArtEnabled !== "boolean" || typeof input.backgroundArtEnabled !== "boolean") {
       throw new CcgServiceError(400, "invalid_art_state", "Artwork enabled state must be true or false");
@@ -521,9 +533,9 @@ class CcgService {
       throw new CcgServiceError(400, "background_art_filename_required", "Choose a background artwork filename before enabling it");
     }
 
-    if (!characterArtFilename && !backgroundArtFilename && !input.characterArtEnabled && !input.backgroundArtEnabled) {
+    if (!characterArtFilename && !backgroundArtFilename && !input.characterArtEnabled && !input.backgroundArtEnabled && !quipText && !quipAudioFilename) {
       await CcgAlternativeArt.deleteOne({ collectorKey });
-      return { alternativeArt: null, hasCommunityVariant };
+      return { alternativeArt: null, quip: null, hasCommunityVariant };
     }
 
     const alternativeArt = await CcgAlternativeArt.findOneAndUpdate(
@@ -534,11 +546,17 @@ class CcgService {
           characterArtEnabled: input.characterArtEnabled,
           backgroundArtFilename,
           backgroundArtEnabled: input.backgroundArtEnabled,
+          quipText,
+          quipAudioFilename,
         },
       },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     ).lean();
-    return { alternativeArt: serializeAlternativeArt(alternativeArt ?? undefined), hasCommunityVariant };
+    return {
+      alternativeArt: serializeAlternativeArt(alternativeArt ?? undefined),
+      quip: serializeQuip(alternativeArt ?? undefined),
+      hasCommunityVariant,
+    };
   }
 
   async searchCardsForAdmin(rawSearch: unknown, rawLimit: unknown): Promise<Record<string, unknown>> {
@@ -552,6 +570,12 @@ class CcgService {
       const candidates = await CcgCard.find({})
         .select("_id characterId collectorKey name realm guildName publishedAt")
         .lean();
+      const characterIds = Array.from(new Set(candidates.map((card) => String(card.characterId))))
+        .map((id) => new mongoose.Types.ObjectId(id));
+      const currentCharacters = await Character.find({ _id: { $in: characterIds } })
+        .select("_id name")
+        .lean();
+      const currentNameByCharacterId = new Map(currentCharacters.map((character) => [String(character._id), character.name]));
       const candidatesByCharacter = new Map<string, {
         cardIds: mongoose.Types.ObjectId[];
         name: string;
@@ -561,17 +585,21 @@ class CcgService {
       }>();
       for (const card of candidates) {
         const collectorKey = resolveCollectorKey(card);
+        const currentName = currentNameByCharacterId.get(String(card.characterId));
         const searchText = [
           card.name,
           `${card.name} ${card.realm}`,
           card.guildName ?? "",
           card.guildName ? `${card.name} ${card.guildName}` : "",
+          currentName ?? "",
+          currentName ? `${currentName} ${card.realm}` : "",
+          currentName && card.guildName ? `${currentName} ${card.guildName}` : "",
         ].map(normalizeSearchText).filter(Boolean);
         const existing = candidatesByCharacter.get(collectorKey);
         if (!existing) {
           candidatesByCharacter.set(collectorKey, {
             cardIds: [card._id],
-            name: card.name,
+            name: currentName ?? card.name,
             realm: card.realm,
             publishedAt: card.publishedAt,
             searchText: new Set(searchText),
@@ -582,7 +610,7 @@ class CcgService {
         existing.cardIds.push(card._id);
         searchText.forEach((value) => existing.searchText.add(value));
         if (card.publishedAt.getTime() > existing.publishedAt.getTime()) {
-          existing.name = card.name;
+          existing.name = currentName ?? card.name;
           existing.realm = card.realm;
           existing.publishedAt = card.publishedAt;
         }
@@ -625,6 +653,7 @@ class CcgService {
         const representative = variants[0];
         return representative ? [{
           ...this.serializeCard(representative.card, representative.set, alternativeByCollector.get(resolveCollectorKey(representative.card))),
+          name: candidate.name,
           variants: variants.map((variant) => ({
             card: this.serializeCard(variant.card, variant.set, alternativeByCollector.get(resolveCollectorKey(variant.card))),
             ownership: [],
@@ -1437,15 +1466,18 @@ class CcgService {
       metric: card.metric,
       itemLevel: card.itemLevel,
       scores: {
-        performance: set.kind === "community" ? null : card.parseScore,
-        mechanics: set.kind === "community" ? null : card.survivalScore,
-        combined: set.kind === "community" ? null : card.combinedScore,
-        mythicPlus: typeof card.mythicPlusScore === "number" && card.mythicPlusScore > 0 ? card.mythicPlusScore : null,
+        performance: set.kind === "community" ? card.communityScores?.performance ?? null : card.parseScore,
+        mechanics: set.kind === "community" ? card.communityScores?.mechanics ?? null : card.survivalScore,
+        combined: set.kind === "community" ? card.communityScores?.combined ?? null : card.combinedScore,
+        mythicPlus: set.kind === "community"
+          ? card.communityScores?.mythicPlus ?? null
+          : typeof card.mythicPlusScore === "number" && card.mythicPlusScore > 0 ? card.mythicPlusScore : null,
       },
       tierGrade: card.tierGrade,
       avatarUrl: card.avatarUrl ?? null,
       renderUrl: card.renderUrl ?? null,
       alternativeArt: serializeAlternativeArt(alternativeArt),
+      quip: serializeQuip(alternativeArt),
       backgroundCrop: card.backgroundCrop,
       performanceSnapshotAt: card.performanceSnapshotAt,
       mediaCapturedAt: card.mediaCapturedAt ?? null,

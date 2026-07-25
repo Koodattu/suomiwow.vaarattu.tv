@@ -75,6 +75,7 @@
       "sound": "Äänet",
       "effects": "Äänitehosteet",
       "announcer": "Kuuluttaja",
+      "quips": "Repliikit",
       "muteAll": "Mykistä kaikki äänet",
       "unmuteAll": "Ota äänet käyttöön",
       "enable": "Ota käyttöön: {channel}",
@@ -320,7 +321,8 @@
     "mechanics": "Mekaniikat",
     "cardNumber": "Kortti #{number}",
     "viewCharacter": "Näytä {name}",
-    "inspectCloseHint": "Sulje kortti painamalla Esc tai valitsemalla tausta."
+    "inspectCloseHint": "Sulje kortti painamalla Esc tai valitsemalla tausta.",
+    "playQuip": "Toista hahmon {name} repliikki"
   },
   "infoDialog": {
     "title": "Tietoa Sivustosta",
@@ -806,7 +808,7 @@
       "sections": {
         "label": "CCG-hallinnan osiot",
         "studio": "Korttistudio",
-        "alternativeArt": "Vaihtoehtoinen kuvitus",
+        "alternativeArt": "Kuvitus ja repliikit",
         "community": "Community",
         "sets": "Raidisetit"
       },
@@ -840,8 +842,8 @@
         }
       },
       "alternativeArt": {
-        "title": "Vaihtoehtoinen kuvitus",
-        "description": "Määritä hahmolle yksi vaihtoehtoinen ulkoasu. Hahmokuva koskee kaikkia raidiversioita ja taustakuva vain Community-kortteja. Kelvollinen kortti käyttää yhtä 50/50-kuvitusarvontaa.",
+        "title": "Vaihtoehtoinen kuvitus ja repliikit",
+        "description": "Määritä hahmolle yksi vaihtoehtoinen ulkoasu ja valinnainen repliikki. Hahmokuva koskee kaikkia raidiversioita, taustakuva vain Community-kortteja ja kelvollinen kortti käyttää yhtä 1/4-kuvitusarvontaa.",
         "search": "Etsi CCG-hahmo",
         "searchPlaceholder": "Hahmo, realm tai kilta",
         "loading": "Etsitään hahmoja…",
@@ -851,7 +853,7 @@
         "variants": "{count, plural, one {# korttiversio} other {# korttiversiota}}",
         "communityEligible": "Community-kelpoinen",
         "raidOnly": "Vain raidikortteja",
-        "selectCharacter": "Valitse hahmo, jolle haluat määrittää vaihtoehtoisen kuvituksen.",
+        "selectCharacter": "Valitse hahmo, jolle haluat määrittää kuvituksen ja repliikin.",
         "filename": "Kuvatiedoston nimi",
         "invalidFilename": "Anna PNG-, JPG-, WebP- tai AVIF-tiedoston nimi ilman hakemistopolkua.",
         "character": {
@@ -863,16 +865,24 @@
           "help": "Korvaa Community-kortin taustan, kun sama vaihtoehtoinen arvonta voittaa.",
           "unavailable": "Hahmolla ei ole Community-korttia, joten vaihtoehtoista taustakuvaa ei voi määrittää."
         },
+        "quip": {
+          "title": "Repliikki",
+          "help": "Sama valinnainen sitaatti ja äänirepliikki koskevat hahmon kaikkia CCG-versioita. Sitaatti tallennetaan vain kerran eikä sitä käännetä.",
+          "quote": "Sitaatti",
+          "quotePlaceholder": "Kirjoita korttia tarkasteltaessa näytettävä sitaatti",
+          "audioFilename": "Äänirepliikin tiedostonimi",
+          "invalidFilename": "Anna MP3-, WAV-, OGG-, M4A- tai AAC-tiedoston nimi ilman hakemistopolkua."
+        },
         "asset": {
           "idle": "Tiedostoa ei ole valittu",
           "loading": "Tarkistetaan tiedostoa…",
           "ready": "Tiedosto löytyi",
           "error": "Tiedostoa ei löytynyt julkisesta CCG-hakemistosta"
         },
-        "save": "Tallenna vaihtoehtoinen kuvitus",
+        "save": "Tallenna kuvitus ja repliikki",
         "saving": "Tallennetaan…",
-        "saved": "Hahmon {name} vaihtoehtoinen kuvitus tallennettiin.",
-        "saveError": "Vaihtoehtoista kuvitusta ei voitu tallentaa.",
+        "saved": "Hahmon {name} kuvitus ja repliikki tallennettiin.",
+        "saveError": "Kuvitusta ja repliikkiä ei voitu tallentaa.",
         "previewVariant": "Esikatseltava korttiversio",
         "previewAlternative": "Esikatselu näyttää yhden vaihtoehtoisen yhdistelmän, joka voidaan löytää pakoista.",
         "previewRegular": "Ota vähintään yksi tähän korttiin sopiva kuva käyttöön nähdäksesi vaihtoehtoisen yhdistelmän.",
@@ -880,7 +890,7 @@
       },
       "community": {
         "addTitle": "Lisää Community-hahmo",
-        "description": "Julkaise Blizzard-hahmo suoraan Community-kansioon. Community-kortit voivat tulla sekä Current- että Legacy-pakoista pienemmällä painolla, eikä niillä käytetä Warcraft Logs -mittareita.",
+        "description": "Julkaise Blizzard-hahmo suoraan Community-kansioon. Community-kortit voivat tulla sekä Current- että Legacy-pakoista pienemmällä painolla, ja niissä käytetään tähän syötettyjä mittareita Warcraft Logsin sijaan.",
         "cards": "{count} korttia",
         "name": "Hahmo",
         "realm": "Realmin tunniste",
@@ -890,7 +900,7 @@
         "adding": "Haetaan ja julkaistaan…",
         "added": "{name}-{realm} lisättiin Community-settiin.",
         "manageTitle": "Community-hahmot",
-        "manageDescription": "Harvinaisuusmuutokset ja Blizzard-päivitykset päivittävät aktiivisen Community-kortin.",
+        "manageDescription": "Harvinaisuus, käsin syötetyt mittarit ja Blizzard-päivitykset päivittävät aktiivisen Community-kortin.",
         "search": "Etsi Community-hahmoa",
         "save": "Tallenna",
         "saved": "{name} tallennettiin.",
@@ -905,6 +915,9 @@
         "active": "Aktiivinen",
         "inactive": "Poistettu",
         "rarityFor": "Hahmon {name} harvinaisuus",
+        "metrics": "Kortin mittarit",
+        "metricsHelp": "Jätä arvo tyhjäksi näyttääksesi kortissa viivan. Suoritus-, mekaniikka- ja yhdistetty mittari hyväksyvät arvot 0–100.",
+        "invalidMetric": "Käytä arvoja 0–100 tai Mythic+-mittarissa 0–100 000.",
         "linked": "Yhdistetty tietokantaan",
         "blizzardOnly": "Vain Blizzard",
         "noGuild": "Ei kiltaa",

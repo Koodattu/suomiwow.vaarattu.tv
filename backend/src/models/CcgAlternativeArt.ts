@@ -6,6 +6,8 @@ export interface ICcgAlternativeArt extends Document {
   characterArtEnabled: boolean;
   backgroundArtFilename?: string | null;
   backgroundArtEnabled: boolean;
+  quipText?: string | null;
+  quipAudioFilename?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +19,8 @@ const CcgAlternativeArtSchema = new Schema<ICcgAlternativeArt>(
     characterArtEnabled: { type: Boolean, required: true, default: false },
     backgroundArtFilename: { type: String, default: null },
     backgroundArtEnabled: { type: Boolean, required: true, default: false },
+    quipText: { type: String, default: null },
+    quipAudioFilename: { type: String, default: null },
   },
   { timestamps: true },
 );

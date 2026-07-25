@@ -14,9 +14,9 @@ export type CcgResolvedCrop = { x: number; y: number; scale: number };
 
 export function rollArtVariant(hasAlternative: boolean, random: (maximum: number) => number = randomInt): CcgArtVariant {
   if (!hasAlternative) return "standard";
-  const roll = random(2);
-  if (!Number.isInteger(roll) || roll < 0 || roll >= 2) throw new Error("Random source returned an out-of-range value");
-  return roll === 0 ? "standard" : "alternative";
+  const roll = random(4);
+  if (!Number.isInteger(roll) || roll < 0 || roll >= 4) throw new Error("Random source returned an out-of-range value");
+  return roll === 3 ? "alternative" : "standard";
 }
 
 export function gradeForPercentile(index: number, populationSize: number): CcgTierGrade {

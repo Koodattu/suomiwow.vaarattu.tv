@@ -75,6 +75,7 @@
       "sound": "Sound",
       "effects": "Sound effects",
       "announcer": "Announcer",
+      "quips": "Quips",
       "muteAll": "Mute all audio",
       "unmuteAll": "Enable audio",
       "enable": "Enable {channel}",
@@ -320,7 +321,8 @@
     "mechanics": "Mechanics",
     "cardNumber": "Card #{number}",
     "viewCharacter": "View {name}",
-    "inspectCloseHint": "Press Escape or select the background to close the card."
+    "inspectCloseHint": "Press Escape or select the background to close the card.",
+    "playQuip": "Play {name}'s quip"
   },
   "infoDialog": {
     "title": "About This Site",
@@ -806,7 +808,7 @@
       "sections": {
         "label": "CCG administration sections",
         "studio": "Card studio",
-        "alternativeArt": "Alternative art",
+        "alternativeArt": "Artwork & quips",
         "community": "Community",
         "sets": "Raid sets"
       },
@@ -840,8 +842,8 @@
         }
       },
       "alternativeArt": {
-        "title": "Alternative artwork",
-        "description": "Configure one alternative look per character. Character art follows every raid snapshot, while backgrounds only apply to Community cards. Eligible pulls use one 50/50 artwork roll.",
+        "title": "Alternative artwork & quips",
+        "description": "Configure one alternative look and one optional quip per character. Character art follows every raid snapshot, backgrounds only apply to Community cards, and eligible pulls use one 1-in-4 artwork roll.",
         "search": "Find a CCG character",
         "searchPlaceholder": "Character, realm, or guild",
         "loading": "Searching characters…",
@@ -851,7 +853,7 @@
         "variants": "{count, plural, one {# card version} other {# card versions}}",
         "communityEligible": "Community eligible",
         "raidOnly": "Raid cards only",
-        "selectCharacter": "Select a character to configure alternative artwork.",
+        "selectCharacter": "Select a character to configure artwork and a quip.",
         "filename": "Image filename",
         "invalidFilename": "Enter a PNG, JPG, WebP, or AVIF filename without a directory path.",
         "character": {
@@ -863,16 +865,24 @@
           "help": "Replaces the background on the Community card when the same alternative roll wins.",
           "unavailable": "This character has no Community card. Alternative backgrounds cannot be configured."
         },
+        "quip": {
+          "title": "Quip",
+          "help": "The same optional quote and voice line follow every CCG version of this character. Quote text is stored once and is not translated.",
+          "quote": "Quote",
+          "quotePlaceholder": "Write the quote shown when the card is inspected",
+          "audioFilename": "Voice line filename",
+          "invalidFilename": "Enter an MP3, WAV, OGG, M4A, or AAC filename without a directory path."
+        },
         "asset": {
           "idle": "No file selected",
           "loading": "Checking file…",
           "ready": "File found",
           "error": "File was not found in the public CCG directory"
         },
-        "save": "Save alternative artwork",
+        "save": "Save artwork & quip",
         "saving": "Saving…",
-        "saved": "Saved alternative artwork for {name}.",
-        "saveError": "Alternative artwork could not be saved.",
+        "saved": "Saved artwork and quip for {name}.",
+        "saveError": "Artwork and quip could not be saved.",
         "previewVariant": "Preview card version",
         "previewAlternative": "This preview shows the single alternative combination that can be found from packs.",
         "previewRegular": "Enable at least one applicable asset to preview the alternative combination.",
@@ -880,7 +890,7 @@
       },
       "community": {
         "addTitle": "Add Community character",
-        "description": "Publish a Blizzard character directly into the Community binder. Community cards can appear in both Current and Legacy packs at reduced weight and do not use Warcraft Logs metrics.",
+        "description": "Publish a Blizzard character directly into the Community binder. Community cards can appear in both Current and Legacy packs at reduced weight and use metrics entered here instead of Warcraft Logs.",
         "cards": "{count} cards",
         "name": "Character",
         "realm": "Realm slug",
@@ -890,7 +900,7 @@
         "adding": "Fetching and publishing…",
         "added": "Added {name}-{realm} to the Community set.",
         "manageTitle": "Community roster",
-        "manageDescription": "Rarity changes and Blizzard refreshes update the active Community card.",
+        "manageDescription": "Rarity, manual metrics, and Blizzard refreshes update the active Community card.",
         "search": "Search Community",
         "save": "Save",
         "saved": "Saved {name}.",
@@ -905,6 +915,9 @@
         "active": "Active",
         "inactive": "Removed",
         "rarityFor": "Rarity for {name}",
+        "metrics": "Manual card metrics",
+        "metricsHelp": "Leave a value blank to show a dash on the card. Performance, mechanics, and combined accept 0–100.",
+        "invalidMetric": "Use values from 0–100, or 0–100,000 for Mythic+.",
         "linked": "Database linked",
         "blizzardOnly": "Blizzard only",
         "noGuild": "No guild",

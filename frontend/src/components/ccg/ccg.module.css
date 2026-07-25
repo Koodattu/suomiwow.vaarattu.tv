@@ -2523,6 +2523,67 @@
   line-height: 1.45;
 }
 
+.viewerQuip {
+  display: flex;
+  max-width: 26rem;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.viewerQuip blockquote {
+  min-width: 0;
+  flex: 1;
+  color: #d5deec;
+  font-size: 0.9rem;
+  font-style: italic;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  white-space: pre-line;
+}
+
+.viewerQuipButton {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 2.5rem;
+  place-items: center;
+  border: 0;
+  border-radius: 0.5rem;
+  background: rgba(17, 39, 69, 0.86);
+  color: #72ddff;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(125, 220, 255, 0.22);
+  transition-property: background-color, color, transform, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+
+.viewerQuipButton:hover {
+  background: rgba(24, 61, 99, 0.94);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(125, 220, 255, 0.38);
+}
+
+.viewerQuipButton:active {
+  transform: scale(0.96);
+}
+
+.viewerQuipButton:focus-visible {
+  outline: 2px solid #7ddcff;
+  outline-offset: 2px;
+}
+
+.viewerQuipButton > svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.viewerQuip + .viewerCharacterLink {
+  margin-top: 1rem;
+}
+
 .viewerCharacterLink {
   margin-top: 1.35rem;
 }
@@ -2767,6 +2828,7 @@
   .viewerBackdrop::before,
   .viewerCardMotion,
   .viewerInfo,
+  .viewerQuipButton,
   .accountTrigger > svg,
   .shellUtilityButton,
   .audioRowToggle,

@@ -1918,6 +1918,12 @@ export type CcgAlternativeArt = {
   backgroundArtEnabled: boolean;
 };
 
+export type CcgQuip = {
+  text: string | null;
+  audioFilename: string | null;
+  audioPath: string | null;
+};
+
 export type CcgCard = {
   id: string;
   characterId: string;
@@ -1938,6 +1944,7 @@ export type CcgCard = {
   avatarUrl: string | null;
   renderUrl: string | null;
   alternativeArt: CcgAlternativeArt | null;
+  quip: CcgQuip | null;
   backgroundCrop: { x: number; y: number; scale: number };
   performanceSnapshotAt: string;
   mediaCapturedAt: string | null;
@@ -2052,6 +2059,7 @@ export type CcgAdminCommunityCharacter = {
   guildName: string | null;
   guildRealm: string | null;
   tierGrade: CcgTierGrade;
+  scores: { performance: number | null; mechanics: number | null; combined: number | null; mythicPlus: number | null };
   linkedCharacterId: string | null;
   avatarUrl: string | null;
   renderUrl: string;
@@ -2067,6 +2075,7 @@ export type CcgAdminCardSearchResponse = {
 
 export type CcgAdminAlternativeArtResponse = {
   alternativeArt: CcgAlternativeArt | null;
+  quip: CcgQuip | null;
   hasCommunityVariant: boolean;
 };
 

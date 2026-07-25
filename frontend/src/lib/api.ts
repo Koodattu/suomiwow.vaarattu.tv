@@ -313,7 +313,12 @@ export const api = {
 
   async updateAdminCcgCommunityCharacter(
     characterId: string,
-    input: { tierGrade?: CcgTierGrade; active?: boolean; refresh?: boolean },
+    input: {
+      tierGrade?: CcgTierGrade;
+      scores?: { performance: number | null; mechanics: number | null; combined: number | null; mythicPlus: number | null };
+      active?: boolean;
+      refresh?: boolean;
+    },
   ): Promise<{ character: CcgAdminCommunityCharacter }> {
     const response = await fetch(`${API_URL}/api/admin/ccg/community/${encodeURIComponent(characterId)}`, {
       method: "PATCH",
@@ -348,6 +353,8 @@ export const api = {
       characterArtEnabled: boolean;
       backgroundArtFilename: string | null;
       backgroundArtEnabled: boolean;
+      quipText: string | null;
+      quipAudioFilename: string | null;
     },
   ): Promise<CcgAdminAlternativeArtResponse> {
     const response = await fetch(`${API_URL}/api/admin/ccg/cards/${encodeURIComponent(cardId)}/alternative-art`, {
@@ -356,7 +363,7 @@ export const api = {
       credentials: "include",
       body: JSON.stringify(input),
     });
-    if (!response.ok) throw await buildApiError(response, "Failed to update alternative artwork");
+    if (!response.ok) throw await buildApiError(response, "Failed to update card customization");
     return response.json();
   },
 

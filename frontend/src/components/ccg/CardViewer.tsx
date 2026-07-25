@@ -5,9 +5,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { flushSync } from "react-dom";
 import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
+import { FaVolumeHigh } from "react-icons/fa6";
 import type { CcgArtVariant, CcgCard, CcgFinish } from "@/types";
 import { bestOwnedFinish, CCG_RARITY_KEYS } from "@/lib/ccg";
-import { playCcgInspectSound } from "@/lib/ccg-audio";
+import { playCcgInspectSound, playCcgQuip } from "@/lib/ccg-audio";
 import { formatRealmName } from "@/lib/utils";
 import CollectibleCard from "./CollectibleCard";
 import styles from "./ccg.module.css";
@@ -121,6 +122,12 @@ export default function CardViewer({
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+
+  useEffect(() => {
+    if (!card.quip?.audioPath) return;
+    const timer = window.setTimeout(() => playCcgQuip(card.quip?.audioPath), sharedTransition ? 240 : 360);
+    return () => window.clearTimeout(timer);
+  }, [card.quip?.audioPath, sharedTransition]);
 
   const setOriginTransform = useCallback(() => {
     const motionElement = cardMotionRef.current;
@@ -285,6 +292,23 @@ export default function CardViewer({
           <h2>{displayedCard.name}</h2>
           <p className={styles.viewerIdentity}>{displayedCard.guildName ? `<${displayedCard.guildName}> · ` : ""}{formatRealmName(displayedCard.realm)}</p>
 
+          {displayedCard.quip ? (
+            <div className={styles.viewerQuip}>
+              {displayedCard.quip.text ? <blockquote>{displayedCard.quip.text}</blockquote> : null}
+              {displayedCard.quip.audioPath ? (
+                <button
+                  type="button"
+                  className={styles.viewerQuipButton}
+                  onClick={() => playCcgQuip(displayedCard.quip?.audioPath)}
+                  aria-label={t("playQuip", { name: displayedCard.name })}
+                  title={t("playQuip", { name: displayedCard.name })}
+                >
+                  <FaVolumeHigh aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
           <Link href={characterHref} className={`${styles.primaryButton} ${styles.viewerCharacterLink}`}>
             {t("viewCharacter", { name: `@${displayedCard.name}` })}
           </Link>
@@ -361,16 +385,11 @@ export default function CardViewer({
           <dl className={styles.viewerFacts}>
             <div><dt>{t("snapshot")}</dt><dd>{new Date(displayedCard.performanceSnapshotAt).toLocaleDateString(locale)}</dd></div>
             <div><dt>{t("collection.rarity")}</dt><dd>{t(`rarity.${CCG_RARITY_KEYS[displayedCard.tierGrade]}`)}</dd></div>
-            {displayedCard.set.kind === "community" ? (
-              <div><dt>{t("cardType")}</dt><dd>{t("communityCard")}</dd></div>
-            ) : (
-              <>
-                <div><dt>{t(displayedCard.role === "healer" ? "score.healing" : "score.damage")}</dt><dd>{score(displayedCard.scores.performance)}</dd></div>
-                <div><dt>{t("score.mechanics")}</dt><dd>{score(displayedCard.scores.mechanics)}</dd></div>
-                <div><dt>{t("score.combined")}</dt><dd>{score(displayedCard.scores.combined)}</dd></div>
-                <div><dt>{t("score.mythicPlus")}</dt><dd>{score(displayedCard.scores.mythicPlus)}</dd></div>
-              </>
-            )}
+            {displayedCard.set.kind === "community" ? <div><dt>{t("cardType")}</dt><dd>{t("communityCard")}</dd></div> : null}
+            <div><dt>{t(displayedCard.role === "healer" ? "score.healing" : "score.damage")}</dt><dd>{score(displayedCard.scores.performance)}</dd></div>
+            <div><dt>{t("score.mechanics")}</dt><dd>{score(displayedCard.scores.mechanics)}</dd></div>
+            <div><dt>{t("score.combined")}</dt><dd>{score(displayedCard.scores.combined)}</dd></div>
+            <div><dt>{t("score.mythicPlus")}</dt><dd>{score(displayedCard.scores.mythicPlus)}</dd></div>
           </dl>
         </div>
       </div>

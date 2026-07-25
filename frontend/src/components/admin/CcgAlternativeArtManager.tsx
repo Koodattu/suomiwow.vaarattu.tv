@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import { api } from "@/lib/api";
 import { formatRealmName } from "@/lib/utils";
-import type { CcgAlternativeArt, CcgCard } from "@/types";
+import type { CcgAlternativeArt, CcgCard, CcgQuip } from "@/types";
 
 type Props = {
   onError: (message: string) => void;
@@ -17,6 +17,8 @@ type Draft = {
   characterArtEnabled: boolean;
   backgroundArtFilename: string;
   backgroundArtEnabled: boolean;
+  quipText: string;
+  quipAudioFilename: string;
 };
 
 type AssetState = "idle" | "loading" | "ready" | "error";
@@ -26,8 +28,11 @@ const emptyDraft: Draft = {
   characterArtEnabled: false,
   backgroundArtFilename: "",
   backgroundArtEnabled: false,
+  quipText: "",
+  quipAudioFilename: "",
 };
-const filenamePattern = /^[a-zA-Z0-9][a-zA-Z0-9 _.()-]*\.(?:avif|jpe?g|png|webp)$/i;
+const imageFilenamePattern = /^[a-zA-Z0-9][a-zA-Z0-9 _.()-]*\.(?:avif|jpe?g|png|webp)$/i;
+const audioFilenamePattern = /^[a-zA-Z0-9][a-zA-Z0-9 _.()-]*\.(?:aac|m4a|mp3|ogg|wav)$/i;
 const fieldClass = "min-h-10 w-full rounded-md border border-white/10 bg-gray-950/75 px-3 text-sm text-white outline-none transition-colors placeholder:text-gray-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50";
 const primaryButton = "min-h-10 rounded-md bg-amber-600 px-4 py-2 text-sm font-bold text-white transition-transform duration-150 ease-out hover:bg-amber-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -36,23 +41,30 @@ function assetPath(kind: "character" | "background", filename: string): string |
   return trimmed ? `/ccg/alternative/${kind}/${encodeURIComponent(trimmed)}` : null;
 }
 
-function draftFromAlternativeArt(alternativeArt: CcgAlternativeArt | null): Draft {
-  if (!alternativeArt) return emptyDraft;
+function quipAudioPath(filename: string): string | null {
+  const trimmed = filename.trim();
+  return trimmed ? `/ccg/audio/quips/${encodeURIComponent(trimmed)}` : null;
+}
+
+function draftFromCustomization(alternativeArt: CcgAlternativeArt | null, quip: CcgQuip | null): Draft {
   return {
-    characterArtFilename: alternativeArt.characterArtFilename ?? "",
-    characterArtEnabled: alternativeArt.characterArtEnabled,
-    backgroundArtFilename: alternativeArt.backgroundArtFilename ?? "",
-    backgroundArtEnabled: alternativeArt.backgroundArtEnabled,
+    characterArtFilename: alternativeArt?.characterArtFilename ?? "",
+    characterArtEnabled: alternativeArt?.characterArtEnabled ?? false,
+    backgroundArtFilename: alternativeArt?.backgroundArtFilename ?? "",
+    backgroundArtEnabled: alternativeArt?.backgroundArtEnabled ?? false,
+    quipText: quip?.text ?? "",
+    quipAudioFilename: quip?.audioFilename ?? "",
   };
 }
 
-function withAlternativeArt(card: CcgCard, alternativeArt: CcgAlternativeArt | null): CcgCard {
+function withCustomization(card: CcgCard, alternativeArt: CcgAlternativeArt | null, quip: CcgQuip | null): CcgCard {
   return {
     ...card,
     alternativeArt,
+    quip,
     variants: card.variants?.map((variant) => ({
       ...variant,
-      card: { ...variant.card, alternativeArt },
+      card: { ...variant.card, alternativeArt, quip },
     })),
   };
 }
@@ -68,6 +80,7 @@ export default function CcgAlternativeArtManager({ onError, onNotice }: Props) {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [characterAssetState, setCharacterAssetState] = useState<AssetState>("idle");
   const [backgroundAssetState, setBackgroundAssetState] = useState<AssetState>("idle");
+  const [quipAssetState, setQuipAssetState] = useState<AssetState>("idle");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -122,15 +135,18 @@ export default function CcgAlternativeArtManager({ onError, onNotice }: Props) {
       setSelectedVariantId("");
       return;
     }
-    setDraft(draftFromAlternativeArt(selectedCard.alternativeArt));
+    setDraft(draftFromCustomization(selectedCard.alternativeArt, selectedCard.quip));
     const communityVariant = selectedCard.variants?.find((variant) => variant.card.set.kind === "community")?.card;
     setSelectedVariantId((selectedCard.alternativeArt?.backgroundArtEnabled && communityVariant ? communityVariant : variants[0])?.id ?? "");
   }, [selectedCard, variants]);
 
-  const characterFilenameValid = !draft.characterArtFilename.trim() || filenamePattern.test(draft.characterArtFilename.trim());
-  const backgroundFilenameValid = !draft.backgroundArtFilename.trim() || filenamePattern.test(draft.backgroundArtFilename.trim());
+  const characterFilenameValid = !draft.characterArtFilename.trim() || imageFilenamePattern.test(draft.characterArtFilename.trim());
+  const backgroundFilenameValid = !draft.backgroundArtFilename.trim() || imageFilenamePattern.test(draft.backgroundArtFilename.trim());
+  const quipFilenameValid = !draft.quipAudioFilename.trim() || audioFilenamePattern.test(draft.quipAudioFilename.trim());
+  const quipTextValid = draft.quipText.trim().length <= 500;
   const characterPath = characterFilenameValid ? assetPath("character", draft.characterArtFilename) : null;
   const backgroundPath = backgroundFilenameValid ? assetPath("background", draft.backgroundArtFilename) : null;
+  const quipPath = quipFilenameValid ? quipAudioPath(draft.quipAudioFilename) : null;
 
   useEffect(() => {
     setCharacterAssetState(characterPath ? "loading" : "idle");
@@ -138,12 +154,27 @@ export default function CcgAlternativeArtManager({ onError, onNotice }: Props) {
   useEffect(() => {
     setBackgroundAssetState(backgroundPath ? "loading" : "idle");
   }, [backgroundPath]);
+  useEffect(() => {
+    setQuipAssetState(quipPath ? "loading" : "idle");
+  }, [quipPath]);
 
-  const savedDraft = draftFromAlternativeArt(selectedCard?.alternativeArt ?? null);
+  const savedDraft = draftFromCustomization(selectedCard?.alternativeArt ?? null, selectedCard?.quip ?? null);
   const changed = JSON.stringify(draft) !== JSON.stringify(savedDraft);
   const characterReady = !draft.characterArtEnabled || (characterFilenameValid && characterAssetState === "ready");
   const backgroundReady = !draft.backgroundArtEnabled || (hasCommunityVariant && backgroundFilenameValid && backgroundAssetState === "ready");
-  const canSave = Boolean(selectedCard && changed && characterFilenameValid && backgroundFilenameValid && characterReady && backgroundReady && !saving);
+  const quipReady = !draft.quipAudioFilename.trim() || (quipFilenameValid && quipAssetState === "ready");
+  const canSave = Boolean(
+    selectedCard
+    && changed
+    && characterFilenameValid
+    && backgroundFilenameValid
+    && quipFilenameValid
+    && quipTextValid
+    && characterReady
+    && backgroundReady
+    && quipReady
+    && !saving,
+  );
   const previewAlternativeArt: CcgAlternativeArt = {
     characterArtFilename: draft.characterArtFilename.trim() || null,
     characterArtPath: draft.characterArtEnabled ? characterPath : null,
@@ -167,10 +198,12 @@ export default function CcgAlternativeArtManager({ onError, onNotice }: Props) {
         characterArtEnabled: draft.characterArtEnabled,
         backgroundArtFilename: draft.backgroundArtFilename.trim() || null,
         backgroundArtEnabled: draft.backgroundArtEnabled,
+        quipText: draft.quipText.trim() || null,
+        quipAudioFilename: draft.quipAudioFilename.trim() || null,
       });
-      const updatedCard = withAlternativeArt(selectedCard, result.alternativeArt);
+      const updatedCard = withCustomization(selectedCard, result.alternativeArt, result.quip);
       setSelectedCard(updatedCard);
-      setCards((current) => current.map((card) => card.id === selectedCard.id ? withAlternativeArt(card, result.alternativeArt) : card));
+      setCards((current) => current.map((card) => card.id === selectedCard.id ? withCustomization(card, result.alternativeArt, result.quip) : card));
       onNotice(t("saved", { name: selectedCard.name }));
     } catch (error) {
       onError(error instanceof Error ? error.message : t("saveError"));
@@ -224,7 +257,7 @@ export default function CcgAlternativeArtManager({ onError, onNotice }: Props) {
                     >
                       <span className="flex items-center justify-between gap-3">
                         <strong className="truncate text-sm">{card.name} <span className="font-medium text-gray-500">· {formatRealmName(card.realm)}</span></strong>
-                        {card.alternativeArt?.characterArtEnabled || card.alternativeArt?.backgroundArtEnabled ? (
+                        {card.alternativeArt?.characterArtEnabled || card.alternativeArt?.backgroundArtEnabled || card.quip ? (
                           <span className="shrink-0 rounded-full bg-amber-950/80 px-2 py-0.5 text-[.65rem] font-semibold text-amber-200">{t("configured")}</span>
                         ) : null}
                       </span>
@@ -332,6 +365,54 @@ export default function CcgAlternativeArtManager({ onError, onNotice }: Props) {
                   />
                   <span className={`text-xs ${backgroundAssetState === "error" ? "text-red-300" : backgroundAssetState === "ready" ? "text-emerald-300" : "text-gray-500"}`}>
                     {t(`asset.${backgroundAssetState}`)}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="rounded-lg bg-gray-950/45 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]">
+              <h4 className="text-sm font-semibold text-gray-200 text-balance">{t("quip.title")}</h4>
+              <p className="mt-1 text-xs leading-5 text-gray-500 text-pretty">{t("quip.help")}</p>
+              <label className="mt-3 grid gap-1.5 text-xs font-semibold text-gray-400">
+                <span className="flex items-baseline justify-between gap-3">
+                  <span>{t("quip.quote")}</span>
+                  <span className="font-normal text-gray-600 tabular-nums">{draft.quipText.length}/500</span>
+                </span>
+                <textarea
+                  value={draft.quipText}
+                  onChange={(event) => setDraft((current) => ({ ...current, quipText: event.target.value }))}
+                  className={`${fieldClass} min-h-24 resize-y py-2.5 leading-5`}
+                  maxLength={500}
+                  placeholder={t("quip.quotePlaceholder")}
+                />
+              </label>
+              <label className="mt-3 grid gap-1.5 text-xs font-semibold text-gray-400">
+                {t("quip.audioFilename")}
+                <span className="flex min-w-0 overflow-hidden rounded-md border border-white/10 bg-gray-950/75 focus-within:border-cyan-400/70 focus-within:ring-2 focus-within:ring-cyan-400/15">
+                  <span className="hidden shrink-0 items-center bg-white/4 px-3 font-mono text-[.68rem] font-normal text-gray-500 sm:flex">/ccg/audio/quips/</span>
+                  <input
+                    value={draft.quipAudioFilename}
+                    onChange={(event) => setDraft((current) => ({ ...current, quipAudioFilename: event.target.value }))}
+                    className="min-h-10 min-w-0 flex-1 bg-transparent px-3 text-sm text-white outline-none placeholder:text-gray-600"
+                    placeholder="tuhero.mp3"
+                    autoComplete="off"
+                  />
+                </span>
+              </label>
+              {!quipFilenameValid ? <p className="mt-2 text-xs text-red-300">{t("quip.invalidFilename")}</p> : null}
+              {quipPath ? (
+                <div className="mt-3 text-xs">
+                  <audio
+                    key={quipPath}
+                    src={quipPath}
+                    preload="metadata"
+                    className="hidden"
+                    aria-hidden="true"
+                    onLoadedMetadata={() => setQuipAssetState("ready")}
+                    onError={() => setQuipAssetState("error")}
+                  />
+                  <span className={quipAssetState === "error" ? "text-red-300" : quipAssetState === "ready" ? "text-emerald-300" : "text-gray-500"}>
+                    {t(`asset.${quipAssetState}`)}
                   </span>
                 </div>
               ) : null}

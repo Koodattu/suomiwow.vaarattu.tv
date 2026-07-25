@@ -128,8 +128,10 @@ export default function CcgOpenPage() {
   const cardSlideAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
   const drawAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
   const qualityAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
+  const quipAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
   const announcerAudioRefs = useRef<Array<Array<HTMLAudioElement | null>>>([]);
   const qualitySoundTimersRef = useRef<number[]>([]);
+  const quipSoundTimersRef = useRef<number[]>([]);
   const announcerSoundTimersRef = useRef<number[]>([]);
   const packDragRef = useRef({ pointerId: -1, startX: 0, startY: 0, dragging: false, suppressClick: false });
   const sealedMotionFrame = useRef<number | null>(null);
@@ -182,6 +184,7 @@ export default function CcgOpenPage() {
       if (sealedMotionFrame.current !== null) cancelAnimationFrame(sealedMotionFrame.current);
       if (nextPackTimerRef.current !== null) window.clearTimeout(nextPackTimerRef.current);
       qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      quipSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       announcerSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     },
     [],
@@ -200,6 +203,8 @@ export default function CcgOpenPage() {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     qualitySoundTimersRef.current = [];
+    quipSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    quipSoundTimersRef.current = [];
     announcerSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     announcerSoundTimersRef.current = [];
     setViewerIndex(null);
@@ -259,9 +264,12 @@ export default function CcgOpenPage() {
       url.searchParams.set("opening", result.id);
       window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
       result.results.forEach((row) => {
-        if (!row.card.renderUrl) return;
+        const renderUrl = row.artVariant === "alternative"
+          ? row.card.alternativeArt?.characterArtPath ?? row.card.renderUrl
+          : row.card.renderUrl;
+        if (!renderUrl) return;
         const image = new window.Image();
-        image.src = getCharacterRenderProxyUrl(row.card.renderUrl);
+        image.src = getCharacterRenderProxyUrl(renderUrl);
       });
       return result;
     },
@@ -288,6 +296,8 @@ export default function CcgOpenPage() {
   const clearSavedOpening = () => {
     qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     qualitySoundTimersRef.current = [];
+    quipSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    quipSoundTimersRef.current = [];
     announcerSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     announcerSoundTimersRef.current = [];
     setOpening(null);
@@ -312,10 +322,29 @@ export default function CcgOpenPage() {
     qualitySoundTimersRef.current.push(timer);
   };
 
-  const playAnnouncerAfterFlip = (index: number) => {
+  const playQuipAfterFlip = (index: number): boolean => {
+    const result = opening?.results[index];
+    const audio = quipAudioRefs.current[index] ?? null;
+    if (!result?.card.quip?.audioPath || !audio || getCcgPlaybackVolume("quips", 0.9) <= 0) return false;
+    const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 220;
+    const timer = window.setTimeout(() => {
+      quipAudioRefs.current.forEach((candidate) => {
+        if (!candidate || candidate === audio) return;
+        candidate.pause();
+        candidate.currentTime = 0;
+      });
+      playSound(audio, "quips", 0.9);
+    }, delay);
+    quipSoundTimersRef.current.push(timer);
+    return true;
+  };
+
+  const playAnnouncerAfterFlip = (index: number, delayForQuip = false) => {
     const available = (announcerAudioRefs.current[index] ?? []).filter((audio): audio is HTMLAudioElement => audio !== null);
     if (available.length === 0) return;
-    const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 360;
+    const delay = delayForQuip
+      ? 1_360
+      : window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 360;
     const timer = window.setTimeout(
       () => playSound(available[randomIndex(available.length)] ?? null, "announcer", 0.78),
       delay,
@@ -346,7 +375,8 @@ export default function CcgOpenPage() {
     }
     playRandomPackSound(cardSlideAudioRefs.current, 0.36);
     playQualitySoundAfterFlip(index);
-    playAnnouncerAfterFlip(index);
+    const quipWillPlay = playQuipAfterFlip(index);
+    playAnnouncerAfterFlip(index, quipWillPlay);
     setRevealedCards((current) => new Set(current).add(index));
   };
 
@@ -357,16 +387,23 @@ export default function CcgOpenPage() {
     opening.results.forEach((result, index) => {
       if (!revealedCards.has(index) && hasQualityRevealSound(result.finish, result.card.tierGrade)) playQualitySoundAfterFlip(index);
     });
-    const announcerIndex = opening.results
+    const prioritizedResults = opening.results
       .map((result, index) => ({ result, index }))
-      .filter(({ index }) => !revealedCards.has(index) && announcerAudioRefs.current[index]?.some(Boolean))
+      .filter(({ index }) => !revealedCards.has(index))
       .sort((left, right) => {
         const finishDifference = CCG_FINISH_ORDER.indexOf(right.result.finish) - CCG_FINISH_ORDER.indexOf(left.result.finish);
         if (finishDifference !== 0) return finishDifference;
         return ["S", "A", "B", "C", "D", "E", "F"].indexOf(left.result.card.tierGrade)
           - ["S", "A", "B", "C", "D", "E", "F"].indexOf(right.result.card.tierGrade);
-      })[0]?.index;
-    if (announcerIndex !== undefined) playAnnouncerAfterFlip(announcerIndex);
+      });
+    const quipIndex = prioritizedResults.find(({ result, index }) => (
+      Boolean(result.card.quip?.audioPath)
+      && Boolean(quipAudioRefs.current[index])
+      && getCcgPlaybackVolume("quips", 0.9) > 0
+    ))?.index;
+    const quipWillPlay = quipIndex !== undefined && playQuipAfterFlip(quipIndex);
+    const announcerIndex = prioritizedResults.find(({ index }) => announcerAudioRefs.current[index]?.some(Boolean))?.index;
+    if (announcerIndex !== undefined) playAnnouncerAfterFlip(announcerIndex, quipWillPlay);
     setRevealedCards(new Set(opening.results.map((_, index) => index)));
   };
 
@@ -939,6 +976,20 @@ export default function CcgOpenPage() {
             src={result && hasQualityRevealSound(result.finish, result.card.tierGrade)
               ? `/ccg/audio/quality/${qualitySoundFiles[result.finish]}`
               : undefined}
+            preload="auto"
+            aria-hidden="true"
+          />
+        );
+      })}
+      {Array.from({ length: 5 }, (_, index) => {
+        const result = opening?.results[index];
+        return (
+          <audio
+            key={`quip-${index}`}
+            ref={(element) => {
+              quipAudioRefs.current[index] = element;
+            }}
+            src={result?.card.quip?.audioPath ?? undefined}
             preload="auto"
             aria-hidden="true"
           />
