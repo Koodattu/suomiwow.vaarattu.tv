@@ -10,7 +10,7 @@ import type {
   WheelEvent as ReactWheelEvent,
 } from "react";
 import type { CcgArtVariant, CcgCard, CcgFinish, CcgTierGrade } from "@/types";
-import { bestOwnedFinish } from "@/lib/ccg";
+import { bestOwnedFinish, CCG_FINISH_ORDER } from "@/lib/ccg";
 import { getCcgPlaybackVolume } from "@/lib/ccg-audio";
 import { useCcgCatalog, useCcgCollection, useCcgCollectionGuilds, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
@@ -29,7 +29,7 @@ const rarities: Array<{ grade: CcgTierGrade; label: "artifact" | "legendary" | "
   { grade: "E", label: "common" },
   { grade: "F", label: "poor" },
 ];
-const finishes: CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
+const finishes = [...CCG_FINISH_ORDER].reverse();
 const cardsPerPage = 12;
 const allSetsSlug = "__all__";
 
