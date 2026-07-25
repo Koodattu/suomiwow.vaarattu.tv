@@ -7,7 +7,7 @@ import CcgSet from "../models/CcgSet";
 import Character from "../models/Character";
 import Guild from "../models/Guild";
 import { createCharacterCollectorKey, createWowCharacterIdentityKey } from "../utils/ccg-identity";
-import { normalizeCommunityScores } from "../utils/ccg-community";
+import { normalizeCommunityRole, normalizeCommunityScores } from "../utils/ccg-community";
 import { resolveCardCrop } from "../utils/ccg-random";
 import { resolveRole } from "../utils/spec";
 import blizzardService from "./blizzard.service";
@@ -34,6 +34,7 @@ type CreateCommunityCharacterInput = {
 
 type UpdateCommunityCharacterInput = {
   tierGrade?: unknown;
+  role?: unknown;
   scores?: unknown;
   active?: unknown;
   refresh?: unknown;
@@ -270,6 +271,12 @@ class CcgCommunityService {
     const cardId = community.cardId;
 
     const tierGrade = input.tierGrade === undefined ? community.tierGrade : validTierGrade(input.tierGrade);
+    let role = community.role;
+    try {
+      role = input.role === undefined ? community.role : normalizeCommunityRole(input.role);
+    } catch (error) {
+      throw new CcgCommunityError(400, "invalid_role", error instanceof Error ? error.message : "Invalid Community role");
+    }
     let scores: CcgCommunityScores | undefined;
     try {
       scores = input.scores === undefined ? undefined : normalizeCommunityScores(input.scores);
@@ -291,6 +298,7 @@ class CcgCommunityService {
     try {
       await session.withTransaction(async () => {
         community.tierGrade = tierGrade;
+        community.role = role;
         community.active = active;
         if (resolved) {
           community.blizzardCharacterId = resolved.profile.id;
@@ -299,7 +307,6 @@ class CcgCommunityService {
           community.realmSlug = resolved.profile.realm.slug;
           community.classID = resolved.classInfo.id;
           community.specName = resolved.specName;
-          community.role = resolved.role;
           community.guildId = resolved.guild?._id ?? null;
           community.guildName = resolved.guildName;
           community.guildRealm = resolved.guildRealm;
@@ -308,7 +315,11 @@ class CcgCommunityService {
         }
         await community.save({ session });
 
-        const cardUpdate: Record<string, unknown> = { tierGrade };
+        const cardUpdate: Record<string, unknown> = {
+          tierGrade,
+          role,
+          metric: role === "healer" ? "hps" : "dps",
+        };
         if (scores !== undefined) cardUpdate.communityScores = scores;
         if (resolved) {
           Object.assign(cardUpdate, {
@@ -319,8 +330,6 @@ class CcgCommunityService {
             guildRealm: resolved.guildRealm,
             classID: resolved.classInfo.id,
             specName: resolved.specName,
-            role: resolved.role,
-            metric: resolved.role === "healer" ? "hps" : "dps",
             avatarUrl: resolved.media.avatarUrl,
             renderUrl: resolved.media.mainRawUrl,
             mediaCapturedAt: now,

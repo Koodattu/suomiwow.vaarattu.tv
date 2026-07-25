@@ -315,6 +315,7 @@ export const api = {
     characterId: string,
     input: {
       tierGrade?: CcgTierGrade;
+      role?: "dps" | "healer" | "tank";
       scores?: { performance: number | null; mechanics: number | null; combined: number | null; mythicPlus: number | null };
       active?: boolean;
       refresh?: boolean;

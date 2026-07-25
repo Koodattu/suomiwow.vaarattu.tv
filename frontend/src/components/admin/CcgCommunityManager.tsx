@@ -15,12 +15,15 @@ type Props = {
 const grades: readonly CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
 const metricKeys = ["performance", "mechanics", "combined", "mythicPlus"] as const;
 type MetricKey = (typeof metricKeys)[number];
+type CommunityRole = CcgAdminCommunityCharacter["role"];
 type CharacterDraft = {
   tierGrade: CcgTierGrade;
+  role: CommunityRole;
   scores: Record<MetricKey, string>;
 };
 type UpdateInput = {
   tierGrade?: CcgTierGrade;
+  role?: CommunityRole;
   scores?: Record<MetricKey, number | null>;
   active?: boolean;
   refresh?: boolean;
@@ -32,6 +35,7 @@ const primaryButton = "min-h-10 rounded-md bg-amber-600 px-4 py-2 text-sm font-b
 function draftFromCharacter(character: CcgAdminCommunityCharacter): CharacterDraft {
   return {
     tierGrade: character.tierGrade,
+    role: character.role,
     scores: {
       performance: character.scores.performance === null ? "" : String(character.scores.performance),
       mechanics: character.scores.mechanics === null ? "" : String(character.scores.mechanics),
@@ -197,20 +201,39 @@ export default function CcgCommunityManager({ characters, onChanged, onError, on
                           </div>
                           <p className="mt-0.5 truncate text-xs text-gray-500">{character.guildName ?? t("noGuild")} · {character.specName} · {t(character.linkedCharacterId ? "linked" : "blizzardOnly")}</p>
                         </div>
-                        <select
-                          className={fieldClass}
-                          value={draft.tierGrade}
-                          onChange={(event) => setDrafts((current) => ({
-                            ...current,
-                            [character.id]: { ...draft, tierGrade: event.target.value as CcgTierGrade },
-                          }))}
-                          aria-label={t("rarityFor", { name: character.name })}
-                          disabled={busy}
-                        >
-                          {grades.map((grade) => <option key={grade} value={grade}>{t(`rarityNames.${grade}`)}</option>)}
-                        </select>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">
+                          <label className="grid gap-1 text-[.68rem] font-semibold text-gray-500">
+                            {t("rarity")}
+                            <select
+                              className={fieldClass}
+                              value={draft.tierGrade}
+                              onChange={(event) => setDrafts((current) => ({
+                                ...current,
+                                [character.id]: { ...draft, tierGrade: event.target.value as CcgTierGrade },
+                              }))}
+                              aria-label={t("rarityFor", { name: character.name })}
+                              disabled={busy}
+                            >
+                              {grades.map((grade) => <option key={grade} value={grade}>{t(`rarityNames.${grade}`)}</option>)}
+                            </select>
+                          </label>
+                          <label className="grid gap-1 text-[.68rem] font-semibold text-gray-500">
+                            {t("role")}
+                            <select
+                              className={fieldClass}
+                              value={draft.role}
+                              onChange={(event) => setDrafts((current) => ({
+                                ...current,
+                                [character.id]: { ...draft, role: event.target.value as CommunityRole },
+                              }))}
+                              disabled={busy}
+                            >
+                              {(["dps", "healer", "tank"] as const).map((role) => <option key={role} value={role}>{ccgT(`role.${role}`)}</option>)}
+                            </select>
+                          </label>
+                        </div>
                         <div className="flex flex-wrap justify-start gap-1.5 sm:justify-end">
-                          <button type="button" className={secondaryButton} onClick={() => void updateCharacter(character, { tierGrade: draft.tierGrade, scores: scores ?? undefined }, "saved")} disabled={busy || !changed || !scores || !character.active}>{t("save")}</button>
+                          <button type="button" className={secondaryButton} onClick={() => void updateCharacter(character, { tierGrade: draft.tierGrade, role: draft.role, scores: scores ?? undefined }, "saved")} disabled={busy || !changed || !scores || !character.active}>{t("save")}</button>
                           <button type="button" className={secondaryButton} onClick={() => void updateCharacter(character, { refresh: true }, "refreshed")} disabled={busy || !character.active}>{t("refresh")}</button>
                           {character.active ? (
                             confirmingId === character.id ? (
@@ -229,7 +252,7 @@ export default function CcgCommunityManager({ characters, onChanged, onError, on
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                           {metricKeys.map((key) => {
                             const label = key === "performance"
-                              ? ccgT(character.role === "healer" ? "score.healing" : "score.damage")
+                              ? ccgT(draft.role === "healer" ? "score.healing" : "score.damage")
                               : ccgT(`score.${key}`);
                             return (
                               <label key={key} className="grid gap-1 text-[.68rem] font-semibold text-gray-500">

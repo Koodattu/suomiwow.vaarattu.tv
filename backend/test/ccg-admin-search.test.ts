@@ -9,7 +9,14 @@ import CcgCard from "../src/models/CcgCard";
 import CcgSet from "../src/models/CcgSet";
 import Character from "../src/models/Character";
 import ccgService from "../src/services/ccg.service";
-import { normalizeCommunityScores } from "../src/utils/ccg-community";
+import { normalizeCommunityRole, normalizeCommunityScores } from "../src/utils/ccg-community";
+
+test("Community roles accept only the supported card roles", () => {
+  assert.equal(normalizeCommunityRole("dps"), "dps");
+  assert.equal(normalizeCommunityRole("healer"), "healer");
+  assert.equal(normalizeCommunityRole("tank"), "tank");
+  assert.throws(() => normalizeCommunityRole("support"), /DPS, healer, or tank/);
+});
 
 test("Community metrics accept optional card values and enforce metric ranges", () => {
   assert.deepEqual(normalizeCommunityScores({

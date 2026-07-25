@@ -1,5 +1,14 @@
 import type { CcgCommunityScores } from "../models/CcgCard";
 
+export type CcgCommunityRole = "dps" | "healer" | "tank";
+
+export function normalizeCommunityRole(value: unknown): CcgCommunityRole {
+  if (value !== "dps" && value !== "healer" && value !== "tank") {
+    throw new Error("Role must be DPS, healer, or tank");
+  }
+  return value;
+}
+
 function validCommunityScore(value: unknown, field: string, maximum: number): number | null {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > maximum) {
