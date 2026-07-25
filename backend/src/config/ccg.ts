@@ -319,7 +319,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
   {
     zoneId: 29,
     slug: "sepulcher-of-the-first-ones",
-    raidName: "Sepulcher of the First Ones",
+    raidName: "Sepulcher of First Ones",
     expansionName: "Shadowlands",
     mythicPlusSeason: "season-sl-3",
     state: "legacy",
