@@ -343,10 +343,10 @@
   transition-duration: 110ms, 180ms;
 }
 .prototypeCard.negative {
-  filter: invert(1) contrast(1.06) saturate(0.92);
+  filter: invert(1) contrast(0.95) saturate(0.92) brightness(0.85);
 }
 .prototypeCard.negative:is(:hover, [data-forced-hover="true"]) {
-  filter: invert(1) contrast(1.06) saturate(0.92) brightness(1.045);
+  filter: invert(1) contrast(1.01) saturate(0.92) brightness(0.89);
 }
 .prototypeCard.void {
   --lab-accent: #8deaff;
@@ -1182,12 +1182,7 @@
       rgba(193, 52, 229, 0.28) 7.2%,
       transparent 15%
     ),
-    repeating-radial-gradient(
-      ellipse at var(--pointer-x) var(--pointer-y),
-      rgba(124, 237, 255, 0.26) 0 1px,
-      rgba(86, 52, 255, 0.13) 2px 4px,
-      transparent 6px 13px
-    ),
+    repeating-radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), rgba(124, 237, 255, 0.26) 0 1px, rgba(86, 52, 255, 0.13) 2px 4px, transparent 6px 13px),
     radial-gradient(ellipse at var(--foil-x-reverse) var(--foil-y-reverse), transparent 0 12%, rgba(48, 12, 88, 0.3) 28%, rgba(0, 0, 5, 0.82) 64%, rgba(0, 0, 0, 0.98) 100%),
     linear-gradient(var(--foil-angle), rgba(38, 255, 230, 0.42), transparent 18% 45%, rgba(126, 61, 255, 0.42) 58%, transparent 76%, rgba(255, 58, 221, 0.28));
   background-blend-mode: screen, color-dodge, multiply, screen;
@@ -1208,7 +1203,10 @@
     calc(var(--pointer-left) * 27px) calc(var(--pointer-top) * -33px),
     calc(var(--pointer-left) * -39px) calc(var(--pointer-top) * 29px),
     calc(var(--pointer-left) * 19px) calc(var(--pointer-top) * 23px);
-  background-size: 23px 31px, 41px 47px, 61px 53px;
+  background-size:
+    23px 31px,
+    41px 47px,
+    61px 53px;
   mix-blend-mode: color-dodge;
   opacity: 0.78;
   -webkit-mask-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), #000 4%, rgba(0, 0, 0, 0.94) 30%, transparent 82%);
@@ -1230,7 +1228,13 @@
 }
 .eclipse .finishLayer {
   background:
-    radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 245, 0.62) 0 2%, rgba(255, 215, 91, 0.34) 16%, rgba(71, 112, 255, 0.16) 32%, transparent 52%),
+    radial-gradient(
+      farthest-corner circle at var(--pointer-x) var(--pointer-y),
+      rgba(255, 255, 245, 0.62) 0 2%,
+      rgba(255, 215, 91, 0.34) 16%,
+      rgba(71, 112, 255, 0.16) 32%,
+      transparent 52%
+    ),
     linear-gradient(
       var(--foil-angle),
       rgba(0, 1, 10, 0.92) 0 25%,
@@ -1265,21 +1269,40 @@
 }
 .eclipse .finishLayer::before {
   background:
-    conic-gradient(from calc(var(--foil-angle) - 84deg) at var(--pointer-x) var(--pointer-y), rgba(255, 236, 160, 0.39), transparent 9% 21%, rgba(71, 95, 255, 0.25) 31%, transparent 43% 58%, rgba(255, 205, 66, 0.3) 69%, transparent 80% 94%, rgba(122, 150, 255, 0.24)),
+    conic-gradient(
+      from calc(var(--foil-angle) - 84deg) at var(--pointer-x) var(--pointer-y),
+      rgba(255, 236, 160, 0.39),
+      transparent 9% 21%,
+      rgba(71, 95, 255, 0.25) 31%,
+      transparent 43% 58%,
+      rgba(255, 205, 66, 0.3) 69%,
+      transparent 80% 94%,
+      rgba(122, 150, 255, 0.24)
+    ),
     radial-gradient(circle at 24% 28%, rgba(255, 241, 179, 0.82) 0 0.7px, transparent 1.7px),
     radial-gradient(circle at 71% 67%, rgba(100, 135, 255, 0.76) 0 0.8px, transparent 1.9px);
   background-position:
     center,
     calc(var(--pointer-left) * 23px) calc(var(--pointer-top) * -27px),
     calc(var(--pointer-left) * -31px) calc(var(--pointer-top) * 29px);
-  background-size: 100% 100%, 29px 37px, 43px 47px;
+  background-size:
+    100% 100%,
+    29px 37px,
+    43px 47px;
   mix-blend-mode: screen;
   opacity: 0.58;
 }
 .eclipse .finishLayer::after {
   background:
     radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(0, 0, 5, 0.86) 0 5.5%, rgba(4, 8, 36, 0.78) 7.5%, transparent 10%),
-    radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 0 6.5%, rgba(255, 250, 213, 0.54) 9%, rgba(255, 196, 49, 0.4) 12%, rgba(71, 96, 255, 0.27) 18%, transparent 28%);
+    radial-gradient(
+      circle at var(--pointer-x) var(--pointer-y),
+      transparent 0 6.5%,
+      rgba(255, 250, 213, 0.54) 9%,
+      rgba(255, 196, 49, 0.4) 12%,
+      rgba(71, 96, 255, 0.27) 18%,
+      transparent 28%
+    );
   filter: contrast(1.1) saturate(1.22);
   mix-blend-mode: hard-light;
   opacity: 0.72;
@@ -1306,7 +1329,12 @@
     calc(var(--pointer-left) * 29px) calc(var(--pointer-top) * -23px),
     calc(var(--pointer-left) * -37px) calc(var(--pointer-top) * 31px),
     var(--foil-x-reverse) var(--foil-y-reverse);
-  background-size: 100% 100%, 360% 280%, 31px 37px, 47px 41px, 230% 230%;
+  background-size:
+    100% 100%,
+    360% 280%,
+    31px 37px,
+    47px 41px,
+    230% 230%;
   background-blend-mode: screen, color-dodge, screen, screen, soft-light;
   box-shadow:
     inset 0 0 28px rgba(5, 45, 18, 0.54),
@@ -1324,7 +1352,10 @@
     calc(var(--pointer-left) * 21px) calc(var(--pointer-top) * -29px),
     calc(var(--pointer-left) * -31px) calc(var(--pointer-top) * 24px),
     calc(var(--pointer-left) * 13px) calc(var(--pointer-top) * 17px);
-  background-size: 19px 27px, 37px 31px, 61px 53px;
+  background-size:
+    19px 27px,
+    37px 31px,
+    61px 53px;
   mix-blend-mode: color-dodge;
   opacity: 0.66;
   -webkit-mask-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), #000 8%, rgba(0, 0, 0, 0.88) 31%, transparent 76%);
@@ -1333,11 +1364,20 @@
 .toxic .finishLayer::after {
   background:
     radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 7%, rgba(225, 255, 136, 0.2) 19%, transparent 38%),
-    repeating-linear-gradient(calc(var(--foil-angle) + 84deg), transparent 0 13%, rgba(216, 255, 116, 0.38) 18%, rgba(74, 255, 190, 0.18) 21%, rgba(139, 78, 255, 0.14) 24%, transparent 29% 45%);
+    repeating-linear-gradient(
+      calc(var(--foil-angle) + 84deg),
+      transparent 0 13%,
+      rgba(216, 255, 116, 0.38) 18%,
+      rgba(74, 255, 190, 0.18) 21%,
+      rgba(139, 78, 255, 0.14) 24%,
+      transparent 29% 45%
+    );
   background-position:
     center,
     var(--foil-x-reverse) var(--foil-y-reverse);
-  background-size: 100% 100%, 290% 290%;
+  background-size:
+    100% 100%,
+    290% 290%;
   mix-blend-mode: screen;
   opacity: 0.6;
 }
@@ -1557,8 +1597,7 @@
 .void .statsPanel {
   background:
     radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(67, 231, 255, 0.14), transparent 48%),
-    linear-gradient(112deg, rgba(75, 39, 203, 0.22), rgba(4, 4, 17, 0.99) 52%, rgba(116, 33, 151, 0.18)),
-    linear-gradient(180deg, rgba(8, 4, 24, 0.99), rgba(0, 0, 4, 0.99));
+    linear-gradient(112deg, rgba(75, 39, 203, 0.22), rgba(4, 4, 17, 0.99) 52%, rgba(116, 33, 151, 0.18)), linear-gradient(180deg, rgba(8, 4, 24, 0.99), rgba(0, 0, 4, 0.99));
   box-shadow: inset 0 0 0 1px rgba(113, 223, 255, 0.24);
 }
 .eclipse .statsPanel {
@@ -1570,8 +1609,7 @@
 .toxic .statsPanel {
   background:
     linear-gradient(112deg, rgba(188, 255, 72, 0.13), rgba(57, 255, 163, 0.08), rgba(87, 192, 255, 0.07), rgba(152, 73, 255, 0.06), rgba(185, 255, 67, 0.11)),
-    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(205, 255, 98, 0.14), transparent 54%),
-    linear-gradient(180deg, rgba(12, 31, 18, 0.99), rgba(2, 9, 5, 0.99));
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(205, 255, 98, 0.14), transparent 54%), linear-gradient(180deg, rgba(12, 31, 18, 0.99), rgba(2, 9, 5, 0.99));
   background-position:
     var(--foil-x) center,
     center,
