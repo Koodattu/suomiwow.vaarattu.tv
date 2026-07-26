@@ -102,6 +102,7 @@ export default function CcgCollectionPage() {
   const [guildInputFocused, setGuildInputFocused] = useState(false);
   const [includeMissing, setIncludeMissing] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageCountCache, setPageCountCache] = useState({ scope: "", pages: 0 });
   const [grade, setGrade] = useState("");
   const [finish, setFinish] = useState<CollectionFinishFilter>("");
   const [viewerCard, setViewerCard] = useState<CcgCard | null>(null);
@@ -180,6 +181,9 @@ export default function CcgCollectionPage() {
   const cardsData = cardsQuery.data;
   const cardsLoading = setsQuery.isPending || cardsQuery.isPending;
   const cardsError = cardsQuery.isError;
+  const pageCountScope = JSON.stringify([setSlug, guildId, grade, finish, showCatalog]);
+  const displayedPageCount = cardsData?.pages
+    ?? (pageCountCache.scope === pageCountScope ? pageCountCache.pages : 0);
 
   useEffect(() => {
     if (requestedSetAppliedRef.current || sets.length === 0) return;
@@ -193,6 +197,11 @@ export default function CcgCollectionPage() {
     if (!cardsData || page <= cardsData.pages || cardsData.pages === 0) return;
     setPage(cardsData.pages);
   }, [cardsData, page]);
+
+  useEffect(() => {
+    if (!cardsData) return;
+    setPageCountCache({ scope: pageCountScope, pages: cardsData.pages });
+  }, [cardsData, pageCountScope]);
 
   useEffect(() => {
     if (!finish || finishOptions.includes(finish)) return;
@@ -607,12 +616,12 @@ export default function CcgCollectionPage() {
             <span
               className={styles.collectionPageCount}
               aria-label={t("collection.page", {
-                page: cardsData && cardsData.pages > 0 ? page : 0,
-                pages: cardsData?.pages ?? 0,
+                page: displayedPageCount > 0 ? page : 0,
+                pages: displayedPageCount,
               })}
             >
-              <span>{cardsData && cardsData.pages > 0 ? page : 0}</span>
-              <small>{t("collection.pageTotal", { pages: cardsData?.pages ?? 0 })}</small>
+              <span>{displayedPageCount > 0 ? page : 0}</span>
+              <small>{t("collection.pageTotal", { pages: displayedPageCount })}</small>
             </span>
           </div>
         </section>
