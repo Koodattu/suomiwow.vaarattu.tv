@@ -2210,7 +2210,7 @@ export type CcgAdminEnableResponse = {
 };
 
 export type CcgCatalogResponse = {
-  set: CcgSet;
+  set?: CcgSet;
   cards: CcgCard[];
   page: number;
   limit: number;

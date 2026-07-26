@@ -116,12 +116,19 @@ export default function CcgCollectionPage() {
   const collectionSetSlug = allSetsSelected ? undefined : setSlug;
   const allCardCount = sets.reduce((total, set) => total + set.cardCount, 0);
   const allOwnedCount = sets.reduce((total, set) => total + set.ownedCards, 0);
-  const guildsQuery = useCcgCollectionGuilds(collectionSetSlug);
+  const guildsQuery = useCcgCollectionGuilds();
+  const setGuildsQuery = useCcgCollectionGuilds(collectionSetSlug, !allSetsSelected);
   const guilds = useMemo(
     () => [...(guildsQuery.data?.guilds ?? [])].sort((a, b) => a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm)),
     [guildsQuery.data?.guilds],
   );
-  const showCatalog = includeMissing && !allSetsSelected;
+  const setGuildIds = useMemo(
+    () => new Set((setGuildsQuery.data?.guilds ?? []).map((guild) => guild.id)),
+    [setGuildsQuery.data?.guilds],
+  );
+  const guildAvailabilityLoaded = allSetsSelected || Boolean(setGuildsQuery.data);
+  const selectedGuildUnavailable = Boolean(guildId) && guildAvailabilityLoaded && !allSetsSelected && !setGuildIds.has(guildId);
+  const showCatalog = includeMissing;
   const filtersChanged = includeMissing || Boolean(guildId || grade || finish);
   const ownedQuery = useCcgCollection(
     {
@@ -134,7 +141,7 @@ export default function CcgCollectionPage() {
     },
     Boolean(setSlug) && !showCatalog,
   );
-  const catalogQuery = useCcgCatalog(collectionSetSlug ?? "", page, "all", grade, guildId, finish, showCatalog, cardsPerPage);
+  const catalogQuery = useCcgCatalog(collectionSetSlug, page, "all", grade, guildId, finish, showCatalog, cardsPerPage);
   const cardsQuery = showCatalog ? catalogQuery : ownedQuery;
   const cardsData = cardsQuery.data;
   const cardsLoading = setsQuery.isPending || cardsQuery.isPending;
@@ -147,12 +154,6 @@ export default function CcgCollectionPage() {
     if (next) setSetSlug(next.slug);
     requestedSetAppliedRef.current = true;
   }, [sets]);
-
-  useEffect(() => {
-    if (!guildId || guilds.some((guild) => guild.id === guildId)) return;
-    setGuildId("");
-    setPage(1);
-  }, [guildId, guilds]);
 
   useEffect(() => {
     if (!cardsData || page <= cardsData.pages || cardsData.pages === 0) return;
@@ -288,8 +289,6 @@ export default function CcgCollectionPage() {
 
   const selectSet = (nextSlug: string) => {
     setSetSlug(nextSlug);
-    setGuildId("");
-    setIncludeMissing(false);
     setPage(1);
   };
 
@@ -404,11 +403,10 @@ export default function CcgCollectionPage() {
               {t("collection.resetFilters")}
             </button>
 
-            <label className={`${styles.collectionMissingToggle} ${includeMissing ? styles.collectionMissingToggleActive : ""} ${allSetsSelected ? styles.collectionMissingToggleDisabled : ""}`}>
+            <label className={`${styles.collectionMissingToggle} ${includeMissing ? styles.collectionMissingToggleActive : ""}`}>
               <input
                 type="checkbox"
                 checked={includeMissing}
-                disabled={allSetsSelected}
                 onChange={(event) => updateFilter(() => setIncludeMissing(event.target.checked))}
               />
               <span>{t("collection.showMissing")}</span>
@@ -418,12 +416,19 @@ export default function CcgCollectionPage() {
               <select
                 aria-label={t("collection.guild")}
                 value={guildId}
+                data-unavailable={selectedGuildUnavailable || undefined}
                 onChange={(event) => updateFilter(() => setGuildId(event.target.value))}
                 disabled={guildsQuery.isLoading}
               >
                 <option value="">{t("collection.allGuilds")}</option>
                 {guilds.map((guild) => (
-                  <option key={guild.id} value={guild.id}>{guild.name}</option>
+                  <option
+                    key={guild.id}
+                    value={guild.id}
+                    data-unavailable={(guildAvailabilityLoaded && !allSetsSelected && !setGuildIds.has(guild.id)) || undefined}
+                  >
+                    {guild.name}
+                  </option>
                 ))}
               </select>
             </label>

@@ -1557,6 +1557,11 @@
   width: 100%;
 }
 
+.collectionGuildSelect select[data-unavailable="true"],
+.collectionGuildSelect option[data-unavailable="true"] {
+  color: #68778f;
+}
+
 .collectionRaritySelect[data-grade="F"],
 .collectionRaritySelect option[data-grade="F"] {
   color: #9d9d9d;

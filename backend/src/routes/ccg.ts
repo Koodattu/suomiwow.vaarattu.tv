@@ -81,6 +81,22 @@ router.get(
 );
 
 router.get(
+  "/collection/catalog",
+  rateLimit(90, 60_000),
+  asyncRoute(async (req, res) => {
+    const owner = await ccgService.resolveOwner(req, res);
+    return ccgService.getCatalog(owner, undefined, {
+      page: typeof req.query.page === "string" ? Number(req.query.page) : undefined,
+      limit: typeof req.query.limit === "string" ? Number(req.query.limit) : undefined,
+      owned: typeof req.query.owned === "string" ? req.query.owned : undefined,
+      grade: typeof req.query.grade === "string" ? req.query.grade : undefined,
+      finish: typeof req.query.finish === "string" ? req.query.finish : undefined,
+      guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
+    });
+  }),
+);
+
+router.get(
   "/collection/guilds",
   rateLimit(90, 60_000),
   asyncRoute(async (req, res) => {

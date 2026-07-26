@@ -411,11 +411,17 @@ class CcgService {
 
   async getCatalog(
     owner: CcgOwner,
-    setSlug: string,
+    setSlug: string | undefined,
     options: { page?: number; limit?: number; owned?: string; grade?: string; finish?: string; guildId?: string },
   ): Promise<Record<string, unknown>> {
-    const set = await CcgSet.findOne({ slug: setSlug, enabledAt: { $ne: null } }).lean();
-    if (!set) throw new CcgServiceError(404, "set_not_found", "Card set not found");
+    const requestedSet = setSlug
+      ? await CcgSet.findOne({ slug: setSlug, enabledAt: { $ne: null } }).lean()
+      : null;
+    if (setSlug && !requestedSet) throw new CcgServiceError(404, "set_not_found", "Card set not found");
+    const sets = requestedSet ? [requestedSet] : await CcgSet.find({ enabledAt: { $ne: null } }).lean();
+    if (sets.length === 0) throw new CcgServiceError(404, "set_not_found", "Card set not found");
+    const set = requestedSet ?? undefined;
+    const setById = new Map(sets.map((item) => [String(item._id), item]));
     const page = Math.max(1, Math.floor(options.page ?? 1));
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 9)));
     const grade = CCG_TIER_GRADES.includes(options.grade as CcgTierGrade) ? (options.grade as CcgTierGrade) : null;
@@ -432,7 +438,7 @@ class CcgService {
         ownerId: owner.ownerId,
         ...(finish ? { finish } : {}),
       });
-      ownedCharacterIds = await CcgCard.distinct("characterId", { setId: set._id, _id: { $in: ownedIds } });
+      if (set) ownedCharacterIds = await CcgCard.distinct("characterId", { setId: set._id, _id: { $in: ownedIds } });
     }
     if (options.owned === "owned" || finish) {
       cardFilter._id = { $in: ownedIds ?? [] };
@@ -443,12 +449,17 @@ class CcgService {
       items: ICcgCard[];
       count: Array<{ total: number }>;
     }>([
-      { $match: { setId: set._id } },
+      { $match: { setId: set ? set._id : { $in: sets.map((item) => item._id) } } },
       { $sort: { snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 } },
-      { $group: { _id: "$characterId", card: { $first: "$$ROOT" } } },
+      { $group: { _id: { setId: "$setId", characterId: "$characterId" }, card: { $first: "$$ROOT" } } },
       { $replaceRoot: { newRoot: "$card" } },
       ...(Object.keys(cardFilter).length > 0 ? [{ $match: cardFilter }] : []),
-      { $sort: { setNumber: 1 } },
+      ...(set
+        ? [{ $sort: { setNumber: 1 as const } }]
+        : [
+            { $set: { sortGrade: { $indexOfArray: [[...CCG_TIER_GRADES], "$tierGrade"] } } },
+            { $sort: { sortGrade: 1 as const, setNumber: 1 as const, name: 1 as const, _id: 1 as const } },
+          ]),
       {
         $facet: {
           items: [{ $skip: (page - 1) * limit }, { $limit: limit }],
@@ -471,14 +482,16 @@ class CcgService {
     }
 
     return {
-      set: this.serializeSet(set, ownedCharacterIds?.length ?? 0),
+      ...(set ? { set: this.serializeSet(set, ownedCharacterIds?.length ?? 0) } : {}),
       cards: cards.map((card) => {
+        const cardSet = setById.get(String(card.setId));
+        if (!cardSet) throw new CcgServiceError(500, "set_not_found", "Card set not found");
         const collectorKey = resolveCollectorKey(card);
         const alternativeArt = alternativeByCollector.get(collectorKey);
         const alternativeArtUnlocked = unlockedAlternativeCollectors.has(collectorKey)
           && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId));
         return {
-          ...this.serializeCard(card, set, alternativeArt),
+          ...this.serializeCard(card, cardSet, alternativeArt),
           ownership: serializeOwnershipRows(ownershipByCard.get(String(card._id)) ?? [], alternativeArtUnlocked),
         };
       }),
