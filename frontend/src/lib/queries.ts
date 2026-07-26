@@ -528,7 +528,7 @@ export function useCcgCollectionCharacterSearch(search: string, enabled = true) 
   });
 }
 
-export function useCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string; character?: string; sort?: CcgCollectionSort }, enabled = true) {
+export function useCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string; character?: string; sort?: CcgCollectionSort; alternative?: boolean }, enabled = true) {
   return useQuery({
     queryKey: queryKeys.ccg.collection(options),
     queryFn: () => api.getCcgCollection(options),

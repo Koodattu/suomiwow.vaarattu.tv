@@ -724,7 +724,7 @@ class CcgService {
 
   async getCollection(
     owner: CcgOwner,
-    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string; characterId?: string; sort?: string },
+    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string; characterId?: string; sort?: string; alternativeOnly?: boolean },
   ): Promise<Record<string, unknown>> {
     const page = Math.max(1, Math.floor(options.page ?? 1));
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 18)));
@@ -744,6 +744,21 @@ class CcgService {
     if (guildId) cardMatch["card.guildId"] = guildId;
     const characterId = options.characterId ? validateObjectId(options.characterId, "character ID") : null;
     if (characterId) cardMatch["card.characterId"] = characterId;
+    if (options.alternativeOnly) {
+      const alternativeCardIds = await CcgOwnership.distinct("cardId", {
+        ownerType: owner.ownerType,
+        ownerId: owner.ownerId,
+        alternativeQuantity: { $gt: 0 },
+      });
+      const alternativeCards = await CcgCard.find({ _id: { $in: alternativeCardIds } }).select("characterId collectorKey").lean();
+      const alternativeCollectorKeys = Array.from(new Set(alternativeCards.map(resolveCollectorKey)));
+      cardMatch.$expr = {
+        $in: [
+          { $ifNull: ["$card.collectorKey", { $concat: ["character:", { $toString: "$card.characterId" }] }] },
+          alternativeCollectorKeys,
+        ],
+      };
+    }
 
     const rows = await CcgOwnership.aggregate<{
       _id: { setId: mongoose.Types.ObjectId; characterId: mongoose.Types.ObjectId };

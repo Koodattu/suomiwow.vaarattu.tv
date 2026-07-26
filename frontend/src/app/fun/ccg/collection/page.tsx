@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from "@headlessui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { LuCircleDashed, LuEye, LuEyeOff, LuRotateCcw } from "react-icons/lu";
+import { LuCircleDashed, LuEye, LuEyeOff, LuImage, LuImages, LuRotateCcw } from "react-icons/lu";
 import type {
   CSSProperties,
   MouseEvent as ReactMouseEvent,
@@ -126,6 +126,7 @@ export default function CcgCollectionPage() {
   const [characterInputFocused, setCharacterInputFocused] = useState(false);
   const characterInputRef = useRef<HTMLInputElement>(null);
   const [visibility, setVisibility] = useState<CollectionVisibility>("owned");
+  const [alternativeOnly, setAlternativeOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [pageCountCache, setPageCountCache] = useState({ scope: "", pages: 0 });
   const [grade, setGrade] = useState("");
@@ -205,7 +206,7 @@ export default function CcgCollectionPage() {
     : visibility === "all"
       ? "collection.showOnlyMissingCards"
       : "collection.showOnlyOwnedCards";
-  const filtersChanged = visibility !== "owned" || Boolean(characterId || guildId || grade || finish || sort);
+  const filtersChanged = visibility !== "owned" || alternativeOnly || Boolean(characterId || guildId || grade || finish || sort);
   const ownedQuery = useCcgCollection(
     {
       page,
@@ -216,6 +217,7 @@ export default function CcgCollectionPage() {
       guild: guildId || undefined,
       character: characterId || undefined,
       sort: sort || undefined,
+      alternative: alternativeOnly || undefined,
     },
     Boolean(setSlug) && !showCatalog,
   );
@@ -224,7 +226,7 @@ export default function CcgCollectionPage() {
   const cardsData = cardsQuery.data;
   const cardsLoading = setsQuery.isPending || cardsQuery.isPending;
   const cardsError = cardsQuery.isError;
-  const pageCountScope = JSON.stringify([setSlug, characterId, guildId, grade, finish, sort, visibility]);
+  const pageCountScope = JSON.stringify([setSlug, characterId, guildId, grade, finish, sort, visibility, alternativeOnly]);
   const displayedPageCount = cardsData?.pages
     ?? (pageCountCache.scope === pageCountScope ? pageCountCache.pages : 0);
 
@@ -386,6 +388,7 @@ export default function CcgCollectionPage() {
 
   const resetFilters = () => {
     setVisibility("owned");
+    setAlternativeOnly(false);
     setSelectedCharacter(null);
     setCharacterSearch("");
     setGuildId("");
@@ -559,18 +562,37 @@ export default function CcgCollectionPage() {
 
             <button
               type="button"
-              className={`${styles.collectionMissingToggle} ${visibility === "all" ? styles.collectionMissingToggleActive : ""} ${showMissingOnly ? styles.collectionMissingToggleMissingOnly : ""}`}
+              className={`${styles.collectionIconToggle} ${visibility === "all" ? styles.collectionIconToggleActive : ""} ${showMissingOnly ? styles.collectionMissingToggleMissingOnly : ""}`}
               title={t(visibilityAction)}
               aria-label={t(visibilityAction)}
               onClick={() => updateFilter(() => {
                 setVisibility(nextVisibility);
+                setAlternativeOnly(false);
                 if (nextVisibility === "missing") setFinish("");
               })}
             >
-              <span className={styles.collectionMissingToggleIcon} aria-hidden="true">
+              <span className={styles.collectionToggleIcon} aria-hidden="true">
                 <LuEyeOff className={visibility === "owned" ? styles.collectionToggleIconVisible : styles.collectionToggleIconHidden} />
                 <LuEye className={visibility === "all" ? styles.collectionToggleIconVisible : styles.collectionToggleIconHidden} />
                 <LuCircleDashed className={showMissingOnly ? styles.collectionToggleIconVisible : styles.collectionToggleIconHidden} />
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={`${styles.collectionIconToggle} ${alternativeOnly ? styles.collectionIconToggleActive : ""}`}
+              title={t(alternativeOnly ? "collection.showAllOwnedArtworkCards" : "collection.showAlternativeArtworkCards")}
+              aria-label={t(alternativeOnly ? "collection.showAllOwnedArtworkCards" : "collection.showAlternativeArtworkCards")}
+              aria-pressed={alternativeOnly}
+              onClick={() => updateFilter(() => {
+                const nextAlternativeOnly = !alternativeOnly;
+                setAlternativeOnly(nextAlternativeOnly);
+                if (nextAlternativeOnly) setVisibility("owned");
+              })}
+            >
+              <span className={styles.collectionToggleIcon} aria-hidden="true">
+                <LuImage className={alternativeOnly ? styles.collectionToggleIconHidden : styles.collectionToggleIconVisible} />
+                <LuImages className={alternativeOnly ? styles.collectionToggleIconVisible : styles.collectionToggleIconHidden} />
               </span>
             </button>
 
@@ -848,8 +870,8 @@ export default function CcgCollectionPage() {
             ) : (
               <div className={styles.collectionEmpty}>
                 <div>
-                  <h2>{t(guildId ? "collection.emptyGuildTitle" : showCatalog ? "collection.emptyMissingTitle" : "collection.emptyOwnedTitle")}</h2>
-                  <p>{t(guildId ? showCatalog ? "collection.emptyGuildMissingBody" : "collection.emptyGuildBody" : showCatalog ? "collection.emptyMissingBody" : "collection.emptyOwnedBody")}</p>
+                  <h2>{t(alternativeOnly ? "collection.emptyAlternativeTitle" : guildId ? "collection.emptyGuildTitle" : showCatalog ? "collection.emptyMissingTitle" : "collection.emptyOwnedTitle")}</h2>
+                  <p>{t(alternativeOnly ? "collection.emptyAlternativeBody" : guildId ? showCatalog ? "collection.emptyGuildMissingBody" : "collection.emptyGuildBody" : showCatalog ? "collection.emptyMissingBody" : "collection.emptyOwnedBody")}</p>
                   {!guildId && !showCatalog ? (
                     <Link href={`/fun/ccg/open?mode=${selectedSet?.state === "legacy" ? "legacy" : "current"}`} className={`${styles.primaryButton} mt-4`}>
                       {t("collection.openPacks")}

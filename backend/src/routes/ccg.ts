@@ -149,6 +149,7 @@ router.get(
       guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
       characterId: typeof req.query.character === "string" ? req.query.character : undefined,
       sort: typeof req.query.sort === "string" ? req.query.sort : undefined,
+      alternativeOnly: req.query.alternative === "true",
     });
   }),
 );
