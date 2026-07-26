@@ -6,6 +6,8 @@ import fiMessages from "../../messages/fi.json";
 import type { CcgFinish, CcgOpening, CcgShare, CcgTierGrade } from "@/types";
 import { CCG_FINISH_ORDER, CCG_RARITY_KEYS } from "@/lib/ccg";
 import {
+  CCG_EMBED_IMAGE,
+  CCG_EMBED_IMAGE_ALT,
   CCG_EMBED_IMAGE_HEIGHT,
   CCG_EMBED_IMAGE_WIDTH,
   SITE_NAME,
@@ -124,7 +126,6 @@ export async function buildCcgShareMetadata({
 }): Promise<Metadata> {
   const share = await fetchCcgShare(shareId);
   const canonicalUrl = `${SITE_URL}/fun/ccg/share/${expectedKind}/${encodeURIComponent(shareId)}`;
-  const imageUrl = `${SITE_URL}/api/og/ccg/share/${expectedKind}/${encodeURIComponent(shareId)}?lang=${locale}&v=1`;
   const localeCode = locale === "fi" ? "fi_FI" : "en_US";
   const alternateLocale = locale === "fi" ? "en_US" : "fi_FI";
 
@@ -141,10 +142,10 @@ export async function buildCcgShareMetadata({
   const copy = getShareCopy(share, locale);
   const title = `${copy.title} | SuomiWoW CCG`;
   const image = {
-    url: imageUrl,
+    url: CCG_EMBED_IMAGE,
     width: CCG_EMBED_IMAGE_WIDTH,
     height: CCG_EMBED_IMAGE_HEIGHT,
-    alt: copy.imageAlt,
+    alt: CCG_EMBED_IMAGE_ALT,
     type: "image/png",
   };
 
@@ -165,7 +166,7 @@ export async function buildCcgShareMetadata({
       images: [image],
     },
     twitter: {
-      card: "summary_large_image",
+      card: "summary",
       title,
       description: copy.description,
       images: [image],

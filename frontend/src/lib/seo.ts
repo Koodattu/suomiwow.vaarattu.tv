@@ -8,8 +8,10 @@ export const SITE_IMAGE = `${SITE_URL}/api/og`;
 export const SITE_IMAGE_ALT = "Suomi WoW Finnish World of Warcraft page preview";
 export const EMBED_IMAGE_WIDTH = 512;
 export const EMBED_IMAGE_HEIGHT = 512;
-export const CCG_EMBED_IMAGE_WIDTH = 1200;
-export const CCG_EMBED_IMAGE_HEIGHT = 630;
+export const CCG_EMBED_IMAGE = `${SITE_URL}/suomiwow-share.png`;
+export const CCG_EMBED_IMAGE_ALT = "SuomiWoW";
+export const CCG_EMBED_IMAGE_WIDTH = 512;
+export const CCG_EMBED_IMAGE_HEIGHT = 512;
 
 export const SEO_KEYWORDS = [
   "Suomi WoW",
@@ -63,19 +65,23 @@ export function getCanonicalUrl(pathname: string = "/") {
 }
 
 export function getPageEmbedImageUrl(metadata: PageSeoMetadata) {
+  if (metadata.embedLabel === "SuomiWoW CCG") {
+    return CCG_EMBED_IMAGE;
+  }
+
   const params = new URLSearchParams({
     title: metadata.title,
     description: metadata.description,
     label: metadata.embedLabel,
   });
 
-  if (metadata.embedLabel === "SuomiWoW CCG") {
-    if (metadata.embedCta) params.set("cta", metadata.embedCta);
-    if (metadata.embedVariant) params.set("view", metadata.embedVariant);
-    return `${SITE_URL}/api/og/ccg?${params.toString()}`;
-  }
-
   return `${SITE_IMAGE}?${params.toString()}`;
+}
+
+export function getPageEmbedImageAlt(metadata: PageSeoMetadata) {
+  return metadata.embedLabel === "SuomiWoW CCG"
+    ? CCG_EMBED_IMAGE_ALT
+    : metadata.imageAlt;
 }
 
 export function getPageEmbedImageSize(metadata: PageSeoMetadata) {
@@ -84,8 +90,8 @@ export function getPageEmbedImageSize(metadata: PageSeoMetadata) {
     : { width: EMBED_IMAGE_WIDTH, height: EMBED_IMAGE_HEIGHT };
 }
 
-export function getPageTwitterCard(metadata: PageSeoMetadata) {
-  return metadata.embedLabel === "SuomiWoW CCG" ? "summary_large_image" : "summary";
+export function getPageTwitterCard() {
+  return "summary";
 }
 
 function decodePathSegment(segment: string) {

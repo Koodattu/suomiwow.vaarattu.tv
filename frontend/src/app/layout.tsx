@@ -13,6 +13,7 @@ import { getLocale, LOCALE_CHANGE_EVENT, type Locale } from "@/lib/locale";
 import {
   buildWebSiteStructuredData,
   getCanonicalUrl,
+  getPageEmbedImageAlt,
   getPageEmbedImageUrl,
   getPageEmbedImageSize,
   getPageMetadata,
@@ -86,8 +87,8 @@ export default function RootLayout({
   const canonicalUrl = getCanonicalUrl(pathname);
   const embedImage = getPageEmbedImageUrl(pageMetadata);
   const embedImageSize = getPageEmbedImageSize(pageMetadata);
-  const embedImageAlt = pageMetadata.imageAlt || SITE_IMAGE_ALT;
-  const twitterCard = getPageTwitterCard(pageMetadata);
+  const embedImageAlt = getPageEmbedImageAlt(pageMetadata) || SITE_IMAGE_ALT;
+  const twitterCard = getPageTwitterCard();
 
   if (!messages) {
     return (
