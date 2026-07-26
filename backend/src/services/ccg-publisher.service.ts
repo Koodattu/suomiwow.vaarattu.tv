@@ -31,10 +31,12 @@ import CcgPackPool from "../models/CcgPackPool";
 import CcgPublicationCandidate from "../models/CcgPublicationCandidate";
 import CcgRollover from "../models/CcgRollover";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
+import Character from "../models/Character";
 import CharacterMedia from "../models/CharacterMedia";
 import CharacterMythicPlusSeasonScore from "../models/CharacterMythicPlusSeasonScore";
 import CharacterTierListEntry from "../models/CharacterTierListEntry";
 import { gradeForPercentile, resolveCardCrop } from "../utils/ccg-random";
+import { buildCcgCardSearchCandidates } from "../utils/ccg-card-search";
 import { createCharacterCollectorKey, createWowCharacterIdentityKey } from "../utils/ccg-identity";
 import { CcgReadinessBlocker, evaluateCcgReadiness } from "../utils/ccg-readiness";
 import { nextCcgCardSnapshotVersion, shouldPublishCcgCardSnapshot } from "../utils/ccg-card-snapshot";
@@ -149,6 +151,7 @@ class CcgPublisherService {
   private configuredPromise: Promise<void> | null = null;
   private cardSnapshotIndexesPromise: Promise<void> | null = null;
   private collectionGuildsPromise: Promise<void> | null = null;
+  private collectionCharactersPromise: Promise<void> | null = null;
 
   private async getActivationState(configured: CcgConfiguredSet, session?: mongoose.ClientSession): Promise<CcgActivationState> {
     const currentSetsQuery = CcgSet.find({
@@ -717,6 +720,60 @@ class CcgPublisherService {
     await this.collectionGuildsPromise;
   }
 
+  private async buildCollectionCharacters(
+    setId: mongoose.Types.ObjectId,
+    session?: mongoose.ClientSession,
+  ): Promise<NonNullable<ICcgSet["collectionCharacters"]>> {
+    const cardsQuery = CcgCard.find({ setId })
+      .select("_id characterId collectorKey name realm classID guildName publishedAt")
+      .lean();
+    if (session) cardsQuery.session(session);
+    const cards = await cardsQuery;
+    const characterIds = Array.from(new Set(cards.map((card) => String(card.characterId))))
+      .map((id) => new mongoose.Types.ObjectId(id));
+    const charactersQuery = Character.find({ _id: { $in: characterIds } }).select("_id name").lean();
+    if (session) charactersQuery.session(session);
+    const characters = await charactersQuery;
+    const currentNameByCharacterId = new Map(characters.map((character) => [String(character._id), character.name]));
+    return buildCcgCardSearchCandidates(cards, currentNameByCharacterId).map((candidate) => ({
+      collectorKey: candidate.collectorKey,
+      characterId: candidate.characterId,
+      name: candidate.name,
+      realm: candidate.realm,
+      classID: candidate.classID,
+      publishedAt: candidate.publishedAt,
+      searchText: candidate.characterSearchText,
+    }));
+  }
+
+  async ensureCollectionCharactersMaterialized(setIds: mongoose.Types.ObjectId[]): Promise<void> {
+    if (setIds.length === 0) return;
+    if (this.collectionCharactersPromise) {
+      await this.collectionCharactersPromise;
+      return this.ensureCollectionCharactersMaterialized(setIds);
+    }
+
+    this.collectionCharactersPromise = (async () => {
+      const sets = await CcgSet.find({
+        _id: { $in: setIds },
+        collectionCharactersBuiltAt: null,
+      }).select("_id").lean();
+      if (sets.length === 0) return;
+
+      for (const set of sets) {
+        const collectionCharacters = await this.buildCollectionCharacters(set._id);
+        await CcgSet.updateOne(
+          { _id: set._id, collectionCharactersBuiltAt: null },
+          { $set: { collectionCharacters, collectionCharactersBuiltAt: new Date() } },
+        );
+      }
+    })().finally(() => {
+      this.collectionCharactersPromise = null;
+    });
+
+    await this.collectionCharactersPromise;
+  }
+
   async rebuildPool(setId: mongoose.Types.ObjectId, version?: string, existingSession?: mongoose.ClientSession): Promise<string> {
     const set = await CcgSet.findById(setId).session(existingSession ?? null).lean();
     if (!set) throw new Error("CCG set not found");
@@ -750,6 +807,7 @@ class CcgPublisherService {
       collectionGuildCards = await communityCards;
     }
     const collectionGuilds = buildCcgCollectionGuilds(collectionGuildCards);
+    const collectionCharacters = await this.buildCollectionCharacters(setId, existingSession);
     const writePool = async (session: mongoose.ClientSession) => {
       await CcgPackPool.updateMany({ setId, active: true }, { $set: { active: false } }, { session });
       await CcgPackPool.findOneAndUpdate(
@@ -759,7 +817,14 @@ class CcgPublisherService {
       );
       await CcgSet.updateOne(
         { _id: setId },
-        { $set: { collectionGuilds, collectionGuildsBuiltAt: new Date() } },
+        {
+          $set: {
+            collectionGuilds,
+            collectionGuildsBuiltAt: new Date(),
+            collectionCharacters,
+            collectionCharactersBuiltAt: new Date(),
+          },
+        },
         { session },
       );
     };

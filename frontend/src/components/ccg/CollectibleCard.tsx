@@ -26,6 +26,44 @@ const classColors: Record<string, string> = {
   Warrior: "#C69B6D",
 };
 
+const mythicPlusScoreColors = [
+  [4375, "#ff8000"],
+  [4215, "#f9763b"],
+  [4095, "#f36b5a"],
+  [3975, "#ea6175"],
+  [3855, "#e05790"],
+  [3735, "#d44daa"],
+  [3615, "#c543c4"],
+  [3495, "#b23ade"],
+  [3365, "#9544eb"],
+  [3245, "#6d5de5"],
+  [3125, "#2a6dde"],
+  [2975, "#4183c9"],
+  [2855, "#579bb0"],
+  [2735, "#5fb395"],
+  [2615, "#5ccc77"],
+  [2495, "#4de553"],
+  [2375, "#1eff00"],
+  [2250, "#44ff2a"],
+  [2125, "#5aff3f"],
+  [2000, "#6cff50"],
+  [1875, "#7bff5f"],
+  [1750, "#89ff6d"],
+  [1625, "#95ff7a"],
+  [1500, "#a1ff86"],
+  [1375, "#acff92"],
+  [1250, "#b6ff9e"],
+  [1125, "#c0ffaa"],
+  [1000, "#c9ffb5"],
+  [875, "#d2ffc1"],
+  [750, "#dbffcd"],
+  [625, "#e4ffd8"],
+  [500, "#ecffe4"],
+  [375, "#f4ffef"],
+  [250, "#fcfffa"],
+  [200, "#ffffff"],
+] as const;
+
 const frameRingPath = [
   "M 24 4 H 476 Q 496 4 496 24 V 676 Q 496 696 476 696",
   "H 24 Q 4 696 4 676 V 24 Q 4 4 24 4 Z",
@@ -69,6 +107,11 @@ function FrameGeometry() {
 
 function score(value: number | null): string {
   return value === null ? "—" : value.toFixed(value >= 1000 ? 0 : 1);
+}
+
+function mythicPlusScoreColor(value: number | null): string {
+  if (value === null) return "#ffffff";
+  return mythicPlusScoreColors.find(([minimum]) => value >= minimum)?.[1] ?? "#ffffff";
 }
 
 function applyCardMaterial(element: HTMLElement, x: number, y: number) {
@@ -271,7 +314,7 @@ export default function CollectibleCard({
         <span className={styles.stat}><span>{t(card.role === "healer" ? "score.healing" : "score.damage")}</span><strong>{score(card.scores.performance)}</strong></span>
         <span className={styles.stat}><span>{t("score.mechanics")}</span><strong>{score(card.scores.mechanics)}</strong></span>
         <span className={styles.stat}><span>{t("score.combined")}</span><strong>{score(card.scores.combined)}</strong></span>
-        <span className={styles.stat}><span>{t("score.mythicPlus")}</span><strong>{score(card.scores.mythicPlus)}</strong></span>
+        <span className={styles.stat}><span>{t("score.mythicPlus")}</span><strong style={{ color: mythicPlusScoreColor(card.scores.mythicPlus) }}>{score(card.scores.mythicPlus)}</strong></span>
       </span>
 
       <span className={`${styles.cardBrand} ${styles.cardBrandLeft}`} aria-hidden="true">SUOMIWOW</span>

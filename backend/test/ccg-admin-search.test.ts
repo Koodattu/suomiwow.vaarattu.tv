@@ -172,45 +172,48 @@ test("admin CCG search matches the current name once while preserving variant sn
 test("collection character search requires two characters and returns cached published CCG identities", async () => {
   const characterId = new mongoose.Types.ObjectId();
   const setId = new mongoose.Types.ObjectId();
-  const cards = [{
-    _id: new mongoose.Types.ObjectId(),
-    setId,
-    characterId,
-    collectorKey: null,
-    name: "Ezclap",
-    realm: "stormreaver",
-    classID: 8,
-    guildName: "Test Guild",
-    publishedAt: new Date("2026-07-25T12:00:00.000Z"),
-  }];
-  const cardModel = CcgCard as any;
-  const characterModel = Character as any;
+  const builtAt = new Date("2026-07-25T12:00:00.000Z");
+  const set = {
+    _id: setId,
+    collectionCharactersBuiltAt: builtAt,
+    collectionCharacters: [{
+      collectorKey: `character:${characterId}`,
+      characterId,
+      name: "Laku",
+      realm: "stormreaver",
+      classID: 8,
+      publishedAt: builtAt,
+      searchText: ["laku", "laku stormreaver", "ezclap", "ezclap stormreaver"],
+    }],
+  };
   const setModel = CcgSet as any;
   const service = ccgService as any;
-  const originals = {
-    cardFind: cardModel.find,
-    characterFind: characterModel.find,
-    setDistinct: setModel.distinct,
-  };
-  let cardFindCalls = 0;
-  let cardFilter: Record<string, unknown> | null = null;
+  const originalSetFind = setModel.find;
+  let metadataReads = 0;
+  let materializedReads = 0;
 
   try {
     service.collectionCharacterSearchCache = null;
-    setModel.distinct = async () => [setId];
-    cardModel.find = (filter: Record<string, unknown>) => {
-      cardFindCalls += 1;
-      cardFilter = filter;
-      return { select() { return this; }, lean: async () => cards };
+    service.collectionCharacterSearchPromise = null;
+    setModel.find = () => {
+      let selection = "";
+      return {
+        select(value: string) { selection = value; return this; },
+        sort() { return this; },
+        lean: async () => {
+          if (selection === "collectionCharacters") {
+            materializedReads += 1;
+            return [set];
+          }
+          metadataReads += 1;
+          return [set];
+        },
+      };
     };
-    characterModel.find = () => ({
-      select() { return this; },
-      lean: async () => [{ _id: characterId, name: "Laku" }],
-    });
 
     const shortResult = await service.searchCollectionCharacters("l", 10);
     assert.deepEqual(shortResult, { search: "l", characters: [] });
-    assert.equal(cardFindCalls, 0);
+    assert.equal(metadataReads, 0);
 
     const currentNameResult = await service.searchCollectionCharacters("laku", 10);
     assert.deepEqual(currentNameResult.characters, [{
@@ -219,18 +222,26 @@ test("collection character search requires two characters and returns cached pub
       realm: "stormreaver",
       classID: 8,
     }]);
-    assert.deepEqual(cardFilter, { setId: { $in: [setId] } });
 
     const historicalNameResult = await service.searchCollectionCharacters("ezclap", 10);
     assert.equal(historicalNameResult.characters[0].id, String(characterId));
 
     const guildNameResult = await service.searchCollectionCharacters("test guild", 10);
     assert.deepEqual(guildNameResult.characters, []);
-    assert.equal(cardFindCalls, 1);
+    assert.equal(metadataReads, 1);
+    assert.equal(materializedReads, 1);
+
+    set.collectionCharactersBuiltAt = new Date("2026-07-26T12:00:00.000Z");
+    set.collectionCharacters[0].name = "Lakuclap";
+    set.collectionCharacters[0].searchText.push("lakuclap", "lakuclap stormreaver");
+    service.collectionCharacterSearchCache.versionCheckedUntil = 0;
+    const refreshedResult = await service.searchCollectionCharacters("lakuclap", 10);
+    assert.equal(refreshedResult.characters[0].name, "Lakuclap");
+    assert.equal(metadataReads, 2);
+    assert.equal(materializedReads, 2);
   } finally {
     service.collectionCharacterSearchCache = null;
-    cardModel.find = originals.cardFind;
-    characterModel.find = originals.characterFind;
-    setModel.distinct = originals.setDistinct;
+    service.collectionCharacterSearchPromise = null;
+    setModel.find = originalSetFind;
   }
 });

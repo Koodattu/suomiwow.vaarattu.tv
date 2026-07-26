@@ -32,6 +32,16 @@ export interface ICcgSet extends Document {
     realm: string;
   }>;
   collectionGuildsBuiltAt?: Date | null;
+  collectionCharacters?: Array<{
+    collectorKey: string;
+    characterId: mongoose.Types.ObjectId;
+    name: string;
+    realm: string;
+    classID: number;
+    publishedAt: Date;
+    searchText: string[];
+  }>;
+  collectionCharactersBuiltAt?: Date | null;
   lastSnapshotAt?: Date | null;
   lastPublishedAt?: Date | null;
   createdAt: Date;
@@ -51,6 +61,19 @@ const CollectionGuildSchema = new Schema(
     guildId: { type: Schema.Types.ObjectId, ref: "Guild", required: true },
     name: { type: String, required: true },
     realm: { type: String, required: true },
+  },
+  { _id: false },
+);
+
+const CollectionCharacterSchema = new Schema(
+  {
+    collectorKey: { type: String, required: true },
+    characterId: { type: Schema.Types.ObjectId, ref: "Character", required: true },
+    name: { type: String, required: true },
+    realm: { type: String, required: true },
+    classID: { type: Number, required: true },
+    publishedAt: { type: Date, required: true },
+    searchText: { type: [String], default: [] },
   },
   { _id: false },
 );
@@ -93,6 +116,8 @@ const CcgSetSchema = new Schema<ICcgSet>(
     cardCount: { type: Number, required: true, default: 0 },
     collectionGuilds: { type: [CollectionGuildSchema], default: undefined },
     collectionGuildsBuiltAt: { type: Date, default: null },
+    collectionCharacters: { type: [CollectionCharacterSchema], default: undefined },
+    collectionCharactersBuiltAt: { type: Date, default: null },
     lastSnapshotAt: { type: Date, default: null },
     lastPublishedAt: { type: Date, default: null },
   },

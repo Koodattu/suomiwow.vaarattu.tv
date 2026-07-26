@@ -62,6 +62,7 @@ import { getTransferableGuestPacks, verifyGuestLibrary } from "../utils/ccg-gues
 import { CCG_REDEEM_PACK_GRANT_MAX, normalizeCcgRedeemCode } from "../utils/ccg-redeem";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeTickStart } from "../utils/ccg-recharge";
 import { applyCcgPackRollover } from "../utils/ccg-rollover";
+import { buildCcgCardSearchCandidates, CcgCardSearchCandidate } from "../utils/ccg-card-search";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../utils/helsinki-time";
 import logger from "../utils/logger";
 import { normalizeSearchText, scoreSearchCandidate } from "../utils/search";
@@ -75,6 +76,7 @@ const CCG_ANALYTICS_INITIALIZATION_LOCK = "ccg-analytics-initialize-v2";
 const CCG_ANALYTICS_INITIALIZATION_TIMEOUT_MS = 30_000;
 const CCG_UNIQUE_FINISH_FILTER = "unique";
 const CCG_PREVIOUS_GUEST_INITIAL_PACKS: Readonly<Record<CcgMode, number>> = { current: 5, legacy: 5 };
+const CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS = 60_000;
 
 export const CCG_COLLECTION_SORTS = [
   "duplicates_desc",
@@ -221,16 +223,10 @@ type RedeemedCodeSnapshot = {
   artVariant: CcgArtVariant | null;
 };
 
-type CcgCardSearchCandidate = {
-  cardIds: mongoose.Types.ObjectId[];
-  characterId: mongoose.Types.ObjectId;
-  name: string;
-  realm: string;
-  classID: number;
-  publishedAt: Date;
-  searchText: string[];
-  characterSearchText: string[];
-};
+type CcgCollectionCharacterSearchCandidate = Pick<
+  CcgCardSearchCandidate,
+  "collectorKey" | "characterId" | "name" | "realm" | "classID" | "publishedAt" | "characterSearchText"
+>;
 
 export class CcgServiceError extends Error {
   constructor(
@@ -336,9 +332,11 @@ class CcgService {
   } | null = null;
 
   private collectionCharacterSearchCache: {
-    expiresAt: number;
-    candidates: CcgCardSearchCandidate[];
+    version: string;
+    versionCheckedUntil: number;
+    candidates: CcgCollectionCharacterSearchCandidate[];
   } | null = null;
+  private collectionCharacterSearchPromise: Promise<CcgCollectionCharacterSearchCandidate[]> | null = null;
 
   private async buildCardSearchCandidates(cardFilter: Record<string, unknown> = {}): Promise<CcgCardSearchCandidate[]> {
     const cards = await CcgCard.find(cardFilter)
@@ -350,58 +348,82 @@ class CcgService {
       .select("_id name")
       .lean();
     const currentNameByCharacterId = new Map(currentCharacters.map((character) => [String(character._id), character.name]));
-    const candidatesByCharacter = new Map<string, Omit<CcgCardSearchCandidate, "searchText" | "characterSearchText"> & {
-      searchText: Set<string>;
-      characterSearchText: Set<string>;
-    }>();
-    for (const card of cards) {
-      const collectorKey = resolveCollectorKey(card);
-      const currentName = currentNameByCharacterId.get(String(card.characterId));
-      const searchText = [
-        card.name,
-        `${card.name} ${card.realm}`,
-        card.guildName ?? "",
-        card.guildName ? `${card.name} ${card.guildName}` : "",
-        currentName ?? "",
-        currentName ? `${currentName} ${card.realm}` : "",
-        currentName && card.guildName ? `${currentName} ${card.guildName}` : "",
-      ].map(normalizeSearchText).filter(Boolean);
-      const characterSearchText = [
-        card.name,
-        `${card.name} ${card.realm}`,
-        currentName ?? "",
-        currentName ? `${currentName} ${card.realm}` : "",
-      ].map(normalizeSearchText).filter(Boolean);
-      const existing = candidatesByCharacter.get(collectorKey);
-      if (!existing) {
-        candidatesByCharacter.set(collectorKey, {
-          cardIds: [card._id],
-          characterId: card.characterId,
-          name: currentName ?? card.name,
-          realm: card.realm,
-          classID: card.classID,
-          publishedAt: card.publishedAt,
-          searchText: new Set(searchText),
-          characterSearchText: new Set(characterSearchText),
-        });
-        continue;
+    return buildCcgCardSearchCandidates(cards, currentNameByCharacterId);
+  }
+
+  private async getCollectionCharacterSearchCandidates(): Promise<CcgCollectionCharacterSearchCandidate[]> {
+    const now = Date.now();
+    if (this.collectionCharacterSearchCache && this.collectionCharacterSearchCache.versionCheckedUntil > now) {
+      return this.collectionCharacterSearchCache.candidates;
+    }
+    if (this.collectionCharacterSearchPromise) return this.collectionCharacterSearchPromise;
+
+    this.collectionCharacterSearchPromise = (async () => {
+      let sets = await CcgSet.find({ enabledAt: { $ne: null } })
+        .select("_id collectionCharactersBuiltAt")
+        .sort({ _id: 1 })
+        .lean();
+      const setIds = sets.map((set) => set._id);
+      if (sets.some((set) => !set.collectionCharactersBuiltAt)) {
+        await ccgPublisherService.ensureCollectionCharactersMaterialized(setIds);
+        sets = await CcgSet.find({ _id: { $in: setIds } })
+          .select("_id collectionCharactersBuiltAt")
+          .sort({ _id: 1 })
+          .lean();
       }
 
-      existing.cardIds.push(card._id);
-      searchText.forEach((value) => existing.searchText.add(value));
-      characterSearchText.forEach((value) => existing.characterSearchText.add(value));
-      if (card.publishedAt.getTime() > existing.publishedAt.getTime()) {
-        existing.name = currentName ?? card.name;
-        existing.realm = card.realm;
-        existing.classID = card.classID;
-        existing.publishedAt = card.publishedAt;
+      const version = sets
+        .map((set) => `${set._id}:${set.collectionCharactersBuiltAt?.getTime() ?? 0}`)
+        .join("|");
+      if (this.collectionCharacterSearchCache?.version === version) {
+        this.collectionCharacterSearchCache.versionCheckedUntil = now + CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS;
+        return this.collectionCharacterSearchCache.candidates;
       }
-    }
-    return Array.from(candidatesByCharacter.values(), (candidate) => ({
-      ...candidate,
-      searchText: Array.from(candidate.searchText),
-      characterSearchText: Array.from(candidate.characterSearchText),
-    }));
+
+      const materializedSets = await CcgSet.find({ _id: { $in: setIds } }).select("collectionCharacters").lean();
+      const candidatesByCollector = new Map<string, Omit<CcgCollectionCharacterSearchCandidate, "characterSearchText"> & {
+        characterSearchText: Set<string>;
+      }>();
+      for (const set of materializedSets) {
+        for (const candidate of set.collectionCharacters ?? []) {
+          const existing = candidatesByCollector.get(candidate.collectorKey);
+          if (!existing) {
+            candidatesByCollector.set(candidate.collectorKey, {
+              collectorKey: candidate.collectorKey,
+              characterId: candidate.characterId,
+              name: candidate.name,
+              realm: candidate.realm,
+              classID: candidate.classID,
+              publishedAt: candidate.publishedAt,
+              characterSearchText: new Set(candidate.searchText),
+            });
+            continue;
+          }
+          candidate.searchText.forEach((text) => existing.characterSearchText.add(text));
+          if (candidate.publishedAt.getTime() > existing.publishedAt.getTime()) {
+            existing.characterId = candidate.characterId;
+            existing.name = candidate.name;
+            existing.realm = candidate.realm;
+            existing.classID = candidate.classID;
+            existing.publishedAt = candidate.publishedAt;
+          }
+        }
+      }
+      const candidates = Array.from(candidatesByCollector.values(), (candidate) => ({
+        ...candidate,
+        characterSearchText: Array.from(candidate.characterSearchText),
+      }));
+      this.collectionCharacterSearchCache = {
+        version,
+        versionCheckedUntil: now + CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS,
+        candidates,
+      };
+      return candidates;
+    })().finally(() => {
+      this.collectionCharacterSearchPromise = null;
+    });
+
+    return this.collectionCharacterSearchPromise;
   }
 
   async getSession(req: Request, res: Response): Promise<Record<string, unknown>> {
@@ -551,6 +573,10 @@ class CcgService {
   async getSets(owner?: CcgOwner): Promise<Record<string, unknown>[]> {
     requireFeature();
     const sets = await ccgPublisherService.ensureConfiguredSets();
+    const visibleSets = sets.filter((set) => set.enabledAt && set.cardCount > 0);
+    void ccgPublisherService.ensureCollectionCharactersMaterialized(visibleSets.map((set) => set._id)).catch((error) => {
+      logger.error("[CCG] Failed to warm collection character search facets:", error);
+    });
     const ownedBySet = new Map<string, number>();
     if (owner) {
       const rows = await CcgOwnership.aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([
@@ -563,7 +589,7 @@ class CcgService {
       ]);
       rows.forEach((row) => ownedBySet.set(String(row._id), row.count));
     }
-    return sets.filter((set) => set.enabledAt && set.cardCount > 0).map((set) => this.serializeSet(set, ownedBySet.get(String(set._id)) ?? 0));
+    return visibleSets.map((set) => this.serializeSet(set, ownedBySet.get(String(set._id)) ?? 0));
   }
 
   async getCollectionGuilds(setSlug?: string): Promise<Record<string, unknown>> {
@@ -1084,15 +1110,8 @@ class CcgService {
     const limit = Number.isInteger(requestedLimit) ? Math.min(10, Math.max(1, requestedLimit)) : 10;
     if (normalizedSearch.length < 2) return { search, characters: [] };
 
-    if (!this.collectionCharacterSearchCache || this.collectionCharacterSearchCache.expiresAt <= Date.now()) {
-      const enabledSetIds = await CcgSet.distinct("_id", { enabledAt: { $ne: null } });
-      this.collectionCharacterSearchCache = {
-        expiresAt: Date.now() + 2 * 60 * 1000,
-        candidates: await this.buildCardSearchCandidates({ setId: { $in: enabledSetIds } }),
-      };
-    }
-
-    const selectedCandidates = this.collectionCharacterSearchCache.candidates
+    const candidates = await this.getCollectionCharacterSearchCandidates();
+    const selectedCandidates = candidates
       .map((candidate) => ({
         ...candidate,
         score: Math.max(...candidate.characterSearchText.map((text) => scoreSearchCandidate(normalizedSearch, text))),
