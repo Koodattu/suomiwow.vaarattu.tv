@@ -207,7 +207,7 @@ export function formatSpecName(specName: string): string {
 }
 
 export function normalizeSpecNameForApi(specName: string): string {
-  return specName.replace(/-/g, "");
+  return specName.trim().toLowerCase().replace(/[\s-]+/g, "");
 }
 
 export function formatRealmName(value: string): string {
