@@ -11,7 +11,7 @@ import type {
   PointerEvent as ReactPointerEvent,
   WheelEvent as ReactWheelEvent,
 } from "react";
-import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCharacterFacet, CcgFinish, CcgGuildFacet, CcgTierGrade } from "@/types";
+import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCharacterFacet, CcgCollectionSort, CcgFinish, CcgGuildFacet, CcgTierGrade } from "@/types";
 import { bestOwnedFinish, CCG_BASE_FINISH_ORDER } from "@/lib/ccg";
 import { getCcgPlaybackVolume } from "@/lib/ccg-audio";
 import { useCcgCatalog, useCcgCollection, useCcgCollectionCharacterSearch, useCcgCollectionGuilds, useCcgSession, useCcgSets } from "@/lib/queries";
@@ -38,6 +38,22 @@ const allSetsSlug = "__all__";
 const uniqueFinishFilter = "unique";
 type CollectionFinishFilter = CcgBaseFinish | typeof uniqueFinishFilter | "";
 type CollectionFinishOption = Exclude<CollectionFinishFilter, "">;
+const collectionSortOptions: Array<{ value: CcgCollectionSort; label: string }> = [
+  { value: "alphabetical", label: "sortAlphabetical" },
+  { value: "reverse_alphabetical", label: "sortReverseAlphabetical" },
+  { value: "rarity_desc", label: "sortMostRareFirst" },
+  { value: "rarity_asc", label: "sortLeastRareFirst" },
+  { value: "quality_desc", label: "sortHighestQualityFirst" },
+  { value: "quality_asc", label: "sortLowestQualityFirst" },
+  { value: "damage_desc", label: "sortHighestDamageFirst" },
+  { value: "damage_asc", label: "sortLowestDamageFirst" },
+  { value: "mechanics_desc", label: "sortHighestMechanicsFirst" },
+  { value: "mechanics_asc", label: "sortLowestMechanicsFirst" },
+  { value: "combined_desc", label: "sortHighestCombinedFirst" },
+  { value: "combined_asc", label: "sortLowestCombinedFirst" },
+  { value: "mythic_plus_desc", label: "sortHighestMythicPlusFirst" },
+  { value: "mythic_plus_asc", label: "sortLowestMythicPlusFirst" },
+];
 
 function PageArrow({ direction }: { direction: "previous" | "next" }) {
   return (
@@ -112,6 +128,7 @@ export default function CcgCollectionPage() {
   const [pageCountCache, setPageCountCache] = useState({ scope: "", pages: 0 });
   const [grade, setGrade] = useState("");
   const [finish, setFinish] = useState<CollectionFinishFilter>("");
+  const [sort, setSort] = useState<CcgCollectionSort | "">("");
   const [viewerCard, setViewerCard] = useState<CcgCard | null>(null);
   const [viewerOriginElement, setViewerOriginElement] = useState<HTMLElement | null>(null);
   const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
@@ -178,7 +195,7 @@ export default function CcgCollectionPage() {
     && (!characterResultsCurrent || characterSearchQuery.isFetching);
   const characterId = selectedCharacter?.id ?? "";
   const showCatalog = includeMissing;
-  const filtersChanged = includeMissing || Boolean(characterId || guildId || grade || finish);
+  const filtersChanged = includeMissing || Boolean(characterId || guildId || grade || finish || sort);
   const ownedQuery = useCcgCollection(
     {
       page,
@@ -188,15 +205,16 @@ export default function CcgCollectionPage() {
       finish: finish || undefined,
       guild: guildId || undefined,
       character: characterId || undefined,
+      sort: sort || undefined,
     },
     Boolean(setSlug) && !showCatalog,
   );
-  const catalogQuery = useCcgCatalog(collectionSetSlug, page, "all", grade, guildId, characterId, finish, showCatalog, cardsPerPage);
+  const catalogQuery = useCcgCatalog(collectionSetSlug, page, "all", grade, guildId, characterId, finish, sort, showCatalog, cardsPerPage);
   const cardsQuery = showCatalog ? catalogQuery : ownedQuery;
   const cardsData = cardsQuery.data;
   const cardsLoading = setsQuery.isPending || cardsQuery.isPending;
   const cardsError = cardsQuery.isError;
-  const pageCountScope = JSON.stringify([setSlug, characterId, guildId, grade, finish, showCatalog]);
+  const pageCountScope = JSON.stringify([setSlug, characterId, guildId, grade, finish, sort, showCatalog]);
   const displayedPageCount = cardsData?.pages
     ?? (pageCountCache.scope === pageCountScope ? pageCountCache.pages : 0);
 
@@ -363,6 +381,7 @@ export default function CcgCollectionPage() {
     setGuildId("");
     setGrade("");
     setFinish("");
+    setSort("");
     setPage(1);
   };
 
@@ -734,6 +753,20 @@ export default function CcgCollectionPage() {
                   <option key={item} value={item} data-finish={item}>
                     {item === uniqueFinishFilter ? t("collection.uniqueQuality") : t(`finish.${item}`)}
                   </option>
+                ))}
+              </select>
+            </label>
+
+            <label className={styles.collectionSelect}>
+              <select
+                aria-label={t("collection.sort")}
+                className={styles.collectionSortSelect}
+                value={sort}
+                onChange={(event) => updateFilter(() => setSort(event.target.value as CcgCollectionSort | ""))}
+              >
+                <option value="">{t("collection.sortDefault")}</option>
+                {collectionSortOptions.map((item) => (
+                  <option key={item.value} value={item.value}>{t(`collection.${item.label}`)}</option>
                 ))}
               </select>
             </label>

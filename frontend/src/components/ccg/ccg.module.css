@@ -1590,6 +1590,10 @@
   flex: 0 0 8rem;
 }
 
+.collectionSortSelect {
+  width: 7.5rem;
+}
+
 .collectionGuildSelect select {
   width: 100%;
 }

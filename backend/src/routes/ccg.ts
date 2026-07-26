@@ -1,4 +1,6 @@
+import { createHash } from "crypto";
 import { NextFunction, Request, Response, Router } from "express";
+import { CCG_GUEST_COOKIE } from "../config/ccg";
 import { cacheMiddleware } from "../middleware/cache.middleware";
 import ccgService, { CcgServiceError } from "../services/ccg.service";
 import logger from "../utils/logger";
@@ -19,12 +21,19 @@ function pruneRateLimits(now: number): void {
   }
 }
 
-function rateLimit(limit: number, windowMs: number) {
+function ownerRateLimitKey(req: Request): string {
+  if (req.session.userId) return `user:${req.session.userId}`;
+  const guestToken = typeof req.cookies?.[CCG_GUEST_COOKIE] === "string" ? req.cookies[CCG_GUEST_COOKIE] : null;
+  if (guestToken) return `guest:${createHash("sha256").update(guestToken).digest("hex")}`;
+  return `ip:${req.ip}`;
+}
+
+function rateLimit(limit: number, windowMs: number, identify: (req: Request) => string = (req) => `ip:${req.ip}`) {
   return (req: Request, res: Response, next: NextFunction) => {
     const now = Date.now();
     pruneRateLimits(now);
     const routePath = typeof req.route?.path === "string" ? req.route.path : req.path;
-    const key = `${req.ip}:${req.baseUrl}${routePath}`;
+    const key = `${identify(req)}:${req.baseUrl}${routePath}`;
     const current = rateLimits.get(key);
     if (!current || current.resetAt <= now) {
       rateLimits.set(key, { count: 1, resetAt: now + windowMs });
@@ -93,6 +102,7 @@ router.get(
       finish: typeof req.query.finish === "string" ? req.query.finish : undefined,
       guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
       characterId: typeof req.query.character === "string" ? req.query.character : undefined,
+      sort: typeof req.query.sort === "string" ? req.query.sort : undefined,
     });
   }),
 );
@@ -125,6 +135,7 @@ router.get(
       finish: typeof req.query.finish === "string" ? req.query.finish : undefined,
       guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
       characterId: typeof req.query.character === "string" ? req.query.character : undefined,
+      sort: typeof req.query.sort === "string" ? req.query.sort : undefined,
     });
   }),
 );
@@ -143,6 +154,7 @@ router.get(
       search: typeof req.query.search === "string" ? req.query.search : undefined,
       guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
       characterId: typeof req.query.character === "string" ? req.query.character : undefined,
+      sort: typeof req.query.sort === "string" ? req.query.sort : undefined,
     });
   }),
 );
@@ -176,7 +188,7 @@ router.post(
 
 router.post(
   "/packs/open",
-  rateLimit(20, 60_000),
+  rateLimit(60, 60_000, ownerRateLimitKey),
   asyncRoute(async (req, res) => ccgService.openPack(req, res, req.body ?? {})),
 );
 

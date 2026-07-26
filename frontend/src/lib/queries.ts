@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { CharacterTierListRole, EventFilters } from "@/types";
+import type { CcgCollectionSort, CharacterTierListRole, EventFilters } from "@/types";
 
 const LIVE_STATUS_STALE_TIME = 15 * 60 * 1000;
 const LIVE_STATUS_REFETCH_INTERVAL = 15 * 60 * 1000;
@@ -95,7 +95,7 @@ export const queryKeys = {
     analytics: ["ccg", "analytics"] as const,
     session: ["ccg", "session"] as const,
     sets: ["ccg", "sets"] as const,
-    catalog: (setSlug: string | undefined, page: number, owned: string, grade: string, guildId: string, characterId: string, finish: string, limit: number) => ["ccg", "catalog", setSlug ?? "all", page, owned, grade, guildId, characterId, finish, limit] as const,
+    catalog: (setSlug: string | undefined, page: number, owned: string, grade: string, guildId: string, characterId: string, finish: string, sort: string, limit: number) => ["ccg", "catalog", setSlug ?? "all", page, owned, grade, guildId, characterId, finish, sort, limit] as const,
     guilds: (setSlug?: string) => ["ccg", "guilds", setSlug ?? "all"] as const,
     characterSearch: (search: string) => ["ccg", "characterSearch", search] as const,
     collection: (options: Record<string, unknown>) => ["ccg", "collection", options] as const,
@@ -501,10 +501,10 @@ export function useCcgSets(enabled = true) {
   });
 }
 
-export function useCcgCatalog(setSlug: string | undefined, page: number, owned: "all" | "owned" | "missing", grade: string, guildId = "", characterId = "", finish = "", enabled = true, limit = 9) {
+export function useCcgCatalog(setSlug: string | undefined, page: number, owned: "all" | "owned" | "missing", grade: string, guildId = "", characterId = "", finish = "", sort: CcgCollectionSort | "" = "", enabled = true, limit = 9) {
   return useQuery({
-    queryKey: queryKeys.ccg.catalog(setSlug, page, owned, grade, guildId, characterId, finish, limit),
-    queryFn: () => api.getCcgCatalog(setSlug, { page, limit, owned, grade: grade || undefined, guild: guildId || undefined, character: characterId || undefined, finish: finish || undefined }),
+    queryKey: queryKeys.ccg.catalog(setSlug, page, owned, grade, guildId, characterId, finish, sort, limit),
+    queryFn: () => api.getCcgCatalog(setSlug, { page, limit, owned, grade: grade || undefined, guild: guildId || undefined, character: characterId || undefined, finish: finish || undefined, sort: sort || undefined }),
     enabled,
     staleTime: 30 * 1000,
   });
@@ -528,7 +528,7 @@ export function useCcgCollectionCharacterSearch(search: string, enabled = true) 
   });
 }
 
-export function useCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string; character?: string }, enabled = true) {
+export function useCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string; character?: string; sort?: CcgCollectionSort }, enabled = true) {
   return useQuery({
     queryKey: queryKeys.ccg.collection(options),
     queryFn: () => api.getCcgCollection(options),

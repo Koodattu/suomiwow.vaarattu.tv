@@ -2025,6 +2025,22 @@ export type CcgCard = {
   variants?: CcgCardVariant[];
 };
 
+export type CcgCollectionSort =
+  | "rarity_desc"
+  | "rarity_asc"
+  | "quality_desc"
+  | "quality_asc"
+  | "alphabetical"
+  | "reverse_alphabetical"
+  | "damage_desc"
+  | "damage_asc"
+  | "mechanics_desc"
+  | "mechanics_asc"
+  | "combined_desc"
+  | "combined_asc"
+  | "mythic_plus_desc"
+  | "mythic_plus_asc";
+
 export type CcgCardVariant = {
   card: CcgCard;
   ownership: CcgCardOwnership[];

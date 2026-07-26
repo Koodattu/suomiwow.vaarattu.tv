@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt } from "crypto";
 import { Request, Response } from "express";
-import mongoose, { ClientSession } from "mongoose";
+import mongoose, { ClientSession, PipelineStage } from "mongoose";
 import {
   CCG_CARDS_PER_PACK,
   CCG_BASE_FINISH_ORDER,
@@ -75,6 +75,118 @@ const CCG_ANALYTICS_INITIALIZATION_LOCK = "ccg-analytics-initialize-v2";
 const CCG_ANALYTICS_INITIALIZATION_TIMEOUT_MS = 30_000;
 const CCG_UNIQUE_FINISH_FILTER = "unique";
 const CCG_PREVIOUS_GUEST_INITIAL_PACKS: Readonly<Record<CcgMode, number>> = { current: 5, legacy: 5 };
+
+export const CCG_COLLECTION_SORTS = [
+  "rarity_desc",
+  "rarity_asc",
+  "quality_desc",
+  "quality_asc",
+  "alphabetical",
+  "reverse_alphabetical",
+  "damage_desc",
+  "damage_asc",
+  "mechanics_desc",
+  "mechanics_asc",
+  "combined_desc",
+  "combined_asc",
+  "mythic_plus_desc",
+  "mythic_plus_asc",
+] as const;
+
+export type CcgCollectionSort = (typeof CCG_COLLECTION_SORTS)[number];
+
+type CcgCollectionSortPaths = {
+  grade: string;
+  name: string;
+  realm: string;
+  setNumber: string;
+  id: string;
+};
+
+type CcgCollectionSortExpressions = {
+  quality: unknown;
+  damage: unknown;
+  mechanics: unknown;
+  combined: unknown;
+  mythicPlus: unknown;
+};
+
+export function resolveCcgCollectionSort(value: unknown): CcgCollectionSort | null {
+  return CCG_COLLECTION_SORTS.includes(value as CcgCollectionSort) ? (value as CcgCollectionSort) : null;
+}
+
+export function buildCcgCollectionQualityRank(finishExpression: string): unknown {
+  return {
+    $switch: {
+      branches: [
+        { case: { $in: [finishExpression, [...CCG_CUSTOM_FINISHES]] }, then: 5 },
+        { case: { $eq: [finishExpression, "negative"] }, then: 6 },
+      ],
+      default: { $indexOfArray: [[...CCG_BASE_FINISH_ORDER], finishExpression] },
+    },
+  };
+}
+
+export function buildCcgCollectionSortStages(
+  sort: CcgCollectionSort,
+  paths: CcgCollectionSortPaths,
+  expressions: CcgCollectionSortExpressions,
+): PipelineStage[] {
+  const fallbackSort = { [paths.name]: 1, [paths.realm]: 1, [paths.setNumber]: 1, [paths.id]: 1 } as const;
+  if (sort === "alphabetical" || sort === "reverse_alphabetical") {
+    const direction = sort === "alphabetical" ? 1 : -1;
+    return [{
+      $sort: {
+        [paths.name]: direction,
+        [paths.realm]: direction,
+        [paths.setNumber]: 1,
+        [paths.id]: 1,
+      },
+    } as PipelineStage.Sort];
+  }
+
+  let sortValue: unknown;
+  let direction: 1 | -1;
+  switch (sort) {
+    case "rarity_desc":
+    case "rarity_asc":
+      sortValue = { $indexOfArray: [[...CCG_TIER_GRADES], `$${paths.grade}`] };
+      direction = sort === "rarity_desc" ? 1 : -1;
+      break;
+    case "quality_desc":
+    case "quality_asc":
+      sortValue = expressions.quality;
+      direction = sort === "quality_desc" ? -1 : 1;
+      break;
+    case "damage_desc":
+    case "damage_asc":
+      sortValue = expressions.damage;
+      direction = sort === "damage_desc" ? -1 : 1;
+      break;
+    case "mechanics_desc":
+    case "mechanics_asc":
+      sortValue = expressions.mechanics;
+      direction = sort === "mechanics_desc" ? -1 : 1;
+      break;
+    case "combined_desc":
+    case "combined_asc":
+      sortValue = expressions.combined;
+      direction = sort === "combined_desc" ? -1 : 1;
+      break;
+    case "mythic_plus_desc":
+    case "mythic_plus_asc":
+      sortValue = expressions.mythicPlus;
+      direction = sort === "mythic_plus_desc" ? -1 : 1;
+      break;
+  }
+
+  return [
+    { $set: { sortValue } },
+    { $set: { sortMissing: { $cond: [{ $eq: [{ $ifNull: ["$sortValue", null] }, null] }, 1, 0] } } },
+    { $sort: { sortMissing: 1, sortValue: direction, ...fallbackSort } } as PipelineStage.Sort,
+    { $unset: ["sortMissing", "sortValue"] },
+  ];
+}
 
 type CcgOwner = {
   ownerType: CcgOwnerType;
@@ -522,7 +634,7 @@ class CcgService {
   async getCatalog(
     owner: CcgOwner,
     setSlug: string | undefined,
-    options: { page?: number; limit?: number; owned?: string; grade?: string; finish?: string; guildId?: string; characterId?: string },
+    options: { page?: number; limit?: number; owned?: string; grade?: string; finish?: string; guildId?: string; characterId?: string; sort?: string },
   ): Promise<Record<string, unknown>> {
     const requestedSet = setSlug
       ? await CcgSet.findOne({ slug: setSlug, enabledAt: { $ne: null } }).lean()
@@ -535,6 +647,9 @@ class CcgService {
     const page = Math.max(1, Math.floor(options.page ?? 1));
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 9)));
     const grade = CCG_TIER_GRADES.includes(options.grade as CcgTierGrade) ? (options.grade as CcgTierGrade) : null;
+    const sort = resolveCcgCollectionSort(options.sort);
+    const qualitySort = sort === "quality_desc" || sort === "quality_asc";
+    const communitySetIds = sets.filter((item) => item.kind === "community").map((item) => item._id);
     const finishMatch = resolveCollectionFinishMatch(options.finish);
     const cardFilter: Record<string, unknown> = {};
     if (grade) cardFilter.tierGrade = grade;
@@ -565,12 +680,46 @@ class CcgService {
       { $group: { _id: { setId: "$setId", characterId: "$characterId" }, card: { $first: "$$ROOT" } } },
       { $replaceRoot: { newRoot: "$card" } },
       ...(Object.keys(cardFilter).length > 0 ? [{ $match: cardFilter }] : []),
-      ...(set
+      ...(qualitySort ? [{
+        $lookup: {
+          from: "ccgownerships",
+          let: { cardId: "$_id" },
+          pipeline: [
+            { $match: { ownerType: owner.ownerType, ownerId: owner.ownerId, $expr: { $eq: ["$cardId", "$$cardId"] } } },
+            { $project: { _id: 0, finish: 1 } },
+          ],
+          as: "sortOwnership",
+        },
+      }] : []),
+      ...(sort
+        ? buildCcgCollectionSortStages(sort, {
+            grade: "tierGrade",
+            name: "name",
+            realm: "realm",
+            setNumber: "setNumber",
+            id: "_id",
+          }, {
+            quality: {
+              $max: {
+                $map: {
+                  input: "$sortOwnership",
+                  as: "owned",
+                  in: buildCcgCollectionQualityRank("$$owned.finish"),
+                },
+              },
+            },
+            damage: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.performance", "$parseScore"] },
+            mechanics: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.mechanics", "$survivalScore"] },
+            combined: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.combined", "$combinedScore"] },
+            mythicPlus: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.mythicPlus", "$mythicPlusScore"] },
+          })
+        : set
         ? [{ $sort: { setNumber: 1 as const } }]
         : [
             { $set: { sortGrade: { $indexOfArray: [[...CCG_TIER_GRADES], "$tierGrade"] } } },
             { $sort: { sortGrade: 1 as const, setNumber: 1 as const, name: 1 as const, _id: 1 as const } },
           ]),
+      ...(qualitySort ? [{ $unset: "sortOwnership" }] : []),
       {
         $facet: {
           items: [{ $skip: (page - 1) * limit }, { $limit: limit }],
@@ -615,12 +764,13 @@ class CcgService {
 
   async getCollection(
     owner: CcgOwner,
-    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string; characterId?: string },
+    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string; characterId?: string; sort?: string },
   ): Promise<Record<string, unknown>> {
     const page = Math.max(1, Math.floor(options.page ?? 1));
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 18)));
     const match: Record<string, unknown> = { ownerType: owner.ownerType, ownerId: owner.ownerId };
     const finishMatch = resolveCollectionFinishMatch(options.finish);
+    const sort = resolveCcgCollectionSort(options.sort);
     if (finishMatch) match.finish = finishMatch;
     const cardMatch: Record<string, unknown> = {};
     const grade = CCG_TIER_GRADES.includes(options.grade as CcgTierGrade) ? (options.grade as CcgTierGrade) : null;
@@ -670,8 +820,32 @@ class CcgService {
         },
       },
       ...(Object.keys(cardMatch).length > 0 ? [{ $match: cardMatch }] : []),
-      { $set: { sortGrade: { $indexOfArray: [[...CCG_TIER_GRADES], "$card.tierGrade"] } } },
-      { $sort: { sortGrade: 1, "card.setNumber": 1, "card.name": 1, _id: 1 } },
+      ...(sort
+        ? buildCcgCollectionSortStages(sort, {
+            grade: "card.tierGrade",
+            name: "card.name",
+            realm: "card.realm",
+            setNumber: "card.setNumber",
+            id: "card._id",
+          }, {
+            quality: {
+              $max: {
+                $map: {
+                  input: "$finishes",
+                  as: "owned",
+                  in: buildCcgCollectionQualityRank("$$owned.finish"),
+                },
+              },
+            },
+            damage: { $cond: [{ $eq: ["$set.kind", "community"] }, "$card.communityScores.performance", "$card.parseScore"] },
+            mechanics: { $cond: [{ $eq: ["$set.kind", "community"] }, "$card.communityScores.mechanics", "$card.survivalScore"] },
+            combined: { $cond: [{ $eq: ["$set.kind", "community"] }, "$card.communityScores.combined", "$card.combinedScore"] },
+            mythicPlus: { $cond: [{ $eq: ["$set.kind", "community"] }, "$card.communityScores.mythicPlus", "$card.mythicPlusScore"] },
+          })
+        : [
+            { $set: { sortGrade: { $indexOfArray: [[...CCG_TIER_GRADES], "$card.tierGrade"] } } },
+            { $sort: { sortGrade: 1 as const, "card.setNumber": 1 as const, "card.name": 1 as const, _id: 1 as const } },
+          ]),
       {
         $facet: {
           items: [{ $skip: (page - 1) * limit }, { $limit: limit }],

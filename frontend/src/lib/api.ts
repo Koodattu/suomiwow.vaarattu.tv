@@ -137,6 +137,7 @@ import {
   CcgCollectionResponse,
   CcgGuildsResponse,
   CcgCharacterSearchResponse,
+  CcgCollectionSort,
   CcgMode,
   CcgFinish,
   CcgArtVariant,
@@ -271,7 +272,7 @@ export const api = {
 
   async getCcgCatalog(
     setSlug: string | undefined,
-    options: { page?: number; limit?: number; owned?: "all" | "owned" | "missing"; grade?: string; guild?: string; character?: string; finish?: string } = {},
+    options: { page?: number; limit?: number; owned?: "all" | "owned" | "missing"; grade?: string; guild?: string; character?: string; finish?: string; sort?: CcgCollectionSort } = {},
   ): Promise<CcgCatalogResponse> {
     const params = new URLSearchParams();
     if (options.page) params.set("page", String(options.page));
@@ -281,6 +282,7 @@ export const api = {
     if (options.guild) params.set("guild", options.guild);
     if (options.character) params.set("character", options.character);
     if (options.finish) params.set("finish", options.finish);
+    if (options.sort) params.set("sort", options.sort);
     const path = setSlug
       ? `/api/ccg/sets/${encodeURIComponent(setSlug)}/catalog`
       : "/api/ccg/collection/catalog";
@@ -304,7 +306,7 @@ export const api = {
     return response.json();
   },
 
-  async getCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string; character?: string } = {}): Promise<CcgCollectionResponse> {
+  async getCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string; character?: string; sort?: CcgCollectionSort } = {}): Promise<CcgCollectionResponse> {
     const params = new URLSearchParams();
     Object.entries(options).forEach(([key, value]) => {
       if (value !== undefined && value !== "") params.set(key, String(value));
