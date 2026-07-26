@@ -295,6 +295,7 @@
       "allGuilds": "All guilds",
       "searchGuilds": "Find a guild",
       "searchGuildsPlaceholder": "Search by guild or realm",
+      "typeToSearch": "Type to search",
       "selectGuild": "Choose a guild",
       "guildOption": "{name} – {realm} · {collected}/{total}",
       "cardVisibility": "Card visibility",
@@ -323,7 +324,8 @@
       "openPacks": "Open packs",
       "previous": "Previous",
       "next": "Next",
-      "page": "Page {page} of {pages}"
+      "page": "Page {page} of {pages}",
+      "pageTotal": "of {pages}"
     },
     "finish": {
       "label": "Card finish",

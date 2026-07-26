@@ -38,7 +38,7 @@
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: clamp(0.75rem, 1.5vw, 1.5rem);
-  padding: 0.2rem clamp(1rem, 2vw, 2rem);
+  padding: 0.2rem clamp(0.6rem, 1vw, 1rem);
 }
 
 .shellBrand {
@@ -1153,7 +1153,7 @@
   align-items: center;
   gap: clamp(0.65rem, 1.5vw, 1.25rem);
   border-bottom: 1px solid rgba(144, 178, 236, 0.12);
-  padding: 0.55rem clamp(0.75rem, 2vw, 2rem);
+  padding: 0.55rem clamp(0.5rem, 1vw, 1rem);
 }
 
 .collectionSetRailViewport {
@@ -1534,7 +1534,7 @@
 }
 
 .collectionSelect select,
-.collectionGuildSelectButton {
+.collectionGuildSelectInput {
   appearance: none;
   width: auto;
   min-height: 2.5rem;
@@ -1558,13 +1558,12 @@
 }
 
 .collectionSelect select:hover:not(:disabled),
-.collectionGuildSelectButton:hover:not(:disabled) {
+.collectionGuildSelectInput:hover {
   background: #0b1932;
   color: #fff;
 }
 
-.collectionSelect select:disabled,
-.collectionGuildSelectButton:disabled {
+.collectionSelect select:disabled {
   color: #68778f;
   cursor: not-allowed;
   opacity: 0.58;
@@ -1579,61 +1578,86 @@
   width: 100%;
 }
 
-.collectionGuildSelectButton {
+.collectionGuildSelectInput {
   width: 100%;
   min-width: 0;
   overflow: hidden;
-  text-align: left;
+  padding-right: 2.5rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.collectionGuildPopup {
+.collectionGuildSelectInputWithSelection:not(:focus) {
+  color: transparent;
+}
+
+.collectionGuildSelect:focus-within .collectionGuildSelectInputWithSelection {
+  color: #d7e2f3;
+}
+
+.collectionGuildSelection {
   position: absolute;
+  right: 2.5rem;
+  left: 0.65rem;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.collectionGuildSelect:focus-within .collectionGuildSelection {
+  opacity: 0;
+}
+
+.collectionGuildSelectToggle {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  width: 2.5rem;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.collectionGuildSelectInput::placeholder {
+  color: #d7e2f3;
+  opacity: 1;
+}
+
+.collectionGuildSelectInput:focus-visible {
+  outline: 2px solid #7ddcff;
+  outline-offset: 2px;
+}
+
+.collectionGuildSelectInput[data-unavailable="true"] {
+  color: #68778f;
+}
+
+.collectionGuildSelectInputWithSelection[data-unavailable="true"]:not(:focus) {
+  color: transparent;
+}
+
+.collectionGuildSelectInput[data-unavailable="true"] + .collectionGuildSelection,
+.collectionGuildSelectInput[data-unavailable="true"] + .collectionGuildSelection .collectionGuildRealm {
+  color: #68778f;
+}
+
+.collectionGuildOptions {
   z-index: 120;
-  top: calc(100% + 0.25rem);
-  left: 0;
-  width: 100%;
+  width: var(--input-width);
+  max-height: min(28rem, var(--anchor-max-height));
+  overflow-y: auto;
   border-radius: 0.45rem;
   background: #081226;
   box-shadow:
     0 0 0 1px rgba(151, 181, 229, 0.18),
     0 12px 30px rgba(0, 0, 0, 0.42);
   padding: 0.25rem;
-  box-sizing: border-box;
-}
-
-.collectionGuildSearch {
-  width: 100%;
-  min-width: 0;
-  min-height: 2.25rem;
-  border: 0;
-  border-radius: 0.3rem;
-  background: rgba(151, 181, 229, 0.09);
-  box-shadow: inset 0 0 0 1px rgba(151, 181, 229, 0.16);
-  color: #d7e2f3;
-  padding: 0.45rem 0.5rem;
-  font-family: inherit;
-  font-size: 0.75rem;
-  font-weight: 700;
-  outline: none;
-  box-sizing: border-box;
-}
-
-.collectionGuildSearch::placeholder {
-  color: #718097;
-}
-
-.collectionGuildSearch:focus {
-  box-shadow: inset 0 0 0 1px rgba(125, 220, 255, 0.5);
-}
-
-.collectionGuildOptions {
-  max-height: 13.5rem;
-  overflow-y: auto;
-  margin-top: 0.2rem;
   color: #d7e2f3;
   font-size: 0.75rem;
   font-weight: 700;
   outline: none;
+  box-sizing: border-box;
 }
 
 .collectionGuildOption {
@@ -1646,6 +1670,7 @@
   border-radius: 0.3rem;
   padding: 0.45rem 0.4rem;
   cursor: pointer;
+  text-align: left;
 }
 
 .collectionGuildOption[data-selected] {
@@ -1674,8 +1699,6 @@
 
 .collectionGuildSelect select[data-unavailable="true"],
 .collectionGuildSelect option[data-unavailable="true"],
-.collectionGuildSelectButton[data-unavailable="true"],
-.collectionGuildSelectButton[data-unavailable="true"] .collectionGuildRealm,
 .collectionGuildOption[data-unavailable="true"],
 .collectionGuildOption[data-unavailable="true"] .collectionGuildRealm {
   color: #68778f;
@@ -1752,13 +1775,27 @@
 }
 
 .collectionPageCount {
-  min-width: 5.5rem;
+  display: grid;
+  min-width: 2.5rem;
+  justify-items: center;
+  gap: 0.08rem;
   color: #8f9db4;
-  font-size: 0.72rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
   text-align: center;
   white-space: nowrap;
+}
+
+.collectionPageCount > span {
+  color: #c5d2e5;
+  font-size: 0.78rem;
+}
+
+.collectionPageCount small {
+  color: #74839a;
+  font-size: 0.62rem;
+  font-weight: 700;
 }
 
 .collectionBinder {

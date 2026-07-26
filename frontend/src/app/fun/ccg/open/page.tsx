@@ -916,61 +916,81 @@ export default function CcgOpenPage() {
               </div>
 
               <div className={packStyles.revealControls}>
-                {!allRevealed ? (
-                  <div className={packStyles.revealProgress}>
-                    <span>{t("open.revealProgress", { revealed: revealedCards.size, total: opening.results.length })}</span>
-                    <button type="button" className={styles.secondaryButton} onClick={revealAll} disabled={revealPhase !== "ready"}>
-                      {t("open.revealAll")}
-                    </button>
+                <div className={packStyles.revealActionStack}>
+                  <div className={packStyles.revealActionSlot}>
+                    {allRevealed && session?.ownerType === "guest" ? (
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        onClick={() => login(`${window.location.pathname}${window.location.search}${window.location.hash}`, { ccgOpeningId: opening.id })}
+                      >
+                        {t(hasAnotherPack ? "guest.keepPack" : "guest.loginForPacks")}
+                      </button>
+                    ) : allRevealed ? (
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        onClick={openAnotherPack}
+                        disabled={!hasAnotherPack || mutation.isPending || isPackCycling}
+                      >
+                        {mutation.isPending || isPackCycling ? t("open.opening") : hasAnotherPack ? t("open.openAnother") : nextPackLabel}
+                      </button>
+                    ) : null}
                   </div>
-                ) : (
-                  <div className={packStyles.nextPackActions}>
-                    {session?.ownerType === "guest" ? (
+                  <div className={packStyles.revealStatusSlot}>
+                    {!allRevealed ? (
+                      <span className={packStyles.revealProgressLabel}>
+                        {t("open.revealProgress", { revealed: revealedCards.size, total: opening.results.length })}
+                      </span>
+                    ) : session ? (
                       <>
-                        <button
-                          type="button"
-                          className={styles.primaryButton}
-                          onClick={() => login(`${window.location.pathname}${window.location.search}${window.location.hash}`, { ccgOpeningId: opening.id })}
-                        >
-                          {t(hasAnotherPack ? "guest.keepPack" : "guest.loginForPacks")}
-                        </button>
-                        {hasAnotherPack ? (
-                          <button
-                            type="button"
-                            className={styles.secondaryButton}
-                            onClick={openAnotherPack}
-                            disabled={mutation.isPending || isPackCycling}
-                          >
-                            {mutation.isPending || isPackCycling ? t("open.opening") : t("open.openAnother")}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className={styles.secondaryButton}
-                            onClick={clearSavedOpening}
-                            disabled={mutation.isPending || isPackCycling}
-                          >
-                            {t("open.chooseDifferent")}
-                          </button>
-                        )}
+                        <strong>{session.packs[opening.mode].totalRemaining}</strong>
+                        <span>{t("packsRemaining")}</span>
                       </>
-                    ) : (
-                      <>
+                    ) : null}
+                  </div>
+                  <div className={packStyles.revealActionSlot}>
+                    {!allRevealed ? (
+                      <button type="button" className={styles.secondaryButton} onClick={revealAll} disabled={revealPhase !== "ready"}>
+                        {t("open.revealAll")}
+                      </button>
+                    ) : session?.ownerType === "guest" ? (
+                      hasAnotherPack ? (
                         <button
                           type="button"
-                          className={styles.primaryButton}
+                          className={styles.secondaryButton}
                           onClick={openAnotherPack}
-                          disabled={!hasAnotherPack || mutation.isPending || isPackCycling}
+                          disabled={mutation.isPending || isPackCycling}
                         >
-                          {mutation.isPending || isPackCycling ? t("open.opening") : hasAnotherPack ? t("open.openAnother") : nextPackLabel}
+                          {mutation.isPending || isPackCycling ? t("open.opening") : t("open.openAnother")}
                         </button>
-                        <button type="button" className={styles.secondaryButton} onClick={clearSavedOpening} disabled={mutation.isPending || isPackCycling}>
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.secondaryButton}
+                          onClick={clearSavedOpening}
+                          disabled={mutation.isPending || isPackCycling}
+                        >
                           {t("open.chooseDifferent")}
                         </button>
-                      </>
+                      )
+                    ) : (
+                      <button type="button" className={styles.secondaryButton} onClick={clearSavedOpening} disabled={mutation.isPending || isPackCycling}>
+                        {t("open.chooseDifferent")}
+                      </button>
                     )}
                   </div>
-                )}
+                  <div className={packStyles.revealActionSlot}>
+                    {allRevealed ? (
+                      <CcgShareButton
+                        key={opening.id}
+                        target={{ kind: "pack", openingId: opening.id }}
+                        className={packStyles.packShareButton}
+                        loginRequired={!user}
+                      />
+                    ) : null}
+                  </div>
+                </div>
               </div>
               {allRevealed && mutation.error ? (
                 <p className={packStyles.packActionError} role="alert">
@@ -979,14 +999,6 @@ export default function CcgOpenPage() {
               ) : null}
               {allRevealed && opening.duplicateRewards > 0 ? <p className={packStyles.bonusEarned}>{t("open.bonusEarned", { count: opening.duplicateRewards })}</p> : null}
             </div>
-            {allRevealed ? (
-              <CcgShareButton
-                key={opening.id}
-                target={{ kind: "pack", openingId: opening.id }}
-                className={packStyles.packShareButton}
-                loginRequired={!user}
-              />
-            ) : null}
             <div
               className={`${packStyles.burstOverlay} ${revealPhase === "holding" ? packStyles.tearSequenceHolding : ""} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`}
               aria-hidden="true"
