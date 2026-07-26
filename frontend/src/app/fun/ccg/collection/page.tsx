@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from "@headlessui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { LuEye, LuEyeOff, LuRotateCcw } from "react-icons/lu";
 import type {
   CSSProperties,
   MouseEvent as ReactMouseEvent,
@@ -496,17 +497,26 @@ export default function CcgCollectionPage() {
               className={styles.collectionResetButton}
               onClick={resetFilters}
               disabled={!filtersChanged}
+              aria-label={t("collection.resetFiltersLabel")}
+              title={t("collection.resetFiltersLabel")}
             >
-              {t("collection.resetFilters")}
+              <LuRotateCcw aria-hidden="true" />
             </button>
 
-            <label className={`${styles.collectionMissingToggle} ${includeMissing ? styles.collectionMissingToggleActive : ""}`}>
+            <label
+              className={`${styles.collectionMissingToggle} ${includeMissing ? styles.collectionMissingToggleActive : ""}`}
+              title={t(includeMissing ? "collection.hideMissingCards" : "collection.showMissingCards")}
+            >
               <input
                 type="checkbox"
                 checked={includeMissing}
                 onChange={(event) => updateFilter(() => setIncludeMissing(event.target.checked))}
+                aria-label={t(includeMissing ? "collection.hideMissingCards" : "collection.showMissingCards")}
               />
-              <span>{t("collection.showMissing")}</span>
+              <span className={styles.collectionMissingToggleIcon} aria-hidden="true">
+                <LuEye className={includeMissing ? styles.collectionToggleIconVisible : styles.collectionToggleIconHidden} />
+                <LuEyeOff className={includeMissing ? styles.collectionToggleIconHidden : styles.collectionToggleIconVisible} />
+              </span>
             </label>
 
             <Combobox
