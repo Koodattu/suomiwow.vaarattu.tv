@@ -20,7 +20,8 @@ import {
   CcgFinish,
   CcgMode,
   CcgTierGrade,
-  getCcgFinishOrder,
+  getCcgPackFinishOrder,
+  getCcgRedeemFinishOrder,
 } from "../config/ccg";
 import CcgCard, { ICcgCard } from "../models/CcgCard";
 import CcgAlternativeArt from "../models/CcgAlternativeArt";
@@ -1224,8 +1225,8 @@ class CcgService {
       if (!card || !cardSet) {
         throw new CcgServiceError(404, "card_not_found", "The selected published card no longer exists");
       }
-      if (!getCcgFinishOrder(cardSet.customFinish?.key).includes(finish)) {
-        throw new CcgServiceError(400, "finish_unavailable_for_set", "That quality is not available for this card's raid set");
+      if (!getCcgRedeemFinishOrder(cardSet.kind, cardSet.customFinish?.key).includes(finish)) {
+        throw new CcgServiceError(400, "finish_unavailable_for_set", "That quality is not available for this card");
       }
       if (artVariant === "alternative") {
         const alternativeArt = (await this.loadAlternativeArt([card])).get(resolveCollectorKey(card));
@@ -1317,7 +1318,7 @@ class CcgService {
           }
           const card = await CcgCard.findById(reservedCode.cardId).session(session);
           const cardSet = card ? await CcgSet.findById(card.setId).session(session) : null;
-          if (!card || !cardSet || !getCcgFinishOrder(cardSet.customFinish?.key).includes(reservedCode.finish)) {
+          if (!card || !cardSet || !getCcgRedeemFinishOrder(cardSet.kind, cardSet.customFinish?.key).includes(reservedCode.finish)) {
             throw new CcgServiceError(409, "reward_unavailable", "This code's card reward is unavailable");
           }
           if (reservedCode.artVariant === "alternative") {
@@ -1485,8 +1486,8 @@ class CcgService {
           const cardSet = setById.get(String(card.setId));
           if (!cardSet) throw new CcgServiceError(409, "pool_invalid", "The pack references an unavailable card set");
           const ownedFinishes = ownedFinishesByCard.get(cardId) ?? new Set<CcgFinish>();
-          const customFinish = cardSet.customFinish?.key ?? null;
-          const finishOrder = getCcgFinishOrder(customFinish);
+          const customFinish = cardSet.kind === "raid" ? cardSet.customFinish?.key ?? null : null;
+          const finishOrder = getCcgPackFinishOrder(cardSet.kind, customFinish);
           const activePity: CcgFinishPity = { ...pity };
           if (customFinish) activePity[customFinish] = this.readCustomFinishPity(qualityProgress, cardSet.slug);
           const rolled = rollOwnedFinish(

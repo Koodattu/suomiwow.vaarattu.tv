@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { FaGift, FaIdCard, FaTicket } from "react-icons/fa6";
 import { api } from "@/lib/api";
-import { getCcgFinishOrder, hasAlternativeArtwork } from "@/lib/ccg";
+import { CCG_BASE_FINISH_ORDER, getCcgRedeemFinishOrder, hasAlternativeArtwork } from "@/lib/ccg";
 import { formatRealmName } from "@/lib/utils";
 import type { CcgAdminRedeemCode, CcgArtVariant, CcgCard, CcgFinish } from "@/types";
 
@@ -62,8 +62,10 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
   );
   const selectedVariant = variants.find((variant) => variant.id === selectedVariantId) ?? variants[0] ?? null;
   const finishes = useMemo(
-    () => getCcgFinishOrder(selectedVariant?.set.customFinish?.key),
-    [selectedVariant?.set.customFinish?.key],
+    () => selectedVariant
+      ? getCcgRedeemFinishOrder(selectedVariant.set.kind, selectedVariant.set.customFinish?.key)
+      : CCG_BASE_FINISH_ORDER,
+    [selectedVariant?.set.customFinish?.key, selectedVariant?.set.kind],
   );
   const customArtAvailable = hasAlternativeArtwork(selectedVariant);
 
@@ -300,6 +302,9 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
                       {finishes.map((finish) => <option key={finish} value={finish}>{ccg(`finish.${finish}`)}</option>)}
                     </select>
                   </label>
+                  {selectedVariant.set.kind === "community" ? (
+                    <p className="text-xs leading-5 text-gray-500 text-pretty">{t("communityFinishHelp")}</p>
+                  ) : null}
                   <fieldset>
                     <legend className="text-xs font-semibold text-gray-400">{t("artwork")}</legend>
                     <div className="mt-1.5 grid grid-cols-2 gap-2">

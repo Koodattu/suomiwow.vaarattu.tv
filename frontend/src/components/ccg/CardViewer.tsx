@@ -141,7 +141,7 @@ export default function CardViewer({
   const ownedArtVariants = (["standard", "alternative"] as const).filter((value) => ownership.some((row) => row.artVariant === value));
   const ownedFinishes = ownership
     .filter((row) => row.artVariant === artVariant)
-    .sort((left, right) => compareCcgFinish(left.finish, right.finish, displayedCard.set.customFinish?.key));
+    .sort((left, right) => compareCcgFinish(left.finish, right.finish, displayedCard.set.kind, displayedCard.set.customFinish?.key));
   const isOwned = ownership.length > 0;
   const characterHref = `/characters/${encodeURIComponent(displayedCard.realm)}/${encodeURIComponent(displayedCard.name)}?class=${encodeURIComponent(String(displayedCard.classID))}`;
   const selectVariant = (index: number) => {

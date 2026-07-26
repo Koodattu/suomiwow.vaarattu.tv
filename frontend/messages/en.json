@@ -1038,6 +1038,7 @@
         "variants": "{count, plural, one {# card version} other {# card versions}}",
         "cardVersion": "Card version",
         "quality": "Quality",
+        "communityFinishHelp": "Community codes may grant Void or Toxic. These finishes never roll from packs or count toward card completion.",
         "artwork": "Artwork",
         "regularArt": "Regular art",
         "customArt": "Custom art",

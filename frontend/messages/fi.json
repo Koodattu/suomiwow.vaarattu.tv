@@ -1038,6 +1038,7 @@
         "variants": "{count, plural, one {# korttiversio} other {# korttiversiota}}",
         "cardVersion": "Korttiversio",
         "quality": "Laatu",
+        "communityFinishHelp": "Community-koodilla voi saada Tyhjyys- tai Toksinen-viimeistelyn. Niitä ei voi saada pakoista, eikä niitä lasketa kortin valmistumiseen.",
         "artwork": "Ulkoasu",
         "regularArt": "Tavallinen ulkoasu",
         "customArt": "Mukautettu ulkoasu",

@@ -100,7 +100,7 @@ Duplicates do not upgrade card rarity. Rarity represents the character's snapsho
 - Duplicate identity is the exact immutable snapshot version. Another version in the same card series, or the same character in another raid set, is a different card.
 - A finish that is not yet owned for that card is awarded unchanged, even when another finish of the card is already owned.
 - If the rolled finish is already owned, the result fills the closest missing finish below it first. If no lower gap remains, it advances to the closest missing finish above it so every pre-completion duplicate advances the card.
-- A card is complete when every finish in its raid set's finish ladder is owned for that exact card. The default ladder is Standard, Foil, Golden, Prismatic, Holographic, and Negative; a raid-scoped finish is inserted between Holographic and Negative only for its configured set.
+- A card is complete when every finish in its set's pack ladder is owned for that exact card. The default ladder is Standard, Foil, Golden, Prismatic, Holographic, and Negative; a raid-scoped finish is inserted between Holographic and Negative only for its configured raid set. Community cards always use the six-finish default ladder, even when code-exclusive raid finishes are owned.
 - Completing the final missing finish does not immediately award a pack. The first later duplicate on that already-complete card awards one pack credit for that card, and the idempotency key prevents that card from rewarding again.
 - A completed card in a Current raid awards a Current pack. A completed card in a Legacy raid awards a Legacy pack. Community cards do not award completion packs.
 - Alternative art is a separate collector-wide cosmetic unlock. It never affects duplicate classification or finish completion, and one unlock makes the alternative art available for every owned finish and raid card sharing that `collectorKey`.
@@ -117,7 +117,7 @@ Finish is independent of tier grade:
 - **Golden** adds warm metallic treatment, enhanced frame detail, and restrained animated highlights.
 - **Prismatic** adds a spectral edge, microfoil, richer pointer-responsive lighting, and the premium reveal.
 - **Holographic** intensifies the spectral depth and animated diffraction beyond Prismatic.
-- A raid may optionally add one themed finish between Holographic and Negative. **Void** is the March on Quel'Danas finish; **Toxic** is available for a future poison-themed raid.
+- A raid may optionally add one themed finish between Holographic and Negative. **Void** is the March on Quel'Danas finish; **Toxic** is reserved for a future poison-themed raid. Both finishes are immediately available as code-exclusive rewards for Community cards without entering Community pack rolls, pity, duplicate protection, or completion.
 - **Negative** applies the rare full-card inverted treatment and is the highest production finish.
 
 Each non-Standard finish has a persistent per-owner protection counter. Base-finish counters are shared by Current and Legacy openings. A raid-scoped finish has a separate counter keyed by raid-set slug and advances only when a card from that set is pulled. Its chance remains at `1 / hardPity` through the first 80% of the interval, then follows a quadratic soft-pity ramp to a guaranteed hit at hard pity. The selected raw finish resets its own counter even when duplicate protection converts it, and a different non-Standard finish awarded by that conversion also resets its counter. Finish rolls are independent, but a card receives only the highest finish that succeeds, so reaching one hard pity cannot turn the rest of a pack into the same premium finish.
@@ -685,7 +685,7 @@ Use a polymorphic owner:
 - `ownerType`: `user` or `guest`
 - `ownerId`
 - `cardId`
-- `finish`: `standard`, `foil`, `golden`, `prismatic`, `holographic`, `void`, `toxic`, or `negative`; raid-scoped values are valid only for their configured set
+- `finish`: `standard`, `foil`, `golden`, `prismatic`, `holographic`, `void`, `toxic`, or `negative`; raid-scoped values are valid for their configured raid set or as redeem-code-only Community ownership
 - `quantity`
 - `alternativeQuantity`: an existing value above zero is global alternative-art unlock evidence; it does not split or add to finish quantities
 - `firstAcquiredAt`
@@ -1252,7 +1252,8 @@ The initial feature is ready when:
 - Every pack contains five cards and satisfies its guaranteed slot.
 - The same character in different raid sets is collected and completed as a different card.
 - A missing rolled finish is awarded unchanged; an exact-finish duplicate advances to the next missing finish for that card.
-- The first duplicate pulled after all six finishes are owned awards exactly one pack for that card: Current for a Current raid and Legacy for a Legacy raid.
+- The first duplicate pulled after every finish in the card's pack ladder is owned awards exactly one pack for that card: Current for a Current raid and Legacy for a Legacy raid.
+- Community cards roll and complete against the six base finishes only; redeem codes may additionally award Void or Toxic without changing completion or protection state.
 - Alternative art is one global cosmetic unlock per character and never contributes to duplicate or finish-completion state.
 - Finish protection remains at each configured base rate through 80% of the interval, then ramps quadratically to hard pity; converted duplicates reset both the selected raw finish and any different non-Standard finish awarded.
 - The collection displays each raid card separately and exposes every owned finish in the viewer.

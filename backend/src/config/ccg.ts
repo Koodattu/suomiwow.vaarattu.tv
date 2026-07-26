@@ -102,6 +102,14 @@ export function getCcgFinishOrder(customFinish?: CcgCustomFinish | null): readon
   return [...CCG_BASE_FINISH_ORDER.slice(0, -1), customFinish, "negative"];
 }
 
+export function getCcgPackFinishOrder(setKind: CcgSetKind, customFinish?: CcgCustomFinish | null): readonly CcgFinish[] {
+  return getCcgFinishOrder(setKind === "raid" ? customFinish : null);
+}
+
+export function getCcgRedeemFinishOrder(setKind: CcgSetKind, customFinish?: CcgCustomFinish | null): readonly CcgFinish[] {
+  return setKind === "community" ? CCG_FINISH_ORDER : getCcgPackFinishOrder(setKind, customFinish);
+}
+
 export type CcgBackgroundSafeCrop = {
   x: number;
   y: number;

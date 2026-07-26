@@ -18,6 +18,10 @@ export function getCcgFinishOrder(customFinish?: CcgCustomFinish | null): readon
   return [...CCG_BASE_FINISH_ORDER.slice(0, -1), customFinish, "negative"];
 }
 
+export function getCcgRedeemFinishOrder(setKind: "raid" | "community", customFinish?: CcgCustomFinish | null): readonly CcgFinish[] {
+  return setKind === "community" ? CCG_FINISH_ORDER : getCcgFinishOrder(customFinish);
+}
+
 export const CCG_RARITY_KEYS: Record<CcgTierGrade, "artifact" | "legendary" | "epic" | "rare" | "uncommon" | "common" | "poor"> = {
   S: "artifact",
   A: "legendary",
@@ -28,8 +32,13 @@ export const CCG_RARITY_KEYS: Record<CcgTierGrade, "artifact" | "legendary" | "e
   F: "poor",
 };
 
-export function compareCcgFinish(left: CcgFinish, right: CcgFinish, customFinish?: CcgCustomFinish | null): number {
-  const finishOrder = getCcgFinishOrder(customFinish);
+export function compareCcgFinish(
+  left: CcgFinish,
+  right: CcgFinish,
+  setKind: "raid" | "community",
+  customFinish?: CcgCustomFinish | null,
+): number {
+  const finishOrder = getCcgRedeemFinishOrder(setKind, customFinish);
   return finishOrder.indexOf(left) - finishOrder.indexOf(right);
 }
 
@@ -46,7 +55,7 @@ export function bestOwnedFinish(
   const ownership = card.ownership?.filter((row) => !artVariant || row.artVariant === artVariant) ?? [];
   if (ownership.length === 0) return null;
   const row = [...ownership].sort((left, right) => (
-    compareCcgFinish(right.finish, left.finish, card.set.customFinish?.key)
+    compareCcgFinish(right.finish, left.finish, card.set.kind, card.set.customFinish?.key)
     || Number(right.artVariant === "alternative") - Number(left.artVariant === "alternative")
   ))[0];
   const quantityByFinish = (card.ownership ?? []).reduce((quantities, item) => {

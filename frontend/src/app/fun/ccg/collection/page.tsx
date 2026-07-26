@@ -154,8 +154,8 @@ export default function CcgCollectionPage() {
   const finishOptions = useMemo(() => {
     const order: CollectionFinishOption[] = [...CCG_BASE_FINISH_ORDER];
     const hasUniqueFinish = selectedSet
-      ? Boolean(selectedSet.customFinish)
-      : sets.some((set) => Boolean(set.customFinish));
+      ? selectedSet.kind === "community" || Boolean(selectedSet.customFinish)
+      : sets.some((set) => set.kind === "community" || Boolean(set.customFinish));
     if (hasUniqueFinish) order.splice(order.length - 1, 0, uniqueFinishFilter);
     return [...order].reverse();
   }, [selectedSet, sets]);
