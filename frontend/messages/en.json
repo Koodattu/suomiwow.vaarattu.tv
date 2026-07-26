@@ -340,6 +340,7 @@
       "allRarities": "All rarities",
       "allQualities": "All qualities",
       "uniqueQuality": "Unique",
+      "sortMostDuplicatesFirst": "↓ Duplicates",
       "sortMostRareFirst": "↓ Rarity",
       "sortLeastRareFirst": "↑ Rarity",
       "sortHighestQualityFirst": "↓ Quality",

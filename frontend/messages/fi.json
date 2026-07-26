@@ -340,6 +340,7 @@
       "allRarities": "Kaikki harvinaisuudet",
       "allQualities": "Kaikki laadut",
       "uniqueQuality": "Uniikki",
+      "sortMostDuplicatesFirst": "↓ Tuplat",
       "sortMostRareFirst": "↓ Harvinaisuus",
       "sortLeastRareFirst": "↑ Harvinaisuus",
       "sortHighestQualityFirst": "↓ Laatu",

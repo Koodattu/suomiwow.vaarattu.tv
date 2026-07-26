@@ -77,6 +77,7 @@ const CCG_UNIQUE_FINISH_FILTER = "unique";
 const CCG_PREVIOUS_GUEST_INITIAL_PACKS: Readonly<Record<CcgMode, number>> = { current: 5, legacy: 5 };
 
 export const CCG_COLLECTION_SORTS = [
+  "duplicates_desc",
   "rarity_desc",
   "rarity_asc",
   "quality_desc",
@@ -104,6 +105,7 @@ type CcgCollectionSortPaths = {
 };
 
 type CcgCollectionSortExpressions = {
+  duplicates: unknown;
   quality: unknown;
   damage: unknown;
   mechanics: unknown;
@@ -148,6 +150,10 @@ export function buildCcgCollectionSortStages(
   let sortValue: unknown;
   let direction: 1 | -1;
   switch (sort) {
+    case "duplicates_desc":
+      sortValue = expressions.duplicates;
+      direction = -1;
+      break;
     case "rarity_desc":
     case "rarity_asc":
       sortValue = { $indexOfArray: [[...CCG_TIER_GRADES], `$${paths.grade}`] };
@@ -601,6 +607,7 @@ class CcgService {
     const grade = CCG_TIER_GRADES.includes(options.grade as CcgTierGrade) ? (options.grade as CcgTierGrade) : null;
     const sort = resolveCcgCollectionSort(options.sort);
     const qualitySort = sort === "quality_desc" || sort === "quality_asc";
+    const ownershipSort = qualitySort || sort === "duplicates_desc";
     const communitySetIds = sets.filter((item) => item.kind === "community").map((item) => item._id);
     const finishMatch = resolveCollectionFinishMatch(options.finish);
     const cardFilter: Record<string, unknown> = {};
@@ -632,13 +639,13 @@ class CcgService {
       { $group: { _id: { setId: "$setId", characterId: "$characterId" }, card: { $first: "$$ROOT" } } },
       { $replaceRoot: { newRoot: "$card" } },
       ...(Object.keys(cardFilter).length > 0 ? [{ $match: cardFilter }] : []),
-      ...(qualitySort ? [{
+      ...(ownershipSort ? [{
         $lookup: {
           from: "ccgownerships",
           let: { cardId: "$_id" },
           pipeline: [
             { $match: { ownerType: owner.ownerType, ownerId: owner.ownerId, $expr: { $eq: ["$cardId", "$$cardId"] } } },
-            { $project: { _id: 0, finish: 1 } },
+            { $project: { _id: 0, finish: 1, quantity: 1 } },
           ],
           as: "sortOwnership",
         },
@@ -651,6 +658,7 @@ class CcgService {
             setNumber: "setNumber",
             id: "_id",
           }, {
+            duplicates: { $sum: "$sortOwnership.quantity" },
             quality: {
               $max: {
                 $map: {
@@ -671,7 +679,7 @@ class CcgService {
             { $set: { sortGrade: { $indexOfArray: [[...CCG_TIER_GRADES], "$tierGrade"] } } },
             { $sort: { sortGrade: 1 as const, setNumber: 1 as const, name: 1 as const, _id: 1 as const } },
           ]),
-      ...(qualitySort ? [{ $unset: "sortOwnership" }] : []),
+      ...(ownershipSort ? [{ $unset: "sortOwnership" }] : []),
       {
         $facet: {
           items: [{ $skip: (page - 1) * limit }, { $limit: limit }],
@@ -780,6 +788,7 @@ class CcgService {
             setNumber: "card.setNumber",
             id: "card._id",
           }, {
+            duplicates: "$totalQuantity",
             quality: {
               $max: {
                 $map: {

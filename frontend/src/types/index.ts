@@ -2026,6 +2026,7 @@ export type CcgCard = {
 };
 
 export type CcgCollectionSort =
+  | "duplicates_desc"
   | "rarity_desc"
   | "rarity_asc"
   | "quality_desc"

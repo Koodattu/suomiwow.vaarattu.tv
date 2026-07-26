@@ -39,6 +39,7 @@ const uniqueFinishFilter = "unique";
 type CollectionFinishFilter = CcgBaseFinish | typeof uniqueFinishFilter | "";
 type CollectionFinishOption = Exclude<CollectionFinishFilter, "">;
 const collectionSortOptions: Array<{ value: CcgCollectionSort; label: string }> = [
+  { value: "duplicates_desc", label: "sortMostDuplicatesFirst" },
   { value: "alphabetical", label: "sortAlphabetical" },
   { value: "reverse_alphabetical", label: "sortReverseAlphabetical" },
   { value: "rarity_desc", label: "sortMostRareFirst" },

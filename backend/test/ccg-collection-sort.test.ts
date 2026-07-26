@@ -19,6 +19,7 @@ const paths = {
 };
 
 const expressions = {
+  duplicates: "$duplicates",
   quality: "$quality",
   damage: "$damage",
   mechanics: "$mechanics",
@@ -34,12 +35,14 @@ test("collection sort accepts every supported value and ignores unknown values",
 
 test("collection sort directions and stable fallbacks match their labels", () => {
   const rarityDescending = buildCcgCollectionSortStages("rarity_desc", paths, expressions) as any[];
+  const duplicatesDescending = buildCcgCollectionSortStages("duplicates_desc", paths, expressions) as any[];
   const qualityAscending = buildCcgCollectionSortStages("quality_asc", paths, expressions) as any[];
   const damageDescending = buildCcgCollectionSortStages("damage_desc", paths, expressions) as any[];
   const alphabetical = buildCcgCollectionSortStages("alphabetical", paths, expressions) as any[];
   const reverseAlphabetical = buildCcgCollectionSortStages("reverse_alphabetical", paths, expressions) as any[];
 
   assert.equal(rarityDescending[2].$sort.sortValue, 1);
+  assert.equal(duplicatesDescending[2].$sort.sortValue, -1);
   assert.equal(qualityAscending[2].$sort.sortValue, 1);
   assert.equal(damageDescending[2].$sort.sortValue, -1);
   assert.equal(damageDescending[2].$sort.sortMissing, 1);
