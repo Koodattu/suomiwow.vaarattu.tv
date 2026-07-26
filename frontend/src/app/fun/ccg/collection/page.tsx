@@ -873,9 +873,22 @@ export default function CcgCollectionPage() {
                   <h2>{t(alternativeOnly ? "collection.emptyAlternativeTitle" : guildId ? "collection.emptyGuildTitle" : showCatalog ? "collection.emptyMissingTitle" : "collection.emptyOwnedTitle")}</h2>
                   <p>{t(alternativeOnly ? "collection.emptyAlternativeBody" : guildId ? showCatalog ? "collection.emptyGuildMissingBody" : "collection.emptyGuildBody" : showCatalog ? "collection.emptyMissingBody" : "collection.emptyOwnedBody")}</p>
                   {!guildId && !showCatalog ? (
-                    <Link href={`/fun/ccg/open?mode=${selectedSet?.state === "legacy" ? "legacy" : "current"}`} className={`${styles.primaryButton} mt-4`}>
-                      {t("collection.openPacks")}
-                    </Link>
+                    <div className={styles.collectionEmptyActions}>
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        onClick={() => updateFilter(() => {
+                          setVisibility("missing");
+                          setAlternativeOnly(false);
+                          setFinish("");
+                        })}
+                      >
+                        {t("collection.showMissing")}
+                      </button>
+                      <Link href={`/fun/ccg/open?mode=${selectedSet?.state === "legacy" ? "legacy" : "current"}`} className={styles.secondaryButton}>
+                        {t("collection.openPacks")}
+                      </Link>
+                    </div>
                   ) : null}
                 </div>
               </div>

@@ -136,7 +136,7 @@ function applyCardMaterial(element: HTMLElement, x: number, y: number) {
 
 type CollectibleCardProps = {
   card: CcgCard;
-  finish?: CcgFinish | "chromaflow" | "supervoid" | "eclipse";
+  finish?: CcgFinish | "chromaflow" | "dark" | "eclipse";
   artVariant?: CcgArtVariant;
   compact?: boolean;
   quantity?: number;
