@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from "@headlessui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type {
@@ -13,6 +14,7 @@ import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgFinish, CcgTierGrade } f
 import { bestOwnedFinish, CCG_BASE_FINISH_ORDER } from "@/lib/ccg";
 import { getCcgPlaybackVolume } from "@/lib/ccg-audio";
 import { useCcgCatalog, useCcgCollection, useCcgCollectionGuilds, useCcgSession, useCcgSets } from "@/lib/queries";
+import { formatRealmName } from "@/lib/utils";
 import CcgShell from "@/components/ccg/CcgShell";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
@@ -96,6 +98,7 @@ export default function CcgCollectionPage() {
   );
   const [setSlug, setSetSlug] = useState(allSetsSlug);
   const [guildId, setGuildId] = useState("");
+  const [guildSearch, setGuildSearch] = useState("");
   const [includeMissing, setIncludeMissing] = useState(false);
   const [page, setPage] = useState(1);
   const [grade, setGrade] = useState("");
@@ -136,6 +139,22 @@ export default function CcgCollectionPage() {
     () => [...(guildsQuery.data?.guilds ?? [])].sort((a, b) => a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm)),
     [guildsQuery.data?.guilds],
   );
+  const duplicateGuildNames = useMemo(() => {
+    const nameCounts = new Map<string, number>();
+    guilds.forEach((guild) => {
+      const name = guild.name.toLocaleLowerCase();
+      nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
+    });
+    return new Set([...nameCounts].filter(([, count]) => count > 1).map(([name]) => name));
+  }, [guilds]);
+  const selectedGuild = guilds.find((guild) => guild.id === guildId);
+  const filteredGuilds = useMemo(() => {
+    const search = guildSearch.trim().toLocaleLowerCase();
+    if (!search) return guilds;
+    return guilds.filter((guild) => (
+      `${guild.name} ${guild.realm} ${formatRealmName(guild.realm)}`.toLocaleLowerCase().includes(search)
+    ));
+  }, [guildSearch, guilds]);
   const setGuildIds = useMemo(
     () => new Set((setGuildsQuery.data?.guilds ?? []).map((guild) => guild.id)),
     [setGuildsQuery.data?.guilds],
@@ -480,26 +499,74 @@ export default function CcgCollectionPage() {
               <span>{t("collection.showMissing")}</span>
             </label>
 
-            <label className={`${styles.collectionSelect} ${styles.collectionGuildSelect}`}>
-              <select
-                aria-label={t("collection.guild")}
-                value={guildId}
-                data-unavailable={selectedGuildUnavailable || undefined}
-                onChange={(event) => updateFilter(() => setGuildId(event.target.value))}
-                disabled={guildsQuery.isLoading}
-              >
-                <option value="">{t("collection.allGuilds")}</option>
-                {guilds.map((guild) => (
-                  <option
-                    key={guild.id}
-                    value={guild.id}
-                    data-unavailable={(guildAvailabilityLoaded && !allSetsSelected && !setGuildIds.has(guild.id)) || undefined}
+            <Combobox
+              value={guildId}
+              onChange={(value) => {
+                updateFilter(() => setGuildId(value ?? ""));
+                setGuildSearch("");
+              }}
+              onClose={() => setGuildSearch("")}
+              disabled={guildsQuery.isLoading}
+            >
+              {({ open }) => (
+                <div className={`${styles.collectionSelect} ${styles.collectionGuildSelect}`}>
+                  <ComboboxButton
+                    aria-label={t("collection.guild")}
+                    className={styles.collectionGuildSelectButton}
+                    data-unavailable={selectedGuildUnavailable || undefined}
                   >
-                    {guild.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                    <span className={styles.collectionGuildText}>
+                      {selectedGuild ? (
+                        <>
+                          {selectedGuild.name}
+                          {duplicateGuildNames.has(selectedGuild.name.toLocaleLowerCase()) && (
+                            <span className={styles.collectionGuildRealm}>-{formatRealmName(selectedGuild.realm)}</span>
+                          )}
+                        </>
+                      ) : t("collection.allGuilds")}
+                    </span>
+                  </ComboboxButton>
+                  {open && (
+                    <div className={styles.collectionGuildPopup}>
+                      <ComboboxInput
+                        autoFocus
+                        aria-label={t("collection.searchGuilds")}
+                        autoComplete="off"
+                        className={styles.collectionGuildSearch}
+                        placeholder={t("collection.searchGuildsPlaceholder")}
+                        value={guildSearch}
+                        onChange={(event) => setGuildSearch(event.target.value)}
+                      />
+                      <ComboboxOptions static className={styles.collectionGuildOptions}>
+                        {!guildSearch.trim() && (
+                          <ComboboxOption value="" className={styles.collectionGuildOption}>
+                            <span className={styles.collectionGuildText}>{t("collection.allGuilds")}</span>
+                          </ComboboxOption>
+                        )}
+                        {filteredGuilds.map((guild) => {
+                          const unavailable = guildAvailabilityLoaded && !allSetsSelected && !setGuildIds.has(guild.id);
+                          return (
+                            <ComboboxOption
+                              key={guild.id}
+                              value={guild.id}
+                              className={styles.collectionGuildOption}
+                              data-unavailable={unavailable || undefined}
+                            >
+                              <span className={styles.collectionGuildText}>
+                                {guild.name}
+                                {duplicateGuildNames.has(guild.name.toLocaleLowerCase()) && (
+                                  <span className={styles.collectionGuildRealm}>-{formatRealmName(guild.realm)}</span>
+                                )}
+                              </span>
+                            </ComboboxOption>
+                          );
+                        })}
+                      </ComboboxOptions>
+                    </div>
+                  )}
+                </div>
+              )}
+            </Combobox>
 
             <label className={styles.collectionSelect}>
               <select
