@@ -1633,7 +1633,7 @@ class CcgService {
             remaining: transferredPacks[mode],
           }));
         if (conversionCredits.length > 0) {
-          await CcgPackCredit.create(conversionCredits, { session });
+          await CcgPackCredit.create(conversionCredits, { session, ordered: true });
         }
 
         const claimedAt = new Date();
