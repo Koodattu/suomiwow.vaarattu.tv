@@ -334,18 +334,18 @@ export default function CcgCollectionPage() {
   };
 
   const wheelCardPages = (event: ReactWheelEvent<HTMLElement>) => {
-    if (!cardsData || cardsLoading || cardsData.pages <= 1) return;
     const rawDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-    const deltaUnit = event.deltaMode === 1
-      ? 16
-      : event.deltaMode === 2
-        ? event.currentTarget.clientHeight
-        : 1;
+    let deltaUnit = 1;
+    if (event.deltaMode === 1) deltaUnit = 16;
+    if (event.deltaMode === 2) deltaUnit = event.currentTarget.clientHeight;
     const delta = rawDelta * deltaUnit;
     if (delta === 0) return;
 
     const direction = delta > 0 ? 1 : -1;
-    if ((direction < 0 && page <= 1) || (direction > 0 && page >= cardsData.pages)) return;
+    if (!pageWheelHandledRef.current) {
+      if (!cardsData || cardsLoading || cardsData.pages <= 1) return;
+      if ((direction < 0 && page <= 1) || (direction > 0 && page >= cardsData.pages)) return;
+    }
 
     event.preventDefault();
     if (pageWheelResetRef.current !== null) clearTimeout(pageWheelResetRef.current);
