@@ -32,14 +32,20 @@ import CcgPublicationCandidate from "../models/CcgPublicationCandidate";
 import CcgRollover from "../models/CcgRollover";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
 import Character from "../models/Character";
-import CharacterMedia from "../models/CharacterMedia";
+import CharacterMedia, { CharacterMediaStatus } from "../models/CharacterMedia";
 import CharacterMythicPlusSeasonScore from "../models/CharacterMythicPlusSeasonScore";
 import CharacterTierListEntry from "../models/CharacterTierListEntry";
 import { gradeForPercentile, resolveCardCrop } from "../utils/ccg-random";
 import { buildCcgCardSearchCandidates } from "../utils/ccg-card-search";
 import { createCharacterCollectorKey, createWowCharacterIdentityKey } from "../utils/ccg-identity";
 import { CcgReadinessBlocker, evaluateCcgReadiness } from "../utils/ccg-readiness";
-import { nextCcgCardSnapshotVersion, shouldPublishCcgCardSnapshot } from "../utils/ccg-card-snapshot";
+import {
+  CcgSnapshotPreviewSummary,
+  getCcgSnapshotPreviewDisposition,
+  nextCcgCardSnapshotVersion,
+  shouldPublishCcgCardSnapshot,
+  summarizeCcgSnapshotPreview,
+} from "../utils/ccg-card-snapshot";
 import { getHelsinkiDateKey } from "../utils/helsinki-time";
 import logger from "../utils/logger";
 import { getCharacterRaidParticipationSummaries } from "./character-raid-guild.service";
@@ -78,6 +84,34 @@ type CcgCollectionGuildSource = {
   guildId?: mongoose.Types.ObjectId | null;
   guildName?: string | null;
   guildRealm?: string | null;
+};
+
+export type CcgSnapshotSetPreview = CcgSnapshotPreviewSummary & {
+  setId: string;
+  zoneId: number;
+  slug: string;
+  raidName: string;
+  mode: "current" | "legacy";
+  blockedCharacters: Array<{
+    characterId: string;
+    name: string;
+    realm: string;
+    region: string;
+    outcome: "new_character" | "rarity_change";
+    previousTierGrade: CcgTierGrade | null;
+    nextTierGrade: CcgTierGrade;
+    mediaStatus: CharacterMediaStatus | "untracked" | "render_missing";
+    attemptCount: number;
+    nextAttemptAt: Date | null;
+    lastErrorCode: string | null;
+    lastError: string | null;
+  }>;
+};
+
+export type CcgNextSnapshotPreview = {
+  calculatedAt: Date;
+  sets: CcgSnapshotSetPreview[];
+  totals: Omit<CcgSnapshotPreviewSummary, "gradeDistribution">;
 };
 
 export function buildCcgCollectionGuilds(cards: ReadonlyArray<CcgCollectionGuildSource>): Array<{
@@ -367,6 +401,169 @@ class CcgPublisherService {
     this.configuredAt = Date.now();
   }
 
+  private async loadSnapshotPopulation(zoneId: number, options: { ensureConfigured?: boolean } = {}) {
+    const configured = CCG_CONFIGURED_SETS.find((set) => set.zoneId === zoneId);
+    if (!configured) throw new Error(`CCG set is not configured for raid ${zoneId}`);
+    if (options.ensureConfigured !== false) await this.ensureConfiguredSets();
+    const set = await CcgSet.findOne({ zoneId });
+    if (!set) throw new Error(`CCG set ${zoneId} could not be initialized`);
+
+    const entryFilter: Record<string, unknown> = {
+      scope: "global",
+      zoneId,
+      pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
+      ...COMPLETE_CCG_SCORE_FILTER,
+    };
+    const rankedEntries = await CharacterTierListEntry.find(entryFilter)
+      .sort({ score: -1, parseScore: -1, mythicReportCount: -1, reportCount: -1, wclCanonicalCharacterId: 1, characterKey: 1 })
+      .lean();
+    const participationByCharacter = await getCharacterRaidParticipationSummaries(
+      zoneId,
+      rankedEntries.map((entry) => entry.characterId),
+    );
+    const entries = rankedEntries
+      .filter(
+        (entry) =>
+          (participationByCharacter.get(String(entry.characterId))?.mythicReportCount ?? 0) >=
+          MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY,
+      )
+      .sort((left, right) => {
+        const scoreDiff = right.score - left.score;
+        if (scoreDiff !== 0) return scoreDiff;
+
+        const parseScoreDiff = right.parseScore - left.parseScore;
+        if (parseScoreDiff !== 0) return parseScoreDiff;
+
+        const leftParticipation = participationByCharacter.get(String(left.characterId));
+        const rightParticipation = participationByCharacter.get(String(right.characterId));
+        const mythicReportDiff = (rightParticipation?.mythicReportCount ?? 0) - (leftParticipation?.mythicReportCount ?? 0);
+        if (mythicReportDiff !== 0) return mythicReportDiff;
+
+        const reportDiff = (rightParticipation?.reportCount ?? 0) - (leftParticipation?.reportCount ?? 0);
+        if (reportDiff !== 0) return reportDiff;
+
+        const canonicalIdDiff = (left.wclCanonicalCharacterId ?? Number.MAX_SAFE_INTEGER) - (right.wclCanonicalCharacterId ?? Number.MAX_SAFE_INTEGER);
+        if (canonicalIdDiff !== 0) return canonicalIdDiff;
+
+        return left.characterKey.localeCompare(right.characterKey);
+      });
+    if (entries.length === 0) throw new Error(`No complete character tier-list population is available for raid ${zoneId}`);
+
+    return {
+      configured,
+      set,
+      entries: entries.map((entry, index) => ({ entry, tierGrade: gradeForPercentile(index, entries.length) })),
+      participationByCharacter,
+      characterIds: entries.map((entry) => entry.characterId),
+    };
+  }
+
+  async previewNextSnapshots(): Promise<CcgNextSnapshotPreview> {
+    const enabledSets = await CcgSet.find({
+      kind: "raid",
+      state: { $in: ["current", "legacy"] },
+      enabledAt: { $ne: null },
+      cardCount: { $gt: 0 },
+    }).sort({ zoneId: -1 });
+    const sets: CcgSnapshotSetPreview[] = [];
+
+    for (const enabledSet of enabledSets) {
+      const { set, entries, characterIds } = await this.loadSnapshotPopulation(enabledSet.zoneId, { ensureConfigured: false });
+      const [mediaRows, existingCards] = await Promise.all([
+        CharacterMedia.find({ characterId: { $in: characterIds } })
+          .select("characterId mainRawUrl status attemptCount nextAttemptAt lastErrorCode lastError")
+          .lean(),
+        CcgCard.find({ setId: set._id, characterId: { $in: characterIds } })
+          .sort({ snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 })
+          .select("characterId tierGrade")
+          .lean(),
+      ]);
+      const mediaByCharacter = new Map(mediaRows.map((row) => [String(row.characterId), row]));
+      const latestCardByCharacter = new Map<string, { characterId: string; tierGrade: CcgTierGrade }>();
+      for (const card of existingCards) {
+        const characterId = String(card.characterId);
+        if (!latestCardByCharacter.has(characterId)) {
+          latestCardByCharacter.set(characterId, { characterId, tierGrade: card.tierGrade });
+        }
+      }
+      const candidates = entries.map(({ entry, tierGrade }) => {
+        const media = mediaByCharacter.get(String(entry.characterId));
+        return {
+          characterId: String(entry.characterId),
+          tierGrade,
+          hasMedia: media?.status === "available" && Boolean(media.mainRawUrl),
+        };
+      });
+      const summary = summarizeCcgSnapshotPreview(candidates, [...latestCardByCharacter.values()]);
+      const blockedCharacters = entries.flatMap(({ entry, tierGrade }) => {
+        const characterId = String(entry.characterId);
+        const media = mediaByCharacter.get(characterId);
+        const latestCard = latestCardByCharacter.get(characterId);
+        const disposition = getCcgSnapshotPreviewDisposition(
+          latestCard,
+          tierGrade,
+          media?.status === "available" && Boolean(media.mainRawUrl),
+        );
+        if (disposition !== "blocked_new_character" && disposition !== "blocked_rarity_change") return [];
+        return [{
+          characterId,
+          name: entry.name,
+          realm: entry.realm,
+          region: entry.region,
+          outcome: disposition === "blocked_new_character" ? ("new_character" as const) : ("rarity_change" as const),
+          previousTierGrade: latestCard?.tierGrade ?? null,
+          nextTierGrade: tierGrade,
+          mediaStatus: !media
+            ? ("untracked" as const)
+            : media.status === "available" && !media.mainRawUrl
+              ? ("render_missing" as const)
+              : media.status,
+          attemptCount: media?.attemptCount ?? 0,
+          nextAttemptAt: media?.nextAttemptAt ?? null,
+          lastErrorCode: media?.lastErrorCode ?? null,
+          lastError: media?.lastError ?? null,
+        }];
+      });
+      sets.push({
+        setId: String(set._id),
+        zoneId: set.zoneId,
+        slug: set.slug,
+        raidName: set.raidName,
+        mode: set.state === "current" ? "current" : "legacy",
+        blockedCharacters,
+        ...summary,
+      });
+    }
+
+    const calculatedAt = new Date();
+    return {
+      calculatedAt,
+      sets,
+      totals: sets.reduce<Omit<CcgSnapshotPreviewSummary, "gradeDistribution">>(
+        (totals, set) => ({
+          eligibleCharacters: totals.eligibleCharacters + set.eligibleCharacters,
+          projectedSnapshots: totals.projectedSnapshots + set.projectedSnapshots,
+          newCharacters: totals.newCharacters + set.newCharacters,
+          rarityChanges: totals.rarityChanges + set.rarityChanges,
+          unchangedCharacters: totals.unchangedCharacters + set.unchangedCharacters,
+          blockedByMissingMedia: totals.blockedByMissingMedia + set.blockedByMissingMedia,
+          mediaReady: totals.mediaReady + set.mediaReady,
+          missingMedia: totals.missingMedia + set.missingMedia,
+        }),
+        {
+          eligibleCharacters: 0,
+          projectedSnapshots: 0,
+          newCharacters: 0,
+          rarityChanges: 0,
+          unchangedCharacters: 0,
+          blockedByMissingMedia: 0,
+          mediaReady: 0,
+          missingMedia: 0,
+        },
+      ),
+    };
+  }
+
   async buildSnapshot(zoneId: number): Promise<{
     snapshotKey: string;
     candidates: number;
@@ -374,59 +571,12 @@ class CcgPublisherService {
     missingMedia: number;
     gradeDistribution: Record<string, number>;
   }> {
-    const configured = CCG_CONFIGURED_SETS.find((set) => set.zoneId === zoneId);
-    if (!configured) throw new Error(`CCG set is not configured for raid ${zoneId}`);
     const owner = await this.acquireLock(`snapshot:${zoneId}`, 90 * 60 * 1000);
     if (!owner) throw new Error(`A CCG snapshot for raid ${zoneId} is already running`);
 
     try {
-      await this.ensureConfiguredSets();
-      const set = await CcgSet.findOne({ zoneId });
-      if (!set) throw new Error(`CCG set ${zoneId} could not be initialized`);
+      const { configured, set, entries, participationByCharacter, characterIds } = await this.loadSnapshotPopulation(zoneId);
       const snapshotKey = `${set.slug}:${getHelsinkiDateKey()}`;
-      const entryFilter: Record<string, unknown> = {
-        scope: "global",
-        zoneId,
-        pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
-        ...COMPLETE_CCG_SCORE_FILTER,
-      };
-      const rankedEntries = await CharacterTierListEntry.find(entryFilter)
-        .sort({ score: -1, parseScore: -1, mythicReportCount: -1, reportCount: -1, wclCanonicalCharacterId: 1, characterKey: 1 })
-        .lean();
-
-      const participationByCharacter = await getCharacterRaidParticipationSummaries(
-        zoneId,
-        rankedEntries.map((entry) => entry.characterId),
-      );
-      const entries = rankedEntries
-        .filter(
-          (entry) =>
-            (participationByCharacter.get(String(entry.characterId))?.mythicReportCount ?? 0) >=
-            MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY,
-        )
-        .sort((left, right) => {
-          const scoreDiff = right.score - left.score;
-          if (scoreDiff !== 0) return scoreDiff;
-
-          const parseScoreDiff = right.parseScore - left.parseScore;
-          if (parseScoreDiff !== 0) return parseScoreDiff;
-
-          const leftParticipation = participationByCharacter.get(String(left.characterId));
-          const rightParticipation = participationByCharacter.get(String(right.characterId));
-          const mythicReportDiff = (rightParticipation?.mythicReportCount ?? 0) - (leftParticipation?.mythicReportCount ?? 0);
-          if (mythicReportDiff !== 0) return mythicReportDiff;
-
-          const reportDiff = (rightParticipation?.reportCount ?? 0) - (leftParticipation?.reportCount ?? 0);
-          if (reportDiff !== 0) return reportDiff;
-
-          const canonicalIdDiff = (left.wclCanonicalCharacterId ?? Number.MAX_SAFE_INTEGER) - (right.wclCanonicalCharacterId ?? Number.MAX_SAFE_INTEGER);
-          if (canonicalIdDiff !== 0) return canonicalIdDiff;
-
-          return left.characterKey.localeCompare(right.characterKey);
-        });
-      if (entries.length === 0) throw new Error(`No complete character tier-list population is available for raid ${zoneId}`);
-
-      const characterIds = entries.map((entry) => entry.characterId);
       const [mediaRows, mythicPlusRows] = await Promise.all([
         CharacterMedia.find({ characterId: { $in: characterIds }, status: "available" }).lean(),
         CharacterMythicPlusSeasonScore.find({ characterId: { $in: characterIds }, season: configured.mythicPlusSeason })
@@ -438,12 +588,11 @@ class CcgPublisherService {
         mythicPlusRows.map((row) => [String(row.characterId), row.scores.all > 0 ? row.scores.all : null]),
       );
       const now = new Date();
-      const gradeDistribution: Record<string, number> = Object.fromEntries(CCG_TIER_GRADES.map((grade) => [grade, 0]));
-      const operations = entries.map((entry, index) => {
+      const gradeDistribution: Record<string, number> = { S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 };
+      const operations = entries.map(({ entry, tierGrade }, index) => {
         const characterId = String(entry.characterId);
         const participation = participationByCharacter.get(characterId)!;
         const guild = participation.guild;
-        const tierGrade = gradeForPercentile(index, entries.length);
         const media = mediaByCharacter.get(characterId);
         gradeDistribution[tierGrade] += 1;
         const payload: SnapshotPayload = {
@@ -492,8 +641,8 @@ class CcgPublisherService {
       await CcgPublicationCandidate.deleteMany({ snapshotKey, characterId: { $nin: characterIds } });
       await CcgSet.updateOne({ _id: set._id }, { $set: { lastSnapshotAt: now } });
 
-      const missing = entries.filter((entry) => !mediaByCharacter.get(String(entry.characterId))?.mainRawUrl);
-      await characterMediaService.enqueueCharacters(missing.slice(0, 2000).map((entry) => entry.characterId));
+      const missing = entries.filter(({ entry }) => !mediaByCharacter.get(String(entry.characterId))?.mainRawUrl);
+      await characterMediaService.enqueueCharacters(missing.slice(0, 2000).map(({ entry }) => entry.characterId));
 
       return {
         snapshotKey,

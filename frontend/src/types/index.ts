@@ -2139,6 +2139,46 @@ export type CcgAdminSetStatus = {
   theme: { mark: string; accent: string; glow: string };
 };
 
+export type CcgAdminSnapshotPreviewCounts = {
+  eligibleCharacters: number;
+  projectedSnapshots: number;
+  newCharacters: number;
+  rarityChanges: number;
+  unchangedCharacters: number;
+  blockedByMissingMedia: number;
+  mediaReady: number;
+  missingMedia: number;
+};
+
+export type CcgAdminSnapshotSetPreview = CcgAdminSnapshotPreviewCounts & {
+  setId: string;
+  zoneId: number;
+  slug: string;
+  raidName: string;
+  mode: CcgMode;
+  gradeDistribution: Record<CcgTierGrade, number>;
+  blockedCharacters: Array<{
+    characterId: string;
+    name: string;
+    realm: string;
+    region: string;
+    outcome: "new_character" | "rarity_change";
+    previousTierGrade: CcgTierGrade | null;
+    nextTierGrade: CcgTierGrade;
+    mediaStatus: "pending" | "available" | "not_found" | "failed" | "untracked" | "render_missing";
+    attemptCount: number;
+    nextAttemptAt: string | null;
+    lastErrorCode: string | null;
+    lastError: string | null;
+  }>;
+};
+
+export type CcgAdminSnapshotPreview = {
+  calculatedAt: string;
+  sets: CcgAdminSnapshotSetPreview[];
+  totals: CcgAdminSnapshotPreviewCounts;
+};
+
 export type CcgAdminReadinessBlocker = "eligible_population" | "media_ready" | "media_coverage" | "already_enabled";
 
 export type CcgAdminRolloverPreview = {

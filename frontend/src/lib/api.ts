@@ -150,6 +150,7 @@ import {
   CcgSession,
   CcgSet,
   CcgAdminEnableResponse,
+  CcgAdminSnapshotPreview,
   CcgAdminSetReadiness,
   CcgAdminStatusResponse,
   CcgAdminMediaStatus,
@@ -375,6 +376,12 @@ export const api = {
   async getAdminCcgStatus(): Promise<CcgAdminStatusResponse> {
     const response = await fetch(`${API_URL}/api/admin/ccg/status`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load CCG administration");
+    return response.json();
+  },
+
+  async getAdminCcgSnapshotPreview(): Promise<CcgAdminSnapshotPreview> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/snapshot-preview`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to calculate the next CCG snapshot");
     return response.json();
   },
 

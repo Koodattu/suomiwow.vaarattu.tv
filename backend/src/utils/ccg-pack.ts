@@ -23,6 +23,15 @@ export type CcgPackSelectionPlan = {
   bucketOffset: number;
 };
 
+export function shufflePackResults<T>(results: readonly T[], random: (maximum: number) => number = randomInt): T[] {
+  const shuffled = [...results];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const target = random(index + 1);
+    [shuffled[index], shuffled[target]] = [shuffled[target], shuffled[index]];
+  }
+  return shuffled;
+}
+
 function weightedGrade(
   weights: Readonly<Record<CcgTierGrade, number>>,
   available: ReadonlySet<CcgTierGrade>,

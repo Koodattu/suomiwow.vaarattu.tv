@@ -38,10 +38,10 @@ import {
   rollOwnedFinish,
   rollProtectedFinish,
 } from "../src/utils/ccg-random";
-import { planPackSelections, selectCommunityCard, selectPackCards } from "../src/utils/ccg-pack";
+import { planPackSelections, selectCommunityCard, selectPackCards, shufflePackResults } from "../src/utils/ccg-pack";
 import { createWowCharacterIdentityKey } from "../src/utils/ccg-identity";
 import { getTransferableGuestPacks, verifyGuestLibrary } from "../src/utils/ccg-guest-library";
-import { nextCcgCardSnapshotVersion, shouldPublishCcgCardSnapshot } from "../src/utils/ccg-card-snapshot";
+import { getCcgSnapshotPreviewDisposition, nextCcgCardSnapshotVersion, shouldPublishCcgCardSnapshot, summarizeCcgSnapshotPreview } from "../src/utils/ccg-card-snapshot";
 import { normalizeCcgRedeemCode } from "../src/utils/ccg-redeem";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeGrants } from "../src/utils/ccg-recharge";
@@ -67,6 +67,43 @@ test("card snapshot versions advance without requiring a legacy version field", 
   assert.equal(nextCcgCardSnapshotVersion(null), 1);
   assert.equal(nextCcgCardSnapshotVersion({}), 2);
   assert.equal(nextCcgCardSnapshotVersion({ snapshotVersion: 2 }), 3);
+});
+
+test("snapshot previews separate new characters, rarity changes, unchanged cards, and missing media", () => {
+  const preview = summarizeCcgSnapshotPreview(
+    [
+      { characterId: "new-ready", tierGrade: "S", hasMedia: true },
+      { characterId: "new-blocked", tierGrade: "A", hasMedia: false },
+      { characterId: "changed-ready", tierGrade: "A", hasMedia: true },
+      { characterId: "changed-blocked", tierGrade: "B", hasMedia: false },
+      { characterId: "unchanged", tierGrade: "C", hasMedia: true },
+    ],
+    [
+      { characterId: "changed-ready", tierGrade: "B" },
+      { characterId: "changed-blocked", tierGrade: "C" },
+      { characterId: "unchanged", tierGrade: "C" },
+    ],
+  );
+
+  assert.deepEqual(preview, {
+    eligibleCharacters: 5,
+    projectedSnapshots: 2,
+    newCharacters: 1,
+    rarityChanges: 1,
+    unchangedCharacters: 1,
+    blockedByMissingMedia: 2,
+    mediaReady: 3,
+    missingMedia: 2,
+    gradeDistribution: { S: 1, A: 2, B: 1, C: 1, D: 0, E: 0, F: 0 },
+  });
+});
+
+test("snapshot preview dispositions identify which missing-media characters need action", () => {
+  assert.equal(getCcgSnapshotPreviewDisposition(null, "A", false), "blocked_new_character");
+  assert.equal(getCcgSnapshotPreviewDisposition({ tierGrade: "B" }, "A", false), "blocked_rarity_change");
+  assert.equal(getCcgSnapshotPreviewDisposition({ tierGrade: "A" }, "A", false), "unchanged");
+  assert.equal(getCcgSnapshotPreviewDisposition(null, "A", true), "new_character");
+  assert.equal(getCcgSnapshotPreviewDisposition({ tierGrade: "B" }, "A", true), "rarity_change");
 });
 
 test("card crops are deterministic and stay inside each raid's safe flair range", () => {
@@ -363,6 +400,14 @@ test("every selected pack has five cards and an A-or-better guaranteed slot", ()
   assert.equal(selected.length, 5);
   assert.equal(CCG_A_OR_BETTER_GRADES.has(selected[4].tierGrade), true);
   assert.equal(selected[0].tierGrade, "F");
+});
+
+test("pack results are shuffled without changing the rolled results", () => {
+  const results = ["first", "second", "third", "fourth", "guaranteed"];
+  const shuffled = shufflePackResults(results, () => 0);
+
+  assert.deepEqual(results, ["first", "second", "third", "fourth", "guaranteed"]);
+  assert.deepEqual(shuffled, ["second", "third", "fourth", "guaranteed", "first"]);
 });
 
 test("a pack cannot be produced when no A-or-better card exists", () => {

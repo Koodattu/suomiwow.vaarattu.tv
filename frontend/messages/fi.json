@@ -933,12 +933,65 @@
         "label": "CCG-hallinnan osiot",
         "studio": "Korttistudio",
         "packStudio": "Pakkastudio",
+        "snapshots": "Snapshot-esikatselu",
         "analytics": "Analytiikka",
         "alternativeArt": "Kuvitus ja repliikit",
         "redeemCodes": "Lunastuskoodit",
         "community": "Community",
         "media": "Hahmomedia",
         "sets": "Raidisetit"
+      },
+      "snapshotPreview": {
+        "title": "Seuraavan snapshotin esikatselu",
+        "description": "Laske reaaliaikaisista kelpoisuus-, harvinaisuus-, kortti- ja renderitiedoista, mitä snapshotin ja julkaisun ajaminen nyt tekisi jokaiselle käytössä olevalle Current- ja Legacy-raidille.",
+        "readOnly": "Tämä toiminto vain lukee tietoja. Se ei luo ehdokkaita, jonota rendereitä, julkaise kortteja eikä päivitä snapshotin aikaleimoja. Current-raidit ajetaan automaattisesti viikoittain; Legacy-tulokset näyttävät niiden mahdollisuuden, jos niille ajetaan uusi snapshot.",
+        "calculate": "Laske esikatselu",
+        "recalculate": "Laske uudelleen",
+        "calculating": "Lasketaan…",
+        "error": "Seuraavaa snapshotia ei voitu laskea.",
+        "totalsTitle": "Arvioitu lopputulos",
+        "calculatedAt": "Laskettu {date}",
+        "empty": "Yhtään käytössä olevaa Current- tai Legacy-raidisettiä ei ole laskettavissa.",
+        "mediaWarning": "{blocked, plural, one {# muuten julkaistava hahmo estyy} other {# muuten julkaistavaa hahmoa estyy}} puuttuvan renderin vuoksi. {missing, plural, one {Yhdeltä kelvolliselta hahmolta puuttuu} other {Yhteensä # kelvolliselta hahmolta puuttuu}} render.",
+        "mediaCoverage": "{ready} / {eligible} renderiä valmiina",
+        "gradeDistribution": "Arvioitu harvinaisuusjakauma",
+        "modes": {
+          "current": "Current",
+          "legacy": "Legacy"
+        },
+        "outcomes": {
+          "new_character": "Uusi hahmo",
+          "rarity_change": "Harvinaisuusmuutos"
+        },
+        "mediaStatuses": {
+          "pending": "Odottaa",
+          "available": "Saatavilla ilman renderiä",
+          "not_found": "Ei löytynyt",
+          "failed": "Epäonnistui",
+          "untracked": "Ei jonossa",
+          "render_missing": "Render puuttuu"
+        },
+        "blockedList": {
+          "title": "Median estämät hahmot",
+          "description": "Yksi rivi jokaista estynyttä korttisnapshotia kohden kaikissa käytössä olevissa raidipakoissa. Koko mediavirhe näkyy viemällä osoitin viimeisen sarakkeen päälle.",
+          "character": "Hahmo",
+          "raid": "Raidipakka",
+          "change": "Snapshotin syy",
+          "rarity": "Harvinaisuus",
+          "media": "Median tila",
+          "error": "Viimeisin virhe",
+          "attempts": "{count, plural, one {# yritys} other {# yritystä}}",
+          "nextAttempt": "Seuraava yritys {date}",
+          "noError": "Ei tallennettua virhettä"
+        },
+        "metrics": {
+          "eligible": "Kelvolliset hahmot",
+          "projected": "Uudet snapshotit",
+          "newCharacters": "Uudet hahmot",
+          "rarityChanges": "Harvinaisuusmuutokset",
+          "unchanged": "Ei muutosta",
+          "blocked": "Media estää"
+        }
       },
       "mediaOperations": {
         "title": "Hahmorenderien hallinta",

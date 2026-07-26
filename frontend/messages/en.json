@@ -933,12 +933,65 @@
         "label": "CCG administration sections",
         "studio": "Card studio",
         "packStudio": "Pack studio",
+        "snapshots": "Snapshot preview",
         "analytics": "Analytics",
         "alternativeArt": "Artwork & quips",
         "redeemCodes": "Redeem codes",
         "community": "Community",
         "media": "Character media",
         "sets": "Raid sets"
+      },
+      "snapshotPreview": {
+        "title": "Next snapshot preview",
+        "description": "Calculate what running a snapshot and publication now would do for every enabled Current and Legacy raid using live eligibility, rarity, card, and render data.",
+        "readOnly": "This is read-only. It does not create candidates, queue renders, publish cards, or update snapshot timestamps. Current raids run weekly automatically; Legacy results show their potential if they are snapshotted again.",
+        "calculate": "Calculate preview",
+        "recalculate": "Recalculate",
+        "calculating": "Calculating…",
+        "error": "The next snapshot could not be calculated.",
+        "totalsTitle": "Projected result",
+        "calculatedAt": "Calculated {date}",
+        "empty": "No enabled Current or Legacy raid sets are available for snapshot calculation.",
+        "mediaWarning": "{blocked, plural, one {# otherwise publishable character is} other {# otherwise publishable characters are}} blocked by missing renders. {missing, plural, one {# eligible character lacks} other {# eligible characters lack}} a render in total.",
+        "mediaCoverage": "{ready} / {eligible} renders ready",
+        "gradeDistribution": "Projected rarity distribution",
+        "modes": {
+          "current": "Current",
+          "legacy": "Legacy"
+        },
+        "outcomes": {
+          "new_character": "New character",
+          "rarity_change": "Rarity change"
+        },
+        "mediaStatuses": {
+          "pending": "Pending",
+          "available": "Available without render",
+          "not_found": "Not found",
+          "failed": "Failed",
+          "untracked": "Not queued",
+          "render_missing": "Render missing"
+        },
+        "blockedList": {
+          "title": "Characters blocked by media",
+          "description": "One row per blocked card snapshot across every enabled raid pack. Full media errors are available by hovering the final column.",
+          "character": "Character",
+          "raid": "Raid pack",
+          "change": "Snapshot reason",
+          "rarity": "Rarity",
+          "media": "Media state",
+          "error": "Latest error",
+          "attempts": "{count, plural, one {# attempt} other {# attempts}}",
+          "nextAttempt": "Next attempt {date}",
+          "noError": "No stored error"
+        },
+        "metrics": {
+          "eligible": "Eligible characters",
+          "projected": "New snapshots",
+          "newCharacters": "New characters",
+          "rarityChanges": "Rarity changes",
+          "unchanged": "Unchanged",
+          "blocked": "Blocked by media"
+        }
       },
       "mediaOperations": {
         "title": "Character render operations",

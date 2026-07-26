@@ -205,6 +205,11 @@ router.post(
 );
 
 router.get(
+  "/snapshot-preview",
+  adminRoute(async () => ccgPublisherService.previewNextSnapshots()),
+);
+
+router.get(
   "/sets/:zoneId/preview",
   adminRoute(async (req) => ccgPublisherService.preview(Number(req.params.zoneId))),
 );

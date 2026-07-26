@@ -57,7 +57,7 @@ import {
   serializeOwnershipRows,
 } from "../utils/ccg-alternative-art";
 import { CcgFinishPity, emptyFinishPity, finishChanceForCounter, rollArtVariant, rollOwnedFinish } from "../utils/ccg-random";
-import { planPackSelections, selectCommunityCard } from "../utils/ccg-pack";
+import { planPackSelections, selectCommunityCard, shufflePackResults } from "../utils/ccg-pack";
 import { resolveCollectorKey } from "../utils/ccg-identity";
 import { getTransferableGuestPacks, verifyGuestLibrary } from "../utils/ccg-guest-library";
 import { CCG_REDEEM_PACK_GRANT_MAX, normalizeCcgRedeemCode } from "../utils/ccg-redeem";
@@ -1543,7 +1543,7 @@ class CcgService {
               idempotencyKey,
               poolVersion: pool.version,
               packRuleVersion: CCG_PACK_RULE_VERSION,
-              results,
+              results: shufflePackResults(results),
               duplicateRewards,
               state: "committed",
               dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
