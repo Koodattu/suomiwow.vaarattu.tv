@@ -166,7 +166,7 @@
     "landing": {
       "title": "Pakat latautuvat ympäri vuorokauden",
       "body": "Jokainen kortti on muuttumaton otos tästä raid-tieristä: suoritus, mekaniikat, Mythic+, kilta, rooli ja hahmon ulkoasu.",
-      "packBody": "Legacy-pakka latautuu 30 minuutin välein ja Current-pakka tunnin välein, enintään 25 pakkaan asti kumpaakin.",
+      "packBody": "Legacy-pakka latautuu 30 minuutin välein ja Current-pakka tunnin välein, enintään 50 pakkaan asti kumpaakin.",
       "dailyPacks": "Pakkojen lataus",
       "featuredCard": "Esittelyssä",
       "currentSet": "Current-setti",
@@ -916,7 +916,7 @@
       "rolloverBalances": "Nykyiset saldot",
       "rolloverCurrentPacks": "Siirtyvät Current-pakat",
       "rolloverNewPacks": "Uudet Current-pakat",
-      "rolloverNote": "Tallennetut määrät eivät sisällä vielä kirjaamatonta latausta. Lopullinen siirto käyttää aktivointihetkeä; käyttäjäsaldot täytetään 25 Current-pakkaan ja aktiiviset vierassaldot viiteen.",
+      "rolloverNote": "Tallennetut määrät eivät sisällä vielä kirjaamatonta latausta. Lopullinen siirto käyttää aktivointihetkeä; käyttäjäsaldot täytetään 50 Current-pakkaan ja aktiiviset vierassaldot viiteen.",
       "latestRollover": "Viimeisin pakkasiirto #{sequence}",
       "latestRolloverStatus": "Aktivoitu {date} · {pending, plural, one {# saldo päivitetään} other {# saldoa päivitetään}} seuraavan käytön yhteydessä.",
       "blockers": {
@@ -1084,7 +1084,7 @@
         "card": "Yksi kortti",
         "currentPacks": "Current-pakat",
         "legacyPacks": "Legacy-pakat",
-        "packHelp": "Anna vähintään yksi pakka. Kumpikin arvo voi olla enintään 10 000; lunastettuja pakkoja ei rajoita 25 pakan latausraja.",
+        "packHelp": "Anna vähintään yksi pakka. Kumpikin arvo voi olla enintään 10 000; lunastettuja pakkoja ei rajoita 50 pakan latausraja.",
         "cardSearch": "Kortti",
         "cardSearchPlaceholder": "Hahmo, realm tai kilta",
         "searching": "Etsitään kortteja…",

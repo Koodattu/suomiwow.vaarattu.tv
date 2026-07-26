@@ -15,7 +15,7 @@ The product has two collection modes:
 - **Current** contains every enabled active raid.
 - **Legacy** contains every enabled past raid.
 
-Every raid tier is its own set and binder. Legacy storage recharges by one pack every Helsinki half-hour, while Current storage recharges every Helsinki hour. Both modes store up to 25 rechargeable packs. Current packs draw from all enabled active raids; Legacy packs draw from all enabled past raids.
+Every raid tier is its own set and binder. Legacy storage recharges by one pack every Helsinki half-hour, while Current storage recharges every Helsinki hour. Both modes store up to 50 rechargeable packs. Current packs draw from all enabled active raids; Legacy packs draw from all enabled past raids.
 
 Guests begin with 20 packs in each mode. A first-time authenticated CCG player begins with 20 packs in each mode, including existing SuomiWoW accounts that have never played CCG. Guest openings are temporary: after revealing a pack, the guest may explicitly log in to transfer that day's complete guest collection to an account that has no prior CCG activity. An established CCG account cannot import guest pulls.
 
@@ -199,7 +199,7 @@ A raid card candidate requires:
 - A valid combined score
 - A successfully fetched Blizzard full character render
 
-Mythic report count is materialized separately from the broader Heroic-or-Mythic participation count. Snapshot creation reads the authoritative per-raid participation rows directly, sums report counts across guilds, and requires at least three Mythic reports even when an admin bypasses readiness coverage checks. Existing character tier-list mechanics data remains the source of truth for the 50-pull threshold and requires calculated role-performance, mechanics, and combined scores rather than adding a second scoring pipeline.
+Mythic report count is materialized separately from the broader Heroic-or-Mythic participation count. Snapshot creation reads the authoritative per-raid participation rows directly, sums report counts across guilds, and requires at least three Mythic reports even when an admin bypasses readiness coverage checks. Existing character tier-list mechanics data remains the source of truth for the 40-pull threshold and requires calculated role-performance, mechanics, and combined scores rather than adding a second scoring pipeline.
 
 The card snapshots the stable guild ID, name, and realm of the guild with which the character recorded the most Mythic reports in that raid tier. Total qualifying reports, then most-recent appearance, provide deterministic tie-breakers. Guild attribution is not rewritten when the character later transfers.
 
@@ -252,10 +252,10 @@ Grade odds remain global and versioned. Within the selected grade, every eligibl
 ### Recharge balances
 
 - Recharge boundaries use the `Europe/Helsinki` clock.
-- Current and Legacy balances are independent and both cap at 25 rechargeable packs.
+- Current and Legacy balances are independent and both cap at 50 rechargeable packs.
 - Recharge is calculated lazily for the requesting owner; there is no hourly database-wide user scan.
 - Earned completed-card credits persist until opened.
-- Rollover reconciliation is also lazy. At the cutover timestamp, every unused Current balance and bonus credit becomes Legacy, authenticated Current storage is reset to 25, and guest Current storage is reset to 20.
+- Rollover reconciliation is also lazy. At the cutover timestamp, every unused Current balance and bonus credit becomes Legacy, authenticated Current storage is reset to 50, and guest Current storage is reset to 20.
 
 ### Pack contents
 
@@ -287,9 +287,9 @@ Cookie resetting and other lightweight abuse are accepted product tradeoffs. Bas
 
 Guests receive:
 
-- 20 initial Current packs with a 25-pack storage cap
+- 20 initial Current packs with a 50-pack storage cap
 - One Current pack on every Helsinki hour while storage is below the cap
-- 20 initial Legacy packs with a 25-pack storage cap
+- 20 initial Legacy packs with a 50-pack storage cap
 - One Legacy pack on every Helsinki half-hour while storage is below the cap
 - Five cards per pack
 
@@ -949,7 +949,7 @@ The snapshot records its source watermarks and fails closed if required rankings
 
 ### Pack recharge
 
-Pack balances are created and recharged lazily on session/open requests. A global hourly fan-out job is unnecessary. New guests and first-time authenticated players receive 20/20, and both modes recharge only up to 25.
+Pack balances are created and recharged lazily on session/open requests. A global hourly fan-out job is unnecessary. New guests and first-time authenticated players receive 20/20, and both modes recharge only up to 50.
 
 ### Jobs that are not recurring cron work
 
@@ -1240,7 +1240,7 @@ Statistical tests use tolerances; they must not depend on a fixed random sequenc
 
 The initial feature is ready when:
 
-- A user or guest receives one Legacy pack each Helsinki half-hour and one Current pack each Helsinki hour while below the 25-pack storage cap for each mode.
+- A user or guest receives one Legacy pack each Helsinki half-hour and one Current pack each Helsinki hour while below the 50-pack storage cap for each mode.
 - A new guest starts with 20 packs per mode; a first-time authenticated CCG player starts with 20 packs per mode.
 - A Legacy pack can contain cards from any enabled historical raid.
 - Every committed result survives refresh and repeated requests during its retention window; authenticated results remain permanent.

@@ -221,9 +221,9 @@ test("WoD and Legion CCG sets use their supplied backgrounds", () => {
   );
 });
 
-test("CCG eligibility requires three Mythic reports and fifty pulls", () => {
+test("CCG eligibility requires three Mythic reports and forty pulls", () => {
   assert.equal(MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY, 3);
-  assert.equal(MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY, 50);
+  assert.equal(MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY, 40);
 });
 
 test("quality protection honors hard pity, minimum finishes, and independent resets", () => {
@@ -415,7 +415,7 @@ test("a pack cannot be produced when no A-or-better card exists", () => {
 });
 
 test("first-time pack grants distinguish guest and authenticated storage", () => {
-  assert.deepEqual(CCG_PACK_STORAGE_CAPS, { current: 25, legacy: 25 });
+  assert.deepEqual(CCG_PACK_STORAGE_CAPS, { current: 50, legacy: 50 });
   assert.deepEqual(CCG_INITIAL_PACKS.guest, { current: 20, legacy: 20 });
   assert.deepEqual(CCG_INITIAL_PACKS.user, { current: 20, legacy: 20 });
 });
@@ -491,19 +491,19 @@ test("pack recharge follows shared Helsinki half-hour boundaries and respects st
   assert.equal(recharged.lastRechargeAt.toISOString(), "2026-01-01T10:00:00.000Z");
 
   const overCap = applyPackRecharge(
-    { current: 50, legacy: 26 },
+    { current: 75, legacy: 51 },
     new Date("2026-01-01T07:00:00.000Z"),
     new Date("2026-01-01T10:05:00.000Z"),
   );
-  assert.deepEqual(overCap.balances, { current: 50, legacy: 26 });
+  assert.deepEqual(overCap.balances, { current: 75, legacy: 51 });
 
   const blockedByBonusPacks = applyPackRecharge(
     { current: 20, legacy: 20 },
     new Date("2026-01-01T07:00:00.000Z"),
     new Date("2026-01-01T10:05:00.000Z"),
-    { current: 10, legacy: 4 },
+    { current: 30, legacy: 26 },
   );
-  assert.deepEqual(blockedByBonusPacks.balances, { current: 20, legacy: 21 });
+  assert.deepEqual(blockedByBonusPacks.balances, { current: 20, legacy: 24 });
 });
 
 test("authenticated raid rollover moves all Current packs to Legacy and refills Current storage", () => {
@@ -513,10 +513,10 @@ test("authenticated raid rollover moves all Current packs to Legacy and refills 
     { current: 4, legacy: 2 },
     new Date("2026-01-01T10:00:00.000Z"),
     new Date("2026-01-01T10:00:00.000Z"),
-    25,
+    CCG_PACK_STORAGE_CAPS.current,
   );
 
-  assert.deepEqual(rollover.balances, { current: 25, legacy: 7 });
+  assert.deepEqual(rollover.balances, { current: 50, legacy: 7 });
   assert.equal(rollover.regularCurrentMoved, 10);
   assert.equal(rollover.bonusCurrentMoved, 4);
   assert.equal(7 + 2 + rollover.regularCurrentMoved + rollover.bonusCurrentMoved, 23);
@@ -529,11 +529,11 @@ test("raid rollover includes lazy recharge accrued before the cutover", () => {
     { current: 4, legacy: 2 },
     new Date("2026-01-01T07:00:00.000Z"),
     new Date("2026-01-01T10:05:00.000Z"),
-    25,
+    CCG_PACK_STORAGE_CAPS.current,
   );
 
-  assert.deepEqual(rollover.balances, { current: 25, legacy: 13 });
-  assert.equal(rollover.regularCurrentMoved, 21);
+  assert.deepEqual(rollover.balances, { current: 50, legacy: 13 });
+  assert.equal(rollover.regularCurrentMoved, 23);
   assert.equal(rollover.lastRechargeAt.toISOString(), "2026-01-01T10:00:00.000Z");
 });
 
@@ -558,7 +558,7 @@ test("each missed raid rollover carries the prior refill into Legacy", () => {
     { current: 4, legacy: 2 },
     new Date("2026-01-01T10:00:00.000Z"),
     new Date("2026-01-01T10:00:00.000Z"),
-    25,
+    CCG_PACK_STORAGE_CAPS.current,
   );
   const creditsAfterFirst = { current: 0, legacy: 2 + 4 + first.regularCurrentMoved };
   const second = applyCcgPackRollover(
@@ -567,12 +567,12 @@ test("each missed raid rollover carries the prior refill into Legacy", () => {
     creditsAfterFirst,
     first.lastRechargeAt,
     new Date("2026-01-01T10:00:00.000Z"),
-    25,
+    CCG_PACK_STORAGE_CAPS.current,
   );
 
-  assert.equal(second.regularCurrentMoved, 25);
-  assert.deepEqual(second.balances, { current: 25, legacy: 7 });
-  assert.equal(second.balances.legacy + creditsAfterFirst.legacy + second.regularCurrentMoved, 48);
+  assert.equal(second.regularCurrentMoved, 50);
+  assert.deepEqual(second.balances, { current: 50, legacy: 7 });
+  assert.equal(second.balances.legacy + creditsAfterFirst.legacy + second.regularCurrentMoved, 73);
 });
 
 test("redeem codes normalize safely without accepting ambiguous separators", () => {

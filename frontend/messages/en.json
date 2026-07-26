@@ -166,7 +166,7 @@
     "landing": {
       "title": "Packs recharge around the clock",
       "body": "Every card is an immutable snapshot from this raid tier: performance, mechanics, Mythic+, guild, role, and character appearance.",
-      "packBody": "Legacy packs recharge every 30 minutes and Current packs hourly, up to 25 of each.",
+      "packBody": "Legacy packs recharge every 30 minutes and Current packs hourly, up to 50 of each.",
       "dailyPacks": "Pack recharge",
       "featuredCard": "Featured card",
       "currentSet": "Featured Current set",
@@ -916,7 +916,7 @@
       "rolloverBalances": "Existing balances",
       "rolloverCurrentPacks": "Current packs moving",
       "rolloverNewPacks": "New Current packs",
-      "rolloverNote": "Stored counts exclude recharge not yet applied. Final conversion uses the activation timestamp; accounts refill to 25 Current packs and active guest balances to 5.",
+      "rolloverNote": "Stored counts exclude recharge not yet applied. Final conversion uses the activation timestamp; accounts refill to 50 Current packs and active guest balances to 5.",
       "latestRollover": "Latest pack rollover #{sequence}",
       "latestRolloverStatus": "Activated {date} · {pending, plural, one {# balance will} other {# balances will}} be updated on next use.",
       "blockers": {
@@ -1084,7 +1084,7 @@
         "card": "Single card",
         "currentPacks": "Current packs",
         "legacyPacks": "Legacy packs",
-        "packHelp": "Grant at least one pack. Each value can be up to 10,000; redeemed packs are not limited by the 25-pack recharge ceiling.",
+        "packHelp": "Grant at least one pack. Each value can be up to 10,000; redeemed packs are not limited by the 50-pack recharge ceiling.",
         "cardSearch": "Card",
         "cardSearchPlaceholder": "Character, realm, or guild",
         "searching": "Searching cards…",
