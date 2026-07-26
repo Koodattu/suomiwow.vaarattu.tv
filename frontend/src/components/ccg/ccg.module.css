@@ -1175,6 +1175,7 @@
   cursor: grab;
   touch-action: pan-y;
   user-select: none;
+  padding-left: 0.25rem;
 }
 
 .collectionSetRail[data-dragging="true"],
@@ -1242,8 +1243,8 @@
   --set-accent: #7ddcff;
   position: relative;
   display: grid;
-  min-width: 7.5rem;
-  max-width: 7.5rem;
+  min-width: 6.5rem;
+  max-width: 6.5rem;
   min-height: 3.75rem;
   flex: 0 0 auto;
   grid-template-rows: minmax(0, 1fr) auto;
