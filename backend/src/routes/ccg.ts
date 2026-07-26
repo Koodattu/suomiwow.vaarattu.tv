@@ -83,10 +83,7 @@ router.get(
 router.get(
   "/sets/:setSlug/guilds",
   rateLimit(90, 60_000),
-  asyncRoute(async (req, res) => {
-    const owner = await ccgService.resolveOwner(req, res);
-    return ccgService.getCollectionGuilds(owner, req.params.setSlug);
-  }),
+  asyncRoute(async (req) => ccgService.getCollectionGuilds(req.params.setSlug)),
 );
 
 router.get(
@@ -116,10 +113,7 @@ router.get(
 router.get(
   "/collection/guilds",
   rateLimit(90, 60_000),
-  asyncRoute(async (req, res) => {
-    const owner = await ccgService.resolveOwner(req, res);
-    return ccgService.getCollectionGuilds(owner, typeof req.query.set === "string" ? req.query.set : undefined);
-  }),
+  asyncRoute(async (req) => ccgService.getCollectionGuilds(typeof req.query.set === "string" ? req.query.set : undefined)),
 );
 
 router.get(

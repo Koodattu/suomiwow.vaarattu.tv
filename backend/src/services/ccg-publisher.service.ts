@@ -72,6 +72,26 @@ type SnapshotPayload = {
 
 type TierEntryRow = SnapshotPayload & { characterId: mongoose.Types.ObjectId };
 
+type CcgCollectionGuildSource = {
+  guildId?: mongoose.Types.ObjectId | null;
+  guildName?: string | null;
+  guildRealm?: string | null;
+};
+
+export function buildCcgCollectionGuilds(cards: ReadonlyArray<CcgCollectionGuildSource>): Array<{
+  guildId: mongoose.Types.ObjectId;
+  name: string;
+  realm: string;
+}> {
+  const guilds = new Map<string, { guildId: mongoose.Types.ObjectId; name: string; realm: string }>();
+  for (const card of cards) {
+    if (!card.guildId || !card.guildName || !card.guildRealm) continue;
+    const id = String(card.guildId);
+    if (!guilds.has(id)) guilds.set(id, { guildId: card.guildId, name: card.guildName, realm: card.guildRealm });
+  }
+  return [...guilds.values()].sort((left, right) => left.name.localeCompare(right.name) || left.realm.localeCompare(right.realm));
+}
+
 export type CcgSetReadiness = {
   configured: CcgConfiguredSet;
   setId: string | null;
@@ -128,6 +148,7 @@ class CcgPublisherService {
   private configuredAt = 0;
   private configuredPromise: Promise<void> | null = null;
   private cardSnapshotIndexesPromise: Promise<void> | null = null;
+  private collectionGuildsPromise: Promise<void> | null = null;
 
   private async getActivationState(configured: CcgConfiguredSet, session?: mongoose.ClientSession): Promise<CcgActivationState> {
     const currentSetsQuery = CcgSet.find({
@@ -621,6 +642,81 @@ class CcgPublisherService {
     }
   }
 
+  async ensureCollectionGuildsMaterialized(setIds: mongoose.Types.ObjectId[]): Promise<void> {
+    if (setIds.length === 0) return;
+    if (this.collectionGuildsPromise) {
+      await this.collectionGuildsPromise;
+      return this.ensureCollectionGuildsMaterialized(setIds);
+    }
+
+    this.collectionGuildsPromise = (async () => {
+      const sets = await CcgSet.find({
+        _id: { $in: setIds },
+        collectionGuildsBuiltAt: null,
+      }).select("_id cardCount kind").lean();
+      if (sets.length === 0) return;
+
+      const missingSetIds = sets.map((set) => set._id);
+      const pools = await CcgPackPool.find({ setId: { $in: missingSetIds }, active: true })
+        .select("setId buckets.cardIds")
+        .sort({ updatedAt: -1 })
+        .lean();
+      const poolBySet = new Map<string, (typeof pools)[number]>();
+      for (const pool of pools) {
+        const setId = String(pool.setId);
+        if (!poolBySet.has(setId)) poolBySet.set(setId, pool);
+      }
+
+      const pooledCardIds = pools.flatMap((pool) => pool.buckets.flatMap((bucket) => bucket.cardIds));
+      const pooledCards = pooledCardIds.length > 0
+        ? await CcgCard.find({ _id: { $in: pooledCardIds } }).select("setId guildId guildName guildRealm").lean()
+        : [];
+      const cardsBySet = new Map<string, CcgCollectionGuildSource[]>();
+      for (const card of pooledCards) {
+        const setId = String(card.setId);
+        const cards = cardsBySet.get(setId) ?? [];
+        cards.push(card);
+        cardsBySet.set(setId, cards);
+      }
+
+      for (const set of sets) {
+        const setId = String(set._id);
+        if (set.cardCount === 0) continue;
+        if (set.kind === "community") {
+          const communityCards = await CcgCard.find({ setId: set._id }).select("guildId guildName guildRealm").lean();
+          cardsBySet.set(setId, communityCards);
+          continue;
+        }
+        if (poolBySet.has(setId)) continue;
+        const latestCards = await CcgCard.aggregate<CcgCollectionGuildSource>([
+          { $match: { setId: set._id } },
+          { $sort: { snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 } },
+          { $group: { _id: "$characterId", card: { $first: "$$ROOT" } } },
+          { $replaceRoot: { newRoot: "$card" } },
+          { $project: { guildId: 1, guildName: 1, guildRealm: 1 } },
+        ]);
+        cardsBySet.set(setId, latestCards);
+      }
+
+      const builtAt = new Date();
+      await CcgSet.bulkWrite(sets.map((set) => ({
+        updateOne: {
+          filter: { _id: set._id, collectionGuildsBuiltAt: null },
+          update: {
+            $set: {
+              collectionGuilds: buildCcgCollectionGuilds(cardsBySet.get(String(set._id)) ?? []),
+              collectionGuildsBuiltAt: builtAt,
+            },
+          },
+        },
+      })));
+    })().finally(() => {
+      this.collectionGuildsPromise = null;
+    });
+
+    await this.collectionGuildsPromise;
+  }
+
   async rebuildPool(setId: mongoose.Types.ObjectId, version?: string, existingSession?: mongoose.ClientSession): Promise<string> {
     const set = await CcgSet.findById(setId).session(existingSession ?? null).lean();
     if (!set) throw new Error("CCG set not found");
@@ -632,13 +728,13 @@ class CcgPublisherService {
         .lean();
       cardFilter.communityCharacterId = { $in: activeCharacters.map((character) => character._id) };
     }
-    const latestCards = CcgCard.aggregate<Pick<ICcgCard, "_id" | "tierGrade" | "setNumber">>([
+    const latestCards = CcgCard.aggregate<Pick<ICcgCard, "_id" | "tierGrade" | "setNumber" | "guildId" | "guildName" | "guildRealm">>([
       { $match: cardFilter },
       { $sort: { snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 } },
       { $group: { _id: "$characterId", card: { $first: "$$ROOT" } } },
       { $replaceRoot: { newRoot: "$card" } },
       { $sort: { setNumber: 1 } },
-      { $project: { _id: 1, tierGrade: 1, setNumber: 1 } },
+      { $project: { _id: 1, tierGrade: 1, setNumber: 1, guildId: 1, guildName: 1, guildRealm: 1 } },
     ]);
     if (existingSession) latestCards.session(existingSession);
     const cards = await latestCards;
@@ -647,12 +743,24 @@ class CcgPublisherService {
       grade,
       cardIds: cards.filter((card) => card.tierGrade === grade).map((card) => card._id),
     }));
+    let collectionGuildCards: ReadonlyArray<CcgCollectionGuildSource> = cards;
+    if (set.kind === "community") {
+      const communityCards = CcgCard.find({ setId }).select("guildId guildName guildRealm").lean();
+      if (existingSession) communityCards.session(existingSession);
+      collectionGuildCards = await communityCards;
+    }
+    const collectionGuilds = buildCcgCollectionGuilds(collectionGuildCards);
     const writePool = async (session: mongoose.ClientSession) => {
       await CcgPackPool.updateMany({ setId, active: true }, { $set: { active: false } }, { session });
       await CcgPackPool.findOneAndUpdate(
         { setId, version: poolVersion },
         { $set: { active: true, buckets, totalCards: cards.length } },
         { upsert: true, new: true, session },
+      );
+      await CcgSet.updateOne(
+        { _id: setId },
+        { $set: { collectionGuilds, collectionGuildsBuiltAt: new Date() } },
+        { session },
       );
     };
     if (existingSession) {

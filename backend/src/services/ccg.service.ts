@@ -560,75 +560,27 @@ class CcgService {
     return sets.filter((set) => set.enabledAt && set.cardCount > 0).map((set) => this.serializeSet(set, ownedBySet.get(String(set._id)) ?? 0));
   }
 
-  async getCollectionGuilds(owner: CcgOwner, setSlug?: string): Promise<Record<string, unknown>> {
-    const cardMatch: Record<string, unknown> = {};
-    if (setSlug) {
-      const set = await CcgSet.findOne({ slug: setSlug, enabledAt: { $ne: null } }).select("_id").lean();
-      if (!set) throw new CcgServiceError(404, "set_not_found", "Card set not found");
-      cardMatch.setId = set._id;
-    } else {
-      cardMatch.setId = { $in: await CcgSet.distinct("_id", { enabledAt: { $ne: null } }) };
+  async getCollectionGuilds(setSlug?: string): Promise<Record<string, unknown>> {
+    requireFeature();
+    const setFilter: Record<string, unknown> = { enabledAt: { $ne: null } };
+    if (setSlug) setFilter.slug = setSlug;
+    const sets = await CcgSet.find(setFilter).select("_id").lean();
+    if (setSlug && sets.length === 0) throw new CcgServiceError(404, "set_not_found", "Card set not found");
+
+    const setIds = sets.map((set) => set._id);
+    await ccgPublisherService.ensureCollectionGuildsMaterialized(setIds);
+    const materializedSets = await CcgSet.find({ _id: { $in: setIds } }).select("collectionGuilds").lean();
+    const guildsById = new Map<string, { id: string; name: string; realm: string }>();
+    for (const set of materializedSets) {
+      for (const guild of set.collectionGuilds ?? []) {
+        const id = String(guild.guildId);
+        if (!guildsById.has(id)) guildsById.set(id, { id, name: guild.name, realm: guild.realm });
+      }
     }
 
-    const guilds = await CcgCard.aggregate<{
-      _id: mongoose.Types.ObjectId;
-      name: string;
-      realm: string;
-      cardCount: number;
-      collectedCards: number;
-    }>([
-      { $match: cardMatch },
-      { $sort: { snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 } },
-      {
-        $group: {
-          _id: { setId: "$setId", characterId: "$characterId" },
-          card: { $first: "$$ROOT" },
-          cardIds: { $push: "$_id" },
-        },
-      },
-      { $match: { "card.guildId": { $type: "objectId" } } },
-      {
-        $lookup: {
-          from: CcgOwnership.collection.collectionName,
-          let: { cardIds: "$cardIds" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $in: ["$cardId", "$$cardIds"] },
-                    { $eq: ["$ownerType", owner.ownerType] },
-                    { $eq: ["$ownerId", owner.ownerId] },
-                  ],
-                },
-              },
-            },
-            { $limit: 1 },
-          ],
-          as: "ownership",
-        },
-      },
-      {
-        $group: {
-          _id: "$card.guildId",
-          name: { $first: "$card.guildName" },
-          realm: { $first: "$card.guildRealm" },
-          cardCount: { $sum: 1 },
-          collectedCards: { $sum: { $cond: [{ $gt: [{ $size: "$ownership" }, 0] }, 1, 0] } },
-        },
-      },
-    ]);
-    const facets = guilds
-      .map((row) => ({
-        id: String(row._id),
-        name: row.name,
-        realm: row.realm,
-        cardCount: row.cardCount,
-        collectedCards: row.collectedCards,
-      }))
-      .sort((a, b) => b.collectedCards - a.collectedCards || a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm));
-
-    return { guilds: facets };
+    return {
+      guilds: [...guildsById.values()].sort((left, right) => left.name.localeCompare(right.name) || left.realm.localeCompare(right.realm)),
+    };
   }
 
   async getCatalog(

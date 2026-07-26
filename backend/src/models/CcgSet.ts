@@ -26,6 +26,12 @@ export interface ICcgSet extends Document {
   packRuleVersion: string;
   publicationWave: number;
   cardCount: number;
+  collectionGuilds?: Array<{
+    guildId: mongoose.Types.ObjectId;
+    name: string;
+    realm: string;
+  }>;
+  collectionGuildsBuiltAt?: Date | null;
   lastSnapshotAt?: Date | null;
   lastPublishedAt?: Date | null;
   createdAt: Date;
@@ -36,6 +42,15 @@ const CustomFinishSchema = new Schema(
   {
     key: { type: String, enum: CCG_CUSTOM_FINISHES, required: true },
     hardPity: { type: Number, required: true, min: 2 },
+  },
+  { _id: false },
+);
+
+const CollectionGuildSchema = new Schema(
+  {
+    guildId: { type: Schema.Types.ObjectId, ref: "Guild", required: true },
+    name: { type: String, required: true },
+    realm: { type: String, required: true },
   },
   { _id: false },
 );
@@ -76,6 +91,8 @@ const CcgSetSchema = new Schema<ICcgSet>(
     packRuleVersion: { type: String, required: true },
     publicationWave: { type: Number, required: true, default: 0 },
     cardCount: { type: Number, required: true, default: 0 },
+    collectionGuilds: { type: [CollectionGuildSchema], default: undefined },
+    collectionGuildsBuiltAt: { type: Date, default: null },
     lastSnapshotAt: { type: Date, default: null },
     lastPublishedAt: { type: Date, default: null },
   },

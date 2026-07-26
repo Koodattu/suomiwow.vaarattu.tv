@@ -2313,8 +2313,6 @@ export type CcgGuildFacet = {
   id: string;
   name: string;
   realm: string;
-  cardCount: number;
-  collectedCards: number;
 };
 
 export type CcgGuildsResponse = {
