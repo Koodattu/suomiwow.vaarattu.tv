@@ -400,16 +400,13 @@ export default function CcgOpenPage() {
         return ["S", "A", "B", "C", "D", "E", "F"].indexOf(left.result.card.tierGrade)
           - ["S", "A", "B", "C", "D", "E", "F"].indexOf(right.result.card.tierGrade);
       });
-    const quipIndex = prioritizedResults.find(({ result, index }) => (
-      Boolean(result.card.quip?.audioPath)
-      && Boolean(quipAudioRefs.current[index])
-      && getCcgPlaybackVolume("quips", 0.9) > 0
-    ))?.index;
-    if (quipIndex !== undefined) playQuipAfterFlip(quipIndex);
-    const announcerIndex = prioritizedResults.find(({ result, index }) => (
-      !result.card.quip?.audioPath && announcerAudioRefs.current[index]?.some(Boolean)
-    ))?.index;
-    if (announcerIndex !== undefined) playAnnouncerAfterFlip(announcerIndex);
+    const voiceResult = prioritizedResults.find(({ result, index }) => (
+      result.card.quip?.audioPath
+        ? Boolean(quipAudioRefs.current[index]) && getCcgPlaybackVolume("quips", 0.9) > 0
+        : announcerAudioRefs.current[index]?.some(Boolean)
+    ));
+    if (voiceResult?.result.card.quip?.audioPath) playQuipAfterFlip(voiceResult.index);
+    else if (voiceResult) playAnnouncerAfterFlip(voiceResult.index);
     setRevealedCards(new Set(opening.results.map((_, index) => index)));
   };
 
