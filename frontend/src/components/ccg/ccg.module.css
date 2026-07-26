@@ -1242,10 +1242,12 @@
   --set-accent: #7ddcff;
   position: relative;
   display: grid;
-  min-width: 10.5rem;
-  min-height: 3.25rem;
+  min-width: 7.5rem;
+  max-width: 7.5rem;
+  min-height: 3.75rem;
   flex: 0 0 auto;
-  align-content: center;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: stretch;
   overflow: hidden;
   border: 0;
   border-radius: 0.45rem;
@@ -1256,6 +1258,7 @@
   cursor: pointer;
   padding: 0.45rem 0.7rem;
   text-align: left;
+  text-wrap: wrap;
   transition:
     color 150ms ease,
     box-shadow 150ms ease,
@@ -1301,15 +1304,20 @@
 }
 
 .collectionSet span {
+  display: -webkit-box;
+  align-self: start;
   overflow: hidden;
   font-size: 0.76rem;
   font-weight: 760;
   line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .collectionSet small {
+  align-self: end;
   margin-top: 0.22rem;
   color: color-mix(in srgb, var(--set-accent) 78%, white);
   font-size: 0.72rem;
@@ -3447,7 +3455,9 @@
   padding: 0.35rem;
   color: #c8d4e6;
   background: #111927;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 14px 36px rgba(0, 0, 0, 0.42);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 14px 36px rgba(0, 0, 0, 0.42);
   font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
   font-weight: 720;

@@ -1267,6 +1267,32 @@
         "reportCollision": "Osa raporteista sisältää jo kohdehahmon ja aiheuttaisi ristiriidan.",
         "sameIdentity": "Historiallinen identiteetti on jo sama kuin kohdehahmon identiteetti.",
         "existingLink": "Tällä historiallisella identiteetillä on jo manuaalinen linkitys."
+      },
+      "accountLink": "Sama pelaaja",
+      "manualAccountLinkCount": "{count, plural, one {# manuaalinen pelaajalinkki} other {# manuaalista pelaajalinkkiä}}",
+      "accountLinkEditorTitle": "Linkitä eri hahmot samalle pelaajalle",
+      "accountLinkEditorDescription": "Lisää pysyvä manuaalinen yhteys kahden erillisen hahmotietueen välille. Se täydentää achievement-päättelyä ja säilyy ryhmien uudelleenrakennuksessa. Esikatsele koko transitiivinen yhdistyminen ennen vahvistamista.",
+      "accountLinkFirstCharacter": "Ensimmäinen hahmo",
+      "accountLinkExisting": "Nykyiset suorat manuaaliset pelaajalinkit",
+      "accountLinkRemove": "Poista",
+      "accountLinkOtherName": "Toisen hahmon nimi",
+      "accountLinkOtherRealm": "Toisen hahmon realm",
+      "accountLinkOtherRegion": "Alue",
+      "accountLinkPreview": "Esikatsele yhdistyminen",
+      "accountLinkWorking": "Tarkistetaan...",
+      "accountLinkCurrentGroups": "Nykyiset ryhmät",
+      "accountLinkMergedCharacters": "Hahmoja yhdistämisen jälkeen",
+      "accountLinkAffectedCharacters": "Linkityksen vaikutuspiirissä olevat hahmot",
+      "accountLinkAlreadyGrouped": "{first} ja {second} ovat jo samassa päätellyssä ryhmässä. Manuaalinen yhteys säilyttää niiden suhteen, jos achievement-päättely muuttuu.",
+      "accountLinkPreviewReady": "{first} ja {second} linkitetään samalle pelaajalle. Ryhmään tulee {count, plural, one {# hahmo} other {# hahmoa}}.",
+      "accountLinkConfirm": "Vahvista linkitys ja rakenna uudelleen",
+      "accountLinkRebuilding": "Linkitetään ja rakennetaan uudelleen...",
+      "accountLinkPreviewFailed": "Manuaalisen pelaajalinkin esikatselu epäonnistui",
+      "accountLinkCreateFailed": "Manuaalisen pelaajalinkin luominen epäonnistui",
+      "accountLinkRemoveFailed": "Manuaalisen pelaajalinkin poistaminen epäonnistui",
+      "accountLinkRemoveConfirm": "Poistetaanko suora manuaalinen pelaajalinkki hahmojen {character} ja {other} väliltä ja rakennetaanko pelaajaryhmät uudelleen? Achievement- tai muut manuaaliset yhteydet voivat edelleen pitää hahmot samassa ryhmässä.",
+      "accountLinkBlockers": {
+        "existingEdge": "Näiden hahmojen välillä on jo suora manuaalinen pelaajalinkki."
       }
     },
     "analytics": {

@@ -5,6 +5,7 @@ import { CHARACTER_ACCOUNT_SIGNAL_ACHIEVEMENT_ID_SET, CHARACTER_ACCOUNT_SIGNAL_V
 import { Achievement, AuthToken } from "../models/Achievement";
 import Character, { ICharacter } from "../models/Character";
 import CharacterAccountGroup from "../models/CharacterAccountGroup";
+import CharacterAccountManualEdge from "../models/CharacterAccountManualEdge";
 import CharacterAccountMatch, { CharacterAccountMatchConfidence } from "../models/CharacterAccountMatch";
 import CharacterAchievementFetchQueue, { CharacterAchievementFetchStatus, ICharacterAchievementFetchQueue } from "../models/CharacterAchievementFetchQueue";
 import CharacterAchievementFingerprint, { ICharacterAchievementFingerprint, ICharacterAchievementSignal } from "../models/CharacterAchievementFingerprint";
@@ -22,6 +23,7 @@ import {
 } from "../utils/featured-achievements";
 import logger from "../utils/logger";
 import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
+import { createCharacterAccountPairKey, orderCharacterAccountPairIds } from "../utils/character-account-manual-edge";
 import cacheService from "./cache.service";
 import taskTracker from "./task-tracker.service";
 
@@ -135,6 +137,7 @@ export interface CharacterAccountGroupRebuildResult {
   groups: number;
   matchedCharacters: number;
   highConfidenceEdges: number;
+  manualEdges: number;
 }
 
 interface ProcessOutcome {
@@ -527,12 +530,17 @@ class CharacterAchievementService {
   }
 
   async rebuildAccountGroups(): Promise<CharacterAccountGroupRebuildResult> {
-    const highConfidenceEdges = await CharacterAccountMatch.find({
-      signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
-      confidence: "high",
-    })
-      .select("characterAId characterBId score")
-      .lean<Array<{ characterAId: mongoose.Types.ObjectId; characterBId: mongoose.Types.ObjectId; score: number }>>();
+    const [highConfidenceEdges, manualEdges] = await Promise.all([
+      CharacterAccountMatch.find({
+        signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
+        confidence: "high",
+      })
+        .select("characterAId characterBId score")
+        .lean<Array<{ characterAId: mongoose.Types.ObjectId; characterBId: mongoose.Types.ObjectId; score: number }>>(),
+      CharacterAccountManualEdge.find({})
+        .select("characterAId characterBId")
+        .lean<Array<{ characterAId: mongoose.Types.ObjectId; characterBId: mongoose.Types.ObjectId }>>(),
+    ]);
 
     const parent = new Map<string, string>();
     const find = (id: string): string => {
@@ -553,6 +561,9 @@ class CharacterAchievementService {
     };
 
     for (const edge of highConfidenceEdges) {
+      union(String(edge.characterAId), String(edge.characterBId));
+    }
+    for (const edge of manualEdges) {
       union(String(edge.characterAId), String(edge.characterBId));
     }
 
@@ -584,9 +595,10 @@ class CharacterAchievementService {
     const reportCountByCharacterId = new Map(reportCountRows.map((row) => [String(row._id), row.reportCount]));
     const edgeScoresByPair = new Map<string, number>();
     for (const edge of highConfidenceEdges) {
-      const key = this.buildPairKey(String(edge.characterAId), String(edge.characterBId));
+      const key = createCharacterAccountPairKey(String(edge.characterAId), String(edge.characterBId));
       edgeScoresByPair.set(key, edge.score);
     }
+    const manualEdgePairs = new Set(manualEdges.map((edge) => createCharacterAccountPairKey(String(edge.characterAId), String(edge.characterBId))));
 
     const operations: any[] = [];
     const activeGroupKeys: string[] = [];
@@ -607,10 +619,13 @@ class CharacterAchievementService {
 
       const memberIds = members.map((member) => String(member._id));
       const scores: number[] = [];
+      let edgeCount = 0;
       for (let i = 0; i < memberIds.length; i++) {
         for (let j = i + 1; j < memberIds.length; j++) {
-          const score = edgeScoresByPair.get(this.buildPairKey(memberIds[i], memberIds[j]));
+          const pairKey = createCharacterAccountPairKey(memberIds[i], memberIds[j]);
+          const score = edgeScoresByPair.get(pairKey);
           if (typeof score === "number") scores.push(score);
+          if (typeof score === "number" || manualEdgePairs.has(pairKey)) edgeCount += 1;
         }
       }
 
@@ -649,7 +664,7 @@ class CharacterAchievementService {
                 lastMythicSeenAt: member.lastMythicSeenAt ?? null,
                 reportCount: reportCountByCharacterId.get(String(member._id)) ?? 0,
               })),
-              edgeCount: scores.length,
+              edgeCount,
               totalReportCount,
               minScore: scores.length > 0 ? Math.min(...scores) : 0,
               maxScore: scores.length > 0 ? Math.max(...scores) : 0,
@@ -674,13 +689,14 @@ class CharacterAchievementService {
 
     await Promise.all([cacheService.invalidatePattern(/^characters:profile:/), cacheService.invalidatePattern(/^accounts:/)]);
     logger.info(
-      `[CharacterAchievementBackfill] Rebuilt account groups: groups=${operations.length}, matchedCharacters=${matchedCharacters}, highConfidenceEdges=${highConfidenceEdges.length}`,
+      `[CharacterAchievementBackfill] Rebuilt account groups: groups=${operations.length}, matchedCharacters=${matchedCharacters}, highConfidenceEdges=${highConfidenceEdges.length}, manualEdges=${manualEdges.length}`,
     );
 
     return {
       groups: operations.length,
       matchedCharacters,
       highConfidenceEdges: highConfidenceEdges.length,
+      manualEdges: manualEdges.length,
     };
   }
 
@@ -1138,8 +1154,8 @@ class CharacterAchievementService {
         continue;
       }
 
-      const [characterAId, characterBId] = this.orderPairIds(characterIdString, candidateId);
-      const pairKey = this.buildPairKey(characterAId, characterBId);
+      const [characterAId, characterBId] = orderCharacterAccountPairIds(characterIdString, candidateId);
+      const pairKey = createCharacterAccountPairKey(characterAId, characterBId);
       keepMatchIds.add(pairKey);
 
       const score = Math.min(100, exactRate * 60 + Math.min(40, exactTokenMatches * 2));
@@ -1178,7 +1194,7 @@ class CharacterAchievementService {
       .lean<Array<{ _id: mongoose.Types.ObjectId; characterAId: mongoose.Types.ObjectId; characterBId: mongoose.Types.ObjectId }>>();
 
     const staleMatchIds = existingMatches
-      .filter((match) => !keepMatchIds.has(this.buildPairKey(String(match.characterAId), String(match.characterBId))))
+      .filter((match) => !keepMatchIds.has(createCharacterAccountPairKey(String(match.characterAId), String(match.characterBId))))
       .map((match) => match._id);
 
     if (staleMatchIds.length > 0) {
@@ -1346,14 +1362,6 @@ class CharacterAchievementService {
     return null;
   }
 
-  private orderPairIds(a: string, b: string): [string, string] {
-    return a < b ? [a, b] : [b, a];
-  }
-
-  private buildPairKey(a: string, b: string): string {
-    const [first, second] = this.orderPairIds(a, b);
-    return `${first}:${second}`;
-  }
 }
 
 const characterAchievementService = new CharacterAchievementService();

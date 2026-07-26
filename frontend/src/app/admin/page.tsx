@@ -92,6 +92,7 @@ import {
   DeleteGuildResponse,
   AdminCharacter,
   AdminCharacterIdentityLinkPreview,
+  AdminCharacterAccountLinkPreview,
   AdminCharacterStats,
   CharacterRankingBackfillStatusResponse,
   CharacterAchievementBackfillStatusResponse,
@@ -352,6 +353,9 @@ export default function AdminPage() {
   } | null>(null);
   const [identityLinkPreview, setIdentityLinkPreview] = useState<AdminCharacterIdentityLinkPreview | null>(null);
   const [identityLinkLoading, setIdentityLinkLoading] = useState(false);
+  const [editingAccountLink, setEditingAccountLink] = useState<{ characterId: string; name: string; realm: string; region: string } | null>(null);
+  const [accountLinkPreview, setAccountLinkPreview] = useState<AdminCharacterAccountLinkPreview | null>(null);
+  const [accountLinkLoading, setAccountLinkLoading] = useState(false);
 
   // Pickems data
   const [pickems, setPickems] = useState<AdminPickem[]>([]);
@@ -1848,6 +1852,60 @@ export default function AdminPage() {
     }
   };
 
+  const handlePreviewAccountLink = async () => {
+    if (!editingAccountLink) return;
+    setAccountLinkLoading(true);
+    setAccountLinkPreview(null);
+    try {
+      const preview = await api.previewAdminCharacterAccountLink(editingAccountLink.characterId, {
+        name: editingAccountLink.name.trim(),
+        realm: editingAccountLink.realm.trim(),
+        region: editingAccountLink.region.trim(),
+      });
+      setAccountLinkPreview(preview);
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : t("characters.accountLinkPreviewFailed") });
+    } finally {
+      setAccountLinkLoading(false);
+    }
+  };
+
+  const handleCreateAccountLink = async () => {
+    if (!editingAccountLink || !accountLinkPreview?.eligible) return;
+    setAccountLinkLoading(true);
+    try {
+      const result = await api.createAdminCharacterAccountLink(editingAccountLink.characterId, {
+        name: accountLinkPreview.other.name,
+        realm: accountLinkPreview.other.realm,
+        region: accountLinkPreview.other.region,
+      });
+      setTriggerMessage({ type: "success", text: result.message });
+      setEditingAccountLink(null);
+      setAccountLinkPreview(null);
+      await refreshAdminCharacters();
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : t("characters.accountLinkCreateFailed") });
+    } finally {
+      setAccountLinkLoading(false);
+    }
+  };
+
+  const handleRemoveAccountLink = async (character: AdminCharacter, edgeId: string, otherLabel: string) => {
+    if (!confirm(t("characters.accountLinkRemoveConfirm", { character: `${character.name}-${character.realm}`, other: otherLabel }))) return;
+    setAccountLinkLoading(true);
+    try {
+      const result = await api.removeAdminCharacterAccountLink(character.id, edgeId);
+      setTriggerMessage({ type: "success", text: result.message });
+      setEditingAccountLink(null);
+      setAccountLinkPreview(null);
+      await refreshAdminCharacters();
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : t("characters.accountLinkRemoveFailed") });
+    } finally {
+      setAccountLinkLoading(false);
+    }
+  };
+
   // Handler for deleting a character
   const handleDeleteCharacterClick = async (characterId: string, characterName: string, characterRealm: string) => {
     if (!confirm(`Delete character ${characterName}-${characterRealm} and all associated rankings?`)) return;
@@ -3292,6 +3350,7 @@ export default function AdminPage() {
                     {characters.map((char) => {
                       const isEditingIdentity = editingBlizzardIdentity?.characterId === char.id;
                       const isEditingLink = editingIdentityLink?.characterId === char.id;
+                      const isEditingAccountLink = editingAccountLink?.characterId === char.id;
                       const isSavingIdentity = blizzardIdentitySavingId === char.id;
 
                       return (
@@ -3302,6 +3361,11 @@ export default function AdminPage() {
                               {char.identityLinks.length > 0 && (
                                 <div className="mt-0.5 text-xs font-normal text-blue-300 tabular-nums">
                                   {t("characters.linkedAliasCount", { count: char.identityLinks.length })}
+                                </div>
+                              )}
+                              {char.accountLinks.length > 0 && (
+                                <div className="mt-0.5 text-xs font-normal text-violet-300 tabular-nums">
+                                  {t("characters.manualAccountLinkCount", { count: char.accountLinks.length })}
                                 </div>
                               )}
                             </td>
@@ -3336,11 +3400,13 @@ export default function AdminPage() {
                               {char.rankingsAvailable === null && <span className="px-2 py-0.5 text-xs rounded-full bg-gray-700 text-gray-400">{t("characters.unknown")}</span>}
                             </td>
                             <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <button
                                   onClick={() => {
                                     setEditingIdentityLink(null);
                                     setIdentityLinkPreview(null);
+                                    setEditingAccountLink(null);
+                                    setAccountLinkPreview(null);
                                     setEditingBlizzardIdentity({
                                       characterId: char.id,
                                       name: char.blizzardIdentity.name,
@@ -3355,6 +3421,8 @@ export default function AdminPage() {
                                 <button
                                   onClick={() => {
                                     setEditingBlizzardIdentity(null);
+                                    setEditingAccountLink(null);
+                                    setAccountLinkPreview(null);
                                     setIdentityLinkPreview(null);
                                     setEditingIdentityLink({
                                       characterId: char.id,
@@ -3368,6 +3436,24 @@ export default function AdminPage() {
                                   className="min-h-10 rounded-lg bg-blue-600 px-3 text-xs font-medium text-white transition-colors hover:bg-blue-700 active:scale-[0.96]"
                                 >
                                   {t("characters.linkAlias")}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingBlizzardIdentity(null);
+                                    setEditingIdentityLink(null);
+                                    setIdentityLinkPreview(null);
+                                    setAccountLinkPreview(null);
+                                    setEditingAccountLink({
+                                      characterId: char.id,
+                                      name: "",
+                                      realm: "",
+                                      region: char.region.toLowerCase(),
+                                    });
+                                  }}
+                                  aria-expanded={isEditingAccountLink}
+                                  className="min-h-10 rounded-lg bg-violet-600 px-3 text-xs font-medium text-white transition-[scale,background-color] duration-150 ease-out hover:bg-violet-700 active:scale-[0.96]"
+                                >
+                                  {t("characters.accountLink")}
                                 </button>
                                 <button
                                   onClick={() => handleDeleteCharacterClick(char.id, char.name, char.realm)}
@@ -3584,6 +3670,159 @@ export default function AdminPage() {
                                             className="min-h-10 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 active:scale-[0.96] disabled:opacity-50"
                                           >
                                             {identityLinkLoading ? t("characters.linkRebuilding") : t("characters.linkConfirm")}
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          {isEditingAccountLink && editingAccountLink && (
+                            <tr className="bg-gray-900/70">
+                              <td colSpan={8} className="px-4 py-4">
+                                <div className="rounded-2xl bg-gray-900 p-4 shadow-[0_0_0_1px_rgba(139,92,246,0.25),0_8px_24px_rgba(0,0,0,0.18)]">
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                      <h4 className="font-semibold text-white text-balance">{t("characters.accountLinkEditorTitle")}</h4>
+                                      <p className="mt-1 max-w-3xl text-sm text-gray-400 text-pretty">{t("characters.accountLinkEditorDescription")}</p>
+                                    </div>
+                                    <div className="rounded-lg bg-violet-500/10 px-3 py-2 text-sm text-violet-200">
+                                      {t("characters.accountLinkFirstCharacter")}: <span className="font-semibold">{char.name}-{char.realm}</span>
+                                    </div>
+                                  </div>
+
+                                  {char.accountLinks.length > 0 && (
+                                    <div className="mt-4 rounded-xl bg-gray-800/70 p-3 shadow-sm shadow-black/10">
+                                      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">{t("characters.accountLinkExisting")}</div>
+                                      <div className="flex flex-wrap gap-2">
+                                        {char.accountLinks.map((link) => {
+                                          const otherLabel = `${link.character.name}-${link.character.realm}`;
+                                          return (
+                                            <div key={link.id} className="flex min-h-10 items-center rounded-lg bg-gray-800 pl-3 shadow-sm shadow-black/10">
+                                              <span className="text-sm text-gray-200">{otherLabel}</span>
+                                              <button
+                                                onClick={() => handleRemoveAccountLink(char, link.id, otherLabel)}
+                                                disabled={accountLinkLoading}
+                                                className="ml-2 min-h-10 rounded-r-lg px-3 text-xs font-medium text-red-300 transition-[scale,background-color] duration-150 ease-out hover:bg-red-500/10 active:scale-[0.96] disabled:opacity-50"
+                                              >
+                                                {t("characters.accountLinkRemove")}
+                                              </button>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="mt-4 grid gap-3 md:grid-cols-[minmax(160px,1fr)_minmax(190px,1fr)_120px_auto] md:items-end">
+                                    <label className="block text-sm text-gray-300">
+                                      <span className="mb-1.5 block">{t("characters.accountLinkOtherName")}</span>
+                                      <input
+                                        value={editingAccountLink.name}
+                                        onChange={(event) => {
+                                          setEditingAccountLink({ ...editingAccountLink, name: event.target.value });
+                                          setAccountLinkPreview(null);
+                                        }}
+                                        className="min-h-10 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 text-white outline-none transition-colors focus:border-violet-500"
+                                        autoComplete="off"
+                                      />
+                                    </label>
+                                    <label className="block text-sm text-gray-300">
+                                      <span className="mb-1.5 block">{t("characters.accountLinkOtherRealm")}</span>
+                                      <input
+                                        value={editingAccountLink.realm}
+                                        onChange={(event) => {
+                                          setEditingAccountLink({ ...editingAccountLink, realm: event.target.value });
+                                          setAccountLinkPreview(null);
+                                        }}
+                                        className="min-h-10 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 text-white outline-none transition-colors focus:border-violet-500"
+                                        autoComplete="off"
+                                      />
+                                    </label>
+                                    <label className="block text-sm text-gray-300">
+                                      <span className="mb-1.5 block">{t("characters.accountLinkOtherRegion")}</span>
+                                      <input
+                                        value={editingAccountLink.region}
+                                        onChange={(event) => {
+                                          setEditingAccountLink({ ...editingAccountLink, region: event.target.value });
+                                          setAccountLinkPreview(null);
+                                        }}
+                                        className="min-h-10 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 uppercase text-white outline-none transition-colors focus:border-violet-500"
+                                        autoComplete="off"
+                                      />
+                                    </label>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={handlePreviewAccountLink}
+                                        disabled={accountLinkLoading || !editingAccountLink.name.trim() || !editingAccountLink.realm.trim() || !editingAccountLink.region.trim()}
+                                        className="min-h-10 rounded-lg bg-violet-600 px-4 text-sm font-medium text-white transition-[scale,background-color] duration-150 ease-out hover:bg-violet-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        {accountLinkLoading ? t("characters.accountLinkWorking") : t("characters.accountLinkPreview")}
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setEditingAccountLink(null);
+                                          setAccountLinkPreview(null);
+                                        }}
+                                        disabled={accountLinkLoading}
+                                        className="min-h-10 rounded-lg bg-gray-700 px-3 text-sm font-medium text-white transition-[scale,background-color] duration-150 ease-out hover:bg-gray-600 active:scale-[0.96] disabled:opacity-50"
+                                      >
+                                        {t("characters.identityCancel")}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {accountLinkPreview && (
+                                    <div className={`mt-4 rounded-xl p-4 shadow-sm shadow-black/10 ${accountLinkPreview.eligible ? "bg-violet-500/10" : "bg-red-500/10"}`}>
+                                      <div className="grid grid-cols-2 gap-3 sm:max-w-md">
+                                        <div>
+                                          <div className="text-xs text-gray-400">{t("characters.accountLinkCurrentGroups")}</div>
+                                          <div className="mt-0.5 text-lg font-semibold text-white tabular-nums">{accountLinkPreview.impact.currentGroupCount}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-gray-400">{t("characters.accountLinkMergedCharacters")}</div>
+                                          <div className="mt-0.5 text-lg font-semibold text-white tabular-nums">{accountLinkPreview.impact.mergedCharacterCount}</div>
+                                        </div>
+                                      </div>
+                                      <div className="mt-3">
+                                        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">{t("characters.accountLinkAffectedCharacters")}</div>
+                                        <div className="flex flex-wrap gap-2">
+                                          {accountLinkPreview.impact.members.map((member) => (
+                                            <span key={member.id} className="rounded-lg bg-gray-900/70 px-3 py-2 text-sm text-gray-200 shadow-sm shadow-black/10">
+                                              {member.name}-{member.realm} <span className="uppercase text-gray-500">{member.region}</span>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                      {accountLinkPreview.blockers.length > 0 && (
+                                        <ul className="mt-3 space-y-1 text-sm text-red-300 text-pretty">
+                                          {accountLinkPreview.blockers.map((blocker) => (
+                                            <li key={blocker}>• {t(`characters.accountLinkBlockers.${blocker}`)}</li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                      {accountLinkPreview.eligible && (
+                                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                                          <p className="max-w-2xl text-sm text-violet-200 text-pretty">
+                                            {accountLinkPreview.impact.alreadyGrouped
+                                              ? t("characters.accountLinkAlreadyGrouped", {
+                                                  first: `${accountLinkPreview.target.name}-${accountLinkPreview.target.realm}`,
+                                                  second: `${accountLinkPreview.other.name}-${accountLinkPreview.other.realm}`,
+                                                })
+                                              : t("characters.accountLinkPreviewReady", {
+                                                  first: `${accountLinkPreview.target.name}-${accountLinkPreview.target.realm}`,
+                                                  second: `${accountLinkPreview.other.name}-${accountLinkPreview.other.realm}`,
+                                                  count: accountLinkPreview.impact.mergedCharacterCount,
+                                                })}
+                                          </p>
+                                          <button
+                                            onClick={handleCreateAccountLink}
+                                            disabled={accountLinkLoading}
+                                            className="min-h-10 rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white transition-[scale,background-color] duration-150 ease-out hover:bg-violet-700 active:scale-[0.96] disabled:opacity-50"
+                                          >
+                                            {accountLinkLoading ? t("characters.accountLinkRebuilding") : t("characters.accountLinkConfirm")}
                                           </button>
                                         </div>
                                       )}

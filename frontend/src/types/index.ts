@@ -1291,6 +1291,7 @@ export interface AdminCharacter {
     active: boolean;
   } | null;
   identityLinks: AdminCharacterIdentityLink[];
+  accountLinks: AdminCharacterAccountLink[];
 }
 
 export interface AdminCharacterIdentityLink {
@@ -1319,6 +1320,27 @@ export interface AdminCharacterIdentityLinkPreview {
     lastSeenAt: string | null;
   };
   existingLink: { id: string; targetCharacterId: string; createdBy: string; createdAt: string } | null;
+}
+
+export interface AdminCharacterAccountLink {
+  id: string;
+  character: { id: string; name: string; realm: string; region: string; classID: number };
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface AdminCharacterAccountLinkPreview {
+  eligible: boolean;
+  blockers: string[];
+  target: { id: string; name: string; realm: string; region: string; classID: number };
+  other: { id: string; name: string; realm: string; region: string; classID: number };
+  impact: {
+    alreadyGrouped: boolean;
+    currentGroupCount: number;
+    mergedCharacterCount: number;
+    members: Array<{ id: string; name: string; realm: string; region: string; classID: number }>;
+  };
+  existingEdge: { id: string; createdBy: string; createdAt: string } | null;
 }
 
 export interface AdminCharactersResponse {
@@ -3119,6 +3141,7 @@ export interface CharacterAccountGroupRebuildResponse extends TriggerResponse {
   groups: number;
   matchedCharacters: number;
   highConfidenceEdges: number;
+  manualEdges: number;
 }
 
 export interface AdminRaidOption {

@@ -10,6 +10,7 @@ import TierList from "../models/TierList";
 import Raid from "../models/Raid";
 import Character from "../models/Character";
 import CharacterIdentityLink from "../models/CharacterIdentityLink";
+import CharacterAccountManualEdge from "../models/CharacterAccountManualEdge";
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import Ranking from "../models/Ranking";
 import CharacterLeaderboard from "../models/CharacterLeaderboard";
@@ -32,6 +33,7 @@ import guildService, { GuildReportImportError } from "../services/guild.service"
 import characterService from "../services/character.service";
 import characterMediaService from "../services/character-media.service";
 import characterIdentityLinkService, { CharacterIdentityLinkError } from "../services/character-identity-link.service";
+import characterAccountManualEdgeService, { CharacterAccountManualEdgeError } from "../services/character-account-manual-edge.service";
 import characterMechanicsService from "../services/character-mechanics.service";
 import characterTierListService from "../services/character-tierlist.service";
 import characterRankingBackfillService from "../services/character-ranking-backfill.service";
@@ -3356,7 +3358,7 @@ router.post("/trigger/rebuild-character-account-groups", async (req: Request, re
     await taskTracker.complete(taskId, { ...result });
     res.json({
       success: true,
-      message: `Character account groups rebuilt: ${result.groups} groups, ${result.matchedCharacters} characters, ${result.highConfidenceEdges} high-confidence edges`,
+      message: `Character account groups rebuilt: ${result.groups} groups, ${result.matchedCharacters} characters, ${result.highConfidenceEdges} high-confidence edges, ${result.manualEdges} manual edges`,
       ...result,
     });
   } catch (error) {
@@ -3584,7 +3586,8 @@ router.get("/characters", async (req: Request, res: Response) => {
     }
 
     const [characters, total] = await Promise.all([Character.find(query).sort({ lastMythicSeenAt: -1, name: 1 }).skip(skip).limit(limit).lean(), Character.countDocuments(query)]);
-    const [latestParticipationRows, identityLinks] = await Promise.all([
+    const characterIds = characters.map((character) => character._id);
+    const [latestParticipationRows, identityLinks, accountEdges] = await Promise.all([
       CharacterRaidParticipation.find({ characterId: { $in: characters.map((character) => character._id) } })
         .sort({ lastSeenAt: -1, zoneId: -1, _id: -1 })
         .select("characterId characterName characterRealm characterRegion lastSeenAt")
@@ -3592,7 +3595,17 @@ router.get("/characters", async (req: Request, res: Response) => {
       CharacterIdentityLink.find({ targetCharacterId: { $in: characters.map((character) => character._id) } })
         .sort({ createdAt: 1 })
         .lean(),
+      CharacterAccountManualEdge.find({
+        $or: [{ characterAId: { $in: characterIds } }, { characterBId: { $in: characterIds } }],
+      })
+        .sort({ createdAt: 1 })
+        .lean(),
     ]);
+    const accountEdgeCharacterIds = [...new Set(accountEdges.flatMap((edge) => [String(edge.characterAId), String(edge.characterBId)]))];
+    const accountEdgeCharacters = accountEdgeCharacterIds.length
+      ? await Character.find({ _id: { $in: accountEdgeCharacterIds } }).select("name realm region classID").lean()
+      : [];
+    const accountEdgeCharacterById = new Map(accountEdgeCharacters.map((character) => [String(character._id), character]));
     const latestParticipationByCharacterId = new Map<string, (typeof latestParticipationRows)[number]>();
     for (const participation of latestParticipationRows) {
       const characterId = String(participation.characterId);
@@ -3604,6 +3617,40 @@ router.get("/characters", async (req: Request, res: Response) => {
       const links = identityLinksByTargetId.get(targetId) ?? [];
       links.push(link);
       identityLinksByTargetId.set(targetId, links);
+    }
+    const accountLinksByCharacterId = new Map<
+      string,
+      Array<{
+        id: string;
+        character: { id: string; name: string; realm: string; region: string; classID: number };
+        createdBy: string;
+        createdAt: Date;
+      }>
+    >();
+    for (const edge of accountEdges) {
+      const characterAId = String(edge.characterAId);
+      const characterBId = String(edge.characterBId);
+      for (const [characterId, otherCharacterId] of [
+        [characterAId, characterBId],
+        [characterBId, characterAId],
+      ] as const) {
+        const otherCharacter = accountEdgeCharacterById.get(otherCharacterId);
+        if (!otherCharacter) continue;
+        const links = accountLinksByCharacterId.get(characterId) ?? [];
+        links.push({
+          id: String(edge._id),
+          character: {
+            id: otherCharacterId,
+            name: otherCharacter.name,
+            realm: otherCharacter.realm,
+            region: otherCharacter.region,
+            classID: otherCharacter.classID,
+          },
+          createdBy: edge.createdBy,
+          createdAt: edge.createdAt,
+        });
+        accountLinksByCharacterId.set(characterId, links);
+      }
     }
 
     // Build class name lookup
@@ -3653,6 +3700,7 @@ router.get("/characters", async (req: Request, res: Response) => {
           createdBy: link.createdBy,
           createdAt: link.createdAt,
         })),
+        accountLinks: accountLinksByCharacterId.get(c._id.toString()) ?? [],
       };
     });
 
@@ -3754,6 +3802,88 @@ router.delete("/characters/:characterId/identity-links/:linkId", async (req: Req
   }
 });
 
+router.post("/characters/:characterId/account-links/preview", async (req: Request, res: Response) => {
+  try {
+    const preview = await characterAccountManualEdgeService.preview(req.params.characterId, {
+      name: req.body?.name,
+      realm: req.body?.realm,
+      region: req.body?.region,
+    });
+    res.json(preview);
+  } catch (error) {
+    if (error instanceof CharacterAccountManualEdgeError) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code, preview: error.preview });
+    }
+    logger.error("Error previewing manual character account link:", error);
+    res.status(500).json({ error: "Failed to preview manual character account link" });
+  }
+});
+
+router.post("/characters/:characterId/account-links", async (req: Request, res: Response) => {
+  try {
+    const createdBy = (req as any).user?.discord?.username || "admin";
+    const { edge, preview } = await characterAccountManualEdgeService.create(
+      req.params.characterId,
+      { name: req.body?.name, realm: req.body?.realm, region: req.body?.region },
+      createdBy,
+    );
+    let rebuild = null;
+    let rebuildWarning: string | null = null;
+    try {
+      rebuild = await characterAchievementService.rebuildAccountGroups();
+    } catch (error) {
+      rebuildWarning = "The account link was saved, but account-group rebuild failed; run the rebuild manually";
+      logger.error(`Manual character account edge ${edge._id.toString()} was saved but group rebuild failed:`, error);
+    }
+    logger.info(
+      `Admin ${createdBy} linked player characters ${preview.target.name}-${preview.target.realm} and ${preview.other.name}-${preview.other.realm} ` +
+        `(edge ${edge._id.toString()}, ${preview.impact.mergedCharacterCount} merged characters)`,
+    );
+    res.status(rebuildWarning ? 202 : 200).json({
+      success: true,
+      message: rebuildWarning ?? `Linked ${preview.target.name}-${preview.target.realm} and ${preview.other.name}-${preview.other.realm} to the same player`,
+      edgeId: edge._id.toString(),
+      impact: preview.impact,
+      rebuild,
+      rebuildWarning,
+    });
+  } catch (error) {
+    if (error instanceof CharacterAccountManualEdgeError) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code, preview: error.preview });
+    }
+    logger.error("Error creating manual character account link:", error);
+    res.status(500).json({ error: "Failed to create manual character account link" });
+  }
+});
+
+router.delete("/characters/:characterId/account-links/:edgeId", async (req: Request, res: Response) => {
+  try {
+    await characterAccountManualEdgeService.remove(req.params.characterId, req.params.edgeId);
+    let rebuild = null;
+    let rebuildWarning: string | null = null;
+    try {
+      rebuild = await characterAchievementService.rebuildAccountGroups();
+    } catch (error) {
+      rebuildWarning = "The account link was removed, but account-group rebuild failed; run the rebuild manually";
+      logger.error(`Manual character account edge ${req.params.edgeId} was removed but group rebuild failed:`, error);
+    }
+    const updatedBy = (req as any).user?.discord?.username || "admin";
+    logger.info(`Admin ${updatedBy} removed manual character account edge ${req.params.edgeId}`);
+    res.status(rebuildWarning ? 202 : 200).json({
+      success: true,
+      message: rebuildWarning ?? "Manual character account link removed",
+      rebuild,
+      rebuildWarning,
+    });
+  } catch (error) {
+    if (error instanceof CharacterAccountManualEdgeError) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    }
+    logger.error("Error removing manual character account link:", error);
+    res.status(500).json({ error: "Failed to remove manual character account link" });
+  }
+});
+
 router.put("/characters/:characterId/blizzard-identity", async (req: Request, res: Response) => {
   try {
     const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
@@ -3851,10 +3981,16 @@ router.delete("/characters/:characterId", async (req: Request, res: Response) =>
     const characterName = character.name;
     const characterRealm = character.realm;
 
-    const rankingResult = await Ranking.deleteMany({ characterId: character._id });
+    const [rankingResult, accountEdgeResult] = await Promise.all([
+      Ranking.deleteMany({ characterId: character._id }),
+      CharacterAccountManualEdge.deleteMany({ $or: [{ characterAId: character._id }, { characterBId: character._id }] }),
+    ]);
     await Character.deleteOne({ _id: character._id });
 
-    logger.info(`Admin deleted character: ${characterName}-${characterRealm} (ID: ${characterId}). ` + `Removed: ${rankingResult.deletedCount} rankings`);
+    logger.info(
+      `Admin deleted character: ${characterName}-${characterRealm} (ID: ${characterId}). ` +
+        `Removed: ${rankingResult.deletedCount} rankings, ${accountEdgeResult.deletedCount} manual account edges`,
+    );
 
     res.json({
       success: true,
@@ -3862,6 +3998,7 @@ router.delete("/characters/:characterId", async (req: Request, res: Response) =>
       deleted: {
         character: { id: characterId, name: characterName, realm: characterRealm },
         rankings: rankingResult.deletedCount,
+        accountLinks: accountEdgeResult.deletedCount,
       },
     });
   } catch (error) {

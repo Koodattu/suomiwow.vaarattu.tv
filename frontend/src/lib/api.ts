@@ -55,6 +55,7 @@ import {
   AdminCharactersResponse,
   AdminCharacterStats,
   AdminCharacterIdentityLinkPreview,
+  AdminCharacterAccountLinkPreview,
   TaskLogsResponse,
   TaskLogsLatestResponse,
   HomePageData,
@@ -1517,6 +1518,52 @@ export const api = {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || "Failed to remove character identity link");
+    }
+    return response.json();
+  },
+
+  async previewAdminCharacterAccountLink(
+    characterId: string,
+    other: { name: string; realm: string; region: string },
+  ): Promise<AdminCharacterAccountLinkPreview> {
+    const response = await fetch(`${API_URL}/api/admin/characters/${characterId}/account-links/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(other),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to preview manual character account link");
+    }
+    return response.json();
+  },
+
+  async createAdminCharacterAccountLink(
+    characterId: string,
+    other: { name: string; realm: string; region: string },
+  ): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/api/admin/characters/${characterId}/account-links`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(other),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to create manual character account link");
+    }
+    return response.json();
+  },
+
+  async removeAdminCharacterAccountLink(characterId: string, edgeId: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/api/admin/characters/${characterId}/account-links/${edgeId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to remove manual character account link");
     }
     return response.json();
   },

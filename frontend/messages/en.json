@@ -1267,6 +1267,32 @@
         "reportCollision": "Some reports already contain the target character and would collide.",
         "sameIdentity": "The historical identity is already the target character identity.",
         "existingLink": "This historical identity already has a manual link."
+      },
+      "accountLink": "Same player",
+      "manualAccountLinkCount": "{count, plural, one {# manual player link} other {# manual player links}}",
+      "accountLinkEditorTitle": "Link different characters to the same player",
+      "accountLinkEditorDescription": "Add a durable manual edge between two distinct character records. It supplements achievement inference and survives account-group rebuilds. Preview the full transitive merge before confirming.",
+      "accountLinkFirstCharacter": "First character",
+      "accountLinkExisting": "Existing direct manual player links",
+      "accountLinkRemove": "Remove",
+      "accountLinkOtherName": "Other character name",
+      "accountLinkOtherRealm": "Other character realm",
+      "accountLinkOtherRegion": "Region",
+      "accountLinkPreview": "Preview merge",
+      "accountLinkWorking": "Checking...",
+      "accountLinkCurrentGroups": "Current groups",
+      "accountLinkMergedCharacters": "Characters after merge",
+      "accountLinkAffectedCharacters": "Affected characters",
+      "accountLinkAlreadyGrouped": "{first} and {second} are already in the same inferred group. This manual edge will preserve their relationship if achievement inference changes.",
+      "accountLinkPreviewReady": "{first} and {second} will be linked to the same player. The resulting group will contain {count, plural, one {# character} other {# characters}}.",
+      "accountLinkConfirm": "Confirm link and rebuild",
+      "accountLinkRebuilding": "Linking and rebuilding...",
+      "accountLinkPreviewFailed": "Failed to preview the manual player link",
+      "accountLinkCreateFailed": "Failed to create the manual player link",
+      "accountLinkRemoveFailed": "Failed to remove the manual player link",
+      "accountLinkRemoveConfirm": "Remove the direct manual player link between {character} and {other}, then rebuild account groups? Achievement or other manual edges may still keep them grouped.",
+      "accountLinkBlockers": {
+        "existingEdge": "These characters already have a direct manual player link."
       }
     },
     "pickems": {
