@@ -348,6 +348,29 @@
 .prototypeCard.negative:is(:hover, [data-forced-hover="true"]) {
   filter: invert(1) contrast(1.06) saturate(0.92) brightness(1.045);
 }
+.prototypeCard.supervoid {
+  --lab-accent: #8deaff;
+  --lab-glow: rgba(100, 73, 255, 0.68);
+  --metal-light: #b9f5ff;
+  --metal-mid: #5133a5;
+  --metal-dark: #010108;
+  background-color: #010107;
+  box-shadow:
+    0 0 24px rgba(77, 39, 255, 0.3),
+    0 18px 38px rgba(0, 0, 0, 0.72);
+}
+.prototypeCard.eclipse {
+  --lab-accent: #ffe38b;
+  --lab-glow: rgba(88, 105, 255, 0.64);
+  --metal-light: #fff0b5;
+  --metal-mid: #4056bd;
+  --metal-dark: #02030d;
+  background-color: #03040d;
+  box-shadow:
+    -8px 0 22px rgba(255, 203, 72, 0.12),
+    8px 0 24px rgba(48, 67, 255, 0.22),
+    0 18px 38px rgba(0, 0, 0, 0.68);
+}
 .prototypeCard[data-grade="F"] {
   --rarity: #9d9d9d;
   --metal-light: #77808d;
@@ -1149,6 +1172,119 @@
   mix-blend-mode: screen;
   opacity: 0.8;
 }
+.supervoid .finishLayer {
+  background:
+    radial-gradient(
+      farthest-corner circle at var(--pointer-x) var(--pointer-y),
+      rgba(205, 255, 255, 0.66) 0 0.35%,
+      rgba(55, 215, 232, 0.58) 1.1%,
+      rgba(88, 64, 235, 0.52) 3.8%,
+      rgba(193, 52, 229, 0.28) 7.2%,
+      transparent 15%
+    ),
+    repeating-radial-gradient(
+      ellipse at var(--pointer-x) var(--pointer-y),
+      rgba(124, 237, 255, 0.26) 0 1px,
+      rgba(86, 52, 255, 0.13) 2px 4px,
+      transparent 6px 13px
+    ),
+    radial-gradient(ellipse at var(--foil-x-reverse) var(--foil-y-reverse), transparent 0 12%, rgba(48, 12, 88, 0.3) 28%, rgba(0, 0, 5, 0.82) 64%, rgba(0, 0, 0, 0.98) 100%),
+    linear-gradient(var(--foil-angle), rgba(38, 255, 230, 0.42), transparent 18% 45%, rgba(126, 61, 255, 0.42) 58%, transparent 76%, rgba(255, 58, 221, 0.28));
+  background-blend-mode: screen, color-dodge, multiply, screen;
+  box-shadow:
+    inset 0 0 42px rgba(0, 0, 0, 0.94),
+    inset 0 0 8px rgba(87, 229, 255, 0.6),
+    inset 0 0 2px 1px rgba(191, 107, 255, 0.72);
+  filter: brightness(calc(0.76 + var(--pointer-distance) * 0.48)) contrast(1.58) saturate(1.82);
+  mix-blend-mode: hard-light;
+  opacity: 0.82;
+}
+.supervoid .finishLayer::before {
+  background:
+    radial-gradient(circle at 18% 24%, rgba(223, 252, 255, 0.96) 0 0.65px, rgba(70, 226, 255, 0.42) 1px, transparent 1.8px),
+    radial-gradient(circle at 72% 66%, rgba(190, 143, 255, 0.9) 0 0.8px, rgba(109, 72, 255, 0.32) 1.4px, transparent 2.3px),
+    radial-gradient(circle at 43% 84%, rgba(255, 97, 229, 0.72) 0 0.55px, transparent 1.7px);
+  background-position:
+    calc(var(--pointer-left) * 27px) calc(var(--pointer-top) * -33px),
+    calc(var(--pointer-left) * -39px) calc(var(--pointer-top) * 29px),
+    calc(var(--pointer-left) * 19px) calc(var(--pointer-top) * 23px);
+  background-size: 23px 31px, 41px 47px, 61px 53px;
+  mix-blend-mode: color-dodge;
+  opacity: 0.78;
+  -webkit-mask-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), #000 4%, rgba(0, 0, 0, 0.94) 30%, transparent 82%);
+  mask-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), #000 4%, rgba(0, 0, 0, 0.94) 30%, transparent 82%);
+}
+.supervoid .finishLayer::after {
+  background:
+    repeating-conic-gradient(from var(--foil-angle) at var(--pointer-x) var(--pointer-y), transparent 0 7deg, rgba(111, 239, 255, 0.2) 9deg, transparent 12deg 23deg),
+    linear-gradient(calc(var(--foil-angle) + 88deg), transparent 28%, rgba(211, 247, 255, 0.42) 47%, rgba(118, 72, 255, 0.34) 51%, transparent 70%);
+  background-position:
+    center,
+    var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size:
+    100% 100%,
+    250% 250%;
+  mix-blend-mode: screen;
+  opacity: 0.58;
+  transform-origin: var(--pointer-x) var(--pointer-y);
+}
+.eclipse .finishLayer {
+  background:
+    radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 245, 0.62) 0 2%, rgba(255, 215, 91, 0.34) 16%, rgba(71, 112, 255, 0.16) 32%, transparent 52%),
+    linear-gradient(
+      var(--foil-angle),
+      rgba(0, 1, 10, 0.92) 0 25%,
+      rgba(12, 20, 82, 0.65) 35%,
+      rgba(64, 82, 255, 0.48) 42%,
+      rgba(161, 126, 106, 0.54) 46%,
+      rgba(255, 192, 50, 0.65) 49%,
+      rgba(255, 248, 207, 0.72) 51%,
+      rgba(255, 210, 72, 0.67) 55%,
+      rgba(116, 116, 178, 0.5) 59%,
+      rgba(26, 40, 143, 0.57) 63%,
+      rgba(0, 1, 10, 0.92) 76% 100%
+    ),
+    repeating-linear-gradient(calc(var(--foil-angle) + 92deg), rgba(255, 228, 129, 0.15) 0 1.5%, transparent 2.2% 6%, rgba(73, 99, 255, 0.17) 7.5% 9%, transparent 10% 15%);
+  background-position:
+    center,
+    var(--foil-x) var(--foil-y),
+    var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size:
+    100% 100%,
+    230% 230%,
+    310% 270%;
+  background-blend-mode: screen, hard-light, overlay;
+  box-shadow:
+    inset 0 0 34px rgba(0, 0, 8, 0.72),
+    inset -10px 0 24px rgba(35, 50, 194, 0.18),
+    inset 10px 0 24px rgba(255, 197, 52, 0.16),
+    inset 0 0 3px rgba(255, 232, 159, 0.68);
+  filter: brightness(calc(0.86 + var(--pointer-distance) * 0.25)) contrast(1.23) saturate(1.38);
+  mix-blend-mode: hard-light;
+  opacity: 0.72;
+}
+.eclipse .finishLayer::before {
+  background:
+    conic-gradient(from calc(var(--foil-angle) - 84deg) at var(--pointer-x) var(--pointer-y), rgba(255, 236, 160, 0.39), transparent 9% 21%, rgba(71, 95, 255, 0.25) 31%, transparent 43% 58%, rgba(255, 205, 66, 0.3) 69%, transparent 80% 94%, rgba(122, 150, 255, 0.24)),
+    radial-gradient(circle at 24% 28%, rgba(255, 241, 179, 0.82) 0 0.7px, transparent 1.7px),
+    radial-gradient(circle at 71% 67%, rgba(100, 135, 255, 0.76) 0 0.8px, transparent 1.9px);
+  background-position:
+    center,
+    calc(var(--pointer-left) * 23px) calc(var(--pointer-top) * -27px),
+    calc(var(--pointer-left) * -31px) calc(var(--pointer-top) * 29px);
+  background-size: 100% 100%, 29px 37px, 43px 47px;
+  mix-blend-mode: screen;
+  opacity: 0.58;
+}
+.eclipse .finishLayer::after {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(0, 0, 5, 0.86) 0 5.5%, rgba(4, 8, 36, 0.78) 7.5%, transparent 10%),
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 0 6.5%, rgba(255, 250, 213, 0.54) 9%, rgba(255, 196, 49, 0.4) 12%, rgba(71, 96, 255, 0.27) 18%, transparent 28%);
+  filter: contrast(1.1) saturate(1.22);
+  mix-blend-mode: hard-light;
+  opacity: 0.72;
+  transform-origin: var(--pointer-x) var(--pointer-y);
+}
 .toxic .finishLayer {
   background:
     radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), rgba(244, 255, 174, 0.7) 0 5%, rgba(172, 255, 70, 0.3) 22%, transparent 48%),
@@ -1313,6 +1449,12 @@
 .prototypeCard.void:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.72 + var(--pointer-distance) * 0.08);
 }
+.prototypeCard.supervoid:is(:hover, [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.88 + var(--pointer-distance) * 0.1);
+}
+.prototypeCard.eclipse:is(:hover, [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.8 + var(--pointer-distance) * 0.1);
+}
 .prototypeCard.toxic:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.68 + var(--pointer-distance) * 0.14);
 }
@@ -1348,6 +1490,20 @@
 }
 .prototypeCard.void:is(:hover, [data-forced-hover="true"]) .materialLight {
   opacity: 0.28;
+}
+.prototypeCard.supervoid .materialLight {
+  filter: hue-rotate(42deg) contrast(1.38) saturate(1.7);
+  opacity: 0.18;
+}
+.prototypeCard.supervoid:is(:hover, [data-forced-hover="true"]) .materialLight {
+  opacity: 0.68;
+}
+.prototypeCard.eclipse .materialLight {
+  filter: contrast(1.22) saturate(1.46);
+  opacity: 0.32;
+}
+.prototypeCard.eclipse:is(:hover, [data-forced-hover="true"]) .materialLight {
+  opacity: 0.82;
 }
 .prototypeCard.toxic .materialLight {
   filter: hue-rotate(48deg) saturate(1.34);
@@ -1398,6 +1554,19 @@
   background: linear-gradient(180deg, rgba(14, 6, 24, 0.99), rgba(1, 1, 4, 0.99));
   box-shadow: inset 0 0 0 1px rgba(142, 93, 255, 0.18);
 }
+.supervoid .statsPanel {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(67, 231, 255, 0.14), transparent 48%),
+    linear-gradient(112deg, rgba(75, 39, 203, 0.22), rgba(4, 4, 17, 0.99) 52%, rgba(116, 33, 151, 0.18)),
+    linear-gradient(180deg, rgba(8, 4, 24, 0.99), rgba(0, 0, 4, 0.99));
+  box-shadow: inset 0 0 0 1px rgba(113, 223, 255, 0.24);
+}
+.eclipse .statsPanel {
+  background:
+    linear-gradient(112deg, rgba(255, 212, 85, 0.2), rgba(255, 246, 199, 0.07) 39%, rgba(15, 18, 53, 0.98) 52%, rgba(64, 85, 226, 0.2)),
+    linear-gradient(180deg, rgba(22, 18, 20, 0.99), rgba(2, 3, 10, 0.99));
+  box-shadow: inset 0 0 0 1px rgba(255, 225, 134, 0.2);
+}
 .toxic .statsPanel {
   background:
     linear-gradient(112deg, rgba(188, 255, 72, 0.13), rgba(57, 255, 163, 0.08), rgba(87, 192, 255, 0.07), rgba(152, 73, 255, 0.06), rgba(185, 255, 67, 0.11)),
@@ -1447,6 +1616,18 @@
   }
   .prototypeCard.prismatic:not(:hover):not([data-forced-hover="true"]) .statsPanel {
     animation: prototypePrismaticStatsIdle 5.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.supervoid:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeSupervoidIdle 5.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.supervoid:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeVoidPulse 7.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.eclipse:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeEclipseIdle 8.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.eclipse:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeEclipseCorona 4.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
   .prototypeCard.toxic:not(:hover):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeToxicIdleFoil 6.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
@@ -1609,6 +1790,56 @@
     background-position:
       center,
       0 -100%;
+  }
+}
+
+@keyframes prototypeVoidPulse {
+  from {
+    opacity: 0.38;
+    transform: scale(0.985) rotate(-2deg);
+  }
+  to {
+    opacity: 0.7;
+    transform: scale(1.035) rotate(2deg);
+  }
+}
+
+@keyframes prototypeSupervoidIdle {
+  from {
+    filter: brightness(0.72) contrast(1.52) saturate(1.68);
+    opacity: 0.76;
+  }
+  to {
+    filter: brightness(0.9) contrast(1.64) saturate(1.94);
+    opacity: 0.9;
+  }
+}
+
+@keyframes prototypeEclipseIdle {
+  from {
+    background-position:
+      center,
+      42% 46%,
+      58% 54%;
+    opacity: 0.66;
+  }
+  to {
+    background-position:
+      center,
+      58% 54%,
+      42% 46%;
+    opacity: 0.8;
+  }
+}
+
+@keyframes prototypeEclipseCorona {
+  from {
+    filter: contrast(1.07) saturate(1.16) brightness(0.93);
+    transform: scale(0.98);
+  }
+  to {
+    filter: contrast(1.13) saturate(1.26) brightness(1.02);
+    transform: scale(1.03);
   }
 }
 
@@ -1843,6 +2074,28 @@
 .prototypeCard.toxic:is(:hover, [data-forced-hover="true"]) .qualityLabel {
   background-position: var(--foil-x) center;
   filter: brightness(calc(1.08 + var(--pointer-distance) * 0.34)) saturate(1.42);
+}
+.vaultRelic .rarityPlate[data-quality="supervoid"] .qualityLabel {
+  background: linear-gradient(96deg, #bffaff 0%, #ffffff 17%, #68eaff 31%, #7664ff 52%, #df68ff 72%, #ffffff 88%, #9cf4ff 100%);
+  background-clip: text;
+  background-position: var(--foil-x) center;
+  background-size: 240% 100%;
+  color: transparent;
+  filter: brightness(1.18) saturate(1.4);
+  text-shadow: 0 0 6px rgba(83, 219, 255, 0.34);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.vaultRelic .rarityPlate[data-quality="eclipse"] .qualityLabel {
+  background: linear-gradient(92deg, #fff3b5 0%, #ffca42 28%, #fffef0 47%, #111943 52%, #687fff 72%, #c8d6ff 100%);
+  background-clip: text;
+  background-position: var(--foil-x) center;
+  background-size: 220% 100%;
+  color: transparent;
+  filter: brightness(1.16) saturate(1.32);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.92);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 .vaultRelic .rarityPlate[data-quality="chromaflow"] .qualityLabel {
   background: linear-gradient(90deg, #fffde9, #fff47d 20%, #ff4bd2 43%, #9750ff 66%, #5bdbff 88%, #fffde9);
@@ -2700,6 +2953,12 @@
   .void .finishLayer {
     opacity: 0.68;
   }
+  .supervoid .finishLayer {
+    opacity: 0.86;
+  }
+  .eclipse .finishLayer {
+    opacity: 0.8;
+  }
   .toxic .finishLayer {
     opacity: 0.6;
   }
@@ -2726,6 +2985,7 @@
     animation: none;
   }
   .finishLayer::before,
+  .finishLayer::after,
   .qualityLabel,
   .statsPanel {
     animation: none;
