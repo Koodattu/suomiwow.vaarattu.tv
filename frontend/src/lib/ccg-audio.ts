@@ -1,4 +1,4 @@
-import type { CcgFinish, CcgTierGrade } from "@/types";
+import type { CcgArtVariant, CcgFinish, CcgTierGrade } from "@/types";
 import { CCG_RARITY_KEYS } from "@/lib/ccg";
 import { getLocale, type Locale } from "@/lib/locale";
 
@@ -10,7 +10,8 @@ export const CCG_AUDIO_PREFERENCES_KEY = "suomiwow-ccg-audio-v1";
 export type CcgAudioChannel = "effects" | "announcer" | "quips";
 
 type AnnouncerVariant = "a" | "b" | "c";
-type AnnouncerKey = `${CcgFinish}-${(typeof CCG_RARITY_KEYS)[CcgTierGrade]}`;
+type AnnouncerQuality = CcgFinish | "unique";
+type AnnouncerKey = `${AnnouncerQuality}-${(typeof CCG_RARITY_KEYS)[CcgTierGrade]}`;
 
 const CCG_ANNOUNCER_BASELINE_VOLUME: Record<Locale, number> = {
   en: 0.5,
@@ -48,6 +49,27 @@ const CCG_ANNOUNCER_VARIANTS: Record<Locale, Partial<Record<AnnouncerKey, readon
     "holographic-uncommon": ["a", "b"],
     "holographic-common": ["a", "b"],
     "holographic-poor": ["a", "b"],
+    "void-artifact": ["a", "b"],
+    "void-legendary": ["a", "b"],
+    "void-epic": ["a", "b"],
+    "void-rare": ["a", "b"],
+    "void-uncommon": ["a", "b"],
+    "void-common": ["a", "b"],
+    "void-poor": ["a", "b"],
+    "toxic-artifact": ["a", "b"],
+    "toxic-legendary": ["a", "b"],
+    "toxic-epic": ["a", "b"],
+    "toxic-rare": ["a", "b"],
+    "toxic-uncommon": ["a", "b"],
+    "toxic-common": ["a", "b"],
+    "toxic-poor": ["a", "b"],
+    "unique-artifact": ["a", "b"],
+    "unique-legendary": ["a", "b"],
+    "unique-epic": ["a", "b"],
+    "unique-rare": ["a", "b"],
+    "unique-uncommon": ["a", "b"],
+    "unique-common": ["a", "b"],
+    "unique-poor": ["a", "b"],
     "negative-artifact": ["a", "b"],
     "negative-legendary": ["a", "b"],
     "negative-epic": ["a", "b"],
@@ -86,6 +108,27 @@ const CCG_ANNOUNCER_VARIANTS: Record<Locale, Partial<Record<AnnouncerKey, readon
     "holographic-uncommon": ["a", "b"],
     "holographic-common": ["a", "b"],
     "holographic-poor": ["a", "b"],
+    "void-artifact": ["a", "b"],
+    "void-legendary": ["a", "b"],
+    "void-epic": ["a", "b"],
+    "void-rare": ["a", "b"],
+    "void-uncommon": ["a", "b"],
+    "void-common": ["a", "b"],
+    "void-poor": ["a", "b"],
+    "toxic-artifact": ["a", "b"],
+    "toxic-legendary": ["a", "b"],
+    "toxic-epic": ["a", "b"],
+    "toxic-rare": ["a", "b"],
+    "toxic-uncommon": ["a", "b"],
+    "toxic-common": ["a", "b"],
+    "toxic-poor": ["a", "b"],
+    "unique-artifact": ["a", "b"],
+    "unique-legendary": ["a", "b"],
+    "unique-epic": ["a", "b"],
+    "unique-rare": ["a", "b"],
+    "unique-uncommon": ["a", "b"],
+    "unique-common": ["a", "b"],
+    "unique-poor": ["a", "b"],
     "negative-artifact": ["a", "b"],
     "negative-legendary": ["a", "b"],
     "negative-epic": ["a", "b"],
@@ -167,13 +210,19 @@ export function getCcgPlaybackVolume(channel: CcgAudioChannel, baseVolume = 1): 
   return clampVolume(baseVolume, 1) * channelBaseline * preferences.volume * channelVolume;
 }
 
-export function getCcgAnnouncerSoundSources(locale: Locale, finish: CcgFinish, tierGrade: CcgTierGrade): string[] {
+export function getCcgAnnouncerSoundSources(
+  locale: Locale,
+  finish: CcgFinish,
+  tierGrade: CcgTierGrade,
+  artVariant: CcgArtVariant = "standard",
+): string[] {
   const rarity = CCG_RARITY_KEYS[tierGrade];
-  const key: AnnouncerKey = `${finish}-${rarity}`;
+  const quality: AnnouncerQuality = artVariant === "alternative" ? "unique" : finish;
+  const key: AnnouncerKey = `${quality}-${rarity}`;
   const variants = CCG_ANNOUNCER_VARIANTS[locale][key] ?? [];
-  const directory = finish === "standard" ? "standard-rarity-only" : finish;
+  const directory = quality === "standard" ? "standard-rarity-only" : quality;
   const localePrefix = locale === "fi" ? "fi-" : "";
-  return variants.map((variant) => `/ccg/audio/announcer/${locale}/${directory}/${localePrefix}${finish}-${rarity}-${variant}.mp3`);
+  return variants.map((variant) => `/ccg/audio/announcer/${locale}/${directory}/${localePrefix}${quality}-${rarity}-${variant}.mp3`);
 }
 
 export function playCcgInspectSound(): void {

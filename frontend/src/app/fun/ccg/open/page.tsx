@@ -1099,7 +1099,9 @@ export default function CcgOpenPage() {
       })}
       {Array.from({ length: 5 }, (_, index) => {
         const result = opening?.results[index];
-        const sources = result ? getCcgAnnouncerSoundSources(locale, result.finish, result.card.tierGrade) : [];
+        const sources = result
+          ? getCcgAnnouncerSoundSources(locale, result.finish, result.card.tierGrade, result.artVariant)
+          : [];
         return sources.map((src, variantIndex) => (
           <audio
             key={`announcer-${index}-${src}`}
