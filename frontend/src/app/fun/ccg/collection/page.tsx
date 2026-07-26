@@ -377,8 +377,13 @@ export default function CcgCollectionPage() {
                   backgroundImage: 'linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("/ccg/general_wide.webp")',
                 } as CSSProperties}
               >
-                <span>{t("landing.all")}</span>
-                <small>{allOwnedCount}/{allCardCount}</small>
+                <span className={styles.collectionSetTitle}>{t("landing.all")}</span>
+                <span className={styles.collectionSetProgress}>
+                  <small>{allOwnedCount}/{allCardCount}</small>
+                  <span className={styles.vaultLegacyTrack} aria-label={`${allOwnedCount}/${allCardCount} ${t("landing.collected")}`}>
+                    <i style={{ transform: `scaleX(${allCardCount > 0 ? Math.min(1, allOwnedCount / allCardCount) : 0})` }} />
+                  </span>
+                </span>
               </button>
               {sets.map((set) => (
                 <button
@@ -392,8 +397,13 @@ export default function CcgCollectionPage() {
                     backgroundImage: `linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("${set.kind === "community" ? "/ccg/general_alt_wide.png" : set.backgroundPath}")`,
                   } as CSSProperties}
                 >
-                  <span>{set.raidName}</span>
-                  <small>{set.ownedCards}/{set.cardCount}</small>
+                  <span className={styles.collectionSetTitle}>{set.raidName}</span>
+                  <span className={styles.collectionSetProgress}>
+                    <small>{set.ownedCards}/{set.cardCount}</small>
+                    <span className={styles.vaultLegacyTrack} aria-label={`${set.ownedCards}/${set.cardCount} ${t("landing.collected")}`}>
+                      <i style={{ transform: `scaleX(${set.cardCount > 0 ? Math.min(1, set.ownedCards / set.cardCount) : 0})` }} />
+                    </span>
+                  </span>
                 </button>
               ))}
             </div>

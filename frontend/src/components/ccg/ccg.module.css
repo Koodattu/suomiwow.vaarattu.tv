@@ -1256,9 +1256,8 @@
   background-size: cover;
   color: #c8d4e8;
   cursor: pointer;
-  padding: 0.45rem 0.7rem;
+  padding: 0.25rem 0.4rem;
   text-align: left;
-  text-wrap: wrap;
   transition:
     color 150ms ease,
     box-shadow 150ms ease,
@@ -1303,22 +1302,33 @@
   outline-offset: 2px;
 }
 
-.collectionSet span {
+.collectionSetTitle {
   display: -webkit-box;
-  align-self: start;
+  align-self: center;
+  min-width: 0;
   overflow: hidden;
   font-size: 0.76rem;
   font-weight: 760;
   line-height: 1.1;
+  margin-top: -0.5rem;
+  text-align: left;
   white-space: normal;
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
-.collectionSet small {
+.collectionSetProgress {
+  display: grid;
+  min-width: 0;
   align-self: end;
-  margin-top: 0.22rem;
+  gap: 0.22rem;
+}
+
+.collectionSetProgress small {
+  align-self: end;
+  justify-self: start;
   color: color-mix(in srgb, var(--set-accent) 78%, white);
   font-size: 0.72rem;
   font-weight: 700;
