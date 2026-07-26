@@ -8,6 +8,8 @@ export const SITE_IMAGE = `${SITE_URL}/api/og`;
 export const SITE_IMAGE_ALT = "Suomi WoW Finnish World of Warcraft page preview";
 export const EMBED_IMAGE_WIDTH = 512;
 export const EMBED_IMAGE_HEIGHT = 512;
+export const CCG_EMBED_IMAGE_WIDTH = 1200;
+export const CCG_EMBED_IMAGE_HEIGHT = 630;
 
 export const SEO_KEYWORDS = [
   "Suomi WoW",
@@ -30,9 +32,11 @@ export type PageSeoMetadata = {
   description: string;
   embedLabel: string;
   imageAlt: string;
+  embedCta?: string;
+  embedVariant?: "vault" | "open" | "collection";
 };
 
-type PageSeoCopy = Pick<PageSeoMetadata, "title" | "description">;
+type PageSeoCopy = Pick<PageSeoMetadata, "title" | "description" | "embedCta" | "embedVariant">;
 
 export const PUBLIC_ROUTES = [
   { path: "/", changeFrequency: "hourly", priority: 1 },
@@ -65,7 +69,23 @@ export function getPageEmbedImageUrl(metadata: PageSeoMetadata) {
     label: metadata.embedLabel,
   });
 
+  if (metadata.embedLabel === "SuomiWoW CCG") {
+    if (metadata.embedCta) params.set("cta", metadata.embedCta);
+    if (metadata.embedVariant) params.set("view", metadata.embedVariant);
+    return `${SITE_URL}/api/og/ccg?${params.toString()}`;
+  }
+
   return `${SITE_IMAGE}?${params.toString()}`;
+}
+
+export function getPageEmbedImageSize(metadata: PageSeoMetadata) {
+  return metadata.embedLabel === "SuomiWoW CCG"
+    ? { width: CCG_EMBED_IMAGE_WIDTH, height: CCG_EMBED_IMAGE_HEIGHT }
+    : { width: EMBED_IMAGE_WIDTH, height: EMBED_IMAGE_HEIGHT };
+}
+
+export function getPageTwitterCard(metadata: PageSeoMetadata) {
+  return metadata.embedLabel === "SuomiWoW CCG" ? "summary_large_image" : "summary";
 }
 
 function decodePathSegment(segment: string) {
@@ -214,22 +234,28 @@ export function getPageMetadata(
         : "Saannot ja pisteytys suomalaisten WoW-kiltojen raid race -veikkauksille.",
     },
     "/fun/ccg": {
-      title: isEnglish ? "SuomiWoW Character Cards" : "SuomiWoW-hahmokortit",
+      title: isEnglish ? "SuomiWoW CCG — Free Character Card Packs" : "SuomiWoW CCG — Maksuttomia hahmokorttipakkoja",
       description: isEnglish
-        ? "Open free raid-set character card packs and collect immutable snapshots of Finnish WoW raiders."
-        : "Avaa maksuttomia raidisettien hahmokorttipakkoja ja kerää suomalaisten WoW-raidaajien snapshotteja.",
+        ? "Open free packs, collect familiar names from Finland's WoW scene across every raid tier, and share your best pulls. Packs recharge automatically."
+        : "Avaa maksuttomia pakkoja, kerää tuttuja nimiä Suomen WoW-skenestä eri raid-tiereiltä ja jaa parhaat nostosi. Pakat latautuvat automaattisesti.",
+      embedCta: isEnglish ? "Open free packs" : "Avaa maksuttomia pakkoja",
+      embedVariant: "vault",
     },
     "/fun/ccg/open": {
-      title: isEnglish ? "Open Character Card Packs" : "Avaa hahmokorttipakkoja",
+      title: isEnglish ? "Open a Free SuomiWoW CCG Pack" : "Avaa maksuton SuomiWoW CCG -pakka",
       description: isEnglish
-        ? "Open daily Current and Legacy SuomiWoW CCG packs for free."
-        : "Avaa päivittäiset maksuttomat Current- ja Legacy-SuomiWoW CCG -pakat.",
+        ? "Your packs are ready. Choose Current, Legacy, or a favourite raid, reveal five character cards, and share your best pull."
+        : "Pakkasi odottavat. Valitse Current, Legacy tai suosikkiraidisi, paljasta viisi hahmokorttia ja jaa paras nostosi.",
+      embedCta: isEnglish ? "Reveal five cards" : "Paljasta viisi korttia",
+      embedVariant: "open",
     },
     "/fun/ccg/collection": {
-      title: isEnglish ? "Character Card Collection" : "Hahmokorttikokoelma",
+      title: isEnglish ? "Explore SuomiWoW Character Cards" : "Tutustu SuomiWoW-hahmokortteihin",
       description: isEnglish
-        ? "Browse raid binders, character card finishes, quantities, and missing cards in SuomiWoW CCG."
-        : "Selaa SuomiWoW CCG:n raidikansioita, korttien viimeistelyjä, määriä ja puuttuvia kortteja.",
+        ? "Browse Finnish WoW raiders across Current, Legacy, and Community sets—then open a free pack and start your own collection."
+        : "Selaa Suomen WoW-skenen hahmokortteja Current-, Legacy- ja Community-seteissä — avaa maksuton pakka ja aloita oma kokoelmasi.",
+      embedCta: isEnglish ? "Explore the card vault" : "Tutustu korttiholviin",
+      embedVariant: "collection",
     },
     "/privacy": {
       title: isEnglish ? "Privacy Policy" : "Tietosuojakaytanto",

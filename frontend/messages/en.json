@@ -113,7 +113,25 @@
       "sharedPackBy": "{username}'s shared pack opening",
       "unboxedBy": "Unboxed by",
       "notFoundTitle": "This shared opening is unavailable",
-      "notFoundBody": "The link may be incomplete, expired, or no longer available."
+      "notFoundBody": "The link may be incomplete, expired, or no longer available.",
+      "embed": {
+        "cardTitle": "{name} — {finish} {rarity}",
+        "cardDescription": "{username} unboxed {name} from {raid}. View the card, then open a free pack of your own.",
+        "cardAlt": "{finish} {rarity} {name} character card from {raid}",
+        "packTitle": "{username}'s {packType} opening",
+        "packDescription": "Best pull: {finish} {rarity} {name}. See all five cards and open a free pack of your own.",
+        "packAlt": "{username}'s {packType} opening with five character cards",
+        "legacyPack": "Legacy pack",
+        "currentPack": "Current pack",
+        "alternativeArt": "Alternative art",
+        "bestPull": "Best pull",
+        "fiveCards": "Five cards",
+        "viewCard": "View the card",
+        "viewOpening": "View the opening",
+        "openFreePack": "Open a free pack",
+        "unavailableTitle": "Shared SuomiWoW CCG opening",
+        "unavailableDescription": "This shared card or pack opening is unavailable."
+      }
     },
     "redeem": {
       "title": "Redeem code",

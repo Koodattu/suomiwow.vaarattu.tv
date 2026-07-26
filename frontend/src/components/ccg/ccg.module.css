@@ -1586,8 +1586,8 @@
 }
 
 .collectionCharacterSelect {
-  width: 10rem;
-  flex: 0 0 10rem;
+  width: 8rem;
+  flex: 0 0 8rem;
 }
 
 .collectionGuildSelect select {
@@ -1603,8 +1603,18 @@
   white-space: nowrap;
 }
 
+.collectionCharacterSelect .collectionGuildSelectInput {
+  padding-right: 1.55rem;
+}
+
 .collectionGuildSelectInputWithSelection:not(:focus) {
   color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.collectionGuildSelectInputWithSelection:not(:focus)::selection {
+  color: transparent;
+  background: transparent;
 }
 
 .collectionGuildSelect:focus-within .collectionGuildSelectInputWithSelection {
@@ -1616,10 +1626,25 @@
   right: 2.5rem;
   left: 0.65rem;
   min-width: 0;
+  color: #d7e2f3;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
   pointer-events: none;
 }
 
-.collectionGuildSelect:focus-within .collectionGuildSelection {
+.collectionCharacterSelect .collectionGuildSelection,
+.collectionGuildSelect .collectionGuildSelection {
+  right: 1.55rem;
+}
+
+.collectionGuildSelect:focus-within .collectionGuildSelection,
+.collectionCharacterSelect:focus-within .collectionGuildSelection {
+  opacity: 0;
+}
+
+.collectionGuildSelectInput:focus + .collectionGuildSelection {
   opacity: 0;
 }
 
@@ -1676,6 +1701,10 @@
   box-sizing: border-box;
 }
 
+.collectionCharacterOptions {
+  width: min(12rem, calc(100vw - 1rem));
+}
+
 .collectionGuildOption {
   display: flex;
   width: 100%;
@@ -1723,10 +1752,42 @@
   white-space: nowrap;
 }
 
+.collectionCharacterText {
+  display: flex;
+}
+
+.collectionCharacterName {
+  flex: 0 0 auto;
+}
+
+.collectionGuildIdentityText {
+  display: flex;
+}
+
+.collectionGuildName {
+  flex: 0 0 auto;
+}
+
 .collectionGuildRealm {
   color: #8493aa;
   font-size: 0.92em;
   font-weight: 600;
+}
+
+.collectionCharacterRealm {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collectionGuildRealmOverflow {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .collectionGuildSelect select[data-unavailable="true"],

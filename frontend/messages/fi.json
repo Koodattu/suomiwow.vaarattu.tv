@@ -113,7 +113,25 @@
       "sharedPackBy": "{username}: jaettu pakan avaus",
       "unboxedBy": "Pakan avasi",
       "notFoundTitle": "Jaettu avaus ei ole saatavilla",
-      "notFoundBody": "Linkki voi olla puutteellinen, vanhentunut tai poistunut käytöstä."
+      "notFoundBody": "Linkki voi olla puutteellinen, vanhentunut tai poistunut käytöstä.",
+      "embed": {
+        "cardTitle": "{name} — {finish}, {rarity}",
+        "cardDescription": "{username} nosti kortin {name} raidista {raid}. Katso kortti ja avaa sitten oma maksuton pakkasi.",
+        "cardAlt": "{finish} {rarity} -hahmokortti {name} raidista {raid}",
+        "packTitle": "{username}: {packType}",
+        "packDescription": "Paras nosto: {finish} {rarity} {name}. Katso kaikki viisi korttia ja avaa oma maksuton pakkasi.",
+        "packAlt": "Käyttäjän {username} {packType}, jossa on viisi hahmokorttia",
+        "legacyPack": "Legacy-pakan avaus",
+        "currentPack": "Current-pakan avaus",
+        "alternativeArt": "Vaihtoehtoinen kuvitus",
+        "bestPull": "Paras nosto",
+        "fiveCards": "Viisi korttia",
+        "viewCard": "Katso kortti",
+        "viewOpening": "Katso pakan avaus",
+        "openFreePack": "Avaa maksuton pakka",
+        "unavailableTitle": "Jaettu SuomiWoW CCG -avaus",
+        "unavailableDescription": "Tämä jaettu kortti tai pakan avaus ei ole saatavilla."
+      }
     },
     "redeem": {
       "title": "Lunasta koodi",

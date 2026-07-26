@@ -12,11 +12,11 @@ import { QueryProvider } from "@/lib/query-provider";
 import { getLocale, LOCALE_CHANGE_EVENT, type Locale } from "@/lib/locale";
 import {
   buildWebSiteStructuredData,
-  EMBED_IMAGE_HEIGHT,
-  EMBED_IMAGE_WIDTH,
   getCanonicalUrl,
   getPageEmbedImageUrl,
+  getPageEmbedImageSize,
   getPageMetadata,
+  getPageTwitterCard,
   SEO_KEYWORDS,
   SITE_IMAGE_ALT,
   SITE_NAME,
@@ -44,6 +44,7 @@ export default function RootLayout({
   const isLivestreamsPage = pathname === "/livestreams";
   const isNetworkAnalyticsPage = pathname === "/analytics/network";
   const isCcgPage = pathname.startsWith("/fun/ccg");
+  const isCcgSharePage = pathname.startsWith("/fun/ccg/share/");
   const isHomePage = pathname === "/";
   const robotsContent =
     pathname.startsWith("/admin") || pathname.startsWith("/profile")
@@ -84,39 +85,45 @@ export default function RootLayout({
   const fullTitle = `${pageMetadata.title} | ${SITE_NAME}`;
   const canonicalUrl = getCanonicalUrl(pathname);
   const embedImage = getPageEmbedImageUrl(pageMetadata);
+  const embedImageSize = getPageEmbedImageSize(pageMetadata);
   const embedImageAlt = pageMetadata.imageAlt || SITE_IMAGE_ALT;
+  const twitterCard = getPageTwitterCard(pageMetadata);
 
   if (!messages) {
     return (
       <html lang={locale}>
         <head>
-          <title>{fullTitle}</title>
-          <meta name="title" content={fullTitle} />
-          <meta name="description" content={pageMetadata.description} />
+          {!isCcgSharePage && (
+            <>
+              <title>{fullTitle}</title>
+              <meta name="title" content={fullTitle} />
+              <meta name="description" content={pageMetadata.description} />
+              <meta name="robots" content={robotsContent} />
+              <link rel="canonical" href={canonicalUrl} />
+              <meta property="og:type" content="website" />
+              <meta property="og:url" content={canonicalUrl} />
+              <meta property="og:title" content={fullTitle} />
+              <meta property="og:description" content={pageMetadata.description} />
+              <meta property="og:image" content={embedImage} />
+              <meta property="og:image:secure_url" content={embedImage} />
+              <meta property="og:image:type" content="image/png" />
+              <meta property="og:image:width" content={String(embedImageSize.width)} />
+              <meta property="og:image:height" content={String(embedImageSize.height)} />
+              <meta property="og:image:alt" content={embedImageAlt} />
+              <meta property="og:site_name" content={SITE_NAME} />
+              <meta property="og:locale" content="en_US" />
+              <meta name="twitter:card" content={twitterCard} />
+              <meta name="twitter:url" content={canonicalUrl} />
+              <meta name="twitter:title" content={fullTitle} />
+              <meta name="twitter:description" content={pageMetadata.description} />
+              <meta name="twitter:image" content={embedImage} />
+              <meta name="twitter:image:alt" content={embedImageAlt} />
+            </>
+          )}
           <meta name="application-name" content={SITE_NAME} />
           <meta name="apple-mobile-web-app-title" content={SITE_NAME} />
           <meta name="keywords" content={KEYWORDS} />
-          <meta name="robots" content={robotsContent} />
           <link rel="icon" href="/icon.png" type="image/png" />
-          <link rel="canonical" href={canonicalUrl} />
-          <meta property="og:type" content="website" />
-          <meta property="og:url" content={canonicalUrl} />
-          <meta property="og:title" content={fullTitle} />
-          <meta property="og:description" content={pageMetadata.description} />
-          <meta property="og:image" content={embedImage} />
-          <meta property="og:image:secure_url" content={embedImage} />
-          <meta property="og:image:type" content="image/png" />
-          <meta property="og:image:width" content={String(EMBED_IMAGE_WIDTH)} />
-          <meta property="og:image:height" content={String(EMBED_IMAGE_HEIGHT)} />
-          <meta property="og:image:alt" content={embedImageAlt} />
-          <meta property="og:site_name" content={SITE_NAME} />
-          <meta property="og:locale" content="en_US" />
-          <meta name="twitter:card" content="summary" />
-          <meta name="twitter:url" content={canonicalUrl} />
-          <meta name="twitter:title" content={fullTitle} />
-          <meta name="twitter:description" content={pageMetadata.description} />
-          <meta name="twitter:image" content={embedImage} />
-          <meta name="twitter:image:alt" content={embedImageAlt} />
           {isHomePage && (
             <script
               type="application/ld+json"
@@ -139,44 +146,42 @@ export default function RootLayout({
     <html lang={locale}>
       <head>
         {/* Primary Meta Tags */}
-        <title>{fullTitle}</title>
-        <meta name="title" content={fullTitle} />
-        <meta name="description" content={pageMetadata.description} />
+        {!isCcgSharePage && (
+          <>
+            <title>{fullTitle}</title>
+            <meta name="title" content={fullTitle} />
+            <meta name="description" content={pageMetadata.description} />
+            <meta name="robots" content={robotsContent} />
+            <link rel="canonical" href={canonicalUrl} />
+            <meta property="og:type" content="website" />
+            <meta property="og:url" content={canonicalUrl} />
+            <meta property="og:title" content={fullTitle} />
+            <meta property="og:description" content={pageMetadata.description} />
+            <meta property="og:image" content={embedImage} />
+            <meta property="og:image:secure_url" content={embedImage} />
+            <meta property="og:image:type" content="image/png" />
+            <meta property="og:image:width" content={String(embedImageSize.width)} />
+            <meta property="og:image:height" content={String(embedImageSize.height)} />
+            <meta property="og:image:alt" content={embedImageAlt} />
+            <meta property="og:site_name" content={SITE_NAME} />
+            <meta property="og:locale" content={locale === "fi" ? "fi_FI" : "en_US"} />
+            <meta name="twitter:card" content={twitterCard} />
+            <meta name="twitter:url" content={canonicalUrl} />
+            <meta name="twitter:title" content={fullTitle} />
+            <meta name="twitter:description" content={pageMetadata.description} />
+            <meta name="twitter:image" content={embedImage} />
+            <meta name="twitter:image:alt" content={embedImageAlt} />
+          </>
+        )}
         <meta name="application-name" content={SITE_NAME} />
         <meta name="apple-mobile-web-app-title" content={SITE_NAME} />
         <meta name="keywords" content={KEYWORDS} />
-        <meta name="robots" content={robotsContent} />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#1a1a2e" />
 
         {/* Favicon */}
         <link rel="icon" href="/icon.png" type="image/png" />
         <link rel="apple-touch-icon" href="/icon.png" />
-
-        {/* Canonical URL */}
-        <link rel="canonical" href={canonicalUrl} />
-
-        {/* Open Graph / Facebook */}
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content={canonicalUrl} />
-        <meta property="og:title" content={fullTitle} />
-        <meta property="og:description" content={pageMetadata.description} />
-        <meta property="og:image" content={embedImage} />
-        <meta property="og:image:secure_url" content={embedImage} />
-        <meta property="og:image:type" content="image/png" />
-        <meta property="og:image:width" content={String(EMBED_IMAGE_WIDTH)} />
-        <meta property="og:image:height" content={String(EMBED_IMAGE_HEIGHT)} />
-        <meta property="og:image:alt" content={embedImageAlt} />
-        <meta property="og:site_name" content={SITE_NAME} />
-        <meta property="og:locale" content={locale === "fi" ? "fi_FI" : "en_US"} />
-
-        {/* Twitter */}
-        <meta name="twitter:card" content="summary" />
-        <meta name="twitter:url" content={canonicalUrl} />
-        <meta name="twitter:title" content={fullTitle} />
-        <meta name="twitter:description" content={pageMetadata.description} />
-        <meta name="twitter:image" content={embedImage} />
-        <meta name="twitter:image:alt" content={embedImageAlt} />
 
         {isHomePage && (
           <script

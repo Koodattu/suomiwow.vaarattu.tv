@@ -190,11 +190,20 @@ function SharedPack({ share }: { share: Extract<CcgShare, { kind: "pack" }> }) {
   );
 }
 
-export default function CcgSharedView({ shareId, expectedKind }: { shareId: string; expectedKind: "card" | "pack" }) {
+export default function CcgSharedView({
+  shareId,
+  expectedKind,
+  initialShare,
+}: {
+  shareId: string;
+  expectedKind: "card" | "pack";
+  initialShare?: CcgShare;
+}) {
   const t = useTranslations("ccg.share");
   const shareQuery = useQuery({
     queryKey: ["ccg", "share", shareId],
     queryFn: () => api.getCcgShare(shareId),
+    initialData: initialShare,
     retry: false,
     staleTime: Infinity,
   });

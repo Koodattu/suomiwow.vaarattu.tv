@@ -101,10 +101,12 @@ export default function CcgCollectionPage() {
   const [guildId, setGuildId] = useState("");
   const [guildSearch, setGuildSearch] = useState("");
   const [guildInputFocused, setGuildInputFocused] = useState(false);
+  const guildInputRef = useRef<HTMLInputElement>(null);
   const [selectedCharacter, setSelectedCharacter] = useState<CcgCharacterFacet | null>(null);
   const [characterSearch, setCharacterSearch] = useState("");
   const [debouncedCharacterSearch, setDebouncedCharacterSearch] = useState("");
   const [characterInputFocused, setCharacterInputFocused] = useState(false);
+  const characterInputRef = useRef<HTMLInputElement>(null);
   const [includeMissing, setIncludeMissing] = useState(false);
   const [page, setPage] = useState(1);
   const [pageCountCache, setPageCountCache] = useState({ scope: "", pages: 0 });
@@ -548,6 +550,11 @@ export default function CcgCollectionPage() {
               onChange={(character) => {
                 updateFilter(() => setSelectedCharacter(character));
                 setCharacterSearch("");
+                if (character) {
+                  window.requestAnimationFrame(() => {
+                    window.requestAnimationFrame(() => characterInputRef.current?.blur());
+                  });
+                }
               }}
               onClose={() => {
                 setCharacterSearch("");
@@ -557,17 +564,26 @@ export default function CcgCollectionPage() {
             >
               <div className={`${styles.collectionSelect} ${styles.collectionCharacterSelect}`}>
                 <ComboboxInput
+                  ref={characterInputRef}
                   aria-label={t("collection.searchCharacters")}
                   autoComplete="off"
-                  className={styles.collectionGuildSelectInput}
-                  displayValue={(character: CcgCharacterFacet | null) => !characterInputFocused && character
-                    ? `${character.name}-${formatRealmName(character.realm)}`
-                    : ""}
+                  className={`${styles.collectionGuildSelectInput} ${selectedCharacter ? styles.collectionGuildSelectInputWithSelection : ""}`}
                   placeholder={characterInputFocused ? t("collection.typeToSearch") : t("collection.allCharacters")}
+                  value={characterSearch}
                   onChange={(event) => setCharacterSearch(event.target.value)}
                   onFocus={() => setCharacterInputFocused(true)}
                   onBlur={() => setCharacterInputFocused(false)}
                 />
+                {selectedCharacter && (
+                  <span className={styles.collectionGuildSelection} aria-hidden="true">
+                    <span className={`${styles.collectionGuildText} ${styles.collectionCharacterText}`}>
+                      <span className={styles.collectionCharacterName}>{selectedCharacter.name}</span>
+                      <span className={`${styles.collectionGuildRealm} ${styles.collectionCharacterRealm}`}>
+                        -{formatRealmName(selectedCharacter.realm)}
+                      </span>
+                    </span>
+                  </span>
+                )}
                 <ComboboxButton
                   aria-label={t("collection.selectCharacter")}
                   className={styles.collectionGuildSelectToggle}
@@ -576,7 +592,7 @@ export default function CcgCollectionPage() {
                   anchor={{ to: "bottom start", gap: 4, padding: 8 }}
                   portal
                   modal={false}
-                  className={styles.collectionGuildOptions}
+                  className={`${styles.collectionGuildOptions} ${styles.collectionCharacterOptions}`}
                   aria-live="polite"
                 >
                   {!trimmedCharacterSearch && selectedCharacter && (
@@ -596,9 +612,11 @@ export default function CcgCollectionPage() {
                     <div className={styles.collectionCharacterSearchStatus}>{t("collection.noCharactersFound")}</div>
                   ) : characterResults.map((character) => (
                     <ComboboxOption key={character.id} value={character} className={styles.collectionGuildOption}>
-                      <span className={styles.collectionGuildText}>
-                        {character.name}
-                        <span className={styles.collectionGuildRealm}>-{formatRealmName(character.realm)}</span>
+                      <span className={`${styles.collectionGuildText} ${styles.collectionCharacterText}`}>
+                        <span className={styles.collectionCharacterName}>{character.name}</span>
+                        <span className={`${styles.collectionGuildRealm} ${styles.collectionCharacterRealm}`}>
+                          -{formatRealmName(character.realm)}
+                        </span>
                       </span>
                     </ComboboxOption>
                   ))}
@@ -612,6 +630,11 @@ export default function CcgCollectionPage() {
               onChange={(guild) => {
                 updateFilter(() => setGuildId(guild?.id ?? ""));
                 setGuildSearch("");
+                if (guild) {
+                  window.requestAnimationFrame(() => {
+                    window.requestAnimationFrame(() => guildInputRef.current?.blur());
+                  });
+                }
               }}
               onClose={() => {
                 setGuildSearch("");
@@ -621,6 +644,7 @@ export default function CcgCollectionPage() {
             >
               <div className={`${styles.collectionSelect} ${styles.collectionGuildSelect}`}>
                 <ComboboxInput
+                  ref={guildInputRef}
                   aria-label={t("collection.searchGuilds")}
                   autoComplete="off"
                   className={`${styles.collectionGuildSelectInput} ${selectedGuild ? styles.collectionGuildSelectInputWithSelection : ""}`}
@@ -635,10 +659,12 @@ export default function CcgCollectionPage() {
                 />
                 {selectedGuild && (
                   <span className={styles.collectionGuildSelection} aria-hidden="true">
-                    <span className={styles.collectionGuildText}>
-                      {selectedGuild.name}
+                    <span className={`${styles.collectionGuildText} ${styles.collectionGuildIdentityText}`}>
+                      <span className={styles.collectionGuildName}>{selectedGuild.name}</span>
                       {duplicateGuildNames.has(selectedGuild.name.toLocaleLowerCase()) && (
-                        <span className={styles.collectionGuildRealm}>-{formatRealmName(selectedGuild.realm)}</span>
+                        <span className={`${styles.collectionGuildRealm} ${styles.collectionGuildRealmOverflow}`}>
+                          -{formatRealmName(selectedGuild.realm)}
+                        </span>
                       )}
                     </span>
                   </span>
@@ -667,10 +693,12 @@ export default function CcgCollectionPage() {
                         className={styles.collectionGuildOption}
                         data-unavailable={unavailable || undefined}
                       >
-                        <span className={styles.collectionGuildText}>
-                          {guild.name}
+                        <span className={`${styles.collectionGuildText} ${styles.collectionGuildIdentityText}`}>
+                          <span className={styles.collectionGuildName}>{guild.name}</span>
                           {duplicateGuildNames.has(guild.name.toLocaleLowerCase()) && (
-                            <span className={styles.collectionGuildRealm}>-{formatRealmName(guild.realm)}</span>
+                            <span className={`${styles.collectionGuildRealm} ${styles.collectionGuildRealmOverflow}`}>
+                              -{formatRealmName(guild.realm)}
+                            </span>
                           )}
                         </span>
                       </ComboboxOption>
