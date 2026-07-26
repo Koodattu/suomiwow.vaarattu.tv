@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgArtVariant, CcgCard, CcgFinish } from "@/types";
 import { CCG_RARITY_KEYS } from "@/lib/ccg";
-import { formatRealmName, formatSpecName, getClassInfoById, getSpecIconUrl } from "@/lib/utils";
+import { formatRealmName, formatSpecName, getClassInfoById, getParseColor, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
 import AlphaFittedCharacterRender from "./AlphaFittedCharacterRender";
 import styles from "./card-prototypes.module.css";
@@ -107,6 +107,10 @@ function FrameGeometry() {
 
 function score(value: number | null): string {
   return value === null ? "—" : value.toFixed(value >= 1000 ? 0 : 1);
+}
+
+function raidScoreColor(value: number | null): string {
+  return getParseColor(value === null ? 0 : Math.round(value));
 }
 
 function mythicPlusScoreColor(value: number | null): string {
@@ -311,9 +315,9 @@ export default function CollectibleCard({
       {!hideBadges ? <span className={styles.setChip}><span>{card.set.raidName.toLowerCase()}</span></span> : null}
 
       <span className={styles.statsPanel}>
-        <span className={styles.stat}><span>{t(card.role === "healer" ? "score.healing" : "score.damage")}</span><strong>{score(card.scores.performance)}</strong></span>
-        <span className={styles.stat}><span>{t("score.mechanics")}</span><strong>{score(card.scores.mechanics)}</strong></span>
-        <span className={styles.stat}><span>{t("score.combined")}</span><strong>{score(card.scores.combined)}</strong></span>
+        <span className={styles.stat}><span>{t(card.role === "healer" ? "score.healing" : "score.damage")}</span><strong style={{ color: raidScoreColor(card.scores.performance) }}>{score(card.scores.performance)}</strong></span>
+        <span className={styles.stat}><span>{t("score.mechanics")}</span><strong style={{ color: raidScoreColor(card.scores.mechanics) }}>{score(card.scores.mechanics)}</strong></span>
+        <span className={styles.stat}><span>{t("score.combined")}</span><strong style={{ color: raidScoreColor(card.scores.combined) }}>{score(card.scores.combined)}</strong></span>
         <span className={styles.stat}><span>{t("score.mythicPlus")}</span><strong style={{ color: mythicPlusScoreColor(card.scores.mythicPlus) }}>{score(card.scores.mythicPlus)}</strong></span>
       </span>
 
