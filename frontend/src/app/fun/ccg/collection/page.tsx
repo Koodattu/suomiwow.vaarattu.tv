@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from "@headlessui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { LuEye, LuEyeOff, LuRotateCcw } from "react-icons/lu";
+import { LuCircleDashed, LuEye, LuEyeOff, LuRotateCcw } from "react-icons/lu";
 import type {
   CSSProperties,
   MouseEvent as ReactMouseEvent,
@@ -38,6 +38,7 @@ const allSetsSlug = "__all__";
 const uniqueFinishFilter = "unique";
 type CollectionFinishFilter = CcgBaseFinish | typeof uniqueFinishFilter | "";
 type CollectionFinishOption = Exclude<CollectionFinishFilter, "">;
+type CollectionVisibility = "owned" | "all" | "missing";
 const collectionSortOptions: Array<{ value: CcgCollectionSort; label: string }> = [
   { value: "duplicates_desc", label: "sortMostDuplicatesFirst" },
   { value: "alphabetical", label: "sortAlphabetical" },
@@ -124,7 +125,7 @@ export default function CcgCollectionPage() {
   const [debouncedCharacterSearch, setDebouncedCharacterSearch] = useState("");
   const [characterInputFocused, setCharacterInputFocused] = useState(false);
   const characterInputRef = useRef<HTMLInputElement>(null);
-  const [includeMissing, setIncludeMissing] = useState(false);
+  const [visibility, setVisibility] = useState<CollectionVisibility>("owned");
   const [page, setPage] = useState(1);
   const [pageCountCache, setPageCountCache] = useState({ scope: "", pages: 0 });
   const [grade, setGrade] = useState("");
@@ -195,8 +196,16 @@ export default function CcgCollectionPage() {
   const characterSearchLoading = trimmedCharacterSearch.length >= 2
     && (!characterResultsCurrent || characterSearchQuery.isFetching);
   const characterId = selectedCharacter?.id ?? "";
-  const showCatalog = includeMissing;
-  const filtersChanged = includeMissing || Boolean(characterId || guildId || grade || finish || sort);
+  const showCatalog = visibility !== "owned";
+  const showMissingOnly = visibility === "missing";
+  const catalogOwnership = showMissingOnly ? "missing" : "all";
+  const nextVisibility: CollectionVisibility = visibility === "owned" ? "all" : visibility === "all" ? "missing" : "owned";
+  const visibilityAction = visibility === "owned"
+    ? "collection.showOwnedAndMissingCards"
+    : visibility === "all"
+      ? "collection.showOnlyMissingCards"
+      : "collection.showOnlyOwnedCards";
+  const filtersChanged = visibility !== "owned" || Boolean(characterId || guildId || grade || finish || sort);
   const ownedQuery = useCcgCollection(
     {
       page,
@@ -210,12 +219,12 @@ export default function CcgCollectionPage() {
     },
     Boolean(setSlug) && !showCatalog,
   );
-  const catalogQuery = useCcgCatalog(collectionSetSlug, page, "all", grade, guildId, characterId, finish, sort, showCatalog, cardsPerPage);
+  const catalogQuery = useCcgCatalog(collectionSetSlug, page, catalogOwnership, grade, guildId, characterId, finish, sort, showCatalog, cardsPerPage);
   const cardsQuery = showCatalog ? catalogQuery : ownedQuery;
   const cardsData = cardsQuery.data;
   const cardsLoading = setsQuery.isPending || cardsQuery.isPending;
   const cardsError = cardsQuery.isError;
-  const pageCountScope = JSON.stringify([setSlug, characterId, guildId, grade, finish, sort, showCatalog]);
+  const pageCountScope = JSON.stringify([setSlug, characterId, guildId, grade, finish, sort, visibility]);
   const displayedPageCount = cardsData?.pages
     ?? (pageCountCache.scope === pageCountScope ? pageCountCache.pages : 0);
 
@@ -376,7 +385,7 @@ export default function CcgCollectionPage() {
   };
 
   const resetFilters = () => {
-    setIncludeMissing(false);
+    setVisibility("owned");
     setSelectedCharacter(null);
     setCharacterSearch("");
     setGuildId("");
@@ -548,21 +557,22 @@ export default function CcgCollectionPage() {
               <LuRotateCcw aria-hidden="true" />
             </button>
 
-            <label
-              className={`${styles.collectionMissingToggle} ${includeMissing ? styles.collectionMissingToggleActive : ""}`}
-              title={t(includeMissing ? "collection.hideMissingCards" : "collection.showMissingCards")}
+            <button
+              type="button"
+              className={`${styles.collectionMissingToggle} ${visibility === "all" ? styles.collectionMissingToggleActive : ""} ${showMissingOnly ? styles.collectionMissingToggleMissingOnly : ""}`}
+              title={t(visibilityAction)}
+              aria-label={t(visibilityAction)}
+              onClick={() => updateFilter(() => {
+                setVisibility(nextVisibility);
+                if (nextVisibility === "missing") setFinish("");
+              })}
             >
-              <input
-                type="checkbox"
-                checked={includeMissing}
-                onChange={(event) => updateFilter(() => setIncludeMissing(event.target.checked))}
-                aria-label={t(includeMissing ? "collection.hideMissingCards" : "collection.showMissingCards")}
-              />
               <span className={styles.collectionMissingToggleIcon} aria-hidden="true">
-                <LuEye className={includeMissing ? styles.collectionToggleIconVisible : styles.collectionToggleIconHidden} />
-                <LuEyeOff className={includeMissing ? styles.collectionToggleIconHidden : styles.collectionToggleIconVisible} />
+                <LuEyeOff className={visibility === "owned" ? styles.collectionToggleIconVisible : styles.collectionToggleIconHidden} />
+                <LuEye className={visibility === "all" ? styles.collectionToggleIconVisible : styles.collectionToggleIconHidden} />
+                <LuCircleDashed className={showMissingOnly ? styles.collectionToggleIconVisible : styles.collectionToggleIconHidden} />
               </span>
-            </label>
+            </button>
 
             <Combobox
               value={selectedCharacter}
@@ -838,9 +848,9 @@ export default function CcgCollectionPage() {
             ) : (
               <div className={styles.collectionEmpty}>
                 <div>
-                  <h2>{t(guildId ? "collection.emptyGuildTitle" : includeMissing ? "collection.emptyMissingTitle" : "collection.emptyOwnedTitle")}</h2>
-                  <p>{t(guildId ? includeMissing ? "collection.emptyGuildMissingBody" : "collection.emptyGuildBody" : includeMissing ? "collection.emptyMissingBody" : "collection.emptyOwnedBody")}</p>
-                  {!guildId && !includeMissing ? (
+                  <h2>{t(guildId ? "collection.emptyGuildTitle" : showCatalog ? "collection.emptyMissingTitle" : "collection.emptyOwnedTitle")}</h2>
+                  <p>{t(guildId ? showCatalog ? "collection.emptyGuildMissingBody" : "collection.emptyGuildBody" : showCatalog ? "collection.emptyMissingBody" : "collection.emptyOwnedBody")}</p>
+                  {!guildId && !showCatalog ? (
                     <Link href={`/fun/ccg/open?mode=${selectedSet?.state === "legacy" ? "legacy" : "current"}`} className={`${styles.primaryButton} mt-4`}>
                       {t("collection.openPacks")}
                     </Link>
