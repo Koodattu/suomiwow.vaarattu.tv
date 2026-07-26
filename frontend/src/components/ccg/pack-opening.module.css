@@ -1259,7 +1259,7 @@
   min-width: 0;
   overflow: visible;
   overscroll-behavior-inline: contain;
-  padding: 1rem clamp(2rem, 4vw, 5rem) 2.75rem;
+  padding: 1.75rem clamp(2rem, 4vw, 5rem) 4rem;
   scroll-padding-inline: 1rem;
 }
 
