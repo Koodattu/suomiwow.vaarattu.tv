@@ -21,6 +21,7 @@ import {
   FeaturedAchievementTarget,
 } from "../utils/featured-achievements";
 import logger from "../utils/logger";
+import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
 import cacheService from "./cache.service";
 import taskTracker from "./task-tracker.service";
 
@@ -283,9 +284,34 @@ class CharacterAchievementService {
   }
 
   async enqueueMissingItems(options: { refreshExistingQueue?: boolean; refreshAll?: boolean } = {}): Promise<CharacterAchievementBackfillEnqueueResult> {
-    const characters = await Character.find({})
-      .select("_id wclCanonicalCharacterId name realm region classID")
-      .lean<Array<Pick<ICharacter, "_id" | "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID">>>();
+    const [characterRows, latestParticipationRows] = await Promise.all([
+      Character.find({})
+        .select("_id wclCanonicalCharacterId name realm region classID blizzardIdentityOverride")
+        .lean<Array<Pick<ICharacter, "_id" | "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "blizzardIdentityOverride">>>(),
+      CharacterRaidParticipation.aggregate<{
+        _id: mongoose.Types.ObjectId;
+        name: string;
+        realm: string;
+        region: string;
+        observedAt: Date;
+      }>([
+        { $sort: { lastSeenAt: -1, zoneId: -1, _id: -1 } },
+        {
+          $group: {
+            _id: "$characterId",
+            name: { $first: "$characterName" },
+            realm: { $first: "$characterRealm" },
+            region: { $first: "$characterRegion" },
+            observedAt: { $first: "$lastSeenAt" },
+          },
+        },
+      ]).allowDiskUse(true),
+    ]);
+    const latestParticipationByCharacterId = new Map(latestParticipationRows.map((row) => [String(row._id), row]));
+    const characters = characterRows.map((character) => ({
+      ...character,
+      ...resolveBlizzardCharacterIdentity(character, latestParticipationByCharacterId.get(String(character._id))),
+    }));
 
     const characterIds = characters.map((character) => character._id);
     const [fingerprints, raidAchievementSummaries, queueItems] = await Promise.all([

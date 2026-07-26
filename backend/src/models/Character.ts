@@ -9,6 +9,13 @@ export interface IGuildHistoryEntry {
   lastSeenAt: Date;
 }
 
+export interface ICharacterBlizzardIdentityOverride {
+  name: string;
+  realm: string;
+  updatedAt: Date;
+  updatedBy: string;
+}
+
 export interface ICharacter extends Document {
   wclCanonicalCharacterId: number;
   name: string;
@@ -20,6 +27,7 @@ export interface ICharacter extends Document {
   guildUpdatedAt?: Date;
   guildHistory: IGuildHistoryEntry[];
   wclProfileHidden: boolean;
+  blizzardIdentityOverride?: ICharacterBlizzardIdentityOverride | null;
 
   lastMythicSeenAt?: Date | null;
   firstReportSeenAt?: Date;
@@ -41,6 +49,16 @@ const GuildHistoryEntrySchema: Schema = new Schema(
   { _id: false },
 );
 
+const CharacterBlizzardIdentityOverrideSchema: Schema = new Schema(
+  {
+    name: { type: String, required: true },
+    realm: { type: String, required: true },
+    updatedAt: { type: Date, required: true },
+    updatedBy: { type: String, required: true },
+  },
+  { _id: false },
+);
+
 const CharacterSchema: Schema = new Schema(
   {
     wclCanonicalCharacterId: { type: Number, required: true },
@@ -53,6 +71,7 @@ const CharacterSchema: Schema = new Schema(
     guildUpdatedAt: { type: Date, required: false, default: null },
     guildHistory: { type: [GuildHistoryEntrySchema], default: [] },
     wclProfileHidden: { type: Boolean, required: true, default: false },
+    blizzardIdentityOverride: { type: CharacterBlizzardIdentityOverrideSchema, required: false, default: null },
 
     lastMythicSeenAt: { type: Date, required: false, default: null },
     firstReportSeenAt: { type: Date },
@@ -65,6 +84,7 @@ const CharacterSchema: Schema = new Schema(
 
 CharacterSchema.index({ wclCanonicalCharacterId: 1, classID: 1 }, { unique: true });
 CharacterSchema.index({ name: 1, realm: 1, region: 1 });
+CharacterSchema.index({ "blizzardIdentityOverride.name": 1, "blizzardIdentityOverride.realm": 1, region: 1 });
 CharacterSchema.index({ realm: 1, name: 1, classID: 1 }, { collation: CASE_INSENSITIVE_COLLATION });
 CharacterSchema.index({
   lastMythicSeenAt: -1,

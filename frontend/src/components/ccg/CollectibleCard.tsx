@@ -89,7 +89,7 @@ function applyCardMaterial(element: HTMLElement, x: number, y: number) {
 
 type CollectibleCardProps = {
   card: CcgCard;
-  finish?: CcgFinish | "void" | "chromaflow";
+  finish?: CcgFinish | "chromaflow";
   artVariant?: CcgArtVariant;
   compact?: boolean;
   quantity?: number;

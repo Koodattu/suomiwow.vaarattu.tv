@@ -1,39 +1,28 @@
-import { CCG_PACK_RECHARGE_INTERVAL_HOURS, CCG_PACK_STORAGE_CAPS, CCG_TIME_ZONE, CcgMode } from "../config/ccg";
+import { CCG_PACK_RECHARGE_INTERVAL_HOURS, CCG_PACK_STORAGE_CAPS, CcgMode } from "../config/ccg";
 
 const HOUR_MS = 60 * 60 * 1000;
-const helsinkiHourFormatter = new Intl.DateTimeFormat("en-GB", {
-  timeZone: CCG_TIME_ZONE,
-  hour: "2-digit",
-  hourCycle: "h23",
-});
+const RECHARGE_TICK_MS = 30 * 60 * 1000;
 
 export type CcgRechargeBalances = Record<CcgMode, number>;
 
-export function getRechargeHourStart(date: Date = new Date()): Date {
-  return new Date(Math.floor(date.getTime() / HOUR_MS) * HOUR_MS);
+export function getRechargeTickStart(date: Date = new Date()): Date {
+  return new Date(Math.floor(date.getTime() / RECHARGE_TICK_MS) * RECHARGE_TICK_MS);
 }
 
-function isRechargeBoundary(mode: CcgMode, date: Date): boolean {
-  if (mode === "legacy") return true;
-  return Number(helsinkiHourFormatter.format(date)) % CCG_PACK_RECHARGE_INTERVAL_HOURS.current === 0;
+function countRechargeBoundaries(mode: CcgMode, lastTick: number, currentTick: number): number {
+  const intervalMs = CCG_PACK_RECHARGE_INTERVAL_HOURS[mode] * HOUR_MS;
+  return Math.floor(currentTick / intervalMs) - Math.floor(lastTick / intervalMs);
 }
 
 export function getRechargeGrants(lastRechargeAt: Date, date: Date = new Date()): CcgRechargeBalances {
-  const lastHour = getRechargeHourStart(lastRechargeAt).getTime();
-  const currentHour = getRechargeHourStart(date).getTime();
-  if (currentHour <= lastHour) return { current: 0, legacy: 0 };
+  const lastTick = getRechargeTickStart(lastRechargeAt).getTime();
+  const currentTick = getRechargeTickStart(date).getTime();
+  if (currentTick <= lastTick) return { current: 0, legacy: 0 };
 
-  const elapsedHours = Math.floor((currentHour - lastHour) / HOUR_MS);
-  const legacy = Math.min(CCG_PACK_STORAGE_CAPS.legacy, elapsedHours);
-  if (elapsedHours > CCG_PACK_STORAGE_CAPS.current * CCG_PACK_RECHARGE_INTERVAL_HOURS.current + 2) {
-    return { current: CCG_PACK_STORAGE_CAPS.current, legacy };
-  }
-
-  let current = 0;
-  for (let hour = 1; hour <= elapsedHours; hour += 1) {
-    if (isRechargeBoundary("current", new Date(lastHour + hour * HOUR_MS))) current += 1;
-  }
-  return { current: Math.min(CCG_PACK_STORAGE_CAPS.current, current), legacy };
+  return {
+    current: Math.min(CCG_PACK_STORAGE_CAPS.current, countRechargeBoundaries("current", lastTick, currentTick)),
+    legacy: Math.min(CCG_PACK_STORAGE_CAPS.legacy, countRechargeBoundaries("legacy", lastTick, currentTick)),
+  };
 }
 
 export function applyPackRecharge(
@@ -52,15 +41,11 @@ export function applyPackRecharge(
       current: rechargeBalance("current"),
       legacy: rechargeBalance("legacy"),
     },
-    lastRechargeAt: getRechargeHourStart(date),
+    lastRechargeAt: getRechargeTickStart(date),
   };
 }
 
 export function getNextPackRechargeAt(mode: CcgMode, date: Date = new Date()): Date {
-  const currentHour = getRechargeHourStart(date).getTime();
-  for (let offset = 1; offset <= CCG_PACK_RECHARGE_INTERVAL_HOURS.current + 2; offset += 1) {
-    const candidate = new Date(currentHour + offset * HOUR_MS);
-    if (isRechargeBoundary(mode, candidate)) return candidate;
-  }
-  throw new Error(`Unable to resolve next ${mode} pack recharge`);
+  const intervalMs = CCG_PACK_RECHARGE_INTERVAL_HOURS[mode] * HOUR_MS;
+  return new Date((Math.floor(date.getTime() / intervalMs) + 1) * intervalMs);
 }

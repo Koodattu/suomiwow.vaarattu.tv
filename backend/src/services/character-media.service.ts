@@ -8,9 +8,11 @@ import { CCG_CONFIGURED_SETS } from "../config/ccg";
 import Character from "../models/Character";
 import CharacterMedia from "../models/CharacterMedia";
 import CharacterMediaFetchQueue, { ICharacterMediaFetchQueue } from "../models/CharacterMediaFetchQueue";
+import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import CharacterTierListEntry from "../models/CharacterTierListEntry";
 import CcgSet from "../models/CcgSet";
 import TaskLog from "../models/TaskLog";
+import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
 import logger from "../utils/logger";
 import cacheService from "./cache.service";
 import { getCharacterRaidParticipationSummaries } from "./character-raid-guild.service";
@@ -35,6 +37,11 @@ type CharacterMediaQueueRow = {
   name: string;
   realm: string;
   region: string;
+  blizzardIdentityOverride?: {
+    name: string;
+    realm: string;
+    updatedAt: Date;
+  } | null;
 };
 
 export type CharacterMediaFailureTransition = {
@@ -121,7 +128,7 @@ export class CharacterMediaService {
 
   private async discoverMissing(): Promise<CharacterMediaDiscoveryResult> {
     const now = new Date();
-    const [dueCharacters, scanned] = await Promise.all([
+    const [dueCharacters, renamedCharacters, scanned] = await Promise.all([
       Character.aggregate<CharacterMediaQueueRow>([
         {
           $lookup: {
@@ -147,7 +154,98 @@ export class CharacterMediaService {
           },
         },
         { $sort: { updatedAt: -1 } },
-        { $project: { name: 1, realm: 1, region: 1 } },
+        { $project: { name: 1, realm: 1, region: 1, blizzardIdentityOverride: 1 } },
+      ])
+        .allowDiskUse(true)
+        .option({ maxTimeMS: DISCOVERY_QUERY_MAX_TIME_MS })
+        .exec(),
+      CharacterMedia.aggregate<CharacterMediaQueueRow>([
+        {
+          $lookup: {
+            from: Character.collection.name,
+            localField: "characterId",
+            foreignField: "_id",
+            as: "character",
+          },
+        },
+        { $set: { character: { $arrayElemAt: ["$character", 0] } } },
+        {
+          $lookup: {
+            from: CharacterRaidParticipation.collection.name,
+            let: { characterId: "$characterId" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$characterId", "$$characterId"] } } },
+              { $sort: { lastSeenAt: -1, zoneId: -1, _id: -1 } },
+              { $limit: 1 },
+              {
+                $project: {
+                  _id: 0,
+                  name: "$characterName",
+                  realm: "$characterRealm",
+                  region: "$characterRegion",
+                  observedAt: "$lastSeenAt",
+                },
+              },
+            ],
+            as: "latestIdentity",
+          },
+        },
+        { $set: { latestIdentity: { $arrayElemAt: ["$latestIdentity", 0] } } },
+        {
+          $set: {
+            desiredIdentity: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: [{ $ifNull: ["$character.blizzardIdentityOverride", null] }, null] },
+                    {
+                      $or: [
+                        { $eq: [{ $ifNull: ["$latestIdentity", null] }, null] },
+                        { $gte: ["$character.blizzardIdentityOverride.updatedAt", "$latestIdentity.observedAt"] },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  name: "$character.blizzardIdentityOverride.name",
+                  realm: "$character.blizzardIdentityOverride.realm",
+                  region: "$character.region",
+                },
+                "$latestIdentity",
+              ],
+            },
+          },
+        },
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $ne: [{ $ifNull: ["$desiredIdentity", null] }, null] },
+                {
+                  $or: [
+                    { $ne: [{ $toLower: { $ifNull: ["$desiredIdentity.name", ""] } }, { $toLower: { $ifNull: ["$characterName", ""] } }] },
+                    {
+                      $and: [
+                        { $regexMatch: { input: { $ifNull: ["$desiredIdentity.realm", ""] }, regex: /^[a-z0-9-]+$/i } },
+                        { $ne: [{ $toLower: { $ifNull: ["$desiredIdentity.realm", ""] } }, { $toLower: { $ifNull: ["$realmSlug", ""] } }] },
+                      ],
+                    },
+                    { $ne: [{ $toLower: { $ifNull: ["$desiredIdentity.region", ""] } }, { $toLower: { $ifNull: ["$region", ""] } }] },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        {
+          $project: {
+            _id: "$characterId",
+            name: "$desiredIdentity.name",
+            realm: "$desiredIdentity.realm",
+            region: "$desiredIdentity.region",
+            blizzardIdentityOverride: "$character.blizzardIdentityOverride",
+          },
+        },
       ])
         .allowDiskUse(true)
         .option({ maxTimeMS: DISCOVERY_QUERY_MAX_TIME_MS })
@@ -155,7 +253,11 @@ export class CharacterMediaService {
       Character.countDocuments(),
     ]);
 
-    const dueByCharacterId = new Map(dueCharacters.map((character) => [String(character._id), character]));
+    const discoveredByCharacterId = new Map(dueCharacters.map((character) => [String(character._id), character]));
+    for (const character of renamedCharacters) {
+      discoveredByCharacterId.set(String(character._id), character);
+    }
+    const dueByCharacterId = new Map(discoveredByCharacterId);
     const assignedEligibleCharacterIds = new Set<string>();
     const configuredSets = [...CCG_CONFIGURED_SETS].sort((left, right) => right.zoneId - left.zoneId);
     const raidSets: Array<{ zoneId: number; raidName: string; candidates: number; queued: number }> = [];
@@ -207,7 +309,7 @@ export class CharacterMediaService {
 
     return {
       scanned,
-      candidates: dueCharacters.length,
+      candidates: discoveredByCharacterId.size,
       queued,
       eligibleCandidates,
       generalCandidates: generalCharacters.length,
@@ -233,18 +335,18 @@ export class CharacterMediaService {
     const existingMediaIds = new Set((await CharacterMedia.distinct("characterId", { characterId: { $in: characterIds } })).map(String));
     const missingIds = characterIds.filter((id) => !existingMediaIds.has(String(id)));
     const targetIds = [...staleMediaIds, ...missingIds];
-    const rows = await Character.find({ _id: { $in: targetIds } }).select("name realm region").lean();
+    const rows = await Character.find({ _id: { $in: targetIds } }).select("name realm region blizzardIdentityOverride").lean();
     return { candidates: rows.length, queued: await this.enqueueRows(rows, 100, true) };
   }
 
-  async enqueueCharacter(characterId: string): Promise<void> {
-    const row = await Character.findById(characterId).select("name realm region").lean();
-    if (row) await this.enqueueRows([row], 50);
+  async enqueueCharacter(characterId: string, priority = 50, force = false): Promise<void> {
+    const row = await Character.findById(characterId).select("name realm region blizzardIdentityOverride").lean();
+    if (row) await this.enqueueRows([row], priority, force);
   }
 
   async enqueueCharacters(characterIds: mongoose.Types.ObjectId[], priority = 50): Promise<number> {
     if (characterIds.length === 0) return 0;
-    const rows = await Character.find({ _id: { $in: characterIds } }).select("name realm region").lean();
+    const rows = await Character.find({ _id: { $in: characterIds } }).select("name realm region blizzardIdentityOverride").lean();
     return this.enqueueRows(rows, priority);
   }
 
@@ -259,7 +361,8 @@ export class CharacterMediaService {
 
     for (let offset = 0; offset < rows.length; offset += QUEUE_WRITE_BATCH_SIZE) {
       const batch = rows.slice(offset, offset + QUEUE_WRITE_BATCH_SIZE);
-      const operations = batch.map((row) => ({
+      const resolvedBatch = await this.resolveLatestIdentityRows(batch);
+      const operations = resolvedBatch.map((row) => ({
         updateOne: {
           filter: { characterId: row._id },
           update: {
@@ -287,7 +390,7 @@ export class CharacterMediaService {
 
       if (force) {
         const requeued = await CharacterMediaFetchQueue.updateMany(
-          { characterId: { $in: batch.map((row) => row._id) }, status: { $in: ["completed", "failed", "not_found"] } },
+          { characterId: { $in: resolvedBatch.map((row) => row._id) }, status: { $in: ["completed", "failed", "not_found"] } },
           {
             $set: {
               status: "pending",
@@ -304,6 +407,45 @@ export class CharacterMediaService {
     }
 
     return queued;
+  }
+
+  private async resolveLatestIdentityRows(rows: CharacterMediaQueueRow[]): Promise<CharacterMediaQueueRow[]> {
+    const latestRows = await CharacterRaidParticipation.find({
+      characterId: { $in: rows.map((row) => row._id) },
+    })
+      .sort({ lastSeenAt: -1, zoneId: -1, _id: -1 })
+      .select("characterId characterName characterRealm characterRegion lastSeenAt")
+      .lean<Array<{
+        characterId: mongoose.Types.ObjectId;
+        characterName: string;
+        characterRealm: string;
+        characterRegion: string;
+        lastSeenAt: Date;
+      }>>();
+    const latestByCharacterId = new Map<string, (typeof latestRows)[number]>();
+
+    for (const latest of latestRows) {
+      const characterId = String(latest.characterId);
+      if (!latestByCharacterId.has(characterId)) latestByCharacterId.set(characterId, latest);
+    }
+
+    return rows.map((row) => {
+      const latest = latestByCharacterId.get(String(row._id));
+      return {
+        ...row,
+        ...resolveBlizzardCharacterIdentity(
+          row,
+          latest
+            ? {
+                name: latest.characterName,
+                realm: latest.characterRealm,
+                region: latest.characterRegion,
+                observedAt: latest.lastSeenAt,
+              }
+            : null,
+        ),
+      };
+    });
   }
 
   startProcessing(): boolean {

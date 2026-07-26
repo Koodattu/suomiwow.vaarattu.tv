@@ -11,6 +11,7 @@ export interface ICharacterReportGuildSnapshot {
 export interface ICharacterReportAppearance extends Document {
   characterId?: mongoose.Types.ObjectId | null;
   wclCanonicalCharacterId?: number | null;
+  manualIdentityLinkId?: mongoose.Types.ObjectId | null;
   sourceIdentityKey: string;
   appearanceSource: "rankedCharacters" | "reportRankings";
   reportCode: string;
@@ -44,6 +45,7 @@ const CharacterReportAppearanceSchema = new Schema<ICharacterReportAppearance>(
   {
     characterId: { type: Schema.Types.ObjectId, ref: "Character", default: null, index: true },
     wclCanonicalCharacterId: { type: Number, default: null, index: true },
+    manualIdentityLinkId: { type: Schema.Types.ObjectId, ref: "CharacterIdentityLink", default: null, index: true },
     sourceIdentityKey: { type: String, required: true },
     appearanceSource: { type: String, enum: ["rankedCharacters", "reportRankings"], required: true, default: "rankedCharacters", index: true },
     reportCode: { type: String, required: true, index: true },

@@ -1,14 +1,22 @@
-import type { CcgArtVariant, CcgCard, CcgFinish, CcgTierGrade } from "@/types";
+import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCustomFinish, CcgFinish, CcgTierGrade } from "@/types";
 
-export const CCG_FINISH_ORDER: readonly CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
+export const CCG_BASE_FINISH_ORDER: readonly CcgBaseFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
+export const CCG_FINISH_ORDER: readonly CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "void", "toxic", "negative"];
 
 export const CCG_FINISH_PITY_LIMITS: Readonly<Record<Exclude<CcgFinish, "standard">, number>> = {
   foil: 5,
   golden: 25,
   prismatic: 50,
   holographic: 100,
+  void: 250,
+  toxic: 250,
   negative: 1000,
 };
+
+export function getCcgFinishOrder(customFinish?: CcgCustomFinish | null): readonly CcgFinish[] {
+  if (!customFinish) return CCG_BASE_FINISH_ORDER;
+  return [...CCG_BASE_FINISH_ORDER.slice(0, -1), customFinish, "negative"];
+}
 
 export const CCG_RARITY_KEYS: Record<CcgTierGrade, "artifact" | "legendary" | "epic" | "rare" | "uncommon" | "common" | "poor"> = {
   S: "artifact",
@@ -20,8 +28,9 @@ export const CCG_RARITY_KEYS: Record<CcgTierGrade, "artifact" | "legendary" | "e
   F: "poor",
 };
 
-export function compareCcgFinish(left: CcgFinish, right: CcgFinish): number {
-  return CCG_FINISH_ORDER.indexOf(left) - CCG_FINISH_ORDER.indexOf(right);
+export function compareCcgFinish(left: CcgFinish, right: CcgFinish, customFinish?: CcgCustomFinish | null): number {
+  const finishOrder = getCcgFinishOrder(customFinish);
+  return finishOrder.indexOf(left) - finishOrder.indexOf(right);
 }
 
 export function hasAlternativeArtwork(card: CcgCard | null): boolean {
@@ -37,7 +46,7 @@ export function bestOwnedFinish(
   const ownership = card.ownership?.filter((row) => !artVariant || row.artVariant === artVariant) ?? [];
   if (ownership.length === 0) return null;
   const row = [...ownership].sort((left, right) => (
-    compareCcgFinish(right.finish, left.finish)
+    compareCcgFinish(right.finish, left.finish, card.set.customFinish?.key)
     || Number(right.artVariant === "alternative") - Number(left.artVariant === "alternative")
   ))[0];
   const quantityByFinish = (card.ownership ?? []).reduce((quantities, item) => {

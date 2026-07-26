@@ -5,8 +5,11 @@ import {
   CCG_COMMUNITY_SET,
   CCG_CONFIGURED_SETS,
   CCG_FINISH_ORDER,
+  CCG_FINISH_PITY_LIMITS,
   CCG_INITIAL_PACKS,
   CCG_PACK_STORAGE_CAPS,
+  CcgFinish,
+  getCcgFinishOrder,
   normalizeCcgRaidName,
 } from "../src/config/ccg";
 import {
@@ -35,6 +38,7 @@ import {
 } from "../src/utils/ccg-random";
 import { planPackSelections, selectCommunityCard, selectPackCards } from "../src/utils/ccg-pack";
 import { createWowCharacterIdentityKey } from "../src/utils/ccg-identity";
+import { getTransferableGuestPacks, verifyGuestLibrary } from "../src/utils/ccg-guest-library";
 import { nextCcgCardSnapshotVersion, shouldPublishCcgCardSnapshot } from "../src/utils/ccg-card-snapshot";
 import { normalizeCcgRedeemCode } from "../src/utils/ccg-redeem";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
@@ -238,6 +242,56 @@ test("owned finishes are resolved per raid card and only completed-card duplicat
   });
 });
 
+test("raid-scoped finishes extend only their configured set's ladder", () => {
+  const defaultOrder = getCcgFinishOrder();
+  const voidOrder = getCcgFinishOrder("void");
+  const toxicOrder = getCcgFinishOrder("toxic");
+  assert.deepEqual(defaultOrder, ["standard", "foil", "golden", "prismatic", "holographic", "negative"]);
+  assert.deepEqual(voidOrder, ["standard", "foil", "golden", "prismatic", "holographic", "void", "negative"]);
+  assert.deepEqual(toxicOrder, ["standard", "foil", "golden", "prismatic", "holographic", "toxic", "negative"]);
+  assert.deepEqual(
+    resolveOwnedFinish("negative", new Set<CcgFinish>(defaultOrder), voidOrder),
+    { finish: "void", isDuplicate: true, isCompletedCardDuplicate: false },
+  );
+  assert.equal(
+    resolveOwnedFinish("void", new Set<CcgFinish>(voidOrder), voidOrder).isCompletedCardDuplicate,
+    true,
+  );
+  assert.equal(CCG_CONFIGURED_SETS.find((set) => set.slug === "march-on-queldanas")?.customFinish?.key, "void");
+});
+
+test("raid-scoped finish pity rolls only when that finish is in the active ladder", () => {
+  const voidOrder = getCcgFinishOrder("void");
+  const result = rollOwnedFinish(
+    { ...emptyFinishPity(), void: 249 },
+    new Set(),
+    (maximum) => maximum - 1,
+    voidOrder,
+    { ...CCG_FINISH_PITY_LIMITS, void: 250 },
+  );
+  assert.equal(result.finish, "void");
+  assert.equal(result.pity.void, 0);
+
+  const toxicOrder = getCcgFinishOrder("toxic");
+  const toxicResult = rollOwnedFinish(
+    { ...emptyFinishPity(), toxic: 249 },
+    new Set(),
+    (maximum) => maximum - 1,
+    toxicOrder,
+    { ...CCG_FINISH_PITY_LIMITS, toxic: 250 },
+  );
+  assert.equal(toxicResult.finish, "toxic");
+  assert.equal(toxicResult.pity.toxic, 0);
+
+  const baseResult = rollOwnedFinish(
+    { ...emptyFinishPity(), void: 249 },
+    new Set(),
+    (maximum) => maximum - 1,
+  );
+  assert.equal(baseResult.finish, "standard");
+  assert.equal(baseResult.pity.void, undefined);
+});
+
 test("a promoted duplicate resets protection for the rolled and awarded finishes", () => {
   const pity = { ...emptyFinishPity(), foil: 4, golden: 10 };
   const result = rollOwnedFinish(pity, new Set(["standard", "foil"]), (maximum) => maximum - 1);
@@ -265,6 +319,10 @@ test("quality protection stays flat until late soft pity and then accelerates", 
   assert.ok(finishChanceForCounter(81, 100) > 0.01);
   assert.ok(finishChanceForCounter(95, 100) > finishChanceForCounter(90, 100));
   assert.equal(finishChanceForCounter(100, 100), 1);
+  assert.equal(finishChanceForCounter(1, 250), 1 / 250);
+  assert.equal(finishChanceForCounter(200, 250), 1 / 250);
+  assert.ok(finishChanceForCounter(201, 250) > 1 / 250);
+  assert.equal(finishChanceForCounter(250, 250), 1);
 
   const pity = { ...emptyFinishPity(), golden: 9 };
   let rollIndex = 0;
@@ -291,15 +349,71 @@ test("a pack cannot be produced when no A-or-better card exists", () => {
 
 test("first-time pack grants distinguish guest and authenticated storage", () => {
   assert.deepEqual(CCG_PACK_STORAGE_CAPS, { current: 25, legacy: 25 });
-  assert.deepEqual(CCG_INITIAL_PACKS.guest, { current: 5, legacy: 5 });
-  assert.deepEqual(CCG_INITIAL_PACKS.user, { current: 25, legacy: 25 });
+  assert.deepEqual(CCG_INITIAL_PACKS.guest, { current: 20, legacy: 20 });
+  assert.deepEqual(CCG_INITIAL_PACKS.user, { current: 20, legacy: 20 });
 });
 
-test("pack recharge follows shared Helsinki hour boundaries and respects storage caps", () => {
+test("guest conversion transfers remaining server packs with a 20-pack cap per mode", () => {
+  assert.deepEqual(getTransferableGuestPacks({ current: 14, legacy: 7 }), { current: 14, legacy: 7 });
+  assert.deepEqual(getTransferableGuestPacks({ current: 2_000, legacy: 21 }), { current: 20, legacy: 20 });
+  assert.deepEqual(getTransferableGuestPacks({ current: -4, legacy: 8.9 }), { current: 0, legacy: 8 });
+  assert.deepEqual(getTransferableGuestPacks(null), { current: 0, legacy: 0 });
+});
+
+test("guest conversion accepts only ownership reproduced by server opening history", () => {
+  const openings = [
+    {
+      mode: "current" as const,
+      results: [
+        { cardId: "card-1", finish: "standard" as const, artVariant: "standard" as const, isDuplicate: false },
+        { cardId: "card-2", finish: "foil" as const, artVariant: "alternative" as const, isDuplicate: false },
+        { cardId: "card-3", finish: "standard" as const, artVariant: "standard" as const, isDuplicate: false },
+        { cardId: "card-4", finish: "standard" as const, artVariant: "standard" as const, isDuplicate: false },
+        { cardId: "card-1", finish: "standard" as const, artVariant: "alternative" as const, isDuplicate: true },
+      ],
+    },
+    {
+      mode: "legacy" as const,
+      results: [
+        { cardId: "card-5", finish: "standard" as const, artVariant: "standard" as const, isDuplicate: false },
+        { cardId: "card-6", finish: "golden" as const, artVariant: "standard" as const, isDuplicate: false },
+        { cardId: "card-7", finish: "standard" as const, artVariant: "standard" as const, isDuplicate: false },
+        { cardId: "card-8", finish: "standard" as const, artVariant: "standard" as const, isDuplicate: false },
+        { cardId: "card-9", finish: "standard" as const, artVariant: "standard" as const, isDuplicate: false },
+      ],
+    },
+  ];
+  const ownership = [
+    { cardId: "card-1", finish: "standard" as const, quantity: 2, alternativeQuantity: 1 },
+    { cardId: "card-2", finish: "foil" as const, quantity: 1, alternativeQuantity: 1 },
+    { cardId: "card-3", finish: "standard" as const, quantity: 1, alternativeQuantity: 0 },
+    { cardId: "card-4", finish: "standard" as const, quantity: 1, alternativeQuantity: 0 },
+    { cardId: "card-5", finish: "standard" as const, quantity: 1, alternativeQuantity: 0 },
+    { cardId: "card-6", finish: "golden" as const, quantity: 1, alternativeQuantity: 0 },
+    { cardId: "card-7", finish: "standard" as const, quantity: 1, alternativeQuantity: 0 },
+    { cardId: "card-8", finish: "standard" as const, quantity: 1, alternativeQuantity: 0 },
+    { cardId: "card-9", finish: "standard" as const, quantity: 1, alternativeQuantity: 0 },
+  ];
+
+  assert.deepEqual(verifyGuestLibrary(openings, ownership), {
+    cards: { current: 5, legacy: 5 },
+    duplicates: { current: 1, legacy: 0 },
+    totalCards: 10,
+  });
+  assert.equal(
+    verifyGuestLibrary(openings, ownership.map((row) => (
+      row.cardId === "card-1" ? { ...row, quantity: 3 } : row
+    ))),
+    null,
+  );
+});
+
+test("pack recharge follows shared Helsinki half-hour boundaries and respects storage caps", () => {
   const grants = getRechargeGrants(new Date("2026-01-01T07:00:00.000Z"), new Date("2026-01-01T10:05:00.000Z"));
-  assert.deepEqual(grants, { current: 2, legacy: 3 });
+  assert.deepEqual(grants, { current: 3, legacy: 6 });
   assert.equal(getNextPackRechargeAt("current", new Date("2026-07-24T10:30:00.000Z")).toISOString(), "2026-07-24T11:00:00.000Z");
   assert.equal(getNextPackRechargeAt("legacy", new Date("2026-07-24T10:30:00.000Z")).toISOString(), "2026-07-24T11:00:00.000Z");
+  assert.equal(getNextPackRechargeAt("legacy", new Date("2026-07-24T10:20:00.000Z")).toISOString(), "2026-07-24T10:30:00.000Z");
 
   const recharged = applyPackRecharge(
     { current: CCG_PACK_STORAGE_CAPS.current - 1, legacy: CCG_PACK_STORAGE_CAPS.legacy - 1 },
@@ -351,7 +465,7 @@ test("raid rollover includes lazy recharge accrued before the cutover", () => {
     25,
   );
 
-  assert.deepEqual(rollover.balances, { current: 25, legacy: 10 });
+  assert.deepEqual(rollover.balances, { current: 25, legacy: 13 });
   assert.equal(rollover.regularCurrentMoved, 21);
   assert.equal(rollover.lastRechargeAt.toISOString(), "2026-01-01T10:00:00.000Z");
 });

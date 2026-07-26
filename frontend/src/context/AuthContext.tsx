@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { AuthUser } from "@/types";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -95,6 +95,12 @@ function clearPendingCcgClaim(): void {
   }
 }
 
+function removeOpeningFromInternalPath(path: string): string {
+  const url = new URL(path, window.location.origin);
+  url.searchParams.delete("opening");
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -106,20 +112,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (currentUser && typeof window !== "undefined") {
         const pendingCcgClaim = readPendingCcgClaim();
+        let claimCompleted = false;
+        let claimDiscarded = false;
         if (pendingCcgClaim) {
           try {
-            await api.claimCcgGuest(pendingCcgClaim.openingId, pendingCcgClaim.idempotencyKey);
-          } catch (error) {
-            console.warn("The selected guest pack could not be claimed:", error);
-          } finally {
+            const result = await api.claimCcgGuest(pendingCcgClaim.openingId, pendingCcgClaim.idempotencyKey);
+            claimCompleted = result.claimed || result.alreadyClaimed;
+            claimDiscarded = !claimCompleted;
             clearPendingCcgClaim();
+          } catch (error) {
+            const terminalCodes = new Set([
+              "ccg_account_already_started",
+              "guest_already_claimed",
+              "guest_expired",
+              "guest_library_invalid",
+              "guest_opening_not_found",
+              "invalid_id",
+            ]);
+            if (error instanceof ApiError && error.code && terminalCodes.has(error.code)) {
+              claimDiscarded = true;
+              clearPendingCcgClaim();
+            } else {
+              console.warn("The guest collection could not be claimed yet:", error);
+            }
           }
         }
         const returnTo = consumePostLoginReturnTo();
-        const safeReturnTo = returnTo ? normalizeSafeInternalPath(returnTo) : null;
+        let safeReturnTo = returnTo ? normalizeSafeInternalPath(returnTo) : null;
         const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-        if (safeReturnTo && currentPath !== safeReturnTo) {
+        if (claimDiscarded) {
+          safeReturnTo = removeOpeningFromInternalPath(safeReturnTo ?? currentPath);
+        }
+        if (safeReturnTo) {
           window.location.replace(safeReturnTo);
+        } else if (claimCompleted) {
+          window.location.reload();
         }
       }
     } catch (error) {

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { FaGift, FaIdCard, FaTicket } from "react-icons/fa6";
 import { api } from "@/lib/api";
-import { hasAlternativeArtwork } from "@/lib/ccg";
+import { getCcgFinishOrder, hasAlternativeArtwork } from "@/lib/ccg";
 import { formatRealmName } from "@/lib/utils";
 import type { CcgAdminRedeemCode, CcgArtVariant, CcgCard, CcgFinish } from "@/types";
 
@@ -30,7 +30,6 @@ const emptyDraft: Draft = {
   finish: "standard",
   artVariant: "standard",
 };
-const finishes: readonly CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
 const codePattern = /^[A-Z0-9]+(?:[-_][A-Z0-9]+)*$/;
 const fieldClass = "min-h-10 w-full rounded-md border border-white/10 bg-gray-950/75 px-3 text-sm text-white outline-none transition-[border-color,box-shadow] placeholder:text-gray-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50";
 const secondaryButton = "min-h-10 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-gray-200 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09)] transition-[background-color,scale] duration-150 ease-out hover:bg-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
@@ -62,6 +61,10 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
     [selectedCard],
   );
   const selectedVariant = variants.find((variant) => variant.id === selectedVariantId) ?? variants[0] ?? null;
+  const finishes = useMemo(
+    () => getCcgFinishOrder(selectedVariant?.set.customFinish?.key),
+    [selectedVariant?.set.customFinish?.key],
+  );
   const customArtAvailable = hasAlternativeArtwork(selectedVariant);
 
   useEffect(() => {
@@ -119,6 +122,11 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
       setDraft((current) => ({ ...current, artVariant: "standard" }));
     }
   }, [customArtAvailable, draft.artVariant]);
+
+  useEffect(() => {
+    if (finishes.includes(draft.finish)) return;
+    setDraft((current) => ({ ...current, finish: "standard" }));
+  }, [draft.finish, finishes]);
 
   const normalizedCode = draft.code.trim().toUpperCase();
   const validCode = normalizedCode.length >= 3 && normalizedCode.length <= 64 && codePattern.test(normalizedCode);

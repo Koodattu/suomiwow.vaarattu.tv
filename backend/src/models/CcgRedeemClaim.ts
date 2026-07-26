@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CcgArtVariant, CcgFinish } from "../config/ccg";
+import { CCG_FINISH_ORDER, CcgArtVariant, CcgFinish } from "../config/ccg";
 import type { CcgRedeemRewardType } from "./CcgRedeemCode";
 
 export interface ICcgRedeemClaim extends Document {
@@ -22,7 +22,7 @@ const CcgRedeemClaimSchema = new Schema<ICcgRedeemClaim>(
     currentPacks: { type: Number, required: true, min: 0, default: 0 },
     legacyPacks: { type: Number, required: true, min: 0, default: 0 },
     cardId: { type: Schema.Types.ObjectId, ref: "CcgCard", default: null },
-    finish: { type: String, enum: ["standard", "foil", "golden", "prismatic", "holographic", "negative", null], default: null },
+    finish: { type: String, enum: [...CCG_FINISH_ORDER, null], default: null },
     artVariant: { type: String, enum: ["standard", "alternative", null], default: null },
     redeemedAt: { type: Date, required: true, default: Date.now },
   },

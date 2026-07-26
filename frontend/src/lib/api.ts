@@ -54,6 +54,7 @@ import {
   AdminOverview,
   AdminCharactersResponse,
   AdminCharacterStats,
+  AdminCharacterIdentityLinkPreview,
   TaskLogsResponse,
   TaskLogsLatestResponse,
   HomePageData,
@@ -531,6 +532,7 @@ export const api = {
     claimed: boolean;
     alreadyClaimed: boolean;
     cards: { current: number; legacy: number };
+    transferredPacks: { current: number; legacy: number };
     startingPacks: number;
   }> {
     const response = await fetch(`${API_URL}/api/ccg/guest/claim`, {
@@ -1444,6 +1446,78 @@ export const api = {
       credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to fetch pickem details");
+    return response.json();
+  },
+
+  async setAdminCharacterBlizzardIdentity(characterId: string, identity: { name: string; realm: string }): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/api/admin/characters/${characterId}/blizzard-identity`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(identity),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to set character Blizzard identity");
+    }
+    return response.json();
+  },
+
+  async clearAdminCharacterBlizzardIdentity(characterId: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/api/admin/characters/${characterId}/blizzard-identity`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to clear character Blizzard identity");
+    }
+    return response.json();
+  },
+
+  async previewAdminCharacterIdentityLink(
+    characterId: string,
+    source: { name: string; realm: string; region: string; classID: number },
+  ): Promise<AdminCharacterIdentityLinkPreview> {
+    const response = await fetch(`${API_URL}/api/admin/characters/${characterId}/identity-links/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(source),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to preview character identity link");
+    }
+    return response.json();
+  },
+
+  async createAdminCharacterIdentityLink(
+    characterId: string,
+    source: { name: string; realm: string; region: string; classID: number },
+  ): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/api/admin/characters/${characterId}/identity-links`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(source),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to create character identity link");
+    }
+    return response.json();
+  },
+
+  async removeAdminCharacterIdentityLink(characterId: string, linkId: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/api/admin/characters/${characterId}/identity-links/${linkId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to remove character identity link");
+    }
     return response.json();
   },
 

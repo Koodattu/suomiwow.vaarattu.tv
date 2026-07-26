@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CcgArtVariant, CcgFinish } from "../config/ccg";
+import { CCG_FINISH_ORDER, CcgArtVariant, CcgFinish } from "../config/ccg";
 import { CCG_REDEEM_CODE_PATTERN, CCG_REDEEM_PACK_GRANT_MAX } from "../utils/ccg-redeem";
 
 export type CcgRedeemRewardType = "packs" | "card";
@@ -37,7 +37,7 @@ const CcgRedeemCodeSchema = new Schema<ICcgRedeemCode>(
     cardId: { type: Schema.Types.ObjectId, ref: "CcgCard", default: null, immutable: true },
     finish: {
       type: String,
-      enum: ["standard", "foil", "golden", "prismatic", "holographic", "negative", null],
+      enum: [...CCG_FINISH_ORDER, null],
       default: null,
       immutable: true,
     },

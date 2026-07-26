@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CcgSetKind, CcgSetState } from "../config/ccg";
+import { CCG_CUSTOM_FINISHES, CcgCustomFinishConfig, CcgSetKind, CcgSetState } from "../config/ccg";
 
 export interface ICcgSet extends Document {
   slug: string;
@@ -17,6 +17,7 @@ export interface ICcgSet extends Document {
   themeKey: string;
   themeVersion: string;
   theme: { mark: string; accent: string; glow: string };
+  customFinish?: CcgCustomFinishConfig | null;
   backgroundPath: string;
   packArtOffsetX: number;
   backgroundSafeCrop: { x: number; y: number; scale: number; xJitter: number; yJitter: number };
@@ -30,6 +31,14 @@ export interface ICcgSet extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
+
+const CustomFinishSchema = new Schema(
+  {
+    key: { type: String, enum: CCG_CUSTOM_FINISHES, required: true },
+    hardPity: { type: Number, required: true, min: 2 },
+  },
+  { _id: false },
+);
 
 const CcgSetSchema = new Schema<ICcgSet>(
   {
@@ -52,6 +61,7 @@ const CcgSetSchema = new Schema<ICcgSet>(
       accent: { type: String, required: true },
       glow: { type: String, required: true },
     },
+    customFinish: { type: CustomFinishSchema, default: null },
     backgroundPath: { type: String, required: true },
     packArtOffsetX: { type: Number, required: true, default: 50, min: 0, max: 100 },
     backgroundSafeCrop: {

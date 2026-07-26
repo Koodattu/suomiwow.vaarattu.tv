@@ -1278,6 +1278,47 @@ export interface AdminCharacter {
   className: string;
   lastMythicSeenAt: string | null;
   rankingsAvailable: boolean | null;
+  blizzardIdentity: {
+    name: string;
+    realm: string;
+    region: string;
+  };
+  blizzardIdentityOverride: {
+    name: string;
+    realm: string;
+    updatedAt: string;
+    updatedBy: string;
+    active: boolean;
+  } | null;
+  identityLinks: AdminCharacterIdentityLink[];
+}
+
+export interface AdminCharacterIdentityLink {
+  id: string;
+  sourceName: string;
+  sourceRealm: string;
+  sourceRegion: string;
+  sourceClassID: number;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface AdminCharacterIdentityLinkPreview {
+  eligible: boolean;
+  blockers: string[];
+  source: { name: string; realm: string; region: string; classID: number };
+  target: { id: string; name: string; realm: string; region: string; classID: number; wclCanonicalCharacterId: number };
+  impact: {
+    appearanceCount: number;
+    unresolvedAppearanceCount: number;
+    conflictingAppearanceCount: number;
+    reportCollisionCount: number;
+    raidCount: number;
+    guildCount: number;
+    firstSeenAt: string | null;
+    lastSeenAt: string | null;
+  };
+  existingLink: { id: string; targetCharacterId: string; createdBy: string; createdAt: string } | null;
 }
 
 export interface AdminCharactersResponse {
@@ -1885,7 +1926,9 @@ export type CharacterProfileChoicesResponse = {
 export type CharacterProfileLookupResponse = CharacterProfileResponse | CharacterProfileChoicesResponse;
 
 export type CcgMode = "current" | "legacy";
-export type CcgFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative";
+export type CcgBaseFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative";
+export type CcgCustomFinish = "void" | "toxic";
+export type CcgFinish = CcgBaseFinish | CcgCustomFinish;
 export type CcgArtVariant = "standard" | "alternative";
 export type CcgTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";
 
@@ -1900,6 +1943,7 @@ export type CcgSet = {
   enabledAt: string | null;
   themeKey: string;
   theme: { mark: string; accent: string; glow: string };
+  customFinish: { key: CcgCustomFinish; hardPity: number } | null;
   backgroundPath: string;
   packArtOffsetX: number;
   cardCount: number;
@@ -1971,7 +2015,16 @@ export type CcgSession = {
   resetAt: string;
   packs: Record<CcgMode, { regularRemaining: number; bonusRemaining: number; totalRemaining: number }>;
   recharge: Record<CcgMode, { cap: number; intervalHours: number; nextAt: string }>;
-  qualityProtection: Record<Exclude<CcgFinish, "standard">, number>;
+  qualityProtection: Record<Exclude<CcgBaseFinish, "standard">, number>;
+  qualityChances: Record<Exclude<CcgBaseFinish, "standard">, number>;
+  customQualityProtection: Array<{
+    setSlug: string;
+    raidName: string;
+    finish: CcgCustomFinish;
+    counter: number;
+    hardPity: number;
+    nextChance: number;
+  }>;
   ownedFinishes: number;
 };
 

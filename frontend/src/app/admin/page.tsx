@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
@@ -91,6 +91,7 @@ import {
   DeleteGuildPreviewResponse,
   DeleteGuildResponse,
   AdminCharacter,
+  AdminCharacterIdentityLinkPreview,
   AdminCharacterStats,
   CharacterRankingBackfillStatusResponse,
   CharacterAchievementBackfillStatusResponse,
@@ -340,6 +341,17 @@ export default function AdminPage() {
   const [charactersTotalPages, setCharactersTotalPages] = useState(1);
   const [characterSearch, setCharacterSearch] = useState("");
   const [characterSearchDebounced, setCharacterSearchDebounced] = useState("");
+  const [editingBlizzardIdentity, setEditingBlizzardIdentity] = useState<{ characterId: string; name: string; realm: string } | null>(null);
+  const [blizzardIdentitySavingId, setBlizzardIdentitySavingId] = useState<string | null>(null);
+  const [editingIdentityLink, setEditingIdentityLink] = useState<{
+    characterId: string;
+    name: string;
+    realm: string;
+    region: string;
+    classID: number;
+  } | null>(null);
+  const [identityLinkPreview, setIdentityLinkPreview] = useState<AdminCharacterIdentityLinkPreview | null>(null);
+  const [identityLinkLoading, setIdentityLinkLoading] = useState(false);
 
   // Pickems data
   const [pickems, setPickems] = useState<AdminPickem[]>([]);
@@ -1738,6 +1750,104 @@ export default function AdminPage() {
     }
   };
 
+  const refreshAdminCharacters = async () => {
+    const charsData = await api.getAdminCharacters(charactersPage, 50, characterSearchDebounced || undefined);
+    setCharacters(charsData.characters);
+    setCharactersTotalPages(charsData.pagination.totalPages);
+  };
+
+  const handleSaveBlizzardIdentity = async () => {
+    if (!editingBlizzardIdentity) return;
+
+    setBlizzardIdentitySavingId(editingBlizzardIdentity.characterId);
+    try {
+      const result = await api.setAdminCharacterBlizzardIdentity(editingBlizzardIdentity.characterId, {
+        name: editingBlizzardIdentity.name.trim(),
+        realm: editingBlizzardIdentity.realm.trim(),
+      });
+      setTriggerMessage({ type: "success", text: result.message });
+      setEditingBlizzardIdentity(null);
+      await refreshAdminCharacters();
+    } catch (error) {
+      setTriggerMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : t("characters.identitySaveFailed"),
+      });
+    } finally {
+      setBlizzardIdentitySavingId(null);
+    }
+  };
+
+  const handleClearBlizzardIdentity = async (character: AdminCharacter) => {
+    if (!confirm(t("characters.identityClearConfirm", { name: character.blizzardIdentity.name, realm: character.blizzardIdentity.realm }))) return;
+
+    setBlizzardIdentitySavingId(character.id);
+    try {
+      const result = await api.clearAdminCharacterBlizzardIdentity(character.id);
+      setTriggerMessage({ type: "success", text: result.message });
+      setEditingBlizzardIdentity(null);
+      await refreshAdminCharacters();
+    } catch (error) {
+      setTriggerMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : t("characters.identityClearFailed"),
+      });
+    } finally {
+      setBlizzardIdentitySavingId(null);
+    }
+  };
+
+  const handlePreviewIdentityLink = async () => {
+    if (!editingIdentityLink) return;
+    setIdentityLinkLoading(true);
+    setIdentityLinkPreview(null);
+    try {
+      const preview = await api.previewAdminCharacterIdentityLink(editingIdentityLink.characterId, {
+        name: editingIdentityLink.name.trim(),
+        realm: editingIdentityLink.realm.trim(),
+        region: editingIdentityLink.region.trim(),
+        classID: editingIdentityLink.classID,
+      });
+      setIdentityLinkPreview(preview);
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : t("characters.linkPreviewFailed") });
+    } finally {
+      setIdentityLinkLoading(false);
+    }
+  };
+
+  const handleCreateIdentityLink = async () => {
+    if (!editingIdentityLink || !identityLinkPreview?.eligible) return;
+    setIdentityLinkLoading(true);
+    try {
+      const result = await api.createAdminCharacterIdentityLink(editingIdentityLink.characterId, identityLinkPreview.source);
+      setTriggerMessage({ type: "success", text: result.message });
+      setEditingIdentityLink(null);
+      setIdentityLinkPreview(null);
+      await refreshAdminCharacters();
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : t("characters.linkCreateFailed") });
+    } finally {
+      setIdentityLinkLoading(false);
+    }
+  };
+
+  const handleRemoveIdentityLink = async (character: AdminCharacter, linkId: string, alias: string) => {
+    if (!confirm(t("characters.linkRemoveConfirm", { alias, target: `${character.name}-${character.realm}` }))) return;
+    setIdentityLinkLoading(true);
+    try {
+      const result = await api.removeAdminCharacterIdentityLink(character.id, linkId);
+      setTriggerMessage({ type: "success", text: result.message });
+      setEditingIdentityLink(null);
+      setIdentityLinkPreview(null);
+      await refreshAdminCharacters();
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : t("characters.linkRemoveFailed") });
+    } finally {
+      setIdentityLinkLoading(false);
+    }
+  };
+
   // Handler for deleting a character
   const handleDeleteCharacterClick = async (characterId: string, characterName: string, characterRealm: string) => {
     if (!confirm(`Delete character ${characterName}-${characterRealm} and all associated rankings?`)) return;
@@ -1748,10 +1858,7 @@ export default function AdminPage() {
       setTriggerMessage({ type: "success", text: result.message });
       setTimeout(() => setTriggerMessage(null), 5000);
 
-      // Refresh characters list
-      const [charsData, charStatsData] = await Promise.all([api.getAdminCharacters(charactersPage, 50, characterSearchDebounced || undefined), api.getAdminCharacterStats()]);
-      setCharacters(charsData.characters);
-      setCharactersTotalPages(charsData.pagination.totalPages);
+      const [charStatsData] = await Promise.all([api.getAdminCharacterStats(), refreshAdminCharacters()]);
       setCharacterStats(charStatsData);
     } catch (error) {
       setTriggerMessage({
@@ -2348,8 +2455,8 @@ export default function AdminPage() {
                   <div className="text-amber-400">Loading...</div>
                 </div>
               )}
-              <div className="bg-gray-800 rounded-lg overflow-hidden">
-                <table className="w-full">
+              <div className="bg-gray-800 rounded-xl overflow-x-auto shadow-lg shadow-black/15">
+                <table className="w-full min-w-[1150px]">
                   <thead className="bg-gray-900">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">{t("guilds.name")}</th>
@@ -3175,35 +3282,320 @@ export default function AdminPage() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">{t("characters.class")}</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">{t("characters.realm")}</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">{t("characters.region")}</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">{t("characters.blizzardIdentity")}</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">{t("characters.lastSeen")}</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">{t("characters.rankings")}</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Actions</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">{t("characters.actions")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
-                    {characters.map((char) => (
-                      <tr key={char.id} className="hover:bg-gray-750">
-                        <td className="px-4 py-3 text-white font-medium">{char.name}</td>
-                        <td className="px-4 py-3 text-gray-300">{char.className}</td>
-                        <td className="px-4 py-3 text-gray-300">{char.realm}</td>
-                        <td className="px-4 py-3 text-gray-300 uppercase">{char.region}</td>
-                        <td className="px-4 py-3 text-gray-400 text-sm">{char.lastMythicSeenAt ? new Date(char.lastMythicSeenAt).toLocaleDateString() : "—"}</td>
-                        <td className="px-4 py-3">
-                          {char.rankingsAvailable === true && <span className="px-2 py-0.5 text-xs rounded-full bg-green-900/30 text-green-400">{t("characters.available")}</span>}
-                          {char.rankingsAvailable === false && <span className="px-2 py-0.5 text-xs rounded-full bg-red-900/30 text-red-400">{t("characters.unavailable")}</span>}
-                          {char.rankingsAvailable === null && <span className="px-2 py-0.5 text-xs rounded-full bg-gray-700 text-gray-400">{t("characters.unknown")}</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => handleDeleteCharacterClick(char.id, char.name, char.realm)}
-                            className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
-                            title="Delete character and rankings"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {characters.map((char) => {
+                      const isEditingIdentity = editingBlizzardIdentity?.characterId === char.id;
+                      const isEditingLink = editingIdentityLink?.characterId === char.id;
+                      const isSavingIdentity = blizzardIdentitySavingId === char.id;
+
+                      return (
+                        <Fragment key={char.id}>
+                          <tr className="hover:bg-gray-750">
+                            <td className="px-4 py-3 text-white font-medium">
+                              <div>{char.name}</div>
+                              {char.identityLinks.length > 0 && (
+                                <div className="mt-0.5 text-xs font-normal text-blue-300 tabular-nums">
+                                  {t("characters.linkedAliasCount", { count: char.identityLinks.length })}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-gray-300">{char.className}</td>
+                            <td className="px-4 py-3 text-gray-300">{char.realm}</td>
+                            <td className="px-4 py-3 text-gray-300 uppercase">{char.region}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-white">{char.blizzardIdentity.name}</span>
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-xs ${
+                                    char.blizzardIdentityOverride?.active
+                                      ? "bg-amber-500/15 text-amber-300"
+                                      : char.blizzardIdentityOverride
+                                        ? "bg-blue-500/15 text-blue-300"
+                                        : "bg-gray-700 text-gray-400"
+                                  }`}
+                                >
+                                  {char.blizzardIdentityOverride?.active
+                                    ? t("characters.identityManual")
+                                    : char.blizzardIdentityOverride
+                                      ? t("characters.identitySuperseded")
+                                      : t("characters.identityAutomatic")}
+                                </span>
+                              </div>
+                              <div className="mt-0.5 text-xs text-gray-400">{char.blizzardIdentity.realm}</div>
+                            </td>
+                            <td className="px-4 py-3 text-gray-400 text-sm">{char.lastMythicSeenAt ? new Date(char.lastMythicSeenAt).toLocaleDateString() : "—"}</td>
+                            <td className="px-4 py-3">
+                              {char.rankingsAvailable === true && <span className="px-2 py-0.5 text-xs rounded-full bg-green-900/30 text-green-400">{t("characters.available")}</span>}
+                              {char.rankingsAvailable === false && <span className="px-2 py-0.5 text-xs rounded-full bg-red-900/30 text-red-400">{t("characters.unavailable")}</span>}
+                              {char.rankingsAvailable === null && <span className="px-2 py-0.5 text-xs rounded-full bg-gray-700 text-gray-400">{t("characters.unknown")}</span>}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setEditingIdentityLink(null);
+                                    setIdentityLinkPreview(null);
+                                    setEditingBlizzardIdentity({
+                                      characterId: char.id,
+                                      name: char.blizzardIdentity.name,
+                                      realm: char.blizzardIdentity.realm,
+                                    });
+                                  }}
+                                  aria-expanded={isEditingIdentity}
+                                  className="min-h-10 rounded-lg bg-gray-700 px-3 text-xs font-medium text-white transition-colors hover:bg-gray-600 active:scale-[0.96]"
+                                >
+                                  {t("characters.identityEdit")}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingBlizzardIdentity(null);
+                                    setIdentityLinkPreview(null);
+                                    setEditingIdentityLink({
+                                      characterId: char.id,
+                                      name: "",
+                                      realm: "",
+                                      region: char.region.toLowerCase(),
+                                      classID: char.classID,
+                                    });
+                                  }}
+                                  aria-expanded={isEditingLink}
+                                  className="min-h-10 rounded-lg bg-blue-600 px-3 text-xs font-medium text-white transition-colors hover:bg-blue-700 active:scale-[0.96]"
+                                >
+                                  {t("characters.linkAlias")}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteCharacterClick(char.id, char.name, char.realm)}
+                                  className="min-h-10 rounded-lg bg-red-600 px-3 text-xs font-medium text-white transition-colors hover:bg-red-700 active:scale-[0.96]"
+                                  title={t("characters.deleteTitle")}
+                                >
+                                  {t("characters.delete")}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {isEditingIdentity && editingBlizzardIdentity && (
+                            <tr className="bg-gray-900/70">
+                              <td colSpan={8} className="px-4 py-4">
+                                <div className="rounded-xl border border-amber-500/25 bg-gray-900 p-4 shadow-md shadow-black/15">
+                                  <div className="mb-4">
+                                    <h4 className="font-semibold text-white">{t("characters.identityEditorTitle")}</h4>
+                                    <p className="mt-1 max-w-3xl text-sm text-gray-400 text-pretty">{t("characters.identityEditorDescription")}</p>
+                                  </div>
+                                  <div className="grid gap-3 md:grid-cols-[minmax(180px,1fr)_minmax(220px,1fr)_auto] md:items-end">
+                                    <label className="block text-sm text-gray-300">
+                                      <span className="mb-1.5 block">{t("characters.identityName")}</span>
+                                      <input
+                                        value={editingBlizzardIdentity.name}
+                                        onChange={(event) => setEditingBlizzardIdentity({ ...editingBlizzardIdentity, name: event.target.value })}
+                                        className="min-h-10 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 text-white outline-none transition-colors focus:border-amber-500"
+                                        autoComplete="off"
+                                      />
+                                    </label>
+                                    <label className="block text-sm text-gray-300">
+                                      <span className="mb-1.5 block">{t("characters.identityRealm")}</span>
+                                      <input
+                                        value={editingBlizzardIdentity.realm}
+                                        onChange={(event) => setEditingBlizzardIdentity({ ...editingBlizzardIdentity, realm: event.target.value })}
+                                        className="min-h-10 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 text-white outline-none transition-colors focus:border-amber-500"
+                                        autoComplete="off"
+                                      />
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                      <button
+                                        onClick={handleSaveBlizzardIdentity}
+                                        disabled={isSavingIdentity || !editingBlizzardIdentity.name.trim() || !editingBlizzardIdentity.realm.trim()}
+                                        className="min-h-10 rounded-lg bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        {isSavingIdentity ? t("characters.identitySaving") : t("characters.identitySave")}
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingBlizzardIdentity(null)}
+                                        disabled={isSavingIdentity}
+                                        className="min-h-10 rounded-lg bg-gray-700 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-600 active:scale-[0.96] disabled:opacity-50"
+                                      >
+                                        {t("characters.identityCancel")}
+                                      </button>
+                                      {char.blizzardIdentityOverride && (
+                                        <button
+                                          onClick={() => handleClearBlizzardIdentity(char)}
+                                          disabled={isSavingIdentity}
+                                          className="min-h-10 rounded-lg px-3 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/10 active:scale-[0.96] disabled:opacity-50"
+                                        >
+                                          {t("characters.identityClear")}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {char.blizzardIdentityOverride && (
+                                    <p className="mt-3 text-xs text-gray-500">
+                                      {t("characters.identityUpdated", {
+                                        user: char.blizzardIdentityOverride.updatedBy,
+                                        date: new Date(char.blizzardIdentityOverride.updatedAt).toLocaleString(),
+                                      })}
+                                    </p>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          {isEditingLink && editingIdentityLink && (
+                            <tr className="bg-gray-900/70">
+                              <td colSpan={8} className="px-4 py-4">
+                                <div className="rounded-xl border border-blue-500/25 bg-gray-900 p-4 shadow-md shadow-black/15">
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                      <h4 className="font-semibold text-white text-balance">{t("characters.linkEditorTitle")}</h4>
+                                      <p className="mt-1 max-w-3xl text-sm text-gray-400 text-pretty">{t("characters.linkEditorDescription")}</p>
+                                    </div>
+                                    <div className="rounded-lg bg-blue-500/10 px-3 py-2 text-sm text-blue-200">
+                                      {t("characters.linkTarget")}: <span className="font-semibold">{char.name}-{char.realm}</span>
+                                    </div>
+                                  </div>
+
+                                  {char.identityLinks.length > 0 && (
+                                    <div className="mt-4 rounded-lg bg-gray-800/70 p-3">
+                                      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">{t("characters.linkExisting")}</div>
+                                      <div className="flex flex-wrap gap-2">
+                                        {char.identityLinks.map((link) => {
+                                          const alias = `${link.sourceName}-${link.sourceRealm}`;
+                                          return (
+                                            <div key={link.id} className="flex min-h-10 items-center gap-2 rounded-lg bg-gray-800 pl-3 shadow-sm shadow-black/10">
+                                              <span className="text-sm text-gray-200">{alias}</span>
+                                              <button
+                                                onClick={() => handleRemoveIdentityLink(char, link.id, alias)}
+                                                disabled={identityLinkLoading}
+                                                className="min-h-10 rounded-r-lg px-3 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/10 active:scale-[0.96] disabled:opacity-50"
+                                              >
+                                                {t("characters.linkRemove")}
+                                              </button>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="mt-4 grid gap-3 md:grid-cols-[minmax(160px,1fr)_minmax(190px,1fr)_120px_auto] md:items-end">
+                                    <label className="block text-sm text-gray-300">
+                                      <span className="mb-1.5 block">{t("characters.linkSourceName")}</span>
+                                      <input
+                                        value={editingIdentityLink.name}
+                                        onChange={(event) => {
+                                          setEditingIdentityLink({ ...editingIdentityLink, name: event.target.value });
+                                          setIdentityLinkPreview(null);
+                                        }}
+                                        className="min-h-10 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 text-white outline-none transition-colors focus:border-blue-500"
+                                        autoComplete="off"
+                                      />
+                                    </label>
+                                    <label className="block text-sm text-gray-300">
+                                      <span className="mb-1.5 block">{t("characters.linkSourceRealm")}</span>
+                                      <input
+                                        value={editingIdentityLink.realm}
+                                        onChange={(event) => {
+                                          setEditingIdentityLink({ ...editingIdentityLink, realm: event.target.value });
+                                          setIdentityLinkPreview(null);
+                                        }}
+                                        className="min-h-10 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 text-white outline-none transition-colors focus:border-blue-500"
+                                        autoComplete="off"
+                                      />
+                                    </label>
+                                    <label className="block text-sm text-gray-300">
+                                      <span className="mb-1.5 block">{t("characters.linkSourceRegion")}</span>
+                                      <input
+                                        value={editingIdentityLink.region}
+                                        onChange={(event) => {
+                                          setEditingIdentityLink({ ...editingIdentityLink, region: event.target.value });
+                                          setIdentityLinkPreview(null);
+                                        }}
+                                        className="min-h-10 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 uppercase text-white outline-none transition-colors focus:border-blue-500"
+                                        autoComplete="off"
+                                      />
+                                    </label>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={handlePreviewIdentityLink}
+                                        disabled={identityLinkLoading || !editingIdentityLink.name.trim() || !editingIdentityLink.realm.trim() || !editingIdentityLink.region.trim()}
+                                        className="min-h-10 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition-colors hover:bg-blue-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        {identityLinkLoading ? t("characters.linkWorking") : t("characters.linkPreview")}
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setEditingIdentityLink(null);
+                                          setIdentityLinkPreview(null);
+                                        }}
+                                        disabled={identityLinkLoading}
+                                        className="min-h-10 rounded-lg bg-gray-700 px-3 text-sm font-medium text-white transition-colors hover:bg-gray-600 active:scale-[0.96] disabled:opacity-50"
+                                      >
+                                        {t("characters.identityCancel")}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {identityLinkPreview && (
+                                    <div className={`mt-4 rounded-lg p-4 ${identityLinkPreview.eligible ? "bg-emerald-500/10" : "bg-red-500/10"}`}>
+                                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                        <div>
+                                          <div className="text-xs text-gray-400">{t("characters.linkAppearances")}</div>
+                                          <div className="mt-0.5 text-lg font-semibold text-white tabular-nums">{identityLinkPreview.impact.appearanceCount}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-gray-400">{t("characters.linkRaids")}</div>
+                                          <div className="mt-0.5 text-lg font-semibold text-white tabular-nums">{identityLinkPreview.impact.raidCount}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-gray-400">{t("characters.linkGuilds")}</div>
+                                          <div className="mt-0.5 text-lg font-semibold text-white tabular-nums">{identityLinkPreview.impact.guildCount}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-gray-400">{t("characters.linkDateRange")}</div>
+                                          <div className="mt-1 text-xs text-gray-200 tabular-nums">
+                                            {identityLinkPreview.impact.firstSeenAt && identityLinkPreview.impact.lastSeenAt
+                                              ? `${new Date(identityLinkPreview.impact.firstSeenAt).toLocaleDateString()} – ${new Date(identityLinkPreview.impact.lastSeenAt).toLocaleDateString()}`
+                                              : "—"}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      {identityLinkPreview.blockers.length > 0 && (
+                                        <ul className="mt-3 space-y-1 text-sm text-red-300">
+                                          {identityLinkPreview.blockers.map((blocker) => (
+                                            <li key={blocker}>• {t(`characters.linkBlockers.${blocker}`)}</li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                      {identityLinkPreview.eligible && (
+                                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                                          <p className="max-w-2xl text-sm text-emerald-200 text-pretty">
+                                            {t("characters.linkPreviewReady", {
+                                              source: `${identityLinkPreview.source.name}-${identityLinkPreview.source.realm}`,
+                                              target: `${identityLinkPreview.target.name}-${identityLinkPreview.target.realm}`,
+                                            })}
+                                          </p>
+                                          <button
+                                            onClick={handleCreateIdentityLink}
+                                            disabled={identityLinkLoading}
+                                            className="min-h-10 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 active:scale-[0.96] disabled:opacity-50"
+                                          >
+                                            {identityLinkLoading ? t("characters.linkRebuilding") : t("characters.linkConfirm")}
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
 

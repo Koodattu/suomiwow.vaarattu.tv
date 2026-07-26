@@ -9,7 +9,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { FaArrowUpRightFromSquare, FaVolumeHigh } from "react-icons/fa6";
 import type { CcgArtVariant, CcgCard, CcgFinish } from "@/types";
 import { useAuth } from "@/context/AuthContext";
-import { bestOwnedFinish, CCG_RARITY_KEYS } from "@/lib/ccg";
+import { bestOwnedFinish, CCG_RARITY_KEYS, compareCcgFinish } from "@/lib/ccg";
 import { playCcgInspectSound, playCcgQuip } from "@/lib/ccg-audio";
 import { formatRealmName } from "@/lib/utils";
 import CollectibleCard from "./CollectibleCard";
@@ -139,7 +139,9 @@ export default function CardViewer({
   const displayedCard = selectedVariant.card;
   const ownership = selectedVariant.ownership;
   const ownedArtVariants = (["standard", "alternative"] as const).filter((value) => ownership.some((row) => row.artVariant === value));
-  const ownedFinishes = ownership.filter((row) => row.artVariant === artVariant);
+  const ownedFinishes = ownership
+    .filter((row) => row.artVariant === artVariant)
+    .sort((left, right) => compareCcgFinish(left.finish, right.finish, displayedCard.set.customFinish?.key));
   const isOwned = ownership.length > 0;
   const characterHref = `/characters/${encodeURIComponent(displayedCard.realm)}/${encodeURIComponent(displayedCard.name)}?class=${encodeURIComponent(String(displayedCard.classID))}`;
   const selectVariant = (index: number) => {

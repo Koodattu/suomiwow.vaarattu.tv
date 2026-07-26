@@ -1622,6 +1622,11 @@
   color: #ff8fe1;
 }
 
+.collectionQualitySelect[data-finish="unique"],
+.collectionQualitySelect option[data-finish="unique"] {
+  color: #bda7ff;
+}
+
 .collectionQualitySelect[data-finish="negative"],
 .collectionQualitySelect option[data-finish="negative"] {
   color: #a9ffdc;

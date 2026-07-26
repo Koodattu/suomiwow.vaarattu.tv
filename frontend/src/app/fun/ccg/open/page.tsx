@@ -4,10 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { CcgFinish, CcgMode, CcgOpening, CcgTierGrade } from "@/types";
+import type { CcgBaseFinish, CcgFinish, CcgMode, CcgOpening, CcgTierGrade } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
-import { CCG_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS } from "@/lib/ccg";
+import { CCG_BASE_FINISH_ORDER, CCG_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS } from "@/lib/ccg";
 import { getCcgAnnouncerSoundSources, getCcgPlaybackVolume, type CcgAudioChannel } from "@/lib/ccg-audio";
 import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
 import { getCharacterRenderProxyUrl } from "@/lib/character-render";
@@ -33,15 +33,18 @@ const dealOffsets = ["215%", "108%", "0%", "-108%", "-215%"];
 const dealAngles = [8, 4, 0, -4, -8];
 const RANDOM_LEGACY_SET = "random";
 const cardSlideSounds = Array.from({ length: 8 }, (_, index) => `/ccg/audio/card-slide-${index + 1}.mp3`);
-const qualitySoundFiles: Record<CcgFinish, string> = {
+const qualitySoundFiles: Partial<Record<CcgFinish, string>> = {
   standard: "1-standard.mp3",
   foil: "2-foil.mp3",
   golden: "3-golden.mp3",
   prismatic: "4-prismatic.mp3",
   holographic: "5-holographic.mp3",
+  void: "7-void.mp3",
   negative: "6-negative.mp3",
 };
-const protectedFinishes = CCG_FINISH_ORDER.filter((finish): finish is Exclude<CcgFinish, "standard"> => finish !== "standard");
+const protectedFinishes = CCG_BASE_FINISH_ORDER.filter(
+  (finish): finish is Exclude<CcgBaseFinish, "standard"> => finish !== "standard",
+);
 const standardQualitySoundGrades = new Set<CcgTierGrade>(["S", "A", "B", "C", "D"]);
 const tearParticles = [
   { x: -132, y: -74, rotate: -34, delay: 90 },
@@ -98,16 +101,16 @@ function playRandomPackSound(audios: Array<HTMLAudioElement | null>, volume: num
 }
 
 function hasQualityRevealSound(finish: CcgFinish, tierGrade: CcgTierGrade): boolean {
-  return finish !== "standard" || standardQualitySoundGrades.has(tierGrade);
+  return Boolean(qualitySoundFiles[finish]) && (finish !== "standard" || standardQualitySoundGrades.has(tierGrade));
 }
 
 export default function CcgOpenPage() {
   const t = useTranslations("ccg");
   const locale = useLocale() === "fi" ? "fi" : "en";
-  const { login, user } = useAuth();
+  const { login, user, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
-  const sessionQuery = useCcgSession();
-  const setsQuery = useCcgSets();
+  const sessionQuery = useCcgSession(!authLoading);
+  const setsQuery = useCcgSets(!authLoading);
   const raidsQuery = useRaids();
   const [mode, setMode] = useState<CcgMode>("current");
   const [opening, setOpening] = useState<CcgOpening | null>(null);
@@ -140,7 +143,7 @@ export default function CcgOpenPage() {
   const sealedMotionFrame = useRef<number | null>(null);
   const pendingSealedMotion = useRef<{ element: HTMLButtonElement; x: number; y: number } | null>(null);
   const nextPackTimerRef = useRef<number | null>(null);
-  const recoveryQuery = useCcgOpening(recoveryId);
+  const recoveryQuery = useCcgOpening(recoveryId, !authLoading);
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets;
   const modeSets = useMemo(() => (sets ?? []).filter((set) => set.kind === "raid" && set.state === mode && set.cardCount > 0), [mode, sets]);
@@ -156,6 +159,31 @@ export default function CcgOpenPage() {
   const randomLegacy = mode === "legacy" && !selectedLegacySet;
   const featuredPackSet = mode === "legacy" ? selectedLegacySet : modeSets[0];
   const selectedPackSets = mode === "legacy" && selectedLegacySet ? [selectedLegacySet] : modeSets;
+  const hasCustomQualityRow = selectedPackSets.some((set) => Boolean(set.customFinish));
+  const qualityRows = useMemo(() => [
+    ...protectedFinishes.map((finish) => ({
+      key: finish,
+      finish,
+      counter: session?.qualityProtection[finish] ?? 0,
+      hardPity: CCG_FINISH_PITY_LIMITS[finish],
+      nextChance: session?.qualityChances[finish] ?? (1 / CCG_FINISH_PITY_LIMITS[finish]),
+    })),
+    ...selectedPackSets.flatMap((set) => {
+      if (!set.customFinish) return [];
+      const progress = session?.customQualityProtection?.find((row) => row.setSlug === set.slug);
+      return [{
+        key: `${set.slug}:${set.customFinish.key}`,
+        finish: set.customFinish.key,
+        counter: progress?.counter ?? 0,
+        hardPity: set.customFinish.hardPity,
+        nextChance: progress?.nextChance ?? (1 / set.customFinish.hardPity),
+      }];
+    }),
+  ], [selectedPackSets, session]);
+  const oddsFormat = useMemo(
+    () => new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }),
+    [locale],
+  );
   const selectedPackCardCount = selectedPackSets.reduce((total, set) => total + set.cardCount, 0);
   const selectedPackOwnedCount = selectedPackSets.reduce((total, set) => total + set.ownedCards, 0);
   const selectedPackProgress = selectedPackCardCount > 0 ? Math.min(1, selectedPackOwnedCount / selectedPackCardCount) : 0;
@@ -696,23 +724,35 @@ export default function CcgOpenPage() {
                         <section className={packStyles.qualityDetail}>
                           <h2>{t("open.qualityProgressEyebrow")}</h2>
                           <dl>
-                            {protectedFinishes.map((finish) => (
-                              <div key={finish}>
-                                <dt>{t(`finish.${finish}`)}</dt>
-                                <dd>{session.qualityProtection[finish]} / {CCG_FINISH_PITY_LIMITS[finish]}</dd>
+                            {qualityRows.map((row) => (
+                              <div key={row.key}>
+                                <dt>{t(`finish.${row.finish}`)}</dt>
+                                <dd>{row.counter} / {row.hardPity}</dd>
                               </div>
                             ))}
+                            {!hasCustomQualityRow ? (
+                              <div className={packStyles.qualityRowPlaceholder} aria-hidden="true">
+                                <dt>&nbsp;</dt>
+                                <dd>&nbsp;</dd>
+                              </div>
+                            ) : null}
                           </dl>
                         </section>
                         <section className={packStyles.qualityDetail}>
                           <h2>{t("open.qualityChancesEyebrow")}</h2>
                           <dl>
-                            {protectedFinishes.map((finish) => (
-                              <div key={finish}>
-                                <dt>{t(`finish.${finish}`)}</dt>
-                                <dd>{t("open.qualityChance", { odds: CCG_FINISH_PITY_LIMITS[finish] })}</dd>
+                            {qualityRows.map((row) => (
+                              <div key={row.key}>
+                                <dt>{t(`finish.${row.finish}`)}</dt>
+                                <dd>{t("open.qualityChance", { odds: oddsFormat.format(1 / row.nextChance) })}</dd>
                               </div>
                             ))}
+                            {!hasCustomQualityRow ? (
+                              <div className={packStyles.qualityRowPlaceholder} aria-hidden="true">
+                                <dt>&nbsp;</dt>
+                                <dd>&nbsp;</dd>
+                              </div>
+                            ) : null}
                           </dl>
                         </section>
                       </div>
@@ -1016,14 +1056,15 @@ export default function CcgOpenPage() {
       ))}
       {Array.from({ length: 5 }, (_, index) => {
         const result = opening?.results[index];
+        const soundFile = result ? qualitySoundFiles[result.finish] : undefined;
         return (
           <audio
             key={`quality-${index}`}
             ref={(element) => {
               qualityAudioRefs.current[index] = element;
             }}
-            src={result && hasQualityRevealSound(result.finish, result.card.tierGrade)
-              ? `/ccg/audio/quality/${qualitySoundFiles[result.finish]}`
+            src={result && soundFile && hasQualityRevealSound(result.finish, result.card.tierGrade)
+              ? `/ccg/audio/quality/${soundFile}`
               : undefined}
             preload="auto"
             aria-hidden="true"

@@ -28,6 +28,8 @@ const FinishCountsSchema = new Schema(
     golden: { type: Number, required: true, default: 0, min: 0 },
     prismatic: { type: Number, required: true, default: 0, min: 0 },
     holographic: { type: Number, required: true, default: 0, min: 0 },
+    void: { type: Number, required: true, default: 0, min: 0 },
+    toxic: { type: Number, required: true, default: 0, min: 0 },
     negative: { type: Number, required: true, default: 0, min: 0 },
   },
   { _id: false },

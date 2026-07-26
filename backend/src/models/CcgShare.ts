@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CcgArtVariant, CcgFinish } from "../config/ccg";
+import { CCG_FINISH_ORDER, CcgArtVariant, CcgFinish } from "../config/ccg";
 
 export type CcgShareKind = "card" | "pack";
 
@@ -22,7 +22,7 @@ const CcgShareSchema = new Schema<ICcgShare>(
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     cardId: { type: Schema.Types.ObjectId, ref: "CcgCard", default: null },
     openingId: { type: Schema.Types.ObjectId, ref: "CcgPackOpening", default: null },
-    finish: { type: String, enum: ["standard", "foil", "golden", "prismatic", "holographic", "negative"], default: null },
+    finish: { type: String, enum: CCG_FINISH_ORDER, default: null },
     artVariant: { type: String, enum: ["standard", "alternative"], default: null },
   },
   { timestamps: true },

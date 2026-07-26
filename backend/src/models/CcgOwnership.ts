@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CcgFinish } from "../config/ccg";
+import { CCG_FINISH_ORDER, CcgFinish } from "../config/ccg";
 
 export type CcgOwnerType = "user" | "guest";
 
@@ -21,7 +21,7 @@ const CcgOwnershipSchema = new Schema<ICcgOwnership>(
     ownerType: { type: String, enum: ["user", "guest"], required: true, index: true },
     ownerId: { type: Schema.Types.ObjectId, required: true, index: true },
     cardId: { type: Schema.Types.ObjectId, ref: "CcgCard", required: true, index: true },
-    finish: { type: String, enum: ["standard", "foil", "golden", "prismatic", "holographic", "negative"], required: true },
+    finish: { type: String, enum: CCG_FINISH_ORDER, required: true },
     quantity: { type: Number, required: true, min: 1, default: 1 },
     alternativeQuantity: { type: Number, required: true, min: 0, default: 0 },
     firstAcquiredAt: { type: Date, required: true, default: Date.now },

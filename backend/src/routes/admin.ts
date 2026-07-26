@@ -9,6 +9,8 @@ import Event from "../models/Event";
 import TierList from "../models/TierList";
 import Raid from "../models/Raid";
 import Character from "../models/Character";
+import CharacterIdentityLink from "../models/CharacterIdentityLink";
+import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import Ranking from "../models/Ranking";
 import CharacterLeaderboard from "../models/CharacterLeaderboard";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
@@ -23,10 +25,13 @@ import GuildProcessingQueue, { ProcessingStatus } from "../models/GuildProcessin
 import GuildLogSource from "../models/GuildLogSource";
 import taskTracker from "../services/task-tracker.service";
 import logger from "../utils/logger";
+import { isBlizzardIdentityOverrideActive, resolveBlizzardCharacterIdentity } from "../utils/character-identity";
 import { getRegularPickemRaidIdsValidationError } from "../utils/pickemRaid";
 import scheduler from "../services/scheduler.service";
 import guildService, { GuildReportImportError } from "../services/guild.service";
 import characterService from "../services/character.service";
+import characterMediaService from "../services/character-media.service";
+import characterIdentityLinkService, { CharacterIdentityLinkError } from "../services/character-identity-link.service";
 import characterMechanicsService from "../services/character-mechanics.service";
 import characterTierListService from "../services/character-tierlist.service";
 import characterRankingBackfillService from "../services/character-ranking-backfill.service";
@@ -3566,10 +3571,40 @@ router.get("/characters", async (req: Request, res: Response) => {
 
     const query: any = {};
     if (search) {
-      query.$or = [{ name: { $regex: search, $options: "i" } }, { realm: { $regex: search, $options: "i" } }];
+      const matchingParticipationCharacterIds = await CharacterRaidParticipation.distinct("characterId", {
+        $or: [{ characterName: { $regex: search, $options: "i" } }, { characterRealm: { $regex: search, $options: "i" } }],
+      });
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { realm: { $regex: search, $options: "i" } },
+        { "blizzardIdentityOverride.name": { $regex: search, $options: "i" } },
+        { "blizzardIdentityOverride.realm": { $regex: search, $options: "i" } },
+        { _id: { $in: matchingParticipationCharacterIds } },
+      ];
     }
 
     const [characters, total] = await Promise.all([Character.find(query).sort({ lastMythicSeenAt: -1, name: 1 }).skip(skip).limit(limit).lean(), Character.countDocuments(query)]);
+    const [latestParticipationRows, identityLinks] = await Promise.all([
+      CharacterRaidParticipation.find({ characterId: { $in: characters.map((character) => character._id) } })
+        .sort({ lastSeenAt: -1, zoneId: -1, _id: -1 })
+        .select("characterId characterName characterRealm characterRegion lastSeenAt")
+        .lean(),
+      CharacterIdentityLink.find({ targetCharacterId: { $in: characters.map((character) => character._id) } })
+        .sort({ createdAt: 1 })
+        .lean(),
+    ]);
+    const latestParticipationByCharacterId = new Map<string, (typeof latestParticipationRows)[number]>();
+    for (const participation of latestParticipationRows) {
+      const characterId = String(participation.characterId);
+      if (!latestParticipationByCharacterId.has(characterId)) latestParticipationByCharacterId.set(characterId, participation);
+    }
+    const identityLinksByTargetId = new Map<string, typeof identityLinks>();
+    for (const link of identityLinks) {
+      const targetId = String(link.targetCharacterId);
+      const links = identityLinksByTargetId.get(targetId) ?? [];
+      links.push(link);
+      identityLinksByTargetId.set(targetId, links);
+    }
 
     // Build class name lookup
     const classNameMap = new Map<number, string>();
@@ -3577,16 +3612,49 @@ router.get("/characters", async (req: Request, res: Response) => {
       classNameMap.set(cls.id, cls.name);
     }
 
-    const formatted = characters.map((c) => ({
-      id: c._id.toString(),
-      name: c.name,
-      realm: c.realm,
-      region: c.region,
-      classID: c.classID,
-      className: classNameMap.get(c.classID) || `Unknown (${c.classID})`,
-      lastMythicSeenAt: c.lastMythicSeenAt,
-      rankingsAvailable: c.rankingsAvailable,
-    }));
+    const formatted = characters.map((c) => {
+      const latestParticipation = latestParticipationByCharacterId.get(c._id.toString());
+      const automaticIdentity = {
+        name: latestParticipation?.characterName ?? c.name,
+        realm: latestParticipation?.characterRealm ?? c.realm,
+        region: latestParticipation?.characterRegion ?? c.region,
+      };
+      const latestObservedIdentity = latestParticipation
+        ? { ...automaticIdentity, observedAt: latestParticipation.lastSeenAt }
+        : null;
+      const overrideActive = isBlizzardIdentityOverrideActive(c, latestObservedIdentity);
+      const override = c.blizzardIdentityOverride
+        ? {
+            name: c.blizzardIdentityOverride.name,
+            realm: c.blizzardIdentityOverride.realm,
+            updatedAt: c.blizzardIdentityOverride.updatedAt,
+            updatedBy: c.blizzardIdentityOverride.updatedBy,
+            active: overrideActive,
+          }
+        : null;
+
+      return {
+        id: c._id.toString(),
+        name: automaticIdentity.name,
+        realm: automaticIdentity.realm,
+        region: automaticIdentity.region,
+        classID: c.classID,
+        className: classNameMap.get(c.classID) || `Unknown (${c.classID})`,
+        lastMythicSeenAt: c.lastMythicSeenAt,
+        rankingsAvailable: c.rankingsAvailable,
+        blizzardIdentity: resolveBlizzardCharacterIdentity(c, latestObservedIdentity),
+        blizzardIdentityOverride: override,
+        identityLinks: (identityLinksByTargetId.get(c._id.toString()) ?? []).map((link) => ({
+          id: link._id.toString(),
+          sourceName: link.sourceName,
+          sourceRealm: link.sourceRealm,
+          sourceRegion: link.sourceRegion,
+          sourceClassID: link.sourceClassID,
+          createdBy: link.createdBy,
+          createdAt: link.createdAt,
+        })),
+      };
+    });
 
     res.json({
       characters: formatted,
@@ -3600,6 +3668,156 @@ router.get("/characters", async (req: Request, res: Response) => {
   } catch (error) {
     logger.error("Error fetching characters:", error);
     res.status(500).json({ error: "Failed to fetch characters" });
+  }
+});
+
+router.post("/characters/:characterId/identity-links/preview", async (req: Request, res: Response) => {
+  try {
+    const preview = await characterIdentityLinkService.preview(req.params.characterId, {
+      name: req.body?.name,
+      realm: req.body?.realm,
+      region: req.body?.region,
+      classID: Number(req.body?.classID),
+    });
+    res.json(preview);
+  } catch (error) {
+    if (error instanceof CharacterIdentityLinkError) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code, preview: error.preview });
+    }
+    logger.error("Error previewing character identity link:", error);
+    res.status(500).json({ error: "Failed to preview character identity link" });
+  }
+});
+
+router.post("/characters/:characterId/identity-links", async (req: Request, res: Response) => {
+  try {
+    const createdBy = (req as any).user?.discord?.username || "admin";
+    const { link, preview } = await characterIdentityLinkService.create(
+      req.params.characterId,
+      {
+        name: req.body?.name,
+        realm: req.body?.realm,
+        region: req.body?.region,
+        classID: Number(req.body?.classID),
+      },
+      createdBy,
+    );
+    let rebuild: { deleted: number; inserted: number } | null = null;
+    let rebuildWarning: string | null = null;
+    try {
+      rebuild = await characterService.rebuildCharacterRaidParticipations();
+    } catch (error) {
+      rebuildWarning = "The link was saved, but character participation rebuild failed; run the rebuild manually";
+      logger.error(`Character identity link ${link._id.toString()} was saved but participation rebuild failed:`, error);
+    }
+    logger.info(
+      `Admin ${createdBy} linked ${preview.source.name}-${preview.source.realm} to ${preview.target.name}-${preview.target.realm} ` +
+        `(link ${link._id.toString()}, ${preview.impact.unresolvedAppearanceCount} appearances, rebuilt ${rebuild?.inserted ?? 0} participation rows)`,
+    );
+    res.status(rebuildWarning ? 202 : 200).json({
+      success: true,
+      message: rebuildWarning ?? `Linked ${preview.source.name}-${preview.source.realm} to ${preview.target.name}-${preview.target.realm}`,
+      linkId: link._id.toString(),
+      impact: preview.impact,
+      rebuild,
+      rebuildWarning,
+    });
+  } catch (error) {
+    if (error instanceof CharacterIdentityLinkError) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code, preview: error.preview });
+    }
+    logger.error("Error creating character identity link:", error);
+    res.status(500).json({ error: "Failed to create character identity link" });
+  }
+});
+
+router.delete("/characters/:characterId/identity-links/:linkId", async (req: Request, res: Response) => {
+  try {
+    await characterIdentityLinkService.remove(req.params.characterId, req.params.linkId);
+    let rebuild: { deleted: number; inserted: number } | null = null;
+    let rebuildWarning: string | null = null;
+    try {
+      rebuild = await characterService.rebuildCharacterRaidParticipations();
+    } catch (error) {
+      rebuildWarning = "The link was removed, but character participation rebuild failed; run the rebuild manually";
+      logger.error(`Character identity link ${req.params.linkId} was removed but participation rebuild failed:`, error);
+    }
+    const updatedBy = (req as any).user?.discord?.username || "admin";
+    logger.info(`Admin ${updatedBy} removed character identity link ${req.params.linkId}; rebuilt ${rebuild?.inserted ?? 0} participation rows`);
+    res.status(rebuildWarning ? 202 : 200).json({ success: true, message: rebuildWarning ?? "Character identity link removed", rebuild, rebuildWarning });
+  } catch (error) {
+    if (error instanceof CharacterIdentityLinkError) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    }
+    logger.error("Error removing character identity link:", error);
+    res.status(500).json({ error: "Failed to remove character identity link" });
+  }
+});
+
+router.put("/characters/:characterId/blizzard-identity", async (req: Request, res: Response) => {
+  try {
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    const realm = typeof req.body?.realm === "string" ? req.body.realm.trim() : "";
+
+    if (name.length < 2 || name.length > 24 || /\s/.test(name)) {
+      return res.status(400).json({ error: "Character name must be 2-24 characters and cannot contain spaces" });
+    }
+    if (realm.length < 2 || realm.length > 64) {
+      return res.status(400).json({ error: "Realm must be 2-64 characters" });
+    }
+
+    const updatedAt = new Date();
+    const updatedBy = (req as any).user?.discord?.username || "admin";
+    const character = await Character.findByIdAndUpdate(
+      req.params.characterId,
+      {
+        $set: {
+          blizzardIdentityOverride: {
+            name,
+            realm,
+            updatedAt,
+            updatedBy,
+          },
+        },
+      },
+      { new: true },
+    );
+
+    if (!character) return res.status(404).json({ error: "Character not found" });
+
+    await characterMediaService.enqueueCharacter(character._id.toString(), 200, true);
+    await cacheService.invalidatePattern(/^characters:profile:/);
+    logger.info(`Admin ${updatedBy} set Blizzard identity for ${character.name}-${character.realm} to ${name}-${realm} (ID: ${character._id.toString()})`);
+
+    res.json({
+      success: true,
+      message: `Blizzard identity set to ${name}-${realm}; character media refresh queued`,
+      blizzardIdentity: { name, realm, region: character.region },
+      blizzardIdentityOverride: { name, realm, updatedAt, updatedBy, active: true },
+    });
+  } catch (error) {
+    logger.error("Error setting character Blizzard identity:", error);
+    res.status(500).json({ error: "Failed to set character Blizzard identity" });
+  }
+});
+
+router.delete("/characters/:characterId/blizzard-identity", async (req: Request, res: Response) => {
+  try {
+    const character = await Character.findByIdAndUpdate(req.params.characterId, { $set: { blizzardIdentityOverride: null } }, { new: true });
+    if (!character) return res.status(404).json({ error: "Character not found" });
+
+    await characterMediaService.enqueueCharacter(character._id.toString(), 200, true);
+    await cacheService.invalidatePattern(/^characters:profile:/);
+    const updatedBy = (req as any).user?.discord?.username || "admin";
+    logger.info(`Admin ${updatedBy} cleared Blizzard identity override for ${character.name}-${character.realm} (ID: ${character._id.toString()})`);
+
+    res.json({
+      success: true,
+      message: `Blizzard identity override cleared; character media refresh queued`,
+    });
+  } catch (error) {
+    logger.error("Error clearing character Blizzard identity:", error);
+    res.status(500).json({ error: "Failed to clear character Blizzard identity" });
   }
 });
 

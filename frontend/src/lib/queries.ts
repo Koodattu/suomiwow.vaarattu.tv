@@ -464,10 +464,11 @@ export function useRaidCompare(raidId: number | null) {
   });
 }
 
-export function useCcgSession() {
+export function useCcgSession(enabled = true) {
   return useQuery({
     queryKey: queryKeys.ccg.session,
     queryFn: () => api.getCcgSession(),
+    enabled,
     staleTime: 15 * 1000,
     refetchInterval: (query) => {
       const session = query.state.data;
@@ -490,10 +491,11 @@ export function useCcgAnalytics() {
   });
 }
 
-export function useCcgSets() {
+export function useCcgSets(enabled = true) {
   return useQuery({
     queryKey: queryKeys.ccg.sets,
     queryFn: () => api.getCcgSets(),
+    enabled,
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -525,11 +527,11 @@ export function useCcgCollection(options: { page?: number; limit?: number; set?:
   });
 }
 
-export function useCcgOpening(openingId: string) {
+export function useCcgOpening(openingId: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.ccg.opening(openingId),
     queryFn: () => api.getCcgOpening(openingId),
-    enabled: Boolean(openingId),
+    enabled: enabled && Boolean(openingId),
     staleTime: Infinity,
   });
 }

@@ -9,8 +9,8 @@ import type {
   PointerEvent as ReactPointerEvent,
   WheelEvent as ReactWheelEvent,
 } from "react";
-import type { CcgArtVariant, CcgCard, CcgFinish, CcgTierGrade } from "@/types";
-import { bestOwnedFinish, CCG_FINISH_ORDER } from "@/lib/ccg";
+import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgFinish, CcgTierGrade } from "@/types";
+import { bestOwnedFinish, CCG_BASE_FINISH_ORDER } from "@/lib/ccg";
 import { getCcgPlaybackVolume } from "@/lib/ccg-audio";
 import { useCcgCatalog, useCcgCollection, useCcgCollectionGuilds, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
@@ -29,9 +29,11 @@ const rarities: Array<{ grade: CcgTierGrade; label: "artifact" | "legendary" | "
   { grade: "E", label: "common" },
   { grade: "F", label: "poor" },
 ];
-const finishes = [...CCG_FINISH_ORDER].reverse();
 const cardsPerPage = 12;
 const allSetsSlug = "__all__";
+const uniqueFinishFilter = "unique";
+type CollectionFinishFilter = CcgBaseFinish | typeof uniqueFinishFilter | "";
+type CollectionFinishOption = Exclude<CollectionFinishFilter, "">;
 
 function PageArrow({ direction }: { direction: "previous" | "next" }) {
   return (
@@ -96,7 +98,7 @@ export default function CcgCollectionPage() {
   const [includeMissing, setIncludeMissing] = useState(false);
   const [page, setPage] = useState(1);
   const [grade, setGrade] = useState("");
-  const [finish, setFinish] = useState<CcgFinish | "">("");
+  const [finish, setFinish] = useState<CollectionFinishFilter>("");
   const [viewerCard, setViewerCard] = useState<CcgCard | null>(null);
   const [viewerOriginElement, setViewerOriginElement] = useState<HTMLElement | null>(null);
   const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
@@ -113,6 +115,14 @@ export default function CcgCollectionPage() {
   const [canScrollSetsForward, setCanScrollSetsForward] = useState(false);
   const allSetsSelected = setSlug === allSetsSlug;
   const selectedSet = sets.find((set) => set.slug === setSlug);
+  const finishOptions = useMemo(() => {
+    const order: CollectionFinishOption[] = [...CCG_BASE_FINISH_ORDER];
+    const hasUniqueFinish = selectedSet
+      ? Boolean(selectedSet.customFinish)
+      : sets.some((set) => Boolean(set.customFinish));
+    if (hasUniqueFinish) order.splice(order.length - 1, 0, uniqueFinishFilter);
+    return [...order].reverse();
+  }, [selectedSet, sets]);
   const collectionSetSlug = allSetsSelected ? undefined : setSlug;
   const allCardCount = sets.reduce((total, set) => total + set.cardCount, 0);
   const allOwnedCount = sets.reduce((total, set) => total + set.ownedCards, 0);
@@ -159,6 +169,12 @@ export default function CcgCollectionPage() {
     if (!cardsData || page <= cardsData.pages || cardsData.pages === 0) return;
     setPage(cardsData.pages);
   }, [cardsData, page]);
+
+  useEffect(() => {
+    if (!finish || finishOptions.includes(finish)) return;
+    setFinish("");
+    setPage(1);
+  }, [finish, finishOptions]);
 
   const updateSetRailControls = useCallback(() => {
     const rail = setRailRef.current;
@@ -452,10 +468,14 @@ export default function CcgCollectionPage() {
                 className={styles.collectionQualitySelect}
                 data-finish={finish || undefined}
                 value={finish}
-                onChange={(event) => updateFilter(() => setFinish(event.target.value as CcgFinish | ""))}
+                onChange={(event) => updateFilter(() => setFinish(event.target.value as CollectionFinishFilter))}
               >
                 <option value="">{t("collection.allQualities")}</option>
-                {finishes.map((item) => <option key={item} value={item} data-finish={item}>{t(`finish.${item}`)}</option>)}
+                {finishOptions.map((item) => (
+                  <option key={item} value={item} data-finish={item}>
+                    {item === uniqueFinishFilter ? t("collection.uniqueQuality") : t(`finish.${item}`)}
+                  </option>
+                ))}
               </select>
             </label>
 

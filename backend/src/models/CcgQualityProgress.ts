@@ -9,6 +9,7 @@ export interface ICcgQualityProgress extends Document {
   prismatic: number;
   holographic: number;
   negative: number;
+  custom: Map<string, number>;
   expiresAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -23,6 +24,7 @@ const CcgQualityProgressSchema = new Schema<ICcgQualityProgress>(
     prismatic: { type: Number, required: true, min: 0, default: 0 },
     holographic: { type: Number, required: true, min: 0, default: 0 },
     negative: { type: Number, required: true, min: 0, default: 0 },
+    custom: { type: Map, of: Number, required: true, default: () => ({}) },
     expiresAt: { type: Date, default: null },
   },
   { timestamps: true },

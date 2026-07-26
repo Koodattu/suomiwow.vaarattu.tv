@@ -1,5 +1,7 @@
 export type CcgMode = "current" | "legacy";
-export type CcgFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative";
+export type CcgBaseFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative";
+export type CcgCustomFinish = "void" | "toxic";
+export type CcgFinish = CcgBaseFinish | CcgCustomFinish;
 export type CcgArtVariant = "standard" | "alternative";
 export type CcgTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";
 export type CcgSetState = "draft" | "current" | "legacy" | "locked";
@@ -9,14 +11,14 @@ export const CCG_TIME_ZONE = "Europe/Helsinki";
 export const CCG_FEATURE_ENABLED = process.env.CCG_FEATURE_ENABLED !== "false";
 export const CCG_CARDS_PER_PACK = 5;
 export const CCG_PACK_STORAGE_CAPS: Readonly<Record<CcgMode, number>> = { current: 25, legacy: 25 };
-export const CCG_PACK_RECHARGE_INTERVAL_HOURS: Readonly<Record<CcgMode, number>> = { current: 2, legacy: 1 };
+export const CCG_PACK_RECHARGE_INTERVAL_HOURS: Readonly<Record<CcgMode, number>> = { current: 1, legacy: 0.5 };
 export const CCG_INITIAL_PACKS = {
-  user: { current: 25, legacy: 25 },
-  guest: { current: 5, legacy: 5 },
+  user: { current: 20, legacy: 20 },
+  guest: { current: 20, legacy: 20 },
 };
-export const CCG_PACK_BALANCE_VERSION = 2;
+export const CCG_PACK_BALANCE_VERSION = 3;
 export const CCG_GUEST_COOKIE = "swccg_guest";
-export const CCG_PACK_RULE_VERSION = "pack-v10-down-first-late-pity";
+export const CCG_PACK_RULE_VERSION = "pack-v11-raid-finishes";
 export const CCG_GRADING_VERSION = "grade-v2-rarity-ladder";
 export const CCG_ELIGIBILITY_VERSION = "complete-scores-mythic-reports-v3";
 export const CCG_THEME_VERSION = "vault-v1";
@@ -74,7 +76,9 @@ export const CCG_GUARANTEED_GRADE_ODDS: Readonly<Record<CcgTierGrade, number>> =
   F: 0,
 };
 
-export const CCG_FINISH_ORDER: readonly CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
+export const CCG_BASE_FINISH_ORDER: readonly CcgBaseFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
+export const CCG_CUSTOM_FINISHES: readonly CcgCustomFinish[] = ["void", "toxic"];
+export const CCG_FINISH_ORDER: readonly CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "void", "toxic", "negative"];
 
 export type CcgProtectedFinish = Exclude<CcgFinish, "standard">;
 
@@ -83,8 +87,20 @@ export const CCG_FINISH_PITY_LIMITS: Readonly<Record<CcgProtectedFinish, number>
   golden: 25,
   prismatic: 50,
   holographic: 100,
+  void: 250,
+  toxic: 250,
   negative: 1000,
 };
+
+export type CcgCustomFinishConfig = {
+  key: CcgCustomFinish;
+  hardPity: number;
+};
+
+export function getCcgFinishOrder(customFinish?: CcgCustomFinish | null): readonly CcgFinish[] {
+  if (!customFinish) return CCG_BASE_FINISH_ORDER;
+  return [...CCG_BASE_FINISH_ORDER.slice(0, -1), customFinish, "negative"];
+}
 
 export type CcgBackgroundSafeCrop = {
   x: number;
@@ -107,6 +123,7 @@ export type CcgConfiguredSet = {
   mark: string;
   accent: string;
   glow: string;
+  customFinish?: CcgCustomFinishConfig;
   crop: CcgBackgroundSafeCrop;
 };
 
@@ -442,6 +459,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "MQD",
     accent: "#46CFFF",
     glow: "rgba(70, 207, 255, 0.35)",
+    customFinish: { key: "void", hardPity: 250 },
     crop: cropWithHorizontalRange(26, 80, 50, 1.1, 10),
   },
 ] as const satisfies readonly CcgConfiguredSet[];
