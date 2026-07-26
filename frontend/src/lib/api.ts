@@ -136,6 +136,7 @@ import {
   CcgCatalogResponse,
   CcgCollectionResponse,
   CcgGuildsResponse,
+  CcgCharacterSearchResponse,
   CcgMode,
   CcgFinish,
   CcgArtVariant,
@@ -270,7 +271,7 @@ export const api = {
 
   async getCcgCatalog(
     setSlug: string | undefined,
-    options: { page?: number; limit?: number; owned?: "all" | "owned" | "missing"; grade?: string; guild?: string; finish?: string } = {},
+    options: { page?: number; limit?: number; owned?: "all" | "owned" | "missing"; grade?: string; guild?: string; character?: string; finish?: string } = {},
   ): Promise<CcgCatalogResponse> {
     const params = new URLSearchParams();
     if (options.page) params.set("page", String(options.page));
@@ -278,6 +279,7 @@ export const api = {
     if (options.owned && options.owned !== "all") params.set("owned", options.owned);
     if (options.grade) params.set("grade", options.grade);
     if (options.guild) params.set("guild", options.guild);
+    if (options.character) params.set("character", options.character);
     if (options.finish) params.set("finish", options.finish);
     const path = setSlug
       ? `/api/ccg/sets/${encodeURIComponent(setSlug)}/catalog`
@@ -295,7 +297,14 @@ export const api = {
     return response.json();
   },
 
-  async getCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string } = {}): Promise<CcgCollectionResponse> {
+  async searchCcgCollectionCharacters(search: string, limit = 10): Promise<CcgCharacterSearchResponse> {
+    const params = new URLSearchParams({ q: search, limit: String(limit) });
+    const response = await fetch(`${API_URL}/api/ccg/collection/characters?${params}`);
+    if (!response.ok) throw await buildApiError(response, "Failed to search card characters");
+    return response.json();
+  },
+
+  async getCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string; character?: string } = {}): Promise<CcgCollectionResponse> {
     const params = new URLSearchParams();
     Object.entries(options).forEach(([key, value]) => {
       if (value !== undefined && value !== "") params.set(key, String(value));

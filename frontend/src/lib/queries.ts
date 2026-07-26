@@ -95,8 +95,9 @@ export const queryKeys = {
     analytics: ["ccg", "analytics"] as const,
     session: ["ccg", "session"] as const,
     sets: ["ccg", "sets"] as const,
-    catalog: (setSlug: string | undefined, page: number, owned: string, grade: string, guildId: string, finish: string, limit: number) => ["ccg", "catalog", setSlug ?? "all", page, owned, grade, guildId, finish, limit] as const,
+    catalog: (setSlug: string | undefined, page: number, owned: string, grade: string, guildId: string, characterId: string, finish: string, limit: number) => ["ccg", "catalog", setSlug ?? "all", page, owned, grade, guildId, characterId, finish, limit] as const,
     guilds: (setSlug?: string) => ["ccg", "guilds", setSlug ?? "all"] as const,
+    characterSearch: (search: string) => ["ccg", "characterSearch", search] as const,
     collection: (options: Record<string, unknown>) => ["ccg", "collection", options] as const,
     opening: (openingId: string) => ["ccg", "opening", openingId] as const,
   },
@@ -500,10 +501,10 @@ export function useCcgSets(enabled = true) {
   });
 }
 
-export function useCcgCatalog(setSlug: string | undefined, page: number, owned: "all" | "owned" | "missing", grade: string, guildId = "", finish = "", enabled = true, limit = 9) {
+export function useCcgCatalog(setSlug: string | undefined, page: number, owned: "all" | "owned" | "missing", grade: string, guildId = "", characterId = "", finish = "", enabled = true, limit = 9) {
   return useQuery({
-    queryKey: queryKeys.ccg.catalog(setSlug, page, owned, grade, guildId, finish, limit),
-    queryFn: () => api.getCcgCatalog(setSlug, { page, limit, owned, grade: grade || undefined, guild: guildId || undefined, finish: finish || undefined }),
+    queryKey: queryKeys.ccg.catalog(setSlug, page, owned, grade, guildId, characterId, finish, limit),
+    queryFn: () => api.getCcgCatalog(setSlug, { page, limit, owned, grade: grade || undefined, guild: guildId || undefined, character: characterId || undefined, finish: finish || undefined }),
     enabled,
     staleTime: 30 * 1000,
   });
@@ -518,7 +519,16 @@ export function useCcgCollectionGuilds(setSlug?: string, enabled = true) {
   });
 }
 
-export function useCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string }, enabled = true) {
+export function useCcgCollectionCharacterSearch(search: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.ccg.characterSearch(search),
+    queryFn: () => api.searchCcgCollectionCharacters(search, 10),
+    enabled: enabled && search.length >= 2,
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+export function useCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string; character?: string }, enabled = true) {
   return useQuery({
     queryKey: queryKeys.ccg.collection(options),
     queryFn: () => api.getCcgCollection(options),

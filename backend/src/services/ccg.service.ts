@@ -103,6 +103,17 @@ type RedeemedCodeSnapshot = {
   artVariant: CcgArtVariant | null;
 };
 
+type CcgCardSearchCandidate = {
+  cardIds: mongoose.Types.ObjectId[];
+  characterId: mongoose.Types.ObjectId;
+  name: string;
+  realm: string;
+  classID: number;
+  publishedAt: Date;
+  searchText: string[];
+  characterSearchText: string[];
+};
+
 export class CcgServiceError extends Error {
   constructor(
     public readonly status: number,
@@ -203,14 +214,77 @@ class CcgService {
 
   private adminCardSearchCache: {
     expiresAt: number;
-    candidates: Array<{
-      cardIds: mongoose.Types.ObjectId[];
-      name: string;
-      realm: string;
-      publishedAt: Date;
-      searchText: string[];
-    }>;
+    candidates: CcgCardSearchCandidate[];
   } | null = null;
+
+  private collectionCharacterSearchCache: {
+    expiresAt: number;
+    candidates: CcgCardSearchCandidate[];
+  } | null = null;
+
+  private async buildCardSearchCandidates(cardFilter: Record<string, unknown> = {}): Promise<CcgCardSearchCandidate[]> {
+    const cards = await CcgCard.find(cardFilter)
+      .select("_id characterId collectorKey name realm classID guildName publishedAt")
+      .lean();
+    const characterIds = Array.from(new Set(cards.map((card) => String(card.characterId))))
+      .map((id) => new mongoose.Types.ObjectId(id));
+    const currentCharacters = await Character.find({ _id: { $in: characterIds } })
+      .select("_id name")
+      .lean();
+    const currentNameByCharacterId = new Map(currentCharacters.map((character) => [String(character._id), character.name]));
+    const candidatesByCharacter = new Map<string, Omit<CcgCardSearchCandidate, "searchText" | "characterSearchText"> & {
+      searchText: Set<string>;
+      characterSearchText: Set<string>;
+    }>();
+    for (const card of cards) {
+      const collectorKey = resolveCollectorKey(card);
+      const currentName = currentNameByCharacterId.get(String(card.characterId));
+      const searchText = [
+        card.name,
+        `${card.name} ${card.realm}`,
+        card.guildName ?? "",
+        card.guildName ? `${card.name} ${card.guildName}` : "",
+        currentName ?? "",
+        currentName ? `${currentName} ${card.realm}` : "",
+        currentName && card.guildName ? `${currentName} ${card.guildName}` : "",
+      ].map(normalizeSearchText).filter(Boolean);
+      const characterSearchText = [
+        card.name,
+        `${card.name} ${card.realm}`,
+        currentName ?? "",
+        currentName ? `${currentName} ${card.realm}` : "",
+      ].map(normalizeSearchText).filter(Boolean);
+      const existing = candidatesByCharacter.get(collectorKey);
+      if (!existing) {
+        candidatesByCharacter.set(collectorKey, {
+          cardIds: [card._id],
+          characterId: card.characterId,
+          name: currentName ?? card.name,
+          realm: card.realm,
+          classID: card.classID,
+          publishedAt: card.publishedAt,
+          searchText: new Set(searchText),
+          characterSearchText: new Set(characterSearchText),
+        });
+        continue;
+      }
+
+      existing.cardIds.push(card._id);
+      searchText.forEach((value) => existing.searchText.add(value));
+      characterSearchText.forEach((value) => existing.characterSearchText.add(value));
+      if (card.publishedAt.getTime() > existing.publishedAt.getTime()) {
+        existing.name = currentName ?? card.name;
+        existing.realm = card.realm;
+        existing.classID = card.classID;
+        existing.publishedAt = card.publishedAt;
+      }
+    }
+    return Array.from(candidatesByCharacter.values(), (candidate) => ({
+      ...candidate,
+      searchText: Array.from(candidate.searchText),
+      characterSearchText: Array.from(candidate.characterSearchText),
+    }));
+  }
 
   async getSession(req: Request, res: Response): Promise<Record<string, unknown>> {
     requireFeature();
@@ -448,7 +522,7 @@ class CcgService {
   async getCatalog(
     owner: CcgOwner,
     setSlug: string | undefined,
-    options: { page?: number; limit?: number; owned?: string; grade?: string; finish?: string; guildId?: string },
+    options: { page?: number; limit?: number; owned?: string; grade?: string; finish?: string; guildId?: string; characterId?: string },
   ): Promise<Record<string, unknown>> {
     const requestedSet = setSlug
       ? await CcgSet.findOne({ slug: setSlug, enabledAt: { $ne: null } }).lean()
@@ -465,6 +539,7 @@ class CcgService {
     const cardFilter: Record<string, unknown> = {};
     if (grade) cardFilter.tierGrade = grade;
     if (options.guildId) cardFilter.guildId = validateObjectId(options.guildId, "guild ID");
+    if (options.characterId) cardFilter.characterId = validateObjectId(options.characterId, "character ID");
 
     let ownedIds: mongoose.Types.ObjectId[] | null = null;
     let ownedCharacterIds: mongoose.Types.ObjectId[] | null = null;
@@ -540,7 +615,7 @@ class CcgService {
 
   async getCollection(
     owner: CcgOwner,
-    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string },
+    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string; characterId?: string },
   ): Promise<Record<string, unknown>> {
     const page = Math.max(1, Math.floor(options.page ?? 1));
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 18)));
@@ -557,6 +632,8 @@ class CcgService {
     if (setId) cardMatch["card.setId"] = setId;
     const guildId = options.guildId ? validateObjectId(options.guildId, "guild ID") : null;
     if (guildId) cardMatch["card.guildId"] = guildId;
+    const characterId = options.characterId ? validateObjectId(options.characterId, "character ID") : null;
+    if (characterId) cardMatch["card.characterId"] = characterId;
 
     const rows = await CcgOwnership.aggregate<{
       _id: { setId: mongoose.Types.ObjectId; characterId: mongoose.Types.ObjectId };
@@ -849,6 +926,41 @@ class CcgService {
     };
   }
 
+  async searchCollectionCharacters(rawSearch: unknown, rawLimit: unknown): Promise<Record<string, unknown>> {
+    requireFeature();
+    const search = typeof rawSearch === "string" ? rawSearch.trim().slice(0, 100) : "";
+    const normalizedSearch = normalizeSearchText(search);
+    const requestedLimit = typeof rawLimit === "string" ? Number(rawLimit) : Number(rawLimit ?? 10);
+    const limit = Number.isInteger(requestedLimit) ? Math.min(10, Math.max(1, requestedLimit)) : 10;
+    if (normalizedSearch.length < 2) return { search, characters: [] };
+
+    if (!this.collectionCharacterSearchCache || this.collectionCharacterSearchCache.expiresAt <= Date.now()) {
+      const enabledSetIds = await CcgSet.distinct("_id", { enabledAt: { $ne: null } });
+      this.collectionCharacterSearchCache = {
+        expiresAt: Date.now() + 2 * 60 * 1000,
+        candidates: await this.buildCardSearchCandidates({ setId: { $in: enabledSetIds } }),
+      };
+    }
+
+    const selectedCandidates = this.collectionCharacterSearchCache.candidates
+      .map((candidate) => ({
+        ...candidate,
+        score: Math.max(...candidate.characterSearchText.map((text) => scoreSearchCandidate(normalizedSearch, text))),
+      }))
+      .filter((candidate) => candidate.score > 0)
+      .sort((a, b) => b.score - a.score || b.publishedAt.getTime() - a.publishedAt.getTime() || a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm))
+      .slice(0, limit);
+    return {
+      search,
+      characters: selectedCandidates.map((candidate) => ({
+        id: String(candidate.characterId),
+        name: candidate.name,
+        realm: candidate.realm,
+        classID: candidate.classID,
+      })),
+    };
+  }
+
   async searchCardsForAdmin(rawSearch: unknown, rawLimit: unknown): Promise<Record<string, unknown>> {
     const search = typeof rawSearch === "string" ? rawSearch.trim().slice(0, 100) : "";
     const normalizedSearch = normalizeSearchText(search);
@@ -857,60 +969,9 @@ class CcgService {
     if (normalizedSearch.length < 2) return { search, cards: [] };
 
     if (!this.adminCardSearchCache || this.adminCardSearchCache.expiresAt <= Date.now()) {
-      const candidates = await CcgCard.find({})
-        .select("_id characterId collectorKey name realm guildName publishedAt")
-        .lean();
-      const characterIds = Array.from(new Set(candidates.map((card) => String(card.characterId))))
-        .map((id) => new mongoose.Types.ObjectId(id));
-      const currentCharacters = await Character.find({ _id: { $in: characterIds } })
-        .select("_id name")
-        .lean();
-      const currentNameByCharacterId = new Map(currentCharacters.map((character) => [String(character._id), character.name]));
-      const candidatesByCharacter = new Map<string, {
-        cardIds: mongoose.Types.ObjectId[];
-        name: string;
-        realm: string;
-        publishedAt: Date;
-        searchText: Set<string>;
-      }>();
-      for (const card of candidates) {
-        const collectorKey = resolveCollectorKey(card);
-        const currentName = currentNameByCharacterId.get(String(card.characterId));
-        const searchText = [
-          card.name,
-          `${card.name} ${card.realm}`,
-          card.guildName ?? "",
-          card.guildName ? `${card.name} ${card.guildName}` : "",
-          currentName ?? "",
-          currentName ? `${currentName} ${card.realm}` : "",
-          currentName && card.guildName ? `${currentName} ${card.guildName}` : "",
-        ].map(normalizeSearchText).filter(Boolean);
-        const existing = candidatesByCharacter.get(collectorKey);
-        if (!existing) {
-          candidatesByCharacter.set(collectorKey, {
-            cardIds: [card._id],
-            name: currentName ?? card.name,
-            realm: card.realm,
-            publishedAt: card.publishedAt,
-            searchText: new Set(searchText),
-          });
-          continue;
-        }
-
-        existing.cardIds.push(card._id);
-        searchText.forEach((value) => existing.searchText.add(value));
-        if (card.publishedAt.getTime() > existing.publishedAt.getTime()) {
-          existing.name = currentName ?? card.name;
-          existing.realm = card.realm;
-          existing.publishedAt = card.publishedAt;
-        }
-      }
       this.adminCardSearchCache = {
         expiresAt: Date.now() + 2 * 60 * 1000,
-        candidates: Array.from(candidatesByCharacter.values(), (candidate) => ({
-          ...candidate,
-          searchText: Array.from(candidate.searchText),
-        })),
+        candidates: await this.buildCardSearchCandidates(),
       };
     }
 

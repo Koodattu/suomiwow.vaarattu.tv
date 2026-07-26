@@ -11,10 +11,10 @@ import type {
   PointerEvent as ReactPointerEvent,
   WheelEvent as ReactWheelEvent,
 } from "react";
-import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgFinish, CcgGuildFacet, CcgTierGrade } from "@/types";
+import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCharacterFacet, CcgFinish, CcgGuildFacet, CcgTierGrade } from "@/types";
 import { bestOwnedFinish, CCG_BASE_FINISH_ORDER } from "@/lib/ccg";
 import { getCcgPlaybackVolume } from "@/lib/ccg-audio";
-import { useCcgCatalog, useCcgCollection, useCcgCollectionGuilds, useCcgSession, useCcgSets } from "@/lib/queries";
+import { useCcgCatalog, useCcgCollection, useCcgCollectionCharacterSearch, useCcgCollectionGuilds, useCcgSession, useCcgSets } from "@/lib/queries";
 import { formatRealmName } from "@/lib/utils";
 import CcgShell from "@/components/ccg/CcgShell";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
@@ -101,6 +101,10 @@ export default function CcgCollectionPage() {
   const [guildId, setGuildId] = useState("");
   const [guildSearch, setGuildSearch] = useState("");
   const [guildInputFocused, setGuildInputFocused] = useState(false);
+  const [selectedCharacter, setSelectedCharacter] = useState<CcgCharacterFacet | null>(null);
+  const [characterSearch, setCharacterSearch] = useState("");
+  const [debouncedCharacterSearch, setDebouncedCharacterSearch] = useState("");
+  const [characterInputFocused, setCharacterInputFocused] = useState(false);
   const [includeMissing, setIncludeMissing] = useState(false);
   const [page, setPage] = useState(1);
   const [pageCountCache, setPageCountCache] = useState({ scope: "", pages: 0 });
@@ -164,8 +168,15 @@ export default function CcgCollectionPage() {
   );
   const guildAvailabilityLoaded = allSetsSelected || Boolean(setGuildsQuery.data);
   const selectedGuildUnavailable = Boolean(guildId) && guildAvailabilityLoaded && !allSetsSelected && !setGuildIds.has(guildId);
+  const trimmedCharacterSearch = characterSearch.trim();
+  const characterSearchQuery = useCcgCollectionCharacterSearch(debouncedCharacterSearch);
+  const characterResultsCurrent = debouncedCharacterSearch === trimmedCharacterSearch;
+  const characterResults = characterResultsCurrent ? (characterSearchQuery.data?.characters ?? []) : [];
+  const characterSearchLoading = trimmedCharacterSearch.length >= 2
+    && (!characterResultsCurrent || characterSearchQuery.isFetching);
+  const characterId = selectedCharacter?.id ?? "";
   const showCatalog = includeMissing;
-  const filtersChanged = includeMissing || Boolean(guildId || grade || finish);
+  const filtersChanged = includeMissing || Boolean(characterId || guildId || grade || finish);
   const ownedQuery = useCcgCollection(
     {
       page,
@@ -174,17 +185,27 @@ export default function CcgCollectionPage() {
       grade: grade || undefined,
       finish: finish || undefined,
       guild: guildId || undefined,
+      character: characterId || undefined,
     },
     Boolean(setSlug) && !showCatalog,
   );
-  const catalogQuery = useCcgCatalog(collectionSetSlug, page, "all", grade, guildId, finish, showCatalog, cardsPerPage);
+  const catalogQuery = useCcgCatalog(collectionSetSlug, page, "all", grade, guildId, characterId, finish, showCatalog, cardsPerPage);
   const cardsQuery = showCatalog ? catalogQuery : ownedQuery;
   const cardsData = cardsQuery.data;
   const cardsLoading = setsQuery.isPending || cardsQuery.isPending;
   const cardsError = cardsQuery.isError;
-  const pageCountScope = JSON.stringify([setSlug, guildId, grade, finish, showCatalog]);
+  const pageCountScope = JSON.stringify([setSlug, characterId, guildId, grade, finish, showCatalog]);
   const displayedPageCount = cardsData?.pages
     ?? (pageCountCache.scope === pageCountScope ? pageCountCache.pages : 0);
+
+  useEffect(() => {
+    if (trimmedCharacterSearch.length < 2) {
+      setDebouncedCharacterSearch("");
+      return;
+    }
+    const timer = window.setTimeout(() => setDebouncedCharacterSearch(trimmedCharacterSearch), 180);
+    return () => window.clearTimeout(timer);
+  }, [trimmedCharacterSearch]);
 
   useEffect(() => {
     if (requestedSetAppliedRef.current || sets.length === 0) return;
@@ -335,6 +356,8 @@ export default function CcgCollectionPage() {
 
   const resetFilters = () => {
     setIncludeMissing(false);
+    setSelectedCharacter(null);
+    setCharacterSearch("");
     setGuildId("");
     setGrade("");
     setFinish("");
@@ -518,6 +541,70 @@ export default function CcgCollectionPage() {
                 <LuEyeOff className={includeMissing ? styles.collectionToggleIconHidden : styles.collectionToggleIconVisible} />
               </span>
             </label>
+
+            <Combobox
+              value={selectedCharacter}
+              by="id"
+              onChange={(character) => {
+                updateFilter(() => setSelectedCharacter(character));
+                setCharacterSearch("");
+              }}
+              onClose={() => {
+                setCharacterSearch("");
+                setCharacterInputFocused(false);
+              }}
+              immediate
+            >
+              <div className={`${styles.collectionSelect} ${styles.collectionCharacterSelect}`}>
+                <ComboboxInput
+                  aria-label={t("collection.searchCharacters")}
+                  autoComplete="off"
+                  className={styles.collectionGuildSelectInput}
+                  displayValue={(character: CcgCharacterFacet | null) => !characterInputFocused && character
+                    ? `${character.name}-${formatRealmName(character.realm)}`
+                    : ""}
+                  placeholder={characterInputFocused ? t("collection.typeToSearch") : t("collection.allCharacters")}
+                  onChange={(event) => setCharacterSearch(event.target.value)}
+                  onFocus={() => setCharacterInputFocused(true)}
+                  onBlur={() => setCharacterInputFocused(false)}
+                />
+                <ComboboxButton
+                  aria-label={t("collection.selectCharacter")}
+                  className={styles.collectionGuildSelectToggle}
+                />
+                <ComboboxOptions
+                  anchor={{ to: "bottom start", gap: 4, padding: 8 }}
+                  portal
+                  modal={false}
+                  className={styles.collectionGuildOptions}
+                  aria-live="polite"
+                >
+                  {!trimmedCharacterSearch && selectedCharacter && (
+                    <ComboboxOption value={null} className={styles.collectionGuildOption}>
+                      <span className={styles.collectionGuildText}>{t("collection.allCharacters")}</span>
+                    </ComboboxOption>
+                  )}
+                  {trimmedCharacterSearch.length < 2 ? (
+                    <div className={styles.collectionCharacterSearchStatus}>{t("collection.typeTwoCharacters")}</div>
+                  ) : characterSearchLoading ? (
+                    <div className={styles.collectionCharacterSearchStatus}>{t("collection.searchingCharacters")}</div>
+                  ) : characterResultsCurrent && characterSearchQuery.isError ? (
+                    <div className={`${styles.collectionCharacterSearchStatus} ${styles.collectionCharacterSearchError}`} role="alert">
+                      {t("collection.characterSearchError")}
+                    </div>
+                  ) : characterResults.length === 0 ? (
+                    <div className={styles.collectionCharacterSearchStatus}>{t("collection.noCharactersFound")}</div>
+                  ) : characterResults.map((character) => (
+                    <ComboboxOption key={character.id} value={character} className={styles.collectionGuildOption}>
+                      <span className={styles.collectionGuildText}>
+                        {character.name}
+                        <span className={styles.collectionGuildRealm}>-{formatRealmName(character.realm)}</span>
+                      </span>
+                    </ComboboxOption>
+                  ))}
+                </ComboboxOptions>
+              </div>
+            </Combobox>
 
             <Combobox
               value={selectedGuild ?? null}

@@ -168,3 +168,69 @@ test("admin CCG search matches the current name once while preserving variant sn
     alternativeArtModel.find = originals.alternativeArtFind;
   }
 });
+
+test("collection character search requires two characters and returns cached published CCG identities", async () => {
+  const characterId = new mongoose.Types.ObjectId();
+  const setId = new mongoose.Types.ObjectId();
+  const cards = [{
+    _id: new mongoose.Types.ObjectId(),
+    setId,
+    characterId,
+    collectorKey: null,
+    name: "Ezclap",
+    realm: "stormreaver",
+    classID: 8,
+    guildName: "Test Guild",
+    publishedAt: new Date("2026-07-25T12:00:00.000Z"),
+  }];
+  const cardModel = CcgCard as any;
+  const characterModel = Character as any;
+  const setModel = CcgSet as any;
+  const service = ccgService as any;
+  const originals = {
+    cardFind: cardModel.find,
+    characterFind: characterModel.find,
+    setDistinct: setModel.distinct,
+  };
+  let cardFindCalls = 0;
+  let cardFilter: Record<string, unknown> | null = null;
+
+  try {
+    service.collectionCharacterSearchCache = null;
+    setModel.distinct = async () => [setId];
+    cardModel.find = (filter: Record<string, unknown>) => {
+      cardFindCalls += 1;
+      cardFilter = filter;
+      return { select() { return this; }, lean: async () => cards };
+    };
+    characterModel.find = () => ({
+      select() { return this; },
+      lean: async () => [{ _id: characterId, name: "Laku" }],
+    });
+
+    const shortResult = await service.searchCollectionCharacters("l", 10);
+    assert.deepEqual(shortResult, { search: "l", characters: [] });
+    assert.equal(cardFindCalls, 0);
+
+    const currentNameResult = await service.searchCollectionCharacters("laku", 10);
+    assert.deepEqual(currentNameResult.characters, [{
+      id: String(characterId),
+      name: "Laku",
+      realm: "stormreaver",
+      classID: 8,
+    }]);
+    assert.deepEqual(cardFilter, { setId: { $in: [setId] } });
+
+    const historicalNameResult = await service.searchCollectionCharacters("ezclap", 10);
+    assert.equal(historicalNameResult.characters[0].id, String(characterId));
+
+    const guildNameResult = await service.searchCollectionCharacters("test guild", 10);
+    assert.deepEqual(guildNameResult.characters, []);
+    assert.equal(cardFindCalls, 1);
+  } finally {
+    service.collectionCharacterSearchCache = null;
+    cardModel.find = originals.cardFind;
+    characterModel.find = originals.characterFind;
+    setModel.distinct = originals.setDistinct;
+  }
+});

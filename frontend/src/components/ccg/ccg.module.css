@@ -1585,6 +1585,11 @@
   flex: 0 0 11rem;
 }
 
+.collectionCharacterSelect {
+  width: 10rem;
+  flex: 0 0 10rem;
+}
+
 .collectionGuildSelect select {
   width: 100%;
 }
@@ -1691,6 +1696,22 @@
 .collectionGuildOption[data-focus] {
   color: #fff;
   background: rgba(67, 119, 207, 0.24);
+}
+
+.collectionCharacterSearchStatus {
+  display: flex;
+  min-height: 2.5rem;
+  align-items: center;
+  padding: 0.55rem 0.5rem;
+  color: #718097;
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 1.3;
+  text-wrap: pretty;
+}
+
+.collectionCharacterSearchError {
+  color: #f0a8b7;
 }
 
 .collectionGuildText {

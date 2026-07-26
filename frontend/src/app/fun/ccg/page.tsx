@@ -98,7 +98,7 @@ export default function CcgLandingPage() {
   const gridSets = collectionSets.filter((set) => set.id !== current?.id);
   const collectionColumns = Math.max(1, Math.ceil(gridSets.length / 3));
   const collectionRows = Math.max(2, Math.ceil(gridSets.length / collectionColumns));
-  const featuredQuery = useCcgCatalog(current?.slug ?? "", 1, "all", "S", "", "", Boolean(current?.slug), 50);
+  const featuredQuery = useCcgCatalog(current?.slug ?? "", 1, "all", "S", "", "", "", Boolean(current?.slug), 50);
   const featuredCards = featuredQuery.data?.cards ?? [];
   const featuredCard = featuredCards.length > 0
     ? featuredCards[Math.floor(featuredQuery.dataUpdatedAt / 1000) % featuredCards.length]

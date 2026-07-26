@@ -92,8 +92,15 @@ router.get(
       grade: typeof req.query.grade === "string" ? req.query.grade : undefined,
       finish: typeof req.query.finish === "string" ? req.query.finish : undefined,
       guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
+      characterId: typeof req.query.character === "string" ? req.query.character : undefined,
     });
   }),
+);
+
+router.get(
+  "/collection/characters",
+  rateLimit(90, 60_000),
+  asyncRoute(async (req) => ccgService.searchCollectionCharacters(req.query.q, req.query.limit)),
 );
 
 router.get(
@@ -117,6 +124,7 @@ router.get(
       grade: typeof req.query.grade === "string" ? req.query.grade : undefined,
       finish: typeof req.query.finish === "string" ? req.query.finish : undefined,
       guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
+      characterId: typeof req.query.character === "string" ? req.query.character : undefined,
     });
   }),
 );
@@ -134,6 +142,7 @@ router.get(
       finish: typeof req.query.finish === "string" ? req.query.finish : undefined,
       search: typeof req.query.search === "string" ? req.query.search : undefined,
       guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
+      characterId: typeof req.query.character === "string" ? req.query.character : undefined,
     });
   }),
 );

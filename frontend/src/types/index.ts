@@ -2305,6 +2305,18 @@ export type CcgGuildsResponse = {
   guilds: CcgGuildFacet[];
 };
 
+export type CcgCharacterFacet = {
+  id: string;
+  name: string;
+  realm: string;
+  classID: number;
+};
+
+export type CcgCharacterSearchResponse = {
+  search: string;
+  characters: CcgCharacterFacet[];
+};
+
 export type CcgCollectionResponse = {
   cards: CcgCard[];
   page: number;
