@@ -183,7 +183,7 @@ test("CCG eligibility requires three Mythic reports and fifty pulls", () => {
   assert.equal(MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY, 50);
 });
 
-test("quality protection follows a quadratic ramp, resets only the awarded finish, and honors duplicate upgrades", () => {
+test("quality protection honors hard pity, minimum finishes, and independent resets", () => {
   const first = rollProtectedFinish(emptyFinishPity(), "standard", (maximum) => maximum - 1);
   assert.equal(first.finish, "standard");
   assert.deepEqual(first.pity, { foil: 1, golden: 1, prismatic: 1, holographic: 1, negative: 1 });
@@ -216,6 +216,11 @@ test("owned finishes are resolved per raid card and only completed-card duplicat
     isDuplicate: true,
     isCompletedCardDuplicate: false,
   });
+  assert.deepEqual(resolveOwnedFinish("prismatic", new Set(["standard", "prismatic"])), {
+    finish: "golden",
+    isDuplicate: true,
+    isCompletedCardDuplicate: false,
+  });
   assert.deepEqual(resolveOwnedFinish("prismatic", new Set(["standard", "foil", "golden"])), {
     finish: "prismatic",
     isDuplicate: false,
@@ -233,21 +238,32 @@ test("owned finishes are resolved per raid card and only completed-card duplicat
   });
 });
 
-test("a promoted duplicate resets protection for the awarded finish", () => {
+test("a promoted duplicate resets protection for the rolled and awarded finishes", () => {
   const pity = { ...emptyFinishPity(), foil: 4, golden: 10 };
   const result = rollOwnedFinish(pity, new Set(["standard", "foil"]), (maximum) => maximum - 1);
   assert.equal(result.finish, "golden");
   assert.equal(result.isDuplicate, true);
   assert.equal(result.isCompletedCardDuplicate, false);
-  assert.equal(result.pity.foil, 5);
+  assert.equal(result.pity.foil, 0);
   assert.equal(result.pity.golden, 0);
+
+  const downwardResult = rollOwnedFinish(
+    { ...emptyFinishPity(), foil: 4, golden: 24 },
+    new Set(["standard", "golden"]),
+    (maximum) => maximum - 1,
+  );
+  assert.equal(downwardResult.finish, "foil");
+  assert.equal(downwardResult.isDuplicate, true);
+  assert.equal(downwardResult.pity.foil, 0);
+  assert.equal(downwardResult.pity.golden, 0);
 });
 
-test("quality protection ramps slowly at first and accelerates near hard pity", () => {
+test("quality protection stays flat until late soft pity and then accelerates", () => {
   assert.equal(finishChanceForCounter(1, 100), 0.01);
-  assert.ok(Math.abs(finishChanceForCounter(10, 100) - 0.018182) < 0.000001);
-  assert.ok(Math.abs(finishChanceForCounter(50, 100) - 0.252525) < 0.000001);
-  assert.ok(Math.abs(finishChanceForCounter(95, 100) - 0.902525) < 0.000001);
+  assert.equal(finishChanceForCounter(50, 100), 0.01);
+  assert.equal(finishChanceForCounter(80, 100), 0.01);
+  assert.ok(finishChanceForCounter(81, 100) > 0.01);
+  assert.ok(finishChanceForCounter(95, 100) > finishChanceForCounter(90, 100));
   assert.equal(finishChanceForCounter(100, 100), 1);
 
   const pity = { ...emptyFinishPity(), golden: 9 };

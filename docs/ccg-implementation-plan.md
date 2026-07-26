@@ -99,7 +99,7 @@ Duplicates do not upgrade card rarity. Rarity represents the character's snapsho
 
 - Duplicate identity is the exact immutable snapshot version. Another version in the same card series, or the same character in another raid set, is a different card.
 - A finish that is not yet owned for that card is awarded unchanged, even when another finish of the card is already owned.
-- If the rolled finish is already owned, the result advances to the next missing finish above it. If only lower gaps remain, it fills the first missing finish so every pre-completion duplicate advances the card.
+- If the rolled finish is already owned, the result fills the closest missing finish below it first. If no lower gap remains, it advances to the closest missing finish above it so every pre-completion duplicate advances the card.
 - A card is complete when Standard, Foil, Golden, Prismatic, Holographic, and Negative are all owned for that exact card.
 - Completing the final missing finish does not immediately award a pack. The first later duplicate on that already-complete card awards one pack credit for that card, and the idempotency key prevents that card from rewarding again.
 - A completed card in a Current raid awards a Current pack. A completed card in a Legacy raid awards a Legacy pack. Community cards do not award completion packs.
@@ -121,7 +121,7 @@ Finish is independent of tier grade:
 
 Void remains a design-lab-only treatment and is not a production finish.
 
-Each non-Standard finish has a persistent per-owner protection counter. Its chance follows a quadratic protection curve: `baseChance + (1 - baseChance) * progress²`, where `baseChance` is `1 / hardPity` and `progress` is the normalized distance from the first pull to hard pity. This keeps the early increase gentle, accelerates near the limit, and guarantees the Nth consecutive miss. The counter resets only when that finish is actually awarded. Finish rolls are independent, but a card receives only the highest finish that succeeds, so reaching one hard pity cannot turn the rest of a pack into the same premium finish.
+Each non-Standard finish has a persistent per-owner protection counter. Its chance remains at `1 / hardPity` through the first 80% of the interval, then follows a quadratic soft-pity ramp to a guaranteed hit at hard pity. The selected raw finish resets its own counter even when duplicate protection converts it, and a different non-Standard finish awarded by that conversion also resets its counter. Finish rolls are independent, but a card receives only the highest finish that succeeds, so reaching one hard pity cannot turn the rest of a pack into the same premium finish.
 
 Initial hard-pity limits:
 
@@ -702,7 +702,7 @@ One document stores a quantity. Do not create one ownership document per duplica
 
 ### `CcgQualityProgress`
 
-Store one document per owner with persistent counters for `foil`, `golden`, `prismatic`, `holographic`, and `negative`. Counters are shared by Current and Legacy openings, advance once per pulled card, and reset independently only when that finish is awarded. Guest progress uses the same day-scoped expiry as other provisional guest state. A claim reclassifies the selected opening against the authenticated collection without importing the guest's wider pity state.
+Store one document per owner with persistent counters for `foil`, `golden`, `prismatic`, `holographic`, and `negative`. Counters are shared by Current and Legacy openings and advance once per pulled card. The selected raw finish resets its counter, while a different non-Standard finish awarded through duplicate protection resets too. Guest progress uses the same day-scoped expiry as other provisional guest state. A claim reclassifies the selected opening against the authenticated collection without importing the guest's wider pity state.
 
 All other guest-owned temporary documents, including pack balance, provisional progress, and opening documents, carry the same guest `dateKey` and `expiresAt` and have TTL indexes where applicable. Application queries must still reject expired guest data because MongoDB TTL deletion is not immediate.
 
@@ -1253,7 +1253,7 @@ The initial feature is ready when:
 - A missing rolled finish is awarded unchanged; an exact-finish duplicate advances to the next missing finish for that card.
 - The first duplicate pulled after all six finishes are owned awards exactly one pack for that card: Current for a Current raid and Legacy for a Legacy raid.
 - Alternative art is one global cosmetic unlock per character and never contributes to duplicate or finish-completion state.
-- Finish protection ramps quadratically from each configured base rate to its hard-pity guarantee and resets only the finish that was awarded.
+- Finish protection remains at each configured base rate through 80% of the interval, then ramps quadratically to hard pity; converted duplicates reset both the selected raw finish and any different non-Standard finish awarded.
 - The collection displays each raid card separately and exposes every owned finish in the viewer.
 - Current becomes Legacy without changing existing cards.
 - The binder displays owned, missing, quantities, finishes, and completion by raid set.

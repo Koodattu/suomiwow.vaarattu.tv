@@ -52,13 +52,16 @@ export type CcgFinishPity = Record<CcgProtectedFinish, number>;
 export const emptyFinishPity = (): CcgFinishPity => ({ foil: 0, golden: 0, prismatic: 0, holographic: 0, negative: 0 });
 
 const FINISH_ROLL_RESOLUTION = 100_000;
+const FINISH_SOFT_PITY_START = 0.8;
 
 export function finishChanceForCounter(counter: number, hardPity: number): number {
   if (!Number.isInteger(hardPity) || hardPity < 2) throw new Error("Hard pity must be an integer greater than one");
   const clampedCounter = Math.min(hardPity, Math.max(1, Math.floor(counter)));
   const baseChance = 1 / hardPity;
   const progress = (clampedCounter - 1) / (hardPity - 1);
-  return baseChance + (1 - baseChance) * progress ** 2;
+  if (progress <= FINISH_SOFT_PITY_START) return baseChance;
+  const softPityProgress = (progress - FINISH_SOFT_PITY_START) / (1 - FINISH_SOFT_PITY_START);
+  return baseChance + (1 - baseChance) * softPityProgress ** 2;
 }
 
 export function compareFinish(left: CcgFinish, right: CcgFinish): number {
@@ -82,10 +85,10 @@ export function resolveOwnedFinish(rolled: CcgFinish, ownedFinishes: ReadonlySet
   }
 
   const rolledIndex = CCG_FINISH_ORDER.indexOf(rolled);
-  const nextMissing = CCG_FINISH_ORDER.slice(rolledIndex + 1).find((finish) => !ownedFinishes.has(finish))
-    ?? CCG_FINISH_ORDER.find((finish) => !ownedFinishes.has(finish));
-  if (!nextMissing) throw new Error("Incomplete card has no missing finish");
-  return { finish: nextMissing, isDuplicate: true, isCompletedCardDuplicate: false };
+  const missingFinish = CCG_FINISH_ORDER.slice(0, rolledIndex).reverse().find((finish) => !ownedFinishes.has(finish))
+    ?? CCG_FINISH_ORDER.slice(rolledIndex + 1).find((finish) => !ownedFinishes.has(finish));
+  if (!missingFinish) throw new Error("Incomplete card has no missing finish");
+  return { finish: missingFinish, isDuplicate: true, isCompletedCardDuplicate: false };
 }
 
 function rollProtectedFinishWithResolver(
@@ -107,6 +110,7 @@ function rollProtectedFinishWithResolver(
   const rolled = hits.reduce<CcgFinish>((best, finish) => (compareFinish(finish, best) > 0 ? finish : best), "standard");
   const finish = resolveFinish(rolled);
   if (!CCG_FINISH_ORDER.includes(finish)) throw new Error("Finish resolver returned an invalid finish");
+  if (rolled !== "standard") next[rolled] = 0;
   if (finish !== "standard") next[finish] = 0;
   return { finish, pity: next };
 }
