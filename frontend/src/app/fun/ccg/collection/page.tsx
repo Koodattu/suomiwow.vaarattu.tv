@@ -30,6 +30,7 @@ const rarities: Array<{ grade: CcgTierGrade; label: "artifact" | "legendary" | "
   { grade: "F", label: "poor" },
 ];
 const cardsPerPage = 12;
+const pageWheelThreshold = 24;
 const allSetsSlug = "__all__";
 const uniqueFinishFilter = "unique";
 type CollectionFinishFilter = CcgBaseFinish | typeof uniqueFinishFilter | "";
@@ -107,6 +108,9 @@ export default function CcgCollectionPage() {
   const pageFlipAudioRef = useRef<HTMLAudioElement>(null);
   const setRailTargetRef = useRef(0);
   const setRailAnimationRef = useRef<number | null>(null);
+  const pageWheelDeltaRef = useRef(0);
+  const pageWheelHandledRef = useRef(false);
+  const pageWheelResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestedSetAppliedRef = useRef(false);
   const setRailDragRef = useRef({ pointerId: -1, startX: 0, startScrollLeft: 0, moved: false });
   const suppressSetClickRef = useRef(false);
@@ -175,6 +179,10 @@ export default function CcgCollectionPage() {
     setFinish("");
     setPage(1);
   }, [finish, finishOptions]);
+
+  useEffect(() => () => {
+    if (pageWheelResetRef.current !== null) clearTimeout(pageWheelResetRef.current);
+  }, []);
 
   const updateSetRailControls = useCallback(() => {
     const rail = setRailRef.current;
@@ -323,6 +331,40 @@ export default function CcgCollectionPage() {
       void audio.play().catch(() => undefined);
     }
     setPage((value) => value + direction);
+  };
+
+  const wheelCardPages = (event: ReactWheelEvent<HTMLElement>) => {
+    if (!cardsData || cardsLoading || cardsData.pages <= 1) return;
+    const rawDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    const deltaUnit = event.deltaMode === 1
+      ? 16
+      : event.deltaMode === 2
+        ? event.currentTarget.clientHeight
+        : 1;
+    const delta = rawDelta * deltaUnit;
+    if (delta === 0) return;
+
+    const direction = delta > 0 ? 1 : -1;
+    if ((direction < 0 && page <= 1) || (direction > 0 && page >= cardsData.pages)) return;
+
+    event.preventDefault();
+    if (pageWheelResetRef.current !== null) clearTimeout(pageWheelResetRef.current);
+    pageWheelResetRef.current = setTimeout(() => {
+      pageWheelDeltaRef.current = 0;
+      pageWheelHandledRef.current = false;
+      pageWheelResetRef.current = null;
+    }, 160);
+
+    if (pageWheelHandledRef.current) return;
+    if (pageWheelDeltaRef.current !== 0 && Math.sign(pageWheelDeltaRef.current) !== Math.sign(delta)) {
+      pageWheelDeltaRef.current = 0;
+    }
+    pageWheelDeltaRef.current += delta;
+    if (Math.abs(pageWheelDeltaRef.current) < pageWheelThreshold) return;
+
+    pageWheelHandledRef.current = true;
+    pageWheelDeltaRef.current = 0;
+    turnPage(direction);
   };
 
   if (sessionQuery.isError || setsQuery.isError) {
@@ -498,7 +540,7 @@ export default function CcgCollectionPage() {
           </div>
         </section>
 
-        <section className={styles.collectionBinder} aria-busy={cardsLoading}>
+        <section className={styles.collectionBinder} aria-busy={cardsLoading} onWheel={wheelCardPages}>
           <button
             type="button"
             className={styles.collectionPageTurn}
