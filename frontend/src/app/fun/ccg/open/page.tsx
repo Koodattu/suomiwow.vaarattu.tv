@@ -33,6 +33,7 @@ import packStyles from "@/components/ccg/pack-opening.module.css";
 
 type RevealPhase = "idle" | "holding" | "tearing" | "dealing" | "ready";
 type PackSelection = { mode: CcgMode; setId?: string };
+type PackRequest = PackSelection & { idempotencyKey: string };
 
 const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
 const fanOffsets = [15, 5, 0, 5, 15];
@@ -125,6 +126,7 @@ export default function CcgOpenPage() {
   const sealedMotionFrame = useRef<number | null>(null);
   const pendingSealedMotion = useRef<{ element: HTMLButtonElement; x: number; y: number } | null>(null);
   const nextPackTimerRef = useRef<number | null>(null);
+  const packRequestPendingRef = useRef(false);
   const recoveryQuery = useCcgOpening(recoveryId, !authLoading && sessionQuery.isSuccess);
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets;
@@ -288,11 +290,11 @@ export default function CcgOpenPage() {
   }, [revealPhase, revealedCards.size]);
 
   const mutation = useMutation({
-    mutationFn: async (selection: PackSelection) => {
+    mutationFn: async (request: PackRequest) => {
       const result = await api.openCcgPack({
-        mode: selection.mode,
-        idempotencyKey: makeIdempotencyKey(),
-        setId: selection.setId,
+        mode: request.mode,
+        idempotencyKey: request.idempotencyKey,
+        setId: request.setId,
       });
       queryClient.setQueryData(queryKeys.ccg.opening(result.id), result);
       const url = new URL(window.location.href);
@@ -341,7 +343,25 @@ export default function CcgOpenPage() {
       queryClient.invalidateQueries({ queryKey: ["ccg", "featured"] });
     },
     onError: () => setIsPackCycling(false),
+    onSettled: () => {
+      packRequestPendingRef.current = false;
+    },
   });
+
+  const submitPackOpening = (selection: PackSelection, delayMs = 0): boolean => {
+    if (packRequestPendingRef.current) return false;
+    packRequestPendingRef.current = true;
+    const request: PackRequest = { ...selection, idempotencyKey: makeIdempotencyKey() };
+    if (delayMs === 0) {
+      mutation.mutate(request);
+    } else {
+      nextPackTimerRef.current = window.setTimeout(() => {
+        nextPackTimerRef.current = null;
+        mutation.mutate(request);
+      }, delayMs);
+    }
+    return true;
+  };
 
   const queryFailed = sessionQuery.isError || setsQuery.isError;
   const noPacks = session ? session.packs[mode].totalRemaining <= 0 : false;
@@ -563,28 +583,21 @@ export default function CcgOpenPage() {
       packDragRef.current.suppressClick = false;
       return;
     }
+    if (!submitPackOpening({ mode, setId: mode === "legacy" ? selectedLegacySet?.id : undefined })) return;
     resumeCcgAudio();
-    mutation.mutate({ mode, setId: mode === "legacy" ? selectedLegacySet?.id : undefined });
   };
 
   const openAnotherPack = () => {
     if (!opening || !hasAnotherPack || mutation.isPending || isPackCycling) return;
     const selection = { mode: opening.mode, setId: opening.targetSetId ?? undefined };
+    const delayMs = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 470;
+    if (!submitPackOpening(selection, delayMs)) return;
     setRecoveryId("");
     setActiveReveal(null);
     setIsPackCycling(true);
     resumeCcgAudio();
     playPackSound(FADE_OUT_SOUND, 0.42);
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      mutation.mutate(selection);
-      return;
-    }
-
-    nextPackTimerRef.current = window.setTimeout(() => {
-      nextPackTimerRef.current = null;
-      mutation.mutate(selection);
-    }, 470);
   };
 
   useEffect(() => {

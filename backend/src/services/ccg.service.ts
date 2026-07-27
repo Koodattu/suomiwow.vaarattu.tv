@@ -68,6 +68,7 @@ import { applyCcgPackRollover } from "../utils/ccg-rollover";
 import { buildCcgCardSearchCandidates, CcgCardSearchCandidate } from "../utils/ccg-card-search";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../utils/helsinki-time";
 import logger from "../utils/logger";
+import { isMongoWriteConflict, retryMongoWriteConflict } from "../utils/mongo-retry";
 import { normalizeSearchText, scoreSearchCandidate } from "../utils/search";
 import ccgPublisherService from "./ccg-publisher.service";
 import discordService from "./discord.service";
@@ -81,6 +82,7 @@ const CCG_UNIQUE_FINISH_FILTER = "unique";
 const CCG_PREVIOUS_GUEST_INITIAL_PACKS: Readonly<Record<CcgMode, number>> = { current: 5, legacy: 5 };
 const CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS = 60_000;
 const CCG_GUEST_LAST_SEEN_WRITE_INTERVAL_MS = 15 * 60 * 1000;
+const CCG_TRANSACTION_WRITE_CONFLICT_MAX_ATTEMPTS = 5;
 const CCG_PUBLIC_SET_FIELDS = "_id slug zoneId raidName expansionName state kind enabledAt themeKey theme customFinish backgroundPath packArtOffsetX cardCount publicationWave lastPublishedAt";
 
 export const CCG_COLLECTION_SORTS = [
@@ -1848,7 +1850,7 @@ class CcgService {
     let cacheUpdates: CcgPackOpenState | null = null;
 
     try {
-      await session.withTransaction(async () => {
+      await retryMongoWriteConflict(() => session.withTransaction(async () => {
         openingId = null;
         committedOpening = null;
         committedCards = [];
@@ -2019,10 +2021,18 @@ class CcgService {
         const resultSetIds = new Set(results.map((result) => String(result.setId)));
         committedSets = sourceSets.filter((set) => resultSetIds.has(String(set._id))) as ICcgSet[];
         committedAlternativeArt = alternativeByCollector;
+      }), {
+        maxAttempts: CCG_TRANSACTION_WRITE_CONFLICT_MAX_ATTEMPTS,
+        onRetry: (_error, failedAttempt, delayMs) => {
+          logger.warn(`[CCG] Pack opening hit a MongoDB write conflict; retrying transaction in ${delayMs}ms (attempt ${failedAttempt + 1}/${CCG_TRANSACTION_WRITE_CONFLICT_MAX_ATTEMPTS})`);
+        },
       });
     } catch (error) {
       if (isTransactionUnsupported(error)) {
         throw new CcgServiceError(503, "transactions_unavailable", "Pack opening is temporarily unavailable while collection storage is starting");
+      }
+      if (isMongoWriteConflict(error)) {
+        throw new CcgServiceError(503, "pack_open_busy", "Another pack opening is being completed. Try again");
       }
       throw error;
     } finally {
@@ -2686,15 +2696,18 @@ class CcgService {
     );
   }
 
-  private enqueuePackOpeningAnalytics(openingId: mongoose.Types.ObjectId): void {
-    this.packAnalyticsQueue = this.packAnalyticsQueue
+  private queuePackOpeningAnalytics(openingId: mongoose.Types.ObjectId): Promise<boolean> {
+    const queued = this.packAnalyticsQueue
       .catch(() => undefined)
-      .then(async () => {
-        await this.recordPackOpeningAnalytics(openingId);
-      })
-      .catch((error) => {
-        logger.error(`[CCG] Failed to record analytics for opening ${openingId}:`, error);
-      });
+      .then(() => this.recordPackOpeningAnalytics(openingId));
+    this.packAnalyticsQueue = queued.then(() => undefined, () => undefined);
+    return queued;
+  }
+
+  private enqueuePackOpeningAnalytics(openingId: mongoose.Types.ObjectId): void {
+    void this.queuePackOpeningAnalytics(openingId).catch((error) => {
+      logger.error(`[CCG] Failed to record analytics for opening ${openingId}:`, error);
+    });
   }
 
   async processPendingPackOpeningAnalytics(limit = 100): Promise<number> {
@@ -2706,7 +2719,7 @@ class CcgService {
       .lean();
     let processed = 0;
     for (const opening of openings) {
-      if (await this.recordPackOpeningAnalytics(opening._id)) processed += 1;
+      if (await this.queuePackOpeningAnalytics(opening._id)) processed += 1;
     }
     return processed;
   }
@@ -2723,7 +2736,7 @@ class CcgService {
     const session = await mongoose.startSession();
     let processed = false;
     try {
-      await session.withTransaction(async () => {
+      await retryMongoWriteConflict(() => session.withTransaction(async () => {
         processed = false;
         const opening = await CcgPackOpening.findOne({ _id: openingId, analyticsPending: true })
           .select("ownerType ownerId claimedByUserId mode results createdAt")
@@ -2789,6 +2802,11 @@ class CcgService {
           { session },
         );
         processed = true;
+      }), {
+        maxAttempts: CCG_TRANSACTION_WRITE_CONFLICT_MAX_ATTEMPTS,
+        onRetry: (_error, failedAttempt, delayMs) => {
+          logger.warn(`[CCG] Pack analytics hit a MongoDB write conflict; retrying transaction in ${delayMs}ms (attempt ${failedAttempt + 1}/${CCG_TRANSACTION_WRITE_CONFLICT_MAX_ATTEMPTS})`);
+        },
       });
     } finally {
       await session.endSession();
