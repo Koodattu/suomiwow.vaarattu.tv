@@ -20,6 +20,8 @@ test("targets live WoW streamers without requiring their guild to be raiding", a
   let findQuery: unknown;
   let guildSelection: unknown;
   let existsQuery: unknown;
+  const originalHomeChannel = process.env.TWITCH_BOT_HOME_CHANNEL;
+  process.env.TWITCH_BOT_HOME_CHANNEL = "vaarattu";
 
   Guild.find = ((query: unknown) => {
     findQuery = query;
@@ -45,7 +47,7 @@ test("targets live WoW streamers without requiring their guild to be raiding", a
   }) as unknown as typeof Guild.exists;
 
   try {
-    assert.deepEqual(await service.findDesiredChannels(), ["testchannel"]);
+    assert.deepEqual(await service.findDesiredChannels(), ["vaarattu", "testchannel"]);
     assert.deepEqual(findQuery, {
       streamers: { $elemMatch: { isLive: true, isPlayingWoW: true } },
     });
@@ -63,9 +65,15 @@ test("targets live WoW streamers without requiring their guild to be raiding", a
         },
       },
     });
+
+    existsQuery = undefined;
+    assert.equal(await service.isChannelAllowedToChat("vaarattu"), true);
+    assert.equal(existsQuery, undefined);
   } finally {
     Guild.find = originalFind;
     Guild.findById = originalFindById;
     Guild.exists = originalExists;
+    if (originalHomeChannel === undefined) delete process.env.TWITCH_BOT_HOME_CHANNEL;
+    else process.env.TWITCH_BOT_HOME_CHANNEL = originalHomeChannel;
   }
 });

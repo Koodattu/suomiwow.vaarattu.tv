@@ -1249,6 +1249,49 @@ export interface TwitchBotFollowsResponse {
   fetchedAt?: string;
 }
 
+export interface TwitchCustomReward {
+  id: string;
+  title: string;
+  cost: number;
+  isEnabled: boolean;
+  isPaused: boolean;
+  isInStock: boolean;
+  skipsRequestQueue: boolean;
+}
+
+export interface TwitchChannelPointsStatus {
+  enabled: boolean;
+  connected: boolean;
+  expectedBroadcasterLogin: string;
+  redirectUri: string;
+  callbackUrl: string;
+  scopes: string[];
+  requiredScopes: string[];
+  missingScopes: string[];
+  broadcasterUserId?: string;
+  broadcasterLogin?: string;
+  broadcasterDisplayName?: string;
+  connectedAt?: string;
+  connectedByUsername?: string;
+  tokenExpiresAt?: string;
+  rewardEnabled: boolean;
+  rewardId?: string;
+  rewardTitle?: string;
+  subscriptionId?: string;
+  subscriptionStatus?: string;
+  subscriptionCreatedAt?: string;
+  lastNotificationAt?: string;
+  lastRefreshAt?: string;
+  lastRefreshError?: string;
+  lastVerifiedAt?: string;
+  lastVerifiedError?: string;
+  lastError?: string;
+  deliveries: {
+    grants: { pending: number; granted: number; failed: number };
+    chat: { pending: number; sent: number; failed: number; expired: number; sent24h: number };
+  };
+}
+
 export interface AdminUserStats {
   total: number;
   active: {
@@ -2157,12 +2200,12 @@ export type CcgAdminSnapshotSetPreview = CcgAdminSnapshotPreviewCounts & {
   raidName: string;
   mode: CcgMode;
   gradeDistribution: Record<CcgTierGrade, number>;
-  blockedCharacters: Array<{
+  characters: Array<{
     characterId: string;
     name: string;
     realm: string;
     region: string;
-    outcome: "new_character" | "rarity_change";
+    disposition: "new_character" | "rarity_change" | "blocked_new_character" | "blocked_rarity_change";
     previousTierGrade: CcgTierGrade | null;
     nextTierGrade: CcgTierGrade;
     mediaStatus: "pending" | "available" | "not_found" | "failed" | "untracked" | "render_missing";

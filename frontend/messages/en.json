@@ -951,7 +951,7 @@
       "snapshotPreview": {
         "title": "Next snapshot preview",
         "description": "Calculate what running a snapshot and publication now would do for every enabled Current and Legacy raid using live eligibility, rarity, card, and render data.",
-        "readOnly": "This is read-only. It does not create candidates, queue renders, publish cards, or update snapshot timestamps. Current raids run weekly automatically; Legacy results show their potential if they are snapshotted again.",
+        "readOnly": "This is read-only. It does not create candidates, queue renders, publish cards, or update snapshot timestamps. Enabled Current and Legacy raids run automatically each week.",
         "calculate": "Calculate preview",
         "recalculate": "Recalculate",
         "calculating": "Calculating…",
@@ -966,30 +966,49 @@
           "current": "Current",
           "legacy": "Legacy"
         },
-        "outcomes": {
-          "new_character": "New character",
-          "rarity_change": "Rarity change"
+        "dispositions": {
+          "new_character": "Will add",
+          "rarity_change": "Will update",
+          "blocked_new_character": "Missing media · new card",
+          "blocked_rarity_change": "Missing media · update"
+        },
+        "filters": {
+          "all": "All changes",
+          "will_add": "Will add",
+          "will_update": "Will update",
+          "missing_media": "Missing media"
         },
         "mediaStatuses": {
           "pending": "Pending",
-          "available": "Available without render",
+          "available": "Ready",
           "not_found": "Not found",
           "failed": "Failed",
           "untracked": "Not queued",
           "render_missing": "Render missing"
         },
-        "blockedList": {
-          "title": "Characters blocked by media",
-          "description": "One row per blocked card snapshot across every enabled raid pack. Full media errors are available by hovering the final column.",
+        "raidOverview": {
+          "title": "Raids at a glance",
+          "description": "Select a raid to inspect every character that would be added, updated, or blocked by media.",
+          "raid": "Raid pack"
+        },
+        "characterList": {
+          "title": "Character changes · {raid}",
+          "description": "This list contains actionable card changes only. Characters whose rarity is unchanged remain visible in the raid totals above.",
+          "raidFilter": "Raid",
+          "outcomeFilter": "Character result filters",
+          "searchLabel": "Find a character",
+          "searchPlaceholder": "Name, realm, or region",
+          "results": "Visible characters",
           "character": "Character",
-          "raid": "Raid pack",
-          "change": "Snapshot reason",
+          "result": "Result",
           "rarity": "Rarity",
           "media": "Media state",
           "error": "Latest error",
           "attempts": "{count, plural, one {# attempt} other {# attempts}}",
           "nextAttempt": "Next attempt {date}",
-          "noError": "No stored error"
+          "noError": "No stored error",
+          "noChanges": "This raid has no new cards, rarity updates, or media-blocked changes.",
+          "noMatches": "No characters match the selected result and search filters."
         },
         "metrics": {
           "eligible": "Eligible characters",

@@ -6,9 +6,13 @@ import Guild from "../models/Guild";
 import TwitchBotSettings, { type TwitchBotDifficulty, type TwitchBotMessageTemplateKey, type TwitchBotMessageTemplates } from "../models/TwitchBotSettings";
 import TwitchBotRuntimeState, { type ITwitchBotChannelBan } from "../models/TwitchBotRuntimeState";
 import TwitchEventDelivery from "../models/TwitchEventDelivery";
+import TwitchCcgRedemption from "../models/TwitchCcgRedemption";
+import User from "../models/User";
 import logger from "../utils/logger";
 import twitchBotAuthService, { TwitchBotAuthStatus, TwitchBotRefreshedAccessToken } from "./twitch-bot-auth.service";
 import twitchChatCommandService from "./twitch-chat-command.service";
+import twitchCcgRewardService from "./twitch-ccg-reward.service";
+import twitchChannelPointsService from "./twitch-channel-points.service";
 
 type TwitchEventDifficulty = "mythic" | "heroic";
 
@@ -72,6 +76,7 @@ const DEFAULT_MESSAGE_TEMPLATES: TwitchBotMessageTemplates = {
 const RUNTIME_STATE_KEY = "runtime";
 const SETTINGS_KEY = "global";
 const MAX_DELIVERY_ATTEMPTS = 5;
+const MAX_CCG_CHAT_DELIVERY_ATTEMPTS = 10;
 const BANNED_CHANNEL_RETRY_BASE_MS = 60 * 60 * 1000;
 const BANNED_CHANNEL_RETRY_MAX_MS = 12 * 60 * 60 * 1000;
 
@@ -467,6 +472,7 @@ class TwitchChatBotService {
       .select("streamers.channelName streamers.isLive streamers.isPlayingWoW")
       .lean();
 
+    const homeChannel = this.normalizeChannelName(twitchChannelPointsService.getHomeChannel());
     const channels = new Set<string>();
     for (const guild of guilds) {
       for (const streamer of guild.streamers || []) {
@@ -479,9 +485,12 @@ class TwitchChatBotService {
       }
     }
 
-    const desired = Array.from(channels).sort();
+    const liveChannels = Array.from(channels)
+      .filter((channel) => channel !== homeChannel)
+      .sort();
+    const desired = homeChannel ? [homeChannel, ...liveChannels] : liveChannels;
     if (desired.length > maxChannels) {
-      logger.warn(`[TwitchBot] Desired channel count ${desired.length} exceeds cap ${maxChannels}; joining first ${maxChannels}`);
+      logger.warn(`[TwitchBot] Desired channel count ${desired.length} exceeds cap ${maxChannels}; reserving the home channel and joining first ${maxChannels}`);
     }
 
     return desired.slice(0, maxChannels);
@@ -614,6 +623,9 @@ class TwitchChatBotService {
   }
 
   private async isChannelAllowedToChat(channelName: string): Promise<boolean> {
+    if (channelName === this.normalizeChannelName(twitchChannelPointsService.getHomeChannel())) {
+      return true;
+    }
     return Boolean(
       await Guild.exists({
         streamers: {
@@ -670,6 +682,7 @@ class TwitchChatBotService {
 
     this.publishing = true;
     try {
+      await this.processChannelPointRewards();
       const settings = await this.getSettings();
       if (!settings.eventPublishingEnabled) {
         await this.expireStaleEventDeliveries();
@@ -682,6 +695,65 @@ class TwitchChatBotService {
       await this.recordError("Twitch event publisher error", error);
     } finally {
       this.publishing = false;
+    }
+  }
+
+  private async processChannelPointRewards(): Promise<void> {
+    await twitchCcgRewardService.retryLinkedPending();
+    const now = new Date();
+    await TwitchCcgRedemption.updateMany(
+      { chatStatus: { $in: ["pending", "failed"] }, chatExpiresAt: { $lte: now } },
+      { $set: { chatStatus: "expired", chatLastError: "Chat delivery expired" } },
+    );
+
+    const deliveries = await TwitchCcgRedemption.find({
+      chatStatus: { $in: ["pending", "failed"] },
+      chatNextAttemptAt: { $lte: now },
+      chatExpiresAt: { $gt: now },
+      chatAttempts: { $lt: MAX_CCG_CHAT_DELIVERY_ATTEMPTS },
+    })
+      .sort({ chatNextAttemptAt: 1 })
+      .limit(20);
+
+    const channel = this.normalizeChannelName(twitchChannelPointsService.getHomeChannel());
+    if (!channel) throw new Error("TWITCH_BOT_HOME_CHANNEL is invalid");
+
+    for (const delivery of deliveries) {
+      try {
+        if (!this.connected || !this.chatClient) throw new Error("Twitch chat is not connected");
+        if (!this.joinedChannels.has(channel)) await this.joinChannel(channel);
+
+        if (delivery.grantStatus !== "granted" && (await User.exists({ "twitch.id": delivery.twitchUserId }))) {
+          delivery.chatNextAttemptAt = delivery.grantNextAttemptAt;
+          await delivery.save();
+          continue;
+        }
+
+        const message =
+          delivery.grantStatus === "granted"
+            ? `@${delivery.twitchUserLogin} packs were added successfully!`
+            : `@${delivery.twitchUserLogin} connect your Twitch at ${this.getFrontendBaseUrl()}/profile to claim packs.`;
+        await this.queueSay(channel, message);
+        delivery.chatStatus = "sent";
+        delivery.chatSentAt = new Date();
+        delivery.chatLastError = undefined;
+        await delivery.save();
+      } catch (error) {
+        if (error instanceof TwitchBotChannelBackoffError) {
+          delivery.chatStatus = "failed";
+          delivery.chatLastError = error.message;
+          delivery.chatNextAttemptAt = error.nextRetryAt;
+          await delivery.save();
+          continue;
+        }
+
+        const attempts = delivery.chatAttempts + 1;
+        delivery.chatStatus = "failed";
+        delivery.chatAttempts = attempts;
+        delivery.chatLastError = error instanceof Error ? error.message : String(error);
+        delivery.chatNextAttemptAt = new Date(Date.now() + Math.min(60 * 60 * 1000, 2 ** attempts * 60 * 1000));
+        await delivery.save();
+      }
     }
   }
 

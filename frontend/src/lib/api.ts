@@ -92,6 +92,8 @@ import {
   TwitchChatBotStatus,
   TwitchBotFollowsResponse,
   TwitchBotSettings,
+  TwitchChannelPointsStatus,
+  TwitchCustomReward,
   DeathEventsResetResponse,
   ProcessingQueueStatsResponse,
   ProcessingQueueResponse,
@@ -2037,6 +2039,52 @@ export const api = {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Failed to disconnect Twitch bot authorization");
+    return data;
+  },
+
+  async getAdminTwitchChannelPointsStatus(): Promise<TwitchChannelPointsStatus> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-channel-points/status`, { credentials: "include" });
+    if (!response.ok) throw new Error("Failed to fetch Twitch channel points status");
+    return response.json();
+  },
+
+  async getAdminTwitchChannelPointRewards(): Promise<{ rewards: TwitchCustomReward[] }> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-channel-points/rewards`, { credentials: "include" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to fetch Twitch custom rewards");
+    return data;
+  },
+
+  async getAdminTwitchChannelPointsAuthUrl(): Promise<{ url: string }> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-channel-points/authorize`, { credentials: "include" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to create Twitch channel points authorization URL");
+    return data;
+  },
+
+  async verifyAdminTwitchChannelPointsAuth(): Promise<{ success: boolean; user: { id: string; login: string; displayName: string } }> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-channel-points/verify`, { method: "POST", credentials: "include" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to verify Twitch channel points authorization");
+    return data;
+  },
+
+  async updateAdminTwitchChannelPointsSettings(input: { enabled: boolean; rewardTitle: string }): Promise<TwitchChannelPointsStatus> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-channel-points/settings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to update Twitch channel points settings");
+    return data;
+  },
+
+  async disconnectAdminTwitchChannelPointsAuth(): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-channel-points`, { method: "DELETE", credentials: "include" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to disconnect Twitch channel points authorization");
     return data;
   },
 

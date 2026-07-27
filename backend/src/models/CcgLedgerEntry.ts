@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from "mongoose";
 import { CcgMode } from "../config/ccg";
 import { CcgOwnerType } from "./CcgOwnership";
 
-export type CcgLedgerAction = "daily_grant" | "pack_open" | "card_acquire" | "duplicate_reward" | "guest_claim" | "login_conversion" | "admin_adjustment" | "redeem_code" | "raid_rollover";
+export type CcgLedgerAction = "daily_grant" | "pack_open" | "card_acquire" | "duplicate_reward" | "guest_claim" | "login_conversion" | "admin_adjustment" | "redeem_code" | "raid_rollover" | "twitch_reward";
 
 export interface ICcgLedgerEntry extends Document {
   ownerType: CcgOwnerType;
@@ -23,7 +23,7 @@ const CcgLedgerEntrySchema = new Schema<ICcgLedgerEntry>(
     ownerId: { type: Schema.Types.ObjectId, required: true, index: true },
     action: {
       type: String,
-      enum: ["daily_grant", "pack_open", "card_acquire", "duplicate_reward", "guest_claim", "login_conversion", "admin_adjustment", "redeem_code", "raid_rollover"],
+      enum: ["daily_grant", "pack_open", "card_acquire", "duplicate_reward", "guest_claim", "login_conversion", "admin_adjustment", "redeem_code", "raid_rollover", "twitch_reward"],
       required: true,
       index: true,
     },

@@ -40,6 +40,7 @@ import { buildCcgCardSearchCandidates } from "../utils/ccg-card-search";
 import { createCharacterCollectorKey, createWowCharacterIdentityKey } from "../utils/ccg-identity";
 import { CcgReadinessBlocker, evaluateCcgReadiness } from "../utils/ccg-readiness";
 import {
+  CcgSnapshotPreviewDisposition,
   CcgSnapshotPreviewSummary,
   getCcgSnapshotPreviewDisposition,
   nextCcgCardSnapshotVersion,
@@ -92,12 +93,12 @@ export type CcgSnapshotSetPreview = CcgSnapshotPreviewSummary & {
   slug: string;
   raidName: string;
   mode: "current" | "legacy";
-  blockedCharacters: Array<{
+  characters: Array<{
     characterId: string;
     name: string;
     realm: string;
     region: string;
-    outcome: "new_character" | "rarity_change";
+    disposition: Exclude<CcgSnapshotPreviewDisposition, "unchanged">;
     previousTierGrade: CcgTierGrade | null;
     nextTierGrade: CcgTierGrade;
     mediaStatus: CharacterMediaStatus | "untracked" | "render_missing";
@@ -495,7 +496,7 @@ class CcgPublisherService {
         };
       });
       const summary = summarizeCcgSnapshotPreview(candidates, [...latestCardByCharacter.values()]);
-      const blockedCharacters = entries.flatMap(({ entry, tierGrade }) => {
+      const characters = entries.flatMap(({ entry, tierGrade }) => {
         const characterId = String(entry.characterId);
         const media = mediaByCharacter.get(characterId);
         const latestCard = latestCardByCharacter.get(characterId);
@@ -504,13 +505,13 @@ class CcgPublisherService {
           tierGrade,
           media?.status === "available" && Boolean(media.mainRawUrl),
         );
-        if (disposition !== "blocked_new_character" && disposition !== "blocked_rarity_change") return [];
+        if (disposition === "unchanged") return [];
         return [{
           characterId,
           name: entry.name,
           realm: entry.realm,
           region: entry.region,
-          outcome: disposition === "blocked_new_character" ? ("new_character" as const) : ("rarity_change" as const),
+          disposition,
           previousTierGrade: latestCard?.tierGrade ?? null,
           nextTierGrade: tierGrade,
           mediaStatus: !media
@@ -530,7 +531,7 @@ class CcgPublisherService {
         slug: set.slug,
         raidName: set.raidName,
         mode: set.state === "current" ? "current" : "legacy",
-        blockedCharacters,
+        characters,
         ...summary,
       });
     }
@@ -1136,9 +1137,14 @@ class CcgPublisherService {
     }
   }
 
-  async getEnabledCurrentSets(): Promise<ICcgSet[]> {
+  async getEnabledRaidSets(): Promise<ICcgSet[]> {
     await this.ensureConfiguredSets();
-    return CcgSet.find({ state: "current", enabledAt: { $ne: null }, cardCount: { $gt: 0 } }).sort({ zoneId: 1 });
+    return CcgSet.find({
+      kind: "raid",
+      state: { $in: ["current", "legacy"] },
+      enabledAt: { $ne: null },
+      cardCount: { $gt: 0 },
+    }).sort({ state: 1, zoneId: -1 });
   }
 
   private async acquireLock(key: string, durationMs: number): Promise<string | null> {

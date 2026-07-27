@@ -969,9 +969,9 @@ class UpdateScheduler {
 
   private async buildWeeklyCcgSnapshot(): Promise<void> {
     this.isBuildingCcgSnapshot = true;
-    const taskId = await taskTracker.start("CCG Weekly Current Snapshot");
+    const taskId = await taskTracker.start("CCG Weekly Raid Snapshot");
     try {
-      const sets = await ccgPublisherService.getEnabledCurrentSets();
+      const sets = await ccgPublisherService.getEnabledRaidSets();
       const results = [];
       for (const set of sets) results.push({ zoneId: set.zoneId, slug: set.slug, ...(await ccgPublisherService.buildSnapshot(set.zoneId)) });
       await taskTracker.complete(taskId, { sets: results });
@@ -985,9 +985,9 @@ class UpdateScheduler {
 
   private async publishWeeklyCcgWave(): Promise<void> {
     this.isPublishingCcgWave = true;
-    const taskId = await taskTracker.start("CCG Weekly Current Publication");
+    const taskId = await taskTracker.start("CCG Weekly Raid Publication");
     try {
-      const sets = await ccgPublisherService.getEnabledCurrentSets();
+      const sets = await ccgPublisherService.getEnabledRaidSets();
       const results = [];
       for (const set of sets) results.push({ zoneId: set.zoneId, slug: set.slug, ...(await ccgPublisherService.publishLatestWave(set.slug)) });
       await taskTracker.complete(taskId, { sets: results });

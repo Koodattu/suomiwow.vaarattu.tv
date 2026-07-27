@@ -1,5 +1,6 @@
 import logger from "../utils/logger";
 import User, { IUser, ITwitchAccount } from "../models/User";
+import twitchCcgRewardService from "./twitch-ccg-reward.service";
 
 interface TwitchTokenResponse {
   access_token: string;
@@ -154,6 +155,13 @@ class TwitchAuthService {
 
     await user.save();
     logger.info(`Twitch account connected: ${twitchUser.display_name} (${twitchUser.id}) to user ${userId}`);
+
+    try {
+      const granted = await twitchCcgRewardService.grantPendingForTwitchUser(twitchUser.id);
+      if (granted > 0) logger.info(`Granted ${granted} pending Twitch CCG reward(s) to user ${userId}`);
+    } catch (error) {
+      logger.error(`Failed to process pending Twitch CCG rewards after linking user ${userId}:`, error);
+    }
 
     return user;
   }

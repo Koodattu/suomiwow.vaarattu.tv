@@ -3,16 +3,35 @@
 import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { api } from "@/lib/api";
-import type { CcgAdminSnapshotPreview, CcgAdminSnapshotPreviewCounts, CcgTierGrade } from "@/types";
+import type { CcgAdminSnapshotPreview, CcgAdminSnapshotPreviewCounts, CcgAdminSnapshotSetPreview, CcgTierGrade } from "@/types";
+
+type PreviewCharacter = CcgAdminSnapshotSetPreview["characters"][number];
+type OutcomeFilter = "all" | "will_add" | "will_update" | "missing_media";
 
 const grades: readonly CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
 const calculateButton =
-  "min-h-10 rounded-md bg-cyan-700 px-4 py-2 text-sm font-bold text-white transition-transform duration-150 ease-out hover:bg-cyan-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
+  "min-h-10 rounded-md bg-cyan-700 px-4 py-2 text-sm font-bold text-white transition-[background-color,scale] duration-150 ease-out hover:bg-cyan-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
+const filterButton =
+  "min-h-10 rounded-md px-3 py-2 text-left transition-[background-color,color,box-shadow,scale] duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 active:scale-[0.96]";
+
+function isMissingMedia(character: PreviewCharacter): boolean {
+  return character.disposition === "blocked_new_character" || character.disposition === "blocked_rarity_change";
+}
+
+function matchesOutcome(character: PreviewCharacter, filter: OutcomeFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "will_add") return character.disposition === "new_character";
+  if (filter === "will_update") return character.disposition === "rarity_change";
+  return isMissingMedia(character);
+}
 
 export default function CcgSnapshotPreview() {
   const t = useTranslations("admin.ccg.snapshotPreview");
   const locale = useLocale();
   const [preview, setPreview] = useState<CcgAdminSnapshotPreview | null>(null);
+  const [selectedSetId, setSelectedSetId] = useState("");
+  const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>("all");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dateFormatter = useMemo(
@@ -23,21 +42,42 @@ export default function CcgSnapshotPreview() {
     () => new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" }),
     [locale],
   );
-  const blockedCharacters = useMemo(
-    () => preview?.sets.flatMap((set) => set.blockedCharacters.map((character) => ({
-      ...character,
-      setId: set.setId,
-      raidName: set.raidName,
-      mode: set.mode,
-    }))) ?? [],
-    [preview],
+  const selectedSet = useMemo(
+    () => preview?.sets.find((set) => set.setId === selectedSetId) ?? preview?.sets[0] ?? null,
+    [preview, selectedSetId],
   );
+  const outcomeCounts = useMemo(() => {
+    const characters = selectedSet?.characters ?? [];
+    return {
+      all: characters.length,
+      will_add: characters.filter((character) => character.disposition === "new_character").length,
+      will_update: characters.filter((character) => character.disposition === "rarity_change").length,
+      missing_media: characters.filter(isMissingMedia).length,
+    } satisfies Record<OutcomeFilter, number>;
+  }, [selectedSet]);
+  const visibleCharacters = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase(locale);
+    const priority: Record<PreviewCharacter["disposition"], number> = {
+      new_character: 0,
+      rarity_change: 1,
+      blocked_new_character: 2,
+      blocked_rarity_change: 3,
+    };
+    return (selectedSet?.characters ?? [])
+      .filter((character) => matchesOutcome(character, outcomeFilter))
+      .filter((character) => !query || `${character.name} ${character.realm} ${character.region}`.toLocaleLowerCase(locale).includes(query))
+      .sort((left, right) => priority[left.disposition] - priority[right.disposition]
+        || left.name.localeCompare(right.name, locale)
+        || left.realm.localeCompare(right.realm, locale));
+  }, [locale, outcomeFilter, search, selectedSet]);
 
   const calculate = async () => {
     setLoading(true);
     setError(null);
     try {
-      setPreview(await api.getAdminCcgSnapshotPreview());
+      const nextPreview = await api.getAdminCcgSnapshotPreview();
+      setPreview(nextPreview);
+      setSelectedSetId((current) => nextPreview.sets.some((set) => set.setId === current) ? current : nextPreview.sets[0]?.setId ?? "");
     } catch (calculationError) {
       setError(calculationError instanceof Error ? calculationError.message : t("error"));
     } finally {
@@ -47,12 +87,12 @@ export default function CcgSnapshotPreview() {
 
   const metrics = (counts: CcgAdminSnapshotPreviewCounts) => [
     { key: "eligible", value: counts.eligibleCharacters },
-    { key: "projected", value: counts.projectedSnapshots },
     { key: "newCharacters", value: counts.newCharacters },
     { key: "rarityChanges", value: counts.rarityChanges },
-    { key: "unchanged", value: counts.unchangedCharacters },
     { key: "blocked", value: counts.blockedByMissingMedia },
+    { key: "unchanged", value: counts.unchangedCharacters },
   ] as const;
+  const outcomeFilters: readonly OutcomeFilter[] = ["all", "will_add", "will_update", "missing_media"];
 
   return (
     <section className="space-y-5" aria-labelledby="ccg-snapshot-preview-title" aria-busy={loading}>
@@ -74,8 +114,8 @@ export default function CcgSnapshotPreview() {
       ) : null}
 
       {loading && !preview ? (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3" aria-label={t("calculating")}>
-          {Array.from({ length: 6 }, (_, index) => <div key={index} className="h-24 animate-pulse rounded-lg bg-gray-800" />)}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label={t("calculating")}>
+          {Array.from({ length: 5 }, (_, index) => <div key={index} className="h-24 animate-pulse rounded-lg bg-gray-800" />)}
         </div>
       ) : null}
 
@@ -86,7 +126,7 @@ export default function CcgSnapshotPreview() {
             <p className="text-xs tabular-nums text-gray-500">{t("calculatedAt", { date: dateFormatter.format(new Date(preview.calculatedAt)) })}</p>
           </div>
 
-          <dl className={`grid grid-cols-2 gap-3 lg:grid-cols-3 ${loading ? "opacity-70" : "opacity-100"}`}>
+          <dl className={`grid grid-cols-2 gap-3 lg:grid-cols-5 ${loading ? "opacity-70" : "opacity-100"}`}>
             {metrics(preview.totals).map(({ key, value }) => (
               <div key={key} className="rounded-lg bg-gray-800/75 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]">
                 <dt className="text-xs font-medium text-gray-400">{t(`metrics.${key}`)}</dt>
@@ -104,105 +144,193 @@ export default function CcgSnapshotPreview() {
             </p>
           ) : null}
 
-          {blockedCharacters.length > 0 ? (
-            <section className="overflow-hidden rounded-lg bg-gray-900/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" aria-labelledby="ccg-blocked-characters-title">
-              <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3 shadow-[inset_0_-1px_0_rgba(255,255,255,0.06)]">
-                <div>
-                  <h3 id="ccg-blocked-characters-title" className="font-bold text-balance text-white">
-                    {t("blockedList.title")} <span className="ml-1 tabular-nums text-amber-300">{blockedCharacters.length}</span>
-                  </h3>
-                  <p className="mt-0.5 text-xs text-pretty text-gray-500">{t("blockedList.description")}</p>
-                </div>
-              </div>
-              <div className="max-h-[34rem] overflow-auto">
-                <table className="w-full min-w-[64rem] table-fixed text-left text-xs">
-                  <thead className="sticky top-0 z-10 bg-gray-950/95 text-gray-500 shadow-[0_1px_0_rgba(255,255,255,0.08)]">
-                    <tr>
-                      <th scope="col" className="w-[21%] px-3 py-2 font-semibold">{t("blockedList.character")}</th>
-                      <th scope="col" className="w-[20%] px-3 py-2 font-semibold">{t("blockedList.raid")}</th>
-                      <th scope="col" className="w-[13%] px-3 py-2 font-semibold">{t("blockedList.change")}</th>
-                      <th scope="col" className="w-[9%] px-3 py-2 font-semibold">{t("blockedList.rarity")}</th>
-                      <th scope="col" className="w-[17%] px-3 py-2 font-semibold">{t("blockedList.media")}</th>
-                      <th scope="col" className="w-[20%] px-3 py-2 font-semibold">{t("blockedList.error")}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {blockedCharacters.map((character) => (
-                      <tr key={`${character.setId}:${character.characterId}`} className="text-gray-300">
-                        <td className="truncate px-3 py-2" title={`${character.name}-${character.realm} (${character.region.toUpperCase()})`}>
-                          <span className="font-semibold text-white">{character.name}</span>
-                          <span className="text-gray-500"> · {character.realm} · {character.region.toUpperCase()}</span>
-                        </td>
-                        <td className="truncate px-3 py-2" title={character.raidName}>
-                          {character.raidName}
-                          <span className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${character.mode === "current" ? "bg-cyan-950 text-cyan-300" : "bg-gray-800 text-gray-400"}`}>
-                            {t(`modes.${character.mode}`)}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-gray-400">{t(`outcomes.${character.outcome}`)}</td>
-                        <td className="px-3 py-2 font-semibold tabular-nums text-white">
-                          {character.previousTierGrade ?? "—"} → {character.nextTierGrade}
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className="font-medium text-amber-200">{t(`mediaStatuses.${character.mediaStatus}`)}</span>
-                          <span className="text-gray-600"> · {t("blockedList.attempts", { count: character.attemptCount })}</span>
-                          {character.nextAttemptAt ? (
-                            <span className="block tabular-nums text-[10px] text-gray-600">
-                              {t("blockedList.nextAttempt", { date: compactDateFormatter.format(new Date(character.nextAttemptAt)) })}
-                            </span>
-                          ) : null}
-                        </td>
-                        <td
-                          className="px-3 py-2 font-mono text-[11px] text-gray-500"
-                          title={[character.lastErrorCode, character.lastError].filter(Boolean).join(": ") || undefined}
-                        >
-                          <span className="block truncate">{character.lastErrorCode ?? t("blockedList.noError")}</span>
-                          {character.lastError ? <span className="block truncate font-sans text-[10px] text-gray-600">{character.lastError}</span> : null}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ) : null}
-
           {preview.sets.length === 0 ? (
             <div className="rounded-lg bg-gray-800/70 p-6 text-center text-sm text-gray-400 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
               {t("empty")}
             </div>
           ) : (
-            <div className="space-y-3">
-              {preview.sets.map((set) => (
-                <article key={set.setId} className="rounded-lg bg-gray-800/65 p-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h4 className="font-bold text-white">
-                      {set.raidName}
-                      <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${set.mode === "current" ? "bg-cyan-950 text-cyan-300" : "bg-gray-950 text-gray-400"}`}>
-                        {t(`modes.${set.mode}`)}
-                      </span>
-                    </h4>
-                    <span className="text-xs tabular-nums text-gray-500">{t("mediaCoverage", { ready: set.mediaReady, eligible: set.eligibleCharacters })}</span>
-                  </div>
-                  <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-6">
-                    {metrics(set).map(({ key, value }) => (
-                      <div key={key}>
-                        <dt className="text-xs text-gray-500">{t(`metrics.${key}`)}</dt>
-                        <dd className="mt-0.5 font-semibold tabular-nums text-gray-100">{value}</dd>
+            <>
+              <section className="overflow-hidden rounded-lg bg-gray-900/60 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" aria-labelledby="ccg-raid-overview-title">
+                <div className="px-4 py-3 shadow-[inset_0_-1px_0_rgba(255,255,255,0.06)]">
+                  <h3 id="ccg-raid-overview-title" className="font-bold text-balance text-white">{t("raidOverview.title")}</h3>
+                  <p className="mt-0.5 text-xs text-pretty text-gray-500">{t("raidOverview.description")}</p>
+                </div>
+                <div className="max-h-[26rem] overflow-auto">
+                  <table className="w-full min-w-[46rem] text-left text-xs">
+                    <thead className="sticky top-0 z-10 bg-gray-950/95 text-gray-500 shadow-[0_1px_0_rgba(255,255,255,0.08)]">
+                      <tr>
+                        <th scope="col" className="px-3 py-2 font-semibold">{t("raidOverview.raid")}</th>
+                        <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.eligible")}</th>
+                        <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.newCharacters")}</th>
+                        <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.rarityChanges")}</th>
+                        <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.blocked")}</th>
+                        <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.unchanged")}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {preview.sets.map((set) => {
+                        const selected = selectedSet?.setId === set.setId;
+                        return (
+                          <tr key={set.setId} className={selected ? "bg-cyan-950/35" : "hover:bg-white/[0.025]"}>
+                            <td className="p-1.5">
+                              <button
+                                type="button"
+                                className="flex min-h-10 w-full items-center rounded-md px-2 text-left font-semibold text-white transition-[background-color,scale] duration-150 ease-out hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 active:scale-[0.96]"
+                                onClick={() => {
+                                  setSelectedSetId(set.setId);
+                                  setOutcomeFilter("all");
+                                  setSearch("");
+                                }}
+                                aria-pressed={selected}
+                              >
+                                <span className="truncate">{set.raidName}</span>
+                                <span className={`ml-2 shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${set.mode === "current" ? "bg-cyan-950 text-cyan-300" : "bg-gray-800 text-gray-400"}`}>
+                                  {t(`modes.${set.mode}`)}
+                                </span>
+                              </button>
+                            </td>
+                            {[set.eligibleCharacters, set.newCharacters, set.rarityChanges, set.blockedByMissingMedia, set.unchangedCharacters].map((value, index) => (
+                              <td key={index} className="px-3 py-2 text-right font-medium tabular-nums text-gray-300">{value}</td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              {selectedSet ? (
+                <section className="overflow-hidden rounded-xl bg-gray-900/70 p-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" aria-labelledby="ccg-character-changes-title">
+                  <div className="rounded-lg bg-gray-800/55 p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <h3 id="ccg-character-changes-title" className="font-bold text-balance text-white">
+                          {t("characterList.title", { raid: selectedSet.raidName })}
+                        </h3>
+                        <p className="mt-1 text-xs text-pretty text-gray-500">{t("characterList.description")}</p>
                       </div>
-                    ))}
-                  </dl>
-                  <div className="mt-4 flex flex-wrap items-center gap-2" aria-label={t("gradeDistribution")}>
+                      <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-gray-400 sm:min-w-72">
+                        {t("characterList.raidFilter")}
+                        <select
+                          className="min-h-10 rounded-md bg-gray-950 px-3 text-sm text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                          value={selectedSet.setId}
+                          onChange={(event) => {
+                            setSelectedSetId(event.target.value);
+                            setOutcomeFilter("all");
+                            setSearch("");
+                          }}
+                        >
+                          {preview.sets.map((set) => <option key={set.setId} value={set.setId}>{set.raidName} · {t(`modes.${set.mode}`)}</option>)}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label={t("characterList.outcomeFilter")}>
+                      {outcomeFilters.map((filter) => {
+                        const selected = outcomeFilter === filter;
+                        return (
+                          <button
+                            key={filter}
+                            type="button"
+                            className={`${filterButton} ${selected ? "bg-cyan-950/80 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(103,232,249,0.28)]" : "bg-gray-950/55 text-gray-400 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)] hover:bg-gray-900 hover:text-white"}`}
+                            onClick={() => setOutcomeFilter(filter)}
+                            aria-pressed={selected}
+                          >
+                            <span className="block text-xs font-semibold">{t(`filters.${filter}`)}</span>
+                            <span className="mt-0.5 block text-lg font-bold tabular-nums">{outcomeCounts[filter]}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <label className="mt-3 flex flex-col gap-1 text-xs font-medium text-gray-400 sm:max-w-sm">
+                      {t("characterList.searchLabel")}
+                      <input
+                        type="search"
+                        className="min-h-10 rounded-md bg-gray-950 px-3 text-sm text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] placeholder:text-gray-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        placeholder={t("characterList.searchPlaceholder")}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-2 overflow-hidden rounded-lg bg-gray-950/45">
+                    <div className="flex items-center justify-between gap-3 px-4 py-2 text-xs text-gray-500 shadow-[inset_0_-1px_0_rgba(255,255,255,0.06)]">
+                      <span>{t("characterList.results")}</span>
+                      <span className="font-semibold tabular-nums text-gray-300">{visibleCharacters.length} / {outcomeCounts[outcomeFilter]}</span>
+                    </div>
+                    {visibleCharacters.length > 0 ? (
+                      <div className="max-h-[38rem] overflow-auto">
+                        <table className="w-full min-w-[58rem] table-fixed text-left text-xs">
+                          <thead className="sticky top-0 z-10 bg-gray-950/95 text-gray-500 shadow-[0_1px_0_rgba(255,255,255,0.08)]">
+                            <tr>
+                              <th scope="col" className="w-[24%] px-3 py-2 font-semibold">{t("characterList.character")}</th>
+                              <th scope="col" className="w-[19%] px-3 py-2 font-semibold">{t("characterList.result")}</th>
+                              <th scope="col" className="w-[10%] px-3 py-2 font-semibold">{t("characterList.rarity")}</th>
+                              <th scope="col" className="w-[20%] px-3 py-2 font-semibold">{t("characterList.media")}</th>
+                              <th scope="col" className="w-[27%] px-3 py-2 font-semibold">{t("characterList.error")}</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {visibleCharacters.map((character) => {
+                              const blocked = isMissingMedia(character);
+                              return (
+                                <tr key={character.characterId} className="text-gray-300 hover:bg-white/[0.025]">
+                                  <td className="truncate px-3 py-2" title={`${character.name}-${character.realm} (${character.region.toUpperCase()})`}>
+                                    <span className="font-semibold text-white">{character.name}</span>
+                                    <span className="text-gray-500"> · {character.realm} · {character.region.toUpperCase()}</span>
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <span className={`inline-flex rounded-full px-2 py-1 font-semibold ${blocked ? "bg-amber-950/70 text-amber-200" : character.disposition === "new_character" ? "bg-emerald-950/70 text-emerald-200" : "bg-cyan-950/70 text-cyan-200"}`}>
+                                      {t(`dispositions.${character.disposition}`)}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2 font-semibold tabular-nums text-white">
+                                    {character.previousTierGrade ?? "—"} → {character.nextTierGrade}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <span className={`font-medium ${blocked ? "text-amber-200" : "text-emerald-200"}`}>{t(`mediaStatuses.${character.mediaStatus}`)}</span>
+                                    {blocked ? <span className="text-gray-600"> · {t("characterList.attempts", { count: character.attemptCount })}</span> : null}
+                                    {blocked && character.nextAttemptAt ? (
+                                      <span className="block tabular-nums text-[10px] text-gray-600">
+                                        {t("characterList.nextAttempt", { date: compactDateFormatter.format(new Date(character.nextAttemptAt)) })}
+                                      </span>
+                                    ) : null}
+                                  </td>
+                                  <td
+                                    className="px-3 py-2 font-mono text-[11px] text-gray-500"
+                                    title={[character.lastErrorCode, character.lastError].filter(Boolean).join(": ") || undefined}
+                                  >
+                                    <span className="block truncate">{character.lastErrorCode ?? (blocked ? t("characterList.noError") : "—")}</span>
+                                    {character.lastError ? <span className="block truncate font-sans text-[10px] text-gray-600">{character.lastError}</span> : null}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="px-4 py-10 text-center text-sm text-pretty text-gray-500">
+                        {selectedSet.characters.length === 0 ? t("characterList.noChanges") : t("characterList.noMatches")}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-gray-950/40 px-4 py-3" aria-label={t("gradeDistribution")}>
                     <span className="mr-1 text-xs font-medium text-gray-500">{t("gradeDistribution")}</span>
                     {grades.map((grade) => (
-                      <span key={grade} className="rounded-full bg-gray-950/65 px-2 py-1 text-xs font-semibold tabular-nums text-gray-300">
-                        {grade} {set.gradeDistribution[grade]}
+                      <span key={grade} className="rounded-full bg-gray-900 px-2 py-1 text-xs font-semibold tabular-nums text-gray-300">
+                        {grade} {selectedSet.gradeDistribution[grade]}
                       </span>
                     ))}
+                    <span className="ml-auto text-xs tabular-nums text-gray-500">{t("mediaCoverage", { ready: selectedSet.mediaReady, eligible: selectedSet.eligibleCharacters })}</span>
                   </div>
-                </article>
-              ))}
-            </div>
+                </section>
+              ) : null}
+            </>
           )}
         </>
       ) : null}

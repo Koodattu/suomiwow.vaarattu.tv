@@ -112,6 +112,8 @@ import {
   TwitchBotMessageTemplateKey,
   TwitchBotMessageTemplates,
   TwitchBotSettings,
+  TwitchChannelPointsStatus,
+  TwitchCustomReward,
 } from "@/types";
 
 type TabType = "overview" | "users" | "guilds" | "streams" | "characters" | "pickems" | "ccg" | "system" | "tasks";
@@ -334,6 +336,11 @@ export default function AdminPage() {
   const [twitchBotTableDataLoading, setTwitchBotTableDataLoading] = useState(false);
   const [twitchBotSettingsSaving, setTwitchBotSettingsSaving] = useState(false);
   const [activeTwitchTemplateKey, setActiveTwitchTemplateKey] = useState<TwitchBotMessageTemplateKey>("bossKill");
+  const [twitchChannelPointsStatus, setTwitchChannelPointsStatus] = useState<TwitchChannelPointsStatus | null>(null);
+  const [twitchChannelPointRewards, setTwitchChannelPointRewards] = useState<TwitchCustomReward[]>([]);
+  const [twitchChannelPointsEnabled, setTwitchChannelPointsEnabled] = useState(false);
+  const [twitchChannelPointsRewardTitle, setTwitchChannelPointsRewardTitle] = useState("");
+  const [twitchChannelPointsSaving, setTwitchChannelPointsSaving] = useState(false);
 
   // Characters data
   const [characters, setCharacters] = useState<AdminCharacter[]>([]);
@@ -518,17 +525,22 @@ export default function AdminPage() {
     const params = new URLSearchParams(window.location.search);
     const wclUserResult = params.get("wclUser");
     const twitchBotResult = params.get("twitchBot");
-    if (!wclUserResult && !twitchBotResult) return;
+    const twitchChannelPointsResult = params.get("twitchChannelPoints");
+    if (!wclUserResult && !twitchBotResult && !twitchChannelPointsResult) return;
 
-    setActiveTab(twitchBotResult && !wclUserResult ? "streams" : "system");
+    setActiveTab((twitchBotResult || twitchChannelPointsResult) && !wclUserResult ? "streams" : "system");
     if (wclUserResult === "connected") {
       setTriggerMessage({ type: "success", text: "Warcraft Logs user authorization connected" });
     } else if (wclUserResult) {
       setTriggerMessage({ type: "error", text: `Warcraft Logs authorization failed: ${params.get("reason") || "unknown error"}` });
     } else if (twitchBotResult === "connected") {
       setTriggerMessage({ type: "success", text: "Twitch bot authorization connected" });
-    } else {
+    } else if (twitchBotResult) {
       setTriggerMessage({ type: "error", text: `Twitch bot authorization failed: ${params.get("reason") || "unknown error"}` });
+    } else if (twitchChannelPointsResult === "connected") {
+      setTriggerMessage({ type: "success", text: "Twitch channel points broadcaster connected" });
+    } else {
+      setTriggerMessage({ type: "error", text: `Twitch channel points authorization failed: ${params.get("reason") || "unknown error"}` });
     }
     setTimeout(() => setTriggerMessage(null), 7000);
     router.replace("/admin");
@@ -587,16 +599,22 @@ export default function AdminPage() {
           }
 
           case "streams": {
-            const [streamsData, twitchBotData, twitchBotFollowsData] = await Promise.all([
+            const [streamsData, twitchBotData, twitchBotFollowsData, channelPointsData, rewardsData] = await Promise.all([
               api.getAdminTwitchStreams(),
               api.getAdminTwitchBotStatus(),
               api.getAdminTwitchBotFollows().catch(() => null),
+              api.getAdminTwitchChannelPointsStatus(),
+              api.getAdminTwitchChannelPointRewards().catch(() => null),
             ]);
             setTwitchStreams(streamsData.streams);
             setTwitchStreamStats(streamsData.stats);
             setTwitchBotStatus(twitchBotData);
             setTwitchBotSettingsDraft(twitchBotData.settings);
             setTwitchBotFollows(twitchBotFollowsData);
+            setTwitchChannelPointsStatus(channelPointsData);
+            setTwitchChannelPointsEnabled(channelPointsData.rewardEnabled);
+            setTwitchChannelPointsRewardTitle(channelPointsData.rewardTitle || "");
+            setTwitchChannelPointRewards(rewardsData?.rewards || []);
             break;
           }
 
@@ -920,6 +938,20 @@ export default function AdminPage() {
     return status;
   };
 
+  const refreshTwitchChannelPointsStatus = async () => {
+    const status = await api.getAdminTwitchChannelPointsStatus();
+    setTwitchChannelPointsStatus(status);
+    setTwitchChannelPointsEnabled(status.rewardEnabled);
+    setTwitchChannelPointsRewardTitle(status.rewardTitle || "");
+    return status;
+  };
+
+  const refreshTwitchChannelPointRewards = async () => {
+    const result = await api.getAdminTwitchChannelPointRewards();
+    setTwitchChannelPointRewards(result.rewards);
+    return result.rewards;
+  };
+
   const refreshTwitchBotFollows = async () => {
     setTwitchBotFollowsLoading(true);
     try {
@@ -1231,6 +1263,74 @@ export default function AdminPage() {
         type: "error",
         text: error instanceof Error ? error.message : "Failed to disconnect Twitch bot authorization",
       });
+    } finally {
+      setTriggerLoading(null);
+    }
+  };
+
+  const handleConnectTwitchChannelPoints = async () => {
+    setTriggerLoading("twitch-channel-points-connect");
+    setTriggerMessage(null);
+    try {
+      const { url } = await api.getAdminTwitchChannelPointsAuthUrl();
+      window.location.href = url;
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to start broadcaster authorization" });
+      setTriggerLoading(null);
+    }
+  };
+
+  const handleVerifyTwitchChannelPoints = async () => {
+    setTriggerLoading("twitch-channel-points-verify");
+    setTriggerMessage(null);
+    try {
+      const result = await api.verifyAdminTwitchChannelPointsAuth();
+      await Promise.all([refreshTwitchChannelPointsStatus(), refreshTwitchChannelPointRewards()]);
+      setTriggerMessage({ type: "success", text: `Channel points broadcaster verified: ${result.user.displayName}` });
+      setTimeout(() => setTriggerMessage(null), 5000);
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to verify broadcaster authorization" });
+    } finally {
+      setTriggerLoading(null);
+    }
+  };
+
+  const handleSaveTwitchChannelPoints = async () => {
+    if (twitchChannelPointsEnabled && !twitchChannelPointsRewardTitle.trim()) {
+      setTriggerMessage({ type: "error", text: "Choose a channel points reward before enabling the listener." });
+      return;
+    }
+    setTwitchChannelPointsSaving(true);
+    setTriggerMessage(null);
+    try {
+      const status = await api.updateAdminTwitchChannelPointsSettings({
+        enabled: twitchChannelPointsEnabled,
+        rewardTitle: twitchChannelPointsRewardTitle,
+      });
+      setTwitchChannelPointsStatus(status);
+      setTwitchChannelPointsEnabled(status.rewardEnabled);
+      setTwitchChannelPointsRewardTitle(status.rewardTitle || twitchChannelPointsRewardTitle);
+      setTriggerMessage({ type: "success", text: status.rewardEnabled ? "Channel points listener activated" : "Channel points listener disabled" });
+      setTimeout(() => setTriggerMessage(null), 5000);
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to save channel points settings" });
+    } finally {
+      setTwitchChannelPointsSaving(false);
+    }
+  };
+
+  const handleDisconnectTwitchChannelPoints = async () => {
+    if (!confirm("Disconnect the broadcaster authorization and remove its EventSub subscription? Recorded and pending rewards are kept.")) return;
+    setTriggerLoading("twitch-channel-points-disconnect");
+    setTriggerMessage(null);
+    try {
+      const result = await api.disconnectAdminTwitchChannelPointsAuth();
+      await refreshTwitchChannelPointsStatus();
+      setTwitchChannelPointRewards([]);
+      setTriggerMessage({ type: "success", text: result.message });
+      setTimeout(() => setTriggerMessage(null), 5000);
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to disconnect broadcaster authorization" });
     } finally {
       setTriggerLoading(null);
     }
@@ -2771,6 +2871,125 @@ export default function AdminPage() {
                     </div>
                   )}
                 </div>
+
+                {twitchChannelPointsStatus && (
+                  <div className="bg-gray-800 rounded-lg p-5 space-y-5">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-white text-balance">Channel Points CCG Reward</h3>
+                        <p className="mt-1 text-sm text-gray-400 text-pretty">
+                          The {twitchChannelPointsStatus.expectedBroadcasterLogin} broadcaster authorization listens for one reward. Vaarabot posts the result in chat.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={handleConnectTwitchChannelPoints}
+                          disabled={!twitchChannelPointsStatus.enabled || triggerLoading === "twitch-channel-points-connect"}
+                          className="min-h-10 px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
+                        >
+                          {twitchChannelPointsStatus.connected ? "Reconnect Broadcaster" : "Connect Broadcaster"}
+                        </button>
+                        <button
+                          onClick={handleVerifyTwitchChannelPoints}
+                          disabled={!twitchChannelPointsStatus.connected || triggerLoading === "twitch-channel-points-verify"}
+                          className="min-h-10 px-3 py-2 bg-gray-700 text-gray-200 text-sm rounded hover:bg-gray-600 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
+                        >
+                          Verify
+                        </button>
+                        <button
+                          onClick={handleDisconnectTwitchChannelPoints}
+                          disabled={!twitchChannelPointsStatus.connected || triggerLoading === "twitch-channel-points-disconnect"}
+                          className="min-h-10 px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
+                        >
+                          Disconnect
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                      <div className="rounded-lg bg-gray-900/70 p-4">
+                        <h4 className="text-gray-400 text-sm">Broadcaster</h4>
+                        <p className={`mt-1 text-lg font-bold ${twitchChannelPointsStatus.connected ? "text-white" : "text-amber-400"}`}>
+                          {twitchChannelPointsStatus.broadcasterDisplayName || (twitchChannelPointsStatus.connected ? "Connected" : "Not connected")}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500 break-all">{twitchChannelPointsStatus.missingScopes.join(", ") || twitchChannelPointsStatus.scopes.join(", ")}</p>
+                      </div>
+                      <div className="rounded-lg bg-gray-900/70 p-4">
+                        <h4 className="text-gray-400 text-sm">EventSub</h4>
+                        <p className={`mt-1 text-lg font-bold ${twitchChannelPointsStatus.subscriptionStatus === "enabled" ? "text-green-400" : "text-amber-400"}`}>
+                          {twitchChannelPointsStatus.rewardEnabled ? twitchChannelPointsStatus.subscriptionStatus || "Starting" : "Disabled"}
+                        </p>
+                        {twitchChannelPointsStatus.lastNotificationAt && <p className="text-xs text-gray-500">last reward: {formatDate(twitchChannelPointsStatus.lastNotificationAt)}</p>}
+                      </div>
+                      <div className="rounded-lg bg-gray-900/70 p-4">
+                        <h4 className="text-gray-400 text-sm">Pack Grants</h4>
+                        <p className="mt-1 text-lg font-bold text-green-400 tabular-nums">{twitchChannelPointsStatus.deliveries.grants.granted}</p>
+                        <p className="text-xs text-gray-500 tabular-nums">
+                          {twitchChannelPointsStatus.deliveries.grants.pending} pending · {twitchChannelPointsStatus.deliveries.grants.failed} failed
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-gray-900/70 p-4">
+                        <h4 className="text-gray-400 text-sm">Chat Replies</h4>
+                        <p className="mt-1 text-lg font-bold text-green-400 tabular-nums">{twitchChannelPointsStatus.deliveries.chat.sent24h} / 24h</p>
+                        <p className="text-xs text-gray-500 tabular-nums">
+                          {twitchChannelPointsStatus.deliveries.chat.pending} pending · {twitchChannelPointsStatus.deliveries.chat.failed} failed
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                      <div>
+                        <label htmlFor="twitch-channel-points-reward" className="block text-sm font-medium text-gray-200">Reward</label>
+                        <select
+                          id="twitch-channel-points-reward"
+                          value={twitchChannelPointsRewardTitle}
+                          onChange={(event) => setTwitchChannelPointsRewardTitle(event.target.value)}
+                          disabled={!twitchChannelPointsStatus.connected}
+                          className="mt-2 min-h-11 w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <option value="">Choose a custom reward</option>
+                          {twitchChannelPointRewards.map((reward) => (
+                            <option key={reward.id} value={reward.title}>
+                              {reward.title} ({reward.cost.toLocaleString()} points){reward.skipsRequestQueue ? "" : " — queue enabled"}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-2 text-xs text-amber-300">The selected Twitch reward must have “Skip Reward Requests Queue” enabled.</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => refreshTwitchChannelPointRewards().catch((error) => setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to refresh rewards" }))}
+                          disabled={!twitchChannelPointsStatus.connected}
+                          className="min-h-11 px-3 py-2 bg-gray-700 text-gray-200 text-sm rounded hover:bg-gray-600 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
+                        >
+                          Refresh Rewards
+                        </button>
+                        <label className="flex min-h-11 items-center gap-3 rounded bg-gray-900 px-3 py-2 text-sm text-gray-200">
+                          <input
+                            type="checkbox"
+                            checked={twitchChannelPointsEnabled}
+                            onChange={(event) => setTwitchChannelPointsEnabled(event.target.checked)}
+                            disabled={!twitchChannelPointsStatus.connected}
+                            className="h-4 w-4 rounded border-gray-600 bg-gray-800 text-purple-500 focus:ring-purple-500"
+                          />
+                          Enabled
+                        </label>
+                        <button
+                          onClick={handleSaveTwitchChannelPoints}
+                          disabled={!twitchChannelPointsStatus.connected || twitchChannelPointsSaving}
+                          className="min-h-11 px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
+                        >
+                          {twitchChannelPointsSaving ? "Saving..." : "Save & Subscribe"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {twitchChannelPointsStatus.lastError && (
+                      <div className="rounded-lg border border-red-500/40 bg-red-950/30 px-4 py-3 text-sm text-red-200">{twitchChannelPointsStatus.lastError}</div>
+                    )}
+                    <p className="text-xs text-gray-500 break-all">Webhook: {twitchChannelPointsStatus.callbackUrl}</p>
+                  </div>
+                )}
 
                 <div className="bg-gray-800 rounded-lg p-5 space-y-5">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

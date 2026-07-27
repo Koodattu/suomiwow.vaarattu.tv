@@ -44,6 +44,7 @@ import wclUserAuthService from "../services/warcraftlogs-user-auth.service";
 import blizzardService from "../services/blizzard.service";
 import twitchBotAuthService from "../services/twitch-bot-auth.service";
 import twitchChatBotService, { TwitchBotSettingsValidationError } from "../services/twitch-chat-bot.service";
+import twitchChannelPointsService, { TwitchChannelPointsValidationError } from "../services/twitch-channel-points.service";
 import guildLogSourceService, { GuildLogSourceError } from "../services/guild-log-source.service";
 
 const router = Router();
@@ -396,6 +397,88 @@ router.delete("/twitch-bot", async (_req: Request, res: Response) => {
   } catch (error) {
     logger.error("Error disconnecting Twitch bot auth:", error);
     res.status(500).json({ error: "Failed to disconnect Twitch bot authorization" });
+  }
+});
+
+// ============================================================
+// TWITCH CHANNEL POINTS BROADCASTER OAUTH + EVENTSUB
+// ============================================================
+
+router.get("/twitch-channel-points/status", async (_req: Request, res: Response) => {
+  try {
+    res.json(await twitchChannelPointsService.getStatus());
+  } catch (error) {
+    logger.error("Error fetching Twitch channel points status:", error);
+    res.status(500).json({ error: "Failed to fetch Twitch channel points status" });
+  }
+});
+
+router.get("/twitch-channel-points/rewards", async (_req: Request, res: Response) => {
+  try {
+    res.json({ rewards: await twitchChannelPointsService.getRewards() });
+  } catch (error) {
+    logger.error("Error fetching Twitch custom rewards:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to fetch Twitch custom rewards" });
+  }
+});
+
+router.put("/twitch-channel-points/settings", async (req: Request, res: Response) => {
+  try {
+    res.json(await twitchChannelPointsService.updateSettings({ enabled: req.body?.enabled, rewardTitle: req.body?.rewardTitle }));
+  } catch (error) {
+    if (error instanceof TwitchChannelPointsValidationError) return res.status(400).json({ error: error.message });
+    logger.error("Error updating Twitch channel points settings:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to update Twitch channel points settings" });
+  }
+});
+
+router.get("/twitch-channel-points/authorize", async (req: Request, res: Response) => {
+  try {
+    const adminUser = (req as any).user;
+    res.json({ url: twitchChannelPointsService.createAuthorizationUrl(adminUser._id.toString()) });
+  } catch (error) {
+    logger.error("Error creating Twitch channel points authorization URL:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create Twitch channel points authorization URL" });
+  }
+});
+
+router.get("/twitch-channel-points/callback", async (req: Request, res: Response) => {
+  try {
+    const adminUser = (req as any).user;
+    const { code, state } = req.query;
+    const oauthError = typeof req.query.error === "string" ? req.query.error : null;
+    if (oauthError) return res.redirect(`${getFrontendUrl()}/admin?twitchChannelPoints=error&reason=${encodeURIComponent(oauthError)}`);
+    if (!code || typeof code !== "string" || !state || typeof state !== "string") {
+      return res.redirect(`${getFrontendUrl()}/admin?twitchChannelPoints=error&reason=missing_code_or_state`);
+    }
+    if (!twitchChannelPointsService.validateState(state, adminUser._id.toString())) {
+      return res.redirect(`${getFrontendUrl()}/admin?twitchChannelPoints=error&reason=invalid_state`);
+    }
+    await twitchChannelPointsService.exchangeCodeAndStore(code, adminUser);
+    return res.redirect(`${getFrontendUrl()}/admin?twitchChannelPoints=connected`);
+  } catch (error) {
+    logger.error("Error in Twitch channel points OAuth callback:", error);
+    return res.redirect(`${getFrontendUrl()}/admin?twitchChannelPoints=error&reason=callback_failed`);
+  }
+});
+
+router.post("/twitch-channel-points/verify", async (_req: Request, res: Response) => {
+  try {
+    const user = await twitchChannelPointsService.verifyCurrentUser();
+    res.json({ success: true, user, status: await twitchChannelPointsService.getStatus() });
+  } catch (error) {
+    logger.error("Error verifying Twitch channel points authorization:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to verify Twitch channel points authorization" });
+  }
+});
+
+router.delete("/twitch-channel-points", async (_req: Request, res: Response) => {
+  try {
+    await twitchChannelPointsService.disconnect();
+    res.json({ success: true, message: "Twitch channel points authorization disconnected" });
+  } catch (error) {
+    logger.error("Error disconnecting Twitch channel points authorization:", error);
+    res.status(500).json({ error: "Failed to disconnect Twitch channel points authorization" });
   }
 });
 
