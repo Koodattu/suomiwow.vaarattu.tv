@@ -121,11 +121,8 @@ export default function CardViewer({
   const { user } = useAuth();
   const variants = card.variants?.length ? card.variants : [{ card, ownership: card.ownership ?? [], totalQuantity: card.totalQuantity ?? 0 }];
   const clickedVariantIndex = Math.max(0, variants.findIndex((variant) => variant.card.id === card.id));
-  const initialVariant = variants[clickedVariantIndex];
-  const requestedInitialOwnership = initialVariant.ownership.find((row) => row.finish === initialFinish && row.artVariant === initialArtVariant);
-  const bestInitialOwnership = bestOwnedFinish({ ...initialVariant.card, ownership: initialVariant.ownership });
-  const [finish, setFinish] = useState<CcgFinish>(requestedInitialOwnership?.finish ?? bestInitialOwnership?.finish ?? initialFinish);
-  const [artVariant, setArtVariant] = useState<CcgArtVariant>(requestedInitialOwnership?.artVariant ?? bestInitialOwnership?.artVariant ?? initialArtVariant);
+  const [finish, setFinish] = useState<CcgFinish>(initialFinish);
+  const [artVariant, setArtVariant] = useState<CcgArtVariant>(initialArtVariant);
   const [variantIndex, setVariantIndex] = useState(clickedVariantIndex);
   const [phase, setPhase] = useState<ViewerPhase>(sharedTransition ? "open" : "entering");
   const [forcedPointer, setForcedPointer] = useState<{ x: number; y: number }>();
@@ -143,6 +140,7 @@ export default function CardViewer({
     .filter((row) => row.artVariant === artVariant)
     .sort((left, right) => compareCcgFinish(left.finish, right.finish, displayedCard.set.kind, displayedCard.set.customFinish?.key));
   const isOwned = ownership.length > 0;
+  const isDisplayedFinishOwned = ownership.some((row) => row.finish === finish && row.artVariant === artVariant);
   const characterHref = `/characters/${encodeURIComponent(displayedCard.realm)}/${encodeURIComponent(displayedCard.name)}?class=${encodeURIComponent(String(displayedCard.classID))}`;
   const selectVariant = (index: number) => {
     const variant = variants[index];
@@ -492,7 +490,7 @@ export default function CardViewer({
               </Link>
             </div>
             <div>
-              {footerAction ?? (canShare && isOwned ? (
+              {footerAction ?? (canShare && isDisplayedFinishOwned ? (
                 <CcgShareButton
                   key={`${displayedCard.id}:${finish}:${artVariant}`}
                   target={{ kind: "card", cardId: displayedCard.id, finish, artVariant }}
