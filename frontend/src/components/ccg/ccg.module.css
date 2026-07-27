@@ -3565,7 +3565,41 @@
   }
 
   .vaultLegacyGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .vaultLegacySet {
+    min-height: 3.5rem;
+  }
+
+  .vaultLegacyContent {
+    top: 0.4rem;
+    right: 0.4rem;
+    bottom: 0.35rem;
+    left: 0.4rem;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 0.25rem;
+  }
+
+  .vaultLegacySummary {
+    height: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.15rem;
+  }
+
+  .vaultLegacySummary strong {
+    width: 100%;
+    font-size: 0.7rem;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+
+  .vaultLegacySummary small {
+    font-size: 0.6rem;
+    line-height: 1;
   }
 
   .redeemForm {
