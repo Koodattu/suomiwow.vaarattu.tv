@@ -248,7 +248,7 @@ test("quality protection honors hard pity, minimum finishes, and independent res
   assert.notEqual(followingCard.finish, "negative");
 });
 
-test("owned finishes are resolved per raid card and only completed-card duplicates qualify for a reward", () => {
+test("owned finishes are resolved per card series and only completed-series duplicates qualify for a reward", () => {
   assert.deepEqual(resolveOwnedFinish("standard", new Set(["foil"])), {
     finish: "standard",
     isDuplicate: false,
@@ -473,6 +473,31 @@ test("guest conversion accepts only ownership reproduced by server opening histo
     ))),
     null,
   );
+});
+
+test("guest conversion consolidates different snapshot card IDs into one series finish", () => {
+  const openings = [{
+    mode: "current" as const,
+    results: [
+      { cardId: "snapshot-1", seriesKey: "set-1:character-1", finish: "standard" as const, isDuplicate: false },
+      { cardId: "snapshot-2", seriesKey: "set-1:character-1", finish: "standard" as const, isDuplicate: true },
+      { cardId: "card-2", seriesKey: "set-1:character-2", finish: "standard" as const, isDuplicate: false },
+      { cardId: "card-3", seriesKey: "set-1:character-3", finish: "foil" as const, isDuplicate: false },
+      { cardId: "card-4", seriesKey: "set-1:character-4", finish: "standard" as const, isDuplicate: false },
+    ],
+  }];
+  const ownership = [
+    { cardId: "snapshot-1", seriesKey: "set-1:character-1", finish: "standard" as const, quantity: 2, alternativeQuantity: 0 },
+    { cardId: "card-2", seriesKey: "set-1:character-2", finish: "standard" as const, quantity: 1, alternativeQuantity: 0 },
+    { cardId: "card-3", seriesKey: "set-1:character-3", finish: "foil" as const, quantity: 1, alternativeQuantity: 0 },
+    { cardId: "card-4", seriesKey: "set-1:character-4", finish: "standard" as const, quantity: 1, alternativeQuantity: 0 },
+  ];
+
+  assert.deepEqual(verifyGuestLibrary(openings, ownership), {
+    cards: { current: 5, legacy: 0 },
+    duplicates: { current: 1, legacy: 0 },
+    totalCards: 5,
+  });
 });
 
 test("pack recharge follows shared Helsinki half-hour boundaries and respects storage caps", () => {

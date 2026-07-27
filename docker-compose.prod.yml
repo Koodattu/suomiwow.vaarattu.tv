@@ -58,7 +58,7 @@ services:
     # Higher CPU share = OS gives this container priority when CPU is contested
     cpu_shares: 1024
     mem_limit: 1024m
-    command: ["node", "--max-old-space-size=384", "dist/index.js"]
+    command: ["node", "--max-old-space-size=640", "dist/index.js"]
     volumes:
       - ./data/icons:/app/data/icons
       - ./backend/logs:/app/logs

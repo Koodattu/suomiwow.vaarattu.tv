@@ -8,6 +8,7 @@ import {
 
 type GuestLibraryResult = {
   cardId: unknown;
+  seriesKey?: string;
   finish: CcgFinish;
   artVariant?: CcgArtVariant;
   isDuplicate: boolean;
@@ -20,6 +21,7 @@ type GuestLibraryOpening = {
 
 type GuestLibraryOwnership = {
   cardId: unknown;
+  seriesKey?: string;
   finish: CcgFinish;
   quantity: number;
   alternativeQuantity: number;
@@ -42,8 +44,8 @@ export function getTransferableGuestPacks(
   return { current: transferable("current"), legacy: transferable("legacy") };
 }
 
-function ownershipKey(cardId: unknown, finish: CcgFinish): string {
-  return `${String(cardId)}:${finish}`;
+function ownershipKey(cardId: unknown, finish: CcgFinish, seriesKey?: string): string {
+  return `${seriesKey ?? String(cardId)}:${finish}`;
 }
 
 export function verifyGuestLibrary(
@@ -62,7 +64,7 @@ export function verifyGuestLibrary(
 
     for (const result of opening.results) {
       if (result.isDuplicate) duplicates[opening.mode] += 1;
-      const key = ownershipKey(result.cardId, result.finish);
+      const key = ownershipKey(result.cardId, result.finish, result.seriesKey);
       const expected = expectedOwnership.get(key) ?? { quantity: 0, alternativeQuantity: 0 };
       expected.quantity += 1;
       if ((result.artVariant ?? "standard") === "alternative") expected.alternativeQuantity = 1;
@@ -73,7 +75,7 @@ export function verifyGuestLibrary(
   if (expectedOwnership.size !== ownership.length) return null;
   const seenOwnership = new Set<string>();
   for (const row of ownership) {
-    const key = ownershipKey(row.cardId, row.finish);
+    const key = ownershipKey(row.cardId, row.finish, row.seriesKey);
     if (seenOwnership.has(key)) return null;
     seenOwnership.add(key);
     const expected = expectedOwnership.get(key);

@@ -46,6 +46,7 @@ import cacheService from "./services/cache.service";
 import cacheWarmerService from "./services/cache-warmer.service";
 import guildLogSourceService from "./services/guild-log-source.service";
 import ccgPublisherService from "./services/ccg-publisher.service";
+import { ensureCcgSeriesOwnershipMigration } from "./services/ccg-ownership-migration.service";
 import { CCG_FEATURE_ENABLED } from "./config/ccg";
 
 // ============================================================================
@@ -539,6 +540,10 @@ const startServer = async () => {
     completeStartupTask("Initialize cache service");
 
     if (CCG_FEATURE_ENABLED) {
+      setStartupTask("Migrate CCG collection ownership");
+      await ensureCcgSeriesOwnershipMigration();
+      completeStartupTask("Migrate CCG collection ownership");
+
       setStartupTask("Reconcile CCG set configuration");
       try {
         await ccgPublisherService.ensureConfiguredSets();

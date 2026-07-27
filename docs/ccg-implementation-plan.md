@@ -56,8 +56,9 @@ Guests begin with 20 packs in each mode. A first-time authenticated CCG player b
 
 - A character has one stable card series per `{setId, characterId}` and one immutable card document per published snapshot version.
 - The first eligible snapshot is published. Later snapshots are published only when `tierGrade` differs from the latest published version; metric-only changes do not create cards.
-- Pack pools and the catalog use the latest published version in each card series. Existing ownership and share links keep pointing to their exact historical version.
-- Collection completion counts a card series once. A collector who owns multiple versions sees the latest owned version by default and can select any owned snapshot in the card viewer.
+- Pack pools and the catalog use the latest published version in each card series. Finish ownership belongs to the series, while share links keep pointing to their selected immutable snapshot.
+- A collector unlocks the snapshot version that is current when they first acquire the series and every later version. Earlier historical versions stay locked unless an exact historical card reward lowers that series' unlock boundary.
+- Collection completion counts a card series once. The viewer defaults to the latest published version and offers every snapshot at or above the collector's unlock boundary with the same owned finishes and quantities.
 - A character appearing in a later raid tier receives a new card in that set.
 - Card identity, scores, guild, realm, class, specialization, role, grade, art source, crop, and publication metadata are immutable after publication.
 - The Current set becomes Legacy at raid rollover without modifying its cards.
@@ -97,11 +98,11 @@ The grade is calculated once at publication from one canonical, unfiltered globa
 
 Duplicates do not upgrade card rarity. Rarity represents the character's snapshotted raid-tier performance and must remain truthful.
 
-- Duplicate identity is the exact immutable snapshot version. Another version in the same card series, or the same character in another raid set, is a different card.
-- A finish that is not yet owned for that card is awarded unchanged, even when another finish of the card is already owned.
+- Duplicate identity is the card series `{setId, characterId}`. A newer immutable snapshot in that series shares finish and completion state; the same character in another raid set is a different card series.
+- A finish that is not yet owned for that card series is awarded unchanged, even when another finish of the series is already owned.
 - If the rolled finish is already owned, the result fills the closest missing finish below it first. If no lower gap remains, it advances to the closest missing finish above it so every pre-completion duplicate advances the card.
-- A card is complete when every finish in its set's pack ladder is owned for that exact card. The default ladder is Standard, Foil, Golden, Prismatic, Holographic, and Negative; a raid-scoped finish is inserted between Holographic and Negative only for its configured raid set. Community cards always use the six-finish default ladder, even when code-exclusive raid finishes are owned.
-- Completing the final missing finish does not immediately award a pack. The first later duplicate on that already-complete card awards one pack credit for that card, and the idempotency key prevents that card from rewarding again.
+- A card series is complete when every finish in its set's pack ladder is owned for that series. The default ladder is Standard, Foil, Golden, Prismatic, Holographic, and Negative; a raid-scoped finish is inserted between Holographic and Negative only for its configured raid set. Community cards always use the six-finish default ladder, even when code-exclusive raid finishes are owned.
+- Completing the final missing finish does not immediately award a pack. The first later duplicate on that already-complete series awards one pack credit for that series, and the idempotency key prevents any snapshot version from rewarding again.
 - A completed card in a Current raid awards a Current pack. A completed card in a Legacy raid awards a Legacy pack. Community cards do not award completion packs.
 - Alternative art is a separate collector-wide cosmetic unlock. It never affects duplicate classification or finish completion, and one unlock makes the alternative art available for every owned finish and raid card sharing that `collectorKey`.
 - Ownership stores and displays quantities such as `×2` and `×7`.
@@ -684,7 +685,8 @@ Use a polymorphic owner:
 
 - `ownerType`: `user` or `guest`
 - `ownerId`
-- `cardId`
+- `setId` and `characterId`, which identify the shared card series
+- `cardId`, retained as the exact snapshot that originated this finish row
 - `finish`: `standard`, `foil`, `golden`, `prismatic`, `holographic`, `void`, `toxic`, or `negative`; raid-scoped values are valid for their configured raid set or as redeem-code-only Community ownership
 - `quantity`
 - `alternativeQuantity`: an existing value above zero is global alternative-art unlock evidence; it does not split or add to finish quantities
@@ -694,12 +696,30 @@ Use a polymorphic owner:
 
 Indexes:
 
-- Unique `{ownerType: 1, ownerId: 1, cardId: 1, finish: 1}`
+- Unique `{ownerType: 1, ownerId: 1, setId: 1, characterId: 1, finish: 1}`
+- Unique `{ownerType: 1, ownerId: 1, cardId: 1, finish: 1}` retained for exact acquisition-snapshot lookups
 - `{ownerType: 1, ownerId: 1, lastAcquiredAt: -1}`
 - TTL `{expiresAt: 1}`; authenticated documents do not contain this field
 - Collection filter indexes should include the denormalized fields only if measurement shows lookup joins are insufficient.
 
 One document stores a quantity. Do not create one ownership document per duplicate copy.
+
+### `CcgSeriesOwnership`
+
+Store one entitlement document per owned card series:
+
+- `ownerType` and `ownerId`
+- `setId` and `characterId`
+- `unlockedFromSnapshotVersion`: the version current at first acquisition, lowered only by an exact older snapshot reward
+- `firstAcquiredAt` and `lastAcquiredAt`
+- Guest-only `dateKey` and `expiresAt`
+
+Indexes:
+
+- Unique `{ownerType: 1, ownerId: 1, setId: 1, characterId: 1}`
+- TTL `{expiresAt: 1}`
+
+The idempotent startup migration backfills series identity from each ownership row's exact card snapshot and creates the corresponding series entitlement. A structurally valid ownership row whose card no longer exists fails the migration so ownership is not silently lost. Structurally malformed legacy rows without a usable card or finish are retained unchanged for audit, excluded from collection calculations, and reported in the migration result.
 
 ### `CcgQualityProgress`
 
@@ -825,7 +845,7 @@ Within one transaction:
 5. Load the active versioned pack pool.
 6. Select card IDs with server-side cryptographic randomness.
 7. Apply the guaranteed `A`-or-better slot.
-8. Resolve owned finishes by exact card ID, including repeated copies of that card within the same pack.
+8. Resolve owned finishes by card series, including repeated snapshot IDs from the same series within the same pack.
 9. Roll the protected finishes once per card using the stored pack-rule version. Keep a missing rolled finish; promote an exact-finish duplicate to the next missing finish and persist the resulting counters.
 10. Upsert ownership quantities.
 11. For an authenticated owner, grant one idempotent mode-specific credit when a duplicate is pulled for an already-complete raid card that has not rewarded before.
@@ -1194,7 +1214,8 @@ Never expose user-level private collection data in public operational dashboards
 - Idempotent weekly snapshot and publication reruns
 - Unchanged grades do not create card versions, while changed grades do
 - Catalog and pack pools expose only the latest published version per card series
-- Collection groups owned versions and defaults to the latest owned snapshot
+- Collection defaults to the latest published snapshot and exposes only versions at or above the collector's series unlock boundary
+- Finish quantities, duplicate protection, completion, and the one-time completion reward are shared by every snapshot in a card series
 - Sharing a selected historical snapshot preserves that exact card ID
 
 ### Statistical tests
@@ -1251,12 +1272,12 @@ The initial feature is ready when:
 - Tier grade is the visible rarity and drives pack/style behavior.
 - Every pack contains five cards and satisfies its guaranteed slot.
 - The same character in different raid sets is collected and completed as a different card.
-- A missing rolled finish is awarded unchanged; an exact-finish duplicate advances to the next missing finish for that card.
-- The first duplicate pulled after every finish in the card's pack ladder is owned awards exactly one pack for that card: Current for a Current raid and Legacy for a Legacy raid.
+- A missing rolled finish is awarded unchanged; an exact-finish duplicate advances to the next missing finish for that card series.
+- The first duplicate pulled after every finish in the card series' pack ladder is owned awards exactly one pack for that series: Current for a Current raid and Legacy for a Legacy raid.
 - Community cards roll and complete against the six base finishes only; redeem codes may additionally award Void or Toxic without changing completion or protection state.
 - Alternative art is one global cosmetic unlock per character and never contributes to duplicate or finish-completion state.
 - Finish protection remains at each configured base rate through 80% of the interval, then ramps quadratically to hard pity; converted duplicates reset both the selected raw finish and any different non-Standard finish awarded.
-- The collection displays each raid card separately and exposes every owned finish in the viewer.
+- The collection displays each raid card series separately, exposes every owned finish on every unlocked snapshot, and does not reveal snapshots older than the collector's unlock boundary.
 - Current becomes Legacy without changing existing cards.
 - The binder displays owned, missing, quantities, finishes, and completion by raid set.
 - Character pages display a Blizzard avatar with a reliable fallback.

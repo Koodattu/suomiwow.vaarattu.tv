@@ -18,7 +18,7 @@ export const CCG_INITIAL_PACKS = {
 };
 export const CCG_PACK_BALANCE_VERSION = 3;
 export const CCG_GUEST_COOKIE = "swccg_guest";
-export const CCG_PACK_RULE_VERSION = "pack-v11-raid-finishes";
+export const CCG_PACK_RULE_VERSION = "pack-v12-series-finishes";
 export const CCG_GRADING_VERSION = "grade-v2-rarity-ladder";
 export const CCG_ELIGIBILITY_VERSION = "complete-scores-mythic-reports-v3";
 export const CCG_THEME_VERSION = "vault-v1";

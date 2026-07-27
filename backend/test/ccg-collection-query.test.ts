@@ -4,11 +4,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import "express-session";
 import mongoose from "mongoose";
-import CcgOwnership from "../src/models/CcgOwnership";
+import CcgSeriesOwnership from "../src/models/CcgSeriesOwnership";
 import CcgSet from "../src/models/CcgSet";
 import ccgService from "../src/services/ccg.service";
 
-test("owned collection consolidates ownership before card lookup and attaches sets after pagination", async () => {
+test("owned collection shares finishes across snapshots from the collector's first unlocked version", async () => {
   const ownerId = new mongoose.Types.ObjectId();
   const raidSetId = new mongoose.Types.ObjectId();
   const communitySetId = new mongoose.Types.ObjectId();
@@ -62,11 +62,19 @@ test("owned collection consolidates ownership before card lookup and attaches se
     publicationWave: 1,
     publishedAt,
   };
-  const ownershipModel = CcgOwnership as any;
+  const latestCard = {
+    ...card,
+    _id: new mongoose.Types.ObjectId(),
+    snapshotVersion: 2,
+    tierGrade: "S",
+    performanceSnapshotAt: new Date("2026-08-02T12:00:00.000Z"),
+    publishedAt: new Date("2026-08-02T12:00:00.000Z"),
+  };
+  const seriesOwnershipModel = CcgSeriesOwnership as any;
   const setModel = CcgSet as any;
   const service = ccgService as any;
   const originals = {
-    aggregate: ownershipModel.aggregate,
+    aggregate: seriesOwnershipModel.aggregate,
     setFind: setModel.find,
     loadAlternativeArt: service.loadAlternativeArt,
     loadAlternativeArtUnlocks: service.loadAlternativeArtUnlocks,
@@ -78,19 +86,15 @@ test("owned collection consolidates ownership before card lookup and attaches se
       select() { return this; },
       lean: async () => [raidSet, communitySet],
     });
-    ownershipModel.aggregate = (value: Array<Record<string, any>>) => {
+    seriesOwnershipModel.aggregate = (value: Array<Record<string, any>>) => {
       pipeline = value;
       return Promise.resolve([{
         items: [{
           _id: { setId: raidSetId, characterId },
           totalQuantity: 2,
           finishes: [{ finish: "standard", quantity: 2, alternativeQuantity: 0 }],
-          card,
-          variants: [{
-            card,
-            finishes: [{ finish: "standard", quantity: 2, alternativeQuantity: 0 }],
-            totalQuantity: 2,
-          }],
+          card: latestCard,
+          accessibleCards: [latestCard, card],
         }],
         count: [{ total: 1 }],
       }]);
@@ -103,19 +107,17 @@ test("owned collection consolidates ownership before card lookup and attaches se
       { page: 2, limit: 12, sort: "damage_desc" },
     );
 
-    const ownershipGroupIndex = pipeline.findIndex((stage) => stage.$group?._id === "$cardId");
+    const ownershipLookupIndex = pipeline.findIndex((stage) => stage.$lookup?.from === "ccgownerships");
     const cardLookupIndex = pipeline.findIndex((stage) => stage.$lookup?.from === "ccgcards");
-    assert.ok(ownershipGroupIndex >= 0);
-    assert.ok(cardLookupIndex > ownershipGroupIndex);
+    assert.ok(ownershipLookupIndex >= 0);
+    assert.ok(cardLookupIndex > ownershipLookupIndex);
     assert.equal(pipeline.some((stage) => stage.$lookup?.from === "ccgsets"), false);
-    assert.deepEqual(pipeline[ownershipGroupIndex].$group, {
-      _id: "$cardId",
-      totalQuantity: { $sum: "$quantity" },
-      finishes: { $push: { finish: "$finish", quantity: "$quantity", alternativeQuantity: { $ifNull: ["$alternativeQuantity", 0] } } },
-    });
+    assert.deepEqual(pipeline[ownershipLookupIndex].$lookup.let, { setId: "$setId", characterId: "$characterId" });
+    const snapshotMatch = pipeline[cardLookupIndex].$lookup.pipeline.find((stage: Record<string, any>) => stage.$match?.$expr);
+    assert.deepEqual(snapshotMatch.$match.$expr.$and[2], { $gte: ["$snapshotVersion", "$$unlockedFromSnapshotVersion"] });
 
-    const enabledSetMatch = pipeline.find((stage) => stage.$match?.["card.setId"]);
-    assert.deepEqual(enabledSetMatch?.$match["card.setId"].$in, [raidSetId, communitySetId]);
+    const enabledSetMatch = pipeline.find((stage) => stage.$match?.setId);
+    assert.deepEqual(enabledSetMatch?.$match.setId.$in, [raidSetId, communitySetId]);
     const scoreStage = pipeline.find((stage) => stage.$set?.sortValue);
     assert.deepEqual(scoreStage?.$set.sortValue.$cond[0], { $in: ["$card.setId", [communitySetId]] });
     const facet = pipeline.find((stage) => stage.$facet);
@@ -124,8 +126,10 @@ test("owned collection consolidates ownership before card lookup and attaches se
     assert.equal(result.cards[0].set.id, String(raidSetId));
     assert.equal(result.cards[0].variants[0].card.set.id, String(raidSetId));
     assert.equal(result.cards[0].totalQuantity, 2);
+    assert.deepEqual(result.cards[0].variants.map((variant: any) => variant.card.snapshotVersion), [2, 1]);
+    assert.deepEqual(result.cards[0].variants[0].ownership, result.cards[0].variants[1].ownership);
   } finally {
-    ownershipModel.aggregate = originals.aggregate;
+    seriesOwnershipModel.aggregate = originals.aggregate;
     setModel.find = originals.setFind;
     service.loadAlternativeArt = originals.loadAlternativeArt;
     service.loadAlternativeArtUnlocks = originals.loadAlternativeArtUnlocks;
