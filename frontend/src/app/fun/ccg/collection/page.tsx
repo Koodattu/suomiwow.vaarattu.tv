@@ -14,7 +14,7 @@ import type {
 } from "react";
 import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCharacterFacet, CcgCollectionSort, CcgFinish, CcgGuildFacet, CcgTierGrade } from "@/types";
 import { bestOwnedFinish, CCG_BASE_FINISH_ORDER } from "@/lib/ccg";
-import { getCcgPlaybackVolume } from "@/lib/ccg-audio";
+import { playCcgSound, preloadCcgSounds } from "@/lib/ccg-audio";
 import { useCcgCatalog, useCcgCollection, useCcgCollectionCharacterSearch, useCcgCollectionGuilds, useCcgSession, useCcgSets } from "@/lib/queries";
 import { formatRealmName } from "@/lib/utils";
 import CcgShell from "@/components/ccg/CcgShell";
@@ -35,6 +35,7 @@ const rarities: Array<{ grade: CcgTierGrade; label: "artifact" | "legendary" | "
 ];
 const cardsPerPage = 12;
 const pageWheelThreshold = 24;
+const pageFlipSound = "/ccg/audio/page_flip.mp3";
 const allSetsSlug = "__all__";
 const uniqueFinishFilter = "unique";
 type CollectionFinishFilter = CcgBaseFinish | typeof uniqueFinishFilter | "";
@@ -141,7 +142,6 @@ export default function CcgCollectionPage() {
   const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
   const [viewerSharedTransition, setViewerSharedTransition] = useState(false);
   const setRailRef = useRef<HTMLDivElement>(null);
-  const pageFlipAudioRef = useRef<HTMLAudioElement>(null);
   const setRailTargetRef = useRef(0);
   const setRailAnimationRef = useRef<number | null>(null);
   const pageWheelDeltaRef = useRef(0);
@@ -171,6 +171,8 @@ export default function CcgCollectionPage() {
     () => [...(guildsQuery.data?.guilds ?? [])].sort((a, b) => a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm)),
     [guildsQuery.data?.guilds],
   );
+
+  useEffect(() => preloadCcgSounds([pageFlipSound]), []);
   const duplicateGuildNames = useMemo(() => {
     const nameCounts = new Map<string, number>();
     guilds.forEach((guild) => {
@@ -411,14 +413,7 @@ export default function CcgCollectionPage() {
   };
 
   const turnPage = (direction: -1 | 1) => {
-    const audio = pageFlipAudioRef.current;
-    const volume = getCcgPlaybackVolume("effects");
-    if (audio && volume > 0) {
-      audio.pause();
-      audio.currentTime = 0;
-      audio.volume = volume;
-      void audio.play().catch(() => undefined);
-    }
+    playCcgSound(pageFlipSound, "effects", 1, { interruptKey: "page-flip" });
     setPage((value) => value + direction);
   };
 
@@ -912,7 +907,6 @@ export default function CcgCollectionPage() {
           </button>
         </section>
       </div>
-      <audio ref={pageFlipAudioRef} src="/ccg/audio/page_flip.mp3" preload="auto" aria-hidden="true" />
       {viewerCard ? (
         <CardViewer
           card={viewerCard}

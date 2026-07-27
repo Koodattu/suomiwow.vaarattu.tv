@@ -125,7 +125,7 @@ export default function RootLayout({
           <meta name="application-name" content={SITE_NAME} />
           <meta name="apple-mobile-web-app-title" content={SITE_NAME} />
           <meta name="keywords" content={KEYWORDS} />
-          <link rel="icon" href="/icon.png" type="image/png" />
+          <link rel="icon" href="/suomiwow-share.png" type="image/png" sizes="512x512" />
           {isHomePage && (
             <script
               type="application/ld+json"
@@ -180,8 +180,8 @@ export default function RootLayout({
         <meta name="theme-color" content="#1a1a2e" />
 
         {/* Favicon */}
-        <link rel="icon" href="/icon.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/icon.png" />
+        <link rel="icon" href="/suomiwow-share.png" type="image/png" sizes="512x512" />
+        <link rel="apple-touch-icon" href="/suomiwow-share.png" />
 
         {isHomePage && (
           <script

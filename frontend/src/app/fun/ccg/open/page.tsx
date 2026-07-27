@@ -8,7 +8,14 @@ import type { CcgBaseFinish, CcgBootstrapResponse, CcgFinish, CcgMode, CcgOpenin
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { CCG_BASE_FINISH_ORDER, CCG_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS } from "@/lib/ccg";
-import { getCcgAnnouncerSoundSources, getCcgPlaybackVolume, type CcgAudioChannel } from "@/lib/ccg-audio";
+import {
+  getCcgAnnouncerSoundSources,
+  getCcgPlaybackVolume,
+  playCcgSound,
+  preloadCcgSounds,
+  resumeCcgAudio,
+  type CcgAudioChannel,
+} from "@/lib/ccg-audio";
 import { CCG_CARD_SLIDE_SOUNDS, CCG_QUALITY_SOUND_FILES, hasCcgQualityRevealSound } from "@/lib/ccg-reveal-audio";
 import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
 import { queryKeys, useCcgOpening, useCcgSession, useCcgSets } from "@/lib/queries";
@@ -32,6 +39,10 @@ const fanOffsets = [15, 5, 0, 5, 15];
 const dealOffsets = ["215%", "108%", "0%", "-108%", "-215%"];
 const dealAngles = [8, 4, 0, -4, -8];
 const RANDOM_LEGACY_SET = "random";
+const HOVER_SOUND = "/ccg/audio/hover.mp3";
+const FADE_OUT_SOUND = "/ccg/audio/fade_out.mp3";
+const SHUFFLE_SOUND = "/ccg/audio/shuffle.mp3";
+const DRAW_SOUND = "/ccg/audio/draw.mp3";
 const protectedFinishes = CCG_BASE_FINISH_ORDER.filter(
   (finish): finish is Exclude<CcgBaseFinish, "standard"> => finish !== "standard",
 );
@@ -69,24 +80,19 @@ function ArchiveIcon() {
   );
 }
 
-function playSound(audio: HTMLAudioElement | null, channel: CcgAudioChannel, volume: number, playbackRate = 1): void {
-  if (!audio) return;
-  const playbackVolume = getCcgPlaybackVolume(channel, volume);
-  if (playbackVolume <= 0) return;
-  audio.pause();
-  audio.currentTime = 0;
-  audio.volume = playbackVolume;
-  audio.playbackRate = playbackRate;
-  void audio.play().catch(() => undefined);
+function playSound(source: string | null | undefined, channel: CcgAudioChannel, volume: number, playbackRate = 1): void {
+  playCcgSound(source, channel, volume, {
+    playbackRate,
+    interruptKey: channel === "effects" ? undefined : "voice",
+  });
 }
 
-function playPackSound(audio: HTMLAudioElement | null, volume: number, playbackRate = 1): void {
-  playSound(audio, "effects", volume, playbackRate);
+function playPackSound(source: string | null | undefined, volume: number, playbackRate = 1): void {
+  playSound(source, "effects", volume, playbackRate);
 }
 
-function playRandomPackSound(audios: Array<HTMLAudioElement | null>, volume: number): void {
-  const available = audios.filter((audio): audio is HTMLAudioElement => audio !== null);
-  playPackSound(available[randomIndex(available.length)] ?? null, volume);
+function playRandomPackSound(sources: readonly string[], volume: number): void {
+  playPackSound(sources[randomIndex(sources.length)], volume);
 }
 
 export default function CcgOpenPage() {
@@ -112,14 +118,6 @@ export default function CcgOpenPage() {
   const [isPackCycling, setIsPackCycling] = useState(false);
   const [rechargeNow, setRechargeNow] = useState(() => Date.now());
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const hoverAudioRef = useRef<HTMLAudioElement | null>(null);
-  const fadeOutAudioRef = useRef<HTMLAudioElement | null>(null);
-  const shuffleAudioRef = useRef<HTMLAudioElement | null>(null);
-  const cardSlideAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
-  const drawAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
-  const qualityAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
-  const quipAudioRefs = useRef<Array<HTMLAudioElement | null>>([]);
-  const announcerAudioRefs = useRef<Array<Array<HTMLAudioElement | null>>>([]);
   const qualitySoundTimersRef = useRef<number[]>([]);
   const quipSoundTimersRef = useRef<number[]>([]);
   const announcerSoundTimersRef = useRef<number[]>([]);
@@ -180,6 +178,25 @@ export default function CcgOpenPage() {
         : t("open.currentPool", { count: modeSets.length });
 
   useEffect(() => {
+    preloadCcgSounds([HOVER_SOUND, FADE_OUT_SOUND, SHUFFLE_SOUND, DRAW_SOUND, ...CCG_CARD_SLIDE_SOUNDS]);
+  }, []);
+
+  useEffect(() => {
+    if (!opening) return;
+    preloadCcgSounds(opening.results.flatMap((result) => {
+      const qualitySound = CCG_QUALITY_SOUND_FILES[result.finish];
+      const qualitySource = qualitySound && hasCcgQualityRevealSound(result.finish, result.card.tierGrade)
+        ? `/ccg/audio/quality/${qualitySound}`
+        : null;
+      return [
+        qualitySource,
+        result.card.quip?.audioPath,
+        ...getCcgAnnouncerSoundSources(locale, result.finish, result.card.tierGrade, result.artVariant),
+      ];
+    }));
+  }, [locale, opening]);
+
+  useEffect(() => {
     if (legacySetId !== RANDOM_LEGACY_SET && !legacySets.some((set) => set.id === legacySetId)) {
       setLegacySetId(RANDOM_LEGACY_SET);
     }
@@ -231,7 +248,7 @@ export default function CcgOpenPage() {
     setViewerOriginBounds(null);
     setActiveReveal(null);
     if (reduced) {
-      playPackSound(shuffleAudioRef.current, 0.42);
+      playPackSound(SHUFFLE_SOUND, 0.42);
       setRevealPhase("ready");
       setDealtCards(total);
       setRevealedCards(new Set(opening.results.map((_, index) => index)));
@@ -245,13 +262,13 @@ export default function CcgOpenPage() {
     let readyTimer: number | undefined;
     const drawSoundTimers: number[] = [];
     const holdTimer = window.setTimeout(() => {
-      playPackSound(shuffleAudioRef.current, 0.42);
+      playPackSound(SHUFFLE_SOUND, 0.42);
       setRevealPhase("tearing");
       tearTimer = window.setTimeout(() => {
         setRevealPhase("dealing");
         setDealtCards(total);
-        drawAudioRefs.current.slice(0, total).forEach((audio, index) => {
-          drawSoundTimers.push(window.setTimeout(() => playPackSound(audio, 0.32, [0.96, 1.02, 0.99, 1.04, 0.97][index] ?? 1), index * 58));
+        Array.from({ length: total }).forEach((_, index) => {
+          drawSoundTimers.push(window.setTimeout(() => playPackSound(DRAW_SOUND, 0.32, [0.96, 1.02, 0.99, 1.04, 0.97][index] ?? 1), index * 58));
         });
         readyTimer = window.setTimeout(() => setRevealPhase("ready"), 780);
       }, 640);
@@ -352,33 +369,31 @@ export default function CcgOpenPage() {
   const playQualitySoundAfterFlip = (index: number) => {
     const result = opening?.results[index];
     if (!result || !hasCcgQualityRevealSound(result.finish, result.card.tierGrade)) return;
+    const soundFile = CCG_QUALITY_SOUND_FILES[result.finish];
+    if (!soundFile) return;
     const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 200;
-    const timer = window.setTimeout(() => playPackSound(qualityAudioRefs.current[index] ?? null, 0.4), delay);
+    const timer = window.setTimeout(() => playPackSound(`/ccg/audio/quality/${soundFile}`, 0.4), delay);
     qualitySoundTimersRef.current.push(timer);
   };
 
   const playQuipAfterFlip = (index: number) => {
     const result = opening?.results[index];
-    const audio = quipAudioRefs.current[index] ?? null;
-    if (!result?.card.quip?.audioPath || !audio || getCcgPlaybackVolume("quips", 0.9) <= 0) return;
+    const source = result?.card.quip?.audioPath;
+    if (!source || getCcgPlaybackVolume("quips", 0.9) <= 0) return;
     const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 220;
-    const timer = window.setTimeout(() => {
-      quipAudioRefs.current.forEach((candidate) => {
-        if (!candidate || candidate === audio) return;
-        candidate.pause();
-        candidate.currentTime = 0;
-      });
-      playSound(audio, "quips", 0.9);
-    }, delay);
+    const timer = window.setTimeout(() => playSound(source, "quips", 0.9), delay);
     quipSoundTimersRef.current.push(timer);
   };
 
   const playAnnouncerAfterFlip = (index: number) => {
-    const available = (announcerAudioRefs.current[index] ?? []).filter((audio): audio is HTMLAudioElement => audio !== null);
+    const result = opening?.results[index];
+    const available = result
+      ? getCcgAnnouncerSoundSources(locale, result.finish, result.card.tierGrade, result.artVariant)
+      : [];
     if (available.length === 0) return;
     const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 360;
     const timer = window.setTimeout(
-      () => playSound(available[randomIndex(available.length)] ?? null, "announcer", 0.78),
+      () => playSound(available[randomIndex(available.length)], "announcer", 0.78),
       delay,
     );
     announcerSoundTimersRef.current.push(timer);
@@ -405,7 +420,7 @@ export default function CcgOpenPage() {
         y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
       });
     }
-    playRandomPackSound(cardSlideAudioRefs.current, 0.36);
+    playRandomPackSound(CCG_CARD_SLIDE_SOUNDS, 0.36);
     playQualitySoundAfterFlip(index);
     playQuipAfterFlip(index);
     if (!opening?.results[index]?.card.quip?.audioPath) playAnnouncerAfterFlip(index);
@@ -415,7 +430,7 @@ export default function CcgOpenPage() {
   const revealAll = () => {
     if (!opening || revealPhase !== "ready") return;
     setActiveReveal(null);
-    playRandomPackSound(cardSlideAudioRefs.current, 0.32);
+    playRandomPackSound(CCG_CARD_SLIDE_SOUNDS, 0.32);
     opening.results.forEach((result, index) => {
       if (!revealedCards.has(index) && hasCcgQualityRevealSound(result.finish, result.card.tierGrade)) playQualitySoundAfterFlip(index);
     });
@@ -428,10 +443,11 @@ export default function CcgOpenPage() {
         return ["S", "A", "B", "C", "D", "E", "F"].indexOf(left.result.card.tierGrade)
           - ["S", "A", "B", "C", "D", "E", "F"].indexOf(right.result.card.tierGrade);
       });
-    const voiceResult = prioritizedResults.find(({ result, index }) => (
+    const voiceResult = prioritizedResults.find(({ result }) => (
       result.card.quip?.audioPath
-        ? Boolean(quipAudioRefs.current[index]) && getCcgPlaybackVolume("quips", 0.9) > 0
-        : announcerAudioRefs.current[index]?.some(Boolean)
+        ? getCcgPlaybackVolume("quips", 0.9) > 0
+        : getCcgPlaybackVolume("announcer", 0.78) > 0
+          && getCcgAnnouncerSoundSources(locale, result.finish, result.card.tierGrade, result.artVariant).length > 0
     ));
     if (voiceResult?.result.card.quip?.audioPath) playQuipAfterFlip(voiceResult.index);
     else if (voiceResult) playAnnouncerAfterFlip(voiceResult.index);
@@ -547,6 +563,7 @@ export default function CcgOpenPage() {
       packDragRef.current.suppressClick = false;
       return;
     }
+    resumeCcgAudio();
     mutation.mutate({ mode, setId: mode === "legacy" ? selectedLegacySet?.id : undefined });
   };
 
@@ -556,7 +573,8 @@ export default function CcgOpenPage() {
     setRecoveryId("");
     setActiveReveal(null);
     setIsPackCycling(true);
-    playPackSound(fadeOutAudioRef.current, 0.42);
+    resumeCcgAudio();
+    playPackSound(FADE_OUT_SOUND, 0.42);
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       mutation.mutate(selection);
@@ -855,7 +873,7 @@ export default function CcgOpenPage() {
                         disabled={!dealt || revealPhase !== "ready" || isPackCycling}
                         onPointerEnter={(event) => {
                           if (event.pointerType === "mouse" && dealt && revealPhase === "ready" && !isPackCycling) {
-                            playPackSound(hoverAudioRef.current, 0.28);
+                            playPackSound(HOVER_SOUND, 0.28);
                           }
                         }}
                         onPointerMove={revealed ? undefined : updateSealedCardMotion}
@@ -1042,80 +1060,6 @@ export default function CcgOpenPage() {
           }}
         />
       ) : null}
-      <audio ref={hoverAudioRef} src="/ccg/audio/hover.mp3" preload="auto" aria-hidden="true" />
-      <audio ref={fadeOutAudioRef} src="/ccg/audio/fade_out.mp3" preload="auto" aria-hidden="true" />
-      <audio ref={shuffleAudioRef} src="/ccg/audio/shuffle.mp3" preload="auto" aria-hidden="true" />
-      {CCG_CARD_SLIDE_SOUNDS.map((src, index) => (
-        <audio
-          key={src}
-          ref={(element) => {
-            cardSlideAudioRefs.current[index] = element;
-          }}
-          src={src}
-          preload="auto"
-          aria-hidden="true"
-        />
-      ))}
-      {Array.from({ length: 5 }, (_, index) => (
-        <audio
-          key={index}
-          ref={(element) => {
-            drawAudioRefs.current[index] = element;
-          }}
-          src="/ccg/audio/draw.mp3"
-          preload="auto"
-          aria-hidden="true"
-        />
-      ))}
-      {Array.from({ length: 5 }, (_, index) => {
-        const result = opening?.results[index];
-        const soundFile = result ? CCG_QUALITY_SOUND_FILES[result.finish] : undefined;
-        return (
-          <audio
-            key={`quality-${index}`}
-            ref={(element) => {
-              qualityAudioRefs.current[index] = element;
-            }}
-            src={result && soundFile && hasCcgQualityRevealSound(result.finish, result.card.tierGrade)
-              ? `/ccg/audio/quality/${soundFile}`
-              : undefined}
-            preload="auto"
-            aria-hidden="true"
-          />
-        );
-      })}
-      {Array.from({ length: 5 }, (_, index) => {
-        const result = opening?.results[index];
-        return (
-          <audio
-            key={`quip-${index}`}
-            ref={(element) => {
-              quipAudioRefs.current[index] = element;
-            }}
-            src={result?.card.quip?.audioPath ?? undefined}
-            preload="auto"
-            aria-hidden="true"
-          />
-        );
-      })}
-      {Array.from({ length: 5 }, (_, index) => {
-        const result = opening?.results[index];
-        const sources = result
-          ? getCcgAnnouncerSoundSources(locale, result.finish, result.card.tierGrade, result.artVariant)
-          : [];
-        return sources.map((src, variantIndex) => (
-          <audio
-            key={`announcer-${index}-${src}`}
-            ref={(element) => {
-              announcerAudioRefs.current[index] ??= [];
-              announcerAudioRefs.current[index][variantIndex] = element;
-            }}
-            src={src}
-            preload="auto"
-            aria-hidden="true"
-          />
-        ));
-      })}
     </CcgShell>
   );
 }

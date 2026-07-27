@@ -2,7 +2,6 @@ import type { CcgArtVariant, CcgFinish, CcgTierGrade } from "@/types";
 import { CCG_RARITY_KEYS } from "@/lib/ccg";
 import { getLocale, type Locale } from "@/lib/locale";
 
-export const CCG_INSPECT_AUDIO_ID = "ccg-inspect-audio";
 export const CCG_AUDIO_PREFERENCES_EVENT = "ccg-audio-preferences-change";
 
 export const CCG_AUDIO_PREFERENCES_KEY = "suomiwow-ccg-audio-v1";
@@ -225,32 +224,112 @@ export function getCcgAnnouncerSoundSources(
   return variants.map((variant) => `/ccg/audio/announcer/${locale}/${directory}/${localePrefix}${quality}-${rarity}-${variant}.mp3`);
 }
 
-export function playCcgInspectSound(): void {
-  if (typeof document === "undefined") return;
-  const source = document.getElementById(CCG_INSPECT_AUDIO_ID);
-  if (!(source instanceof HTMLAudioElement)) return;
-  const volume = getCcgPlaybackVolume("effects", 0.28);
-  if (volume <= 0) return;
-  const playback = source.cloneNode(true) as HTMLAudioElement;
-  playback.volume = volume;
-  void playback.play().catch(() => undefined);
+type CcgSoundOptions = {
+  playbackRate?: number;
+  interruptKey?: string;
+};
+
+type ActiveCcgSound = {
+  requestId: number;
+  source?: AudioBufferSourceNode;
+};
+
+const CCG_INSPECT_AUDIO_SOURCE = "/ccg/audio/inspect.mp3";
+const ccgAudioBuffers = new Map<string, Promise<AudioBuffer | null>>();
+const activeCcgSounds = new Map<string, ActiveCcgSound>();
+let ccgAudioContext: AudioContext | null = null;
+let nextCcgSoundRequestId = 0;
+
+function getCcgAudioContext(): AudioContext | null {
+  if (typeof window === "undefined" || !window.AudioContext) return null;
+  if (!ccgAudioContext || ccgAudioContext.state === "closed") {
+    ccgAudioContext = new window.AudioContext();
+    ccgAudioBuffers.clear();
+  }
+  return ccgAudioContext;
 }
 
-let activeQuipAudio: HTMLAudioElement | null = null;
+function loadCcgAudioBuffer(context: AudioContext, source: string): Promise<AudioBuffer | null> {
+  const cached = ccgAudioBuffers.get(source);
+  if (cached) return cached;
 
-export function playCcgQuip(audioPath: string | null | undefined, baseVolume = 0.9): boolean {
-  if (typeof window === "undefined" || !audioPath) return false;
-  const volume = getCcgPlaybackVolume("quips", baseVolume);
+  const pending = fetch(source)
+    .then((response) => {
+      if (!response.ok) throw new Error(`Failed to load CCG audio: ${response.status}`);
+      return response.arrayBuffer();
+    })
+    .then((data) => context.decodeAudioData(data))
+    .catch(() => {
+      ccgAudioBuffers.delete(source);
+      return null;
+    });
+  ccgAudioBuffers.set(source, pending);
+  return pending;
+}
+
+export function preloadCcgSounds(sources: readonly (string | null | undefined)[]): void {
+  const context = getCcgAudioContext();
+  if (!context) return;
+  new Set(sources.filter((source): source is string => Boolean(source))).forEach((source) => {
+    void loadCcgAudioBuffer(context, source);
+  });
+}
+
+export function resumeCcgAudio(): void {
+  const context = getCcgAudioContext();
+  if (context?.state === "suspended") void context.resume().catch(() => undefined);
+}
+
+export function playCcgSound(
+  source: string | null | undefined,
+  channel: CcgAudioChannel,
+  baseVolume = 1,
+  options: CcgSoundOptions = {},
+): boolean {
+  if (!source) return false;
+  const volume = getCcgPlaybackVolume(channel, baseVolume);
   if (volume <= 0) return false;
-  activeQuipAudio?.pause();
-  const playback = new Audio(audioPath);
-  activeQuipAudio = playback;
-  playback.volume = volume;
-  playback.addEventListener("ended", () => {
-    if (activeQuipAudio === playback) activeQuipAudio = null;
-  }, { once: true });
-  void playback.play().catch(() => {
-    if (activeQuipAudio === playback) activeQuipAudio = null;
+  const context = getCcgAudioContext();
+  if (!context) return false;
+
+  const requestId = ++nextCcgSoundRequestId;
+  if (options.interruptKey) {
+    activeCcgSounds.get(options.interruptKey)?.source?.stop();
+    activeCcgSounds.set(options.interruptKey, { requestId });
+  }
+
+  const resumed = context.state === "suspended"
+    ? context.resume().catch(() => undefined)
+    : Promise.resolve();
+  void Promise.all([loadCcgAudioBuffer(context, source), resumed]).then(([buffer]) => {
+    if (!buffer || context.state !== "running") return;
+    if (options.interruptKey && activeCcgSounds.get(options.interruptKey)?.requestId !== requestId) return;
+
+    const playback = context.createBufferSource();
+    const gain = context.createGain();
+    playback.buffer = buffer;
+    playback.playbackRate.value = options.playbackRate ?? 1;
+    gain.gain.value = volume;
+    playback.connect(gain);
+    gain.connect(context.destination);
+
+    if (options.interruptKey) activeCcgSounds.set(options.interruptKey, { requestId, source: playback });
+    playback.addEventListener("ended", () => {
+      if (options.interruptKey && activeCcgSounds.get(options.interruptKey)?.requestId === requestId) {
+        activeCcgSounds.delete(options.interruptKey);
+      }
+      playback.disconnect();
+      gain.disconnect();
+    }, { once: true });
+    playback.start();
   });
   return true;
+}
+
+export function playCcgInspectSound(): void {
+  playCcgSound(CCG_INSPECT_AUDIO_SOURCE, "effects", 0.28, { interruptKey: "inspect" });
+}
+
+export function playCcgQuip(audioPath: string | null | undefined, baseVolume = 0.9): boolean {
+  return playCcgSound(audioPath, "quips", baseVolume, { interruptKey: "voice" });
 }
