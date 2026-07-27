@@ -6,7 +6,7 @@ export interface ICcgSeriesOwnership extends Document {
   ownerId: mongoose.Types.ObjectId;
   setId: mongoose.Types.ObjectId;
   characterId: mongoose.Types.ObjectId;
-  unlockedFromSnapshotVersion: number;
+  unlockedSnapshotVersions: number[];
   firstAcquiredAt: Date;
   lastAcquiredAt: Date;
   dateKey?: string | null;
@@ -19,7 +19,7 @@ const CcgSeriesOwnershipSchema = new Schema<ICcgSeriesOwnership>(
     ownerId: { type: Schema.Types.ObjectId, required: true, index: true },
     setId: { type: Schema.Types.ObjectId, ref: "CcgSet", required: true, index: true },
     characterId: { type: Schema.Types.ObjectId, ref: "Character", required: true, index: true },
-    unlockedFromSnapshotVersion: { type: Number, required: true, min: 1 },
+    unlockedSnapshotVersions: [{ type: Number, required: true, min: 1 }],
     firstAcquiredAt: { type: Date, required: true, default: Date.now },
     lastAcquiredAt: { type: Date, required: true, default: Date.now },
     dateKey: { type: String, default: null },

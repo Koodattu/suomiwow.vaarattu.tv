@@ -46,9 +46,10 @@ export default function RootLayout({
   const isNetworkAnalyticsPage = pathname === "/analytics/network";
   const isCcgPage = pathname.startsWith("/fun/ccg");
   const isCcgSharePage = pathname.startsWith("/fun/ccg/share/");
+  const isCcgOverlayPage = pathname === "/fun/ccg/overlay";
   const isHomePage = pathname === "/";
   const robotsContent =
-    pathname.startsWith("/admin") || pathname.startsWith("/profile")
+    pathname.startsWith("/admin") || pathname.startsWith("/profile") || isCcgOverlayPage
       ? "noindex, nofollow"
       : "index, follow";
   const [locale, setLocale] = useState<Locale>("en");
@@ -134,10 +135,8 @@ export default function RootLayout({
             />
           )}
         </head>
-        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="text-white">Loading...</div>
-          </div>
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased ${isCcgOverlayPage ? "ccg-overlay-body" : ""}`}>
+          {!isCcgOverlayPage && <div className="flex items-center justify-center min-h-screen"><div className="text-white">Loading...</div></div>}
         </body>
       </html>
     );
@@ -193,7 +192,7 @@ export default function RootLayout({
           />
         )}
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased ${isCcgOverlayPage ? "ccg-overlay-body" : ""}`}>
         <QueryProvider>
           <AuthProvider>
             <NextIntlClientProvider locale={locale} messages={messages}>

@@ -424,11 +424,35 @@ router.get("/twitch-channel-points/rewards", async (_req: Request, res: Response
 
 router.put("/twitch-channel-points/settings", async (req: Request, res: Response) => {
   try {
-    res.json(await twitchChannelPointsService.updateSettings({ enabled: req.body?.enabled, rewardTitle: req.body?.rewardTitle }));
+    res.json(await twitchChannelPointsService.updateSettings({
+      rewardKind: req.body?.rewardKind,
+      enabled: req.body?.enabled,
+      rewardTitle: req.body?.rewardTitle,
+    }));
   } catch (error) {
     if (error instanceof TwitchChannelPointsValidationError) return res.status(400).json({ error: error.message });
     logger.error("Error updating Twitch channel points settings:", error);
     res.status(500).json({ error: error instanceof Error ? error.message : "Failed to update Twitch channel points settings" });
+  }
+});
+
+router.post("/twitch-channel-points/overlay-token", async (_req: Request, res: Response) => {
+  try {
+    res.json(await twitchChannelPointsService.rotateOverlayToken());
+  } catch (error) {
+    logger.error("Error rotating Twitch CCG overlay token:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to generate OBS overlay URL" });
+  }
+});
+
+router.post("/twitch-channel-points/overlay-test", async (_req: Request, res: Response) => {
+  try {
+    await twitchChannelPointsService.createOverlayTest();
+    res.json({ success: true });
+  } catch (error) {
+    if (error instanceof TwitchChannelPointsValidationError) return res.status(400).json({ error: error.message });
+    logger.error("Error creating Twitch CCG overlay test:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to queue an overlay test" });
   }
 });
 

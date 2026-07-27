@@ -16,6 +16,7 @@ import CcgLoadError from "@/components/ccg/CcgLoadError";
 import PackBoosterVisual, { getPackTheme } from "@/components/ccg/PackBoosterVisual";
 import CcgAnalyticsPanel from "@/components/ccg/CcgAnalyticsPanel";
 import CcgRedeemPanel from "@/components/ccg/CcgRedeemPanel";
+import CcgTwitchPanel from "@/components/ccg/CcgTwitchPanel";
 import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 
@@ -281,6 +282,7 @@ export default function CcgLandingPage() {
             <div className={styles.vaultRedeemTop}>
               <CcgRedeemPanel currentSet={current} />
             </div>
+            <CcgTwitchPanel />
             <CcgAnalyticsPanel />
           </aside>
         </div>

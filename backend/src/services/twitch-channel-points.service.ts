@@ -2,6 +2,8 @@ import crypto from "crypto";
 import mongoose from "mongoose";
 import fetch from "node-fetch";
 import TwitchChannelPointsAuth, { ITwitchChannelPointsAuth } from "../models/TwitchChannelPointsAuth";
+import TwitchCcgOverlayEvent from "../models/TwitchCcgOverlayEvent";
+import { TwitchCcgRewardKind } from "../models/TwitchCcgRedemption";
 import logger from "../utils/logger";
 import twitchCcgRewardService, { TwitchCcgRewardCounts } from "./twitch-ccg-reward.service";
 
@@ -86,6 +88,26 @@ export interface TwitchChannelPointsStatus {
   lastVerifiedError?: string;
   lastError?: string;
   deliveries: TwitchCcgRewardCounts;
+  rewards: Record<TwitchCcgRewardKind, TwitchChannelPointsRewardStatus>;
+  overlay: {
+    configured: boolean;
+    lastSeenAt?: Date;
+    queued: number;
+    leased: number;
+    played: number;
+    expired: number;
+  };
+}
+
+export interface TwitchChannelPointsRewardStatus {
+  enabled: boolean;
+  rewardId?: string;
+  rewardTitle?: string;
+  subscriptionId?: string;
+  subscriptionStatus?: string;
+  subscriptionCreatedAt?: Date;
+  lastNotificationAt?: Date;
+  lastError?: string;
 }
 
 export interface TwitchEventSubWebhookResult {
@@ -131,6 +153,26 @@ export function verifyTwitchEventSubSignature(
   const expectedBuffer = Buffer.from(expected);
   const signatureBuffer = Buffer.from(signature);
   return expectedBuffer.length === signatureBuffer.length && crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
+}
+
+export function resolveTwitchChannelPointsRewardKind(
+  auth: Pick<ITwitchChannelPointsAuth, "broadcasterUserId" | "rewardId" | "cardRewardId">,
+  subscription?: Pick<TwitchEventSubSubscription, "type" | "condition">,
+): TwitchCcgRewardKind | null {
+  if (
+    subscription?.type !== SUBSCRIPTION_TYPE ||
+    subscription.condition?.broadcaster_user_id !== auth.broadcasterUserId
+  ) return null;
+  if (auth.rewardId && subscription.condition.reward_id === auth.rewardId) return "packs";
+  if (auth.cardRewardId && subscription.condition.reward_id === auth.cardRewardId) return "card_reveal";
+  return null;
+}
+
+export function isTwitchChannelPointsRewardEnabled(
+  auth: Pick<ITwitchChannelPointsAuth, "enabled" | "cardRewardEnabled">,
+  rewardKind: TwitchCcgRewardKind,
+): boolean {
+  return rewardKind === "packs" ? auth.enabled : auth.cardRewardEnabled;
 }
 
 class TwitchChannelPointsService {
@@ -241,8 +283,33 @@ class TwitchChannelPointsService {
   }
 
   async getStatus(): Promise<TwitchChannelPointsStatus> {
-    const [auth, deliveries] = await Promise.all([TwitchChannelPointsAuth.findOne({ key: AUTH_KEY }).lean(), twitchCcgRewardService.getCounts()]);
+    const [auth, deliveries, overlayCounts] = await Promise.all([
+      TwitchChannelPointsAuth.findOne({ key: AUTH_KEY }).lean(),
+      twitchCcgRewardService.getCounts(),
+      TwitchCcgOverlayEvent.aggregate<{ _id: string; count: number }>([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
+    ]);
     const scopes = auth?.scope || [];
+    const overlay = new Map(overlayCounts.map((entry) => [entry._id, entry.count]));
+    const packReward: TwitchChannelPointsRewardStatus = {
+      enabled: Boolean(auth?.enabled),
+      rewardId: auth?.rewardId,
+      rewardTitle: auth?.rewardTitle,
+      subscriptionId: auth?.subscriptionId,
+      subscriptionStatus: auth?.subscriptionStatus,
+      subscriptionCreatedAt: auth?.subscriptionCreatedAt,
+      lastNotificationAt: auth?.lastNotificationAt,
+      lastError: auth?.lastError,
+    };
+    const cardReward: TwitchChannelPointsRewardStatus = {
+      enabled: Boolean(auth?.cardRewardEnabled),
+      rewardId: auth?.cardRewardId,
+      rewardTitle: auth?.cardRewardTitle,
+      subscriptionId: auth?.cardSubscriptionId,
+      subscriptionStatus: auth?.cardSubscriptionStatus,
+      subscriptionCreatedAt: auth?.cardSubscriptionCreatedAt,
+      lastNotificationAt: auth?.cardLastNotificationAt,
+      lastError: auth?.cardLastError,
+    };
     return {
       enabled: this.isEnabled(),
       connected: Boolean(auth?.refreshToken),
@@ -271,6 +338,15 @@ class TwitchChannelPointsService {
       lastVerifiedError: auth?.lastVerifiedError,
       lastError: auth?.lastError,
       deliveries,
+      rewards: { packs: packReward, card_reveal: cardReward },
+      overlay: {
+        configured: Boolean(auth?.overlayTokenHash),
+        lastSeenAt: auth?.overlayLastSeenAt,
+        queued: overlay.get("queued") || 0,
+        leased: overlay.get("leased") || 0,
+        played: overlay.get("played") || 0,
+        expired: overlay.get("expired") || 0,
+      },
     };
   }
 
@@ -294,17 +370,27 @@ class TwitchChannelPointsService {
     }));
   }
 
-  async updateSettings(input: { enabled?: unknown; rewardTitle?: unknown }): Promise<TwitchChannelPointsStatus> {
-    const enabled = input.enabled;
-    if (typeof enabled !== "boolean") throw new TwitchChannelPointsValidationError("Enabled must be true or false");
+  async updateSettings(input: { rewardKind?: unknown; enabled?: unknown; rewardTitle?: unknown }): Promise<TwitchChannelPointsStatus> {
+    const rewardKind = input.rewardKind;
+    if (rewardKind !== "packs" && rewardKind !== "card_reveal") {
+      throw new TwitchChannelPointsValidationError("Reward kind must be packs or card_reveal");
+    }
+    if (typeof input.enabled !== "boolean") throw new TwitchChannelPointsValidationError("Enabled must be true or false");
     const auth = await this.requireAuth();
-    if (!enabled) {
-      await this.deleteSubscription(auth.subscriptionId).catch((error) => logger.warn("Failed to delete Twitch EventSub subscription while disabling:", error));
-      auth.enabled = false;
-      auth.subscriptionId = undefined;
-      auth.subscriptionStatus = "disabled";
-      auth.lastError = undefined;
-      await auth.save();
+    const isCard = rewardKind === "card_reveal";
+    const previousSubscriptionId = isCard ? auth.cardSubscriptionId : auth.subscriptionId;
+
+    if (!input.enabled) {
+      await TwitchChannelPointsAuth.updateOne(
+        { key: AUTH_KEY },
+        isCard
+          ? { $set: { cardRewardEnabled: false, cardSubscriptionStatus: "disabled" }, $unset: { cardSubscriptionId: 1, cardLastError: 1 } }
+          : { $set: { enabled: false, subscriptionStatus: "disabled" }, $unset: { subscriptionId: 1, lastError: 1 } },
+      );
+      if (isCard) await twitchCcgRewardService.expireOverlayQueue();
+      await this.deleteSubscription(previousSubscriptionId).catch((error) =>
+        logger.warn(`Failed to delete Twitch ${rewardKind} EventSub subscription while disabling:`, error),
+      );
       return this.getStatus();
     }
 
@@ -319,37 +405,91 @@ class TwitchChannelPointsService {
     if (!reward.skipsRequestQueue) {
       throw new TwitchChannelPointsValidationError('Enable "Skip Reward Requests Queue" for this reward in Twitch before activating it');
     }
+    const otherRewardId = isCard ? auth.rewardId : auth.cardRewardId;
+    if (otherRewardId === reward.id) {
+      throw new TwitchChannelPointsValidationError("Pack grants and card reveals must use different Twitch rewards");
+    }
+    if (isCard) await twitchCcgRewardService.expireOverlayQueue();
 
-    const previousSubscriptionId = auth.subscriptionId;
-    auth.enabled = true;
-    auth.rewardId = reward.id;
-    auth.rewardTitle = reward.title;
-    auth.subscriptionId = undefined;
-    auth.subscriptionStatus = "creating";
-    auth.lastError = undefined;
-    await auth.save();
+    await TwitchChannelPointsAuth.updateOne(
+      { key: AUTH_KEY },
+      isCard
+        ? {
+            $set: {
+              cardRewardEnabled: true,
+              cardRewardId: reward.id,
+              cardRewardTitle: reward.title,
+              cardSubscriptionStatus: "creating",
+            },
+            $unset: { cardSubscriptionId: 1, cardLastError: 1 },
+          }
+        : {
+            $set: { enabled: true, rewardId: reward.id, rewardTitle: reward.title, subscriptionStatus: "creating" },
+            $unset: { subscriptionId: 1, lastError: 1 },
+          },
+    );
 
     try {
       await this.deleteSubscription(previousSubscriptionId);
       await this.deleteMatchingSubscriptions(auth.broadcasterUserId, reward.id);
-      const subscription = await this.createSubscription(auth);
+      const subscription = await this.createSubscription(auth, reward.id);
       await TwitchChannelPointsAuth.updateOne(
-        { key: AUTH_KEY, subscriptionStatus: { $ne: "enabled" } },
-        {
-          $set: {
-            subscriptionId: subscription.id,
-            subscriptionStatus: subscription.status,
-            subscriptionCreatedAt: new Date(subscription.created_at),
-          },
-        },
+        isCard
+          ? { key: AUTH_KEY, cardSubscriptionStatus: { $ne: "enabled" } }
+          : { key: AUTH_KEY, subscriptionStatus: { $ne: "enabled" } },
+        isCard
+          ? {
+              $set: {
+                cardSubscriptionId: subscription.id,
+                cardSubscriptionStatus: subscription.status,
+                cardSubscriptionCreatedAt: new Date(subscription.created_at),
+              },
+            }
+          : {
+              $set: {
+                subscriptionId: subscription.id,
+                subscriptionStatus: subscription.status,
+                subscriptionCreatedAt: new Date(subscription.created_at),
+              },
+            },
       );
     } catch (error) {
-      auth.subscriptionStatus = "failed";
-      auth.lastError = error instanceof Error ? error.message : String(error);
-      await auth.save();
+      await TwitchChannelPointsAuth.updateOne(
+        { key: AUTH_KEY },
+        isCard
+          ? { $set: { cardSubscriptionStatus: "failed", cardLastError: error instanceof Error ? error.message : String(error) } }
+          : { $set: { subscriptionStatus: "failed", lastError: error instanceof Error ? error.message : String(error) } },
+      );
       throw error;
     }
     return this.getStatus();
+  }
+
+  async getEnabledRewardKinds(): Promise<TwitchCcgRewardKind[]> {
+    const auth = await TwitchChannelPointsAuth.findOne({ key: AUTH_KEY }).select("enabled cardRewardEnabled").lean();
+    return [
+      ...(auth?.enabled ? (["packs"] as const) : []),
+      ...(auth?.cardRewardEnabled ? (["card_reveal"] as const) : []),
+    ];
+  }
+
+  async rotateOverlayToken(): Promise<{ overlayUrl: string; createdAt: Date }> {
+    await this.requireAuth();
+    const token = crypto.randomBytes(32).toString("base64url");
+    const createdAt = new Date();
+    await TwitchChannelPointsAuth.updateOne(
+      { key: AUTH_KEY },
+      { $set: { overlayTokenHash: crypto.createHash("sha256").update(token).digest("hex"), overlayTokenCreatedAt: createdAt } },
+    );
+    const frontendUrl = process.env.NODE_ENV === "production" ? "https://suomiwow.vaarattu.tv" : "http://localhost:3000";
+    return { overlayUrl: `${frontendUrl}/fun/ccg/overlay#token=${token}`, createdAt };
+  }
+
+  async createOverlayTest(): Promise<void> {
+    const auth = await this.requireAuth();
+    if (!auth.cardRewardEnabled) throw new TwitchChannelPointsValidationError("Enable the card reveal reward before testing the overlay");
+    if (!auth.overlayTokenHash) throw new TwitchChannelPointsValidationError("Generate an OBS overlay URL before testing the overlay");
+    await twitchCcgRewardService.createTestOverlayEvent();
   }
 
   async verifyCurrentUser(): Promise<{ id: string; login: string; displayName: string }> {
@@ -377,9 +517,12 @@ class TwitchChannelPointsService {
 
   async disconnect(): Promise<void> {
     const auth = await TwitchChannelPointsAuth.findOne({ key: AUTH_KEY });
-    if (auth?.subscriptionId) {
-      await this.deleteSubscription(auth.subscriptionId).catch((error) => logger.warn("Failed to delete Twitch EventSub subscription while disconnecting:", error));
-    }
+    await Promise.all(
+      [auth?.subscriptionId, auth?.cardSubscriptionId].map((subscriptionId) =>
+        this.deleteSubscription(subscriptionId).catch((error) => logger.warn("Failed to delete Twitch EventSub subscription while disconnecting:", error)),
+      ),
+    );
+    await twitchCcgRewardService.expireOverlayQueue();
     await TwitchChannelPointsAuth.deleteOne({ key: AUTH_KEY });
   }
 
@@ -400,20 +543,36 @@ class TwitchChannelPointsService {
     } catch {
       return { status: 400 };
     }
-    if (!this.matchesConfiguredSubscription(auth, payload.subscription)) return { status: 403 };
+    const rewardKind = resolveTwitchChannelPointsRewardKind(auth, payload.subscription);
+    if (!rewardKind) return { status: 403 };
+    const rewardEnabled = isTwitchChannelPointsRewardEnabled(auth, rewardKind);
+    if (!rewardEnabled && messageType === "notification") return { status: 204 };
+    if (!rewardEnabled) return { status: 403 };
 
     if (messageType === "webhook_callback_verification") {
       if (!payload.challenge) return { status: 400 };
-      auth.subscriptionId = payload.subscription?.id;
-      auth.subscriptionStatus = "enabled";
-      auth.subscriptionCreatedAt = payload.subscription?.created_at ? new Date(payload.subscription.created_at) : new Date();
+      if (rewardKind === "card_reveal") {
+        auth.cardSubscriptionId = payload.subscription?.id;
+        auth.cardSubscriptionStatus = "enabled";
+        auth.cardSubscriptionCreatedAt = payload.subscription?.created_at ? new Date(payload.subscription.created_at) : new Date();
+      } else {
+        auth.subscriptionId = payload.subscription?.id;
+        auth.subscriptionStatus = "enabled";
+        auth.subscriptionCreatedAt = payload.subscription?.created_at ? new Date(payload.subscription.created_at) : new Date();
+      }
       await auth.save();
       return { status: 200, body: payload.challenge, contentType: "text/plain" };
     }
 
     if (messageType === "revocation") {
-      auth.subscriptionStatus = payload.subscription?.status || "revoked";
-      auth.lastError = `Twitch revoked the EventSub subscription: ${auth.subscriptionStatus}`;
+      const status = payload.subscription?.status || "revoked";
+      if (rewardKind === "card_reveal") {
+        auth.cardSubscriptionStatus = status;
+        auth.cardLastError = `Twitch revoked the EventSub subscription: ${status}`;
+      } else {
+        auth.subscriptionStatus = status;
+        auth.lastError = `Twitch revoked the EventSub subscription: ${status}`;
+      }
       await auth.save();
       return { status: 204 };
     }
@@ -428,12 +587,12 @@ class TwitchChannelPointsService {
       !event.reward.title ||
       typeof event.reward.cost !== "number" ||
       !event.redeemed_at ||
-      event.reward.id !== auth.rewardId
+      event.reward.id !== (rewardKind === "packs" ? auth.rewardId : auth.cardRewardId)
     ) {
       return { status: 400 };
     }
 
-    await twitchCcgRewardService.recordRedemption({
+    const redemption = await twitchCcgRewardService.recordRedemption({
       redemptionId: event.id,
       eventMessageId: messageId,
       broadcasterId: event.broadcaster_user_id || auth.broadcasterUserId,
@@ -444,23 +603,21 @@ class TwitchChannelPointsService {
       rewardId: event.reward.id,
       rewardTitle: event.reward.title,
       rewardCost: event.reward.cost,
+      rewardKind,
       redeemedAt: new Date(event.redeemed_at),
     });
-    auth.lastNotificationAt = new Date();
-    auth.subscriptionStatus = payload.subscription?.status || auth.subscriptionStatus;
-    auth.lastError = undefined;
+    if (rewardKind === "card_reveal") {
+      auth.cardLastNotificationAt = new Date();
+      auth.cardSubscriptionStatus = payload.subscription?.status || auth.cardSubscriptionStatus;
+      auth.cardLastError = undefined;
+      void twitchCcgRewardService.processCardRedemption(redemption._id);
+    } else {
+      auth.lastNotificationAt = new Date();
+      auth.subscriptionStatus = payload.subscription?.status || auth.subscriptionStatus;
+      auth.lastError = undefined;
+    }
     await auth.save();
     return { status: 204 };
-  }
-
-  private matchesConfiguredSubscription(auth: ITwitchChannelPointsAuth, subscription?: TwitchEventSubSubscription): boolean {
-    return Boolean(
-      auth.enabled &&
-        auth.rewardId &&
-        subscription?.type === SUBSCRIPTION_TYPE &&
-        subscription.condition?.broadcaster_user_id === auth.broadcasterUserId &&
-        subscription.condition?.reward_id === auth.rewardId,
-    );
   }
 
   private readHeader(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
@@ -556,8 +713,7 @@ class TwitchChannelPointsService {
     return ((await response.json()) as TwitchTokenResponse).access_token;
   }
 
-  private async createSubscription(auth: ITwitchChannelPointsAuth): Promise<TwitchEventSubSubscription> {
-    if (!auth.rewardId) throw new Error("Twitch reward is not configured");
+  private async createSubscription(auth: ITwitchChannelPointsAuth, rewardId: string): Promise<TwitchEventSubSubscription> {
     const appToken = await this.getAppAccessToken();
     const response = await fetch("https://api.twitch.tv/helix/eventsub/subscriptions", {
       method: "POST",
@@ -565,7 +721,7 @@ class TwitchChannelPointsService {
       body: JSON.stringify({
         type: SUBSCRIPTION_TYPE,
         version: "1",
-        condition: { broadcaster_user_id: auth.broadcasterUserId, reward_id: auth.rewardId },
+        condition: { broadcaster_user_id: auth.broadcasterUserId, reward_id: rewardId },
         transport: { method: "webhook", callback: this.callbackUrl, secret: auth.webhookSecret },
       }),
     });

@@ -8,7 +8,7 @@ import CcgSeriesOwnership from "../src/models/CcgSeriesOwnership";
 import CcgSet from "../src/models/CcgSet";
 import ccgService from "../src/services/ccg.service";
 
-test("owned collection shares finishes across snapshots from the collector's first unlocked version", async () => {
+test("owned collection shares finishes across explicitly unlocked snapshots", async () => {
   const ownerId = new mongoose.Types.ObjectId();
   const raidSetId = new mongoose.Types.ObjectId();
   const communitySetId = new mongoose.Types.ObjectId();
@@ -114,7 +114,7 @@ test("owned collection shares finishes across snapshots from the collector's fir
     assert.equal(pipeline.some((stage) => stage.$lookup?.from === "ccgsets"), false);
     assert.deepEqual(pipeline[ownershipLookupIndex].$lookup.let, { setId: "$setId", characterId: "$characterId" });
     const snapshotMatch = pipeline[cardLookupIndex].$lookup.pipeline.find((stage: Record<string, any>) => stage.$match?.$expr);
-    assert.deepEqual(snapshotMatch.$match.$expr.$and[2], { $gte: ["$snapshotVersion", "$$unlockedFromSnapshotVersion"] });
+    assert.deepEqual(snapshotMatch.$match.$expr.$and[2], { $in: ["$snapshotVersion", "$$unlockedSnapshotVersions"] });
 
     const enabledSetMatch = pipeline.find((stage) => stage.$match?.setId);
     assert.deepEqual(enabledSetMatch?.$match.setId.$in, [raidSetId, communitySetId]);

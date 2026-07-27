@@ -23,6 +23,17 @@ export interface ITwitchChannelPointsAuth extends Document {
   subscriptionStatus?: string;
   subscriptionCreatedAt?: Date;
   lastNotificationAt?: Date;
+  cardRewardEnabled: boolean;
+  cardRewardId?: string;
+  cardRewardTitle?: string;
+  cardSubscriptionId?: string;
+  cardSubscriptionStatus?: string;
+  cardSubscriptionCreatedAt?: Date;
+  cardLastNotificationAt?: Date;
+  cardLastError?: string;
+  overlayTokenHash?: string;
+  overlayTokenCreatedAt?: Date;
+  overlayLastSeenAt?: Date;
   lastRefreshAt?: Date;
   lastRefreshError?: string;
   lastVerifiedAt?: Date;
@@ -56,6 +67,17 @@ const TwitchChannelPointsAuthSchema = new Schema<ITwitchChannelPointsAuth>(
     subscriptionStatus: { type: String },
     subscriptionCreatedAt: { type: Date },
     lastNotificationAt: { type: Date },
+    cardRewardEnabled: { type: Boolean, required: true, default: false },
+    cardRewardId: { type: String },
+    cardRewardTitle: { type: String },
+    cardSubscriptionId: { type: String },
+    cardSubscriptionStatus: { type: String },
+    cardSubscriptionCreatedAt: { type: Date },
+    cardLastNotificationAt: { type: Date },
+    cardLastError: { type: String },
+    overlayTokenHash: { type: String },
+    overlayTokenCreatedAt: { type: Date },
+    overlayLastSeenAt: { type: Date },
     lastRefreshAt: { type: Date },
     lastRefreshError: { type: String },
     lastVerifiedAt: { type: Date },

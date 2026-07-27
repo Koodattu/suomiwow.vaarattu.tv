@@ -57,8 +57,8 @@ Guests begin with 20 packs in each mode. A first-time authenticated CCG player b
 - A character has one stable card series per `{setId, characterId}` and one immutable card document per published snapshot version.
 - The first eligible snapshot is published. Later snapshots are published only when `tierGrade` differs from the latest published version; metric-only changes do not create cards.
 - Pack pools and the catalog use the latest published version in each card series. Finish ownership belongs to the series, while share links keep pointing to their selected immutable snapshot.
-- A collector unlocks the snapshot version that is current when they first acquire the series and every later version. Earlier historical versions stay locked unless an exact historical card reward lowers that series' unlock boundary.
-- Collection completion counts a card series once. The viewer defaults to the latest published version and offers every snapshot at or above the collector's unlock boundary with the same owned finishes and quantities.
+- A collector unlocks only the exact snapshot version they acquire. Publishing a later version does not add it to existing collections; the collector must pull or redeem that version before it appears in their snapshot selector. Acquiring a later version never unlocks earlier versions.
+- Collection completion counts a card series once. The viewer defaults to the newest snapshot that collector has explicitly unlocked and offers only their unlocked versions, all with the same series-wide finishes and quantities.
 - A character appearing in a later raid tier receives a new card in that set.
 - Card identity, scores, guild, realm, class, specialization, role, grade, art source, crop, and publication metadata are immutable after publication.
 - The Current set becomes Legacy at raid rollover without modifying its cards.
@@ -710,7 +710,7 @@ Store one entitlement document per owned card series:
 
 - `ownerType` and `ownerId`
 - `setId` and `characterId`
-- `unlockedFromSnapshotVersion`: the version current at first acquisition, lowered only by an exact older snapshot reward
+- `unlockedSnapshotVersions`: the exact snapshot versions acquired through packs or rewards; versions are added independently and never inferred from an earlier or later acquisition
 - `firstAcquiredAt` and `lastAcquiredAt`
 - Guest-only `dateKey` and `expiresAt`
 
@@ -719,7 +719,7 @@ Indexes:
 - Unique `{ownerType: 1, ownerId: 1, setId: 1, characterId: 1}`
 - TTL `{expiresAt: 1}`
 
-The idempotent startup migration backfills series identity from each ownership row's exact card snapshot and creates the corresponding series entitlement. A structurally valid ownership row whose card no longer exists fails the migration so ownership is not silently lost. Structurally malformed legacy rows without a usable card or finish are retained unchanged for audit, excluded from collection calculations, and reported in the migration result.
+The idempotent startup migrations backfill series identity from each ownership row's exact card snapshot, create the corresponding series entitlement, and convert the initial version boundary into explicit acquired snapshot versions. They do not fill gaps between acquired versions. A structurally valid ownership row whose card no longer exists fails the migration so ownership is not silently lost. Structurally malformed legacy rows without a usable card or finish are retained unchanged for audit, excluded from collection calculations, and reported in the migration result.
 
 ### `CcgQualityProgress`
 
@@ -1214,7 +1214,7 @@ Never expose user-level private collection data in public operational dashboards
 - Idempotent weekly snapshot and publication reruns
 - Unchanged grades do not create card versions, while changed grades do
 - Catalog and pack pools expose only the latest published version per card series
-- Collection defaults to the latest published snapshot and exposes only versions at or above the collector's series unlock boundary
+- Collection defaults to the newest snapshot that collector has explicitly acquired and exposes only independently unlocked versions
 - Finish quantities, duplicate protection, completion, and the one-time completion reward are shared by every snapshot in a card series
 - Sharing a selected historical snapshot preserves that exact card ID
 
@@ -1277,7 +1277,7 @@ The initial feature is ready when:
 - Community cards roll and complete against the six base finishes only; redeem codes may additionally award Void or Toxic without changing completion or protection state.
 - Alternative art is one global cosmetic unlock per character and never contributes to duplicate or finish-completion state.
 - Finish protection remains at each configured base rate through 80% of the interval, then ramps quadratically to hard pity; converted duplicates reset both the selected raw finish and any different non-Standard finish awarded.
-- The collection displays each raid card series separately, exposes every owned finish on every unlocked snapshot, and does not reveal snapshots older than the collector's unlock boundary.
+- The collection displays each raid card series separately, exposes every owned finish on every explicitly unlocked snapshot, and does not add newly published, missed, or historical snapshots until the collector acquires that exact version.
 - Current becomes Legacy without changing existing cards.
 - The binder displays owned, missing, quantities, finishes, and completion by raid set.
 - Character pages display a Blizzard avatar with a reliable fallback.

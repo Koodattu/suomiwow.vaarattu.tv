@@ -367,7 +367,11 @@ setInterval(flushBuffer, FLUSH_INTERVAL);
 // Middleware function
 export const analyticsMiddleware = (req: Request, res: Response, next: NextFunction) => {
   // Skip tracking for analytics endpoints to avoid recursion
-  if (req.path.startsWith("/api/analytics") || req.path.startsWith("/api/admin/analytics")) {
+  if (
+    req.path.startsWith("/api/analytics") ||
+    req.path.startsWith("/api/admin/analytics") ||
+    req.path.startsWith("/api/twitch/ccg-overlay")
+  ) {
     return next();
   }
 

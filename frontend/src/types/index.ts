@@ -1259,6 +1259,19 @@ export interface TwitchCustomReward {
   skipsRequestQueue: boolean;
 }
 
+export type TwitchCcgRewardKind = "packs" | "card_reveal";
+
+export interface TwitchChannelPointsRewardStatus {
+  enabled: boolean;
+  rewardId?: string;
+  rewardTitle?: string;
+  subscriptionId?: string;
+  subscriptionStatus?: string;
+  subscriptionCreatedAt?: string;
+  lastNotificationAt?: string;
+  lastError?: string;
+}
+
 export interface TwitchChannelPointsStatus {
   enabled: boolean;
   connected: boolean;
@@ -1289,6 +1302,20 @@ export interface TwitchChannelPointsStatus {
   deliveries: {
     grants: { pending: number; granted: number; failed: number };
     chat: { pending: number; sent: number; failed: number; expired: number; sent24h: number };
+    assignments: { pending: number; assigned: number; failed: number };
+    byReward: Record<TwitchCcgRewardKind, {
+      grants: { pending: number; granted: number; failed: number };
+      chat: { pending: number; sent: number; failed: number; expired: number; sent24h: number };
+    }>;
+  };
+  rewards: Record<TwitchCcgRewardKind, TwitchChannelPointsRewardStatus>;
+  overlay: {
+    configured: boolean;
+    lastSeenAt?: string;
+    queued: number;
+    leased: number;
+    played: number;
+    expired: number;
   };
 }
 
@@ -2067,6 +2094,17 @@ export type CcgCard = {
   ownership?: CcgCardOwnership[];
   totalQuantity?: number;
   variants?: CcgCardVariant[];
+};
+
+export type CcgOverlayEvent = {
+  eventId: string;
+  leaseId: string;
+  source: "redemption" | "test";
+  viewer: { login: string; displayName: string };
+  finish: CcgFinish;
+  artVariant: CcgArtVariant;
+  tierGrade: CcgTierGrade;
+  card: CcgCard;
 };
 
 export type CcgCollectionSort =

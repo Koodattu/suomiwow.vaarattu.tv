@@ -25,6 +25,11 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+body.ccg-overlay-body {
+  overflow: hidden;
+  background: transparent;
+}
+
 /* Styling for raid selector expansion headers */
 #raid-select optgroup {
   font-weight: 700;

@@ -2521,10 +2521,10 @@
 .vaultRedeemSlot {
   display: grid;
   min-width: 0;
-  min-height: 12rem;
+  min-height: 16rem;
   overflow: hidden;
   grid-column: 3;
-  grid-template-rows: minmax(0, 3fr) minmax(0, 2fr);
+  grid-template-rows: minmax(0, 3fr) minmax(0, 2fr) minmax(0, 2fr);
   padding-left: 0.75rem;
   box-shadow: inset 1px 0 rgba(144, 178, 236, 0.13);
 }
@@ -2564,6 +2564,140 @@
   font-size: 0.68rem;
   line-height: 1.45;
   text-wrap: pretty;
+}
+
+.vaultTwitchPanel {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem 0.75rem;
+  padding: 0.75rem;
+  box-shadow:
+    inset 0 1px rgba(117, 149, 201, 0.12),
+    inset 0 -1px rgba(117, 149, 201, 0.12);
+}
+
+.vaultTwitchCopy {
+  min-width: 0;
+}
+
+.vaultTwitchCopy h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+  color: #eef4ff;
+  font-size: 0.82rem;
+  font-weight: 780;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.vaultTwitchCopy h2 svg {
+  width: 0.78rem;
+  height: 0.78rem;
+  color: #a98cff;
+}
+
+.vaultTwitchCopy p,
+.vaultTwitchConnectionSkeleton {
+  margin-top: 0.3rem;
+}
+
+.vaultTwitchCopy p {
+  overflow: hidden;
+  color: #8999b0;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vaultTwitchConnectionSkeleton {
+  display: block;
+  width: 6.5rem;
+  height: 0.62rem;
+  border-radius: 0.25rem;
+  background: rgba(255, 255, 255, 0.045);
+  animation: collectionSkeleton 1.5s ease-in-out infinite;
+}
+
+.vaultTwitchLiveStatus {
+  display: inline-flex;
+  margin-top: 0.38rem;
+  align-items: center;
+  gap: 0.35rem;
+  color: #697991;
+  font-size: 0.62rem;
+  font-weight: 720;
+  letter-spacing: 0.035em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.vaultTwitchLiveStatus > span {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: #566176;
+}
+
+.vaultTwitchLiveStatus[data-live="true"] {
+  color: #d6caff;
+}
+
+.vaultTwitchLiveStatus[data-live="true"] > span {
+  background: #e94e77;
+  box-shadow: 0 0 0.7rem rgba(233, 78, 119, 0.55);
+}
+
+.vaultTwitchActions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.vaultTwitchAction {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.vaultTwitchCta {
+  justify-content: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(211, 190, 255, 0.42);
+  background: linear-gradient(135deg, #6441a5, #9146ff);
+  padding-right: 0.58rem;
+  color: #fff;
+  box-shadow:
+    0 9px 28px rgba(100, 65, 165, 0.28),
+    inset 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.vaultTwitchCta:hover {
+  box-shadow:
+    0 12px 34px rgba(145, 70, 255, 0.36),
+    inset 0 1px rgba(255, 255, 255, 0.22);
+  filter: brightness(1.08);
+}
+
+.vaultTwitchCta svg {
+  width: 0.65rem;
+  height: 0.65rem;
+  flex: 0 0 auto;
+  transform: translateY(-0.05rem);
+}
+
+.vaultTwitchError {
+  grid-column: 1 / -1;
+  color: #ff9f9f;
+  font-size: 0.62rem;
+  line-height: 1.25;
 }
 
 .vaultAnalyticsPanel {
@@ -3139,7 +3273,7 @@
 
 @media (max-width: 760px) {
   .vaultRedeemSlot {
-    grid-template-rows: auto auto;
+    grid-template-rows: auto auto auto;
   }
 
   .vaultDashboardTop {

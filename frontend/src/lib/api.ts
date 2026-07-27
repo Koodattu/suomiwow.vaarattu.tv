@@ -146,6 +146,7 @@ import {
   CcgArtVariant,
   CcgTierGrade,
   CcgOpening,
+  CcgOverlayEvent,
   CcgShare,
   CcgShareLink,
   CcgAnalytics,
@@ -2084,7 +2085,7 @@ export const api = {
     return data;
   },
 
-  async updateAdminTwitchChannelPointsSettings(input: { enabled: boolean; rewardTitle: string }): Promise<TwitchChannelPointsStatus> {
+  async updateAdminTwitchChannelPointsSettings(input: { rewardKind: "packs" | "card_reveal"; enabled: boolean; rewardTitle: string }): Promise<TwitchChannelPointsStatus> {
     const response = await fetch(`${API_URL}/api/admin/twitch-channel-points/settings`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -2094,6 +2095,51 @@ export const api = {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Failed to update Twitch channel points settings");
     return data;
+  },
+
+  async rotateAdminTwitchCcgOverlayToken(): Promise<{ overlayUrl: string; createdAt: string }> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-channel-points/overlay-token`, { method: "POST", credentials: "include" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to generate OBS overlay URL");
+    return data;
+  },
+
+  async queueAdminTwitchCcgOverlayTest(): Promise<{ success: boolean }> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-channel-points/overlay-test`, { method: "POST", credentials: "include" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to queue an overlay test");
+    return data;
+  },
+
+  async getTwitchCcgOverlayNext(token: string, signal?: AbortSignal): Promise<CcgOverlayEvent | null> {
+    const response = await fetch(`${API_URL}/api/twitch/ccg-overlay/next`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      signal,
+    });
+    if (response.status === 204) return null;
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(data.error || "Overlay request failed") as Error & { status?: number; code?: string };
+      error.status = response.status;
+      error.code = data.code;
+      throw error;
+    }
+    return data;
+  },
+
+  async acknowledgeTwitchCcgOverlayEvent(token: string, eventId: string, leaseId: string): Promise<void> {
+    const response = await fetch(`${API_URL}/api/twitch/ccg-overlay/${encodeURIComponent(eventId)}/ack`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ leaseId }),
+    });
+    if (response.status === 204) return;
+    const data = await response.json().catch(() => ({}));
+    const error = new Error(data.error || "Overlay acknowledgement failed") as Error & { status?: number; code?: string };
+    error.status = response.status;
+    error.code = data.code;
+    throw error;
   },
 
   async disconnectAdminTwitchChannelPointsAuth(): Promise<{ success: boolean; message: string }> {

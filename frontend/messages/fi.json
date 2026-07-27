@@ -60,6 +60,11 @@
     "brandTitleBottom": "Card Game",
     "eyebrow": "Yhteisön korttiholvi",
     "subtitle": "Avaa raidisettien pakkoja ja kerää jokaisen tierin hahmot talteen.",
+    "overlay": {
+      "redeemedBy": "Kortin lunasti",
+      "revealed": "Kortti paljastettu",
+      "test": "Overlay-testi"
+    },
     "fanNotice": "Epävirallinen ja maksuton faniprojekti. World of Warcraft ja siihen liittyvä kuvitus ovat Blizzard Entertainmentin tavaramerkkejä tai tekijänoikeuksien alaista materiaalia. SuomiWoW ei ole Blizzard Entertainmentin yhteistyökumppani.",
     "loading": "Korttiholvia ladataan",
     "nav": {
@@ -188,6 +193,19 @@
         "title": "Yhteisön aktiivisuus",
         "uniqueUsers": "Keräilijät",
         "packOpenings": "Avatut pakat"
+      },
+      "twitch": {
+        "title": "Twitch-yhteys",
+        "checkingConnection": "Tarkistetaan Twitch-yhteyttä",
+        "connectedAs": "Yhdistetty tiliin {name}",
+        "notConnected": "Ei yhdistetty",
+        "live": "vaarattu live",
+        "offline": "vaarattu offline",
+        "connect": "Yhdistä",
+        "connecting": "Yhdistetään…",
+        "login": "Kirjaudu",
+        "redeemPacks": "Hanki pakkoja",
+        "connectError": "Twitch-yhteys epäonnistui. Yritä uudelleen."
       }
     },
     "open": {

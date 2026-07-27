@@ -58,7 +58,7 @@ import {
   serializeQuip,
   serializeOwnershipRows,
 } from "../utils/ccg-alternative-art";
-import { CcgFinishPity, emptyFinishPity, finishChanceForCounter, rollArtVariant, rollOwnedFinish } from "../utils/ccg-random";
+import { CcgFinishPity, emptyFinishPity, finishChanceForCounter, rollArtVariant, rollOwnedFinish, rollProtectedFinish } from "../utils/ccg-random";
 import { planPackSelections, selectCommunityCard, shufflePackResults } from "../utils/ccg-pack";
 import { resolveCollectorKey } from "../utils/ccg-identity";
 import { getTransferableGuestPacks, verifyGuestLibrary } from "../utils/ccg-guest-library";
@@ -218,6 +218,11 @@ type SelectedResult = {
   tierGrade: CcgTierGrade;
   isDuplicate: boolean;
 };
+
+export type CcgExternalCardAward = Pick<
+  SelectedResult,
+  "cardId" | "setId" | "characterId" | "snapshotVersion" | "finish" | "artVariant" | "tierGrade"
+> & { poolVersion: string };
 
 type CcgSeriesRef = {
   setId: mongoose.Types.ObjectId;
@@ -784,29 +789,65 @@ class CcgService {
     }>([
       ...currentCardStages,
       ...(Object.keys(cardFilter).length > 0 ? [{ $match: cardFilter }] : []),
-      ...(ownershipFilter || ownershipSort ? [{
-        $lookup: {
-          from: "ccgownerships",
-          let: { setId: "$setId", characterId: "$characterId" },
-          pipeline: [
-            {
-              $match: {
-                ownerType: owner.ownerType,
-                ownerId: owner.ownerId,
-                ...(finishMatch ? { finish: finishMatch } : {}),
-                $expr: {
-                  $and: [
-                    { $eq: ["$setId", "$$setId"] },
-                    { $eq: ["$characterId", "$$characterId"] },
-                  ],
+      ...(ownershipFilter || ownershipSort ? [
+        {
+          $lookup: {
+            from: "ccgseriesownerships",
+            let: { setId: "$setId", characterId: "$characterId", snapshotVersion: "$snapshotVersion" },
+            pipeline: [
+              {
+                $match: {
+                  ownerType: owner.ownerType,
+                  ownerId: owner.ownerId,
+                  $expr: {
+                    $and: [
+                      { $eq: ["$setId", "$$setId"] },
+                      { $eq: ["$characterId", "$$characterId"] },
+                      { $in: ["$$snapshotVersion", "$unlockedSnapshotVersions"] },
+                    ],
+                  },
                 },
               },
-            },
-            { $project: { _id: 0, finish: 1, quantity: 1 } },
-          ],
-          as: "seriesOwnership",
+              { $project: { _id: 1 } },
+            ],
+            as: "snapshotOwnership",
+          },
         },
-      }] : []),
+        {
+          $lookup: {
+            from: "ccgownerships",
+            let: { setId: "$setId", characterId: "$characterId" },
+            pipeline: [
+              {
+                $match: {
+                  ownerType: owner.ownerType,
+                  ownerId: owner.ownerId,
+                  ...(finishMatch ? { finish: finishMatch } : {}),
+                  $expr: {
+                    $and: [
+                      { $eq: ["$setId", "$$setId"] },
+                      { $eq: ["$characterId", "$$characterId"] },
+                    ],
+                  },
+                },
+              },
+              { $project: { _id: 0, finish: 1, quantity: 1 } },
+            ],
+            as: "seriesOwnership",
+          },
+        },
+        {
+          $set: {
+            seriesOwnership: {
+              $cond: [
+                { $gt: [{ $size: "$snapshotOwnership" }, 0] },
+                "$seriesOwnership",
+                [],
+              ],
+            },
+          },
+        },
+      ] : []),
       ...(ownershipFilter ? [{ $match: { "seriesOwnership.0": { $exists: includeOwned } } }] : []),
       ...(sort
         ? buildCcgCollectionSortStages(sort, {
@@ -837,7 +878,7 @@ class CcgService {
             { $set: { sortGrade: { $indexOfArray: [[...CCG_TIER_GRADES], "$tierGrade"] } } },
             { $sort: { sortGrade: 1 as const, setNumber: 1 as const, name: 1 as const, _id: 1 as const } },
           ]),
-      ...(ownershipFilter || ownershipSort ? [{ $unset: "seriesOwnership" }] : []),
+      ...(ownershipFilter || ownershipSort ? [{ $unset: ["seriesOwnership", "snapshotOwnership"] }] : []),
       {
         $facet: {
           items: [{ $skip: (page - 1) * limit }, { $limit: limit }],
@@ -848,9 +889,14 @@ class CcgService {
     const cards = catalog.items;
     const total = catalog.count[0]?.total ?? 0;
     const seriesPairs = cards.map((card) => ({ setId: card.setId, characterId: card.characterId }));
-    const [ownership, alternativeByCollector, unlockedAlternativeCollectors, ownedSeriesCount] = await Promise.all([
+    const [ownership, snapshotOwnership, alternativeByCollector, unlockedAlternativeCollectors, ownedSeriesCount] = await Promise.all([
       seriesPairs.length > 0
         ? CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, $or: seriesPairs }).lean()
+        : Promise.resolve([]),
+      seriesPairs.length > 0
+        ? CcgSeriesOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, $or: seriesPairs })
+            .select("setId characterId unlockedSnapshotVersions -_id")
+            .lean()
         : Promise.resolve([]),
       this.loadAlternativeArt(cards),
       this.loadAlternativeArtUnlocks(owner, cards),
@@ -863,6 +909,9 @@ class CcgService {
       list.push({ finish: row.finish, quantity: row.quantity, alternativeQuantity: row.alternativeQuantity });
       ownershipBySeries.set(key, list);
     }
+    const unlockedVersionsBySeries = new Map(
+      snapshotOwnership.map((row) => [getSeriesKey(row), new Set(row.unlockedSnapshotVersions)]),
+    );
 
     return {
       ...(set ? { set: this.serializeSet(set, ownedSeriesCount) } : {}),
@@ -871,11 +920,15 @@ class CcgService {
         if (!cardSet) throw new CcgServiceError(500, "set_not_found", "Card set not found");
         const collectorKey = resolveCollectorKey(card);
         const alternativeArt = alternativeByCollector.get(collectorKey);
-        const alternativeArtUnlocked = unlockedAlternativeCollectors.has(collectorKey)
+        const snapshotUnlocked = unlockedVersionsBySeries.get(getSeriesKey(card))?.has(card.snapshotVersion) ?? false;
+        const alternativeArtUnlocked = snapshotUnlocked && unlockedAlternativeCollectors.has(collectorKey)
           && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId));
         return {
           ...this.serializeCard(card, cardSet, alternativeArt),
-          ownership: serializeOwnershipRows(ownershipBySeries.get(getSeriesKey(card)) ?? [], alternativeArtUnlocked),
+          ownership: serializeOwnershipRows(
+            snapshotUnlocked ? ownershipBySeries.get(getSeriesKey(card)) ?? [] : [],
+            alternativeArtUnlocked,
+          ),
         };
       }),
       page,
@@ -906,7 +959,7 @@ class CcgService {
         ownerId: owner.ownerId,
         setId: card.setId,
         characterId: card.characterId,
-        unlockedFromSnapshotVersion: { $lte: card.snapshotVersion },
+        unlockedSnapshotVersions: card.snapshotVersion,
       }).select("_id").lean(),
       CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, setId: card.setId, characterId: card.characterId })
         .select("finish quantity alternativeQuantity -_id")
@@ -1013,7 +1066,7 @@ class CcgService {
           let: {
             setId: "$setId",
             characterId: "$characterId",
-            unlockedFromSnapshotVersion: "$unlockedFromSnapshotVersion",
+            unlockedSnapshotVersions: "$unlockedSnapshotVersions",
           },
           pipeline: [
             {
@@ -1022,7 +1075,7 @@ class CcgService {
                   $and: [
                     { $eq: ["$setId", "$$setId"] },
                     { $eq: ["$characterId", "$$characterId"] },
-                    { $gte: ["$snapshotVersion", "$$unlockedFromSnapshotVersion"] },
+                    { $in: ["$snapshotVersion", "$$unlockedSnapshotVersions"] },
                   ],
                 },
               },
@@ -1135,7 +1188,7 @@ class CcgService {
             ownerId: owner.ownerId,
             setId: card.setId,
             characterId: card.characterId,
-            unlockedFromSnapshotVersion: { $lte: card.snapshotVersion },
+            unlockedSnapshotVersions: card.snapshotVersion,
           }).select("_id").lean()
         : null,
       owner
@@ -1158,6 +1211,54 @@ class CcgService {
     };
   }
 
+  async rollExternalSingleCard(session: ClientSession): Promise<CcgExternalCardAward> {
+    requireFeature();
+    const pool = await this.selectModePackResults("current", session);
+    const selected = pool.results[0];
+    if (!selected) throw new CcgServiceError(409, "pool_invalid", "The current card pool is incomplete");
+
+    const card = await CcgCard.findOne({ _id: selected.cardId, setId: selected.setId }).session(session).lean();
+    if (!card) throw new CcgServiceError(409, "pool_invalid", "The current card pool references an unavailable card");
+    const set = await CcgSet.findOne({ _id: card.setId, enabledAt: { $ne: null } }).session(session).lean();
+    if (!set) throw new CcgServiceError(409, "pool_invalid", "The current card pool references an unavailable set");
+
+    const customFinish = set.kind === "raid" ? set.customFinish?.key ?? null : null;
+    const finishOrder = getCcgPackFinishOrder(set.kind, customFinish);
+    const finish = rollProtectedFinish(
+      emptyFinishPity(),
+      "standard",
+      randomInt,
+      finishOrder,
+      customFinish
+        ? { ...CCG_FINISH_PITY_LIMITS, [customFinish]: set.customFinish!.hardPity }
+        : CCG_FINISH_PITY_LIMITS,
+    ).finish;
+    const alternativeArt = (await this.loadAlternativeArt([card], session)).get(resolveCollectorKey(card));
+
+    return {
+      cardId: card._id,
+      setId: card.setId,
+      characterId: card.characterId,
+      snapshotVersion: card.snapshotVersion,
+      finish,
+      artVariant: rollArtVariant(hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))),
+      tierGrade: card.tierGrade,
+      poolVersion: pool.version,
+    };
+  }
+
+  async grantExternalCard(
+    userId: mongoose.Types.ObjectId,
+    award: CcgExternalCardAward,
+    session: ClientSession,
+  ): Promise<void> {
+    await this.addOwnership(
+      { ownerType: "user", ownerId: userId, dateKey: getHelsinkiDateKey() },
+      [award],
+      session,
+    );
+  }
+
   async createCardShare(req: Request, body: Record<string, unknown>): Promise<Record<string, unknown>> {
     requireFeature();
     const userId = await this.requireAuthenticatedUser(req);
@@ -1176,7 +1277,7 @@ class CcgService {
         ownerId: userId,
         setId: card.setId,
         characterId: card.characterId,
-        unlockedFromSnapshotVersion: { $lte: card.snapshotVersion },
+        unlockedSnapshotVersions: card.snapshotVersion,
       }).select("_id").lean(),
       CcgOwnership.findOne({
         ownerType: "user",
@@ -3159,14 +3260,21 @@ class CcgService {
       quantity: number;
       alternativeUnlocked: boolean;
     }>();
-    const series = new Map<string, Pick<SelectedResult, "setId" | "characterId" | "snapshotVersion">>();
+    const series = new Map<string, {
+      setId: mongoose.Types.ObjectId;
+      characterId: mongoose.Types.ObjectId;
+      snapshotVersions: Set<number>;
+    }>();
     for (const result of results) {
       const seriesKey = getSeriesKey(result);
       const key = `${seriesKey}:${result.finish}`;
       const currentSeries = series.get(seriesKey);
-      if (!currentSeries || result.snapshotVersion < currentSeries.snapshotVersion) {
-        series.set(seriesKey, result);
-      }
+      if (currentSeries) currentSeries.snapshotVersions.add(result.snapshotVersion);
+      else series.set(seriesKey, {
+        setId: result.setId,
+        characterId: result.characterId,
+        snapshotVersions: new Set([result.snapshotVersion]),
+      });
       const current = quantities.get(key);
       if (current) {
         current.quantity += 1;
@@ -3193,7 +3301,7 @@ class CcgService {
             characterId: row.characterId,
           },
           update: {
-            $min: { unlockedFromSnapshotVersion: row.snapshotVersion },
+            $addToSet: { unlockedSnapshotVersions: { $each: Array.from(row.snapshotVersions) } },
             $set: { lastAcquiredAt: now },
             $setOnInsert: {
               firstAcquiredAt: now,

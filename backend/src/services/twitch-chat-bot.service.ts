@@ -699,10 +699,18 @@ class TwitchChatBotService {
   }
 
   private async processChannelPointRewards(): Promise<void> {
-    await twitchCcgRewardService.retryLinkedPending();
+    const enabledKinds = await twitchChannelPointsService.getEnabledRewardKinds();
+    if (enabledKinds.length === 0) return;
+    if (enabledKinds.includes("card_reveal")) await twitchCcgRewardService.retryCardAssignments();
+    await twitchCcgRewardService.retryLinkedPending(enabledKinds);
     const now = new Date();
+    const rewardKindFilter = enabledKinds.length === 2
+      ? {}
+      : enabledKinds[0] === "packs"
+        ? { $or: [{ rewardKind: "packs" }, { rewardKind: { $exists: false } }] }
+        : { rewardKind: "card_reveal" };
     await TwitchCcgRedemption.updateMany(
-      { chatStatus: { $in: ["pending", "failed"] }, chatExpiresAt: { $lte: now } },
+      { chatStatus: { $in: ["pending", "failed"] }, chatExpiresAt: { $lte: now }, ...rewardKindFilter },
       { $set: { chatStatus: "expired", chatLastError: "Chat delivery expired" } },
     );
 
@@ -711,6 +719,7 @@ class TwitchChatBotService {
       chatNextAttemptAt: { $lte: now },
       chatExpiresAt: { $gt: now },
       chatAttempts: { $lt: MAX_CCG_CHAT_DELIVERY_ATTEMPTS },
+      ...rewardKindFilter,
     })
       .sort({ chatNextAttemptAt: 1 })
       .limit(20);
@@ -729,9 +738,13 @@ class TwitchChatBotService {
           continue;
         }
 
-        const message =
-          delivery.grantStatus === "granted"
-            ? `@${delivery.twitchUserLogin} packs were added successfully!`
+        const isCardReveal = delivery.rewardKind === "card_reveal";
+        const message = delivery.grantStatus === "granted"
+          ? isCardReveal
+            ? `@${delivery.twitchUserLogin} your card was added successfully!`
+            : `@${delivery.twitchUserLogin} packs were added successfully!`
+          : isCardReveal
+            ? `@${delivery.twitchUserLogin} connect your Twitch at ${this.getFrontendBaseUrl()}/profile to claim your card.`
             : `@${delivery.twitchUserLogin} connect your Twitch at ${this.getFrontendBaseUrl()}/profile to claim packs.`;
         await this.queueSay(channel, message);
         delivery.chatStatus = "sent";

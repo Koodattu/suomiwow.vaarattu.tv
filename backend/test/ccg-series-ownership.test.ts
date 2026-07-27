@@ -6,7 +6,10 @@ import "express-session";
 import mongoose from "mongoose";
 import CcgOwnership from "../src/models/CcgOwnership";
 import CcgSeriesOwnership from "../src/models/CcgSeriesOwnership";
-import { isValidUnresolvedCardReference } from "../src/services/ccg-ownership-migration.service";
+import {
+  isValidUnresolvedCardReference,
+  resolveUnlockedSnapshotVersions,
+} from "../src/services/ccg-ownership-migration.service";
 import ccgService from "../src/services/ccg.service";
 
 test("ownership migration preserves malformed rows but fails on valid missing card references", () => {
@@ -14,6 +17,14 @@ test("ownership migration preserves malformed rows but fails on valid missing ca
   assert.equal(isValidUnresolvedCardReference({ cardId: "not-an-object-id", finish: "standard" }), false);
   assert.equal(isValidUnresolvedCardReference({ cardId: new mongoose.Types.ObjectId(), finish: null }), false);
   assert.equal(isValidUnresolvedCardReference({ cardId: new mongoose.Types.ObjectId(), finish: "standard" }), true);
+});
+
+test("snapshot migration keeps only explicitly acquired versions", () => {
+  assert.deepEqual(resolveUnlockedSnapshotVersions({
+    unlockedFromSnapshotVersion: 1,
+    unlockedSnapshotVersions: [3],
+    originCards: [{ snapshotVersion: 1 }, { snapshotVersion: 3 }],
+  }), [1, 3]);
 });
 
 test("finish grants update one series entitlement and one shared series finish", async () => {
@@ -58,7 +69,9 @@ test("finish grants update one series entitlement and one shared series finish",
       setId,
       characterId,
     });
-    assert.deepEqual(seriesOperations[0].updateOne.update.$min, { unlockedFromSnapshotVersion: 2 });
+    assert.deepEqual(seriesOperations[0].updateOne.update.$addToSet, {
+      unlockedSnapshotVersions: { $each: [2] },
+    });
 
     assert.equal(ownershipOperations.length, 1);
     assert.deepEqual(ownershipOperations[0].updateOne.filter, {
@@ -76,7 +89,7 @@ test("finish grants update one series entitlement and one shared series finish",
   }
 });
 
-test("an exact historical reward can lower the first visible snapshot version", async () => {
+test("an exact historical reward unlocks only that snapshot version", async () => {
   const ownerId = new mongoose.Types.ObjectId();
   const setId = new mongoose.Types.ObjectId();
   const characterId = new mongoose.Types.ObjectId();
@@ -106,7 +119,9 @@ test("an exact historical reward can lower the first visible snapshot version", 
       {} as mongoose.ClientSession,
     );
 
-    assert.deepEqual(seriesOperations[0].updateOne.update.$min, { unlockedFromSnapshotVersion: 1 });
+    assert.deepEqual(seriesOperations[0].updateOne.update.$addToSet, {
+      unlockedSnapshotVersions: { $each: [1] },
+    });
   } finally {
     seriesModel.bulkWrite = originalSeriesBulkWrite;
     ownershipModel.bulkWrite = originalOwnershipBulkWrite;

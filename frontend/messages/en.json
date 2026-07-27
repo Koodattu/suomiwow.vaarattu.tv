@@ -60,6 +60,11 @@
     "brandTitleBottom": "Card Game",
     "eyebrow": "Community card vault",
     "subtitle": "Open raid-set packs and preserve the characters who shaped each tier.",
+    "overlay": {
+      "redeemedBy": "Card redeemed by",
+      "revealed": "Card revealed",
+      "test": "Overlay test"
+    },
     "fanNotice": "Unofficial, free fan project. World of Warcraft and related artwork are trademarks or copyrights of Blizzard Entertainment. SuomiWoW is not affiliated with Blizzard Entertainment.",
     "loading": "Loading card vault",
     "nav": {
@@ -188,6 +193,19 @@
         "title": "Community activity",
         "uniqueUsers": "Collectors",
         "packOpenings": "Packs opened"
+      },
+      "twitch": {
+        "title": "Twitch connection",
+        "checkingConnection": "Checking Twitch connection",
+        "connectedAs": "Connected as {name}",
+        "notConnected": "Not connected",
+        "live": "vaarattu live",
+        "offline": "vaarattu offline",
+        "connect": "Connect",
+        "connecting": "Connecting…",
+        "login": "Log in",
+        "redeemPacks": "Get packs",
+        "connectError": "Twitch could not be connected. Try again."
       }
     },
     "open": {

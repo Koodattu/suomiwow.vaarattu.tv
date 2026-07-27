@@ -340,6 +340,9 @@ export default function AdminPage() {
   const [twitchChannelPointRewards, setTwitchChannelPointRewards] = useState<TwitchCustomReward[]>([]);
   const [twitchChannelPointsEnabled, setTwitchChannelPointsEnabled] = useState(false);
   const [twitchChannelPointsRewardTitle, setTwitchChannelPointsRewardTitle] = useState("");
+  const [twitchCardRewardEnabled, setTwitchCardRewardEnabled] = useState(false);
+  const [twitchCardRewardTitle, setTwitchCardRewardTitle] = useState("");
+  const [twitchCcgOverlayUrl, setTwitchCcgOverlayUrl] = useState("");
   const [twitchChannelPointsSaving, setTwitchChannelPointsSaving] = useState(false);
 
   // Characters data
@@ -612,8 +615,10 @@ export default function AdminPage() {
             setTwitchBotSettingsDraft(twitchBotData.settings);
             setTwitchBotFollows(twitchBotFollowsData);
             setTwitchChannelPointsStatus(channelPointsData);
-            setTwitchChannelPointsEnabled(channelPointsData.rewardEnabled);
-            setTwitchChannelPointsRewardTitle(channelPointsData.rewardTitle || "");
+            setTwitchChannelPointsEnabled(channelPointsData.rewards.packs.enabled);
+            setTwitchChannelPointsRewardTitle(channelPointsData.rewards.packs.rewardTitle || "");
+            setTwitchCardRewardEnabled(channelPointsData.rewards.card_reveal.enabled);
+            setTwitchCardRewardTitle(channelPointsData.rewards.card_reveal.rewardTitle || "");
             setTwitchChannelPointRewards(rewardsData?.rewards || []);
             break;
           }
@@ -941,8 +946,10 @@ export default function AdminPage() {
   const refreshTwitchChannelPointsStatus = async () => {
     const status = await api.getAdminTwitchChannelPointsStatus();
     setTwitchChannelPointsStatus(status);
-    setTwitchChannelPointsEnabled(status.rewardEnabled);
-    setTwitchChannelPointsRewardTitle(status.rewardTitle || "");
+    setTwitchChannelPointsEnabled(status.rewards.packs.enabled);
+    setTwitchChannelPointsRewardTitle(status.rewards.packs.rewardTitle || "");
+    setTwitchCardRewardEnabled(status.rewards.card_reveal.enabled);
+    setTwitchCardRewardTitle(status.rewards.card_reveal.rewardTitle || "");
     return status;
   };
 
@@ -1295,8 +1302,10 @@ export default function AdminPage() {
     }
   };
 
-  const handleSaveTwitchChannelPoints = async () => {
-    if (twitchChannelPointsEnabled && !twitchChannelPointsRewardTitle.trim()) {
+  const handleSaveTwitchChannelPoints = async (rewardKind: "packs" | "card_reveal") => {
+    const enabled = rewardKind === "packs" ? twitchChannelPointsEnabled : twitchCardRewardEnabled;
+    const rewardTitle = rewardKind === "packs" ? twitchChannelPointsRewardTitle : twitchCardRewardTitle;
+    if (enabled && !rewardTitle.trim()) {
       setTriggerMessage({ type: "error", text: "Choose a channel points reward before enabling the listener." });
       return;
     }
@@ -1304,18 +1313,55 @@ export default function AdminPage() {
     setTriggerMessage(null);
     try {
       const status = await api.updateAdminTwitchChannelPointsSettings({
-        enabled: twitchChannelPointsEnabled,
-        rewardTitle: twitchChannelPointsRewardTitle,
+        rewardKind,
+        enabled,
+        rewardTitle,
       });
       setTwitchChannelPointsStatus(status);
-      setTwitchChannelPointsEnabled(status.rewardEnabled);
-      setTwitchChannelPointsRewardTitle(status.rewardTitle || twitchChannelPointsRewardTitle);
-      setTriggerMessage({ type: "success", text: status.rewardEnabled ? "Channel points listener activated" : "Channel points listener disabled" });
+      setTwitchChannelPointsEnabled(status.rewards.packs.enabled);
+      setTwitchChannelPointsRewardTitle(status.rewards.packs.rewardTitle || twitchChannelPointsRewardTitle);
+      setTwitchCardRewardEnabled(status.rewards.card_reveal.enabled);
+      setTwitchCardRewardTitle(status.rewards.card_reveal.rewardTitle || twitchCardRewardTitle);
+      setTriggerMessage({
+        type: "success",
+        text: status.rewards[rewardKind].enabled
+          ? `${rewardKind === "packs" ? "Pack" : "Card reveal"} reward activated`
+          : `${rewardKind === "packs" ? "Pack" : "Card reveal"} reward disabled`,
+      });
       setTimeout(() => setTriggerMessage(null), 5000);
     } catch (error) {
       setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to save channel points settings" });
     } finally {
       setTwitchChannelPointsSaving(false);
+    }
+  };
+
+  const handleGenerateTwitchCcgOverlayUrl = async () => {
+    setTriggerLoading("twitch-ccg-overlay-token");
+    setTriggerMessage(null);
+    try {
+      const result = await api.rotateAdminTwitchCcgOverlayToken();
+      setTwitchCcgOverlayUrl(result.overlayUrl);
+      await refreshTwitchChannelPointsStatus();
+      setTriggerMessage({ type: "success", text: "New OBS overlay URL generated. The previous URL no longer works." });
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to generate OBS overlay URL" });
+    } finally {
+      setTriggerLoading(null);
+    }
+  };
+
+  const handleTestTwitchCcgOverlay = async () => {
+    setTriggerLoading("twitch-ccg-overlay-test");
+    setTriggerMessage(null);
+    try {
+      await api.queueAdminTwitchCcgOverlayTest();
+      await refreshTwitchChannelPointsStatus();
+      setTriggerMessage({ type: "success", text: "Test card queued for the OBS overlay." });
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to queue an overlay test" });
+    } finally {
+      setTriggerLoading(null);
     }
   };
 
@@ -2876,9 +2922,9 @@ export default function AdminPage() {
                   <div className="bg-gray-800 rounded-lg p-5 space-y-5">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-                        <h3 className="text-lg font-semibold text-white text-balance">Channel Points CCG Reward</h3>
+                        <h3 className="text-lg font-semibold text-white text-balance">Channel Points CCG Rewards</h3>
                         <p className="mt-1 text-sm text-gray-400 text-pretty">
-                          The {twitchChannelPointsStatus.expectedBroadcasterLogin} broadcaster authorization listens for one reward. Vaarabot posts the result in chat.
+                          The {twitchChannelPointsStatus.expectedBroadcasterLogin} broadcaster authorization listens for two independent rewards. Vaarabot posts each result in chat.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -2916,32 +2962,39 @@ export default function AdminPage() {
                       </div>
                       <div className="rounded-lg bg-gray-900/70 p-4">
                         <h4 className="text-gray-400 text-sm">EventSub</h4>
-                        <p className={`mt-1 text-lg font-bold ${twitchChannelPointsStatus.subscriptionStatus === "enabled" ? "text-green-400" : "text-amber-400"}`}>
-                          {twitchChannelPointsStatus.rewardEnabled ? twitchChannelPointsStatus.subscriptionStatus || "Starting" : "Disabled"}
+                        <p className={`mt-1 text-sm font-semibold ${twitchChannelPointsStatus.rewards.packs.subscriptionStatus === "enabled" ? "text-green-400" : "text-amber-400"}`}>
+                          Packs: {twitchChannelPointsStatus.rewards.packs.enabled ? twitchChannelPointsStatus.rewards.packs.subscriptionStatus || "Starting" : "Disabled"}
                         </p>
-                        {twitchChannelPointsStatus.lastNotificationAt && <p className="text-xs text-gray-500">last reward: {formatDate(twitchChannelPointsStatus.lastNotificationAt)}</p>}
+                        <p className={`mt-1 text-sm font-semibold ${twitchChannelPointsStatus.rewards.card_reveal.subscriptionStatus === "enabled" ? "text-green-400" : "text-amber-400"}`}>
+                          Card: {twitchChannelPointsStatus.rewards.card_reveal.enabled ? twitchChannelPointsStatus.rewards.card_reveal.subscriptionStatus || "Starting" : "Disabled"}
+                        </p>
                       </div>
                       <div className="rounded-lg bg-gray-900/70 p-4">
                         <h4 className="text-gray-400 text-sm">Pack Grants</h4>
-                        <p className="mt-1 text-lg font-bold text-green-400 tabular-nums">{twitchChannelPointsStatus.deliveries.grants.granted}</p>
+                        <p className="mt-1 text-lg font-bold text-green-400 tabular-nums">{twitchChannelPointsStatus.deliveries.byReward.packs.grants.granted}</p>
                         <p className="text-xs text-gray-500 tabular-nums">
-                          {twitchChannelPointsStatus.deliveries.grants.pending} pending · {twitchChannelPointsStatus.deliveries.grants.failed} failed
+                          {twitchChannelPointsStatus.deliveries.byReward.packs.grants.pending} pending · {twitchChannelPointsStatus.deliveries.byReward.packs.grants.failed} failed
                         </p>
                       </div>
                       <div className="rounded-lg bg-gray-900/70 p-4">
-                        <h4 className="text-gray-400 text-sm">Chat Replies</h4>
-                        <p className="mt-1 text-lg font-bold text-green-400 tabular-nums">{twitchChannelPointsStatus.deliveries.chat.sent24h} / 24h</p>
+                        <h4 className="text-gray-400 text-sm">Card Grants</h4>
+                        <p className="mt-1 text-lg font-bold text-green-400 tabular-nums">{twitchChannelPointsStatus.deliveries.byReward.card_reveal.grants.granted}</p>
                         <p className="text-xs text-gray-500 tabular-nums">
-                          {twitchChannelPointsStatus.deliveries.chat.pending} pending · {twitchChannelPointsStatus.deliveries.chat.failed} failed
+                          {twitchChannelPointsStatus.deliveries.byReward.card_reveal.grants.pending} pending · {twitchChannelPointsStatus.deliveries.assignments.failed} assignment failures
                         </p>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                    <div className="rounded-lg border border-gray-700 bg-gray-900/40 p-4">
+                      <div className="mb-4">
+                        <h4 className="font-semibold text-white text-balance">One of each pack</h4>
+                        <p className="mt-1 text-xs text-gray-400 text-pretty">Grants one Current and one Legacy pack. Disabling stops intake, retries, and chat delivery for this reward.</p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                       <div>
-                        <label htmlFor="twitch-channel-points-reward" className="block text-sm font-medium text-gray-200">Reward</label>
+                        <label htmlFor="twitch-channel-points-pack-reward" className="block text-sm font-medium text-gray-200">Reward</label>
                         <select
-                          id="twitch-channel-points-reward"
+                          id="twitch-channel-points-pack-reward"
                           value={twitchChannelPointsRewardTitle}
                           onChange={(event) => setTwitchChannelPointsRewardTitle(event.target.value)}
                           disabled={!twitchChannelPointsStatus.connected}
@@ -2975,7 +3028,7 @@ export default function AdminPage() {
                           Enabled
                         </label>
                         <button
-                          onClick={handleSaveTwitchChannelPoints}
+                          onClick={() => handleSaveTwitchChannelPoints("packs")}
                           disabled={!twitchChannelPointsStatus.connected || twitchChannelPointsSaving}
                           className="min-h-11 px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 transition-[background-color,transform]"
                         >
@@ -2983,9 +3036,107 @@ export default function AdminPage() {
                         </button>
                       </div>
                     </div>
+                    </div>
 
-                    {twitchChannelPointsStatus.lastError && (
-                      <div className="rounded-lg border border-red-500/40 bg-red-950/30 px-4 py-3 text-sm text-red-200">{twitchChannelPointsStatus.lastError}</div>
+                    <div className="rounded-lg border border-purple-500/30 bg-purple-950/10 p-4">
+                      <div className="mb-4">
+                        <h4 className="font-semibold text-white text-balance">Single-card reveal &amp; OBS overlay</h4>
+                        <p className="mt-1 text-xs text-gray-400 text-pretty">
+                          Rolls and stores one exact Current-pool card, grants it now or after Twitch linking, and queues the same card for OBS.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                        <div>
+                          <label htmlFor="twitch-channel-points-card-reward" className="block text-sm font-medium text-gray-200">Reward</label>
+                          <select
+                            id="twitch-channel-points-card-reward"
+                            value={twitchCardRewardTitle}
+                            onChange={(event) => setTwitchCardRewardTitle(event.target.value)}
+                            disabled={!twitchChannelPointsStatus.connected}
+                            className="mt-2 min-h-11 w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <option value="">Choose a different custom reward</option>
+                            {twitchChannelPointRewards.map((reward) => (
+                              <option key={reward.id} value={reward.title}>
+                                {reward.title} ({reward.cost.toLocaleString()} points){reward.skipsRequestQueue ? "" : " — queue enabled"}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="mt-2 text-xs text-amber-300 text-pretty">Use a different reward from pack grants and enable “Skip Reward Requests Queue” in Twitch.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <label className="flex min-h-11 items-center gap-3 rounded bg-gray-900 px-3 py-2 text-sm text-gray-200">
+                            <input
+                              type="checkbox"
+                              checked={twitchCardRewardEnabled}
+                              onChange={(event) => setTwitchCardRewardEnabled(event.target.checked)}
+                              disabled={!twitchChannelPointsStatus.connected}
+                              className="h-4 w-4 rounded border-gray-600 bg-gray-800 text-purple-500 focus:ring-purple-500"
+                            />
+                            Enabled
+                          </label>
+                          <button
+                            onClick={() => handleSaveTwitchChannelPoints("card_reveal")}
+                            disabled={!twitchChannelPointsStatus.connected || twitchChannelPointsSaving}
+                            className="min-h-11 rounded bg-purple-600 px-4 py-2 text-sm text-white transition-[background-color,transform] hover:bg-purple-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {twitchChannelPointsSaving ? "Saving..." : "Save & Subscribe"}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 border-t border-gray-700 pt-5">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <h5 className="text-sm font-medium text-gray-200">OBS browser source</h5>
+                            <p className="mt-1 text-xs text-gray-400 text-pretty">
+                              Generate a secret URL and paste it into OBS. Disabling this reward deletes EventSub, expires queued visuals, and tells an open overlay to stop polling permanently. Refresh the browser source after re-enabling.
+                            </p>
+                            {twitchCcgOverlayUrl && (
+                              <input
+                                readOnly
+                                value={twitchCcgOverlayUrl}
+                                aria-label="OBS overlay URL"
+                                className="mt-3 min-h-11 w-full rounded border border-gray-700 bg-gray-950 px-3 py-2 font-mono text-xs text-gray-200"
+                              />
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={handleGenerateTwitchCcgOverlayUrl}
+                              disabled={!twitchChannelPointsStatus.connected || triggerLoading === "twitch-ccg-overlay-token"}
+                              className="min-h-11 rounded bg-gray-700 px-3 py-2 text-sm text-gray-100 transition-[background-color,transform] hover:bg-gray-600 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {twitchChannelPointsStatus.overlay.configured ? "Rotate URL" : "Generate URL"}
+                            </button>
+                            {twitchCcgOverlayUrl && (
+                              <button
+                                onClick={() => navigator.clipboard.writeText(twitchCcgOverlayUrl).then(() => setTriggerMessage({ type: "success", text: "OBS overlay URL copied." }))}
+                                className="min-h-11 rounded bg-gray-700 px-3 py-2 text-sm text-gray-100 transition-[background-color,transform] hover:bg-gray-600 active:scale-[0.96]"
+                              >
+                                Copy URL
+                              </button>
+                            )}
+                            <button
+                              onClick={handleTestTwitchCcgOverlay}
+                              disabled={!twitchChannelPointsStatus.rewards.card_reveal.enabled || !twitchChannelPointsStatus.overlay.configured || triggerLoading === "twitch-ccg-overlay-test"}
+                              className="min-h-11 rounded bg-amber-600 px-3 py-2 text-sm text-white transition-[background-color,transform] hover:bg-amber-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Test reveal
+                            </button>
+                          </div>
+                        </div>
+                        <p className="mt-3 text-xs text-gray-500 tabular-nums">
+                          {twitchChannelPointsStatus.overlay.queued} queued · {twitchChannelPointsStatus.overlay.leased} playing · {twitchChannelPointsStatus.overlay.played} played
+                          {twitchChannelPointsStatus.overlay.lastSeenAt ? ` · last seen ${formatDate(twitchChannelPointsStatus.overlay.lastSeenAt)}` : " · overlay not seen yet"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {(twitchChannelPointsStatus.rewards.packs.lastError || twitchChannelPointsStatus.rewards.card_reveal.lastError) && (
+                      <div className="rounded-lg border border-red-500/40 bg-red-950/30 px-4 py-3 text-sm text-red-200">
+                        {twitchChannelPointsStatus.rewards.packs.lastError || twitchChannelPointsStatus.rewards.card_reveal.lastError}
+                      </div>
                     )}
                     <p className="text-xs text-gray-500 break-all">Webhook: {twitchChannelPointsStatus.callbackUrl}</p>
                   </div>

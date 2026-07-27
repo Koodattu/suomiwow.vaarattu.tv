@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import test from "node:test";
-import { verifyTwitchEventSubSignature } from "../src/services/twitch-channel-points.service";
+import {
+  isTwitchChannelPointsRewardEnabled,
+  resolveTwitchChannelPointsRewardKind,
+  verifyTwitchEventSubSignature,
+} from "../src/services/twitch-channel-points.service";
 
 test("verifies Twitch EventSub HMAC signatures and rejects tampering", () => {
   const secret = "0123456789abcdef0123456789abcdef";
@@ -29,4 +33,28 @@ test("rejects stale, future, and invalid EventSub timestamps", () => {
   assert.equal(verifyTwitchEventSubSignature(secret, messageId, stale, rawBody, sign(stale), now), false);
   assert.equal(verifyTwitchEventSubSignature(secret, messageId, future, rawBody, sign(future), now), false);
   assert.equal(verifyTwitchEventSubSignature(secret, messageId, "not-a-date", rawBody, sign("not-a-date"), now), false);
+});
+
+test("routes pack and card EventSub subscriptions independently", () => {
+  const auth = {
+    broadcasterUserId: "broadcaster-1",
+    rewardId: "packs-1",
+    cardRewardId: "card-1",
+  };
+  const subscription = (rewardId: string, broadcasterUserId = "broadcaster-1") => ({
+    type: "channel.channel_points_custom_reward_redemption.add",
+    condition: { broadcaster_user_id: broadcasterUserId, reward_id: rewardId },
+  });
+
+  assert.equal(resolveTwitchChannelPointsRewardKind(auth, subscription("packs-1")), "packs");
+  assert.equal(resolveTwitchChannelPointsRewardKind(auth, subscription("card-1")), "card_reveal");
+  assert.equal(resolveTwitchChannelPointsRewardKind(auth, subscription("other")), null);
+  assert.equal(resolveTwitchChannelPointsRewardKind(auth, subscription("card-1", "other-broadcaster")), null);
+});
+
+test("applies each reward kill switch independently", () => {
+  assert.equal(isTwitchChannelPointsRewardEnabled({ enabled: true, cardRewardEnabled: false }, "packs"), true);
+  assert.equal(isTwitchChannelPointsRewardEnabled({ enabled: true, cardRewardEnabled: false }, "card_reveal"), false);
+  assert.equal(isTwitchChannelPointsRewardEnabled({ enabled: false, cardRewardEnabled: true }, "packs"), false);
+  assert.equal(isTwitchChannelPointsRewardEnabled({ enabled: false, cardRewardEnabled: true }, "card_reveal"), true);
 });
