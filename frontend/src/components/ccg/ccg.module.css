@@ -3603,7 +3603,14 @@
   }
 
   .redeemForm {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  }
+
+  .redeemSubmitButton {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 0.35rem;
+    font-size: clamp(0.6rem, 2.8vw, 0.7rem);
   }
 
   .redeemDialog {
