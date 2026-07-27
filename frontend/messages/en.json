@@ -116,6 +116,7 @@
       "loading": "Loading shared opening",
       "sharedPack": "Shared pack opening",
       "sharedPackBy": "{username}'s shared pack opening",
+      "openPacksNow": "Open packs now",
       "unboxedBy": "Unboxed by",
       "notFoundTitle": "This shared opening is unavailable",
       "notFoundBody": "The link may be incomplete, expired, or no longer available.",

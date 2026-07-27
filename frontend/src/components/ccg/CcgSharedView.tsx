@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { FaArrowUpRightFromSquare, FaVolumeHigh } from "react-icons/fa6";
+import { FaArrowUpRightFromSquare, FaChevronRight, FaVolumeHigh } from "react-icons/fa6";
 import type { CcgShare, CcgShareAttribution } from "@/types";
 import { api } from "@/lib/api";
 import { playCcgQuip } from "@/lib/ccg-audio";
@@ -62,49 +62,55 @@ function SharedCard({ share }: { share: Extract<CcgShare, { kind: "card" }> }) {
       <StageBackground showRings={false} />
       <div className={styles.sharedCardLayout}>
         <CollectibleCard card={card} finish={finish} artVariant={artVariant} width={520} className={styles.sharedCardAsset} />
-        <div className={`${styles.viewerInfo} ${styles.sharedCardInfo}`}>
-          <div className={styles.viewerSet} style={{ color: card.set.theme.accent }}>{card.set.raidName}</div>
-          <h1 id="ccg-shared-card-title">{card.name}</h1>
-          {card.guildName ? <p className={styles.viewerIdentity}>{`<${card.guildName}>`}</p> : null}
+        <div className={styles.sharedCardDetails}>
+          <div className={`${styles.viewerInfo} ${styles.sharedCardInfo}`}>
+            <div className={styles.viewerSet} style={{ color: card.set.theme.accent }}>{card.set.raidName}</div>
+            <h1 id="ccg-shared-card-title">{card.name}</h1>
+            {card.guildName ? <p className={styles.viewerIdentity}>{`<${card.guildName}>`}</p> : null}
 
-          {card.quip ? (
-            <div className={styles.viewerQuip}>
-              {card.quip.audioPath ? (
-                <button
-                  type="button"
-                  className={styles.viewerQuipButton}
-                  onClick={() => playCcgQuip(card.quip?.audioPath)}
-                  aria-label={t("playQuip", { name: card.name })}
-                  title={t("playQuip", { name: card.name })}
+            {card.quip ? (
+              <div className={styles.viewerQuip}>
+                {card.quip.audioPath ? (
+                  <button
+                    type="button"
+                    className={styles.viewerQuipButton}
+                    onClick={() => playCcgQuip(card.quip?.audioPath)}
+                    aria-label={t("playQuip", { name: card.name })}
+                    title={t("playQuip", { name: card.name })}
+                  >
+                    <FaVolumeHigh aria-hidden="true" />
+                  </button>
+                ) : null}
+                {card.quip.text ? <blockquote>{card.quip.text}</blockquote> : null}
+              </div>
+            ) : null}
+
+            <dl className={`${styles.viewerFacts} ${styles.viewerFactsWithoutTopBorder}`}>
+              <div><dt>{t("collection.quality")}</dt><dd>{t(`finish.${finish}`)}</dd></div>
+              <div><dt>{t("collection.rarity")}</dt><dd>{t(`rarity.${CCG_RARITY_KEYS[card.tierGrade]}`)}</dd></div>
+              <div><dt>{t("realm")}</dt><dd>{formatRealmName(card.realm)}</dd></div>
+              <div><dt>{t("snapshot")}</dt><dd>{SNAPSHOT_DATE_FORMATTER.format(new Date(card.performanceSnapshotAt))}</dd></div>
+            </dl>
+            <div className={styles.viewerActions}>
+              <div>
+                <Link
+                  href={characterHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.viewerCharacterLink}
+                  aria-label={t("viewCharacterLabel", { name: card.name })}
                 >
-                  <FaVolumeHigh aria-hidden="true" />
-                </button>
-              ) : null}
-              {card.quip.text ? <blockquote>{card.quip.text}</blockquote> : null}
+                  <span>{t("viewCharacter")}</span>
+                  <FaArrowUpRightFromSquare aria-hidden="true" />
+                </Link>
+              </div>
+              <div><Attribution person={share.unboxedBy} className={styles.sharedAttributionAction} /></div>
             </div>
-          ) : null}
-
-          <dl className={`${styles.viewerFacts} ${styles.viewerFactsWithoutTopBorder}`}>
-            <div><dt>{t("collection.quality")}</dt><dd>{t(`finish.${finish}`)}</dd></div>
-            <div><dt>{t("collection.rarity")}</dt><dd>{t(`rarity.${CCG_RARITY_KEYS[card.tierGrade]}`)}</dd></div>
-            <div><dt>{t("realm")}</dt><dd>{formatRealmName(card.realm)}</dd></div>
-            <div><dt>{t("snapshot")}</dt><dd>{SNAPSHOT_DATE_FORMATTER.format(new Date(card.performanceSnapshotAt))}</dd></div>
-          </dl>
-          <div className={styles.viewerActions}>
-            <div>
-              <Link
-                href={characterHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={styles.viewerCharacterLink}
-                aria-label={t("viewCharacterLabel", { name: card.name })}
-              >
-                <span>{t("viewCharacter")}</span>
-                <FaArrowUpRightFromSquare aria-hidden="true" />
-              </Link>
-            </div>
-            <div><Attribution person={share.unboxedBy} className={styles.sharedAttributionAction} /></div>
           </div>
+          <Link href="/fun/ccg/open" className={`${styles.primaryButton} ${styles.sharedCta} ${styles.sharedCardCta}`}>
+            {t("share.openPacksNow")}
+            <FaChevronRight aria-hidden="true" />
+          </Link>
         </div>
       </div>
     </section>
@@ -163,6 +169,10 @@ function SharedPack({ share }: { share: Extract<CcgShare, { kind: "pack" }> }) {
               ))}
             </div>
           </div>
+          <Link href="/fun/ccg/open" className={`${styles.primaryButton} ${styles.sharedCta} ${styles.sharedPackCta}`}>
+            {t("openPacksNow")}
+            <FaChevronRight aria-hidden="true" />
+          </Link>
         </div>
       </section>
       {viewer && inspectedResult ? (

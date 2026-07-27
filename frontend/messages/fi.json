@@ -116,6 +116,7 @@
       "loading": "Jaettua avausta ladataan",
       "sharedPack": "Jaettu pakan avaus",
       "sharedPackBy": "{username}: jaettu pakan avaus",
+      "openPacksNow": "Avaa pakkoja nyt",
       "unboxedBy": "Pakan avasi",
       "notFoundTitle": "Jaettu avaus ei ole saatavilla",
       "notFoundBody": "Linkki voi olla puutteellinen, vanhentunut tai poistunut käytöstä.",

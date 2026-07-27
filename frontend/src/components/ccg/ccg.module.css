@@ -3940,12 +3940,18 @@
   width: calc(100% - 8px);
 }
 
-.sharedCardInfo {
+.sharedCardDetails {
+  position: relative;
+  min-width: 0;
   align-self: center;
+  transform: translateY(-5rem);
+}
+
+.sharedCardInfo {
   max-height: calc(100dvh - 7.625rem);
   overflow-y: auto;
   opacity: 1;
-  transform: translateY(-5rem);
+  transform: none;
 }
 
 .sharedCardInfo h1 {
@@ -3957,6 +3963,28 @@
   line-height: 0.96;
   overflow-wrap: anywhere;
   text-wrap: balance;
+}
+
+.sharedCta {
+  min-width: 10.5rem;
+  padding-right: 0.875rem;
+}
+
+.sharedCta > svg {
+  width: 0.7rem;
+  height: 0.7rem;
+  flex: none;
+}
+
+.sharedCardCta {
+  position: absolute;
+  top: calc(100% + 3rem);
+  right: 0;
+  left: 0;
+  display: flex;
+  width: fit-content;
+  margin-inline: auto;
+  translate: -2rem 0;
 }
 
 .sharedPackContent {
@@ -4022,6 +4050,11 @@
   overscroll-behavior-inline: contain;
   padding: 1rem clamp(2rem, 4vw, 5rem) 2.75rem;
   scroll-padding-inline: 1rem;
+}
+
+.sharedPackCta {
+  align-self: center;
+  margin-top: clamp(-2.5rem, -3vh, -1.25rem);
 }
 
 .sharedPackCards {
@@ -4212,12 +4245,21 @@
     justify-self: center;
   }
 
-  .sharedCardInfo {
+  .sharedCardDetails {
     width: 100%;
+    transform: none;
+  }
+
+  .sharedCardInfo {
     max-height: none;
     overflow: visible;
     padding-inline: 0.35rem;
     transform: none;
+  }
+
+  .sharedCardCta {
+    position: static;
+    margin-top: 1.25rem;
   }
 
   .sharedCardInfo h1 {
