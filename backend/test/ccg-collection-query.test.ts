@@ -123,8 +123,13 @@ test("owned collection shares finishes across explicitly unlocked snapshots", as
     const facet = pipeline.find((stage) => stage.$facet);
     assert.deepEqual(facet?.$facet.items, [{ $skip: 12 }, { $limit: 12 }]);
 
-    assert.equal(result.cards[0].set.id, String(raidSetId));
-    assert.equal(result.cards[0].variants[0].card.set.id, String(raidSetId));
+    assert.deepEqual(result.sets.map((set: any) => set.id), [String(raidSetId)]);
+    assert.equal(result.cards[0].setId, String(raidSetId));
+    assert.equal(result.cards[0].variants[0].card.setId, String(raidSetId));
+    assert.equal("set" in result.cards[0], false);
+    assert.equal("set" in result.cards[0].variants[0].card, false);
+    assert.equal(result.cards[0].seriesOwned, true);
+    assert.equal(result.cards[0].snapshotOwned, true);
     assert.equal(result.cards[0].totalQuantity, 2);
     assert.deepEqual(result.cards[0].variants.map((variant: any) => variant.card.snapshotVersion), [2, 1]);
     assert.deepEqual(result.cards[0].variants[0].ownership, result.cards[0].variants[1].ownership);

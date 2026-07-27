@@ -168,6 +168,28 @@ import {
   CcgAdminRedeemCode,
   CcgAdminRedeemCodesResponse,
 } from "@/types";
+import {
+  hydrateCcgAdminCardSearch,
+  hydrateCcgAdminRedeemCode,
+  hydrateCcgAdminRedeemCodes,
+  hydrateCcgCatalog,
+  hydrateCcgCollection,
+  hydrateCcgFeaturedCard,
+  hydrateCcgOpening,
+  hydrateCcgOverlayEvent,
+  hydrateCcgRedeemResult,
+  hydrateCcgShare,
+  type CcgAdminCardSearchResponseWire,
+  type CcgAdminRedeemCodeResponseWire,
+  type CcgAdminRedeemCodesResponseWire,
+  type CcgCatalogResponseWire,
+  type CcgCollectionResponseWire,
+  type CcgFeaturedCardResponseWire,
+  type CcgOpeningWire,
+  type CcgOverlayEventWire,
+  type CcgRedeemResultWire,
+  type CcgShareWire,
+} from "@/lib/ccg-wire";
 
 // For client-side: use NEXT_PUBLIC_API_URL (browser requests)
 // For server-side: use API_URL (internal Docker network)
@@ -300,13 +322,13 @@ export const api = {
       : "/api/ccg/collection/catalog";
     const response = await fetch(`${API_URL}${path}?${params}`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to open this binder");
-    return response.json();
+    return hydrateCcgCatalog(await response.json() as CcgCatalogResponseWire);
   },
 
   async getCcgFeaturedCard(setSlug: string): Promise<CcgFeaturedCardResponse> {
     const response = await fetch(`${API_URL}/api/ccg/sets/${encodeURIComponent(setSlug)}/featured`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load the featured card");
-    return response.json();
+    return hydrateCcgFeaturedCard(await response.json() as CcgFeaturedCardResponseWire);
   },
 
   async getCcgCollectionGuilds(setSlug?: string): Promise<CcgGuildsResponse> {
@@ -332,7 +354,7 @@ export const api = {
     });
     const response = await fetch(`${API_URL}/api/ccg/collection?${params}`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load your collection");
-    return response.json();
+    return hydrateCcgCollection(await response.json() as CcgCollectionResponseWire);
   },
 
   async openCcgPack(input: { mode: CcgMode; idempotencyKey: string; setId?: string }): Promise<CcgOpening> {
@@ -343,13 +365,13 @@ export const api = {
       body: JSON.stringify(input),
     });
     if (!response.ok) throw await buildApiError(response, "The pack could not be opened");
-    return response.json();
+    return hydrateCcgOpening(await response.json() as CcgOpeningWire);
   },
 
   async getCcgOpening(openingId: string): Promise<CcgOpening> {
     const response = await fetch(`${API_URL}/api/ccg/openings/${encodeURIComponent(openingId)}`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "The pack opening could not be recovered");
-    return response.json();
+    return hydrateCcgOpening(await response.json() as CcgOpeningWire);
   },
 
   async createCcgCardShare(input: { cardId: string; finish: CcgFinish; artVariant: CcgArtVariant }): Promise<CcgShareLink> {
@@ -377,7 +399,7 @@ export const api = {
   async getCcgShare(shareId: string): Promise<CcgShare> {
     const response = await fetch(`${API_URL}/api/ccg/shares/${encodeURIComponent(shareId)}`);
     if (!response.ok) throw await buildApiError(response, "This shared opening could not be found");
-    return response.json();
+    return hydrateCcgShare(await response.json() as CcgShareWire);
   },
 
   async redeemCcgCode(code: string): Promise<CcgRedeemResult> {
@@ -388,7 +410,7 @@ export const api = {
       body: JSON.stringify({ code }),
     });
     if (!response.ok) throw await buildApiError(response, "The code could not be redeemed");
-    return response.json();
+    return hydrateCcgRedeemResult(await response.json() as CcgRedeemResultWire);
   },
 
   async getAdminCcgStatus(): Promise<CcgAdminStatusResponse> {
@@ -488,13 +510,13 @@ export const api = {
     const params = new URLSearchParams({ search, limit: String(limit) });
     const response = await fetch(`${API_URL}/api/admin/ccg/cards?${params}`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to search CCG cards");
-    return response.json();
+    return hydrateCcgAdminCardSearch(await response.json() as CcgAdminCardSearchResponseWire);
   },
 
   async getAdminCcgRedeemCodes(): Promise<CcgAdminRedeemCodesResponse> {
     const response = await fetch(`${API_URL}/api/admin/ccg/redeem-codes`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load redeem codes");
-    return response.json();
+    return hydrateCcgAdminRedeemCodes(await response.json() as CcgAdminRedeemCodesResponseWire);
   },
 
   async createAdminCcgRedeemCode(input: {
@@ -513,7 +535,7 @@ export const api = {
       body: JSON.stringify(input),
     });
     if (!response.ok) throw await buildApiError(response, "Failed to create the redeem code");
-    return response.json();
+    return hydrateCcgAdminRedeemCode(await response.json() as CcgAdminRedeemCodeResponseWire);
   },
 
   async setAdminCcgRedeemCodeActive(codeId: string, active: boolean): Promise<{ code: CcgAdminRedeemCode }> {
@@ -524,7 +546,7 @@ export const api = {
       body: JSON.stringify({ active }),
     });
     if (!response.ok) throw await buildApiError(response, "Failed to update the redeem code");
-    return response.json();
+    return hydrateCcgAdminRedeemCode(await response.json() as CcgAdminRedeemCodeResponseWire);
   },
 
   async updateAdminCcgAlternativeArt(
@@ -2125,7 +2147,7 @@ export const api = {
       error.code = data.code;
       throw error;
     }
-    return data;
+    return hydrateCcgOverlayEvent(data as CcgOverlayEventWire);
   },
 
   async acknowledgeTwitchCcgOverlayEvent(token: string, eventId: string, leaseId: string): Promise<void> {

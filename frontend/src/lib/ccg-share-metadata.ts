@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import enMessages from "../../messages/en.json";
 import fiMessages from "../../messages/fi.json";
 import type { CcgFinish, CcgOpening, CcgShare, CcgTierGrade } from "@/types";
+import { hydrateCcgShare, type CcgShareWire } from "@/lib/ccg-wire";
 import { CCG_FINISH_ORDER, CCG_RARITY_KEYS } from "@/lib/ccg";
 import {
   CCG_EMBED_IMAGE,
@@ -74,7 +75,7 @@ export async function fetchCcgShare(shareId: string): Promise<CcgShare | null> {
       next: { revalidate: 3600 },
     });
     if (!response.ok) return null;
-    return await response.json() as CcgShare;
+    return hydrateCcgShare(await response.json() as CcgShareWire);
   } catch {
     return null;
   }

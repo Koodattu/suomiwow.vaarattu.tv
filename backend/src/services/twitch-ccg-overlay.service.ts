@@ -66,6 +66,7 @@ class TwitchCcgOverlayService {
       throw new TwitchCcgOverlayError(410, "overlay_disabled", "The card reveal overlay is disabled");
     }
 
+    const cardResponse = await ccgService.getCard(String(event.cardId));
     return {
       eventId: String(event._id),
       leaseId,
@@ -74,7 +75,8 @@ class TwitchCcgOverlayService {
       finish: event.finish,
       artVariant: event.artVariant,
       tierGrade: event.tierGrade,
-      card: await ccgService.getCard(String(event.cardId)),
+      sets: cardResponse.sets,
+      card: cardResponse.card,
     };
   }
 

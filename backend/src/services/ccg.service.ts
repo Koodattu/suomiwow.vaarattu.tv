@@ -229,6 +229,11 @@ type CcgSeriesRef = {
   characterId: mongoose.Types.ObjectId;
 };
 
+type CcgCardOwnershipState = {
+  seriesOwned: boolean;
+  snapshotOwned: boolean;
+};
+
 type CcgPackOpenState = {
   packs: Record<CcgMode, { regularRemaining: number; bonusRemaining: number; totalRemaining: number }>;
   qualityProtection: CcgFinishPity;
@@ -774,6 +779,9 @@ class CcgService {
 
     const ownershipFilter = options.owned === "owned" || options.owned === "missing" || Boolean(finishMatch);
     const includeOwned = options.owned === "owned" || Boolean(finishMatch);
+    const missingSnapshotsOnly = options.owned === "missing" && !finishMatch;
+    const needsFinishOwnership = Boolean(finishMatch) || (ownershipSort && !missingSnapshotsOnly);
+    const needsSnapshotOwnership = ownershipFilter || ownershipSort;
     const activeCardIds = await this.getActiveCatalogCardIds(sets);
     const currentCardStages: PipelineStage[] = activeCardIds
       ? [{ $match: { _id: { $in: activeCardIds } } }]
@@ -789,7 +797,7 @@ class CcgService {
     }>([
       ...currentCardStages,
       ...(Object.keys(cardFilter).length > 0 ? [{ $match: cardFilter }] : []),
-      ...(ownershipFilter || ownershipSort ? [
+      ...(needsSnapshotOwnership ? [
         {
           $lookup: {
             from: "ccgseriesownerships",
@@ -813,6 +821,8 @@ class CcgService {
             as: "snapshotOwnership",
           },
         },
+      ] : []),
+      ...(needsFinishOwnership ? [
         {
           $lookup: {
             from: "ccgownerships",
@@ -848,7 +858,11 @@ class CcgService {
           },
         },
       ] : []),
-      ...(ownershipFilter ? [{ $match: { "seriesOwnership.0": { $exists: includeOwned } } }] : []),
+      ...(ownershipFilter ? [{
+        $match: {
+          [needsFinishOwnership ? "seriesOwnership.0" : "snapshotOwnership.0"]: { $exists: includeOwned },
+        },
+      }] : []),
       ...(sort
         ? buildCcgCollectionSortStages(sort, {
             grade: "tierGrade",
@@ -878,7 +892,7 @@ class CcgService {
             { $set: { sortGrade: { $indexOfArray: [[...CCG_TIER_GRADES], "$tierGrade"] } } },
             { $sort: { sortGrade: 1 as const, setNumber: 1 as const, name: 1 as const, _id: 1 as const } },
           ]),
-      ...(ownershipFilter || ownershipSort ? [{ $unset: ["seriesOwnership", "snapshotOwnership"] }] : []),
+      ...(needsSnapshotOwnership ? [{ $unset: ["seriesOwnership", "snapshotOwnership"] }] : []),
       {
         $facet: {
           items: [{ $skip: (page - 1) * limit }, { $limit: limit }],
@@ -890,7 +904,7 @@ class CcgService {
     const total = catalog.count[0]?.total ?? 0;
     const seriesPairs = cards.map((card) => ({ setId: card.setId, characterId: card.characterId }));
     const [ownership, snapshotOwnership, alternativeByCollector, unlockedAlternativeCollectors, ownedSeriesCount] = await Promise.all([
-      seriesPairs.length > 0
+      seriesPairs.length > 0 && !missingSnapshotsOnly
         ? CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, $or: seriesPairs }).lean()
         : Promise.resolve([]),
       seriesPairs.length > 0
@@ -899,7 +913,7 @@ class CcgService {
             .lean()
         : Promise.resolve([]),
       this.loadAlternativeArt(cards),
-      this.loadAlternativeArtUnlocks(owner, cards),
+      missingSnapshotsOnly ? Promise.resolve(new Set<string>()) : this.loadAlternativeArtUnlocks(owner, cards),
       set ? CcgSeriesOwnership.countDocuments({ ownerType: owner.ownerType, ownerId: owner.ownerId, setId: set._id }) : Promise.resolve(0),
     ]);
     const ownershipBySeries = new Map<string, Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>>();
@@ -913,18 +927,29 @@ class CcgService {
       snapshotOwnership.map((row) => [getSeriesKey(row), new Set(row.unlockedSnapshotVersions)]),
     );
 
+    const responseSets = set
+      ? [{ ...this.serializeSet(set, ownedSeriesCount) }]
+      : Array.from(new Set(cards.map((card) => String(card.setId))))
+          .flatMap((setId) => {
+            const cardSet = setById.get(setId);
+            return cardSet ? [this.serializeSet(cardSet)] : [];
+          });
     return {
-      ...(set ? { set: this.serializeSet(set, ownedSeriesCount) } : {}),
+      sets: responseSets,
       cards: cards.map((card) => {
         const cardSet = setById.get(String(card.setId));
         if (!cardSet) throw new CcgServiceError(500, "set_not_found", "Card set not found");
         const collectorKey = resolveCollectorKey(card);
         const alternativeArt = alternativeByCollector.get(collectorKey);
-        const snapshotUnlocked = unlockedVersionsBySeries.get(getSeriesKey(card))?.has(card.snapshotVersion) ?? false;
+        const unlockedVersions = unlockedVersionsBySeries.get(getSeriesKey(card));
+        const snapshotUnlocked = unlockedVersions?.has(card.snapshotVersion) ?? false;
         const alternativeArtUnlocked = snapshotUnlocked && unlockedAlternativeCollectors.has(collectorKey)
           && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId));
         return {
-          ...this.serializeCard(card, cardSet, alternativeArt),
+          ...this.serializeCard(card, cardSet, alternativeArt, {
+            seriesOwned: Boolean(unlockedVersions),
+            snapshotOwned: snapshotUnlocked,
+          }),
           ownership: serializeOwnershipRows(
             snapshotUnlocked ? ownershipBySeries.get(getSeriesKey(card)) ?? [] : [],
             alternativeArtUnlocked,
@@ -948,19 +973,18 @@ class CcgService {
       .sort({ updatedAt: -1 })
       .lean();
     const cardIds = pool?.buckets.find((bucket) => bucket.grade === "S")?.cardIds ?? [];
-    if (cardIds.length === 0) return { card: null };
+    if (cardIds.length === 0) return { sets: [this.serializeSet(set)], card: null };
 
     const hourlyIndex = Math.floor(Date.now() / (60 * 60 * 1000)) % cardIds.length;
     const card = await CcgCard.findById(cardIds[hourlyIndex]).lean();
-    if (!card) return { card: null };
+    if (!card) return { sets: [this.serializeSet(set)], card: null };
     const [seriesOwnership, ownership, alternativeByCollector, unlockedAlternativeCollectors] = await Promise.all([
       CcgSeriesOwnership.findOne({
         ownerType: owner.ownerType,
         ownerId: owner.ownerId,
         setId: card.setId,
         characterId: card.characterId,
-        unlockedSnapshotVersions: card.snapshotVersion,
-      }).select("_id").lean(),
+      }).select("unlockedSnapshotVersions").lean(),
       CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, setId: card.setId, characterId: card.characterId })
         .select("finish quantity alternativeQuantity -_id")
         .lean(),
@@ -969,12 +993,17 @@ class CcgService {
     ]);
     const collectorKey = resolveCollectorKey(card);
     const alternativeArt = alternativeByCollector.get(collectorKey);
+    const snapshotOwned = seriesOwnership?.unlockedSnapshotVersions.includes(card.snapshotVersion) ?? false;
     return {
+      sets: [this.serializeSet(set)],
       card: {
-        ...this.serializeCard(card, set, alternativeArt),
+        ...this.serializeCard(card, set, alternativeArt, {
+          seriesOwned: Boolean(seriesOwnership),
+          snapshotOwned,
+        }),
         ownership: serializeOwnershipRows(
-          seriesOwnership ? ownership : [],
-          unlockedAlternativeCollectors.has(collectorKey)
+          snapshotOwned ? ownership : [],
+          snapshotOwned && unlockedAlternativeCollectors.has(collectorKey)
             && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)),
         ),
       },
@@ -1143,7 +1172,12 @@ class CcgService {
       this.loadAlternativeArt(collectionCards),
       this.loadAlternativeArtUnlocks(owner, collectionCards),
     ]);
+    const responseSetIds = new Set(rows.items.map((row) => String(row.card.setId)));
     return {
+      sets: Array.from(responseSetIds).flatMap((setId) => {
+        const cardSet = setById.get(setId);
+        return cardSet ? [this.serializeSet(cardSet)] : [];
+      }),
       cards: rows.items.map((row) => {
         const cardSet = setById.get(String(row.card.setId));
         if (!cardSet) throw new CcgServiceError(500, "set_not_found", "Card set not found");
@@ -1152,7 +1186,7 @@ class CcgService {
         const alternativeArtUnlocked = unlockedAlternativeCollectors.has(representativeCollectorKey)
           && hasApplicableAlternativeArt(alternative, Boolean(row.card.communityCharacterId));
         return {
-          ...this.serializeCard(row.card, cardSet, alternative),
+          ...this.serializeCard(row.card, cardSet, alternative, { seriesOwned: true, snapshotOwned: true }),
           ownership: serializeOwnershipRows(row.finishes, alternativeArtUnlocked),
           totalQuantity: row.totalQuantity,
           variants: row.accessibleCards.map((variant) => {
@@ -1161,7 +1195,7 @@ class CcgService {
             const alternativeArtUnlocked = unlockedAlternativeCollectors.has(collectorKey)
               && hasApplicableAlternativeArt(alternativeArt, Boolean(variant.communityCharacterId));
             return {
-              card: this.serializeCard(variant, cardSet, alternativeArt),
+              card: this.serializeCard(variant, cardSet, alternativeArt, { seriesOwned: true, snapshotOwned: true }),
               ownership: serializeOwnershipRows(row.finishes, alternativeArtUnlocked),
               totalQuantity: row.totalQuantity,
             };
@@ -1175,7 +1209,10 @@ class CcgService {
     };
   }
 
-  async getCard(cardId: string, owner?: CcgOwner): Promise<Record<string, unknown>> {
+  async getCard(
+    cardId: string,
+    owner?: CcgOwner,
+  ): Promise<{ sets: Record<string, unknown>[]; card: Record<string, unknown> }> {
     const id = validateObjectId(cardId, "card ID");
     const card = await CcgCard.findById(id).lean();
     if (!card) throw new CcgServiceError(404, "card_not_found", "Card not found");
@@ -1188,8 +1225,7 @@ class CcgService {
             ownerId: owner.ownerId,
             setId: card.setId,
             characterId: card.characterId,
-            unlockedSnapshotVersions: card.snapshotVersion,
-          }).select("_id").lean()
+          }).select("unlockedSnapshotVersions").lean()
         : null,
       owner
         ? CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, setId: card.setId, characterId: card.characterId })
@@ -1201,13 +1237,20 @@ class CcgService {
     ]);
     const collectorKey = resolveCollectorKey(card);
     const alternativeArt = alternativeByCollector.get(collectorKey);
+    const snapshotOwned = seriesOwnership?.unlockedSnapshotVersions.includes(card.snapshotVersion) ?? false;
     return {
-      ...this.serializeCard(card, set, alternativeArt),
-      ownership: serializeOwnershipRows(
-        seriesOwnership ? ownership : [],
-        unlockedAlternativeCollectors.has(collectorKey)
-          && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)),
-      ),
+      sets: [this.serializeSet(set)],
+      card: {
+        ...this.serializeCard(card, set, alternativeArt, {
+          seriesOwned: Boolean(seriesOwnership),
+          snapshotOwned,
+        }),
+        ownership: serializeOwnershipRows(
+          snapshotOwned ? ownership : [],
+          snapshotOwned && unlockedAlternativeCollectors.has(collectorKey)
+            && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)),
+        ),
+      },
     };
   }
 
@@ -1369,6 +1412,7 @@ class CcgService {
       const alternativeByCollector = await this.loadAlternativeArt([card]);
       return {
         ...response,
+        sets: [this.serializeSet(set)],
         card: {
           card: this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card))),
           finish: share.finish,
@@ -1482,7 +1526,7 @@ class CcgService {
     const normalizedSearch = normalizeSearchText(search);
     const requestedLimit = typeof rawLimit === "string" ? Number(rawLimit) : Number(rawLimit ?? 24);
     const limit = Number.isInteger(requestedLimit) ? Math.min(40, Math.max(1, requestedLimit)) : 24;
-    if (normalizedSearch.length < 2) return { search, cards: [] };
+    if (normalizedSearch.length < 2) return { search, sets: [], cards: [] };
 
     if (!this.adminCardSearchCache || this.adminCardSearchCache.expiresAt <= Date.now()) {
       this.adminCardSearchCache = {
@@ -1509,6 +1553,7 @@ class CcgService {
     const alternativeByCollector = await this.loadAlternativeArt(matchingCards);
     return {
       search,
+      sets: sets.map((set) => this.serializeSet(set)),
       cards: selectedCandidates.flatMap((candidate) => {
         const variants = candidate.cardIds
           .flatMap((id) => {
@@ -1533,7 +1578,7 @@ class CcgService {
 
   async getRedeemCodesForAdmin(): Promise<Record<string, unknown>> {
     const codes = await CcgRedeemCode.find({}).sort({ createdAt: -1 }).lean();
-    return { codes: await this.serializeRedeemCodes(codes) };
+    return this.serializeRedeemCodes(codes);
   }
 
   async createRedeemCodeForAdmin(input: Record<string, unknown>, createdBy: mongoose.Types.ObjectId): Promise<Record<string, unknown>> {
@@ -1594,8 +1639,8 @@ class CcgService {
         active: true,
         createdBy,
       });
-      const [serialized] = await this.serializeRedeemCodes([created.toObject()]);
-      return { code: serialized };
+      const serialized = await this.serializeRedeemCodes([created.toObject()]);
+      return { code: serialized.codes[0], sets: serialized.sets };
     } catch (error) {
       if (isDuplicateKeyError(error)) throw new CcgServiceError(409, "redeem_code_exists", "That redeem code already exists");
       throw error;
@@ -1607,8 +1652,8 @@ class CcgService {
     if (typeof activeValue !== "boolean") throw new CcgServiceError(400, "invalid_active_state", "Active state must be true or false");
     const code = await CcgRedeemCode.findByIdAndUpdate(id, { $set: { active: activeValue } }, { new: true }).lean();
     if (!code) throw new CcgServiceError(404, "redeem_code_not_found", "Redeem code not found");
-    const [serialized] = await this.serializeRedeemCodes([code]);
-    return { code: serialized };
+    const serialized = await this.serializeRedeemCodes([code]);
+    return { code: serialized.codes[0], sets: serialized.sets };
   }
 
   async redeemCode(req: Request, input: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -1737,6 +1782,7 @@ class CcgService {
     if (reward.rewardType === "packs") {
       return {
         code: reward.code,
+        sets: [],
         reward: { type: "packs", currentPacks: reward.currentPacks, legacyPacks: reward.legacyPacks },
       };
     }
@@ -1759,12 +1805,13 @@ class CcgService {
     const alternativeArt = alternativeByCollector.get(collectorKey);
     return {
       code: reward.code,
+      sets: [this.serializeSet(set)],
       reward: {
         type: "card",
         finish: reward.finish,
         artVariant: reward.artVariant,
         card: {
-          ...this.serializeCard(card, set, alternativeArt),
+          ...this.serializeCard(card, set, alternativeArt, { seriesOwned: true, snapshotOwned: true }),
           ownership: serializeOwnershipRows(
             ownership,
             unlockedAlternativeCollectors.has(collectorKey)
@@ -3452,7 +3499,7 @@ class CcgService {
 
   private async serializeRedeemCodes(
     codes: ReadonlyArray<ICcgRedeemCode | Record<string, any>>,
-  ): Promise<Record<string, unknown>[]> {
+  ): Promise<{ codes: Record<string, unknown>[]; sets: Record<string, unknown>[] }> {
     const cardIds = codes.flatMap((code) => code.rewardType === "card" && code.cardId ? [code.cardId] : []);
     const cards = cardIds.length > 0 ? await CcgCard.find({ _id: { $in: cardIds } }).lean() : [];
     const sets = cards.length > 0
@@ -3462,37 +3509,40 @@ class CcgService {
     const setById = new Map(sets.map((set) => [String(set._id), set]));
     const alternativeByCollector = await this.loadAlternativeArt(cards);
 
-    return codes.map((code) => {
-      const base = {
-        id: String(code._id),
-        code: code.code,
-        active: code.active,
-        redemptionCount: code.redemptionCount ?? 0,
-        createdAt: code.createdAt,
-        updatedAt: code.updatedAt,
-      };
-      if (code.rewardType === "packs") {
+    return {
+      sets: sets.map((set) => this.serializeSet(set)),
+      codes: codes.map((code) => {
+        const base = {
+          id: String(code._id),
+          code: code.code,
+          active: code.active,
+          redemptionCount: code.redemptionCount ?? 0,
+          createdAt: code.createdAt,
+          updatedAt: code.updatedAt,
+        };
+        if (code.rewardType === "packs") {
+          return {
+            ...base,
+            reward: { type: "packs", currentPacks: code.currentPacks, legacyPacks: code.legacyPacks },
+          };
+        }
+
+        const card = code.cardId ? cardById.get(String(code.cardId)) : null;
+        const set = card ? setById.get(String(card.setId)) : null;
         return {
           ...base,
-          reward: { type: "packs", currentPacks: code.currentPacks, legacyPacks: code.legacyPacks },
+          reward: {
+            type: "card",
+            cardId: code.cardId ? String(code.cardId) : null,
+            finish: code.finish ?? null,
+            artVariant: code.artVariant ?? null,
+            card: card && set
+              ? this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card)))
+              : null,
+          },
         };
-      }
-
-      const card = code.cardId ? cardById.get(String(code.cardId)) : null;
-      const set = card ? setById.get(String(card.setId)) : null;
-      return {
-        ...base,
-        reward: {
-          type: "card",
-          cardId: code.cardId ? String(code.cardId) : null,
-          finish: code.finish ?? null,
-          artVariant: code.artVariant ?? null,
-          card: card && set
-            ? this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card)))
-            : null,
-        },
-      };
-    });
+      }),
+    };
   }
 
   private async serializeOpening(opening: ICcgPackOpening | Record<string, any>): Promise<Record<string, unknown>> {
@@ -3530,7 +3580,14 @@ class CcgService {
           finish: result.finish,
           artVariant: result.artVariant ?? "standard",
           isDuplicate: result.isDuplicate,
-          card: card && set ? this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card as ICcgCard))) : null,
+          card: card && set
+            ? this.serializeCard(
+                card,
+                set,
+                alternativeByCollector.get(resolveCollectorKey(card as ICcgCard)),
+                { seriesOwned: true, snapshotOwned: true },
+              )
+            : null,
         };
       }),
     };
@@ -3604,6 +3661,7 @@ class CcgService {
     card: ICcgCard | Record<string, any>,
     set: ICcgSet | Record<string, any>,
     alternativeArt?: CcgAlternativeArtDefinition,
+    ownershipState?: CcgCardOwnershipState,
   ): Record<string, unknown> {
     return {
       id: String(card._id),
@@ -3640,7 +3698,8 @@ class CcgService {
       mediaCapturedAt: card.mediaCapturedAt ?? null,
       publicationWave: card.publicationWave,
       publishedAt: card.publishedAt,
-      set: this.serializeSet(set),
+      setId: String(set._id),
+      ...(ownershipState ?? {}),
     };
   }
 

@@ -429,7 +429,9 @@ export default function CardViewer({
               </div>
             </section>
           ) : !isOwned ? (
-            <p className={styles.viewerNotCollected}>{t("collection.notCollected")}</p>
+            <p className={styles.viewerNotCollected}>
+              {t(displayedCard.seriesOwned ? "collection.snapshotNotCollected" : "collection.notCollected")}
+            </p>
           ) : null}
 
           <dl className={`${styles.viewerFacts} ${styles.viewerFactsWithoutTopBorder}`}>

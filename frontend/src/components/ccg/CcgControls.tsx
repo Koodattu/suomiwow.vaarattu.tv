@@ -109,6 +109,17 @@ export default function CcgControls() {
         >
           <FaChevronDown className={isMixerOpen ? styles.utilityChevronOpen : ""} aria-hidden="true" />
         </button>
+        <button
+          type="button"
+          className={`${styles.shellUtilityButton} ${styles.mobileAudioMixerButton} ${preferences.enabled ? "" : styles.mobileAudioMixerButtonMuted}`}
+          onClick={() => setIsMixerOpen((open) => !open)}
+          aria-label={t("audioSettings")}
+          aria-expanded={isMixerOpen}
+          aria-haspopup="dialog"
+          title={t("audioSettings")}
+        >
+          {preferences.enabled ? <FaVolumeHigh aria-hidden="true" /> : <FaVolumeXmark aria-hidden="true" />}
+        </button>
 
         {isMixerOpen ? (
           <div className={styles.audioPopover} role="dialog" aria-label={t("audioSettings")}>

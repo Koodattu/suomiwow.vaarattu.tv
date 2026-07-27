@@ -2091,6 +2091,8 @@ export type CcgCard = {
   publicationWave: number;
   publishedAt: string;
   set: CcgSet;
+  seriesOwned?: boolean;
+  snapshotOwned?: boolean;
   ownership?: CcgCardOwnership[];
   totalQuantity?: number;
   variants?: CcgCardVariant[];
@@ -2437,7 +2439,7 @@ export type CcgAdminEnableResponse = {
 };
 
 export type CcgCatalogResponse = {
-  set?: CcgSet;
+  sets: CcgSet[];
   cards: CcgCard[];
   page: number;
   limit: number;
@@ -2446,6 +2448,7 @@ export type CcgCatalogResponse = {
 };
 
 export type CcgFeaturedCardResponse = {
+  sets: CcgSet[];
   card: CcgCard | null;
 };
 
@@ -2473,6 +2476,7 @@ export type CcgCharacterSearchResponse = {
 };
 
 export type CcgCollectionResponse = {
+  sets: CcgSet[];
   cards: CcgCard[];
   page: number;
   limit: number;
