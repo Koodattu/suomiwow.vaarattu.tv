@@ -371,6 +371,93 @@
     8px 0 24px rgba(48, 67, 255, 0.22),
     0 18px 38px rgba(0, 0, 0, 0.68);
 }
+.prototypeCard.paradox {
+  --apex-a: #bdfcff;
+  --apex-b: #7568ff;
+  --apex-c: #ff74dc;
+  --lab-accent: var(--apex-a);
+  --lab-glow: rgba(111, 88, 255, 0.68);
+  --metal-light: #d9fdff;
+  --metal-mid: #5b4fb9;
+  --metal-dark: #050610;
+  background-color: #060711;
+  box-shadow:
+    -8px 0 24px rgba(89, 233, 255, 0.12),
+    8px 0 24px rgba(218, 85, 255, 0.14),
+    0 18px 38px rgba(0, 0, 0, 0.7);
+}
+.prototypeCard.anomaly {
+  --apex-a: #74ffe6;
+  --apex-b: #ff4fc8;
+  --apex-c: #ffb351;
+  --lab-accent: var(--apex-a);
+  --lab-glow: rgba(255, 62, 194, 0.64);
+  --metal-light: #c6fff5;
+  --metal-mid: #a52d86;
+  --metal-dark: #09030d;
+  background-color: #08040d;
+  box-shadow:
+    -7px 2px 22px rgba(69, 255, 223, 0.12),
+    7px -2px 24px rgba(255, 59, 188, 0.17),
+    0 18px 38px rgba(0, 0, 0, 0.7);
+}
+.prototypeCard.infinite {
+  --apex-a: #8affdf;
+  --apex-b: #d9aa5b;
+  --apex-c: #6c82ff;
+  --lab-accent: var(--apex-a);
+  --lab-glow: rgba(67, 211, 190, 0.56);
+  --metal-light: #d8fff2;
+  --metal-mid: #8e6f3d;
+  --metal-dark: #04100f;
+  background-color: #04100f;
+  box-shadow:
+    -8px 0 24px rgba(78, 255, 219, 0.11),
+    8px 0 24px rgba(222, 170, 82, 0.14),
+    0 18px 38px rgba(0, 0, 0, 0.7);
+}
+.prototypeCard.transcendent {
+  --apex-a: #fff4d6;
+  --apex-b: #9cecff;
+  --apex-c: #e5a8ff;
+  --lab-accent: var(--apex-a);
+  --lab-glow: rgba(177, 220, 255, 0.56);
+  --metal-light: #fffdf3;
+  --metal-mid: #99a9c9;
+  --metal-dark: #111322;
+  background-color: #0d101c;
+  box-shadow:
+    -8px 0 26px rgba(255, 232, 184, 0.12),
+    8px 0 26px rgba(169, 202, 255, 0.15),
+    0 18px 38px rgba(0, 0, 0, 0.64);
+}
+.prototypeCard.singularity {
+  --apex-a: #edfaff;
+  --apex-b: #777cff;
+  --apex-c: #ad77ff;
+  --lab-accent: var(--apex-a);
+  --lab-glow: rgba(91, 80, 215, 0.54);
+  --metal-light: #dfeaff;
+  --metal-mid: #454a78;
+  --metal-dark: #000005;
+  background-color: #000006;
+  box-shadow:
+    0 0 26px rgba(89, 75, 210, 0.18),
+    0 18px 40px rgba(0, 0, 0, 0.78);
+}
+.prototypeCard.metamorphic {
+  --lab-accent: #a9fff2;
+  --lab-glow: rgba(71, 235, 220, 0.58);
+  --metal-light: #e6fff9;
+  --metal-mid: #4faaa3;
+  --metal-dark: #031211;
+  background-color: #04100f;
+  box-shadow:
+    0 0 0 1px rgba(219, 255, 250, 0.08),
+    -7px 2px 24px rgba(70, 236, 216, 0.13),
+    8px -2px 26px rgba(111, 108, 255, 0.12),
+    0 18px 40px rgba(0, 0, 0, 0.72);
+}
 .prototypeCard[data-grade="F"] {
   --rarity: #9d9d9d;
   --metal-light: #77808d;
@@ -532,6 +619,14 @@
   pointer-events: none;
 }
 
+.surfaceFilterDefinition {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .artworkClip {
   z-index: -4;
   inset: 2.2%;
@@ -555,6 +650,13 @@
   transform: scale(var(--crop-scale));
 }
 
+.parallax .raidArt {
+  transform: translate3d(var(--parallax-background-x), var(--parallax-background-y), 0) scale(calc(var(--crop-scale) + 0.22));
+  transition-property: transform;
+  transition-duration: 140ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
 .raidShade {
   z-index: 1;
   background:
@@ -573,6 +675,14 @@
   transform: translateZ(18px);
 }
 
+.metamorphic .artworkClip {
+  filter: var(--surface-filter);
+}
+
+.metamorphic .renderWindow {
+  filter: var(--surface-filter) drop-shadow(0 8px 5px rgba(0, 0, 0, 0.72));
+}
+
 .renderImage {
   top: var(--render-fit-top) !important;
   right: auto !important;
@@ -588,6 +698,13 @@
 
 .renderImage[data-fit-ready="true"] {
   opacity: 1;
+}
+
+.parallax .renderImage {
+  transform: translateX(calc(var(--render-fit-translate-x) + var(--parallax-character-x))) translateY(var(--parallax-character-y));
+  transition-property: transform;
+  transition-duration: 140ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
 .guides .renderWindow {
@@ -951,6 +1068,22 @@
   content: "";
 }
 .standard .finishLayer {
+  background:
+    radial-gradient(circle at 22% 19%, rgba(255, 255, 255, 0.48) 0 0.7px, transparent 1.15px),
+    radial-gradient(circle at 73% 64%, rgba(255, 255, 255, 0.34) 0 0.75px, transparent 1.2px), radial-gradient(circle at 44% 86%, rgba(0, 0, 0, 0.52) 0 0.8px, transparent 1.25px);
+  background-position:
+    calc(var(--pointer-left) * 18px) calc(var(--pointer-top) * 22px),
+    calc(var(--pointer-left) * -24px) calc(var(--pointer-top) * 16px),
+    calc(var(--pointer-left) * 14px) calc(var(--pointer-top) * -20px);
+  background-size:
+    7px 9px,
+    11px 13px,
+    13px 10px;
+  filter: contrast(1.16) brightness(calc(0.9 + var(--pointer-distance) * 0.32));
+  mix-blend-mode: overlay;
+  opacity: 0.17;
+}
+.parallax .finishLayer {
   background:
     radial-gradient(circle at 22% 19%, rgba(255, 255, 255, 0.48) 0 0.7px, transparent 1.15px),
     radial-gradient(circle at 73% 64%, rgba(255, 255, 255, 0.34) 0 0.75px, transparent 1.2px), radial-gradient(circle at 44% 86%, rgba(0, 0, 0, 0.52) 0 0.8px, transparent 1.25px);
@@ -1442,6 +1575,324 @@
   mix-blend-mode: screen;
   opacity: 0.42;
 }
+:is(.paradox, .anomaly, .infinite, .transcendent, .singularity) .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.72), color-mix(in srgb, var(--apex-a) 26%, transparent) 12%, transparent 27%),
+    linear-gradient(
+      var(--foil-angle),
+      rgba(255, 73, 132, 0.18) 5%,
+      color-mix(in srgb, var(--apex-a) 46%, transparent) 20%,
+      rgba(255, 232, 94, 0.4) 34%,
+      rgba(85, 255, 201, 0.38) 48%,
+      color-mix(in srgb, var(--apex-b) 52%, transparent) 63%,
+      color-mix(in srgb, var(--apex-c) 48%, transparent) 78%,
+      rgba(255, 73, 132, 0.18) 94%
+    ),
+    var(--apex-signature),
+    radial-gradient(circle at 23% 26%, rgba(255, 255, 255, 0.94) 0 0.7px, color-mix(in srgb, var(--apex-a) 42%, transparent) 1px, transparent 1.8px),
+    radial-gradient(circle at 72% 61%, rgba(238, 247, 255, 0.86) 0 0.8px, color-mix(in srgb, var(--apex-c) 36%, transparent) 1.2px, transparent 2px);
+  background-position:
+    center,
+    var(--foil-x) var(--foil-y),
+    var(--foil-x-reverse) var(--foil-y-reverse),
+    calc(var(--pointer-left) * 31px) calc(var(--pointer-top) * 27px),
+    calc(var(--pointer-left) * -37px) calc(var(--pointer-top) * 29px);
+  background-size:
+    100% 100%,
+    270% 270%,
+    190% 190%,
+    23px 29px,
+    31px 37px;
+  background-blend-mode: screen, hard-light, soft-light, screen, screen;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--apex-a) 34%, transparent),
+    inset 0 0 28px color-mix(in srgb, var(--apex-b) 18%, transparent);
+  filter: brightness(calc(0.86 + var(--pointer-distance) * 0.36)) contrast(1.42) saturate(1.68);
+  mix-blend-mode: color-dodge;
+  opacity: 0.66;
+  transform-origin: var(--pointer-x) var(--pointer-y);
+}
+:is(.paradox, .anomaly, .infinite, .transcendent, .singularity) .finishLayer::before,
+:is(.paradox, .anomaly, .infinite, .transcendent, .singularity) .finishLayer::after {
+  transform-origin: var(--pointer-x) var(--pointer-y);
+}
+.paradox .finishLayer {
+  --apex-signature: linear-gradient(
+    var(--foil-angle),
+    color-mix(in srgb, var(--apex-a) 58%, transparent) 0 31%,
+    rgba(255, 255, 255, 0.72) 40%,
+    color-mix(in srgb, var(--apex-b) 54%, transparent) 48%,
+    color-mix(in srgb, var(--apex-c) 24%, transparent) 54%,
+    transparent 63% 100%
+  );
+}
+.paradox .finishLayer::before {
+  background:
+    repeating-linear-gradient(47deg, transparent 0 5px, rgba(111, 244, 255, 0.2) 6px, transparent 7px 13px),
+    repeating-linear-gradient(-47deg, transparent 0 7px, rgba(255, 104, 222, 0.16) 8px, transparent 9px 17px);
+  background-position:
+    calc(var(--pointer-left) * 18px) calc(var(--pointer-top) * -16px),
+    calc(var(--pointer-left) * -21px) calc(var(--pointer-top) * 19px);
+  mix-blend-mode: screen;
+  opacity: 0.48;
+  -webkit-mask-image: linear-gradient(var(--foil-angle), transparent 22%, #000 42% 58%, transparent 78%);
+  mask-image: linear-gradient(var(--foil-angle), transparent 22%, #000 42% 58%, transparent 78%);
+}
+.paradox .finishLayer::after {
+  background: linear-gradient(
+    var(--foil-angle),
+    transparent 39%,
+    rgba(87, 244, 255, 0.2) 45%,
+    rgba(242, 253, 255, 0.72) 49%,
+    rgba(255, 255, 255, 0.88) 50%,
+    rgba(126, 96, 255, 0.48) 52%,
+    rgba(255, 84, 213, 0.2) 56%,
+    transparent 62%
+  );
+  background-position: var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size: 220% 220%;
+  mix-blend-mode: screen;
+  opacity: 0.74;
+}
+.anomaly .finishLayer {
+  --apex-signature: conic-gradient(
+    from var(--foil-angle) at var(--pointer-x) var(--pointer-y),
+    color-mix(in srgb, var(--apex-a) 62%, transparent),
+    transparent 9% 19%,
+    color-mix(in srgb, var(--apex-b) 58%, transparent) 28%,
+    transparent 38% 53%,
+    color-mix(in srgb, var(--apex-c) 52%, transparent) 63%,
+    transparent 73% 91%,
+    color-mix(in srgb, var(--apex-a) 62%, transparent)
+  );
+}
+.anomaly .finishLayer::before {
+  background: repeating-conic-gradient(
+    from calc(var(--foil-angle) + 17deg) at var(--pointer-x) var(--pointer-y),
+    transparent 0 8deg,
+    rgba(105, 255, 231, 0.24) 9deg,
+    transparent 10deg 21deg,
+    rgba(255, 84, 207, 0.2) 22deg,
+    transparent 23deg 37deg
+  );
+  mix-blend-mode: color-dodge;
+  opacity: 0.62;
+  -webkit-mask-image: radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 0 6%, #000 13% 48%, transparent 76%);
+  mask-image: radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 0 6%, #000 13% 48%, transparent 76%);
+}
+.anomaly .finishLayer::after {
+  background:
+    radial-gradient(circle at calc(var(--pointer-x) - 1.4%) var(--pointer-y), transparent 0 10%, rgba(82, 255, 226, 0.62) 11.2%, transparent 13.4%),
+    radial-gradient(circle at calc(var(--pointer-x) + 1.4%) var(--pointer-y), transparent 0 10%, rgba(255, 68, 194, 0.58) 11.2%, transparent 13.4%),
+    linear-gradient(var(--foil-angle), transparent 46%, rgba(255, 190, 79, 0.34) 49%, rgba(255, 255, 255, 0.52) 50%, transparent 54%);
+  background-position:
+    center,
+    center,
+    var(--foil-x) var(--foil-y);
+  background-size:
+    100% 100%,
+    100% 100%,
+    260% 260%;
+  mix-blend-mode: screen;
+  opacity: 0.68;
+}
+.infinite .finishLayer {
+  --apex-signature: repeating-radial-gradient(
+    ellipse at var(--pointer-x) var(--pointer-y),
+    transparent 0 3%,
+    color-mix(in srgb, var(--apex-a) 48%, transparent) 3.5%,
+    transparent 4.2% 7%,
+    color-mix(in srgb, var(--apex-b) 44%, transparent) 7.6%,
+    transparent 8.3% 12%
+  );
+}
+.infinite .finishLayer::before {
+  background: repeating-linear-gradient(
+    calc(var(--foil-angle) + 90deg),
+    transparent 0 7%,
+    rgba(111, 255, 224, 0.14) 9%,
+    rgba(224, 174, 91, 0.18) 10%,
+    transparent 12% 22%
+  );
+  background-position: var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size: 280% 280%;
+  mix-blend-mode: screen;
+  opacity: 0.54;
+}
+.infinite .finishLayer::after {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 0 8%, rgba(232, 255, 247, 0.56) 8.8%, rgba(93, 255, 219, 0.18) 10%, transparent 13%),
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 0 20%, rgba(225, 176, 90, 0.25) 21%, transparent 24%);
+  mix-blend-mode: screen;
+  opacity: 0.64;
+}
+.transcendent .finishLayer {
+  --apex-signature: conic-gradient(
+    from var(--foil-angle) at 50% 50%,
+    color-mix(in srgb, var(--apex-a) 48%, transparent),
+    color-mix(in srgb, var(--apex-b) 46%, transparent),
+    color-mix(in srgb, var(--apex-c) 44%, transparent),
+    rgba(170, 255, 220, 0.38),
+    color-mix(in srgb, var(--apex-a) 48%, transparent)
+  );
+}
+.transcendent .finishLayer::before {
+  background: repeating-conic-gradient(
+    from calc(var(--foil-angle) - 30deg) at var(--pointer-x) var(--pointer-y),
+    rgba(255, 236, 199, 0.16) 0 3%,
+    transparent 7% 14%,
+    rgba(155, 231, 255, 0.16) 18% 21%,
+    transparent 26% 34%,
+    rgba(224, 170, 255, 0.14) 39% 42%,
+    transparent 47% 55%
+  );
+  background-position: var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size: 180% 180%;
+  filter: blur(0.35px);
+  mix-blend-mode: soft-light;
+  opacity: 0.72;
+}
+.transcendent .finishLayer::after {
+  background:
+    linear-gradient(var(--foil-angle), transparent 34%, rgba(177, 234, 255, 0.16) 43%, rgba(255, 252, 232, 0.64) 49%, rgba(230, 191, 255, 0.22) 55%, transparent 66%),
+    radial-gradient(circle at 24% 28%, rgba(255, 250, 225, 0.78) 0 0.65px, transparent 1.5px),
+    radial-gradient(circle at 72% 67%, rgba(184, 237, 255, 0.68) 0 0.75px, transparent 1.7px);
+  background-position:
+    var(--foil-x) var(--foil-y),
+    calc(var(--pointer-left) * 19px) calc(var(--pointer-top) * -23px),
+    calc(var(--pointer-left) * -27px) calc(var(--pointer-top) * 25px);
+  background-size:
+    240% 240%,
+    31px 37px,
+    43px 47px;
+  mix-blend-mode: screen;
+  opacity: 0.62;
+}
+.singularity .finishLayer {
+  --apex-signature: radial-gradient(
+    circle at var(--pointer-x) var(--pointer-y),
+    rgba(0, 0, 3, 0.96) 0 6%,
+    rgba(239, 251, 255, 0.8) 7.5%,
+    color-mix(in srgb, var(--apex-b) 62%, transparent) 10%,
+    color-mix(in srgb, var(--apex-a) 32%, transparent) 14%,
+    transparent 22%
+  );
+}
+.singularity .finishLayer::before {
+  background: repeating-conic-gradient(
+    from var(--foil-angle) at var(--pointer-x) var(--pointer-y),
+    transparent 0 10deg,
+    rgba(230, 248, 255, 0.18) 11deg,
+    transparent 12deg 27deg,
+    rgba(118, 111, 255, 0.16) 28deg,
+    transparent 29deg 46deg
+  );
+  mix-blend-mode: screen;
+  opacity: 0.66;
+  -webkit-mask-image: radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 0 8%, #000 12% 34%, transparent 61%);
+  mask-image: radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 0 8%, #000 12% 34%, transparent 61%);
+}
+.singularity .finishLayer::after {
+  background:
+    linear-gradient(var(--foil-angle), transparent 46%, rgba(238, 251, 255, 0.48) 49.3%, rgba(255, 255, 255, 0.72) 50%, transparent 53%),
+    linear-gradient(calc(var(--foil-angle) + 90deg), transparent 47%, rgba(122, 112, 255, 0.28) 49.5%, rgba(218, 244, 255, 0.44) 50%, transparent 52.5%);
+  background-position:
+    var(--foil-x) var(--foil-y),
+    var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size:
+    280% 280%,
+    320% 320%;
+  mix-blend-mode: screen;
+  opacity: 0.58;
+}
+.metamorphic .finishLayer {
+  background:
+    repeating-linear-gradient(
+      calc(var(--foil-angle) - 91deg),
+      rgba(229, 255, 250, 0.68) 0 0.55px,
+      rgba(82, 229, 214, 0.2) 0.9px,
+      rgba(0, 10, 12, 0.54) 1.5px,
+      transparent 2.2px 6px
+    ),
+    repeating-linear-gradient(
+      calc(var(--foil-angle) + 1deg),
+      transparent 0 7px,
+      rgba(220, 255, 249, 0.18) 8px,
+      rgba(3, 25, 28, 0.34) 9px,
+      transparent 10px 17px
+    ),
+    radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.74), rgba(116, 255, 231, 0.2) 13%, transparent 34%),
+    conic-gradient(
+      from var(--foil-angle) at var(--pointer-x) var(--pointer-y),
+      rgba(112, 255, 226, 0.28),
+      transparent 15% 28%,
+      rgba(103, 112, 255, 0.26) 39%,
+      transparent 52% 66%,
+      rgba(237, 255, 249, 0.34) 78%,
+      transparent 90%,
+      rgba(112, 255, 226, 0.28)
+    );
+  background-position:
+    calc(var(--pointer-left) * 13px) 0,
+    0 calc(var(--pointer-top) * -17px),
+    center,
+    var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size:
+    17px 100%,
+    100% 23px,
+    100% 100%,
+    230% 230%;
+  background-blend-mode: hard-light, soft-light, screen, color-dodge;
+  box-shadow:
+    inset 0 0 0 1px rgba(203, 255, 248, 0.28),
+    inset 0 0 24px rgba(57, 208, 198, 0.14);
+  filter: brightness(calc(0.92 + var(--pointer-distance) * 0.26)) contrast(1.3) saturate(1.28);
+  mix-blend-mode: overlay;
+  opacity: 0.72;
+}
+.metamorphic .finishLayer::before {
+  background:
+    linear-gradient(126deg, transparent 0 20%, rgba(230, 255, 250, 0.22) 20.5% 21%, transparent 21.5% 48%, rgba(89, 240, 224, 0.13) 48.5% 49%, transparent 49.5% 100%),
+    repeating-conic-gradient(
+      from calc(var(--foil-angle) - 20deg) at var(--pointer-x) var(--pointer-y),
+      rgba(216, 255, 248, 0.13) 0 3deg,
+      transparent 4deg 17deg,
+      rgba(91, 111, 255, 0.11) 18deg 21deg,
+      transparent 22deg 39deg
+    );
+  background-position:
+    calc(var(--pointer-left) * -19px) calc(var(--pointer-top) * 23px),
+    var(--foil-x) var(--foil-y);
+  background-size:
+    41px 47px,
+    190% 190%;
+  mix-blend-mode: screen;
+  opacity: 0.62;
+  -webkit-mask-image: radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), #000 0 18%, rgba(0, 0, 0, 0.74) 42%, transparent 78%);
+  mask-image: radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), #000 0 18%, rgba(0, 0, 0, 0.74) 42%, transparent 78%);
+}
+.metamorphic .finishLayer::after {
+  background:
+    linear-gradient(
+      var(--foil-angle),
+      transparent 28%,
+      rgba(91, 230, 219, 0.08) 39%,
+      rgba(235, 255, 251, 0.54) 48%,
+      rgba(255, 255, 255, 0.72) 50%,
+      rgba(111, 114, 255, 0.18) 55%,
+      transparent 69%
+    ),
+    radial-gradient(ellipse at 50% 50%, transparent 0 15%, rgba(220, 255, 249, 0.28) 16%, transparent 18% 30%, rgba(86, 223, 213, 0.16) 31%, transparent 34%);
+  background-position:
+    var(--foil-x) var(--foil-y),
+    var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size:
+    250% 250%,
+    170% 170%;
+  filter: blur(0.2px);
+  mix-blend-mode: screen;
+  opacity: 0.7;
+}
 .materialLight {
   z-index: 31;
   inset: 0;
@@ -1474,6 +1925,9 @@
 .prototypeCard.standard:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.28 + var(--pointer-distance) * 0.14);
 }
+.prototypeCard.parallax:is(:hover, [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.28 + var(--pointer-distance) * 0.14);
+}
 .prototypeCard.foil:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.54 + var(--pointer-distance) * 0.16);
 }
@@ -1503,6 +1957,24 @@
 }
 .prototypeCard.negative:is(:hover, [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.58 + var(--pointer-distance) * 0.12);
+}
+.prototypeCard.paradox:is(:hover, [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.88 + var(--pointer-distance) * 0.08);
+}
+.prototypeCard.anomaly:is(:hover, [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.82 + var(--pointer-distance) * 0.1);
+}
+.prototypeCard.infinite:is(:hover, [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.84 + var(--pointer-distance) * 0.08);
+}
+.prototypeCard.transcendent:is(:hover, [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.8 + var(--pointer-distance) * 0.1);
+}
+.prototypeCard.singularity:is(:hover, [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.9 + var(--pointer-distance) * 0.06);
+}
+.prototypeCard.metamorphic:is(:hover, [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.84 + var(--pointer-distance) * 0.1);
 }
 .prototypeCard.foil .materialLight {
   filter: saturate(0.4) contrast(1.2);
@@ -1557,6 +2029,48 @@
 }
 .prototypeCard.chromaflow:is(:hover, [data-forced-hover="true"]) .materialLight {
   opacity: 0.82;
+}
+.prototypeCard.paradox .materialLight {
+  filter: contrast(1.24) saturate(1.38);
+  opacity: 0.44;
+}
+.prototypeCard.paradox:is(:hover, [data-forced-hover="true"]) .materialLight {
+  opacity: 0.96;
+}
+.prototypeCard.anomaly .materialLight {
+  filter: contrast(1.32) saturate(1.7);
+  opacity: 0.46;
+}
+.prototypeCard.anomaly:is(:hover, [data-forced-hover="true"]) .materialLight {
+  opacity: 0.98;
+}
+.prototypeCard.infinite .materialLight {
+  filter: sepia(0.1) hue-rotate(108deg) saturate(1.34);
+  opacity: 0.42;
+}
+.prototypeCard.infinite:is(:hover, [data-forced-hover="true"]) .materialLight {
+  opacity: 0.96;
+}
+.prototypeCard.transcendent .materialLight {
+  filter: brightness(1.04) contrast(1.08) saturate(1.16);
+  opacity: 0.48;
+}
+.prototypeCard.transcendent:is(:hover, [data-forced-hover="true"]) .materialLight {
+  opacity: 0.98;
+}
+.prototypeCard.singularity .materialLight {
+  filter: grayscale(0.35) contrast(1.4) saturate(1.18);
+  opacity: 0.4;
+}
+.prototypeCard.singularity:is(:hover, [data-forced-hover="true"]) .materialLight {
+  opacity: 0.94;
+}
+.prototypeCard.metamorphic .materialLight {
+  filter: hue-rotate(-8deg) contrast(1.2) saturate(1.16);
+  opacity: 0.38;
+}
+.prototypeCard.metamorphic:is(:hover, [data-forced-hover="true"]) .materialLight {
+  opacity: 0.9;
 }
 
 .golden .statsPanel {
@@ -1628,6 +2142,39 @@
 .negative .statsPanel {
   background: linear-gradient(110deg, rgba(126, 255, 213, 0.11), rgba(213, 120, 255, 0.09)), linear-gradient(180deg, rgba(13, 22, 22, 0.99), rgba(2, 6, 6, 0.99));
 }
+:is(.paradox, .anomaly, .infinite, .transcendent, .singularity) .statsPanel {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), color-mix(in srgb, var(--apex-a) 16%, transparent), transparent 52%),
+    linear-gradient(112deg, color-mix(in srgb, var(--apex-b) 22%, transparent), rgba(4, 5, 14, 0.99) 52%, color-mix(in srgb, var(--apex-c) 18%, transparent)),
+    linear-gradient(180deg, rgba(11, 10, 24, 0.99), rgba(1, 2, 7, 0.99));
+  background-position:
+    center,
+    var(--foil-x) center,
+    center;
+  background-size:
+    100% 100%,
+    220% 100%,
+    100% 100%;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--apex-a) 22%, transparent);
+}
+.metamorphic .statsPanel {
+  background:
+    repeating-linear-gradient(102deg, rgba(214, 255, 249, 0.08) 0 1px, transparent 1px 5px),
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(96, 244, 224, 0.16), transparent 50%),
+    linear-gradient(112deg, rgba(48, 151, 145, 0.2), rgba(5, 14, 18, 0.99) 52%, rgba(83, 86, 194, 0.14)),
+    linear-gradient(180deg, rgba(10, 24, 25, 0.99), rgba(1, 6, 8, 0.99));
+  background-position:
+    calc(var(--pointer-left) * 11px) center,
+    center,
+    var(--foil-x) center,
+    center;
+  background-size:
+    19px 100%,
+    100% 100%,
+    220% 100%,
+    100% 100%;
+  box-shadow: inset 0 0 0 1px rgba(169, 255, 242, 0.2);
+}
 
 .prototypeCard.prismatic .finishLayer::before {
   animation: prototypePrismaticCounterDrift 5.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
@@ -1638,6 +2185,9 @@
     animation: prototypeIdleDrift 6.5s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
   .prototypeCard.standard:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeStandardIdleGrain 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.parallax:not(:hover):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeStandardIdleGrain 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
   .prototypeCard.foil:not(:hover):not([data-forced-hover="true"]) .finishLayer {
@@ -1675,6 +2225,36 @@
   }
   .prototypeCard.toxic:not(:hover):not([data-forced-hover="true"]) .statsPanel {
     animation: prototypeToxicStatsIdle 6.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard:is(.paradox, .anomaly, .infinite, .transcendent, .singularity):not(:hover):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeApexHolographicIdle 5.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.paradox:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeParadoxSeam 7.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.anomaly:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeAnomalyOrbit 9.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.infinite:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeInfiniteLoop 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.transcendent:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeTranscendentCaustic 9.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.singularity:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeSingularityLens 8.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.metamorphic:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeMetamorphicRidgeShift 6.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.metamorphic:not(:hover):not([data-forced-hover="true"]) .finishLayer::before {
+    animation: prototypeMetamorphicFacetDrift 9.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.metamorphic:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeMetamorphicCaustic 7.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.metamorphic:not(:hover):not([data-forced-hover="true"]) .statsPanel {
+    animation: prototypeMetamorphicStatsIdle 8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
 }
 
@@ -1878,6 +2458,170 @@
   to {
     filter: contrast(1.13) saturate(1.26) brightness(1.02);
     transform: scale(1.03);
+  }
+}
+
+@keyframes prototypeApexHolographicIdle {
+  from {
+    background-position:
+      center,
+      34% 28%,
+      58% 42%,
+      3px 7px,
+      -11px 4px;
+    filter: brightness(0.82) contrast(1.36) saturate(1.52);
+    opacity: 0.6;
+  }
+  to {
+    background-position:
+      center,
+      68% 72%,
+      42% 58%,
+      19px -13px,
+      -31px 23px;
+    filter: brightness(0.98) contrast(1.5) saturate(1.82);
+    opacity: 0.76;
+  }
+}
+
+@keyframes prototypeParadoxSeam {
+  from {
+    background-position: 64% 42%;
+    opacity: 0.62;
+  }
+  to {
+    background-position: 36% 58%;
+    opacity: 0.78;
+  }
+}
+
+@keyframes prototypeAnomalyOrbit {
+  from {
+    filter: hue-rotate(-7deg) contrast(1.06);
+    opacity: 0.58;
+    transform: rotate(-1.8deg) scale(0.99);
+  }
+  to {
+    filter: hue-rotate(7deg) contrast(1.14);
+    opacity: 0.74;
+    transform: rotate(1.8deg) scale(1.02);
+  }
+}
+
+@keyframes prototypeInfiniteLoop {
+  from {
+    filter: brightness(0.94) saturate(1.08);
+    opacity: 0.52;
+    transform: scale(0.985);
+  }
+  to {
+    filter: brightness(1.06) saturate(1.22);
+    opacity: 0.7;
+    transform: scale(1.025);
+  }
+}
+
+@keyframes prototypeTranscendentCaustic {
+  from {
+    background-position:
+      42% 46%,
+      3px 7px,
+      -11px 4px;
+    filter: brightness(0.96) saturate(1.04);
+  }
+  to {
+    background-position:
+      58% 54%,
+      17px -9px,
+      -29px 21px;
+    filter: brightness(1.08) saturate(1.18);
+  }
+}
+
+@keyframes prototypeSingularityLens {
+  from {
+    background-position:
+      42% 48%,
+      58% 52%;
+    opacity: 0.48;
+    transform: scale(0.99);
+  }
+  to {
+    background-position:
+      58% 52%,
+      42% 48%;
+    opacity: 0.64;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes prototypeMetamorphicRidgeShift {
+  from {
+    background-position:
+      2px 0,
+      0 -4px,
+      center,
+      38% 42%;
+    filter: brightness(0.9) contrast(1.26) saturate(1.2);
+    opacity: 0.66;
+  }
+  to {
+    background-position:
+      15px 0,
+      0 19px,
+      center,
+      68% 58%;
+    filter: brightness(1.02) contrast(1.36) saturate(1.36);
+    opacity: 0.78;
+  }
+}
+
+@keyframes prototypeMetamorphicFacetDrift {
+  from {
+    background-position:
+      -8px 5px,
+      41% 46%;
+    opacity: 0.52;
+    transform: scale(0.995);
+  }
+  to {
+    background-position:
+      17px -14px,
+      61% 56%;
+    opacity: 0.68;
+    transform: scale(1.015);
+  }
+}
+
+@keyframes prototypeMetamorphicCaustic {
+  from {
+    background-position:
+      34% 39%,
+      61% 54%;
+    filter: blur(0.25px) brightness(0.94);
+  }
+  to {
+    background-position:
+      69% 64%,
+      39% 46%;
+    filter: blur(0.15px) brightness(1.08);
+  }
+}
+
+@keyframes prototypeMetamorphicStatsIdle {
+  from {
+    background-position:
+      1px center,
+      center,
+      34% center,
+      center;
+  }
+  to {
+    background-position:
+      14px center,
+      center,
+      68% center,
+      center;
   }
 }
 
@@ -2142,6 +2886,49 @@
   font-weight: 800;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+.vaultRelic .rarityPlate:is(
+    [data-quality="paradox"],
+    [data-quality="anomaly"],
+    [data-quality="infinite"],
+    [data-quality="transcendent"],
+    [data-quality="singularity"]
+  )
+  .qualityLabel {
+  background: linear-gradient(96deg, var(--apex-a) 0%, #ffffff 18%, var(--apex-b) 43%, var(--apex-c) 68%, #ffffff 86%, var(--apex-a) 100%);
+  background-clip: text;
+  background-position: var(--foil-x) center;
+  background-size: 240% 100%;
+  color: transparent;
+  filter: brightness(1.12) saturate(1.28);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--apex-a) 28%, transparent);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.prototypeCard:is(.paradox, .anomaly, .infinite, .transcendent, .singularity):not(:hover):not([data-forced-hover="true"]) .qualityLabel {
+  animation: prototypeHolographicTextSweep 4.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+.prototypeCard:is(.paradox, .anomaly, .infinite, .transcendent, .singularity):is(:hover, [data-forced-hover="true"]) .qualityLabel {
+  background-position: var(--foil-x) center;
+  filter: brightness(calc(1.1 + var(--pointer-distance) * 0.24)) saturate(1.38);
+}
+.vaultRelic .rarityPlate[data-quality="metamorphic"] .qualityLabel {
+  background: linear-gradient(96deg, #8cefe2 0%, #f1fffc 20%, #4eaaa4 38%, #d9fff8 53%, #787cff 72%, #efffff 87%, #8cefe2 100%);
+  background-clip: text;
+  background-position: var(--foil-x) center;
+  background-size: 240% 100%;
+  color: transparent;
+  filter: brightness(1.08) contrast(1.16) saturate(1.12);
+  text-shadow: 0 0 5px rgba(117, 244, 228, 0.25);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.prototypeCard.metamorphic:not(:hover):not([data-forced-hover="true"]) .qualityLabel {
+  animation: prototypeHolographicTextSweep 5.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+.prototypeCard.metamorphic:is(:hover, [data-forced-hover="true"]) .qualityLabel {
+  background-position: var(--foil-x) center;
+  filter: brightness(calc(1.08 + var(--pointer-distance) * 0.22)) contrast(1.2) saturate(1.2);
 }
 .vaultRelic .rarityPlate[data-quality="negative"] .qualityLabel {
   color: #a9ffdc;
@@ -3006,6 +3793,24 @@
   .negative .finishLayer {
     opacity: 0.44;
   }
+  .paradox .finishLayer {
+    opacity: 0.8;
+  }
+  .anomaly .finishLayer {
+    opacity: 0.76;
+  }
+  .infinite .finishLayer {
+    opacity: 0.78;
+  }
+  .transcendent .finishLayer {
+    opacity: 0.74;
+  }
+  .singularity .finishLayer {
+    opacity: 0.86;
+  }
+  .metamorphic .finishLayer {
+    opacity: 0.78;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3033,5 +3838,11 @@
   .materialLight,
   .materialLight::before {
     background-position: center;
+  }
+  .parallax .raidArt {
+    transform: scale(var(--crop-scale));
+  }
+  .parallax .renderImage {
+    transform: translateX(var(--render-fit-translate-x));
   }
 }

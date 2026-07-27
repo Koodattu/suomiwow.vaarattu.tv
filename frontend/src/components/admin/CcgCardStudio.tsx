@@ -8,9 +8,28 @@ import { hasAlternativeArtwork } from "@/lib/ccg";
 import { formatRealmName } from "@/lib/utils";
 import type { CcgArtVariant, CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 
-type PreviewFinish = CcgFinish | "chromaflow" | "dark" | "eclipse";
+type PreviewFinish = CcgFinish | "chromaflow" | "dark" | "eclipse" | "paradox" | "anomaly" | "infinite" | "transcendent" | "singularity" | "metamorphic" | "parallax";
 
-const finishes: readonly PreviewFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "void", "dark", "toxic", "negative", "chromaflow", "eclipse"];
+const finishes: readonly PreviewFinish[] = [
+  "standard",
+  "foil",
+  "golden",
+  "prismatic",
+  "holographic",
+  "void",
+  "dark",
+  "toxic",
+  "negative",
+  "chromaflow",
+  "eclipse",
+  "paradox",
+  "anomaly",
+  "infinite",
+  "transcendent",
+  "singularity",
+  "metamorphic",
+  "parallax",
+];
 const grades: readonly CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
 const fieldClass = "min-h-10 w-full rounded-md border border-white/10 bg-gray-950/75 px-3 text-sm text-white outline-none transition-colors placeholder:text-gray-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/15";
 

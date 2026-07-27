@@ -105,6 +105,25 @@ function FrameGeometry() {
   );
 }
 
+function MetamorphicSurfaceFilter({ id }: { id: string }) {
+  return (
+    <svg className={styles.surfaceFilterDefinition} width="0" height="0" aria-hidden="true" focusable="false">
+      <defs>
+        <filter id={id} x="-6%" y="-4%" width="112%" height="108%" colorInterpolationFilters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.018 0.11" numOctaves="2" seed="31" result="surfaceNoise" />
+          <feGaussianBlur in="surfaceNoise" stdDeviation="0.22" result="softNoise" />
+          <feDisplacementMap in="SourceGraphic" in2="softNoise" scale="4.2" xChannelSelector="R" yChannelSelector="B" result="warped" />
+          <feSpecularLighting in="softNoise" surfaceScale="2.2" specularConstant="0.22" specularExponent="18" lightingColor="#dffcff" result="surfaceLight">
+            <feDistantLight azimuth="225" elevation="48" />
+          </feSpecularLighting>
+          <feComposite in="surfaceLight" in2="SourceAlpha" operator="in" result="clippedLight" />
+          <feBlend in="warped" in2="clippedLight" mode="screen" />
+        </filter>
+      </defs>
+    </svg>
+  );
+}
+
 function score(value: number | null): string {
   return value === null ? "—" : value.toFixed(value >= 1000 ? 0 : 1);
 }
@@ -132,11 +151,17 @@ function applyCardMaterial(element: HTMLElement, x: number, y: number) {
   element.style.setProperty("--foil-x-reverse", `${(50 - (x - 0.5) * 76).toFixed(1)}%`);
   element.style.setProperty("--foil-y-reverse", `${(50 - (y - 0.5) * 64).toFixed(1)}%`);
   element.style.setProperty("--foil-angle", `${(118 + (x - 0.5) * 18 - (y - 0.5) * 10).toFixed(1)}deg`);
+  if (element.dataset.finish === "parallax") {
+    element.style.setProperty("--parallax-background-x", `${((0.5 - x) * 19.2).toFixed(3)}%`);
+    element.style.setProperty("--parallax-background-y", `${((0.38 - y) * 6.4).toFixed(3)}%`);
+    element.style.setProperty("--parallax-character-x", `${((x - 0.5) * 1.05).toFixed(3)}%`);
+    element.style.setProperty("--parallax-character-y", `${((y - 0.38) * 0.6).toFixed(3)}%`);
+  }
 }
 
 type CollectibleCardProps = {
   card: CcgCard;
-  finish?: CcgFinish | "chromaflow" | "dark" | "eclipse";
+  finish?: CcgFinish | "chromaflow" | "dark" | "eclipse" | "paradox" | "anomaly" | "infinite" | "transcendent" | "singularity" | "metamorphic" | "parallax";
   artVariant?: CcgArtVariant;
   compact?: boolean;
   quantity?: number;
@@ -170,6 +195,7 @@ export default function CollectibleCard({
   onReady,
 }: CollectibleCardProps) {
   const t = useTranslations("ccg");
+  const metamorphicFilterId = `vault-metamorphic-${useId().replace(/:/g, "")}`;
   const materialFrame = useRef<number | null>(null);
   const pendingMaterial = useRef<{ element: HTMLElement; x: number; y: number } | null>(null);
   const cardRef = useRef<HTMLSpanElement | null>(null);
@@ -228,6 +254,11 @@ export default function CollectibleCard({
     "--foil-x-reverse": "50%",
     "--foil-y-reverse": "50%",
     "--foil-angle": "118deg",
+    "--surface-filter": finish === "metamorphic" ? `url(#${metamorphicFilterId})` : "none",
+    "--parallax-background-x": "0%",
+    "--parallax-background-y": "0%",
+    "--parallax-character-x": "0%",
+    "--parallax-character-y": "0%",
     viewTransitionName,
   } as CSSProperties;
 
@@ -294,6 +325,7 @@ export default function CollectibleCard({
     >
       <span className={styles.outerFrame} aria-hidden="true" />
       <span className={styles.innerFrame} aria-hidden="true" />
+      {finish === "metamorphic" ? <MetamorphicSurfaceFilter id={metamorphicFilterId} /> : null}
       <FrameGeometry />
       <span className={styles.artworkClip} aria-hidden="true"><span className={styles.raidArt} /><span className={styles.raidShade} /></span>
       <span className={styles.lowerDeck} aria-hidden="true" />
