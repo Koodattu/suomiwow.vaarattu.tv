@@ -106,6 +106,8 @@ services:
       - NEXT_PUBLIC_API_URL=https://suomiwow.vaarattu.tv
       - API_URL=http://backend:3001
       - NODE_ENV=production
+    volumes:
+      - frontend_cache:/app/.next/cache
     depends_on:
       - backend
     networks:
@@ -130,6 +132,7 @@ services:
 
 volumes:
   mongo_data:
+  frontend_cache:
 
 networks:
   app-network:

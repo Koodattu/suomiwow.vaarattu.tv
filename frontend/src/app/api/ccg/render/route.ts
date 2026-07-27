@@ -2,6 +2,8 @@ import type { NextRequest } from "next/server";
 
 const ALLOWED_HOST = "render.worldofwarcraft.com";
 const MAX_RENDER_BYTES = 8 * 1024 * 1024;
+const RENDER_CACHE_SECONDS = 14 * 24 * 60 * 60;
+const RENDER_STALE_SECONDS = 30 * 24 * 60 * 60;
 
 export async function GET(request: NextRequest) {
   const rawUrl = request.nextUrl.searchParams.get("url");
@@ -25,7 +27,7 @@ export async function GET(request: NextRequest) {
   try {
     upstream = await fetch(renderUrl, {
       redirect: "error",
-      next: { revalidate: 3600 },
+      next: { revalidate: RENDER_CACHE_SECONDS },
     });
   } catch {
     return new Response("Render unavailable", { status: 502 });
@@ -43,7 +45,7 @@ export async function GET(request: NextRequest) {
 
   return new Response(upstream.body, {
     headers: {
-      "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
+      "Cache-Control": `public, max-age=${RENDER_CACHE_SECONDS}, stale-while-revalidate=${RENDER_STALE_SECONDS}, stale-if-error=${RENDER_STALE_SECONDS}`,
       "Content-Type": contentType,
     },
   });

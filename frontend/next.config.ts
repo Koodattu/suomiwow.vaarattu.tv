@@ -5,7 +5,20 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Include Sharp's platform binaries in the minimal production image.
+  outputFileTracingIncludes: {
+    "/*": ["./node_modules/@img/**/*"],
+  },
   images: {
+    localPatterns: [
+      {
+        pathname: "/api/ccg/render",
+      },
+      {
+        pathname: "/ccg/alternative/character/**",
+        search: "",
+      },
+    ],
     remotePatterns: [
       {
         protocol: "http",
@@ -30,8 +43,8 @@ const nextConfig: NextConfig = {
         pathname: "/**",
       },
     ],
-    // Disable image optimization for development to avoid issues with localhost images
-    unoptimized: true, //process.env.NODE_ENV === "development",
+    // Local development uses backend hostnames that the image optimizer cannot resolve reliably.
+    unoptimized: process.env.NODE_ENV === "development",
   },
 };
 

@@ -10,7 +10,6 @@ import { api } from "@/lib/api";
 import { CCG_BASE_FINISH_ORDER, CCG_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS } from "@/lib/ccg";
 import { getCcgAnnouncerSoundSources, getCcgPlaybackVolume, type CcgAudioChannel } from "@/lib/ccg-audio";
 import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
-import { getCharacterRenderProxyUrl } from "@/lib/character-render";
 import { queryKeys, useCcgOpening, useCcgSession, useCcgSets } from "@/lib/queries";
 import IconImage from "@/components/IconImage";
 import CcgShell from "@/components/ccg/CcgShell";
@@ -297,14 +296,6 @@ export default function CcgOpenPage() {
       url.searchParams.set("mode", result.mode);
       url.searchParams.set("opening", result.id);
       window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-      result.results.forEach((row) => {
-        const renderUrl = row.artVariant === "alternative"
-          ? row.card.alternativeArt?.characterArtPath ?? row.card.renderUrl
-          : row.card.renderUrl;
-        if (!renderUrl) return;
-        const image = new window.Image();
-        image.src = getCharacterRenderProxyUrl(renderUrl);
-      });
       return result;
     },
     onSuccess: (result) => {
@@ -911,6 +902,7 @@ export default function CcgOpenPage() {
                               finish={result.finish}
                               artVariant={result.artVariant}
                               compact
+                              renderPriority
                               className={packStyles.openedCard}
                               forcedPointer={activeReveal?.index === index ? activeReveal : undefined}
                             />

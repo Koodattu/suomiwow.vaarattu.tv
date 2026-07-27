@@ -110,7 +110,6 @@ export default function AlphaFittedCharacterRender({ src, sizes, className, prio
       style={fitStyle}
       data-fit-ready={bounds ? "true" : "false"}
       priority={priority}
-      unoptimized
       onLoad={onLoad}
     />
   );
