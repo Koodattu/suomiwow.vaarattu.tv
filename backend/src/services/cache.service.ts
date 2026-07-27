@@ -128,6 +128,7 @@ class CacheService {
     /^raids:list$/,
     /^raid:\d+:dates$/,
     /^raid:\d+:bosses$/,
+    /^ccg:analytics:/,
   ];
 
   // ============================================================================

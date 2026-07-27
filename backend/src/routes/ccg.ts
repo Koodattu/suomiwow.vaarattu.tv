@@ -66,6 +66,12 @@ router.get(
 );
 
 router.get(
+  "/bootstrap",
+  rateLimit(90, 60_000),
+  asyncRoute(async (req, res) => ccgService.getBootstrap(req, res)),
+);
+
+router.get(
   "/session",
   rateLimit(90, 60_000),
   asyncRoute(async (req, res) => ccgService.getSession(req, res)),
@@ -83,7 +89,10 @@ router.get(
 router.get(
   "/sets/:setSlug/guilds",
   rateLimit(90, 60_000),
-  asyncRoute(async (req) => ccgService.getCollectionGuilds(req.params.setSlug)),
+  asyncRoute(async (req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    return ccgService.getCollectionGuilds(req.params.setSlug);
+  }),
 );
 
 router.get(
@@ -113,7 +122,19 @@ router.get(
 router.get(
   "/collection/guilds",
   rateLimit(90, 60_000),
-  asyncRoute(async (req) => ccgService.getCollectionGuilds(typeof req.query.set === "string" ? req.query.set : undefined)),
+  asyncRoute(async (req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    return ccgService.getCollectionGuilds(typeof req.query.set === "string" ? req.query.set : undefined);
+  }),
+);
+
+router.get(
+  "/sets/:setSlug/featured",
+  rateLimit(90, 60_000),
+  asyncRoute(async (req, res) => {
+    const owner = await ccgService.resolveOwner(req, res);
+    return ccgService.getFeaturedCard(owner, req.params.setSlug);
+  }),
 );
 
 router.get(

@@ -397,7 +397,7 @@ router.get("/me", async (req: Request, res: Response) => {
   try {
     const userId = req.session.userId;
 
-    logger.info(`GET /me request - Session ID: ${req.sessionID}, User ID in session: ${userId || "none"}`);
+    logger.debug(`GET /me request - Session ID: ${req.sessionID}, User ID in session: ${userId || "none"}`);
 
     if (!userId) {
       return res.status(401).json({ error: "Not authenticated" });

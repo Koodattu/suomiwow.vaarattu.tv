@@ -30,6 +30,9 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const locale = resolveCcgEmbedLocale(request.nextUrl.searchParams.get("lang") ?? undefined);
   return new ImageResponse(
     await renderCcgShareOg(share, locale),
-    CCG_OG_IMAGE_RESPONSE_OPTIONS,
+    {
+      ...CCG_OG_IMAGE_RESPONSE_OPTIONS,
+      headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400" },
+    },
   );
 }

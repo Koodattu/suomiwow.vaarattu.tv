@@ -86,7 +86,7 @@ const getVisitorHash = (req: Request): string | undefined => {
 };
 
 // Flush buffer to database
-const flushBuffer = async () => {
+const flushBufferedBatch = async () => {
   if (logBuffer.length === 0) return;
 
   const logsToFlush = [...logBuffer];
@@ -350,6 +350,17 @@ const flushBuffer = async () => {
   }
 };
 
+let flushPromise: Promise<void> | null = null;
+
+const flushBuffer = (): Promise<void> => {
+  if (flushPromise) return flushPromise;
+  flushPromise = flushBufferedBatch().finally(() => {
+    flushPromise = null;
+    if (logBuffer.length >= BUFFER_SIZE) void flushBuffer();
+  });
+  return flushPromise;
+};
+
 // Start periodic flush
 setInterval(flushBuffer, FLUSH_INTERVAL);
 
@@ -409,5 +420,9 @@ export const analyticsMiddleware = (req: Request, res: Response, next: NextFunct
   next();
 };
 
-// Graceful shutdown - flush remaining logs
-export const flushAnalytics = flushBuffer;
+// Graceful shutdown - wait for the active batch and drain anything buffered behind it.
+export const flushAnalytics = async (): Promise<void> => {
+  do {
+    await flushBuffer();
+  } while (logBuffer.length > 0);
+};

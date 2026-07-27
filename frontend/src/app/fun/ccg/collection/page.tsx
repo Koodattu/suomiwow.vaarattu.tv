@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from "@headlessui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -105,6 +106,7 @@ function CollectionCard({
 
 export default function CcgCollectionPage() {
   const t = useTranslations("ccg");
+  const searchParams = useSearchParams();
   const sessionQuery = useCcgSession();
   const setsQuery = useCcgSets();
   const sets = useMemo(
@@ -115,10 +117,12 @@ export default function CcgCollectionPage() {
     }),
     [setsQuery.data?.sets],
   );
-  const [setSlug, setSetSlug] = useState(allSetsSlug);
+  const requestedSetSlug = searchParams.get("set");
+  const [setSlug, setSetSlug] = useState(() => requestedSetSlug || allSetsSlug);
   const [guildId, setGuildId] = useState("");
   const [guildSearch, setGuildSearch] = useState("");
   const [guildInputFocused, setGuildInputFocused] = useState(false);
+  const [guildsRequested, setGuildsRequested] = useState(false);
   const guildInputRef = useRef<HTMLInputElement>(null);
   const [selectedCharacter, setSelectedCharacter] = useState<CcgCharacterFacet | null>(null);
   const [characterSearch, setCharacterSearch] = useState("");
@@ -143,7 +147,6 @@ export default function CcgCollectionPage() {
   const pageWheelDeltaRef = useRef(0);
   const pageWheelHandledRef = useRef(false);
   const pageWheelResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const requestedSetAppliedRef = useRef(false);
   const setRailDragRef = useRef({ pointerId: -1, startX: 0, startScrollLeft: 0, moved: false });
   const suppressSetClickRef = useRef(false);
   const [draggingSetRail, setDraggingSetRail] = useState(false);
@@ -151,6 +154,7 @@ export default function CcgCollectionPage() {
   const [canScrollSetsForward, setCanScrollSetsForward] = useState(false);
   const allSetsSelected = setSlug === allSetsSlug;
   const selectedSet = sets.find((set) => set.slug === setSlug);
+  const setSelectionReady = setsQuery.isSuccess && (allSetsSelected || Boolean(selectedSet));
   const finishOptions = useMemo(() => {
     const order: CollectionFinishOption[] = [...CCG_BASE_FINISH_ORDER];
     const hasUniqueFinish = selectedSet
@@ -162,8 +166,7 @@ export default function CcgCollectionPage() {
   const collectionSetSlug = allSetsSelected ? undefined : setSlug;
   const allCardCount = sets.reduce((total, set) => total + set.cardCount, 0);
   const allOwnedCount = sets.reduce((total, set) => total + set.ownedCards, 0);
-  const guildsQuery = useCcgCollectionGuilds();
-  const setGuildsQuery = useCcgCollectionGuilds(collectionSetSlug, !allSetsSelected);
+  const guildsQuery = useCcgCollectionGuilds(undefined, guildsRequested);
   const guilds = useMemo(
     () => [...(guildsQuery.data?.guilds ?? [])].sort((a, b) => a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm)),
     [guildsQuery.data?.guilds],
@@ -185,10 +188,12 @@ export default function CcgCollectionPage() {
     ));
   }, [guildSearch, guilds]);
   const setGuildIds = useMemo(
-    () => new Set((setGuildsQuery.data?.guilds ?? []).map((guild) => guild.id)),
-    [setGuildsQuery.data?.guilds],
+    () => new Set(selectedSet
+      ? guilds.filter((guild) => guild.setIds.includes(selectedSet.id)).map((guild) => guild.id)
+      : []),
+    [guilds, selectedSet],
   );
-  const guildAvailabilityLoaded = allSetsSelected || Boolean(setGuildsQuery.data);
+  const guildAvailabilityLoaded = allSetsSelected || Boolean(guildsQuery.data);
   const selectedGuildUnavailable = Boolean(guildId) && guildAvailabilityLoaded && !allSetsSelected && !setGuildIds.has(guildId);
   const trimmedCharacterSearch = characterSearch.trim();
   const characterSearchQuery = useCcgCollectionCharacterSearch(debouncedCharacterSearch);
@@ -219,9 +224,9 @@ export default function CcgCollectionPage() {
       sort: sort || undefined,
       alternative: alternativeOnly || undefined,
     },
-    Boolean(setSlug) && !showCatalog,
+    setSelectionReady && !showCatalog,
   );
-  const catalogQuery = useCcgCatalog(collectionSetSlug, page, catalogOwnership, grade, guildId, characterId, finish, sort, showCatalog, cardsPerPage);
+  const catalogQuery = useCcgCatalog(collectionSetSlug, page, catalogOwnership, grade, guildId, characterId, finish, sort, setSelectionReady && showCatalog, cardsPerPage);
   const cardsQuery = showCatalog ? catalogQuery : ownedQuery;
   const cardsData = cardsQuery.data;
   const cardsLoading = setsQuery.isPending || cardsQuery.isPending;
@@ -240,12 +245,9 @@ export default function CcgCollectionPage() {
   }, [trimmedCharacterSearch]);
 
   useEffect(() => {
-    if (requestedSetAppliedRef.current || sets.length === 0) return;
-    const requested = new URLSearchParams(window.location.search).get("set");
-    const next = sets.find((set) => set.slug === requested);
-    if (next) setSetSlug(next.slug);
-    requestedSetAppliedRef.current = true;
-  }, [sets]);
+    if (!setsQuery.isSuccess || setSlug === allSetsSlug || selectedSet) return;
+    setSetSlug(allSetsSlug);
+  }, [selectedSet, setSlug, setsQuery.isSuccess]);
 
   useEffect(() => {
     if (!cardsData || page <= cardsData.pages || cardsData.pages === 0) return;
@@ -706,7 +708,10 @@ export default function CcgCollectionPage() {
                     : ""}
                   placeholder={guildInputFocused ? t("collection.typeToSearch") : t("collection.allGuilds")}
                   onChange={(event) => setGuildSearch(event.target.value)}
-                  onFocus={() => setGuildInputFocused(true)}
+                  onFocus={() => {
+                    setGuildInputFocused(true);
+                    setGuildsRequested(true);
+                  }}
                   onBlur={() => setGuildInputFocused(false)}
                 />
                 {selectedGuild && (
@@ -724,6 +729,7 @@ export default function CcgCollectionPage() {
                 <ComboboxButton
                   aria-label={t("collection.selectGuild")}
                   className={styles.collectionGuildSelectToggle}
+                  onClick={() => setGuildsRequested(true)}
                 />
                 <ComboboxOptions
                   anchor={{ to: "bottom start", gap: 4, padding: 8 }}

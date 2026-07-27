@@ -4,14 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { CcgBaseFinish, CcgFinish, CcgMode, CcgOpening, CcgTierGrade } from "@/types";
+import type { CcgBaseFinish, CcgBootstrapResponse, CcgFinish, CcgMode, CcgOpening, CcgTierGrade } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { CCG_BASE_FINISH_ORDER, CCG_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS } from "@/lib/ccg";
 import { getCcgAnnouncerSoundSources, getCcgPlaybackVolume, type CcgAudioChannel } from "@/lib/ccg-audio";
 import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
 import { getCharacterRenderProxyUrl } from "@/lib/character-render";
-import { queryKeys, useCcgOpening, useCcgSession, useCcgSets, useRaids } from "@/lib/queries";
+import { queryKeys, useCcgOpening, useCcgSession, useCcgSets } from "@/lib/queries";
 import IconImage from "@/components/IconImage";
 import CcgShell from "@/components/ccg/CcgShell";
 import PackBalance from "@/components/ccg/PackBalance";
@@ -111,7 +111,6 @@ export default function CcgOpenPage() {
   const queryClient = useQueryClient();
   const sessionQuery = useCcgSession(!authLoading);
   const setsQuery = useCcgSets(!authLoading);
-  const raidsQuery = useRaids();
   const [mode, setMode] = useState<CcgMode>("current");
   const [opening, setOpening] = useState<CcgOpening | null>(null);
   const [recoveryId, setRecoveryId] = useState("");
@@ -143,7 +142,7 @@ export default function CcgOpenPage() {
   const sealedMotionFrame = useRef<number | null>(null);
   const pendingSealedMotion = useRef<{ element: HTMLButtonElement; x: number; y: number } | null>(null);
   const nextPackTimerRef = useRef<number | null>(null);
-  const recoveryQuery = useCcgOpening(recoveryId, !authLoading);
+  const recoveryQuery = useCcgOpening(recoveryId, !authLoading && sessionQuery.isSuccess);
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets;
   const modeSets = useMemo(() => (sets ?? []).filter((set) => set.kind === "raid" && set.state === mode && set.cardCount > 0), [mode, sets]);
@@ -187,7 +186,7 @@ export default function CcgOpenPage() {
   const selectedPackCardCount = selectedPackSets.reduce((total, set) => total + set.cardCount, 0);
   const selectedPackOwnedCount = selectedPackSets.reduce((total, set) => total + set.ownedCards, 0);
   const selectedPackProgress = selectedPackCardCount > 0 ? Math.min(1, selectedPackOwnedCount / selectedPackCardCount) : 0;
-  const raidIconByZone = useMemo(() => new Map((raidsQuery.data ?? []).map((raid) => [raid.id, raid.iconUrl])), [raidsQuery.data]);
+  const raidIconByZone = useMemo(() => new Map((sets ?? []).map((set) => [set.zoneId, set.iconUrl ?? undefined])), [sets]);
   const poolTitle =
     mode === "legacy"
       ? (selectedLegacySet?.raidName ?? t("open.legacyPackTitle"))
@@ -317,11 +316,35 @@ export default function CcgOpenPage() {
       setMode(result.mode);
       if (result.mode === "legacy") setLegacySetId(result.targetSetId ?? RANDOM_LEGACY_SET);
       setOpening(result);
-      queryClient.invalidateQueries({ queryKey: queryKeys.ccg.session });
+      const updates = result.cacheUpdates;
+      if (updates) {
+        queryClient.setQueryData<CcgBootstrapResponse>(queryKeys.ccg.bootstrap, (bootstrap) => {
+          if (!bootstrap) return bootstrap;
+          const customUpdates = new Map(updates.customQualityProtection.map((row) => [row.setSlug, row]));
+          return {
+            session: {
+              ...bootstrap.session,
+              packs: updates.packs,
+              qualityProtection: updates.qualityProtection,
+              qualityChances: updates.qualityChances,
+              customQualityProtection: bootstrap.session.customQualityProtection.map((row) => {
+                const update = customUpdates.get(row.setSlug);
+                return update ? { ...row, counter: update.counter, nextChance: update.nextChance } : row;
+              }),
+              ownedFinishes: bootstrap.session.ownedFinishes + updates.ownedFinishesDelta,
+            },
+            sets: bootstrap.sets.map((set) => ({
+              ...set,
+              ownedCards: set.ownedCards + (updates.ownedCardsBySetDelta[set.id] ?? 0),
+            })),
+          };
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: queryKeys.ccg.bootstrap });
+      }
       queryClient.invalidateQueries({ queryKey: ["ccg", "catalog"] });
       queryClient.invalidateQueries({ queryKey: ["ccg", "collection"] });
-      queryClient.invalidateQueries({ queryKey: ["ccg", "guilds"] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.ccg.sets });
+      queryClient.invalidateQueries({ queryKey: ["ccg", "featured"] });
     },
     onError: () => setIsPackCycling(false),
   });

@@ -136,6 +136,7 @@ import {
   RaidCompare,
   BossPredictionResponse,
   CcgCatalogResponse,
+  CcgFeaturedCardResponse,
   CcgCollectionResponse,
   CcgGuildsResponse,
   CcgCharacterSearchResponse,
@@ -151,6 +152,7 @@ import {
   CcgRedeemResult,
   CcgSession,
   CcgSet,
+  CcgBootstrapResponse,
   CcgAdminEnableResponse,
   CcgAdminSnapshotPreview,
   CcgAdminSetReadiness,
@@ -261,6 +263,12 @@ export const api = {
     return response.json();
   },
 
+  async getCcgBootstrap(): Promise<CcgBootstrapResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/bootstrap`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load the card vault");
+    return response.json();
+  },
+
   async getCcgAnalytics(): Promise<CcgAnalytics> {
     const response = await fetch(`${API_URL}/api/ccg/analytics`);
     if (!response.ok) throw await buildApiError(response, "Failed to load vault activity");
@@ -294,10 +302,17 @@ export const api = {
     return response.json();
   },
 
+  async getCcgFeaturedCard(setSlug: string): Promise<CcgFeaturedCardResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/sets/${encodeURIComponent(setSlug)}/featured`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load the featured card");
+    return response.json();
+  },
+
   async getCcgCollectionGuilds(setSlug?: string): Promise<CcgGuildsResponse> {
     const params = new URLSearchParams();
     if (setSlug) params.set("set", setSlug);
-    const response = await fetch(`${API_URL}/api/ccg/collection/guilds?${params}`, { credentials: "include" });
+    const query = params.toString();
+    const response = await fetch(`${API_URL}/api/ccg/collection/guilds${query ? `?${query}` : ""}`);
     if (!response.ok) throw await buildApiError(response, "Failed to load guild binders");
     return response.json();
   },

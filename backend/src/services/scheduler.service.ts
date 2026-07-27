@@ -155,6 +155,7 @@ class UpdateScheduler {
   private isUpdatingMythicPlusCurrentSeason: boolean = false;
   private isRepairingMythicPlusHistoricalScores: boolean = false;
   private isCleaningCcgGuests: boolean = false;
+  private isProcessingCcgPackAnalytics: boolean = false;
   private isDiscoveringCcgMedia: boolean = false;
   private isRefreshingCcgMedia: boolean = false;
   private isRecoveringCcgMedia: boolean = false;
@@ -474,6 +475,16 @@ class UpdateScheduler {
     );
 
     if (CCG_FEATURE_ENABLED) {
+      void this.processPendingCcgPackAnalytics();
+
+      cron.schedule(
+        "* * * * *",
+        async () => {
+          if (!this.isProcessingCcgPackAnalytics) await this.processPendingCcgPackAnalytics();
+        },
+        { timezone: "Europe/Helsinki" },
+      );
+
       cron.schedule(
         "15 0 * * *",
         async () => {
@@ -911,6 +922,18 @@ class UpdateScheduler {
       .then(() => logger.info("[Admin] Character rankings refresh completed"))
       .catch((err) => logger.error("[Admin] Character rankings refresh failed:", err));
     return true;
+  }
+
+  private async processPendingCcgPackAnalytics(): Promise<void> {
+    this.isProcessingCcgPackAnalytics = true;
+    try {
+      const processed = await ccgService.processPendingPackOpeningAnalytics();
+      if (processed > 0) logger.info(`[CCG/Analytics] Recorded ${processed} pending pack opening(s)`);
+    } catch (error) {
+      logger.error("[CCG/Analytics] Error processing pending pack openings:", error);
+    } finally {
+      this.isProcessingCcgPackAnalytics = false;
+    }
   }
 
   private async cleanupCcgGuests(): Promise<void> {

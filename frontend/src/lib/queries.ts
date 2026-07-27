@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { CcgCollectionSort, CharacterTierListRole, EventFilters } from "@/types";
+import type { CcgBootstrapResponse, CcgCollectionSort, CharacterTierListRole, EventFilters } from "@/types";
 
 const LIVE_STATUS_STALE_TIME = 15 * 60 * 1000;
 const LIVE_STATUS_REFETCH_INTERVAL = 15 * 60 * 1000;
+const CCG_BOOTSTRAP_QUERY_KEY = ["ccg", "bootstrap"] as const;
 
 export type CharacterTierListQueryFilters = {
   minReports?: number;
@@ -93,9 +94,11 @@ export const queryKeys = {
   },
   ccg: {
     analytics: ["ccg", "analytics"] as const,
-    session: ["ccg", "session"] as const,
-    sets: ["ccg", "sets"] as const,
+    bootstrap: CCG_BOOTSTRAP_QUERY_KEY,
+    session: CCG_BOOTSTRAP_QUERY_KEY,
+    sets: CCG_BOOTSTRAP_QUERY_KEY,
     catalog: (setSlug: string | undefined, page: number, owned: string, grade: string, guildId: string, characterId: string, finish: string, sort: string, limit: number) => ["ccg", "catalog", setSlug ?? "all", page, owned, grade, guildId, characterId, finish, sort, limit] as const,
+    featured: (setSlug: string) => ["ccg", "featured", setSlug] as const,
     guilds: (setSlug?: string) => ["ccg", "guilds", setSlug ?? "all"] as const,
     characterSearch: (search: string) => ["ccg", "characterSearch", search] as const,
     collection: (options: Record<string, unknown>) => ["ccg", "collection", options] as const,
@@ -468,11 +471,12 @@ export function useRaidCompare(raidId: number | null) {
 export function useCcgSession(enabled = true) {
   return useQuery({
     queryKey: queryKeys.ccg.session,
-    queryFn: () => api.getCcgSession(),
+    queryFn: () => api.getCcgBootstrap(),
+    select: (bootstrap: CcgBootstrapResponse) => bootstrap.session,
     enabled,
     staleTime: 15 * 1000,
     refetchInterval: (query) => {
-      const session = query.state.data;
+      const session = query.state.data?.session;
       if (!session) return false;
       const nextRecharge = (["current", "legacy"] as const)
         .filter((mode) => session.packs[mode].totalRemaining < session.recharge[mode].cap)
@@ -495,7 +499,8 @@ export function useCcgAnalytics() {
 export function useCcgSets(enabled = true) {
   return useQuery({
     queryKey: queryKeys.ccg.sets,
-    queryFn: () => api.getCcgSets(),
+    queryFn: () => api.getCcgBootstrap(),
+    select: (bootstrap: CcgBootstrapResponse) => ({ sets: bootstrap.sets }),
     enabled,
     staleTime: 5 * 60 * 1000,
   });
@@ -507,6 +512,15 @@ export function useCcgCatalog(setSlug: string | undefined, page: number, owned: 
     queryFn: () => api.getCcgCatalog(setSlug, { page, limit, owned, grade: grade || undefined, guild: guildId || undefined, character: characterId || undefined, finish: finish || undefined, sort: sort || undefined }),
     enabled,
     staleTime: 30 * 1000,
+  });
+}
+
+export function useCcgFeaturedCard(setSlug: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.ccg.featured(setSlug),
+    queryFn: () => api.getCcgFeaturedCard(setSlug),
+    enabled: enabled && Boolean(setSlug),
+    staleTime: 60 * 60 * 1000,
   });
 }
 

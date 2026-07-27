@@ -45,6 +45,8 @@ import { analyticsMiddleware, flushAnalytics } from "./middleware/analytics.midd
 import cacheService from "./services/cache.service";
 import cacheWarmerService from "./services/cache-warmer.service";
 import guildLogSourceService from "./services/guild-log-source.service";
+import ccgPublisherService from "./services/ccg-publisher.service";
+import { CCG_FEATURE_ENABLED } from "./config/ccg";
 
 // ============================================================================
 // WORKER MODE CONFIGURATION
@@ -535,6 +537,16 @@ const startServer = async () => {
     setStartupTask("Initialize cache service");
     await cacheService.initialize();
     completeStartupTask("Initialize cache service");
+
+    if (CCG_FEATURE_ENABLED) {
+      setStartupTask("Reconcile CCG set configuration");
+      try {
+        await ccgPublisherService.ensureConfiguredSets();
+        completeStartupTask("Reconcile CCG set configuration");
+      } catch (error) {
+        failStartupTask("Reconcile CCG set configuration", error);
+      }
+    }
 
     if (isApiProcess) {
       // Start Express server IMMEDIATELY after database connection

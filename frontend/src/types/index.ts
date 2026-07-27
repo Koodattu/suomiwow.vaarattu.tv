@@ -2010,6 +2010,7 @@ export type CcgSet = {
   theme: { mark: string; accent: string; glow: string };
   customFinish: { key: CcgCustomFinish; hardPity: number } | null;
   backgroundPath: string;
+  iconUrl?: string | null;
   packArtOffsetX: number;
   cardCount: number;
   ownedCards: number;
@@ -2110,6 +2111,11 @@ export type CcgSession = {
   ownedFinishes: number;
 };
 
+export type CcgBootstrapResponse = {
+  session: CcgSession;
+  sets: CcgSet[];
+};
+
 export type CcgAnalytics = {
   uniqueUsers: number;
   packOpenings: number;
@@ -2133,6 +2139,14 @@ export type CcgOpening = {
   duplicateRewards: number;
   createdAt: string;
   results: Array<{ position: number; finish: CcgFinish; artVariant: CcgArtVariant; isDuplicate: boolean; card: CcgCard }>;
+  cacheUpdates?: {
+    packs: CcgSession["packs"];
+    qualityProtection: CcgSession["qualityProtection"];
+    qualityChances: CcgSession["qualityChances"];
+    customQualityProtection: Array<{ setSlug: string; counter: number; nextChance: number }>;
+    ownedFinishesDelta: number;
+    ownedCardsBySetDelta: Record<string, number>;
+  };
 };
 
 export type CcgShareLink = {
@@ -2393,10 +2407,15 @@ export type CcgCatalogResponse = {
   pages: number;
 };
 
+export type CcgFeaturedCardResponse = {
+  card: CcgCard | null;
+};
+
 export type CcgGuildFacet = {
   id: string;
   name: string;
   realm: string;
+  setIds: string[];
 };
 
 export type CcgGuildsResponse = {

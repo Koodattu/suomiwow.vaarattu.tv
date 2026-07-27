@@ -45,6 +45,7 @@ import CcgRollover from "../models/CcgRollover";
 import CcgShare, { ICcgShare } from "../models/CcgShare";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
 import Character from "../models/Character";
+import Raid from "../models/Raid";
 import User from "../models/User";
 import {
   CcgAlternativeArtDefinition,
@@ -78,6 +79,8 @@ const CCG_ANALYTICS_INITIALIZATION_TIMEOUT_MS = 30_000;
 const CCG_UNIQUE_FINISH_FILTER = "unique";
 const CCG_PREVIOUS_GUEST_INITIAL_PACKS: Readonly<Record<CcgMode, number>> = { current: 5, legacy: 5 };
 const CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS = 60_000;
+const CCG_GUEST_LAST_SEEN_WRITE_INTERVAL_MS = 15 * 60 * 1000;
+const CCG_PUBLIC_SET_FIELDS = "_id slug zoneId raidName expansionName state kind enabledAt themeKey theme customFinish backgroundPath packArtOffsetX cardCount publicationWave lastPublishedAt";
 
 export const CCG_COLLECTION_SORTS = [
   "duplicates_desc",
@@ -200,7 +203,6 @@ export function buildCcgCollectionSortStages(
 type CcgOwner = {
   ownerType: CcgOwnerType;
   ownerId: mongoose.Types.ObjectId;
-  guest?: ICcgGuest;
   dateKey: string;
   expiresAt?: Date;
 };
@@ -212,6 +214,15 @@ type SelectedResult = {
   artVariant: CcgArtVariant;
   tierGrade: CcgTierGrade;
   isDuplicate: boolean;
+};
+
+type CcgPackOpenState = {
+  packs: Record<CcgMode, { regularRemaining: number; bonusRemaining: number; totalRemaining: number }>;
+  qualityProtection: CcgFinishPity;
+  qualityChances: Record<string, number>;
+  customQualityProtection: Array<{ setSlug: string; counter: number; nextChance: number }>;
+  ownedFinishesDelta: number;
+  ownedCardsBySetDelta: Record<string, number>;
 };
 
 type RedeemedCodeSnapshot = {
@@ -326,6 +337,7 @@ class CcgService {
   private analyticsInitialization: Promise<void> | null = null;
   private analyticsReady = false;
   private analyticsDailyBucketKey: string | null = null;
+  private packAnalyticsQueue: Promise<void> = Promise.resolve();
 
   private adminCardSearchCache: {
     expiresAt: number;
@@ -338,6 +350,16 @@ class CcgService {
     candidates: CcgCollectionCharacterSearchCandidate[];
   } | null = null;
   private collectionCharacterSearchPromise: Promise<CcgCollectionCharacterSearchCandidate[]> | null = null;
+
+  private collectionGuildsCache: {
+    version: string;
+    versionCheckedUntil: number;
+    guilds: Array<{ id: string; name: string; realm: string; setIds: string[] }>;
+    setIdBySlug: Map<string, string>;
+  } | null = null;
+  private collectionGuildsPromise: Promise<NonNullable<CcgService["collectionGuildsCache"]>> | null = null;
+  private raidIconCache: { expiresAt: number; iconByZone: Map<number, string | null> } | null = null;
+  private raidIconPromise: Promise<Map<number, string | null>> | null = null;
 
   private async buildCardSearchCandidates(cardFilter: Record<string, unknown> = {}): Promise<CcgCardSearchCandidate[]> {
     const cards = await CcgCard.find(cardFilter)
@@ -429,42 +451,39 @@ class CcgService {
 
   async getSession(req: Request, res: Response): Promise<Record<string, unknown>> {
     requireFeature();
-    const sets = await ccgPublisherService.ensureConfiguredSets();
     const owner = await this.resolveOwner(req, res);
+    return this.buildSession(owner);
+  }
+
+  async getBootstrap(req: Request, res: Response): Promise<Record<string, unknown>> {
+    requireFeature();
+    const owner = await this.resolveOwner(req, res);
+    const [session, sets] = await Promise.all([
+      this.buildSession(owner),
+      this.getSets(owner),
+    ]);
+    return { session, sets };
+  }
+
+  private async buildSession(owner: CcgOwner): Promise<Record<string, unknown>> {
     const now = new Date();
-    const packBalance = await this.ensurePackBalance(owner, undefined, now);
-    const creditBalances = await this.getPackCreditBalances(owner);
-    const [qualityProgress, ownershipCount] = await Promise.all([
+    const [packState, qualityProgress, ownershipCount, sets] = await Promise.all([
+      this.getSessionPackState(owner, now),
       CcgQualityProgress.findOne({ ownerType: owner.ownerType, ownerId: owner.ownerId }).lean(),
       CcgOwnership.countDocuments({ ownerType: owner.ownerType, ownerId: owner.ownerId }),
+      CcgSet.find({ enabledAt: { $ne: null }, cardCount: { $gt: 0 }, "customFinish.key": { $exists: true } })
+        .select("slug raidName customFinish")
+        .lean(),
     ]);
     const resetAt = getNextHelsinkiReset();
     const qualityProtection = this.readFinishPity(qualityProgress ?? undefined);
-    const qualityChances = Object.fromEntries(
-      CCG_BASE_FINISH_ORDER
-        .filter((finish) => finish !== "standard")
-        .map((finish) => [
-          finish,
-          finishChanceForCounter((qualityProtection[finish] ?? 0) + 1, CCG_FINISH_PITY_LIMITS[finish]),
-        ]),
-    );
+    const qualityChances = this.getQualityChances(qualityProtection);
 
     return {
       ownerType: owner.ownerType,
       dateKey: owner.dateKey,
       resetAt,
-      packs: {
-        current: {
-          regularRemaining: packBalance.currentRemaining,
-          bonusRemaining: creditBalances.current,
-          totalRemaining: packBalance.currentRemaining + creditBalances.current,
-        },
-        legacy: {
-          regularRemaining: packBalance.legacyRemaining,
-          bonusRemaining: creditBalances.legacy,
-          totalRemaining: packBalance.legacyRemaining + creditBalances.legacy,
-        },
-      },
+      packs: this.serializePackBalances(packState.balance, packState.creditBalances),
       recharge: {
         current: {
           cap: CCG_PACK_STORAGE_CAPS.current,
@@ -573,47 +592,134 @@ class CcgService {
 
   async getSets(owner?: CcgOwner): Promise<Record<string, unknown>[]> {
     requireFeature();
-    const sets = await ccgPublisherService.ensureConfiguredSets();
-    const visibleSets = sets.filter((set) => set.enabledAt && set.cardCount > 0);
-    void ccgPublisherService.ensureCollectionCharactersMaterialized(visibleSets.map((set) => set._id)).catch((error) => {
-      logger.error("[CCG] Failed to warm collection character search facets:", error);
-    });
-    const ownedBySet = new Map<string, number>();
-    if (owner) {
-      const rows = await CcgOwnership.aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([
+    const visibleSets = await CcgSet.find({ enabledAt: { $ne: null }, cardCount: { $gt: 0 } })
+      .select(CCG_PUBLIC_SET_FIELDS)
+      .sort({ zoneId: 1 })
+      .lean();
+    const [rows, iconByZone] = await Promise.all([
+      owner ? CcgOwnership.aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([
         { $match: { ownerType: owner.ownerType, ownerId: owner.ownerId } },
         { $group: { _id: "$cardId" } },
         { $lookup: { from: "ccgcards", localField: "_id", foreignField: "_id", as: "card" } },
         { $unwind: "$card" },
         { $group: { _id: { setId: "$card.setId", characterId: "$card.characterId" } } },
         { $group: { _id: "$_id.setId", count: { $sum: 1 } } },
-      ]);
-      rows.forEach((row) => ownedBySet.set(String(row._id), row.count));
-    }
-    return visibleSets.map((set) => this.serializeSet(set, ownedBySet.get(String(set._id)) ?? 0));
+      ]) : Promise.resolve([]),
+      this.getRaidIconByZone(visibleSets.map((set) => set.zoneId)),
+    ]);
+    const ownedBySet = new Map(rows.map((row) => [String(row._id), row.count]));
+    return visibleSets.map((set) => ({
+      ...this.serializeSet(set, ownedBySet.get(String(set._id)) ?? 0),
+      iconUrl: iconByZone.get(set.zoneId) ?? null,
+    }));
+  }
+
+  private async getRaidIconByZone(zoneIds: number[]): Promise<Map<number, string | null>> {
+    if (this.raidIconCache && this.raidIconCache.expiresAt > Date.now()) return this.raidIconCache.iconByZone;
+    if (this.raidIconPromise) return this.raidIconPromise;
+    this.raidIconPromise = Raid.find({ id: { $in: zoneIds } })
+      .select("id iconUrl -_id")
+      .lean()
+      .then((raids) => {
+        const iconByZone = new Map(raids.map((raid) => [raid.id, raid.iconUrl ?? null]));
+        this.raidIconCache = { expiresAt: Date.now() + 24 * 60 * 60 * 1000, iconByZone };
+        return iconByZone;
+      })
+      .finally(() => {
+        this.raidIconPromise = null;
+      });
+    return this.raidIconPromise;
   }
 
   async getCollectionGuilds(setSlug?: string): Promise<Record<string, unknown>> {
     requireFeature();
-    const setFilter: Record<string, unknown> = { enabledAt: { $ne: null } };
-    if (setSlug) setFilter.slug = setSlug;
-    const sets = await CcgSet.find(setFilter).select("_id").lean();
-    if (setSlug && sets.length === 0) throw new CcgServiceError(404, "set_not_found", "Card set not found");
-
-    const setIds = sets.map((set) => set._id);
-    await ccgPublisherService.ensureCollectionGuildsMaterialized(setIds);
-    const materializedSets = await CcgSet.find({ _id: { $in: setIds } }).select("collectionGuilds").lean();
-    const guildsById = new Map<string, { id: string; name: string; realm: string }>();
-    for (const set of materializedSets) {
-      for (const guild of set.collectionGuilds ?? []) {
-        const id = String(guild.guildId);
-        if (!guildsById.has(id)) guildsById.set(id, { id, name: guild.name, realm: guild.realm });
-      }
-    }
-
+    const cache = await this.getCollectionGuildCache();
+    const requestedSetId = setSlug ? cache.setIdBySlug.get(setSlug) : null;
+    if (setSlug && !requestedSetId) throw new CcgServiceError(404, "set_not_found", "Card set not found");
     return {
-      guilds: [...guildsById.values()].sort((left, right) => left.name.localeCompare(right.name) || left.realm.localeCompare(right.realm)),
+      guilds: requestedSetId
+        ? cache.guilds.filter((guild) => guild.setIds.includes(requestedSetId))
+        : cache.guilds,
     };
+  }
+
+  private async getCollectionGuildCache(): Promise<NonNullable<CcgService["collectionGuildsCache"]>> {
+    const now = Date.now();
+    if (this.collectionGuildsCache && this.collectionGuildsCache.versionCheckedUntil > now) {
+      return this.collectionGuildsCache;
+    }
+    if (this.collectionGuildsPromise) return this.collectionGuildsPromise;
+
+    this.collectionGuildsPromise = (async () => {
+      let sets = await CcgSet.find({ enabledAt: { $ne: null } })
+        .select("_id slug collectionGuilds collectionGuildsBuiltAt")
+        .sort({ _id: 1 })
+        .lean();
+      const missingSetIds = sets.filter((set) => !set.collectionGuildsBuiltAt).map((set) => set._id);
+      if (missingSetIds.length > 0) {
+        await ccgPublisherService.ensureCollectionGuildsMaterialized(missingSetIds);
+        sets = await CcgSet.find({ enabledAt: { $ne: null } })
+          .select("_id slug collectionGuilds collectionGuildsBuiltAt")
+          .sort({ _id: 1 })
+          .lean();
+      }
+
+      const version = sets.map((set) => `${set._id}:${set.collectionGuildsBuiltAt?.getTime() ?? 0}`).join("|");
+      if (this.collectionGuildsCache?.version === version) {
+        this.collectionGuildsCache.versionCheckedUntil = now + CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS;
+        return this.collectionGuildsCache;
+      }
+
+      const guildsById = new Map<string, { id: string; name: string; realm: string; setIds: Set<string> }>();
+      const setIdBySlug = new Map<string, string>();
+      for (const set of sets) {
+        const setId = String(set._id);
+        setIdBySlug.set(set.slug, setId);
+        for (const guild of set.collectionGuilds ?? []) {
+          const id = String(guild.guildId);
+          const existing = guildsById.get(id);
+          if (existing) {
+            existing.setIds.add(setId);
+          } else {
+            guildsById.set(id, { id, name: guild.name, realm: guild.realm, setIds: new Set([setId]) });
+          }
+        }
+      }
+      this.collectionGuildsCache = {
+        version,
+        versionCheckedUntil: now + CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS,
+        guilds: Array.from(guildsById.values(), (guild) => ({ ...guild, setIds: [...guild.setIds] }))
+          .sort((left, right) => left.name.localeCompare(right.name) || left.realm.localeCompare(right.realm)),
+        setIdBySlug,
+      };
+      return this.collectionGuildsCache;
+    })().finally(() => {
+      this.collectionGuildsPromise = null;
+    });
+    return this.collectionGuildsPromise;
+  }
+
+  private async getActiveCatalogCardIds(
+    sets: ReadonlyArray<Pick<ICcgSet, "_id" | "cardCount"> | Record<string, any>>,
+  ): Promise<mongoose.Types.ObjectId[] | null> {
+    const pools = await CcgPackPool.find({ setId: { $in: sets.map((set) => set._id) }, active: true })
+      .select("setId buckets.cardIds totalCards updatedAt")
+      .sort({ updatedAt: -1 })
+      .lean();
+    const poolBySet = new Map<string, (typeof pools)[number]>();
+    for (const pool of pools) {
+      const setId = String(pool.setId);
+      if (!poolBySet.has(setId)) poolBySet.set(setId, pool);
+    }
+    const cardIds: mongoose.Types.ObjectId[] = [];
+    for (const set of sets) {
+      const pool = poolBySet.get(String(set._id));
+      if (!pool || pool.totalCards !== set.cardCount) return null;
+      const setCardIds = pool.buckets.flatMap((bucket) => bucket.cardIds);
+      if (setCardIds.length !== pool.totalCards) return null;
+      cardIds.push(...setCardIds);
+    }
+    return cardIds;
   }
 
   async getCatalog(
@@ -623,14 +729,14 @@ class CcgService {
   ): Promise<Record<string, unknown>> {
     const requestedSet = setSlug
       ? await CcgSet.findOne({ slug: setSlug, enabledAt: { $ne: null } })
-          .select("-collectionGuilds -collectionCharacters")
+          .select(CCG_PUBLIC_SET_FIELDS)
           .lean()
       : null;
     if (setSlug && !requestedSet) throw new CcgServiceError(404, "set_not_found", "Card set not found");
     const sets = requestedSet
       ? [requestedSet]
       : await CcgSet.find({ enabledAt: { $ne: null } })
-          .select("-collectionGuilds -collectionCharacters")
+          .select(CCG_PUBLIC_SET_FIELDS)
           .lean();
     if (sets.length === 0) throw new CcgServiceError(404, "set_not_found", "Card set not found");
     const set = requestedSet ?? undefined;
@@ -663,14 +769,20 @@ class CcgService {
     } else if (options.owned === "missing") {
       cardFilter._id = { $nin: ownedIds ?? [] };
     }
+    const activeCardIds = await this.getActiveCatalogCardIds(sets);
+    const currentCardStages: PipelineStage[] = activeCardIds
+      ? [{ $match: { _id: { $in: activeCardIds } } }]
+      : [
+          { $match: { setId: set ? set._id : { $in: sets.map((item) => item._id) } } },
+          { $sort: { snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 } },
+          { $group: { _id: { setId: "$setId", characterId: "$characterId" }, card: { $first: "$$ROOT" } } },
+          { $replaceRoot: { newRoot: "$card" } },
+        ];
     const catalog = await CcgCard.aggregate<{
       items: ICcgCard[];
       count: Array<{ total: number }>;
     }>([
-      { $match: { setId: set ? set._id : { $in: sets.map((item) => item._id) } } },
-      { $sort: { snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 } },
-      { $group: { _id: { setId: "$setId", characterId: "$characterId" }, card: { $first: "$$ROOT" } } },
-      { $replaceRoot: { newRoot: "$card" } },
+      ...currentCardStages,
       ...(Object.keys(cardFilter).length > 0 ? [{ $match: cardFilter }] : []),
       ...(ownershipSort ? [{
         $lookup: {
@@ -755,6 +867,42 @@ class CcgService {
     };
   }
 
+  async getFeaturedCard(owner: CcgOwner, setSlug: string): Promise<Record<string, unknown>> {
+    const set = await CcgSet.findOne({ slug: setSlug, enabledAt: { $ne: null }, cardCount: { $gt: 0 } })
+      .select(CCG_PUBLIC_SET_FIELDS)
+      .lean();
+    if (!set) throw new CcgServiceError(404, "set_not_found", "Card set not found");
+    const pool = await CcgPackPool.findOne({ setId: set._id, active: true, totalCards: { $gt: 0 } })
+      .select("buckets")
+      .sort({ updatedAt: -1 })
+      .lean();
+    const cardIds = pool?.buckets.find((bucket) => bucket.grade === "S")?.cardIds ?? [];
+    if (cardIds.length === 0) return { card: null };
+
+    const hourlyIndex = Math.floor(Date.now() / (60 * 60 * 1000)) % cardIds.length;
+    const card = await CcgCard.findById(cardIds[hourlyIndex]).lean();
+    if (!card) return { card: null };
+    const [ownership, alternativeByCollector, unlockedAlternativeCollectors] = await Promise.all([
+      CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, cardId: card._id })
+        .select("finish quantity alternativeQuantity -_id")
+        .lean(),
+      this.loadAlternativeArt([card]),
+      this.loadAlternativeArtUnlocks(owner, [card]),
+    ]);
+    const collectorKey = resolveCollectorKey(card);
+    const alternativeArt = alternativeByCollector.get(collectorKey);
+    return {
+      card: {
+        ...this.serializeCard(card, set, alternativeArt),
+        ownership: serializeOwnershipRows(
+          ownership,
+          unlockedAlternativeCollectors.has(collectorKey)
+            && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)),
+        ),
+      },
+    };
+  }
+
   async getCollection(
     owner: CcgOwner,
     options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string; characterId?: string; sort?: string; alternativeOnly?: boolean },
@@ -771,14 +919,14 @@ class CcgService {
     if (options.search?.trim()) cardMatch["card.name"] = { $regex: options.search.trim().slice(0, 60), $options: "i" };
     const requestedSet = options.setSlug
       ? await CcgSet.findOne({ slug: options.setSlug, enabledAt: { $ne: null } })
-          .select("-collectionGuilds -collectionCharacters")
+          .select(CCG_PUBLIC_SET_FIELDS)
           .lean()
       : null;
     if (options.setSlug && !requestedSet) throw new CcgServiceError(404, "set_not_found", "Card set not found");
     const sets = requestedSet
       ? [requestedSet]
       : await CcgSet.find({ enabledAt: { $ne: null } })
-          .select("-collectionGuilds -collectionCharacters")
+          .select(CCG_PUBLIC_SET_FIELDS)
           .lean();
     const setById = new Map(sets.map((set) => [String(set._id), set]));
     const communitySetIds = sets.filter((set) => set.kind === "community").map((set) => set._id);
@@ -916,7 +1064,7 @@ class CcgService {
     const id = validateObjectId(cardId, "card ID");
     const card = await CcgCard.findById(id).lean();
     if (!card) throw new CcgServiceError(404, "card_not_found", "Card not found");
-    const set = await CcgSet.findOne({ _id: card.setId, enabledAt: { $ne: null } }).lean();
+    const set = await CcgSet.findOne({ _id: card.setId, enabledAt: { $ne: null } }).select(CCG_PUBLIC_SET_FIELDS).lean();
     if (!set) throw new CcgServiceError(404, "card_not_found", "Card not found");
     const [ownership, alternativeByCollector, unlockedAlternativeCollectors] = await Promise.all([
       owner
@@ -1028,7 +1176,7 @@ class CcgService {
       }
       const card = await CcgCard.findById(share.cardId).lean();
       if (!card) throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
-      const set = await CcgSet.findOne({ _id: card.setId, enabledAt: { $ne: null } }).lean();
+      const set = await CcgSet.findOne({ _id: card.setId, enabledAt: { $ne: null } }).select(CCG_PUBLIC_SET_FIELDS).lean();
       if (!set) throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
       const alternativeByCollector = await this.loadAlternativeArt([card]);
       return {
@@ -1437,7 +1585,6 @@ class CcgService {
 
   async openPack(req: Request, res: Response, body: Record<string, unknown>): Promise<Record<string, unknown>> {
     requireFeature();
-    await this.ensureAnalyticsInitialized();
     const owner = await this.resolveOwner(req, res);
     const mode = validateMode(body.mode);
     const targetSetId = body.setId === undefined || body.setId === null || body.setId === ""
@@ -1448,13 +1595,26 @@ class CcgService {
     }
     const idempotencyKey = validateIdempotencyKey(body.idempotencyKey);
     const existing = await CcgPackOpening.findOne({ ownerType: owner.ownerType, ownerId: owner.ownerId, idempotencyKey }).lean();
-    if (existing) return this.serializeOpening(existing);
-    await this.ensureAnalyticsDailyBucket(owner.dateKey);
+    if (existing) {
+      this.enqueuePackOpeningAnalytics(existing._id);
+      return this.serializeOpening(existing);
+    }
     const session = await mongoose.startSession();
     let openingId: mongoose.Types.ObjectId | null = null;
+    let committedOpening: ICcgPackOpening | null = null;
+    let committedCards: ICcgCard[] = [];
+    let committedSets: ICcgSet[] = [];
+    let committedAlternativeArt = new Map<string, CcgAlternativeArtDefinition>();
+    let cacheUpdates: CcgPackOpenState | null = null;
 
     try {
       await session.withTransaction(async () => {
+        openingId = null;
+        committedOpening = null;
+        committedCards = [];
+        committedSets = [];
+        committedAlternativeArt = new Map();
+        cacheUpdates = null;
         const duplicateOpening = await CcgPackOpening.findOne({ ownerType: owner.ownerType, ownerId: owner.ownerId, idempotencyKey }).session(session);
         if (duplicateOpening) {
           openingId = duplicateOpening._id;
@@ -1466,8 +1626,11 @@ class CcgService {
         const cards = await CcgCard.find({
           _id: { $in: selected.map((result) => result.cardId) },
           setId: { $in: pool.sourceSetIds },
-        }).session(session);
-        const sourceSets = await CcgSet.find({ _id: { $in: pool.sourceSetIds } }).session(session);
+        }).session(session).lean();
+        const sourceSets = await CcgSet.find({ _id: { $in: pool.sourceSetIds } })
+          .select(CCG_PUBLIC_SET_FIELDS)
+          .session(session)
+          .lean();
         const setById = new Map(sourceSets.map((set) => [String(set._id), set]));
         const cardById = new Map(cards.map((card) => [String(card._id), card]));
         if (cardById.size === 0) throw new CcgServiceError(409, "pool_unavailable", "This card set has no available cards");
@@ -1476,7 +1639,7 @@ class CcgService {
           ownerType: owner.ownerType,
           ownerId: owner.ownerId,
           cardId: { $in: cards.map((card) => card._id) },
-        }).session(session);
+        }).session(session).lean();
         const ownedFinishesByCard = new Map<string, Set<CcgFinish>>();
         for (const row of ownershipRows) {
           const cardId = String(row.cardId);
@@ -1522,6 +1685,7 @@ class CcgService {
         if (results.length !== CCG_CARDS_PER_PACK) throw new CcgServiceError(409, "pool_invalid", "The pack pool is incomplete");
 
         openingId = new mongoose.Types.ObjectId();
+        const ownedCardsBySetDelta = await this.getOwnedCardDeltas(owner, cards, session);
         this.writeFinishPity(qualityProgress, pity);
         await qualityProgress.save({ session });
         await this.addOwnership(owner, results, session);
@@ -1529,7 +1693,8 @@ class CcgService {
           ? await this.grantCompletedCardRewards(owner.ownerId, completedCardDuplicates, session)
           : { current: 0, legacy: 0, total: 0 };
         const duplicateRewards = completionRewards.total;
-        await CcgPackOpening.create(
+        const shuffledResults = shufflePackResults(results);
+        const [opening] = await CcgPackOpening.create(
           [
             {
               _id: openingId,
@@ -1543,9 +1708,10 @@ class CcgService {
               idempotencyKey,
               poolVersion: pool.version,
               packRuleVersion: CCG_PACK_RULE_VERSION,
-              results: shufflePackResults(results),
+              results: shuffledResults,
               duplicateRewards,
               state: "committed",
+              analyticsPending: true,
               dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
               expiresAt: owner.ownerType === "guest" ? owner.expiresAt : null,
             },
@@ -1573,7 +1739,31 @@ class CcgService {
           ],
           { session },
         );
-        await this.recordPackOpeningAnalytics(owner, mode, results, session);
+        const creditBalances = await this.getPackCreditBalances(owner, session);
+        const qualityProtection = this.readFinishPity(qualityProgress);
+        const customQualityProtection = sourceSets
+          .filter((set) => set.customFinish?.key)
+          .map((set) => {
+            const counter = this.readCustomFinishPity(qualityProgress, set.slug);
+            return {
+              setSlug: set.slug,
+              counter,
+              nextChance: finishChanceForCounter(counter + 1, set.customFinish!.hardPity),
+            };
+          });
+        cacheUpdates = {
+          packs: this.serializePackBalances(allowanceSource.balance, creditBalances),
+          qualityProtection,
+          qualityChances: this.getQualityChances(qualityProtection),
+          customQualityProtection,
+          ownedFinishesDelta: results.filter((result) => !result.isDuplicate).length,
+          ownedCardsBySetDelta,
+        };
+        committedOpening = opening;
+        committedCards = cards as ICcgCard[];
+        const resultSetIds = new Set(results.map((result) => String(result.setId)));
+        committedSets = sourceSets.filter((set) => resultSetIds.has(String(set._id))) as ICcgSet[];
+        committedAlternativeArt = alternativeByCollector;
       });
     } catch (error) {
       if (isTransactionUnsupported(error)) {
@@ -1585,6 +1775,18 @@ class CcgService {
     }
 
     if (!openingId) throw new CcgServiceError(500, "opening_failed", "Pack opening did not complete");
+    this.enqueuePackOpeningAnalytics(openingId);
+    if (committedOpening) {
+      return {
+        ...this.serializeOpeningFromEntities(
+          committedOpening,
+          committedCards,
+          committedSets,
+          committedAlternativeArt,
+        ),
+        ...(cacheUpdates ? { cacheUpdates } : {}),
+      };
+    }
     const opening = await CcgPackOpening.findById(openingId).lean();
     if (!opening) throw new CcgServiceError(500, "opening_failed", "Pack opening could not be recovered");
     return this.serializeOpening(opening);
@@ -1814,11 +2016,16 @@ class CcgService {
     const expiresAt = getNextHelsinkiReset();
     const rawCookie = typeof req.cookies?.[CCG_GUEST_COOKIE] === "string" ? req.cookies[CCG_GUEST_COOKIE] : null;
     if (rawCookie) {
-      const existing = await CcgGuest.findOne({ tokenHash: hashGuestToken(rawCookie), dateKey, expiresAt: { $gt: new Date() }, claimedAt: null });
+      const now = new Date();
+      const existing = await CcgGuest.findOne({ tokenHash: hashGuestToken(rawCookie), dateKey, expiresAt: { $gt: now }, claimedAt: null }).lean();
       if (existing) {
-        existing.lastSeenAt = new Date();
-        await existing.save();
-        return { ownerType: "guest", ownerId: existing._id, guest: existing, dateKey, expiresAt: existing.expiresAt };
+        if (existing.lastSeenAt.getTime() <= now.getTime() - CCG_GUEST_LAST_SEEN_WRITE_INTERVAL_MS) {
+          void CcgGuest.updateOne(
+            { _id: existing._id, lastSeenAt: { $lte: new Date(now.getTime() - CCG_GUEST_LAST_SEEN_WRITE_INTERVAL_MS) } },
+            { $set: { lastSeenAt: now } },
+          ).catch((error) => logger.error("[CCG] Failed to update guest activity:", error));
+        }
+        return { ownerType: "guest", ownerId: existing._id, dateKey, expiresAt: existing.expiresAt };
       }
     }
     const token = randomBytes(32).toString("base64url");
@@ -1836,7 +2043,7 @@ class CcgService {
       path: "/api/ccg",
       expires: expiresAt,
     });
-    return { ownerType: "guest", ownerId: guest._id, guest, dateKey, expiresAt };
+    return { ownerType: "guest", ownerId: guest._id, dateKey, expiresAt };
   }
 
   async cleanupExpiredGuestData(): Promise<Record<string, number>> {
@@ -1942,7 +2149,7 @@ class CcgService {
 
   private async initializeAnalyticsParticipants(): Promise<void> {
     await CcgPackOpening.aggregate([
-        { $match: { state: "committed" } },
+        { $match: { state: "committed", analyticsPending: { $ne: true } } },
         {
           $lookup: {
             from: CcgGuest.collection.name,
@@ -2047,7 +2254,7 @@ class CcgService {
   private async initializeDetailedAnalytics(): Promise<void> {
     const dateKeyExpression = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: CCG_TIME_ZONE } };
     await CcgPackOpening.aggregate([
-      { $match: { state: "committed" } },
+      { $match: { state: "committed", analyticsPending: { $ne: true } } },
       {
         $group: {
           _id: dateKeyExpression,
@@ -2090,7 +2297,7 @@ class CcgService {
       { $sum: { $cond: [{ $eq: ["$results.tierGrade", grade] }, 1, 0] } },
     ]));
     await CcgPackOpening.aggregate([
-      { $match: { state: "committed" } },
+      { $match: { state: "committed", analyticsPending: { $ne: true } } },
       { $unwind: "$results" },
       { $group: { _id: dateKeyExpression, ...finishSums, ...gradeSums } },
       {
@@ -2112,7 +2319,7 @@ class CcgService {
     ]);
 
     await CcgPackOpening.aggregate([
-      { $match: { state: "committed" } },
+      { $match: { state: "committed", analyticsPending: { $ne: true } } },
       {
         $lookup: {
           from: CcgGuest.collection.name,
@@ -2183,80 +2390,114 @@ class CcgService {
     );
   }
 
-  private async recordPackOpeningAnalytics(
-    owner: CcgOwner,
-    mode: CcgMode,
-    results: SelectedResult[],
-    session: ClientSession,
-  ): Promise<void> {
-    const openedAt = new Date();
-    const ownerKey = getAnalyticsOwnerKey(owner.ownerType, owner.ownerId);
-    const participant = await CcgAnalyticsParticipant.updateOne(
-      { ownerKey },
-      {
-        $setOnInsert: {
-          ownerKey,
-          ownerType: owner.ownerType,
-          ownerId: owner.ownerId,
-          firstOpenedAt: openedAt,
-        },
-        $set: { lastOpenedAt: openedAt },
-        $inc: { packOpenings: 1 },
-      },
-      { upsert: true, session },
-    );
-    const dateKey = owner.dateKey;
-    const dailyParticipant = await CcgAnalyticsDailyParticipant.updateOne(
-      { dateKey, ownerKey },
-      {
-        $setOnInsert: {
-          dateKey,
-          ownerKey,
-          ownerType: owner.ownerType,
-          ownerId: owner.ownerId,
-          firstOpenedAt: openedAt,
-        },
-        $set: { lastOpenedAt: openedAt },
-      },
-      { upsert: true, session },
-    );
-    const dailyIncrements: Record<string, number> = {
-      packOpenings: 1,
-      activeUsers: dailyParticipant.upsertedCount,
-      [`modes.${mode}`]: 1,
-    };
-    results.forEach((result) => {
-      dailyIncrements[`finishes.${result.finish}`] = (dailyIncrements[`finishes.${result.finish}`] ?? 0) + 1;
-      dailyIncrements[`grades.${result.tierGrade}`] = (dailyIncrements[`grades.${result.tierGrade}`] ?? 0) + 1;
-    });
-    const daily = await CcgAnalyticsDaily.updateOne(
-      { dateKey },
-      {
-        $set: { updatedAt: openedAt },
-        $inc: dailyIncrements,
-      },
-      { session },
-    );
-    const summary = await CcgAnalyticsSummary.updateOne(
-      {
-        key: CCG_ANALYTICS_KEY,
-        schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
-        detailedSchemaVersion: CCG_ANALYTICS_DETAILED_SCHEMA_VERSION,
-      },
-      {
-        $inc: {
-          uniqueUsers: participant.upsertedCount,
-          packOpenings: 1,
-        },
-        $set: { updatedAt: openedAt },
-      },
-      { session },
-    );
-    if (daily.matchedCount !== 1 || summary.matchedCount !== 1) {
-      this.analyticsReady = false;
-      this.analyticsDailyBucketKey = null;
-      throw new CcgServiceError(503, "analytics_unavailable", "Vault activity is temporarily unavailable");
+  private enqueuePackOpeningAnalytics(openingId: mongoose.Types.ObjectId): void {
+    this.packAnalyticsQueue = this.packAnalyticsQueue
+      .catch(() => undefined)
+      .then(async () => {
+        await this.recordPackOpeningAnalytics(openingId);
+      })
+      .catch((error) => {
+        logger.error(`[CCG] Failed to record analytics for opening ${openingId}:`, error);
+      });
+  }
+
+  async processPendingPackOpeningAnalytics(limit = 100): Promise<number> {
+    requireFeature();
+    const openings = await CcgPackOpening.find({ analyticsPending: true })
+      .select("_id")
+      .sort({ createdAt: 1 })
+      .limit(Math.max(1, Math.min(500, Math.floor(limit))))
+      .lean();
+    let processed = 0;
+    for (const opening of openings) {
+      if (await this.recordPackOpeningAnalytics(opening._id)) processed += 1;
     }
+    return processed;
+  }
+
+  private async recordPackOpeningAnalytics(openingId: mongoose.Types.ObjectId): Promise<boolean> {
+    const pending = await CcgPackOpening.findOne({ _id: openingId, analyticsPending: true })
+      .select("createdAt")
+      .lean();
+    if (!pending) return false;
+
+    await this.ensureAnalyticsInitialized();
+    const dateKey = getHelsinkiDateKey(pending.createdAt);
+    await this.ensureAnalyticsDailyBucket(dateKey);
+    const session = await mongoose.startSession();
+    let processed = false;
+    try {
+      await session.withTransaction(async () => {
+        processed = false;
+        const opening = await CcgPackOpening.findOne({ _id: openingId, analyticsPending: true })
+          .select("ownerType ownerId claimedByUserId mode results createdAt")
+          .session(session)
+          .lean();
+        if (!opening) return;
+
+        const ownerType: CcgOwnerType = opening.claimedByUserId ? "user" : opening.ownerType;
+        const ownerId = opening.claimedByUserId ?? opening.ownerId;
+        const ownerKey = getAnalyticsOwnerKey(ownerType, ownerId);
+        const openedAt = opening.createdAt;
+        const participant = await CcgAnalyticsParticipant.updateOne(
+          { ownerKey },
+          {
+            $setOnInsert: { ownerKey, ownerType, ownerId, firstOpenedAt: openedAt },
+            $set: { lastOpenedAt: openedAt },
+            $inc: { packOpenings: 1 },
+          },
+          { upsert: true, session },
+        );
+        const dailyParticipant = await CcgAnalyticsDailyParticipant.updateOne(
+          { dateKey, ownerKey },
+          {
+            $setOnInsert: { dateKey, ownerKey, ownerType, ownerId, firstOpenedAt: openedAt },
+            $set: { lastOpenedAt: openedAt },
+          },
+          { upsert: true, session },
+        );
+        const dailyIncrements: Record<string, number> = {
+          packOpenings: 1,
+          activeUsers: dailyParticipant.upsertedCount,
+          [`modes.${opening.mode}`]: 1,
+        };
+        opening.results.forEach((result) => {
+          dailyIncrements[`finishes.${result.finish}`] = (dailyIncrements[`finishes.${result.finish}`] ?? 0) + 1;
+          dailyIncrements[`grades.${result.tierGrade}`] = (dailyIncrements[`grades.${result.tierGrade}`] ?? 0) + 1;
+        });
+        const daily = await CcgAnalyticsDaily.updateOne(
+          { dateKey },
+          { $set: { updatedAt: openedAt }, $inc: dailyIncrements },
+          { session },
+        );
+        const summary = await CcgAnalyticsSummary.updateOne(
+          {
+            key: CCG_ANALYTICS_KEY,
+            schemaVersion: CCG_ANALYTICS_SCHEMA_VERSION,
+            detailedSchemaVersion: CCG_ANALYTICS_DETAILED_SCHEMA_VERSION,
+          },
+          {
+            $inc: { uniqueUsers: participant.upsertedCount, packOpenings: 1 },
+            $set: { updatedAt: openedAt },
+          },
+          { session },
+        );
+        if (daily.matchedCount !== 1 || summary.matchedCount !== 1) {
+          this.analyticsReady = false;
+          this.analyticsDailyBucketKey = null;
+          throw new CcgServiceError(503, "analytics_unavailable", "Vault activity is temporarily unavailable");
+        }
+        await CcgPackOpening.updateOne(
+          { _id: opening._id, analyticsPending: true },
+          { $set: { analyticsPending: false, analyticsRecordedAt: new Date() } },
+          { session },
+        );
+        processed = true;
+      });
+    } finally {
+      await session.endSession();
+    }
+    return processed;
   }
 
   private async ensureAnalyticsDailyBucket(dateKey: string): Promise<void> {
@@ -2290,6 +2531,35 @@ class CcgService {
       prismatic: row?.prismatic ?? 0,
       holographic: row?.holographic ?? 0,
       negative: row?.negative ?? 0,
+    };
+  }
+
+  private getQualityChances(qualityProtection: CcgFinishPity): Record<string, number> {
+    return Object.fromEntries(
+      CCG_BASE_FINISH_ORDER
+        .filter((finish) => finish !== "standard")
+        .map((finish) => [
+          finish,
+          finishChanceForCounter((qualityProtection[finish] ?? 0) + 1, CCG_FINISH_PITY_LIMITS[finish]),
+        ]),
+    );
+  }
+
+  private serializePackBalances(
+    packBalance: Pick<ICcgPackBalance, "currentRemaining" | "legacyRemaining">,
+    creditBalances: Record<CcgMode, number>,
+  ): Record<CcgMode, { regularRemaining: number; bonusRemaining: number; totalRemaining: number }> {
+    return {
+      current: {
+        regularRemaining: packBalance.currentRemaining,
+        bonusRemaining: creditBalances.current,
+        totalRemaining: packBalance.currentRemaining + creditBalances.current,
+      },
+      legacy: {
+        regularRemaining: packBalance.legacyRemaining,
+        bonusRemaining: creditBalances.legacy,
+        totalRemaining: packBalance.legacyRemaining + creditBalances.legacy,
+      },
     };
   }
 
@@ -2343,6 +2613,48 @@ class CcgService {
     return balances;
   }
 
+  private async getSessionPackState(
+    owner: CcgOwner,
+    date: Date,
+  ): Promise<{
+    balance: Pick<ICcgPackBalance, "currentRemaining" | "legacyRemaining">;
+    creditBalances: Record<CcgMode, number>;
+  }> {
+    const filter = { ownerType: owner.ownerType, ownerId: owner.ownerId };
+    const [balance, latestRollover, creditBalances] = await Promise.all([
+      CcgPackBalance.findOne(filter).lean(),
+      CcgRollover.findOne({}).select("sequence").sort({ sequence: -1 }).lean(),
+      this.getPackCreditBalances(owner),
+    ]);
+    const activeRolloverSequence = latestRollover?.sequence ?? 0;
+    if (
+      balance
+      && balance.grantVersion === CCG_PACK_BALANCE_VERSION
+      && typeof balance.hasPlayed === "boolean"
+      && (balance.lastRolloverSequence ?? 0) === activeRolloverSequence
+    ) {
+      const recharge = applyPackRecharge(
+        { current: balance.currentRemaining, legacy: balance.legacyRemaining },
+        balance.lastRechargeAt,
+        date,
+        creditBalances,
+      );
+      if (
+        recharge.balances.current === balance.currentRemaining
+        && recharge.balances.legacy === balance.legacyRemaining
+        && recharge.lastRechargeAt.getTime() === balance.lastRechargeAt.getTime()
+      ) {
+        return { balance, creditBalances };
+      }
+    }
+
+    const reconciledBalance = await this.ensurePackBalance(owner, undefined, date);
+    return {
+      balance: reconciledBalance,
+      creditBalances: await this.getPackCreditBalances(owner),
+    };
+  }
+
   private async ensurePackBalance(
     owner: CcgOwner,
     session?: ClientSession,
@@ -2351,11 +2663,10 @@ class CcgService {
     if (session) return this.ensurePackBalanceInSession(owner, session, date);
 
     const ownedSession = await mongoose.startSession();
-    let balanceId: mongoose.Types.ObjectId | null = null;
+    let resolvedBalance: ICcgPackBalance | null = null;
     try {
       await ownedSession.withTransaction(async () => {
-        const balance = await this.ensurePackBalanceInSession(owner, ownedSession, date);
-        balanceId = balance._id;
+        resolvedBalance = await this.ensurePackBalanceInSession(owner, ownedSession, date);
       });
     } catch (error) {
       if (isTransactionUnsupported(error)) {
@@ -2365,10 +2676,8 @@ class CcgService {
     } finally {
       await ownedSession.endSession();
     }
-    if (!balanceId) throw new CcgServiceError(500, "pack_balance_unavailable", "Pack balance could not be initialized");
-    const balance = await CcgPackBalance.findById(balanceId);
-    if (!balance) throw new CcgServiceError(500, "pack_balance_unavailable", "Pack balance could not be recovered");
-    return balance;
+    if (!resolvedBalance) throw new CcgServiceError(500, "pack_balance_unavailable", "Pack balance could not be initialized");
+    return resolvedBalance;
   }
 
   private async ensurePackBalanceInSession(owner: CcgOwner, session: ClientSession, date: Date): Promise<ICcgPackBalance> {
@@ -2509,7 +2818,11 @@ class CcgService {
     return balance;
   }
 
-  private async reservePack(owner: CcgOwner, mode: CcgMode, session: ClientSession): Promise<{ source: "recharge" | "credit"; creditId?: mongoose.Types.ObjectId }> {
+  private async reservePack(
+    owner: CcgOwner,
+    mode: CcgMode,
+    session: ClientSession,
+  ): Promise<{ source: "recharge" | "credit"; creditId?: mongoose.Types.ObjectId; balance: ICcgPackBalance }> {
     const balance = await this.ensurePackBalance(owner, session);
     const remainingField = mode === "current" ? "currentRemaining" : "legacyRemaining";
     const now = new Date();
@@ -2524,7 +2837,7 @@ class CcgService {
       },
       { new: true, session },
     );
-    if (reserved) return { source: "recharge" };
+    if (reserved) return { source: "recharge", balance: reserved };
     if (owner.ownerType === "guest") throw new CcgServiceError(409, "no_packs", `No ${mode} packs are charged`);
     const credit = await CcgPackCredit.findOneAndUpdate(
       { ownerId: owner.ownerId, mode, remaining: { $gt: 0 } },
@@ -2542,7 +2855,9 @@ class CcgService {
       },
       { session },
     );
-    return { source: "credit", creditId: credit._id };
+    balance.hasPlayed = true;
+    balance.firstPlayedAt = balance.firstPlayedAt ?? now;
+    return { source: "credit", creditId: credit._id, balance };
   }
 
   private async hasCcgActivity(owner: CcgOwner, session?: ClientSession): Promise<boolean> {
@@ -2714,6 +3029,37 @@ class CcgService {
     );
   }
 
+  private async getOwnedCardDeltas(
+    owner: CcgOwner,
+    cards: ReadonlyArray<Pick<ICcgCard, "setId" | "characterId">>,
+    session: ClientSession,
+  ): Promise<Record<string, number>> {
+    const pairs = new Map<string, { setId: mongoose.Types.ObjectId; characterId: mongoose.Types.ObjectId }>();
+    for (const card of cards) {
+      const key = `${card.setId}:${card.characterId}`;
+      if (!pairs.has(key)) pairs.set(key, { setId: card.setId, characterId: card.characterId });
+    }
+    if (pairs.size === 0) return {};
+
+    const relatedCards = await CcgCard.find({
+      $or: Array.from(pairs.values()),
+    }).select("_id setId characterId").session(session).lean();
+    const ownedCardIds = await CcgOwnership.distinct("cardId", {
+      ownerType: owner.ownerType,
+      ownerId: owner.ownerId,
+      cardId: { $in: relatedCards.map((card) => card._id) },
+    }).session(session);
+    const pairByCardId = new Map(relatedCards.map((card) => [String(card._id), `${card.setId}:${card.characterId}`]));
+    const alreadyOwnedPairs = new Set(ownedCardIds.map((cardId) => pairByCardId.get(String(cardId))).filter(Boolean));
+    const deltas: Record<string, number> = {};
+    for (const [key, pair] of pairs) {
+      if (alreadyOwnedPairs.has(key)) continue;
+      const setId = String(pair.setId);
+      deltas[setId] = (deltas[setId] ?? 0) + 1;
+    }
+    return deltas;
+  }
+
   private async grantCompletedCardRewards(
     ownerId: mongoose.Types.ObjectId,
     candidates: ReadonlyArray<Pick<SelectedResult, "cardId" | "setId">>,
@@ -2810,10 +3156,22 @@ class CcgService {
   private async serializeOpening(opening: ICcgPackOpening | Record<string, any>): Promise<Record<string, unknown>> {
     const results = opening.results as ICcgPackResult[];
     const cards = await CcgCard.find({ _id: { $in: results.map((result) => result.cardId) } }).lean();
-    const sets = await CcgSet.find({ _id: { $in: Array.from(new Set(cards.map((card) => String(card.setId)))) } }).lean();
+    const sets = await CcgSet.find({ _id: { $in: Array.from(new Set(cards.map((card) => String(card.setId)))) } })
+      .select(CCG_PUBLIC_SET_FIELDS)
+      .lean();
+    const alternativeByCollector = await this.loadAlternativeArt(cards);
+    return this.serializeOpeningFromEntities(opening, cards, sets, alternativeByCollector);
+  }
+
+  private serializeOpeningFromEntities(
+    opening: ICcgPackOpening | Record<string, any>,
+    cards: ReadonlyArray<ICcgCard | Record<string, any>>,
+    sets: ReadonlyArray<ICcgSet | Record<string, any>>,
+    alternativeByCollector: ReadonlyMap<string, CcgAlternativeArtDefinition>,
+  ): Record<string, unknown> {
+    const results = opening.results as ICcgPackResult[];
     const cardById = new Map(cards.map((card) => [String(card._id), card]));
     const setById = new Map(sets.map((set) => [String(set._id), set]));
-    const alternativeByCollector = await this.loadAlternativeArt(cards);
     return {
       id: String(opening._id),
       mode: opening.mode,
@@ -2830,7 +3188,7 @@ class CcgService {
           finish: result.finish,
           artVariant: result.artVariant ?? "standard",
           isDuplicate: result.isDuplicate,
-          card: card && set ? this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card))) : null,
+          card: card && set ? this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card as ICcgCard))) : null,
         };
       }),
     };
