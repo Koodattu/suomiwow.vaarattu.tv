@@ -3602,6 +3602,11 @@
     line-height: 1;
   }
 
+  .vaultAnalyticsStat {
+    align-items: center;
+    text-align: center;
+  }
+
   .redeemForm {
     grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
   }
