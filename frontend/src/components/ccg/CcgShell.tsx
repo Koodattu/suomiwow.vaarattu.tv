@@ -75,7 +75,7 @@ export default function CcgShell({
           </div>
         </div>
       </header>
-      {children}
+      <div className={styles.shellContent}>{children}</div>
     </main>
   );
 }
