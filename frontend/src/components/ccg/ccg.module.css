@@ -549,7 +549,12 @@
 @media (max-width: 760px) {
   .vault {
     box-sizing: border-box;
-    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(3.2rem + env(safe-area-inset-bottom));
+  }
+
+  .shellHeader {
+    position: sticky;
+    top: 0;
   }
 
   .shellHeaderInner {
@@ -603,7 +608,7 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.35rem;
-    padding: 0.5rem max(0.75rem, env(safe-area-inset-right)) max(0.5rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+    padding: 0.35rem max(0.75rem, env(safe-area-inset-right)) max(0.35rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
     background: rgba(3, 8, 20, 0.94);
     box-shadow:
       0 -1px rgba(144, 178, 236, 0.2),
@@ -613,8 +618,8 @@
 
   .subnavLink {
     width: 100%;
-    min-height: 3rem;
-    padding: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.35rem 0.5rem;
   }
 
   .shellContext {
@@ -664,7 +669,7 @@
     right: max(0.75rem, env(safe-area-inset-right));
     left: max(0.75rem, env(safe-area-inset-left));
     width: auto;
-    max-height: calc(100dvh - 8.15rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 7.35rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     overflow-y: auto;
     overscroll-behavior: contain;
   }
