@@ -3538,12 +3538,14 @@
   }
 
   .vaultFeatured {
+    justify-items: center;
     padding: 1rem 0 0;
     box-shadow: inset 0 1px rgba(144, 178, 236, 0.13);
   }
 
   .vaultFeaturedStage {
     min-height: 25rem;
+    place-items: start center;
   }
 
   .vaultAllSet {
