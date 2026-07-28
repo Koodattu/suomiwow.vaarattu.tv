@@ -23,7 +23,7 @@ import characterMediaService, {
 import ccgPublisherService from "./ccg-publisher.service";
 import ccgService from "./ccg.service";
 import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
-import { CCG_FEATURE_ENABLED } from "../config/ccg";
+import { CCG_FEATURE_ENABLED, CCG_WEEKLY_AUTOMATION_ENABLED } from "../config/ccg";
 import logger from "../utils/logger";
 
 // Polling intervals from environment (in minutes), with sensible defaults
@@ -521,21 +521,23 @@ class UpdateScheduler {
         { timezone: "Europe/Helsinki" },
       );
 
-      cron.schedule(
-        "0 3 * * 3",
-        async () => {
-          if (!this.isBuildingCcgSnapshot) await this.buildWeeklyCcgSnapshot();
-        },
-        { timezone: "Europe/Helsinki" },
-      );
+      if (CCG_WEEKLY_AUTOMATION_ENABLED) {
+        cron.schedule(
+          "0 3 * * 3",
+          async () => {
+            if (!this.isBuildingCcgSnapshot) await this.buildWeeklyCcgSnapshot();
+          },
+          { timezone: "Europe/Helsinki" },
+        );
 
-      cron.schedule(
-        "30 4 * * 3",
-        async () => {
-          if (!this.isPublishingCcgWave) await this.publishWeeklyCcgWave();
-        },
-        { timezone: "Europe/Helsinki" },
-      );
+        cron.schedule(
+          "30 4 * * 3",
+          async () => {
+            if (!this.isPublishingCcgWave) await this.publishWeeklyCcgWave();
+          },
+          { timezone: "Europe/Helsinki" },
+        );
+      }
     }
 
     // NIGHTLY: Queue character achievement fingerprints for account matching (at 1:30 AM Finnish time)
@@ -827,8 +829,12 @@ class UpdateScheduler {
       logger.info("    * New-character media discovery: daily at 01:30");
       logger.info("    * Active-character media refresh: daily at 01:50");
       logger.info("    * Media queue recovery: every 15 minutes");
-      logger.info("    * Current snapshot: Wednesday at 03:00");
-      logger.info("    * Current publication: Wednesday at 04:30");
+      if (CCG_WEEKLY_AUTOMATION_ENABLED) {
+        logger.info("    * Current snapshot: Wednesday at 03:00");
+        logger.info("    * Current publication: Wednesday at 04:30");
+      } else {
+        logger.info("    * Weekly snapshot and publication automation: disabled");
+      }
       characterMediaService.startProcessing();
     }
 

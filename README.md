@@ -159,7 +159,7 @@ BLIZZARD_CLIENT_SECRET=your_blizzard_secret
 RAIDER_IO_API_KEY=your_raiderio_key  # optional
 ```
 
-The CCG pack and guest-claim flows use MongoDB transactions, so local and production MongoDB must run as a replica set. The provided Docker Compose files initialize a single-node `rs0` replica set automatically. Character renders are refreshed from the Blizzard profile-media API by the background worker; set `CCG_FEATURE_ENABLED=false` to hide the feature without removing its data.
+The CCG pack and guest-claim flows use MongoDB transactions, so local and production MongoDB must run as a replica set. The provided Docker Compose files initialize a single-node `rs0` replica set automatically. Character renders are refreshed from the Blizzard profile-media API by the background worker; set `CCG_FEATURE_ENABLED=false` to hide the feature without removing its data, or set `CCG_WEEKLY_AUTOMATION_ENABLED=false` to skip the automatic Wednesday snapshot and publication while leaving the feature and its other background jobs active.
 
 ## 📄 License
 

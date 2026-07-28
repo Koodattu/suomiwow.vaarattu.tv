@@ -928,7 +928,7 @@ All schedules use the IANA timezone `Europe/Helsinki`, not a fixed UTC offset, s
 | Weekly raid snapshot workflow | Wednesday at 03:00 | Query every enabled Current and Legacy raid from MongoDB, capture each canonical site-week performance population during the Tuesday-to-Wednesday night, build candidates, grade all eligible characters, and prepare the publication waves. |
 | Weekly raid publication | Wednesday at 04:30 | Publish newly eligible characters and characters whose rarity grade changed across Current and Legacy raids, then rebuild each affected per-set pool from the latest version of every card series. Unchanged candidates are recorded without creating cards. Missing-media candidates remain pending and are reconsidered in the next wave or by an admin rerun. |
 
-The weekly times are initial operational defaults and should be configurable. The workflow must prevent overlapping snapshot or publication runs with a distributed lock keyed by set and snapshot date.
+The weekly times are initial operational defaults and should be configurable. Setting `CCG_WEEKLY_AUTOMATION_ENABLED=false` skips both weekly jobs without disabling the rest of the CCG. The workflow must prevent overlapping snapshot or publication runs with a distributed lock keyed by set and snapshot date.
 
 The snapshot records its source watermarks and fails closed if required rankings or mechanics inputs are incomplete; publication must never use a partially refreshed population. Weekly snapshots and media refreshes never rewrite already published cards.
 

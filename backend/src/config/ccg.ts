@@ -9,6 +9,7 @@ export type CcgSetKind = "raid" | "community";
 
 export const CCG_TIME_ZONE = "Europe/Helsinki";
 export const CCG_FEATURE_ENABLED = process.env.CCG_FEATURE_ENABLED !== "false";
+export const CCG_WEEKLY_AUTOMATION_ENABLED = process.env.CCG_WEEKLY_AUTOMATION_ENABLED !== "false";
 export const CCG_CARDS_PER_PACK = 5;
 export const CCG_PACK_STORAGE_CAPS: Readonly<Record<CcgMode, number>> = { current: 50, legacy: 50 };
 export const CCG_PACK_RECHARGE_INTERVAL_HOURS: Readonly<Record<CcgMode, number>> = { current: 1, legacy: 0.5 };
