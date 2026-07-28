@@ -67,13 +67,13 @@ export default function CcgAccountMenu() {
 
       {isOpen ? (
         <div className={styles.accountDropdown} role="menu">
-          <Link href="/ccg/activity" role="menuitem" onClick={() => setIsOpen(false)}>
-            <FaClockRotateLeft aria-hidden="true" />
-            {t("activity.menuLabel")}
-          </Link>
           <Link href="/profile" role="menuitem" onClick={() => setIsOpen(false)}>
             <FaUser aria-hidden="true" />
             {tNavigation("profile")}
+          </Link>
+          <Link href="/ccg/activity" role="menuitem" onClick={() => setIsOpen(false)}>
+            <FaClockRotateLeft aria-hidden="true" />
+            {t("activity.menuLabel")}
           </Link>
           {user.isAdmin ? (
             <Link href="/admin" role="menuitem" className={styles.accountAdminLink} onClick={() => setIsOpen(false)}>
