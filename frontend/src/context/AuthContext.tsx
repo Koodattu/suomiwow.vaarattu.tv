@@ -16,7 +16,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const POST_LOGIN_RETURN_TO_KEY = "post-login-return-to";
 const PENDING_CCG_CLAIM_KEY = "pending-ccg-guest-claim";
 
-type PendingCcgClaim = { openingId: string; idempotencyKey: string };
+type PendingCcgClaim = { openingId?: string; idempotencyKey: string };
 
 function normalizeSafeInternalPath(value: string): string | null {
   if (typeof window === "undefined" || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
@@ -60,10 +60,10 @@ function consumePostLoginReturnTo(): string | null {
 }
 
 function storePendingCcgClaim(openingId?: string): void {
-  if (typeof window === "undefined" || !openingId) return;
+  if (typeof window === "undefined") return;
   try {
     const pending: PendingCcgClaim = {
-      openingId,
+      ...(openingId ? { openingId } : {}),
       idempotencyKey: `login_${window.crypto.randomUUID()}`,
     };
     window.sessionStorage.setItem(PENDING_CCG_CLAIM_KEY, JSON.stringify(pending));
@@ -78,8 +78,9 @@ function readPendingCcgClaim(): PendingCcgClaim | null {
     const raw = window.sessionStorage.getItem(PENDING_CCG_CLAIM_KEY);
     if (!raw) return null;
     const pending = JSON.parse(raw) as Partial<PendingCcgClaim>;
-    return typeof pending.openingId === "string" && typeof pending.idempotencyKey === "string"
-      ? { openingId: pending.openingId, idempotencyKey: pending.idempotencyKey }
+    return (pending.openingId === undefined || typeof pending.openingId === "string")
+      && typeof pending.idempotencyKey === "string"
+      ? { ...(pending.openingId ? { openingId: pending.openingId } : {}), idempotencyKey: pending.idempotencyKey }
       : null;
   } catch {
     return null;
@@ -127,6 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               "guest_expired",
               "guest_library_invalid",
               "guest_opening_not_found",
+              "feature_disabled",
               "invalid_id",
             ]);
             if (error instanceof ApiError && error.code && terminalCodes.has(error.code)) {
@@ -172,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.location.href = url;
     } catch (error) {
       storePostLoginReturnTo();
-      if (options?.ccgOpeningId) clearPendingCcgClaim();
+      clearPendingCcgClaim();
       console.error("Failed to get login URL:", error);
     }
   };

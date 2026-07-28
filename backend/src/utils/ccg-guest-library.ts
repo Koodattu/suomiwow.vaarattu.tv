@@ -33,6 +33,14 @@ export type VerifiedGuestLibrary = {
   totalCards: number;
 };
 
+export function resolveGuestClaimOpeningId(
+  openingIds: readonly string[],
+  requestedOpeningId: string | null,
+): string | null {
+  if (requestedOpeningId) return openingIds.includes(requestedOpeningId) ? requestedOpeningId : null;
+  return openingIds.length > 0 ? openingIds[openingIds.length - 1] : null;
+}
+
 export function getTransferableGuestPacks(
   balance: Partial<Record<CcgMode, number>> | null | undefined,
 ): Record<CcgMode, number> {

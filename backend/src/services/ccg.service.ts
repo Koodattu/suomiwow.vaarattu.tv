@@ -61,7 +61,7 @@ import {
 import { CcgFinishPity, emptyFinishPity, finishChanceForCounter, rollArtVariant, rollOwnedFinish, rollProtectedFinish } from "../utils/ccg-random";
 import { planPackSelections, selectCommunityCard, shufflePackResults } from "../utils/ccg-pack";
 import { resolveCollectorKey } from "../utils/ccg-identity";
-import { getTransferableGuestPacks, verifyGuestLibrary } from "../utils/ccg-guest-library";
+import { getTransferableGuestPacks, resolveGuestClaimOpeningId, verifyGuestLibrary } from "../utils/ccg-guest-library";
 import { CCG_REDEEM_PACK_GRANT_MAX, normalizeCcgRedeemCode } from "../utils/ccg-redeem";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeTickStart } from "../utils/ccg-recharge";
 import { applyCcgPackRollover } from "../utils/ccg-rollover";
@@ -2081,7 +2081,9 @@ class CcgService {
     if (!req.session.userId) throw new CcgServiceError(401, "authentication_required", "Log in to keep this pack");
     const userId = validateObjectId(req.session.userId, "user session");
     const idempotencyKey = validateIdempotencyKey(body.idempotencyKey);
-    const openingId = validateObjectId(String(body.openingId ?? ""), "guest pack opening");
+    const requestedOpeningId = body.openingId === undefined
+      ? null
+      : validateObjectId(String(body.openingId), "guest pack opening");
     const guest = await this.findClaimableGuest(req, true);
     if (!guest) return { claimed: false, alreadyClaimed: false, cards: { current: 0, legacy: 0 }, transferredPacks: { current: 0, legacy: 0 }, startingPacks: 0 };
     if (guest.claimedByUserId) {
@@ -2108,8 +2110,14 @@ class CcgService {
           dateKey: transactionalGuest.dateKey,
           claimedAt: null,
           state: "committed",
-        }).session(session);
-        const opening = guestOpenings.find((candidate) => candidate._id.equals(openingId));
+        }).sort({ createdAt: 1, _id: 1 }).session(session);
+        const openingId = resolveGuestClaimOpeningId(
+          guestOpenings.map((candidate) => String(candidate._id)),
+          requestedOpeningId ? String(requestedOpeningId) : null,
+        );
+        const opening = openingId
+          ? guestOpenings.find((candidate) => String(candidate._id) === openingId)
+          : null;
         if (!opening) {
           throw new CcgServiceError(404, "guest_opening_not_found", "This guest pack cannot be claimed");
         }

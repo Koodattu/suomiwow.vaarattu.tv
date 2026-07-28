@@ -587,7 +587,7 @@ export const api = {
     return response.json();
   },
 
-  async claimCcgGuest(openingId: string, idempotencyKey: string): Promise<{
+  async claimCcgGuest(openingId: string | undefined, idempotencyKey: string): Promise<{
     claimed: boolean;
     alreadyClaimed: boolean;
     cards: { current: number; legacy: number };
@@ -598,7 +598,7 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ openingId, idempotencyKey }),
+      body: JSON.stringify({ ...(openingId ? { openingId } : {}), idempotencyKey }),
     });
     if (!response.ok) throw await buildApiError(response, "This guest pack could not be claimed");
     return response.json();

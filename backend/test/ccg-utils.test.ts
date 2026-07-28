@@ -40,7 +40,7 @@ import {
 } from "../src/utils/ccg-random";
 import { planPackSelections, selectCommunityCard, selectPackCards, shufflePackResults } from "../src/utils/ccg-pack";
 import { createWowCharacterIdentityKey } from "../src/utils/ccg-identity";
-import { getTransferableGuestPacks, verifyGuestLibrary } from "../src/utils/ccg-guest-library";
+import { getTransferableGuestPacks, resolveGuestClaimOpeningId, verifyGuestLibrary } from "../src/utils/ccg-guest-library";
 import { getCcgSnapshotPreviewDisposition, nextCcgCardSnapshotVersion, shouldPublishCcgCardSnapshot, summarizeCcgSnapshotPreview } from "../src/utils/ccg-card-snapshot";
 import { normalizeCcgRedeemCode } from "../src/utils/ccg-redeem";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
@@ -425,6 +425,14 @@ test("guest conversion transfers remaining server packs with a 20-pack cap per m
   assert.deepEqual(getTransferableGuestPacks({ current: 2_000, legacy: 21 }), { current: 20, legacy: 20 });
   assert.deepEqual(getTransferableGuestPacks({ current: -4, legacy: 8.9 }), { current: 0, legacy: 8 });
   assert.deepEqual(getTransferableGuestPacks(null), { current: 0, legacy: 0 });
+});
+
+test("guest conversion uses an explicit opening when supplied and otherwise falls back to the latest opening", () => {
+  const openingIds = ["opening-1", "opening-2", "opening-3"];
+  assert.equal(resolveGuestClaimOpeningId(openingIds, "opening-1"), "opening-1");
+  assert.equal(resolveGuestClaimOpeningId(openingIds, null), "opening-3");
+  assert.equal(resolveGuestClaimOpeningId(openingIds, "unknown"), null);
+  assert.equal(resolveGuestClaimOpeningId([], null), null);
 });
 
 test("guest conversion accepts only ownership reproduced by server opening history", () => {

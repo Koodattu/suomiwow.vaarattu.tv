@@ -861,7 +861,7 @@ Within one transaction:
 
 1. Validate the guest cookie and locate an unclaimed, unexpired guest for the current Helsinki `dateKey`.
 2. Return the previous successful result if the claim is already complete for the same user.
-3. Load the explicitly selected committed five-card opening and verify that it belongs to the guest.
+3. Load a committed five-card opening belonging to the guest. Validate the explicitly selected opening when supplied; otherwise use the latest opening so every login path can preserve the collection.
 4. Atomically require and flip the authenticated account's `hasPlayed` marker from false to true.
 5. Load every committed opening and ownership row for the guest and verify that the aggregated server results exactly reproduce the stored collection.
 6. Re-key the verified ownership and quality-protection rows to the authenticated user.
@@ -1204,7 +1204,7 @@ Never expose user-level private collection data in public operational dashboards
 - Legacy set selection
 - Guest opening, same-day claim, and repeated claim
 - Expired previous-day guest claim rejection
-- Guest claim requires an explicitly selected five-card opening and transfers only the verified library belonging to that guest
+- Guest claim accepts an explicitly selected five-card opening or resolves the guest's latest opening for shared login paths, then transfers only the verified library belonging to that guest
 - Existing CCG activity rejects a guest claim, including activity from pre-marker records
 - Concurrent login callbacks
 - First authenticated CCG session starts at 20/20 without guest conversion credits
