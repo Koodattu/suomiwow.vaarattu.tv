@@ -536,6 +536,11 @@
     "rwfPickem": "Race to World First",
     "openPickem": "Avaa {name}",
     "features": {
+      "ccg": {
+        "eyebrow": "Uusi",
+        "title": "SuomiWoW CCG",
+        "description": "Avaa pakkoja ja kasvata kokoelmaasi"
+      },
       "compare": {
         "title": "Vertaile kiltoja",
         "description": "Edistyminen, pullit ja raidiajat"
@@ -547,6 +552,10 @@
       "mythicPlus": {
         "title": "Mythic+-ranking",
         "description": "Suomen parhaat hahmot"
+      },
+      "network": {
+        "title": "Kiltaverkosto",
+        "description": "Hahmot, siirtymät ja yhteydet"
       }
     }
   },

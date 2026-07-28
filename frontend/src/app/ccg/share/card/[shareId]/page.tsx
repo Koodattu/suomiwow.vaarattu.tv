@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import CcgSharedView from "@/components/ccg/CcgSharedView";
+import { notFound, permanentRedirect } from "next/navigation";
 import {
   buildCcgShareMetadata,
   fetchCcgShare,
+  getCcgSharePath,
   resolveCcgEmbedLocale,
   type CcgShareSearchParams,
 } from "@/lib/ccg-share-metadata";
@@ -17,15 +17,14 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const [{ shareId }, query] = await Promise.all([params, searchParams]);
   return buildCcgShareMetadata({
     shareId,
-    expectedKind: "card",
     locale: resolveCcgEmbedLocale(query.lang),
   });
 }
 
-export default async function SharedCcgCardPage({ params }: Props) {
-  const { shareId } = await params;
+export default async function LegacySharedCcgCardPage({ params, searchParams }: Props) {
+  const [{ shareId }, query] = await Promise.all([params, searchParams]);
   const share = await fetchCcgShare(shareId);
   if (!share || share.kind !== "card") notFound();
 
-  return <CcgSharedView shareId={shareId} expectedKind="card" initialShare={share} />;
+  permanentRedirect(getCcgSharePath(share.id, query));
 }

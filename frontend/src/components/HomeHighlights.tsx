@@ -1,8 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { FaArrowRight, FaChartSimple, FaCoins, FaRankingStar, FaScaleBalanced } from "react-icons/fa6";
+import { FaArrowRight, FaChartSimple, FaCoins, FaNetworkWired, FaRankingStar, FaScaleBalanced } from "react-icons/fa6";
 import { usePickems } from "@/lib/queries";
 import type { PickemSummary } from "@/types";
 
@@ -27,6 +28,12 @@ const FEATURE_HIGHLIGHTS = [
     Icon: FaRankingStar,
     iconClassName: "bg-purple-500/10 text-purple-300 ring-purple-400/20",
   },
+  {
+    id: "network",
+    href: "/analytics/network",
+    Icon: FaNetworkWired,
+    iconClassName: "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20",
+  },
 ] as const;
 
 function PickemHighlight({ pickem }: { pickem: PickemSummary }) {
@@ -41,7 +48,7 @@ function PickemHighlight({ pickem }: { pickem: PickemSummary }) {
       href={`/pickems?pickem=${encodeURIComponent(pickem.id)}`}
       title={t("openPickem", { name: pickem.name })}
       aria-label={t("openPickem", { name: pickem.name })}
-      className="group grid min-h-[74px] min-w-[min(82vw,19rem)] snap-start grid-cols-[36px_minmax(0,1fr)_16px] items-center gap-2.5 rounded border border-emerald-800/70 bg-emerald-950/20 px-2.5 py-2 transition-colors duration-150 hover:border-emerald-600/70 hover:bg-emerald-950/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 motion-reduce:transition-none sm:min-w-0"
+      className="group grid min-h-[74px] min-w-[min(82vw,19rem)] snap-start grid-cols-[36px_minmax(0,1fr)_16px] items-center gap-2.5 rounded border border-emerald-800/70 bg-emerald-950/20 px-2.5 py-2 transition-[background-color,border-color,transform] duration-150 hover:border-emerald-600/70 hover:bg-emerald-950/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 active:scale-[0.96] motion-reduce:transform-none motion-reduce:transition-none sm:min-w-0"
     >
       <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-amber-500/10 text-amber-300 ring-1 ring-inset ring-amber-400/20">
         <FaCoins className="h-4 w-4" aria-hidden="true" />
@@ -91,10 +98,50 @@ export default function HomeHighlights() {
 
   return (
     <section className="mb-3">
-      <div className={`grid gap-2.5 ${showPickems ? "xl:grid-cols-[minmax(0,1fr)_minmax(0,1.18fr)]" : ""}`}>
+      <div
+        className={`grid gap-2.5 xl:grid-rows-2 ${
+          showPickems
+            ? "xl:grid-cols-[minmax(12rem,1.15fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]"
+            : "xl:grid-cols-[minmax(12rem,1.15fr)_repeat(2,minmax(0,1fr))]"
+        }`}
+      >
+        <Link
+          href="/ccg"
+          className="group relative flex min-h-[132px] overflow-hidden rounded border border-blue-400/35 bg-slate-950 shadow-[0_8px_30px_rgba(15,23,42,0.35)] transition-[border-color,box-shadow,transform] duration-150 hover:border-blue-300/60 hover:shadow-[0_10px_36px_rgba(37,99,235,0.22)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 active:scale-[0.96] motion-reduce:transform-none motion-reduce:transition-none xl:row-span-2 xl:min-h-0"
+        >
+          <Image
+            src="/ccg/general_wide.webp"
+            alt=""
+            fill
+            sizes="(min-width: 1280px) 22vw, 100vw"
+            className="object-cover opacity-55 transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.03] group-hover:opacity-65 motion-reduce:transform-none motion-reduce:transition-none"
+          />
+          <span className="absolute inset-0 bg-gradient-to-br from-slate-950/95 via-slate-950/70 to-blue-950/30" aria-hidden="true" />
+
+          <span className="relative z-10 flex w-full flex-col justify-between p-3.5">
+            <span className="flex items-start justify-between gap-3">
+              <Image src="/ccg/ccg_logo.png" alt="" width={491} height={351} className="h-10 w-auto" />
+              <span className="rounded-full bg-blue-400/15 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-blue-200 ring-1 ring-inset ring-blue-300/25">
+                {t("features.ccg.eyebrow")}
+              </span>
+            </span>
+
+            <span className="mt-5 flex items-end justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block text-base font-bold text-balance text-white">{t("features.ccg.title")}</span>
+                <span className="mt-1 block text-xs leading-5 text-pretty text-blue-100/75">{t("features.ccg.description")}</span>
+              </span>
+              <FaArrowRight
+                className="mb-1 h-4 w-4 shrink-0 text-blue-200 transition-transform duration-150 ease-out group-hover:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none"
+                aria-hidden="true"
+              />
+            </span>
+          </span>
+        </Link>
+
         {showPickems && (
-          <div className="min-w-0">
-            <div className="flex snap-x gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0">
+          <div className="min-w-0 xl:row-span-2">
+            <div className="flex snap-x gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 xl:h-full xl:grid-cols-1 xl:grid-rows-2">
               {isLoading ? (
                 <>
                   <PickemSkeleton />
@@ -107,13 +154,13 @@ export default function HomeHighlights() {
           </div>
         )}
 
-        <div className="min-w-0">
-          <div className="flex snap-x gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
+        <div className="min-w-0 xl:col-span-2 xl:row-span-2">
+          <div className="flex snap-x gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 xl:h-full xl:grid-rows-2">
             {FEATURE_HIGHLIGHTS.map(({ id, href, Icon, iconClassName }) => (
               <Link
                 key={id}
                 href={href}
-                className="group grid min-h-[74px] min-w-[min(68vw,16rem)] snap-start grid-cols-[32px_minmax(0,1fr)_16px] items-center gap-2 rounded border border-gray-700/70 bg-gray-800/45 px-2.5 py-2 transition-colors duration-150 hover:border-gray-600 hover:bg-gray-800/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 motion-reduce:transition-none sm:min-w-0"
+                className="group grid min-h-[74px] min-w-[min(68vw,16rem)] snap-start grid-cols-[32px_minmax(0,1fr)_16px] items-center gap-2 rounded border border-gray-700/70 bg-gray-800/45 px-2.5 py-2 transition-[background-color,border-color,transform] duration-150 hover:border-gray-600 hover:bg-gray-800/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 active:scale-[0.96] motion-reduce:transform-none motion-reduce:transition-none sm:min-w-0"
               >
                 <span className={`inline-flex h-8 w-8 items-center justify-center rounded-md ring-1 ring-inset ${iconClassName}`}>
                   <Icon className="h-3.5 w-3.5" aria-hidden="true" />

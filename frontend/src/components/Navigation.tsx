@@ -39,7 +39,7 @@ const NAVIGATION_LINKS = [
   { href: "/livestreams", labelKey: "livestreams" },
   { href: "/events", labelKey: "latestEvents" },
   { href: "/pickems", labelKey: "pickems" },
-  { href: "/fun/ccg", labelKey: "ccg" },
+  { href: "/ccg", labelKey: "ccg" },
 ] as const;
 
 const getDesktopNavLinkClass = (isCurrent: boolean, previousIsCurrent: boolean, nextIsCurrent: boolean) =>
@@ -112,7 +112,7 @@ const getHorseRaceSegmentClass = (selected: boolean) =>
 
 export default function Navigation() {
   const pathname = usePathname();
-  const shouldRemoveBottomMargin = pathname === "/analytics/network" || pathname.startsWith("/fun/ccg");
+  const shouldRemoveBottomMargin = pathname === "/analytics/network" || pathname.startsWith("/ccg");
   const t = useTranslations("navigation");
   const tEvents = useTranslations("eventsPage");
   const tInfo = useTranslations("infoDialog");

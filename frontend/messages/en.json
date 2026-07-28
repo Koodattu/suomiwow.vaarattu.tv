@@ -536,6 +536,11 @@
     "rwfPickem": "Race to World First",
     "openPickem": "Open {name}",
     "features": {
+      "ccg": {
+        "eyebrow": "New",
+        "title": "SuomiWoW CCG",
+        "description": "Open packs and build your collection"
+      },
       "compare": {
         "title": "Compare guilds",
         "description": "Progress, pulls and raid time"
@@ -547,6 +552,10 @@
       "mythicPlus": {
         "title": "Mythic+ rankings",
         "description": "Finland's top characters"
+      },
+      "network": {
+        "title": "Guild network",
+        "description": "Characters, movement and connections"
       }
     }
   },

@@ -26,9 +26,9 @@ export default function CcgShell({
   const pathname = usePathname();
   const t = useTranslations("ccg");
   const links = [
-    { href: "/fun/ccg", label: t("nav.home") },
-    { href: "/fun/ccg/open", label: t("nav.open") },
-    { href: "/fun/ccg/collection", label: t("nav.collection") },
+    { href: "/ccg", label: t("nav.home") },
+    { href: "/ccg/open", label: t("nav.open") },
+    { href: "/ccg/collection", label: t("nav.collection") },
   ];
 
   return (
@@ -44,7 +44,7 @@ export default function CcgShell({
               </span>
               <Image src="/logo.png" alt="SuomiWoW" width={112} height={20} priority />
             </Link>
-            <Link href="/fun/ccg" className={styles.shellVaultLink}>
+            <Link href="/ccg" className={styles.shellVaultLink}>
               <Image className={styles.shellCcgLogo} src="/ccg/ccg_logo.png" alt="CCG" width={491} height={351} priority />
               <span className={styles.shellBrandTitle}>
                 <span>{t("brandTitleTop")}</span>
@@ -54,12 +54,12 @@ export default function CcgShell({
           </div>
           <nav className={styles.shellNav} aria-label={t("nav.label")}>
             {links.map((link) => {
-              const active = link.href === "/fun/ccg" ? pathname === link.href : pathname.startsWith(link.href);
+              const active = link.href === "/ccg" ? pathname === link.href : pathname.startsWith(link.href);
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  onClick={link.href === "/fun/ccg/open" ? onOpenPacksClick : undefined}
+                  onClick={link.href === "/ccg/open" ? onOpenPacksClick : undefined}
                   aria-current={active ? "page" : undefined}
                   className={`${styles.subnavLink} ${active ? styles.subnavLinkActive : ""}`}
                 >

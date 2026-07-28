@@ -886,7 +886,7 @@ export default function CcgCollectionPage() {
                       >
                         {t("collection.showMissing")}
                       </button>
-                      <Link href={`/fun/ccg/open?mode=${selectedSet?.state === "legacy" ? "legacy" : "current"}`} className={styles.secondaryButton}>
+                      <Link href={`/ccg/open?mode=${selectedSet?.state === "legacy" ? "legacy" : "current"}`} className={styles.secondaryButton}>
                         {t("collection.openPacks")}
                       </Link>
                     </div>

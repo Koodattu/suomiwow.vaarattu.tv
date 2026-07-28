@@ -52,9 +52,9 @@ export const PUBLIC_ROUTES = [
   { path: "/tierlists", changeFrequency: "weekly", priority: 0.65 },
   { path: "/pickems", changeFrequency: "daily", priority: 0.65 },
   { path: "/pickems-rules", changeFrequency: "monthly", priority: 0.35 },
-  { path: "/fun/ccg", changeFrequency: "daily", priority: 0.75 },
-  { path: "/fun/ccg/open", changeFrequency: "daily", priority: 0.65 },
-  { path: "/fun/ccg/collection", changeFrequency: "daily", priority: 0.65 },
+  { path: "/ccg", changeFrequency: "daily", priority: 0.75 },
+  { path: "/ccg/open", changeFrequency: "daily", priority: 0.65 },
+  { path: "/ccg/collection", changeFrequency: "daily", priority: 0.65 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.2 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.2 },
 ] as const;
@@ -118,7 +118,7 @@ function getEmbedLabel(pathname: string) {
   if (pathname === "/tierlists") return "Tier lists";
   if (pathname === "/pickems") return "Pickems";
   if (pathname === "/pickems-rules") return "Pickems rules";
-  if (pathname.startsWith("/fun/ccg")) return "SuomiWoW CCG";
+  if (pathname.startsWith("/ccg")) return "SuomiWoW CCG";
   if (pathname === "/privacy") return "Privacy";
   if (pathname === "/terms") return "Terms";
   if (pathname.startsWith("/profile")) return "Profile";
@@ -239,7 +239,7 @@ export function getPageMetadata(
         ? "Rules and scoring information for Finnish WoW guild raid race pickems."
         : "Saannot ja pisteytys suomalaisten WoW-kiltojen raid race -veikkauksille.",
     },
-    "/fun/ccg": {
+    "/ccg": {
       title: isEnglish ? "SuomiWoW CCG — Free Character Card Packs" : "SuomiWoW CCG — Maksuttomia hahmokorttipakkoja",
       description: isEnglish
         ? "Open free packs, collect familiar names from Finland's WoW scene across every raid tier, and share your best pulls. Packs recharge automatically."
@@ -247,7 +247,7 @@ export function getPageMetadata(
       embedCta: isEnglish ? "Open free packs" : "Avaa maksuttomia pakkoja",
       embedVariant: "vault",
     },
-    "/fun/ccg/open": {
+    "/ccg/open": {
       title: isEnglish ? "Open a Free SuomiWoW CCG Pack" : "Avaa maksuton SuomiWoW CCG -pakka",
       description: isEnglish
         ? "Your packs are ready. Choose Current, Legacy, or a favourite raid, reveal five character cards, and share your best pull."
@@ -255,7 +255,7 @@ export function getPageMetadata(
       embedCta: isEnglish ? "Reveal five cards" : "Paljasta viisi korttia",
       embedVariant: "open",
     },
-    "/fun/ccg/collection": {
+    "/ccg/collection": {
       title: isEnglish ? "Explore SuomiWoW Character Cards" : "Tutustu SuomiWoW-hahmokortteihin",
       description: isEnglish
         ? "Browse Finnish WoW raiders across Current, Legacy, and Community sets—then open a free pack and start your own collection."

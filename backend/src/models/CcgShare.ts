@@ -5,6 +5,7 @@ export type CcgShareKind = "card" | "pack";
 
 export interface ICcgShare extends Document {
   publicId: string;
+  shortId?: string;
   kind: CcgShareKind;
   userId: mongoose.Types.ObjectId;
   cardId?: mongoose.Types.ObjectId | null;
@@ -18,6 +19,7 @@ export interface ICcgShare extends Document {
 const CcgShareSchema = new Schema<ICcgShare>(
   {
     publicId: { type: String, required: true, unique: true, index: true },
+    shortId: { type: String, unique: true, sparse: true, index: true },
     kind: { type: String, enum: ["card", "pack"], required: true, index: true },
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     cardId: { type: Schema.Types.ObjectId, ref: "CcgCard", default: null },

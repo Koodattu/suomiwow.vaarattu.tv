@@ -118,11 +118,11 @@ function CcgRedeemRewardDialog({
 
   const openPacksHref = result.reward.type === "packs"
     ? result.reward.currentPacks > 0 && result.reward.legacyPacks === 0
-      ? "/fun/ccg/open?mode=current"
+      ? "/ccg/open?mode=current"
       : result.reward.legacyPacks > 0 && result.reward.currentPacks === 0
-        ? "/fun/ccg/open?mode=legacy"
-        : "/fun/ccg/open"
-    : "/fun/ccg/open";
+        ? "/ccg/open?mode=legacy"
+        : "/ccg/open"
+    : "/ccg/open";
   const awardedPackCount = result.reward.type === "packs"
     ? result.reward.currentPacks + result.reward.legacyPacks
     : 0;
@@ -211,7 +211,7 @@ function CcgRedeemRewardDialog({
           {result.reward.type === "packs" ? (
             <Link href={openPacksHref} className={styles.primaryButton}>{t("openPacks")}</Link>
           ) : (
-            <Link href="/fun/ccg/collection" className={styles.primaryButton}>{t("viewCollection")}</Link>
+            <Link href="/ccg/collection" className={styles.primaryButton}>{t("viewCollection")}</Link>
           )}
           <button
             type="button"
@@ -300,7 +300,7 @@ export default function CcgRedeemPanel({ currentSet }: { currentSet?: CcgSet }) 
             <button type="submit" className={`${styles.primaryButton} ${styles.redeemSubmitButton}`} disabled={code.trim().length < 3 || redeeming}>{redeeming ? t("redeeming") : t("action")}</button>
           </form>
         ) : (
-          <button type="button" className={`${styles.secondaryButton} ${styles.redeemLoginButton}`} onClick={() => void login("/fun/ccg")}>{t("login")}</button>
+          <button type="button" className={`${styles.secondaryButton} ${styles.redeemLoginButton}`} onClick={() => void login("/ccg")}>{t("login")}</button>
         )}
         {error ? <p id="ccg-redeem-error" className={styles.redeemError} role="alert">{error}</p> : null}
       </div>

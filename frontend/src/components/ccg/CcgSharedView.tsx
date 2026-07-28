@@ -107,7 +107,7 @@ function SharedCard({ share }: { share: Extract<CcgShare, { kind: "card" }> }) {
               <div><Attribution person={share.unboxedBy} className={styles.sharedAttributionAction} /></div>
             </div>
           </div>
-          <Link href="/fun/ccg/open" className={`${styles.primaryButton} ${styles.sharedCta} ${styles.sharedCardCta}`}>
+          <Link href="/ccg/open" className={`${styles.primaryButton} ${styles.sharedCta} ${styles.sharedCardCta}`}>
             {t("share.openPacksNow")}
             <FaChevronRight aria-hidden="true" />
           </Link>
@@ -169,7 +169,7 @@ function SharedPack({ share }: { share: Extract<CcgShare, { kind: "pack" }> }) {
               ))}
             </div>
           </div>
-          <Link href="/fun/ccg/open" className={`${styles.primaryButton} ${styles.sharedCta} ${styles.sharedPackCta}`}>
+          <Link href="/ccg/open" className={`${styles.primaryButton} ${styles.sharedCta} ${styles.sharedPackCta}`}>
             {t("openPacksNow")}
             <FaChevronRight aria-hidden="true" />
           </Link>
@@ -202,11 +202,9 @@ function SharedPack({ share }: { share: Extract<CcgShare, { kind: "pack" }> }) {
 
 export default function CcgSharedView({
   shareId,
-  expectedKind,
   initialShare,
 }: {
   shareId: string;
-  expectedKind: "card" | "pack";
   initialShare?: CcgShare;
 }) {
   const t = useTranslations("ccg.share");
@@ -217,7 +215,7 @@ export default function CcgSharedView({
     retry: false,
     staleTime: Infinity,
   });
-  const share = shareQuery.data?.kind === expectedKind ? shareQuery.data : null;
+  const share = shareQuery.data ?? null;
 
   return (
     <CcgShell compact>

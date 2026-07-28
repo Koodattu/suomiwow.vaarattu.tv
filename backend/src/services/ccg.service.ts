@@ -59,6 +59,7 @@ import {
   serializeOwnershipRows,
 } from "../utils/ccg-alternative-art";
 import { CcgFinishPity, emptyFinishPity, finishChanceForCounter, rollArtVariant, rollOwnedFinish, rollProtectedFinish } from "../utils/ccg-random";
+import { createCcgShareShortId, resolveCcgShareLookup } from "../utils/ccg-share-id";
 import { planPackSelections, selectCommunityCard, shufflePackResults } from "../utils/ccg-pack";
 import { resolveCollectorKey } from "../utils/ccg-identity";
 import { getTransferableGuestPacks, resolveGuestClaimOpeningId, verifyGuestLibrary } from "../utils/ccg-guest-library";
@@ -304,12 +305,15 @@ function validateArtVariant(value: unknown): CcgArtVariant {
   return value;
 }
 
-function validateSharePublicId(value: string): string {
-  if (!/^[A-Za-z0-9_-]{22}$/.test(value)) {
+function validateShareLookup(value: string): { shortId: string } | { publicId: string } {
+  const lookup = resolveCcgShareLookup(value);
+  if (!lookup) {
     throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
   }
-  return value;
+  return lookup;
 }
+
+type CcgShareWithShortId = ICcgShare & { shortId: string };
 
 function validateIdempotencyKey(value: unknown): string {
   if (typeof value !== "string" || value.length < 8 || value.length > 120 || !/^[a-zA-Z0-9:_-]+$/.test(value)) {
@@ -1385,16 +1389,17 @@ class CcgService {
     return this.serializeShareLink(share);
   }
 
-  async getShare(rawPublicId: string): Promise<Record<string, unknown>> {
+  async getShare(rawShareId: string): Promise<Record<string, unknown>> {
     requireFeature();
-    const publicId = validateSharePublicId(rawPublicId);
-    const share = await CcgShare.findOne({ publicId }).lean();
+    const lookup = validateShareLookup(rawShareId);
+    const foundShare = await CcgShare.findOne(lookup);
+    const share = foundShare ? await this.ensureShareShortId(foundShare) : null;
     if (!share) throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
     const user = await User.findById(share.userId).select("discord.id discord.username discord.avatar").lean();
     if (!user) throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
 
     const response = {
-      id: share.publicId,
+      id: share.shortId,
       kind: share.kind,
       createdAt: share.createdAt,
       unboxedBy: {
@@ -3744,29 +3749,63 @@ class CcgService {
   private async createOrGetShare(
     filter: Record<string, unknown>,
     fields: Record<string, unknown>,
-  ): Promise<ICcgShare> {
+  ): Promise<CcgShareWithShortId> {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         const share = await CcgShare.findOneAndUpdate(
           filter,
-          { $setOnInsert: { ...fields, publicId: randomBytes(16).toString("base64url") } },
+          {
+            $setOnInsert: {
+              ...fields,
+              publicId: randomBytes(16).toString("base64url"),
+              shortId: createCcgShareShortId(),
+            },
+          },
           { upsert: true, new: true, setDefaultsOnInsert: true },
         );
-        if (share) return share;
+        if (share) return this.ensureShareShortId(share);
       } catch (error) {
         if (!isDuplicateKeyError(error)) throw error;
         const existing = await CcgShare.findOne(filter);
-        if (existing) return existing;
+        if (existing) return this.ensureShareShortId(existing);
       }
     }
     throw new CcgServiceError(503, "share_unavailable", "The share link could not be created");
   }
 
-  private serializeShareLink(share: Pick<ICcgShare, "publicId" | "kind">): Record<string, unknown> {
+  private async ensureShareShortId(share: ICcgShare): Promise<CcgShareWithShortId> {
+    if (share.shortId) return share as CcgShareWithShortId;
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        const updated = await CcgShare.findOneAndUpdate(
+          {
+            _id: share._id,
+            $or: [
+              { shortId: { $exists: false } },
+              { shortId: null },
+            ],
+          },
+          { $set: { shortId: createCcgShareShortId() } },
+          { new: true },
+        );
+        if (updated?.shortId) return updated as CcgShareWithShortId;
+
+        const concurrentlyUpdated = await CcgShare.findById(share._id);
+        if (concurrentlyUpdated?.shortId) return concurrentlyUpdated as CcgShareWithShortId;
+      } catch (error) {
+        if (!isDuplicateKeyError(error)) throw error;
+      }
+    }
+
+    throw new CcgServiceError(503, "share_unavailable", "The share link could not be created");
+  }
+
+  private serializeShareLink(share: Pick<CcgShareWithShortId, "shortId" | "kind">): Record<string, unknown> {
     return {
-      id: share.publicId,
+      id: share.shortId,
       kind: share.kind,
-      path: `/fun/ccg/share/${share.kind}/${share.publicId}`,
+      path: `/ccg/share/${share.shortId}`,
     };
   }
 

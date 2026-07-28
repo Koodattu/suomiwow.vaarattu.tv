@@ -44,9 +44,9 @@ export default function RootLayout({
   const pathname = usePathname();
   const isLivestreamsPage = pathname === "/livestreams";
   const isNetworkAnalyticsPage = pathname === "/analytics/network";
-  const isCcgPage = pathname.startsWith("/fun/ccg");
-  const isCcgSharePage = pathname.startsWith("/fun/ccg/share/");
-  const isCcgOverlayPage = pathname === "/fun/ccg/overlay";
+  const isCcgPage = pathname.startsWith("/ccg");
+  const isCcgSharePage = pathname.startsWith("/ccg/share/");
+  const isCcgOverlayPage = pathname === "/ccg/overlay";
   const isHomePage = pathname === "/";
   const robotsContent =
     pathname.startsWith("/admin") || pathname.startsWith("/profile") || isCcgOverlayPage

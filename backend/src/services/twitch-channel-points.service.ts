@@ -482,7 +482,7 @@ class TwitchChannelPointsService {
       { $set: { overlayTokenHash: crypto.createHash("sha256").update(token).digest("hex"), overlayTokenCreatedAt: createdAt } },
     );
     const frontendUrl = process.env.NODE_ENV === "production" ? "https://suomiwow.vaarattu.tv" : "http://localhost:3000";
-    return { overlayUrl: `${frontendUrl}/fun/ccg/overlay#token=${token}`, createdAt };
+    return { overlayUrl: `${frontendUrl}/ccg/overlay#token=${token}`, createdAt };
   }
 
   async createOverlayTest(): Promise<void> {

@@ -74,7 +74,7 @@ export default function CcgTwitchPanel() {
             <button
               type="button"
               className={`${styles.secondaryButton} ${styles.vaultTwitchAction}`}
-              onClick={() => void login("/fun/ccg")}
+              onClick={() => void login("/ccg")}
             >
               {t("login")}
             </button>

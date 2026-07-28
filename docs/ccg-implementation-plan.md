@@ -984,9 +984,9 @@ Pack balances are created and recharged lazily on session/open requests. A globa
 
 Recommended routes:
 
-- `/fun/ccg` — feature landing, Current/Legacy mode selection, pack balances
-- `/fun/ccg/open` — pack opening
-- `/fun/ccg/collection` — binder shelf and binder pages
+- `/ccg` — feature landing, Current/Legacy mode selection, pack balances
+- `/ccg/open` — pack opening
+- `/ccg/collection` — binder shelf and binder pages
 - Existing character route — avatar and future card references
 
 Use the existing navigation and localization structures. Add all visible copy to both English and Finnish locale files.

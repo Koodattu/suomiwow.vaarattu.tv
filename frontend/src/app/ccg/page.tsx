@@ -142,13 +142,13 @@ export default function CcgLandingPage() {
               </div>
               <div className={styles.vaultCurrentActions}>
                 <Link
-                  href={current ? `/fun/ccg/collection?set=${encodeURIComponent(current.slug)}` : "/fun/ccg/collection"}
+                  href={current ? `/ccg/collection?set=${encodeURIComponent(current.slug)}` : "/ccg/collection"}
                   className={`${styles.secondaryButton} ${styles.vaultCurrentAction}`}
                 >
                   {t("landing.viewInCollection")}
                 </Link>
                 {currentCardCount > 0 ? (
-                  <Link href="/fun/ccg/open?mode=current" className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>{t("landing.openCurrent")}</Link>
+                  <Link href="/ccg/open?mode=current" className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>{t("landing.openCurrent")}</Link>
                 ) : (
                   <span className={`${styles.primaryButton} ${styles.vaultCurrentAction} cursor-not-allowed opacity-45`} aria-disabled="true">{t("landing.openCurrent")}</span>
                 )}
@@ -178,10 +178,10 @@ export default function CcgLandingPage() {
                 </div>
               </div>
               <div className={styles.vaultAllActions}>
-                <Link href="/fun/ccg/collection" className={`${styles.secondaryButton} ${styles.vaultCurrentAction}`}>
+                <Link href="/ccg/collection" className={`${styles.secondaryButton} ${styles.vaultCurrentAction}`}>
                   {t("landing.viewInCollection")}
                 </Link>
-                <Link href="/fun/ccg/open?mode=legacy" className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>
+                <Link href="/ccg/open?mode=legacy" className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>
                   {t("landing.openLegacy")}
                 </Link>
               </div>
@@ -191,7 +191,7 @@ export default function CcgLandingPage() {
           <nav className={styles.vaultPackShortcuts} aria-label={t("nav.open")}>
             <div className={styles.vaultPackShortcutColumn}>
               <VaultPackShortcut
-                href="/fun/ccg/open?mode=current"
+                href="/ccg/open?mode=current"
                 theme={getPackTheme(current)}
                 label={t("landing.openCurrent")}
                 title={current?.raidName ?? t("landing.preparing")}
@@ -201,7 +201,7 @@ export default function CcgLandingPage() {
             </div>
             <div className={styles.vaultPackShortcutColumn}>
               <VaultPackShortcut
-                href="/fun/ccg/open?mode=legacy"
+                href="/ccg/open?mode=legacy"
                 theme={getPackTheme(undefined, true)}
                 label={t("landing.openLegacy")}
                 title={t("open.legacyPackTitle")}
@@ -234,7 +234,7 @@ export default function CcgLandingPage() {
               />
             ) : (
               <div className={styles.vaultFeaturedStage}>
-                <Link href="/fun/ccg/collection" className={styles.vaultFeaturedEmpty}>{t("landing.collection")}</Link>
+                <Link href="/ccg/collection" className={styles.vaultFeaturedEmpty}>{t("landing.collection")}</Link>
               </div>
             )}
           </aside>
@@ -253,7 +253,7 @@ export default function CcgLandingPage() {
               {gridSets.map((set) => (
                 <Link
                   key={set.id}
-                  href={`/fun/ccg/collection?set=${encodeURIComponent(set.slug)}`}
+                  href={`/ccg/collection?set=${encodeURIComponent(set.slug)}`}
                   className={styles.vaultLegacySet}
                   style={{
                     "--set-accent": set.theme.accent,

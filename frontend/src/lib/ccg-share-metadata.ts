@@ -16,8 +16,9 @@ import {
 } from "@/lib/seo";
 
 export type CcgEmbedLocale = "en" | "fi";
-export type CcgShareKind = CcgShare["kind"];
-export type CcgShareSearchParams = { lang?: string | string[] };
+export type CcgShareSearchParams = Record<string, string | string[] | undefined> & {
+  lang?: string | string[];
+};
 
 const EMBED_COPY = {
   en: enMessages.ccg,
@@ -35,6 +36,23 @@ function interpolate(template: string, values: Record<string, string | number>) 
 export function resolveCcgEmbedLocale(value: string | string[] | undefined): CcgEmbedLocale {
   const locale = Array.isArray(value) ? value[0] : value;
   return locale === "fi" ? "fi" : "en";
+}
+
+export function getCcgSharePath(shareId: string, searchParams?: CcgShareSearchParams) {
+  const path = `/ccg/share/${encodeURIComponent(shareId)}`;
+  if (!searchParams) return path;
+
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (Array.isArray(value)) {
+      value.forEach((item) => query.append(key, item));
+    } else if (value !== undefined) {
+      query.set(key, value);
+    }
+  }
+
+  const serializedQuery = query.toString();
+  return serializedQuery ? `${path}?${serializedQuery}` : path;
 }
 
 export function getCcgEmbedCopy(locale: CcgEmbedLocale) {
@@ -118,19 +136,17 @@ function getShareCopy(share: CcgShare, locale: CcgEmbedLocale) {
 
 export async function buildCcgShareMetadata({
   shareId,
-  expectedKind,
   locale,
 }: {
   shareId: string;
-  expectedKind: CcgShareKind;
   locale: CcgEmbedLocale;
 }): Promise<Metadata> {
   const share = await fetchCcgShare(shareId);
-  const canonicalUrl = `${SITE_URL}/fun/ccg/share/${expectedKind}/${encodeURIComponent(shareId)}`;
+  const canonicalUrl = `${SITE_URL}${getCcgSharePath(share?.id ?? shareId)}`;
   const localeCode = locale === "fi" ? "fi_FI" : "en_US";
   const alternateLocale = locale === "fi" ? "en_US" : "fi_FI";
 
-  if (!share || share.kind !== expectedKind) {
+  if (!share) {
     const copy = EMBED_COPY[locale].share.embed;
     return {
       title: `${copy.unavailableTitle} | ${SITE_NAME}`,

@@ -4,6 +4,15 @@ import createNextIntlPlugin from "next-intl/plugin";
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/fun/ccg/:path*",
+        destination: "/ccg/:path*",
+        permanent: true,
+      },
+    ];
+  },
   output: "standalone",
   // Include Sharp's platform binaries in the minimal production image.
   outputFileTracingIncludes: {
