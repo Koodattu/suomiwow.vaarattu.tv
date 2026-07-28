@@ -5,6 +5,7 @@ import Character from "../src/models/Character";
 import CharacterAccountGroup from "../src/models/CharacterAccountGroup";
 import CharacterAccountManualEdge from "../src/models/CharacterAccountManualEdge";
 import CharacterAccountMatch from "../src/models/CharacterAccountMatch";
+import CharacterContinuityLink from "../src/models/CharacterContinuityLink";
 import CharacterRaidParticipation from "../src/models/CharacterRaidParticipation";
 import characterAccountManualEdgeService from "../src/services/character-account-manual-edge.service";
 import characterAchievementService from "../src/services/character-achievement.service";
@@ -91,6 +92,7 @@ test("includes manual edges when rebuilding account groups without achievement m
   const groupModel = CharacterAccountGroup as any;
   const edgeModel = CharacterAccountManualEdge as any;
   const matchModel = CharacterAccountMatch as any;
+  const continuityModel = CharacterContinuityLink as any;
   const participationModel = CharacterRaidParticipation as any;
   const cache = cacheService as any;
   const originals = {
@@ -99,11 +101,13 @@ test("includes manual edges when rebuilding account groups without achievement m
     groupDeleteMany: groupModel.deleteMany,
     edgeFind: edgeModel.find,
     matchFind: matchModel.find,
+    continuityFind: continuityModel.find,
     participationAggregate: participationModel.aggregate,
     invalidatePattern: cache.invalidatePattern,
   };
   const firstId = new mongoose.Types.ObjectId();
   const secondId = new mongoose.Types.ObjectId();
+  const historicalFirstId = new mongoose.Types.ObjectId();
   let groupOperations: any[] = [];
 
   try {
@@ -117,7 +121,13 @@ test("includes manual edges when rebuilding account groups without achievement m
       select() {
         return this;
       },
-      lean: async () => [{ characterAId: firstId, characterBId: secondId }],
+      lean: async () => [{ characterAId: historicalFirstId, characterBId: secondId }],
+    });
+    continuityModel.find = () => ({
+      select() {
+        return this;
+      },
+      lean: async () => [{ sourceCharacterId: historicalFirstId, targetCharacterId: firstId }],
     });
     characterModel.find = () => ({
       select() {
@@ -128,7 +138,7 @@ test("includes manual edges when rebuilding account groups without achievement m
         { _id: secondId, name: "Second", realm: "stormreaver", region: "eu", classID: 5, lastMythicSeenAt: new Date("2026-02-01") },
       ],
     });
-    participationModel.aggregate = async () => [];
+    participationModel.aggregate = async () => [{ _id: historicalFirstId, reportCount: 7 }];
     groupModel.bulkWrite = async (operations: any[]) => {
       groupOperations = operations;
     };
@@ -144,12 +154,18 @@ test("includes manual edges when rebuilding account groups without achievement m
     assert.equal(groupOperations.length, 1);
     assert.equal(groupOperations[0].updateOne.update.$set.edgeCount, 1);
     assert.equal(groupOperations[0].updateOne.update.$set.characterIds.length, 2);
+    assert.equal(groupOperations[0].updateOne.update.$set.totalReportCount, 7);
+    assert.equal(
+      groupOperations[0].updateOne.update.$set.members.find((member: { characterId: mongoose.Types.ObjectId }) => member.characterId.equals(firstId)).reportCount,
+      7,
+    );
   } finally {
     characterModel.find = originals.characterFind;
     groupModel.bulkWrite = originals.groupBulkWrite;
     groupModel.deleteMany = originals.groupDeleteMany;
     edgeModel.find = originals.edgeFind;
     matchModel.find = originals.matchFind;
+    continuityModel.find = originals.continuityFind;
     participationModel.aggregate = originals.participationAggregate;
     cache.invalidatePattern = originals.invalidatePattern;
   }

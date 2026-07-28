@@ -11,6 +11,7 @@ import Raid from "../models/Raid";
 import Character from "../models/Character";
 import CharacterIdentityLink from "../models/CharacterIdentityLink";
 import CharacterAccountManualEdge from "../models/CharacterAccountManualEdge";
+import CharacterContinuityLink from "../models/CharacterContinuityLink";
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import Ranking from "../models/Ranking";
 import CharacterLeaderboard from "../models/CharacterLeaderboard";
@@ -34,6 +35,7 @@ import characterService from "../services/character.service";
 import characterMediaService from "../services/character-media.service";
 import characterIdentityLinkService, { CharacterIdentityLinkError } from "../services/character-identity-link.service";
 import characterAccountManualEdgeService, { CharacterAccountManualEdgeError } from "../services/character-account-manual-edge.service";
+import characterContinuityService, { CharacterContinuityError } from "../services/character-continuity.service";
 import characterMechanicsService from "../services/character-mechanics.service";
 import characterTierListService from "../services/character-tierlist.service";
 import characterRankingBackfillService from "../services/character-ranking-backfill.service";
@@ -3694,7 +3696,7 @@ router.get("/characters", async (req: Request, res: Response) => {
 
     const [characters, total] = await Promise.all([Character.find(query).sort({ lastMythicSeenAt: -1, name: 1 }).skip(skip).limit(limit).lean(), Character.countDocuments(query)]);
     const characterIds = characters.map((character) => character._id);
-    const [latestParticipationRows, identityLinks, accountEdges] = await Promise.all([
+    const [latestParticipationRows, identityLinks, accountEdges, continuityLinks] = await Promise.all([
       CharacterRaidParticipation.find({ characterId: { $in: characters.map((character) => character._id) } })
         .sort({ lastSeenAt: -1, zoneId: -1, _id: -1 })
         .select("characterId characterName characterRealm characterRegion lastSeenAt")
@@ -3707,12 +3709,22 @@ router.get("/characters", async (req: Request, res: Response) => {
       })
         .sort({ createdAt: 1 })
         .lean(),
+      CharacterContinuityLink.find({
+        $or: [{ sourceCharacterId: { $in: characterIds } }, { targetCharacterId: { $in: characterIds } }],
+      })
+        .sort({ createdAt: 1 })
+        .lean(),
     ]);
     const accountEdgeCharacterIds = [...new Set(accountEdges.flatMap((edge) => [String(edge.characterAId), String(edge.characterBId)]))];
     const accountEdgeCharacters = accountEdgeCharacterIds.length
       ? await Character.find({ _id: { $in: accountEdgeCharacterIds } }).select("name realm region classID").lean()
       : [];
     const accountEdgeCharacterById = new Map(accountEdgeCharacters.map((character) => [String(character._id), character]));
+    const continuityCharacterIds = [...new Set(continuityLinks.flatMap((link) => [String(link.sourceCharacterId), String(link.targetCharacterId)]))];
+    const continuityCharacters = continuityCharacterIds.length
+      ? await Character.find({ _id: { $in: continuityCharacterIds } }).select("name realm region classID wclCanonicalCharacterId").lean()
+      : [];
+    const continuityCharacterById = new Map(continuityCharacters.map((character) => [String(character._id), character]));
     const latestParticipationByCharacterId = new Map<string, (typeof latestParticipationRows)[number]>();
     for (const participation of latestParticipationRows) {
       const characterId = String(participation.characterId);
@@ -3759,6 +3771,62 @@ router.get("/characters", async (req: Request, res: Response) => {
         accountLinksByCharacterId.set(characterId, links);
       }
     }
+    const continuitySourcesByTargetId = new Map<
+      string,
+      Array<{
+        id: string;
+        character: { id: string; name: string; realm: string; region: string; classID: number; wclCanonicalCharacterId: number };
+        createdBy: string;
+        createdAt: Date;
+      }>
+    >();
+    const continuityTargetBySourceId = new Map<
+      string,
+      {
+        id: string;
+        character: { id: string; name: string; realm: string; region: string; classID: number; wclCanonicalCharacterId: number };
+        createdBy: string;
+        createdAt: Date;
+      }
+    >();
+    for (const link of continuityLinks) {
+      const sourceId = String(link.sourceCharacterId);
+      const targetId = String(link.targetCharacterId);
+      const sourceCharacter = continuityCharacterById.get(sourceId);
+      const targetCharacter = continuityCharacterById.get(targetId);
+      if (sourceCharacter) {
+        const sources = continuitySourcesByTargetId.get(targetId) ?? [];
+        sources.push({
+          id: String(link._id),
+          character: {
+            id: sourceId,
+            name: sourceCharacter.name,
+            realm: sourceCharacter.realm,
+            region: sourceCharacter.region,
+            classID: sourceCharacter.classID,
+            wclCanonicalCharacterId: sourceCharacter.wclCanonicalCharacterId,
+          },
+          createdBy: link.createdBy,
+          createdAt: link.createdAt,
+        });
+        continuitySourcesByTargetId.set(targetId, sources);
+      }
+      if (targetCharacter) {
+        continuityTargetBySourceId.set(sourceId, {
+          id: String(link._id),
+          character: {
+            id: targetId,
+            name: targetCharacter.name,
+            realm: targetCharacter.realm,
+            region: targetCharacter.region,
+            classID: targetCharacter.classID,
+            wclCanonicalCharacterId: targetCharacter.wclCanonicalCharacterId,
+          },
+          createdBy: link.createdBy,
+          createdAt: link.createdAt,
+        });
+      }
+    }
 
     // Build class name lookup
     const classNameMap = new Map<number, string>();
@@ -3793,6 +3861,7 @@ router.get("/characters", async (req: Request, res: Response) => {
         realm: automaticIdentity.realm,
         region: automaticIdentity.region,
         classID: c.classID,
+        wclCanonicalCharacterId: c.wclCanonicalCharacterId,
         className: classNameMap.get(c.classID) || `Unknown (${c.classID})`,
         lastMythicSeenAt: c.lastMythicSeenAt,
         rankingsAvailable: c.rankingsAvailable,
@@ -3808,6 +3877,8 @@ router.get("/characters", async (req: Request, res: Response) => {
           createdAt: link.createdAt,
         })),
         accountLinks: accountLinksByCharacterId.get(c._id.toString()) ?? [],
+        continuitySources: continuitySourcesByTargetId.get(c._id.toString()) ?? [],
+        continuityTarget: continuityTargetBySourceId.get(c._id.toString()) ?? null,
       };
     });
 
@@ -3991,6 +4062,94 @@ router.delete("/characters/:characterId/account-links/:edgeId", async (req: Requ
   }
 });
 
+router.post("/characters/:characterId/continuity-links/preview", async (req: Request, res: Response) => {
+  try {
+    const preview = await characterContinuityService.preview(req.params.characterId, {
+      name: req.body?.name,
+      realm: req.body?.realm,
+      region: req.body?.region,
+    });
+    res.json(preview);
+  } catch (error) {
+    if (error instanceof CharacterContinuityError) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code, preview: error.preview });
+    }
+    logger.error("Error previewing character continuity link:", error);
+    res.status(500).json({ error: "Failed to preview character continuity link" });
+  }
+});
+
+router.post("/characters/:characterId/continuity-links", async (req: Request, res: Response) => {
+  try {
+    const createdBy = (req as any).user?.discord?.username || "admin";
+    const { link, preview } = await characterContinuityService.create(
+      req.params.characterId,
+      { name: req.body?.name, realm: req.body?.realm, region: req.body?.region },
+      createdBy,
+    );
+    await cacheService.invalidatePattern(/^characters:profile:/);
+
+    let rebuild = null;
+    let rebuildWarning: string | null = null;
+    try {
+      rebuild = await characterAchievementService.rebuildAccountGroups();
+    } catch (error) {
+      rebuildWarning = "The characters were combined, but account-group rebuild failed; run the rebuild manually";
+      logger.error(`Character continuity link ${link._id.toString()} was saved but account-group rebuild failed:`, error);
+    }
+
+    logger.info(
+      `Admin ${createdBy} combined character ${preview.source.name}-${preview.source.realm} into ${preview.target.name}-${preview.target.realm} ` +
+        `(link ${link._id.toString()}, ${preview.impact.wclIdentityCount} WCL identities)`,
+    );
+    res.status(rebuildWarning ? 202 : 200).json({
+      success: true,
+      message: rebuildWarning ?? `Combined ${preview.source.name}-${preview.source.realm} into ${preview.target.name}-${preview.target.realm}`,
+      linkId: link._id.toString(),
+      impact: preview.impact,
+      rebuild,
+      rebuildWarning,
+    });
+  } catch (error) {
+    if (error instanceof CharacterContinuityError) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code, preview: error.preview });
+    }
+    logger.error("Error creating character continuity link:", error);
+    res.status(500).json({ error: "Failed to combine characters" });
+  }
+});
+
+router.delete("/characters/:characterId/continuity-links/:linkId", async (req: Request, res: Response) => {
+  try {
+    await characterContinuityService.remove(req.params.characterId, req.params.linkId);
+    await cacheService.invalidatePattern(/^characters:profile:/);
+
+    let rebuild = null;
+    let rebuildWarning: string | null = null;
+    try {
+      rebuild = await characterAchievementService.rebuildAccountGroups();
+    } catch (error) {
+      rebuildWarning = "The character combination was removed, but account-group rebuild failed; run the rebuild manually";
+      logger.error(`Character continuity link ${req.params.linkId} was removed but account-group rebuild failed:`, error);
+    }
+
+    const updatedBy = (req as any).user?.discord?.username || "admin";
+    logger.info(`Admin ${updatedBy} removed character continuity link ${req.params.linkId}`);
+    res.status(rebuildWarning ? 202 : 200).json({
+      success: true,
+      message: rebuildWarning ?? "Character combination removed",
+      rebuild,
+      rebuildWarning,
+    });
+  } catch (error) {
+    if (error instanceof CharacterContinuityError) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    }
+    logger.error("Error removing character continuity link:", error);
+    res.status(500).json({ error: "Failed to remove character combination" });
+  }
+});
+
 router.put("/characters/:characterId/blizzard-identity", async (req: Request, res: Response) => {
   try {
     const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
@@ -4088,25 +4247,38 @@ router.delete("/characters/:characterId", async (req: Request, res: Response) =>
     const characterName = character.name;
     const characterRealm = character.realm;
 
-    const [rankingResult, accountEdgeResult] = await Promise.all([
+    const [rankingResult, accountEdgeResult, continuityLinkResult] = await Promise.all([
       Ranking.deleteMany({ characterId: character._id }),
       CharacterAccountManualEdge.deleteMany({ $or: [{ characterAId: character._id }, { characterBId: character._id }] }),
+      CharacterContinuityLink.deleteMany({ $or: [{ sourceCharacterId: character._id }, { targetCharacterId: character._id }] }),
     ]);
     await Character.deleteOne({ _id: character._id });
+    await cacheService.invalidatePattern(/^characters:profile:/);
+
+    let rebuildWarning: string | null = null;
+    try {
+      await characterAchievementService.rebuildAccountGroups();
+    } catch (error) {
+      rebuildWarning = "The character was deleted, but account-group rebuild failed; run the rebuild manually";
+      logger.error(`Character ${characterId} was deleted but account-group rebuild failed:`, error);
+    }
 
     logger.info(
       `Admin deleted character: ${characterName}-${characterRealm} (ID: ${characterId}). ` +
-        `Removed: ${rankingResult.deletedCount} rankings, ${accountEdgeResult.deletedCount} manual account edges`,
+        `Removed: ${rankingResult.deletedCount} rankings, ${accountEdgeResult.deletedCount} manual account edges, ` +
+        `${continuityLinkResult.deletedCount} character continuity links`,
     );
 
-    res.json({
+    res.status(rebuildWarning ? 202 : 200).json({
       success: true,
-      message: `Character ${characterName}-${characterRealm} and associated data deleted`,
+      message: rebuildWarning ?? `Character ${characterName}-${characterRealm} and associated data deleted`,
       deleted: {
         character: { id: characterId, name: characterName, realm: characterRealm },
         rankings: rankingResult.deletedCount,
         accountLinks: accountEdgeResult.deletedCount,
+        continuityLinks: continuityLinkResult.deletedCount,
       },
+      rebuildWarning,
     });
   } catch (error) {
     logger.error("Error deleting character:", error);

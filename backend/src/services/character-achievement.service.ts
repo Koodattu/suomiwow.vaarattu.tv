@@ -6,6 +6,7 @@ import { Achievement, AuthToken } from "../models/Achievement";
 import Character, { ICharacter } from "../models/Character";
 import CharacterAccountGroup from "../models/CharacterAccountGroup";
 import CharacterAccountManualEdge from "../models/CharacterAccountManualEdge";
+import CharacterContinuityLink from "../models/CharacterContinuityLink";
 import CharacterAccountMatch, { CharacterAccountMatchConfidence } from "../models/CharacterAccountMatch";
 import CharacterAchievementFetchQueue, { CharacterAchievementFetchStatus, ICharacterAchievementFetchQueue } from "../models/CharacterAchievementFetchQueue";
 import CharacterAchievementFingerprint, { ICharacterAchievementFingerprint, ICharacterAchievementSignal } from "../models/CharacterAchievementFingerprint";
@@ -24,6 +25,7 @@ import {
 import logger from "../utils/logger";
 import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
 import { createCharacterAccountPairKey, orderCharacterAccountPairIds } from "../utils/character-account-manual-edge";
+import { buildCharacterContinuityGraph } from "../utils/character-continuity";
 import cacheService from "./cache.service";
 import taskTracker from "./task-tracker.service";
 
@@ -530,7 +532,7 @@ class CharacterAchievementService {
   }
 
   async rebuildAccountGroups(): Promise<CharacterAccountGroupRebuildResult> {
-    const [highConfidenceEdges, manualEdges] = await Promise.all([
+    const [highConfidenceEdges, manualEdges, continuityLinks] = await Promise.all([
       CharacterAccountMatch.find({
         signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
         confidence: "high",
@@ -540,7 +542,11 @@ class CharacterAchievementService {
       CharacterAccountManualEdge.find({})
         .select("characterAId characterBId")
         .lean<Array<{ characterAId: mongoose.Types.ObjectId; characterBId: mongoose.Types.ObjectId }>>(),
+      CharacterContinuityLink.find({})
+        .select("sourceCharacterId targetCharacterId")
+        .lean<Array<{ sourceCharacterId: mongoose.Types.ObjectId; targetCharacterId: mongoose.Types.ObjectId }>>(),
     ]);
+    const continuityGraph = buildCharacterContinuityGraph(continuityLinks);
 
     const parent = new Map<string, string>();
     const find = (id: string): string => {
@@ -561,10 +567,10 @@ class CharacterAchievementService {
     };
 
     for (const edge of highConfidenceEdges) {
-      union(String(edge.characterAId), String(edge.characterBId));
+      union(continuityGraph.resolveRoot(edge.characterAId), continuityGraph.resolveRoot(edge.characterBId));
     }
     for (const edge of manualEdges) {
-      union(String(edge.characterAId), String(edge.characterBId));
+      union(continuityGraph.resolveRoot(edge.characterAId), continuityGraph.resolveRoot(edge.characterBId));
     }
 
     const components = new Map<string, string[]>();
@@ -583,22 +589,37 @@ class CharacterAchievementService {
             .select("_id name realm region classID guildName guildRealm lastMythicSeenAt")
             .lean<Array<Pick<ICharacter, "_id" | "name" | "realm" | "region" | "classID" | "guildName" | "guildRealm" | "lastMythicSeenAt">>>()
         : [];
+    const reportSourceCharacterIds = [
+      ...new Set(groupedCharacterIds.flatMap((characterId) => continuityGraph.getMemberIds(characterId))),
+    ];
     const reportCountRows =
       groupedCharacterIds.length > 0
         ? await CharacterRaidParticipation.aggregate<{ _id: mongoose.Types.ObjectId; reportCount: number }>([
-            { $match: { characterId: { $in: groupedCharacterIds.map((id) => new mongoose.Types.ObjectId(id)) } } },
+            { $match: { characterId: { $in: reportSourceCharacterIds.map((id) => new mongoose.Types.ObjectId(id)) } } },
             { $group: { _id: "$characterId", reportCount: { $sum: "$reportCount" } } },
           ])
         : [];
 
     const characterById = new Map(characters.map((character) => [String(character._id), character]));
-    const reportCountByCharacterId = new Map(reportCountRows.map((row) => [String(row._id), row.reportCount]));
+    const reportCountByCharacterId = new Map<string, number>();
+    for (const row of reportCountRows) {
+      const rootId = continuityGraph.resolveRoot(row._id);
+      reportCountByCharacterId.set(rootId, (reportCountByCharacterId.get(rootId) ?? 0) + row.reportCount);
+    }
     const edgeScoresByPair = new Map<string, number>();
     for (const edge of highConfidenceEdges) {
-      const key = createCharacterAccountPairKey(String(edge.characterAId), String(edge.characterBId));
+      const characterAId = continuityGraph.resolveRoot(edge.characterAId);
+      const characterBId = continuityGraph.resolveRoot(edge.characterBId);
+      if (characterAId === characterBId) continue;
+      const key = createCharacterAccountPairKey(characterAId, characterBId);
       edgeScoresByPair.set(key, edge.score);
     }
-    const manualEdgePairs = new Set(manualEdges.map((edge) => createCharacterAccountPairKey(String(edge.characterAId), String(edge.characterBId))));
+    const manualEdgePairs = new Set(
+      manualEdges
+        .map((edge) => [continuityGraph.resolveRoot(edge.characterAId), continuityGraph.resolveRoot(edge.characterBId)] as const)
+        .filter(([characterAId, characterBId]) => characterAId !== characterBId)
+        .map(([characterAId, characterBId]) => createCharacterAccountPairKey(characterAId, characterBId)),
+    );
 
     const operations: any[] = [];
     const activeGroupKeys: string[] = [];

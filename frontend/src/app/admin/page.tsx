@@ -93,6 +93,7 @@ import {
   AdminCharacter,
   AdminCharacterIdentityLinkPreview,
   AdminCharacterAccountLinkPreview,
+  AdminCharacterContinuityLinkPreview,
   AdminCharacterStats,
   CharacterRankingBackfillStatusResponse,
   CharacterAchievementBackfillStatusResponse,
@@ -366,6 +367,9 @@ export default function AdminPage() {
   const [editingAccountLink, setEditingAccountLink] = useState<{ characterId: string; name: string; realm: string; region: string } | null>(null);
   const [accountLinkPreview, setAccountLinkPreview] = useState<AdminCharacterAccountLinkPreview | null>(null);
   const [accountLinkLoading, setAccountLinkLoading] = useState(false);
+  const [editingContinuityLink, setEditingContinuityLink] = useState<{ characterId: string; name: string; realm: string; region: string } | null>(null);
+  const [continuityLinkPreview, setContinuityLinkPreview] = useState<AdminCharacterContinuityLinkPreview | null>(null);
+  const [continuityLinkLoading, setContinuityLinkLoading] = useState(false);
 
   // Pickems data
   const [pickems, setPickems] = useState<AdminPickem[]>([]);
@@ -1995,6 +1999,60 @@ export default function AdminPage() {
       setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : t("characters.linkRemoveFailed") });
     } finally {
       setIdentityLinkLoading(false);
+    }
+  };
+
+  const handlePreviewContinuityLink = async () => {
+    if (!editingContinuityLink) return;
+    setContinuityLinkLoading(true);
+    setContinuityLinkPreview(null);
+    try {
+      const preview = await api.previewAdminCharacterContinuityLink(editingContinuityLink.characterId, {
+        name: editingContinuityLink.name.trim(),
+        realm: editingContinuityLink.realm.trim(),
+        region: editingContinuityLink.region.trim(),
+      });
+      setContinuityLinkPreview(preview);
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : t("characters.continuityPreviewFailed") });
+    } finally {
+      setContinuityLinkLoading(false);
+    }
+  };
+
+  const handleCreateContinuityLink = async () => {
+    if (!editingContinuityLink || !continuityLinkPreview?.eligible) return;
+    setContinuityLinkLoading(true);
+    try {
+      const result = await api.createAdminCharacterContinuityLink(editingContinuityLink.characterId, {
+        name: continuityLinkPreview.source.name,
+        realm: continuityLinkPreview.source.realm,
+        region: continuityLinkPreview.source.region,
+      });
+      setTriggerMessage({ type: "success", text: result.message });
+      setEditingContinuityLink(null);
+      setContinuityLinkPreview(null);
+      await refreshAdminCharacters();
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : t("characters.continuityCreateFailed") });
+    } finally {
+      setContinuityLinkLoading(false);
+    }
+  };
+
+  const handleRemoveContinuityLink = async (character: AdminCharacter, linkId: string, sourceLabel: string, targetLabel: string) => {
+    if (!confirm(t("characters.continuityRemoveConfirm", { source: sourceLabel, target: targetLabel }))) return;
+    setContinuityLinkLoading(true);
+    try {
+      const result = await api.removeAdminCharacterContinuityLink(character.id, linkId);
+      setTriggerMessage({ type: "success", text: result.message });
+      setEditingContinuityLink(null);
+      setContinuityLinkPreview(null);
+      await refreshAdminCharacters();
+    } catch (error) {
+      setTriggerMessage({ type: "error", text: error instanceof Error ? error.message : t("characters.continuityRemoveFailed") });
+    } finally {
+      setContinuityLinkLoading(false);
     }
   };
 
@@ -3720,8 +3778,10 @@ export default function AdminPage() {
                     {characters.map((char) => {
                       const isEditingIdentity = editingBlizzardIdentity?.characterId === char.id;
                       const isEditingLink = editingIdentityLink?.characterId === char.id;
+                      const isEditingContinuityLink = editingContinuityLink?.characterId === char.id;
                       const isEditingAccountLink = editingAccountLink?.characterId === char.id;
                       const isSavingIdentity = blizzardIdentitySavingId === char.id;
+                      const continuityPrimaryCharacter = char.continuityTarget?.character ?? char;
 
                       return (
                         <Fragment key={char.id}>
@@ -3736,6 +3796,18 @@ export default function AdminPage() {
                               {char.accountLinks.length > 0 && (
                                 <div className="mt-0.5 text-xs font-normal text-violet-300 tabular-nums">
                                   {t("characters.manualAccountLinkCount", { count: char.accountLinks.length })}
+                                </div>
+                              )}
+                              {char.continuitySources.length > 0 && (
+                                <div className="mt-0.5 text-xs font-normal text-teal-300 tabular-nums">
+                                  {t("characters.continuitySourceCount", { count: char.continuitySources.length })}
+                                </div>
+                              )}
+                              {char.continuityTarget && (
+                                <div className="mt-0.5 text-xs font-normal text-teal-300">
+                                  {t("characters.continuityCombinedInto", {
+                                    target: `${char.continuityTarget.character.name}-${char.continuityTarget.character.realm}`,
+                                  })}
                                 </div>
                               )}
                             </td>
@@ -3777,6 +3849,8 @@ export default function AdminPage() {
                                     setIdentityLinkPreview(null);
                                     setEditingAccountLink(null);
                                     setAccountLinkPreview(null);
+                                    setEditingContinuityLink(null);
+                                    setContinuityLinkPreview(null);
                                     setEditingBlizzardIdentity({
                                       characterId: char.id,
                                       name: char.blizzardIdentity.name,
@@ -3793,6 +3867,8 @@ export default function AdminPage() {
                                     setEditingBlizzardIdentity(null);
                                     setEditingAccountLink(null);
                                     setAccountLinkPreview(null);
+                                    setEditingContinuityLink(null);
+                                    setContinuityLinkPreview(null);
                                     setIdentityLinkPreview(null);
                                     setEditingIdentityLink({
                                       characterId: char.id,
@@ -3812,6 +3888,28 @@ export default function AdminPage() {
                                     setEditingBlizzardIdentity(null);
                                     setEditingIdentityLink(null);
                                     setIdentityLinkPreview(null);
+                                    setEditingAccountLink(null);
+                                    setAccountLinkPreview(null);
+                                    setContinuityLinkPreview(null);
+                                    setEditingContinuityLink({
+                                      characterId: char.id,
+                                      name: "",
+                                      realm: "",
+                                      region: char.region.toLowerCase(),
+                                    });
+                                  }}
+                                  aria-expanded={isEditingContinuityLink}
+                                  className="min-h-10 rounded-lg bg-teal-600 px-3 text-xs font-medium text-white transition-[scale,background-color] duration-150 ease-out hover:bg-teal-700 active:scale-[0.96]"
+                                >
+                                  {t("characters.continuityLink")}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingBlizzardIdentity(null);
+                                    setEditingIdentityLink(null);
+                                    setIdentityLinkPreview(null);
+                                    setEditingContinuityLink(null);
+                                    setContinuityLinkPreview(null);
                                     setAccountLinkPreview(null);
                                     setEditingAccountLink({
                                       characterId: char.id,
@@ -4040,6 +4138,203 @@ export default function AdminPage() {
                                             className="min-h-10 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 active:scale-[0.96] disabled:opacity-50"
                                           >
                                             {identityLinkLoading ? t("characters.linkRebuilding") : t("characters.linkConfirm")}
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          {isEditingContinuityLink && editingContinuityLink && (
+                            <tr className="bg-gray-900/70">
+                              <td colSpan={8} className="px-4 py-4">
+                                <div className="rounded-2xl bg-gray-900 p-4 shadow-[0_0_0_1px_rgba(20,184,166,0.28),0_8px_24px_rgba(0,0,0,0.18)]">
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                      <h4 className="font-semibold text-white text-balance">{t("characters.continuityEditorTitle")}</h4>
+                                      <p className="mt-1 max-w-3xl text-sm text-gray-400 text-pretty">{t("characters.continuityEditorDescription")}</p>
+                                    </div>
+                                    <div className="rounded-lg bg-teal-500/10 px-3 py-2 text-sm text-teal-200">
+                                      {t("characters.continuityPrimary")}: <span className="font-semibold">{continuityPrimaryCharacter.name}-{continuityPrimaryCharacter.realm}</span>
+                                      <span className="ml-2 text-xs text-teal-300/75 tabular-nums">WCL {continuityPrimaryCharacter.wclCanonicalCharacterId}</span>
+                                    </div>
+                                  </div>
+
+                                  {char.continuitySources.length > 0 && (
+                                    <div className="mt-4 rounded-xl bg-gray-800/70 p-3 shadow-sm shadow-black/10">
+                                      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">{t("characters.continuityExisting")}</div>
+                                      <div className="flex flex-wrap gap-2">
+                                        {char.continuitySources.map((link) => {
+                                          const sourceLabel = `${link.character.name}-${link.character.realm}`;
+                                          return (
+                                            <div key={link.id} className="flex min-h-10 items-center rounded-lg bg-gray-800 pl-3 shadow-sm shadow-black/10">
+                                              <span className="text-sm text-gray-200">{sourceLabel}</span>
+                                              <span className="ml-2 text-xs text-gray-500 tabular-nums">WCL {link.character.wclCanonicalCharacterId}</span>
+                                              <button
+                                                onClick={() =>
+                                                  handleRemoveContinuityLink(
+                                                    char,
+                                                    link.id,
+                                                    sourceLabel,
+                                                    `${continuityPrimaryCharacter.name}-${continuityPrimaryCharacter.realm}`,
+                                                  )
+                                                }
+                                                disabled={continuityLinkLoading}
+                                                className="ml-2 min-h-10 rounded-r-lg px-3 text-xs font-medium text-red-300 transition-[scale,background-color] duration-150 ease-out hover:bg-red-500/10 active:scale-[0.96] disabled:opacity-50"
+                                              >
+                                                {t("characters.continuityRemove")}
+                                              </button>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="mt-4 grid gap-3 md:grid-cols-[minmax(160px,1fr)_minmax(190px,1fr)_120px_auto] md:items-end">
+                                    <label className="block text-sm text-gray-300">
+                                      <span className="mb-1.5 block">{t("characters.continuitySourceName")}</span>
+                                      <input
+                                        value={editingContinuityLink.name}
+                                        onChange={(event) => {
+                                          setEditingContinuityLink({ ...editingContinuityLink, name: event.target.value });
+                                          setContinuityLinkPreview(null);
+                                        }}
+                                        className="min-h-10 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 text-white outline-none transition-colors focus:border-teal-500"
+                                        autoComplete="off"
+                                      />
+                                    </label>
+                                    <label className="block text-sm text-gray-300">
+                                      <span className="mb-1.5 block">{t("characters.continuitySourceRealm")}</span>
+                                      <input
+                                        value={editingContinuityLink.realm}
+                                        onChange={(event) => {
+                                          setEditingContinuityLink({ ...editingContinuityLink, realm: event.target.value });
+                                          setContinuityLinkPreview(null);
+                                        }}
+                                        className="min-h-10 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 text-white outline-none transition-colors focus:border-teal-500"
+                                        autoComplete="off"
+                                      />
+                                    </label>
+                                    <label className="block text-sm text-gray-300">
+                                      <span className="mb-1.5 block">{t("characters.continuitySourceRegion")}</span>
+                                      <input
+                                        value={editingContinuityLink.region}
+                                        onChange={(event) => {
+                                          setEditingContinuityLink({ ...editingContinuityLink, region: event.target.value });
+                                          setContinuityLinkPreview(null);
+                                        }}
+                                        className="min-h-10 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 uppercase text-white outline-none transition-colors focus:border-teal-500"
+                                        autoComplete="off"
+                                      />
+                                    </label>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={handlePreviewContinuityLink}
+                                        disabled={
+                                          continuityLinkLoading ||
+                                          !editingContinuityLink.name.trim() ||
+                                          !editingContinuityLink.realm.trim() ||
+                                          !editingContinuityLink.region.trim()
+                                        }
+                                        className="min-h-10 rounded-lg bg-teal-600 px-4 text-sm font-medium text-white transition-[scale,background-color] duration-150 ease-out hover:bg-teal-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        {continuityLinkLoading ? t("characters.continuityWorking") : t("characters.continuityPreview")}
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setEditingContinuityLink(null);
+                                          setContinuityLinkPreview(null);
+                                        }}
+                                        disabled={continuityLinkLoading}
+                                        className="min-h-10 rounded-lg bg-gray-700 px-3 text-sm font-medium text-white transition-[scale,background-color] duration-150 ease-out hover:bg-gray-600 active:scale-[0.96] disabled:opacity-50"
+                                      >
+                                        {t("characters.identityCancel")}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {continuityLinkPreview && (
+                                    <div className={`mt-4 rounded-xl p-4 shadow-sm shadow-black/10 ${continuityLinkPreview.eligible ? "bg-emerald-500/10" : "bg-red-500/10"}`}>
+                                      <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                                        <div className="rounded-lg bg-gray-900/55 p-3">
+                                          <div className="text-xs font-medium uppercase tracking-wide text-gray-400">{t("characters.continuityHistorical")}</div>
+                                          <div className="mt-1 font-semibold text-white">{continuityLinkPreview.source.name}-{continuityLinkPreview.source.realm}</div>
+                                          <div className="mt-0.5 text-xs text-teal-300 tabular-nums">WCL {continuityLinkPreview.source.wclCanonicalCharacterId}</div>
+                                        </div>
+                                        <div aria-hidden="true" className="text-center text-xl text-teal-300">→</div>
+                                        <div className="rounded-lg bg-gray-900/55 p-3">
+                                          <div className="text-xs font-medium uppercase tracking-wide text-gray-400">{t("characters.continuityPrimary")}</div>
+                                          <div className="mt-1 font-semibold text-white">{continuityLinkPreview.target.name}-{continuityLinkPreview.target.realm}</div>
+                                          <div className="mt-0.5 text-xs text-teal-300 tabular-nums">WCL {continuityLinkPreview.target.wclCanonicalCharacterId}</div>
+                                        </div>
+                                      </div>
+
+                                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+                                        <div>
+                                          <div className="text-xs text-gray-400">{t("characters.continuityWclIdentities")}</div>
+                                          <div className="mt-0.5 text-lg font-semibold text-white tabular-nums">{continuityLinkPreview.impact.wclIdentityCount}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-gray-400">{t("characters.continuityAppearances")}</div>
+                                          <div className="mt-0.5 text-lg font-semibold text-white tabular-nums">{continuityLinkPreview.impact.appearanceCount}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-gray-400">{t("characters.continuityRaids")}</div>
+                                          <div className="mt-0.5 text-lg font-semibold text-white tabular-nums">{continuityLinkPreview.impact.raidCount}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-gray-400">{t("characters.continuityRankings")}</div>
+                                          <div className="mt-0.5 text-lg font-semibold text-white tabular-nums">
+                                            {continuityLinkPreview.impact.rankingCount + continuityLinkPreview.impact.leaderboardCount + continuityLinkPreview.impact.mechanicsCount}
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-gray-400">{t("characters.continuityDateRange")}</div>
+                                          <div className="mt-1 text-xs text-gray-200 tabular-nums">
+                                            {continuityLinkPreview.impact.firstSeenAt && continuityLinkPreview.impact.lastSeenAt
+                                              ? `${new Date(continuityLinkPreview.impact.firstSeenAt).toLocaleDateString()} – ${new Date(continuityLinkPreview.impact.lastSeenAt).toLocaleDateString()}`
+                                              : "—"}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="mt-4">
+                                        <div className="text-xs font-medium uppercase tracking-wide text-gray-400">{t("characters.continuityAffected")}</div>
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                          {[...new Map([...continuityLinkPreview.sourceCluster, ...continuityLinkPreview.targetCluster].map((identity) => [identity.id, identity])).values()].map(
+                                            (identity) => (
+                                              <span key={identity.id} className="rounded-full bg-gray-800 px-3 py-1 text-xs text-gray-200 shadow-sm shadow-black/10">
+                                                {identity.name}-{identity.realm} <span className="ml-1 text-gray-500 tabular-nums">WCL {identity.wclCanonicalCharacterId}</span>
+                                              </span>
+                                            ),
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {continuityLinkPreview.blockers.length > 0 && (
+                                        <ul className="mt-3 space-y-1 text-sm text-red-300">
+                                          {continuityLinkPreview.blockers.map((blocker) => (
+                                            <li key={blocker}>• {t(`characters.continuityBlockers.${blocker}`)}</li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                      {continuityLinkPreview.eligible && (
+                                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                                          <p className="max-w-3xl text-sm text-emerald-200 text-pretty">
+                                            {t("characters.continuityPreviewReady", {
+                                              source: `${continuityLinkPreview.source.name}-${continuityLinkPreview.source.realm}`,
+                                              target: `${continuityLinkPreview.target.name}-${continuityLinkPreview.target.realm}`,
+                                            })}
+                                          </p>
+                                          <button
+                                            onClick={handleCreateContinuityLink}
+                                            disabled={continuityLinkLoading}
+                                            className="min-h-10 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white transition-[scale,background-color] duration-150 ease-out hover:bg-emerald-700 active:scale-[0.96] disabled:opacity-50"
+                                          >
+                                            {continuityLinkLoading ? t("characters.continuityRebuilding") : t("characters.continuityConfirm")}
                                           </button>
                                         </div>
                                       )}

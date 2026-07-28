@@ -1345,6 +1345,7 @@ export interface AdminCharacter {
   realm: string;
   region: string;
   classID: number;
+  wclCanonicalCharacterId: number;
   className: string;
   lastMythicSeenAt: string | null;
   rankingsAvailable: boolean | null;
@@ -1362,6 +1363,8 @@ export interface AdminCharacter {
   } | null;
   identityLinks: AdminCharacterIdentityLink[];
   accountLinks: AdminCharacterAccountLink[];
+  continuitySources: AdminCharacterContinuityLink[];
+  continuityTarget: AdminCharacterContinuityLink | null;
 }
 
 export interface AdminCharacterIdentityLink {
@@ -1411,6 +1414,42 @@ export interface AdminCharacterAccountLinkPreview {
     members: Array<{ id: string; name: string; realm: string; region: string; classID: number }>;
   };
   existingEdge: { id: string; createdBy: string; createdAt: string } | null;
+}
+
+export interface AdminCharacterContinuityLink {
+  id: string;
+  character: {
+    id: string;
+    name: string;
+    realm: string;
+    region: string;
+    classID: number;
+    wclCanonicalCharacterId: number;
+  };
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface AdminCharacterContinuityLinkPreview {
+  eligible: boolean;
+  blockers: string[];
+  source: { id: string; name: string; realm: string; region: string; classID: number; wclCanonicalCharacterId: number };
+  target: { id: string; name: string; realm: string; region: string; classID: number; wclCanonicalCharacterId: number };
+  sourceCluster: Array<{ id: string; name: string; realm: string; region: string; classID: number; wclCanonicalCharacterId: number }>;
+  targetCluster: Array<{ id: string; name: string; realm: string; region: string; classID: number; wclCanonicalCharacterId: number }>;
+  impact: {
+    wclIdentityCount: number;
+    appearanceCount: number;
+    raidCount: number;
+    guildCount: number;
+    rankingCount: number;
+    leaderboardCount: number;
+    mechanicsCount: number;
+    sharedReportCount: number;
+    firstSeenAt: string | null;
+    lastSeenAt: string | null;
+  };
+  existingLink: { id: string; sourceCharacterId: string; targetCharacterId: string; createdBy: string; createdAt: string } | null;
 }
 
 export interface AdminCharactersResponse {
@@ -1890,6 +1929,7 @@ export type GlobalSearchResponse = {
 
 export type CharacterProfileResponse = {
   type: "profile";
+  canonicalPath?: string | null;
   character: {
     wclCanonicalCharacterId: number | null;
     name: string;

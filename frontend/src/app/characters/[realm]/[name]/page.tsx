@@ -3,7 +3,7 @@
 import { type KeyboardEvent, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { Boss, CharacterProfileChoice, CharacterProfileLookupResponse, CharacterProfileResponse, CharacterRaidReportsResponse, RaidInfo } from "@/types";
@@ -797,6 +797,7 @@ function CharacterChoicesView({ name, realm, choices }: { name: string; realm: s
 
 export default function CharacterProfilePage({ params }: PageProps) {
   const resolvedParams = use(params);
+  const router = useRouter();
   const tRaidAchievements = useTranslations("raidAchievements");
   const tCharacterProfile = useTranslations("characterProfile");
   const realm = decodeURIComponent(resolvedParams.realm);
@@ -832,6 +833,10 @@ export default function CharacterProfilePage({ params }: PageProps) {
 
       try {
         const response = await api.getCharacterProfileByRealmName(realm, name, selectedClassId);
+        if (!cancelled && response.type === "profile" && response.canonicalPath) {
+          router.replace(selectedClassId ? `${response.canonicalPath}?class=${encodeURIComponent(selectedClassId)}` : response.canonicalPath);
+          return;
+        }
         if (!cancelled) setLookup(response);
       } catch (err) {
         if (!cancelled) {
@@ -848,7 +853,7 @@ export default function CharacterProfilePage({ params }: PageProps) {
     return () => {
       cancelled = true;
     };
-  }, [realm, name, selectedClassId]);
+  }, [realm, name, router, selectedClassId]);
 
   useEffect(() => {
     if (!profile?.rankings.length && !profile?.mechanics?.length) {

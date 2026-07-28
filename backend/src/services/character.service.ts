@@ -4,7 +4,7 @@ import { CLASSES } from "../config/classes";
 import { ROLE_BY_CLASS_AND_SPEC } from "../config/specs";
 import { CHARACTER_ACCOUNT_SIGNAL_VERSION } from "../config/achievement-signals";
 import { MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } from "../config/character-eligibility";
-import Character from "../models/Character";
+import Character, { ICharacter } from "../models/Character";
 import CharacterAccountGroup from "../models/CharacterAccountGroup";
 import CharacterIdentityLink from "../models/CharacterIdentityLink";
 import CharacterLeaderboard from "../models/CharacterLeaderboard";
@@ -26,6 +26,7 @@ import { createCharacterIdentityAliasKey } from "../utils/character-identity-lin
 import { resolveRole, slugifySpecName } from "../utils/spec";
 import cacheService from "./cache.service";
 import characterMediaService from "./character-media.service";
+import characterContinuityService from "./character-continuity.service";
 import { getPrimaryCharacterRaidGuilds } from "./character-raid-guild.service";
 import mythicPlusService, { CharacterMythicPlusProfileResponse } from "./mythic-plus.service";
 import rateLimitService from "./rate-limit.service";
@@ -242,6 +243,7 @@ export type CharacterRaidAchievementSummaryResponse = {
 
 export type CharacterProfileResponse = {
   type: "profile";
+  canonicalPath?: string | null;
   character: {
     wclCanonicalCharacterId: number | null;
     name: string;
@@ -625,6 +627,71 @@ class CharacterService {
         const lastSeenB = b.lastSeenAt ? new Date(b.lastSeenAt).getTime() : 0;
         return lastSeenB - lastSeenA || a.name.localeCompare(b.name);
       });
+  }
+
+  private async resolveContinuityContext(
+    canonicalIds: number[],
+    classID: number,
+    requestedIdentity?: { name: string; realm: string },
+  ): Promise<{
+    canonicalIds: number[];
+    isCombined: boolean;
+    requestedCharacterId: string | null;
+    rootCharacter: (Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "blizzardIdentityOverride"> & {
+      _id: mongoose.Types.ObjectId;
+    }) | null;
+  }> {
+    if (canonicalIds.length === 0) return { canonicalIds, isCombined: false, requestedCharacterId: null, rootCharacter: null };
+
+    const matchedCharacters = await Character.find({
+      wclCanonicalCharacterId: { $in: canonicalIds },
+      classID,
+    })
+      .select("wclCanonicalCharacterId name realm region classID blizzardIdentityOverride")
+      .lean<
+        Array<
+          Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "blizzardIdentityOverride"> & {
+            _id: mongoose.Types.ObjectId;
+          }
+        >
+      >();
+    if (matchedCharacters.length === 0) return { canonicalIds, isCombined: false, requestedCharacterId: null, rootCharacter: null };
+
+    const graph = await characterContinuityService.getGraph();
+    const requestedName = requestedIdentity?.name.trim().toLowerCase();
+    const requestedRealm = requestedIdentity?.realm.trim().toLowerCase();
+    const requestedCharacter =
+      matchedCharacters.find(
+        (character) => character.name.toLowerCase() === requestedName && character.realm.toLowerCase() === requestedRealm,
+      ) ??
+      matchedCharacters.find((character) => character.wclCanonicalCharacterId === canonicalIds[0]) ??
+      matchedCharacters[0];
+    const memberCharacterIds = [
+      ...new Set(matchedCharacters.flatMap((character) => graph.getMemberIds(character._id))),
+    ];
+    const clusterCharacters = await Character.find({ _id: { $in: memberCharacterIds }, classID })
+      .select("wclCanonicalCharacterId name realm region classID blizzardIdentityOverride")
+      .lean<
+        Array<
+          Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "blizzardIdentityOverride"> & {
+            _id: mongoose.Types.ObjectId;
+          }
+        >
+      >();
+    const rootCharacterId = graph.resolveRoot(requestedCharacter._id);
+    const rootCharacter = clusterCharacters.find((character) => String(character._id) === rootCharacterId) ?? requestedCharacter;
+    const expandedCanonicalIds = [
+      rootCharacter.wclCanonicalCharacterId,
+      ...canonicalIds,
+      ...clusterCharacters.map((character) => character.wclCanonicalCharacterId),
+    ].filter((canonicalId, index, values) => values.indexOf(canonicalId) === index);
+
+    return {
+      canonicalIds: expandedCanonicalIds,
+      isCombined: memberCharacterIds.some((characterId) => graph.getTargetId(characterId) !== null),
+      requestedCharacterId: String(requestedCharacter._id),
+      rootCharacter,
+    };
   }
 
   private escapeRegex(value: string): string {
@@ -2583,16 +2650,27 @@ class CharacterService {
     } | null = null;
     let profileCanonicalIds: number[] = [];
     let profileClassId: number | undefined;
+    let continuityActive = false;
+    let continuityRequestedCharacterId: string | null = null;
+    let continuityRootCharacter:
+      | (Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "blizzardIdentityOverride"> & {
+          _id: mongoose.Types.ObjectId;
+        })
+      | null = null;
 
     if (selectedChoice) {
-      const canonicalIds = selectedChoice.wclCanonicalCharacterIds;
+      const continuity = await this.resolveContinuityContext(selectedChoice.wclCanonicalCharacterIds, selectedChoice.classID, { name, realm });
+      const canonicalIds = continuity.canonicalIds;
       profileCanonicalIds = canonicalIds;
       profileClassId = selectedChoice.classID;
+      continuityActive = continuity.isCombined;
+      continuityRequestedCharacterId = continuity.requestedCharacterId;
+      continuityRootCharacter = continuity.rootCharacter;
       character = {
-        wclCanonicalCharacterId: canonicalIds[0] ?? null,
-        name: selectedChoice.name,
-        realm: selectedChoice.realm,
-        region: selectedChoice.region,
+        wclCanonicalCharacterId: continuity.rootCharacter?.wclCanonicalCharacterId ?? canonicalIds[0] ?? null,
+        name: continuity.rootCharacter?.name ?? selectedChoice.name,
+        realm: continuity.rootCharacter?.realm ?? selectedChoice.realm,
+        region: continuity.rootCharacter?.region ?? selectedChoice.region,
         classID: selectedChoice.classID,
       };
 
@@ -2649,24 +2727,28 @@ class CharacterService {
 
       if (!fallbackCharacter) return null;
 
-      character = fallbackCharacter;
-      profileCanonicalIds = [fallbackCharacter.wclCanonicalCharacterId];
+      const continuity = await this.resolveContinuityContext([fallbackCharacter.wclCanonicalCharacterId], fallbackCharacter.classID, { name, realm });
+      continuityActive = continuity.isCombined;
+      continuityRequestedCharacterId = continuity.requestedCharacterId;
+      continuityRootCharacter = continuity.rootCharacter;
+      character = continuity.rootCharacter ?? fallbackCharacter;
+      profileCanonicalIds = continuity.canonicalIds;
       profileClassId = fallbackCharacter.classID;
 
       const [rawTimelineRows, rawRankingRows, rawMechanicsRows] = await Promise.all([
-        CharacterRaidParticipation.find({ wclCanonicalCharacterId: fallbackCharacter.wclCanonicalCharacterId, zoneId: { $in: TRACKED_RAIDS } })
+        CharacterRaidParticipation.find({ wclCanonicalCharacterId: { $in: profileCanonicalIds }, classID: profileClassId, zoneId: { $in: TRACKED_RAIDS } })
           .sort({ firstSeenAt: 1, zoneId: 1 })
           .lean(),
         CharacterLeaderboard.find({
-          wclCanonicalCharacterId: fallbackCharacter.wclCanonicalCharacterId,
-          classID: fallbackCharacter.classID,
+          wclCanonicalCharacterId: { $in: profileCanonicalIds },
+          classID: profileClassId,
           zoneId: { $in: TRACKED_RAIDS },
         })
           .sort({ zoneId: -1, score: -1 })
           .lean(),
         CharacterMechanicsLeaderboard.find({
-          wclCanonicalCharacterId: fallbackCharacter.wclCanonicalCharacterId,
-          classID: fallbackCharacter.classID,
+          wclCanonicalCharacterId: { $in: profileCanonicalIds },
+          classID: profileClassId,
           zoneId: { $in: TRACKED_RAIDS },
           deathDataAvailable: true,
           survivalScore: { $ne: null },
@@ -2680,7 +2762,7 @@ class CharacterService {
     }
 
     const latestTimelineRow = [...timelineRows].sort((a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime())[0];
-    if (latestTimelineRow) {
+    if (latestTimelineRow && !continuityActive) {
       character.name = latestTimelineRow.characterName;
       character.realm = latestTimelineRow.characterRealm;
       character.region = latestTimelineRow.characterRegion;
@@ -2770,8 +2852,16 @@ class CharacterService {
       realm: string;
       region: string;
       blizzardIdentityOverride?: { name: string; realm: string; updatedAt: Date } | null;
-    } | null = null;
-    if (profileClassId) {
+    } | null = continuityRootCharacter
+      ? {
+          _id: continuityRootCharacter._id,
+          name: continuityRootCharacter.name,
+          realm: continuityRootCharacter.realm,
+          region: continuityRootCharacter.region,
+          blizzardIdentityOverride: continuityRootCharacter.blizzardIdentityOverride,
+        }
+      : null;
+    if (profileClassId && !profileCharacterDoc) {
       profileCharacterDoc = await Character.findOne({
         name: character.name,
         realm: character.realm,
@@ -2843,9 +2933,14 @@ class CharacterService {
       : null;
     const profileRaidAchievements = this.formatRaidAchievementSummary(profileRaidAchievementRow);
     const mythicPlus = profileCharacterDoc ? await mythicPlusService.getCharacterProfileMythicPlus(profileCharacterDoc._id) : { seasons: [] };
+    const canonicalPath =
+      continuityRootCharacter && continuityRequestedCharacterId && continuityRequestedCharacterId !== String(continuityRootCharacter._id)
+        ? `/characters/${encodeURIComponent(character.realm)}/${encodeURIComponent(character.name)}`
+        : null;
 
     return {
       type: "profile",
+      canonicalPath,
       character: {
         wclCanonicalCharacterId: character.wclCanonicalCharacterId,
         name: character.name,
@@ -2945,8 +3040,12 @@ class CharacterService {
       .collation(CASE_INSENSITIVE_COLLATION)
       .select("wclCanonicalCharacterId classID -_id")
       .lean();
-    const canonicalIds = Array.from(new Set(participationRows.map((row) => row.wclCanonicalCharacterId).filter((id): id is number => typeof id === "number")));
+    let canonicalIds = Array.from(new Set(participationRows.map((row) => row.wclCanonicalCharacterId).filter((id): id is number => typeof id === "number")));
     const participationClassIds = Array.from(new Set(participationRows.map((row) => row.classID).filter((id): id is number => typeof id === "number")));
+    const continuityClassId = classId ?? participationClassIds[0];
+    if (canonicalIds.length > 0 && continuityClassId) {
+      canonicalIds = (await this.resolveContinuityContext(canonicalIds, continuityClassId, { name, realm })).canonicalIds;
+    }
     const appearanceMatch =
       canonicalIds.length > 0
         ? {

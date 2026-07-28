@@ -56,6 +56,7 @@ import {
   AdminCharacterStats,
   AdminCharacterIdentityLinkPreview,
   AdminCharacterAccountLinkPreview,
+  AdminCharacterContinuityLinkPreview,
   TaskLogsResponse,
   TaskLogsLatestResponse,
   HomePageData,
@@ -1622,6 +1623,52 @@ export const api = {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || "Failed to remove manual character account link");
+    }
+    return response.json();
+  },
+
+  async previewAdminCharacterContinuityLink(
+    characterId: string,
+    source: { name: string; realm: string; region: string },
+  ): Promise<AdminCharacterContinuityLinkPreview> {
+    const response = await fetch(`${API_URL}/api/admin/characters/${characterId}/continuity-links/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(source),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to preview character combination");
+    }
+    return response.json();
+  },
+
+  async createAdminCharacterContinuityLink(
+    characterId: string,
+    source: { name: string; realm: string; region: string },
+  ): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/api/admin/characters/${characterId}/continuity-links`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(source),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to combine characters");
+    }
+    return response.json();
+  },
+
+  async removeAdminCharacterContinuityLink(characterId: string, linkId: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/api/admin/characters/${characterId}/continuity-links/${linkId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to remove character combination");
     }
     return response.json();
   },
