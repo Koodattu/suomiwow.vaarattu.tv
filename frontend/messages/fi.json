@@ -74,7 +74,8 @@
       "backLabelBottom": "sivulle",
       "home": "Holvi",
       "open": "Avaa pakkoja",
-      "collection": "Kokoelma"
+      "collection": "Kokoelma",
+      "leaderboard": "Tulostaulu"
     },
     "settings": {
       "audioSettings": "Ääniasetukset",
@@ -181,6 +182,56 @@
         "legacyPacks": "{count, plural, one {# Legacy-pakka} other {# Legacy-pakkaa}}",
         "card": "Korttipalkinto: {name}",
         "cardUnavailable": "Korttipalkinto"
+      }
+    },
+    "leaderboard": {
+      "eyebrow": "Keräilijöiden kunniagalleria",
+      "title": "Kokoelmien tulostaulu",
+      "body": "Sijoitus määräytyy uniikkien korttien, harvinaisuuden, viimeistelyjen ja kokoelmasaavutusten perusteella. Duplikaatit eivät tuo pisteitä.",
+      "updated": "Pisteet päivitetty {time}",
+      "updating": "Pisteet päivittyvät tunnin välein",
+      "loginTitle": "Liity tulostaululle",
+      "loginBody": "Vieraat voivat katsella sijoituksia. Kirjaudu sisään ja kerää kortti osallistuaksesi.",
+      "loginAction": "Kirjaudu sisään",
+      "yourStanding": "Oma sijoituksesi",
+      "rank": "Sija #{rank}",
+      "unranked": "Ei vielä sijoitusta",
+      "unrankedBody": "Kerää kortti sisäänkirjautuneena. Pisteesi näkyvät seuraavan tuntipäivityksen jälkeen.",
+      "points": "{score} pistettä",
+      "rankingTitle": "Parhaat keräilijät",
+      "rankingBody": "25 korkeinta kokoelmapistemäärää.",
+      "emptyTitle": "Ei vielä sijoitettuja keräilijöitä",
+      "emptyBody": "Ensimmäinen sisäänkirjautunut keräilijä ilmestyy seuraavan pistepäivityksen jälkeen.",
+      "loadError": "Tulostaulua ei voitu ladata.",
+      "retry": "Yritä uudelleen",
+      "stats": {
+        "cards": "Uniikit kortit",
+        "snapshots": "Tilannekuvat",
+        "finishes": "Viimeistelyt",
+        "completedCards": "Kaikki viimeistelyt",
+        "completedSets": "Täydet setit"
+      },
+      "showcase": {
+        "title": "Suosikkikortit",
+        "body": "Valitse korttinäkymässä enintään kolme omistamaasi korttia näytettäväksi nimesi yhteydessä.",
+        "empty": "Ei valittua suosikkia",
+        "choose": "Valitse kokoelmasta",
+        "add": "Lisää suosikkeihin",
+        "remove": "Poista suosikki",
+        "full": "Suosikit täynnä",
+        "saving": "Tallennetaan…",
+        "error": "Tallennus epäonnistui"
+      },
+      "scoring": {
+        "title": "Näin kokoelmapisteet lasketaan",
+        "body": "Pisteytys palkitsee ensin kokoelman laajuuden, sitten harvinaisuuden ja vaikeat viimeistelysaavutukset.",
+        "base": "+{points} jokaisesta uniikista kortista",
+        "rarity": "+{min}–{max} kortin harvinaisimmasta avatusta tilannekuvasta",
+        "finishes": "+{min}–{max} jokaisesta erilaisesta erikoisviimeistelystä",
+        "cardCompletion": "+{points}, kun kortille on löydetty kaikki saatavilla olevat viimeistelyt",
+        "setCompletion": "+{points} per kortti, kun koko setti on valmis",
+        "luckTitle": "Miksi tuuripisteitä ei ole",
+        "luckBody": "Nykyinen avaushistoria tallentaa lopputuloksen, ei tuurivertailuun tarvittavaa suojausta edeltävää heittoa. Kokoelmapisteet pysyvät näin tarkistettavina arvauksen sijaan."
       }
     },
     "redeem": {
@@ -1286,8 +1337,8 @@
         "communityEligible": "Community-kelpoinen",
         "raidOnly": "Vain raidikortteja",
         "selectCharacter": "Valitse hahmo, jolle haluat määrittää kuvituksen ja repliikin.",
-        "filename": "Kuvatiedoston nimi",
-        "invalidFilename": "Anna PNG-, JPG-, WebP- tai AVIF-tiedoston nimi ilman hakemistopolkua.",
+        "filename": "Kuvitustiedoston nimi",
+        "invalidFilename": "Anna PNG-, JPG-, WebP-, AVIF-, GIF- tai WebM-tiedoston nimi ilman hakemistopolkua.",
         "character": {
           "enable": "Ota vaihtoehtoinen hahmokuva käyttöön",
           "help": "Korvaa hahmorenderin tämän hahmon kaikissa CCG-versioissa, kun vaihtoehtoinen arvonta voittaa."

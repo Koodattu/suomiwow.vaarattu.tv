@@ -29,10 +29,12 @@ import CcgAnalyticsDaily from "../models/CcgAnalyticsDaily";
 import CcgAnalyticsDailyParticipant from "../models/CcgAnalyticsDailyParticipant";
 import CcgAnalyticsParticipant from "../models/CcgAnalyticsParticipant";
 import CcgAnalyticsSummary from "../models/CcgAnalyticsSummary";
+import CcgCollectorProfile, { ICcgShowcaseCard } from "../models/CcgCollectorProfile";
 import CcgDailyAllowance from "../models/CcgDailyAllowance";
 import CcgGuest, { ICcgGuest } from "../models/CcgGuest";
 import CcgJobLock from "../models/CcgJobLock";
 import CcgLedgerEntry from "../models/CcgLedgerEntry";
+import { ICcgLeaderboardEntry } from "../models/CcgLeaderboardEntry";
 import CcgOwnership, { CcgOwnerType } from "../models/CcgOwnership";
 import CcgPackBalance, { ICcgPackBalance } from "../models/CcgPackBalance";
 import CcgPackCredit from "../models/CcgPackCredit";
@@ -64,6 +66,7 @@ import { createCcgShareShortId, resolveCcgShareLookup } from "../utils/ccg-share
 import { planPackSelections, selectCommunityCardForGrade, shufflePackResults } from "../utils/ccg-pack";
 import { resolveCollectorKey } from "../utils/ccg-identity";
 import { getTransferableGuestPacks, resolveGuestClaimOpeningId, verifyGuestLibrary } from "../utils/ccg-guest-library";
+import { getCcgLeaderboardScoringRules } from "../utils/ccg-leaderboard";
 import { CCG_REDEEM_PACK_GRANT_MAX, normalizeCcgRedeemCode } from "../utils/ccg-redeem";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeTickStart } from "../utils/ccg-recharge";
 import { applyCcgPackRollover } from "../utils/ccg-rollover";
@@ -72,6 +75,7 @@ import { getHelsinkiDateKey, getNextHelsinkiReset } from "../utils/helsinki-time
 import logger from "../utils/logger";
 import { isMongoWriteConflict, retryMongoWriteConflict } from "../utils/mongo-retry";
 import { normalizeSearchText, scoreSearchCandidate } from "../utils/search";
+import ccgLeaderboardService from "./ccg-leaderboard.service";
 import ccgPublisherService from "./ccg-publisher.service";
 import discordService from "./discord.service";
 
@@ -88,6 +92,7 @@ const CCG_TRANSACTION_WRITE_CONFLICT_MAX_ATTEMPTS = 5;
 const CCG_PUBLIC_SET_FIELDS = "_id slug zoneId raidName expansionName state kind enabledAt themeKey theme customFinish backgroundPath packArtOffsetX cardCount publicationWave lastPublishedAt";
 const CCG_ACTIVITY_DEFAULT_LIMIT = 20;
 const CCG_ACTIVITY_MAX_LIMIT = 40;
+const CCG_SHOWCASE_CARD_LIMIT = 3;
 
 export const CCG_ACTIVITY_FILTERS = ["all", "packs", "codes", "twitch"] as const;
 export type CcgActivityFilter = (typeof CCG_ACTIVITY_FILTERS)[number];
@@ -133,6 +138,12 @@ type CcgActivitySetRecord = Pick<
   ICcgSet,
   "_id" | "slug" | "raidName" | "theme" | "backgroundPath" | "packArtOffsetX"
 >;
+
+type CcgShowcaseInput = {
+  cardId: mongoose.Types.ObjectId;
+  finish: CcgFinish;
+  artVariant: CcgArtVariant;
+};
 
 export const CCG_COLLECTION_SORTS = [
   "duplicates_desc",
@@ -751,6 +762,101 @@ class CcgService {
         rate: cardsRevealed > 0 ? grades[grade] / cardsRevealed : 0,
       })),
     };
+  }
+
+  async getLeaderboard(): Promise<Record<string, unknown>> {
+    requireFeature();
+    const entries = await ccgLeaderboardService.list(25);
+    const showcases = await this.loadLeaderboardShowcases(entries.map((entry) => entry.userId));
+    return {
+      scoreVersion: getCcgLeaderboardScoringRules().version,
+      calculatedAt: entries[0]?.calculatedAt ?? null,
+      refreshIntervalSeconds: 60 * 60,
+      scoring: getCcgLeaderboardScoringRules(),
+      entries: entries.map((entry) => this.serializeLeaderboardEntry(entry, showcases.get(String(entry.userId)) ?? [])),
+    };
+  }
+
+  async getLeaderboardMe(req: Request): Promise<Record<string, unknown>> {
+    requireFeature();
+    const userId = await this.requireAuthenticatedUser(req, "Log in to join the collection leaderboard");
+    const [entry, showcases] = await Promise.all([
+      ccgLeaderboardService.getUser(userId),
+      this.loadLeaderboardShowcases([userId]),
+    ]);
+    const showcase = showcases.get(String(userId)) ?? [];
+    return {
+      entry: entry ? this.serializeLeaderboardEntry(entry, showcase) : null,
+      showcase,
+    };
+  }
+
+  async updateLeaderboardShowcase(req: Request, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+    requireFeature();
+    const userId = await this.requireAuthenticatedUser(req, "Log in to choose showcase cards");
+    const showcase = this.validateShowcase(body.cards);
+    if (showcase.length > 0) {
+      const cardIds = showcase.map((item) => item.cardId);
+      const cards = await CcgCard.find({ _id: { $in: cardIds } }).lean();
+      if (cards.length !== showcase.length) {
+        throw new CcgServiceError(400, "invalid_showcase", "Every showcase card must exist");
+      }
+      const enabledSetIds = new Set((await CcgSet.find({
+        _id: { $in: cards.map((card) => card.setId) },
+        enabledAt: { $ne: null },
+      }).select("_id").lean()).map((set) => String(set._id)));
+      if (cards.some((card) => !enabledSetIds.has(String(card.setId)))) {
+        throw new CcgServiceError(400, "invalid_showcase", "Every showcase card must be from an enabled set");
+      }
+
+      const cardById = new Map(cards.map((card) => [String(card._id), card]));
+      const seriesPairs = cards.map((card) => ({ setId: card.setId, characterId: card.characterId }));
+      const [seriesRows, finishRows, alternativeByCollector, alternativeCollectors] = await Promise.all([
+        CcgSeriesOwnership.find({ ownerType: "user", ownerId: userId, $or: seriesPairs })
+          .select("setId characterId unlockedSnapshotVersions")
+          .lean(),
+        CcgOwnership.find({
+          ownerType: "user",
+          ownerId: userId,
+          $or: showcase.map((item) => {
+            const card = cardById.get(String(item.cardId))!;
+            return { setId: card.setId, characterId: card.characterId, finish: item.finish, quantity: { $gt: 0 } };
+          }),
+        }).select("setId characterId finish").lean(),
+        this.loadAlternativeArt(cards),
+        this.loadAlternativeArtUnlocks({ ownerType: "user", ownerId: userId }, cards),
+      ]);
+      const unlockedVersionsBySeries = new Map(seriesRows.map((row) => [getSeriesKey(row), new Set(row.unlockedSnapshotVersions)]));
+      const ownedFinishes = new Set(finishRows.map((row) => `${getSeriesKey(row)}:${row.finish}`));
+      for (const item of showcase) {
+        const card = cardById.get(String(item.cardId))!;
+        const seriesKey = getSeriesKey(card);
+        if (!unlockedVersionsBySeries.get(seriesKey)?.has(card.snapshotVersion) || !ownedFinishes.has(`${seriesKey}:${item.finish}`)) {
+          throw new CcgServiceError(403, "showcase_card_not_owned", "Only cards in your collection can be showcased");
+        }
+        if (item.artVariant === "alternative") {
+          const collectorKey = resolveCollectorKey(card);
+          if (
+            !alternativeCollectors.has(collectorKey)
+            || !hasApplicableAlternativeArt(alternativeByCollector.get(collectorKey), Boolean(card.communityCharacterId))
+          ) {
+            throw new CcgServiceError(403, "showcase_card_not_owned", "Only cards in your collection can be showcased");
+          }
+        }
+      }
+    }
+
+    await CcgCollectorProfile.findOneAndUpdate(
+      { userId },
+      { $set: { showcase } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+    return this.getLeaderboardMe(req);
+  }
+
+  async refreshLeaderboard() {
+    requireFeature();
+    return ccgLeaderboardService.refresh();
   }
 
   async getSets(owner?: CcgOwner): Promise<Record<string, unknown>[]> {
@@ -3999,6 +4105,96 @@ class CcgService {
             : null,
         };
       }),
+    };
+  }
+
+  private validateShowcase(rawShowcase: unknown): CcgShowcaseInput[] {
+    if (!Array.isArray(rawShowcase)) {
+      throw new CcgServiceError(400, "invalid_showcase", "Showcase cards must be an array");
+    }
+    if (rawShowcase.length > CCG_SHOWCASE_CARD_LIMIT) {
+      throw new CcgServiceError(400, "invalid_showcase", `Choose up to ${CCG_SHOWCASE_CARD_LIMIT} showcase cards`);
+    }
+    const showcase = rawShowcase.map((raw): CcgShowcaseInput => {
+      if (!raw || typeof raw !== "object") {
+        throw new CcgServiceError(400, "invalid_showcase", "Each showcase card is invalid");
+      }
+      const item = raw as Record<string, unknown>;
+      if (typeof item.cardId !== "string" || !mongoose.Types.ObjectId.isValid(item.cardId)) {
+        throw new CcgServiceError(400, "invalid_showcase", "Each showcase card needs a valid card ID");
+      }
+      if (!CCG_FINISH_ORDER.includes(item.finish as CcgFinish)) {
+        throw new CcgServiceError(400, "invalid_showcase", "Each showcase card needs a valid finish");
+      }
+      if (item.artVariant !== "standard" && item.artVariant !== "alternative") {
+        throw new CcgServiceError(400, "invalid_showcase", "Each showcase card needs a valid artwork");
+      }
+      return {
+        cardId: new mongoose.Types.ObjectId(item.cardId),
+        finish: item.finish as CcgFinish,
+        artVariant: item.artVariant,
+      };
+    });
+    if (new Set(showcase.map((item) => String(item.cardId))).size !== showcase.length) {
+      throw new CcgServiceError(400, "invalid_showcase", "A card can only appear once in your showcase");
+    }
+    return showcase;
+  }
+
+  private async loadLeaderboardShowcases(
+    userIds: mongoose.Types.ObjectId[],
+  ): Promise<Map<string, Array<Record<string, unknown>>>> {
+    if (userIds.length === 0) return new Map();
+    const profiles = await CcgCollectorProfile.find({ userId: { $in: userIds } })
+      .select("userId showcase -_id")
+      .lean();
+    const showcaseItems = profiles.flatMap((profile) => profile.showcase ?? []);
+    const cards = showcaseItems.length > 0
+      ? await CcgCard.find({ _id: { $in: showcaseItems.map((item) => item.cardId) } }).lean()
+      : [];
+    const sets = cards.length > 0
+      ? await CcgSet.find({ _id: { $in: cards.map((card) => card.setId) }, enabledAt: { $ne: null } })
+          .select(CCG_PUBLIC_SET_FIELDS)
+          .lean()
+      : [];
+    const cardById = new Map(cards.map((card) => [String(card._id), card]));
+    const setById = new Map(sets.map((set) => [String(set._id), set]));
+    const alternativeByCollector = await this.loadAlternativeArt(cards);
+    return new Map(profiles.map((profile) => [
+      String(profile.userId),
+      (profile.showcase ?? []).flatMap((item: ICcgShowcaseCard) => {
+        const card = cardById.get(String(item.cardId));
+        const set = card ? setById.get(String(card.setId)) : null;
+        if (!card || !set) return [];
+        return [{
+          card: {
+            ...this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card))),
+            set: this.serializeSet(set),
+          },
+          finish: item.finish,
+          artVariant: item.artVariant,
+        }];
+      }),
+    ]));
+  }
+
+  private serializeLeaderboardEntry(
+    entry: ICcgLeaderboardEntry,
+    showcase: Array<Record<string, unknown>>,
+  ): Record<string, unknown> {
+    return {
+      rank: entry.rank,
+      username: entry.username,
+      avatarUrl: entry.avatarUrl,
+      score: entry.score,
+      cardsOwned: entry.cardsOwned,
+      snapshotsOwned: entry.snapshotsOwned,
+      finishesOwned: entry.finishesOwned,
+      premiumFinishesOwned: entry.premiumFinishesOwned,
+      completedCards: entry.completedCards,
+      completedSets: entry.completedSets,
+      breakdown: entry.breakdown,
+      showcase,
     };
   }
 

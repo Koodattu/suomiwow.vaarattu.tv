@@ -156,6 +156,7 @@ class UpdateScheduler {
   private isRepairingMythicPlusHistoricalScores: boolean = false;
   private isCleaningCcgGuests: boolean = false;
   private isProcessingCcgPackAnalytics: boolean = false;
+  private isRefreshingCcgLeaderboard: boolean = false;
   private isDiscoveringCcgMedia: boolean = false;
   private isRefreshingCcgMedia: boolean = false;
   private isRecoveringCcgMedia: boolean = false;
@@ -476,6 +477,7 @@ class UpdateScheduler {
 
     if (CCG_FEATURE_ENABLED) {
       void this.processPendingCcgPackAnalytics();
+      void this.refreshCcgLeaderboard();
 
       cron.schedule(
         "* * * * *",
@@ -489,6 +491,14 @@ class UpdateScheduler {
         "15 0 * * *",
         async () => {
           if (!this.isCleaningCcgGuests) await this.cleanupCcgGuests();
+        },
+        { timezone: "Europe/Helsinki" },
+      );
+
+      cron.schedule(
+        "7 * * * *",
+        async () => {
+          if (!this.isRefreshingCcgLeaderboard) await this.refreshCcgLeaderboard();
         },
         { timezone: "Europe/Helsinki" },
       );
@@ -826,6 +836,7 @@ class UpdateScheduler {
     if (CCG_FEATURE_ENABLED) {
       logger.info("  - SuomiWoW CCG jobs (Europe/Helsinki):");
       logger.info("    * Guest expiry reconciliation: daily at 00:15");
+      logger.info("    * Collection leaderboard refresh: hourly at :07");
       logger.info("    * New-character media discovery: daily at 01:30");
       logger.info("    * Active-character media refresh: daily at 01:50");
       logger.info("    * Media queue recovery: every 15 minutes");
@@ -953,6 +964,18 @@ class UpdateScheduler {
       await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
     } finally {
       this.isCleaningCcgGuests = false;
+    }
+  }
+
+  private async refreshCcgLeaderboard(): Promise<void> {
+    this.isRefreshingCcgLeaderboard = true;
+    try {
+      const result = await ccgService.refreshLeaderboard();
+      if (result.refreshed) logger.info(`[CCG/Leaderboard] Ranked ${result.participants} collector(s)`);
+    } catch (error) {
+      logger.error("[CCG/Leaderboard] Error:", error);
+    } finally {
+      this.isRefreshingCcgLeaderboard = false;
     }
   }
 

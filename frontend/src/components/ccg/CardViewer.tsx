@@ -14,6 +14,7 @@ import { playCcgInspectSound, playCcgQuip } from "@/lib/ccg-audio";
 import { formatRealmName } from "@/lib/utils";
 import CollectibleCard from "./CollectibleCard";
 import CcgShareButton from "./CcgShareButton";
+import CcgShowcaseButton from "./CcgShowcaseButton";
 import styles from "./ccg.module.css";
 
 type ViewerPhase = "entering" | "open" | "closing";
@@ -103,6 +104,7 @@ export default function CardViewer({
   canShare = true,
   footerAction,
   showFinishControls = true,
+  showOwnershipStatus = true,
   onClose,
 }: {
   card: CcgCard;
@@ -115,6 +117,7 @@ export default function CardViewer({
   canShare?: boolean;
   footerAction?: ReactNode;
   showFinishControls?: boolean;
+  showOwnershipStatus?: boolean;
   onClose: () => void;
 }) {
   const t = useTranslations("ccg");
@@ -428,7 +431,7 @@ export default function CardViewer({
                 ))}
               </div>
             </section>
-          ) : !isOwned ? (
+          ) : !isOwned && showOwnershipStatus ? (
             <p className={styles.viewerNotCollected}>
               {t(displayedCard.seriesOwned ? "collection.snapshotNotCollected" : "collection.notCollected")}
             </p>
@@ -492,12 +495,17 @@ export default function CardViewer({
               </Link>
             </div>
             <div>
-              {footerAction ?? (canShare && isDisplayedFinishOwned ? (
-                <CcgShareButton
-                  key={`${displayedCard.id}:${finish}:${artVariant}`}
-                  target={{ kind: "card", cardId: displayedCard.id, finish, artVariant }}
-                  loginRequired={!user}
-                />
+              {footerAction ?? (isDisplayedFinishOwned ? (
+                <div className={styles.viewerActionButtons}>
+                  <CcgShowcaseButton cardId={displayedCard.id} finish={finish} artVariant={artVariant} />
+                  {canShare ? (
+                    <CcgShareButton
+                      key={`${displayedCard.id}:${finish}:${artVariant}`}
+                      target={{ kind: "card", cardId: displayedCard.id, finish, artVariant }}
+                      loginRequired={!user}
+                    />
+                  ) : null}
+                </div>
               ) : null)}
             </div>
           </div>

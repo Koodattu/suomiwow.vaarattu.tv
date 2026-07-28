@@ -4,7 +4,7 @@ export const CCG_ALTERNATIVE_CHARACTER_PATH = "/ccg/alternative/character";
 export const CCG_ALTERNATIVE_BACKGROUND_PATH = "/ccg/alternative/background";
 export const CCG_QUIP_AUDIO_PATH = "/ccg/audio/quips";
 
-const ALTERNATIVE_ART_FILENAME = /^[a-zA-Z0-9][a-zA-Z0-9 _.()-]*\.(?:avif|jpe?g|png|webp)$/i;
+const ALTERNATIVE_ART_FILENAME = /^[a-zA-Z0-9][a-zA-Z0-9 _.()-]*\.(?:avif|gif|jpe?g|png|webm|webp)$/i;
 const QUIP_AUDIO_FILENAME = /^[a-zA-Z0-9][a-zA-Z0-9 _.()-]*\.(?:aac|m4a|mp3|ogg|wav)$/i;
 const MAX_QUIP_TEXT_LENGTH = 500;
 
@@ -36,7 +36,7 @@ export function normalizeAlternativeArtFilename(value: unknown): string | null {
   const filename = value.trim();
   if (!filename) return null;
   if (filename.length > 120 || !ALTERNATIVE_ART_FILENAME.test(filename)) {
-    throw new Error("Use an image filename only (PNG, JPG, WebP, or AVIF)");
+    throw new Error("Use an artwork filename only (PNG, JPG, WebP, AVIF, GIF, or WebM)");
   }
   return filename;
 }

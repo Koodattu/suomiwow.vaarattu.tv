@@ -48,6 +48,10 @@ const mythicPlusScoreColors = [
   [200, "#ffffff"],
 ] as const;
 
+function isWebmArtwork(path: string | null): path is string {
+  return Boolean(path && /\.webm(?:$|[?#])/i.test(path));
+}
+
 const frameRingPath = [
   "M 24 4 H 476 Q 496 4 496 24 V 676 Q 496 696 476 696",
   "H 24 Q 4 696 4 676 V 24 Q 4 4 24 4 Z",
@@ -200,6 +204,8 @@ export default function CollectibleCard({
   const backgroundPath = alternativeActive && card.set.kind === "community" && card.alternativeArt?.backgroundArtPath
     ? card.alternativeArt.backgroundArtPath
     : card.set.backgroundPath;
+  const renderIsVideo = isWebmArtwork(renderUrl);
+  const backgroundIsVideo = isWebmArtwork(backgroundPath);
   const readyKey = `${card.id}:${artVariant}:${renderUrl ?? ""}:${classInfo.iconUrl ?? ""}:${specIcon ?? ""}`;
 
   if (readyCard.current !== readyKey) {
@@ -223,7 +229,7 @@ export default function CollectibleCard({
     "--lab-accent": card.set.theme.accent,
     "--lab-glow": card.set.theme.glow,
     "--class-color": CCG_CLASS_COLORS[card.classID] ?? "#ffffff",
-    "--lab-art": `url("${backgroundPath}")`,
+    "--lab-art": backgroundIsVideo ? "none" : `url("${backgroundPath}")`,
     "--crop-x": `${raidArtOffsetX ?? card.backgroundCrop.x}%`,
     "--crop-y": `${card.backgroundCrop.y}%`,
     "--crop-scale": card.backgroundCrop.scale,
@@ -313,10 +319,29 @@ export default function CollectibleCard({
       <span className={styles.innerFrame} aria-hidden="true" />
       {finish === "metamorphic" ? <MetamorphicSurfaceFilter id={metamorphicFilterId} /> : null}
       <FrameGeometry />
-      <span className={styles.artworkClip} aria-hidden="true"><span className={styles.raidArt} /><span className={styles.raidShade} /></span>
+      <span className={styles.artworkClip} aria-hidden="true">
+        {backgroundIsVideo ? (
+          <video src={backgroundPath} autoPlay loop muted playsInline preload={renderPriority ? "auto" : "metadata"} className={styles.raidArtVideo} />
+        ) : <span className={styles.raidArt} />}
+        <span className={styles.raidShade} />
+      </span>
       <span className={styles.lowerDeck} aria-hidden="true" />
       <span className={styles.renderWindow} aria-hidden="true">
-        {renderUrl ? <AlphaFittedCharacterRender src={renderUrl} className={styles.renderImage} priority={renderPriority} onReady={() => markReady("render")} /> : null}
+        {renderIsVideo ? (
+          <video
+            src={renderUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload={renderPriority ? "auto" : "metadata"}
+            className={`${styles.renderImage} ${styles.renderVideo}`}
+            data-fit-ready="true"
+            onLoadedData={() => markReady("render")}
+          />
+        ) : renderUrl ? (
+          <AlphaFittedCharacterRender src={renderUrl} className={styles.renderImage} priority={renderPriority} onReady={() => markReady("render")} />
+        ) : null}
       </span>
 
       <span className={styles.identity}><strong className={styles.characterName}>{card.name}</strong><span className={styles.guildName}>{guild}</span></span>

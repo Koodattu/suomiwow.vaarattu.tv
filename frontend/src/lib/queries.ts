@@ -94,6 +94,8 @@ export const queryKeys = {
   },
   ccg: {
     analytics: ["ccg", "analytics"] as const,
+    leaderboard: ["ccg", "leaderboard"] as const,
+    leaderboardMe: ["ccg", "leaderboard", "me"] as const,
     bootstrap: CCG_BOOTSTRAP_QUERY_KEY,
     session: CCG_BOOTSTRAP_QUERY_KEY,
     sets: CCG_BOOTSTRAP_QUERY_KEY,
@@ -494,6 +496,24 @@ export function useCcgAnalytics() {
     queryFn: () => api.getCcgAnalytics(),
     staleTime: 15 * 60 * 1000,
     refetchInterval: 15 * 60 * 1000,
+  });
+}
+
+export function useCcgLeaderboard() {
+  return useQuery({
+    queryKey: queryKeys.ccg.leaderboard,
+    queryFn: () => api.getCcgLeaderboard(),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  });
+}
+
+export function useCcgLeaderboardMe(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.ccg.leaderboardMe,
+    queryFn: () => api.getCcgLeaderboardMe(),
+    enabled,
+    staleTime: 30 * 1000,
   });
 }
 

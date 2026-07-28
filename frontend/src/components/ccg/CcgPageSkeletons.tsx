@@ -10,7 +10,7 @@ function SkeletonHeader() {
           <span className={`${styles.initialSkeletonBlock} ${styles.initialCcgLogo}`} />
         </div>
         <div className={styles.initialShellNav}>
-          {Array.from({ length: 3 }, (_, index) => <span key={index} className={styles.initialSkeletonBlock} />)}
+          {Array.from({ length: 4 }, (_, index) => <span key={index} className={styles.initialSkeletonBlock} />)}
         </div>
         <div className={styles.initialShellContext}>
           {Array.from({ length: 3 }, (_, index) => <span key={index} className={styles.initialSkeletonBlock} />)}
@@ -187,6 +187,17 @@ function SharedContentSkeleton() {
   );
 }
 
+function LeaderboardContentSkeleton() {
+  return (
+    <div className={styles.leaderboardPage} aria-hidden="true">
+      <span className={`${styles.initialSkeletonBlock} ${styles.leaderboardHero}`} />
+      <div className={styles.leaderboardLoading}>
+        {Array.from({ length: 3 }, (_, index) => <span key={index} />)}
+      </div>
+    </div>
+  );
+}
+
 export default function CcgInitialSkeleton({ pathname }: { pathname: string }) {
   const landing = pathname === "/ccg" || pathname === "/ccg/";
   const content = pathname.startsWith("/ccg/open")
@@ -195,6 +206,8 @@ export default function CcgInitialSkeleton({ pathname }: { pathname: string }) {
       ? <CollectionContentSkeleton />
       : pathname.startsWith("/ccg/activity")
         ? <ActivityContentSkeleton />
+        : pathname.startsWith("/ccg/leaderboard")
+          ? <LeaderboardContentSkeleton />
         : pathname.startsWith("/ccg/share/")
           ? <SharedContentSkeleton />
           : <LandingContentSkeleton />;

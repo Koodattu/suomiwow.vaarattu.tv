@@ -8,7 +8,7 @@ export function getCharacterRenderProxyUrl(renderUrl: string): string {
 
 export function getCharacterRenderImageUrl(renderUrl: string): string {
   const sourceUrl = getCharacterRenderProxyUrl(renderUrl);
-  if (process.env.NODE_ENV !== "production") return sourceUrl;
+  if (process.env.NODE_ENV !== "production" || /\.gif(?:$|[?#])/i.test(sourceUrl)) return sourceUrl;
 
   const params = new URLSearchParams({
     url: sourceUrl,

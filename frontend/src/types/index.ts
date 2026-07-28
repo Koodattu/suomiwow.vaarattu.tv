@@ -2201,6 +2201,57 @@ export type CcgAnalytics = {
   packOpenings: number;
 };
 
+export type CcgLeaderboardShowcaseCard = {
+  card: CcgCard;
+  finish: CcgFinish;
+  artVariant: CcgArtVariant;
+};
+
+export type CcgLeaderboardEntry = {
+  rank: number;
+  username: string;
+  avatarUrl: string;
+  score: number;
+  cardsOwned: number;
+  snapshotsOwned: number;
+  finishesOwned: number;
+  premiumFinishesOwned: number;
+  completedCards: number;
+  completedSets: number;
+  breakdown: {
+    collection: number;
+    rarity: number;
+    finishes: number;
+    completedCards: number;
+    completedSets: number;
+  };
+  showcase: CcgLeaderboardShowcaseCard[];
+};
+
+export type CcgLeaderboardResponse = {
+  scoreVersion: string;
+  calculatedAt: string | null;
+  refreshIntervalSeconds: number;
+  scoring: {
+    version: string;
+    seriesBase: number;
+    grades: Record<CcgTierGrade, number>;
+    finishes: Record<CcgFinish, number>;
+    allFinishesBonus: number;
+    completeSetPerCard: number;
+  };
+  entries: CcgLeaderboardEntry[];
+};
+
+export type CcgLeaderboardMeResponse = {
+  entry: CcgLeaderboardEntry | null;
+  showcase: CcgLeaderboardShowcaseCard[];
+};
+
+export type CcgShowcaseCardInput = Pick<CcgLeaderboardShowcaseCard, "finish" | "artVariant"> & {
+  cardId: string;
+};
+
 export type CcgRedeemReward =
   | { type: "packs"; currentPacks: number; legacyPacks: number }
   | { type: "card"; finish: CcgFinish; artVariant: CcgArtVariant; card: CcgCard };

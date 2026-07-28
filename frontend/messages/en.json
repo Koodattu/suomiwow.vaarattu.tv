@@ -74,7 +74,8 @@
       "backLabelBottom": "to",
       "home": "Vault",
       "open": "Open packs",
-      "collection": "Collection"
+      "collection": "Collection",
+      "leaderboard": "Leaderboard"
     },
     "settings": {
       "audioSettings": "Audio settings",
@@ -181,6 +182,56 @@
         "legacyPacks": "{count, plural, one {# Legacy pack} other {# Legacy packs}}",
         "card": "Card reward: {name}",
         "cardUnavailable": "Card reward"
+      }
+    },
+    "leaderboard": {
+      "eyebrow": "Collectors' hall",
+      "title": "Collection leaderboard",
+      "body": "Ranked by unique cards, rarity, finishes, and collection milestones. Duplicate copies do not add points.",
+      "updated": "Scores updated {time}",
+      "updating": "Scores refresh hourly",
+      "loginTitle": "Join the leaderboard",
+      "loginBody": "Guests can browse the rankings. Log in and collect a card to take part.",
+      "loginAction": "Log in",
+      "yourStanding": "Your standing",
+      "rank": "Rank #{rank}",
+      "unranked": "Not ranked yet",
+      "unrankedBody": "Collect a card while logged in. Your score will appear in the next hourly update.",
+      "points": "{score} points",
+      "rankingTitle": "Top collectors",
+      "rankingBody": "The 25 highest collection scores.",
+      "emptyTitle": "No ranked collectors yet",
+      "emptyBody": "The first logged-in collector will appear after the next score update.",
+      "loadError": "The leaderboard could not be loaded.",
+      "retry": "Try again",
+      "stats": {
+        "cards": "Unique cards",
+        "snapshots": "Snapshots",
+        "finishes": "Finishes",
+        "completedCards": "Finish masters",
+        "completedSets": "Complete sets"
+      },
+      "showcase": {
+        "title": "Favorite cards",
+        "body": "Choose up to three owned cards from the card viewer to show beside your name.",
+        "empty": "No favorite selected",
+        "choose": "Choose from collection",
+        "add": "Add to favorites",
+        "remove": "Remove favorite",
+        "full": "Favorites full",
+        "saving": "Saving…",
+        "error": "Could not save"
+      },
+      "scoring": {
+        "title": "How collection score works",
+        "body": "The score rewards breadth first, then rarity and difficult finish milestones.",
+        "base": "+{points} for each unique card",
+        "rarity": "+{min}–{max} from its rarest unlocked snapshot",
+        "finishes": "+{min}–{max} for each distinct premium finish",
+        "cardCompletion": "+{points} for finding every obtainable finish on one card",
+        "setCompletion": "+{points} per card when an entire set is complete",
+        "luckTitle": "Why there is no luck score",
+        "luckBody": "The current opening history stores final results, not the pre-protection roll needed to compare luck fairly. Collection score stays auditable instead of guessing."
       }
     },
     "redeem": {
@@ -1286,8 +1337,8 @@
         "communityEligible": "Community eligible",
         "raidOnly": "Raid cards only",
         "selectCharacter": "Select a character to configure artwork and a quip.",
-        "filename": "Image filename",
-        "invalidFilename": "Enter a PNG, JPG, WebP, or AVIF filename without a directory path.",
+        "filename": "Artwork filename",
+        "invalidFilename": "Enter a PNG, JPG, WebP, AVIF, GIF, or WebM filename without a directory path.",
         "character": {
           "enable": "Enable alternative character art",
           "help": "Replaces the character render on every CCG version of this character when the alternative roll wins."

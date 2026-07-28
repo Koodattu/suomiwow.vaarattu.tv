@@ -88,6 +88,27 @@ router.get(
 );
 
 router.get(
+  "/leaderboard",
+  rateLimit(90, 60_000),
+  asyncRoute(async (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    return ccgService.getLeaderboard();
+  }),
+);
+
+router.get(
+  "/leaderboard/me",
+  rateLimit(60, 60_000),
+  asyncRoute(async (req) => ccgService.getLeaderboardMe(req)),
+);
+
+router.put(
+  "/leaderboard/showcase",
+  rateLimit(20, 60_000),
+  asyncRoute(async (req) => ccgService.updateLeaderboardShowcase(req, req.body ?? {})),
+);
+
+router.get(
   "/sets",
   rateLimit(90, 60_000),
   asyncRoute(async (req, res) => {

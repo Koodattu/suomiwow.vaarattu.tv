@@ -153,6 +153,9 @@ import {
   CcgShare,
   CcgShareLink,
   CcgAnalytics,
+  CcgLeaderboardResponse,
+  CcgLeaderboardMeResponse,
+  CcgShowcaseCardInput,
   CcgRedeemResult,
   CcgSession,
   CcgSet,
@@ -298,6 +301,29 @@ export const api = {
   async getCcgAnalytics(): Promise<CcgAnalytics> {
     const response = await fetch(`${API_URL}/api/ccg/analytics`);
     if (!response.ok) throw await buildApiError(response, "Failed to load vault activity");
+    return response.json();
+  },
+
+  async getCcgLeaderboard(): Promise<CcgLeaderboardResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/leaderboard`);
+    if (!response.ok) throw await buildApiError(response, "Failed to load the collection leaderboard");
+    return response.json();
+  },
+
+  async getCcgLeaderboardMe(): Promise<CcgLeaderboardMeResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/leaderboard/me`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load your leaderboard profile");
+    return response.json();
+  },
+
+  async updateCcgShowcase(cards: CcgShowcaseCardInput[]): Promise<CcgLeaderboardMeResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/leaderboard/showcase`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ cards }),
+    });
+    if (!response.ok) throw await buildApiError(response, "Your showcase could not be updated");
     return response.json();
   },
 

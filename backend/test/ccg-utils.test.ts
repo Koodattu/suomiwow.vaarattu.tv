@@ -710,8 +710,10 @@ test("alternative art is one global unlock and does not split finish quantities"
   ]);
 });
 
-test("alternative artwork accepts image filenames but rejects paths", () => {
+test("alternative artwork accepts supported media filenames but rejects paths", () => {
   assert.equal(normalizeAlternativeArtFilename(" laku_clap.png "), "laku_clap.png");
+  assert.equal(normalizeAlternativeArtFilename("animated.gif"), "animated.gif");
+  assert.equal(normalizeAlternativeArtFilename("bogie.webm"), "bogie.webm");
   assert.equal(normalizeAlternativeArtFilename(""), null);
   assert.throws(() => normalizeAlternativeArtFilename("../laku.png"), /filename only/);
   assert.throws(() => normalizeAlternativeArtFilename("laku.svg"), /filename only/);

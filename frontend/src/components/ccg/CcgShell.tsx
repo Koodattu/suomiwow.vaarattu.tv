@@ -29,6 +29,7 @@ export default function CcgShell({
     { href: "/ccg", label: t("nav.home") },
     { href: "/ccg/open", label: t("nav.open") },
     { href: "/ccg/collection", label: t("nav.collection") },
+    { href: "/ccg/leaderboard", label: t("nav.leaderboard") },
   ];
 
   return (

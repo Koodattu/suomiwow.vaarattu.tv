@@ -31,7 +31,7 @@ const emptyDraft: Draft = {
   quipText: "",
   quipAudioFilename: "",
 };
-const imageFilenamePattern = /^[a-zA-Z0-9][a-zA-Z0-9 _.()-]*\.(?:avif|jpe?g|png|webp)$/i;
+const imageFilenamePattern = /^[a-zA-Z0-9][a-zA-Z0-9 _.()-]*\.(?:avif|gif|jpe?g|png|webm|webp)$/i;
 const audioFilenamePattern = /^[a-zA-Z0-9][a-zA-Z0-9 _.()-]*\.(?:aac|m4a|mp3|ogg|wav)$/i;
 const fieldClass = "min-h-10 w-full rounded-md border border-white/10 bg-gray-950/75 px-3 text-sm text-white outline-none transition-colors placeholder:text-gray-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50";
 const primaryButton = "min-h-10 rounded-md bg-amber-600 px-4 py-2 text-sm font-bold text-white transition-transform duration-150 ease-out hover:bg-amber-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
@@ -44,6 +44,10 @@ function assetPath(kind: "character" | "background", filename: string): string |
 function quipAudioPath(filename: string): string | null {
   const trimmed = filename.trim();
   return trimmed ? `/ccg/audio/quips/${encodeURIComponent(trimmed)}` : null;
+}
+
+function isWebmArtwork(path: string): boolean {
+  return /\.webm(?:$|[?#])/i.test(path);
 }
 
 function draftFromCustomization(alternativeArt: CcgAlternativeArt | null, quip: CcgQuip | null): Draft {
@@ -311,14 +315,29 @@ export default function CcgAlternativeArtManager({ onError, onNotice }: Props) {
               {!characterFilenameValid ? <p className="mt-2 text-xs text-red-300">{t("invalidFilename")}</p> : null}
               {characterPath ? (
                 <div className="mt-3 flex items-center gap-3">
-                  <img
-                    key={characterPath}
-                    src={characterPath}
-                    alt=""
-                    className="h-16 w-16 rounded-md object-contain outline outline-1 -outline-offset-1 outline-white/10"
-                    onLoad={() => setCharacterAssetState("ready")}
-                    onError={() => setCharacterAssetState("error")}
-                  />
+                  {isWebmArtwork(characterPath) ? (
+                    <video
+                      key={characterPath}
+                      src={characterPath}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="h-16 w-16 rounded-md object-contain outline outline-1 -outline-offset-1 outline-white/10"
+                      onLoadedData={() => setCharacterAssetState("ready")}
+                      onError={() => setCharacterAssetState("error")}
+                    />
+                  ) : (
+                    <img
+                      key={characterPath}
+                      src={characterPath}
+                      alt=""
+                      className="h-16 w-16 rounded-md object-contain outline outline-1 -outline-offset-1 outline-white/10"
+                      onLoad={() => setCharacterAssetState("ready")}
+                      onError={() => setCharacterAssetState("error")}
+                    />
+                  )}
                   <span className={`text-xs ${characterAssetState === "error" ? "text-red-300" : characterAssetState === "ready" ? "text-emerald-300" : "text-gray-500"}`}>
                     {t(`asset.${characterAssetState}`)}
                   </span>
@@ -355,14 +374,29 @@ export default function CcgAlternativeArtManager({ onError, onNotice }: Props) {
               {!backgroundFilenameValid ? <p className="mt-2 text-xs text-red-300">{t("invalidFilename")}</p> : null}
               {backgroundPath && hasCommunityVariant ? (
                 <div className="mt-3 flex items-center gap-3">
-                  <img
-                    key={backgroundPath}
-                    src={backgroundPath}
-                    alt=""
-                    className="h-16 w-24 rounded-md object-cover outline outline-1 -outline-offset-1 outline-white/10"
-                    onLoad={() => setBackgroundAssetState("ready")}
-                    onError={() => setBackgroundAssetState("error")}
-                  />
+                  {isWebmArtwork(backgroundPath) ? (
+                    <video
+                      key={backgroundPath}
+                      src={backgroundPath}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="h-16 w-24 rounded-md object-cover outline outline-1 -outline-offset-1 outline-white/10"
+                      onLoadedData={() => setBackgroundAssetState("ready")}
+                      onError={() => setBackgroundAssetState("error")}
+                    />
+                  ) : (
+                    <img
+                      key={backgroundPath}
+                      src={backgroundPath}
+                      alt=""
+                      className="h-16 w-24 rounded-md object-cover outline outline-1 -outline-offset-1 outline-white/10"
+                      onLoad={() => setBackgroundAssetState("ready")}
+                      onError={() => setBackgroundAssetState("error")}
+                    />
+                  )}
                   <span className={`text-xs ${backgroundAssetState === "error" ? "text-red-300" : backgroundAssetState === "ready" ? "text-emerald-300" : "text-gray-500"}`}>
                     {t(`asset.${backgroundAssetState}`)}
                   </span>
