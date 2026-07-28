@@ -332,7 +332,7 @@ export default function CollectibleCard({
       <span className={styles.artworkClip} aria-hidden="true"><span className={styles.raidArt} /><span className={styles.raidShade} /></span>
       <span className={styles.lowerDeck} aria-hidden="true" />
       <span className={styles.renderWindow} aria-hidden="true">
-        {renderUrl ? <AlphaFittedCharacterRender src={renderUrl} sizes={compact ? "280px" : `${width ?? 400}px`} className={styles.renderImage} priority={renderPriority} onReady={() => markReady("render")} /> : null}
+        {renderUrl ? <AlphaFittedCharacterRender src={renderUrl} className={styles.renderImage} priority={renderPriority} onReady={() => markReady("render")} /> : null}
       </span>
 
       <span className={styles.identity}><strong className={styles.characterName}>{card.name}</strong><span className={styles.guildName}>{guild}</span></span>

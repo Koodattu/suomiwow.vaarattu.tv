@@ -2,8 +2,7 @@ import type { NextRequest } from "next/server";
 
 const ALLOWED_HOST = "render.worldofwarcraft.com";
 const MAX_RENDER_BYTES = 8 * 1024 * 1024;
-const RENDER_CACHE_SECONDS = 14 * 24 * 60 * 60;
-const RENDER_STALE_SECONDS = 30 * 24 * 60 * 60;
+const RENDER_CACHE_SECONDS = 24 * 60 * 60;
 
 export async function GET(request: NextRequest) {
   const rawUrl = request.nextUrl.searchParams.get("url");
@@ -45,7 +44,7 @@ export async function GET(request: NextRequest) {
 
   return new Response(upstream.body, {
     headers: {
-      "Cache-Control": `public, max-age=${RENDER_CACHE_SECONDS}, stale-while-revalidate=${RENDER_STALE_SECONDS}, stale-if-error=${RENDER_STALE_SECONDS}`,
+      "Cache-Control": `public, max-age=${RENDER_CACHE_SECONDS}, must-revalidate`,
       "Content-Type": contentType,
     },
   });

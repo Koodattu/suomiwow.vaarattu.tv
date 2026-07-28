@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, SyntheticEvent } from "react";
-import { getCharacterRenderProxyUrl } from "@/lib/character-render";
+import { getCharacterRenderImageUrl } from "@/lib/character-render";
 
 type AlphaBounds = {
   top: number;
@@ -13,7 +13,6 @@ type AlphaBounds = {
 
 type AlphaFittedCharacterRenderProps = {
   src: string;
-  sizes: string;
   className?: string;
   priority?: boolean;
   onReady?: () => void;
@@ -60,8 +59,8 @@ function measureAlphaBounds(image: HTMLImageElement): AlphaBounds | null {
   };
 }
 
-export default function AlphaFittedCharacterRender({ src, sizes, className, priority = false, onReady }: AlphaFittedCharacterRenderProps) {
-  const proxySrc = useMemo(() => getCharacterRenderProxyUrl(src), [src]);
+export default function AlphaFittedCharacterRender({ src, className, priority = false, onReady }: AlphaFittedCharacterRenderProps) {
+  const imageSrc = useMemo(() => getCharacterRenderImageUrl(src), [src]);
   const [measurement, setMeasurement] = useState<{ src: string; bounds: AlphaBounds } | null>(() => {
     const bounds = boundsCache.get(src);
     return bounds ? { src, bounds } : null;
@@ -101,15 +100,15 @@ export default function AlphaFittedCharacterRender({ src, sizes, className, prio
 
   return (
     <Image
-      key={proxySrc}
-      src={proxySrc}
+      key={imageSrc}
+      src={imageSrc}
       alt=""
       fill
-      sizes={sizes}
       className={className}
       style={fitStyle}
       data-fit-ready={bounds ? "true" : "false"}
       priority={priority}
+      unoptimized
       onLoad={onLoad}
     />
   );

@@ -12,13 +12,14 @@ const nextConfig: NextConfig = {
   images: {
     localPatterns: [
       {
-        pathname: "/api/ccg/render",
-      },
-      {
-        pathname: "/ccg/alternative/character/**",
+        pathname: "/**",
         search: "",
       },
+      {
+        pathname: "/api/ccg/render",
+      },
     ],
+    qualities: [75, 95],
     remotePatterns: [
       {
         protocol: "http",
