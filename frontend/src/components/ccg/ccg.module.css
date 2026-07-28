@@ -1121,13 +1121,21 @@
 }
 
 .activityRewardCardThumbnail {
+  position: relative;
   display: block;
   width: 4.75rem;
+  height: 6.75rem;
   pointer-events: none;
 }
 
-.activityRewardCardThumbnail > span {
-  width: 100%;
+.activityRewardCardScale {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 410px;
+  transform: scale(0.19);
+  transform-origin: top left;
 }
 
 .activityRewardPacks {
@@ -1153,27 +1161,6 @@
   width: 300px;
   transform: scale(0.18133);
   transform-origin: top left;
-}
-
-.activityRewardPack > strong {
-  position: absolute;
-  right: -0.08rem;
-  bottom: 0.08rem;
-  display: grid;
-  min-width: 1.3rem;
-  height: 1.3rem;
-  place-items: center;
-  border-radius: 0.42rem;
-  padding-inline: 0.28rem;
-  background: rgba(3, 8, 20, 0.94);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.16),
-    0 3px 8px rgba(0, 0, 0, 0.44);
-  color: #f4f8ff;
-  font-size: 0.62rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 800;
-  line-height: 1;
 }
 
 .activityRowContent {

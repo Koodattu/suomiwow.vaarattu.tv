@@ -49,13 +49,14 @@ function ActivityRewardCardThumbnail({ reward }: {
   if (!reward.card) return null;
   return (
     <span className={styles.activityRewardCardThumbnail} aria-hidden="true">
-      <CollectibleCard
-        card={reward.card}
-        finish={reward.finish ?? "standard"}
-        artVariant={reward.artVariant ?? "standard"}
-        compact
-        width={76}
-      />
+      <span className={styles.activityRewardCardScale}>
+        <CollectibleCard
+          card={reward.card}
+          finish={reward.finish ?? "standard"}
+          artVariant={reward.artVariant ?? "standard"}
+          width={400}
+        />
+      </span>
     </span>
   );
 }
@@ -68,7 +69,6 @@ function ActivityRewardPackThumbnails({ reward }: {
     reward.currentPacks > 0
       ? {
           key: "current",
-          count: reward.currentPacks,
           title: reward.currentPackArt?.raidName ?? tCcg("open.currentTier"),
           theme: getPackTheme(reward.currentPackArt ?? undefined),
         }
@@ -76,7 +76,6 @@ function ActivityRewardPackThumbnails({ reward }: {
     reward.legacyPacks > 0
       ? {
           key: "legacy",
-          count: reward.legacyPacks,
           title: tCcg("open.legacyPackTitle"),
           theme: getPackTheme(undefined, true),
         }
@@ -92,7 +91,6 @@ function ActivityRewardPackThumbnails({ reward }: {
               <PackBoosterVisual title={entry.title} cardsLabel={tCcg("landing.cards")} />
             </span>
           </span>
-          <strong>×{entry.count}</strong>
         </span>
       ))}
     </span>
