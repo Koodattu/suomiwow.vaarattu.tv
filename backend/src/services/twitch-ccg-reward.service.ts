@@ -99,6 +99,17 @@ class TwitchCcgRewardService {
     return redemption;
   }
 
+  async processPackRedemption(redemptionId: mongoose.Types.ObjectId, twitchUserId: string): Promise<boolean> {
+    try {
+      const linkedUser = await User.findOne({ "twitch.id": twitchUserId }).select("_id").lean();
+      if (!linkedUser) return false;
+      return await this.grantRedemption(redemptionId, linkedUser._id);
+    } catch (error) {
+      logger.error(`[TwitchChannelPoints] Failed to immediately process pack redemption ${redemptionId}:`, error);
+      return false;
+    }
+  }
+
   async processCardRedemption(redemptionId: mongoose.Types.ObjectId | string): Promise<boolean> {
     const session = await mongoose.startSession();
     let assigned = false;

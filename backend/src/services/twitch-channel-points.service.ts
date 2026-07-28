@@ -680,6 +680,9 @@ class TwitchChannelPointsService {
       auth.subscriptionStatus = payload.subscription?.status || auth.subscriptionStatus;
       auth.lastError = undefined;
     }
+    if (rewardKind !== "card_reveal") {
+      void twitchCcgRewardService.processPackRedemption(redemption._id, event.user_id);
+    }
     await auth.save();
     return { status: 204 };
   }
