@@ -103,13 +103,12 @@
     "rechargeTime": "{hours} h {minutes} min",
     "guest": {
       "login": "Log in",
-      "keepPack": "Log in, keep everything, and get 20 more",
-      "loginForPacks": "Log in and get 20 more of each"
+      "loginForPacks": "Log in to get 20 packs"
     },
     "share": {
       "card": "Share card",
       "pack": "Share pack",
-      "loginRequired": "Login to share",
+      "loginRequired": "Log in to share",
       "creating": "Creating link…",
       "copied": "Link copied",
       "error": "Could not copy link",
@@ -1380,7 +1379,7 @@
       "identityEditorTitle": "Blizzard character identity",
       "identityEditorDescription": "Overrides the automatic raid-report identity for Blizzard character media and achievements until a newer Finnish-guild raid appearance is observed. Historical raid data is not changed.",
       "identityName": "Current character name",
-      "identityRealm": "Current realm",
+      "identityRealm": "Current realm slug",
       "identitySave": "Save and refresh media",
       "identitySaving": "Saving...",
       "identityCancel": "Cancel",

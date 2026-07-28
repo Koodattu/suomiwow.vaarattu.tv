@@ -18,7 +18,27 @@ test("normalizes equivalent character identity aliases into one key", () => {
 test("recreates the report-ranking fallback key used after an alias is removed", () => {
   assert.equal(
     createReportRankingSourceIdentityKey({ name: "Fluidyy", realm: "Storm Reaver", region: "EU", classID: 4 }),
-    "reportRankings:eu:storm-reaver:fluidyy:4",
+    "reportRankings:eu:stormreaver:fluidyy:4",
+  );
+});
+
+test("uses one identity key for realm display names and authoritative slugs", () => {
+  assert.equal(
+    createCharacterIdentityAliasKey({ name: "Raíjin", realm: "Blade's Edge", region: "EU", classID: 7 }),
+    createCharacterIdentityAliasKey({ name: "Raíjin", realm: "blades-edge", region: "eu", classID: 7 }),
+  );
+});
+
+test("matches report ranking display realms to ranked character slugs", () => {
+  const getMatchKey = (characterService as any).getReportRankingMatchKey.bind(characterService);
+
+  assert.equal(
+    getMatchKey({ name: "Raíjin", realm: "Blade's Edge", region: "EU" }),
+    getMatchKey({ name: "Raíjin", realm: "blades-edge", region: "eu" }),
+  );
+  assert.equal(
+    getMatchKey({ name: "Example", realm: "Azjol-Nerub", region: "EU" }),
+    getMatchKey({ name: "Example", realm: "azjolnerub", region: "eu" }),
   );
 });
 

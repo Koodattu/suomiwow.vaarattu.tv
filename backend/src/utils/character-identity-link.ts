@@ -1,3 +1,5 @@
+import { createRealmIdentityKey } from "./realm";
+
 export type CharacterIdentityAlias = {
   name: string;
   realm: string;
@@ -12,13 +14,12 @@ export function normalizeCharacterIdentityPart(value: string): string {
 export function createCharacterIdentityAliasKey(identity: CharacterIdentityAlias): string {
   return [
     normalizeCharacterIdentityPart(identity.region),
-    normalizeCharacterIdentityPart(identity.realm),
+    createRealmIdentityKey(identity.realm),
     normalizeCharacterIdentityPart(identity.name),
     identity.classID,
   ].join(":");
 }
 
 export function createReportRankingSourceIdentityKey(identity: CharacterIdentityAlias): string {
-  const normalizeSourcePart = (value: string) => value.trim().toLowerCase().replace(/\s+/g, "-");
-  return `reportRankings:${normalizeSourcePart(identity.region)}:${normalizeSourcePart(identity.realm)}:${normalizeSourcePart(identity.name)}:${identity.classID}`;
+  return `reportRankings:${normalizeCharacterIdentityPart(identity.region)}:${createRealmIdentityKey(identity.realm)}:${normalizeCharacterIdentityPart(identity.name)}:${identity.classID}`;
 }

@@ -28,6 +28,7 @@ import GuildLogSource from "../models/GuildLogSource";
 import taskTracker from "../services/task-tracker.service";
 import logger from "../utils/logger";
 import { isBlizzardIdentityOverrideActive, resolveBlizzardCharacterIdentity } from "../utils/character-identity";
+import { normalizeRealmSlug } from "../utils/realm";
 import { getRegularPickemRaidIdsValidationError } from "../utils/pickemRaid";
 import scheduler from "../services/scheduler.service";
 import guildService, { GuildReportImportError } from "../services/guild.service";
@@ -4153,13 +4154,13 @@ router.delete("/characters/:characterId/continuity-links/:linkId", async (req: R
 router.put("/characters/:characterId/blizzard-identity", async (req: Request, res: Response) => {
   try {
     const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
-    const realm = typeof req.body?.realm === "string" ? req.body.realm.trim() : "";
+    const realm = typeof req.body?.realm === "string" ? normalizeRealmSlug(req.body.realm) : "";
 
     if (name.length < 2 || name.length > 24 || /\s/.test(name)) {
       return res.status(400).json({ error: "Character name must be 2-24 characters and cannot contain spaces" });
     }
-    if (realm.length < 2 || realm.length > 64) {
-      return res.status(400).json({ error: "Realm must be 2-64 characters" });
+    if (realm.length < 2 || realm.length > 64 || !/^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(realm)) {
+      return res.status(400).json({ error: "Realm must be a 2-64 character Blizzard realm slug" });
     }
 
     const updatedAt = new Date();

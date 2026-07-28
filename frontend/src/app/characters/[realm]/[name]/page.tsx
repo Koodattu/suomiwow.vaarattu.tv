@@ -833,7 +833,7 @@ export default function CharacterProfilePage({ params }: PageProps) {
 
       try {
         const response = await api.getCharacterProfileByRealmName(realm, name, selectedClassId);
-        if (!cancelled && response.type === "profile" && response.canonicalPath) {
+        if (!cancelled && response.canonicalPath) {
           router.replace(selectedClassId ? `${response.canonicalPath}?class=${encodeURIComponent(selectedClassId)}` : response.canonicalPath);
           return;
         }

@@ -22,7 +22,8 @@ import Raid from "../models/Raid";
 import Report from "../models/Report";
 import logger from "../utils/logger";
 import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
-import { createCharacterIdentityAliasKey } from "../utils/character-identity-link";
+import { createCharacterIdentityAliasKey, normalizeCharacterIdentityPart } from "../utils/character-identity-link";
+import { areEquivalentRealms, createRealmIdentityKey, realmNameToSlugCandidate } from "../utils/realm";
 import { resolveRole, slugifySpecName } from "../utils/spec";
 import cacheService from "./cache.service";
 import characterMediaService from "./character-media.service";
@@ -362,6 +363,7 @@ export type CharacterProfileChoice = {
 
 export type CharacterProfileChoicesResponse = {
   type: "choices";
+  canonicalPath?: string | null;
   character: {
     name: string;
     realm: string;
@@ -489,6 +491,15 @@ type WclReportRankingCharacter = {
 type ReportRankingCanonicalMatch = {
   canonicalID: number;
   characterId?: mongoose.Types.ObjectId | null;
+  name: string;
+  realm: string;
+  region: string;
+};
+
+type ResolvedReportRankingCanonicalMatch = {
+  characterId: mongoose.Types.ObjectId;
+  wclCanonicalCharacterId: number;
+  manualIdentityLinkId?: mongoose.Types.ObjectId | null;
   name: string;
   realm: string;
   region: string;
@@ -736,13 +747,9 @@ class CharacterService {
     return new RegExp(`${options.prefix ? "^" : ""}${source}`, "i");
   }
 
-  private normalizeIdentityPart(value: string): string {
-    return value.trim().toLowerCase().replace(/\s+/g, "-");
-  }
-
   private getSourceIdentityKey(parts: { canonicalID?: number | null; region: string; realm: string; name: string; classID: number; source: string }): string {
     if (typeof parts.canonicalID === "number") return `canonical:${parts.canonicalID}:${parts.classID}`;
-    return `${parts.source}:${this.normalizeIdentityPart(parts.region)}:${this.normalizeIdentityPart(parts.realm)}:${this.normalizeIdentityPart(parts.name)}:${parts.classID}`;
+    return `${parts.source}:${normalizeCharacterIdentityPart(parts.region)}:${createRealmIdentityKey(parts.realm)}:${normalizeCharacterIdentityPart(parts.name)}:${parts.classID}`;
   }
 
   private getClassIdFromWclClassName(className: string): number | null {
@@ -752,11 +759,31 @@ class CharacterService {
   }
 
   private getReportRankingMatchKey(parts: { region: string; realm: string; name: string }): string {
-    return `${this.normalizeIdentityPart(parts.region)}:${this.normalizeIdentityPart(parts.realm)}:${this.normalizeIdentityPart(parts.name)}`;
+    return `${normalizeCharacterIdentityPart(parts.region)}:${createRealmIdentityKey(parts.realm)}:${normalizeCharacterIdentityPart(parts.name)}`;
   }
 
   private getReportActorMatchKey(parts: { realm: string; name: string }): string {
-    return `${this.normalizeIdentityPart(parts.realm)}:${this.normalizeIdentityPart(parts.name)}`;
+    return `${createRealmIdentityKey(parts.realm)}:${normalizeCharacterIdentityPart(parts.name)}`;
+  }
+
+  private async findCanonicalRouteCharacters(realm: string, name: string, classId?: number) {
+    const nameRegex = new RegExp(`^${this.escapeRegex(name)}$`, "i");
+    const candidates = await Character.find({ name: nameRegex, ...(classId ? { classID: classId } : {}) })
+      .select("_id wclCanonicalCharacterId name realm region classID blizzardIdentityOverride")
+      .lean<
+        Array<
+          Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "blizzardIdentityOverride"> & {
+            _id: mongoose.Types.ObjectId;
+          }
+        >
+      >();
+    const normalizedRealm = realm.toLocaleLowerCase("en-US");
+    const exactMatches = candidates.filter((candidate) => candidate.realm.toLocaleLowerCase("en-US") === normalizedRealm);
+    if (exactMatches.length > 0) return exactMatches;
+
+    const equivalentMatches = candidates.filter((candidate) => areEquivalentRealms(candidate.realm, realm));
+    const canonicalRealms = new Set(equivalentMatches.map((candidate) => candidate.realm.toLocaleLowerCase("en-US")));
+    return canonicalRealms.size === 1 ? equivalentMatches : [];
   }
 
   private buildReportActorClassMap(reportActors: WclReportPlayerActor[] = []): Map<string, number> {
@@ -1043,9 +1070,8 @@ class CharacterService {
     realm: string;
     region: string;
     classID: number;
-  }): Promise<{ characterId: mongoose.Types.ObjectId; wclCanonicalCharacterId: number; manualIdentityLinkId?: mongoose.Types.ObjectId | null } | null> {
+  }): Promise<ResolvedReportRankingCanonicalMatch | null> {
     const nameRegex = new RegExp(`^${this.escapeRegex(params.name)}$`, "i");
-    const realmRegex = new RegExp(`^${this.escapeRegex(params.realm)}$`, "i");
     const regionRegex = new RegExp(`^${this.escapeRegex(params.region)}$`, "i");
 
     const manualLink = await CharacterIdentityLink.findOne({
@@ -1054,47 +1080,67 @@ class CharacterService {
       .select("_id targetCharacterId")
       .lean();
     if (manualLink) {
-      const target = await Character.findById(manualLink.targetCharacterId).select("_id wclCanonicalCharacterId classID").lean();
+      const target = await Character.findById(manualLink.targetCharacterId).select("_id wclCanonicalCharacterId name realm region classID").lean();
       if (target?.wclCanonicalCharacterId && target.classID === params.classID) {
         return {
           characterId: target._id as mongoose.Types.ObjectId,
           wclCanonicalCharacterId: target.wclCanonicalCharacterId,
           manualIdentityLinkId: manualLink._id as mongoose.Types.ObjectId,
+          name: target.name,
+          realm: target.realm,
+          region: target.region,
         };
       }
     }
 
-    const character = await Character.findOne({
+    const characterCandidates = await Character.find({
       name: nameRegex,
-      realm: realmRegex,
       region: regionRegex,
       classID: params.classID,
     })
-      .select("_id wclCanonicalCharacterId")
+      .select("_id wclCanonicalCharacterId name realm region")
       .lean();
+    const exactCharacters = characterCandidates.filter(
+      (candidate) => candidate.realm.toLocaleLowerCase("en-US") === params.realm.toLocaleLowerCase("en-US"),
+    );
+    const equivalentCharacters = exactCharacters.length > 0 ? exactCharacters : characterCandidates.filter((candidate) => areEquivalentRealms(candidate.realm, params.realm));
+    const characterCanonicalIds = new Set(equivalentCharacters.map((candidate) => candidate.wclCanonicalCharacterId));
+    const character = characterCanonicalIds.size === 1 ? equivalentCharacters[0] : null;
 
     if (character?.wclCanonicalCharacterId) {
       return {
         characterId: character._id as mongoose.Types.ObjectId,
         wclCanonicalCharacterId: character.wclCanonicalCharacterId,
+        name: character.name,
+        realm: character.realm,
+        region: character.region,
       };
     }
 
-    const appearance = await CharacterReportAppearance.findOne({
+    const appearanceCandidates = await CharacterReportAppearance.find({
       characterName: nameRegex,
-      characterRealm: realmRegex,
       characterRegion: regionRegex,
       classID: params.classID,
       wclCanonicalCharacterId: { $ne: null },
     } as any)
       .sort({ reportStartTime: -1 })
-      .select("characterId wclCanonicalCharacterId")
+      .select("characterId wclCanonicalCharacterId characterName characterRealm characterRegion")
       .lean();
+    const exactAppearances = appearanceCandidates.filter(
+      (candidate) => candidate.characterRealm.toLocaleLowerCase("en-US") === params.realm.toLocaleLowerCase("en-US"),
+    );
+    const equivalentAppearances =
+      exactAppearances.length > 0 ? exactAppearances : appearanceCandidates.filter((candidate) => areEquivalentRealms(candidate.characterRealm, params.realm));
+    const appearanceCanonicalIds = new Set(equivalentAppearances.map((candidate) => candidate.wclCanonicalCharacterId));
+    const appearance = appearanceCanonicalIds.size === 1 ? equivalentAppearances[0] : null;
 
     if (appearance?.characterId && appearance?.wclCanonicalCharacterId) {
       return {
         characterId: appearance.characterId as mongoose.Types.ObjectId,
         wclCanonicalCharacterId: appearance.wclCanonicalCharacterId,
+        name: appearance.characterName,
+        realm: appearance.characterRealm,
+        region: appearance.characterRegion,
       };
     }
 
@@ -1108,7 +1154,7 @@ class CharacterService {
     region: string;
     classID: number;
     reportSeenAt: Date;
-  }): Promise<{ characterId: mongoose.Types.ObjectId; wclCanonicalCharacterId: number; manualIdentityLinkId?: mongoose.Types.ObjectId | null } | null> {
+  }): Promise<ResolvedReportRankingCanonicalMatch | null> {
     const character = await Character.findOneAndUpdate(
       { wclCanonicalCharacterId: params.canonicalID, classID: params.classID },
       {
@@ -1144,6 +1190,9 @@ class CharacterService {
     return {
       characterId: character._id as mongoose.Types.ObjectId,
       wclCanonicalCharacterId: params.canonicalID,
+      name: character.name,
+      realm: character.realm,
+      region: character.region,
     };
   }
 
@@ -1172,7 +1221,7 @@ class CharacterService {
 
     for (const rankingCharacter of params.rankingCharacters) {
       const name = rankingCharacter.name;
-      const realm = this.normalizeIdentityPart(rankingCharacter.server.name);
+      const realm = realmNameToSlugCandidate(rankingCharacter.server.name);
       const region = rankingCharacter.server.region.toLowerCase();
       const classID = this.getClassIdFromWclClassName(rankingCharacter.className);
       const specNames = Array.from(new Set([...(rankingCharacter.specNames ?? []), rankingCharacter.specName].filter((specName): specName is string => Boolean(specName)))).sort();
@@ -1188,8 +1237,8 @@ class CharacterService {
         ? await this.upsertCanonicalCharacterForReportRankingAppearance({
             canonicalID: externalCanonicalMatch.canonicalID,
             name,
-            realm,
-            region,
+            realm: externalCanonicalMatch.realm,
+            region: externalCanonicalMatch.region,
             classID,
             reportSeenAt,
           })
@@ -1207,6 +1256,8 @@ class CharacterService {
         classID,
         source: "reportRankings",
       });
+      const storedRealm = canonicalMatch?.realm ?? realm;
+      const storedRegion = canonicalMatch?.region ?? region;
 
       if (canonicalMatch?.wclCanonicalCharacterId) {
         await CharacterReportAppearance.deleteMany({
@@ -1246,14 +1297,14 @@ class CharacterService {
             reportGuildName: params.reportGuildName,
             reportGuildRealm: params.reportGuildRealm,
             characterName: name,
-            characterRealm: realm,
-            characterRegion: region,
+            characterRealm: storedRealm,
+            characterRegion: storedRegion,
             classID,
             specNames,
             rankingFightIds,
             hidden: false,
-            wclGuilds: [],
           },
+          $setOnInsert: { wclGuilds: [] },
         },
         { upsert: true, new: true },
       );
@@ -1584,24 +1635,23 @@ class CharacterService {
   private async matchReportRankingAppearancesToCanonicalCharacters(): Promise<number> {
     const startedAt = Date.now();
     const elapsed = () => `${((Date.now() - startedAt) / 1000).toFixed(1)}s`;
-    let matched = 0;
-    let scanned = 0;
     logger.info("[CharacterRaidParticipation] Matching report.rankings fallback appearances to canonical characters: loading unmatched appearances");
     const unmatchedAppearances = await CharacterReportAppearance.find({
       appearanceSource: "reportRankings",
       wclCanonicalCharacterId: null,
     })
-      .select("_id characterName characterRealm characterRegion classID reportGuildName reportGuildRealm reportStartTime")
+      .select(
+        "_id reportCode characterName characterRealm characterRegion classID reportGuildName reportGuildRealm reportStartTime specNames rankingFightIds hidden",
+      )
       .lean();
     logger.info(
       `[CharacterRaidParticipation] Matching report.rankings fallback appearances to canonical characters: loaded ${unmatchedAppearances.length} unmatched appearances (${elapsed()})`,
     );
 
     const getMatchKey = (name: string, realm: string, region: string, classID: number) => createCharacterIdentityAliasKey({ name, realm, region, classID });
-    const canonicalMatchesByIdentity = new Map<
-      string,
-      { characterId: mongoose.Types.ObjectId; wclCanonicalCharacterId: number; manualIdentityLinkId?: mongoose.Types.ObjectId | null }
-    >();
+    const canonicalMatchesByIdentity = new Map<string, ResolvedReportRankingCanonicalMatch>();
+    const manualIdentityKeys = new Set<string>();
+    const conflictedAutomaticIdentityKeys = new Set<string>();
 
     logger.info("[CharacterRaidParticipation] Matching report.rankings fallback appearances to canonical characters: building canonical match map");
     const manualLinks = await CharacterIdentityLink.find({}).select("_id identityKey targetCharacterId").lean();
@@ -1617,18 +1667,34 @@ class CharacterService {
         characterId: target._id as mongoose.Types.ObjectId,
         wclCanonicalCharacterId: target.wclCanonicalCharacterId,
         manualIdentityLinkId: link._id as mongoose.Types.ObjectId,
+        name: target.name,
+        realm: target.realm,
+        region: target.region,
       });
+      manualIdentityKeys.add(link.identityKey);
     }
+
+    const addAutomaticMatch = (identityKey: string, match: ResolvedReportRankingCanonicalMatch) => {
+      if (manualIdentityKeys.has(identityKey) || conflictedAutomaticIdentityKeys.has(identityKey)) return;
+      const existing = canonicalMatchesByIdentity.get(identityKey);
+      if (existing && existing.wclCanonicalCharacterId !== match.wclCanonicalCharacterId) {
+        canonicalMatchesByIdentity.delete(identityKey);
+        conflictedAutomaticIdentityKeys.add(identityKey);
+        return;
+      }
+      if (!existing) canonicalMatchesByIdentity.set(identityKey, match);
+    };
 
     for (const character of canonicalCharacters) {
       if (!character.wclCanonicalCharacterId || !character.name || !character.realm || !character.region || !character.classID) continue;
       const identityKey = getMatchKey(character.name, character.realm, character.region, character.classID);
-      if (!canonicalMatchesByIdentity.has(identityKey)) {
-        canonicalMatchesByIdentity.set(identityKey, {
-          characterId: character._id as mongoose.Types.ObjectId,
-          wclCanonicalCharacterId: character.wclCanonicalCharacterId,
-        });
-      }
+      addAutomaticMatch(identityKey, {
+        characterId: character._id as mongoose.Types.ObjectId,
+        wclCanonicalCharacterId: character.wclCanonicalCharacterId,
+        name: character.name,
+        realm: character.realm,
+        region: character.region,
+      });
     }
 
     const canonicalAppearanceRows = await CharacterReportAppearance.aggregate([
@@ -1656,18 +1722,22 @@ class CharacterService {
       if (!name || !realm || !region || typeof classID !== "number" || !row.characterId || typeof row.wclCanonicalCharacterId !== "number") continue;
 
       const key = getMatchKey(name, realm, region, classID);
-      if (!canonicalMatchesByIdentity.has(key)) {
-        canonicalMatchesByIdentity.set(key, {
-          characterId: row.characterId as mongoose.Types.ObjectId,
-          wclCanonicalCharacterId: row.wclCanonicalCharacterId,
-        });
-      }
+      addAutomaticMatch(key, {
+        characterId: row.characterId as mongoose.Types.ObjectId,
+        wclCanonicalCharacterId: row.wclCanonicalCharacterId,
+        name,
+        realm,
+        region,
+      });
     }
     logger.info(
       `[CharacterRaidParticipation] Matching report.rankings fallback appearances to canonical characters: built ${canonicalMatchesByIdentity.size} canonical identity matches (${elapsed()})`,
     );
 
-    let appearanceBulkOps: any[] = [];
+    const matchedAppearances: Array<{
+      appearance: (typeof unmatchedAppearances)[number];
+      canonicalMatch: ResolvedReportRankingCanonicalMatch;
+    }> = [];
     const characterDateUpdatesById = new Map<string, { characterId: mongoose.Types.ObjectId; firstSeenAt: Date; lastSeenAt: Date }>();
     const guildHistoryUpdatesByKey = new Map<
       string,
@@ -1680,51 +1750,17 @@ class CharacterService {
       }
     >();
 
-    const flushAppearanceUpdates = async () => {
-      if (appearanceBulkOps.length === 0) return;
-      try {
-        await CharacterReportAppearance.bulkWrite(appearanceBulkOps, { ordered: false });
-      } catch (error) {
-        const writeErrors = (error as any)?.writeErrors?.length ?? 0;
-        logger.warn(
-          `[CharacterRaidParticipation] Matching report.rankings fallback appearances: ${writeErrors || "some"} batched appearance updates failed, likely duplicate legacy rows`,
-        );
-      }
-      appearanceBulkOps = [];
-    };
-
-    for (const appearance of unmatchedAppearances) {
-      scanned += 1;
+    for (const [index, appearance] of unmatchedAppearances.entries()) {
       const canonicalMatch = canonicalMatchesByIdentity.get(getMatchKey(appearance.characterName, appearance.characterRealm, appearance.characterRegion, appearance.classID));
 
-      if (scanned % 1000 === 0) {
+      if ((index + 1) % 1000 === 0) {
         logger.info(
-          `[CharacterRaidParticipation] Matching report.rankings fallback appearances to canonical characters: scanned ${scanned}/${unmatchedAppearances.length}, matched ${matched} (${elapsed()})`,
+          `[CharacterRaidParticipation] Matching report.rankings fallback appearances to canonical characters: scanned ${index + 1}/${unmatchedAppearances.length}, matched ${matchedAppearances.length} (${elapsed()})`,
         );
       }
 
       if (!canonicalMatch) continue;
-
-      appearanceBulkOps.push({
-        updateOne: {
-          filter: { _id: appearance._id },
-          update: {
-            $set: {
-              characterId: canonicalMatch.characterId,
-              wclCanonicalCharacterId: canonicalMatch.wclCanonicalCharacterId,
-              manualIdentityLinkId: canonicalMatch.manualIdentityLinkId ?? null,
-              sourceIdentityKey: this.getSourceIdentityKey({
-                canonicalID: canonicalMatch.wclCanonicalCharacterId,
-                region: appearance.characterRegion,
-                realm: appearance.characterRealm,
-                name: appearance.characterName,
-                classID: appearance.classID,
-                source: "reportRankings",
-              }),
-            },
-          },
-        },
-      });
+      matchedAppearances.push({ appearance, canonicalMatch });
 
       const characterDateKey = canonicalMatch.characterId.toString();
       const characterDateUpdate = characterDateUpdatesById.get(characterDateKey);
@@ -1754,14 +1790,80 @@ class CharacterService {
         if (appearance.reportStartTime > guildHistoryUpdate.lastSeenAt) guildHistoryUpdate.lastSeenAt = appearance.reportStartTime;
       }
 
-      matched += 1;
+    }
 
-      if (appearanceBulkOps.length >= 1000) {
-        await flushAppearanceUpdates();
+    const canonicalAppearanceKey = (reportCode: string, canonicalID: number, classID: number) => `${reportCode}:${canonicalID}:${classID}`;
+    const existingCanonicalAppearances = new Map<string, { _id: mongoose.Types.ObjectId }>();
+    const lookupBatchSize = 500;
+    for (let offset = 0; offset < matchedAppearances.length; offset += lookupBatchSize) {
+      const batch = matchedAppearances.slice(offset, offset + lookupBatchSize);
+      const rows = await CharacterReportAppearance.find({
+        $or: batch.map(({ appearance, canonicalMatch }) => ({
+          reportCode: appearance.reportCode,
+          wclCanonicalCharacterId: canonicalMatch.wclCanonicalCharacterId,
+          classID: appearance.classID,
+        })),
+      })
+        .select("_id reportCode wclCanonicalCharacterId classID")
+        .lean();
+
+      for (const row of rows) {
+        if (typeof row.wclCanonicalCharacterId !== "number") continue;
+        existingCanonicalAppearances.set(canonicalAppearanceKey(row.reportCode, row.wclCanonicalCharacterId, row.classID), {
+          _id: row._id as mongoose.Types.ObjectId,
+        });
       }
     }
 
-    await flushAppearanceUpdates();
+    const mergeUpdates: any[] = [];
+    const mergedFallbackIds: mongoose.Types.ObjectId[] = [];
+    const directUpdates: any[] = [];
+    for (const { appearance, canonicalMatch } of matchedAppearances) {
+      const sourceIdentityKey = this.getSourceIdentityKey({
+        canonicalID: canonicalMatch.wclCanonicalCharacterId,
+        region: canonicalMatch.region,
+        realm: canonicalMatch.realm,
+        name: appearance.characterName,
+        classID: appearance.classID,
+        source: "reportRankings",
+      });
+      const existing = existingCanonicalAppearances.get(
+        canonicalAppearanceKey(appearance.reportCode, canonicalMatch.wclCanonicalCharacterId, appearance.classID),
+      );
+      const sharedUpdate = {
+        characterId: canonicalMatch.characterId,
+        wclCanonicalCharacterId: canonicalMatch.wclCanonicalCharacterId,
+        manualIdentityLinkId: canonicalMatch.manualIdentityLinkId ?? null,
+        sourceIdentityKey,
+        appearanceSource: "reportRankings" as const,
+        characterName: appearance.characterName,
+        characterRealm: canonicalMatch.realm,
+        characterRegion: canonicalMatch.region,
+        specNames: appearance.specNames ?? [],
+        rankingFightIds: appearance.rankingFightIds ?? [],
+        hidden: appearance.hidden === true,
+      };
+
+      if (existing) {
+        mergeUpdates.push({ updateOne: { filter: { _id: existing._id }, update: { $set: sharedUpdate } } });
+        mergedFallbackIds.push(appearance._id as mongoose.Types.ObjectId);
+      } else {
+        directUpdates.push({ updateOne: { filter: { _id: appearance._id }, update: { $set: sharedUpdate } } });
+      }
+    }
+
+    const runBulkUpdates = async (operations: any[]) => {
+      for (let offset = 0; offset < operations.length; offset += 1000) {
+        await CharacterReportAppearance.bulkWrite(operations.slice(offset, offset + 1000), { ordered: false });
+      }
+    };
+
+    // Update the canonical row first. Only delete the redundant fallback after all merges succeed.
+    await runBulkUpdates(mergeUpdates);
+    for (let offset = 0; offset < mergedFallbackIds.length; offset += 1000) {
+      await CharacterReportAppearance.deleteMany({ _id: { $in: mergedFallbackIds.slice(offset, offset + 1000) } });
+    }
+    await runBulkUpdates(directUpdates);
 
     if (characterDateUpdatesById.size > 0) {
       const dateUpdateOps = Array.from(characterDateUpdatesById.values()).map((update) => ({
@@ -1792,9 +1894,9 @@ class CharacterService {
     }
 
     logger.info(
-      `[CharacterRaidParticipation] Matching report.rankings fallback appearances to canonical characters: complete, scanned ${scanned}, matched ${matched}, updated ${guildHistoryUpdatesByKey.size} guild history groups (${elapsed()})`,
+      `[CharacterRaidParticipation] Matching report.rankings fallback appearances to canonical characters: complete, scanned ${unmatchedAppearances.length}, matched ${matchedAppearances.length}, merged ${mergedFallbackIds.length} duplicate rows, updated ${guildHistoryUpdatesByKey.size} guild history groups (${elapsed()})`,
     );
-    return matched;
+    return matchedAppearances.length;
   }
 
   private async reconcileRankedCharacterAppearanceClassesFromReportRankings(): Promise<number> {
@@ -2561,10 +2663,15 @@ class CharacterService {
   }
 
   async getCharacterProfileByRealmName(realm: string, name: string, classId?: number): Promise<CharacterProfileLookupResponse | null> {
-    const exactCharacterMatch = {
-      characterRealm: realm,
-      characterName: name,
-    };
+    const canonicalRouteCharacters = await this.findCanonicalRouteCharacters(realm, name, classId);
+    const routeCanonicalIds = canonicalRouteCharacters.map((candidate) => candidate.wclCanonicalCharacterId);
+    const exactCharacterMatch =
+      routeCanonicalIds.length > 0
+        ? { wclCanonicalCharacterId: { $in: routeCanonicalIds } }
+        : {
+            characterRealm: realm,
+            characterName: name,
+          };
 
     const identityRows = await CharacterRaidParticipation.aggregate([
       {
@@ -2626,8 +2733,16 @@ class CharacterService {
       };
     });
     if (!classId && choices.length > 1) {
+      const canonicalChoice = choices[0];
+      const canonicalPath =
+        canonicalChoice &&
+        (realm.toLocaleLowerCase("en-US") !== canonicalChoice.realm.toLocaleLowerCase("en-US") ||
+          name.toLocaleLowerCase("en-US") !== canonicalChoice.name.toLocaleLowerCase("en-US"))
+          ? `/characters/${encodeURIComponent(canonicalChoice.realm)}/${encodeURIComponent(canonicalChoice.name)}`
+          : null;
       return {
         type: "choices",
+        canonicalPath,
         character: {
           name: choices[0]?.name ?? name,
           realm: choices[0]?.realm ?? realm,
@@ -2714,16 +2829,18 @@ class CharacterService {
       rankingRows = this.selectPreferredProfileRows(rawRankingRows as any[], "allstars");
       mechanicsRows = this.selectPreferredProfileRows(rawMechanicsRows as any[], "overall");
     } else {
-      const fallbackCharacter = await Character.findOne({
-        $or: [
-          { realm, name },
-          { "blizzardIdentityOverride.realm": realm, "blizzardIdentityOverride.name": name },
-        ],
-        ...(classId ? { classID: classId } : {}),
-      })
-        .collation(CASE_INSENSITIVE_COLLATION)
-        .select("wclCanonicalCharacterId name realm region classID blizzardIdentityOverride")
-        .lean();
+      const fallbackCharacter =
+        canonicalRouteCharacters.find((candidate) => !classId || candidate.classID === classId) ??
+        (await Character.findOne({
+          $or: [
+            { realm, name },
+            { "blizzardIdentityOverride.realm": realm, "blizzardIdentityOverride.name": name },
+          ],
+          ...(classId ? { classID: classId } : {}),
+        })
+          .collation(CASE_INSENSITIVE_COLLATION)
+          .select("wclCanonicalCharacterId name realm region classID blizzardIdentityOverride")
+          .lean());
 
       if (!fallbackCharacter) return null;
 
@@ -2933,8 +3050,11 @@ class CharacterService {
       : null;
     const profileRaidAchievements = this.formatRaidAchievementSummary(profileRaidAchievementRow);
     const mythicPlus = profileCharacterDoc ? await mythicPlusService.getCharacterProfileMythicPlus(profileCharacterDoc._id) : { seasons: [] };
+    const routeMatchesCanonicalIdentity =
+      realm.toLocaleLowerCase("en-US") === character.realm.toLocaleLowerCase("en-US") &&
+      name.toLocaleLowerCase("en-US") === character.name.toLocaleLowerCase("en-US");
     const canonicalPath =
-      continuityRootCharacter && continuityRequestedCharacterId && continuityRequestedCharacterId !== String(continuityRootCharacter._id)
+      (continuityRootCharacter && continuityRequestedCharacterId && continuityRequestedCharacterId !== String(continuityRootCharacter._id)) || !routeMatchesCanonicalIdentity
         ? `/characters/${encodeURIComponent(character.realm)}/${encodeURIComponent(character.name)}`
         : null;
 
@@ -3027,10 +3147,15 @@ class CharacterService {
     if (!mongoose.Types.ObjectId.isValid(guildId)) return null;
 
     const reportGuildId = new mongoose.Types.ObjectId(guildId);
-    const exactCharacterMatch = {
-      characterRealm: realm,
-      characterName: name,
-    };
+    const canonicalRouteCharacters = await this.findCanonicalRouteCharacters(realm, name, classId);
+    const routeCanonicalIds = canonicalRouteCharacters.map((candidate) => candidate.wclCanonicalCharacterId);
+    const exactCharacterMatch =
+      routeCanonicalIds.length > 0
+        ? { wclCanonicalCharacterId: { $in: routeCanonicalIds } }
+        : {
+            characterRealm: realm,
+            characterName: name,
+          };
     const participationRows = await CharacterRaidParticipation.find({
       ...exactCharacterMatch,
       reportGuildId,

@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { normalizeRealmSlug } from "../utils/realm";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
 
@@ -30,7 +31,7 @@ const CharacterRaidParticipationSchema = new Schema<ICharacterRaidParticipation>
     reportGuildName: { type: String, required: true },
     reportGuildRealm: { type: String, required: true },
     characterName: { type: String, required: true },
-    characterRealm: { type: String, required: true },
+    characterRealm: { type: String, required: true, set: normalizeRealmSlug },
     characterRegion: { type: String, required: true },
     classID: { type: Number, required: true },
     firstSeenAt: { type: Date, required: true },

@@ -2048,6 +2048,7 @@ export type CharacterProfileChoice = {
 
 export type CharacterProfileChoicesResponse = {
   type: "choices";
+  canonicalPath?: string | null;
   character: {
     name: string;
     realm: string;

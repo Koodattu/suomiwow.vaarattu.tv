@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 
 const ALLOWED_HOST = "render.worldofwarcraft.com";
 const MAX_RENDER_BYTES = 8 * 1024 * 1024;
-const RENDER_CACHE_SECONDS = 24 * 60 * 60;
+const RENDER_CACHE_SECONDS = 7 * 24 * 60 * 60;
 
 export async function GET(request: NextRequest) {
   const rawUrl = request.nextUrl.searchParams.get("url");

@@ -23,6 +23,7 @@ import MythicPlusDungeon from "../models/MythicPlusDungeon";
 import MythicPlusSeason from "../models/MythicPlusSeason";
 import { getMissingMythicPlusSeasons, resolveMythicPlusSeasonRows } from "../utils/mythic-plus";
 import logger from "../utils/logger";
+import { normalizeRealmSlug } from "../utils/realm";
 import cacheService from "./cache.service";
 import taskTracker from "./task-tracker.service";
 
@@ -232,10 +233,6 @@ export interface MythicPlusCrawlerStatusResponse {
   };
   recentFailures: Array<ReturnType<MythicPlusService["summarizeJob"]>>;
   updatedAt: Date;
-}
-
-function normalizeIdentityPart(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
 function normalizeClassName(value: string): string {
@@ -652,7 +649,7 @@ class MythicPlusService {
     const params = this.buildAccessKeyParams(
       new URLSearchParams({
         region: character.region.toLowerCase(),
-        realm: normalizeIdentityPart(character.realm),
+        realm: normalizeRealmSlug(character.realm),
         name: character.name,
         fields,
       }),
@@ -663,7 +660,7 @@ class MythicPlusService {
 
   async fetchCharacterSeasonProgress(character: Pick<CharacterIdentity, "name" | "realm" | "region">, season: string): Promise<RaiderIoHttpResult> {
     const region = encodeURIComponent(character.region.toLowerCase());
-    const realm = encodeURIComponent(normalizeIdentityPart(character.realm));
+    const realm = encodeURIComponent(normalizeRealmSlug(character.realm));
     const name = encodeURIComponent(character.name);
     const url = `${RAIDER_IO_SITE_API_BASE_URL}/characters/${region}/${realm}/${name}/mythic-plus-progress?season=${encodeURIComponent(season)}`;
     return this.fetchJson(url, `mythic-plus-progress ${character.region}/${character.realm}/${character.name} ${season}`);

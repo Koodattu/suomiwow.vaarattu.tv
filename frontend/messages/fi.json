@@ -103,8 +103,7 @@
     "rechargeTime": "{hours} t {minutes} min",
     "guest": {
       "login": "Kirjaudu",
-      "keepPack": "Kirjaudu, säilytä kaikki ja saat 20 lisää",
-      "loginForPacks": "Kirjaudu ja saat 20 lisää kumpaakin"
+      "loginForPacks": "Kirjaudu sisään ja saat 20 pakkaa lisää"
     },
     "share": {
       "card": "Jaa kortti",
@@ -1380,7 +1379,7 @@
       "identityEditorTitle": "Blizzard-hahmon identiteetti",
       "identityEditorDescription": "Ohittaa raid-raporteista automaattisesti päätellyn identiteetin Blizzard-hahmomedialle ja saavutuksille, kunnes hahmo havaitaan myöhemmin suomalaisen killan raidissa. Historiallisia raid-tietoja ei muuteta.",
       "identityName": "Hahmon nykyinen nimi",
-      "identityRealm": "Nykyinen realm",
+      "identityRealm": "Nykyisen realmin tunniste",
       "identitySave": "Tallenna ja päivitä media",
       "identitySaving": "Tallennetaan...",
       "identityCancel": "Peruuta",

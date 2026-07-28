@@ -23,6 +23,7 @@ import {
   FeaturedAchievementTarget,
 } from "../utils/featured-achievements";
 import logger from "../utils/logger";
+import { normalizeRealmSlug } from "../utils/realm";
 import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
 import { createCharacterAccountPairKey, orderCharacterAccountPairIds } from "../utils/character-account-manual-edge";
 import { buildCharacterContinuityGraph } from "../utils/character-continuity";
@@ -977,7 +978,7 @@ class CharacterAchievementService {
       });
     }
 
-    const realmSlug = this.toRealmSlug(realm);
+    const realmSlug = normalizeRealmSlug(realm);
     const characterName = encodeURIComponent(name.toLowerCase());
     const namespace = `profile-${normalizedRegion}`;
     const url = `${baseUrl}/profile/wow/character/${encodeURIComponent(realmSlug)}/${characterName}/achievements?namespace=${encodeURIComponent(namespace)}&locale=en_US`;
@@ -1344,15 +1345,6 @@ class CharacterAchievementService {
 
   private buildSnapshotKey(character: Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID">): string {
     return [character.wclCanonicalCharacterId, character.classID, character.region.toLowerCase(), character.realm.toLowerCase(), character.name.toLowerCase()].join(":");
-  }
-
-  private toRealmSlug(realm: string): string {
-    return realm
-      .trim()
-      .toLowerCase()
-      .replace(/['’]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
   }
 
   private buildAccountSlug(displayName: string, groupKey: string): string {

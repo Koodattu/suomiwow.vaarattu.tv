@@ -3078,6 +3078,10 @@
   pointer-events: auto;
 }
 
+.redeemPackRewards[data-reward-count="1"] .redeemPackVisual {
+  width: min(11.5rem, calc(46dvh * 0.66));
+}
+
 .redeemPackCount {
   display: flex;
   align-items: baseline;
@@ -3111,7 +3115,7 @@
 
 .redeemRewardCardButton {
   display: grid;
-  width: min(18rem, 43vw, calc(55dvh * 5 / 7));
+  width: min(21rem, 52vw, calc(64dvh * 5 / 7));
   max-width: 100%;
   gap: 0.65rem;
   border-radius: 0.9rem;
@@ -3633,8 +3637,12 @@
     width: min(12rem, calc(44dvh * 0.66));
   }
 
+  .redeemPackRewards[data-reward-count="1"] .redeemPackVisual {
+    width: min(10rem, calc(40dvh * 0.66));
+  }
+
   .redeemRewardCardButton {
-    width: min(74vw, 15.5rem, calc(54dvh * 5 / 7));
+    width: min(82vw, 18rem, calc(62dvh * 5 / 7));
   }
 
   .redeemDialogActions {

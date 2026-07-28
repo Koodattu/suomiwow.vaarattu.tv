@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { normalizeRealmSlug } from "../utils/realm";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
 
@@ -52,7 +53,7 @@ const GuildHistoryEntrySchema: Schema = new Schema(
 const CharacterBlizzardIdentityOverrideSchema: Schema = new Schema(
   {
     name: { type: String, required: true },
-    realm: { type: String, required: true },
+    realm: { type: String, required: true, set: normalizeRealmSlug },
     updatedAt: { type: Date, required: true },
     updatedBy: { type: String, required: true },
   },
@@ -63,7 +64,7 @@ const CharacterSchema: Schema = new Schema(
   {
     wclCanonicalCharacterId: { type: Number, required: true },
     name: { type: String, required: true },
-    realm: { type: String, required: true },
+    realm: { type: String, required: true, set: normalizeRealmSlug },
     region: { type: String, required: true },
     classID: { type: Number, required: true },
     guildName: { type: String, required: false, default: null },

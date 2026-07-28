@@ -477,6 +477,7 @@ export default function CcgOpenPage() {
   const canOpen = recoveryInitialized && !recoveryId && Boolean(session) && !queryFailed && modeSets.length > 0 && !noPacks && !mutation.isPending;
   const allRevealed = Boolean(opening) && revealedCards.size >= (opening?.results.length ?? 0);
   const hasAnotherPack = Boolean(opening && session && session.packs[opening.mode].totalRemaining > 0);
+  const shouldPromptGuestLogin = session?.ownerType === "guest" && !hasAnotherPack;
   const nextPackRemaining = opening && session
     ? Math.max(0, new Date(session.recharge[opening.mode].nextAt).getTime() - rechargeNow)
     : 0;
@@ -950,13 +951,13 @@ export default function CcgOpenPage() {
               <div className={packStyles.revealControls}>
                 <div className={packStyles.revealActionStack}>
                   <div className={packStyles.revealActionSlot}>
-                    {allRevealed && session?.ownerType === "guest" ? (
+                    {allRevealed && shouldPromptGuestLogin ? (
                       <button
                         type="button"
                         className={styles.primaryButton}
                         onClick={() => login(`${window.location.pathname}${window.location.search}${window.location.hash}`, { ccgOpeningId: opening.id })}
                       >
-                        {t(hasAnotherPack ? "guest.keepPack" : "guest.loginForPacks")}
+                        {t("guest.loginForPacks")}
                       </button>
                     ) : allRevealed ? (
                       <button
@@ -986,26 +987,6 @@ export default function CcgOpenPage() {
                       <button type="button" className={styles.secondaryButton} onClick={revealAll} disabled={revealPhase !== "ready"}>
                         {t("open.revealAll")}
                       </button>
-                    ) : session?.ownerType === "guest" ? (
-                      hasAnotherPack ? (
-                        <button
-                          type="button"
-                          className={styles.secondaryButton}
-                          onClick={openAnotherPack}
-                          disabled={mutation.isPending || isPackCycling}
-                        >
-                          {mutation.isPending || isPackCycling ? t("open.opening") : t("open.openAnother")}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className={styles.secondaryButton}
-                          onClick={clearSavedOpening}
-                          disabled={mutation.isPending || isPackCycling}
-                        >
-                          {t("open.chooseDifferent")}
-                        </button>
-                      )
                     ) : (
                       <button type="button" className={styles.secondaryButton} onClick={clearSavedOpening} disabled={mutation.isPending || isPackCycling}>
                         {t("open.chooseDifferent")}

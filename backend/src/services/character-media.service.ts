@@ -14,6 +14,7 @@ import CcgSet from "../models/CcgSet";
 import TaskLog from "../models/TaskLog";
 import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
 import logger from "../utils/logger";
+import { normalizeRealmSlug } from "../utils/realm";
 import cacheService from "./cache.service";
 import { getCharacterRaidParticipationSummaries } from "./character-raid-guild.service";
 
@@ -57,16 +58,6 @@ export function getCharacterMediaFailureTransition(
   if (status === 404) return { queueStatus: "not_found", delayMs: NOT_FOUND_RETRY_MS };
   if (attempts >= maxAttempts) return { queueStatus: "failed", delayMs: TRANSIENT_FAILURE_RETRY_MS };
   return { queueStatus: "retry", delayMs: Math.min(6 * 60 * 60 * 1000, 2 ** attempts * 60 * 1000) };
-}
-
-function realmSlug(realm: string): string {
-  return realm
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[’']/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
 }
 
 function errorStatus(error: unknown): number | null {
@@ -369,7 +360,7 @@ export class CharacterMediaService {
             $set: {
               name: row.name,
               realm: row.realm,
-              realmSlug: realmSlug(row.realm),
+              realmSlug: normalizeRealmSlug(row.realm),
               region: row.region.toLowerCase(),
             },
             $max: { priority },
@@ -567,7 +558,7 @@ export class CharacterMediaService {
         },
       );
       await cacheService.invalidatePattern(
-        new RegExp(`^characters:profile:v3:${escapeRegExp(item.realm.toLowerCase())}:${escapeRegExp(item.name.toLowerCase())}:`),
+        new RegExp(`^characters:profile:v4:${escapeRegExp(item.realm.toLowerCase())}:${escapeRegExp(item.name.toLowerCase())}:`),
       );
     } catch (error) {
       const status = errorStatus(error);

@@ -123,6 +123,9 @@ function CcgRedeemRewardDialog({
         ? "/fun/ccg/open?mode=legacy"
         : "/fun/ccg/open"
     : "/fun/ccg/open";
+  const awardedPackCount = result.reward.type === "packs"
+    ? result.reward.currentPacks + result.reward.legacyPacks
+    : 0;
 
   const updatePackMotion = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
@@ -151,7 +154,7 @@ function CcgRedeemRewardDialog({
         </div>
 
         {result.reward.type === "packs" ? (
-          <div className={styles.redeemPackRewards}>
+          <div className={styles.redeemPackRewards} data-reward-count={awardedPackCount}>
             {result.reward.currentPacks > 0 ? (
               <div className={styles.redeemPackReward} data-mode="current">
                 <div
@@ -210,7 +213,17 @@ function CcgRedeemRewardDialog({
           ) : (
             <Link href="/fun/ccg/collection" className={styles.primaryButton}>{t("viewCollection")}</Link>
           )}
-          <button type="button" className={styles.secondaryButton} onClick={requestClose}>{t("closeAction")}</button>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              requestClose();
+            }}
+            onClick={requestClose}
+          >
+            {t("closeAction")}
+          </button>
         </div>
         <p id="ccg-redeem-reward-hint" className={styles.redeemDialogHint}>{t("tapAnywhereToClose")}</p>
       </div>
