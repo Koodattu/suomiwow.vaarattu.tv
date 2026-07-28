@@ -1,12 +1,12 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CcgTierGrade } from "../config/ccg";
+import { CcgRegularTierGrade } from "../config/ccg";
 
 export interface ICcgPublicationCandidate extends Document {
   snapshotKey: string;
   setId: mongoose.Types.ObjectId;
   characterId: mongoose.Types.ObjectId;
   payload: Record<string, unknown>;
-  tierGrade: CcgTierGrade;
+  tierGrade: CcgRegularTierGrade;
   status: "ready" | "missing_media" | "published" | "unchanged";
   createdAt: Date;
   updatedAt: Date;

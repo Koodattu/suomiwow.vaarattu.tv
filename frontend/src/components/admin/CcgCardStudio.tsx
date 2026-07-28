@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import { api } from "@/lib/api";
-import { hasAlternativeArtwork } from "@/lib/ccg";
+import { CCG_RARITY_KEYS, hasAlternativeArtwork } from "@/lib/ccg";
 import { formatRealmName } from "@/lib/utils";
 import type { CcgArtVariant, CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 
@@ -30,7 +30,7 @@ const finishes: readonly PreviewFinish[] = [
   "metamorphic",
   "parallax",
 ];
-const grades: readonly CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
+const grades: readonly CcgTierGrade[] = ["H", "S", "A", "B", "C", "D", "E", "F"];
 const fieldClass = "min-h-10 w-full rounded-md border border-white/10 bg-gray-950/75 px-3 text-sm text-white outline-none transition-colors placeholder:text-gray-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/15";
 
 export default function CcgCardStudio() {
@@ -154,7 +154,7 @@ export default function CcgCardStudio() {
                     >
                       <span className="flex items-center justify-between gap-3">
                         <strong className="truncate text-sm">{card.name} <span className="font-medium text-gray-500">· {formatRealmName(card.realm)}</span></strong>
-                        <span className="shrink-0 text-xs font-bold text-cyan-300">{ccg(`rarity.${({ S: "artifact", A: "legendary", B: "epic", C: "rare", D: "uncommon", E: "common", F: "poor" } as const)[card.tierGrade]}`)}</span>
+                        <span className="shrink-0 text-xs font-bold text-cyan-300">{ccg(`rarity.${CCG_RARITY_KEYS[card.tierGrade]}`)}</span>
                       </span>
                       <span className="mt-0.5 block truncate text-xs text-gray-500">
                         {card.guildName ?? ccg("independent")} · {t("variants", { count: card.variants?.length ?? 1 })}

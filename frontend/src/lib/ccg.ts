@@ -22,7 +22,8 @@ export function getCcgRedeemFinishOrder(setKind: "raid" | "community", customFin
   return setKind === "community" ? CCG_FINISH_ORDER : getCcgFinishOrder(customFinish);
 }
 
-export const CCG_RARITY_KEYS: Record<CcgTierGrade, "artifact" | "legendary" | "epic" | "rare" | "uncommon" | "common" | "poor"> = {
+export const CCG_RARITY_KEYS: Record<CcgTierGrade, "heirloom" | "artifact" | "legendary" | "epic" | "rare" | "uncommon" | "common" | "poor"> = {
+  H: "heirloom",
   S: "artifact",
   A: "legendary",
   B: "epic",

@@ -3,7 +3,8 @@ export type CcgBaseFinish = "standard" | "foil" | "golden" | "prismatic" | "holo
 export type CcgCustomFinish = "void" | "toxic";
 export type CcgFinish = CcgBaseFinish | CcgCustomFinish;
 export type CcgArtVariant = "standard" | "alternative";
-export type CcgTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";
+export type CcgRegularTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";
+export type CcgTierGrade = "H" | CcgRegularTierGrade;
 export type CcgSetState = "draft" | "current" | "legacy" | "locked";
 export type CcgSetKind = "raid" | "community";
 
@@ -19,7 +20,7 @@ export const CCG_INITIAL_PACKS = {
 };
 export const CCG_PACK_BALANCE_VERSION = 3;
 export const CCG_GUEST_COOKIE = "swccg_guest";
-export const CCG_PACK_RULE_VERSION = "pack-v13-explicit-snapshot-unlocks";
+export const CCG_PACK_RULE_VERSION = "pack-v14-community-heirloom";
 export const CCG_GRADING_VERSION = "grade-v2-rarity-ladder";
 export const CCG_ELIGIBILITY_VERSION = "complete-scores-mythic-reports-v3";
 export const CCG_THEME_VERSION = "vault-v1";
@@ -54,10 +55,11 @@ export const CCG_ENABLE_MIN_ELIGIBLE_CHARACTERS = positiveInteger(process.env.CC
 export const CCG_ENABLE_MIN_MEDIA_READY_CHARACTERS = positiveInteger(process.env.CCG_ENABLE_MIN_MEDIA_READY_CHARACTERS, 50);
 export const CCG_ENABLE_MIN_MEDIA_COVERAGE = ratio(process.env.CCG_ENABLE_MIN_MEDIA_COVERAGE, 0.75);
 
-export const CCG_TIER_GRADES: readonly CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
-export const CCG_A_OR_BETTER_GRADES = new Set<CcgTierGrade>(["S", "A"]);
+export const CCG_REGULAR_TIER_GRADES: readonly CcgRegularTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
+export const CCG_TIER_GRADES: readonly CcgTierGrade[] = ["H", ...CCG_REGULAR_TIER_GRADES];
+export const CCG_A_OR_BETTER_GRADES = new Set<CcgRegularTierGrade>(["S", "A"]);
 
-export const CCG_WEIGHTED_GRADE_ODDS: Readonly<Record<CcgTierGrade, number>> = {
+export const CCG_WEIGHTED_GRADE_ODDS: Readonly<Record<CcgRegularTierGrade, number>> = {
   S: 30,
   A: 70,
   B: 150,
@@ -67,7 +69,7 @@ export const CCG_WEIGHTED_GRADE_ODDS: Readonly<Record<CcgTierGrade, number>> = {
   F: 150,
 };
 
-export const CCG_GUARANTEED_GRADE_ODDS: Readonly<Record<CcgTierGrade, number>> = {
+export const CCG_GUARANTEED_GRADE_ODDS: Readonly<Record<CcgRegularTierGrade, number>> = {
   S: 60,
   A: 140,
   B: 0,

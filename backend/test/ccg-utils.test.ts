@@ -8,7 +8,10 @@ import {
   CCG_FINISH_PITY_LIMITS,
   CCG_INITIAL_PACKS,
   CCG_PACK_STORAGE_CAPS,
+  CCG_REGULAR_TIER_GRADES,
+  CCG_TIER_GRADES,
   CcgFinish,
+  CcgTierGrade,
   getCcgFinishOrder,
   getCcgPackFinishOrder,
   getCcgRedeemFinishOrder,
@@ -38,7 +41,7 @@ import {
   rollOwnedFinish,
   rollProtectedFinish,
 } from "../src/utils/ccg-random";
-import { planPackSelections, selectCommunityCard, selectPackCards, shufflePackResults } from "../src/utils/ccg-pack";
+import { planPackSelections, selectCommunityCard, selectCommunityCardForGrade, selectPackCards, shufflePackResults } from "../src/utils/ccg-pack";
 import { createWowCharacterIdentityKey } from "../src/utils/ccg-identity";
 import { getTransferableGuestPacks, resolveGuestClaimOpeningId, verifyGuestLibrary } from "../src/utils/ccg-guest-library";
 import { getCcgSnapshotPreviewDisposition, nextCcgCardSnapshotVersion, shouldPublishCcgCardSnapshot, summarizeCcgSnapshotPreview } from "../src/utils/ccg-card-snapshot";
@@ -649,6 +652,20 @@ test("community cards pass a second 50/50 gate after their pool roll", () => {
 
   const acceptedRolls = [9, 0, 0];
   assert.equal(selectCommunityCard(9, ["community"], () => acceptedRolls.shift()!), "community");
+});
+
+test("Heirloom stays outside regular pack odds and joins only the top Community rarity roll", () => {
+  assert.deepEqual(CCG_REGULAR_TIER_GRADES, ["S", "A", "B", "C", "D", "E", "F"]);
+  assert.deepEqual(CCG_TIER_GRADES, ["H", "S", "A", "B", "C", "D", "E", "F"]);
+  assert.throws(() => selectPackCards([{ grade: "H", cardIds: ["heirloom"] }], () => 0), /no eligible cards/);
+
+  const communityByGrade = new Map<CcgTierGrade, readonly string[]>([["H", ["heirloom"]]]);
+  assert.equal(selectCommunityCardForGrade(9, "A", communityByGrade, () => { throw new Error("unexpected roll"); }), null);
+  const acceptedRolls = [9, 0, 0];
+  assert.equal(
+    selectCommunityCardForGrade(9, "S", communityByGrade, () => acceptedRolls.shift()!),
+    "heirloom",
+  );
 });
 
 test("alternative art uses one 1-in-4 roll and only applies backgrounds to Community cards", () => {

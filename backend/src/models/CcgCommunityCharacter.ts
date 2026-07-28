@@ -43,7 +43,7 @@ const CcgCommunityCharacterSchema = new Schema<ICcgCommunityCharacter>(
     guildId: { type: Schema.Types.ObjectId, ref: "Guild", default: null },
     guildName: { type: String, default: null },
     guildRealm: { type: String, default: null },
-    tierGrade: { type: String, enum: ["S", "A", "B", "C", "D", "E", "F"], required: true },
+    tierGrade: { type: String, enum: ["H", "S", "A", "B", "C", "D", "E", "F"], required: true },
     avatarUrl: { type: String, default: null },
     renderUrl: { type: String, required: true },
     active: { type: Boolean, required: true, default: true, index: true },

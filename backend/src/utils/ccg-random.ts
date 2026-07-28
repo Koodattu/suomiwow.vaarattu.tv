@@ -8,7 +8,7 @@ import {
   CcgBackgroundSafeCrop,
   CcgFinish,
   CcgProtectedFinish,
-  CcgTierGrade,
+  CcgRegularTierGrade,
 } from "../config/ccg";
 
 export type CcgResolvedCrop = { x: number; y: number; scale: number };
@@ -20,7 +20,7 @@ export function rollArtVariant(hasAlternative: boolean, random: (maximum: number
   return roll === 3 ? "alternative" : "standard";
 }
 
-export function gradeForPercentile(index: number, populationSize: number): CcgTierGrade {
+export function gradeForPercentile(index: number, populationSize: number): CcgRegularTierGrade {
   if (populationSize <= 0 || index < 0 || index >= populationSize) throw new Error("Invalid grading population index");
   const percentile = (index + 1) / populationSize;
   if (percentile <= 0.05) return "S";

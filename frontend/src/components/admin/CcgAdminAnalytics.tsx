@@ -10,7 +10,7 @@ import type { CcgAdminAnalyticsRange } from "@/types";
 
 const ranges: CcgAdminAnalyticsRange[] = [7, 30, 90];
 const qualityColors = ["#94a3b8", "#38bdf8", "#f59e0b", "#a78bfa", "#f472b6", "#e2e8f0"];
-const rarityColors = ["#e879f9", "#fb923c", "#a78bfa", "#60a5fa", "#34d399", "#94a3b8", "#78716c"];
+const rarityColors = ["#00ccff", "#e879f9", "#fb923c", "#a78bfa", "#60a5fa", "#34d399", "#94a3b8", "#78716c"];
 
 function parseDateKey(dateKey: string): Date {
   return new Date(`${dateKey}T12:00:00`);

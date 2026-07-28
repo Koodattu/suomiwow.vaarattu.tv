@@ -34,7 +34,7 @@ const TwitchCcgOverlayEventSchema = new Schema<ITwitchCcgOverlayEvent>(
     cardId: { type: Schema.Types.ObjectId, ref: "CcgCard", required: true },
     finish: { type: String, required: true },
     artVariant: { type: String, enum: ["standard", "alternative"], required: true },
-    tierGrade: { type: String, enum: ["S", "A", "B", "C", "D", "E", "F"], required: true },
+    tierGrade: { type: String, enum: ["H", "S", "A", "B", "C", "D", "E", "F"], required: true },
     status: { type: String, enum: ["queued", "leased", "played", "expired"], required: true, default: "queued", index: true },
     leaseId: { type: String },
     leaseUntil: { type: Date },

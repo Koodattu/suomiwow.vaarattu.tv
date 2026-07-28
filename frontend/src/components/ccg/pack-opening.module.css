@@ -1393,6 +1393,18 @@
   --rarity-ring-width: 2.8px;
   --rarity-ring-glow: 22px;
 }
+.revealSlot[data-grade="H"] {
+  --sealed-rarity: #00ccff;
+  --reveal-color: #00ccff;
+  --reveal-color-secondary: #b9f3ff;
+  --rarity-ring-opacity: 1;
+  --rarity-ray-opacity: 0.68;
+  --rarity-mote-opacity: 1;
+  --rarity-ring-scale: 1.82;
+  --rarity-reveal-duration: 1500ms;
+  --rarity-ring-width: 3.2px;
+  --rarity-ring-glow: 26px;
+}
 
 .revealSlot[data-finish="foil"] {
   --reveal-color: #b7d8e8;
@@ -1814,6 +1826,7 @@
 }
 
 .revealSlotRevealed:is(
+    [data-grade="H"],
     [data-grade="C"],
     [data-grade="B"],
     [data-grade="A"],
@@ -1947,6 +1960,7 @@
 }
 
 .revealSlotRevealed:is(
+    [data-grade="H"],
     [data-grade="B"],
     [data-grade="A"],
     [data-grade="S"],
@@ -1962,6 +1976,7 @@
 }
 
 .revealSlotRevealed:is(
+    [data-grade="H"],
     [data-grade="A"],
     [data-grade="S"],
     [data-finish="golden"],

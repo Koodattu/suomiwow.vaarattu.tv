@@ -230,9 +230,9 @@
       "packHint": "Click to break the seal",
       "openingHint": "The raid vault is opening…",
       "collectionProgressEyebrow": "Pack collection",
-      "qualityProgressEyebrow": "Your quality progress",
-      "qualityChancesEyebrow": "Next-card chances",
-      "qualityChance": "1 in {odds}",
+      "badLuckProtectionEyebrow": "Bad luck protection",
+      "baseRatesEyebrow": "Base rates",
+      "baseRate": "1 in {odds}",
       "revealPrompt": "Choose a card to reveal",
       "cardsReady": "Five cards are ready. Focus is on the first card.",
       "revealProgress": "{revealed} of {total} revealed",
@@ -423,6 +423,7 @@
       "alternative": "Alternative"
     },
     "rarity": {
+      "heirloom": "Heirloom",
       "common": "Common",
       "uncommon": "Uncommon",
       "rare": "Rare",
@@ -532,8 +533,12 @@
   "homeHighlights": {
     "openNow": "Open now",
     "prizePool": "{amount} gold prize pool",
+    "mobileOpen": "Open",
+    "mobilePrizePool": "{amount} gold",
     "regularPickem": "Finnish guild raid race",
     "rwfPickem": "Race to World First",
+    "mobileSuomiPickem": "Suomi Pickems",
+    "mobileRwfPickem": "RWF Pickems",
     "openPickem": "Open {name}",
     "features": {
       "ccg": {
@@ -543,19 +548,23 @@
       },
       "compare": {
         "title": "Compare guilds",
-        "description": "Progress, pulls and raid time"
+        "description": "Progress, pulls and raid time",
+        "mobileDescription": "Progress and pulls"
       },
       "tierLists": {
         "title": "Character tier lists",
-        "description": "Performance by role and class"
+        "description": "Performance by role and class",
+        "mobileDescription": "Roles and classes"
       },
       "mythicPlus": {
         "title": "Mythic+ rankings",
-        "description": "Finland's top characters"
+        "description": "Finland's top characters",
+        "mobileDescription": "Finland's best"
       },
       "network": {
         "title": "Guild network",
-        "description": "Characters, movement and connections"
+        "description": "Characters, movement and connections",
+        "mobileDescription": "Moves and links"
       }
     }
   },
@@ -1196,6 +1205,7 @@
         "hideBadges": "Hide frame labels",
         "previewOnly": "Artwork, rarity, and quality changes are preview only.",
         "rarityNames": {
+          "H": "Heirloom",
           "S": "Artifact",
           "A": "Legendary",
           "B": "Epic",
@@ -1267,7 +1277,7 @@
       },
       "community": {
         "addTitle": "Add Community character",
-        "description": "Publish a Blizzard character directly into the Community binder. Community cards can appear in both Current and Legacy packs at reduced weight and use metrics entered here instead of Warcraft Logs.",
+        "description": "Publish a Blizzard character directly into the Community binder. New cards default to Heirloom, while every rarity remains available. Community cards can appear in both Current and Legacy packs at reduced weight and use metrics entered here instead of Warcraft Logs.",
         "cards": "{count} cards",
         "name": "Character",
         "realm": "Realm slug",
@@ -1302,6 +1312,7 @@
         "empty": "No Community characters have been published.",
         "noResults": "No Community characters match this search.",
         "rarityNames": {
+          "H": "Heirloom",
           "S": "Artifact",
           "A": "Legendary",
           "B": "Epic",

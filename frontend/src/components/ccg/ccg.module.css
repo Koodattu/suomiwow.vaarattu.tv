@@ -928,6 +928,7 @@
   pointer-events: none;
 }
 
+.card[data-grade="H"]::before,
 .card[data-grade="S"]::before {
   border-width: 2px;
   box-shadow:
@@ -1960,6 +1961,11 @@
 .collectionRaritySelect[data-grade="S"],
 .collectionRaritySelect option[data-grade="S"] {
   color: #e6cc80;
+}
+
+.collectionRaritySelect[data-grade="H"],
+.collectionRaritySelect option[data-grade="H"] {
+  color: #00ccff;
 }
 
 .collectionQualitySelect[data-finish="standard"],

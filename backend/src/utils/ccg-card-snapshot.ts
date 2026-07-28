@@ -1,8 +1,8 @@
-import { CcgTierGrade } from "../config/ccg";
+import { CcgRegularTierGrade, CcgTierGrade } from "../config/ccg";
 
 export type CcgSnapshotPreviewCandidate = {
   characterId: string;
-  tierGrade: CcgTierGrade;
+  tierGrade: CcgRegularTierGrade;
   hasMedia: boolean;
 };
 
@@ -15,7 +15,7 @@ export type CcgSnapshotPreviewSummary = {
   blockedByMissingMedia: number;
   mediaReady: number;
   missingMedia: number;
-  gradeDistribution: Record<CcgTierGrade, number>;
+  gradeDistribution: Record<CcgRegularTierGrade, number>;
 };
 
 export type CcgSnapshotPreviewDisposition =
@@ -27,7 +27,7 @@ export type CcgSnapshotPreviewDisposition =
 
 export function shouldPublishCcgCardSnapshot(
   latestCard: { tierGrade: CcgTierGrade } | null | undefined,
-  nextGrade: CcgTierGrade,
+  nextGrade: CcgRegularTierGrade,
 ): boolean {
   return !latestCard || latestCard.tierGrade !== nextGrade;
 }
@@ -39,7 +39,7 @@ export function nextCcgCardSnapshotVersion(latestCard: { snapshotVersion?: numbe
 
 export function getCcgSnapshotPreviewDisposition(
   latestCard: { tierGrade: CcgTierGrade } | null | undefined,
-  nextGrade: CcgTierGrade,
+  nextGrade: CcgRegularTierGrade,
   hasMedia: boolean,
 ): CcgSnapshotPreviewDisposition {
   if (!shouldPublishCcgCardSnapshot(latestCard, nextGrade)) return "unchanged";
@@ -52,7 +52,7 @@ export function summarizeCcgSnapshotPreview(
   latestCards: readonly { characterId: string; tierGrade: CcgTierGrade }[],
 ): CcgSnapshotPreviewSummary {
   const latestCardByCharacter = new Map(latestCards.map((card) => [card.characterId, card]));
-  const gradeDistribution: Record<CcgTierGrade, number> = { S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 };
+  const gradeDistribution: Record<CcgRegularTierGrade, number> = { S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 };
   let projectedSnapshots = 0;
   let newCharacters = 0;
   let rarityChanges = 0;

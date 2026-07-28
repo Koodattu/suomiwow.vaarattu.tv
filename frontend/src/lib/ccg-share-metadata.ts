@@ -25,7 +25,7 @@ const EMBED_COPY = {
   fi: fiMessages.ccg,
 } as const;
 
-const GRADE_ORDER: readonly CcgTierGrade[] = ["F", "E", "D", "C", "B", "A", "S"];
+const GRADE_ORDER: readonly CcgTierGrade[] = ["F", "E", "D", "C", "B", "A", "S", "H"];
 
 function interpolate(template: string, values: Record<string, string | number>) {
   return template.replace(/\{(\w+)\}/g, (match, key: string) => (

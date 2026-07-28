@@ -12,6 +12,7 @@ import {
   CCG_PACK_RULE_VERSION,
   CCG_PACK_STORAGE_CAPS,
   CCG_POOL_VERSION,
+  CCG_REGULAR_TIER_GRADES,
   CCG_THEME_VERSION,
   CCG_TIER_GRADES,
   CcgConfiguredSet,
@@ -946,7 +947,8 @@ class CcgPublisherService {
     if (existingSession) latestCards.session(existingSession);
     const cards = await latestCards;
     const poolVersion = version ?? `${CCG_POOL_VERSION}-${set.publicationWave}`;
-    const buckets = CCG_TIER_GRADES.map((grade) => ({
+    const poolGrades = set.kind === "community" ? CCG_TIER_GRADES : CCG_REGULAR_TIER_GRADES;
+    const buckets = poolGrades.map((grade) => ({
       grade,
       cardIds: cards.filter((card) => card.tierGrade === grade).map((card) => card._id),
     }));

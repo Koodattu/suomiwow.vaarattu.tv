@@ -28,7 +28,7 @@ type CreateCommunityCharacterInput = {
   name: string;
   realmSlug: string;
   region: string;
-  tierGrade: CcgTierGrade;
+  tierGrade?: unknown;
   createdBy: mongoose.Types.ObjectId;
 };
 
@@ -148,7 +148,7 @@ class CcgCommunityService {
     const realmSlug = requiredSlug(input.realmSlug, "realm");
     const region = requiredSlug(input.region, "region");
     if (!new Set(["eu", "us", "kr", "tw"]).has(region)) throw new CcgCommunityError(400, "invalid_region", "Unsupported Blizzard region");
-    const tierGrade = validTierGrade(input.tierGrade);
+    const tierGrade = input.tierGrade === undefined ? "H" : validTierGrade(input.tierGrade);
 
     const identityKey = createWowCharacterIdentityKey(region, realmSlug, name);
     if (await CcgCommunityCharacter.exists({ identityKey })) {

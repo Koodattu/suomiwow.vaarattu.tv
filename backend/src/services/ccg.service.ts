@@ -58,9 +58,9 @@ import {
   serializeQuip,
   serializeOwnershipRows,
 } from "../utils/ccg-alternative-art";
-import { CcgFinishPity, emptyFinishPity, finishChanceForCounter, rollArtVariant, rollOwnedFinish, rollProtectedFinish } from "../utils/ccg-random";
+import { CcgFinishPity, emptyFinishPity, rollArtVariant, rollOwnedFinish, rollProtectedFinish } from "../utils/ccg-random";
 import { createCcgShareShortId, resolveCcgShareLookup } from "../utils/ccg-share-id";
-import { planPackSelections, selectCommunityCard, shufflePackResults } from "../utils/ccg-pack";
+import { planPackSelections, selectCommunityCardForGrade, shufflePackResults } from "../utils/ccg-pack";
 import { resolveCollectorKey } from "../utils/ccg-identity";
 import { getTransferableGuestPacks, resolveGuestClaimOpeningId, verifyGuestLibrary } from "../utils/ccg-guest-library";
 import { CCG_REDEEM_PACK_GRANT_MAX, normalizeCcgRedeemCode } from "../utils/ccg-redeem";
@@ -240,8 +240,7 @@ type CcgCardOwnershipState = {
 type CcgPackOpenState = {
   packs: Record<CcgMode, { regularRemaining: number; bonusRemaining: number; totalRemaining: number }>;
   qualityProtection: CcgFinishPity;
-  qualityChances: Record<string, number>;
-  customQualityProtection: Array<{ setSlug: string; counter: number; nextChance: number }>;
+  customQualityProtection: Array<{ setSlug: string; counter: number }>;
   ownedFinishesDelta: number;
   ownedCardsBySetDelta: Record<string, number>;
 };
@@ -505,12 +504,11 @@ class CcgService {
         characterId: { $type: "objectId" },
       }),
       CcgSet.find({ enabledAt: { $ne: null }, cardCount: { $gt: 0 }, "customFinish.key": { $exists: true } })
-        .select("slug raidName customFinish")
+        .select("slug raidName customFinish enabledAt cardCount")
         .lean(),
     ]);
     const resetAt = getNextHelsinkiReset();
     const qualityProtection = this.readFinishPity(qualityProgress ?? undefined);
-    const qualityChances = this.getQualityChances(qualityProtection);
 
     return {
       ownerType: owner.ownerType,
@@ -530,7 +528,6 @@ class CcgService {
         },
       },
       qualityProtection,
-      qualityChances,
       customQualityProtection: sets
         .filter((set) => set.enabledAt && set.cardCount > 0 && set.customFinish?.key)
         .map((set) => {
@@ -542,7 +539,6 @@ class CcgService {
             finish: set.customFinish!.key,
             counter,
             hardPity,
-            nextChance: finishChanceForCounter(counter + 1, hardPity),
           };
         }),
       ownedFinishes: ownershipCount,
@@ -2010,13 +2006,11 @@ class CcgService {
             return {
               setSlug: set.slug,
               counter,
-              nextChance: finishChanceForCounter(counter + 1, set.customFinish!.hardPity),
             };
           });
         cacheUpdates = {
           packs: this.serializePackBalances(allowanceSource.balance, creditBalances),
           qualityProtection,
-          qualityChances: this.getQualityChances(qualityProtection),
           customQualityProtection,
           ownedFinishesDelta: results.filter((result) => !result.isDuplicate).length,
           ownedCardsBySetDelta,
@@ -2593,7 +2587,7 @@ class CcgService {
           finishes: {
             $literal: { standard: 0, foil: 0, golden: 0, prismatic: 0, holographic: 0, void: 0, toxic: 0, negative: 0 },
           },
-          grades: { $literal: { S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 } },
+          grades: { $literal: { H: 0, S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 } },
           updatedAt: 1,
         },
       },
@@ -2839,7 +2833,7 @@ class CcgService {
             activeUsers: 0,
             modes: { current: 0, legacy: 0 },
             finishes: { standard: 0, foil: 0, golden: 0, prismatic: 0, holographic: 0, void: 0, toxic: 0, negative: 0 },
-            grades: { S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 },
+            grades: { H: 0, S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 },
             updatedAt: new Date(),
           },
         },
@@ -2859,17 +2853,6 @@ class CcgService {
       holographic: row?.holographic ?? 0,
       negative: row?.negative ?? 0,
     };
-  }
-
-  private getQualityChances(qualityProtection: CcgFinishPity): Record<string, number> {
-    return Object.fromEntries(
-      CCG_BASE_FINISH_ORDER
-        .filter((finish) => finish !== "standard")
-        .map((finish) => [
-          finish,
-          finishChanceForCounter((qualityProtection[finish] ?? 0) + 1, CCG_FINISH_PITY_LIMITS[finish]),
-        ]),
-    );
   }
 
   private serializePackBalances(
@@ -3294,22 +3277,24 @@ class CcgService {
     const communityPool = communitySet
       ? await CcgPackPool.findOne({ setId: communitySet._id, active: true, totalCards: { $gt: 0 } }).select("version buckets").session(session).lean()
       : null;
-    const communityByGrade = new Map(
-      (communityPool?.buckets ?? []).map((bucket) => [bucket.grade as CcgTierGrade, bucket.cardIds as mongoose.Types.ObjectId[]]),
+    const communityByGrade = new Map<CcgTierGrade, Array<{ cardId: mongoose.Types.ObjectId; tierGrade: CcgTierGrade }>>(
+      (communityPool?.buckets ?? []).map((bucket) => [
+        bucket.grade as CcgTierGrade,
+        (bucket.cardIds as mongoose.Types.ObjectId[]).map((cardId) => ({ cardId, tierGrade: bucket.grade as CcgTierGrade })),
+      ]),
     );
     const normalCountByGrade = new Map<CcgTierGrade, number>();
     for (const summary of summaries) {
       for (const row of summary.counts) normalCountByGrade.set(row.grade, (normalCountByGrade.get(row.grade) ?? 0) + row.count);
     }
     const results = baseResults.map((base) => {
-      const communityCards = communityByGrade.get(base.tierGrade) ?? [];
       const normalCount = normalCountByGrade.get(base.tierGrade) ?? 0;
-      const communityCardId = selectCommunityCard(normalCount, communityCards, randomInt);
-      if (communitySet && communityCardId) {
+      const communityCard = selectCommunityCardForGrade(normalCount, base.tierGrade, communityByGrade, randomInt);
+      if (communitySet && communityCard) {
         return {
-          cardId: communityCardId,
+          cardId: communityCard.cardId,
           setId: communitySet._id,
-          tierGrade: base.tierGrade,
+          tierGrade: communityCard.tierGrade,
         };
       }
       return base;

@@ -2,8 +2,9 @@ import { randomInt } from "crypto";
 import {
   CCG_CARDS_PER_PACK,
   CCG_GUARANTEED_GRADE_ODDS,
-  CCG_TIER_GRADES,
+  CCG_REGULAR_TIER_GRADES,
   CCG_WEIGHTED_GRADE_ODDS,
+  CcgRegularTierGrade,
   CcgTierGrade,
 } from "../config/ccg";
 
@@ -19,7 +20,7 @@ export type CcgPackPoolSummary = {
 export type CcgPackSelectionPlan = {
   poolId: string;
   setId: string;
-  tierGrade: CcgTierGrade;
+  tierGrade: CcgRegularTierGrade;
   bucketOffset: number;
 };
 
@@ -33,11 +34,11 @@ export function shufflePackResults<T>(results: readonly T[], random: (maximum: n
 }
 
 function weightedGrade(
-  weights: Readonly<Record<CcgTierGrade, number>>,
-  available: ReadonlySet<CcgTierGrade>,
+  weights: Readonly<Record<CcgRegularTierGrade, number>>,
+  available: ReadonlySet<CcgRegularTierGrade>,
   random: (maximum: number) => number,
-): CcgTierGrade {
-  const entries = CCG_TIER_GRADES.map((grade) => [grade, available.has(grade) ? weights[grade] : 0] as const).filter(([, weight]) => weight > 0);
+): CcgRegularTierGrade {
+  const entries = CCG_REGULAR_TIER_GRADES.map((grade) => [grade, available.has(grade) ? weights[grade] : 0] as const).filter(([, weight]) => weight > 0);
   const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
   if (total <= 0) throw new Error("The CCG pack pool has no eligible cards");
   let cursor = random(total);
@@ -52,8 +53,14 @@ function weightedGrade(
 export function selectPackCards<T extends { toString(): string }>(
   buckets: Array<{ grade: CcgTierGrade; cardIds: T[] }>,
   random: (maximum: number) => number = randomInt,
-): Array<{ cardId: T; tierGrade: CcgTierGrade }> {
-  const bucketMap = new Map(buckets.filter((bucket) => bucket.cardIds.length > 0).map((bucket) => [bucket.grade, bucket.cardIds]));
+): Array<{ cardId: T; tierGrade: CcgRegularTierGrade }> {
+  const bucketMap = new Map(
+    buckets
+      .filter((bucket): bucket is { grade: CcgRegularTierGrade; cardIds: T[] } => (
+        bucket.cardIds.length > 0 && CCG_REGULAR_TIER_GRADES.includes(bucket.grade as CcgRegularTierGrade)
+      ))
+      .map((bucket) => [bucket.grade, bucket.cardIds]),
+  );
   const available = new Set(bucketMap.keys());
   const choose = (guaranteed: boolean) => {
     const grade = weightedGrade(guaranteed ? CCG_GUARANTEED_GRADE_ODDS : CCG_WEIGHTED_GRADE_ODDS, available, random);
@@ -70,9 +77,13 @@ export function planPackSelections(
   const countByPool = new Map(
     pools.map((pool) => [pool.poolId, new Map(pool.counts.filter((row) => row.count > 0).map((row) => [row.grade, row.count]))]),
   );
-  const totalByGrade = new Map<CcgTierGrade, number>();
+  const totalByGrade = new Map<CcgRegularTierGrade, number>();
   for (const pool of pools) {
-    for (const row of pool.counts) totalByGrade.set(row.grade, (totalByGrade.get(row.grade) ?? 0) + row.count);
+    for (const row of pool.counts) {
+      if (!CCG_REGULAR_TIER_GRADES.includes(row.grade as CcgRegularTierGrade)) continue;
+      const grade = row.grade as CcgRegularTierGrade;
+      totalByGrade.set(grade, (totalByGrade.get(grade) ?? 0) + row.count);
+    }
   }
   const available = new Set(Array.from(totalByGrade).filter(([, count]) => count > 0).map(([grade]) => grade));
 
@@ -101,4 +112,17 @@ export function selectCommunityCard<T>(
   if (random(normalCount + communityCards.length) < normalCount) return null;
   if (random(2) !== 0) return null;
   return communityCards[random(communityCards.length)];
+}
+
+export function selectCommunityCardForGrade<T>(
+  normalCount: number,
+  rolledGrade: CcgRegularTierGrade,
+  communityByGrade: ReadonlyMap<CcgTierGrade, readonly T[]>,
+  random: (maximum: number) => number = randomInt,
+): T | null {
+  const matchingCards = communityByGrade.get(rolledGrade) ?? [];
+  const eligibleCards = rolledGrade === "S"
+    ? [...(communityByGrade.get("H") ?? []), ...matchingCards]
+    : matchingCards;
+  return selectCommunityCard(normalCount, eligibleCards, random);
 }

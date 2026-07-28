@@ -150,7 +150,6 @@ export default function CcgOpenPage() {
       finish,
       counter: session?.qualityProtection[finish] ?? 0,
       hardPity: CCG_FINISH_PITY_LIMITS[finish],
-      nextChance: session?.qualityChances[finish] ?? (1 / CCG_FINISH_PITY_LIMITS[finish]),
     })),
     ...selectedPackSets.flatMap((set) => {
       if (!set.customFinish) return [];
@@ -160,7 +159,6 @@ export default function CcgOpenPage() {
         finish: set.customFinish.key,
         counter: progress?.counter ?? 0,
         hardPity: set.customFinish.hardPity,
-        nextChance: progress?.nextChance ?? (1 / set.customFinish.hardPity),
       }];
     }),
   ], [selectedPackSets, session]);
@@ -322,10 +320,9 @@ export default function CcgOpenPage() {
               ...bootstrap.session,
               packs: updates.packs,
               qualityProtection: updates.qualityProtection,
-              qualityChances: updates.qualityChances,
               customQualityProtection: bootstrap.session.customQualityProtection.map((row) => {
                 const update = customUpdates.get(row.setSlug);
-                return update ? { ...row, counter: update.counter, nextChance: update.nextChance } : row;
+                return update ? { ...row, counter: update.counter } : row;
               }),
               ownedFinishes: bootstrap.session.ownedFinishes + updates.ownedFinishesDelta,
             },
@@ -460,8 +457,8 @@ export default function CcgOpenPage() {
       .sort((left, right) => {
         const finishDifference = CCG_FINISH_ORDER.indexOf(right.result.finish) - CCG_FINISH_ORDER.indexOf(left.result.finish);
         if (finishDifference !== 0) return finishDifference;
-        return ["S", "A", "B", "C", "D", "E", "F"].indexOf(left.result.card.tierGrade)
-          - ["S", "A", "B", "C", "D", "E", "F"].indexOf(right.result.card.tierGrade);
+        return ["H", "S", "A", "B", "C", "D", "E", "F"].indexOf(left.result.card.tierGrade)
+          - ["H", "S", "A", "B", "C", "D", "E", "F"].indexOf(right.result.card.tierGrade);
       });
     const voiceResult = prioritizedResults.find(({ result }) => (
       result.card.quip?.audioPath
@@ -754,7 +751,7 @@ export default function CcgOpenPage() {
                           </section>
                         ) : null}
                         <section className={packStyles.qualityDetail}>
-                          <h2>{t("open.qualityProgressEyebrow")}</h2>
+                          <h2>{t("open.badLuckProtectionEyebrow")}</h2>
                           <dl>
                             {qualityRows.map((row) => (
                               <div key={row.key}>
@@ -771,12 +768,12 @@ export default function CcgOpenPage() {
                           </dl>
                         </section>
                         <section className={packStyles.qualityDetail}>
-                          <h2>{t("open.qualityChancesEyebrow")}</h2>
+                          <h2>{t("open.baseRatesEyebrow")}</h2>
                           <dl>
                             {qualityRows.map((row) => (
                               <div key={row.key}>
                                 <dt>{t(`finish.${row.finish}`)}</dt>
-                                <dd>{t("open.qualityChance", { odds: oddsFormat.format(1 / row.nextChance) })}</dd>
+                                <dd>{t("open.baseRate", { odds: oddsFormat.format(row.hardPity) })}</dd>
                               </div>
                             ))}
                             {!hasCustomQualityRow ? (

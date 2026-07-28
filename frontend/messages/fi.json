@@ -230,9 +230,9 @@
       "packHint": "Riko sinetti napsauttamalla",
       "openingHint": "Raidiholvi avautuu…",
       "collectionProgressEyebrow": "Pakan kokoelma",
-      "qualityProgressEyebrow": "Laatuedistyksesi",
-      "qualityChancesEyebrow": "Seuraavan kortin mahdollisuudet",
-      "qualityChance": "1 / {odds}",
+      "badLuckProtectionEyebrow": "Huonon tuurin suoja",
+      "baseRatesEyebrow": "Perustodennäköisyydet",
+      "baseRate": "1 / {odds}",
       "revealPrompt": "Valitse paljastettava kortti",
       "cardsReady": "Viisi korttia on valmiina. Kohdistus on ensimmäisessä kortissa.",
       "revealProgress": "{revealed}/{total} paljastettu",
@@ -423,6 +423,7 @@
       "alternative": "Vaihtoehtoinen"
     },
     "rarity": {
+      "heirloom": "Perintökalleus",
       "common": "Tavallinen",
       "uncommon": "Epätavallinen",
       "rare": "Harvinainen",
@@ -532,8 +533,12 @@
   "homeHighlights": {
     "openNow": "Auki nyt",
     "prizePool": "{amount} kultaa palkintoina",
+    "mobileOpen": "Auki",
+    "mobilePrizePool": "{amount} kultaa",
     "regularPickem": "Suomalaisten kiltojen raidikisa",
     "rwfPickem": "Race to World First",
+    "mobileSuomiPickem": "Suomi Pickems",
+    "mobileRwfPickem": "RWF Pickems",
     "openPickem": "Avaa {name}",
     "features": {
       "ccg": {
@@ -543,19 +548,23 @@
       },
       "compare": {
         "title": "Vertaile kiltoja",
-        "description": "Edistyminen, pullit ja raidiajat"
+        "description": "Edistyminen, pullit ja raidiajat",
+        "mobileDescription": "Edistyminen ja pullit"
       },
       "tierLists": {
         "title": "Hahmojen tier-listat",
-        "description": "Suoritukset roolin ja luokan mukaan"
+        "description": "Suoritukset roolin ja luokan mukaan",
+        "mobileDescription": "Roolit ja luokat"
       },
       "mythicPlus": {
         "title": "Mythic+-ranking",
-        "description": "Suomen parhaat hahmot"
+        "description": "Suomen parhaat hahmot",
+        "mobileDescription": "Suomen parhaat"
       },
       "network": {
         "title": "Kiltaverkosto",
-        "description": "Hahmot, siirtymät ja yhteydet"
+        "description": "Hahmot, siirtymät ja yhteydet",
+        "mobileDescription": "Siirrot ja yhteydet"
       }
     }
   },
@@ -1196,6 +1205,7 @@
         "hideBadges": "Piilota kehyksen tekstit",
         "previewOnly": "Kuvitus-, harvinaisuus- ja laatumuutokset koskevat vain esikatselua.",
         "rarityNames": {
+          "H": "Heirloom",
           "S": "Artifact",
           "A": "Legendary",
           "B": "Epic",
@@ -1267,7 +1277,7 @@
       },
       "community": {
         "addTitle": "Lisää Community-hahmo",
-        "description": "Julkaise Blizzard-hahmo suoraan Community-kansioon. Community-kortit voivat tulla sekä Current- että Legacy-pakoista pienemmällä painolla, ja niissä käytetään tähän syötettyjä mittareita Warcraft Logsin sijaan.",
+        "description": "Julkaise Blizzard-hahmo suoraan Community-kansioon. Uuden kortin oletusharvinaisuus on Heirloom, mutta kaikki harvinaisuudet ovat edelleen käytettävissä. Community-kortit voivat tulla sekä Current- että Legacy-pakoista pienemmällä painolla, ja niissä käytetään tähän syötettyjä mittareita Warcraft Logsin sijaan.",
         "cards": "{count} korttia",
         "name": "Hahmo",
         "realm": "Realmin tunniste",
@@ -1302,6 +1312,7 @@
         "empty": "Community-hahmoja ei ole vielä julkaistu.",
         "noResults": "Hakua vastaavia Community-hahmoja ei löytynyt.",
         "rarityNames": {
+          "H": "Heirloom",
           "S": "Artifact",
           "A": "Legendary",
           "B": "Epic",

@@ -494,11 +494,21 @@
   --metal-mid: #a4661f;
   --metal-dark: #2b1503;
 }
+.prototypeCard[data-grade="H"] {
+  --rarity: #00ccff;
+  --metal-light: #b9f3ff;
+  --metal-mid: #168fb1;
+  --metal-dark: #032330;
+}
 .prototypeCard[data-grade="S"] {
   --rarity: #e6cc80;
   --metal-light: #fff0bd;
   --metal-mid: #b3944f;
   --metal-dark: #2b2108;
+}
+
+.prototypeCard[data-grade="H"] .rarityPlate strong {
+  text-shadow: 0 0 0.5em rgba(0, 204, 255, 0.72);
 }
 
 .prototypeCard[data-grade="S"] .rarityPlate strong {

@@ -90,7 +90,7 @@ const CcgCardSchema = new Schema<ICcgCard>(
     combinedScore: { type: Number, required: true },
     mythicPlusScore: { type: Number, default: null },
     communityScores: { type: CcgCommunityScoresSchema, default: undefined },
-    tierGrade: { type: String, enum: ["S", "A", "B", "C", "D", "E", "F"], required: true, index: true },
+    tierGrade: { type: String, enum: ["H", "S", "A", "B", "C", "D", "E", "F"], required: true, index: true },
     avatarUrl: { type: String, default: null },
     renderUrl: { type: String, default: null },
     backgroundCrop: {

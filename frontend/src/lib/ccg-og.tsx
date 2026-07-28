@@ -26,6 +26,7 @@ const FINISH_COLORS: Record<CcgFinish, string> = {
 };
 
 const RARITY_COLORS: Record<CcgTierGrade, string> = {
+  H: "#00ccff",
   S: "#e6cc80",
   A: "#ff8a1f",
   B: "#c36bff",

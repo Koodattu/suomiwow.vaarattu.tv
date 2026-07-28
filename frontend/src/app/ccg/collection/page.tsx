@@ -24,7 +24,8 @@ import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import styles from "@/components/ccg/ccg.module.css";
 
-const rarities: Array<{ grade: CcgTierGrade; label: "artifact" | "legendary" | "epic" | "rare" | "uncommon" | "common" | "poor" }> = [
+const rarities: Array<{ grade: CcgTierGrade; label: "heirloom" | "artifact" | "legendary" | "epic" | "rare" | "uncommon" | "common" | "poor" }> = [
+  { grade: "H", label: "heirloom" },
   { grade: "S", label: "artifact" },
   { grade: "A", label: "legendary" },
   { grade: "B", label: "epic" },

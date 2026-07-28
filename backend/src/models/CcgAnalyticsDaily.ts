@@ -37,6 +37,7 @@ const FinishCountsSchema = new Schema(
 
 const GradeCountsSchema = new Schema(
   {
+    H: { type: Number, required: true, default: 0, min: 0 },
     S: { type: Number, required: true, default: 0, min: 0 },
     A: { type: Number, required: true, default: 0, min: 0 },
     B: { type: Number, required: true, default: 0, min: 0 },

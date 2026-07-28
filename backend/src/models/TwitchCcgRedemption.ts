@@ -84,7 +84,7 @@ const TwitchCcgRedemptionSchema = new Schema<ITwitchCcgRedemption>(
       snapshotVersion: { type: Number, min: 1 },
       finish: { type: String },
       artVariant: { type: String, enum: ["standard", "alternative"] },
-      tierGrade: { type: String, enum: ["S", "A", "B", "C", "D", "E", "F"] },
+      tierGrade: { type: String, enum: ["H", "S", "A", "B", "C", "D", "E", "F"] },
       poolVersion: { type: String },
     },
     grantStatus: { type: String, enum: ["pending", "granted", "failed"], required: true, default: "pending", index: true },

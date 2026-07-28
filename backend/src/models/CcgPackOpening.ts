@@ -43,7 +43,7 @@ const ResultSchema = new Schema<ICcgPackResult>(
     setId: { type: Schema.Types.ObjectId, ref: "CcgSet", required: true },
     finish: { type: String, enum: CCG_FINISH_ORDER, required: true },
     artVariant: { type: String, enum: ["standard", "alternative"], required: true, default: "standard" },
-    tierGrade: { type: String, enum: ["S", "A", "B", "C", "D", "E", "F"], required: true },
+    tierGrade: { type: String, enum: ["H", "S", "A", "B", "C", "D", "E", "F"], required: true },
     isDuplicate: { type: Boolean, required: true },
   },
   { _id: false },

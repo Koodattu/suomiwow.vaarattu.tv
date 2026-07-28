@@ -12,7 +12,7 @@ export const CCG_QUALITY_SOUND_FILES: Partial<Record<CcgFinish, string>> = {
   negative: "6-negative.mp3",
 };
 
-const CCG_STANDARD_QUALITY_SOUND_GRADES = new Set<CcgTierGrade>(["S", "A", "B", "C", "D"]);
+const CCG_STANDARD_QUALITY_SOUND_GRADES = new Set<CcgTierGrade>(["H", "S", "A", "B", "C", "D"]);
 
 export function hasCcgQualityRevealSound(finish: CcgFinish, tierGrade: CcgTierGrade): boolean {
   return Boolean(CCG_QUALITY_SOUND_FILES[finish]) && (finish !== "standard" || CCG_STANDARD_QUALITY_SOUND_GRADES.has(tierGrade));

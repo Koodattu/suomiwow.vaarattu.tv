@@ -12,7 +12,7 @@ type Props = {
   onNotice: (message: string) => void;
 };
 
-const grades: readonly CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
+const grades: readonly CcgTierGrade[] = ["H", "S", "A", "B", "C", "D", "E", "F"];
 const metricKeys = ["performance", "mechanics", "combined", "mythicPlus"] as const;
 type MetricKey = (typeof metricKeys)[number];
 type CommunityRole = CcgAdminCommunityCharacter["role"];
@@ -69,7 +69,7 @@ function parseScores(draft: CharacterDraft): Record<MetricKey, number | null> | 
 export default function CcgCommunityManager({ characters, onChanged, onError, onNotice }: Props) {
   const t = useTranslations("admin.ccg.community");
   const ccgT = useTranslations("ccg");
-  const [form, setForm] = useState<{ name: string; realmSlug: string; region: string; tierGrade: CcgTierGrade }>({ name: "", realmSlug: "", region: "eu", tierGrade: "C" });
+  const [form, setForm] = useState<{ name: string; realmSlug: string; region: string; tierGrade: CcgTierGrade }>({ name: "", realmSlug: "", region: "eu", tierGrade: "H" });
   const [search, setSearch] = useState("");
   const [drafts, setDrafts] = useState<Record<string, CharacterDraft>>({});
   const [busyId, setBusyId] = useState<string | null>(null);

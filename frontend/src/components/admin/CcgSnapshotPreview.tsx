@@ -3,12 +3,12 @@
 import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { api } from "@/lib/api";
-import type { CcgAdminSnapshotPreview, CcgAdminSnapshotPreviewCounts, CcgAdminSnapshotSetPreview, CcgTierGrade } from "@/types";
+import type { CcgAdminSnapshotPreview, CcgAdminSnapshotPreviewCounts, CcgAdminSnapshotSetPreview, CcgRegularTierGrade } from "@/types";
 
 type PreviewCharacter = CcgAdminSnapshotSetPreview["characters"][number];
 type OutcomeFilter = "all" | "will_add" | "will_update" | "missing_media";
 
-const grades: readonly CcgTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
+const grades: readonly CcgRegularTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
 const calculateButton =
   "min-h-10 rounded-md bg-cyan-700 px-4 py-2 text-sm font-bold text-white transition-[background-color,scale] duration-150 ease-out hover:bg-cyan-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
 const filterButton =

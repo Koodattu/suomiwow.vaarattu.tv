@@ -41,6 +41,7 @@ test("collection sort directions and stable fallbacks match their labels", () =>
   const alphabetical = buildCcgCollectionSortStages("alphabetical", paths, expressions) as any[];
   const reverseAlphabetical = buildCcgCollectionSortStages("reverse_alphabetical", paths, expressions) as any[];
 
+  assert.deepEqual(rarityDescending[0].$set.sortValue.$indexOfArray[0], ["H", "S", "A", "B", "C", "D", "E", "F"]);
   assert.equal(rarityDescending[2].$sort.sortValue, 1);
   assert.equal(duplicatesDescending[2].$sort.sortValue, -1);
   assert.equal(qualityAscending[2].$sort.sortValue, 1);

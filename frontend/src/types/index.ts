@@ -2063,7 +2063,8 @@ export type CcgBaseFinish = "standard" | "foil" | "golden" | "prismatic" | "holo
 export type CcgCustomFinish = "void" | "toxic";
 export type CcgFinish = CcgBaseFinish | CcgCustomFinish;
 export type CcgArtVariant = "standard" | "alternative";
-export type CcgTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";
+export type CcgRegularTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";
+export type CcgTierGrade = "H" | CcgRegularTierGrade;
 
 export type CcgSet = {
   id: string;
@@ -2180,14 +2181,12 @@ export type CcgSession = {
   packs: Record<CcgMode, { regularRemaining: number; bonusRemaining: number; totalRemaining: number }>;
   recharge: Record<CcgMode, { cap: number; intervalHours: number; nextAt: string }>;
   qualityProtection: Record<Exclude<CcgBaseFinish, "standard">, number>;
-  qualityChances: Record<Exclude<CcgBaseFinish, "standard">, number>;
   customQualityProtection: Array<{
     setSlug: string;
     raidName: string;
     finish: CcgCustomFinish;
     counter: number;
     hardPity: number;
-    nextChance: number;
   }>;
   ownedFinishes: number;
 };
@@ -2223,8 +2222,7 @@ export type CcgOpening = {
   cacheUpdates?: {
     packs: CcgSession["packs"];
     qualityProtection: CcgSession["qualityProtection"];
-    qualityChances: CcgSession["qualityChances"];
-    customQualityProtection: Array<{ setSlug: string; counter: number; nextChance: number }>;
+    customQualityProtection: Array<{ setSlug: string; counter: number }>;
     ownedFinishesDelta: number;
     ownedCardsBySetDelta: Record<string, number>;
   };
@@ -2294,7 +2292,7 @@ export type CcgAdminSnapshotSetPreview = CcgAdminSnapshotPreviewCounts & {
   slug: string;
   raidName: string;
   mode: CcgMode;
-  gradeDistribution: Record<CcgTierGrade, number>;
+  gradeDistribution: Record<CcgRegularTierGrade, number>;
   characters: Array<{
     characterId: string;
     name: string;
@@ -2302,7 +2300,7 @@ export type CcgAdminSnapshotSetPreview = CcgAdminSnapshotPreviewCounts & {
     region: string;
     disposition: "new_character" | "rarity_change" | "blocked_new_character" | "blocked_rarity_change";
     previousTierGrade: CcgTierGrade | null;
-    nextTierGrade: CcgTierGrade;
+    nextTierGrade: CcgRegularTierGrade;
     mediaStatus: "pending" | "available" | "not_found" | "failed" | "untracked" | "render_missing";
     attemptCount: number;
     nextAttemptAt: string | null;
