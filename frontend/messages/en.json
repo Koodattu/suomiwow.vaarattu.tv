@@ -138,6 +138,51 @@
         "unavailableDescription": "This shared card or pack opening is unavailable."
       }
     },
+    "activity": {
+      "menuLabel": "My activity",
+      "eyebrow": "Your card vault",
+      "title": "Collection activity",
+      "body": "Your pack openings and rewards, newest first.",
+      "filtersLabel": "Filter collection activity",
+      "filters": {
+        "all": "All",
+        "packs": "Pack openings",
+        "codes": "Code rewards",
+        "twitch": "Twitch rewards"
+      },
+      "loading": "Loading your activity",
+      "loginTitle": "Log in to see your activity",
+      "loginBody": "Pack openings and rewards saved to your account will appear here.",
+      "loginAction": "Log in",
+      "emptyTitle": "No activity yet",
+      "emptyBody": "Open a pack or claim a reward and it will appear here.",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "loadMore": "Load more",
+      "loadingMore": "Loading…",
+      "pack": {
+        "title": "Opened a {mode} pack",
+        "titleSet": "Opened a pack from {set}",
+        "titleMixedLegacy": "Opened a mixed Legacy pack",
+        "summary": "{newCount, plural, one {# new card} other {# new cards}} · {duplicateCount, plural, one {# duplicate} other {# duplicates}}",
+        "bonus": "{count, plural, one {# bonus pack earned} other {# bonus packs earned}}",
+        "view": "View opening"
+      },
+      "code": {
+        "title": "Code reward"
+      },
+      "twitch": {
+        "title": "Twitch reward",
+        "channel": "From twitch.tv/{channel}"
+      },
+      "reward": {
+        "currentPacks": "{count, plural, one {# Current pack} other {# Current packs}}",
+        "currentPacksFrom": "{set} ×{count}",
+        "legacyPacks": "{count, plural, one {# Legacy pack} other {# Legacy packs}}",
+        "card": "Card reward: {name}",
+        "cardUnavailable": "Card reward"
+      }
+    },
     "redeem": {
       "title": "Redeem code",
       "description": "Enter a code to unlock packs or a card.",

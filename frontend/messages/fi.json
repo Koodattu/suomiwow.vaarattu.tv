@@ -138,6 +138,51 @@
         "unavailableDescription": "Tämä jaettu kortti tai pakan avaus ei ole saatavilla."
       }
     },
+    "activity": {
+      "menuLabel": "Omat tapahtumat",
+      "eyebrow": "Oma korttiholvisi",
+      "title": "Kokoelman tapahtumat",
+      "body": "Pakka-avauksesi ja palkintosi uusimmasta vanhimpaan.",
+      "filtersLabel": "Suodata kokoelman tapahtumia",
+      "filters": {
+        "all": "Kaikki",
+        "packs": "Pakka-avaukset",
+        "codes": "Koodipalkinnot",
+        "twitch": "Twitch-palkinnot"
+      },
+      "loading": "Tapahtumia ladataan",
+      "loginTitle": "Kirjaudu nähdäksesi tapahtumasi",
+      "loginBody": "Tilillesi tallennetut pakka-avaukset ja palkinnot näkyvät täällä.",
+      "loginAction": "Kirjaudu",
+      "emptyTitle": "Ei tapahtumia vielä",
+      "emptyBody": "Avaa pakka tai lunasta palkinto, niin se ilmestyy tänne.",
+      "today": "Tänään",
+      "yesterday": "Eilen",
+      "loadMore": "Näytä lisää",
+      "loadingMore": "Ladataan…",
+      "pack": {
+        "title": "Avasit {mode}-pakan",
+        "titleSet": "Avasit {set}-pakan",
+        "titleMixedLegacy": "Avasit sekalaisen Legacy-pakan",
+        "summary": "{newCount, plural, one {# uusi kortti} other {# uutta korttia}} · {duplicateCount, plural, one {# tupla} other {# tuplaa}}",
+        "bonus": "{count, plural, one {# bonuspaketti ansaittu} other {# bonuspakettia ansaittu}}",
+        "view": "Katso avaus"
+      },
+      "code": {
+        "title": "Koodipalkinto"
+      },
+      "twitch": {
+        "title": "Twitch-palkinto",
+        "channel": "Kanavalta twitch.tv/{channel}"
+      },
+      "reward": {
+        "currentPacks": "{count, plural, one {# Current-pakka} other {# Current-pakkaa}}",
+        "currentPacksFrom": "{set} ×{count}",
+        "legacyPacks": "{count, plural, one {# Legacy-pakka} other {# Legacy-pakkaa}}",
+        "card": "Korttipalkinto: {name}",
+        "cardUnavailable": "Korttipalkinto"
+      }
+    },
     "redeem": {
       "title": "Lunasta koodi",
       "description": "Syötä koodi ja lunasta pakkoja tai kortti.",

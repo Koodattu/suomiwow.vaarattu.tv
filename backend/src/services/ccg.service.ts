@@ -39,7 +39,7 @@ import CcgPackCredit from "../models/CcgPackCredit";
 import CcgPackOpening, { ICcgPackOpening, ICcgPackResult } from "../models/CcgPackOpening";
 import CcgPackPool from "../models/CcgPackPool";
 import CcgQualityProgress, { ICcgQualityProgress } from "../models/CcgQualityProgress";
-import CcgRedeemClaim from "../models/CcgRedeemClaim";
+import CcgRedeemClaim, { ICcgRedeemClaim } from "../models/CcgRedeemClaim";
 import CcgRedeemCode, { ICcgRedeemCode } from "../models/CcgRedeemCode";
 import CcgRollover from "../models/CcgRollover";
 import CcgShare, { ICcgShare } from "../models/CcgShare";
@@ -48,6 +48,7 @@ import CcgSet, { ICcgSet } from "../models/CcgSet";
 import Character from "../models/Character";
 import Raid from "../models/Raid";
 import User from "../models/User";
+import TwitchCcgRedemption, { ITwitchCcgRedemption } from "../models/TwitchCcgRedemption";
 import {
   CcgAlternativeArtDefinition,
   hasApplicableAlternativeArt,
@@ -58,7 +59,7 @@ import {
   serializeQuip,
   serializeOwnershipRows,
 } from "../utils/ccg-alternative-art";
-import { CcgFinishPity, emptyFinishPity, rollArtVariant, rollOwnedFinish, rollProtectedFinish } from "../utils/ccg-random";
+import { CcgFinishPity, emptyFinishPity, rollArtVariant, rollOwnedFinish } from "../utils/ccg-random";
 import { createCcgShareShortId, resolveCcgShareLookup } from "../utils/ccg-share-id";
 import { planPackSelections, selectCommunityCardForGrade, shufflePackResults } from "../utils/ccg-pack";
 import { resolveCollectorKey } from "../utils/ccg-identity";
@@ -85,6 +86,53 @@ const CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS = 60_000;
 const CCG_GUEST_LAST_SEEN_WRITE_INTERVAL_MS = 15 * 60 * 1000;
 const CCG_TRANSACTION_WRITE_CONFLICT_MAX_ATTEMPTS = 5;
 const CCG_PUBLIC_SET_FIELDS = "_id slug zoneId raidName expansionName state kind enabledAt themeKey theme customFinish backgroundPath packArtOffsetX cardCount publicationWave lastPublishedAt";
+const CCG_ACTIVITY_DEFAULT_LIMIT = 20;
+const CCG_ACTIVITY_MAX_LIMIT = 40;
+
+export const CCG_ACTIVITY_FILTERS = ["all", "packs", "codes", "twitch"] as const;
+export type CcgActivityFilter = (typeof CCG_ACTIVITY_FILTERS)[number];
+type CcgActivityKind = "pack" | "code" | "twitch";
+
+const CCG_ACTIVITY_KIND_RANK: Readonly<Record<CcgActivityKind, number>> = {
+  pack: 3,
+  code: 2,
+  twitch: 1,
+};
+
+type CcgActivityCursor = {
+  occurredAt: Date;
+  kind: CcgActivityKind;
+  sourceId: mongoose.Types.ObjectId;
+};
+
+type CcgActivityPackRecord = Pick<
+  ICcgPackOpening,
+  "mode" | "targetSetId" | "sourceSetIds" | "results" | "duplicateRewards" | "createdAt"
+> & { _id: mongoose.Types.ObjectId };
+
+type CcgActivityCodeRecord = Pick<
+  ICcgRedeemClaim,
+  "rewardType" | "currentPacks" | "legacyPacks" | "cardId" | "finish" | "artVariant" | "redeemedAt"
+> & { _id: mongoose.Types.ObjectId };
+
+type CcgActivityTwitchRecord = Pick<
+  ITwitchCcgRedemption,
+  "broadcasterLogin" | "rewardTitle" | "rewardKind" | "assignedCard" | "redeemedAt"
+> & { _id: mongoose.Types.ObjectId };
+
+type CcgActivityCandidate =
+  | { kind: "pack"; sourceId: mongoose.Types.ObjectId; occurredAt: Date; record: CcgActivityPackRecord }
+  | { kind: "code"; sourceId: mongoose.Types.ObjectId; occurredAt: Date; record: CcgActivityCodeRecord }
+  | { kind: "twitch"; sourceId: mongoose.Types.ObjectId; occurredAt: Date; record: CcgActivityTwitchRecord };
+
+type CcgActivityCardRecord = Pick<
+  ICcgCard,
+  "_id" | "setId" | "characterId" | "collectorKey" | "name" | "realm" | "classID" | "avatarUrl" | "renderUrl" | "tierGrade"
+>;
+type CcgActivitySetRecord = Pick<
+  ICcgSet,
+  "_id" | "slug" | "raidName" | "theme" | "backgroundPath" | "packArtOffsetX"
+>;
 
 export const CCG_COLLECTION_SORTS = [
   "duplicates_desc",
@@ -358,6 +406,92 @@ function validatePackGrant(value: unknown, label: string): number {
     throw new CcgServiceError(400, "invalid_pack_grant", `${label} packs must be a whole number from 0 to ${CCG_REDEEM_PACK_GRANT_MAX}`);
   }
   return parsed;
+}
+
+export function resolveCcgActivityFilter(value: unknown): CcgActivityFilter | null {
+  if (value === undefined || value === null || value === "") return "all";
+  return CCG_ACTIVITY_FILTERS.includes(value as CcgActivityFilter) ? value as CcgActivityFilter : null;
+}
+
+function validateCcgActivityLimit(value: unknown): number {
+  if (value === undefined || value === null || value === "") return CCG_ACTIVITY_DEFAULT_LIMIT;
+  const parsed = typeof value === "string" ? Number(value) : Number.NaN;
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > CCG_ACTIVITY_MAX_LIMIT) {
+    throw new CcgServiceError(400, "invalid_activity_limit", `Activity limit must be a whole number from 1 to ${CCG_ACTIVITY_MAX_LIMIT}`);
+  }
+  return parsed;
+}
+
+function decodeCcgActivityCursor(value: unknown): CcgActivityCursor | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string" || value.length > 256 || !/^[A-Za-z0-9_-]+$/.test(value)) {
+    throw new CcgServiceError(400, "invalid_activity_cursor", "Activity cursor is invalid");
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
+      version?: unknown;
+      occurredAt?: unknown;
+      kind?: unknown;
+      sourceId?: unknown;
+    };
+    const occurredAt = typeof parsed.occurredAt === "string" ? new Date(parsed.occurredAt) : null;
+    if (
+      parsed.version !== 1
+      || !occurredAt
+      || !Number.isFinite(occurredAt.getTime())
+      || !Object.prototype.hasOwnProperty.call(CCG_ACTIVITY_KIND_RANK, String(parsed.kind))
+      || typeof parsed.sourceId !== "string"
+      || !mongoose.Types.ObjectId.isValid(parsed.sourceId)
+    ) {
+      throw new Error("Invalid activity cursor payload");
+    }
+    return {
+      occurredAt,
+      kind: parsed.kind as CcgActivityKind,
+      sourceId: new mongoose.Types.ObjectId(parsed.sourceId),
+    };
+  } catch {
+    throw new CcgServiceError(400, "invalid_activity_cursor", "Activity cursor is invalid");
+  }
+}
+
+function encodeCcgActivityCursor(candidate: CcgActivityCandidate): string {
+  return Buffer.from(JSON.stringify({
+    version: 1,
+    occurredAt: candidate.occurredAt.toISOString(),
+    kind: candidate.kind,
+    sourceId: String(candidate.sourceId),
+  })).toString("base64url");
+}
+
+function buildCcgActivityCursorFilter(
+  field: "createdAt" | "redeemedAt",
+  kind: CcgActivityKind,
+  cursor: CcgActivityCursor | null,
+): Record<string, unknown> {
+  if (!cursor) return {};
+  const clauses: Record<string, unknown>[] = [{ [field]: { $lt: cursor.occurredAt } }];
+  const rank = CCG_ACTIVITY_KIND_RANK[kind];
+  const cursorRank = CCG_ACTIVITY_KIND_RANK[cursor.kind];
+  if (rank < cursorRank) clauses.push({ [field]: cursor.occurredAt });
+  if (rank === cursorRank) clauses.push({ [field]: cursor.occurredAt, _id: { $lt: cursor.sourceId } });
+  return { $or: clauses };
+}
+
+function compareCcgActivityCandidates(left: CcgActivityCandidate, right: CcgActivityCandidate): number {
+  return right.occurredAt.getTime() - left.occurredAt.getTime()
+    || CCG_ACTIVITY_KIND_RANK[right.kind] - CCG_ACTIVITY_KIND_RANK[left.kind]
+    || String(right.sourceId).localeCompare(String(left.sourceId));
+}
+
+export function resolveCcgActivityPackSetId(
+  mode: CcgMode,
+  targetSetId: mongoose.Types.ObjectId | null | undefined,
+  sourceSetIds: readonly mongoose.Types.ObjectId[],
+): mongoose.Types.ObjectId | null {
+  if (targetSetId) return targetSetId;
+  return mode === "current" ? sourceSetIds[0] ?? null : null;
 }
 
 class CcgService {
@@ -1256,28 +1390,271 @@ class CcgService {
     };
   }
 
-  async rollExternalSingleCard(session: ClientSession): Promise<CcgExternalCardAward> {
+  async getActivity(
+    req: Request,
+    query: { filter?: unknown; cursor?: unknown; limit?: unknown },
+  ): Promise<Record<string, unknown>> {
     requireFeature();
-    const pool = await this.selectModePackResults("current", session);
+    const userId = await this.requireAuthenticatedUser(req, "Log in to view your collection activity");
+    const filter = resolveCcgActivityFilter(query.filter);
+    if (!filter) throw new CcgServiceError(400, "invalid_activity_filter", "Choose a valid activity filter");
+    const limit = validateCcgActivityLimit(query.limit);
+    const cursor = decodeCcgActivityCursor(query.cursor);
+    const rowLimit = limit + 1;
+
+    const packCursorFilter = buildCcgActivityCursorFilter("createdAt", "pack", cursor);
+    const packOwnerFilter = {
+      $or: [
+        { ownerType: "user", ownerId: userId },
+        { ownerType: "guest", claimedByUserId: userId },
+      ],
+    };
+    const packFilter = Object.keys(packCursorFilter).length > 0
+      ? { state: "committed", $and: [packOwnerFilter, packCursorFilter] }
+      : { state: "committed", ...packOwnerFilter };
+
+    const [openingRows, codeRows, twitchRows] = await Promise.all([
+      filter === "all" || filter === "packs"
+        ? CcgPackOpening.find(packFilter)
+            .select("_id mode targetSetId sourceSetIds results duplicateRewards createdAt")
+            .sort({ createdAt: -1, _id: -1 })
+            .limit(rowLimit)
+            .lean<CcgActivityPackRecord[]>()
+        : Promise.resolve([] as CcgActivityPackRecord[]),
+      filter === "all" || filter === "codes"
+        ? CcgRedeemClaim.find({
+            userId,
+            ...buildCcgActivityCursorFilter("redeemedAt", "code", cursor),
+          })
+            .select("_id rewardType currentPacks legacyPacks cardId finish artVariant redeemedAt")
+            .sort({ redeemedAt: -1, _id: -1 })
+            .limit(rowLimit)
+            .lean<CcgActivityCodeRecord[]>()
+        : Promise.resolve([] as CcgActivityCodeRecord[]),
+      filter === "all" || filter === "twitch"
+        ? TwitchCcgRedemption.find({
+            grantedUserId: userId,
+            grantStatus: "granted",
+            ...buildCcgActivityCursorFilter("redeemedAt", "twitch", cursor),
+          })
+            .select("_id broadcasterLogin rewardTitle rewardKind assignedCard redeemedAt")
+            .sort({ redeemedAt: -1, _id: -1 })
+            .limit(rowLimit)
+            .lean<CcgActivityTwitchRecord[]>()
+        : Promise.resolve([] as CcgActivityTwitchRecord[]),
+    ]);
+
+    const candidates: CcgActivityCandidate[] = [
+      ...openingRows.map((record) => ({ kind: "pack" as const, sourceId: record._id, occurredAt: record.createdAt, record })),
+      ...codeRows.map((record) => ({ kind: "code" as const, sourceId: record._id, occurredAt: record.redeemedAt, record })),
+      ...twitchRows.map((record) => ({ kind: "twitch" as const, sourceId: record._id, occurredAt: record.redeemedAt, record })),
+    ].sort(compareCcgActivityCandidates);
+    const hasMore = candidates.length > limit;
+    const pageCandidates = candidates.slice(0, limit);
+
+    const cardIds = new Set<string>();
+    const rewardCardIds = new Set<string>();
+    const setIds = new Set<string>();
+    pageCandidates.forEach((candidate) => {
+      if (candidate.kind === "pack") {
+        candidate.record.sourceSetIds.forEach((setId) => setIds.add(String(setId)));
+        if (candidate.record.targetSetId) setIds.add(String(candidate.record.targetSetId));
+        candidate.record.results.forEach((result) => {
+          cardIds.add(String(result.cardId));
+          setIds.add(String(result.setId));
+        });
+        return;
+      }
+      const cardId = candidate.kind === "code" ? candidate.record.cardId : candidate.record.assignedCard?.cardId;
+      if (cardId) {
+        cardIds.add(String(cardId));
+        rewardCardIds.add(String(cardId));
+      }
+    });
+
+    const needsCurrentPackArt = pageCandidates.some((candidate) => (
+      candidate.kind === "code"
+        ? candidate.record.rewardType === "packs" && candidate.record.currentPacks > 0
+        : candidate.kind === "twitch" && candidate.record.rewardKind !== "card_reveal"
+    ));
+    const [cards, currentPackSet] = await Promise.all([
+      cardIds.size > 0
+        ? CcgCard.find({ _id: { $in: Array.from(cardIds, (id) => new mongoose.Types.ObjectId(id)) } })
+            .lean<CcgActivityCardRecord[]>()
+        : Promise.resolve([] as CcgActivityCardRecord[]),
+      needsCurrentPackArt
+        ? CcgSet.findOne({ state: "current", enabledAt: { $ne: null }, cardCount: { $gt: 0 } })
+            .select(CCG_PUBLIC_SET_FIELDS)
+            .sort({ enabledAt: -1, _id: -1 })
+            .lean<CcgActivitySetRecord>()
+        : Promise.resolve(null),
+    ]);
+    cards.forEach((card) => setIds.add(String(card.setId)));
+    if (currentPackSet) setIds.add(String(currentPackSet._id));
+    const sets = setIds.size > 0
+      ? await CcgSet.find({ _id: { $in: Array.from(setIds, (id) => new mongoose.Types.ObjectId(id)) } })
+          .select(CCG_PUBLIC_SET_FIELDS)
+          .lean<CcgActivitySetRecord[]>()
+      : [];
+    const cardById = new Map(cards.map((card) => [String(card._id), card]));
+    const setById = new Map(sets.map((set) => [String(set._id), set]));
+    const rewardCards = cards.filter((card) => rewardCardIds.has(String(card._id)));
+    const alternativeByCollector = await this.loadAlternativeArt(rewardCards);
+
+    const serializeActivityPackArt = (set: CcgActivitySetRecord | null | undefined) => set
+      ? {
+          slug: set.slug,
+          raidName: set.raidName,
+          theme: set.theme,
+          backgroundPath: set.backgroundPath,
+          packArtOffsetX: set.packArtOffsetX,
+        }
+      : null;
+
+    const serializeActivityCard = (
+      cardId: mongoose.Types.ObjectId | null | undefined,
+    ): Record<string, unknown> | null => {
+      if (!cardId) return null;
+      const card = cardById.get(String(cardId));
+      if (!card) return null;
+      const set = setById.get(String(card.setId));
+      if (!set) return null;
+      return {
+        ...this.serializeCard(
+          card as unknown as Record<string, any>,
+          set as unknown as Record<string, any>,
+          alternativeByCollector.get(resolveCollectorKey(card)),
+          { seriesOwned: true, snapshotOwned: true },
+        ),
+        set: this.serializeSet(set as unknown as Record<string, any>),
+      };
+    };
+
+    const items = pageCandidates.map((candidate) => {
+      const base = {
+        id: `${candidate.kind}:${candidate.sourceId}`,
+        kind: candidate.kind,
+        occurredAt: candidate.occurredAt,
+      };
+      if (candidate.kind === "pack") {
+        const packSetId = resolveCcgActivityPackSetId(
+          candidate.record.mode,
+          candidate.record.targetSetId,
+          candidate.record.sourceSetIds,
+        );
+        const packSet = packSetId ? setById.get(String(packSetId)) : undefined;
+        return {
+          ...base,
+          openingId: String(candidate.record._id),
+          mode: candidate.record.mode,
+          packArt: serializeActivityPackArt(packSet),
+          cards: candidate.record.results.flatMap((result) => {
+            const card = cardById.get(String(result.cardId));
+            return card ? [{
+              name: card.name,
+              realm: card.realm,
+              classID: card.classID,
+              tierGrade: card.tierGrade,
+              finish: result.finish,
+            }] : [];
+          }),
+          newCards: candidate.record.results.filter((result) => !result.isDuplicate).length,
+          duplicates: candidate.record.results.filter((result) => result.isDuplicate).length,
+          bonusPacks: candidate.record.duplicateRewards,
+        };
+      }
+      if (candidate.kind === "code") {
+        return {
+          ...base,
+          reward: candidate.record.rewardType === "packs"
+            ? {
+                type: "packs",
+                currentPacks: candidate.record.currentPacks,
+                legacyPacks: candidate.record.legacyPacks,
+                currentPackArt: serializeActivityPackArt(currentPackSet),
+              }
+            : {
+                type: "card",
+                finish: candidate.record.finish ?? null,
+                artVariant: candidate.record.artVariant ?? null,
+                card: serializeActivityCard(candidate.record.cardId),
+              },
+        };
+      }
+      return {
+        ...base,
+        broadcasterLogin: candidate.record.broadcasterLogin,
+        rewardTitle: candidate.record.rewardTitle,
+        reward: candidate.record.rewardKind !== "card_reveal"
+          ? {
+              type: "packs",
+              currentPacks: candidate.record.rewardKind === "packs_10" ? 10 : 1,
+              legacyPacks: candidate.record.rewardKind === "packs_10" ? 10 : 1,
+              currentPackArt: serializeActivityPackArt(currentPackSet),
+            }
+          : {
+              type: "card",
+              finish: candidate.record.assignedCard?.finish ?? null,
+              artVariant: candidate.record.assignedCard?.artVariant ?? null,
+              card: serializeActivityCard(candidate.record.assignedCard?.cardId),
+            },
+      };
+    });
+
+    return {
+      items,
+      nextCursor: hasMore && pageCandidates.length > 0
+        ? encodeCcgActivityCursor(pageCandidates[pageCandidates.length - 1])
+        : null,
+    };
+  }
+
+  async rollExternalSingleCard(
+    session: ClientSession,
+    userId?: mongoose.Types.ObjectId,
+  ): Promise<CcgExternalCardAward> {
+    requireFeature();
+    const pool = await this.selectModePackResults("all", session, null, false);
     const selected = pool.results[0];
-    if (!selected) throw new CcgServiceError(409, "pool_invalid", "The current card pool is incomplete");
+    if (!selected) throw new CcgServiceError(409, "pool_invalid", "The raid card pool is incomplete");
 
     const card = await CcgCard.findOne({ _id: selected.cardId, setId: selected.setId }).session(session).lean();
-    if (!card) throw new CcgServiceError(409, "pool_invalid", "The current card pool references an unavailable card");
+    if (!card) throw new CcgServiceError(409, "pool_invalid", "The raid card pool references an unavailable card");
     const set = await CcgSet.findOne({ _id: card.setId, enabledAt: { $ne: null } }).session(session).lean();
-    if (!set) throw new CcgServiceError(409, "pool_invalid", "The current card pool references an unavailable set");
+    if (!set) throw new CcgServiceError(409, "pool_invalid", "The raid card pool references an unavailable set");
 
     const customFinish = set.kind === "raid" ? set.customFinish?.key ?? null : null;
     const finishOrder = getCcgPackFinishOrder(set.kind, customFinish);
-    const finish = rollProtectedFinish(
-      emptyFinishPity(),
-      "standard",
+    const owner = userId ? { ownerType: "user" as const, ownerId: userId, dateKey: getHelsinkiDateKey() } : null;
+    const [ownedRows, qualityProgress] = owner
+      ? await Promise.all([
+          CcgOwnership.find({
+            ownerType: owner.ownerType,
+            ownerId: owner.ownerId,
+            setId: card.setId,
+            characterId: card.characterId,
+          }).select("finish").session(session).lean(),
+          this.ensureQualityProgress(owner, session),
+        ])
+      : [[], null] as const;
+    const activePity = qualityProgress ? this.readFinishPity(qualityProgress) : emptyFinishPity();
+    if (qualityProgress && customFinish) {
+      activePity[customFinish] = this.readCustomFinishPity(qualityProgress, set.slug);
+    }
+    const rolled = rollOwnedFinish(
+      activePity,
+      new Set<CcgFinish>(ownedRows.map((row) => row.finish)),
       randomInt,
       finishOrder,
       customFinish
         ? { ...CCG_FINISH_PITY_LIMITS, [customFinish]: set.customFinish!.hardPity }
         : CCG_FINISH_PITY_LIMITS,
-    ).finish;
+    );
+    if (qualityProgress) {
+      this.writeFinishPity(qualityProgress, this.readFinishPity(rolled.pity));
+      if (customFinish) this.writeCustomFinishPity(qualityProgress, set.slug, rolled.pity[customFinish] ?? 0);
+      await qualityProgress.save({ session });
+    }
     const alternativeArt = (await this.loadAlternativeArt([card], session)).get(resolveCollectorKey(card));
 
     return {
@@ -1285,7 +1662,7 @@ class CcgService {
       setId: card.setId,
       characterId: card.characterId,
       snapshotVersion: card.snapshotVersion,
-      finish,
+      finish: rolled.finish,
       artVariant: rollArtVariant(hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))),
       tierGrade: card.tierGrade,
       poolVersion: pool.version,
@@ -3186,15 +3563,21 @@ class CcgService {
   }
 
   private async selectModePackResults(
-    mode: CcgMode,
+    mode: CcgMode | "all",
     session: ClientSession,
     targetSetId: mongoose.Types.ObjectId | null = null,
+    includeCommunity = true,
   ): Promise<{
     results: Array<{ cardId: mongoose.Types.ObjectId; setId: mongoose.Types.ObjectId; tierGrade: CcgTierGrade }>;
     sourceSetIds: mongoose.Types.ObjectId[];
     version: string;
   }> {
-    const setFilter: Record<string, unknown> = { state: mode, kind: { $ne: "community" }, enabledAt: { $ne: null }, cardCount: { $gt: 0 } };
+    const setFilter: Record<string, unknown> = {
+      state: mode === "all" ? { $in: ["current", "legacy"] } : mode,
+      kind: { $ne: "community" },
+      enabledAt: { $ne: null },
+      cardCount: { $gt: 0 },
+    };
     if (targetSetId) setFilter._id = targetSetId;
     const sets = await CcgSet.find(setFilter)
       .select("_id")
@@ -3203,7 +3586,11 @@ class CcgService {
       .lean();
     if (sets.length === 0) {
       if (targetSetId) throw new CcgServiceError(409, "target_set_unavailable", "That Legacy raid is not available for pack opening");
-      throw new CcgServiceError(409, `${mode}_unavailable`, `The ${mode === "current" ? "Current" : "Legacy"} card pool is still being prepared`);
+      throw new CcgServiceError(
+        409,
+        `${mode}_unavailable`,
+        mode === "all" ? "The raid card pool is still being prepared" : `The ${mode === "current" ? "Current" : "Legacy"} card pool is still being prepared`,
+      );
     }
     const normalSetIds = sets.map((set) => set._id);
     const summaries = await CcgPackPool.aggregate<{
@@ -3230,7 +3617,11 @@ class CcgService {
     ]).session(session);
     const poolSetIds = new Set(summaries.map((pool) => String(pool.setId)));
     if (summaries.length !== sets.length || normalSetIds.some((setId) => !poolSetIds.has(String(setId)))) {
-      throw new CcgServiceError(409, "pool_unavailable", `The ${mode === "current" ? "Current" : "Legacy"} card pool is incomplete`);
+      throw new CcgServiceError(
+        409,
+        "pool_unavailable",
+        mode === "all" ? "The raid card pool is incomplete" : `The ${mode === "current" ? "Current" : "Legacy"} card pool is incomplete`,
+      );
     }
 
     const plan = planPackSelections(
@@ -3270,10 +3661,12 @@ class CcgService {
       if (!cardId) throw new CcgServiceError(409, "pool_invalid", "The pack pool changed while this pack was opening");
       return { cardId, setId: new mongoose.Types.ObjectId(row.setId), tierGrade: row.tierGrade };
     });
-    const communitySet = await CcgSet.findOne({ kind: "community", enabledAt: { $ne: null }, cardCount: { $gt: 0 } })
-      .select("_id")
-      .session(session)
-      .lean();
+    const communitySet = includeCommunity
+      ? await CcgSet.findOne({ kind: "community", enabledAt: { $ne: null }, cardCount: { $gt: 0 } })
+          .select("_id")
+          .session(session)
+          .lean()
+      : null;
     const communityPool = communitySet
       ? await CcgPackPool.findOne({ setId: communitySet._id, active: true, totalCards: { $gt: 0 } }).select("version buckets").session(session).lean()
       : null;
@@ -3719,14 +4112,14 @@ class CcgService {
     };
   }
 
-  private async requireAuthenticatedUser(req: Request): Promise<mongoose.Types.ObjectId> {
+  private async requireAuthenticatedUser(req: Request, message = "Log in to share cards and packs"): Promise<mongoose.Types.ObjectId> {
     const rawUserId = req.session.userId;
     if (!rawUserId || !mongoose.Types.ObjectId.isValid(rawUserId)) {
-      throw new CcgServiceError(401, "authentication_required", "Log in to share cards and packs");
+      throw new CcgServiceError(401, "authentication_required", message);
     }
     const userId = new mongoose.Types.ObjectId(rawUserId);
     if (!(await User.exists({ _id: userId }))) {
-      throw new CcgServiceError(401, "authentication_required", "Log in to share cards and packs");
+      throw new CcgServiceError(401, "authentication_required", message);
     }
     return userId;
   }

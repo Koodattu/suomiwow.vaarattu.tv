@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { FaArrowRightFromBracket, FaChevronDown, FaGear, FaUser } from "react-icons/fa6";
+import { FaArrowRightFromBracket, FaChevronDown, FaClockRotateLeft, FaGear, FaUser } from "react-icons/fa6";
 import { useAuth } from "@/context/AuthContext";
 import styles from "./ccg.module.css";
 
@@ -67,6 +67,10 @@ export default function CcgAccountMenu() {
 
       {isOpen ? (
         <div className={styles.accountDropdown} role="menu">
+          <Link href="/ccg/activity" role="menuitem" onClick={() => setIsOpen(false)}>
+            <FaClockRotateLeft aria-hidden="true" />
+            {t("activity.menuLabel")}
+          </Link>
           <Link href="/profile" role="menuitem" onClick={() => setIsOpen(false)}>
             <FaUser aria-hidden="true" />
             {tNavigation("profile")}

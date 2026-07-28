@@ -208,6 +208,74 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+.loadingSkeleton {
+  background-color: rgba(10, 21, 43, 0.8);
+  background-image: linear-gradient(110deg, rgba(255, 255, 255, 0.025) 20%, rgba(255, 255, 255, 0.085) 42%, rgba(255, 255, 255, 0.025) 64%);
+  background-size: 220% 100%;
+  animation: packSkeletonShimmer 1.5s ease-in-out infinite;
+}
+
+.packSkeletonChoices {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.modeChoice.modeChoiceSkeleton {
+  height: 3.7rem;
+  border-color: rgba(142, 178, 230, 0.08);
+  background-color: rgba(10, 21, 43, 0.8);
+  background-image: linear-gradient(110deg, rgba(255, 255, 255, 0.025) 20%, rgba(255, 255, 255, 0.085) 42%, rgba(255, 255, 255, 0.025) 64%);
+  background-size: 220% 100%;
+  pointer-events: none;
+}
+
+.packModeSkeleton {
+  width: 62%;
+  height: 0.65rem;
+  margin-inline: auto;
+  border-radius: 0.25rem;
+}
+
+.packButtonSkeleton {
+  border-radius: 1.25rem;
+  clip-path: polygon(8% 1%, 92% 1%, 97% 7%, 94% 93%, 88% 99%, 12% 99%, 6% 93%, 3% 7%);
+}
+
+.packHint.packHintSkeleton {
+  right: auto;
+  left: 50%;
+  width: 8rem;
+  min-height: 0.7rem;
+  border-radius: 0.25rem;
+  transform: translateX(-50%);
+}
+
+.qualitySkeletonGroup {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.qualitySkeletonHeading {
+  width: 52%;
+  height: 0.55rem;
+  border-radius: 0.2rem;
+}
+
+.qualitySkeletonRow {
+  width: 100%;
+  height: 0.75rem;
+  border-radius: 0.25rem;
+}
+
+@keyframes packSkeletonShimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
 .modeChoices {
   display: grid;
   gap: 0.5rem;
@@ -837,12 +905,10 @@
 }
 
 .cardBackSigil span {
+  position: relative;
   display: block;
   width: 100%;
   aspect-ratio: 1;
-  background: var(--pack-logo-fill);
-  filter: drop-shadow(0 0 8px var(--pack-logo-glow));
-  mask: url("/ccg/logo_ccg.png") center / contain no-repeat;
 }
 
 .packSigil span {
@@ -853,7 +919,9 @@
 }
 
 .packSigil span::before,
-.packSigil span::after {
+.packSigil span::after,
+.cardBackSigil span::before,
+.cardBackSigil span::after {
   position: absolute;
   inset: 0;
   content: "";
@@ -861,13 +929,15 @@
   -webkit-mask: url("/ccg/logo_ccg.png") center / contain no-repeat;
 }
 
-.packSigil span::before {
+.packSigil span::before,
+.cardBackSigil span::before {
   background: rgba(0, 3, 10, 0.8);
   filter: blur(0.35px);
   transform: translate3d(1px, 1.5px, 0) scale(1.01);
 }
 
-.packSigil span::after {
+.packSigil span::after,
+.cardBackSigil span::after {
   background: var(--pack-logo-fill);
   filter: drop-shadow(-0.6px -0.8px 0 rgba(255, 255, 255, 0.34)) drop-shadow(0.7px 1px 0 rgba(0, 0, 0, 0.6)) drop-shadow(0 0 5px var(--pack-logo-glow));
 }
@@ -2523,6 +2593,10 @@
   .revealSlotRevealed[data-finish="negative"] .revealCeremony::before,
   .revealSlotRevealed .revealFlare,
   .revealSlotSpecial.revealSlotRevealed .revealFlare {
+    animation: none;
+  }
+
+  .loadingSkeleton {
     animation: none;
   }
 

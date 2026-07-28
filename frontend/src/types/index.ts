@@ -1259,7 +1259,7 @@ export interface TwitchCustomReward {
   skipsRequestQueue: boolean;
 }
 
-export type TwitchCcgRewardKind = "packs" | "card_reveal";
+export type TwitchCcgRewardKind = "packs" | "packs_10" | "card_reveal";
 
 export interface TwitchChannelPointsRewardStatus {
   enabled: boolean;
@@ -1301,11 +1301,11 @@ export interface TwitchChannelPointsStatus {
   lastError?: string;
   deliveries: {
     grants: { pending: number; granted: number; failed: number };
-    chat: { pending: number; sent: number; failed: number; expired: number; sent24h: number };
+    chat: { pending: number; sent: number; skipped: number; failed: number; expired: number; sent24h: number };
     assignments: { pending: number; assigned: number; failed: number };
     byReward: Record<TwitchCcgRewardKind, {
       grants: { pending: number; granted: number; failed: number };
-      chat: { pending: number; sent: number; failed: number; expired: number; sent24h: number };
+      chat: { pending: number; sent: number; skipped: number; failed: number; expired: number; sent24h: number };
     }>;
   };
   rewards: Record<TwitchCcgRewardKind, TwitchChannelPointsRewardStatus>;
@@ -2254,6 +2254,58 @@ export type CcgShare =
       unboxedBy: CcgShareAttribution;
       pack: CcgOpening;
     };
+
+export type CcgActivityFilter = "all" | "packs" | "codes" | "twitch";
+
+export type CcgActivityReward =
+  | { type: "packs"; currentPacks: number; legacyPacks: number; currentPackArt: CcgActivityPackArt | null }
+  | { type: "card"; finish: CcgFinish | null; artVariant: CcgArtVariant | null; card: CcgCard | null };
+
+export type CcgActivityPackArt = Pick<
+  CcgSet,
+  "slug" | "raidName" | "theme" | "backgroundPath" | "packArtOffsetX"
+>;
+
+export type CcgActivityPackCard = {
+  name: string;
+  realm: string;
+  classID: number;
+  tierGrade: CcgTierGrade;
+  finish: CcgFinish;
+};
+
+export type CcgActivityItem =
+  | {
+      id: string;
+      kind: "pack";
+      occurredAt: string;
+      openingId: string;
+      mode: CcgMode;
+      packArt: CcgActivityPackArt | null;
+      cards: CcgActivityPackCard[];
+      newCards: number;
+      duplicates: number;
+      bonusPacks: number;
+    }
+  | {
+      id: string;
+      kind: "code";
+      occurredAt: string;
+      reward: CcgActivityReward;
+    }
+  | {
+      id: string;
+      kind: "twitch";
+      occurredAt: string;
+      broadcasterLogin: string;
+      rewardTitle: string;
+      reward: CcgActivityReward;
+    };
+
+export type CcgActivityResponse = {
+  items: CcgActivityItem[];
+  nextCursor: string | null;
+};
 
 export type CcgAdminSetStatus = {
   id: string | null;

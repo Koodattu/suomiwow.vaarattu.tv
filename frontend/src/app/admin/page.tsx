@@ -341,6 +341,8 @@ export default function AdminPage() {
   const [twitchChannelPointRewards, setTwitchChannelPointRewards] = useState<TwitchCustomReward[]>([]);
   const [twitchChannelPointsEnabled, setTwitchChannelPointsEnabled] = useState(false);
   const [twitchChannelPointsRewardTitle, setTwitchChannelPointsRewardTitle] = useState("");
+  const [twitchTenPackRewardEnabled, setTwitchTenPackRewardEnabled] = useState(false);
+  const [twitchTenPackRewardTitle, setTwitchTenPackRewardTitle] = useState("");
   const [twitchCardRewardEnabled, setTwitchCardRewardEnabled] = useState(false);
   const [twitchCardRewardTitle, setTwitchCardRewardTitle] = useState("");
   const [twitchCcgOverlayUrl, setTwitchCcgOverlayUrl] = useState("");
@@ -621,6 +623,8 @@ export default function AdminPage() {
             setTwitchChannelPointsStatus(channelPointsData);
             setTwitchChannelPointsEnabled(channelPointsData.rewards.packs.enabled);
             setTwitchChannelPointsRewardTitle(channelPointsData.rewards.packs.rewardTitle || "");
+            setTwitchTenPackRewardEnabled(channelPointsData.rewards.packs_10.enabled);
+            setTwitchTenPackRewardTitle(channelPointsData.rewards.packs_10.rewardTitle || "");
             setTwitchCardRewardEnabled(channelPointsData.rewards.card_reveal.enabled);
             setTwitchCardRewardTitle(channelPointsData.rewards.card_reveal.rewardTitle || "");
             setTwitchChannelPointRewards(rewardsData?.rewards || []);
@@ -952,6 +956,8 @@ export default function AdminPage() {
     setTwitchChannelPointsStatus(status);
     setTwitchChannelPointsEnabled(status.rewards.packs.enabled);
     setTwitchChannelPointsRewardTitle(status.rewards.packs.rewardTitle || "");
+    setTwitchTenPackRewardEnabled(status.rewards.packs_10.enabled);
+    setTwitchTenPackRewardTitle(status.rewards.packs_10.rewardTitle || "");
     setTwitchCardRewardEnabled(status.rewards.card_reveal.enabled);
     setTwitchCardRewardTitle(status.rewards.card_reveal.rewardTitle || "");
     return status;
@@ -1306,9 +1312,17 @@ export default function AdminPage() {
     }
   };
 
-  const handleSaveTwitchChannelPoints = async (rewardKind: "packs" | "card_reveal") => {
-    const enabled = rewardKind === "packs" ? twitchChannelPointsEnabled : twitchCardRewardEnabled;
-    const rewardTitle = rewardKind === "packs" ? twitchChannelPointsRewardTitle : twitchCardRewardTitle;
+  const handleSaveTwitchChannelPoints = async (rewardKind: "packs" | "packs_10" | "card_reveal") => {
+    const enabled = rewardKind === "packs"
+      ? twitchChannelPointsEnabled
+      : rewardKind === "packs_10"
+        ? twitchTenPackRewardEnabled
+        : twitchCardRewardEnabled;
+    const rewardTitle = rewardKind === "packs"
+      ? twitchChannelPointsRewardTitle
+      : rewardKind === "packs_10"
+        ? twitchTenPackRewardTitle
+        : twitchCardRewardTitle;
     if (enabled && !rewardTitle.trim()) {
       setTriggerMessage({ type: "error", text: "Choose a channel points reward before enabling the listener." });
       return;
@@ -1324,13 +1338,15 @@ export default function AdminPage() {
       setTwitchChannelPointsStatus(status);
       setTwitchChannelPointsEnabled(status.rewards.packs.enabled);
       setTwitchChannelPointsRewardTitle(status.rewards.packs.rewardTitle || twitchChannelPointsRewardTitle);
+      setTwitchTenPackRewardEnabled(status.rewards.packs_10.enabled);
+      setTwitchTenPackRewardTitle(status.rewards.packs_10.rewardTitle || twitchTenPackRewardTitle);
       setTwitchCardRewardEnabled(status.rewards.card_reveal.enabled);
       setTwitchCardRewardTitle(status.rewards.card_reveal.rewardTitle || twitchCardRewardTitle);
       setTriggerMessage({
         type: "success",
         text: status.rewards[rewardKind].enabled
-          ? `${rewardKind === "packs" ? "Pack" : "Card reveal"} reward activated`
-          : `${rewardKind === "packs" ? "Pack" : "Card reveal"} reward disabled`,
+          ? `${rewardKind === "card_reveal" ? "Card reveal" : rewardKind === "packs_10" ? "10× pack" : "Single-pack"} reward activated`
+          : `${rewardKind === "card_reveal" ? "Card reveal" : rewardKind === "packs_10" ? "10× pack" : "Single-pack"} reward disabled`,
       });
       setTimeout(() => setTriggerMessage(null), 5000);
     } catch (error) {
@@ -2982,7 +2998,7 @@ export default function AdminPage() {
                       <div>
                         <h3 className="text-lg font-semibold text-white text-balance">Channel Points CCG Rewards</h3>
                         <p className="mt-1 text-sm text-gray-400 text-pretty">
-                          The {twitchChannelPointsStatus.expectedBroadcasterLogin} broadcaster authorization listens for two independent rewards. Vaarabot posts each result in chat.
+                          The {twitchChannelPointsStatus.expectedBroadcasterLogin} broadcaster authorization listens for three independent rewards. Vaarabot only posts delivery errors and an account-link reminder at most once every seven days.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -3023,6 +3039,9 @@ export default function AdminPage() {
                         <p className={`mt-1 text-sm font-semibold ${twitchChannelPointsStatus.rewards.packs.subscriptionStatus === "enabled" ? "text-green-400" : "text-amber-400"}`}>
                           Packs: {twitchChannelPointsStatus.rewards.packs.enabled ? twitchChannelPointsStatus.rewards.packs.subscriptionStatus || "Starting" : "Disabled"}
                         </p>
+                        <p className={`mt-1 text-sm font-semibold ${twitchChannelPointsStatus.rewards.packs_10.subscriptionStatus === "enabled" ? "text-green-400" : "text-amber-400"}`}>
+                          10× packs: {twitchChannelPointsStatus.rewards.packs_10.enabled ? twitchChannelPointsStatus.rewards.packs_10.subscriptionStatus || "Starting" : "Disabled"}
+                        </p>
                         <p className={`mt-1 text-sm font-semibold ${twitchChannelPointsStatus.rewards.card_reveal.subscriptionStatus === "enabled" ? "text-green-400" : "text-amber-400"}`}>
                           Card: {twitchChannelPointsStatus.rewards.card_reveal.enabled ? twitchChannelPointsStatus.rewards.card_reveal.subscriptionStatus || "Starting" : "Disabled"}
                         </p>
@@ -3032,6 +3051,9 @@ export default function AdminPage() {
                         <p className="mt-1 text-lg font-bold text-green-400 tabular-nums">{twitchChannelPointsStatus.deliveries.byReward.packs.grants.granted}</p>
                         <p className="text-xs text-gray-500 tabular-nums">
                           {twitchChannelPointsStatus.deliveries.byReward.packs.grants.pending} pending · {twitchChannelPointsStatus.deliveries.byReward.packs.grants.failed} failed
+                        </p>
+                        <p className="mt-2 text-xs text-gray-400 tabular-nums">
+                          10×: {twitchChannelPointsStatus.deliveries.byReward.packs_10.grants.granted} granted · {twitchChannelPointsStatus.deliveries.byReward.packs_10.grants.pending} pending
                         </p>
                       </div>
                       <div className="rounded-lg bg-gray-900/70 p-4">
@@ -3045,7 +3067,7 @@ export default function AdminPage() {
 
                     <div className="rounded-lg border border-gray-700 bg-gray-900/40 p-4">
                       <div className="mb-4">
-                        <h4 className="font-semibold text-white text-balance">One of each pack</h4>
+                        <h4 className="font-semibold text-white text-balance">Single-pack reward</h4>
                         <p className="mt-1 text-xs text-gray-400 text-pretty">Grants one Current and one Legacy pack. Disabling stops intake, retries, and chat delivery for this reward.</p>
                       </div>
                       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
@@ -3094,6 +3116,52 @@ export default function AdminPage() {
                         </button>
                       </div>
                     </div>
+                    </div>
+
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-950/10 p-4">
+                      <div className="mb-4">
+                        <h4 className="font-semibold text-white text-balance">10× pack reward</h4>
+                        <p className="mt-1 text-xs text-gray-400 text-pretty">Grants ten Current and ten Legacy packs from a separate Twitch reward.</p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                        <div>
+                          <label htmlFor="twitch-channel-points-ten-pack-reward" className="block text-sm font-medium text-gray-200">Reward</label>
+                          <select
+                            id="twitch-channel-points-ten-pack-reward"
+                            value={twitchTenPackRewardTitle}
+                            onChange={(event) => setTwitchTenPackRewardTitle(event.target.value)}
+                            disabled={!twitchChannelPointsStatus.connected}
+                            className="mt-2 min-h-11 w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <option value="">Choose a different custom reward</option>
+                            {twitchChannelPointRewards.map((reward) => (
+                              <option key={reward.id} value={reward.title}>
+                                {reward.title} ({reward.cost.toLocaleString()} points){reward.skipsRequestQueue ? "" : " — queue enabled"}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="mt-2 text-xs text-amber-300 text-pretty">Use a reward not selected for the other grants and enable “Skip Reward Requests Queue” in Twitch.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <label className="flex min-h-11 items-center gap-3 rounded bg-gray-900 px-3 py-2 text-sm text-gray-200">
+                            <input
+                              type="checkbox"
+                              checked={twitchTenPackRewardEnabled}
+                              onChange={(event) => setTwitchTenPackRewardEnabled(event.target.checked)}
+                              disabled={!twitchChannelPointsStatus.connected}
+                              className="h-4 w-4 rounded border-gray-600 bg-gray-800 text-purple-500 focus:ring-purple-500"
+                            />
+                            Enabled
+                          </label>
+                          <button
+                            onClick={() => handleSaveTwitchChannelPoints("packs_10")}
+                            disabled={!twitchChannelPointsStatus.connected || twitchChannelPointsSaving}
+                            className="min-h-11 rounded bg-amber-600 px-4 py-2 text-sm text-white transition-[background-color,transform] hover:bg-amber-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {twitchChannelPointsSaving ? "Saving..." : "Save & Subscribe"}
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="rounded-lg border border-purple-500/30 bg-purple-950/10 p-4">
@@ -3191,9 +3259,9 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {(twitchChannelPointsStatus.rewards.packs.lastError || twitchChannelPointsStatus.rewards.card_reveal.lastError) && (
+                    {(twitchChannelPointsStatus.rewards.packs.lastError || twitchChannelPointsStatus.rewards.packs_10.lastError || twitchChannelPointsStatus.rewards.card_reveal.lastError) && (
                       <div className="rounded-lg border border-red-500/40 bg-red-950/30 px-4 py-3 text-sm text-red-200">
-                        {twitchChannelPointsStatus.rewards.packs.lastError || twitchChannelPointsStatus.rewards.card_reveal.lastError}
+                        {twitchChannelPointsStatus.rewards.packs.lastError || twitchChannelPointsStatus.rewards.packs_10.lastError || twitchChannelPointsStatus.rewards.card_reveal.lastError}
                       </div>
                     )}
                     <p className="text-xs text-gray-500 break-all">Webhook: {twitchChannelPointsStatus.callbackUrl}</p>

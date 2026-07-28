@@ -9,6 +9,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { useEffect, useState, useMemo } from "react";
 import { AuthProvider } from "@/context/AuthContext";
 import { QueryProvider } from "@/lib/query-provider";
+import CcgInitialSkeleton from "@/components/ccg/CcgPageSkeletons";
 import { getLocale, LOCALE_CHANGE_EVENT, type Locale } from "@/lib/locale";
 import {
   buildWebSiteStructuredData,
@@ -136,7 +137,11 @@ export default function RootLayout({
           )}
         </head>
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased ${isCcgOverlayPage ? "ccg-overlay-body" : ""}`}>
-          {!isCcgOverlayPage && <div className="flex items-center justify-center min-h-screen"><div className="text-white">Loading...</div></div>}
+          {!isCcgOverlayPage && (
+            isCcgPage
+              ? <CcgInitialSkeleton pathname={pathname} />
+              : <div className="flex items-center justify-center min-h-screen"><div className="text-white">Loading...</div></div>
+          )}
         </body>
       </html>
     );

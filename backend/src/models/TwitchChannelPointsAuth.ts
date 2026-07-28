@@ -23,6 +23,14 @@ export interface ITwitchChannelPointsAuth extends Document {
   subscriptionStatus?: string;
   subscriptionCreatedAt?: Date;
   lastNotificationAt?: Date;
+  tenPackRewardEnabled: boolean;
+  tenPackRewardId?: string;
+  tenPackRewardTitle?: string;
+  tenPackSubscriptionId?: string;
+  tenPackSubscriptionStatus?: string;
+  tenPackSubscriptionCreatedAt?: Date;
+  tenPackLastNotificationAt?: Date;
+  tenPackLastError?: string;
   cardRewardEnabled: boolean;
   cardRewardId?: string;
   cardRewardTitle?: string;
@@ -67,6 +75,14 @@ const TwitchChannelPointsAuthSchema = new Schema<ITwitchChannelPointsAuth>(
     subscriptionStatus: { type: String },
     subscriptionCreatedAt: { type: Date },
     lastNotificationAt: { type: Date },
+    tenPackRewardEnabled: { type: Boolean, required: true, default: false },
+    tenPackRewardId: { type: String },
+    tenPackRewardTitle: { type: String },
+    tenPackSubscriptionId: { type: String },
+    tenPackSubscriptionStatus: { type: String },
+    tenPackSubscriptionCreatedAt: { type: Date },
+    tenPackLastNotificationAt: { type: Date },
+    tenPackLastError: { type: String },
     cardRewardEnabled: { type: Boolean, required: true, default: false },
     cardRewardId: { type: String },
     cardRewardTitle: { type: String },

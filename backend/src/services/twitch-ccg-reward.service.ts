@@ -35,7 +35,7 @@ export interface TwitchRedemptionInput {
 
 type RewardDeliveryCounts = {
   grants: { pending: number; granted: number; failed: number };
-  chat: { pending: number; sent: number; failed: number; expired: number; sent24h: number };
+  chat: { pending: number; sent: number; skipped: number; failed: number; expired: number; sent24h: number };
 };
 
 export interface TwitchCcgRewardCounts extends RewardDeliveryCounts {
@@ -56,11 +56,18 @@ function asExternalAward(card: TwitchCcgAssignedCard): CcgExternalCardAward {
   };
 }
 
-function rewardKindMatch(kinds: readonly TwitchCcgRewardKind[]): Record<string, unknown> {
-  if (kinds.includes("packs") && kinds.includes("card_reveal")) return {};
-  if (kinds.includes("packs")) return { $or: [{ rewardKind: "packs" }, { rewardKind: { $exists: false } }] };
-  if (kinds.includes("card_reveal")) return { rewardKind: "card_reveal" };
-  return { _id: { $exists: false } };
+export function twitchCcgRewardKindMatch(kinds: readonly TwitchCcgRewardKind[]): Record<string, unknown> {
+  if (kinds.length === 3) return {};
+  const clauses: Record<string, unknown>[] = [];
+  if (kinds.includes("packs")) clauses.push({ $or: [{ rewardKind: "packs" }, { rewardKind: { $exists: false } }] });
+  if (kinds.includes("packs_10")) clauses.push({ rewardKind: "packs_10" });
+  if (kinds.includes("card_reveal")) clauses.push({ rewardKind: "card_reveal" });
+  if (clauses.length === 0) return { _id: { $exists: false } };
+  return clauses.length === 1 ? clauses[0] : { $or: clauses };
+}
+
+export function getTwitchCcgPackGrantCount(rewardKind: TwitchCcgRewardKind): number {
+  return rewardKind === "packs_10" ? 10 : 1;
 }
 
 class TwitchCcgRewardService {
@@ -104,7 +111,8 @@ class TwitchCcgRewardService {
         }).session(session);
         if (!redemption) return;
 
-        const award = await ccgService.rollExternalSingleCard(session);
+        const linkedUser = await User.findOne({ "twitch.id": redemption.twitchUserId }).select("_id").session(session);
+        const award = await ccgService.rollExternalSingleCard(session, linkedUser?._id);
         const now = new Date();
         redemption.assignedCard = award;
         redemption.assignmentStatus = "assigned";
@@ -112,7 +120,6 @@ class TwitchCcgRewardService {
         redemption.assignmentNextAttemptAt = now;
         redemption.assignmentLastError = undefined;
 
-        const linkedUser = await User.findOne({ "twitch.id": redemption.twitchUserId }).select("_id").session(session);
         if (linkedUser) await this.grantCard(redemption, linkedUser._id, award, session);
 
         await TwitchCcgOverlayEvent.updateOne(
@@ -214,7 +221,7 @@ class TwitchCcgRewardService {
   async grantPendingForTwitchUser(
     twitchUserId: string,
     respectBackoff = false,
-    kinds: readonly TwitchCcgRewardKind[] = ["packs", "card_reveal"],
+    kinds: readonly TwitchCcgRewardKind[] = ["packs", "packs_10", "card_reveal"],
   ): Promise<number> {
     const user = await User.findOne({ "twitch.id": twitchUserId }).select("_id").lean();
     if (!user) return 0;
@@ -222,7 +229,7 @@ class TwitchCcgRewardService {
     const redemptions = await TwitchCcgRedemption.find({
       twitchUserId,
       grantStatus: { $in: ["pending", "failed"] },
-      ...rewardKindMatch(kinds),
+      ...twitchCcgRewardKindMatch(kinds),
       ...(respectBackoff ? { grantNextAttemptAt: { $lte: new Date() } } : {}),
     }).sort({ redeemedAt: 1 }).limit(100).select("_id rewardKind assignmentStatus");
 
@@ -237,7 +244,7 @@ class TwitchCcgRewardService {
   }
 
   async retryLinkedPending(
-    kinds: readonly TwitchCcgRewardKind[] = ["packs", "card_reveal"],
+    kinds: readonly TwitchCcgRewardKind[] = ["packs", "packs_10", "card_reveal"],
     limit = 25,
   ): Promise<number> {
     const twitchUsers = await TwitchCcgRedemption.aggregate<{ _id: string }>([
@@ -245,7 +252,7 @@ class TwitchCcgRewardService {
         $match: {
           grantStatus: { $in: ["pending", "failed"] },
           grantNextAttemptAt: { $lte: new Date() },
-          ...rewardKindMatch(kinds),
+          ...twitchCcgRewardKindMatch(kinds),
         },
       },
       { $lookup: { from: User.collection.name, localField: "twitchUserId", foreignField: "twitch.id", as: "linkedUsers" } },
@@ -279,9 +286,13 @@ class TwitchCcgRewardService {
 
     const blank = (): RewardDeliveryCounts => ({
       grants: { pending: 0, granted: 0, failed: 0 },
-      chat: { pending: 0, sent: 0, failed: 0, expired: 0, sent24h: 0 },
+      chat: { pending: 0, sent: 0, skipped: 0, failed: 0, expired: 0, sent24h: 0 },
     });
-    const byReward: Record<TwitchCcgRewardKind, RewardDeliveryCounts> = { packs: blank(), card_reveal: blank() };
+    const byReward: Record<TwitchCcgRewardKind, RewardDeliveryCounts> = {
+      packs: blank(),
+      packs_10: blank(),
+      card_reveal: blank(),
+    };
     for (const row of grantCounts) {
       const target = byReward[row._id.kind]?.grants;
       if (target && row._id.status in target) target[row._id.status as keyof typeof target] = row.count;
@@ -295,17 +306,21 @@ class TwitchCcgRewardService {
     const assignments = new Map(assignmentCounts.map((entry) => [entry._id, entry.count]));
     return {
       grants: {
-        pending: byReward.packs.grants.pending + byReward.card_reveal.grants.pending,
-        granted: byReward.packs.grants.granted + byReward.card_reveal.grants.granted,
-        failed: byReward.packs.grants.failed + byReward.card_reveal.grants.failed,
+        pending: byReward.packs.grants.pending + byReward.packs_10.grants.pending + byReward.card_reveal.grants.pending,
+        granted: byReward.packs.grants.granted + byReward.packs_10.grants.granted + byReward.card_reveal.grants.granted,
+        failed: byReward.packs.grants.failed + byReward.packs_10.grants.failed + byReward.card_reveal.grants.failed,
       },
-      chat: {
-        pending: byReward.packs.chat.pending + byReward.card_reveal.chat.pending,
-        sent: byReward.packs.chat.sent + byReward.card_reveal.chat.sent,
-        failed: byReward.packs.chat.failed + byReward.card_reveal.chat.failed,
-        expired: byReward.packs.chat.expired + byReward.card_reveal.chat.expired,
-        sent24h: byReward.packs.chat.sent24h + byReward.card_reveal.chat.sent24h,
-      },
+      chat: (["packs", "packs_10", "card_reveal"] as const).reduce(
+        (total, kind) => ({
+          pending: total.pending + byReward[kind].chat.pending,
+          sent: total.sent + byReward[kind].chat.sent,
+          skipped: total.skipped + byReward[kind].chat.skipped,
+          failed: total.failed + byReward[kind].chat.failed,
+          expired: total.expired + byReward[kind].chat.expired,
+          sent24h: total.sent24h + byReward[kind].chat.sent24h,
+        }),
+        { pending: 0, sent: 0, skipped: 0, failed: 0, expired: 0, sent24h: 0 },
+      ),
       assignments: {
         pending: assignments.get("pending") || 0,
         assigned: assignments.get("assigned") || 0,
@@ -366,6 +381,7 @@ class TwitchCcgRewardService {
     userId: mongoose.Types.ObjectId,
     session: mongoose.ClientSession,
   ): Promise<void> {
+    const packCount = getTwitchCcgPackGrantCount(redemption.rewardKind);
     for (const mode of ["current", "legacy"] as const) {
       await CcgPackCredit.updateOne(
         { ownerId: userId, sourceKey: `twitch-redemption:${redemption.redemptionId}:${mode}` },
@@ -375,7 +391,7 @@ class TwitchCcgRewardService {
             mode,
             source: "twitch_reward",
             sourceKey: `twitch-redemption:${redemption.redemptionId}:${mode}`,
-            remaining: 1,
+            remaining: packCount,
           },
         },
         { upsert: true, session },
@@ -390,15 +406,15 @@ class TwitchCcgRewardService {
           action: "twitch_reward",
           mode: null,
           idempotencyKey: `twitch-redemption:${redemption.redemptionId}`,
-          amount: 2,
+          amount: packCount * 2,
           metadata: {
-            rewardKind: "packs",
+            rewardKind: redemption.rewardKind,
             twitchUserId: redemption.twitchUserId,
             twitchUserLogin: redemption.twitchUserLogin,
             rewardId: redemption.rewardId,
             rewardTitle: redemption.rewardTitle,
-            currentPacks: 1,
-            legacyPacks: 1,
+            currentPacks: packCount,
+            legacyPacks: packCount,
           },
         },
       },

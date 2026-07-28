@@ -26,6 +26,7 @@ import CollectibleCard from "@/components/ccg/CollectibleCard";
 import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
 import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
+import { CcgOpenContentSkeleton } from "@/components/ccg/CcgPageSkeletons";
 import CcgShareButton from "@/components/ccg/CcgShareButton";
 import PackBoosterVisual, { getPackTheme } from "@/components/ccg/PackBoosterVisual";
 import styles from "@/components/ccg/ccg.module.css";
@@ -106,6 +107,7 @@ export default function CcgOpenPage() {
   const [mode, setMode] = useState<CcgMode>("current");
   const [opening, setOpening] = useState<CcgOpening | null>(null);
   const [recoveryId, setRecoveryId] = useState("");
+  const [revealRecoveredOpening, setRevealRecoveredOpening] = useState(false);
   const [recoveryInitialized, setRecoveryInitialized] = useState(false);
   const [revealPhase, setRevealPhase] = useState<RevealPhase>("idle");
   const [dealtCards, setDealtCards] = useState(0);
@@ -206,9 +208,13 @@ export default function CcgOpenPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("mode") === "legacy") setMode("legacy");
     const requestedOpening = params.get("opening");
-    if (requestedOpening && /^[a-f\d]{24}$/i.test(requestedOpening)) setRecoveryId(requestedOpening);
+    if (requestedOpening && /^[a-f\d]{24}$/i.test(requestedOpening)) {
+      setRecoveryId(requestedOpening);
+      setRevealRecoveredOpening(params.get("revealed") === "true");
+    }
     else if (requestedOpening) {
       params.delete("opening");
+      params.delete("revealed");
       const search = params.toString();
       window.history.replaceState(null, "", `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`);
     }
@@ -237,6 +243,7 @@ export default function CcgOpenPage() {
     if (!opening) return;
     const total = opening.results.length;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const revealImmediately = revealRecoveredOpening && opening.id === recoveryId;
     qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     qualitySoundTimersRef.current = [];
     quipSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -247,8 +254,8 @@ export default function CcgOpenPage() {
     setViewerOriginElement(null);
     setViewerOriginBounds(null);
     setActiveReveal(null);
-    if (reduced) {
-      playPackSound(SHUFFLE_SOUND, 0.42);
+    if (reduced || revealImmediately) {
+      if (reduced && !revealImmediately) playPackSound(SHUFFLE_SOUND, 0.42);
       setRevealPhase("ready");
       setDealtCards(total);
       setRevealedCards(new Set(opening.results.map((_, index) => index)));
@@ -280,7 +287,7 @@ export default function CcgOpenPage() {
       if (readyTimer) window.clearTimeout(readyTimer);
       drawSoundTimers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [opening]);
+  }, [opening, recoveryId, revealRecoveredOpening]);
 
   useEffect(() => {
     if (revealPhase !== "ready" || revealedCards.size > 0) return;
@@ -298,10 +305,12 @@ export default function CcgOpenPage() {
       const url = new URL(window.location.href);
       url.searchParams.set("mode", result.mode);
       url.searchParams.set("opening", result.id);
+      url.searchParams.delete("revealed");
       window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
       return result;
     },
     onSuccess: (result) => {
+      setRevealRecoveredOpening(false);
       setIsPackCycling(false);
       setRevealPhase("holding");
       setDealtCards(0);
@@ -361,6 +370,11 @@ export default function CcgOpenPage() {
   };
 
   const queryFailed = sessionQuery.isError || setsQuery.isError;
+  const bootstrapLoading = authLoading
+    || sessionQuery.isPending
+    || setsQuery.isPending
+    || !recoveryInitialized
+    || (Boolean(recoveryId) && recoveryQuery.isPending);
   const noPacks = session ? session.packs[mode].totalRemaining <= 0 : false;
   const clearSavedOpening = () => {
     qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -378,8 +392,10 @@ export default function CcgOpenPage() {
     setViewerOriginElement(null);
     setViewerOriginBounds(null);
     setRecoveryId("");
+    setRevealRecoveredOpening(false);
     const url = new URL(window.location.href);
     url.searchParams.delete("opening");
+    url.searchParams.delete("revealed");
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   };
 
@@ -618,6 +634,10 @@ export default function CcgOpenPage() {
         </div>
       </CcgShell>
     );
+  }
+
+  if (bootstrapLoading) {
+    return <CcgShell compact><CcgOpenContentSkeleton label={t("loading")} /></CcgShell>;
   }
 
   return (

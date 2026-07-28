@@ -147,6 +147,8 @@ import {
   CcgArtVariant,
   CcgTierGrade,
   CcgOpening,
+  CcgActivityFilter,
+  CcgActivityResponse,
   CcgOverlayEvent,
   CcgShare,
   CcgShareLink,
@@ -373,6 +375,20 @@ export const api = {
     const response = await fetch(`${API_URL}/api/ccg/openings/${encodeURIComponent(openingId)}`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "The pack opening could not be recovered");
     return hydrateCcgOpening(await response.json() as CcgOpeningWire);
+  },
+
+  async getCcgActivity(options: { filter?: CcgActivityFilter; cursor?: string; limit?: number } = {}): Promise<CcgActivityResponse> {
+    const params = new URLSearchParams();
+    if (options.filter && options.filter !== "all") params.set("filter", options.filter);
+    if (options.cursor) params.set("cursor", options.cursor);
+    if (options.limit) params.set("limit", String(options.limit));
+    const query = params.toString();
+    const response = await fetch(`${API_URL}/api/ccg/activity${query ? `?${query}` : ""}`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!response.ok) throw await buildApiError(response, "Failed to load your collection activity");
+    return response.json();
   },
 
   async createCcgCardShare(input: { cardId: string; finish: CcgFinish; artVariant: CcgArtVariant }): Promise<CcgShareLink> {
@@ -2154,7 +2170,7 @@ export const api = {
     return data;
   },
 
-  async updateAdminTwitchChannelPointsSettings(input: { rewardKind: "packs" | "card_reveal"; enabled: boolean; rewardTitle: string }): Promise<TwitchChannelPointsStatus> {
+  async updateAdminTwitchChannelPointsSettings(input: { rewardKind: "packs" | "packs_10" | "card_reveal"; enabled: boolean; rewardTitle: string }): Promise<TwitchChannelPointsStatus> {
     const response = await fetch(`${API_URL}/api/admin/twitch-channel-points/settings`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

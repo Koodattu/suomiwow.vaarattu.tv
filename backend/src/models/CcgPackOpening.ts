@@ -76,6 +76,7 @@ const CcgPackOpeningSchema = new Schema<ICcgPackOpening>(
 
 CcgPackOpeningSchema.index({ ownerType: 1, ownerId: 1, idempotencyKey: 1 }, { unique: true });
 CcgPackOpeningSchema.index({ ownerType: 1, ownerId: 1, createdAt: -1 });
+CcgPackOpeningSchema.index({ claimedByUserId: 1, createdAt: -1 });
 CcgPackOpeningSchema.index({ sourceSetIds: 1, createdAt: -1 });
 CcgPackOpeningSchema.index(
   { analyticsPending: 1, createdAt: 1 },

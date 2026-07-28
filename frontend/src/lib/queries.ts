@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { CcgBootstrapResponse, CcgCollectionSort, CharacterTierListRole, EventFilters } from "@/types";
+import type { CcgActivityFilter, CcgBootstrapResponse, CcgCollectionSort, CharacterTierListRole, EventFilters } from "@/types";
 
 const LIVE_STATUS_STALE_TIME = 15 * 60 * 1000;
 const LIVE_STATUS_REFETCH_INTERVAL = 15 * 60 * 1000;
@@ -103,6 +103,7 @@ export const queryKeys = {
     characterSearch: (search: string) => ["ccg", "characterSearch", search] as const,
     collection: (options: Record<string, unknown>) => ["ccg", "collection", options] as const,
     opening: (openingId: string) => ["ccg", "opening", openingId] as const,
+    activity: (filter: CcgActivityFilter) => ["ccg", "activity", 6, filter] as const,
   },
 } as const;
 
@@ -557,5 +558,21 @@ export function useCcgOpening(openingId: string, enabled = true) {
     queryFn: () => api.getCcgOpening(openingId),
     enabled: enabled && Boolean(openingId),
     staleTime: Infinity,
+  });
+}
+
+export function useCcgActivity(filter: CcgActivityFilter, enabled = true) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.ccg.activity(filter),
+    queryFn: ({ pageParam }) => api.getCcgActivity({
+      filter,
+      cursor: pageParam ?? undefined,
+      limit: 20,
+    }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    enabled,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }

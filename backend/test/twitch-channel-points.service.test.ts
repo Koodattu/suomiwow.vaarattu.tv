@@ -6,6 +6,7 @@ import {
   resolveTwitchChannelPointsRewardKind,
   verifyTwitchEventSubSignature,
 } from "../src/services/twitch-channel-points.service";
+import { getTwitchCcgPackGrantCount } from "../src/services/twitch-ccg-reward.service";
 
 test("verifies Twitch EventSub HMAC signatures and rejects tampering", () => {
   const secret = "0123456789abcdef0123456789abcdef";
@@ -39,6 +40,7 @@ test("routes pack and card EventSub subscriptions independently", () => {
   const auth = {
     broadcasterUserId: "broadcaster-1",
     rewardId: "packs-1",
+    tenPackRewardId: "packs-10",
     cardRewardId: "card-1",
   };
   const subscription = (rewardId: string, broadcasterUserId = "broadcaster-1") => ({
@@ -47,14 +49,30 @@ test("routes pack and card EventSub subscriptions independently", () => {
   });
 
   assert.equal(resolveTwitchChannelPointsRewardKind(auth, subscription("packs-1")), "packs");
+  assert.equal(resolveTwitchChannelPointsRewardKind(auth, subscription("packs-10")), "packs_10");
   assert.equal(resolveTwitchChannelPointsRewardKind(auth, subscription("card-1")), "card_reveal");
   assert.equal(resolveTwitchChannelPointsRewardKind(auth, subscription("other")), null);
   assert.equal(resolveTwitchChannelPointsRewardKind(auth, subscription("card-1", "other-broadcaster")), null);
 });
 
 test("applies each reward kill switch independently", () => {
-  assert.equal(isTwitchChannelPointsRewardEnabled({ enabled: true, cardRewardEnabled: false }, "packs"), true);
-  assert.equal(isTwitchChannelPointsRewardEnabled({ enabled: true, cardRewardEnabled: false }, "card_reveal"), false);
-  assert.equal(isTwitchChannelPointsRewardEnabled({ enabled: false, cardRewardEnabled: true }, "packs"), false);
-  assert.equal(isTwitchChannelPointsRewardEnabled({ enabled: false, cardRewardEnabled: true }, "card_reveal"), true);
+  const auth = { enabled: true, tenPackRewardEnabled: false, cardRewardEnabled: false };
+  assert.equal(isTwitchChannelPointsRewardEnabled(auth, "packs"), true);
+  assert.equal(isTwitchChannelPointsRewardEnabled(auth, "packs_10"), false);
+  assert.equal(isTwitchChannelPointsRewardEnabled(auth, "card_reveal"), false);
+
+  auth.enabled = false;
+  auth.tenPackRewardEnabled = true;
+  assert.equal(isTwitchChannelPointsRewardEnabled(auth, "packs"), false);
+  assert.equal(isTwitchChannelPointsRewardEnabled(auth, "packs_10"), true);
+
+  auth.tenPackRewardEnabled = false;
+  auth.cardRewardEnabled = true;
+  assert.equal(isTwitchChannelPointsRewardEnabled(auth, "packs_10"), false);
+  assert.equal(isTwitchChannelPointsRewardEnabled(auth, "card_reveal"), true);
+});
+
+test("grants the configured number of packs for each pack reward", () => {
+  assert.equal(getTwitchCcgPackGrantCount("packs"), 1);
+  assert.equal(getTwitchCcgPackGrantCount("packs_10"), 10);
 });

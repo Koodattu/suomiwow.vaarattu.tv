@@ -101,6 +101,7 @@ export default function CcgLandingPage() {
   const collectionRows = Math.max(2, Math.ceil(gridSets.length / collectionColumns));
   const featuredQuery = useCcgFeaturedCard(current?.slug ?? "", Boolean(current?.slug));
   const featuredCard = featuredQuery.data?.card ?? null;
+  const setsLoading = setsQuery.isPending;
   const [viewerCard, setViewerCard] = useState<CcgCard | null>(null);
   const [viewerOriginElement, setViewerOriginElement] = useState<HTMLElement | null>(null);
   const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
@@ -113,11 +114,11 @@ export default function CcgLandingPage() {
 
   return (
     <CcgShell viewportLocked>
-      <div className={styles.vaultDashboard}>
+      <div className={styles.vaultDashboard} aria-busy={setsLoading || sessionQuery.isPending}>
         <section className={styles.vaultDashboardTop}>
           <div className={styles.vaultSetStack}>
             <div
-              className={styles.vaultCurrentSet}
+              className={`${styles.vaultCurrentSet} ${setsLoading ? styles.vaultSurfaceSkeleton : ""}`}
               style={{
                 "--set-accent": current?.theme.accent ?? "#46CFFF",
                 "--set-glow": current?.theme.glow ?? "rgba(70,207,255,.25)",
@@ -156,7 +157,7 @@ export default function CcgLandingPage() {
             </div>
 
             <div
-              className={styles.vaultAllSet}
+              className={`${styles.vaultAllSet} ${setsLoading ? styles.vaultSurfaceSkeleton : ""}`}
               style={{
                 "--set-accent": "#9c7cff",
                 "--set-glow": "rgba(126, 105, 255, 0.42)",
@@ -190,13 +191,17 @@ export default function CcgLandingPage() {
 
           <nav className={styles.vaultPackShortcuts} aria-label={t("nav.open")}>
             <div className={styles.vaultPackShortcutColumn}>
-              <VaultPackShortcut
-                href="/ccg/open?mode=current"
-                theme={getPackTheme(current)}
-                label={t("landing.openCurrent")}
-                title={current?.raidName ?? t("landing.preparing")}
-                cardsLabel={t("landing.cards")}
-              />
+              {setsLoading ? (
+                <div className={`${packStyles.packButton} ${styles.vaultPackShortcut} ${styles.vaultPackSkeleton}`} aria-hidden="true" />
+              ) : (
+                <VaultPackShortcut
+                  href="/ccg/open?mode=current"
+                  theme={getPackTheme(current)}
+                  label={t("landing.openCurrent")}
+                  title={current?.raidName ?? t("landing.preparing")}
+                  cardsLabel={t("landing.cards")}
+                />
+              )}
               {session ? <PackBalance session={session} mode="current" strip /> : <div className={styles.vaultBalanceSkeleton} />}
             </div>
             <div className={styles.vaultPackShortcutColumn}>
@@ -242,7 +247,17 @@ export default function CcgLandingPage() {
 
         <div className={styles.vaultDashboardBottom}>
           <div className={styles.vaultLegacy}>
-            {gridSets.length > 0 ? (
+            {setsLoading ? (
+              <div
+                className={styles.vaultLegacyGrid}
+                style={{ "--legacy-columns": 7, "--legacy-rows": 3 } as CSSProperties}
+                aria-hidden="true"
+              >
+                {Array.from({ length: 21 }, (_, index) => (
+                  <span key={index} className={`${styles.vaultLegacySet} ${styles.vaultSurfaceSkeleton}`} />
+                ))}
+              </div>
+            ) : gridSets.length > 0 ? (
               <div
                 className={styles.vaultLegacyGrid}
                 style={{

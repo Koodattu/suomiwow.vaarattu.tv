@@ -4,27 +4,11 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgArtVariant, CcgCard, CcgFinish } from "@/types";
-import { CCG_RARITY_KEYS } from "@/lib/ccg";
+import { CCG_CLASS_COLORS, CCG_RARITY_KEYS } from "@/lib/ccg";
 import { formatRealmName, formatSpecName, getClassInfoById, getParseColor, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
 import AlphaFittedCharacterRender from "./AlphaFittedCharacterRender";
 import styles from "./card-prototypes.module.css";
-
-const classColors: Record<string, string> = {
-  "Death Knight": "#C41E3A",
-  "Demon Hunter": "#A330C9",
-  Druid: "#FF7C0A",
-  Evoker: "#33937F",
-  Hunter: "#AAD372",
-  Mage: "#3FC7EB",
-  Monk: "#00FF98",
-  Paladin: "#F48CBA",
-  Priest: "#FFFFFF",
-  Rogue: "#FFF468",
-  Shaman: "#0070DD",
-  Warlock: "#8788EE",
-  Warrior: "#C69B6D",
-};
 
 const mythicPlusScoreColors = [
   [4375, "#ff8000"],
@@ -238,7 +222,7 @@ export default function CollectibleCard({
   const cardStyle = {
     "--lab-accent": card.set.theme.accent,
     "--lab-glow": card.set.theme.glow,
-    "--class-color": classColors[classInfo.name] ?? "#ffffff",
+    "--class-color": CCG_CLASS_COLORS[card.classID] ?? "#ffffff",
     "--lab-art": `url("${backgroundPath}")`,
     "--crop-x": `${raidArtOffsetX ?? card.backgroundCrop.x}%`,
     "--crop-y": `${card.backgroundCrop.y}%`,

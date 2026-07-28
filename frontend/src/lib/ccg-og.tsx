@@ -3,7 +3,8 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize, sep } from "node:path";
 import type { ReactNode } from "react";
-import type { CcgArtVariant, CcgCard, CcgFinish, CcgShare, CcgTierGrade } from "@/types";
+import type { CcgArtVariant, CcgCard, CcgFinish, CcgShare } from "@/types";
+import { CCG_FINISH_COLORS, CCG_RARITY_COLORS } from "@/lib/ccg";
 import {
   getBestPackResult,
   getCcgEmbedCopy,
@@ -13,28 +14,6 @@ import {
   type CcgEmbedLocale,
 } from "@/lib/ccg-share-metadata";
 import { formatRealmName, formatSpecName, getClassInfoById } from "@/lib/utils";
-
-const FINISH_COLORS: Record<CcgFinish, string> = {
-  standard: "#d8dee9",
-  foil: "#7dd3fc",
-  golden: "#f4c152",
-  prismatic: "#d8b4fe",
-  holographic: "#67e8f9",
-  void: "#a78bfa",
-  toxic: "#86efac",
-  negative: "#f9a8d4",
-};
-
-const RARITY_COLORS: Record<CcgTierGrade, string> = {
-  H: "#00ccff",
-  S: "#e6cc80",
-  A: "#ff8a1f",
-  B: "#c36bff",
-  C: "#3b9cff",
-  D: "#62e968",
-  E: "#ffffff",
-  F: "#a3a3a3",
-};
 
 const IMAGE_MIME_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -237,8 +216,8 @@ function CardFace({
 }) {
   const { card, finish, artVariant, backgroundSource, renderSource } = prepared;
   const compact = width < 230;
-  const finishColor = FINISH_COLORS[finish];
-  const rarityColor = RARITY_COLORS[card.tierGrade];
+  const finishColor = CCG_FINISH_COLORS[finish];
+  const rarityColor = CCG_RARITY_COLORS[card.tierGrade];
   const className = getClassInfoById(card.classID).name;
   const guild = card.guildName ? `<${card.guildName}>` : formatRealmName(card.realm);
   const copy = getCcgEmbedCopy(locale).share.embed;
@@ -524,7 +503,7 @@ export async function renderCcgShareOg(share: CcgShare, locale: CcgEmbedLocale) 
   if (share.kind === "card") {
     const prepared = await prepareCard(share.card.card, share.card.finish, share.card.artVariant);
     const { card, finish } = share.card;
-    const accent = FINISH_COLORS[finish];
+    const accent = CCG_FINISH_COLORS[finish];
     const rarity = getCcgRarityLabel(locale, card.tierGrade);
     const finishLabel = getCcgFinishLabel(locale, finish);
     return (
@@ -546,7 +525,7 @@ export async function renderCcgShareOg(share: CcgShare, locale: CcgEmbedLocale) 
           </div>
           <div style={{ display: "flex", alignItems: "center", marginTop: 29 }}>
             <Pill accent={accent}>{finishLabel}</Pill>
-            <div style={{ display: "flex", marginLeft: 10 }}><Pill accent={RARITY_COLORS[card.tierGrade]}>{rarity}</Pill></div>
+            <div style={{ display: "flex", marginLeft: 10 }}><Pill accent={CCG_RARITY_COLORS[card.tierGrade]}>{rarity}</Pill></div>
             {share.card.artVariant === "alternative" ? <div style={{ display: "flex", marginLeft: 10 }}><Pill accent={accent} subtle>{copy.alternativeArt}</Pill></div> : null}
           </div>
           <div style={{ display: "flex", color: "#d6dfeb", fontSize: 20, marginTop: 32 }}>
@@ -596,7 +575,7 @@ export async function renderCcgShareOg(share: CcgShare, locale: CcgEmbedLocale) 
           <Pill accent={accent}>{copy.fiveCards}</Pill>
           {bestResult ? (
             <div style={{ display: "flex", color: "#dbe5f1", fontSize: 17, marginLeft: 14 }}>
-              {copy.bestPull}: <span style={{ color: FINISH_COLORS[bestResult.finish], fontWeight: 800, marginLeft: 5 }}>{bestResult.card.name}</span>
+              {copy.bestPull}: <span style={{ color: CCG_FINISH_COLORS[bestResult.finish], fontWeight: 800, marginLeft: 5 }}>{bestResult.card.name}</span>
             </div>
           ) : null}
         </div>

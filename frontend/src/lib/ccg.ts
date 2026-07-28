@@ -3,6 +3,44 @@ import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCustomFinish, CcgFinish,
 export const CCG_BASE_FINISH_ORDER: readonly CcgBaseFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
 export const CCG_FINISH_ORDER: readonly CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "void", "toxic", "negative"];
 
+export const CCG_CLASS_COLORS: Readonly<Record<number, string>> = {
+  1: "#C41E3A",
+  2: "#FF7C0A",
+  3: "#AAD372",
+  4: "#3FC7EB",
+  5: "#00FF98",
+  6: "#F48CBA",
+  7: "#FFFFFF",
+  8: "#FFF468",
+  9: "#0070DD",
+  10: "#8788EE",
+  11: "#C69B6D",
+  12: "#A330C9",
+  13: "#33937F",
+};
+
+export const CCG_FINISH_COLORS: Readonly<Record<CcgFinish, string>> = {
+  standard: "#d8dee9",
+  foil: "#7dd3fc",
+  golden: "#f4c152",
+  prismatic: "#d8b4fe",
+  holographic: "#67e8f9",
+  void: "#a78bfa",
+  toxic: "#86efac",
+  negative: "#f9a8d4",
+};
+
+export const CCG_RARITY_COLORS: Readonly<Record<CcgTierGrade, string>> = {
+  H: "#00ccff",
+  S: "#e6cc80",
+  A: "#ff8a1f",
+  B: "#c36bff",
+  C: "#3b9cff",
+  D: "#62e968",
+  E: "#ffffff",
+  F: "#a3a3a3",
+};
+
 export const CCG_FINISH_PITY_LIMITS: Readonly<Record<Exclude<CcgFinish, "standard">, number>> = {
   foil: 5,
   golden: 25,

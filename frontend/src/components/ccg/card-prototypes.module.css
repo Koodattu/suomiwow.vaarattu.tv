@@ -342,6 +342,7 @@
   filter: brightness(1.045) saturate(1.06);
   transition-duration: 110ms, 180ms;
 }
+
 .prototypeCard.negative {
   filter: invert(1) contrast(0.95) saturate(0.92) brightness(0.85);
 }

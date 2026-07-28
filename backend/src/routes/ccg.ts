@@ -78,6 +78,16 @@ router.get(
 );
 
 router.get(
+  "/activity",
+  rateLimit(60, 60_000, ownerRateLimitKey),
+  asyncRoute(async (req) => ccgService.getActivity(req, {
+    filter: req.query.filter,
+    cursor: req.query.cursor,
+    limit: req.query.limit,
+  })),
+);
+
+router.get(
   "/sets",
   rateLimit(90, 60_000),
   asyncRoute(async (req, res) => {

@@ -11,7 +11,7 @@ import User from "../models/User";
 import logger from "../utils/logger";
 import twitchBotAuthService, { TwitchBotAuthStatus, TwitchBotRefreshedAccessToken } from "./twitch-bot-auth.service";
 import twitchChatCommandService from "./twitch-chat-command.service";
-import twitchCcgRewardService from "./twitch-ccg-reward.service";
+import twitchCcgRewardService, { twitchCcgRewardKindMatch } from "./twitch-ccg-reward.service";
 import twitchChannelPointsService from "./twitch-channel-points.service";
 
 type TwitchEventDifficulty = "mythic" | "heroic";
@@ -77,6 +77,7 @@ const RUNTIME_STATE_KEY = "runtime";
 const SETTINGS_KEY = "global";
 const MAX_DELIVERY_ATTEMPTS = 5;
 const MAX_CCG_CHAT_DELIVERY_ATTEMPTS = 10;
+const CCG_LINK_PROMPT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const BANNED_CHANNEL_RETRY_BASE_MS = 60 * 60 * 1000;
 const BANNED_CHANNEL_RETRY_MAX_MS = 12 * 60 * 60 * 1000;
 
@@ -704,11 +705,7 @@ class TwitchChatBotService {
     if (enabledKinds.includes("card_reveal")) await twitchCcgRewardService.retryCardAssignments();
     await twitchCcgRewardService.retryLinkedPending(enabledKinds);
     const now = new Date();
-    const rewardKindFilter = enabledKinds.length === 2
-      ? {}
-      : enabledKinds[0] === "packs"
-        ? { $or: [{ rewardKind: "packs" }, { rewardKind: { $exists: false } }] }
-        : { rewardKind: "card_reveal" };
+    const rewardKindFilter = twitchCcgRewardKindMatch(enabledKinds);
     await TwitchCcgRedemption.updateMany(
       { chatStatus: { $in: ["pending", "failed"] }, chatExpiresAt: { $lte: now }, ...rewardKindFilter },
       { $set: { chatStatus: "expired", chatLastError: "Chat delivery expired" } },
@@ -732,20 +729,45 @@ class TwitchChatBotService {
         if (!this.connected || !this.chatClient) throw new Error("Twitch chat is not connected");
         if (!this.joinedChannels.has(channel)) await this.joinChannel(channel);
 
-        if (delivery.grantStatus !== "granted" && (await User.exists({ "twitch.id": delivery.twitchUserId }))) {
-          delivery.chatNextAttemptAt = delivery.grantNextAttemptAt;
+        const linkedAccount = await User.exists({ "twitch.id": delivery.twitchUserId });
+        if (delivery.grantStatus === "granted") {
+          delivery.chatStatus = "skipped";
+          delivery.chatLastError = undefined;
           await delivery.save();
           continue;
         }
 
-        const isCardReveal = delivery.rewardKind === "card_reveal";
-        const message = delivery.grantStatus === "granted"
-          ? isCardReveal
-            ? `@${delivery.twitchUserLogin} your card was added successfully!`
-            : `@${delivery.twitchUserLogin} packs were added successfully!`
-          : isCardReveal
-            ? `@${delivery.twitchUserLogin} connect your Twitch at ${this.getFrontendBaseUrl()}/profile to claim your card.`
-            : `@${delivery.twitchUserLogin} connect your Twitch at ${this.getFrontendBaseUrl()}/profile to claim packs.`;
+        if (delivery.rewardKind === "card_reveal" && delivery.assignmentStatus === "pending") {
+          delivery.chatNextAttemptAt = delivery.assignmentNextAttemptAt;
+          await delivery.save();
+          continue;
+        }
+
+        let message: string;
+        if (delivery.grantStatus === "failed" || delivery.assignmentStatus === "failed") {
+          delivery.chatMessageKind = "delivery_error";
+          message = `@${delivery.twitchUserLogin} we couldn't deliver your CCG reward yet. We'll retry automatically.`;
+        } else if (linkedAccount) {
+          delivery.chatNextAttemptAt = delivery.grantNextAttemptAt;
+          await delivery.save();
+          continue;
+        } else {
+          const recentLinkPrompt = await TwitchCcgRedemption.exists({
+            _id: { $ne: delivery._id },
+            twitchUserId: delivery.twitchUserId,
+            chatStatus: "sent",
+            chatMessageKind: "account_link",
+            chatSentAt: { $gte: new Date(now.getTime() - CCG_LINK_PROMPT_COOLDOWN_MS) },
+          });
+          if (recentLinkPrompt) {
+            delivery.chatStatus = "skipped";
+            delivery.chatLastError = undefined;
+            await delivery.save();
+            continue;
+          }
+          delivery.chatMessageKind = "account_link";
+          message = `@${delivery.twitchUserLogin} connect your Twitch at ${this.getFrontendBaseUrl()}/profile to claim your CCG reward.`;
+        }
         await this.queueSay(channel, message);
         delivery.chatStatus = "sent";
         delivery.chatSentAt = new Date();

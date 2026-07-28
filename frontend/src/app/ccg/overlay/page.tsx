@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
+import { getPackTheme } from "@/components/ccg/PackBoosterVisual";
 import { api } from "@/lib/api";
 import { getCcgAnnouncerSoundSources, getCcgPlaybackVolume } from "@/lib/ccg-audio";
 import { CCG_CARD_SLIDE_SOUNDS, CCG_QUALITY_SOUND_FILES, hasCcgQualityRevealSound } from "@/lib/ccg-reveal-audio";
@@ -12,6 +13,10 @@ import packStyles from "@/components/ccg/pack-opening.module.css";
 import styles from "./overlay.module.css";
 
 type RevealPhase = "entering" | "sealed" | "revealed" | "exiting";
+
+const CARD_REVEAL_DELAY_MS = 1050;
+const CARD_VISIBLE_DURATION_MS = 3000;
+const CARD_EXIT_DURATION_MS = 550;
 
 function randomIndex(length: number): number {
   if (length <= 1) return 0;
@@ -163,16 +168,16 @@ export default function CcgOverlayPage() {
       setPhase("sealed");
       playAudio(slideAudioRefs.current[randomIndex(slideAudioRefs.current.length)] ?? null, "effects", 0.36);
     });
-    later(1050, () => {
+    later(CARD_REVEAL_DELAY_MS, () => {
       setPhase("revealed");
     });
     if (hasCcgQualityRevealSound(event.finish, event.tierGrade)) {
       later(1250, () => playAudio(qualityAudioRef.current, "effects", 0.4));
     }
     if (event.card.quip?.audioPath) later(1270, () => playAudio(quipAudioRef.current, "quips", 0.9));
-    else later(1410, () => playAudio(announcerAudioRefs.current[randomIndex(announcerAudioRefs.current.length)] ?? null, "announcer", 0.78));
-    later(6500, () => setPhase("exiting"));
-    later(7050, () => {
+    else later(1410, () => playAudio(announcerAudioRefs.current[randomIndex(announcerSources.length)] ?? null, "announcer", 0.78));
+    later(CARD_REVEAL_DELAY_MS + CARD_VISIBLE_DURATION_MS, () => setPhase("exiting"));
+    later(CARD_REVEAL_DELAY_MS + CARD_VISIBLE_DURATION_MS + CARD_EXIT_DURATION_MS, () => {
       void api.acknowledgeTwitchCcgOverlayEvent(token, event.eventId, event.leaseId)
         .catch((error) => {
           const overlayError = error as Error & { code?: string };
@@ -190,7 +195,7 @@ export default function CcgOverlayPage() {
       sequenceTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       sequenceTimersRef.current = [];
     };
-  }, [cardReady, event, schedulePoll, token]);
+  }, [announcerSources.length, cardReady, event, schedulePoll, token]);
 
   useEffect(() => () => {
     stoppedRef.current = true;
@@ -202,12 +207,7 @@ export default function CcgOverlayPage() {
   const qualitySound = event ? CCG_QUALITY_SOUND_FILES[event.finish] : undefined;
   const special = event ? event.finish !== "standard" || event.tierGrade === "S" : false;
   const stageStyle = event ? {
-    "--pack-accent": event.card.set.theme.accent,
-    "--pack-glow": event.card.set.theme.glow,
-    "--pack-art": `url("${event.card.set.backgroundPath}")`,
-    "--pack-art-position-x": `${event.card.set.packArtOffsetX}%`,
-    "--pack-art-size": "cover",
-    "--pack-title-color": event.card.set.theme.accent,
+    ...getPackTheme(event.card.set),
     "--fan-angle": "0deg",
     "--fan-y": "0px",
     "--deal-x": "0%",

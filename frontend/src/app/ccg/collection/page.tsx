@@ -497,8 +497,9 @@ export default function CcgCollectionPage() {
               <button
                 type="button"
                 aria-pressed={allSetsSelected}
+                disabled={setsQuery.isPending}
                 onClick={() => selectSet(allSetsSlug)}
-                className={styles.collectionSet}
+                className={`${styles.collectionSet} ${setsQuery.isPending ? styles.collectionSetSkeleton : ""}`}
                 style={{
                   "--set-accent": "#9c7cff",
                   backgroundImage: 'linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("/ccg/general_wide.webp")',
@@ -512,7 +513,9 @@ export default function CcgCollectionPage() {
                   </span>
                 </span>
               </button>
-              {sets.map((set) => (
+              {setsQuery.isPending ? Array.from({ length: 5 }, (_, index) => (
+                <span key={index} className={`${styles.collectionSet} ${styles.collectionSetSkeleton}`} aria-hidden="true" />
+              )) : sets.map((set) => (
                 <button
                   type="button"
                   aria-pressed={set.slug === setSlug}

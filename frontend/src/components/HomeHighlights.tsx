@@ -238,9 +238,14 @@ export default function HomeHighlights() {
               </span>
             </span>
 
-            <span className="absolute -right-2 bottom-2 z-30 h-[7.7rem] w-[5.5rem] rotate-[9deg] drop-shadow-[0_10px_10px_rgba(0,0,0,0.6)] transition-transform duration-300 ease-out group-hover:-translate-y-1 group-hover:rotate-[12deg] motion-reduce:transform-none motion-reduce:transition-none sm:hidden">
-              <span className="absolute right-0 bottom-0 w-[410px] origin-bottom-right scale-[0.21]">
-                <CollectibleCard card={CCG_PROMO_YOLOBOLT_CARD} finish="standard" width={400} renderPriority />
+            <span className="absolute -right-2 bottom-2 z-30 h-[7.7rem] w-[5.5rem] rotate-[5deg] sm:hidden">
+              <span className="absolute right-0 bottom-0 w-[410px] origin-bottom-right scale-[0.2]">
+                <CollectibleCard
+                  card={CCG_PROMO_YOLOBOLT_CARD}
+                  finish="standard"
+                  width={400}
+                  renderPriority
+                />
               </span>
             </span>
 

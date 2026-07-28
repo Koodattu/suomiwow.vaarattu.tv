@@ -156,7 +156,7 @@ export function verifyTwitchEventSubSignature(
 }
 
 export function resolveTwitchChannelPointsRewardKind(
-  auth: Pick<ITwitchChannelPointsAuth, "broadcasterUserId" | "rewardId" | "cardRewardId">,
+  auth: Pick<ITwitchChannelPointsAuth, "broadcasterUserId" | "rewardId" | "tenPackRewardId" | "cardRewardId">,
   subscription?: Pick<TwitchEventSubSubscription, "type" | "condition">,
 ): TwitchCcgRewardKind | null {
   if (
@@ -164,15 +164,18 @@ export function resolveTwitchChannelPointsRewardKind(
     subscription.condition?.broadcaster_user_id !== auth.broadcasterUserId
   ) return null;
   if (auth.rewardId && subscription.condition.reward_id === auth.rewardId) return "packs";
+  if (auth.tenPackRewardId && subscription.condition.reward_id === auth.tenPackRewardId) return "packs_10";
   if (auth.cardRewardId && subscription.condition.reward_id === auth.cardRewardId) return "card_reveal";
   return null;
 }
 
 export function isTwitchChannelPointsRewardEnabled(
-  auth: Pick<ITwitchChannelPointsAuth, "enabled" | "cardRewardEnabled">,
+  auth: Pick<ITwitchChannelPointsAuth, "enabled" | "tenPackRewardEnabled" | "cardRewardEnabled">,
   rewardKind: TwitchCcgRewardKind,
 ): boolean {
-  return rewardKind === "packs" ? auth.enabled : auth.cardRewardEnabled;
+  if (rewardKind === "packs") return auth.enabled;
+  if (rewardKind === "packs_10") return auth.tenPackRewardEnabled;
+  return auth.cardRewardEnabled;
 }
 
 class TwitchChannelPointsService {
@@ -300,6 +303,16 @@ class TwitchChannelPointsService {
       lastNotificationAt: auth?.lastNotificationAt,
       lastError: auth?.lastError,
     };
+    const tenPackReward: TwitchChannelPointsRewardStatus = {
+      enabled: Boolean(auth?.tenPackRewardEnabled),
+      rewardId: auth?.tenPackRewardId,
+      rewardTitle: auth?.tenPackRewardTitle,
+      subscriptionId: auth?.tenPackSubscriptionId,
+      subscriptionStatus: auth?.tenPackSubscriptionStatus,
+      subscriptionCreatedAt: auth?.tenPackSubscriptionCreatedAt,
+      lastNotificationAt: auth?.tenPackLastNotificationAt,
+      lastError: auth?.tenPackLastError,
+    };
     const cardReward: TwitchChannelPointsRewardStatus = {
       enabled: Boolean(auth?.cardRewardEnabled),
       rewardId: auth?.cardRewardId,
@@ -338,7 +351,7 @@ class TwitchChannelPointsService {
       lastVerifiedError: auth?.lastVerifiedError,
       lastError: auth?.lastError,
       deliveries,
-      rewards: { packs: packReward, card_reveal: cardReward },
+      rewards: { packs: packReward, packs_10: tenPackReward, card_reveal: cardReward },
       overlay: {
         configured: Boolean(auth?.overlayTokenHash),
         lastSeenAt: auth?.overlayLastSeenAt,
@@ -372,20 +385,27 @@ class TwitchChannelPointsService {
 
   async updateSettings(input: { rewardKind?: unknown; enabled?: unknown; rewardTitle?: unknown }): Promise<TwitchChannelPointsStatus> {
     const rewardKind = input.rewardKind;
-    if (rewardKind !== "packs" && rewardKind !== "card_reveal") {
-      throw new TwitchChannelPointsValidationError("Reward kind must be packs or card_reveal");
+    if (rewardKind !== "packs" && rewardKind !== "packs_10" && rewardKind !== "card_reveal") {
+      throw new TwitchChannelPointsValidationError("Reward kind must be packs, packs_10, or card_reveal");
     }
     if (typeof input.enabled !== "boolean") throw new TwitchChannelPointsValidationError("Enabled must be true or false");
     const auth = await this.requireAuth();
     const isCard = rewardKind === "card_reveal";
-    const previousSubscriptionId = isCard ? auth.cardSubscriptionId : auth.subscriptionId;
+    const isTenPack = rewardKind === "packs_10";
+    const previousSubscriptionId = isCard
+      ? auth.cardSubscriptionId
+      : isTenPack
+        ? auth.tenPackSubscriptionId
+        : auth.subscriptionId;
 
     if (!input.enabled) {
       await TwitchChannelPointsAuth.updateOne(
         { key: AUTH_KEY },
         isCard
           ? { $set: { cardRewardEnabled: false, cardSubscriptionStatus: "disabled" }, $unset: { cardSubscriptionId: 1, cardLastError: 1 } }
-          : { $set: { enabled: false, subscriptionStatus: "disabled" }, $unset: { subscriptionId: 1, lastError: 1 } },
+          : isTenPack
+            ? { $set: { tenPackRewardEnabled: false, tenPackSubscriptionStatus: "disabled" }, $unset: { tenPackSubscriptionId: 1, tenPackLastError: 1 } }
+            : { $set: { enabled: false, subscriptionStatus: "disabled" }, $unset: { subscriptionId: 1, lastError: 1 } },
       );
       if (isCard) await twitchCcgRewardService.expireOverlayQueue();
       await this.deleteSubscription(previousSubscriptionId).catch((error) =>
@@ -405,9 +425,13 @@ class TwitchChannelPointsService {
     if (!reward.skipsRequestQueue) {
       throw new TwitchChannelPointsValidationError('Enable "Skip Reward Requests Queue" for this reward in Twitch before activating it');
     }
-    const otherRewardId = isCard ? auth.rewardId : auth.cardRewardId;
-    if (otherRewardId === reward.id) {
-      throw new TwitchChannelPointsValidationError("Pack grants and card reveals must use different Twitch rewards");
+    const otherRewardIds = [
+      ...(isCard ? [] : [auth.cardRewardId]),
+      ...(isTenPack ? [] : [auth.tenPackRewardId]),
+      ...(!isCard && !isTenPack ? [] : [auth.rewardId]),
+    ].filter(Boolean);
+    if (otherRewardIds.includes(reward.id)) {
+      throw new TwitchChannelPointsValidationError("Each CCG grant must use a different Twitch reward");
     }
     if (isCard) await twitchCcgRewardService.expireOverlayQueue();
 
@@ -423,7 +447,17 @@ class TwitchChannelPointsService {
             },
             $unset: { cardSubscriptionId: 1, cardLastError: 1 },
           }
-        : {
+        : isTenPack
+          ? {
+              $set: {
+                tenPackRewardEnabled: true,
+                tenPackRewardId: reward.id,
+                tenPackRewardTitle: reward.title,
+                tenPackSubscriptionStatus: "creating",
+              },
+              $unset: { tenPackSubscriptionId: 1, tenPackLastError: 1 },
+            }
+          : {
             $set: { enabled: true, rewardId: reward.id, rewardTitle: reward.title, subscriptionStatus: "creating" },
             $unset: { subscriptionId: 1, lastError: 1 },
           },
@@ -436,7 +470,9 @@ class TwitchChannelPointsService {
       await TwitchChannelPointsAuth.updateOne(
         isCard
           ? { key: AUTH_KEY, cardSubscriptionStatus: { $ne: "enabled" } }
-          : { key: AUTH_KEY, subscriptionStatus: { $ne: "enabled" } },
+          : isTenPack
+            ? { key: AUTH_KEY, tenPackSubscriptionStatus: { $ne: "enabled" } }
+            : { key: AUTH_KEY, subscriptionStatus: { $ne: "enabled" } },
         isCard
           ? {
               $set: {
@@ -445,7 +481,15 @@ class TwitchChannelPointsService {
                 cardSubscriptionCreatedAt: new Date(subscription.created_at),
               },
             }
-          : {
+          : isTenPack
+            ? {
+                $set: {
+                  tenPackSubscriptionId: subscription.id,
+                  tenPackSubscriptionStatus: subscription.status,
+                  tenPackSubscriptionCreatedAt: new Date(subscription.created_at),
+                },
+              }
+            : {
               $set: {
                 subscriptionId: subscription.id,
                 subscriptionStatus: subscription.status,
@@ -456,9 +500,11 @@ class TwitchChannelPointsService {
     } catch (error) {
       await TwitchChannelPointsAuth.updateOne(
         { key: AUTH_KEY },
-        isCard
-          ? { $set: { cardSubscriptionStatus: "failed", cardLastError: error instanceof Error ? error.message : String(error) } }
-          : { $set: { subscriptionStatus: "failed", lastError: error instanceof Error ? error.message : String(error) } },
+          isCard
+            ? { $set: { cardSubscriptionStatus: "failed", cardLastError: error instanceof Error ? error.message : String(error) } }
+            : isTenPack
+              ? { $set: { tenPackSubscriptionStatus: "failed", tenPackLastError: error instanceof Error ? error.message : String(error) } }
+              : { $set: { subscriptionStatus: "failed", lastError: error instanceof Error ? error.message : String(error) } },
       );
       throw error;
     }
@@ -466,9 +512,10 @@ class TwitchChannelPointsService {
   }
 
   async getEnabledRewardKinds(): Promise<TwitchCcgRewardKind[]> {
-    const auth = await TwitchChannelPointsAuth.findOne({ key: AUTH_KEY }).select("enabled cardRewardEnabled").lean();
+    const auth = await TwitchChannelPointsAuth.findOne({ key: AUTH_KEY }).select("enabled tenPackRewardEnabled cardRewardEnabled").lean();
     return [
       ...(auth?.enabled ? (["packs"] as const) : []),
+      ...(auth?.tenPackRewardEnabled ? (["packs_10"] as const) : []),
       ...(auth?.cardRewardEnabled ? (["card_reveal"] as const) : []),
     ];
   }
@@ -518,7 +565,7 @@ class TwitchChannelPointsService {
   async disconnect(): Promise<void> {
     const auth = await TwitchChannelPointsAuth.findOne({ key: AUTH_KEY });
     await Promise.all(
-      [auth?.subscriptionId, auth?.cardSubscriptionId].map((subscriptionId) =>
+      [auth?.subscriptionId, auth?.tenPackSubscriptionId, auth?.cardSubscriptionId].map((subscriptionId) =>
         this.deleteSubscription(subscriptionId).catch((error) => logger.warn("Failed to delete Twitch EventSub subscription while disconnecting:", error)),
       ),
     );
@@ -555,6 +602,10 @@ class TwitchChannelPointsService {
         auth.cardSubscriptionId = payload.subscription?.id;
         auth.cardSubscriptionStatus = "enabled";
         auth.cardSubscriptionCreatedAt = payload.subscription?.created_at ? new Date(payload.subscription.created_at) : new Date();
+      } else if (rewardKind === "packs_10") {
+        auth.tenPackSubscriptionId = payload.subscription?.id;
+        auth.tenPackSubscriptionStatus = "enabled";
+        auth.tenPackSubscriptionCreatedAt = payload.subscription?.created_at ? new Date(payload.subscription.created_at) : new Date();
       } else {
         auth.subscriptionId = payload.subscription?.id;
         auth.subscriptionStatus = "enabled";
@@ -569,6 +620,9 @@ class TwitchChannelPointsService {
       if (rewardKind === "card_reveal") {
         auth.cardSubscriptionStatus = status;
         auth.cardLastError = `Twitch revoked the EventSub subscription: ${status}`;
+      } else if (rewardKind === "packs_10") {
+        auth.tenPackSubscriptionStatus = status;
+        auth.tenPackLastError = `Twitch revoked the EventSub subscription: ${status}`;
       } else {
         auth.subscriptionStatus = status;
         auth.lastError = `Twitch revoked the EventSub subscription: ${status}`;
@@ -587,7 +641,13 @@ class TwitchChannelPointsService {
       !event.reward.title ||
       typeof event.reward.cost !== "number" ||
       !event.redeemed_at ||
-      event.reward.id !== (rewardKind === "packs" ? auth.rewardId : auth.cardRewardId)
+      event.reward.id !== (
+        rewardKind === "packs"
+          ? auth.rewardId
+          : rewardKind === "packs_10"
+            ? auth.tenPackRewardId
+            : auth.cardRewardId
+      )
     ) {
       return { status: 400 };
     }
@@ -611,6 +671,10 @@ class TwitchChannelPointsService {
       auth.cardSubscriptionStatus = payload.subscription?.status || auth.cardSubscriptionStatus;
       auth.cardLastError = undefined;
       void twitchCcgRewardService.processCardRedemption(redemption._id);
+    } else if (rewardKind === "packs_10") {
+      auth.tenPackLastNotificationAt = new Date();
+      auth.tenPackSubscriptionStatus = payload.subscription?.status || auth.tenPackSubscriptionStatus;
+      auth.tenPackLastError = undefined;
     } else {
       auth.lastNotificationAt = new Date();
       auth.subscriptionStatus = payload.subscription?.status || auth.subscriptionStatus;
