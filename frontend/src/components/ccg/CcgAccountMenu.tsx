@@ -71,11 +71,11 @@ export default function CcgAccountMenu() {
             <FaUser aria-hidden="true" />
             {tNavigation("profile")}
           </Link>
-          <Link href="/ccg/activity" role="menuitem" onClick={() => setIsOpen(false)}>
+          <Link href="/ccg/activity" role="menuitem" className={styles.accountPromotedMenuItem} onClick={() => setIsOpen(false)}>
             <FaClockRotateLeft aria-hidden="true" />
             {t("activity.menuLabel")}
           </Link>
-          <Link href="/ccg/character-checker" role="menuitem" onClick={() => setIsOpen(false)}>
+          <Link href="/ccg/character-checker" role="menuitem" className={styles.accountPromotedMenuItem} onClick={() => setIsOpen(false)}>
             <FaMagnifyingGlass aria-hidden="true" />
             {t("characterChecker.menuLabel")}
           </Link>

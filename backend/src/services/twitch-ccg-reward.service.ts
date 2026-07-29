@@ -70,6 +70,23 @@ export function getTwitchCcgPackGrantCount(rewardKind: TwitchCcgRewardKind): num
   return rewardKind === "packs_10" ? 10 : 1;
 }
 
+export function getTwitchCcgCardRevealCount(rewardKind: TwitchCcgRewardKind): number {
+  return rewardKind === "packs_10" ? 2 : 1;
+}
+
+export function isTwitchCcgRevealEnabled(auth: {
+  enabled?: boolean;
+  tenPackRewardEnabled?: boolean;
+  cardRewardEnabled?: boolean;
+} | null | undefined): boolean {
+  return Boolean(auth?.enabled || auth?.tenPackRewardEnabled || auth?.cardRewardEnabled);
+}
+
+function getAssignedCards(redemption: ITwitchCcgRedemption): CcgExternalCardAward[] {
+  if (redemption.assignedCards?.length) return redemption.assignedCards.map(asExternalAward);
+  return redemption.assignedCard ? [asExternalAward(redemption.assignedCard)] : [];
+}
+
 class TwitchCcgRewardService {
   async recordRedemption(input: TwitchRedemptionInput): Promise<ITwitchCcgRedemption> {
     const now = new Date();
@@ -79,7 +96,7 @@ class TwitchCcgRewardService {
         $setOnInsert: {
           ...input,
           receivedAt: now,
-          assignmentStatus: input.rewardKind === "card_reveal" ? "pending" : "not_applicable",
+          assignmentStatus: "pending",
           assignmentAttempts: 0,
           assignmentNextAttemptAt: now,
           grantStatus: "pending",
@@ -100,14 +117,8 @@ class TwitchCcgRewardService {
   }
 
   async processPackRedemption(redemptionId: mongoose.Types.ObjectId, twitchUserId: string): Promise<boolean> {
-    try {
-      const linkedUser = await User.findOne({ "twitch.id": twitchUserId }).select("_id").lean();
-      if (!linkedUser) return false;
-      return await this.grantRedemption(redemptionId, linkedUser._id);
-    } catch (error) {
-      logger.error(`[TwitchChannelPoints] Failed to immediately process pack redemption ${redemptionId}:`, error);
-      return false;
-    }
+    void twitchUserId;
+    return this.processCardRedemption(redemptionId);
   }
 
   async processCardRedemption(redemptionId: mongoose.Types.ObjectId | string): Promise<boolean> {
@@ -117,43 +128,56 @@ class TwitchCcgRewardService {
       await session.withTransaction(async () => {
         const redemption = await TwitchCcgRedemption.findOne({
           _id: redemptionId,
-          rewardKind: "card_reveal",
-          assignmentStatus: { $in: ["pending", "failed"] },
+          $or: [
+            { assignmentStatus: { $in: ["pending", "failed"] } },
+            { assignmentStatus: "not_applicable", grantStatus: { $in: ["pending", "failed"] } },
+          ],
         }).session(session);
         if (!redemption) return;
 
         const linkedUser = await User.findOne({ "twitch.id": redemption.twitchUserId }).select("_id").session(session);
-        const award = await ccgService.rollExternalSingleCard(session, linkedUser?._id);
+        const awards: CcgExternalCardAward[] = [];
+        for (let index = 0; index < getTwitchCcgCardRevealCount(redemption.rewardKind); index += 1) {
+          const award = await ccgService.rollExternalSingleCard(session, linkedUser?._id);
+          awards.push(award);
+          if (linkedUser) await ccgService.grantExternalCard(linkedUser._id, award, session);
+        }
         const now = new Date();
-        redemption.assignedCard = award;
+        redemption.assignedCard = awards[0];
+        redemption.assignedCards = awards;
         redemption.assignmentStatus = "assigned";
         redemption.assignmentAttempts += 1;
         redemption.assignmentNextAttemptAt = now;
         redemption.assignmentLastError = undefined;
 
-        if (linkedUser) await this.grantCard(redemption, linkedUser._id, award, session);
+        if (linkedUser) await this.grantReward(redemption, linkedUser._id, awards, session, true);
 
-        await TwitchCcgOverlayEvent.updateOne(
-          { sourceKey: `redemption:${redemption.redemptionId}` },
-          {
-            $setOnInsert: {
-              sourceKey: `redemption:${redemption.redemptionId}`,
-              source: "redemption",
-              redemptionId: redemption._id,
-              twitchUserLogin: redemption.twitchUserLogin,
-              twitchUserDisplayName: redemption.twitchUserDisplayName,
-              cardId: award.cardId,
-              finish: award.finish,
-              artVariant: award.artVariant,
-              tierGrade: award.tierGrade,
-              status: "queued",
-              attempts: 0,
-              expiresAt: new Date(now.getTime() + OVERLAY_EVENT_LIFETIME_MS),
-              deleteAt: new Date(now.getTime() + OVERLAY_EVENT_RETENTION_MS),
+        for (const [index, award] of awards.entries()) {
+          const sourceKey = index === 0
+            ? `redemption:${redemption.redemptionId}`
+            : `redemption:${redemption.redemptionId}:${index + 1}`;
+          await TwitchCcgOverlayEvent.updateOne(
+            { sourceKey },
+            {
+              $setOnInsert: {
+                sourceKey,
+                source: "redemption",
+                redemptionId: redemption._id,
+                twitchUserLogin: redemption.twitchUserLogin,
+                twitchUserDisplayName: redemption.twitchUserDisplayName,
+                cardId: award.cardId,
+                finish: award.finish,
+                artVariant: award.artVariant,
+                tierGrade: award.tierGrade,
+                status: "queued",
+                attempts: 0,
+                expiresAt: new Date(now.getTime() + OVERLAY_EVENT_LIFETIME_MS),
+                deleteAt: new Date(now.getTime() + OVERLAY_EVENT_RETENTION_MS),
+              },
             },
-          },
-          { upsert: true, session },
-        );
+            { upsert: true, session },
+          );
+        }
         await redemption.save({ session });
         assigned = true;
       });
@@ -216,11 +240,17 @@ class TwitchCcgRewardService {
     );
   }
 
-  async retryCardAssignments(limit = 25): Promise<number> {
+  async retryCardAssignments(
+    kinds: readonly TwitchCcgRewardKind[] = ["packs", "packs_10", "card_reveal"],
+    limit = 25,
+  ): Promise<number> {
     const due = await TwitchCcgRedemption.find({
-      rewardKind: "card_reveal",
-      assignmentStatus: { $in: ["pending", "failed"] },
       assignmentNextAttemptAt: { $lte: new Date() },
+      ...twitchCcgRewardKindMatch(kinds),
+      $or: [
+        { assignmentStatus: { $in: ["pending", "failed"] } },
+        { assignmentStatus: "not_applicable", grantStatus: { $in: ["pending", "failed"] } },
+      ],
     }).sort({ redeemedAt: 1 }).limit(limit).select("_id");
     let completed = 0;
     for (const redemption of due) {
@@ -246,8 +276,11 @@ class TwitchCcgRewardService {
 
     let granted = 0;
     for (const redemption of redemptions) {
-      if (redemption.rewardKind === "card_reveal" && redemption.assignmentStatus !== "assigned") {
-        await this.processCardRedemption(redemption._id);
+      if (redemption.assignmentStatus !== "assigned") {
+        if (await this.processCardRedemption(redemption._id)) {
+          granted += 1;
+          continue;
+        }
       }
       if (await this.grantRedemption(redemption._id, user._id)) granted += 1;
     }
@@ -290,7 +323,7 @@ class TwitchCcgRewardService {
         { $group: { _id: { $ifNull: ["$rewardKind", "packs"] }, count: { $sum: 1 } } },
       ]),
       TwitchCcgRedemption.aggregate<{ _id: string; count: number }>([
-        { $match: { rewardKind: "card_reveal" } },
+        { $match: { assignmentStatus: { $ne: "not_applicable" } } },
         { $group: { _id: "$assignmentStatus", count: { $sum: 1 } } },
       ]),
     ]);
@@ -355,12 +388,12 @@ class TwitchCcgRewardService {
         const linkedUser = await User.findOne({ _id: userId, "twitch.id": redemption.twitchUserId }).session(session).select("_id");
         if (!linkedUser) return;
 
-        if (redemption.rewardKind === "card_reveal") {
-          if (!redemption.assignedCard || redemption.assignmentStatus !== "assigned") return;
-          await this.grantCard(redemption, userId, asExternalAward(redemption.assignedCard), session);
-        } else {
-          await this.grantPacks(redemption, userId, session);
-        }
+        const awards = getAssignedCards(redemption);
+        if (
+          redemption.assignmentStatus !== "assigned"
+          || awards.length !== getTwitchCcgCardRevealCount(redemption.rewardKind)
+        ) return;
+        await this.grantReward(redemption, userId, awards, session);
         await redemption.save({ session });
         didGrant = true;
       });
@@ -387,37 +420,51 @@ class TwitchCcgRewardService {
     }
   }
 
-  private async grantPacks(
+  private async grantReward(
     redemption: ITwitchCcgRedemption,
     userId: mongoose.Types.ObjectId,
+    awards: CcgExternalCardAward[],
     session: mongoose.ClientSession,
+    cardsAlreadyGranted = false,
   ): Promise<void> {
-    const packCount = getTwitchCcgPackGrantCount(redemption.rewardKind);
-    for (const mode of ["current", "legacy"] as const) {
-      await CcgPackCredit.updateOne(
-        { ownerId: userId, sourceKey: `twitch-redemption:${redemption.redemptionId}:${mode}` },
-        {
-          $setOnInsert: {
-            ownerId: userId,
-            mode,
-            source: "twitch_reward",
-            sourceKey: `twitch-redemption:${redemption.redemptionId}:${mode}`,
-            remaining: packCount,
-          },
-        },
-        { upsert: true, session },
-      );
-    }
-    await CcgLedgerEntry.updateOne(
-      { ownerType: "user", ownerId: userId, idempotencyKey: `twitch-redemption:${redemption.redemptionId}` },
-      {
-        $setOnInsert: {
+    const idempotencyKey = `twitch-redemption:${redemption.redemptionId}`;
+    const ledger = await CcgLedgerEntry.findOne({ ownerType: "user", ownerId: userId, idempotencyKey })
+      .session(session)
+      .select("_id");
+    if (!ledger) {
+      if (!cardsAlreadyGranted) {
+        for (const award of awards) await ccgService.grantExternalCard(userId, award, session);
+      }
+
+      const packCount = redemption.rewardKind === "card_reveal"
+        ? 0
+        : getTwitchCcgPackGrantCount(redemption.rewardKind);
+      if (packCount > 0) {
+        for (const mode of ["current", "legacy"] as const) {
+          await CcgPackCredit.updateOne(
+            { ownerId: userId, sourceKey: `${idempotencyKey}:${mode}` },
+            {
+              $setOnInsert: {
+                ownerId: userId,
+                mode,
+                source: "twitch_reward",
+                sourceKey: `${idempotencyKey}:${mode}`,
+                remaining: packCount,
+              },
+            },
+            { upsert: true, session },
+          );
+        }
+      }
+
+      await CcgLedgerEntry.create(
+        [{
           ownerType: "user",
           ownerId: userId,
           action: "twitch_reward",
           mode: null,
-          idempotencyKey: `twitch-redemption:${redemption.redemptionId}`,
-          amount: packCount * 2,
+          idempotencyKey,
+          amount: packCount > 0 ? packCount * 2 : awards.length,
           metadata: {
             rewardKind: redemption.rewardKind,
             twitchUserId: redemption.twitchUserId,
@@ -426,44 +473,18 @@ class TwitchCcgRewardService {
             rewardTitle: redemption.rewardTitle,
             currentPacks: packCount,
             legacyPacks: packCount,
-          },
-        },
-      },
-      { upsert: true, session },
-    );
-    this.markGranted(redemption, userId);
-  }
-
-  private async grantCard(
-    redemption: ITwitchCcgRedemption,
-    userId: mongoose.Types.ObjectId,
-    award: CcgExternalCardAward,
-    session: mongoose.ClientSession,
-  ): Promise<void> {
-    const ledger = await CcgLedgerEntry.findOne({
-      ownerType: "user",
-      ownerId: userId,
-      idempotencyKey: `twitch-redemption:${redemption.redemptionId}`,
-    }).session(session).select("_id");
-    if (!ledger) {
-      await ccgService.grantExternalCard(userId, award, session);
-      await CcgLedgerEntry.create(
-        [{
-          ownerType: "user",
-          ownerId: userId,
-          action: "twitch_reward",
-          mode: null,
-          idempotencyKey: `twitch-redemption:${redemption.redemptionId}`,
-          amount: 1,
-          metadata: {
-            rewardKind: "card_reveal",
-            twitchUserId: redemption.twitchUserId,
-            twitchUserLogin: redemption.twitchUserLogin,
-            rewardId: redemption.rewardId,
-            rewardTitle: redemption.rewardTitle,
-            cardId: String(award.cardId),
-            finish: award.finish,
-            artVariant: award.artVariant,
+            ...(redemption.rewardKind === "card_reveal" && awards[0]
+              ? {
+                  cardId: String(awards[0].cardId),
+                  finish: awards[0].finish,
+                  artVariant: awards[0].artVariant,
+                }
+              : {}),
+            cards: awards.map((award) => ({
+              cardId: String(award.cardId),
+              finish: award.finish,
+              artVariant: award.artVariant,
+            })),
           },
         }],
         { session },

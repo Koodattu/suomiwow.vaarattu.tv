@@ -37,6 +37,7 @@ export interface ITwitchCcgRedemption extends Document {
   assignmentNextAttemptAt: Date;
   assignmentLastError?: string;
   assignedCard?: TwitchCcgAssignedCard;
+  assignedCards?: TwitchCcgAssignedCard[];
   grantStatus: TwitchCcgGrantStatus;
   grantedUserId?: mongoose.Types.ObjectId;
   grantedAt?: Date;
@@ -53,6 +54,20 @@ export interface ITwitchCcgRedemption extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
+
+const TwitchCcgAssignedCardSchema = new Schema<TwitchCcgAssignedCard>(
+  {
+    cardId: { type: Schema.Types.ObjectId, ref: "CcgCard", required: true },
+    setId: { type: Schema.Types.ObjectId, ref: "CcgSet", required: true },
+    characterId: { type: Schema.Types.ObjectId, ref: "Character", required: true },
+    snapshotVersion: { type: Number, min: 1, required: true },
+    finish: { type: String, required: true },
+    artVariant: { type: String, enum: ["standard", "alternative"], required: true },
+    tierGrade: { type: String, enum: ["H", "S", "A", "B", "C", "D", "E", "F"], required: true },
+    poolVersion: { type: String, required: true },
+  },
+  { _id: false },
+);
 
 const TwitchCcgRedemptionSchema = new Schema<ITwitchCcgRedemption>(
   {
@@ -79,16 +94,8 @@ const TwitchCcgRedemptionSchema = new Schema<ITwitchCcgRedemption>(
     assignmentAttempts: { type: Number, required: true, default: 0 },
     assignmentNextAttemptAt: { type: Date, required: true, default: Date.now },
     assignmentLastError: { type: String },
-    assignedCard: {
-      cardId: { type: Schema.Types.ObjectId, ref: "CcgCard" },
-      setId: { type: Schema.Types.ObjectId, ref: "CcgSet" },
-      characterId: { type: Schema.Types.ObjectId, ref: "Character" },
-      snapshotVersion: { type: Number, min: 1 },
-      finish: { type: String },
-      artVariant: { type: String, enum: ["standard", "alternative"] },
-      tierGrade: { type: String, enum: ["H", "S", "A", "B", "C", "D", "E", "F"] },
-      poolVersion: { type: String },
-    },
+    assignedCard: { type: TwitchCcgAssignedCardSchema },
+    assignedCards: { type: [TwitchCcgAssignedCardSchema], default: undefined },
     grantStatus: { type: String, enum: ["pending", "granted", "failed"], required: true, default: "pending", index: true },
     grantedUserId: { type: Schema.Types.ObjectId, ref: "User" },
     grantedAt: { type: Date },

@@ -2,6 +2,7 @@ import crypto, { randomUUID } from "crypto";
 import TwitchChannelPointsAuth from "../models/TwitchChannelPointsAuth";
 import TwitchCcgOverlayEvent from "../models/TwitchCcgOverlayEvent";
 import ccgService from "./ccg.service";
+import { isTwitchCcgRevealEnabled } from "./twitch-ccg-reward.service";
 
 const AUTH_KEY = "global";
 const LEASE_MS = 45 * 1000;
@@ -21,7 +22,7 @@ export class TwitchCcgOverlayError extends Error {
 class TwitchCcgOverlayService {
   async leaseNext(token: string): Promise<Record<string, unknown> | null> {
     const auth = await this.authenticate(token);
-    if (!auth.cardRewardEnabled) {
+    if (!isTwitchCcgRevealEnabled(auth)) {
       throw new TwitchCcgOverlayError(410, "overlay_disabled", "The card reveal overlay is disabled");
     }
 
@@ -57,7 +58,10 @@ class TwitchCcgOverlayService {
     ).lean();
     if (!event) return null;
 
-    const stillEnabled = await TwitchChannelPointsAuth.exists({ key: AUTH_KEY, cardRewardEnabled: true });
+    const stillEnabled = await TwitchChannelPointsAuth.exists({
+      key: AUTH_KEY,
+      $or: [{ enabled: true }, { tenPackRewardEnabled: true }, { cardRewardEnabled: true }],
+    });
     if (!stillEnabled) {
       await TwitchCcgOverlayEvent.updateOne(
         { _id: event._id, leaseId },
@@ -82,7 +86,7 @@ class TwitchCcgOverlayService {
 
   async acknowledge(token: string, eventId: string, leaseId: string): Promise<void> {
     const auth = await this.authenticate(token);
-    if (!auth.cardRewardEnabled) {
+    if (!isTwitchCcgRevealEnabled(auth)) {
       throw new TwitchCcgOverlayError(410, "overlay_disabled", "The card reveal overlay is disabled");
     }
     const event = await TwitchCcgOverlayEvent.findOneAndUpdate(
@@ -95,7 +99,7 @@ class TwitchCcgOverlayService {
 
   private async authenticate(token: string) {
     const auth = await TwitchChannelPointsAuth.findOne({ key: AUTH_KEY })
-      .select("cardRewardEnabled overlayTokenHash")
+      .select("enabled tenPackRewardEnabled cardRewardEnabled overlayTokenHash")
       .lean();
     const actual = crypto.createHash("sha256").update(token).digest();
     const expected = auth?.overlayTokenHash ? Buffer.from(auth.overlayTokenHash, "hex") : Buffer.alloc(actual.length);

@@ -5,7 +5,7 @@ import TwitchChannelPointsAuth, { ITwitchChannelPointsAuth } from "../models/Twi
 import TwitchCcgOverlayEvent from "../models/TwitchCcgOverlayEvent";
 import { TwitchCcgRewardKind } from "../models/TwitchCcgRedemption";
 import logger from "../utils/logger";
-import twitchCcgRewardService, { TwitchCcgRewardCounts } from "./twitch-ccg-reward.service";
+import twitchCcgRewardService, { isTwitchCcgRevealEnabled, TwitchCcgRewardCounts } from "./twitch-ccg-reward.service";
 
 const AUTH_KEY = "global";
 const REDEMPTION_SCOPE = "channel:read:redemptions";
@@ -407,7 +407,10 @@ class TwitchChannelPointsService {
             ? { $set: { tenPackRewardEnabled: false, tenPackSubscriptionStatus: "disabled" }, $unset: { tenPackSubscriptionId: 1, tenPackLastError: 1 } }
             : { $set: { enabled: false, subscriptionStatus: "disabled" }, $unset: { subscriptionId: 1, lastError: 1 } },
       );
-      if (isCard) await twitchCcgRewardService.expireOverlayQueue();
+      const remainingAuth = await TwitchChannelPointsAuth.findOne({ key: AUTH_KEY })
+        .select("enabled tenPackRewardEnabled cardRewardEnabled")
+        .lean();
+      if (!isTwitchCcgRevealEnabled(remainingAuth)) await twitchCcgRewardService.expireOverlayQueue();
       await this.deleteSubscription(previousSubscriptionId).catch((error) =>
         logger.warn(`Failed to delete Twitch ${rewardKind} EventSub subscription while disabling:`, error),
       );
@@ -433,8 +436,6 @@ class TwitchChannelPointsService {
     if (otherRewardIds.includes(reward.id)) {
       throw new TwitchChannelPointsValidationError("Each CCG grant must use a different Twitch reward");
     }
-    if (isCard) await twitchCcgRewardService.expireOverlayQueue();
-
     await TwitchChannelPointsAuth.updateOne(
       { key: AUTH_KEY },
       isCard
@@ -534,7 +535,7 @@ class TwitchChannelPointsService {
 
   async createOverlayTest(): Promise<void> {
     const auth = await this.requireAuth();
-    if (!auth.cardRewardEnabled) throw new TwitchChannelPointsValidationError("Enable the card reveal reward before testing the overlay");
+    if (!isTwitchCcgRevealEnabled(auth)) throw new TwitchChannelPointsValidationError("Enable a CCG reward before testing the overlay");
     if (!auth.overlayTokenHash) throw new TwitchChannelPointsValidationError("Generate an OBS overlay URL before testing the overlay");
     await twitchCcgRewardService.createTestOverlayEvent();
   }

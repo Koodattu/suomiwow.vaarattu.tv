@@ -702,7 +702,7 @@ class TwitchChatBotService {
   private async processChannelPointRewards(): Promise<void> {
     const enabledKinds = await twitchChannelPointsService.getEnabledRewardKinds();
     if (enabledKinds.length === 0) return;
-    if (enabledKinds.includes("card_reveal")) await twitchCcgRewardService.retryCardAssignments();
+    await twitchCcgRewardService.retryCardAssignments(enabledKinds);
     await twitchCcgRewardService.retryLinkedPending(enabledKinds);
     const now = new Date();
     const rewardKindFilter = twitchCcgRewardKindMatch(enabledKinds);
@@ -737,7 +737,7 @@ class TwitchChatBotService {
           continue;
         }
 
-        if (delivery.rewardKind === "card_reveal" && delivery.assignmentStatus === "pending") {
+        if (delivery.assignmentStatus === "pending") {
           delivery.chatNextAttemptAt = delivery.assignmentNextAttemptAt;
           await delivery.save();
           continue;

@@ -3074,7 +3074,7 @@ export default function AdminPage() {
                     <div className="rounded-lg border border-gray-700 bg-gray-900/40 p-4">
                       <div className="mb-4">
                         <h4 className="font-semibold text-white text-balance">Single-pack reward</h4>
-                        <p className="mt-1 text-xs text-gray-400 text-pretty">Grants one Current and one Legacy pack. Disabling stops intake, retries, and chat delivery for this reward.</p>
+                        <p className="mt-1 text-xs text-gray-400 text-pretty">Grants one Current pack, one Legacy pack, and one card reveal for the same viewer. Disabling stops intake, retries, and chat delivery for this reward.</p>
                       </div>
                       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                       <div>
@@ -3127,7 +3127,7 @@ export default function AdminPage() {
                     <div className="rounded-lg border border-amber-500/30 bg-amber-950/10 p-4">
                       <div className="mb-4">
                         <h4 className="font-semibold text-white text-balance">10× pack reward</h4>
-                        <p className="mt-1 text-xs text-gray-400 text-pretty">Grants ten Current and ten Legacy packs from a separate Twitch reward.</p>
+                        <p className="mt-1 text-xs text-gray-400 text-pretty">Grants ten Current packs, ten Legacy packs, and two card reveals for the same viewer.</p>
                       </div>
                       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                         <div>
@@ -3222,7 +3222,7 @@ export default function AdminPage() {
                           <div className="min-w-0 flex-1">
                             <h5 className="text-sm font-medium text-gray-200">OBS browser source</h5>
                             <p className="mt-1 text-xs text-gray-400 text-pretty">
-                              Generate a secret URL and paste it into OBS. Disabling this reward deletes EventSub, expires queued visuals, and tells an open overlay to stop polling permanently. Refresh the browser source after re-enabling.
+                              Generate a secret URL and paste it into OBS. The overlay stays active while any CCG reward is enabled; disabling all rewards expires queued reveals. Refresh the browser source after re-enabling.
                             </p>
                             {twitchCcgOverlayUrl && (
                               <input
@@ -3251,7 +3251,7 @@ export default function AdminPage() {
                             )}
                             <button
                               onClick={handleTestTwitchCcgOverlay}
-                              disabled={!twitchChannelPointsStatus.rewards.card_reveal.enabled || !twitchChannelPointsStatus.overlay.configured || triggerLoading === "twitch-ccg-overlay-test"}
+                              disabled={!(twitchChannelPointsStatus.rewards.packs.enabled || twitchChannelPointsStatus.rewards.packs_10.enabled || twitchChannelPointsStatus.rewards.card_reveal.enabled) || !twitchChannelPointsStatus.overlay.configured || triggerLoading === "twitch-ccg-overlay-test"}
                               className="min-h-11 rounded bg-amber-600 px-3 py-2 text-sm text-white transition-[background-color,transform] hover:bg-amber-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               Test reveal

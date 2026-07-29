@@ -3,13 +3,20 @@ import crypto from "node:crypto";
 import test from "node:test";
 import mongoose from "mongoose";
 import TwitchChannelPointsAuth from "../src/models/TwitchChannelPointsAuth";
+import TwitchCcgOverlayEvent from "../src/models/TwitchCcgOverlayEvent";
+import TwitchCcgRedemption from "../src/models/TwitchCcgRedemption";
 import User from "../src/models/User";
 import twitchChannelPointsService, {
   isTwitchChannelPointsRewardEnabled,
   resolveTwitchChannelPointsRewardKind,
   verifyTwitchEventSubSignature,
 } from "../src/services/twitch-channel-points.service";
-import twitchCcgRewardService, { getTwitchCcgPackGrantCount } from "../src/services/twitch-ccg-reward.service";
+import twitchCcgRewardService, {
+  getTwitchCcgCardRevealCount,
+  getTwitchCcgPackGrantCount,
+  isTwitchCcgRevealEnabled,
+} from "../src/services/twitch-ccg-reward.service";
+import ccgService from "../src/services/ccg.service";
 
 test("verifies Twitch EventSub HMAC signatures and rejects tampering", () => {
   const secret = "0123456789abcdef0123456789abcdef";
@@ -80,32 +87,121 @@ test("grants the configured number of packs for each pack reward", () => {
   assert.equal(getTwitchCcgPackGrantCount("packs_10"), 10);
 });
 
-test("immediately processes a pack redemption for a linked Twitch user", async () => {
+test("adds one reveal to the single-pack reward and two to the ten-pack reward", () => {
+  assert.equal(getTwitchCcgCardRevealCount("packs"), 1);
+  assert.equal(getTwitchCcgCardRevealCount("packs_10"), 2);
+  assert.equal(getTwitchCcgCardRevealCount("card_reveal"), 1);
+});
+
+test("keeps the reveal overlay enabled while any CCG reward is enabled", () => {
+  assert.equal(isTwitchCcgRevealEnabled(undefined), false);
+  assert.equal(isTwitchCcgRevealEnabled({}), false);
+  assert.equal(isTwitchCcgRevealEnabled({ enabled: true }), true);
+  assert.equal(isTwitchCcgRevealEnabled({ tenPackRewardEnabled: true }), true);
+  assert.equal(isTwitchCcgRevealEnabled({ cardRewardEnabled: true }), true);
+});
+
+test("processes pack redemptions through the card reveal path", async () => {
   const redemptionId = new mongoose.Types.ObjectId();
-  const userId = new mongoose.Types.ObjectId();
   const service = twitchCcgRewardService as any;
-  const originalUserFindOne = User.findOne;
-  const originalGrantRedemption = service.grantRedemption;
+  const originalProcessCardRedemption = service.processCardRedemption;
   let grantedRedemptionId: mongoose.Types.ObjectId | undefined;
-  let grantedUserId: mongoose.Types.ObjectId | undefined;
 
   try {
-    (User as any).findOne = (filter: Record<string, string>) => {
-      assert.deepEqual(filter, { "twitch.id": "twitch-user-1" });
-      return { select: () => ({ lean: async () => ({ _id: userId }) }) };
-    };
-    service.grantRedemption = async (nextRedemptionId: mongoose.Types.ObjectId, nextUserId: mongoose.Types.ObjectId) => {
+    service.processCardRedemption = async (nextRedemptionId: mongoose.Types.ObjectId) => {
       grantedRedemptionId = nextRedemptionId;
-      grantedUserId = nextUserId;
       return true;
     };
 
     assert.equal(await twitchCcgRewardService.processPackRedemption(redemptionId, "twitch-user-1"), true);
     assert.equal(grantedRedemptionId, redemptionId);
-    assert.equal(grantedUserId, userId);
   } finally {
+    service.processCardRedemption = originalProcessCardRedemption;
+  }
+});
+
+test("assigns and queues two cards from the ten-pack reveal for the same linked user", async () => {
+  const service = twitchCcgRewardService as any;
+  const userId = new mongoose.Types.ObjectId();
+  const redemptionId = new mongoose.Types.ObjectId();
+  const originalStartSession = mongoose.startSession;
+  const originalRedemptionFindOne = TwitchCcgRedemption.findOne;
+  const originalUserFindOne = User.findOne;
+  const originalRollExternalSingleCard = ccgService.rollExternalSingleCard;
+  const originalGrantExternalCard = ccgService.grantExternalCard;
+  const originalOverlayUpdateOne = TwitchCcgOverlayEvent.updateOne;
+  const originalGrantReward = service.grantReward;
+  const rollUserIds: string[] = [];
+  const grantUserIds: string[] = [];
+  const overlaySourceKeys: string[] = [];
+  const awards = [0, 1].map((index) => ({
+    cardId: new mongoose.Types.ObjectId(),
+    setId: new mongoose.Types.ObjectId(),
+    characterId: new mongoose.Types.ObjectId(),
+    snapshotVersion: index + 1,
+    finish: "standard" as const,
+    artVariant: "standard" as const,
+    tierGrade: "A" as const,
+    poolVersion: `pool-${index + 1}`,
+  }));
+  const redemption: any = {
+    _id: redemptionId,
+    redemptionId: "ten-pack-redemption",
+    twitchUserId: "twitch-user-1",
+    twitchUserLogin: "viewer",
+    twitchUserDisplayName: "Viewer",
+    rewardKind: "packs_10",
+    assignmentStatus: "pending",
+    assignmentAttempts: 0,
+    save: async () => undefined,
+  };
+  const session = {
+    withTransaction: async (callback: () => Promise<void>) => callback(),
+    endSession: async () => undefined,
+  };
+
+  try {
+    (mongoose as any).startSession = async () => session;
+    (TwitchCcgRedemption as any).findOne = () => ({ session: async () => redemption });
+    (User as any).findOne = () => ({ select: () => ({ session: async () => ({ _id: userId }) }) });
+    (ccgService as any).rollExternalSingleCard = async (_session: unknown, nextUserId: mongoose.Types.ObjectId) => {
+      rollUserIds.push(String(nextUserId));
+      return awards[rollUserIds.length - 1];
+    };
+    (ccgService as any).grantExternalCard = async (nextUserId: mongoose.Types.ObjectId) => {
+      grantUserIds.push(String(nextUserId));
+    };
+    (TwitchCcgOverlayEvent as any).updateOne = async (filter: { sourceKey: string }) => {
+      overlaySourceKeys.push(filter.sourceKey);
+    };
+    service.grantReward = async (
+      nextRedemption: typeof redemption,
+      nextUserId: mongoose.Types.ObjectId,
+      nextAwards: typeof awards,
+      _session: unknown,
+      cardsAlreadyGranted: boolean,
+    ) => {
+      assert.equal(nextRedemption, redemption);
+      assert.equal(String(nextUserId), String(userId));
+      assert.deepEqual(nextAwards, awards);
+      assert.equal(cardsAlreadyGranted, true);
+    };
+
+    assert.equal(await twitchCcgRewardService.processCardRedemption(redemptionId), true);
+    assert.deepEqual(rollUserIds, [String(userId), String(userId)]);
+    assert.deepEqual(grantUserIds, [String(userId), String(userId)]);
+    assert.deepEqual(redemption.assignedCards, awards);
+    assert.equal(redemption.assignedCard, awards[0]);
+    assert.equal(redemption.assignmentStatus, "assigned");
+    assert.deepEqual(overlaySourceKeys, ["redemption:ten-pack-redemption", "redemption:ten-pack-redemption:2"]);
+  } finally {
+    (mongoose as any).startSession = originalStartSession;
+    (TwitchCcgRedemption as any).findOne = originalRedemptionFindOne;
     (User as any).findOne = originalUserFindOne;
-    service.grantRedemption = originalGrantRedemption;
+    (ccgService as any).rollExternalSingleCard = originalRollExternalSingleCard;
+    (ccgService as any).grantExternalCard = originalGrantExternalCard;
+    (TwitchCcgOverlayEvent as any).updateOne = originalOverlayUpdateOne;
+    service.grantReward = originalGrantReward;
   }
 });
 
