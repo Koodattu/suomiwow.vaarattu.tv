@@ -27,6 +27,48 @@ test("snapshot migration keeps only explicitly acquired versions", () => {
   }), [1, 3]);
 });
 
+test("alternative art unlock lookup keeps identical characters scoped to their raid set", async () => {
+  const ownerId = new mongoose.Types.ObjectId();
+  const unlockedSetId = new mongoose.Types.ObjectId();
+  const lockedSetId = new mongoose.Types.ObjectId();
+  const characterId = new mongoose.Types.ObjectId();
+  const ownershipModel = CcgOwnership as any;
+  const originalFind = ownershipModel.find;
+  let filter: Record<string, any> | null = null;
+
+  try {
+    ownershipModel.find = (value: Record<string, any>) => {
+      filter = value;
+      return {
+        select() { return this; },
+        lean: async () => [{ setId: unlockedSetId, characterId }],
+      };
+    };
+
+    const unlocks = await (ccgService as any).loadAlternativeArtUnlocks(
+      { ownerType: "user", ownerId },
+      [
+        { setId: unlockedSetId, characterId },
+        { setId: lockedSetId, characterId },
+      ],
+    );
+
+    assert.deepEqual(filter, {
+      ownerType: "user",
+      ownerId,
+      $or: [
+        { setId: unlockedSetId, characterId },
+        { setId: lockedSetId, characterId },
+      ],
+      alternativeQuantity: { $gt: 0 },
+    });
+    assert.deepEqual([...unlocks], [`${unlockedSetId}:${characterId}`]);
+    assert.equal(unlocks.has(`${lockedSetId}:${characterId}`), false);
+  } finally {
+    ownershipModel.find = originalFind;
+  }
+});
+
 test("finish grants update one series entitlement and one shared series finish", async () => {
   const ownerId = new mongoose.Types.ObjectId();
   const setId = new mongoose.Types.ObjectId();

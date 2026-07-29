@@ -27,7 +27,7 @@ Guests begin with 20 packs in each mode. A first-time authenticated CCG player b
 - If the character already exists locally, the Community record links to it. Otherwise it retains a stable Blizzard identity that can be reconciled when the character later enters the normal raid pipeline.
 - Current, random Legacy, and targeted Legacy packs may all contain Community cards. Rarity is selected by the normal pack rules first. Within that rarity, a Community result must win both its proportional pool roll and a second 50/50 gate; a failed gate keeps the already selected raid card.
 - Community cards are immutable snapshots with no performance metrics. Their card metric panel displays `Community`.
-- A stable `collectorKey` links Community and normal raid variants of the same character for shared alternative art, quips, and administrative identity reconciliation. It does not define ownership or duplicate identity.
+- A stable `collectorKey` links Community and normal raid variants of the same character to one alternative-art definition, shared quips, and administrative identity reconciliation. It does not define ownership, alternative-art unlock scope, or duplicate identity.
 
 ## Goals
 
@@ -104,7 +104,7 @@ Duplicates do not upgrade card rarity. Rarity represents the character's snapsho
 - A card series is complete when every finish in its set's pack ladder is owned for that series. The default ladder is Standard, Foil, Golden, Prismatic, Holographic, and Negative; a raid-scoped finish is inserted between Holographic and Negative only for its configured raid set. Community cards always use the six-finish default ladder, even when code-exclusive raid finishes are owned.
 - Completing the final missing finish does not immediately award a pack. The first later duplicate on that already-complete series awards one pack credit for that series, and the idempotency key prevents any snapshot version from rewarding again.
 - A completed card in a Current raid awards a Current pack. A completed card in a Legacy raid awards a Legacy pack. Community cards do not award completion packs.
-- Alternative art is a separate collector-wide cosmetic unlock. It never affects duplicate classification or finish completion, and one unlock makes the alternative art available for every owned finish and raid card sharing that `collectorKey`.
+- Alternative art is a separate card-series cosmetic unlock scoped to `{setId, characterId}`. It never affects duplicate classification or finish completion, and one unlock makes the alternative art available for every owned finish and explicitly unlocked snapshot in that raid or Community set only.
 - Ownership stores and displays quantities such as `×2` and `×7`.
 - Copies are not destroyed when a completed-card reward is granted.
 - Guest results are provisional: completed-card rewards are calculated against the authenticated collection during a valid claim and no spendable guest bonus credit exists before login.
@@ -688,7 +688,7 @@ Use a polymorphic owner:
 - `cardId`, retained as the exact snapshot that originated this finish row
 - `finish`: `standard`, `foil`, `golden`, `prismatic`, `holographic`, `void`, `toxic`, or `negative`; raid-scoped values are valid for their configured raid set or as redeem-code-only Community ownership
 - `quantity`
-- `alternativeQuantity`: an existing value above zero is global alternative-art unlock evidence; it does not split or add to finish quantities
+- `alternativeQuantity`: an existing value above zero is alternative-art unlock evidence for that row's `{setId, characterId}` card series; it does not split or add to finish quantities
 - `firstAcquiredAt`
 - `lastAcquiredAt`
 - Guest acquisition `dateKey`; clear it when ownership is transferred to an authenticated account
@@ -1267,7 +1267,7 @@ The initial feature is ready when:
 - A missing rolled finish is awarded unchanged; an exact-finish duplicate advances to the next missing finish for that card series.
 - The first duplicate pulled after every finish in the card series' pack ladder is owned awards exactly one pack for that series: Current for a Current raid and Legacy for a Legacy raid.
 - Community cards roll and complete against the six base finishes only; redeem codes may additionally award Void or Toxic without changing completion or protection state.
-- Alternative art is one global cosmetic unlock per character and never contributes to duplicate or finish-completion state.
+- Alternative art is one cosmetic unlock per `{setId, characterId}` card series and never contributes to duplicate or finish-completion state.
 - Finish protection remains at each configured base rate through 80% of the interval, then ramps quadratically to hard pity; converted duplicates reset both the selected raw finish and any different non-Standard finish awarded.
 - The collection displays each raid card series separately, exposes every owned finish on every explicitly unlocked snapshot, and does not add newly published, missed, or historical snapshots until the collector acquires that exact version.
 - Current becomes Legacy without changing existing cards.

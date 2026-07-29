@@ -691,7 +691,7 @@ test("alternative art uses one 1-in-4 roll and only applies backgrounds to Commu
   assert.equal(rollArtVariant(false, () => 3), "standard");
 });
 
-test("alternative art is one global unlock and does not split finish quantities", () => {
+test("alternative art unlock applies to every owned finish without splitting quantities", () => {
   assert.deepEqual(serializeOwnershipRows([
     { finish: "standard", quantity: 3 },
     { finish: "foil", quantity: 4, alternativeQuantity: 3 },

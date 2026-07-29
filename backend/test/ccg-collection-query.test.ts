@@ -6,11 +6,12 @@ import "express-session";
 import mongoose from "mongoose";
 import CcgCard from "../src/models/CcgCard";
 import CcgCollectorProfile from "../src/models/CcgCollectorProfile";
+import CcgOwnership from "../src/models/CcgOwnership";
 import CcgSeriesOwnership from "../src/models/CcgSeriesOwnership";
 import CcgSet from "../src/models/CcgSet";
 import ccgService from "../src/services/ccg.service";
 
-test("owned collection shares finishes across snapshots and filters favorites by series", async () => {
+test("owned collection shares finishes and intersects favorite and alternative-art series filters", async () => {
   const ownerId = new mongoose.Types.ObjectId();
   const raidSetId = new mongoose.Types.ObjectId();
   const communitySetId = new mongoose.Types.ObjectId();
@@ -75,12 +76,14 @@ test("owned collection shares finishes across snapshots and filters favorites by
   const seriesOwnershipModel = CcgSeriesOwnership as any;
   const cardModel = CcgCard as any;
   const collectorProfileModel = CcgCollectorProfile as any;
+  const ownershipModel = CcgOwnership as any;
   const setModel = CcgSet as any;
   const service = ccgService as any;
   const originals = {
     aggregate: seriesOwnershipModel.aggregate,
     cardFind: cardModel.find,
     collectorProfileFindOne: collectorProfileModel.findOne,
+    ownershipFind: ownershipModel.find,
     setFind: setModel.find,
     loadAlternativeArt: service.loadAlternativeArt,
     loadAlternativeArtUnlocks: service.loadAlternativeArtUnlocks,
@@ -104,6 +107,10 @@ test("owned collection shares finishes across snapshots and filters favorites by
         lean: async () => [{ setId: raidSetId, characterId }],
       };
     };
+    ownershipModel.find = () => ({
+      select() { return this; },
+      lean: async () => [{ setId: raidSetId, characterId }],
+    });
     seriesOwnershipModel.aggregate = (value: Array<Record<string, any>>) => {
       pipeline = value;
       return Promise.resolve([{
@@ -122,7 +129,7 @@ test("owned collection shares finishes across snapshots and filters favorites by
 
     const result = await service.getCollection(
       { ownerType: "user", ownerId },
-      { page: 2, limit: 12, sort: "damage_desc", favoriteOnly: true },
+      { page: 2, limit: 12, sort: "damage_desc", favoriteOnly: true, alternativeOnly: true },
     );
 
     const ownershipLookupIndex = pipeline.findIndex((stage) => stage.$lookup?.from === "ccgownerships");
@@ -137,6 +144,7 @@ test("owned collection shares finishes across snapshots and filters favorites by
     const enabledSetMatch = pipeline.find((stage) => stage.$match?.setId);
     assert.deepEqual(enabledSetMatch?.$match.setId.$in, [raidSetId, communitySetId]);
     assert.deepEqual(enabledSetMatch?.$match.$or, [{ setId: raidSetId, characterId }]);
+    assert.deepEqual(enabledSetMatch?.$match.$and, [{ $or: [{ setId: raidSetId, characterId }] }]);
     assert.deepEqual(favoriteCardFilter, { _id: { $in: [cardId] } });
     const scoreStage = pipeline.find((stage) => stage.$set?.sortValue);
     assert.deepEqual(scoreStage?.$set.sortValue.$cond[0], { $in: ["$card.setId", [communitySetId]] });
@@ -157,6 +165,7 @@ test("owned collection shares finishes across snapshots and filters favorites by
     seriesOwnershipModel.aggregate = originals.aggregate;
     cardModel.find = originals.cardFind;
     collectorProfileModel.findOne = originals.collectorProfileFindOne;
+    ownershipModel.find = originals.ownershipFind;
     setModel.find = originals.setFind;
     service.loadAlternativeArt = originals.loadAlternativeArt;
     service.loadAlternativeArtUnlocks = originals.loadAlternativeArtUnlocks;
