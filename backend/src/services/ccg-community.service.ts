@@ -4,13 +4,13 @@ import { CCG_COMMUNITY_SET, CCG_GRADING_VERSION, CCG_POOL_VERSION, CCG_THEME_VER
 import CcgCard, { type CcgCommunityScores } from "../models/CcgCard";
 import CcgCommunityCharacter from "../models/CcgCommunityCharacter";
 import CcgSet from "../models/CcgSet";
-import Character from "../models/Character";
 import Guild from "../models/Guild";
 import { createCharacterCollectorKey, createWowCharacterIdentityKey } from "../utils/ccg-identity";
 import { normalizeCommunityRole, normalizeCommunityScores } from "../utils/ccg-community";
 import { resolveCardCrop } from "../utils/ccg-random";
 import { resolveRole } from "../utils/spec";
 import blizzardService from "./blizzard.service";
+import ccgCharacterIdentityService from "./ccg-character-identity.service";
 import ccgPublisherService from "./ccg-publisher.service";
 
 export class CcgCommunityError extends Error {
@@ -87,7 +87,12 @@ class CcgCommunityService {
     };
   }
 
-  private async resolveCharacter(name: string, realmSlug: string, region: string) {
+  private async resolveCharacter(
+    name: string,
+    realmSlug: string,
+    region: string,
+    preferredCharacterId?: mongoose.Types.ObjectId | string | null,
+  ) {
     let profile;
     let media;
     try {
@@ -104,20 +109,23 @@ class CcgCommunityService {
     if (!classInfo) throw new CcgCommunityError(422, "class_not_supported", `Unsupported character class: ${profile.character_class.name}`);
     const specName = profile.active_spec.name;
     const role = resolveRole(classInfo.id, specName);
-    const linkedCharacter = await Character.findOne({
-      name: profile.name,
-      realm: { $in: [profile.realm.name, profile.realm.slug] },
-      region,
-    }).collation({ locale: "en", strength: 2 }).lean();
+    let linkedCharacter;
+    try {
+      linkedCharacter = await ccgCharacterIdentityService.resolveTrackedCharacter({
+        name: profile.name,
+        realm: profile.realm.slug,
+        region,
+        classID: classInfo.id,
+        preferredCharacterId,
+      });
+    } catch (error) {
+      throw new CcgCommunityError(409, "community_identity_ambiguous", error instanceof Error ? error.message : "Community character identity is ambiguous");
+    }
     const guildName = profile.guild?.name ?? null;
     const guildRealm = profile.guild?.realm?.name ?? (guildName ? profile.realm.name : null);
     const guild = guildName && guildRealm
       ? await Guild.findOne({ name: guildName, realm: guildRealm, region }).collation({ locale: "en", strength: 2 }).select("_id").lean()
       : null;
-    const existingCard = linkedCharacter
-      ? await CcgCard.findOne({ characterId: linkedCharacter._id }).select("collectorKey").sort({ publishedAt: -1 }).lean()
-      : null;
-
     return {
       profile,
       media,
@@ -128,8 +136,9 @@ class CcgCommunityService {
       guildName,
       guildRealm,
       guild,
-      collectorKey: existingCard?.collectorKey
-        ?? (linkedCharacter ? createCharacterCollectorKey(linkedCharacter._id) : createWowCharacterIdentityKey(region, realmSlug, name)),
+      collectorKey: linkedCharacter
+        ? createCharacterCollectorKey(linkedCharacter._id)
+        : createWowCharacterIdentityKey(region, realmSlug, name),
     };
   }
 
@@ -291,7 +300,7 @@ class CcgCommunityService {
     }
     const active = typeof input.active === "boolean" ? input.active : community.active !== false;
     const resolved = input.refresh === true
-      ? await this.resolveCharacter(community.name, community.realmSlug, community.region)
+      ? await this.resolveCharacter(community.name, community.realmSlug, community.region, community.linkedCharacterId)
       : null;
     const now = new Date();
     const session = await mongoose.startSession();
@@ -301,6 +310,11 @@ class CcgCommunityService {
         community.role = role;
         community.active = active;
         if (resolved) {
+          community.identityKey = createWowCharacterIdentityKey(
+            community.region,
+            resolved.profile.realm.slug,
+            resolved.profile.name,
+          );
           community.blizzardCharacterId = resolved.profile.id;
           community.name = resolved.profile.name;
           community.realm = resolved.profile.realm.name;
@@ -356,6 +370,10 @@ class CcgCommunityService {
       });
     } finally {
       await session.endSession();
+    }
+
+    if (resolved?.linkedCharacter) {
+      await ccgCharacterIdentityService.reconcileCommunityById(communityId);
     }
 
     const updated = (await this.list()).find((row) => row.id === String(communityId));

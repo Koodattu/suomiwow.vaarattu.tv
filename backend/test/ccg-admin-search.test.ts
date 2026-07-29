@@ -9,7 +9,9 @@ import CcgCard from "../src/models/CcgCard";
 import CcgSet from "../src/models/CcgSet";
 import Character from "../src/models/Character";
 import ccgService from "../src/services/ccg.service";
+import characterContinuityService from "../src/services/character-continuity.service";
 import { normalizeCommunityRole, normalizeCommunityScores } from "../src/utils/ccg-community";
+import { buildCharacterContinuityGraph } from "../src/utils/character-continuity";
 
 test("Community roles accept only the supported card roles", () => {
   assert.equal(normalizeCommunityRole("dps"), "dps");
@@ -163,12 +165,14 @@ test("admin CCG search matches the current name once while preserving variant sn
   const characterModel = Character as any;
   const setModel = CcgSet as any;
   const alternativeArtModel = CcgAlternativeArt as any;
+  const continuityService = characterContinuityService as any;
   const service = ccgService as any;
   const originals = {
     cardFind: cardModel.find,
     characterFind: characterModel.find,
     setFind: setModel.find,
     alternativeArtFind: alternativeArtModel.find,
+    getContinuityGraph: continuityService.getGraph,
   };
 
   try {
@@ -188,6 +192,7 @@ test("admin CCG search matches the current name once while preserving variant sn
         quipAudioFilename: "lakuclap.mp3",
       }],
     });
+    continuityService.getGraph = async () => buildCharacterContinuityGraph([]);
 
     const currentNameResult = await service.searchCardsForAdmin("laku", 10);
     assert.equal(currentNameResult.cards.length, 1);
@@ -209,6 +214,7 @@ test("admin CCG search matches the current name once while preserving variant sn
     characterModel.find = originals.characterFind;
     setModel.find = originals.setFind;
     alternativeArtModel.find = originals.alternativeArtFind;
+    continuityService.getGraph = originals.getContinuityGraph;
   }
 });
 

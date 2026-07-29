@@ -37,6 +37,7 @@ import characterMediaService from "../services/character-media.service";
 import characterIdentityLinkService, { CharacterIdentityLinkError } from "../services/character-identity-link.service";
 import characterAccountManualEdgeService, { CharacterAccountManualEdgeError } from "../services/character-account-manual-edge.service";
 import characterContinuityService, { CharacterContinuityError } from "../services/character-continuity.service";
+import ccgCharacterIdentityService from "../services/ccg-character-identity.service";
 import characterMechanicsService from "../services/character-mechanics.service";
 import characterTierListService from "../services/character-tierlist.service";
 import characterRankingBackfillService from "../services/character-ranking-backfill.service";
@@ -4124,6 +4125,15 @@ router.post("/characters/:characterId/continuity-links", async (req: Request, re
     );
     await cacheService.invalidatePattern(/^characters:profile:/);
 
+    let ccgReconciliation = null;
+    let ccgWarning: string | null = null;
+    try {
+      ccgReconciliation = await ccgCharacterIdentityService.reconcileAll();
+    } catch (error) {
+      ccgWarning = "The characters were combined, but CCG character identities could not be reconciled automatically";
+      logger.error(`Character continuity link ${link._id.toString()} was saved but CCG identity reconciliation failed:`, error);
+    }
+
     let rebuild = null;
     let rebuildWarning: string | null = null;
     try {
@@ -4137,13 +4147,16 @@ router.post("/characters/:characterId/continuity-links", async (req: Request, re
       `Admin ${createdBy} combined character ${preview.source.name}-${preview.source.realm} into ${preview.target.name}-${preview.target.realm} ` +
         `(link ${link._id.toString()}, ${preview.impact.wclIdentityCount} WCL identities)`,
     );
-    res.status(rebuildWarning ? 202 : 200).json({
+    res.status(rebuildWarning || ccgWarning ? 202 : 200).json({
       success: true,
-      message: rebuildWarning ?? `Combined ${preview.source.name}-${preview.source.realm} into ${preview.target.name}-${preview.target.realm}`,
+      message: [rebuildWarning, ccgWarning].filter(Boolean).join("; ")
+        || `Combined ${preview.source.name}-${preview.source.realm} into ${preview.target.name}-${preview.target.realm}`,
       linkId: link._id.toString(),
       impact: preview.impact,
       rebuild,
       rebuildWarning,
+      ccgReconciliation,
+      ccgWarning,
     });
   } catch (error) {
     if (error instanceof CharacterContinuityError) {
@@ -4218,13 +4231,23 @@ router.put("/characters/:characterId/blizzard-identity", async (req: Request, re
 
     await characterMediaService.enqueueCharacter(character._id.toString(), 200, true);
     await cacheService.invalidatePattern(/^characters:profile:/);
+    let ccgReconciliation = null;
+    let ccgWarning: string | null = null;
+    try {
+      ccgReconciliation = await ccgCharacterIdentityService.reconcileAll();
+    } catch (error) {
+      ccgWarning = "The Blizzard identity was saved, but CCG character identities could not be reconciled automatically";
+      logger.error(`Blizzard identity for ${character._id.toString()} was saved but CCG identity reconciliation failed:`, error);
+    }
     logger.info(`Admin ${updatedBy} set Blizzard identity for ${character.name}-${character.realm} to ${name}-${realm} (ID: ${character._id.toString()})`);
 
-    res.json({
+    res.status(ccgWarning ? 202 : 200).json({
       success: true,
-      message: `Blizzard identity set to ${name}-${realm}; character media refresh queued`,
+      message: ccgWarning ?? `Blizzard identity set to ${name}-${realm}; character media refresh queued`,
       blizzardIdentity: { name, realm, region: character.region },
       blizzardIdentityOverride: { name, realm, updatedAt, updatedBy, active: true },
+      ccgReconciliation,
+      ccgWarning,
     });
   } catch (error) {
     logger.error("Error setting character Blizzard identity:", error);

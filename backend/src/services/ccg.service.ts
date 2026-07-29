@@ -34,6 +34,7 @@ import {
 } from "../config/character-eligibility";
 import CcgCard, { ICcgCard } from "../models/CcgCard";
 import CcgAlternativeArt from "../models/CcgAlternativeArt";
+import CcgCommunityCharacter from "../models/CcgCommunityCharacter";
 import CcgAnalyticsDaily from "../models/CcgAnalyticsDaily";
 import CcgAnalyticsDailyParticipant from "../models/CcgAnalyticsDailyParticipant";
 import CcgAnalyticsParticipant from "../models/CcgAnalyticsParticipant";
@@ -92,6 +93,7 @@ import { normalizeSearchText, scoreSearchCandidate } from "../utils/search";
 import { normalizeRealmSlug } from "../utils/realm";
 import ccgLeaderboardService from "./ccg-leaderboard.service";
 import ccgPublisherService from "./ccg-publisher.service";
+import characterContinuityService from "./character-continuity.service";
 import discordService from "./discord.service";
 
 const CCG_ANALYTICS_KEY = "global";
@@ -562,13 +564,40 @@ class CcgService {
     const cards = await CcgCard.find(cardFilter)
       .select("_id characterId collectorKey name realm classID guildName publishedAt")
       .lean();
-    const characterIds = Array.from(new Set(cards.map((card) => String(card.characterId))))
-      .map((id) => new mongoose.Types.ObjectId(id));
-    const currentCharacters = await Character.find({ _id: { $in: characterIds } })
+    const continuityGraph = await characterContinuityService.getGraph();
+    const canonicalCharacterIdByCharacterId = new Map<string, mongoose.Types.ObjectId>();
+    for (const card of cards) {
+      canonicalCharacterIdByCharacterId.set(
+        String(card.characterId),
+        new mongoose.Types.ObjectId(continuityGraph.resolveRoot(card.characterId)),
+      );
+    }
+    const rootCharacterIds = [...new Map(
+      [...canonicalCharacterIdByCharacterId.values()].map((id) => [String(id), id]),
+    ).values()];
+    const currentCharacters = await Character.find({ _id: { $in: rootCharacterIds } })
       .select("_id name")
       .lean();
-    const currentNameByCharacterId = new Map(currentCharacters.map((character) => [String(character._id), character.name]));
-    return buildCcgCardSearchCandidates(cards, currentNameByCharacterId);
+    const currentNameByRootId = new Map(currentCharacters.map((character) => [String(character._id), character.name]));
+    const currentNameByCharacterId = new Map<string, string>();
+    for (const [characterId, rootId] of canonicalCharacterIdByCharacterId) {
+      const currentName = currentNameByRootId.get(String(rootId));
+      if (currentName) currentNameByCharacterId.set(characterId, currentName);
+    }
+    return buildCcgCardSearchCandidates(cards, currentNameByCharacterId, canonicalCharacterIdByCharacterId);
+  }
+
+  private async resolveCollectionCharacterIds(rawCharacterId: string): Promise<mongoose.Types.ObjectId[]> {
+    const characterId = validateObjectId(rawCharacterId, "character ID");
+    const continuityGraph = await characterContinuityService.getGraph();
+    const memberIds = continuityGraph.getMemberIds(characterId).map((id) => new mongoose.Types.ObjectId(id));
+    const communityCharacters = await CcgCommunityCharacter.find({ linkedCharacterId: { $in: memberIds } })
+      .select("_id")
+      .lean();
+    return [...new Map([
+      ...memberIds,
+      ...communityCharacters.map((community) => community._id),
+    ].map((id) => [String(id), id])).values()];
   }
 
   private async getCollectionCharacterSearchCandidates(): Promise<CcgCollectionCharacterSearchCandidate[]> {
@@ -931,15 +960,27 @@ class CcgService {
       };
     }
 
+    const continuityGraph = await characterContinuityService.getGraph();
+    const rootCharacterId = continuityGraph.resolveRoot(character._id);
+    const memberCharacterIds = continuityGraph.getMemberIds(character._id).map((characterId) => new mongoose.Types.ObjectId(characterId));
+    const clusterCharacters = await Character.find({ _id: { $in: memberCharacterIds } })
+      .select("_id name realm region classID guildName lastReportSeenAt")
+      .lean();
+    const rootCharacter = clusterCharacters.find((candidate) => String(candidate._id) === rootCharacterId) ?? character;
+    const lastRaidedAt = clusterCharacters.reduce<Date | null>((latest, candidate) => {
+      if (!candidate.lastReportSeenAt) return latest;
+      return !latest || candidate.lastReportSeenAt > latest ? candidate.lastReportSeenAt : latest;
+    }, null);
+
     const zoneIds = CCG_CONFIGURED_SETS.map((set) => set.zoneId);
-    const [entries, mechanicsRows, participationRows, media, cards, sets] = await Promise.all([
+    const [entries, mechanicsRows, participationRows, mediaRows, cards, sets] = await Promise.all([
       CharacterTierListEntry.find({
-        characterId: character._id,
+        characterId: { $in: memberCharacterIds },
         scope: "global",
         zoneId: { $in: zoneIds },
       }).lean(),
       CharacterMechanicsLeaderboard.find({
-        characterId: character._id,
+        characterId: { $in: memberCharacterIds },
         zoneId: { $in: zoneIds },
         difficulty: 5,
         type: "overall",
@@ -948,22 +989,42 @@ class CcgService {
         .select("zoneId pulls score parseScore survivalScore")
         .lean(),
       CharacterRaidParticipation.find({
-        characterId: character._id,
+        characterId: { $in: memberCharacterIds },
         zoneId: { $in: zoneIds },
       })
         .select("zoneId reportCount mythicReportCount")
         .lean(),
-      CharacterMedia.findOne({ characterId: character._id })
-        .select("status avatarUrl mainRawUrl lastErrorCode")
+      CharacterMedia.find({ characterId: { $in: memberCharacterIds } })
+        .select("characterId status avatarUrl mainRawUrl lastErrorCode")
         .lean(),
-      CcgCard.find({ characterId: character._id })
+      CcgCard.find({ characterId: { $in: memberCharacterIds } })
         .sort({ publishedAt: -1, snapshotVersion: -1 })
         .select("_id setId tierGrade snapshotVersion publishedAt")
         .lean(),
       CcgSet.find().select("_id slug zoneId raidName state kind enabledAt cardCount").lean(),
     ]);
 
-    const entryByZone = new Map(entries.map((entry) => [entry.zoneId, entry]));
+    const rootMedia = mediaRows.find((row) => String(row.characterId) === rootCharacterId);
+    const availableMedia = mediaRows.find((row) => row.status === "available" && Boolean(row.mainRawUrl));
+    const media = rootMedia?.status === "available" && rootMedia.mainRawUrl
+      ? rootMedia
+      : availableMedia ?? rootMedia ?? mediaRows[0] ?? null;
+
+    const entryByZone = new Map<number, (typeof entries)[number]>();
+    for (const entry of entries) {
+      const current = entryByZone.get(entry.zoneId);
+      const entryScoresReady = [entry.score, entry.parseScore, entry.survivalScore].every((score) => typeof score === "number" && Number.isFinite(score));
+      const currentScoresReady = current
+        ? [current.score, current.parseScore, current.survivalScore].every((score) => typeof score === "number" && Number.isFinite(score))
+        : false;
+      if (
+        !current
+        || (entryScoresReady && !currentScoresReady)
+        || (entryScoresReady === currentScoresReady && (entry.pulls > current.pulls || (entry.pulls === current.pulls && entry.score > current.score)))
+      ) {
+        entryByZone.set(entry.zoneId, entry);
+      }
+    }
     const mechanicsByZone = new Map<number, CcgCharacterMechanicsRow[]>();
     for (const row of mechanicsRows) {
       const zoneRows = mechanicsByZone.get(row.zoneId) ?? [];
@@ -992,7 +1053,7 @@ class CcgService {
       if (!set || !latest) return [];
       return [{
         id: String(latest._id),
-        characterId: String(character._id),
+        characterId: rootCharacterId,
         setSlug: set.slug,
         raidName: set.raidName,
         kind: set.kind,
@@ -1075,14 +1136,14 @@ class CcgService {
       found: true,
       query: { name, realm },
       character: {
-        id: String(character._id),
-        name: character.name,
-        realm: character.realm,
-        region: character.region,
-        classID: character.classID,
-        guildName: character.guildName ?? null,
+        id: rootCharacterId,
+        name: rootCharacter.name,
+        realm: rootCharacter.realm,
+        region: rootCharacter.region,
+        classID: rootCharacter.classID,
+        guildName: rootCharacter.guildName ?? null,
         avatarUrl: media?.avatarUrl ?? null,
-        lastRaidedAt: character.lastReportSeenAt ?? null,
+        lastRaidedAt,
       },
       eligible: raids.some((raid) => raid.eligible),
       ready: raids.some((raid) => raid.ready),
@@ -1238,7 +1299,7 @@ class CcgService {
     const cardFilter: Record<string, unknown> = {};
     if (grade) cardFilter.tierGrade = grade;
     if (options.guildId) cardFilter.guildId = validateObjectId(options.guildId, "guild ID");
-    if (options.characterId) cardFilter.characterId = validateObjectId(options.characterId, "character ID");
+    if (options.characterId) cardFilter.characterId = { $in: await this.resolveCollectionCharacterIds(options.characterId) };
 
     const ownershipFilter = options.owned === "owned" || options.owned === "missing" || Boolean(finishMatch);
     const includeOwned = options.owned === "owned" || Boolean(finishMatch);
@@ -1517,8 +1578,8 @@ class CcgService {
     const communitySetIds = sets.filter((set) => set.kind === "community").map((set) => set._id);
     const guildId = options.guildId ? validateObjectId(options.guildId, "guild ID") : null;
     if (guildId) cardMatch["card.guildId"] = guildId;
-    const characterId = options.characterId ? validateObjectId(options.characterId, "character ID") : null;
-    if (characterId) cardMatch["card.characterId"] = characterId;
+    const characterIds = options.characterId ? await this.resolveCollectionCharacterIds(options.characterId) : null;
+    if (characterIds) cardMatch["card.characterId"] = { $in: characterIds };
     if (options.alternativeOnly) {
       const alternativeSeries = await CcgOwnership.find({
         ownerType: owner.ownerType,

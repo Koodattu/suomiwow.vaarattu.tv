@@ -49,6 +49,7 @@ import guildLogSourceService from "./services/guild-log-source.service";
 import ccgPublisherService from "./services/ccg-publisher.service";
 import { ensurePersistentCcgGuests } from "./services/ccg-guest-persistence-migration.service";
 import { ensureCcgSeriesOwnershipMigration } from "./services/ccg-ownership-migration.service";
+import ccgCharacterIdentityService from "./services/ccg-character-identity.service";
 import { CCG_FEATURE_ENABLED } from "./config/ccg";
 
 // ============================================================================
@@ -550,6 +551,17 @@ const startServer = async () => {
       setStartupTask("Migrate CCG collection ownership");
       await ensureCcgSeriesOwnershipMigration();
       completeStartupTask("Migrate CCG collection ownership");
+
+      if (isApiProcess) {
+        setStartupTask("Reconcile CCG character identities");
+        try {
+          const reconciliation = await ccgCharacterIdentityService.reconcileAll();
+          logger.info("[CCG] Character identity reconciliation completed", reconciliation);
+          completeStartupTask("Reconcile CCG character identities");
+        } catch (error) {
+          failStartupTask("Reconcile CCG character identities", error);
+        }
+      }
 
       setStartupTask("Reconcile CCG set configuration");
       try {

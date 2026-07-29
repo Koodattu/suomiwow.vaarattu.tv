@@ -28,6 +28,7 @@ export type CcgCardSearchCandidate = {
 export function buildCcgCardSearchCandidates(
   cards: ReadonlyArray<CcgCardSearchSource>,
   currentNameByCharacterId: ReadonlyMap<string, string>,
+  canonicalCharacterIdByCharacterId: ReadonlyMap<string, mongoose.Types.ObjectId> = new Map(),
 ): CcgCardSearchCandidate[] {
   const candidatesByCharacter = new Map<string, Omit<CcgCardSearchCandidate, "searchText" | "characterSearchText"> & {
     searchText: Set<string>;
@@ -35,6 +36,7 @@ export function buildCcgCardSearchCandidates(
   }>();
   for (const card of cards) {
     const collectorKey = resolveCollectorKey(card);
+    const canonicalCharacterId = canonicalCharacterIdByCharacterId.get(String(card.characterId)) ?? card.characterId;
     const currentName = currentNameByCharacterId.get(String(card.characterId));
     const searchText = [
       card.name,
@@ -56,7 +58,7 @@ export function buildCcgCardSearchCandidates(
       candidatesByCharacter.set(collectorKey, {
         collectorKey,
         cardIds: [card._id],
-        characterId: card.characterId,
+        characterId: canonicalCharacterId,
         name: currentName ?? card.name,
         realm: card.realm,
         classID: card.classID,
@@ -71,7 +73,7 @@ export function buildCcgCardSearchCandidates(
     searchText.forEach((value) => existing.searchText.add(value));
     characterSearchText.forEach((value) => existing.characterSearchText.add(value));
     if (card.publishedAt.getTime() > existing.publishedAt.getTime()) {
-      existing.characterId = card.characterId;
+      existing.characterId = canonicalCharacterId;
       existing.name = currentName ?? card.name;
       existing.realm = card.realm;
       existing.classID = card.classID;
