@@ -2750,6 +2750,26 @@ export async function triggerRebuildCharacterRankingLeaderboards(): Promise<Char
   return response.json();
 }
 
+export async function previewCharacterGuildAttributionRepair(): Promise<TriggerResponse> {
+  const response = await fetch(`${API_URL}/api/admin/trigger/reconcile-character-guild-attribution/preview`, {
+    method: "POST",
+    credentials: "include",
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Failed to preview character guild attribution repair");
+  return data;
+}
+
+export async function triggerCharacterGuildAttributionRepair(): Promise<TriggerResponse> {
+  const response = await fetch(`${API_URL}/api/admin/trigger/reconcile-character-guild-attribution`, {
+    method: "POST",
+    credentials: "include",
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Failed to trigger character guild attribution repair");
+  return data;
+}
+
 export async function triggerRebuildCharacterMechanicsLeaderboards(raidId?: number, scope: "all" | "current" = "current"): Promise<TriggerResponse> {
   const response = await fetch(`${API_URL}/api/admin/trigger/rebuild-character-mechanics-leaderboards`, {
     method: "POST",

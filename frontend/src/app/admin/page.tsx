@@ -32,6 +32,8 @@ import {
   triggerRebuildCharacterAccountGroups,
   triggerRebuildGuildNetworkSnapshot,
   triggerRebuildCharacterRankingLeaderboards,
+  previewCharacterGuildAttributionRepair,
+  triggerCharacterGuildAttributionRepair,
   triggerRebuildCharacterMechanicsLeaderboards,
   triggerRebuildCharacterTierLists,
   triggerPruneCharacterRankingsWithoutMythicEvidence,
@@ -2390,6 +2392,10 @@ export default function AdminPage() {
                     {renderTriggerButton("rebuild-character-ranking-leaderboards", "Rebuild Character Ranking Tables", triggerRebuildCharacterRankingLeaderboards, {
                       disabled: characterRankingPipelineBusy,
                     })}
+                  </ManualActionGroup>
+                  <ManualActionGroup title="3. Repair guild attribution">
+                    {renderTriggerButton("preview-character-guild-attribution", "Preview Guild Attribution Repair", previewCharacterGuildAttributionRepair)}
+                    {renderTriggerButton("reconcile-character-guild-attribution", "Apply Guild Attribution Repair", triggerCharacterGuildAttributionRepair)}
                   </ManualActionGroup>
                   {characterRankingBackfillStatus && characterBackfillQueue && (
                     <div className="rounded bg-gray-900/60 border border-gray-700 p-3 text-xs text-gray-300 space-y-2">

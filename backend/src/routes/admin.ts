@@ -40,6 +40,7 @@ import characterContinuityService, { CharacterContinuityError } from "../service
 import characterMechanicsService from "../services/character-mechanics.service";
 import characterTierListService from "../services/character-tierlist.service";
 import characterRankingBackfillService from "../services/character-ranking-backfill.service";
+import characterGuildAttributionRepairService from "../services/character-guild-attribution-repair.service";
 import characterAchievementService from "../services/character-achievement.service";
 import mythicPlusService from "../services/mythic-plus.service";
 import wclService from "../services/warcraftlogs.service";
@@ -3535,6 +3536,35 @@ router.post("/trigger/rebuild-character-ranking-leaderboards", async (req: Reque
   } catch (error) {
     logger.error("Error triggering character ranking leaderboard rebuild:", error);
     res.status(500).json({ error: "Failed to trigger character ranking leaderboard rebuild" });
+  }
+});
+
+// Preview the evidence-based current guild/history repair without writing data or calling WCL.
+router.post("/trigger/reconcile-character-guild-attribution/preview", async (_req: Request, res: Response) => {
+  try {
+    const result = await characterGuildAttributionRepairService.preview();
+    res.json({
+      success: true,
+      message:
+        `Preview found ${result.repairedCharacters} character records to repair: ` +
+        `${result.currentGuildsChanged} current guilds changed and ${result.historyEntriesRemoved} unsupported report-owner history entries removed`,
+      ...result,
+    });
+  } catch (error) {
+    logger.error("Error previewing character guild attribution repair:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to preview character guild attribution repair" });
+  }
+});
+
+// Reconcile every character from stored report-owner ranges and independent WCL guild snapshots.
+router.post("/trigger/reconcile-character-guild-attribution", async (_req: Request, res: Response) => {
+  try {
+    const result = characterGuildAttributionRepairService.trigger();
+    if (!result.started) return res.status(409).json({ success: false, ...result });
+    res.json({ success: result.started, ...result });
+  } catch (error) {
+    logger.error("Error triggering character guild attribution repair:", error);
+    res.status(500).json({ error: "Failed to trigger character guild attribution repair" });
   }
 });
 
