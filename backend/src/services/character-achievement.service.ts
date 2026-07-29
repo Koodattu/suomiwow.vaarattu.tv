@@ -130,6 +130,20 @@ export interface CharacterAchievementBackfillEnqueueResult {
   missingRaidAchievementSummary: number;
 }
 
+export interface CharacterAchievementTargetedEnqueueResult {
+  candidates: number;
+  scheduled: number;
+  queued: number;
+  updated: number;
+  skippedActive: number;
+}
+
+export function buildCharacterAchievementSnapshotKey(
+  character: Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID">,
+): string {
+  return [character.wclCanonicalCharacterId, character.classID, character.region.toLowerCase(), character.realm.toLowerCase(), character.name.toLowerCase()].join(":");
+}
+
 export interface CharacterAchievementBackfillTriggerResult {
   started: boolean;
   enqueue: CharacterAchievementBackfillEnqueueResult;
@@ -289,11 +303,123 @@ class CharacterAchievementService {
     return this.startProcessing();
   }
 
+  async enqueueCharacters(
+    characterIds: readonly mongoose.Types.ObjectId[],
+    priority = DEFAULT_PRIORITY,
+  ): Promise<CharacterAchievementTargetedEnqueueResult> {
+    const uniqueIds = [...new Map(characterIds.map((id) => [String(id), id])).values()];
+    if (uniqueIds.length === 0) return { candidates: 0, scheduled: 0, queued: 0, updated: 0, skippedActive: 0 };
+
+    const [characterRows, latestParticipationRows, queueRows] = await Promise.all([
+      Character.find({ _id: { $in: uniqueIds } })
+        .select("_id wclCanonicalCharacterId name realm region classID identityObservedAt blizzardIdentityOverride")
+        .lean<Array<Pick<ICharacter, "_id" | "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "identityObservedAt" | "blizzardIdentityOverride">>>(),
+      CharacterRaidParticipation.aggregate<{
+        _id: mongoose.Types.ObjectId;
+        name: string;
+        realm: string;
+        region: string;
+        observedAt: Date;
+      }>([
+        { $match: { characterId: { $in: uniqueIds } } },
+        { $sort: { lastSeenAt: -1, zoneId: -1, _id: -1 } },
+        {
+          $group: {
+            _id: "$characterId",
+            name: { $first: "$characterName" },
+            realm: { $first: "$characterRealm" },
+            region: { $first: "$characterRegion" },
+            observedAt: { $first: "$lastSeenAt" },
+          },
+        },
+      ]).allowDiskUse(true),
+      CharacterAchievementFetchQueue.find({
+        characterId: { $in: uniqueIds },
+        signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
+      })
+        .select("characterId status")
+        .lean<Array<Pick<ICharacterAchievementFetchQueue, "characterId" | "status">>>(),
+    ]);
+
+    const latestParticipationByCharacterId = new Map(latestParticipationRows.map((row) => [String(row._id), row]));
+    const queueByCharacterId = new Map(queueRows.map((row) => [String(row.characterId), row]));
+    const now = new Date();
+    const operations: any[] = [];
+    let skippedActive = 0;
+
+    for (const characterRow of characterRows) {
+      const queueRow = queueByCharacterId.get(String(characterRow._id));
+      if (queueRow?.status === "in_progress") {
+        skippedActive += 1;
+        continue;
+      }
+
+      const character = {
+        ...characterRow,
+        ...resolveBlizzardCharacterIdentity(characterRow, latestParticipationByCharacterId.get(String(characterRow._id))),
+      };
+      operations.push({
+        updateOne: {
+          filter: {
+            characterId: character._id,
+            signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
+            ...(queueRow ? { status: { $ne: "in_progress" } } : {}),
+          },
+          update: {
+            $set: {
+              wclCanonicalCharacterId: character.wclCanonicalCharacterId,
+              name: character.name,
+              realm: character.realm,
+              region: character.region,
+              classID: character.classID,
+              snapshotKey: buildCharacterAchievementSnapshotKey(character),
+              status: "pending",
+              priority,
+              attempts: 0,
+              maxAttempts: DEFAULT_MAX_ATTEMPTS,
+              nextAttemptAt: now,
+              httpStatus: null,
+              errorCode: null,
+              isPermanentError: false,
+              completionReason: null,
+              lastError: null,
+              lastErrorAt: null,
+              startedAt: null,
+              completedAt: null,
+              lastActivityAt: now,
+            },
+            $setOnInsert: {
+              characterId: character._id,
+              signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
+            },
+          },
+          upsert: !queueRow,
+        },
+      });
+    }
+
+    let queued = 0;
+    let updated = 0;
+    for (let index = 0; index < operations.length; index += 1000) {
+      const result = await CharacterAchievementFetchQueue.bulkWrite(operations.slice(index, index + 1000), { ordered: false });
+      queued += result.upsertedCount ?? 0;
+      updated += result.modifiedCount ?? 0;
+    }
+
+    return {
+      candidates: characterRows.length,
+      scheduled: operations.length,
+      queued,
+      updated,
+      skippedActive,
+    };
+  }
+
   async enqueueMissingItems(options: { refreshExistingQueue?: boolean; refreshAll?: boolean } = {}): Promise<CharacterAchievementBackfillEnqueueResult> {
     const [characterRows, latestParticipationRows] = await Promise.all([
       Character.find({})
-        .select("_id wclCanonicalCharacterId name realm region classID blizzardIdentityOverride")
-        .lean<Array<Pick<ICharacter, "_id" | "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "blizzardIdentityOverride">>>(),
+        .select("_id wclCanonicalCharacterId name realm region classID identityObservedAt blizzardIdentityOverride")
+        .lean<Array<Pick<ICharacter, "_id" | "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "identityObservedAt" | "blizzardIdentityOverride">>>(),
       CharacterRaidParticipation.aggregate<{
         _id: mongoose.Types.ObjectId;
         name: string;
@@ -358,7 +484,7 @@ class CharacterAchievementService {
       }
 
       const existingQueueItem = queueByCharacterId.get(characterId);
-      const snapshotKey = this.buildSnapshotKey(character);
+      const snapshotKey = buildCharacterAchievementSnapshotKey(character);
       const snapshotChanged = Boolean(existingQueueItem && existingQueueItem.snapshotKey !== snapshotKey);
       const isActiveQueueItem = existingQueueItem?.status === "in_progress";
       const missingRequiredData = !hasFingerprint || !hasRaidAchievementSummary;
@@ -1341,10 +1467,6 @@ class CharacterAchievementService {
   private getRetryDelayMs(attempts: number): number {
     const minutes = Math.min(60, Math.pow(2, Math.max(0, attempts - 1)) * 5);
     return minutes * 60 * 1000;
-  }
-
-  private buildSnapshotKey(character: Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID">): string {
-    return [character.wclCanonicalCharacterId, character.classID, character.region.toLowerCase(), character.realm.toLowerCase(), character.name.toLowerCase()].join(":");
   }
 
   private buildAccountSlug(displayName: string, groupKey: string): string {

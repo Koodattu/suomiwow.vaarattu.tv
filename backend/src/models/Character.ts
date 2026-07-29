@@ -33,6 +33,7 @@ export interface ICharacter extends Document {
   lastMythicSeenAt?: Date | null;
   firstReportSeenAt?: Date;
   lastReportSeenAt?: Date;
+  identityObservedAt?: Date;
   rankingsAvailable: boolean | null;
   nextEligibleRefreshAt?: Date;
 
@@ -77,6 +78,7 @@ const CharacterSchema: Schema = new Schema(
     lastMythicSeenAt: { type: Date, required: false, default: null },
     firstReportSeenAt: { type: Date },
     lastReportSeenAt: { type: Date },
+    identityObservedAt: { type: Date },
     rankingsAvailable: { type: Boolean, required: false, default: null },
     nextEligibleRefreshAt: { type: Date, required: false, default: Date.now },
   },

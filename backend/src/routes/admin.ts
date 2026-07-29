@@ -3837,14 +3837,18 @@ router.get("/characters", async (req: Request, res: Response) => {
 
     const formatted = characters.map((c) => {
       const latestParticipation = latestParticipationByCharacterId.get(c._id.toString());
-      const automaticIdentity = {
-        name: latestParticipation?.characterName ?? c.name,
-        realm: latestParticipation?.characterRealm ?? c.realm,
-        region: latestParticipation?.characterRegion ?? c.region,
-      };
       const latestObservedIdentity = latestParticipation
-        ? { ...automaticIdentity, observedAt: latestParticipation.lastSeenAt }
+        ? {
+            name: latestParticipation.characterName,
+            realm: latestParticipation.characterRealm,
+            region: latestParticipation.characterRegion,
+            observedAt: latestParticipation.lastSeenAt,
+          }
         : null;
+      const automaticIdentity = resolveBlizzardCharacterIdentity(
+        { ...c, blizzardIdentityOverride: null },
+        latestObservedIdentity,
+      );
       const overrideActive = isBlizzardIdentityOverrideActive(c, latestObservedIdentity);
       const override = c.blizzardIdentityOverride
         ? {

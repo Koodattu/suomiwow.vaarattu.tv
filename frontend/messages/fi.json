@@ -187,7 +187,7 @@
     "leaderboard": {
       "eyebrow": "Keräilijöiden kunniagalleria",
       "title": "Kokoelmien tulostaulu",
-      "body": "Sijoitus määräytyy uniikkien korttien, harvinaisuuden, viimeistelyjen ja kokoelmasaavutusten perusteella. Duplikaatit eivät tuo pisteitä.",
+      "body": "Katso, miten kokoelmasi sijoittuu.",
       "updated": "Pisteet päivitetty {time}",
       "updating": "Pisteet päivittyvät tunnin välein",
       "loginTitle": "Liity tulostaululle",
@@ -213,9 +213,14 @@
       },
       "showcase": {
         "title": "Suosikkikortit",
-        "body": "Valitse korttinäkymässä enintään kolme omistamaasi korttia näytettäväksi nimesi yhteydessä.",
+        "body": "Valitse enintään kolme korttia esiteltäväksi. Tarkastele suosikkia napauttamalla sitä.",
         "empty": "Ei valittua suosikkia",
+        "openCollector": "Näytä käyttäjän {name} suosikkikortit",
+        "collectorTitle": "Käyttäjän {name} suosikkikortit",
+        "closeCollector": "Sulje suosikkikortit",
         "choose": "Valitse kokoelmasta",
+        "favorite": "Suosikiksi",
+        "unfavorite": "Poista suosikki",
         "add": "Lisää suosikkeihin",
         "remove": "Poista suosikki",
         "full": "Suosikit täynnä",
@@ -223,15 +228,14 @@
         "error": "Tallennus epäonnistui"
       },
       "scoring": {
+        "open": "Näin pisteet lasketaan",
+        "close": "Sulje pisteytyksen tiedot",
         "title": "Näin kokoelmapisteet lasketaan",
-        "body": "Pisteytys palkitsee ensin kokoelman laajuuden, sitten harvinaisuuden ja vaikeat viimeistelysaavutukset.",
         "base": "+{points} jokaisesta uniikista kortista",
         "rarity": "+{min}–{max} kortin harvinaisimmasta avatusta tilannekuvasta",
         "finishes": "+{min}–{max} jokaisesta erilaisesta erikoisviimeistelystä",
         "cardCompletion": "+{points}, kun kortille on löydetty kaikki saatavilla olevat viimeistelyt",
-        "setCompletion": "+{points} per kortti, kun koko setti on valmis",
-        "luckTitle": "Miksi tuuripisteitä ei ole",
-        "luckBody": "Nykyinen avaushistoria tallentaa lopputuloksen, ei tuurivertailuun tarvittavaa suojausta edeltävää heittoa. Kokoelmapisteet pysyvät näin tarkistettavina arvauksen sijaan."
+        "setCompletion": "+{points} per kortti, kun koko setti on valmis"
       }
     },
     "redeem": {

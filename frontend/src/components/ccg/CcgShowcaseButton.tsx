@@ -24,7 +24,6 @@ export default function CcgShowcaseButton({
   const meQuery = useCcgLeaderboardMe(Boolean(user));
   const current = meQuery.data?.showcase ?? [];
   const selected = current.some((item) => item.card.id === cardId);
-  const full = !selected && current.length >= 3;
   const mutation = useMutation({
     mutationFn: (cards: CcgShowcaseCardInput[]) => api.updateCcgShowcase(cards),
     onSuccess: (data) => {
@@ -34,23 +33,22 @@ export default function CcgShowcaseButton({
   });
 
   if (!user || (!meQuery.data && !meQuery.isPending)) return null;
-  const label = mutation.isPending
-    ? t("saving")
-    : mutation.isError
-      ? t("error")
-      : selected
-        ? t("remove")
-        : full
-          ? t("full")
-          : t("add");
+  const displayedSelected = mutation.isPending && mutation.variables
+    ? mutation.variables.some((item) => item.cardId === cardId)
+    : selected;
+  const full = !selected && current.length >= 3;
+  const label = full ? t("full") : displayedSelected ? t("unfavorite") : t("favorite");
 
   return (
     <button
       type="button"
-      className={`${styles.secondaryButton} ${styles.showcaseButton}`}
-      aria-pressed={selected}
+      className={styles.showcaseButton}
+      aria-pressed={displayedSelected}
+      aria-label={label}
+      aria-busy={mutation.isPending}
+      data-pending={mutation.isPending || undefined}
       disabled={meQuery.isPending || mutation.isPending || full}
-      title={label}
+      title={mutation.isError ? t("error") : label}
       onClick={() => {
         const cards: CcgShowcaseCardInput[] = selected
           ? current.filter((item) => item.card.id !== cardId).map((item) => ({

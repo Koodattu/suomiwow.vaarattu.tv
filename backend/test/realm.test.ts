@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { areEquivalentRealms, createRealmIdentityKey, normalizeRealmSlug, realmNameToSlugCandidate } from "../src/utils/realm";
+import { areEquivalentRealms, createRealmIdentityKey, normalizeRealmSlug, realmNameToSlugCandidate, toBlizzardRealmSlug } from "../src/utils/realm";
 
 test("matches Warcraft Logs realm display names to Blizzard-style slugs", () => {
   const aliases = [
@@ -28,4 +28,11 @@ test("creates a clean fallback slug without treating it as authoritative", () =>
   assert.equal(realmNameToSlugCandidate("Blade's Edge"), "blades-edge");
   assert.equal(realmNameToSlugCandidate("Aggra (Português)"), "aggra-português");
   assert.equal(realmNameToSlugCandidate("Azjol-Nerub"), "azjol-nerub");
+});
+
+test("converts WCL realm values to Blizzard's ASCII profile slug", () => {
+  assert.equal(toBlizzardRealmSlug("Tarren Mill"), "tarren-mill");
+  assert.equal(toBlizzardRealmSlug("Lightning's Blade"), "lightnings-blade");
+  assert.equal(toBlizzardRealmSlug("Aggra (Português)"), "aggra-portugues");
+  assert.equal(toBlizzardRealmSlug("Pozzo dell'Eternità"), "pozzo-delleternita");
 });

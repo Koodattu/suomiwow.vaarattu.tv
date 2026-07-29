@@ -1,4 +1,5 @@
 const APOSTROPHE_LIKE_CHARACTERS = /['’‘ʼ＇]/gu;
+const ASCII_REALM_SLUG = /^[a-z0-9-]+$/u;
 
 /**
  * Normalize a realm value that is already an authoritative API slug.
@@ -16,6 +17,22 @@ export function realmNameToSlugCandidate(value: string): string {
   return normalizeRealmSlug(value)
     .replace(APOSTROPHE_LIKE_CHARACTERS, "")
     .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Convert a non-authoritative WCL realm value into the ASCII slug accepted by
+ * Blizzard profile endpoints. Already-authoritative ASCII slugs are preserved.
+ */
+export function toBlizzardRealmSlug(value: string): string {
+  const normalized = normalizeRealmSlug(value);
+  if (ASCII_REALM_SLUG.test(normalized)) return normalized;
+
+  return normalized
+    .normalize("NFKD")
+    .replace(/\p{M}+/gu, "")
+    .replace(APOSTROPHE_LIKE_CHARACTERS, "")
+    .replace(/[^a-z0-9]+/gu, "-")
     .replace(/^-+|-+$/g, "");
 }
 

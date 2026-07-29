@@ -2,6 +2,7 @@ export type CharacterIdentity = {
   name: string;
   realm: string;
   region: string;
+  identityObservedAt?: Date | string | null;
   blizzardIdentityOverride?: {
     name: string;
     realm: string;
@@ -23,7 +24,7 @@ export function isBlizzardIdentityOverrideActive(character: CharacterIdentity, l
   const override = character.blizzardIdentityOverride;
   if (!override) return false;
 
-  const observedAt = timestamp(latestObservedIdentity?.observedAt);
+  const observedAt = Math.max(timestamp(character.identityObservedAt) ?? 0, timestamp(latestObservedIdentity?.observedAt) ?? 0) || null;
   if (observedAt === null) return true;
 
   const overrideAt = timestamp(override.updatedAt);
@@ -43,7 +44,9 @@ export function resolveBlizzardCharacterIdentity(
     };
   }
 
-  if (latestObservedIdentity) {
+  const canonicalObservedAt = timestamp(character.identityObservedAt);
+  const participationObservedAt = timestamp(latestObservedIdentity?.observedAt);
+  if (latestObservedIdentity && (canonicalObservedAt === null || (participationObservedAt ?? 0) > canonicalObservedAt)) {
     return {
       name: latestObservedIdentity.name,
       realm: latestObservedIdentity.realm,

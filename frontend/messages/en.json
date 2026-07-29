@@ -187,7 +187,7 @@
     "leaderboard": {
       "eyebrow": "Collectors' hall",
       "title": "Collection leaderboard",
-      "body": "Ranked by unique cards, rarity, finishes, and collection milestones. Duplicate copies do not add points.",
+      "body": "See how your collection stacks up.",
       "updated": "Scores updated {time}",
       "updating": "Scores refresh hourly",
       "loginTitle": "Join the leaderboard",
@@ -213,9 +213,14 @@
       },
       "showcase": {
         "title": "Favorite cards",
-        "body": "Choose up to three owned cards from the card viewer to show beside your name.",
+        "body": "Choose up to three cards to show off. Tap a favorite to inspect it.",
         "empty": "No favorite selected",
+        "openCollector": "View {name}'s favorite cards",
+        "collectorTitle": "{name}'s favorite cards",
+        "closeCollector": "Close favorite cards",
         "choose": "Choose from collection",
+        "favorite": "Favorite",
+        "unfavorite": "Unfavorite",
         "add": "Add to favorites",
         "remove": "Remove favorite",
         "full": "Favorites full",
@@ -223,15 +228,14 @@
         "error": "Could not save"
       },
       "scoring": {
+        "open": "How scoring works",
+        "close": "Close scoring details",
         "title": "How collection score works",
-        "body": "The score rewards breadth first, then rarity and difficult finish milestones.",
         "base": "+{points} for each unique card",
         "rarity": "+{min}–{max} from its rarest unlocked snapshot",
         "finishes": "+{min}–{max} for each distinct premium finish",
         "cardCompletion": "+{points} for finding every obtainable finish on one card",
-        "setCompletion": "+{points} per card when an entire set is complete",
-        "luckTitle": "Why there is no luck score",
-        "luckBody": "The current opening history stores final results, not the pre-protection roll needed to compare luck fairly. Collection score stays auditable instead of guessing."
+        "setCompletion": "+{points} per card when an entire set is complete"
       }
     },
     "redeem": {

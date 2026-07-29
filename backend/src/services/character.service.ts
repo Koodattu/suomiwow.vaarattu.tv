@@ -28,6 +28,7 @@ import { resolveRole, slugifySpecName } from "../utils/spec";
 import cacheService from "./cache.service";
 import characterMediaService from "./character-media.service";
 import characterContinuityService from "./character-continuity.service";
+import { updateCharacterIdentityFromObservation } from "./character-observed-identity.service";
 import { getPrimaryCharacterRaidGuilds } from "./character-raid-guild.service";
 import mythicPlusService, { CharacterMythicPlusProfileResponse } from "./mythic-plus.service";
 import rateLimitService from "./rate-limit.service";
@@ -648,7 +649,7 @@ class CharacterService {
     canonicalIds: number[];
     isCombined: boolean;
     requestedCharacterId: string | null;
-    rootCharacter: (Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "blizzardIdentityOverride"> & {
+    rootCharacter: (Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "identityObservedAt" | "blizzardIdentityOverride"> & {
       _id: mongoose.Types.ObjectId;
     }) | null;
   }> {
@@ -658,10 +659,10 @@ class CharacterService {
       wclCanonicalCharacterId: { $in: canonicalIds },
       classID,
     })
-      .select("wclCanonicalCharacterId name realm region classID blizzardIdentityOverride")
+      .select("wclCanonicalCharacterId name realm region classID identityObservedAt blizzardIdentityOverride")
       .lean<
         Array<
-          Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "blizzardIdentityOverride"> & {
+          Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "identityObservedAt" | "blizzardIdentityOverride"> & {
             _id: mongoose.Types.ObjectId;
           }
         >
@@ -681,10 +682,10 @@ class CharacterService {
       ...new Set(matchedCharacters.flatMap((character) => graph.getMemberIds(character._id))),
     ];
     const clusterCharacters = await Character.find({ _id: { $in: memberCharacterIds }, classID })
-      .select("wclCanonicalCharacterId name realm region classID blizzardIdentityOverride")
+      .select("wclCanonicalCharacterId name realm region classID identityObservedAt blizzardIdentityOverride")
       .lean<
         Array<
-          Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "blizzardIdentityOverride"> & {
+          Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "identityObservedAt" | "blizzardIdentityOverride"> & {
             _id: mongoose.Types.ObjectId;
           }
         >
@@ -891,15 +892,12 @@ class CharacterService {
 
     await this.ensureCharacterIdentityIndexes();
 
-    // Atomic upsert: core fields always updated via $set,
-    // guild fields set only on insert via $setOnInsert (existing chars handled separately)
+    // Keep identity writes monotonic. Historical report processing can arrive out of order,
+    // so only the newest observation may replace the stored name and realm.
     const character = await Character.findOneAndUpdate(
       { wclCanonicalCharacterId: canonicalID, classID },
       {
         $set: {
-          name,
-          realm: serverSlug,
-          region: serverRegion,
           classID,
           wclProfileHidden: hidden,
           lastMythicSeenAt: now,
@@ -908,6 +906,10 @@ class CharacterService {
         },
         $setOnInsert: {
           wclCanonicalCharacterId: canonicalID,
+          name,
+          realm: serverSlug,
+          region: serverRegion,
+          identityObservedAt: now,
           guildName,
           guildRealm,
           guildUpdatedAt: now,
@@ -918,6 +920,12 @@ class CharacterService {
     );
 
     if (!character) return;
+
+    await updateCharacterIdentityFromObservation(
+      character._id as mongoose.Types.ObjectId,
+      { name, realm: serverSlug, region: serverRegion },
+      now,
+    );
 
     // For newly-inserted documents, $setOnInsert already set guild fields — skip further work.
     // Detect insert: guildHistory was set by $setOnInsert, so if it exists and updatedAt ≈ now,
@@ -983,9 +991,6 @@ class CharacterService {
         { wclCanonicalCharacterId: canonicalID, classID },
         {
           $set: {
-            name,
-            realm,
-            region,
             classID,
             wclProfileHidden: rankedCharacter.hidden === true,
           },
@@ -997,6 +1002,10 @@ class CharacterService {
           },
           $setOnInsert: {
             wclCanonicalCharacterId: canonicalID,
+            name,
+            realm,
+            region,
+            identityObservedAt: reportSeenAt,
             guildName: null,
             guildRealm: null,
             guildUpdatedAt: null,
@@ -1013,6 +1022,12 @@ class CharacterService {
         skipped += 1;
         continue;
       }
+
+      await updateCharacterIdentityFromObservation(
+        character._id as mongoose.Types.ObjectId,
+        { name, realm, region },
+        reportSeenAt,
+      );
 
       const wclGuilds = (rankedCharacter.guilds || [])
         .map((guild) => ({
@@ -1159,9 +1174,6 @@ class CharacterService {
       { wclCanonicalCharacterId: params.canonicalID, classID: params.classID },
       {
         $set: {
-          name: params.name,
-          realm: params.realm,
-          region: params.region,
           classID: params.classID,
           wclProfileHidden: false,
         },
@@ -1173,6 +1185,10 @@ class CharacterService {
         },
         $setOnInsert: {
           wclCanonicalCharacterId: params.canonicalID,
+          name: params.name,
+          realm: params.realm,
+          region: params.region,
+          identityObservedAt: params.reportSeenAt,
           guildName: null,
           guildRealm: null,
           guildUpdatedAt: null,
@@ -1187,12 +1203,18 @@ class CharacterService {
 
     if (!character) return null;
 
+    await updateCharacterIdentityFromObservation(
+      character._id as mongoose.Types.ObjectId,
+      { name: params.name, realm: params.realm, region: params.region },
+      params.reportSeenAt,
+    );
+
     return {
       characterId: character._id as mongoose.Types.ObjectId,
       wclCanonicalCharacterId: params.canonicalID,
-      name: character.name,
-      realm: character.realm,
-      region: character.region,
+      name: params.name,
+      realm: params.realm,
+      region: params.region,
     };
   }
 
@@ -1582,6 +1604,7 @@ class CharacterService {
             guildUpdatedAt: row.lastReportSeenAt,
             firstReportSeenAt: row.firstReportSeenAt,
             lastReportSeenAt: row.lastReportSeenAt,
+            identityObservedAt: row.lastReportSeenAt,
             guildHistory,
           },
           $setOnInsert: {
@@ -2768,7 +2791,7 @@ class CharacterService {
     let continuityActive = false;
     let continuityRequestedCharacterId: string | null = null;
     let continuityRootCharacter:
-      | (Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "blizzardIdentityOverride"> & {
+      | (Pick<ICharacter, "wclCanonicalCharacterId" | "name" | "realm" | "region" | "classID" | "identityObservedAt" | "blizzardIdentityOverride"> & {
           _id: mongoose.Types.ObjectId;
         })
       | null = null;
@@ -2839,7 +2862,7 @@ class CharacterService {
           ...(classId ? { classID: classId } : {}),
         })
           .collation(CASE_INSENSITIVE_COLLATION)
-          .select("wclCanonicalCharacterId name realm region classID blizzardIdentityOverride")
+          .select("wclCanonicalCharacterId name realm region classID identityObservedAt blizzardIdentityOverride")
           .lean());
 
       if (!fallbackCharacter) return null;
@@ -2968,6 +2991,7 @@ class CharacterService {
       name: string;
       realm: string;
       region: string;
+      identityObservedAt?: Date | null;
       blizzardIdentityOverride?: { name: string; realm: string; updatedAt: Date } | null;
     } | null = continuityRootCharacter
       ? {
@@ -2975,6 +2999,7 @@ class CharacterService {
           name: continuityRootCharacter.name,
           realm: continuityRootCharacter.realm,
           region: continuityRootCharacter.region,
+          identityObservedAt: continuityRootCharacter.identityObservedAt,
           blizzardIdentityOverride: continuityRootCharacter.blizzardIdentityOverride,
         }
       : null;
@@ -2986,12 +3011,13 @@ class CharacterService {
         classID: profileClassId,
       })
         .collation(CASE_INSENSITIVE_COLLATION)
-        .select("_id name realm region blizzardIdentityOverride")
+        .select("_id name realm region identityObservedAt blizzardIdentityOverride")
         .lean<{
           _id: mongoose.Types.ObjectId;
           name: string;
           realm: string;
           region: string;
+          identityObservedAt?: Date | null;
           blizzardIdentityOverride?: { name: string; realm: string; updatedAt: Date } | null;
         }>();
 
@@ -3001,12 +3027,13 @@ class CharacterService {
           classID: profileClassId,
         })
           .sort({ lastMythicSeenAt: -1 })
-          .select("_id name realm region blizzardIdentityOverride")
+          .select("_id name realm region identityObservedAt blizzardIdentityOverride")
           .lean<{
             _id: mongoose.Types.ObjectId;
             name: string;
             realm: string;
             region: string;
+            identityObservedAt?: Date | null;
             blizzardIdentityOverride?: { name: string; realm: string; updatedAt: Date } | null;
           }>();
       }

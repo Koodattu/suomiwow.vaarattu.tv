@@ -144,6 +144,7 @@ export default function CardViewer({
     .sort((left, right) => compareCcgFinish(left.finish, right.finish, displayedCard.set.kind, displayedCard.set.customFinish?.key));
   const isOwned = ownership.length > 0;
   const isDisplayedFinishOwned = ownership.some((row) => row.finish === finish && row.artVariant === artVariant);
+  const showsDefaultActions = footerAction === undefined || footerAction === null;
   const characterHref = `/characters/${encodeURIComponent(displayedCard.realm)}/${encodeURIComponent(displayedCard.name)}?class=${encodeURIComponent(String(displayedCard.classID))}`;
   const selectVariant = (index: number) => {
     const variant = variants[index];
@@ -369,7 +370,12 @@ export default function CardViewer({
         </div>
 
         <div className={styles.viewerInfo}>
-          <div className={styles.viewerSet} style={{ color: displayedCard.set.theme.accent }}>{displayedCard.set.raidName}</div>
+          <div className={styles.viewerSetRow}>
+            <div className={styles.viewerSet} style={{ color: displayedCard.set.theme.accent }}>{displayedCard.set.raidName}</div>
+            {showsDefaultActions && isDisplayedFinishOwned ? (
+              <CcgShowcaseButton cardId={displayedCard.id} finish={finish} artVariant={artVariant} />
+            ) : null}
+          </div>
           <h2>{displayedCard.name}</h2>
           {displayedCard.guildName ? <p className={styles.viewerIdentity}>{`<${displayedCard.guildName}>`}</p> : null}
 
@@ -496,16 +502,15 @@ export default function CardViewer({
             </div>
             <div>
               {footerAction ?? (isDisplayedFinishOwned ? (
-                <div className={styles.viewerActionButtons}>
-                  <CcgShowcaseButton cardId={displayedCard.id} finish={finish} artVariant={artVariant} />
-                  {canShare ? (
+                canShare ? (
+                  <div className={styles.viewerActionButtons}>
                     <CcgShareButton
                       key={`${displayedCard.id}:${finish}:${artVariant}`}
                       target={{ kind: "card", cardId: displayedCard.id, finish, artVariant }}
                       loginRequired={!user}
                     />
-                  ) : null}
-                </div>
+                  </div>
+                ) : null
               ) : null)}
             </div>
           </div>

@@ -1677,8 +1677,7 @@
 
 .leaderboardLogin h2,
 .leaderboardMe h2,
-.leaderboardSectionHeading h2,
-.leaderboardScoring h2 {
+.leaderboardSectionHeading h2 {
   margin-top: 0.25rem;
   font-size: clamp(1.35rem, 2.3vw, 2rem);
   font-weight: 790;
@@ -1688,21 +1687,24 @@
 
 .leaderboardLogin p,
 .leaderboardMe p,
-.leaderboardSectionHeading p,
-.leaderboardScoring p {
+.leaderboardSectionHeading p {
   color: #9eadc4;
   line-height: 1.55;
   text-wrap: pretty;
 }
 
 .leaderboardMe {
-  grid-template-columns: minmax(16rem, 0.72fr) minmax(0, 1.28fr);
+  grid-template-columns: minmax(16rem, 0.52fr) minmax(0, 1.48fr);
+  column-gap: clamp(1.5rem, 3vw, 2.75rem);
 }
 
 .leaderboardMeStanding {
+  display: grid;
   align-self: stretch;
+  align-content: center;
+  min-width: 0;
   border-right: 1px solid rgba(144, 178, 236, 0.14);
-  padding-right: 1.5rem;
+  padding-right: clamp(1.25rem, 2.5vw, 2.25rem);
 }
 
 .leaderboardMeStanding > strong {
@@ -1717,7 +1719,14 @@
   display: grid;
   min-width: 0;
   align-items: center;
-  grid-template-columns: minmax(10rem, 1fr) minmax(18rem, 1.25fr) auto;
+  grid-template-columns: minmax(11rem, 0.48fr) minmax(0, 1.52fr);
+  gap: clamp(1.25rem, 2.5vw, 2.25rem);
+}
+
+.leaderboardMeShowcaseIntro {
+  display: grid;
+  align-content: center;
+  justify-items: start;
   gap: 1rem;
 }
 
@@ -1731,10 +1740,8 @@
   font-size: 0.82rem;
 }
 
-.leaderboardSaveError {
-  grid-column: 1 / -1;
-  color: #ff9d9d !important;
-  text-align: right;
+.leaderboardMeShowcaseIntro .secondaryButton {
+  width: fit-content;
 }
 
 .leaderboardBoard {
@@ -1775,6 +1782,18 @@
   box-shadow: 0 24px 60px rgba(88, 59, 10, 0.22), inset 0 1px rgba(255, 238, 168, 0.09);
 }
 
+.leaderboardPodiumCard[data-rank="2"] {
+  border-color: rgba(205, 221, 239, 0.4);
+  background: linear-gradient(150deg, rgba(54, 66, 82, 0.78), rgba(8, 13, 27, 0.98) 58%);
+  box-shadow: 0 24px 60px rgba(132, 151, 176, 0.16), inset 0 1px rgba(242, 248, 255, 0.09);
+}
+
+.leaderboardPodiumCard[data-rank="3"] {
+  border-color: rgba(219, 151, 94, 0.42);
+  background: linear-gradient(150deg, rgba(70, 43, 27, 0.78), rgba(8, 13, 27, 0.98) 58%);
+  box-shadow: 0 24px 60px rgba(133, 67, 24, 0.2), inset 0 1px rgba(255, 202, 156, 0.08);
+}
+
 .leaderboardCollectorHeader {
   display: grid;
   min-width: 0;
@@ -1785,23 +1804,33 @@
 
 .leaderboardRank {
   display: inline-flex;
-  min-width: 2.7rem;
-  min-height: 2.7rem;
   align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  border: 1px solid rgba(156, 183, 225, 0.18);
-  border-radius: 0.45rem;
-  background: rgba(7, 15, 31, 0.82);
+  justify-content: flex-start;
+  gap: 0.3rem;
   color: #d9e5f7;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.leaderboardRank svg {
+  display: block;
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: 0 0 auto;
 }
 
 .leaderboardPodiumCard[data-rank="1"] .leaderboardRank {
-  border-color: rgba(255, 218, 112, 0.32);
   color: #ffe28e;
+}
+
+.leaderboardPodiumCard[data-rank="2"] .leaderboardRank {
+  color: #dce9f6;
+}
+
+.leaderboardPodiumCard[data-rank="3"] .leaderboardRank {
+  color: #e9aa72;
 }
 
 .leaderboardAvatar {
@@ -1809,7 +1838,6 @@
   height: 2.65rem;
   flex: 0 0 auto;
   border-radius: 50%;
-  box-shadow: 0 0 0 1px #fff, 0 0 0 3px rgba(125, 220, 255, 0.18);
   object-fit: cover;
 }
 
@@ -1836,8 +1864,12 @@
   gap: 0.55rem;
 }
 
+.leaderboardShowcaseCardsPersonal {
+  width: 100%;
+  justify-self: stretch;
+}
+
 .leaderboardShowcaseSlot {
-  position: relative;
   min-width: 0;
 }
 
@@ -1868,7 +1900,6 @@
 }
 
 .leaderboardShowcaseCard:focus-visible,
-.leaderboardShowcaseRemove:focus-visible,
 .showcaseButton:focus-visible {
   outline: 2px solid #7ddcff;
   outline-offset: 3px;
@@ -1879,32 +1910,6 @@
   background: rgba(5, 12, 27, 0.48);
   color: rgba(167, 191, 226, 0.28);
   font-size: 1.35rem;
-}
-
-.leaderboardShowcaseRemove {
-  position: absolute;
-  z-index: 3;
-  top: -0.45rem;
-  right: -0.45rem;
-  display: grid;
-  width: 2.5rem;
-  height: 2.5rem;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
-  background: #17233a;
-  color: #f1f6ff;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.38);
-  cursor: pointer;
-  transition: background-color 140ms ease, transform 120ms ease;
-}
-
-.leaderboardShowcaseRemove:hover {
-  background: #a63f53;
-}
-
-.leaderboardShowcaseRemove:active {
-  transform: scale(0.96);
 }
 
 .leaderboardStats {
@@ -1952,19 +1957,31 @@
   min-width: 0;
   min-height: 4.4rem;
   align-items: center;
-  grid-template-columns: 3.3rem 2.65rem minmax(12rem, 1fr) auto 7rem;
+  grid-template-columns: 3.3rem 2.65rem minmax(10rem, 1fr) minmax(17rem, auto) 7rem;
   border-bottom: 1px solid rgba(144, 178, 236, 0.1);
   padding: 0.72rem 1rem;
   gap: 0.85rem;
+  cursor: pointer;
+  transition: background-color 140ms ease;
 }
 
 .leaderboardRow:last-child {
   border-bottom: 0;
 }
 
+.leaderboardRow:hover {
+  background: rgba(90, 139, 207, 0.075);
+}
+
+.leaderboardRow:focus-visible {
+  z-index: 1;
+  outline: 2px solid #7ddcff;
+  outline-offset: -2px;
+}
+
 .leaderboardRowRank,
 .leaderboardRowScore,
-.leaderboardRowCards {
+.leaderboardRowStats dd {
   font-variant-numeric: tabular-nums;
 }
 
@@ -1980,7 +1997,7 @@
 }
 
 .leaderboardRowIdentity strong,
-.leaderboardRowIdentity span {
+.leaderboardRowIdentity > span {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1991,10 +2008,92 @@
   font-size: 0.92rem;
 }
 
-.leaderboardRowIdentity span,
-.leaderboardRowCards {
-  color: #7f91aa;
-  font-size: 0.72rem;
+.leaderboardRowShowcase {
+  display: flex !important;
+  min-width: 0;
+  align-items: baseline;
+  overflow: hidden;
+  gap: 0.35rem;
+  margin-top: 0.12rem;
+}
+
+.leaderboardRowShowcaseItem {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: baseline;
+  gap: 0.28rem;
+  overflow: hidden;
+  font-size: 0.63rem;
+  font-weight: 680;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.leaderboardRowShowcaseSeparator {
+  flex: 0 0 auto;
+  margin-right: 0.07rem;
+  color: #50627d;
+}
+
+.leaderboardRowCardIdentity {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: baseline;
+}
+
+.leaderboardRowCardIdentity strong,
+.leaderboardRowCardIdentity span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaderboardRowCardIdentity strong {
+  flex: 0 1 auto;
+  font-size: inherit;
+}
+
+.leaderboardRowCardIdentity span {
+  flex: 0 1 auto;
+  color: #697c96;
+  font-weight: 590;
+}
+
+.leaderboardRowCardFinish,
+.leaderboardRowCardRarity {
+  flex: 0 0 auto;
+}
+
+.leaderboardRowStats {
+  display: grid;
+  min-width: 17rem;
+  grid-template-columns: repeat(3, minmax(4.5rem, 1fr));
+  margin: 0;
+  gap: clamp(0.7rem, 1.4vw, 1.35rem);
+}
+
+.leaderboardRowStats div {
+  min-width: 0;
+}
+
+.leaderboardRowStats dt {
+  overflow: hidden;
+  margin: 0;
+  color: #70839f;
+  font-size: 0.58rem;
+  letter-spacing: 0.035em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.leaderboardRowStats dd {
+  margin: 0.12rem 0 0;
+  color: #dce8f8;
+  font-size: 0.78rem;
+  font-weight: 740;
 }
 
 .leaderboardRowScore {
@@ -2040,54 +2139,147 @@
   color: #8fa0b9;
 }
 
-.leaderboardScoring {
-  display: grid;
-  grid-template-columns: minmax(14rem, 0.8fr) minmax(18rem, 1fr) minmax(14rem, 0.75fr);
-  align-items: start;
-  padding: clamp(1.2rem, 3vw, 2rem);
-  gap: 2rem;
+.leaderboardScoringLink {
+  position: relative;
+  margin-left: 0.3rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #8edfff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 680;
+  text-decoration: underline;
+  text-decoration-color: rgba(142, 223, 255, 0.48);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  transition: color 140ms ease, text-decoration-color 140ms ease;
 }
 
-.leaderboardScoring ul {
+.leaderboardScoringLink::after {
+  position: absolute;
+  inset: 50% -0.35rem auto;
+  height: 2.5rem;
+  content: "";
+  transform: translateY(-50%);
+}
+
+.leaderboardScoringLink:hover {
+  color: #c3efff;
+  text-decoration-color: currentColor;
+}
+
+.leaderboardScoringLink:focus-visible {
+  border-radius: 0.2rem;
+  outline: 2px solid #7ddcff;
+  outline-offset: 3px;
+}
+
+.leaderboardScoringDialogRoot {
+  position: relative;
+  z-index: 80;
+}
+
+.leaderboardScoringDialogBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 3, 10, 0.78);
+  backdrop-filter: blur(3px);
+  transition: opacity 160ms ease-out;
+}
+
+.leaderboardScoringDialogBackdrop[data-closed] {
+  opacity: 0;
+}
+
+.leaderboardScoringDialogFrame {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  overflow-y: auto;
+  place-items: center;
+  padding: 1rem;
+}
+
+.leaderboardScoringDialog {
+  display: grid;
+  width: min(100%, 31rem);
+  border-radius: 0.8rem;
+  background: linear-gradient(150deg, rgba(14, 27, 51, 0.99), rgba(4, 9, 20, 0.99));
+  box-shadow: 0 0 0 1px rgba(158, 190, 238, 0.2), 0 28px 80px rgba(0, 0, 0, 0.55), inset 0 1px rgba(255, 255, 255, 0.05);
+  padding: 1.15rem;
+  gap: 1rem;
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+}
+
+.leaderboardScoringDialog[data-closed] {
+  opacity: 0;
+  transform: translateY(0.5rem) scale(0.98);
+}
+
+.leaderboardScoringDialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.leaderboardScoringDialogTitle {
+  color: #f5f9ff;
+  font-size: 1.12rem;
+  font-weight: 780;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.leaderboardScoringDialogClose {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: #8fa1bb;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, transform 120ms ease;
+}
+
+.leaderboardScoringDialogClose:hover {
+  background: rgba(135, 167, 216, 0.12);
+  color: #f3f8ff;
+}
+
+.leaderboardScoringDialogClose:active {
+  transform: scale(0.96);
+}
+
+.leaderboardScoringDialogClose:focus-visible {
+  outline: 2px solid #7ddcff;
+  outline-offset: 2px;
+}
+
+.leaderboardScoringDialog ul {
   display: grid;
   list-style: none;
-  gap: 0.58rem;
+  margin: 0;
+  gap: 0.65rem;
 }
 
-.leaderboardScoring li {
-  position: relative;
-  border-bottom: 1px solid rgba(144, 178, 236, 0.1);
-  padding: 0 0 0.58rem 1.05rem;
-  color: #c5d1e4;
-  font-size: 0.84rem;
+.leaderboardScoringDialog li {
+  color: #c9d5e7;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  text-wrap: pretty;
 }
 
-.leaderboardScoring li::before {
-  position: absolute;
-  top: 0.52em;
-  left: 0;
-  width: 0.38rem;
-  height: 0.38rem;
-  border-radius: 50%;
-  background: #7ddcff;
-  box-shadow: 0 0 12px rgba(125, 220, 255, 0.5);
-  content: "";
+.leaderboardCollectorDialog {
+  width: min(100%, 54rem);
 }
 
-.leaderboardScoring aside {
-  border-left: 2px solid rgba(163, 126, 255, 0.5);
-  background: rgba(92, 61, 154, 0.08);
-  padding: 0.8rem 0.9rem;
-}
-
-.leaderboardScoring aside strong {
-  color: #d9c9ff;
-  font-size: 0.84rem;
-}
-
-.leaderboardScoring aside p {
-  margin-top: 0.35rem;
-  font-size: 0.78rem;
+.leaderboardCollectorDialog > .leaderboardShowcaseCards {
+  gap: 0.8rem;
 }
 
 .viewerActionButtons {
@@ -2097,20 +2289,60 @@
   gap: 0.35rem;
 }
 
-.secondaryButton.showcaseButton {
-  min-height: 2.5rem;
-  padding: 0.45rem 0.65rem;
-  font-size: 0.74rem;
-  white-space: nowrap;
+.showcaseButton {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  min-width: 8rem;
+  min-height: 1rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #71819a;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 720;
+  line-height: 1;
+  transition-property: color, transform;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
 }
 
-.secondaryButton.showcaseButton[aria-pressed="true"] svg {
+.showcaseButton::after {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 100%;
+  min-width: 8rem;
+  height: 2.5rem;
+  content: "";
+  transform: translateY(-50%);
+}
+
+.showcaseButton:hover:not(:disabled),
+.showcaseButton[aria-pressed="true"] {
   color: #ffe28e;
 }
 
-@media (max-width: 1050px) {
-  .leaderboardMe,
-  .leaderboardScoring {
+.showcaseButton:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.showcaseButton:disabled {
+  cursor: default;
+}
+
+.showcaseButton[data-pending="true"] {
+  cursor: wait;
+}
+
+@media (max-width: 900px) {
+  .leaderboardMe {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -2118,15 +2350,6 @@
     border-right: 0;
     border-bottom: 1px solid rgba(144, 178, 236, 0.14);
     padding: 0 0 1.1rem;
-  }
-
-  .leaderboardMeShowcase {
-    grid-template-columns: minmax(10rem, 1fr) minmax(18rem, 1.2fr) auto;
-  }
-
-  .leaderboardScoring aside {
-    border-top: 1px solid rgba(163, 126, 255, 0.25);
-    border-left: 0;
   }
 }
 
@@ -2155,8 +2378,22 @@
     grid-template-columns: 2.7rem 2.65rem minmax(0, 1fr) 5.5rem;
   }
 
-  .leaderboardRowCards {
-    display: none;
+  .leaderboardRowStats {
+    width: 100%;
+    min-width: 0;
+    grid-row: 2;
+    grid-column: 3 / 5;
+    padding-top: 0.2rem;
+  }
+
+  .leaderboardRowScore {
+    grid-row: 1;
+    grid-column: 4;
+  }
+
+  .leaderboardRowShowcase {
+    flex-wrap: wrap;
+    white-space: normal;
   }
 }
 
@@ -2180,7 +2417,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .leaderboardMeShowcase .secondaryButton {
+  .leaderboardMeShowcaseIntro .secondaryButton {
     width: 100%;
   }
 
@@ -2195,7 +2432,13 @@
     gap: 0.5rem;
   }
 
-  .leaderboardRowIdentity span {
+  .leaderboardRowStats {
+    grid-template-columns: repeat(2, minmax(0, 6rem));
+    justify-content: start;
+    gap: 1rem;
+  }
+
+  .leaderboardRowStats [data-stat="cards"] {
     display: none;
   }
 
@@ -2213,7 +2456,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .leaderboardShowcaseCard,
-  .leaderboardShowcaseRemove,
+  .leaderboardScoringDialog,
+  .leaderboardScoringDialogBackdrop,
   .leaderboardLoading span {
     animation: none;
     transition-duration: 1ms;
@@ -5339,6 +5583,10 @@
   font-size: 0.75rem;
   font-weight: 720;
   letter-spacing: 0.04em;
+}
+
+.viewerSetRow {
+  position: relative;
 }
 
 .shareButton {

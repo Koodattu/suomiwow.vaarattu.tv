@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { FaCrown, FaTrophy, FaXmark } from "react-icons/fa6";
-import type { CcgLeaderboardEntry, CcgLeaderboardShowcaseCard, CcgShowcaseCardInput } from "@/types";
+import type { CcgLeaderboardEntry, CcgLeaderboardShowcaseCard } from "@/types";
 import { useAuth } from "@/context/AuthContext";
-import { api } from "@/lib/api";
-import { queryKeys, useCcgLeaderboard, useCcgLeaderboardMe } from "@/lib/queries";
+import { CCG_CLASS_COLORS, CCG_FINISH_COLORS, CCG_RARITY_COLORS, CCG_RARITY_KEYS } from "@/lib/ccg";
+import { useCcgLeaderboard, useCcgLeaderboardMe } from "@/lib/queries";
+import { formatRealmName } from "@/lib/utils";
 import CcgShell from "@/components/ccg/CcgShell";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
@@ -17,40 +18,27 @@ import styles from "@/components/ccg/ccg.module.css";
 
 function ShowcaseCards({
   cards,
-  onInspect,
-  onRemove,
+  onSelect,
   emptyLabel,
-  removeLabel,
+  personal = false,
 }: {
   cards: CcgLeaderboardShowcaseCard[];
-  onInspect: (item: CcgLeaderboardShowcaseCard) => void;
-  onRemove?: (item: CcgLeaderboardShowcaseCard) => void;
+  onSelect: (item: CcgLeaderboardShowcaseCard) => void;
   emptyLabel?: string;
-  removeLabel?: string;
+  personal?: boolean;
 }) {
   return (
-    <div className={styles.leaderboardShowcaseCards}>
+    <div className={`${styles.leaderboardShowcaseCards} ${personal ? styles.leaderboardShowcaseCardsPersonal : ""}`}>
       {cards.map((item) => (
         <div className={styles.leaderboardShowcaseSlot} key={item.card.id}>
           <button
             type="button"
             className={styles.leaderboardShowcaseCard}
-            onClick={() => onInspect(item)}
+            onClick={() => onSelect(item)}
             aria-label={item.card.name}
           >
             <CollectibleCard card={item.card} finish={item.finish} artVariant={item.artVariant} compact hideBadges />
           </button>
-          {onRemove ? (
-            <button
-              type="button"
-              className={styles.leaderboardShowcaseRemove}
-              onClick={() => onRemove(item)}
-              aria-label={`${removeLabel ?? "Remove"}: ${item.card.name}`}
-              title={removeLabel}
-            >
-              <FaXmark aria-hidden="true" />
-            </button>
-          ) : null}
         </div>
       ))}
       {Array.from({ length: Math.max(0, 3 - cards.length) }, (_, index) => (
@@ -72,21 +60,40 @@ function CollectorStats({ entry, t }: { entry: CcgLeaderboardEntry; t: ReturnTyp
   );
 }
 
+function ShowcaseSummary({ cards }: { cards: CcgLeaderboardShowcaseCard[] }) {
+  const tCcg = useTranslations("ccg");
+
+  if (cards.length === 0) return null;
+  return (
+    <span className={styles.leaderboardRowShowcase}>
+      {cards.map((item, index) => (
+        <span className={styles.leaderboardRowShowcaseItem} key={item.card.id}>
+          {index > 0 ? <span className={styles.leaderboardRowShowcaseSeparator} aria-hidden="true">•</span> : null}
+          <span className={styles.leaderboardRowCardIdentity}>
+            <strong style={{ color: CCG_CLASS_COLORS[item.card.classID] ?? "#fff" }}>{item.card.name}</strong>
+            <span>-{formatRealmName(item.card.realm)}</span>
+          </span>
+          <span className={styles.leaderboardRowCardFinish} style={{ color: CCG_FINISH_COLORS[item.finish] }}>
+            {tCcg(`finish.${item.finish}`)}
+          </span>
+          <span className={styles.leaderboardRowCardRarity} style={{ color: CCG_RARITY_COLORS[item.card.tierGrade] }}>
+            {tCcg(`rarity.${CCG_RARITY_KEYS[item.card.tierGrade]}`)}
+          </span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export default function CcgLeaderboardPage() {
   const t = useTranslations("ccg.leaderboard");
   const locale = useLocale();
   const { user, isLoading: authLoading, login } = useAuth();
-  const queryClient = useQueryClient();
   const leaderboardQuery = useCcgLeaderboard();
   const meQuery = useCcgLeaderboardMe(Boolean(user));
   const [viewerItem, setViewerItem] = useState<CcgLeaderboardShowcaseCard | null>(null);
-  const saveShowcase = useMutation({
-    mutationFn: (cards: CcgShowcaseCardInput[]) => api.updateCcgShowcase(cards),
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.ccg.leaderboardMe, data);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.ccg.leaderboard });
-    },
-  });
+  const [selectedCollector, setSelectedCollector] = useState<CcgLeaderboardEntry | null>(null);
+  const [scoringOpen, setScoringOpen] = useState(false);
   const entries = leaderboardQuery.data?.entries ?? [];
   const topCollectors = entries.slice(0, 3);
   const remainingCollectors = entries.slice(3);
@@ -98,10 +105,9 @@ export default function CcgLeaderboardPage() {
     : null;
 
   const inspect = (item: CcgLeaderboardShowcaseCard) => setViewerItem(item);
-  const removeFavorite = (item: CcgLeaderboardShowcaseCard) => {
-    saveShowcase.mutate(myShowcase
-      .filter((favorite) => favorite.card.id !== item.card.id)
-      .map((favorite) => ({ cardId: favorite.card.id, finish: favorite.finish, artVariant: favorite.artVariant })));
+  const inspectCollectorCard = (item: CcgLeaderboardShowcaseCard) => {
+    setSelectedCollector(null);
+    setViewerItem(item);
   };
 
   return (
@@ -146,19 +152,19 @@ export default function CcgLeaderboardPage() {
               )}
             </div>
             <div className={styles.leaderboardMeShowcase}>
-              <div>
-                <h3>{t("showcase.title")}</h3>
-                <p>{t("showcase.body")}</p>
+              <div className={styles.leaderboardMeShowcaseIntro}>
+                <div>
+                  <h3>{t("showcase.title")}</h3>
+                  <p>{t("showcase.body")}</p>
+                </div>
+                <Link href="/ccg/collection" className={styles.secondaryButton}>{t("showcase.choose")}</Link>
               </div>
               <ShowcaseCards
                 cards={myShowcase}
-                onInspect={inspect}
-                onRemove={saveShowcase.isPending ? undefined : removeFavorite}
+                onSelect={inspect}
                 emptyLabel={t("showcase.empty")}
-                removeLabel={t("showcase.remove")}
+                personal
               />
-              <Link href="/ccg/collection" className={styles.secondaryButton}>{t("showcase.choose")}</Link>
-              {saveShowcase.isError ? <p className={styles.leaderboardSaveError}>{t("showcase.error")}</p> : null}
             </div>
           </section>
         ) : null}
@@ -169,7 +175,14 @@ export default function CcgLeaderboardPage() {
               <span className={styles.eyebrow}>{t("eyebrow")}</span>
               <h2>{t("rankingTitle")}</h2>
             </div>
-            <p>{t("rankingBody")}</p>
+            <p>
+              {t("rankingBody")}{" "}
+              {leaderboardQuery.data ? (
+                <button type="button" className={styles.leaderboardScoringLink} onClick={() => setScoringOpen(true)}>
+                  {t("scoring.open")}
+                </button>
+              ) : null}
+            </p>
           </div>
 
           {leaderboardQuery.isError ? (
@@ -200,7 +213,7 @@ export default function CcgLeaderboardPage() {
                         <strong>{t("points", { score: numberFormatter.format(entry.score) })}</strong>
                       </div>
                     </div>
-                    <ShowcaseCards cards={entry.showcase} onInspect={inspect} emptyLabel={t("showcase.empty")} />
+                    <ShowcaseCards cards={entry.showcase} onSelect={inspect} emptyLabel={t("showcase.empty")} />
                     <CollectorStats entry={entry} t={t} />
                   </article>
                 ))}
@@ -209,14 +222,39 @@ export default function CcgLeaderboardPage() {
               {remainingCollectors.length > 0 ? (
                 <ol className={styles.leaderboardRows} start={4}>
                   {remainingCollectors.map((entry) => (
-                    <li className={styles.leaderboardRow} key={entry.rank}>
+                    <li
+                      className={styles.leaderboardRow}
+                      key={entry.rank}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={t("showcase.openCollector", { name: entry.username })}
+                      onClick={() => setSelectedCollector(entry)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        setSelectedCollector(entry);
+                      }}
+                    >
                       <span className={styles.leaderboardRowRank}>#{entry.rank}</span>
                       <img src={entry.avatarUrl} alt="" className={styles.leaderboardAvatar} />
                       <div className={styles.leaderboardRowIdentity}>
                         <strong>{entry.username}</strong>
-                        <span>{entry.showcase.map((item) => item.card.name).join(" · ")}</span>
+                        <ShowcaseSummary cards={entry.showcase} />
                       </div>
-                      <span className={styles.leaderboardRowCards}>{numberFormatter.format(entry.cardsOwned)} {t("stats.cards")}</span>
+                      <dl className={styles.leaderboardRowStats}>
+                        <div data-stat="cards">
+                          <dt>{t("stats.cards")}</dt>
+                          <dd>{numberFormatter.format(entry.cardsOwned)}</dd>
+                        </div>
+                        <div>
+                          <dt>{t("stats.finishes")}</dt>
+                          <dd>{numberFormatter.format(entry.finishesOwned)}</dd>
+                        </div>
+                        <div>
+                          <dt>{t("stats.completedSets")}</dt>
+                          <dd>{numberFormatter.format(entry.completedSets)}</dd>
+                        </div>
+                      </dl>
                       <strong className={styles.leaderboardRowScore}>{numberFormatter.format(entry.score)}</strong>
                     </li>
                   ))}
@@ -226,32 +264,69 @@ export default function CcgLeaderboardPage() {
           )}
         </section>
 
-        {leaderboardQuery.data ? (
-          <section className={`${styles.panel} ${styles.leaderboardScoring}`}>
-            <div className={styles.leaderboardScoringIntro}>
-              <h2>{t("scoring.title")}</h2>
-              <p>{t("scoring.body")}</p>
-            </div>
-            <ul>
-              <li>{t("scoring.base", { points: leaderboardQuery.data.scoring.seriesBase })}</li>
-              <li>{t("scoring.rarity", {
-                min: Math.min(...Object.values(leaderboardQuery.data.scoring.grades)),
-                max: Math.max(...Object.values(leaderboardQuery.data.scoring.grades)),
-              })}</li>
-              <li>{t("scoring.finishes", {
-                min: Math.min(...Object.values(leaderboardQuery.data.scoring.finishes).filter((points) => points > 0)),
-                max: Math.max(...Object.values(leaderboardQuery.data.scoring.finishes)),
-              })}</li>
-              <li>{t("scoring.cardCompletion", { points: leaderboardQuery.data.scoring.allFinishesBonus })}</li>
-              <li>{t("scoring.setCompletion", { points: leaderboardQuery.data.scoring.completeSetPerCard })}</li>
-            </ul>
-            <aside>
-              <strong>{t("scoring.luckTitle")}</strong>
-              <p>{t("scoring.luckBody")}</p>
-            </aside>
-          </section>
-        ) : null}
       </div>
+
+      {leaderboardQuery.data ? (
+        <Dialog open={scoringOpen} onClose={setScoringOpen} className={styles.leaderboardScoringDialogRoot}>
+          <DialogBackdrop transition className={styles.leaderboardScoringDialogBackdrop} />
+          <div className={styles.leaderboardScoringDialogFrame}>
+            <DialogPanel transition className={styles.leaderboardScoringDialog}>
+              <div className={styles.leaderboardScoringDialogHeader}>
+                <DialogTitle className={styles.leaderboardScoringDialogTitle}>{t("scoring.title")}</DialogTitle>
+                <button
+                  type="button"
+                  className={styles.leaderboardScoringDialogClose}
+                  onClick={() => setScoringOpen(false)}
+                  aria-label={t("scoring.close")}
+                >
+                  <FaXmark aria-hidden="true" />
+                </button>
+              </div>
+              <ul>
+                <li>{t("scoring.base", { points: leaderboardQuery.data.scoring.seriesBase })}</li>
+                <li>{t("scoring.rarity", {
+                  min: Math.min(...Object.values(leaderboardQuery.data.scoring.grades)),
+                  max: Math.max(...Object.values(leaderboardQuery.data.scoring.grades)),
+                })}</li>
+                <li>{t("scoring.finishes", {
+                  min: Math.min(...Object.values(leaderboardQuery.data.scoring.finishes).filter((points) => points > 0)),
+                  max: Math.max(...Object.values(leaderboardQuery.data.scoring.finishes)),
+                })}</li>
+                <li>{t("scoring.cardCompletion", { points: leaderboardQuery.data.scoring.allFinishesBonus })}</li>
+                <li>{t("scoring.setCompletion", { points: leaderboardQuery.data.scoring.completeSetPerCard })}</li>
+              </ul>
+            </DialogPanel>
+          </div>
+        </Dialog>
+      ) : null}
+
+      <Dialog open={Boolean(selectedCollector)} onClose={() => setSelectedCollector(null)} className={styles.leaderboardScoringDialogRoot}>
+        <DialogBackdrop transition className={styles.leaderboardScoringDialogBackdrop} />
+        <div className={styles.leaderboardScoringDialogFrame}>
+          <DialogPanel transition className={`${styles.leaderboardScoringDialog} ${styles.leaderboardCollectorDialog}`}>
+            <div className={styles.leaderboardScoringDialogHeader}>
+              <DialogTitle className={styles.leaderboardScoringDialogTitle}>
+                {selectedCollector ? t("showcase.collectorTitle", { name: selectedCollector.username }) : ""}
+              </DialogTitle>
+              <button
+                type="button"
+                className={styles.leaderboardScoringDialogClose}
+                onClick={() => setSelectedCollector(null)}
+                aria-label={t("showcase.closeCollector")}
+              >
+                <FaXmark aria-hidden="true" />
+              </button>
+            </div>
+            {selectedCollector ? (
+              <ShowcaseCards
+                cards={selectedCollector.showcase}
+                onSelect={inspectCollectorCard}
+                emptyLabel={t("showcase.empty")}
+              />
+            ) : null}
+          </DialogPanel>
+        </div>
+      </Dialog>
 
       {viewerItem ? (
         <CardViewer

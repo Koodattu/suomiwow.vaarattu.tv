@@ -6,10 +6,12 @@ import CharacterMedia from "../src/models/CharacterMedia";
 import CharacterMediaFetchQueue from "../src/models/CharacterMediaFetchQueue";
 import CharacterRaidParticipation from "../src/models/CharacterRaidParticipation";
 import CharacterTierListEntry from "../src/models/CharacterTierListEntry";
+import CcgCard from "../src/models/CcgCard";
 import TaskLog from "../src/models/TaskLog";
 import {
   CharacterMediaService,
   getCharacterMediaFailureTransition,
+  syncCharacterCardsFromMedia,
 } from "../src/services/character-media.service";
 import { resolveBlizzardCharacterIdentity } from "../src/utils/character-identity";
 
@@ -18,6 +20,7 @@ type QueueRow = {
   name: string;
   realm: string;
   region: string;
+  identityObservedAt?: Date | null;
   blizzardIdentityOverride?: {
     name: string;
     realm: string;
@@ -282,7 +285,7 @@ test("requeues terminal queue entries with a fresh per-run attempt budget", asyn
 
     assert.equal(queued, 1);
     assert.equal(captured.operations?.[0].updateOne.update.$max.priority, 100);
-    assert.deepEqual(captured.filter?.status, { $in: ["completed", "failed", "not_found"] });
+    assert.deepEqual(captured.filter?.status, { $ne: "processing" });
     assert.equal(captured.update?.$set.status, "pending");
     assert.equal(captured.update?.$set.attempts, 0);
     assert.equal(captured.update?.$set.completedAt, null);
@@ -370,6 +373,78 @@ test("newer raid participation supersedes a manual Blizzard identity override", 
     }),
     { name: "Newraidname", realm: "New Raid Realm", region: "EU" },
   );
+});
+
+test("a newer canonical observation supersedes older raid participation", () => {
+  const character = {
+    name: "Currentname",
+    realm: "Current Realm",
+    region: "EU",
+    identityObservedAt: new Date("2026-07-22T12:00:00.000Z"),
+  };
+
+  assert.deepEqual(
+    resolveBlizzardCharacterIdentity(character, {
+      name: "Oldname",
+      realm: "Old Realm",
+      region: "EU",
+      observedAt: new Date("2026-07-21T12:00:00.000Z"),
+    }),
+    { name: "Currentname", realm: "Current Realm", region: "EU" },
+  );
+});
+
+test("a newer canonical observation also expires an older manual override", () => {
+  const character = {
+    name: "Currentname",
+    realm: "Current Realm",
+    region: "EU",
+    identityObservedAt: new Date("2026-07-22T12:00:00.000Z"),
+    blizzardIdentityOverride: {
+      name: "Manualname",
+      realm: "Manual Realm",
+      updatedAt: new Date("2026-07-21T18:00:00.000Z"),
+    },
+  };
+
+  assert.deepEqual(
+    resolveBlizzardCharacterIdentity(character, {
+      name: "Oldreportname",
+      realm: "Old Report Realm",
+      region: "EU",
+      observedAt: new Date("2026-07-21T12:00:00.000Z"),
+    }),
+    { name: "Currentname", realm: "Current Realm", region: "EU" },
+  );
+});
+
+test("propagates corrected character media to existing CCG cards", async () => {
+  const cardCollection = CcgCard.collection as any;
+  const originalUpdateMany = cardCollection.updateMany;
+  const characterId = new mongoose.Types.ObjectId();
+  let capturedFilter: Record<string, any> | undefined;
+  let capturedUpdate: Record<string, any> | undefined;
+
+  try {
+    cardCollection.updateMany = async (filter: Record<string, any>, update: Record<string, any>) => {
+      capturedFilter = filter;
+      capturedUpdate = update;
+      return { modifiedCount: 3 };
+    };
+
+    const modified = await syncCharacterCardsFromMedia(characterId, {
+      mainRawUrl: "https://example.test/current-main.jpg",
+      avatarUrl: "https://example.test/current-avatar.jpg",
+      fetchedAt: new Date("2026-07-29T12:00:00.000Z"),
+    });
+
+    assert.equal(modified, 3);
+    assert.equal(String(capturedFilter?.characterId), String(characterId));
+    assert.equal(capturedUpdate?.$set.renderUrl, "https://example.test/current-main.jpg");
+    assert.equal(capturedUpdate?.$set.avatarUrl, "https://example.test/current-avatar.jpg");
+  } finally {
+    cardCollection.updateMany = originalUpdateMany;
+  }
 });
 
 test("uses bounded retries followed by weekly transient and monthly not-found cooldowns", () => {

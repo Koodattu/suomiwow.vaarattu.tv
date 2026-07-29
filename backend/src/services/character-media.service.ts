@@ -10,11 +10,12 @@ import CharacterMedia from "../models/CharacterMedia";
 import CharacterMediaFetchQueue, { ICharacterMediaFetchQueue } from "../models/CharacterMediaFetchQueue";
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import CharacterTierListEntry from "../models/CharacterTierListEntry";
+import CcgCard from "../models/CcgCard";
 import CcgSet from "../models/CcgSet";
 import TaskLog from "../models/TaskLog";
 import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
 import logger from "../utils/logger";
-import { normalizeRealmSlug } from "../utils/realm";
+import { toBlizzardRealmSlug } from "../utils/realm";
 import cacheService from "./cache.service";
 import { getCharacterRaidParticipationSummaries } from "./character-raid-guild.service";
 
@@ -38,12 +39,92 @@ type CharacterMediaQueueRow = {
   name: string;
   realm: string;
   region: string;
+  identityObservedAt?: Date | null;
   blizzardIdentityOverride?: {
     name: string;
     realm: string;
     updatedAt: Date;
   } | null;
+  currentMediaName?: string | null;
+  currentMediaRealmSlug?: string | null;
+  currentMediaRegion?: string | null;
 };
+
+export type CharacterCardMediaSyncResult = {
+  candidates: number;
+  modified: number;
+};
+
+function normalizedIdentityPart(value: string | null | undefined): string {
+  return (value ?? "").trim().toLocaleLowerCase("en-US");
+}
+
+function mediaIdentityNeedsRefresh(row: CharacterMediaQueueRow): boolean {
+  return (
+    normalizedIdentityPart(row.name) !== normalizedIdentityPart(row.currentMediaName) ||
+    toBlizzardRealmSlug(row.realm) !== normalizedIdentityPart(row.currentMediaRealmSlug) ||
+    normalizedIdentityPart(row.region) !== normalizedIdentityPart(row.currentMediaRegion)
+  );
+}
+
+export async function syncCharacterCardsFromMedia(
+  characterId: mongoose.Types.ObjectId,
+  media: { avatarUrl?: string | null; mainRawUrl?: string | null; fetchedAt?: Date | null },
+): Promise<number> {
+  if (!media.mainRawUrl) return 0;
+  // Published score snapshots stay immutable; these three fields are derived media
+  // pointers and must follow a corrected Blizzard identity after a rename/transfer.
+  const result = await CcgCard.collection.updateMany(
+    {
+      characterId,
+      $or: [
+        { renderUrl: { $ne: media.mainRawUrl } },
+        { avatarUrl: { $ne: media.avatarUrl ?? null } },
+      ],
+    },
+    {
+      $set: {
+        renderUrl: media.mainRawUrl,
+        avatarUrl: media.avatarUrl ?? null,
+        mediaCapturedAt: media.fetchedAt ?? new Date(),
+      },
+    },
+  );
+  return result.modifiedCount;
+}
+
+export async function syncCardsFromCurrentMedia(characterIds: readonly mongoose.Types.ObjectId[]): Promise<CharacterCardMediaSyncResult> {
+  if (characterIds.length === 0) return { candidates: 0, modified: 0 };
+  const mediaRows = await CharacterMedia.find({
+    characterId: { $in: characterIds },
+    status: "available",
+    mainRawUrl: { $ne: null },
+  })
+    .select("characterId avatarUrl mainRawUrl fetchedAt")
+    .lean();
+  if (mediaRows.length === 0) return { candidates: 0, modified: 0 };
+
+  const operations = mediaRows.map((media) => ({
+    updateMany: {
+      filter: {
+        characterId: media.characterId,
+        $or: [
+          { renderUrl: { $ne: media.mainRawUrl } },
+          { avatarUrl: { $ne: media.avatarUrl ?? null } },
+        ],
+      },
+      update: {
+        $set: {
+          renderUrl: media.mainRawUrl,
+          avatarUrl: media.avatarUrl ?? null,
+          mediaCapturedAt: media.fetchedAt ?? new Date(),
+        },
+      },
+    },
+  }));
+  const result = await CcgCard.collection.bulkWrite(operations, { ordered: false });
+  return { candidates: mediaRows.length, modified: result.modifiedCount };
+}
 
 export type CharacterMediaFailureTransition = {
   queueStatus: "retry" | "failed" | "not_found";
@@ -119,7 +200,7 @@ export class CharacterMediaService {
 
   private async discoverMissing(): Promise<CharacterMediaDiscoveryResult> {
     const now = new Date();
-    const [dueCharacters, renamedCharacters, scanned] = await Promise.all([
+    const [dueCharacters, renamedCandidates, scanned] = await Promise.all([
       Character.aggregate<CharacterMediaQueueRow>([
         {
           $lookup: {
@@ -145,7 +226,7 @@ export class CharacterMediaService {
           },
         },
         { $sort: { updatedAt: -1 } },
-        { $project: { name: 1, realm: 1, region: 1, blizzardIdentityOverride: 1 } },
+        { $project: { name: 1, realm: 1, region: 1, identityObservedAt: 1, blizzardIdentityOverride: 1 } },
       ])
         .allowDiskUse(true)
         .option({ maxTimeMS: DISCOVERY_QUERY_MAX_TIME_MS })
@@ -184,6 +265,32 @@ export class CharacterMediaService {
         { $set: { latestIdentity: { $arrayElemAt: ["$latestIdentity", 0] } } },
         {
           $set: {
+            observedIdentity: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: [{ $ifNull: ["$latestIdentity", null] }, null] },
+                    {
+                      $or: [
+                        { $eq: [{ $ifNull: ["$character.identityObservedAt", null] }, null] },
+                        { $gt: ["$latestIdentity.observedAt", "$character.identityObservedAt"] },
+                      ],
+                    },
+                  ],
+                },
+                "$latestIdentity",
+                {
+                  name: "$character.name",
+                  realm: "$character.realm",
+                  region: "$character.region",
+                  observedAt: "$character.identityObservedAt",
+                },
+              ],
+            },
+          },
+        },
+        {
+          $set: {
             desiredIdentity: {
               $cond: [
                 {
@@ -191,8 +298,8 @@ export class CharacterMediaService {
                     { $ne: [{ $ifNull: ["$character.blizzardIdentityOverride", null] }, null] },
                     {
                       $or: [
-                        { $eq: [{ $ifNull: ["$latestIdentity", null] }, null] },
-                        { $gte: ["$character.blizzardIdentityOverride.updatedAt", "$latestIdentity.observedAt"] },
+                        { $eq: [{ $ifNull: ["$observedIdentity.observedAt", null] }, null] },
+                        { $gte: ["$character.blizzardIdentityOverride.updatedAt", "$observedIdentity.observedAt"] },
                       ],
                     },
                   ],
@@ -202,7 +309,7 @@ export class CharacterMediaService {
                   realm: "$character.blizzardIdentityOverride.realm",
                   region: "$character.region",
                 },
-                "$latestIdentity",
+                "$observedIdentity",
               ],
             },
           },
@@ -215,12 +322,7 @@ export class CharacterMediaService {
                 {
                   $or: [
                     { $ne: [{ $toLower: { $ifNull: ["$desiredIdentity.name", ""] } }, { $toLower: { $ifNull: ["$characterName", ""] } }] },
-                    {
-                      $and: [
-                        { $regexMatch: { input: { $ifNull: ["$desiredIdentity.realm", ""] }, regex: /^[a-z0-9-]+$/i } },
-                        { $ne: [{ $toLower: { $ifNull: ["$desiredIdentity.realm", ""] } }, { $toLower: { $ifNull: ["$realmSlug", ""] } }] },
-                      ],
-                    },
+                    { $ne: [{ $toLower: { $ifNull: ["$desiredIdentity.realm", ""] } }, { $toLower: { $ifNull: ["$realmSlug", ""] } }] },
                     { $ne: [{ $toLower: { $ifNull: ["$desiredIdentity.region", ""] } }, { $toLower: { $ifNull: ["$region", ""] } }] },
                   ],
                 },
@@ -235,6 +337,9 @@ export class CharacterMediaService {
             realm: "$desiredIdentity.realm",
             region: "$desiredIdentity.region",
             blizzardIdentityOverride: "$character.blizzardIdentityOverride",
+            currentMediaName: "$characterName",
+            currentMediaRealmSlug: "$realmSlug",
+            currentMediaRegion: "$region",
           },
         },
       ])
@@ -243,6 +348,8 @@ export class CharacterMediaService {
         .exec(),
       Character.countDocuments(),
     ]);
+
+    const renamedCharacters = renamedCandidates.filter(mediaIdentityNeedsRefresh);
 
     const discoveredByCharacterId = new Map(dueCharacters.map((character) => [String(character._id), character]));
     for (const character of renamedCharacters) {
@@ -326,19 +433,19 @@ export class CharacterMediaService {
     const existingMediaIds = new Set((await CharacterMedia.distinct("characterId", { characterId: { $in: characterIds } })).map(String));
     const missingIds = characterIds.filter((id) => !existingMediaIds.has(String(id)));
     const targetIds = [...staleMediaIds, ...missingIds];
-    const rows = await Character.find({ _id: { $in: targetIds } }).select("name realm region blizzardIdentityOverride").lean();
+    const rows = await Character.find({ _id: { $in: targetIds } }).select("name realm region identityObservedAt blizzardIdentityOverride").lean();
     return { candidates: rows.length, queued: await this.enqueueRows(rows, 100, true) };
   }
 
   async enqueueCharacter(characterId: string, priority = 50, force = false): Promise<void> {
-    const row = await Character.findById(characterId).select("name realm region blizzardIdentityOverride").lean();
+    const row = await Character.findById(characterId).select("name realm region identityObservedAt blizzardIdentityOverride").lean();
     if (row) await this.enqueueRows([row], priority, force);
   }
 
-  async enqueueCharacters(characterIds: mongoose.Types.ObjectId[], priority = 50): Promise<number> {
+  async enqueueCharacters(characterIds: mongoose.Types.ObjectId[], priority = 50, force = false): Promise<number> {
     if (characterIds.length === 0) return 0;
-    const rows = await Character.find({ _id: { $in: characterIds } }).select("name realm region blizzardIdentityOverride").lean();
-    return this.enqueueRows(rows, priority);
+    const rows = await Character.find({ _id: { $in: characterIds } }).select("name realm region identityObservedAt blizzardIdentityOverride").lean();
+    return this.enqueueRows(rows, priority, force);
   }
 
   private async enqueueRows(
@@ -360,7 +467,7 @@ export class CharacterMediaService {
             $set: {
               name: row.name,
               realm: row.realm,
-              realmSlug: normalizeRealmSlug(row.realm),
+              realmSlug: toBlizzardRealmSlug(row.realm),
               region: row.region.toLowerCase(),
             },
             $max: { priority },
@@ -381,7 +488,7 @@ export class CharacterMediaService {
 
       if (force) {
         const requeued = await CharacterMediaFetchQueue.updateMany(
-          { characterId: { $in: resolvedBatch.map((row) => row._id) }, status: { $in: ["completed", "failed", "not_found"] } },
+          { characterId: { $in: resolvedBatch.map((row) => row._id) }, status: { $ne: "processing" } },
           {
             $set: {
               status: "pending",
@@ -523,7 +630,7 @@ export class CharacterMediaService {
         return;
       }
 
-      await CharacterMedia.findOneAndUpdate(
+      const storedMedia = await CharacterMedia.findOneAndUpdate(
         { characterId: item.characterId },
         {
           $set: {
@@ -557,6 +664,12 @@ export class CharacterMediaService {
           },
         },
       );
+      try {
+        const syncedCards = storedMedia ? await syncCharacterCardsFromMedia(item.characterId, storedMedia) : 0;
+        if (syncedCards > 0) await cacheService.invalidatePattern(/^ccg:/);
+      } catch (error) {
+        logger.error(`[CharacterMedia] Failed to propagate refreshed media to cards for ${item.characterId}:`, error);
+      }
       await cacheService.invalidatePattern(
         new RegExp(`^characters:profile:v4:${escapeRegExp(item.realm.toLowerCase())}:${escapeRegExp(item.name.toLowerCase())}:`),
       );
