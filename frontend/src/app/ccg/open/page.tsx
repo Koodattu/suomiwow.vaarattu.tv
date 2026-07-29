@@ -509,12 +509,14 @@ export default function CcgOpenPage() {
         .join(". ") ?? "",
     [opening, revealedCards, t],
   );
-  const openingSet = opening?.results[0]?.card.set ?? opening?.sets[0] ?? featuredPackSet;
-  const openingTargetSet = opening?.targetSetId ? (opening.sets.find((set) => set.id === opening.targetSetId) ?? openingSet) : undefined;
+  const openingTargetSet = opening?.targetSetId
+    ? sets?.find((set) => set.id === opening.targetSetId) ?? opening.sets.find((set) => set.id === opening.targetSetId)
+    : undefined;
   const openingIsRandomLegacy = opening?.mode === "legacy" && !opening.targetSetId;
-  const openingPackName = opening?.mode === "legacy" ? (openingTargetSet?.raidName ?? t("open.legacyPackTitle")) : openingSet?.raidName;
+  const openingPackSet = opening?.mode === "legacy" ? openingTargetSet : currentSet;
+  const openingPackName = opening?.mode === "legacy" ? (openingTargetSet?.raidName ?? t("open.legacyPackTitle")) : poolTitle;
   const cardBackSetScale = Math.min(1.45, Math.max(0.78, 18 / (openingPackName?.trim().length || 18)));
-  const stageTheme = opening ? getPackTheme(opening.mode === "legacy" ? openingTargetSet : openingSet, openingIsRandomLegacy) : getPackTheme(featuredPackSet, randomLegacy);
+  const stageTheme = opening ? getPackTheme(openingPackSet, openingIsRandomLegacy) : getPackTheme(featuredPackSet, randomLegacy);
 
   const updatePackLight = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
