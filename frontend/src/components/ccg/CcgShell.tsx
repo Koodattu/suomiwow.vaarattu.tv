@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { FaArrowLeft } from "react-icons/fa6";
+import { FaArrowLeft, FaBoxOpen, FaLayerGroup, FaTrophy, FaVault } from "react-icons/fa6";
 import CcgAccountMenu from "./CcgAccountMenu";
 import CcgControls from "./CcgControls";
 import styles from "./ccg.module.css";
@@ -26,10 +26,10 @@ export default function CcgShell({
   const pathname = usePathname();
   const t = useTranslations("ccg");
   const links = [
-    { href: "/ccg", label: t("nav.home") },
-    { href: "/ccg/open", label: t("nav.open") },
-    { href: "/ccg/collection", label: t("nav.collection") },
-    { href: "/ccg/leaderboard", label: t("nav.leaderboard") },
+    { href: "/ccg", label: t("nav.home"), icon: FaVault },
+    { href: "/ccg/open", label: t("nav.open"), icon: FaBoxOpen },
+    { href: "/ccg/collection", label: t("nav.collection"), icon: FaLayerGroup },
+    { href: "/ccg/leaderboard", label: t("nav.leaderboard"), icon: FaTrophy },
   ];
 
   return (
@@ -56,6 +56,7 @@ export default function CcgShell({
           <nav className={styles.shellNav} aria-label={t("nav.label")}>
             {links.map((link) => {
               const active = link.href === "/ccg" ? pathname === link.href : pathname.startsWith(link.href);
+              const Icon = link.icon;
               return (
                 <Link
                   key={link.href}
@@ -64,7 +65,10 @@ export default function CcgShell({
                   aria-current={active ? "page" : undefined}
                   className={`${styles.subnavLink} ${active ? styles.subnavLinkActive : ""}`}
                 >
-                  {link.label}
+                  <span className={styles.subnavIcon} aria-hidden="true">
+                    <Icon />
+                  </span>
+                  <span className={styles.subnavLabel}>{link.label}</span>
                 </Link>
               );
             })}

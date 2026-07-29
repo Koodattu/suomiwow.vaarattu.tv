@@ -704,6 +704,10 @@
     filter 150ms ease;
 }
 
+.subnavIcon {
+  display: none;
+}
+
 @media (max-width: 760px) {
   .vault {
     display: grid;
@@ -712,7 +716,7 @@
     min-height: 0;
     overflow: hidden;
     grid-template-rows: auto minmax(0, 1fr);
-    padding-bottom: calc(3.2rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
   }
 
   .vault.vaultViewportLocked {
@@ -768,13 +772,20 @@
     left: 0;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.35rem;
-    padding: 0.35rem max(0.75rem, env(safe-area-inset-right)) max(0.35rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
-    background: rgba(3, 8, 20, 0.94);
+    gap: 0.15rem;
+    padding: 0.25rem max(0.45rem, env(safe-area-inset-right)) max(0.35rem, env(safe-area-inset-bottom)) max(0.45rem, env(safe-area-inset-left));
+    background: linear-gradient(180deg, rgba(8, 17, 36, 0.93), rgba(2, 7, 17, 0.98));
+    box-shadow:
+      0 -1px rgba(144, 178, 236, 0.14),
+      0 -0.75rem 2rem rgba(0, 3, 11, 0.42);
+    backdrop-filter: blur(20px);
   }
 
   .initialShellNav > span {
-    width: 100%;
+    width: 2.75rem;
+    height: 2.15rem;
+    justify-self: center;
+    border-radius: 1rem;
   }
 
   .initialShellContext {
@@ -845,20 +856,74 @@
     bottom: 0;
     left: 0;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.35rem;
-    padding: 0.35rem max(0.75rem, env(safe-area-inset-right)) max(0.35rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
-    background: rgba(3, 8, 20, 0.94);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.15rem;
+    padding: 0.25rem max(0.45rem, env(safe-area-inset-right)) max(0.35rem, env(safe-area-inset-bottom)) max(0.45rem, env(safe-area-inset-left));
+    background: linear-gradient(180deg, rgba(8, 17, 36, 0.93), rgba(2, 7, 17, 0.98));
     box-shadow:
-      0 -1px rgba(144, 178, 236, 0.2),
-      0 -0.75rem 2rem rgba(0, 3, 11, 0.36);
-    backdrop-filter: blur(18px);
+      0 -1px rgba(144, 178, 236, 0.14),
+      0 -0.75rem 2rem rgba(0, 3, 11, 0.42);
+    backdrop-filter: blur(20px);
   }
 
-  .subnavLink {
+  .shellNav .subnavLink {
     width: 100%;
-    min-height: 2.5rem;
-    padding: 0.35rem 0.5rem;
+    min-height: 3.25rem;
+    flex-direction: column;
+    gap: 0.15rem;
+    border-radius: 0.75rem;
+    background: transparent;
+    box-shadow: none;
+    padding: 0.2rem 0.1rem 0.15rem;
+    color: #8393aa;
+    font-size: 0.64rem;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    line-height: 1;
+  }
+
+  .subnavIcon {
+    display: grid;
+    width: 2.25rem;
+    height: 1.4rem;
+    place-items: center;
+    border-radius: 0.8rem;
+    transition:
+      color 150ms ease,
+      background-color 150ms ease,
+      transform 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .subnavIcon > svg {
+    width: 1.08rem;
+    height: 1.08rem;
+  }
+
+  .subnavLabel {
+    white-space: nowrap;
+  }
+
+  .shellNav .subnavLink:not(.subnavLinkActive):hover {
+    background: rgba(125, 220, 255, 0.05);
+    box-shadow: none;
+    color: #c4d1e3;
+  }
+
+  .shellNav .subnavLinkActive,
+  .shellNav .subnavLinkActive:hover {
+    background: transparent;
+    box-shadow: none;
+    color: #f7fbff;
+    filter: none;
+  }
+
+  .subnavLinkActive .subnavIcon {
+    background: linear-gradient(135deg, #2377ca, #684bb8);
+    box-shadow:
+      0 5px 14px rgba(28, 86, 176, 0.34),
+      inset 0 1px rgba(255, 255, 255, 0.2);
+    color: #fff;
   }
 
   .shellContext {
