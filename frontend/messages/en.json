@@ -144,6 +144,17 @@
       "eyebrow": "Your card vault",
       "title": "Collection activity",
       "body": "Your pack openings and rewards, newest first.",
+      "summary": {
+        "title": "Lifetime totals",
+        "packsOpened": "Packs opened",
+        "cardsTotal": "Card copies",
+        "uniqueCards": "Unique cards",
+        "raidPacks": "Raid packs",
+        "mixedLegacy": "Mixed Legacy",
+        "finishes": "Finishes",
+        "noPacks": "No packs opened yet",
+        "loading": "Loading lifetime totals"
+      },
       "filtersLabel": "Filter collection activity",
       "filters": {
         "all": "All",

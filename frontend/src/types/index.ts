@@ -2353,8 +2353,21 @@ export type CcgActivityItem =
       reward: CcgActivityReward;
     };
 
+export type CcgActivitySummary = {
+  packsTotal: number;
+  cardsTotal: number;
+  uniqueCards: number;
+  raidPacks: Array<{
+    mode: CcgMode;
+    count: number;
+    packArt: CcgActivityPackArt | null;
+  }>;
+  finishes: Record<CcgFinish, number>;
+};
+
 export type CcgActivityResponse = {
   items: CcgActivityItem[];
+  summary: CcgActivitySummary | null;
   nextCursor: string | null;
 };
 

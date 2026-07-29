@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { FaArrowUpRightFromSquare, FaGift, FaTicket, FaTwitch } from "react-icons/fa6";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import CcgShareButton from "@/components/ccg/CcgShareButton";
@@ -13,12 +13,79 @@ import PackBoosterVisual, { getPackTheme } from "@/components/ccg/PackBoosterVis
 import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 import { useAuth } from "@/context/AuthContext";
-import { CCG_CLASS_COLORS, CCG_FINISH_COLORS, CCG_RARITY_COLORS, CCG_RARITY_KEYS } from "@/lib/ccg";
+import { CCG_CLASS_COLORS, CCG_FINISH_COLORS, CCG_FINISH_ORDER, CCG_RARITY_COLORS, CCG_RARITY_KEYS } from "@/lib/ccg";
 import { useCcgActivity } from "@/lib/queries";
 import { formatRealmName } from "@/lib/utils";
-import type { CcgActivityFilter, CcgActivityItem, CcgActivityReward } from "@/types";
+import type { CcgActivityFilter, CcgActivityItem, CcgActivityReward, CcgActivitySummary } from "@/types";
 
 const ACTIVITY_FILTERS: readonly CcgActivityFilter[] = ["all", "packs", "codes", "twitch"];
+
+function ActivitySummary({ summary, numberFormatter }: {
+  summary: CcgActivitySummary;
+  numberFormatter: Intl.NumberFormat;
+}) {
+  const t = useTranslations("ccg.activity.summary");
+  const tCcg = useTranslations("ccg");
+  const totals = [
+    { label: t("packsOpened"), value: summary.packsTotal },
+    { label: t("cardsTotal"), value: summary.cardsTotal },
+    { label: t("uniqueCards"), value: summary.uniqueCards },
+  ];
+
+  return (
+    <section className={styles.activitySummary} aria-labelledby="activity-summary-title">
+      <div className={styles.activitySummaryHeader}>
+        <h2 id="activity-summary-title">{t("title")}</h2>
+        <dl className={styles.activitySummaryTotals}>
+          {totals.map((total) => (
+            <div key={total.label}>
+              <dt>{total.label}</dt>
+              <dd>{numberFormatter.format(total.value)}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      <div className={styles.activitySummaryBreakdowns}>
+        <div className={styles.activitySummaryGroup}>
+          <h3>{t("raidPacks")}</h3>
+          {summary.raidPacks.length > 0 ? (
+            <ul className={styles.activitySummaryPills}>
+              {summary.raidPacks.map((pack) => {
+                const label = pack.packArt?.raidName
+                  ?? (pack.mode === "legacy" ? t("mixedLegacy") : tCcg("open.currentTier"));
+                return (
+                  <li
+                    key={`${pack.mode}:${pack.packArt?.slug ?? "mixed"}`}
+                    style={{ "--activity-summary-accent": pack.packArt?.theme.accent ?? "#7ddcff" } as CSSProperties}
+                  >
+                    <span>{label}</span>
+                    <strong>{numberFormatter.format(pack.count)}</strong>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className={styles.activitySummaryEmpty}>{t("noPacks")}</p>
+          )}
+        </div>
+        <div className={styles.activitySummaryGroup}>
+          <h3>{t("finishes")}</h3>
+          <ul className={styles.activitySummaryPills}>
+            {CCG_FINISH_ORDER.map((finish) => (
+              <li
+                key={finish}
+                style={{ "--activity-summary-accent": CCG_FINISH_COLORS[finish] } as CSSProperties}
+              >
+                <span>{tCcg(`finish.${finish}`)}</span>
+                <strong>{numberFormatter.format(summary.finishes[finish])}</strong>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function getLocalDayKey(date: Date): string {
   return [
@@ -258,6 +325,7 @@ export default function CcgActivityPage() {
     () => new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }),
     [locale],
   );
+  const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat(locale, { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
     [locale],
@@ -266,6 +334,7 @@ export default function CcgActivityPage() {
     () => activityQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [activityQuery.data],
   );
+  const summary = activityQuery.data?.pages[0]?.summary ?? null;
   const groups = useMemo(() => {
     const today = new Date();
     const yesterday = new Date(today);
@@ -308,6 +377,16 @@ export default function CcgActivityPage() {
           </section>
         ) : (
           <>
+            {activityQuery.isPending ? (
+              <div className={styles.activitySummaryLoading} aria-label={t("summary.loading")}>
+                <span />
+                <span />
+                <span />
+              </div>
+            ) : summary ? (
+              <ActivitySummary summary={summary} numberFormatter={numberFormatter} />
+            ) : null}
+
             <div className={styles.activityFilters} role="group" aria-label={t("filtersLabel")}>
               {ACTIVITY_FILTERS.map((value) => (
                 <button

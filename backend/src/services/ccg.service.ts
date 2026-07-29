@@ -155,6 +155,16 @@ type CcgActivitySetRecord = Pick<
   "_id" | "slug" | "raidName" | "theme" | "backgroundPath" | "packArtOffsetX"
 >;
 
+type CcgActivityPackSummaryRow = {
+  _id: { mode: CcgMode; setId: mongoose.Types.ObjectId | null };
+  count: number;
+};
+
+type CcgActivityFinishSummaryRow = {
+  _id: CcgFinish;
+  count: number;
+};
+
 type CcgShowcaseInput = {
   cardId: mongoose.Types.ObjectId;
   finish: CcgFinish;
@@ -1745,7 +1755,7 @@ class CcgService {
       ? { state: "committed", $and: [packOwnerFilter, packCursorFilter] }
       : { state: "committed", ...packOwnerFilter };
 
-    const [openingRows, codeRows, twitchRows] = await Promise.all([
+    const [openingRows, codeRows, twitchRows, summaryRows] = await Promise.all([
       filter === "all" || filter === "packs"
         ? CcgPackOpening.find(packFilter)
             .select("_id mode targetSetId sourceSetIds results duplicateRewards createdAt")
@@ -1774,6 +1784,38 @@ class CcgService {
             .limit(rowLimit)
             .lean<CcgActivityTwitchRecord[]>()
         : Promise.resolve([] as CcgActivityTwitchRecord[]),
+      cursor
+        ? Promise.resolve(null)
+        : Promise.all([
+            CcgPackOpening.aggregate<CcgActivityPackSummaryRow>([
+              { $match: { state: "committed", ...packOwnerFilter } },
+              {
+                $project: {
+                  mode: 1,
+                  packSetId: {
+                    $cond: [
+                      { $ne: [{ $ifNull: ["$targetSetId", null] }, null] },
+                      "$targetSetId",
+                      {
+                        $cond: [
+                          { $eq: ["$mode", "current"] },
+                          { $arrayElemAt: ["$sourceSetIds", 0] },
+                          null,
+                        ],
+                      },
+                    ],
+                  },
+                },
+              },
+              { $group: { _id: { mode: "$mode", setId: "$packSetId" }, count: { $sum: 1 } } },
+              { $sort: { count: -1, "_id.mode": 1 } },
+            ]),
+            CcgOwnership.aggregate<CcgActivityFinishSummaryRow>([
+              { $match: { ownerType: "user", ownerId: userId } },
+              { $group: { _id: "$finish", count: { $sum: "$quantity" } } },
+            ]),
+            CcgSeriesOwnership.countDocuments({ ownerType: "user", ownerId: userId }),
+          ]).then(([packs, finishes, uniqueCards]) => ({ packs, finishes, uniqueCards })),
     ]);
 
     const candidates: CcgActivityCandidate[] = [
@@ -1802,6 +1844,9 @@ class CcgService {
         cardIds.add(String(cardId));
         rewardCardIds.add(String(cardId));
       }
+    });
+    summaryRows?.packs.forEach((row) => {
+      if (row._id.setId) setIds.add(String(row._id.setId));
     });
 
     const needsCurrentPackArt = pageCandidates.some((candidate) => (
@@ -1861,6 +1906,29 @@ class CcgService {
         set: this.serializeSet(set as unknown as Record<string, any>),
       };
     };
+
+    const summary = summaryRows
+      ? (() => {
+          const finishes = Object.fromEntries(CCG_FINISH_ORDER.map((finish) => [finish, 0])) as Record<CcgFinish, number>;
+          summaryRows.finishes.forEach((row) => {
+            if (CCG_FINISH_ORDER.includes(row._id)) finishes[row._id] = row.count;
+          });
+          return {
+            packsTotal: summaryRows.packs.reduce((total, row) => total + row.count, 0),
+            cardsTotal: Object.values(finishes).reduce((total, count) => total + count, 0),
+            uniqueCards: summaryRows.uniqueCards,
+            raidPacks: summaryRows.packs
+              .map((row) => ({
+                mode: row._id.mode,
+                count: row.count,
+                packArt: serializeActivityPackArt(row._id.setId ? setById.get(String(row._id.setId)) : null),
+              }))
+              .sort((left, right) => right.count - left.count
+                || (left.packArt?.raidName ?? "").localeCompare(right.packArt?.raidName ?? "")),
+            finishes,
+          };
+        })()
+      : null;
 
     const items = pageCandidates.map((candidate) => {
       const base = {
@@ -1935,6 +2003,7 @@ class CcgService {
 
     return {
       items,
+      summary,
       nextCursor: hasMore && pageCandidates.length > 0
         ? encodeCcgActivityCursor(pageCandidates[pageCandidates.length - 1])
         : null,

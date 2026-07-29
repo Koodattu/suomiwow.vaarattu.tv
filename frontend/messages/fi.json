@@ -144,6 +144,17 @@
       "eyebrow": "Oma korttiholvisi",
       "title": "Kokoelman tapahtumat",
       "body": "Pakka-avauksesi ja palkintosi uusimmasta vanhimpaan.",
+      "summary": {
+        "title": "Kaikki yhteensä",
+        "packsOpened": "Avattuja pakkoja",
+        "cardsTotal": "Kortteja yhteensä",
+        "uniqueCards": "Eri kortteja",
+        "raidPacks": "Raid-pakat",
+        "mixedLegacy": "Sekalainen Legacy",
+        "finishes": "Viimeistelyt",
+        "noPacks": "Ei vielä avattuja pakkoja",
+        "loading": "Yhteenvetoa ladataan"
+      },
       "filtersLabel": "Suodata kokoelman tapahtumia",
       "filters": {
         "all": "Kaikki",
