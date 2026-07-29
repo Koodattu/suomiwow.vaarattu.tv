@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import { useLocale, useTranslations } from "next-intl";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { FaCrown, FaTrophy, FaXmark } from "react-icons/fa6";
 import type { CcgLeaderboardEntry, CcgLeaderboardShowcaseCard } from "@/types";
 import { useAuth } from "@/context/AuthContext";
@@ -13,8 +14,16 @@ import { formatRealmName } from "@/lib/utils";
 import CcgShell from "@/components/ccg/CcgShell";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
-import CardViewer from "@/components/ccg/CardViewer";
+import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
+import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
 import styles from "@/components/ccg/ccg.module.css";
+
+type DialogPhase = "entering" | "open" | "closing";
+type LeaderboardCardViewer = CcgLeaderboardShowcaseCard & {
+  originElement: HTMLElement | null;
+  originBounds: CardViewerOriginBounds | null;
+  sharedTransition: boolean;
+};
 
 function ShowcaseCards({
   cards,
@@ -85,13 +94,142 @@ function ShowcaseSummary({ cards }: { cards: CcgLeaderboardShowcaseCard[] }) {
   );
 }
 
+function CollectorShowcaseDialog({
+  entry,
+  isInspectingCard,
+  emptyLabel,
+  onDismiss,
+  onInspectCard,
+}: {
+  entry: CcgLeaderboardEntry;
+  isInspectingCard: boolean;
+  emptyLabel: string;
+  onDismiss: () => void;
+  onInspectCard: (viewer: LeaderboardCardViewer) => void;
+}) {
+  const t = useTranslations("ccg.leaderboard");
+  const [phase, setPhase] = useState<DialogPhase>("entering");
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const closingRef = useRef(false);
+  const inspectingCardRef = useRef(isInspectingCard);
+
+  useEffect(() => {
+    inspectingCardRef.current = isInspectingCard;
+  }, [isInspectingCard]);
+
+  const requestClose = useCallback(() => {
+    if (closingRef.current || inspectingCardRef.current) return;
+    closingRef.current = true;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      onDismiss();
+      return;
+    }
+    setPhase("closing");
+    closeTimerRef.current = window.setTimeout(onDismiss, 170);
+  }, [onDismiss]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setPhase("open"));
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialogRef.current?.focus({ preventScroll: true });
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (inspectingCardRef.current) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        requestClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), [href], [tabindex]:not([tabindex='-1'])") ?? []);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (document.activeElement === dialogRef.current) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (!inspectingCardRef.current && previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    };
+  }, [requestClose]);
+
+  const inspectCard = (item: CcgLeaderboardShowcaseCard, event: ReactMouseEvent<HTMLButtonElement>) => {
+    const originElement = event.currentTarget;
+    openCardViewer(originElement, (sharedTransition, originBounds) => {
+      inspectingCardRef.current = true;
+      onInspectCard({ ...item, originElement, originBounds, sharedTransition });
+    }, event);
+  };
+
+  return (
+    <div
+      className={styles.redeemDialogBackdrop}
+      data-phase={phase}
+      inert={isInspectingCard ? true : undefined}
+      onPointerDown={requestClose}
+    >
+      <div
+        ref={dialogRef}
+        className={`${styles.redeemDialog} ${styles.leaderboardCollectorDialog}`}
+        role="dialog"
+        aria-modal={isInspectingCard ? undefined : "true"}
+        aria-labelledby="ccg-collector-showcase-title"
+        tabIndex={-1}
+      >
+        <div className={styles.leaderboardCollectorHeading}>
+          <img src={entry.avatarUrl} alt="" className={styles.leaderboardCollectorAvatar} />
+          <h2 id="ccg-collector-showcase-title">{t("showcase.collectorTitle", { name: entry.username })}</h2>
+        </div>
+        {entry.showcase.length > 0 ? (
+          <div className={styles.leaderboardCollectorCards}>
+            {entry.showcase.map((item) => (
+              <div
+                className={styles.leaderboardCollectorCardSlot}
+                key={item.card.id}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <CollectibleCard
+                  card={item.card}
+                  finish={item.finish}
+                  artVariant={item.artVariant}
+                  compact
+                  className={styles.leaderboardCollectorCard}
+                  onSelect={(event) => inspectCard(item, event)}
+                  renderPriority
+                />
+              </div>
+            ))}
+          </div>
+        ) : <p className={styles.leaderboardCollectorEmpty}>{emptyLabel}</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function CcgLeaderboardPage() {
   const t = useTranslations("ccg.leaderboard");
   const locale = useLocale();
   const { user, isLoading: authLoading, login } = useAuth();
   const leaderboardQuery = useCcgLeaderboard();
   const meQuery = useCcgLeaderboardMe(Boolean(user));
-  const [viewerItem, setViewerItem] = useState<CcgLeaderboardShowcaseCard | null>(null);
+  const [viewerItem, setViewerItem] = useState<LeaderboardCardViewer | null>(null);
   const [selectedCollector, setSelectedCollector] = useState<CcgLeaderboardEntry | null>(null);
   const [scoringOpen, setScoringOpen] = useState(false);
   const entries = leaderboardQuery.data?.entries ?? [];
@@ -104,11 +242,12 @@ export default function CcgLeaderboardPage() {
     ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(leaderboardQuery.data.calculatedAt))
     : null;
 
-  const inspect = (item: CcgLeaderboardShowcaseCard) => setViewerItem(item);
-  const inspectCollectorCard = (item: CcgLeaderboardShowcaseCard) => {
-    setSelectedCollector(null);
-    setViewerItem(item);
-  };
+  const inspect = (item: CcgLeaderboardShowcaseCard) => setViewerItem({
+    ...item,
+    originElement: null,
+    originBounds: null,
+    sharedTransition: false,
+  });
 
   return (
     <CcgShell>
@@ -300,39 +439,24 @@ export default function CcgLeaderboardPage() {
         </Dialog>
       ) : null}
 
-      <Dialog open={Boolean(selectedCollector)} onClose={() => setSelectedCollector(null)} className={styles.leaderboardScoringDialogRoot}>
-        <DialogBackdrop transition className={styles.leaderboardScoringDialogBackdrop} />
-        <div className={styles.leaderboardScoringDialogFrame}>
-          <DialogPanel transition className={`${styles.leaderboardScoringDialog} ${styles.leaderboardCollectorDialog}`}>
-            <div className={styles.leaderboardScoringDialogHeader}>
-              <DialogTitle className={styles.leaderboardScoringDialogTitle}>
-                {selectedCollector ? t("showcase.collectorTitle", { name: selectedCollector.username }) : ""}
-              </DialogTitle>
-              <button
-                type="button"
-                className={styles.leaderboardScoringDialogClose}
-                onClick={() => setSelectedCollector(null)}
-                aria-label={t("showcase.closeCollector")}
-              >
-                <FaXmark aria-hidden="true" />
-              </button>
-            </div>
-            {selectedCollector ? (
-              <ShowcaseCards
-                cards={selectedCollector.showcase}
-                onSelect={inspectCollectorCard}
-                emptyLabel={t("showcase.empty")}
-              />
-            ) : null}
-          </DialogPanel>
-        </div>
-      </Dialog>
+      {selectedCollector ? (
+        <CollectorShowcaseDialog
+          entry={selectedCollector}
+          isInspectingCard={Boolean(viewerItem)}
+          emptyLabel={t("showcase.empty")}
+          onDismiss={() => setSelectedCollector(null)}
+          onInspectCard={setViewerItem}
+        />
+      ) : null}
 
       {viewerItem ? (
         <CardViewer
           card={viewerItem.card}
           initialFinish={viewerItem.finish}
           initialArtVariant={viewerItem.artVariant}
+          originElement={viewerItem.originElement}
+          originBounds={viewerItem.originBounds}
+          sharedTransition={viewerItem.sharedTransition}
           canShare={false}
           showFinishControls={false}
           showOwnershipStatus={false}

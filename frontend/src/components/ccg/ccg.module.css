@@ -2275,11 +2275,97 @@
 }
 
 .leaderboardCollectorDialog {
-  width: min(100%, 54rem);
+  width: 100%;
+  min-height: calc(100dvh - clamp(2rem, 6vw, 5rem));
+  align-content: center;
+  gap: clamp(1.25rem, 3dvh, 2rem);
+  padding: clamp(1rem, 3vw, 2rem);
 }
 
-.leaderboardCollectorDialog > .leaderboardShowcaseCards {
-  gap: 0.8rem;
+.leaderboardCollectorHeading {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  pointer-events: none;
+  text-align: center;
+}
+
+.leaderboardCollectorAvatar {
+  width: clamp(3.5rem, 6vw, 4.5rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.38);
+}
+
+.leaderboardCollectorHeading h2 {
+  color: #f8fbff;
+  font-size: clamp(1.35rem, 2.8vw, 2rem);
+  font-weight: 820;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  text-wrap: balance;
+}
+
+.leaderboardCollectorCards {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1rem, 2.4vw, 2rem);
+  perspective: 1200px;
+}
+
+.leaderboardCollectorCardSlot {
+  width: min(22rem, 28vw, calc((100dvh - 12rem) * 5 / 7));
+  min-width: 0;
+  flex: 0 1 auto;
+  animation: leaderboardCollectorFloat 5.2s ease-in-out infinite alternate;
+}
+
+.leaderboardCollectorCardSlot:nth-child(2) {
+  animation-delay: -1.7s;
+  animation-duration: 5.7s;
+}
+
+.leaderboardCollectorCardSlot:nth-child(3) {
+  animation-delay: -3.4s;
+  animation-duration: 5.4s;
+}
+
+.leaderboardCollectorCard {
+  width: 100%;
+  filter: drop-shadow(0 22px 35px rgba(0, 0, 0, 0.34));
+  transition-property: transform, filter, translate, scale;
+  transition-duration: 170ms;
+  transition-timing-function: ease-out;
+}
+
+.leaderboardCollectorCard:hover {
+  filter: brightness(1.05) drop-shadow(0 28px 42px rgba(0, 0, 0, 0.42));
+  translate: 0 -3px;
+}
+
+.leaderboardCollectorCard:active {
+  scale: 0.96;
+}
+
+.leaderboardCollectorEmpty {
+  color: #8292aa;
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-align: center;
+}
+
+@keyframes leaderboardCollectorFloat {
+  from {
+    transform: translate3d(0, 2px, 0) rotate(-0.18deg);
+  }
+
+  to {
+    transform: translate3d(0, -6px, 0) rotate(0.18deg);
+  }
 }
 
 .viewerActionButtons {
@@ -2395,6 +2481,21 @@
     flex-wrap: wrap;
     white-space: normal;
   }
+
+  .leaderboardCollectorDialog {
+    align-content: start;
+    padding-block: 1.5rem;
+  }
+
+  .leaderboardCollectorCards {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .leaderboardCollectorCardSlot {
+    width: min(82vw, 19rem, calc((100dvh - 9rem) * 5 / 7));
+    flex: none;
+  }
 }
 
 @media (max-width: 640px) {
@@ -2456,6 +2557,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .leaderboardShowcaseCard,
+  .leaderboardCollectorCardSlot,
+  .leaderboardCollectorCard,
   .leaderboardScoringDialog,
   .leaderboardScoringDialogBackdrop,
   .leaderboardLoading span {

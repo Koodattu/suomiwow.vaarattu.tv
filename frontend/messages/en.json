@@ -217,7 +217,6 @@
         "empty": "No favorite selected",
         "openCollector": "View {name}'s favorite cards",
         "collectorTitle": "{name}'s favorite cards",
-        "closeCollector": "Close favorite cards",
         "choose": "Choose from collection",
         "favorite": "Favorite",
         "unfavorite": "Unfavorite",
