@@ -64,7 +64,24 @@ function DailyTrafficChart({ data }: { data: DailyChartPoint[] }) {
             stroke="#4B5563"
             tickLine={false}
           />
-          <YAxis tick={{ fill: "#9CA3AF", fontSize: 11 }} stroke="#4B5563" width={48} tickFormatter={(value: number) => value.toLocaleString()} />
+          <YAxis
+            yAxisId="requests"
+            tick={{ fill: "#F59E0B", fontSize: 11 }}
+            stroke="#F59E0B"
+            width={56}
+            tickLine={false}
+            tickFormatter={(value: number) => value.toLocaleString()}
+          />
+          <YAxis
+            yAxisId="uniqueVisitors"
+            orientation="right"
+            tick={{ fill: "#34D399", fontSize: 11 }}
+            stroke="#34D399"
+            width={48}
+            tickLine={false}
+            allowDecimals={false}
+            tickFormatter={(value: number) => value.toLocaleString()}
+          />
           <Tooltip
             contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151", borderRadius: "0.5rem" }}
             labelStyle={{ color: "#9CA3AF" }}
@@ -75,8 +92,8 @@ function DailyTrafficChart({ data }: { data: DailyChartPoint[] }) {
               return [numericValue.toLocaleString(), label];
             }}
           />
-          <Line type="linear" dataKey="requests" stroke="#F59E0B" strokeWidth={2} dot={{ r: 3, fill: "#F59E0B" }} activeDot={{ r: 5 }} name="requests" />
-          <Line type="linear" dataKey="uniqueVisitors" stroke="#34D399" strokeWidth={2} dot={{ r: 3, fill: "#34D399" }} activeDot={{ r: 5 }} name="uniqueVisitors" />
+          <Line yAxisId="requests" type="linear" dataKey="requests" stroke="#F59E0B" strokeWidth={2} dot={{ r: 3, fill: "#F59E0B" }} activeDot={{ r: 5 }} name="requests" />
+          <Line yAxisId="uniqueVisitors" type="linear" dataKey="uniqueVisitors" stroke="#34D399" strokeWidth={2} dot={{ r: 3, fill: "#34D399" }} activeDot={{ r: 5 }} name="uniqueVisitors" />
         </LineChart>
       </ResponsiveContainer>
     </div>
