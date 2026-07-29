@@ -28,6 +28,7 @@ test("every Admin CCG route rejects an unauthenticated request", async () => {
     { method: "POST", path: "/sets/bootstrap" },
     { method: "GET", path: "/snapshot-preview" },
     { method: "POST", path: "/snapshots" },
+    { method: "POST", path: "/publications" },
     { method: "GET", path: "/sets/1/preview" },
     { method: "POST", path: "/sets/1/enable" },
     { method: "POST", path: "/sets/1/snapshot" },

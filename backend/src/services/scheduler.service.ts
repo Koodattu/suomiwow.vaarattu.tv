@@ -20,8 +20,7 @@ import characterMediaService, {
   CHARACTER_MEDIA_DISCOVERY_TASK_NAME,
   CHARACTER_MEDIA_REFRESH_TASK_NAME,
 } from "./character-media.service";
-import ccgPublisherService from "./ccg-publisher.service";
-import ccgSnapshotRunner from "./ccg-snapshot-runner.service";
+import ccgRaidRunner from "./ccg-snapshot-runner.service";
 import ccgService from "./ccg.service";
 import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
 import {
@@ -165,7 +164,6 @@ class UpdateScheduler {
   private isDiscoveringCcgMedia: boolean = false;
   private isRefreshingCcgMedia: boolean = false;
   private isRecoveringCcgMedia: boolean = false;
-  private isPublishingCcgWave: boolean = false;
   private lastCacheWarmTime: number = 0;
 
   private getBlockingDatabaseMaintenanceJob(): string | null {
@@ -531,8 +529,8 @@ class UpdateScheduler {
         cron.schedule(
           CCG_WEEKLY_SNAPSHOT_SCHEDULE.cron,
           () => {
-            if (!ccgSnapshotRunner.trigger("cron")) {
-              logger.warn("[CCG/Snapshot] Previous snapshot run is still running; skipping this run");
+            if (!ccgRaidRunner.triggerSnapshot("cron")) {
+              logger.warn("[CCG/Snapshot] Another CCG snapshot or publication run is still running; skipping this run");
             }
           },
           { timezone: "Europe/Helsinki" },
@@ -540,8 +538,10 @@ class UpdateScheduler {
 
         cron.schedule(
           CCG_WEEKLY_PUBLICATION_SCHEDULE.cron,
-          async () => {
-            if (!this.isPublishingCcgWave) await this.publishWeeklyCcgWave();
+          () => {
+            if (!ccgRaidRunner.triggerPublication("cron")) {
+              logger.warn("[CCG/Publication] Another CCG snapshot or publication run is still running; skipping this run");
+            }
           },
           { timezone: "Europe/Helsinki" },
         );
@@ -1000,22 +1000,6 @@ class UpdateScheduler {
       logger.error("[CCG/MediaRecovery] Error:", error);
     } finally {
       this.isRecoveringCcgMedia = false;
-    }
-  }
-
-  private async publishWeeklyCcgWave(): Promise<void> {
-    this.isPublishingCcgWave = true;
-    const taskId = await taskTracker.start("CCG Weekly Raid Publication");
-    try {
-      const sets = await ccgPublisherService.getEnabledRaidSets();
-      const results = [];
-      for (const set of sets) results.push({ zoneId: set.zoneId, slug: set.slug, ...(await ccgPublisherService.publishLatestWave(set.slug)) });
-      await taskTracker.complete(taskId, { sets: results });
-    } catch (error) {
-      logger.error("[CCG/Publication] Error:", error);
-      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
-    } finally {
-      this.isPublishingCcgWave = false;
     }
   }
 

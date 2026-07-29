@@ -43,8 +43,9 @@ test("CCG snapshot runner processes every enabled set once and rejects overlappi
   tracker.fail = async () => assert.fail("snapshot run should not fail");
 
   try {
-    assert.equal(ccgSnapshotRunner.trigger("admin"), true);
-    assert.equal(ccgSnapshotRunner.trigger("cron"), false);
+    assert.equal(ccgSnapshotRunner.triggerSnapshot("admin"), true);
+    assert.equal(ccgSnapshotRunner.triggerSnapshot("cron"), false);
+    assert.equal(ccgSnapshotRunner.triggerPublication("admin"), false);
 
     releaseFirstSnapshot();
     const completion = await completed;
@@ -61,6 +62,74 @@ test("CCG snapshot runner processes every enabled set once and rejects overlappi
   } finally {
     publisher.getEnabledRaidSets = originalGetEnabledRaidSets;
     publisher.buildSnapshot = originalBuildSnapshot;
+    tracker.start = originalStart;
+    tracker.complete = originalComplete;
+    tracker.fail = originalFail;
+  }
+});
+
+test("CCG publication runner publishes every enabled set once and rejects overlapping runs", async () => {
+  const publisher = ccgPublisherService as any;
+  const tracker = taskTracker as any;
+  const originalGetEnabledRaidSets = publisher.getEnabledRaidSets;
+  const originalPublishLatestWave = publisher.publishLatestWave;
+  const originalStart = tracker.start;
+  const originalComplete = tracker.complete;
+  const originalFail = tracker.fail;
+
+  let releaseFirstPublication!: () => void;
+  const firstPublicationBlocked = new Promise<void>((resolve) => {
+    releaseFirstPublication = resolve;
+  });
+  let resolveCompleted!: (metadata: Record<string, unknown>) => void;
+  const completed = new Promise<Record<string, unknown>>((resolve) => {
+    resolveCompleted = resolve;
+  });
+  const publishedSlugs: string[] = [];
+
+  publisher.getEnabledRaidSets = async () => [
+    { zoneId: 300, slug: "newer-raid" },
+    { zoneId: 200, slug: "older-raid" },
+  ];
+  publisher.publishLatestWave = async (slug: string) => {
+    publishedSlugs.push(slug);
+    if (slug === "newer-raid") await firstPublicationBlocked;
+    return {
+      snapshotKey: `${slug}:2026-07-29`,
+      published: 1,
+      unchanged: 2,
+      totalCards: 3,
+      poolVersion: `${slug}-pool`,
+    };
+  };
+  tracker.start = async (taskName: string, metadata: Record<string, unknown>) => {
+    assert.equal(taskName, "CCG Weekly Raid Publication");
+    assert.deepEqual(metadata, { source: "admin" });
+    return "task-id";
+  };
+  tracker.complete = async (_taskId: string, metadata: Record<string, unknown>) => resolveCompleted(metadata);
+  tracker.fail = async () => assert.fail("publication run should not fail");
+
+  try {
+    assert.equal(ccgSnapshotRunner.triggerPublication("admin"), true);
+    assert.equal(ccgSnapshotRunner.triggerPublication("cron"), false);
+    assert.equal(ccgSnapshotRunner.triggerSnapshot("admin"), false);
+
+    releaseFirstPublication();
+    const completion = await completed;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(publishedSlugs, ["newer-raid", "older-raid"]);
+    assert.deepEqual(
+      (completion.sets as Array<{ zoneId: number; slug: string }>).map(({ zoneId, slug }) => ({ zoneId, slug })),
+      [
+        { zoneId: 300, slug: "newer-raid" },
+        { zoneId: 200, slug: "older-raid" },
+      ],
+    );
+  } finally {
+    publisher.getEnabledRaidSets = originalGetEnabledRaidSets;
+    publisher.publishLatestWave = originalPublishLatestWave;
     tracker.start = originalStart;
     tracker.complete = originalComplete;
     tracker.fail = originalFail;

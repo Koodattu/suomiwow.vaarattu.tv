@@ -15,7 +15,7 @@ import characterMediaService, {
 } from "../services/character-media.service";
 import ccgCommunityService, { CcgCommunityError } from "../services/ccg-community.service";
 import ccgPublisherService, { CcgPublisherError } from "../services/ccg-publisher.service";
-import ccgSnapshotRunner from "../services/ccg-snapshot-runner.service";
+import ccgRaidRunner from "../services/ccg-snapshot-runner.service";
 import ccgService, { CcgServiceError } from "../services/ccg.service";
 import taskTracker from "../services/task-tracker.service";
 import logger from "../utils/logger";
@@ -208,8 +208,18 @@ router.get(
 router.post(
   "/snapshots",
   adminRoute(async () => {
-    if (!ccgSnapshotRunner.trigger("admin")) {
-      throw new CcgPublisherError(409, "snapshot_already_running", "A CCG snapshot run is already in progress");
+    if (!ccgRaidRunner.triggerSnapshot("admin")) {
+      throw new CcgPublisherError(409, "ccg_raid_run_already_running", "A CCG snapshot or publication run is already in progress");
+    }
+    return { started: true };
+  }),
+);
+
+router.post(
+  "/publications",
+  adminRoute(async () => {
+    if (!ccgRaidRunner.triggerPublication("admin")) {
+      throw new CcgPublisherError(409, "ccg_raid_run_already_running", "A CCG snapshot or publication run is already in progress");
     }
     return { started: true };
   }),

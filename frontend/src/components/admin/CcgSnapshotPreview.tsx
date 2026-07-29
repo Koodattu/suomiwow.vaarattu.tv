@@ -7,12 +7,15 @@ import type { CcgAdminSnapshotPreview, CcgAdminSnapshotPreviewCounts, CcgAdminSn
 
 type PreviewCharacter = CcgAdminSnapshotSetPreview["characters"][number];
 type OutcomeFilter = "all" | "will_add" | "will_update" | "missing_media";
+type RunAction = "snapshot" | "publication";
 
 const grades: readonly CcgRegularTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
 const calculateButton =
   "min-h-10 rounded-md bg-cyan-700 px-4 py-2 text-sm font-bold text-white transition-[background-color,scale] duration-150 ease-out hover:bg-cyan-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
 const runButton =
   "min-h-10 rounded-md bg-amber-600 px-4 py-2 text-sm font-bold text-white transition-[background-color,scale] duration-150 ease-out hover:bg-amber-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
+const publishButton =
+  "min-h-10 rounded-md bg-emerald-700 px-4 py-2 text-sm font-bold text-white transition-[background-color,scale] duration-150 ease-out hover:bg-emerald-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
 const secondaryButton =
   "min-h-10 rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-200 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09)] transition-[background-color,scale] duration-150 ease-out hover:bg-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
 const filterButton =
@@ -37,8 +40,8 @@ export default function CcgSnapshotPreview() {
   const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const [confirmingRun, setConfirmingRun] = useState(false);
-  const [startingRun, setStartingRun] = useState(false);
+  const [confirmingAction, setConfirmingAction] = useState<RunAction | null>(null);
+  const [activeRun, setActiveRun] = useState<RunAction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const dateFormatter = useMemo(
@@ -94,17 +97,32 @@ export default function CcgSnapshotPreview() {
   };
 
   const startSnapshotRun = async () => {
-    setStartingRun(true);
+    setActiveRun("snapshot");
     setError(null);
     setNotice(null);
     try {
       await api.triggerAdminCcgSnapshots();
-      setConfirmingRun(false);
+      setConfirmingAction(null);
       setNotice(t("runStarted"));
     } catch (runError) {
       setError(runError instanceof Error ? runError.message : t("runError"));
     } finally {
-      setStartingRun(false);
+      setActiveRun(null);
+    }
+  };
+
+  const startPublicationRun = async () => {
+    setActiveRun("publication");
+    setError(null);
+    setNotice(null);
+    try {
+      await api.triggerAdminCcgPublication();
+      setConfirmingAction(null);
+      setNotice(t("publishStarted"));
+    } catch (publicationError) {
+      setError(publicationError instanceof Error ? publicationError.message : t("publishError"));
+    } finally {
+      setActiveRun(null);
     }
   };
 
@@ -118,7 +136,7 @@ export default function CcgSnapshotPreview() {
   const outcomeFilters: readonly OutcomeFilter[] = ["all", "will_add", "will_update", "missing_media"];
 
   return (
-    <section className="space-y-5" aria-labelledby="ccg-snapshot-preview-title" aria-busy={loading || startingRun}>
+    <section className="space-y-5" aria-labelledby="ccg-snapshot-preview-title" aria-busy={loading || activeRun !== null}>
       <div className="flex flex-col gap-4 rounded-lg bg-gray-800/70 p-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 id="ccg-snapshot-preview-title" className="text-xl font-bold text-balance text-white">{t("title")}</h3>
@@ -126,29 +144,46 @@ export default function CcgSnapshotPreview() {
           <p className="mt-2 max-w-3xl text-xs leading-5 text-pretty text-cyan-200/70">{t("readOnly")}</p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
-          <button type="button" className={calculateButton} onClick={() => void calculate()} disabled={loading || startingRun}>
+          <button type="button" className={calculateButton} onClick={() => void calculate()} disabled={loading || activeRun !== null}>
             {loading ? t("calculating") : t(preview ? "recalculate" : "calculate")}
           </button>
           <button
             type="button"
             className={runButton}
-            onClick={() => setConfirmingRun(true)}
-            disabled={loading || startingRun || confirmingRun}
+            onClick={() => setConfirmingAction("snapshot")}
+            disabled={loading || activeRun !== null || confirmingAction !== null}
           >
-            {startingRun ? t("runStarting") : t("run")}
+            {activeRun === "snapshot" ? t("runStarting") : t("run")}
+          </button>
+          <button
+            type="button"
+            className={publishButton}
+            onClick={() => setConfirmingAction("publication")}
+            disabled={loading || activeRun !== null || confirmingAction !== null}
+          >
+            {activeRun === "publication" ? t("publishStarting") : t("publish")}
           </button>
         </div>
       </div>
 
-      {confirmingRun ? (
+      {confirmingAction ? (
         <div className="rounded-lg bg-amber-950/40 p-4 text-amber-100 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.25)]">
-          <h3 className="font-bold text-balance">{t("runConfirmTitle")}</h3>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-pretty text-amber-100/85">{t("runConfirmDescription")}</p>
+          <h3 className="font-bold text-balance">{t(confirmingAction === "snapshot" ? "runConfirmTitle" : "publishConfirmTitle")}</h3>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-pretty text-amber-100/85">
+            {t(confirmingAction === "snapshot" ? "runConfirmDescription" : "publishConfirmDescription")}
+          </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" className={runButton} onClick={() => void startSnapshotRun()} disabled={startingRun}>
-              {startingRun ? t("runStarting") : t("runConfirm")}
+            <button
+              type="button"
+              className={confirmingAction === "snapshot" ? runButton : publishButton}
+              onClick={() => void (confirmingAction === "snapshot" ? startSnapshotRun() : startPublicationRun())}
+              disabled={activeRun !== null}
+            >
+              {activeRun
+                ? t(confirmingAction === "snapshot" ? "runStarting" : "publishStarting")
+                : t(confirmingAction === "snapshot" ? "runConfirm" : "publishConfirm")}
             </button>
-            <button type="button" className={secondaryButton} onClick={() => setConfirmingRun(false)} disabled={startingRun}>
+            <button type="button" className={secondaryButton} onClick={() => setConfirmingAction(null)} disabled={activeRun !== null}>
               {t("cancel")}
             </button>
           </div>
