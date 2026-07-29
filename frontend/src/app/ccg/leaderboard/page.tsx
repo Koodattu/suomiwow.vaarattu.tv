@@ -32,7 +32,7 @@ function ShowcaseCards({
   personal = false,
 }: {
   cards: CcgLeaderboardShowcaseCard[];
-  onSelect: (item: CcgLeaderboardShowcaseCard) => void;
+  onSelect: (item: CcgLeaderboardShowcaseCard, event: ReactMouseEvent<HTMLButtonElement>) => void;
   emptyLabel?: string;
   personal?: boolean;
 }) {
@@ -43,7 +43,7 @@ function ShowcaseCards({
           <button
             type="button"
             className={styles.leaderboardShowcaseCard}
-            onClick={() => onSelect(item)}
+            onClick={(event) => onSelect(item, event)}
             aria-label={item.card.name}
           >
             <CollectibleCard card={item.card} finish={item.finish} artVariant={item.artVariant} compact hideBadges />
@@ -242,12 +242,12 @@ export default function CcgLeaderboardPage() {
     ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(leaderboardQuery.data.calculatedAt))
     : null;
 
-  const inspect = (item: CcgLeaderboardShowcaseCard) => setViewerItem({
-    ...item,
-    originElement: null,
-    originBounds: null,
-    sharedTransition: false,
-  });
+  const inspect = (item: CcgLeaderboardShowcaseCard, event: ReactMouseEvent<HTMLButtonElement>) => {
+    const originElement = event.currentTarget;
+    openCardViewer(originElement, (sharedTransition, originBounds) => {
+      setViewerItem({ ...item, originElement, originBounds, sharedTransition });
+    }, event);
+  };
 
   return (
     <CcgShell>
