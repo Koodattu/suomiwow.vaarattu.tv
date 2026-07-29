@@ -44,6 +44,11 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
+        hostname: "cdn.raiderio.net",
+        pathname: "/images/wow/icons/**",
+      },
+      {
+        protocol: "https",
         hostname: "**",
         pathname: "/icons/**",
       },
