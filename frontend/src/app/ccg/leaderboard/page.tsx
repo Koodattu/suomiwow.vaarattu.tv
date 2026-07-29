@@ -233,8 +233,8 @@ export default function CcgLeaderboardPage() {
   const [selectedCollector, setSelectedCollector] = useState<CcgLeaderboardEntry | null>(null);
   const [scoringOpen, setScoringOpen] = useState(false);
   const entries = leaderboardQuery.data?.entries ?? [];
-  const topCollectors = entries.slice(0, 3);
-  const remainingCollectors = entries.slice(3);
+  const topCollectors = entries.slice(0, 6);
+  const remainingCollectors = entries.slice(6);
   const me = meQuery.data?.entry ?? null;
   const myShowcase = meQuery.data?.showcase ?? [];
   const numberFormatter = new Intl.NumberFormat(locale);
@@ -351,15 +351,15 @@ export default function CcgLeaderboardPage() {
                         <h3>{entry.username}</h3>
                         <strong>{t("points", { score: numberFormatter.format(entry.score) })}</strong>
                       </div>
+                      <CollectorStats entry={entry} t={t} />
                     </div>
                     <ShowcaseCards cards={entry.showcase} onSelect={inspect} emptyLabel={t("showcase.empty")} />
-                    <CollectorStats entry={entry} t={t} />
                   </article>
                 ))}
               </div>
 
               {remainingCollectors.length > 0 ? (
-                <ol className={styles.leaderboardRows} start={4}>
+                <ol className={styles.leaderboardRows} start={7}>
                   {remainingCollectors.map((entry) => (
                     <li
                       className={styles.leaderboardRow}

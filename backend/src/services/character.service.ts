@@ -953,6 +953,7 @@ class CharacterService {
     reportActors?: WclReportPlayerActor[];
   }): Promise<{ processed: number; skipped: number }> {
     const reportSeenAt = params.reportStartTime instanceof Date ? params.reportStartTime : new Date(params.reportStartTime);
+    const guildObservedAt = new Date();
     const reportActorClassByIdentity = this.buildReportActorClassMap(params.reportActors);
     let processed = 0;
     let skipped = 0;
@@ -1069,7 +1070,15 @@ class CharacterService {
         { upsert: true, new: true },
       );
 
-      await this.updateReportGuildHistory(character._id as mongoose.Types.ObjectId, params.reportGuildName, params.reportGuildRealm, reportSeenAt);
+      const primaryObservedGuild = wclGuilds[0];
+      if (primaryObservedGuild) {
+        await this.updateObservedGuildHistory(
+          character._id as mongoose.Types.ObjectId,
+          primaryObservedGuild.name,
+          primaryObservedGuild.realm,
+          guildObservedAt,
+        );
+      }
       processed += 1;
     }
 
@@ -1339,7 +1348,6 @@ class CharacterService {
             $max: { lastReportSeenAt: reportSeenAt },
           },
         );
-        await this.updateReportGuildHistory(canonicalMatch.characterId, params.reportGuildName, params.reportGuildRealm, reportSeenAt);
         matched += 1;
       } else {
         unmatched += 1;
@@ -1429,7 +1437,7 @@ class CharacterService {
     }
   }
 
-  private async updateReportGuildHistory(characterId: mongoose.Types.ObjectId, guildName: string, guildRealm: string, seenAt: Date): Promise<void> {
+  private async updateObservedGuildHistory(characterId: mongoose.Types.ObjectId, guildName: string, guildRealm: string, seenAt: Date): Promise<void> {
     const character = await Character.findById(characterId).select("guildName guildRealm guildUpdatedAt guildHistory").lean();
     if (!character) return;
 
@@ -1497,76 +1505,26 @@ class CharacterService {
       return { canonicalIds: 0, groups: 0, relinkedGroups: 0 };
     }
 
-    logger.info(`[CharacterRaidParticipation] Relink multi-class canonical characters: aggregating identities and guild histories (${elapsed()})`);
-    const [identityRows, guildRows] = await Promise.all([
-      CharacterReportAppearance.aggregate([
-        { $match: { wclCanonicalCharacterId: { $in: canonicalIds }, classID: { $type: "number" } } },
-        { $sort: { reportStartTime: 1, reportCode: 1 } },
-        {
-          $group: {
-            _id: {
-              canonicalID: "$wclCanonicalCharacterId",
-              classID: "$classID",
-            },
-            name: { $last: "$characterName" },
-            realm: { $last: "$characterRealm" },
-            region: { $last: "$characterRegion" },
-            hidden: { $last: "$hidden" },
-            guildName: { $last: "$reportGuildName" },
-            guildRealm: { $last: "$reportGuildRealm" },
-            firstReportSeenAt: { $min: "$reportStartTime" },
-            lastReportSeenAt: { $max: "$reportStartTime" },
+    logger.info(`[CharacterRaidParticipation] Relink multi-class canonical characters: aggregating identities (${elapsed()})`);
+    const identityRows = await CharacterReportAppearance.aggregate([
+      { $match: { wclCanonicalCharacterId: { $in: canonicalIds }, classID: { $type: "number" } } },
+      { $sort: { reportStartTime: 1, reportCode: 1 } },
+      {
+        $group: {
+          _id: {
+            canonicalID: "$wclCanonicalCharacterId",
+            classID: "$classID",
           },
+          name: { $last: "$characterName" },
+          realm: { $last: "$characterRealm" },
+          region: { $last: "$characterRegion" },
+          hidden: { $last: "$hidden" },
+          firstReportSeenAt: { $min: "$reportStartTime" },
+          lastReportSeenAt: { $max: "$reportStartTime" },
         },
-      ]).allowDiskUse(true),
-      CharacterReportAppearance.aggregate([
-        { $match: { wclCanonicalCharacterId: { $in: canonicalIds }, classID: { $type: "number" } } },
-        {
-          $group: {
-            _id: {
-              canonicalID: "$wclCanonicalCharacterId",
-              classID: "$classID",
-              guildName: "$reportGuildName",
-              guildRealm: "$reportGuildRealm",
-            },
-            firstSeenAt: { $min: "$reportStartTime" },
-            lastSeenAt: { $max: "$reportStartTime" },
-          },
-        },
-        { $sort: { firstSeenAt: 1, "_id.guildName": 1, "_id.guildRealm": 1 } },
-      ]).allowDiskUse(true),
-    ]);
-    logger.info(
-      `[CharacterRaidParticipation] Relink multi-class canonical characters: aggregated ${identityRows.length} identity groups and ${guildRows.length} guild rows (${elapsed()})`,
-    );
-
-    const guildHistoryByIdentity = new Map<
-      string,
-      Array<{
-        guildName: string;
-        guildRealm: string;
-        firstSeenAt: Date;
-        lastSeenAt: Date;
-      }>
-    >();
-
-    for (const row of guildRows) {
-      const canonicalID = row._id?.canonicalID;
-      const classID = row._id?.classID;
-      const guildName = row._id?.guildName;
-      const guildRealm = row._id?.guildRealm;
-      if (typeof canonicalID !== "number" || typeof classID !== "number" || !guildName || !guildRealm) continue;
-
-      const key = `${canonicalID}:${classID}`;
-      const history = guildHistoryByIdentity.get(key) ?? [];
-      history.push({
-        guildName,
-        guildRealm,
-        firstSeenAt: row.firstSeenAt,
-        lastSeenAt: row.lastSeenAt,
-      });
-      guildHistoryByIdentity.set(key, history);
-    }
+      },
+    ]).allowDiskUse(true);
+    logger.info(`[CharacterRaidParticipation] Relink multi-class canonical characters: aggregated ${identityRows.length} identity groups (${elapsed()})`);
 
     let relinkedGroups = 0;
     let appearanceBulkOps: any[] = [];
@@ -1588,8 +1546,6 @@ class CharacterService {
       const classID = row._id?.classID;
       if (typeof canonicalID !== "number" || typeof classID !== "number" || !row.name || !row.realm || !row.region) continue;
 
-      const identityKey = `${canonicalID}:${classID}`;
-      const guildHistory = guildHistoryByIdentity.get(identityKey) ?? [];
       const character = await Character.findOneAndUpdate(
         { wclCanonicalCharacterId: canonicalID, classID },
         {
@@ -1599,13 +1555,9 @@ class CharacterService {
             region: row.region,
             classID,
             wclProfileHidden: row.hidden === true,
-            guildName: row.guildName ?? null,
-            guildRealm: row.guildRealm ?? null,
-            guildUpdatedAt: row.lastReportSeenAt,
             firstReportSeenAt: row.firstReportSeenAt,
             lastReportSeenAt: row.lastReportSeenAt,
             identityObservedAt: row.lastReportSeenAt,
-            guildHistory,
           },
           $setOnInsert: {
             wclCanonicalCharacterId: canonicalID,
@@ -1762,16 +1714,6 @@ class CharacterService {
       canonicalMatch: ResolvedReportRankingCanonicalMatch;
     }> = [];
     const characterDateUpdatesById = new Map<string, { characterId: mongoose.Types.ObjectId; firstSeenAt: Date; lastSeenAt: Date }>();
-    const guildHistoryUpdatesByKey = new Map<
-      string,
-      {
-        characterId: mongoose.Types.ObjectId;
-        guildName: string;
-        guildRealm: string;
-        firstSeenAt: Date;
-        lastSeenAt: Date;
-      }
-    >();
 
     for (const [index, appearance] of unmatchedAppearances.entries()) {
       const canonicalMatch = canonicalMatchesByIdentity.get(getMatchKey(appearance.characterName, appearance.characterRealm, appearance.characterRegion, appearance.classID));
@@ -1797,22 +1739,6 @@ class CharacterService {
         if (appearance.reportStartTime < characterDateUpdate.firstSeenAt) characterDateUpdate.firstSeenAt = appearance.reportStartTime;
         if (appearance.reportStartTime > characterDateUpdate.lastSeenAt) characterDateUpdate.lastSeenAt = appearance.reportStartTime;
       }
-
-      const guildHistoryKey = `${characterDateKey}:${appearance.reportGuildName.toLowerCase()}:${appearance.reportGuildRealm.toLowerCase()}`;
-      const guildHistoryUpdate = guildHistoryUpdatesByKey.get(guildHistoryKey);
-      if (!guildHistoryUpdate) {
-        guildHistoryUpdatesByKey.set(guildHistoryKey, {
-          characterId: canonicalMatch.characterId,
-          guildName: appearance.reportGuildName,
-          guildRealm: appearance.reportGuildRealm,
-          firstSeenAt: appearance.reportStartTime,
-          lastSeenAt: appearance.reportStartTime,
-        });
-      } else {
-        if (appearance.reportStartTime < guildHistoryUpdate.firstSeenAt) guildHistoryUpdate.firstSeenAt = appearance.reportStartTime;
-        if (appearance.reportStartTime > guildHistoryUpdate.lastSeenAt) guildHistoryUpdate.lastSeenAt = appearance.reportStartTime;
-      }
-
     }
 
     const canonicalAppearanceKey = (reportCode: string, canonicalID: number, classID: number) => `${reportCode}:${canonicalID}:${classID}`;
@@ -1901,23 +1827,8 @@ class CharacterService {
       await Character.bulkWrite(dateUpdateOps, { ordered: false });
     }
 
-    let guildHistoryUpdates = 0;
-    for (const update of guildHistoryUpdatesByKey.values()) {
-      await this.updateReportGuildHistory(update.characterId, update.guildName, update.guildRealm, update.firstSeenAt);
-      if (update.lastSeenAt > update.firstSeenAt) {
-        await this.updateReportGuildHistory(update.characterId, update.guildName, update.guildRealm, update.lastSeenAt);
-      }
-      guildHistoryUpdates += 1;
-
-      if (guildHistoryUpdates % 1000 === 0) {
-        logger.info(
-          `[CharacterRaidParticipation] Matching report.rankings fallback appearances to canonical characters: updated ${guildHistoryUpdates}/${guildHistoryUpdatesByKey.size} guild history groups (${elapsed()})`,
-        );
-      }
-    }
-
     logger.info(
-      `[CharacterRaidParticipation] Matching report.rankings fallback appearances to canonical characters: complete, scanned ${unmatchedAppearances.length}, matched ${matchedAppearances.length}, merged ${mergedFallbackIds.length} duplicate rows, updated ${guildHistoryUpdatesByKey.size} guild history groups (${elapsed()})`,
+      `[CharacterRaidParticipation] Matching report.rankings fallback appearances to canonical characters: complete, scanned ${unmatchedAppearances.length}, matched ${matchedAppearances.length}, merged ${mergedFallbackIds.length} duplicate rows (${elapsed()})`,
     );
     return matchedAppearances.length;
   }
@@ -4241,10 +4152,29 @@ class CharacterService {
   /**
    * Query the materialized leaderboard for character rankings.
    *
-   * All operations are simple indexed find/count — no aggregation needed at query time.
-   * Ranks are either positional (for unfiltered views) or computed via fast countDocuments
-   * (for name-filtered views where we need global rank).
+   * Ranking rows remain indexed and materialized, while guild labels are hydrated
+   * from raid-scoped participation so historical views cannot retain current-guild
+   * snapshots from an older leaderboard build.
    */
+  private async applyRaidGuildsToCharacterRankingEntries<T extends { characterId?: unknown; guildName?: string | null; guildRealm?: string | null }>(
+    zoneId: number,
+    entries: T[],
+  ): Promise<T[]> {
+    const characterIds = entries
+      .map((entry) => entry.characterId)
+      .filter((characterId): characterId is mongoose.Types.ObjectId | string => Boolean(characterId));
+    const guildByCharacterId = await getPrimaryCharacterRaidGuilds(zoneId, characterIds);
+
+    return entries.map((entry) => {
+      const guild = entry.characterId ? guildByCharacterId.get(String(entry.characterId)) : null;
+      return {
+        ...entry,
+        guildName: guild?.name ?? null,
+        guildRealm: guild?.realm ?? null,
+      };
+    });
+  }
+
   async getCharacterRankings(options: {
     zoneId: number;
     encounterId?: number;
@@ -4297,7 +4227,7 @@ class CharacterService {
         bossScores: { $elemMatch: { specName: normalizedSpecName, rankPercent: { $gt: 0 } } },
       };
 
-      const allSpecEntries = (await CharacterLeaderboard.find(specQuery).lean()) as any[];
+      let allSpecEntries = (await CharacterLeaderboard.find(specQuery).lean()) as any[];
 
       for (const e of allSpecEntries) {
         e.bossScores = (e.bossScores ?? []).filter((bs: any) => bs.specName === normalizedSpecName && bs.rankPercent > 0);
@@ -4305,6 +4235,7 @@ class CharacterService {
         e.score = e.allStarsPoints;
       }
 
+      allSpecEntries = await this.applyRaidGuildsToCharacterRankingEntries(zoneId, allSpecEntries);
       allSpecEntries.sort((a: any, b: any) => b.score - a.score || (a.name ?? "").localeCompare(b.name ?? ""));
 
       let displayEntries = allSpecEntries;
@@ -4389,15 +4320,19 @@ class CharacterService {
       effectiveSkip = (effectivePage - 1) * safeLimit;
     }
 
-    // ── Guild name filter (narrows displayed rows, ranks stay global) ─
+    // ── Fetch the page and resolve raid-scoped guilds ────────────────
+    let entries: any[];
     if (partialGuildNameRegex) {
-      fetchQuery.guildName = partialGuildNameRegex;
-      totalItems = await CharacterLeaderboard.countDocuments(fetchQuery);
+      const candidates = await CharacterLeaderboard.find(fetchQuery).sort({ score: -1, name: 1 }).lean();
+      const hydratedCandidates = await this.applyRaidGuildsToCharacterRankingEntries(zoneId, candidates);
+      const matchingCandidates = hydratedCandidates.filter((entry) => partialGuildNameRegex.test(entry.guildName ?? ""));
+      totalItems = matchingCandidates.length;
+      entries = matchingCandidates.slice(effectiveSkip, effectiveSkip + safeLimit);
       needsGlobalRanks = true;
+    } else {
+      const storedEntries = await CharacterLeaderboard.find(fetchQuery).sort({ score: -1, name: 1 }).skip(effectiveSkip).limit(safeLimit).lean();
+      entries = await this.applyRaidGuildsToCharacterRankingEntries(zoneId, storedEntries);
     }
-
-    // ── Fetch the page ───────────────────────────────────────────────
-    const entries = await CharacterLeaderboard.find(fetchQuery).sort({ score: -1, name: 1 }).skip(effectiveSkip).limit(safeLimit).lean();
 
     // ── Compute ranks ────────────────────────────────────────────────
     // When name-filtered, positional ranks are wrong (they'd show position within

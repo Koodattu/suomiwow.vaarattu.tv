@@ -1012,7 +1012,7 @@
 .stat span {
   overflow: hidden;
   color: #aab7c8;
-  font-size: clamp(0.36rem, 1.75cqw, 0.49rem);
+  font-size: var(--card-stat-label-font-size, clamp(0.36rem, 1.75cqw, 0.49rem));
   font-weight: 800;
   letter-spacing: 0.015em;
   line-height: 1;
@@ -1023,7 +1023,7 @@
 .stat strong {
   margin-top: var(--card-stat-value-gap, 0.38rem);
   color: white;
-  font-size: clamp(0.76rem, 4.75cqw, 1.25rem);
+  font-size: var(--card-stat-value-font-size, clamp(0.76rem, 4.75cqw, 1.25rem));
   font-variant-numeric: tabular-nums;
   font-weight: 850;
   letter-spacing: -0.025em;
@@ -2830,7 +2830,7 @@
   left: 5.5%;
   min-width: 0;
   align-items: center;
-  gap: 0.24rem;
+  gap: var(--card-detail-gap, 0.24rem);
   background: none;
   box-shadow: none;
   clip-path: none;
@@ -3001,7 +3001,7 @@
   bottom: 17.5%;
   left: 43%;
   justify-content: flex-end;
-  gap: 0.24rem;
+  gap: var(--card-detail-gap, 0.24rem);
   color: var(--class-color);
   font-size: var(--card-detail-font-size, clamp(0.46rem, 2.35cqw, 0.66rem));
   font-weight: 800;
@@ -3016,7 +3016,7 @@
   z-index: 20;
   bottom: 3%;
   color: #becbda;
-  font-size: clamp(0.42rem, 2.15cqw, 0.6rem);
+  font-size: var(--card-brand-font-size, clamp(0.42rem, 2.15cqw, 0.6rem));
   font-weight: 720;
   line-height: 1;
   text-shadow: 0 2px 4px #000;
@@ -3771,7 +3771,7 @@
   height: 5%;
   color: color-mix(in srgb, var(--lab-accent) 64%, white);
   font-family: "LifeCraft", fantasy;
-  font-size: clamp(0.7rem, 4.8cqw, 1.1rem);
+  font-size: var(--card-set-name-font-size, clamp(0.7rem, 4.8cqw, 1.1rem));
   font-synthesis: none;
   font-weight: 400;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.88);
