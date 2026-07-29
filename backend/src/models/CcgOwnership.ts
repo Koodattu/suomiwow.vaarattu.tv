@@ -15,7 +15,6 @@ export interface ICcgOwnership extends Document {
   firstAcquiredAt: Date;
   lastAcquiredAt: Date;
   dateKey?: string | null;
-  expiresAt?: Date | null;
 }
 
 const CcgOwnershipSchema = new Schema<ICcgOwnership>(
@@ -31,7 +30,6 @@ const CcgOwnershipSchema = new Schema<ICcgOwnership>(
     firstAcquiredAt: { type: Date, required: true, default: Date.now },
     lastAcquiredAt: { type: Date, required: true, default: Date.now },
     dateKey: { type: String, default: null },
-    expiresAt: { type: Date, default: null },
   },
   { timestamps: false },
 );
@@ -46,6 +44,5 @@ CcgOwnershipSchema.index(
   },
 );
 CcgOwnershipSchema.index({ ownerType: 1, ownerId: 1, lastAcquiredAt: -1 });
-CcgOwnershipSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model<ICcgOwnership>("CcgOwnership", CcgOwnershipSchema);

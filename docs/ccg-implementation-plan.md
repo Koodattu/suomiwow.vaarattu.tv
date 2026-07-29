@@ -17,7 +17,7 @@ The product has two collection modes:
 
 Every raid tier is its own set and binder. Legacy storage recharges by one pack every Helsinki half-hour, while Current storage recharges every Helsinki hour. Both modes store up to 50 rechargeable packs. Current packs draw from all enabled active raids; Legacy packs draw from all enabled past raids.
 
-Guests begin with 20 packs in each mode. A first-time authenticated CCG player begins with 20 packs in each mode, including existing SuomiWoW accounts that have never played CCG. Guest openings are temporary: after revealing a pack, the guest may explicitly log in to transfer that day's complete guest collection to an account that has no prior CCG activity. An established CCG account cannot import guest pulls.
+Guests begin with 20 packs in each mode. A first-time authenticated CCG player begins with 20 packs in each mode, including existing SuomiWoW accounts that have never played CCG. Guest collections persist on the server and remain linked to the browser by a rolling device cookie. A guest may explicitly log in to transfer the complete guest collection to an account that has no prior CCG activity. An established CCG account cannot import guest pulls.
 
 ### Community set
 
@@ -107,7 +107,7 @@ Duplicates do not upgrade card rarity. Rarity represents the character's snapsho
 - Alternative art is a separate collector-wide cosmetic unlock. It never affects duplicate classification or finish completion, and one unlock makes the alternative art available for every owned finish and raid card sharing that `collectorKey`.
 - Ownership stores and displays quantities such as `×2` and `×7`.
 - Copies are not destroyed when a completed-card reward is granted.
-- Guest results are provisional: completed-card rewards are calculated against the authenticated collection during a valid same-day claim and no spendable guest bonus credit exists before login.
+- Guest results are provisional: completed-card rewards are calculated against the authenticated collection during a valid claim and no spendable guest bonus credit exists before login.
 
 ### Finishes
 
@@ -274,12 +274,13 @@ The client never submits card IDs, grades, rarity buckets, finishes, or random r
 
 ### Guest identity
 
-- The backend creates a random guest token scoped to the current `Europe/Helsinki` calendar day.
+- The backend creates a random persistent guest token for the browser.
 - The raw token is stored only in a Secure, HttpOnly, SameSite=Lax cookie.
 - MongoDB stores only a cryptographic hash of the token.
-- The guest record, openings, ownership, and related progress use the same `dateKey` and expire at the next Helsinki daily reset.
-- Every guest read, opening, and claim validates `dateKey` and `expiresAt` in application code. MongoDB TTL cleanup is eventual and is not the security or product-behavior boundary.
-- An expired guest cookie is replaced with a new day-scoped token on the visitor's next CCG request. Data from the previous token is not carried forward.
+- The cookie uses the browser-supported 400-day maximum lifetime and is renewed whenever the guest uses a CCG endpoint.
+- Guest records, openings, ownership, pack balances, and related progress do not expire or reset at the Helsinki daily boundary.
+- The `dateKey` on guest-owned activity records remains acquisition provenance only; it is never part of guest identity or retention checks.
+- Clearing site cookies or allowing the browser cookie to expire removes the device's recovery credential. The server-side collection remains intact but cannot be automatically reassociated without that token.
 - The UI offers an explicit login action after a pack has been revealed.
 
 Cookie resetting and other lightweight abuse are accepted product tradeoffs. Basic rate limiting and idempotency are still required to prevent accidental or automated request floods.
@@ -300,7 +301,7 @@ Guests cannot open completed-card bonus packs while logged out. An explicit clai
 
 An eligible guest-to-user claim:
 
-1. Validates that the guest record and selected five-card opening belong together, are unclaimed, and have not expired.
+1. Validates that the guest record and selected five-card opening belong together and are unclaimed.
 2. Requires the authenticated account's persistent CCG `hasPlayed` marker to be false.
 3. Reconstructs the complete guest collection from immutable server opening records and rejects any ownership mismatch.
 4. Transfers the verified card, finish, quantity, alternative-art, and quality-protection state to the authenticated collection.
@@ -667,7 +668,6 @@ Application code must reject attempts to modify immutable snapshot fields after 
 - `dateKey`
 - `firstSeenAt`
 - `lastSeenAt`
-- `expiresAt`
 - `claimedByUserId`
 - `claimedAt`
 - timestamps
@@ -675,8 +675,7 @@ Application code must reject attempts to modify immutable snapshot fields after 
 Indexes:
 
 - Unique `{tokenHash: 1}`
-- `{dateKey: 1, expiresAt: 1}`
-- TTL `{expiresAt: 1}`
+- `{dateKey: 1}`
 - `{claimedByUserId: 1}`
 
 ### `CcgOwnership`
@@ -692,14 +691,13 @@ Use a polymorphic owner:
 - `alternativeQuantity`: an existing value above zero is global alternative-art unlock evidence; it does not split or add to finish quantities
 - `firstAcquiredAt`
 - `lastAcquiredAt`
-- Guest-only `dateKey` and `expiresAt`; omit these fields for authenticated ownership
+- Guest acquisition `dateKey`; clear it when ownership is transferred to an authenticated account
 
 Indexes:
 
 - Unique `{ownerType: 1, ownerId: 1, setId: 1, characterId: 1, finish: 1}`
 - Unique `{ownerType: 1, ownerId: 1, cardId: 1, finish: 1}` retained for exact acquisition-snapshot lookups
 - `{ownerType: 1, ownerId: 1, lastAcquiredAt: -1}`
-- TTL `{expiresAt: 1}`; authenticated documents do not contain this field
 - Collection filter indexes should include the denormalized fields only if measurement shows lookup joins are insufficient.
 
 One document stores a quantity. Do not create one ownership document per duplicate copy.
@@ -712,20 +710,18 @@ Store one entitlement document per owned card series:
 - `setId` and `characterId`
 - `unlockedSnapshotVersions`: the exact snapshot versions acquired through packs or rewards; versions are added independently and never inferred from an earlier or later acquisition
 - `firstAcquiredAt` and `lastAcquiredAt`
-- Guest-only `dateKey` and `expiresAt`
+- Guest acquisition `dateKey`
 
 Indexes:
 
 - Unique `{ownerType: 1, ownerId: 1, setId: 1, characterId: 1}`
-- TTL `{expiresAt: 1}`
-
 The idempotent startup migrations backfill series identity from each ownership row's exact card snapshot, create the corresponding series entitlement, and convert the initial version boundary into explicit acquired snapshot versions. They do not fill gaps between acquired versions. A structurally valid ownership row whose card no longer exists fails the migration so ownership is not silently lost. Structurally malformed legacy rows without a usable card or finish are retained unchanged for audit, excluded from collection calculations, and reported in the migration result.
 
 ### `CcgQualityProgress`
 
-Store one document per owner with persistent base counters for `foil`, `golden`, `prismatic`, `holographic`, and `negative`, plus a `custom` map keyed by raid-set slug. Base counters are shared by Current and Legacy openings and advance once per pulled card; custom counters advance only for their matching set. The selected raw finish resets its counter, while a different non-Standard finish awarded through duplicate protection resets too. Guest progress uses the same day-scoped expiry as other provisional guest state. A claim reclassifies the selected opening against the authenticated collection without importing the guest's wider pity state.
+Store one document per owner with persistent base counters for `foil`, `golden`, `prismatic`, `holographic`, and `negative`, plus a `custom` map keyed by raid-set slug. Base counters are shared by Current and Legacy openings and advance once per pulled card; custom counters advance only for their matching set. The selected raw finish resets its counter, while a different non-Standard finish awarded through duplicate protection resets too. Guest progress persists with the rest of the guest collection. A claim reclassifies the selected opening against the authenticated collection without importing the guest's wider pity state.
 
-All other guest-owned temporary documents, including pack balance, provisional progress, and opening documents, carry the same guest `dateKey` and `expiresAt` and have TTL indexes where applicable. Application queries must still reject expired guest data because MongoDB TTL deletion is not immediate.
+All guest-owned documents, including pack balance, provisional progress, and opening documents, persist until they are transferred to an eligible authenticated account. Guest collection models must not declare TTL indexes.
 
 ### `CcgPackBalance`
 
@@ -738,13 +734,11 @@ All other guest-owned temporary documents, including pack balance, provisional p
 - `grantVersion`
 - `hasPlayed`
 - `firstPlayedAt`
-- optional guest `expiresAt`
 - timestamps
 
 Index:
 
 - Unique `{ownerType: 1, ownerId: 1}`
-- TTL `{expiresAt: 1}`
 
 Recharge is evaluated lazily against shared Helsinki half-hour boundaries whenever the owner loads a CCG session or opens a pack. The backend updates only that owner's balance and checkpoint, so there is no scheduled fan-out across all users. Missed grants are discarded while storage is full.
 
@@ -802,7 +796,7 @@ Current and Legacy are logical mode pools over these per-set documents. Pack ope
 - ordered result list
 - per-result card id, originating set id, finish, and new/duplicate classification
 - duplicate rewards produced by this opening
-- Guest-only `dateKey` and `expiresAt`
+- Guest acquisition `dateKey`
 - state
 - timestamps
 
@@ -811,7 +805,6 @@ Indexes:
 - Unique `{ownerType: 1, ownerId: 1, idempotencyKey: 1}`
 - `{ownerType: 1, ownerId: 1, createdAt: -1}`
 - `{sourceSetIds: 1, createdAt: -1}`
-- TTL `{expiresAt: 1}`; authenticated openings do not contain this field
 
 ### `CcgLedgerEntry`
 
@@ -849,7 +842,7 @@ Within one transaction:
 9. Roll the protected finishes once per card using the stored pack-rule version. Keep a missing rolled finish; promote an exact-finish duplicate to the next missing finish and persist the resulting counters.
 10. Upsert ownership quantities.
 11. For an authenticated owner, grant one idempotent mode-specific credit when a duplicate is pulled for an already-complete raid card that has not rewarded before.
-12. For a guest, record only provisional same-day ownership and classifications; defer authenticated duplicate reclassification and rewards until claim.
+12. For a guest, record persistent provisional ownership and classifications; defer authenticated duplicate reclassification and rewards until claim.
 13. Write the immutable opening result and ledger entries.
 14. Commit.
 
@@ -859,7 +852,7 @@ If the transaction fails, no allowance, ownership, completed-card reward, or res
 
 Within one transaction:
 
-1. Validate the guest cookie and locate an unclaimed, unexpired guest for the current Helsinki `dateKey`.
+1. Validate the guest cookie and locate its guest record regardless of the original creation date.
 2. Return the previous successful result if the claim is already complete for the same user.
 3. Load a committed five-card opening belonging to the guest. Validate the explicitly selected opening when supplied; otherwise use the latest opening so every login path can preserve the collection.
 4. Atomically require and flip the authenticated account's `hasPlayed` marker from false to true.
@@ -870,7 +863,7 @@ Within one transaction:
 9. Mark every opening and the guest identity claimed, invalidate further guest writes, and write the claim ledger entry.
 10. Commit.
 
-The claim must remain safe under concurrent login callbacks and repeated browser requests. An expired guest or an account with any prior CCG activity receives no partial claim.
+The claim must remain safe under concurrent login callbacks and repeated browser requests. A missing guest or an account with any prior CCG activity receives no partial claim.
 
 ## API surface
 
@@ -921,7 +914,6 @@ All schedules use the IANA timezone `Europe/Helsinki`, not a fixed UTC offset, s
 
 | Job | Schedule (`Europe/Helsinki`) | Purpose |
 | --- | --- | --- |
-| Guest expiry reconciliation | Daily at 00:15 | Remove expired guest child documents left behind by eventual TTL cleanup and report anomalies. Product enforcement still happens synchronously at the 00:00 date boundary. |
 | New-character media discovery | Daily at 01:30 | Find characters newly observed by achievements, raid participation, rankings, or character ingestion since the last cursor; enqueue missing avatar and full-render media. |
 | Active-character media refresh enqueue | Daily at 01:50 | Enqueue active Current candidates whose profile avatar/render metadata is stale. Spread work with `nextMediaRefreshAt`; do not refetch every known character every night. |
 | Media queue recovery | Every 15 minutes | Return stale `processing` jobs to retry state and make transient failures eligible after backoff. |
@@ -1062,7 +1054,7 @@ Do not create a second card renderer for pack reveals and collection views. Use 
 - Rate-limit pack-open and guest-identity creation endpoints.
 - Store only guest token hashes.
 - Use Secure, HttpOnly, SameSite cookies.
-- Enforce the guest `dateKey`, expiry, pack balances, and opening-to-ownership consistency on the backend.
+- Enforce guest-token ownership, pack balances, and opening-to-ownership consistency on the backend.
 - Treat client-provided set ids, modes, and filters as untrusted.
 - Validate that every source set belongs to the requested enabled Current or Legacy mode.
 - Never expose Blizzard credentials or access tokens.
@@ -1148,7 +1140,7 @@ Never expose user-level private collection data in public operational dashboards
 
 ### Phase 4 — guest collection and claim
 
-- Add day-scoped guest cookies, synchronous expiry checks, and TTL cleanup.
+- Add rolling persistent guest cookies and migrate away from guest TTL cleanup.
 - Allow anonymous Current and Legacy openings.
 - Implement the transactional full-library claim, first-CCG-play guard, and provenance verification.
 - Verify concurrency and idempotency.
@@ -1202,8 +1194,8 @@ Never expose user-level private collection data in public operational dashboards
 - Same-character cards in different raid sets remain independent
 - One-time Current/Legacy completed-card pack credit
 - Legacy set selection
-- Guest opening, same-day claim, and repeated claim
-- Expired previous-day guest claim rejection
+- Guest opening, cross-day claim, and repeated claim
+- Guest identity and collection survive Helsinki midnight
 - Guest claim accepts an explicitly selected five-card opening or resolves the guest's latest opening for shared login paths, then transfers only the verified library belonging to that guest
 - Existing CCG activity rejects a guest claim, including activity from pre-marker records
 - Concurrent login callbacks
@@ -1264,9 +1256,9 @@ The initial feature is ready when:
 - A user or guest receives one Legacy pack each Helsinki half-hour and one Current pack each Helsinki hour while below the 50-pack storage cap for each mode.
 - A new guest starts with 20 packs per mode; a first-time authenticated CCG player starts with 20 packs per mode.
 - A Legacy pack can contain cards from any enabled historical raid.
-- Every committed result survives refresh and repeated requests during its retention window; authenticated results remain permanent.
-- Guest cards can be claimed only during the Helsinki day in which they were opened; unclaimed cards are inaccessible after reset and are removed by cleanup.
-- A guest claim transfers the complete same-day guest library only when its ownership exactly matches the immutable server opening history, plus up to 20 unspent server-recorded guest packs per mode.
+- Every committed result survives refresh and repeated requests; authenticated and guest results remain permanent.
+- Guest cards, balances, and progress survive Helsinki midnight without receiving a fresh starting balance.
+- A guest claim transfers the complete cross-day guest library only when its ownership exactly matches the immutable server opening history, plus up to 20 unspent server-recorded guest packs per mode.
 - An account with any prior CCG activity cannot claim guest cards; unrelated pre-CCG SuomiWoW account activity does not disqualify it.
 - Cards remain immutable after publication and rollover.
 - Tier grade is the visible rarity and drives pack/style behavior.

@@ -81,12 +81,7 @@ router.get(
                 { lastRolloverSequence: { $exists: false } },
               ],
             },
-            {
-              $or: [
-                { ownerType: "user" },
-                { ownerType: "guest", expiresAt: { $gt: new Date() } },
-              ],
-            },
+            { ownerType: { $in: ["user", "guest"] } },
           ],
         })
       : 0;
@@ -261,11 +256,6 @@ router.post(
 router.post(
   "/media/retry",
   adminRoute(async () => runTrackedMediaAction(CHARACTER_MEDIA_RETRY_TASK_NAME, async () => ({ retried: await characterMediaService.retryFailures() }))),
-);
-
-router.post(
-  "/guests/cleanup",
-  adminRoute(async () => ccgService.cleanupExpiredGuestData()),
 );
 
 export default router;

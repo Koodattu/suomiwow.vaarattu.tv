@@ -30,7 +30,6 @@ type OwnershipGroup = {
   firstAcquiredAt: Date;
   lastAcquiredAt: Date;
   dateKey?: string | null;
-  expiresAt?: Date | null;
   snapshotVersions: number[];
 };
 
@@ -91,7 +90,6 @@ async function flushGroups(groups: OwnershipGroup[]): Promise<{ rows: number; so
             firstAcquiredAt: group.firstAcquiredAt,
             lastAcquiredAt: group.lastAcquiredAt,
             dateKey: group.dateKey ?? null,
-            expiresAt: group.expiresAt ?? null,
           },
         },
       },
@@ -114,7 +112,6 @@ async function flushGroups(groups: OwnershipGroup[]): Promise<{ rows: number; so
           $max: { lastAcquiredAt: group.lastAcquiredAt },
           $set: {
             dateKey: group.dateKey ?? null,
-            expiresAt: group.expiresAt ?? null,
           },
         },
         upsert: true,
@@ -161,7 +158,6 @@ async function runMigration(): Promise<{ rows: number; merged: number; ignoredMa
         firstAcquiredAt: { $min: "$firstAcquiredAt" },
         lastAcquiredAt: { $max: "$lastAcquiredAt" },
         dateKey: { $first: "$dateKey" },
-        expiresAt: { $max: "$expiresAt" },
         snapshotVersions: { $addToSet: { $ifNull: ["$card.snapshotVersion", 1] } },
       },
     },

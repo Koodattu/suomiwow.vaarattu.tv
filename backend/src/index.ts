@@ -47,6 +47,7 @@ import cacheService from "./services/cache.service";
 import cacheWarmerService from "./services/cache-warmer.service";
 import guildLogSourceService from "./services/guild-log-source.service";
 import ccgPublisherService from "./services/ccg-publisher.service";
+import { ensurePersistentCcgGuests } from "./services/ccg-guest-persistence-migration.service";
 import { ensureCcgSeriesOwnershipMigration } from "./services/ccg-ownership-migration.service";
 import { CCG_FEATURE_ENABLED } from "./config/ccg";
 
@@ -535,6 +536,10 @@ const startServer = async () => {
     setStartupTask("Connect to MongoDB");
     await connectDB();
     completeStartupTask("Connect to MongoDB");
+
+    setStartupTask("Preserve CCG guest collections");
+    await ensurePersistentCcgGuests();
+    completeStartupTask("Preserve CCG guest collections");
 
     // Initialize cache service (requires MongoDB connection)
     setStartupTask("Initialize cache service");

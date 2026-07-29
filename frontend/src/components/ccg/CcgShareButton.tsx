@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { FaCheck, FaShareNodes, FaTriangleExclamation } from "react-icons/fa6";
 import type { CcgArtVariant, CcgFinish, CcgShareLink } from "@/types";
 import { api } from "@/lib/api";
@@ -43,7 +43,6 @@ export default function CcgShareButton({
   loginRequired?: boolean;
 }) {
   const t = useTranslations("ccg.share");
-  const locale = useLocale();
   const [status, setStatus] = useState<"idle" | "creating" | "copied" | "error">("idle");
   const [shareLink, setShareLink] = useState<CcgShareLink | null>(null);
   const resetTimerRef = useRef<number | null>(null);
@@ -62,7 +61,6 @@ export default function CcgShareButton({
         : await api.createCcgPackShare(target.openingId));
       setShareLink(link);
       const shareUrl = new URL(link.path, window.location.origin);
-      shareUrl.searchParams.set("lang", locale);
       await copyText(shareUrl.toString());
       setStatus("copied");
       resetDelay = 1400;

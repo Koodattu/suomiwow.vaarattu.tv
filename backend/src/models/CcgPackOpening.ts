@@ -28,7 +28,6 @@ export interface ICcgPackOpening extends Document {
   duplicateRewards: number;
   state: "committed";
   dateKey?: string | null;
-  expiresAt?: Date | null;
   claimedByUserId?: mongoose.Types.ObjectId | null;
   claimedAt?: Date | null;
   analyticsPending?: boolean;
@@ -65,7 +64,6 @@ const CcgPackOpeningSchema = new Schema<ICcgPackOpening>(
     duplicateRewards: { type: Number, required: true, default: 0 },
     state: { type: String, enum: ["committed"], required: true, default: "committed" },
     dateKey: { type: String, default: null },
-    expiresAt: { type: Date, default: null },
     claimedByUserId: { type: Schema.Types.ObjectId, ref: "User", default: null },
     claimedAt: { type: Date, default: null },
     analyticsPending: { type: Boolean, required: true, default: false },
@@ -82,6 +80,4 @@ CcgPackOpeningSchema.index(
   { analyticsPending: 1, createdAt: 1 },
   { partialFilterExpression: { analyticsPending: true } },
 );
-CcgPackOpeningSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
 export default mongoose.model<ICcgPackOpening>("CcgPackOpening", CcgPackOpeningSchema);

@@ -9,6 +9,7 @@ import {
   CCG_FINISH_ORDER,
   CCG_FINISH_PITY_LIMITS,
   CCG_GUEST_COOKIE,
+  CCG_GUEST_COOKIE_MAX_AGE_MS,
   CCG_INITIAL_PACKS,
   CCG_PACK_BALANCE_VERSION,
   CCG_PACK_RECHARGE_INTERVAL_HOURS,
@@ -267,7 +268,6 @@ type CcgOwner = {
   ownerType: CcgOwnerType;
   ownerId: mongoose.Types.ObjectId;
   dateKey: string;
-  expiresAt?: Date;
 };
 
 type SelectedResult = {
@@ -1872,7 +1872,7 @@ class CcgService {
     if (opening.ownerType === "guest") {
       await CcgPackOpening.updateOne(
         { _id: opening._id, claimedByUserId: userId },
-        { $set: { dateKey: null, expiresAt: null } },
+        { $set: { dateKey: null } },
       );
     }
 
@@ -2469,7 +2469,6 @@ class CcgService {
               state: "committed",
               analyticsPending: true,
               dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
-              expiresAt: owner.ownerType === "guest" ? owner.expiresAt : null,
             },
           ],
           { session },
@@ -2490,7 +2489,6 @@ class CcgService {
                 allowanceSource: allowanceSource.source,
               },
               dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
-              expiresAt: owner.ownerType === "guest" ? owner.expiresAt : null,
             },
           ],
           { session },
@@ -2566,9 +2564,6 @@ class CcgService {
       : { ownerType: "guest", ownerId: owner.ownerId };
     const opening = await CcgPackOpening.findOne({ _id: id, ...ownershipFilter }).lean();
     if (!opening) throw new CcgServiceError(404, "opening_not_found", "Pack opening not found");
-    if (owner.ownerType === "guest" && (opening.dateKey !== owner.dateKey || !opening.expiresAt || opening.expiresAt <= new Date())) {
-      throw new CcgServiceError(410, "guest_expired", "These guest cards have expired");
-    }
     return this.serializeOpening(opening);
   }
 
@@ -2593,10 +2588,8 @@ class CcgService {
       await session.withTransaction(async () => {
         const transactionalGuest = await CcgGuest.findOne({
           _id: guest._id,
-          dateKey: getHelsinkiDateKey(),
-          expiresAt: { $gt: new Date() },
         }).session(session);
-        if (!transactionalGuest) throw new CcgServiceError(410, "guest_expired", "This guest pack has expired");
+        if (!transactionalGuest) throw new CcgServiceError(404, "guest_not_found", "This guest collection was not found");
         if (transactionalGuest.claimedByUserId) {
           response = { claimed: false, alreadyClaimed: true, cards: { current: 0, legacy: 0 }, transferredPacks: { current: 0, legacy: 0 }, startingPacks: 0 };
           return;
@@ -2604,7 +2597,6 @@ class CcgService {
         const guestOpenings = await CcgPackOpening.find({
           ownerType: "guest",
           ownerId: transactionalGuest._id,
-          dateKey: transactionalGuest.dateKey,
           claimedAt: null,
           state: "committed",
         }).sort({ createdAt: 1, _id: 1 }).session(session);
@@ -2619,7 +2611,7 @@ class CcgService {
           throw new CcgServiceError(404, "guest_opening_not_found", "This guest pack cannot be claimed");
         }
 
-        const userOwner: CcgOwner = { ownerType: "user", ownerId: userId, dateKey: transactionalGuest.dateKey };
+        const userOwner: CcgOwner = { ownerType: "user", ownerId: userId, dateKey: getHelsinkiDateKey() };
         if (await this.hasCcgActivity(userOwner, session)) {
           throw new CcgServiceError(409, "ccg_account_already_started", "This account has already started its CCG collection");
         }
@@ -2697,7 +2689,6 @@ class CcgService {
               ownerType: "user",
               ownerId: userId,
               dateKey: null,
-              expiresAt: null,
             },
           },
           { session },
@@ -2709,7 +2700,6 @@ class CcgService {
               ownerType: "user",
               ownerId: userId,
               dateKey: null,
-              expiresAt: null,
             },
           },
           { session },
@@ -2720,7 +2710,6 @@ class CcgService {
             $set: {
               ownerType: "user",
               ownerId: userId,
-              expiresAt: null,
             },
           },
           { session },
@@ -2736,7 +2725,6 @@ class CcgService {
               claimedByUserId: userId,
               claimedAt,
               dateKey: null,
-              expiresAt: null,
             },
           },
           { session },
@@ -2822,11 +2810,10 @@ class CcgService {
       const userId = new mongoose.Types.ObjectId(req.session.userId);
       if (await User.exists({ _id: userId })) return { ownerType: "user", ownerId: userId, dateKey };
     }
-    const expiresAt = getNextHelsinkiReset();
     const rawCookie = typeof req.cookies?.[CCG_GUEST_COOKIE] === "string" ? req.cookies[CCG_GUEST_COOKIE] : null;
     if (rawCookie) {
       const now = new Date();
-      const existing = await CcgGuest.findOne({ tokenHash: hashGuestToken(rawCookie), dateKey, expiresAt: { $gt: now }, claimedAt: null }).lean();
+      const existing = await CcgGuest.findOne({ tokenHash: hashGuestToken(rawCookie), claimedAt: null }).lean();
       if (existing) {
         if (existing.lastSeenAt.getTime() <= now.getTime() - CCG_GUEST_LAST_SEEN_WRITE_INTERVAL_MS) {
           void CcgGuest.updateOne(
@@ -2834,7 +2821,8 @@ class CcgService {
             { $set: { lastSeenAt: now } },
           ).catch((error) => logger.error("[CCG] Failed to update guest activity:", error));
         }
-        return { ownerType: "guest", ownerId: existing._id, dateKey, expiresAt: existing.expiresAt };
+        this.setGuestCookie(res, rawCookie);
+        return { ownerType: "guest", ownerId: existing._id, dateKey };
       }
     }
     const token = randomBytes(32).toString("base64url");
@@ -2843,40 +2831,20 @@ class CcgService {
       dateKey,
       firstSeenAt: new Date(),
       lastSeenAt: new Date(),
-      expiresAt,
     });
+    this.setGuestCookie(res, token);
+    return { ownerType: "guest", ownerId: guest._id, dateKey };
+  }
+
+  private setGuestCookie(res: Response, token: string): void {
     res.cookie(CCG_GUEST_COOKIE, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/api/ccg",
-      expires: expiresAt,
+      maxAge: CCG_GUEST_COOKIE_MAX_AGE_MS,
+      expires: new Date(Date.now() + CCG_GUEST_COOKIE_MAX_AGE_MS),
     });
-    return { ownerType: "guest", ownerId: guest._id, dateKey, expiresAt };
-  }
-
-  async cleanupExpiredGuestData(): Promise<Record<string, number>> {
-    const now = new Date();
-    const [ownership, seriesOwnership, balances, allowances, openings, ledgers, qualityProgress, guests] = await Promise.all([
-      CcgOwnership.deleteMany({ ownerType: "guest", expiresAt: { $lte: now } }),
-      CcgSeriesOwnership.deleteMany({ ownerType: "guest", expiresAt: { $lte: now } }),
-      CcgPackBalance.deleteMany({ ownerType: "guest", expiresAt: { $lte: now } }),
-      CcgDailyAllowance.deleteMany({ ownerType: "guest", expiresAt: { $lte: now } }),
-      CcgPackOpening.deleteMany({ ownerType: "guest", expiresAt: { $lte: now } }),
-      CcgLedgerEntry.deleteMany({ ownerType: "guest", expiresAt: { $lte: now } }),
-      CcgQualityProgress.deleteMany({ ownerType: "guest", expiresAt: { $lte: now } }),
-      CcgGuest.deleteMany({ expiresAt: { $lte: now } }),
-    ]);
-    return {
-      ownership: ownership.deletedCount,
-      seriesOwnership: seriesOwnership.deletedCount,
-      balances: balances.deletedCount,
-      allowances: allowances.deletedCount,
-      openings: openings.deletedCount,
-      ledgers: ledgers.deletedCount,
-      qualityProgress: qualityProgress.deletedCount,
-      guests: guests.deletedCount,
-    };
   }
 
   private async ensureAnalyticsInitialized(): Promise<void> {
@@ -3401,7 +3369,6 @@ class CcgService {
         $setOnInsert: {
           ...emptyFinishPity(),
           custom: {},
-          expiresAt: owner.ownerType === "guest" ? owner.expiresAt : null,
         },
       },
       { upsert: true, new: true, session },
@@ -3507,7 +3474,6 @@ class CcgService {
             grantVersion: CCG_PACK_BALANCE_VERSION,
             hasPlayed,
             firstPlayedAt: hasPlayed ? date : null,
-            expiresAt: owner.ownerType === "guest" ? owner.expiresAt : null,
           },
         },
         { upsert: true, new: true, session },
@@ -3600,7 +3566,6 @@ class CcgService {
                 newCurrentPacks: applied.balances.current,
               },
               dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
-              expiresAt: owner.ownerType === "guest" ? owner.expiresAt : null,
             },
           },
           { upsert: true, session },
@@ -3883,7 +3848,6 @@ class CcgService {
             $setOnInsert: {
               firstAcquiredAt: now,
               dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
-              expiresAt: owner.ownerType === "guest" ? owner.expiresAt : null,
             },
           },
           upsert: true,
@@ -3911,7 +3875,6 @@ class CcgService {
               cardId: row.cardId,
               firstAcquiredAt: now,
               dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
-              expiresAt: owner.ownerType === "guest" ? owner.expiresAt : null,
             },
           },
           upsert: true,
@@ -4403,8 +4366,6 @@ class CcgService {
     if (!raw) return null;
     const filter: Record<string, unknown> = {
       tokenHash: hashGuestToken(raw),
-      dateKey: getHelsinkiDateKey(),
-      expiresAt: { $gt: new Date() },
     };
     if (!includeClaimed) filter.claimedAt = null;
     return CcgGuest.findOne(filter);

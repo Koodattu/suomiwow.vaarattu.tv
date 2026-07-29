@@ -13,7 +13,6 @@ export interface ICcgLedgerEntry extends Document {
   amount: number;
   metadata: Record<string, unknown>;
   dateKey?: string | null;
-  expiresAt?: Date | null;
   createdAt: Date;
 }
 
@@ -32,13 +31,11 @@ const CcgLedgerEntrySchema = new Schema<ICcgLedgerEntry>(
     amount: { type: Number, required: true, default: 0 },
     metadata: { type: Schema.Types.Mixed, default: {} },
     dateKey: { type: String, default: null },
-    expiresAt: { type: Date, default: null },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
 
 CcgLedgerEntrySchema.index({ ownerType: 1, ownerId: 1, idempotencyKey: 1 }, { unique: true });
 CcgLedgerEntrySchema.index({ ownerType: 1, ownerId: 1, createdAt: -1 });
-CcgLedgerEntrySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model<ICcgLedgerEntry>("CcgLedgerEntry", CcgLedgerEntrySchema);

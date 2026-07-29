@@ -928,7 +928,7 @@
 
 .rarityPlate strong {
   color: color-mix(in srgb, var(--rarity) 82%, white);
-  font-size: clamp(0.46rem, 2.35cqw, 0.66rem);
+  font-size: var(--card-detail-font-size, clamp(0.46rem, 2.35cqw, 0.66rem));
   font-weight: 850;
   letter-spacing: 0.04em;
   line-height: 1;
@@ -2841,7 +2841,7 @@
   letter-spacing: 0.07em;
 }
 .vaultRelic .qualityLabel {
-  font-size: clamp(0.46rem, 2.35cqw, 0.66rem);
+  font-size: var(--card-detail-font-size, clamp(0.46rem, 2.35cqw, 0.66rem));
   line-height: 1;
   text-transform: uppercase;
   white-space: nowrap;
@@ -3003,7 +3003,7 @@
   justify-content: flex-end;
   gap: 0.24rem;
   color: var(--class-color);
-  font-size: clamp(0.46rem, 2.35cqw, 0.66rem);
+  font-size: var(--card-detail-font-size, clamp(0.46rem, 2.35cqw, 0.66rem));
   font-weight: 800;
   letter-spacing: 0.04em;
   text-shadow: none;

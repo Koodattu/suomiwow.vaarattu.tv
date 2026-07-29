@@ -10,7 +10,6 @@ export interface ICcgSeriesOwnership extends Document {
   firstAcquiredAt: Date;
   lastAcquiredAt: Date;
   dateKey?: string | null;
-  expiresAt?: Date | null;
 }
 
 const CcgSeriesOwnershipSchema = new Schema<ICcgSeriesOwnership>(
@@ -23,7 +22,6 @@ const CcgSeriesOwnershipSchema = new Schema<ICcgSeriesOwnership>(
     firstAcquiredAt: { type: Date, required: true, default: Date.now },
     lastAcquiredAt: { type: Date, required: true, default: Date.now },
     dateKey: { type: String, default: null },
-    expiresAt: { type: Date, default: null },
   },
   { timestamps: false },
 );
@@ -32,6 +30,4 @@ CcgSeriesOwnershipSchema.index(
   { ownerType: 1, ownerId: 1, setId: 1, characterId: 1 },
   { unique: true, name: "ccg_series_ownership_owner_series" },
 );
-CcgSeriesOwnershipSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
 export default mongoose.model<ICcgSeriesOwnership>("CcgSeriesOwnership", CcgSeriesOwnershipSchema);

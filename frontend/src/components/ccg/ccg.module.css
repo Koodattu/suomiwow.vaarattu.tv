@@ -1883,6 +1883,7 @@
 }
 
 .leaderboardShowcaseCard {
+  --card-detail-font-size: clamp(0.32rem, 3.05cqw, 0.66rem);
   border: 0;
   background: transparent;
   box-shadow: 0 12px 22px rgba(0, 0, 0, 0.24);

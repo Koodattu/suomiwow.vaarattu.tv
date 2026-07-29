@@ -10,7 +10,6 @@ export interface ICcgQualityProgress extends Document {
   holographic: number;
   negative: number;
   custom: Map<string, number>;
-  expiresAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,12 +24,10 @@ const CcgQualityProgressSchema = new Schema<ICcgQualityProgress>(
     holographic: { type: Number, required: true, min: 0, default: 0 },
     negative: { type: Number, required: true, min: 0, default: 0 },
     custom: { type: Map, of: Number, required: true, default: () => ({}) },
-    expiresAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
 
 CcgQualityProgressSchema.index({ ownerType: 1, ownerId: 1 }, { unique: true });
-CcgQualityProgressSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model<ICcgQualityProgress>("CcgQualityProgress", CcgQualityProgressSchema);

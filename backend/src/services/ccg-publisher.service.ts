@@ -231,12 +231,7 @@ class CcgPublisherService {
     const [balanceRows, creditRows] = await Promise.all([
       CcgPackBalance.aggregate<{ _id: "user" | "guest"; owners: number; currentRemaining: number }>([
         {
-          $match: {
-            $or: [
-              { ownerType: "user" },
-              { ownerType: "guest", expiresAt: { $gt: new Date() } },
-            ],
-          },
+          $match: { ownerType: { $in: ["user", "guest"] } },
         },
         {
           $group: {

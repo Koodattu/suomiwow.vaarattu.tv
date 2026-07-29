@@ -126,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               "ccg_account_already_started",
               "guest_already_claimed",
               "guest_expired",
+              "guest_not_found",
               "guest_library_invalid",
               "guest_opening_not_found",
               "feature_disabled",

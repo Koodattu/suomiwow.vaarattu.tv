@@ -12,7 +12,6 @@ export interface ICcgPackBalance extends Document {
   grantVersion?: number;
   hasPlayed?: boolean;
   firstPlayedAt?: Date | null;
-  expiresAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,13 +27,11 @@ const CcgPackBalanceSchema = new Schema<ICcgPackBalance>(
     grantVersion: { type: Number },
     hasPlayed: { type: Boolean },
     firstPlayedAt: { type: Date, default: null },
-    expiresAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
 
 CcgPackBalanceSchema.index({ ownerType: 1, ownerId: 1 }, { unique: true });
 CcgPackBalanceSchema.index({ ownerType: 1, lastRolloverSequence: 1 });
-CcgPackBalanceSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model<ICcgPackBalance>("CcgPackBalance", CcgPackBalanceSchema);

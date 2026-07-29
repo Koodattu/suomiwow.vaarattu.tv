@@ -36,7 +36,6 @@ test("every Admin CCG route rejects an unauthenticated request", async () => {
     { method: "POST", path: "/media/refresh-current" },
     { method: "POST", path: "/media/recover" },
     { method: "POST", path: "/media/retry" },
-    { method: "POST", path: "/guests/cleanup" },
   ];
 
   try {

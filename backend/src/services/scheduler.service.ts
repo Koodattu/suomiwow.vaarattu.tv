@@ -154,7 +154,6 @@ class UpdateScheduler {
   private isUpdatingRaiderIOGuilds: boolean = false;
   private isUpdatingMythicPlusCurrentSeason: boolean = false;
   private isRepairingMythicPlusHistoricalScores: boolean = false;
-  private isCleaningCcgGuests: boolean = false;
   private isProcessingCcgPackAnalytics: boolean = false;
   private isRefreshingCcgLeaderboard: boolean = false;
   private isDiscoveringCcgMedia: boolean = false;
@@ -483,14 +482,6 @@ class UpdateScheduler {
         "* * * * *",
         async () => {
           if (!this.isProcessingCcgPackAnalytics) await this.processPendingCcgPackAnalytics();
-        },
-        { timezone: "Europe/Helsinki" },
-      );
-
-      cron.schedule(
-        "15 0 * * *",
-        async () => {
-          if (!this.isCleaningCcgGuests) await this.cleanupCcgGuests();
         },
         { timezone: "Europe/Helsinki" },
       );
@@ -950,20 +941,6 @@ class UpdateScheduler {
       logger.error("[CCG/Analytics] Error processing pending pack openings:", error);
     } finally {
       this.isProcessingCcgPackAnalytics = false;
-    }
-  }
-
-  private async cleanupCcgGuests(): Promise<void> {
-    this.isCleaningCcgGuests = true;
-    const taskId = await taskTracker.start("CCG Guest Expiry Reconciliation");
-    try {
-      const result = await ccgService.cleanupExpiredGuestData();
-      await taskTracker.complete(taskId, result);
-    } catch (error) {
-      logger.error("[CCG/GuestCleanup] Error:", error);
-      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
-    } finally {
-      this.isCleaningCcgGuests = false;
     }
   }
 

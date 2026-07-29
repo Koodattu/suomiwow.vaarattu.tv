@@ -20,6 +20,7 @@ export const CCG_INITIAL_PACKS = {
 };
 export const CCG_PACK_BALANCE_VERSION = 3;
 export const CCG_GUEST_COOKIE = "swccg_guest";
+export const CCG_GUEST_COOKIE_MAX_AGE_MS = 400 * 24 * 60 * 60 * 1000;
 export const CCG_PACK_RULE_VERSION = "pack-v14-community-heirloom";
 export const CCG_GRADING_VERSION = "grade-v2-rarity-ladder";
 export const CCG_ELIGIBILITY_VERSION = "complete-scores-mythic-reports-v3";
