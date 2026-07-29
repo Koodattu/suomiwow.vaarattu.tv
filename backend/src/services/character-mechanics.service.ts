@@ -567,11 +567,11 @@ class CharacterMechanicsService {
         }))
         .sort((a, b) => a.encounterId - b.encounterId);
 
-      const first = entries[0];
+      const representative = this.getOverallRepresentative(entries);
       const totals = this.summarizeBossScores(sortedBossScores);
 
       overallEntries.push({
-        ...first,
+        ...representative,
         type: "overall" as const,
         encounterId: null,
         encounterName: "",
@@ -590,11 +590,39 @@ class CharacterMechanicsService {
         ilvl: Math.round(entries.reduce((sum, entry) => sum + (entry.ilvl ?? 0), 0) / entries.length),
         rankPercent: totals.parseScore,
         medianPercent: 0,
-        updatedAt: entries.reduce((latest, entry) => (entry.updatedAt > latest ? entry.updatedAt : latest), first.updatedAt),
+        updatedAt: entries.reduce((latest, entry) => (entry.updatedAt > latest ? entry.updatedAt : latest), representative.updatedAt),
       });
     }
 
     return overallEntries;
+  }
+
+  private getOverallRepresentative(entries: any[]): any {
+    const identities = new Map<string, { row: any; pulls: number; encounters: number; scoreTotal: number }>();
+
+    for (const entry of entries) {
+      const key = `${entry.role}|${entry.specName}`;
+      const identity = identities.get(key) ?? { row: entry, pulls: 0, encounters: 0, scoreTotal: 0 };
+      identity.pulls += Math.max(entry.pulls ?? 0, 0);
+      identity.encounters += 1;
+      identity.scoreTotal += entry.score ?? 0;
+
+      const rowUpdatedAt = entry.updatedAt ? new Date(entry.updatedAt).getTime() : 0;
+      const currentUpdatedAt = identity.row.updatedAt ? new Date(identity.row.updatedAt).getTime() : 0;
+      if (rowUpdatedAt > currentUpdatedAt) identity.row = entry;
+      identities.set(key, identity);
+    }
+
+    return Array.from(identities.values()).sort((left, right) => {
+      if (left.pulls !== right.pulls) return right.pulls - left.pulls;
+      if (left.encounters !== right.encounters) return right.encounters - left.encounters;
+
+      const leftAverageScore = left.scoreTotal / left.encounters;
+      const rightAverageScore = right.scoreTotal / right.encounters;
+      if (leftAverageScore !== rightAverageScore) return rightAverageScore - leftAverageScore;
+
+      return `${left.row.role}|${left.row.specName}`.localeCompare(`${right.row.role}|${right.row.specName}`);
+    })[0].row;
   }
 
   async getMechanicsRankings(options: {

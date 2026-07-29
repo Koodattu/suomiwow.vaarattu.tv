@@ -29,7 +29,6 @@ import {
   getCcgRedeemFinishOrder,
 } from "../config/ccg";
 import {
-  COMPLETE_CCG_SCORE_FILTER,
   MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY,
   MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY,
 } from "../config/character-eligibility";
@@ -59,6 +58,7 @@ import CcgSeriesOwnership from "../models/CcgSeriesOwnership";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
 import Character from "../models/Character";
 import CharacterMedia from "../models/CharacterMedia";
+import CharacterMechanicsLeaderboard from "../models/CharacterMechanicsLeaderboard";
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import CharacterTierListEntry from "../models/CharacterTierListEntry";
 import Raid from "../models/Raid";
@@ -83,6 +83,7 @@ import { getCcgLeaderboardScoringRules } from "../utils/ccg-leaderboard";
 import { CCG_REDEEM_PACK_GRANT_MAX, normalizeCcgRedeemCode } from "../utils/ccg-redeem";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeTickStart } from "../utils/ccg-recharge";
 import { applyCcgPackRollover } from "../utils/ccg-rollover";
+import { resolveCcgCharacterMechanicsStatus, type CcgCharacterMechanicsRow } from "../utils/ccg-character-check";
 import { buildCcgCardSearchCandidates, CcgCardSearchCandidate } from "../utils/ccg-card-search";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../utils/helsinki-time";
 import logger from "../utils/logger";
@@ -921,12 +922,21 @@ class CcgService {
     }
 
     const zoneIds = CCG_CONFIGURED_SETS.map((set) => set.zoneId);
-    const [entries, participationRows, media, cards, sets] = await Promise.all([
+    const [entries, mechanicsRows, participationRows, media, cards, sets] = await Promise.all([
       CharacterTierListEntry.find({
         characterId: character._id,
         scope: "global",
         zoneId: { $in: zoneIds },
       }).lean(),
+      CharacterMechanicsLeaderboard.find({
+        characterId: character._id,
+        zoneId: { $in: zoneIds },
+        difficulty: 5,
+        type: "overall",
+        encounterId: null,
+      })
+        .select("zoneId pulls score parseScore survivalScore")
+        .lean(),
       CharacterRaidParticipation.find({
         characterId: character._id,
         zoneId: { $in: zoneIds },
@@ -944,6 +954,12 @@ class CcgService {
     ]);
 
     const entryByZone = new Map(entries.map((entry) => [entry.zoneId, entry]));
+    const mechanicsByZone = new Map<number, CcgCharacterMechanicsRow[]>();
+    for (const row of mechanicsRows) {
+      const zoneRows = mechanicsByZone.get(row.zoneId) ?? [];
+      zoneRows.push(row);
+      mechanicsByZone.set(row.zoneId, zoneRows);
+    }
     const participationByZone = new Map<number, { reportCount: number; mythicReportCount: number }>();
     for (const row of participationRows) {
       const aggregate = participationByZone.get(row.zoneId) ?? { reportCount: 0, mythicReportCount: 0 };
@@ -985,6 +1001,7 @@ class CcgService {
     );
     const relevantZoneIds = new Set([
       ...entries.map((entry) => entry.zoneId),
+      ...mechanicsRows.map((row) => row.zoneId),
       ...participationRows.map((row) => row.zoneId),
       ...cardZoneIds,
     ]);
@@ -1004,17 +1021,10 @@ class CcgService {
         const entry = entryByZone.get(set.zoneId);
         const participation = participationByZone.get(set.zoneId);
         const mythicReports = participation?.mythicReportCount ?? 0;
-        const pulls = entry?.pulls ?? 0;
-        const scoresReady = Boolean(
-          entry
-          && entry.score >= COMPLETE_CCG_SCORE_FILTER.score.$gte
-          && entry.parseScore >= COMPLETE_CCG_SCORE_FILTER.parseScore.$gte
-          && entry.survivalScore !== null
-          && entry.survivalScore >= COMPLETE_CCG_SCORE_FILTER.survivalScore.$gte,
-        );
+        const mechanicsStatus = resolveCcgCharacterMechanicsStatus(mechanicsByZone.get(set.zoneId) ?? [], entry);
+        const { pulls, scoresReady } = mechanicsStatus;
         const eligible = mythicReports >= MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY
-          && pulls >= MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY
-          && scoresReady;
+          && mechanicsStatus.eligible;
         const hasCard = Boolean(storedSet && cardsBySet.has(String(storedSet._id)));
         const weeklyPublicationEnabled = Boolean(
           CCG_WEEKLY_AUTOMATION_ENABLED
