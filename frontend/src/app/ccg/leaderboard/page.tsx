@@ -458,7 +458,7 @@ export default function CcgLeaderboardPage() {
           originBounds={viewerItem.originBounds}
           sharedTransition={viewerItem.sharedTransition}
           canShare={false}
-          showFinishControls={false}
+          showCollectionControls={false}
           showOwnershipStatus={false}
           onClose={() => setViewerItem(null)}
         />

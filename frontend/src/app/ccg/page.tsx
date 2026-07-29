@@ -309,6 +309,7 @@ export default function CcgLandingPage() {
           originElement={viewerOriginElement}
           originBounds={viewerOriginBounds}
           sharedTransition={viewerSharedTransition}
+          showCollectionControls={false}
           onClose={() => {
             setViewerCard(null);
             setViewerOriginElement(null);

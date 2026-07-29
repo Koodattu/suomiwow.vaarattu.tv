@@ -104,6 +104,7 @@ export default function CardViewer({
   canShare = true,
   footerAction,
   showFinishControls = true,
+  showCollectionControls = true,
   showOwnershipStatus = true,
   onClose,
 }: {
@@ -117,6 +118,7 @@ export default function CardViewer({
   canShare?: boolean;
   footerAction?: ReactNode;
   showFinishControls?: boolean;
+  showCollectionControls?: boolean;
   showOwnershipStatus?: boolean;
   onClose: () => void;
 }) {
@@ -372,7 +374,7 @@ export default function CardViewer({
         <div className={styles.viewerInfo}>
           <div className={styles.viewerSetRow}>
             <div className={styles.viewerSet} style={{ color: displayedCard.set.theme.accent }}>{displayedCard.set.raidName}</div>
-            {showsDefaultActions && isDisplayedFinishOwned ? (
+            {showCollectionControls && showsDefaultActions && isDisplayedFinishOwned ? (
               <CcgShowcaseButton cardId={displayedCard.id} finish={finish} artVariant={artVariant} />
             ) : null}
           </div>
@@ -396,7 +398,7 @@ export default function CardViewer({
             </div>
           ) : null}
 
-          {ownedArtVariants.length > 1 ? (
+          {showCollectionControls && ownedArtVariants.length > 1 ? (
             <section className={styles.viewerControls} aria-labelledby="ccg-viewer-artwork">
               <h3 id="ccg-viewer-artwork">{t("artwork.label")}</h3>
               <div>
@@ -420,7 +422,7 @@ export default function CardViewer({
             </section>
           ) : null}
 
-          {isOwned && showFinishControls ? (
+          {showCollectionControls && showFinishControls && isOwned ? (
             <section className={styles.viewerControls} aria-labelledby="ccg-viewer-finishes">
               <h3 id="ccg-viewer-finishes">{t("finish.label")}</h3>
               <div>
@@ -450,7 +452,7 @@ export default function CardViewer({
             <div>
               <dt>{t("snapshot")}</dt>
               <dd>
-                {variants.length > 1 ? (
+                {showCollectionControls && variants.length > 1 ? (
                   <Listbox
                     value={displayedCard.id}
                     onChange={(cardId) => selectVariant(variants.findIndex((variant) => variant.card.id === cardId))}
@@ -501,7 +503,7 @@ export default function CardViewer({
               </Link>
             </div>
             <div>
-              {footerAction ?? (isDisplayedFinishOwned ? (
+              {footerAction ?? (showCollectionControls && isDisplayedFinishOwned ? (
                 canShare ? (
                   <div className={styles.viewerActionButtons}>
                     <CcgShareButton
