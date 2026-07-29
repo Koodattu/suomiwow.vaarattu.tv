@@ -120,6 +120,7 @@ export default function CcgOpenPage() {
   const [legacySetId, setLegacySetId] = useState(RANDOM_LEGACY_SET);
   const [isPackCycling, setIsPackCycling] = useState(false);
   const [rechargeNow, setRechargeNow] = useState(() => Date.now());
+  const cardFanScrollerRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const qualitySoundTimersRef = useRef<number[]>([]);
   const quipSoundTimersRef = useRef<number[]>([]);
@@ -241,6 +242,7 @@ export default function CcgOpenPage() {
 
   useEffect(() => {
     if (!opening) return;
+    cardFanScrollerRef.current?.scrollTo({ left: 0 });
     const total = opening.results.length;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const revealImmediately = revealRecoveredOpening && opening.id === recoveryId;
@@ -875,7 +877,7 @@ export default function CcgOpenPage() {
                 <strong>{allRevealed ? t("open.allRevealed") : t("open.revealPrompt")}</strong>
               </div>
 
-              <div className={packStyles.cardFanScroller}>
+              <div ref={cardFanScrollerRef} className={packStyles.cardFanScroller}>
                 <div className={packStyles.cardFan}>
                   {opening.results.map((result, index) => {
                     const revealed = revealedCards.has(index);
