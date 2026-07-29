@@ -11,8 +11,8 @@ export function normalizeCommunityRole(value: unknown): CcgCommunityRole {
 
 function validCommunityScore(value: unknown, field: string, maximum: number): number | null {
   if (value === null || value === undefined || value === "") return null;
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > maximum) {
-    throw new Error(`${field} must be a number between 0 and ${maximum}`);
+  if (typeof value !== "number" || !Number.isFinite(value) || value > maximum) {
+    throw new Error(`${field} must be a number no greater than ${maximum}`);
   }
   return Math.round(value * 10) / 10;
 }

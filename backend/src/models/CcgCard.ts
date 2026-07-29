@@ -10,10 +10,10 @@ export type CcgCommunityScores = {
 
 const CcgCommunityScoresSchema = new Schema<CcgCommunityScores>(
   {
-    performance: { type: Number, min: 0, max: 100, default: null },
-    mechanics: { type: Number, min: 0, max: 100, default: null },
-    combined: { type: Number, min: 0, max: 100, default: null },
-    mythicPlus: { type: Number, min: 0, max: 100_000, default: null },
+    performance: { type: Number, max: 100, default: null },
+    mechanics: { type: Number, max: 100, default: null },
+    combined: { type: Number, max: 100, default: null },
+    mythicPlus: { type: Number, max: 100_000, default: null },
   },
   { _id: false },
 );

@@ -48,7 +48,7 @@ function draftFromCharacter(character: CcgAdminCommunityCharacter): CharacterDra
 function parseScore(value: string, maximum: number): number | null | undefined {
   if (!value.trim()) return null;
   const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0 || parsed > maximum) return undefined;
+  if (!Number.isFinite(parsed) || parsed > maximum) return undefined;
   return parsed;
 }
 
@@ -244,7 +244,6 @@ export default function CcgCommunityManager({ characters, onChanged, onError, on
                           <input
                             type="number"
                             inputMode="decimal"
-                            min={0}
                             max={key === "mythicPlus" ? 100000 : 100}
                             step={key === "mythicPlus" ? 1 : 0.1}
                             value={draft.scores[key]}

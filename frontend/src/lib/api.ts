@@ -478,6 +478,12 @@ export const api = {
     return response.json();
   },
 
+  async triggerAdminCcgSnapshots(): Promise<{ started: true }> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/snapshots`, { method: "POST", credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to start the CCG snapshot run");
+    return response.json();
+  },
+
   async getAdminCcgMediaStatus(): Promise<CcgAdminMediaStatus> {
     const response = await fetch(`${API_URL}/api/admin/ccg/media/status`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load CCG media status");

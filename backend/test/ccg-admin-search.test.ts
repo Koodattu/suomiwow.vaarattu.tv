@@ -18,20 +18,63 @@ test("Community roles accept only the supported card roles", () => {
   assert.throws(() => normalizeCommunityRole("support"), /DPS, healer, or tank/);
 });
 
-test("Community metrics accept optional card values and enforce metric ranges", () => {
+test("Community metrics accept optional and negative card values while enforcing maximums", () => {
   assert.deepEqual(normalizeCommunityScores({
-    performance: 98.24,
-    mechanics: "",
-    combined: null,
+    performance: -98.24,
+    mechanics: -12,
+    combined: -0.1,
+    mythicPlus: -3014,
+  }), {
+    performance: -98.2,
+    mechanics: -12,
+    combined: -0.1,
+    mythicPlus: -3014,
+  });
+  assert.deepEqual(normalizeCommunityScores({
+    performance: "",
+    mechanics: null,
+    combined: undefined,
     mythicPlus: 3014,
   }), {
-    performance: 98.2,
+    performance: null,
     mechanics: null,
     combined: null,
     mythicPlus: 3014,
   });
-  assert.throws(() => normalizeCommunityScores({ performance: 101 }), /between 0 and 100/);
-  assert.throws(() => normalizeCommunityScores({ mythicPlus: -1 }), /between 0 and 100000/);
+  assert.throws(() => normalizeCommunityScores({ performance: 101 }), /no greater than 100/);
+  assert.throws(() => normalizeCommunityScores({ mythicPlus: 100_001 }), /no greater than 100000/);
+});
+
+test("Community cards persist negative manual metrics", () => {
+  const card = new CcgCard({
+    setId: new mongoose.Types.ObjectId(),
+    setNumber: 1,
+    snapshotVersion: 1,
+    characterId: new mongoose.Types.ObjectId(),
+    name: "Community Test",
+    realm: "stormreaver",
+    region: "eu",
+    classID: 8,
+    specName: "Fire",
+    role: "dps",
+    metric: "dps",
+    itemLevel: 0,
+    parseScore: 0,
+    survivalScore: 0,
+    combinedScore: 0,
+    communityScores: { performance: -10, mechanics: -20, combined: -15, mythicPlus: -100 },
+    tierGrade: "A",
+    backgroundCrop: { x: 50, y: 50, scale: 1 },
+    performanceSnapshotAt: new Date(),
+    sourcePartition: "community-admin",
+    publicationWave: 1,
+    gradingVersion: "manual-v1",
+    eligibilityVersion: "manual-v1",
+    themeVersion: "manual-v1",
+    publishedAt: new Date(),
+  });
+
+  assert.equal(card.validateSync(), undefined);
 });
 
 test("Community cards serialize manual metrics without changing raid score fields", () => {

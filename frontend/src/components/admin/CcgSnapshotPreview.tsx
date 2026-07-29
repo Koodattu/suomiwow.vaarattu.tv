@@ -11,6 +11,10 @@ type OutcomeFilter = "all" | "will_add" | "will_update" | "missing_media";
 const grades: readonly CcgRegularTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
 const calculateButton =
   "min-h-10 rounded-md bg-cyan-700 px-4 py-2 text-sm font-bold text-white transition-[background-color,scale] duration-150 ease-out hover:bg-cyan-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
+const runButton =
+  "min-h-10 rounded-md bg-amber-600 px-4 py-2 text-sm font-bold text-white transition-[background-color,scale] duration-150 ease-out hover:bg-amber-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
+const secondaryButton =
+  "min-h-10 rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-200 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09)] transition-[background-color,scale] duration-150 ease-out hover:bg-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
 const filterButton =
   "min-h-10 rounded-md px-3 py-2 text-left transition-[background-color,color,box-shadow,scale] duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 active:scale-[0.96]";
 
@@ -33,7 +37,10 @@ export default function CcgSnapshotPreview() {
   const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [confirmingRun, setConfirmingRun] = useState(false);
+  const [startingRun, setStartingRun] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }),
     [locale],
@@ -74,6 +81,7 @@ export default function CcgSnapshotPreview() {
   const calculate = async () => {
     setLoading(true);
     setError(null);
+    setNotice(null);
     try {
       const nextPreview = await api.getAdminCcgSnapshotPreview();
       setPreview(nextPreview);
@@ -82,6 +90,21 @@ export default function CcgSnapshotPreview() {
       setError(calculationError instanceof Error ? calculationError.message : t("error"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startSnapshotRun = async () => {
+    setStartingRun(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await api.triggerAdminCcgSnapshots();
+      setConfirmingRun(false);
+      setNotice(t("runStarted"));
+    } catch (runError) {
+      setError(runError instanceof Error ? runError.message : t("runError"));
+    } finally {
+      setStartingRun(false);
     }
   };
 
@@ -95,21 +118,51 @@ export default function CcgSnapshotPreview() {
   const outcomeFilters: readonly OutcomeFilter[] = ["all", "will_add", "will_update", "missing_media"];
 
   return (
-    <section className="space-y-5" aria-labelledby="ccg-snapshot-preview-title" aria-busy={loading}>
+    <section className="space-y-5" aria-labelledby="ccg-snapshot-preview-title" aria-busy={loading || startingRun}>
       <div className="flex flex-col gap-4 rounded-lg bg-gray-800/70 p-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 id="ccg-snapshot-preview-title" className="text-xl font-bold text-balance text-white">{t("title")}</h3>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-pretty text-gray-400">{t("description")}</p>
           <p className="mt-2 max-w-3xl text-xs leading-5 text-pretty text-cyan-200/70">{t("readOnly")}</p>
         </div>
-        <button type="button" className={`${calculateButton} shrink-0`} onClick={() => void calculate()} disabled={loading}>
-          {loading ? t("calculating") : t(preview ? "recalculate" : "calculate")}
-        </button>
+        <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+          <button type="button" className={calculateButton} onClick={() => void calculate()} disabled={loading || startingRun}>
+            {loading ? t("calculating") : t(preview ? "recalculate" : "calculate")}
+          </button>
+          <button
+            type="button"
+            className={runButton}
+            onClick={() => setConfirmingRun(true)}
+            disabled={loading || startingRun || confirmingRun}
+          >
+            {startingRun ? t("runStarting") : t("run")}
+          </button>
+        </div>
       </div>
+
+      {confirmingRun ? (
+        <div className="rounded-lg bg-amber-950/40 p-4 text-amber-100 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.25)]">
+          <h3 className="font-bold text-balance">{t("runConfirmTitle")}</h3>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-pretty text-amber-100/85">{t("runConfirmDescription")}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" className={runButton} onClick={() => void startSnapshotRun()} disabled={startingRun}>
+              {startingRun ? t("runStarting") : t("runConfirm")}
+            </button>
+            <button type="button" className={secondaryButton} onClick={() => setConfirmingRun(false)} disabled={startingRun}>
+              {t("cancel")}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-lg bg-red-950/50 p-4 text-sm text-red-200 shadow-[inset_0_0_0_1px_rgba(248,113,113,0.3)]" role="alert">
           {error}
+        </div>
+      ) : null}
+      {notice ? (
+        <div className="rounded-lg bg-emerald-950/45 p-4 text-sm text-emerald-200 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.28)]" role="status">
+          {notice}
         </div>
       ) : null}
 
