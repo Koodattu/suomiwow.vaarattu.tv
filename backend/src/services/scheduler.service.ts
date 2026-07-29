@@ -23,7 +23,12 @@ import characterMediaService, {
 import ccgPublisherService from "./ccg-publisher.service";
 import ccgService from "./ccg.service";
 import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
-import { CCG_FEATURE_ENABLED, CCG_WEEKLY_AUTOMATION_ENABLED } from "../config/ccg";
+import {
+  CCG_FEATURE_ENABLED,
+  CCG_WEEKLY_AUTOMATION_ENABLED,
+  CCG_WEEKLY_PUBLICATION_SCHEDULE,
+  CCG_WEEKLY_SNAPSHOT_SCHEDULE,
+} from "../config/ccg";
 import logger from "../utils/logger";
 
 // Polling intervals from environment (in minutes), with sensible defaults
@@ -524,7 +529,7 @@ class UpdateScheduler {
 
       if (CCG_WEEKLY_AUTOMATION_ENABLED) {
         cron.schedule(
-          "0 3 * * 3",
+          CCG_WEEKLY_SNAPSHOT_SCHEDULE.cron,
           async () => {
             if (!this.isBuildingCcgSnapshot) await this.buildWeeklyCcgSnapshot();
           },
@@ -532,7 +537,7 @@ class UpdateScheduler {
         );
 
         cron.schedule(
-          "30 4 * * 3",
+          CCG_WEEKLY_PUBLICATION_SCHEDULE.cron,
           async () => {
             if (!this.isPublishingCcgWave) await this.publishWeeklyCcgWave();
           },

@@ -1596,6 +1596,741 @@
   }
 }
 
+.checkerPage {
+  width: min(100%, 62rem);
+  min-height: calc(100dvh - 3.6rem);
+  margin: 0 auto;
+  padding: clamp(1.25rem, 3vw, 2.5rem) clamp(0.85rem, 2vw, 1.5rem) 4rem;
+}
+
+.checkerForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.65rem;
+  margin-top: 1.5rem;
+  border-radius: 0.9rem;
+  padding: 0.65rem;
+  background: linear-gradient(145deg, rgba(10, 21, 43, 0.92), rgba(4, 10, 23, 0.96));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 10px 28px rgba(0, 0, 0, 0.24);
+}
+
+.checkerForm label {
+  display: grid;
+  min-width: 0;
+  gap: 0.35rem;
+}
+
+.checkerForm label > span {
+  color: #91a1b8;
+  font-size: 0.68rem;
+  font-weight: 740;
+  letter-spacing: 0.04em;
+}
+
+.checkerForm input {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: rgba(2, 8, 19, 0.88);
+  box-shadow: inset 0 0 0 1px rgba(145, 179, 229, 0.16);
+  padding: 0.65rem 0.75rem;
+  color: #f5f8ff;
+  font-size: 0.85rem;
+  font-weight: 650;
+  outline: none;
+  transition-property: background-color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+
+.checkerForm input::placeholder {
+  color: #596980;
+}
+
+.checkerForm input:focus-visible {
+  background: rgba(5, 14, 31, 0.96);
+  box-shadow:
+    inset 0 0 0 2px #7ddcff,
+    0 0 0 3px rgba(125, 220, 255, 0.1);
+}
+
+.checkerForm .primaryButton {
+  min-height: 2.75rem;
+  gap: 0.45rem;
+}
+
+.checkerForm .primaryButton svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.checkerIntro,
+.checkerNotFound {
+  display: grid;
+  min-height: 15rem;
+  align-content: center;
+  justify-items: center;
+  gap: 0.55rem;
+  margin-top: 1rem;
+  border-radius: 0.9rem;
+  padding: 2rem;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(70, 207, 255, 0.08), transparent 18rem),
+    rgba(5, 12, 26, 0.62);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.065);
+  text-align: center;
+}
+
+.checkerIntro h2,
+.checkerNotFound h2 {
+  color: #f4f8ff;
+  font-size: 1.05rem;
+  font-weight: 790;
+  text-wrap: balance;
+}
+
+.checkerIntro > p,
+.checkerNotFound p {
+  max-width: 34rem;
+  color: #8392a8;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.checkerIntro ul {
+  display: flex;
+  max-width: 40rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checkerIntro li {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.55rem;
+  background: rgba(13, 27, 51, 0.78);
+  box-shadow: inset 0 0 0 1px rgba(125, 220, 255, 0.1);
+  padding: 0.5rem 0.7rem;
+  color: #aab8ca;
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+
+.checkerIntro li svg {
+  color: #6ed8b1;
+}
+
+.checkerIntro li:last-child svg {
+  color: #72ccec;
+}
+
+.checkerNotFound > svg {
+  width: 1.65rem;
+  height: 1.65rem;
+  margin-bottom: 0.15rem;
+  color: #6acff2;
+}
+
+.checkerResults {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.checkerCharacter {
+  --checker-status: #ef8291;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  border-radius: 1rem;
+  padding: 0.85rem;
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--checker-status) 10%, transparent), transparent 55%),
+    linear-gradient(145deg, rgba(10, 21, 43, 0.94), rgba(4, 10, 23, 0.97));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--checker-status) 25%, transparent),
+    0 10px 28px rgba(0, 0, 0, 0.22);
+}
+
+.checkerCharacter[data-status="ready"] {
+  --checker-status: #65d6a7;
+}
+
+.checkerCharacter[data-status="mediaBlocked"] {
+  --checker-status: #e6bd69;
+}
+
+.checkerAvatar {
+  display: grid;
+  width: 4.5rem;
+  height: 4.5rem;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 0.7rem;
+  background: rgba(3, 9, 21, 0.9);
+  outline: 1px solid rgba(255, 255, 255, 0.1);
+  outline-offset: -1px;
+}
+
+.checkerAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.checkerAvatar span {
+  font-size: 1.7rem;
+  font-weight: 850;
+}
+
+.checkerCharacterIdentity {
+  min-width: 0;
+}
+
+.checkerStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--checker-status);
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.03em;
+}
+
+.checkerStatus svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.checkerCharacterIdentity h2 {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  margin-top: 0.18rem;
+  overflow: hidden;
+  font-size: clamp(1.35rem, 3vw, 1.8rem);
+  font-weight: 830;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkerCharacterIdentity h2 small {
+  overflow: hidden;
+  color: #77879e;
+  font-size: 0.62em;
+  font-weight: 650;
+  text-overflow: ellipsis;
+}
+
+.checkerCharacterIdentity p {
+  margin-top: 0.24rem;
+  overflow: hidden;
+  color: #8797ad;
+  font-size: 0.72rem;
+  font-weight: 630;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkerSummaryCount {
+  display: grid;
+  min-width: 5.5rem;
+  justify-items: end;
+}
+
+.checkerSummaryCount strong {
+  color: #f7fbff;
+  font-size: 1.65rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 830;
+  line-height: 1;
+}
+
+.checkerSummaryCount span {
+  margin-top: 0.25rem;
+  color: #7f8fa5;
+  font-size: 0.62rem;
+  font-weight: 680;
+  text-align: right;
+}
+
+.checkerMediaWarning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  border-radius: 0.75rem;
+  padding: 0.8rem;
+  background: rgba(72, 48, 12, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(238, 190, 99, 0.17);
+}
+
+.checkerMediaWarning > svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  margin-top: 0.08rem;
+  color: #e9c16d;
+}
+
+.checkerMediaWarning strong {
+  color: #f1d99f;
+  font-size: 0.76rem;
+  font-weight: 760;
+}
+
+.checkerMediaWarning p {
+  margin-top: 0.2rem;
+  color: #a99878;
+  font-size: 0.71rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.checkerSection {
+  border-radius: 0.9rem;
+  padding: 1rem;
+  background: rgba(5, 12, 26, 0.7);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.checkerSectionHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.checkerSectionHeading h2 {
+  margin-top: 0.28rem;
+  color: #f3f7ff;
+  font-size: 1.08rem;
+  font-weight: 790;
+  letter-spacing: -0.018em;
+  text-wrap: balance;
+}
+
+.checkerSectionHeading p {
+  max-width: 39rem;
+  margin-top: 0.3rem;
+  color: #75859c;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.checkerSectionCount {
+  display: grid;
+  min-width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 0.5rem;
+  background: rgba(23, 44, 79, 0.72);
+  color: #d6e9ff;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 790;
+}
+
+.checkerCardList {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checkerCardList li {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 3.6rem;
+  border-radius: 0.65rem;
+  background: linear-gradient(135deg, rgba(15, 29, 55, 0.78), rgba(7, 15, 31, 0.82));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  padding: 0.55rem;
+}
+
+.checkerCardGrade {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: 0.45rem;
+  background: rgba(1, 5, 13, 0.8);
+  box-shadow: inset 0 0 0 1px currentColor;
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.checkerCardList li > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.checkerCardList li > span:nth-child(2) strong {
+  overflow: hidden;
+  color: #eaf1fb;
+  font-size: 0.78rem;
+  font-weight: 740;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkerCardList li > span:nth-child(2) small {
+  color: #718198;
+  font-size: 0.63rem;
+  font-weight: 620;
+}
+
+.checkerCardList a {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.48rem;
+  padding: 0.45rem 0.6rem;
+  color: #9fc8ed;
+  font-size: 0.68rem;
+  font-weight: 730;
+  transition-property: color, background-color, transform;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+
+.checkerCardList a:hover {
+  background: rgba(102, 157, 218, 0.12);
+  color: #fff;
+}
+
+.checkerCardList a:active {
+  transform: scale(0.96);
+}
+
+.checkerCardList a:focus-visible {
+  outline: 2px solid #7ddcff;
+  outline-offset: 2px;
+}
+
+.checkerCardList a svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+.checkerRaidList {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.checkerRaid {
+  --raid-status: #d96f7f;
+  border-radius: 0.75rem;
+  padding: 0.8rem;
+  background: linear-gradient(145deg, rgba(11, 22, 43, 0.82), rgba(5, 12, 26, 0.86));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--raid-status) 17%, transparent);
+}
+
+.checkerRaid[data-eligible="true"] {
+  --raid-status: #69d3aa;
+}
+
+.checkerRaid > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.checkerRaid > header > div > span {
+  color: #6f8099;
+  font-size: 0.58rem;
+  font-weight: 740;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.checkerRaid h3 {
+  margin-top: 0.12rem;
+  color: #edf3fc;
+  font-size: 0.86rem;
+  font-weight: 760;
+  text-wrap: balance;
+}
+
+.checkerRaid > header > strong {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--raid-status);
+  font-size: 0.65rem;
+  font-weight: 740;
+}
+
+.checkerRaid > header > strong svg {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.checkerMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.checkerMetrics > span {
+  display: grid;
+  gap: 0.12rem;
+  border-radius: 0.55rem;
+  background: rgba(2, 8, 19, 0.7);
+  box-shadow: inset 0 0 0 1px rgba(217, 111, 127, 0.11);
+  padding: 0.5rem 0.6rem;
+}
+
+.checkerMetrics > span[data-pass="true"] {
+  box-shadow: inset 0 0 0 1px rgba(105, 211, 170, 0.12);
+}
+
+.checkerMetrics small {
+  color: #718198;
+  font-size: 0.59rem;
+  font-weight: 650;
+}
+
+.checkerMetrics strong {
+  color: #df8793;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+}
+
+.checkerMetrics > span[data-pass="true"] strong {
+  color: #77d9b3;
+}
+
+.checkerBlockers {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checkerBlockers li,
+.checkerPassed {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.42rem;
+  color: #ad8990;
+  font-size: 0.68rem;
+  font-weight: 620;
+  line-height: 1.4;
+}
+
+.checkerBlockers svg,
+.checkerPassed svg {
+  width: 0.7rem;
+  height: 0.7rem;
+  flex-shrink: 0;
+  margin-top: 0.12rem;
+}
+
+.checkerPassed {
+  margin-top: 0.65rem;
+  color: #7dc5aa;
+}
+
+.checkerPrediction {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin-top: 0.7rem;
+  border-radius: 0.6rem;
+  padding: 0.65rem;
+  background: rgba(25, 61, 92, 0.36);
+  box-shadow: inset 0 0 0 1px rgba(99, 196, 231, 0.14);
+}
+
+.checkerPrediction > svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex-shrink: 0;
+  margin-top: 0.08rem;
+  color: #72ccec;
+}
+
+.checkerPrediction strong {
+  color: #b8e7f8;
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.checkerPrediction p {
+  margin-top: 0.18rem;
+  color: #86a7ba;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.checkerSectionEmpty {
+  display: flex;
+  min-height: 5.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-top: 0.8rem;
+  border-radius: 0.65rem;
+  background: rgba(2, 8, 19, 0.48);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.045);
+  padding: 1rem;
+  color: #6f8098;
+  text-align: center;
+}
+
+.checkerSectionEmpty > svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.checkerSectionEmpty strong {
+  color: #b9c5d6;
+  font-size: 0.75rem;
+}
+
+.checkerSectionEmpty p {
+  max-width: 34rem;
+  color: #74849a;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.checkerLoading {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.checkerLoading > span {
+  display: block;
+  height: 6rem;
+  border-radius: 0.85rem;
+  background: linear-gradient(105deg, rgba(10, 21, 43, 0.8) 15%, rgba(23, 44, 79, 0.86) 35%, rgba(10, 21, 43, 0.8) 55%);
+  background-size: 220% 100%;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.055);
+  animation: activityShimmer 1.4s linear infinite;
+}
+
+.checkerLoading > span:first-child {
+  height: 5.8rem;
+}
+
+.checkerLoading > span:last-child {
+  height: 10rem;
+}
+
+.checkerError {
+  margin-top: 1rem;
+}
+
+@media (max-width: 760px) {
+  .checkerPage {
+    min-height: 100%;
+    padding: 1.15rem 0.7rem 1.5rem;
+  }
+
+  .checkerPage > .activityHeader {
+    padding-inline: 0.15rem;
+  }
+
+  .checkerPage > .activityHeader h1 {
+    font-size: clamp(1.85rem, 9vw, 2.5rem);
+  }
+
+  .checkerForm {
+    grid-template-columns: 1fr;
+  }
+
+  .checkerCharacter {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .checkerAvatar {
+    width: 3.75rem;
+    height: 3.75rem;
+  }
+
+  .checkerSummaryCount {
+    grid-column: 1 / -1;
+    grid-template-columns: auto auto;
+    align-items: baseline;
+    justify-content: start;
+    gap: 0.35rem;
+    padding-left: 0.15rem;
+  }
+
+  .checkerSummaryCount strong {
+    font-size: 1rem;
+  }
+
+  .checkerSummaryCount span {
+    margin-top: 0;
+  }
+
+  .checkerMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .checkerCardList a span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .checkerCardList a {
+    justify-content: center;
+    padding-inline: 0.75rem;
+  }
+
+  .checkerRaid > header {
+    display: grid;
+  }
+
+  .checkerRaid > header > strong {
+    justify-self: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checkerLoading > span {
+    animation: none;
+  }
+}
+
 .leaderboardPage {
   display: grid;
   width: min(100%, 92rem);
@@ -1884,6 +2619,7 @@
 
 .leaderboardShowcaseCard {
   --card-detail-font-size: clamp(0.32rem, 3.05cqw, 0.66rem);
+  --card-stat-value-gap: clamp(0.12rem, 1cqw, 0.24rem);
   border: 0;
   background: transparent;
   box-shadow: 0 12px 22px rgba(0, 0, 0, 0.24);

@@ -46,7 +46,7 @@ function ShowcaseCards({
             onClick={(event) => onSelect(item, event)}
             aria-label={item.card.name}
           >
-            <CollectibleCard card={item.card} finish={item.finish} artVariant={item.artVariant} compact hideBadges />
+            <CollectibleCard card={item.card} finish={item.finish} artVariant={item.artVariant} compact />
           </button>
         </div>
       ))}

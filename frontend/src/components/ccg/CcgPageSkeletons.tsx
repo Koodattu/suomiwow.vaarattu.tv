@@ -206,6 +206,8 @@ export default function CcgInitialSkeleton({ pathname }: { pathname: string }) {
       ? <CollectionContentSkeleton />
       : pathname.startsWith("/ccg/activity")
         ? <ActivityContentSkeleton />
+        : pathname.startsWith("/ccg/character-checker")
+          ? <ActivityContentSkeleton />
         : pathname.startsWith("/ccg/leaderboard")
           ? <LeaderboardContentSkeleton />
         : pathname.startsWith("/ccg/share/")

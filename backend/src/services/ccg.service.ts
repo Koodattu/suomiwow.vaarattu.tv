@@ -17,6 +17,10 @@ import {
   CCG_PACK_STORAGE_CAPS,
   CCG_TIME_ZONE,
   CCG_TIER_GRADES,
+  CCG_CONFIGURED_SETS,
+  CCG_WEEKLY_AUTOMATION_ENABLED,
+  CCG_WEEKLY_PUBLICATION_SCHEDULE,
+  CCG_WEEKLY_SNAPSHOT_SCHEDULE,
   CcgArtVariant,
   CcgFinish,
   CcgMode,
@@ -24,6 +28,11 @@ import {
   getCcgPackFinishOrder,
   getCcgRedeemFinishOrder,
 } from "../config/ccg";
+import {
+  COMPLETE_CCG_SCORE_FILTER,
+  MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY,
+  MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY,
+} from "../config/character-eligibility";
 import CcgCard, { ICcgCard } from "../models/CcgCard";
 import CcgAlternativeArt from "../models/CcgAlternativeArt";
 import CcgAnalyticsDaily from "../models/CcgAnalyticsDaily";
@@ -49,6 +58,9 @@ import CcgShare, { ICcgShare } from "../models/CcgShare";
 import CcgSeriesOwnership from "../models/CcgSeriesOwnership";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
 import Character from "../models/Character";
+import CharacterMedia from "../models/CharacterMedia";
+import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
+import CharacterTierListEntry from "../models/CharacterTierListEntry";
 import Raid from "../models/Raid";
 import User from "../models/User";
 import TwitchCcgRedemption, { ITwitchCcgRedemption } from "../models/TwitchCcgRedemption";
@@ -76,6 +88,7 @@ import { getHelsinkiDateKey, getNextHelsinkiReset } from "../utils/helsinki-time
 import logger from "../utils/logger";
 import { isMongoWriteConflict, retryMongoWriteConflict } from "../utils/mongo-retry";
 import { normalizeSearchText, scoreSearchCandidate } from "../utils/search";
+import { normalizeRealmSlug } from "../utils/realm";
 import ccgLeaderboardService from "./ccg-leaderboard.service";
 import ccgPublisherService from "./ccg-publisher.service";
 import discordService from "./discord.service";
@@ -94,6 +107,7 @@ const CCG_PUBLIC_SET_FIELDS = "_id slug zoneId raidName expansionName state kind
 const CCG_ACTIVITY_DEFAULT_LIMIT = 20;
 const CCG_ACTIVITY_MAX_LIMIT = 40;
 const CCG_SHOWCASE_CARD_LIMIT = 3;
+const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
 
 export const CCG_ACTIVITY_FILTERS = ["all", "packs", "codes", "twitch"] as const;
 export type CcgActivityFilter = (typeof CCG_ACTIVITY_FILTERS)[number];
@@ -877,6 +891,193 @@ class CcgService {
       ...this.serializeSet(set, ownedBySet.get(String(set._id)) ?? 0),
       iconUrl: iconByZone.get(set.zoneId) ?? null,
     }));
+  }
+
+  async checkCharacter(rawName: unknown, rawRealm: unknown): Promise<Record<string, unknown>> {
+    requireFeature();
+    const name = typeof rawName === "string" ? rawName.trim().slice(0, 50) : "";
+    const realm = typeof rawRealm === "string" ? normalizeRealmSlug(rawRealm).slice(0, 80) : "";
+    if (name.length < 2 || realm.length < 2) {
+      throw new CcgServiceError(400, "invalid_character", "Enter a character name and realm");
+    }
+
+    const character = await Character.findOne({
+      region: "eu",
+      $or: [
+        { name, realm },
+        { "blizzardIdentityOverride.name": name, "blizzardIdentityOverride.realm": realm },
+      ],
+    })
+      .collation(CASE_INSENSITIVE_COLLATION)
+      .sort({ lastReportSeenAt: -1, updatedAt: -1 })
+      .select("_id name realm region classID guildName lastReportSeenAt")
+      .lean();
+
+    if (!character) {
+      return {
+        found: false,
+        query: { name, realm },
+      };
+    }
+
+    const zoneIds = CCG_CONFIGURED_SETS.map((set) => set.zoneId);
+    const [entries, participationRows, media, cards, sets] = await Promise.all([
+      CharacterTierListEntry.find({
+        characterId: character._id,
+        scope: "global",
+        zoneId: { $in: zoneIds },
+      }).lean(),
+      CharacterRaidParticipation.find({
+        characterId: character._id,
+        zoneId: { $in: zoneIds },
+      })
+        .select("zoneId reportCount mythicReportCount")
+        .lean(),
+      CharacterMedia.findOne({ characterId: character._id })
+        .select("status avatarUrl mainRawUrl lastErrorCode")
+        .lean(),
+      CcgCard.find({ characterId: character._id })
+        .sort({ publishedAt: -1, snapshotVersion: -1 })
+        .select("_id setId tierGrade snapshotVersion publishedAt")
+        .lean(),
+      CcgSet.find().select("_id slug zoneId raidName state kind enabledAt cardCount").lean(),
+    ]);
+
+    const entryByZone = new Map(entries.map((entry) => [entry.zoneId, entry]));
+    const participationByZone = new Map<number, { reportCount: number; mythicReportCount: number }>();
+    for (const row of participationRows) {
+      const aggregate = participationByZone.get(row.zoneId) ?? { reportCount: 0, mythicReportCount: 0 };
+      aggregate.reportCount += Math.max(0, row.reportCount ?? 0);
+      aggregate.mythicReportCount += Math.max(0, row.mythicReportCount ?? 0);
+      participationByZone.set(row.zoneId, aggregate);
+    }
+
+    const setById = new Map(sets.map((set) => [String(set._id), set]));
+    const cardsBySet = new Map<string, typeof cards>();
+    for (const card of cards) {
+      const setId = String(card.setId);
+      const setCards = cardsBySet.get(setId) ?? [];
+      setCards.push(card);
+      cardsBySet.set(setId, setCards);
+    }
+    const existingCards = Array.from(cardsBySet.entries()).flatMap(([setId, setCards]) => {
+      const set = setById.get(setId);
+      const latest = setCards[0];
+      if (!set || !latest) return [];
+      return [{
+        id: String(latest._id),
+        characterId: String(character._id),
+        setSlug: set.slug,
+        raidName: set.raidName,
+        kind: set.kind,
+        state: set.state,
+        tierGrade: latest.tierGrade,
+        snapshotCount: setCards.length,
+        publishedAt: latest.publishedAt,
+      }];
+    });
+
+    const cardZoneIds = new Set(
+      existingCards.flatMap((card) => {
+        const set = sets.find((candidate) => candidate.slug === card.setSlug);
+        return set?.kind === "raid" ? [set.zoneId] : [];
+      }),
+    );
+    const relevantZoneIds = new Set([
+      ...entries.map((entry) => entry.zoneId),
+      ...participationRows.map((row) => row.zoneId),
+      ...cardZoneIds,
+    ]);
+    const mediaStatus = !media
+      ? "untracked"
+      : media.status === "available" && !media.mainRawUrl
+        ? "render_missing"
+        : media.status;
+    const mediaReady = mediaStatus === "available";
+    const raidSetByZone = new Map(
+      sets.filter((set) => set.kind === "raid").map((set) => [set.zoneId, set]),
+    );
+    const raids = CCG_CONFIGURED_SETS
+      .filter((set) => relevantZoneIds.has(set.zoneId))
+      .map((set) => {
+        const storedSet = raidSetByZone.get(set.zoneId);
+        const entry = entryByZone.get(set.zoneId);
+        const participation = participationByZone.get(set.zoneId);
+        const mythicReports = participation?.mythicReportCount ?? 0;
+        const pulls = entry?.pulls ?? 0;
+        const scoresReady = Boolean(
+          entry
+          && entry.score >= COMPLETE_CCG_SCORE_FILTER.score.$gte
+          && entry.parseScore >= COMPLETE_CCG_SCORE_FILTER.parseScore.$gte
+          && entry.survivalScore !== null
+          && entry.survivalScore >= COMPLETE_CCG_SCORE_FILTER.survivalScore.$gte,
+        );
+        const eligible = mythicReports >= MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY
+          && pulls >= MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY
+          && scoresReady;
+        const hasCard = Boolean(storedSet && cardsBySet.has(String(storedSet._id)));
+        const weeklyPublicationEnabled = Boolean(
+          CCG_WEEKLY_AUTOMATION_ENABLED
+          && storedSet
+          && storedSet.enabledAt
+          && storedSet.cardCount > 0
+          && (storedSet.state === "current" || storedSet.state === "legacy"),
+        );
+        const blockers = [
+          ...(mythicReports < MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY ? ["mythic_reports" as const] : []),
+          ...(pulls < MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY ? ["mythic_pulls" as const] : []),
+          ...(!scoresReady ? ["scores" as const] : []),
+          ...(!mediaReady ? ["media" as const] : []),
+        ];
+        return {
+          zoneId: set.zoneId,
+          raidName: set.raidName,
+          state: set.state,
+          eligible,
+          ready: eligible && mediaReady,
+          hasCard,
+          publicationEstimate: eligible && mediaReady && !hasCard && weeklyPublicationEnabled
+            ? {
+                snapshotTime: CCG_WEEKLY_SNAPSHOT_SCHEDULE.localTime,
+                publicationTime: CCG_WEEKLY_PUBLICATION_SCHEDULE.localTime,
+                timeZone: CCG_TIME_ZONE,
+              }
+            : null,
+          blockers,
+          mythicReports,
+          pulls,
+          scoresReady,
+        };
+      })
+      .sort((left, right) => right.zoneId - left.zoneId);
+
+    return {
+      found: true,
+      query: { name, realm },
+      character: {
+        id: String(character._id),
+        name: character.name,
+        realm: character.realm,
+        region: character.region,
+        classID: character.classID,
+        guildName: character.guildName ?? null,
+        avatarUrl: media?.avatarUrl ?? null,
+        lastRaidedAt: character.lastReportSeenAt ?? null,
+      },
+      eligible: raids.some((raid) => raid.eligible),
+      ready: raids.some((raid) => raid.ready),
+      media: {
+        status: mediaStatus,
+        ready: mediaReady,
+        lastErrorCode: media?.lastErrorCode ?? null,
+      },
+      thresholds: {
+        mythicReports: MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY,
+        pulls: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY,
+      },
+      raids,
+      cards: existingCards.sort((left, right) => right.publishedAt.getTime() - left.publishedAt.getTime()),
+    };
   }
 
   private async getRaidIconByZone(zoneIds: number[]): Promise<Map<number, string | null>> {

@@ -2358,6 +2358,67 @@ export type CcgActivityResponse = {
   nextCursor: string | null;
 };
 
+export type CcgCharacterCheckBlocker = "mythic_reports" | "mythic_pulls" | "scores" | "media";
+
+export type CcgCharacterCheckResponse =
+  | {
+      found: false;
+      query: { name: string; realm: string };
+    }
+  | {
+      found: true;
+      query: { name: string; realm: string };
+      character: {
+        id: string;
+        name: string;
+        realm: string;
+        region: string;
+        classID: number;
+        guildName: string | null;
+        avatarUrl: string | null;
+        lastRaidedAt: string | null;
+      };
+      eligible: boolean;
+      ready: boolean;
+      media: {
+        status: "untracked" | "pending" | "available" | "not_found" | "failed" | "render_missing";
+        ready: boolean;
+        lastErrorCode: string | null;
+      };
+      thresholds: {
+        mythicReports: number;
+        pulls: number;
+      };
+      raids: Array<{
+        zoneId: number;
+        raidName: string;
+        state: "draft" | "current" | "legacy" | "locked";
+        eligible: boolean;
+        ready: boolean;
+        hasCard: boolean;
+        publicationEstimate: {
+          snapshotTime: string;
+          publicationTime: string;
+          timeZone: string;
+        } | null;
+        blockers: CcgCharacterCheckBlocker[];
+        mythicReports: number;
+        pulls: number;
+        scoresReady: boolean;
+      }>;
+      cards: Array<{
+        id: string;
+        characterId: string;
+        setSlug: string;
+        raidName: string;
+        kind: "raid" | "community";
+        state: "draft" | "current" | "legacy" | "locked";
+        tierGrade: CcgTierGrade;
+        snapshotCount: number;
+        publishedAt: string;
+      }>;
+    };
+
 export type CcgAdminSetStatus = {
   id: string | null;
   zoneId: number;

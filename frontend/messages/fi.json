@@ -184,6 +184,109 @@
         "cardUnavailable": "Korttipalkinto"
       }
     },
+    "characterChecker": {
+      "menuLabel": "Hahmotarkistin",
+      "eyebrow": "CCG-kelpoisuus",
+      "title": "Hahmotarkistin",
+      "body": "Tarkista kuka tahansa raiditietokannastamme, selvitä mikä estää CCG-kortin ja katso, mistä raideista hahmolla on jo kortti.",
+      "loading": "Tarkistetaan hahmon kelpoisuutta",
+      "form": {
+        "name": "Hahmon nimi",
+        "namePlaceholder": "Hahmon nimi",
+        "realm": "Realm",
+        "realmPlaceholder": "Realmin nimi",
+        "submit": "Tarkista hahmo",
+        "checking": "Tarkistetaan…"
+      },
+      "intro": {
+        "title": "Millä hahmo pääsee CCG-korttiin?",
+        "body": "Kelpoisuus tarkistetaan erikseen jokaiselle raidille. Hahmokuva ei vaikuta raidikelpoisuuteen, mutta korttia ei voida julkaista ilman sitä.",
+        "reports": "3 Mythic-raidireporttia",
+        "pulls": "40 kirjattua Mythic-pullia",
+        "scores": "Valmiit suoritus- ja mekaniikkapisteet",
+        "media": "Käyttökelpoinen hahmokuva Blizzardilta"
+      },
+      "notFound": {
+        "title": "Hahmoa ei löytynyt",
+        "body": "Hahmoa {name}-{realm} ei löytynyt. Se ei vaikuta raidanneen seuratussa suomalaisessa killassa — ainakaan tällä nimellä ja realmilla."
+      },
+      "status": {
+        "ready": "Kelvollinen ja valmis CCG:hen",
+        "mediaBlocked": "Raidivaatimukset täyttyvät — hahmokuva puuttuu",
+        "ineligible": "Ei tällä hetkellä CCG-kelpoinen"
+      },
+      "eligibleRaids": "kelvollista raidisettiä",
+      "states": {
+        "current": "Current",
+        "legacy": "Legacy",
+        "draft": "Luonnos",
+        "locked": "Lukittu"
+      },
+      "media": {
+        "untracked": {
+          "title": "Hahmokuvaa ei ole vielä haettu",
+          "body": "Raidivaatimukset voidaan silti tarkistaa, mutta korttia ei voida julkaista ennen kuin Blizzard-hahmokuva on saatavilla."
+        },
+        "pending": {
+          "title": "Hahmokuvaa haetaan",
+          "body": "Blizzard-haku on jonossa tai vielä kesken. Tarkista myöhemmin uudelleen."
+        },
+        "not_found": {
+          "title": "Hahmoa ei löytynyt Blizzard Armoryssa",
+          "body": "Onko hahmon nimi vaihtunut tai onko se siirretty toiselle realmille? Hae uudelleen nykyisellä nimellä ja realmilla."
+        },
+        "failed": {
+          "title": "Hahmokuvan haku epäonnistui",
+          "body": "Blizzard-haku epäonnistui. Hahmo voi tulla korttivalmiiksi myöhemmän uuden yrityksen jälkeen."
+        },
+        "render_missing": {
+          "title": "Blizzard-hahmokuva puuttuu",
+          "body": "Hahmo löytyi, mutta Blizzard ei palauttanut käyttökelpoista kokovartalokuvaa."
+        }
+      },
+      "cards": {
+        "eyebrow": "Julkaisuhistoria",
+        "title": "Olemassa olevat CCG-kortit",
+        "community": "Community",
+        "snapshots": "{count, plural, one {# snapshot} other {# snapshotia}}",
+        "view": "Näytä kokoelmassa",
+        "empty": "Hahmolla ei ole vielä julkaistua CCG-korttia."
+      },
+      "raids": {
+        "eyebrow": "Raideittain",
+        "title": "Kelpoisuustarkistukset",
+        "body": "Vain raidit, joista hahmolla on toimintaa tai olemassa oleva kortti, näytetään.",
+        "ready": "Valmis",
+        "waitingForMedia": "Kelvollinen · hahmokuva puuttuu",
+        "notEligible": "Ei kelvollinen",
+        "allRequirementsMet": "Kaikki CCG-vaatimukset täyttyvät.",
+        "emptyTitle": "Ei CCG-raiditietoja",
+        "emptyBody": "Hahmo on tietokannassamme, mutta sillä ei ole toimintaa CCG:hen määritetyissä raideissa."
+      },
+      "metrics": {
+        "mythicReports": "Mythic-reportit",
+        "mythicPulls": "Mythic-pullit",
+        "scores": "Pisteet",
+        "ready": "Valmiit",
+        "missing": "Puuttuvat"
+      },
+      "prediction": {
+        "title": "Todennäköisesti tulevassa keskiviikon julkaisussa",
+        "body": "Viikoittainen snapshot ajetaan keskiviikkona klo {snapshotTime} ja julkaisu alkaa noin klo {publicationTime} Suomen aikaa ({timeZone}). Jos onnistunut snapshot sisältää nykyiset tiedot ja hahmo pysyy kelvollisena, ensimmäisen kortin pitäisi tulla siinä julkaisussa. Tämä on perusteltu arvio, ei takuu."
+      },
+      "blockers": {
+        "mythicReports": "Mythic-raidireportteja ei ole tarpeeksi ({current}/{minimum}).",
+        "mythicPulls": "Kirjattuja Mythic-pulleja ei ole tarpeeksi ({current}/{minimum}).",
+        "scores": "Warcraft Logs -suoritus- tai mekaniikkapisteitä ei ole haettu ja laskettu.",
+        "media": {
+          "untracked": "Blizzard-hahmokuvaa ei ole haettu.",
+          "pending": "Blizzard-hahmokuvan haku on vielä kesken.",
+          "not_found": "Hahmoa ei löytynyt Blizzard Armoryssa.",
+          "failed": "Blizzard-hahmokuvan haku epäonnistui.",
+          "render_missing": "Käyttökelpoinen Blizzard-hahmokuva puuttuu."
+        }
+      }
+    },
     "leaderboard": {
       "eyebrow": "Keräilijöiden kunniagalleria",
       "title": "Kokoelmien tulostaulu",

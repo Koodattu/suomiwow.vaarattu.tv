@@ -88,6 +88,12 @@ router.get(
 );
 
 router.get(
+  "/character-check",
+  rateLimit(30, 60_000),
+  asyncRoute(async (req) => ccgService.checkCharacter(req.query.name, req.query.realm)),
+);
+
+router.get(
   "/leaderboard",
   rateLimit(90, 60_000),
   asyncRoute(async (_req, res) => {

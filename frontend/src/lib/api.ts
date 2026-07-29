@@ -149,6 +149,7 @@ import {
   CcgOpening,
   CcgActivityFilter,
   CcgActivityResponse,
+  CcgCharacterCheckResponse,
   CcgOverlayEvent,
   CcgShare,
   CcgShareLink,
@@ -414,6 +415,15 @@ export const api = {
       cache: "no-store",
     });
     if (!response.ok) throw await buildApiError(response, "Failed to load your collection activity");
+    return response.json();
+  },
+
+  async checkCcgCharacter(name: string, realm: string): Promise<CcgCharacterCheckResponse> {
+    const params = new URLSearchParams({ name, realm });
+    const response = await fetch(`${API_URL}/api/ccg/character-check?${params}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) throw await buildApiError(response, "The character could not be checked");
     return response.json();
   },
 

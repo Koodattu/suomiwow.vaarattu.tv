@@ -106,6 +106,7 @@ export const queryKeys = {
     collection: (options: Record<string, unknown>) => ["ccg", "collection", options] as const,
     opening: (openingId: string) => ["ccg", "opening", openingId] as const,
     activity: (filter: CcgActivityFilter) => ["ccg", "activity", 6, filter] as const,
+    characterCheck: (name: string, realm: string) => ["ccg", "characterCheck", name, realm] as const,
   },
 } as const;
 
@@ -594,5 +595,14 @@ export function useCcgActivity(filter: CcgActivityFilter, enabled = true) {
     enabled,
     staleTime: 0,
     refetchOnMount: "always",
+  });
+}
+
+export function useCcgCharacterCheck(name: string, realm: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.ccg.characterCheck(name, realm),
+    queryFn: () => api.checkCcgCharacter(name, realm),
+    enabled: enabled && name.length >= 2 && realm.length >= 2,
+    staleTime: 30 * 1000,
   });
 }

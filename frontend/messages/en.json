@@ -184,6 +184,109 @@
         "cardUnavailable": "Card reward"
       }
     },
+    "characterChecker": {
+      "menuLabel": "Character checker",
+      "eyebrow": "CCG eligibility",
+      "title": "Character checker",
+      "body": "Check any character in our raid database, see what keeps them out of CCG, and find the raid sets where they already have a card.",
+      "loading": "Checking character eligibility",
+      "form": {
+        "name": "Character name",
+        "namePlaceholder": "Character name",
+        "realm": "Realm",
+        "realmPlaceholder": "Realm name",
+        "submit": "Check character",
+        "checking": "Checking…"
+      },
+      "intro": {
+        "title": "What makes a CCG card?",
+        "body": "Eligibility is checked separately for every raid. Artwork does not change raid eligibility, but a card cannot be published without it.",
+        "reports": "3 Mythic raid reports",
+        "pulls": "40 logged Mythic pulls",
+        "scores": "Complete performance and mechanics scores",
+        "media": "A usable Blizzard character render"
+      },
+      "notFound": {
+        "title": "Character not found",
+        "body": "We could not find {name}-{realm}. They do not seem to have raided in a tracked Finnish guild—at least not under this name and realm."
+      },
+      "status": {
+        "ready": "Eligible and ready for CCG",
+        "mediaBlocked": "Raid requirements met — artwork missing",
+        "ineligible": "Not currently eligible for CCG"
+      },
+      "eligibleRaids": "eligible raid sets",
+      "states": {
+        "current": "Current",
+        "legacy": "Legacy",
+        "draft": "Draft",
+        "locked": "Locked"
+      },
+      "media": {
+        "untracked": {
+          "title": "Character artwork has not been fetched",
+          "body": "The raid requirements can still be checked, but a card cannot be published until Blizzard character media is available."
+        },
+        "pending": {
+          "title": "Character artwork is being fetched",
+          "body": "The Blizzard lookup is queued or still in progress. Check again later."
+        },
+        "not_found": {
+          "title": "Character was not found in the Blizzard Armory",
+          "body": "Was the character renamed or transferred to another realm? Search again with the current name and realm."
+        },
+        "failed": {
+          "title": "Character artwork could not be fetched",
+          "body": "The Blizzard lookup failed. The character may become card-ready after a later retry."
+        },
+        "render_missing": {
+          "title": "Blizzard character render is missing",
+          "body": "The character was found, but Blizzard did not provide a usable full character render."
+        }
+      },
+      "cards": {
+        "eyebrow": "Published history",
+        "title": "Existing CCG cards",
+        "community": "Community",
+        "snapshots": "{count, plural, one {# snapshot} other {# snapshots}}",
+        "view": "View in collection",
+        "empty": "This character does not have a published CCG card yet."
+      },
+      "raids": {
+        "eyebrow": "Raid-by-raid",
+        "title": "Eligibility checks",
+        "body": "Only raids with activity or an existing card are shown.",
+        "ready": "Ready",
+        "waitingForMedia": "Eligible · artwork missing",
+        "notEligible": "Not eligible",
+        "allRequirementsMet": "All CCG requirements are met.",
+        "emptyTitle": "No CCG raid data",
+        "emptyBody": "The character exists in our database, but has no activity in a configured CCG raid."
+      },
+      "metrics": {
+        "mythicReports": "Mythic reports",
+        "mythicPulls": "Mythic pulls",
+        "scores": "Scores",
+        "ready": "Ready",
+        "missing": "Missing"
+      },
+      "prediction": {
+        "title": "Likely in an upcoming Wednesday publication",
+        "body": "The weekly snapshot runs Wednesday at {snapshotTime}, followed by publication around {publicationTime} Finnish time ({timeZone}). If a successful snapshot includes the current data and the character remains eligible, their first card should arrive in that publication. This is an educated estimate, not a guarantee."
+      },
+      "blockers": {
+        "mythicReports": "Not enough Mythic raid reports ({current}/{minimum}).",
+        "mythicPulls": "Not enough logged Mythic pulls ({current}/{minimum}).",
+        "scores": "Warcraft Logs performance or mechanics scores have not been fetched and calculated.",
+        "media": {
+          "untracked": "Blizzard character media has not been fetched.",
+          "pending": "Blizzard character media is still being fetched.",
+          "not_found": "Character was not found in the Blizzard Armory.",
+          "failed": "Blizzard character media fetch failed.",
+          "render_missing": "A usable Blizzard character render is missing."
+        }
+      }
+    },
     "leaderboard": {
       "eyebrow": "Collectors' hall",
       "title": "Collection leaderboard",
