@@ -4,11 +4,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import "express-session";
 import mongoose from "mongoose";
+import CcgCard from "../src/models/CcgCard";
+import CcgCollectorProfile from "../src/models/CcgCollectorProfile";
 import CcgSeriesOwnership from "../src/models/CcgSeriesOwnership";
 import CcgSet from "../src/models/CcgSet";
 import ccgService from "../src/services/ccg.service";
 
-test("owned collection shares finishes across explicitly unlocked snapshots", async () => {
+test("owned collection shares finishes across snapshots and filters favorites by series", async () => {
   const ownerId = new mongoose.Types.ObjectId();
   const raidSetId = new mongoose.Types.ObjectId();
   const communitySetId = new mongoose.Types.ObjectId();
@@ -71,21 +73,37 @@ test("owned collection shares finishes across explicitly unlocked snapshots", as
     publishedAt: new Date("2026-08-02T12:00:00.000Z"),
   };
   const seriesOwnershipModel = CcgSeriesOwnership as any;
+  const cardModel = CcgCard as any;
+  const collectorProfileModel = CcgCollectorProfile as any;
   const setModel = CcgSet as any;
   const service = ccgService as any;
   const originals = {
     aggregate: seriesOwnershipModel.aggregate,
+    cardFind: cardModel.find,
+    collectorProfileFindOne: collectorProfileModel.findOne,
     setFind: setModel.find,
     loadAlternativeArt: service.loadAlternativeArt,
     loadAlternativeArtUnlocks: service.loadAlternativeArtUnlocks,
   };
   let pipeline: Array<Record<string, any>> = [];
+  let favoriteCardFilter: Record<string, any> | null = null;
 
   try {
     setModel.find = () => ({
       select() { return this; },
       lean: async () => [raidSet, communitySet],
     });
+    collectorProfileModel.findOne = () => ({
+      select() { return this; },
+      lean: async () => ({ showcase: [{ cardId }] }),
+    });
+    cardModel.find = (filter: Record<string, any>) => {
+      favoriteCardFilter = filter;
+      return {
+        select() { return this; },
+        lean: async () => [{ setId: raidSetId, characterId }],
+      };
+    };
     seriesOwnershipModel.aggregate = (value: Array<Record<string, any>>) => {
       pipeline = value;
       return Promise.resolve([{
@@ -104,7 +122,7 @@ test("owned collection shares finishes across explicitly unlocked snapshots", as
 
     const result = await service.getCollection(
       { ownerType: "user", ownerId },
-      { page: 2, limit: 12, sort: "damage_desc" },
+      { page: 2, limit: 12, sort: "damage_desc", favoriteOnly: true },
     );
 
     const ownershipLookupIndex = pipeline.findIndex((stage) => stage.$lookup?.from === "ccgownerships");
@@ -118,6 +136,8 @@ test("owned collection shares finishes across explicitly unlocked snapshots", as
 
     const enabledSetMatch = pipeline.find((stage) => stage.$match?.setId);
     assert.deepEqual(enabledSetMatch?.$match.setId.$in, [raidSetId, communitySetId]);
+    assert.deepEqual(enabledSetMatch?.$match.$or, [{ setId: raidSetId, characterId }]);
+    assert.deepEqual(favoriteCardFilter, { _id: { $in: [cardId] } });
     const scoreStage = pipeline.find((stage) => stage.$set?.sortValue);
     assert.deepEqual(scoreStage?.$set.sortValue.$cond[0], { $in: ["$card.setId", [communitySetId]] });
     const facet = pipeline.find((stage) => stage.$facet);
@@ -135,6 +155,8 @@ test("owned collection shares finishes across explicitly unlocked snapshots", as
     assert.deepEqual(result.cards[0].variants[0].ownership, result.cards[0].variants[1].ownership);
   } finally {
     seriesOwnershipModel.aggregate = originals.aggregate;
+    cardModel.find = originals.cardFind;
+    collectorProfileModel.findOne = originals.collectorProfileFindOne;
     setModel.find = originals.setFind;
     service.loadAlternativeArt = originals.loadAlternativeArt;
     service.loadAlternativeArtUnlocks = originals.loadAlternativeArtUnlocks;

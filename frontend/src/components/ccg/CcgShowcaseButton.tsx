@@ -29,6 +29,7 @@ export default function CcgShowcaseButton({
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.ccg.leaderboardMe, data);
       void queryClient.invalidateQueries({ queryKey: queryKeys.ccg.leaderboard });
+      void queryClient.invalidateQueries({ queryKey: ["ccg", "collection"] });
     },
   });
 

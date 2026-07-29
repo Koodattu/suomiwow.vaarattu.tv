@@ -202,6 +202,7 @@ router.get(
       characterId: typeof req.query.character === "string" ? req.query.character : undefined,
       sort: typeof req.query.sort === "string" ? req.query.sort : undefined,
       alternativeOnly: req.query.alternative === "true",
+      favoriteOnly: req.query.favorite === "true",
     });
   }),
 );

@@ -1254,7 +1254,7 @@ class CcgService {
 
   async getCollection(
     owner: CcgOwner,
-    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string; characterId?: string; sort?: string; alternativeOnly?: boolean },
+    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string; characterId?: string; sort?: string; alternativeOnly?: boolean; favoriteOnly?: boolean },
   ): Promise<Record<string, unknown>> {
     const page = Math.max(1, Math.floor(options.page ?? 1));
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 18)));
@@ -1277,6 +1277,21 @@ class CcgService {
           .select(CCG_PUBLIC_SET_FIELDS)
           .lean();
     match.setId = requestedSet?._id ?? { $in: sets.map((set) => set._id) };
+    if (options.favoriteOnly) {
+      const profile = owner.ownerType === "user"
+        ? await CcgCollectorProfile.findOne({ userId: owner.ownerId }).select("showcase.cardId -_id").lean()
+        : null;
+      const favoriteCardIds = (profile?.showcase ?? []).map((item) => item.cardId);
+      const favoriteCards = favoriteCardIds.length > 0
+        ? await CcgCard.find({ _id: { $in: favoriteCardIds } }).select("setId characterId -_id").lean()
+        : [];
+      const favoriteSeries = new Map(favoriteCards.map((card) => [
+        `${card.setId}:${card.characterId}`,
+        { setId: card.setId, characterId: card.characterId },
+      ]));
+      if (favoriteSeries.size > 0) match.$or = Array.from(favoriteSeries.values());
+      else match.characterId = { $in: [] };
+    }
     const setById = new Map(sets.map((set) => [String(set._id), set]));
     const communitySetIds = sets.filter((set) => set.kind === "community").map((set) => set._id);
     const guildId = options.guildId ? validateObjectId(options.guildId, "guild ID") : null;

@@ -630,6 +630,26 @@
   pointer-events: none;
 }
 
+.favoriteMark {
+  position: absolute;
+  z-index: 32;
+  top: 12.5%;
+  left: 4.5%;
+  display: grid;
+  width: 1.85em;
+  height: 1.85em;
+  place-items: center;
+  color: #ffd45c;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 4px rgba(255, 190, 40, 0.45));
+  font-size: 5.2cqw;
+  pointer-events: none;
+}
+
+.favoriteMark svg {
+  width: 1em;
+  height: 1em;
+}
+
 .surfaceFilterDefinition {
   position: absolute;
   width: 0;

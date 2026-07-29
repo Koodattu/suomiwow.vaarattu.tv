@@ -376,7 +376,7 @@ export const api = {
     return response.json();
   },
 
-  async getCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string; character?: string; sort?: CcgCollectionSort; alternative?: boolean } = {}): Promise<CcgCollectionResponse> {
+  async getCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string; character?: string; sort?: CcgCollectionSort; alternative?: boolean; favorite?: boolean } = {}): Promise<CcgCollectionResponse> {
     const params = new URLSearchParams();
     Object.entries(options).forEach(([key, value]) => {
       if (value !== undefined && value !== "") params.set(key, String(value));

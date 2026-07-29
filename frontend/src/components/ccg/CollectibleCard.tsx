@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
+import { FaStar } from "react-icons/fa6";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgArtVariant, CcgCard, CcgFinish } from "@/types";
 import { CCG_CLASS_COLORS, CCG_RARITY_KEYS } from "@/lib/ccg";
@@ -153,6 +154,7 @@ type CollectibleCardProps = {
   artVariant?: CcgArtVariant;
   compact?: boolean;
   quantity?: number;
+  favorite?: boolean;
   onSelect?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   className?: string;
   width?: number;
@@ -172,6 +174,7 @@ export default function CollectibleCard({
   artVariant = "standard",
   compact = false,
   quantity,
+  favorite = false,
   onSelect,
   className = "",
   width,
@@ -313,7 +316,7 @@ export default function CollectibleCard({
       style={cardStyle}
       onPointerMove={updateMaterial}
       onPointerLeave={resetMaterial}
-      aria-label={`${card.name}, ${guild}, ${realm}, ${card.set.raidName}, ${formatSpecName(card.specName)} ${classInfo.name}, ${rarity}, ${t(`finish.${finish}`)}, ${t(`artwork.${artVariant}`)}`}
+      aria-label={`${card.name}, ${guild}, ${realm}, ${card.set.raidName}, ${formatSpecName(card.specName)} ${classInfo.name}, ${rarity}, ${t(`finish.${finish}`)}, ${t(`artwork.${artVariant}`)}${favorite ? `, ${t("collection.favoriteCard")}` : ""}`}
     >
       <span className={styles.outerFrame} aria-hidden="true" />
       <span className={styles.innerFrame} aria-hidden="true" />
@@ -366,6 +369,7 @@ export default function CollectibleCard({
 
       <span className={`${styles.cardBrand} ${styles.cardBrandLeft}`} aria-hidden="true">SUOMIWOW</span>
       <span className={`${styles.cardBrand} ${styles.cardBrandRight}`} aria-hidden="true">{realm}</span>
+      {favorite ? <span className={styles.favoriteMark} aria-hidden="true"><FaStar /></span> : null}
       {quantity && quantity > 1 ? <span className={styles.quantity}>×{quantity}</span> : null}
       <span className={styles.finishLayer} aria-hidden="true" />
       <span className={styles.materialLight} aria-hidden="true" />

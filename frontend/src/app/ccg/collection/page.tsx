@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from "@headlessui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { FaRegStar, FaStar } from "react-icons/fa6";
 import { LuCircleDashed, LuEye, LuEyeOff, LuImage, LuImages, LuRotateCcw } from "react-icons/lu";
 import type {
   CSSProperties,
@@ -15,7 +16,7 @@ import type {
 import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCharacterFacet, CcgCollectionSort, CcgFinish, CcgGuildFacet, CcgTierGrade } from "@/types";
 import { bestOwnedFinish, CCG_BASE_FINISH_ORDER } from "@/lib/ccg";
 import { playCcgSound, preloadCcgSounds } from "@/lib/ccg-audio";
-import { useCcgCatalog, useCcgCollection, useCcgCollectionCharacterSearch, useCcgCollectionGuilds, useCcgSession, useCcgSets } from "@/lib/queries";
+import { useCcgCatalog, useCcgCollection, useCcgCollectionCharacterSearch, useCcgCollectionGuilds, useCcgLeaderboardMe, useCcgSession, useCcgSets } from "@/lib/queries";
 import { formatRealmName } from "@/lib/utils";
 import CcgShell from "@/components/ccg/CcgShell";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
@@ -73,6 +74,7 @@ function CollectionCard({
   finish,
   artVariant,
   quantity,
+  favorite,
   missing,
   onSelect,
 }: {
@@ -80,6 +82,7 @@ function CollectionCard({
   finish: CcgFinish;
   artVariant: CcgArtVariant;
   quantity?: number;
+  favorite: boolean;
   missing: boolean;
   onSelect: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 }) {
@@ -97,6 +100,7 @@ function CollectionCard({
         finish={finish}
         artVariant={artVariant}
         quantity={quantity}
+        favorite={favorite}
         compact
         className={`${styles.collectionCardAsset} ${ready ? "" : styles.collectionCardAssetLoading} ${missing ? styles.collectionMissingCard : ""}`}
         onReady={markReady}
@@ -110,6 +114,8 @@ export default function CcgCollectionPage() {
   const t = useTranslations("ccg");
   const searchParams = useSearchParams();
   const sessionQuery = useCcgSession();
+  const signedIn = sessionQuery.data?.ownerType === "user";
+  const favoritesQuery = useCcgLeaderboardMe(signedIn);
   const setsQuery = useCcgSets();
   const sets = useMemo(
     () => [...(setsQuery.data?.sets ?? [])].sort((a, b) => {
@@ -133,6 +139,7 @@ export default function CcgCollectionPage() {
   const characterInputRef = useRef<HTMLInputElement>(null);
   const [visibility, setVisibility] = useState<CollectionVisibility>("owned");
   const [alternativeOnly, setAlternativeOnly] = useState(false);
+  const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [pageCountCache, setPageCountCache] = useState({ scope: "", pages: 0 });
   const [grade, setGrade] = useState("");
@@ -214,7 +221,11 @@ export default function CcgCollectionPage() {
     : visibility === "all"
       ? "collection.showOnlyMissingCards"
       : "collection.showOnlyOwnedCards";
-  const filtersChanged = visibility !== "owned" || alternativeOnly || Boolean(characterId || guildId || grade || finish || sort);
+  const favoriteCardIds = useMemo(
+    () => new Set((favoritesQuery.data?.showcase ?? []).map((item) => item.card.id)),
+    [favoritesQuery.data?.showcase],
+  );
+  const filtersChanged = visibility !== "owned" || alternativeOnly || favoriteOnly || Boolean(characterId || guildId || grade || finish || sort);
   const ownedQuery = useCcgCollection(
     {
       page,
@@ -226,6 +237,7 @@ export default function CcgCollectionPage() {
       character: characterId || undefined,
       sort: sort || undefined,
       alternative: alternativeOnly || undefined,
+      favorite: favoriteOnly || undefined,
     },
     setSelectionReady && !showCatalog,
   );
@@ -234,7 +246,7 @@ export default function CcgCollectionPage() {
   const cardsData = cardsQuery.data;
   const cardsLoading = setsQuery.isPending || cardsQuery.isPending;
   const cardsError = cardsQuery.isError;
-  const pageCountScope = JSON.stringify([setSlug, characterId, guildId, grade, finish, sort, visibility, alternativeOnly]);
+  const pageCountScope = JSON.stringify([setSlug, characterId, guildId, grade, finish, sort, visibility, alternativeOnly, favoriteOnly]);
   const displayedPageCount = cardsData?.pages
     ?? (pageCountCache.scope === pageCountScope ? pageCountCache.pages : 0);
 
@@ -394,6 +406,7 @@ export default function CcgCollectionPage() {
   const resetFilters = () => {
     setVisibility("owned");
     setAlternativeOnly(false);
+    setFavoriteOnly(false);
     setSelectedCharacter(null);
     setCharacterSearch("");
     setGuildId("");
@@ -569,6 +582,7 @@ export default function CcgCollectionPage() {
               onClick={() => updateFilter(() => {
                 setVisibility(nextVisibility);
                 setAlternativeOnly(false);
+                setFavoriteOnly(false);
                 if (nextVisibility === "missing") setFinish("");
               })}
             >
@@ -596,6 +610,27 @@ export default function CcgCollectionPage() {
                 <LuImages className={alternativeOnly ? styles.collectionToggleIconVisible : styles.collectionToggleIconHidden} />
               </span>
             </button>
+
+            {signedIn ? (
+              <button
+                type="button"
+                className={`${styles.collectionIconToggle} ${favoriteOnly ? styles.collectionFavoriteToggleActive : ""} ${favoritesQuery.isPending ? styles.collectionIconToggleDisabled : ""}`}
+                title={t(favoriteOnly ? "collection.showNonFavoriteCards" : "collection.showFavoriteCards")}
+                aria-label={t(favoriteOnly ? "collection.showNonFavoriteCards" : "collection.showFavoriteCards")}
+                aria-pressed={favoriteOnly}
+                disabled={favoritesQuery.isPending}
+                onClick={() => updateFilter(() => {
+                  const nextFavoriteOnly = !favoriteOnly;
+                  setFavoriteOnly(nextFavoriteOnly);
+                  if (nextFavoriteOnly) setVisibility("owned");
+                })}
+              >
+                <span className={styles.collectionToggleIcon} aria-hidden="true">
+                  <FaRegStar className={favoriteOnly ? styles.collectionToggleIconHidden : styles.collectionToggleIconVisible} />
+                  <FaStar className={favoriteOnly ? styles.collectionToggleIconVisible : styles.collectionToggleIconHidden} />
+                </span>
+              </button>
+            ) : null}
 
             <Combobox
               value={selectedCharacter}
@@ -851,6 +886,8 @@ export default function CcgCollectionPage() {
               <div className={styles.collectionBinderGrid}>
                 {cardsData.cards.map((card) => {
                   const ownedFinish = bestOwnedFinish(card);
+                  const favorite = favoriteCardIds.has(card.id)
+                    || Boolean(card.variants?.some((variant) => favoriteCardIds.has(variant.card.id)));
                   return (
                     <CollectionCard
                       key={`${card.id}:${card.renderUrl ?? ""}`}
@@ -858,6 +895,7 @@ export default function CcgCollectionPage() {
                       finish={ownedFinish?.finish ?? "standard"}
                       artVariant={ownedFinish?.artVariant ?? "standard"}
                       quantity={ownedFinish?.total}
+                      favorite={favorite}
                       missing={!ownedFinish}
                       onSelect={(event) => {
                         const originElement = event.currentTarget;
@@ -875,9 +913,22 @@ export default function CcgCollectionPage() {
             ) : (
               <div className={styles.collectionEmpty}>
                 <div>
-                  <h2>{t(alternativeOnly ? "collection.emptyAlternativeTitle" : guildId ? "collection.emptyGuildTitle" : showCatalog ? "collection.emptyMissingTitle" : "collection.emptyOwnedTitle")}</h2>
-                  <p>{t(alternativeOnly ? "collection.emptyAlternativeBody" : guildId ? showCatalog ? "collection.emptyGuildMissingBody" : "collection.emptyGuildBody" : showCatalog ? "collection.emptyMissingBody" : "collection.emptyOwnedBody")}</p>
-                  {!guildId && !showCatalog ? (
+                  <h2>{t(favoriteOnly ? "collection.emptyFavoriteTitle" : alternativeOnly ? "collection.emptyAlternativeTitle" : guildId ? "collection.emptyGuildTitle" : showCatalog ? "collection.emptyMissingTitle" : "collection.emptyOwnedTitle")}</h2>
+                  <p>{t(favoriteOnly ? "collection.emptyFavoriteBody" : alternativeOnly ? "collection.emptyAlternativeBody" : guildId ? showCatalog ? "collection.emptyGuildMissingBody" : "collection.emptyGuildBody" : showCatalog ? "collection.emptyMissingBody" : "collection.emptyOwnedBody")}</p>
+                  {favoriteOnly ? (
+                    <div className={styles.collectionEmptyActions}>
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        onClick={() => updateFilter(() => {
+                          setFavoriteOnly(false);
+                          setAlternativeOnly(false);
+                        })}
+                      >
+                        {t("collection.showAllOwnedArtworkCards")}
+                      </button>
+                    </div>
+                  ) : !guildId && !showCatalog ? (
                     <div className={styles.collectionEmptyActions}>
                       <button
                         type="button"
