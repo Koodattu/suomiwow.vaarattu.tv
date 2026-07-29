@@ -5721,7 +5721,7 @@
   padding-block: 2rem;
 }
 
-.sharedCardAsset {
+.sharedCardLayout .sharedCardAsset {
   width: min(31rem, 42vw, calc((100dvh - 9rem) * 5 / 7));
   min-width: 0;
 }
@@ -6030,7 +6030,7 @@
     padding-block: 2rem;
   }
 
-  .sharedCardAsset {
+  .sharedCardLayout .sharedCardAsset {
     width: min(86vw, 24rem, calc(58dvh * 5 / 7));
     justify-self: center;
   }
