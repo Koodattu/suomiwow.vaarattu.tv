@@ -2166,7 +2166,7 @@
 .revealControls {
   display: flex;
   min-height: 3rem;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.8rem;
@@ -2265,6 +2265,121 @@
 .revealActionSlot > .packShareButton {
   width: auto;
   justify-self: center;
+}
+
+.revealCollectionProgress {
+  display: grid;
+  width: min(17rem, calc(100vw - 2rem));
+  min-width: 0;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.7rem;
+  opacity: 1;
+  transform: translateY(0);
+  animation: revealCollectionProgressEnter 220ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.revealCollectionIcon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 0.45rem;
+  background: rgba(8, 18, 36, 0.72);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 5px 14px rgba(0, 0, 0, 0.34);
+}
+
+.revealCollectionIconImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.revealCollectionDetails {
+  display: grid;
+  min-width: 0;
+  gap: 0.38rem;
+}
+
+.revealCollectionHeading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.revealCollectionHeading > strong {
+  overflow: hidden;
+  color: #dce7f6;
+  font-size: 0.68rem;
+  font-weight: 760;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.72);
+  white-space: nowrap;
+}
+
+.revealCollectionHeading > small {
+  position: relative;
+  flex: 0 0 auto;
+  color: #9eacc1;
+  font-size: 0.61rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.revealCollectionHeading > small em {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.22rem);
+  color: color-mix(in srgb, var(--pack-accent) 58%, white);
+  font-size: 0.56rem;
+  font-style: normal;
+  font-weight: 820;
+  text-shadow: 0 0 7px var(--pack-glow);
+}
+
+.revealCollectionTrack {
+  position: relative;
+  display: block;
+  height: 0.34rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(118, 143, 184, 0.18);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.42);
+}
+
+.revealCollectionTrack i {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--pack-accent) 82%, #4bbcff), color-mix(in srgb, var(--pack-accent) 58%, white));
+  box-shadow: 0 0 9px var(--pack-glow);
+  transform: scaleX(var(--collection-progress-from, 0));
+  transform-origin: left center;
+  animation: revealCollectionProgressFill 680ms 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes revealCollectionProgressEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes revealCollectionProgressFill {
+  from {
+    transform: scaleX(var(--collection-progress-from, 0));
+  }
+  to {
+    transform: scaleX(var(--collection-progress-to, 0));
+  }
 }
 
 @keyframes packCharge {
@@ -2895,11 +3010,22 @@
   .revealControls,
   .packActionError,
   .bonusEarned,
+  .revealCollectionProgress,
+  .revealCollectionTrack i,
   .collectionProgressTrack span,
   .sealedAura,
   .cardFlip,
   .pullStatus {
     transition-duration: 1ms;
+  }
+
+  .revealCollectionProgress,
+  .revealCollectionTrack i {
+    animation: none;
+  }
+
+  .revealCollectionTrack i {
+    transform: scaleX(var(--collection-progress-to, 0));
   }
 
   .cardBackFinish {

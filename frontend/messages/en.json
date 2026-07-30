@@ -462,7 +462,8 @@
       "recoveryFailed": "That saved pack could not be recovered. Clear it before opening another pack.",
       "dismissRecovery": "Clear saved pack",
       "openAnother": "Open another pack",
-      "chooseDifferent": "Choose a different pack"
+      "chooseDifferent": "Choose a different pack",
+      "setComplete": "Set complete!"
     },
     "prototypes": {
       "kicker": "Temporary design lab",

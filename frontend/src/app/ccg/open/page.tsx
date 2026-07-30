@@ -589,6 +589,33 @@ export default function CcgOpenPage() {
   const openingIsRandomLegacy = opening?.mode === "legacy" && !opening.targetSetId;
   const openingPackSet = opening?.mode === "legacy" ? openingTargetSet : currentSet;
   const openingPackName = opening?.mode === "legacy" ? (openingTargetSet?.raidName ?? t("open.legacyPackTitle")) : poolTitle;
+  const openingCollectionSets = openingIsRandomLegacy
+    ? legacySets
+    : openingTargetSet
+      ? [openingTargetSet]
+      : opening?.mode === "current"
+        ? currentSets
+        : [];
+  const openingCollectionSetIds = new Set(openingCollectionSets.map((set) => set.id));
+  const openingCollectionCardCount = openingCollectionSets.reduce((total, set) => total + set.cardCount, 0);
+  const openingCollectionOwnedCount = openingCollectionSets.reduce((total, set) => total + set.ownedCards, 0);
+  const openingCollectionDelta = opening
+    ? opening.cacheUpdates
+      ? Object.entries(opening.cacheUpdates.ownedCardsBySetDelta)
+        .reduce((total, [setId, delta]) => total + (openingCollectionSetIds.has(setId) ? delta : 0), 0)
+      : opening.results.reduce((total, result) => (
+        total + (!result.isDuplicate && openingCollectionSetIds.has(result.card.set.id) ? 1 : 0)
+      ), 0)
+    : 0;
+  const openingCollectionPreviousCount = Math.max(0, openingCollectionOwnedCount - openingCollectionDelta);
+  const openingCollectionProgressFrom = openingCollectionCardCount > 0
+    ? Math.min(1, openingCollectionPreviousCount / openingCollectionCardCount)
+    : 0;
+  const openingCollectionProgressTo = openingCollectionCardCount > 0
+    ? Math.min(1, openingCollectionOwnedCount / openingCollectionCardCount)
+    : 0;
+  const openingCollectionName = openingIsRandomLegacy ? t("open.legacyPackTitle") : openingPackName;
+  const openingCollectionIcon = openingIsRandomLegacy ? undefined : openingPackSet?.iconUrl ?? undefined;
   const cardBackSetScale = Math.min(1.45, Math.max(0.78, 18 / (openingPackName?.trim().length || 18)));
   const stageTheme = opening ? getPackTheme(openingPackSet, openingIsRandomLegacy) : getPackTheme(featuredPackSet, randomLegacy);
 
@@ -1171,6 +1198,50 @@ export default function CcgOpenPage() {
                     ) : null}
                   </div>
                 </div>
+                {allRevealed && openingCollectionCardCount > 0 ? (
+                  <div
+                    className={packStyles.revealCollectionProgress}
+                    style={{
+                      "--collection-progress-from": openingCollectionProgressFrom,
+                      "--collection-progress-to": openingCollectionProgressTo,
+                    } as CSSProperties}
+                  >
+                    <span className={packStyles.revealCollectionIcon} aria-hidden="true">
+                      {openingCollectionIcon ? (
+                        <IconImage
+                          iconFilename={openingCollectionIcon}
+                          alt=""
+                          width={36}
+                          height={36}
+                          className={packStyles.revealCollectionIconImage}
+                        />
+                      ) : (
+                        <ArchiveIcon />
+                      )}
+                    </span>
+                    <span className={packStyles.revealCollectionDetails}>
+                      <span className={packStyles.revealCollectionHeading}>
+                        <strong>{openingCollectionName}</strong>
+                        <small aria-hidden="true">
+                          {openingCollectionDelta > 0 ? <em>+{openingCollectionDelta}</em> : null}
+                          {openingCollectionOwnedCount >= openingCollectionCardCount
+                            ? t("open.setComplete")
+                            : `${openingCollectionOwnedCount} / ${openingCollectionCardCount}`}
+                        </small>
+                      </span>
+                      <span
+                        className={packStyles.revealCollectionTrack}
+                        role="progressbar"
+                        aria-label={`${openingCollectionName}: ${openingCollectionOwnedCount}/${openingCollectionCardCount} ${t("landing.collected")}`}
+                        aria-valuemin={0}
+                        aria-valuemax={openingCollectionCardCount}
+                        aria-valuenow={openingCollectionOwnedCount}
+                      >
+                        <i />
+                      </span>
+                    </span>
+                  </div>
+                ) : null}
               </div>
               {allRevealed && mutation.error ? (
                 <p className={packStyles.packActionError} role="alert">
