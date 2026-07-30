@@ -43,6 +43,8 @@ export type CcgOpeningWire = Omit<CcgOpening, "results"> & {
     finish: CcgFinish;
     artVariant: CcgArtVariant;
     isDuplicate: boolean;
+    isNewFinish?: boolean;
+    isNewSnapshot?: boolean;
     bonusPackReward: boolean;
     card: CcgCardWire;
   }>;

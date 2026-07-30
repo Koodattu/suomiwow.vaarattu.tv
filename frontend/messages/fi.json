@@ -457,6 +457,8 @@
       "revealAll": "Paljasta kaikki",
       "allRevealed": "Pakka valmis",
       "newCard": "Uusi",
+      "newFinish": "Uusi viimeistely",
+      "newSnapshot": "Uusi snapshot",
       "duplicate": "Tupla",
       "completedBonusPack": "Valmis! +1 bonuspaketti!",
       "recoveryFailed": "Tallennettua pakkaa ei voitu palauttaa. Tyhjennä se ennen uuden pakan avaamista.",

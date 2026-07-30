@@ -2269,7 +2269,16 @@ export type CcgOpening = {
   allowanceSource: "daily" | "recharge" | "credit";
   duplicateRewards: number;
   createdAt: string;
-  results: Array<{ position: number; finish: CcgFinish; artVariant: CcgArtVariant; isDuplicate: boolean; bonusPackReward: boolean; card: CcgCard }>;
+  results: Array<{
+    position: number;
+    finish: CcgFinish;
+    artVariant: CcgArtVariant;
+    isDuplicate: boolean;
+    isNewFinish?: boolean;
+    isNewSnapshot?: boolean;
+    bonusPackReward: boolean;
+    card: CcgCard;
+  }>;
   cacheUpdates?: {
     packs: CcgSession["packs"];
     qualityProtection: CcgSession["qualityProtection"];

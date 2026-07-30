@@ -72,6 +72,18 @@ function randomIndex(length: number): number {
   return value[0] % length;
 }
 
+function getPullStatusKey(result: CcgOpening["results"][number]):
+  | "open.completedBonusPack"
+  | "open.newFinish"
+  | "open.newSnapshot"
+  | "open.duplicate"
+  | "open.newCard" {
+  if (result.bonusPackReward) return "open.completedBonusPack";
+  if (result.isNewFinish) return "open.newFinish";
+  if (result.isNewSnapshot) return "open.newSnapshot";
+  return result.isDuplicate ? "open.duplicate" : "open.newCard";
+}
+
 function ArchiveIcon() {
   return (
     <span className={packStyles.archiveIcon} aria-hidden="true">
@@ -579,7 +591,7 @@ export default function CcgOpenPage() {
     () =>
       opening?.results
         .filter((_, index) => revealedCards.has(index))
-        .map((row) => `${row.card.name}, ${t(`finish.${row.finish}`)}, ${row.bonusPackReward ? t("open.completedBonusPack") : row.isDuplicate ? t("open.duplicate") : t("open.newCard")}`)
+        .map((row) => `${row.card.name}, ${t(`finish.${row.finish}`)}, ${t(getPullStatusKey(row))}`)
         .join(". ") ?? "",
     [opening, revealedCards, t],
   );
@@ -1134,7 +1146,7 @@ export default function CcgOpenPage() {
                           <span className={packStyles.revealMotes} />
                         </span>
                         <span className={`${packStyles.pullStatus} ${result.bonusPackReward ? packStyles.pullStatusReward : ""}`} aria-hidden={!revealed}>
-                          <strong>{t(result.bonusPackReward ? "open.completedBonusPack" : result.isDuplicate ? "open.duplicate" : "open.newCard")}</strong>
+                          <strong>{t(getPullStatusKey(result))}</strong>
                         </span>
                       </button>
                     );

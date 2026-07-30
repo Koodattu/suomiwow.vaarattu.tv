@@ -306,6 +306,8 @@ type SelectedResult = {
   artVariant: CcgArtVariant;
   tierGrade: CcgTierGrade;
   isDuplicate: boolean;
+  isNewFinish: boolean;
+  isNewSnapshot: boolean;
 };
 
 export type CcgExternalCardAward = Pick<
@@ -2733,6 +2735,11 @@ class CcgService {
           ownerId: owner.ownerId,
           $or: seriesPairs,
         }).session(session).lean();
+        const seriesOwnershipRows = await CcgSeriesOwnership.find({
+          ownerType: owner.ownerType,
+          ownerId: owner.ownerId,
+          $or: seriesPairs,
+        }).select("setId characterId unlockedSnapshotVersions").session(session).lean();
         const ownedFinishesBySeries = new Map<string, Set<CcgFinish>>();
         for (const row of ownershipRows) {
           const seriesKey = getSeriesKey(row);
@@ -2740,6 +2747,10 @@ class CcgService {
           finishes.add(row.finish);
           ownedFinishesBySeries.set(seriesKey, finishes);
         }
+        const ownedSnapshotVersionsBySeries = new Map(
+          seriesOwnershipRows.map((row) => [getSeriesKey(row), new Set(row.unlockedSnapshotVersions)]),
+        );
+        const alreadyOwnedSeriesKeys = new Set(ownedSnapshotVersionsBySeries.keys());
         const qualityProgress = await this.ensureQualityProgress(owner, session);
         let pity = this.readFinishPity(qualityProgress);
         const results: SelectedResult[] = [];
@@ -2752,6 +2763,7 @@ class CcgService {
           const cardSet = setById.get(String(card.setId));
           if (!cardSet) throw new CcgServiceError(409, "pool_invalid", "The pack references an unavailable card set");
           const ownedFinishes = ownedFinishesBySeries.get(seriesKey) ?? new Set<CcgFinish>();
+          const ownedSnapshotVersions = ownedSnapshotVersionsBySeries.get(seriesKey) ?? new Set<number>();
           const customFinish = cardSet.kind === "raid" ? cardSet.customFinish?.key ?? null : null;
           const finishOrder = getCcgPackFinishOrder(cardSet.kind, customFinish);
           const activePity: CcgFinishPity = { ...pity };
@@ -2766,12 +2778,16 @@ class CcgService {
               : CCG_FINISH_PITY_LIMITS,
           );
           const finish = rolled.finish;
+          const isNewFinish = !ownedFinishes.has(finish);
+          const isNewSnapshot = !ownedSnapshotVersions.has(card.snapshotVersion);
           const alternativeArt = alternativeByCollector.get(collectorKey);
           const artVariant = rollArtVariant(hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)));
           pity = this.readFinishPity(rolled.pity);
           if (customFinish) this.writeCustomFinishPity(qualityProgress, cardSet.slug, rolled.pity[customFinish] ?? 0);
           ownedFinishes.add(finish);
           ownedFinishesBySeries.set(seriesKey, ownedFinishes);
+          ownedSnapshotVersions.add(card.snapshotVersion);
+          ownedSnapshotVersionsBySeries.set(seriesKey, ownedSnapshotVersions);
           if (rolled.isCompletedCardDuplicate) {
             completedCardDuplicates.push({
               cardId: card._id,
@@ -2789,12 +2805,14 @@ class CcgService {
             artVariant,
             tierGrade: card.tierGrade,
             isDuplicate: rolled.isDuplicate,
+            isNewFinish,
+            isNewSnapshot,
           });
         }
         if (results.length !== CCG_CARDS_PER_PACK) throw new CcgServiceError(409, "pool_invalid", "The pack pool is incomplete");
 
         openingId = new mongoose.Types.ObjectId();
-        const ownedCardsBySetDelta = await this.getOwnedCardDeltas(owner, cards, session);
+        const ownedCardsBySetDelta = this.getOwnedCardDeltas(cards, alreadyOwnedSeriesKeys);
         this.writeFinishPity(qualityProgress, pity);
         await qualityProgress.save({ session });
         await this.addOwnership(owner, results, session);
@@ -2869,7 +2887,7 @@ class CcgService {
           packs: this.serializePackBalances(allowanceSource.balance, creditBalances),
           qualityProtection,
           customQualityProtection,
-          ownedFinishesDelta: results.filter((result) => !result.isDuplicate).length,
+          ownedFinishesDelta: results.filter((result) => result.isNewFinish).length,
           ownedCardsBySetDelta,
         };
         committedOpening = opening;
@@ -4245,11 +4263,10 @@ class CcgService {
     );
   }
 
-  private async getOwnedCardDeltas(
-    owner: CcgOwner,
+  private getOwnedCardDeltas(
     cards: ReadonlyArray<Pick<ICcgCard, "setId" | "characterId">>,
-    session: ClientSession,
-  ): Promise<Record<string, number>> {
+    alreadyOwnedPairs: ReadonlySet<string>,
+  ): Record<string, number> {
     const pairs = new Map<string, { setId: mongoose.Types.ObjectId; characterId: mongoose.Types.ObjectId }>();
     for (const card of cards) {
       const key = `${card.setId}:${card.characterId}`;
@@ -4257,12 +4274,6 @@ class CcgService {
     }
     if (pairs.size === 0) return {};
 
-    const ownedSeries = await CcgSeriesOwnership.find({
-      ownerType: owner.ownerType,
-      ownerId: owner.ownerId,
-      $or: Array.from(pairs.values()),
-    }).select("setId characterId").session(session).lean();
-    const alreadyOwnedPairs = new Set(ownedSeries.map(getSeriesKey));
     const deltas: Record<string, number> = {};
     for (const [key, pair] of pairs) {
       if (alreadyOwnedPairs.has(key)) continue;
@@ -4436,6 +4447,8 @@ class CcgService {
           finish: result.finish,
           artVariant: result.artVariant ?? "standard",
           isDuplicate: result.isDuplicate,
+          isNewFinish: result.isNewFinish,
+          isNewSnapshot: result.isNewSnapshot,
           bonusPackReward: Boolean(result.bonusPackReward),
           card: card && set
             ? this.serializeCard(

@@ -457,6 +457,8 @@
       "revealAll": "Reveal all",
       "allRevealed": "Pack complete",
       "newCard": "New",
+      "newFinish": "New finish",
+      "newSnapshot": "New snapshot",
       "duplicate": "Duplicate",
       "completedBonusPack": "Complete! +1 bonus pack!",
       "recoveryFailed": "That saved pack could not be recovered. Clear it before opening another pack.",
