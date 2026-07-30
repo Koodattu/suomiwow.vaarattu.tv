@@ -2267,6 +2267,14 @@
   justify-self: center;
 }
 
+.revealCollectionProgressSlot {
+  display: grid;
+  width: 100%;
+  height: 3rem;
+  flex: 0 0 3rem;
+  place-items: center;
+}
+
 .revealCollectionProgress {
   display: grid;
   width: min(17rem, calc(100vw - 2rem));
@@ -2314,7 +2322,7 @@
 
 .revealCollectionHeading > strong {
   overflow: hidden;
-  color: #dce7f6;
+  color: color-mix(in srgb, var(--pack-accent) 64%, white);
   font-size: 0.68rem;
   font-weight: 760;
   line-height: 1.1;
@@ -2329,9 +2337,14 @@
   color: #9eacc1;
   font-size: 0.61rem;
   font-variant-numeric: tabular-nums;
-  font-weight: 720;
+  font-weight: 620;
   line-height: 1;
   white-space: nowrap;
+}
+
+.revealCollectionHeading > small b {
+  color: #dce7f6;
+  font-weight: 820;
 }
 
 .revealCollectionHeading > small em {

@@ -1198,50 +1198,52 @@ export default function CcgOpenPage() {
                     ) : null}
                   </div>
                 </div>
-                {allRevealed && openingCollectionCardCount > 0 ? (
-                  <div
-                    className={packStyles.revealCollectionProgress}
-                    style={{
-                      "--collection-progress-from": openingCollectionProgressFrom,
-                      "--collection-progress-to": openingCollectionProgressTo,
-                    } as CSSProperties}
-                  >
-                    <span className={packStyles.revealCollectionIcon} aria-hidden="true">
-                      {openingCollectionIcon ? (
-                        <IconImage
-                          iconFilename={openingCollectionIcon}
-                          alt=""
-                          width={36}
-                          height={36}
-                          className={packStyles.revealCollectionIconImage}
-                        />
-                      ) : (
-                        <ArchiveIcon />
-                      )}
-                    </span>
-                    <span className={packStyles.revealCollectionDetails}>
-                      <span className={packStyles.revealCollectionHeading}>
-                        <strong>{openingCollectionName}</strong>
-                        <small aria-hidden="true">
-                          {openingCollectionDelta > 0 ? <em>+{openingCollectionDelta}</em> : null}
-                          {openingCollectionOwnedCount >= openingCollectionCardCount
-                            ? t("open.setComplete")
-                            : `${openingCollectionOwnedCount} / ${openingCollectionCardCount}`}
-                        </small>
+                <div className={packStyles.revealCollectionProgressSlot}>
+                  {allRevealed && openingCollectionCardCount > 0 ? (
+                    <div
+                      className={packStyles.revealCollectionProgress}
+                      style={{
+                        "--collection-progress-from": openingCollectionProgressFrom,
+                        "--collection-progress-to": openingCollectionProgressTo,
+                      } as CSSProperties}
+                    >
+                      <span className={packStyles.revealCollectionIcon} aria-hidden="true">
+                        {openingCollectionIcon ? (
+                          <IconImage
+                            iconFilename={openingCollectionIcon}
+                            alt=""
+                            width={36}
+                            height={36}
+                            className={packStyles.revealCollectionIconImage}
+                          />
+                        ) : (
+                          <ArchiveIcon />
+                        )}
                       </span>
-                      <span
-                        className={packStyles.revealCollectionTrack}
-                        role="progressbar"
-                        aria-label={`${openingCollectionName}: ${openingCollectionOwnedCount}/${openingCollectionCardCount} ${t("landing.collected")}`}
-                        aria-valuemin={0}
-                        aria-valuemax={openingCollectionCardCount}
-                        aria-valuenow={openingCollectionOwnedCount}
-                      >
-                        <i />
+                      <span className={packStyles.revealCollectionDetails}>
+                        <span className={packStyles.revealCollectionHeading}>
+                          <strong>{openingCollectionName}</strong>
+                          <small aria-hidden="true">
+                            {openingCollectionDelta > 0 ? <em>+{openingCollectionDelta}</em> : null}
+                            {openingCollectionOwnedCount >= openingCollectionCardCount
+                              ? t("open.setComplete")
+                              : <><b>{openingCollectionOwnedCount}</b> / {openingCollectionCardCount}</>}
+                          </small>
+                        </span>
+                        <span
+                          className={packStyles.revealCollectionTrack}
+                          role="progressbar"
+                          aria-label={`${openingCollectionName}: ${openingCollectionOwnedCount}/${openingCollectionCardCount} ${t("landing.collected")}`}
+                          aria-valuemin={0}
+                          aria-valuemax={openingCollectionCardCount}
+                          aria-valuenow={openingCollectionOwnedCount}
+                        >
+                          <i />
+                        </span>
                       </span>
-                    </span>
-                  </div>
-                ) : null}
+                    </div>
+                  ) : null}
+                </div>
               </div>
               {allRevealed && mutation.error ? (
                 <p className={packStyles.packActionError} role="alert">
