@@ -11,6 +11,12 @@ interface WCLAuthResponse {
   expires_in: number;
 }
 
+type FightDetailFetchOptions = {
+  forceUserEndpoint?: boolean;
+  includeCombatantInfo?: boolean;
+  includeDeathEvents?: boolean;
+};
+
 class WarcraftLogsService {
   private accessToken: string | null = null;
   private tokenExpiry: number = 0;
@@ -22,6 +28,7 @@ class WarcraftLogsService {
   private readonly REQUEST_DELAY_MS = 100;
   private readonly NETWORK_RETRY_ATTEMPTS = 3;
   private readonly NETWORK_RETRY_BASE_DELAY_MS = 1000;
+  private readonly FIGHT_DETAILS_FIGHT_ID_BATCH_SIZE = 100;
 
   private async authenticate(): Promise<string> {
     // Check if we have a valid token
@@ -1171,8 +1178,27 @@ class WarcraftLogsService {
   async getDeathEventsForReport(
     reportCode: string,
     fightIds: number[],
-    options: { forceUserEndpoint?: boolean; includeCombatantInfo?: boolean } = {},
+    options: FightDetailFetchOptions = {},
   ) {
+    const uniqueFightIds = Array.from(new Set(fightIds));
+    if (uniqueFightIds.length === 0) {
+      throw new Error(`Cannot fetch fight details for WCL report ${reportCode} without fight IDs`);
+    }
+
+    const responses: any[] = [];
+    for (let index = 0; index < uniqueFightIds.length; index += this.FIGHT_DETAILS_FIGHT_ID_BATCH_SIZE) {
+      const batch = uniqueFightIds.slice(index, index + this.FIGHT_DETAILS_FIGHT_ID_BATCH_SIZE);
+      responses.push(await this.getDeathEventsForReportBatch(reportCode, batch, options));
+    }
+
+    return this.mergeFightDetailResponses(responses, options);
+  }
+
+  private async getDeathEventsForReportBatch(
+    reportCode: string,
+    fightIds: number[],
+    options: FightDetailFetchOptions,
+  ): Promise<any> {
     // Use maximum API limit to fetch all deaths
     const queryLimit = 10000;
 
@@ -1194,6 +1220,7 @@ class WarcraftLogsService {
                 server
               }
             }
+            ${options.includeDeathEvents === false ? "" : `
             events(
               fightIDs: $fightIds,
               dataType: Deaths,
@@ -1201,7 +1228,9 @@ class WarcraftLogsService {
               limit: $limit
             ) {
               data
+              nextPageTimestamp
             }
+            `}
             ${options.includeCombatantInfo ? `
             combatantInfoEvents: events(
               fightIDs: $fightIds,
@@ -1210,6 +1239,7 @@ class WarcraftLogsService {
               limit: $limit
             ) {
               data
+              nextPageTimestamp
             }
             ` : ""}
           }
@@ -1225,12 +1255,14 @@ class WarcraftLogsService {
 
     if (options.forceUserEndpoint) {
       logger.info(`[API REQUEST] WarcraftLogsService.getDeathEventsForReport - POST https://www.warcraftlogs.com/api/v2/user (forced, report: ${reportCode}, ${fightIds.length} fights)`);
-      return this.queryUser<any>(query, variables);
+      const response = await this.queryUser<any>(query, variables);
+      return this.ensureCompleteFightDetailBatch(reportCode, fightIds, options, response);
     }
 
     try {
       logger.info(`[API REQUEST] WarcraftLogsService.getDeathEventsForReport - POST https://www.warcraftlogs.com/api/v2/client (report: ${reportCode}, ${fightIds.length} fights)`);
-      return await this.query<any>(query, variables);
+      const response = await this.query<any>(query, variables);
+      return this.ensureCompleteFightDetailBatch(reportCode, fightIds, options, response);
     } catch (error) {
       if (!this.shouldRetryReportWithUserEndpoint(error)) {
         throw error;
@@ -1242,13 +1274,92 @@ class WarcraftLogsService {
 
       try {
         logger.info(`[API REQUEST] WarcraftLogsService.getDeathEventsForReport - POST https://www.warcraftlogs.com/api/v2/user (user-auth retry, report: ${reportCode}, ${fightIds.length} fights)`);
-        return await this.queryUser<any>(query, variables);
+        const response = await this.queryUser<any>(query, variables);
+        return this.ensureCompleteFightDetailBatch(reportCode, fightIds, options, response);
       } catch (userError) {
         const originalMessage = error instanceof Error ? error.message : String(error);
         const userMessage = userError instanceof Error ? userError.message : String(userError);
         throw new Error(`${originalMessage}; WCL /user retry failed: ${userMessage}`);
       }
     }
+  }
+
+  private async ensureCompleteFightDetailBatch(
+    reportCode: string,
+    fightIds: number[],
+    options: FightDetailFetchOptions,
+    response: any,
+  ): Promise<any> {
+    const report = response?.reportData?.report;
+    if (!report) return response;
+
+    const deathsTruncated = options.includeDeathEvents !== false && report.events?.nextPageTimestamp != null;
+    const combatantsTruncated = options.includeCombatantInfo && report.combatantInfoEvents?.nextPageTimestamp != null;
+    if (!deathsTruncated && !combatantsTruncated) return response;
+
+    if (fightIds.length === 1) {
+      throw new Error(`WCL fight detail response exceeded 10,000 events for report ${reportCode}, fight ${fightIds[0]}`);
+    }
+
+    const midpoint = Math.ceil(fightIds.length / 2);
+    logger.warn(
+      `WCL fight detail response was truncated for report ${reportCode}; retrying ${fightIds.length} fights as smaller batches`,
+    );
+    const left = await this.getDeathEventsForReportBatch(reportCode, fightIds.slice(0, midpoint), options);
+    const right = await this.getDeathEventsForReportBatch(reportCode, fightIds.slice(midpoint), options);
+    return this.mergeFightDetailResponses([left, right], options);
+  }
+
+  private mergeFightDetailResponses(responses: any[], options: FightDetailFetchOptions): any {
+    if (responses.length === 1) return responses[0];
+
+    const reports = responses.map((response) => response?.reportData?.report);
+    if (reports.some((report) => !report)) {
+      throw new Error("WCL returned an incomplete report while fetching fight details in batches");
+    }
+
+    const firstResponse = responses[0];
+    const lastResponse = responses[responses.length - 1];
+    const firstReport = reports[0];
+    const actorsById = new Map<number, any>();
+    for (const report of reports) {
+      for (const actor of report.masterData?.actors ?? []) {
+        if (typeof actor?.id === "number") actorsById.set(actor.id, actor);
+      }
+    }
+
+    const mergedReport: any = {
+      ...firstReport,
+      masterData: {
+        ...firstReport.masterData,
+        actors: Array.from(actorsById.values()),
+      },
+    };
+
+    if (options.includeDeathEvents !== false) {
+      mergedReport.events = {
+        ...firstReport.events,
+        data: reports.flatMap((report) => report.events?.data ?? []),
+        nextPageTimestamp: null,
+      };
+    }
+
+    if (options.includeCombatantInfo) {
+      mergedReport.combatantInfoEvents = {
+        ...firstReport.combatantInfoEvents,
+        data: reports.flatMap((report) => report.combatantInfoEvents?.data ?? []),
+        nextPageTimestamp: null,
+      };
+    }
+
+    return {
+      ...firstResponse,
+      rateLimitData: lastResponse.rateLimitData ?? firstResponse.rateLimitData,
+      reportData: {
+        ...firstResponse.reportData,
+        report: mergedReport,
+      },
+    };
   }
 
   /**

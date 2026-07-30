@@ -367,9 +367,9 @@ async function runBackgroundInitialization(): Promise<void> {
   // Log death events fetching status
   const fetchDeathEvents = process.env.FETCH_DEATH_EVENTS === "true";
   if (fetchDeathEvents) {
-    logger.info("FETCH_DEATH_EVENTS is enabled, death events and actor data will be fetched for fights");
+    logger.info("FETCH_DEATH_EVENTS is enabled; death events and Mythic CombatantInfo will be fetched for fights");
   } else {
-    logger.info("FETCH_DEATH_EVENTS is disabled (default), death events will not be fetched to reduce data volume");
+    logger.info("FETCH_DEATH_EVENTS is disabled (default); live imports will fetch Mythic CombatantInfo without death events");
   }
 
   // -------------------------------------------------------------------------

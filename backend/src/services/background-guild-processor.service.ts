@@ -637,26 +637,34 @@ class BackgroundGuildProcessor {
         }
       }
 
-      // Fetch death events if enabled
+      const fightDetailFightIds = this.fetchDeathEvents
+        ? trackedFightIds
+        : report.fights.filter((fight: any) => validBossIds.has(fight.encounterID) && fight.difficulty === 5).map((fight: any) => fight.id);
+
       let deathsByFight = new Map<number, any[]>();
       let combatantsByFight = new Map<number, any[]>();
       let deathEventsFetchedAt: Date | null = null;
       let combatantInfoFetchedAt: Date | null = null;
-      if (this.fetchDeathEvents && trackedFightIds.length > 0) {
+      if (fightDetailFightIds.length > 0) {
         try {
-          const deathData = await wclService.getDeathEventsForReport(report.code, trackedFightIds, { includeCombatantInfo: true });
+          const deathData = await wclService.getDeathEventsForReport(report.code, fightDetailFightIds, {
+            includeCombatantInfo: true,
+            includeDeathEvents: this.fetchDeathEvents,
+          });
           if (deathData.reportData?.report) {
             const actors = deathData.reportData.report.masterData?.actors || [];
-            deathsByFight = wclService.parseDeathEventsByFight(deathData.reportData.report, actors, report.fights);
-            deathEventsFetchedAt = new Date();
+            if (this.fetchDeathEvents) {
+              deathsByFight = wclService.parseDeathEventsByFight(deathData.reportData.report, actors, report.fights);
+              deathEventsFetchedAt = new Date();
+            }
             if (Array.isArray(deathData.reportData.report.combatantInfoEvents?.data)) {
               combatantsByFight = wclService.parseCombatantInfoByFight(deathData.reportData.report, actors);
-              combatantInfoFetchedAt = deathEventsFetchedAt;
+              combatantInfoFetchedAt = new Date();
             }
           }
         } catch (error: any) {
-          // Non-fatal, continue without death data
-          logger.debug(`Failed to fetch deaths for report ${report.code}: ${error.message}`);
+          // Non-fatal, leave fight-detail statuses pending for the repair queue.
+          logger.debug(`Failed to fetch fight details for report ${report.code}: ${error.message}`);
         }
       }
 
