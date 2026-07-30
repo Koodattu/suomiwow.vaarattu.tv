@@ -126,7 +126,6 @@ export default function CcgOpenPage() {
   const [selectedSetId, setSelectedSetId] = useState(ALL_RAIDS);
   const [opening, setOpening] = useState<CcgOpening | null>(null);
   const [recoveryId, setRecoveryId] = useState("");
-  const [revealRecoveredOpening, setRevealRecoveredOpening] = useState(false);
   const [recoveryInitialized, setRecoveryInitialized] = useState(false);
   const [revealPhase, setRevealPhase] = useState<RevealPhase>("idle");
   const [dealtCards, setDealtCards] = useState(0);
@@ -151,6 +150,7 @@ export default function CcgOpenPage() {
   const pendingSealedMotion = useRef<{ element: HTMLButtonElement; x: number; y: number } | null>(null);
   const nextPackTimerRef = useRef<number | null>(null);
   const packRequestPendingRef = useRef(false);
+  const revealedRecoveryIdRef = useRef<string | null>(null);
   const recoveryQuery = useCcgOpening(recoveryId, !authLoading && sessionQuery.isSuccess);
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets;
@@ -299,7 +299,7 @@ export default function CcgOpenPage() {
     const requestedOpening = params.get("opening");
     if (requestedOpening && /^[a-f\d]{24}$/i.test(requestedOpening)) {
       setRecoveryId(requestedOpening);
-      setRevealRecoveredOpening(params.get("revealed") === "true");
+      revealedRecoveryIdRef.current = params.get("revealed") === "true" ? requestedOpening : null;
     }
     else if (requestedOpening) {
       params.delete("opening");
@@ -333,7 +333,7 @@ export default function CcgOpenPage() {
     cardFanScrollerRef.current?.scrollTo({ left: 0 });
     const total = opening.results.length;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const revealImmediately = revealRecoveredOpening && opening.id === recoveryId;
+    const revealImmediately = opening.id === revealedRecoveryIdRef.current;
     qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     qualitySoundTimersRef.current = [];
     quipSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -377,7 +377,7 @@ export default function CcgOpenPage() {
       if (readyTimer) window.clearTimeout(readyTimer);
       drawSoundTimers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [opening, recoveryId, revealRecoveredOpening]);
+  }, [opening]);
 
   useEffect(() => {
     if (revealPhase !== "ready" || revealedCards.size > 0) return;
@@ -401,7 +401,7 @@ export default function CcgOpenPage() {
       return result;
     },
     onSuccess: (result) => {
-      setRevealRecoveredOpening(false);
+      revealedRecoveryIdRef.current = null;
       setIsPackCycling(false);
       setRevealPhase("holding");
       setDealtCards(0);
@@ -482,7 +482,7 @@ export default function CcgOpenPage() {
     setViewerOriginElement(null);
     setViewerOriginBounds(null);
     setRecoveryId("");
-    setRevealRecoveredOpening(false);
+    revealedRecoveryIdRef.current = null;
     const url = new URL(window.location.href);
     url.searchParams.delete("opening");
     url.searchParams.delete("revealed");
