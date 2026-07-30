@@ -581,10 +581,9 @@ export default function CcgOpenPage() {
   const nextPackRemaining = opening && session
     ? Math.max(0, new Date(session.recharge.nextAt).getTime() - rechargeNow)
     : 0;
-  const nextPackHours = Math.floor(nextPackRemaining / (60 * 60 * 1000));
-  const nextPackMinutes = Math.max(0, Math.ceil((nextPackRemaining % (60 * 60 * 1000)) / (60 * 1000)));
+  const nextPackMinutes = Math.ceil(nextPackRemaining / (60 * 1000));
   const nextPackLabel = t("rechargeIn", {
-    time: t("rechargeTime", { hours: nextPackHours, minutes: nextPackMinutes }),
+    time: t("rechargeTime", { minutes: nextPackMinutes }),
   });
   const revealedSummary = useMemo(
     () =>

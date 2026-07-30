@@ -20,8 +20,7 @@ export default function PackBalance({
   const recharge = session.recharge;
   const storageFull = packs.totalRemaining >= recharge.cap;
   const rechargeRemaining = Math.max(0, new Date(recharge.nextAt).getTime() - now);
-  const rechargeHours = Math.floor(rechargeRemaining / (60 * 60 * 1000));
-  const rechargeMinutes = Math.max(0, Math.ceil((rechargeRemaining % (60 * 60 * 1000)) / (60 * 1000)));
+  const rechargeMinutes = Math.ceil(rechargeRemaining / (60 * 1000));
 
   useEffect(() => {
     if (storageFull) return;
@@ -34,7 +33,7 @@ export default function PackBalance({
       <div className={styles.balanceLine}>
         <span className={styles.balanceCount}><strong>{packs.totalRemaining}</strong><span>{t("packsRemaining")}</span></span>
         <span className={styles.balanceRecharge}>
-          {storageFull ? t("storageFull") : t("rechargeIn", { time: t("rechargeTime", { hours: rechargeHours, minutes: rechargeMinutes }) })}
+          {storageFull ? t("storageFull") : t("rechargeIn", { time: t("rechargeTime", { minutes: rechargeMinutes }) })}
         </span>
       </div>
     </div>

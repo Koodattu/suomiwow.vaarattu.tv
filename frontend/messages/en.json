@@ -101,7 +101,7 @@
     "rechargeMeter": "Recharge",
     "storageFull": "Storage is full, open a pack!",
     "rechargeIn": "Next pack in {time}",
-    "rechargeTime": "{hours} h {minutes} min",
+    "rechargeTime": "{minutes} min",
     "guest": {
       "login": "Log in",
       "loginForPacks": "Log in to get 20 packs"

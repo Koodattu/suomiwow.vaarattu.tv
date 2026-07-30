@@ -101,7 +101,7 @@
     "rechargeMeter": "Lataus",
     "storageFull": "Varasto täynnä, avaa pakka!",
     "rechargeIn": "Seuraava pakka {time} kuluttua",
-    "rechargeTime": "{hours} t {minutes} min",
+    "rechargeTime": "{minutes} min",
     "guest": {
       "login": "Kirjaudu",
       "loginForPacks": "Kirjaudu sisään ja saat 20 pakkaa lisää"
