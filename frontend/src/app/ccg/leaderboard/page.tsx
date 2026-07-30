@@ -16,6 +16,7 @@ import CcgLoadError from "@/components/ccg/CcgLoadError";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
 import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
+import { CcgLeaderboardLoadingSkeleton } from "@/components/ccg/CcgPageSkeletons";
 import styles from "@/components/ccg/ccg.module.css";
 
 type DialogPhase = "entering" | "open" | "closing";
@@ -233,8 +234,8 @@ export default function CcgLeaderboardPage() {
   const [selectedCollector, setSelectedCollector] = useState<CcgLeaderboardEntry | null>(null);
   const [scoringOpen, setScoringOpen] = useState(false);
   const entries = leaderboardQuery.data?.entries ?? [];
-  const topCollectors = entries.slice(0, 6);
-  const remainingCollectors = entries.slice(6);
+  const highlightedCollectors = entries.slice(0, 12);
+  const remainingCollectors = entries.slice(12);
   const me = meQuery.data?.entry ?? null;
   const myShowcase = meQuery.data?.showcase ?? [];
   const numberFormatter = new Intl.NumberFormat(locale);
@@ -248,6 +249,24 @@ export default function CcgLeaderboardPage() {
       setViewerItem({ ...item, originElement, originBounds, sharedTransition });
     }, event);
   };
+
+  const renderHighlightedCollector = (entry: CcgLeaderboardEntry) => (
+    <article className={styles.leaderboardPodiumCard} data-rank={entry.rank} key={entry.rank}>
+      <div className={styles.leaderboardCollectorHeader}>
+        <span className={styles.leaderboardRank}>
+          {entry.rank === 1 ? <FaCrown aria-hidden="true" /> : null}
+          #{entry.rank}
+        </span>
+        <img src={entry.avatarUrl} alt="" className={styles.leaderboardAvatar} />
+        <div>
+          <h3>{entry.username}</h3>
+          <strong>{t("points", { score: numberFormatter.format(entry.score) })}</strong>
+        </div>
+        <CollectorStats entry={entry} t={t} />
+      </div>
+      <ShowcaseCards cards={entry.showcase} onSelect={inspect} emptyLabel={t("showcase.empty")} />
+    </article>
+  );
 
   return (
     <CcgShell>
@@ -327,9 +346,7 @@ export default function CcgLeaderboardPage() {
           {leaderboardQuery.isError ? (
             <CcgLoadError onRetry={() => void leaderboardQuery.refetch()} />
           ) : leaderboardQuery.isPending ? (
-            <div className={styles.leaderboardLoading} aria-label={t("updating")}>
-              {Array.from({ length: 3 }, (_, index) => <span key={index} />)}
-            </div>
+            <CcgLeaderboardLoadingSkeleton label={t("updating")} />
           ) : entries.length === 0 ? (
             <div className={`${styles.panel} ${styles.leaderboardEmpty}`}>
               <FaTrophy aria-hidden="true" />
@@ -339,27 +356,18 @@ export default function CcgLeaderboardPage() {
           ) : (
             <>
               <div className={styles.leaderboardPodium}>
-                {topCollectors.map((entry) => (
-                  <article className={styles.leaderboardPodiumCard} data-rank={entry.rank} key={entry.rank}>
-                    <div className={styles.leaderboardCollectorHeader}>
-                      <span className={styles.leaderboardRank}>
-                        {entry.rank === 1 ? <FaCrown aria-hidden="true" /> : null}
-                        #{entry.rank}
-                      </span>
-                      <img src={entry.avatarUrl} alt="" className={styles.leaderboardAvatar} />
-                      <div>
-                        <h3>{entry.username}</h3>
-                        <strong>{t("points", { score: numberFormatter.format(entry.score) })}</strong>
-                      </div>
-                      <CollectorStats entry={entry} t={t} />
-                    </div>
-                    <ShowcaseCards cards={entry.showcase} onSelect={inspect} emptyLabel={t("showcase.empty")} />
-                  </article>
-                ))}
+                <div className={styles.leaderboardPodiumTop}>
+                  {highlightedCollectors.slice(0, 3).map(renderHighlightedCollector)}
+                </div>
+                {highlightedCollectors.length > 3 ? (
+                  <div className={styles.leaderboardPodiumGrid}>
+                    {highlightedCollectors.slice(3).map(renderHighlightedCollector)}
+                  </div>
+                ) : null}
               </div>
 
               {remainingCollectors.length > 0 ? (
-                <ol className={styles.leaderboardRows} start={7}>
+                <ol className={styles.leaderboardRows} start={13}>
                   {remainingCollectors.map((entry) => (
                     <li
                       className={styles.leaderboardRow}

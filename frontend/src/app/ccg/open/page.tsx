@@ -118,9 +118,12 @@ export default function CcgOpenPage() {
   const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
   const [viewerSharedTransition, setViewerSharedTransition] = useState(false);
   const [legacySetId, setLegacySetId] = useState(RANDOM_LEGACY_SET);
+  const [packSelectorOpen, setPackSelectorOpen] = useState(false);
   const [isPackCycling, setIsPackCycling] = useState(false);
   const [rechargeNow, setRechargeNow] = useState(() => Date.now());
   const cardFanScrollerRef = useRef<HTMLDivElement | null>(null);
+  const packSelectorDialogRef = useRef<HTMLDivElement | null>(null);
+  const packSelectorToggleRef = useRef<HTMLButtonElement | null>(null);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const qualitySoundTimersRef = useRef<number[]>([]);
   const quipSoundTimersRef = useRef<number[]>([]);
@@ -145,6 +148,7 @@ export default function CcgOpenPage() {
   const selectedLegacySet = legacySets.find((set) => set.id === legacySetId);
   const randomLegacy = mode === "legacy" && !selectedLegacySet;
   const featuredPackSet = mode === "legacy" ? selectedLegacySet : modeSets[0];
+  const selectorSet = mode === "legacy" ? selectedLegacySet : currentSet;
   const selectedPackSets = mode === "legacy" && selectedLegacySet ? [selectedLegacySet] : modeSets;
   const hasCustomQualityRow = selectedPackSets.some((set) => Boolean(set.customFinish));
   const qualityRows = useMemo(() => [
@@ -180,9 +184,79 @@ export default function CcgOpenPage() {
         ? modeSets[0].raidName
         : t("open.currentPool", { count: modeSets.length });
 
+  const closePackSelector = () => {
+    setPackSelectorOpen(false);
+    window.requestAnimationFrame(() => packSelectorToggleRef.current?.focus({ preventScroll: true }));
+  };
+
   useEffect(() => {
     preloadCcgSounds([HOVER_SOUND, FADE_OUT_SOUND, SHUFFLE_SOUND, DRAW_SOUND, ...CCG_CARD_SLIDE_SOUNDS]);
   }, []);
+
+  useEffect(() => {
+    if (!packSelectorOpen) return;
+
+    const mobileViewport = window.matchMedia("(max-width: 760px)");
+    if (!mobileViewport.matches) {
+      setPackSelectorOpen(false);
+      return;
+    }
+
+    const root = document.documentElement;
+    const previousRootOverflow = root.style.overflow;
+    const previousRootOverscroll = root.style.overscrollBehavior;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+    root.style.overflow = "hidden";
+    root.style.overscrollBehavior = "none";
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      const selectedChoice = packSelectorDialogRef.current?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]');
+      selectedChoice?.focus({ preventScroll: true });
+      selectedChoice?.scrollIntoView({ block: "center" });
+    });
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setPackSelectorOpen(false);
+        window.requestAnimationFrame(() => packSelectorToggleRef.current?.focus({ preventScroll: true }));
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const dialog = packSelectorDialogRef.current;
+      const focusable = dialog
+        ? Array.from(dialog.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")).filter((button) => button.offsetParent !== null)
+        : [];
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    const handleViewportChange = (event: MediaQueryListEvent) => {
+      if (!event.matches) setPackSelectorOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    mobileViewport.addEventListener("change", handleViewportChange);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleKeyDown);
+      mobileViewport.removeEventListener("change", handleViewportChange);
+      root.style.overflow = previousRootOverflow;
+      root.style.overscrollBehavior = previousRootOverscroll;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+    };
+  }, [packSelectorOpen]);
 
   useEffect(() => {
     if (!opening) return;
@@ -646,7 +720,7 @@ export default function CcgOpenPage() {
 
   return (
     <CcgShell compact onOpenPacksClick={clearSavedOpening}>
-      <div className={packStyles.openWorkspace}>
+      <div className={`${packStyles.openWorkspace} ${packSelectorOpen ? packStyles.openWorkspacePickerOpen : ""}`}>
         {!opening ? (
           <div className={packStyles.packChooser}>
             <section className={`${packStyles.packStage} ${packStyles.packChooserStage}`} style={getPackTheme(featuredPackSet, randomLegacy)}>
@@ -656,68 +730,138 @@ export default function CcgOpenPage() {
               <span className={packStyles.vaultRingInner} aria-hidden="true" />
               <div className={packStyles.packChooserLayout}>
                 <aside className={packStyles.packControls}>
-                  <div className={packStyles.modeChoices}>
-                    <button type="button" aria-pressed={mode === "current"} onClick={() => setMode("current")} className={packStyles.modeChoice}>
+                  <div className={`${packStyles.packSelector} ${packSelectorOpen ? packStyles.packSelectorOpen : ""}`}>
+                    <button
+                      ref={packSelectorToggleRef}
+                      type="button"
+                      className={packStyles.mobilePackSelectorSummary}
+                      aria-expanded={packSelectorOpen}
+                      aria-controls="ccg-pack-selector-options"
+                      onClick={() => setPackSelectorOpen((open) => !open)}
+                    >
                       <span className={packStyles.modeChoiceIcon}>
-                        {currentSet && raidIconByZone.get(currentSet.zoneId) ? (
-                          <IconImage iconFilename={raidIconByZone.get(currentSet.zoneId)} alt="" width={40} height={40} />
+                        {mode === "legacy" && !selectedLegacySet ? (
+                          <ArchiveIcon />
+                        ) : selectorSet && raidIconByZone.get(selectorSet.zoneId) ? (
+                          <IconImage iconFilename={raidIconByZone.get(selectorSet.zoneId)} alt="" width={40} height={40} />
+                        ) : mode === "legacy" ? (
+                          <ArchiveIcon />
                         ) : (
                           <span className={packStyles.modeChoiceFallback} aria-hidden="true">
                             C
                           </span>
                         )}
                       </span>
-                      <span className={packStyles.modeChoiceCopy}>
-                        <small>{t("open.currentTier")}</small>
-                        <strong>{currentSet?.raidName ?? t("landing.preparing")}</strong>
+                      <span className={packStyles.mobilePackSelectorCopy}>
+                        <strong>
+                          {mode === "legacy"
+                            ? selectedLegacySet?.raidName ?? t("open.randomLegacy")
+                            : currentSet?.raidName ?? t("landing.preparing")}
+                        </strong>
+                        <small>{t("open.changeRaidSet")}</small>
                       </span>
-                      <span className={packStyles.modeChoiceMark} aria-hidden="true" />
+                      <span className={packStyles.mobilePackSelectorChevron} aria-hidden="true" />
                     </button>
-                  </div>
 
-                  <div className={packStyles.packChoiceDivider} aria-hidden="true" />
-
-                  <div className={packStyles.legacyTarget}>
-                    <div className={packStyles.raidList} aria-label={t("open.chooseLegacy")}>
-                      <button
-                        type="button"
-                        aria-pressed={mode === "legacy" && legacySetId === RANDOM_LEGACY_SET}
-                        className={packStyles.modeChoice}
-                        onClick={() => {
-                          setMode("legacy");
-                          setLegacySetId(RANDOM_LEGACY_SET);
-                        }}
-                      >
-                        <span className={packStyles.modeChoiceIcon}>
-                          <ArchiveIcon />
+                    <div
+                      ref={packSelectorDialogRef}
+                      id="ccg-pack-selector-options"
+                      className={packStyles.packSelectorOptions}
+                      role={packSelectorOpen ? "dialog" : undefined}
+                      aria-modal={packSelectorOpen || undefined}
+                      aria-labelledby={packSelectorOpen ? "ccg-pack-selector-title" : undefined}
+                    >
+                      <header className={packStyles.mobilePackSelectorHeader}>
+                        <span className={packStyles.mobilePackSelectorHeading}>
+                          <small>{t("open.chooseMode")}</small>
+                          <strong id="ccg-pack-selector-title">{t("open.chooseRaidSet")}</strong>
                         </span>
-                        <span className={packStyles.modeChoiceCopy}>
-                          <small>{t("open.randomLegacyEyebrow")}</small>
-                          <strong>{t("open.randomLegacy")}</strong>
-                        </span>
-                        <span className={packStyles.modeChoiceMark} aria-hidden="true" />
-                      </button>
-                      {legacySets.map((set) => (
                         <button
-                          key={set.id}
                           type="button"
-                          aria-pressed={mode === "legacy" && legacySetId === set.id}
-                          className={packStyles.modeChoice}
-                          onClick={() => {
-                            setMode("legacy");
-                            setLegacySetId(set.id);
-                          }}
+                          className={packStyles.mobilePackSelectorClose}
+                          onClick={closePackSelector}
+                          aria-label={t("open.closeRaidSetPicker")}
                         >
-                          <span className={packStyles.modeChoiceIcon}>
-                            {raidIconByZone.get(set.zoneId) ? <IconImage iconFilename={raidIconByZone.get(set.zoneId)} alt="" width={40} height={40} /> : <ArchiveIcon />}
-                          </span>
-                          <span className={packStyles.modeChoiceCopy}>
-                            <small>{set.expansionName}</small>
-                            <strong>{set.raidName}</strong>
-                          </span>
-                          <span className={packStyles.modeChoiceMark} aria-hidden="true" />
+                          <span aria-hidden="true" />
                         </button>
-                      ))}
+                      </header>
+
+                      <div className={packStyles.packSelectorBody}>
+                        <div className={packStyles.modeChoices}>
+                          <button
+                            type="button"
+                            aria-pressed={mode === "current"}
+                            onClick={() => {
+                              setMode("current");
+                              closePackSelector();
+                            }}
+                            className={packStyles.modeChoice}
+                          >
+                            <span className={packStyles.modeChoiceIcon}>
+                              {currentSet && raidIconByZone.get(currentSet.zoneId) ? (
+                                <IconImage iconFilename={raidIconByZone.get(currentSet.zoneId)} alt="" width={40} height={40} />
+                              ) : (
+                                <span className={packStyles.modeChoiceFallback} aria-hidden="true">
+                                  C
+                                </span>
+                              )}
+                            </span>
+                            <span className={packStyles.modeChoiceCopy}>
+                              <small>{t("open.currentTier")}</small>
+                              <strong>{currentSet?.raidName ?? t("landing.preparing")}</strong>
+                            </span>
+                            <span className={packStyles.modeChoiceMark} aria-hidden="true" />
+                          </button>
+                        </div>
+
+                        <div className={packStyles.packChoiceDivider} aria-hidden="true" />
+
+                        <div className={packStyles.legacyTarget}>
+                          <div className={packStyles.raidList} aria-label={t("open.chooseLegacy")}>
+                            <button
+                              type="button"
+                              aria-pressed={mode === "legacy" && legacySetId === RANDOM_LEGACY_SET}
+                              className={packStyles.modeChoice}
+                              onClick={() => {
+                                setMode("legacy");
+                                setLegacySetId(RANDOM_LEGACY_SET);
+                                closePackSelector();
+                              }}
+                            >
+                              <span className={packStyles.modeChoiceIcon}>
+                                <ArchiveIcon />
+                              </span>
+                              <span className={packStyles.modeChoiceCopy}>
+                                <small>{t("open.randomLegacyEyebrow")}</small>
+                                <strong>{t("open.randomLegacy")}</strong>
+                              </span>
+                              <span className={packStyles.modeChoiceMark} aria-hidden="true" />
+                            </button>
+                            {legacySets.map((set) => (
+                              <button
+                                key={set.id}
+                                type="button"
+                                aria-pressed={mode === "legacy" && legacySetId === set.id}
+                                className={packStyles.modeChoice}
+                                onClick={() => {
+                                  setMode("legacy");
+                                  setLegacySetId(set.id);
+                                  closePackSelector();
+                                }}
+                              >
+                                <span className={packStyles.modeChoiceIcon}>
+                                  {raidIconByZone.get(set.zoneId) ? <IconImage iconFilename={raidIconByZone.get(set.zoneId)} alt="" width={40} height={40} /> : <ArchiveIcon />}
+                                </span>
+                                <span className={packStyles.modeChoiceCopy}>
+                                  <small>{set.expansionName}</small>
+                                  <strong>{set.raidName}</strong>
+                                </span>
+                                <span className={packStyles.modeChoiceMark} aria-hidden="true" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </aside>
@@ -752,7 +896,9 @@ export default function CcgOpenPage() {
                 </div>
 
                   <aside className={packStyles.packBalancePanel}>
-                    {session ? <PackBalance session={session} mode={mode} /> : <div className={packStyles.balancePlaceholder} />}
+                    <div className={packStyles.packBalanceSummary}>
+                      {session ? <PackBalance session={session} mode={mode} stripOnMobile /> : <div className={packStyles.balancePlaceholder} />}
+                    </div>
                     {session ? (
                       <div className={packStyles.qualityDetails}>
                         {selectedPackCardCount > 0 ? (

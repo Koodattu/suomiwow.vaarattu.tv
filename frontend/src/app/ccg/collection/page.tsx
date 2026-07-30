@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from "@headlessui/react";
+import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions, Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { FaRegStar, FaStar } from "react-icons/fa6";
-import { LuCircleDashed, LuEye, LuEyeOff, LuImage, LuImages, LuRotateCcw } from "react-icons/lu";
+import { LuCircleDashed, LuEye, LuEyeOff, LuFilter, LuImage, LuImages, LuRotateCcw, LuX } from "react-icons/lu";
 import type {
   CSSProperties,
   MouseEvent as ReactMouseEvent,
@@ -132,11 +132,13 @@ export default function CcgCollectionPage() {
   const [guildInputFocused, setGuildInputFocused] = useState(false);
   const [guildsRequested, setGuildsRequested] = useState(false);
   const guildInputRef = useRef<HTMLInputElement>(null);
+  const mobileGuildInputRef = useRef<HTMLInputElement>(null);
   const [selectedCharacter, setSelectedCharacter] = useState<CcgCharacterFacet | null>(null);
   const [characterSearch, setCharacterSearch] = useState("");
   const [debouncedCharacterSearch, setDebouncedCharacterSearch] = useState("");
   const [characterInputFocused, setCharacterInputFocused] = useState(false);
   const characterInputRef = useRef<HTMLInputElement>(null);
+  const mobileCharacterInputRef = useRef<HTMLInputElement>(null);
   const [visibility, setVisibility] = useState<CollectionVisibility>("owned");
   const [alternativeOnly, setAlternativeOnly] = useState(false);
   const [favoriteOnly, setFavoriteOnly] = useState(false);
@@ -145,6 +147,7 @@ export default function CcgCollectionPage() {
   const [grade, setGrade] = useState("");
   const [finish, setFinish] = useState<CollectionFinishFilter>("");
   const [sort, setSort] = useState<CcgCollectionSort | "">("");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [viewerCard, setViewerCard] = useState<CcgCard | null>(null);
   const [viewerOriginElement, setViewerOriginElement] = useState<HTMLElement | null>(null);
   const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
@@ -226,6 +229,7 @@ export default function CcgCollectionPage() {
     [favoritesQuery.data?.showcase],
   );
   const filtersChanged = visibility !== "owned" || alternativeOnly || favoriteOnly || Boolean(characterId || guildId || grade || finish || sort);
+  const advancedFilterCount = [alternativeOnly, characterId, guildId, grade, finish].filter(Boolean).length;
   const ownedQuery = useCcgCollection(
     {
       page,
@@ -279,6 +283,20 @@ export default function CcgCollectionPage() {
     setFinish("");
     setPage(1);
   }, [finish, finishOptions]);
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) return;
+    const mobileViewport = window.matchMedia("(max-width: 760px)");
+    if (!mobileViewport.matches) {
+      setMobileFiltersOpen(false);
+      return;
+    }
+    const handleViewportChange = (event: MediaQueryListEvent) => {
+      if (!event.matches) setMobileFiltersOpen(false);
+    };
+    mobileViewport.addEventListener("change", handleViewportChange);
+    return () => mobileViewport.removeEventListener("change", handleViewportChange);
+  }, [mobileFiltersOpen]);
 
   useEffect(() => () => {
     if (pageWheelResetRef.current !== null) clearTimeout(pageWheelResetRef.current);
@@ -465,6 +483,243 @@ export default function CcgCollectionPage() {
     turnPage(direction);
   };
 
+  const renderMobileAdvancedFilters = () => {
+    return (
+      <>
+        <div className={`${styles.collectionAdvancedFilterItem} ${styles.collectionAlternativeFilterItem}`}>
+          <span className={styles.collectionMobileFilterLabel}>{t("collection.alternativeArtwork")}</span>
+          <button
+            type="button"
+            className={`${styles.collectionIconToggle} ${alternativeOnly ? styles.collectionIconToggleActive : ""}`}
+            title={t(alternativeOnly ? "collection.showAllOwnedArtworkCards" : "collection.showAlternativeArtworkCards")}
+            aria-label={t(alternativeOnly ? "collection.showAllOwnedArtworkCards" : "collection.showAlternativeArtworkCards")}
+            aria-pressed={alternativeOnly}
+            onClick={() => updateFilter(() => {
+              const nextAlternativeOnly = !alternativeOnly;
+              setAlternativeOnly(nextAlternativeOnly);
+              if (nextAlternativeOnly) setVisibility("owned");
+            })}
+          >
+            <span className={styles.collectionToggleIcon} aria-hidden="true">
+              <LuImage className={alternativeOnly ? styles.collectionToggleIconHidden : styles.collectionToggleIconVisible} />
+              <LuImages className={alternativeOnly ? styles.collectionToggleIconVisible : styles.collectionToggleIconHidden} />
+            </span>
+          </button>
+        </div>
+
+        <div className={styles.collectionAdvancedFilterItem}>
+          <span className={styles.collectionMobileFilterLabel}>{t("collection.characters")}</span>
+          <Combobox
+            value={selectedCharacter}
+            by="id"
+            onChange={(character) => {
+              updateFilter(() => setSelectedCharacter(character));
+              setCharacterSearch("");
+              if (character) {
+                window.requestAnimationFrame(() => {
+                  window.requestAnimationFrame(() => mobileCharacterInputRef.current?.blur());
+                });
+              }
+            }}
+            onClose={() => {
+              setCharacterSearch("");
+              setCharacterInputFocused(false);
+            }}
+            immediate
+          >
+            <div className={`${styles.collectionSelect} ${styles.collectionCharacterSelect}`}>
+              <ComboboxInput
+                ref={mobileCharacterInputRef}
+                aria-label={t("collection.searchCharacters")}
+                autoComplete="off"
+                className={`${styles.collectionGuildSelectInput} ${selectedCharacter ? styles.collectionGuildSelectInputWithSelection : ""}`}
+                placeholder={characterInputFocused ? t("collection.typeToSearch") : t("collection.allCharacters")}
+                value={characterSearch}
+                onChange={(event) => setCharacterSearch(event.target.value)}
+                onFocus={() => setCharacterInputFocused(true)}
+                onBlur={() => setCharacterInputFocused(false)}
+              />
+              {selectedCharacter && (
+                <span className={styles.collectionGuildSelection} aria-hidden="true">
+                  <span className={`${styles.collectionGuildText} ${styles.collectionCharacterText}`}>
+                    <span className={styles.collectionCharacterName}>{selectedCharacter.name}</span>
+                    <span className={`${styles.collectionGuildRealm} ${styles.collectionCharacterRealm}`}>
+                      -{formatRealmName(selectedCharacter.realm)}
+                    </span>
+                  </span>
+                </span>
+              )}
+              <ComboboxButton
+                aria-label={t("collection.selectCharacter")}
+                className={styles.collectionGuildSelectToggle}
+              />
+              <ComboboxOptions
+                anchor={{ to: "bottom start", gap: 4, padding: 8 }}
+                portal
+                modal={false}
+                className={`${styles.collectionGuildOptions} ${styles.collectionCharacterOptions}`}
+                aria-live="polite"
+              >
+                {!trimmedCharacterSearch && selectedCharacter && (
+                  <ComboboxOption value={null} className={styles.collectionGuildOption}>
+                    <span className={styles.collectionGuildText}>{t("collection.allCharacters")}</span>
+                  </ComboboxOption>
+                )}
+                {trimmedCharacterSearch.length < 2 ? (
+                  <div className={styles.collectionCharacterSearchStatus}>{t("collection.typeTwoCharacters")}</div>
+                ) : characterSearchLoading ? (
+                  <div className={styles.collectionCharacterSearchStatus}>{t("collection.searchingCharacters")}</div>
+                ) : characterResultsCurrent && characterSearchQuery.isError ? (
+                  <div className={`${styles.collectionCharacterSearchStatus} ${styles.collectionCharacterSearchError}`} role="alert">
+                    {t("collection.characterSearchError")}
+                  </div>
+                ) : characterResults.length === 0 ? (
+                  <div className={styles.collectionCharacterSearchStatus}>{t("collection.noCharactersFound")}</div>
+                ) : characterResults.map((character) => (
+                  <ComboboxOption key={character.id} value={character} className={styles.collectionGuildOption}>
+                    <span className={`${styles.collectionGuildText} ${styles.collectionCharacterText}`}>
+                      <span className={styles.collectionCharacterName}>{character.name}</span>
+                      <span className={`${styles.collectionGuildRealm} ${styles.collectionCharacterRealm}`}>
+                        -{formatRealmName(character.realm)}
+                      </span>
+                    </span>
+                  </ComboboxOption>
+                ))}
+              </ComboboxOptions>
+            </div>
+          </Combobox>
+        </div>
+
+        <div className={styles.collectionAdvancedFilterItem}>
+          <span className={styles.collectionMobileFilterLabel}>{t("collection.guilds")}</span>
+          <Combobox
+            value={selectedGuild ?? null}
+            by="id"
+            onChange={(guild) => {
+              updateFilter(() => setGuildId(guild?.id ?? ""));
+              setGuildSearch("");
+              if (guild) {
+                window.requestAnimationFrame(() => {
+                  window.requestAnimationFrame(() => mobileGuildInputRef.current?.blur());
+                });
+              }
+            }}
+            onClose={() => {
+              setGuildSearch("");
+              setGuildInputFocused(false);
+            }}
+            immediate
+          >
+            <div className={`${styles.collectionSelect} ${styles.collectionGuildSelect}`}>
+              <ComboboxInput
+                ref={mobileGuildInputRef}
+                aria-label={t("collection.searchGuilds")}
+                autoComplete="off"
+                className={`${styles.collectionGuildSelectInput} ${selectedGuild ? styles.collectionGuildSelectInputWithSelection : ""}`}
+                data-unavailable={selectedGuildUnavailable || undefined}
+                displayValue={(guild: CcgGuildFacet | null) => !guildInputFocused && guild
+                  ? `${guild.name}${duplicateGuildNames.has(guild.name.toLocaleLowerCase()) ? `-${formatRealmName(guild.realm)}` : ""}`
+                  : ""}
+                placeholder={guildInputFocused ? t("collection.typeToSearch") : t("collection.allGuilds")}
+                onChange={(event) => setGuildSearch(event.target.value)}
+                onFocus={() => {
+                  setGuildInputFocused(true);
+                  setGuildsRequested(true);
+                }}
+                onBlur={() => setGuildInputFocused(false)}
+              />
+              {selectedGuild && (
+                <span className={styles.collectionGuildSelection} aria-hidden="true">
+                  <span className={`${styles.collectionGuildText} ${styles.collectionGuildIdentityText}`}>
+                    <span className={styles.collectionGuildName}>{selectedGuild.name}</span>
+                    {duplicateGuildNames.has(selectedGuild.name.toLocaleLowerCase()) && (
+                      <span className={`${styles.collectionGuildRealm} ${styles.collectionGuildRealmOverflow}`}>
+                        -{formatRealmName(selectedGuild.realm)}
+                      </span>
+                    )}
+                  </span>
+                </span>
+              )}
+              <ComboboxButton
+                aria-label={t("collection.selectGuild")}
+                className={styles.collectionGuildSelectToggle}
+                onClick={() => setGuildsRequested(true)}
+              />
+              <ComboboxOptions
+                anchor={{ to: "bottom start", gap: 4, padding: 8 }}
+                portal
+                modal={false}
+                className={styles.collectionGuildOptions}
+              >
+                {!guildSearch.trim() && (
+                  <ComboboxOption value={null} className={styles.collectionGuildOption}>
+                    <span className={styles.collectionGuildText}>{t("collection.allGuilds")}</span>
+                  </ComboboxOption>
+                )}
+                {filteredGuilds.map((guild) => {
+                  const unavailable = guildAvailabilityLoaded && !allSetsSelected && !setGuildIds.has(guild.id);
+                  return (
+                    <ComboboxOption
+                      key={guild.id}
+                      value={guild}
+                      className={styles.collectionGuildOption}
+                      data-unavailable={unavailable || undefined}
+                    >
+                      <span className={`${styles.collectionGuildText} ${styles.collectionGuildIdentityText}`}>
+                        <span className={styles.collectionGuildName}>{guild.name}</span>
+                        {duplicateGuildNames.has(guild.name.toLocaleLowerCase()) && (
+                          <span className={`${styles.collectionGuildRealm} ${styles.collectionGuildRealmOverflow}`}>
+                            -{formatRealmName(guild.realm)}
+                          </span>
+                        )}
+                      </span>
+                    </ComboboxOption>
+                  );
+                })}
+              </ComboboxOptions>
+            </div>
+          </Combobox>
+        </div>
+
+        <div className={styles.collectionAdvancedFilterItem}>
+          <span className={styles.collectionMobileFilterLabel}>{t("collection.rarities")}</span>
+          <label className={styles.collectionSelect}>
+            <select
+              aria-label={t("collection.rarity")}
+              className={styles.collectionRaritySelect}
+              data-grade={grade || undefined}
+              value={grade}
+              onChange={(event) => updateFilter(() => setGrade(event.target.value))}
+            >
+              <option value="">{t("collection.allRarities")}</option>
+              {rarities.map((item) => <option key={item.grade} value={item.grade} data-grade={item.grade}>{t(`rarity.${item.label}`)}</option>)}
+            </select>
+          </label>
+        </div>
+
+        <div className={styles.collectionAdvancedFilterItem}>
+          <span className={styles.collectionMobileFilterLabel}>{t("collection.qualities")}</span>
+          <label className={styles.collectionSelect}>
+            <select
+              aria-label={t("collection.quality")}
+              className={styles.collectionQualitySelect}
+              data-finish={finish || undefined}
+              value={finish}
+              onChange={(event) => updateFilter(() => setFinish(event.target.value as CollectionFinishFilter))}
+            >
+              <option value="">{t("collection.allQualities")}</option>
+              {finishOptions.map((item) => (
+                <option key={item} value={item} data-finish={item}>
+                  {item === uniqueFinishFilter ? t("collection.uniqueQuality") : t(`finish.${item}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </>
+    );
+  };
+
   if (sessionQuery.isError || setsQuery.isError) {
     return (
       <CcgShell>
@@ -593,6 +848,7 @@ export default function CcgCollectionPage() {
               </span>
             </button>
 
+            <div className={styles.collectionAdvancedFilters}>
             <button
               type="button"
               className={`${styles.collectionIconToggle} ${alternativeOnly ? styles.collectionIconToggleActive : ""}`}
@@ -829,8 +1085,9 @@ export default function CcgCollectionPage() {
                 ))}
               </select>
             </label>
+            </div>
 
-            <label className={styles.collectionSelect}>
+            <label className={`${styles.collectionSelect} ${styles.collectionSortControl}`}>
               <select
                 aria-label={t("collection.sort")}
                 className={styles.collectionSortSelect}
@@ -843,6 +1100,19 @@ export default function CcgCollectionPage() {
                 ))}
               </select>
             </label>
+
+            <button
+              type="button"
+              className={`${styles.collectionMobileFilterButton} ${advancedFilterCount > 0 ? styles.collectionMobileFilterButtonActive : ""}`}
+              onClick={() => setMobileFiltersOpen(true)}
+              aria-label={t("collection.openFilters")}
+              title={t("collection.openFilters")}
+              aria-haspopup="dialog"
+              aria-expanded={mobileFiltersOpen}
+            >
+              <LuFilter aria-hidden="true" />
+              {advancedFilterCount > 0 ? <span aria-hidden="true">{advancedFilterCount}</span> : null}
+            </button>
 
             <span
               className={styles.collectionPageCount}
@@ -962,6 +1232,42 @@ export default function CcgCollectionPage() {
           </button>
         </section>
       </div>
+
+      <Dialog open={mobileFiltersOpen} onClose={setMobileFiltersOpen} className={styles.collectionMobileFilterDialogRoot}>
+        <DialogBackdrop transition className={styles.collectionMobileFilterDialogBackdrop} />
+        <div className={styles.collectionMobileFilterDialogFrame}>
+          <DialogPanel transition className={styles.collectionMobileFilterDialog}>
+            <header className={styles.collectionMobileFilterDialogHeader}>
+              <DialogTitle className={styles.collectionMobileFilterDialogTitle}>{t("collection.filters")}</DialogTitle>
+              <button
+                autoFocus
+                type="button"
+                className={styles.collectionMobileFilterDialogClose}
+                onClick={() => setMobileFiltersOpen(false)}
+                aria-label={t("collection.closeFilters")}
+              >
+                <LuX aria-hidden="true" />
+              </button>
+            </header>
+            <div className={styles.collectionMobileFilterDialogBody}>
+              <p className={styles.collectionMobileFilterDescription}>{t("collection.filterChangesImmediate")}</p>
+              <div className={styles.collectionMobileFilterFields}>
+                {renderMobileAdvancedFilters()}
+              </div>
+            </div>
+            <footer className={styles.collectionMobileFilterDialogFooter}>
+              <button
+                type="button"
+                className={`${styles.primaryButton} ${styles.collectionMobileFilterDone}`}
+                onClick={() => setMobileFiltersOpen(false)}
+              >
+                {t("collection.done")}
+              </button>
+            </footer>
+          </DialogPanel>
+        </div>
+      </Dialog>
+
       {viewerCard ? (
         <CardViewer
           card={viewerCard}

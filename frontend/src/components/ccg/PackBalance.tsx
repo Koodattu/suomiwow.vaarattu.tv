@@ -5,7 +5,17 @@ import { useEffect, useState } from "react";
 import type { CcgMode, CcgSession } from "@/types";
 import styles from "./ccg.module.css";
 
-export default function PackBalance({ session, mode, strip = false }: { session: CcgSession; mode: CcgMode; strip?: boolean }) {
+export default function PackBalance({
+  session,
+  mode,
+  strip = false,
+  stripOnMobile = false,
+}: {
+  session: CcgSession;
+  mode: CcgMode;
+  strip?: boolean;
+  stripOnMobile?: boolean;
+}) {
   const t = useTranslations("ccg");
   const [now, setNow] = useState(() => Date.now());
   const packs = session.packs[mode];
@@ -22,7 +32,7 @@ export default function PackBalance({ session, mode, strip = false }: { session:
   }, [storageFull]);
 
   return (
-    <div className={`${styles.balanceCard} ${strip ? styles.balanceCardStrip : ""}`}>
+    <div className={`${styles.balanceCard} ${strip ? styles.balanceCardStrip : ""} ${stripOnMobile ? styles.balanceCardMobileStrip : ""}`}>
       <div className={styles.balanceLine}>
         <span className={styles.balanceCount}><strong>{packs.totalRemaining}</strong><span>{t("packsRemaining")}</span></span>
         <span className={styles.balanceRecharge}>

@@ -97,7 +97,9 @@ export function CcgOpenContentSkeleton({ label }: { label?: string }) {
             </div>
 
             <aside className={packStyles.packBalancePanel}>
-              <div className={`${packStyles.balancePlaceholder} ${packStyles.loadingSkeleton}`} />
+              <div className={packStyles.packBalanceSummary}>
+                <div className={`${packStyles.balancePlaceholder} ${packStyles.loadingSkeleton}`} />
+              </div>
               <div className={packStyles.qualityDetails}>
                 {Array.from({ length: 3 }, (_, groupIndex) => (
                   <div key={groupIndex} className={packStyles.qualitySkeletonGroup}>
@@ -187,13 +189,47 @@ function SharedContentSkeleton() {
   );
 }
 
+export function CcgLeaderboardLoadingSkeleton({ label }: { label?: string }) {
+  return (
+    <div className={styles.leaderboardLoading} aria-label={label}>
+      <div className={styles.leaderboardPodium}>
+        <div className={styles.leaderboardPodiumTop}>
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index} className={styles.leaderboardPodiumCard}>
+              <span className={styles.leaderboardLoadingHeader} />
+              <div className={styles.leaderboardLoadingShowcase}>
+                {Array.from({ length: 3 }, (_, cardIndex) => (
+                  <span key={cardIndex} className={styles.leaderboardLoadingShowcaseCard} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className={styles.leaderboardPodiumGrid}>
+          {Array.from({ length: 9 }, (_, index) => (
+            <div key={index} className={styles.leaderboardPodiumCard}>
+              <span className={styles.leaderboardLoadingHeader} />
+              <div className={styles.leaderboardLoadingShowcase}>
+                {Array.from({ length: 3 }, (_, cardIndex) => (
+                  <span key={cardIndex} className={styles.leaderboardLoadingShowcaseCard} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className={`${styles.leaderboardRows} ${styles.leaderboardLoadingRows}`}>
+        {Array.from({ length: 8 }, (_, index) => <span key={index} />)}
+      </div>
+    </div>
+  );
+}
+
 function LeaderboardContentSkeleton() {
   return (
     <div className={styles.leaderboardPage} aria-hidden="true">
       <span className={`${styles.initialSkeletonBlock} ${styles.leaderboardHero}`} />
-      <div className={styles.leaderboardLoading}>
-        {Array.from({ length: 3 }, (_, index) => <span key={index} />)}
-      </div>
+      <CcgLeaderboardLoadingSkeleton />
     </div>
   );
 }

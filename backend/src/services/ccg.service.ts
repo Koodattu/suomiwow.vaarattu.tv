@@ -820,7 +820,7 @@ class CcgService {
 
   async getLeaderboard(): Promise<Record<string, unknown>> {
     requireFeature();
-    const entries = await ccgLeaderboardService.list(25);
+    const entries = await ccgLeaderboardService.list(100);
     const showcases = await this.loadLeaderboardShowcases(entries.map((entry) => entry.userId));
     return {
       scoreVersion: getCcgLeaderboardScoringRules().version,

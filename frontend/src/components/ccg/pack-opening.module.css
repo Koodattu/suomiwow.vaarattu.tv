@@ -93,11 +93,42 @@
   flex-direction: column;
 }
 
+.packSelector {
+  min-width: 0;
+}
+
+.mobilePackSelectorSummary {
+  display: none;
+}
+
+.packSelectorOptions {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.mobilePackSelectorHeader {
+  display: none;
+}
+
+.packSelectorBody {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
 .packBalancePanel {
   display: flex;
   min-width: 0;
   flex-direction: column;
   padding-right: 0.75rem;
+}
+
+.packBalanceSummary {
+  min-width: 0;
 }
 
 .qualityDetails {
@@ -2516,28 +2547,281 @@
     overflow: visible;
   }
 
+  .openWorkspace.openWorkspacePickerOpen {
+    position: fixed;
+    z-index: 160;
+    inset: 0;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
   .packChooser {
     height: auto;
   }
 
   .packChooserLayout {
     width: min(calc(100% - 2rem), 32rem);
+    grid-template-areas:
+      "selector"
+      "balance"
+      "pack"
+      "details";
     grid-template-columns: minmax(0, 1fr);
-    gap: 3rem;
-    padding-block: 4rem 3rem;
+    gap: 0;
+    padding-block: 0.75rem 3rem;
+  }
+
+  .packControls {
+    z-index: 20;
+    grid-area: selector;
+  }
+
+  .packSelector {
+    position: relative;
+  }
+
+  .mobilePackSelectorSummary {
+    display: grid;
+    width: 100%;
+    min-height: 3.75rem;
+    grid-template-columns: 2.5rem minmax(0, 1fr) 1.25rem;
+    align-items: center;
+    gap: 0.7rem;
+    border: 0;
+    border-radius: 1.15rem;
+    background: rgba(3, 10, 23, 0.88);
+    padding: 0.6rem;
+    color: #eef7ff;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    box-shadow:
+      0 0 0 1px rgba(192, 220, 255, 0.14),
+      0 2px 5px rgba(0, 0, 0, 0.18),
+      0 10px 28px rgba(0, 0, 0, 0.2);
+    transition-property: background-color, box-shadow, transform;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+
+  .mobilePackSelectorSummary:focus-visible {
+    outline: 2px solid #7ddcff;
+    outline-offset: 2px;
+  }
+
+  .mobilePackSelectorSummary:active {
+    transform: scale(0.96);
+  }
+
+  .mobilePackSelectorCopy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.22rem;
+  }
+
+  .mobilePackSelectorCopy strong,
+  .mobilePackSelectorCopy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobilePackSelectorCopy strong {
+    font-size: 0.82rem;
+    line-height: 1.2;
+  }
+
+  .mobilePackSelectorCopy small {
+    color: #8293ad;
+    font-size: 0.62rem;
+    font-weight: 680;
+    line-height: 1.15;
+  }
+
+  .mobilePackSelectorChevron {
+    width: 0.55rem;
+    height: 0.55rem;
+    justify-self: center;
+    border-right: 2px solid color-mix(in srgb, var(--pack-accent) 68%, white);
+    border-bottom: 2px solid color-mix(in srgb, var(--pack-accent) 68%, white);
+    transform: translateY(-0.12rem) rotate(45deg);
+    transition-property: transform;
+    transition-duration: 180ms;
+    transition-timing-function: ease-out;
+  }
+
+  .packSelectorOpen .mobilePackSelectorChevron {
+    transform: translateY(0.12rem) rotate(225deg);
+  }
+
+  .packSelectorOptions {
+    display: none;
+    position: fixed;
+    z-index: 200;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    border-radius: 0;
+    background-color: #020714;
+    background-image:
+      linear-gradient(180deg, rgba(2, 7, 20, 0.86), rgba(2, 7, 20, 0.98)),
+      radial-gradient(circle at 50% 0, color-mix(in srgb, var(--pack-accent) 22%, transparent), transparent 24rem),
+      var(--pack-stage-art);
+    background-position: center;
+    background-size: cover;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .packSelectorOpen > .packSelectorOptions {
+    display: flex;
+  }
+
+  .mobilePackSelectorHeader {
+    box-sizing: border-box;
+    display: flex;
+    height: 3rem;
+    min-height: 3rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.125rem 0.45rem;
+    background: rgba(3, 10, 23, 0.72);
+    box-shadow: inset 0 -1px rgba(192, 220, 255, 0.12);
+  }
+
+  .mobilePackSelectorHeading {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .mobilePackSelectorHeading small {
+    color: color-mix(in srgb, var(--pack-accent) 68%, white);
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .mobilePackSelectorHeading strong {
+    overflow: hidden;
+    color: #f2f7ff;
+    font-size: 1rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    text-wrap: balance;
+    white-space: nowrap;
+  }
+
+  .mobilePackSelectorClose {
+    position: relative;
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 0;
+    border-radius: 0.85rem;
+    background: rgba(10, 25, 49, 0.86);
+    color: #dcecff;
+    box-shadow:
+      0 0 0 1px rgba(192, 220, 255, 0.14),
+      0 2px 6px rgba(0, 0, 0, 0.24);
+    transition-property: background-color, box-shadow, transform;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+
+  .mobilePackSelectorClose:focus-visible {
+    outline: 2px solid #7ddcff;
+    outline-offset: 2px;
+  }
+
+  .mobilePackSelectorClose:active {
+    transform: scale(0.96);
+  }
+
+  .mobilePackSelectorClose span,
+  .mobilePackSelectorClose span::before,
+  .mobilePackSelectorClose span::after {
+    display: block;
+  }
+
+  .mobilePackSelectorClose span {
+    position: relative;
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .mobilePackSelectorClose span::before,
+  .mobilePackSelectorClose span::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 1rem;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+    content: "";
+  }
+
+  .mobilePackSelectorClose span::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+
+  .mobilePackSelectorClose span::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+  }
+
+  .packSelectorBody {
+    width: min(100%, 32rem);
+    margin-inline: auto;
+    overflow: hidden;
+    padding: 0.8rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  .packSkeletonChoices .modeChoiceSkeleton:not(:first-child) {
+    display: none;
   }
 
   .legacyTarget {
-    height: 22rem;
-    flex: none;
+    height: auto;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .raidList {
+    width: 100%;
+    padding-right: 0.15rem;
   }
 
   .packPresentation {
+    grid-area: pack;
     width: min(78vw, 21rem);
+    margin-top: 3rem;
+  }
+
+  .packBalancePanel {
+    display: contents;
+  }
+
+  .packBalanceSummary {
+    grid-area: balance;
+    margin-top: 0.75rem;
+    padding-inline: 0.15rem;
   }
 
   .qualityDetails {
-    margin-top: 1.75rem;
+    grid-area: details;
+    width: 100%;
+    margin-top: 3rem;
   }
 
   .packStage {
