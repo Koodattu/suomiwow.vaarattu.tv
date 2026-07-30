@@ -25,7 +25,7 @@ Guests and first-time authenticated CCG players begin with 40 packs. Guest colle
 
 - Admins add a character by region, realm slug, name, and rarity. The backend resolves the public profile, active specialization, role, guild, avatar, and full render through Blizzard Profile APIs without fetching Warcraft Logs.
 - If the character already exists locally, the Community record links to it. Otherwise it retains a stable Blizzard identity that can be reconciled when the character later enters the normal raid pipeline.
-- Targeted-raid and all-raids packs may contain Community cards. Rarity is selected by the normal pack rules first. Within that rarity, a Community result must win both its proportional pool roll and a second 50/50 gate; a failed gate keeps the already selected raid card.
+- Targeted-raid and all-raids packs may contain Community cards. Each of the five normal raid-card results independently has a 1% chance to be replaced by a uniformly random active Community card. The replacement chance does not depend on the selected raid, either pool's size, or Community rarity; a failed roll keeps the already selected raid card.
 - Community cards are immutable snapshots with no performance metrics. Their card metric panel displays `Community`.
 - A stable `collectorKey` links Community and normal raid variants of the same character to one alternative-art definition, shared quips, and administrative identity reconciliation. It does not define ownership, alternative-art unlock scope, or duplicate identity.
 
@@ -225,7 +225,7 @@ The overall feature is called SuomiWoW CCG. Players have one pack balance and ch
 - **All raids** combines every enabled Current and Legacy raid. Within the selected grade, every eligible card has equal weight, so larger raid sets contribute proportionally more cards without requiring one oversized MongoDB pool document.
 - Every result preserves its originating raid set and the collection remains organized into raid-specific binders.
 - Current and Legacy remain set-publication lifecycle states only. Moving a set from Current to Legacy never changes pack balances or credits.
-- Community cards remain an optional weighted substitution in both targeted and all-raids openings; Community is not directly selectable.
+- Community cards remain a fixed per-card substitution in both targeted and all-raids openings; Community is not directly selectable.
 
 ### Administrative activation
 

@@ -41,7 +41,7 @@ import {
   rollOwnedFinish,
   rollProtectedFinish,
 } from "../src/utils/ccg-random";
-import { planPackSelections, selectCommunityCard, selectCommunityCardForGrade, selectPackCards, shufflePackResults } from "../src/utils/ccg-pack";
+import { planPackSelections, selectCommunityCard, selectPackCards, shufflePackResults } from "../src/utils/ccg-pack";
 import { createWowCharacterIdentityKey } from "../src/utils/ccg-identity";
 import { getTransferableGuestPacks, resolveGuestClaimOpeningId, verifyGuestLibrary } from "../src/utils/ccg-guest-library";
 import { getCcgSnapshotPreviewDisposition, nextCcgCardSnapshotVersion, shouldPublishCcgCardSnapshot, summarizeCcgSnapshotPreview } from "../src/utils/ccg-card-snapshot";
@@ -583,28 +583,18 @@ test("a targeted pack plan stays inside its selected raid pool", () => {
   assert.equal(plan.every((row) => row.poolId === "pool-a" && row.setId === "raid-a"), true);
 });
 
-test("community cards pass a second 50/50 gate after their pool roll", () => {
-  assert.equal(selectCommunityCard(9, ["community"], () => 0), null);
+test("each card has a fixed one-percent chance to become a random Community card", () => {
+  assert.equal(selectCommunityCard([], () => { throw new Error("unexpected roll"); }), null);
+  assert.equal(selectCommunityCard(["community"], () => 100), null);
 
-  const rejectedRolls = [9, 1];
-  assert.equal(selectCommunityCard(9, ["community"], () => rejectedRolls.shift()!), null);
-
-  const acceptedRolls = [9, 0, 0];
-  assert.equal(selectCommunityCard(9, ["community"], () => acceptedRolls.shift()!), "community");
+  const acceptedRolls = [99, 1];
+  assert.equal(selectCommunityCard(["heirloom", "meme"], () => acceptedRolls.shift()!), "meme");
 });
 
-test("Heirloom stays outside regular pack odds and joins only the top Community rarity roll", () => {
+test("Heirloom stays outside regular raid-card pack odds", () => {
   assert.deepEqual(CCG_REGULAR_TIER_GRADES, ["S", "A", "B", "C", "D", "E", "F"]);
   assert.deepEqual(CCG_TIER_GRADES, ["H", "S", "A", "B", "C", "D", "E", "F"]);
   assert.throws(() => selectPackCards([{ grade: "H", cardIds: ["heirloom"] }], () => 0), /no eligible cards/);
-
-  const communityByGrade = new Map<CcgTierGrade, readonly string[]>([["H", ["heirloom"]]]);
-  assert.equal(selectCommunityCardForGrade(9, "A", communityByGrade, () => { throw new Error("unexpected roll"); }), null);
-  const acceptedRolls = [9, 0, 0];
-  assert.equal(
-    selectCommunityCardForGrade(9, "S", communityByGrade, () => acceptedRolls.shift()!),
-    "heirloom",
-  );
 });
 
 test("alternative art uses one 1-in-4 roll and only applies backgrounds to Community cards", () => {

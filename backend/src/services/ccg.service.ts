@@ -77,7 +77,7 @@ import {
 } from "../utils/ccg-alternative-art";
 import { CcgFinishPity, emptyFinishPity, rollArtVariant, rollOwnedFinish } from "../utils/ccg-random";
 import { createCcgShareShortId, resolveCcgShareLookup } from "../utils/ccg-share-id";
-import { planPackSelections, selectCommunityCardForGrade, shufflePackResults } from "../utils/ccg-pack";
+import { planPackSelections, selectCommunityCard, shufflePackResults } from "../utils/ccg-pack";
 import { resolveCollectorKey } from "../utils/ccg-identity";
 import { getTransferableGuestPacks, resolveGuestClaimOpeningId, verifyGuestLibrary } from "../utils/ccg-guest-library";
 import { getCcgLeaderboardScoringRules } from "../utils/ccg-leaderboard";
@@ -4138,19 +4138,14 @@ class CcgService {
     const communityPool = communitySet
       ? await CcgPackPool.findOne({ setId: communitySet._id, active: true, totalCards: { $gt: 0 } }).select("version buckets").session(session).lean()
       : null;
-    const communityByGrade = new Map<CcgTierGrade, Array<{ cardId: mongoose.Types.ObjectId; tierGrade: CcgTierGrade }>>(
-      (communityPool?.buckets ?? []).map((bucket) => [
-        bucket.grade as CcgTierGrade,
-        (bucket.cardIds as mongoose.Types.ObjectId[]).map((cardId) => ({ cardId, tierGrade: bucket.grade as CcgTierGrade })),
-      ]),
-    );
-    const normalCountByGrade = new Map<CcgTierGrade, number>();
-    for (const summary of summaries) {
-      for (const row of summary.counts) normalCountByGrade.set(row.grade, (normalCountByGrade.get(row.grade) ?? 0) + row.count);
-    }
+    const communityCards = (communityPool?.buckets ?? []).flatMap((bucket) => (
+      (bucket.cardIds as mongoose.Types.ObjectId[]).map((cardId) => ({
+        cardId,
+        tierGrade: bucket.grade as CcgTierGrade,
+      }))
+    ));
     const results = baseResults.map((base) => {
-      const normalCount = normalCountByGrade.get(base.tierGrade) ?? 0;
-      const communityCard = selectCommunityCardForGrade(normalCount, base.tierGrade, communityByGrade, randomInt);
+      const communityCard = selectCommunityCard(communityCards, randomInt);
       if (communitySet && communityCard) {
         return {
           cardId: communityCard.cardId,

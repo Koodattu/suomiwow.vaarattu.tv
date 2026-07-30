@@ -1,6 +1,8 @@
 import { randomInt } from "crypto";
 import {
+  CCG_BASIS_POINT_SCALE,
   CCG_CARDS_PER_PACK,
+  CCG_COMMUNITY_CARD_CHANCE_BPS,
   CCG_GUARANTEED_GRADE_ODDS,
   CCG_REGULAR_TIER_GRADES,
   CCG_WEIGHTED_GRADE_ODDS,
@@ -104,25 +106,10 @@ export function planPackSelections(
 }
 
 export function selectCommunityCard<T>(
-  normalCount: number,
   communityCards: readonly T[],
   random: (maximum: number) => number = randomInt,
 ): T | null {
-  if (normalCount <= 0 || communityCards.length === 0) return null;
-  if (random(normalCount + communityCards.length) < normalCount) return null;
-  if (random(2) !== 0) return null;
+  if (communityCards.length === 0) return null;
+  if (random(CCG_BASIS_POINT_SCALE) >= CCG_COMMUNITY_CARD_CHANCE_BPS) return null;
   return communityCards[random(communityCards.length)];
-}
-
-export function selectCommunityCardForGrade<T>(
-  normalCount: number,
-  rolledGrade: CcgRegularTierGrade,
-  communityByGrade: ReadonlyMap<CcgTierGrade, readonly T[]>,
-  random: (maximum: number) => number = randomInt,
-): T | null {
-  const matchingCards = communityByGrade.get(rolledGrade) ?? [];
-  const eligibleCards = rolledGrade === "S"
-    ? [...(communityByGrade.get("H") ?? []), ...matchingCards]
-    : matchingCards;
-  return selectCommunityCard(normalCount, eligibleCards, random);
 }
