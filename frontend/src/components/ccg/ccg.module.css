@@ -6546,9 +6546,9 @@
 
 .redeemPackRewards {
   display: grid;
-  width: min(100%, 56rem);
+  width: min(100%, 44rem);
   justify-self: center;
-  padding-block: clamp(0.75rem, 2.4dvh, 1.25rem);
+  padding-block: clamp(0.35rem, 1.2dvh, 0.75rem);
   pointer-events: none;
 }
 
@@ -6563,55 +6563,73 @@
 }
 
 .redeemPackPile {
-  --reward-pack-columns: 1;
-  --reward-pack-width: 11.5rem;
-  --reward-pack-row-height: 17.5rem;
-  display: grid;
-  width: 100%;
+  --reward-pack-width: 7.75rem;
+  --reward-stage-width: 9.5rem;
+  --reward-stage-height: 12.5rem;
+  position: relative;
+  width: min(100%, var(--reward-stage-width));
+  height: var(--reward-stage-height);
   min-width: 0;
-  grid-template-columns: repeat(var(--reward-pack-columns), minmax(0, 1fr));
-  grid-auto-rows: var(--reward-pack-row-height);
-  align-items: start;
-  justify-items: center;
-  padding: 0.35rem 0.5rem 0.75rem;
+  isolation: isolate;
   perspective: 1200px;
 }
 
-.redeemPackVisual {
+.redeemPackPile::after {
+  position: absolute;
+  z-index: 0;
+  right: 7%;
+  bottom: 0.1rem;
+  left: 7%;
+  height: 1.2rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.72);
+  content: "";
+  filter: blur(11px);
+  opacity: 0.82;
+  transform: scaleY(0.54);
+}
+
+.redeemPackPile > .redeemPackVisual {
+  --reward-pack-left: 50%;
+  --reward-pack-bottom: 1%;
   --reward-pack-rotation: 0deg;
-  --reward-pack-shift-x: 0px;
-  --reward-pack-shift-y: 0px;
+  --reward-pack-scale: 1;
   --reward-pack-z: 1;
-  width: min(100%, var(--reward-pack-width));
-  aspect-ratio: 0.66;
+  position: absolute;
   z-index: var(--reward-pack-z);
+  bottom: var(--reward-pack-bottom);
+  left: var(--reward-pack-left);
+  width: var(--reward-pack-width);
+  aspect-ratio: 0.66;
+  container-type: inline-size;
   cursor: default;
   pointer-events: none;
-  transform: translate(var(--reward-pack-shift-x), var(--reward-pack-shift-y)) rotate(var(--reward-pack-rotation));
+  transform: translateX(-50%) rotate(var(--reward-pack-rotation)) scale(var(--reward-pack-scale));
   transform-origin: 50% 88%;
 }
 
-.redeemPackPile[data-density="single"] {
-  width: min(100%, 12.5rem);
+.redeemPackPile[data-layout="pair"] {
+  --reward-pack-width: 6.75rem;
+  --reward-stage-width: 13.5rem;
+  --reward-stage-height: 11rem;
 }
 
-.redeemPackPile[data-density="small"] {
-  --reward-pack-width: 8.25rem;
-  --reward-pack-row-height: 12.5rem;
-  width: min(100%, 43rem);
+.redeemPackPile[data-layout="fan"] {
+  --reward-pack-width: 6.4rem;
+  --reward-stage-width: 22rem;
+  --reward-stage-height: 11.5rem;
 }
 
-.redeemPackPile[data-density="medium"] {
-  --reward-pack-width: 6rem;
-  --reward-pack-row-height: 7.25rem;
-  width: min(100%, 48rem);
-  padding-bottom: 2rem;
+.redeemPackPile[data-layout="scatter"] {
+  --reward-pack-width: 5.2rem;
+  --reward-stage-width: 32rem;
+  --reward-stage-height: 13.25rem;
 }
 
-.redeemPackPile[data-density="dense"] {
-  --reward-pack-width: 4.25rem;
-  --reward-pack-row-height: clamp(3.2rem, 5.2dvh, 3.8rem);
-  padding-bottom: 2.5rem;
+.redeemPackPile[data-layout="pile"] {
+  --reward-pack-width: 4.1rem;
+  --reward-stage-width: 40rem;
+  --reward-stage-height: 14.5rem;
 }
 
 .redeemPackCount {
@@ -7194,12 +7212,37 @@
   }
 
   .redeemPackPile {
-    padding-inline: 0;
+    max-width: 94vw;
   }
 
-  .redeemPackPile[data-density="single"] {
-    --reward-pack-width: min(10rem, calc(40dvh * 0.66));
-    --reward-pack-row-height: min(15.25rem, 40dvh);
+  .redeemPackPile[data-layout="single"] {
+    --reward-pack-width: 6.75rem;
+    --reward-stage-width: 8.5rem;
+    --reward-stage-height: 10.75rem;
+  }
+
+  .redeemPackPile[data-layout="pair"] {
+    --reward-pack-width: 5.8rem;
+    --reward-stage-width: 12rem;
+    --reward-stage-height: 9.5rem;
+  }
+
+  .redeemPackPile[data-layout="fan"] {
+    --reward-pack-width: 5.2rem;
+    --reward-stage-width: 20rem;
+    --reward-stage-height: 9.25rem;
+  }
+
+  .redeemPackPile[data-layout="scatter"] {
+    --reward-pack-width: 4rem;
+    --reward-stage-width: 28rem;
+    --reward-stage-height: 10.75rem;
+  }
+
+  .redeemPackPile[data-layout="pile"] {
+    --reward-pack-width: 2.8rem;
+    --reward-stage-width: 30rem;
+    --reward-stage-height: 11.5rem;
   }
 
   .redeemRewardCardButton {

@@ -18,6 +18,7 @@ import packStyles from "./pack-opening.module.css";
 
 type DialogPhase = "entering" | "open" | "closing";
 const MAX_REDEEM_PACK_VISUALS = 100;
+type RewardPackLayout = "single" | "pair" | "fan" | "scatter" | "pile";
 type RedeemCardReward = Extract<CcgRedeemResult["reward"], { type: "card" }>;
 type RedeemCardViewer = RedeemCardReward & {
   originElement: HTMLElement;
@@ -34,7 +35,64 @@ function rewardPackHash(value: string): number {
   return hash >>> 0;
 }
 
-function CcgRedeemRewardDialog({
+function rewardPackLayout(count: number): RewardPackLayout {
+  if (count === 1) return "single";
+  if (count === 2) return "pair";
+  if (count <= 5) return "fan";
+  if (count <= 20) return "scatter";
+  return "pile";
+}
+
+function rewardPackVisualStyle(layout: RewardPackLayout, index: number, count: number, hash: number): CSSProperties {
+  const randomX = ((hash & 0xff) / 255) - 0.5;
+  const randomY = (((hash >>> 8) & 0xff) / 255) - 0.5;
+  const randomRotation = (((hash >>> 16) & 0xff) / 255) - 0.5;
+  const randomScale = (((hash >>> 24) & 0xff) / 255) - 0.5;
+  let left = 50;
+  let bottom = 1;
+  let rotation = randomRotation * 2;
+  let scale = 1;
+  let zIndex = index + 1;
+
+  if (layout === "pair") {
+    left = index === 0 ? 42 : 58;
+    bottom = index === 0 ? 0.5 : 1.5;
+    rotation = (index === 0 ? -6 : 6) + randomRotation;
+    scale = index === 0 ? 0.98 : 1;
+  } else if (layout === "fan") {
+    const progress = (index - ((count - 1) / 2)) / Math.max((count - 1) / 2, 1);
+    const spread = count === 3 ? 15 : count === 4 ? 20 : 23;
+    left = 50 + (progress * spread);
+    bottom = 0.75 + ((1 - Math.abs(progress)) * 4.5);
+    rotation = (progress * 9) + (randomRotation * 1.5);
+    scale = 0.93 + ((1 - Math.abs(progress)) * 0.07);
+    zIndex = 50 - Math.round(Math.abs(progress) * 10) + index;
+  } else if (layout === "scatter" || layout === "pile") {
+    const columnProgress = ((index * 0.61803398875) + ((randomX + 0.5) * 0.21)) % 1;
+    const depthSeed = ((index * 0.41421356237) + ((randomY + 0.5) * 0.17)) % 1;
+    const depthProgress = depthSeed ** 1.45;
+    const horizontalInset = layout === "pile" ? 7 : 10;
+    const verticalSpread = layout === "pile" ? 46 : 34;
+
+    left = horizontalInset + (columnProgress * (100 - (horizontalInset * 2)));
+    bottom = depthProgress * verticalSpread;
+    rotation = randomRotation * (layout === "pile" ? 26 : 34);
+    scale = layout === "pile"
+      ? 0.74 + ((1 - depthProgress) * 0.23) + (randomScale * 0.14)
+      : 0.82 + ((1 - depthProgress) * 0.14) + (randomScale * 0.12);
+    zIndex = Math.round((1 - depthProgress) * 1000) + index;
+  }
+
+  return {
+    "--reward-pack-left": `${left}%`,
+    "--reward-pack-bottom": `${bottom}%`,
+    "--reward-pack-rotation": `${rotation}deg`,
+    "--reward-pack-scale": scale,
+    "--reward-pack-z": zIndex,
+  } as CSSProperties;
+}
+
+export function CcgRedeemRewardDialog({
   result,
   sets,
   isInspectingCard,
@@ -128,9 +186,10 @@ function CcgRedeemRewardDialog({
   const openPacksHref = "/ccg/open";
   const awardedPackCount = result.reward.type === "packs" ? result.reward.packs : 0;
   const rewardPackCount = Math.min(MAX_REDEEM_PACK_VISUALS, awardedPackCount);
-  const rewardPackSets = sets.filter((set) => set.kind === "raid" && (set.state === "current" || set.state === "legacy") && set.cardCount > 0);
-  const rewardPackColumns = Math.max(1, rewardPackCount <= 5 ? rewardPackCount : Math.ceil(Math.sqrt(rewardPackCount * 2.1)));
-  const rewardPackDensity = rewardPackCount === 1 ? "single" : rewardPackCount <= 5 ? "small" : rewardPackCount <= 20 ? "medium" : "dense";
+  const rewardPackSets = sets
+    .filter((set) => set.kind === "raid" && (set.state === "current" || set.state === "legacy") && set.cardCount > 0)
+    .sort((left, right) => rewardPackHash(`${result.code}:set:${left.id}`) - rewardPackHash(`${result.code}:set:${right.id}`));
+  const packLayout = rewardPackLayout(rewardPackCount);
 
   return (
     <div
@@ -158,29 +217,25 @@ function CcgRedeemRewardDialog({
             <div className={styles.redeemPackReward}>
               <div
                 className={styles.redeemPackPile}
-                data-density={rewardPackDensity}
-                style={{ "--reward-pack-columns": rewardPackColumns } as CSSProperties}
+                data-layout={packLayout}
                 aria-hidden="true"
               >
                 {Array.from({ length: rewardPackCount }, (_, index) => {
-                  const visualHash = rewardPackHash(`${result.code}:${index}`);
-                  const rewardSet = rewardPackSets.length > 0 ? rewardPackSets[visualHash % rewardPackSets.length] : undefined;
+                  const layoutHash = rewardPackHash(`${result.code}:layout:${index}`);
+                  const rewardSet = rewardPackSets.length > 0 ? rewardPackSets[index % rewardPackSets.length] : undefined;
                   return (
                     <div
                       key={`${result.code}:${index}`}
                       className={`${packStyles.packButton} ${styles.redeemPackVisual}`}
+                      data-reward-pack="true"
                       style={{
                         ...getPackTheme(rewardSet, !rewardSet),
-                        "--reward-pack-rotation": `${(visualHash % 13) - 6}deg`,
-                        "--reward-pack-shift-x": `${((visualHash >>> 8) % 7) - 3}px`,
-                        "--reward-pack-shift-y": `${((visualHash >>> 16) % 7) - 3}px`,
-                        "--reward-pack-z": index + 1,
+                        ...rewardPackVisualStyle(packLayout, index, rewardPackCount, layoutHash),
                       } as CSSProperties}
                     >
                       <PackBoosterVisual
                         title={rewardSet?.raidName ?? ccg("open.allRaids")}
                         cardsLabel={ccg("landing.cards")}
-                        minimal={rewardPackCount > 1}
                       />
                     </div>
                   );

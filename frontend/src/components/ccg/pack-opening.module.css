@@ -1050,6 +1050,25 @@
   letter-spacing: 0.17em;
 }
 
+.packButton[data-reward-pack="true"] .packBrand {
+  font-size: clamp(0.24rem, 6.4cqw, 0.68rem);
+  letter-spacing: 0.14em;
+}
+
+.packButton[data-reward-pack="true"] .packTitle {
+  font-size: clamp(0.42rem, 12cqw, 1.35rem);
+  line-height: 0.98;
+}
+
+.packButton[data-reward-pack="true"] .packCount strong {
+  font-size: clamp(0.6rem, 16cqw, 1.75rem);
+}
+
+.packButton[data-reward-pack="true"] .packCount span {
+  margin-top: 0.5cqw;
+  font-size: clamp(0.2rem, 4.4cqw, 0.5rem);
+}
+
 .packHint {
   position: absolute;
   top: calc(100% - 0.25rem);
