@@ -884,6 +884,35 @@
   opacity: 0.76;
 }
 
+.packButtonGrouped {
+  cursor: pointer;
+}
+
+.packButtonGrouped:hover:not(:disabled) .booster,
+.packButtonGrouped:active:not(:disabled):not([data-dragging="true"]) .booster {
+  --pack-lift: 0px;
+  --pack-scale: 1;
+  filter: drop-shadow(0 8px 5px rgba(0, 0, 0, 0.58)) drop-shadow(0 0 8px color-mix(in srgb, var(--pack-glow) 78%, transparent));
+}
+
+.packButtonGrouped:hover:not(:disabled) .packShadow,
+.packButtonGrouped:active:not(:disabled):not([data-dragging="true"]) .packShadow {
+  opacity: 0.68;
+  transform: translate3d(calc(var(--pack-drag-x) + var(--pack-shadow-x)), calc(var(--pack-drag-y) + var(--pack-shadow-y)), -20px) scaleX(var(--pack-shadow-scale)) scaleY(0.72);
+}
+
+.packButtonGrouped:hover:not(:disabled) .wrapperMetal {
+  opacity: 0.38;
+}
+
+.packButtonGrouped:hover:not(:disabled) .wrapperCreases {
+  opacity: 0.34;
+}
+
+.packButtonGrouped:hover:not(:disabled) .wrapperGlare {
+  opacity: 0.3;
+}
+
 .packBrand,
 .packTitle,
 .packCount,
@@ -1365,12 +1394,13 @@
 }
 
 .cardFan {
+  --card-fan-gap: clamp(0.45rem, 0.85vw, 0.9rem);
   display: grid;
   width: min(100%, 108rem);
   min-width: 0;
   margin-inline: auto;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: clamp(0.45rem, 0.85vw, 0.9rem);
+  gap: var(--card-fan-gap);
   align-items: start;
   perspective: 1800px;
   translate: 0 0.65rem;

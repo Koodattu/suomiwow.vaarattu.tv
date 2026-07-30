@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import { useCallback, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgCard } from "@/types";
-import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
 import { useCcgFeaturedCard, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
 import PackBalance from "@/components/ccg/PackBalance";
@@ -36,9 +35,10 @@ function VaultPackShortcut({
   return (
     <Link
       href={href}
-      className={`${packStyles.packButton} ${styles.vaultPackShortcut}`}
+      className={`${packStyles.packButton} ${packStyles.packButtonGrouped} ${styles.vaultPackShortcut}`}
       style={theme}
       aria-label={label}
+      data-vault-pack
       draggable={false}
     >
       <PackBoosterVisual title={title} cardsLabel={cardsLabel} />
@@ -48,23 +48,24 @@ function VaultPackShortcut({
 
 function updatePackFanMotion(event: ReactPointerEvent<HTMLDivElement>) {
   if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+  if (!(event.target instanceof Element) || !event.target.closest("[data-vault-pack]")) {
+    resetPackFanMotion(event.currentTarget);
+    return;
+  }
   const fanBounds = event.currentTarget.getBoundingClientRect();
-  const x = Math.max(0, Math.min(1, (event.clientX - fanBounds.left) / fanBounds.width));
-  const y = Math.max(0, Math.min(1, (event.clientY - fanBounds.top) / fanBounds.height));
-  Array.from(event.currentTarget.children).forEach((pack) => {
-    if (!(pack instanceof HTMLElement)) return;
-    const packBounds = pack.getBoundingClientRect();
-    applyPackPointerMotion(pack, packBounds.left + x * packBounds.width, packBounds.top + y * packBounds.height);
-    pack.style.setProperty("--pack-lift", "-3px");
-  });
+  const x = Math.max(-1, Math.min(1, ((event.clientX - fanBounds.left) / fanBounds.width - 0.5) * 2));
+  const y = Math.max(-1, Math.min(1, ((event.clientY - fanBounds.top) / fanBounds.height - 0.5) * 2));
+  event.currentTarget.dataset.active = "true";
+  event.currentTarget.style.setProperty("--fan-pointer-x", `${(x * 2).toFixed(2)}px`);
+  event.currentTarget.style.setProperty("--fan-pointer-y", `${(y * 0.75).toFixed(2)}px`);
+  event.currentTarget.style.setProperty("--fan-pointer-rotation", `${(x * 0.45).toFixed(2)}deg`);
 }
 
 function resetPackFanMotion(fan: HTMLDivElement) {
-  Array.from(fan.children).forEach((pack) => {
-    if (!(pack instanceof HTMLElement)) return;
-    resetPackMotion(pack);
-    pack.style.setProperty("--pack-lift", "0px");
-  });
+  delete fan.dataset.active;
+  fan.style.setProperty("--fan-pointer-x", "0px");
+  fan.style.setProperty("--fan-pointer-y", "0px");
+  fan.style.setProperty("--fan-pointer-rotation", "0deg");
 }
 
 function FeaturedCard({ card, onSelect }: { card: CcgCard; onSelect: (event: ReactMouseEvent<HTMLButtonElement>) => void }) {
@@ -203,44 +204,48 @@ export default function CcgLandingPage() {
           </div>
 
           <nav className={styles.vaultPackShortcuts} aria-label={t("nav.open")}>
-            <div
-              className={styles.vaultPackFan}
-              onPointerMove={updatePackFanMotion}
-              onPointerLeave={(event) => resetPackFanMotion(event.currentTarget)}
-              onPointerCancel={(event) => resetPackFanMotion(event.currentTarget)}
-            >
-              {setsLoading ? (
-                Array.from({ length: 5 }, (_, index) => (
-                  <span key={index} className={`${packStyles.packButton} ${styles.vaultPackShortcut} ${styles.vaultPackSkeleton}`} aria-hidden="true" />
-                ))
-              ) : (
-                <>
-                  <VaultPackShortcut
-                    href={current ? `/ccg/open?set=${encodeURIComponent(current.id)}` : "/ccg/open"}
-                    theme={getPackTheme(current)}
-                    label={t("landing.openCurrent")}
-                    title={current?.raidName ?? t("landing.preparing")}
-                    cardsLabel={t("landing.cards")}
-                  />
-                  <VaultPackShortcut
-                    href="/ccg/open"
-                    theme={getPackTheme(undefined, true)}
-                    label={t("landing.openAllRaids")}
-                    title={t("open.allRaids")}
-                    cardsLabel={t("landing.cards")}
-                  />
-                  {recentPackSets.map((set) => (
-                    <VaultPackShortcut
-                      key={set.id}
-                      href={`/ccg/open?set=${encodeURIComponent(set.id)}`}
-                      theme={getPackTheme(set)}
-                      label={`${t("nav.open")}: ${set.raidName}`}
-                      title={set.raidName}
-                      cardsLabel={t("landing.cards")}
-                    />
-                  ))}
-                </>
-              )}
+            <div className={styles.vaultPackFan}>
+              <div
+                className={styles.vaultPackFanInteraction}
+                onPointerMove={updatePackFanMotion}
+                onPointerLeave={(event) => resetPackFanMotion(event.currentTarget)}
+                onPointerCancel={(event) => resetPackFanMotion(event.currentTarget)}
+              >
+                <div className={styles.vaultPackFanMotion}>
+                  {setsLoading ? (
+                    Array.from({ length: 5 }, (_, index) => (
+                      <span key={index} className={`${packStyles.packButton} ${styles.vaultPackShortcut} ${styles.vaultPackSkeleton}`} aria-hidden="true" />
+                    ))
+                  ) : (
+                    <>
+                      <VaultPackShortcut
+                        href={current ? `/ccg/open?set=${encodeURIComponent(current.id)}` : "/ccg/open"}
+                        theme={getPackTheme(current)}
+                        label={t("landing.openCurrent")}
+                        title={current?.raidName ?? t("landing.preparing")}
+                        cardsLabel={t("landing.cards")}
+                      />
+                      <VaultPackShortcut
+                        href="/ccg/open"
+                        theme={getPackTheme(undefined, true)}
+                        label={t("landing.openAllRaids")}
+                        title={t("open.allRaids")}
+                        cardsLabel={t("landing.cards")}
+                      />
+                      {recentPackSets.map((set) => (
+                        <VaultPackShortcut
+                          key={set.id}
+                          href={`/ccg/open?set=${encodeURIComponent(set.id)}`}
+                          theme={getPackTheme(set)}
+                          label={`${t("nav.open")}: ${set.raidName}`}
+                          title={set.raidName}
+                          cardsLabel={t("landing.cards")}
+                        />
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
             {session ? <PackBalance session={session} strip /> : <div className={styles.vaultBalanceSkeleton} />}
           </nav>

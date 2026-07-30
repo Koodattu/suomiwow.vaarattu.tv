@@ -31,9 +31,13 @@ function LandingContentSkeleton() {
 
         <div className={styles.vaultPackShortcuts}>
           <div className={styles.vaultPackFan}>
-            {Array.from({ length: 5 }, (_, index) => (
-              <span key={index} className={`${packStyles.packButton} ${styles.vaultPackShortcut} ${styles.vaultPackSkeleton}`} />
-            ))}
+            <div className={styles.vaultPackFanInteraction}>
+              <div className={styles.vaultPackFanMotion}>
+                {Array.from({ length: 5 }, (_, index) => (
+                  <span key={index} className={`${packStyles.packButton} ${styles.vaultPackShortcut} ${styles.vaultPackSkeleton}`} />
+                ))}
+              </div>
+            </div>
           </div>
           <span className={styles.vaultBalanceSkeleton} />
         </div>

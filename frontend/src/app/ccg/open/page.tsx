@@ -38,8 +38,13 @@ type PackRequest = PackSelection & { idempotencyKey: string };
 
 const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
 const fanOffsets = [24, 5, 0, 5, 24];
-const dealOffsets = ["215%", "108%", "0%", "-108%", "-215%"];
-const dealAngles = [8, 4, 0, -4, -8];
+const dealOffsets = [
+  "calc(200% + var(--card-fan-gap) + var(--card-fan-gap))",
+  "calc(100% + var(--card-fan-gap))",
+  "0%",
+  "calc(-100% - var(--card-fan-gap))",
+  "calc(-200% - var(--card-fan-gap) - var(--card-fan-gap))",
+];
 const ALL_RAIDS = "all";
 const HOVER_SOUND = "/ccg/audio/hover.mp3";
 const FADE_OUT_SOUND = "/ccg/audio/fade_out.mp3";
@@ -1033,7 +1038,7 @@ export default function CcgOpenPage() {
                       "--fan-angle": `${fanAngles[index] ?? 0}deg`,
                       "--fan-y": `${fanOffsets[index] ?? 0}px`,
                       "--deal-x": dealOffsets[index] ?? "0%",
-                      "--deal-angle": `${dealAngles[index] ?? 0}deg`,
+                      "--deal-angle": "0deg",
                       "--deal-delay": `${index * 58}ms`,
                       "--pack-exit-delay": `${index * 24}ms`,
                     } as CSSProperties;
