@@ -711,11 +711,16 @@ Store one entitlement document per owned card series:
 - `unlockedSnapshotVersions`: the exact snapshot versions acquired through packs or rewards; versions are added independently and never inferred from an earlier or later acquisition
 - `firstAcquiredAt` and `lastAcquiredAt`
 - Guest acquisition `dateKey`
+- A versioned collection read model containing the newest explicitly unlocked representative card ID, snapshot version, grade rank, set number, and name. These fields are derived from immutable cards and exist only to page the default binder before loading finish and variant details.
+- A read-model issue marker used only to identify legacy series entitlements that have no corresponding positive finish ownership during migration.
 
 Indexes:
 
 - Unique `{ownerType: 1, ownerId: 1, setId: 1, characterId: 1}`
+- Partial default-binder index on `{ownerType, ownerId, collectionSortGrade, collectionSortSetNumber, collectionSortName, setId, characterId}` for the active read-model version
 The idempotent startup migrations backfill series identity from each ownership row's exact card snapshot, create the corresponding series entitlement, and convert the initial version boundary into explicit acquired snapshot versions. They do not fill gaps between acquired versions. A structurally valid ownership row whose card no longer exists fails the migration so ownership is not silently lost. Structurally malformed legacy rows without a usable card or finish are retained unchanged for audit, excluded from collection calculations, and reported in the migration result.
+
+The collection read-model migration derives validity from positive `CcgOwnership` rows and derives representative-card fields only from explicitly unlocked immutable snapshots. It aborts rather than dropping an owned series when an unlocked snapshot cannot be resolved. A series without finish ownership is copied verbatim into `ccgseriesownershiparchives`, verified inside the same transaction, and only then removed from active ownership. This keeps the anomalous source document recoverable without allowing it to affect Missing filters, collection counts, or pack-opening ownership decisions.
 
 ### `CcgQualityProgress`
 

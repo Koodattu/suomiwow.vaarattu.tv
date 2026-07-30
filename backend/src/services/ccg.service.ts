@@ -91,6 +91,15 @@ import logger from "../utils/logger";
 import { isMongoWriteConflict, retryMongoWriteConflict } from "../utils/mongo-retry";
 import { normalizeSearchText, scoreSearchCandidate } from "../utils/search";
 import { normalizeRealmSlug } from "../utils/realm";
+import {
+  buildCcgCollectionReadModel,
+  CCG_COLLECTION_READ_MODEL_MISSING_FINISH,
+  CCG_COLLECTION_READ_MODEL_VERSION,
+  CcgCollectionReadModelCard,
+  compareCcgCollectionCards,
+  createCcgSeriesKey,
+  selectCcgCollectionCard,
+} from "./ccg-collection-read-model.service";
 import ccgLeaderboardService from "./ccg-leaderboard.service";
 import ccgPublisherService from "./ccg-publisher.service";
 import characterContinuityService from "./character-continuity.service";
@@ -323,6 +332,33 @@ type CcgSeriesRef = {
 type CcgCardOwnershipState = {
   seriesOwned: boolean;
   snapshotOwned: boolean;
+};
+
+type CcgCollectionFinishRow = {
+  finish: CcgFinish;
+  quantity: number;
+  alternativeQuantity?: number;
+};
+
+type CcgCollectionRow = {
+  _id: { setId: mongoose.Types.ObjectId; characterId: mongoose.Types.ObjectId };
+  totalQuantity: number;
+  finishes: CcgCollectionFinishRow[];
+  card: ICcgCard;
+  accessibleCards: ICcgCard[];
+};
+
+type CcgCollectionRows = {
+  items: CcgCollectionRow[];
+  count: Array<{ total: number }>;
+};
+
+type CcgCollectionReadSeriesRow = {
+  _id: mongoose.Types.ObjectId;
+  setId: mongoose.Types.ObjectId;
+  characterId: mongoose.Types.ObjectId;
+  unlockedSnapshotVersions: number[];
+  collectionCardId: mongoose.Types.ObjectId;
 };
 
 type CcgPackOpenState = {
@@ -1541,6 +1577,107 @@ class CcgService {
     };
   }
 
+  private async getDefaultCollectionRows(
+    owner: CcgOwner,
+    enabledSetIds: mongoose.Types.ObjectId[],
+    page: number,
+    limit: number,
+  ): Promise<CcgCollectionRows | null> {
+    const match = {
+      ownerType: owner.ownerType,
+      ownerId: owner.ownerId,
+      setId: { $in: enabledSetIds },
+      collectionReadModelVersion: CCG_COLLECTION_READ_MODEL_VERSION,
+    };
+    const [seriesRows, total, unmaterialized] = await Promise.all([
+      CcgSeriesOwnership.find(match)
+        .sort({
+          collectionSortGrade: 1,
+          collectionSortSetNumber: 1,
+          collectionSortName: 1,
+          setId: 1,
+          characterId: 1,
+        })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .select("setId characterId unlockedSnapshotVersions collectionCardId")
+        .lean<CcgCollectionReadSeriesRow[]>(),
+      CcgSeriesOwnership.countDocuments(match),
+      CcgSeriesOwnership.exists({
+        ownerType: owner.ownerType,
+        ownerId: owner.ownerId,
+        setId: { $in: enabledSetIds },
+        collectionReadModelVersion: { $ne: CCG_COLLECTION_READ_MODEL_VERSION },
+        collectionReadModelIssue: { $ne: CCG_COLLECTION_READ_MODEL_MISSING_FINISH },
+      }),
+    ]);
+    if (unmaterialized) return null;
+    if (seriesRows.length === 0) return { items: [], count: total > 0 ? [{ total }] : [] };
+
+    const seriesFilters = seriesRows.map((row) => ({ setId: row.setId, characterId: row.characterId }));
+    const cardFilters = seriesRows.map((row) => ({
+      setId: row.setId,
+      characterId: row.characterId,
+      snapshotVersion: { $in: row.unlockedSnapshotVersions },
+    }));
+    const [finishes, cards] = await Promise.all([
+      CcgOwnership.find({
+        ownerType: owner.ownerType,
+        ownerId: owner.ownerId,
+        quantity: { $gt: 0 },
+        $or: seriesFilters,
+      })
+        .select("setId characterId finish quantity alternativeQuantity -_id")
+        .lean(),
+      CcgCard.find({ $or: cardFilters })
+        .sort({ snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 })
+        .lean(),
+    ]);
+    const finishesBySeries = new Map<string, CcgCollectionFinishRow[]>();
+    for (const finish of finishes) {
+      const key = getSeriesKey(finish);
+      const current = finishesBySeries.get(key);
+      const serialized = {
+        finish: finish.finish,
+        quantity: finish.quantity,
+        alternativeQuantity: finish.alternativeQuantity ?? 0,
+      };
+      if (current) current.push(serialized);
+      else finishesBySeries.set(key, [serialized]);
+    }
+    const cardsBySeries = new Map<string, ICcgCard[]>();
+    const cardById = new Map<string, ICcgCard>();
+    for (const card of cards) {
+      const key = getSeriesKey(card);
+      const current = cardsBySeries.get(key);
+      if (current) current.push(card);
+      else cardsBySeries.set(key, [card]);
+      cardById.set(String(card._id), card);
+    }
+
+    const items: CcgCollectionRow[] = [];
+    for (const row of seriesRows) {
+      const key = getSeriesKey(row);
+      const ownedFinishes = finishesBySeries.get(key) ?? [];
+      const accessibleCards = cardsBySeries.get(key) ?? [];
+      const card = cardById.get(String(row.collectionCardId));
+      if (!card || ownedFinishes.length === 0 || accessibleCards.length === 0) return null;
+      ownedFinishes.sort((left, right) => left.finish.localeCompare(right.finish));
+      accessibleCards.sort((left, right) => compareCcgCollectionCards(
+        left as unknown as CcgCollectionReadModelCard,
+        right as unknown as CcgCollectionReadModelCard,
+      ));
+      items.push({
+        _id: { setId: row.setId, characterId: row.characterId },
+        totalQuantity: ownedFinishes.reduce((sum, finish) => sum + finish.quantity, 0),
+        finishes: ownedFinishes,
+        card,
+        accessibleCards,
+      });
+    }
+    return { items, count: [{ total }] };
+  }
+
   async getCollection(
     owner: CcgOwner,
     options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string; characterId?: string; sort?: string; alternativeOnly?: boolean; favoriteOnly?: boolean },
@@ -1603,7 +1740,17 @@ class CcgService {
       match.$and = [...(Array.isArray(match.$and) ? match.$and : []), alternativeConstraint];
     }
 
-    const rows = await CcgSeriesOwnership.aggregate<{
+    const canUseDefaultReadModel = !options.setSlug
+      && !finishMatch
+      && !sort
+      && Object.keys(cardMatch).length === 0
+      && !options.alternativeOnly
+      && !options.favoriteOnly;
+    const defaultRows = canUseDefaultReadModel
+      ? await this.getDefaultCollectionRows(owner, sets.map((set) => set._id), page, limit)
+      : null;
+    let rows = defaultRows;
+    if (!rows) rows = await CcgSeriesOwnership.aggregate<{
       _id: { setId: mongoose.Types.ObjectId; characterId: mongoose.Types.ObjectId };
       totalQuantity: number;
       finishes: Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>;
@@ -1704,16 +1851,8 @@ class CcgService {
           count: [{ $count: "total" }],
         },
       },
-    ]).then((result) => (result[0] ?? { items: [], count: [] }) as unknown as {
-      items: Array<{
-        _id: { setId: mongoose.Types.ObjectId; characterId: mongoose.Types.ObjectId };
-        totalQuantity: number;
-        finishes: Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>;
-        card: ICcgCard;
-        accessibleCards: ICcgCard[];
-      }>;
-      count: Array<{ total: number }>;
-    });
+    ]).then((result) => (result[0] ?? { items: [], count: [] }) as unknown as CcgCollectionRows);
+    if (!rows) throw new Error("CCG collection query did not return a result");
     const total = rows.count[0]?.total ?? 0;
     const collectionCards = rows.items.flatMap((row) => row.accessibleCards);
     const [alternativeByCollector, unlockedAlternativeSeries] = await Promise.all([
@@ -4211,27 +4350,71 @@ class CcgService {
         });
       }
     }
+    const seriesRows = Array.from(series.values());
+    const existingSeries = await CcgSeriesOwnership.find({
+      ownerType: owner.ownerType,
+      ownerId: owner.ownerId,
+      $or: seriesRows.map((row) => ({ setId: row.setId, characterId: row.characterId })),
+    })
+      .select("setId characterId unlockedSnapshotVersions")
+      .session(session)
+      .lean();
+    for (const existing of existingSeries) {
+      const target = series.get(getSeriesKey(existing));
+      if (!target) continue;
+      for (const version of existing.unlockedSnapshotVersions) target.snapshotVersions.add(version);
+    }
+    const cards = await CcgCard.find({
+      $or: seriesRows.map((row) => ({
+        setId: row.setId,
+        characterId: row.characterId,
+        snapshotVersion: { $in: Array.from(row.snapshotVersions) },
+      })),
+    })
+      .select("_id setId characterId snapshotVersion tierGrade setNumber name performanceSnapshotAt publishedAt")
+      .session(session)
+      .lean<CcgCollectionReadModelCard[]>();
+    const cardsBySeries = new Map<string, CcgCollectionReadModelCard[]>();
+    for (const card of cards) {
+      const key = createCcgSeriesKey(card);
+      const current = cardsBySeries.get(key);
+      if (current) current.push(card);
+      else cardsBySeries.set(key, [card]);
+    }
     const now = new Date();
     await CcgSeriesOwnership.bulkWrite(
-      Array.from(series.values()).map((row) => ({
-        updateOne: {
-          filter: {
-            ownerType: owner.ownerType,
-            ownerId: owner.ownerId,
-            setId: row.setId,
-            characterId: row.characterId,
-          },
-          update: {
-            $addToSet: { unlockedSnapshotVersions: { $each: Array.from(row.snapshotVersions) } },
-            $set: { lastAcquiredAt: now },
-            $setOnInsert: {
-              firstAcquiredAt: now,
-              dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
+      seriesRows.map((row) => {
+        const representative = selectCcgCollectionCard(
+          cardsBySeries.get(createCcgSeriesKey(row)) ?? [],
+          Array.from(row.snapshotVersions),
+        );
+        if (!representative) {
+          throw new Error(`Cannot grant CCG series ${createCcgSeriesKey(row)} without an explicitly unlocked card snapshot`);
+        }
+        return {
+          updateOne: {
+            filter: {
+              ownerType: owner.ownerType,
+              ownerId: owner.ownerId,
+              setId: row.setId,
+              characterId: row.characterId,
             },
+            update: {
+              $addToSet: { unlockedSnapshotVersions: { $each: Array.from(row.snapshotVersions) } },
+              $set: {
+                lastAcquiredAt: now,
+                ...buildCcgCollectionReadModel(representative),
+              },
+              $setOnInsert: {
+                firstAcquiredAt: now,
+                dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
+              },
+              $unset: { collectionReadModelIssue: "" },
+            },
+            upsert: true,
           },
-          upsert: true,
-        },
-      })),
+        };
+      }),
       { session, ordered: true },
     );
     await CcgOwnership.bulkWrite(

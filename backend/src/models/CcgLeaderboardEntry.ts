@@ -31,7 +31,7 @@ const ScoreBreakdownSchema = new Schema(
     completedCards: { type: Number, required: true, min: 0 },
     completedSets: { type: Number, required: true, min: 0 },
   },
-  { _id: false },
+  { _id: false, suppressReservedKeysWarning: true },
 );
 
 const CcgLeaderboardEntrySchema = new Schema<ICcgLeaderboardEntry>(

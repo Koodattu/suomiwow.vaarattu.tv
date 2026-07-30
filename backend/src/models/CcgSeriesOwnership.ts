@@ -10,6 +10,13 @@ export interface ICcgSeriesOwnership extends Document {
   firstAcquiredAt: Date;
   lastAcquiredAt: Date;
   dateKey?: string | null;
+  collectionReadModelVersion?: number;
+  collectionReadModelIssue?: "missing_finish_ownership" | null;
+  collectionCardId?: mongoose.Types.ObjectId | null;
+  collectionSnapshotVersion?: number | null;
+  collectionSortGrade?: number | null;
+  collectionSortSetNumber?: number | null;
+  collectionSortName?: string | null;
 }
 
 const CcgSeriesOwnershipSchema = new Schema<ICcgSeriesOwnership>(
@@ -22,6 +29,13 @@ const CcgSeriesOwnershipSchema = new Schema<ICcgSeriesOwnership>(
     firstAcquiredAt: { type: Date, required: true, default: Date.now },
     lastAcquiredAt: { type: Date, required: true, default: Date.now },
     dateKey: { type: String, default: null },
+    collectionReadModelVersion: { type: Number, min: 0 },
+    collectionReadModelIssue: { type: String, enum: ["missing_finish_ownership", null], default: null },
+    collectionCardId: { type: Schema.Types.ObjectId, ref: "CcgCard" },
+    collectionSnapshotVersion: { type: Number, min: 1 },
+    collectionSortGrade: { type: Number, min: 0 },
+    collectionSortSetNumber: { type: Number, min: 1 },
+    collectionSortName: { type: String },
   },
   { timestamps: false },
 );
@@ -29,5 +43,20 @@ const CcgSeriesOwnershipSchema = new Schema<ICcgSeriesOwnership>(
 CcgSeriesOwnershipSchema.index(
   { ownerType: 1, ownerId: 1, setId: 1, characterId: 1 },
   { unique: true, name: "ccg_series_ownership_owner_series" },
+);
+CcgSeriesOwnershipSchema.index(
+  {
+    ownerType: 1,
+    ownerId: 1,
+    collectionSortGrade: 1,
+    collectionSortSetNumber: 1,
+    collectionSortName: 1,
+    setId: 1,
+    characterId: 1,
+  },
+  {
+    name: "ccg_series_collection_default_v1",
+    partialFilterExpression: { collectionReadModelVersion: 1 },
+  },
 );
 export default mongoose.model<ICcgSeriesOwnership>("CcgSeriesOwnership", CcgSeriesOwnershipSchema);

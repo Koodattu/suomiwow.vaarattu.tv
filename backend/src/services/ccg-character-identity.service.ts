@@ -12,6 +12,7 @@ import { isBlizzardIdentityOverrideActive } from "../utils/character-identity";
 import { CharacterContinuityGraph } from "../utils/character-continuity";
 import { createCharacterCollectorKey, createWowCharacterIdentityKey } from "../utils/ccg-identity";
 import logger from "../utils/logger";
+import { refreshCcgCollectionReadModelsForSeries } from "./ccg-collection-read-model.service";
 import characterContinuityService from "./character-continuity.service";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
@@ -312,6 +313,7 @@ class CcgCharacterIdentityService {
         },
         { session },
       );
+      await refreshCcgCollectionReadModelsForSeries(card.setId, rootCharacterId, session);
       changedSetIds.push(card.setId);
     }
 

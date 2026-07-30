@@ -6,13 +6,47 @@ import CcgJobLock from "../models/CcgJobLock";
 import CcgMigration from "../models/CcgMigration";
 import CcgOwnership from "../models/CcgOwnership";
 import CcgSeriesOwnership from "../models/CcgSeriesOwnership";
+import CcgSeriesOwnershipArchive from "../models/CcgSeriesOwnershipArchive";
 import logger from "../utils/logger";
+import {
+  buildCcgCollectionReadModel,
+  CCG_COLLECTION_READ_MODEL_MISSING_FINISH,
+  CcgCollectionReadModelCard,
+  createCcgOwnerSeriesKey,
+  createCcgSeriesKey,
+  selectCcgCollectionCard,
+} from "./ccg-collection-read-model.service";
 
 const SERIES_MIGRATION_KEY = "ccg-series-ownership-v1";
 const SNAPSHOT_UNLOCK_MIGRATION_KEY = "ccg-explicit-snapshot-unlocks-v2";
+const COLLECTION_READ_MODEL_MIGRATION_KEY = "ccg-collection-read-model-v3";
 const LOCK_DURATION_MS = 10 * 60 * 1000;
 const WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const BATCH_SIZE = 500;
+const READ_MODEL_BATCH_SIZE = 1_000;
+const ARCHIVE_BATCH_SIZE = 100;
+
+type SeriesOwnershipArchiveSource = {
+  _id: mongoose.Types.ObjectId;
+  ownerType: "user" | "guest";
+  ownerId: mongoose.Types.ObjectId;
+  setId: mongoose.Types.ObjectId;
+  characterId: mongoose.Types.ObjectId;
+  [key: string]: unknown;
+};
+
+export function buildCcgSeriesOwnershipArchiveDocument(
+  sourceDocument: SeriesOwnershipArchiveSource,
+  archivedAt: Date,
+): Record<string, unknown> & { _id: mongoose.Types.ObjectId } {
+  return {
+    _id: sourceDocument._id,
+    sourceDocument,
+    reason: CCG_COLLECTION_READ_MODEL_MISSING_FINISH,
+    migrationKey: COLLECTION_READ_MODEL_MIGRATION_KEY,
+    archivedAt,
+  };
+}
 
 type OwnershipGroup = {
   _id: {
@@ -311,6 +345,165 @@ async function runSnapshotUnlockMigration(): Promise<{ rows: number }> {
   return { rows: migratedRows };
 }
 
+async function archiveAndRemoveInconsistentSeriesOwnerships(
+  rowIds: mongoose.Types.ObjectId[],
+): Promise<number> {
+  if (rowIds.length === 0) return 0;
+  await CcgSeriesOwnershipArchive.init();
+  let archived = 0;
+
+  for (let offset = 0; offset < rowIds.length; offset += ARCHIVE_BATCH_SIZE) {
+    const batchIds = rowIds.slice(offset, offset + ARCHIVE_BATCH_SIZE);
+    const session = await mongoose.startSession();
+    let batchArchived = 0;
+    try {
+      await session.withTransaction(async () => {
+        const sourceDocuments = await CcgSeriesOwnership.collection
+          .find({ _id: { $in: batchIds } }, { session })
+          .toArray() as SeriesOwnershipArchiveSource[];
+        if (sourceDocuments.length !== batchIds.length) {
+          throw new Error("CCG series ownership changed while inconsistent rows were being archived");
+        }
+
+        const finishOwnerships = await CcgOwnership.find({
+          quantity: { $gt: 0 },
+          $or: sourceDocuments.map((row) => ({
+            ownerType: row.ownerType,
+            ownerId: row.ownerId,
+            setId: row.setId,
+            characterId: row.characterId,
+          })),
+        })
+          .select("ownerType ownerId setId characterId")
+          .session(session)
+          .lean();
+        if (finishOwnerships.length > 0) {
+          throw new Error("CCG finish ownership changed while inconsistent rows were being archived");
+        }
+
+        const archivedAt = new Date();
+        await CcgSeriesOwnershipArchive.collection.bulkWrite(
+          sourceDocuments.map((sourceDocument) => ({
+            updateOne: {
+              filter: { _id: sourceDocument._id },
+              update: { $setOnInsert: buildCcgSeriesOwnershipArchiveDocument(sourceDocument, archivedAt) },
+              upsert: true,
+            },
+          })),
+          { ordered: true, session },
+        );
+        const archivedCopies = await CcgSeriesOwnershipArchive.countDocuments({
+          _id: { $in: sourceDocuments.map((row) => row._id) },
+        }).session(session);
+        if (archivedCopies !== sourceDocuments.length) {
+          throw new Error("CCG inconsistent series archive verification failed before active rows were removed");
+        }
+
+        const result = await CcgSeriesOwnership.deleteMany({
+          _id: { $in: sourceDocuments.map((row) => row._id) },
+        }).session(session);
+        if (result.deletedCount !== sourceDocuments.length) {
+          throw new Error("CCG inconsistent series removal did not match its verified archive");
+        }
+        batchArchived = sourceDocuments.length;
+      });
+      archived += batchArchived;
+    } finally {
+      await session.endSession();
+    }
+  }
+  return archived;
+}
+
+async function runCollectionReadModelMigration(): Promise<{
+  rows: number;
+  scanned: number;
+  materialized: number;
+  archived: number;
+}> {
+  const [sourceRowCount, cards] = await Promise.all([
+    CcgSeriesOwnership.countDocuments({}),
+    CcgCard.find({})
+      .select("_id setId characterId snapshotVersion tierGrade setNumber name performanceSnapshotAt publishedAt")
+      .lean<CcgCollectionReadModelCard[]>(),
+  ]);
+  const cardsBySeries = new Map<string, CcgCollectionReadModelCard[]>();
+  for (const card of cards) {
+    const key = createCcgSeriesKey(card);
+    const existing = cardsBySeries.get(key);
+    if (existing) existing.push(card);
+    else cardsBySeries.set(key, [card]);
+  }
+
+  const ownedSeries = new Set<string>();
+  const ownershipCursor = CcgOwnership.find({
+    ownerType: { $in: ["user", "guest"] },
+    ownerId: { $type: "objectId" },
+    setId: { $type: "objectId" },
+    characterId: { $type: "objectId" },
+    quantity: { $gt: 0 },
+  })
+    .select("ownerType ownerId setId characterId")
+    .lean()
+    .cursor();
+  for await (const ownership of ownershipCursor) ownedSeries.add(createCcgOwnerSeriesKey(ownership));
+
+  const cursor = CcgSeriesOwnership.find({})
+    .select("ownerType ownerId setId characterId unlockedSnapshotVersions")
+    .lean()
+    .cursor();
+  let operations: mongoose.mongo.AnyBulkWriteOperation[] = [];
+  let rows = 0;
+  let materialized = 0;
+  const inconsistentRowIds: mongoose.Types.ObjectId[] = [];
+
+  const flush = async (): Promise<void> => {
+    if (operations.length === 0) return;
+    await CcgSeriesOwnership.collection.bulkWrite(operations, { ordered: false });
+    operations = [];
+  };
+
+  for await (const row of cursor) {
+    rows += 1;
+    if (!ownedSeries.has(createCcgOwnerSeriesKey(row))) {
+      inconsistentRowIds.push(row._id);
+    } else {
+      const card = selectCcgCollectionCard(
+        cardsBySeries.get(createCcgSeriesKey(row)) ?? [],
+        row.unlockedSnapshotVersions,
+      );
+      if (!card) {
+        throw new Error(`CCG collection read model could not resolve an explicitly unlocked snapshot for series ${row._id}`);
+      }
+      materialized += 1;
+      operations.push({
+        updateOne: {
+          filter: { _id: row._id },
+          update: {
+            $set: buildCcgCollectionReadModel(card),
+            $unset: { collectionReadModelIssue: "" },
+          },
+        },
+      });
+    }
+
+    if (operations.length >= READ_MODEL_BATCH_SIZE) await flush();
+    if (rows % 25_000 === 0) logger.info(`[CCG] Materialized collection read model for ${rows}/${sourceRowCount} series`);
+  }
+  await flush();
+
+  if (rows !== sourceRowCount) {
+    throw new Error("CCG series ownership changed while its collection read model was being scanned");
+  }
+  const archived = await archiveAndRemoveInconsistentSeriesOwnerships(inconsistentRowIds);
+  const finalRowCount = await CcgSeriesOwnership.countDocuments({});
+  if (finalRowCount !== sourceRowCount - archived || materialized !== finalRowCount) {
+    throw new Error("CCG series ownership changed while its collection read model was being materialized");
+  }
+  await CcgSeriesOwnership.createIndexes();
+  return { rows: finalRowCount, scanned: rows, materialized, archived };
+}
+
 async function ensureMigration(
   migrationKey: string,
   run: () => Promise<Record<string, number>>,
@@ -348,5 +541,10 @@ export async function ensureCcgSeriesOwnershipMigration(): Promise<void> {
     SNAPSHOT_UNLOCK_MIGRATION_KEY,
     runSnapshotUnlockMigration,
     (details) => `[CCG] Migrated ${details.rows} card series to explicit snapshot unlocks`,
+  );
+  await ensureMigration(
+    COLLECTION_READ_MODEL_MIGRATION_KEY,
+    runCollectionReadModelMigration,
+    (details) => `[CCG] Materialized ${details.materialized} collection series and archived ${details.archived} inconsistent series`,
   );
 }
