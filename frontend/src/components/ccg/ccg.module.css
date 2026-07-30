@@ -5738,6 +5738,13 @@
   font-size: 0.78rem;
 }
 
+@media (min-width: 1101px) {
+  .vaultCurrentActions .primaryButton,
+  .vaultAllActions .primaryButton {
+    width: 12rem;
+  }
+}
+
 .vaultAllSet {
   position: relative;
   min-width: 0;
