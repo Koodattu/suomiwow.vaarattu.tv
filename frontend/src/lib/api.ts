@@ -2735,6 +2735,42 @@ export async function triggerRefreshMythicPlusCurrentSeason(): Promise<MythicPlu
   return data;
 }
 
+export async function triggerFetchMissingMythicPlusCharacters(): Promise<MythicPlusCrawlerTriggerResponse> {
+  const response = await fetch(`${API_URL}/api/admin/trigger/crawl-mythic-plus`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "missing" }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Failed to fetch missing Mythic+ characters");
+  return data;
+}
+
+export async function triggerRetryFailedMythicPlusFetches(): Promise<MythicPlusCrawlerTriggerResponse> {
+  const response = await fetch(`${API_URL}/api/admin/trigger/crawl-mythic-plus`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "failed" }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Failed to retry Mythic+ fetch errors");
+  return data;
+}
+
+export async function triggerRepairMythicPlusHistoricalScores(): Promise<MythicPlusCrawlerTriggerResponse> {
+  const response = await fetch(`${API_URL}/api/admin/trigger/crawl-mythic-plus`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "historical_repair", limit: 10000 }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Failed to repair missing historical Mythic+ scores");
+  return data;
+}
+
 export async function triggerRebuildCharacterAccountGroups(): Promise<CharacterAccountGroupRebuildResponse> {
   const response = await fetch(`${API_URL}/api/admin/trigger/rebuild-character-account-groups`, {
     method: "POST",

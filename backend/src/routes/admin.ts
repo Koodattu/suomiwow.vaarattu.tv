@@ -3387,13 +3387,58 @@ router.post("/trigger/backfill-character-rankings", async (req: Request, res: Re
 // Queue and start Raider.IO Mythic+ score/run crawler
 router.post("/trigger/crawl-mythic-plus", async (req: Request, res: Response) => {
   try {
-    const mode = req.body?.mode === "historical" || req.body?.mode === "current" ? req.body.mode : "limited";
+    const requestedMode = req.body?.mode;
+    const mode =
+      requestedMode === "historical" ||
+      requestedMode === "current" ||
+      requestedMode === "missing" ||
+      requestedMode === "failed" ||
+      requestedMode === "historical_repair"
+        ? requestedMode
+        : "limited";
     const limitRaw = Number(req.body?.limit ?? 500);
     const maxJobsRaw = Number(req.body?.maxJobs ?? 0);
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 10000) : 500;
     const maxJobs = Number.isFinite(maxJobsRaw) && maxJobsRaw > 0 ? Math.floor(maxJobsRaw) : undefined;
     const process = req.body?.process !== false;
     const syncStatic = req.body?.syncStatic !== false;
+
+    if (mode === "missing") {
+      const result = await mythicPlusService.triggerMissingProfileCrawl({ maxJobs, process });
+      res.json({
+        success: true,
+        message: result.started
+          ? `Mythic+ missing-character fetch started: ${result.enqueue.queued} never-fetched eligible character(s) queued`
+          : `Mythic+ missing-character fetch queued: ${result.enqueue.queued} never-fetched eligible character(s)`,
+        ...result,
+      });
+      return;
+    }
+
+    if (mode === "failed") {
+      const result = await mythicPlusService.triggerFailedProfileRetry({ maxJobs, process });
+      res.json({
+        success: true,
+        message: result.started
+          ? `Mythic+ failed score fetch retry started: ${result.enqueue.candidates} profile job(s) reset`
+          : `Mythic+ failed score fetches queued: ${result.enqueue.candidates} profile job(s) reset`,
+        ...result,
+      });
+      return;
+    }
+
+    if (mode === "historical_repair") {
+      const result = await mythicPlusService.triggerHistoricalScoreRepair({ maxJobs, process, limit });
+      res.json({
+        success: true,
+        message: result.started
+          ? `Mythic+ historical score repair started: ${result.enqueue.queued} character(s), ${result.enqueue.missingSeasonPairs} missing season score(s)`
+          : `Mythic+ historical score repair queued: ${result.enqueue.queued} character(s), ${result.enqueue.missingSeasonPairs} missing season score(s)`,
+        ...result,
+      });
+      return;
+    }
+
     const result =
       mode === "historical"
         ? await mythicPlusService.triggerHistoricalBackfill({ maxJobs, process, syncStatic })

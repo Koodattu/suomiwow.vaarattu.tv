@@ -1132,6 +1132,13 @@
       "tasks": "Tasks",
       "ccg": "CCG"
     },
+    "mythicPlus": {
+      "coverageRecovery": "Coverage and recovery",
+      "coverageRecoveryHelp": "Missing queues only eligible characters that have never had a profile fetch. Retry resets failed score fetches; not-found and class-mismatch results stay untouched.",
+      "fetchMissing": "Fetch Missing Characters",
+      "retryFailed": "Retry Failed Score Fetches",
+      "repairHistorical": "Repair Missing Historical Scores"
+    },
     "ccg": {
       "title": "CCG administration",
       "description": "Preview published cards, manage the Community pool, and control raid-set publication.",

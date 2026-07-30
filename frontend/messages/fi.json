@@ -1132,6 +1132,13 @@
       "tasks": "Tehtävät",
       "ccg": "CCG"
     },
+    "mythicPlus": {
+      "coverageRecovery": "Kattavuus ja palautus",
+      "coverageRecoveryHelp": "Puuttuvat-toiminto jonottaa vain kelvolliset hahmot, joille ei ole koskaan tehty profiilihakua. Uudelleenyritys nollaa epäonnistuneet pistehaut; ei löytynyt- ja väärä luokka -tuloksia ei muuteta.",
+      "fetchMissing": "Nouda puuttuvat hahmot",
+      "retryFailed": "Yritä epäonnistuneita pistehakuja uudelleen",
+      "repairHistorical": "Korjaa puuttuvat historialliset pisteet"
+    },
     "ccg": {
       "title": "CCG-hallinta",
       "description": "Esikatsele julkaistuja kortteja, hallitse Community-poolia ja ohjaa raidisettien julkaisua.",

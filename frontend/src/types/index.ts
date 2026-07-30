@@ -3326,9 +3326,9 @@ export interface MythicPlusCrawlerStatusResponse {
 }
 
 export interface MythicPlusCrawlerTriggerResponse extends TriggerResponse {
-  mode: "historical" | "current";
+  mode: "historical" | "current" | "missing" | "failed" | "historical_repair";
   started: boolean;
-  static: {
+  static?: {
     seasons: number;
     dungeons: number;
   };
@@ -3353,6 +3353,13 @@ export interface MythicPlusCrawlerTriggerResponse extends TriggerResponse {
           candidates: number;
           queued: number;
         };
+      }
+    | {
+        currentSeason: string | null;
+        historicalSeasons: string[];
+        candidates: number;
+        queued: number;
+        missingSeasonPairs: number;
       };
   status: MythicPlusCrawlerStatusResponse;
 }

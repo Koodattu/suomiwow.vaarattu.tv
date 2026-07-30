@@ -28,7 +28,10 @@ import {
   triggerBackfillCharacterRankings,
   triggerBackfillCharacterAchievements,
   triggerBackfillMythicPlusHistorical,
+  triggerFetchMissingMythicPlusCharacters,
   triggerRefreshMythicPlusCurrentSeason,
+  triggerRepairMythicPlusHistoricalScores,
+  triggerRetryFailedMythicPlusFetches,
   triggerRebuildCharacterAccountGroups,
   triggerRebuildGuildNetworkSnapshot,
   triggerRebuildCharacterRankingLeaderboards,
@@ -892,7 +895,13 @@ export default function AdminPage() {
         const status = await api.getAdminCharacterAchievementBackfillStatus();
         setCharacterAchievementBackfillStatus(status);
       }
-      if (triggerName === "backfill-mythic-plus-historical" || triggerName === "refresh-mythic-plus-current") {
+      if (
+        triggerName === "backfill-mythic-plus-historical" ||
+        triggerName === "fetch-missing-mythic-plus-characters" ||
+        triggerName === "refresh-mythic-plus-current" ||
+        triggerName === "repair-mythic-plus-historical" ||
+        triggerName === "retry-failed-mythic-plus-fetches"
+      ) {
         const status = await api.getAdminMythicPlusCrawlerStatus();
         setMythicPlusCrawlerStatus(status);
       }
@@ -2476,7 +2485,19 @@ export default function AdminPage() {
                 </ManualActionCard>
 
                 <ManualActionCard icon="🗝️" title="Mythic+ Pipeline">
+                  <ManualActionGroup title={t("mythicPlus.coverageRecovery")}>
+                    <p className="text-xs leading-relaxed text-gray-500 text-pretty">{t("mythicPlus.coverageRecoveryHelp")}</p>
+                    {renderTriggerButton("fetch-missing-mythic-plus-characters", t("mythicPlus.fetchMissing"), triggerFetchMissingMythicPlusCharacters, {
+                      disabled: mythicPlusCrawlerStatus?.processor.isRunning,
+                    })}
+                    {renderTriggerButton("retry-failed-mythic-plus-fetches", t("mythicPlus.retryFailed"), triggerRetryFailedMythicPlusFetches, {
+                      disabled: mythicPlusCrawlerStatus?.processor.isRunning,
+                    })}
+                  </ManualActionGroup>
                   <ManualActionGroup title="Historical data">
+                    {renderTriggerButton("repair-mythic-plus-historical", t("mythicPlus.repairHistorical"), triggerRepairMythicPlusHistoricalScores, {
+                      disabled: mythicPlusCrawlerStatus?.processor.isRunning,
+                    })}
                     {renderTriggerButton("backfill-mythic-plus-historical", "Start Full Historical Backfill", triggerBackfillMythicPlusHistorical, {
                       disabled: mythicPlusCrawlerStatus?.processor.isRunning,
                     })}
@@ -5686,7 +5707,17 @@ export default function AdminPage() {
                 <span>🗝️</span> Mythic+ Crawler
               </h2>
               <div className="bg-gray-800 rounded-lg p-6 space-y-4">
+                <p className="text-sm leading-relaxed text-gray-400 text-pretty">{t("mythicPlus.coverageRecoveryHelp")}</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {renderTriggerButton("fetch-missing-mythic-plus-characters", t("mythicPlus.fetchMissing"), triggerFetchMissingMythicPlusCharacters, {
+                    disabled: mythicPlusCrawlerStatus?.processor.isRunning,
+                  })}
+                  {renderTriggerButton("retry-failed-mythic-plus-fetches", t("mythicPlus.retryFailed"), triggerRetryFailedMythicPlusFetches, {
+                    disabled: mythicPlusCrawlerStatus?.processor.isRunning,
+                  })}
+                  {renderTriggerButton("repair-mythic-plus-historical", t("mythicPlus.repairHistorical"), triggerRepairMythicPlusHistoricalScores, {
+                    disabled: mythicPlusCrawlerStatus?.processor.isRunning,
+                  })}
                   {renderTriggerButton("backfill-mythic-plus-historical", "Start Full Historical Backfill", triggerBackfillMythicPlusHistorical, {
                     disabled: mythicPlusCrawlerStatus?.processor.isRunning,
                   })}

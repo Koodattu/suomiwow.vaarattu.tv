@@ -956,7 +956,7 @@ class MythicPlusService {
       if (operations.length >= 1000) {
         const result = await CharacterMythicPlusFetchJob.bulkWrite(operations, { ordered: false });
         queued += result.upsertedCount ?? 0;
-        existing += (result.matchedCount ?? 0) + (result.modifiedCount ?? 0);
+        existing += result.matchedCount ?? 0;
         operations.length = 0;
       }
     }
@@ -964,10 +964,40 @@ class MythicPlusService {
     if (operations.length > 0) {
       const result = await CharacterMythicPlusFetchJob.bulkWrite(operations, { ordered: false });
       queued += result.upsertedCount ?? 0;
-      existing += (result.matchedCount ?? 0) + (result.modifiedCount ?? 0);
+      existing += result.matchedCount ?? 0;
     }
 
     return { candidates, queued, existing };
+  }
+
+  async enqueueMissingProfileJobs() {
+    const eligibleCharacterIds = await this.getEligibleCharacterIds();
+    if (eligibleCharacterIds.length === 0) return { candidates: 0, queued: 0, existing: 0 };
+
+    const [charactersWithScores, charactersWithProfileJobs] = await Promise.all([
+      CharacterMythicPlusSeasonScore.distinct("characterId", { characterId: { $in: eligibleCharacterIds } }),
+      CharacterMythicPlusFetchJob.distinct("characterId", {
+        characterId: { $in: eligibleCharacterIds },
+        jobType: "profile",
+        season: null,
+      }),
+    ]);
+    const alreadyTracked = new Set([...charactersWithScores, ...charactersWithProfileJobs].map(String));
+    const missingCharacterIds = eligibleCharacterIds.filter((characterId) => !alreadyTracked.has(String(characterId))).map(String);
+
+    if (missingCharacterIds.length === 0) return { candidates: 0, queued: 0, existing: 0 };
+    return this.enqueueProfileJobs({ characterIds: missingCharacterIds, targetSeasons: [] });
+  }
+
+  async retryFailedProfileJobs() {
+    const failedCharacterIds = await CharacterMythicPlusFetchJob.distinct("characterId", {
+      jobType: "profile",
+      season: null,
+      status: "failed",
+    });
+
+    if (failedCharacterIds.length === 0) return { candidates: 0, queued: 0, existing: 0 };
+    return this.enqueueProfileJobs({ characterIds: failedCharacterIds.map(String), refresh: true, targetSeasons: [] });
   }
 
   private async enqueueSeasonProgressJobs(character: CharacterIdentity, seasons: string[], refresh = false): Promise<number> {
@@ -1326,6 +1356,28 @@ class MythicPlusService {
     const started = options.process === false || enqueue.queued === 0 ? false : this.startProcessing({ maxJobs: options.maxJobs });
     return {
       mode: "historical_repair" as const,
+      started,
+      enqueue,
+      status: await this.getStatus(),
+    };
+  }
+
+  async triggerMissingProfileCrawl(options: { process?: boolean; maxJobs?: number } = {}) {
+    const enqueue = await this.enqueueMissingProfileJobs();
+    const started = options.process === false || enqueue.candidates === 0 ? false : this.startProcessing({ maxJobs: options.maxJobs });
+    return {
+      mode: "missing" as const,
+      started,
+      enqueue,
+      status: await this.getStatus(),
+    };
+  }
+
+  async triggerFailedProfileRetry(options: { process?: boolean; maxJobs?: number } = {}) {
+    const enqueue = await this.retryFailedProfileJobs();
+    const started = options.process === false || enqueue.candidates === 0 ? false : this.startProcessing({ maxJobs: options.maxJobs });
+    return {
+      mode: "failed" as const,
       started,
       enqueue,
       status: await this.getStatus(),
