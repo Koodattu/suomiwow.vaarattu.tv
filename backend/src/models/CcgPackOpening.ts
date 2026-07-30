@@ -11,6 +11,7 @@ export interface ICcgPackResult {
   artVariant?: CcgArtVariant;
   tierGrade: CcgTierGrade;
   isDuplicate: boolean;
+  isNewCard?: boolean;
   isNewFinish?: boolean;
   isNewSnapshot?: boolean;
   bonusPackReward: boolean;
@@ -48,6 +49,7 @@ const ResultSchema = new Schema<ICcgPackResult>(
     artVariant: { type: String, enum: ["standard", "alternative"], required: true, default: "standard" },
     tierGrade: { type: String, enum: ["H", "S", "A", "B", "C", "D", "E", "F"], required: true },
     isDuplicate: { type: Boolean, required: true },
+    isNewCard: { type: Boolean },
     isNewFinish: { type: Boolean },
     isNewSnapshot: { type: Boolean },
     bonusPackReward: { type: Boolean, required: true, default: false },

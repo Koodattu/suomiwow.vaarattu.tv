@@ -5803,34 +5803,100 @@
   min-height: 0;
   align-items: start;
   justify-items: center;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 0.5rem;
+  overflow: hidden;
   padding: 0 0 0 0.25rem;
   box-shadow: inset 1px 0 rgba(117, 149, 201, 0.12);
 }
 
-.vaultPackShortcutColumn {
-  display: grid;
-  width: var(--vault-pack-width);
+.vaultPackShortcuts > .balanceCardStrip,
+.vaultPackShortcuts > .vaultBalanceSkeleton {
+  width: min(100%, 30rem);
+  justify-self: center;
+  padding-inline: 0.25rem;
+}
+
+.vaultPackShortcuts .balanceLine {
+  justify-content: center;
+  gap: clamp(2.5rem, 8vw, 5rem);
+}
+
+.vaultPackFan {
+  position: relative;
+  width: 100%;
+  height: 100%;
   min-width: 0;
-  align-content: start;
-  gap: 0.65rem;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
   perspective: 1200px;
 }
 
-.vaultPackShortcutColumn:first-child {
-  justify-self: end;
-  transform: translateX(-0.75rem);
-}
-
-.vaultPackShortcutColumn:last-child {
-  justify-self: start;
-  transform: translateX(0.75rem);
-}
-
-.vaultPackShortcutColumn > .vaultPackShortcut {
-  width: 100%;
+.vaultPackFan > .vaultPackShortcut {
+  --fan-x: 0rem;
+  --fan-y: 0rem;
+  --fan-rotation: 0deg;
+  --fan-scale: 1;
+  --pack-hover-lift: -3px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--vault-pack-width);
+  max-width: 44%;
   cursor: pointer;
+  transform: translate(-50%, -50%) translate(var(--fan-x), var(--fan-y)) rotate(var(--fan-rotation)) scale(var(--fan-scale));
+  transform-origin: 50% 88%;
+  transition-property: transform, filter;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.vaultPackFan > .vaultPackShortcut:nth-child(1) {
+  --fan-x: 0rem;
+  --fan-rotation: -1deg;
+  --fan-scale: 1;
+  z-index: 5;
+}
+
+.vaultPackFan > .vaultPackShortcut:nth-child(2) {
+  --fan-x: 4.5rem;
+  --fan-y: 0.35rem;
+  --fan-rotation: 6deg;
+  --fan-scale: 0.94;
+  z-index: 4;
+}
+
+.vaultPackFan > .vaultPackShortcut:nth-child(3) {
+  --fan-x: 8.5rem;
+  --fan-y: 0.4rem;
+  --fan-rotation: 14deg;
+  --fan-scale: 0.78;
+  z-index: 3;
+}
+
+.vaultPackFan > .vaultPackShortcut:nth-child(4) {
+  --fan-x: -4.75rem;
+  --fan-y: 0rem;
+  --fan-rotation: -8deg;
+  --fan-scale: 0.88;
+  z-index: 2;
+}
+
+.vaultPackFan > .vaultPackShortcut:nth-child(5) {
+  --fan-x: -8.25rem;
+  --fan-y: 0.25rem;
+  --fan-rotation: -15deg;
+  --fan-scale: 0.76;
+  z-index: 1;
+}
+
+.vaultPackFan:hover > .vaultPackShortcut,
+.vaultPackFan:focus-within > .vaultPackShortcut {
+  --pack-lift: -3px;
+  filter: brightness(1.04) saturate(1.05);
+  transform: translate(-50%, -50%) translate(var(--fan-x), calc(var(--fan-y) - 0.125rem)) rotate(var(--fan-rotation)) scale(calc(var(--fan-scale) + 0.008));
 }
 
 .vaultFeatured {
@@ -6381,17 +6447,15 @@
 
 .redeemPackRewards {
   display: grid;
-  width: min(100%, 37rem);
+  width: min(100%, 56rem);
   justify-self: center;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: clamp(0.75rem, 3vw, 2rem);
   padding-block: clamp(0.75rem, 2.4dvh, 1.25rem);
   pointer-events: none;
 }
 
 .redeemPackReward {
-  --reward-accent: #48d2ff;
   display: grid;
+  width: 100%;
   min-width: 0;
   justify-items: center;
   gap: clamp(0.8rem, 1.8dvh, 1rem);
@@ -6399,27 +6463,61 @@
   text-align: center;
 }
 
-.redeemPackReward[data-mode="legacy"] {
-  --reward-accent: #a58aff;
+.redeemPackPile {
+  --reward-pack-columns: 1;
+  --reward-pack-width: 11.5rem;
+  --reward-pack-row-height: 17.5rem;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: repeat(var(--reward-pack-columns), minmax(0, 1fr));
+  grid-auto-rows: var(--reward-pack-row-height);
+  align-items: start;
+  justify-items: center;
+  padding: 0.35rem 0.5rem 0.75rem;
+  perspective: 1200px;
 }
 
 .redeemPackVisual {
-  position: relative;
-  width: min(15rem, calc(54dvh * 0.66));
-  max-width: 100%;
+  --reward-pack-rotation: 0deg;
+  --reward-pack-shift-x: 0px;
+  --reward-pack-shift-y: 0px;
+  --reward-pack-z: 1;
+  width: min(100%, var(--reward-pack-width));
   aspect-ratio: 0.66;
-  pointer-events: auto;
+  z-index: var(--reward-pack-z);
+  cursor: default;
+  pointer-events: none;
+  transform: translate(var(--reward-pack-shift-x), var(--reward-pack-shift-y)) rotate(var(--reward-pack-rotation));
+  transform-origin: 50% 88%;
 }
 
-.redeemPackRewards[data-reward-count="1"] .redeemPackVisual {
-  width: min(11.5rem, calc(46dvh * 0.66));
+.redeemPackPile[data-density="single"] {
+  width: min(100%, 12.5rem);
+}
+
+.redeemPackPile[data-density="small"] {
+  --reward-pack-width: 8.25rem;
+  --reward-pack-row-height: 12.5rem;
+  width: min(100%, 43rem);
+}
+
+.redeemPackPile[data-density="medium"] {
+  --reward-pack-width: 6rem;
+  --reward-pack-row-height: 7.25rem;
+  width: min(100%, 48rem);
+  padding-bottom: 2rem;
+}
+
+.redeemPackPile[data-density="dense"] {
+  --reward-pack-width: 4.25rem;
+  --reward-pack-row-height: clamp(3.2rem, 5.2dvh, 3.8rem);
+  padding-bottom: 2.5rem;
 }
 
 .redeemPackCount {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 0.4rem;
+  display: grid;
+  place-items: center;
 }
 
 .redeemPackCount > strong {
@@ -6429,12 +6527,6 @@
   font-weight: 850;
   letter-spacing: -0.035em;
   line-height: 1;
-}
-
-.redeemPackCount > span {
-  color: color-mix(in srgb, var(--reward-accent) 65%, white);
-  font-size: 0.72rem;
-  font-weight: 720;
 }
 
 .redeemCardReward {
@@ -6698,17 +6790,13 @@
   .vaultPackShortcuts {
     grid-column: 1 / -1;
     grid-row: 2;
-    min-height: 17rem;
-    grid-template-columns: repeat(2, minmax(0, 14rem));
-    justify-content: center;
+    min-height: clamp(22rem, 38vw, 25rem);
     padding: 1rem 0 0;
     box-shadow: inset 0 1px rgba(117, 149, 201, 0.12);
   }
 
-  .vaultPackShortcutColumn:first-child,
-  .vaultPackShortcutColumn:last-child {
-    justify-self: center;
-    transform: none;
+  .vaultPackFan > .vaultPackShortcut {
+    width: min(var(--vault-pack-width), 13.5rem);
   }
 
   .vaultFeatured {
@@ -6752,7 +6840,27 @@
   }
 
   .vaultPackShortcuts {
-    min-height: 18rem;
+    min-height: clamp(18rem, 62vw, 29rem);
+  }
+
+  .vaultPackFan > .vaultPackShortcut:nth-child(1) {
+    --fan-x: 0vw;
+  }
+
+  .vaultPackFan > .vaultPackShortcut:nth-child(2) {
+    --fan-x: 9vw;
+  }
+
+  .vaultPackFan > .vaultPackShortcut:nth-child(3) {
+    --fan-x: 17vw;
+  }
+
+  .vaultPackFan > .vaultPackShortcut:nth-child(4) {
+    --fan-x: -9vw;
+  }
+
+  .vaultPackFan > .vaultPackShortcut:nth-child(5) {
+    --fan-x: -17vw;
   }
 
   .vaultPackShortcuts .balanceCardStrip {
@@ -6961,17 +7069,13 @@
     padding: 1rem 0.25rem;
   }
 
-  .redeemPackRewards {
-    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
-    gap: 0.5rem;
+  .redeemPackPile {
+    padding-inline: 0;
   }
 
-  .redeemPackVisual {
-    width: min(12rem, calc(44dvh * 0.66));
-  }
-
-  .redeemPackRewards[data-reward-count="1"] .redeemPackVisual {
-    width: min(10rem, calc(40dvh * 0.66));
+  .redeemPackPile[data-density="single"] {
+    --reward-pack-width: min(10rem, calc(40dvh * 0.66));
+    --reward-pack-row-height: min(15.25rem, 40dvh);
   }
 
   .redeemRewardCardButton {

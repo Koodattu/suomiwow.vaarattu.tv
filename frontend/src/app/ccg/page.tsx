@@ -33,11 +33,6 @@ function VaultPackShortcut({
   title: string;
   cardsLabel: string;
 }) {
-  const updateMotion = (event: ReactPointerEvent<HTMLAnchorElement>) => {
-    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-    applyPackPointerMotion(event.currentTarget, event.clientX, event.clientY);
-  };
-
   return (
     <Link
       href={href}
@@ -45,14 +40,31 @@ function VaultPackShortcut({
       style={theme}
       aria-label={label}
       draggable={false}
-      onPointerMove={updateMotion}
-      onPointerLeave={(event) => resetPackMotion(event.currentTarget)}
-      onPointerCancel={(event) => resetPackMotion(event.currentTarget)}
-      onBlur={(event) => resetPackMotion(event.currentTarget)}
     >
       <PackBoosterVisual title={title} cardsLabel={cardsLabel} />
     </Link>
   );
+}
+
+function updatePackFanMotion(event: ReactPointerEvent<HTMLDivElement>) {
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+  const fanBounds = event.currentTarget.getBoundingClientRect();
+  const x = Math.max(0, Math.min(1, (event.clientX - fanBounds.left) / fanBounds.width));
+  const y = Math.max(0, Math.min(1, (event.clientY - fanBounds.top) / fanBounds.height));
+  Array.from(event.currentTarget.children).forEach((pack) => {
+    if (!(pack instanceof HTMLElement)) return;
+    const packBounds = pack.getBoundingClientRect();
+    applyPackPointerMotion(pack, packBounds.left + x * packBounds.width, packBounds.top + y * packBounds.height);
+    pack.style.setProperty("--pack-lift", "-3px");
+  });
+}
+
+function resetPackFanMotion(fan: HTMLDivElement) {
+  Array.from(fan.children).forEach((pack) => {
+    if (!(pack instanceof HTMLElement)) return;
+    resetPackMotion(pack);
+    pack.style.setProperty("--pack-lift", "0px");
+  });
 }
 
 function FeaturedCard({ card, onSelect }: { card: CcgCard; onSelect: (event: ReactMouseEvent<HTMLButtonElement>) => void }) {
@@ -91,6 +103,7 @@ export default function CcgLandingPage() {
   const currentOwnedCount = currentSets.reduce((total, set) => total + set.ownedCards, 0);
   const currentProgress = currentCardCount > 0 ? Math.min(100, (currentOwnedCount / currentCardCount) * 100) : 0;
   const legacy = sets.filter((set) => set.kind === "raid" && set.state === "legacy").sort((left, right) => right.zoneId - left.zoneId);
+  const recentPackSets = legacy.slice(0, 3);
   const community = sets.filter((set) => set.kind === "community");
   const collectionSets = [...currentSets, ...legacy, ...community];
   const allCardCount = collectionSets.reduce((total, set) => total + set.cardCount, 0);
@@ -190,30 +203,47 @@ export default function CcgLandingPage() {
           </div>
 
           <nav className={styles.vaultPackShortcuts} aria-label={t("nav.open")}>
-            <div className={styles.vaultPackShortcutColumn}>
+            <div
+              className={styles.vaultPackFan}
+              onPointerMove={updatePackFanMotion}
+              onPointerLeave={(event) => resetPackFanMotion(event.currentTarget)}
+              onPointerCancel={(event) => resetPackFanMotion(event.currentTarget)}
+            >
               {setsLoading ? (
-                <div className={`${packStyles.packButton} ${styles.vaultPackShortcut} ${styles.vaultPackSkeleton}`} aria-hidden="true" />
+                Array.from({ length: 5 }, (_, index) => (
+                  <span key={index} className={`${packStyles.packButton} ${styles.vaultPackShortcut} ${styles.vaultPackSkeleton}`} aria-hidden="true" />
+                ))
               ) : (
-                <VaultPackShortcut
-                  href={current ? `/ccg/open?set=${encodeURIComponent(current.id)}` : "/ccg/open"}
-                  theme={getPackTheme(current)}
-                  label={t("landing.openCurrent")}
-                  title={current?.raidName ?? t("landing.preparing")}
-                  cardsLabel={t("landing.cards")}
-                />
+                <>
+                  <VaultPackShortcut
+                    href={current ? `/ccg/open?set=${encodeURIComponent(current.id)}` : "/ccg/open"}
+                    theme={getPackTheme(current)}
+                    label={t("landing.openCurrent")}
+                    title={current?.raidName ?? t("landing.preparing")}
+                    cardsLabel={t("landing.cards")}
+                  />
+                  <VaultPackShortcut
+                    href="/ccg/open"
+                    theme={getPackTheme(undefined, true)}
+                    label={t("landing.openAllRaids")}
+                    title={t("open.allRaids")}
+                    cardsLabel={t("landing.cards")}
+                  />
+                  {recentPackSets.map((set) => (
+                    <VaultPackShortcut
+                      key={set.id}
+                      href={`/ccg/open?set=${encodeURIComponent(set.id)}`}
+                      theme={getPackTheme(set)}
+                      label={`${t("nav.open")}: ${set.raidName}`}
+                      title={set.raidName}
+                      cardsLabel={t("landing.cards")}
+                    />
+                  ))}
+                </>
               )}
             </div>
-            <div className={styles.vaultPackShortcutColumn}>
-              <VaultPackShortcut
-                href="/ccg/open"
-                theme={getPackTheme(undefined, true)}
-                label={t("landing.openAllRaids")}
-                title={t("open.allRaids")}
-                cardsLabel={t("landing.cards")}
-              />
-            </div>
+            {session ? <PackBalance session={session} strip /> : <div className={styles.vaultBalanceSkeleton} />}
           </nav>
-          {session ? <PackBalance session={session} strip /> : <div className={styles.vaultBalanceSkeleton} />}
 
           <aside className={styles.vaultFeatured} aria-label={t("landing.featuredCard")}>
             {featuredQuery.isPending ? (
@@ -294,7 +324,7 @@ export default function CcgLandingPage() {
           </div>
           <aside className={styles.vaultRedeemSlot}>
             <div className={styles.vaultRedeemTop}>
-              <CcgRedeemPanel currentSet={current} />
+              <CcgRedeemPanel sets={collectionSets} />
             </div>
             <CcgTwitchPanel />
             <CcgAnalyticsPanel />

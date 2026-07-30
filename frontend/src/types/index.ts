@@ -2274,6 +2274,7 @@ export type CcgOpening = {
     finish: CcgFinish;
     artVariant: CcgArtVariant;
     isDuplicate: boolean;
+    isNewCard?: boolean;
     isNewFinish?: boolean;
     isNewSnapshot?: boolean;
     bonusPackReward: boolean;

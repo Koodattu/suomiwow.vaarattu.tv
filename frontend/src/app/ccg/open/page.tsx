@@ -74,14 +74,16 @@ function randomIndex(length: number): number {
 
 function getPullStatusKey(result: CcgOpening["results"][number]):
   | "open.completedBonusPack"
+  | "open.newCard"
   | "open.newFinish"
   | "open.newSnapshot"
   | "open.duplicate"
-  | "open.newCard" {
+  | "open.newPull" {
   if (result.bonusPackReward) return "open.completedBonusPack";
+  if (result.isNewCard) return "open.newCard";
   if (result.isNewFinish) return "open.newFinish";
   if (result.isNewSnapshot) return "open.newSnapshot";
-  return result.isDuplicate ? "open.duplicate" : "open.newCard";
+  return result.isDuplicate ? "open.duplicate" : "open.newPull";
 }
 
 function ArchiveIcon() {
@@ -606,7 +608,7 @@ export default function CcgOpenPage() {
       ? Object.entries(opening.cacheUpdates.ownedCardsBySetDelta)
         .reduce((total, [setId, delta]) => total + (openingCollectionSetIds.has(setId) ? delta : 0), 0)
       : opening.results.reduce((total, result) => (
-        total + (!result.isDuplicate && openingCollectionSetIds.has(result.card.set.id) ? 1 : 0)
+        total + (result.isNewCard && openingCollectionSetIds.has(result.card.set.id) ? 1 : 0)
       ), 0)
     : 0;
   const openingCollectionPreviousCount = Math.max(0, openingCollectionOwnedCount - openingCollectionDelta);
@@ -1037,7 +1039,7 @@ export default function CcgOpenPage() {
                     } as CSSProperties;
                     return (
                       <button
-                        key={`${result.card.id}-${index}`}
+                        key={`${opening.id}-${result.card.id}-${index}`}
                         type="button"
                         className={`${packStyles.revealSlot} ${dealt ? packStyles.revealSlotDealt : ""} ${revealPhase === "ready" ? packStyles.revealSlotReady : ""} ${revealed ? packStyles.revealSlotRevealed : ""} ${special ? packStyles.revealSlotSpecial : ""}`}
                         style={cardStyle}

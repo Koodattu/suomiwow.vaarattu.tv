@@ -79,7 +79,7 @@ export function getPackTheme(
   } as CSSProperties;
 }
 
-export default function PackBoosterVisual({ title, cardsLabel }: { title: string; cardsLabel: string }) {
+export default function PackBoosterVisual({ title, cardsLabel, minimal = false }: { title: string; cardsLabel: string; minimal?: boolean }) {
   const geometryId = useId().replaceAll(":", "");
   const sealGradientId = `pack-seal-${geometryId}`;
   const sideGradientId = `pack-side-${geometryId}`;
@@ -188,17 +188,23 @@ export default function PackBoosterVisual({ title, cardsLabel }: { title: string
               />
             </svg>
           </span>
-          <span className={styles.packBrand}>
-            SuomiWoW <strong>CCG</strong>
-          </span>
-          <span className={styles.packTitle}>{title}</span>
+          {minimal ? null : (
+            <>
+              <span className={styles.packBrand}>
+                SuomiWoW <strong>CCG</strong>
+              </span>
+              <span className={styles.packTitle}>{title}</span>
+            </>
+          )}
           <span className={styles.packSigil} aria-hidden="true">
             <span />
           </span>
-          <span className={styles.packCount}>
-            <strong>5</strong>
-            <span>{cardsLabel}</span>
-          </span>
+          {minimal ? null : (
+            <span className={styles.packCount}>
+              <strong>5</strong>
+              <span>{cardsLabel}</span>
+            </span>
+          )}
         </span>
       </span>
     </>

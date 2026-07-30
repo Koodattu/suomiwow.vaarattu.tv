@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { FormEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, FormEvent, MouseEvent as ReactMouseEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { FaMagnifyingGlassPlus } from "react-icons/fa6";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/lib/api";
-import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
 import type { CcgRedeemResult, CcgSet } from "@/types";
 import CardViewer, { openCardViewer } from "./CardViewer";
 import type { CardViewerOriginBounds } from "./CardViewer";
@@ -18,6 +17,7 @@ import styles from "./ccg.module.css";
 import packStyles from "./pack-opening.module.css";
 
 type DialogPhase = "entering" | "open" | "closing";
+const MAX_REDEEM_PACK_VISUALS = 100;
 type RedeemCardReward = Extract<CcgRedeemResult["reward"], { type: "card" }>;
 type RedeemCardViewer = RedeemCardReward & {
   originElement: HTMLElement;
@@ -25,15 +25,24 @@ type RedeemCardViewer = RedeemCardReward & {
   sharedTransition: boolean;
 };
 
+function rewardPackHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
 function CcgRedeemRewardDialog({
   result,
-  currentSet,
+  sets,
   isInspectingCard,
   onDismiss,
   onInspectCard,
 }: {
   result: CcgRedeemResult;
-  currentSet?: CcgSet;
+  sets: CcgSet[];
   isInspectingCard: boolean;
   onDismiss: () => void;
   onInspectCard: (viewer: RedeemCardViewer) => void;
@@ -118,11 +127,10 @@ function CcgRedeemRewardDialog({
 
   const openPacksHref = "/ccg/open";
   const awardedPackCount = result.reward.type === "packs" ? result.reward.packs : 0;
-
-  const updatePackMotion = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-    applyPackPointerMotion(event.currentTarget, event.clientX, event.clientY);
-  };
+  const rewardPackCount = Math.min(MAX_REDEEM_PACK_VISUALS, awardedPackCount);
+  const rewardPackSets = sets.filter((set) => set.kind === "raid" && (set.state === "current" || set.state === "legacy") && set.cardCount > 0);
+  const rewardPackColumns = Math.max(1, rewardPackCount <= 5 ? rewardPackCount : Math.ceil(Math.sqrt(rewardPackCount * 2.1)));
+  const rewardPackDensity = rewardPackCount === 1 ? "single" : rewardPackCount <= 5 ? "small" : rewardPackCount <= 20 ? "medium" : "dense";
 
   return (
     <div
@@ -146,23 +154,42 @@ function CcgRedeemRewardDialog({
         </div>
 
         {result.reward.type === "packs" ? (
-          <div className={styles.redeemPackRewards} data-reward-count={awardedPackCount}>
+          <div className={styles.redeemPackRewards}>
             <div className={styles.redeemPackReward}>
-                <div
-                  className={`${packStyles.packButton} ${styles.redeemPackVisual}`}
-                  style={{ ...getPackTheme(currentSet, true), cursor: "pointer" }}
-                  onPointerMove={updatePackMotion}
-                  onPointerLeave={(event) => resetPackMotion(event.currentTarget)}
-                  onPointerCancel={(event) => resetPackMotion(event.currentTarget)}
-                  aria-hidden="true"
-                >
-                  <PackBoosterVisual title={ccg("open.allRaids")} cardsLabel={ccg("landing.cards")} />
-                </div>
-                <div className={styles.redeemPackCount}>
-                  <strong>{result.reward.packs}</strong>
-                  <span>{t("packs", { count: result.reward.packs })}</span>
-                </div>
+              <div
+                className={styles.redeemPackPile}
+                data-density={rewardPackDensity}
+                style={{ "--reward-pack-columns": rewardPackColumns } as CSSProperties}
+                aria-hidden="true"
+              >
+                {Array.from({ length: rewardPackCount }, (_, index) => {
+                  const visualHash = rewardPackHash(`${result.code}:${index}`);
+                  const rewardSet = rewardPackSets.length > 0 ? rewardPackSets[visualHash % rewardPackSets.length] : undefined;
+                  return (
+                    <div
+                      key={`${result.code}:${index}`}
+                      className={`${packStyles.packButton} ${styles.redeemPackVisual}`}
+                      style={{
+                        ...getPackTheme(rewardSet, !rewardSet),
+                        "--reward-pack-rotation": `${(visualHash % 13) - 6}deg`,
+                        "--reward-pack-shift-x": `${((visualHash >>> 8) % 7) - 3}px`,
+                        "--reward-pack-shift-y": `${((visualHash >>> 16) % 7) - 3}px`,
+                        "--reward-pack-z": index + 1,
+                      } as CSSProperties}
+                    >
+                      <PackBoosterVisual
+                        title={rewardSet?.raidName ?? ccg("open.allRaids")}
+                        cardsLabel={ccg("landing.cards")}
+                        minimal={rewardPackCount > 1}
+                      />
+                    </div>
+                  );
+                })}
               </div>
+              <div className={styles.redeemPackCount}>
+                <strong>{t("packs", { count: result.reward.packs })}</strong>
+              </div>
+            </div>
           </div>
         ) : (
           <div className={styles.redeemCardReward}>
@@ -214,7 +241,7 @@ function redeemErrorMessage(error: unknown, t: ReturnType<typeof useTranslations
   return t("errors.generic");
 }
 
-export default function CcgRedeemPanel({ currentSet }: { currentSet?: CcgSet }) {
+export default function CcgRedeemPanel({ sets }: { sets: CcgSet[] }) {
   const t = useTranslations("ccg.redeem");
   const { user, isLoading: authLoading, login } = useAuth();
   const queryClient = useQueryClient();
@@ -279,7 +306,7 @@ export default function CcgRedeemPanel({ currentSet }: { currentSet?: CcgSet }) 
       {result ? (
         <CcgRedeemRewardDialog
           result={result}
-          currentSet={currentSet}
+          sets={sets}
           isInspectingCard={Boolean(cardViewer)}
           onDismiss={() => setResult(null)}
           onInspectCard={setCardViewer}

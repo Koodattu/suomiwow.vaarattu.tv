@@ -312,6 +312,7 @@ type SelectedResult = {
   artVariant: CcgArtVariant;
   tierGrade: CcgTierGrade;
   isDuplicate: boolean;
+  isNewCard: boolean;
   isNewFinish: boolean;
   isNewSnapshot: boolean;
 };
@@ -2891,6 +2892,7 @@ class CcgService {
           const cardSet = setById.get(String(card.setId));
           if (!cardSet) throw new CcgServiceError(409, "pool_invalid", "The pack references an unavailable card set");
           const ownedFinishes = ownedFinishesBySeries.get(seriesKey) ?? new Set<CcgFinish>();
+          const isNewCard = !ownedSnapshotVersionsBySeries.has(seriesKey);
           const ownedSnapshotVersions = ownedSnapshotVersionsBySeries.get(seriesKey) ?? new Set<number>();
           const customFinish = cardSet.kind === "raid" ? cardSet.customFinish?.key ?? null : null;
           const finishOrder = getCcgPackFinishOrder(cardSet.kind, customFinish);
@@ -2933,6 +2935,7 @@ class CcgService {
             artVariant,
             tierGrade: card.tierGrade,
             isDuplicate: rolled.isDuplicate,
+            isNewCard,
             isNewFinish,
             isNewSnapshot,
           });
@@ -4495,6 +4498,7 @@ class CcgService {
           finish: result.finish,
           artVariant: result.artVariant ?? "standard",
           isDuplicate: result.isDuplicate,
+          isNewCard: result.isNewCard,
           isNewFinish: result.isNewFinish,
           isNewSnapshot: result.isNewSnapshot,
           bonusPackReward: Boolean(result.bonusPackReward),
