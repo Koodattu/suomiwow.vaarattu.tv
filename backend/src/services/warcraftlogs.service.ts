@@ -3,6 +3,7 @@ import logger from "../utils/logger";
 import { GUILDS_DEV, GUILDS_PROD, TrackedGuild } from "../config/guilds";
 import rateLimitService, { WCLRateLimitData } from "./rate-limit.service";
 import wclUserAuthService from "./warcraftlogs-user-auth.service";
+import { resolveSpecByBlizzardSpecId } from "../utils/spec";
 
 interface WCLAuthResponse {
   access_token: string;
@@ -1167,7 +1168,11 @@ class WarcraftLogsService {
    * Fetch death events for multiple fights in a report (more efficient)
    * Returns all deaths grouped by fight ID
    */
-  async getDeathEventsForReport(reportCode: string, fightIds: number[], options: { forceUserEndpoint?: boolean } = {}) {
+  async getDeathEventsForReport(
+    reportCode: string,
+    fightIds: number[],
+    options: { forceUserEndpoint?: boolean; includeCombatantInfo?: boolean } = {},
+  ) {
     // Use maximum API limit to fetch all deaths
     const queryLimit = 10000;
 
@@ -1197,6 +1202,16 @@ class WarcraftLogsService {
             ) {
               data
             }
+            ${options.includeCombatantInfo ? `
+            combatantInfoEvents: events(
+              fightIDs: $fightIds,
+              dataType: CombatantInfo,
+              hostilityType: Friendlies,
+              limit: $limit
+            ) {
+              data
+            }
+            ` : ""}
           }
         }
       }
@@ -1292,6 +1307,36 @@ class WarcraftLogsService {
     }
 
     return deathsByFight;
+  }
+
+  /** Parse each player's exact specialization from CombatantInfo events, grouped by fight. */
+  parseCombatantInfoByFight(reportData: any, actors: any[]) {
+    const events = reportData?.combatantInfoEvents?.data;
+    if (!Array.isArray(events)) return new Map<number, Array<{ name: string; server: string; specID: number; specName: string }>>();
+
+    const actorMap = new Map<number, { name: string; server: string }>();
+    for (const actor of actors ?? []) {
+      if (typeof actor?.id !== "number" || !actor?.name) continue;
+      actorMap.set(actor.id, { name: actor.name, server: actor.server || "Unknown" });
+    }
+
+    const combatantsByFight = new Map<number, Map<number, { name: string; server: string; specID: number; specName: string }>>();
+    for (const event of events) {
+      if (typeof event?.fight !== "number" || typeof event?.sourceID !== "number" || typeof event?.specID !== "number") continue;
+      const actor = actorMap.get(event.sourceID);
+      const spec = resolveSpecByBlizzardSpecId(event.specID);
+      if (!actor) continue;
+      if (!spec) throw new Error(`Unsupported Blizzard specialization ID in WCL CombatantInfo: ${event.specID}`);
+
+      if (!combatantsByFight.has(event.fight)) combatantsByFight.set(event.fight, new Map());
+      combatantsByFight.get(event.fight)!.set(event.sourceID, {
+        ...actor,
+        specID: spec.specID,
+        specName: spec.specName,
+      });
+    }
+
+    return new Map(Array.from(combatantsByFight, ([fightId, combatants]) => [fightId, Array.from(combatants.values())]));
   }
 
   /**

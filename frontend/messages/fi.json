@@ -458,7 +458,7 @@
       "allRevealed": "Pakka valmis",
       "newCard": "Uusi",
       "duplicate": "Tupla",
-      "bonusEarned": "{count, plural, one {Täyden kortin palkinto: # bonuspaketti.} other {Täysien korttien palkinnot: # bonuspakettia.}}",
+      "completedBonusPack": "Valmis! +1 bonuspaketti!",
       "recoveryFailed": "Tallennettua pakkaa ei voitu palauttaa. Tyhjennä se ennen uuden pakan avaamista.",
       "dismissRecovery": "Tyhjennä tallennettu pakka",
       "openAnother": "Avaa toinen pakka",
@@ -1148,10 +1148,10 @@
     },
     "mythicPlus": {
       "coverageRecovery": "Kattavuus ja palautus",
-      "coverageRecoveryHelp": "Puuttuvat-toiminto jonottaa vain kelvolliset hahmot, joille ei ole koskaan tehty profiilihakua. Uudelleenyritys nollaa epäonnistuneet pistehaut; ei löytynyt- ja väärä luokka -tuloksia ei muuteta.",
+      "coverageRecoveryHelp": "Puuttuvat-toiminto jonottaa kelvolliset hahmot, joille ei ole koskaan tehty profiilihakua. Uudelleenyritys nollaa epäonnistuneet pistehaut. Korjaus etsii puuttuvat historialliset kaudet sekä vaihtuneet hahmonimet ja palvelimet, piilottaa vanhan identiteetin tiedot ja jonottaa korjatut pistehaut; yöajo käyttää samaa korjausta.",
       "fetchMissing": "Nouda puuttuvat M+-pisteet",
       "retryFailed": "Yritä epäonnistuneita pistehakuja uudelleen",
-      "repairHistorical": "Korjaa puuttuvat historialliset pisteet"
+      "repairHistorical": "Korjaa historia- ja identiteettipisteet"
     },
     "ccg": {
       "title": "CCG-hallinta",
@@ -1242,7 +1242,7 @@
         "publish": "Julkaise kortit nyt",
         "publishStarting": "Julkaisua käynnistetään…",
         "publishConfirmTitle": "Julkaistaanko uusimmat snapshotit kaikille käytössä oleville raidiseteille?",
-        "publishConfirmDescription": "Jatka vasta, kun CCG Weekly Raid Snapshot näkyy valmistuneena hallinnan Tehtävät-välilehdellä. Tämä julkaisee uusimmista snapshoteista kaikki renderiltään valmiit uudet hahmot ja harvinaisuusmuutokset, ohittaa puuttuvat renderit, rakentaa aktiiviset pakkapoolit uudelleen eikä toimintoa voi perua.",
+        "publishConfirmDescription": "Jatka vasta, kun CCG Weekly Raid Snapshot näkyy valmistuneena hallinnan Tehtävät-välilehdellä. Tämä julkaisee uusimmista snapshoteista kaikki renderiltään valmiit uudet hahmot, harvinaisuusmuutokset sekä spec- ja roolimuutokset, ohittaa puuttuvat renderit, rakentaa aktiiviset pakkapoolit uudelleen eikä toimintoa voi perua.",
         "publishConfirm": "Julkaise kortit",
         "publishStarted": "Julkaisuajo käynnistyi taustalla. Voit seurata sen etenemistä hallinnan Tehtävät-välilehdellä.",
         "publishError": "Julkaisuajoa ei voitu käynnistää.",
@@ -1260,8 +1260,10 @@
         "dispositions": {
           "new_character": "Lisätään kortiksi",
           "rarity_change": "Harvinaisuus päivitetään",
+          "identity_change": "Spec tai rooli muuttui",
           "blocked_new_character": "Media puuttuu · uusi kortti",
-          "blocked_rarity_change": "Media puuttuu · päivitys"
+          "blocked_rarity_change": "Media puuttuu · päivitys",
+          "blocked_identity_change": "Media puuttuu · spec tai rooli"
         },
         "filters": {
           "all": "Kaikki muutokset",
@@ -1284,7 +1286,7 @@
         },
         "characterList": {
           "title": "Hahmomuutokset · {raid}",
-          "description": "Lista näyttää vain kortteihin vaikuttavat muutokset. Hahmot, joiden harvinaisuus ei muutu, näkyvät yllä raidin kokonaisluvuissa.",
+          "description": "Lista näyttää vain kortteihin vaikuttavat muutokset. Hahmot, joiden harvinaisuus, spec ja rooli eivät muutu, näkyvät yllä raidin kokonaisluvuissa.",
           "raidFilter": "Raid",
           "outcomeFilter": "Hahmojen tulossuodattimet",
           "searchLabel": "Etsi hahmo",
@@ -1298,7 +1300,7 @@
           "attempts": "{count, plural, one {# yritys} other {# yritystä}}",
           "nextAttempt": "Seuraava yritys {date}",
           "noError": "Ei tallennettua virhettä",
-          "noChanges": "Tälle raidille ei ole uusia kortteja, harvinaisuuspäivityksiä tai median estämiä muutoksia.",
+          "noChanges": "Tälle raidille ei ole uusia kortteja, harvinaisuus-, spec- tai roolipäivityksiä eikä median estämiä muutoksia.",
           "noMatches": "Yksikään hahmo ei vastaa valittua tulosta ja hakuehtoa."
         },
         "metrics": {
@@ -1306,6 +1308,7 @@
           "projected": "Uudet snapshotit",
           "newCharacters": "Uudet hahmot",
           "rarityChanges": "Harvinaisuusmuutokset",
+          "identityChanges": "Spec- / roolimuutokset",
           "unchanged": "Ei muutosta",
           "blocked": "Media estää"
         }

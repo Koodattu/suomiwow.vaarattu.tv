@@ -588,14 +588,29 @@ class CcgPublisherService {
         this.loadContinuityMedia(continuity),
         CcgCard.find({ setId: set._id, characterId: { $in: continuity.allMemberIds } })
           .sort({ snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 })
-          .select("characterId tierGrade")
+          .select("characterId tierGrade specName role metric")
           .lean(),
       ]);
-      const latestCardByCharacter = new Map<string, { characterId: string; tierGrade: CcgTierGrade }>();
+      const latestCardByCharacter = new Map<
+        string,
+        {
+          characterId: string;
+          tierGrade: CcgTierGrade;
+          specName: string;
+          role: "dps" | "healer" | "tank";
+          metric: "dps" | "hps";
+        }
+      >();
       for (const card of existingCards) {
         const characterId = continuity.rootIdByMemberId.get(String(card.characterId)) ?? String(card.characterId);
         if (!latestCardByCharacter.has(characterId)) {
-          latestCardByCharacter.set(characterId, { characterId, tierGrade: card.tierGrade });
+          latestCardByCharacter.set(characterId, {
+            characterId,
+            tierGrade: card.tierGrade,
+            specName: card.specName,
+            role: card.role,
+            metric: card.metric,
+          });
         }
       }
       const candidates = entries.map(({ entry, tierGrade }) => {
@@ -603,6 +618,9 @@ class CcgPublisherService {
         return {
           characterId: String(entry.characterId),
           tierGrade,
+          specName: entry.bestSpecName ?? entry.specName,
+          role: entry.role,
+          metric: entry.metric,
           hasMedia: media?.status === "available" && Boolean(media.mainRawUrl),
         };
       });
@@ -613,7 +631,12 @@ class CcgPublisherService {
         const latestCard = latestCardByCharacter.get(characterId);
         const disposition = getCcgSnapshotPreviewDisposition(
           latestCard,
-          tierGrade,
+          {
+            tierGrade,
+            specName: entry.bestSpecName ?? entry.specName,
+            role: entry.role,
+            metric: entry.metric,
+          },
           media?.status === "available" && Boolean(media.mainRawUrl),
         );
         if (disposition === "unchanged") return [];
@@ -657,6 +680,7 @@ class CcgPublisherService {
           projectedSnapshots: totals.projectedSnapshots + set.projectedSnapshots,
           newCharacters: totals.newCharacters + set.newCharacters,
           rarityChanges: totals.rarityChanges + set.rarityChanges,
+          identityChanges: totals.identityChanges + set.identityChanges,
           unchangedCharacters: totals.unchangedCharacters + set.unchangedCharacters,
           blockedByMissingMedia: totals.blockedByMissingMedia + set.blockedByMissingMedia,
           mediaReady: totals.mediaReady + set.mediaReady,
@@ -667,6 +691,7 @@ class CcgPublisherService {
           projectedSnapshots: 0,
           newCharacters: 0,
           rarityChanges: 0,
+          identityChanges: 0,
           unchangedCharacters: 0,
           blockedByMissingMedia: 0,
           mediaReady: 0,
@@ -691,7 +716,11 @@ class CcgPublisherService {
       const snapshotKey = `${set.slug}:${getHelsinkiDateKey()}`;
       const [mediaByCharacter, mythicPlusRows] = await Promise.all([
         this.loadContinuityMedia(continuity),
-        CharacterMythicPlusSeasonScore.find({ characterId: { $in: continuity.allMemberIds }, season: configured.mythicPlusSeason })
+        CharacterMythicPlusSeasonScore.find({
+          characterId: { $in: continuity.allMemberIds },
+          season: configured.mythicPlusSeason,
+          identityStatus: { $ne: "stale" },
+        })
           .select("characterId scores.all fetchedAt")
           .lean(),
       ]);
@@ -805,18 +834,18 @@ class CcgPublisherService {
         const characterId = continuity.rootIdByMemberId.get(String(card.characterId)) ?? String(card.characterId);
         if (!latestCardByCharacter.has(characterId)) latestCardByCharacter.set(characterId, card);
       }
-      const unchanged = candidates.filter((candidate) => (
-        !shouldPublishCcgCardSnapshot(
-          latestCardByCharacter.get(continuity.rootIdByMemberId.get(String(candidate.characterId)) ?? String(candidate.characterId)),
-          candidate.tierGrade,
-        )
-      ));
-      const publishable = candidates.filter((candidate) => (
-        shouldPublishCcgCardSnapshot(
-          latestCardByCharacter.get(continuity.rootIdByMemberId.get(String(candidate.characterId)) ?? String(candidate.characterId)),
-          candidate.tierGrade,
-        )
-      ));
+      const shouldPublish = (candidate: (typeof candidates)[number]) => {
+        const rootId = continuity.rootIdByMemberId.get(String(candidate.characterId)) ?? String(candidate.characterId);
+        const payload = candidate.payload as SnapshotPayload;
+        return shouldPublishCcgCardSnapshot(latestCardByCharacter.get(rootId), {
+          tierGrade: candidate.tierGrade,
+          specName: payload.specName,
+          role: payload.role,
+          metric: payload.metric,
+        });
+      };
+      const unchanged = candidates.filter((candidate) => !shouldPublish(candidate));
+      const publishable = candidates.filter(shouldPublish);
       const mediaByCharacter = await this.loadContinuityMedia(continuity);
       const ready = publishable.filter((candidate) => {
         const rootId = continuity.rootIdByMemberId.get(String(candidate.characterId)) ?? String(candidate.characterId);

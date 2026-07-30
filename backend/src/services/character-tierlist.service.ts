@@ -546,15 +546,15 @@ class CharacterTierListService {
   }
 
   private isBetterMechanicsRow(candidate: MechanicsRow, existing: MechanicsRow): boolean {
+    const pullsDiff = (candidate.pulls ?? 0) - (existing.pulls ?? 0);
+    if (pullsDiff !== 0) return pullsDiff > 0;
+
     const candidateMetricFitsRole = this.metricFitsRole(candidate);
     const existingMetricFitsRole = this.metricFitsRole(existing);
     if (candidateMetricFitsRole !== existingMetricFitsRole) return candidateMetricFitsRole;
 
     const scoreDiff = (candidate.score ?? 0) - (existing.score ?? 0);
     if (Math.abs(scoreDiff) > 0.001) return scoreDiff > 0;
-
-    const pullsDiff = (candidate.pulls ?? 0) - (existing.pulls ?? 0);
-    if (pullsDiff !== 0) return pullsDiff > 0;
 
     const candidateUpdated = candidate.updatedAt ? new Date(candidate.updatedAt).getTime() : 0;
     const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;

@@ -60,10 +60,12 @@ test("canonical grading maps a 100-card population to the versioned S through F 
   assert.deepEqual(Object.fromEntries(counts), { S: 5, A: 10, B: 20, C: 20, D: 20, E: 15, F: 10 });
 });
 
-test("card snapshots publish only for a new character or a changed rarity grade", () => {
-  assert.equal(shouldPublishCcgCardSnapshot(null, "B"), true);
-  assert.equal(shouldPublishCcgCardSnapshot({ tierGrade: "B" }, "B"), false);
-  assert.equal(shouldPublishCcgCardSnapshot({ tierGrade: "B" }, "A"), true);
+test("card snapshots publish for new characters and changed rarity or performance identity", () => {
+  const next = { tierGrade: "B" as const, specName: "shadow", role: "dps" as const, metric: "dps" as const };
+  assert.equal(shouldPublishCcgCardSnapshot(null, next), true);
+  assert.equal(shouldPublishCcgCardSnapshot(next, next), false);
+  assert.equal(shouldPublishCcgCardSnapshot(next, { ...next, tierGrade: "A" }), true);
+  assert.equal(shouldPublishCcgCardSnapshot(next, { ...next, specName: "holy", role: "healer", metric: "hps" }), true);
 });
 
 test("card snapshot versions advance without requiring a legacy version field", () => {
@@ -75,38 +77,48 @@ test("card snapshot versions advance without requiring a legacy version field", 
 test("snapshot previews separate new characters, rarity changes, unchanged cards, and missing media", () => {
   const preview = summarizeCcgSnapshotPreview(
     [
-      { characterId: "new-ready", tierGrade: "S", hasMedia: true },
-      { characterId: "new-blocked", tierGrade: "A", hasMedia: false },
-      { characterId: "changed-ready", tierGrade: "A", hasMedia: true },
-      { characterId: "changed-blocked", tierGrade: "B", hasMedia: false },
-      { characterId: "unchanged", tierGrade: "C", hasMedia: true },
-    ],
+      { characterId: "new-ready", tierGrade: "S", specName: "shadow", role: "dps", metric: "dps", hasMedia: true },
+      { characterId: "new-blocked", tierGrade: "A", specName: "shadow", role: "dps", metric: "dps", hasMedia: false },
+      { characterId: "changed-ready", tierGrade: "A", specName: "shadow", role: "dps", metric: "dps", hasMedia: true },
+      { characterId: "changed-blocked", tierGrade: "B", specName: "shadow", role: "dps", metric: "dps", hasMedia: false },
+      { characterId: "identity-ready", tierGrade: "C", specName: "holy", role: "healer", metric: "hps", hasMedia: true },
+      { characterId: "identity-blocked", tierGrade: "C", specName: "holy", role: "healer", metric: "hps", hasMedia: false },
+      { characterId: "unchanged", tierGrade: "C", specName: "shadow", role: "dps", metric: "dps", hasMedia: true },
+    ] as const,
     [
-      { characterId: "changed-ready", tierGrade: "B" },
-      { characterId: "changed-blocked", tierGrade: "C" },
-      { characterId: "unchanged", tierGrade: "C" },
+      { characterId: "changed-ready", tierGrade: "B", specName: "shadow", role: "dps", metric: "dps" },
+      { characterId: "changed-blocked", tierGrade: "C", specName: "shadow", role: "dps", metric: "dps" },
+      { characterId: "identity-ready", tierGrade: "C", specName: "shadow", role: "dps", metric: "dps" },
+      { characterId: "identity-blocked", tierGrade: "C", specName: "shadow", role: "dps", metric: "dps" },
+      { characterId: "unchanged", tierGrade: "C", specName: "shadow", role: "dps", metric: "dps" },
     ],
   );
 
   assert.deepEqual(preview, {
-    eligibleCharacters: 5,
-    projectedSnapshots: 2,
+    eligibleCharacters: 7,
+    projectedSnapshots: 3,
     newCharacters: 1,
     rarityChanges: 1,
+    identityChanges: 1,
     unchangedCharacters: 1,
-    blockedByMissingMedia: 2,
-    mediaReady: 3,
-    missingMedia: 2,
-    gradeDistribution: { S: 1, A: 2, B: 1, C: 1, D: 0, E: 0, F: 0 },
+    blockedByMissingMedia: 3,
+    mediaReady: 4,
+    missingMedia: 3,
+    gradeDistribution: { S: 1, A: 2, B: 1, C: 3, D: 0, E: 0, F: 0 },
   });
 });
 
 test("snapshot preview dispositions identify which missing-media characters need action", () => {
-  assert.equal(getCcgSnapshotPreviewDisposition(null, "A", false), "blocked_new_character");
-  assert.equal(getCcgSnapshotPreviewDisposition({ tierGrade: "B" }, "A", false), "blocked_rarity_change");
-  assert.equal(getCcgSnapshotPreviewDisposition({ tierGrade: "A" }, "A", false), "unchanged");
-  assert.equal(getCcgSnapshotPreviewDisposition(null, "A", true), "new_character");
-  assert.equal(getCcgSnapshotPreviewDisposition({ tierGrade: "B" }, "A", true), "rarity_change");
+  const next = { tierGrade: "A" as const, specName: "shadow", role: "dps" as const, metric: "dps" as const };
+  const previous = { ...next, tierGrade: "B" as const };
+  const changedIdentity = { ...next, specName: "holy", role: "healer" as const, metric: "hps" as const };
+  assert.equal(getCcgSnapshotPreviewDisposition(null, next, false), "blocked_new_character");
+  assert.equal(getCcgSnapshotPreviewDisposition(previous, next, false), "blocked_rarity_change");
+  assert.equal(getCcgSnapshotPreviewDisposition(next, next, false), "unchanged");
+  assert.equal(getCcgSnapshotPreviewDisposition(null, next, true), "new_character");
+  assert.equal(getCcgSnapshotPreviewDisposition(previous, next, true), "rarity_change");
+  assert.equal(getCcgSnapshotPreviewDisposition(changedIdentity, next, true), "identity_change");
+  assert.equal(getCcgSnapshotPreviewDisposition(changedIdentity, next, false), "blocked_identity_change");
 });
 
 test("card crops are deterministic and stay inside each raid's safe flair range", () => {

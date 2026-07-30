@@ -32,6 +32,7 @@ export interface ICharacterMythicPlusSeasonScore extends Document {
   classID: number;
   guildName?: string | null;
   guildRealm?: string | null;
+  identityStatus: "current" | "stale";
 
   season: string;
   scoreStatus?: "available" | "no_score";
@@ -93,6 +94,7 @@ const CharacterMythicPlusSeasonScoreSchema = new Schema<ICharacterMythicPlusSeas
     classID: { type: Number, required: true, index: true },
     guildName: { type: String, default: null },
     guildRealm: { type: String, default: null },
+    identityStatus: { type: String, enum: ["current", "stale"], required: true, default: "current" },
 
     season: { type: String, required: true, index: true },
     scoreStatus: { type: String, enum: ["available", "no_score"], default: undefined },

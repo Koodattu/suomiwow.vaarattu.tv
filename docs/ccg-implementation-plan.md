@@ -8,7 +8,7 @@ The feature is free, non-tradable, and non-commercial. It does not include card 
 
 ## Product summary
 
-SuomiWoW CCG turns Finnish World of Warcraft raid characters into collectible cards. A card represents an immutable snapshot of one character in one raid tier. A character receives a new snapshot in the same raid set only when its canonical S-F rarity grade changes; an already published card never changes.
+SuomiWoW CCG turns Finnish World of Warcraft raid characters into collectible cards. A card represents an immutable snapshot of one character in one raid tier. A character receives a new snapshot in the same raid set when its canonical S-F rarity grade or its dominant Mythic spec, role, or metric changes; an already published card never changes.
 
 The product has two collection modes:
 
@@ -55,7 +55,7 @@ Guests begin with 20 packs in each mode. A first-time authenticated CCG player b
 ### Card identity and immutability
 
 - A character has one stable card series per `{setId, characterId}` and one immutable card document per published snapshot version.
-- The first eligible snapshot is published. Later snapshots are published only when `tierGrade` differs from the latest published version; metric-only changes do not create cards.
+- The first eligible snapshot is published. Later snapshots are published when `tierGrade`, `specName`, `role`, or `metric` differs from the latest published version.
 - Pack pools and the catalog use the latest published version in each card series. Finish ownership belongs to the series, while share links keep pointing to their selected immutable snapshot.
 - A collector unlocks only the exact snapshot version they acquire. Publishing a later version does not add it to existing collections; the collector must pull or redeem that version before it appears in their snapshot selector. Acquiring a later version never unlocks earlier versions.
 - Collection completion counts a card series once. The viewer defaults to the newest snapshot that collector has explicitly unlocked and offers only their unlocked versions, all with the same series-wide finishes and quantities.

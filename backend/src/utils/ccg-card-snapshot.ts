@@ -3,7 +3,18 @@ import { CcgRegularTierGrade, CcgTierGrade } from "../config/ccg";
 export type CcgSnapshotPreviewCandidate = {
   characterId: string;
   tierGrade: CcgRegularTierGrade;
+  specName: string;
+  role: "dps" | "healer" | "tank";
+  metric: "dps" | "hps";
   hasMedia: boolean;
+};
+
+type CcgSnapshotIdentity = Pick<CcgSnapshotPreviewCandidate, "tierGrade" | "specName" | "role" | "metric">;
+type ExistingCcgSnapshotIdentity = {
+  tierGrade: CcgTierGrade;
+  specName?: string | null;
+  role?: "dps" | "healer" | "tank" | null;
+  metric?: "dps" | "hps" | null;
 };
 
 export type CcgSnapshotPreviewSummary = {
@@ -11,6 +22,7 @@ export type CcgSnapshotPreviewSummary = {
   projectedSnapshots: number;
   newCharacters: number;
   rarityChanges: number;
+  identityChanges: number;
   unchangedCharacters: number;
   blockedByMissingMedia: number;
   mediaReady: number;
@@ -21,15 +33,17 @@ export type CcgSnapshotPreviewSummary = {
 export type CcgSnapshotPreviewDisposition =
   | "new_character"
   | "rarity_change"
+  | "identity_change"
   | "unchanged"
   | "blocked_new_character"
-  | "blocked_rarity_change";
+  | "blocked_rarity_change"
+  | "blocked_identity_change";
 
 export function shouldPublishCcgCardSnapshot(
-  latestCard: { tierGrade: CcgTierGrade } | null | undefined,
-  nextGrade: CcgRegularTierGrade,
+  latestCard: ExistingCcgSnapshotIdentity | null | undefined,
+  next: CcgSnapshotIdentity,
 ): boolean {
-  return !latestCard || latestCard.tierGrade !== nextGrade;
+  return !latestCard || latestCard.tierGrade !== next.tierGrade || !hasSameSnapshotIdentity(latestCard, next);
 }
 
 export function nextCcgCardSnapshotVersion(latestCard: { snapshotVersion?: number | null } | null | undefined): number {
@@ -38,24 +52,26 @@ export function nextCcgCardSnapshotVersion(latestCard: { snapshotVersion?: numbe
 }
 
 export function getCcgSnapshotPreviewDisposition(
-  latestCard: { tierGrade: CcgTierGrade } | null | undefined,
-  nextGrade: CcgRegularTierGrade,
+  latestCard: ExistingCcgSnapshotIdentity | null | undefined,
+  next: CcgSnapshotIdentity,
   hasMedia: boolean,
 ): CcgSnapshotPreviewDisposition {
-  if (!shouldPublishCcgCardSnapshot(latestCard, nextGrade)) return "unchanged";
-  if (!hasMedia) return latestCard ? "blocked_rarity_change" : "blocked_new_character";
-  return latestCard ? "rarity_change" : "new_character";
+  if (!shouldPublishCcgCardSnapshot(latestCard, next)) return "unchanged";
+  if (!latestCard) return hasMedia ? "new_character" : "blocked_new_character";
+  if (latestCard.tierGrade !== next.tierGrade) return hasMedia ? "rarity_change" : "blocked_rarity_change";
+  return hasMedia ? "identity_change" : "blocked_identity_change";
 }
 
 export function summarizeCcgSnapshotPreview(
   candidates: readonly CcgSnapshotPreviewCandidate[],
-  latestCards: readonly { characterId: string; tierGrade: CcgTierGrade }[],
+  latestCards: readonly (ExistingCcgSnapshotIdentity & { characterId: string })[],
 ): CcgSnapshotPreviewSummary {
   const latestCardByCharacter = new Map(latestCards.map((card) => [card.characterId, card]));
   const gradeDistribution: Record<CcgRegularTierGrade, number> = { S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 };
   let projectedSnapshots = 0;
   let newCharacters = 0;
   let rarityChanges = 0;
+  let identityChanges = 0;
   let unchangedCharacters = 0;
   let blockedByMissingMedia = 0;
   let mediaReady = 0;
@@ -66,14 +82,15 @@ export function summarizeCcgSnapshotPreview(
 
     const disposition = getCcgSnapshotPreviewDisposition(
       latestCardByCharacter.get(candidate.characterId),
-      candidate.tierGrade,
+      candidate,
       candidate.hasMedia,
     );
     if (disposition === "unchanged") unchangedCharacters += 1;
-    if (disposition === "blocked_new_character" || disposition === "blocked_rarity_change") blockedByMissingMedia += 1;
-    if (disposition === "new_character" || disposition === "rarity_change") projectedSnapshots += 1;
+    if (disposition.startsWith("blocked_")) blockedByMissingMedia += 1;
+    if (disposition === "new_character" || disposition === "rarity_change" || disposition === "identity_change") projectedSnapshots += 1;
     if (disposition === "new_character") newCharacters += 1;
     if (disposition === "rarity_change") rarityChanges += 1;
+    if (disposition === "identity_change") identityChanges += 1;
   }
 
   return {
@@ -81,10 +98,19 @@ export function summarizeCcgSnapshotPreview(
     projectedSnapshots,
     newCharacters,
     rarityChanges,
+    identityChanges,
     unchangedCharacters,
     blockedByMissingMedia,
     mediaReady,
     missingMedia: candidates.length - mediaReady,
     gradeDistribution,
   };
+}
+
+function hasSameSnapshotIdentity(latest: ExistingCcgSnapshotIdentity, next: CcgSnapshotIdentity): boolean {
+  return normalizeSpecName(latest.specName) === normalizeSpecName(next.specName) && latest.role === next.role && latest.metric === next.metric;
+}
+
+function normalizeSpecName(specName: string | null | undefined): string {
+  return (specName ?? "").trim().toLowerCase();
 }

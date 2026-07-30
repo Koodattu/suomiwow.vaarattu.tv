@@ -2,13 +2,16 @@ import mongoose from "mongoose";
 import { MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY } from "../config/character-eligibility";
 import { CURRENT_RAID_IDS } from "../config/guilds";
 import CharacterMechanicsLeaderboard, { IMechanicsBossScore } from "../models/CharacterMechanicsLeaderboard";
+import Character from "../models/Character";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
-import Fight, { IPlayerDeath } from "../models/Fight";
+import Fight, { IFightCombatant, IPlayerDeath } from "../models/Fight";
 import GuildProcessingQueue from "../models/GuildProcessingQueue";
 import Ranking from "../models/Ranking";
+import Report from "../models/Report";
 import cacheService from "./cache.service";
 import { getPrimaryCharacterRaidGuilds } from "./character-raid-guild.service";
 import logger from "../utils/logger";
+import { resolveRole, slugifySpecName } from "../utils/spec";
 
 const MYTHIC_DIFFICULTY = 5;
 const PARSE_WEIGHT = 0.5;
@@ -61,7 +64,6 @@ type AppearanceIdentity = {
   realm: string;
   region: string;
   classID: number;
-  rankingFightIds: number[];
 };
 
 type ParseRow = {
@@ -93,6 +95,7 @@ type MechanicsFight = {
   encounterName: string;
   duration: number;
   deaths?: IPlayerDeath[];
+  combatants?: IFightCombatant[];
 };
 
 type DeathRecord = {
@@ -120,6 +123,22 @@ class CharacterMechanicsService {
   async buildMechanicsLeaderboards(zoneIds: number[]): Promise<BuildResult> {
     if (this.isBuilding) {
       throw new Error("Character mechanics leaderboard build is already running");
+    }
+
+    const incompleteFightCount = await Fight.countDocuments({
+      zoneId: { $in: zoneIds },
+      difficulty: MYTHIC_DIFFICULTY,
+      duration: { $gt: 0 },
+      reportEndTime: { $gt: 0 },
+      $or: [
+        { deathEventsFetchStatus: { $ne: "fetched" } },
+        { combatantInfoFetchStatus: { $ne: "fetched" } },
+      ],
+    });
+    if (incompleteFightCount > 0) {
+      throw new Error(
+        `Cannot rebuild character mechanics: ${incompleteFightCount} Mythic fight(s) are missing death or CombatantInfo data. Run and finish the fight-details backfill first.`,
+      );
     }
 
     this.isBuilding = true;
@@ -165,7 +184,7 @@ class CharacterMechanicsService {
       { $sort: { rankPercent: -1, bestAmount: -1, totalKills: -1, partition: -1 } },
       {
         $group: {
-          _id: { characterId: "$characterId", encounterId: "$encounter.id", metric: "$metric" },
+          _id: { characterId: "$characterId", encounterId: "$encounter.id", metric: "$metric", specName: "$specName" },
           characterId: { $first: "$characterId" },
           wclCanonicalCharacterId: { $first: "$wclCanonicalCharacterId" },
           name: { $first: "$name" },
@@ -197,15 +216,23 @@ class CharacterMechanicsService {
 
     const encounterIds = Array.from(new Set(parseRows.map((row) => row.encounterId).filter((id): id is number => typeof id === "number")));
     const survivalBuild = await this.buildSurvivalStatsFromFetchedFights(zoneId, encounterIds);
-    const survivalByCharacterEncounter = survivalBuild.stats;
+    const dominantSpecByCharacter = this.getDominantSpecByCharacter(survivalBuild.specPullsByCharacter);
+    const selectedParseRows = parseRows.filter((row) => {
+      const dominantSpec = dominantSpecByCharacter.get(this.getCharacterKey(row.characterId));
+      if (!dominantSpec || slugifySpecName(row.specName) !== dominantSpec) return false;
+      const role = resolveRole(row.classID, dominantSpec);
+      return row.metric === (role === "healer" ? "hps" : "dps");
+    });
 
     const guildByCharacter = await getPrimaryCharacterRaidGuilds(
       zoneId,
-      parseRows.map((row) => row.characterId),
+      selectedParseRows.map((row) => row.characterId),
     );
 
-    const bossEntries = parseRows.flatMap((row) => {
-      const survival = survivalByCharacterEncounter.get(this.getCharacterEncounterKey(row.characterId, row.encounterId));
+    const bossEntries = selectedParseRows.flatMap((row) => {
+      const specName = dominantSpecByCharacter.get(this.getCharacterKey(row.characterId))!;
+      const role = resolveRole(row.classID, specName);
+      const survival = survivalBuild.stats.get(this.getCharacterSpecEncounterKey(row.characterId, row.encounterId, specName));
       const survivalSummary = this.summarizeSurvivalStats(survival);
       if (survivalSummary.survivalScore === null) return [];
 
@@ -219,16 +246,16 @@ class CharacterMechanicsService {
           difficulty: MYTHIC_DIFFICULTY,
           type: "boss" as const,
           encounterId: row.encounterId,
-          metric: row.metric ?? "dps",
+          metric: role === "healer" ? "hps" : "dps",
           characterId: row.characterId,
           wclCanonicalCharacterId: row.wclCanonicalCharacterId,
           name: row.name,
           realm: row.realm,
           region: row.region,
           classID: row.classID,
-          specName: row.specName,
-          bestSpecName: row.bestSpecName ?? "",
-          role: row.role,
+          specName,
+          bestSpecName: specName,
+          role,
           ilvl: row.ilvl ?? 0,
           score,
           parseScore,
@@ -253,7 +280,7 @@ class CharacterMechanicsService {
       ];
     });
 
-    const overallEntries = this.buildOverallEntries(bossEntries);
+    const overallEntries = this.buildOverallEntries(bossEntries, survivalBuild.overallStats);
     const entries = [...bossEntries, ...overallEntries];
 
     await CharacterMechanicsLeaderboard.deleteMany({ zoneId });
@@ -277,7 +304,7 @@ class CharacterMechanicsService {
 
     const duration = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
-      `[MechanicsLeaderboard] Raid ${zoneId}: built ${entries.length} entries from ${parseRows.length} parse rows, ${survivalBuild.fights} fetched fight(s), ${survivalBuild.appearances} appearance lookup row(s) in ${duration}s`,
+      `[MechanicsLeaderboard] Raid ${zoneId}: built ${entries.length} entries from ${selectedParseRows.length}/${parseRows.length} spec-matched parse rows, ${survivalBuild.fights} fetched fight(s), ${survivalBuild.appearances} appearance lookup row(s) in ${duration}s`,
     );
 
     return {
@@ -301,11 +328,12 @@ class CharacterMechanicsService {
           zoneId: 1,
           difficulty: 1,
           deathEventsFetchStatus: 1,
+          combatantInfoFetchStatus: 1,
           reportCode: 1,
           fightId: 1,
           encounterID: 1,
         },
-        { name: "mechanics_death_fights_lookup" },
+        { name: "mechanics_fight_details_lookup" },
       );
       this.fightLookupIndexCreated = true;
     }
@@ -314,8 +342,17 @@ class CharacterMechanicsService {
   private async buildSurvivalStatsFromFetchedFights(
     zoneId: number,
     encounterIds: number[],
-  ): Promise<{ stats: Map<string, SurvivalStats>; fights: number; reports: number; appearances: number }> {
+  ): Promise<{
+    stats: Map<string, SurvivalStats>;
+    overallStats: Map<string, SurvivalStats>;
+    specPullsByCharacter: Map<string, Map<string, number>>;
+    fights: number;
+    reports: number;
+    appearances: number;
+  }> {
     const survivalByCharacterEncounter = new Map<string, SurvivalStats>();
+    const overallStats = new Map<string, SurvivalStats>();
+    const specPullsByCharacter = new Map<string, Map<string, number>>();
     const expectedKillDurationByEncounter = await this.getExpectedKillDurationsByEncounter(zoneId, encounterIds);
     const fightGroups = new Map<string, MechanicsFight[]>();
     const seenReports = new Set<string>();
@@ -328,9 +365,11 @@ class CharacterMechanicsService {
       difficulty: MYTHIC_DIFFICULTY,
       encounterID: { $in: encounterIds },
       deathEventsFetchStatus: "fetched",
+      combatantInfoFetchStatus: "fetched",
+      reportEndTime: { $gt: 0 },
       duration: { $gt: 0 },
     })
-      .select("reportCode fightId encounterID encounterName duration deaths")
+      .select("reportCode fightId encounterID encounterName duration deaths combatants")
       .sort({ reportCode: 1, fightId: 1 })
       .lean()
       .cursor({ batchSize: FIGHT_CURSOR_BATCH_SIZE });
@@ -338,9 +377,23 @@ class CharacterMechanicsService {
     const flushFightGroups = async () => {
       if (fightGroups.size === 0) return;
       const reportCodes = Array.from(fightGroups.keys());
-      const appearances = await this.findReportAppearances(reportCodes);
-      appearanceLookupRows += appearances.length;
-      this.addSurvivalStats(Array.from(fightGroups.values()).flat(), appearances, survivalByCharacterEncounter, expectedKillDurationByEncounter);
+      const reportRegions = await this.findReportRegions(reportCodes);
+      const groupedFights = Array.from(fightGroups.values()).flat();
+      const [appearances, aliases] = await Promise.all([
+        this.findReportAppearances(reportCodes),
+        this.findCharacterAliases(groupedFights, reportRegions),
+      ]);
+      appearanceLookupRows += appearances.length + aliases.length;
+      this.addSurvivalStats(
+        groupedFights,
+        appearances,
+        aliases,
+        reportRegions,
+        survivalByCharacterEncounter,
+        overallStats,
+        specPullsByCharacter,
+        expectedKillDurationByEncounter,
+      );
       fightGroups.clear();
     };
 
@@ -365,6 +418,8 @@ class CharacterMechanicsService {
 
     return {
       stats: survivalByCharacterEncounter,
+      overallStats,
+      specPullsByCharacter,
       fights: fightCount,
       reports: seenReports.size,
       appearances: appearanceLookupRows,
@@ -414,7 +469,7 @@ class CharacterMechanicsService {
         characterId: { $ne: null },
         wclCanonicalCharacterId: { $ne: null },
       } as any)
-        .select("reportCode characterId wclCanonicalCharacterId characterName characterRealm characterRegion classID rankingFightIds")
+        .select("reportCode characterId wclCanonicalCharacterId characterName characterRealm characterRegion classID")
         .lean()) as any[];
 
       for (const row of rows) {
@@ -427,7 +482,6 @@ class CharacterMechanicsService {
           realm: row.characterRealm,
           region: row.characterRegion,
           classID: row.classID,
-          rankingFightIds: Array.isArray(row.rankingFightIds) ? row.rankingFightIds.filter((fightId: unknown): fightId is number => typeof fightId === "number") : [],
         });
       }
     }
@@ -435,59 +489,137 @@ class CharacterMechanicsService {
     return appearances;
   }
 
+  private async findReportRegions(reportCodes: string[]): Promise<Map<string, string>> {
+    const reports = await Report.find({ code: { $in: reportCodes } }).select("code sourceGuildSnapshot.region").lean();
+    return new Map(
+      reports.flatMap((report) => {
+        const region = report.sourceGuildSnapshot?.region;
+        return typeof region === "string" && region ? [[report.code, region] as const] : [];
+      }),
+    );
+  }
+
+  private async findCharacterAliases(fights: MechanicsFight[], reportRegions: Map<string, string>): Promise<AppearanceIdentity[]> {
+    const names = Array.from(new Set(fights.flatMap((fight) => (fight.combatants ?? []).map((combatant) => combatant.name)).filter(Boolean)));
+    const regions = Array.from(new Set(reportRegions.values()));
+    if (names.length === 0 || regions.length === 0) return [];
+
+    const [characters, appearances] = await Promise.all([
+      Character.find({ name: { $in: names }, region: { $in: regions } })
+        .collation({ locale: "en", strength: 2 })
+        .select("_id wclCanonicalCharacterId name realm region classID")
+        .lean(),
+      CharacterReportAppearance.find({
+        characterName: { $in: names },
+        characterRegion: { $in: regions },
+        hidden: false,
+        characterId: { $ne: null },
+        wclCanonicalCharacterId: { $ne: null },
+      } as any)
+        .collation({ locale: "en", strength: 2 })
+        .select("characterId wclCanonicalCharacterId characterName characterRealm characterRegion classID")
+        .lean(),
+    ]);
+
+    const aliases: AppearanceIdentity[] = characters.map((character) => ({
+      characterId: character._id,
+      wclCanonicalCharacterId: character.wclCanonicalCharacterId,
+      name: character.name,
+      realm: character.realm,
+      region: character.region,
+      classID: character.classID,
+    }));
+    for (const appearance of appearances as any[]) {
+      if (!appearance.characterId || typeof appearance.wclCanonicalCharacterId !== "number") continue;
+      aliases.push({
+        characterId: appearance.characterId,
+        wclCanonicalCharacterId: appearance.wclCanonicalCharacterId,
+        name: appearance.characterName,
+        realm: appearance.characterRealm,
+        region: appearance.characterRegion,
+        classID: appearance.classID,
+      });
+    }
+
+    return aliases;
+  }
+
   private addSurvivalStats(
-    fights: Array<{ reportCode: string; fightId: number; encounterID: number; duration: number; deaths?: IPlayerDeath[] }>,
+    fights: Array<{
+      reportCode: string;
+      fightId: number;
+      encounterID: number;
+      duration: number;
+      deaths?: IPlayerDeath[];
+      combatants?: IFightCombatant[];
+    }>,
     appearances: Array<AppearanceIdentity & { reportCode: string }>,
+    aliases: AppearanceIdentity[],
+    reportRegions: Map<string, string>,
     survivalByCharacterEncounter: Map<string, SurvivalStats>,
+    overallStats: Map<string, SurvivalStats>,
+    specPullsByCharacter: Map<string, Map<string, number>>,
     expectedKillDurationByEncounter: Map<number, number>,
   ): void {
-    const appearancesByReport = new Map<string, Map<string, AppearanceIdentity & { reportCode: string }>>();
-    const appearancesByReportFight = new Map<string, Map<string, AppearanceIdentity & { reportCode: string }>>();
     const exactIdentityByReport = new Map<string, Map<string, AppearanceIdentity & { reportCode: string }>>();
     const nameIdentityByReport = new Map<string, Map<string, (AppearanceIdentity & { reportCode: string }) | null>>();
-    const reportsWithFightParticipants = new Set<string>();
+    const globalIdentityByRegion = new Map<string, AppearanceIdentity | null>();
 
     for (const appearance of appearances) {
-      if (!appearancesByReport.has(appearance.reportCode)) {
-        appearancesByReport.set(appearance.reportCode, new Map());
+      if (!exactIdentityByReport.has(appearance.reportCode)) {
         exactIdentityByReport.set(appearance.reportCode, new Map());
         nameIdentityByReport.set(appearance.reportCode, new Map());
       }
 
-      appearancesByReport.get(appearance.reportCode)!.set(this.getCharacterKey(appearance.characterId), appearance);
       exactIdentityByReport.get(appearance.reportCode)!.set(this.getDeathIdentityKey(appearance.name, appearance.realm), appearance);
 
       const nameKey = this.normalizeIdentityPart(appearance.name);
       const nameMap = nameIdentityByReport.get(appearance.reportCode)!;
       nameMap.set(nameKey, nameMap.has(nameKey) ? null : appearance);
+    }
 
-      for (const fightId of appearance.rankingFightIds) {
-        reportsWithFightParticipants.add(appearance.reportCode);
-        const fightKey = this.getReportFightKey(appearance.reportCode, fightId);
-        if (!appearancesByReportFight.has(fightKey)) {
-          appearancesByReportFight.set(fightKey, new Map());
-        }
-        appearancesByReportFight.get(fightKey)!.set(this.getCharacterKey(appearance.characterId), appearance);
+    for (const alias of aliases) {
+      const key = this.getRegionalIdentityKey(alias.region, alias.name, alias.realm);
+      if (!globalIdentityByRegion.has(key)) {
+        globalIdentityByRegion.set(key, alias);
+        continue;
+      }
+      const existing = globalIdentityByRegion.get(key);
+      if (!existing || this.getCharacterKey(existing.characterId) !== this.getCharacterKey(alias.characterId)) {
+        globalIdentityByRegion.set(key, null);
       }
     }
 
     for (const fight of fights) {
-      const reportParticipants = appearancesByReport.get(fight.reportCode);
-      if (!reportParticipants?.size || !fight.duration || fight.duration <= 0) continue;
+      if (!fight.duration || fight.duration <= 0 || !fight.combatants?.length) continue;
 
       const deathsByCharacter = new Map<string, DeathRecord[]>();
       const deaths = [...(fight.deaths ?? [])].sort((a, b) => (a.deathTime ?? a.timestamp ?? 0) - (b.deathTime ?? b.timestamp ?? 0));
       const exactMap = exactIdentityByReport.get(fight.reportCode) ?? new Map();
       const nameMap = nameIdentityByReport.get(fight.reportCode) ?? new Map();
-      const exactFightParticipants = appearancesByReportFight.get(this.getReportFightKey(fight.reportCode, fight.fightId));
-      const fallbackParticipants = reportsWithFightParticipants.has(fight.reportCode) ? undefined : reportParticipants;
-      const participants = new Map(exactFightParticipants?.size ? exactFightParticipants : fallbackParticipants);
+      const reportRegion = reportRegions.get(fight.reportCode) ?? "";
+      const participants = new Map<string, { appearance: AppearanceIdentity; specName: string }>();
       const expectedDuration = expectedKillDurationByEncounter.get(fight.encounterID) ?? fight.duration;
+
+      for (const combatant of fight.combatants) {
+        const appearance =
+          exactMap.get(this.getDeathIdentityKey(combatant.name, combatant.server)) ??
+          nameMap.get(this.normalizeIdentityPart(combatant.name)) ??
+          globalIdentityByRegion.get(this.getRegionalIdentityKey(reportRegion, combatant.name, combatant.server)) ??
+          null;
+        if (!appearance || !combatant.specName) continue;
+
+        const characterKey = this.getCharacterKey(appearance.characterId);
+        participants.set(characterKey, { appearance, specName: slugifySpecName(combatant.specName) });
+      }
 
       let matchedDeathOrder = 0;
       for (const death of deaths) {
         const appearance =
-          exactMap.get(this.getDeathIdentityKey(death.name, death.server)) ?? nameMap.get(this.normalizeIdentityPart(death.name)) ?? null;
+          exactMap.get(this.getDeathIdentityKey(death.name, death.server)) ??
+          nameMap.get(this.normalizeIdentityPart(death.name)) ??
+          globalIdentityByRegion.get(this.getRegionalIdentityKey(reportRegion, death.name, death.server)) ??
+          null;
         if (!appearance) continue;
 
         matchedDeathOrder += 1;
@@ -500,48 +632,73 @@ class CharacterMechanicsService {
           order: matchedDeathOrder,
           deathPercent: this.clamp(deathTime / expectedDuration, 0, 1),
         });
-        participants.set(characterKey, appearance);
       }
 
-      for (const participant of participants.values()) {
-        const statKey = this.getCharacterEncounterKey(participant.characterId, fight.encounterID);
-        const stats = survivalByCharacterEncounter.get(statKey) ?? {
-          pulls: 0,
-          deaths: 0,
-          survivedPulls: 0,
-          earlyDeaths: 0,
-          scoreTotal: 0,
-          deathPercentTotal: 0,
-          earlyDeathSeverityTotal: 0,
-        };
+      for (const { appearance, specName } of participants.values()) {
+        const characterKey = this.getCharacterKey(appearance.characterId);
+        const deathRecords = deathsByCharacter.get(characterKey) ?? [];
+        this.addPullToStats(
+          survivalByCharacterEncounter,
+          this.getCharacterSpecEncounterKey(appearance.characterId, fight.encounterID, specName),
+          deathRecords,
+        );
+        this.addPullToStats(overallStats, this.getCharacterSpecKey(appearance.characterId, specName), deathRecords);
 
-        const deathRecords = deathsByCharacter.get(this.getCharacterKey(participant.characterId)) ?? [];
-        stats.pulls += 1;
-
-        if (deathRecords.length > 0) {
-          for (const deathRecord of deathRecords) {
-            stats.deaths += 1;
-            stats.deathPercentTotal += deathRecord.deathPercent;
-            if (deathRecord.order <= 3) {
-              stats.earlyDeaths += 1;
-              stats.earlyDeathSeverityTotal += 1 - deathRecord.deathPercent;
-            }
-          }
-          stats.scoreTotal += this.scorePullDeaths(deathRecords);
-        } else {
-          stats.survivedPulls += 1;
-          stats.scoreTotal += 100;
-        }
-
-        survivalByCharacterEncounter.set(statKey, stats);
+        if (!specPullsByCharacter.has(characterKey)) specPullsByCharacter.set(characterKey, new Map());
+        const pullsBySpec = specPullsByCharacter.get(characterKey)!;
+        pullsBySpec.set(specName, (pullsBySpec.get(specName) ?? 0) + 1);
       }
     }
   }
 
-  private buildOverallEntries(bossEntries: any[]): any[] {
+  private addPullToStats(statsByKey: Map<string, SurvivalStats>, key: string, deathRecords: DeathRecord[]): void {
+    const stats = statsByKey.get(key) ?? {
+      pulls: 0,
+      deaths: 0,
+      survivedPulls: 0,
+      earlyDeaths: 0,
+      scoreTotal: 0,
+      deathPercentTotal: 0,
+      earlyDeathSeverityTotal: 0,
+    };
+
+    stats.pulls += 1;
+    if (deathRecords.length === 0) {
+      stats.survivedPulls += 1;
+      stats.scoreTotal += 100;
+    } else {
+      for (const deathRecord of deathRecords) {
+        stats.deaths += 1;
+        stats.deathPercentTotal += deathRecord.deathPercent;
+        if (deathRecord.order <= 3) {
+          stats.earlyDeaths += 1;
+          stats.earlyDeathSeverityTotal += 1 - deathRecord.deathPercent;
+        }
+      }
+      stats.scoreTotal += this.scorePullDeaths(deathRecords);
+    }
+
+    statsByKey.set(key, stats);
+  }
+
+  private getDominantSpecByCharacter(specPullsByCharacter: Map<string, Map<string, number>>): Map<string, string> {
+    const dominantSpecs = new Map<string, string>();
+
+    for (const [characterKey, pullsBySpec] of specPullsByCharacter) {
+      const [dominant] = Array.from(pullsBySpec.entries()).sort((left, right) => {
+        if (left[1] !== right[1]) return right[1] - left[1];
+        return left[0].localeCompare(right[0]);
+      });
+      if (dominant) dominantSpecs.set(characterKey, dominant[0]);
+    }
+
+    return dominantSpecs;
+  }
+
+  private buildOverallEntries(bossEntries: any[], overallStats: Map<string, SurvivalStats> = new Map()): any[] {
     const groups = new Map<string, any[]>();
     for (const entry of bossEntries) {
-      const key = `${entry.characterId}|${entry.metric}`;
+      const key = `${entry.characterId}|${entry.specName}|${entry.metric}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(entry);
     }
@@ -569,6 +726,19 @@ class CharacterMechanicsService {
 
       const representative = this.getOverallRepresentative(entries);
       const totals = this.summarizeBossScores(sortedBossScores);
+      const raidSurvival = this.summarizeSurvivalStats(
+        overallStats.get(this.getCharacterSpecKey(representative.characterId, representative.specName)),
+      );
+      if (raidSurvival.survivalScore !== null) {
+        totals.score = this.combineScores(totals.parseScore, raidSurvival.survivalScore);
+        totals.survivalScore = raidSurvival.survivalScore;
+        totals.pulls = raidSurvival.pulls;
+        totals.deaths = raidSurvival.deaths;
+        totals.survivedPulls = raidSurvival.survivedPulls;
+        totals.earlyDeaths = raidSurvival.earlyDeaths;
+        totals.averageDeathPercent = raidSurvival.averageDeathPercent;
+        totals.deathDataAvailable = true;
+      }
 
       overallEntries.push({
         ...representative,
@@ -995,20 +1165,24 @@ class CharacterMechanicsService {
     };
   }
 
-  private getCharacterEncounterKey(characterId: mongoose.Types.ObjectId, encounterId: number): string {
-    return `${this.getCharacterKey(characterId)}|${encounterId}`;
+  private getCharacterSpecEncounterKey(characterId: mongoose.Types.ObjectId, encounterId: number, specName: string): string {
+    return `${this.getCharacterSpecKey(characterId, specName)}|${encounterId}`;
+  }
+
+  private getCharacterSpecKey(characterId: mongoose.Types.ObjectId, specName: string): string {
+    return `${this.getCharacterKey(characterId)}|${slugifySpecName(specName)}`;
   }
 
   private getCharacterKey(characterId: mongoose.Types.ObjectId): string {
     return String(characterId);
   }
 
-  private getReportFightKey(reportCode: string, fightId: number): string {
-    return `${reportCode}|${fightId}`;
-  }
-
   private getDeathIdentityKey(name: string, realm: string): string {
     return `${this.normalizeIdentityPart(name)}|${this.normalizeIdentityPart(realm)}`;
+  }
+
+  private getRegionalIdentityKey(region: string, name: string, realm: string): string {
+    return `${this.normalizeIdentityPart(region)}|${this.getDeathIdentityKey(name, realm)}`;
   }
 
   private normalizeIdentityPart(value: string): string {

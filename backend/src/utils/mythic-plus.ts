@@ -1,3 +1,25 @@
+import { normalizeCharacterIdentityPart } from "./character-identity-link";
+import { normalizeRealmSlug } from "./realm";
+
+export type MythicPlusCharacterIdentity = {
+  name: string;
+  realm: string;
+  region: string;
+  classID: number;
+};
+
+export function mythicPlusCharacterIdentitiesMatch(
+  left: MythicPlusCharacterIdentity,
+  right: MythicPlusCharacterIdentity,
+): boolean {
+  return (
+    normalizeCharacterIdentityPart(left.name) === normalizeCharacterIdentityPart(right.name) &&
+    normalizeRealmSlug(left.realm) === normalizeRealmSlug(right.realm) &&
+    normalizeCharacterIdentityPart(left.region) === normalizeCharacterIdentityPart(right.region) &&
+    left.classID === right.classID
+  );
+}
+
 export type ResolvedMythicPlusSeasonRow = {
   season: string;
   row: any | null;

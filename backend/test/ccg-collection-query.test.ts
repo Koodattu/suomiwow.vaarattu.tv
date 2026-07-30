@@ -138,6 +138,9 @@ test("owned collection shares finishes and intersects favorite and alternative-a
     assert.ok(cardLookupIndex > ownershipLookupIndex);
     assert.equal(pipeline.some((stage) => stage.$lookup?.from === "ccgsets"), false);
     assert.deepEqual(pipeline[ownershipLookupIndex].$lookup.let, { setId: "$setId", characterId: "$characterId" });
+    const ownershipMatch = pipeline[ownershipLookupIndex].$lookup.pipeline.find((stage: Record<string, any>) => stage.$match?.$expr);
+    assert.deepEqual(ownershipMatch.$match.setId, { $type: "objectId" });
+    assert.deepEqual(ownershipMatch.$match.characterId, { $type: "objectId" });
     const snapshotMatch = pipeline[cardLookupIndex].$lookup.pipeline.find((stage: Record<string, any>) => stage.$match?.$expr);
     assert.deepEqual(snapshotMatch.$match.$expr.$and[2], { $in: ["$snapshotVersion", "$$unlockedSnapshotVersions"] });
 

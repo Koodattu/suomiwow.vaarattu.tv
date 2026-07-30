@@ -1414,9 +1414,9 @@ export default function AdminPage() {
   };
 
   const handleResetFailedArchivedDeaths = async () => {
-    const failed = wclUserAuthStatus?.deathEvents.failed || 0;
-    const archived = wclUserAuthStatus?.deathEvents.archived || 0;
-    if (!confirm(`Reset ${failed} failed and ${archived} archived death-event fight rows to pending, then queue affected guilds for death rescan?`)) {
+    const failed = (wclUserAuthStatus?.deathEvents.failed || 0) + (wclUserAuthStatus?.combatantInfo.failed || 0);
+    const archived = (wclUserAuthStatus?.deathEvents.archived || 0) + (wclUserAuthStatus?.combatantInfo.archived || 0);
+    if (!confirm(`Reset ${failed} failed and ${archived} archived fight-detail fields to pending, then queue affected guilds for backfill?`)) {
       return;
     }
 
@@ -1568,11 +1568,11 @@ export default function AdminPage() {
     }
   };
 
-  // Handler for queueing guild death events rescan
+  // Handler for queueing guild fight details backfill
   const handleQueueRescanDeaths = async (guildId: string, guildName: string) => {
     try {
       await queueGuildRescanDeaths(guildId);
-      setTriggerMessage({ type: "success", text: `${guildName} queued for death events rescan` });
+      setTriggerMessage({ type: "success", text: `${guildName} queued for fight details backfill` });
       if (selectedGuild) {
         const detail = await getAdminGuildDetail(guildId);
         setSelectedGuild(detail);
@@ -2338,7 +2338,7 @@ export default function AdminPage() {
                   </ManualActionGroup>
                   <ManualActionGroup title="Report queues">
                     {renderTriggerButton("refetch-reports", "Refetch Recent Reports", triggerRefetchRecentReports)}
-                    {renderTriggerButton("rescan-deaths", "Rescan Death Events", triggerRescanDeathEvents)}
+                    {renderTriggerButton("rescan-deaths", "Backfill Fight Specs & Deaths", triggerRescanDeathEvents)}
                     {renderTriggerButton("rescan-characters", "Rescan Characters", triggerRescanCharacters)}
                     {renderTriggerButton("backfill-report-characters", "Backfill Report Characters", triggerBackfillReportCharacters)}
                   </ManualActionGroup>
@@ -2819,9 +2819,9 @@ export default function AdminPage() {
                             <button
                               onClick={() => handleQueueRescanDeaths(guild.id, guild.name)}
                               className="px-2 py-1 bg-teal-600 text-white text-xs rounded hover:bg-teal-700"
-                              title="Rescan death events"
+                              title="Backfill fight specs and deaths"
                             >
-                              Deaths
+                              Fight data
                             </button>
                             <button
                               onClick={() => handleQueueRescanCharacters(guild.id, guild.name)}
@@ -5602,7 +5602,8 @@ export default function AdminPage() {
                       {wclUserAuthStatus.tokenExpiresAt && <p className="text-sm text-gray-500">token: {formatDate(wclUserAuthStatus.tokenExpiresAt)}</p>}
                     </div>
                     <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-gray-400 text-sm">Death Fetch Gaps</h4>
+                      <h4 className="text-gray-400 text-sm">Fight Detail Gaps</h4>
+                      <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Deaths</p>
                       <p className="text-sm text-gray-300 mt-2">
                         <span className="text-amber-300 font-semibold">{wclUserAuthStatus.deathEvents.pending}</span> pending
                       </p>
@@ -5611,6 +5612,16 @@ export default function AdminPage() {
                       </p>
                       <p className="text-sm text-gray-300">
                         <span className="text-purple-300 font-semibold">{wclUserAuthStatus.deathEvents.archived}</span> archived
+                      </p>
+                      <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Specs</p>
+                      <p className="text-sm text-gray-300 mt-2">
+                        <span className="text-amber-300 font-semibold">{wclUserAuthStatus.combatantInfo.pending}</span> pending
+                      </p>
+                      <p className="text-sm text-gray-300">
+                        <span className="text-red-300 font-semibold">{wclUserAuthStatus.combatantInfo.failed}</span> failed
+                      </p>
+                      <p className="text-sm text-gray-300">
+                        <span className="text-purple-300 font-semibold">{wclUserAuthStatus.combatantInfo.archived}</span> archived
                       </p>
                     </div>
                     <div className="bg-gray-700 rounded-lg p-4">
@@ -5638,10 +5649,15 @@ export default function AdminPage() {
                     </button>
                     <button
                       onClick={handleResetFailedArchivedDeaths}
-                      disabled={triggerLoading === "death-events-reset" || (wclUserAuthStatus.deathEvents.failed === 0 && wclUserAuthStatus.deathEvents.archived === 0)}
+                      disabled={triggerLoading === "death-events-reset" || (
+                        wclUserAuthStatus.deathEvents.failed === 0
+                        && wclUserAuthStatus.deathEvents.archived === 0
+                        && wclUserAuthStatus.combatantInfo.failed === 0
+                        && wclUserAuthStatus.combatantInfo.archived === 0
+                      )}
                       className="px-3 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50"
                     >
-                      Reset Failed/Archived Deaths
+                      Reset Failed/Archived Fight Data
                     </button>
                     <button
                       onClick={handleDisconnectWclUser}
@@ -6025,7 +6041,7 @@ export default function AdminPage() {
                                               : "bg-cyan-900 text-cyan-300"
                                         }`}
                                       >
-                                        {item.jobType === "rescan_deaths" ? "Deaths" : item.jobType === "backfill_report_characters" ? "Report Chars" : "Characters"}
+                                        {item.jobType === "rescan_deaths" ? "Fight data" : item.jobType === "backfill_report_characters" ? "Report Chars" : "Characters"}
                                       </span>
                                     )}
                                   </td>
@@ -6106,7 +6122,7 @@ export default function AdminPage() {
                                     : "bg-cyan-900 text-cyan-300"
                               }`}
                             >
-                              {item.jobType === "rescan_deaths" ? "Deaths" : item.jobType === "backfill_report_characters" ? "Report Chars" : "Characters"}
+                              {item.jobType === "rescan_deaths" ? "Fight data" : item.jobType === "backfill_report_characters" ? "Report Chars" : "Characters"}
                             </span>
                           )}
                         </td>
@@ -6788,7 +6804,7 @@ export default function AdminPage() {
                           onClick={() => handleQueueRescanDeaths(selectedGuild.id, selectedGuild.name)}
                           className="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700"
                         >
-                          Rescan Deaths
+                          Backfill Fight Specs & Deaths
                         </button>
                         <button
                           onClick={() => handleQueueRescanCharacters(selectedGuild.id, selectedGuild.name)}

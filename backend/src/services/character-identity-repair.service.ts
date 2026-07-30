@@ -17,6 +17,7 @@ import characterAchievementService, {
 import { buildObservedIdentityGuard } from "./character-observed-identity.service";
 import characterMediaService, { CharacterCardMediaSyncResult, syncCardsFromCurrentMedia } from "./character-media.service";
 import cacheService from "./cache.service";
+import mythicPlusService, { MythicPlusIdentityRepairResult } from "./mythic-plus.service";
 
 const BATCH_SIZE = 1000;
 
@@ -78,6 +79,7 @@ export type CharacterIdentityRepairApplyResult = {
   achievements: CharacterAchievementTargetedEnqueueResult;
   achievementQueueRowsModified: number;
   accountGroupsRebuilt: number;
+  mythicPlus: MythicPlusIdentityRepairResult;
 };
 
 export type CharacterIdentityRepairResult = {
@@ -163,6 +165,18 @@ export class CharacterIdentityRepairService {
     const cards = await syncCardsFromCurrentMedia(safeCardSyncIds);
     const mediaQueued = await characterMediaService.enqueueCharacters(safeMediaRefreshIds, 200, true);
     const achievements = await characterAchievementService.enqueueCharacters(safeAchievementRefreshIds, 1);
+    const mythicPlus =
+      safeMismatchIds.length > 0
+        ? await mythicPlusService.reconcileCharacterIdentities({ characterIds: safeMismatchIds, limit: safeMismatchIds.length })
+        : {
+            scannedCharacters: 0,
+            identityDriftCandidates: 0,
+            processedCharacters: 0,
+            jobsSynchronized: 0,
+            staleScoreRows: 0,
+            staleDungeonRuns: 0,
+            queued: 0,
+          };
     const accountGroups =
       plan.analysis.identityMismatches > 0 ? await characterAchievementService.rebuildAccountGroups() : null;
 
@@ -183,6 +197,7 @@ export class CharacterIdentityRepairService {
         achievements,
         achievementQueueRowsModified: queueRowsModified.achievements,
         accountGroupsRebuilt: accountGroups?.groups ?? 0,
+        mythicPlus,
       },
     };
   }

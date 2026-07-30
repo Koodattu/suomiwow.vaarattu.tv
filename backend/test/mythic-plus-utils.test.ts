@@ -1,6 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getMissingMythicPlusSeasons, resolveMythicPlusSeasonRows } from "../src/utils/mythic-plus";
+import {
+  getMissingMythicPlusSeasons,
+  mythicPlusCharacterIdentitiesMatch,
+  resolveMythicPlusSeasonRows,
+} from "../src/utils/mythic-plus";
+
+test("Mythic+ identity comparison preserves significant names and normalizes realm display values", () => {
+  const current = { name: "Maisié", realm: "stormreaver", region: "eu", classID: 6 };
+
+  assert.equal(
+    mythicPlusCharacterIdentitiesMatch(current, { name: "MAISIÉ", realm: "Stormreaver", region: "EU", classID: 6 }),
+    true,
+  );
+  assert.equal(
+    mythicPlusCharacterIdentitiesMatch(current, { name: "Maisie", realm: "Tarren Mill", region: "eu", classID: 6 }),
+    false,
+  );
+  assert.equal(
+    mythicPlusCharacterIdentitiesMatch(current, { name: "Maisié", realm: "stormreaver", region: "eu", classID: 2 }),
+    false,
+  );
+});
 
 test("historical score repair targets only seasons without a stored result", () => {
   assert.deepEqual(

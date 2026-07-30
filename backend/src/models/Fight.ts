@@ -14,6 +14,14 @@ export interface IPlayerDeath {
 }
 
 export type DeathEventsFetchStatus = "pending" | "fetched" | "failed" | "archived";
+export type CombatantInfoFetchStatus = DeathEventsFetchStatus;
+
+export interface IFightCombatant {
+  name: string;
+  server: string;
+  specID: number;
+  specName: string;
+}
 
 export interface IFight extends Document {
   reportCode: string; // WCL report code this fight belongs to
@@ -43,6 +51,11 @@ export interface IFight extends Document {
   deathEventsFetchedAt?: Date;
   deathEventsFetchFailedAt?: Date;
   deathEventsFetchError?: string;
+  combatants?: IFightCombatant[];
+  combatantInfoFetchStatus?: CombatantInfoFetchStatus;
+  combatantInfoFetchedAt?: Date;
+  combatantInfoFetchFailedAt?: Date;
+  combatantInfoFetchError?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -94,6 +107,23 @@ const FightSchema: Schema = new Schema(
     deathEventsFetchedAt: { type: Date },
     deathEventsFetchFailedAt: { type: Date },
     deathEventsFetchError: { type: String },
+    combatants: [
+      {
+        name: { type: String, required: true },
+        server: { type: String, required: true },
+        specID: { type: Number, required: true },
+        specName: { type: String, required: true },
+      },
+    ],
+    combatantInfoFetchStatus: {
+      type: String,
+      enum: ["pending", "fetched", "failed", "archived"],
+      default: "pending",
+      index: true,
+    },
+    combatantInfoFetchedAt: { type: Date },
+    combatantInfoFetchFailedAt: { type: Date },
+    combatantInfoFetchError: { type: String },
   },
   {
     timestamps: true,
@@ -112,8 +142,12 @@ FightSchema.index(
   { name: "death_backfill_queue_lookup" },
 );
 FightSchema.index(
-  { zoneId: 1, difficulty: 1, deathEventsFetchStatus: 1, reportCode: 1, fightId: 1, encounterID: 1 },
-  { name: "mechanics_death_fights_lookup" },
+  { combatantInfoFetchStatus: 1, reportEndTime: 1, guildId: 1 },
+  { name: "combatant_info_backfill_queue_lookup" },
+);
+FightSchema.index(
+  { zoneId: 1, difficulty: 1, deathEventsFetchStatus: 1, combatantInfoFetchStatus: 1, reportCode: 1, fightId: 1, encounterID: 1 },
+  { name: "mechanics_fight_details_lookup" },
 );
 
 export default mongoose.model<IFight>("Fight", FightSchema);

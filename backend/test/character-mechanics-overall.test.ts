@@ -5,6 +5,17 @@ import characterMechanicsService from "../src/services/character-mechanics.servi
 
 type TestableCharacterMechanicsService = {
   buildOverallEntries(entries: Array<Record<string, unknown>>): Array<Record<string, any>>;
+  getDominantSpecByCharacter(pulls: Map<string, Map<string, number>>): Map<string, string>;
+  addSurvivalStats(
+    fights: Array<Record<string, unknown>>,
+    appearances: Array<Record<string, unknown>>,
+    aliases: Array<Record<string, unknown>>,
+    reportRegions: Map<string, string>,
+    encounterStats: Map<string, any>,
+    overallStats: Map<string, any>,
+    pullsBySpec: Map<string, Map<string, number>>,
+    expectedDurations: Map<number, number>,
+  ): void;
 };
 
 function bossEntry(overrides: Record<string, unknown>): Record<string, unknown> {
@@ -38,7 +49,7 @@ function bossEntry(overrides: Record<string, unknown>): Record<string, unknown> 
   };
 }
 
-test("overall mechanics metadata follows the role and spec with the most attributed pulls", () => {
+test("overall mechanics rows never combine pulls from different specs", () => {
   const service = characterMechanicsService as unknown as TestableCharacterMechanicsService;
   const holy = bossEntry({
     encounterId: 2,
@@ -50,13 +61,58 @@ test("overall mechanics metadata follows the role and spec with the most attribu
   });
   const shadow = bossEntry({ encounterId: 1, pulls: 798, score: 72.9 });
 
-  const [overall] = service.buildOverallEntries([holy, shadow]);
-  const [reordered] = service.buildOverallEntries([shadow, holy]);
+  const overall = service.buildOverallEntries([holy, shadow]);
+  const reordered = service.buildOverallEntries([shadow, holy]);
+  const shadowOverall = overall.find((entry) => entry.specName === "shadow");
+  const holyOverall = overall.find((entry) => entry.specName === "holy");
 
-  assert.equal(overall.role, "dps");
-  assert.equal(overall.specName, "shadow");
-  assert.equal(overall.bestSpecName, "shadow");
-  assert.equal(overall.pulls, 833);
-  assert.equal(reordered.role, "dps");
-  assert.equal(reordered.specName, "shadow");
+  assert.equal(overall.length, 2);
+  assert.equal(shadowOverall?.role, "dps");
+  assert.equal(shadowOverall?.pulls, 798);
+  assert.equal(holyOverall?.role, "healer");
+  assert.equal(holyOverall?.pulls, 35);
+  assert.deepEqual(reordered.map((entry) => entry.specName).sort(), ["holy", "shadow"]);
+});
+
+test("dominant raid spec is selected strictly by Mythic pull count", () => {
+  const service = characterMechanicsService as unknown as TestableCharacterMechanicsService;
+  const dominant = service.getDominantSpecByCharacter(new Map([
+    ["violetcar", new Map([
+      ["preservation", 150],
+      ["augmentation", 199],
+      ["devastation", 4],
+    ])],
+  ]));
+
+  assert.equal(dominant.get("violetcar"), "augmentation");
+});
+
+test("wipe-only reports count exact CombatantInfo specs through canonical character aliases", () => {
+  const service = characterMechanicsService as unknown as TestableCharacterMechanicsService;
+  const characterId = new mongoose.Types.ObjectId("64b000000000000000000002");
+  const encounterStats = new Map<string, any>();
+  const overallStats = new Map<string, any>();
+  const pullsBySpec = new Map<string, Map<string, number>>();
+
+  service.addSurvivalStats(
+    [{
+      reportCode: "wipe-only",
+      fightId: 1,
+      encounterID: 999,
+      duration: 120_000,
+      deaths: [],
+      combatants: [{ name: "Violetcar", server: "Kazzak", specID: 1473, specName: "augmentation" }],
+    }],
+    [],
+    [{ characterId, wclCanonicalCharacterId: 1, name: "Violetcar", realm: "kazzak", region: "EU", classID: 13 }],
+    new Map([["wipe-only", "EU"]]),
+    encounterStats,
+    overallStats,
+    pullsBySpec,
+    new Map([[999, 120_000]]),
+  );
+
+  assert.equal(pullsBySpec.get(String(characterId))?.get("augmentation"), 1);
+  assert.equal([...encounterStats.values()][0]?.pulls, 1);
+  assert.equal([...overallStats.values()][0]?.pulls, 1);
 });

@@ -331,6 +331,11 @@ type CcgPackOpenState = {
   ownedCardsBySetDelta: Record<string, number>;
 };
 
+type CcgCompletedCardRewards = Record<CcgMode, number> & {
+  total: number;
+  rewardedSeriesKeys: Set<string>;
+};
+
 type RedeemedCodeSnapshot = {
   code: string;
   rewardType: "packs" | "card";
@@ -1613,6 +1618,8 @@ class CcgService {
               $match: {
                 ownerType: owner.ownerType,
                 ownerId: owner.ownerId,
+                setId: { $type: "objectId" },
+                characterId: { $type: "objectId" },
                 ...(finishMatch ? { finish: finishMatch } : {}),
                 $expr: {
                   $and: [
@@ -2736,7 +2743,7 @@ class CcgService {
         const qualityProgress = await this.ensureQualityProgress(owner, session);
         let pity = this.readFinishPity(qualityProgress);
         const results: SelectedResult[] = [];
-        const completedCardDuplicates: Array<Pick<SelectedResult, "cardId" | "setId" | "characterId">> = [];
+        const completedCardDuplicates: Array<Pick<SelectedResult, "cardId" | "setId" | "characterId"> & { resultIndex: number }> = [];
         for (const result of selected) {
           const card = cardById.get(String(result.cardId));
           if (!card) continue;
@@ -2766,7 +2773,12 @@ class CcgService {
           ownedFinishes.add(finish);
           ownedFinishesBySeries.set(seriesKey, ownedFinishes);
           if (rolled.isCompletedCardDuplicate) {
-            completedCardDuplicates.push({ cardId: card._id, setId: card.setId, characterId: card.characterId });
+            completedCardDuplicates.push({
+              cardId: card._id,
+              setId: card.setId,
+              characterId: card.characterId,
+              resultIndex: results.length,
+            });
           }
           results.push({
             cardId: card._id,
@@ -2788,9 +2800,17 @@ class CcgService {
         await this.addOwnership(owner, results, session);
         const completionRewards = owner.ownerType === "user"
           ? await this.grantCompletedCardRewards(owner.ownerId, completedCardDuplicates, session)
-          : { current: 0, legacy: 0, total: 0 };
+          : { current: 0, legacy: 0, total: 0, rewardedSeriesKeys: new Set<string>() };
         const duplicateRewards = completionRewards.total;
-        const shuffledResults = shufflePackResults(results);
+        const pendingRewardSeriesKeys = new Set(completionRewards.rewardedSeriesKeys);
+        const rewardedResultIndexes = new Set<number>();
+        for (const candidate of completedCardDuplicates) {
+          if (pendingRewardSeriesKeys.delete(getSeriesKey(candidate))) rewardedResultIndexes.add(candidate.resultIndex);
+        }
+        const shuffledResults = shufflePackResults(results.map((result, index) => ({
+          ...result,
+          bonusPackReward: rewardedResultIndexes.has(index),
+        })));
         const [opening] = await CcgPackOpening.create(
           [
             {
@@ -4256,9 +4276,10 @@ class CcgService {
     ownerId: mongoose.Types.ObjectId,
     candidates: ReadonlyArray<Pick<SelectedResult, "cardId" | "setId" | "characterId">>,
     session: ClientSession,
-  ): Promise<Record<CcgMode, number> & { total: number }> {
+  ): Promise<CcgCompletedCardRewards> {
+    const rewardedSeriesKeys = new Set<string>();
     const uniqueCandidates = new Map(candidates.map((candidate) => [getSeriesKey(candidate), candidate]));
-    if (uniqueCandidates.size === 0) return { current: 0, legacy: 0, total: 0 };
+    if (uniqueCandidates.size === 0) return { current: 0, legacy: 0, total: 0, rewardedSeriesKeys };
 
     const sets = await CcgSet.find({
       _id: { $in: Array.from(uniqueCandidates.values(), (candidate) => candidate.setId) },
@@ -4266,7 +4287,7 @@ class CcgService {
       state: { $in: ["current", "legacy"] },
     }).select("_id state").session(session).lean();
     const setById = new Map(sets.map((set) => [String(set._id), set]));
-    const rewards: Record<CcgMode, number> & { total: number } = { current: 0, legacy: 0, total: 0 };
+    const rewards: CcgCompletedCardRewards = { current: 0, legacy: 0, total: 0, rewardedSeriesKeys };
     const seriesCards = await CcgCard.find({
       $or: Array.from(uniqueCandidates.values(), (candidate) => ({
         setId: candidate.setId,
@@ -4327,6 +4348,7 @@ class CcgService {
       );
       rewards[mode] += 1;
       rewards.total += 1;
+      rewards.rewardedSeriesKeys.add(seriesKey);
     }
     return rewards;
   }
@@ -4414,6 +4436,7 @@ class CcgService {
           finish: result.finish,
           artVariant: result.artVariant ?? "standard",
           isDuplicate: result.isDuplicate,
+          bonusPackReward: Boolean(result.bonusPackReward),
           card: card && set
             ? this.serializeCard(
                 card,

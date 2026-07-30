@@ -444,8 +444,8 @@ class UpdateScheduler {
       },
     );
 
-    // NIGHTLY: Queue death event backfill (at 00:30 Finnish time)
-    // The queued jobs skip fights already marked deathEventsFetchStatus="fetched".
+    // NIGHTLY: Queue fight spec and death-event backfill (at 00:30 Finnish time)
+    // The queued jobs skip fights whose death events and CombatantInfo are already fetched.
     // Uses lower priority than report-character backfill so later maintenance can overtake it.
     cron.schedule(
       "30 0 * * *",
@@ -578,12 +578,12 @@ class UpdateScheduler {
       },
     );
 
-    // NIGHTLY: Repair missing historical Mythic+ score rows before the weekly CCG snapshot (at 00:45 Finnish time)
+    // NIGHTLY: Repair Mythic+ identity drift and missing historical score rows before the weekly CCG snapshot (at 00:45 Finnish time)
     cron.schedule(
       "45 0 * * *",
       async () => {
         if (this.isRepairingMythicPlusHistoricalScores || mythicPlusService.isProcessing()) {
-          logger.info("[Nightly/MythicPlusRepair] Mythic+ crawler is still running, skipping historical score repair...");
+          logger.info("[Nightly/MythicPlusRepair] Mythic+ crawler is still running, skipping historical and identity score repair...");
           return;
         }
         await this.repairMythicPlusHistoricalScores();
@@ -817,7 +817,7 @@ class UpdateScheduler {
     logger.info("    * Report character backfill queue: daily at 01:00");
     logger.info("    * Character achievement account matching backfill: daily at 01:30");
     logger.info("    * Mythic+ current season refresh: daily at 02:00");
-    logger.info("    * Mythic+ historical score repair: daily at 00:45");
+    logger.info("    * Mythic+ historical and identity score repair: daily at 00:45");
     logger.info("    * Fight VOD cleanup: daily at 02:30");
     logger.info("    * Refetch recent reports: daily at 03:00");
     logger.info("    * World ranks update: daily at 04:00");
@@ -1031,7 +1031,7 @@ class UpdateScheduler {
 
   async queueDeathEventBackfill(): Promise<void> {
     this.isQueueingDeathEventBackfill = true;
-    const taskId = await taskTracker.start("Queue Death Event Backfill");
+    const taskId = await taskTracker.start("Queue Fight Details Backfill");
 
     try {
       const result = await guildService.queueAllGuildsForDeathRescan(25);
@@ -1100,22 +1100,25 @@ class UpdateScheduler {
 
   async repairMythicPlusHistoricalScores(): Promise<void> {
     if (mythicPlusService.isProcessing()) {
-      logger.info("[Nightly/MythicPlusRepair] Mythic+ crawler is already running, skipping historical score repair");
+      logger.info("[Nightly/MythicPlusRepair] Mythic+ crawler is already running, skipping historical and identity score repair");
       return;
     }
 
     this.isRepairingMythicPlusHistoricalScores = true;
-    const taskId = await taskTracker.start("Repair Mythic+ Historical Scores");
+    const taskId = await taskTracker.start("Repair Mythic+ Historical & Identity Scores");
 
     try {
       const result = await mythicPlusService.triggerHistoricalScoreRepair();
       logger.info(
-        `[Nightly/MythicPlusRepair] Queued ${result.enqueue.queued} character(s) covering ${result.enqueue.missingSeasonPairs} missing character-season score row(s); processorStarted=${result.started}`,
+        `[Nightly/MythicPlusRepair] Queued ${result.enqueue.queued} character(s) covering ${result.enqueue.missingSeasonPairs} missing character-season score row(s) and ${result.enqueue.identityRepair.processedCharacters} identity repair(s); processorStarted=${result.started}`,
       );
       await taskTracker.complete(taskId, {
         candidates: result.enqueue.candidates,
         queued: result.enqueue.queued,
         missingSeasonPairs: result.enqueue.missingSeasonPairs,
+        identityRepairs: result.enqueue.identityRepair.processedCharacters,
+        staleScoreRows: result.enqueue.identityRepair.staleScoreRows,
+        staleDungeonRuns: result.enqueue.identityRepair.staleDungeonRuns,
         processorStarted: result.started,
       });
     } catch (error) {

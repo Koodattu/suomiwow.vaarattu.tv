@@ -11,7 +11,7 @@ import {
   RAIDER_IO_MYTHIC_PLUS_EXPANSION_IDS,
 } from "../config/mythic-plus";
 import { RAIDER_IO_SPEC_FIELDS, RAIDER_IO_SPEC_SLOTS_BY_BLIZZARD_CLASS_ID, RaiderIoSpecField } from "../config/raiderio-specs";
-import Character from "../models/Character";
+import Character, { ICharacter } from "../models/Character";
 import CharacterMythicPlusDungeonRun from "../models/CharacterMythicPlusDungeonRun";
 import CharacterMythicPlusFetchJob, {
   CharacterMythicPlusFetchJobStatus,
@@ -21,7 +21,12 @@ import CharacterMythicPlusSeasonScore, { IMythicPlusScores } from "../models/Cha
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import MythicPlusDungeon from "../models/MythicPlusDungeon";
 import MythicPlusSeason from "../models/MythicPlusSeason";
-import { getMissingMythicPlusSeasons, resolveMythicPlusSeasonRows } from "../utils/mythic-plus";
+import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
+import {
+  getMissingMythicPlusSeasons,
+  mythicPlusCharacterIdentitiesMatch,
+  resolveMythicPlusSeasonRows,
+} from "../utils/mythic-plus";
 import logger from "../utils/logger";
 import { normalizeRealmSlug } from "../utils/realm";
 import cacheService from "./cache.service";
@@ -38,6 +43,7 @@ const DEFAULT_NIGHTLY_ACTIVE_DAYS = Math.max(1, Number(process.env.RAIDER_IO_MPL
 const DEFAULT_NIGHTLY_PROFILE_STALE_HOURS = Math.max(1, Number(process.env.RAIDER_IO_MPLUS_NIGHTLY_PROFILE_STALE_HOURS || 24));
 const DEFAULT_NIGHTLY_RUN_STALE_HOURS = Math.max(1, Number(process.env.RAIDER_IO_MPLUS_NIGHTLY_RUN_STALE_HOURS || 18));
 const DEFAULT_NIGHTLY_HISTORICAL_REPAIR_LIMIT = Math.max(25, Number(process.env.RAIDER_IO_MPLUS_NIGHTLY_REPAIR_LIMIT || 750));
+const CURRENT_IDENTITY_FILTER = { identityStatus: { $ne: "stale" } } as const;
 
 type RaiderIoHttpResult =
   | {
@@ -62,6 +68,18 @@ type CharacterIdentity = {
   guildName?: string | null;
   guildRealm?: string | null;
   lastMythicSeenAt?: Date | null;
+  identityObservedAt?: Date | null;
+  blizzardIdentityOverride?: ICharacter["blizzardIdentityOverride"];
+};
+
+export type MythicPlusIdentityRepairResult = {
+  scannedCharacters: number;
+  identityDriftCandidates: number;
+  processedCharacters: number;
+  jobsSynchronized: number;
+  staleScoreRows: number;
+  staleDungeonRuns: number;
+  queued: number;
 };
 
 type EnqueueProfileJobsOptions = {
@@ -332,6 +350,22 @@ class MythicPlusService {
         reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY },
       }),
     );
+  }
+
+  private resolveFetchIdentity(character: CharacterIdentity): CharacterIdentity {
+    return {
+      ...character,
+      ...resolveBlizzardCharacterIdentity(character),
+    };
+  }
+
+  private async getCurrentCharacterIdentity(characterId: mongoose.Types.ObjectId): Promise<CharacterIdentity | null> {
+    const character = await Character.findById(characterId)
+      .select(
+        "_id wclCanonicalCharacterId name realm region classID guildName guildRealm lastMythicSeenAt identityObservedAt blizzardIdentityOverride",
+      )
+      .lean<CharacterIdentity | null>();
+    return character ? this.resolveFetchIdentity(character) : null;
   }
 
   private async waitForRateLimit(): Promise<void> {
@@ -700,6 +734,7 @@ class MythicPlusService {
             classID: character.classID,
             guildName: character.guildName ?? null,
             guildRealm: character.guildRealm ?? null,
+            identityStatus: "current",
             season,
             scoreStatus: scores.all > 0 ? "available" : "no_score",
             scores,
@@ -812,6 +847,7 @@ class MythicPlusService {
               classID: character.classID,
               guildName: character.guildName ?? null,
               guildRealm: character.guildRealm ?? null,
+              identityStatus: "current",
               season,
               bucket,
               bucketType: bucketContext.bucketType,
@@ -885,7 +921,9 @@ class MythicPlusService {
     };
 
     const query = Character.find(characterFilter)
-      .select("_id wclCanonicalCharacterId name realm region classID guildName guildRealm lastMythicSeenAt")
+      .select(
+        "_id wclCanonicalCharacterId name realm region classID guildName guildRealm lastMythicSeenAt identityObservedAt blizzardIdentityOverride",
+      )
       .sort({ lastMythicSeenAt: -1, lastReportSeenAt: -1, updatedAt: -1 });
     if (limit > 0) query.limit(limit);
 
@@ -896,6 +934,7 @@ class MythicPlusService {
     let existing = 0;
 
     for await (const character of cursor) {
+      const fetchCharacter = this.resolveFetchIdentity(character);
       candidates += 1;
       const priority = character.lastMythicSeenAt ? 10 : 30;
       operations.push({
@@ -907,14 +946,14 @@ class MythicPlusService {
           },
           update: {
             $set: {
-              characterId: character._id,
-              wclCanonicalCharacterId: character.wclCanonicalCharacterId,
-              name: character.name,
-              realm: character.realm,
-              region: character.region,
-              classID: character.classID,
-              guildName: character.guildName ?? null,
-              guildRealm: character.guildRealm ?? null,
+              characterId: fetchCharacter._id,
+              wclCanonicalCharacterId: fetchCharacter.wclCanonicalCharacterId,
+              name: fetchCharacter.name,
+              realm: fetchCharacter.realm,
+              region: fetchCharacter.region,
+              classID: fetchCharacter.classID,
+              guildName: fetchCharacter.guildName ?? null,
+              guildRealm: fetchCharacter.guildRealm ?? null,
               targetSeasons,
               fetchSeasonProgress,
               priority,
@@ -975,7 +1014,10 @@ class MythicPlusService {
     if (eligibleCharacterIds.length === 0) return { candidates: 0, queued: 0, existing: 0 };
 
     const [charactersWithScores, charactersWithProfileJobs] = await Promise.all([
-      CharacterMythicPlusSeasonScore.distinct("characterId", { characterId: { $in: eligibleCharacterIds } }),
+      CharacterMythicPlusSeasonScore.distinct("characterId", {
+        characterId: { $in: eligibleCharacterIds },
+        ...CURRENT_IDENTITY_FILTER,
+      }),
       CharacterMythicPlusFetchJob.distinct("characterId", {
         characterId: { $in: eligibleCharacterIds },
         jobType: "profile",
@@ -1067,6 +1109,158 @@ class MythicPlusService {
     return (result.upsertedCount ?? 0) + (refresh ? (result.modifiedCount ?? 0) : 0);
   }
 
+  async reconcileCharacterIdentities(
+    options: { characterIds?: Array<string | mongoose.Types.ObjectId>; limit?: number } = {},
+  ): Promise<MythicPlusIdentityRepairResult> {
+    const limit = Math.min(Math.max(Math.floor(options.limit ?? DEFAULT_NIGHTLY_HISTORICAL_REPAIR_LIMIT), 1), 10000);
+    const requestedCharacterIds = (options.characterIds ?? [])
+      .map((id) => (id instanceof mongoose.Types.ObjectId ? id : mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null))
+      .filter((id): id is mongoose.Types.ObjectId => id !== null);
+    const characterMatch = requestedCharacterIds.length > 0 ? { characterId: { $in: requestedCharacterIds } } : {};
+    type IdentityGroup = {
+      _id: mongoose.Types.ObjectId;
+      identities: Array<Pick<CharacterIdentity, "name" | "realm" | "region" | "classID">>;
+    };
+    const identityGroup = {
+      _id: "$characterId",
+      identities: { $addToSet: { name: "$name", realm: "$realm", region: "$region", classID: "$classID" } },
+    };
+
+    const [jobGroups, scoreGroups, runGroups] = await Promise.all([
+      CharacterMythicPlusFetchJob.aggregate<IdentityGroup>([
+        { $match: characterMatch },
+        { $group: identityGroup },
+      ]),
+      CharacterMythicPlusSeasonScore.aggregate<IdentityGroup>([
+        { $match: { ...characterMatch, ...CURRENT_IDENTITY_FILTER } },
+        { $group: identityGroup },
+      ]),
+      CharacterMythicPlusDungeonRun.aggregate<IdentityGroup>([
+        { $match: { ...characterMatch, ...CURRENT_IDENTITY_FILTER } },
+        { $group: identityGroup },
+      ]),
+    ]);
+    const scannedIds = new Map<string, mongoose.Types.ObjectId>();
+    for (const group of [...jobGroups, ...scoreGroups, ...runGroups]) scannedIds.set(String(group._id), group._id);
+    if (scannedIds.size === 0) {
+      return {
+        scannedCharacters: 0,
+        identityDriftCandidates: 0,
+        processedCharacters: 0,
+        jobsSynchronized: 0,
+        staleScoreRows: 0,
+        staleDungeonRuns: 0,
+        queued: 0,
+      };
+    }
+
+    const characters = await Character.find({ _id: { $in: [...scannedIds.values()] } })
+      .select(
+        "_id wclCanonicalCharacterId name realm region classID guildName guildRealm lastMythicSeenAt identityObservedAt blizzardIdentityOverride",
+      )
+      .lean<CharacterIdentity[]>();
+    const characterById = new Map(characters.map((character) => [String(character._id), this.resolveFetchIdentity(character)]));
+    const findDriftIds = (groups: IdentityGroup[]): Set<string> =>
+      new Set(
+        groups
+          .filter((group) => {
+            const expected = characterById.get(String(group._id));
+            return expected && group.identities.some((identity) => !mythicPlusCharacterIdentitiesMatch(identity, expected));
+          })
+          .map((group) => String(group._id)),
+      );
+    const jobDriftIds = findDriftIds(jobGroups);
+    const scoreDriftIds = findDriftIds(scoreGroups);
+    const runDriftIds = findDriftIds(runGroups);
+    const driftIds = [...new Set([...scoreDriftIds, ...runDriftIds, ...jobDriftIds])];
+    const selectedIds = driftIds.slice(0, limit);
+    if (selectedIds.length === 0) {
+      return {
+        scannedCharacters: scannedIds.size,
+        identityDriftCandidates: 0,
+        processedCharacters: 0,
+        jobsSynchronized: 0,
+        staleScoreRows: 0,
+        staleDungeonRuns: 0,
+        queued: 0,
+      };
+    }
+
+    const selectedIdSet = new Set(selectedIds);
+    const getStaleIdentityFilters = (groups: IdentityGroup[]) =>
+      groups.flatMap((group) => {
+        const id = String(group._id);
+        const expected = characterById.get(id);
+        if (!selectedIdSet.has(id) || !expected) return [];
+        return group.identities
+          .filter((identity) => !mythicPlusCharacterIdentitiesMatch(identity, expected))
+          .map((identity) => ({ characterId: group._id, ...identity }));
+      });
+    const staleScoreFilters = getStaleIdentityFilters(scoreGroups);
+    const staleRunFilters = getStaleIdentityFilters(runGroups);
+    const enqueue = await this.enqueueProfileJobs({
+      characterIds: selectedIds,
+      refresh: true,
+      targetSeasons: await this.getMainSeasonSlugs(),
+      fetchSeasonProgress: false,
+    });
+    const [scoreResult, runResult] = await Promise.all([
+      staleScoreFilters.length > 0
+        ? CharacterMythicPlusSeasonScore.updateMany(
+            { ...CURRENT_IDENTITY_FILTER, $or: staleScoreFilters },
+            { $set: { identityStatus: "stale" } },
+          )
+        : null,
+      staleRunFilters.length > 0
+        ? CharacterMythicPlusDungeonRun.updateMany(
+            { ...CURRENT_IDENTITY_FILTER, $or: staleRunFilters },
+            { $set: { identityStatus: "stale" } },
+          )
+        : null,
+    ]);
+
+    const jobOperations = selectedIds
+      .filter((id) => jobDriftIds.has(id))
+      .flatMap((id) => {
+        const character = characterById.get(id);
+        if (!character) return [];
+        return [
+          {
+            updateMany: {
+              filter: { characterId: character._id },
+              update: {
+                $set: {
+                  wclCanonicalCharacterId: character.wclCanonicalCharacterId,
+                  name: character.name,
+                  realm: character.realm,
+                  region: character.region,
+                  classID: character.classID,
+                  guildName: character.guildName ?? null,
+                  guildRealm: character.guildRealm ?? null,
+                  lastActivityAt: new Date(),
+                },
+              },
+            },
+          },
+        ];
+      });
+    const jobResult =
+      jobOperations.length > 0 ? await CharacterMythicPlusFetchJob.bulkWrite(jobOperations, { ordered: false }) : null;
+    if ((scoreResult?.modifiedCount ?? 0) > 0 || (runResult?.modifiedCount ?? 0) > 0) {
+      await Promise.all([cacheService.invalidatePattern(/^mythic-plus:/), cacheService.invalidatePattern(/^characters:profile:/)]);
+    }
+
+    return {
+      scannedCharacters: scannedIds.size,
+      identityDriftCandidates: driftIds.length,
+      processedCharacters: selectedIds.length,
+      jobsSynchronized: jobResult?.modifiedCount ?? 0,
+      staleScoreRows: scoreResult?.modifiedCount ?? 0,
+      staleDungeonRuns: runResult?.modifiedCount ?? 0,
+      queued: enqueue.candidates,
+    };
+  }
+
   async enqueueCurrentSeasonRefreshJobs(
     options: {
       characterLimit?: number;
@@ -1102,7 +1296,9 @@ class MythicPlusService {
       wclProfileHidden: { $ne: true },
       lastMythicSeenAt: { $gte: activeSince },
     })
-      .select("_id wclCanonicalCharacterId name realm region classID guildName guildRealm lastMythicSeenAt")
+      .select(
+        "_id wclCanonicalCharacterId name realm region classID guildName guildRealm lastMythicSeenAt identityObservedAt blizzardIdentityOverride",
+      )
       .sort({ lastMythicSeenAt: -1, lastReportSeenAt: -1, updatedAt: -1 })
       .limit(characterLimit)
       .lean<CharacterIdentity[]>();
@@ -1123,6 +1319,7 @@ class MythicPlusService {
     const scoreRows = await CharacterMythicPlusSeasonScore.find({
       season: currentSeason,
       characterId: { $in: characterIds },
+      ...CURRENT_IDENTITY_FILTER,
     })
       .select("characterId scores fetchedAt")
       .lean();
@@ -1155,6 +1352,7 @@ class MythicPlusService {
                 season: currentSeason,
                 bucket: "all",
                 characterId: { $in: positiveCharacterIds },
+                ...CURRENT_IDENTITY_FILTER,
               },
             },
             {
@@ -1167,11 +1365,13 @@ class MythicPlusService {
           ])
         : [];
     const runFreshnessByCharacter = new Map(runFreshness.map((row) => [String(row._id), row]));
-    const progressCharacters = positiveCurrentSeasonCharacters.filter((character) => {
-      const row = runFreshnessByCharacter.get(String(character._id));
-      const latestFetchedAt = toNullableDate(row?.latestFetchedAt);
-      return !row || !latestFetchedAt || latestFetchedAt <= runStaleBefore;
-    });
+    const progressCharacters = positiveCurrentSeasonCharacters
+      .filter((character) => {
+        const row = runFreshnessByCharacter.get(String(character._id));
+        const latestFetchedAt = toNullableDate(row?.latestFetchedAt);
+        return !row || !latestFetchedAt || latestFetchedAt <= runStaleBefore;
+      })
+      .map((character) => this.resolveFetchIdentity(character));
     const detailJobsQueued = await this.enqueueSeasonProgressJobsForCharacters(progressCharacters, [currentSeason], true);
 
     return {
@@ -1193,9 +1393,18 @@ class MythicPlusService {
     const currentSeason = mainSeasons[0] ?? null;
     const historicalSeasons = mainSeasons.filter((season) => season !== currentSeason);
     const limit = Math.min(Math.max(Math.floor(options.limit ?? DEFAULT_NIGHTLY_HISTORICAL_REPAIR_LIMIT), 1), 10000);
+    const identityRepair = await this.reconcileCharacterIdentities({ limit });
+    const remainingLimit = Math.max(0, limit - identityRepair.processedCharacters);
 
-    if (historicalSeasons.length === 0) {
-      return { currentSeason, historicalSeasons, candidates: 0, queued: 0, missingSeasonPairs: 0 };
+    if (historicalSeasons.length === 0 || remainingLimit === 0) {
+      return {
+        currentSeason,
+        historicalSeasons,
+        candidates: identityRepair.processedCharacters,
+        queued: identityRepair.queued,
+        missingSeasonPairs: 0,
+        identityRepair,
+      };
     }
 
     const eligibleCharacterIds = await this.getEligibleCharacterIds();
@@ -1215,6 +1424,7 @@ class MythicPlusService {
           pipeline: [
             {
               $match: {
+                ...CURRENT_IDENTITY_FILTER,
                 $expr: {
                   $and: [
                     { $eq: ["$characterId", "$$characterId"] },
@@ -1252,14 +1462,15 @@ class MythicPlusService {
                 },
               },
             },
-            { $project: { _id: 0, updatedAt: 1 } },
+            { $project: { _id: 0, updatedAt: 1, status: 1 } },
           ],
           as: "profileJobs",
         },
       },
+      { $match: { "profileJobs.status": { $nin: ["pending", "in_progress", "rate_limited"] } } },
       { $set: { lastProfileJobAt: { $arrayElemAt: ["$profileJobs.updatedAt", 0] } } },
       { $sort: { lastProfileJobAt: 1, lastMythicSeenAt: -1, lastReportSeenAt: -1, updatedAt: -1, _id: 1 } },
-      { $limit: limit },
+      { $limit: remainingLimit },
       {
         $project: {
           _id: 1,
@@ -1271,6 +1482,8 @@ class MythicPlusService {
           guildName: 1,
           guildRealm: 1,
           lastMythicSeenAt: 1,
+          identityObservedAt: 1,
+          blizzardIdentityOverride: 1,
           storedSeasons: 1,
           lastProfileJobAt: 1,
         },
@@ -1279,20 +1492,21 @@ class MythicPlusService {
 
     const now = new Date();
     const operations: any[] = candidates.map((character) => {
+      const fetchCharacter = this.resolveFetchIdentity(character);
       const targetSeasons = getMissingMythicPlusSeasons(historicalSeasons, character.storedSeasons ?? []);
       return {
         updateOne: {
           filter: { characterId: character._id, jobType: "profile", season: null },
           update: {
             $set: {
-              characterId: character._id,
-              wclCanonicalCharacterId: character.wclCanonicalCharacterId,
-              name: character.name,
-              realm: character.realm,
-              region: character.region,
-              classID: character.classID,
-              guildName: character.guildName ?? null,
-              guildRealm: character.guildRealm ?? null,
+              characterId: fetchCharacter._id,
+              wclCanonicalCharacterId: fetchCharacter.wclCanonicalCharacterId,
+              name: fetchCharacter.name,
+              realm: fetchCharacter.realm,
+              region: fetchCharacter.region,
+              classID: fetchCharacter.classID,
+              guildName: fetchCharacter.guildName ?? null,
+              guildRealm: fetchCharacter.guildRealm ?? null,
               targetSeasons,
               fetchSeasonProgress: false,
               priority: 20,
@@ -1322,19 +1536,27 @@ class MythicPlusService {
     });
 
     if (operations.length === 0) {
-      return { currentSeason, historicalSeasons, candidates: 0, queued: 0, missingSeasonPairs: 0 };
+      return {
+        currentSeason,
+        historicalSeasons,
+        candidates: identityRepair.processedCharacters,
+        queued: identityRepair.queued,
+        missingSeasonPairs: 0,
+        identityRepair,
+      };
     }
 
     const result = await CharacterMythicPlusFetchJob.bulkWrite(operations, { ordered: false });
     return {
       currentSeason,
       historicalSeasons,
-      candidates: candidates.length,
-      queued: (result.upsertedCount ?? 0) + (result.modifiedCount ?? 0),
+      candidates: identityRepair.processedCharacters + candidates.length,
+      queued: identityRepair.queued + (result.upsertedCount ?? 0) + (result.modifiedCount ?? 0),
       missingSeasonPairs: candidates.reduce(
         (sum, character) => sum + getMissingMythicPlusSeasons(historicalSeasons, character.storedSeasons ?? []).length,
         0,
       ),
+      identityRepair,
     };
   }
 
@@ -1525,17 +1747,30 @@ class MythicPlusService {
     );
   }
 
-  private jobCharacter(job: ICharacterMythicPlusFetchJob): CharacterIdentity {
-    return {
-      _id: job.characterId,
-      wclCanonicalCharacterId: job.wclCanonicalCharacterId,
-      name: job.name,
-      realm: job.realm,
-      region: job.region,
-      classID: job.classID,
-      guildName: job.guildName ?? null,
-      guildRealm: job.guildRealm ?? null,
+  private async refreshJobCharacterIdentity(job: ICharacterMythicPlusFetchJob): Promise<CharacterIdentity | null> {
+    const character = await this.getCurrentCharacterIdentity(job.characterId);
+    if (!character) return null;
+
+    const snapshotChanged =
+      !mythicPlusCharacterIdentitiesMatch(job, character) ||
+      job.wclCanonicalCharacterId !== character.wclCanonicalCharacterId ||
+      (job.guildName ?? null) !== (character.guildName ?? null) ||
+      (job.guildRealm ?? null) !== (character.guildRealm ?? null);
+    if (!snapshotChanged) return character;
+
+    const snapshot = {
+      wclCanonicalCharacterId: character.wclCanonicalCharacterId,
+      name: character.name,
+      realm: character.realm,
+      region: character.region,
+      classID: character.classID,
+      guildName: character.guildName ?? null,
+      guildRealm: character.guildRealm ?? null,
+      lastActivityAt: new Date(),
     };
+    await CharacterMythicPlusFetchJob.findByIdAndUpdate(job._id, { $set: snapshot });
+    Object.assign(job, snapshot);
+    return character;
   }
 
   private async getProfileJobSeasons(job: ICharacterMythicPlusFetchJob): Promise<string[]> {
@@ -1554,15 +1789,20 @@ class MythicPlusService {
       return;
     }
 
-    if (job.jobType === "profile") {
-      await this.processProfileJob(job);
+    const character = await this.refreshJobCharacterIdentity(job);
+    if (!character) {
+      await this.markJob(job, "skipped", { completionReason: "Character record no longer exists" });
       return;
     }
-    await this.processSeasonProgressJob(job);
+
+    if (job.jobType === "profile") {
+      await this.processProfileJob(job, character);
+      return;
+    }
+    await this.processSeasonProgressJob(job, character);
   }
 
-  private async processProfileJob(job: ICharacterMythicPlusFetchJob): Promise<void> {
-    const character = this.jobCharacter(job);
+  private async processProfileJob(job: ICharacterMythicPlusFetchJob, character: CharacterIdentity): Promise<void> {
     const seasons = await this.getProfileJobSeasons(job);
     const result = await this.fetchCharacterProfileScores(character, seasons);
 
@@ -1591,8 +1831,7 @@ class MythicPlusService {
     });
   }
 
-  private async processSeasonProgressJob(job: ICharacterMythicPlusFetchJob): Promise<void> {
-    const character = this.jobCharacter(job);
+  private async processSeasonProgressJob(job: ICharacterMythicPlusFetchJob, character: CharacterIdentity): Promise<void> {
     const season = job.season;
     if (!season) {
       await this.markJob(job, "skipped", { completionReason: "Missing season on progress job" });
@@ -1671,14 +1910,24 @@ class MythicPlusService {
 
   private async markJob(job: ICharacterMythicPlusFetchJob, status: CharacterMythicPlusFetchJobStatus, patch: Record<string, unknown> = {}): Promise<void> {
     const terminalStatuses = new Set<CharacterMythicPlusFetchJobStatus>(["completed", "skipped", "not_found", "class_mismatch", "failed"]);
-    await CharacterMythicPlusFetchJob.findByIdAndUpdate(job._id, {
-      $set: {
-        status,
-        lastActivityAt: new Date(),
-        ...(terminalStatuses.has(status) ? { completedAt: new Date() } : {}),
-        ...patch,
+    await CharacterMythicPlusFetchJob.findOneAndUpdate(
+      {
+        _id: job._id,
+        status: "in_progress",
+        name: job.name,
+        realm: job.realm,
+        region: job.region,
+        classID: job.classID,
       },
-    });
+      {
+        $set: {
+          status,
+          lastActivityAt: new Date(),
+          ...(terminalStatuses.has(status) ? { completedAt: new Date() } : {}),
+          ...patch,
+        },
+      },
+    );
   }
 
   async getOptions(): Promise<MythicPlusOptionsResponse> {
@@ -1686,9 +1935,10 @@ class MythicPlusService {
     const scoreSeasons = await CharacterMythicPlusSeasonScore.distinct("season", {
       characterId: { $in: eligibleCharacterIds },
       "scores.all": { $gt: 0 },
+      ...CURRENT_IDENTITY_FILTER,
     });
     const runRows = await CharacterMythicPlusDungeonRun.aggregate<{ _id: { season: string; dungeonId: number } }>([
-      { $match: { characterId: { $in: eligibleCharacterIds } } },
+      { $match: { characterId: { $in: eligibleCharacterIds }, ...CURRENT_IDENTITY_FILTER } },
       {
         $group: {
           _id: {
@@ -1801,6 +2051,7 @@ class MythicPlusService {
     const match: any = {
       season: options.season,
       characterId: { $in: options.eligibleCharacterIds },
+      ...CURRENT_IDENTITY_FILTER,
     };
     if (options.classId !== undefined) match.classID = options.classId;
     if (options.role) match[`scores.${options.role}`] = { $gt: 0 };
@@ -1844,6 +2095,7 @@ class MythicPlusService {
           season: options.season,
           bucket: runBucket,
           characterId: { $in: characterIds },
+          ...CURRENT_IDENTITY_FILTER,
         })
           .sort({ dungeonName: 1 })
           .lean()
@@ -1871,6 +2123,7 @@ class MythicPlusService {
       bucket,
       raiderIoDungeonId: options.dungeonId,
       characterId: { $in: options.eligibleCharacterIds },
+      ...CURRENT_IDENTITY_FILTER,
     };
     if (options.classId !== undefined) match.classID = options.classId;
     if (options.specName) match.specSlug = options.specName;
@@ -1999,7 +2252,11 @@ class MythicPlusService {
   async getCharacterProfileMythicPlus(characterId: mongoose.Types.ObjectId): Promise<CharacterMythicPlusProfileResponse> {
     if (!(await this.isCharacterEligible(characterId))) return { seasons: [] };
 
-    const scoreRows = await CharacterMythicPlusSeasonScore.find({ characterId, "scores.all": { $gt: 0 } }).lean();
+    const scoreRows = await CharacterMythicPlusSeasonScore.find({
+      characterId,
+      "scores.all": { $gt: 0 },
+      ...CURRENT_IDENTITY_FILTER,
+    }).lean();
     if (scoreRows.length === 0) return { seasons: [] };
 
     const seasonSlugs = scoreRows.map((row: any) => row.season);
@@ -2010,6 +2267,7 @@ class MythicPlusService {
       characterId,
       season: { $in: seasonSlugs },
       bucket: "all",
+      ...CURRENT_IDENTITY_FILTER,
     })
       .sort({ dungeonName: 1 })
       .lean();

@@ -1418,7 +1418,7 @@
   opacity: 1;
   cursor: pointer;
   pointer-events: none;
-  transform: translateX(var(--deal-x)) translateY(34px) rotate(var(--deal-angle)) scale(0.9);
+  transform: translateX(var(--deal-x)) translateY(50px) rotate(var(--deal-angle)) scale(0.9);
   transform-origin: center center;
   transition-property: transform, filter, opacity;
   transition-duration: 520ms, 140ms, 220ms;
@@ -2159,6 +2159,15 @@
   font-weight: 800;
 }
 
+.pullStatusReward {
+  white-space: nowrap;
+}
+
+.pullStatusReward strong {
+  color: #f4d78c;
+  text-shadow: 0 0 8px rgba(244, 215, 140, 0.48);
+}
+
 .revealSlotRevealed .pullStatus {
   opacity: 1;
   transform: translateY(0);
@@ -2179,8 +2188,7 @@
 
 .revealStageCycling .revealLead,
 .revealStageCycling .revealControls,
-.revealStageCycling .packActionError,
-.revealStageCycling .bonusEarned {
+.revealStageCycling .packActionError {
   opacity: 0;
   pointer-events: none;
   transform: translateY(-6px);
@@ -2245,18 +2253,6 @@
   padding-inline: 1rem;
   color: #fca5a5;
   font-size: 0.76rem;
-  text-align: center;
-  transition-property: opacity, transform;
-  transition-duration: 160ms;
-  transition-timing-function: ease-in;
-}
-
-.bonusEarned {
-  margin-top: 0.75rem;
-  padding-inline: 1rem;
-  color: #e5d0ff;
-  font-size: 0.8rem;
-  font-weight: 760;
   text-align: center;
   transition-property: opacity, transform;
   transition-duration: 160ms;
@@ -2662,7 +2658,7 @@
 
   .revealSlot:not(.revealSlotDealt) {
     opacity: 1;
-    transform: translateY(38px) rotate(0) scale(0.92);
+    transform: translateY(50px) rotate(0) scale(0.92);
   }
 
   .revealSlot {
@@ -3023,7 +3019,6 @@
   .revealLead,
   .revealControls,
   .packActionError,
-  .bonusEarned,
   .revealCollectionProgress,
   .revealCollectionTrack i,
   .collectionProgressTrack span,

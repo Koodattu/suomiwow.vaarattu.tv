@@ -241,6 +241,10 @@ class GuildService {
       { deathEventsFetchStatus: 1, reportEndTime: 1, guildId: 1 },
       { name: "death_backfill_queue_lookup" },
     );
+    await Fight.collection.createIndex(
+      { combatantInfoFetchStatus: 1, reportEndTime: 1, guildId: 1 },
+      { name: "combatant_info_backfill_queue_lookup" },
+    );
 
     this.deathBackfillIndexesCreated = true;
   }
@@ -2269,14 +2273,20 @@ class GuildService {
 
           // Fetch death events for all tracked fights in this report (single API call)
           let deathsByFight = new Map<number, any[]>();
+          let combatantsByFight = new Map<number, any[]>();
           let deathEventsFetchedAt: Date | null = null;
+          let combatantInfoFetchedAt: Date | null = null;
           if (this.fetchDeathEvents && trackedFightIds.length > 0) {
             try {
-              const deathData = await wclService.getDeathEventsForReport(report.code, trackedFightIds);
+              const deathData = await wclService.getDeathEventsForReport(report.code, trackedFightIds, { includeCombatantInfo: true });
               if (deathData.reportData?.report) {
                 const actors = deathData.reportData.report.masterData?.actors || [];
                 deathsByFight = wclService.parseDeathEventsByFight(deathData.reportData.report, actors, report.fights);
                 deathEventsFetchedAt = new Date();
+                if (Array.isArray(deathData.reportData.report.combatantInfoEvents?.data)) {
+                  combatantsByFight = wclService.parseCombatantInfoByFight(deathData.reportData.report, actors);
+                  combatantInfoFetchedAt = deathEventsFetchedAt;
+                }
               }
             } catch (error: any) {
               guildLog.warn(`Failed to fetch deaths for report ${report.code}: ${error.message}`);
@@ -2301,14 +2311,15 @@ class GuildService {
 
             // Get deaths for this fight
             const deaths = deathsByFight.get(fight.id) || [];
-            const deathEventsFetchUpdate =
-              deathEventsFetchedAt !== null
-                ? {
-                    deaths,
-                    deathEventsFetchStatus: "fetched",
-                    deathEventsFetchedAt,
-                  }
-                : {};
+            const combatants = combatantsByFight.get(fight.id) || [];
+            const fightDetailsFetchUpdate = {
+              ...(deathEventsFetchedAt !== null
+                ? { deaths, deathEventsFetchStatus: "fetched", deathEventsFetchedAt }
+                : {}),
+              ...(combatantInfoFetchedAt !== null && combatants.length > 0
+                ? { combatants, combatantInfoFetchStatus: "fetched", combatantInfoFetchedAt }
+                : {}),
+            };
 
             // Save fight to database
             const fightTimestamp = new Date(report.startTime + fight.startTime);
@@ -2333,7 +2344,7 @@ class GuildService {
                   name: encounterPhases.find((ep: any) => ep.encounterID === encounterId)?.phases?.find((p: any) => p.id === pt.id)?.name,
                 })),
                 progressDisplay: phaseInfo.progressDisplay,
-                ...deathEventsFetchUpdate,
+                ...fightDetailsFetchUpdate,
                 reportStartTime: report.startTime,
                 reportEndTime: report.endTime || 0,
                 fightStartTime: fight.startTime,
@@ -2496,14 +2507,20 @@ class GuildService {
 
         // Fetch death events for all tracked fights in this report (single API call)
         let deathsByFight = new Map<number, any[]>();
+        let combatantsByFight = new Map<number, any[]>();
         let deathEventsFetchedAt: Date | null = null;
+        let combatantInfoFetchedAt: Date | null = null;
         if (this.fetchDeathEvents && trackedFightIds.length > 0) {
           try {
-            const deathData = await wclService.getDeathEventsForReport(report.code, trackedFightIds);
+            const deathData = await wclService.getDeathEventsForReport(report.code, trackedFightIds, { includeCombatantInfo: true });
             if (deathData.reportData?.report) {
               const actors = deathData.reportData.report.masterData?.actors || [];
               deathsByFight = wclService.parseDeathEventsByFight(deathData.reportData.report, actors, report.fights);
               deathEventsFetchedAt = new Date();
+              if (Array.isArray(deathData.reportData.report.combatantInfoEvents?.data)) {
+                combatantsByFight = wclService.parseCombatantInfoByFight(deathData.reportData.report, actors);
+                combatantInfoFetchedAt = deathEventsFetchedAt;
+              }
             }
           } catch (error: any) {
             guildLog.warn(`Failed to fetch deaths for report ${report.code}: ${error.message}`);
@@ -2542,14 +2559,15 @@ class GuildService {
 
           // Get deaths for this fight
           const deaths = deathsByFight.get(fight.id) || [];
-          const deathEventsFetchUpdate =
-            deathEventsFetchedAt !== null
-              ? {
-                  deaths,
-                  deathEventsFetchStatus: "fetched",
-                  deathEventsFetchedAt,
-                }
-              : {};
+          const combatants = combatantsByFight.get(fight.id) || [];
+          const fightDetailsFetchUpdate = {
+            ...(deathEventsFetchedAt !== null
+              ? { deaths, deathEventsFetchStatus: "fetched", deathEventsFetchedAt }
+              : {}),
+            ...(combatantInfoFetchedAt !== null && combatants.length > 0
+              ? { combatants, combatantInfoFetchStatus: "fetched", combatantInfoFetchedAt }
+              : {}),
+          };
 
           // Queue fight write; batching avoids one MongoDB round trip per recovered pull.
           const fightTimestamp = new Date(report.startTime + fight.startTime);
@@ -2576,7 +2594,7 @@ class GuildService {
                     name: encounterPhases.find((ep: any) => ep.encounterID === encounterId)?.phases?.find((p: any) => p.id === pt.id)?.name,
                   })),
                   progressDisplay: phaseInfo.progressDisplay,
-                  ...deathEventsFetchUpdate,
+                  ...fightDetailsFetchUpdate,
                   reportStartTime: report.startTime,
                   reportEndTime: reportEndTime,
                   fightStartTime: fight.startTime,
@@ -2867,14 +2885,20 @@ class GuildService {
 
         // Fetch death events for all tracked fights in this report (single API call)
         let deathsByFight = new Map<number, any[]>();
+        let combatantsByFight = new Map<number, any[]>();
         let deathEventsFetchedAt: Date | null = null;
+        let combatantInfoFetchedAt: Date | null = null;
         if (this.fetchDeathEvents && trackedFightIds.length > 0) {
           try {
-            const deathData = await wclService.getDeathEventsForReport(report.code, trackedFightIds);
+            const deathData = await wclService.getDeathEventsForReport(report.code, trackedFightIds, { includeCombatantInfo: true });
             if (deathData.reportData?.report) {
               const actors = deathData.reportData.report.masterData?.actors || [];
               deathsByFight = wclService.parseDeathEventsByFight(deathData.reportData.report, actors, report.fights);
               deathEventsFetchedAt = new Date();
+              if (Array.isArray(deathData.reportData.report.combatantInfoEvents?.data)) {
+                combatantsByFight = wclService.parseCombatantInfoByFight(deathData.reportData.report, actors);
+                combatantInfoFetchedAt = deathEventsFetchedAt;
+              }
             }
           } catch (error: any) {
             guildLog.warn(`Failed to fetch deaths for report ${report.code}: ${error.message}`);
@@ -2914,14 +2938,15 @@ class GuildService {
 
           // Get deaths for this fight
           const deaths = deathsByFight.get(fight.id) || [];
-          const deathEventsFetchUpdate =
-            deathEventsFetchedAt !== null
-              ? {
-                  deaths,
-                  deathEventsFetchStatus: "fetched",
-                  deathEventsFetchedAt,
-                }
-              : {};
+          const combatants = combatantsByFight.get(fight.id) || [];
+          const fightDetailsFetchUpdate = {
+            ...(deathEventsFetchedAt !== null
+              ? { deaths, deathEventsFetchStatus: "fetched", deathEventsFetchedAt }
+              : {}),
+            ...(combatantInfoFetchedAt !== null && combatants.length > 0
+              ? { combatants, combatantInfoFetchStatus: "fetched", combatantInfoFetchedAt }
+              : {}),
+          };
 
           // Queue fight write; batching avoids one MongoDB round trip per pull.
           const fightTimestamp = new Date(report.startTime + fight.startTime);
@@ -2948,7 +2973,7 @@ class GuildService {
                     name: encounterPhases.find((ep: any) => ep.encounterID === encounterId)?.phases?.find((p: any) => p.id === pt.id)?.name,
                   })),
                   progressDisplay: phaseInfo.progressDisplay,
-                  ...deathEventsFetchUpdate,
+                  ...fightDetailsFetchUpdate,
                   reportStartTime: report.startTime,
                   reportEndTime: reportEndTime,
                   fightStartTime: fight.startTime,
@@ -3106,14 +3131,20 @@ class GuildService {
     ).sort((a, b) => a - b);
 
     let deathsByFight = new Map<number, any[]>();
+    let combatantsByFight = new Map<number, any[]>();
     let deathEventsFetchedAt: Date | null = null;
+    let combatantInfoFetchedAt: Date | null = null;
     if (this.fetchDeathEvents && trackedFightIds.length > 0) {
       try {
-        const deathData = await wclService.getDeathEventsForReport(reportCode, trackedFightIds);
+        const deathData = await wclService.getDeathEventsForReport(reportCode, trackedFightIds, { includeCombatantInfo: true });
         if (deathData.reportData?.report) {
           const actors = deathData.reportData.report.masterData?.actors || [];
           deathsByFight = wclService.parseDeathEventsByFight(deathData.reportData.report, actors, fights);
           deathEventsFetchedAt = new Date();
+          if (Array.isArray(deathData.reportData.report.combatantInfoEvents?.data)) {
+            combatantsByFight = wclService.parseCombatantInfoByFight(deathData.reportData.report, actors);
+            combatantInfoFetchedAt = deathEventsFetchedAt;
+          }
         }
       } catch (error) {
         guildLog.warn(`Failed to fetch deaths for manually imported report ${reportCode}:`, error instanceof Error ? error.message : "Unknown error");
@@ -3141,14 +3172,15 @@ class GuildService {
       const duration = fightEndTime - fightStartTime;
       const phaseInfo = wclService.determinePhaseInfo(fight, encounterPhases);
       const deaths = deathsByFight.get(fightId) || [];
-      const deathEventsFetchUpdate =
-        deathEventsFetchedAt !== null
-          ? {
-              deaths,
-              deathEventsFetchStatus: "fetched",
-              deathEventsFetchedAt,
-            }
-          : {};
+      const combatants = combatantsByFight.get(fightId) || [];
+      const fightDetailsFetchUpdate = {
+        ...(deathEventsFetchedAt !== null
+          ? { deaths, deathEventsFetchStatus: "fetched", deathEventsFetchedAt }
+          : {}),
+        ...(combatantInfoFetchedAt !== null && combatants.length > 0
+          ? { combatants, combatantInfoFetchStatus: "fetched", combatantInfoFetchedAt }
+          : {}),
+      };
 
       affectedRaidIds.add(fightZoneId);
 
@@ -3177,7 +3209,7 @@ class GuildService {
                   }))
                 : undefined,
               progressDisplay: phaseInfo.progressDisplay,
-              ...deathEventsFetchUpdate,
+              ...fightDetailsFetchUpdate,
               reportStartTime,
               reportEndTime,
               fightStartTime,
@@ -6229,10 +6261,15 @@ class GuildService {
       { deathEventsFetchStatus: { $exists: false } },
       { deathEventsFetchStatus: "failed" },
     ];
+    const combatantInfoStatusFilters: any[] = [
+      { difficulty: 5, combatantInfoFetchStatus: "pending" },
+      { difficulty: 5, combatantInfoFetchStatus: { $exists: false } },
+      { difficulty: 5, combatantInfoFetchStatus: "failed" },
+    ];
 
     const pendingGuildIds = await Fight.distinct("guildId", {
       reportEndTime: { $gt: 0 },
-      $or: deathStatusFilters,
+      $or: [...deathStatusFilters, ...combatantInfoStatusFilters],
     });
     const guilds = await Guild.find({ _id: { $in: pendingGuildIds }, initialFetchCompleted: true });
     let queued = 0;

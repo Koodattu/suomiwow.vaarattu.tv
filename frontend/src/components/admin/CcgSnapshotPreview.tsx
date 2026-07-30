@@ -22,13 +22,13 @@ const filterButton =
   "min-h-10 rounded-md px-3 py-2 text-left transition-[background-color,color,box-shadow,scale] duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 active:scale-[0.96]";
 
 function isMissingMedia(character: PreviewCharacter): boolean {
-  return character.disposition === "blocked_new_character" || character.disposition === "blocked_rarity_change";
+  return character.disposition.startsWith("blocked_");
 }
 
 function matchesOutcome(character: PreviewCharacter, filter: OutcomeFilter): boolean {
   if (filter === "all") return true;
   if (filter === "will_add") return character.disposition === "new_character";
-  if (filter === "will_update") return character.disposition === "rarity_change";
+  if (filter === "will_update") return character.disposition === "rarity_change" || character.disposition === "identity_change";
   return isMissingMedia(character);
 }
 
@@ -61,7 +61,7 @@ export default function CcgSnapshotPreview() {
     return {
       all: characters.length,
       will_add: characters.filter((character) => character.disposition === "new_character").length,
-      will_update: characters.filter((character) => character.disposition === "rarity_change").length,
+      will_update: characters.filter((character) => character.disposition === "rarity_change" || character.disposition === "identity_change").length,
       missing_media: characters.filter(isMissingMedia).length,
     } satisfies Record<OutcomeFilter, number>;
   }, [selectedSet]);
@@ -70,8 +70,10 @@ export default function CcgSnapshotPreview() {
     const priority: Record<PreviewCharacter["disposition"], number> = {
       new_character: 0,
       rarity_change: 1,
-      blocked_new_character: 2,
-      blocked_rarity_change: 3,
+      identity_change: 2,
+      blocked_new_character: 3,
+      blocked_rarity_change: 4,
+      blocked_identity_change: 5,
     };
     return (selectedSet?.characters ?? [])
       .filter((character) => matchesOutcome(character, outcomeFilter))
@@ -130,6 +132,7 @@ export default function CcgSnapshotPreview() {
     { key: "eligible", value: counts.eligibleCharacters },
     { key: "newCharacters", value: counts.newCharacters },
     { key: "rarityChanges", value: counts.rarityChanges },
+    { key: "identityChanges", value: counts.identityChanges },
     { key: "blocked", value: counts.blockedByMissingMedia },
     { key: "unchanged", value: counts.unchangedCharacters },
   ] as const;
@@ -251,6 +254,7 @@ export default function CcgSnapshotPreview() {
                         <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.eligible")}</th>
                         <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.newCharacters")}</th>
                         <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.rarityChanges")}</th>
+                        <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.identityChanges")}</th>
                         <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.blocked")}</th>
                         <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.unchanged")}</th>
                       </tr>
@@ -277,7 +281,7 @@ export default function CcgSnapshotPreview() {
                                 </span>
                               </button>
                             </td>
-                            {[set.eligibleCharacters, set.newCharacters, set.rarityChanges, set.blockedByMissingMedia, set.unchangedCharacters].map((value, index) => (
+                            {[set.eligibleCharacters, set.newCharacters, set.rarityChanges, set.identityChanges, set.blockedByMissingMedia, set.unchangedCharacters].map((value, index) => (
                               <td key={index} className="px-3 py-2 text-right font-medium tabular-nums text-gray-300">{value}</td>
                             ))}
                           </tr>

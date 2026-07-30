@@ -579,7 +579,7 @@ export default function CcgOpenPage() {
     () =>
       opening?.results
         .filter((_, index) => revealedCards.has(index))
-        .map((row) => `${row.card.name}, ${t(`finish.${row.finish}`)}, ${row.isDuplicate ? t("open.duplicate") : t("open.newCard")}`)
+        .map((row) => `${row.card.name}, ${t(`finish.${row.finish}`)}, ${row.bonusPackReward ? t("open.completedBonusPack") : row.isDuplicate ? t("open.duplicate") : t("open.newCard")}`)
         .join(". ") ?? "",
     [opening, revealedCards, t],
   );
@@ -1133,8 +1133,8 @@ export default function CcgOpenPage() {
                           </span>
                           <span className={packStyles.revealMotes} />
                         </span>
-                        <span className={packStyles.pullStatus} aria-hidden={!revealed}>
-                          <strong>{t(result.isDuplicate ? "open.duplicate" : "open.newCard")}</strong>
+                        <span className={`${packStyles.pullStatus} ${result.bonusPackReward ? packStyles.pullStatusReward : ""}`} aria-hidden={!revealed}>
+                          <strong>{t(result.bonusPackReward ? "open.completedBonusPack" : result.isDuplicate ? "open.duplicate" : "open.newCard")}</strong>
                         </span>
                       </button>
                     );
@@ -1250,7 +1250,6 @@ export default function CcgOpenPage() {
                   {mutation.error.message}
                 </p>
               ) : null}
-              {allRevealed && opening.duplicateRewards > 0 ? <p className={packStyles.bonusEarned}>{t("open.bonusEarned", { count: opening.duplicateRewards })}</p> : null}
             </div>
             <div
               className={`${packStyles.burstOverlay} ${revealPhase === "holding" ? packStyles.tearSequenceHolding : ""} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`}

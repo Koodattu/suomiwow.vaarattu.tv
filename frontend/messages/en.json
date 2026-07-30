@@ -458,7 +458,7 @@
       "allRevealed": "Pack complete",
       "newCard": "New",
       "duplicate": "Duplicate",
-      "bonusEarned": "{count, plural, one {Completed card reward: # bonus pack.} other {Completed card rewards: # bonus packs.}}",
+      "completedBonusPack": "Complete! +1 bonus pack!",
       "recoveryFailed": "That saved pack could not be recovered. Clear it before opening another pack.",
       "dismissRecovery": "Clear saved pack",
       "openAnother": "Open another pack",
@@ -1148,10 +1148,10 @@
     },
     "mythicPlus": {
       "coverageRecovery": "Coverage and recovery",
-      "coverageRecoveryHelp": "Missing queues only eligible characters that have never had a profile fetch. Retry resets failed score fetches; not-found and class-mismatch results stay untouched.",
+      "coverageRecoveryHelp": "Missing queues eligible characters that have never had a profile fetch. Retry resets failed score fetches. Repair finds missing historical seasons and changed character identities, hides stale identity data, and queues corrected score fetches; the nightly repair uses the same process.",
       "fetchMissing": "Fetch Missing M+ Scores",
       "retryFailed": "Retry Failed Score Fetches",
-      "repairHistorical": "Repair Missing Historical Scores"
+      "repairHistorical": "Repair Historical & Identity Scores"
     },
     "ccg": {
       "title": "CCG administration",
@@ -1242,7 +1242,7 @@
         "publish": "Publish cards now",
         "publishStarting": "Starting publication…",
         "publishConfirmTitle": "Publish the latest snapshots for every enabled raid set?",
-        "publishConfirmDescription": "Continue only after CCG Weekly Raid Snapshot is completed in the Tasks admin tab. This publishes every render-ready new character and rarity change from the latest snapshots, skips missing renders, rebuilds the active pack pools, and cannot be undone.",
+        "publishConfirmDescription": "Continue only after CCG Weekly Raid Snapshot is completed in the Tasks admin tab. This publishes every render-ready new character, rarity change, and spec or role change from the latest snapshots, skips missing renders, rebuilds the active pack pools, and cannot be undone.",
         "publishConfirm": "Publish cards",
         "publishStarted": "The publication run started in the background. Follow its progress in the Tasks admin tab.",
         "publishError": "The publication run could not be started.",
@@ -1260,8 +1260,10 @@
         "dispositions": {
           "new_character": "Will add",
           "rarity_change": "Will update",
+          "identity_change": "Spec or role changed",
           "blocked_new_character": "Missing media · new card",
-          "blocked_rarity_change": "Missing media · update"
+          "blocked_rarity_change": "Missing media · update",
+          "blocked_identity_change": "Missing media · spec or role"
         },
         "filters": {
           "all": "All changes",
@@ -1284,7 +1286,7 @@
         },
         "characterList": {
           "title": "Character changes · {raid}",
-          "description": "This list contains actionable card changes only. Characters whose rarity is unchanged remain visible in the raid totals above.",
+          "description": "This list contains actionable card changes only. Characters whose rarity, spec, and role are unchanged remain visible in the raid totals above.",
           "raidFilter": "Raid",
           "outcomeFilter": "Character result filters",
           "searchLabel": "Find a character",
@@ -1298,7 +1300,7 @@
           "attempts": "{count, plural, one {# attempt} other {# attempts}}",
           "nextAttempt": "Next attempt {date}",
           "noError": "No stored error",
-          "noChanges": "This raid has no new cards, rarity updates, or media-blocked changes.",
+          "noChanges": "This raid has no new cards, rarity updates, spec or role updates, or media-blocked changes.",
           "noMatches": "No characters match the selected result and search filters."
         },
         "metrics": {
@@ -1306,6 +1308,7 @@
           "projected": "New snapshots",
           "newCharacters": "New characters",
           "rarityChanges": "Rarity changes",
+          "identityChanges": "Spec / role changes",
           "unchanged": "Unchanged",
           "blocked": "Blocked by media"
         }

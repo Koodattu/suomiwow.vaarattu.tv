@@ -11,6 +11,7 @@ export interface ICcgPackResult {
   artVariant?: CcgArtVariant;
   tierGrade: CcgTierGrade;
   isDuplicate: boolean;
+  bonusPackReward: boolean;
 }
 
 export interface ICcgPackOpening extends Document {
@@ -44,6 +45,7 @@ const ResultSchema = new Schema<ICcgPackResult>(
     artVariant: { type: String, enum: ["standard", "alternative"], required: true, default: "standard" },
     tierGrade: { type: String, enum: ["H", "S", "A", "B", "C", "D", "E", "F"], required: true },
     isDuplicate: { type: Boolean, required: true },
+    bonusPackReward: { type: Boolean, required: true, default: false },
   },
   { _id: false },
 );

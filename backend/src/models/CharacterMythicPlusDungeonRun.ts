@@ -10,6 +10,7 @@ export interface ICharacterMythicPlusDungeonRun extends Document {
   classID: number;
   guildName?: string | null;
   guildRealm?: string | null;
+  identityStatus: "current" | "stale";
 
   season: string;
   bucket: MythicPlusScoreBucket;
@@ -57,6 +58,7 @@ const CharacterMythicPlusDungeonRunSchema = new Schema<ICharacterMythicPlusDunge
     classID: { type: Number, required: true, index: true },
     guildName: { type: String, default: null },
     guildRealm: { type: String, default: null },
+    identityStatus: { type: String, enum: ["current", "stale"], required: true, default: "current" },
 
     season: { type: String, required: true, index: true },
     bucket: { type: String, required: true, index: true },

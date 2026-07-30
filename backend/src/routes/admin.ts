@@ -171,14 +171,28 @@ async function syncAdminStreamerClaims(guildId: string, channelNames: string[]):
 
 router.get("/wcl-user/status", async (req: Request, res: Response) => {
   try {
-    const [authStatus, deathEventCounts] = await Promise.all([
+    const [authStatus, deathEventCounts, combatantInfoCounts] = await Promise.all([
       wclUserAuthService.getStatus(),
       Fight.aggregate([
         { $match: { deathEventsFetchStatus: { $in: ["pending", "failed", "archived"] } } },
         { $group: { _id: "$deathEventsFetchStatus", count: { $sum: 1 } } },
       ]),
+      Fight.aggregate([
+        {
+          $match: {
+            difficulty: 5,
+            reportEndTime: { $gt: 0 },
+            $or: [
+              { combatantInfoFetchStatus: { $in: ["pending", "failed", "archived"] } },
+              { combatantInfoFetchStatus: { $exists: false } },
+            ],
+          },
+        },
+        { $group: { _id: { $ifNull: ["$combatantInfoFetchStatus", "pending"] }, count: { $sum: 1 } } },
+      ]),
     ]);
     const countsByStatus = new Map(deathEventCounts.map((entry: { _id: string; count: number }) => [entry._id, entry.count]));
+    const combatantCountsByStatus = new Map(combatantInfoCounts.map((entry: { _id: string; count: number }) => [entry._id, entry.count]));
 
     res.json({
       ...authStatus,
@@ -186,6 +200,11 @@ router.get("/wcl-user/status", async (req: Request, res: Response) => {
         pending: countsByStatus.get("pending") || 0,
         failed: countsByStatus.get("failed") || 0,
         archived: countsByStatus.get("archived") || 0,
+      },
+      combatantInfo: {
+        pending: combatantCountsByStatus.get("pending") || 0,
+        failed: combatantCountsByStatus.get("failed") || 0,
+        archived: combatantCountsByStatus.get("archived") || 0,
       },
     });
   } catch (error) {
@@ -614,19 +633,32 @@ router.post("/death-events/reset-failed-archived", async (req: Request, res: Res
   try {
     const statuses = getAllowedDeathResetStatuses(req.body?.statuses);
     const shouldQueue = req.body?.queue !== false;
-    const query = {
+    const deathQuery = {
       reportEndTime: { $gt: 0 },
       deathEventsFetchStatus: { $in: statuses },
     };
+    const combatantInfoQuery = {
+      reportEndTime: { $gt: 0 },
+      difficulty: 5,
+      combatantInfoFetchStatus: { $in: statuses },
+    };
 
-    const guildIds = shouldQueue ? await Fight.distinct("guildId", query) : [];
-    const resetResult = await Fight.updateMany(query, {
-      $set: { deathEventsFetchStatus: "pending" },
-      $unset: {
-        deathEventsFetchFailedAt: 1,
-        deathEventsFetchError: 1,
-      },
-    });
+    const guildIds = shouldQueue
+      ? await Fight.distinct("guildId", { reportEndTime: { $gt: 0 }, $or: [
+          { deathEventsFetchStatus: { $in: statuses } },
+          { difficulty: 5, combatantInfoFetchStatus: { $in: statuses } },
+        ] })
+      : [];
+    const [deathResetResult, combatantInfoResetResult] = await Promise.all([
+      Fight.updateMany(deathQuery, {
+        $set: { deathEventsFetchStatus: "pending" },
+        $unset: { deathEventsFetchFailedAt: 1, deathEventsFetchError: 1 },
+      }),
+      Fight.updateMany(combatantInfoQuery, {
+        $set: { combatantInfoFetchStatus: "pending" },
+        $unset: { combatantInfoFetchFailedAt: 1, combatantInfoFetchError: 1 },
+      }),
+    ]);
 
     let queued = 0;
     let skipped = 0;
@@ -644,10 +676,12 @@ router.post("/death-events/reset-failed-archived", async (req: Request, res: Res
 
     res.json({
       success: true,
-      message: `Reset ${resetResult.modifiedCount} death-event fight rows to pending${shouldQueue ? ` and queued ${queued} guilds` : ""}`,
+      message: `Reset ${deathResetResult.modifiedCount} death-event and ${combatantInfoResetResult.modifiedCount} spec fight rows to pending${shouldQueue ? ` and queued ${queued} guilds` : ""}`,
       statuses,
-      modifiedCount: resetResult.modifiedCount,
-      matchedCount: resetResult.matchedCount,
+      modifiedCount: deathResetResult.modifiedCount + combatantInfoResetResult.modifiedCount,
+      matchedCount: deathResetResult.matchedCount + combatantInfoResetResult.matchedCount,
+      deathEventModifiedCount: deathResetResult.modifiedCount,
+      combatantInfoModifiedCount: combatantInfoResetResult.modifiedCount,
       guildsMatched: guildIds.length,
       queued,
       skipped,
@@ -1292,7 +1326,7 @@ router.post("/guilds/:guildId/queue-rescan", async (req: Request, res: Response)
   }
 });
 
-// Queue guild for death events rescan
+// Queue guild for fight spec and death-event backfill
 router.post("/guilds/:guildId/queue-rescan-deaths", async (req: Request, res: Response) => {
   try {
     const { guildId } = req.params;
@@ -1310,7 +1344,7 @@ router.post("/guilds/:guildId/queue-rescan-deaths", async (req: Request, res: Re
 
     if (existingQueue) {
       return res.status(400).json({
-        error: "Guild is already queued for death events rescan",
+        error: "Guild is already queued for fight details backfill",
         status: existingQueue.status,
       });
     }
@@ -1319,13 +1353,13 @@ router.post("/guilds/:guildId/queue-rescan-deaths", async (req: Request, res: Re
 
     res.json({
       success: true,
-      message: `Guild ${guild.name} queued for death events rescan`,
+      message: `Guild ${guild.name} queued for fight details backfill`,
       queueId: queueItem._id.toString(),
       status: queueItem.status,
     });
   } catch (error) {
     logger.error("Error queueing guild for death rescan:", error);
-    res.status(500).json({ error: "Failed to queue guild for death events rescan" });
+    res.status(500).json({ error: "Failed to queue guild for fight details backfill" });
   }
 });
 
@@ -3311,15 +3345,15 @@ router.post("/trigger/update-guild-crests", async (req: Request, res: Response) 
   }
 });
 
-// Queue all guilds for death events rescan
+// Queue all guilds for fight spec and death-event backfill
 router.post("/trigger/rescan-death-events", async (req: Request, res: Response) => {
-  const taskId = await taskTracker.start("Queue Death Event Backfill", { source: "manual" });
+  const taskId = await taskTracker.start("Queue Fight Details Backfill", { source: "manual" });
   try {
     const result = await guildService.queueAllGuildsForDeathRescan();
     await taskTracker.complete(taskId, result);
     res.json({
       success: true,
-      message: `Death events rescan queued: ${result.queued} guilds queued, ${result.skipped} skipped`,
+      message: `Fight details backfill queued: ${result.queued} guilds queued, ${result.skipped} skipped`,
       ...result,
     });
   } catch (error) {
@@ -3429,11 +3463,12 @@ router.post("/trigger/crawl-mythic-plus", async (req: Request, res: Response) =>
 
     if (mode === "historical_repair") {
       const result = await mythicPlusService.triggerHistoricalScoreRepair({ maxJobs, process, limit });
+      const repairSummary = `${result.enqueue.queued} character(s), ${result.enqueue.missingSeasonPairs} missing season score(s), ${result.enqueue.identityRepair.processedCharacters} identity repair(s)`;
       res.json({
         success: true,
         message: result.started
-          ? `Mythic+ historical score repair started: ${result.enqueue.queued} character(s), ${result.enqueue.missingSeasonPairs} missing season score(s)`
-          : `Mythic+ historical score repair queued: ${result.enqueue.queued} character(s), ${result.enqueue.missingSeasonPairs} missing season score(s)`,
+          ? `Mythic+ historical and identity score repair started: ${repairSummary}`
+          : `Mythic+ historical and identity score repair queued: ${repairSummary}`,
         ...result,
       });
       return;
@@ -4278,21 +4313,35 @@ router.put("/characters/:characterId/blizzard-identity", async (req: Request, re
     await cacheService.invalidatePattern(/^characters:profile:/);
     let ccgReconciliation = null;
     let ccgWarning: string | null = null;
+    let mythicPlusReconciliation = null;
+    let mythicPlusWarning: string | null = null;
     try {
       ccgReconciliation = await ccgCharacterIdentityService.reconcileAll();
     } catch (error) {
       ccgWarning = "The Blizzard identity was saved, but CCG character identities could not be reconciled automatically";
       logger.error(`Blizzard identity for ${character._id.toString()} was saved but CCG identity reconciliation failed:`, error);
     }
+    try {
+      mythicPlusReconciliation = await mythicPlusService.reconcileCharacterIdentities({
+        characterIds: [character._id],
+        limit: 1,
+      });
+    } catch (error) {
+      mythicPlusWarning = "The Blizzard identity was saved, but Mythic+ data could not be reconciled automatically";
+      logger.error(`Blizzard identity for ${character._id.toString()} was saved but Mythic+ reconciliation failed:`, error);
+    }
     logger.info(`Admin ${updatedBy} set Blizzard identity for ${character.name}-${character.realm} to ${name}-${realm} (ID: ${character._id.toString()})`);
 
-    res.status(ccgWarning ? 202 : 200).json({
+    const warning = [ccgWarning, mythicPlusWarning].filter(Boolean).join("; ") || null;
+    res.status(warning ? 202 : 200).json({
       success: true,
-      message: ccgWarning ?? `Blizzard identity set to ${name}-${realm}; character media refresh queued`,
+      message: warning ?? `Blizzard identity set to ${name}-${realm}; character media and Mythic+ refreshes queued`,
       blizzardIdentity: { name, realm, region: character.region },
       blizzardIdentityOverride: { name, realm, updatedAt, updatedBy, active: true },
       ccgReconciliation,
       ccgWarning,
+      mythicPlusReconciliation,
+      mythicPlusWarning,
     });
   } catch (error) {
     logger.error("Error setting character Blizzard identity:", error);
@@ -4308,11 +4357,24 @@ router.delete("/characters/:characterId/blizzard-identity", async (req: Request,
     await characterMediaService.enqueueCharacter(character._id.toString(), 200, true);
     await cacheService.invalidatePattern(/^characters:profile:/);
     const updatedBy = (req as any).user?.discord?.username || "admin";
+    let mythicPlusReconciliation = null;
+    let mythicPlusWarning: string | null = null;
+    try {
+      mythicPlusReconciliation = await mythicPlusService.reconcileCharacterIdentities({
+        characterIds: [character._id],
+        limit: 1,
+      });
+    } catch (error) {
+      mythicPlusWarning = "The Blizzard identity override was cleared, but Mythic+ data could not be reconciled automatically";
+      logger.error(`Blizzard identity for ${character._id.toString()} was cleared but Mythic+ reconciliation failed:`, error);
+    }
     logger.info(`Admin ${updatedBy} cleared Blizzard identity override for ${character.name}-${character.realm} (ID: ${character._id.toString()})`);
 
-    res.json({
+    res.status(mythicPlusWarning ? 202 : 200).json({
       success: true,
-      message: `Blizzard identity override cleared; character media refresh queued`,
+      message: mythicPlusWarning ?? `Blizzard identity override cleared; character media and Mythic+ refreshes queued`,
+      mythicPlusReconciliation,
+      mythicPlusWarning,
     });
   } catch (error) {
     logger.error("Error clearing character Blizzard identity:", error);

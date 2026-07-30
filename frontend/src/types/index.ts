@@ -2269,7 +2269,7 @@ export type CcgOpening = {
   allowanceSource: "daily" | "recharge" | "credit";
   duplicateRewards: number;
   createdAt: string;
-  results: Array<{ position: number; finish: CcgFinish; artVariant: CcgArtVariant; isDuplicate: boolean; card: CcgCard }>;
+  results: Array<{ position: number; finish: CcgFinish; artVariant: CcgArtVariant; isDuplicate: boolean; bonusPackReward: boolean; card: CcgCard }>;
   cacheUpdates?: {
     packs: CcgSession["packs"];
     qualityProtection: CcgSession["qualityProtection"];
@@ -2457,6 +2457,7 @@ export type CcgAdminSnapshotPreviewCounts = {
   projectedSnapshots: number;
   newCharacters: number;
   rarityChanges: number;
+  identityChanges: number;
   unchangedCharacters: number;
   blockedByMissingMedia: number;
   mediaReady: number;
@@ -2475,7 +2476,13 @@ export type CcgAdminSnapshotSetPreview = CcgAdminSnapshotPreviewCounts & {
     name: string;
     realm: string;
     region: string;
-    disposition: "new_character" | "rarity_change" | "blocked_new_character" | "blocked_rarity_change";
+    disposition:
+      | "new_character"
+      | "rarity_change"
+      | "identity_change"
+      | "blocked_new_character"
+      | "blocked_rarity_change"
+      | "blocked_identity_change";
     previousTierGrade: CcgTierGrade | null;
     nextTierGrade: CcgRegularTierGrade;
     mediaStatus: "pending" | "available" | "not_found" | "failed" | "untracked" | "render_missing";
@@ -3086,6 +3093,11 @@ export interface WarcraftLogsUserAuthStatus {
     failed: number;
     archived: number;
   };
+  combatantInfo: {
+    pending: number;
+    failed: number;
+    archived: number;
+  };
 }
 
 export interface WarcraftLogsUserReportProbeResponse {
@@ -3161,6 +3173,8 @@ export interface DeathEventsResetResponse {
   statuses: Array<"failed" | "archived">;
   modifiedCount: number;
   matchedCount: number;
+  deathEventModifiedCount: number;
+  combatantInfoModifiedCount: number;
   guildsMatched: number;
   queued: number;
   skipped: number;
@@ -3360,6 +3374,15 @@ export interface MythicPlusCrawlerTriggerResponse extends TriggerResponse {
         candidates: number;
         queued: number;
         missingSeasonPairs: number;
+        identityRepair: {
+          scannedCharacters: number;
+          identityDriftCandidates: number;
+          processedCharacters: number;
+          jobsSynchronized: number;
+          staleScoreRows: number;
+          staleDungeonRuns: number;
+          queued: number;
+        };
       };
   status: MythicPlusCrawlerStatusResponse;
 }
