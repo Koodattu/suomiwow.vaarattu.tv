@@ -10,7 +10,7 @@ import CcgSeriesOwnership from "../src/models/CcgSeriesOwnership";
 import CcgSet from "../src/models/CcgSet";
 import ccgService from "../src/services/ccg.service";
 
-test("missing-snapshot catalog filtering avoids finish ownership work", async () => {
+test("missing-card catalog filtering uses series ownership and avoids finish ownership work", async () => {
   const ownerId = new mongoose.Types.ObjectId();
   const setId = new mongoose.Types.ObjectId();
   const characterId = new mongoose.Types.ObjectId();
@@ -114,6 +114,12 @@ test("missing-snapshot catalog filtering avoids finish ownership work", async ()
 
     assert.equal(pipeline.some((stage) => stage.$lookup?.from === "ccgseriesownerships"), true);
     assert.equal(pipeline.some((stage) => stage.$lookup?.from === "ccgownerships"), false);
+    const seriesLookup = pipeline.find((stage) => stage.$lookup?.from === "ccgseriesownerships");
+    const seriesMatch = seriesLookup?.$lookup.pipeline.find((stage: Record<string, any>) => stage.$match?.$expr);
+    assert.deepEqual(seriesMatch.$match.$expr.$and, [
+      { $eq: ["$setId", "$$setId"] },
+      { $eq: ["$characterId", "$$characterId"] },
+    ]);
     assert.equal(ownershipFindCalls, 0);
     assert.equal(alternativeUnlockCalls, 0);
     assert.deepEqual(result.sets.map((responseSet: any) => responseSet.id), [String(setId)]);

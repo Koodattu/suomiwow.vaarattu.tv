@@ -234,8 +234,8 @@ export default function CcgLeaderboardPage() {
   const [selectedCollector, setSelectedCollector] = useState<CcgLeaderboardEntry | null>(null);
   const [scoringOpen, setScoringOpen] = useState(false);
   const entries = leaderboardQuery.data?.entries ?? [];
-  const highlightedCollectors = entries.slice(0, 12);
-  const remainingCollectors = entries.slice(12);
+  const highlightedCollectors = entries.slice(0, 6);
+  const remainingCollectors = entries.slice(6);
   const me = meQuery.data?.entry ?? null;
   const myShowcase = meQuery.data?.showcase ?? [];
   const numberFormatter = new Intl.NumberFormat(locale);
@@ -367,7 +367,7 @@ export default function CcgLeaderboardPage() {
               </div>
 
               {remainingCollectors.length > 0 ? (
-                <ol className={styles.leaderboardRows} start={13}>
+                <ol className={styles.leaderboardRows} start={7}>
                   {remainingCollectors.map((entry) => (
                     <li
                       className={styles.leaderboardRow}

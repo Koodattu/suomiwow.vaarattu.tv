@@ -206,7 +206,7 @@ export function CcgLeaderboardLoadingSkeleton({ label }: { label?: string }) {
           ))}
         </div>
         <div className={styles.leaderboardPodiumGrid}>
-          {Array.from({ length: 9 }, (_, index) => (
+          {Array.from({ length: 3 }, (_, index) => (
             <div key={index} className={styles.leaderboardPodiumCard}>
               <span className={styles.leaderboardLoadingHeader} />
               <div className={styles.leaderboardLoadingShowcase}>

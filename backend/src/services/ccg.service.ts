@@ -1303,9 +1303,9 @@ class CcgService {
 
     const ownershipFilter = options.owned === "owned" || options.owned === "missing" || Boolean(finishMatch);
     const includeOwned = options.owned === "owned" || Boolean(finishMatch);
-    const missingSnapshotsOnly = options.owned === "missing" && !finishMatch;
-    const needsFinishOwnership = Boolean(finishMatch) || (ownershipSort && !missingSnapshotsOnly);
-    const needsSnapshotOwnership = ownershipFilter || ownershipSort;
+    const missingSeriesOnly = options.owned === "missing" && !finishMatch;
+    const needsFinishOwnership = Boolean(finishMatch) || (ownershipSort && !missingSeriesOnly);
+    const needsCatalogOwnership = ownershipFilter || ownershipSort;
     const activeCardIds = await this.getActiveCatalogCardIds(sets);
     const currentCardStages: PipelineStage[] = activeCardIds
       ? [{ $match: { _id: { $in: activeCardIds } } }]
@@ -1321,7 +1321,7 @@ class CcgService {
     }>([
       ...currentCardStages,
       ...(Object.keys(cardFilter).length > 0 ? [{ $match: cardFilter }] : []),
-      ...(needsSnapshotOwnership ? [
+      ...(needsCatalogOwnership ? [
         {
           $lookup: {
             from: "ccgseriesownerships",
@@ -1335,14 +1335,14 @@ class CcgService {
                     $and: [
                       { $eq: ["$setId", "$$setId"] },
                       { $eq: ["$characterId", "$$characterId"] },
-                      { $in: ["$$snapshotVersion", "$unlockedSnapshotVersions"] },
+                      ...(missingSeriesOnly ? [] : [{ $in: ["$$snapshotVersion", "$unlockedSnapshotVersions"] }]),
                     ],
                   },
                 },
               },
               { $project: { _id: 1 } },
             ],
-            as: "snapshotOwnership",
+            as: "catalogOwnership",
           },
         },
       ] : []),
@@ -1374,7 +1374,7 @@ class CcgService {
           $set: {
             seriesOwnership: {
               $cond: [
-                { $gt: [{ $size: "$snapshotOwnership" }, 0] },
+                { $gt: [{ $size: "$catalogOwnership" }, 0] },
                 "$seriesOwnership",
                 [],
               ],
@@ -1384,7 +1384,7 @@ class CcgService {
       ] : []),
       ...(ownershipFilter ? [{
         $match: {
-          [needsFinishOwnership ? "seriesOwnership.0" : "snapshotOwnership.0"]: { $exists: includeOwned },
+          [needsFinishOwnership ? "seriesOwnership.0" : "catalogOwnership.0"]: { $exists: includeOwned },
         },
       }] : []),
       ...(sort
@@ -1416,7 +1416,7 @@ class CcgService {
             { $set: { sortGrade: { $indexOfArray: [[...CCG_TIER_GRADES], "$tierGrade"] } } },
             { $sort: { sortGrade: 1 as const, setNumber: 1 as const, name: 1 as const, _id: 1 as const } },
           ]),
-      ...(needsSnapshotOwnership ? [{ $unset: ["seriesOwnership", "snapshotOwnership"] }] : []),
+      ...(needsCatalogOwnership ? [{ $unset: ["seriesOwnership", "catalogOwnership"] }] : []),
       {
         $facet: {
           items: [{ $skip: (page - 1) * limit }, { $limit: limit }],
@@ -1428,7 +1428,7 @@ class CcgService {
     const total = catalog.count[0]?.total ?? 0;
     const seriesPairs = cards.map((card) => ({ setId: card.setId, characterId: card.characterId }));
     const [ownership, snapshotOwnership, alternativeByCollector, unlockedAlternativeSeries, ownedSeriesCount] = await Promise.all([
-      seriesPairs.length > 0 && !missingSnapshotsOnly
+      seriesPairs.length > 0 && !missingSeriesOnly
         ? CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, $or: seriesPairs }).lean()
         : Promise.resolve([]),
       seriesPairs.length > 0
@@ -1437,7 +1437,7 @@ class CcgService {
             .lean()
         : Promise.resolve([]),
       this.loadAlternativeArt(cards),
-      missingSnapshotsOnly ? Promise.resolve(new Set<string>()) : this.loadAlternativeArtUnlocks(owner, cards),
+      missingSeriesOnly ? Promise.resolve(new Set<string>()) : this.loadAlternativeArtUnlocks(owner, cards),
       set ? CcgSeriesOwnership.countDocuments({ ownerType: owner.ownerType, ownerId: owner.ownerId, setId: set._id }) : Promise.resolve(0),
     ]);
     const ownershipBySeries = new Map<string, Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>>();
