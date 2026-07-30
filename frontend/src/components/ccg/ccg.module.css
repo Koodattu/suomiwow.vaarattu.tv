@@ -5874,8 +5874,8 @@
   transform: translate(-50%, -50%) translate(var(--fan-x), var(--fan-y)) rotate(var(--fan-rotation)) scale(var(--fan-scale));
   transform-origin: 50% 88%;
   transition-property: transform;
-  transition-duration: 220ms;
-  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  transition-duration: 280ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .vaultPackVisual {
@@ -5887,8 +5887,8 @@
   transform: translate3d(var(--fan-selected-x), var(--fan-selected-y), 0) rotate(var(--fan-selected-rotation));
   transform-origin: 50% 88%;
   transition-property: filter, transform;
-  transition-duration: 220ms;
-  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  transition-duration: 280ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .vaultPackVisual::after {
@@ -5902,14 +5902,13 @@
   opacity: 0;
   pointer-events: none;
   transition-property: opacity;
-  transition-duration: 180ms;
-  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  transition-duration: 240ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   -webkit-mask: url("/ccg/pack-pouch-mask.svg") center / 100% 100% no-repeat;
 }
 
 .vaultPackShortcut[data-fan-selected="true"] > .vaultPackVisual {
-  filter: brightness(1.12) saturate(1.2) drop-shadow(0 0 8px color-mix(in srgb, var(--pack-accent) 75%, transparent))
-    drop-shadow(0 0 18px color-mix(in srgb, var(--pack-glow) 92%, transparent));
+  filter: brightness(1.12) saturate(1.2);
 }
 
 .vaultPackShortcut[data-fan-selected="true"] > .vaultPackVisual::after {

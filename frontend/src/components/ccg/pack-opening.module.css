@@ -916,7 +916,7 @@
 .packButtonGrouped[data-fan-selected="true"] .booster {
   --pack-lift: 0px;
   --pack-scale: 1.018;
-  filter: brightness(1.08) saturate(1.14) drop-shadow(0 10px 7px rgba(0, 0, 0, 0.56)) drop-shadow(0 0 14px color-mix(in srgb, var(--pack-glow) 92%, transparent));
+  filter: brightness(1.08) saturate(1.14) drop-shadow(0 10px 7px rgba(0, 0, 0, 0.56));
 }
 
 .packButtonGrouped[data-fan-selected="true"] .packShadow {
