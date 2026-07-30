@@ -49,50 +49,62 @@ function rewardPackVisualStyle(layout: RewardPackLayout, index: number, count: n
   const randomRotation = (((hash >>> 16) & 0xff) / 255) - 0.5;
   const randomScale = (((hash >>> 24) & 0xff) / 255) - 0.5;
   let left = 50;
-  let bottom = 1;
+  let top = 50;
   let rotation = randomRotation * 2;
   let scale = 1;
   let zIndex = index + 1;
 
   if (layout === "pair") {
-    left = index === 0 ? 42 : 58;
-    bottom = index === 0 ? 0.5 : 1.5;
-    rotation = (index === 0 ? -6 : 6) + randomRotation;
+    left = index === 0 ? 41 : 59;
+    top = index === 0 ? 51 : 49;
+    rotation = (index === 0 ? -7 : 7) + randomRotation;
     scale = index === 0 ? 0.98 : 1;
   } else if (layout === "fan") {
     const progress = (index - ((count - 1) / 2)) / Math.max((count - 1) / 2, 1);
-    const spread = count === 3 ? 15 : count === 4 ? 20 : 23;
+    const spread = count === 3 ? 20 : count === 4 ? 26 : 30;
     left = 50 + (progress * spread);
-    bottom = 0.75 + ((1 - Math.abs(progress)) * 4.5);
-    rotation = (progress * 9) + (randomRotation * 1.5);
+    top = 50 + (Math.abs(progress) * 4);
+    rotation = (progress * 11) + (randomRotation * 1.5);
     scale = 0.93 + ((1 - Math.abs(progress)) * 0.07);
     zIndex = 50 - Math.round(Math.abs(progress) * 10) + index;
   } else if (layout === "scatter" || layout === "pile") {
-    const columnProgress = ((index * 0.61803398875) + ((randomX + 0.5) * 0.21)) % 1;
-    const depthSeed = ((index * 0.41421356237) + ((randomY + 0.5) * 0.17)) % 1;
-    const depthProgress = depthSeed ** 1.45;
-    const horizontalInset = layout === "pile" ? 7 : 10;
-    const verticalSpread = layout === "pile" ? 46 : 34;
+    const angle = (randomX + 0.5) * Math.PI * 2;
+    const radius = Math.sqrt(randomY + 0.5);
+    const horizontalRadius = layout === "pile" ? 42 : 40;
+    const verticalRadius = layout === "pile" ? 33 : 27;
+    const rotationRange = layout === "pile"
+      ? Math.min(38, 22 + (count * 0.16))
+      : Math.min(28, 16 + (count * 0.5));
+    const depthProgress = 0.5 + ((Math.sin(angle) * radius) / 2);
 
-    left = horizontalInset + (columnProgress * (100 - (horizontalInset * 2)));
-    bottom = depthProgress * verticalSpread;
-    rotation = randomRotation * (layout === "pile" ? 26 : 34);
+    left = 50 + (Math.cos(angle) * radius * horizontalRadius);
+    top = 50 + (Math.sin(angle) * radius * verticalRadius);
+    rotation = randomRotation * rotationRange * 2;
     scale = layout === "pile"
-      ? 0.74 + ((1 - depthProgress) * 0.23) + (randomScale * 0.14)
-      : 0.82 + ((1 - depthProgress) * 0.14) + (randomScale * 0.12);
-    zIndex = Math.round((1 - depthProgress) * 1000) + index;
+      ? 0.74 + (depthProgress * 0.23) + (randomScale * 0.14)
+      : 0.82 + (depthProgress * 0.14) + (randomScale * 0.12);
+    zIndex = Math.round(top * 100) + index;
+
+    if (index === 0) {
+      left = 50;
+      top = 62;
+      rotation = randomRotation * 6;
+      scale = layout === "pile" ? 1.16 : 1.1;
+      zIndex = 10_000;
+    }
   }
 
   return {
     "--reward-pack-left": `${left}%`,
-    "--reward-pack-bottom": `${bottom}%`,
+    "--reward-pack-top": `${top}%`,
     "--reward-pack-rotation": `${rotation}deg`,
     "--reward-pack-scale": scale,
     "--reward-pack-z": zIndex,
+    "--reward-pack-delay": `${Math.round((randomScale + 0.5) * 90)}ms`,
   } as CSSProperties;
 }
 
-export function CcgRedeemRewardDialog({
+function CcgRedeemRewardDialog({
   result,
   sets,
   isInspectingCard,
@@ -222,7 +234,7 @@ export function CcgRedeemRewardDialog({
               >
                 {Array.from({ length: rewardPackCount }, (_, index) => {
                   const layoutHash = rewardPackHash(`${result.code}:layout:${index}`);
-                  const rewardSet = rewardPackSets.length > 0 ? rewardPackSets[index % rewardPackSets.length] : undefined;
+                  const rewardSet = index > 0 && rewardPackSets.length > 0 ? rewardPackSets[(index - 1) % rewardPackSets.length] : undefined;
                   return (
                     <div
                       key={`${result.code}:${index}`}

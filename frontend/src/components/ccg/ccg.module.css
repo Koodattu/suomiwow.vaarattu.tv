@@ -6487,6 +6487,7 @@
 }
 
 .redeemDialog {
+  --redeem-dialog-offset-y: clamp(0.4rem, 1dvh, 0.75rem);
   display: grid;
   width: 100%;
   min-height: calc(100dvh - clamp(2rem, 6vw, 5rem));
@@ -6495,7 +6496,7 @@
   gap: clamp(0.85rem, 2dvh, 1.25rem);
   padding: 1rem;
   opacity: 0;
-  transform: translateY(0.75rem);
+  transform: translateY(calc(var(--redeem-dialog-offset-y) + 0.75rem));
   transition-property: opacity, transform;
   transition-duration: 220ms;
   transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
@@ -6503,12 +6504,12 @@
 
 .redeemDialogBackdrop[data-phase="open"] .redeemDialog {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(var(--redeem-dialog-offset-y));
 }
 
 .redeemDialogBackdrop[data-phase="closing"] .redeemDialog {
   opacity: 0;
-  transform: translateY(-0.75rem);
+  transform: translateY(calc(var(--redeem-dialog-offset-y) - 0.75rem));
   transition-duration: 150ms;
   transition-timing-function: ease-in;
 }
@@ -6546,7 +6547,7 @@
 
 .redeemPackRewards {
   display: grid;
-  width: min(100%, 44rem);
+  width: min(100%, 50rem);
   justify-self: center;
   padding-block: clamp(0.35rem, 1.2dvh, 0.75rem);
   pointer-events: none;
@@ -6564,8 +6565,8 @@
 
 .redeemPackPile {
   --reward-pack-width: 7.75rem;
-  --reward-stage-width: 9.5rem;
-  --reward-stage-height: 12.5rem;
+  --reward-stage-width: 10.5rem;
+  --reward-stage-height: 14.25rem;
   position: relative;
   width: min(100%, var(--reward-stage-width));
   height: var(--reward-stage-height);
@@ -6591,45 +6592,63 @@
 
 .redeemPackPile > .redeemPackVisual {
   --reward-pack-left: 50%;
-  --reward-pack-bottom: 1%;
+  --reward-pack-top: 50%;
   --reward-pack-rotation: 0deg;
   --reward-pack-scale: 1;
   --reward-pack-z: 1;
+  --reward-pack-delay: 0ms;
   position: absolute;
   z-index: var(--reward-pack-z);
-  bottom: var(--reward-pack-bottom);
+  top: var(--reward-pack-top);
   left: var(--reward-pack-left);
   width: var(--reward-pack-width);
   aspect-ratio: 0.66;
   container-type: inline-size;
   cursor: default;
+  opacity: 0;
   pointer-events: none;
-  transform: translateX(-50%) rotate(var(--reward-pack-rotation)) scale(var(--reward-pack-scale));
-  transform-origin: 50% 88%;
+  scale: 0.96;
+  transform: translate(-50%, -50%) rotate(var(--reward-pack-rotation)) scale(var(--reward-pack-scale));
+  transform-origin: 50% 50%;
+  transition-property: opacity, scale;
+  transition-duration: 180ms, 220ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--reward-pack-delay);
+}
+
+.redeemDialogBackdrop[data-phase="open"] .redeemPackPile > .redeemPackVisual {
+  opacity: 1;
+  scale: 1;
+}
+
+.redeemDialogBackdrop[data-phase="closing"] .redeemPackPile > .redeemPackVisual {
+  opacity: 0;
+  scale: 0.98;
+  transition-delay: 0ms;
 }
 
 .redeemPackPile[data-layout="pair"] {
   --reward-pack-width: 6.75rem;
-  --reward-stage-width: 13.5rem;
-  --reward-stage-height: 11rem;
+  --reward-stage-width: 18rem;
+  --reward-stage-height: 14rem;
 }
 
 .redeemPackPile[data-layout="fan"] {
   --reward-pack-width: 6.4rem;
-  --reward-stage-width: 22rem;
-  --reward-stage-height: 11.5rem;
+  --reward-stage-width: 30rem;
+  --reward-stage-height: 15.5rem;
 }
 
 .redeemPackPile[data-layout="scatter"] {
   --reward-pack-width: 5.2rem;
-  --reward-stage-width: 32rem;
-  --reward-stage-height: 13.25rem;
+  --reward-stage-width: 38rem;
+  --reward-stage-height: 18rem;
 }
 
 .redeemPackPile[data-layout="pile"] {
   --reward-pack-width: 4.1rem;
-  --reward-stage-width: 40rem;
-  --reward-stage-height: 14.5rem;
+  --reward-stage-width: 46rem;
+  --reward-stage-height: 21rem;
 }
 
 .redeemPackCount {
@@ -7217,32 +7236,32 @@
 
   .redeemPackPile[data-layout="single"] {
     --reward-pack-width: 6.75rem;
-    --reward-stage-width: 8.5rem;
-    --reward-stage-height: 10.75rem;
+    --reward-stage-width: 9.5rem;
+    --reward-stage-height: 12rem;
   }
 
   .redeemPackPile[data-layout="pair"] {
     --reward-pack-width: 5.8rem;
-    --reward-stage-width: 12rem;
-    --reward-stage-height: 9.5rem;
+    --reward-stage-width: 18rem;
+    --reward-stage-height: 12rem;
   }
 
   .redeemPackPile[data-layout="fan"] {
     --reward-pack-width: 5.2rem;
-    --reward-stage-width: 20rem;
-    --reward-stage-height: 9.25rem;
+    --reward-stage-width: 22rem;
+    --reward-stage-height: 12.5rem;
   }
 
   .redeemPackPile[data-layout="scatter"] {
-    --reward-pack-width: 4rem;
-    --reward-stage-width: 28rem;
-    --reward-stage-height: 10.75rem;
+    --reward-pack-width: 3.8rem;
+    --reward-stage-width: 30rem;
+    --reward-stage-height: 15rem;
   }
 
   .redeemPackPile[data-layout="pile"] {
-    --reward-pack-width: 2.8rem;
+    --reward-pack-width: 2.65rem;
     --reward-stage-width: 30rem;
-    --reward-stage-height: 11.5rem;
+    --reward-stage-height: 16rem;
   }
 
   .redeemRewardCardButton {
@@ -8445,11 +8464,16 @@
   .vaultTwitchConnectionSkeleton,
   .redeemDialogBackdrop,
   .redeemDialog,
+  .redeemPackPile > .redeemPackVisual,
   .redeemRewardCardButton,
   .redeemForm button,
   .redeemLoginButton {
     animation: none;
     transition-duration: 1ms;
+  }
+
+  .redeemPackPile > .redeemPackVisual {
+    transition-delay: 0ms;
   }
 
   .viewerBackdrop::before,
