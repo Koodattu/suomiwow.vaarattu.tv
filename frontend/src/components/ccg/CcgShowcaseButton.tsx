@@ -11,10 +11,12 @@ import styles from "./ccg.module.css";
 
 export default function CcgShowcaseButton({
   cardId,
+  snapshotCardIds,
   finish,
   artVariant,
 }: {
   cardId: string;
+  snapshotCardIds: string[];
   finish: CcgFinish;
   artVariant: CcgArtVariant;
 }) {
@@ -23,7 +25,8 @@ export default function CcgShowcaseButton({
   const queryClient = useQueryClient();
   const meQuery = useCcgLeaderboardMe(Boolean(user));
   const current = meQuery.data?.showcase ?? [];
-  const selected = current.some((item) => item.card.id === cardId);
+  const snapshotCardIdSet = new Set([cardId, ...snapshotCardIds]);
+  const selected = current.some((item) => snapshotCardIdSet.has(item.card.id));
   const mutation = useMutation({
     mutationFn: (cards: CcgShowcaseCardInput[]) => api.updateCcgShowcase(cards),
     onSuccess: (data) => {
@@ -35,7 +38,7 @@ export default function CcgShowcaseButton({
 
   if (!user || (!meQuery.data && !meQuery.isPending)) return null;
   const displayedSelected = mutation.isPending && mutation.variables
-    ? mutation.variables.some((item) => item.cardId === cardId)
+    ? mutation.variables.some((item) => snapshotCardIdSet.has(item.cardId))
     : selected;
   const full = !selected && current.length >= 3;
   const label = full ? t("full") : displayedSelected ? t("unfavorite") : t("favorite");
@@ -52,7 +55,7 @@ export default function CcgShowcaseButton({
       title={mutation.isError ? t("error") : label}
       onClick={() => {
         const cards: CcgShowcaseCardInput[] = selected
-          ? current.filter((item) => item.card.id !== cardId).map((item) => ({
+          ? current.filter((item) => !snapshotCardIdSet.has(item.card.id)).map((item) => ({
               cardId: item.card.id,
               finish: item.finish,
               artVariant: item.artVariant,

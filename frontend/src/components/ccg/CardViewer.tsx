@@ -375,7 +375,12 @@ export default function CardViewer({
           <div className={styles.viewerSetRow}>
             <div className={styles.viewerSet} style={{ color: displayedCard.set.theme.accent }}>{displayedCard.set.raidName}</div>
             {showCollectionControls && showsDefaultActions && isDisplayedFinishOwned ? (
-              <CcgShowcaseButton cardId={displayedCard.id} finish={finish} artVariant={artVariant} />
+              <CcgShowcaseButton
+                cardId={displayedCard.id}
+                snapshotCardIds={variants.map((variant) => variant.card.id)}
+                finish={finish}
+                artVariant={artVariant}
+              />
             ) : null}
           </div>
           <h2>{displayedCard.name}</h2>
