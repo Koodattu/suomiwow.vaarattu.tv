@@ -7958,8 +7958,6 @@
   flex: 0 0 2.25rem;
   border-radius: 50%;
   object-fit: cover;
-  outline: 1px solid rgba(255, 255, 255, 0.1);
-  outline-offset: -1px;
 }
 
 .sharedPackScroller {
@@ -8056,8 +8054,6 @@
   height: 1.75rem;
   border-radius: 50%;
   object-fit: cover;
-  outline: 1px solid rgba(255, 255, 255, 0.1);
-  outline-offset: -1px;
 }
 
 .sharedAttribution strong {
