@@ -1602,6 +1602,7 @@ export interface PickemDetails {
   guildRankings: GuildRanking[];
   userPredictions: PickemPrediction[] | null;
   leaderboard: LeaderboardEntry[];
+  predictionDetailsVisible: boolean;
 }
 
 export interface SimpleGuild {

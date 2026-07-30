@@ -913,6 +913,30 @@
   opacity: 0.3;
 }
 
+.packButtonGrouped[data-fan-selected="true"] .booster {
+  --pack-lift: 0px;
+  --pack-scale: 1.018;
+  filter: brightness(1.08) saturate(1.14) drop-shadow(0 10px 7px rgba(0, 0, 0, 0.56)) drop-shadow(0 0 14px color-mix(in srgb, var(--pack-glow) 92%, transparent));
+}
+
+.packButtonGrouped[data-fan-selected="true"] .packShadow {
+  opacity: 0.44;
+  transform: translate3d(calc(var(--pack-drag-x) + var(--pack-shadow-x)), calc(var(--pack-drag-y) + var(--pack-shadow-y) + 5px), -20px) scaleX(var(--pack-shadow-scale))
+    scaleY(0.66);
+}
+
+.packButtonGrouped[data-fan-selected="true"] .wrapperMetal {
+  opacity: 0.65;
+}
+
+.packButtonGrouped[data-fan-selected="true"] .wrapperCreases {
+  opacity: 0.66;
+}
+
+.packButtonGrouped[data-fan-selected="true"] .wrapperGlare {
+  opacity: 0.9;
+}
+
 .packBrand,
 .packTitle,
 .packCount,

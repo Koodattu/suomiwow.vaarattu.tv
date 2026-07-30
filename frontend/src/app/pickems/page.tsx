@@ -1663,8 +1663,8 @@ export default function PickemsPage() {
             </div>
           </div>
 
-          {/* Prediction Statistics - only after voting ends */}
-          {!pickemDetails.isVotingOpen && pickemDetails.leaderboard.length >= 2 && (
+          {/* Prediction statistics are public after voting closes and available to admins earlier. */}
+          {pickemDetails.predictionDetailsVisible && pickemDetails.leaderboard.length >= 2 && (
             <PickemStatistics leaderboard={pickemDetails.leaderboard} guildCount={pickemDetails.guildCount || 10} type={pickemDetails.type} />
           )}
         </div>

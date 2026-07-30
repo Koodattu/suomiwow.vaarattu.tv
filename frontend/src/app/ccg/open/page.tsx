@@ -102,10 +102,7 @@ function ArchiveIcon() {
 }
 
 function playSound(source: string | null | undefined, channel: CcgAudioChannel, volume: number, playbackRate = 1): void {
-  playCcgSound(source, channel, volume, {
-    playbackRate,
-    interruptKey: channel === "effects" ? undefined : "voice",
-  });
+  playCcgSound(source, channel, volume, { playbackRate });
 }
 
 function playPackSound(source: string | null | undefined, volume: number, playbackRate = 1): void {
@@ -625,7 +622,6 @@ export default function CcgOpenPage() {
     : 0;
   const openingCollectionName = openingPackName;
   const openingCollectionIcon = openingIsAllRaids ? undefined : openingPackSet?.iconUrl ?? undefined;
-  const cardBackSetScale = Math.min(1.45, Math.max(0.78, 18 / (openingPackName?.trim().length || 18)));
   const stageTheme = opening ? getPackTheme(openingPackSet, openingIsAllRaids) : getPackTheme(featuredPackSet, allRaids);
 
   const updatePackLight = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -1034,7 +1030,10 @@ export default function CcgOpenPage() {
                     const dealt = index < dealtCards;
                     const special = result.finish !== "standard" || result.card.tierGrade === "S";
                     const sealedCardHint = `${t(`finish.${result.finish}`)} · ${t(`rarity.${CCG_RARITY_KEYS[result.card.tierGrade]}`)}`;
+                    const cardBackSetName = result.card.set.raidName;
+                    const cardBackSetScale = Math.min(1.45, Math.max(0.78, 18 / (cardBackSetName.trim().length || 18)));
                     const cardStyle = {
+                      ...getPackTheme(result.card.set),
                       "--fan-angle": `${fanAngles[index] ?? 0}deg`,
                       "--fan-y": `${fanOffsets[index] ?? 0}px`,
                       "--deal-x": dealOffsets[index] ?? "0%",
@@ -1080,7 +1079,7 @@ export default function CcgOpenPage() {
                               <strong>CCG</strong>
                             </span>
                             <span className={packStyles.cardBackSet} style={{ "--card-back-set-scale": cardBackSetScale } as CSSProperties}>
-                              {openingPackName}
+                              {cardBackSetName}
                             </span>
                           </span>
                           <span className={`${packStyles.cardFace} ${packStyles.cardFront}`} aria-hidden={!revealed}>

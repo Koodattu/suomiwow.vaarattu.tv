@@ -760,7 +760,6 @@
     "openPickem": "Avaa {name}",
     "features": {
       "ccg": {
-        "eyebrow": "Uusi",
         "title": "SuomiWoW CCG",
         "description": "Avaa pakkoja ja kasvata kokoelmaasi"
       },

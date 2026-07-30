@@ -243,17 +243,19 @@ router.get("/:pickemId", async (req: Request, res: Response) => {
       await cacheService.set(leaderboardCacheKey, leaderboard, cacheService.PICKEM_LEADERBOARD_TTL);
     }
 
-    // Hide prediction details while voting is open to prevent copying strategies
-    const sanitizedLeaderboard = isVotingOpen
-      ? leaderboard.map((entry: any) => ({
+    const predictionDetailsVisible = hasEnded || (user !== null && discordService.isAdmin(user.discord.username));
+
+    // Hide prediction details from non-admins while voting is open to prevent copying strategies
+    const sanitizedLeaderboard = predictionDetailsVisible
+      ? leaderboard
+      : leaderboard.map((entry: any) => ({
           ...entry,
           predictions: entry.predictions.map((p: any) => ({
             ...p,
             guildName: "Hidden",
             realm: "",
           })),
-        }))
-      : leaderboard;
+        }));
 
     res.json({
       id: pickem.pickemId,
@@ -278,6 +280,7 @@ router.get("/:pickemId", async (req: Request, res: Response) => {
       guildRankings,
       userPredictions,
       leaderboard: sanitizedLeaderboard,
+      predictionDetailsVisible,
     });
   } catch (error) {
     logger.error("Error fetching pickem details:", error);

@@ -760,7 +760,6 @@
     "openPickem": "Open {name}",
     "features": {
       "ccg": {
-        "eyebrow": "New",
         "title": "SuomiWoW CCG",
         "description": "Open packs and build your collection"
       },

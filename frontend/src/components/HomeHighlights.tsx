@@ -257,11 +257,9 @@ export default function HomeHighlights() {
           </span>
 
           <span className="relative z-10 flex w-full flex-col justify-between p-2.5 pr-36 sm:p-3.5 sm:pr-[7.25rem]">
-            <span className="flex items-start gap-3">
+            <span className="flex items-center gap-2">
+              <Image src="/logo.png" alt="" width={1187} height={536} className="h-8 w-auto sm:h-10" />
               <Image src="/ccg/ccg_logo.png" alt="" width={491} height={351} className="h-8 w-auto sm:h-10" />
-              <span className="rounded-full bg-blue-400/15 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-blue-200 ring-1 ring-inset ring-blue-300/25">
-                {t("features.ccg.eyebrow")}
-              </span>
             </span>
 
             <span className="mt-2 flex items-end justify-between gap-3 sm:mt-5">

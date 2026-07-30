@@ -5798,6 +5798,8 @@
 }
 
 .vaultPackShortcuts {
+  position: relative;
+  z-index: 2;
   display: grid;
   min-width: 0;
   min-height: 0;
@@ -5806,7 +5808,7 @@
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 0.5rem;
-  overflow: hidden;
+  overflow: visible;
   padding: 0 0 0 0.25rem;
   box-shadow: inset 1px 0 rgba(117, 149, 201, 0.12);
 }
@@ -5830,15 +5832,12 @@
   height: 100%;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   place-items: center;
   pointer-events: none;
 }
 
 .vaultPackFanInteraction {
-  --fan-pointer-x: 0px;
-  --fan-pointer-y: 0px;
-  --fan-pointer-rotation: 0deg;
   position: relative;
   width: min(100%, 40rem);
   height: min(100%, 29rem);
@@ -5851,11 +5850,6 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  transform: translate3d(var(--fan-pointer-x), calc(var(--fan-pointer-y) - var(--fan-group-lift, 0px)), 0) rotate(var(--fan-pointer-rotation));
-  transform-origin: 50% 82%;
-  transition-property: transform;
-  transition-duration: 180ms;
-  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
 .vaultPackFanMotion > .vaultPackShortcut {
@@ -5863,6 +5857,13 @@
   --fan-y: 0rem;
   --fan-rotation: 0deg;
   --fan-scale: 1;
+  --fan-hover-x: 0rem;
+  --fan-hover-y: -0.45rem;
+  --fan-hover-rotation: 0deg;
+  --fan-selected-x: 0rem;
+  --fan-selected-y: 0rem;
+  --fan-selected-rotation: 0deg;
+  --fan-away-x: 0px;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -5872,6 +5873,47 @@
   pointer-events: auto;
   transform: translate(-50%, -50%) translate(var(--fan-x), var(--fan-y)) rotate(var(--fan-rotation)) scale(var(--fan-scale));
   transform-origin: 50% 88%;
+  transition-property: transform;
+  transition-duration: 220ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.vaultPackVisual {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  filter: brightness(1) saturate(1);
+  transform: translate3d(var(--fan-selected-x), var(--fan-selected-y), 0) rotate(var(--fan-selected-rotation));
+  transform-origin: 50% 88%;
+  transition-property: filter, transform;
+  transition-duration: 220ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.vaultPackVisual::after {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  background: linear-gradient(112deg, transparent 18%, rgba(255, 255, 255, 0.42) 45%, color-mix(in srgb, var(--pack-accent) 44%, transparent) 58%, transparent 80%);
+  content: "";
+  mask: url("/ccg/pack-pouch-mask.svg") center / 100% 100% no-repeat;
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+  transition-property: opacity;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  -webkit-mask: url("/ccg/pack-pouch-mask.svg") center / 100% 100% no-repeat;
+}
+
+.vaultPackShortcut[data-fan-selected="true"] > .vaultPackVisual {
+  filter: brightness(1.12) saturate(1.2) drop-shadow(0 0 8px color-mix(in srgb, var(--pack-accent) 75%, transparent))
+    drop-shadow(0 0 18px color-mix(in srgb, var(--pack-glow) 92%, transparent));
+}
+
+.vaultPackShortcut[data-fan-selected="true"] > .vaultPackVisual::after {
+  opacity: 0.58;
 }
 
 .vaultPackFanMotion > .vaultPackShortcut:nth-child(1) {
@@ -5882,40 +5924,79 @@
 }
 
 .vaultPackFanMotion > .vaultPackShortcut:nth-child(2) {
-  --fan-x: 6.25rem;
+  --fan-x: 6rem;
   --fan-y: 0.35rem;
-  --fan-rotation: 3.5deg;
+  --fan-rotation: 3deg;
   --fan-scale: 0.94;
+  --fan-hover-x: 0.9rem;
+  --fan-hover-rotation: 1.2deg;
   z-index: 4;
 }
 
 .vaultPackFanMotion > .vaultPackShortcut:nth-child(3) {
-  --fan-x: 11.5rem;
+  --fan-x: 10.5rem;
   --fan-y: 0.85rem;
-  --fan-rotation: 7deg;
+  --fan-rotation: 6deg;
   --fan-scale: 0.8;
+  --fan-hover-x: 1.3rem;
+  --fan-hover-y: -0.35rem;
+  --fan-hover-rotation: 1.5deg;
   z-index: 3;
 }
 
 .vaultPackFanMotion > .vaultPackShortcut:nth-child(4) {
-  --fan-x: -6.25rem;
+  --fan-x: -6rem;
   --fan-y: 0.35rem;
-  --fan-rotation: -3.5deg;
+  --fan-rotation: -3deg;
   --fan-scale: 0.94;
+  --fan-hover-x: -0.9rem;
+  --fan-hover-rotation: -1.2deg;
   z-index: 2;
 }
 
 .vaultPackFanMotion > .vaultPackShortcut:nth-child(5) {
-  --fan-x: -11.5rem;
+  --fan-x: -10.5rem;
   --fan-y: 0.85rem;
-  --fan-rotation: -7deg;
+  --fan-rotation: -6deg;
   --fan-scale: 0.8;
+  --fan-hover-x: -1.3rem;
+  --fan-hover-y: -0.35rem;
+  --fan-hover-rotation: -1.5deg;
   z-index: 1;
 }
 
-.vaultPackFanInteraction[data-active="true"] > .vaultPackFanMotion,
-.vaultPackFanInteraction:focus-within > .vaultPackFanMotion {
-  --fan-group-lift: 3px;
+.vaultPackFanMotion > .vaultPackShortcut:nth-child(1)[data-fan-selected="true"] {
+  --fan-selected-y: -0.45rem;
+}
+
+.vaultPackFanMotion > .vaultPackShortcut:nth-child(2)[data-fan-selected="true"] {
+  --fan-selected-x: 0.75rem;
+  --fan-selected-y: -0.35rem;
+  --fan-selected-rotation: 0.7deg;
+}
+
+.vaultPackFanMotion > .vaultPackShortcut:nth-child(3)[data-fan-selected="true"] {
+  --fan-selected-x: 1rem;
+  --fan-selected-y: -0.3rem;
+  --fan-selected-rotation: 0.8deg;
+}
+
+.vaultPackFanMotion > .vaultPackShortcut:nth-child(4)[data-fan-selected="true"] {
+  --fan-selected-x: -0.75rem;
+  --fan-selected-y: -0.35rem;
+  --fan-selected-rotation: -0.7deg;
+}
+
+.vaultPackFanMotion > .vaultPackShortcut:nth-child(5)[data-fan-selected="true"] {
+  --fan-selected-x: -1rem;
+  --fan-selected-y: -0.3rem;
+  --fan-selected-rotation: -0.8deg;
+}
+
+.vaultPackFanInteraction[data-active="true"] .vaultPackShortcut,
+.vaultPackFanInteraction:focus-within .vaultPackShortcut {
+  transform: translate(-50%, -50%) translate(calc(var(--fan-x) + var(--fan-hover-x) + var(--fan-away-x)), calc(var(--fan-y) + var(--fan-hover-y)))
+    rotate(calc(var(--fan-rotation) + var(--fan-hover-rotation))) scale(var(--fan-scale));
 }
 
 .vaultFeatured {
@@ -6868,20 +6949,40 @@
 
   .vaultPackFanMotion > .vaultPackShortcut:nth-child(2) {
     --fan-x: 12vw;
+    --fan-hover-x: 0.35rem;
   }
 
   .vaultPackFanMotion > .vaultPackShortcut:nth-child(3) {
     --fan-x: 22vw;
     --fan-y: 0.45rem;
+    --fan-hover-x: 0rem;
   }
 
   .vaultPackFanMotion > .vaultPackShortcut:nth-child(4) {
     --fan-x: -12vw;
+    --fan-hover-x: -0.35rem;
   }
 
   .vaultPackFanMotion > .vaultPackShortcut:nth-child(5) {
     --fan-x: -22vw;
     --fan-y: 0.45rem;
+    --fan-hover-x: 0rem;
+  }
+
+  .vaultPackFanMotion > .vaultPackShortcut:nth-child(3)[data-fan-selected="true"] {
+    --fan-selected-x: 0.2rem;
+  }
+
+  .vaultPackFanMotion > .vaultPackShortcut:nth-child(5)[data-fan-selected="true"] {
+    --fan-selected-x: -0.2rem;
+  }
+
+  .vaultPackFanMotion > .vaultPackShortcut:nth-child(2)[data-fan-selected="true"] {
+    --fan-selected-x: 0.45rem;
+  }
+
+  .vaultPackFanMotion > .vaultPackShortcut:nth-child(4)[data-fan-selected="true"] {
+    --fan-selected-x: -0.45rem;
   }
 
   .vaultPackShortcuts .balanceCardStrip {
@@ -8260,6 +8361,13 @@
 
   .vaultPackFanMotion {
     transform: none;
+  }
+
+  .vaultPackFanMotion > .vaultPackShortcut {
+    transition-duration: 1ms;
+  }
+
+  .vaultPackVisual {
     transition-duration: 1ms;
   }
 

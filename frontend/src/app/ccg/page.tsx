@@ -41,31 +41,47 @@ function VaultPackShortcut({
       data-vault-pack
       draggable={false}
     >
-      <PackBoosterVisual title={title} cardsLabel={cardsLabel} />
+      <span className={styles.vaultPackVisual}>
+        <PackBoosterVisual title={title} cardsLabel={cardsLabel} />
+      </span>
     </Link>
   );
 }
 
+const FAN_AWAY_X_BY_SELECTED = [
+  [0, 8, 14, -8, -14],
+  [-7, 0, 12, -5, -8],
+  [-5, -10, 0, -4, -7],
+  [7, 5, 8, 0, -12],
+  [5, 4, 7, 10, 0],
+] as const;
+
 function updatePackFanMotion(event: ReactPointerEvent<HTMLDivElement>) {
   if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-  if (!(event.target instanceof Element) || !event.target.closest("[data-vault-pack]")) {
+  const selectedPack = event.target instanceof Element ? event.target.closest("[data-vault-pack]") : null;
+  if (!(selectedPack instanceof HTMLElement)) {
     resetPackFanMotion(event.currentTarget);
     return;
   }
-  const fanBounds = event.currentTarget.getBoundingClientRect();
-  const x = Math.max(-1, Math.min(1, ((event.clientX - fanBounds.left) / fanBounds.width - 0.5) * 2));
-  const y = Math.max(-1, Math.min(1, ((event.clientY - fanBounds.top) / fanBounds.height - 0.5) * 2));
+  if (event.currentTarget.dataset.active === "true" && selectedPack.dataset.fanSelected === "true") return;
+  const packs = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("[data-vault-pack]"));
+  const selectedIndex = packs.indexOf(selectedPack);
+  if (selectedIndex < 0) return;
+  const awayScale = window.matchMedia("(max-width: 760px)").matches ? 0.35 : 1;
   event.currentTarget.dataset.active = "true";
-  event.currentTarget.style.setProperty("--fan-pointer-x", `${(x * 2).toFixed(2)}px`);
-  event.currentTarget.style.setProperty("--fan-pointer-y", `${(y * 0.75).toFixed(2)}px`);
-  event.currentTarget.style.setProperty("--fan-pointer-rotation", `${(x * 0.45).toFixed(2)}deg`);
+  packs.forEach((pack, index) => {
+    if (pack === selectedPack) pack.dataset.fanSelected = "true";
+    else delete pack.dataset.fanSelected;
+    pack.style.setProperty("--fan-away-x", `${FAN_AWAY_X_BY_SELECTED[selectedIndex][index] * awayScale}px`);
+  });
 }
 
 function resetPackFanMotion(fan: HTMLDivElement) {
   delete fan.dataset.active;
-  fan.style.setProperty("--fan-pointer-x", "0px");
-  fan.style.setProperty("--fan-pointer-y", "0px");
-  fan.style.setProperty("--fan-pointer-rotation", "0deg");
+  fan.querySelectorAll<HTMLElement>("[data-vault-pack]").forEach((pack) => {
+    delete pack.dataset.fanSelected;
+    pack.style.removeProperty("--fan-away-x");
+  });
 }
 
 function FeaturedCard({ card, onSelect }: { card: CcgCard; onSelect: (event: ReactMouseEvent<HTMLButtonElement>) => void }) {
