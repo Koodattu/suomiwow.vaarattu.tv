@@ -840,7 +840,7 @@
 }
 .characterName {
   color: var(--class-color);
-  font-size: clamp(1.12rem, 7.5cqw, 2.05rem);
+  font-size: var(--card-character-name-font-size, clamp(1.12rem, 7.5cqw, 2.05rem));
   font-weight: 900;
   letter-spacing: -0.035em;
   line-height: 1;
@@ -2797,7 +2797,7 @@
 }
 .vaultRelic .characterName {
   overflow: visible;
-  font-size: clamp(1.08rem, 6.8cqw, 1.88rem);
+  font-size: var(--card-character-name-font-size, clamp(1.08rem, 6.8cqw, 1.88rem));
   letter-spacing: -0.04em;
   text-overflow: clip;
 }

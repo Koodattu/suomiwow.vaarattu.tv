@@ -2936,6 +2936,7 @@
 
 .leaderboardPodiumCard .leaderboardShowcaseCard {
   --card-brand-font-size: clamp(0.28rem, 2.15cqw, 0.48rem);
+  --card-character-name-font-size: clamp(0.48rem, 6.5cqw, 0.96rem);
   --card-detail-font-size: clamp(0.24rem, 3.05cqw, 0.48rem);
   --card-detail-gap: clamp(0.04rem, 0.65cqw, 0.12rem);
   --card-guild-name-font-size: clamp(0.4rem, 3cqw, 0.72rem);
