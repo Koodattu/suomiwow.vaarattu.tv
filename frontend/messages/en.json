@@ -1135,7 +1135,7 @@
     "mythicPlus": {
       "coverageRecovery": "Coverage and recovery",
       "coverageRecoveryHelp": "Missing queues only eligible characters that have never had a profile fetch. Retry resets failed score fetches; not-found and class-mismatch results stay untouched.",
-      "fetchMissing": "Fetch Missing Characters",
+      "fetchMissing": "Fetch Missing M+ Scores",
       "retryFailed": "Retry Failed Score Fetches",
       "repairHistorical": "Repair Missing Historical Scores"
     },

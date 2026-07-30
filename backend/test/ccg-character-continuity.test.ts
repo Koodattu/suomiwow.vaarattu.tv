@@ -1,3 +1,5 @@
+/// <reference path="../src/types/express-session.d.ts" />
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import mongoose from "mongoose";
