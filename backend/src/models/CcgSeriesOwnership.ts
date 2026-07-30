@@ -59,4 +59,8 @@ CcgSeriesOwnershipSchema.index(
     partialFilterExpression: { collectionReadModelVersion: 1 },
   },
 );
+CcgSeriesOwnershipSchema.index(
+  { ownerType: 1, lastAcquiredAt: 1, ownerId: 1 },
+  { name: "ccg_series_leaderboard_dirty_v1" },
+);
 export default mongoose.model<ICcgSeriesOwnership>("CcgSeriesOwnership", CcgSeriesOwnershipSchema);

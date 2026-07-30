@@ -11,6 +11,7 @@ import {
   CCG_GUEST_COOKIE,
   CCG_GUEST_COOKIE_MAX_AGE_MS,
   CCG_INITIAL_PACKS,
+  CCG_LEADERBOARD_REFRESH_INTERVAL_SECONDS,
   CCG_PACK_BALANCE_VERSION,
   CCG_PACK_RECHARGE_INTERVAL_MINUTES,
   CCG_PACK_RULE_VERSION,
@@ -862,7 +863,7 @@ class CcgService {
     return {
       scoreVersion: getCcgLeaderboardScoringRules().version,
       calculatedAt: entries[0]?.calculatedAt ?? null,
-      refreshIntervalSeconds: 60 * 60,
+      refreshIntervalSeconds: CCG_LEADERBOARD_REFRESH_INTERVAL_SECONDS,
       scoring: getCcgLeaderboardScoringRules(),
       entries: entries.map((entry) => this.serializeLeaderboardEntry(entry, showcases.get(String(entry.userId)) ?? [])),
     };
@@ -945,9 +946,9 @@ class CcgService {
     return this.getLeaderboardMe(req);
   }
 
-  async refreshLeaderboard() {
+  async refreshLeaderboard(mode: "full" | "incremental" = "full") {
     requireFeature();
-    return ccgLeaderboardService.refresh();
+    return ccgLeaderboardService.refresh(mode);
   }
 
   async getSets(owner?: CcgOwner): Promise<Record<string, unknown>[]> {
@@ -3191,6 +3192,7 @@ class CcgService {
               ownerType: "user",
               ownerId: userId,
               dateKey: null,
+              lastAcquiredAt: claimedAt,
             },
           },
           { session },
@@ -3202,6 +3204,7 @@ class CcgService {
               ownerType: "user",
               ownerId: userId,
               dateKey: null,
+              lastAcquiredAt: claimedAt,
             },
           },
           { session },

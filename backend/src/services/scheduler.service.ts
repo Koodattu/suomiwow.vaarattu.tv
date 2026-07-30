@@ -25,6 +25,8 @@ import ccgService from "./ccg.service";
 import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
 import {
   CCG_FEATURE_ENABLED,
+  CCG_LEADERBOARD_FULL_SCHEDULE,
+  CCG_LEADERBOARD_INCREMENTAL_SCHEDULE,
   CCG_WEEKLY_AUTOMATION_ENABLED,
   CCG_WEEKLY_PUBLICATION_SCHEDULE,
   CCG_WEEKLY_SNAPSHOT_SCHEDULE,
@@ -479,7 +481,7 @@ class UpdateScheduler {
 
     if (CCG_FEATURE_ENABLED) {
       void this.processPendingCcgPackAnalytics();
-      void this.refreshCcgLeaderboard();
+      void this.refreshCcgLeaderboard("full");
 
       cron.schedule(
         "* * * * *",
@@ -490,9 +492,17 @@ class UpdateScheduler {
       );
 
       cron.schedule(
-        "7 * * * *",
+        CCG_LEADERBOARD_FULL_SCHEDULE.cron,
         async () => {
-          if (!this.isRefreshingCcgLeaderboard) await this.refreshCcgLeaderboard();
+          if (!this.isRefreshingCcgLeaderboard) await this.refreshCcgLeaderboard("full");
+        },
+        { timezone: "Europe/Helsinki" },
+      );
+
+      cron.schedule(
+        CCG_LEADERBOARD_INCREMENTAL_SCHEDULE.cron,
+        async () => {
+          if (!this.isRefreshingCcgLeaderboard) await this.refreshCcgLeaderboard("incremental");
         },
         { timezone: "Europe/Helsinki" },
       );
@@ -834,7 +844,8 @@ class UpdateScheduler {
     if (CCG_FEATURE_ENABLED) {
       logger.info("  - SuomiWoW CCG jobs (Europe/Helsinki):");
       logger.info("    * Guest expiry reconciliation: daily at 00:15");
-      logger.info("    * Collection leaderboard refresh: hourly at :07");
+      logger.info("    * Collection leaderboard incremental refresh: every 15 minutes on the quarter-hour");
+      logger.info("    * Collection leaderboard full rebuild: hourly at :07");
       logger.info("    * New-character media discovery: daily at 01:30");
       logger.info("    * Active-character media refresh: daily at 01:50");
       logger.info("    * Media queue recovery: every 15 minutes");
@@ -951,11 +962,18 @@ class UpdateScheduler {
     }
   }
 
-  private async refreshCcgLeaderboard(): Promise<void> {
+  private async refreshCcgLeaderboard(mode: "full" | "incremental"): Promise<void> {
     this.isRefreshingCcgLeaderboard = true;
     try {
-      const result = await ccgService.refreshLeaderboard();
-      if (result.refreshed) logger.info(`[CCG/Leaderboard] Ranked ${result.participants} collector(s)`);
+      const result = await ccgService.refreshLeaderboard(mode);
+      if (result.refreshed) {
+        logger.info(
+          `[CCG/Leaderboard] ${result.mode} refresh ranked ${result.participants} collector(s), `
+          + `changed=${result.changedCollectors}, series=${result.seriesScanned}, durationMs=${result.durationMs}`,
+        );
+      } else {
+        logger.info(`[CCG/Leaderboard] ${mode} refresh skipped because another process holds the refresh lock`);
+      }
     } catch (error) {
       logger.error("[CCG/Leaderboard] Error:", error);
     } finally {

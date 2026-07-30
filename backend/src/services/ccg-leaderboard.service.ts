@@ -2,7 +2,9 @@ import { randomUUID } from "crypto";
 import mongoose from "mongoose";
 import {
   CCG_TIER_GRADES,
+  CcgCustomFinish,
   CcgFinish,
+  CcgSetKind,
   CcgTierGrade,
   getCcgPackFinishOrder,
 } from "../config/ccg";
@@ -23,7 +25,17 @@ import discordService from "./discord.service";
 
 const LEADERBOARD_LOCK_KEY = "ccg-leaderboard-refresh-v1";
 const LEADERBOARD_LOCK_MS = 15 * 60 * 1000;
+const INCREMENTAL_LOOKBACK_MS = 5 * 60 * 1000;
 const WRITE_BATCH_SIZE = 500;
+
+export type CcgLeaderboardRefreshMode = "full" | "incremental";
+
+type EnabledSet = {
+  _id: mongoose.Types.ObjectId;
+  kind: CcgSetKind;
+  customFinish?: { key?: CcgCustomFinish | null } | null;
+  cardCount: number;
+};
 
 type SeriesRow = {
   ownerId: mongoose.Types.ObjectId;
@@ -53,9 +65,28 @@ type MutableScore = {
   };
 };
 
+type LeaderboardEntryData = {
+  userId: mongoose.Types.ObjectId;
+  username: string;
+  avatarUrl: string;
+  score: number;
+  cardsOwned: number;
+  snapshotsOwned: number;
+  finishesOwned: number;
+  premiumFinishesOwned: number;
+  completedCards: number;
+  completedSets: number;
+  firstCollectedAt: Date;
+  breakdown: MutableScore["breakdown"];
+};
+
 export type CcgLeaderboardRefreshResult = {
   refreshed: boolean;
+  mode: CcgLeaderboardRefreshMode;
   participants: number;
+  changedCollectors: number;
+  seriesScanned: number;
+  durationMs: number;
   calculatedAt: Date | null;
 };
 
@@ -87,7 +118,8 @@ class CcgLeaderboardService {
     return CcgLeaderboardEntry.findOne({ userId, scoreVersion: CCG_COLLECTION_SCORE_VERSION });
   }
 
-  async refresh(): Promise<CcgLeaderboardRefreshResult> {
+  async refresh(requestedMode: CcgLeaderboardRefreshMode = "full"): Promise<CcgLeaderboardRefreshResult> {
+    const refreshStartedMs = Date.now();
     const lockOwner = randomUUID();
     const now = new Date();
     await CcgJobLock.deleteOne({ key: LEADERBOARD_LOCK_KEY, expiresAt: { $lte: now } });
@@ -101,7 +133,11 @@ class CcgLeaderboardService {
       if (!isDuplicateKeyError(error)) throw error;
       return {
         refreshed: false,
+        mode: requestedMode,
         participants: await CcgLeaderboardEntry.countDocuments({ scoreVersion: CCG_COLLECTION_SCORE_VERSION }),
+        changedCollectors: 0,
+        seriesScanned: 0,
+        durationMs: Date.now() - refreshStartedMs,
         calculatedAt: null,
       };
     }
@@ -109,156 +145,252 @@ class CcgLeaderboardService {
     try {
       const sets = await CcgSet.find({ enabledAt: { $ne: null }, cardCount: { $gt: 0 } })
         .select("_id kind customFinish cardCount")
-        .lean();
-      const setById = new Map(sets.map((set) => [String(set._id), set]));
-      const scores = new Map<string, MutableScore>();
-      const cursor = CcgSeriesOwnership.aggregate<SeriesRow>([
-        { $match: { ownerType: "user", setId: { $in: sets.map((set) => set._id) } } },
-        {
-          $lookup: {
-            from: CcgOwnership.collection.name,
-            let: { ownerId: "$ownerId", setId: "$setId", characterId: "$characterId" },
-            pipeline: [
-              {
-                $match: {
-                  ownerType: "user",
-                  $expr: {
-                    $and: [
-                      { $eq: ["$ownerId", "$$ownerId"] },
-                      { $eq: ["$setId", "$$setId"] },
-                      { $eq: ["$characterId", "$$characterId"] },
-                    ],
-                  },
-                },
-              },
-              { $project: { _id: 0, finish: 1 } },
-            ],
-            as: "finishes",
-          },
-        },
-        {
-          $lookup: {
-            from: CcgCard.collection.name,
-            let: { setId: "$setId", characterId: "$characterId", versions: "$unlockedSnapshotVersions" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$setId", "$$setId"] },
-                      { $eq: ["$characterId", "$$characterId"] },
-                      { $in: ["$snapshotVersion", "$$versions"] },
-                    ],
-                  },
-                },
-              },
-              { $project: { _id: 0, tierGrade: 1 } },
-            ],
-            as: "cards",
-          },
-        },
-        { $match: { "finishes.0": { $exists: true }, "cards.0": { $exists: true } } },
-        { $project: { _id: 0, ownerId: 1, setId: 1, firstAcquiredAt: 1, unlockedSnapshotVersions: 1, finishes: 1, cards: 1 } },
-      ]).allowDiskUse(true).cursor({ batchSize: 500 });
+        .lean<EnabledSet[]>();
+      const sourceThroughAt = new Date();
+      let mode = requestedMode;
+      let ownerIds: mongoose.Types.ObjectId[] | undefined;
 
-      for await (const row of cursor) {
-        const set = setById.get(String(row.setId));
-        if (!set) continue;
-        const userKey = String(row.ownerId);
-        const score = scores.get(userKey) ?? {
-          userId: row.ownerId,
-          firstCollectedAt: row.firstAcquiredAt,
-          cardsOwned: 0,
-          snapshotsOwned: 0,
-          finishesOwned: 0,
-          premiumFinishesOwned: 0,
-          completedCards: 0,
-          completedSets: 0,
-          setCounts: new Map<string, number>(),
-          breakdown: { collection: 0, rarity: 0, finishes: 0, completedCards: 0, completedSets: 0 },
-        };
-        const requiredFinishes = getCcgPackFinishOrder(set.kind, set.customFinish?.key ?? null);
-        const seriesScore = scoreCcgSeries(
-          row.cards.map((card: { tierGrade: CcgTierGrade }) => CCG_TIER_GRADES.includes(card.tierGrade) ? card.tierGrade : "F"),
-          row.finishes.map((finish: { finish: CcgFinish }) => finish.finish),
-          requiredFinishes,
-        );
-        score.firstCollectedAt = row.firstAcquiredAt < score.firstCollectedAt ? row.firstAcquiredAt : score.firstCollectedAt;
-        score.cardsOwned += 1;
-        score.snapshotsOwned += new Set(row.unlockedSnapshotVersions).size;
-        score.finishesOwned += seriesScore.finishesOwned;
-        score.premiumFinishesOwned += seriesScore.premiumFinishesOwned;
-        score.completedCards += seriesScore.allFinishesOwned ? 1 : 0;
-        score.breakdown.collection += CCG_SERIES_BASE_POINTS;
-        score.breakdown.rarity += seriesScore.rarityPoints;
-        score.breakdown.finishes += seriesScore.finishPoints;
-        score.breakdown.completedCards += seriesScore.allFinishesPoints;
-        score.setCounts.set(String(row.setId), (score.setCounts.get(String(row.setId)) ?? 0) + 1);
-        scores.set(userKey, score);
-      }
-
-      for (const score of scores.values()) {
-        for (const [setId, count] of score.setCounts) {
-          const cardCount = setById.get(setId)?.cardCount ?? 0;
-          if (cardCount > 0 && count >= cardCount) {
-            score.completedSets += 1;
-            score.breakdown.completedSets += cardCount * CCG_COMPLETE_SET_POINTS_PER_CARD;
-          }
+      if (mode === "incremental") {
+        const oldestEntry = await CcgLeaderboardEntry.findOne({ scoreVersion: CCG_COLLECTION_SCORE_VERSION })
+          .sort({ calculatedAt: 1 })
+          .select("calculatedAt")
+          .lean<{ calculatedAt: Date } | null>();
+        if (!oldestEntry) {
+          mode = "full";
+        } else {
+          const dirtySince = new Date(oldestEntry.calculatedAt.getTime() - INCREMENTAL_LOOKBACK_MS);
+          ownerIds = (await CcgSeriesOwnership.distinct("ownerId", {
+            ownerType: "user",
+            lastAcquiredAt: { $gt: dirtySince, $lte: sourceThroughAt },
+          })).map((ownerId) => new mongoose.Types.ObjectId(String(ownerId)));
         }
       }
 
-      const users = await User.find({ _id: { $in: Array.from(scores.values(), (score) => score.userId) } })
-        .select("discord.id discord.username discord.avatar")
-        .lean();
-      const userById = new Map(users.map((user) => [String(user._id), user]));
-      const calculatedAt = new Date();
-      const entries = Array.from(scores.values())
-        .flatMap((score) => {
-          const user = userById.get(String(score.userId));
-          if (!user) return [];
-          const totalScore = Object.values(score.breakdown).reduce((total, points) => total + points, 0);
-          return [{ score, user, totalScore }];
-        })
-        .sort((left, right) => (
-          right.totalScore - left.totalScore
-          || right.score.cardsOwned - left.score.cardsOwned
-          || right.score.finishesOwned - left.score.finishesOwned
-          || left.score.firstCollectedAt.getTime() - right.score.firstCollectedAt.getTime()
-          || String(left.score.userId).localeCompare(String(right.score.userId))
-        ));
-
-      for (let offset = 0; offset < entries.length; offset += WRITE_BATCH_SIZE) {
-        const batch = entries.slice(offset, offset + WRITE_BATCH_SIZE);
-        await CcgLeaderboardEntry.bulkWrite(batch.map(({ score, user, totalScore }, index) => ({
-          updateOne: {
-            filter: { userId: score.userId },
-            update: {
-              $set: {
-                rank: offset + index + 1,
-                username: user.discord.username,
-                avatarUrl: discordService.getAvatarUrl(user.discord.id, user.discord.avatar),
-                score: totalScore,
-                cardsOwned: score.cardsOwned,
-                snapshotsOwned: score.snapshotsOwned,
-                finishesOwned: score.finishesOwned,
-                premiumFinishesOwned: score.premiumFinishesOwned,
-                completedCards: score.completedCards,
-                completedSets: score.completedSets,
-                breakdown: score.breakdown,
-                scoreVersion: CCG_COLLECTION_SCORE_VERSION,
-                calculatedAt,
-              },
-            },
-            upsert: true,
-          },
-        })), { ordered: false });
+      if (mode === "incremental" && ownerIds?.length === 0) {
+        const update = await CcgLeaderboardEntry.updateMany(
+          { scoreVersion: CCG_COLLECTION_SCORE_VERSION },
+          { $set: { calculatedAt: sourceThroughAt } },
+        );
+        return {
+          refreshed: true,
+          mode,
+          participants: update.matchedCount,
+          changedCollectors: 0,
+          seriesScanned: 0,
+          durationMs: Date.now() - refreshStartedMs,
+          calculatedAt: sourceThroughAt,
+        };
       }
-      await CcgLeaderboardEntry.deleteMany({ calculatedAt: { $ne: calculatedAt } });
-      return { refreshed: true, participants: entries.length, calculatedAt };
+
+      const calculated = await this.calculateEntries(sets, ownerIds);
+      let entries = calculated.entries;
+
+      if (mode === "incremental" && ownerIds) {
+        const existingEntries = await CcgLeaderboardEntry.find({ scoreVersion: CCG_COLLECTION_SCORE_VERSION })
+          .select("userId username avatarUrl score cardsOwned snapshotsOwned finishesOwned premiumFinishesOwned completedCards completedSets firstCollectedAt calculatedAt breakdown")
+          .lean<Array<Omit<LeaderboardEntryData, "firstCollectedAt"> & { firstCollectedAt?: Date; calculatedAt: Date }>>();
+        const entriesByUser = new Map<string, LeaderboardEntryData>(existingEntries.map((entry) => {
+          const { calculatedAt, ...entryData } = entry;
+          return [String(entry.userId), {
+            ...entryData,
+            firstCollectedAt: entry.firstCollectedAt ?? calculatedAt,
+          }];
+        }));
+        for (const ownerId of ownerIds) entriesByUser.delete(String(ownerId));
+        for (const entry of entries) entriesByUser.set(String(entry.userId), entry);
+        entries = Array.from(entriesByUser.values());
+      }
+
+      entries.sort(compareLeaderboardEntries);
+      await this.writeEntries(entries, sourceThroughAt);
+
+      if (mode === "full") {
+        await CcgLeaderboardEntry.deleteMany({ calculatedAt: { $ne: sourceThroughAt } });
+      } else if (ownerIds) {
+        const calculatedOwnerIds = new Set(calculated.entries.map((entry) => String(entry.userId)));
+        const missingOwnerIds = ownerIds.filter((ownerId) => !calculatedOwnerIds.has(String(ownerId)));
+        if (missingOwnerIds.length > 0) {
+          await CcgLeaderboardEntry.deleteMany({
+            scoreVersion: CCG_COLLECTION_SCORE_VERSION,
+            userId: { $in: missingOwnerIds },
+          });
+        }
+      }
+
+      return {
+        refreshed: true,
+        mode,
+        participants: entries.length,
+        changedCollectors: mode === "full" ? entries.length : ownerIds?.length ?? 0,
+        seriesScanned: calculated.seriesScanned,
+        durationMs: Date.now() - refreshStartedMs,
+        calculatedAt: sourceThroughAt,
+      };
     } finally {
       await CcgJobLock.deleteOne({ key: LEADERBOARD_LOCK_KEY, owner: lockOwner });
     }
   }
+
+  private async calculateEntries(
+    sets: EnabledSet[],
+    ownerIds?: mongoose.Types.ObjectId[],
+  ): Promise<{ entries: LeaderboardEntryData[]; seriesScanned: number }> {
+    const setById = new Map(sets.map((set) => [String(set._id), set]));
+    const scores = new Map<string, MutableScore>();
+    const seriesMatch: Record<string, unknown> = {
+      ownerType: "user",
+      setId: { $in: sets.map((set) => set._id) },
+    };
+    if (ownerIds) seriesMatch.ownerId = { $in: ownerIds };
+    const cursor = CcgSeriesOwnership.aggregate<SeriesRow>([
+      { $match: seriesMatch },
+      {
+        $lookup: {
+          from: CcgOwnership.collection.name,
+          let: { ownerId: "$ownerId", setId: "$setId", characterId: "$characterId" },
+          pipeline: [
+            {
+              $match: {
+                ownerType: "user",
+                $expr: {
+                  $and: [
+                    { $eq: ["$ownerId", "$$ownerId"] },
+                    { $eq: ["$setId", "$$setId"] },
+                    { $eq: ["$characterId", "$$characterId"] },
+                  ],
+                },
+              },
+            },
+            { $project: { _id: 0, finish: 1 } },
+          ],
+          as: "finishes",
+        },
+      },
+      {
+        $lookup: {
+          from: CcgCard.collection.name,
+          let: { setId: "$setId", characterId: "$characterId", versions: "$unlockedSnapshotVersions" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$setId", "$$setId"] },
+                    { $eq: ["$characterId", "$$characterId"] },
+                    { $in: ["$snapshotVersion", "$$versions"] },
+                  ],
+                },
+              },
+            },
+            { $project: { _id: 0, tierGrade: 1 } },
+          ],
+          as: "cards",
+        },
+      },
+      { $match: { "finishes.0": { $exists: true }, "cards.0": { $exists: true } } },
+      { $project: { _id: 0, ownerId: 1, setId: 1, firstAcquiredAt: 1, unlockedSnapshotVersions: 1, finishes: 1, cards: 1 } },
+    ]).allowDiskUse(true).cursor({ batchSize: 500 });
+
+    let seriesScanned = 0;
+    for await (const row of cursor) {
+      seriesScanned += 1;
+      const set = setById.get(String(row.setId));
+      if (!set) continue;
+      const userKey = String(row.ownerId);
+      const score = scores.get(userKey) ?? {
+        userId: row.ownerId,
+        firstCollectedAt: row.firstAcquiredAt,
+        cardsOwned: 0,
+        snapshotsOwned: 0,
+        finishesOwned: 0,
+        premiumFinishesOwned: 0,
+        completedCards: 0,
+        completedSets: 0,
+        setCounts: new Map<string, number>(),
+        breakdown: { collection: 0, rarity: 0, finishes: 0, completedCards: 0, completedSets: 0 },
+      };
+      const requiredFinishes = getCcgPackFinishOrder(set.kind, set.customFinish?.key ?? null);
+      const seriesScore = scoreCcgSeries(
+        row.cards.map((card: { tierGrade: CcgTierGrade }) => CCG_TIER_GRADES.includes(card.tierGrade) ? card.tierGrade : "F"),
+        row.finishes.map((finish: { finish: CcgFinish }) => finish.finish),
+        requiredFinishes,
+      );
+      score.firstCollectedAt = row.firstAcquiredAt < score.firstCollectedAt ? row.firstAcquiredAt : score.firstCollectedAt;
+      score.cardsOwned += 1;
+      score.snapshotsOwned += new Set(row.unlockedSnapshotVersions).size;
+      score.finishesOwned += seriesScore.finishesOwned;
+      score.premiumFinishesOwned += seriesScore.premiumFinishesOwned;
+      score.completedCards += seriesScore.allFinishesOwned ? 1 : 0;
+      score.breakdown.collection += CCG_SERIES_BASE_POINTS;
+      score.breakdown.rarity += seriesScore.rarityPoints;
+      score.breakdown.finishes += seriesScore.finishPoints;
+      score.breakdown.completedCards += seriesScore.allFinishesPoints;
+      score.setCounts.set(String(row.setId), (score.setCounts.get(String(row.setId)) ?? 0) + 1);
+      scores.set(userKey, score);
+    }
+
+    for (const score of scores.values()) {
+      for (const [setId, count] of score.setCounts) {
+        const cardCount = setById.get(setId)?.cardCount ?? 0;
+        if (cardCount > 0 && count >= cardCount) {
+          score.completedSets += 1;
+          score.breakdown.completedSets += cardCount * CCG_COMPLETE_SET_POINTS_PER_CARD;
+        }
+      }
+    }
+
+    const users = await User.find({ _id: { $in: Array.from(scores.values(), (score) => score.userId) } })
+      .select("discord.id discord.username discord.avatar")
+      .lean();
+    const userById = new Map(users.map((user) => [String(user._id), user]));
+    const entries = Array.from(scores.values()).flatMap<LeaderboardEntryData>((score) => {
+      const user = userById.get(String(score.userId));
+      if (!user) return [];
+      return [{
+        userId: score.userId,
+        username: user.discord.username,
+        avatarUrl: discordService.getAvatarUrl(user.discord.id, user.discord.avatar),
+        score: Object.values(score.breakdown).reduce((total, points) => total + points, 0),
+        cardsOwned: score.cardsOwned,
+        snapshotsOwned: score.snapshotsOwned,
+        finishesOwned: score.finishesOwned,
+        premiumFinishesOwned: score.premiumFinishesOwned,
+        completedCards: score.completedCards,
+        completedSets: score.completedSets,
+        firstCollectedAt: score.firstCollectedAt,
+        breakdown: score.breakdown,
+      }];
+    });
+    return { entries, seriesScanned };
+  }
+
+  private async writeEntries(entries: LeaderboardEntryData[], calculatedAt: Date): Promise<void> {
+    for (let offset = 0; offset < entries.length; offset += WRITE_BATCH_SIZE) {
+      const batch = entries.slice(offset, offset + WRITE_BATCH_SIZE);
+      await CcgLeaderboardEntry.bulkWrite(batch.map((entry, index) => ({
+        updateOne: {
+          filter: { userId: entry.userId },
+          update: {
+            $set: {
+              ...entry,
+              rank: offset + index + 1,
+              scoreVersion: CCG_COLLECTION_SCORE_VERSION,
+              calculatedAt,
+            },
+          },
+          upsert: true,
+        },
+      })), { ordered: false });
+    }
+  }
+}
+
+function compareLeaderboardEntries(left: LeaderboardEntryData, right: LeaderboardEntryData): number {
+  return right.score - left.score
+    || right.cardsOwned - left.cardsOwned
+    || right.finishesOwned - left.finishesOwned
+    || left.firstCollectedAt.getTime() - right.firstCollectedAt.getTime()
+    || String(left.userId).localeCompare(String(right.userId));
 }
 
 export default new CcgLeaderboardService();

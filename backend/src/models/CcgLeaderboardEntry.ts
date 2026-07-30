@@ -12,6 +12,7 @@ export interface ICcgLeaderboardEntry extends Document {
   premiumFinishesOwned: number;
   completedCards: number;
   completedSets: number;
+  firstCollectedAt: Date;
   breakdown: {
     collection: number;
     rarity: number;
@@ -47,6 +48,7 @@ const CcgLeaderboardEntrySchema = new Schema<ICcgLeaderboardEntry>(
     premiumFinishesOwned: { type: Number, required: true, min: 0 },
     completedCards: { type: Number, required: true, min: 0 },
     completedSets: { type: Number, required: true, min: 0 },
+    firstCollectedAt: { type: Date, required: true },
     breakdown: { type: ScoreBreakdownSchema, required: true },
     scoreVersion: { type: String, required: true, index: true },
     calculatedAt: { type: Date, required: true, index: true },
