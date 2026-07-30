@@ -541,8 +541,9 @@ export async function renderCcgShareOg(share: CcgShare, locale: CcgEmbedLocale) 
   }
 
   const bestResult = getBestPackResult(share.pack);
-  const primarySet = share.pack.targetSetId
-    ? share.pack.sets.find((set) => set.id === share.pack.targetSetId) ?? share.pack.sets[0]
+  const targetSetId = share.pack.selection.type === "raid" ? share.pack.selection.setId : null;
+  const primarySet = targetSetId
+    ? share.pack.sets.find((set) => set.id === targetSetId) ?? share.pack.sets[0]
     : share.pack.sets[0];
   const accent = primarySet?.theme.accent || "#67e8f9";
   const backgroundSource = await loadPublicImage(primarySet?.backgroundPath ?? "/ccg/general_alt_wide.png");

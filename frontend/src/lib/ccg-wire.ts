@@ -66,7 +66,7 @@ export type CcgRedeemResultWire = {
   code: string;
   sets: CcgSet[];
   reward:
-    | { type: "packs"; currentPacks: number; legacyPacks: number }
+    | { type: "packs"; packs: number }
     | { type: "card"; finish: CcgFinish; artVariant: CcgArtVariant; card: CcgCardWire };
 };
 

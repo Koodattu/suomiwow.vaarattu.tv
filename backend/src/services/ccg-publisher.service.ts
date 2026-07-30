@@ -8,9 +8,7 @@ import {
   CCG_ENABLE_MIN_MEDIA_READY_CHARACTERS,
   CCG_ELIGIBILITY_VERSION,
   CCG_GRADING_VERSION,
-  CCG_INITIAL_PACKS,
   CCG_PACK_RULE_VERSION,
-  CCG_PACK_STORAGE_CAPS,
   CCG_POOL_VERSION,
   CCG_REGULAR_TIER_GRADES,
   CCG_THEME_VERSION,
@@ -26,11 +24,8 @@ import {
 import CcgCard, { ICcgCard } from "../models/CcgCard";
 import CcgCommunityCharacter from "../models/CcgCommunityCharacter";
 import CcgJobLock from "../models/CcgJobLock";
-import CcgPackBalance from "../models/CcgPackBalance";
-import CcgPackCredit from "../models/CcgPackCredit";
 import CcgPackPool from "../models/CcgPackPool";
 import CcgPublicationCandidate from "../models/CcgPublicationCandidate";
-import CcgRollover from "../models/CcgRollover";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
 import Character from "../models/Character";
 import CharacterMedia, { CharacterMediaStatus } from "../models/CharacterMedia";
@@ -164,7 +159,7 @@ export type CcgSetReadiness = {
   published: number;
   poolCards: number;
   activationRevision: string;
-  rollover: CcgRolloverPreview;
+  replacesCurrentSets: Array<{ id: string; raidName: string; mythicPlusSeason: string }>;
   readyToEnable: boolean;
   blockers: CcgReadinessBlocker[];
   thresholds: {
@@ -175,21 +170,12 @@ export type CcgSetReadiness = {
   checkedAt: Date;
 };
 
-export type CcgRolloverPreview = {
-  required: boolean;
-  fromSets: Array<{ id: string; raidName: string; mythicPlusSeason: string }>;
-  balanceOwners: { users: number; guests: number; total: number };
-  storedCurrentPacks: { regular: number; bonus: number; total: number };
-  newCurrentPacks: { users: number; guests: number; total: number };
-};
-
 type CcgActivationState = {
   fromSets: Array<{
     _id: mongoose.Types.ObjectId;
     raidName: string;
     mythicPlusSeason: string;
   }>;
-  latestRolloverSequence: number;
   revision: string;
 };
 
@@ -268,72 +254,17 @@ class CcgPublisherService {
       .select("_id raidName mythicPlusSeason")
       .sort({ zoneId: 1 })
       .lean();
-    const latestRolloverQuery = CcgRollover.findOne({}).select("sequence").sort({ sequence: -1 }).lean();
-    if (session) {
-      currentSetsQuery.session(session);
-      latestRolloverQuery.session(session);
-    }
-    const [fromSets, latestRollover] = await Promise.all([currentSetsQuery, latestRolloverQuery]);
-    const latestRolloverSequence = latestRollover?.sequence ?? 0;
+    if (session) currentSetsQuery.session(session);
+    const fromSets = await currentSetsQuery;
     const revision = createHash("sha256")
       .update(JSON.stringify({
         targetZoneId: configured.zoneId,
         targetSeason: configured.mythicPlusSeason,
         fromSetIds: fromSets.map((set) => String(set._id)),
-        latestRolloverSequence,
       }))
       .digest("hex")
       .slice(0, 24);
-    return { fromSets, latestRolloverSequence, revision };
-  }
-
-  private async getRolloverPreview(configured: CcgConfiguredSet, activation: CcgActivationState): Promise<CcgRolloverPreview> {
-    if (configured.state !== "current" || activation.fromSets.length === 0) {
-      return {
-        required: false,
-        fromSets: [],
-        balanceOwners: { users: 0, guests: 0, total: 0 },
-        storedCurrentPacks: { regular: 0, bonus: 0, total: 0 },
-        newCurrentPacks: { users: 0, guests: 0, total: 0 },
-      };
-    }
-
-    const [balanceRows, creditRows] = await Promise.all([
-      CcgPackBalance.aggregate<{ _id: "user" | "guest"; owners: number; currentRemaining: number }>([
-        {
-          $match: { ownerType: { $in: ["user", "guest"] } },
-        },
-        {
-          $group: {
-            _id: "$ownerType",
-            owners: { $sum: 1 },
-            currentRemaining: { $sum: "$currentRemaining" },
-          },
-        },
-      ]),
-      CcgPackCredit.aggregate<{ _id: null; remaining: number }>([
-        { $match: { mode: "current", remaining: { $gt: 0 } } },
-        { $group: { _id: null, remaining: { $sum: "$remaining" } } },
-      ]),
-    ]);
-    const users = balanceRows.find((row) => row._id === "user")?.owners ?? 0;
-    const guests = balanceRows.find((row) => row._id === "guest")?.owners ?? 0;
-    const regular = balanceRows.reduce((total, row) => total + row.currentRemaining, 0);
-    const bonus = creditRows[0]?.remaining ?? 0;
-    const userPacks = users * CCG_PACK_STORAGE_CAPS.current;
-    const guestPacks = guests * CCG_INITIAL_PACKS.guest.current;
-
-    return {
-      required: true,
-      fromSets: activation.fromSets.map((set) => ({
-        id: String(set._id),
-        raidName: set.raidName,
-        mythicPlusSeason: set.mythicPlusSeason,
-      })),
-      balanceOwners: { users, guests, total: users + guests },
-      storedCurrentPacks: { regular, bonus, total: regular + bonus },
-      newCurrentPacks: { users: userPacks, guests: guestPacks, total: userPacks + guestPacks },
-    };
+    return { fromSets, revision };
   }
 
   private async ensureCardSnapshotIndexes(): Promise<void> {
@@ -1172,7 +1103,13 @@ class CcgPublisherService {
       published,
       poolCards: pool?.totalCards ?? 0,
       activationRevision: activation.revision,
-      rollover: await this.getRolloverPreview(configured, activation),
+      replacesCurrentSets: configured.state === "current"
+        ? activation.fromSets.map((currentSet) => ({
+            id: String(currentSet._id),
+            raidName: currentSet.raidName,
+            mythicPlusSeason: currentSet.mythicPlusSeason,
+          }))
+        : [],
       readyToEnable: evaluation.readyToEnable,
       blockers: evaluation.blockers,
       thresholds: {
@@ -1188,7 +1125,6 @@ class CcgPublisherService {
     readiness: CcgSetReadiness;
     publication: { snapshotKey: string; published: number; unchanged: number; totalCards: number; poolVersion: string };
     movedToLegacy: number;
-    rollover: { sequence: number; effectiveAt: Date; fromSetIds: string[] } | null;
   }> {
     const configured = CCG_CONFIGURED_SETS.find((set) => set.zoneId === zoneId);
     if (!configured) throw new CcgPublisherError(404, "set_not_configured", `Raid ${zoneId} is not configured for CCG`);
@@ -1215,11 +1151,9 @@ class CcgPublisherService {
 
       const session = await mongoose.startSession();
       let movedToLegacy = 0;
-      let activatedRollover: { sequence: number; effectiveAt: Date; fromSetIds: string[] } | null = null;
       try {
         await session.withTransaction(async () => {
           movedToLegacy = 0;
-          activatedRollover = null;
           const target = await CcgSet.findOne({ zoneId, state: "draft", enabledAt: null }).session(session);
           if (!target) throw new CcgPublisherError(409, "set_activation_conflict", `${configured.raidName} can no longer be enabled`);
           const activation = await this.getActivationState(configured, session);
@@ -1229,21 +1163,6 @@ class CcgPublisherService {
           const now = new Date();
           if (configured.state === "current") {
             if (activation.fromSets.length > 0) {
-              const sequence = activation.latestRolloverSequence + 1;
-              const [rollover] = await CcgRollover.create(
-                [{
-                  sequence,
-                  fromSetIds: activation.fromSets.map((set) => set._id),
-                  fromSeasons: Array.from(new Set(activation.fromSets.map((set) => set.mythicPlusSeason))),
-                  toSetId: target._id,
-                  toSeason: target.mythicPlusSeason,
-                  effectiveAt: now,
-                  activatedBy: enabledBy,
-                  userCurrentPacks: CCG_PACK_STORAGE_CAPS.current,
-                  guestCurrentPacks: CCG_INITIAL_PACKS.guest.current,
-                }],
-                { session },
-              );
               const moved = await CcgSet.updateMany(
                 { _id: { $in: activation.fromSets.map((set) => set._id) }, state: "current", enabledAt: { $ne: null } },
                 { $set: { state: "legacy", closesAt: now } },
@@ -1253,11 +1172,6 @@ class CcgPublisherService {
                 throw new CcgPublisherError(409, "set_activation_conflict", "The active CCG raids changed during activation");
               }
               movedToLegacy = moved.modifiedCount;
-              activatedRollover = {
-                sequence: rollover.sequence,
-                effectiveAt: rollover.effectiveAt,
-                fromSetIds: rollover.fromSetIds.map(String),
-              };
             }
           }
           target.state = configured.state === "current" ? "current" : "legacy";
@@ -1271,7 +1185,7 @@ class CcgPublisherService {
         await session.endSession();
       }
 
-      return { readiness: await this.preview(zoneId), publication, movedToLegacy, rollover: activatedRollover };
+      return { readiness: await this.preview(zoneId), publication, movedToLegacy };
     } finally {
       await this.releaseLock("set-activation", lockOwner);
     }

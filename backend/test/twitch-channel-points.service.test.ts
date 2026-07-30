@@ -83,8 +83,8 @@ test("applies each reward kill switch independently", () => {
 });
 
 test("grants the configured number of packs for each pack reward", () => {
-  assert.equal(getTwitchCcgPackGrantCount("packs"), 1);
-  assert.equal(getTwitchCcgPackGrantCount("packs_10"), 10);
+  assert.equal(getTwitchCcgPackGrantCount("packs"), 2);
+  assert.equal(getTwitchCcgPackGrantCount("packs_10"), 20);
 });
 
 test("adds one reveal to the single-pack reward and two to the ten-pack reward", () => {

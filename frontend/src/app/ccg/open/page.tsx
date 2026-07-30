@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { CcgBaseFinish, CcgBootstrapResponse, CcgFinish, CcgMode, CcgOpening } from "@/types";
+import type { CcgBaseFinish, CcgBootstrapResponse, CcgFinish, CcgOpening } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { CCG_BASE_FINISH_ORDER, CCG_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS } from "@/lib/ccg";
@@ -33,14 +33,14 @@ import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 
 type RevealPhase = "idle" | "holding" | "tearing" | "dealing" | "ready";
-type PackSelection = { mode: CcgMode; setId?: string };
+type PackSelection = { setId?: string };
 type PackRequest = PackSelection & { idempotencyKey: string };
 
 const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
 const fanOffsets = [24, 5, 0, 5, 24];
 const dealOffsets = ["215%", "108%", "0%", "-108%", "-215%"];
 const dealAngles = [8, 4, 0, -4, -8];
-const RANDOM_LEGACY_SET = "random";
+const ALL_RAIDS = "all";
 const HOVER_SOUND = "/ccg/audio/hover.mp3";
 const FADE_OUT_SOUND = "/ccg/audio/fade_out.mp3";
 const SHUFFLE_SOUND = "/ccg/audio/shuffle.mp3";
@@ -116,7 +116,7 @@ export default function CcgOpenPage() {
   const queryClient = useQueryClient();
   const sessionQuery = useCcgSession(!authLoading);
   const setsQuery = useCcgSets(!authLoading);
-  const [mode, setMode] = useState<CcgMode>("current");
+  const [selectedSetId, setSelectedSetId] = useState(ALL_RAIDS);
   const [opening, setOpening] = useState<CcgOpening | null>(null);
   const [recoveryId, setRecoveryId] = useState("");
   const [revealRecoveredOpening, setRevealRecoveredOpening] = useState(false);
@@ -129,7 +129,6 @@ export default function CcgOpenPage() {
   const [viewerOriginElement, setViewerOriginElement] = useState<HTMLElement | null>(null);
   const [viewerOriginBounds, setViewerOriginBounds] = useState<CardViewerOriginBounds | null>(null);
   const [viewerSharedTransition, setViewerSharedTransition] = useState(false);
-  const [legacySetId, setLegacySetId] = useState(RANDOM_LEGACY_SET);
   const [packSelectorOpen, setPackSelectorOpen] = useState(false);
   const [isPackCycling, setIsPackCycling] = useState(false);
   const [rechargeNow, setRechargeNow] = useState(() => Date.now());
@@ -148,20 +147,19 @@ export default function CcgOpenPage() {
   const recoveryQuery = useCcgOpening(recoveryId, !authLoading && sessionQuery.isSuccess);
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets;
-  const modeSets = useMemo(() => (sets ?? []).filter((set) => set.kind === "raid" && set.state === mode && set.cardCount > 0), [mode, sets]);
-  const currentSets = useMemo(() => (sets ?? []).filter((set) => set.kind === "raid" && set.state === "current" && set.cardCount > 0), [sets]);
-  const legacySets = useMemo(
+  const raidSets = useMemo(
     () => (sets ?? [])
-      .filter((set) => set.kind === "raid" && set.state === "legacy" && set.cardCount > 0)
-      .sort((left, right) => right.zoneId - left.zoneId),
+      .filter((set) => set.kind === "raid" && (set.state === "current" || set.state === "legacy") && set.cardCount > 0)
+      .sort((left, right) => Number(right.state === "current") - Number(left.state === "current") || right.zoneId - left.zoneId),
     [sets],
   );
+  const currentSets = useMemo(() => raidSets.filter((set) => set.state === "current"), [raidSets]);
   const currentSet = currentSets[0];
-  const selectedLegacySet = legacySets.find((set) => set.id === legacySetId);
-  const randomLegacy = mode === "legacy" && !selectedLegacySet;
-  const featuredPackSet = mode === "legacy" ? selectedLegacySet : modeSets[0];
-  const selectorSet = mode === "legacy" ? selectedLegacySet : currentSet;
-  const selectedPackSets = mode === "legacy" && selectedLegacySet ? [selectedLegacySet] : modeSets;
+  const selectedSet = raidSets.find((set) => set.id === selectedSetId);
+  const allRaids = !selectedSet;
+  const featuredPackSet = selectedSet ?? currentSet;
+  const selectorSet = selectedSet;
+  const selectedPackSets = selectedSet ? [selectedSet] : raidSets;
   const hasCustomQualityRow = selectedPackSets.some((set) => Boolean(set.customFinish));
   const qualityRows = useMemo(() => [
     ...protectedFinishes.map((finish) => ({
@@ -189,12 +187,7 @@ export default function CcgOpenPage() {
   const selectedPackOwnedCount = selectedPackSets.reduce((total, set) => total + set.ownedCards, 0);
   const selectedPackProgress = selectedPackCardCount > 0 ? Math.min(1, selectedPackOwnedCount / selectedPackCardCount) : 0;
   const raidIconByZone = useMemo(() => new Map((sets ?? []).map((set) => [set.zoneId, set.iconUrl ?? undefined])), [sets]);
-  const poolTitle =
-    mode === "legacy"
-      ? (selectedLegacySet?.raidName ?? t("open.legacyPackTitle"))
-      : modeSets.length === 1
-        ? modeSets[0].raidName
-        : t("open.currentPool", { count: modeSets.length });
+  const poolTitle = selectedSet?.raidName ?? t("open.allRaids");
 
   const closePackSelector = () => {
     setPackSelectorOpen(false);
@@ -286,14 +279,16 @@ export default function CcgOpenPage() {
   }, [locale, opening]);
 
   useEffect(() => {
-    if (legacySetId !== RANDOM_LEGACY_SET && !legacySets.some((set) => set.id === legacySetId)) {
-      setLegacySetId(RANDOM_LEGACY_SET);
+    if (!sets) return;
+    if (selectedSetId !== ALL_RAIDS && !raidSets.some((set) => set.id === selectedSetId)) {
+      setSelectedSetId(ALL_RAIDS);
     }
-  }, [legacySetId, legacySets]);
+  }, [raidSets, selectedSetId, sets]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("mode") === "legacy") setMode("legacy");
+    const requestedSet = params.get("set");
+    if (requestedSet) setSelectedSetId(requestedSet);
     const requestedOpening = params.get("opening");
     if (requestedOpening && /^[a-f\d]{24}$/i.test(requestedOpening)) {
       setRecoveryId(requestedOpening);
@@ -322,7 +317,7 @@ export default function CcgOpenPage() {
   useEffect(() => {
     const recovered = recoveryQuery.data;
     if (!recovered || opening?.id === recovered.id) return;
-    setMode(recovered.mode);
+    setSelectedSetId(recovered.selection.type === "raid" ? recovered.selection.setId : ALL_RAIDS);
     setOpening(recovered);
   }, [opening?.id, recoveryQuery.data]);
 
@@ -385,13 +380,14 @@ export default function CcgOpenPage() {
   const mutation = useMutation({
     mutationFn: async (request: PackRequest) => {
       const result = await api.openCcgPack({
-        mode: request.mode,
         idempotencyKey: request.idempotencyKey,
         setId: request.setId,
       });
       queryClient.setQueryData(queryKeys.ccg.opening(result.id), result);
       const url = new URL(window.location.href);
-      url.searchParams.set("mode", result.mode);
+      url.searchParams.delete("mode");
+      if (result.selection.type === "raid") url.searchParams.set("set", result.selection.setId);
+      else url.searchParams.delete("set");
       url.searchParams.set("opening", result.id);
       url.searchParams.delete("revealed");
       window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
@@ -404,8 +400,7 @@ export default function CcgOpenPage() {
       setDealtCards(0);
       setRevealedCards(new Set());
       setActiveReveal(null);
-      setMode(result.mode);
-      if (result.mode === "legacy") setLegacySetId(result.targetSetId ?? RANDOM_LEGACY_SET);
+      setSelectedSetId(result.selection.type === "raid" ? result.selection.setId : ALL_RAIDS);
       setOpening(result);
       const updates = result.cacheUpdates;
       if (updates) {
@@ -463,7 +458,7 @@ export default function CcgOpenPage() {
     || setsQuery.isPending
     || !recoveryInitialized
     || (Boolean(recoveryId) && recoveryQuery.isPending);
-  const noPacks = session ? session.packs[mode].totalRemaining <= 0 : false;
+  const noPacks = session ? session.packs.totalRemaining <= 0 : false;
   const clearSavedOpening = () => {
     qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     qualitySoundTimersRef.current = [];
@@ -575,12 +570,12 @@ export default function CcgOpenPage() {
     setRevealedCards(new Set(opening.results.map((_, index) => index)));
   };
 
-  const canOpen = recoveryInitialized && !recoveryId && Boolean(session) && !queryFailed && modeSets.length > 0 && !noPacks && !mutation.isPending;
+  const canOpen = recoveryInitialized && !recoveryId && Boolean(session) && !queryFailed && raidSets.length > 0 && !noPacks && !mutation.isPending;
   const allRevealed = Boolean(opening) && revealedCards.size >= (opening?.results.length ?? 0);
-  const hasAnotherPack = Boolean(opening && session && session.packs[opening.mode].totalRemaining > 0);
+  const hasAnotherPack = Boolean(opening && session && session.packs.totalRemaining > 0);
   const shouldPromptGuestLogin = session?.ownerType === "guest" && !hasAnotherPack;
   const nextPackRemaining = opening && session
-    ? Math.max(0, new Date(session.recharge[opening.mode].nextAt).getTime() - rechargeNow)
+    ? Math.max(0, new Date(session.recharge.nextAt).getTime() - rechargeNow)
     : 0;
   const nextPackHours = Math.floor(nextPackRemaining / (60 * 60 * 1000));
   const nextPackMinutes = Math.max(0, Math.ceil((nextPackRemaining % (60 * 60 * 1000)) / (60 * 1000)));
@@ -595,19 +590,14 @@ export default function CcgOpenPage() {
         .join(". ") ?? "",
     [opening, revealedCards, t],
   );
-  const openingTargetSet = opening?.targetSetId
-    ? sets?.find((set) => set.id === opening.targetSetId) ?? opening.sets.find((set) => set.id === opening.targetSetId)
+  const openingTargetSetId = opening?.selection.type === "raid" ? opening.selection.setId : null;
+  const openingTargetSet = openingTargetSetId
+    ? sets?.find((set) => set.id === openingTargetSetId) ?? opening?.sets.find((set) => set.id === openingTargetSetId)
     : undefined;
-  const openingIsRandomLegacy = opening?.mode === "legacy" && !opening.targetSetId;
-  const openingPackSet = opening?.mode === "legacy" ? openingTargetSet : currentSet;
-  const openingPackName = opening?.mode === "legacy" ? (openingTargetSet?.raidName ?? t("open.legacyPackTitle")) : poolTitle;
-  const openingCollectionSets = openingIsRandomLegacy
-    ? legacySets
-    : openingTargetSet
-      ? [openingTargetSet]
-      : opening?.mode === "current"
-        ? currentSets
-        : [];
+  const openingIsAllRaids = opening?.selection.type === "all";
+  const openingPackSet = openingTargetSet ?? currentSet;
+  const openingPackName = openingTargetSet?.raidName ?? t("open.allRaids");
+  const openingCollectionSets = openingTargetSet ? [openingTargetSet] : openingIsAllRaids ? raidSets : [];
   const openingCollectionSetIds = new Set(openingCollectionSets.map((set) => set.id));
   const openingCollectionCardCount = openingCollectionSets.reduce((total, set) => total + set.cardCount, 0);
   const openingCollectionOwnedCount = openingCollectionSets.reduce((total, set) => total + set.ownedCards, 0);
@@ -626,10 +616,10 @@ export default function CcgOpenPage() {
   const openingCollectionProgressTo = openingCollectionCardCount > 0
     ? Math.min(1, openingCollectionOwnedCount / openingCollectionCardCount)
     : 0;
-  const openingCollectionName = openingIsRandomLegacy ? t("open.legacyPackTitle") : openingPackName;
-  const openingCollectionIcon = openingIsRandomLegacy ? undefined : openingPackSet?.iconUrl ?? undefined;
+  const openingCollectionName = openingPackName;
+  const openingCollectionIcon = openingIsAllRaids ? undefined : openingPackSet?.iconUrl ?? undefined;
   const cardBackSetScale = Math.min(1.45, Math.max(0.78, 18 / (openingPackName?.trim().length || 18)));
-  const stageTheme = opening ? getPackTheme(openingPackSet, openingIsRandomLegacy) : getPackTheme(featuredPackSet, randomLegacy);
+  const stageTheme = opening ? getPackTheme(openingPackSet, openingIsAllRaids) : getPackTheme(featuredPackSet, allRaids);
 
   const updatePackLight = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
@@ -714,13 +704,13 @@ export default function CcgOpenPage() {
       packDragRef.current.suppressClick = false;
       return;
     }
-    if (!submitPackOpening({ mode, setId: mode === "legacy" ? selectedLegacySet?.id : undefined })) return;
+    if (!submitPackOpening({ setId: selectedSet?.id })) return;
     resumeCcgAudio();
   };
 
   const openAnotherPack = () => {
     if (!opening || !hasAnotherPack || mutation.isPending || isPackCycling) return;
-    const selection = { mode: opening.mode, setId: opening.targetSetId ?? undefined };
+    const selection = { setId: opening.selection.type === "raid" ? opening.selection.setId : undefined };
     const delayMs = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 470;
     if (!submitPackOpening(selection, delayMs)) return;
     setRecoveryId("");
@@ -762,7 +752,7 @@ export default function CcgOpenPage() {
       <div className={`${packStyles.openWorkspace} ${packSelectorOpen ? packStyles.openWorkspacePickerOpen : ""}`}>
         {!opening ? (
           <div className={packStyles.packChooser}>
-            <section className={`${packStyles.packStage} ${packStyles.packChooserStage}`} style={getPackTheme(featuredPackSet, randomLegacy)}>
+            <section className={`${packStyles.packStage} ${packStyles.packChooserStage}`} style={getPackTheme(featuredPackSet, allRaids)}>
               <span className={packStyles.stageArt} />
               <span className={packStyles.stageVeil} />
               <span className={packStyles.vaultRing} aria-hidden="true" />
@@ -779,23 +769,19 @@ export default function CcgOpenPage() {
                       onClick={() => setPackSelectorOpen((open) => !open)}
                     >
                       <span className={packStyles.modeChoiceIcon}>
-                        {mode === "legacy" && !selectedLegacySet ? (
+                        {allRaids ? (
                           <ArchiveIcon />
                         ) : selectorSet && raidIconByZone.get(selectorSet.zoneId) ? (
                           <IconImage iconFilename={raidIconByZone.get(selectorSet.zoneId)} alt="" width={40} height={40} />
-                        ) : mode === "legacy" ? (
-                          <ArchiveIcon />
                         ) : (
                           <span className={packStyles.modeChoiceFallback} aria-hidden="true">
-                            C
+                            R
                           </span>
                         )}
                       </span>
                       <span className={packStyles.mobilePackSelectorCopy}>
                         <strong>
-                          {mode === "legacy"
-                            ? selectedLegacySet?.raidName ?? t("open.randomLegacy")
-                            : currentSet?.raidName ?? t("landing.preparing")}
+                          {selectedSet?.raidName ?? t("open.allRaids")}
                         </strong>
                         <small>{t("open.changeRaidSet")}</small>
                       </span>
@@ -829,25 +815,19 @@ export default function CcgOpenPage() {
                         <div className={packStyles.modeChoices}>
                           <button
                             type="button"
-                            aria-pressed={mode === "current"}
+                            aria-pressed={selectedSetId === ALL_RAIDS}
                             onClick={() => {
-                              setMode("current");
+                              setSelectedSetId(ALL_RAIDS);
                               closePackSelector();
                             }}
                             className={packStyles.modeChoice}
                           >
                             <span className={packStyles.modeChoiceIcon}>
-                              {currentSet && raidIconByZone.get(currentSet.zoneId) ? (
-                                <IconImage iconFilename={raidIconByZone.get(currentSet.zoneId)} alt="" width={40} height={40} />
-                              ) : (
-                                <span className={packStyles.modeChoiceFallback} aria-hidden="true">
-                                  C
-                                </span>
-                              )}
+                              <ArchiveIcon />
                             </span>
                             <span className={packStyles.modeChoiceCopy}>
-                              <small>{t("open.currentTier")}</small>
-                              <strong>{currentSet?.raidName ?? t("landing.preparing")}</strong>
+                              <small>{t("open.allRaidsEyebrow")}</small>
+                              <strong>{t("open.allRaids")}</strong>
                             </span>
                             <span className={packStyles.modeChoiceMark} aria-hidden="true" />
                           </button>
@@ -856,35 +836,15 @@ export default function CcgOpenPage() {
                         <div className={packStyles.packChoiceDivider} aria-hidden="true" />
 
                         <div className={packStyles.legacyTarget}>
-                          <div className={packStyles.raidList} aria-label={t("open.chooseLegacy")}>
-                            <button
-                              type="button"
-                              aria-pressed={mode === "legacy" && legacySetId === RANDOM_LEGACY_SET}
-                              className={packStyles.modeChoice}
-                              onClick={() => {
-                                setMode("legacy");
-                                setLegacySetId(RANDOM_LEGACY_SET);
-                                closePackSelector();
-                              }}
-                            >
-                              <span className={packStyles.modeChoiceIcon}>
-                                <ArchiveIcon />
-                              </span>
-                              <span className={packStyles.modeChoiceCopy}>
-                                <small>{t("open.randomLegacyEyebrow")}</small>
-                                <strong>{t("open.randomLegacy")}</strong>
-                              </span>
-                              <span className={packStyles.modeChoiceMark} aria-hidden="true" />
-                            </button>
-                            {legacySets.map((set) => (
+                          <div className={packStyles.raidList} aria-label={t("open.chooseRaidSet")}>
+                            {raidSets.map((set) => (
                               <button
                                 key={set.id}
                                 type="button"
-                                aria-pressed={mode === "legacy" && legacySetId === set.id}
+                                aria-pressed={selectedSetId === set.id}
                                 className={packStyles.modeChoice}
                                 onClick={() => {
-                                  setMode("legacy");
-                                  setLegacySetId(set.id);
+                                  setSelectedSetId(set.id);
                                   closePackSelector();
                                 }}
                               >
@@ -907,11 +867,7 @@ export default function CcgOpenPage() {
 
                 <div className={packStyles.packPresentation}>
                   <span className={packStyles.packMode}>
-                    {mode === "legacy"
-                      ? selectedLegacySet
-                        ? `${t("mode.legacy")} · ${selectedLegacySet.expansionName}`
-                        : t("open.legacyPackLabel")
-                      : `${t("open.currentTier")} · ${featuredPackSet?.expansionName ?? "SuomiWoW"}`}
+                    {selectedSet ? selectedSet.expansionName : t("open.allRaidsEyebrow")}
                   </span>
                   <button
                     type="button"
@@ -929,14 +885,14 @@ export default function CcgOpenPage() {
                     aria-label={t("open.openPack")}
                     aria-busy={mutation.isPending}
                   >
-                    <PackBoosterVisual title={modeSets.length > 0 ? poolTitle : t("landing.preparing")} cardsLabel={t("landing.cards")} />
+                    <PackBoosterVisual title={raidSets.length > 0 ? poolTitle : t("landing.preparing")} cardsLabel={t("landing.cards")} />
                   </button>
                   <span className={packStyles.packHint}>{mutation.isPending ? t("open.openingHint") : t("open.packHint")}</span>
                 </div>
 
                   <aside className={packStyles.packBalancePanel}>
                     <div className={packStyles.packBalanceSummary}>
-                      {session ? <PackBalance session={session} mode={mode} stripOnMobile /> : <div className={packStyles.balancePlaceholder} />}
+                      {session ? <PackBalance session={session} stripOnMobile /> : <div className={packStyles.balancePlaceholder} />}
                     </div>
                     {session ? (
                       <div className={packStyles.qualityDetails}>
@@ -1029,7 +985,7 @@ export default function CcgOpenPage() {
             >
               {revealPhase === "holding" ? (
                 <span className={`${packStyles.packButton} ${packStyles.heldPack}`}>
-                  <PackBoosterVisual title={openingPackName ?? t("open.legacyPackTitle")} cardsLabel={t("landing.cards")} />
+                  <PackBoosterVisual title={openingPackName ?? t("open.allRaids")} cardsLabel={t("landing.cards")} />
                 </span>
               ) : null}
               <span className={`${packStyles.tornHalf} ${packStyles.tornHalfLeft}`}>
@@ -1183,7 +1139,7 @@ export default function CcgOpenPage() {
                       </span>
                     ) : session ? (
                       <>
-                        <strong>{session.packs[opening.mode].totalRemaining}</strong>
+                        <strong>{session.packs.totalRemaining}</strong>
                         <span>{t("packsRemaining")}</span>
                       </>
                     ) : null}

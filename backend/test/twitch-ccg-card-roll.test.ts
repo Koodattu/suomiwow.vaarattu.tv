@@ -17,20 +17,20 @@ test("Twitch card rolls use all raid pools and the linked user's finish state", 
   const userId = new mongoose.Types.ObjectId();
   const service = ccgService as any;
   const originals = {
-    selectModePackResults: service.selectModePackResults,
+    selectPackResults: service.selectPackResults,
     loadAlternativeArt: service.loadAlternativeArt,
     cardFindOne: CcgCard.findOne,
     setFindOne: CcgSet.findOne,
     ownershipFind: CcgOwnership.find,
     qualityFindOneAndUpdate: CcgQualityProgress.findOneAndUpdate,
   };
-  let selectedMode: string | undefined;
+  let selectedTarget: unknown;
   let includedCommunity: boolean | undefined;
   let qualitySaved = false;
 
   try {
-    service.selectModePackResults = async (mode: string, _session: unknown, _targetSetId: unknown, includeCommunity: boolean) => {
-      selectedMode = mode;
+    service.selectPackResults = async (_session: unknown, targetSetId: unknown, includeCommunity: boolean) => {
+      selectedTarget = targetSetId;
       includedCommunity = includeCommunity;
       return {
         results: [{ cardId, setId, tierGrade: "A" }],
@@ -80,12 +80,12 @@ test("Twitch card rolls use all raid pools and the linked user's finish state", 
 
     const award = await ccgService.rollExternalSingleCard({} as mongoose.ClientSession, userId);
 
-    assert.equal(selectedMode, "all");
+    assert.equal(selectedTarget, null);
     assert.equal(includedCommunity, false);
     assert.equal(award.finish, "holographic");
     assert.equal(qualitySaved, true);
   } finally {
-    service.selectModePackResults = originals.selectModePackResults;
+    service.selectPackResults = originals.selectPackResults;
     service.loadAlternativeArt = originals.loadAlternativeArt;
     (CcgCard as any).findOne = originals.cardFindOne;
     (CcgSet as any).findOne = originals.setFindOne;

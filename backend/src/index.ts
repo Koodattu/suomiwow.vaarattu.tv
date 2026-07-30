@@ -49,6 +49,7 @@ import guildLogSourceService from "./services/guild-log-source.service";
 import ccgPublisherService from "./services/ccg-publisher.service";
 import { ensurePersistentCcgGuests } from "./services/ccg-guest-persistence-migration.service";
 import { ensureCcgSeriesOwnershipMigration } from "./services/ccg-ownership-migration.service";
+import { assertCcgUnifiedPacksReady } from "./services/ccg-pack-migration.service";
 import ccgCharacterIdentityService from "./services/ccg-character-identity.service";
 import { CCG_FEATURE_ENABLED } from "./config/ccg";
 
@@ -548,6 +549,10 @@ const startServer = async () => {
     completeStartupTask("Initialize cache service");
 
     if (CCG_FEATURE_ENABLED) {
+      setStartupTask("Verify CCG unified packs");
+      await assertCcgUnifiedPacksReady();
+      completeStartupTask("Verify CCG unified packs");
+
       setStartupTask("Migrate CCG collection ownership");
       await ensureCcgSeriesOwnershipMigration();
       completeStartupTask("Migrate CCG collection ownership");

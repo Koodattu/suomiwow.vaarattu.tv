@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CCG_FINISH_ORDER, CcgArtVariant, CcgFinish, CcgMode, CcgTierGrade } from "../config/ccg";
+import { CCG_FINISH_ORDER, CcgArtVariant, CcgFinish, CcgHistoricalPackMode, CcgPackSelectionType, CcgTierGrade } from "../config/ccg";
 import { CcgOwnerType } from "./CcgOwnership";
 
 export type CcgAllowanceSource = "daily" | "recharge" | "credit";
@@ -19,7 +19,8 @@ export interface ICcgPackResult {
 export interface ICcgPackOpening extends Document {
   ownerType: CcgOwnerType;
   ownerId: mongoose.Types.ObjectId;
-  mode: CcgMode;
+  mode?: CcgHistoricalPackMode;
+  selectionType?: CcgPackSelectionType;
   targetSetId?: mongoose.Types.ObjectId | null;
   sourceSetIds: mongoose.Types.ObjectId[];
   allowanceSource: CcgAllowanceSource;
@@ -58,7 +59,8 @@ const CcgPackOpeningSchema = new Schema<ICcgPackOpening>(
   {
     ownerType: { type: String, enum: ["user", "guest"], required: true, index: true },
     ownerId: { type: Schema.Types.ObjectId, required: true, index: true },
-    mode: { type: String, enum: ["current", "legacy"], required: true, index: true },
+    mode: { type: String, enum: ["current", "legacy"] },
+    selectionType: { type: String, enum: ["all", "raid"], index: true },
     targetSetId: { type: Schema.Types.ObjectId, ref: "CcgSet", default: null },
     sourceSetIds: { type: [Schema.Types.ObjectId], ref: "CcgSet", required: true, default: [] },
     allowanceSource: { type: String, enum: ["daily", "recharge", "credit"], required: true },

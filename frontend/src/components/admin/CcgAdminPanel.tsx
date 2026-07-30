@@ -94,7 +94,6 @@ export default function CcgAdminPanel() {
       const result = await api.enableAdminCcgSet(set.zoneId, preview.activationRevision, force);
       const messages = [t("enableSuccess", { raid: set.raidName, count: result.publication.totalCards })];
       if (result.movedToLegacy > 0) messages.push(t("movedToLegacy", { count: result.movedToLegacy }));
-      if (result.rollover) messages.push(t("rolloverSuccess", { sequence: result.rollover.sequence }));
       setNotice(messages.join(" "));
       setReadiness((current) => ({ ...current, [set.zoneId]: result.readiness }));
       setConfirmingZone(null);
@@ -196,18 +195,6 @@ export default function CcgAdminPanel() {
             </div>
           ))}
         </dl>
-        {status.rollover ? (
-          <div className="rounded-lg bg-cyan-950/35 p-4 text-sm text-cyan-100 shadow-[inset_0_0_0_1px_rgba(103,232,249,0.18)]">
-            <h3 className="font-bold text-balance">{t("latestRollover", { sequence: status.rollover.sequence })}</h3>
-            <p className="mt-1 text-pretty tabular-nums text-cyan-100/70">
-              {t("latestRolloverStatus", {
-                date: dateFormatter.format(new Date(status.rollover.effectiveAt)),
-                pending: status.rollover.pendingBalances,
-              })}
-            </p>
-          </div>
-        ) : null}
-
         <div className="space-y-3">
         {status.sets.length === 0 ? (
           <div className="rounded-lg bg-gray-800/70 p-6 text-center text-sm text-gray-400 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">{t("noCandidates")}</div>
@@ -256,18 +243,12 @@ export default function CcgAdminPanel() {
                     <div><dt className="text-gray-500">{t("mediaCoverage")}</dt><dd className="mt-0.5 font-semibold tabular-nums text-white">{Math.round(row.mediaCoverage * 100)}%</dd></div>
                     <div><dt className="text-gray-500">{t("published")}</dt><dd className="mt-0.5 font-semibold tabular-nums text-white">{row.published}</dd></div>
                   </dl>
-                  {row.rollover.required ? (
+                  {row.replacesCurrentSets.length > 0 ? (
                     <div className="mt-4 rounded-lg bg-amber-950/35 p-4 text-sm text-amber-100 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.22)]">
-                      <h4 className="font-bold text-balance">{t("rolloverTitle")}</h4>
+                      <h4 className="font-bold text-balance">{t("replaceCurrentTitle")}</h4>
                       <p className="mt-1 leading-6 text-pretty text-amber-100/85">
-                        {t("rolloverSets", { raids: row.rollover.fromSets.map((currentSet) => currentSet.raidName).join(", ") })}
+                        {t("replaceCurrentSets", { raids: row.replacesCurrentSets.map((currentSet) => currentSet.raidName).join(", ") })}
                       </p>
-                      <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        <div><dt className="text-amber-200/65">{t("rolloverBalances")}</dt><dd className="mt-0.5 font-semibold tabular-nums">{row.rollover.balanceOwners.total}</dd></div>
-                        <div><dt className="text-amber-200/65">{t("rolloverCurrentPacks")}</dt><dd className="mt-0.5 font-semibold tabular-nums">{row.rollover.storedCurrentPacks.total}</dd></div>
-                        <div><dt className="text-amber-200/65">{t("rolloverNewPacks")}</dt><dd className="mt-0.5 font-semibold tabular-nums">{row.rollover.newCurrentPacks.total}</dd></div>
-                      </dl>
-                      <p className="mt-3 text-xs leading-5 text-pretty text-amber-200/65">{t("rolloverNote")}</p>
                     </div>
                   ) : null}
                   {row.blockers.length > 0 ? (
@@ -284,7 +265,7 @@ export default function CcgAdminPanel() {
                         setForcingZone(row.readyToEnable ? null : set.zoneId);
                       }}
                     >
-                      {t(row.readyToEnable ? (row.rollover.required ? "activateCurrent" : "enable") : "forceEnable")}
+                      {t(row.readyToEnable ? (row.replacesCurrentSets.length > 0 ? "activateCurrent" : "enable") : "forceEnable")}
                     </button>
                   ) : null}
                   {confirmingZone === set.zoneId ? (
@@ -297,8 +278,8 @@ export default function CcgAdminPanel() {
                           {isEnabling
                             ? t("enabling")
                             : t(forcingZone === set.zoneId
-                              ? (row.rollover.required ? "confirmForceRollover" : "confirmForceEnable")
-                              : (row.rollover.required ? "confirmRollover" : "confirmEnable"))}
+                              ? "confirmForceEnable"
+                              : (row.replacesCurrentSets.length > 0 ? "confirmActivateCurrent" : "confirmEnable"))}
                         </button>
                         <button
                           type="button"

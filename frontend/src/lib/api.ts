@@ -142,7 +142,6 @@ import {
   CcgGuildsResponse,
   CcgCharacterSearchResponse,
   CcgCollectionSort,
-  CcgMode,
   CcgFinish,
   CcgArtVariant,
   CcgTierGrade,
@@ -387,7 +386,7 @@ export const api = {
     return hydrateCcgCollection(await response.json() as CcgCollectionResponseWire);
   },
 
-  async openCcgPack(input: { mode: CcgMode; idempotencyKey: string; setId?: string }): Promise<CcgOpening> {
+  async openCcgPack(input: { idempotencyKey: string; setId?: string }): Promise<CcgOpening> {
     const response = await fetch(`${API_URL}/api/ccg/packs/open`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -587,8 +586,7 @@ export const api = {
   async createAdminCcgRedeemCode(input: {
     code: string;
     rewardType: "packs" | "card";
-    currentPacks: number;
-    legacyPacks: number;
+    packs: number;
     cardId: string | null;
     finish: CcgFinish | null;
     artVariant: CcgArtVariant | null;

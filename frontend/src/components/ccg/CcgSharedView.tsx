@@ -126,18 +126,19 @@ function SharedPack({ share }: { share: Extract<CcgShare, { kind: "pack" }> }) {
     originBounds: CardViewerOriginBounds | null;
     sharedTransition: boolean;
   } | null>(null);
-  const primarySet = share.pack.targetSetId
-    ? share.pack.sets.find((set) => set.id === share.pack.targetSetId) ?? share.pack.sets[0]
+  const targetSetId = share.pack.selection.type === "raid" ? share.pack.selection.setId : null;
+  const primarySet = targetSetId
+    ? share.pack.sets.find((set) => set.id === targetSetId) ?? share.pack.sets[0]
     : share.pack.sets[0];
-  const packType = share.pack.mode === "legacy" && !share.pack.targetSetId
-    ? openT("legacyPackTitle")
+  const packType = share.pack.selection.type === "all"
+    ? openT("allRaids")
     : primarySet?.raidName;
   const inspectedResult = viewer ? share.pack.results[viewer.index] : null;
   return (
     <>
       <section
         className={`${packStyles.packStage} ${styles.sharedStage}`}
-        style={getPackTheme(primarySet, share.pack.mode === "legacy" && !share.pack.targetSetId)}
+        style={getPackTheme(primarySet, share.pack.selection.type === "all")}
         aria-labelledby="ccg-shared-pack-title"
       >
         <StageBackground />

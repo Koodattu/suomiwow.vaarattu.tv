@@ -7,19 +7,10 @@ export interface ICcgAnalyticsDaily extends Document {
   dateKey: string;
   packOpenings: number;
   activeUsers: number;
-  modes: CountRecord<"current" | "legacy">;
   finishes: CountRecord<CcgFinish>;
   grades: CountRecord<CcgTierGrade>;
   updatedAt: Date;
 }
-
-const ModeCountsSchema = new Schema(
-  {
-    current: { type: Number, required: true, default: 0, min: 0 },
-    legacy: { type: Number, required: true, default: 0, min: 0 },
-  },
-  { _id: false },
-);
 
 const FinishCountsSchema = new Schema(
   {
@@ -54,7 +45,6 @@ const CcgAnalyticsDailySchema = new Schema<ICcgAnalyticsDaily>(
     dateKey: { type: String, required: true, unique: true, index: true },
     packOpenings: { type: Number, required: true, default: 0, min: 0 },
     activeUsers: { type: Number, required: true, default: 0, min: 0 },
-    modes: { type: ModeCountsSchema, required: true, default: () => ({}) },
     finishes: { type: FinishCountsSchema, required: true, default: () => ({}) },
     grades: { type: GradeCountsSchema, required: true, default: () => ({}) },
     updatedAt: { type: Date, required: true },

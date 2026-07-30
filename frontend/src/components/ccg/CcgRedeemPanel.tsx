@@ -116,16 +116,8 @@ function CcgRedeemRewardDialog({
     }, event);
   };
 
-  const openPacksHref = result.reward.type === "packs"
-    ? result.reward.currentPacks > 0 && result.reward.legacyPacks === 0
-      ? "/ccg/open?mode=current"
-      : result.reward.legacyPacks > 0 && result.reward.currentPacks === 0
-        ? "/ccg/open?mode=legacy"
-        : "/ccg/open"
-    : "/ccg/open";
-  const awardedPackCount = result.reward.type === "packs"
-    ? result.reward.currentPacks + result.reward.legacyPacks
-    : 0;
+  const openPacksHref = "/ccg/open";
+  const awardedPackCount = result.reward.type === "packs" ? result.reward.packs : 0;
 
   const updatePackMotion = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
@@ -155,42 +147,22 @@ function CcgRedeemRewardDialog({
 
         {result.reward.type === "packs" ? (
           <div className={styles.redeemPackRewards} data-reward-count={awardedPackCount}>
-            {result.reward.currentPacks > 0 ? (
-              <div className={styles.redeemPackReward} data-mode="current">
+            <div className={styles.redeemPackReward}>
                 <div
                   className={`${packStyles.packButton} ${styles.redeemPackVisual}`}
-                  style={{ ...getPackTheme(currentSet), cursor: "pointer" }}
+                  style={{ ...getPackTheme(currentSet, true), cursor: "pointer" }}
                   onPointerMove={updatePackMotion}
                   onPointerLeave={(event) => resetPackMotion(event.currentTarget)}
                   onPointerCancel={(event) => resetPackMotion(event.currentTarget)}
                   aria-hidden="true"
                 >
-                  <PackBoosterVisual title={currentSet?.raidName ?? ccg("open.currentTier")} cardsLabel={ccg("landing.cards")} />
+                  <PackBoosterVisual title={ccg("open.allRaids")} cardsLabel={ccg("landing.cards")} />
                 </div>
                 <div className={styles.redeemPackCount}>
-                  <strong>{result.reward.currentPacks}</strong>
-                  <span>{t("currentPacks", { count: result.reward.currentPacks })}</span>
+                  <strong>{result.reward.packs}</strong>
+                  <span>{t("packs", { count: result.reward.packs })}</span>
                 </div>
               </div>
-            ) : null}
-            {result.reward.legacyPacks > 0 ? (
-              <div className={styles.redeemPackReward} data-mode="legacy">
-                <div
-                  className={`${packStyles.packButton} ${styles.redeemPackVisual}`}
-                  style={{ ...getPackTheme(undefined, true), cursor: "pointer" }}
-                  onPointerMove={updatePackMotion}
-                  onPointerLeave={(event) => resetPackMotion(event.currentTarget)}
-                  onPointerCancel={(event) => resetPackMotion(event.currentTarget)}
-                  aria-hidden="true"
-                >
-                  <PackBoosterVisual title={ccg("open.legacyPackTitle")} cardsLabel={ccg("landing.cards")} />
-                </div>
-                <div className={styles.redeemPackCount}>
-                  <strong>{result.reward.legacyPacks}</strong>
-                  <span>{t("legacyPacks", { count: result.reward.legacyPacks })}</span>
-                </div>
-              </div>
-            ) : null}
           </div>
         ) : (
           <div className={styles.redeemCardReward}>

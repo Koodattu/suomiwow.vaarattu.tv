@@ -3,7 +3,6 @@ import {
   CCG_INITIAL_PACKS,
   CcgArtVariant,
   CcgFinish,
-  CcgMode,
 } from "../config/ccg";
 
 type GuestLibraryResult = {
@@ -15,7 +14,6 @@ type GuestLibraryResult = {
 };
 
 type GuestLibraryOpening = {
-  mode: CcgMode;
   results: GuestLibraryResult[];
 };
 
@@ -28,8 +26,8 @@ type GuestLibraryOwnership = {
 };
 
 export type VerifiedGuestLibrary = {
-  cards: Record<CcgMode, number>;
-  duplicates: Record<CcgMode, number>;
+  cards: number;
+  duplicates: number;
   totalCards: number;
 };
 
@@ -42,14 +40,10 @@ export function resolveGuestClaimOpeningId(
 }
 
 export function getTransferableGuestPacks(
-  balance: Partial<Record<CcgMode, number>> | null | undefined,
-): Record<CcgMode, number> {
-  const transferable = (mode: CcgMode): number => {
-    const remaining = balance?.[mode];
-    if (typeof remaining !== "number" || !Number.isFinite(remaining)) return 0;
-    return Math.min(CCG_INITIAL_PACKS.guest[mode], Math.max(0, Math.floor(remaining)));
-  };
-  return { current: transferable("current"), legacy: transferable("legacy") };
+  balance: number | null | undefined,
+): number {
+  if (typeof balance !== "number" || !Number.isFinite(balance)) return 0;
+  return Math.min(CCG_INITIAL_PACKS.guest, Math.max(0, Math.floor(balance)));
 }
 
 function ownershipKey(cardId: unknown, finish: CcgFinish, seriesKey?: string): string {
@@ -62,16 +56,16 @@ export function verifyGuestLibrary(
 ): VerifiedGuestLibrary | null {
   if (openings.length === 0) return null;
 
-  const cards: Record<CcgMode, number> = { current: 0, legacy: 0 };
-  const duplicates: Record<CcgMode, number> = { current: 0, legacy: 0 };
+  let cards = 0;
+  let duplicates = 0;
   const expectedOwnership = new Map<string, { quantity: number; alternativeQuantity: number }>();
 
   for (const opening of openings) {
     if (opening.results.length !== CCG_CARDS_PER_PACK) return null;
-    cards[opening.mode] += opening.results.length;
+    cards += opening.results.length;
 
     for (const result of opening.results) {
-      if (result.isDuplicate) duplicates[opening.mode] += 1;
+      if (result.isDuplicate) duplicates += 1;
       const key = ownershipKey(result.cardId, result.finish, result.seriesKey);
       const expected = expectedOwnership.get(key) ?? { quantity: 0, alternativeQuantity: 0 };
       expected.quantity += 1;
@@ -99,6 +93,6 @@ export function verifyGuestLibrary(
   return {
     cards,
     duplicates,
-    totalCards: cards.current + cards.legacy,
+    totalCards: cards,
   };
 }

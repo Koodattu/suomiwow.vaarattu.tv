@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CcgMode } from "../config/ccg";
+import { CcgHistoricalPackMode } from "../config/ccg";
 import { CcgOwnerType } from "./CcgOwnership";
 
 export type CcgLedgerAction = "daily_grant" | "pack_open" | "card_acquire" | "duplicate_reward" | "guest_claim" | "login_conversion" | "admin_adjustment" | "redeem_code" | "raid_rollover" | "twitch_reward";
@@ -8,7 +8,7 @@ export interface ICcgLedgerEntry extends Document {
   ownerType: CcgOwnerType;
   ownerId: mongoose.Types.ObjectId;
   action: CcgLedgerAction;
-  mode?: CcgMode | null;
+  mode?: CcgHistoricalPackMode | null;
   idempotencyKey: string;
   amount: number;
   metadata: Record<string, unknown>;

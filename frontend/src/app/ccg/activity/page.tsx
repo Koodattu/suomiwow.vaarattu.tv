@@ -51,11 +51,10 @@ function ActivitySummary({ summary, numberFormatter }: {
           {summary.raidPacks.length > 0 ? (
             <ul className={styles.activitySummaryPills}>
               {summary.raidPacks.map((pack) => {
-                const label = pack.packArt?.raidName
-                  ?? (pack.mode === "legacy" ? t("mixedLegacy") : tCcg("open.currentTier"));
+                const label = pack.packArt?.raidName ?? tCcg("open.allRaids");
                 return (
                   <li
-                    key={`${pack.mode}:${pack.packArt?.slug ?? "mixed"}`}
+                    key={`${pack.selectionType}:${pack.packArt?.slug ?? "all"}`}
                     style={{ "--activity-summary-accent": pack.packArt?.theme.accent ?? "#7ddcff" } as CSSProperties}
                   >
                     <span>{label}</span>
@@ -132,22 +131,11 @@ function ActivityRewardPackThumbnails({ reward }: {
   reward: Extract<CcgActivityReward, { type: "packs" }>;
 }) {
   const tCcg = useTranslations("ccg");
-  const entries = [
-    reward.currentPacks > 0
-      ? {
-          key: "current",
-          title: reward.currentPackArt?.raidName ?? tCcg("open.currentTier"),
-          theme: getPackTheme(reward.currentPackArt ?? undefined),
-        }
-      : null,
-    reward.legacyPacks > 0
-      ? {
-          key: "legacy",
-          title: tCcg("open.legacyPackTitle"),
-          theme: getPackTheme(undefined, true),
-        }
-      : null,
-  ].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  const entries = reward.packs > 0 ? [{
+    key: "packs",
+    title: tCcg("open.allRaids"),
+    theme: getPackTheme(reward.packArt ?? undefined, true),
+  }] : [];
 
   return (
     <span className={styles.activityRewardPacks} data-count={entries.length} aria-hidden="true">
@@ -169,16 +157,7 @@ function RewardSummary({ reward }: { reward: CcgActivityReward }) {
   const tCcg = useTranslations("ccg");
 
   if (reward.type === "packs") {
-    const rewards = [
-      reward.currentPacks > 0
-        ? t("reward.currentPacksFrom", {
-            count: reward.currentPacks,
-            set: reward.currentPackArt?.raidName ?? tCcg("open.currentTier"),
-          })
-        : null,
-      reward.legacyPacks > 0 ? t("reward.legacyPacks", { count: reward.legacyPacks }) : null,
-    ].filter((value): value is string => Boolean(value));
-    return <p className={styles.activityLead}>{rewards.join(" · ")}</p>;
+    return <p className={styles.activityLead}>{t("reward.packs", { count: reward.packs })}</p>;
   }
 
   if (!reward.card) return <p className={styles.activityLead}>{t("reward.cardUnavailable")}</p>;
@@ -204,12 +183,12 @@ function RewardSummary({ reward }: { reward: CcgActivityReward }) {
 
 function ActivityPackThumbnail({ item }: { item: Extract<CcgActivityItem, { kind: "pack" }> }) {
   const t = useTranslations("ccg");
-  const isRandomLegacy = item.mode === "legacy" && !item.packArt;
-  const title = item.packArt?.raidName ?? t("open.legacyPackTitle");
+  const isAllRaids = item.selectionType === "all";
+  const title = item.packArt?.raidName ?? t("open.allRaids");
   return (
     <span className={styles.activityPackThumbnail} aria-hidden="true">
       <span className={styles.activityPackScale}>
-        <span className={packStyles.packButton} style={getPackTheme(item.packArt ?? undefined, isRandomLegacy)}>
+        <span className={packStyles.packButton} style={getPackTheme(item.packArt ?? undefined, isAllRaids)}>
           <PackBoosterVisual title={title} cardsLabel={t("landing.cards")} />
         </span>
       </span>
@@ -226,9 +205,7 @@ function ActivityRow({ item, timeFormatter }: { item: CcgActivityItem; timeForma
   if (item.kind === "pack") {
     const title = item.packArt
       ? t("pack.titleSet", { set: item.packArt.raidName })
-      : item.mode === "legacy"
-        ? t("pack.titleMixedLegacy")
-        : t("pack.title", { mode: tCcg(`mode.${item.mode}`) });
+      : t("pack.titleAllRaids");
     return (
       <article className={`${styles.activityRow} ${styles.activityPackRow}`}>
         <ActivityPackThumbnail item={item} />
@@ -278,7 +255,7 @@ function ActivityRow({ item, timeFormatter }: { item: CcgActivityItem; timeForma
 
   const rewardCard = item.reward.type === "card" ? item.reward.card : null;
   const packRewardCount = item.reward.type === "packs"
-    ? Number(item.reward.currentPacks > 0) + Number(item.reward.legacyPacks > 0)
+    ? Number(item.reward.packs > 0)
     : 0;
   const isTwitch = item.kind === "twitch";
   const rewardRowClass = rewardCard

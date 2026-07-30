@@ -55,24 +55,24 @@ const RAID_PACK_PALETTES: Readonly<Record<string, PackPalette>> = {
 
 export function getPackTheme(
   set: Pick<CcgSet, "slug" | "theme" | "backgroundPath" | "packArtOffsetX"> | undefined,
-  randomLegacy = false,
+  combinedPool = false,
 ): CSSProperties {
   const palette = set ? RAID_PACK_PALETTES[set.slug] : undefined;
-  const accent = randomLegacy ? "#72d8f3" : (set?.theme.accent ?? "#5baeff");
-  const glow = randomLegacy ? "rgba(93, 205, 236, 0.44)" : (set?.theme.glow ?? "rgba(91, 174, 255, 0.38)");
-  const title = randomLegacy ? "#9ce9ff" : (palette?.title ?? `color-mix(in srgb, ${accent} 64%, white)`);
-  const brand = randomLegacy ? "#9ce9ff" : (palette?.brand ?? title);
+  const accent = combinedPool ? "#72d8f3" : (set?.theme.accent ?? "#5baeff");
+  const glow = combinedPool ? "rgba(93, 205, 236, 0.44)" : (set?.theme.glow ?? "rgba(91, 174, 255, 0.38)");
+  const title = combinedPool ? "#9ce9ff" : (palette?.title ?? `color-mix(in srgb, ${accent} 64%, white)`);
+  const brand = combinedPool ? "#9ce9ff" : (palette?.brand ?? title);
 
   return {
     "--pack-accent": accent,
     "--pack-glow": glow,
     "--pack-title-color": title,
     "--pack-brand-color": brand,
-    "--pack-stage-art": randomLegacy ? 'url("/ccg/general_wide.webp")' : set ? `url("${set.backgroundPath}")` : "none",
-    "--pack-art": randomLegacy ? 'url("/ccg/general_tall.webp")' : set ? `url("${set.backgroundPath}")` : "none",
-    "--pack-art-size": randomLegacy ? "cover" : "auto 100%",
-    "--pack-art-position-x": `${randomLegacy ? 50 : (set?.packArtOffsetX ?? 50)}%`,
-    "--pack-logo-fill": randomLegacy
+    "--pack-stage-art": combinedPool ? 'url("/ccg/general_wide.webp")' : set ? `url("${set.backgroundPath}")` : "none",
+    "--pack-art": combinedPool ? 'url("/ccg/general_tall.webp")' : set ? `url("${set.backgroundPath}")` : "none",
+    "--pack-art-size": combinedPool ? "cover" : "auto 100%",
+    "--pack-art-position-x": `${combinedPool ? 50 : (set?.packArtOffsetX ?? 50)}%`,
+    "--pack-logo-fill": combinedPool
       ? "linear-gradient(145deg, #edfcff 0%, #9ce9ff 52%, #55bcd9 100%)"
       : (palette?.logo ?? "color-mix(in srgb, var(--pack-accent) 82%, white 18%)"),
     "--pack-logo-glow": glow,

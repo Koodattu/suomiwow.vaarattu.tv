@@ -8,6 +8,7 @@
     "dev:graph-poc": "node scripts/guild-network-poc.mjs",
     "build": "tsc",
     "migrate:ccg-collection-read-model": "node dist/scripts/migrate-ccg-collection-read-model.js",
+    "migrate:ccg-unified-packs": "node dist/scripts/migrate-ccg-unified-packs.js",
     "repair:character-identities": "node dist/scripts/repair-character-identities.js",
     "repair:mplus-monk-specs": "node dist/scripts/repair-mythic-plus-monk-specs.js",
     "test:featured-achievements": "ts-node src/scripts/test-featured-achievements.ts",

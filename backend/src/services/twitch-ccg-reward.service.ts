@@ -67,7 +67,7 @@ export function twitchCcgRewardKindMatch(kinds: readonly TwitchCcgRewardKind[]):
 }
 
 export function getTwitchCcgPackGrantCount(rewardKind: TwitchCcgRewardKind): number {
-  return rewardKind === "packs_10" ? 10 : 1;
+  return rewardKind === "packs_10" ? 20 : 2;
 }
 
 export function getTwitchCcgCardRevealCount(rewardKind: TwitchCcgRewardKind): number {
@@ -440,21 +440,18 @@ class TwitchCcgRewardService {
         ? 0
         : getTwitchCcgPackGrantCount(redemption.rewardKind);
       if (packCount > 0) {
-        for (const mode of ["current", "legacy"] as const) {
-          await CcgPackCredit.updateOne(
-            { ownerId: userId, sourceKey: `${idempotencyKey}:${mode}` },
-            {
-              $setOnInsert: {
-                ownerId: userId,
-                mode,
-                source: "twitch_reward",
-                sourceKey: `${idempotencyKey}:${mode}`,
-                remaining: packCount,
-              },
+        await CcgPackCredit.updateOne(
+          { ownerId: userId, sourceKey: idempotencyKey },
+          {
+            $setOnInsert: {
+              ownerId: userId,
+              source: "twitch_reward",
+              sourceKey: idempotencyKey,
+              remaining: packCount,
             },
-            { upsert: true, session },
-          );
-        }
+          },
+          { upsert: true, session },
+        );
       }
 
       await CcgLedgerEntry.create(
@@ -464,15 +461,14 @@ class TwitchCcgRewardService {
           action: "twitch_reward",
           mode: null,
           idempotencyKey,
-          amount: packCount > 0 ? packCount * 2 : awards.length,
+          amount: packCount > 0 ? packCount : awards.length,
           metadata: {
             rewardKind: redemption.rewardKind,
             twitchUserId: redemption.twitchUserId,
             twitchUserLogin: redemption.twitchUserLogin,
             rewardId: redemption.rewardId,
             rewardTitle: redemption.rewardTitle,
-            currentPacks: packCount,
-            legacyPacks: packCount,
+            packs: packCount,
             ...(redemption.rewardKind === "card_reveal" && awards[0]
               ? {
                   cardId: String(awards[0].cardId),

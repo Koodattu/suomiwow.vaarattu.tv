@@ -1,4 +1,5 @@
-export type CcgMode = "current" | "legacy";
+export type CcgHistoricalPackMode = "current" | "legacy";
+export type CcgPackSelectionType = "all" | "raid";
 export type CcgBaseFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative";
 export type CcgCustomFinish = "void" | "toxic";
 export type CcgFinish = CcgBaseFinish | CcgCustomFinish;
@@ -14,13 +15,10 @@ export const CCG_WEEKLY_AUTOMATION_ENABLED = process.env.CCG_WEEKLY_AUTOMATION_E
 export const CCG_WEEKLY_SNAPSHOT_SCHEDULE = { cron: "0 3 * * 3", localTime: "03:00" } as const;
 export const CCG_WEEKLY_PUBLICATION_SCHEDULE = { cron: "30 4 * * 3", localTime: "04:30" } as const;
 export const CCG_CARDS_PER_PACK = 5;
-export const CCG_PACK_STORAGE_CAPS: Readonly<Record<CcgMode, number>> = { current: 50, legacy: 50 };
-export const CCG_PACK_RECHARGE_INTERVAL_HOURS: Readonly<Record<CcgMode, number>> = { current: 1, legacy: 0.5 };
-export const CCG_INITIAL_PACKS = {
-  user: { current: 20, legacy: 20 },
-  guest: { current: 20, legacy: 20 },
-};
-export const CCG_PACK_BALANCE_VERSION = 3;
+export const CCG_PACK_STORAGE_CAP = 100;
+export const CCG_PACK_RECHARGE_INTERVAL_MINUTES = 20;
+export const CCG_INITIAL_PACKS = { user: 40, guest: 40 } as const;
+export const CCG_PACK_BALANCE_VERSION = 4;
 export const CCG_GUEST_COOKIE = "swccg_guest";
 export const CCG_GUEST_COOKIE_MAX_AGE_MS = 400 * 24 * 60 * 60 * 1000;
 export const CCG_PACK_RULE_VERSION = "pack-v14-community-heirloom";

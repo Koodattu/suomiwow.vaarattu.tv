@@ -35,9 +35,10 @@ test("CCG activity uses the opened pack source instead of the first pulled card"
   const communitySetId = new mongoose.Types.ObjectId();
   const targetedLegacySetId = new mongoose.Types.ObjectId();
 
-  assert.equal(String(resolveCcgActivityPackSetId("current", null, [currentSetId, communitySetId])), String(currentSetId));
-  assert.equal(String(resolveCcgActivityPackSetId("legacy", targetedLegacySetId, [targetedLegacySetId, communitySetId])), String(targetedLegacySetId));
-  assert.equal(resolveCcgActivityPackSetId("legacy", null, [targetedLegacySetId, communitySetId]), null);
+  assert.equal(String(resolveCcgActivityPackSetId("raid", null, [currentSetId, communitySetId])), String(currentSetId));
+  assert.equal(String(resolveCcgActivityPackSetId("raid", targetedLegacySetId, [targetedLegacySetId, communitySetId])), String(targetedLegacySetId));
+  assert.equal(resolveCcgActivityPackSetId("all", null, [targetedLegacySetId, communitySetId]), null);
+  assert.equal(resolveCcgActivityPackSetId(undefined, null, [currentSetId, communitySetId]), null);
 });
 
 test("CCG activity requires an authenticated user", async () => {

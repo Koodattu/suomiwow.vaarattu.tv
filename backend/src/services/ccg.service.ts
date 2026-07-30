@@ -12,9 +12,9 @@ import {
   CCG_GUEST_COOKIE_MAX_AGE_MS,
   CCG_INITIAL_PACKS,
   CCG_PACK_BALANCE_VERSION,
-  CCG_PACK_RECHARGE_INTERVAL_HOURS,
+  CCG_PACK_RECHARGE_INTERVAL_MINUTES,
   CCG_PACK_RULE_VERSION,
-  CCG_PACK_STORAGE_CAPS,
+  CCG_PACK_STORAGE_CAP,
   CCG_TIME_ZONE,
   CCG_TIER_GRADES,
   CCG_CONFIGURED_SETS,
@@ -23,7 +23,8 @@ import {
   CCG_WEEKLY_SNAPSHOT_SCHEDULE,
   CcgArtVariant,
   CcgFinish,
-  CcgMode,
+  CcgHistoricalPackMode,
+  CcgPackSelectionType,
   CcgTierGrade,
   getCcgPackFinishOrder,
   getCcgRedeemFinishOrder,
@@ -40,7 +41,6 @@ import CcgAnalyticsDailyParticipant from "../models/CcgAnalyticsDailyParticipant
 import CcgAnalyticsParticipant from "../models/CcgAnalyticsParticipant";
 import CcgAnalyticsSummary from "../models/CcgAnalyticsSummary";
 import CcgCollectorProfile, { ICcgShowcaseCard } from "../models/CcgCollectorProfile";
-import CcgDailyAllowance from "../models/CcgDailyAllowance";
 import CcgGuest, { ICcgGuest } from "../models/CcgGuest";
 import CcgJobLock from "../models/CcgJobLock";
 import CcgLedgerEntry from "../models/CcgLedgerEntry";
@@ -53,7 +53,6 @@ import CcgPackPool from "../models/CcgPackPool";
 import CcgQualityProgress, { ICcgQualityProgress } from "../models/CcgQualityProgress";
 import CcgRedeemClaim, { ICcgRedeemClaim } from "../models/CcgRedeemClaim";
 import CcgRedeemCode, { ICcgRedeemCode } from "../models/CcgRedeemCode";
-import CcgRollover from "../models/CcgRollover";
 import CcgShare, { ICcgShare } from "../models/CcgShare";
 import CcgSeriesOwnership from "../models/CcgSeriesOwnership";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
@@ -83,7 +82,6 @@ import { getTransferableGuestPacks, resolveGuestClaimOpeningId, verifyGuestLibra
 import { getCcgLeaderboardScoringRules } from "../utils/ccg-leaderboard";
 import { CCG_REDEEM_PACK_GRANT_MAX, normalizeCcgRedeemCode } from "../utils/ccg-redeem";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeTickStart } from "../utils/ccg-recharge";
-import { applyCcgPackRollover } from "../utils/ccg-rollover";
 import { resolveCcgCharacterMechanicsStatus, type CcgCharacterMechanicsRow } from "../utils/ccg-character-check";
 import { buildCcgCardSearchCandidates, CcgCardSearchCandidate } from "../utils/ccg-card-search";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../utils/helsinki-time";
@@ -111,7 +109,6 @@ const CCG_ANALYTICS_DETAILED_SCHEMA_VERSION = 1;
 const CCG_ANALYTICS_INITIALIZATION_LOCK = "ccg-analytics-initialize-v2";
 const CCG_ANALYTICS_INITIALIZATION_TIMEOUT_MS = 30_000;
 const CCG_UNIQUE_FINISH_FILTER = "unique";
-const CCG_PREVIOUS_GUEST_INITIAL_PACKS: Readonly<Record<CcgMode, number>> = { current: 5, legacy: 5 };
 const CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS = 60_000;
 const CCG_GUEST_LAST_SEEN_WRITE_INTERVAL_MS = 15 * 60 * 1000;
 const CCG_TRANSACTION_WRITE_CONFLICT_MAX_ATTEMPTS = 5;
@@ -139,12 +136,12 @@ type CcgActivityCursor = {
 
 type CcgActivityPackRecord = Pick<
   ICcgPackOpening,
-  "mode" | "targetSetId" | "sourceSetIds" | "results" | "duplicateRewards" | "createdAt"
+  "mode" | "selectionType" | "targetSetId" | "sourceSetIds" | "results" | "duplicateRewards" | "createdAt"
 > & { _id: mongoose.Types.ObjectId };
 
 type CcgActivityCodeRecord = Pick<
   ICcgRedeemClaim,
-  "rewardType" | "currentPacks" | "legacyPacks" | "cardId" | "finish" | "artVariant" | "redeemedAt"
+  "rewardType" | "packs" | "currentPacks" | "legacyPacks" | "cardId" | "finish" | "artVariant" | "redeemedAt"
 > & { _id: mongoose.Types.ObjectId };
 
 type CcgActivityTwitchRecord = Pick<
@@ -167,7 +164,7 @@ type CcgActivitySetRecord = Pick<
 >;
 
 type CcgActivityPackSummaryRow = {
-  _id: { mode: CcgMode; setId: mongoose.Types.ObjectId | null };
+  _id: { selectionType: CcgPackSelectionType; setId: mongoose.Types.ObjectId | null };
   count: number;
 };
 
@@ -362,14 +359,14 @@ type CcgCollectionReadSeriesRow = {
 };
 
 type CcgPackOpenState = {
-  packs: Record<CcgMode, { regularRemaining: number; bonusRemaining: number; totalRemaining: number }>;
+  packs: { regularRemaining: number; bonusRemaining: number; totalRemaining: number };
   qualityProtection: CcgFinishPity;
   customQualityProtection: Array<{ setSlug: string; counter: number }>;
   ownedFinishesDelta: number;
   ownedCardsBySetDelta: Record<string, number>;
 };
 
-type CcgCompletedCardRewards = Record<CcgMode, number> & {
+type CcgCompletedCardRewards = {
   total: number;
   rewardedSeriesKeys: Set<string>;
 };
@@ -377,8 +374,7 @@ type CcgCompletedCardRewards = Record<CcgMode, number> & {
 type RedeemedCodeSnapshot = {
   code: string;
   rewardType: "packs" | "card";
-  currentPacks: number;
-  legacyPacks: number;
+  packs: number;
   cardId: mongoose.Types.ObjectId | null;
   finish: CcgFinish | null;
   artVariant: CcgArtVariant | null;
@@ -407,11 +403,6 @@ function requireFeature(): void {
 function validateObjectId(value: string, label: string): mongoose.Types.ObjectId {
   if (!mongoose.Types.ObjectId.isValid(value)) throw new CcgServiceError(400, "invalid_id", `Invalid ${label}`);
   return new mongoose.Types.ObjectId(value);
-}
-
-function validateMode(value: unknown): CcgMode {
-  if (value !== "current" && value !== "legacy") throw new CcgServiceError(400, "invalid_mode", "Mode must be current or legacy");
-  return value;
 }
 
 function validateFinish(value: unknown): CcgFinish {
@@ -487,6 +478,10 @@ function validatePackGrant(value: unknown, label: string): number {
     throw new CcgServiceError(400, "invalid_pack_grant", `${label} packs must be a whole number from 0 to ${CCG_REDEEM_PACK_GRANT_MAX}`);
   }
   return parsed;
+}
+
+function getRedeemPackCount(value: { packs?: number; currentPacks?: number; legacyPacks?: number }): number {
+  return value.packs ?? (value.currentPacks ?? 0) + (value.legacyPacks ?? 0);
 }
 
 export function resolveCcgActivityFilter(value: unknown): CcgActivityFilter | null {
@@ -567,12 +562,21 @@ function compareCcgActivityCandidates(left: CcgActivityCandidate, right: CcgActi
 }
 
 export function resolveCcgActivityPackSetId(
-  mode: CcgMode,
+  selectionType: CcgPackSelectionType | undefined,
   targetSetId: mongoose.Types.ObjectId | null | undefined,
   sourceSetIds: readonly mongoose.Types.ObjectId[],
 ): mongoose.Types.ObjectId | null {
   if (targetSetId) return targetSetId;
-  return mode === "current" ? sourceSetIds[0] ?? null : null;
+  if (selectionType === "all") return null;
+  if (selectionType === "raid") return sourceSetIds[0] ?? null;
+  return null;
+}
+
+function resolveCcgActivityPackSelectionType(
+  selectionType: CcgPackSelectionType | undefined,
+  targetSetId: mongoose.Types.ObjectId | null | undefined,
+): CcgPackSelectionType {
+  return selectionType ?? (targetSetId ? "raid" : "all");
 }
 
 class CcgService {
@@ -758,16 +762,9 @@ class CcgService {
       resetAt,
       packs: this.serializePackBalances(packState.balance, packState.creditBalances),
       recharge: {
-        current: {
-          cap: CCG_PACK_STORAGE_CAPS.current,
-          intervalHours: CCG_PACK_RECHARGE_INTERVAL_HOURS.current,
-          nextAt: getNextPackRechargeAt("current", now).toISOString(),
-        },
-        legacy: {
-          cap: CCG_PACK_STORAGE_CAPS.legacy,
-          intervalHours: CCG_PACK_RECHARGE_INTERVAL_HOURS.legacy,
-          nextAt: getNextPackRechargeAt("legacy", now).toISOString(),
-        },
+        cap: CCG_PACK_STORAGE_CAP,
+        intervalMinutes: CCG_PACK_RECHARGE_INTERVAL_MINUTES,
+        nextAt: getNextPackRechargeAt(now).toISOString(),
       },
       qualityProtection,
       customQualityProtection: sets
@@ -827,12 +824,9 @@ class CcgService {
 
     const finishes = Object.fromEntries(CCG_FINISH_ORDER.map((finish) => [finish, 0])) as Record<CcgFinish, number>;
     const grades = Object.fromEntries(CCG_TIER_GRADES.map((grade) => [grade, 0])) as Record<CcgTierGrade, number>;
-    const modes: Record<CcgMode, number> = { current: 0, legacy: 0 };
     let packOpenings = 0;
     for (const row of rows) {
       packOpenings += row.packOpenings;
-      modes.current += row.modes?.current ?? 0;
-      modes.legacy += row.modes?.legacy ?? 0;
       CCG_FINISH_ORDER.forEach((finish) => { finishes[finish] += row.finishes?.[finish] ?? 0; });
       CCG_TIER_GRADES.forEach((grade) => { grades[grade] += row.grades?.[grade] ?? 0; });
     }
@@ -846,7 +840,6 @@ class CcgService {
         cardsRevealed,
         activeUsersToday: series[series.length - 1]?.activeUsers ?? 0,
         averageDailyOpenings: packOpenings / days,
-        modes,
       },
       qualities: CCG_FINISH_ORDER.map((finish) => ({
         key: finish,
@@ -1967,7 +1960,7 @@ class CcgService {
     const [openingRows, codeRows, twitchRows, summaryRows] = await Promise.all([
       filter === "all" || filter === "packs"
         ? CcgPackOpening.find(packFilter)
-            .select("_id mode targetSetId sourceSetIds results duplicateRewards createdAt")
+            .select("_id mode selectionType targetSetId sourceSetIds results duplicateRewards createdAt")
             .sort({ createdAt: -1, _id: -1 })
             .limit(rowLimit)
             .lean<CcgActivityPackRecord[]>()
@@ -1977,7 +1970,7 @@ class CcgService {
             userId,
             ...buildCcgActivityCursorFilter("redeemedAt", "code", cursor),
           })
-            .select("_id rewardType currentPacks legacyPacks cardId finish artVariant redeemedAt")
+            .select("_id rewardType packs currentPacks legacyPacks cardId finish artVariant redeemedAt")
             .sort({ redeemedAt: -1, _id: -1 })
             .limit(rowLimit)
             .lean<CcgActivityCodeRecord[]>()
@@ -2000,24 +1993,29 @@ class CcgService {
               { $match: { state: "committed", ...packOwnerFilter } },
               {
                 $project: {
-                  mode: 1,
-                  packSetId: {
-                    $cond: [
-                      { $ne: [{ $ifNull: ["$targetSetId", null] }, null] },
-                      "$targetSetId",
+                  selectionType: {
+                    $ifNull: [
+                      "$selectionType",
                       {
                         $cond: [
-                          { $eq: ["$mode", "current"] },
-                          { $arrayElemAt: ["$sourceSetIds", 0] },
-                          null,
+                          { $ne: [{ $ifNull: ["$targetSetId", null] }, null] },
+                          "raid",
+                          "all",
                         ],
                       },
                     ],
                   },
+                  packSetId: {
+                    $cond: [
+                      { $ne: [{ $ifNull: ["$targetSetId", null] }, null] },
+                      "$targetSetId",
+                      null,
+                    ],
+                  },
                 },
               },
-              { $group: { _id: { mode: "$mode", setId: "$packSetId" }, count: { $sum: 1 } } },
-              { $sort: { count: -1, "_id.mode": 1 } },
+              { $group: { _id: { selectionType: "$selectionType", setId: "$packSetId" }, count: { $sum: 1 } } },
+              { $sort: { count: -1, "_id.selectionType": 1 } },
             ]),
             CcgOwnership.aggregate<CcgActivityFinishSummaryRow>([
               { $match: { ownerType: "user", ownerId: userId } },
@@ -2060,7 +2058,7 @@ class CcgService {
 
     const needsCurrentPackArt = pageCandidates.some((candidate) => (
       candidate.kind === "code"
-        ? candidate.record.rewardType === "packs" && candidate.record.currentPacks > 0
+        ? candidate.record.rewardType === "packs" && getRedeemPackCount(candidate.record) > 0
         : candidate.kind === "twitch" && candidate.record.rewardKind !== "card_reveal"
     ));
     const [cards, currentPackSet] = await Promise.all([
@@ -2128,7 +2126,7 @@ class CcgService {
             uniqueCards: summaryRows.uniqueCards,
             raidPacks: summaryRows.packs
               .map((row) => ({
-                mode: row._id.mode,
+                selectionType: row._id.selectionType,
                 count: row.count,
                 packArt: serializeActivityPackArt(row._id.setId ? setById.get(String(row._id.setId)) : null),
               }))
@@ -2147,7 +2145,7 @@ class CcgService {
       };
       if (candidate.kind === "pack") {
         const packSetId = resolveCcgActivityPackSetId(
-          candidate.record.mode,
+          candidate.record.selectionType,
           candidate.record.targetSetId,
           candidate.record.sourceSetIds,
         );
@@ -2155,7 +2153,10 @@ class CcgService {
         return {
           ...base,
           openingId: String(candidate.record._id),
-          mode: candidate.record.mode,
+          selectionType: resolveCcgActivityPackSelectionType(
+            candidate.record.selectionType,
+            candidate.record.targetSetId,
+          ),
           packArt: serializeActivityPackArt(packSet),
           cards: candidate.record.results.flatMap((result) => {
             const card = cardById.get(String(result.cardId));
@@ -2178,9 +2179,8 @@ class CcgService {
           reward: candidate.record.rewardType === "packs"
             ? {
                 type: "packs",
-                currentPacks: candidate.record.currentPacks,
-                legacyPacks: candidate.record.legacyPacks,
-                currentPackArt: serializeActivityPackArt(currentPackSet),
+                packs: getRedeemPackCount(candidate.record),
+                packArt: serializeActivityPackArt(currentPackSet),
               }
             : {
                 type: "card",
@@ -2197,9 +2197,8 @@ class CcgService {
         reward: candidate.record.rewardKind !== "card_reveal"
           ? {
               type: "packs",
-              currentPacks: candidate.record.rewardKind === "packs_10" ? 10 : 1,
-              legacyPacks: candidate.record.rewardKind === "packs_10" ? 10 : 1,
-              currentPackArt: serializeActivityPackArt(currentPackSet),
+              packs: candidate.record.rewardKind === "packs_10" ? 20 : 2,
+              packArt: serializeActivityPackArt(currentPackSet),
             }
           : {
               type: "card",
@@ -2224,7 +2223,7 @@ class CcgService {
     userId?: mongoose.Types.ObjectId,
   ): Promise<CcgExternalCardAward> {
     requireFeature();
-    const pool = await this.selectModePackResults("all", session, null, false);
+    const pool = await this.selectPackResults(session, null, false);
     const selected = pool.results[0];
     if (!selected) throw new CcgServiceError(409, "pool_invalid", "The raid card pool is incomplete");
 
@@ -2580,15 +2579,14 @@ class CcgService {
       throw new CcgServiceError(400, "invalid_reward_type", "Choose either packs or one card");
     }
 
-    const currentPacks = validatePackGrant(input.rewardType === "packs" ? input.currentPacks : 0, "Current");
-    const legacyPacks = validatePackGrant(input.rewardType === "packs" ? input.legacyPacks : 0, "Legacy");
+    const packs = validatePackGrant(input.rewardType === "packs" ? input.packs : 0, "Pack reward");
     let cardId: mongoose.Types.ObjectId | null = null;
     let finish: CcgFinish | null = null;
     let artVariant: CcgArtVariant | null = null;
 
     if (input.rewardType === "packs") {
-      if (currentPacks + legacyPacks < 1) {
-        throw new CcgServiceError(400, "empty_pack_reward", "Grant at least one Current or Legacy pack");
+      if (packs < 1) {
+        throw new CcgServiceError(400, "empty_pack_reward", "Grant at least one pack");
       }
     } else {
       cardId = validateObjectId(String(input.cardId ?? ""), "reward card ID");
@@ -2621,8 +2619,7 @@ class CcgService {
       const created = await CcgRedeemCode.create({
         code,
         rewardType: input.rewardType,
-        currentPacks,
-        legacyPacks,
+        packs,
         cardId,
         finish,
         artVariant,
@@ -2677,14 +2674,12 @@ class CcgService {
         const owner: CcgOwner = { ownerType: "user", ownerId: userId, dateKey: getHelsinkiDateKey() };
         const now = new Date();
         if (reservedCode.rewardType === "packs") {
+          const packs = getRedeemPackCount(reservedCode);
           const balance = await this.ensurePackBalance(owner, session, now);
           const updated = await CcgPackBalance.findOneAndUpdate(
             { _id: balance._id },
             {
-              $inc: {
-                currentRemaining: reservedCode.currentPacks,
-                legacyRemaining: reservedCode.legacyPacks,
-              },
+              $inc: { remaining: packs },
               $set: {
                 hasPlayed: true,
                 firstPlayedAt: balance.firstPlayedAt ?? now,
@@ -2722,8 +2717,7 @@ class CcgService {
           codeId: reservedCode._id,
           userId,
           rewardType: reservedCode.rewardType,
-          currentPacks: reservedCode.currentPacks,
-          legacyPacks: reservedCode.legacyPacks,
+          packs: getRedeemPackCount(reservedCode),
           cardId: reservedCode.cardId ?? null,
           finish: reservedCode.finish ?? null,
           artVariant: reservedCode.artVariant ?? null,
@@ -2735,12 +2729,11 @@ class CcgService {
           action: "redeem_code",
           mode: null,
           idempotencyKey: `redeem-code:${reservedCode._id}`,
-          amount: reservedCode.rewardType === "packs" ? reservedCode.currentPacks + reservedCode.legacyPacks : 1,
+          amount: reservedCode.rewardType === "packs" ? getRedeemPackCount(reservedCode) : 1,
           metadata: {
             codeId: String(reservedCode._id),
             rewardType: reservedCode.rewardType,
-            currentPacks: reservedCode.currentPacks,
-            legacyPacks: reservedCode.legacyPacks,
+            packs: getRedeemPackCount(reservedCode),
             cardId: reservedCode.cardId ? String(reservedCode.cardId) : null,
             finish: reservedCode.finish ?? null,
             artVariant: reservedCode.artVariant ?? null,
@@ -2750,8 +2743,7 @@ class CcgService {
         redeemed = {
           code: reservedCode.code,
           rewardType: reservedCode.rewardType,
-          currentPacks: reservedCode.currentPacks,
-          legacyPacks: reservedCode.legacyPacks,
+          packs: getRedeemPackCount(reservedCode),
           cardId: reservedCode.cardId ?? null,
           finish: reservedCode.finish ?? null,
           artVariant: reservedCode.artVariant ?? null,
@@ -2773,7 +2765,7 @@ class CcgService {
       return {
         code: reward.code,
         sets: [],
-        reward: { type: "packs", currentPacks: reward.currentPacks, legacyPacks: reward.legacyPacks },
+        reward: { type: "packs", packs: reward.packs },
       };
     }
     if (!reward.cardId || !reward.finish || !reward.artVariant) {
@@ -2816,13 +2808,10 @@ class CcgService {
   async openPack(req: Request, res: Response, body: Record<string, unknown>): Promise<Record<string, unknown>> {
     requireFeature();
     const owner = await this.resolveOwner(req, res);
-    const mode = validateMode(body.mode);
     const targetSetId = body.setId === undefined || body.setId === null || body.setId === ""
       ? null
       : validateObjectId(String(body.setId), "card set ID");
-    if (targetSetId && mode !== "legacy") {
-      throw new CcgServiceError(400, "invalid_pack_target", "Only Legacy packs can target a specific raid");
-    }
+    const selectionType: CcgPackSelectionType = targetSetId ? "raid" : "all";
     const idempotencyKey = validateIdempotencyKey(body.idempotencyKey);
     const existing = await CcgPackOpening.findOne({ ownerType: owner.ownerType, ownerId: owner.ownerId, idempotencyKey }).lean();
     if (existing) {
@@ -2850,8 +2839,8 @@ class CcgService {
           openingId = duplicateOpening._id;
           return;
         }
-        const allowanceSource = await this.reservePack(owner, mode, session);
-        const pool = await this.selectModePackResults(mode, session, targetSetId);
+        const allowanceSource = await this.reservePack(owner, session);
+        const pool = await this.selectPackResults(session, targetSetId);
         const selected = pool.results;
         const cards = await CcgCard.find({
           _id: { $in: selected.map((result) => result.cardId) },
@@ -2957,7 +2946,7 @@ class CcgService {
         await this.addOwnership(owner, results, session);
         const completionRewards = owner.ownerType === "user"
           ? await this.grantCompletedCardRewards(owner.ownerId, completedCardDuplicates, session)
-          : { current: 0, legacy: 0, total: 0, rewardedSeriesKeys: new Set<string>() };
+          : { total: 0, rewardedSeriesKeys: new Set<string>() };
         const duplicateRewards = completionRewards.total;
         const pendingRewardSeriesKeys = new Set(completionRewards.rewardedSeriesKeys);
         const rewardedResultIndexes = new Set<number>();
@@ -2974,7 +2963,7 @@ class CcgService {
               _id: openingId,
               ownerType: owner.ownerType,
               ownerId: owner.ownerId,
-              mode,
+              selectionType,
               targetSetId,
               sourceSetIds: pool.sourceSetIds,
               allowanceSource: allowanceSource.source,
@@ -2997,11 +2986,11 @@ class CcgService {
               ownerType: owner.ownerType,
               ownerId: owner.ownerId,
               action: "pack_open",
-              mode,
               idempotencyKey: `pack:${idempotencyKey}`,
               amount: -1,
               metadata: {
                 openingId: String(openingId),
+                selectionType,
                 targetSetId: targetSetId ? String(targetSetId) : null,
                 setIds: Array.from(new Set(results.map((result) => String(result.setId)))),
                 allowanceSource: allowanceSource.source,
@@ -3011,7 +3000,7 @@ class CcgService {
           ],
           { session },
         );
-        const creditBalances = await this.getPackCreditBalances(owner, session);
+        const creditBalance = await this.getPackCreditBalance(owner, session);
         const qualityProtection = this.readFinishPity(qualityProgress);
         const customQualityProtection = sourceSets
           .filter((set) => set.customFinish?.key)
@@ -3023,7 +3012,7 @@ class CcgService {
             };
           });
         cacheUpdates = {
-          packs: this.serializePackBalances(allowanceSource.balance, creditBalances),
+          packs: this.serializePackBalances(allowanceSource.balance, creditBalance),
           qualityProtection,
           customQualityProtection,
           ownedFinishesDelta: results.filter((result) => result.isNewFinish).length,
@@ -3095,10 +3084,10 @@ class CcgService {
       ? null
       : validateObjectId(String(body.openingId), "guest pack opening");
     const guest = await this.findClaimableGuest(req, true);
-    if (!guest) return { claimed: false, alreadyClaimed: false, cards: { current: 0, legacy: 0 }, transferredPacks: { current: 0, legacy: 0 }, startingPacks: 0 };
+    if (!guest) return { claimed: false, alreadyClaimed: false, cards: 0, duplicates: 0, transferredPacks: 0, startingPacks: 0 };
     if (guest.claimedByUserId) {
       if (String(guest.claimedByUserId) !== String(userId)) throw new CcgServiceError(409, "guest_already_claimed", "These guest cards were already claimed");
-      return { claimed: false, alreadyClaimed: true, cards: { current: 0, legacy: 0 }, transferredPacks: { current: 0, legacy: 0 }, startingPacks: 0 };
+      return { claimed: false, alreadyClaimed: true, cards: 0, duplicates: 0, transferredPacks: 0, startingPacks: 0 };
     }
     const session = await mongoose.startSession();
     let response: Record<string, unknown> | null = null;
@@ -3109,7 +3098,7 @@ class CcgService {
         }).session(session);
         if (!transactionalGuest) throw new CcgServiceError(404, "guest_not_found", "This guest collection was not found");
         if (transactionalGuest.claimedByUserId) {
-          response = { claimed: false, alreadyClaimed: true, cards: { current: 0, legacy: 0 }, transferredPacks: { current: 0, legacy: 0 }, startingPacks: 0 };
+          response = { claimed: false, alreadyClaimed: true, cards: 0, duplicates: 0, transferredPacks: 0, startingPacks: 0 };
           return;
         }
         const guestOpenings = await CcgPackOpening.find({
@@ -3162,7 +3151,6 @@ class CcgService {
         }).session(session);
         const verifiedLibrary = verifyGuestLibrary(
           guestOpenings.map((candidate) => ({
-            mode: candidate.mode,
             results: candidate.results.map((result) => ({
               cardId: result.cardId,
               seriesKey: seriesByCardId.get(String(result.cardId)),
@@ -3182,21 +3170,14 @@ class CcgService {
         if (!verifiedLibrary) {
           throw new CcgServiceError(409, "guest_library_invalid", "This guest collection could not be verified");
         }
-        const transferredPacks = getTransferableGuestPacks(guestBalance
-          ? { current: guestBalance.currentRemaining, legacy: guestBalance.legacyRemaining }
-          : null);
-
-        const conversionCredits = (["current", "legacy"] as const)
-          .filter((mode) => transferredPacks[mode] > 0)
-          .map((mode) => ({
+        const transferredPacks = getTransferableGuestPacks(guestBalance?.remaining);
+        if (transferredPacks > 0) {
+          await CcgPackCredit.create([{
             ownerId: userId,
-            mode,
-            source: "login_conversion" as const,
-            sourceKey: `guest-conversion:${transactionalGuest._id}:${mode}`,
-            remaining: transferredPacks[mode],
-          }));
-        if (conversionCredits.length > 0) {
-          await CcgPackCredit.create(conversionCredits, { session, ordered: true });
+            source: "login_conversion",
+            sourceKey: `guest-conversion:${transactionalGuest._id}`,
+            remaining: transferredPacks,
+          }], { session, ordered: true });
         }
 
         const claimedAt = new Date();
@@ -3275,7 +3256,6 @@ class CcgService {
           { session },
         );
         await CcgPackBalance.deleteMany({ ownerType: "guest", ownerId: transactionalGuest._id }, { session });
-        await CcgDailyAllowance.deleteMany({ ownerType: "guest", ownerId: transactionalGuest._id }, { session });
         await CcgLedgerEntry.create(
           [
             {
@@ -3304,7 +3284,7 @@ class CcgService {
           cards: verifiedLibrary.cards,
           duplicates: verifiedLibrary.duplicates,
           transferredPacks,
-          startingPacks: CCG_INITIAL_PACKS.user.current,
+          startingPacks: CCG_INITIAL_PACKS.user,
         };
       });
     } catch (error) {
@@ -3318,7 +3298,7 @@ class CcgService {
     } finally {
       await session.endSession();
     }
-    return response ?? { claimed: false, alreadyClaimed: true, cards: { current: 0, legacy: 0 }, transferredPacks: { current: 0, legacy: 0 }, startingPacks: 0 };
+    return response ?? { claimed: false, alreadyClaimed: true, cards: 0, duplicates: 0, transferredPacks: 0, startingPacks: 0 };
   }
 
   async resolveOwner(req: Request, res: Response): Promise<CcgOwner> {
@@ -3556,8 +3536,6 @@ class CcgService {
         $group: {
           _id: dateKeyExpression,
           packOpenings: { $sum: 1 },
-          current: { $sum: { $cond: [{ $eq: ["$mode", "current"] }, 1, 0] } },
-          legacy: { $sum: { $cond: [{ $eq: ["$mode", "legacy"] }, 1, 0] } },
           updatedAt: { $max: "$createdAt" },
         },
       },
@@ -3567,7 +3545,6 @@ class CcgService {
           dateKey: "$_id",
           packOpenings: 1,
           activeUsers: { $literal: 0 },
-          modes: { current: "$current", legacy: "$legacy" },
           finishes: {
             $literal: { standard: 0, foil: 0, golden: 0, prismatic: 0, holographic: 0, void: 0, toxic: 0, negative: 0 },
           },
@@ -3579,7 +3556,7 @@ class CcgService {
         $merge: {
           into: CcgAnalyticsDaily.collection.name,
           on: "dateKey",
-          whenMatched: [{ $set: { packOpenings: "$$new.packOpenings", modes: "$$new.modes", updatedAt: "$$new.updatedAt" } }],
+          whenMatched: [{ $set: { packOpenings: "$$new.packOpenings", updatedAt: "$$new.updatedAt" } }],
           whenNotMatched: "insert",
         },
       },
@@ -3730,7 +3707,7 @@ class CcgService {
       await retryMongoWriteConflict(() => session.withTransaction(async () => {
         processed = false;
         const opening = await CcgPackOpening.findOne({ _id: openingId, analyticsPending: true })
-          .select("ownerType ownerId claimedByUserId mode results createdAt")
+          .select("ownerType ownerId claimedByUserId results createdAt")
           .session(session)
           .lean();
         if (!opening) return;
@@ -3759,7 +3736,6 @@ class CcgService {
         const dailyIncrements: Record<string, number> = {
           packOpenings: 1,
           activeUsers: dailyParticipant.upsertedCount,
-          [`modes.${opening.mode}`]: 1,
         };
         opening.results.forEach((result) => {
           dailyIncrements[`finishes.${result.finish}`] = (dailyIncrements[`finishes.${result.finish}`] ?? 0) + 1;
@@ -3815,7 +3791,6 @@ class CcgService {
             dateKey,
             packOpenings: 0,
             activeUsers: 0,
-            modes: { current: 0, legacy: 0 },
             finishes: { standard: 0, foil: 0, golden: 0, prismatic: 0, holographic: 0, void: 0, toxic: 0, negative: 0 },
             grades: { H: 0, S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 },
             updatedAt: new Date(),
@@ -3840,20 +3815,13 @@ class CcgService {
   }
 
   private serializePackBalances(
-    packBalance: Pick<ICcgPackBalance, "currentRemaining" | "legacyRemaining">,
-    creditBalances: Record<CcgMode, number>,
-  ): Record<CcgMode, { regularRemaining: number; bonusRemaining: number; totalRemaining: number }> {
+    packBalance: Pick<ICcgPackBalance, "remaining">,
+    creditBalance: number,
+  ): { regularRemaining: number; bonusRemaining: number; totalRemaining: number } {
     return {
-      current: {
-        regularRemaining: packBalance.currentRemaining,
-        bonusRemaining: creditBalances.current,
-        totalRemaining: packBalance.currentRemaining + creditBalances.current,
-      },
-      legacy: {
-        regularRemaining: packBalance.legacyRemaining,
-        bonusRemaining: creditBalances.legacy,
-        totalRemaining: packBalance.legacyRemaining + creditBalances.legacy,
-      },
+      regularRemaining: packBalance.remaining,
+      bonusRemaining: creditBalance,
+      totalRemaining: packBalance.remaining + creditBalance,
     };
   }
 
@@ -3893,58 +3861,52 @@ class CcgService {
     );
   }
 
-  private async getPackCreditBalances(owner: CcgOwner, session?: ClientSession): Promise<Record<CcgMode, number>> {
-    if (owner.ownerType === "guest") return { current: 0, legacy: 0 };
-    const aggregate = CcgPackCredit.aggregate<{ _id: CcgMode; remaining: number }>([
+  private async getPackCreditBalance(owner: CcgOwner, session?: ClientSession): Promise<number> {
+    if (owner.ownerType === "guest") return 0;
+    const aggregate = CcgPackCredit.aggregate<{ _id: null; remaining: number }>([
       { $match: { ownerId: owner.ownerId, remaining: { $gt: 0 } } },
-      { $group: { _id: "$mode", remaining: { $sum: "$remaining" } } },
+      { $group: { _id: null, remaining: { $sum: "$remaining" } } },
     ]);
     if (session) aggregate.session(session);
     const rows = await aggregate;
-    const balances: Record<CcgMode, number> = { current: 0, legacy: 0 };
-    rows.forEach((row) => { balances[row._id] = row.remaining; });
-    return balances;
+    return rows[0]?.remaining ?? 0;
   }
 
   private async getSessionPackState(
     owner: CcgOwner,
     date: Date,
   ): Promise<{
-    balance: Pick<ICcgPackBalance, "currentRemaining" | "legacyRemaining">;
-    creditBalances: Record<CcgMode, number>;
+    balance: Pick<ICcgPackBalance, "remaining">;
+    creditBalances: number;
   }> {
     const filter = { ownerType: owner.ownerType, ownerId: owner.ownerId };
-    const [balance, latestRollover, creditBalances] = await Promise.all([
+    const [balance, creditBalance] = await Promise.all([
       CcgPackBalance.findOne(filter).lean(),
-      CcgRollover.findOne({}).select("sequence").sort({ sequence: -1 }).lean(),
-      this.getPackCreditBalances(owner),
+      this.getPackCreditBalance(owner),
     ]);
-    const activeRolloverSequence = latestRollover?.sequence ?? 0;
     if (
       balance
       && balance.grantVersion === CCG_PACK_BALANCE_VERSION
       && typeof balance.hasPlayed === "boolean"
-      && (balance.lastRolloverSequence ?? 0) === activeRolloverSequence
     ) {
       const recharge = applyPackRecharge(
-        { current: balance.currentRemaining, legacy: balance.legacyRemaining },
+        balance.remaining,
         balance.lastRechargeAt,
         date,
-        creditBalances,
+        creditBalance,
       );
       if (
-        recharge.balances.current === balance.currentRemaining
-        && recharge.balances.legacy === balance.legacyRemaining
+        recharge.balance === balance.remaining
         && recharge.lastRechargeAt.getTime() === balance.lastRechargeAt.getTime()
       ) {
-        return { balance, creditBalances };
+        return { balance, creditBalances: creditBalance };
       }
     }
 
     const reconciledBalance = await this.ensurePackBalance(owner, undefined, date);
     return {
       balance: reconciledBalance,
-      creditBalances: await this.getPackCreditBalances(owner),
+      creditBalances: await this.getPackCreditBalance(owner),
     };
   }
 
@@ -3974,21 +3936,17 @@ class CcgService {
   }
 
   private async ensurePackBalanceInSession(owner: CcgOwner, session: ClientSession, date: Date): Promise<ICcgPackBalance> {
-    const latestRollover = await CcgRollover.findOne({}).select("sequence").sort({ sequence: -1 }).session(session).lean();
-    const activeRolloverSequence = latestRollover?.sequence ?? 0;
     const filter = { ownerType: owner.ownerType, ownerId: owner.ownerId };
     let balance = await CcgPackBalance.findOne(filter).session(session);
     if (!balance) {
       const hasPlayed = await this.hasCcgActivity(owner, session);
-      const initial = hasPlayed ? { current: 0, legacy: 0 } : CCG_INITIAL_PACKS[owner.ownerType];
+      const initial = hasPlayed ? 0 : CCG_INITIAL_PACKS[owner.ownerType];
       balance = await CcgPackBalance.findOneAndUpdate(
         filter,
         {
           $setOnInsert: {
-            currentRemaining: initial.current,
-            legacyRemaining: initial.legacy,
+            remaining: initial,
             lastRechargeAt: getRechargeTickStart(date),
-            lastRolloverSequence: activeRolloverSequence,
             grantVersion: CCG_PACK_BALANCE_VERSION,
             hasPlayed,
             firstPlayedAt: hasPlayed ? date : null,
@@ -3999,111 +3957,18 @@ class CcgService {
     }
     if (!balance) throw new CcgServiceError(500, "pack_balance_unavailable", "Pack balance could not be initialized");
 
-    if (balance.grantVersion !== CCG_PACK_BALANCE_VERSION || typeof balance.hasPlayed !== "boolean") {
-      const previousGrantVersion = balance.grantVersion;
-      const hasPlayed = balance.hasPlayed === true || await this.hasCcgActivity(owner, session);
-      const initial = CCG_INITIAL_PACKS[owner.ownerType];
-      const upgradeActiveGuestBalance = (mode: CcgMode, remaining: number): number => (
-        owner.ownerType === "guest" && hasPlayed && previousGrantVersion === 2
-          ? Math.min(
-              CCG_PACK_STORAGE_CAPS[mode],
-              Math.max(0, remaining) + CCG_INITIAL_PACKS.guest[mode] - CCG_PREVIOUS_GUEST_INITIAL_PACKS[mode],
-            )
-          : hasPlayed ? Math.max(0, remaining) : initial[mode]
-      );
-      balance.currentRemaining = upgradeActiveGuestBalance("current", balance.currentRemaining);
-      balance.legacyRemaining = upgradeActiveGuestBalance("legacy", balance.legacyRemaining);
-      balance.grantVersion = CCG_PACK_BALANCE_VERSION;
-      balance.hasPlayed = hasPlayed;
-      balance.firstPlayedAt = hasPlayed ? (balance.firstPlayedAt ?? date) : null;
+    if (balance.grantVersion !== CCG_PACK_BALANCE_VERSION || !Number.isFinite(balance.remaining)) {
+      throw new CcgServiceError(503, "pack_migration_required", "Pack balances are being upgraded. Try again shortly");
     }
 
-    const lastRolloverSequence = balance.lastRolloverSequence ?? 0;
-    if (lastRolloverSequence > activeRolloverSequence) {
-      throw new CcgServiceError(500, "rollover_state_invalid", "Pack rollover history is inconsistent");
-    }
-    if (lastRolloverSequence < activeRolloverSequence) {
-      const rollovers = await CcgRollover.find({ sequence: { $gt: lastRolloverSequence, $lte: activeRolloverSequence } })
-        .sort({ sequence: 1 })
-        .session(session);
-      let expectedSequence = lastRolloverSequence + 1;
-      for (const rollover of rollovers) {
-        if (rollover.sequence !== expectedSequence) {
-          throw new CcgServiceError(503, "rollover_history_incomplete", "Pack rollover history is temporarily unavailable");
-        }
-        const creditBalances = await this.getPackCreditBalances(owner, session);
-        const applied = applyCcgPackRollover(
-          owner.ownerType,
-          { current: balance.currentRemaining, legacy: balance.legacyRemaining },
-          creditBalances,
-          balance.lastRechargeAt,
-          rollover.effectiveAt,
-          owner.ownerType === "user" ? rollover.userCurrentPacks : rollover.guestCurrentPacks,
-        );
-
-        if (owner.ownerType === "user") {
-          if (applied.regularCurrentMoved > 0) {
-            await CcgPackCredit.updateOne(
-              { ownerId: owner.ownerId, sourceKey: `raid-rollover:${rollover.sequence}:regular` },
-              {
-                $setOnInsert: {
-                  mode: "legacy",
-                  source: "raid_rollover",
-                  remaining: applied.regularCurrentMoved,
-                },
-              },
-              { upsert: true, session },
-            );
-          }
-          if (applied.bonusCurrentMoved > 0) {
-            await CcgPackCredit.updateMany(
-              { ownerId: owner.ownerId, mode: "current", remaining: { $gt: 0 } },
-              { $set: { mode: "legacy" } },
-              { session },
-            );
-          }
-        }
-
-        balance.currentRemaining = applied.balances.current;
-        balance.legacyRemaining = applied.balances.legacy;
-        balance.lastRechargeAt = applied.lastRechargeAt;
-        balance.lastRolloverSequence = rollover.sequence;
-        await CcgLedgerEntry.updateOne(
-          { ownerType: owner.ownerType, ownerId: owner.ownerId, idempotencyKey: `raid-rollover:${rollover.sequence}` },
-          {
-            $setOnInsert: {
-              action: "raid_rollover",
-              mode: null,
-              amount: applied.regularCurrentMoved + applied.bonusCurrentMoved,
-              metadata: {
-                sequence: rollover.sequence,
-                fromSetIds: rollover.fromSetIds.map(String),
-                toSetId: String(rollover.toSetId),
-                regularCurrentMoved: applied.regularCurrentMoved,
-                bonusCurrentMoved: applied.bonusCurrentMoved,
-                newCurrentPacks: applied.balances.current,
-              },
-              dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
-            },
-          },
-          { upsert: true, session },
-        );
-        expectedSequence += 1;
-      }
-      if (expectedSequence - 1 !== activeRolloverSequence) {
-        throw new CcgServiceError(503, "rollover_history_incomplete", "Pack rollover history is temporarily unavailable");
-      }
-    }
-
-    const creditBalances = await this.getPackCreditBalances(owner, session);
+    const creditBalance = await this.getPackCreditBalance(owner, session);
     const recharge = applyPackRecharge(
-      { current: balance.currentRemaining, legacy: balance.legacyRemaining },
+      balance.remaining,
       balance.lastRechargeAt,
       date,
-      creditBalances,
+      creditBalance,
     );
-    balance.currentRemaining = recharge.balances.current;
-    balance.legacyRemaining = recharge.balances.legacy;
+    balance.remaining = recharge.balance;
     balance.lastRechargeAt = recharge.lastRechargeAt;
     if (balance.isModified()) await balance.save({ session });
     return balance;
@@ -4111,16 +3976,14 @@ class CcgService {
 
   private async reservePack(
     owner: CcgOwner,
-    mode: CcgMode,
     session: ClientSession,
   ): Promise<{ source: "recharge" | "credit"; creditId?: mongoose.Types.ObjectId; balance: ICcgPackBalance }> {
     const balance = await this.ensurePackBalance(owner, session);
-    const remainingField = mode === "current" ? "currentRemaining" : "legacyRemaining";
     const now = new Date();
     const reserved = await CcgPackBalance.findOneAndUpdate(
-      { _id: balance._id, [remainingField]: { $gt: 0 } },
+      { _id: balance._id, remaining: { $gt: 0 } },
       {
-        $inc: { [remainingField]: -1 },
+        $inc: { remaining: -1 },
         $set: {
           hasPlayed: true,
           firstPlayedAt: balance.firstPlayedAt ?? now,
@@ -4129,13 +3992,13 @@ class CcgService {
       { new: true, session },
     );
     if (reserved) return { source: "recharge", balance: reserved };
-    if (owner.ownerType === "guest") throw new CcgServiceError(409, "no_packs", `No ${mode} packs are charged`);
+    if (owner.ownerType === "guest") throw new CcgServiceError(409, "no_packs", "No packs are charged");
     const credit = await CcgPackCredit.findOneAndUpdate(
-      { ownerId: owner.ownerId, mode, remaining: { $gt: 0 } },
+      { ownerId: owner.ownerId, remaining: { $gt: 0 } },
       { $inc: { remaining: -1 } },
       { new: true, sort: { createdAt: 1 }, session },
     );
-    if (!credit) throw new CcgServiceError(409, "no_packs", `No ${mode} packs remain`);
+    if (!credit) throw new CcgServiceError(409, "no_packs", "No packs remain");
     await CcgPackBalance.updateOne(
       { _id: balance._id },
       {
@@ -4166,8 +4029,7 @@ class CcgService {
     return Boolean(opening);
   }
 
-  private async selectModePackResults(
-    mode: CcgMode | "all",
+  private async selectPackResults(
     session: ClientSession,
     targetSetId: mongoose.Types.ObjectId | null = null,
     includeCommunity = true,
@@ -4177,8 +4039,8 @@ class CcgService {
     version: string;
   }> {
     const setFilter: Record<string, unknown> = {
-      state: mode === "all" ? { $in: ["current", "legacy"] } : mode,
-      kind: { $ne: "community" },
+      state: { $in: ["current", "legacy"] },
+      kind: "raid",
       enabledAt: { $ne: null },
       cardCount: { $gt: 0 },
     };
@@ -4189,12 +4051,8 @@ class CcgService {
       .session(session)
       .lean();
     if (sets.length === 0) {
-      if (targetSetId) throw new CcgServiceError(409, "target_set_unavailable", "That Legacy raid is not available for pack opening");
-      throw new CcgServiceError(
-        409,
-        `${mode}_unavailable`,
-        mode === "all" ? "The raid card pool is still being prepared" : `The ${mode === "current" ? "Current" : "Legacy"} card pool is still being prepared`,
-      );
+      if (targetSetId) throw new CcgServiceError(409, "target_set_unavailable", "That raid is not available for pack opening");
+      throw new CcgServiceError(409, "pack_pool_unavailable", "The raid card pool is still being prepared");
     }
     const normalSetIds = sets.map((set) => set._id);
     const summaries = await CcgPackPool.aggregate<{
@@ -4224,7 +4082,7 @@ class CcgService {
       throw new CcgServiceError(
         409,
         "pool_unavailable",
-        mode === "all" ? "The raid card pool is incomplete" : `The ${mode === "current" ? "Current" : "Legacy"} card pool is incomplete`,
+        targetSetId ? "That raid's card pool is incomplete" : "The raid card pool is incomplete",
       );
     }
 
@@ -4303,7 +4161,7 @@ class CcgService {
     return {
       results,
       sourceSetIds,
-      version: `${mode}:${targetSetId ? String(targetSetId) : "random"}:${createHash("sha256").update(versionSeed).digest("hex").slice(0, 20)}`,
+      version: `${targetSetId ? "raid" : "all"}:${targetSetId ? String(targetSetId) : "random"}:${createHash("sha256").update(versionSeed).digest("hex").slice(0, 20)}`,
     };
   }
 
@@ -4473,7 +4331,7 @@ class CcgService {
   ): Promise<CcgCompletedCardRewards> {
     const rewardedSeriesKeys = new Set<string>();
     const uniqueCandidates = new Map(candidates.map((candidate) => [getSeriesKey(candidate), candidate]));
-    if (uniqueCandidates.size === 0) return { current: 0, legacy: 0, total: 0, rewardedSeriesKeys };
+    if (uniqueCandidates.size === 0) return { total: 0, rewardedSeriesKeys };
 
     const sets = await CcgSet.find({
       _id: { $in: Array.from(uniqueCandidates.values(), (candidate) => candidate.setId) },
@@ -4481,7 +4339,7 @@ class CcgService {
       state: { $in: ["current", "legacy"] },
     }).select("_id state").session(session).lean();
     const setById = new Map(sets.map((set) => [String(set._id), set]));
-    const rewards: CcgCompletedCardRewards = { current: 0, legacy: 0, total: 0, rewardedSeriesKeys };
+    const rewards: CcgCompletedCardRewards = { total: 0, rewardedSeriesKeys };
     const seriesCards = await CcgCard.find({
       $or: Array.from(uniqueCandidates.values(), (candidate) => ({
         setId: candidate.setId,
@@ -4507,7 +4365,6 @@ class CcgService {
     for (const candidate of uniqueCandidates.values()) {
       const set = setById.get(String(candidate.setId));
       if (!set || (set.state !== "current" && set.state !== "legacy")) continue;
-      const mode = set.state;
       const seriesKey = getSeriesKey(candidate);
       const sourceKey = `completed-series:${seriesKey}`;
       if (existingSourceKeys.has(sourceKey)
@@ -4516,7 +4373,7 @@ class CcgService {
       }
       const credit = await CcgPackCredit.updateOne(
         { ownerId, sourceKey },
-        { $setOnInsert: { mode, source: "duplicate", remaining: 1 } },
+        { $setOnInsert: { source: "duplicate", remaining: 1 } },
         { upsert: true, session },
       );
       if (credit.upsertedCount !== 1) continue;
@@ -4527,7 +4384,6 @@ class CcgService {
             ownerType: "user",
             ownerId,
             action: "duplicate_reward",
-            mode,
             idempotencyKey: `duplicate-reward:${sourceKey}`,
             amount: 1,
             metadata: {
@@ -4540,7 +4396,6 @@ class CcgService {
         ],
         { session },
       );
-      rewards[mode] += 1;
       rewards.total += 1;
       rewards.rewardedSeriesKeys.add(seriesKey);
     }
@@ -4573,7 +4428,7 @@ class CcgService {
         if (code.rewardType === "packs") {
           return {
             ...base,
-            reward: { type: "packs", currentPacks: code.currentPacks, legacyPacks: code.legacyPacks },
+            reward: { type: "packs", packs: getRedeemPackCount(code) },
           };
         }
 
@@ -4614,10 +4469,20 @@ class CcgService {
     const results = opening.results as ICcgPackResult[];
     const cardById = new Map(cards.map((card) => [String(card._id), card]));
     const setById = new Map(sets.map((set) => [String(set._id), set]));
+    const selectionType = resolveCcgActivityPackSelectionType(
+      opening.selectionType,
+      opening.targetSetId,
+    );
+    const selectionSetId = resolveCcgActivityPackSetId(
+      opening.selectionType,
+      opening.targetSetId,
+      opening.sourceSetIds ?? [],
+    );
     return {
       id: String(opening._id),
-      mode: opening.mode,
-      targetSetId: opening.targetSetId ? String(opening.targetSetId) : null,
+      selection: selectionType === "raid" && selectionSetId
+        ? { type: "raid", setId: String(selectionSetId) }
+        : { type: "all" },
       sets: sets.map((set) => this.serializeSet(set)),
       allowanceSource: opening.allowanceSource,
       duplicateRewards: opening.duplicateRewards,

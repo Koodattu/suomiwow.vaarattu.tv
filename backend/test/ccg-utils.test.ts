@@ -7,7 +7,7 @@ import {
   CCG_FINISH_ORDER,
   CCG_FINISH_PITY_LIMITS,
   CCG_INITIAL_PACKS,
-  CCG_PACK_STORAGE_CAPS,
+  CCG_PACK_STORAGE_CAP,
   CCG_REGULAR_TIER_GRADES,
   CCG_TIER_GRADES,
   CcgFinish,
@@ -48,7 +48,6 @@ import { getCcgSnapshotPreviewDisposition, nextCcgCardSnapshotVersion, shouldPub
 import { normalizeCcgRedeemCode } from "../src/utils/ccg-redeem";
 import { evaluateCcgReadiness } from "../src/utils/ccg-readiness";
 import { applyPackRecharge, getNextPackRechargeAt, getRechargeGrants } from "../src/utils/ccg-recharge";
-import { applyCcgPackRollover } from "../src/utils/ccg-rollover";
 import { getHelsinkiDateKey, getNextHelsinkiReset } from "../src/utils/helsinki-time";
 
 test("canonical grading maps a 100-card population to the versioned S through F bands", () => {
@@ -430,16 +429,17 @@ test("a pack cannot be produced when no A-or-better card exists", () => {
 });
 
 test("first-time pack grants distinguish guest and authenticated storage", () => {
-  assert.deepEqual(CCG_PACK_STORAGE_CAPS, { current: 50, legacy: 50 });
-  assert.deepEqual(CCG_INITIAL_PACKS.guest, { current: 20, legacy: 20 });
-  assert.deepEqual(CCG_INITIAL_PACKS.user, { current: 20, legacy: 20 });
+  assert.equal(CCG_PACK_STORAGE_CAP, 100);
+  assert.equal(CCG_INITIAL_PACKS.guest, 40);
+  assert.equal(CCG_INITIAL_PACKS.user, 40);
 });
 
-test("guest conversion transfers remaining server packs with a 20-pack cap per mode", () => {
-  assert.deepEqual(getTransferableGuestPacks({ current: 14, legacy: 7 }), { current: 14, legacy: 7 });
-  assert.deepEqual(getTransferableGuestPacks({ current: 2_000, legacy: 21 }), { current: 20, legacy: 20 });
-  assert.deepEqual(getTransferableGuestPacks({ current: -4, legacy: 8.9 }), { current: 0, legacy: 8 });
-  assert.deepEqual(getTransferableGuestPacks(null), { current: 0, legacy: 0 });
+test("guest conversion transfers remaining server packs with a 40-pack cap", () => {
+  assert.equal(getTransferableGuestPacks(14), 14);
+  assert.equal(getTransferableGuestPacks(2_000), 40);
+  assert.equal(getTransferableGuestPacks(-4), 0);
+  assert.equal(getTransferableGuestPacks(8.9), 8);
+  assert.equal(getTransferableGuestPacks(null), 0);
 });
 
 test("guest conversion uses an explicit opening when supplied and otherwise falls back to the latest opening", () => {
@@ -453,7 +453,6 @@ test("guest conversion uses an explicit opening when supplied and otherwise fall
 test("guest conversion accepts only ownership reproduced by server opening history", () => {
   const openings = [
     {
-      mode: "current" as const,
       results: [
         { cardId: "card-1", finish: "standard" as const, artVariant: "standard" as const, isDuplicate: false },
         { cardId: "card-2", finish: "foil" as const, artVariant: "alternative" as const, isDuplicate: false },
@@ -463,7 +462,6 @@ test("guest conversion accepts only ownership reproduced by server opening histo
       ],
     },
     {
-      mode: "legacy" as const,
       results: [
         { cardId: "card-5", finish: "standard" as const, artVariant: "standard" as const, isDuplicate: false },
         { cardId: "card-6", finish: "golden" as const, artVariant: "standard" as const, isDuplicate: false },
@@ -486,8 +484,8 @@ test("guest conversion accepts only ownership reproduced by server opening histo
   ];
 
   assert.deepEqual(verifyGuestLibrary(openings, ownership), {
-    cards: { current: 5, legacy: 5 },
-    duplicates: { current: 1, legacy: 0 },
+    cards: 10,
+    duplicates: 1,
     totalCards: 10,
   });
   assert.equal(
@@ -500,7 +498,6 @@ test("guest conversion accepts only ownership reproduced by server opening histo
 
 test("guest conversion consolidates different snapshot card IDs into one series finish", () => {
   const openings = [{
-    mode: "current" as const,
     results: [
       { cardId: "snapshot-1", seriesKey: "set-1:character-1", finish: "standard" as const, isDuplicate: false },
       { cardId: "snapshot-2", seriesKey: "set-1:character-1", finish: "standard" as const, isDuplicate: true },
@@ -517,110 +514,40 @@ test("guest conversion consolidates different snapshot card IDs into one series 
   ];
 
   assert.deepEqual(verifyGuestLibrary(openings, ownership), {
-    cards: { current: 5, legacy: 0 },
-    duplicates: { current: 1, legacy: 0 },
+    cards: 5,
+    duplicates: 1,
     totalCards: 5,
   });
 });
 
-test("pack recharge follows shared Helsinki half-hour boundaries and respects storage caps", () => {
+test("pack recharge grants one unified pack every 20 minutes and respects the recharge cap", () => {
   const grants = getRechargeGrants(new Date("2026-01-01T07:00:00.000Z"), new Date("2026-01-01T10:05:00.000Z"));
-  assert.deepEqual(grants, { current: 3, legacy: 6 });
-  assert.equal(getNextPackRechargeAt("current", new Date("2026-07-24T10:30:00.000Z")).toISOString(), "2026-07-24T11:00:00.000Z");
-  assert.equal(getNextPackRechargeAt("legacy", new Date("2026-07-24T10:30:00.000Z")).toISOString(), "2026-07-24T11:00:00.000Z");
-  assert.equal(getNextPackRechargeAt("legacy", new Date("2026-07-24T10:20:00.000Z")).toISOString(), "2026-07-24T10:30:00.000Z");
+  assert.equal(grants, 9);
+  assert.equal(getNextPackRechargeAt(new Date("2026-07-24T10:30:00.000Z")).toISOString(), "2026-07-24T10:40:00.000Z");
+  assert.equal(getNextPackRechargeAt(new Date("2026-07-24T10:20:00.000Z")).toISOString(), "2026-07-24T10:40:00.000Z");
 
   const recharged = applyPackRecharge(
-    { current: CCG_PACK_STORAGE_CAPS.current - 1, legacy: CCG_PACK_STORAGE_CAPS.legacy - 1 },
+    CCG_PACK_STORAGE_CAP - 1,
     new Date("2026-01-01T07:00:00.000Z"),
     new Date("2026-01-01T10:05:00.000Z"),
   );
-  assert.deepEqual(recharged.balances, CCG_PACK_STORAGE_CAPS);
+  assert.equal(recharged.balance, CCG_PACK_STORAGE_CAP);
   assert.equal(recharged.lastRechargeAt.toISOString(), "2026-01-01T10:00:00.000Z");
 
   const overCap = applyPackRecharge(
-    { current: 75, legacy: 51 },
+    125,
     new Date("2026-01-01T07:00:00.000Z"),
     new Date("2026-01-01T10:05:00.000Z"),
   );
-  assert.deepEqual(overCap.balances, { current: 75, legacy: 51 });
+  assert.equal(overCap.balance, 125);
 
   const blockedByBonusPacks = applyPackRecharge(
-    { current: 20, legacy: 20 },
+    20,
     new Date("2026-01-01T07:00:00.000Z"),
     new Date("2026-01-01T10:05:00.000Z"),
-    { current: 30, legacy: 26 },
+    75,
   );
-  assert.deepEqual(blockedByBonusPacks.balances, { current: 20, legacy: 24 });
-});
-
-test("authenticated raid rollover moves all Current packs to Legacy and refills Current storage", () => {
-  const rollover = applyCcgPackRollover(
-    "user",
-    { current: 10, legacy: 7 },
-    { current: 4, legacy: 2 },
-    new Date("2026-01-01T10:00:00.000Z"),
-    new Date("2026-01-01T10:00:00.000Z"),
-    CCG_PACK_STORAGE_CAPS.current,
-  );
-
-  assert.deepEqual(rollover.balances, { current: 50, legacy: 7 });
-  assert.equal(rollover.regularCurrentMoved, 10);
-  assert.equal(rollover.bonusCurrentMoved, 4);
-  assert.equal(7 + 2 + rollover.regularCurrentMoved + rollover.bonusCurrentMoved, 23);
-});
-
-test("raid rollover includes lazy recharge accrued before the cutover", () => {
-  const rollover = applyCcgPackRollover(
-    "user",
-    { current: 20, legacy: 7 },
-    { current: 4, legacy: 2 },
-    new Date("2026-01-01T07:00:00.000Z"),
-    new Date("2026-01-01T10:05:00.000Z"),
-    CCG_PACK_STORAGE_CAPS.current,
-  );
-
-  assert.deepEqual(rollover.balances, { current: 50, legacy: 13 });
-  assert.equal(rollover.regularCurrentMoved, 23);
-  assert.equal(rollover.lastRechargeAt.toISOString(), "2026-01-01T10:00:00.000Z");
-});
-
-test("guest rollover preserves old Current packs in Legacy and restores the guest allowance", () => {
-  const rollover = applyCcgPackRollover(
-    "guest",
-    { current: 3, legacy: 4 },
-    { current: 0, legacy: 0 },
-    new Date("2026-01-01T10:00:00.000Z"),
-    new Date("2026-01-01T10:00:00.000Z"),
-    5,
-  );
-
-  assert.deepEqual(rollover.balances, { current: 5, legacy: 7 });
-  assert.equal(rollover.regularCurrentMoved, 3);
-});
-
-test("each missed raid rollover carries the prior refill into Legacy", () => {
-  const first = applyCcgPackRollover(
-    "user",
-    { current: 10, legacy: 7 },
-    { current: 4, legacy: 2 },
-    new Date("2026-01-01T10:00:00.000Z"),
-    new Date("2026-01-01T10:00:00.000Z"),
-    CCG_PACK_STORAGE_CAPS.current,
-  );
-  const creditsAfterFirst = { current: 0, legacy: 2 + 4 + first.regularCurrentMoved };
-  const second = applyCcgPackRollover(
-    "user",
-    first.balances,
-    creditsAfterFirst,
-    first.lastRechargeAt,
-    new Date("2026-01-01T10:00:00.000Z"),
-    CCG_PACK_STORAGE_CAPS.current,
-  );
-
-  assert.equal(second.regularCurrentMoved, 50);
-  assert.deepEqual(second.balances, { current: 50, legacy: 7 });
-  assert.equal(second.balances.legacy + creditsAfterFirst.legacy + second.regularCurrentMoved, 73);
+  assert.equal(blockedByBonusPacks.balance, 25);
 });
 
 test("redeem codes normalize safely without accepting ambiguous separators", () => {

@@ -7,7 +7,6 @@ import mongoose from "mongoose";
 import { CCG_PACK_BALANCE_VERSION } from "../src/config/ccg";
 import CcgPackBalance from "../src/models/CcgPackBalance";
 import CcgPackPool from "../src/models/CcgPackPool";
-import CcgRollover from "../src/models/CcgRollover";
 import CcgSet from "../src/models/CcgSet";
 import ccgPublisherService from "../src/services/ccg-publisher.service";
 import ccgService from "../src/services/ccg.service";
@@ -110,50 +109,38 @@ test("session pack state skips reconciliation when balance metadata is current",
   const ownerId = new mongoose.Types.ObjectId();
   const now = new Date("2026-07-27T10:00:00.000Z");
   const balanceModel = CcgPackBalance as any;
-  const rolloverModel = CcgRollover as any;
   const service = ccgService as any;
   const originals = {
     balanceFindOne: balanceModel.findOne,
-    rolloverFindOne: rolloverModel.findOne,
-    credits: service.getPackCreditBalances,
+    credits: service.getPackCreditBalance,
     reconcile: service.ensurePackBalance,
   };
 
   try {
     balanceModel.findOne = () => ({
       lean: async () => ({
-        currentRemaining: 4,
-        legacyRemaining: 3,
+        remaining: 7,
         lastRechargeAt: now,
-        lastRolloverSequence: 7,
         grantVersion: CCG_PACK_BALANCE_VERSION,
         hasPlayed: true,
       }),
     });
-    rolloverModel.findOne = () => ({
-      select() { return this; },
-      sort() { return this; },
-      lean: async () => ({ sequence: 7 }),
-    });
-    service.getPackCreditBalances = async () => ({ current: 1, legacy: 2 });
+    service.getPackCreditBalance = async () => 3;
     service.ensurePackBalance = async () => {
       throw new Error("steady-state session should not open a transaction");
     };
 
     const state = await service.getSessionPackState({ ownerType: "user", ownerId, dateKey: "2026-07-27" }, now);
     assert.deepEqual(state.balance, {
-      currentRemaining: 4,
-      legacyRemaining: 3,
+      remaining: 7,
       lastRechargeAt: now,
-      lastRolloverSequence: 7,
       grantVersion: CCG_PACK_BALANCE_VERSION,
       hasPlayed: true,
     });
-    assert.deepEqual(state.creditBalances, { current: 1, legacy: 2 });
+    assert.equal(state.creditBalances, 3);
   } finally {
     balanceModel.findOne = originals.balanceFindOne;
-    rolloverModel.findOne = originals.rolloverFindOne;
-    service.getPackCreditBalances = originals.credits;
+    service.getPackCreditBalance = originals.credits;
     service.ensurePackBalance = originals.reconcile;
   }
 });

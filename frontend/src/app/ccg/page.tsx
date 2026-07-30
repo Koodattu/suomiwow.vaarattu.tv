@@ -149,7 +149,7 @@ export default function CcgLandingPage() {
                   {t("landing.viewInCollection")}
                 </Link>
                 {currentCardCount > 0 ? (
-                  <Link href="/ccg/open?mode=current" className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>{t("landing.openCurrent")}</Link>
+                  <Link href={`/ccg/open?set=${encodeURIComponent(current!.id)}`} className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>{t("landing.openCurrent")}</Link>
                 ) : (
                   <span className={`${styles.primaryButton} ${styles.vaultCurrentAction} cursor-not-allowed opacity-45`} aria-disabled="true">{t("landing.openCurrent")}</span>
                 )}
@@ -182,8 +182,8 @@ export default function CcgLandingPage() {
                 <Link href="/ccg/collection" className={`${styles.secondaryButton} ${styles.vaultCurrentAction}`}>
                   {t("landing.viewInCollection")}
                 </Link>
-                <Link href="/ccg/open?mode=legacy" className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>
-                  {t("landing.openLegacy")}
+                <Link href="/ccg/open" className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>
+                  {t("landing.openAllRaids")}
                 </Link>
               </div>
             </div>
@@ -195,26 +195,25 @@ export default function CcgLandingPage() {
                 <div className={`${packStyles.packButton} ${styles.vaultPackShortcut} ${styles.vaultPackSkeleton}`} aria-hidden="true" />
               ) : (
                 <VaultPackShortcut
-                  href="/ccg/open?mode=current"
+                  href={current ? `/ccg/open?set=${encodeURIComponent(current.id)}` : "/ccg/open"}
                   theme={getPackTheme(current)}
                   label={t("landing.openCurrent")}
                   title={current?.raidName ?? t("landing.preparing")}
                   cardsLabel={t("landing.cards")}
                 />
               )}
-              {session ? <PackBalance session={session} mode="current" strip /> : <div className={styles.vaultBalanceSkeleton} />}
             </div>
             <div className={styles.vaultPackShortcutColumn}>
               <VaultPackShortcut
-                href="/ccg/open?mode=legacy"
+                href="/ccg/open"
                 theme={getPackTheme(undefined, true)}
-                label={t("landing.openLegacy")}
-                title={t("open.legacyPackTitle")}
+                label={t("landing.openAllRaids")}
+                title={t("open.allRaids")}
                 cardsLabel={t("landing.cards")}
               />
-              {session ? <PackBalance session={session} mode="legacy" strip /> : <div className={styles.vaultBalanceSkeleton} />}
             </div>
           </nav>
+          {session ? <PackBalance session={session} strip /> : <div className={styles.vaultBalanceSkeleton} />}
 
           <aside className={styles.vaultFeatured} aria-label={t("landing.featuredCard")}>
             {featuredQuery.isPending ? (

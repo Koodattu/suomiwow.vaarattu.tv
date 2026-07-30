@@ -69,12 +69,13 @@ export function getCcgRarityLabel(locale: CcgEmbedLocale, grade: CcgTierGrade) {
 }
 
 export function getCcgPackType(pack: CcgOpening, locale: CcgEmbedLocale) {
-  const primarySet = pack.targetSetId
-    ? pack.sets.find((set) => set.id === pack.targetSetId) ?? pack.sets[0]
+  const targetSetId = pack.selection.type === "raid" ? pack.selection.setId : null;
+  const primarySet = targetSetId
+    ? pack.sets.find((set) => set.id === targetSetId) ?? pack.sets[0]
     : pack.sets[0];
 
-  if (pack.mode === "legacy" && !pack.targetSetId) return EMBED_COPY[locale].share.embed.legacyPack;
-  return primarySet?.raidName ?? EMBED_COPY[locale].share.embed.currentPack;
+  if (pack.selection.type === "all") return EMBED_COPY[locale].open.allRaids;
+  return primarySet?.raidName ?? EMBED_COPY[locale].share.embed.raidPack;
 }
 
 export function getBestPackResult(pack: CcgOpening) {

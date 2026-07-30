@@ -16,8 +16,7 @@ type Props = {
 type Draft = {
   code: string;
   rewardType: "packs" | "card";
-  currentPacks: number;
-  legacyPacks: number;
+  packs: number;
   finish: CcgFinish;
   artVariant: CcgArtVariant;
 };
@@ -25,8 +24,7 @@ type Draft = {
 const emptyDraft: Draft = {
   code: "",
   rewardType: "packs",
-  currentPacks: 0,
-  legacyPacks: 0,
+  packs: 0,
   finish: "standard",
   artVariant: "standard",
 };
@@ -133,13 +131,9 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
   const normalizedCode = draft.code.trim().toUpperCase();
   const validCode = normalizedCode.length >= 3 && normalizedCode.length <= 64 && codePattern.test(normalizedCode);
   const validPackReward = draft.rewardType === "packs"
-    && Number.isSafeInteger(draft.currentPacks)
-    && Number.isSafeInteger(draft.legacyPacks)
-    && draft.currentPacks >= 0
-    && draft.legacyPacks >= 0
-    && draft.currentPacks <= 10_000
-    && draft.legacyPacks <= 10_000
-    && draft.currentPacks + draft.legacyPacks > 0;
+    && Number.isSafeInteger(draft.packs)
+    && draft.packs > 0
+    && draft.packs <= 10_000;
   const canCreate = validCode && !saving && (draft.rewardType === "card" ? Boolean(selectedVariant) : validPackReward);
 
   const createCode = async () => {
@@ -149,8 +143,7 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
       const result = await api.createAdminCcgRedeemCode({
         code: normalizedCode,
         rewardType: draft.rewardType,
-        currentPacks: draft.rewardType === "packs" ? draft.currentPacks : 0,
-        legacyPacks: draft.rewardType === "packs" ? draft.legacyPacks : 0,
+        packs: draft.rewardType === "packs" ? draft.packs : 0,
         cardId: draft.rewardType === "card" ? selectedVariant?.id ?? null : null,
         finish: draft.rewardType === "card" ? draft.finish : null,
         artVariant: draft.rewardType === "card" ? draft.artVariant : null,
@@ -228,16 +221,12 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
           </fieldset>
 
           {draft.rewardType === "packs" ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3">
               <label className="grid gap-1.5 text-xs font-semibold text-gray-400">
-                {t("currentPacks")}
-                <input type="number" min={0} max={10_000} step={1} value={draft.currentPacks} onChange={(event) => setDraft((current) => ({ ...current, currentPacks: Number(event.target.value) }))} className={`${fieldClass} tabular-nums`} />
+                {t("packCount")}
+                <input type="number" min={1} max={10_000} step={1} value={draft.packs} onChange={(event) => setDraft((current) => ({ ...current, packs: Number(event.target.value) }))} className={`${fieldClass} tabular-nums`} />
               </label>
-              <label className="grid gap-1.5 text-xs font-semibold text-gray-400">
-                {t("legacyPacks")}
-                <input type="number" min={0} max={10_000} step={1} value={draft.legacyPacks} onChange={(event) => setDraft((current) => ({ ...current, legacyPacks: Number(event.target.value) }))} className={`${fieldClass} tabular-nums`} />
-              </label>
-              <p className="col-span-2 text-xs leading-5 text-gray-500 text-pretty">{t("packHelp")}</p>
+              <p className="text-xs leading-5 text-gray-500 text-pretty">{t("packHelp")}</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -362,7 +351,7 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
                     </div>
                     <p className="mt-1 text-sm text-gray-300 text-pretty">
                       {code.reward.type === "packs"
-                        ? t("packSummary", { current: code.reward.currentPacks, legacy: code.reward.legacyPacks })
+                        ? t("packSummary", { packs: code.reward.packs })
                         : code.reward.card
                           ? t("cardSummary", { name: code.reward.card.name, set: code.reward.card.set.raidName, quality: code.reward.finish ? ccg(`finish.${code.reward.finish}`) : "—", artwork: t(code.reward.artVariant === "alternative" ? "customArt" : "regularArt") })
                           : t("missingCard")}

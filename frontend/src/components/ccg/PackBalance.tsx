@@ -2,24 +2,22 @@
 
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import type { CcgMode, CcgSession } from "@/types";
+import type { CcgSession } from "@/types";
 import styles from "./ccg.module.css";
 
 export default function PackBalance({
   session,
-  mode,
   strip = false,
   stripOnMobile = false,
 }: {
   session: CcgSession;
-  mode: CcgMode;
   strip?: boolean;
   stripOnMobile?: boolean;
 }) {
   const t = useTranslations("ccg");
   const [now, setNow] = useState(() => Date.now());
-  const packs = session.packs[mode];
-  const recharge = session.recharge[mode];
+  const packs = session.packs;
+  const recharge = session.recharge;
   const storageFull = packs.totalRemaining >= recharge.cap;
   const rechargeRemaining = Math.max(0, new Date(recharge.nextAt).getTime() - now);
   const rechargeHours = Math.floor(rechargeRemaining / (60 * 60 * 1000));

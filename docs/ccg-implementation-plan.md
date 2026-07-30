@@ -10,14 +10,14 @@ The feature is free, non-tradable, and non-commercial. It does not include card 
 
 SuomiWoW CCG turns Finnish World of Warcraft raid characters into collectible cards. A card represents an immutable snapshot of one character in one raid tier. A character receives a new snapshot in the same raid set when its canonical S-F rarity grade or its dominant Mythic spec, role, or metric changes; an already published card never changes.
 
-The product has two collection modes:
+Raid sets retain two lifecycle states:
 
 - **Current** contains every enabled active raid.
 - **Legacy** contains every enabled past raid.
 
-Every raid tier is its own set and binder. Legacy storage recharges by one pack every Helsinki half-hour, while Current storage recharges every Helsinki hour. Both modes store up to 50 rechargeable packs. Current packs draw from all enabled active raids; Legacy packs draw from all enabled past raids.
+Every raid tier is its own set and binder, but packs use one shared balance. A player can target any enabled raid or draw from all enabled raids together. The balance recharges by one pack every 20 minutes up to 100 total rechargeable and bonus packs; balances already above 100 are preserved but do not recharge until they fall below the cap.
 
-Guests begin with 20 packs in each mode. A first-time authenticated CCG player begins with 20 packs in each mode, including existing SuomiWoW accounts that have never played CCG. Guest collections persist on the server and remain linked to the browser by a rolling device cookie. A guest may explicitly log in to transfer the complete guest collection to an account that has no prior CCG activity. An established CCG account cannot import guest pulls.
+Guests and first-time authenticated CCG players begin with 40 packs. Guest collections persist on the server and remain linked to the browser by a rolling device cookie. A guest may explicitly log in to transfer the complete guest collection to an account that has no prior CCG activity. An established CCG account cannot import guest pulls.
 
 ### Community set
 
@@ -25,7 +25,7 @@ Guests begin with 20 packs in each mode. A first-time authenticated CCG player b
 
 - Admins add a character by region, realm slug, name, and rarity. The backend resolves the public profile, active specialization, role, guild, avatar, and full render through Blizzard Profile APIs without fetching Warcraft Logs.
 - If the character already exists locally, the Community record links to it. Otherwise it retains a stable Blizzard identity that can be reconciled when the character later enters the normal raid pipeline.
-- Current, random Legacy, and targeted Legacy packs may all contain Community cards. Rarity is selected by the normal pack rules first. Within that rarity, a Community result must win both its proportional pool roll and a second 50/50 gate; a failed gate keeps the already selected raid card.
+- Targeted-raid and all-raids packs may contain Community cards. Rarity is selected by the normal pack rules first. Within that rarity, a Community result must win both its proportional pool roll and a second 50/50 gate; a failed gate keeps the already selected raid card.
 - Community cards are immutable snapshots with no performance metrics. Their card metric panel displays `Community`.
 - A stable `collectorKey` links Community and normal raid variants of the same character to one alternative-art definition, shared quips, and administrative identity reconciliation. It does not define ownership, alternative-art unlock scope, or duplicate identity.
 
@@ -103,7 +103,7 @@ Duplicates do not upgrade card rarity. Rarity represents the character's snapsho
 - If the rolled finish is already owned, the result fills the closest missing finish below it first. If no lower gap remains, it advances to the closest missing finish above it so every pre-completion duplicate advances the card.
 - A card series is complete when every finish in its set's pack ladder is owned for that series. The default ladder is Standard, Foil, Golden, Prismatic, Holographic, and Negative; a raid-scoped finish is inserted between Holographic and Negative only for its configured raid set. Community cards always use the six-finish default ladder, even when code-exclusive raid finishes are owned.
 - Completing the final missing finish does not immediately award a pack. The first later duplicate on that already-complete series awards one pack credit for that series, and the idempotency key prevents any snapshot version from rewarding again.
-- A completed card in a Current raid awards a Current pack. A completed card in a Legacy raid awards a Legacy pack. Community cards do not award completion packs.
+- The first later duplicate of a completed raid-card series awards one unified pack credit. Community cards do not award completion packs.
 - Alternative art is a separate card-series cosmetic unlock scoped to `{setId, characterId}`. It never affects duplicate classification or finish completion, and one unlock makes the alternative art available for every owned finish and explicitly unlocked snapshot in that raid or Community set only.
 - Ownership stores and displays quantities such as `×2` and `×7`.
 - Copies are not destroyed when a completed-card reward is granted.
@@ -121,7 +121,7 @@ Finish is independent of tier grade:
 - A raid may optionally add one themed finish between Holographic and Negative. **Void** is the March on Quel'Danas finish; **Toxic** is reserved for a future poison-themed raid. Both finishes are immediately available as code-exclusive rewards for Community cards without entering Community pack rolls, pity, duplicate protection, or completion.
 - **Negative** applies the rare full-card inverted treatment and is the highest production finish.
 
-Each non-Standard finish has a persistent per-owner protection counter. Base-finish counters are shared by Current and Legacy openings. A raid-scoped finish has a separate counter keyed by raid-set slug and advances only when a card from that set is pulled. Its chance remains at `1 / hardPity` through the first 80% of the interval, then follows a quadratic soft-pity ramp to a guaranteed hit at hard pity. The selected raw finish resets its own counter even when duplicate protection converts it, and a different non-Standard finish awarded by that conversion also resets its counter. Finish rolls are independent, but a card receives only the highest finish that succeeds, so reaching one hard pity cannot turn the rest of a pack into the same premium finish.
+Each non-Standard finish has a persistent per-owner protection counter shared by every pack opening. A raid-scoped finish has a separate counter keyed by raid-set slug and advances only when a card from that set is pulled. Its chance remains at `1 / hardPity` through the first 80% of the interval, then follows a quadratic soft-pity ramp to a guaranteed hit at hard pity. The selected raw finish resets its own counter even when duplicate protection converts it, and a different non-Standard finish awarded by that conversion also resets its counter. Finish rolls are independent, but a card receives only the highest finish that succeeds, so reaching one hard pity cannot turn the rest of a pack into the same premium finish.
 
 Initial hard-pity limits:
 
@@ -217,27 +217,15 @@ The publisher calculates tier grades from the complete eligible population for t
 
 The resulting grade is written to the card and never recalculated.
 
-## Current and Legacy modes
+## Unified packs and raid selection
 
-The overall feature is called SuomiWoW CCG. The recommended user-facing tabs are **Current** and **Legacy** so that “CCG” is not both the product name and a mode name.
+The overall feature is called SuomiWoW CCG. Players have one pack balance and choose either one enabled raid or **All raids** before opening.
 
-### Current
-
-- Contains every enabled raid in the active raid tier or season.
-- Grants ten daily Current packs.
-- Draws across the complete Current card pool automatically.
-- Receives weekly publication waves for newcomers and rarity-grade changes.
-- Moves to Legacy when the next raid becomes Current.
-
-### Legacy
-
-- Contains enabled sets from Highmaul through the set immediately preceding Current. Trial of Valor and other intentionally unconfigured raids remain excluded.
-- Grants ten daily Legacy packs.
-- Draws across every enabled historical raid in one combined Legacy pool.
-- Preserves the originating raid set on every result and keeps the collection organized into raid-specific binders.
-- Adds the former Current set at raid rollover.
-
-Grade odds remain global and versioned. Within the selected grade, every eligible card in the mode has equal weight, so larger raid sets contribute proportionally more cards without requiring one oversized MongoDB pool document.
+- Targeting a raid keeps every normal result inside that raid's active pack pool.
+- **All raids** combines every enabled Current and Legacy raid. Within the selected grade, every eligible card has equal weight, so larger raid sets contribute proportionally more cards without requiring one oversized MongoDB pool document.
+- Every result preserves its originating raid set and the collection remains organized into raid-specific binders.
+- Current and Legacy remain set-publication lifecycle states only. Moving a set from Current to Legacy never changes pack balances or credits.
+- Community cards remain an optional weighted substitution in both targeted and all-raids openings; Community is not directly selectable.
 
 ### Administrative activation
 
@@ -246,17 +234,16 @@ Grade odds remain global and versioned. Within the selected grade, every eligibl
 - Initial thresholds are configurable and default to 100 eligible characters, 50 ready renders, and 75% render coverage.
 - Enabling performs a fresh snapshot and publication before atomically recording `enabledAt`, `enabledBy`, and the target Current or Legacy lifecycle state.
 - Enabling is irreversible. There is no disable endpoint or UI control after activation.
-- Enabling a Current raid moves enabled Current raids from older Mythic+ seasons to Legacy; raids sharing the same current season may coexist.
-- An activation that moves an older Current season records an immutable, sequenced rollover event in the same transaction. The admin must confirm against the current activation revision so a stale preview cannot move an unexpected raid.
+- Enabling a Current raid moves enabled Current raids from older Mythic+ seasons to Legacy; raids sharing the same current season may coexist. This lifecycle transition has no pack-balance side effect.
 - Raids without an intentional CCG configuration, background, season mapping, and theme remain excluded. This keeps Trial of Valor, Crucible of Storms, and short or meme raids such as Sporefall disabled by default.
 
 ### Recharge balances
 
-- Recharge boundaries use the `Europe/Helsinki` clock.
-- Current and Legacy balances are independent and both cap at 50 rechargeable packs.
+- Recharge uses shared 20-minute boundaries.
+- One balance caps recharge at 100 total regular and bonus packs. Existing balances above the cap are preserved.
 - Recharge is calculated lazily for the requesting owner; there is no hourly database-wide user scan.
 - Earned completed-card credits persist until opened.
-- Rollover reconciliation is also lazy. At the cutover timestamp, every unused Current balance and bonus credit becomes Legacy, authenticated Current storage is reset to 50, and guest Current storage is reset to 20.
+- Raid lifecycle changes never refill, reset, or reclassify packs.
 
 ### Pack contents
 
@@ -287,13 +274,7 @@ Cookie resetting and other lightweight abuse are accepted product tradeoffs. Bas
 
 ### Guest pack storage
 
-Guests receive:
-
-- 20 initial Current packs with a 50-pack storage cap
-- One Current pack on every Helsinki hour while storage is below the cap
-- 20 initial Legacy packs with a 50-pack storage cap
-- One Legacy pack on every Helsinki half-hour while storage is below the cap
-- Five cards per pack
+Guests receive 40 initial packs, one pack every 20 minutes while below the 100-pack recharge cap, and five cards per opened pack.
 
 Guests cannot open completed-card bonus packs while logged out. An explicit claim transfers the complete server-recorded guest collection, including exact quantities and alternative-art unlocks, to an eligible authenticated account.
 
@@ -306,7 +287,7 @@ An eligible guest-to-user claim:
 3. Reconstructs the complete guest collection from immutable server opening records and rejects any ownership mismatch.
 4. Transfers the verified card, finish, quantity, alternative-art, and quality-protection state to the authenticated collection.
 5. Preserves every opening's provenance and marks the openings and guest identity claimed.
-6. Leaves the account's first-time 20 Current and 20 Legacy starting balances intact and converts up to 20 unspent guest packs per mode into persistent login-conversion credits.
+6. Leaves the account's first-time 40-pack balance intact and converts up to 40 unspent guest packs into persistent login-conversion credits.
 
 `hasPlayed` becomes true when an authenticated account opens any rechargeable or bonus-credit pack, or when it claims its one eligible guest collection. Existing ownership and committed openings are also checked while migrating older account records. This prevents an established player from logging out, opening guest packs, and importing them later.
 
@@ -404,7 +385,7 @@ The backend resolves and commits the pack before the reveal animation begins. Th
 
 Recommended sequence:
 
-1. Show the selected mode's pack and remaining allowance.
+1. Show the selected raid or all-raids pack and the unified remaining balance.
 2. Pressing the pack breaks a seal or opens a raid-themed portal.
 3. Five face-down cards enter with an approximately 100 ms stagger.
 4. Edge lighting hints at tier without revealing the card prematurely.
@@ -415,7 +396,7 @@ Recommended sequence:
 Because users may have ten or more packs available daily, support:
 
 - Open one
-- Open all five for the selected mode/set
+- Open another pack from the selected raid or all-raids pool
 - Reveal all
 - Skip or shorten repeated animations after the first complete experience
 
@@ -724,7 +705,7 @@ The collection read-model migration derives validity from positive `CcgOwnership
 
 ### `CcgQualityProgress`
 
-Store one document per owner with persistent base counters for `foil`, `golden`, `prismatic`, `holographic`, and `negative`, plus a `custom` map keyed by raid-set slug. Base counters are shared by Current and Legacy openings and advance once per pulled card; custom counters advance only for their matching set. The selected raw finish resets its counter, while a different non-Standard finish awarded through duplicate protection resets too. Guest progress persists with the rest of the guest collection. A claim reclassifies the selected opening against the authenticated collection without importing the guest's wider pity state.
+Store one document per owner with persistent base counters for `foil`, `golden`, `prismatic`, `holographic`, and `negative`, plus a `custom` map keyed by raid-set slug. Base counters are shared by all openings and advance once per pulled card; custom counters advance only for their matching set. The selected raw finish resets its counter, while a different non-Standard finish awarded through duplicate protection resets too. Guest progress persists with the rest of the guest collection. A claim reclassifies the selected opening against the authenticated collection without importing the guest's wider pity state.
 
 All guest-owned documents, including pack balance, provisional progress, and opening documents, persist until they are transferred to an eligible authenticated account. Guest collection models must not declare TTL indexes.
 
@@ -732,10 +713,8 @@ All guest-owned documents, including pack balance, provisional progress, and ope
 
 - `ownerType`
 - `ownerId`
-- `currentRemaining`
-- `legacyRemaining`
+- `remaining`
 - `lastRechargeAt`
-- `lastRolloverSequence`
 - `grantVersion`
 - `hasPlayed`
 - `firstPlayedAt`
@@ -745,35 +724,25 @@ Index:
 
 - Unique `{ownerType: 1, ownerId: 1}`
 
-Recharge is evaluated lazily against shared Helsinki half-hour boundaries whenever the owner loads a CCG session or opens a pack. The backend updates only that owner's balance and checkpoint, so there is no scheduled fan-out across all users. Missed grants are discarded while storage is full.
+Recharge is evaluated lazily against shared 20-minute boundaries whenever the owner loads a CCG session or opens a pack. The backend updates only that owner's balance and checkpoint, so there is no scheduled fan-out across all users. Missed grants are discarded while storage is full.
 
 ### `CcgPackCredit`
 
 Persistent bonus pack entitlements for authenticated users:
 
-- `ownerType`
 - `ownerId`
-- `mode`: `current` or `legacy`
-- `source`: `duplicate`, `admin`, `raid_rollover`, or future supported sources
+- `source`: `duplicate`, `login_conversion`, `admin`, `twitch_reward`, or a historical supported source
 - `remaining`
 - source idempotency key
 - timestamps
 
-Guests never receive a persistent credit document. Credits belong to a mode rather than a raid set.
+Guests never receive a persistent credit document. Credits are unified and do not belong to a raid set.
 
-Completed-card credits use a per-owner, per-card source idempotency key. This makes the reward permanent and one-time even after its credit has been consumed or the raid later moves from Current to Legacy.
+Completed-card credits use a per-owner, per-card source idempotency key. This makes the reward permanent and one-time even after its credit has been consumed or the raid later changes lifecycle state.
 
-### `CcgRollover`
+### Historical `CcgRollover`
 
-Immutable activation audit and lazy-reconciliation input:
-
-- monotonic `sequence`
-- previous Current set IDs and Mythic+ seasons
-- new Current set ID and Mythic+ season
-- `effectiveAt` and `activatedBy`
-- authenticated and guest Current refill amounts
-
-Balances created after a rollover start at its active sequence. Older balances replay every missing event in order, including recharge earned before each cutover, and write an idempotent per-owner rollover ledger entry.
+Pre-unification rollover documents are retained as immutable history and are consumed only by the one-time unified-pack migration. New raid activations do not create rollover documents or modify packs.
 
 ### `CcgPackPool`
 
@@ -786,14 +755,15 @@ Precomputed, versioned card IDs grouped by:
 
 Pack opening must not sort or scan the whole card catalog.
 
-Current and Legacy are logical mode pools over these per-set documents. Pack opening first loads compact grade counts, chooses cards with equal weight inside the selected grade, and fetches only the selected set/grade buckets. This avoids storing every historical card ID in one MongoDB document while still allowing one Legacy pack to contain multiple raid sets.
+Pack opening resolves either one requested enabled raid or all enabled raid sets, loads compact grade counts, chooses cards with equal weight inside the selected grade, and fetches only the selected set/grade buckets. This avoids storing every historical card ID in one MongoDB document.
 
 ### `CcgPackOpening`
 
 - `ownerType`
 - `ownerId`
-- `mode`
-- `sourceSetIds` used by the mode pool
+- `selectionType`: `raid` or `all`
+- optional `targetSetId`
+- `sourceSetIds` used by the selected pool
 - allowance/credit source
 - idempotency key
 - pool version
@@ -838,15 +808,15 @@ Within one transaction:
 
 1. Resolve the authenticated user or guest owner from trusted server context.
 2. Find an existing opening by idempotency key and return it if present.
-3. Validate Current/Legacy mode and resolve every enabled set in that mode inside the transaction.
-4. Lazily apply shared-clock recharge up to the mode's storage cap, then atomically reserve one rechargeable pack or an authenticated owner's persistent pack credit.
+3. Validate an optional target raid and resolve that raid or every enabled raid inside the transaction.
+4. Lazily apply shared-clock recharge up to the unified storage cap, then atomically reserve one rechargeable pack or an authenticated owner's persistent pack credit.
 5. Load the active versioned pack pool.
 6. Select card IDs with server-side cryptographic randomness.
 7. Apply the guaranteed `A`-or-better slot.
 8. Resolve owned finishes by card series, including repeated snapshot IDs from the same series within the same pack.
 9. Roll the protected finishes once per card using the stored pack-rule version. Keep a missing rolled finish; promote an exact-finish duplicate to the next missing finish and persist the resulting counters.
 10. Upsert ownership quantities.
-11. For an authenticated owner, grant one idempotent mode-specific credit when a duplicate is pulled for an already-complete raid card that has not rewarded before.
+11. For an authenticated owner, grant one idempotent unified credit when a duplicate is pulled for an already-complete raid card that has not rewarded before.
 12. For a guest, record persistent provisional ownership and classifications; defer authenticated duplicate reclassification and rewards until claim.
 13. Write the immutable opening result and ledger entries.
 14. Commit.
@@ -864,7 +834,7 @@ Within one transaction:
 5. Load every committed opening and ownership row for the guest and verify that the aggregated server results exactly reproduce the stored collection.
 6. Re-key the verified ownership and quality-protection rows to the authenticated user.
 7. Associate every opening's provenance with the claiming user.
-8. Convert up to 20 remaining server-recorded guest packs per mode into idempotent authenticated pack credits.
+8. Convert up to 40 remaining server-recorded guest packs into idempotent authenticated pack credits.
 9. Mark every opening and the guest identity claimed, invalidate further guest writes, and write the claim ledger entry.
 10. Commit.
 
@@ -879,7 +849,7 @@ Exact route naming can follow existing backend conventions. The expected capabil
 - `GET /api/ccg/sets`
   - Enabled Current and Legacy sets
 - `GET /api/ccg/session`
-  - Owner type, rechargeable balances, caps, next recharge times, bonus credits, and claim state
+  - Owner type, unified rechargeable balance, cap, next recharge time, bonus credits, and claim state
 - `GET /api/ccg/sets/:setSlug/catalog`
   - Paginated binder catalog with owned/missing state
 - `GET /api/ccg/sets/:setSlug/guilds`
@@ -889,7 +859,7 @@ Exact route naming can follow existing backend conventions. The expected capabil
 - `GET /api/ccg/cards/:cardId`
   - Full immutable card details
 - `POST /api/ccg/packs/open`
-  - Body includes mode and idempotency key
+  - Body includes an idempotency key and optional raid `setId`; omitting `setId` selects all raids
 - `GET /api/ccg/openings/:openingId`
   - Recover a committed result after refresh or interrupted animation
 - `POST /api/ccg/guest/claim`
@@ -966,14 +936,14 @@ The snapshot records its source watermarks and fails closed if required rankings
 
 ### Pack recharge
 
-Pack balances are created and recharged lazily on session/open requests. A global hourly fan-out job is unnecessary. New guests and first-time authenticated players receive 20/20, and both modes recharge only up to 50.
+Pack balances are created and recharged lazily on session/open requests. A global fan-out job is unnecessary. New guests and first-time authenticated players receive 40 packs, and the unified balance recharges only while the combined regular and bonus total is below 100.
 
 ### Jobs that are not recurring cron work
 
 - Pack balances and missed shared-clock recharge grants are calculated lazily.
 - Media workers run continuously and are fed by scheduled discovery/recovery jobs.
 - Legacy backfill is an explicit resumable administrative batch.
-- Current-to-Legacy set movement and rollover-event creation happen inside the audited activation transaction for a newly enabled Current season. Per-owner pack conversion materializes transactionally on the next balance access, not from an unattended date guess, startup hook, or database-wide fan-out.
+- Current-to-Legacy set movement happens inside the audited activation transaction for a newly enabled Current season and has no pack-balance effect.
 
 ## Frontend architecture
 
@@ -981,7 +951,7 @@ Pack balances are created and recharged lazily on session/open requests. A globa
 
 Recommended routes:
 
-- `/ccg` — feature landing, Current/Legacy mode selection, pack balances
+- `/ccg` — feature landing, featured raid, all-raids shortcut, and unified pack balance
 - `/ccg/open` — pack opening
 - `/ccg/collection` — binder shelf and binder pages
 - Existing character route — avatar and future card references
@@ -990,7 +960,7 @@ Use the existing navigation and localization structures. Add all visible copy to
 
 ### Core components
 
-- `CcgModeSwitcher`
+- `PackRaidSelector`
 - `PackBalance`
 - `PackSelector`
 - `PackOpeningStage`
@@ -1060,8 +1030,8 @@ Do not create a second card renderer for pack reveals and collection views. Use 
 - Store only guest token hashes.
 - Use Secure, HttpOnly, SameSite cookies.
 - Enforce guest-token ownership, pack balances, and opening-to-ownership consistency on the backend.
-- Treat client-provided set ids, modes, and filters as untrusted.
-- Validate that every source set belongs to the requested enabled Current or Legacy mode.
+- Treat client-provided set IDs and filters as untrusted.
+- Validate that a requested target set is an enabled raid with an active pack pool.
 - Never expose Blizzard credentials or access tokens.
 - Keep administrative set and credit changes authorization-gated and audited.
 - Do not log raw cookies, OAuth tokens, or private profile data.
@@ -1085,7 +1055,7 @@ This plan is technical/product guidance, not legal advice.
 
 Track:
 
-- Pack opens by mode and set
+- Pack opens by selection type and set
 - Recharge balance use
 - Guest-to-account pack claim
 - Expired unclaimed guest results and rejected over-limit claims
@@ -1107,7 +1077,7 @@ Provide admin previews for:
 - Expected odds through simulation
 - Background crop samples
 - Missing media
-- Rollover effects
+- Current-to-Legacy set transitions
 
 Never expose user-level private collection data in public operational dashboards.
 
@@ -1140,19 +1110,19 @@ Never expose user-level private collection data in public operational dashboards
 
 - Add transaction-backed allowances, openings, ownership, credits, and ledger.
 - Implement server-side pack selection and finish rolls.
-- Implement Current and all-history Legacy mode pools.
+- Implement targeted-raid and all-raids pools over the unified balance.
 - Add basic collection and opening APIs.
 
 ### Phase 4 — guest collection and claim
 
 - Add rolling persistent guest cookies and migrate away from guest TTL cleanup.
-- Allow anonymous Current and Legacy openings.
+- Allow anonymous targeted-raid and all-raids openings.
 - Implement the transactional full-library claim, first-CCG-play guard, and provenance verification.
 - Verify concurrency and idempotency.
 
 ### Phase 5 — binder and pack UI
 
-- Build Current and Legacy binder navigation.
+- Build raid-specific binder navigation.
 - Add pack selection, opening, reveal recovery, card viewer, quantities, and finish completion.
 - Add responsive and localized states.
 - Add avatar and media fallbacks.
@@ -1169,7 +1139,7 @@ Never expose user-level private collection data in public operational dashboards
 
 - Backfill Highmaul forward, one configured set at a time.
 - Review historical identity and missing-media handling.
-- Record activation-driven Current-to-Legacy lifecycle changes in the administrative audit trail.
+- Record activation-driven Current-to-Legacy set lifecycle changes in the administrative audit trail without changing packs.
 - Validate binder counts, pool composition, and historical provenance.
 
 ## Verification strategy
@@ -1197,15 +1167,15 @@ Never expose user-level private collection data in public operational dashboards
 - Transaction rollback after a mid-operation failure
 - Ownership quantity updates
 - Same-character cards in different raid sets remain independent
-- One-time Current/Legacy completed-card pack credit
-- Legacy set selection
+- One-time unified completed-card pack credit
+- Raid and all-raids pack selection
 - Guest opening, cross-day claim, and repeated claim
 - Guest identity and collection survive Helsinki midnight
 - Guest claim accepts an explicitly selected five-card opening or resolves the guest's latest opening for shared login paths, then transfers only the verified library belonging to that guest
 - Existing CCG activity rejects a guest claim, including activity from pre-marker records
 - Concurrent login callbacks
-- First authenticated CCG session starts at 20/20 without guest conversion credits
-- Current-to-Legacy rollover
+- First authenticated CCG session starts at 40 packs without guest conversion credits
+- Current-to-Legacy set lifecycle transition
 - Media 404, transient retry, and stale-job recovery
 - Idempotent nightly media discovery from its stored cursor
 - Idempotent weekly snapshot and publication reruns
@@ -1234,7 +1204,7 @@ Statistical tests use tolerances; they must not depend on a fixed random sequenc
 - Recovery of committed openings after refresh
 - Binder pagination and missing slots
 - Quantity and finish switching
-- Current and Legacy selection
+- Raid and all-raids selection
 - Guest daily-reset countdown, expiry, and login claim messaging
 - Character avatar fallback
 - Keyboard navigation
@@ -1258,19 +1228,19 @@ Statistical tests use tolerances; they must not depend on a fixed random sequenc
 
 The initial feature is ready when:
 
-- A user or guest receives one Legacy pack each Helsinki half-hour and one Current pack each Helsinki hour while below the 50-pack storage cap for each mode.
-- A new guest starts with 20 packs per mode; a first-time authenticated CCG player starts with 20 packs per mode.
-- A Legacy pack can contain cards from any enabled historical raid.
+- A user or guest receives one unified pack every 20 minutes while their combined regular and bonus total is below the 100-pack recharge cap.
+- A new guest and a first-time authenticated CCG player each start with 40 packs.
+- A player can target any enabled raid or draw from all enabled raids together.
 - Every committed result survives refresh and repeated requests; authenticated and guest results remain permanent.
 - Guest cards, balances, and progress survive Helsinki midnight without receiving a fresh starting balance.
-- A guest claim transfers the complete cross-day guest library only when its ownership exactly matches the immutable server opening history, plus up to 20 unspent server-recorded guest packs per mode.
+- A guest claim transfers the complete cross-day guest library only when its ownership exactly matches the immutable server opening history, plus up to 40 unspent server-recorded guest packs.
 - An account with any prior CCG activity cannot claim guest cards; unrelated pre-CCG SuomiWoW account activity does not disqualify it.
-- Cards remain immutable after publication and rollover.
+- Cards remain immutable after publication and raid lifecycle transitions.
 - Tier grade is the visible rarity and drives pack/style behavior.
 - Every pack contains five cards and satisfies its guaranteed slot.
 - The same character in different raid sets is collected and completed as a different card.
 - A missing rolled finish is awarded unchanged; an exact-finish duplicate advances to the next missing finish for that card series.
-- The first duplicate pulled after every finish in the card series' pack ladder is owned awards exactly one pack for that series: Current for a Current raid and Legacy for a Legacy raid.
+- The first duplicate pulled after every finish in the card series' pack ladder is owned awards exactly one unified pack for that series.
 - Community cards roll and complete against the six base finishes only; redeem codes may additionally award Void or Toxic without changing completion or protection state.
 - Alternative art is one cosmetic unlock per `{setId, characterId}` card series and never contributes to duplicate or finish-completion state.
 - Finish protection remains at each configured base rate through 80% of the interval, then ramps quadratically to hard pity; converted duplicates reset both the selected raw finish and any different non-Standard finish awarded.
@@ -1311,9 +1281,9 @@ The smallest safe vertical path is:
 1. MongoDB replica-set prerequisite
 2. Character media and profile avatar
 3. One development set and immutable card publisher
-4. Authenticated transactional Current pack opening
+4. Authenticated transactional pack opening
 5. Basic binder and card viewer
-6. Legacy selection and backfill
+6. Historical raid selection and backfill
 7. Duplicate rewards
 8. Guest ownership and claim
 9. Seasonal materials, tilt, and premium reveals

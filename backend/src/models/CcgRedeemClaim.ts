@@ -6,8 +6,9 @@ export interface ICcgRedeemClaim extends Document {
   codeId: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
   rewardType: CcgRedeemRewardType;
-  currentPacks: number;
-  legacyPacks: number;
+  packs?: number;
+  currentPacks?: number;
+  legacyPacks?: number;
   cardId?: mongoose.Types.ObjectId | null;
   finish?: CcgFinish | null;
   artVariant?: CcgArtVariant | null;
@@ -19,8 +20,9 @@ const CcgRedeemClaimSchema = new Schema<ICcgRedeemClaim>(
     codeId: { type: Schema.Types.ObjectId, ref: "CcgRedeemCode", required: true, index: true },
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     rewardType: { type: String, enum: ["packs", "card"], required: true },
-    currentPacks: { type: Number, required: true, min: 0, default: 0 },
-    legacyPacks: { type: Number, required: true, min: 0, default: 0 },
+    packs: { type: Number, min: 0 },
+    currentPacks: { type: Number, min: 0 },
+    legacyPacks: { type: Number, min: 0 },
     cardId: { type: Schema.Types.ObjectId, ref: "CcgCard", default: null },
     finish: { type: String, enum: [...CCG_FINISH_ORDER, null], default: null },
     artVariant: { type: String, enum: ["standard", "alternative", null], default: null },

@@ -1,51 +1,32 @@
-import { CCG_PACK_RECHARGE_INTERVAL_HOURS, CCG_PACK_STORAGE_CAPS, CcgMode } from "../config/ccg";
+import { CCG_PACK_RECHARGE_INTERVAL_MINUTES, CCG_PACK_STORAGE_CAP } from "../config/ccg";
 
-const HOUR_MS = 60 * 60 * 1000;
-const RECHARGE_TICK_MS = 30 * 60 * 1000;
-
-export type CcgRechargeBalances = Record<CcgMode, number>;
+const RECHARGE_TICK_MS = CCG_PACK_RECHARGE_INTERVAL_MINUTES * 60 * 1000;
 
 export function getRechargeTickStart(date: Date = new Date()): Date {
   return new Date(Math.floor(date.getTime() / RECHARGE_TICK_MS) * RECHARGE_TICK_MS);
 }
 
-function countRechargeBoundaries(mode: CcgMode, lastTick: number, currentTick: number): number {
-  const intervalMs = CCG_PACK_RECHARGE_INTERVAL_HOURS[mode] * HOUR_MS;
-  return Math.floor(currentTick / intervalMs) - Math.floor(lastTick / intervalMs);
-}
-
-export function getRechargeGrants(lastRechargeAt: Date, date: Date = new Date()): CcgRechargeBalances {
+export function getRechargeGrants(lastRechargeAt: Date, date: Date = new Date()): number {
   const lastTick = getRechargeTickStart(lastRechargeAt).getTime();
   const currentTick = getRechargeTickStart(date).getTime();
-  if (currentTick <= lastTick) return { current: 0, legacy: 0 };
-
-  return {
-    current: Math.min(CCG_PACK_STORAGE_CAPS.current, countRechargeBoundaries("current", lastTick, currentTick)),
-    legacy: Math.min(CCG_PACK_STORAGE_CAPS.legacy, countRechargeBoundaries("legacy", lastTick, currentTick)),
-  };
+  if (currentTick <= lastTick) return 0;
+  return Math.min(CCG_PACK_STORAGE_CAP, Math.floor((currentTick - lastTick) / RECHARGE_TICK_MS));
 }
 
 export function applyPackRecharge(
-  balances: CcgRechargeBalances,
+  balance: number,
   lastRechargeAt: Date,
   date: Date = new Date(),
-  additionalBalances: CcgRechargeBalances = { current: 0, legacy: 0 },
-): { balances: CcgRechargeBalances; lastRechargeAt: Date } {
+  additionalBalance = 0,
+): { balance: number; lastRechargeAt: Date } {
   const grants = getRechargeGrants(lastRechargeAt, date);
-  const rechargeBalance = (mode: CcgMode): number => {
-    const availableCapacity = Math.max(0, CCG_PACK_STORAGE_CAPS[mode] - balances[mode] - additionalBalances[mode]);
-    return balances[mode] + Math.min(grants[mode], availableCapacity);
-  };
+  const availableCapacity = Math.max(0, CCG_PACK_STORAGE_CAP - balance - additionalBalance);
   return {
-    balances: {
-      current: rechargeBalance("current"),
-      legacy: rechargeBalance("legacy"),
-    },
+    balance: balance + Math.min(grants, availableCapacity),
     lastRechargeAt: getRechargeTickStart(date),
   };
 }
 
-export function getNextPackRechargeAt(mode: CcgMode, date: Date = new Date()): Date {
-  const intervalMs = CCG_PACK_RECHARGE_INTERVAL_HOURS[mode] * HOUR_MS;
-  return new Date((Math.floor(date.getTime() / intervalMs) + 1) * intervalMs);
+export function getNextPackRechargeAt(date: Date = new Date()): Date {
+  return new Date((Math.floor(date.getTime() / RECHARGE_TICK_MS) + 1) * RECHARGE_TICK_MS);
 }

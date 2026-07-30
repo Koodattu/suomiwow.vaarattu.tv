@@ -129,7 +129,6 @@ export default function CcgAdminAnalytics() {
         <div className="rounded-lg bg-gray-800/75 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]">
           <dt className="text-xs font-medium text-gray-400">{t("packsOpened")}</dt>
           <dd className="mt-1 text-2xl font-bold tabular-nums text-white">{numberFormat.format(data.totals.packOpenings)}</dd>
-          <p className="mt-1 text-xs tabular-nums text-gray-500">{t("modeSplit", { current: data.totals.modes.current, legacy: data.totals.modes.legacy })}</p>
         </div>
         <div className="rounded-lg bg-gray-800/75 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]">
           <dt className="text-xs font-medium text-gray-400">{t("cardsRevealed")}</dt>

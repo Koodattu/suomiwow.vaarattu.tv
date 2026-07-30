@@ -3095,7 +3095,7 @@ export default function AdminPage() {
                     <div className="rounded-lg border border-gray-700 bg-gray-900/40 p-4">
                       <div className="mb-4">
                         <h4 className="font-semibold text-white text-balance">Single-pack reward</h4>
-                        <p className="mt-1 text-xs text-gray-400 text-pretty">Grants one Current pack, one Legacy pack, and one card reveal for the same viewer. Disabling stops intake, retries, and chat delivery for this reward.</p>
+                        <p className="mt-1 text-xs text-gray-400 text-pretty">Grants two packs and one card reveal for the same viewer. Disabling stops intake, retries, and chat delivery for this reward.</p>
                       </div>
                       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                       <div>
@@ -3147,8 +3147,8 @@ export default function AdminPage() {
 
                     <div className="rounded-lg border border-amber-500/30 bg-amber-950/10 p-4">
                       <div className="mb-4">
-                        <h4 className="font-semibold text-white text-balance">10× pack reward</h4>
-                        <p className="mt-1 text-xs text-gray-400 text-pretty">Grants ten Current packs, ten Legacy packs, and two card reveals for the same viewer.</p>
+                        <h4 className="font-semibold text-white text-balance">20-pack reward</h4>
+                        <p className="mt-1 text-xs text-gray-400 text-pretty">Grants twenty packs and two card reveals for the same viewer.</p>
                       </div>
                       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                         <div>

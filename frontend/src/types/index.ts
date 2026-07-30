@@ -2058,7 +2058,8 @@ export type CharacterProfileChoicesResponse = {
 
 export type CharacterProfileLookupResponse = CharacterProfileResponse | CharacterProfileChoicesResponse;
 
-export type CcgMode = "current" | "legacy";
+export type CcgSetLifecycle = "current" | "legacy";
+export type CcgPackSelection = { type: "all" } | { type: "raid"; setId: string };
 export type CcgBaseFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative";
 export type CcgCustomFinish = "void" | "toxic";
 export type CcgFinish = CcgBaseFinish | CcgCustomFinish;
@@ -2178,8 +2179,8 @@ export type CcgSession = {
   ownerType: "user" | "guest";
   dateKey: string;
   resetAt: string;
-  packs: Record<CcgMode, { regularRemaining: number; bonusRemaining: number; totalRemaining: number }>;
-  recharge: Record<CcgMode, { cap: number; intervalHours: number; nextAt: string }>;
+  packs: { regularRemaining: number; bonusRemaining: number; totalRemaining: number };
+  recharge: { cap: number; intervalMinutes: number; nextAt: string };
   qualityProtection: Record<Exclude<CcgBaseFinish, "standard">, number>;
   customQualityProtection: Array<{
     setSlug: string;
@@ -2253,7 +2254,7 @@ export type CcgShowcaseCardInput = Pick<CcgLeaderboardShowcaseCard, "finish" | "
 };
 
 export type CcgRedeemReward =
-  | { type: "packs"; currentPacks: number; legacyPacks: number }
+  | { type: "packs"; packs: number }
   | { type: "card"; finish: CcgFinish; artVariant: CcgArtVariant; card: CcgCard };
 
 export type CcgRedeemResult = {
@@ -2263,8 +2264,7 @@ export type CcgRedeemResult = {
 
 export type CcgOpening = {
   id: string;
-  mode: CcgMode;
-  targetSetId: string | null;
+  selection: CcgPackSelection;
   sets: CcgSet[];
   allowanceSource: "daily" | "recharge" | "credit";
   duplicateRewards: number;
@@ -2318,7 +2318,7 @@ export type CcgShare =
 export type CcgActivityFilter = "all" | "packs" | "codes" | "twitch";
 
 export type CcgActivityReward =
-  | { type: "packs"; currentPacks: number; legacyPacks: number; currentPackArt: CcgActivityPackArt | null }
+  | { type: "packs"; packs: number; packArt: CcgActivityPackArt | null }
   | { type: "card"; finish: CcgFinish | null; artVariant: CcgArtVariant | null; card: CcgCard | null };
 
 export type CcgActivityPackArt = Pick<
@@ -2340,7 +2340,7 @@ export type CcgActivityItem =
       kind: "pack";
       occurredAt: string;
       openingId: string;
-      mode: CcgMode;
+      selectionType: CcgPackSelection["type"];
       packArt: CcgActivityPackArt | null;
       cards: CcgActivityPackCard[];
       newCards: number;
@@ -2367,7 +2367,7 @@ export type CcgActivitySummary = {
   cardsTotal: number;
   uniqueCards: number;
   raidPacks: Array<{
-    mode: CcgMode;
+    selectionType: CcgPackSelection["type"];
     count: number;
     packArt: CcgActivityPackArt | null;
   }>;
@@ -2447,7 +2447,7 @@ export type CcgAdminSetStatus = {
   slug: string;
   raidName: string;
   expansionName: string;
-  targetMode: CcgMode;
+  targetMode: CcgSetLifecycle;
   state: "draft" | "current" | "legacy" | "locked";
   availability: "candidate" | "enabled";
   enabledAt: string | null;
@@ -2478,7 +2478,7 @@ export type CcgAdminSnapshotSetPreview = CcgAdminSnapshotPreviewCounts & {
   zoneId: number;
   slug: string;
   raidName: string;
-  mode: CcgMode;
+  mode: CcgSetLifecycle;
   gradeDistribution: Record<CcgRegularTierGrade, number>;
   characters: Array<{
     characterId: string;
@@ -2510,14 +2510,6 @@ export type CcgAdminSnapshotPreview = {
 
 export type CcgAdminReadinessBlocker = "eligible_population" | "media_ready" | "media_coverage" | "already_enabled";
 
-export type CcgAdminRolloverPreview = {
-  required: boolean;
-  fromSets: Array<{ id: string; raidName: string; mythicPlusSeason: string }>;
-  balanceOwners: { users: number; guests: number; total: number };
-  storedCurrentPacks: { regular: number; bonus: number; total: number };
-  newCurrentPacks: { users: number; guests: number; total: number };
-};
-
 export type CcgAdminSetReadiness = {
   configured: {
     zoneId: number;
@@ -2528,14 +2520,14 @@ export type CcgAdminSetReadiness = {
   setId: string | null;
   state: "draft" | "current" | "legacy" | "locked";
   enabledAt: string | null;
-  targetMode: CcgMode;
+  targetMode: CcgSetLifecycle;
   eligible: number;
   mediaReady: number;
   mediaCoverage: number;
   published: number;
   poolCards: number;
   activationRevision: string;
-  rollover: CcgAdminRolloverPreview;
+  replacesCurrentSets: Array<{ id: string; raidName: string; mythicPlusSeason: string }>;
   readyToEnable: boolean;
   blockers: CcgAdminReadinessBlocker[];
   thresholds: { eligible: number; mediaReady: number; mediaCoverage: number };
@@ -2583,13 +2575,6 @@ export type CcgAdminStatusResponse = {
   media: CcgAdminMediaStatus;
   totals: { cards: number; openings: number };
   community: { characters: CcgAdminCommunityCharacter[] };
-  rollover: {
-    sequence: number;
-    effectiveAt: string;
-    fromSetIds: string[];
-    toSetId: string;
-    pendingBalances: number;
-  } | null;
 };
 
 export type CcgAdminAnalyticsRange = 7 | 30 | 90;
@@ -2602,7 +2587,6 @@ export type CcgAdminAnalyticsResponse = {
     cardsRevealed: number;
     activeUsersToday: number;
     averageDailyOpenings: number;
-    modes: Record<CcgMode, number>;
   };
   qualities: Array<{ key: CcgFinish; count: number; rate: number }>;
   rarities: Array<{ key: CcgTierGrade; count: number; rate: number }>;
@@ -2643,7 +2627,7 @@ export type CcgAdminRedeemCode = {
   createdAt: string;
   updatedAt: string;
   reward:
-    | { type: "packs"; currentPacks: number; legacyPacks: number }
+    | { type: "packs"; packs: number }
     | {
         type: "card";
         cardId: string | null;
@@ -2667,7 +2651,6 @@ export type CcgAdminEnableResponse = {
   readiness: CcgAdminSetReadiness;
   publication: { snapshotKey: string; published: number; unchanged: number; totalCards: number; poolVersion: string };
   movedToLegacy: number;
-  rollover: { sequence: number; effectiveAt: string; fromSetIds: string[] } | null;
 };
 
 export type CcgCatalogResponse = {
