@@ -248,7 +248,8 @@ export default function CcgOverlayPage() {
                   compact
                   renderPriority
                   className={packStyles.openedCard}
-                  forcedPointer={{ x: 0.62, y: 0.38 }}
+                  forcedPointer={event.finish === "holographic" ? undefined : { x: 0.62, y: 0.38 }}
+                  ambientMaterial={event.finish === "holographic"}
                   onReady={() => setCardReady(true)}
                 />
               </span>

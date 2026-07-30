@@ -2321,6 +2321,14 @@
   }
 }
 
+:where(.prototypeCard.holographic[data-ambient-material="true"]) .finishLayer {
+  animation: prototypePrismaticIdleFoil 5.1s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+
+:where(.prototypeCard.holographic[data-ambient-material="true"]) .qualityLabel {
+  animation: prototypeHolographicTextSweep 3.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+
 @keyframes prototypeIdleDrift {
   0% {
     translate: -0.5px 0;

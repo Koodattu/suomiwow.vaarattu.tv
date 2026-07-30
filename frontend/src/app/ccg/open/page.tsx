@@ -37,7 +37,7 @@ type PackSelection = { mode: CcgMode; setId?: string };
 type PackRequest = PackSelection & { idempotencyKey: string };
 
 const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
-const fanOffsets = [15, 5, 0, 5, 15];
+const fanOffsets = [24, 5, 0, 5, 24];
 const dealOffsets = ["215%", "108%", "0%", "-108%", "-215%"];
 const dealAngles = [8, 4, 0, -4, -8];
 const RANDOM_LEGACY_SET = "random";

@@ -163,6 +163,7 @@ type CollectibleCardProps = {
   hideBadges?: boolean;
   raidArtOffsetX?: number;
   forcedPointer?: { x: number; y: number };
+  ambientMaterial?: boolean;
   viewTransitionName?: string;
   renderPriority?: boolean;
   onReady?: () => void;
@@ -183,6 +184,7 @@ export default function CollectibleCard({
   hideBadges = false,
   raidArtOffsetX,
   forcedPointer,
+  ambientMaterial = false,
   viewTransitionName,
   renderPriority = false,
   onReady,
@@ -313,6 +315,7 @@ export default function CollectibleCard({
       data-frame="vaultSteel"
       data-ccg-card
       data-forced-hover={forcedPointer ? "true" : undefined}
+      data-ambient-material={ambientMaterial ? "true" : undefined}
       style={cardStyle}
       onPointerMove={updateMaterial}
       onPointerLeave={resetMaterial}
