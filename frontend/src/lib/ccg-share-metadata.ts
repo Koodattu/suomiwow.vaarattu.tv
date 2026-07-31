@@ -5,7 +5,7 @@ import enMessages from "../../messages/en.json";
 import fiMessages from "../../messages/fi.json";
 import type { CcgFinish, CcgOpening, CcgShare, CcgTierGrade } from "@/types";
 import { hydrateCcgShare, type CcgShareWire } from "@/lib/ccg-wire";
-import { CCG_FINISH_ORDER, CCG_RARITY_KEYS } from "@/lib/ccg";
+import { CCG_RARITY_KEYS, compareCcgPullQuality } from "@/lib/ccg";
 import {
   CCG_EMBED_IMAGE,
   CCG_EMBED_IMAGE_ALT,
@@ -24,8 +24,6 @@ const EMBED_COPY = {
   en: enMessages.ccg,
   fi: fiMessages.ccg,
 } as const;
-
-const GRADE_ORDER: readonly CcgTierGrade[] = ["F", "E", "D", "C", "B", "A", "S", "H"];
 
 function interpolate(template: string, values: Record<string, string | number>) {
   return template.replace(/\{(\w+)\}/g, (match, key: string) => (
@@ -80,8 +78,7 @@ export function getCcgPackType(pack: CcgOpening, locale: CcgEmbedLocale) {
 
 export function getBestPackResult(pack: CcgOpening) {
   return [...pack.results].sort((left, right) => (
-    CCG_FINISH_ORDER.indexOf(right.finish) - CCG_FINISH_ORDER.indexOf(left.finish)
-    || GRADE_ORDER.indexOf(right.card.tierGrade) - GRADE_ORDER.indexOf(left.card.tierGrade)
+    compareCcgPullQuality(left, right)
     || left.position - right.position
   ))[0] ?? null;
 }

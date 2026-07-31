@@ -7,7 +7,7 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as Reac
 import type { CcgBaseFinish, CcgBootstrapResponse, CcgFinish, CcgOpening } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
-import { CCG_BASE_FINISH_ORDER, CCG_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS } from "@/lib/ccg";
+import { CCG_BASE_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS, compareCcgPullQuality } from "@/lib/ccg";
 import {
   getCcgAnnouncerSoundSources,
   getCcgPlaybackVolume,
@@ -47,6 +47,7 @@ const dealOffsets = [
 ];
 const ALL_RAIDS = "all";
 const MOBILE_REVEAL_BREAKPOINT = "(max-width: 760px)";
+const MOBILE_SUMMARY_DELAY_MS = 300;
 const HOVER_SOUND = "/ccg/audio/hover.mp3";
 const FADE_OUT_SOUND = "/ccg/audio/fade_out.mp3";
 const SHUFFLE_SOUND = "/ccg/audio/shuffle.mp3";
@@ -399,16 +400,21 @@ export default function CcgOpenPage() {
     let tearTimer: number | undefined;
     let readyTimer: number | undefined;
     const drawSoundTimers: number[] = [];
+    const mobileOpening = window.matchMedia(MOBILE_REVEAL_BREAKPOINT).matches;
     const holdTimer = window.setTimeout(() => {
       playPackSound(SHUFFLE_SOUND, 0.42);
       setRevealPhase("tearing");
       tearTimer = window.setTimeout(() => {
-        setRevealPhase("dealing");
         setDealtCards(total);
         Array.from({ length: total }).forEach((_, index) => {
           drawSoundTimers.push(window.setTimeout(() => playPackSound(DRAW_SOUND, 0.32, [0.96, 1.02, 0.99, 1.04, 0.97][index] ?? 1), index * 58));
         });
-        readyTimer = window.setTimeout(() => setRevealPhase("ready"), 780);
+        if (mobileOpening) {
+          setRevealPhase("ready");
+        } else {
+          setRevealPhase("dealing");
+          readyTimer = window.setTimeout(() => setRevealPhase("ready"), 780);
+        }
       }, 640);
     }, 240);
 
@@ -424,6 +430,19 @@ export default function CcgOpenPage() {
     if (revealPhase !== "ready" || revealedCards.size > 0) return;
     cardRefs.current[0]?.focus({ preventScroll: true });
   }, [revealPhase, revealedCards.size]);
+
+  const showMobileSummaryAfterFinalCard = () => {
+    if (mobileSummaryTimerRef.current !== null) window.clearTimeout(mobileSummaryTimerRef.current);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      mobileSummaryTimerRef.current = null;
+      setMobileSummaryVisible(true);
+      return;
+    }
+    mobileSummaryTimerRef.current = window.setTimeout(() => {
+      mobileSummaryTimerRef.current = null;
+      setMobileSummaryVisible(true);
+    }, MOBILE_SUMMARY_DELAY_MS);
+  };
 
   const mutation = useMutation({
     mutationFn: async (request: PackRequest) => {
@@ -543,14 +562,9 @@ export default function CcgOpenPage() {
   const mobileActiveCardRevealed = mobileActiveCardIndex >= 0 && revealedCards.has(mobileActiveCardIndex);
   const summaryRankByIndex = useMemo(() => {
     if (!opening) return new Map<number, number>();
-    const gradeOrder = ["H", "S", "A", "B", "C", "D", "E", "F"];
     const ranked = opening.results
       .map((result, index) => ({ result, index }))
-      .sort((left, right) => {
-        const finishDifference = CCG_FINISH_ORDER.indexOf(right.result.finish) - CCG_FINISH_ORDER.indexOf(left.result.finish);
-        if (finishDifference !== 0) return finishDifference;
-        return gradeOrder.indexOf(left.result.card.tierGrade) - gradeOrder.indexOf(right.result.card.tierGrade);
-      });
+      .sort((left, right) => compareCcgPullQuality(left.result, right.result) || left.index - right.index);
     return new Map(ranked.map(({ index }, rank) => [index, rank]));
   }, [opening]);
 
@@ -564,11 +578,7 @@ export default function CcgOpenPage() {
     if (!opening || index !== mobileActiveCardIndex || !revealedCards.has(index) || mobileSummaryVisible) return;
     setMobileAdvancedCards((current) => new Set(current).add(index));
     if (mobileAdvancedCards.size >= opening.results.length - 1) {
-      if (mobileSummaryTimerRef.current !== null) window.clearTimeout(mobileSummaryTimerRef.current);
-      mobileSummaryTimerRef.current = window.setTimeout(() => {
-        mobileSummaryTimerRef.current = null;
-        setMobileSummaryVisible(true);
-      }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180);
+      showMobileSummaryAfterFinalCard();
     }
   };
 
@@ -652,12 +662,7 @@ export default function CcgOpenPage() {
     const prioritizedResults = opening.results
       .map((result, index) => ({ result, index }))
       .filter(({ index }) => !revealedCards.has(index))
-      .sort((left, right) => {
-        const finishDifference = CCG_FINISH_ORDER.indexOf(right.result.finish) - CCG_FINISH_ORDER.indexOf(left.result.finish);
-        if (finishDifference !== 0) return finishDifference;
-        return ["H", "S", "A", "B", "C", "D", "E", "F"].indexOf(left.result.card.tierGrade)
-          - ["H", "S", "A", "B", "C", "D", "E", "F"].indexOf(right.result.card.tierGrade);
-      });
+      .sort((left, right) => compareCcgPullQuality(left.result, right.result) || left.index - right.index);
     const voiceResult = prioritizedResults.find(({ result }) => (
       result.card.quip?.audioPath
         ? getCcgPlaybackVolume("quips", 0.9) > 0
@@ -697,17 +702,13 @@ export default function CcgOpenPage() {
       mobileAutoRevealTimersRef.current.push(timer);
     };
 
-    const prioritizedResult = [...remaining].sort((left, right) => {
-      const finishDifference = CCG_FINISH_ORDER.indexOf(right.result.finish) - CCG_FINISH_ORDER.indexOf(left.result.finish);
-      if (finishDifference !== 0) return finishDifference;
-      return ["H", "S", "A", "B", "C", "D", "E", "F"].indexOf(left.result.card.tierGrade)
-        - ["H", "S", "A", "B", "C", "D", "E", "F"].indexOf(right.result.card.tierGrade);
-    })[0];
+    const prioritizedResult = [...remaining]
+      .sort((left, right) => compareCcgPullQuality(left.result, right.result) || left.index - right.index)[0];
 
     const complete = () => {
       if (prioritizedResult?.result.card.quip?.audioPath) playQuipAfterFlip(prioritizedResult.index);
       else if (prioritizedResult) playAnnouncerAfterFlip(prioritizedResult.index);
-      setMobileSummaryVisible(true);
+      showMobileSummaryAfterFinalCard();
       setIsMobileRevealAllHolding(false);
       setIsMobileAutoRevealing(false);
       mobileAutoRevealTimersRef.current = [];

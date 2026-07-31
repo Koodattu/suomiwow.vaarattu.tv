@@ -71,6 +71,51 @@ export const CCG_RARITY_KEYS: Record<CcgTierGrade, "heirloom" | "artifact" | "le
   F: "poor",
 };
 
+const CCG_PULL_RARITY_SCORE: Readonly<Record<CcgTierGrade, number>> = {
+  H: 70,
+  S: 60,
+  A: 50,
+  B: 40,
+  C: 30,
+  D: 20,
+  E: 10,
+  F: 0,
+};
+
+const CCG_PULL_FINISH_SCORE: Readonly<Record<CcgFinish, number>> = {
+  standard: 0,
+  foil: 15,
+  golden: 28,
+  prismatic: 43,
+  holographic: 62,
+  void: 78,
+  toxic: 78,
+  negative: 100,
+};
+
+type CcgPullQuality = {
+  finish: CcgFinish;
+  artVariant?: CcgArtVariant;
+  card: { tierGrade: CcgTierGrade };
+};
+
+/**
+ * Scores the whole pull instead of treating finish as an absolute trump card.
+ * The crossover points intentionally keep Foil Common below Standard Legendary,
+ * while Holographic Common remains above Standard Legendary.
+ */
+export function getCcgPullQualityScore(pull: CcgPullQuality): number {
+  return CCG_PULL_RARITY_SCORE[pull.card.tierGrade] + CCG_PULL_FINISH_SCORE[pull.finish];
+}
+
+/** Sort comparator with the strongest pull first. */
+export function compareCcgPullQuality(left: CcgPullQuality, right: CcgPullQuality): number {
+  return getCcgPullQualityScore(right) - getCcgPullQualityScore(left)
+    || CCG_PULL_FINISH_SCORE[right.finish] - CCG_PULL_FINISH_SCORE[left.finish]
+    || CCG_PULL_RARITY_SCORE[right.card.tierGrade] - CCG_PULL_RARITY_SCORE[left.card.tierGrade]
+    || Number(right.artVariant === "alternative") - Number(left.artVariant === "alternative");
+}
+
 export function compareCcgFinish(
   left: CcgFinish,
   right: CcgFinish,
