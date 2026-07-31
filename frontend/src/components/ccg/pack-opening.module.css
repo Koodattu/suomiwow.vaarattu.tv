@@ -1941,23 +1941,22 @@
   left: 10%;
   overflow: hidden;
   text-align: center;
-  text-overflow: ellipsis;
   text-shadow: 0 2px 6px #000;
-  text-transform: uppercase;
-  white-space: nowrap;
 }
 
 .cardBackBrand {
-  top: 10%;
+  bottom: 7%;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.12em;
   color: white;
-  font-size: clamp(0.68rem, 4.6cqw, 1.06rem);
+  font-size: clamp(0.62rem, 4cqw, 0.94rem);
   font-weight: 900;
   letter-spacing: 0.13em;
   line-height: 0.92;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .cardBackBrand strong {
@@ -1965,15 +1964,18 @@
 }
 
 .cardBackSet {
-  bottom: 5.5%;
+  top: 7.5%;
   color: var(--pack-title-color, color-mix(in srgb, var(--pack-accent) 64%, white));
   font-family: "LifeCraft", fantasy;
-  font-size: clamp(0.76rem, calc(5.35cqw * var(--card-back-set-scale, 1)), 1.55rem);
+  font-size: clamp(1.08rem, 7.2cqw, 1.9rem);
   font-synthesis: none;
   font-weight: 400;
   letter-spacing: normal;
+  line-height: 0.98;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.88);
+  text-wrap: balance;
   text-transform: none;
+  white-space: normal;
   -webkit-text-stroke: 0.25px rgba(0, 0, 0, 0.55);
 }
 
