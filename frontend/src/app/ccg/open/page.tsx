@@ -7,7 +7,7 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as Reac
 import type { CcgBaseFinish, CcgBootstrapResponse, CcgFinish, CcgOpening } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
-import { CCG_BASE_FINISH_ORDER, CCG_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS } from "@/lib/ccg";
+import { CCG_BASE_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS, compareCcgPullQuality } from "@/lib/ccg";
 import {
   getCcgAnnouncerSoundSources,
   getCcgPlaybackVolume,
@@ -46,6 +46,8 @@ const dealOffsets = [
   "calc(-200% - var(--card-fan-gap) - var(--card-fan-gap))",
 ];
 const ALL_RAIDS = "all";
+const MOBILE_REVEAL_BREAKPOINT = "(max-width: 760px)";
+const MOBILE_SUMMARY_DELAY_MS = 300;
 const HOVER_SOUND = "/ccg/audio/hover.mp3";
 const FADE_OUT_SOUND = "/ccg/audio/fade_out.mp3";
 const SHUFFLE_SOUND = "/ccg/audio/shuffle.mp3";
@@ -127,6 +129,11 @@ export default function CcgOpenPage() {
   const [revealPhase, setRevealPhase] = useState<RevealPhase>("idle");
   const [dealtCards, setDealtCards] = useState(0);
   const [revealedCards, setRevealedCards] = useState<Set<number>>(() => new Set());
+  const [mobileAdvancedCards, setMobileAdvancedCards] = useState<Set<number>>(() => new Set());
+  const [mobileSummaryVisible, setMobileSummaryVisible] = useState(false);
+  const [isMobileRevealViewport, setIsMobileRevealViewport] = useState(false);
+  const [isMobileRevealAllHolding, setIsMobileRevealAllHolding] = useState(false);
+  const [isMobileAutoRevealing, setIsMobileAutoRevealing] = useState(false);
   const [activeReveal, setActiveReveal] = useState<{ index: number; x: number; y: number } | null>(null);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [viewerOriginElement, setViewerOriginElement] = useState<HTMLElement | null>(null);
@@ -146,8 +153,20 @@ export default function CcgOpenPage() {
   const sealedMotionFrame = useRef<number | null>(null);
   const pendingSealedMotion = useRef<{ element: HTMLButtonElement; x: number; y: number } | null>(null);
   const nextPackTimerRef = useRef<number | null>(null);
+  const mobileSummaryTimerRef = useRef<number | null>(null);
+  const mobileRevealAllHoldTimerRef = useRef<number | null>(null);
+  const mobileAutoRevealTimersRef = useRef<number[]>([]);
+  const mobileRevealAllPointerActiveRef = useRef(false);
   const packRequestPendingRef = useRef(false);
   const revealedRecoveryIdRef = useRef<string | null>(null);
+  const mobileCardGestureRef = useRef({
+    pointerId: -1,
+    index: -1,
+    startX: 0,
+    startY: 0,
+    dragging: false,
+    suppressClick: false,
+  });
   const recoveryQuery = useCcgOpening(recoveryId, !authLoading && sessionQuery.isSuccess);
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets;
@@ -192,6 +211,23 @@ export default function CcgOpenPage() {
   const selectedPackProgress = selectedPackCardCount > 0 ? Math.min(1, selectedPackOwnedCount / selectedPackCardCount) : 0;
   const raidIconByZone = useMemo(() => new Map((sets ?? []).map((set) => [set.zoneId, set.iconUrl ?? undefined])), [sets]);
   const poolTitle = selectedSet?.raidName ?? t("open.allRaids");
+
+  useEffect(() => {
+    const mobileViewport = window.matchMedia(MOBILE_REVEAL_BREAKPOINT);
+    const updateMobileViewport = () => setIsMobileRevealViewport(mobileViewport.matches);
+    updateMobileViewport();
+    mobileViewport.addEventListener("change", updateMobileViewport);
+    return () => mobileViewport.removeEventListener("change", updateMobileViewport);
+  }, []);
+
+  const clearMobileRevealAllTimers = () => {
+    if (mobileRevealAllHoldTimerRef.current !== null) {
+      window.clearTimeout(mobileRevealAllHoldTimerRef.current);
+      mobileRevealAllHoldTimerRef.current = null;
+    }
+    mobileAutoRevealTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    mobileAutoRevealTimersRef.current = [];
+  };
 
   const closePackSelector = () => {
     setPackSelectorOpen(false);
@@ -311,6 +347,9 @@ export default function CcgOpenPage() {
     () => () => {
       if (sealedMotionFrame.current !== null) cancelAnimationFrame(sealedMotionFrame.current);
       if (nextPackTimerRef.current !== null) window.clearTimeout(nextPackTimerRef.current);
+      if (mobileSummaryTimerRef.current !== null) window.clearTimeout(mobileSummaryTimerRef.current);
+      if (mobileRevealAllHoldTimerRef.current !== null) window.clearTimeout(mobileRevealAllHoldTimerRef.current);
+      mobileAutoRevealTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       quipSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       announcerSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -341,11 +380,17 @@ export default function CcgOpenPage() {
     setViewerOriginElement(null);
     setViewerOriginBounds(null);
     setActiveReveal(null);
+    setMobileAdvancedCards(new Set());
+    setMobileSummaryVisible(false);
+    setIsMobileRevealAllHolding(false);
+    setIsMobileAutoRevealing(false);
     if (reduced || revealImmediately) {
       if (reduced && !revealImmediately) playPackSound(SHUFFLE_SOUND, 0.42);
       setRevealPhase("ready");
       setDealtCards(total);
       setRevealedCards(new Set(opening.results.map((_, index) => index)));
+      setMobileAdvancedCards(new Set(opening.results.map((_, index) => index)));
+      setMobileSummaryVisible(true);
       return;
     }
 
@@ -355,16 +400,21 @@ export default function CcgOpenPage() {
     let tearTimer: number | undefined;
     let readyTimer: number | undefined;
     const drawSoundTimers: number[] = [];
+    const mobileOpening = window.matchMedia(MOBILE_REVEAL_BREAKPOINT).matches;
     const holdTimer = window.setTimeout(() => {
       playPackSound(SHUFFLE_SOUND, 0.42);
       setRevealPhase("tearing");
       tearTimer = window.setTimeout(() => {
-        setRevealPhase("dealing");
         setDealtCards(total);
         Array.from({ length: total }).forEach((_, index) => {
           drawSoundTimers.push(window.setTimeout(() => playPackSound(DRAW_SOUND, 0.32, [0.96, 1.02, 0.99, 1.04, 0.97][index] ?? 1), index * 58));
         });
-        readyTimer = window.setTimeout(() => setRevealPhase("ready"), 780);
+        if (mobileOpening) {
+          setRevealPhase("ready");
+        } else {
+          setRevealPhase("dealing");
+          readyTimer = window.setTimeout(() => setRevealPhase("ready"), 780);
+        }
       }, 640);
     }, 240);
 
@@ -380,6 +430,19 @@ export default function CcgOpenPage() {
     if (revealPhase !== "ready" || revealedCards.size > 0) return;
     cardRefs.current[0]?.focus({ preventScroll: true });
   }, [revealPhase, revealedCards.size]);
+
+  const showMobileSummaryAfterFinalCard = () => {
+    if (mobileSummaryTimerRef.current !== null) window.clearTimeout(mobileSummaryTimerRef.current);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      mobileSummaryTimerRef.current = null;
+      setMobileSummaryVisible(true);
+      return;
+    }
+    mobileSummaryTimerRef.current = window.setTimeout(() => {
+      mobileSummaryTimerRef.current = null;
+      setMobileSummaryVisible(true);
+    }, MOBILE_SUMMARY_DELAY_MS);
+  };
 
   const mutation = useMutation({
     mutationFn: async (request: PackRequest) => {
@@ -464,6 +527,7 @@ export default function CcgOpenPage() {
     || (Boolean(recoveryId) && recoveryQuery.isPending);
   const noPacks = session ? session.packs.totalRemaining <= 0 : false;
   const clearSavedOpening = () => {
+    clearMobileRevealAllTimers();
     qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     qualitySoundTimersRef.current = [];
     quipSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -474,6 +538,10 @@ export default function CcgOpenPage() {
     setRevealPhase("idle");
     setDealtCards(0);
     setRevealedCards(new Set());
+    setMobileAdvancedCards(new Set());
+    setMobileSummaryVisible(false);
+    setIsMobileRevealAllHolding(false);
+    setIsMobileAutoRevealing(false);
     setActiveReveal(null);
     setViewerIndex(null);
     setViewerOriginElement(null);
@@ -484,6 +552,34 @@ export default function CcgOpenPage() {
     url.searchParams.delete("opening");
     url.searchParams.delete("revealed");
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+
+  const allRevealed = Boolean(opening) && revealedCards.size >= (opening?.results.length ?? 0);
+  const packComplete = allRevealed && (!isMobileRevealViewport || mobileSummaryVisible);
+  const mobileActiveCardIndex = opening
+    ? opening.results.findIndex((_, index) => !mobileAdvancedCards.has(index))
+    : -1;
+  const mobileActiveCardRevealed = mobileActiveCardIndex >= 0 && revealedCards.has(mobileActiveCardIndex);
+  const summaryRankByIndex = useMemo(() => {
+    if (!opening) return new Map<number, number>();
+    const ranked = opening.results
+      .map((result, index) => ({ result, index }))
+      .sort((left, right) => compareCcgPullQuality(left.result, right.result) || left.index - right.index);
+    return new Map(ranked.map(({ index }, rank) => [index, rank]));
+  }, [opening]);
+
+  useEffect(() => {
+    if (!isMobileRevealViewport || mobileActiveCardIndex < 0 || revealPhase !== "ready") return;
+    const focusFrame = window.requestAnimationFrame(() => cardRefs.current[mobileActiveCardIndex]?.focus({ preventScroll: true }));
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [isMobileRevealViewport, mobileActiveCardIndex, revealPhase]);
+
+  const advanceMobileCard = (index: number) => {
+    if (!opening || index !== mobileActiveCardIndex || !revealedCards.has(index) || mobileSummaryVisible) return;
+    setMobileAdvancedCards((current) => new Set(current).add(index));
+    if (mobileAdvancedCards.size >= opening.results.length - 1) {
+      showMobileSummaryAfterFinalCard();
+    }
   };
 
   const playQualitySoundAfterFlip = (index: number) => {
@@ -521,7 +617,16 @@ export default function CcgOpenPage() {
 
   const revealCard = (index: number, event?: ReactMouseEvent<HTMLButtonElement>) => {
     if (revealPhase !== "ready" || index >= dealtCards) return;
+    if (isMobileRevealViewport && mobileCardGestureRef.current.suppressClick) {
+      mobileCardGestureRef.current.suppressClick = false;
+      return;
+    }
+    if (isMobileRevealViewport && !packComplete && index !== mobileActiveCardIndex) return;
     if (revealedCards.has(index)) {
+      if (isMobileRevealViewport && !packComplete) {
+        advanceMobileCard(index);
+        return;
+      }
       const originElement = event?.currentTarget ?? cardRefs.current[index];
       openCardViewer(originElement, (sharedTransition, originBounds) => {
         setViewerOriginElement(originElement);
@@ -557,12 +662,7 @@ export default function CcgOpenPage() {
     const prioritizedResults = opening.results
       .map((result, index) => ({ result, index }))
       .filter(({ index }) => !revealedCards.has(index))
-      .sort((left, right) => {
-        const finishDifference = CCG_FINISH_ORDER.indexOf(right.result.finish) - CCG_FINISH_ORDER.indexOf(left.result.finish);
-        if (finishDifference !== 0) return finishDifference;
-        return ["H", "S", "A", "B", "C", "D", "E", "F"].indexOf(left.result.card.tierGrade)
-          - ["H", "S", "A", "B", "C", "D", "E", "F"].indexOf(right.result.card.tierGrade);
-      });
+      .sort((left, right) => compareCcgPullQuality(left.result, right.result) || left.index - right.index);
     const voiceResult = prioritizedResults.find(({ result }) => (
       result.card.quip?.audioPath
         ? getCcgPlaybackVolume("quips", 0.9) > 0
@@ -572,10 +672,106 @@ export default function CcgOpenPage() {
     if (voiceResult?.result.card.quip?.audioPath) playQuipAfterFlip(voiceResult.index);
     else if (voiceResult) playAnnouncerAfterFlip(voiceResult.index);
     setRevealedCards(new Set(opening.results.map((_, index) => index)));
+    setMobileAdvancedCards(new Set(opening.results.map((_, index) => index)));
+    setMobileSummaryVisible(true);
+  };
+
+  const stopMobileRevealAll = () => {
+    clearMobileRevealAllTimers();
+    setIsMobileRevealAllHolding(false);
+    setIsMobileAutoRevealing(false);
+  };
+
+  const runMobileRevealAll = (interruptible = false) => {
+    if (!opening || revealPhase !== "ready" || isMobileAutoRevealing) return;
+    clearMobileRevealAllTimers();
+    setIsMobileAutoRevealing(true);
+    const remaining = opening.results
+      .map((result, index) => ({ result, index }))
+      .filter(({ index }) => !mobileAdvancedCards.has(index));
+    if (remaining.length === 0) {
+      setMobileSummaryVisible(true);
+      stopMobileRevealAll();
+      return;
+    }
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const revealDuration = reducedMotion ? 0 : 420;
+    const nextCardDelay = reducedMotion ? 0 : 90;
+    const schedule = (callback: () => void, delay: number) => {
+      const timer = window.setTimeout(callback, delay);
+      mobileAutoRevealTimersRef.current.push(timer);
+    };
+
+    const prioritizedResult = [...remaining]
+      .sort((left, right) => compareCcgPullQuality(left.result, right.result) || left.index - right.index)[0];
+
+    const complete = () => {
+      if (prioritizedResult?.result.card.quip?.audioPath) playQuipAfterFlip(prioritizedResult.index);
+      else if (prioritizedResult) playAnnouncerAfterFlip(prioritizedResult.index);
+      showMobileSummaryAfterFinalCard();
+      setIsMobileRevealAllHolding(false);
+      setIsMobileAutoRevealing(false);
+      mobileAutoRevealTimersRef.current = [];
+    };
+
+    const continueHolding = () => !interruptible || mobileRevealAllPointerActiveRef.current;
+    const revealNext = (position: number) => {
+      if (!continueHolding()) {
+        stopMobileRevealAll();
+        return;
+      }
+
+      const { result, index } = remaining[position];
+      const lastCard = position === remaining.length - 1;
+      const advance = () => {
+        if (!continueHolding()) {
+          stopMobileRevealAll();
+          return;
+        }
+        setMobileAdvancedCards((current) => new Set(current).add(index));
+        if (lastCard) {
+          complete();
+          return;
+        }
+        schedule(() => revealNext(position + 1), nextCardDelay);
+      };
+
+      if (revealedCards.has(index)) {
+        advance();
+        return;
+      }
+
+      playRandomPackSound(CCG_CARD_SLIDE_SOUNDS, 0.3);
+      if (hasCcgQualityRevealSound(result.finish, result.card.tierGrade)) playQualitySoundAfterFlip(index);
+      setRevealedCards((current) => new Set(current).add(index));
+      schedule(advance, revealDuration);
+    };
+
+    revealNext(0);
+  };
+
+  const startMobileRevealAllHold = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!isMobileRevealViewport || isMobileAutoRevealing || revealPhase !== "ready") return;
+    clearMobileRevealAllTimers();
+    mobileRevealAllPointerActiveRef.current = true;
+    setIsMobileRevealAllHolding(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    mobileRevealAllHoldTimerRef.current = window.setTimeout(() => {
+      mobileRevealAllHoldTimerRef.current = null;
+      runMobileRevealAll(true);
+    }, 180);
+  };
+
+  const cancelMobileRevealAllHold = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!isMobileRevealViewport) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    stopMobileRevealAll();
+    window.setTimeout(() => {
+      mobileRevealAllPointerActiveRef.current = false;
+    }, 0);
   };
 
   const canOpen = recoveryInitialized && !recoveryId && Boolean(session) && !queryFailed && raidSets.length > 0 && !noPacks && !mutation.isPending;
-  const allRevealed = Boolean(opening) && revealedCards.size >= (opening?.results.length ?? 0);
   const hasAnotherPack = Boolean(opening && session && session.packs.totalRemaining > 0);
   const shouldPromptGuestLogin = session?.ownerType === "guest" && !hasAnotherPack;
   const nextPackRemaining = opening && session
@@ -669,6 +865,60 @@ export default function CcgOpenPage() {
     applySealedCardMotion(event.currentTarget, 0.5, 0.5);
   };
 
+  const startMobileCardTilt = (index: number, event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!isMobileRevealViewport || packComplete || index !== mobileActiveCardIndex || event.button !== 0) return;
+    mobileCardGestureRef.current = {
+      pointerId: event.pointerId,
+      index,
+      startX: event.clientX,
+      startY: event.clientY,
+      dragging: false,
+      suppressClick: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const updateMobileCardTilt = (index: number, event: ReactPointerEvent<HTMLButtonElement>) => {
+    const gesture = mobileCardGestureRef.current;
+    if (!isMobileRevealViewport || gesture.pointerId !== event.pointerId || gesture.index !== index) return;
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    if (Math.hypot(dx, dy) >= 6) gesture.dragging = true;
+    if (!gesture.dragging) return;
+    event.preventDefault();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+    const y = Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height));
+    applySealedCardMotion(event.currentTarget, x, y);
+  };
+
+  const finishMobileCardTilt = (index: number, event: ReactPointerEvent<HTMLButtonElement>) => {
+    const gesture = mobileCardGestureRef.current;
+    if (gesture.pointerId !== event.pointerId || gesture.index !== index) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    gesture.suppressClick = gesture.dragging;
+    gesture.pointerId = -1;
+    gesture.index = -1;
+    gesture.dragging = false;
+    applySealedCardMotion(event.currentTarget, 0.5, 0.5);
+    if (gesture.suppressClick) {
+      window.setTimeout(() => {
+        mobileCardGestureRef.current.suppressClick = false;
+      }, 0);
+    }
+  };
+
+  const cancelMobileCardTilt = (index: number, event: ReactPointerEvent<HTMLButtonElement>) => {
+    const gesture = mobileCardGestureRef.current;
+    if (gesture.pointerId !== event.pointerId || gesture.index !== index) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    gesture.pointerId = -1;
+    gesture.index = -1;
+    gesture.dragging = false;
+    gesture.suppressClick = false;
+    applySealedCardMotion(event.currentTarget, 0.5, 0.5);
+  };
+
   const startPackDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!canOpen || event.button !== 0 || event.pointerType !== "mouse") return;
     packDragRef.current = {
@@ -750,7 +1000,7 @@ export default function CcgOpenPage() {
   }
 
   return (
-    <CcgShell compact onOpenPacksClick={clearSavedOpening}>
+    <CcgShell compact immersiveOnMobile={Boolean(opening)} onOpenPacksClick={clearSavedOpening}>
       <div className={`${packStyles.openWorkspace} ${packSelectorOpen ? packStyles.openWorkspacePickerOpen : ""}`}>
         {!opening ? (
           <div className={packStyles.packChooser}>
@@ -889,7 +1139,9 @@ export default function CcgOpenPage() {
                   >
                     <PackBoosterVisual title={raidSets.length > 0 ? poolTitle : t("landing.preparing")} cardsLabel={t("landing.cards")} />
                   </button>
-                  <span className={packStyles.packHint}>{mutation.isPending ? t("open.openingHint") : t("open.packHint")}</span>
+                  <span className={packStyles.packHint}>
+                    {mutation.isPending ? t("open.openingHint") : isMobileRevealViewport ? t("open.mobilePackHint") : t("open.packHint")}
+                  </span>
                 </div>
 
                   <aside className={packStyles.packBalancePanel}>
@@ -972,14 +1224,17 @@ export default function CcgOpenPage() {
           </div>
         ) : (
           <section
-            className={`${packStyles.packStage} ${packStyles.revealStage} ${isPackCycling ? packStyles.revealStageCycling : ""}`}
+            className={`${packStyles.packStage} ${packStyles.revealStage} ${packComplete ? packStyles.revealStageComplete : ""} ${isMobileAutoRevealing ? packStyles.revealStageAutoRevealing : ""} ${isPackCycling ? packStyles.revealStageCycling : ""}`}
             style={stageTheme}
-            aria-busy={isPackCycling || mutation.isPending}
+            aria-busy={isPackCycling || mutation.isPending || isMobileAutoRevealing}
           >
             <span className={packStyles.stageArt} />
             <span className={packStyles.stageVeil} />
             <span className={packStyles.vaultRing} aria-hidden="true" />
             <span className={packStyles.vaultRingInner} aria-hidden="true" />
+            <button type="button" className={packStyles.mobileRevealExit} onClick={clearSavedOpening} aria-label={t("open.closeOpening")}>
+              <span aria-hidden="true" />
+            </button>
 
             <div
               className={`${packStyles.tearSequence} ${revealPhase === "holding" ? packStyles.tearSequenceHolding : ""} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`}
@@ -1016,21 +1271,35 @@ export default function CcgOpenPage() {
               <span className={packStyles.tearShardThree} />
             </div>
 
-            <div className={`${packStyles.revealContent} ${revealPhase === "holding" || revealPhase === "tearing" ? packStyles.revealContentWaiting : ""}`}>
+            <div className={`${packStyles.revealContent} ${packComplete ? packStyles.revealContentSummary : ""} ${revealPhase === "holding" || revealPhase === "tearing" ? packStyles.revealContentWaiting : ""}`}>
               <div className={packStyles.revealLead}>
                 <span>{openingPackName}</span>
-                <strong>{allRevealed ? t("open.allRevealed") : t("open.revealPrompt")}</strong>
+                <strong>
+                  {packComplete
+                    ? t("open.allRevealed")
+                    : isMobileRevealViewport
+                      ? mobileActiveCardRevealed ? t("open.mobileAdvancePrompt") : t("open.mobileRevealPrompt")
+                      : t("open.revealPrompt")}
+                </strong>
               </div>
 
-              <div ref={cardFanScrollerRef} className={packStyles.cardFanScroller}>
-                <div className={packStyles.cardFan}>
+              <div ref={cardFanScrollerRef} className={`${packStyles.cardFanScroller} ${packComplete ? packStyles.cardFanScrollerSummary : ""}`}>
+                <div className={`${packStyles.cardFan} ${packComplete ? packStyles.cardFanSummary : ""}`}>
                   {opening.results.map((result, index) => {
                     const revealed = revealedCards.has(index);
                     const dealt = index < dealtCards;
                     const special = result.finish !== "standard" || result.card.tierGrade === "S";
+                    const mobileStackPosition = Math.max(0, index - Math.max(0, mobileActiveCardIndex));
+                    const mobileCardState = packComplete
+                      ? "summary"
+                      : revealPhase !== "ready"
+                        ? "queued"
+                        : mobileAdvancedCards.has(index)
+                          ? "advanced"
+                          : index === mobileActiveCardIndex ? "active" : "queued";
+                    const summaryRank = summaryRankByIndex.get(index) ?? index;
                     const sealedCardHint = `${t(`finish.${result.finish}`)} · ${t(`rarity.${CCG_RARITY_KEYS[result.card.tierGrade]}`)}`;
                     const cardBackSetName = result.card.set.raidName;
-                    const cardBackSetScale = Math.min(1.45, Math.max(0.78, 18 / (cardBackSetName.trim().length || 18)));
                     const cardStyle = {
                       ...getPackTheme(result.card.set),
                       "--fan-angle": `${fanAngles[index] ?? 0}deg`,
@@ -1039,6 +1308,8 @@ export default function CcgOpenPage() {
                       "--deal-angle": "0deg",
                       "--deal-delay": `${index * 58}ms`,
                       "--pack-exit-delay": `${index * 24}ms`,
+                      "--mobile-stack-position": mobileStackPosition,
+                      "--summary-rank": summaryRank,
                     } as CSSProperties;
                     return (
                       <button
@@ -1048,22 +1319,35 @@ export default function CcgOpenPage() {
                         style={cardStyle}
                         data-finish={result.finish}
                         data-grade={result.card.tierGrade}
+                        data-mobile-state={mobileCardState}
+                        data-summary-rank={summaryRank}
                         ref={(element) => {
                           cardRefs.current[index] = element;
                         }}
-                        disabled={!dealt || revealPhase !== "ready" || isPackCycling}
+                        disabled={!dealt || revealPhase !== "ready" || isPackCycling || isMobileAutoRevealing
+                          || (isMobileRevealViewport && !packComplete && index !== mobileActiveCardIndex)}
+                        onPointerDown={(event) => startMobileCardTilt(index, event)}
                         onPointerEnter={(event) => {
                           if (event.pointerType === "mouse" && dealt && revealPhase === "ready" && !isPackCycling) {
                             playPackSound(HOVER_SOUND, 0.28);
                           }
                         }}
-                        onPointerMove={revealed ? undefined : updateSealedCardMotion}
+                        onPointerMove={(event) => {
+                          if (isMobileRevealViewport) updateMobileCardTilt(index, event);
+                          else if (!revealed) updateSealedCardMotion(event);
+                        }}
+                        onPointerUp={(event) => finishMobileCardTilt(index, event)}
+                        onPointerCancel={(event) => cancelMobileCardTilt(index, event)}
                         onPointerLeave={(event) => {
-                          if (!revealed) resetSealedCardMotion(event);
+                          if (!isMobileRevealViewport && !revealed) resetSealedCardMotion(event);
                           setActiveReveal((current) => (current?.index === index ? null : current));
                         }}
                         onClick={(event) => revealCard(index, event)}
-                        aria-label={revealed ? t("open.viewCard", { name: result.card.name }) : `${t("open.revealCard", { position: index + 1 })}. ${sealedCardHint}`}
+                        aria-label={revealed
+                          ? isMobileRevealViewport && !packComplete
+                            ? t("open.advanceCard", { name: result.card.name })
+                            : t("open.viewCard", { name: result.card.name })
+                          : `${t("open.revealCard", { position: index + 1 })}. ${sealedCardHint}`}
                       >
                         <span className={packStyles.sealedAura} aria-hidden="true" />
                         <span className={packStyles.cardFlip} data-card-surface>
@@ -1077,9 +1361,7 @@ export default function CcgOpenPage() {
                               <span>SUOMIWOW</span>
                               <strong>CCG</strong>
                             </span>
-                            <span className={packStyles.cardBackSet} style={{ "--card-back-set-scale": cardBackSetScale } as CSSProperties}>
-                              {cardBackSetName}
-                            </span>
+                            <span className={packStyles.cardBackSet}>{cardBackSetName}</span>
                           </span>
                           <span className={`${packStyles.cardFace} ${packStyles.cardFront}`} aria-hidden={!revealed}>
                             <CollectibleCard
@@ -1118,7 +1400,7 @@ export default function CcgOpenPage() {
               <div className={packStyles.revealControls}>
                 <div className={packStyles.revealActionStack}>
                   <div className={packStyles.revealActionSlot}>
-                    {allRevealed && shouldPromptGuestLogin ? (
+                    {packComplete && shouldPromptGuestLogin ? (
                       <button
                         type="button"
                         className={styles.primaryButton}
@@ -1126,7 +1408,7 @@ export default function CcgOpenPage() {
                       >
                         {t("guest.loginForPacks")}
                       </button>
-                    ) : allRevealed ? (
+                    ) : packComplete ? (
                       <button
                         type="button"
                         className={styles.primaryButton}
@@ -1138,7 +1420,7 @@ export default function CcgOpenPage() {
                     ) : null}
                   </div>
                   <div className={packStyles.revealStatusSlot}>
-                    {!allRevealed ? (
+                    {!packComplete ? (
                       <span className={packStyles.revealProgressLabel}>
                         {t("open.revealProgress", { revealed: revealedCards.size, total: opening.results.length })}
                       </span>
@@ -1150,18 +1432,49 @@ export default function CcgOpenPage() {
                     ) : null}
                   </div>
                   <div className={packStyles.revealActionSlot}>
-                    {!allRevealed ? (
-                      <button type="button" className={styles.secondaryButton} onClick={revealAll} disabled={revealPhase !== "ready"}>
-                        {t("open.revealAll")}
+                    {!allRevealed || (isMobileRevealViewport && isMobileAutoRevealing) ? (
+                      <button
+                        type="button"
+                        className={`${styles.secondaryButton} ${packStyles.revealAllButton}`}
+                        data-holding={isMobileRevealAllHolding ? "true" : undefined}
+                        onPointerDown={startMobileRevealAllHold}
+                        onPointerUp={cancelMobileRevealAllHold}
+                        onPointerCancel={cancelMobileRevealAllHold}
+                        onKeyDown={(event) => {
+                          if (isMobileRevealViewport && (event.key === "Enter" || event.key === " ")) {
+                            event.preventDefault();
+                            runMobileRevealAll();
+                          }
+                        }}
+                        onClick={(event) => {
+                          if (isMobileRevealViewport) {
+                            if (!mobileRevealAllPointerActiveRef.current) runMobileRevealAll();
+                            return;
+                          }
+                          revealAll();
+                        }}
+                        disabled={revealPhase !== "ready"}
+                      >
+                        {isMobileRevealViewport ? t("open.holdToRevealAll") : t("open.revealAll")}
                       </button>
-                    ) : (
+                    ) : isMobileRevealViewport && !packComplete ? (
+                      <button
+                        type="button"
+                        className={`${styles.secondaryButton} ${packStyles.revealAllPlaceholder}`}
+                        aria-hidden="true"
+                        tabIndex={-1}
+                        disabled
+                      >
+                        {t("open.holdToRevealAll")}
+                      </button>
+                    ) : packComplete ? (
                       <button type="button" className={styles.secondaryButton} onClick={clearSavedOpening} disabled={mutation.isPending || isPackCycling}>
                         {t("open.chooseDifferent")}
                       </button>
-                    )}
+                    ) : null}
                   </div>
                   <div className={packStyles.revealActionSlot}>
-                    {allRevealed ? (
+                    {packComplete ? (
                       <CcgShareButton
                         key={opening.id}
                         target={{ kind: "pack", openingId: opening.id }}
@@ -1172,7 +1485,7 @@ export default function CcgOpenPage() {
                   </div>
                 </div>
                 <div className={packStyles.revealCollectionProgressSlot}>
-                  {allRevealed && openingCollectionCardCount > 0 ? (
+                  {packComplete && openingCollectionCardCount > 0 ? (
                     <div
                       className={packStyles.revealCollectionProgress}
                       style={{
@@ -1218,7 +1531,7 @@ export default function CcgOpenPage() {
                   ) : null}
                 </div>
               </div>
-              {allRevealed && mutation.error ? (
+              {packComplete && mutation.error ? (
                 <p className={packStyles.packActionError} role="alert">
                   {mutation.error.message}
                 </p>

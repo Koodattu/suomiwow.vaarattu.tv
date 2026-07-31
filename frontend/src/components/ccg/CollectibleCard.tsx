@@ -49,6 +49,9 @@ const mythicPlusScoreColors = [
   [200, "#ffffff"],
 ] as const;
 
+const TOUCH_TILT_CLICK_THRESHOLD = 8;
+const TOUCH_CLICK_SUPPRESSION_MS = 500;
+
 function isWebmArtwork(path: string | null): path is string {
   return Boolean(path && /\.webm(?:$|[?#])/i.test(path));
 }
@@ -193,6 +196,8 @@ export default function CollectibleCard({
   const metamorphicFilterId = `vault-metamorphic-${useId().replace(/:/g, "")}`;
   const materialFrame = useRef<number | null>(null);
   const pendingMaterial = useRef<{ element: HTMLElement; x: number; y: number } | null>(null);
+  const touchGesture = useRef<{ pointerId: number; startX: number; startY: number; moved: boolean } | null>(null);
+  const suppressTouchClickUntil = useRef(0);
   const cardRef = useRef<HTMLSpanElement | null>(null);
   const hadForcedPointer = useRef(false);
   const readyAssets = useRef(new Set<"render" | "class" | "spec">());
@@ -267,7 +272,16 @@ export default function CollectibleCard({
   );
 
   const updateMaterial = (event: ReactPointerEvent<HTMLElement>) => {
-    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    if (!event.isPrimary) return;
+    const gesture = touchGesture.current;
+    if (
+      gesture
+      && gesture.pointerId === event.pointerId
+      && Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) >= TOUCH_TILT_CLICK_THRESHOLD
+    ) {
+      gesture.moved = true;
+    }
+    event.currentTarget.dataset.pointerActive = "true";
     const bounds = event.currentTarget.getBoundingClientRect();
     const x = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
     const y = Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height));
@@ -285,9 +299,38 @@ export default function CollectibleCard({
     if (materialFrame.current !== null) cancelAnimationFrame(materialFrame.current);
     materialFrame.current = null;
     pendingMaterial.current = null;
+    delete event.currentTarget.dataset.pointerActive;
     applyCardMaterial(event.currentTarget, 0.5, 0.38);
     event.currentTarget.style.setProperty("--tilt-x", "0deg");
     event.currentTarget.style.setProperty("--tilt-y", "0deg");
+  };
+
+  const startMaterial = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.pointerType === "touch") {
+      touchGesture.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+      };
+      suppressTouchClickUntil.current = 0;
+    }
+    updateMaterial(event);
+  };
+
+  const finishMaterial = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.pointerType !== "touch") return;
+    const gesture = touchGesture.current;
+    if (gesture?.pointerId === event.pointerId && gesture.moved) {
+      suppressTouchClickUntil.current = Date.now() + TOUCH_CLICK_SUPPRESSION_MS;
+    }
+    touchGesture.current = null;
+    resetMaterial(event);
+  };
+
+  const cancelMaterial = (event: ReactPointerEvent<HTMLElement>) => {
+    touchGesture.current = null;
+    resetMaterial(event);
   };
 
   useLayoutEffect(() => {
@@ -317,8 +360,12 @@ export default function CollectibleCard({
       data-forced-hover={forcedPointer ? "true" : undefined}
       data-ambient-material={ambientMaterial ? "true" : undefined}
       style={cardStyle}
+      onPointerEnter={updateMaterial}
+      onPointerDown={startMaterial}
       onPointerMove={updateMaterial}
       onPointerLeave={resetMaterial}
+      onPointerUp={finishMaterial}
+      onPointerCancel={cancelMaterial}
       aria-label={`${card.name}, ${guild}, ${realm}, ${card.set.raidName}, ${formatSpecName(card.specName)} ${classInfo.name}, ${rarity}, ${t(`finish.${finish}`)}, ${t(`artwork.${artVariant}`)}${favorite ? `, ${t("collection.favoriteCard")}` : ""}`}
     >
       <span className={styles.outerFrame} aria-hidden="true" />
@@ -380,5 +427,20 @@ export default function CollectibleCard({
   );
 
   if (!onSelect) return <span className={`${styles.cardHost} ${className}`}>{cardNode}</span>;
-  return <button type="button" className={`${styles.cardButton} ${className}`} onClick={onSelect}>{cardNode}</button>;
+  return (
+    <button
+      type="button"
+      className={`${styles.cardButton} ${className}`}
+      onClick={(event) => {
+        if (Date.now() < suppressTouchClickUntil.current) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        onSelect(event);
+      }}
+    >
+      {cardNode}
+    </button>
+  );
 }

@@ -10,6 +10,34 @@ type PackPalette = {
 };
 
 const RAID_PACK_PALETTES: Readonly<Record<string, PackPalette>> = {
+  highmaul: {
+    title: "#f0aa6d",
+    logo: "linear-gradient(145deg, #ffd7aa, #dd8548 54%, #72506f)",
+  },
+  "blackrock-foundry": {
+    title: "#ff9468",
+    logo: "linear-gradient(145deg, #b9e4ff, #ff9a4d 52%, #9d2f24)",
+  },
+  "hellfire-citadel": {
+    title: "#aeea62",
+    logo: "linear-gradient(145deg, #e4ff9b, #8edb45 56%, #365d24)",
+  },
+  "emerald-nightmare": {
+    title: "#f47770",
+    logo: "linear-gradient(145deg, #ffb481, #e44c6f 54%, #70205f)",
+  },
+  nighthold: {
+    title: "#aebfff",
+    logo: "linear-gradient(145deg, #ffd0c0, #a889e9 52%, #4b6fc3)",
+  },
+  "tomb-of-sargeras": {
+    title: "#b9ef71",
+    logo: "linear-gradient(145deg, #c8f5ff, #9eea4d 52%, #356b50)",
+  },
+  antorus: {
+    title: "#91ed89",
+    logo: "linear-gradient(145deg, #dfff91, #63e074 54%, #16766c)",
+  },
   uldir: {
     title: "#e8c378",
     logo: "linear-gradient(145deg, #fff0bd, #d5a34d 58%, #8a5828)",
@@ -30,6 +58,10 @@ const RAID_PACK_PALETTES: Readonly<Record<string, PackPalette>> = {
     title: "#ef7778",
     logo: "linear-gradient(145deg, #ffd9cd, #d85b60 56%, #772634)",
   },
+  "sanctum-of-domination": {
+    title: "#9fb5ff",
+    logo: "linear-gradient(145deg, #e0e8ff, #7898f3 56%, #384c9b)",
+  },
   "sepulcher-of-the-first-ones": {
     title: "#ead47f",
     logo: "linear-gradient(145deg, #fff6c8, #d2b65c 58%, #81703c)",
@@ -37,6 +69,10 @@ const RAID_PACK_PALETTES: Readonly<Record<string, PackPalette>> = {
   "vault-of-the-incarnates": {
     title: "#c89569",
     logo: "linear-gradient(145deg, #f5d5b2, #ad7650 56%, #603d2c)",
+  },
+  aberrus: {
+    title: "#ae9cff",
+    logo: "linear-gradient(145deg, #ffc09b, #e55e42 48%, #6250ad)",
   },
   amirdrassil: {
     title: "#83d99d",
@@ -50,6 +86,14 @@ const RAID_PACK_PALETTES: Readonly<Record<string, PackPalette>> = {
   "liberation-of-undermine": {
     title: "#a7e58a",
     logo: "linear-gradient(145deg, #e5ffd5, #8ed36c 58%, #477b38)",
+  },
+  "manaforge-omega": {
+    title: "#b2a2ff",
+    logo: "linear-gradient(145deg, #d9d4ff, #a567ed 50%, #315fc6)",
+  },
+  "march-on-queldanas": {
+    title: "#7ee4ff",
+    logo: "linear-gradient(145deg, #fff0ae, #65ddff 48%, #3768c6)",
   },
 };
 
@@ -74,7 +118,7 @@ export function getPackTheme(
     "--pack-art-position-x": `${combinedPool ? 50 : (set?.packArtOffsetX ?? 50)}%`,
     "--pack-logo-fill": combinedPool
       ? "linear-gradient(145deg, #edfcff 0%, #9ce9ff 52%, #55bcd9 100%)"
-      : (palette?.logo ?? "color-mix(in srgb, var(--pack-accent) 82%, white 18%)"),
+      : (palette?.logo ?? `linear-gradient(145deg, color-mix(in srgb, ${accent} 34%, white), ${accent} 58%, color-mix(in srgb, ${accent} 62%, black))`),
     "--pack-logo-glow": glow,
   } as CSSProperties;
 }

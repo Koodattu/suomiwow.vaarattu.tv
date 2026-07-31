@@ -1087,6 +1087,10 @@
   align-items: stretch;
 }
 
+.mobileRevealExit {
+  display: none;
+}
+
 .tearSequence {
   position: absolute;
   z-index: 30;
@@ -1941,23 +1945,22 @@
   left: 10%;
   overflow: hidden;
   text-align: center;
-  text-overflow: ellipsis;
   text-shadow: 0 2px 6px #000;
-  text-transform: uppercase;
-  white-space: nowrap;
 }
 
 .cardBackBrand {
-  top: 10%;
+  bottom: 7%;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.12em;
   color: white;
-  font-size: clamp(0.68rem, 4.6cqw, 1.06rem);
+  font-size: clamp(0.62rem, 4cqw, 0.94rem);
   font-weight: 900;
   letter-spacing: 0.13em;
   line-height: 0.92;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .cardBackBrand strong {
@@ -1965,15 +1968,18 @@
 }
 
 .cardBackSet {
-  bottom: 5.5%;
+  top: 7.5%;
   color: var(--pack-title-color, color-mix(in srgb, var(--pack-accent) 64%, white));
   font-family: "LifeCraft", fantasy;
-  font-size: clamp(0.76rem, calc(5.35cqw * var(--card-back-set-scale, 1)), 1.55rem);
+  font-size: clamp(1.08rem, 7.2cqw, 1.9rem);
   font-synthesis: none;
   font-weight: 400;
   letter-spacing: normal;
+  line-height: 0.98;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.88);
+  text-wrap: balance;
   text-transform: none;
+  white-space: normal;
   -webkit-text-stroke: 0.25px rgba(0, 0, 0, 0.55);
 }
 
@@ -3027,7 +3033,7 @@
   }
 
   .openWorkspace .revealStage {
-    min-height: 42rem;
+    min-height: 100dvh;
   }
 
   .vaultRing {
@@ -3040,6 +3046,351 @@
 
   .revealLead strong {
     font-size: 1rem;
+  }
+
+  .mobileRevealExit {
+    position: absolute;
+    z-index: 80;
+    top: max(0.6rem, env(safe-area-inset-top));
+    right: max(0.6rem, env(safe-area-inset-right));
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    place-items: center;
+    border: 0;
+    border-radius: 0.85rem;
+    background: rgba(3, 10, 23, 0.78);
+    box-shadow: inset 0 0 0 1px rgba(192, 220, 255, 0.16);
+    color: #dcecff;
+  }
+
+  .mobileRevealExit:focus-visible {
+    outline: 2px solid #7ddcff;
+    outline-offset: 2px;
+  }
+
+  .mobileRevealExit span,
+  .mobileRevealExit span::before,
+  .mobileRevealExit span::after {
+    display: block;
+  }
+
+  .mobileRevealExit span {
+    position: relative;
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .mobileRevealExit span::before,
+  .mobileRevealExit span::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 1rem;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+    content: "";
+  }
+
+  .mobileRevealExit span::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+
+  .mobileRevealExit span::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+  }
+
+  .revealContent {
+    min-height: 100dvh;
+    justify-content: center;
+    padding: max(0.45rem, env(safe-area-inset-top)) 0 max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .revealContent:not(.revealContentSummary) {
+    translate: 0 clamp(-2.5rem, -4dvh, -1.25rem);
+  }
+
+  .revealContentSummary {
+    justify-content: flex-start;
+  }
+
+  .revealStageComplete .mobileRevealExit,
+  .revealContentSummary .revealLead {
+    display: none;
+  }
+
+  .tearSequence {
+    top: 41%;
+    width: min(80vw, 22rem);
+  }
+
+  .revealLead {
+    min-height: 3.4rem;
+    padding-inline: 3.5rem;
+  }
+
+  .cardFanScroller {
+    height: min(118vw, 32.5rem);
+    overflow: visible;
+    padding: 0.6rem 0 2rem;
+  }
+
+  .cardFan {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: min(106.4vw, 29.4rem);
+    translate: none;
+  }
+
+  .revealSlot {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: min(76vw, 21rem);
+    touch-action: none;
+  }
+
+  .revealSlot:not(.revealSlotDealt) {
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+
+  .revealSlot[data-mobile-state="active"] {
+    z-index: 20;
+  }
+
+  .revealSlot[data-mobile-state="queued"] {
+    z-index: calc(10 - var(--mobile-stack-position));
+  }
+
+  .revealSlot[data-mobile-state="advanced"] {
+    z-index: 30;
+  }
+
+  .revealSlotDealt[data-mobile-state="active"] {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+
+  .revealSlotDealt[data-mobile-state="queued"] {
+    opacity: max(0.2, calc(0.72 - var(--mobile-stack-position) * 0.1));
+    filter: brightness(calc(0.82 - var(--mobile-stack-position) * 0.05));
+    transform: translateX(-50%) translateY(calc(var(--mobile-stack-position) * 6px)) scale(calc(1 - var(--mobile-stack-position) * 0.025));
+  }
+
+  .revealSlotDealt[data-mobile-state="advanced"] {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(-22px) scale(0.97);
+    transition-duration: 220ms, 140ms, 150ms;
+    transition-delay: 0ms, 0ms, 50ms;
+    transition-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+
+  .revealSlotDealt[data-mobile-state="active"]:not(:disabled):hover {
+    z-index: 20;
+    filter: none;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+
+  .revealSlot[data-mobile-state="active"]:not(.revealSlotRevealed) .sealedAura {
+    opacity: 0.46;
+    transform: scale(0.985);
+  }
+
+  .revealSlot[data-mobile-state="active"]:not(.revealSlotRevealed) .cardBackFinish {
+    opacity: calc(var(--sealed-finish-opacity) * 0.62);
+  }
+
+  .revealSlotRevealed[data-mobile-state="active"] .cardFlip {
+    transform: perspective(1100px) rotateX(var(--sealed-tilt-x)) rotateY(calc(180deg + var(--sealed-tilt-y)));
+  }
+
+  .revealControls {
+    min-height: 0;
+    padding-bottom: 0.75rem;
+  }
+
+  .revealActionStack {
+    display: flex;
+    width: min(13rem, calc(100% - 2rem));
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .revealActionSlot:empty {
+    display: none;
+  }
+
+  .revealCollectionProgressSlot:empty {
+    display: none;
+  }
+
+  .revealActionSlot:not(:empty) {
+    min-height: 2.75rem;
+  }
+
+  .revealAllButton {
+    position: relative;
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  .revealAllPlaceholder {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .revealAllButton::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 0.18rem;
+    background: color-mix(in srgb, var(--pack-accent) 72%, white);
+    content: "";
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+
+  .revealAllButton[data-holding="true"]::after {
+    animation: mobileRevealAllHold 180ms linear forwards;
+  }
+
+  .revealStageAutoRevealing .cardFlip {
+    transition-duration: 180ms, 100ms;
+  }
+
+  .cardFanScrollerSummary {
+    height: auto;
+    padding: max(0.65rem, env(safe-area-inset-top)) 0 0.85rem;
+  }
+
+  .cardFanSummary {
+    display: grid;
+    width: min(78vw, 21rem);
+    height: auto;
+    margin-inline: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem clamp(0.5rem, 2.5vw, 0.8rem);
+    align-items: start;
+  }
+
+  .cardFanSummary .revealSlot[data-mobile-state="summary"] {
+    position: relative;
+    top: auto;
+    left: auto;
+    z-index: auto;
+    width: min(32vw, 15dvh, 8.6rem);
+    justify-self: center;
+    padding-bottom: 1.05rem;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+    order: var(--summary-rank);
+    animation: mobileSummaryCardIn 290ms calc(var(--summary-rank) * 36ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .cardFanSummary .revealSlot[data-summary-rank="0"] {
+    width: min(48vw, 23.5dvh, 13rem);
+    grid-column: 1 / -1;
+  }
+
+  .cardFanSummary .openedCard > [data-frame="vaultSteel"] {
+    --card-character-name-font-size: 6.8cqw;
+    --card-guild-name-font-size: 3.45cqw;
+    --card-guild-name-gap: 1.4cqw;
+    --card-detail-font-size: 2.35cqw;
+    --card-detail-gap: 1.2cqw;
+    --card-stat-label-font-size: 1.75cqw;
+    --card-stat-value-font-size: 4.75cqw;
+    --card-stat-value-gap: 1.6cqw;
+    --card-brand-font-size: 2.15cqw;
+    --card-set-name-font-size: 4.8cqw;
+  }
+
+  .cardFanSummary .revealSlotDealt:not(:disabled):hover {
+    filter: brightness(1.04);
+    transform: none;
+  }
+
+  .cardFanSummary .pullStatus {
+    bottom: 0.1rem;
+    font-size: 0.58rem;
+    transition-delay: 0ms;
+  }
+
+  .revealContentSummary .revealControls {
+    width: 100%;
+    padding-bottom: 0.6rem;
+  }
+
+  .revealContentSummary .revealActionStack {
+    display: grid;
+    width: min(26rem, calc(100% - 1.25rem));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: 2.75rem 2rem;
+    gap: 0.1rem 0.65rem;
+  }
+
+  .revealContentSummary .revealActionSlot:first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .revealContentSummary .revealStatusSlot {
+    min-height: 2rem;
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .revealContentSummary .revealActionSlot:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .revealContentSummary .revealActionSlot:nth-child(4) {
+    min-height: 2rem;
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .revealContentSummary .revealActionSlot:nth-child(4) > button {
+    min-height: 2rem;
+    padding-block: 0.3rem;
+  }
+
+  .revealContentSummary .revealActionSlot > button {
+    padding-inline: 0.55rem;
+    font-size: 0.72rem;
+    line-height: 1.15;
+  }
+
+  .revealContentSummary .revealCollectionProgressSlot {
+    width: 100%;
+  }
+
+  .revealStageComplete .vaultRing {
+    opacity: 0.56;
+  }
+}
+
+@keyframes mobileRevealAllHold {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes mobileSummaryCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -3071,6 +3422,7 @@
   .revealSlotRevealed .revealRings i,
   .revealSlotRevealed .revealRays,
   .revealSlotRevealed .revealMotes,
+  .cardFanSummary .revealSlot[data-mobile-state="summary"],
   .revealSlotRevealed[data-finish="toxic"] .revealCeremony::before,
   .revealSlotRevealed[data-finish="negative"] .revealCeremony::before,
   .revealSlotRevealed .revealFlare,

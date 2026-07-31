@@ -771,6 +771,15 @@
     padding-bottom: calc(3.25rem + env(safe-area-inset-bottom));
   }
 
+  .vault.vaultMobileImmersive {
+    grid-template-rows: minmax(0, 1fr);
+    padding-bottom: 0;
+  }
+
+  .vaultMobileImmersive .shellHeader {
+    display: none;
+  }
+
   .vault.vaultViewportLocked {
     display: grid;
     height: 100dvh;
@@ -3558,17 +3567,20 @@
     flex-direction: column;
   }
 
-  .leaderboardPodiumTop,
-  .leaderboardPodiumGrid {
+  .leaderboardPodium {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .leaderboardPodiumTop > .leaderboardPodiumCard {
+  .leaderboardPodiumTop,
+  .leaderboardPodiumGrid {
+    display: contents;
+  }
+
+  .leaderboardPodium .leaderboardPodiumTop > .leaderboardPodiumCard {
     width: auto;
     justify-self: stretch;
     grid-row: auto;
     grid-column: auto;
-    grid-template-columns: minmax(10rem, 0.7fr) minmax(0, 1.3fr);
   }
 
   .leaderboardCollectorHeader,
@@ -3629,8 +3641,9 @@
   }
 
   .leaderboardHero {
-    min-height: 15rem;
-    padding: 1.25rem;
+    min-height: auto;
+    padding: 1rem;
+    gap: 1rem;
   }
 
   .leaderboardLogin {
@@ -8331,7 +8344,15 @@
 }
 
 @media (max-width: 760px) {
+  .collectionPage {
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
   .collectionToolbar {
+    gap: 0.35rem;
     padding-inline: 0.5rem;
   }
 
@@ -8401,6 +8422,112 @@
 
   .initialCollectionFilters > span:nth-child(6) {
     display: none;
+  }
+
+  .collectionBinder {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    touch-action: pinch-zoom;
+  }
+
+  .collectionPageTurn {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: grid;
+    width: 2.75rem;
+    background: transparent;
+    box-shadow: none;
+    color: #aac8e9;
+    opacity: 0.82;
+  }
+
+  .collectionPageTurn:first-child {
+    left: 0;
+    justify-items: start;
+    box-shadow: none;
+    padding-left: 0.45rem;
+  }
+
+  .collectionPageTurn:last-child {
+    right: 0;
+    justify-items: end;
+    box-shadow: none;
+    padding-right: 0.45rem;
+  }
+
+  .collectionPageTurn::before {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1.65rem;
+    content: "";
+    pointer-events: none;
+  }
+
+  .collectionPageTurn:first-child::before {
+    left: 0;
+    background: rgba(57, 109, 188, 0.075);
+    box-shadow: inset -1px 0 rgba(129, 162, 218, 0.16);
+  }
+
+  .collectionPageTurn:last-child::before {
+    right: 0;
+    background: rgba(57, 109, 188, 0.075);
+    box-shadow: inset 1px 0 rgba(129, 162, 218, 0.16);
+  }
+
+  .collectionPageTurn:hover:not(:disabled) {
+    background: transparent;
+    color: #e5f6ff;
+  }
+
+  .collectionPageTurn:hover:not(:disabled)::before {
+    background: rgba(57, 109, 188, 0.14);
+  }
+
+  .collectionPageTurn:active:not(:disabled) {
+    opacity: 1;
+  }
+
+  .collectionPageTurn:disabled {
+    opacity: 0.12;
+    pointer-events: none;
+  }
+
+  .collectionPageTurn svg {
+    position: relative;
+    z-index: 1;
+    width: 0.82rem;
+    height: 0.82rem;
+    filter: drop-shadow(0 0 4px rgba(90, 205, 255, 0.32));
+  }
+
+  .collectionBinderBody {
+    padding: 0.4rem 2.3rem 0.55rem;
+  }
+
+  .collectionBinderLines {
+    display: none;
+  }
+
+  .collectionBinderGrid {
+    --binder-column-gap: 0.3rem;
+    --binder-row-gap: 0.35rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--binder-row-gap) var(--binder-column-gap);
+  }
+
+  .collectionBinder[data-page-size="9"] .collectionBinderGrid {
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+
+  .collectionBinder[data-page-size="12"] .collectionBinderGrid {
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+  }
+
+  .collectionCardSlot {
+    --collection-card-width: min(100%, calc(100cqh * 5 / 7));
   }
 }
 
