@@ -35,8 +35,10 @@ const rarities: Array<{ grade: CcgTierGrade; label: "heirloom" | "artifact" | "l
   { grade: "E", label: "common" },
   { grade: "F", label: "poor" },
 ];
-const cardsPerPage = 12;
+const fullPageSize = 12;
+const shortMobilePageSize = 9;
 const pageWheelThreshold = 24;
+const pageSwipeThreshold = 44;
 const pageFlipSound = "/ccg/audio/page_flip.mp3";
 const allSetsSlug = "__all__";
 const uniqueFinishFilter = "unique";
@@ -143,6 +145,7 @@ export default function CcgCollectionPage() {
   const [alternativeOnly, setAlternativeOnly] = useState(false);
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [page, setPage] = useState(1);
+  const [cardsPerPage, setCardsPerPage] = useState(fullPageSize);
   const [pageCountCache, setPageCountCache] = useState({ scope: "", pages: 0 });
   const [grade, setGrade] = useState("");
   const [finish, setFinish] = useState<CollectionFinishFilter>("");
@@ -158,6 +161,8 @@ export default function CcgCollectionPage() {
   const pageWheelDeltaRef = useRef(0);
   const pageWheelHandledRef = useRef(false);
   const pageWheelResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pageSwipeRef = useRef({ pointerId: -1, startX: 0, startY: 0, moved: false });
+  const suppressCardClickRef = useRef(false);
   const setRailDragRef = useRef({ pointerId: -1, startX: 0, startScrollLeft: 0, moved: false });
   const suppressSetClickRef = useRef(false);
   const [draggingSetRail, setDraggingSetRail] = useState(false);
@@ -250,7 +255,7 @@ export default function CcgCollectionPage() {
   const cardsData = cardsQuery.data;
   const cardsLoading = setsQuery.isPending || cardsQuery.isPending;
   const cardsError = cardsQuery.isError;
-  const pageCountScope = JSON.stringify([setSlug, characterId, guildId, grade, finish, sort, visibility, alternativeOnly, favoriteOnly]);
+  const pageCountScope = JSON.stringify([setSlug, characterId, guildId, grade, finish, sort, visibility, alternativeOnly, favoriteOnly, cardsPerPage]);
   const displayedPageCount = cardsData?.pages
     ?? (pageCountCache.scope === pageCountScope ? pageCountCache.pages : 0);
 
@@ -297,6 +302,18 @@ export default function CcgCollectionPage() {
     mobileViewport.addEventListener("change", handleViewportChange);
     return () => mobileViewport.removeEventListener("change", handleViewportChange);
   }, [mobileFiltersOpen]);
+
+  useEffect(() => {
+    const shortMobileViewport = window.matchMedia("(max-width: 760px) and (max-height: 760px)");
+    const updatePageSize = () => {
+      const nextPageSize = shortMobileViewport.matches ? shortMobilePageSize : fullPageSize;
+      setCardsPerPage(nextPageSize);
+      setPage(1);
+    };
+    updatePageSize();
+    shortMobileViewport.addEventListener("change", updatePageSize);
+    return () => shortMobileViewport.removeEventListener("change", updatePageSize);
+  }, []);
 
   useEffect(() => () => {
     if (pageWheelResetRef.current !== null) clearTimeout(pageWheelResetRef.current);
@@ -445,6 +462,8 @@ export default function CcgCollectionPage() {
   };
 
   const turnPage = (direction: -1 | 1) => {
+    if (!cardsData || cardsLoading || cardsData.pages <= 1) return;
+    if ((direction < 0 && page <= 1) || (direction > 0 && page >= cardsData.pages)) return;
     playCcgSound(pageFlipSound, "effects", 1, { interruptKey: "page-flip" });
     setPage((value) => value + direction);
   };
@@ -481,6 +500,55 @@ export default function CcgCollectionPage() {
     pageWheelHandledRef.current = true;
     pageWheelDeltaRef.current = 0;
     turnPage(direction);
+  };
+
+  const startCardPageSwipe = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!event.isPrimary || !window.matchMedia("(max-width: 760px)").matches) return;
+    pageSwipeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+  };
+
+  const moveCardPageSwipe = (event: ReactPointerEvent<HTMLElement>) => {
+    const swipe = pageSwipeRef.current;
+    if (swipe.pointerId !== event.pointerId) return;
+    const distance = Math.hypot(event.clientX - swipe.startX, event.clientY - swipe.startY);
+    if (swipe.moved || distance < 8) return;
+    swipe.moved = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const finishCardPageSwipe = (event: ReactPointerEvent<HTMLElement>) => {
+    const swipe = pageSwipeRef.current;
+    if (swipe.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    const deltaX = event.clientX - swipe.startX;
+    const deltaY = event.clientY - swipe.startY;
+    const horizontal = Math.abs(deltaX) >= Math.abs(deltaY);
+    const distance = horizontal ? Math.abs(deltaX) : Math.abs(deltaY);
+    pageSwipeRef.current = { pointerId: -1, startX: 0, startY: 0, moved: false };
+    if (distance < pageSwipeThreshold) return;
+
+    suppressCardClickRef.current = true;
+    window.setTimeout(() => {
+      suppressCardClickRef.current = false;
+    }, 0);
+
+    const direction = horizontal
+      ? (deltaX > 0 ? 1 : -1)
+      : (deltaY > 0 ? 1 : -1);
+    turnPage(direction);
+  };
+
+  const cancelCardPageSwipe = (event: ReactPointerEvent<HTMLElement>) => {
+    if (pageSwipeRef.current.pointerId !== event.pointerId) return;
+    pageSwipeRef.current = { pointerId: -1, startX: 0, startY: 0, moved: false };
   };
 
   const renderMobileAdvancedFilters = () => {
@@ -1120,6 +1188,7 @@ export default function CcgCollectionPage() {
                 page: displayedPageCount > 0 ? page : 0,
                 pages: displayedPageCount,
               })}
+              aria-live="polite"
             >
               <span>{displayedPageCount > 0 ? page : 0}</span>
               <small>{t("collection.pageTotal", { pages: displayedPageCount })}</small>
@@ -1127,7 +1196,21 @@ export default function CcgCollectionPage() {
           </div>
         </section>
 
-        <section className={styles.collectionBinder} aria-busy={cardsLoading} onWheel={wheelCardPages}>
+        <section
+          className={styles.collectionBinder}
+          data-page-size={cardsPerPage}
+          aria-busy={cardsLoading}
+          onWheel={wheelCardPages}
+          onPointerDown={startCardPageSwipe}
+          onPointerMove={moveCardPageSwipe}
+          onPointerUp={finishCardPageSwipe}
+          onPointerCancel={cancelCardPageSwipe}
+          onClickCapture={(event) => {
+            if (!suppressCardClickRef.current) return;
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        >
           <button
             type="button"
             className={styles.collectionPageTurn}

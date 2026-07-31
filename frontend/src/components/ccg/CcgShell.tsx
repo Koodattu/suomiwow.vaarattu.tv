@@ -39,12 +39,14 @@ export default function CcgShell({
   context,
   compact = false,
   viewportLocked = false,
+  immersiveOnMobile = false,
   onOpenPacksClick,
 }: {
   children: ReactNode;
   context?: ReactNode;
   compact?: boolean;
   viewportLocked?: boolean;
+  immersiveOnMobile?: boolean;
   onOpenPacksClick?: () => void;
 }) {
   const pathname = usePathname();
@@ -57,7 +59,7 @@ export default function CcgShell({
   ];
 
   return (
-    <main className={`${styles.vault} ${compact ? styles.vaultCompact : ""} ${viewportLocked ? styles.vaultViewportLocked : ""}`}>
+    <main className={`${styles.vault} ${compact ? styles.vaultCompact : ""} ${viewportLocked ? styles.vaultViewportLocked : ""} ${immersiveOnMobile ? styles.vaultMobileImmersive : ""}`}>
       <header className={styles.shellHeader}>
         <div className={styles.shellHeaderInner}>
           <div className={styles.shellBrand}>
