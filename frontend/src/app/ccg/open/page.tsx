@@ -1292,9 +1292,11 @@ export default function CcgOpenPage() {
                     const mobileStackPosition = Math.max(0, index - Math.max(0, mobileActiveCardIndex));
                     const mobileCardState = packComplete
                       ? "summary"
-                      : mobileAdvancedCards.has(index)
-                        ? "advanced"
-                        : index === mobileActiveCardIndex ? "active" : "queued";
+                      : revealPhase !== "ready"
+                        ? "queued"
+                        : mobileAdvancedCards.has(index)
+                          ? "advanced"
+                          : index === mobileActiveCardIndex ? "active" : "queued";
                     const summaryRank = summaryRankByIndex.get(index) ?? index;
                     const sealedCardHint = `${t(`finish.${result.finish}`)} · ${t(`rarity.${CCG_RARITY_KEYS[result.card.tierGrade]}`)}`;
                     const cardBackSetName = result.card.set.raidName;

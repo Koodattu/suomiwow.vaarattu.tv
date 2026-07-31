@@ -307,6 +307,7 @@
   display: block;
   box-sizing: content-box;
   cursor: inherit;
+  touch-action: pan-y pinch-zoom;
   user-select: none;
   -webkit-user-select: none;
   width: min(var(--card-width), 84vw);
@@ -338,7 +339,7 @@
   pointer-events: none;
 }
 
-.prototypeCard:is(:hover, [data-forced-hover="true"]) {
+.prototypeCard:is([data-pointer-active="true"], [data-forced-hover="true"]) {
   filter: brightness(1.045) saturate(1.06);
   transition-duration: 110ms, 180ms;
 }
@@ -346,7 +347,7 @@
 .prototypeCard.negative {
   filter: invert(1) contrast(0.95) saturate(0.92) brightness(0.85);
 }
-.prototypeCard.negative:is(:hover, [data-forced-hover="true"]) {
+.prototypeCard.negative:is([data-pointer-active="true"], [data-forced-hover="true"]) {
   filter: invert(1) contrast(1.01) saturate(0.92) brightness(0.89);
 }
 .prototypeCard.void {
@@ -1982,61 +1983,61 @@
   mix-blend-mode: screen;
   opacity: 0.42;
 }
-.prototypeCard:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.74;
 }
-.prototypeCard.standard:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.standard:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.28 + var(--pointer-distance) * 0.14);
 }
-.prototypeCard.parallax:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.parallax:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.28 + var(--pointer-distance) * 0.14);
 }
-.prototypeCard.foil:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.foil:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.54 + var(--pointer-distance) * 0.16);
 }
-.prototypeCard.golden:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.golden:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.64 + var(--pointer-distance) * 0.12);
 }
-.prototypeCard.holographic:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.holographic:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.7 + var(--pointer-distance) * 0.16);
 }
-.prototypeCard.prismatic:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.prismatic:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.78 + var(--pointer-distance) * 0.14);
 }
-.prototypeCard.dark:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.dark:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.72 + var(--pointer-distance) * 0.08);
 }
-.prototypeCard.void:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.void:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.88 + var(--pointer-distance) * 0.1);
 }
-.prototypeCard.eclipse:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.eclipse:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.8 + var(--pointer-distance) * 0.1);
 }
-.prototypeCard.toxic:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.toxic:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.68 + var(--pointer-distance) * 0.14);
 }
-.prototypeCard.chromaflow:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.chromaflow:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.76 + var(--pointer-distance) * 0.12);
 }
-.prototypeCard.negative:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.negative:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.58 + var(--pointer-distance) * 0.12);
 }
-.prototypeCard.paradox:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.paradox:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.88 + var(--pointer-distance) * 0.08);
 }
-.prototypeCard.anomaly:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.anomaly:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.82 + var(--pointer-distance) * 0.1);
 }
-.prototypeCard.infinite:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.infinite:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.84 + var(--pointer-distance) * 0.08);
 }
-.prototypeCard.transcendent:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.transcendent:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.8 + var(--pointer-distance) * 0.1);
 }
-.prototypeCard.singularity:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.singularity:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.9 + var(--pointer-distance) * 0.06);
 }
-.prototypeCard.metamorphic:is(:hover, [data-forced-hover="true"]) .finishLayer {
+.prototypeCard.metamorphic:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.84 + var(--pointer-distance) * 0.1);
 }
 .prototypeCard.foil .materialLight {
@@ -2045,94 +2046,94 @@
 .prototypeCard.golden .materialLight {
   filter: sepia(0.24) saturate(1.18);
 }
-.prototypeCard.golden:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.golden:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.62;
 }
 .prototypeCard.prismatic .materialLight {
   opacity: 0.34;
 }
-.prototypeCard.prismatic:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.prismatic:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.9;
 }
 .prototypeCard.holographic .materialLight {
   opacity: 0.42;
 }
-.prototypeCard.holographic:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.holographic:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.94;
 }
 .prototypeCard.dark .materialLight {
   opacity: 0.08;
 }
-.prototypeCard.dark:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.dark:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.28;
 }
 .prototypeCard.void .materialLight {
   filter: hue-rotate(42deg) contrast(1.38) saturate(1.7);
   opacity: 0.18;
 }
-.prototypeCard.void:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.void:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.68;
 }
 .prototypeCard.eclipse .materialLight {
   filter: contrast(1.22) saturate(1.46);
   opacity: 0.32;
 }
-.prototypeCard.eclipse:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.eclipse:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.82;
 }
 .prototypeCard.toxic .materialLight {
   filter: hue-rotate(48deg) saturate(1.34);
   opacity: 0.24;
 }
-.prototypeCard.toxic:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.toxic:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.72;
 }
 .prototypeCard.chromaflow .materialLight {
   opacity: 0.28;
 }
-.prototypeCard.chromaflow:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.chromaflow:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.82;
 }
 .prototypeCard.paradox .materialLight {
   filter: contrast(1.24) saturate(1.38);
   opacity: 0.44;
 }
-.prototypeCard.paradox:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.paradox:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.96;
 }
 .prototypeCard.anomaly .materialLight {
   filter: contrast(1.32) saturate(1.7);
   opacity: 0.46;
 }
-.prototypeCard.anomaly:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.anomaly:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.98;
 }
 .prototypeCard.infinite .materialLight {
   filter: sepia(0.1) hue-rotate(108deg) saturate(1.34);
   opacity: 0.42;
 }
-.prototypeCard.infinite:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.infinite:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.96;
 }
 .prototypeCard.transcendent .materialLight {
   filter: brightness(1.04) contrast(1.08) saturate(1.16);
   opacity: 0.48;
 }
-.prototypeCard.transcendent:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.transcendent:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.98;
 }
 .prototypeCard.singularity .materialLight {
   filter: grayscale(0.35) contrast(1.4) saturate(1.18);
   opacity: 0.4;
 }
-.prototypeCard.singularity:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.singularity:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.94;
 }
 .prototypeCard.metamorphic .materialLight {
   filter: hue-rotate(-8deg) contrast(1.2) saturate(1.16);
   opacity: 0.38;
 }
-.prototypeCard.metamorphic:is(:hover, [data-forced-hover="true"]) .materialLight {
+.prototypeCard.metamorphic:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.9;
 }
 
@@ -2243,80 +2244,80 @@
   animation: prototypePrismaticCounterDrift 5.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
 }
 
-@media (hover: hover) and (pointer: fine) {
+@media (prefers-reduced-motion: no-preference) {
   .prototypeCard {
     animation: prototypeIdleDrift 6.5s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.standard:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+  .prototypeCard.standard:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeStandardIdleGrain 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.parallax:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+  .prototypeCard.parallax:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeStandardIdleGrain 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.foil:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+  .prototypeCard.foil:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeGoldenIdleFoil 7.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.golden:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+  .prototypeCard.golden:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeGoldenIdleFoil 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.holographic:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+  .prototypeCard.holographic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypePrismaticIdleFoil 5.1s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.prismatic:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+  .prototypeCard.prismatic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypePrismaticIdleFoil 5.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.prismatic:not(:hover):not([data-forced-hover="true"]) .statsPanel {
+  .prototypeCard.prismatic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .statsPanel {
     animation: prototypePrismaticStatsIdle 5.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.void:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+  .prototypeCard.void:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeVoidIdle 5.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.void:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+  .prototypeCard.void:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
     animation: prototypeVoidPulse 7.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.eclipse:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+  .prototypeCard.eclipse:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeEclipseIdle 8.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.eclipse:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+  .prototypeCard.eclipse:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
     animation: prototypeEclipseCorona 4.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.toxic:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+  .prototypeCard.toxic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeToxicIdleFoil 6.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.toxic:not(:hover):not([data-forced-hover="true"]) .finishLayer::before {
+  .prototypeCard.toxic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
     animation: prototypeToxicCounterDrift 7.1s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.toxic:not(:hover):not([data-forced-hover="true"]) .statsPanel {
+  .prototypeCard.toxic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .statsPanel {
     animation: prototypeToxicStatsIdle 6.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard:is(.paradox, .anomaly, .infinite, .transcendent, .singularity):not(:hover):not([data-forced-hover="true"]) .finishLayer {
+  .prototypeCard:is(.paradox, .anomaly, .infinite, .transcendent, .singularity):not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeApexHolographicIdle 5.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.paradox:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+  .prototypeCard.paradox:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
     animation: prototypeParadoxSeam 7.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.anomaly:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+  .prototypeCard.anomaly:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
     animation: prototypeAnomalyOrbit 9.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.infinite:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+  .prototypeCard.infinite:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
     animation: prototypeInfiniteLoop 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.transcendent:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+  .prototypeCard.transcendent:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
     animation: prototypeTranscendentCaustic 9.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.singularity:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+  .prototypeCard.singularity:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
     animation: prototypeSingularityLens 8.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.metamorphic:not(:hover):not([data-forced-hover="true"]) .finishLayer {
+  .prototypeCard.metamorphic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeMetamorphicRidgeShift 6.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.metamorphic:not(:hover):not([data-forced-hover="true"]) .finishLayer::before {
+  .prototypeCard.metamorphic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
     animation: prototypeMetamorphicFacetDrift 9.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.metamorphic:not(:hover):not([data-forced-hover="true"]) .finishLayer::after {
+  .prototypeCard.metamorphic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
     animation: prototypeMetamorphicCaustic 7.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
-  .prototypeCard.metamorphic:not(:hover):not([data-forced-hover="true"]) .statsPanel {
+  .prototypeCard.metamorphic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .statsPanel {
     animation: prototypeMetamorphicStatsIdle 8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
 }
@@ -2893,10 +2894,10 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-.prototypeCard.holographic:not(:hover):not([data-forced-hover="true"]) .qualityLabel {
+.prototypeCard.holographic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .qualityLabel {
   animation: prototypeHolographicTextSweep 3.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
 }
-.prototypeCard.holographic:is(:hover, [data-forced-hover="true"]) .qualityLabel {
+.prototypeCard.holographic:is([data-pointer-active="true"], [data-forced-hover="true"]) .qualityLabel {
   filter: brightness(calc(1.14 + var(--pointer-distance) * 0.3)) saturate(1.48);
 }
 .vaultRelic .rarityPlate[data-quality="prismatic"] .qualityLabel {
@@ -2921,10 +2922,10 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-.prototypeCard.toxic:not(:hover):not([data-forced-hover="true"]) .qualityLabel {
+.prototypeCard.toxic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .qualityLabel {
   animation: prototypeHolographicTextSweep 4.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
 }
-.prototypeCard.toxic:is(:hover, [data-forced-hover="true"]) .qualityLabel {
+.prototypeCard.toxic:is([data-pointer-active="true"], [data-forced-hover="true"]) .qualityLabel {
   background-position: var(--foil-x) center;
   filter: brightness(calc(1.08 + var(--pointer-distance) * 0.34)) saturate(1.42);
 }
@@ -2976,10 +2977,10 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-.prototypeCard:is(.paradox, .anomaly, .infinite, .transcendent, .singularity):not(:hover):not([data-forced-hover="true"]) .qualityLabel {
+.prototypeCard:is(.paradox, .anomaly, .infinite, .transcendent, .singularity):not([data-pointer-active="true"]):not([data-forced-hover="true"]) .qualityLabel {
   animation: prototypeHolographicTextSweep 4.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
 }
-.prototypeCard:is(.paradox, .anomaly, .infinite, .transcendent, .singularity):is(:hover, [data-forced-hover="true"]) .qualityLabel {
+.prototypeCard:is(.paradox, .anomaly, .infinite, .transcendent, .singularity):is([data-pointer-active="true"], [data-forced-hover="true"]) .qualityLabel {
   background-position: var(--foil-x) center;
   filter: brightness(calc(1.1 + var(--pointer-distance) * 0.24)) saturate(1.38);
 }
@@ -2994,10 +2995,10 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-.prototypeCard.metamorphic:not(:hover):not([data-forced-hover="true"]) .qualityLabel {
+.prototypeCard.metamorphic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .qualityLabel {
   animation: prototypeHolographicTextSweep 5.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
 }
-.prototypeCard.metamorphic:is(:hover, [data-forced-hover="true"]) .qualityLabel {
+.prototypeCard.metamorphic:is([data-pointer-active="true"], [data-forced-hover="true"]) .qualityLabel {
   background-position: var(--foil-x) center;
   filter: brightness(calc(1.08 + var(--pointer-distance) * 0.22)) contrast(1.2) saturate(1.2);
 }
@@ -3825,12 +3826,6 @@
 }
 
 @media (hover: none), (pointer: coarse) {
-  .prototypeCard {
-    animation: none;
-    transform: none;
-    translate: none;
-    rotate: none;
-  }
   .materialLight {
     opacity: 0.22;
   }
