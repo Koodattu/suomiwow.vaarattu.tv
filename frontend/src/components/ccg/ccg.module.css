@@ -3641,8 +3641,9 @@
   }
 
   .leaderboardHero {
-    min-height: 15rem;
-    padding: 1.25rem;
+    min-height: auto;
+    padding: 1rem;
+    gap: 1rem;
   }
 
   .leaderboardLogin {

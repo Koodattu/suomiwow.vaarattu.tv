@@ -3177,8 +3177,9 @@
   .revealSlotDealt[data-mobile-state="advanced"] {
     opacity: 0;
     pointer-events: none;
-    transform: translateX(-50%) translateY(-14px) scale(0.965);
-    transition-duration: 180ms, 140ms, 160ms;
+    transform: translateX(-50%) translateY(-22px) scale(0.97);
+    transition-duration: 220ms, 140ms, 150ms;
+    transition-delay: 0ms, 0ms, 50ms;
     transition-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
   }
 
@@ -3249,7 +3250,7 @@
   }
 
   .revealAllButton[data-holding="true"]::after {
-    animation: mobileRevealAllHold 480ms linear forwards;
+    animation: mobileRevealAllHold 180ms linear forwards;
   }
 
   .revealStageAutoRevealing .cardFlip {
@@ -3283,6 +3284,7 @@
     pointer-events: auto;
     transform: none;
     order: var(--summary-rank);
+    animation: mobileSummaryCardIn 230ms calc(var(--summary-rank) * 22ms) cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   .cardFanSummary .revealSlot[data-summary-rank="0"] {
@@ -3316,6 +3318,18 @@
   }
 }
 
+@keyframes mobileSummaryCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (hover: none), (pointer: coarse) {
   .packButton:hover:not(:disabled) .booster,
   .packButton:active:not(:disabled) .booster {
@@ -3344,6 +3358,7 @@
   .revealSlotRevealed .revealRings i,
   .revealSlotRevealed .revealRays,
   .revealSlotRevealed .revealMotes,
+  .cardFanSummary .revealSlot[data-mobile-state="summary"],
   .revealSlotRevealed[data-finish="toxic"] .revealCeremony::before,
   .revealSlotRevealed[data-finish="negative"] .revealCeremony::before,
   .revealSlotRevealed .revealFlare,

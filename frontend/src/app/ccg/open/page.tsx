@@ -671,40 +671,31 @@ export default function CcgOpenPage() {
     setMobileSummaryVisible(true);
   };
 
-  const runMobileRevealAll = () => {
-    if (!opening || revealPhase !== "ready" || isMobileAutoRevealing) return;
+  const stopMobileRevealAll = () => {
     clearMobileRevealAllTimers();
     setIsMobileRevealAllHolding(false);
+    setIsMobileAutoRevealing(false);
+  };
+
+  const runMobileRevealAll = (interruptible = false) => {
+    if (!opening || revealPhase !== "ready" || isMobileAutoRevealing) return;
+    clearMobileRevealAllTimers();
     setIsMobileAutoRevealing(true);
     const remaining = opening.results
       .map((result, index) => ({ result, index }))
       .filter(({ index }) => !mobileAdvancedCards.has(index));
     if (remaining.length === 0) {
       setMobileSummaryVisible(true);
-      setIsMobileAutoRevealing(false);
+      stopMobileRevealAll();
       return;
     }
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const stepDuration = reducedMotion ? 0 : 280;
-    const advanceDelay = reducedMotion ? 0 : 210;
+    const revealDuration = reducedMotion ? 0 : 420;
+    const nextCardDelay = reducedMotion ? 0 : 90;
     const schedule = (callback: () => void, delay: number) => {
       const timer = window.setTimeout(callback, delay);
       mobileAutoRevealTimersRef.current.push(timer);
     };
-
-    remaining.forEach(({ result, index }, position) => {
-      const revealDelay = position * stepDuration;
-      if (!revealedCards.has(index)) {
-        schedule(() => {
-          playRandomPackSound(CCG_CARD_SLIDE_SOUNDS, 0.3);
-          if (hasCcgQualityRevealSound(result.finish, result.card.tierGrade)) playQualitySoundAfterFlip(index);
-          setRevealedCards((current) => new Set(current).add(index));
-        }, revealDelay);
-      }
-      schedule(() => {
-        setMobileAdvancedCards((current) => new Set(current).add(index));
-      }, revealDelay + (revealedCards.has(index) ? Math.min(80, advanceDelay) : advanceDelay));
-    });
 
     const prioritizedResult = [...remaining].sort((left, right) => {
       const finishDifference = CCG_FINISH_ORDER.indexOf(right.result.finish) - CCG_FINISH_ORDER.indexOf(left.result.finish);
@@ -712,14 +703,50 @@ export default function CcgOpenPage() {
       return ["H", "S", "A", "B", "C", "D", "E", "F"].indexOf(left.result.card.tierGrade)
         - ["H", "S", "A", "B", "C", "D", "E", "F"].indexOf(right.result.card.tierGrade);
     })[0];
-    const completionDelay = (remaining.length - 1) * stepDuration + advanceDelay + (reducedMotion ? 0 : 120);
-    schedule(() => {
+
+    const complete = () => {
       if (prioritizedResult?.result.card.quip?.audioPath) playQuipAfterFlip(prioritizedResult.index);
       else if (prioritizedResult) playAnnouncerAfterFlip(prioritizedResult.index);
       setMobileSummaryVisible(true);
+      setIsMobileRevealAllHolding(false);
       setIsMobileAutoRevealing(false);
       mobileAutoRevealTimersRef.current = [];
-    }, completionDelay);
+    };
+
+    const continueHolding = () => !interruptible || mobileRevealAllPointerActiveRef.current;
+    const revealNext = (position: number) => {
+      if (!continueHolding()) {
+        stopMobileRevealAll();
+        return;
+      }
+
+      const { result, index } = remaining[position];
+      const lastCard = position === remaining.length - 1;
+      const advance = () => {
+        if (!continueHolding()) {
+          stopMobileRevealAll();
+          return;
+        }
+        setMobileAdvancedCards((current) => new Set(current).add(index));
+        if (lastCard) {
+          complete();
+          return;
+        }
+        schedule(() => revealNext(position + 1), nextCardDelay);
+      };
+
+      if (revealedCards.has(index)) {
+        advance();
+        return;
+      }
+
+      playRandomPackSound(CCG_CARD_SLIDE_SOUNDS, 0.3);
+      if (hasCcgQualityRevealSound(result.finish, result.card.tierGrade)) playQualitySoundAfterFlip(index);
+      setRevealedCards((current) => new Set(current).add(index));
+      schedule(advance, revealDuration);
+    };
+
+    revealNext(0);
   };
 
   const startMobileRevealAllHold = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -730,18 +757,14 @@ export default function CcgOpenPage() {
     event.currentTarget.setPointerCapture(event.pointerId);
     mobileRevealAllHoldTimerRef.current = window.setTimeout(() => {
       mobileRevealAllHoldTimerRef.current = null;
-      runMobileRevealAll();
-    }, 480);
+      runMobileRevealAll(true);
+    }, 180);
   };
 
   const cancelMobileRevealAllHold = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!isMobileRevealViewport) return;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    if (mobileRevealAllHoldTimerRef.current !== null) {
-      window.clearTimeout(mobileRevealAllHoldTimerRef.current);
-      mobileRevealAllHoldTimerRef.current = null;
-    }
-    setIsMobileRevealAllHolding(false);
+    stopMobileRevealAll();
     window.setTimeout(() => {
       mobileRevealAllPointerActiveRef.current = false;
     }, 0);
@@ -1406,7 +1429,7 @@ export default function CcgOpenPage() {
                     ) : null}
                   </div>
                   <div className={packStyles.revealActionSlot}>
-                    {!allRevealed ? (
+                    {!allRevealed || (isMobileRevealViewport && isMobileAutoRevealing) ? (
                       <button
                         type="button"
                         className={`${styles.secondaryButton} ${packStyles.revealAllButton}`}
@@ -1427,7 +1450,7 @@ export default function CcgOpenPage() {
                           }
                           revealAll();
                         }}
-                        disabled={revealPhase !== "ready" || isMobileAutoRevealing}
+                        disabled={revealPhase !== "ready"}
                       >
                         {isMobileRevealViewport ? t("open.holdToRevealAll") : t("open.revealAll")}
                       </button>
