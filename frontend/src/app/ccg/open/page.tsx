@@ -527,6 +527,9 @@ export default function CcgOpenPage() {
     || (Boolean(recoveryId) && recoveryQuery.isPending);
   const noPacks = session ? session.packs.totalRemaining <= 0 : false;
   const clearSavedOpening = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+    }
     clearMobileRevealAllTimers();
     qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     qualitySoundTimersRef.current = [];
@@ -951,11 +954,19 @@ export default function CcgOpenPage() {
     resetPackMotion(event.currentTarget);
   };
 
+  const requestMobileFullscreen = () => {
+    if (!window.matchMedia(MOBILE_REVEAL_BREAKPOINT).matches) return;
+    if (document.fullscreenElement || !document.fullscreenEnabled) return;
+    void document.documentElement.requestFullscreen({ navigationUI: "hide" }).catch(() => undefined);
+  };
+
   const openPack = () => {
     if (packDragRef.current.suppressClick) {
       packDragRef.current.suppressClick = false;
       return;
     }
+    if (!canOpen) return;
+    requestMobileFullscreen();
     if (!submitPackOpening({ setId: selectedSet?.id })) return;
     resumeCcgAudio();
   };
