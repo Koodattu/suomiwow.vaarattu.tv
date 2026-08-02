@@ -2331,10 +2331,11 @@ class CharacterService {
   }
 
   async searchCharacters(query: string, limit = 10): Promise<CharacterSearchResult[]> {
-    const trimmedQuery = query.trim();
+    const trimmedQuery = query.trim().slice(0, 60);
     if (trimmedQuery.length < 2) return [];
 
     const safeLimit = Math.min(Math.max(limit, 1), 10);
+    const candidateLimit = Math.max(safeLimit * 10, 50);
     const nameMatch = this.getAccentInsensitiveRegex(trimmedQuery);
 
     const aliasRows = await CharacterRaidParticipation.aggregate([
@@ -2364,6 +2365,8 @@ class CharacterService {
           matchedLastSeenAt: { $max: "$lastSeenAt" },
         },
       },
+      { $sort: { matchedLastSeenAt: -1, matchedName: 1, matchedRealm: 1, "_id.classID": 1 } },
+      { $limit: candidateLimit },
       {
         $lookup: {
           from: "characterraidparticipations",
@@ -2434,13 +2437,51 @@ class CharacterService {
       },
       { $sort: { lastReportSeenAt: -1, name: 1, realm: 1, classID: 1 } },
       { $limit: safeLimit },
-    ]);
+    ]).option({ maxTimeMS: 5_000 });
 
     return (aliasRows as CharacterSearchResult[]).map((character) => ({
       ...character,
       matchedName: character.matchedName === character.name && character.matchedRealm === character.realm ? undefined : character.matchedName,
       matchedRealm: character.matchedName === character.name && character.matchedRealm === character.realm ? undefined : character.matchedRealm,
     }));
+  }
+
+  async searchCurrentCharacters(query: string, limit = 10): Promise<CharacterSearchResult[]> {
+    const trimmedQuery = query.trim().slice(0, 60);
+    if (trimmedQuery.length < 2) return [];
+
+    const safeLimit = Math.min(Math.max(limit, 1), 10);
+    const nameMatch = this.getAccentInsensitiveRegex(trimmedQuery);
+    const characters = await Character.find({
+      $or: [
+        { name: nameMatch },
+        { "blizzardIdentityOverride.name": nameMatch },
+      ],
+    })
+      .sort({ lastReportSeenAt: -1, name: 1, realm: 1, classID: 1 })
+      .limit(safeLimit)
+      .select("wclCanonicalCharacterId name realm region classID guildName guildRealm lastReportSeenAt blizzardIdentityOverride")
+      .lean();
+
+    return characters.map((character) => {
+      const currentNameMatches = nameMatch.test(character.name);
+      const overrideMatches = character.blizzardIdentityOverride
+        ? nameMatch.test(character.blizzardIdentityOverride.name)
+        : false;
+      return {
+        wclCanonicalCharacterId: character.wclCanonicalCharacterId,
+        name: character.name,
+        realm: character.realm,
+        region: character.region,
+        classID: character.classID,
+        matchedName: !currentNameMatches && overrideMatches ? character.blizzardIdentityOverride?.name : undefined,
+        matchedRealm: !currentNameMatches && overrideMatches ? character.blizzardIdentityOverride?.realm : undefined,
+        guild: character.guildName && character.guildRealm
+          ? { name: character.guildName, realm: character.guildRealm }
+          : null,
+        lastReportSeenAt: character.lastReportSeenAt,
+      };
+    });
   }
 
   async getCharacterAccountBySlug(accountSlug: string): Promise<CharacterAccountResponse | null> {

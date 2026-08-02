@@ -111,6 +111,8 @@ const CCG_ANALYTICS_INITIALIZATION_LOCK = "ccg-analytics-initialize-v2";
 const CCG_ANALYTICS_INITIALIZATION_TIMEOUT_MS = 30_000;
 const CCG_UNIQUE_FINISH_FILTER = "unique";
 const CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS = 60_000;
+const CCG_COLLECTION_CHARACTER_REFRESH_CHECK_MS = 5_000;
+const CCG_ACTIVE_CATALOG_CACHE_MS = 30_000;
 const CCG_GUEST_LAST_SEEN_WRITE_INTERVAL_MS = 15 * 60 * 1000;
 const CCG_TRANSACTION_WRITE_CONFLICT_MAX_ATTEMPTS = 5;
 const CCG_PUBLIC_SET_FIELDS = "_id slug zoneId raidName expansionName state kind enabledAt themeKey theme customFinish backgroundPath packArtOffsetX cardCount publicationWave lastPublishedAt";
@@ -606,6 +608,7 @@ class CcgService {
     setIdBySlug: Map<string, string>;
   } | null = null;
   private collectionGuildsPromise: Promise<NonNullable<CcgService["collectionGuildsCache"]>> | null = null;
+  private activeCatalogCardIdsCache = new Map<string, { expiresAt: number; cardIds: mongoose.Types.ObjectId[] }>();
   private raidIconCache: { expiresAt: number; iconByZone: Map<number, string | null> } | null = null;
   private raidIconPromise: Promise<Map<number, string | null>> | null = null;
 
@@ -657,24 +660,25 @@ class CcgService {
     if (this.collectionCharacterSearchPromise) return this.collectionCharacterSearchPromise;
 
     this.collectionCharacterSearchPromise = (async () => {
-      let sets = await CcgSet.find({ enabledAt: { $ne: null } })
+      const sets = await CcgSet.find({ enabledAt: { $ne: null } })
         .select("_id collectionCharactersBuiltAt")
         .sort({ _id: 1 })
         .lean();
       const setIds = sets.map((set) => set._id);
-      if (sets.some((set) => !set.collectionCharactersBuiltAt)) {
-        await ccgPublisherService.ensureCollectionCharactersMaterialized(setIds);
-        sets = await CcgSet.find({ _id: { $in: setIds } })
-          .select("_id collectionCharactersBuiltAt")
-          .sort({ _id: 1 })
-          .lean();
+      const materializationPending = sets.some((set) => !set.collectionCharactersBuiltAt);
+      if (materializationPending) {
+        void ccgPublisherService.ensureCollectionCharactersMaterialized(setIds).catch((error) => {
+          logger.error(`[CCG] Failed to refresh collection character search data: ${error instanceof Error ? error.message : String(error)}`);
+        });
       }
 
       const version = sets
         .map((set) => `${set._id}:${set.collectionCharactersBuiltAt?.getTime() ?? 0}`)
         .join("|");
       if (this.collectionCharacterSearchCache?.version === version) {
-        this.collectionCharacterSearchCache.versionCheckedUntil = now + CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS;
+        this.collectionCharacterSearchCache.versionCheckedUntil = now + (materializationPending
+          ? CCG_COLLECTION_CHARACTER_REFRESH_CHECK_MS
+          : CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS);
         return this.collectionCharacterSearchCache.candidates;
       }
 
@@ -713,7 +717,9 @@ class CcgService {
       }));
       this.collectionCharacterSearchCache = {
         version,
-        versionCheckedUntil: now + CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS,
+        versionCheckedUntil: now + (materializationPending
+          ? CCG_COLLECTION_CHARACTER_REFRESH_CHECK_MS
+          : CCG_COLLECTION_CHARACTER_VERSION_CHECK_MS),
         candidates,
       };
       return candidates;
@@ -1287,6 +1293,13 @@ class CcgService {
   private async getActiveCatalogCardIds(
     sets: ReadonlyArray<Pick<ICcgSet, "_id" | "cardCount"> | Record<string, any>>,
   ): Promise<mongoose.Types.ObjectId[] | null> {
+    const cacheKey = sets
+      .map((set) => `${String(set._id)}:${set.cardCount}`)
+      .sort()
+      .join("|");
+    const cached = this.activeCatalogCardIdsCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.cardIds;
+
     const pools = await CcgPackPool.find({ setId: { $in: sets.map((set) => set._id) }, active: true })
       .select("setId buckets.cardIds totalCards updatedAt")
       .sort({ updatedAt: -1 })
@@ -1304,6 +1317,11 @@ class CcgService {
       if (setCardIds.length !== pool.totalCards) return null;
       cardIds.push(...setCardIds);
     }
+    if (this.activeCatalogCardIdsCache.size >= 20) this.activeCatalogCardIdsCache.clear();
+    this.activeCatalogCardIdsCache.set(cacheKey, {
+      expiresAt: Date.now() + CCG_ACTIVE_CATALOG_CACHE_MS,
+      cardIds,
+    });
     return cardIds;
   }
 
@@ -1344,11 +1362,19 @@ class CcgService {
     const missingSeriesOnly = options.owned === "missing" && !finishMatch;
     const needsFinishOwnership = Boolean(finishMatch) || (ownershipSort && !missingSeriesOnly);
     const needsCatalogOwnership = ownershipFilter || ownershipSort;
+    const characterFilter = cardFilter.characterId;
+    const remainingCardFilter = { ...cardFilter };
+    delete remainingCardFilter.characterId;
     const activeCardIds = await this.getActiveCatalogCardIds(sets);
     const currentCardStages: PipelineStage[] = activeCardIds
-      ? [{ $match: { _id: { $in: activeCardIds } } }]
+      ? [{ $match: { _id: { $in: activeCardIds }, ...(characterFilter ? { characterId: characterFilter } : {}) } }]
       : [
-          { $match: { setId: set ? set._id : { $in: sets.map((item) => item._id) } } },
+          {
+            $match: {
+              setId: set ? set._id : { $in: sets.map((item) => item._id) },
+              ...(characterFilter ? { characterId: characterFilter } : {}),
+            },
+          },
           { $sort: { snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 } },
           { $group: { _id: { setId: "$setId", characterId: "$characterId" }, card: { $first: "$$ROOT" } } },
           { $replaceRoot: { newRoot: "$card" } },
@@ -1358,7 +1384,7 @@ class CcgService {
       count: Array<{ total: number }>;
     }>([
       ...currentCardStages,
-      ...(Object.keys(cardFilter).length > 0 ? [{ $match: cardFilter }] : []),
+      ...(Object.keys(remainingCardFilter).length > 0 ? [{ $match: remainingCardFilter }] : []),
       ...(needsCatalogOwnership ? [
         {
           $lookup: {
@@ -1577,11 +1603,13 @@ class CcgService {
     enabledSetIds: mongoose.Types.ObjectId[],
     page: number,
     limit: number,
+    characterIds: mongoose.Types.ObjectId[] | null = null,
   ): Promise<CcgCollectionRows | null> {
     const match = {
       ownerType: owner.ownerType,
       ownerId: owner.ownerId,
       setId: { $in: enabledSetIds },
+      ...(characterIds ? { characterId: { $in: characterIds } } : {}),
       collectionReadModelVersion: CCG_COLLECTION_READ_MODEL_VERSION,
     };
     const [seriesRows, total, unmaterialized] = await Promise.all([
@@ -1602,6 +1630,7 @@ class CcgService {
         ownerType: owner.ownerType,
         ownerId: owner.ownerId,
         setId: { $in: enabledSetIds },
+        ...(characterIds ? { characterId: { $in: characterIds } } : {}),
         collectionReadModelVersion: { $ne: CCG_COLLECTION_READ_MODEL_VERSION },
         collectionReadModelIssue: { $ne: CCG_COLLECTION_READ_MODEL_MISSING_FINISH },
       }),
@@ -1718,7 +1747,7 @@ class CcgService {
     const guildId = options.guildId ? validateObjectId(options.guildId, "guild ID") : null;
     if (guildId) cardMatch["card.guildId"] = guildId;
     const characterIds = options.characterId ? await this.resolveCollectionCharacterIds(options.characterId) : null;
-    if (characterIds) cardMatch["card.characterId"] = { $in: characterIds };
+    if (characterIds) match.characterId = { $in: characterIds };
     if (options.alternativeOnly) {
       const alternativeSeries = await CcgOwnership.find({
         ownerType: owner.ownerType,
@@ -1742,7 +1771,7 @@ class CcgService {
       && !options.alternativeOnly
       && !options.favoriteOnly;
     const defaultRows = canUseDefaultReadModel
-      ? await this.getDefaultCollectionRows(owner, sets.map((set) => set._id), page, limit)
+      ? await this.getDefaultCollectionRows(owner, sets.map((set) => set._id), page, limit, characterIds)
       : null;
     let rows = defaultRows;
     if (!rows) rows = await CcgSeriesOwnership.aggregate<{

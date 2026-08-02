@@ -68,6 +68,7 @@ test("missing-card catalog filtering uses series ownership and avoids finish own
     getActiveCatalogCardIds: service.getActiveCatalogCardIds,
     loadAlternativeArt: service.loadAlternativeArt,
     loadAlternativeArtUnlocks: service.loadAlternativeArtUnlocks,
+    resolveCollectionCharacterIds: service.resolveCollectionCharacterIds,
   };
   let pipeline: Array<Record<string, any>> = [];
   let ownershipFindCalls = 0;
@@ -78,7 +79,8 @@ test("missing-card catalog filtering uses series ownership and avoids finish own
       select() { return this; },
       lean: async () => [set],
     });
-    service.getActiveCatalogCardIds = async () => [cardId];
+    service.getActiveCatalogCardIds = async () => null;
+    service.resolveCollectionCharacterIds = async () => [characterId];
     cardModel.aggregate = (value: Array<Record<string, any>>) => {
       pipeline = value;
       return Promise.resolve([{ items: [card], count: [{ total: 1 }] }]);
@@ -109,9 +111,14 @@ test("missing-card catalog filtering uses series ownership and avoids finish own
     const result = await service.getCatalog(
       { ownerType: "user", ownerId },
       undefined,
-      { owned: "missing", sort: "quality_desc" },
+      { owned: "missing", sort: "quality_desc", characterId: String(characterId) },
     );
 
+    assert.deepEqual(pipeline[0]?.$match.characterId, { $in: [characterId] });
+    assert.deepEqual(pipeline[0]?.$match.setId, { $in: [setId] });
+    const groupIndex = pipeline.findIndex((stage) => stage.$group);
+    const characterMatchIndex = pipeline.findIndex((stage) => stage.$match?.characterId);
+    assert.ok(characterMatchIndex >= 0 && characterMatchIndex < groupIndex);
     assert.equal(pipeline.some((stage) => stage.$lookup?.from === "ccgseriesownerships"), true);
     assert.equal(pipeline.some((stage) => stage.$lookup?.from === "ccgownerships"), false);
     const seriesLookup = pipeline.find((stage) => stage.$lookup?.from === "ccgseriesownerships");
@@ -136,5 +143,6 @@ test("missing-card catalog filtering uses series ownership and avoids finish own
     service.getActiveCatalogCardIds = originals.getActiveCatalogCardIds;
     service.loadAlternativeArt = originals.loadAlternativeArt;
     service.loadAlternativeArtUnlocks = originals.loadAlternativeArtUnlocks;
+    service.resolveCollectionCharacterIds = originals.resolveCollectionCharacterIds;
   }
 });

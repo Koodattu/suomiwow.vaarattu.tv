@@ -78,8 +78,9 @@ test("default collection paginates the materialized index before hydrating cards
     setFind: setModel.find,
     loadAlternativeArt: service.loadAlternativeArt,
     loadAlternativeArtUnlocks: service.loadAlternativeArtUnlocks,
+    resolveCollectionCharacterIds: service.resolveCollectionCharacterIds,
   };
-  let seriesFilter: Record<string, any> | null = null;
+  const seriesFilters: Record<string, any>[] = [];
   let seriesSort: Record<string, number> | null = null;
   let aggregateCalled = false;
 
@@ -89,7 +90,7 @@ test("default collection paginates the materialized index before hydrating cards
       lean: async () => [set],
     });
     seriesModel.find = (filter: Record<string, any>) => {
-      seriesFilter = filter;
+      seriesFilters.push(filter);
       return {
         sort(value: Record<string, number>) { seriesSort = value; return this; },
         skip() { return this; },
@@ -120,15 +121,21 @@ test("default collection paginates the materialized index before hydrating cards
     });
     service.loadAlternativeArt = async () => new Map();
     service.loadAlternativeArtUnlocks = async () => new Set();
+    service.resolveCollectionCharacterIds = async () => [characterId];
 
     const result = await service.getCollection(
       { ownerType: "user", ownerId, dateKey: "2026-07-30" },
       { page: 1, limit: 12 },
     );
+    const filteredResult = await service.getCollection(
+      { ownerType: "user", ownerId, dateKey: "2026-07-30" },
+      { page: 1, limit: 12, characterId: String(characterId) },
+    );
 
     assert.equal(aggregateCalled, false);
-    assert.equal((seriesFilter as Record<string, any> | null)?.collectionReadModelVersion, 1);
-    assert.deepEqual((seriesFilter as Record<string, any> | null)?.setId, { $in: [setId] });
+    assert.equal(seriesFilters[0]?.collectionReadModelVersion, 1);
+    assert.deepEqual(seriesFilters[0]?.setId, { $in: [setId] });
+    assert.deepEqual(seriesFilters[1]?.characterId, { $in: [characterId] });
     assert.deepEqual(seriesSort, {
       collectionSortGrade: 1,
       collectionSortSetNumber: 1,
@@ -140,6 +147,7 @@ test("default collection paginates the materialized index before hydrating cards
     assert.equal(result.cards[0].id, String(latestCardId));
     assert.deepEqual(result.cards[0].variants.map((variant: any) => variant.card.snapshotVersion), [2, 1]);
     assert.equal(result.cards[0].totalQuantity, 2);
+    assert.equal(filteredResult.total, 1);
   } finally {
     seriesModel.find = originals.seriesFind;
     seriesModel.countDocuments = originals.seriesCountDocuments;
@@ -150,6 +158,7 @@ test("default collection paginates the materialized index before hydrating cards
     setModel.find = originals.setFind;
     service.loadAlternativeArt = originals.loadAlternativeArt;
     service.loadAlternativeArtUnlocks = originals.loadAlternativeArtUnlocks;
+    service.resolveCollectionCharacterIds = originals.resolveCollectionCharacterIds;
   }
 });
 
