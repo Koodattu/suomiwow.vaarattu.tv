@@ -618,7 +618,7 @@ export default function CcgCollectionPage() {
                 <span className={styles.collectionGuildSelection} aria-hidden="true">
                   <span className={`${styles.collectionGuildText} ${styles.collectionCharacterText}`}>
                     {"search" in selectedCharacter ? (
-                      <span>{t("collection.characterNameContains", { search: selectedCharacter.search })}</span>
+                      <span>{selectedCharacter.search}</span>
                     ) : (
                       <>
                         <span className={styles.collectionCharacterName}>{selectedCharacter.name}</span>
@@ -1008,7 +1008,7 @@ export default function CcgCollectionPage() {
                   <span className={styles.collectionGuildSelection} aria-hidden="true">
                     <span className={`${styles.collectionGuildText} ${styles.collectionCharacterText}`}>
                       {"search" in selectedCharacter ? (
-                        <span>{t("collection.characterNameContains", { search: selectedCharacter.search })}</span>
+                        <span>{selectedCharacter.search}</span>
                       ) : (
                         <>
                           <span className={styles.collectionCharacterName}>{selectedCharacter.name}</span>

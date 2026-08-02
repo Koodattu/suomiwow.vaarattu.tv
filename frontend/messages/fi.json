@@ -548,7 +548,6 @@
       "selectCharacter": "Valitse hahmo",
       "typeTwoCharacters": "Kirjoita vähintään 2 merkkiä",
       "searchForCharacterName": "Hae nimellä ”{search}”",
-      "characterNameContains": "Nimessä on ”{search}”",
       "searchingCharacters": "Haetaan…",
       "noCharactersFound": "Hahmoja ei löytynyt",
       "characterSearchError": "Hahmohaku epäonnistui",
