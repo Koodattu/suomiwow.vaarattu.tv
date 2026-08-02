@@ -2280,12 +2280,12 @@ export const api = {
     return data;
   },
 
-  async resetAdminFailedArchivedDeathEvents(statuses: Array<"failed" | "archived"> = ["failed", "archived"], queue = true): Promise<DeathEventsResetResponse> {
+  async resetAdminFailedArchivedDeathEvents(statuses: Array<"failed" | "archived" | "unavailable"> = ["failed", "archived", "unavailable"], queue = true, scope: "current" | "all" = "current"): Promise<DeathEventsResetResponse> {
     const response = await fetch(`${API_URL}/api/admin/death-events/reset-failed-archived`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ statuses, queue }),
+      body: JSON.stringify({ statuses, queue, scope }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Failed to reset death event fetches");
@@ -2660,10 +2660,12 @@ export async function triggerUpdateGuildCrests(): Promise<TriggerResponse> {
   return response.json();
 }
 
-export async function triggerRescanDeathEvents(): Promise<TriggerResponse> {
+export async function triggerRescanDeathEvents(scope: "current" | "all" = "current"): Promise<TriggerResponse> {
   const response = await fetch(`${API_URL}/api/admin/trigger/rescan-death-events`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     credentials: "include",
+    body: JSON.stringify({ scope }),
   });
   if (!response.ok) throw new Error("Failed to trigger death events rescan");
   return response.json();
@@ -2687,12 +2689,12 @@ export async function triggerBackfillReportCharacters(): Promise<TriggerResponse
   return response.json();
 }
 
-export async function triggerBackfillCharacterRankings(refreshCandidates = false): Promise<CharacterRankingBackfillTriggerResponse> {
+export async function triggerBackfillCharacterRankings(refreshCandidates = false, reprocessCompleted = false, scope: "current" | "all" = "current"): Promise<CharacterRankingBackfillTriggerResponse> {
   const response = await fetch(`${API_URL}/api/admin/trigger/backfill-character-rankings`, {
     method: "POST",
-    credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshCandidates }),
+    credentials: "include",
+    body: JSON.stringify({ refreshCandidates, reprocessCompleted, scope }),
   });
   if (!response.ok) throw new Error("Failed to trigger character ranking backfill");
   return response.json();

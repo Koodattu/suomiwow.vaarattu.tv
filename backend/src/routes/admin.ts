@@ -70,13 +70,15 @@ function getFrontendUrl(): string {
   return process.env.NODE_ENV === "production" ? "https://suomiwow.vaarattu.tv" : "http://localhost:3000";
 }
 
-function getAllowedDeathResetStatuses(value: unknown): Array<"failed" | "archived"> {
+function getAllowedDeathResetStatuses(value: unknown): Array<"failed" | "archived" | "unavailable"> {
   if (!Array.isArray(value)) {
-    return ["failed", "archived"];
+    return ["failed", "archived", "unavailable"];
   }
 
-  const statuses = value.filter((status): status is "failed" | "archived" => status === "failed" || status === "archived");
-  return statuses.length > 0 ? Array.from(new Set(statuses)) : ["failed", "archived"];
+  const statuses = value.filter(
+    (status): status is "failed" | "archived" | "unavailable" => status === "failed" || status === "archived" || status === "unavailable",
+  );
+  return statuses.length > 0 ? Array.from(new Set(statuses)) : ["failed", "archived", "unavailable"];
 }
 
 function normalizeStreamerChannels(channelNames: string[]): string[] {
@@ -171,19 +173,21 @@ async function syncAdminStreamerClaims(guildId: string, channelNames: string[]):
 
 router.get("/wcl-user/status", async (req: Request, res: Response) => {
   try {
+    const fightScopeMatch = req.query.scope === "all" ? {} : { zoneId: { $in: CURRENT_RAID_IDS } };
     const [authStatus, deathEventCounts, combatantInfoCounts] = await Promise.all([
       wclUserAuthService.getStatus(),
       Fight.aggregate([
-        { $match: { deathEventsFetchStatus: { $in: ["pending", "failed", "archived"] } } },
+        { $match: { ...fightScopeMatch, deathEventsFetchStatus: { $in: ["pending", "failed", "archived", "unavailable"] } } },
         { $group: { _id: "$deathEventsFetchStatus", count: { $sum: 1 } } },
       ]),
       Fight.aggregate([
         {
           $match: {
             difficulty: 5,
+            ...fightScopeMatch,
             reportEndTime: { $gt: 0 },
             $or: [
-              { combatantInfoFetchStatus: { $in: ["pending", "failed", "archived"] } },
+              { combatantInfoFetchStatus: { $in: ["pending", "partial", "failed", "archived", "unavailable"] } },
               { combatantInfoFetchStatus: { $exists: false } },
             ],
           },
@@ -200,11 +204,14 @@ router.get("/wcl-user/status", async (req: Request, res: Response) => {
         pending: countsByStatus.get("pending") || 0,
         failed: countsByStatus.get("failed") || 0,
         archived: countsByStatus.get("archived") || 0,
+        unavailable: countsByStatus.get("unavailable") || 0,
       },
       combatantInfo: {
         pending: combatantCountsByStatus.get("pending") || 0,
         failed: combatantCountsByStatus.get("failed") || 0,
         archived: combatantCountsByStatus.get("archived") || 0,
+        partial: combatantCountsByStatus.get("partial") || 0,
+        unavailable: combatantCountsByStatus.get("unavailable") || 0,
       },
     });
   } catch (error) {
@@ -633,18 +640,23 @@ router.post("/death-events/reset-failed-archived", async (req: Request, res: Res
   try {
     const statuses = getAllowedDeathResetStatuses(req.body?.statuses);
     const shouldQueue = req.body?.queue !== false;
+    const scope = req.body?.scope === "all" ? "all" : "current";
+    const raidId = Number(req.body?.raidId);
+    const targetRaidIds = Number.isFinite(raidId) ? [raidId] : scope === "all" ? undefined : CURRENT_RAID_IDS;
     const deathQuery = {
       reportEndTime: { $gt: 0 },
+      ...(targetRaidIds?.length ? { zoneId: { $in: targetRaidIds } } : {}),
       deathEventsFetchStatus: { $in: statuses },
     };
     const combatantInfoQuery = {
       reportEndTime: { $gt: 0 },
       difficulty: 5,
+      ...(targetRaidIds?.length ? { zoneId: { $in: targetRaidIds } } : {}),
       combatantInfoFetchStatus: { $in: statuses },
     };
 
     const guildIds = shouldQueue
-      ? await Fight.distinct("guildId", { reportEndTime: { $gt: 0 }, $or: [
+      ? await Fight.distinct("guildId", { reportEndTime: { $gt: 0 }, ...(targetRaidIds?.length ? { zoneId: { $in: targetRaidIds } } : {}), $or: [
           { deathEventsFetchStatus: { $in: statuses } },
           { difficulty: 5, combatantInfoFetchStatus: { $in: statuses } },
         ] })
@@ -666,7 +678,7 @@ router.post("/death-events/reset-failed-archived", async (req: Request, res: Res
       const guilds = await Guild.find({ _id: { $in: guildIds }, initialFetchCompleted: true });
       for (const guild of guilds) {
         try {
-          await backgroundGuildProcessor.queueGuild(guild, 5, "rescan_deaths");
+          await backgroundGuildProcessor.queueGuild(guild, 5, "rescan_deaths", undefined, { targetRaidIds });
           queued++;
         } catch {
           skipped++;
@@ -3347,9 +3359,12 @@ router.post("/trigger/update-guild-crests", async (req: Request, res: Response) 
 
 // Queue all guilds for fight spec and death-event backfill
 router.post("/trigger/rescan-death-events", async (req: Request, res: Response) => {
-  const taskId = await taskTracker.start("Queue Fight Details Backfill", { source: "manual" });
+  const scope = req.body?.scope === "all" ? "all" : "current";
+  const raidId = Number(req.body?.raidId);
+  const targetRaidIds = Number.isFinite(raidId) ? [raidId] : scope === "all" ? undefined : CURRENT_RAID_IDS;
+  const taskId = await taskTracker.start("Queue Fight Details Backfill", { source: "manual", targetRaidIds });
   try {
-    const result = await guildService.queueAllGuildsForDeathRescan();
+    const result = await guildService.queueAllGuildsForDeathRescan(15, targetRaidIds);
     await taskTracker.complete(taskId, result);
     res.json({
       success: true,
@@ -3403,13 +3418,17 @@ router.post("/trigger/backfill-report-characters", async (req: Request, res: Res
 router.post("/trigger/backfill-character-rankings", async (req: Request, res: Response) => {
   try {
     const refreshCandidates = req.body?.refreshCandidates === true;
-    const result = await characterRankingBackfillService.triggerBackfill({ refreshCandidates });
+    const reprocessCompleted = req.body?.reprocessCompleted === true;
+    const scope = req.body?.scope === "all" ? "all" : "current";
+    const zoneIds = scope === "all" ? undefined : CURRENT_RAID_IDS;
+    const result = await characterRankingBackfillService.triggerBackfill({ refreshCandidates, reprocessCompleted, zoneIds });
     const queueMessage = result.enqueue.discoverySkipped
       ? `candidate discovery skipped, ${result.enqueue.existing} persistent queue items already exist`
       : `${result.enqueue.queued} new character/raid items queued, ${result.enqueue.existing} already tracked`;
+    const requeueMessage = result.enqueue.requeued > 0 ? `, ${result.enqueue.requeued} completed item(s) requeued for all-spec refresh` : "";
     res.json({
       success: true,
-      message: result.started ? `Character ranking backfill started: ${queueMessage}` : `Character ranking backfill is already running: ${queueMessage}`,
+      message: result.started ? `Character ranking backfill started: ${queueMessage}${requeueMessage}` : `Character ranking backfill is already running: ${queueMessage}${requeueMessage}`,
       ...result,
     });
   } catch (error) {
@@ -3758,8 +3777,10 @@ router.post("/trigger/rebuild-character-mechanics-leaderboards", async (req: Req
       .buildMechanicsLeaderboards(zoneIds)
       .then(async (result) => {
         logger.info(`[Admin] Character mechanics leaderboard rebuild completed for ${targetLabel}`);
-        const rebuiltZoneIds = result.zones.map((zone) => zone.zoneId);
-        const tierListResult = await characterTierListService.rebuildCharacterTierLists(rebuiltZoneIds);
+        const rebuiltZoneIds = result.zones.filter((zone) => zone.status === "built").map((zone) => zone.zoneId);
+        const tierListResult = rebuiltZoneIds.length > 0
+          ? await characterTierListService.rebuildCharacterTierLists(rebuiltZoneIds)
+          : { zones: [], entries: 0 };
         await cacheService.invalidateCharacterTierListCaches();
         logger.info(`[Admin] Character tier list rebuild completed after mechanics rebuild: ${tierListResult.entries} entries`);
         await taskTracker.complete(taskId, { ...result, characterTierLists: tierListResult });

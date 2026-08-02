@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import type { RaidIdentityConfidence, RaidIdentityMethod } from "../utils/character-raid-identity";
 
 export interface IMechanicsBossScore {
   encounterId: number;
@@ -6,7 +7,9 @@ export interface IMechanicsBossScore {
   score: number;
   parseScore: number;
   survivalScore: number | null;
+  survivalPercentile: number | null;
   pulls: number;
+  evaluatedPulls: number;
   deaths: number;
   survivedPulls: number;
   earlyDeaths: number;
@@ -33,11 +36,14 @@ export interface ICharacterMechanicsLeaderboard extends Document {
   specName: string;
   bestSpecName: string;
   role: "dps" | "healer" | "tank";
+  identityMethod: RaidIdentityMethod;
+  identityConfidence: RaidIdentityConfidence;
   ilvl: number;
 
   score: number;
   parseScore: number;
   survivalScore: number | null;
+  survivalPercentile: number | null;
 
   encounterName: string;
   rankPercent: number;
@@ -46,12 +52,17 @@ export interface ICharacterMechanicsLeaderboard extends Document {
   bestAmount: number;
 
   pulls: number;
+  evaluatedPulls: number;
   deaths: number;
   survivedPulls: number;
   earlyDeaths: number;
   averageDeathPercent: number | null;
   deathDataAvailable: boolean;
   bossScores: IMechanicsBossScore[];
+  scoreVersion: number;
+  raidFightCoverage: number;
+  eligibleFightCount: number;
+  evaluatedFightCount: number;
 
   guildName: string | null;
   guildRealm: string | null;
@@ -67,7 +78,9 @@ const MechanicsBossScoreSchema = new Schema<IMechanicsBossScore>(
     score: { type: Number, required: true },
     parseScore: { type: Number, required: true },
     survivalScore: { type: Number, default: null },
+    survivalPercentile: { type: Number, default: null },
     pulls: { type: Number, default: 0 },
+    evaluatedPulls: { type: Number, default: 0 },
     deaths: { type: Number, default: 0 },
     survivedPulls: { type: Number, default: 0 },
     earlyDeaths: { type: Number, default: 0 },
@@ -97,11 +110,14 @@ const CharacterMechanicsLeaderboardSchema = new Schema<ICharacterMechanicsLeader
     specName: { type: String, required: true },
     bestSpecName: { type: String, default: "" },
     role: { type: String, enum: ["dps", "healer", "tank"], required: true },
+    identityMethod: { type: String, enum: ["fight_roster", "mythic_kill_bosses", "parse_quality", "known_pull_fallback"], required: true },
+    identityConfidence: { type: String, enum: ["exact", "inferred"], required: true },
     ilvl: { type: Number, default: 0 },
 
     score: { type: Number, required: true },
     parseScore: { type: Number, required: true },
     survivalScore: { type: Number, default: null },
+    survivalPercentile: { type: Number, default: null },
 
     encounterName: { type: String, default: "" },
     rankPercent: { type: Number, default: 0 },
@@ -110,12 +126,17 @@ const CharacterMechanicsLeaderboardSchema = new Schema<ICharacterMechanicsLeader
     bestAmount: { type: Number, default: 0 },
 
     pulls: { type: Number, default: 0 },
+    evaluatedPulls: { type: Number, default: 0 },
     deaths: { type: Number, default: 0 },
     survivedPulls: { type: Number, default: 0 },
     earlyDeaths: { type: Number, default: 0 },
     averageDeathPercent: { type: Number, default: null },
     deathDataAvailable: { type: Boolean, default: false },
     bossScores: { type: [MechanicsBossScoreSchema], default: [] },
+    scoreVersion: { type: Number, default: 2 },
+    raidFightCoverage: { type: Number, default: 0 },
+    eligibleFightCount: { type: Number, default: 0 },
+    evaluatedFightCount: { type: Number, default: 0 },
 
     guildName: { type: String, default: null },
     guildRealm: { type: String, default: null },

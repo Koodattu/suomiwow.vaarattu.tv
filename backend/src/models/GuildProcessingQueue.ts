@@ -17,6 +17,7 @@ export interface IGuildProcessingQueue extends Document {
   guildRealm: string;
   guildRegion: string;
   jobType: JobType;
+  targetRaidIds?: number[];
 
   // Processing status
   status: ProcessingStatus;
@@ -85,6 +86,7 @@ const GuildProcessingQueueSchema = new Schema<IGuildProcessingQueue>(
       enum: ["full_rescan", "rescan_deaths", "rescan_characters", "backfill_report_characters", "recalculate_stats"],
       required: true,
     },
+    targetRaidIds: [{ type: Number }],
     guildLogSourceId: {
       type: Schema.Types.ObjectId,
       ref: "GuildLogSource",

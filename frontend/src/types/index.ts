@@ -663,6 +663,8 @@ export interface TierListRaidInfo {
 
 export type CharacterTierListRole = "dps" | "healer" | "tank";
 export type CharacterTierListMetric = "dps" | "hps";
+export type CharacterRaidIdentityMethod = "fight_roster" | "mythic_kill_bosses" | "parse_quality" | "known_pull_fallback";
+export type CharacterRaidIdentityConfidence = "exact" | "inferred";
 export type CharacterTierName = "S" | "A" | "B" | "C" | "D" | "E" | "F";
 export type CustomCharacterTierName = CharacterTierName;
 
@@ -679,7 +681,9 @@ export interface CharacterTierListBossScore {
   score: number;
   parseScore: number;
   survivalScore: number | null;
+  survivalPercentile: number | null;
   pulls: number;
+  evaluatedPulls: number;
   deaths: number;
   survivedPulls: number;
   earlyDeaths: number;
@@ -703,20 +707,28 @@ export interface CharacterTierListCharacter {
   metric: CharacterTierListMetric;
   specName: string;
   bestSpecName: string | null;
+  identityMethod: CharacterRaidIdentityMethod;
+  identityConfidence: CharacterRaidIdentityConfidence;
   ilvl: number;
   score: number;
   parseScore: number;
   survivalScore: number | null;
+  survivalPercentile: number | null;
   rankPercent: number;
   medianPercent: number;
   totalKills: number;
   pulls: number;
+  evaluatedPulls: number;
   deaths: number;
   survivedPulls: number;
   earlyDeaths: number;
   averageDeathPercent: number | null;
   deathDataAvailable: boolean;
   bossScores: CharacterTierListBossScore[];
+  scoreVersion: number;
+  raidFightCoverage: number;
+  eligibleFightCount: number;
+  evaluatedFightCount: number;
   reportCount: number;
   firstSeenAt: string;
   lastSeenAt: string;
@@ -1698,6 +1710,8 @@ export type CharacterRankingRow = {
     specName?: string;
     bestSpecName?: string;
     role?: "dps" | "healer" | "tank";
+    identityMethod?: CharacterRaidIdentityMethod;
+    identityConfidence?: CharacterRaidIdentityConfidence;
     ilvl?: number;
   };
   encounter?: {
@@ -1718,12 +1732,18 @@ export type CharacterRankingRow = {
     mechanics?: {
       parseScore: number;
       survivalScore: number | null;
+      survivalPercentile: number | null;
       pulls: number;
+      evaluatedPulls: number;
       deaths: number;
       survivedPulls: number;
       earlyDeaths: number;
       averageDeathPercent: number | null;
       deathDataAvailable: boolean;
+      scoreVersion: number;
+      raidFightCoverage: number;
+      eligibleFightCount: number;
+      evaluatedFightCount: number;
     };
   };
   updatedAt?: string;
@@ -1736,7 +1756,9 @@ export type CharacterRankingRow = {
     score?: number;
     parseScore?: number;
     survivalScore?: number | null;
+    survivalPercentile?: number | null;
     pulls?: number;
+    evaluatedPulls?: number;
     deaths?: number;
     survivedPulls?: number;
     earlyDeaths?: number;
@@ -2020,12 +2042,18 @@ export type CharacterProfileResponse = {
     score: number;
     parseScore: number | null;
     survivalScore: number | null;
+    survivalPercentile: number | null;
     pulls: number;
+    evaluatedPulls: number;
     deaths: number;
     survivedPulls: number;
     earlyDeaths: number;
     averageDeathPercent: number | null;
     deathDataAvailable: boolean;
+    identityMethod: CharacterRaidIdentityMethod | null;
+    identityConfidence: CharacterRaidIdentityConfidence | null;
+    scoreVersion: number;
+    raidFightCoverage: number;
     updatedAt?: string;
   }>;
   mythicPlus: CharacterMythicPlusProfile;
@@ -3086,11 +3114,14 @@ export interface WarcraftLogsUserAuthStatus {
     pending: number;
     failed: number;
     archived: number;
+    unavailable: number;
   };
   combatantInfo: {
     pending: number;
     failed: number;
     archived: number;
+    partial: number;
+    unavailable: number;
   };
 }
 
@@ -3164,7 +3195,7 @@ export interface TwitchChatBotStatus {
 export interface DeathEventsResetResponse {
   success: boolean;
   message: string;
-  statuses: Array<"failed" | "archived">;
+  statuses: Array<"failed" | "archived" | "unavailable">;
   modifiedCount: number;
   matchedCount: number;
   deathEventModifiedCount: number;
@@ -3455,6 +3486,7 @@ export interface CharacterRankingBackfillTriggerResponse extends TriggerResponse
     updated: number;
     skippedWithoutCharacter: number;
     discoverySkipped: boolean;
+    requeued: number;
   };
   status: CharacterRankingBackfillStatusResponse;
 }

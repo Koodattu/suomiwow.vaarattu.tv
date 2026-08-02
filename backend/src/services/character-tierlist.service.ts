@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import mongoose from "mongoose";
 import { AnyBulkWriteOperation } from "mongoose";
 import CharacterMechanicsLeaderboard, { IMechanicsBossScore } from "../models/CharacterMechanicsLeaderboard";
+import type { RaidIdentityConfidence, RaidIdentityMethod } from "../utils/character-raid-identity";
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import CharacterTierListEntry, { ICharacterTierListEntry, CharacterTierListRole, CharacterTierListMetric } from "../models/CharacterTierListEntry";
 import CustomCharacterTierList, { CustomCharacterTier, ICustomCharacterTierList } from "../models/CustomCharacterTierList";
@@ -51,20 +52,28 @@ type MechanicsRow = {
   metric: CharacterTierListMetric;
   specName: string;
   bestSpecName?: string | null;
+  identityMethod?: RaidIdentityMethod;
+  identityConfidence?: RaidIdentityConfidence;
   ilvl?: number;
   score: number;
   parseScore: number;
   survivalScore: number | null;
+  survivalPercentile?: number | null;
   rankPercent?: number;
   medianPercent?: number;
   totalKills?: number;
   pulls?: number;
+  evaluatedPulls?: number;
   deaths?: number;
   survivedPulls?: number;
   earlyDeaths?: number;
   averageDeathPercent?: number | null;
   deathDataAvailable?: boolean;
   bossScores?: IMechanicsBossScore[];
+  scoreVersion?: number;
+  raidFightCoverage?: number;
+  eligibleFightCount?: number;
+  evaluatedFightCount?: number;
   updatedAt?: Date;
 };
 
@@ -135,20 +144,28 @@ export type CharacterTierListCharacter = {
   metric: CharacterTierListMetric;
   specName: string;
   bestSpecName: string | null;
+  identityMethod: RaidIdentityMethod;
+  identityConfidence: RaidIdentityConfidence;
   ilvl: number;
   score: number;
   parseScore: number;
   survivalScore: number | null;
+  survivalPercentile: number | null;
   rankPercent: number;
   medianPercent: number;
   totalKills: number;
   pulls: number;
+  evaluatedPulls: number;
   deaths: number;
   survivedPulls: number;
   earlyDeaths: number;
   averageDeathPercent: number | null;
   deathDataAvailable: boolean;
   bossScores: IMechanicsBossScore[];
+  scoreVersion: number;
+  raidFightCoverage: number;
+  eligibleFightCount: number;
+  evaluatedFightCount: number;
   reportCount: number;
   mythicReportCount: number;
   firstSeenAt: Date;
@@ -472,7 +489,7 @@ class CharacterTierListService {
         pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
       })
         .select(
-          "characterId wclCanonicalCharacterId name realm region classID role metric specName bestSpecName ilvl score parseScore survivalScore rankPercent medianPercent totalKills pulls deaths survivedPulls earlyDeaths averageDeathPercent deathDataAvailable bossScores updatedAt",
+          "characterId wclCanonicalCharacterId name realm region classID role metric specName bestSpecName identityMethod identityConfidence ilvl score parseScore survivalScore survivalPercentile rankPercent medianPercent totalKills pulls evaluatedPulls deaths survivedPulls earlyDeaths averageDeathPercent deathDataAvailable bossScores scoreVersion raidFightCoverage eligibleFightCount evaluatedFightCount updatedAt",
         )
         .lean<MechanicsRow[]>(),
       CharacterRaidParticipation.find({ zoneId })
@@ -694,20 +711,28 @@ class CharacterTierListService {
       metric: mechanicsRow.metric,
       specName: mechanicsRow.specName,
       bestSpecName: mechanicsRow.bestSpecName ?? null,
+      identityMethod: mechanicsRow.identityMethod ?? "known_pull_fallback",
+      identityConfidence: mechanicsRow.identityConfidence ?? "inferred",
       ilvl: mechanicsRow.ilvl ?? 0,
       score: Math.round((mechanicsRow.score ?? 0) * 100) / 100,
       parseScore: Math.round((mechanicsRow.parseScore ?? 0) * 100) / 100,
       survivalScore: mechanicsRow.survivalScore === null || mechanicsRow.survivalScore === undefined ? null : Math.round(mechanicsRow.survivalScore * 100) / 100,
+      survivalPercentile: mechanicsRow.survivalPercentile === null || mechanicsRow.survivalPercentile === undefined ? null : Math.round(mechanicsRow.survivalPercentile * 100) / 100,
       rankPercent: mechanicsRow.rankPercent ?? 0,
       medianPercent: mechanicsRow.medianPercent ?? 0,
       totalKills: mechanicsRow.totalKills ?? 0,
       pulls: mechanicsRow.pulls ?? 0,
+      evaluatedPulls: mechanicsRow.evaluatedPulls ?? mechanicsRow.pulls ?? 0,
       deaths: mechanicsRow.deaths ?? 0,
       survivedPulls: mechanicsRow.survivedPulls ?? 0,
       earlyDeaths: mechanicsRow.earlyDeaths ?? 0,
       averageDeathPercent: mechanicsRow.averageDeathPercent ?? null,
       deathDataAvailable: mechanicsRow.deathDataAvailable ?? false,
       bossScores: mechanicsRow.bossScores ?? [],
+      scoreVersion: mechanicsRow.scoreVersion ?? 1,
+      raidFightCoverage: mechanicsRow.raidFightCoverage ?? 0,
+      eligibleFightCount: mechanicsRow.eligibleFightCount ?? 0,
+      evaluatedFightCount: mechanicsRow.evaluatedFightCount ?? 0,
       reportCount: participation.reportCount,
       mythicReportCount: participation.mythicReportCount,
       firstSeenAt: participation.firstSeenAt,
@@ -1108,20 +1133,28 @@ class CharacterTierListService {
       metric: entry.metric,
       specName: entry.specName,
       bestSpecName: entry.bestSpecName ?? null,
+      identityMethod: entry.identityMethod,
+      identityConfidence: entry.identityConfidence,
       ilvl: entry.ilvl,
       score: entry.score,
       parseScore: entry.parseScore,
       survivalScore: entry.survivalScore,
+      survivalPercentile: entry.survivalPercentile,
       rankPercent: entry.rankPercent,
       medianPercent: entry.medianPercent,
       totalKills: entry.totalKills,
       pulls: entry.pulls,
+      evaluatedPulls: entry.evaluatedPulls,
       deaths: entry.deaths,
       survivedPulls: entry.survivedPulls,
       earlyDeaths: entry.earlyDeaths,
       averageDeathPercent: entry.averageDeathPercent,
       deathDataAvailable: entry.deathDataAvailable,
       bossScores: entry.bossScores ?? [],
+      scoreVersion: entry.scoreVersion,
+      raidFightCoverage: entry.raidFightCoverage,
+      eligibleFightCount: entry.eligibleFightCount,
+      evaluatedFightCount: entry.evaluatedFightCount,
       reportCount: entry.reportCount,
       mythicReportCount: entry.mythicReportCount,
       firstSeenAt: entry.firstSeenAt,

@@ -1052,7 +1052,7 @@ class UpdateScheduler {
     const taskId = await taskTracker.start("Queue Fight Details Backfill");
 
     try {
-      const result = await guildService.queueAllGuildsForDeathRescan(25);
+      const result = await guildService.queueAllGuildsForDeathRescan(25, CURRENT_RAID_IDS);
       logger.info(`[Nightly/DeathEventBackfill] Queued ${result.queued} guild(s), skipped ${result.skipped}`);
       await taskTracker.complete(taskId, result);
     } catch (error) {
@@ -1775,13 +1775,6 @@ class UpdateScheduler {
       return;
     }
 
-    const deathBackfillUnfinished = await characterMechanicsService.hasUnfinishedDeathEventBackfill();
-    if (deathBackfillUnfinished) {
-      logger.info("[Nightly/CharacterMechanics] Death event backfill queue is not finished yet, skipping mechanics rebuild");
-      this.characterMechanicsRebuildPending = true;
-      return;
-    }
-
     this.isUpdatingCharacterMechanics = true;
     const taskId = await taskTracker.start("Rebuild Character Mechanics Leaderboard");
 
@@ -1789,7 +1782,7 @@ class UpdateScheduler {
       const result = await characterMechanicsService.buildCurrentRaidMechanicsLeaderboards();
       this.characterMechanicsRebuildPending = false;
       await taskTracker.complete(taskId, result);
-      await this.rebuildCharacterTierLists(result.zones.map((zone) => zone.zoneId)).catch((error) => {
+      await this.rebuildCharacterTierLists(result.zones.filter((zone) => zone.status === "built").map((zone) => zone.zoneId)).catch((error) => {
         logger.error("[CharacterTierLists] Rebuild after character mechanics failed:", error);
       });
       await this.rebuildGuildProfileHighlights().catch((error) => {

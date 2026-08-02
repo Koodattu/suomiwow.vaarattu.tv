@@ -169,6 +169,7 @@ export interface CharacterRankingBackfillEnqueueResult {
   updated: number;
   skippedWithoutCharacter: number;
   discoverySkipped: boolean;
+  requeued: number;
 }
 
 export interface CharacterRankingBackfillTriggerResult {
@@ -290,7 +291,7 @@ class CharacterRankingBackfillService {
     lastError: null as string | null,
   };
 
-  async triggerBackfill(options: { refreshCandidates?: boolean } = {}): Promise<CharacterRankingBackfillTriggerResult> {
+  async triggerBackfill(options: { refreshCandidates?: boolean; reprocessCompleted?: boolean; zoneIds?: number[] } = {}): Promise<CharacterRankingBackfillTriggerResult> {
     const existingQueueItems = await CharacterRankingBackfill.countDocuments({});
     let enqueue: CharacterRankingBackfillEnqueueResult;
     if (existingQueueItems > 0 && options.refreshCandidates !== true) {
@@ -301,6 +302,7 @@ class CharacterRankingBackfillService {
         updated: 0,
         skippedWithoutCharacter: 0,
         discoverySkipped: true,
+        requeued: 0,
       };
     } else {
       const taskId = await taskTracker.start("Queue Character Ranking Backfill", { refreshCandidates: options.refreshCandidates === true });
@@ -311,6 +313,32 @@ class CharacterRankingBackfillService {
         await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
         throw error;
       }
+    }
+
+    if (options.reprocessCompleted === true) {
+      const result = await CharacterRankingBackfill.updateMany(
+        {
+          status: { $in: ["completed", "skipped", "failed"] },
+          ...(options.zoneIds?.length ? { zoneId: { $in: options.zoneIds } } : {}),
+        },
+        {
+          $set: {
+            status: "pending",
+            attempts: 0,
+            aliasesQueried: 0,
+            specsQueried: [],
+            rankingsWritten: 0,
+            leaderboardEntriesWritten: 0,
+            completionReason: null,
+            completedAt: null,
+            lastError: null,
+            lastErrorAt: null,
+            lastActivityAt: new Date(),
+          },
+        },
+      );
+      enqueue.requeued = result.modifiedCount ?? 0;
+      logger.info(`[CharacterRankingBackfill] Requeued ${enqueue.requeued} completed item(s) to refresh all class specs`);
     }
 
     if (enqueue.discoverySkipped) {
@@ -641,6 +669,7 @@ class CharacterRankingBackfillService {
       updated,
       skippedWithoutCharacter,
       discoverySkipped: false,
+      requeued: 0,
     };
   }
 
@@ -1163,27 +1192,32 @@ class CharacterRankingBackfillService {
   }
 
   private buildSpecQueries(item: ICharacterRankingBackfill): SpecQuery[] {
-    const specsByWclName = new Map<string, { specSlug: string; wclName: string; role: Role }>();
+    const specsByWclName = new Map<string, { specSlug: string; wclName: string; role: Role; source: SpecQuery["source"] }>();
     const classSpecMap = ROLE_BY_CLASS_AND_SPEC[item.classID] ?? {};
+    const observedSpecSlugs = new Set<string>();
 
     for (const observedSpecName of item.observedSpecNames ?? []) {
       const specSlug = normalizeObservedSpecSlug(observedSpecName, classSpecMap);
       if (!specSlug) continue;
+      observedSpecSlugs.add(specSlug);
       const wclName = toWclSpecName(specSlug);
       if (!wclName) continue;
       specsByWclName.set(wclName.toLowerCase(), {
         specSlug,
         wclName,
         role: classSpecMap[specSlug] ?? resolveRole(item.classID, specSlug),
+        source: "observed",
       });
     }
 
-    const source: SpecQuery["source"] = specsByWclName.size > 0 ? "observed" : "fallback";
-    if (specsByWclName.size === 0) {
-      for (const [specSlug, role] of Object.entries(classSpecMap)) {
-        const wclName = toWclSpecName(specSlug);
-        specsByWclName.set(wclName.toLowerCase(), { specSlug, wclName, role });
-      }
+    for (const [specSlug, role] of Object.entries(classSpecMap)) {
+      const wclName = toWclSpecName(specSlug);
+      specsByWclName.set(wclName.toLowerCase(), {
+        specSlug,
+        wclName,
+        role,
+        source: observedSpecSlugs.has(specSlug) ? "observed" : "fallback",
+      });
     }
 
     const queries: SpecQuery[] = [];
@@ -1192,14 +1226,12 @@ class CharacterRankingBackfillService {
         ...spec,
         metric: "dps",
         alias: toSpecAlias(spec.specSlug, "dps"),
-        source,
       });
       if (spec.role === "healer") {
         queries.push({
           ...spec,
           metric: "hps",
           alias: toSpecAlias(spec.specSlug, "hps"),
-          source,
         });
       }
     }

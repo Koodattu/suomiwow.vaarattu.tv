@@ -1414,16 +1414,14 @@ export default function AdminPage() {
   };
 
   const handleResetFailedArchivedDeaths = async () => {
-    const failed = (wclUserAuthStatus?.deathEvents.failed || 0) + (wclUserAuthStatus?.combatantInfo.failed || 0);
-    const archived = (wclUserAuthStatus?.deathEvents.archived || 0) + (wclUserAuthStatus?.combatantInfo.archived || 0);
-    if (!confirm(`Reset ${failed} failed and ${archived} archived fight-detail fields to pending, then queue affected guilds for backfill?`)) {
+    if (!confirm("Retry current-tier failed, archived, and unavailable fight details, then queue affected guilds for backfill?")) {
       return;
     }
 
     setTriggerLoading("death-events-reset");
     setTriggerMessage(null);
     try {
-      const result = await api.resetAdminFailedArchivedDeathEvents(["failed", "archived"], true);
+      const result = await api.resetAdminFailedArchivedDeathEvents(["failed", "archived", "unavailable"], true, "current");
       setTriggerMessage({ type: "success", text: result.message });
       await Promise.all([refreshWclUserAuthStatus(), refreshSystemQueueState()]);
       setTimeout(() => setTriggerMessage(null), 7000);
@@ -2338,7 +2336,7 @@ export default function AdminPage() {
                   </ManualActionGroup>
                   <ManualActionGroup title="Report queues">
                     {renderTriggerButton("refetch-reports", "Refetch Recent Reports", triggerRefetchRecentReports)}
-                    {renderTriggerButton("rescan-deaths", "Backfill Fight Specs & Deaths", triggerRescanDeathEvents)}
+                    {renderTriggerButton("rescan-deaths", "Backfill Current-Tier Fight Details", triggerRescanDeathEvents)}
                     {renderTriggerButton("rescan-characters", "Rescan Characters", triggerRescanCharacters)}
                     {renderTriggerButton("backfill-report-characters", "Backfill Report Characters", triggerBackfillReportCharacters)}
                   </ManualActionGroup>
@@ -2393,6 +2391,7 @@ export default function AdminPage() {
                   <ManualActionGroup title="1. Queue rankings">
                     {renderTriggerButton("backfill-character-rankings", "Backfill Character Rankings", triggerBackfillCharacterRankings)}
                     {renderTriggerButton("refresh-character-ranking-candidates", "Discover Missing Ranking Pairs", () => triggerBackfillCharacterRankings(true))}
+                    {renderTriggerButton("refresh-current-character-ranking-specs", "Refetch Current-Tier All Specs", () => triggerBackfillCharacterRankings(false, true, "current"))}
                   </ManualActionGroup>
                   <ManualActionGroup title="2. Publish ranking tables">
                     {renderTriggerButton("prune-character-rankings-without-mythic-evidence", "Prune Non-Mythic Ranking Rows", triggerPruneCharacterRankingsWithoutMythicEvidence, {
@@ -5613,6 +5612,9 @@ export default function AdminPage() {
                       <p className="text-sm text-gray-300">
                         <span className="text-purple-300 font-semibold">{wclUserAuthStatus.deathEvents.archived}</span> archived
                       </p>
+                      <p className="text-sm text-gray-300">
+                        <span className="text-slate-300 font-semibold">{wclUserAuthStatus.deathEvents.unavailable}</span> unavailable
+                      </p>
                       <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Specs</p>
                       <p className="text-sm text-gray-300 mt-2">
                         <span className="text-amber-300 font-semibold">{wclUserAuthStatus.combatantInfo.pending}</span> pending
@@ -5622,6 +5624,12 @@ export default function AdminPage() {
                       </p>
                       <p className="text-sm text-gray-300">
                         <span className="text-purple-300 font-semibold">{wclUserAuthStatus.combatantInfo.archived}</span> archived
+                      </p>
+                      <p className="text-sm text-gray-300">
+                        <span className="text-blue-300 font-semibold">{wclUserAuthStatus.combatantInfo.partial}</span> usable roster, unknown spec
+                      </p>
+                      <p className="text-sm text-gray-300">
+                        <span className="text-slate-300 font-semibold">{wclUserAuthStatus.combatantInfo.unavailable}</span> unavailable
                       </p>
                     </div>
                     <div className="bg-gray-700 rounded-lg p-4">
@@ -5652,12 +5660,14 @@ export default function AdminPage() {
                       disabled={triggerLoading === "death-events-reset" || (
                         wclUserAuthStatus.deathEvents.failed === 0
                         && wclUserAuthStatus.deathEvents.archived === 0
+                        && wclUserAuthStatus.deathEvents.unavailable === 0
                         && wclUserAuthStatus.combatantInfo.failed === 0
                         && wclUserAuthStatus.combatantInfo.archived === 0
+                        && wclUserAuthStatus.combatantInfo.unavailable === 0
                       )}
                       className="px-3 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50"
                     >
-                      Reset Failed/Archived Fight Data
+                      Retry Current-Tier Fight Data
                     </button>
                     <button
                       onClick={handleDisconnectWclUser}

@@ -13,14 +13,17 @@ export interface IPlayerDeath {
   deathTime: number; // Fight time when death occurred (ms, relative to fight start)
 }
 
-export type DeathEventsFetchStatus = "pending" | "fetched" | "failed" | "archived";
-export type CombatantInfoFetchStatus = DeathEventsFetchStatus;
+export type DeathEventsFetchStatus = "pending" | "fetched" | "failed" | "archived" | "unavailable";
+export type CombatantInfoFetchStatus = DeathEventsFetchStatus | "partial";
+export type CombatantInfoSource = "combatant_info" | "player_details" | "mixed";
 
 export interface IFightCombatant {
   name: string;
   server: string;
-  specID: number;
-  specName: string;
+  specID?: number | null;
+  specName?: string | null;
+  role?: "dps" | "healer" | "tank" | null;
+  source?: "combatant_info" | "player_details";
 }
 
 export interface IFight extends Document {
@@ -56,6 +59,9 @@ export interface IFight extends Document {
   combatantInfoFetchedAt?: Date;
   combatantInfoFetchFailedAt?: Date;
   combatantInfoFetchError?: string;
+  combatantInfoSource?: CombatantInfoSource;
+  combatantInfoRosterComplete?: boolean;
+  combatantInfoKnownSpecCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -100,7 +106,7 @@ const FightSchema: Schema = new Schema(
     ],
     deathEventsFetchStatus: {
       type: String,
-      enum: ["pending", "fetched", "failed", "archived"],
+      enum: ["pending", "fetched", "failed", "archived", "unavailable"],
       default: "pending",
       index: true,
     },
@@ -111,19 +117,24 @@ const FightSchema: Schema = new Schema(
       {
         name: { type: String, required: true },
         server: { type: String, required: true },
-        specID: { type: Number, required: true },
-        specName: { type: String, required: true },
+        specID: { type: Number, default: null },
+        specName: { type: String, default: null },
+        role: { type: String, enum: ["dps", "healer", "tank"], default: null },
+        source: { type: String, enum: ["combatant_info", "player_details"], default: "combatant_info" },
       },
     ],
     combatantInfoFetchStatus: {
       type: String,
-      enum: ["pending", "fetched", "failed", "archived"],
+      enum: ["pending", "fetched", "partial", "failed", "archived", "unavailable"],
       default: "pending",
       index: true,
     },
     combatantInfoFetchedAt: { type: Date },
     combatantInfoFetchFailedAt: { type: Date },
     combatantInfoFetchError: { type: String },
+    combatantInfoSource: { type: String, enum: ["combatant_info", "player_details", "mixed"] },
+    combatantInfoRosterComplete: { type: Boolean, default: false },
+    combatantInfoKnownSpecCount: { type: Number, default: 0 },
   },
   {
     timestamps: true,

@@ -26,10 +26,15 @@ export function slugifySpecName(specName: string): string {
 }
 
 export function resolveRole(classID: number, specName: string): Role {
+  return tryResolveRole(classID, specName) ?? "dps";
+}
+
+export function tryResolveRole(classID: number, specName: string | null | undefined): Role | null {
+  if (!specName) return null;
   const slug = slugifySpecName(specName);
   const classMap = ROLE_BY_CLASS_AND_SPEC[classID];
-  if (!classMap) return "dps";
-  return classMap[slug] ?? "dps";
+  if (!classMap) return null;
+  return classMap[slug] ?? null;
 }
 
 export function resolveSpecByBlizzardSpecId(specID: number): BlizzardSpecIdentity | null {

@@ -20,22 +20,77 @@ test("CombatantInfo parsing preserves each fight's exact player specialization",
   );
 
   assert.deepEqual(combatants.get(10), [
-    { name: "Violetcar", server: "Kazzak", specID: 1473, specName: "augmentation" },
+    { name: "Violetcar", server: "Kazzak", specID: 1473, specName: "augmentation", role: null, source: "combatant_info" },
   ]);
   assert.deepEqual(combatants.get(11), [
-    { name: "Violetcar", server: "Kazzak", specID: 1468, specName: "preservation" },
-    { name: "Other", server: "Kazzak", specID: 263, specName: "enhancement" },
+    { name: "Violetcar", server: "Kazzak", specID: 1468, specName: "preservation", role: null, source: "combatant_info" },
+    { name: "Other", server: "Kazzak", specID: 263, specName: "enhancement", role: null, source: "combatant_info" },
   ]);
 });
 
-test("CombatantInfo parsing fails closed for an unknown specialization", () => {
-  assert.throws(
-    () => warcraftLogsService.parseCombatantInfoByFight(
-      { combatantInfoEvents: { data: [{ fight: 1, sourceID: 1, specID: 999_999 }] } },
-      [{ id: 1, name: "Futurechar", server: "Kazzak" }],
-    ),
-    /Unsupported Blizzard specialization ID/,
+test("unknown specializations preserve participation without poisoning the fight", () => {
+  const rosters = warcraftLogsService.parseFightRostersByFight(
+    { combatantInfoEvents: { data: [{ fight: 1, sourceID: 1, specID: 999_999 }] } },
+    [{ id: 1, name: "Futurechar", server: "Kazzak" }],
   );
+
+  assert.equal(rosters.get(1)?.status, "partial");
+  assert.equal(rosters.get(1)?.rosterComplete, true);
+  assert.equal(rosters.get(1)?.participants[0].specName, null);
+});
+
+test("playerDetails supplies roles and specs when CombatantInfo is absent", () => {
+  const participants = warcraftLogsService.parsePlayerDetailsRoster({
+    reportData: { report: { playerDetails: { data: { playerDetails: {
+      healers: [{ name: "Healz", server: "Kazzak", specs: [{ spec: "Preservation", count: 1 }] }],
+      dps: [{ name: "Violetcar", server: "Kazzak", specs: [{ spec: "Augmentation", count: 1 }] }],
+      tanks: [],
+    } } } } },
+  });
+
+  assert.deepEqual(participants.map(({ name, specName, role }) => ({ name, specName, role })), [
+    { name: "Healz", specName: "preservation", role: "healer" },
+    { name: "Violetcar", specName: "augmentation", role: "dps" },
+  ]);
+});
+
+test("fight detail fetching attaches a per-fight playerDetails fallback roster", async () => {
+  const service = warcraftLogsService as any;
+  const originalQuery = service.query;
+  const queries: string[] = [];
+
+  service.query = async (query: string) => {
+    queries.push(query);
+    if (/playerDetails\s*\(/.test(query)) {
+      return {
+        reportData: { report: { playerDetails: { data: { playerDetails: {
+          healers: [],
+          dps: [{ name: "Violetcar", server: "Kazzak", specs: [{ spec: "Augmentation", count: 1 }] }],
+          tanks: [],
+        } } } } },
+      };
+    }
+    return {
+      reportData: { report: {
+        code: "FALLBACK",
+        masterData: { actors: [] },
+        events: { data: [], nextPageTimestamp: null },
+        combatantInfoEvents: { data: [], nextPageTimestamp: null },
+      } },
+    };
+  };
+
+  try {
+    const response = await service.getDeathEventsForReport("FALLBACK", [7], { includeCombatantInfo: true });
+    const roster = service.parseFightRostersByFight(response.reportData.report, []).get(7);
+
+    assert.equal(queries.length, 2);
+    assert.equal(roster?.source, "player_details");
+    assert.equal(roster?.status, "fetched");
+    assert.equal(roster?.participants[0].specName, "augmentation");
+  } finally {
+    service.query = originalQuery;
+  }
 });
 
 test("fight detail fetching batches long reports and merges deaths and CombatantInfo", async () => {
@@ -125,8 +180,8 @@ test("CombatantInfo can be fetched without requesting death events", async () =>
       reportData: {
         report: {
           code: "SPECS_ONLY",
-          masterData: { actors: [] },
-          combatantInfoEvents: { data: [], nextPageTimestamp: null },
+          masterData: { actors: [{ id: 1, name: "Violetcar", server: "Kazzak" }] },
+          combatantInfoEvents: { data: [{ type: "combatantinfo", fight: 1, sourceID: 1, specID: 1473 }], nextPageTimestamp: null },
         },
       },
     };

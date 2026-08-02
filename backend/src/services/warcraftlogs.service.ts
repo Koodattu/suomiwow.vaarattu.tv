@@ -3,7 +3,7 @@ import logger from "../utils/logger";
 import { GUILDS_DEV, GUILDS_PROD, TrackedGuild } from "../config/guilds";
 import rateLimitService, { WCLRateLimitData } from "./rate-limit.service";
 import wclUserAuthService from "./warcraftlogs-user-auth.service";
-import { resolveSpecByBlizzardSpecId } from "../utils/spec";
+import { resolveSpecByBlizzardSpecId, slugifySpecName } from "../utils/spec";
 
 interface WCLAuthResponse {
   access_token: string;
@@ -15,6 +15,24 @@ type FightDetailFetchOptions = {
   forceUserEndpoint?: boolean;
   includeCombatantInfo?: boolean;
   includeDeathEvents?: boolean;
+};
+
+export type FightRosterParticipant = {
+  name: string;
+  server: string;
+  specID: number | null;
+  specName: string | null;
+  role: "dps" | "healer" | "tank" | null;
+  source: "combatant_info" | "player_details";
+};
+
+export type FightRosterResult = {
+  participants: FightRosterParticipant[];
+  status: "fetched" | "partial" | "failed";
+  source: "combatant_info" | "player_details" | "mixed" | null;
+  rosterComplete: boolean;
+  knownSpecCount: number;
+  error?: string;
 };
 
 class WarcraftLogsService {
@@ -1191,7 +1209,95 @@ class WarcraftLogsService {
       responses.push(await this.getDeathEventsForReportBatch(reportCode, batch, options));
     }
 
-    return this.mergeFightDetailResponses(responses, options);
+    const response = this.mergeFightDetailResponses(responses, options);
+    if (options.includeCombatantInfo) {
+      await this.attachFightRosters(reportCode, uniqueFightIds, response, options);
+    }
+    return response;
+  }
+
+  private async attachFightRosters(
+    reportCode: string,
+    fightIds: number[],
+    response: any,
+    options: FightDetailFetchOptions,
+  ): Promise<void> {
+    const report = response?.reportData?.report;
+    if (!report) return;
+
+    const rawRosters = this.parseRawCombatantInfoByFight(report, report.masterData?.actors ?? []);
+    const rosters: Record<string, FightRosterResult> = {};
+
+    for (const fightId of fightIds) {
+      const rawParticipants = rawRosters.get(fightId) ?? [];
+      const rawNeedsFallback = rawParticipants.length === 0 || rawParticipants.some((participant) => !participant.specName);
+      let fallbackParticipants: FightRosterParticipant[] = [];
+      let fallbackError: string | undefined;
+
+      if (rawNeedsFallback) {
+        try {
+          const playerDetails = await this.getPlayerDetailsForFight(reportCode, fightId, options.forceUserEndpoint === true);
+          fallbackParticipants = this.parsePlayerDetailsRoster(playerDetails);
+        } catch (error) {
+          fallbackError = error instanceof Error ? error.message : String(error);
+          logger.warn(`[FightRoster] playerDetails fallback failed for report ${reportCode}, fight ${fightId}: ${fallbackError}`);
+        }
+      }
+
+      const participants = this.mergeFightRosterParticipants(rawParticipants, fallbackParticipants);
+      const knownSpecCount = participants.filter((participant) => Boolean(participant.specName)).length;
+      const rosterComplete = participants.length > 0;
+      const source = rawParticipants.length > 0 && fallbackParticipants.length > 0
+        ? "mixed"
+        : fallbackParticipants.length > 0
+          ? "player_details"
+          : rawParticipants.length > 0
+            ? "combatant_info"
+            : null;
+
+      rosters[String(fightId)] = {
+        participants,
+        status: !rosterComplete ? "failed" : knownSpecCount === participants.length ? "fetched" : "partial",
+        source,
+        rosterComplete,
+        knownSpecCount,
+        ...(fallbackError && !rosterComplete ? { error: fallbackError } : {}),
+      };
+    }
+
+    report.fightRosters = rosters;
+  }
+
+  private async getPlayerDetailsForFight(reportCode: string, fightId: number, forceUserEndpoint: boolean): Promise<any> {
+    const query = `
+      query($reportCode: String!, $fightIds: [Int]!) {
+        rateLimitData {
+          limitPerHour
+          pointsSpentThisHour
+          pointsResetIn
+        }
+        reportData {
+          report(code: $reportCode) {
+            playerDetails(fightIDs: $fightIds)
+          }
+        }
+      }
+    `;
+    const variables = { reportCode, fightIds: [fightId] };
+
+    if (forceUserEndpoint) {
+      logger.info(`[API REQUEST] WarcraftLogsService.getPlayerDetailsForFight - POST https://www.warcraftlogs.com/api/v2/user (forced, report: ${reportCode}, fight: ${fightId})`);
+      return this.queryUser<any>(query, variables);
+    }
+
+    try {
+      logger.info(`[API REQUEST] WarcraftLogsService.getPlayerDetailsForFight - POST https://www.warcraftlogs.com/api/v2/client (report: ${reportCode}, fight: ${fightId})`);
+      return await this.query<any>(query, variables);
+    } catch (error) {
+      if (!this.shouldRetryReportWithUserEndpoint(error) || !(await this.hasUserAuthConnected())) throw error;
+      logger.info(`[API REQUEST] WarcraftLogsService.getPlayerDetailsForFight - POST https://www.warcraftlogs.com/api/v2/user (user-auth retry, report: ${reportCode}, fight: ${fightId})`);
+      return this.queryUser<any>(query, variables);
+    }
   }
 
   private async getDeathEventsForReportBatch(
@@ -1420,10 +1526,40 @@ class WarcraftLogsService {
     return deathsByFight;
   }
 
-  /** Parse each player's exact specialization from CombatantInfo events, grouped by fight. */
+  parseFightRostersByFight(reportData: any, actors: any[]): Map<number, FightRosterResult> {
+    const attachedRosters = reportData?.fightRosters;
+    if (attachedRosters && typeof attachedRosters === "object") {
+      return new Map(
+        Object.entries(attachedRosters)
+          .map(([fightId, roster]) => [Number(fightId), roster as FightRosterResult] as const)
+          .filter(([fightId]) => Number.isFinite(fightId)),
+      );
+    }
+
+    return new Map(
+      Array.from(this.parseRawCombatantInfoByFight(reportData, actors), ([fightId, participants]) => {
+        const knownSpecCount = participants.filter((participant) => Boolean(participant.specName)).length;
+        return [fightId, {
+          participants,
+          status: knownSpecCount === participants.length ? "fetched" : "partial",
+          source: "combatant_info",
+          rosterComplete: participants.length > 0,
+          knownSpecCount,
+        } satisfies FightRosterResult];
+      }),
+    );
+  }
+
+  /** Parse each player's specialization evidence, grouped by fight. */
   parseCombatantInfoByFight(reportData: any, actors: any[]) {
+    return new Map(
+      Array.from(this.parseFightRostersByFight(reportData, actors), ([fightId, roster]) => [fightId, roster.participants]),
+    );
+  }
+
+  private parseRawCombatantInfoByFight(reportData: any, actors: any[]): Map<number, FightRosterParticipant[]> {
     const events = reportData?.combatantInfoEvents?.data;
-    if (!Array.isArray(events)) return new Map<number, Array<{ name: string; server: string; specID: number; specName: string }>>();
+    if (!Array.isArray(events)) return new Map<number, FightRosterParticipant[]>();
 
     const actorMap = new Map<number, { name: string; server: string }>();
     for (const actor of actors ?? []) {
@@ -1431,23 +1567,101 @@ class WarcraftLogsService {
       actorMap.set(actor.id, { name: actor.name, server: actor.server || "Unknown" });
     }
 
-    const combatantsByFight = new Map<number, Map<number, { name: string; server: string; specID: number; specName: string }>>();
+    const combatantsByFight = new Map<number, Map<number, FightRosterParticipant>>();
     for (const event of events) {
       if (typeof event?.fight !== "number" || typeof event?.sourceID !== "number" || typeof event?.specID !== "number") continue;
       const actor = actorMap.get(event.sourceID);
       const spec = resolveSpecByBlizzardSpecId(event.specID);
       if (!actor) continue;
-      if (!spec) throw new Error(`Unsupported Blizzard specialization ID in WCL CombatantInfo: ${event.specID}`);
 
       if (!combatantsByFight.has(event.fight)) combatantsByFight.set(event.fight, new Map());
       combatantsByFight.get(event.fight)!.set(event.sourceID, {
         ...actor,
-        specID: spec.specID,
-        specName: spec.specName,
+        specID: spec?.specID ?? event.specID,
+        specName: spec?.specName ?? null,
+        role: null,
+        source: "combatant_info",
       });
     }
 
     return new Map(Array.from(combatantsByFight, ([fightId, combatants]) => [fightId, Array.from(combatants.values())]));
+  }
+
+  parsePlayerDetailsRoster(response: any): FightRosterParticipant[] {
+    const playerDetails = response?.reportData?.report?.playerDetails?.data?.playerDetails
+      ?? response?.reportData?.report?.playerDetails?.playerDetails
+      ?? response?.playerDetails?.data?.playerDetails
+      ?? response?.data?.playerDetails
+      ?? response?.playerDetails;
+    if (!playerDetails || typeof playerDetails !== "object") return [];
+
+    const roleGroups: Array<["healers" | "dps" | "tanks", "healer" | "dps" | "tank"]> = [
+      ["healers", "healer"],
+      ["dps", "dps"],
+      ["tanks", "tank"],
+    ];
+    const participants = new Map<string, FightRosterParticipant>();
+
+    for (const [groupName, role] of roleGroups) {
+      const rows = Array.isArray(playerDetails[groupName]) ? playerDetails[groupName] : [];
+      for (const row of rows) {
+        if (!row?.name) continue;
+        const specs = (Array.isArray(row.specs) ? row.specs : [])
+          .filter((entry: any) => typeof entry?.spec === "string" && entry.spec.trim())
+          .map((entry: any) => ({ specName: slugifySpecName(entry.spec.trim()), count: Number(entry.count) || 0 }))
+          .sort((left: any, right: any) => right.count - left.count || left.specName.localeCompare(right.specName));
+        const specName = specs.length === 1 || (specs[0]?.count ?? 0) > (specs[1]?.count ?? -1) ? specs[0]?.specName ?? null : null;
+        const server = typeof row.server === "string" && row.server.trim() ? row.server.trim() : "Unknown";
+        const key = this.getRosterIdentityKey(row.name, server);
+        participants.set(key, {
+          name: row.name,
+          server,
+          specID: null,
+          specName,
+          role,
+          source: "player_details",
+        });
+      }
+    }
+
+    return Array.from(participants.values());
+  }
+
+  private mergeFightRosterParticipants(
+    rawParticipants: FightRosterParticipant[],
+    fallbackParticipants: FightRosterParticipant[],
+  ): FightRosterParticipant[] {
+    if (fallbackParticipants.length === 0) return rawParticipants;
+    if (rawParticipants.length === 0) return fallbackParticipants;
+
+    const merged = new Map(fallbackParticipants.map((participant) => [this.getRosterIdentityKey(participant.name, participant.server), participant]));
+    for (const raw of rawParticipants) {
+      const exactKey = this.getRosterIdentityKey(raw.name, raw.server);
+      let existingKey = exactKey;
+      let existing = merged.get(existingKey);
+      if (!existing) {
+        const nameKey = this.normalizeRosterIdentityPart(raw.name);
+        const nameMatches = Array.from(merged.entries()).filter(([, participant]) => this.normalizeRosterIdentityPart(participant.name) === nameKey);
+        if (nameMatches.length === 1) [existingKey, existing] = nameMatches[0];
+      }
+      merged.set(existingKey, {
+        ...(existing ?? raw),
+        ...raw,
+        specID: raw.specID ?? existing?.specID ?? null,
+        specName: raw.specName ?? existing?.specName ?? null,
+        role: existing?.role ?? raw.role ?? null,
+        source: raw.specName ? "combatant_info" : existing?.source ?? raw.source,
+      });
+    }
+    return Array.from(merged.values());
+  }
+
+  private getRosterIdentityKey(name: string, server: string): string {
+    return `${this.normalizeRosterIdentityPart(name)}|${this.normalizeRosterIdentityPart(server)}`;
+  }
+
+  private normalizeRosterIdentityPart(value: string): string {
+    return String(value ?? "").toLowerCase().replace(/['`\-\s]/g, "");
   }
 
   /**

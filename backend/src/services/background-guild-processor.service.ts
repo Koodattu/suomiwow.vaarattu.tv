@@ -2,7 +2,7 @@ import Guild, { IGuild } from "../models/Guild";
 import Report, { IReportFightSequenceEntry } from "../models/Report";
 import Fight from "../models/Fight";
 import GuildProcessingQueue, { IGuildProcessingQueue, ProcessingStatus, JobType } from "../models/GuildProcessingQueue";
-import wclService from "./warcraftlogs.service";
+import wclService, { type FightRosterResult } from "./warcraftlogs.service";
 import rateLimitService from "./rate-limit.service";
 import guildService from "./guild.service";
 import cacheService from "./cache.service";
@@ -159,6 +159,10 @@ class BackgroundGuildProcessor {
 
   private isArchivedReportError(errorMessage: string): boolean {
     return errorMessage.includes("This report has been archived") && errorMessage.includes("/user API endpoint");
+  }
+
+  private isUnavailableReportError(errorMessage: string): boolean {
+    return /report (?:not found|is private|does not exist)|permission denied|access denied|unauthorized|forbidden|inaccessible/i.test(errorMessage);
   }
 
   private async isQueueItemStillPresent(queueItem: IGuildProcessingQueue): Promise<boolean> {
@@ -643,6 +647,7 @@ class BackgroundGuildProcessor {
 
       let deathsByFight = new Map<number, any[]>();
       let combatantsByFight = new Map<number, any[]>();
+      let rostersByFight = new Map<number, FightRosterResult>();
       let deathEventsFetchedAt: Date | null = null;
       let combatantInfoFetchedAt: Date | null = null;
       if (fightDetailFightIds.length > 0) {
@@ -653,14 +658,13 @@ class BackgroundGuildProcessor {
           });
           if (deathData.reportData?.report) {
             const actors = deathData.reportData.report.masterData?.actors || [];
-            if (this.fetchDeathEvents) {
+            if (this.fetchDeathEvents && Array.isArray(deathData.reportData.report.events?.data)) {
               deathsByFight = wclService.parseDeathEventsByFight(deathData.reportData.report, actors, report.fights);
               deathEventsFetchedAt = new Date();
             }
-            if (Array.isArray(deathData.reportData.report.combatantInfoEvents?.data)) {
-              combatantsByFight = wclService.parseCombatantInfoByFight(deathData.reportData.report, actors);
-              combatantInfoFetchedAt = new Date();
-            }
+            rostersByFight = wclService.parseFightRostersByFight(deathData.reportData.report, actors);
+            combatantsByFight = new Map(Array.from(rostersByFight, ([fightId, roster]) => [fightId, roster.participants]));
+            combatantInfoFetchedAt = new Date();
           }
         } catch (error: any) {
           // Non-fatal, leave fight-detail statuses pending for the repair queue.
@@ -687,12 +691,20 @@ class BackgroundGuildProcessor {
         // Get deaths for this fight
         const deaths = deathsByFight.get(fight.id) || [];
         const combatants = combatantsByFight.get(fight.id) || [];
+        const roster = rostersByFight.get(fight.id);
         const fightDetailsFetchUpdate = {
           ...(deathEventsFetchedAt !== null
             ? { deaths, deathEventsFetchStatus: "fetched", deathEventsFetchedAt }
             : {}),
-          ...(combatantInfoFetchedAt !== null && combatants.length > 0
-            ? { combatants, combatantInfoFetchStatus: "fetched", combatantInfoFetchedAt }
+          ...(combatantInfoFetchedAt !== null && roster?.rosterComplete
+            ? {
+                combatants,
+                combatantInfoFetchStatus: roster.status,
+                combatantInfoFetchedAt,
+                combatantInfoSource: roster.source,
+                combatantInfoRosterComplete: true,
+                combatantInfoKnownSpecCount: roster.knownSpecCount,
+              }
             : {}),
         };
 
@@ -770,6 +782,7 @@ class BackgroundGuildProcessor {
       const pendingFightQuery = {
         guildId: guild._id,
         reportEndTime: { $gt: 0 },
+        ...(queueItem.targetRaidIds?.length ? { zoneId: { $in: queueItem.targetRaidIds } } : {}),
         $or: [...deathStatusFilters, ...combatantInfoStatusFilters],
       };
 
@@ -834,9 +847,6 @@ class BackgroundGuildProcessor {
           const deathData = await wclService.getDeathEventsForReport(reportCode, fightIds, { includeCombatantInfo: true });
 
           if (deathData.reportData?.report) {
-            if (!Array.isArray(deathData.reportData.report.combatantInfoEvents?.data)) {
-              throw new Error("WCL response did not include CombatantInfo events");
-            }
             const actors = deathData.reportData.report.masterData?.actors || [];
             const fightInfos = fights.map((f) => ({
               id: f.fightId,
@@ -844,36 +854,58 @@ class BackgroundGuildProcessor {
             }));
 
             const deathsByFight = wclService.parseDeathEventsByFight(deathData.reportData.report, actors, fightInfos);
-            const combatantsByFight = wclService.parseCombatantInfoByFight(deathData.reportData.report, actors);
-            const missingCombatantFightIds = fights
-              .filter((fight) => !(combatantsByFight.get(fight.fightId)?.length))
-              .map((fight) => fight.fightId);
-            if (missingCombatantFightIds.length > 0) {
-              throw new Error(`WCL CombatantInfo was missing for fight(s): ${missingCombatantFightIds.join(", ")}`);
-            }
+            const rostersByFight = wclService.parseFightRostersByFight(deathData.reportData.report, actors);
+            const deathEventsComplete = Array.isArray(deathData.reportData.report.events?.data);
 
             const fetchedAt = new Date();
-            const operations = fights.map((fight) => {
+            const operations: any[] = fights.map((fight) => {
               const deaths = deathsByFight.get(fight.fightId) || [];
-              const combatants = combatantsByFight.get(fight.fightId) || [];
-              deathEventsSaved += deaths.length;
+              const roster = rostersByFight.get(fight.fightId);
+              if (deathEventsComplete) deathEventsSaved += deaths.length;
+              const deathSet = deathEventsComplete
+                ? {
+                    deaths,
+                    deathEventsFetchStatus: "fetched" as const,
+                    deathEventsFetchedAt: fetchedAt,
+                  }
+                : {
+                    deathEventsFetchStatus: "failed" as const,
+                    deathEventsFetchFailedAt: fetchedAt,
+                    deathEventsFetchError: "WCL response did not include a complete death-event array",
+                  };
+              const deathUnset = deathEventsComplete
+                ? { deathEventsFetchFailedAt: 1 as const, deathEventsFetchError: 1 as const }
+                : {};
+              const rosterSet = roster?.rosterComplete
+                ? {
+                    combatants: roster.participants,
+                    combatantInfoFetchStatus: roster.status,
+                    combatantInfoFetchedAt: fetchedAt,
+                    ...(roster.source ? { combatantInfoSource: roster.source } : {}),
+                    combatantInfoRosterComplete: true,
+                    combatantInfoKnownSpecCount: roster.knownSpecCount,
+                  }
+                : {
+                    combatantInfoFetchStatus: "failed" as const,
+                    combatantInfoFetchFailedAt: fetchedAt,
+                    combatantInfoFetchError: roster?.error || "WCL did not return a reliable roster for this fight",
+                    combatantInfoRosterComplete: false,
+                    combatantInfoKnownSpecCount: 0,
+                  };
+              const rosterUnset = roster?.rosterComplete
+                ? { combatantInfoFetchFailedAt: 1 as const, combatantInfoFetchError: 1 as const }
+                : {};
               return {
                 updateOne: {
                   filter: { _id: fight._id },
                   update: {
                     $set: {
-                      deaths,
-                      deathEventsFetchStatus: "fetched" as const,
-                      deathEventsFetchedAt: fetchedAt,
-                      combatants,
-                      combatantInfoFetchStatus: "fetched" as const,
-                      combatantInfoFetchedAt: fetchedAt,
+                      ...deathSet,
+                      ...rosterSet,
                     },
                     $unset: {
-                      deathEventsFetchFailedAt: 1 as const,
-                      deathEventsFetchError: 1 as const,
-                      combatantInfoFetchFailedAt: 1 as const,
-                      combatantInfoFetchError: 1 as const,
+                      ...deathUnset,
+                      ...rosterUnset,
                     },
                   },
                 },
@@ -896,6 +928,7 @@ class BackgroundGuildProcessor {
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Unknown error";
           const isArchivedReport = this.isArchivedReportError(errorMessage);
+          const isUnavailableReport = !isArchivedReport && this.isUnavailableReportError(errorMessage);
           guildLog.error(`[DeathRescan] Failed to process report ${reportCode}: ${errorMessage}`);
 
           const failedAt = new Date();
@@ -904,7 +937,7 @@ class BackgroundGuildProcessor {
               { guildId: guild._id, reportCode, reportEndTime: { $gt: 0 }, $or: deathStatusFilters },
               {
                 $set: {
-                  deathEventsFetchStatus: isArchivedReport ? "archived" : "failed",
+                  deathEventsFetchStatus: isArchivedReport ? "archived" : isUnavailableReport ? "unavailable" : "failed",
                   deathEventsFetchFailedAt: failedAt,
                   deathEventsFetchError: errorMessage,
                 },
@@ -914,7 +947,7 @@ class BackgroundGuildProcessor {
               { guildId: guild._id, reportCode, reportEndTime: { $gt: 0 }, $or: combatantInfoStatusFilters },
               {
                 $set: {
-                  combatantInfoFetchStatus: isArchivedReport ? "archived" : "failed",
+                  combatantInfoFetchStatus: isArchivedReport ? "archived" : isUnavailableReport ? "unavailable" : "failed",
                   combatantInfoFetchFailedAt: failedAt,
                   combatantInfoFetchError: errorMessage,
                 },
@@ -1319,6 +1352,7 @@ class BackgroundGuildProcessor {
     priority: number = 10,
     jobType: JobType = "full_rescan",
     guildLogSourceId?: mongoose.Types.ObjectId | string,
+    options: { targetRaidIds?: number[] } = {},
   ): Promise<IGuildProcessingQueue> {
     const freshGuild = await Guild.findById(guild._id).select("logSourceMigrationLockToken logSourceMigrationLockedAt").lean();
     if (!freshGuild) throw new Error("Guild no longer exists");
@@ -1376,6 +1410,7 @@ class BackgroundGuildProcessor {
         existing.guildRealm = queueIdentity.realm;
         existing.guildRegion = queueIdentity.region;
         existing.guildLogSourceId = queueSourceId;
+        existing.targetRaidIds = options.targetRaidIds;
         await existing.save();
         logger.info(`[BackgroundProcessor] Re-queued guild source: ${queueIdentity.name}-${queueIdentity.realm} (job: ${jobType})`);
         return existing;
@@ -1395,6 +1430,7 @@ class BackgroundGuildProcessor {
       guildRealm: queueIdentity.realm,
       guildRegion: queueIdentity.region,
       jobType,
+      targetRaidIds: options.targetRaidIds,
       priority,
       status: "pending",
       progress: {

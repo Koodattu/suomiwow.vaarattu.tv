@@ -335,12 +335,18 @@ export type CharacterProfileResponse = {
     score: number;
     parseScore: number | null;
     survivalScore: number | null;
+    survivalPercentile: number | null;
     pulls: number;
+    evaluatedPulls: number;
     deaths: number;
     survivedPulls: number;
     earlyDeaths: number;
     averageDeathPercent: number | null;
     deathDataAvailable: boolean;
+    identityMethod: string | null;
+    identityConfidence: string | null;
+    scoreVersion: number;
+    raidFightCoverage: number;
     updatedAt?: Date;
   }>;
   mythicPlus: CharacterMythicPlusProfileResponse;
@@ -3110,12 +3116,18 @@ class CharacterService {
         score: row.score ?? 0,
         parseScore: row.parseScore ?? null,
         survivalScore: row.survivalScore ?? null,
+        survivalPercentile: row.survivalPercentile ?? null,
         pulls: row.pulls ?? 0,
+        evaluatedPulls: row.evaluatedPulls ?? row.pulls ?? 0,
         deaths: row.deaths ?? 0,
         survivedPulls: row.survivedPulls ?? 0,
         earlyDeaths: row.earlyDeaths ?? 0,
         averageDeathPercent: row.averageDeathPercent ?? null,
         deathDataAvailable: row.deathDataAvailable === true,
+        identityMethod: row.identityMethod ?? null,
+        identityConfidence: row.identityConfidence ?? null,
+        scoreVersion: row.scoreVersion ?? 1,
+        raidFightCoverage: row.raidFightCoverage ?? 0,
         updatedAt: row.updatedAt,
       })),
       mythicPlus,
