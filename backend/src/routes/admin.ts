@@ -41,6 +41,7 @@ import ccgCharacterIdentityService from "../services/ccg-character-identity.serv
 import characterMechanicsService from "../services/character-mechanics.service";
 import characterTierListService from "../services/character-tierlist.service";
 import characterRankingBackfillService from "../services/character-ranking-backfill.service";
+import fullHistoryRefreshService from "../services/full-history-refresh.service";
 import characterGuildAttributionRepairService from "../services/character-guild-attribution-repair.service";
 import characterAchievementService from "../services/character-achievement.service";
 import mythicPlusService from "../services/mythic-plus.service";
@@ -642,7 +643,7 @@ router.post("/death-events/reset-failed-archived", async (req: Request, res: Res
     const shouldQueue = req.body?.queue !== false;
     const scope = req.body?.scope === "all" ? "all" : "current";
     const raidId = Number(req.body?.raidId);
-    const targetRaidIds = Number.isFinite(raidId) ? [raidId] : scope === "all" ? undefined : CURRENT_RAID_IDS;
+    const targetRaidIds = Number.isFinite(raidId) ? [raidId] : scope === "all" ? TRACKED_RAIDS : CURRENT_RAID_IDS;
     const deathQuery = {
       reportEndTime: { $gt: 0 },
       ...(targetRaidIds?.length ? { zoneId: { $in: targetRaidIds } } : {}),
@@ -2653,6 +2654,15 @@ router.get("/character-ranking-backfill/status", async (req: Request, res: Respo
   }
 });
 
+router.get("/full-history-refresh/status", async (_req: Request, res: Response) => {
+  try {
+    res.json(await fullHistoryRefreshService.getStatus());
+  } catch (error) {
+    logger.error("Error fetching full-history refresh status:", error);
+    res.status(500).json({ error: "Failed to fetch full-history refresh status" });
+  }
+});
+
 router.get("/mythic-plus-crawler/status", async (_req: Request, res: Response) => {
   try {
     const status = await mythicPlusService.getStatus();
@@ -3357,11 +3367,26 @@ router.post("/trigger/update-guild-crests", async (req: Request, res: Response) 
   }
 });
 
+// Run the complete all-raid refresh through WCL backfills, mechanics, and character tier lists.
+router.post("/trigger/full-history-refresh", async (_req: Request, res: Response) => {
+  try {
+    const result = await fullHistoryRefreshService.trigger();
+    res.status(result.started ? 202 : 409).json({
+      success: result.started,
+      message: result.started ? "Full-history refresh started" : "A full-history refresh is already running",
+      ...result,
+    });
+  } catch (error) {
+    logger.error("Error triggering full-history refresh:", error);
+    res.status(500).json({ error: "Failed to start full-history refresh" });
+  }
+});
+
 // Queue all guilds for fight spec and death-event backfill
 router.post("/trigger/rescan-death-events", async (req: Request, res: Response) => {
   const scope = req.body?.scope === "all" ? "all" : "current";
   const raidId = Number(req.body?.raidId);
-  const targetRaidIds = Number.isFinite(raidId) ? [raidId] : scope === "all" ? undefined : CURRENT_RAID_IDS;
+  const targetRaidIds = Number.isFinite(raidId) ? [raidId] : scope === "all" ? TRACKED_RAIDS : CURRENT_RAID_IDS;
   const taskId = await taskTracker.start("Queue Fight Details Backfill", { source: "manual", targetRaidIds });
   try {
     const result = await guildService.queueAllGuildsForDeathRescan(15, targetRaidIds);

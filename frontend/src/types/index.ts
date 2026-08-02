@@ -3309,6 +3309,51 @@ export interface TriggerResponse {
   currentTierOnly?: boolean;
 }
 
+export type FullHistoryRefreshStage =
+  | "queue_fight_details"
+  | "fight_details"
+  | "queue_rankings"
+  | "rankings"
+  | "mechanics_and_tier_lists"
+  | "ccg_snapshots"
+  | "completed"
+  | "failed";
+
+export interface FullHistoryRefreshStatusResponse {
+  runId: string | null;
+  status: "idle" | "running" | "completed" | "failed";
+  stage: FullHistoryRefreshStage | null;
+  startedAt: string | null;
+  stageStartedAt: string | null;
+  lastActivityAt: string | null;
+  completedAt: string | null;
+  lastError: string | null;
+  progress: Record<string, unknown>;
+  fightDetailsQueue: {
+    pending: number;
+    inProgress: number;
+    paused: number;
+    completed: number;
+    failed: number;
+    active: number;
+    total: number;
+  };
+  rankingQueue: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    skipped: number;
+    failed: number;
+    active: number;
+    total: number;
+  };
+}
+
+export interface FullHistoryRefreshTriggerResponse extends TriggerResponse {
+  started: boolean;
+  status: FullHistoryRefreshStatusResponse;
+}
+
 export type MythicPlusCrawlerJobStatus = "pending" | "in_progress" | "completed" | "skipped" | "not_found" | "class_mismatch" | "rate_limited" | "failed";
 
 export interface MythicPlusCrawlerJob {

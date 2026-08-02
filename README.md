@@ -1,166 +1,82 @@
-# WoW Guild Progress Tracker
+# SuomiWoW
 
-A comprehensive platform for tracking World of Warcraft guild raid progression with live leaderboards, community competitions, and detailed analytics. Monitor multiple guilds simultaneously across current and historical raid tiers.
+SuomiWoW is a fan-made community hub and living record of Finnish World of Warcraft raiding. It brings guild progression, character performance, raid history, livestreams, and community games together in one bilingual site.
 
-![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=node.js&logoColor=white)
-![Express](https://img.shields.io/badge/Express-000000?style=flat&logo=express&logoColor=white)
-![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat&logo=next.js&logoColor=white)
-![React](https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=black)
-![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=flat&logo=mongodb&logoColor=white)
+[Visit SuomiWoW](https://suomiwow.vaarattu.tv)
 
-![AI Workshop Playground Interface](images/preview.jpg)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat&logo=typescript&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat&logo=next.js&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react&logoColor=black)
+![Express](https://img.shields.io/badge/Express-5-000000?style=flat&logo=express&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-7-47A248?style=flat&logo=mongodb&logoColor=white)
 
-## 📋 Table of Contents
+![SuomiWoW guild progression dashboard](images/preview.jpg)
 
-- [Overview](#-overview)
-- [Key Features](#-key-features)
-- [Tech Stack](#-tech-stack)
-- [Getting Started](#-getting-started)
-- [Configuration](#-configuration)
-- [License](#-license)
+## What is in it?
 
-## 🎮 Overview
+What began as a guild progress tracker has grown into a wider home for the Finnish WoW scene:
 
-This application provides real-time tracking and analytics for World of Warcraft raiding guilds. It aggregates data from WarcraftLogs to create competitive leaderboards, detailed performance metrics, and community engagement features like prediction competitions.
+- **Guild progression:** follow current and historical raid tiers, Mythic and Heroic clears, world ranks, pull counts, progress percentages, and time spent raiding.
+- **Guild and character profiles:** explore raid history, boss-by-boss results, rankings, achievements, highlights, guild movement, and linked character histories.
+- **Character leaderboards:** compare Warcraft Logs performance, mechanics and survival scores, combined scores, roles, specs, and Mythic+ seasons.
+- **Analytics and tier lists:** compare guilds by progress, speed, efficiency, pulls, and raid time; browse generated character tiers or create and share a custom guild tier list.
+- **A lively front row:** recent kills and best pulls, a visual raid race, weekly timetables, guilds raiding today, live Twitch streams, and VOD links keep the scene easy to follow.
+- **Community play:** make Pick'em predictions, follow the standings, search across guilds and characters, and sign in to connect your community identity.
+- **Finnish and English:** the public experience is maintained in both languages.
 
-Originally focused on Finnish/Nordic guilds, the platform can be configured to track any guilds across all regions. It automatically updates progression data, tracks boss kills and attempts, and provides insights into guild performance across multiple raid tiers.
+## SuomiWoW CCG
 
-## ✨ Key Features
+The collectible card game turns the site's raid history into something playful. Open free five-card packs and collect the characters who shaped each tier—from current raids to legacy and community sets.
 
-### 🏆 **Guild Leaderboards**
+Cards preserve a snapshot of a character's guild, role, appearance, raid performance, mechanics, and Mythic+ record. Collections include rarity tiers, premium finishes, alternative art, favorites, set completion, shareable pulls, collector profiles, and a collection leaderboard. Packs recharge automatically, and account holders can also receive redeem-code and Twitch rewards.
 
-Track multiple guilds with real-time updates showing mythic and heroic progression, current boss attempts, and overall rankings.
+The CCG is free, non-tradable, and non-commercial. There are no purchases or pay-to-progress mechanics.
 
-### 🎯 **Pick'em Competitions**
+## How the data comes together
 
-Community prediction games where users vote on which guilds will clear raids first, complete with leaderboards and streak tracking.
+SuomiWoW combines several sources into one historical view:
 
-### 📊 **Raid Analytics**
+- [Warcraft Logs](https://www.warcraftlogs.com/) for reports, fights, rankings, and progression
+- [Blizzard Battle.net](https://develop.battle.net/) for character media, guild crests, and achievements
+- [Raider.IO](https://raider.io/) for raid metadata and Mythic+ data
+- [Twitch](https://www.twitch.tv/) for live channels, VODs, chat integrations, and community rewards
 
-Detailed statistics including pull counts, time spent per boss, performance distributions, and comparative analysis across all tracked guilds.
+Background workers keep active guilds fresh while preserving data from older raid tiers. The frontend adds filtering, comparisons, charts, shareable views, and Discord-based community profiles on top.
 
-### 🎖️ **Guild Tier Lists**
+## Tech stack
 
-Performance-based rankings evaluating guilds on speed (world/realm rankings) and efficiency (pulls/time spent).
+- **Frontend:** Next.js 16, React 19, TypeScript, Tailwind CSS 4, TanStack Query, and Recharts
+- **Backend:** Node.js 24, Express 5, TypeScript, MongoDB 7, and Mongoose
+- **Operations:** Docker Compose, a dedicated background worker, and Nginx
 
-### 📡 **Live Events Feed**
+## Run it locally
 
-Real-time updates for boss kills, progression milestones, and best pull attempts with timestamps and context.
-
-### 📺 **Twitch Integration**
-
-Live stream listings showing which tracked guilds are currently broadcasting their raids.
-
-### 📈 **Guild Profiles**
-
-Comprehensive pages for each guild showing progression history, boss-by-boss breakdowns, and detailed performance metrics across raid tiers.
-
-## 🛠 Tech Stack
-
-**Frontend:** Next.js 15, React 19, TypeScript, Tailwind CSS
-**Backend:** Express.js, Node.js, TypeScript, MongoDB
-**Data Sources:** WarcraftLogs, Blizzard Battle.net, Raider.IO, Twitch
-**Deployment:** Docker Compose with Nginx
-
-## � Getting Started
-
-### Prerequisites
-
-- **Node.js** v20+ (for local development)
-- **MongoDB** v7.0+ (or MongoDB Atlas)
-- **Docker** (recommended for easy setup)
-
-### API Keys
-
-You'll need API credentials from:
-
-- [WarcraftLogs](https://www.warcraftlogs.com/api/clients/) - Combat log data
-- [Blizzard Battle.net](https://develop.battle.net) - Icons and achievements
-- [Raider.IO](https://raider.io/api) - Raid tier dates (optional)
-
-### Quick Start with Docker
+The easiest route is Docker. You will need Docker with Compose plus API credentials for Warcraft Logs and Blizzard. Raider.IO, Twitch, and Discord credentials enable their corresponding features.
 
 ```bash
-# Clone the repository
 git clone https://github.com/Koodattu/wow-guild-progress-tracker.git
 cd wow-guild-progress-tracker
 
-# Configure environment
-cd backend
-cp .env.example .env
-# Edit .env with your API keys
+cp backend/.env.example backend/.env
+# Add your API credentials and a session secret to backend/.env
 
-# Configure guilds to track
-# Edit backend/src/config/guilds.ts
-
-# Start everything
-cd ..
-docker-compose up --build
+docker compose up --build
 ```
 
-Visit http://localhost:3000 to view the application.
+Open [http://localhost:3000](http://localhost:3000) for the app. The API runs on [http://localhost:3001](http://localhost:3001).
 
-### Manual Setup
+MongoDB must run as a replica set because collection and guest-claim flows use transactions. The included Compose setup creates a single-node `rs0` replica set automatically.
 
-1. **Install dependencies**
+For development without Docker, use Node.js 24 and MongoDB 7, install dependencies in both `backend` and `frontend`, then run `npm run dev` in each directory.
 
-   ```bash
-   cd backend && npm install
-   cd ../frontend && npm install
-   ```
+## Configuration
 
-2. **Configure environment**
-   - Copy `backend/.env.example` to `backend/.env`
-   - Add your API credentials
-   - Edit `backend/src/config/guilds.ts` to add guilds
+- Copy [`backend/.env.example`](backend/.env.example) to `backend/.env` for credentials and feature flags.
+- Edit [`backend/src/config/guilds.ts`](backend/src/config/guilds.ts) to choose guilds, raid tiers, current raids, streamers, and Pick'em options.
+- Use `CCG_FEATURE_ENABLED=false` to hide the CCG or `CCG_WEEKLY_AUTOMATION_ENABLED=false` to stop its weekly publication jobs without removing collection data.
 
-3. **Start MongoDB** (if not using Docker)
+## License and disclaimer
 
-4. **Start services**
+The source code is available under the [MIT License](LICENSE).
 
-   ```bash
-   # Terminal 1 - Backend
-   cd backend && npm run dev
-
-   # Terminal 2 - Frontend
-   cd frontend && npm run dev
-   ```
-
-## ⚙ Configuration
-
-### Guilds to Track
-
-Edit `backend/src/config/guilds.ts` to specify which guilds you want to track:
-
-```typescript
-export const GUILDS: TrackedGuild[] = [
-  { name: "Guild Name", realm: "Server-Name", region: "EU" },
-  { name: "Another Guild", realm: "Another-Server", region: "US" },
-];
-```
-
-**Note:** Use hyphens for realm names with spaces (e.g., "Tarren Mill" → "Tarren-Mill")
-
-### Raid Tiers
-
-The `TRACKED_RAIDS` array in the same file contains WarcraftLogs zone IDs for raids to track. The first raid is considered the current tier.
-
-### Environment Variables
-
-Create `backend/.env` with your API credentials:
-
-```env
-MONGODB_URI=mongodb://localhost:27017/wow_guild_tracker?replicaSet=rs0
-WCL_CLIENT_ID=your_warcraftlogs_client_id
-WCL_CLIENT_SECRET=your_warcraftlogs_secret
-BLIZZARD_CLIENT_ID=your_blizzard_client_id
-BLIZZARD_CLIENT_SECRET=your_blizzard_secret
-RAIDER_IO_API_KEY=your_raiderio_key  # optional
-```
-
-The CCG pack and guest-claim flows use MongoDB transactions, so local and production MongoDB must run as a replica set. The provided Docker Compose files initialize a single-node `rs0` replica set automatically. Character renders are refreshed from the Blizzard profile-media API by the background worker; set `CCG_FEATURE_ENABLED=false` to hide the feature without removing its data, or set `CCG_WEEKLY_AUTOMATION_ENABLED=false` to skip the automatic Wednesday snapshot and publication while leaving the feature and its other background jobs active.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+SuomiWoW is an unofficial fan project and is not affiliated with Blizzard Entertainment. World of Warcraft and related artwork are trademarks or copyrights of Blizzard Entertainment.

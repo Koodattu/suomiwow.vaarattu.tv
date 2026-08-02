@@ -22,6 +22,7 @@ import {
   triggerRefetchRecentReports,
   triggerBackfillFightVods,
   triggerUpdateGuildCrests,
+  triggerFullHistoryRefresh,
   triggerRescanDeathEvents,
   triggerRescanCharacters,
   triggerBackfillReportCharacters,
@@ -101,6 +102,8 @@ import {
   AdminCharacterContinuityLinkPreview,
   AdminCharacterStats,
   CharacterRankingBackfillStatusResponse,
+  FullHistoryRefreshStatusResponse,
+  FullHistoryRefreshStage,
   CharacterAchievementBackfillStatusResponse,
   MythicPlusCrawlerStatusResponse,
   AdminRaidOption,
@@ -121,6 +124,17 @@ import {
   TwitchChannelPointsStatus,
   TwitchCustomReward,
 } from "@/types";
+
+const FULL_HISTORY_STAGE_LABELS: Record<FullHistoryRefreshStage, string> = {
+  queue_fight_details: "Waiting to queue all-raid fight details",
+  fight_details: "Fetching all-raid deaths and rosters",
+  queue_rankings: "Queueing all character/spec rankings",
+  rankings: "Fetching all specs for every character and raid",
+  mechanics_and_tier_lists: "Rebuilding all mechanics and character tier lists",
+  ccg_snapshots: "Finishing the data refresh without changing CCG",
+  completed: "Completed",
+  failed: "Failed",
+};
 
 type TabType = "overview" | "users" | "guilds" | "streams" | "characters" | "pickems" | "ccg" | "system" | "tasks";
 
@@ -394,6 +408,7 @@ export default function AdminPage() {
   const [processorStatus, setProcessorStatus] = useState<ProcessorStatus | null>(null);
   const [queueStats, setQueueStats] = useState<QueueStatistics | null>(null);
   const [characterRankingBackfillStatus, setCharacterRankingBackfillStatus] = useState<CharacterRankingBackfillStatusResponse | null>(null);
+  const [fullHistoryRefreshStatus, setFullHistoryRefreshStatus] = useState<FullHistoryRefreshStatusResponse | null>(null);
   const [characterAchievementBackfillStatus, setCharacterAchievementBackfillStatus] = useState<CharacterAchievementBackfillStatusResponse | null>(null);
   const [mythicPlusCrawlerStatus, setMythicPlusCrawlerStatus] = useState<MythicPlusCrawlerStatusResponse | null>(null);
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
@@ -575,7 +590,7 @@ export default function AdminPage() {
       try {
         switch (activeTab) {
           case "overview": {
-            const [overviewData, rateLimitData, queueStatsData, adminRaidsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
+            const [overviewData, rateLimitData, queueStatsData, adminRaidsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData, fullHistoryRefreshData] = await Promise.all([
               api.getAdminOverview(),
               api.getAdminRateLimitStatus(),
               api.getAdminProcessingQueueStats(),
@@ -583,6 +598,7 @@ export default function AdminPage() {
               api.getAdminCharacterRankingBackfillStatus(),
               api.getAdminCharacterAchievementBackfillStatus(),
               api.getAdminMythicPlusCrawlerStatus(),
+              api.getAdminFullHistoryRefreshStatus(),
             ]);
             setOverview(overviewData);
             setRateLimitStatus(rateLimitData.status);
@@ -593,6 +609,7 @@ export default function AdminPage() {
             setCharacterRankingBackfillStatus(characterRankingBackfillData);
             setCharacterAchievementBackfillStatus(characterAchievementBackfillData);
             setMythicPlusCrawlerStatus(mythicPlusCrawlerData);
+            setFullHistoryRefreshStatus(fullHistoryRefreshData);
             break;
           }
 
@@ -653,7 +670,7 @@ export default function AdminPage() {
           }
 
           case "system": {
-            const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
+            const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData, fullHistoryRefreshData] = await Promise.all([
               api.getAdminRateLimitStatus(),
               api.getAdminWarcraftLogsUserAuthStatus(),
               api.getAdminProcessingQueueStats(),
@@ -662,6 +679,7 @@ export default function AdminPage() {
               api.getAdminCharacterRankingBackfillStatus(),
               api.getAdminCharacterAchievementBackfillStatus(),
               api.getAdminMythicPlusCrawlerStatus(),
+              api.getAdminFullHistoryRefreshStatus(),
             ]);
             setRateLimitStatus(rateLimitData.status);
             setRateLimitConfig(rateLimitData.config);
@@ -674,6 +692,7 @@ export default function AdminPage() {
             setCharacterRankingBackfillStatus(characterRankingBackfillData);
             setCharacterAchievementBackfillStatus(characterAchievementBackfillData);
             setMythicPlusCrawlerStatus(mythicPlusCrawlerData);
+            setFullHistoryRefreshStatus(fullHistoryRefreshData);
             break;
           }
 
@@ -731,7 +750,7 @@ export default function AdminPage() {
     if (activeTab === "system" && user?.isAdmin) {
       const interval = setInterval(async () => {
         try {
-          const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
+          const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData, fullHistoryRefreshData] = await Promise.all([
             api.getAdminRateLimitStatus(),
             api.getAdminWarcraftLogsUserAuthStatus(),
             api.getAdminProcessingQueueStats(),
@@ -740,6 +759,7 @@ export default function AdminPage() {
             api.getAdminCharacterRankingBackfillStatus(),
             api.getAdminCharacterAchievementBackfillStatus(),
             api.getAdminMythicPlusCrawlerStatus(),
+            api.getAdminFullHistoryRefreshStatus(),
           ]);
           setRateLimitStatus(rateLimitData.status);
           setRateLimitConfig(rateLimitData.config);
@@ -752,6 +772,7 @@ export default function AdminPage() {
           setCharacterRankingBackfillStatus(characterRankingBackfillData);
           setCharacterAchievementBackfillStatus(characterAchievementBackfillData);
           setMythicPlusCrawlerStatus(mythicPlusCrawlerData);
+          setFullHistoryRefreshStatus(fullHistoryRefreshData);
         } catch (err) {
           console.error("Error refreshing system data:", err);
         }
@@ -771,17 +792,19 @@ export default function AdminPage() {
 
     const interval = setInterval(async () => {
       try {
-        const [rateLimitData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData] = await Promise.all([
+        const [rateLimitData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData, fullHistoryRefreshData] = await Promise.all([
           api.getAdminRateLimitStatus(),
           api.getAdminCharacterRankingBackfillStatus(),
           api.getAdminCharacterAchievementBackfillStatus(),
           api.getAdminMythicPlusCrawlerStatus(),
+          api.getAdminFullHistoryRefreshStatus(),
         ]);
         setRateLimitStatus(rateLimitData.status);
         setRateLimitConfig(rateLimitData.config);
         setCharacterRankingBackfillStatus(characterRankingBackfillData);
         setCharacterAchievementBackfillStatus(characterAchievementBackfillData);
         setMythicPlusCrawlerStatus(mythicPlusCrawlerData);
+        setFullHistoryRefreshStatus(fullHistoryRefreshData);
       } catch (err) {
         console.error("Error refreshing overview status:", err);
       }
@@ -880,11 +903,16 @@ export default function AdminPage() {
       if (
         triggerName === "backfill-character-rankings" ||
         triggerName === "refresh-character-ranking-candidates" ||
+        triggerName === "refresh-current-character-ranking-specs" ||
+        triggerName === "refresh-all-character-ranking-specs" ||
         triggerName === "rebuild-character-ranking-leaderboards" ||
         triggerName === "prune-character-rankings-without-mythic-evidence"
       ) {
         const status = await api.getAdminCharacterRankingBackfillStatus();
         setCharacterRankingBackfillStatus(status);
+      }
+      if (triggerName === "full-history-refresh") {
+        setFullHistoryRefreshStatus(await api.getAdminFullHistoryRefreshStatus());
       }
       if (
         triggerName === "backfill-character-achievements" ||
@@ -1413,15 +1441,16 @@ export default function AdminPage() {
     }
   };
 
-  const handleResetFailedArchivedDeaths = async () => {
-    if (!confirm("Retry current-tier failed, archived, and unavailable fight details, then queue affected guilds for backfill?")) {
+  const handleResetFailedArchivedDeaths = async (scope: "current" | "all" = "current") => {
+    const scopeLabel = scope === "all" ? "all-raid" : "current-tier";
+    if (!confirm(`Retry ${scopeLabel} failed, archived, and unavailable fight details, then queue affected guilds for backfill?`)) {
       return;
     }
 
-    setTriggerLoading("death-events-reset");
+    setTriggerLoading(scope === "all" ? "death-events-reset-all" : "death-events-reset");
     setTriggerMessage(null);
     try {
-      const result = await api.resetAdminFailedArchivedDeathEvents(["failed", "archived", "unavailable"], true, "current");
+      const result = await api.resetAdminFailedArchivedDeathEvents(["failed", "archived", "unavailable"], true, scope);
       setTriggerMessage({ type: "success", text: result.message });
       await Promise.all([refreshWclUserAuthStatus(), refreshSystemQueueState()]);
       setTimeout(() => setTriggerMessage(null), 7000);
@@ -2322,6 +2351,36 @@ export default function AdminPage() {
                 <span>⚙️</span> Manual Actions
               </h2>
 
+              <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-950/20 p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-amber-100">Full-history raid data and mechanics refresh</h3>
+                    <p className="max-w-4xl text-sm text-gray-300">
+                      Fetches fight details for every tracked raid, refetches every class spec for every character/raid pair, and rebuilds all mechanics and character tier lists. CCG snapshots and card publication remain manual.
+                    </p>
+                    {fullHistoryRefreshStatus?.stage ? (
+                      <p className={`text-sm ${fullHistoryRefreshStatus.status === "failed" ? "text-red-300" : fullHistoryRefreshStatus.status === "completed" ? "text-emerald-300" : "text-cyan-300"}`}>
+                        {FULL_HISTORY_STAGE_LABELS[fullHistoryRefreshStatus.stage]}
+                        {typeof fullHistoryRefreshStatus.progress.message === "string" ? ` — ${fullHistoryRefreshStatus.progress.message}` : ""}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-gray-500">No full-history run has been started.</p>
+                    )}
+                    {fullHistoryRefreshStatus?.status === "running" ? (
+                      <p className="text-xs tabular-nums text-gray-400">
+                        Fight-detail jobs active: {fullHistoryRefreshStatus.fightDetailsQueue.active} · Ranking pairs active: {fullHistoryRefreshStatus.rankingQueue.active}
+                      </p>
+                    ) : null}
+                    {fullHistoryRefreshStatus?.lastError ? <p className="text-xs text-red-300">{fullHistoryRefreshStatus.lastError}</p> : null}
+                  </div>
+                  <div className="w-full shrink-0 lg:w-72">
+                    {renderTriggerButton("full-history-refresh", "Run Full History Data Refresh", triggerFullHistoryRefresh, {
+                      disabled: fullHistoryRefreshStatus?.status === "running",
+                    })}
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                 <ManualActionCard icon="🏰" title="Guild & Report Intake">
                   <ManualActionGroup title="Guild state">
@@ -2337,6 +2396,7 @@ export default function AdminPage() {
                   <ManualActionGroup title="Report queues">
                     {renderTriggerButton("refetch-reports", "Refetch Recent Reports", triggerRefetchRecentReports)}
                     {renderTriggerButton("rescan-deaths", "Backfill Current-Tier Fight Details", triggerRescanDeathEvents)}
+                    {renderTriggerButton("rescan-deaths-all", "Backfill All-Raid Fight Details", () => triggerRescanDeathEvents("all"))}
                     {renderTriggerButton("rescan-characters", "Rescan Characters", triggerRescanCharacters)}
                     {renderTriggerButton("backfill-report-characters", "Backfill Report Characters", triggerBackfillReportCharacters)}
                   </ManualActionGroup>
@@ -2392,6 +2452,7 @@ export default function AdminPage() {
                     {renderTriggerButton("backfill-character-rankings", "Backfill Character Rankings", triggerBackfillCharacterRankings)}
                     {renderTriggerButton("refresh-character-ranking-candidates", "Discover Missing Ranking Pairs", () => triggerBackfillCharacterRankings(true))}
                     {renderTriggerButton("refresh-current-character-ranking-specs", "Refetch Current-Tier All Specs", () => triggerBackfillCharacterRankings(false, true, "current"))}
+                    {renderTriggerButton("refresh-all-character-ranking-specs", "Refetch All-Raid All Specs", () => triggerBackfillCharacterRankings(true, true, "all"))}
                   </ManualActionGroup>
                   <ManualActionGroup title="2. Publish ranking tables">
                     {renderTriggerButton("prune-character-rankings-without-mythic-evidence", "Prune Non-Mythic Ranking Rows", triggerPruneCharacterRankingsWithoutMythicEvidence, {
@@ -5656,7 +5717,7 @@ export default function AdminPage() {
                       Verify User
                     </button>
                     <button
-                      onClick={handleResetFailedArchivedDeaths}
+                      onClick={() => void handleResetFailedArchivedDeaths("current")}
                       disabled={triggerLoading === "death-events-reset" || (
                         wclUserAuthStatus.deathEvents.failed === 0
                         && wclUserAuthStatus.deathEvents.archived === 0
@@ -5668,6 +5729,13 @@ export default function AdminPage() {
                       className="px-3 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50"
                     >
                       Retry Current-Tier Fight Data
+                    </button>
+                    <button
+                      onClick={() => void handleResetFailedArchivedDeaths("all")}
+                      disabled={triggerLoading === "death-events-reset-all"}
+                      className="px-3 py-2 bg-orange-700 text-white text-sm rounded hover:bg-orange-600 disabled:opacity-50"
+                    >
+                      Retry All-Raid Fight Data
                     </button>
                     <button
                       onClick={handleDisconnectWclUser}

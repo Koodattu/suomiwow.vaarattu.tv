@@ -104,6 +104,8 @@ import {
   QueueItem,
   ErrorType,
   TriggerResponse,
+  FullHistoryRefreshStatusResponse,
+  FullHistoryRefreshTriggerResponse,
   MythicPlusCrawlerStatusResponse,
   MythicPlusCrawlerTriggerResponse,
   CharacterRankingBackfillStatusResponse,
@@ -2309,6 +2311,14 @@ export const api = {
     return response.json();
   },
 
+  async getAdminFullHistoryRefreshStatus(): Promise<FullHistoryRefreshStatusResponse> {
+    const response = await fetch(`${API_URL}/api/admin/full-history-refresh/status`, {
+      credentials: "include",
+    });
+    if (!response.ok) throw new Error("Failed to fetch full-history refresh status");
+    return response.json();
+  },
+
   async getAdminCharacterAchievementBackfillStatus(): Promise<CharacterAchievementBackfillStatusResponse> {
     const response = await fetch(`${API_URL}/api/admin/character-achievement-backfill/status`, {
       credentials: "include",
@@ -2659,6 +2669,16 @@ export async function triggerUpdateGuildCrests(): Promise<TriggerResponse> {
   });
   if (!response.ok) throw new Error("Failed to trigger guild crests update");
   return response.json();
+}
+
+export async function triggerFullHistoryRefresh(): Promise<FullHistoryRefreshTriggerResponse> {
+  const response = await fetch(`${API_URL}/api/admin/trigger/full-history-refresh`, {
+    method: "POST",
+    credentials: "include",
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || data.message || "Failed to start full-history refresh");
+  return data;
 }
 
 export async function triggerRescanDeathEvents(scope: "current" | "all" = "current"): Promise<TriggerResponse> {

@@ -469,6 +469,29 @@ class CharacterRankingBackfillService {
     return true;
   }
 
+  async resumeInterruptedBackfill(staleAfterMs = 15 * 60 * 1000): Promise<boolean> {
+    if (this.isRunning) return false;
+
+    const staleBefore = new Date(Date.now() - staleAfterMs);
+    const reset = await CharacterRankingBackfill.updateMany(
+      { status: "in_progress", lastActivityAt: { $lt: staleBefore } },
+      {
+        $set: {
+          status: "pending",
+          lastActivityAt: new Date(),
+          lastError: "Reset after interrupted backfill run",
+          lastErrorAt: new Date(),
+        },
+      },
+    );
+    if ((reset.modifiedCount ?? 0) > 0) {
+      logger.warn(`[CharacterRankingBackfill] Reset ${reset.modifiedCount} stale in-progress item(s) back to pending`);
+    }
+
+    const pending = await CharacterRankingBackfill.countDocuments({ status: "pending" });
+    return pending > 0 ? this.startProcessing() : false;
+  }
+
   async enqueueMissingItems(): Promise<CharacterRankingBackfillEnqueueResult> {
     const startedAt = Date.now();
     const elapsed = () => `${((Date.now() - startedAt) / 1000).toFixed(1)}s`;

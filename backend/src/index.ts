@@ -41,6 +41,7 @@ import twitchCcgOverlayRouter from "./routes/twitch-ccg-overlay";
 import discordBotService from "./services/discord-bot.service";
 import twitchChatBotService from "./services/twitch-chat-bot.service";
 import backgroundGuildProcessor from "./services/background-guild-processor.service";
+import fullHistoryRefreshService from "./services/full-history-refresh.service";
 import taskTracker from "./services/task-tracker.service";
 import { analyticsMiddleware, flushAnalytics } from "./middleware/analytics.middleware";
 import cacheService from "./services/cache.service";
@@ -355,6 +356,10 @@ async function runBackgroundInitialization(): Promise<void> {
   // Start background guild processor (handles initial data fetch for new guilds)
   await runStartupTask("Start background guild processor", async () => {
     backgroundGuildProcessor.start();
+  });
+
+  await runStartupTask("Start full-history refresh monitor", async () => {
+    fullHistoryRefreshService.start();
   });
 
   await runStartupTask("Start Discord event publisher", async () => {

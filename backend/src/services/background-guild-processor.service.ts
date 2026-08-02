@@ -113,6 +113,7 @@ class BackgroundGuildProcessor {
   private characterAppearanceIndexesSynced: boolean = false;
   private deathRescanIndexesCreated: boolean = false;
   private queueIndexesReady: Promise<unknown> | null = null;
+  private lastInterruptedQueueRecoveryAt = 0;
 
   /**
    * Start the background processor
@@ -205,6 +206,7 @@ class BackgroundGuildProcessor {
       await this.queueIndexesReady;
       await this.refreshProcessorPauseState();
       await rateLimitService.refreshSharedState();
+      await this.recoverInterruptedQueueItems();
 
       // Check if we should pause due to rate limits
       if (!rateLimitService.canProceedBackground()) {
@@ -291,6 +293,29 @@ class BackgroundGuildProcessor {
     } catch (error) {
       logger.error("[BackgroundProcessor] Error in queue processing:", error);
       this.scheduleNextCheck(this.config.idleCheckInterval);
+    }
+  }
+
+  private async recoverInterruptedQueueItems(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastInterruptedQueueRecoveryAt < 5 * 60 * 1000) return;
+    this.lastInterruptedQueueRecoveryAt = now;
+
+    const staleBefore = new Date(now - 30 * 60 * 1000);
+    const result = await GuildProcessingQueue.updateMany(
+      { status: "in_progress", lastActivityAt: { $lt: staleBefore } },
+      {
+        $set: {
+          status: "pending",
+          lastActivityAt: new Date(now),
+          lastError: "Reset after interrupted background processing",
+          lastErrorAt: new Date(now),
+        },
+        $unset: { startedAt: 1 },
+      },
+    );
+    if ((result.modifiedCount ?? 0) > 0) {
+      logger.warn(`[BackgroundProcessor] Reset ${result.modifiedCount} stale in-progress queue item(s) back to pending`);
     }
   }
 

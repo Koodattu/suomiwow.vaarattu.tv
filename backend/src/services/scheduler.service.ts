@@ -22,6 +22,7 @@ import characterMediaService, {
 } from "./character-media.service";
 import ccgRaidRunner from "./ccg-snapshot-runner.service";
 import ccgService from "./ccg.service";
+import FullHistoryRefresh from "../models/FullHistoryRefresh";
 import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
 import {
   CCG_FEATURE_ENABLED,
@@ -538,7 +539,11 @@ class UpdateScheduler {
       if (CCG_WEEKLY_AUTOMATION_ENABLED) {
         cron.schedule(
           CCG_WEEKLY_SNAPSHOT_SCHEDULE.cron,
-          () => {
+          async () => {
+            if (await FullHistoryRefresh.exists({ key: "all-raids", status: "running" })) {
+              logger.info("[CCG/Snapshot] Full-history refresh is running; deferring the scheduled snapshot");
+              return;
+            }
             if (!ccgRaidRunner.triggerSnapshot("cron")) {
               logger.warn("[CCG/Snapshot] Another CCG snapshot or publication run is still running; skipping this run");
             }
@@ -548,7 +553,11 @@ class UpdateScheduler {
 
         cron.schedule(
           CCG_WEEKLY_PUBLICATION_SCHEDULE.cron,
-          () => {
+          async () => {
+            if (await FullHistoryRefresh.exists({ key: "all-raids", status: "running" })) {
+              logger.info("[CCG/Publication] Full-history refresh is running; deferring the scheduled publication");
+              return;
+            }
             if (!ccgRaidRunner.triggerPublication("cron")) {
               logger.warn("[CCG/Publication] Another CCG snapshot or publication run is still running; skipping this run");
             }
