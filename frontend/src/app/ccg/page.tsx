@@ -49,11 +49,9 @@ function VaultPackShortcut({
 }
 
 const FAN_AWAY_X_BY_SELECTED = [
-  [0, 8, 14, -8, -14],
-  [-7, 0, 12, -5, -8],
-  [-5, -10, 0, -4, -7],
-  [7, 5, 8, 0, -12],
-  [5, 4, 7, 10, 0],
+  [0, 8, 14],
+  [-8, 0, 8],
+  [-14, -8, 0],
 ] as const;
 
 function updatePackFanMotion(event: ReactPointerEvent<HTMLDivElement>) {
@@ -120,7 +118,7 @@ export default function CcgLandingPage() {
   const currentOwnedCount = currentSets.reduce((total, set) => total + set.ownedCards, 0);
   const currentProgress = currentCardCount > 0 ? Math.min(100, (currentOwnedCount / currentCardCount) * 100) : 0;
   const legacy = sets.filter((set) => set.kind === "raid" && set.state === "legacy").sort((left, right) => right.zoneId - left.zoneId);
-  const recentPackSets = legacy.slice(0, 3);
+  const recentPackSets = legacy.slice(0, 1);
   const community = sets.filter((set) => set.kind === "community");
   const collectionSets = [...currentSets, ...legacy, ...community];
   const allCardCount = collectionSets.reduce((total, set) => total + set.cardCount, 0);
@@ -229,23 +227,23 @@ export default function CcgLandingPage() {
               >
                 <div className={styles.vaultPackFanMotion}>
                   {setsLoading ? (
-                    Array.from({ length: 5 }, (_, index) => (
+                    Array.from({ length: 3 }, (_, index) => (
                       <span key={index} className={`${packStyles.packButton} ${styles.vaultPackShortcut} ${styles.vaultPackSkeleton}`} aria-hidden="true" />
                     ))
                   ) : (
                     <>
                       <VaultPackShortcut
-                        href={current ? `/ccg/open?set=${encodeURIComponent(current.id)}` : "/ccg/open"}
-                        theme={getPackTheme(current)}
-                        label={t("landing.openCurrent")}
-                        title={current?.raidName ?? t("landing.preparing")}
-                        cardsLabel={t("landing.cards")}
-                      />
-                      <VaultPackShortcut
                         href="/ccg/open"
                         theme={getPackTheme(undefined, true)}
                         label={t("landing.openAllRaids")}
                         title={t("open.allRaids")}
+                        cardsLabel={t("landing.cards")}
+                      />
+                      <VaultPackShortcut
+                        href={current ? `/ccg/open?set=${encodeURIComponent(current.id)}` : "/ccg/open"}
+                        theme={getPackTheme(current)}
+                        label={t("landing.openCurrent")}
+                        title={current?.raidName ?? t("landing.preparing")}
                         cardsLabel={t("landing.cards")}
                       />
                       {recentPackSets.map((set) => (
