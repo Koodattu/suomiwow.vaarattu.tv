@@ -38,6 +38,16 @@ export default function CcgAnalyticsPanel() {
                 : "—"}
           </dd>
         </div>
+        <div className={styles.vaultAnalyticsStat}>
+          <dt>{t("cardsRevealed")}</dt>
+          <dd>
+            {analyticsQuery.data
+              ? numberFormat.format(analyticsQuery.data.cardsRevealed)
+              : analyticsQuery.isPending
+                ? <span className={styles.vaultAnalyticsValueSkeleton} aria-hidden="true" />
+                : "—"}
+          </dd>
+        </div>
       </dl>
     </section>
   );

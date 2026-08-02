@@ -399,7 +399,8 @@
       "analytics": {
         "title": "Yhteisön aktiivisuus",
         "uniqueUsers": "Keräilijät",
-        "packOpenings": "Avatut pakat"
+        "packOpenings": "Avatut pakat",
+        "cardsRevealed": "Paljastetut kortit"
       },
       "twitch": {
         "title": "Twitch-yhteys",
@@ -546,6 +547,8 @@
       "selectGuild": "Valitse kilta",
       "selectCharacter": "Valitse hahmo",
       "typeTwoCharacters": "Kirjoita vähintään 2 merkkiä",
+      "searchForCharacterName": "Hae nimellä ”{search}”",
+      "characterNameContains": "Nimessä on ”{search}”",
       "searchingCharacters": "Haetaan…",
       "noCharactersFound": "Hahmoja ei löytynyt",
       "characterSearchError": "Hahmohaku epäonnistui",

@@ -457,6 +457,14 @@ function getSeriesKey(series: CcgSeriesRef): string {
   return `${series.setId}:${series.characterId}`;
 }
 
+function scoreCollectionCharacterNameMatch(search: string, searchText: string[]): number {
+  const names = new Set(searchText.map((text) => text.split(" ", 1)[0]).filter(Boolean));
+  if (names.has(search)) return 100;
+  if ([...names].some((name) => name.startsWith(search))) return 90;
+  if ([...names].some((name) => name.includes(search))) return 80;
+  return 0;
+}
+
 function wait(durationMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, durationMs));
 }
@@ -652,6 +660,28 @@ class CcgService {
     ].map((id) => [String(id), id])).values()];
   }
 
+  private async resolveCollectionCharacterNameIds(rawSearch: string): Promise<mongoose.Types.ObjectId[]> {
+    const normalizedSearch = normalizeSearchText(rawSearch.trim().slice(0, 100));
+    if (normalizedSearch.length < 2) return [];
+    const candidates = await this.getCollectionCharacterSearchCandidates();
+    const matchingCharacterIds = candidates
+      .filter((candidate) => scoreCollectionCharacterNameMatch(normalizedSearch, candidate.characterSearchText) > 0)
+      .map((candidate) => candidate.characterId);
+    if (matchingCharacterIds.length === 0) return [];
+
+    const continuityGraph = await characterContinuityService.getGraph();
+    const memberIds = [...new Map(matchingCharacterIds.flatMap((characterId) => (
+      continuityGraph.getMemberIds(characterId).map((id) => new mongoose.Types.ObjectId(id))
+    )).map((id) => [String(id), id])).values()];
+    const communityCharacters = await CcgCommunityCharacter.find({ linkedCharacterId: { $in: memberIds } })
+      .select("_id")
+      .lean();
+    return [...new Map([
+      ...memberIds,
+      ...communityCharacters.map((community) => community._id),
+    ].map((id) => [String(id), id])).values()];
+  }
+
   private async getCollectionCharacterSearchCandidates(): Promise<CcgCollectionCharacterSearchCandidate[]> {
     const now = Date.now();
     if (this.collectionCharacterSearchCache && this.collectionCharacterSearchCache.versionCheckedUntil > now) {
@@ -792,7 +822,7 @@ class CcgService {
     };
   }
 
-  async getAnalytics(): Promise<{ uniqueUsers: number; packOpenings: number }> {
+  async getAnalytics(): Promise<{ uniqueUsers: number; packOpenings: number; cardsRevealed: number }> {
     requireFeature();
     await this.ensureAnalyticsInitialized();
     const summary = await CcgAnalyticsSummary.findOne({
@@ -803,6 +833,7 @@ class CcgService {
     return {
       uniqueUsers: summary.uniqueUsers,
       packOpenings: summary.packOpenings,
+      cardsRevealed: summary.packOpenings * CCG_CARDS_PER_PACK,
     };
   }
 
@@ -1328,7 +1359,7 @@ class CcgService {
   async getCatalog(
     owner: CcgOwner,
     setSlug: string | undefined,
-    options: { page?: number; limit?: number; owned?: string; grade?: string; finish?: string; guildId?: string; characterId?: string; sort?: string },
+    options: { page?: number; limit?: number; owned?: string; grade?: string; finish?: string; guildId?: string; characterId?: string; characterName?: string; sort?: string },
   ): Promise<Record<string, unknown>> {
     const requestedSet = setSlug
       ? await CcgSet.findOne({ slug: setSlug, enabledAt: { $ne: null } })
@@ -1356,6 +1387,7 @@ class CcgService {
     if (grade) cardFilter.tierGrade = grade;
     if (options.guildId) cardFilter.guildId = validateObjectId(options.guildId, "guild ID");
     if (options.characterId) cardFilter.characterId = { $in: await this.resolveCollectionCharacterIds(options.characterId) };
+    else if (options.characterName) cardFilter.characterId = { $in: await this.resolveCollectionCharacterNameIds(options.characterName) };
 
     const ownershipFilter = options.owned === "owned" || options.owned === "missing" || Boolean(finishMatch);
     const includeOwned = options.owned === "owned" || Boolean(finishMatch);
@@ -1704,7 +1736,7 @@ class CcgService {
 
   async getCollection(
     owner: CcgOwner,
-    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string; characterId?: string; sort?: string; alternativeOnly?: boolean; favoriteOnly?: boolean },
+    options: { page?: number; limit?: number; setSlug?: string; grade?: string; finish?: string; search?: string; guildId?: string; characterId?: string; characterName?: string; sort?: string; alternativeOnly?: boolean; favoriteOnly?: boolean },
   ): Promise<Record<string, unknown>> {
     const page = Math.max(1, Math.floor(options.page ?? 1));
     const limit = Math.min(45, Math.max(1, Math.floor(options.limit ?? 18)));
@@ -1746,7 +1778,11 @@ class CcgService {
     const communitySetIds = sets.filter((set) => set.kind === "community").map((set) => set._id);
     const guildId = options.guildId ? validateObjectId(options.guildId, "guild ID") : null;
     if (guildId) cardMatch["card.guildId"] = guildId;
-    const characterIds = options.characterId ? await this.resolveCollectionCharacterIds(options.characterId) : null;
+    const characterIds = options.characterId
+      ? await this.resolveCollectionCharacterIds(options.characterId)
+      : options.characterName
+        ? await this.resolveCollectionCharacterNameIds(options.characterName)
+        : null;
     if (characterIds) match.characterId = { $in: characterIds };
     if (options.alternativeOnly) {
       const alternativeSeries = await CcgOwnership.find({
@@ -2525,7 +2561,7 @@ class CcgService {
     const selectedCandidates = candidates
       .map((candidate) => ({
         ...candidate,
-        score: Math.max(...candidate.characterSearchText.map((text) => scoreSearchCandidate(normalizedSearch, text))),
+        score: scoreCollectionCharacterNameMatch(normalizedSearch, candidate.characterSearchText),
       }))
       .filter((candidate) => candidate.score > 0)
       .sort((a, b) => b.score - a.score || b.publishedAt.getTime() - a.publishedAt.getTime() || a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm))

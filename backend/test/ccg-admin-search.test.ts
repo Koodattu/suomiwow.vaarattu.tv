@@ -276,6 +276,12 @@ test("collection character search requires two characters and returns cached pub
     const historicalNameResult = await service.searchCollectionCharacters("ezclap", 10);
     assert.equal(historicalNameResult.characters[0].id, String(characterId));
 
+    const diacriticInsensitiveResult = await service.searchCollectionCharacters("lák", 10);
+    assert.equal(diacriticInsensitiveResult.characters[0].id, String(characterId));
+
+    const nonSubstringResult = await service.searchCollectionCharacters("lako", 10);
+    assert.deepEqual(nonSubstringResult.characters, []);
+
     const guildNameResult = await service.searchCollectionCharacters("test guild", 10);
     assert.deepEqual(guildNameResult.characters, []);
     assert.equal(metadataReads, 1);

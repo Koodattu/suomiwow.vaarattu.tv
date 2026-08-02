@@ -61,7 +61,7 @@ function asyncRoute(handler: (req: Request, res: Response) => Promise<unknown>) 
 router.get(
   "/analytics",
   rateLimit(90, 60_000),
-  cacheMiddleware(() => "ccg:analytics:v1", () => CCG_ANALYTICS_CACHE_TTL_MS),
+  cacheMiddleware(() => "ccg:analytics:v2", () => CCG_ANALYTICS_CACHE_TTL_MS),
   asyncRoute(async () => ccgService.getAnalytics()),
 );
 
@@ -145,6 +145,7 @@ router.get(
       finish: typeof req.query.finish === "string" ? req.query.finish : undefined,
       guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
       characterId: typeof req.query.character === "string" ? req.query.character : undefined,
+      characterName: typeof req.query.characterName === "string" ? req.query.characterName : undefined,
       sort: typeof req.query.sort === "string" ? req.query.sort : undefined,
     });
   }),
@@ -187,6 +188,7 @@ router.get(
       finish: typeof req.query.finish === "string" ? req.query.finish : undefined,
       guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
       characterId: typeof req.query.character === "string" ? req.query.character : undefined,
+      characterName: typeof req.query.characterName === "string" ? req.query.characterName : undefined,
       sort: typeof req.query.sort === "string" ? req.query.sort : undefined,
     });
   }),
@@ -206,6 +208,7 @@ router.get(
       search: typeof req.query.search === "string" ? req.query.search : undefined,
       guildId: typeof req.query.guild === "string" ? req.query.guild : undefined,
       characterId: typeof req.query.character === "string" ? req.query.character : undefined,
+      characterName: typeof req.query.characterName === "string" ? req.query.characterName : undefined,
       sort: typeof req.query.sort === "string" ? req.query.sort : undefined,
       alternativeOnly: req.query.alternative === "true",
       favoriteOnly: req.query.favorite === "true",

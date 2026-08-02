@@ -45,6 +45,8 @@ const uniqueFinishFilter = "unique";
 type CollectionFinishFilter = CcgBaseFinish | typeof uniqueFinishFilter | "";
 type CollectionFinishOption = Exclude<CollectionFinishFilter, "">;
 type CollectionVisibility = "owned" | "all" | "missing";
+type CollectionCharacterNameFilter = { id: string; search: string };
+type CollectionCharacterFilter = CcgCharacterFacet | CollectionCharacterNameFilter;
 const collectionSortOptions: Array<{ value: CcgCollectionSort; label: string }> = [
   { value: "duplicates_desc", label: "sortMostDuplicatesFirst" },
   { value: "alphabetical", label: "sortAlphabetical" },
@@ -135,7 +137,7 @@ export default function CcgCollectionPage() {
   const [guildsRequested, setGuildsRequested] = useState(false);
   const guildInputRef = useRef<HTMLInputElement>(null);
   const mobileGuildInputRef = useRef<HTMLInputElement>(null);
-  const [selectedCharacter, setSelectedCharacter] = useState<CcgCharacterFacet | null>(null);
+  const [selectedCharacter, setSelectedCharacter] = useState<CollectionCharacterFilter | null>(null);
   const [characterSearch, setCharacterSearch] = useState("");
   const [debouncedCharacterSearch, setDebouncedCharacterSearch] = useState("");
   const [characterInputFocused, setCharacterInputFocused] = useState(false);
@@ -219,7 +221,11 @@ export default function CcgCollectionPage() {
   const characterResults = characterResultsCurrent ? (characterSearchQuery.data?.characters ?? []) : [];
   const characterSearchLoading = trimmedCharacterSearch.length >= 2
     && (!characterResultsCurrent || characterSearchQuery.isFetching);
-  const characterId = selectedCharacter?.id ?? "";
+  const characterNameSearchOption: CollectionCharacterNameFilter | null = trimmedCharacterSearch.length >= 2
+    ? { id: `name-search:${trimmedCharacterSearch}`, search: trimmedCharacterSearch }
+    : null;
+  const selectedCharacterNameSearch = selectedCharacter && "search" in selectedCharacter ? selectedCharacter.search : "";
+  const characterId = selectedCharacter && !("search" in selectedCharacter) ? selectedCharacter.id : "";
   const showCatalog = visibility !== "owned";
   const showMissingOnly = visibility === "missing";
   const catalogOwnership = showMissingOnly ? "missing" : "all";
@@ -233,8 +239,8 @@ export default function CcgCollectionPage() {
     () => new Set((favoritesQuery.data?.showcase ?? []).map((item) => item.card.id)),
     [favoritesQuery.data?.showcase],
   );
-  const filtersChanged = visibility !== "owned" || alternativeOnly || favoriteOnly || Boolean(characterId || guildId || grade || finish || sort);
-  const advancedFilterCount = [alternativeOnly, characterId, guildId, grade, finish].filter(Boolean).length;
+  const filtersChanged = visibility !== "owned" || alternativeOnly || favoriteOnly || Boolean(selectedCharacter || guildId || grade || finish || sort);
+  const advancedFilterCount = [alternativeOnly, selectedCharacter, guildId, grade, finish].filter(Boolean).length;
   const ownedQuery = useCcgCollection(
     {
       page,
@@ -244,18 +250,19 @@ export default function CcgCollectionPage() {
       finish: finish || undefined,
       guild: guildId || undefined,
       character: characterId || undefined,
+      characterName: selectedCharacterNameSearch || undefined,
       sort: sort || undefined,
       alternative: alternativeOnly || undefined,
       favorite: favoriteOnly || undefined,
     },
     setSelectionReady && !showCatalog,
   );
-  const catalogQuery = useCcgCatalog(collectionSetSlug, page, catalogOwnership, grade, guildId, characterId, finish, sort, setSelectionReady && showCatalog, cardsPerPage);
+  const catalogQuery = useCcgCatalog(collectionSetSlug, page, catalogOwnership, grade, guildId, characterId, selectedCharacterNameSearch, finish, sort, setSelectionReady && showCatalog, cardsPerPage);
   const cardsQuery = showCatalog ? catalogQuery : ownedQuery;
   const cardsData = cardsQuery.data;
   const cardsLoading = setsQuery.isPending || cardsQuery.isPending;
   const cardsError = cardsQuery.isError;
-  const pageCountScope = JSON.stringify([setSlug, characterId, guildId, grade, finish, sort, visibility, alternativeOnly, favoriteOnly, cardsPerPage]);
+  const pageCountScope = JSON.stringify([setSlug, characterId, selectedCharacterNameSearch, guildId, grade, finish, sort, visibility, alternativeOnly, favoriteOnly, cardsPerPage]);
   const displayedPageCount = cardsData?.pages
     ?? (pageCountCache.scope === pageCountScope ? pageCountCache.pages : 0);
 
@@ -577,7 +584,7 @@ export default function CcgCollectionPage() {
 
         <div className={styles.collectionAdvancedFilterItem}>
           <span className={styles.collectionMobileFilterLabel}>{t("collection.characters")}</span>
-          <Combobox
+          <Combobox<CollectionCharacterFilter | null>
             value={selectedCharacter}
             by="id"
             onChange={(character) => {
@@ -610,10 +617,16 @@ export default function CcgCollectionPage() {
               {selectedCharacter && (
                 <span className={styles.collectionGuildSelection} aria-hidden="true">
                   <span className={`${styles.collectionGuildText} ${styles.collectionCharacterText}`}>
-                    <span className={styles.collectionCharacterName}>{selectedCharacter.name}</span>
-                    <span className={`${styles.collectionGuildRealm} ${styles.collectionCharacterRealm}`}>
-                      -{formatRealmName(selectedCharacter.realm)}
-                    </span>
+                    {"search" in selectedCharacter ? (
+                      <span>{t("collection.characterNameContains", { search: selectedCharacter.search })}</span>
+                    ) : (
+                      <>
+                        <span className={styles.collectionCharacterName}>{selectedCharacter.name}</span>
+                        <span className={`${styles.collectionGuildRealm} ${styles.collectionCharacterRealm}`}>
+                          -{formatRealmName(selectedCharacter.realm)}
+                        </span>
+                      </>
+                    )}
                   </span>
                 </span>
               )}
@@ -631,6 +644,11 @@ export default function CcgCollectionPage() {
                 {!trimmedCharacterSearch && selectedCharacter && (
                   <ComboboxOption value={null} className={styles.collectionGuildOption}>
                     <span className={styles.collectionGuildText}>{t("collection.allCharacters")}</span>
+                  </ComboboxOption>
+                )}
+                {characterNameSearchOption && (
+                  <ComboboxOption value={characterNameSearchOption} className={styles.collectionGuildOption}>
+                    <span className={styles.collectionGuildText}>{t("collection.searchForCharacterName", { search: trimmedCharacterSearch })}</span>
                   </ComboboxOption>
                 )}
                 {trimmedCharacterSearch.length < 2 ? (
@@ -956,7 +974,7 @@ export default function CcgCollectionPage() {
               </button>
             ) : null}
 
-            <Combobox
+            <Combobox<CollectionCharacterFilter | null>
               value={selectedCharacter}
               by="id"
               onChange={(character) => {
@@ -989,10 +1007,16 @@ export default function CcgCollectionPage() {
                 {selectedCharacter && (
                   <span className={styles.collectionGuildSelection} aria-hidden="true">
                     <span className={`${styles.collectionGuildText} ${styles.collectionCharacterText}`}>
-                      <span className={styles.collectionCharacterName}>{selectedCharacter.name}</span>
-                      <span className={`${styles.collectionGuildRealm} ${styles.collectionCharacterRealm}`}>
-                        -{formatRealmName(selectedCharacter.realm)}
-                      </span>
+                      {"search" in selectedCharacter ? (
+                        <span>{t("collection.characterNameContains", { search: selectedCharacter.search })}</span>
+                      ) : (
+                        <>
+                          <span className={styles.collectionCharacterName}>{selectedCharacter.name}</span>
+                          <span className={`${styles.collectionGuildRealm} ${styles.collectionCharacterRealm}`}>
+                            -{formatRealmName(selectedCharacter.realm)}
+                          </span>
+                        </>
+                      )}
                     </span>
                   </span>
                 )}
@@ -1010,6 +1034,11 @@ export default function CcgCollectionPage() {
                   {!trimmedCharacterSearch && selectedCharacter && (
                     <ComboboxOption value={null} className={styles.collectionGuildOption}>
                       <span className={styles.collectionGuildText}>{t("collection.allCharacters")}</span>
+                    </ComboboxOption>
+                  )}
+                  {characterNameSearchOption && (
+                    <ComboboxOption value={characterNameSearchOption} className={styles.collectionGuildOption}>
+                      <span className={styles.collectionGuildText}>{t("collection.searchForCharacterName", { search: trimmedCharacterSearch })}</span>
                     </ComboboxOption>
                   )}
                   {trimmedCharacterSearch.length < 2 ? (

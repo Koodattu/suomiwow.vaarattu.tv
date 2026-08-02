@@ -5754,7 +5754,7 @@
 @media (min-width: 1101px) {
   .vaultCurrentActions .primaryButton,
   .vaultAllActions .primaryButton {
-    width: 12rem;
+    width: 10rem;
   }
 }
 
@@ -5785,7 +5785,7 @@
   bottom: 0;
   left: 0;
   display: flex;
-  width: min(21rem, 55%);
+  width: min(34rem, 64%);
   min-width: 0;
   flex-direction: column;
   justify-content: flex-end;
@@ -6363,8 +6363,8 @@
   display: grid;
   width: 100%;
   min-width: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
 .vaultAnalyticsStat {
@@ -6394,8 +6394,12 @@
   line-height: 1;
 }
 
-.vaultAnalyticsStat:last-child dd {
+.vaultAnalyticsStat:nth-child(2) dd {
   color: #d2c7ff;
+}
+
+.vaultAnalyticsStat:nth-child(3) dd {
+  color: #f4d7a1;
 }
 
 .vaultAnalyticsValueSkeleton {
@@ -6883,7 +6887,6 @@
   }
 
   .vaultAllContent {
-    width: 42%;
     padding: 1rem 1.15rem;
   }
 

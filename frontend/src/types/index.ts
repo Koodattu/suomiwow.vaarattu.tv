@@ -2229,6 +2229,7 @@ export type CcgBootstrapResponse = {
 export type CcgAnalytics = {
   uniqueUsers: number;
   packOpenings: number;
+  cardsRevealed: number;
 };
 
 export type CcgLeaderboardShowcaseCard = {
