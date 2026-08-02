@@ -8,6 +8,7 @@ import Ranking from "../models/Ranking";
 import { buildCharacterContinuityGraph, CharacterContinuityGraph } from "../utils/character-continuity";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
+const CHARACTER_CONTINUITY_GRAPH_CACHE_MS = 60_000;
 
 type CharacterSummary = {
   id: string;
@@ -80,9 +81,28 @@ function summarizeCharacter(character: {
 }
 
 class CharacterContinuityService {
+  private graphCache: { expiresAt: number; graph: CharacterContinuityGraph } | null = null;
+  private graphPromise: Promise<CharacterContinuityGraph> | null = null;
+
   async getGraph(): Promise<CharacterContinuityGraph> {
-    const links = await CharacterContinuityLink.find({}).select("sourceCharacterId targetCharacterId").lean();
-    return buildCharacterContinuityGraph(links);
+    if (this.graphCache && this.graphCache.expiresAt > Date.now()) return this.graphCache.graph;
+    if (this.graphPromise) return this.graphPromise;
+    this.graphPromise = CharacterContinuityLink.find({})
+      .select("sourceCharacterId targetCharacterId")
+      .lean()
+      .then((links) => {
+        const graph = buildCharacterContinuityGraph(links);
+        this.graphCache = { expiresAt: Date.now() + CHARACTER_CONTINUITY_GRAPH_CACHE_MS, graph };
+        return graph;
+      })
+      .finally(() => {
+        this.graphPromise = null;
+      });
+    return this.graphPromise;
+  }
+
+  private invalidateGraph(): void {
+    this.graphCache = null;
   }
 
   async getCluster(characterId: unknown): Promise<{ rootCharacterId: string; memberCharacterIds: string[] }> {
@@ -230,6 +250,7 @@ class CharacterContinuityService {
         targetCharacterId: new mongoose.Types.ObjectId(preview.target.id),
         createdBy,
       });
+      this.invalidateGraph();
       return { link, preview };
     } catch (error) {
       if ((error as { code?: number })?.code === 11000) {
@@ -251,6 +272,7 @@ class CharacterContinuityService {
       throw new CharacterContinuityError("Character continuity link not found", 404, "character_continuity_link_not_found");
     }
     await link.deleteOne();
+    this.invalidateGraph();
   }
 }
 

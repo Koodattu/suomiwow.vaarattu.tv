@@ -83,25 +83,35 @@ test("active catalog card ids use complete pack pools and fail closed on a misma
   const poolModel = CcgPackPool as any;
   const service = ccgService as any;
   const originalFind = poolModel.find;
+  const originalCache = service.activeCatalogCardIdsCache;
   let totalCards = 2;
+  let findCalls = 0;
 
   try {
+    service.activeCatalogCardIdsCache = new Map();
     poolModel.find = () => ({
       select() { return this; },
       sort() { return this; },
-      lean: async () => [{
-        setId,
-        totalCards,
-        updatedAt: new Date(),
-        buckets: [{ grade: "S", cardIds }],
-      }],
+      lean: async () => {
+        findCalls += 1;
+        return [{
+          setId,
+          totalCards,
+          updatedAt: new Date(),
+          buckets: [{ grade: "S", cardIds }],
+        }];
+      },
     });
 
     assert.deepEqual(await service.getActiveCatalogCardIds([{ _id: setId, cardCount: 2 }]), cardIds);
+    assert.deepEqual(await service.getActiveCatalogCardIds([{ _id: setId, cardCount: 2 }]), cardIds);
+    assert.equal(findCalls, 1);
+    service.activeCatalogCardIdsCache.clear();
     totalCards = 1;
     assert.equal(await service.getActiveCatalogCardIds([{ _id: setId, cardCount: 2 }]), null);
   } finally {
     poolModel.find = originalFind;
+    service.activeCatalogCardIdsCache = originalCache;
   }
 });
 

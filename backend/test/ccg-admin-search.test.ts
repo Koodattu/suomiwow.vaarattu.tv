@@ -9,6 +9,7 @@ import CcgCard from "../src/models/CcgCard";
 import CcgSet from "../src/models/CcgSet";
 import Character from "../src/models/Character";
 import ccgService from "../src/services/ccg.service";
+import ccgPublisherService from "../src/services/ccg-publisher.service";
 import characterContinuityService from "../src/services/character-continuity.service";
 import { normalizeCommunityRole, normalizeCommunityScores } from "../src/utils/ccg-community";
 import { buildCharacterContinuityGraph } from "../src/utils/character-continuity";
@@ -292,5 +293,62 @@ test("collection character search requires two characters and returns cached pub
     service.collectionCharacterSearchCache = null;
     service.collectionCharacterSearchPromise = null;
     setModel.find = originalSetFind;
+  }
+});
+
+test("collection character search serves materialized data while an invalidated index refreshes", async () => {
+  const characterId = new mongoose.Types.ObjectId();
+  const setId = new mongoose.Types.ObjectId();
+  const publishedAt = new Date("2026-07-25T12:00:00.000Z");
+  const set = {
+    _id: setId,
+    collectionCharactersBuiltAt: null,
+    collectionCharacters: [{
+      collectorKey: `character:${characterId}`,
+      characterId,
+      name: "Laku",
+      realm: "stormreaver",
+      classID: 8,
+      publishedAt,
+      searchText: ["laku", "laku stormreaver"],
+    }],
+  };
+  const setModel = CcgSet as any;
+  const publisher = ccgPublisherService as any;
+  const service = ccgService as any;
+  const originals = {
+    setFind: setModel.find,
+    materialize: publisher.ensureCollectionCharactersMaterialized,
+  };
+  let finishRefresh = () => {};
+  let refreshCalls = 0;
+
+  try {
+    service.collectionCharacterSearchCache = null;
+    service.collectionCharacterSearchPromise = null;
+    setModel.find = () => ({
+      select() { return this; },
+      sort() { return this; },
+      lean: async () => [set],
+    });
+    publisher.ensureCollectionCharactersMaterialized = () => {
+      refreshCalls += 1;
+      return new Promise<void>((resolve) => { finishRefresh = resolve; });
+    };
+
+    const result = await Promise.race([
+      service.searchCollectionCharacters("laku", 10),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("search waited for materialization")), 100)),
+    ]) as any;
+
+    assert.equal(refreshCalls, 1);
+    assert.equal(result.characters[0].id, String(characterId));
+    assert.ok(service.collectionCharacterSearchCache.versionCheckedUntil <= Date.now() + 5_000);
+  } finally {
+    finishRefresh();
+    service.collectionCharacterSearchCache = null;
+    service.collectionCharacterSearchPromise = null;
+    setModel.find = originals.setFind;
+    publisher.ensureCollectionCharactersMaterialized = originals.materialize;
   }
 });

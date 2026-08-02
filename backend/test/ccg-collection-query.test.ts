@@ -87,6 +87,7 @@ test("owned collection shares finishes and intersects favorite and alternative-a
     setFind: setModel.find,
     loadAlternativeArt: service.loadAlternativeArt,
     loadAlternativeArtUnlocks: service.loadAlternativeArtUnlocks,
+    resolveCollectionCharacterIds: service.resolveCollectionCharacterIds,
   };
   let pipeline: Array<Record<string, any>> = [];
   let favoriteCardFilter: Record<string, any> | null = null;
@@ -126,10 +127,18 @@ test("owned collection shares finishes and intersects favorite and alternative-a
     };
     service.loadAlternativeArt = async () => new Map();
     service.loadAlternativeArtUnlocks = async () => new Set();
+    service.resolveCollectionCharacterIds = async () => [characterId];
 
     const result = await service.getCollection(
       { ownerType: "user", ownerId },
-      { page: 2, limit: 12, sort: "damage_desc", favoriteOnly: true, alternativeOnly: true },
+      {
+        page: 2,
+        limit: 12,
+        sort: "damage_desc",
+        favoriteOnly: true,
+        alternativeOnly: true,
+        characterId: String(characterId),
+      },
     );
 
     const ownershipLookupIndex = pipeline.findIndex((stage) => stage.$lookup?.from === "ccgownerships");
@@ -146,6 +155,7 @@ test("owned collection shares finishes and intersects favorite and alternative-a
 
     const enabledSetMatch = pipeline.find((stage) => stage.$match?.setId);
     assert.deepEqual(enabledSetMatch?.$match.setId.$in, [raidSetId, communitySetId]);
+    assert.deepEqual(enabledSetMatch?.$match.characterId, { $in: [characterId] });
     assert.deepEqual(enabledSetMatch?.$match.$or, [{ setId: raidSetId, characterId }]);
     assert.deepEqual(enabledSetMatch?.$match.$and, [{ $or: [{ setId: raidSetId, characterId }] }]);
     assert.deepEqual(favoriteCardFilter, { _id: { $in: [cardId] } });
@@ -172,5 +182,6 @@ test("owned collection shares finishes and intersects favorite and alternative-a
     setModel.find = originals.setFind;
     service.loadAlternativeArt = originals.loadAlternativeArt;
     service.loadAlternativeArtUnlocks = originals.loadAlternativeArtUnlocks;
+    service.resolveCollectionCharacterIds = originals.resolveCollectionCharacterIds;
   }
 });
