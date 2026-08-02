@@ -5949,7 +5949,7 @@
   --fan-x: 0rem;
   --fan-rotation: 0deg;
   --fan-scale: 1;
-  --fan-hover-x: 0.6rem;
+  --fan-hover-x: 0rem;
   z-index: 4;
 }
 
@@ -5991,6 +5991,7 @@
 }
 
 .vaultPackFanMotion > .vaultPackShortcut:nth-child(2)[data-fan-selected="true"] {
+  --fan-selected-x: 1rem;
   --fan-selected-y: -0.45rem;
 }
 
@@ -7012,7 +7013,7 @@
 
   .vaultPackFanMotion > .vaultPackShortcut:nth-child(2) {
     --fan-x: 0vw;
-    --fan-hover-x: 0.5rem;
+    --fan-hover-x: 0rem;
   }
 
   .vaultPackFanMotion > .vaultPackShortcut:nth-child(3) {
@@ -7041,7 +7042,7 @@
   }
 
   .vaultPackFanMotion > .vaultPackShortcut:nth-child(2)[data-fan-selected="true"] {
-    --fan-selected-x: 0rem;
+    --fan-selected-x: 0.75rem;
   }
 
   .vaultPackFanMotion > .vaultPackShortcut:nth-child(1)[data-fan-selected="true"] {
