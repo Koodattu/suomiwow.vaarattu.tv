@@ -42,15 +42,40 @@ type BotCharacterGuild = {
 
 class SearchService {
   private botCharacterCandidateCache: { expiresAt: number; candidates: BotSearchCandidate[] } | null = null;
+  private siteSearchCache = new Map<string, { expiresAt: number; results: SearchResult[] }>();
+  private siteSearchPromises = new Map<string, Promise<SearchResult[]>>();
 
   async searchSite(query: string, requestedLimit = 5): Promise<SearchResult[]> {
-    const trimmedQuery = query.trim();
+    const trimmedQuery = query.trim().slice(0, 60);
     const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 5, 1), 5);
 
     if (trimmedQuery.length < 2) {
       return [];
     }
 
+    const cacheKey = `${normalizeSearchText(trimmedQuery)}:${limit}`;
+    const cached = this.siteSearchCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.results;
+    const pending = this.siteSearchPromises.get(cacheKey);
+    if (pending) return pending;
+
+    const searchPromise = this.searchSiteUncached(trimmedQuery, limit)
+      .then((results) => {
+        if (this.siteSearchCache.size >= 200) {
+          const oldestKey = this.siteSearchCache.keys().next().value;
+          if (oldestKey) this.siteSearchCache.delete(oldestKey);
+        }
+        this.siteSearchCache.set(cacheKey, { expiresAt: Date.now() + 2 * 60 * 1000, results });
+        return results;
+      })
+      .finally(() => {
+        this.siteSearchPromises.delete(cacheKey);
+      });
+    this.siteSearchPromises.set(cacheKey, searchPromise);
+    return searchPromise;
+  }
+
+  private async searchSiteUncached(trimmedQuery: string, limit: number): Promise<SearchResult[]> {
     const selectedValueResult = await this.findSelectedValueResult(trimmedQuery);
     if (selectedValueResult) {
       return [selectedValueResult];
@@ -59,10 +84,13 @@ class SearchService {
     const nameMatch = new RegExp(escapeRegex(trimmedQuery), "i");
     const perTypeLimit = limit;
 
-    const [guilds, characters] = await Promise.all([
+    const [guilds, currentCharacters] = await Promise.all([
       Guild.find({ name: nameMatch }).sort({ name: 1, realm: 1 }).limit(perTypeLimit).select("name realm iconUrl crest faction -_id").lean(),
-      characterService.searchCharacters(trimmedQuery, perTypeLimit),
+      characterService.searchCurrentCharacters(trimmedQuery, perTypeLimit),
     ]);
+    const characters = currentCharacters.length > 0
+      ? currentCharacters
+      : await characterService.searchCharacters(trimmedQuery, perTypeLimit);
 
     return [
       ...guilds.map((guild) => ({

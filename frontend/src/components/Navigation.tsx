@@ -195,12 +195,13 @@ export default function Navigation() {
     }
 
     let isActiveRequest = true;
+    const controller = new AbortController();
     setIsSearchLoading(true);
     setSearchError(false);
 
     const timeoutId = window.setTimeout(() => {
       api
-        .searchSite(trimmedSearchQuery, 5)
+        .searchSite(trimmedSearchQuery, 5, controller.signal)
         .then((data) => {
           if (!isActiveRequest) return;
           setSearchResults(data.results);
@@ -218,6 +219,7 @@ export default function Navigation() {
 
     return () => {
       isActiveRequest = false;
+      controller.abort();
       window.clearTimeout(timeoutId);
     };
   }, [isSearchDropdownOpen, trimmedSearchQuery]);
