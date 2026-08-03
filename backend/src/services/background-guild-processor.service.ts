@@ -1030,8 +1030,14 @@ class BackgroundGuildProcessor {
 
       let fightsProcessed = 0;
       const seenCanonicalIDs = new Set<string>();
-
+      const killsByReport = new Map<string, typeof mythicKills>();
       for (const fight of mythicKills) {
+        const reportFights = killsByReport.get(fight.reportCode) ?? [];
+        reportFights.push(fight);
+        killsByReport.set(fight.reportCode, reportFights);
+      }
+
+      for (const [reportCode, reportFights] of killsByReport) {
         // Check rate limit before each API call
         if (!rateLimitService.canProceedBackground()) {
           guildLog.info(`[CharacterRescan] Rate limit threshold reached, pausing...`);
@@ -1050,7 +1056,7 @@ class BackgroundGuildProcessor {
         }
 
         try {
-          const charData = await wclService.getFightCharacters(fight.reportCode, fight.fightId);
+          const charData = await wclService.getReportCharacters(reportCode);
           const rankedChars = charData?.reportData?.report?.rankedCharacters || [];
 
           for (const char of rankedChars) {
@@ -1068,16 +1074,16 @@ class BackgroundGuildProcessor {
             seenCanonicalIDs.add(char.canonicalID);
           }
 
-          fightsProcessed++;
+          fightsProcessed += reportFights.length;
           await queueItem.updateProgress(fightsProcessed, seenCanonicalIDs.size, fightsProcessed, totalFights);
 
           // Delay between API calls
           await new Promise((resolve) => setTimeout(resolve, this.config.fetchDelay));
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Unknown error";
-          guildLog.error(`[CharacterRescan] Failed for fight ${fight.fightId} in report ${fight.reportCode}: ${errorMessage}`);
-          // Continue with next fight — non-fatal per-fight error
-          fightsProcessed++;
+          guildLog.error(`[CharacterRescan] Failed for report ${reportCode}: ${errorMessage}`);
+          // Continue with the next report; character discovery is report-level.
+          fightsProcessed += reportFights.length;
         }
       }
 
@@ -1169,12 +1175,26 @@ class BackgroundGuildProcessor {
           const isRankingsOnlyRetry = report.charactersFetchStatus === "fetched" && !report.rankingsFetchedAt;
 
           let wclReport: any = null;
+          let rankingsIncludedInReportFetch = false;
           let rankedCharacters: any[] = [];
           let rankedResult: { processed: number; skipped: number } = { processed: 0, skipped: 0 };
           let canonicalMatches = isRankingsOnlyRetry ? await characterService.getCanonicalMatchesFromReportAppearances(report.code) : [];
 
           if (!isRankingsOnlyRetry) {
-            const reportData = await wclService.getReportByCodeAllDifficulties(report.code, { includeRankedCharacters: true });
+            let reportData: any;
+            try {
+              reportData = await wclService.getReportByCodeAllDifficulties(report.code, {
+                includeRankedCharacters: true,
+                includeRankings: true,
+                rankingsDifficulty: 5,
+              });
+              rankingsIncludedInReportFetch = true;
+            } catch (combinedError) {
+              guildLog.warn(
+                `[ReportCharacterBackfill] Combined report/rankings query failed for ${report.code}; retrying the established separate path: ${combinedError instanceof Error ? combinedError.message : String(combinedError)}`,
+              );
+              reportData = await wclService.getReportByCodeAllDifficulties(report.code, { includeRankedCharacters: true });
+            }
             wclReport = reportData.reportData?.report;
 
             if (!wclReport) {
@@ -1222,7 +1242,9 @@ class BackgroundGuildProcessor {
           }
 
           try {
-            const rankingCharacters = await wclService.getReportRankingsCharacters(report.code, 5);
+            const rankingCharacters = rankingsIncludedInReportFetch
+              ? wclService.parseReportRankingsCharacters(wclReport?.rankings)
+              : await wclService.getReportRankingsCharacters(report.code, 5);
             rankingsCharacterCount = rankingCharacters.length;
             fallbackResult = await characterService.upsertCharactersFromReportRankingAppearances({
               reportCode: wclReport?.code || report.code,

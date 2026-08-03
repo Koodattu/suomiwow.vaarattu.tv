@@ -32,6 +32,8 @@ type ReportFight = {
   kill?: boolean;
 };
 
+const RATE_LIMIT_PROBE_COST = 1;
+
 function getArg(name: string): string | undefined {
   const prefix = `--${name}=`;
   const match = process.argv.find((arg) => arg.startsWith(prefix));
@@ -68,17 +70,13 @@ async function measure<T>(
 ): Promise<MeasuredQueryResult<T>> {
   const before = await getRateLimit(`${label}:before`);
   const result = await wclService.query<T>(query, variables);
-  const after = (result as { rateLimitData?: RateLimitData }).rateLimitData;
-
-  if (!after) {
-    throw new Error(`Measured query did not return rateLimitData: ${label}`);
-  }
+  const after = await getRateLimit(`${label}:after`);
 
   const queryResult = {
     label,
     before,
     after,
-    cost: after.pointsSpentThisHour - before.pointsSpentThisHour,
+    cost: after.pointsSpentThisHour - before.pointsSpentThisHour - RATE_LIMIT_PROBE_COST,
     summary: summarize(result),
   } as MeasuredQueryResult<T>;
 
@@ -453,7 +451,7 @@ async function main(): Promise<void> {
     storedFightCount: storedFightIds.length,
     wclEncounterFightCount: reportFightIds.length,
     measuredAt: new Date().toISOString(),
-    note: "cost is pointsSpentThisHour delta from the probe immediately before each measured query; probe cost itself is excluded",
+    note: "cost uses standalone probes immediately before and after each measured query; the one-point before-probe charge is excluded",
     totals: {
       wholeReportMeasuredCost: totalWholeReportCost,
       perFightMeasuredCost: totalPerFightCost,

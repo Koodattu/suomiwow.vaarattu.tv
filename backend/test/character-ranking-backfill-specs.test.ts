@@ -23,6 +23,16 @@ test("ranking backfill fetches every class spec even when one spec was already o
   assert.equal(queries.find((query: any) => query.specSlug === "devastation")?.source, "fallback");
 });
 
+test("ranking backfill recognizes WCL spec names whose stored slug contains punctuation", () => {
+  const service = characterRankingBackfillService as any;
+  const queries = service.buildSpecQueries({
+    classID: 3,
+    observedSpecNames: ["BeastMastery"],
+  });
+
+  assert.equal(queries.find((query: any) => query.specSlug === "beast-mastery")?.source, "observed");
+});
+
 test("ranking backfill cooperative stop interrupts a rate-limit wait", async () => {
   const service = characterRankingBackfillService as any;
   const rateLimit = rateLimitService as any;

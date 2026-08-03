@@ -17,6 +17,11 @@ type FightDetailFetchOptions = {
   includeDeathEvents?: boolean;
 };
 
+type WclQueryTrackingOptions = {
+  estimatedPoints?: number;
+  sampleRateLimit?: boolean;
+};
+
 export type FightRosterParticipant = {
   name: string;
   server: string;
@@ -35,6 +40,31 @@ export type FightRosterResult = {
   error?: string;
 };
 
+type PlayerDetailsCount = {
+  name: string;
+  server: string;
+  role: "dps" | "healer" | "tank";
+  specName: string;
+  count: number;
+};
+
+type PlayerDetailsFightResult = {
+  participants: FightRosterParticipant[];
+  error?: string;
+};
+
+export type ReportRankingCharacter = {
+  name: string;
+  className: string;
+  specName?: string;
+  specNames: string[];
+  server: {
+    name: string;
+    region: string;
+  };
+  fightIds: number[];
+};
+
 class WarcraftLogsService {
   private accessToken: string | null = null;
   private tokenExpiry: number = 0;
@@ -47,6 +77,9 @@ class WarcraftLogsService {
   private readonly NETWORK_RETRY_ATTEMPTS = 3;
   private readonly NETWORK_RETRY_BASE_DELAY_MS = 1000;
   private readonly FIGHT_DETAILS_FIGHT_ID_BATCH_SIZE = 100;
+  private readonly PLAYER_DETAILS_FIGHT_ID_BATCH_SIZE = 20;
+  private rateLimitProbe: Promise<void> | null = null;
+  private lastRateLimitProbeAttemptAt = 0;
 
   private async authenticate(): Promise<string> {
     // Check if we have a valid token
@@ -100,9 +133,9 @@ class WarcraftLogsService {
   /**
    * Update the global rate limit service with data from API response
    */
-  private updateRateLimitFromResponse(rateLimitData: WCLRateLimitData | undefined): void {
+  private async updateRateLimitFromResponse(rateLimitData: WCLRateLimitData | undefined): Promise<void> {
     if (rateLimitData) {
-      rateLimitService.updateFromResponse(rateLimitData);
+      await rateLimitService.updateFromResponse(rateLimitData);
     }
   }
 
@@ -177,12 +210,24 @@ class WarcraftLogsService {
     };
   }
 
-  async query<T>(query: string, variables?: any, retryOnGatewayTimeout: boolean = false, serverErrorRetries: number = 0): Promise<T> {
-    return this.queryEndpoint<T>("client", query, variables, retryOnGatewayTimeout, serverErrorRetries);
+  async query<T>(
+    query: string,
+    variables?: any,
+    retryOnGatewayTimeout: boolean = false,
+    serverErrorRetries: number = 0,
+    tracking: WclQueryTrackingOptions = {},
+  ): Promise<T> {
+    return this.queryEndpoint<T>("client", query, variables, retryOnGatewayTimeout, serverErrorRetries, tracking);
   }
 
-  async queryUser<T>(query: string, variables?: any, retryOnGatewayTimeout: boolean = false, serverErrorRetries: number = 0): Promise<T> {
-    return this.queryEndpoint<T>("user", query, variables, retryOnGatewayTimeout, serverErrorRetries);
+  async queryUser<T>(
+    query: string,
+    variables?: any,
+    retryOnGatewayTimeout: boolean = false,
+    serverErrorRetries: number = 0,
+    tracking: WclQueryTrackingOptions = {},
+  ): Promise<T> {
+    return this.queryEndpoint<T>("user", query, variables, retryOnGatewayTimeout, serverErrorRetries, tracking);
   }
 
   async hasUserAuthConnected(): Promise<boolean> {
@@ -195,6 +240,7 @@ class WarcraftLogsService {
     variables?: any,
     retryOnGatewayTimeout: boolean = false,
     serverErrorRetries: number = 0,
+    tracking: WclQueryTrackingOptions = {},
   ): Promise<T> {
     // Add delay between requests to avoid bursting
     await this.requestDelay();
@@ -216,21 +262,21 @@ class WarcraftLogsService {
       const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 60000; // Default to 60s if not specified
       logger.warn(`⚠️  Rate limited by WCL API! Waiting ${Math.floor(waitTime / 1000)}s before retry...`);
       await new Promise((resolve) => setTimeout(resolve, waitTime));
-      return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries); // Retry the request
+      return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries, tracking); // Retry the request
     }
 
     // Handle gateway timeouts with infinite retry (only for initial fetch)
     if (retryOnGatewayTimeout && (response.status === 504 || response.statusText === "Gateway Time-out")) {
       logger.warn(`⚠️  Gateway timeout from WCL API! Retrying in 15 seconds...`);
       await new Promise((resolve) => setTimeout(resolve, 15000)); // Wait 15 seconds
-      return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries); // Retry the request
+      return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries, tracking); // Retry the request
     }
 
     if (response.status >= 500 && response.status < 600 && serverErrorRetries > 0) {
       const waitTime = (4 - serverErrorRetries) * 2000;
       logger.warn(`⚠️  WCL API ${response.status} ${response.statusText}; retrying in ${waitTime}ms (${serverErrorRetries} retries left)`);
       await new Promise((resolve) => setTimeout(resolve, waitTime));
-      return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries - 1);
+      return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries - 1, tracking);
     }
 
     if (!response.ok) {
@@ -241,14 +287,74 @@ class WarcraftLogsService {
 
     // Update global rate limit tracking from response
     if (result.data?.rateLimitData) {
-      this.updateRateLimitFromResponse(result.data.rateLimitData);
+      await this.updateRateLimitFromResponse(result.data.rateLimitData);
+    } else if (tracking.estimatedPoints) {
+      await rateLimitService.recordEstimatedUsage(tracking.estimatedPoints);
     }
 
     if (result.errors) {
       throw new Error(`WCL GraphQL error: ${JSON.stringify(result.errors)}`);
     }
 
+    if (tracking.sampleRateLimit && rateLimitService.shouldProbeApiState()) {
+      await this.maybeProbeRateLimit(endpoint);
+    }
+
     return result.data as T;
+  }
+
+  private async maybeProbeRateLimit(endpoint: "client" | "user"): Promise<void> {
+    if (this.rateLimitProbe) return this.rateLimitProbe;
+    if (Date.now() - this.lastRateLimitProbeAttemptAt < 30_000) return;
+
+    this.lastRateLimitProbeAttemptAt = Date.now();
+    this.rateLimitProbe = this.probeRateLimit(endpoint).finally(() => {
+      this.rateLimitProbe = null;
+    });
+    return this.rateLimitProbe;
+  }
+
+  private async probeRateLimit(endpoint: "client" | "user"): Promise<void> {
+    try {
+      await this.requestDelay();
+      const token = endpoint === "client" ? await this.authenticate() : await wclUserAuthService.getAccessToken();
+      const query = `
+        query {
+          rateLimitData {
+            limitPerHour
+            pointsSpentThisHour
+            pointsResetIn
+          }
+        }
+      `;
+      const response = await this.fetchWithNetworkRetry(`https://www.warcraftlogs.com/api/v2/${endpoint}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query }),
+      }, `${endpoint} rate-limit probe`);
+      if (!response.ok) {
+        logger.warn(`[RateLimit] WCL probe failed: ${response.status} ${response.statusText}`);
+        return;
+      }
+
+      const result = (await response.json()) as { data?: { rateLimitData?: WCLRateLimitData }; errors?: unknown };
+      if (result.errors || !result.data?.rateLimitData) {
+        logger.warn(`[RateLimit] WCL probe returned no usable rate-limit data`);
+        return;
+      }
+
+      // A standalone rateLimitData resolver can report the value immediately
+      // before its own one-point charge, so keep tracking conservative.
+      await this.updateRateLimitFromResponse({
+        ...result.data.rateLimitData,
+        pointsSpentThisHour: result.data.rateLimitData.pointsSpentThisHour + 1,
+      });
+    } catch (error) {
+      logger.warn(`[RateLimit] WCL probe failed; retaining conservative local estimate: ${this.formatError(error)}`);
+    }
   }
 
   private shouldRetryReportWithUserEndpoint(error: unknown): boolean {
@@ -466,14 +572,20 @@ class WarcraftLogsService {
   }
 
   // Get a single report by code with fights - ALL difficulties (not filtered)
-  async getReportByCodeAllDifficulties(reportCode: string, options: { includeRankedCharacters?: boolean; forceUserEndpoint?: boolean } = {}) {
-    const query = `
-      query($reportCode: String!, $includeRankedCharacters: Boolean!) {
+  async getReportByCodeAllDifficulties(
+    reportCode: string,
+    options: { includeRankedCharacters?: boolean; includeRankings?: boolean; rankingsDifficulty?: number; forceUserEndpoint?: boolean } = {},
+  ) {
+    const rateLimitField = options.includeRankings ? "" : `
         rateLimitData {
           limitPerHour
           pointsSpentThisHour
           pointsResetIn
         }
+    `;
+    const query = `
+      query($reportCode: String!, $includeRankedCharacters: Boolean!, $includeRankings: Boolean!, $rankingsDifficulty: Int!) {
+        ${rateLimitField}
         reportData {
           report(code: $reportCode) {
             code
@@ -508,6 +620,7 @@ class WarcraftLogsService {
                 }
               }
             }
+            rankings(compare: Rankings, timeframe: Historical, difficulty: $rankingsDifficulty) @include(if: $includeRankings)
             phases {
               encounterID
               separatesWipes
@@ -540,16 +653,19 @@ class WarcraftLogsService {
     const variables = {
       reportCode,
       includeRankedCharacters: options.includeRankedCharacters === true,
+      includeRankings: options.includeRankings === true,
+      rankingsDifficulty: options.rankingsDifficulty ?? 5,
     };
+    const tracking = options.includeRankings ? { estimatedPoints: 5, sampleRateLimit: true } : {};
 
     if (options.forceUserEndpoint) {
       logger.info(`[API REQUEST] WarcraftLogsService.getReportByCodeAllDifficulties - POST https://www.warcraftlogs.com/api/v2/user (forced, report: ${reportCode})`);
-      return this.queryUser<any>(query, variables);
+      return this.queryUser<any>(query, variables, false, 0, tracking);
     }
 
     try {
       logger.info(`[API REQUEST] WarcraftLogsService.getReportByCodeAllDifficulties - POST https://www.warcraftlogs.com/api/v2/client (report: ${reportCode})`);
-      return await this.query<any>(query, variables);
+      return await this.query<any>(query, variables, false, 0, tracking);
     } catch (error) {
       if (!this.shouldRetryReportWithUserEndpoint(error)) {
         throw error;
@@ -561,7 +677,7 @@ class WarcraftLogsService {
 
       try {
         logger.info(`[API REQUEST] WarcraftLogsService.getReportByCodeAllDifficulties - POST https://www.warcraftlogs.com/api/v2/user (user-auth retry, report: ${reportCode})`);
-        return await this.queryUser<any>(query, variables);
+        return await this.queryUser<any>(query, variables, false, 0, tracking);
       } catch (userError) {
         const originalMessage = error instanceof Error ? error.message : String(error);
         const userMessage = userError instanceof Error ? userError.message : String(userError);
@@ -570,27 +686,10 @@ class WarcraftLogsService {
     }
   }
 
-  async getReportRankingsCharacters(reportCode: string, difficulty = 5): Promise<
-    Array<{
-      name: string;
-      className: string;
-      specName?: string;
-      specNames: string[];
-      server: {
-        name: string;
-        region: string;
-      };
-      fightIds: number[];
-    }>
-  > {
+  async getReportRankingsCharacters(reportCode: string, difficulty = 5): Promise<ReportRankingCharacter[]> {
     logger.info(`[API REQUEST] WarcraftLogsService.getReportRankingsCharacters - POST https://www.warcraftlogs.com/api/v2/client (report: ${reportCode}, difficulty: ${difficulty})`);
     const query = `
       query($reportCode: String!, $difficulty: Int!) {
-        rateLimitData {
-          limitPerHour
-          pointsSpentThisHour
-          pointsResetIn
-        }
         reportData {
           report(code: $reportCode) {
             rankings(compare: Rankings, timeframe: Historical, difficulty: $difficulty)
@@ -599,8 +698,12 @@ class WarcraftLogsService {
       }
     `;
 
-    const result = await this.query<any>(query, { reportCode, difficulty }, false, 2);
-    const rankingRows = Array.isArray(result?.reportData?.report?.rankings?.data) ? result.reportData.report.rankings.data : [];
+    const result = await this.query<any>(query, { reportCode, difficulty }, false, 2, { estimatedPoints: 5, sampleRateLimit: true });
+    return this.parseReportRankingsCharacters(result?.reportData?.report?.rankings);
+  }
+
+  parseReportRankingsCharacters(rankings: any): ReportRankingCharacter[] {
+    const rankingRows = Array.isArray(rankings?.data) ? rankings.data : [];
     const getStringValue = (value: any): string | undefined => {
       if (typeof value === "string") return value;
       if (typeof value?.slug === "string") return value.slug;
@@ -1021,18 +1124,10 @@ class WarcraftLogsService {
     return this.query<any>(query, variables);
   }
 
-  /**
-   * Fetch characters who participated in a specific fight
-   * Used for leaderboard character discovery
-   */
-  async getFightCharacters(reportCode: string, fightId: number) {
+  /** Fetch the report-level ranked character list used for discovery. */
+  async getReportCharacters(reportCode: string) {
     const query = `
-      query($reportCode: String!, $fightId: Int!) {
-        rateLimitData {
-          limitPerHour
-          pointsSpentThisHour
-          pointsResetIn
-        }
+      query($reportCode: String!) {
         reportData {
           report(code: $reportCode) {
             rankedCharacters {
@@ -1056,13 +1151,6 @@ class WarcraftLogsService {
                 }
               }
             }
-            fights(fightIDs: [$fightId]) {
-              id
-              encounterID
-              name
-              difficulty
-              kill
-            }
           }
         }
       }
@@ -1070,10 +1158,9 @@ class WarcraftLogsService {
 
     const variables = {
       reportCode,
-      fightId,
     };
 
-    const result = await this.query<any>(query, variables);
+    const result = await this.query<any>(query, variables, false, 2, { estimatedPoints: 2, sampleRateLimit: true });
 
     // Get tracked guilds based on environment
     const trackedGuilds = process.env.NODE_ENV === "production" ? GUILDS_PROD : GUILDS_DEV;
@@ -1104,6 +1191,10 @@ class WarcraftLogsService {
     }
 
     return result;
+  }
+
+  async getFightCharacters(reportCode: string, _fightId: number) {
+    return this.getReportCharacters(reportCode);
   }
 
   /**
@@ -1227,22 +1318,22 @@ class WarcraftLogsService {
 
     const rawRosters = this.parseRawCombatantInfoByFight(report, report.masterData?.actors ?? []);
     const rosters: Record<string, FightRosterResult> = {};
+    const fallbackFightIds = fightIds.filter((fightId) => {
+      const participants = rawRosters.get(fightId) ?? [];
+      return participants.length === 0 || participants.some((participant) => !participant.specName);
+    });
+    const fallbackByFight = await this.getPlayerDetailsRostersForFights(
+      reportCode,
+      fallbackFightIds,
+      options.forceUserEndpoint === true,
+    );
 
     for (const fightId of fightIds) {
       const rawParticipants = rawRosters.get(fightId) ?? [];
       const rawNeedsFallback = rawParticipants.length === 0 || rawParticipants.some((participant) => !participant.specName);
-      let fallbackParticipants: FightRosterParticipant[] = [];
-      let fallbackError: string | undefined;
-
-      if (rawNeedsFallback) {
-        try {
-          const playerDetails = await this.getPlayerDetailsForFight(reportCode, fightId, options.forceUserEndpoint === true);
-          fallbackParticipants = this.parsePlayerDetailsRoster(playerDetails);
-        } catch (error) {
-          fallbackError = error instanceof Error ? error.message : String(error);
-          logger.warn(`[FightRoster] playerDetails fallback failed for report ${reportCode}, fight ${fightId}: ${fallbackError}`);
-        }
-      }
+      const fallbackResult = rawNeedsFallback ? fallbackByFight.get(fightId) : undefined;
+      const fallbackParticipants = fallbackResult?.participants ?? [];
+      const fallbackError = fallbackResult?.error;
 
       const participants = this.mergeFightRosterParticipants(rawParticipants, fallbackParticipants);
       const knownSpecCount = participants.filter((participant) => Boolean(participant.specName)).length;
@@ -1268,14 +1359,88 @@ class WarcraftLogsService {
     report.fightRosters = rosters;
   }
 
-  private async getPlayerDetailsForFight(reportCode: string, fightId: number, forceUserEndpoint: boolean): Promise<any> {
+  private async getPlayerDetailsRostersForFights(
+    reportCode: string,
+    fightIds: number[],
+    forceUserEndpoint: boolean,
+  ): Promise<Map<number, PlayerDetailsFightResult>> {
+    const results = new Map<number, PlayerDetailsFightResult>();
+
+    for (let index = 0; index < fightIds.length; index += this.PLAYER_DETAILS_FIGHT_ID_BATCH_SIZE) {
+      const chunk = fightIds.slice(index, index + this.PLAYER_DETAILS_FIGHT_ID_BATCH_SIZE);
+      if (chunk.length === 1) {
+        await this.fetchSinglePlayerDetailsRoster(reportCode, chunk[0], forceUserEndpoint, results);
+        continue;
+      }
+
+      let groupedResponse: any;
+      try {
+        groupedResponse = await this.getPlayerDetailsForFights(reportCode, chunk, forceUserEndpoint);
+      } catch (error) {
+        logger.warn(`[FightRoster] grouped playerDetails fallback failed for report ${reportCode}, ${chunk.length} fights: ${this.formatError(error)}`);
+        for (const fightId of chunk) {
+          await this.fetchSinglePlayerDetailsRoster(reportCode, fightId, forceUserEndpoint, results);
+        }
+        continue;
+      }
+
+      const groupedCounts = this.parsePlayerDetailsCounts(groupedResponse);
+      const stableRoster = this.playerDetailsCountsToRoster(groupedCounts, chunk.length);
+      if (stableRoster) {
+        for (const fightId of chunk) results.set(fightId, { participants: stableRoster.map((participant) => ({ ...participant })) });
+        continue;
+      }
+
+      const individualCounts: PlayerDetailsCount[][] = [];
+      let allIndividualsSucceeded = true;
+      for (const fightId of chunk.slice(0, -1)) {
+        try {
+          const response = await this.getPlayerDetailsForFights(reportCode, [fightId], forceUserEndpoint);
+          const participants = this.parsePlayerDetailsRoster(response);
+          const counts = this.parsePlayerDetailsCounts(response);
+          individualCounts.push(counts);
+          results.set(fightId, { participants });
+        } catch (error) {
+          allIndividualsSucceeded = false;
+          const message = this.formatError(error);
+          results.set(fightId, { participants: [], error: message });
+          logger.warn(`[FightRoster] playerDetails fallback failed for report ${reportCode}, fight ${fightId}: ${message}`);
+        }
+      }
+
+      const omittedFightId = chunk[chunk.length - 1];
+      const derivedRoster = allIndividualsSucceeded
+        ? this.derivePlayerDetailsRoster(groupedCounts, individualCounts)
+        : null;
+      if (derivedRoster) {
+        results.set(omittedFightId, { participants: derivedRoster });
+      } else {
+        await this.fetchSinglePlayerDetailsRoster(reportCode, omittedFightId, forceUserEndpoint, results);
+      }
+    }
+
+    return results;
+  }
+
+  private async fetchSinglePlayerDetailsRoster(
+    reportCode: string,
+    fightId: number,
+    forceUserEndpoint: boolean,
+    results: Map<number, PlayerDetailsFightResult>,
+  ): Promise<void> {
+    try {
+      const response = await this.getPlayerDetailsForFights(reportCode, [fightId], forceUserEndpoint);
+      results.set(fightId, { participants: this.parsePlayerDetailsRoster(response) });
+    } catch (error) {
+      const message = this.formatError(error);
+      results.set(fightId, { participants: [], error: message });
+      logger.warn(`[FightRoster] playerDetails fallback failed for report ${reportCode}, fight ${fightId}: ${message}`);
+    }
+  }
+
+  private async getPlayerDetailsForFights(reportCode: string, fightIds: number[], forceUserEndpoint: boolean): Promise<any> {
     const query = `
       query($reportCode: String!, $fightIds: [Int]!) {
-        rateLimitData {
-          limitPerHour
-          pointsSpentThisHour
-          pointsResetIn
-        }
         reportData {
           report(code: $reportCode) {
             playerDetails(fightIDs: $fightIds)
@@ -1283,20 +1448,21 @@ class WarcraftLogsService {
         }
       }
     `;
-    const variables = { reportCode, fightIds: [fightId] };
+    const variables = { reportCode, fightIds };
+    const tracking = { estimatedPoints: 2, sampleRateLimit: true };
 
     if (forceUserEndpoint) {
-      logger.info(`[API REQUEST] WarcraftLogsService.getPlayerDetailsForFight - POST https://www.warcraftlogs.com/api/v2/user (forced, report: ${reportCode}, fight: ${fightId})`);
-      return this.queryUser<any>(query, variables);
+      logger.info(`[API REQUEST] WarcraftLogsService.getPlayerDetailsForFights - POST https://www.warcraftlogs.com/api/v2/user (forced, report: ${reportCode}, fights: ${fightIds.length})`);
+      return this.queryUser<any>(query, variables, false, 0, tracking);
     }
 
     try {
-      logger.info(`[API REQUEST] WarcraftLogsService.getPlayerDetailsForFight - POST https://www.warcraftlogs.com/api/v2/client (report: ${reportCode}, fight: ${fightId})`);
-      return await this.query<any>(query, variables);
+      logger.info(`[API REQUEST] WarcraftLogsService.getPlayerDetailsForFights - POST https://www.warcraftlogs.com/api/v2/client (report: ${reportCode}, fights: ${fightIds.length})`);
+      return await this.query<any>(query, variables, false, 0, tracking);
     } catch (error) {
       if (!this.shouldRetryReportWithUserEndpoint(error) || !(await this.hasUserAuthConnected())) throw error;
-      logger.info(`[API REQUEST] WarcraftLogsService.getPlayerDetailsForFight - POST https://www.warcraftlogs.com/api/v2/user (user-auth retry, report: ${reportCode}, fight: ${fightId})`);
-      return this.queryUser<any>(query, variables);
+      logger.info(`[API REQUEST] WarcraftLogsService.getPlayerDetailsForFights - POST https://www.warcraftlogs.com/api/v2/user (user-auth retry, report: ${reportCode}, fights: ${fightIds.length})`);
+      return this.queryUser<any>(query, variables, false, 0, tracking);
     }
   }
 
@@ -1307,14 +1473,11 @@ class WarcraftLogsService {
   ): Promise<any> {
     // Use maximum API limit to fetch all deaths
     const queryLimit = 10000;
+    const combineDeathsAndCombatants = options.includeDeathEvents !== false && options.includeCombatantInfo === true;
+    const estimatedPoints = combineDeathsAndCombatants ? 3 : 2;
 
     const query = `
       query($reportCode: String!, $fightIds: [Int]!, $limit: Int!) {
-        rateLimitData {
-          limitPerHour
-          pointsSpentThisHour
-          pointsResetIn
-        }
         reportData {
           report(code: $reportCode) {
             code
@@ -1326,7 +1489,18 @@ class WarcraftLogsService {
                 server
               }
             }
-            ${options.includeDeathEvents === false ? "" : `
+            ${combineDeathsAndCombatants ? `
+            combinedFightEvents: events(
+              fightIDs: $fightIds,
+              dataType: All,
+              hostilityType: Friendlies,
+              filterExpression: "(type = \\\"death\\\" AND target.type = \\\"Player\\\") OR type = \\\"combatantinfo\\\"",
+              limit: $limit
+            ) {
+              data
+              nextPageTimestamp
+            }
+            ` : options.includeDeathEvents === false ? "" : `
             events(
               fightIDs: $fightIds,
               dataType: Deaths,
@@ -1337,7 +1511,7 @@ class WarcraftLogsService {
               nextPageTimestamp
             }
             `}
-            ${options.includeCombatantInfo ? `
+            ${options.includeCombatantInfo && !combineDeathsAndCombatants ? `
             combatantInfoEvents: events(
               fightIDs: $fightIds,
               dataType: CombatantInfo,
@@ -1361,13 +1535,15 @@ class WarcraftLogsService {
 
     if (options.forceUserEndpoint) {
       logger.info(`[API REQUEST] WarcraftLogsService.getDeathEventsForReport - POST https://www.warcraftlogs.com/api/v2/user (forced, report: ${reportCode}, ${fightIds.length} fights)`);
-      const response = await this.queryUser<any>(query, variables);
+      const response = await this.queryUser<any>(query, variables, false, 0, { estimatedPoints, sampleRateLimit: true });
+      this.normalizeCombinedFightDetailEvents(response, combineDeathsAndCombatants);
       return this.ensureCompleteFightDetailBatch(reportCode, fightIds, options, response);
     }
 
     try {
       logger.info(`[API REQUEST] WarcraftLogsService.getDeathEventsForReport - POST https://www.warcraftlogs.com/api/v2/client (report: ${reportCode}, ${fightIds.length} fights)`);
-      const response = await this.query<any>(query, variables);
+      const response = await this.query<any>(query, variables, false, 0, { estimatedPoints, sampleRateLimit: true });
+      this.normalizeCombinedFightDetailEvents(response, combineDeathsAndCombatants);
       return this.ensureCompleteFightDetailBatch(reportCode, fightIds, options, response);
     } catch (error) {
       if (!this.shouldRetryReportWithUserEndpoint(error)) {
@@ -1380,7 +1556,8 @@ class WarcraftLogsService {
 
       try {
         logger.info(`[API REQUEST] WarcraftLogsService.getDeathEventsForReport - POST https://www.warcraftlogs.com/api/v2/user (user-auth retry, report: ${reportCode}, ${fightIds.length} fights)`);
-        const response = await this.queryUser<any>(query, variables);
+        const response = await this.queryUser<any>(query, variables, false, 0, { estimatedPoints, sampleRateLimit: true });
+        this.normalizeCombinedFightDetailEvents(response, combineDeathsAndCombatants);
         return this.ensureCompleteFightDetailBatch(reportCode, fightIds, options, response);
       } catch (userError) {
         const originalMessage = error instanceof Error ? error.message : String(error);
@@ -1388,6 +1565,24 @@ class WarcraftLogsService {
         throw new Error(`${originalMessage}; WCL /user retry failed: ${userMessage}`);
       }
     }
+  }
+
+  private normalizeCombinedFightDetailEvents(response: any, combined: boolean): void {
+    if (!combined) return;
+    const report = response?.reportData?.report;
+    const combinedEvents = report?.combinedFightEvents;
+    if (!combinedEvents) return;
+
+    const events = Array.isArray(combinedEvents.data) ? combinedEvents.data : [];
+    report.events = {
+      data: events.filter((event: any) => event?.type === "death"),
+      nextPageTimestamp: combinedEvents.nextPageTimestamp ?? null,
+    };
+    report.combatantInfoEvents = {
+      data: events.filter((event: any) => event?.type === "combatantinfo"),
+      nextPageTimestamp: combinedEvents.nextPageTimestamp ?? null,
+    };
+    delete report.combinedFightEvents;
   }
 
   private async ensureCompleteFightDetailBatch(
@@ -1588,11 +1783,7 @@ class WarcraftLogsService {
   }
 
   parsePlayerDetailsRoster(response: any): FightRosterParticipant[] {
-    const playerDetails = response?.reportData?.report?.playerDetails?.data?.playerDetails
-      ?? response?.reportData?.report?.playerDetails?.playerDetails
-      ?? response?.playerDetails?.data?.playerDetails
-      ?? response?.data?.playerDetails
-      ?? response?.playerDetails;
+    const playerDetails = this.getPlayerDetailsPayload(response);
     if (!playerDetails || typeof playerDetails !== "object") return [];
 
     const roleGroups: Array<["healers" | "dps" | "tanks", "healer" | "dps" | "tank"]> = [
@@ -1625,6 +1816,105 @@ class WarcraftLogsService {
     }
 
     return Array.from(participants.values());
+  }
+
+  private getPlayerDetailsPayload(response: any): any {
+    return response?.reportData?.report?.playerDetails?.data?.playerDetails
+      ?? response?.reportData?.report?.playerDetails?.playerDetails
+      ?? response?.playerDetails?.data?.playerDetails
+      ?? response?.data?.playerDetails
+      ?? response?.playerDetails;
+  }
+
+  private parsePlayerDetailsCounts(response: any): PlayerDetailsCount[] {
+    const playerDetails = this.getPlayerDetailsPayload(response);
+    if (!playerDetails || typeof playerDetails !== "object") return [];
+
+    const roleGroups: Array<["healers" | "dps" | "tanks", "healer" | "dps" | "tank"]> = [
+      ["healers", "healer"],
+      ["dps", "dps"],
+      ["tanks", "tank"],
+    ];
+    const counts = new Map<string, PlayerDetailsCount>();
+
+    for (const [groupName, role] of roleGroups) {
+      const rows = Array.isArray(playerDetails[groupName]) ? playerDetails[groupName] : [];
+      for (const row of rows) {
+        if (!row?.name) continue;
+        const server = typeof row.server === "string" && row.server.trim() ? row.server.trim() : "Unknown";
+        const specs = Array.isArray(row.specs) ? row.specs : [];
+        for (const spec of specs) {
+          if (typeof spec?.spec !== "string" || !spec.spec.trim()) continue;
+          const count = Number(spec.count);
+          if (!Number.isFinite(count) || count <= 0) continue;
+          const specName = slugifySpecName(spec.spec.trim());
+          const key = `${this.getRosterIdentityKey(row.name, server)}|${role}|${specName}`;
+          const existing = counts.get(key);
+          counts.set(key, {
+            name: row.name,
+            server,
+            role,
+            specName,
+            count: (existing?.count ?? 0) + count,
+          });
+        }
+      }
+    }
+
+    return Array.from(counts.values());
+  }
+
+  private playerDetailsCountsToRoster(counts: PlayerDetailsCount[], expectedCount: number): FightRosterParticipant[] | null {
+    if (counts.length === 0 || expectedCount <= 0) return null;
+
+    const byPlayer = new Map<string, PlayerDetailsCount[]>();
+    for (const count of counts) {
+      const key = this.getRosterIdentityKey(count.name, count.server);
+      const entries = byPlayer.get(key) ?? [];
+      entries.push(count);
+      byPlayer.set(key, entries);
+    }
+
+    const participants: FightRosterParticipant[] = [];
+    for (const entries of byPlayer.values()) {
+      if (entries.length !== 1 || entries[0].count !== expectedCount) return null;
+      const entry = entries[0];
+      participants.push({
+        name: entry.name,
+        server: entry.server,
+        specID: null,
+        specName: entry.specName,
+        role: entry.role,
+        source: "player_details",
+      });
+    }
+    return participants;
+  }
+
+  private derivePlayerDetailsRoster(
+    groupedCounts: PlayerDetailsCount[],
+    individualCounts: PlayerDetailsCount[][],
+  ): FightRosterParticipant[] | null {
+    if (groupedCounts.length === 0) return null;
+
+    const remaining = new Map<string, PlayerDetailsCount>();
+    const toCountKey = (entry: PlayerDetailsCount) => `${this.getRosterIdentityKey(entry.name, entry.server)}|${entry.role}|${entry.specName}`;
+    for (const entry of groupedCounts) remaining.set(toCountKey(entry), { ...entry });
+
+    for (const counts of individualCounts) {
+      if (counts.length === 0) return null;
+      for (const entry of counts) {
+        const key = toCountKey(entry);
+        const aggregate = remaining.get(key);
+        if (!aggregate || aggregate.count < entry.count) return null;
+        aggregate.count -= entry.count;
+      }
+    }
+
+    return this.playerDetailsCountsToRoster(
+      Array.from(remaining.values()).filter((entry) => entry.count > 0),
+      1,
+    );
   }
 
   private mergeFightRosterParticipants(

@@ -2280,6 +2280,7 @@ class GuildService {
           let rostersByFight = new Map<number, FightRosterResult>();
           let deathEventsFetchedAt: Date | null = null;
           let combatantInfoFetchedAt: Date | null = null;
+          let discoverReportCharacters = false;
           if (fightDetailFightIds.length > 0) {
             try {
               const deathData = await wclService.getDeathEventsForReport(report.code, fightDetailFightIds, {
@@ -2373,31 +2374,35 @@ class GuildService {
 
             // ADD CHARACTER DISCOVERY: Fetch characters for Mythic kills in current raids
             if (fight.kill && difficulty === 5 && CURRENT_RAID_IDS.includes(zoneId || 0)) {
-              try {
-                const charData = await wclService.getFightCharacters(report.code, fight.id);
-                const rankedChars = charData?.reportData?.report?.rankedCharacters || [];
-
-                for (const char of rankedChars) {
-                  const { guildName, guildRealm } = wclService.getPrimaryGuildInfo(char);
-                  await characterService.upsertCharacterFromReport({
-                    canonicalID: char.canonicalID,
-                    name: char.name,
-                    serverSlug: char.server.slug,
-                    serverRegion: char.server.region.slug,
-                    classID: char.classID,
-                    hidden: char.hidden,
-                    guildName,
-                    guildRealm,
-                  });
-                }
-
-                guildLog.info(`Saved ${rankedChars.length} characters from fight ${fight.id} in report ${report.code}`);
-              } catch (error) {
-                guildLog.error(`Failed to fetch characters for fight ${fight.id}:`, error);
-              }
+              discoverReportCharacters = true;
             }
 
             totalFightsSaved++;
+          }
+
+          if (discoverReportCharacters) {
+            try {
+              const charData = await wclService.getReportCharacters(report.code);
+              const rankedChars = charData?.reportData?.report?.rankedCharacters || [];
+
+              for (const char of rankedChars) {
+                const { guildName, guildRealm } = wclService.getPrimaryGuildInfo(char);
+                await characterService.upsertCharacterFromReport({
+                  canonicalID: char.canonicalID,
+                  name: char.name,
+                  serverSlug: char.server.slug,
+                  serverRegion: char.server.region.slug,
+                  classID: char.classID,
+                  hidden: char.hidden,
+                  guildName,
+                  guildRealm,
+                });
+              }
+
+              guildLog.info(`Saved ${rankedChars.length} characters from report ${report.code}`);
+            } catch (error) {
+              guildLog.error(`Failed to fetch characters for report ${report.code}:`, error);
+            }
           }
         }
       }
@@ -2946,7 +2951,7 @@ class GuildService {
         }
 
         const fightWrites: any[] = [];
-        const characterDiscoveryTargets: Array<{ reportCode: string; fightId: number }> = [];
+        let discoverReportCharacters = false;
 
         for (const fight of report.fights) {
           const encounterId = fight.encounterID;
@@ -3036,7 +3041,7 @@ class GuildService {
 
           // Existing ranking-discovery path: keep this scoped to new current-tier Mythic kills.
           if (fight.kill && difficulty === 5 && CURRENT_RAID_IDS.includes(fightZoneId || 0)) {
-            characterDiscoveryTargets.push({ reportCode: report.code, fightId: fight.id });
+            discoverReportCharacters = true;
           }
 
           newFightsInThisReport++;
@@ -3047,9 +3052,9 @@ class GuildService {
           await Fight.bulkWrite(fightWrites, { ordered: false });
         }
 
-        for (const target of characterDiscoveryTargets) {
+        if (discoverReportCharacters) {
           try {
-            const charData = await wclService.getFightCharacters(target.reportCode, target.fightId);
+            const charData = await wclService.getReportCharacters(report.code);
             const rankedChars = charData?.reportData?.report?.rankedCharacters || [];
 
             for (const char of rankedChars) {
@@ -3066,9 +3071,9 @@ class GuildService {
               });
             }
 
-            guildLog.info(`Saved ${rankedChars.length} ranking-discovery characters from fight ${target.fightId} in report ${target.reportCode}`);
+            guildLog.info(`Saved ${rankedChars.length} ranking-discovery characters from report ${report.code}`);
           } catch (error) {
-            guildLog.error(`Failed to fetch ranking-discovery characters for fight ${target.fightId}:`, error);
+            guildLog.error(`Failed to fetch ranking-discovery characters for report ${report.code}:`, error);
           }
         }
 

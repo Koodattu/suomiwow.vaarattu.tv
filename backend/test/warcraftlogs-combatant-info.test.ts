@@ -93,6 +93,161 @@ test("fight detail fetching attaches a per-fight playerDetails fallback roster",
   }
 });
 
+test("fight detail fetching combines player deaths and CombatantInfo into one filtered event field", async () => {
+  const service = warcraftLogsService as any;
+  const originalQuery = service.query;
+  let capturedQuery = "";
+
+  service.query = async (query: string) => {
+    capturedQuery = query;
+    return {
+      reportData: { report: {
+        code: "COMBINED",
+        masterData: { actors: [{ id: 1, name: "Violetcar", server: "Kazzak" }] },
+        combinedFightEvents: {
+          data: [
+            { type: "death", fight: 1, targetID: 1 },
+            { type: "combatantinfo", fight: 1, sourceID: 1, specID: 1473 },
+          ],
+          nextPageTimestamp: null,
+        },
+      } },
+    };
+  };
+
+  try {
+    const response = await service.getDeathEventsForReport("COMBINED", [1], { includeCombatantInfo: true });
+
+    assert.match(capturedQuery, /dataType:\s*All/);
+    assert.match(capturedQuery, /target\.type = \\"Player\\"/);
+    assert.doesNotMatch(capturedQuery, /dataType:\s*Deaths/);
+    assert.doesNotMatch(capturedQuery, /dataType:\s*CombatantInfo/);
+    assert.equal(response.reportData.report.events.data.length, 1);
+    assert.equal(response.reportData.report.combatantInfoEvents.data.length, 1);
+  } finally {
+    service.query = originalQuery;
+  }
+});
+
+test("stable playerDetails chunks use one grouped table for every fight", async () => {
+  const service = warcraftLogsService as any;
+  const originalQuery = service.query;
+  const playerDetailFightIds: number[][] = [];
+
+  service.query = async (query: string, variables: { fightIds: number[] }) => {
+    if (/playerDetails\s*\(/.test(query)) {
+      playerDetailFightIds.push(variables.fightIds);
+      return {
+        reportData: { report: { playerDetails: { data: { playerDetails: {
+          healers: [],
+          dps: [{ name: "Violetcar", server: "Kazzak", specs: [{ spec: "Augmentation", count: variables.fightIds.length }] }],
+          tanks: [],
+        } } } } },
+      };
+    }
+    return {
+      reportData: { report: {
+        code: "STABLE",
+        masterData: { actors: [] },
+        combinedFightEvents: { data: [], nextPageTimestamp: null },
+      } },
+    };
+  };
+
+  try {
+    const response = await service.getDeathEventsForReport("STABLE", [1, 2, 3], { includeCombatantInfo: true });
+    const rosters = service.parseFightRostersByFight(response.reportData.report, []);
+
+    assert.deepEqual(playerDetailFightIds, [[1, 2, 3]]);
+    assert.deepEqual([1, 2, 3].map((fightId) => rosters.get(fightId)?.participants[0]?.specName), [
+      "augmentation",
+      "augmentation",
+      "augmentation",
+    ]);
+  } finally {
+    service.query = originalQuery;
+  }
+});
+
+test("variable playerDetails chunks derive the omitted fight without an extra table call", async () => {
+  const service = warcraftLogsService as any;
+  const originalQuery = service.query;
+  const playerDetailFightIds: number[][] = [];
+  const details = (healers: any[], dps: any[]) => ({
+    reportData: { report: { playerDetails: { data: { playerDetails: { healers, dps, tanks: [] } } } } },
+  });
+
+  service.query = async (query: string, variables: { fightIds: number[] }) => {
+    if (!/playerDetails\s*\(/.test(query)) {
+      return {
+        reportData: { report: {
+          code: "VARIABLE",
+          masterData: { actors: [] },
+          combinedFightEvents: { data: [], nextPageTimestamp: null },
+        } },
+      };
+    }
+
+    playerDetailFightIds.push(variables.fightIds);
+    if (variables.fightIds.length === 3) {
+      return details(
+        [{ name: "Healz", server: "Kazzak", specs: [{ spec: "Preservation", count: 1 }] }],
+        [
+          { name: "Violetcar", server: "Kazzak", specs: [{ spec: "Augmentation", count: 3 }] },
+          { name: "Other", server: "Kazzak", specs: [{ spec: "Devastation", count: 2 }] },
+        ],
+      );
+    }
+    if (variables.fightIds[0] === 1) {
+      return details([], [
+        { name: "Violetcar", server: "Kazzak", specs: [{ spec: "Augmentation", count: 1 }] },
+        { name: "Other", server: "Kazzak", specs: [{ spec: "Devastation", count: 1 }] },
+      ]);
+    }
+    return details(
+      [{ name: "Healz", server: "Kazzak", specs: [{ spec: "Preservation", count: 1 }] }],
+      [{ name: "Violetcar", server: "Kazzak", specs: [{ spec: "Augmentation", count: 1 }] }],
+    );
+  };
+
+  try {
+    const response = await service.getDeathEventsForReport("VARIABLE", [1, 2, 3], { includeCombatantInfo: true });
+    const rosters = service.parseFightRostersByFight(response.reportData.report, []);
+
+    assert.deepEqual(playerDetailFightIds, [[1, 2, 3], [1], [2]]);
+    assert.deepEqual(rosters.get(3)?.participants.map((participant: any) => participant.name).sort(), ["Other", "Violetcar"]);
+  } finally {
+    service.query = originalQuery;
+  }
+});
+
+test("report rankings parser accepts rankings returned with report metadata", () => {
+  const characters = warcraftLogsService.parseReportRankingsCharacters({
+    data: [{
+      fightID: 7,
+      roles: {
+        dps: {
+          characters: [{
+            name: "Violetcar",
+            class: "Evoker",
+            spec: "Augmentation",
+            server: { name: "Kazzak", region: "EU" },
+          }],
+        },
+      },
+    }],
+  });
+
+  assert.deepEqual(characters, [{
+    name: "Violetcar",
+    className: "Evoker",
+    specName: "Augmentation",
+    specNames: ["Augmentation"],
+    server: { name: "Kazzak", region: "EU" },
+    fightIds: [7],
+  }]);
+});
+
 test("fight detail fetching batches long reports and merges deaths and CombatantInfo", async () => {
   const service = warcraftLogsService as any;
   const originalQuery = service.query;

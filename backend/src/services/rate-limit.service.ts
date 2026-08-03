@@ -46,12 +46,17 @@ interface RateLimitConfig {
  */
 class RateLimitService {
   private readonly stateKey = "warcraftlogs";
+  private readonly apiProbeRequestInterval = 25;
+  private readonly apiProbeMaxAgeMs = 5 * 60 * 1000;
+  private readonly apiProbeNearLimitRequestInterval = 5;
 
   // Current rate limit state
   private pointsUsed: number = 0;
   private pointsMax: number = 3600; // Default WCL limit, updated from API responses
   private resetAt: Date = new Date();
   private lastUpdated: Date = new Date(0);
+  private lastApiProbeAt: Date = new Date(0);
+  private estimatedRequestsSinceApiProbe = 0;
 
   // Manual pause state (admin can pause background processing)
   private manualPause: boolean = false;
@@ -71,7 +76,7 @@ class RateLimitService {
    * Update rate limit state from WCL API response
    * Should be called after every WCL API request
    */
-  updateFromResponse(rateLimitData: WCLRateLimitData): void {
+  async updateFromResponse(rateLimitData: WCLRateLimitData): Promise<void> {
     if (!rateLimitData) {
       return;
     }
@@ -82,7 +87,9 @@ class RateLimitService {
     this.pointsMax = rateLimitData.limitPerHour;
     this.resetAt = new Date(Date.now() + rateLimitData.pointsResetIn * 1000);
     this.lastUpdated = new Date();
-    void this.persistState();
+    this.lastApiProbeAt = this.lastUpdated;
+    this.estimatedRequestsSinceApiProbe = 0;
+    await this.persistState();
 
     const percentUsed = this.getPercentUsed();
     const isNearNow = this.isNearLimit();
@@ -188,6 +195,29 @@ class RateLimitService {
       }
     }
     await this.persistState({ includeManualPause: true });
+  }
+
+  /**
+   * Conservatively account for an API query that intentionally omitted
+   * rateLimitData. A later standalone probe replaces this estimate with WCL's
+   * authoritative shared-key usage.
+   */
+  async recordEstimatedUsage(points: number): Promise<void> {
+    if (!Number.isFinite(points) || points <= 0) return;
+    if (this.hasResetOccurred()) this.pointsUsed = 0;
+
+    this.pointsUsed += Math.ceil(points);
+    this.estimatedRequestsSinceApiProbe += 1;
+    this.lastUpdated = new Date();
+    await this.persistState();
+  }
+
+  shouldProbeApiState(): boolean {
+    const probeAgeMs = Date.now() - this.lastApiProbeAt.getTime();
+    if (probeAgeMs >= this.apiProbeMaxAgeMs) return true;
+    if (this.estimatedRequestsSinceApiProbe >= this.apiProbeRequestInterval) return true;
+    return this.getPercentUsed() >= this.config.warningThreshold
+      && this.estimatedRequestsSinceApiProbe >= this.apiProbeNearLimitRequestInterval;
   }
 
   async refreshSharedState(): Promise<void> {

@@ -248,7 +248,11 @@ function normalizeObservedSpecSlug(specName: string, classSpecMap: Record<string
   if (!slug) return null;
   if (classSpecMap[slug]) return slug;
 
-  const matchingClassSpec = Object.keys(classSpecMap).find((classSpec) => slug.startsWith(`${classSpec}-`) || slug.endsWith(`-${classSpec}`));
+  const compactSlug = slug.replace(/-/g, "");
+  const matchingClassSpec = Object.keys(classSpecMap).find((classSpec) => {
+    const compactClassSpec = classSpec.replace(/-/g, "");
+    return compactSlug === compactClassSpec || slug.startsWith(`${classSpec}-`) || slug.endsWith(`-${classSpec}`);
+  });
   return matchingClassSpec ?? null;
 }
 
@@ -1020,7 +1024,7 @@ class CharacterRankingBackfillService {
 
         try {
           const specQueries = this.buildSpecQueries(item);
-          const estimatedPoints = specQueries.length > 0 ? Math.max(ESTIMATED_POINTS_PER_RANKING_ALIAS, specQueries.length * ESTIMATED_POINTS_PER_RANKING_ALIAS) : 0;
+          const estimatedPoints = specQueries.length > 0 ? specQueries.length * ESTIMATED_POINTS_PER_RANKING_ALIAS + 1 : 0;
 
           logger.info(
             `[CharacterRankingBackfill] Processing ${item.name}-${item.realm} zone ${item.zoneId} (${item.raidName ?? "unknown raid"}), attempt ${item.attempts}/${item.maxAttempts}, aliases=${specQueries.length}, specs=${this.describeSpecQueries(specQueries)}`,
@@ -1160,6 +1164,7 @@ class CharacterRankingBackfillService {
       },
       false,
       2,
+      { estimatedPoints: specQueries.length * ESTIMATED_POINTS_PER_RANKING_ALIAS + 1, sampleRateLimit: true },
     );
 
     const character = result.characterData?.character;
@@ -1379,11 +1384,6 @@ class CharacterRankingBackfillService {
 
     return `
       query($characterId: Int!, $zoneID: Int!) {
-        rateLimitData {
-          limitPerHour
-          pointsSpentThisHour
-          pointsResetIn
-        }
         characterData {
           character(id: $characterId) {
             id
