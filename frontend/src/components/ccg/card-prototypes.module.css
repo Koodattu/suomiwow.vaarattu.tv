@@ -2436,13 +2436,6 @@
     var(--raid-tone) 100%
   );
   --raid-quality-background-size: 240% 100%;
-  --raid-quality-filter-from: brightness(1.04) contrast(1.1) saturate(1.12);
-  --raid-quality-filter-to: brightness(1.22) contrast(1.18) saturate(1.34);
-  --raid-quality-hover-filter: brightness(calc(1.12 + var(--pointer-distance) * 0.24)) contrast(1.16) saturate(1.32);
-  --raid-quality-letter-spacing: 0.055em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.96),
-    0 0 7px color-mix(in srgb, var(--raid-tone) 48%, transparent);
   --raid-quality-sweep-start: 10%;
   --raid-quality-sweep-end: 90%;
 }
@@ -2478,17 +2471,15 @@
 }
 
 .prototypeCard[data-raid-preview-finish="true"] .qualityLabel {
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.34)),
-    var(--raid-quality-background);
+  background: var(--raid-quality-background);
   background-clip: text;
   background-position: var(--raid-quality-sweep-start) center;
   background-size: var(--raid-quality-background-size);
   color: transparent;
-  filter: var(--raid-quality-filter-from);
-  font-weight: 900;
-  letter-spacing: var(--raid-quality-letter-spacing);
-  text-shadow: var(--raid-quality-shadow);
+  filter: brightness(1.08) saturate(1.08);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 4px color-mix(in srgb, var(--raid-tone) 24%, transparent);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   transition-property: filter;
@@ -3240,12 +3231,8 @@
 
 /* Raid quality names retain shared behavior but use finish-specific materials. */
 .prototypeCard.relic {
-  --raid-quality-background: repeating-linear-gradient(102deg, #a66f3f 0 10%, #bd8148 12%, #f4c982 15%, #fff1c6 16.5%, #c88c4d 19%, #99633a 27%);
+  --raid-quality-background: linear-gradient(102deg, #a66f3f 0%, #bd8148 18%, #f4c982 36%, #fff1c6 48%, #c88c4d 66%, #99633a 100%);
   --raid-quality-background-size: 190% 100%;
-  --raid-quality-letter-spacing: 0.08em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.98),
-    0 0 4px rgba(207, 148, 66, 0.3);
   --raid-quality-sweep-start: 8%;
   --raid-quality-sweep-end: 82%;
 }
@@ -3253,21 +3240,13 @@
 .prototypeCard.slagforged {
   --raid-quality-background: linear-gradient(94deg, #a9553d 0%, #bf5439 12%, #ff5524 24%, #ffd270 34%, #a65a3d 46%, #ff7a2e 60%, #fff0b0 67%, #a0523b 82%, #ff5124 100%);
   --raid-quality-background-size: 270% 100%;
-  --raid-quality-letter-spacing: 0.045em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.98),
-    0 0 6px rgba(255, 77, 28, 0.42);
   --raid-quality-sweep-start: 0%;
   --raid-quality-sweep-end: 100%;
 }
 
 .prototypeCard.felscorched {
-  --raid-quality-background: repeating-linear-gradient(112deg, #63973d 0 11%, #70aa3d 13%, #a5ff45 16%, #efffb1 17.5%, #7bd946 20%, #527f32 27%);
+  --raid-quality-background: linear-gradient(112deg, #63973d 0%, #70aa3d 18%, #a5ff45 36%, #efffb1 49%, #7bd946 68%, #527f32 100%);
   --raid-quality-background-size: 205% 100%;
-  --raid-quality-letter-spacing: 0.055em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.98),
-    0 0 6px rgba(116, 255, 49, 0.4);
   --raid-quality-sweep-start: 88%;
   --raid-quality-sweep-end: 12%;
 }
@@ -3275,21 +3254,13 @@
 .prototypeCard.nightmare {
   --raid-quality-background: radial-gradient(ellipse at center, #ffd0d8 0%, #e22a51 17%, #b84664 42%, #a83f59 62%, #c64e6a 78%, #ff6a7f 100%);
   --raid-quality-background-size: 220% 150%;
-  --raid-quality-letter-spacing: 0.07em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.98),
-    0 0 7px rgba(198, 16, 54, 0.42);
   --raid-quality-sweep-start: 18%;
   --raid-quality-sweep-end: 76%;
 }
 
 .prototypeCard.nightwell {
-  --raid-quality-background: linear-gradient(90deg, #15256f 0%, #5c73ff 18%, #d4c8ff 34%, #67f2ff 48%, #7450ee 64%, #ffffff 78%, #25378e 100%);
+  --raid-quality-background: linear-gradient(90deg, #536fc2 0%, #6c83ff 18%, #d4c8ff 34%, #67f2ff 48%, #8068f0 64%, #ffffff 78%, #657fd0 100%);
   --raid-quality-background-size: 255% 100%;
-  --raid-quality-letter-spacing: 0.065em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.96),
-    0 0 7px rgba(91, 111, 255, 0.38);
   --raid-quality-sweep-start: 5%;
   --raid-quality-sweep-end: 94%;
 }
@@ -3297,62 +3268,34 @@
 .prototypeCard.moonfall {
   --raid-quality-background: linear-gradient(104deg, #6f8fcf 0%, #eaf5ff 22%, #b9c7e8 37%, #8d86cb 52%, #ffffff 66%, #779be0 84%, #d9e9ff 100%);
   --raid-quality-background-size: 210% 100%;
-  --raid-quality-filter-from: brightness(1.02) contrast(1.08) saturate(0.88);
-  --raid-quality-filter-to: brightness(1.14) contrast(1.12) saturate(1.04);
-  --raid-quality-hover-filter: brightness(calc(1.08 + var(--pointer-distance) * 0.18)) contrast(1.12) saturate(1.08);
-  --raid-quality-letter-spacing: 0.08em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.94),
-    0 0 5px rgba(178, 209, 255, 0.3);
   --raid-quality-sweep-start: 12%;
   --raid-quality-sweep-end: 82%;
 }
 
 .prototypeCard.worldcore {
-  --raid-quality-background: repeating-linear-gradient(100deg, #a65b3a 0 9%, #ff3c1f 12%, #ffd05a 14%, #e7ff8b 16%, #70cf46 18%, #96603a 25%);
+  --raid-quality-background: linear-gradient(100deg, #a65b3a 0%, #ff5a35 20%, #ffd05a 37%, #e7ff8b 50%, #70cf46 67%, #96603a 100%);
   --raid-quality-background-size: 215% 100%;
-  --raid-quality-letter-spacing: 0.045em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.98),
-    0 0 6px rgba(255, 73, 29, 0.38),
-    0 0 3px rgba(125, 255, 63, 0.22);
   --raid-quality-sweep-start: 4%;
   --raid-quality-sweep-end: 96%;
 }
 
 .prototypeCard.quarantine {
-  --raid-quality-background: linear-gradient(90deg, #072924 0%, #3ddbc8 18%, #eafff6 32%, #e0c76f 45%, #162f31 56%, #65efd8 70%, #fff4bf 84%, #0c4742 100%);
+  --raid-quality-background: linear-gradient(90deg, #3f7b73 0%, #3ddbc8 18%, #eafff6 32%, #e0c76f 45%, #527c79 56%, #65efd8 70%, #fff4bf 84%, #43847c 100%);
   --raid-quality-background-size: 230% 100%;
-  --raid-quality-letter-spacing: 0.075em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.98),
-    -0.35px 0 rgba(79, 228, 211, 0.42),
-    0.35px 0 rgba(230, 204, 119, 0.34);
   --raid-quality-sweep-start: 16%;
   --raid-quality-sweep-end: 84%;
 }
 
 .prototypeCard.tempest {
-  --raid-quality-background: repeating-linear-gradient(118deg, #102759 0 12%, #3d9ee8 15%, #f3fbff 17%, #e7b94c 19%, #6dbaff 22%, #132f63 29%);
+  --raid-quality-background: linear-gradient(118deg, #517bc5 0%, #3d9ee8 18%, #f3fbff 34%, #e7b94c 50%, #6dbaff 68%, #5b83c9 100%);
   --raid-quality-background-size: 220% 100%;
-  --raid-quality-letter-spacing: 0.06em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.98),
-    0 0 7px rgba(73, 164, 229, 0.4),
-    0 0 3px rgba(231, 185, 76, 0.28);
   --raid-quality-sweep-start: 8%;
   --raid-quality-sweep-end: 94%;
 }
 
 .prototypeCard.abyssal {
-  --raid-quality-background: radial-gradient(ellipse at center, #ffffff 0%, #b8f6ff 14%, #58dbe4 30%, #9a7be8 50%, #34286a 66%, #70e3e7 82%, #f0dfff 100%);
+  --raid-quality-background: radial-gradient(ellipse at center, #ffffff 0%, #b8f6ff 14%, #58dbe4 30%, #9a7be8 50%, #725f9d 66%, #70e3e7 82%, #f0dfff 100%);
   --raid-quality-background-size: 225% 160%;
-  --raid-quality-filter-from: brightness(1.02) contrast(1.08) saturate(1.04);
-  --raid-quality-filter-to: brightness(1.16) contrast(1.14) saturate(1.18);
-  --raid-quality-letter-spacing: 0.055em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.94),
-    0 0 7px rgba(91, 221, 231, 0.34);
   --raid-quality-sweep-start: 26%;
   --raid-quality-sweep-end: 74%;
 }
@@ -3360,13 +3303,6 @@
 .prototypeCard.empire {
   --raid-quality-background: linear-gradient(92deg, #b85a70 0%, #b34b62 14%, #d72e4e 26%, #ffb838 34%, #af4f65 41%, #c23c5a 58%, #ffcb57 66%, #aa5066 79%, #d7435f 100%);
   --raid-quality-background-size: 265% 100%;
-  --raid-quality-filter-from: brightness(1) contrast(1.24) saturate(1.16);
-  --raid-quality-filter-to: brightness(1.15) contrast(1.32) saturate(1.36);
-  --raid-quality-letter-spacing: 0.085em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 1),
-    0 0 6px rgba(191, 4, 43, 0.42),
-    0 0 2px rgba(255, 184, 56, 0.32);
   --raid-quality-sweep-start: 0%;
   --raid-quality-sweep-end: 100%;
 }
@@ -3374,45 +3310,27 @@
 .prototypeCard.sanguine {
   --raid-quality-background: linear-gradient(104deg, #b54d6a 0%, #ad4560 18%, #d82f54 30%, #f3c276 38%, #b24a66 48%, #cf3d5e 65%, #ffe0a2 73%, #a64b62 88%, #cc405e 100%);
   --raid-quality-background-size: 225% 100%;
-  --raid-quality-letter-spacing: 0.065em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 1),
-    0 0 7px rgba(205, 20, 62, 0.38),
-    0 0 2px rgba(240, 197, 123, 0.3);
   --raid-quality-sweep-start: 10%;
   --raid-quality-sweep-end: 88%;
 }
 
 .prototypeCard.runebound {
-  --raid-quality-background: repeating-linear-gradient(90deg, #5d7fc9 0 9%, #83a8ff 12%, #eff7ff 13.5%, #bdd7ff 15%, #637fc5 19%, #526fb8 27%);
+  --raid-quality-background: linear-gradient(90deg, #5d7fc9 0%, #83a8ff 20%, #eff7ff 40%, #bdd7ff 55%, #637fc5 73%, #526fb8 100%);
   --raid-quality-background-size: 195% 100%;
-  --raid-quality-letter-spacing: 0.09em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.98),
-    0 0 6px rgba(113, 153, 255, 0.4);
   --raid-quality-sweep-start: 90%;
   --raid-quality-sweep-end: 10%;
 }
 
 .prototypeCard.progenitor {
-  --raid-quality-background: repeating-linear-gradient(120deg, #123a36 0 10%, #68d8c9 13%, #effffb 15%, #dcc781 17%, #5baea4 19%, #152b2a 26%);
+  --raid-quality-background: linear-gradient(120deg, #4d827c 0%, #68d8c9 20%, #effffb 40%, #dcc781 58%, #5baea4 76%, #4a7773 100%);
   --raid-quality-background-size: 205% 100%;
-  --raid-quality-letter-spacing: 0.08em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.96),
-    -0.3px 0 rgba(125, 221, 199, 0.34),
-    0.3px 0 rgba(228, 202, 131, 0.32);
   --raid-quality-sweep-start: 14%;
   --raid-quality-sweep-end: 86%;
 }
 
 .prototypeCard.primalstorm {
-  --raid-quality-background: linear-gradient(96deg, #172a64 0%, #83cfff 18%, #ffffff 27%, #9d86ff 40%, #3e85ff 52%, #eaf9ff 64%, #5b63dc 78%, #bdeaff 100%);
+  --raid-quality-background: linear-gradient(96deg, #5c76bf 0%, #83cfff 18%, #ffffff 27%, #9d86ff 40%, #3e85ff 52%, #eaf9ff 64%, #6f7dde 78%, #bdeaff 100%);
   --raid-quality-background-size: 270% 100%;
-  --raid-quality-letter-spacing: 0.055em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.96),
-    0 0 7px rgba(91, 153, 255, 0.4);
   --raid-quality-sweep-start: 2%;
   --raid-quality-sweep-end: 98%;
 }
@@ -3420,23 +3338,13 @@
 .prototypeCard.shadowflame {
   --raid-quality-background: linear-gradient(96deg, #8d5bb4 0%, #9a5cff 17%, #fd5acb 28%, #ff6b25 42%, #fff1d4 49%, #925fc0 60%, #b76cff 72%, #ff7b2b 87%, #8250a8 100%);
   --raid-quality-background-size: 285% 100%;
-  --raid-quality-letter-spacing: 0.045em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.98),
-    -0.4px 0 rgba(123, 59, 255, 0.52),
-    0.4px 0 rgba(255, 92, 35, 0.48);
   --raid-quality-sweep-start: 0%;
   --raid-quality-sweep-end: 100%;
 }
 
 .prototypeCard.emberbloom {
-  --raid-quality-background: radial-gradient(ellipse at center, #eafff5 0%, #43d89c 20%, #257d65 38%, #ff7a32 53%, #a93e31 68%, #a777ff 82%, #43d89c 100%);
+  --raid-quality-background: radial-gradient(ellipse at center, #eafff5 0%, #43d89c 20%, #4fa98b 38%, #ff7a32 53%, #c76856 68%, #a777ff 82%, #43d89c 100%);
   --raid-quality-background-size: 235% 155%;
-  --raid-quality-letter-spacing: 0.06em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.96),
-    0 0 6px rgba(67, 216, 156, 0.34),
-    0 0 3px rgba(255, 122, 50, 0.26);
   --raid-quality-sweep-start: 22%;
   --raid-quality-sweep-end: 78%;
 }
@@ -3444,39 +3352,20 @@
 .prototypeCard.royal {
   --raid-quality-background: linear-gradient(103deg, #84609c 0%, #a86fd0 18%, #e5b95e 30%, #fff0b6 37%, #83569d 48%, #ce8ce8 64%, #e9cc7d 78%, #7e5896 100%);
   --raid-quality-background-size: 225% 100%;
-  --raid-quality-letter-spacing: 0.09em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.98),
-    0 0 6px rgba(155, 91, 219, 0.38),
-    0 0 2px rgba(232, 197, 110, 0.32);
   --raid-quality-sweep-start: 12%;
   --raid-quality-sweep-end: 88%;
 }
 
 .prototypeCard.jackpot {
-  --raid-quality-background: repeating-linear-gradient(96deg, #71808e 0 8%, #f4fbff 10%, #c7d0d7 12%, #e9a52f 15%, #fff4bd 17%, #d34d5b 19%, #786d69 25%);
+  --raid-quality-background: linear-gradient(96deg, #71808e 0%, #f4fbff 18%, #c7d0d7 34%, #e9a52f 50%, #fff4bd 63%, #d34d5b 78%, #786d69 100%);
   --raid-quality-background-size: 190% 100%;
-  --raid-quality-filter-from: brightness(1) contrast(1.14) saturate(0.96);
-  --raid-quality-filter-to: brightness(1.12) contrast(1.2) saturate(1.1);
-  --raid-quality-hover-filter: brightness(calc(1.06 + var(--pointer-distance) * 0.18)) contrast(1.2) saturate(1.12);
-  --raid-quality-letter-spacing: 0.075em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.98),
-    0 0 4px rgba(233, 165, 47, 0.28);
   --raid-quality-sweep-start: 10%;
   --raid-quality-sweep-end: 78%;
 }
 
 .prototypeCard.phaseglass {
-  --raid-quality-background: linear-gradient(90deg, #2a3fa8 0%, #5fd8ff 16%, #f4ffff 25%, #756bff 38%, #ff5fe7 52%, #c2a7ff 66%, #63f0ff 78%, #4033a8 90%, #ff79e8 100%);
+  --raid-quality-background: linear-gradient(90deg, #6172d5 0%, #5fd8ff 16%, #f4ffff 25%, #756bff 38%, #ff5fe7 52%, #c2a7ff 66%, #63f0ff 78%, #7164d5 90%, #ff79e8 100%);
   --raid-quality-background-size: 300% 100%;
-  --raid-quality-filter-from: brightness(1.04) contrast(1.14) saturate(1.22);
-  --raid-quality-filter-to: brightness(1.2) contrast(1.2) saturate(1.46);
-  --raid-quality-letter-spacing: 0.045em;
-  --raid-quality-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.96),
-    -0.4px 0 rgba(95, 216, 255, 0.54),
-    0.4px 0 rgba(255, 95, 231, 0.52);
   --raid-quality-sweep-start: 0%;
   --raid-quality-sweep-end: 100%;
 }
@@ -3617,7 +3506,7 @@
 }
 .prototypeCard[data-raid-preview-finish="true"]:is([data-pointer-active="true"], [data-forced-hover="true"]) .qualityLabel {
   background-position: var(--foil-x) center;
-  filter: var(--raid-quality-hover-filter);
+  filter: brightness(calc(1.1 + var(--pointer-distance) * 0.12)) saturate(1.16);
 }
 .prototypeCard.jackpot .materialLight {
   background:
@@ -4962,11 +4851,11 @@
 @keyframes prototypeRaidQualitySweep {
   from {
     background-position: var(--raid-quality-sweep-start) center;
-    filter: var(--raid-quality-filter-from);
+    filter: brightness(1.08) saturate(1.08);
   }
   to {
     background-position: var(--raid-quality-sweep-end) center;
-    filter: var(--raid-quality-filter-to);
+    filter: brightness(1.14) saturate(1.16);
   }
 }
 
