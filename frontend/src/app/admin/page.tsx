@@ -2400,6 +2400,9 @@ export default function AdminPage() {
                         },
                       )}
                     </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      During a ranking pass, restart from identity recovery to reuse existing fight details and reset every ranking pair.
+                    </p>
                   </div>
                 </div>
               </div>

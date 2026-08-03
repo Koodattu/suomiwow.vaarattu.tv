@@ -303,8 +303,8 @@ class CharacterRankingBackfillService {
   async triggerBackfill(
     options: { refreshCandidates?: boolean; reprocessCompleted?: boolean; reprocessAll?: boolean; zoneIds?: number[] } = {},
   ): Promise<CharacterRankingBackfillTriggerResult> {
-    if (options.reprocessAll === true && this.isRunning) {
-      throw new Error("Character ranking backfill is still running; wait for it to stop before resetting the queue");
+    if (options.reprocessAll === true && (this.isRunning || this.leaderboardRebuild.isRunning)) {
+      throw new Error("Character ranking maintenance is still running; wait for it to stop before resetting the queue");
     }
 
     const existingQueueItems = await CharacterRankingBackfill.countDocuments({});

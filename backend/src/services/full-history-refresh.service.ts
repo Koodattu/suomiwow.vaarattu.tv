@@ -323,10 +323,12 @@ class FullHistoryRefreshService {
       ...run.progress,
       message: status.processor.isRunning
         ? "Waiting for the current ranking request to finish before identity recovery"
-        : "Ranking worker stopped; starting identity recovery",
+        : status.leaderboardRebuild.isRunning
+          ? "Waiting for the character ranking-table rebuild to finish before identity recovery"
+          : "Ranking worker stopped; starting identity recovery",
       rankingQueue: status.queue,
     });
-    if (status.processor.isRunning) return;
+    if (status.processor.isRunning || status.leaderboardRebuild.isRunning) return;
 
     await this.advance(run, "queue_character_identities", {
       ...run.progress,

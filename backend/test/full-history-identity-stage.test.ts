@@ -113,6 +113,7 @@ test("identity-recovery restart waits for the ranking worker to stop before adva
     rankingService.requestStop = () => true;
     rankingService.getStatus = async () => ({
       processor: { isRunning: running },
+      leaderboardRebuild: { isRunning: false },
       queue: { pending: 100, inProgress: running ? 1 : 0, completed: 20, skipped: 0, failed: 0 },
     });
     service.updateProgress = async () => undefined;
