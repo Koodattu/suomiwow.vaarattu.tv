@@ -522,8 +522,13 @@ export default function CcgCollectionPage() {
   const moveCardPageSwipe = (event: ReactPointerEvent<HTMLElement>) => {
     const swipe = pageSwipeRef.current;
     if (swipe.pointerId !== event.pointerId) return;
-    const distance = Math.hypot(event.clientX - swipe.startX, event.clientY - swipe.startY);
-    if (swipe.moved || distance < 8) return;
+    const deltaX = event.clientX - swipe.startX;
+    const deltaY = event.clientY - swipe.startY;
+    if (swipe.moved || Math.hypot(deltaX, deltaY) < 8) return;
+    if (Math.abs(deltaY) >= Math.abs(deltaX)) {
+      pageSwipeRef.current = { pointerId: -1, startX: 0, startY: 0, moved: false };
+      return;
+    }
     swipe.moved = true;
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -537,19 +542,15 @@ export default function CcgCollectionPage() {
 
     const deltaX = event.clientX - swipe.startX;
     const deltaY = event.clientY - swipe.startY;
-    const horizontal = Math.abs(deltaX) >= Math.abs(deltaY);
-    const distance = horizontal ? Math.abs(deltaX) : Math.abs(deltaY);
     pageSwipeRef.current = { pointerId: -1, startX: 0, startY: 0, moved: false };
-    if (distance < pageSwipeThreshold) return;
+    if (Math.abs(deltaX) < Math.abs(deltaY) || Math.abs(deltaX) < pageSwipeThreshold) return;
 
     suppressCardClickRef.current = true;
     window.setTimeout(() => {
       suppressCardClickRef.current = false;
     }, 0);
 
-    const direction = horizontal
-      ? (deltaX > 0 ? -1 : 1)
-      : (deltaY > 0 ? -1 : 1);
+    const direction = deltaX > 0 ? -1 : 1;
     turnPage(direction);
   };
 

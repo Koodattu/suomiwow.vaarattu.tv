@@ -7,23 +7,31 @@ import { flushSync } from "react-dom";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, ReactNode } from "react";
 import { FaArrowUpRightFromSquare, FaVolumeHigh } from "react-icons/fa6";
+import { LuRotate3D } from "react-icons/lu";
 import type { CcgArtVariant, CcgCard, CcgFinish } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { bestOwnedFinish, CCG_RARITY_KEYS, compareCcgFinish } from "@/lib/ccg";
 import { playCcgInspectSound, playCcgQuip } from "@/lib/ccg-audio";
 import { formatRealmName } from "@/lib/utils";
-import CollectibleCard from "./CollectibleCard";
+import CollectibleCard, { applyCardMaterial, resetCardMaterial } from "./CollectibleCard";
 import CcgShareButton from "./CcgShareButton";
 import CcgShowcaseButton from "./CcgShowcaseButton";
 import styles from "./ccg.module.css";
 
 type ViewerPhase = "entering" | "open" | "closing";
+type MotionTiltState = "hidden" | "available" | "requesting" | "enabled" | "denied" | "unavailable";
 type ViewTransitionHandle = { finished: Promise<void> };
 type ViewTransitionDocument = Document & {
   startViewTransition?: (update: () => void) => ViewTransitionHandle;
 };
+type DeviceOrientationEventConstructorWithPermission = typeof DeviceOrientationEvent & {
+  requestPermission?: () => Promise<PermissionState>;
+};
 
 const CARD_VIEW_TRANSITION_NAME = "ccg-card-inspect";
+const MOTION_TILT_RANGE = 18;
+const MOTION_TILT_SMOOTHING = 0.18;
+const MOTION_TILT_READING_TIMEOUT_MS = 3000;
 const SNAPSHOT_DATE_FORMATTER = new Intl.DateTimeFormat("fi-FI", {
   day: "2-digit",
   month: "2-digit",
@@ -33,6 +41,18 @@ export type CardViewerOriginBounds = Pick<DOMRect, "left" | "top" | "width" | "h
   activationPoint?: Pick<MouseEvent, "clientX" | "clientY">;
 };
 type CardViewerActivationPoint = Pick<MouseEvent, "clientX" | "clientY" | "detail">;
+
+function screenOrientationAngle(): number {
+  const legacyOrientation = (window as Window & { orientation?: number }).orientation;
+  return ((window.screen.orientation?.angle ?? legacyOrientation ?? 0) + 360) % 360;
+}
+
+function screenRelativeOrientationDelta(beta: number, gamma: number, angle: number) {
+  if (angle === 90) return { x: beta, y: -gamma };
+  if (angle === 180) return { x: -gamma, y: -beta };
+  if (angle === 270) return { x: -beta, y: gamma };
+  return { x: gamma, y: beta };
+}
 
 function sourceCardElement(originElement: HTMLElement | null): HTMLElement | null {
   return originElement?.querySelector<HTMLElement>("[data-ccg-card]")
@@ -136,6 +156,7 @@ export default function CardViewer({
   const [variantIndex, setVariantIndex] = useState(clickedVariantIndex);
   const [phase, setPhase] = useState<ViewerPhase>(sharedTransition ? "open" : "entering");
   const [forcedPointer, setForcedPointer] = useState<{ x: number; y: number }>();
+  const [motionTiltState, setMotionTiltState] = useState<MotionTiltState>("hidden");
   const viewerRef = useRef<HTMLDivElement>(null);
   const cardMotionRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<number | null>(null);
@@ -165,6 +186,90 @@ export default function CardViewer({
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+
+  useEffect(() => {
+    const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!coarsePointer || reducedMotion) return;
+    const supported = window.isSecureContext
+      && "DeviceOrientationEvent" in window
+      && "ondeviceorientation" in window;
+    setMotionTiltState(supported ? "available" : "hidden");
+  }, []);
+
+  useEffect(() => {
+    if (motionTiltState !== "enabled") return;
+    let origin: { beta: number; gamma: number; angle: number } | null = null;
+    let smoothedX = 0.5;
+    let smoothedY = 0.5;
+    let pending: { x: number; y: number } | null = null;
+    let frame: number | null = null;
+    let receivedReading = false;
+
+    const unavailableTimer = window.setTimeout(() => {
+      if (!receivedReading) setMotionTiltState("unavailable");
+    }, MOTION_TILT_READING_TIMEOUT_MS);
+
+    const handleOrientation = (event: DeviceOrientationEvent) => {
+      if (event.beta === null || event.gamma === null) return;
+      receivedReading = true;
+      window.clearTimeout(unavailableTimer);
+      const angle = screenOrientationAngle();
+      if (!origin || origin.angle !== angle) {
+        origin = { beta: event.beta, gamma: event.gamma, angle };
+        return;
+      }
+
+      const delta = screenRelativeOrientationDelta(
+        event.beta - origin.beta,
+        event.gamma - origin.gamma,
+        angle,
+      );
+      const targetX = Math.max(0, Math.min(1, 0.5 + delta.x / (MOTION_TILT_RANGE * 2)));
+      const targetY = Math.max(0, Math.min(1, 0.5 + delta.y / (MOTION_TILT_RANGE * 2)));
+      smoothedX += (targetX - smoothedX) * MOTION_TILT_SMOOTHING;
+      smoothedY += (targetY - smoothedY) * MOTION_TILT_SMOOTHING;
+      pending = { x: smoothedX, y: smoothedY };
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        const element = cardMotionRef.current?.querySelector<HTMLElement>("[data-ccg-card]");
+        if (!element || !pending) return;
+        element.dataset.pointerActive = "true";
+        applyCardMaterial(element, pending.x, pending.y);
+        pending = null;
+      });
+    };
+
+    window.addEventListener("deviceorientation", handleOrientation);
+    return () => {
+      window.clearTimeout(unavailableTimer);
+      window.removeEventListener("deviceorientation", handleOrientation);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      const element = cardMotionRef.current?.querySelector<HTMLElement>("[data-ccg-card]");
+      if (!element) return;
+      delete element.dataset.pointerActive;
+      resetCardMaterial(element);
+    };
+  }, [motionTiltState]);
+
+  const toggleMotionTilt = async () => {
+    if (motionTiltState === "enabled") {
+      setMotionTiltState("available");
+      return;
+    }
+    if (motionTiltState === "requesting" || motionTiltState === "unavailable") return;
+    setMotionTiltState("requesting");
+    try {
+      const orientationEvent = DeviceOrientationEvent as DeviceOrientationEventConstructorWithPermission;
+      const permission = typeof orientationEvent.requestPermission === "function"
+        ? await orientationEvent.requestPermission()
+        : "granted";
+      setMotionTiltState(permission === "granted" ? "enabled" : "denied");
+    } catch {
+      setMotionTiltState("denied");
+    }
+  };
 
   useEffect(() => {
     if (!card.quip?.audioPath) return;
@@ -327,6 +432,17 @@ export default function CardViewer({
   }, [requestClose]);
 
   const phaseClass = phase === "open" ? styles.viewerBackdropOpen : phase === "closing" ? styles.viewerBackdropClosing : "";
+  const motionTiltLabel = t(
+    motionTiltState === "enabled"
+      ? "motionTiltDisable"
+      : motionTiltState === "requesting"
+        ? "motionTiltRequesting"
+        : motionTiltState === "denied"
+          ? "motionTiltDenied"
+          : motionTiltState === "unavailable"
+            ? "motionTiltUnavailable"
+            : "motionTiltEnable",
+  );
   const motionStyle = {
     "--viewer-origin-x": "0px",
     "--viewer-origin-y": "1.25rem",
@@ -374,6 +490,20 @@ export default function CardViewer({
             forcedPointer={forcedPointer}
             viewTransitionName={sharedTransition ? CARD_VIEW_TRANSITION_NAME : undefined}
           />
+          {motionTiltState !== "hidden" ? (
+            <button
+              type="button"
+              className={styles.viewerMotionTiltButton}
+              data-state={motionTiltState}
+              aria-label={motionTiltLabel}
+              aria-pressed={motionTiltState === "enabled"}
+              disabled={motionTiltState === "requesting" || motionTiltState === "unavailable"}
+              title={motionTiltLabel}
+              onClick={() => void toggleMotionTilt()}
+            >
+              <LuRotate3D aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
 
         <div className={styles.viewerInfo}>

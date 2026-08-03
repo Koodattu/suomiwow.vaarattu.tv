@@ -689,7 +689,12 @@
     "viewCharacter": "Näytä hahmon profiili",
     "viewCharacterLabel": "Avaa hahmon {name} profiili uudessa välilehdessä",
     "inspectCloseHint": "Sulje kortti painamalla Esc tai valitsemalla tausta.",
-    "playQuip": "Toista hahmon {name} repliikki"
+    "playQuip": "Toista hahmon {name} repliikki",
+    "motionTiltEnable": "Kallista korttia puhelimella",
+    "motionTiltDisable": "Poista liikekallistus käytöstä",
+    "motionTiltRequesting": "Pyydetään liiketunnistuksen käyttöoikeutta",
+    "motionTiltDenied": "Liiketunnistuksen käyttö estettiin",
+    "motionTiltUnavailable": "Liikekallistus ei ole käytettävissä"
   },
   "infoDialog": {
     "title": "Tietoa Sivustosta",

@@ -7349,6 +7349,7 @@
 }
 
 .viewerCardMotion {
+  position: relative;
   width: min(31rem, 42vw, calc((100dvh - 4rem) * 5 / 7));
   min-width: 0;
   pointer-events: auto;
@@ -7358,6 +7359,65 @@
   transition-duration: 420ms;
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform;
+}
+
+.viewerMotionTiltButton {
+  position: absolute;
+  z-index: 4;
+  top: 0.4rem;
+  right: -3.15rem;
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 0;
+  border-radius: 0.75rem;
+  background: rgba(5, 14, 30, 0.9);
+  color: #a9c5e4;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 1px rgba(192, 220, 255, 0.16),
+    0 8px 22px rgba(0, 0, 0, 0.38);
+  transition-property: color, background-color, box-shadow, opacity, transform;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+
+.viewerMotionTiltButton:hover:not(:disabled) {
+  background: rgba(13, 34, 65, 0.95);
+  color: #effaff;
+}
+
+.viewerMotionTiltButton:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.viewerMotionTiltButton:focus-visible {
+  outline: 2px solid #7ddcff;
+  outline-offset: 2px;
+}
+
+.viewerMotionTiltButton[data-state="enabled"] {
+  background: rgba(12, 69, 77, 0.94);
+  color: #8ff7ed;
+  box-shadow:
+    0 0 0 1px rgba(124, 247, 232, 0.34),
+    0 0 18px rgba(62, 225, 208, 0.2),
+    0 8px 22px rgba(0, 0, 0, 0.38);
+}
+
+.viewerMotionTiltButton[data-state="denied"] {
+  color: #ffaaa6;
+}
+
+.viewerMotionTiltButton:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.viewerMotionTiltButton > svg {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .viewerCard > [data-ccg-card] {
@@ -8160,6 +8220,11 @@
     justify-self: center;
   }
 
+  .viewerMotionTiltButton {
+    top: 0.3rem;
+    right: -0.9rem;
+  }
+
   .viewerInfo {
     width: min(100%, 32rem);
     max-height: none;
@@ -8437,7 +8502,7 @@
   .collectionBinder {
     min-height: 0;
     grid-template-columns: minmax(0, 1fr);
-    touch-action: pinch-zoom;
+    touch-action: pan-y pinch-zoom;
   }
 
   .collectionPageTurn {
@@ -8618,6 +8683,7 @@
 
   .viewerBackdrop::before,
   .viewerCardMotion,
+  .viewerMotionTiltButton,
   .viewerInfo,
   .viewerQuipButton,
   .accountTrigger > svg,

@@ -49,7 +49,8 @@ const mythicPlusScoreColors = [
   [200, "#ffffff"],
 ] as const;
 
-const TOUCH_TILT_CLICK_THRESHOLD = 8;
+const TOUCH_TILT_HOLD_MS = 220;
+const TOUCH_TILT_INTENT_THRESHOLD = 8;
 const TOUCH_CLICK_SUPPRESSION_MS = 500;
 
 function isWebmArtwork(path: string | null): path is string {
@@ -129,7 +130,7 @@ function mythicPlusScoreColor(value: number | null): string {
   return mythicPlusScoreColors.find(([minimum]) => value >= minimum)?.[1] ?? "#ffffff";
 }
 
-function applyCardMaterial(element: HTMLElement, x: number, y: number) {
+export function applyCardMaterial(element: HTMLElement, x: number, y: number) {
   const distance = Math.min(1, Math.hypot(x - 0.5, y - 0.5) / Math.SQRT1_2);
   element.style.setProperty("--tilt-x", `${((0.5 - y) * 7).toFixed(2)}deg`);
   element.style.setProperty("--tilt-y", `${((x - 0.5) * 8).toFixed(2)}deg`);
@@ -149,6 +150,12 @@ function applyCardMaterial(element: HTMLElement, x: number, y: number) {
     element.style.setProperty("--parallax-character-x", `${((x - 0.5) * 1.05).toFixed(3)}%`);
     element.style.setProperty("--parallax-character-y", `${((y - 0.38) * 0.6).toFixed(3)}%`);
   }
+}
+
+export function resetCardMaterial(element: HTMLElement) {
+  applyCardMaterial(element, 0.5, 0.38);
+  element.style.setProperty("--tilt-x", "0deg");
+  element.style.setProperty("--tilt-y", "0deg");
 }
 
 type CollectibleCardProps = {
@@ -196,7 +203,14 @@ export default function CollectibleCard({
   const metamorphicFilterId = `vault-metamorphic-${useId().replace(/:/g, "")}`;
   const materialFrame = useRef<number | null>(null);
   const pendingMaterial = useRef<{ element: HTMLElement; x: number; y: number } | null>(null);
-  const touchGesture = useRef<{ pointerId: number; startX: number; startY: number; moved: boolean } | null>(null);
+  const touchGesture = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    moved: boolean;
+    inspecting: boolean;
+  } | null>(null);
+  const touchTiltTimer = useRef<number | null>(null);
   const suppressTouchClickUntil = useRef(0);
   const cardRef = useRef<HTMLSpanElement | null>(null);
   const hadForcedPointer = useRef(false);
@@ -267,19 +281,33 @@ export default function CollectibleCard({
   useEffect(
     () => () => {
       if (materialFrame.current !== null) cancelAnimationFrame(materialFrame.current);
+      if (touchTiltTimer.current !== null) window.clearTimeout(touchTiltTimer.current);
     },
     [],
   );
 
+  const clearTouchTiltTimer = () => {
+    if (touchTiltTimer.current === null) return;
+    window.clearTimeout(touchTiltTimer.current);
+    touchTiltTimer.current = null;
+  };
+
   const updateMaterial = (event: ReactPointerEvent<HTMLElement>) => {
     if (!event.isPrimary) return;
     const gesture = touchGesture.current;
-    if (
-      gesture
-      && gesture.pointerId === event.pointerId
-      && Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) >= TOUCH_TILT_CLICK_THRESHOLD
-    ) {
+    if (event.pointerType === "touch") {
+      if (!gesture || gesture.pointerId !== event.pointerId) return;
+      const distance = Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY);
+      if (!gesture.inspecting) {
+        if (distance >= TOUCH_TILT_INTENT_THRESHOLD) {
+          gesture.moved = true;
+          clearTouchTiltTimer();
+        }
+        return;
+      }
       gesture.moved = true;
+      event.preventDefault();
+      event.stopPropagation();
     }
     event.currentTarget.dataset.pointerActive = "true";
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -300,36 +328,68 @@ export default function CollectibleCard({
     materialFrame.current = null;
     pendingMaterial.current = null;
     delete event.currentTarget.dataset.pointerActive;
-    applyCardMaterial(event.currentTarget, 0.5, 0.38);
-    event.currentTarget.style.setProperty("--tilt-x", "0deg");
-    event.currentTarget.style.setProperty("--tilt-y", "0deg");
+    resetCardMaterial(event.currentTarget);
   };
 
   const startMaterial = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.pointerType === "touch") {
+      clearTouchTiltTimer();
       touchGesture.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
         startY: event.clientY,
         moved: false,
+        inspecting: false,
       };
       suppressTouchClickUntil.current = 0;
+      const element = event.currentTarget;
+      const pointerId = event.pointerId;
+      touchTiltTimer.current = window.setTimeout(() => {
+        touchTiltTimer.current = null;
+        const gesture = touchGesture.current;
+        if (!gesture || gesture.pointerId !== pointerId || gesture.moved || !element.isConnected) return;
+        gesture.inspecting = true;
+        suppressTouchClickUntil.current = Date.now() + TOUCH_CLICK_SUPPRESSION_MS;
+        element.dataset.pointerActive = "true";
+        const bounds = element.getBoundingClientRect();
+        applyCardMaterial(
+          element,
+          Math.max(0, Math.min(1, (gesture.startX - bounds.left) / bounds.width)),
+          Math.max(0, Math.min(1, (gesture.startY - bounds.top) / bounds.height)),
+        );
+      }, TOUCH_TILT_HOLD_MS);
+      return;
     }
     updateMaterial(event);
   };
 
   const finishMaterial = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.pointerType !== "touch") return;
+    clearTouchTiltTimer();
     const gesture = touchGesture.current;
-    if (gesture?.pointerId === event.pointerId && gesture.moved) {
+    if (gesture?.pointerId === event.pointerId && (gesture.moved || gesture.inspecting)) {
       suppressTouchClickUntil.current = Date.now() + TOUCH_CLICK_SUPPRESSION_MS;
+    }
+    if (gesture?.pointerId === event.pointerId && gesture.inspecting) {
+      event.preventDefault();
+      event.stopPropagation();
     }
     touchGesture.current = null;
     resetMaterial(event);
   };
 
   const cancelMaterial = (event: ReactPointerEvent<HTMLElement>) => {
+    clearTouchTiltTimer();
     touchGesture.current = null;
+    resetMaterial(event);
+  };
+
+  const leaveMaterial = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.pointerType === "touch") {
+      clearTouchTiltTimer();
+      const gesture = touchGesture.current;
+      if (gesture?.pointerId === event.pointerId) gesture.moved = true;
+    }
     resetMaterial(event);
   };
 
@@ -343,9 +403,7 @@ export default function CollectibleCard({
     }
     if (!hadForcedPointer.current) return;
     hadForcedPointer.current = false;
-    applyCardMaterial(element, 0.5, 0.38);
-    element.style.setProperty("--tilt-x", "0deg");
-    element.style.setProperty("--tilt-y", "0deg");
+    resetCardMaterial(element);
   }, [forcedPointer]);
 
   const cardNode = (
@@ -363,7 +421,7 @@ export default function CollectibleCard({
       onPointerEnter={updateMaterial}
       onPointerDown={startMaterial}
       onPointerMove={updateMaterial}
-      onPointerLeave={resetMaterial}
+      onPointerLeave={leaveMaterial}
       onPointerUp={finishMaterial}
       onPointerCancel={cancelMaterial}
       aria-label={`${card.name}, ${guild}, ${realm}, ${card.set.raidName}, ${formatSpecName(card.specName)} ${classInfo.name}, ${rarity}, ${t(`finish.${finish}`)}, ${t(`artwork.${artVariant}`)}${favorite ? `, ${t("collection.favoriteCard")}` : ""}`}

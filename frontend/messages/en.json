@@ -689,7 +689,12 @@
     "viewCharacter": "View character's profile",
     "viewCharacterLabel": "View {name}'s character profile in a new tab",
     "inspectCloseHint": "Press Escape or select the background to close the card.",
-    "playQuip": "Play {name}'s quip"
+    "playQuip": "Play {name}'s quip",
+    "motionTiltEnable": "Tilt card with phone",
+    "motionTiltDisable": "Turn off motion tilt",
+    "motionTiltRequesting": "Requesting motion access",
+    "motionTiltDenied": "Motion access was denied",
+    "motionTiltUnavailable": "Motion tilt is unavailable"
   },
   "infoDialog": {
     "title": "About This Site",
