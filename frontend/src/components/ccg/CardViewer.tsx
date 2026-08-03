@@ -42,6 +42,11 @@ function sourceCardElement(originElement: HTMLElement | null): HTMLElement | nul
 
 function canUseCardViewTransition(): boolean {
   if (typeof document === "undefined" || typeof window === "undefined") return false;
+  // Firefox <=153 can crash its GPU process when an invisible picture is revisited
+  // during a view-transition snapshot. Firefox 154 contains the verified fix:
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=2052609
+  const firefoxVersion = navigator.userAgent.match(/\bFirefox\/(\d+)/);
+  if (firefoxVersion && Number.parseInt(firefoxVersion[1], 10) < 154) return false;
   return typeof (document as ViewTransitionDocument).startViewTransition === "function"
     && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
