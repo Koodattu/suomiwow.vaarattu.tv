@@ -19,6 +19,7 @@ export const CCG_STUDIO_EXISTING_DEVELOPMENT_FINISHES = [
   "disco",
   "cosmos",
   "galaxy",
+  "astral",
   "radiant",
   "chromaflow",
   "dark",

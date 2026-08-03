@@ -145,7 +145,7 @@ export function applyCardMaterial(element: HTMLElement, x: number, y: number) {
   element.style.setProperty("--foil-x-reverse", `${(50 - (x - 0.5) * 76).toFixed(1)}%`);
   element.style.setProperty("--foil-y-reverse", `${(50 - (y - 0.5) * 64).toFixed(1)}%`);
   element.style.setProperty("--foil-angle", `${(118 + (x - 0.5) * 18 - (y - 0.5) * 10).toFixed(1)}deg`);
-  if (element.dataset.finish === "parallax") {
+  if (element.dataset.finish === "parallax" || element.dataset.finish === "astral") {
     element.style.setProperty("--parallax-background-x", `${((0.5 - x) * 19.2).toFixed(3)}%`);
     element.style.setProperty("--parallax-background-y", `${((0.38 - y) * 6.4).toFixed(3)}%`);
     element.style.setProperty("--parallax-character-x", `${((x - 0.5) * 1.05).toFixed(3)}%`);
@@ -439,6 +439,7 @@ export default function CollectibleCard({
         ) : <span className={styles.raidArt} />}
         <span className={styles.raidShade} />
       </span>
+      {finish === "astral" ? <span className={styles.astralDepth} aria-hidden="true" /> : null}
       <span className={styles.lowerDeck} aria-hidden="true" />
       <span className={styles.renderWindow} aria-hidden="true">
         {renderIsVideo ? (
