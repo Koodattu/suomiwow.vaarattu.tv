@@ -119,7 +119,8 @@ Finish is independent of tier grade:
 - **Prismatic** adds a spectral edge, microfoil, richer pointer-responsive lighting, and the premium reveal.
 - **Holographic** intensifies the spectral depth and animated diffraction beyond Prismatic.
 - Every configured raid may add one themed finish between Holographic and Negative. The Warlords of Draenor through The War Within assignments are documented in `ccg-card-finish-styling.md`; **Void** is the March on Quel'Danas finish, and **Toxic** is reserved for Venomous Abyss. Every raid-specific finish is also available as a code-exclusive reward for Community cards without entering Community pack rolls, pity, duplicate protection, or completion.
-- **Negative** applies the rare full-card inverted treatment and is the highest production finish.
+- **Negative** applies the rare full-card inverted treatment.
+- **Astral** adds the layered galaxy treatment above Negative and is the highest global production finish.
 
 Each non-Standard finish has a persistent per-owner protection counter shared by every pack opening. A raid-scoped finish has a separate counter keyed by raid-set slug and advances only when a card from that set is pulled. Its chance remains at `1 / hardPity` through the first 80% of the interval, then follows a quadratic soft-pity ramp to a guaranteed hit at hard pity. The selected raw finish resets its own counter even when duplicate protection converts it, and a different non-Standard finish awarded by that conversion also resets its counter. Finish rolls are independent, but a card receives only the highest finish that succeeds, so reaching one hard pity cannot turn the rest of a pack into the same premium finish.
 
@@ -131,6 +132,7 @@ Initial hard-pity limits:
 - Holographic: 100 cards
 - Raid-scoped finish: 250 matching-set cards by default
 - Negative: 1,000 cards
+- Astral: 2,500 cards
 
 Odds are versioned configuration, not hard-coded business logic.
 

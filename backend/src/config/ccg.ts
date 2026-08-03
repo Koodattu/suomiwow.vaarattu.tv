@@ -1,6 +1,6 @@
 export type CcgHistoricalPackMode = "current" | "legacy";
 export type CcgPackSelectionType = "all" | "raid";
-export type CcgBaseFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative";
+export type CcgBaseFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative" | "astral";
 export const CCG_RAID_FINISHES = [
   "relic",
   "slagforged",
@@ -49,7 +49,7 @@ export const CCG_INITIAL_PACKS = { user: 40, guest: 40 } as const;
 export const CCG_PACK_BALANCE_VERSION = 4;
 export const CCG_GUEST_COOKIE = "swccg_guest";
 export const CCG_GUEST_COOKIE_MAX_AGE_MS = 400 * 24 * 60 * 60 * 1000;
-export const CCG_PACK_RULE_VERSION = "pack-v15-community-one-percent";
+export const CCG_PACK_RULE_VERSION = "pack-v16-global-astral";
 export const CCG_GRADING_VERSION = "grade-v2-rarity-ladder";
 export const CCG_ELIGIBILITY_VERSION = "complete-scores-mythic-reports-v3";
 export const CCG_THEME_VERSION = "vault-v1";
@@ -108,12 +108,12 @@ export const CCG_GUARANTEED_GRADE_ODDS: Readonly<Record<CcgRegularTierGrade, num
   F: 0,
 };
 
-export const CCG_BASE_FINISH_ORDER: readonly CcgBaseFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
+export const CCG_BASE_FINISH_ORDER: readonly CcgBaseFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative", "astral"];
 export const CCG_CUSTOM_FINISHES: readonly CcgCustomFinish[] = ["void", "toxic", ...CCG_RAID_FINISHES];
 export const CCG_FINISH_ORDER: readonly CcgFinish[] = [
-  ...CCG_BASE_FINISH_ORDER.slice(0, -1),
+  ...CCG_BASE_FINISH_ORDER.slice(0, -2),
   ...CCG_CUSTOM_FINISHES,
-  "negative",
+  ...CCG_BASE_FINISH_ORDER.slice(-2),
 ];
 export const CCG_CUSTOM_FINISH_HARD_PITY = 250;
 
@@ -126,6 +126,7 @@ export const CCG_FINISH_PITY_LIMITS: Readonly<Record<CcgProtectedFinish, number>
   holographic: 100,
   ...Object.fromEntries(CCG_CUSTOM_FINISHES.map((finish) => [finish, CCG_CUSTOM_FINISH_HARD_PITY])) as Record<CcgCustomFinish, number>,
   negative: 1000,
+  astral: 2500,
 };
 
 export type CcgCustomFinishConfig = {
@@ -135,7 +136,7 @@ export type CcgCustomFinishConfig = {
 
 export function getCcgFinishOrder(customFinish?: CcgCustomFinish | null): readonly CcgFinish[] {
   if (!customFinish) return CCG_BASE_FINISH_ORDER;
-  return [...CCG_BASE_FINISH_ORDER.slice(0, -1), customFinish, "negative"];
+  return [...CCG_BASE_FINISH_ORDER.slice(0, -2), customFinish, ...CCG_BASE_FINISH_ORDER.slice(-2)];
 }
 
 export function getCcgPackFinishOrder(setKind: CcgSetKind, customFinish?: CcgCustomFinish | null): readonly CcgFinish[] {

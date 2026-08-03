@@ -229,6 +229,7 @@ export function buildCcgCollectionQualityRank(finishExpression: string): unknown
       branches: [
         { case: { $in: [finishExpression, [...CCG_CUSTOM_FINISHES]] }, then: 5 },
         { case: { $eq: [finishExpression, "negative"] }, then: 6 },
+        { case: { $eq: [finishExpression, "astral"] }, then: 7 },
       ],
       default: { $indexOfArray: [[...CCG_BASE_FINISH_ORDER], finishExpression] },
     },
@@ -3885,6 +3886,7 @@ class CcgService {
       prismatic: row?.prismatic ?? 0,
       holographic: row?.holographic ?? 0,
       negative: row?.negative ?? 0,
+      astral: row?.astral ?? 0,
     };
   }
 
@@ -3915,6 +3917,7 @@ class CcgService {
     row.prismatic = pity.prismatic;
     row.holographic = pity.holographic;
     row.negative = pity.negative;
+    row.astral = pity.astral;
   }
 
   private writeCustomFinishPity(row: ICcgQualityProgress, setSlug: string, counter: number): void {

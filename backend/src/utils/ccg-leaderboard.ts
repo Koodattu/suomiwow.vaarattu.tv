@@ -6,7 +6,7 @@ import {
   CcgTierGrade,
 } from "../config/ccg";
 
-export const CCG_COLLECTION_SCORE_VERSION = "collection-v1";
+export const CCG_COLLECTION_SCORE_VERSION = "collection-v2-astral";
 export const CCG_SERIES_BASE_POINTS = 100;
 export const CCG_ALL_FINISHES_BONUS = 25;
 export const CCG_COMPLETE_SET_POINTS_PER_CARD = 10;
@@ -30,6 +30,7 @@ export const CCG_FINISH_POINTS: Readonly<Record<CcgFinish, number>> = {
   holographic: 10,
   ...Object.fromEntries(CCG_CUSTOM_FINISHES.map((finish) => [finish, 16])) as Record<(typeof CCG_CUSTOM_FINISHES)[number], number>,
   negative: 32,
+  astral: 48,
 };
 
 export type CcgSeriesScore = {

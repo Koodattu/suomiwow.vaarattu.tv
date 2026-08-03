@@ -5132,6 +5132,11 @@
   color: #a9ffdc;
 }
 
+.collectionQualitySelect[data-finish="astral"],
+.collectionQualitySelect option[data-finish="astral"] {
+  color: #c5c7ff;
+}
+
 .collectionPageCount {
   display: grid;
   min-width: 2.5rem;

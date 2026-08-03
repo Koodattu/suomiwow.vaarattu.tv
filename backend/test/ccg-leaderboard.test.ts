@@ -116,16 +116,16 @@ test("collection leaderboard uses the rarest unlocked snapshot without counting 
 test("collection leaderboard awards card completion only for every obtainable finish", () => {
   const incomplete = scoreCcgSeries(
     ["H"],
-    ["standard", "foil", "golden", "prismatic", "holographic", "negative"],
-    ["standard", "foil", "golden", "prismatic", "holographic", "void", "negative"],
+    ["standard", "foil", "golden", "prismatic", "holographic", "negative", "astral"],
+    ["standard", "foil", "golden", "prismatic", "holographic", "void", "negative", "astral"],
   );
   assert.equal(incomplete.allFinishesOwned, false);
   assert.equal(incomplete.allFinishesPoints, 0);
 
   const complete = scoreCcgSeries(
     ["H"],
-    ["standard", "foil", "golden", "prismatic", "holographic", "void", "negative"],
-    ["standard", "foil", "golden", "prismatic", "holographic", "void", "negative"],
+    ["standard", "foil", "golden", "prismatic", "holographic", "void", "negative", "astral"],
+    ["standard", "foil", "golden", "prismatic", "holographic", "void", "negative", "astral"],
   );
   assert.equal(complete.allFinishesOwned, true);
   assert.equal(complete.allFinishesPoints, CCG_ALL_FINISHES_BONUS);

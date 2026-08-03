@@ -71,5 +71,6 @@ test("collection quality sorting gives every custom finish the shared Unique ran
   assert.deepEqual(expression.$switch.branches, [
     { case: { $in: ["$finish", [...CCG_CUSTOM_FINISHES]] }, then: 5 },
     { case: { $eq: ["$finish", "negative"] }, then: 6 },
+    { case: { $eq: ["$finish", "astral"] }, then: 7 },
   ]);
 });

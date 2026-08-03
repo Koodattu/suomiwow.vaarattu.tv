@@ -17,7 +17,7 @@ Trial of Valor and Crucible of Storms are intentionally excluded. The existing C
 
 March on Quel'Danas and Venomous Abyss are recorded separately in the final Midnight roadmap table. Their assignments are locked to Void and Toxic respectively and are not redesign proposals.
 
-Each configured raid from Warlords of Draenor through The War Within uses the finish listed below as its single raid-scoped finish, with the same 250 matching-set-card hard pity used by Void. Community packs continue to use only the six base finishes, while Community redeem codes may grant any raid-specific finish without changing pack completion or protection. Until dedicated announcer recordings exist, these raid finishes use the existing Unique callouts. Other Card Studio development finishes remain preview-only.
+Every card in every pack pool can roll the seven global base finishes, including Astral after Negative with a 1/2,500 base rate and 2,500-card hard pity. Each configured raid from Warlords of Draenor through The War Within also uses the finish listed below as its single raid-scoped finish, with the same 250 matching-set-card hard pity used by Void. Community redeem codes may grant any raid-specific finish without changing pack completion or protection. Until dedicated announcer recordings exist, these raid finishes use the existing Unique callouts. Other Card Studio development finishes remain preview-only.
 
 ## Overall finish system
 

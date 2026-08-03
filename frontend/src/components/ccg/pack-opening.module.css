@@ -1728,6 +1728,27 @@
   --sealed-finish-opacity: 0.42;
 }
 
+.revealSlot[data-finish="astral"] {
+  --reveal-color: #dedcff;
+  --reveal-color-secondary: #6de8ff;
+  --finish-ray-opacity: 0.72;
+  --finish-mote-opacity: 0.98;
+  --quality-ring-one: 1;
+  --quality-ring-two: 0.96;
+  --quality-ring-three: 0.88;
+  --quality-ring-four: 0.78;
+  --quality-ring-five: 0.68;
+  --quality-ring-six: 0.56;
+  --sealed-finish:
+    radial-gradient(circle at 25% 29%, rgba(255, 255, 255, 0.92) 0 0.7px, transparent 1.5px),
+    radial-gradient(circle at 76% 69%, rgba(123, 235, 255, 0.86) 0 0.9px, transparent 1.8px),
+    conic-gradient(from 28deg at 50% 48%, transparent 0 9%, rgba(115, 216, 255, 0.38) 14%, transparent 24% 39%, rgba(223, 124, 255, 0.4) 47%, transparent 58% 74%, rgba(103, 127, 255, 0.38) 82%, transparent 93%),
+    radial-gradient(circle at 50% 48%, rgba(255, 248, 255, 0.62) 0 4%, rgba(166, 106, 255, 0.32) 13%, rgba(31, 16, 79, 0.42) 34%, transparent 66%);
+  --sealed-finish-layer-blend: screen, screen, screen, normal;
+  --sealed-finish-size: 31px 37px, 43px 47px, 210% 210%, 100% 100%;
+  --sealed-finish-opacity: 0.52;
+}
+
 .revealSlot:disabled {
   cursor: default;
 }
@@ -2018,7 +2039,8 @@
     [data-finish="holographic"],
     [data-finish="void"],
     [data-finish="toxic"],
-    [data-finish="negative"]
+    [data-finish="negative"],
+    [data-finish="astral"]
   )
   .revealFlare {
   animation: revealFlare 820ms 100ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -2150,7 +2172,8 @@
     [data-finish="holographic"],
     [data-finish="void"],
     [data-finish="toxic"],
-    [data-finish="negative"]
+    [data-finish="negative"],
+    [data-finish="astral"]
   )
   .revealRays {
   animation: revealRayBloom 1050ms 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -2165,7 +2188,8 @@
     [data-finish="holographic"],
     [data-finish="void"],
     [data-finish="toxic"],
-    [data-finish="negative"]
+    [data-finish="negative"],
+    [data-finish="astral"]
   )
   .revealMotes {
   animation: revealMotes 1180ms 360ms cubic-bezier(0.16, 1, 0.3, 1) forwards;

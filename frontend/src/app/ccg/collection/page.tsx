@@ -178,7 +178,7 @@ export default function CcgCollectionPage() {
     const hasUniqueFinish = selectedSet
       ? selectedSet.kind === "community" || Boolean(selectedSet.customFinish)
       : sets.some((set) => set.kind === "community" || Boolean(set.customFinish));
-    if (hasUniqueFinish) order.splice(order.length - 1, 0, uniqueFinishFilter);
+    if (hasUniqueFinish) order.splice(order.indexOf("negative"), 0, uniqueFinishFilter);
     return [...order].reverse();
   }, [selectedSet, sets]);
   const collectionSetSlug = allSetsSelected ? undefined : setSlug;

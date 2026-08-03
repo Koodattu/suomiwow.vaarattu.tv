@@ -11,6 +11,7 @@ export const CCG_QUALITY_SOUND_FILES: Partial<Record<CcgFinish, string>> = {
   holographic: "5-holographic.mp3",
   void: "7-void.mp3",
   negative: "6-negative.mp3",
+  astral: "9-astral.mp3",
 };
 
 const CCG_STANDARD_QUALITY_SOUND_GRADES = new Set<CcgTierGrade>(["H", "S", "A", "B", "C", "D"]);

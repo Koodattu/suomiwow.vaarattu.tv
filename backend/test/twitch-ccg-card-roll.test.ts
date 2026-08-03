@@ -74,6 +74,7 @@ test("Twitch card rolls use all raid pools and the linked user's finish state", 
       prismatic: 0,
       holographic: 0,
       negative: 999,
+      astral: 0,
       custom: new Map(),
       save: async () => { qualitySaved = true; },
     });

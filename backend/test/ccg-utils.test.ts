@@ -244,7 +244,7 @@ test("CCG eligibility requires three Mythic reports and forty pulls", () => {
 test("quality protection honors hard pity, minimum finishes, and independent resets", () => {
   const first = rollProtectedFinish(emptyFinishPity(), "standard", (maximum) => maximum - 1);
   assert.equal(first.finish, "standard");
-  assert.deepEqual(first.pity, { foil: 1, golden: 1, prismatic: 1, holographic: 1, negative: 1 });
+  assert.deepEqual(first.pity, { foil: 1, golden: 1, prismatic: 1, holographic: 1, negative: 1, astral: 1 });
 
   const foilPity = { ...emptyFinishPity(), foil: 4 };
   const guaranteed = rollProtectedFinish(foilPity, "standard", (maximum) => maximum - 1);
@@ -261,6 +261,12 @@ test("quality protection honors hard pity, minimum finishes, and independent res
   const followingCard = rollProtectedFinish(negative.pity, "standard", (maximum) => maximum - 1);
   assert.equal(negative.finish, "negative");
   assert.notEqual(followingCard.finish, "negative");
+
+  const astralPity = { ...emptyFinishPity(), astral: 2499 };
+  const astral = rollProtectedFinish(astralPity, "standard", (maximum) => maximum - 1);
+  assert.equal(astral.finish, "astral");
+  assert.equal(astral.pity.astral, 0);
+  assert.equal(CCG_FINISH_PITY_LIMITS.astral, 2500);
 });
 
 test("owned finishes are resolved per card series and only completed-series duplicates qualify for a reward", () => {
@@ -301,10 +307,10 @@ test("raid-scoped finishes extend only their configured set's ladder", () => {
   const voidOrder = getCcgFinishOrder("void");
   const toxicOrder = getCcgFinishOrder("toxic");
   const relicOrder = getCcgFinishOrder("relic");
-  assert.deepEqual(defaultOrder, ["standard", "foil", "golden", "prismatic", "holographic", "negative"]);
-  assert.deepEqual(voidOrder, ["standard", "foil", "golden", "prismatic", "holographic", "void", "negative"]);
-  assert.deepEqual(toxicOrder, ["standard", "foil", "golden", "prismatic", "holographic", "toxic", "negative"]);
-  assert.deepEqual(relicOrder, ["standard", "foil", "golden", "prismatic", "holographic", "relic", "negative"]);
+  assert.deepEqual(defaultOrder, ["standard", "foil", "golden", "prismatic", "holographic", "negative", "astral"]);
+  assert.deepEqual(voidOrder, ["standard", "foil", "golden", "prismatic", "holographic", "void", "negative", "astral"]);
+  assert.deepEqual(toxicOrder, ["standard", "foil", "golden", "prismatic", "holographic", "toxic", "negative", "astral"]);
+  assert.deepEqual(relicOrder, ["standard", "foil", "golden", "prismatic", "holographic", "relic", "negative", "astral"]);
   assert.deepEqual(
     resolveOwnedFinish("negative", new Set<CcgFinish>(defaultOrder), voidOrder),
     { finish: "void", isDuplicate: true, isCompletedCardDuplicate: false },

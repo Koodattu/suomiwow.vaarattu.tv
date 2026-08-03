@@ -51,7 +51,7 @@ export function resolveCardCrop(seed: string, safe: CcgBackgroundSafeCrop): CcgR
 type CcgBaseProtectedFinish = Exclude<CcgBaseFinish, "standard">;
 export type CcgFinishPity = Record<CcgBaseProtectedFinish, number> & Partial<Record<CcgProtectedFinish, number>>;
 
-export const emptyFinishPity = (): CcgFinishPity => ({ foil: 0, golden: 0, prismatic: 0, holographic: 0, negative: 0 });
+export const emptyFinishPity = (): CcgFinishPity => ({ foil: 0, golden: 0, prismatic: 0, holographic: 0, negative: 0, astral: 0 });
 
 const FINISH_ROLL_RESOLUTION = 100_000;
 const FINISH_SOFT_PITY_START = 0.8;

@@ -1,6 +1,6 @@
 import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCustomFinish, CcgFinish, CcgRaidFinish, CcgTierGrade } from "@/types";
 
-export const CCG_BASE_FINISH_ORDER: readonly CcgBaseFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
+export const CCG_BASE_FINISH_ORDER: readonly CcgBaseFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative", "astral"];
 export const CCG_RAID_FINISHES = [
   "relic",
   "slagforged",
@@ -26,9 +26,9 @@ export const CCG_RAID_FINISHES = [
 const CCG_RAID_FINISH_SET = new Set<CcgFinish>(CCG_RAID_FINISHES);
 export const CCG_CUSTOM_FINISHES: readonly CcgCustomFinish[] = ["void", "toxic", ...CCG_RAID_FINISHES];
 export const CCG_FINISH_ORDER: readonly CcgFinish[] = [
-  ...CCG_BASE_FINISH_ORDER.slice(0, -1),
+  ...CCG_BASE_FINISH_ORDER.slice(0, -2),
   ...CCG_CUSTOM_FINISHES,
-  "negative",
+  ...CCG_BASE_FINISH_ORDER.slice(-2),
 ];
 
 export function isCcgRaidFinish(finish: CcgFinish): finish is CcgRaidFinish {
@@ -80,6 +80,7 @@ export const CCG_FINISH_COLORS: Readonly<Record<CcgFinish, string>> = {
   jackpot: "#e9a52f",
   phaseglass: "#756bff",
   negative: "#f9a8d4",
+  astral: "#b7b8ff",
 };
 
 export const CCG_RARITY_COLORS: Readonly<Record<CcgTierGrade, string>> = {
@@ -100,11 +101,12 @@ export const CCG_FINISH_PITY_LIMITS: Readonly<Record<Exclude<CcgFinish, "standar
   holographic: 100,
   ...Object.fromEntries(CCG_CUSTOM_FINISHES.map((finish) => [finish, 250])) as Record<CcgCustomFinish, number>,
   negative: 1000,
+  astral: 2500,
 };
 
 export function getCcgFinishOrder(customFinish?: CcgCustomFinish | null): readonly CcgFinish[] {
   if (!customFinish) return CCG_BASE_FINISH_ORDER;
-  return [...CCG_BASE_FINISH_ORDER.slice(0, -1), customFinish, "negative"];
+  return [...CCG_BASE_FINISH_ORDER.slice(0, -2), customFinish, ...CCG_BASE_FINISH_ORDER.slice(-2)];
 }
 
 export function getCcgRedeemFinishOrder(setKind: "raid" | "community", customFinish?: CcgCustomFinish | null): readonly CcgFinish[] {
@@ -141,6 +143,7 @@ const CCG_PULL_FINISH_SCORE: Readonly<Record<CcgFinish, number>> = {
   holographic: 62,
   ...Object.fromEntries(CCG_CUSTOM_FINISHES.map((finish) => [finish, 78])) as Record<CcgCustomFinish, number>,
   negative: 100,
+  astral: 120,
 };
 
 type CcgPullQuality = {
