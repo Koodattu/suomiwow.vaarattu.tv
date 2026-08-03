@@ -206,7 +206,8 @@ export default function CollectibleCard({
   const metamorphicFilterId = `vault-metamorphic-${useId().replace(/:/g, "")}`;
   const astralEffectId = `vault-astral-${useId().replace(/:/g, "")}`;
   const astralArmGradientId = `${astralEffectId}-arm`;
-  const astralWarpFilterId = `${astralEffectId}-warp`;
+  const astralDiscGradientId = `${astralEffectId}-disc`;
+  const astralCloudFilterId = `${astralEffectId}-cloud`;
   const materialFrame = useRef<number | null>(null);
   const pendingMaterial = useRef<{ element: HTMLElement; x: number; y: number } | null>(null);
   const touchGesture = useRef<{
@@ -454,17 +455,36 @@ export default function CollectibleCard({
                 <stop offset="0.68" stopColor="#e676ff" />
                 <stop offset="1" stopColor="#dffcff" />
               </linearGradient>
-              <filter id={astralWarpFilterId} x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
-                <feTurbulence type="fractalNoise" baseFrequency="0.018 0.032" numOctaves="2" seed="23" result="astralNoise" />
-                <feDisplacementMap in="SourceGraphic" in2="astralNoise" scale="4.2" xChannelSelector="R" yChannelSelector="G" />
+              <radialGradient id={astralDiscGradientId} cx="50%" cy="50%" r="50%">
+                <stop offset="0" stopColor="#ffffff" stopOpacity="0.9" />
+                <stop offset="0.14" stopColor="#bdeeff" stopOpacity="0.7" />
+                <stop offset="0.34" stopColor="#7b87ff" stopOpacity="0.34" />
+                <stop offset="0.58" stopColor="#b44fe2" stopOpacity="0.2" />
+                <stop offset="0.82" stopColor="#43217e" stopOpacity="0.08" />
+                <stop offset="1" stopColor="#15072d" stopOpacity="0" />
+              </radialGradient>
+              <filter id={astralCloudFilterId} x="-35%" y="-35%" width="170%" height="170%" colorInterpolationFilters="sRGB">
+                <feTurbulence type="fractalNoise" baseFrequency="0.052" numOctaves="3" seed="23" stitchTiles="stitch" result="astralNoise" />
+                <feDisplacementMap in="SourceGraphic" in2="astralNoise" scale="7" xChannelSelector="R" yChannelSelector="G" result="warpedArms" />
+                <feColorMatrix in="astralNoise" type="luminanceToAlpha" result="noiseAlpha" />
+                <feComponentTransfer in="noiseAlpha" result="brokenAlpha">
+                  <feFuncA type="table" tableValues="0 0.08 0.34 0.82 1" />
+                </feComponentTransfer>
+                <feComposite in="warpedArms" in2="brokenAlpha" operator="in" result="cloudArms" />
+                <feGaussianBlur in="cloudArms" stdDeviation="1.4" result="softClouds" />
+                <feMerge>
+                  <feMergeNode in="softClouds" />
+                  <feMergeNode in="cloudArms" />
+                </feMerge>
               </filter>
             </defs>
-            <g filter={`url(#${astralWarpFilterId})`}>
-              <g className={styles.astralGalaxyHalo}>
+            <circle className={styles.astralGalaxyDisc} cx="50" cy="50" r="46" fill={`url(#${astralDiscGradientId})`} />
+            <g filter={`url(#${astralCloudFilterId})`}>
+              <g className={styles.astralGalaxyClouds}>
                 {ASTRAL_SPIRAL_ROTATIONS.map((rotation) => <path key={rotation} d={ASTRAL_SPIRAL_PATH} stroke={`url(#${astralArmGradientId})`} transform={rotation ? `rotate(${rotation} 50 50)` : undefined} />)}
               </g>
-              <g className={styles.astralGalaxyArms}>
-                {ASTRAL_SPIRAL_ROTATIONS.map((rotation) => <path key={rotation} d={ASTRAL_SPIRAL_PATH} stroke={`url(#${astralArmGradientId})`} transform={rotation ? `rotate(${rotation} 50 50)` : undefined} />)}
+              <g className={styles.astralGalaxyWisps}>
+                {ASTRAL_SPIRAL_ROTATIONS.map((rotation) => <path key={rotation} pathLength="1" d={ASTRAL_SPIRAL_PATH} stroke={`url(#${astralArmGradientId})`} transform={rotation ? `rotate(${rotation} 50 50)` : undefined} />)}
               </g>
             </g>
             <g className={styles.astralGalaxyDust}>
