@@ -1,5 +1,5 @@
 import type { CcgArtVariant, CcgFinish, CcgTierGrade } from "@/types";
-import { CCG_RAID_FINISHES, CCG_RARITY_KEYS } from "@/lib/ccg";
+import { CCG_RARITY_KEYS, isCcgRaidFinish } from "@/lib/ccg";
 import { getLocale, type Locale } from "@/lib/locale";
 
 export const CCG_AUDIO_PREFERENCES_EVENT = "ccg-audio-preferences-change";
@@ -11,7 +11,6 @@ export type CcgAudioChannel = "effects" | "announcer" | "quips";
 type AnnouncerVariant = "a" | "b" | "c";
 type AnnouncerQuality = CcgFinish | "unique";
 type AnnouncerKey = `${AnnouncerQuality}-${(typeof CCG_RARITY_KEYS)[CcgTierGrade]}`;
-const raidFinishSet = new Set<CcgFinish>(CCG_RAID_FINISHES);
 
 const CCG_ANNOUNCER_BASELINE_VOLUME: Record<Locale, number> = {
   en: 0.5,
@@ -231,7 +230,7 @@ export function getCcgAnnouncerSoundSources(
   artVariant: CcgArtVariant = "standard",
 ): string[] {
   const rarity = CCG_RARITY_KEYS[tierGrade];
-  const quality: AnnouncerQuality = artVariant === "alternative" || raidFinishSet.has(finish) ? "unique" : finish;
+  const quality: AnnouncerQuality = artVariant === "alternative" || isCcgRaidFinish(finish) ? "unique" : finish;
   const key: AnnouncerKey = `${quality}-${rarity}`;
   const variants = CCG_ANNOUNCER_VARIANTS[locale][key] ?? [];
   const directory = quality === "standard" ? "standard-rarity-only" : quality;

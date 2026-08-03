@@ -1,4 +1,5 @@
-import type { CcgFinish, CcgTierGrade } from "@/types";
+import { isCcgRaidFinish } from "@/lib/ccg";
+import type { CcgArtVariant, CcgFinish, CcgTierGrade } from "@/types";
 
 export const CCG_CARD_SLIDE_SOUNDS = Array.from({ length: 8 }, (_, index) => `/ccg/audio/card-slide-${index + 1}.mp3`);
 
@@ -13,7 +14,23 @@ export const CCG_QUALITY_SOUND_FILES: Partial<Record<CcgFinish, string>> = {
 };
 
 const CCG_STANDARD_QUALITY_SOUND_GRADES = new Set<CcgTierGrade>(["H", "S", "A", "B", "C", "D"]);
+const CCG_UNIQUE_QUALITY_SOUND_FILE = "10-unique.mp3";
 
-export function hasCcgQualityRevealSound(finish: CcgFinish, tierGrade: CcgTierGrade): boolean {
-  return Boolean(CCG_QUALITY_SOUND_FILES[finish]) && (finish !== "standard" || CCG_STANDARD_QUALITY_SOUND_GRADES.has(tierGrade));
+export function getCcgQualityRevealSoundFile(
+  finish: CcgFinish,
+  artVariant: CcgArtVariant = "standard",
+): string | undefined {
+  return artVariant === "alternative" || isCcgRaidFinish(finish)
+    ? CCG_UNIQUE_QUALITY_SOUND_FILE
+    : CCG_QUALITY_SOUND_FILES[finish];
+}
+
+export function hasCcgQualityRevealSound(
+  finish: CcgFinish,
+  tierGrade: CcgTierGrade,
+  artVariant: CcgArtVariant = "standard",
+): boolean {
+  const unique = artVariant === "alternative" || isCcgRaidFinish(finish);
+  return Boolean(getCcgQualityRevealSoundFile(finish, artVariant))
+    && (unique || finish !== "standard" || CCG_STANDARD_QUALITY_SOUND_GRADES.has(tierGrade));
 }

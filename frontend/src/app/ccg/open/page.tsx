@@ -16,7 +16,7 @@ import {
   resumeCcgAudio,
   type CcgAudioChannel,
 } from "@/lib/ccg-audio";
-import { CCG_CARD_SLIDE_SOUNDS, CCG_QUALITY_SOUND_FILES, hasCcgQualityRevealSound } from "@/lib/ccg-reveal-audio";
+import { CCG_CARD_SLIDE_SOUNDS, getCcgQualityRevealSoundFile, hasCcgQualityRevealSound } from "@/lib/ccg-reveal-audio";
 import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
 import { queryKeys, useCcgOpening, useCcgSession, useCcgSets } from "@/lib/queries";
 import IconImage from "@/components/IconImage";
@@ -306,8 +306,8 @@ export default function CcgOpenPage() {
   useEffect(() => {
     if (!opening) return;
     preloadCcgSounds(opening.results.flatMap((result) => {
-      const qualitySound = CCG_QUALITY_SOUND_FILES[result.finish];
-      const qualitySource = qualitySound && hasCcgQualityRevealSound(result.finish, result.card.tierGrade)
+      const qualitySound = getCcgQualityRevealSoundFile(result.finish, result.artVariant);
+      const qualitySource = qualitySound && hasCcgQualityRevealSound(result.finish, result.card.tierGrade, result.artVariant)
         ? `/ccg/audio/quality/${qualitySound}`
         : null;
       return [
@@ -587,8 +587,8 @@ export default function CcgOpenPage() {
 
   const playQualitySoundAfterFlip = (index: number) => {
     const result = opening?.results[index];
-    if (!result || !hasCcgQualityRevealSound(result.finish, result.card.tierGrade)) return;
-    const soundFile = CCG_QUALITY_SOUND_FILES[result.finish];
+    if (!result || !hasCcgQualityRevealSound(result.finish, result.card.tierGrade, result.artVariant)) return;
+    const soundFile = getCcgQualityRevealSoundFile(result.finish, result.artVariant);
     if (!soundFile) return;
     const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 200;
     const timer = window.setTimeout(() => playPackSound(`/ccg/audio/quality/${soundFile}`, 0.4), delay);
@@ -660,7 +660,7 @@ export default function CcgOpenPage() {
     setActiveReveal(null);
     playRandomPackSound(CCG_CARD_SLIDE_SOUNDS, 0.32);
     opening.results.forEach((result, index) => {
-      if (!revealedCards.has(index) && hasCcgQualityRevealSound(result.finish, result.card.tierGrade)) playQualitySoundAfterFlip(index);
+      if (!revealedCards.has(index) && hasCcgQualityRevealSound(result.finish, result.card.tierGrade, result.artVariant)) playQualitySoundAfterFlip(index);
     });
     const prioritizedResults = opening.results
       .map((result, index) => ({ result, index }))
@@ -745,7 +745,7 @@ export default function CcgOpenPage() {
       }
 
       playRandomPackSound(CCG_CARD_SLIDE_SOUNDS, 0.3);
-      if (hasCcgQualityRevealSound(result.finish, result.card.tierGrade)) playQualitySoundAfterFlip(index);
+      if (hasCcgQualityRevealSound(result.finish, result.card.tierGrade, result.artVariant)) playQualitySoundAfterFlip(index);
       setRevealedCards((current) => new Set(current).add(index));
       schedule(advance, revealDuration);
     };

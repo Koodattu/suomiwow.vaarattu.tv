@@ -932,16 +932,13 @@
   width: 150%;
   height: auto;
   overflow: visible;
-  filter: brightness(1.12) contrast(1.16) saturate(1.42) drop-shadow(0 0 5px rgba(162, 113, 255, 0.36));
-  -webkit-mask-image: linear-gradient(180deg, transparent 0 28%, rgba(0, 0, 0, 0.38) 38%, #000 48% 72%, transparent 88%);
-  mask-image: linear-gradient(180deg, transparent 0 28%, rgba(0, 0, 0, 0.38) 38%, #000 48% 72%, transparent 88%);
   mix-blend-mode: screen;
   opacity: 0.44;
   pointer-events: none;
   transform: scale(1.06);
   transform-box: fill-box;
   transform-origin: 50% 50%;
-  transition-property: opacity, filter, transform;
+  transition-property: opacity, transform;
   transition-duration: 240ms;
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -3827,7 +3824,6 @@
   transform: scale(1.28);
 }
 .prototypeCard.astral:is([data-pointer-active="true"], [data-forced-hover="true"]) .astralGalaxyForeground {
-  filter: brightness(1.42) contrast(1.22) saturate(1.58) drop-shadow(0 0 9px rgba(174, 113, 255, 0.62));
   opacity: 0.82;
   transform: scale(1.2);
 }

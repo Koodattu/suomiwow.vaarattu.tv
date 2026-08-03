@@ -7,7 +7,7 @@ import CollectibleCard from "@/components/ccg/CollectibleCard";
 import { getPackTheme } from "@/components/ccg/PackBoosterVisual";
 import { api } from "@/lib/api";
 import { getCcgAnnouncerSoundSources, getCcgPlaybackVolume } from "@/lib/ccg-audio";
-import { CCG_CARD_SLIDE_SOUNDS, CCG_QUALITY_SOUND_FILES, hasCcgQualityRevealSound } from "@/lib/ccg-reveal-audio";
+import { CCG_CARD_SLIDE_SOUNDS, getCcgQualityRevealSoundFile, hasCcgQualityRevealSound } from "@/lib/ccg-reveal-audio";
 import type { CcgOverlayEvent } from "@/types";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 import styles from "./overlay.module.css";
@@ -171,7 +171,7 @@ export default function CcgOverlayPage() {
     later(CARD_REVEAL_DELAY_MS, () => {
       setPhase("revealed");
     });
-    if (hasCcgQualityRevealSound(event.finish, event.tierGrade)) {
+    if (hasCcgQualityRevealSound(event.finish, event.tierGrade, event.artVariant)) {
       later(1250, () => playAudio(qualityAudioRef.current, "effects", 0.4));
     }
     if (event.card.quip?.audioPath) later(1270, () => playAudio(quipAudioRef.current, "quips", 0.9));
@@ -204,7 +204,7 @@ export default function CcgOverlayPage() {
     sequenceTimersRef.current.forEach((timer) => window.clearTimeout(timer));
   }, [clearPollTimer]);
 
-  const qualitySound = event ? CCG_QUALITY_SOUND_FILES[event.finish] : undefined;
+  const qualitySound = event ? getCcgQualityRevealSoundFile(event.finish, event.artVariant) : undefined;
   const special = event ? event.finish !== "standard" || event.tierGrade === "S" : false;
   const stageStyle = event ? {
     ...getPackTheme(event.card.set),

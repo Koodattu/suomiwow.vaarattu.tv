@@ -23,12 +23,17 @@ export const CCG_RAID_FINISHES = [
   "jackpot",
   "phaseglass",
 ] as const satisfies readonly CcgRaidFinish[];
+const CCG_RAID_FINISH_SET = new Set<CcgFinish>(CCG_RAID_FINISHES);
 export const CCG_CUSTOM_FINISHES: readonly CcgCustomFinish[] = ["void", "toxic", ...CCG_RAID_FINISHES];
 export const CCG_FINISH_ORDER: readonly CcgFinish[] = [
   ...CCG_BASE_FINISH_ORDER.slice(0, -1),
   ...CCG_CUSTOM_FINISHES,
   "negative",
 ];
+
+export function isCcgRaidFinish(finish: CcgFinish): finish is CcgRaidFinish {
+  return CCG_RAID_FINISH_SET.has(finish);
+}
 
 export const CCG_CLASS_COLORS: Readonly<Record<number, string>> = {
   1: "#C41E3A",
