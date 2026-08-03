@@ -160,7 +160,7 @@ export function resetCardMaterial(element: HTMLElement) {
 
 type CollectibleCardProps = {
   card: CcgCard;
-  finish?: CcgFinish | "chromaflow" | "dark" | "eclipse" | "paradox" | "anomaly" | "infinite" | "transcendent" | "singularity" | "metamorphic" | "parallax";
+  finish?: CcgFinish | "rainbow" | "kaleidoscope" | "disco" | "cosmos" | "galaxy" | "radiant" | "chromaflow" | "dark" | "eclipse" | "paradox" | "anomaly" | "infinite" | "transcendent" | "singularity" | "metamorphic" | "parallax";
   artVariant?: CcgArtVariant;
   compact?: boolean;
   quantity?: number;

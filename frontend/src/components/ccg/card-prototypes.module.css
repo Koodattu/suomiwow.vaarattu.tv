@@ -1351,6 +1351,376 @@
   mix-blend-mode: screen;
   opacity: 0.62;
 }
+.rainbow .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.08) 11%, transparent 25%),
+    radial-gradient(
+      ellipse at var(--pointer-x) 112%,
+      transparent 0 23%,
+      rgba(124, 72, 255, 0.62) 24% 28%,
+      rgba(62, 119, 255, 0.62) 29% 33%,
+      rgba(42, 207, 238, 0.6) 34% 38%,
+      rgba(54, 221, 117, 0.58) 39% 43%,
+      rgba(255, 232, 72, 0.62) 44% 48%,
+      rgba(255, 151, 48, 0.64) 49% 53%,
+      rgba(255, 67, 84, 0.66) 54% 58%,
+      transparent 59% 100%
+    );
+  background-position:
+    center,
+    center 4%;
+  background-size:
+    100% 100%,
+    142% 104%;
+  background-blend-mode: screen, screen;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.24),
+    inset 0 0 26px rgba(94, 184, 255, 0.1);
+  filter: brightness(calc(0.9 + var(--pointer-distance) * 0.2)) contrast(1.12) saturate(1.3);
+  mix-blend-mode: screen;
+  opacity: 0.52;
+}
+.rainbow .finishLayer::before {
+  background:
+    radial-gradient(ellipse at var(--pointer-x) 112%, transparent 0 22.4%, rgba(255, 255, 255, 0.36) 23.2%, transparent 24% 58%, rgba(255, 255, 255, 0.18) 58.7%, transparent 59.5%),
+    radial-gradient(ellipse at 50% 108%, rgba(255, 255, 255, 0.16), transparent 58%);
+  background-position: center;
+  background-size:
+    142% 104%,
+    100% 100%;
+  mix-blend-mode: screen;
+  opacity: 0.58;
+}
+.rainbow .finishLayer::after {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 252, 220, 0.5), rgba(255, 255, 255, 0.09) 9%, transparent 21%),
+    linear-gradient(180deg, rgba(123, 206, 255, 0.08), transparent 32% 72%, rgba(255, 255, 255, 0.1));
+  background-position: center;
+  background-size:
+    100% 100%,
+    100% 100%;
+  mix-blend-mode: screen;
+  opacity: 0.5;
+}
+.kaleidoscope .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.13) 10%, transparent 26%),
+    conic-gradient(from var(--foil-angle) at var(--pointer-x) var(--pointer-y), rgba(255, 61, 174, 0.46), rgba(255, 224, 73, 0.42), rgba(66, 255, 219, 0.44), rgba(63, 167, 255, 0.46), rgba(162, 71, 255, 0.46), rgba(255, 61, 174, 0.46)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.34) 0 0.75px, rgba(0, 0, 0, 0.28) 1.4px, transparent 2px 12px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.3) 0 0.75px, rgba(0, 0, 0, 0.3) 1.4px, transparent 2px 12px);
+  background-position:
+    center,
+    center,
+    calc(var(--pointer-left) * 17px) 0,
+    0 calc(var(--pointer-top) * -17px);
+  background-size:
+    100% 100%,
+    165% 165%,
+    12px 100%,
+    100% 12px;
+  background-blend-mode: screen, color-dodge, overlay, overlay;
+  box-shadow:
+    inset 0 0 0 1px rgba(239, 252, 255, 0.38),
+    inset 0 0 24px rgba(255, 51, 181, 0.14);
+  filter: brightness(calc(0.82 + var(--pointer-distance) * 0.32)) contrast(1.46) saturate(1.52);
+  mix-blend-mode: color-dodge;
+  opacity: 0.52;
+}
+.kaleidoscope .finishLayer::before {
+  background: conic-gradient(from 45deg at 50% 50%, rgba(255, 255, 255, 0.72) 0 12.5%, rgba(255, 92, 198, 0.38) 12.5% 25%, rgba(53, 226, 255, 0.4) 25% 37.5%, rgba(18, 22, 35, 0.46) 37.5% 50%, rgba(255, 232, 89, 0.4) 50% 62.5%, rgba(145, 88, 255, 0.42) 62.5% 75%, rgba(255, 255, 255, 0.58) 75% 87.5%, rgba(24, 29, 43, 0.48) 87.5% 100%);
+  background-position: calc(var(--pointer-left) * -19px) calc(var(--pointer-top) * 23px);
+  background-size: 18px 18px;
+  mix-blend-mode: overlay;
+  opacity: 0.44;
+}
+.kaleidoscope .finishLayer::after {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.92) 0 1%, rgba(255, 79, 207, 0.48) 2.5%, transparent 13%),
+    linear-gradient(var(--foil-angle), transparent 44%, rgba(255, 255, 255, 0.64) 49.5%, transparent 55%),
+    linear-gradient(calc(var(--foil-angle) + 90deg), transparent 45%, rgba(100, 233, 255, 0.48) 49.5%, transparent 54%);
+  background-position:
+    center,
+    var(--foil-x) var(--foil-y),
+    var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size:
+    100% 100%,
+    280% 280%,
+    320% 320%;
+  mix-blend-mode: screen;
+  opacity: 0.58;
+}
+.disco .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.84), rgba(133, 226, 255, 0.2) 9%, transparent 24%),
+    conic-gradient(from var(--foil-angle) at 50% 41%, rgba(24, 122, 255, 0.2) 0 7%, transparent 11% 22%, rgba(23, 255, 173, 0.22) 27%, transparent 32% 43%, rgba(42, 184, 255, 0.24) 48%, transparent 53% 66%, rgba(64, 255, 193, 0.2) 71%, transparent 76% 88%, rgba(47, 115, 255, 0.2) 94%, transparent 98%),
+    radial-gradient(ellipse at 50% 41%, rgba(222, 249, 255, 0.24), rgba(34, 136, 181, 0.1) 28%, rgba(2, 14, 31, 0.42) 58%, transparent 76%),
+    linear-gradient(180deg, rgba(0, 34, 72, 0.46), rgba(0, 14, 39, 0.7));
+  background-position:
+    center,
+    var(--foil-x) var(--foil-y),
+    center,
+    center;
+  background-size:
+    100% 100%,
+    190% 190%,
+    100% 100%,
+    100% 100%;
+  background-blend-mode: screen, screen, screen, multiply;
+  box-shadow:
+    inset 0 0 0 1px rgba(209, 246, 255, 0.32),
+    inset 0 0 30px rgba(0, 54, 110, 0.24);
+  filter: brightness(calc(0.86 + var(--pointer-distance) * 0.32)) contrast(1.38) saturate(1.42);
+  mix-blend-mode: screen;
+  opacity: 0.58;
+}
+.disco .finishLayer::before {
+  background:
+    radial-gradient(circle at 36% 27%, rgba(255, 255, 255, 0.98), rgba(179, 235, 255, 0.34) 11%, transparent 24%),
+    radial-gradient(circle at 50% 43%, rgba(234, 250, 255, 0.34), rgba(44, 86, 115, 0.38) 47%, rgba(0, 7, 18, 0.86) 77%),
+    conic-gradient(from 45deg at 50% 50%, rgba(245, 252, 255, 0.92) 0 12.5%, rgba(25, 116, 156, 0.62) 12.5% 25%, rgba(115, 255, 213, 0.72) 25% 37.5%, rgba(12, 42, 69, 0.74) 37.5% 50%, rgba(73, 150, 255, 0.72) 50% 62.5%, rgba(21, 63, 88, 0.66) 62.5% 75%, rgba(215, 247, 255, 0.84) 75% 87.5%, rgba(4, 24, 43, 0.76) 87.5% 100%),
+    repeating-linear-gradient(90deg, rgba(239, 252, 255, 0.42) 0 0.8px, rgba(0, 8, 15, 0.52) 1.5px, transparent 2.1px 12px),
+    repeating-linear-gradient(0deg, rgba(239, 252, 255, 0.38) 0 0.8px, rgba(0, 8, 15, 0.54) 1.5px, transparent 2.1px 12px);
+  background-position:
+    center,
+    center,
+    calc(var(--pointer-left) * -14px) calc(var(--pointer-top) * 16px),
+    calc(var(--pointer-left) * 10px) 0,
+    0 calc(var(--pointer-top) * -10px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    12px 12px,
+    12px 100%,
+    100% 12px;
+  background-blend-mode: screen, multiply, overlay, overlay, overlay;
+  clip-path: ellipse(32% 22% at 50% 41%);
+  filter: brightness(calc(0.9 + var(--pointer-distance) * 0.22)) contrast(1.56) saturate(1.08);
+  mix-blend-mode: color-dodge;
+  opacity: 0.82;
+}
+.disco .finishLayer::after {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.96) 0 0.7%, rgba(150, 232, 255, 0.42) 2.1%, transparent 11%),
+    linear-gradient(var(--foil-angle), transparent 45%, rgba(222, 251, 255, 0.64) 49.5%, transparent 54%),
+    conic-gradient(from 45deg, rgba(50, 126, 255, 0.68) 25%, transparent 0 50%, rgba(36, 165, 255, 0.5) 0 75%, transparent 0),
+    conic-gradient(from 45deg, rgba(20, 255, 166, 0.6) 25%, transparent 0 50%, rgba(62, 231, 194, 0.42) 0 75%, transparent 0),
+    conic-gradient(from 45deg, rgba(39, 211, 255, 0.52) 25%, transparent 0 50%, rgba(28, 110, 255, 0.38) 0 75%, transparent 0);
+  background-position:
+    center,
+    var(--foil-x-reverse) var(--foil-y-reverse),
+    calc(var(--pointer-left) * 31px) calc(var(--pointer-top) * -27px),
+    calc(var(--pointer-left) * -43px) calc(var(--pointer-top) * 37px),
+    calc(var(--pointer-left) * 53px) calc(var(--pointer-top) * 41px);
+  background-size:
+    100% 100%,
+    300% 300%,
+    18px 18px,
+    27px 25px,
+    39px 35px;
+  filter: contrast(1.26) saturate(1.45);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 41%, transparent 0 17%, rgba(0, 0, 0, 0.42) 29%, #000 47%);
+  mask-image: radial-gradient(ellipse at 50% 41%, transparent 0 17%, rgba(0, 0, 0, 0.42) 29%, #000 47%);
+  mix-blend-mode: screen;
+  opacity: 0.76;
+}
+.cosmos .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(250, 253, 255, 0.78), rgba(166, 201, 255, 0.2) 9%, transparent 25%),
+    radial-gradient(ellipse 34% 88% at 50% 54%, rgba(234, 191, 255, 0.38), rgba(139, 91, 231, 0.3) 25%, rgba(76, 90, 205, 0.16) 48%, transparent 72%),
+    radial-gradient(ellipse at 50% 105%, rgba(255, 145, 201, 0.44), rgba(184, 111, 205, 0.2) 35%, transparent 67%),
+    radial-gradient(ellipse at 51% 39%, rgba(27, 48, 102, 0.22), rgba(3, 10, 36, 0.68) 58%, rgba(0, 2, 14, 0.9) 100%),
+    linear-gradient(180deg, rgba(3, 12, 39, 0.68), rgba(12, 22, 67, 0.7) 55%, rgba(92, 46, 117, 0.56) 83%, rgba(225, 107, 171, 0.4));
+  background-position:
+    center,
+    var(--foil-x-reverse) var(--foil-y-reverse),
+    center,
+    center,
+    center;
+  background-size:
+    100% 100%,
+    165% 150%,
+    100% 100%,
+    100% 100%,
+    100% 100%;
+  background-blend-mode: screen, screen, screen, multiply, multiply;
+  box-shadow:
+    inset 0 0 0 1px rgba(182, 208, 255, 0.3),
+    inset 0 0 38px rgba(0, 3, 22, 0.72);
+  filter: brightness(calc(0.78 + var(--pointer-distance) * 0.28)) contrast(1.38) saturate(1.26);
+  mix-blend-mode: hard-light;
+  opacity: 0.66;
+}
+.cosmos .finishLayer::before {
+  background:
+    radial-gradient(circle at 17% 23%, rgba(255, 255, 255, 0.98) 0 0.42px, rgba(185, 211, 255, 0.5) 0.8px, transparent 1.3px),
+    radial-gradient(circle at 72% 66%, rgba(255, 251, 255, 0.98) 0 0.58px, rgba(209, 181, 255, 0.42) 1.05px, transparent 1.7px),
+    radial-gradient(circle at 46% 82%, rgba(235, 243, 255, 0.96) 0 0.68px, rgba(130, 175, 255, 0.36) 1.2px, transparent 2px),
+    radial-gradient(circle at 62% 37%, rgba(255, 255, 255, 0.94) 0 0.5px, transparent 1.55px),
+    radial-gradient(circle at 29% 58%, rgba(255, 224, 249, 0.94) 0 0.8px, rgba(199, 144, 255, 0.3) 1.45px, transparent 2.4px),
+    radial-gradient(circle at 81% 19%, rgba(235, 247, 255, 0.92) 0 0.9px, rgba(130, 201, 255, 0.28) 1.7px, transparent 2.8px);
+  background-position:
+    calc(var(--pointer-left) * 17px) calc(var(--pointer-top) * -19px),
+    calc(var(--pointer-left) * -23px) calc(var(--pointer-top) * 25px),
+    calc(var(--pointer-left) * 29px) calc(var(--pointer-top) * 21px),
+    calc(var(--pointer-left) * -35px) calc(var(--pointer-top) * -27px),
+    calc(var(--pointer-left) * 43px) calc(var(--pointer-top) * -39px),
+    calc(var(--pointer-left) * -51px) calc(var(--pointer-top) * 45px);
+  background-size:
+    11px 17px,
+    17px 23px,
+    29px 31px,
+    43px 47px,
+    61px 73px,
+    89px 97px;
+  filter: brightness(calc(0.92 + var(--pointer-distance) * 0.46));
+  mix-blend-mode: screen;
+  opacity: 0.9;
+}
+.cosmos .finishLayer::after {
+  background:
+    radial-gradient(ellipse 25% 86% at 50% 53%, rgba(251, 224, 255, 0.26), rgba(159, 103, 238, 0.2) 28%, rgba(72, 111, 216, 0.09) 55%, transparent 76%),
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.84) 0 0.6%, rgba(191, 215, 255, 0.34) 1.8%, transparent 9%),
+    radial-gradient(circle at 31% 22%, rgba(255, 255, 255, 0.92) 0 0.45%, rgba(187, 210, 255, 0.4) 1.25%, transparent 3.8%),
+    radial-gradient(circle at 76% 47%, rgba(255, 247, 255, 0.86) 0 0.35%, rgba(211, 177, 255, 0.34) 1.1%, transparent 3.4%),
+    radial-gradient(ellipse at 50% 108%, rgba(255, 175, 216, 0.34), transparent 60%);
+  background-position:
+    var(--foil-x-reverse) var(--foil-y-reverse),
+    center,
+    center,
+    center,
+    center;
+  background-size:
+    155% 145%,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%;
+  mix-blend-mode: screen;
+  opacity: 0.62;
+}
+.galaxy .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.9), rgba(99, 224, 255, 0.28) 8%, rgba(159, 103, 255, 0.12) 18%, transparent 29%),
+    radial-gradient(ellipse at 20% 52%, rgba(12, 224, 255, 0.48), rgba(0, 130, 215, 0.26) 32%, transparent 63%),
+    radial-gradient(ellipse at 79% 38%, rgba(242, 49, 255, 0.46), rgba(128, 46, 216, 0.27) 34%, transparent 65%),
+    radial-gradient(ellipse at 52% 79%, rgba(42, 113, 255, 0.45), rgba(37, 41, 169, 0.24) 39%, transparent 68%),
+    radial-gradient(ellipse at 48% 48%, transparent 9%, rgba(0, 3, 25, 0.26) 43%, rgba(0, 1, 14, 0.72) 100%),
+    linear-gradient(125deg, rgba(0, 20, 41, 0.8), rgba(7, 23, 82, 0.64) 42%, rgba(56, 15, 90, 0.66) 72%, rgba(15, 0, 38, 0.84));
+  background-position:
+    center,
+    var(--foil-x) var(--foil-y),
+    var(--foil-x-reverse) var(--foil-y-reverse),
+    var(--foil-x) var(--foil-y-reverse),
+    center,
+    center;
+  background-size:
+    100% 100%,
+    150% 145%,
+    165% 150%,
+    155% 145%,
+    100% 100%,
+    100% 100%;
+  background-blend-mode: screen, screen, screen, screen, multiply, multiply;
+  box-shadow:
+    inset 0 0 0 1px rgba(138, 224, 255, 0.34),
+    inset 0 0 42px rgba(7, 0, 35, 0.68);
+  filter: brightness(calc(0.78 + var(--pointer-distance) * 0.34)) contrast(1.42) saturate(1.52);
+  mix-blend-mode: screen;
+  opacity: 0.68;
+}
+.galaxy .finishLayer::before {
+  background:
+    radial-gradient(circle at 14% 21%, rgba(255, 255, 255, 1) 0 0.45px, rgba(126, 225, 255, 0.48) 0.9px, transparent 1.45px),
+    radial-gradient(circle at 73% 62%, rgba(255, 250, 255, 0.98) 0 0.6px, rgba(230, 155, 255, 0.45) 1.15px, transparent 1.85px),
+    radial-gradient(circle at 42% 83%, rgba(220, 246, 255, 0.96) 0 0.72px, rgba(74, 202, 255, 0.38) 1.3px, transparent 2.1px),
+    radial-gradient(circle at 64% 31%, rgba(255, 255, 255, 0.98) 0 0.52px, transparent 1.65px),
+    radial-gradient(circle at 27% 58%, rgba(255, 210, 250, 0.96) 0 0.86px, rgba(232, 80, 255, 0.34) 1.55px, transparent 2.5px),
+    radial-gradient(circle at 84% 17%, rgba(222, 253, 255, 0.96) 0 1px, rgba(64, 221, 255, 0.32) 1.8px, transparent 3px);
+  background-position:
+    calc(var(--pointer-left) * 15px) calc(var(--pointer-top) * -17px),
+    calc(var(--pointer-left) * -23px) calc(var(--pointer-top) * 21px),
+    calc(var(--pointer-left) * 31px) calc(var(--pointer-top) * 27px),
+    calc(var(--pointer-left) * -39px) calc(var(--pointer-top) * -33px),
+    calc(var(--pointer-left) * 47px) calc(var(--pointer-top) * -41px),
+    calc(var(--pointer-left) * -57px) calc(var(--pointer-top) * 51px);
+  background-size:
+    13px 17px,
+    19px 27px,
+    31px 37px,
+    47px 53px,
+    67px 79px,
+    97px 107px;
+  filter: brightness(calc(0.94 + var(--pointer-distance) * 0.48));
+  mix-blend-mode: screen;
+  opacity: 0.92;
+}
+.galaxy .finishLayer::after {
+  background:
+    radial-gradient(ellipse at 52% 39%, rgba(255, 255, 255, 0.96) 0 2%, rgba(175, 229, 255, 0.78) 4%, rgba(255, 147, 226, 0.48) 8%, rgba(111, 94, 255, 0.22) 16%, transparent 28%),
+    repeating-conic-gradient(from var(--foil-angle) at 52% 39%, rgba(224, 246, 255, 0.28) 0 3deg, rgba(72, 211, 255, 0.18) 5deg, transparent 10deg 20deg, rgba(235, 89, 255, 0.2) 24deg 28deg, transparent 34deg 46deg),
+    radial-gradient(ellipse at 52% 39%, transparent 0 12%, rgba(102, 220, 255, 0.22) 19%, rgba(167, 97, 255, 0.24) 28%, rgba(245, 107, 224, 0.16) 38%, transparent 54%),
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.76) 0 0.55%, rgba(120, 224, 255, 0.28) 1.8%, transparent 9%);
+  background-position:
+    center,
+    var(--foil-x-reverse) var(--foil-y-reverse),
+    center,
+    center;
+  background-size:
+    100% 100%,
+    175% 135%,
+    100% 100%,
+    100% 100%;
+  filter: contrast(1.2) saturate(1.3);
+  -webkit-mask-image: radial-gradient(ellipse 72% 38% at 52% 39%, #000 0 31%, rgba(0, 0, 0, 0.86) 48%, transparent 78%);
+  mask-image: radial-gradient(ellipse 72% 38% at 52% 39%, #000 0 31%, rgba(0, 0, 0, 0.86) 48%, transparent 78%);
+  mix-blend-mode: screen;
+  opacity: 0.74;
+  transform: rotate(-13deg) scale(1.08);
+}
+.radiant .finishLayer {
+  background:
+    radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.82), rgba(255, 248, 214, 0.2) 13%, transparent 31%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.46) 0 0.65px, rgba(20, 31, 48, 0.34) 1.25px, transparent 2px 9px),
+    repeating-linear-gradient(-45deg, rgba(118, 235, 255, 0.4) 0 0.65px, rgba(49, 26, 87, 0.3) 1.25px, transparent 2px 11px),
+    linear-gradient(var(--foil-angle), rgba(255, 128, 142, 0.34), rgba(135, 204, 255, 0.38) 21%, rgba(255, 220, 139, 0.36) 42%, rgba(128, 255, 213, 0.36) 62%, rgba(235, 153, 255, 0.38) 82%, rgba(255, 128, 142, 0.34));
+  background-position:
+    center,
+    calc(var(--pointer-left) * 13px) calc(var(--pointer-top) * -13px),
+    calc(var(--pointer-left) * -17px) calc(var(--pointer-top) * 17px),
+    var(--foil-x) var(--foil-y);
+  background-size:
+    100% 100%,
+    13px 13px,
+    17px 17px,
+    310% 260%;
+  background-blend-mode: screen, exclusion, hard-light, color-dodge;
+  box-shadow:
+    inset 0 0 0 1px rgba(238, 255, 255, 0.4),
+    inset 0 0 26px rgba(108, 225, 255, 0.16);
+  filter: brightness(calc(0.82 + var(--pointer-distance) * 0.38)) contrast(1.48) saturate(1.42);
+  mix-blend-mode: color-dodge;
+  opacity: 0.6;
+}
+.radiant .finishLayer::before {
+  background: repeating-linear-gradient(calc(var(--foil-angle) + 90deg), rgba(255, 241, 201, 0.34) 0 1.5%, rgba(125, 218, 255, 0.3) 3%, rgba(255, 152, 223, 0.3) 4.5%, rgba(130, 255, 212, 0.28) 6%, transparent 8% 15%);
+  background-position: var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size: 360% 300%;
+  mix-blend-mode: screen;
+  opacity: 0.58;
+}
+.radiant .finishLayer::after {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 7%, rgba(255, 255, 255, 0.34) 17%, transparent 34%),
+    linear-gradient(var(--foil-angle), transparent 39%, rgba(255, 255, 255, 0.58) 49.5%, transparent 61%);
+  background-position:
+    center,
+    var(--foil-x) var(--foil-y);
+  background-size:
+    100% 100%,
+    250% 250%;
+  mix-blend-mode: screen;
+  opacity: 0.62;
+}
 .dark .finishLayer {
   z-index: 6;
   background:
@@ -2001,6 +2371,24 @@
 .prototypeCard.holographic:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.7 + var(--pointer-distance) * 0.16);
 }
+.prototypeCard.rainbow:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.68 + var(--pointer-distance) * 0.12);
+}
+.prototypeCard.kaleidoscope:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.7 + var(--pointer-distance) * 0.13);
+}
+.prototypeCard.disco:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.66 + var(--pointer-distance) * 0.14);
+}
+.prototypeCard.cosmos:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.72 + var(--pointer-distance) * 0.14);
+}
+.prototypeCard.galaxy:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.78 + var(--pointer-distance) * 0.16);
+}
+.prototypeCard.radiant:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.8 + var(--pointer-distance) * 0.14);
+}
 .prototypeCard.prismatic:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.78 + var(--pointer-distance) * 0.14);
 }
@@ -2059,6 +2447,48 @@
   opacity: 0.42;
 }
 .prototypeCard.holographic:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
+  opacity: 0.94;
+}
+.prototypeCard.rainbow .materialLight {
+  filter: brightness(1.04) contrast(1.08) saturate(1.18);
+  opacity: 0.3;
+}
+.prototypeCard.rainbow:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
+  opacity: 0.76;
+}
+.prototypeCard.kaleidoscope .materialLight {
+  filter: contrast(1.42) saturate(1.62);
+  opacity: 0.34;
+}
+.prototypeCard.kaleidoscope:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
+  opacity: 0.86;
+}
+.prototypeCard.disco .materialLight {
+  filter: grayscale(0.52) contrast(1.34) saturate(0.72);
+  opacity: 0.34;
+}
+.prototypeCard.disco:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
+  opacity: 0.86;
+}
+.prototypeCard.cosmos .materialLight {
+  filter: contrast(1.28) saturate(0.72);
+  opacity: 0.3;
+}
+.prototypeCard.cosmos:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
+  opacity: 0.78;
+}
+.prototypeCard.galaxy .materialLight {
+  filter: contrast(1.36) saturate(1.16) hue-rotate(4deg);
+  opacity: 0.36;
+}
+.prototypeCard.galaxy:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
+  opacity: 0.86;
+}
+.prototypeCard.radiant .materialLight {
+  filter: brightness(1.06) contrast(1.28) saturate(1.28);
+  opacity: 0.42;
+}
+.prototypeCard.radiant:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.94;
 }
 .prototypeCard.dark .materialLight {
@@ -2168,6 +2598,76 @@
     220% 100%,
     100% 100%;
 }
+.rainbow .statsPanel {
+  background:
+    linear-gradient(112deg, rgba(255, 70, 109, 0.14), rgba(255, 211, 75, 0.12), rgba(70, 245, 175, 0.12), rgba(68, 180, 255, 0.14), rgba(208, 81, 255, 0.14)),
+    linear-gradient(180deg, rgba(20, 17, 30, 0.99), rgba(4, 4, 11, 0.99));
+  background-position:
+    var(--foil-x) center,
+    center;
+  background-size:
+    240% 100%,
+    100% 100%;
+}
+.kaleidoscope .statsPanel {
+  background:
+    linear-gradient(112deg, rgba(255, 64, 185, 0.12), rgba(255, 224, 73, 0.09), rgba(54, 237, 255, 0.1), rgba(139, 74, 255, 0.12)),
+    linear-gradient(180deg, rgba(22, 16, 30, 0.99), rgba(4, 4, 10, 0.99));
+  background-position:
+    var(--foil-x) center,
+    center;
+  background-size:
+    220% 100%,
+    100% 100%;
+  box-shadow: inset 0 0 0 1px rgba(244, 237, 255, 0.18);
+}
+.disco .statsPanel {
+  background:
+    linear-gradient(112deg, rgba(238, 248, 255, 0.12), rgba(93, 111, 128, 0.13), rgba(255, 255, 255, 0.11), rgba(255, 74, 193, 0.06), rgba(68, 220, 255, 0.07)),
+    linear-gradient(180deg, rgba(21, 25, 30, 0.99), rgba(3, 5, 8, 0.99));
+  background-position:
+    var(--foil-x) center,
+    center;
+  background-size:
+    210% 100%,
+    100% 100%;
+  box-shadow: inset 0 0 0 1px rgba(232, 244, 252, 0.18);
+}
+.cosmos .statsPanel {
+  background:
+    linear-gradient(112deg, rgba(191, 226, 255, 0.12), rgba(52, 91, 157, 0.16), rgba(8, 24, 63, 0.2), rgba(124, 180, 235, 0.11)),
+    linear-gradient(180deg, rgba(7, 18, 43, 0.99), rgba(0, 3, 13, 0.99));
+  background-position:
+    var(--foil-x) center,
+    center;
+  background-size:
+    230% 100%,
+    100% 100%;
+  box-shadow: inset 0 0 0 1px rgba(125, 221, 255, 0.2);
+}
+.galaxy .statsPanel {
+  background:
+    linear-gradient(112deg, rgba(30, 218, 255, 0.16), rgba(48, 91, 217, 0.16), rgba(167, 57, 237, 0.18), rgba(255, 67, 203, 0.14)),
+    linear-gradient(180deg, rgba(5, 13, 43, 0.99), rgba(8, 1, 24, 0.99));
+  background-position:
+    var(--foil-x) center,
+    center;
+  background-size:
+    250% 100%,
+    100% 100%;
+  box-shadow: inset 0 0 0 1px rgba(124, 197, 255, 0.22);
+}
+.radiant .statsPanel {
+  background:
+    linear-gradient(112deg, rgba(255, 147, 158, 0.12), rgba(134, 211, 255, 0.14), rgba(255, 222, 148, 0.12), rgba(139, 255, 216, 0.12), rgba(225, 160, 255, 0.13)),
+    linear-gradient(180deg, rgba(19, 23, 29, 0.99), rgba(3, 5, 9, 0.99));
+  background-position:
+    var(--foil-x) center,
+    center;
+  background-size:
+    250% 100%,
+    100% 100%;
+}
 .dark .statsPanel {
   background: linear-gradient(180deg, rgba(14, 6, 24, 0.99), rgba(1, 1, 4, 0.99));
   box-shadow: inset 0 0 0 1px rgba(142, 93, 255, 0.18);
@@ -2262,6 +2762,48 @@
   }
   .prototypeCard.holographic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypePrismaticIdleFoil 5.1s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.rainbow:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeRainbowIdleFoil 6.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.kaleidoscope:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeKaleidoscopeIdleFoil 5.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.kaleidoscope:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
+    animation: prototypeKaleidoscopeFacetDrift 7.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.disco:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeDiscoBallIdle 7.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.disco:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
+    animation: prototypeDiscoBallFacetDrift 8.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.disco:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeDiscoProjectionDrift 7.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.cosmos:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeCosmosIdleFoil 7.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.cosmos:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
+    animation: prototypeCosmosStarDrift 10.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.galaxy:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeGalaxyNebulaIdle 9.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.galaxy:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
+    animation: prototypeGalaxyStarDrift 11.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.galaxy:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeGalaxySpiralIdle 8.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.radiant:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeRadiantIdleFoil 6.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.radiant:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
+    animation: prototypeRadiantCounterDrift 7.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard:is(.rainbow, .kaleidoscope, .disco, .cosmos, .galaxy, .radiant):not([data-pointer-active="true"]):not([data-forced-hover="true"]) .statsPanel {
+    animation: prototypePrismaticStatsIdle 6.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
   .prototypeCard.prismatic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypePrismaticIdleFoil 5.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
@@ -2407,6 +2949,261 @@
     background-position:
       82% center,
       center;
+  }
+}
+
+@keyframes prototypeRainbowIdleFoil {
+  from {
+    background-position:
+      center,
+      center 6%;
+    background-size:
+      100% 100%,
+      146% 106%;
+    filter: brightness(0.9) contrast(1.1) saturate(1.24);
+  }
+  to {
+    background-position:
+      center,
+      center -2%;
+    background-size:
+      100% 100%,
+      138% 101%;
+    filter: brightness(1) contrast(1.14) saturate(1.36);
+  }
+}
+
+@keyframes prototypeKaleidoscopeIdleFoil {
+  from {
+    background-position:
+      center,
+      44% 46%,
+      0 0,
+      0 0;
+    filter: brightness(0.82) contrast(1.42) saturate(1.46);
+  }
+  to {
+    background-position:
+      center,
+      57% 54%,
+      18px 0,
+      0 -18px;
+    filter: brightness(0.94) contrast(1.5) saturate(1.58);
+  }
+}
+
+@keyframes prototypeKaleidoscopeFacetDrift {
+  from {
+    background-position: -7px 5px;
+    filter: brightness(0.9) saturate(1.04);
+  }
+  to {
+    background-position: 19px -17px;
+    filter: brightness(1.06) saturate(1.18);
+  }
+}
+
+@keyframes prototypeDiscoBallIdle {
+  from {
+    background-position:
+      center,
+      44% 46%,
+      center,
+      center;
+    filter: brightness(0.84) contrast(1.34) saturate(1.28);
+  }
+  to {
+    background-position:
+      center,
+      57% 53%,
+      center,
+      center;
+    filter: brightness(1) contrast(1.42) saturate(1.5);
+  }
+}
+
+@keyframes prototypeDiscoBallFacetDrift {
+  from {
+    background-position:
+      center,
+      center,
+      -5px 4px,
+      2px 0,
+      0 -2px;
+    filter: brightness(0.9) contrast(1.5) saturate(0.96);
+  }
+  to {
+    background-position:
+      center,
+      center,
+      17px -14px,
+      16px 0,
+      0 -16px;
+    filter: brightness(1.08) contrast(1.62) saturate(1.18);
+  }
+}
+
+@keyframes prototypeDiscoProjectionDrift {
+  from {
+    background-position:
+      center,
+      42% 47%,
+      -13px 8px,
+      21px -17px,
+      -31px 23px;
+    filter: contrast(1.2) saturate(1.32);
+    opacity: 0.66;
+  }
+  to {
+    background-position:
+      center,
+      58% 53%,
+      29px -26px,
+      -37px 31px,
+      47px -39px;
+    filter: contrast(1.32) saturate(1.58);
+    opacity: 0.84;
+  }
+}
+
+@keyframes prototypeCosmosIdleFoil {
+  from {
+    background-position:
+      center,
+      64% 58%,
+      center,
+      center,
+      center;
+    filter: brightness(0.76) contrast(1.34) saturate(1.14);
+  }
+  to {
+    background-position:
+      center,
+      38% 43%,
+      center,
+      center,
+      center;
+    filter: brightness(0.92) contrast(1.42) saturate(1.34);
+  }
+}
+
+@keyframes prototypeCosmosStarDrift {
+  from {
+    background-position:
+      4px -9px,
+      -17px 12px,
+      13px 8px,
+      -7px -5px,
+      21px -17px,
+      -31px 23px;
+    opacity: 0.8;
+  }
+  to {
+    background-position:
+      31px 27px,
+      -49px 39px,
+      37px -21px,
+      -23px 19px,
+      58px 41px,
+      -69px -43px;
+    opacity: 0.96;
+  }
+}
+
+@keyframes prototypeGalaxyNebulaIdle {
+  from {
+    background-position:
+      center,
+      31% 58%,
+      69% 34%,
+      42% 72%,
+      center,
+      center;
+    filter: brightness(0.75) contrast(1.38) saturate(1.4);
+  }
+  to {
+    background-position:
+      center,
+      58% 42%,
+      41% 59%,
+      66% 38%,
+      center,
+      center;
+    filter: brightness(0.96) contrast(1.46) saturate(1.66);
+  }
+}
+
+@keyframes prototypeGalaxyStarDrift {
+  from {
+    background-position:
+      3px -7px,
+      -13px 11px,
+      17px 9px,
+      -23px -15px,
+      29px -21px,
+      -37px 27px;
+    opacity: 0.82;
+  }
+  to {
+    background-position:
+      28px 25px,
+      -43px 37px,
+      51px -29px,
+      -61px 43px,
+      73px 55px,
+      -89px -63px;
+    opacity: 1;
+  }
+}
+
+@keyframes prototypeGalaxySpiralIdle {
+  from {
+    background-position:
+      center,
+      42% 46%,
+      center,
+      center;
+    filter: brightness(0.88) contrast(1.16) saturate(1.22);
+    opacity: 0.64;
+    transform: rotate(-15deg) scale(1.04);
+  }
+  to {
+    background-position:
+      center,
+      59% 53%,
+      center,
+      center;
+    filter: brightness(1.08) contrast(1.26) saturate(1.42);
+    opacity: 0.82;
+    transform: rotate(-10deg) scale(1.14);
+  }
+}
+
+@keyframes prototypeRadiantIdleFoil {
+  from {
+    background-position:
+      center,
+      2px -3px,
+      -5px 4px,
+      18% 34%;
+    filter: brightness(0.8) contrast(1.44) saturate(1.34);
+  }
+  to {
+    background-position:
+      center,
+      15px -16px,
+      -22px 21px,
+      82% 67%;
+    filter: brightness(0.98) contrast(1.54) saturate(1.5);
+  }
+}
+
+@keyframes prototypeRadiantCounterDrift {
+  from {
+    background-position: 18% 31%;
+  }
+  to {
+    background-position: 82% 69%;
   }
 }
 
@@ -2899,6 +3696,48 @@
 }
 .prototypeCard.holographic:is([data-pointer-active="true"], [data-forced-hover="true"]) .qualityLabel {
   filter: brightness(calc(1.14 + var(--pointer-distance) * 0.3)) saturate(1.48);
+}
+.vaultRelic .rarityPlate:is([data-quality="rainbow"], [data-quality="kaleidoscope"], [data-quality="disco"], [data-quality="cosmos"], [data-quality="galaxy"], [data-quality="radiant"]) .qualityLabel {
+  background-clip: text;
+  background-position: var(--foil-x) center;
+  background-size: 240% 100%;
+  color: transparent;
+  filter: brightness(1.12) saturate(1.34);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.vaultRelic .rarityPlate[data-quality="rainbow"] .qualityLabel {
+  background-image: linear-gradient(90deg, #ff5578, #ffbc55 17%, #fff070 32%, #62f5a8 47%, #53dfff 62%, #7d75ff 77%, #e768ff 90%, #ff5578);
+  text-shadow: 0 0 5px rgba(167, 93, 255, 0.24);
+}
+.vaultRelic .rarityPlate[data-quality="kaleidoscope"] .qualityLabel {
+  background-image: linear-gradient(90deg, #ffffff, #ff58cb 18%, #ffe25b 36%, #55f5ff 54%, #9b6cff 72%, #ffffff 88%, #ff58cb);
+  text-shadow:
+    -0.35px 0 rgba(255, 61, 190, 0.7),
+    0.35px 0 rgba(61, 235, 255, 0.72);
+}
+.vaultRelic .rarityPlate[data-quality="disco"] .qualityLabel {
+  background-image: linear-gradient(90deg, #f8fdff, #38cfff 18%, #3b7dff 35%, #ffffff 51%, #28f0ad 69%, #36b6ff 85%, #e8fbff);
+  text-shadow: 0 0 5px rgba(82, 218, 255, 0.36);
+}
+.vaultRelic .rarityPlate[data-quality="cosmos"] .qualityLabel {
+  background-image: linear-gradient(90deg, #f8fbff, #9cbcff 20%, #866bd4 39%, #f1ddff 57%, #ec9fce 76%, #ffffff 89%, #8fb3ee);
+  text-shadow: 0 0 6px rgba(166, 132, 238, 0.38);
+}
+.vaultRelic .rarityPlate[data-quality="galaxy"] .qualityLabel {
+  background-image: linear-gradient(90deg, #eaffff, #3de6ff 17%, #387cff 35%, #ae62ff 54%, #ff55d3 72%, #ffffff 88%, #3de6ff);
+  text-shadow: 0 0 7px rgba(111, 93, 255, 0.44);
+}
+.vaultRelic .rarityPlate[data-quality="radiant"] .qualityLabel {
+  background-image: linear-gradient(90deg, #fff5d5, #ff9fad 19%, #9ed9ff 38%, #ffe39b 57%, #9dffd7 76%, #e6b2ff 91%, #fff5d5);
+  text-shadow: 0 0 5px rgba(217, 241, 255, 0.3);
+}
+.prototypeCard:is(.rainbow, .kaleidoscope, .disco, .cosmos, .galaxy, .radiant):not([data-pointer-active="true"]):not([data-forced-hover="true"]) .qualityLabel {
+  animation: prototypeHolographicTextSweep 4.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+.prototypeCard:is(.rainbow, .kaleidoscope, .disco, .cosmos, .galaxy, .radiant):is([data-pointer-active="true"], [data-forced-hover="true"]) .qualityLabel {
+  background-position: var(--foil-x) center;
+  filter: brightness(calc(1.12 + var(--pointer-distance) * 0.28)) saturate(1.52);
 }
 .vaultRelic .rarityPlate[data-quality="prismatic"] .qualityLabel {
   background: linear-gradient(90deg, #73f3ff, #8b76ff 28%, #ff68d6 52%, #ffd86d 74%, #72f5d3);
@@ -3837,6 +4676,24 @@
   }
   .holographic .finishLayer {
     opacity: 0.56;
+  }
+  .rainbow .finishLayer {
+    opacity: 0.56;
+  }
+  .kaleidoscope .finishLayer {
+    opacity: 0.54;
+  }
+  .disco .finishLayer {
+    opacity: 0.56;
+  }
+  .cosmos .finishLayer {
+    opacity: 0.64;
+  }
+  .galaxy .finishLayer {
+    opacity: 0.68;
+  }
+  .radiant .finishLayer {
+    opacity: 0.66;
   }
   .prismatic .finishLayer {
     opacity: 0.46;

@@ -8,7 +8,7 @@ import { CCG_RARITY_KEYS, hasAlternativeArtwork } from "@/lib/ccg";
 import { formatRealmName } from "@/lib/utils";
 import type { CcgArtVariant, CcgCard, CcgFinish, CcgTierGrade } from "@/types";
 
-type PreviewFinish = CcgFinish | "chromaflow" | "dark" | "eclipse" | "paradox" | "anomaly" | "infinite" | "transcendent" | "singularity" | "metamorphic" | "parallax";
+type PreviewFinish = CcgFinish | "rainbow" | "kaleidoscope" | "disco" | "cosmos" | "galaxy" | "radiant" | "chromaflow" | "dark" | "eclipse" | "paradox" | "anomaly" | "infinite" | "transcendent" | "singularity" | "metamorphic" | "parallax";
 
 const finishes: readonly PreviewFinish[] = [
   "standard",
@@ -16,6 +16,12 @@ const finishes: readonly PreviewFinish[] = [
   "golden",
   "prismatic",
   "holographic",
+  "rainbow",
+  "kaleidoscope",
+  "disco",
+  "cosmos",
+  "galaxy",
+  "radiant",
   "void",
   "dark",
   "toxic",
