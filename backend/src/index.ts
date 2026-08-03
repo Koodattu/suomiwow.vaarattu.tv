@@ -137,20 +137,23 @@ app.use(
 );
 
 // Session configuration with MongoDB store
+const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
 const sessionConfig: any = {
   secret: process.env.SESSION_SECRET || "your-secret-key-change-in-production",
   resave: false,
   saveUninitialized: false,
+  rolling: true,
   store: MongoStore.create({
     mongoUrl: process.env.MONGODB_URI || "mongodb://localhost:27017/wow_guild_tracker",
     collectionName: "sessions",
-    ttl: 7 * 24 * 60 * 60, // 7 days
+    ttl: SESSION_MAX_AGE_MS / 1000,
   }),
   cookie: {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    maxAge: SESSION_MAX_AGE_MS,
     path: "/",
   },
 };
