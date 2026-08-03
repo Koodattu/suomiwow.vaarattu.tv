@@ -118,7 +118,7 @@ Finish is independent of tier grade:
 - **Golden** adds warm metallic treatment, enhanced frame detail, and restrained animated highlights.
 - **Prismatic** adds a spectral edge, microfoil, richer pointer-responsive lighting, and the premium reveal.
 - **Holographic** intensifies the spectral depth and animated diffraction beyond Prismatic.
-- A raid may optionally add one themed finish between Holographic and Negative. **Void** is the March on Quel'Danas finish; **Toxic** is reserved for a future poison-themed raid. Both finishes are immediately available as code-exclusive rewards for Community cards without entering Community pack rolls, pity, duplicate protection, or completion.
+- Every configured raid may add one themed finish between Holographic and Negative. The Warlords of Draenor through The War Within assignments are documented in `ccg-card-finish-styling.md`; **Void** is the March on Quel'Danas finish, and **Toxic** is reserved for Venomous Abyss. Every raid-specific finish is also available as a code-exclusive reward for Community cards without entering Community pack rolls, pity, duplicate protection, or completion.
 - **Negative** applies the rare full-card inverted treatment and is the highest production finish.
 
 Each non-Standard finish has a persistent per-owner protection counter shared by every pack opening. A raid-scoped finish has a separate counter keyed by raid-set slug and advances only when a card from that set is pulled. Its chance remains at `1 / hardPity` through the first 80% of the interval, then follows a quadratic soft-pity ramp to a guaranteed hit at hard pity. The selected raw finish resets its own counter even when duplicate protection converts it, and a different non-Standard finish awarded by that conversion also resets its counter. Finish rolls are independent, but a card receives only the highest finish that succeeds, so reaching one hard pity cannot turn the rest of a pack into the same premium finish.
@@ -667,7 +667,7 @@ Use a polymorphic owner:
 - `ownerId`
 - `setId` and `characterId`, which identify the shared card series
 - `cardId`, retained as the exact snapshot that originated this finish row
-- `finish`: `standard`, `foil`, `golden`, `prismatic`, `holographic`, `void`, `toxic`, or `negative`; raid-scoped values are valid for their configured raid set or as redeem-code-only Community ownership
+- `finish`: one of the six base finishes, one configured raid-specific finish, or `negative`; raid-scoped values are valid for their configured raid set or as redeem-code-only Community ownership
 - `quantity`
 - `alternativeQuantity`: an existing value above zero is alternative-art unlock evidence for that row's `{setId, characterId}` card series; it does not split or add to finish quantities
 - `firstAcquiredAt`
@@ -1241,7 +1241,7 @@ The initial feature is ready when:
 - The same character in different raid sets is collected and completed as a different card.
 - A missing rolled finish is awarded unchanged; an exact-finish duplicate advances to the next missing finish for that card series.
 - The first duplicate pulled after every finish in the card series' pack ladder is owned awards exactly one unified pack for that series.
-- Community cards roll and complete against the six base finishes only; redeem codes may additionally award Void or Toxic without changing completion or protection state.
+- Community cards roll and complete against the six base finishes only; redeem codes may additionally award any raid-specific finish without changing completion or protection state.
 - Alternative art is one cosmetic unlock per `{setId, characterId}` card series and never contributes to duplicate or finish-completion state.
 - Finish protection remains at each configured base rate through 80% of the interval, then ramps quadratically to hard pity; converted duplicates reset both the selected raw finish and any different non-Standard finish awarded.
 - The collection displays each raid card series separately, exposes every owned finish on every explicitly unlocked snapshot, and does not add newly published, missed, or historical snapshots until the collector acquires that exact version.

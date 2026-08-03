@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CcgFinish, CcgTierGrade } from "../config/ccg";
+import { CCG_FINISH_ORDER, CcgFinish, CcgTierGrade } from "../config/ccg";
 
 type CountRecord<Key extends string> = Record<Key, number>;
 
@@ -13,16 +13,7 @@ export interface ICcgAnalyticsDaily extends Document {
 }
 
 const FinishCountsSchema = new Schema(
-  {
-    standard: { type: Number, required: true, default: 0, min: 0 },
-    foil: { type: Number, required: true, default: 0, min: 0 },
-    golden: { type: Number, required: true, default: 0, min: 0 },
-    prismatic: { type: Number, required: true, default: 0, min: 0 },
-    holographic: { type: Number, required: true, default: 0, min: 0 },
-    void: { type: Number, required: true, default: 0, min: 0 },
-    toxic: { type: Number, required: true, default: 0, min: 0 },
-    negative: { type: Number, required: true, default: 0, min: 0 },
-  },
+  Object.fromEntries(CCG_FINISH_ORDER.map((finish) => [finish, { type: Number, required: true, default: 0, min: 0 }])),
   { _id: false },
 );
 

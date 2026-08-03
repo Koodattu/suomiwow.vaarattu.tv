@@ -1,6 +1,6 @@
 # CCG Raid-Specific Card Finish Styling
 
-Status: design specification implemented as development-only previews in the Admin CCG Card Studio. The raid finishes are not enabled in production CCG systems.
+Status: implemented and attached to their configured raid sets. The finishes remain available in the Admin CCG Card Studio for continued visual iteration.
 
 ## Scope
 
@@ -16,6 +16,8 @@ The configured CCG raid list in [`backend/src/config/ccg.ts`](../backend/src/con
 Trial of Valor and Crucible of Storms are intentionally excluded. The existing CCG plan states that raids without a deliberate configuration, artwork, season mapping, and theme remain disabled; see [`docs/ccg-implementation-plan.md`](ccg-implementation-plan.md).
 
 March on Quel'Danas and Venomous Abyss are recorded separately in the final Midnight roadmap table. Their assignments are locked to Void and Toxic respectively and are not redesign proposals.
+
+Each configured raid from Warlords of Draenor through The War Within uses the finish listed below as its single raid-scoped finish, with the same 250 matching-set-card hard pity used by Void. Community packs continue to use only the six base finishes, while Community redeem codes may grant any raid-specific finish without changing pack completion or protection. Until dedicated announcer recordings exist, these raid finishes use the existing Unique callouts. Other Card Studio development finishes remain preview-only.
 
 ## Overall finish system
 

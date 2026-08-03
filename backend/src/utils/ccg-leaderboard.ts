@@ -1,4 +1,5 @@
 import {
+  CCG_CUSTOM_FINISHES,
   CCG_FINISH_ORDER,
   CCG_TIER_GRADES,
   CcgFinish,
@@ -27,8 +28,7 @@ export const CCG_FINISH_POINTS: Readonly<Record<CcgFinish, number>> = {
   golden: 5,
   prismatic: 7,
   holographic: 10,
-  void: 16,
-  toxic: 16,
+  ...Object.fromEntries(CCG_CUSTOM_FINISHES.map((finish) => [finish, 16])) as Record<(typeof CCG_CUSTOM_FINISHES)[number], number>,
   negative: 32,
 };
 

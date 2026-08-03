@@ -8,6 +8,7 @@ import {
   CCG_FINISH_PITY_LIMITS,
   CCG_INITIAL_PACKS,
   CCG_PACK_STORAGE_CAP,
+  CCG_RAID_FINISHES,
   CCG_REGULAR_TIER_GRADES,
   CCG_TIER_GRADES,
   CcgFinish,
@@ -299,9 +300,11 @@ test("raid-scoped finishes extend only their configured set's ladder", () => {
   const defaultOrder = getCcgFinishOrder();
   const voidOrder = getCcgFinishOrder("void");
   const toxicOrder = getCcgFinishOrder("toxic");
+  const relicOrder = getCcgFinishOrder("relic");
   assert.deepEqual(defaultOrder, ["standard", "foil", "golden", "prismatic", "holographic", "negative"]);
   assert.deepEqual(voidOrder, ["standard", "foil", "golden", "prismatic", "holographic", "void", "negative"]);
   assert.deepEqual(toxicOrder, ["standard", "foil", "golden", "prismatic", "holographic", "toxic", "negative"]);
+  assert.deepEqual(relicOrder, ["standard", "foil", "golden", "prismatic", "holographic", "relic", "negative"]);
   assert.deepEqual(
     resolveOwnedFinish("negative", new Set<CcgFinish>(defaultOrder), voidOrder),
     { finish: "void", isDuplicate: true, isCompletedCardDuplicate: false },
@@ -311,11 +314,16 @@ test("raid-scoped finishes extend only their configured set's ladder", () => {
     true,
   );
   assert.equal(CCG_CONFIGURED_SETS.find((set) => set.slug === "march-on-queldanas")?.customFinish?.key, "void");
+  assert.deepEqual(
+    CCG_CONFIGURED_SETS.slice(0, CCG_RAID_FINISHES.length).map((set) => set.customFinish?.key),
+    CCG_RAID_FINISHES,
+  );
 });
 
 test("Community redeem codes allow every custom finish without extending pack completion", () => {
   assert.deepEqual(getCcgRedeemFinishOrder("community"), CCG_FINISH_ORDER);
   assert.equal(getCcgRedeemFinishOrder("community").includes("toxic"), true);
+  assert.equal(getCcgRedeemFinishOrder("community").includes("phaseglass"), true);
   assert.deepEqual(getCcgPackFinishOrder("community", "toxic"), getCcgFinishOrder());
   assert.deepEqual(getCcgRedeemFinishOrder("raid"), getCcgFinishOrder());
   assert.deepEqual(getCcgRedeemFinishOrder("raid", "void"), getCcgFinishOrder("void"));
@@ -326,7 +334,7 @@ test("Community redeem codes allow every custom finish without extending pack co
     resolveOwnedFinish("foil", new Set<CcgFinish>(["standard", "foil", "void", "toxic"]), communityCompletionOrder),
     { finish: "golden", isDuplicate: true, isCompletedCardDuplicate: false },
   );
-  const ownedWithCodeExclusives = new Set<CcgFinish>([...communityCompletionOrder, "void", "toxic"]);
+  const ownedWithCodeExclusives = new Set<CcgFinish>([...communityCompletionOrder, ...CCG_RAID_FINISHES, "void", "toxic"]);
   assert.deepEqual(
     resolveOwnedFinish("foil", ownedWithCodeExclusives, communityCompletionOrder),
     { finish: "foil", isDuplicate: true, isCompletedCardDuplicate: true },

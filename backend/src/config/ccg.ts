@@ -1,7 +1,30 @@
 export type CcgHistoricalPackMode = "current" | "legacy";
 export type CcgPackSelectionType = "all" | "raid";
 export type CcgBaseFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative";
-export type CcgCustomFinish = "void" | "toxic";
+export const CCG_RAID_FINISHES = [
+  "relic",
+  "slagforged",
+  "felscorched",
+  "nightmare",
+  "nightwell",
+  "moonfall",
+  "worldcore",
+  "quarantine",
+  "tempest",
+  "abyssal",
+  "empire",
+  "sanguine",
+  "runebound",
+  "progenitor",
+  "primalstorm",
+  "shadowflame",
+  "emberbloom",
+  "royal",
+  "jackpot",
+  "phaseglass",
+] as const;
+export type CcgRaidFinish = (typeof CCG_RAID_FINISHES)[number];
+export type CcgCustomFinish = "void" | "toxic" | CcgRaidFinish;
 export type CcgFinish = CcgBaseFinish | CcgCustomFinish;
 export type CcgArtVariant = "standard" | "alternative";
 export type CcgRegularTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";
@@ -86,8 +109,13 @@ export const CCG_GUARANTEED_GRADE_ODDS: Readonly<Record<CcgRegularTierGrade, num
 };
 
 export const CCG_BASE_FINISH_ORDER: readonly CcgBaseFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
-export const CCG_CUSTOM_FINISHES: readonly CcgCustomFinish[] = ["void", "toxic"];
-export const CCG_FINISH_ORDER: readonly CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "void", "toxic", "negative"];
+export const CCG_CUSTOM_FINISHES: readonly CcgCustomFinish[] = ["void", "toxic", ...CCG_RAID_FINISHES];
+export const CCG_FINISH_ORDER: readonly CcgFinish[] = [
+  ...CCG_BASE_FINISH_ORDER.slice(0, -1),
+  ...CCG_CUSTOM_FINISHES,
+  "negative",
+];
+export const CCG_CUSTOM_FINISH_HARD_PITY = 250;
 
 export type CcgProtectedFinish = Exclude<CcgFinish, "standard">;
 
@@ -96,8 +124,7 @@ export const CCG_FINISH_PITY_LIMITS: Readonly<Record<CcgProtectedFinish, number>
   golden: 25,
   prismatic: 50,
   holographic: 100,
-  void: 250,
-  toxic: 250,
+  ...Object.fromEntries(CCG_CUSTOM_FINISHES.map((finish) => [finish, CCG_CUSTOM_FINISH_HARD_PITY])) as Record<CcgCustomFinish, number>,
   negative: 1000,
 };
 
@@ -176,6 +203,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "HM",
     accent: "#D98A50",
     glow: "rgba(217, 138, 80, 0.34)",
+    customFinish: { key: "relic", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(0, 100, 50, 1.1, 10),
   },
   {
@@ -191,6 +219,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "BRF",
     accent: "#FF6A3D",
     glow: "rgba(255, 106, 61, 0.34)",
+    customFinish: { key: "slagforged", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(0, 61, 50, 1.1, 10),
   },
   {
@@ -206,6 +235,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "HFC",
     accent: "#8EDB45",
     glow: "rgba(142, 219, 69, 0.34)",
+    customFinish: { key: "felscorched", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(0, 47, 50, 1.1, 10),
   },
   {
@@ -221,6 +251,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "EN",
     accent: "#E44C6F",
     glow: "rgba(228, 76, 111, 0.34)",
+    customFinish: { key: "nightmare", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(26, 88, 50, 1.1, 10),
   },
   {
@@ -236,6 +267,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "NH",
     accent: "#83A7FF",
     glow: "rgba(131, 167, 255, 0.34)",
+    customFinish: { key: "nightwell", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(15, 80, 50, 1.1, 10),
   },
   {
@@ -251,6 +283,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "TOS",
     accent: "#9EEA4D",
     glow: "rgba(158, 234, 77, 0.34)",
+    customFinish: { key: "moonfall", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(43, 81, 50, 1.1, 10),
   },
   {
@@ -266,6 +299,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "ANT",
     accent: "#63E074",
     glow: "rgba(99, 224, 116, 0.34)",
+    customFinish: { key: "worldcore", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(21, 75, 50, 1.1, 10),
   },
   {
@@ -281,6 +315,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "ULD",
     accent: "#C99343",
     glow: "rgba(201, 147, 67, 0.4)",
+    customFinish: { key: "quarantine", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(59, 85, 50, 1.1, 10),
   },
   {
@@ -296,6 +331,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "BOD",
     accent: "#397FC4",
     glow: "rgba(57, 127, 196, 0.4)",
+    customFinish: { key: "tempest", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(49, 77, 50, 1.11, 10),
   },
   {
@@ -311,6 +347,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "EP",
     accent: "#9565DB",
     glow: "rgba(149, 101, 219, 0.42)",
+    customFinish: { key: "abyssal", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(36, 90, 50, 1.1, 10),
   },
   {
@@ -326,6 +363,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "NYA",
     accent: "#A950BA",
     glow: "rgba(169, 80, 186, 0.44)",
+    customFinish: { key: "empire", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(0, 100, 50, 1.13, 10),
   },
   {
@@ -341,6 +379,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "CN",
     accent: "#C8454F",
     glow: "rgba(200, 69, 79, 0.44)",
+    customFinish: { key: "sanguine", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(25, 63, 50, 1.12, 10),
   },
   {
@@ -356,6 +395,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "SOD",
     accent: "#6F8FFF",
     glow: "rgba(111, 143, 255, 0.34)",
+    customFinish: { key: "runebound", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(50, 96, 50, 1.12, 10),
   },
   {
@@ -371,6 +411,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "SFO",
     accent: "#C9AB4F",
     glow: "rgba(201, 171, 79, 0.4)",
+    customFinish: { key: "progenitor", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(55, 97, 50, 1.13, 10),
   },
   {
@@ -386,6 +427,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "VOTI",
     accent: "#9A6645",
     glow: "rgba(154, 102, 69, 0.42)",
+    customFinish: { key: "primalstorm", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(58, 95, 50, 1.1, 10),
   },
   {
@@ -401,6 +443,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "ABR",
     accent: "#747CFF",
     glow: "rgba(116, 124, 255, 0.35)",
+    customFinish: { key: "shadowflame", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(65, 97, 50, 1.12, 10),
   },
   {
@@ -416,6 +459,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "AMI",
     accent: "#4FAE72",
     glow: "rgba(79, 174, 114, 0.4)",
+    customFinish: { key: "emberbloom", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(40, 75, 50, 1.11, 10),
   },
   {
@@ -431,6 +475,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "NER",
     accent: "#9C62D4",
     glow: "rgba(156, 98, 212, 0.44)",
+    customFinish: { key: "royal", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(53, 89, 50, 1.13, 10),
   },
   {
@@ -446,6 +491,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "LOU",
     accent: "#70BD54",
     glow: "rgba(112, 189, 84, 0.42)",
+    customFinish: { key: "jackpot", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(39, 70, 50, 1.11, 10),
   },
   {
@@ -461,6 +507,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "MFO",
     accent: "#967BFF",
     glow: "rgba(150, 123, 255, 0.36)",
+    customFinish: { key: "phaseglass", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(28, 64, 50, 1.1, 10),
   },
   {
@@ -476,7 +523,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "MQD",
     accent: "#46CFFF",
     glow: "rgba(70, 207, 255, 0.35)",
-    customFinish: { key: "void", hardPity: 250 },
+    customFinish: { key: "void", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(26, 80, 50, 1.1, 10),
   },
 ] as const satisfies readonly CcgConfiguredSet[];

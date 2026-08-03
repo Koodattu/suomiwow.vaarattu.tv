@@ -183,7 +183,7 @@ export default function CcgOpenPage() {
   const featuredPackSet = selectedSet ?? currentSet;
   const selectorSet = selectedSet;
   const selectedPackSets = selectedSet ? [selectedSet] : raidSets;
-  const hasCustomQualityRow = selectedPackSets.some((set) => Boolean(set.customFinish));
+  const hasCustomQualityRow = Boolean(selectedSet?.customFinish);
   const qualityRows = useMemo(() => [
     ...protectedFinishes.map((finish) => ({
       key: finish,
@@ -191,8 +191,8 @@ export default function CcgOpenPage() {
       counter: session?.qualityProtection[finish] ?? 0,
       hardPity: CCG_FINISH_PITY_LIMITS[finish],
     })),
-    ...selectedPackSets.flatMap((set) => {
-      if (!set.customFinish) return [];
+    ...[selectedSet].flatMap((set) => {
+      if (!set?.customFinish) return [];
       const progress = session?.customQualityProtection?.find((row) => row.setSlug === set.slug);
       return [{
         key: `${set.slug}:${set.customFinish.key}`,
@@ -201,7 +201,7 @@ export default function CcgOpenPage() {
         hardPity: set.customFinish.hardPity,
       }];
     }),
-  ], [selectedPackSets, session]);
+  ], [selectedSet, session]);
   const oddsFormat = useMemo(
     () => new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }),
     [locale],

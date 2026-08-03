@@ -3620,7 +3620,7 @@ class CcgService {
           packOpenings: 1,
           activeUsers: { $literal: 0 },
           finishes: {
-            $literal: { standard: 0, foil: 0, golden: 0, prismatic: 0, holographic: 0, void: 0, toxic: 0, negative: 0 },
+            $literal: Object.fromEntries(CCG_FINISH_ORDER.map((finish) => [finish, 0])),
           },
           grades: { $literal: { H: 0, S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 } },
           updatedAt: 1,
@@ -3865,7 +3865,7 @@ class CcgService {
             dateKey,
             packOpenings: 0,
             activeUsers: 0,
-            finishes: { standard: 0, foil: 0, golden: 0, prismatic: 0, holographic: 0, void: 0, toxic: 0, negative: 0 },
+            finishes: Object.fromEntries(CCG_FINISH_ORDER.map((finish) => [finish, 0])),
             grades: { H: 0, S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 },
             updatedAt: new Date(),
           },

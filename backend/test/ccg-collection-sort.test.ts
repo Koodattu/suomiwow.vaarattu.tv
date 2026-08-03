@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import "express-session";
+import { CCG_CUSTOM_FINISHES } from "../src/config/ccg";
 import {
   buildCcgCollectionQualityRank,
   buildCcgCollectionSortStages,
@@ -65,10 +66,10 @@ test("collection sort directions and stable fallbacks match their labels", () =>
   }]);
 });
 
-test("collection quality sorting gives both custom finishes the shared Unique rank", () => {
+test("collection quality sorting gives every custom finish the shared Unique rank", () => {
   const expression = buildCcgCollectionQualityRank("$finish") as any;
   assert.deepEqual(expression.$switch.branches, [
-    { case: { $in: ["$finish", ["void", "toxic"]] }, then: 5 },
+    { case: { $in: ["$finish", [...CCG_CUSTOM_FINISHES]] }, then: 5 },
     { case: { $eq: ["$finish", "negative"] }, then: 6 },
   ]);
 });

@@ -2090,7 +2090,28 @@ export type CharacterProfileLookupResponse = CharacterProfileResponse | Characte
 export type CcgSetLifecycle = "current" | "legacy";
 export type CcgPackSelection = { type: "all" } | { type: "raid"; setId: string };
 export type CcgBaseFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative";
-export type CcgCustomFinish = "void" | "toxic";
+export type CcgRaidFinish =
+  | "relic"
+  | "slagforged"
+  | "felscorched"
+  | "nightmare"
+  | "nightwell"
+  | "moonfall"
+  | "worldcore"
+  | "quarantine"
+  | "tempest"
+  | "abyssal"
+  | "empire"
+  | "sanguine"
+  | "runebound"
+  | "progenitor"
+  | "primalstorm"
+  | "shadowflame"
+  | "emberbloom"
+  | "royal"
+  | "jackpot"
+  | "phaseglass";
+export type CcgCustomFinish = "void" | "toxic" | CcgRaidFinish;
 export type CcgFinish = CcgBaseFinish | CcgCustomFinish;
 export type CcgArtVariant = "standard" | "alternative";
 export type CcgRegularTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";

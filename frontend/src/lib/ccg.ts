@@ -1,7 +1,34 @@
-import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCustomFinish, CcgFinish, CcgTierGrade } from "@/types";
+import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCustomFinish, CcgFinish, CcgRaidFinish, CcgTierGrade } from "@/types";
 
 export const CCG_BASE_FINISH_ORDER: readonly CcgBaseFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative"];
-export const CCG_FINISH_ORDER: readonly CcgFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "void", "toxic", "negative"];
+export const CCG_RAID_FINISHES = [
+  "relic",
+  "slagforged",
+  "felscorched",
+  "nightmare",
+  "nightwell",
+  "moonfall",
+  "worldcore",
+  "quarantine",
+  "tempest",
+  "abyssal",
+  "empire",
+  "sanguine",
+  "runebound",
+  "progenitor",
+  "primalstorm",
+  "shadowflame",
+  "emberbloom",
+  "royal",
+  "jackpot",
+  "phaseglass",
+] as const satisfies readonly CcgRaidFinish[];
+export const CCG_CUSTOM_FINISHES: readonly CcgCustomFinish[] = ["void", "toxic", ...CCG_RAID_FINISHES];
+export const CCG_FINISH_ORDER: readonly CcgFinish[] = [
+  ...CCG_BASE_FINISH_ORDER.slice(0, -1),
+  ...CCG_CUSTOM_FINISHES,
+  "negative",
+];
 
 export const CCG_CLASS_COLORS: Readonly<Record<number, string>> = {
   1: "#C41E3A",
@@ -27,6 +54,26 @@ export const CCG_FINISH_COLORS: Readonly<Record<CcgFinish, string>> = {
   holographic: "#67e8f9",
   void: "#a78bfa",
   toxic: "#86efac",
+  relic: "#d19a5c",
+  slagforged: "#ff6a3d",
+  felscorched: "#a5ff45",
+  nightmare: "#e22a51",
+  nightwell: "#7c8cff",
+  moonfall: "#b9c7e8",
+  worldcore: "#ff7a32",
+  quarantine: "#65efd8",
+  tempest: "#6dbaff",
+  abyssal: "#70e3e7",
+  empire: "#d7435f",
+  sanguine: "#cf3d5e",
+  runebound: "#83a8ff",
+  progenitor: "#68d8c9",
+  primalstorm: "#83cfff",
+  shadowflame: "#b76cff",
+  emberbloom: "#43d89c",
+  royal: "#ce8ce8",
+  jackpot: "#e9a52f",
+  phaseglass: "#756bff",
   negative: "#f9a8d4",
 };
 
@@ -46,8 +93,7 @@ export const CCG_FINISH_PITY_LIMITS: Readonly<Record<Exclude<CcgFinish, "standar
   golden: 25,
   prismatic: 50,
   holographic: 100,
-  void: 250,
-  toxic: 250,
+  ...Object.fromEntries(CCG_CUSTOM_FINISHES.map((finish) => [finish, 250])) as Record<CcgCustomFinish, number>,
   negative: 1000,
 };
 
@@ -88,8 +134,7 @@ const CCG_PULL_FINISH_SCORE: Readonly<Record<CcgFinish, number>> = {
   golden: 28,
   prismatic: 43,
   holographic: 62,
-  void: 78,
-  toxic: 78,
+  ...Object.fromEntries(CCG_CUSTOM_FINISHES.map((finish) => [finish, 78])) as Record<CcgCustomFinish, number>,
   negative: 100,
 };
 
