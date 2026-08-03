@@ -3075,6 +3075,9 @@ export type ProcessingStatus = "pending" | "in_progress" | "completed" | "failed
 export type ErrorType = "guild_not_found" | "rate_limited" | "network_error" | "api_error" | "database_error" | "unknown";
 
 export interface RateLimitStatus {
+  endpoint: "client" | "user";
+  bucketId: string;
+  sharedCredentialBucket: boolean;
   pointsUsed: number;
   pointsMax: number;
   pointsRemaining: number;
@@ -3082,8 +3085,14 @@ export interface RateLimitStatus {
   resetAt: string;
   resetInSeconds: number;
   isNearLimit: boolean;
+  isHardLimited: boolean;
+  isManuallyPaused: boolean;
   isPaused: boolean;
+  source: "unknown" | "observed" | "estimated" | "rate_limited";
   lastUpdated: string;
+  lastObservedAt: string | null;
+  lastEstimatedAt: string | null;
+  last429At: string | null;
 }
 
 export interface RateLimitConfig {
@@ -3094,6 +3103,10 @@ export interface RateLimitConfig {
 
 export interface RateLimitResponse {
   status: RateLimitStatus;
+  buckets: {
+    client: RateLimitStatus;
+    user: RateLimitStatus;
+  };
   config: RateLimitConfig;
 }
 

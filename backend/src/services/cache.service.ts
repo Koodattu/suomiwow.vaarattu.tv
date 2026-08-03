@@ -591,7 +591,7 @@ class CacheService {
           ttlMs: ttl,
           endpoint,
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: "after" },
       );
 
       logger.debug(`[L2 Cache] Set for key: ${key} (fresh: ${Math.round(ttl / 1000)}s, stale: ${Math.round((ttl + this.getStaleExtensionMs(key, ttl)) / 1000)}s)`);

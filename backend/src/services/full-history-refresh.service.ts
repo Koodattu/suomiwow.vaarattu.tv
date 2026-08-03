@@ -85,7 +85,7 @@ class FullHistoryRefreshService {
         },
         $setOnInsert: { key: PIPELINE_KEY },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
 
     logger.info("[FullHistoryRefresh] Full-history refresh requested for all tracked raids");
@@ -137,7 +137,7 @@ class FullHistoryRefreshService {
         },
         $setOnInsert: { key: PIPELINE_KEY },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
 
     void this.tick();

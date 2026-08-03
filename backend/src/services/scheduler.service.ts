@@ -41,6 +41,7 @@ const POLLING_KNOWN_SCHEDULE_NOT_TODAY_MS = 30 * 60 * 1000; // 30 minutes
 const POLLING_OFF_HOURS_ACTIVE_MS = 60 * 60 * 1000; // 1 hour
 const POLLING_TWITCH_MS = 15 * 60 * 1000; // 15 minutes
 const POLLING_FIGHT_VODS_MS = 30 * 60 * 1000; // 30 minutes
+const MYTHIC_PLUS_RECOVERY_MS = 5 * 60 * 1000; // 5 minutes
 const ACTIVITY_STATUS_ACTIVE_DAYS = 14;
 const SCHEDULE_POLLING_WINDOW_BEFORE_HOURS = 1;
 const SCHEDULE_POLLING_WINDOW_AFTER_HOURS = 1;
@@ -131,6 +132,7 @@ class UpdateScheduler {
   private hotHoursRaidingInterval: NodeJS.Timeout | null = null;
   private hotHoursTwitchInterval: NodeJS.Timeout | null = null;
   private fightVodResolverInterval: NodeJS.Timeout | null = null;
+  private mythicPlusRecoveryInterval: NodeJS.Timeout | null = null;
   private homeCacheRefreshInterval: NodeJS.Timeout | null = null;
   private offHoursActiveInterval: NodeJS.Timeout | null = null;
   private offHoursDailyInterval: NodeJS.Timeout | null = null;
@@ -395,6 +397,10 @@ class UpdateScheduler {
       }
       await this.resolveFightVodLinks();
     }, POLLING_FIGHT_VODS_MS);
+
+    this.mythicPlusRecoveryInterval = setInterval(() => {
+      void this.resumeMythicPlusCrawler("watchdog");
+    }, MYTHIC_PLUS_RECOVERY_MS);
 
     this.homeCacheRefreshInterval = setInterval(async () => {
       const blockingJob = this.getBlockingDatabaseMaintenanceJob();
@@ -876,6 +882,8 @@ class UpdateScheduler {
       })
       .catch((error) => logger.error("[CharacterAchievementBackfill] Startup resume failed:", error));
 
+    void this.resumeMythicPlusCrawler("startup");
+
     // Do an initial update based on current time
     if (this.isHotHours()) {
       logger.info("Currently HOT HOURS - starting initial active guild check");
@@ -1295,6 +1303,10 @@ class UpdateScheduler {
       clearInterval(this.fightVodResolverInterval);
       this.fightVodResolverInterval = null;
     }
+    if (this.mythicPlusRecoveryInterval) {
+      clearInterval(this.mythicPlusRecoveryInterval);
+      this.mythicPlusRecoveryInterval = null;
+    }
     if (this.homeCacheRefreshInterval) {
       clearInterval(this.homeCacheRefreshInterval);
       this.homeCacheRefreshInterval = null;
@@ -1304,6 +1316,15 @@ class UpdateScheduler {
       this.offHoursActiveInterval = null;
     }
     logger.info("Background scheduler stopped");
+  }
+
+  private async resumeMythicPlusCrawler(source: "startup" | "watchdog"): Promise<void> {
+    try {
+      const started = await mythicPlusService.resumeInterruptedCrawl();
+      if (started) logger.info(`[MythicPlus] ${source} recovery started the crawler`);
+    } catch (error) {
+      logger.error(`[MythicPlus] ${source} recovery failed:`, error);
+    }
   }
 
   // Update activity status for all guilds based on their last log time

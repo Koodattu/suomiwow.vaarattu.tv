@@ -873,7 +873,7 @@ class CharacterAchievementService {
           },
           {
             sort: { priority: 1, nextAttemptAt: 1, createdAt: 1 },
-            new: true,
+            returnDocument: "after",
           },
         );
 

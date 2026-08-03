@@ -6,6 +6,12 @@ export interface IRateLimitState extends Document {
   pointsMax: number;
   resetAt: Date;
   lastUpdated: Date;
+  lastObservedAt?: Date;
+  lastEstimatedAt?: Date;
+  last429At?: Date;
+  rateLimitedUntil?: Date;
+  source?: "unknown" | "observed" | "estimated" | "rate_limited";
+  estimatedRequestsSinceObservation?: number;
   manualPause: boolean;
 }
 
@@ -35,6 +41,28 @@ const RateLimitStateSchema = new Schema<IRateLimitState>(
       type: Date,
       required: true,
       default: Date.now,
+    },
+    lastObservedAt: {
+      type: Date,
+    },
+    lastEstimatedAt: {
+      type: Date,
+    },
+    last429At: {
+      type: Date,
+    },
+    rateLimitedUntil: {
+      type: Date,
+    },
+    source: {
+      type: String,
+      enum: ["unknown", "observed", "estimated", "rate_limited"],
+      default: "unknown",
+    },
+    estimatedRequestsSinceObservation: {
+      type: Number,
+      required: true,
+      default: 0,
     },
     manualPause: {
       type: Boolean,

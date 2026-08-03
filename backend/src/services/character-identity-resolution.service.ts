@@ -532,7 +532,7 @@ class CharacterIdentityResolutionService {
             },
             $inc: { attempts: 1 },
           },
-          { sort: { priority: 1, "evidence.reportCount": -1, createdAt: 1 }, new: true },
+          { sort: { priority: 1, "evidence.reportCount": -1, createdAt: 1 }, returnDocument: "after" },
         );
 
         if (!item) {

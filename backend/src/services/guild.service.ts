@@ -601,7 +601,7 @@ class GuildService {
                   id: zone.id,
                 },
               },
-              { upsert: true, new: true },
+              { upsert: true, returnDocument: "after" },
             );
 
             logger.info(`Synced raid: ${zoneData.name} (${expansionName}, ${bosses.length} bosses)`);
@@ -1235,7 +1235,7 @@ class GuildService {
         ],
       },
       { $set: { wclUpdateLockToken: lockToken, wclUpdateStartedAt: now } },
-      { new: true },
+      { returnDocument: "after" },
     );
     if (!guild) {
       logger.info(`Guild ${guildId} was not updated because it is missing or already locked for processing`);
@@ -2254,7 +2254,7 @@ class GuildService {
             fightSequence: this.buildReportFightSequence(report),
             lastProcessed: new Date(),
           },
-          { upsert: true, new: true },
+          { upsert: true, returnDocument: "after" },
         );
 
         totalReportsFetched++;
@@ -2369,7 +2369,7 @@ class GuildService {
                 duration: duration,
                 timestamp: fightTimestamp,
               },
-              { upsert: true, new: true },
+              { upsert: true, returnDocument: "after" },
             );
 
             // ADD CHARACTER DISCOVERY: Fetch characters for Mythic kills in current raids
@@ -2510,7 +2510,7 @@ class GuildService {
           fightSequence: this.buildReportFightSequence(report),
           lastProcessed: new Date(),
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: "after" },
       );
 
       // Process all fights from the report
@@ -2904,7 +2904,7 @@ class GuildService {
           fightSequence: this.buildReportFightSequence(report),
           lastProcessed: new Date(),
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: "after" },
       );
 
       // Process fights
@@ -3307,7 +3307,7 @@ class GuildService {
           charactersFetchStatus: "pending",
         },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
     );
 
     if (!storedReport) {

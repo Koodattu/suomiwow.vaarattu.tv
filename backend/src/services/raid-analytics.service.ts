@@ -303,7 +303,7 @@ class RaidAnalyticsService {
           raidEnd,
           lastCalculated: new Date(),
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: "after" },
       );
 
       logger.info(`[RaidAnalytics] Completed analytics for ${raid.name}: ${overallAnalytics.guildsCleared} cleared, ${overallAnalytics.guildsProgressing} progressing`);

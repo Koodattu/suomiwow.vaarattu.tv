@@ -978,7 +978,7 @@ class CcgService {
     await CcgCollectorProfile.findOneAndUpdate(
       { userId },
       { $set: { showcase } },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
     );
     return this.getLeaderboardMe(req);
   }
@@ -2543,7 +2543,7 @@ class CcgService {
           quipAudioFilename,
         },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
     ).lean();
     return {
       alternativeArt: serializeAlternativeArt(alternativeArt ?? undefined),
@@ -2707,7 +2707,7 @@ class CcgService {
   async setRedeemCodeActiveForAdmin(codeId: string, activeValue: unknown): Promise<Record<string, unknown>> {
     const id = validateObjectId(codeId, "redeem code ID");
     if (typeof activeValue !== "boolean") throw new CcgServiceError(400, "invalid_active_state", "Active state must be true or false");
-    const code = await CcgRedeemCode.findByIdAndUpdate(id, { $set: { active: activeValue } }, { new: true }).lean();
+    const code = await CcgRedeemCode.findByIdAndUpdate(id, { $set: { active: activeValue } }, { returnDocument: "after" }).lean();
     if (!code) throw new CcgServiceError(404, "redeem_code_not_found", "Redeem code not found");
     const serialized = await this.serializeRedeemCodes([code]);
     return { code: serialized.codes[0], sets: serialized.sets };
@@ -2737,7 +2737,7 @@ class CcgService {
         const reservedCode = await CcgRedeemCode.findOneAndUpdate(
           { _id: code._id, active: true },
           { $inc: { redemptionCount: 1 } },
-          { new: true, session },
+          { returnDocument: "after", session },
         );
         if (!reservedCode) throw new CcgServiceError(404, "redeem_code_not_found", "That code is invalid or inactive");
 
@@ -2755,7 +2755,7 @@ class CcgService {
                 firstPlayedAt: balance.firstPlayedAt ?? now,
               },
             },
-            { new: true, session },
+            { returnDocument: "after", session },
           );
           if (!updated) throw new CcgServiceError(409, "pack_balance_busy", "Pack balance is being updated. Try again");
         } else {
@@ -3198,7 +3198,7 @@ class CcgService {
         const firstPlay = await CcgPackBalance.findOneAndUpdate(
           { _id: userBalance._id, hasPlayed: { $ne: true } },
           { $set: { hasPlayed: true, firstPlayedAt: new Date() } },
-          { new: true, session },
+          { returnDocument: "after", session },
         );
         if (!firstPlay) {
           throw new CcgServiceError(409, "ccg_account_already_started", "This account has already started its CCG collection");
@@ -3598,7 +3598,7 @@ class CcgService {
           updatedAt: new Date(),
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
   }
 
@@ -3931,7 +3931,7 @@ class CcgService {
           custom: {},
         },
       },
-      { upsert: true, new: true, session },
+      { upsert: true, returnDocument: "after", session },
     );
   }
 
@@ -4026,7 +4026,7 @@ class CcgService {
             firstPlayedAt: hasPlayed ? date : null,
           },
         },
-        { upsert: true, new: true, session },
+        { upsert: true, returnDocument: "after", session },
       );
     }
     if (!balance) throw new CcgServiceError(500, "pack_balance_unavailable", "Pack balance could not be initialized");
@@ -4063,14 +4063,14 @@ class CcgService {
           firstPlayedAt: balance.firstPlayedAt ?? now,
         },
       },
-      { new: true, session },
+      { returnDocument: "after", session },
     );
     if (reserved) return { source: "recharge", balance: reserved };
     if (owner.ownerType === "guest") throw new CcgServiceError(409, "no_packs", "No packs are charged");
     const credit = await CcgPackCredit.findOneAndUpdate(
       { ownerId: owner.ownerId, remaining: { $gt: 0 } },
       { $inc: { remaining: -1 } },
-      { new: true, sort: { createdAt: 1 }, session },
+      { returnDocument: "after", sort: { createdAt: 1 }, session },
     );
     if (!credit) throw new CcgServiceError(409, "no_packs", "No packs remain");
     await CcgPackBalance.updateOne(
@@ -4804,7 +4804,7 @@ class CcgService {
               shortId: createCcgShareShortId(),
             },
           },
-          { upsert: true, new: true, setDefaultsOnInsert: true },
+          { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
         );
         if (share) return this.ensureShareShortId(share);
       } catch (error) {
@@ -4830,7 +4830,7 @@ class CcgService {
             ],
           },
           { $set: { shortId: createCcgShareShortId() } },
-          { new: true },
+          { returnDocument: "after" },
         );
         if (updated?.shortId) return updated as CcgShareWithShortId;
 

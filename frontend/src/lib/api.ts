@@ -87,7 +87,6 @@ import {
   CharacterAccountResponse,
   CharacterRaidReportsResponse,
   RateLimitResponse,
-  RateLimitStatus,
   WarcraftLogsUserAuthStatus,
   WarcraftLogsUserReportProbeResponse,
   TwitchChatBotStatus,
@@ -2074,7 +2073,7 @@ export const api = {
     return response.json();
   },
 
-  async setAdminRateLimitPause(paused: boolean): Promise<{ success: boolean; isPaused: boolean; status: RateLimitStatus }> {
+  async setAdminRateLimitPause(paused: boolean): Promise<RateLimitResponse & { success: boolean; isPaused: boolean }> {
     const response = await fetch(`${API_URL}/api/admin/rate-limit/pause`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

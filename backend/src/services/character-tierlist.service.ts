@@ -374,7 +374,7 @@ class CharacterTierListService {
           unplacedCharacterKeys: normalized.unplacedCharacterKeys,
         },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
     ).lean<ICustomCharacterTierList>();
 
     return this.buildCustomResponse(context, saved, true);
@@ -464,7 +464,7 @@ class CharacterTierListService {
           raidName: context.raid.name,
         },
       },
-      { new: true },
+      { returnDocument: "after" },
     ).lean<ISharedCharacterTierList | null>();
 
     return updated ? this.buildSharedResponse(context, updated, userObjectId) : null;

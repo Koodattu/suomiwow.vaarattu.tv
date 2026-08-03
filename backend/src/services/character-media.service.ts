@@ -579,7 +579,7 @@ export class CharacterMediaService {
         $expr: { $lt: ["$attempts", "$maxAttempts"] },
       },
       { $set: { status: "processing", startedAt: now, lastActivityAt: now }, $inc: { attempts: 1 } },
-      { new: true, sort: { priority: -1, nextAttemptAt: 1, createdAt: 1 } },
+      { returnDocument: "after", sort: { priority: -1, nextAttemptAt: 1, createdAt: 1 } },
     );
   }
 
@@ -612,7 +612,7 @@ export class CharacterMediaService {
               lastError: "Blizzard media response contained no full character render",
             },
           },
-          { upsert: true, new: true },
+          { upsert: true, returnDocument: "after" },
         );
         await CharacterMediaFetchQueue.updateOne(
           { _id: item._id },
@@ -648,7 +648,7 @@ export class CharacterMediaService {
             lastError: null,
           },
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: "after" },
       );
       await CharacterMediaFetchQueue.updateOne(
         { _id: item._id },

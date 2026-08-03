@@ -324,6 +324,16 @@ export default function AdminPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
   const t = useTranslations("admin");
+  const rateLimitFreshnessLabel = (status: RateLimitStatus) => {
+    const time = (value: string | null) => new Date(value || status.lastUpdated).toLocaleTimeString();
+    if (status.source === "observed") return t("rateLimit.observedAt", { time: time(status.lastObservedAt) });
+    if (status.source === "estimated") {
+      const estimate = t("rateLimit.estimatedAt", { time: time(status.lastEstimatedAt) });
+      return status.lastObservedAt ? `${estimate} • ${t("rateLimit.lastObservedAt", { time: time(status.lastObservedAt) })}` : estimate;
+    }
+    if (status.source === "rate_limited") return t("rateLimit.rateLimitedAt", { time: time(status.last429At) });
+    return t("rateLimit.unknown");
+  };
 
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
@@ -406,6 +416,7 @@ export default function AdminPage() {
 
   // System tab data (Rate Limits & Processing Queue)
   const [rateLimitStatus, setRateLimitStatus] = useState<RateLimitStatus | null>(null);
+  const [rateLimitBuckets, setRateLimitBuckets] = useState<{ client: RateLimitStatus; user: RateLimitStatus } | null>(null);
   const [rateLimitConfig, setRateLimitConfig] = useState<RateLimitConfig | null>(null);
   const [wclUserAuthStatus, setWclUserAuthStatus] = useState<WarcraftLogsUserAuthStatus | null>(null);
   const [wclProbeReportCode, setWclProbeReportCode] = useState("");
@@ -607,6 +618,7 @@ export default function AdminPage() {
             ]);
             setOverview(overviewData);
             setRateLimitStatus(rateLimitData.status);
+            setRateLimitBuckets(rateLimitData.buckets);
             setRateLimitConfig(rateLimitData.config);
             setProcessorStatus(queueStatsData.processor);
             setQueueStats(queueStatsData.queue);
@@ -687,6 +699,7 @@ export default function AdminPage() {
               api.getAdminFullHistoryRefreshStatus(),
             ]);
             setRateLimitStatus(rateLimitData.status);
+            setRateLimitBuckets(rateLimitData.buckets);
             setRateLimitConfig(rateLimitData.config);
             setWclUserAuthStatus(wclUserAuthData);
             setProcessorStatus(queueStatsData.processor);
@@ -767,6 +780,7 @@ export default function AdminPage() {
             api.getAdminFullHistoryRefreshStatus(),
           ]);
           setRateLimitStatus(rateLimitData.status);
+          setRateLimitBuckets(rateLimitData.buckets);
           setRateLimitConfig(rateLimitData.config);
           setWclUserAuthStatus(wclUserAuthData);
           setProcessorStatus(queueStatsData.processor);
@@ -805,6 +819,7 @@ export default function AdminPage() {
           api.getAdminFullHistoryRefreshStatus(),
         ]);
         setRateLimitStatus(rateLimitData.status);
+        setRateLimitBuckets(rateLimitData.buckets);
         setRateLimitConfig(rateLimitData.config);
         setCharacterRankingBackfillStatus(characterRankingBackfillData);
         setCharacterAchievementBackfillStatus(characterAchievementBackfillData);
@@ -2284,7 +2299,7 @@ export default function AdminPage() {
                 {rateLimitStatus && (
                   <div className="bg-gray-800 rounded-lg p-4">
                     <h3 className="text-gray-400 text-sm font-medium flex items-center gap-1">
-                      <span>⚡</span> WCL Rate Limit
+                      <span>⚡</span> {t("rateLimit.clientTitle")}
                     </h3>
                     <p
                       className={`text-3xl font-bold mt-1 ${
@@ -2301,6 +2316,9 @@ export default function AdminPage() {
                     </div>
                     <p className="text-sm text-gray-500 mt-1">
                       {rateLimitStatus.pointsRemaining} pts left • Resets in {Math.floor(rateLimitStatus.resetInSeconds / 60)}m
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {rateLimitFreshnessLabel(rateLimitStatus)}
                     </p>
                   </div>
                 )}
@@ -5637,21 +5655,54 @@ export default function AdminPage() {
                       <button
                         onClick={async () => {
                           try {
-                            await api.setAdminRateLimitPause(!rateLimitStatus.isPaused);
+                            await api.setAdminRateLimitPause(!rateLimitStatus.isManuallyPaused);
                             const data = await api.getAdminRateLimitStatus();
                             setRateLimitStatus(data.status);
+                            setRateLimitBuckets(data.buckets);
                           } catch (err) {
                             console.error("Failed to toggle pause:", err);
                           }
                         }}
                         className={`mt-2 px-3 py-1 text-sm rounded ${
-                          rateLimitStatus.isPaused ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"
+                          rateLimitStatus.isManuallyPaused ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"
                         }`}
                       >
-                        {rateLimitStatus.isPaused ? "Resume" : "Pause"}
+                        {rateLimitStatus.isManuallyPaused ? "Resume" : "Pause"}
                       </button>
                     </div>
                   </div>
+                  {rateLimitBuckets && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                      {(["client", "user"] as const).map((endpoint) => {
+                        const bucket = rateLimitBuckets[endpoint];
+                        const sharesCredential = endpoint === "user" && bucket.bucketId === rateLimitBuckets.client.bucketId;
+                        return (
+                          <div key={endpoint} className="bg-gray-700 rounded-lg p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <h4 className="text-white font-medium">
+                                  {endpoint === "client" ? t("rateLimit.clientBucket") : t("rateLimit.userBucket")}
+                                </h4>
+                                {sharesCredential && <p className="text-xs text-gray-500">{t("rateLimit.sharedBucket")}</p>}
+                              </div>
+                              <span className={`text-lg font-bold ${bucket.isPaused ? "text-red-400" : bucket.percentUsed >= 60 ? "text-amber-400" : "text-green-400"}`}>
+                                {bucket.percentUsed.toFixed(1)}%
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-400 mt-3">
+                              {bucket.pointsUsed} / {bucket.pointsMax} • {t("rateLimit.remaining", { points: bucket.pointsRemaining })}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {t("rateLimit.resetsIn", { minutes: Math.floor(bucket.resetInSeconds / 60), seconds: bucket.resetInSeconds % 60 })}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-2">
+                              {rateLimitFreshnessLabel(bucket)}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                   <div className="text-sm text-gray-500">
                     <span className="mr-4">Reserve: {rateLimitConfig.liveOperationsReserve}%</span>
                     <span className="mr-4">Warning: {rateLimitConfig.warningThreshold}%</span>

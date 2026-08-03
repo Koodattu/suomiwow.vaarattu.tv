@@ -1,7 +1,7 @@
 import fetch from "node-fetch";
 import logger from "../utils/logger";
 import { GUILDS_DEV, GUILDS_PROD, TrackedGuild } from "../config/guilds";
-import rateLimitService, { WCLRateLimitData } from "./rate-limit.service";
+import rateLimitService, { WCLRateLimitData, WCLRateLimitEndpoint } from "./rate-limit.service";
 import wclUserAuthService from "./warcraftlogs-user-auth.service";
 import { resolveSpecByBlizzardSpecId, slugifySpecName } from "../utils/spec";
 
@@ -21,6 +21,22 @@ type WclQueryTrackingOptions = {
   estimatedPoints?: number;
   sampleRateLimit?: boolean;
 };
+
+export function parseRetryAfterMs(retryAfter: string | null, nowMs = Date.now()): number {
+  if (!retryAfter) return 60_000;
+
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.max(1000, Math.ceil(seconds * 1000));
+  }
+
+  const retryAt = Date.parse(retryAfter);
+  if (Number.isFinite(retryAt)) {
+    return Math.max(1000, retryAt - nowMs);
+  }
+
+  return 60_000;
+}
 
 export type FightRosterParticipant = {
   name: string;
@@ -78,8 +94,8 @@ class WarcraftLogsService {
   private readonly NETWORK_RETRY_BASE_DELAY_MS = 1000;
   private readonly FIGHT_DETAILS_FIGHT_ID_BATCH_SIZE = 100;
   private readonly PLAYER_DETAILS_FIGHT_ID_BATCH_SIZE = 20;
-  private rateLimitProbe: Promise<void> | null = null;
-  private lastRateLimitProbeAttemptAt = 0;
+  private readonly rateLimitProbes = new Map<string, Promise<void>>();
+  private readonly lastRateLimitProbeAttemptAt = new Map<string, number>();
 
   private async authenticate(): Promise<string> {
     // Check if we have a valid token
@@ -133,9 +149,13 @@ class WarcraftLogsService {
   /**
    * Update the global rate limit service with data from API response
    */
-  private async updateRateLimitFromResponse(rateLimitData: WCLRateLimitData | undefined): Promise<void> {
+  private async updateRateLimitFromResponse(
+    rateLimitData: WCLRateLimitData | undefined,
+    endpoint: WCLRateLimitEndpoint,
+    minimumQueryCharge: number,
+  ): Promise<void> {
     if (rateLimitData) {
-      await rateLimitService.updateFromResponse(rateLimitData);
+      await rateLimitService.updateFromResponse(rateLimitData, endpoint, minimumQueryCharge);
     }
   }
 
@@ -235,13 +255,17 @@ class WarcraftLogsService {
   }
 
   private async queryEndpoint<T>(
-    endpoint: "client" | "user",
+    endpoint: WCLRateLimitEndpoint,
     query: string,
     variables?: any,
     retryOnGatewayTimeout: boolean = false,
     serverErrorRetries: number = 0,
     tracking: WclQueryTrackingOptions = {},
   ): Promise<T> {
+    // A WCL 429 is authoritative for its credential bucket. Check shared state
+    // before every request so the API and worker processes honor it together.
+    await rateLimitService.waitForHardLimit(endpoint);
+
     // Add delay between requests to avoid bursting
     await this.requestDelay();
 
@@ -259,9 +283,13 @@ class WarcraftLogsService {
     // Handle rate limiting with retry
     if (response.status === 429) {
       const retryAfter = response.headers.get("Retry-After");
-      const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 60000; // Default to 60s if not specified
-      logger.warn(`⚠️  Rate limited by WCL API! Waiting ${Math.floor(waitTime / 1000)}s before retry...`);
-      await new Promise((resolve) => setTimeout(resolve, waitTime));
+      const waitTime = parseRetryAfterMs(retryAfter);
+      const bucket = rateLimitService.getBucketIdentity(endpoint);
+      await rateLimitService.recordRateLimited(endpoint, waitTime);
+      logger.warn(
+        `[RateLimit] WCL HTTP 429 endpoint=${endpoint} bucket=${bucket.bucketId} retryAfter=${Math.ceil(waitTime / 1000)}s; pausing this credential bucket before retry`,
+      );
+      await rateLimitService.waitForHardLimit(endpoint);
       return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries, tracking); // Retry the request
     }
 
@@ -287,35 +315,39 @@ class WarcraftLogsService {
 
     // Update global rate limit tracking from response
     if (result.data?.rateLimitData) {
-      await this.updateRateLimitFromResponse(result.data.rateLimitData);
+      await this.updateRateLimitFromResponse(result.data.rateLimitData, endpoint, tracking.estimatedPoints ?? 1);
     } else if (tracking.estimatedPoints) {
-      await rateLimitService.recordEstimatedUsage(tracking.estimatedPoints);
+      await rateLimitService.recordEstimatedUsage(tracking.estimatedPoints, endpoint);
     }
 
     if (result.errors) {
       throw new Error(`WCL GraphQL error: ${JSON.stringify(result.errors)}`);
     }
 
-    if (tracking.sampleRateLimit && rateLimitService.shouldProbeApiState()) {
+    if (tracking.sampleRateLimit && rateLimitService.shouldProbeApiState(endpoint)) {
       await this.maybeProbeRateLimit(endpoint);
     }
 
     return result.data as T;
   }
 
-  private async maybeProbeRateLimit(endpoint: "client" | "user"): Promise<void> {
-    if (this.rateLimitProbe) return this.rateLimitProbe;
-    if (Date.now() - this.lastRateLimitProbeAttemptAt < 30_000) return;
+  private async maybeProbeRateLimit(endpoint: WCLRateLimitEndpoint): Promise<void> {
+    const bucketKey = rateLimitService.getBucketIdentity(endpoint).persistentKey;
+    const activeProbe = this.rateLimitProbes.get(bucketKey);
+    if (activeProbe) return activeProbe;
+    if (Date.now() - (this.lastRateLimitProbeAttemptAt.get(bucketKey) ?? 0) < 30_000) return;
 
-    this.lastRateLimitProbeAttemptAt = Date.now();
-    this.rateLimitProbe = this.probeRateLimit(endpoint).finally(() => {
-      this.rateLimitProbe = null;
+    this.lastRateLimitProbeAttemptAt.set(bucketKey, Date.now());
+    const probe = this.probeRateLimit(endpoint).finally(() => {
+      this.rateLimitProbes.delete(bucketKey);
     });
-    return this.rateLimitProbe;
+    this.rateLimitProbes.set(bucketKey, probe);
+    return probe;
   }
 
-  private async probeRateLimit(endpoint: "client" | "user"): Promise<void> {
+  private async probeRateLimit(endpoint: WCLRateLimitEndpoint): Promise<void> {
     try {
+      await rateLimitService.waitForHardLimit(endpoint);
       await this.requestDelay();
       const token = endpoint === "client" ? await this.authenticate() : await wclUserAuthService.getAccessToken();
       const query = `
@@ -335,8 +367,17 @@ class WarcraftLogsService {
         },
         body: JSON.stringify({ query }),
       }, `${endpoint} rate-limit probe`);
+      if (response.status === 429) {
+        const waitTime = parseRetryAfterMs(response.headers.get("Retry-After"));
+        const bucket = rateLimitService.getBucketIdentity(endpoint);
+        await rateLimitService.recordRateLimited(endpoint, waitTime);
+        logger.warn(
+          `[RateLimit] WCL probe received HTTP 429 endpoint=${endpoint} bucket=${bucket.bucketId} retryAfter=${Math.ceil(waitTime / 1000)}s`,
+        );
+        return;
+      }
       if (!response.ok) {
-        logger.warn(`[RateLimit] WCL probe failed: ${response.status} ${response.statusText}`);
+        logger.warn(`[RateLimit] WCL probe failed endpoint=${endpoint}: ${response.status} ${response.statusText}`);
         return;
       }
 
@@ -346,12 +387,9 @@ class WarcraftLogsService {
         return;
       }
 
-      // A standalone rateLimitData resolver can report the value immediately
-      // before its own one-point charge, so keep tracking conservative.
-      await this.updateRateLimitFromResponse({
-        ...result.data.rateLimitData,
-        pointsSpentThisHour: result.data.rateLimitData.pointsSpentThisHour + 1,
-      });
+      // A standalone rateLimitData resolver reports before its own one-point
+      // charge, so account for that charge when persisting the observation.
+      await this.updateRateLimitFromResponse(result.data.rateLimitData, endpoint, 1);
     } catch (error) {
       logger.warn(`[RateLimit] WCL probe failed; retaining conservative local estimate: ${this.formatError(error)}`);
     }

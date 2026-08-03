@@ -1009,7 +1009,7 @@ class CharacterRankingBackfillService {
           },
           {
             sort: { priority: 1, createdAt: 1 },
-            new: true,
+            returnDocument: "after",
           },
         );
 

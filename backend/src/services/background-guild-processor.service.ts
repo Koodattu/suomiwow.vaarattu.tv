@@ -651,7 +651,7 @@ class BackgroundGuildProcessor {
         fightSequence: this.buildReportFightSequence(report),
         lastProcessed: new Date(),
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
 
     // Process fights
@@ -764,7 +764,7 @@ class BackgroundGuildProcessor {
             duration: duration,
             timestamp: fightTimestamp,
           },
-          { upsert: true, new: true },
+          { upsert: true, returnDocument: "after" },
         );
 
         fightsSaved++;

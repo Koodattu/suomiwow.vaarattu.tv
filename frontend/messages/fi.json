@@ -1606,6 +1606,19 @@
       "activeToday": "aktiivisia tänään",
       "updatedToday": "päivitetty tänään"
     },
+    "rateLimit": {
+      "clientTitle": "WCL-asiakasavaimen käyttöraja",
+      "clientBucket": "Julkinen asiakas",
+      "userBucket": "Valtuutettu käyttäjä",
+      "sharedBucket": "Yhteinen tunnistekiintiö",
+      "unknown": "Odottaa havaintoa",
+      "remaining": "{points} jäljellä",
+      "resetsIn": "Nollautuu {minutes} min {seconds} s kuluttua",
+      "observedAt": "Havaittu klo {time}",
+      "estimatedAt": "Arvioitu klo {time}",
+      "lastObservedAt": "viimeksi havaittu klo {time}",
+      "rateLimitedAt": "WCL 429 klo {time}"
+    },
     "users": {
       "total": "Käyttäjiä yhteensä",
       "activeWeek": "Aktiivisia tällä viikolla",

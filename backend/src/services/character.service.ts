@@ -923,7 +923,7 @@ class CharacterService {
           guildHistory: initialGuildHistory,
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
 
     if (!character) return;
@@ -1023,7 +1023,7 @@ class CharacterService {
             nextEligibleRefreshAt: new Date("2100-01-01T00:00:00.000Z"),
           },
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: "after" },
       );
 
       if (!character) {
@@ -1074,7 +1074,7 @@ class CharacterService {
             wclGuilds,
           },
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: "after" },
       );
 
       const primaryObservedGuild = wclGuilds[0];
@@ -1239,7 +1239,7 @@ class CharacterService {
           nextEligibleRefreshAt: new Date("2100-01-01T00:00:00.000Z"),
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
 
     if (!character) return null;
@@ -1302,7 +1302,7 @@ class CharacterService {
           guildHistory: [],
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
 
     if (!character) throw new Error(`Failed to upsert resolved WCL character ${params.canonicalID}/${params.classID}`);
@@ -1432,7 +1432,7 @@ class CharacterService {
           },
           $setOnInsert: { wclGuilds: [] },
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: "after" },
       );
 
       if (canonicalMatch) {
@@ -1661,7 +1661,7 @@ class CharacterService {
             nextEligibleRefreshAt: new Date("2100-01-01T00:00:00.000Z"),
           },
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: "after" },
       );
 
       if (!character) continue;
@@ -3676,7 +3676,7 @@ class CharacterService {
 
                     ilvl: r.bestRank?.ilvl,
                   },
-                  { upsert: true, new: true },
+                  { upsert: true, returnDocument: "after" },
                 );
               }
 
@@ -3850,7 +3850,7 @@ class CharacterService {
 
                         ilvl: r.bestRank?.ilvl,
                       },
-                      { upsert: true, new: true },
+                      { upsert: true, returnDocument: "after" },
                     );
                   }
 

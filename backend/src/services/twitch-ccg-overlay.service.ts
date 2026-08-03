@@ -54,7 +54,7 @@ class TwitchCcgOverlayService {
         $set: { status: "leased", leaseId, leaseUntil: new Date(now.getTime() + LEASE_MS) },
         $inc: { attempts: 1 },
       },
-      { new: true, sort: { createdAt: 1 } },
+      { returnDocument: "after", sort: { createdAt: 1 } },
     ).lean();
     if (!event) return null;
 
@@ -92,7 +92,7 @@ class TwitchCcgOverlayService {
     const event = await TwitchCcgOverlayEvent.findOneAndUpdate(
       { _id: eventId, status: "leased", leaseId },
       { $set: { status: "played", playedAt: new Date() }, $unset: { leaseId: 1, leaseUntil: 1 } },
-      { new: true },
+      { returnDocument: "after" },
     );
     if (!event) throw new TwitchCcgOverlayError(409, "lease_not_found", "The overlay event lease is no longer active");
   }

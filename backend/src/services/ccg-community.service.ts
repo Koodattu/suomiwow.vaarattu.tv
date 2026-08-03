@@ -247,7 +247,7 @@ class CcgCommunityService {
         const nextSet = await CcgSet.findOneAndUpdate(
           { _id: set._id, kind: "community" },
           { $set: { lastPublishedAt: now }, $inc: { cardCount: 1, publicationWave: 1 } },
-          { new: true, session },
+          { returnDocument: "after", session },
         );
         if (!nextSet) throw new CcgCommunityError(503, "community_set_unavailable", "The Community set is not available");
         card.setNumber = nextSet.cardCount;

@@ -169,7 +169,7 @@ GuildProcessingQueueSchema.statics.getNextToProcess = async function () {
     },
     {
       sort: { priority: 1, createdAt: 1 }, // Lowest priority number first, then oldest
-      new: true,
+      returnDocument: "after",
     },
   );
 };

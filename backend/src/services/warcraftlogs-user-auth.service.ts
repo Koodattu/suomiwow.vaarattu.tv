@@ -134,7 +134,7 @@ class WarcraftLogsUserAuthService {
           lastVerifiedError: undefined,
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
 
     try {

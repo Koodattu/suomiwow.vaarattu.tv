@@ -1606,6 +1606,19 @@
       "activeToday": "active today",
       "updatedToday": "updated today"
     },
+    "rateLimit": {
+      "clientTitle": "WCL Client Rate Limit",
+      "clientBucket": "Public client",
+      "userBucket": "Authorized user",
+      "sharedBucket": "Shared credential bucket",
+      "unknown": "Awaiting observation",
+      "remaining": "{points} remaining",
+      "resetsIn": "Resets in {minutes}m {seconds}s",
+      "observedAt": "Observed at {time}",
+      "estimatedAt": "Estimated at {time}",
+      "lastObservedAt": "last observed {time}",
+      "rateLimitedAt": "WCL 429 at {time}"
+    },
     "users": {
       "total": "Total Users",
       "activeWeek": "Active This Week",

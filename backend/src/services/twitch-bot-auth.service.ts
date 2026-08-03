@@ -190,7 +190,7 @@ class TwitchBotAuthService {
           lastVerifiedError: undefined,
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
 
     return auth;

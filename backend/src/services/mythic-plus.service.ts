@@ -38,6 +38,7 @@ const RAIDER_IO_SITE_API_BASE_URL = "https://raider.io/api";
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE_SIZE = 500;
 const PROCESS_LOG_INTERVAL = 25;
+const PROCESS_IDLE_RECHECK_MS = 60 * 1000;
 const DEFAULT_NIGHTLY_CURRENT_SEASON_LIMIT = Math.max(25, Number(process.env.RAIDER_IO_MPLUS_NIGHTLY_CHARACTER_LIMIT || 750));
 const DEFAULT_NIGHTLY_ACTIVE_DAYS = Math.max(1, Number(process.env.RAIDER_IO_MPLUS_NIGHTLY_ACTIVE_DAYS || 21));
 const DEFAULT_NIGHTLY_PROFILE_STALE_HOURS = Math.max(1, Number(process.env.RAIDER_IO_MPLUS_NIGHTLY_PROFILE_STALE_HOURS || 24));
@@ -329,6 +330,7 @@ class MythicPlusService {
   private readonly maxRequestsPerHour = Math.max(60, Number(process.env.RAIDER_IO_MPLUS_MAX_REQUESTS_PER_HOUR || 900));
   private requestTimestamps: number[] = [];
   private isRunning = false;
+  private isCheckingRecovery = false;
   private currentJob: ReturnType<MythicPlusService["summarizeJob"]> | null = null;
   private lastMessage: string | null = null;
 
@@ -388,11 +390,10 @@ class MythicPlusService {
     for (let attempt = 1; attempt <= 3; attempt++) {
       await this.waitForRateLimit();
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000);
         const response = await fetch(url, { signal: controller.signal as any });
-        clearTimeout(timeoutId);
 
         if (response.status === 429) {
           return {
@@ -440,6 +441,8 @@ class MythicPlusService {
           error: `Raider.IO network error for ${label}: ${error?.name === "AbortError" ? "request timed out" : String(error?.code || error?.name || "request failed")}`,
           retryable,
         };
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
@@ -1648,6 +1651,26 @@ class MythicPlusService {
     return this.isRunning;
   }
 
+  async resumeInterruptedCrawl(): Promise<boolean> {
+    if (this.isRunning || this.isCheckingRecovery) return false;
+
+    this.isCheckingRecovery = true;
+    try {
+      const queuedJobs = await CharacterMythicPlusFetchJob.countDocuments({
+        status: { $in: ["pending", "in_progress", "rate_limited"] },
+      });
+      if (queuedJobs === 0) {
+        this.lastMessage = "No queued Mythic+ crawler jobs to resume";
+        return false;
+      }
+
+      logger.info(`[MythicPlus] Resuming ${queuedJobs} queued job(s)`);
+      return this.startProcessing();
+    } finally {
+      this.isCheckingRecovery = false;
+    }
+  }
+
   startProcessing(options: { maxJobs?: number } = {}): boolean {
     if (this.isRunning) return false;
 
@@ -1698,7 +1721,16 @@ class MythicPlusService {
 
       while (!maxJobs || processed < maxJobs) {
         const job = await this.claimNextJob();
-        if (!job) break;
+        if (!job) {
+          const nextAttemptAt = await this.getNextQueuedJobAttemptAt();
+          if (!nextAttemptAt) break;
+
+          const waitMs = Math.min(Math.max(nextAttemptAt.getTime() - Date.now(), 1000), PROCESS_IDLE_RECHECK_MS);
+          this.currentJob = null;
+          this.lastMessage = `Waiting ${Math.ceil(waitMs / 1000)}s for the next queued Mythic+ job`;
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          continue;
+        }
 
         this.currentJob = this.summarizeJob(job);
         try {
@@ -1707,6 +1739,7 @@ class MythicPlusService {
           await this.handleJobError(job, error);
         }
 
+        this.currentJob = null;
         processed += 1;
         if (processed % PROCESS_LOG_INTERVAL === 0) {
           logger.info(`[MythicPlus] Processed ${processed} crawler jobs`);
@@ -1741,10 +1774,20 @@ class MythicPlusService {
         $inc: { attempts: 1 },
       },
       {
-        new: true,
+        returnDocument: "after",
         sort: { priority: 1, nextAttemptAt: 1, createdAt: 1 },
       },
     );
+  }
+
+  private async getNextQueuedJobAttemptAt(): Promise<Date | null> {
+    const nextJob = await CharacterMythicPlusFetchJob.findOne({
+      status: { $in: ["pending", "rate_limited"] },
+    })
+      .sort({ nextAttemptAt: 1 })
+      .select("nextAttemptAt")
+      .lean<{ nextAttemptAt?: Date | null } | null>();
+    return toNullableDate(nextJob?.nextAttemptAt);
   }
 
   private async refreshJobCharacterIdentity(job: ICharacterMythicPlusFetchJob): Promise<CharacterIdentity | null> {

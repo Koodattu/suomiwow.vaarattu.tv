@@ -341,7 +341,7 @@ class CcgPublisherService {
               cardCount: 0,
             },
           },
-          { upsert: true, new: true },
+          { upsert: true, returnDocument: "after" },
         ),
       ),
     );
@@ -374,7 +374,7 @@ class CcgPublisherService {
           cardCount: 0,
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
     await CcgSet.updateOne(
       { zoneId: CCG_COMMUNITY_SET.zoneId, enabledAt: null },
@@ -1049,7 +1049,7 @@ class CcgPublisherService {
       await CcgPackPool.findOneAndUpdate(
         { setId, version: poolVersion },
         { $set: { active: true, buckets, totalCards: cards.length } },
-        { upsert: true, new: true, session },
+        { upsert: true, returnDocument: "after", session },
       );
       await CcgSet.updateOne(
         { _id: setId },

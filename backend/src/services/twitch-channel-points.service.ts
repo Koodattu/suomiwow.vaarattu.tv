@@ -281,7 +281,7 @@ class TwitchChannelPointsService {
           webhookSecret: crypto.randomBytes(32).toString("hex"),
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
   }
 

@@ -262,7 +262,7 @@ export class BlizzardApiClient {
           tokenType: token_type,
           expiresAt,
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: "after" },
       );
 
       logger.info(`✅ New Blizzard token acquired, expires at: ${expiresAt.toISOString()}`);
@@ -714,7 +714,7 @@ export class BlizzardApiClient {
           achievementId: achievement.id,
           lastUpdated: new Date(),
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: "after" },
       );
 
       logger.info(`✅ Cached new icon for boss: ${bossName} -> ${iconFilename}`);
@@ -764,7 +764,7 @@ export class BlizzardApiClient {
             achievementId: 0,
             lastUpdated: new Date(),
           },
-          { upsert: true, new: true },
+          { upsert: true, returnDocument: "after" },
         );
 
         logger.info(`✅ Found manual icon override for raid: ${raidName} -> ${iconFilenameOverride}`);
@@ -803,7 +803,7 @@ export class BlizzardApiClient {
           achievementId: achievement.id,
           lastUpdated: new Date(),
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: "after" },
       );
 
       logger.info(`✅ Cached new icon for raid: ${raidName} -> ${iconFilename}`);

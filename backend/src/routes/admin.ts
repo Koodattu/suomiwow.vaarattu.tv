@@ -2605,11 +2605,12 @@ router.post("/pickems/:pickemId/unfinalize", async (req: Request, res: Response)
 // Get current rate limit status
 router.get("/rate-limit", async (req: Request, res: Response) => {
   try {
-    const status = await rateLimitService.getSharedStatus();
+    const buckets = await rateLimitService.getAllSharedStatuses();
     const config = rateLimitService.getConfig();
 
     res.json({
-      status,
+      status: buckets.client,
+      buckets,
       config,
     });
   } catch (error) {
@@ -2628,11 +2629,14 @@ router.post("/rate-limit/pause", async (req: Request, res: Response) => {
     }
 
     await rateLimitService.setManualPause(paused);
+    const buckets = await rateLimitService.getAllSharedStatuses();
 
     res.json({
       success: true,
       isPaused: paused,
-      status: await rateLimitService.getSharedStatus(),
+      status: buckets.client,
+      buckets,
+      config: rateLimitService.getConfig(),
     });
   } catch (error) {
     logger.error("Error toggling rate limit pause:", error);
@@ -4364,7 +4368,7 @@ router.put("/characters/:characterId/blizzard-identity", async (req: Request, re
           },
         },
       },
-      { new: true },
+      { returnDocument: "after" },
     );
 
     if (!character) return res.status(404).json({ error: "Character not found" });
@@ -4411,7 +4415,7 @@ router.put("/characters/:characterId/blizzard-identity", async (req: Request, re
 
 router.delete("/characters/:characterId/blizzard-identity", async (req: Request, res: Response) => {
   try {
-    const character = await Character.findByIdAndUpdate(req.params.characterId, { $set: { blizzardIdentityOverride: null } }, { new: true });
+    const character = await Character.findByIdAndUpdate(req.params.characterId, { $set: { blizzardIdentityOverride: null } }, { returnDocument: "after" });
     if (!character) return res.status(404).json({ error: "Character not found" });
 
     await characterMediaService.enqueueCharacter(character._id.toString(), 200, true);
