@@ -548,8 +548,8 @@ export default function CcgCollectionPage() {
     }, 0);
 
     const direction = horizontal
-      ? (deltaX > 0 ? 1 : -1)
-      : (deltaY > 0 ? 1 : -1);
+      ? (deltaX > 0 ? -1 : 1)
+      : (deltaY > 0 ? -1 : 1);
     turnPage(direction);
   };
 
