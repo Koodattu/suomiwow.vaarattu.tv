@@ -53,6 +53,8 @@ const mythicPlusScoreColors = [
 const TOUCH_TILT_HOLD_MS = 220;
 const TOUCH_TILT_INTENT_THRESHOLD = 8;
 const TOUCH_CLICK_SUPPRESSION_MS = 500;
+const ASTRAL_SPIRAL_PATH = "M50 50 C56 43 67 44 72 52 C80 65 69 78 53 81 C31 85 15 68 17 46 C19 21 41 7 66 12 C86 16 97 34 94 55";
+const ASTRAL_SPIRAL_ROTATIONS = [0, 120, 240] as const;
 
 function isWebmArtwork(path: string | null): path is string {
   return Boolean(path && /\.webm(?:$|[?#])/i.test(path));
@@ -202,6 +204,9 @@ export default function CollectibleCard({
 }: CollectibleCardProps) {
   const t = useTranslations("ccg");
   const metamorphicFilterId = `vault-metamorphic-${useId().replace(/:/g, "")}`;
+  const astralEffectId = `vault-astral-${useId().replace(/:/g, "")}`;
+  const astralArmGradientId = `${astralEffectId}-arm`;
+  const astralWarpFilterId = `${astralEffectId}-warp`;
   const materialFrame = useRef<number | null>(null);
   const pendingMaterial = useRef<{ element: HTMLElement; x: number; y: number } | null>(null);
   const touchGesture = useRef<{
@@ -439,7 +444,37 @@ export default function CollectibleCard({
         ) : <span className={styles.raidArt} />}
         <span className={styles.raidShade} />
       </span>
-      {finish === "astral" ? <span className={styles.astralDepth} aria-hidden="true" /> : null}
+      {finish === "astral" ? (
+        <span className={styles.astralDepth} aria-hidden="true">
+          <svg className={styles.astralGalaxy} viewBox="0 0 100 100">
+            <defs>
+              <linearGradient id={astralArmGradientId} x1="14" y1="18" x2="88" y2="86" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stopColor="#66eaff" />
+                <stop offset="0.36" stopColor="#8d91ff" />
+                <stop offset="0.68" stopColor="#e676ff" />
+                <stop offset="1" stopColor="#dffcff" />
+              </linearGradient>
+              <filter id={astralWarpFilterId} x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+                <feTurbulence type="fractalNoise" baseFrequency="0.018 0.032" numOctaves="2" seed="23" result="astralNoise" />
+                <feDisplacementMap in="SourceGraphic" in2="astralNoise" scale="4.2" xChannelSelector="R" yChannelSelector="G" />
+              </filter>
+            </defs>
+            <g filter={`url(#${astralWarpFilterId})`}>
+              <g className={styles.astralGalaxyHalo}>
+                {ASTRAL_SPIRAL_ROTATIONS.map((rotation) => <path key={rotation} d={ASTRAL_SPIRAL_PATH} stroke={`url(#${astralArmGradientId})`} transform={rotation ? `rotate(${rotation} 50 50)` : undefined} />)}
+              </g>
+              <g className={styles.astralGalaxyArms}>
+                {ASTRAL_SPIRAL_ROTATIONS.map((rotation) => <path key={rotation} d={ASTRAL_SPIRAL_PATH} stroke={`url(#${astralArmGradientId})`} transform={rotation ? `rotate(${rotation} 50 50)` : undefined} />)}
+              </g>
+            </g>
+            <g className={styles.astralGalaxyDust}>
+              {ASTRAL_SPIRAL_ROTATIONS.map((rotation) => <path key={rotation} pathLength="1" d={ASTRAL_SPIRAL_PATH} transform={rotation ? `rotate(${rotation} 50 50)` : undefined} />)}
+            </g>
+            <circle className={styles.astralGalaxyCoreGlow} cx="50" cy="50" r="9" />
+            <circle className={styles.astralGalaxyCore} cx="50" cy="50" r="3.2" />
+          </svg>
+        </span>
+      ) : null}
       <span className={styles.lowerDeck} aria-hidden="true" />
       <span className={styles.renderWindow} aria-hidden="true">
         {renderIsVideo ? (
@@ -458,6 +493,16 @@ export default function CollectibleCard({
           <AlphaFittedCharacterRender src={renderUrl} className={styles.renderImage} priority={renderPriority} onReady={() => markReady("render")} />
         ) : null}
       </span>
+      {finish === "astral" ? (
+        <svg className={styles.astralGalaxyForeground} viewBox="0 0 100 100" aria-hidden="true">
+          <g className={styles.astralGalaxyForegroundHalo}>
+            {ASTRAL_SPIRAL_ROTATIONS.map((rotation) => <path key={rotation} pathLength="1" d={ASTRAL_SPIRAL_PATH} transform={rotation ? `rotate(${rotation} 50 50)` : undefined} />)}
+          </g>
+          <g className={styles.astralGalaxyForegroundDust}>
+            {ASTRAL_SPIRAL_ROTATIONS.map((rotation) => <path key={rotation} pathLength="1" d={ASTRAL_SPIRAL_PATH} transform={rotation ? `rotate(${rotation} 50 50)` : undefined} />)}
+          </g>
+        </svg>
+      ) : null}
 
       <span className={styles.identity}><strong className={styles.characterName}>{card.name}</strong><span className={styles.guildName}>{guild}</span></span>
 
