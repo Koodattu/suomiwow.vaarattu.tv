@@ -4,8 +4,9 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { FaStar } from "react-icons/fa6";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { CcgArtVariant, CcgCard, CcgFinish } from "@/types";
+import type { CcgArtVariant, CcgCard } from "@/types";
 import { CCG_CLASS_COLORS, CCG_RARITY_KEYS } from "@/lib/ccg";
+import { isCcgRaidPreviewFinish, type CcgPreviewFinish } from "@/lib/ccg-preview-finishes";
 import { formatRealmName, formatSpecName, getClassInfoById, getParseColor, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
 import AlphaFittedCharacterRender from "./AlphaFittedCharacterRender";
@@ -160,7 +161,7 @@ export function resetCardMaterial(element: HTMLElement) {
 
 type CollectibleCardProps = {
   card: CcgCard;
-  finish?: CcgFinish | "rainbow" | "kaleidoscope" | "disco" | "cosmos" | "galaxy" | "radiant" | "chromaflow" | "dark" | "eclipse" | "paradox" | "anomaly" | "infinite" | "transcendent" | "singularity" | "metamorphic" | "parallax";
+  finish?: CcgPreviewFinish;
   artVariant?: CcgArtVariant;
   compact?: boolean;
   quantity?: number;
@@ -221,6 +222,7 @@ export default function CollectibleCard({
   const rarity = t(`rarity.${CCG_RARITY_KEYS[card.tierGrade]}`);
   const guild = card.guildName ? `<${card.guildName}>` : t("independent");
   const realm = formatRealmName(card.realm);
+  const raidPreviewFinish = isCcgRaidPreviewFinish(finish);
   const alternativeActive = artVariant === "alternative";
   const renderUrl = alternativeActive && card.alternativeArt?.characterArtPath
     ? card.alternativeArt.characterArtPath
@@ -412,6 +414,7 @@ export default function CollectibleCard({
       className={`${styles.prototypeCard} ${styles.vaultRelic} ${styles[finish]} ${guides ? styles.guides : ""}`}
       data-grade={card.tierGrade}
       data-finish={finish}
+      data-raid-preview-finish={raidPreviewFinish ? "true" : undefined}
       data-art-variant={artVariant}
       data-frame="vaultSteel"
       data-ccg-card

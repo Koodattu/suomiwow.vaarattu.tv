@@ -485,7 +485,7 @@ class FullHistoryRefreshService {
   }
 
   private async reopenTerminalFightDetails(): Promise<{ deathEvents: number; combatantInfo: number }> {
-    const statuses = ["failed", "archived", "unavailable"];
+    const statuses = ["failed", "archived", "unavailable"] as const;
     const [deathEvents, combatantInfo] = await Promise.all([
       Fight.updateMany(
         { reportEndTime: { $gt: 0 }, zoneId: { $in: TRACKED_RAIDS }, deathEventsFetchStatus: { $in: statuses } },

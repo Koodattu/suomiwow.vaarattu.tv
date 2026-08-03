@@ -5,37 +5,16 @@ import { useTranslations } from "next-intl";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import { api } from "@/lib/api";
 import { CCG_RARITY_KEYS, hasAlternativeArtwork } from "@/lib/ccg";
+import {
+  CCG_STUDIO_DEVELOPMENT_FINISHES,
+  CCG_STUDIO_PRODUCTION_FINISHES,
+  type CcgPreviewFinish,
+} from "@/lib/ccg-preview-finishes";
 import { formatRealmName } from "@/lib/utils";
-import type { CcgArtVariant, CcgCard, CcgFinish, CcgTierGrade } from "@/types";
+import type { CcgArtVariant, CcgCard, CcgTierGrade } from "@/types";
 
-type PreviewFinish = CcgFinish | "rainbow" | "kaleidoscope" | "disco" | "cosmos" | "galaxy" | "radiant" | "chromaflow" | "dark" | "eclipse" | "paradox" | "anomaly" | "infinite" | "transcendent" | "singularity" | "metamorphic" | "parallax";
+type FinishStage = "production" | "development";
 
-const finishes: readonly PreviewFinish[] = [
-  "standard",
-  "foil",
-  "golden",
-  "prismatic",
-  "holographic",
-  "rainbow",
-  "kaleidoscope",
-  "disco",
-  "cosmos",
-  "galaxy",
-  "radiant",
-  "void",
-  "dark",
-  "toxic",
-  "negative",
-  "chromaflow",
-  "eclipse",
-  "paradox",
-  "anomaly",
-  "infinite",
-  "transcendent",
-  "singularity",
-  "metamorphic",
-  "parallax",
-];
 const grades: readonly CcgTierGrade[] = ["H", "S", "A", "B", "C", "D", "E", "F"];
 const fieldClass = "min-h-10 w-full rounded-md border border-white/10 bg-gray-950/75 px-3 text-sm text-white outline-none transition-colors placeholder:text-gray-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/15";
 
@@ -49,7 +28,11 @@ export default function CcgCardStudio() {
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [finish, setFinish] = useState<PreviewFinish>("standard");
+  const [finishStage, setFinishStage] = useState<FinishStage>("production");
+  const [finishSelections, setFinishSelections] = useState<Record<FinishStage, CcgPreviewFinish>>({
+    production: CCG_STUDIO_PRODUCTION_FINISHES[0],
+    development: CCG_STUDIO_DEVELOPMENT_FINISHES[0],
+  });
   const [artVariant, setArtVariant] = useState<CcgArtVariant>("standard");
   const [tierGrade, setTierGrade] = useState<CcgTierGrade>("C");
   const [cardWidth, setCardWidth] = useState(400);
@@ -58,6 +41,8 @@ export default function CcgCardStudio() {
   const [hideCornerIcons, setHideCornerIcons] = useState(false);
   const [hideBadges, setHideBadges] = useState(false);
   const activeSearchRef = useRef("");
+  const finish = finishSelections[finishStage];
+  const finishes = finishStage === "production" ? CCG_STUDIO_PRODUCTION_FINISHES : CCG_STUDIO_DEVELOPMENT_FINISHES;
 
   useEffect(() => {
     const trimmedSearch = search.trim();
@@ -186,9 +171,32 @@ export default function CcgCardStudio() {
               {variants.map((variant) => <option key={variant.id} value={variant.id}>{variant.set.raidName}</option>)}
             </select>
           </label>
+          <fieldset className="col-span-2 grid gap-1">
+            <legend className="text-xs font-semibold text-gray-400">{t("finishStage")}</legend>
+            <div className="grid grid-cols-2 rounded-md bg-gray-950/75 p-1 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+              {(["production", "development"] as const).map((stage) => {
+                const active = finishStage === stage;
+                return (
+                  <button
+                    key={stage}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setFinishStage(stage)}
+                    className={`min-h-10 rounded px-3 text-xs font-bold transition-[background-color,color,box-shadow,scale] duration-150 ease-out active:scale-[0.96] ${active ? "bg-cyan-950/80 text-cyan-200 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.28)]" : "text-gray-500 hover:bg-white/5 hover:text-gray-300"}`}
+                  >
+                    {t(`finishStages.${stage}`)}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
           <label className="grid gap-1 text-xs font-semibold text-gray-400">
             {t("quality")}
-            <select className={fieldClass} value={finish} onChange={(event) => setFinish(event.target.value as PreviewFinish)}>
+            <select
+              className={fieldClass}
+              value={finish}
+              onChange={(event) => setFinishSelections((current) => ({ ...current, [finishStage]: event.target.value as CcgPreviewFinish }))}
+            >
               {finishes.map((value) => <option key={value} value={value}>{ccg(`finish.${value}`)}</option>)}
             </select>
           </label>

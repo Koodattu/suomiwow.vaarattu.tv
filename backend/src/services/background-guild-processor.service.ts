@@ -1,5 +1,5 @@
 import Guild, { IGuild } from "../models/Guild";
-import Report, { IReportFightSequenceEntry } from "../models/Report";
+import Report, { IReport, IReportFightSequenceEntry } from "../models/Report";
 import Fight from "../models/Fight";
 import GuildProcessingQueue, { IGuildProcessingQueue, ProcessingStatus, JobType } from "../models/GuildProcessingQueue";
 import wclService, { type FightRosterResult } from "./warcraftlogs.service";
@@ -1118,7 +1118,7 @@ class BackgroundGuildProcessor {
       }
 
       const jobStartedAt = new Date();
-      const pendingReportQuery = {
+      const pendingReportQuery: mongoose.QueryFilter<IReport> = {
         guildId: guild._id,
         isOngoing: { $ne: true },
         endTime: { $gt: 0 },

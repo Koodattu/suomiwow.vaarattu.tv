@@ -2014,14 +2014,17 @@ class CcgService {
     const rowLimit = limit + 1;
 
     const packCursorFilter = buildCcgActivityCursorFilter("createdAt", "pack", cursor);
-    const packOwnerFilter = {
+    const packOwnerFilter: mongoose.QueryFilter<ICcgPackOpening> = {
       $or: [
         { ownerType: "user", ownerId: userId },
         { ownerType: "guest", claimedByUserId: userId },
       ],
     };
-    const packFilter = Object.keys(packCursorFilter).length > 0
-      ? { state: "committed", $and: [packOwnerFilter, packCursorFilter] }
+    const packFilter: mongoose.QueryFilter<ICcgPackOpening> = Object.keys(packCursorFilter).length > 0
+      ? {
+          state: "committed",
+          $and: [packOwnerFilter, packCursorFilter as mongoose.QueryFilter<ICcgPackOpening>],
+        }
       : { state: "committed", ...packOwnerFilter };
 
     const [openingRows, codeRows, twitchRows, summaryRows] = await Promise.all([
@@ -3130,7 +3133,7 @@ class CcgService {
 
   async getOpening(owner: CcgOwner, openingId: string): Promise<Record<string, unknown>> {
     const id = validateObjectId(openingId, "opening ID");
-    const ownershipFilter = owner.ownerType === "user"
+    const ownershipFilter: mongoose.QueryFilter<ICcgPackOpening> = owner.ownerType === "user"
       ? {
           $or: [
             { ownerType: "user", ownerId: owner.ownerId },

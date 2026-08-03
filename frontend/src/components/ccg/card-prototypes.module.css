@@ -1523,6 +1523,91 @@
   mix-blend-mode: screen;
   opacity: 0.76;
 }
+.neon .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(247, 255, 255, 0.62), rgba(62, 236, 255, 0.2) 10%, rgba(255, 58, 196, 0.08) 18%, transparent 29%),
+    repeating-linear-gradient(126deg, transparent 0 17%, rgba(32, 219, 255, 0.12) 18%, rgba(166, 251, 255, 0.42) 18.7%, rgba(30, 218, 255, 0.16) 19.5%, transparent 21% 45%, rgba(255, 45, 190, 0.12) 46%, rgba(255, 181, 236, 0.4) 46.8%, rgba(255, 45, 190, 0.16) 47.6%, transparent 49% 72%),
+    linear-gradient(var(--foil-angle), transparent 25%, rgba(42, 229, 255, 0.16) 37%, rgba(237, 254, 255, 0.3) 47%, rgba(255, 52, 196, 0.16) 57%, transparent 71%),
+    linear-gradient(145deg, rgba(1, 17, 30, 0.76), rgba(12, 5, 28, 0.7) 48%, rgba(29, 4, 30, 0.7));
+  background-blend-mode: screen, screen, screen, multiply;
+  background-position:
+    center,
+    var(--foil-x-reverse) var(--foil-y-reverse),
+    var(--foil-x) var(--foil-y),
+    center;
+  background-size:
+    100% 100%,
+    190% 190%,
+    240% 240%,
+    100% 100%;
+  box-shadow:
+    inset 0 0 0 1px rgba(138, 244, 255, 0.24),
+    inset 0 0 24px rgba(23, 169, 209, 0.1),
+    inset 0 0 34px rgba(211, 30, 160, 0.08);
+  filter: brightness(calc(0.84 + var(--pointer-distance) * 0.22)) contrast(1.3) saturate(1.32);
+  mix-blend-mode: screen;
+  opacity: 0.5;
+  transition-property: opacity, filter;
+}
+.neon .finishLayer::before {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 28px, rgba(45, 224, 255, 0.12) 29px, rgba(211, 253, 255, 0.32) 30px, rgba(34, 212, 255, 0.12) 31px, transparent 33px 74px),
+    repeating-linear-gradient(0deg, transparent 0 31px, rgba(255, 52, 195, 0.1) 32px, rgba(255, 205, 240, 0.28) 33px, rgba(255, 47, 190, 0.12) 34px, transparent 36px 82px),
+    linear-gradient(112deg, transparent 32%, rgba(109, 239, 255, 0.14) 47%, rgba(255, 112, 211, 0.12) 53%, transparent 68%);
+  background-position:
+    calc(var(--pointer-left) * 11px) 0,
+    0 calc(var(--pointer-top) * -11px),
+    var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size:
+    74px 100%,
+    100% 82px,
+    250% 250%;
+  filter: brightness(1.02) contrast(1.14) saturate(1.18);
+  mix-blend-mode: screen;
+  opacity: 0.48;
+  transition-property: opacity, filter, scale;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-mask-image: repeating-linear-gradient(135deg, #000 0 18%, rgba(0, 0, 0, 0.18) 21% 35%, #000 39% 53%, rgba(0, 0, 0, 0.14) 57% 75%, #000 79% 100%);
+  mask-image: repeating-linear-gradient(135deg, #000 0 18%, rgba(0, 0, 0, 0.18) 21% 35%, #000 39% 53%, rgba(0, 0, 0, 0.14) 57% 75%, #000 79% 100%);
+}
+.neon .finishLayer::after {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 0 5%, rgba(115, 244, 255, 0.22) 7%, rgba(255, 80, 204, 0.1) 12%, transparent 23%),
+    radial-gradient(circle at 18% 23%, rgba(230, 255, 255, 0.84) 0 0.7px, rgba(31, 224, 255, 0.48) 1.2px, transparent 2.6px),
+    radial-gradient(circle at 78% 72%, rgba(255, 232, 248, 0.82) 0 0.8px, rgba(255, 46, 190, 0.46) 1.3px, transparent 2.7px),
+    radial-gradient(circle at 18% 23%, rgba(37, 225, 255, 0.22), transparent 15%),
+    radial-gradient(circle at 78% 72%, rgba(255, 51, 191, 0.2), transparent 17%);
+  background-position:
+    center,
+    calc(var(--pointer-left) * 19px) calc(var(--pointer-top) * -17px),
+    calc(var(--pointer-left) * -23px) calc(var(--pointer-top) * 21px),
+    center,
+    center;
+  background-size:
+    100% 100%,
+    37px 43px,
+    47px 53px,
+    100% 100%,
+    100% 100%;
+  filter: brightness(1.02) contrast(1.08) saturate(1.18);
+  mix-blend-mode: screen;
+  opacity: 0.56;
+  transition-property: opacity, filter;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+.neon .statsPanel {
+  background:
+    linear-gradient(112deg, rgba(31, 215, 255, 0.12), rgba(5, 8, 19, 0.99) 43% 57%, rgba(255, 43, 190, 0.12)),
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(151, 244, 255, 0.1), transparent 52%),
+    linear-gradient(180deg, rgba(7, 14, 29, 0.99), rgba(3, 3, 10, 0.99));
+  background-position: 18% center, center, center;
+  background-size: 230% 100%, 100% 100%, 100% 100%;
+  box-shadow:
+    inset 0 0 0 1px rgba(113, 233, 255, 0.16),
+    inset 0 0 14px rgba(255, 42, 190, 0.06);
+}
 .cosmos .finishLayer {
   background:
     radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(250, 253, 255, 0.78), rgba(166, 201, 255, 0.2) 9%, transparent 25%),
@@ -2327,6 +2412,820 @@
   mix-blend-mode: screen;
   opacity: 0.7;
 }
+
+/* Raid-specific development finishes. The first eight establish the reusable
+   material and atmosphere vocabulary used by the remaining raid treatments. */
+.prototypeCard[data-raid-preview-finish="true"] {
+  --raid-tone: #9fc8ff;
+  --raid-edge: #dcecff;
+  --raid-idle-duration: 7.4s;
+  --raid-idle-opacity: 0.62;
+  --raid-hover-opacity: 0.78;
+  --raid-touch-opacity: 0.76;
+  --raid-drift-x: 0.7%;
+  --raid-drift-y: -2.4%;
+  --raid-counter-x: -0.6%;
+  --raid-counter-y: 1.8%;
+}
+
+.prototypeCard[data-raid-preview-finish="true"] .finishLayer {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--raid-edge) 38%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--raid-edge) 14%, transparent),
+    inset 0 0 34px color-mix(in srgb, var(--raid-tone) 24%, transparent);
+  filter: brightness(calc(0.94 + var(--pointer-distance) * 0.22)) contrast(1.24) saturate(1.3);
+  opacity: calc(var(--raid-idle-opacity) + 0.08);
+  transition-property: opacity, filter;
+}
+
+.prototypeCard[data-raid-preview-finish="true"] .finishLayer::before,
+.prototypeCard[data-raid-preview-finish="true"] .finishLayer::after {
+  inset: -7%;
+  transition-property: opacity, filter, scale, rotate, translate;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.prototypeCard[data-raid-preview-finish="true"] .statsPanel {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), color-mix(in srgb, var(--raid-tone) 25%, transparent), transparent 54%),
+    linear-gradient(112deg, color-mix(in srgb, var(--raid-tone) 20%, transparent), rgba(5, 8, 13, 0.99) 52%, color-mix(in srgb, var(--raid-edge) 16%, transparent)),
+    linear-gradient(180deg, rgba(13, 16, 23, 0.99), rgba(2, 4, 7, 0.99));
+  background-position: center, 22% center, center;
+  background-size: 100% 100%, 220% 100%, 100% 100%;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--raid-edge) 28%, transparent),
+    inset 0 0 16px color-mix(in srgb, var(--raid-tone) 10%, transparent);
+}
+
+.prototypeCard[data-raid-preview-finish="true"] .qualityLabel {
+  background: linear-gradient(
+    96deg,
+    var(--raid-tone) 0%,
+    color-mix(in srgb, var(--raid-edge) 78%, white) 24%,
+    #ffffff 46%,
+    color-mix(in srgb, var(--raid-tone) 72%, white) 66%,
+    var(--raid-edge) 84%,
+    var(--raid-tone) 100%
+  );
+  background-clip: text;
+  background-position: 18% center;
+  background-size: 240% 100%;
+  color: transparent;
+  filter: brightness(1.08) contrast(1.12) saturate(1.18);
+  font-weight: 900;
+  letter-spacing: 0.055em;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.96),
+    0 0 7px color-mix(in srgb, var(--raid-tone) 48%, transparent);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transition-property: filter;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.prototypeCard[data-raid-preview-finish="true"] .frameGeometry {
+  filter:
+    drop-shadow(0 0 2px color-mix(in srgb, var(--raid-edge) 48%, transparent))
+    drop-shadow(0 0 7px color-mix(in srgb, var(--raid-tone) 24%, transparent));
+  transition-property: filter;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Prototype 1: Castle Nathria — directional velvet pile and stained glass. */
+.sanguine {
+  --raid-tone: #cf143e;
+  --raid-edge: #f0c57b;
+  --raid-idle-duration: 7.8s;
+  --raid-idle-opacity: 0.7;
+  --raid-hover-opacity: 0.9;
+  --raid-drift-x: 1.1%;
+  --raid-drift-y: 3.8%;
+  --raid-counter-x: -1.4%;
+  --raid-counter-y: -2.6%;
+}
+.sanguine .finishLayer {
+  background:
+    radial-gradient(ellipse 48% 34% at var(--pointer-x) var(--pointer-y), rgba(255, 225, 211, 0.8), rgba(226, 24, 67, 0.38) 12%, rgba(112, 3, 31, 0.18) 25%, transparent 46%),
+    repeating-linear-gradient(calc(var(--foil-angle) - 96deg), rgba(255, 219, 217, 0.2) 0 0.55px, rgba(116, 4, 35, 0.22) 0.9px 1.6px, rgba(13, 0, 6, 0.34) 2px 2.8px, transparent 3.2px 6px),
+    radial-gradient(ellipse at 50% 47%, transparent 0 28%, rgba(39, 0, 13, 0.28) 58%, rgba(4, 0, 3, 0.7) 100%),
+    linear-gradient(138deg, rgba(113, 3, 31, 0.64), rgba(21, 0, 9, 0.68) 42%, rgba(4, 0, 3, 0.78) 66%, rgba(128, 8, 38, 0.58));
+  background-position: center, calc(var(--pointer-left) * 12px) 0, center, center;
+  background-size: 100% 100%, 15px 100%, 100% 100%, 100% 100%;
+  background-blend-mode: screen, soft-light, multiply, multiply;
+  mix-blend-mode: overlay;
+}
+.sanguine .finishLayer::before {
+  background:
+    repeating-conic-gradient(from 45deg at 50% 44%, rgba(244, 197, 112, 0.36) 0 1.1deg, transparent 1.8deg 22deg),
+    repeating-radial-gradient(ellipse at 50% 44%, transparent 0 10%, rgba(231, 179, 94, 0.26) 10.5% 11.2%, rgba(55, 0, 18, 0.3) 11.7% 12.3%, transparent 12.8% 21%),
+    linear-gradient(32deg, transparent 0 18%, rgba(238, 43, 78, 0.3) 18.5% 23%, transparent 23.5% 47%, rgba(116, 53, 184, 0.24) 47.5% 54%, transparent 54.5% 76%, rgba(240, 179, 75, 0.24) 76.5% 80%, transparent 80.5%),
+    repeating-linear-gradient(45deg, transparent 0 37px, rgba(243, 197, 113, 0.24) 38px 39px, transparent 40px 76px);
+  background-position: center, center, center, 0 0;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 76px 76px;
+  filter: drop-shadow(0 0 3px rgba(221, 142, 65, 0.24));
+  mix-blend-mode: screen;
+  opacity: 0.82;
+}
+.sanguine .finishLayer::after {
+  background:
+    radial-gradient(ellipse, rgba(238, 34, 67, 0.88) 0 1.1px, rgba(96, 0, 24, 0.54) 1.6px, transparent 2.5px),
+    radial-gradient(ellipse, rgba(143, 5, 37, 0.8) 0 1.3px, rgba(242, 183, 100, 0.22) 1.8px, transparent 2.7px),
+    radial-gradient(ellipse at 12% 86%, rgba(255, 164, 75, 0.3), rgba(136, 15, 33, 0.13) 25%, transparent 48%),
+    radial-gradient(ellipse at 87% 78%, rgba(255, 197, 103, 0.24), rgba(106, 3, 29, 0.12) 28%, transparent 52%),
+    linear-gradient(var(--foil-angle), transparent 34%, rgba(210, 12, 51, 0.22) 43%, rgba(255, 227, 183, 0.5) 50%, rgba(111, 0, 28, 0.24) 58%, transparent 68%);
+  background-position: 5px 11px, 27px 43px, center, center, var(--foil-x) var(--foil-y);
+  background-size: 43px 61px, 67px 89px, 100% 100%, 100% 100%, 250% 250%;
+  filter: saturate(1.18);
+  mix-blend-mode: color-dodge;
+  opacity: 0.76;
+}
+.sanguine .materialLight {
+  background:
+    radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), rgba(255, 242, 225, 0.7), rgba(222, 18, 60, 0.32) 13%, rgba(80, 0, 23, 0.12) 23%, transparent 36%),
+    linear-gradient(var(--foil-angle), transparent 34%, rgba(143, 0, 35, 0.18) 42%, rgba(255, 214, 154, 0.38) 49%, rgba(209, 8, 51, 0.18) 57%, transparent 67%);
+  background-position: center, var(--foil-x) var(--foil-y);
+  background-size: 100% 100%, 210% 210%;
+  mix-blend-mode: screen;
+}
+
+/* Prototype 2: Eternal Palace — pearl, bubbles, caustics and water lensing. */
+.abyssal {
+  --raid-tone: #60d7ea;
+  --raid-edge: #d8a9ff;
+  --raid-idle-duration: 8.4s;
+  --raid-idle-opacity: 0.62;
+  --raid-hover-opacity: 0.82;
+  --raid-drift-x: 0.8%;
+  --raid-drift-y: -4.2%;
+}
+.abyssal .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(234, 255, 255, 0.68) 0 2%, rgba(89, 222, 241, 0.22) 10%, transparent 29%),
+    radial-gradient(ellipse at var(--foil-x-reverse) var(--foil-y-reverse), transparent 18%, rgba(109, 231, 238, 0.18) 28%, rgba(193, 122, 235, 0.24) 46%, transparent 68%),
+    linear-gradient(135deg, rgba(9, 45, 78, 0.34), rgba(93, 44, 128, 0.32) 48%, rgba(3, 53, 77, 0.4));
+  background-size: 100% 100%, 150% 140%, 100% 100%;
+  mix-blend-mode: screen;
+}
+.abyssal .finishLayer::before {
+  background:
+    radial-gradient(circle at 17% 24%, transparent 0 2.2px, rgba(218, 251, 255, 0.54) 2.7px 3.3px, transparent 3.8px),
+    radial-gradient(circle at 71% 68%, rgba(211, 161, 255, 0.22) 0 1.5px, rgba(220, 252, 255, 0.52) 2px 2.7px, transparent 3.2px),
+    radial-gradient(circle at 44% 82%, transparent 0 1.3px, rgba(118, 225, 244, 0.58) 1.8px 2.3px, transparent 2.8px);
+  background-size: 43px 59px, 67px 83px, 31px 47px;
+  mix-blend-mode: screen;
+  opacity: 0.82;
+}
+.abyssal .finishLayer::after {
+  background:
+    repeating-radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), transparent 0 8%, rgba(179, 248, 255, 0.2) 8.5% 9%, transparent 9.5% 17%),
+    linear-gradient(var(--foil-angle), transparent 34%, rgba(233, 255, 255, 0.34) 47%, rgba(185, 130, 255, 0.2) 52%, transparent 66%);
+  background-position: center, var(--foil-x) var(--foil-y);
+  background-size: 130% 120%, 220% 220%;
+  mix-blend-mode: screen;
+  opacity: 0.68;
+}
+
+/* Prototype 3: Blackrock Foundry — black iron, molten seams and sparks. */
+.slagforged {
+  --raid-tone: #ff5a1f;
+  --raid-edge: #ffd17a;
+  --raid-idle-duration: 6.8s;
+  --raid-idle-opacity: 0.58;
+  --raid-hover-opacity: 0.8;
+  --raid-drift-x: 0.5%;
+  --raid-drift-y: -5%;
+}
+.slagforged .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 251, 221, 0.72), rgba(255, 113, 24, 0.34) 10%, transparent 28%),
+    repeating-linear-gradient(128deg, transparent 0 28px, rgba(255, 70, 13, 0.44) 29px 30px, rgba(255, 189, 55, 0.2) 31px, transparent 33px 61px),
+    linear-gradient(152deg, rgba(6, 8, 10, 0.7), rgba(78, 24, 7, 0.24) 47%, rgba(2, 3, 4, 0.76));
+  background-position: center, calc(var(--pointer-left) * 8px) calc(var(--pointer-top) * -9px), center;
+  mix-blend-mode: screen;
+}
+.slagforged .finishLayer::before {
+  background:
+    radial-gradient(circle, rgba(255, 245, 194, 0.95) 0 0.6px, rgba(255, 103, 22, 0.64) 0.9px, transparent 1.5px),
+    radial-gradient(circle, rgba(255, 157, 39, 0.74) 0 0.75px, transparent 1.4px);
+  background-position: 7px 17px, 29px 41px;
+  background-size: 37px 53px, 61px 79px;
+  filter: blur(0.15px);
+  mix-blend-mode: color-dodge;
+  opacity: 0.76;
+}
+.slagforged .finishLayer::after {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 11px, rgba(255, 139, 43, 0.08) 12px 13px, transparent 14px 27px),
+    linear-gradient(var(--foil-angle), transparent 39%, rgba(255, 239, 197, 0.5) 49%, transparent 59%);
+  background-position: 0 0, var(--foil-x) var(--foil-y);
+  background-size: 100% 100%, 240% 240%;
+  filter: blur(0.35px);
+  mix-blend-mode: screen;
+  opacity: 0.62;
+}
+
+/* Prototype 4: Nerub-ar Palace — royal silk, web geometry and Black Blood. */
+.royal {
+  --raid-tone: #9b5bdb;
+  --raid-edge: #e8c56e;
+  --raid-idle-duration: 9.6s;
+  --raid-idle-opacity: 0.54;
+  --raid-hover-opacity: 0.74;
+  --raid-drift-x: 1.6%;
+  --raid-drift-y: -0.8%;
+}
+.royal .finishLayer {
+  background:
+    radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), rgba(244, 220, 255, 0.54), rgba(158, 86, 218, 0.2) 14%, transparent 34%),
+    repeating-linear-gradient(calc(var(--foil-angle) - 92deg), rgba(243, 220, 255, 0.16) 0 0.45px, rgba(39, 4, 55, 0.18) 0.9px 1.5px, transparent 2px 6px),
+    linear-gradient(145deg, rgba(48, 8, 61, 0.46), rgba(7, 2, 12, 0.58) 56%, rgba(105, 58, 14, 0.28));
+  background-position: center, calc(var(--pointer-left) * 14px) 0, center;
+  background-size: 100% 100%, 17px 100%, 100% 100%;
+  mix-blend-mode: screen;
+}
+.royal .finishLayer::before {
+  background:
+    repeating-conic-gradient(from 8deg at 50% 44%, transparent 0 13deg, rgba(231, 210, 255, 0.2) 14deg 14.7deg, transparent 15.5deg 30deg),
+    repeating-radial-gradient(circle at 50% 44%, transparent 0 7%, rgba(214, 180, 247, 0.18) 7.4% 7.9%, transparent 8.3% 15%);
+  mix-blend-mode: screen;
+  opacity: 0.74;
+}
+.royal .finishLayer::after {
+  background:
+    radial-gradient(ellipse at 13% 23%, rgba(7, 0, 13, 0.92) 0 1.2%, rgba(115, 55, 148, 0.5) 1.6%, transparent 2.3%),
+    radial-gradient(ellipse at 81% 72%, rgba(6, 0, 12, 0.9) 0 1.5%, rgba(213, 173, 255, 0.32) 1.9%, transparent 2.7%),
+    linear-gradient(var(--foil-angle), transparent 42%, rgba(255, 224, 159, 0.38) 49%, transparent 56%);
+  background-size: 71px 89px, 93px 117px, 260% 260%;
+  background-position: 0 0, 17px 29px, var(--foil-x) var(--foil-y);
+  mix-blend-mode: screen;
+  opacity: 0.62;
+}
+
+/* Prototype 5: Undermine — casino chrome, slot reels and a chasing marquee. */
+.jackpot {
+  --raid-tone: #e9a52f;
+  --raid-edge: #fff0ad;
+  --raid-idle-duration: 6.8s;
+  --raid-idle-opacity: 0.62;
+  --raid-hover-opacity: 0.78;
+  --raid-drift-x: 2.2%;
+  --raid-drift-y: -1.4%;
+  --raid-counter-x: -1.8%;
+  --raid-counter-y: 1.7%;
+}
+.prototypeCard.jackpot .finishLayer {
+  background:
+    radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.92) 0 3%, rgba(255, 210, 101, 0.5) 10%, transparent 28%),
+    repeating-linear-gradient(0deg, rgba(8, 10, 14, 0.24) 0 12%, rgba(180, 27, 35, 0.34) 13% 17%, rgba(255, 223, 130, 0.44) 18% 19.5%, rgba(22, 25, 31, 0.28) 20.5% 31%),
+    linear-gradient(var(--foil-angle), transparent 8%, rgba(67, 75, 84, 0.48) 17%, rgba(238, 247, 252, 0.78) 26%, rgba(56, 62, 70, 0.58) 34%, rgba(255, 194, 65, 0.68) 45%, rgba(146, 17, 27, 0.46) 56%, rgba(255, 245, 207, 0.78) 66%, rgba(69, 77, 86, 0.5) 75%, transparent 88%),
+    repeating-linear-gradient(45deg, rgba(184, 25, 35, 0.2) 0 7px, rgba(255, 211, 92, 0.16) 7px 9px, transparent 9px 25px),
+    linear-gradient(135deg, rgba(103, 8, 17, 0.44), rgba(15, 18, 23, 0.46) 42%, rgba(123, 82, 20, 0.32) 64%, rgba(18, 20, 25, 0.44));
+  background-blend-mode: screen, overlay, hard-light, soft-light, normal;
+  background-position:
+    center,
+    0 calc(var(--pointer-top) * 18px),
+    var(--foil-x) var(--foil-y),
+    calc(var(--pointer-left) * 12px) calc(var(--pointer-top) * -10px),
+    center;
+  background-size:
+    100% 100%,
+    100% 96px,
+    250% 250%,
+    36px 36px,
+    100% 100%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 231, 160, 0.3),
+    inset 0 0 24px rgba(126, 11, 22, 0.25),
+    inset 0 0 42px rgba(255, 185, 49, 0.12);
+  filter: brightness(calc(0.92 + var(--pointer-distance) * 0.2)) contrast(1.28) saturate(1.14);
+  mix-blend-mode: hard-light;
+}
+.jackpot .finishLayer::before {
+  background:
+    radial-gradient(circle, rgba(255, 255, 232, 0.98) 0 0.8px, rgba(255, 190, 45, 0.92) 1.1px 2.2px, rgba(167, 22, 31, 0.58) 2.6px, transparent 3.5px),
+    radial-gradient(circle, rgba(255, 249, 218, 0.92) 0 0.7px, rgba(218, 41, 43, 0.88) 1.1px 2px, rgba(255, 185, 37, 0.46) 2.5px, transparent 3.4px),
+    repeating-linear-gradient(90deg, transparent 0 8%, rgba(255, 221, 126, 0.12) 9% 10%, transparent 11% 19%),
+    linear-gradient(104deg, transparent 30%, rgba(230, 239, 245, 0.3) 43%, rgba(255, 213, 102, 0.38) 50%, rgba(188, 28, 37, 0.24) 57%, transparent 70%);
+  background-position:
+    3px 7px,
+    14px 18px,
+    0 0,
+    var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size:
+    24px 24px,
+    24px 24px,
+    100% 100%,
+    220% 220%;
+  filter: brightness(1.01) contrast(1.1) saturate(1.08) drop-shadow(0 0 2px rgba(255, 187, 49, 0.3));
+  mix-blend-mode: screen;
+  opacity: 0.68;
+  -webkit-mask-image: linear-gradient(180deg, #000 0 18%, rgba(0, 0, 0, 0.2) 32% 67%, #000 82% 100%);
+  mask-image: linear-gradient(180deg, #000 0 18%, rgba(0, 0, 0, 0.2) 32% 67%, #000 82% 100%);
+}
+.jackpot .finishLayer::after {
+  background:
+    linear-gradient(112deg, transparent 0 17%, rgba(218, 232, 255, 0.18) 27%, rgba(255, 247, 218, 0.08) 34%, transparent 43%),
+    linear-gradient(68deg, transparent 0 55%, rgba(255, 235, 177, 0.13) 64%, rgba(214, 230, 255, 0.16) 70%, transparent 80%),
+    radial-gradient(circle at 17% 24%, rgba(255, 255, 255, 0.98) 0 0.7px, rgba(255, 194, 61, 0.72) 1.1px, transparent 2.5px),
+    radial-gradient(circle at 73% 68%, rgba(255, 241, 186, 0.94) 0 0.9px, rgba(198, 31, 38, 0.62) 1.4px, transparent 2.8px),
+    radial-gradient(ellipse at 11% 91%, rgba(175, 184, 196, 0.28), transparent 31%),
+    radial-gradient(ellipse at 88% 94%, rgba(126, 134, 148, 0.24), transparent 34%);
+  background-position:
+    34% 39%,
+    66% 61%,
+    5px -17px,
+    23px -31px,
+    center,
+    center;
+  background-size:
+    170% 170%,
+    170% 170%,
+    31px 43px,
+    47px 37px,
+    100% 100%,
+    100% 100%;
+  filter: brightness(1.01) contrast(1.06) saturate(1.05);
+  mix-blend-mode: screen;
+  opacity: 0.6;
+}
+.prototypeCard.jackpot .statsPanel {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 221, 130, 0.2), transparent 48%),
+    linear-gradient(112deg, rgba(157, 15, 27, 0.28), rgba(9, 11, 15, 0.99) 43% 58%, rgba(201, 137, 30, 0.24)),
+    repeating-linear-gradient(0deg, transparent 0 10px, rgba(255, 210, 103, 0.05) 11px 12px),
+    linear-gradient(180deg, rgba(28, 20, 16, 0.99), rgba(4, 5, 8, 0.99));
+  background-position: center, var(--foil-x) center, 0 0, center;
+  background-size: 100% 100%, 230% 100%, 100% 24px, 100% 100%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 221, 135, 0.24),
+    inset 0 0 18px rgba(135, 13, 24, 0.12);
+}
+
+/* Prototype 6: Manaforge Omega — phase glass and chromatic displacement. */
+.phaseglass {
+  --raid-tone: #756bff;
+  --raid-edge: #ff5fe7;
+  --raid-idle-duration: 7.6s;
+  --raid-idle-opacity: 0.7;
+  --raid-hover-opacity: 0.9;
+  --raid-drift-x: -1.8%;
+  --raid-drift-y: 1.4%;
+}
+.phaseglass .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(244, 253, 255, 0.82), rgba(91, 225, 255, 0.24) 8%, rgba(255, 62, 219, 0.15) 17%, transparent 31%),
+    conic-gradient(from var(--foil-angle) at var(--pointer-x) var(--pointer-y), rgba(80, 233, 255, 0.2), transparent 18% 31%, rgba(251, 58, 222, 0.26) 44%, transparent 58% 74%, rgba(119, 101, 255, 0.28) 88%, rgba(80, 233, 255, 0.2)),
+    linear-gradient(145deg, rgba(18, 31, 91, 0.4), rgba(24, 4, 56, 0.5) 58%, rgba(2, 5, 18, 0.62));
+  background-size: 100% 100%, 180% 180%, 100% 100%;
+  mix-blend-mode: screen;
+}
+.phaseglass .finishLayer::before {
+  background:
+    linear-gradient(33deg, transparent 0 24%, rgba(139, 235, 255, 0.34) 24.5% 25.2%, transparent 26% 53%, rgba(246, 86, 226, 0.3) 53.5% 54%, transparent 55%),
+    linear-gradient(121deg, transparent 0 37%, rgba(216, 231, 255, 0.22) 37.5% 38.3%, transparent 39% 72%, rgba(106, 96, 255, 0.28) 72.5% 73.2%, transparent 74%);
+  background-position: calc(var(--pointer-left) * -18px) calc(var(--pointer-top) * 12px), calc(var(--pointer-left) * 14px) calc(var(--pointer-top) * -16px);
+  background-size: 71px 83px, 97px 109px;
+  mix-blend-mode: screen;
+  opacity: 0.72;
+}
+.phaseglass .finishLayer::after {
+  background:
+    linear-gradient(var(--foil-angle), transparent 40%, rgba(40, 225, 255, 0.42) 47%, rgba(255, 255, 255, 0.6) 49.5%, rgba(255, 47, 216, 0.44) 52%, transparent 60%),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 11%, rgba(142, 128, 255, 0.16) 11.5% 12%, transparent 12.5% 22%);
+  background-position: var(--foil-x) var(--foil-y), var(--foil-x-reverse) var(--foil-y-reverse);
+  background-size: 260% 260%, 150% 150%;
+  filter: blur(0.18px);
+  mix-blend-mode: color-dodge;
+  opacity: 0.74;
+}
+
+/* Prototype 7: Emerald Nightmare — roots, spores and corrupted bloom. */
+.nightmare {
+  --raid-tone: #c61739;
+  --raid-edge: #ff5c72;
+  --raid-idle-duration: 7.2s;
+  --raid-idle-opacity: 0.58;
+  --raid-hover-opacity: 0.8;
+  --raid-drift-x: 1.1%;
+  --raid-drift-y: -3.6%;
+}
+.nightmare .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 90, 112, 0.64), rgba(157, 7, 41, 0.3) 12%, transparent 31%),
+    repeating-radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), transparent 0 9%, rgba(119, 0, 24, 0.2) 9.5% 10.2%, transparent 11% 19%),
+    linear-gradient(142deg, rgba(30, 0, 7, 0.64), rgba(92, 4, 23, 0.3) 45%, rgba(4, 1, 4, 0.7));
+  mix-blend-mode: screen;
+}
+.nightmare .finishLayer::before {
+  background:
+    repeating-linear-gradient(58deg, transparent 0 27px, rgba(158, 11, 41, 0.42) 28px 30px, transparent 31px 59px),
+    repeating-linear-gradient(121deg, transparent 0 39px, rgba(65, 0, 17, 0.56) 40px 43px, transparent 44px 81px);
+  filter: blur(0.25px);
+  mix-blend-mode: multiply;
+  opacity: 0.86;
+}
+.nightmare .finishLayer::after {
+  background:
+    radial-gradient(circle, rgba(255, 94, 111, 0.76) 0 0.65px, transparent 1.3px),
+    radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), transparent 0 5%, rgba(255, 51, 78, 0.34) 7% 10%, transparent 13% 18%, rgba(112, 0, 24, 0.3) 20% 24%, transparent 27%);
+  background-position: 7px 13px, center;
+  background-size: 31px 43px, 86% 72%;
+  mix-blend-mode: screen;
+  opacity: 0.72;
+}
+
+/* Prototype 8: Vault of the Incarnates — combined elemental weather. */
+.primalstorm {
+  --raid-tone: #9bbdff;
+  --raid-edge: #f1f6ff;
+  --raid-idle-duration: 5.8s;
+  --raid-idle-opacity: 0.66;
+  --raid-hover-opacity: 0.88;
+  --raid-drift-x: 3%;
+  --raid-drift-y: 4.8%;
+  --raid-counter-x: -3.5%;
+  --raid-counter-y: -3.2%;
+}
+.primalstorm .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(244, 251, 255, 0.78), rgba(123, 164, 255, 0.26) 11%, transparent 29%),
+    conic-gradient(from 25deg at 50% 50%, rgba(255, 104, 34, 0.26), rgba(255, 104, 34, 0.02) 18%, rgba(134, 224, 255, 0.22) 27%, rgba(134, 224, 255, 0.02) 45%, rgba(174, 133, 73, 0.22) 56%, rgba(174, 133, 73, 0.02) 72%, rgba(206, 220, 255, 0.24) 82%, rgba(206, 220, 255, 0.02)),
+    linear-gradient(154deg, rgba(10, 20, 37, 0.54), rgba(42, 47, 67, 0.27), rgba(3, 7, 15, 0.64));
+  mix-blend-mode: screen;
+}
+.primalstorm .finishLayer::before {
+  background:
+    radial-gradient(circle, rgba(238, 248, 255, 0.82) 0 0.75px, transparent 1.4px),
+    radial-gradient(circle, rgba(255, 115, 40, 0.66) 0 0.6px, transparent 1.2px),
+    repeating-linear-gradient(112deg, transparent 0 13px, rgba(185, 214, 255, 0.14) 14px 15px, transparent 16px 29px);
+  background-position: 5px 7px, 23px 31px, 0 0;
+  background-size: 31px 37px, 47px 59px, 100% 100%;
+  mix-blend-mode: screen;
+  opacity: 0.78;
+}
+.primalstorm .finishLayer::after {
+  background:
+    linear-gradient(114deg, transparent 0 43%, rgba(222, 239, 255, 0.62) 43.5% 44%, transparent 44.5% 51%, rgba(154, 185, 255, 0.38) 51.5% 52%, transparent 52.5%),
+    repeating-radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), transparent 0 10%, rgba(165, 194, 255, 0.16) 10.5% 11%, transparent 11.5% 19%);
+  background-position: var(--foil-x) var(--foil-y), center;
+  background-size: 230% 230%, 130% 120%;
+  mix-blend-mode: color-dodge;
+  opacity: 0.66;
+}
+
+/* Remaining raid finishes, in raid order. */
+.relic {
+  --raid-tone: #c9752e;
+  --raid-edge: #ffd28a;
+  --raid-idle-duration: 8.6s;
+  --raid-idle-opacity: 0.62;
+  --raid-hover-opacity: 0.84;
+  --raid-drift-x: 1.2%;
+  --raid-drift-y: 3.4%;
+  --raid-counter-x: -1.1%;
+  --raid-counter-y: -3.8%;
+}
+.relic .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 246, 205, 0.82), rgba(255, 164, 67, 0.34) 12%, transparent 34%),
+    repeating-conic-gradient(from 8deg at 50% 44%, rgba(255, 211, 132, 0.28) 0 2deg, rgba(67, 27, 8, 0.32) 3deg 7deg, transparent 8deg 22deg),
+    repeating-linear-gradient(7deg, rgba(255, 228, 181, 0.16) 0 1px, rgba(42, 15, 5, 0.16) 2px 3px, transparent 4px 14px),
+    linear-gradient(145deg, rgba(151, 87, 37, 0.5), rgba(45, 20, 9, 0.54) 48%, rgba(100, 47, 18, 0.44) 72%, rgba(67, 28, 59, 0.34));
+  background-position: center, center, 0 0, center;
+  background-size: 100% 100%, 120% 100%, 100% 100%, 100% 100%;
+  background-blend-mode: screen, overlay, soft-light, multiply;
+  mix-blend-mode: overlay;
+}
+.relic .finishLayer::before {
+  background:
+    repeating-radial-gradient(circle at 50% 44%, transparent 0 8%, rgba(255, 207, 124, 0.32) 8.4% 9%, rgba(63, 21, 5, 0.3) 9.4% 10%, transparent 10.4% 18%),
+    repeating-conic-gradient(from 0deg at 50% 44%, rgba(255, 220, 154, 0.32) 0 1.5deg, transparent 2deg 28deg),
+    repeating-linear-gradient(90deg, transparent 0 31px, rgba(231, 173, 95, 0.26) 32px 34px, rgba(52, 17, 4, 0.3) 35px, transparent 36px 64px);
+  background-position: center, center, 0 0;
+  background-size: 100% 100%, 100% 100%, 64px 100%;
+  filter: drop-shadow(0 1px 0 rgba(255, 223, 166, 0.16));
+  mix-blend-mode: screen;
+  opacity: 0.78;
+}
+.relic .finishLayer::after {
+  background:
+    radial-gradient(circle, rgba(255, 231, 171, 0.92) 0 0.7px, rgba(210, 126, 44, 0.48) 1px, transparent 1.7px),
+    radial-gradient(circle, rgba(133, 72, 25, 0.68) 0 0.8px, transparent 1.6px),
+    linear-gradient(var(--foil-angle), transparent 34%, rgba(255, 165, 61, 0.18) 43%, rgba(255, 239, 191, 0.56) 50%, rgba(192, 91, 24, 0.2) 57%, transparent 68%),
+    radial-gradient(ellipse at 50% 92%, rgba(255, 134, 35, 0.22), transparent 42%);
+  background-position: 7px 11px, 23px 37px, var(--foil-x) var(--foil-y), center;
+  background-size: 37px 53px, 61px 79px, 240% 240%, 100% 100%;
+  mix-blend-mode: color-dodge;
+  opacity: 0.72;
+}
+
+.felscorched {
+  --raid-tone: #6dff32;
+  --raid-edge: #b5ff6f;
+  --raid-idle-duration: 7s;
+  --raid-idle-opacity: 0.58;
+  --raid-hover-opacity: 0.8;
+  --raid-drift-y: -4.6%;
+}
+.felscorched .finishLayer {
+  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(224, 255, 180, 0.64), rgba(93, 255, 38, 0.25) 11%, transparent 29%), repeating-linear-gradient(131deg, transparent 0 31px, rgba(96, 255, 31, 0.38) 32px 34px, transparent 35px 67px), linear-gradient(150deg, rgba(2, 20, 3, 0.48), rgba(29, 43, 8, 0.26), rgba(2, 4, 2, 0.68));
+  mix-blend-mode: screen;
+}
+.felscorched .finishLayer::before {
+  background: radial-gradient(ellipse at 18% 80%, rgba(20, 44, 8, 0.7), transparent 31%), radial-gradient(ellipse at 76% 67%, rgba(8, 25, 3, 0.66), transparent 28%), radial-gradient(circle, rgba(157, 255, 70, 0.72) 0 0.65px, transparent 1.3px);
+  background-size: 100% 100%, 100% 100%, 37px 53px;
+  filter: blur(0.35px);
+  mix-blend-mode: screen;
+  opacity: 0.72;
+}
+.felscorched .finishLayer::after {
+  background: linear-gradient(102deg, transparent 37%, rgba(117, 255, 47, 0.35) 46%, rgba(224, 255, 182, 0.38) 50%, transparent 61%);
+  background-position: var(--foil-x) var(--foil-y);
+  background-size: 250% 250%;
+  mix-blend-mode: color-dodge;
+  opacity: 0.62;
+}
+
+.nightwell {
+  --raid-tone: #718cff;
+  --raid-edge: #d0c4ff;
+  --raid-idle-duration: 11s;
+  --raid-idle-opacity: 0.52;
+  --raid-hover-opacity: 0.7;
+  --raid-drift-y: -2.2%;
+}
+.nightwell .finishLayer {
+  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(239, 241, 255, 0.62), rgba(139, 114, 255, 0.22) 13%, transparent 31%), linear-gradient(var(--foil-angle), transparent 34%, rgba(118, 205, 255, 0.17) 44%, rgba(204, 176, 255, 0.28) 51%, transparent 66%), linear-gradient(180deg, rgba(13, 27, 72, 0.38), rgba(35, 17, 81, 0.34));
+  background-position: center, var(--foil-x) var(--foil-y), center;
+  background-size: 100% 100%, 230% 230%, 100% 100%;
+  mix-blend-mode: screen;
+}
+.nightwell .finishLayer::before {
+  background: radial-gradient(circle, rgba(224, 232, 255, 0.82) 0 0.65px, transparent 1.25px), radial-gradient(circle, rgba(168, 132, 255, 0.68) 0 0.7px, transparent 1.35px), linear-gradient(29deg, transparent 0 49%, rgba(137, 164, 255, 0.14) 49.5% 50%, transparent 50.5%);
+  background-position: 3px 7px, 17px 29px, center;
+  background-size: 31px 41px, 47px 61px, 100% 100%;
+  mix-blend-mode: screen;
+  opacity: 0.74;
+}
+.nightwell .finishLayer::after {
+  background: repeating-radial-gradient(circle at 50% 47%, transparent 0 12%, rgba(175, 165, 255, 0.2) 12.5% 13%, transparent 13.5% 23%);
+  mix-blend-mode: screen;
+  opacity: 0.62;
+}
+
+.moonfall {
+  --raid-tone: #83a8ff;
+  --raid-edge: #d9e6ff;
+  --raid-idle-duration: 9s;
+  --raid-idle-opacity: 0.6;
+  --raid-hover-opacity: 0.8;
+  --raid-drift-y: -2.8%;
+}
+.moonfall .finishLayer {
+  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(242, 249, 255, 0.72), rgba(113, 151, 255, 0.2) 13%, transparent 31%), radial-gradient(circle at 67% 26%, rgba(222, 235, 255, 0.42) 0 10%, rgba(2, 8, 23, 0.72) 10.8% 15%, transparent 16%), linear-gradient(158deg, rgba(15, 31, 70, 0.36), rgba(4, 10, 29, 0.58));
+  mix-blend-mode: screen;
+}
+.moonfall .finishLayer::before {
+  background: repeating-linear-gradient(129deg, transparent 0 37px, rgba(101, 255, 63, 0.28) 38px 39px, transparent 40px 77px), radial-gradient(ellipse at 50% 88%, rgba(185, 211, 255, 0.2), transparent 35%);
+  filter: blur(0.2px);
+  mix-blend-mode: screen;
+  opacity: 0.66;
+}
+.moonfall .finishLayer::after {
+  background: linear-gradient(var(--foil-angle), transparent 38%, rgba(230, 244, 255, 0.48) 49%, transparent 60%);
+  background-position: var(--foil-x) var(--foil-y);
+  background-size: 250% 250%;
+  mix-blend-mode: screen;
+  opacity: 0.62;
+}
+
+.worldcore {
+  --raid-tone: #ff4d24;
+  --raid-edge: #a5ff58;
+  --raid-idle-duration: 6.6s;
+  --raid-idle-opacity: 0.68;
+  --raid-hover-opacity: 0.9;
+}
+.worldcore .finishLayer {
+  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 244, 201, 0.76), rgba(255, 73, 29, 0.36) 10%, transparent 28%), radial-gradient(circle at 50% 48%, rgba(255, 78, 25, 0.42), rgba(124, 13, 0, 0.24) 18%, transparent 37%), linear-gradient(145deg, rgba(4, 5, 8, 0.65), rgba(65, 12, 3, 0.28), rgba(2, 3, 5, 0.72));
+  mix-blend-mode: screen;
+}
+.worldcore .finishLayer::before {
+  background: repeating-conic-gradient(from 5deg at 50% 48%, rgba(130, 255, 57, 0.28) 0 1.5deg, transparent 2deg 22deg), radial-gradient(circle, rgba(228, 242, 255, 0.72) 0 0.55px, transparent 1.1px);
+  background-size: 100% 100%, 43px 61px;
+  mix-blend-mode: screen;
+  opacity: 0.68;
+}
+.worldcore .finishLayer::after {
+  background: repeating-radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 0 9%, rgba(255, 84, 31, 0.18) 9.5% 10%, transparent 10.5% 18%);
+  mix-blend-mode: color-dodge;
+  opacity: 0.72;
+}
+
+.quarantine {
+  --raid-tone: #4fe4d3;
+  --raid-edge: #efd48b;
+  --raid-idle-duration: 7.8s;
+  --raid-idle-opacity: 0.54;
+  --raid-hover-opacity: 0.74;
+  --raid-drift-y: 3.2%;
+}
+.quarantine .finishLayer {
+  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(230, 255, 250, 0.66), rgba(76, 230, 208, 0.2) 12%, transparent 30%), repeating-linear-gradient(90deg, rgba(104, 239, 220, 0.14) 0 1px, transparent 1px 23px), repeating-linear-gradient(0deg, rgba(223, 199, 126, 0.1) 0 1px, transparent 1px 23px), linear-gradient(145deg, rgba(227, 211, 164, 0.16), rgba(10, 48, 48, 0.32));
+  mix-blend-mode: screen;
+}
+.quarantine .finishLayer::before {
+  background: linear-gradient(180deg, transparent 0 46%, rgba(248, 195, 74, 0.36) 49%, rgba(89, 255, 224, 0.28) 50%, transparent 54%), radial-gradient(circle, rgba(196, 25, 43, 0.64) 0 0.75px, transparent 1.45px);
+  background-size: 100% 180%, 37px 43px;
+  mix-blend-mode: screen;
+  opacity: 0.7;
+}
+.quarantine .finishLayer::after {
+  background: radial-gradient(ellipse at 74% 63%, rgba(176, 5, 31, 0.4), rgba(81, 0, 11, 0.24) 18%, transparent 36%);
+  mix-blend-mode: multiply;
+  opacity: 0.74;
+}
+
+.tempest {
+  --raid-tone: #3d9ad8;
+  --raid-edge: #e9bd58;
+  --raid-idle-duration: 6.2s;
+  --raid-idle-opacity: 0.6;
+  --raid-hover-opacity: 0.82;
+  --raid-drift-x: 3.4%;
+  --raid-drift-y: 5.2%;
+}
+.tempest .finishLayer {
+  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(236, 249, 255, 0.72), rgba(66, 159, 219, 0.23) 12%, transparent 30%), repeating-linear-gradient(45deg, rgba(238, 190, 74, 0.15) 0 1px, transparent 1px 17px), linear-gradient(145deg, rgba(154, 101, 16, 0.25), rgba(4, 43, 73, 0.48));
+  mix-blend-mode: screen;
+}
+.tempest .finishLayer::before {
+  background: repeating-linear-gradient(112deg, transparent 0 12px, rgba(173, 222, 255, 0.22) 13px 14px, transparent 15px 28px), radial-gradient(circle, rgba(221, 244, 255, 0.46) 0 1px, transparent 1.8px);
+  background-size: 100% 100%, 29px 47px;
+  mix-blend-mode: screen;
+  opacity: 0.76;
+}
+.tempest .finishLayer::after {
+  background: repeating-radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 0 8%, rgba(190, 231, 255, 0.2) 8.5% 9%, transparent 9.5% 17%), linear-gradient(var(--foil-angle), transparent 44%, rgba(255, 255, 255, 0.52) 49%, transparent 55%);
+  background-position: center, var(--foil-x) var(--foil-y);
+  background-size: 120% 120%, 270% 270%;
+  mix-blend-mode: screen;
+  opacity: 0.68;
+}
+
+.empire {
+  --raid-tone: #c20b35;
+  --raid-edge: #ffc24f;
+  --raid-idle-duration: 7.6s;
+  --raid-idle-opacity: 0.76;
+  --raid-hover-opacity: 0.94;
+  --raid-drift-x: -2.2%;
+  --raid-drift-y: -2.8%;
+  --raid-counter-x: 1.6%;
+  --raid-counter-y: 2.2%;
+}
+.empire .finishLayer {
+  background:
+    radial-gradient(ellipse 42% 26% at var(--pointer-x) var(--pointer-y), rgba(255, 205, 91, 0.62), rgba(181, 13, 47, 0.32) 14%, rgba(8, 0, 4, 0.7) 42%, transparent 68%),
+    conic-gradient(from var(--foil-angle) at var(--pointer-x) var(--pointer-y), rgba(194, 9, 48, 0.28), transparent 17% 31%, rgba(255, 160, 47, 0.22) 43%, transparent 55% 72%, rgba(120, 0, 27, 0.36) 88%, rgba(194, 9, 48, 0.28)),
+    repeating-linear-gradient(63deg, transparent 0 31px, rgba(201, 17, 52, 0.34) 32px 34px, rgba(255, 150, 44, 0.12) 35px, transparent 36px 66px),
+    linear-gradient(145deg, rgba(24, 0, 7, 0.78), rgba(112, 1, 29, 0.42) 46%, rgba(7, 0, 4, 0.86) 74%, rgba(67, 3, 22, 0.64));
+  background-position: center, center, 0 0, center;
+  background-size: 100% 100%, 150% 150%, 100% 100%, 100% 100%;
+  background-blend-mode: screen, overlay, screen, multiply;
+  mix-blend-mode: overlay;
+}
+.empire .finishLayer::before {
+  background:
+    repeating-linear-gradient(78deg, transparent 0 27px, rgba(232, 30, 58, 0.38) 28px 30px, rgba(42, 0, 8, 0.54) 31px 34px, transparent 35px 61px),
+    repeating-linear-gradient(12deg, transparent 0 43px, rgba(139, 4, 31, 0.4) 44px 47px, transparent 48px 89px),
+    linear-gradient(90deg, transparent 0 9%, rgba(255, 129, 38, 0.16) 9.5% 10%, transparent 10.5% 27%, rgba(176, 7, 38, 0.2) 27.5% 29%, transparent 29.5% 72%, rgba(255, 139, 42, 0.14) 72.5% 73.5%, transparent 74%);
+  background-position: 0 0, 0 0, center;
+  background-size: 100% 100%, 100% 100%, 100% 100%;
+  filter: drop-shadow(0 0 3px rgba(176, 0, 37, 0.38));
+  transform: skew(-6deg, 2.5deg);
+  mix-blend-mode: screen;
+  opacity: 0.8;
+}
+.empire .finishLayer::after {
+  background:
+    radial-gradient(ellipse 19% 7% at var(--pointer-x) var(--pointer-y), #fff2b8 0 2%, #ffb936 3% 7%, #ae102d 9% 15%, #090002 18% 28%, transparent 30%),
+    radial-gradient(ellipse at 18% 28%, #ffe09a 0 0.75%, #b91c31 1.2%, #070001 2.3%, transparent 3.2%),
+    radial-gradient(ellipse at 81% 66%, #ffd06b 0 0.7%, #981126 1.15%, #050001 2.2%, transparent 3.1%),
+    radial-gradient(ellipse at 50% 94%, rgba(146, 0, 31, 0.74), rgba(53, 0, 13, 0.44) 32%, transparent 58%);
+  background-position: center, center, center, center;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+  filter: contrast(1.16) saturate(1.24);
+  mix-blend-mode: color-dodge;
+  opacity: 0.84;
+}
+
+.runebound {
+  --raid-tone: #7199ff;
+  --raid-edge: #d8e5ff;
+  --raid-idle-duration: 7.4s;
+  --raid-idle-opacity: 0.58;
+  --raid-hover-opacity: 0.8;
+  --raid-drift-y: -3.8%;
+}
+.runebound .finishLayer {
+  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(240, 247, 255, 0.7), rgba(104, 150, 255, 0.24) 12%, transparent 30%), repeating-linear-gradient(126deg, transparent 0 29px, rgba(128, 162, 224, 0.26) 30px 33px, transparent 34px 63px), linear-gradient(150deg, rgba(13, 22, 45, 0.52), rgba(3, 8, 20, 0.66));
+  mix-blend-mode: screen;
+}
+.runebound .finishLayer::before {
+  background: radial-gradient(circle, rgba(178, 207, 255, 0.76) 0 0.7px, transparent 1.35px), repeating-radial-gradient(circle at 50% 50%, transparent 0 11%, rgba(132, 164, 255, 0.16) 11.5% 12%, transparent 12.5% 22%);
+  background-size: 37px 53px, 100% 100%;
+  mix-blend-mode: screen;
+  opacity: 0.72;
+}
+.runebound .finishLayer::after {
+  background: repeating-linear-gradient(39deg, transparent 0 37px, rgba(225, 241, 255, 0.3) 38px 39px, transparent 40px 78px), repeating-linear-gradient(-39deg, transparent 0 47px, rgba(104, 146, 255, 0.2) 48px 49px, transparent 50px 96px);
+  mix-blend-mode: color-dodge;
+  opacity: 0.62;
+}
+
+.progenitor {
+  --raid-tone: #7dddc7;
+  --raid-edge: #e4ca83;
+  --raid-idle-duration: 12s;
+  --raid-idle-opacity: 0.46;
+  --raid-hover-opacity: 0.64;
+}
+.progenitor .finishLayer {
+  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(246, 255, 249, 0.62), rgba(121, 224, 199, 0.18) 13%, transparent 31%), linear-gradient(145deg, rgba(240, 226, 190, 0.15), rgba(91, 155, 143, 0.17), rgba(231, 211, 159, 0.12));
+  mix-blend-mode: screen;
+}
+.progenitor .finishLayer::before {
+  background: repeating-radial-gradient(circle at 50% 48%, transparent 0 8%, rgba(225, 201, 135, 0.22) 8.5% 9%, transparent 9.5% 17%), repeating-conic-gradient(from 0deg at 50% 48%, rgba(124, 224, 201, 0.16) 0 1.2deg, transparent 1.8deg 30deg);
+  mix-blend-mode: overlay;
+  opacity: 0.7;
+}
+.progenitor .finishLayer::after {
+  background: radial-gradient(circle, rgba(137, 245, 218, 0.76) 0 0.7px, transparent 1.35px), linear-gradient(var(--foil-angle), transparent 43%, rgba(255, 244, 213, 0.34) 50%, transparent 57%);
+  background-position: 5px 9px, var(--foil-x) var(--foil-y);
+  background-size: 47px 59px, 250% 250%;
+  mix-blend-mode: screen;
+  opacity: 0.56;
+}
+
+.shadowflame {
+  --raid-tone: #8a3dff;
+  --raid-edge: #ff6b25;
+  --raid-idle-duration: 6.6s;
+  --raid-idle-opacity: 0.62;
+  --raid-hover-opacity: 0.84;
+  --raid-drift-y: -4.4%;
+}
+.shadowflame .finishLayer {
+  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 236, 229, 0.76), rgba(244, 65, 191, 0.3) 10%, transparent 29%), repeating-linear-gradient(132deg, transparent 0 31px, rgba(255, 83, 24, 0.34) 32px 34px, rgba(117, 45, 255, 0.28) 35px 37px, transparent 38px 68px), linear-gradient(145deg, rgba(9, 3, 21, 0.58), rgba(76, 15, 38, 0.31), rgba(3, 2, 8, 0.7));
+  mix-blend-mode: screen;
+}
+.shadowflame .finishLayer::before {
+  background: radial-gradient(ellipse at 18% 82%, rgba(107, 27, 174, 0.35), transparent 32%), radial-gradient(ellipse at 79% 65%, rgba(244, 68, 27, 0.25), transparent 28%), radial-gradient(circle, rgba(255, 107, 35, 0.7) 0 0.7px, transparent 1.35px);
+  background-size: 100% 100%, 100% 100%, 43px 61px;
+  filter: blur(0.3px);
+  mix-blend-mode: screen;
+  opacity: 0.72;
+}
+.shadowflame .finishLayer::after {
+  background: linear-gradient(var(--foil-angle), transparent 38%, rgba(255, 76, 213, 0.38) 47%, rgba(255, 247, 237, 0.62) 50%, transparent 61%);
+  background-position: var(--foil-x) var(--foil-y);
+  background-size: 260% 260%;
+  mix-blend-mode: color-dodge;
+  opacity: 0.68;
+}
+
+.emberbloom {
+  --raid-tone: #43d89c;
+  --raid-edge: #ff7a32;
+  --raid-idle-duration: 7.8s;
+  --raid-idle-opacity: 0.58;
+  --raid-hover-opacity: 0.8;
+  --raid-drift-x: 1.2%;
+  --raid-drift-y: 4%;
+  --raid-counter-y: -4%;
+}
+.emberbloom .finishLayer {
+  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(221, 255, 235, 0.66), rgba(65, 216, 156, 0.24) 11%, rgba(255, 112, 41, 0.16) 21%, transparent 33%), repeating-radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), transparent 0 9%, rgba(72, 211, 146, 0.16) 9.5% 10%, transparent 10.5% 18%), linear-gradient(148deg, rgba(7, 48, 37, 0.44), rgba(53, 17, 42, 0.28), rgba(36, 10, 4, 0.4));
+  mix-blend-mode: screen;
+}
+.emberbloom .finishLayer::before {
+  background: radial-gradient(ellipse, rgba(174, 122, 255, 0.5) 0 1px, transparent 2px), radial-gradient(ellipse, rgba(255, 103, 39, 0.62) 0 0.8px, transparent 1.5px);
+  background-position: 7px 11px, 29px 37px;
+  background-size: 41px 53px, 47px 61px;
+  mix-blend-mode: screen;
+  opacity: 0.74;
+}
+.emberbloom .finishLayer::after {
+  background: repeating-linear-gradient(58deg, transparent 0 41px, rgba(94, 225, 167, 0.2) 42px 44px, transparent 45px 83px), linear-gradient(var(--foil-angle), transparent 40%, rgba(255, 130, 54, 0.38) 49%, transparent 59%);
+  background-position: center, var(--foil-x) var(--foil-y);
+  background-size: 100% 100%, 250% 250%;
+  mix-blend-mode: screen;
+  opacity: 0.64;
+}
 .materialLight {
   z-index: 31;
   inset: 0;
@@ -2380,6 +3279,18 @@
 .prototypeCard.disco:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.66 + var(--pointer-distance) * 0.14);
 }
+.prototypeCard.neon:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(0.68 + var(--pointer-distance) * 0.12);
+}
+.prototypeCard.neon:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer::before {
+  filter: brightness(1.14) contrast(1.18) saturate(1.28);
+  opacity: 0.72;
+  scale: 1.01;
+}
+.prototypeCard.neon:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer::after {
+  filter: brightness(1.16) contrast(1.12) saturate(1.3);
+  opacity: 0.78;
+}
 .prototypeCard.cosmos:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.72 + var(--pointer-distance) * 0.14);
 }
@@ -2428,6 +3339,85 @@
 .prototypeCard.metamorphic:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.84 + var(--pointer-distance) * 0.1);
 }
+.prototypeCard[data-raid-preview-finish="true"]:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
+  opacity: calc(var(--raid-hover-opacity) + 0.08 + var(--pointer-distance) * 0.08);
+}
+.prototypeCard[data-raid-preview-finish="true"]:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer::before,
+.prototypeCard[data-raid-preview-finish="true"]:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer::after {
+  opacity: 0.96;
+}
+.prototypeCard[data-raid-preview-finish="true"] .materialLight {
+  filter: contrast(1.18) saturate(0.96);
+  opacity: 0.22;
+  transition-property: opacity, filter;
+}
+.prototypeCard[data-raid-preview-finish="true"]:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
+  filter: contrast(1.28) saturate(1.12);
+  opacity: 0.72;
+}
+.prototypeCard[data-raid-preview-finish="true"]:is([data-pointer-active="true"], [data-forced-hover="true"]) .frameGeometry {
+  filter:
+    drop-shadow(0 0 3px color-mix(in srgb, var(--raid-edge) 72%, transparent))
+    drop-shadow(0 0 10px color-mix(in srgb, var(--raid-tone) 42%, transparent));
+}
+.prototypeCard[data-raid-preview-finish="true"]:is([data-pointer-active="true"], [data-forced-hover="true"]) .qualityLabel {
+  background-position: var(--foil-x) center;
+  filter: brightness(calc(1.12 + var(--pointer-distance) * 0.24)) contrast(1.16) saturate(1.32);
+}
+.prototypeCard.jackpot .materialLight {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.72), rgba(255, 219, 133, 0.24) 13%, transparent 31%),
+    linear-gradient(var(--foil-angle), transparent 26%, rgba(214, 227, 239, 0.12) 38%, rgba(255, 255, 255, 0.42) 47%, rgba(255, 205, 87, 0.28) 52%, rgba(183, 29, 39, 0.1) 58%, transparent 70%);
+  background-position: center, var(--foil-x) var(--foil-y);
+  background-size: 100% 100%, 230% 230%;
+  filter: brightness(1.02) contrast(1.24) saturate(0.84);
+  opacity: 0.26;
+}
+.prototypeCard.jackpot:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
+  filter: brightness(calc(1 + var(--pointer-distance) * 0.22)) contrast(1.34) saturate(1.24);
+}
+.prototypeCard.jackpot:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer::before {
+  filter: brightness(1.14) contrast(1.14) saturate(1.16) drop-shadow(0 0 3px rgba(255, 190, 51, 0.4));
+  opacity: 0.84;
+  rotate: 0.2deg;
+  scale: 1.01;
+}
+.prototypeCard.jackpot:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer::after {
+  filter: brightness(1.14) contrast(1.1) saturate(1.12);
+  opacity: 0.84;
+  translate: calc(var(--pointer-left) * 1.2%) calc(var(--pointer-top) * 1.2%);
+}
+.prototypeCard.jackpot:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
+  filter: brightness(1.1) contrast(1.3) saturate(0.96);
+  opacity: 0.72;
+}
+.prototypeCard.sanguine:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
+  filter: brightness(calc(0.98 + var(--pointer-distance) * 0.28)) contrast(1.34) saturate(1.48);
+}
+.prototypeCard.sanguine:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer::before {
+  filter: brightness(1.18) contrast(1.16) saturate(1.22) drop-shadow(0 0 5px rgba(239, 179, 82, 0.34));
+}
+.prototypeCard.sanguine:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer::after {
+  filter: brightness(1.14) contrast(1.12) saturate(1.36);
+  opacity: 0.96;
+}
+.prototypeCard.sanguine:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
+  filter: brightness(1.12) contrast(1.26) saturate(1.28);
+  opacity: 0.84;
+}
+.prototypeCard.relic:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
+  filter: brightness(calc(1 + var(--pointer-distance) * 0.26)) contrast(1.3) saturate(1.38);
+}
+.prototypeCard.relic:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer::before {
+  filter: brightness(1.18) contrast(1.16) drop-shadow(0 1px 0 rgba(255, 231, 183, 0.28));
+}
+.prototypeCard.empire:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
+  filter: brightness(calc(0.96 + var(--pointer-distance) * 0.24)) contrast(1.38) saturate(1.48);
+}
+.prototypeCard.empire:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer::after {
+  filter: brightness(1.2) contrast(1.28) saturate(1.46);
+  opacity: 1;
+}
 .prototypeCard.foil .materialLight {
   filter: saturate(0.4) contrast(1.2);
 }
@@ -2469,6 +3459,14 @@
 }
 .prototypeCard.disco:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
   opacity: 0.86;
+}
+.prototypeCard.neon .materialLight {
+  filter: contrast(1.28) saturate(1.38) hue-rotate(-4deg);
+  opacity: 0.24;
+}
+.prototypeCard.neon:is([data-pointer-active="true"], [data-forced-hover="true"]) .materialLight {
+  filter: contrast(1.34) saturate(1.48) hue-rotate(-4deg);
+  opacity: 0.76;
 }
 .prototypeCard.cosmos .materialLight {
   filter: contrast(1.28) saturate(0.72);
@@ -2781,6 +3779,21 @@
   .prototypeCard.disco:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
     animation: prototypeDiscoProjectionDrift 7.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
+  .prototypeCard.neon:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeNeonTubeIdle 7.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.neon:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
+    animation: prototypeNeonRouteIdle 8.6s linear -2.1s infinite;
+  }
+  .prototypeCard.neon:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeNeonSignIdle 6.8s linear -3.4s infinite;
+  }
+  .prototypeCard.neon:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .statsPanel {
+    animation: prototypeNeonStatsIdle 7.2s cubic-bezier(0.45, 0, 0.55, 1) -1.8s infinite alternate;
+  }
+  .prototypeCard.neon:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .qualityLabel {
+    animation: prototypeNeonTextIdle 5.4s cubic-bezier(0.45, 0, 0.55, 1) -2.6s infinite alternate;
+  }
   .prototypeCard.cosmos:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeCosmosIdleFoil 7.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
@@ -2861,6 +3874,63 @@
   }
   .prototypeCard.metamorphic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .statsPanel {
     animation: prototypeMetamorphicStatsIdle 8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard[data-raid-preview-finish="true"]:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeRaidFinishBreathe var(--raid-idle-duration) cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard[data-raid-preview-finish="true"]:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
+    animation: prototypeRaidFinishDrift var(--raid-idle-duration) cubic-bezier(0.45, 0, 0.55, 1) -1.7s infinite alternate;
+  }
+  .prototypeCard[data-raid-preview-finish="true"]:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeRaidFinishCounterDrift var(--raid-idle-duration) cubic-bezier(0.45, 0, 0.55, 1) -3.1s infinite alternate;
+  }
+  .prototypeCard[data-raid-preview-finish="true"]:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .materialLight {
+    animation: prototypeRaidMaterialSweep var(--raid-idle-duration) cubic-bezier(0.45, 0, 0.55, 1) -2.3s infinite alternate;
+  }
+  .prototypeCard[data-raid-preview-finish="true"]:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .statsPanel {
+    animation: prototypeRaidStatsSweep var(--raid-idle-duration) cubic-bezier(0.45, 0, 0.55, 1) -4.1s infinite alternate;
+  }
+  .prototypeCard[data-raid-preview-finish="true"]:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .frameGeometry {
+    animation: prototypeRaidFrameGlow var(--raid-idle-duration) cubic-bezier(0.45, 0, 0.55, 1) -1.2s infinite alternate;
+  }
+  .prototypeCard[data-raid-preview-finish="true"]:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .qualityLabel {
+    animation: prototypeRaidQualitySweep var(--raid-idle-duration) cubic-bezier(0.45, 0, 0.55, 1) -3.4s infinite alternate;
+  }
+  .prototypeCard.sanguine:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeSanguineVelvetIdle 7.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.sanguine:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
+    animation: prototypeSanguineGlassIdle 9.4s cubic-bezier(0.45, 0, 0.55, 1) -2.7s infinite alternate;
+  }
+  .prototypeCard.sanguine:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeSanguinePetalIdle 8.2s linear -2.4s infinite;
+  }
+  .prototypeCard.jackpot:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeJackpotChromeIdle 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.jackpot:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
+    animation: prototypeJackpotMarqueeIdle 3.2s steps(4, end) -0.8s infinite;
+  }
+  .prototypeCard.jackpot:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeJackpotCelebrationIdle 8.4s linear -3.1s infinite;
+  }
+  .prototypeCard.relic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeRelicSurfaceIdle 8.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.relic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
+    animation: prototypeRelicRuneIdle 9.8s cubic-bezier(0.45, 0, 0.55, 1) -2.1s infinite alternate;
+  }
+  .prototypeCard.relic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeRelicDustIdle 7.4s cubic-bezier(0.45, 0, 0.55, 1) -3.2s infinite alternate;
+  }
+  .prototypeCard.empire:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
+    animation: prototypeEmpireLacquerIdle 7.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .prototypeCard.empire:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
+    animation: prototypeEmpireCityIdle 9.2s cubic-bezier(0.45, 0, 0.55, 1) -2.6s infinite alternate;
+  }
+  .prototypeCard.empire:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeEmpireEyesIdle 8.4s ease-in-out -1.8s infinite;
   }
 }
 
@@ -3063,6 +4133,74 @@
       47px -39px;
     filter: contrast(1.32) saturate(1.58);
     opacity: 0.84;
+  }
+}
+
+@keyframes prototypeNeonTubeIdle {
+  from {
+    background-position: center, 38% 44%, 42% 48%, center;
+    filter: brightness(0.82) contrast(1.28) saturate(1.26);
+    opacity: 0.46;
+  }
+  to {
+    background-position: center, 61% 57%, 62% 55%, center;
+    filter: brightness(0.96) contrast(1.34) saturate(1.4);
+    opacity: 0.56;
+  }
+}
+
+@keyframes prototypeNeonRouteIdle {
+  from {
+    background-position: -8px 0, 0 7px, 39% 44%;
+    filter: brightness(0.94) contrast(1.12) saturate(1.14);
+    opacity: 0.42;
+  }
+  to {
+    background-position: 66px 0, 0 -75px, 63% 57%;
+    filter: brightness(1.08) contrast(1.18) saturate(1.24);
+    opacity: 0.56;
+  }
+}
+
+@keyframes prototypeNeonSignIdle {
+  0%,
+  45%,
+  52% {
+    filter: brightness(1.02) contrast(1.08) saturate(1.18);
+    opacity: 0.54;
+  }
+  48% {
+    filter: brightness(0.82) contrast(1.12) saturate(1.04);
+    opacity: 0.38;
+  }
+  50% {
+    filter: brightness(1.16) contrast(1.12) saturate(1.28);
+    opacity: 0.62;
+  }
+  100% {
+    background-position: center, 31px -29px, -41px 37px, center, center;
+    filter: brightness(1.02) contrast(1.08) saturate(1.18);
+    opacity: 0.54;
+  }
+}
+
+@keyframes prototypeNeonStatsIdle {
+  from {
+    background-position: 18% center, center, center;
+  }
+  to {
+    background-position: 82% center, center, center;
+  }
+}
+
+@keyframes prototypeNeonTextIdle {
+  from {
+    background-position: 10% center;
+    filter: brightness(1.04) contrast(1.12) saturate(1.16);
+  }
+  to {
+    background-position: 90% center;
+    filter: brightness(1.18) contrast(1.18) saturate(1.34);
   }
 }
 
@@ -3494,6 +4632,288 @@
   }
 }
 
+@keyframes prototypeRaidFinishBreathe {
+  from {
+    filter: brightness(0.9) contrast(1.18) saturate(1.18);
+    opacity: calc(var(--raid-idle-opacity) + 0.03);
+  }
+  to {
+    filter: brightness(1.06) contrast(1.3) saturate(1.38);
+    opacity: calc(var(--raid-idle-opacity) + 0.14);
+  }
+}
+
+@keyframes prototypeRaidFinishDrift {
+  from {
+    translate: 0 0;
+    scale: 0.985;
+    rotate: -0.35deg;
+  }
+  to {
+    translate: var(--raid-drift-x) var(--raid-drift-y);
+    scale: 1.025;
+    rotate: 0.35deg;
+  }
+}
+
+@keyframes prototypeRaidFinishCounterDrift {
+  from {
+    translate: 0 0;
+    scale: 1.02;
+    rotate: 0.3deg;
+  }
+  to {
+    translate: var(--raid-counter-x) var(--raid-counter-y);
+    scale: 0.99;
+    rotate: -0.3deg;
+  }
+}
+
+@keyframes prototypeRaidMaterialSweep {
+  from {
+    background-position: 34% 30%, 28% 36%;
+    filter: contrast(1.14) saturate(0.9);
+    opacity: 0.2;
+  }
+  to {
+    background-position: 66% 58%, 72% 64%;
+    filter: contrast(1.24) saturate(1.08);
+    opacity: 0.36;
+  }
+}
+
+@keyframes prototypeRaidStatsSweep {
+  from {
+    background-position: 28% 38%, 12% center, center;
+  }
+  to {
+    background-position: 72% 62%, 88% center, center;
+  }
+}
+
+@keyframes prototypeRaidFrameGlow {
+  from {
+    filter:
+      drop-shadow(0 0 1px color-mix(in srgb, var(--raid-edge) 38%, transparent))
+      drop-shadow(0 0 5px color-mix(in srgb, var(--raid-tone) 18%, transparent));
+  }
+  to {
+    filter:
+      drop-shadow(0 0 3px color-mix(in srgb, var(--raid-edge) 66%, transparent))
+      drop-shadow(0 0 9px color-mix(in srgb, var(--raid-tone) 36%, transparent));
+  }
+}
+
+@keyframes prototypeRaidQualitySweep {
+  from {
+    background-position: 10% center;
+    filter: brightness(1.04) contrast(1.1) saturate(1.12);
+  }
+  to {
+    background-position: 90% center;
+    filter: brightness(1.22) contrast(1.18) saturate(1.34);
+  }
+}
+
+@keyframes prototypeSanguineVelvetIdle {
+  from {
+    background-position: 41% 37%, -5px 0, center, center;
+    filter: brightness(0.9) contrast(1.24) saturate(1.24);
+    opacity: 0.76;
+  }
+  to {
+    background-position: 62% 58%, 18px 0, center, center;
+    filter: brightness(1.08) contrast(1.38) saturate(1.54);
+    opacity: 0.92;
+  }
+}
+
+@keyframes prototypeSanguineGlassIdle {
+  from {
+    background-position: center, center, 47% 45%, -8px -8px;
+    filter: brightness(0.88) contrast(1.08) saturate(1.08) drop-shadow(0 0 2px rgba(188, 95, 35, 0.18));
+    opacity: 0.68;
+    scale: 0.99;
+    rotate: -0.3deg;
+  }
+  to {
+    background-position: center, center, 54% 52%, 20px 20px;
+    filter: brightness(1.2) contrast(1.18) saturate(1.3) drop-shadow(0 0 5px rgba(239, 177, 78, 0.36));
+    opacity: 0.9;
+    scale: 1.025;
+    rotate: 0.3deg;
+  }
+}
+
+@keyframes prototypeSanguinePetalIdle {
+  0% {
+    background-position: 5px -29px, 27px -47px, center, center, 34% 39%;
+    filter: brightness(0.9) saturate(1.08);
+    opacity: 0.62;
+  }
+  46% {
+    filter: brightness(1.06) saturate(1.2);
+    opacity: 0.78;
+  }
+  50% {
+    filter: brightness(1.2) saturate(1.32);
+    opacity: 0.9;
+  }
+  54% {
+    filter: brightness(1.02) saturate(1.18);
+    opacity: 0.76;
+  }
+  100% {
+    background-position: 22px 83px, 51px 109px, center, center, 70% 63%;
+    filter: brightness(1.08) saturate(1.24);
+    opacity: 0.82;
+  }
+}
+
+@keyframes prototypeJackpotChromeIdle {
+  from {
+    background-position: center, 0 -7px, 38% 43%, -8px 4px, center;
+    filter: brightness(0.94) contrast(1.26) saturate(1.1);
+    opacity: 0.64;
+  }
+  to {
+    background-position: center, 0 21px, 64% 58%, 18px -12px, center;
+    filter: brightness(1.04) contrast(1.34) saturate(1.22);
+    opacity: 0.78;
+  }
+}
+
+@keyframes prototypeJackpotMarqueeIdle {
+  0% {
+    background-position: 3px 7px, 14px 18px, 0 0, 42% 45%;
+    filter: brightness(0.92) contrast(1.08) saturate(1.04) drop-shadow(0 0 1px rgba(255, 187, 49, 0.24));
+    opacity: 0.58;
+  }
+  50% {
+    filter: brightness(1.12) contrast(1.14) saturate(1.12) drop-shadow(0 0 3px rgba(255, 187, 49, 0.4));
+    opacity: 0.76;
+  }
+  100% {
+    background-position: 27px 7px, -10px 18px, 22px 0, 61% 54%;
+    filter: brightness(1.02) contrast(1.1) saturate(1.08) drop-shadow(0 0 2px rgba(255, 187, 49, 0.3));
+    opacity: 0.66;
+  }
+}
+
+@keyframes prototypeJackpotCelebrationIdle {
+  0% {
+    background-position: 34% 39%, 66% 61%, 5px -17px, 23px -31px, center, center;
+    filter: brightness(0.92) contrast(1.04) saturate(1.02);
+    opacity: 0.5;
+  }
+  46% {
+    filter: brightness(1.01) contrast(1.06) saturate(1.05);
+    opacity: 0.62;
+  }
+  50% {
+    filter: brightness(1.18) contrast(1.1) saturate(1.12);
+    opacity: 0.78;
+  }
+  54% {
+    filter: brightness(1) contrast(1.05) saturate(1.04);
+    opacity: 0.6;
+  }
+  100% {
+    background-position: 61% 43%, 39% 57%, 5px 95px, 23px 80px, center, center;
+    filter: brightness(1.05) contrast(1.07) saturate(1.08);
+    opacity: 0.68;
+  }
+}
+
+@keyframes prototypeRelicSurfaceIdle {
+  from {
+    background-position: 42% 38%, 47% 43%, 0 0, center;
+    filter: brightness(0.94) contrast(1.2) saturate(1.2);
+    opacity: 0.7;
+  }
+  to {
+    background-position: 61% 57%, 54% 49%, 16px 9px, center;
+    filter: brightness(1.08) contrast(1.32) saturate(1.42);
+    opacity: 0.84;
+  }
+}
+
+@keyframes prototypeRelicRuneIdle {
+  from {
+    background-position: center, center, -7px 0;
+    filter: brightness(0.92) contrast(1.08) drop-shadow(0 1px 0 rgba(255, 223, 166, 0.12));
+    opacity: 0.64;
+    scale: 0.99;
+    rotate: -0.25deg;
+  }
+  to {
+    background-position: center, center, 17px 0;
+    filter: brightness(1.16) contrast(1.16) drop-shadow(0 1px 0 rgba(255, 235, 199, 0.3));
+    opacity: 0.88;
+    scale: 1.025;
+    rotate: 0.25deg;
+  }
+}
+
+@keyframes prototypeRelicDustIdle {
+  from {
+    background-position: 7px 18px, 23px 37px, 34% 39%, center;
+    filter: brightness(0.92) saturate(1.04);
+    opacity: 0.58;
+  }
+  to {
+    background-position: 24px -31px, 47px -36px, 69% 62%, center;
+    filter: brightness(1.18) saturate(1.22);
+    opacity: 0.84;
+  }
+}
+
+@keyframes prototypeEmpireLacquerIdle {
+  from {
+    background-position: 42% 38%, 44% 46%, 0 0, center;
+    filter: brightness(0.88) contrast(1.28) saturate(1.3);
+    opacity: 0.78;
+  }
+  to {
+    background-position: 59% 56%, 58% 54%, 17px -13px, center;
+    filter: brightness(1.02) contrast(1.42) saturate(1.58);
+    opacity: 0.92;
+  }
+}
+
+@keyframes prototypeEmpireCityIdle {
+  from {
+    background-position: -8px 5px, 7px -5px, center;
+    filter: contrast(1.04) drop-shadow(0 0 2px rgba(149, 0, 34, 0.28));
+    opacity: 0.68;
+    translate: -0.7% 0.4%;
+  }
+  to {
+    background-position: 19px -14px, -17px 12px, center;
+    filter: contrast(1.22) drop-shadow(0 0 5px rgba(211, 10, 49, 0.5));
+    opacity: 0.9;
+    translate: 0.9% -0.7%;
+  }
+}
+
+@keyframes prototypeEmpireEyesIdle {
+  0%,
+  43%,
+  54%,
+  100% {
+    filter: brightness(1.06) contrast(1.18) saturate(1.3);
+    opacity: 0.82;
+    scale: 1 1;
+    translate: 0 0;
+  }
+  48% {
+    filter: brightness(0.72) contrast(1.34) saturate(1.12);
+    opacity: 0.36;
+    scale: 1 0.94;
+    translate: 0.3% -0.4%;
+  }
+}
+
 /* Hero Reliquary: ornamental header and a compact museum-plinth data deck. */
 .reliquary .identity {
   top: 3.5%;
@@ -3731,6 +5151,27 @@
 .vaultRelic .rarityPlate[data-quality="radiant"] .qualityLabel {
   background-image: linear-gradient(90deg, #fff5d5, #ff9fad 19%, #9ed9ff 38%, #ffe39b 57%, #9dffd7 76%, #e6b2ff 91%, #fff5d5);
   text-shadow: 0 0 5px rgba(217, 241, 255, 0.3);
+}
+.vaultRelic .rarityPlate[data-quality="neon"] .qualityLabel {
+  background: linear-gradient(94deg, #8cf5ff 0%, #f4ffff 20%, #35dcff 37%, #ff66cb 58%, #ffd9f1 74%, #a47cff 88%, #8cf5ff 100%);
+  background-clip: text;
+  background-position: 16% center;
+  background-size: 240% 100%;
+  color: transparent;
+  filter: brightness(1.06) contrast(1.12) saturate(1.18);
+  text-shadow:
+    -0.35px 0 rgba(41, 218, 255, 0.58),
+    0.35px 0 rgba(255, 57, 190, 0.54),
+    0 0 5px rgba(99, 228, 255, 0.22);
+  transition-property: filter;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.prototypeCard.neon:is([data-pointer-active="true"], [data-forced-hover="true"]) .qualityLabel {
+  background-position: var(--foil-x) center;
+  filter: brightness(calc(1.1 + var(--pointer-distance) * 0.2)) contrast(1.16) saturate(1.34);
 }
 .prototypeCard:is(.rainbow, .kaleidoscope, .disco, .cosmos, .galaxy, .radiant):not([data-pointer-active="true"]):not([data-forced-hover="true"]) .qualityLabel {
   animation: prototypeHolographicTextSweep 4.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
@@ -4686,6 +6127,9 @@
   .disco .finishLayer {
     opacity: 0.56;
   }
+  .neon .finishLayer {
+    opacity: 0.52;
+  }
   .cosmos .finishLayer {
     opacity: 0.64;
   }
@@ -4734,11 +6178,15 @@
   .metamorphic .finishLayer {
     opacity: 0.78;
   }
+  .prototypeCard[data-raid-preview-finish="true"] .finishLayer {
+    opacity: var(--raid-touch-opacity);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .prototypeCard,
-  .materialLight {
+  .materialLight,
+  .prototypeCard[data-raid-preview-finish="true"] .frameGeometry {
     transition-duration: 1ms;
   }
   .prototypeCard {

@@ -22,10 +22,10 @@ test("CCG activity sources have account history indexes", () => {
   const openingIndexes = CcgPackOpening.schema.indexes();
   const twitchIndexes = TwitchCcgRedemption.schema.indexes();
 
-  assert.ok(openingIndexes.some((entry: [Record<string, 1 | -1>, Record<string, unknown>]) => (
+  assert.ok(openingIndexes.some((entry) => (
     entry[0].claimedByUserId === 1 && entry[0].createdAt === -1
   )));
-  assert.ok(twitchIndexes.some((entry: [Record<string, 1 | -1>, Record<string, unknown>]) => (
+  assert.ok(twitchIndexes.some((entry) => (
     entry[0].grantedUserId === 1 && entry[0].grantStatus === 1 && entry[0].redeemedAt === -1
   )));
 });
