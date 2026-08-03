@@ -131,6 +131,7 @@ export interface CharacterRankingBackfillStatusResponse {
   processor: {
     isRunning: boolean;
     isWaitingForRateLimit: boolean;
+    stopRequested: boolean;
     currentItem: BackfillItemSummary | null;
     lastMessage: string | null;
   };
@@ -199,6 +200,12 @@ interface ProcessOutcome {
   specsQueried: string[];
   rankingsWritten: number;
   leaderboardEntriesWritten: number;
+}
+
+class RankingBackfillStopRequestedError extends Error {
+  constructor() {
+    super("Character ranking backfill stop requested");
+  }
 }
 
 function toFiniteNumber(value: unknown, fallback = 0): number {
@@ -278,6 +285,8 @@ function summarizeItem(item: ICharacterRankingBackfill): BackfillItemSummary {
 class CharacterRankingBackfillService {
   private isRunning = false;
   private isWaitingForRateLimit = false;
+  private stopRequested = false;
+  private readonly stopListeners = new Set<() => void>();
   private currentItem: BackfillItemSummary | null = null;
   private lastMessage: string | null = null;
   private leaderboardRebuild = {
@@ -291,7 +300,13 @@ class CharacterRankingBackfillService {
     lastError: null as string | null,
   };
 
-  async triggerBackfill(options: { refreshCandidates?: boolean; reprocessCompleted?: boolean; zoneIds?: number[] } = {}): Promise<CharacterRankingBackfillTriggerResult> {
+  async triggerBackfill(
+    options: { refreshCandidates?: boolean; reprocessCompleted?: boolean; reprocessAll?: boolean; zoneIds?: number[] } = {},
+  ): Promise<CharacterRankingBackfillTriggerResult> {
+    if (options.reprocessAll === true && this.isRunning) {
+      throw new Error("Character ranking backfill is still running; wait for it to stop before resetting the queue");
+    }
+
     const existingQueueItems = await CharacterRankingBackfill.countDocuments({});
     let enqueue: CharacterRankingBackfillEnqueueResult;
     if (existingQueueItems > 0 && options.refreshCandidates !== true) {
@@ -315,7 +330,30 @@ class CharacterRankingBackfillService {
       }
     }
 
-    if (options.reprocessCompleted === true) {
+    if (options.reprocessAll === true) {
+      const result = await CharacterRankingBackfill.updateMany(
+        options.zoneIds?.length ? { zoneId: { $in: options.zoneIds } } : {},
+        {
+          $set: {
+            status: "pending",
+            attempts: 0,
+            aliasesQueried: 0,
+            specQuerySource: null,
+            specsQueried: [],
+            rankingsWritten: 0,
+            leaderboardEntriesWritten: 0,
+            completionReason: null,
+            startedAt: null,
+            completedAt: null,
+            lastError: null,
+            lastErrorAt: null,
+            lastActivityAt: new Date(),
+          },
+        },
+      );
+      enqueue.requeued = result.modifiedCount ?? 0;
+      logger.info(`[CharacterRankingBackfill] Reset ${enqueue.requeued} queue item(s) for a fresh all-spec ranking run`);
+    } else if (options.reprocessCompleted === true) {
       const result = await CharacterRankingBackfill.updateMany(
         {
           status: { $in: ["completed", "skipped", "failed"] },
@@ -455,6 +493,7 @@ class CharacterRankingBackfillService {
 
     this.isRunning = true;
     this.isWaitingForRateLimit = false;
+    this.stopRequested = false;
     this.lastMessage = "Character ranking backfill processor started";
     logger.info("[CharacterRankingBackfill] Processor started");
 
@@ -466,6 +505,17 @@ class CharacterRankingBackfillService {
       this.lastMessage = `Processor crashed: ${error instanceof Error ? error.message : "Unknown error"}`;
     });
 
+    return true;
+  }
+
+  requestStop(): boolean {
+    if (!this.isRunning) return false;
+
+    this.stopRequested = true;
+    this.lastMessage = "Stopping character ranking backfill after the current WCL request";
+    for (const listener of this.stopListeners) listener();
+    this.stopListeners.clear();
+    logger.warn("[CharacterRankingBackfill] Cooperative stop requested");
     return true;
   }
 
@@ -762,6 +812,7 @@ class CharacterRankingBackfillService {
       processor: {
         isRunning: this.isRunning,
         isWaitingForRateLimit: this.isWaitingForRateLimit,
+        stopRequested: this.stopRequested,
         currentItem: this.currentItem ?? (dbCurrentItem ? summarizeItem(dbCurrentItem) : null),
         lastMessage: this.lastMessage,
       },
@@ -940,7 +991,7 @@ class CharacterRankingBackfillService {
     try {
       taskId = await taskTracker.start(TASK_NAME);
 
-      while (this.isRunning) {
+      while (this.isRunning && !this.stopRequested) {
         const item = await CharacterRankingBackfill.findOneAndUpdate(
           { status: "pending" },
           {
@@ -1000,6 +1051,19 @@ class CharacterRankingBackfillService {
             `[CharacterRankingBackfill] ${outcome.status === "completed" ? "Completed" : "Skipped"} ${item.name}-${item.realm} zone ${item.zoneId}: ${outcome.reason}, rankings=${outcome.rankingsWritten}, leaderboardEntries=${outcome.leaderboardEntriesWritten}`,
           );
         } catch (error) {
+          if (error instanceof RankingBackfillStopRequestedError) {
+            await CharacterRankingBackfill.findByIdAndUpdate(item._id, {
+              $set: {
+                status: "pending",
+                startedAt: null,
+                lastActivityAt: new Date(),
+                completionReason: "Returned to pending after a cooperative stop",
+              },
+              $inc: { attempts: -1 },
+            });
+            this.lastMessage = "Character ranking backfill stopped; the claimed item was returned to pending";
+            break;
+          }
           await this.handleItemError(item, error);
         } finally {
           this.currentItem = null;
@@ -1012,19 +1076,23 @@ class CharacterRankingBackfillService {
           );
         }
       }
-      await taskTracker.complete(taskId, { processedThisRun });
+      await taskTracker.complete(taskId, { processedThisRun, stopped: this.stopRequested });
     } catch (error) {
       await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
       throw error;
     } finally {
+      const stopped = this.stopRequested;
       this.isRunning = false;
       this.isWaitingForRateLimit = false;
       this.currentItem = null;
+      this.stopRequested = false;
+      if (stopped) this.lastMessage = `Character ranking backfill stopped after processing ${processedThisRun} item(s) this run`;
     }
   }
 
   private async waitForBackgroundCapacity(estimatedPoints: number, label: string): Promise<void> {
     while (true) {
+      if (this.stopRequested) throw new RankingBackfillStopRequestedError();
       await rateLimitService.refreshSharedState();
       const capacity = rateLimitService.getBackgroundCapacity();
       if (rateLimitService.canProceedBackground() && capacity >= estimatedPoints) {
@@ -1036,8 +1104,35 @@ class CharacterRankingBackfillService {
       this.isWaitingForRateLimit = true;
       this.lastMessage = `Waiting for WCL rate limit reset before ${label}; background capacity ${Math.floor(capacity)} points, need ${estimatedPoints}, reset in ${status.resetInSeconds}s`;
       logger.info(`[CharacterRankingBackfill] ${this.lastMessage}`);
-      await rateLimitService.waitForReset();
+      const resetCompleted = await this.waitForRateLimitResetOrStop();
+      if (!resetCompleted) throw new RankingBackfillStopRequestedError();
     }
+  }
+
+  private async waitForRateLimitResetOrStop(): Promise<boolean> {
+    if (this.stopRequested) return false;
+
+    return new Promise<boolean>((resolve, reject) => {
+      let settled = false;
+      const finish = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        this.stopListeners.delete(onStop);
+        resolve(value);
+      };
+      const onStop = () => finish(false);
+      this.stopListeners.add(onStop);
+
+      void rateLimitService.waitForReset().then(
+        () => finish(true),
+        (error) => {
+          if (settled) return;
+          settled = true;
+          this.stopListeners.delete(onStop);
+          reject(error);
+        },
+      );
+    });
   }
 
   private async processItem(item: ICharacterRankingBackfill, specQueries: SpecQuery[]): Promise<ProcessOutcome> {

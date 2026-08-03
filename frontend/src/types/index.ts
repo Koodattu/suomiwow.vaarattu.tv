@@ -3312,6 +3312,10 @@ export interface TriggerResponse {
 export type FullHistoryRefreshStage =
   | "queue_fight_details"
   | "fight_details"
+  | "queue_character_identities"
+  | "character_identities"
+  | "rebuild_character_participation"
+  | "stop_rankings_for_identity_recovery"
   | "queue_rankings"
   | "rankings"
   | "mechanics_and_tier_lists"
@@ -3337,6 +3341,23 @@ export interface FullHistoryRefreshStatusResponse {
     failed: number;
     active: number;
     total: number;
+  };
+  identityQueue: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    skipped: number;
+    failed: number;
+    active: number;
+    terminal: number;
+    total: number;
+    resolved: number;
+    manualLink: number;
+    hidden: number;
+    notFound: number;
+    classMismatch: number;
+    invalidResponse: number;
+    resolvedAppearances: number;
   };
   rankingQueue: {
     pending: number;
@@ -3492,6 +3513,7 @@ export interface CharacterRankingBackfillStatusResponse {
   processor: {
     isRunning: boolean;
     isWaitingForRateLimit: boolean;
+    stopRequested: boolean;
     currentItem: CharacterRankingBackfillItem | null;
     lastMessage: string | null;
   };

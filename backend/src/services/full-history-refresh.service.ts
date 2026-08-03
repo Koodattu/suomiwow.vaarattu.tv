@@ -6,8 +6,10 @@ import Fight from "../models/Fight";
 import GuildProcessingQueue from "../models/GuildProcessingQueue";
 import logger from "../utils/logger";
 import cacheService from "./cache.service";
+import characterIdentityResolutionService, { CharacterIdentityResolutionStatusResponse } from "./character-identity-resolution.service";
 import characterMechanicsService from "./character-mechanics.service";
 import characterRankingBackfillService from "./character-ranking-backfill.service";
+import characterService from "./character.service";
 import characterTierListService from "./character-tierlist.service";
 import guildService from "./guild.service";
 import taskTracker from "./task-tracker.service";
@@ -36,6 +38,7 @@ export type FullHistoryRefreshStatusResponse = {
   lastError: string | null;
   progress: Record<string, unknown>;
   fightDetailsQueue: QueueCounts;
+  identityQueue: CharacterIdentityResolutionStatusResponse["queue"];
   rankingQueue: {
     pending: number;
     inProgress: number;
@@ -89,10 +92,68 @@ class FullHistoryRefreshService {
     return { started: true, status: await this.getStatus() };
   }
 
+  async restartFromIdentityRecovery(): Promise<{ started: boolean; message: string; status: FullHistoryRefreshStatusResponse }> {
+    const existing = await FullHistoryRefresh.findOne({ key: PIPELINE_KEY }).lean<IFullHistoryRefresh>();
+    const restartableRunningStages: FullHistoryRefreshStage[] = ["queue_rankings", "rankings", "stop_rankings_for_identity_recovery"];
+
+    if (existing?.status === "running" && !restartableRunningStages.includes(existing.stage)) {
+      return {
+        started: false,
+        message: `Cannot restart from identity recovery while the full-history pipeline is in ${existing.stage}`,
+        status: await this.getStatus(),
+      };
+    }
+    if (existing?.status === "running" && existing.stage === "stop_rankings_for_identity_recovery") {
+      return {
+        started: false,
+        message: "Ranking shutdown and identity-recovery restart are already in progress",
+        status: await this.getStatus(),
+      };
+    }
+
+    characterRankingBackfillService.requestStop();
+    const now = new Date();
+    await FullHistoryRefresh.findOneAndUpdate(
+      { key: PIPELINE_KEY },
+      {
+        $set: {
+          runId: randomUUID(),
+          status: "running",
+          stage: "stop_rankings_for_identity_recovery",
+          startedAt: now,
+          stageStartedAt: now,
+          lastActivityAt: now,
+          completedAt: null,
+          lastError: null,
+          progress: {
+            message: "Stopping the current ranking worker before identity recovery",
+            restartMode: "identity_recovery_and_rankings",
+            fightDetailsReused: true,
+            rankingRestartFromScratch: true,
+            characterIdentityResolutionCompleted: false,
+            previousRunId: existing?.runId ?? null,
+            previousStage: existing?.stage ?? null,
+          },
+        },
+        $setOnInsert: { key: PIPELINE_KEY },
+      },
+      { upsert: true, new: true },
+    );
+
+    void this.tick();
+    logger.warn("[FullHistoryRefresh] Restart requested from identity recovery; existing fight details will be reused");
+    return {
+      started: true,
+      message: "Stopping current rankings, then restarting from identity recovery without refetching fight details",
+      status: await this.getStatus(),
+    };
+  }
+
   async getStatus(): Promise<FullHistoryRefreshStatusResponse> {
-    const [run, fightDetailsQueue, rankingQueue] = await Promise.all([
+    const [run, fightDetailsQueue, identityStatus, rankingQueue] = await Promise.all([
       FullHistoryRefresh.findOne({ key: PIPELINE_KEY }).lean<IFullHistoryRefresh>(),
       this.getFightDetailsQueueCounts(),
+      characterIdentityResolutionService.getStatus(),
       this.getRankingQueueCounts(),
     ]);
 
@@ -107,6 +168,7 @@ class FullHistoryRefreshService {
       lastError: run?.lastError ?? null,
       progress: run?.progress ?? {},
       fightDetailsQueue,
+      identityQueue: identityStatus.queue,
       rankingQueue,
     };
   }
@@ -126,6 +188,18 @@ class FullHistoryRefreshService {
           break;
         case "fight_details":
           await this.waitForFightDetails(run);
+          break;
+        case "queue_character_identities":
+          await this.queueCharacterIdentities(run);
+          break;
+        case "character_identities":
+          await this.waitForCharacterIdentities(run);
+          break;
+        case "rebuild_character_participation":
+          await this.rebuildCharacterParticipation(run);
+          break;
+        case "stop_rankings_for_identity_recovery":
+          await this.stopRankingsForIdentityRecovery(run);
           break;
         case "queue_rankings":
           await this.queueRankings(run);
@@ -198,20 +272,113 @@ class FullHistoryRefreshService {
     const queue = await this.getFightDetailsQueueCounts();
     await this.updateProgress(run, { ...run.progress, message: "Processing all-raid fight details", fightDetailsQueue: queue });
     if (queue.active > 0) return;
-    await this.advance(run, "queue_rankings", { ...run.progress, message: "All-raid fight-details queue finished", fightDetailsQueue: queue });
+    await this.advance(run, "queue_character_identities", {
+      ...run.progress,
+      message: "All-raid fight-details queue finished; preparing historical character identity recovery",
+      fightDetailsQueue: queue,
+    });
+  }
+
+  private async queueCharacterIdentities(run: IFullHistoryRefresh): Promise<void> {
+    const result = await characterIdentityResolutionService.trigger({ refreshCandidates: true, reprocessSkipped: true });
+    await this.advance(run, "character_identities", {
+      ...run.progress,
+      message: "Historical report-ranking identities queued for WCL resolution",
+      identityEnqueue: result.enqueue,
+      identityQueue: result.status.queue,
+    });
+  }
+
+  private async waitForCharacterIdentities(run: IFullHistoryRefresh): Promise<void> {
+    await characterIdentityResolutionService.resumeInterrupted();
+    const status = await characterIdentityResolutionService.getStatus();
+    await this.updateProgress(run, {
+      ...run.progress,
+      message: "Resolving historical character names through WCL",
+      identityQueue: status.queue,
+    });
+    if (status.queue.active > 0) return;
+
+    await this.advance(run, "rebuild_character_participation", {
+      ...run.progress,
+      message: "Historical WCL identity resolution finished; rebuilding character participation",
+      identityQueue: status.queue,
+    });
+  }
+
+  private async rebuildCharacterParticipation(run: IFullHistoryRefresh): Promise<void> {
+    const result = await characterService.rebuildCharacterRaidParticipations();
+    await this.advance(run, "queue_rankings", {
+      ...run.progress,
+      message: "Resolved identities linked and character participation rebuilt",
+      characterIdentityResolutionCompleted: true,
+      participationRebuild: result,
+    });
+  }
+
+  private async stopRankingsForIdentityRecovery(run: IFullHistoryRefresh): Promise<void> {
+    characterRankingBackfillService.requestStop();
+    const status = await characterRankingBackfillService.getStatus();
+    await this.updateProgress(run, {
+      ...run.progress,
+      message: status.processor.isRunning
+        ? "Waiting for the current ranking request to finish before identity recovery"
+        : "Ranking worker stopped; starting identity recovery",
+      rankingQueue: status.queue,
+    });
+    if (status.processor.isRunning) return;
+
+    await this.advance(run, "queue_character_identities", {
+      ...run.progress,
+      message: "Ranking worker stopped; reusing stored fight details and starting identity recovery",
+      rankingQueue: status.queue,
+    });
   }
 
   private async queueRankings(run: IFullHistoryRefresh): Promise<void> {
-    const result = await characterRankingBackfillService.triggerBackfill({ refreshCandidates: true, reprocessCompleted: true });
+    if (run.progress.characterIdentityResolutionCompleted !== true) {
+      await this.rewindToIdentityRecovery(run, "Recovering historical character identities before ranking refresh");
+      return;
+    }
+
+    const restartFromScratch = run.progress.rankingRestartFromScratch === true;
+    if (restartFromScratch) {
+      const existingStatus = await characterRankingBackfillService.getStatus();
+      if (existingStatus.processor.isRunning) {
+        await this.advance(run, "rankings", {
+          ...run.progress,
+          message: "Fresh ranking queue already started",
+          rankingRestartFromScratch: false,
+          rankingQueueRestartedFromScratch: true,
+          rankingQueue: existingStatus.queue,
+        });
+        return;
+      }
+    }
+
+    const result = await characterRankingBackfillService.triggerBackfill({
+      refreshCandidates: true,
+      reprocessCompleted: !restartFromScratch,
+      reprocessAll: restartFromScratch,
+    });
     await this.advance(run, "rankings", {
       ...run.progress,
-      message: "All character/raid pairs queued for all-spec ranking refresh",
+      message: restartFromScratch
+        ? "All ranking pairs reset and queued from the beginning"
+        : "All character/raid pairs queued for all-spec ranking refresh",
+      rankingRestartFromScratch: false,
+      rankingQueueRestartedFromScratch: restartFromScratch,
       rankingEnqueue: result.enqueue,
       rankingQueue: result.status.queue,
     });
   }
 
   private async waitForRankings(run: IFullHistoryRefresh): Promise<void> {
+    if (run.progress.characterIdentityResolutionCompleted !== true) {
+      await this.rewindToIdentityRecovery(run, "Stopping the old ranking pass so identity recovery can run first");
+      return;
+    }
+
     await characterRankingBackfillService.resumeInterruptedBackfill();
     const status = await characterRankingBackfillService.getStatus();
     const active = status.queue.pending + status.queue.inProgress;
@@ -221,6 +388,11 @@ class FullHistoryRefreshService {
   }
 
   private async rebuildMechanicsAndTierLists(run: IFullHistoryRefresh): Promise<void> {
+    if (run.progress.characterIdentityResolutionCompleted !== true) {
+      await this.rewindToIdentityRecovery(run, "Recovering historical character identities before mechanics and tier-list rebuilds");
+      return;
+    }
+
     const taskId = await taskTracker.start("Full History Mechanics and Character Tier Lists", { runId: run.runId, raidIds: TRACKED_RAIDS });
     try {
       const mechanics = await characterMechanicsService.buildMechanicsLeaderboards(TRACKED_RAIDS);
@@ -244,6 +416,18 @@ class FullHistoryRefreshService {
       await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
       throw error;
     }
+  }
+
+  private async rewindToIdentityRecovery(run: IFullHistoryRefresh, message: string): Promise<void> {
+    characterRankingBackfillService.requestStop();
+    await this.advance(run, "stop_rankings_for_identity_recovery", {
+      ...run.progress,
+      message,
+      restartMode: "identity_recovery_and_rankings",
+      fightDetailsReused: true,
+      rankingRestartFromScratch: true,
+      characterIdentityResolutionCompleted: false,
+    });
   }
 
   private async advance(run: IFullHistoryRefresh, stage: FullHistoryRefreshStage, progress: Record<string, unknown>): Promise<void> {

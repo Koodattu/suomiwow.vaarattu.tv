@@ -7,6 +7,7 @@ import { MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } from "../config/char
 import Character, { ICharacter } from "../models/Character";
 import CharacterAccountGroup from "../models/CharacterAccountGroup";
 import CharacterIdentityLink from "../models/CharacterIdentityLink";
+import CharacterIdentityResolution from "../models/CharacterIdentityResolution";
 import CharacterLeaderboard from "../models/CharacterLeaderboard";
 import CharacterMedia from "../models/CharacterMedia";
 import CharacterMechanicsLeaderboard from "../models/CharacterMechanicsLeaderboard";
@@ -22,7 +23,7 @@ import Raid from "../models/Raid";
 import Report from "../models/Report";
 import logger from "../utils/logger";
 import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
-import { createCharacterIdentityAliasKey, normalizeCharacterIdentityPart } from "../utils/character-identity-link";
+import { createCharacterIdentityAliasKey, createReportRankingSourceIdentityKey, normalizeCharacterIdentityPart } from "../utils/character-identity-link";
 import { areEquivalentRealms, createRealmIdentityKey, realmNameToSlugCandidate } from "../utils/realm";
 import { resolveRole, slugifySpecName } from "../utils/spec";
 import cacheService from "./cache.service";
@@ -1147,6 +1148,31 @@ class CharacterService {
       };
     }
 
+    const automaticResolution = await CharacterIdentityResolution.findOne({
+      sourceIdentityKey: createReportRankingSourceIdentityKey(params),
+      status: "completed",
+      outcome: "resolved",
+      targetCharacterId: { $ne: null },
+      wclCanonicalCharacterId: { $type: "number" },
+    } as any)
+      .select("targetCharacterId wclCanonicalCharacterId")
+      .lean();
+    if (automaticResolution?.targetCharacterId && automaticResolution.wclCanonicalCharacterId) {
+      const target = await Character.findById(automaticResolution.targetCharacterId).select("_id wclCanonicalCharacterId name realm region classID").lean();
+      if (
+        target?.wclCanonicalCharacterId === automaticResolution.wclCanonicalCharacterId &&
+        target.classID === params.classID
+      ) {
+        return {
+          characterId: target._id as mongoose.Types.ObjectId,
+          wclCanonicalCharacterId: target.wclCanonicalCharacterId,
+          name: target.name,
+          realm: target.realm,
+          region: target.region,
+        };
+      }
+    }
+
     const appearanceCandidates = await CharacterReportAppearance.find({
       characterName: nameRegex,
       characterRegion: regionRegex,
@@ -1222,6 +1248,69 @@ class CharacterService {
       character._id as mongoose.Types.ObjectId,
       { name: params.name, realm: params.realm, region: params.region },
       params.reportSeenAt,
+    );
+
+    return {
+      characterId: character._id as mongoose.Types.ObjectId,
+      wclCanonicalCharacterId: params.canonicalID,
+      name: params.name,
+      realm: params.realm,
+      region: params.region,
+    };
+  }
+
+  async upsertCharacterFromWclIdentityResolution(params: {
+    canonicalID: number;
+    name: string;
+    realm: string;
+    region: string;
+    classID: number;
+    firstReportSeenAt?: Date;
+    lastReportSeenAt?: Date;
+    resolvedAt: Date;
+  }): Promise<ResolvedReportRankingCanonicalMatch> {
+    await this.ensureCharacterIdentityIndexes();
+
+    const dateUpdates: Record<string, Date> = {};
+    if (params.firstReportSeenAt) dateUpdates.firstReportSeenAt = params.firstReportSeenAt;
+    const maxUpdates: Record<string, Date> = {};
+    if (params.lastReportSeenAt) {
+      maxUpdates.lastReportSeenAt = params.lastReportSeenAt;
+      maxUpdates.lastMythicSeenAt = params.lastReportSeenAt;
+    }
+
+    const character = await Character.findOneAndUpdate(
+      { wclCanonicalCharacterId: params.canonicalID, classID: params.classID },
+      {
+        $set: {
+          classID: params.classID,
+          wclProfileHidden: false,
+          rankingsAvailable: null,
+          nextEligibleRefreshAt: params.resolvedAt,
+        },
+        ...(Object.keys(dateUpdates).length > 0 ? { $min: dateUpdates } : {}),
+        ...(Object.keys(maxUpdates).length > 0 ? { $max: maxUpdates } : {}),
+        $setOnInsert: {
+          wclCanonicalCharacterId: params.canonicalID,
+          name: params.name,
+          realm: params.realm,
+          region: params.region,
+          identityObservedAt: params.resolvedAt,
+          guildName: null,
+          guildRealm: null,
+          guildUpdatedAt: null,
+          guildHistory: [],
+        },
+      },
+      { upsert: true, new: true },
+    );
+
+    if (!character) throw new Error(`Failed to upsert resolved WCL character ${params.canonicalID}/${params.classID}`);
+
+    await updateCharacterIdentityFromObservation(
+      character._id as mongoose.Types.ObjectId,
+      { name: params.name, realm: params.realm, region: params.region },
+      params.resolvedAt,
     );
 
     return {
@@ -1635,10 +1724,20 @@ class CharacterService {
     const conflictedAutomaticIdentityKeys = new Set<string>();
 
     logger.info("[CharacterRaidParticipation] Matching report.rankings fallback appearances to canonical characters: building canonical match map");
-    const manualLinks = await CharacterIdentityLink.find({}).select("_id identityKey targetCharacterId").lean();
-    const canonicalCharacters = await Character.find({ wclCanonicalCharacterId: { $ne: null } } as any)
-      .select("_id wclCanonicalCharacterId name realm region classID")
-      .lean();
+    const [manualLinks, automaticResolutions, canonicalCharacters] = await Promise.all([
+      CharacterIdentityLink.find({}).select("_id identityKey targetCharacterId").lean(),
+      CharacterIdentityResolution.find({
+        status: "completed",
+        outcome: "resolved",
+        targetCharacterId: { $ne: null },
+        wclCanonicalCharacterId: { $type: "number" },
+      } as any)
+        .select("sourceName sourceRealm sourceRegion sourceClassID targetCharacterId wclCanonicalCharacterId")
+        .lean(),
+      Character.find({ wclCanonicalCharacterId: { $ne: null } } as any)
+        .select("_id wclCanonicalCharacterId name realm region classID")
+        .lean(),
+    ]);
     const canonicalCharacterById = new Map(canonicalCharacters.map((character) => [String(character._id), character]));
 
     for (const link of manualLinks) {
@@ -1665,6 +1764,29 @@ class CharacterService {
       }
       if (!existing) canonicalMatchesByIdentity.set(identityKey, match);
     };
+
+    for (const resolution of automaticResolutions) {
+      if (!resolution.targetCharacterId || typeof resolution.wclCanonicalCharacterId !== "number") continue;
+      const target = canonicalCharacterById.get(String(resolution.targetCharacterId));
+      if (
+        !target?.wclCanonicalCharacterId ||
+        target.wclCanonicalCharacterId !== resolution.wclCanonicalCharacterId ||
+        target.classID !== resolution.sourceClassID
+      ) {
+        continue;
+      }
+
+      addAutomaticMatch(
+        getMatchKey(resolution.sourceName, resolution.sourceRealm, resolution.sourceRegion, resolution.sourceClassID),
+        {
+          characterId: target._id as mongoose.Types.ObjectId,
+          wclCanonicalCharacterId: target.wclCanonicalCharacterId,
+          name: target.name,
+          realm: target.realm,
+          region: target.region,
+        },
+      );
+    }
 
     for (const character of canonicalCharacters) {
       if (!character.wclCanonicalCharacterId || !character.name || !character.realm || !character.region || !character.classID) continue;

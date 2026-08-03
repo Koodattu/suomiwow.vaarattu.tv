@@ -2681,6 +2681,17 @@ export async function triggerFullHistoryRefresh(): Promise<FullHistoryRefreshTri
   return data;
 }
 
+export async function restartFullHistoryFromIdentityRecovery(): Promise<FullHistoryRefreshTriggerResponse> {
+  const response = await fetch(`${API_URL}/api/admin/trigger/full-history-refresh/restart-from-identities`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || data.message || "Failed to restart full-history refresh from identity recovery");
+  return data;
+}
+
 export async function triggerRescanDeathEvents(scope: "current" | "all" = "current"): Promise<TriggerResponse> {
   const response = await fetch(`${API_URL}/api/admin/trigger/rescan-death-events`, {
     method: "POST",

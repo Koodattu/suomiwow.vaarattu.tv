@@ -23,6 +23,7 @@ import {
   triggerBackfillFightVods,
   triggerUpdateGuildCrests,
   triggerFullHistoryRefresh,
+  restartFullHistoryFromIdentityRecovery,
   triggerRescanDeathEvents,
   triggerRescanCharacters,
   triggerBackfillReportCharacters,
@@ -128,6 +129,10 @@ import {
 const FULL_HISTORY_STAGE_LABELS: Record<FullHistoryRefreshStage, string> = {
   queue_fight_details: "Waiting to queue all-raid fight details",
   fight_details: "Fetching all-raid deaths and rosters",
+  queue_character_identities: "Queueing historical character identity recovery",
+  character_identities: "Resolving historical characters through WCL",
+  rebuild_character_participation: "Linking resolved characters and rebuilding raid participation",
+  stop_rankings_for_identity_recovery: "Stopping the current ranking pass",
   queue_rankings: "Queueing all character/spec rankings",
   rankings: "Fetching all specs for every character and raid",
   mechanics_and_tier_lists: "Rebuilding all mechanics and character tier lists",
@@ -911,8 +916,9 @@ export default function AdminPage() {
         const status = await api.getAdminCharacterRankingBackfillStatus();
         setCharacterRankingBackfillStatus(status);
       }
-      if (triggerName === "full-history-refresh") {
+      if (triggerName === "full-history-refresh" || triggerName === "restart-full-history-from-identities") {
         setFullHistoryRefreshStatus(await api.getAdminFullHistoryRefreshStatus());
+        setCharacterRankingBackfillStatus(await api.getAdminCharacterRankingBackfillStatus());
       }
       if (
         triggerName === "backfill-character-achievements" ||
@@ -2356,7 +2362,7 @@ export default function AdminPage() {
                   <div className="space-y-1">
                     <h3 className="font-semibold text-amber-100">Full-history raid data and mechanics refresh</h3>
                     <p className="max-w-4xl text-sm text-gray-300">
-                      Fetches fight details for every tracked raid, refetches every class spec for every character/raid pair, and rebuilds all mechanics and character tier lists. CCG snapshots and card publication remain manual.
+                      Fetches fight details for every tracked raid, resolves missing historical character identities through WCL, refetches every class spec for every character/raid pair, and rebuilds all mechanics and character tier lists. CCG snapshots and card publication remain manual.
                     </p>
                     {fullHistoryRefreshStatus?.stage ? (
                       <p className={`text-sm ${fullHistoryRefreshStatus.status === "failed" ? "text-red-300" : fullHistoryRefreshStatus.status === "completed" ? "text-emerald-300" : "text-cyan-300"}`}>
@@ -2368,7 +2374,12 @@ export default function AdminPage() {
                     )}
                     {fullHistoryRefreshStatus?.status === "running" ? (
                       <p className="text-xs tabular-nums text-gray-400">
-                        Fight-detail jobs active: {fullHistoryRefreshStatus.fightDetailsQueue.active} · Ranking pairs active: {fullHistoryRefreshStatus.rankingQueue.active}
+                        Fight-detail jobs active: {fullHistoryRefreshStatus.fightDetailsQueue.active} · Identity lookups active: {fullHistoryRefreshStatus.identityQueue.active} · Ranking pairs active: {fullHistoryRefreshStatus.rankingQueue.active}
+                      </p>
+                    ) : null}
+                    {fullHistoryRefreshStatus && fullHistoryRefreshStatus.identityQueue.total > 0 ? (
+                      <p className="text-xs tabular-nums text-gray-400">
+                        WCL identities: {fullHistoryRefreshStatus.identityQueue.resolved} resolved ({fullHistoryRefreshStatus.identityQueue.resolvedAppearances} appearances) · {fullHistoryRefreshStatus.identityQueue.manualLink} manual · {fullHistoryRefreshStatus.identityQueue.hidden} hidden · {fullHistoryRefreshStatus.identityQueue.notFound} not found · {fullHistoryRefreshStatus.identityQueue.classMismatch} class mismatch · {fullHistoryRefreshStatus.identityQueue.invalidResponse} invalid · {fullHistoryRefreshStatus.identityQueue.failed} failed
                       </p>
                     ) : null}
                     {fullHistoryRefreshStatus?.lastError ? <p className="text-xs text-red-300">{fullHistoryRefreshStatus.lastError}</p> : null}
@@ -2377,6 +2388,18 @@ export default function AdminPage() {
                     {renderTriggerButton("full-history-refresh", "Run Full History Data Refresh", triggerFullHistoryRefresh, {
                       disabled: fullHistoryRefreshStatus?.status === "running",
                     })}
+                    <div className="mt-2">
+                      {renderTriggerButton(
+                        "restart-full-history-from-identities",
+                        "Restart From Identity Recovery",
+                        restartFullHistoryFromIdentityRecovery,
+                        {
+                          disabled:
+                            fullHistoryRefreshStatus?.status !== "running" ||
+                            !["queue_rankings", "rankings"].includes(fullHistoryRefreshStatus.stage ?? ""),
+                        },
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

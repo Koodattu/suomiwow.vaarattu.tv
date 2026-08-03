@@ -4,6 +4,10 @@ export type FullHistoryRefreshStatus = "running" | "completed" | "failed";
 export type FullHistoryRefreshStage =
   | "queue_fight_details"
   | "fight_details"
+  | "queue_character_identities"
+  | "character_identities"
+  | "rebuild_character_participation"
+  | "stop_rankings_for_identity_recovery"
   | "queue_rankings"
   | "rankings"
   | "mechanics_and_tier_lists"
@@ -31,7 +35,20 @@ const FullHistoryRefreshSchema = new Schema<IFullHistoryRefresh>(
     status: { type: String, enum: ["running", "completed", "failed"], required: true, index: true },
     stage: {
       type: String,
-      enum: ["queue_fight_details", "fight_details", "queue_rankings", "rankings", "mechanics_and_tier_lists", "ccg_snapshots", "completed", "failed"],
+      enum: [
+        "queue_fight_details",
+        "fight_details",
+        "queue_character_identities",
+        "character_identities",
+        "rebuild_character_participation",
+        "stop_rankings_for_identity_recovery",
+        "queue_rankings",
+        "rankings",
+        "mechanics_and_tier_lists",
+        "ccg_snapshots",
+        "completed",
+        "failed",
+      ],
       required: true,
     },
     startedAt: { type: Date, required: true },

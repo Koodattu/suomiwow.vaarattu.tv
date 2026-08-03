@@ -3382,6 +3382,20 @@ router.post("/trigger/full-history-refresh", async (_req: Request, res: Response
   }
 });
 
+// Stop an active ranking pass and restart from WCL identity recovery, reusing stored fight details.
+router.post("/trigger/full-history-refresh/restart-from-identities", async (_req: Request, res: Response) => {
+  try {
+    const result = await fullHistoryRefreshService.restartFromIdentityRecovery();
+    res.status(result.started ? 202 : 409).json({
+      success: result.started,
+      ...result,
+    });
+  } catch (error) {
+    logger.error("Error restarting full-history refresh from identity recovery:", error);
+    res.status(500).json({ error: "Failed to restart full-history refresh from identity recovery" });
+  }
+});
+
 // Queue all guilds for fight spec and death-event backfill
 router.post("/trigger/rescan-death-events", async (req: Request, res: Response) => {
   const scope = req.body?.scope === "all" ? "all" : "current";
