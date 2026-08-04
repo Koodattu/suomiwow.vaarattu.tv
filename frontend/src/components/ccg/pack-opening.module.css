@@ -2749,55 +2749,81 @@
     min-height: 2.75rem;
   }
 
+  .revealContentSummary {
+    transform: translateY(0.5rem);
+  }
+
   .cardFanScroller {
     overflow: visible;
-    padding: clamp(0.4rem, 1dvh, 0.8rem) 1rem clamp(0.5rem, 1.2dvh, 1rem);
+    padding: clamp(0.3rem, 0.8dvh, 0.65rem) 1rem clamp(0.35rem, 0.8dvh, 0.65rem);
     scroll-padding-inline: 0;
   }
 
   .cardFan {
-    --card-fan-gap: clamp(0.4rem, 1dvh, 0.75rem);
-    width: min(78vw, 70dvh, 39rem);
+    --tablet-card-width: min(29vw, calc(35.7dvh - 7.4rem), 15rem);
+    position: relative;
+    display: block;
+    width: min(100%, 75rem);
+    height: calc(min(81.2vw, calc(100dvh - 20.75rem), 42rem) + 3.75rem);
     min-width: 0;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: var(--card-fan-gap);
     translate: none;
   }
 
   .revealSlot {
-    --deal-x: 0%;
-    width: 100%;
-    grid-column: span 2;
-    justify-self: center;
+    --tablet-target-x: -50%;
+    --tablet-target-y: 0%;
+    --tablet-target-angle: 0deg;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: var(--tablet-card-width);
+  }
+
+  .revealSlot:nth-child(1) {
+    --tablet-target-x: -160%;
+  }
+
+  .revealSlot:nth-child(3) {
+    --tablet-target-x: 60%;
   }
 
   .revealSlot:nth-child(4) {
-    grid-column: 2 / span 2;
+    --tablet-target-x: -105%;
+    --tablet-target-y: calc(100% + 2rem);
   }
 
   .revealSlot:nth-child(5) {
-    grid-column: 4 / span 2;
+    --tablet-target-x: 5%;
+    --tablet-target-y: calc(100% + 2rem);
   }
 
   .revealSlotDealt {
-    transform: translateY(0) rotate(0) scale(1);
+    transform: translateX(var(--tablet-target-x)) translateY(var(--tablet-target-y)) rotate(var(--tablet-target-angle)) scale(1);
   }
 
   .revealSlotDealt:not(:disabled):hover {
-    transform: translateY(-7px) rotate(0) scale(1.02);
+    transform: translateX(var(--tablet-target-x)) translateY(calc(var(--tablet-target-y) - 7px)) rotate(calc(var(--tablet-target-angle) * 0.45)) scale(1.02);
   }
 
   .revealSlot:not(.revealSlotDealt) {
     opacity: 1;
-    transform: translateY(72px) rotate(0) scale(0.92);
+    transform: translateX(-50%) translateY(36%) rotate(0) scale(0.9);
+  }
+
+  .revealStageCycling .revealSlotDealt {
+    transform: translateX(var(--tablet-target-x)) translateY(calc(var(--tablet-target-y) - 18px)) rotate(calc(var(--tablet-target-angle) * 0.5)) scale(0.985);
+  }
+
+  .revealControls {
+    min-height: 0;
+    padding-bottom: 0.75rem;
   }
 
   .revealActionStack {
-    width: min(29rem, 100%);
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: none;
-    grid-auto-rows: minmax(2.75rem, auto);
-    gap: 0.45rem 0.65rem;
+    display: flex;
+    width: min(13rem, calc(100% - 2rem));
+    flex-direction: column;
+    gap: 0.45rem;
   }
 
   .revealActionSlot:empty,
@@ -2805,8 +2831,58 @@
     display: none;
   }
 
-  .revealStatusSlot {
+  .revealActionSlot:not(:empty) {
     min-height: 2.75rem;
+  }
+
+  .revealContentSummary .revealControls {
+    width: 100%;
+    padding-bottom: 0.6rem;
+  }
+
+  .revealContentSummary .revealActionStack {
+    display: grid;
+    width: min(26rem, calc(100% - 1.25rem));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: 2.75rem 2rem;
+    gap: 0.1rem 0.65rem;
+  }
+
+  .revealContentSummary .revealActionSlot:first-child {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .revealContentSummary .revealStatusSlot {
+    min-height: 2rem;
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .revealContentSummary .revealActionSlot:nth-child(3) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .revealContentSummary .revealActionSlot:nth-child(4) {
+    min-height: 2rem;
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .revealContentSummary .revealActionSlot:nth-child(4) > button {
+    min-height: 2rem;
+    padding-block: 0.3rem;
+  }
+
+  .revealContentSummary .revealActionSlot > button {
+    padding-inline: 0.55rem;
+    font-size: 0.72rem;
+    line-height: 1.15;
+  }
+
+  .revealContentSummary .revealCollectionProgressSlot {
+    width: 100%;
   }
 }
 
