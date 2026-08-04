@@ -162,6 +162,7 @@ export default function CcgOpenPage() {
   const mobileAutoRevealTimersRef = useRef<number[]>([]);
   const mobileRevealAllPointerActiveRef = useRef(false);
   const desktopPackActionRef = useRef<HTMLButtonElement | null>(null);
+  const skipNextDesktopCardAutofocusRef = useRef(false);
   const packRequestPendingRef = useRef(false);
   const revealedRecoveryIdRef = useRef<string | null>(null);
   const mobileCardGestureRef = useRef({
@@ -255,6 +256,7 @@ export default function CcgOpenPage() {
 
       event.preventDefault();
       if (event.repeat || !actionButton || actionButton.disabled) return;
+      if (actionButton.dataset.packAction === "open-another") skipNextDesktopCardAutofocusRef.current = true;
       actionButton.click();
     };
 
@@ -470,6 +472,10 @@ export default function CcgOpenPage() {
 
   useEffect(() => {
     if (revealPhase !== "ready" || revealedCards.size > 0) return;
+    if (skipNextDesktopCardAutofocusRef.current) {
+      skipNextDesktopCardAutofocusRef.current = false;
+      return;
+    }
     cardRefs.current[0]?.focus({ preventScroll: true });
   }, [revealPhase, revealedCards.size]);
 
@@ -540,7 +546,10 @@ export default function CcgOpenPage() {
       queryClient.invalidateQueries({ queryKey: ["ccg", "collection"] });
       queryClient.invalidateQueries({ queryKey: ["ccg", "featured"] });
     },
-    onError: () => setIsPackCycling(false),
+    onError: () => {
+      skipNextDesktopCardAutofocusRef.current = false;
+      setIsPackCycling(false);
+    },
     onSettled: () => {
       packRequestPendingRef.current = false;
     },
@@ -1025,10 +1034,16 @@ export default function CcgOpenPage() {
   };
 
   const openAnotherPack = () => {
-    if (!opening || !hasAnotherPack || mutation.isPending || isPackCycling) return;
+    if (!opening || !hasAnotherPack || mutation.isPending || isPackCycling) {
+      skipNextDesktopCardAutofocusRef.current = false;
+      return;
+    }
     const selection = { setId: opening.selection.type === "raid" ? opening.selection.setId : undefined };
     const delayMs = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 470;
-    if (!submitPackOpening(selection, delayMs)) return;
+    if (!submitPackOpening(selection, delayMs)) {
+      skipNextDesktopCardAutofocusRef.current = false;
+      return;
+    }
     setRecoveryId("");
     setActiveReveal(null);
     setIsPackCycling(true);
@@ -1486,6 +1501,7 @@ export default function CcgOpenPage() {
                       <button
                         ref={desktopPackActionRef}
                         type="button"
+                        data-pack-action="open-another"
                         className={styles.primaryButton}
                         onClick={openAnotherPack}
                         disabled={!hasAnotherPack || mutation.isPending || isPackCycling || (isDesktopRevealViewport && !isDesktopOpenAnotherReady)}
