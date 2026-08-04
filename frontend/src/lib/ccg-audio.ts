@@ -1,5 +1,5 @@
 import type { CcgArtVariant, CcgFinish, CcgTierGrade } from "@/types";
-import { CCG_RARITY_KEYS, getCcgPullQualityScore, isCcgRaidFinish } from "@/lib/ccg";
+import { CCG_RARITY_KEYS, getCcgPullQualityScore } from "@/lib/ccg";
 import { getLocale, type Locale } from "@/lib/locale";
 
 export const CCG_AUDIO_PREFERENCES_EVENT = "ccg-audio-preferences-change";
@@ -32,12 +32,24 @@ const CCG_ANNOUNCER_COMPONENT_VARIANTS: Record<Locale, readonly AnnouncerVariant
 
 const CCG_ANNOUNCER_EXCLAMATION_SCORE = 60;
 
+const CCG_ANNOUNCER_RECORDED_FINISHES = new Set<CcgFinish>([
+  "standard",
+  "foil",
+  "golden",
+  "prismatic",
+  "holographic",
+  "void",
+  "toxic",
+  "negative",
+  "astral",
+]);
+
 const CCG_ANNOUNCER_BASELINE_VOLUME: Record<Locale, number> = {
   en: 0.5,
   fi: 1,
 };
 
-const CCG_ANNOUNCER_VARIANTS: Record<Locale, Partial<Record<AnnouncerKey, readonly AnnouncerVariant[]>>> = {
+const CCG_ANNOUNCER_AVAILABILITY: Record<Locale, Partial<Record<AnnouncerKey, readonly AnnouncerVariant[]>>> = {
   en: {
     "standard-heirloom": ["a", "b"],
     "standard-artifact": ["a", "b"],
@@ -259,21 +271,6 @@ export function getCcgPlaybackVolume(channel: CcgAudioChannel, baseVolume = 1): 
   return clampVolume(baseVolume, 1) * channelBaseline * preferences.volume * channelVolume;
 }
 
-export function getCcgAnnouncerSoundSources(
-  locale: Locale,
-  finish: CcgFinish,
-  tierGrade: CcgTierGrade,
-  artVariant: CcgArtVariant = "standard",
-): string[] {
-  const rarity = CCG_RARITY_KEYS[tierGrade];
-  const quality: AnnouncerQuality = artVariant === "alternative" || isCcgRaidFinish(finish) ? "unique" : finish;
-  const key: AnnouncerKey = `${quality}-${rarity}`;
-  const variants = CCG_ANNOUNCER_VARIANTS[locale][key] ?? [];
-  const directory = quality === "standard" ? "standard-rarity-only" : quality;
-  const localePrefix = locale === "fi" ? "fi-" : "";
-  return variants.map((variant) => `/ccg/audio/announcer/${locale}/${directory}/${localePrefix}${quality}-${rarity}-${variant}.mp3`);
-}
-
 export type CcgAnnouncerSoundSequence = readonly string[];
 
 export function getCcgAnnouncerSoundSequences(
@@ -282,26 +279,27 @@ export function getCcgAnnouncerSoundSequences(
   tierGrade: CcgTierGrade,
   artVariant: CcgArtVariant = "standard",
 ): CcgAnnouncerSoundSequence[] {
-  if (artVariant === "alternative") {
-    return getCcgAnnouncerSoundSources(locale, finish, tierGrade, artVariant).map((source) => [source]);
-  }
-
   const rarity = CCG_RARITY_KEYS[tierGrade];
+  const quality: AnnouncerQuality = CCG_ANNOUNCER_RECORDED_FINISHES.has(finish) ? finish : "unique";
+  const key: AnnouncerKey = `${quality}-${rarity}`;
+  if (!CCG_ANNOUNCER_AVAILABILITY[locale][key]?.length) return [];
+
   const localePrefix = locale === "fi" ? "fi-" : "";
   const basePath = `/ccg/audio/announcer/components/${locale}`;
   const includeExclamation = getCcgPullQualityScore({ finish, card: { tierGrade } }) >= CCG_ANNOUNCER_EXCLAMATION_SCORE;
-  return CCG_ANNOUNCER_COMPONENT_VARIANTS[locale].flatMap((variant) => (
-    includeExclamation
+  return CCG_ANNOUNCER_COMPONENT_VARIANTS[locale].flatMap((variant) => {
+    const announcement = [
+      ...(artVariant === "alternative" ? [`${basePath}/qualities/${localePrefix}alternative-${variant}.mp3`] : []),
+      ...(quality === "standard" ? [] : [`${basePath}/qualities/${localePrefix}${quality}-${variant}.mp3`]),
+      `${basePath}/rarities/${localePrefix}${rarity}-${variant}.mp3`,
+    ];
+    return includeExclamation
       ? CCG_ANNOUNCER_EXCLAMATIONS.map((exclamation) => [
         `${basePath}/exclamations/${localePrefix}${exclamation}-${variant}.mp3`,
-        `${basePath}/qualities/${localePrefix}${finish}-${variant}.mp3`,
-        `${basePath}/rarities/${localePrefix}${rarity}-${variant}.mp3`,
+        ...announcement,
       ])
-      : [[
-        `${basePath}/qualities/${localePrefix}${finish}-${variant}.mp3`,
-        `${basePath}/rarities/${localePrefix}${rarity}-${variant}.mp3`,
-      ]]
-  ));
+      : [announcement];
+  });
 }
 
 type CcgSoundOptions = {
@@ -315,7 +313,10 @@ type ActiveCcgSound = {
 };
 
 const CCG_INSPECT_AUDIO_SOURCE = "/ccg/audio/inspect.mp3";
+const CCG_SEQUENCE_SILENCE_THRESHOLD = 0.005;
+const CCG_SEQUENCE_GAP_SECONDS = 0.05;
 const ccgAudioBuffers = new Map<string, Promise<AudioBuffer | null>>();
+const ccgSequenceAdvanceTimes = new WeakMap<AudioBuffer, number>();
 const activeCcgSounds = new Map<string, ActiveCcgSound>();
 let ccgAudioContext: AudioContext | null = null;
 let nextCcgSoundRequestId = 0;
@@ -345,6 +346,23 @@ function loadCcgAudioBuffer(context: AudioContext, source: string): Promise<Audi
     });
   ccgAudioBuffers.set(source, pending);
   return pending;
+}
+
+function getCcgSequenceAdvanceTime(buffer: AudioBuffer): number {
+  const cached = ccgSequenceAdvanceTimes.get(buffer);
+  if (cached !== undefined) return cached;
+
+  const channels = Array.from({ length: buffer.numberOfChannels }, (_, channel) => buffer.getChannelData(channel));
+  for (let frame = buffer.length - 1; frame >= 0; frame -= 1) {
+    if (channels.some((samples) => Math.abs(samples[frame]) >= CCG_SEQUENCE_SILENCE_THRESHOLD)) {
+      const advance = Math.min(buffer.duration, (frame + 1) / buffer.sampleRate + CCG_SEQUENCE_GAP_SECONDS);
+      ccgSequenceAdvanceTimes.set(buffer, advance);
+      return advance;
+    }
+  }
+
+  ccgSequenceAdvanceTimes.set(buffer, buffer.duration);
+  return buffer.duration;
 }
 
 export function preloadCcgSounds(sources: readonly (string | null | undefined)[]): void {
@@ -435,7 +453,7 @@ export function playCcgSoundSequence(
         playback.buffer = buffer;
         playback.connect(gain);
         playback.start(startsAt);
-        startsAt += buffer.duration;
+        startsAt += getCcgSequenceAdvanceTime(buffer);
         return playback;
       });
 

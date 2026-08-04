@@ -339,7 +339,7 @@ export default function Navigation() {
             {/* Left side: Logo and Desktop Navigation */}
             <div className="flex h-full min-w-0 flex-1 items-center gap-4 md:gap-8">
               <Link href="/" className="flex shrink-0 items-center transition-opacity hover:opacity-80">
-                <Image src="/logo.png" alt="WoW Guild Progress" width={100} height={18} className="md:w-[120px]" priority />
+                <Image src="/logo.png" alt="WoW Guild Progress" width={100} height={45} className="h-auto md:w-[120px]" priority />
               </Link>
 
               {/* Desktop Navigation Links - Hidden on mobile */}
@@ -856,7 +856,7 @@ export default function Navigation() {
           >
             {/* Menu Header */}
             <div className="flex items-center justify-between border-b border-white/10 p-4">
-              <Image src="/logo.png" alt="WoW Guild Progress" width={112} height={20} />
+              <Image src="/logo.png" alt="WoW Guild Progress" width={112} height={51} />
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-gray-300 transition-colors hover:border-blue-400/35 hover:bg-white/10 hover:text-white"

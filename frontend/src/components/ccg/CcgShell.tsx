@@ -69,7 +69,7 @@ export default function CcgShell({
                 <FaArrowLeft />
                 <span>{t("nav.backLabelBottom")}</span>
               </span>
-              <Image src="/logo.png" alt="SuomiWoW" width={112} height={20} priority />
+              <Image src="/logo.png" alt="SuomiWoW" width={112} height={51} priority />
             </Link>
             <Link href="/ccg" className={styles.shellVaultLink}>
               <Image className={styles.shellCcgLogo} src="/ccg/ccg_logo.png" alt="CCG" width={491} height={351} priority />
