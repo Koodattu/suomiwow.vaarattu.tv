@@ -7,7 +7,7 @@ import { getCharacterRenderImageUrl } from "@/lib/character-render";
 
 type AlphaBounds = {
   top: number;
-  bottom: number;
+  ground: number;
   centerX: number;
 };
 
@@ -20,6 +20,8 @@ type AlphaFittedCharacterRenderProps = {
 
 const MAX_MEASUREMENT_SIZE = 256;
 const ALPHA_THRESHOLD = 1;
+const STANCE_SCAN_HALF_WIDTH_RATIO = 0.1;
+const STANCE_GROUND_PERCENTILE = 0.85;
 const boundsCache = new Map<string, AlphaBounds>();
 
 function measureAlphaBounds(image: HTMLImageElement): AlphaBounds | null {
@@ -38,6 +40,7 @@ function measureAlphaBounds(image: HTMLImageElement): AlphaBounds | null {
   let maxY = -1;
   let alphaMass = 0;
   let weightedX = 0;
+  const horizontalAlphaMass = new Uint32Array(width);
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -47,14 +50,42 @@ function measureAlphaBounds(image: HTMLImageElement): AlphaBounds | null {
       maxY = Math.max(maxY, y);
       alphaMass += alpha;
       weightedX += (x + 0.5) * alpha;
+      horizontalAlphaMass[x] += alpha;
     }
   }
 
   if (alphaMass === 0 || maxY < minY) return null;
 
+  let accumulatedAlpha = 0;
+  let stanceCenterX = width / 2;
+  for (let x = 0; x < width; x += 1) {
+    accumulatedAlpha += horizontalAlphaMass[x];
+    if (accumulatedAlpha < alphaMass / 2) continue;
+    stanceCenterX = x + 0.5;
+    break;
+  }
+
+  // Scan beneath the character's central stance so a side-held weapon cannot
+  // make the boots appear to float above the bottom of the render window.
+  const stanceHalfWidth = Math.max(1, Math.round(width * STANCE_SCAN_HALF_WIDTH_RATIO));
+  const stanceStartX = Math.max(0, Math.floor(stanceCenterX - stanceHalfWidth));
+  const stanceEndX = Math.min(width - 1, Math.ceil(stanceCenterX + stanceHalfWidth));
+  const stanceColumnBottoms: number[] = [];
+
+  for (let x = stanceStartX; x <= stanceEndX; x += 1) {
+    for (let y = maxY; y >= minY; y -= 1) {
+      if (pixels[(y * width + x) * 4 + 3] < ALPHA_THRESHOLD) continue;
+      stanceColumnBottoms.push(y);
+      break;
+    }
+  }
+  stanceColumnBottoms.sort((a, b) => a - b);
+  const groundIndex = Math.round((stanceColumnBottoms.length - 1) * STANCE_GROUND_PERCENTILE);
+  const groundY = stanceColumnBottoms[groundIndex] ?? maxY;
+
   return {
     top: minY / height,
-    bottom: (maxY + 1) / height,
+    ground: (groundY + 1) / height,
     centerX: weightedX / alphaMass / width,
   };
 }
@@ -91,7 +122,7 @@ export default function AlphaFittedCharacterRender({ src, className, priority = 
   };
 
   const bounds = measurement?.src === src ? measurement.bounds : null;
-  const opaqueHeight = bounds ? bounds.bottom - bounds.top : 1;
+  const opaqueHeight = bounds ? bounds.ground - bounds.top : 1;
   const fitStyle = {
     "--render-fit-height": `${100 / opaqueHeight}%`,
     "--render-fit-top": `${bounds ? (-bounds.top / opaqueHeight) * 100 : 0}%`,

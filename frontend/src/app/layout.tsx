@@ -124,9 +124,15 @@ export default function RootLayout({
             </>
           )}
           <meta name="application-name" content={SITE_NAME} />
+          <meta name="mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
           <meta name="apple-mobile-web-app-title" content={SITE_NAME} />
+          <meta name="apple-mobile-web-app-status-bar-style" content="black" />
           <meta name="keywords" content={KEYWORDS} />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <meta name="theme-color" content="#1a1a2e" />
           <link rel="icon" href="/suomiwow-share.png" type="image/png" sizes="512x512" />
+          <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
           {isHomePage && (
             <script
               type="application/ld+json"
@@ -179,14 +185,17 @@ export default function RootLayout({
           </>
         )}
         <meta name="application-name" content={SITE_NAME} />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content={SITE_NAME} />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black" />
         <meta name="keywords" content={KEYWORDS} />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#1a1a2e" />
 
         {/* Favicon */}
         <link rel="icon" href="/suomiwow-share.png" type="image/png" sizes="512x512" />
-        <link rel="apple-touch-icon" href="/suomiwow-share.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
 
         {isHomePage && (
           <script
