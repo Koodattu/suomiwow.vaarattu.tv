@@ -1383,6 +1383,7 @@ export default function CcgOpenPage() {
                               renderPriority
                               className={packStyles.openedCard}
                               forcedPointer={activeReveal?.index === index ? activeReveal : undefined}
+                              effectsPaused={!revealed || (isMobileRevealViewport && !packComplete && mobileCardState !== "active")}
                             />
                           </span>
                         </span>

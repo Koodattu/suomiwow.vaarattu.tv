@@ -2008,6 +2008,10 @@
   transform: rotateY(180deg) translateZ(1px);
 }
 
+.revealSlot:not(.revealSlotRevealed) .cardFront {
+  visibility: hidden;
+}
+
 .openedCard > [data-frame="vaultSteel"] {
   max-width: none;
 }

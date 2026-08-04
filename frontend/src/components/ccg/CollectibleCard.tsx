@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { FaStar } from "react-icons/fa6";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
@@ -180,9 +180,10 @@ type CollectibleCardProps = {
   viewTransitionName?: string;
   renderPriority?: boolean;
   onReady?: () => void;
+  effectsPaused?: boolean;
 };
 
-export default function CollectibleCard({
+function CollectibleCard({
   card,
   finish = "standard",
   artVariant = "standard",
@@ -201,6 +202,7 @@ export default function CollectibleCard({
   viewTransitionName,
   renderPriority = false,
   onReady,
+  effectsPaused = false,
 }: CollectibleCardProps) {
   const t = useTranslations("ccg");
   const metamorphicFilterId = `vault-metamorphic-${useId().replace(/:/g, "")}`;
@@ -428,6 +430,7 @@ export default function CollectibleCard({
       data-ccg-card
       data-forced-hover={forcedPointer ? "true" : undefined}
       data-ambient-material={ambientMaterial ? "true" : undefined}
+      data-effects-paused={effectsPaused ? "true" : undefined}
       style={cardStyle}
       onPointerEnter={updateMaterial}
       onPointerDown={startMaterial}
@@ -573,3 +576,5 @@ export default function CollectibleCard({
     </button>
   );
 }
+
+export default memo(CollectibleCard);

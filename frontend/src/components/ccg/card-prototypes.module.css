@@ -4362,14 +4362,6 @@
   .prototypeCard.astral .astralGalaxyForeground {
     animation: prototypeAstralGalaxySpin 18s linear infinite;
   }
-  .prototypeCard.astral .astralGalaxyDust,
-  .prototypeCard.astral .astralGalaxyForegroundDust {
-    animation: prototypeAstralGalaxyDustFlow 6.8s linear infinite;
-  }
-  .prototypeCard.astral:is([data-pointer-active="true"], [data-forced-hover="true"]) .astralGalaxyDust,
-  .prototypeCard.astral:is([data-pointer-active="true"], [data-forced-hover="true"]) .astralGalaxyForegroundDust {
-    animation-play-state: paused;
-  }
   .prototypeCard.astral:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .astralGalaxyCoreGlow {
     animation: prototypeAstralGalaxyCorePulse 4.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
@@ -4508,6 +4500,15 @@
   .prototypeCard.empire:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
     animation: prototypeEmpireEyesIdle 8.4s ease-in-out -1.8s infinite;
   }
+}
+
+.prototypeCard[data-effects-paused="true"],
+.prototypeCard[data-effects-paused="true"] *,
+.prototypeCard[data-effects-paused="true"]::before,
+.prototypeCard[data-effects-paused="true"]::after,
+.prototypeCard[data-effects-paused="true"] *::before,
+.prototypeCard[data-effects-paused="true"] *::after {
+  animation-play-state: paused !important;
 }
 
 :where(.prototypeCard.holographic[data-ambient-material="true"]) .finishLayer {
@@ -4895,25 +4896,9 @@
 
 @keyframes prototypeAstralDepthIdle {
   from {
-    background-position:
-      -4px 6px,
-      11px -9px,
-      -17px -13px,
-      23px 19px,
-      center,
-      center;
-    filter: brightness(0.9) contrast(1.14) saturate(1.18);
     opacity: 0.66;
   }
   to {
-    background-position:
-      -18px 19px,
-      31px -27px,
-      -43px 37px,
-      57px 49px,
-      46% 52%,
-      54% 47%;
-    filter: brightness(1.02) contrast(1.18) saturate(1.3);
     opacity: 0.78;
   }
 }
@@ -4927,34 +4912,23 @@
   }
 }
 
-@keyframes prototypeAstralGalaxyDustFlow {
-  from {
-    stroke-dashoffset: 0;
-  }
-  to {
-    stroke-dashoffset: -1;
-  }
-}
-
 @keyframes prototypeAstralGalaxyCorePulse {
   from {
-    filter: blur(3px) brightness(0.92) drop-shadow(0 0 4px rgba(204, 107, 255, 0.64));
     opacity: 0.72;
+    transform: scale(0.94);
   }
   to {
-    filter: blur(3.8px) brightness(1.24) drop-shadow(0 0 7px rgba(204, 107, 255, 0.88));
     opacity: 1;
+    transform: scale(1.08);
   }
 }
 
 @keyframes prototypeAstralCoreIdle {
   from {
-    filter: brightness(0.96) contrast(1.18) saturate(1.18);
     opacity: 0.48;
     transform: scale(1.04);
   }
   to {
-    filter: brightness(1.24) contrast(1.24) saturate(1.3);
     opacity: 0.76;
     transform: scale(1.16);
   }
@@ -4962,45 +4936,19 @@
 
 @keyframes prototypeAstralVeilIdle {
   from {
-    background-position:
-      center,
-      42% 45%,
-      38% 56%,
-      63% 44%;
-    filter: brightness(0.86) contrast(1.2) saturate(1.28);
     opacity: 0.44;
   }
   to {
-    background-position:
-      center,
-      58% 56%,
-      59% 42%,
-      41% 58%;
-    filter: brightness(1) contrast(1.24) saturate(1.42);
     opacity: 0.56;
   }
 }
 
 @keyframes prototypeAstralFrontDrift {
   from {
-    background-position:
-      7px -5px,
-      -13px 11px,
-      19px 17px,
-      -29px -23px,
-      37px -31px,
-      -47px 41px;
     opacity: 0.74;
     transform: scale(1);
   }
   to {
-    background-position:
-      31px 27px,
-      -47px 39px,
-      59px -37px,
-      -73px 53px,
-      89px 67px,
-      -107px -79px;
     opacity: 0.9;
     transform: scale(1.012);
   }
@@ -5008,22 +4956,12 @@
 
 @keyframes prototypeAstralFlareIdle {
   from {
-    background-position:
-      8px -7px,
-      -11px 9px,
-      13px 11px,
-      43% 46%;
-    filter: brightness(0.92) contrast(1.14) saturate(1.2);
     opacity: 0.5;
+    transform: scale(1);
   }
   to {
-    background-position:
-      27px 23px,
-      -33px 29px,
-      39px -31px,
-      58% 54%;
-    filter: brightness(1.08) contrast(1.2) saturate(1.34);
     opacity: 0.66;
+    transform: scale(1.008);
   }
 }
 
