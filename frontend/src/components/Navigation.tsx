@@ -30,25 +30,32 @@ const HORSE_RACE_MODE_OPTIONS: Array<{ mode: HorseRaceMode; labelKey: "horseRace
 ];
 
 const NAVIGATION_LINKS = [
-  { href: "/", labelKey: "progressLeaderboard" },
-  { href: "/guilds", labelKey: "allGuilds" },
-  { href: "/characters", labelKey: "characterRankings" },
-  { href: "/tierlists", labelKey: "tierLists" },
-  { href: "/analytics", labelKey: "raidAnalytics" },
-  { href: "/timetable", labelKey: "raidTimetable" },
-  { href: "/livestreams", labelKey: "livestreams" },
-  { href: "/events", labelKey: "latestEvents" },
-  { href: "/pickems", labelKey: "pickems" },
-  { href: "/ccg", labelKey: "ccg" },
+  { href: "/", labelKey: "progressLeaderboard", compactVisibilityClass: "flex", overflowVisibilityClass: "hidden" },
+  { href: "/guilds", labelKey: "allGuilds", compactVisibilityClass: "flex", overflowVisibilityClass: "hidden" },
+  { href: "/characters", labelKey: "characterRankings", compactVisibilityClass: "flex", overflowVisibilityClass: "hidden" },
+  { href: "/tierlists", labelKey: "tierLists", compactVisibilityClass: "hidden min-[1120px]:flex", overflowVisibilityClass: "min-[1120px]:hidden" },
+  { href: "/analytics", labelKey: "raidAnalytics", compactVisibilityClass: "flex", overflowVisibilityClass: "hidden" },
+  { href: "/timetable", labelKey: "raidTimetable", compactVisibilityClass: "hidden min-[1360px]:flex", overflowVisibilityClass: "min-[1360px]:hidden" },
+  { href: "/livestreams", labelKey: "livestreams", compactVisibilityClass: "hidden min-[1460px]:flex", overflowVisibilityClass: "min-[1460px]:hidden" },
+  { href: "/events", labelKey: "latestEvents", compactVisibilityClass: "hidden", overflowVisibilityClass: "block" },
+  { href: "/pickems", labelKey: "pickems", compactVisibilityClass: "hidden min-[1200px]:flex", overflowVisibilityClass: "min-[1200px]:hidden" },
+  { href: "/ccg", labelKey: "ccg", compactVisibilityClass: "hidden min-[1280px]:flex", overflowVisibilityClass: "min-[1280px]:hidden" },
 ] as const;
 
-const getDesktopNavLinkClass = (isCurrent: boolean, previousIsCurrent: boolean, nextIsCurrent: boolean) =>
-  `flex h-full min-w-24 flex-1 cursor-pointer items-center justify-center whitespace-nowrap border-x border-b-2 px-2 text-center text-sm font-medium transition-[background-color,color] ${
+const getDesktopNavLinkClass = (isCurrent: boolean, previousIsCurrent: boolean, nextIsCurrent: boolean, compact = false) =>
+  `flex h-full flex-1 cursor-pointer items-center justify-center whitespace-nowrap border-x border-b-2 text-center font-medium transition-[background-color,color] ${
+    compact ? "min-w-0 overflow-hidden text-ellipsis px-1.5 text-xs xl:px-2 xl:text-sm" : "min-w-[5.75rem] px-1.5 text-sm"
+  } ${
     isCurrent
       ? "border-x-transparent border-b-blue-400 bg-blue-600/35 text-white"
       : `border-b-transparent text-gray-400 hover:bg-gray-800/80 hover:text-white ${previousIsCurrent ? "border-l-transparent" : "border-l-gray-700/80"} ${
           nextIsCurrent ? "border-r-transparent" : "border-r-gray-700/80"
         }`
+  }`;
+
+const getOverflowNavLinkClass = (isCurrent: boolean) =>
+  `flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded px-3 py-2.5 text-sm font-medium transition-[background-color,color] ${
+    isCurrent ? "bg-blue-600/25 text-blue-100" : "text-gray-300 hover:bg-white/10 hover:text-white"
   }`;
 
 const getMobileNavLinkClass = (isCurrent: boolean) =>
@@ -136,6 +143,7 @@ export default function Navigation() {
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false);
   const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false);
+  const [isNavOverflowOpen, setIsNavOverflowOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentLocale, setCurrentLocale] = useState<Locale>("en");
   const [searchQuery, setSearchQuery] = useState("");
@@ -148,6 +156,7 @@ export default function Navigation() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
   const languageDropdownRef = useRef<HTMLDivElement>(null);
+  const navOverflowRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const selectedEventTypeSet = new Set(selectedEventTypes);
   const selectedDifficultySet = new Set(selectedDifficulties);
@@ -172,6 +181,7 @@ export default function Navigation() {
     setIsSearchDropdownOpen(false);
     setIsSettingsDropdownOpen(false);
     setIsLanguageDropdownOpen(false);
+    setIsNavOverflowOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -253,19 +263,22 @@ export default function Navigation() {
       if (languageDropdownRef.current && !languageDropdownRef.current.contains(event.target as Node)) {
         setIsLanguageDropdownOpen(false);
       }
+      if (navOverflowRef.current && !navOverflowRef.current.contains(event.target as Node)) {
+        setIsNavOverflowOpen(false);
+      }
       if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
         setIsMobileMenuOpen(false);
       }
     };
 
-    if (isContactDropdownOpen || isUserDropdownOpen || isSearchDropdownOpen || isSettingsDropdownOpen || isLanguageDropdownOpen || isMobileMenuOpen) {
+    if (isContactDropdownOpen || isUserDropdownOpen || isSearchDropdownOpen || isSettingsDropdownOpen || isLanguageDropdownOpen || isNavOverflowOpen || isMobileMenuOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isContactDropdownOpen, isSearchDropdownOpen, isSettingsDropdownOpen, isLanguageDropdownOpen, isUserDropdownOpen, isMobileMenuOpen]);
+  }, [isContactDropdownOpen, isSearchDropdownOpen, isSettingsDropdownOpen, isLanguageDropdownOpen, isNavOverflowOpen, isUserDropdownOpen, isMobileMenuOpen]);
 
   const isActive = (path: string) => {
     if (path === "/") {
@@ -273,6 +286,8 @@ export default function Navigation() {
     }
     return pathname.startsWith(path);
   };
+
+  const activeOverflowLink = NAVIGATION_LINKS.find((link) => link.overflowVisibilityClass !== "hidden" && isActive(link.href));
 
   const handleLanguageChange = (newLocale: Locale) => {
     setLocale(newLocale);
@@ -328,7 +343,7 @@ export default function Navigation() {
               </Link>
 
               {/* Desktop Navigation Links - Hidden on mobile */}
-              <div className="hidden h-full min-w-0 flex-1 lg:block">
+              <div className="hidden h-full min-w-0 flex-1 min-[1560px]:block">
                 <div className="flex h-full max-w-full items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {NAVIGATION_LINKS.map((link, index) => {
                     const isCurrent = isActive(link.href);
@@ -341,6 +356,74 @@ export default function Navigation() {
                       </Link>
                     );
                   })}
+                </div>
+              </div>
+
+              <div className="hidden h-full min-w-0 flex-1 items-stretch lg:max-[1560px]:flex">
+                {NAVIGATION_LINKS.map((link) => {
+                  const isCurrent = isActive(link.href);
+
+                  return (
+                    <div key={link.href} className={`h-full min-w-0 flex-1 ${link.compactVisibilityClass}`}>
+                      <Link href={link.href} className={getDesktopNavLinkClass(isCurrent, false, false, true)}>
+                        {t(link.labelKey)}
+                      </Link>
+                    </div>
+                  );
+                })}
+
+                <div ref={navOverflowRef} className="relative h-full w-12 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsNavOverflowOpen((isOpen) => !isOpen)}
+                    className={`relative isolate flex h-full w-full cursor-pointer items-center justify-center border-x border-b-2 transition-[background-color,color] ${
+                      isNavOverflowOpen
+                        ? "border-x-transparent border-b-blue-400 bg-blue-600/35 text-white"
+                        : "border-b-transparent border-l-gray-700/80 border-r-gray-700/80 text-gray-400 hover:bg-gray-800/80 hover:text-white"
+                    }`}
+                    title={t("more")}
+                    aria-label={t("more")}
+                    aria-haspopup="menu"
+                    aria-expanded={isNavOverflowOpen}
+                    aria-controls="nav-overflow-menu"
+                  >
+                    {!isNavOverflowOpen && activeOverflowLink && (
+                      <span
+                        className={`pointer-events-none absolute inset-0 z-0 border-b-2 border-blue-400 bg-blue-600/35 ${activeOverflowLink.overflowVisibilityClass}`}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className={`relative z-10 h-5 w-5 transition-transform duration-150 ease-out ${isNavOverflowOpen ? "rotate-180" : ""}`}
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5.293 7.293a1 1 0 0 1 1.414 0L10 10.586l3.293-3.293a1 1 0 1 1 1.414 1.414l-4 4a1 1 0 0 1-1.414 0l-4-4a1 1 0 0 1 0-1.414Z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+
+                  {isNavOverflowOpen && (
+                    <div id="nav-overflow-menu" role="menu" className="absolute right-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-md bg-gray-950/95 p-1 shadow-2xl shadow-black/50 ring-1 ring-white/10">
+                      {NAVIGATION_LINKS.map((link) => {
+                        const isCurrent = isActive(link.href);
+
+                        return (
+                          <div key={link.href} role="none" className={link.overflowVisibilityClass}>
+                            <Link href={link.href} role="menuitem" onClick={() => setIsNavOverflowOpen(false)} className={getOverflowNavLinkClass(isCurrent)}>
+                              {t(link.labelKey)}
+                              {isCurrent && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300" aria-hidden="true" />}
+                            </Link>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -2736,40 +2736,77 @@
   }
 }
 
-@media (max-width: 1250px) {
-  .cardFanScroller {
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-inline: max(1rem, calc((100vw - 76vw) / 2));
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
+@media (min-width: 761px) and (max-width: 1250px) {
+  .revealStage {
+    min-height: 0;
   }
 
-  .cardFanScroller::-webkit-scrollbar {
-    display: none;
+  .revealContent {
+    padding: 0.35rem 0 0.65rem;
+  }
+
+  .revealLead {
+    min-height: 2.75rem;
+  }
+
+  .cardFanScroller {
+    overflow: visible;
+    padding: clamp(0.4rem, 1dvh, 0.8rem) 1rem clamp(0.5rem, 1.2dvh, 1rem);
+    scroll-padding-inline: 0;
   }
 
   .cardFan {
-    width: max-content;
+    --card-fan-gap: clamp(0.4rem, 1dvh, 0.75rem);
+    width: min(78vw, 70dvh, 39rem);
     min-width: 0;
-    grid-template-columns: repeat(5, minmax(18rem, 68vw));
-    gap: 1rem;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: var(--card-fan-gap);
+    translate: none;
   }
 
-  .revealSlot,
-  .revealSlotDealt,
-  .revealSlotDealt:not(:disabled):hover {
+  .revealSlot {
     --deal-x: 0%;
+    width: 100%;
+    grid-column: span 2;
+    justify-self: center;
+  }
+
+  .revealSlot:nth-child(4) {
+    grid-column: 2 / span 2;
+  }
+
+  .revealSlot:nth-child(5) {
+    grid-column: 4 / span 2;
+  }
+
+  .revealSlotDealt {
     transform: translateY(0) rotate(0) scale(1);
+  }
+
+  .revealSlotDealt:not(:disabled):hover {
+    transform: translateY(-7px) rotate(0) scale(1.02);
   }
 
   .revealSlot:not(.revealSlotDealt) {
     opacity: 1;
-    transform: translateY(96px) rotate(0) scale(0.92);
+    transform: translateY(72px) rotate(0) scale(0.92);
   }
 
-  .revealSlot {
-    scroll-snap-align: center;
+  .revealActionStack {
+    width: min(29rem, 100%);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-rows: minmax(2.75rem, auto);
+    gap: 0.45rem 0.65rem;
+  }
+
+  .revealActionSlot:empty,
+  .revealCollectionProgressSlot:empty {
+    display: none;
+  }
+
+  .revealStatusSlot {
+    min-height: 2.75rem;
   }
 }
 

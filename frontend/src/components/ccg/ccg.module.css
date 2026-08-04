@@ -1041,6 +1041,31 @@
 }
 
 @media (min-width: 761px) and (max-width: 1120px) {
+  .shellHeaderInner {
+    gap: 0.5rem;
+  }
+
+  .shellNav {
+    flex-wrap: nowrap;
+    gap: 0.3rem;
+  }
+
+  .shellNav .subnavLink {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    padding-inline: 0.55rem;
+  }
+
+  .shellNav .subnavLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   .accountName {
     display: none;
   }
