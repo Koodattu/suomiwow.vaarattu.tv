@@ -842,7 +842,11 @@
   left: -25%;
   display: block;
   width: 150%;
-  height: auto;
+  aspect-ratio: 1;
+  background-image: url("/ccg/effects/astral-galaxy-background.webp");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
   overflow: visible;
   filter: brightness(1.08) contrast(1.18) saturate(1.4) drop-shadow(0 0 11px rgba(113, 114, 255, 0.4));
   mix-blend-mode: screen;
@@ -855,74 +859,6 @@
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.astralGalaxyDisc,
-.astralGalaxyClouds,
-.astralGalaxyWisps,
-.astralGalaxyDust,
-.astralGalaxyCoreGlow,
-.astralGalaxyCore {
-  transform-box: fill-box;
-  transform-origin: center;
-  transition-property: opacity, filter, transform;
-  transition-duration: 220ms;
-  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.astralGalaxyClouds path,
-.astralGalaxyWisps path,
-.astralGalaxyDust path {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.astralGalaxyDisc {
-  filter: blur(2.6px) drop-shadow(0 0 8px rgba(121, 107, 255, 0.38));
-  opacity: 0.7;
-}
-
-.astralGalaxyClouds {
-  filter: blur(0.8px) drop-shadow(0 0 4px rgba(149, 106, 255, 0.58));
-  opacity: 0.94;
-}
-
-.astralGalaxyClouds path {
-  stroke-width: 20;
-}
-
-.astralGalaxyWisps {
-  filter: blur(1.2px) drop-shadow(0 0 2.8px rgba(186, 143, 255, 0.64));
-  opacity: 0.64;
-}
-
-.astralGalaxyWisps path {
-  stroke-dasharray: 0.08 0.035 0.16 0.055;
-  stroke-width: 8;
-}
-
-.astralGalaxyDust {
-  filter: drop-shadow(0 0 1.8px rgba(255, 255, 255, 0.86));
-  opacity: 0.88;
-}
-
-.astralGalaxyDust path {
-  stroke: rgba(244, 253, 255, 0.96);
-  stroke-dasharray: 0.003 0.011 0.006 0.026 0.002 0.019;
-  stroke-width: 1.7;
-}
-
-.astralGalaxyCoreGlow {
-  fill: rgba(171, 216, 255, 0.66);
-  filter: blur(3.4px) drop-shadow(0 0 5px rgba(204, 107, 255, 0.74));
-  opacity: 0.9;
-}
-
-.astralGalaxyCore {
-  fill: rgba(255, 255, 255, 0.98);
-  filter: drop-shadow(0 0 3px rgba(117, 231, 255, 0.96)) drop-shadow(0 0 7px rgba(209, 106, 255, 0.74));
-}
-
 .astralGalaxyForeground {
   position: absolute;
   z-index: 6;
@@ -930,7 +866,11 @@
   left: -25%;
   display: block;
   width: 150%;
-  height: auto;
+  aspect-ratio: 1;
+  background-image: url("/ccg/effects/astral-galaxy-foreground.webp");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
   overflow: visible;
   mix-blend-mode: screen;
   opacity: 0.44;
@@ -941,44 +881,6 @@
   transition-property: opacity, transform;
   transition-duration: 240ms;
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.astralGalaxyForegroundHalo,
-.astralGalaxyForegroundDust {
-  transition-property: opacity, filter;
-  transition-duration: 220ms;
-  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.astralGalaxyForegroundHalo path,
-.astralGalaxyForegroundDust path {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.astralGalaxyForegroundHalo {
-  filter: blur(6px) brightness(1.08) drop-shadow(0 0 6px rgba(186, 112, 255, 0.58));
-  opacity: 0.62;
-}
-
-.astralGalaxyForegroundHalo path {
-  stroke: rgba(139, 185, 255, 0.7);
-  stroke-dasharray: 0.028 0.04 0.014 0.09;
-  stroke-dashoffset: 0.03;
-  stroke-width: 22;
-}
-
-.astralGalaxyForegroundDust {
-  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.9));
-  opacity: 0.94;
-}
-
-.astralGalaxyForegroundDust path {
-  stroke: rgba(249, 254, 255, 0.98);
-  stroke-dasharray: 0.003 0.009 0.006 0.024 0.002 0.017;
-  stroke-width: 1.8;
 }
 
 .astralDepth::before,
@@ -3799,34 +3701,9 @@
   opacity: 1;
   transform: scale(1.2);
 }
-.prototypeCard.astral:is([data-pointer-active="true"], [data-forced-hover="true"]) .astralGalaxyDisc {
-  opacity: 0.9;
-}
-.prototypeCard.astral:is([data-pointer-active="true"], [data-forced-hover="true"]) .astralGalaxyClouds {
-  opacity: 1;
-}
-.prototypeCard.astral:is([data-pointer-active="true"], [data-forced-hover="true"]) .astralGalaxyWisps {
-  opacity: 0.82;
-}
-.prototypeCard.astral:is([data-pointer-active="true"], [data-forced-hover="true"]) .astralGalaxyDust {
-  opacity: 1;
-}
-.prototypeCard.astral:is([data-pointer-active="true"], [data-forced-hover="true"]) .astralGalaxyCoreGlow {
-  opacity: 1;
-  transform: scale(1.42);
-}
-.prototypeCard.astral:is([data-pointer-active="true"], [data-forced-hover="true"]) .astralGalaxyCore {
-  transform: scale(1.28);
-}
 .prototypeCard.astral:is([data-pointer-active="true"], [data-forced-hover="true"]) .astralGalaxyForeground {
   opacity: 0.82;
   transform: scale(1.2);
-}
-.prototypeCard.astral:is([data-pointer-active="true"], [data-forced-hover="true"]) .astralGalaxyForegroundHalo {
-  opacity: 0.86;
-}
-.prototypeCard.astral:is([data-pointer-active="true"], [data-forced-hover="true"]) .astralGalaxyForegroundDust {
-  opacity: 1;
 }
 .prototypeCard.radiant:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.8 + var(--pointer-distance) * 0.14);
@@ -4365,9 +4242,6 @@
   .prototypeCard.astral .astralGalaxy,
   .prototypeCard.astral .astralGalaxyForeground {
     animation: prototypeAstralGalaxySpin 18s linear infinite;
-  }
-  .prototypeCard.astral:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .astralGalaxyCoreGlow {
-    animation: prototypeAstralGalaxyCorePulse 4.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
   .prototypeCard.astral:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .astralDepth::after {
     animation: prototypeAstralCoreIdle 5.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
@@ -4910,17 +4784,6 @@
   }
   to {
     rotate: 1turn;
-  }
-}
-
-@keyframes prototypeAstralGalaxyCorePulse {
-  from {
-    opacity: 0.72;
-    transform: scale(0.94);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1.08);
   }
 }
 
@@ -6821,15 +6684,7 @@
   .astralDepth::before,
   .astralDepth::after,
   .astralGalaxy,
-  .astralGalaxyDisc,
-  .astralGalaxyClouds,
-  .astralGalaxyWisps,
-  .astralGalaxyDust,
-  .astralGalaxyCoreGlow,
-  .astralGalaxyCore,
   .astralGalaxyForeground,
-  .astralGalaxyForegroundHalo,
-  .astralGalaxyForegroundDust,
   .prototypeCard[data-raid-preview-finish="true"] .frameGeometry {
     transition-duration: 1ms;
   }
@@ -6848,10 +6703,7 @@
   .astralDepth::before,
   .astralDepth::after,
   .astralGalaxy,
-  .astralGalaxyDust,
-  .astralGalaxyCoreGlow,
   .astralGalaxyForeground,
-  .astralGalaxyForegroundDust,
   .qualityLabel,
   .statsPanel {
     animation: none;
