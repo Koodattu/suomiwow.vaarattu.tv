@@ -464,7 +464,13 @@ function CollectibleCard({
             onLoadedData={() => markReady("render")}
           />
         ) : renderUrl ? (
-          <AlphaFittedCharacterRender src={renderUrl} className={styles.renderImage} priority={renderPriority} onReady={() => markReady("render")} />
+          <AlphaFittedCharacterRender
+            src={renderUrl}
+            className={styles.renderImage}
+            fitMode={alternativeActive ? "silhouette" : "stance"}
+            priority={renderPriority}
+            onReady={() => markReady("render")}
+          />
         ) : null}
       </span>
       {finish === "astral" ? (

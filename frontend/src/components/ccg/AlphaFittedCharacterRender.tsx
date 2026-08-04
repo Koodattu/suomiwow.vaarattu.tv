@@ -11,9 +11,12 @@ type AlphaBounds = {
   centerX: number;
 };
 
+type AlphaFitMode = "silhouette" | "stance";
+
 type AlphaFittedCharacterRenderProps = {
   src: string;
   className?: string;
+  fitMode?: AlphaFitMode;
   priority?: boolean;
   onReady?: () => void;
 };
@@ -24,7 +27,7 @@ const STANCE_SCAN_HALF_WIDTH_RATIO = 0.1;
 const STANCE_GROUND_PERCENTILE = 0.85;
 const boundsCache = new Map<string, AlphaBounds>();
 
-function measureAlphaBounds(image: HTMLImageElement): AlphaBounds | null {
+function measureAlphaBounds(image: HTMLImageElement, fitMode: AlphaFitMode): AlphaBounds | null {
   const scale = Math.min(1, MAX_MEASUREMENT_SIZE / Math.max(image.naturalWidth, image.naturalHeight));
   const width = Math.max(1, Math.round(image.naturalWidth * scale));
   const height = Math.max(1, Math.round(image.naturalHeight * scale));
@@ -55,6 +58,14 @@ function measureAlphaBounds(image: HTMLImageElement): AlphaBounds | null {
   }
 
   if (alphaMass === 0 || maxY < minY) return null;
+
+  if (fitMode === "silhouette") {
+    return {
+      top: minY / height,
+      ground: (maxY + 1) / height,
+      centerX: weightedX / alphaMass / width,
+    };
+  }
 
   let accumulatedAlpha = 0;
   let stanceCenterX = width / 2;
@@ -90,38 +101,39 @@ function measureAlphaBounds(image: HTMLImageElement): AlphaBounds | null {
   };
 }
 
-export default function AlphaFittedCharacterRender({ src, className, priority = false, onReady }: AlphaFittedCharacterRenderProps) {
+export default function AlphaFittedCharacterRender({ src, className, fitMode = "stance", priority = false, onReady }: AlphaFittedCharacterRenderProps) {
   const imageSrc = useMemo(() => getCharacterRenderImageUrl(src), [src]);
-  const [measurement, setMeasurement] = useState<{ src: string; bounds: AlphaBounds } | null>(() => {
-    const bounds = boundsCache.get(src);
-    return bounds ? { src, bounds } : null;
+  const cacheKey = `${fitMode}:${src}`;
+  const [measurement, setMeasurement] = useState<{ key: string; bounds: AlphaBounds } | null>(() => {
+    const bounds = boundsCache.get(cacheKey);
+    return bounds ? { key: cacheKey, bounds } : null;
   });
 
   useEffect(() => {
-    const bounds = boundsCache.get(src);
-    setMeasurement(bounds ? { src, bounds } : null);
-  }, [src]);
+    const bounds = boundsCache.get(cacheKey);
+    setMeasurement(bounds ? { key: cacheKey, bounds } : null);
+  }, [cacheKey]);
 
   const onLoad = (event: SyntheticEvent<HTMLImageElement>) => {
-    const cached = boundsCache.get(src);
+    const cached = boundsCache.get(cacheKey);
     if (cached) {
-      setMeasurement({ src, bounds: cached });
+      setMeasurement({ key: cacheKey, bounds: cached });
       onReady?.();
       return;
     }
 
     try {
-      const bounds = measureAlphaBounds(event.currentTarget);
+      const bounds = measureAlphaBounds(event.currentTarget, fitMode);
       if (!bounds) return;
-      boundsCache.set(src, bounds);
-      setMeasurement({ src, bounds });
+      boundsCache.set(cacheKey, bounds);
+      setMeasurement({ key: cacheKey, bounds });
       onReady?.();
     } catch {
       // Leave the render hidden when its pixels cannot be inspected safely.
     }
   };
 
-  const bounds = measurement?.src === src ? measurement.bounds : null;
+  const bounds = measurement?.key === cacheKey ? measurement.bounds : null;
   const opaqueHeight = bounds ? bounds.ground - bounds.top : 1;
   const fitStyle = {
     "--render-fit-height": `${100 / opaqueHeight}%`,
@@ -131,7 +143,7 @@ export default function AlphaFittedCharacterRender({ src, className, priority = 
 
   return (
     <Image
-      key={imageSrc}
+      key={cacheKey}
       src={imageSrc}
       alt=""
       fill
