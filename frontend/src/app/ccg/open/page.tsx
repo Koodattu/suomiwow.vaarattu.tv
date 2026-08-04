@@ -47,7 +47,9 @@ const dealOffsets = [
 ];
 const ALL_RAIDS = "all";
 const MOBILE_REVEAL_BREAKPOINT = "(max-width: 760px)";
+const DESKTOP_REVEAL_BREAKPOINT = "(min-width: 1251px)";
 const MOBILE_SUMMARY_DELAY_MS = 300;
+const DESKTOP_ACTION_READY_DELAY_MS = 780;
 const HOVER_SOUND = "/ccg/audio/hover.mp3";
 const FADE_OUT_SOUND = "/ccg/audio/fade_out.mp3";
 const SHUFFLE_SOUND = "/ccg/audio/shuffle.mp3";
@@ -132,6 +134,8 @@ export default function CcgOpenPage() {
   const [mobileAdvancedCards, setMobileAdvancedCards] = useState<Set<number>>(() => new Set());
   const [mobileSummaryVisible, setMobileSummaryVisible] = useState(false);
   const [isMobileRevealViewport, setIsMobileRevealViewport] = useState(false);
+  const [isDesktopRevealViewport, setIsDesktopRevealViewport] = useState(false);
+  const [isDesktopOpenAnotherReady, setIsDesktopOpenAnotherReady] = useState(false);
   const [isMobileRevealAllHolding, setIsMobileRevealAllHolding] = useState(false);
   const [isMobileAutoRevealing, setIsMobileAutoRevealing] = useState(false);
   const [activeReveal, setActiveReveal] = useState<{ index: number; x: number; y: number } | null>(null);
@@ -157,6 +161,7 @@ export default function CcgOpenPage() {
   const mobileRevealAllHoldTimerRef = useRef<number | null>(null);
   const mobileAutoRevealTimersRef = useRef<number[]>([]);
   const mobileRevealAllPointerActiveRef = useRef(false);
+  const desktopPackActionRef = useRef<HTMLButtonElement | null>(null);
   const packRequestPendingRef = useRef(false);
   const revealedRecoveryIdRef = useRef<string | null>(null);
   const mobileCardGestureRef = useRef({
@@ -214,10 +219,47 @@ export default function CcgOpenPage() {
 
   useEffect(() => {
     const mobileViewport = window.matchMedia(MOBILE_REVEAL_BREAKPOINT);
-    const updateMobileViewport = () => setIsMobileRevealViewport(mobileViewport.matches);
-    updateMobileViewport();
-    mobileViewport.addEventListener("change", updateMobileViewport);
-    return () => mobileViewport.removeEventListener("change", updateMobileViewport);
+    const desktopViewport = window.matchMedia(DESKTOP_REVEAL_BREAKPOINT);
+    const updateRevealViewports = () => {
+      setIsMobileRevealViewport(mobileViewport.matches);
+      setIsDesktopRevealViewport(desktopViewport.matches);
+    };
+    updateRevealViewports();
+    mobileViewport.addEventListener("change", updateRevealViewports);
+    desktopViewport.addEventListener("change", updateRevealViewports);
+    return () => {
+      mobileViewport.removeEventListener("change", updateRevealViewports);
+      desktopViewport.removeEventListener("change", updateRevealViewports);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleDesktopPackShortcut = (event: KeyboardEvent) => {
+      if (
+        (event.code !== "Space" && event.key !== " ")
+        || event.isComposing
+        || event.altKey
+        || event.ctrlKey
+        || event.metaKey
+        || event.shiftKey
+        || !window.matchMedia(DESKTOP_REVEAL_BREAKPOINT).matches
+      ) return;
+
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const focusedControl = target.closest("a, button, input, select, textarea, [contenteditable='true'], [role='button'], [role='link']");
+      const actionButton = desktopPackActionRef.current;
+      const isRevealCard = focusedControl?.classList.contains(packStyles.revealSlot) ?? false;
+      if (focusedControl && focusedControl !== actionButton && !isRevealCard) return;
+
+      event.preventDefault();
+      if (event.repeat || !actionButton || actionButton.disabled) return;
+      actionButton.click();
+    };
+
+    window.addEventListener("keydown", handleDesktopPackShortcut);
+    return () => window.removeEventListener("keydown", handleDesktopPackShortcut);
   }, []);
 
   const clearMobileRevealAllTimers = () => {
@@ -559,6 +601,17 @@ export default function CcgOpenPage() {
 
   const allRevealed = Boolean(opening) && revealedCards.size >= (opening?.results.length ?? 0);
   const packComplete = allRevealed && (!isMobileRevealViewport || mobileSummaryVisible);
+
+  useEffect(() => {
+    if (!packComplete || !isDesktopRevealViewport) {
+      setIsDesktopOpenAnotherReady(false);
+      return;
+    }
+
+    const readyTimer = window.setTimeout(() => setIsDesktopOpenAnotherReady(true), DESKTOP_ACTION_READY_DELAY_MS);
+    return () => window.clearTimeout(readyTimer);
+  }, [isDesktopRevealViewport, opening?.id, packComplete]);
+
   const mobileActiveCardIndex = opening
     ? opening.results.findIndex((_, index) => !mobileAdvancedCards.has(index))
     : -1;
@@ -1410,6 +1463,15 @@ export default function CcgOpenPage() {
               </div>
 
               <div className={packStyles.revealControls}>
+                {!packComplete || (hasAnotherPack && !shouldPromptGuestLogin) ? (
+                  <span className={packStyles.revealShortcutHint}>
+                    <span className="sr-only">
+                      {t("open.spaceShortcut", { action: packComplete ? t("open.openAnother") : t("open.revealAll") })}
+                    </span>
+                    <kbd className={packStyles.revealShortcutKey} aria-hidden="true" />
+                    <span aria-hidden="true">{t("open.pressSpaceTo")}</span>
+                  </span>
+                ) : null}
                 <div className={packStyles.revealActionStack}>
                   <div className={packStyles.revealActionSlot}>
                     {packComplete && shouldPromptGuestLogin ? (
@@ -1422,10 +1484,11 @@ export default function CcgOpenPage() {
                       </button>
                     ) : packComplete ? (
                       <button
+                        ref={desktopPackActionRef}
                         type="button"
                         className={styles.primaryButton}
                         onClick={openAnotherPack}
-                        disabled={!hasAnotherPack || mutation.isPending || isPackCycling}
+                        disabled={!hasAnotherPack || mutation.isPending || isPackCycling || (isDesktopRevealViewport && !isDesktopOpenAnotherReady)}
                       >
                         {mutation.isPending || isPackCycling ? t("open.opening") : hasAnotherPack ? t("open.openAnother") : nextPackLabel}
                       </button>
@@ -1446,6 +1509,7 @@ export default function CcgOpenPage() {
                   <div className={packStyles.revealActionSlot}>
                     {!allRevealed || (isMobileRevealViewport && isMobileAutoRevealing) ? (
                       <button
+                        ref={desktopPackActionRef}
                         type="button"
                         className={`${styles.secondaryButton} ${packStyles.revealAllButton}`}
                         data-holding={isMobileRevealAllHolding ? "true" : undefined}

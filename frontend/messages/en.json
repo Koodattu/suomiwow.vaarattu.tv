@@ -444,6 +444,8 @@
       "viewCard": "View {name}",
       "advanceCard": "Continue from {name} to the next card",
       "revealAll": "Reveal all",
+      "pressSpaceTo": "Press space to",
+      "spaceShortcut": "Press Space to {action}",
       "holdToRevealAll": "Hold to reveal all",
       "closeOpening": "Close pack opening",
       "allRevealed": "Pack complete",
