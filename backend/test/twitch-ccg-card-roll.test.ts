@@ -26,14 +26,21 @@ test("Twitch card rolls use all raid pools and the linked user's finish state", 
   };
   let selectedTarget: unknown;
   let includedCommunity: boolean | undefined;
+  let includedMissingCardAlternatives: boolean | undefined;
   let qualitySaved = false;
 
   try {
-    service.selectPackResults = async (_session: unknown, targetSetId: unknown, includeCommunity: boolean) => {
+    service.selectPackResults = async (
+      _session: unknown,
+      targetSetId: unknown,
+      includeCommunity: boolean,
+      includeMissingCardAlternatives: boolean,
+    ) => {
       selectedTarget = targetSetId;
       includedCommunity = includeCommunity;
+      includedMissingCardAlternatives = includeMissingCardAlternatives;
       return {
-        results: [{ cardId, setId, tierGrade: "A" }],
+        results: [{ cardId, setId, tierGrade: "A", missingCardAlternative: null }],
         sourceSetIds: [setId],
         version: "all:test",
       };
@@ -83,6 +90,7 @@ test("Twitch card rolls use all raid pools and the linked user's finish state", 
 
     assert.equal(selectedTarget, null);
     assert.equal(includedCommunity, false);
+    assert.equal(includedMissingCardAlternatives, false);
     assert.equal(award.finish, "holographic");
     assert.equal(qualitySaved, true);
   } finally {

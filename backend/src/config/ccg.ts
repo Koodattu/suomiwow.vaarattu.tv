@@ -43,13 +43,14 @@ export const CCG_LEADERBOARD_REFRESH_INTERVAL_SECONDS = 15 * 60;
 export const CCG_CARDS_PER_PACK = 5;
 export const CCG_BASIS_POINT_SCALE = 10_000;
 export const CCG_COMMUNITY_CARD_CHANCE_BPS = 100;
+export const CCG_MISSING_CARD_NUDGE_BPS = 500;
 export const CCG_PACK_STORAGE_CAP = 100;
 export const CCG_PACK_RECHARGE_INTERVAL_MINUTES = 20;
 export const CCG_INITIAL_PACKS = { user: 40, guest: 40 } as const;
 export const CCG_PACK_BALANCE_VERSION = 4;
 export const CCG_GUEST_COOKIE = "swccg_guest";
 export const CCG_GUEST_COOKIE_MAX_AGE_MS = 400 * 24 * 60 * 60 * 1000;
-export const CCG_PACK_RULE_VERSION = "pack-v16-global-astral";
+export const CCG_PACK_RULE_VERSION = "pack-v17-random-five-missing-nudge";
 export const CCG_GRADING_VERSION = "grade-v2-rarity-ladder";
 export const CCG_ELIGIBILITY_VERSION = "complete-scores-mythic-reports-v3";
 export const CCG_THEME_VERSION = "vault-v1";
@@ -86,7 +87,6 @@ export const CCG_ENABLE_MIN_MEDIA_COVERAGE = ratio(process.env.CCG_ENABLE_MIN_ME
 
 export const CCG_REGULAR_TIER_GRADES: readonly CcgRegularTierGrade[] = ["S", "A", "B", "C", "D", "E", "F"];
 export const CCG_TIER_GRADES: readonly CcgTierGrade[] = ["H", ...CCG_REGULAR_TIER_GRADES];
-export const CCG_A_OR_BETTER_GRADES = new Set<CcgRegularTierGrade>(["S", "A"]);
 
 export const CCG_WEIGHTED_GRADE_ODDS: Readonly<Record<CcgRegularTierGrade, number>> = {
   S: 30,
@@ -96,16 +96,6 @@ export const CCG_WEIGHTED_GRADE_ODDS: Readonly<Record<CcgRegularTierGrade, numbe
   D: 220,
   E: 180,
   F: 150,
-};
-
-export const CCG_GUARANTEED_GRADE_ODDS: Readonly<Record<CcgRegularTierGrade, number>> = {
-  S: 60,
-  A: 140,
-  B: 0,
-  C: 0,
-  D: 0,
-  E: 0,
-  F: 0,
 };
 
 export const CCG_BASE_FINISH_ORDER: readonly CcgBaseFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative", "astral"];

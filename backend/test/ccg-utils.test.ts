@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  CCG_A_OR_BETTER_GRADES,
   CCG_COMMUNITY_SET,
   CCG_CONFIGURED_SETS,
   CCG_FINISH_ORDER,
   CCG_FINISH_PITY_LIMITS,
   CCG_INITIAL_PACKS,
+  CCG_MISSING_CARD_NUDGE_BPS,
   CCG_PACK_STORAGE_CAP,
   CCG_RAID_FINISHES,
   CCG_REGULAR_TIER_GRADES,
@@ -42,7 +42,13 @@ import {
   rollOwnedFinish,
   rollProtectedFinish,
 } from "../src/utils/ccg-random";
-import { planPackSelections, selectCommunityCard, selectPackCards, shufflePackResults } from "../src/utils/ccg-pack";
+import {
+  planPackSelections,
+  resolveMissingCardNudge,
+  selectCommunityCardCandidates,
+  selectPackCards,
+  shufflePackResults,
+} from "../src/utils/ccg-pack";
 import { createWowCharacterIdentityKey } from "../src/utils/ccg-identity";
 import { getTransferableGuestPacks, resolveGuestClaimOpeningId, verifyGuestLibrary } from "../src/utils/ccg-guest-library";
 import { getCcgSnapshotPreviewDisposition, nextCcgCardSnapshotVersion, shouldPublishCcgCardSnapshot, summarizeCcgSnapshotPreview } from "../src/utils/ccg-card-snapshot";
@@ -421,25 +427,26 @@ test("quality protection stays flat until late soft pity and then accelerates", 
   assert.equal(result.pity.golden, 10);
 });
 
-test("every selected pack has five cards and an A-or-better guaranteed slot", () => {
+test("every selected pack has five independent weighted rarity rolls", () => {
   const grades = ["S", "A", "B", "C", "D", "E", "F"] as const;
   const buckets = grades.map((grade, index) => ({ grade, cardIds: [`card-${index}`] }));
   const selected = selectPackCards(buckets, (maximum) => maximum - 1);
   assert.equal(selected.length, 5);
-  assert.equal(CCG_A_OR_BETTER_GRADES.has(selected[4].tierGrade), true);
-  assert.equal(selected[0].tierGrade, "F");
+  assert.equal(selected.every((card) => card.tierGrade === "F"), true);
 });
 
 test("pack results are shuffled without changing the rolled results", () => {
-  const results = ["first", "second", "third", "fourth", "guaranteed"];
+  const results = ["first", "second", "third", "fourth", "fifth"];
   const shuffled = shufflePackResults(results, () => 0);
 
-  assert.deepEqual(results, ["first", "second", "third", "fourth", "guaranteed"]);
-  assert.deepEqual(shuffled, ["second", "third", "fourth", "guaranteed", "first"]);
+  assert.deepEqual(results, ["first", "second", "third", "fourth", "fifth"]);
+  assert.deepEqual(shuffled, ["second", "third", "fourth", "fifth", "first"]);
 });
 
-test("a pack cannot be produced when no A-or-better card exists", () => {
-  assert.throws(() => selectPackCards([{ grade: "F", cardIds: ["only-card"] }], () => 0), /no eligible cards/);
+test("a pack can be produced when only a lower-rarity card exists", () => {
+  const selected = selectPackCards([{ grade: "F", cardIds: ["only-card"] }], () => 0);
+  assert.equal(selected.length, 5);
+  assert.equal(selected.every((card) => card.cardId === "only-card" && card.tierGrade === "F"), true);
 });
 
 test("first-time pack grants distinguish guest and authenticated storage", () => {
@@ -582,6 +589,7 @@ test("a mode-wide pack plan can draw cards from multiple raid pools", () => {
       { poolId: "pool-b", setId: "raid-b", version: "1", counts: [{ grade: "A", count: 3 }] },
     ],
     (maximum) => values[cursor++] % maximum,
+    false,
   );
   assert.equal(plan.length, 5);
   assert.equal(plan.every((row) => row.tierGrade === "A"), true);
@@ -595,14 +603,76 @@ test("a targeted pack plan stays inside its selected raid pool", () => {
   );
   assert.equal(plan.length, 5);
   assert.equal(plan.every((row) => row.poolId === "pool-a" && row.setId === "raid-a"), true);
+  assert.equal(plan.every((row) => row.missingCardAlternative?.poolId === "pool-a"), true);
+  assert.equal(plan.every((row) => row.missingCardAlternative?.tierGrade === row.tierGrade), true);
+});
+
+test("pack plans create same-rarity missing-card alternatives on the five-percent roll", () => {
+  assert.equal(CCG_MISSING_CARD_NUDGE_BPS, 500);
+  let nudgeRoll = 0;
+  const plan = planPackSelections(
+    [{ poolId: "pool-a", setId: "raid-a", version: "1", counts: [{ grade: "A", count: 2 }] }],
+    (maximum) => {
+      if (maximum === 10_000) return nudgeRoll++ === 0 ? 499 : 500;
+      return maximum - 1;
+    },
+  );
+
+  assert.equal(plan[0].missingCardAlternative?.tierGrade, plan[0].tierGrade);
+  assert.equal(plan[0].missingCardAlternative?.bucketOffset, 1);
+  assert.equal(plan.slice(1).every((row) => row.missingCardAlternative === null), true);
+});
+
+test("the missing-card nudge only replaces an owned primary with a missing alternative", () => {
+  const owned = new Set(["owned", "also-owned"]);
+  const isOwned = (card: { series: string }) => owned.has(card.series);
+  const primary = { series: "owned" };
+  const missing = { series: "missing" };
+
+  assert.equal(resolveMissingCardNudge(primary, missing, isOwned), missing);
+  assert.equal(resolveMissingCardNudge(missing, primary, isOwned), missing);
+  assert.equal(resolveMissingCardNudge(primary, { series: "also-owned" }, isOwned), primary);
+  assert.equal(resolveMissingCardNudge(primary, null, isOwned), primary);
+});
+
+test("the missing-card nudge treats earlier cards in the same pack as owned", () => {
+  const owned = new Set(["owned"]);
+  const isOwned = (card: { series: string }) => owned.has(card.series);
+  const first = resolveMissingCardNudge({ series: "owned" }, { series: "first-new" }, isOwned);
+  owned.add(first.series);
+  const second = resolveMissingCardNudge({ series: "first-new" }, { series: "second-new" }, isOwned);
+
+  assert.equal(first.series, "first-new");
+  assert.equal(second.series, "second-new");
 });
 
 test("each card has a fixed one-percent chance to become a random Community card", () => {
-  assert.equal(selectCommunityCard([], () => { throw new Error("unexpected roll"); }), null);
-  assert.equal(selectCommunityCard(["community"], () => 100), null);
+  const communityCards = [
+    { id: "heirloom", tierGrade: "H" as const },
+    { id: "meme", tierGrade: "H" as const },
+  ];
+  assert.equal(selectCommunityCardCandidates([], () => { throw new Error("unexpected roll"); }), null);
+  assert.equal(selectCommunityCardCandidates(communityCards, () => 100), null);
 
-  const acceptedRolls = [99, 1];
-  assert.equal(selectCommunityCard(["heirloom", "meme"], () => acceptedRolls.shift()!), "meme");
+  const acceptedRolls = [99, 1, 500];
+  assert.deepEqual(selectCommunityCardCandidates(communityCards, () => acceptedRolls.shift()!), {
+    primary: communityCards[1],
+    missingCardAlternative: null,
+  });
+});
+
+test("Community missing-card alternatives preserve the primary rarity", () => {
+  const communityCards = [
+    { id: "first-a", tierGrade: "A" as const },
+    { id: "only-b", tierGrade: "B" as const },
+    { id: "second-a", tierGrade: "A" as const },
+  ];
+  const acceptedRolls = [0, 0, 499, 1];
+  const selected = selectCommunityCardCandidates(communityCards, () => acceptedRolls.shift()!);
+
+  assert.equal(selected?.primary.id, "first-a");
+  assert.equal(selected?.missingCardAlternative?.id, "second-a");
+  assert.equal(selected?.missingCardAlternative?.tierGrade, selected?.primary.tierGrade);
 });
 
 test("Heirloom stays outside regular raid-card pack odds", () => {

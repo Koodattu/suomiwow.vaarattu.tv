@@ -77,7 +77,13 @@ import {
 } from "../utils/ccg-alternative-art";
 import { CcgFinishPity, emptyFinishPity, rollArtVariant, rollOwnedFinish } from "../utils/ccg-random";
 import { createCcgShareShortId, resolveCcgShareLookup } from "../utils/ccg-share-id";
-import { planPackSelections, selectCommunityCard, shufflePackResults } from "../utils/ccg-pack";
+import {
+  planPackSelections,
+  resolveMissingCardNudge,
+  selectCommunityCardCandidates,
+  shufflePackResults,
+  type CcgPackCardPlan,
+} from "../utils/ccg-pack";
 import { resolveCollectorKey } from "../utils/ccg-identity";
 import { getTransferableGuestPacks, resolveGuestClaimOpeningId, verifyGuestLibrary } from "../utils/ccg-guest-library";
 import { getCcgLeaderboardScoringRules } from "../utils/ccg-leaderboard";
@@ -305,6 +311,16 @@ type CcgOwner = {
   ownerType: CcgOwnerType;
   ownerId: mongoose.Types.ObjectId;
   dateKey: string;
+};
+
+type CcgPackCardCandidate = {
+  cardId: mongoose.Types.ObjectId;
+  setId: mongoose.Types.ObjectId;
+  tierGrade: CcgTierGrade;
+};
+
+type CcgPackCardSelection = CcgPackCardCandidate & {
+  missingCardAlternative: CcgPackCardCandidate | null;
 };
 
 type SelectedResult = {
@@ -2294,7 +2310,7 @@ class CcgService {
     userId?: mongoose.Types.ObjectId,
   ): Promise<CcgExternalCardAward> {
     requireFeature();
-    const pool = await this.selectPackResults(session, null, false);
+    const pool = await this.selectPackResults(session, null, false, false);
     const selected = pool.results[0];
     if (!selected) throw new CcgServiceError(409, "pool_invalid", "The raid card pool is incomplete");
 
@@ -2912,9 +2928,13 @@ class CcgService {
         }
         const allowanceSource = await this.reservePack(owner, session);
         const pool = await this.selectPackResults(session, targetSetId);
-        const selected = pool.results;
-        const cards = await CcgCard.find({
-          _id: { $in: selected.map((result) => result.cardId) },
+        const candidateSelections = pool.results;
+        const candidateIds = candidateSelections.flatMap((result) => [
+          result.cardId,
+          ...(result.missingCardAlternative ? [result.missingCardAlternative.cardId] : []),
+        ]);
+        const candidateCards = await CcgCard.find({
+          _id: { $in: candidateIds },
           setId: { $in: pool.sourceSetIds },
         }).session(session).lean();
         const sourceSets = await CcgSet.find({ _id: { $in: pool.sourceSetIds } })
@@ -2922,9 +2942,42 @@ class CcgService {
           .session(session)
           .lean();
         const setById = new Map(sourceSets.map((set) => [String(set._id), set]));
+        const candidateCardById = new Map(candidateCards.map((card) => [String(card._id), card]));
+        if (candidateCardById.size === 0) throw new CcgServiceError(409, "pool_unavailable", "This card set has no available cards");
+        const candidateSeriesPairs = Array.from(new Map(candidateCards.map((card) => [getSeriesKey(card), {
+          setId: card.setId,
+          characterId: card.characterId,
+        }])).values());
+        const seriesOwnershipRows = await CcgSeriesOwnership.find({
+          ownerType: owner.ownerType,
+          ownerId: owner.ownerId,
+          $or: candidateSeriesPairs,
+        }).select("setId characterId unlockedSnapshotVersions").session(session).lean();
+        const ownedSnapshotVersionsBySeries = new Map(
+          seriesOwnershipRows.map((row) => [getSeriesKey(row), new Set(row.unlockedSnapshotVersions)]),
+        );
+        const alreadyOwnedSeriesKeys = new Set(ownedSnapshotVersionsBySeries.keys());
+        const selectionOwnedSeriesKeys = new Set(alreadyOwnedSeriesKeys);
+        const selected = candidateSelections.map((selection) => {
+          const primary = candidateCardById.get(String(selection.cardId));
+          if (!primary) throw new CcgServiceError(409, "pool_invalid", "The pack pool changed while this pack was opening");
+          const missingCardAlternative = selection.missingCardAlternative
+            ? candidateCardById.get(String(selection.missingCardAlternative.cardId)) ?? null
+            : null;
+          const card = resolveMissingCardNudge(
+            primary,
+            missingCardAlternative,
+            (candidate) => selectionOwnedSeriesKeys.has(getSeriesKey(candidate)),
+          );
+          selectionOwnedSeriesKeys.add(getSeriesKey(card));
+          return { cardId: card._id, setId: card.setId, tierGrade: card.tierGrade };
+        });
+        const cards = selected.flatMap((result) => {
+          const card = candidateCardById.get(String(result.cardId));
+          return card ? [card] : [];
+        });
+        if (cards.length !== CCG_CARDS_PER_PACK) throw new CcgServiceError(409, "pool_invalid", "The pack pool is incomplete");
         const cardById = new Map(cards.map((card) => [String(card._id), card]));
-        if (cardById.size === 0) throw new CcgServiceError(409, "pool_unavailable", "This card set has no available cards");
-        const alternativeByCollector = await this.loadAlternativeArt(cards, session);
         const seriesPairs = Array.from(new Map(cards.map((card) => [getSeriesKey(card), {
           setId: card.setId,
           characterId: card.characterId,
@@ -2934,11 +2987,6 @@ class CcgService {
           ownerId: owner.ownerId,
           $or: seriesPairs,
         }).session(session).lean();
-        const seriesOwnershipRows = await CcgSeriesOwnership.find({
-          ownerType: owner.ownerType,
-          ownerId: owner.ownerId,
-          $or: seriesPairs,
-        }).select("setId characterId unlockedSnapshotVersions").session(session).lean();
         const ownedFinishesBySeries = new Map<string, Set<CcgFinish>>();
         for (const row of ownershipRows) {
           const seriesKey = getSeriesKey(row);
@@ -2946,10 +2994,7 @@ class CcgService {
           finishes.add(row.finish);
           ownedFinishesBySeries.set(seriesKey, finishes);
         }
-        const ownedSnapshotVersionsBySeries = new Map(
-          seriesOwnershipRows.map((row) => [getSeriesKey(row), new Set(row.unlockedSnapshotVersions)]),
-        );
-        const alreadyOwnedSeriesKeys = new Set(ownedSnapshotVersionsBySeries.keys());
+        const alternativeByCollector = await this.loadAlternativeArt(cards, session);
         const qualityProgress = await this.ensureQualityProgress(owner, session);
         let pity = this.readFinishPity(qualityProgress);
         const results: SelectedResult[] = [];
@@ -4110,8 +4155,9 @@ class CcgService {
     session: ClientSession,
     targetSetId: mongoose.Types.ObjectId | null = null,
     includeCommunity = true,
+    includeMissingCardAlternatives = true,
   ): Promise<{
-    results: Array<{ cardId: mongoose.Types.ObjectId; setId: mongoose.Types.ObjectId; tierGrade: CcgTierGrade }>;
+    results: CcgPackCardSelection[];
     sourceSetIds: mongoose.Types.ObjectId[];
     version: string;
   }> {
@@ -4170,9 +4216,15 @@ class CcgService {
         version: pool.version,
         counts: pool.counts,
       })),
+      randomInt,
+      includeMissingCardAlternatives,
     );
-    const selectedPoolIds = Array.from(new Set(plan.map((row) => row.poolId))).map((id) => new mongoose.Types.ObjectId(id));
-    const selectedGrades = Array.from(new Set(plan.map((row) => row.tierGrade)));
+    const plannedCards = plan.flatMap((row) => [
+      row,
+      ...(row.missingCardAlternative ? [row.missingCardAlternative] : []),
+    ]);
+    const selectedPoolIds = Array.from(new Set(plannedCards.map((row) => row.poolId))).map((id) => new mongoose.Types.ObjectId(id));
+    const selectedGrades = Array.from(new Set(plannedCards.map((row) => row.tierGrade)));
     const bucketRows = await CcgPackPool.aggregate<{
       _id: mongoose.Types.ObjectId;
       buckets: Array<{ grade: CcgTierGrade; cardIds: mongoose.Types.ObjectId[] }>;
@@ -4194,11 +4246,18 @@ class CcgService {
     for (const row of bucketRows) {
       for (const bucket of row.buckets) cardsByBucket.set(`${row._id}:${bucket.grade}`, bucket.cardIds);
     }
-    const baseResults = plan.map((row) => {
+    const resolvePlan = (row: CcgPackCardPlan): CcgPackCardCandidate => {
       const cardIds = cardsByBucket.get(`${row.poolId}:${row.tierGrade}`);
       const cardId = cardIds?.[row.bucketOffset];
       if (!cardId) throw new CcgServiceError(409, "pool_invalid", "The pack pool changed while this pack was opening");
       return { cardId, setId: new mongoose.Types.ObjectId(row.setId), tierGrade: row.tierGrade };
+    };
+    const baseResults = plan.map((row): CcgPackCardSelection => {
+      const primary = resolvePlan(row);
+      return {
+        ...primary,
+        missingCardAlternative: row.missingCardAlternative ? resolvePlan(row.missingCardAlternative) : null,
+      };
     });
     const communitySet = includeCommunity
       ? await CcgSet.findOne({ kind: "community", enabledAt: { $ne: null }, cardCount: { $gt: 0 } })
@@ -4215,13 +4274,21 @@ class CcgService {
         tierGrade: bucket.grade as CcgTierGrade,
       }))
     ));
-    const results = baseResults.map((base) => {
-      const communityCard = selectCommunityCard(communityCards, randomInt);
-      if (communitySet && communityCard) {
+    const results = baseResults.map((base): CcgPackCardSelection => {
+      const communitySelection = selectCommunityCardCandidates(communityCards, randomInt, includeMissingCardAlternatives);
+      if (communitySet && communitySelection) {
+        const primary = communitySelection.primary;
         return {
-          cardId: communityCard.cardId,
+          cardId: primary.cardId,
           setId: communitySet._id,
-          tierGrade: communityCard.tierGrade,
+          tierGrade: primary.tierGrade,
+          missingCardAlternative: communitySelection.missingCardAlternative
+            ? {
+                cardId: communitySelection.missingCardAlternative.cardId,
+                setId: communitySet._id,
+                tierGrade: communitySelection.missingCardAlternative.tierGrade,
+              }
+            : null,
         };
       }
       return base;
