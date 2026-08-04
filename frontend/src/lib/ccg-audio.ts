@@ -8,9 +8,27 @@ export const CCG_AUDIO_PREFERENCES_KEY = "suomiwow-ccg-audio-v1";
 
 export type CcgAudioChannel = "effects" | "announcer" | "quips";
 
-type AnnouncerVariant = "a" | "b" | "c";
+type AnnouncerVariant = "a" | "b" | "c" | "d";
 type AnnouncerQuality = CcgFinish | "unique";
 type AnnouncerKey = `${AnnouncerQuality}-${(typeof CCG_RARITY_KEYS)[CcgTierGrade]}`;
+
+const CCG_ANNOUNCER_EXCLAMATIONS = [
+  "amazing",
+  "holy",
+  "impossible",
+  "incredible",
+  "nice",
+  "no-way",
+  "oh",
+  "unbelievable",
+  "whoa",
+  "wow",
+] as const;
+
+const CCG_ANNOUNCER_COMPONENT_VARIANTS: Record<Locale, readonly AnnouncerVariant[]> = {
+  en: ["a", "b", "c", "d"],
+  fi: ["a", "b"],
+};
 
 const CCG_ANNOUNCER_BASELINE_VOLUME: Record<Locale, number> = {
   en: 0.5,
@@ -254,6 +272,30 @@ export function getCcgAnnouncerSoundSources(
   return variants.map((variant) => `/ccg/audio/announcer/${locale}/${directory}/${localePrefix}${quality}-${rarity}-${variant}.mp3`);
 }
 
+export type CcgAnnouncerSoundSequence = readonly string[];
+
+export function getCcgAnnouncerSoundSequences(
+  locale: Locale,
+  finish: CcgFinish,
+  tierGrade: CcgTierGrade,
+  artVariant: CcgArtVariant = "standard",
+): CcgAnnouncerSoundSequence[] {
+  if (artVariant === "alternative") {
+    return getCcgAnnouncerSoundSources(locale, finish, tierGrade, artVariant).map((source) => [source]);
+  }
+
+  const rarity = CCG_RARITY_KEYS[tierGrade];
+  const localePrefix = locale === "fi" ? "fi-" : "";
+  const basePath = `/ccg/audio/announcer/components/${locale}`;
+  return CCG_ANNOUNCER_COMPONENT_VARIANTS[locale].flatMap((variant) => (
+    CCG_ANNOUNCER_EXCLAMATIONS.map((exclamation) => [
+      `${basePath}/exclamations/${localePrefix}${exclamation}-${variant}.mp3`,
+      `${basePath}/qualities/${localePrefix}${finish}-${variant}.mp3`,
+      `${basePath}/rarities/${localePrefix}${rarity}-${variant}.mp3`,
+    ])
+  ));
+}
+
 type CcgSoundOptions = {
   playbackRate?: number;
   interruptKey?: string;
@@ -353,6 +395,47 @@ export function playCcgSound(
     }, { once: true });
     playback.start();
   });
+  return true;
+}
+
+export function playCcgSoundSequence(
+  sources: CcgAnnouncerSoundSequence,
+  channel: CcgAudioChannel,
+  baseVolume = 1,
+): boolean {
+  if (sources.length === 0) return false;
+  const volume = getCcgPlaybackVolume(channel, baseVolume);
+  if (volume <= 0) return false;
+  const context = getCcgAudioContext();
+  if (!context) return false;
+
+  const resumed = context.state === "suspended"
+    ? context.resume().catch(() => undefined)
+    : Promise.resolve();
+  void Promise.all([Promise.all(sources.map((source) => loadCcgAudioBuffer(context, source))), resumed])
+    .then(([buffers]) => {
+      const available = buffers.filter((buffer): buffer is AudioBuffer => Boolean(buffer));
+      if (available.length === 0 || context.state !== "running") return;
+
+      const gain = context.createGain();
+      gain.gain.value = volume;
+      gain.connect(context.destination);
+
+      let startsAt = context.currentTime;
+      const playbacks = available.map((buffer) => {
+        const playback = context.createBufferSource();
+        playback.buffer = buffer;
+        playback.connect(gain);
+        playback.start(startsAt);
+        startsAt += buffer.duration;
+        return playback;
+      });
+
+      playbacks.at(-1)?.addEventListener("ended", () => {
+        playbacks.forEach((playback) => playback.disconnect());
+        gain.disconnect();
+      }, { once: true });
+    });
   return true;
 }
 

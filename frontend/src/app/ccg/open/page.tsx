@@ -9,9 +9,10 @@ import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { CCG_BASE_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS, compareCcgPullQuality } from "@/lib/ccg";
 import {
-  getCcgAnnouncerSoundSources,
+  getCcgAnnouncerSoundSequences,
   getCcgPlaybackVolume,
   playCcgSound,
+  playCcgSoundSequence,
   preloadCcgSounds,
   resumeCcgAudio,
   type CcgAudioChannel,
@@ -357,7 +358,7 @@ export default function CcgOpenPage() {
       return [
         qualitySource,
         result.card.quip?.audioPath,
-        ...getCcgAnnouncerSoundSources(locale, result.finish, result.card.tierGrade, result.artVariant),
+        ...getCcgAnnouncerSoundSequences(locale, result.finish, result.card.tierGrade, result.artVariant).flat(),
       ];
     }));
   }, [locale, opening]);
@@ -669,12 +670,12 @@ export default function CcgOpenPage() {
   const playAnnouncerAfterFlip = (index: number) => {
     const result = opening?.results[index];
     const available = result
-      ? getCcgAnnouncerSoundSources(locale, result.finish, result.card.tierGrade, result.artVariant)
+      ? getCcgAnnouncerSoundSequences(locale, result.finish, result.card.tierGrade, result.artVariant)
       : [];
     if (available.length === 0) return;
     const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 360;
     const timer = window.setTimeout(
-      () => playSound(available[randomIndex(available.length)], "announcer", 0.78),
+      () => playCcgSoundSequence(available[randomIndex(available.length)], "announcer", 0.78),
       delay,
     );
     announcerSoundTimersRef.current.push(timer);
@@ -732,7 +733,7 @@ export default function CcgOpenPage() {
       result.card.quip?.audioPath
         ? getCcgPlaybackVolume("quips", 0.9) > 0
         : getCcgPlaybackVolume("announcer", 0.78) > 0
-          && getCcgAnnouncerSoundSources(locale, result.finish, result.card.tierGrade, result.artVariant).length > 0
+          && getCcgAnnouncerSoundSequences(locale, result.finish, result.card.tierGrade, result.artVariant).length > 0
     ));
     if (voiceResult?.result.card.quip?.audioPath) playQuipAfterFlip(voiceResult.index);
     else if (voiceResult) playAnnouncerAfterFlip(voiceResult.index);

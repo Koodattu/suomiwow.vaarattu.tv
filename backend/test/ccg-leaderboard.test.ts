@@ -122,6 +122,7 @@ test("record boards rank every collector and expose only positive top-three resu
     leaderboardFind: CcgLeaderboardEntry.find,
     setFind: CcgSet.find,
   };
+  let finishSetSort: Record<string, number> | null = null;
   const firstCollectedAt = new Date("2026-01-01T00:00:00.000Z");
   const calculatedAt = new Date("2026-08-04T12:00:00.000Z");
   const candidate = (
@@ -132,6 +133,8 @@ test("record boards rank every collector and expose only positive top-three resu
     completedSets: number,
     negative: number,
     astral: number,
+    toxic: number,
+    voidFinish: number,
     relic: number,
   ) => ({
     userId: new mongoose.Types.ObjectId(),
@@ -141,7 +144,7 @@ test("record boards rank every collector and expose only positive top-three resu
     cardsOwned,
     finishesOwned,
     completedSets,
-    finishCounts: { negative, astral, relic },
+    finishCounts: { negative, astral, toxic, void: voidFinish, relic },
     firstCollectedAt,
     calculatedAt,
   });
@@ -151,33 +154,42 @@ test("record boards rank every collector and expose only positive top-three resu
     (CcgLeaderboardEntry as any).find = () => ({
       select() { return this; },
       lean: async () => [
-        candidate("Fourth", 9000, 10, 10, 0, 1, 0, 0),
-        candidate("First", 5000, 40, 55, 2, 7, 1, 3),
-        candidate("Second", 7000, 30, 50, 2, 7, 0, 2),
-        candidate("Third", 6000, 20, 45, 1, 4, 0, 1),
+        candidate("Fourth", 9000, 10, 10, 0, 1, 0, 0, 0, 0),
+        candidate("First", 5000, 40, 55, 2, 7, 1, 3, 5, 3),
+        candidate("Second", 7000, 30, 50, 2, 7, 0, 2, 4, 2),
+        candidate("Third", 6000, 20, 45, 1, 4, 0, 1, 3, 1),
       ],
     });
     (CcgSet as any).find = () => ({
       select() { return this; },
-      sort() { return this; },
-      lean: async () => [{ raidName: "Highmaul", customFinish: { key: "relic" } }],
+      sort(value: Record<string, number>) { finishSetSort = value; return this; },
+      lean: async () => [
+        { raidName: "March on Quel'Danas", customFinish: { key: "void" } },
+        { raidName: "Highmaul", customFinish: { key: "relic" } },
+      ],
     });
 
     const records = await ccgLeaderboardService.listRecords();
     assert.equal(records.calculatedAt?.toISOString(), calculatedAt.toISOString());
+    assert.deepEqual(finishSetSort, { zoneId: -1 });
     assert.deepEqual(records.boards.map((board) => board.key), [
       "uniqueCards",
       "finishes",
       "completedSets",
       "finish:negative",
       "finish:astral",
+      "finish:toxic",
+      "finish:void",
       "finish:relic",
     ]);
     assert.deepEqual(records.boards[0].entries.map((entry) => entry.username), ["First", "Second", "Third"]);
     assert.deepEqual(records.boards[3].entries.map((entry) => entry.username), ["Second", "First", "Third"]);
     assert.deepEqual(records.boards[4].entries.map((entry) => entry.username), ["First"]);
-    assert.equal(records.boards[5].kind, "finish");
-    if (records.boards[5].kind === "finish") assert.equal(records.boards[5].raidName, "Highmaul");
+    assert.deepEqual(records.boards[5].entries.map((entry) => entry.username), ["First", "Second", "Third"]);
+    assert.equal(records.boards[6].kind, "finish");
+    if (records.boards[6].kind === "finish") assert.equal(records.boards[6].raidName, "March on Quel'Danas");
+    assert.equal(records.boards[7].kind, "finish");
+    if (records.boards[7].kind === "finish") assert.equal(records.boards[7].raidName, "Highmaul");
   } finally {
     service.ensureInitialized = originals.ensureInitialized;
     (CcgLeaderboardEntry as any).find = originals.leaderboardFind;

@@ -203,7 +203,7 @@ class CcgLeaderboardService {
         "customFinish.key": { $exists: true },
       })
         .select("raidName customFinish zoneId")
-        .sort({ zoneId: 1 })
+        .sort({ zoneId: -1 })
         .lean<Array<{ raidName: string; customFinish?: { key?: CcgCustomFinish | null } | null }>>(),
     ]);
     const calculatedAt = candidates.reduce<Date | null>((latest, candidate) => (
@@ -228,7 +228,7 @@ class CcgLeaderboardService {
         metric: "completedSets",
         entries: topRecordEntries(candidates, (candidate) => candidate.completedSets),
       },
-      ...(["negative", "astral"] as const).map<CcgLeaderboardRecordBoard>((finish) => ({
+      ...(["negative", "astral", "toxic"] as const).map<CcgLeaderboardRecordBoard>((finish) => ({
         key: `finish:${finish}`,
         kind: "finish",
         finish,
@@ -236,7 +236,7 @@ class CcgLeaderboardService {
         entries: topRecordEntries(candidates, (candidate) => candidate.finishCounts?.[finish] ?? 0),
       })),
     ];
-    const seenFinishes = new Set<CcgFinish>(["negative", "astral"]);
+    const seenFinishes = new Set<CcgFinish>(["negative", "astral", "toxic"]);
     for (const set of finishSets) {
       const finish = set.customFinish?.key;
       if (!finish || seenFinishes.has(finish)) continue;
