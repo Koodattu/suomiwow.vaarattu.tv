@@ -2300,6 +2300,37 @@ export type CcgLeaderboardMeResponse = {
   showcase: CcgLeaderboardShowcaseCard[];
 };
 
+export type CcgLeaderboardRecordMetric = "uniqueCards" | "finishes" | "completedSets";
+
+export type CcgLeaderboardRecordEntry = {
+  rank: number;
+  username: string;
+  avatarUrl: string;
+  value: number;
+};
+
+export type CcgLeaderboardRecordBoard =
+  | {
+      key: CcgLeaderboardRecordMetric;
+      kind: "metric";
+      metric: CcgLeaderboardRecordMetric;
+      entries: CcgLeaderboardRecordEntry[];
+    }
+  | {
+      key: `finish:${CcgFinish}`;
+      kind: "finish";
+      finish: CcgFinish;
+      raidName: string | null;
+      entries: CcgLeaderboardRecordEntry[];
+    };
+
+export type CcgLeaderboardRecordsResponse = {
+  scoreVersion: string;
+  calculatedAt: string | null;
+  refreshIntervalSeconds: number;
+  boards: CcgLeaderboardRecordBoard[];
+};
+
 export type CcgShowcaseCardInput = Pick<CcgLeaderboardShowcaseCard, "finish" | "artVariant"> & {
   cardId: string;
 };

@@ -229,11 +229,35 @@ export function CcgLeaderboardLoadingSkeleton({ label }: { label?: string }) {
   );
 }
 
+export function CcgLeaderboardRecordsLoadingSkeleton({ label }: { label?: string }) {
+  return (
+    <div className={styles.leaderboardRecordsGrid} aria-label={label}>
+      {Array.from({ length: 9 }, (_, index) => (
+        <div className={`${styles.leaderboardRecordCard} ${styles.leaderboardRecordSkeleton}`} key={index}>
+          <div className={styles.leaderboardRecordSkeletonHeader} />
+          {Array.from({ length: 3 }, (_, rowIndex) => (
+            <div className={styles.leaderboardRecordSkeletonRow} key={rowIndex} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function LeaderboardContentSkeleton() {
   return (
     <div className={styles.leaderboardPage} aria-hidden="true">
       <span className={`${styles.initialSkeletonBlock} ${styles.leaderboardHero}`} />
       <CcgLeaderboardLoadingSkeleton />
+    </div>
+  );
+}
+
+function LeaderboardRecordsContentSkeleton() {
+  return (
+    <div className={styles.leaderboardPage} aria-hidden="true">
+      <span className={`${styles.initialSkeletonBlock} ${styles.leaderboardHero}`} />
+      <CcgLeaderboardRecordsLoadingSkeleton />
     </div>
   );
 }
@@ -248,6 +272,8 @@ export default function CcgInitialSkeleton({ pathname }: { pathname: string }) {
         ? <ActivityContentSkeleton />
         : pathname.startsWith("/ccg/character-checker")
           ? <ActivityContentSkeleton />
+        : pathname.startsWith("/ccg/leaderboard/records")
+          ? <LeaderboardRecordsContentSkeleton />
         : pathname.startsWith("/ccg/leaderboard")
           ? <LeaderboardContentSkeleton />
         : pathname.startsWith("/ccg/share/")

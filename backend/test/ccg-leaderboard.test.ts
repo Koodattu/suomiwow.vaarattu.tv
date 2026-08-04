@@ -16,6 +16,7 @@ import {
   CCG_GRADE_POINTS,
   bestCcgLeaderboardGrade,
   scoreCcgSeries,
+  uniqueCcgLeaderboardFinishes,
 } from "../src/utils/ccg-leaderboard";
 import CcgJobLock from "../src/models/CcgJobLock";
 import CcgLeaderboardEntry from "../src/models/CcgLeaderboardEntry";
@@ -111,6 +112,77 @@ test("collection leaderboard uses the rarest unlocked snapshot without counting 
   assert.equal(score.finishPoints, CCG_FINISH_POINTS.foil);
   assert.equal(score.finishesOwned, 2);
   assert.equal(score.allFinishesPoints, CCG_ALL_FINISHES_BONUS);
+  assert.deepEqual(uniqueCcgLeaderboardFinishes(["foil", "foil", "negative"]), ["foil", "negative"]);
+});
+
+test("record boards rank every collector and expose only positive top-three results", async () => {
+  const service = ccgLeaderboardService as any;
+  const originals = {
+    ensureInitialized: service.ensureInitialized,
+    leaderboardFind: CcgLeaderboardEntry.find,
+    setFind: CcgSet.find,
+  };
+  const firstCollectedAt = new Date("2026-01-01T00:00:00.000Z");
+  const calculatedAt = new Date("2026-08-04T12:00:00.000Z");
+  const candidate = (
+    username: string,
+    score: number,
+    cardsOwned: number,
+    finishesOwned: number,
+    completedSets: number,
+    negative: number,
+    astral: number,
+    relic: number,
+  ) => ({
+    userId: new mongoose.Types.ObjectId(),
+    username,
+    avatarUrl: `https://example.com/${username}.png`,
+    score,
+    cardsOwned,
+    finishesOwned,
+    completedSets,
+    finishCounts: { negative, astral, relic },
+    firstCollectedAt,
+    calculatedAt,
+  });
+
+  try {
+    service.ensureInitialized = async () => undefined;
+    (CcgLeaderboardEntry as any).find = () => ({
+      select() { return this; },
+      lean: async () => [
+        candidate("Fourth", 9000, 10, 10, 0, 1, 0, 0),
+        candidate("First", 5000, 40, 55, 2, 7, 1, 3),
+        candidate("Second", 7000, 30, 50, 2, 7, 0, 2),
+        candidate("Third", 6000, 20, 45, 1, 4, 0, 1),
+      ],
+    });
+    (CcgSet as any).find = () => ({
+      select() { return this; },
+      sort() { return this; },
+      lean: async () => [{ raidName: "Highmaul", customFinish: { key: "relic" } }],
+    });
+
+    const records = await ccgLeaderboardService.listRecords();
+    assert.equal(records.calculatedAt?.toISOString(), calculatedAt.toISOString());
+    assert.deepEqual(records.boards.map((board) => board.key), [
+      "uniqueCards",
+      "finishes",
+      "completedSets",
+      "finish:negative",
+      "finish:astral",
+      "finish:relic",
+    ]);
+    assert.deepEqual(records.boards[0].entries.map((entry) => entry.username), ["First", "Second", "Third"]);
+    assert.deepEqual(records.boards[3].entries.map((entry) => entry.username), ["Second", "First", "Third"]);
+    assert.deepEqual(records.boards[4].entries.map((entry) => entry.username), ["First"]);
+    assert.equal(records.boards[5].kind, "finish");
+    if (records.boards[5].kind === "finish") assert.equal(records.boards[5].raidName, "Highmaul");
+  } finally {
+    service.ensureInitialized = originals.ensureInitialized;
+    (CcgLeaderboardEntry as any).find = originals.leaderboardFind;
+    (CcgSet as any).find = originals.setFind;
+  }
 });
 
 test("collection leaderboard awards card completion only for every obtainable finish", () => {

@@ -95,6 +95,7 @@ export const queryKeys = {
   ccg: {
     analytics: ["ccg", "analytics"] as const,
     leaderboard: ["ccg", "leaderboard"] as const,
+    leaderboardRecords: ["ccg", "leaderboard", "records"] as const,
     leaderboardMe: ["ccg", "leaderboard", "me"] as const,
     bootstrap: CCG_BOOTSTRAP_QUERY_KEY,
     session: CCG_BOOTSTRAP_QUERY_KEY,
@@ -501,6 +502,15 @@ export function useCcgLeaderboard() {
   return useQuery({
     queryKey: queryKeys.ccg.leaderboard,
     queryFn: () => api.getCcgLeaderboard(),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  });
+}
+
+export function useCcgLeaderboardRecords() {
+  return useQuery({
+    queryKey: queryKeys.ccg.leaderboardRecords,
+    queryFn: () => api.getCcgLeaderboardRecords(),
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
   });

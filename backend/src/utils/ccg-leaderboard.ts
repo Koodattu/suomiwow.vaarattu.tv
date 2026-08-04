@@ -6,7 +6,7 @@ import {
   CcgTierGrade,
 } from "../config/ccg";
 
-export const CCG_COLLECTION_SCORE_VERSION = "collection-v2-astral";
+export const CCG_COLLECTION_SCORE_VERSION = "collection-v3-records";
 export const CCG_SERIES_BASE_POINTS = 100;
 export const CCG_ALL_FINISHES_BONUS = 25;
 export const CCG_COMPLETE_SET_POINTS_PER_CARD = 10;
@@ -48,12 +48,16 @@ export function bestCcgLeaderboardGrade(grades: readonly CcgTierGrade[]): CcgTie
   ), "F");
 }
 
+export function uniqueCcgLeaderboardFinishes(finishes: readonly CcgFinish[]): CcgFinish[] {
+  return Array.from(new Set(finishes)).filter((finish) => CCG_FINISH_ORDER.includes(finish));
+}
+
 export function scoreCcgSeries(
   grades: readonly CcgTierGrade[],
   finishes: readonly CcgFinish[],
   requiredFinishes: readonly CcgFinish[],
 ): CcgSeriesScore {
-  const uniqueFinishes = Array.from(new Set(finishes)).filter((finish) => CCG_FINISH_ORDER.includes(finish));
+  const uniqueFinishes = uniqueCcgLeaderboardFinishes(finishes);
   const allFinishesOwned = requiredFinishes.every((finish) => uniqueFinishes.includes(finish));
   return {
     rarityPoints: CCG_GRADE_POINTS[bestCcgLeaderboardGrade(grades)],

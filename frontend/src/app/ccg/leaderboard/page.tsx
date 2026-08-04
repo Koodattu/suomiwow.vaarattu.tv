@@ -13,6 +13,7 @@ import { useCcgLeaderboard, useCcgLeaderboardMe } from "@/lib/queries";
 import { formatRealmName } from "@/lib/utils";
 import CcgShell from "@/components/ccg/CcgShell";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
+import CcgLeaderboardNav from "@/components/ccg/CcgLeaderboardNav";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
 import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
@@ -281,6 +282,8 @@ export default function CcgLeaderboardPage() {
             <span>{calculatedAt ? t("updated", { time: calculatedAt }) : t("updating")}</span>
           </div>
         </header>
+
+        <CcgLeaderboardNav />
 
         {!authLoading && !user ? (
           <section className={`${styles.panel} ${styles.leaderboardLogin}`}>

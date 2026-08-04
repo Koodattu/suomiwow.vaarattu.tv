@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import mongoose from "mongoose";
 import {
+  CCG_FINISH_ORDER,
   CCG_TIER_GRADES,
   CcgCustomFinish,
   CcgFinish,
@@ -20,6 +21,7 @@ import {
   CCG_COMPLETE_SET_POINTS_PER_CARD,
   CCG_SERIES_BASE_POINTS,
   scoreCcgSeries,
+  uniqueCcgLeaderboardFinishes,
 } from "../utils/ccg-leaderboard";
 import discordService from "./discord.service";
 
@@ -53,6 +55,7 @@ type MutableScore = {
   snapshotsOwned: number;
   finishesOwned: number;
   premiumFinishesOwned: number;
+  finishCounts: Record<CcgFinish, number>;
   completedCards: number;
   completedSets: number;
   setCounts: Map<string, number>;
@@ -74,6 +77,7 @@ type LeaderboardEntryData = {
   snapshotsOwned: number;
   finishesOwned: number;
   premiumFinishesOwned: number;
+  finishCounts: Record<CcgFinish, number>;
   completedCards: number;
   completedSets: number;
   firstCollectedAt: Date;
@@ -89,6 +93,74 @@ export type CcgLeaderboardRefreshResult = {
   durationMs: number;
   calculatedAt: Date | null;
 };
+
+export type CcgLeaderboardRecordMetric = "uniqueCards" | "finishes" | "completedSets";
+
+export type CcgLeaderboardRecordEntry = {
+  rank: number;
+  username: string;
+  avatarUrl: string;
+  value: number;
+};
+
+export type CcgLeaderboardRecordBoard =
+  | {
+      key: CcgLeaderboardRecordMetric;
+      kind: "metric";
+      metric: CcgLeaderboardRecordMetric;
+      entries: CcgLeaderboardRecordEntry[];
+    }
+  | {
+      key: `finish:${CcgFinish}`;
+      kind: "finish";
+      finish: CcgFinish;
+      raidName: string | null;
+      entries: CcgLeaderboardRecordEntry[];
+    };
+
+export type CcgLeaderboardRecords = {
+  calculatedAt: Date | null;
+  boards: CcgLeaderboardRecordBoard[];
+};
+
+type RecordCandidate = {
+  userId: mongoose.Types.ObjectId;
+  username: string;
+  avatarUrl: string;
+  score: number;
+  cardsOwned: number;
+  finishesOwned: number;
+  completedSets: number;
+  finishCounts: Record<CcgFinish, number>;
+  firstCollectedAt: Date;
+  calculatedAt: Date;
+};
+
+function emptyFinishCounts(): Record<CcgFinish, number> {
+  return Object.fromEntries(CCG_FINISH_ORDER.map((finish) => [finish, 0])) as Record<CcgFinish, number>;
+}
+
+function topRecordEntries(
+  candidates: readonly RecordCandidate[],
+  valueFor: (candidate: RecordCandidate) => number,
+): CcgLeaderboardRecordEntry[] {
+  return candidates
+    .map((candidate) => ({ candidate, value: valueFor(candidate) }))
+    .filter(({ value }) => value > 0)
+    .sort((left, right) => (
+      right.value - left.value
+      || right.candidate.score - left.candidate.score
+      || left.candidate.firstCollectedAt.getTime() - right.candidate.firstCollectedAt.getTime()
+      || String(left.candidate.userId).localeCompare(String(right.candidate.userId))
+    ))
+    .slice(0, 3)
+    .map(({ candidate, value }, index) => ({
+      rank: index + 1,
+      username: candidate.username,
+      avatarUrl: candidate.avatarUrl,
+      value,
+    }));
+}
 
 function isDuplicateKeyError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === 11000;
@@ -116,6 +188,68 @@ class CcgLeaderboardService {
   async getUser(userId: mongoose.Types.ObjectId): Promise<ICcgLeaderboardEntry | null> {
     await this.ensureInitialized();
     return CcgLeaderboardEntry.findOne({ userId, scoreVersion: CCG_COLLECTION_SCORE_VERSION });
+  }
+
+  async listRecords(): Promise<CcgLeaderboardRecords> {
+    await this.ensureInitialized();
+    const [candidates, finishSets] = await Promise.all([
+      CcgLeaderboardEntry.find({ scoreVersion: CCG_COLLECTION_SCORE_VERSION })
+        .select("userId username avatarUrl score cardsOwned finishesOwned completedSets finishCounts firstCollectedAt calculatedAt")
+        .lean<RecordCandidate[]>(),
+      CcgSet.find({
+        enabledAt: { $ne: null },
+        cardCount: { $gt: 0 },
+        kind: "raid",
+        "customFinish.key": { $exists: true },
+      })
+        .select("raidName customFinish zoneId")
+        .sort({ zoneId: 1 })
+        .lean<Array<{ raidName: string; customFinish?: { key?: CcgCustomFinish | null } | null }>>(),
+    ]);
+    const calculatedAt = candidates.reduce<Date | null>((latest, candidate) => (
+      !latest || candidate.calculatedAt > latest ? candidate.calculatedAt : latest
+    ), null);
+    const boards: CcgLeaderboardRecordBoard[] = [
+      {
+        key: "uniqueCards",
+        kind: "metric",
+        metric: "uniqueCards",
+        entries: topRecordEntries(candidates, (candidate) => candidate.cardsOwned),
+      },
+      {
+        key: "finishes",
+        kind: "metric",
+        metric: "finishes",
+        entries: topRecordEntries(candidates, (candidate) => candidate.finishesOwned),
+      },
+      {
+        key: "completedSets",
+        kind: "metric",
+        metric: "completedSets",
+        entries: topRecordEntries(candidates, (candidate) => candidate.completedSets),
+      },
+      ...(["negative", "astral"] as const).map<CcgLeaderboardRecordBoard>((finish) => ({
+        key: `finish:${finish}`,
+        kind: "finish",
+        finish,
+        raidName: null,
+        entries: topRecordEntries(candidates, (candidate) => candidate.finishCounts?.[finish] ?? 0),
+      })),
+    ];
+    const seenFinishes = new Set<CcgFinish>(["negative", "astral"]);
+    for (const set of finishSets) {
+      const finish = set.customFinish?.key;
+      if (!finish || seenFinishes.has(finish)) continue;
+      seenFinishes.add(finish);
+      boards.push({
+        key: `finish:${finish}`,
+        kind: "finish",
+        finish,
+        raidName: set.raidName,
+        entries: topRecordEntries(candidates, (candidate) => candidate.finishCounts?.[finish] ?? 0),
+      });
+    }
+    return { calculatedAt, boards };
   }
 
   async refresh(requestedMode: CcgLeaderboardRefreshMode = "full"): Promise<CcgLeaderboardRefreshResult> {
@@ -187,7 +321,7 @@ class CcgLeaderboardService {
 
       if (mode === "incremental" && ownerIds) {
         const existingEntries = await CcgLeaderboardEntry.find({ scoreVersion: CCG_COLLECTION_SCORE_VERSION })
-          .select("userId username avatarUrl score cardsOwned snapshotsOwned finishesOwned premiumFinishesOwned completedCards completedSets firstCollectedAt calculatedAt breakdown")
+          .select("userId username avatarUrl score cardsOwned snapshotsOwned finishesOwned premiumFinishesOwned finishCounts completedCards completedSets firstCollectedAt calculatedAt breakdown")
           .lean<Array<Omit<LeaderboardEntryData, "firstCollectedAt"> & { firstCollectedAt?: Date; calculatedAt: Date }>>();
         const entriesByUser = new Map<string, LeaderboardEntryData>(existingEntries.map((entry) => {
           const { calculatedAt, ...entryData } = entry;
@@ -304,6 +438,7 @@ class CcgLeaderboardService {
         snapshotsOwned: 0,
         finishesOwned: 0,
         premiumFinishesOwned: 0,
+        finishCounts: emptyFinishCounts(),
         completedCards: 0,
         completedSets: 0,
         setCounts: new Map<string, number>(),
@@ -320,6 +455,9 @@ class CcgLeaderboardService {
       score.snapshotsOwned += new Set(row.unlockedSnapshotVersions).size;
       score.finishesOwned += seriesScore.finishesOwned;
       score.premiumFinishesOwned += seriesScore.premiumFinishesOwned;
+      for (const finish of uniqueCcgLeaderboardFinishes(row.finishes.map((item: { finish: CcgFinish }) => item.finish))) {
+        score.finishCounts[finish] += 1;
+      }
       score.completedCards += seriesScore.allFinishesOwned ? 1 : 0;
       score.breakdown.collection += CCG_SERIES_BASE_POINTS;
       score.breakdown.rarity += seriesScore.rarityPoints;
@@ -355,6 +493,7 @@ class CcgLeaderboardService {
         snapshotsOwned: score.snapshotsOwned,
         finishesOwned: score.finishesOwned,
         premiumFinishesOwned: score.premiumFinishesOwned,
+        finishCounts: score.finishCounts,
         completedCards: score.completedCards,
         completedSets: score.completedSets,
         firstCollectedAt: score.firstCollectedAt,

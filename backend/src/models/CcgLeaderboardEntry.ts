@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
+import { CCG_FINISH_ORDER, CcgFinish } from "../config/ccg";
 
 export interface ICcgLeaderboardEntry extends Document {
   userId: mongoose.Types.ObjectId;
@@ -10,6 +11,7 @@ export interface ICcgLeaderboardEntry extends Document {
   snapshotsOwned: number;
   finishesOwned: number;
   premiumFinishesOwned: number;
+  finishCounts: Record<CcgFinish, number>;
   completedCards: number;
   completedSets: number;
   firstCollectedAt: Date;
@@ -35,6 +37,11 @@ const ScoreBreakdownSchema = new Schema(
   { _id: false, suppressReservedKeysWarning: true },
 );
 
+const FinishCountsSchema = new Schema(
+  Object.fromEntries(CCG_FINISH_ORDER.map((finish) => [finish, { type: Number, required: true, default: 0, min: 0 }])),
+  { _id: false },
+);
+
 const CcgLeaderboardEntrySchema = new Schema<ICcgLeaderboardEntry>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true, index: true },
@@ -46,6 +53,7 @@ const CcgLeaderboardEntrySchema = new Schema<ICcgLeaderboardEntry>(
     snapshotsOwned: { type: Number, required: true, min: 0 },
     finishesOwned: { type: Number, required: true, min: 0 },
     premiumFinishesOwned: { type: Number, required: true, min: 0 },
+    finishCounts: { type: FinishCountsSchema, required: true, default: () => ({}) },
     completedCards: { type: Number, required: true, min: 0 },
     completedSets: { type: Number, required: true, min: 0 },
     firstCollectedAt: { type: Date, required: true },

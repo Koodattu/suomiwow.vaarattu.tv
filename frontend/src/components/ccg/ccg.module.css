@@ -2701,6 +2701,63 @@
   font-variant-numeric: tabular-nums;
 }
 
+.leaderboardViewNav {
+  display: flex;
+  width: min(100%, 87rem);
+  justify-self: center;
+  justify-content: flex-start;
+}
+
+.leaderboardViewTabs {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(6.5rem, 1fr));
+  border-radius: 0.75rem;
+  background: rgba(3, 9, 21, 0.76);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 10px 28px rgba(0, 0, 0, 0.2);
+  padding: 0.25rem;
+}
+
+.leaderboardViewTab {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  padding: 0.55rem 1rem;
+  color: #8294b0;
+  font-size: 0.78rem;
+  font-weight: 760;
+  letter-spacing: 0.025em;
+  text-decoration: none;
+  transition-property: background-color, box-shadow, color, transform;
+  transition-duration: 140ms;
+  transition-timing-function: ease-out;
+}
+
+.leaderboardViewTab:hover {
+  color: #dce9f8;
+}
+
+.leaderboardViewTab:active {
+  transform: scale(0.96);
+}
+
+.leaderboardViewTab:focus-visible {
+  outline: 2px solid #7ddcff;
+  outline-offset: 2px;
+}
+
+.leaderboardViewTabActive {
+  background: rgba(33, 62, 104, 0.72);
+  box-shadow:
+    0 0 0 1px rgba(125, 220, 255, 0.16),
+    0 4px 12px rgba(0, 0, 0, 0.18),
+    inset 0 1px rgba(255, 255, 255, 0.06);
+  color: #f1f7ff;
+}
+
 .leaderboardLogin,
 .leaderboardMe {
   display: grid;
@@ -2785,6 +2842,191 @@
 .leaderboardBoard {
   display: grid;
   gap: 1.15rem;
+}
+
+.leaderboardRecordsSection {
+  display: grid;
+  width: min(100%, 87rem);
+  justify-self: center;
+  gap: 1.15rem;
+}
+
+.leaderboardRecordsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 0.9rem;
+}
+
+.leaderboardRecordCard {
+  --leaderboard-record-accent: #7ddcff;
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--leaderboard-record-accent) 10%, transparent), transparent 11rem),
+    linear-gradient(145deg, rgba(10, 21, 41, 0.94), rgba(3, 8, 18, 0.96));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.075),
+    0 16px 36px rgba(0, 0, 0, 0.22),
+    inset 0 1px rgba(255, 255, 255, 0.025);
+}
+
+.leaderboardRecordCard::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, var(--leaderboard-record-accent), transparent 78%);
+  content: "";
+  opacity: 0.82;
+}
+
+.leaderboardRecordHeader {
+  display: grid;
+  min-height: 5.15rem;
+  align-content: center;
+  padding: 1rem 1rem 0.85rem;
+}
+
+.leaderboardRecordHeader > span {
+  overflow: hidden;
+  color: color-mix(in srgb, var(--leaderboard-record-accent) 72%, #a7b5ca);
+  font-size: 0.61rem;
+  font-weight: 730;
+  letter-spacing: 0.13em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.leaderboardRecordHeader h3 {
+  margin-top: 0.27rem;
+  color: #edf5ff;
+  font-size: clamp(1rem, 1.4vw, 1.18rem);
+  font-weight: 790;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.leaderboardRecordEntries {
+  display: grid;
+  list-style: none;
+  border-top: 1px solid rgba(144, 178, 236, 0.11);
+  margin: 0;
+  padding: 0;
+}
+
+.leaderboardRecordEntries li {
+  display: grid;
+  min-width: 0;
+  min-height: 3.35rem;
+  align-items: center;
+  grid-template-columns: 2rem 2rem minmax(0, 1fr) auto;
+  border-bottom: 1px solid rgba(144, 178, 236, 0.085);
+  padding: 0.55rem 0.85rem;
+  gap: 0.55rem;
+}
+
+.leaderboardRecordEntries li:last-child {
+  border-bottom: 0;
+}
+
+.leaderboardRecordRank {
+  color: #71839f;
+  font-size: 0.72rem;
+  font-weight: 790;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.leaderboardRecordEntries li[data-rank="1"] .leaderboardRecordRank {
+  color: #ffe28e;
+}
+
+.leaderboardRecordEntries li[data-rank="2"] .leaderboardRecordRank {
+  color: #dce9f6;
+}
+
+.leaderboardRecordEntries li[data-rank="3"] .leaderboardRecordRank {
+  color: #e9aa72;
+}
+
+.leaderboardRecordAvatar,
+.leaderboardRecordEmptyAvatar {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+}
+
+.leaderboardRecordAvatar {
+  object-fit: cover;
+  outline: 1px solid rgba(255, 255, 255, 0.1);
+  outline-offset: -1px;
+}
+
+.leaderboardRecordEmptyAvatar {
+  background: rgba(137, 160, 195, 0.09);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.055);
+}
+
+.leaderboardRecordEntries strong,
+.leaderboardRecordEmpty > span:nth-child(3) {
+  overflow: hidden;
+  color: #dbe7f7;
+  font-size: 0.82rem;
+  font-weight: 710;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboardRecordValue {
+  color: var(--leaderboard-record-accent);
+  font-size: 0.86rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.leaderboardRecordEmpty {
+  opacity: 0.48;
+}
+
+.leaderboardRecordEmpty > span:nth-child(3) {
+  color: #8a9bb4;
+  font-weight: 620;
+}
+
+.leaderboardRecordSkeleton {
+  display: grid;
+  min-height: 15.2rem;
+  align-content: start;
+  padding-top: 1rem;
+}
+
+.leaderboardRecordSkeleton::before {
+  display: none;
+}
+
+.leaderboardRecordSkeletonHeader,
+.leaderboardRecordSkeletonRow {
+  background: linear-gradient(110deg, rgba(13, 27, 53, 0.72) 20%, rgba(43, 67, 111, 0.62) 42%, rgba(13, 27, 53, 0.72) 64%);
+  background-size: 220% 100%;
+  animation: collectionSkeleton 1.5s ease-in-out infinite;
+}
+
+.leaderboardRecordSkeletonHeader {
+  width: 52%;
+  min-height: 2.2rem;
+  border-radius: 0.45rem;
+  margin: 0 1rem 0.95rem;
+}
+
+.leaderboardRecordSkeletonRow {
+  min-height: 3.35rem;
+  border-top: 1px solid rgba(144, 178, 236, 0.085);
 }
 
 .leaderboardSectionHeading {
@@ -3547,6 +3789,10 @@
 }
 
 @media (max-width: 900px) {
+  .leaderboardRecordsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .leaderboardMe {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3671,6 +3917,14 @@
     gap: 1rem;
   }
 
+  .leaderboardViewTabs {
+    width: 100%;
+  }
+
+  .leaderboardRecordsGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .leaderboardLogin {
     align-items: stretch;
     grid-template-columns: minmax(0, 1fr);
@@ -3723,11 +3977,14 @@
 
 @media (prefers-reduced-motion: reduce) {
   .leaderboardShowcaseCard,
+  .leaderboardViewTab,
   .leaderboardCollectorCardSlot,
   .leaderboardCollectorCard,
   .leaderboardScoringDialog,
   .leaderboardScoringDialogBackdrop,
-  .leaderboardLoading span {
+  .leaderboardLoading span,
+  .leaderboardRecordSkeletonHeader,
+  .leaderboardRecordSkeletonRow {
     animation: none;
     transition-duration: 1ms;
   }

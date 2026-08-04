@@ -310,6 +310,28 @@
       "points": "{score} points",
       "rankingTitle": "Top collectors",
       "rankingBody": "The 100 highest collection scores.",
+      "tabs": {
+        "label": "Leaderboard views",
+        "overall": "Overall",
+        "records": "Records"
+      },
+      "records": {
+        "eyebrow": "Collector records",
+        "title": "Collection records",
+        "body": "The collectors leading every corner of the vault.",
+        "sectionTitle": "Top three by category",
+        "sectionBody": "Distinct unlocks across every enabled card set.",
+        "collectionMetric": "Collection",
+        "rareFinish": "Rare finish",
+        "mostFinish": "Most {finish}",
+        "unclaimed": "No collector yet",
+        "loading": "Loading collection records",
+        "metrics": {
+          "uniqueCards": "Most unique cards",
+          "finishes": "Most finishes",
+          "completedSets": "Most complete sets"
+        }
+      },
       "emptyTitle": "No ranked collectors yet",
       "emptyBody": "The first logged-in collector will appear after the next score update.",
       "loadError": "The leaderboard could not be loaded.",

@@ -155,6 +155,7 @@ import {
   CcgShareLink,
   CcgAnalytics,
   CcgLeaderboardResponse,
+  CcgLeaderboardRecordsResponse,
   CcgLeaderboardMeResponse,
   CcgShowcaseCardInput,
   CcgRedeemResult,
@@ -308,6 +309,12 @@ export const api = {
   async getCcgLeaderboard(): Promise<CcgLeaderboardResponse> {
     const response = await fetch(`${API_URL}/api/ccg/leaderboard`);
     if (!response.ok) throw await buildApiError(response, "Failed to load the collection leaderboard");
+    return response.json();
+  },
+
+  async getCcgLeaderboardRecords(): Promise<CcgLeaderboardRecordsResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/leaderboard/records`);
+    if (!response.ok) throw await buildApiError(response, "Failed to load collection records");
     return response.json();
   },
 

@@ -923,6 +923,17 @@ class CcgService {
     };
   }
 
+  async getLeaderboardRecords(): Promise<Record<string, unknown>> {
+    requireFeature();
+    const records = await ccgLeaderboardService.listRecords();
+    return {
+      scoreVersion: getCcgLeaderboardScoringRules().version,
+      calculatedAt: records.calculatedAt,
+      refreshIntervalSeconds: CCG_LEADERBOARD_REFRESH_INTERVAL_SECONDS,
+      boards: records.boards,
+    };
+  }
+
   async getLeaderboardMe(req: Request): Promise<Record<string, unknown>> {
     requireFeature();
     const userId = await this.requireAuthenticatedUser(req, "Log in to join the collection leaderboard");

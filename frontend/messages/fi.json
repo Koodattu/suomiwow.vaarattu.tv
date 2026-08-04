@@ -310,6 +310,28 @@
       "points": "{score} pistettä",
       "rankingTitle": "Parhaat keräilijät",
       "rankingBody": "100 korkeinta kokoelmapistemäärää.",
+      "tabs": {
+        "label": "Tulostaulun näkymät",
+        "overall": "Yleinen",
+        "records": "Ennätykset"
+      },
+      "records": {
+        "eyebrow": "Keräilyennätykset",
+        "title": "Kokoelman ennätykset",
+        "body": "Holvin eri osa-alueiden parhaat keräilijät.",
+        "sectionTitle": "Kategorioiden kolme parasta",
+        "sectionBody": "Uniikit avaukset kaikista käytössä olevista korttiseteistä.",
+        "collectionMetric": "Kokoelma",
+        "rareFinish": "Harvinainen viimeistely",
+        "mostFinish": "Eniten: {finish}",
+        "unclaimed": "Ei vielä keräilijää",
+        "loading": "Ladataan kokoelman ennätyksiä",
+        "metrics": {
+          "uniqueCards": "Eniten uniikkeja kortteja",
+          "finishes": "Eniten viimeistelyjä",
+          "completedSets": "Eniten täysiä settejä"
+        }
+      },
       "emptyTitle": "Ei vielä sijoitettuja keräilijöitä",
       "emptyBody": "Ensimmäinen sisäänkirjautunut keräilijä ilmestyy seuraavan pistepäivityksen jälkeen.",
       "loadError": "Tulostaulua ei voitu ladata.",
