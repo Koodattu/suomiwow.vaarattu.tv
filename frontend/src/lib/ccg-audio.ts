@@ -1,5 +1,5 @@
 import type { CcgArtVariant, CcgFinish, CcgTierGrade } from "@/types";
-import { CCG_RARITY_KEYS, isCcgRaidFinish } from "@/lib/ccg";
+import { CCG_RARITY_KEYS, getCcgPullQualityScore, isCcgRaidFinish } from "@/lib/ccg";
 import { getLocale, type Locale } from "@/lib/locale";
 
 export const CCG_AUDIO_PREFERENCES_EVENT = "ccg-audio-preferences-change";
@@ -29,6 +29,8 @@ const CCG_ANNOUNCER_COMPONENT_VARIANTS: Record<Locale, readonly AnnouncerVariant
   en: ["a", "b", "c", "d"],
   fi: ["a", "b"],
 };
+
+const CCG_ANNOUNCER_EXCLAMATION_SCORE = 60;
 
 const CCG_ANNOUNCER_BASELINE_VOLUME: Record<Locale, number> = {
   en: 0.5,
@@ -287,12 +289,18 @@ export function getCcgAnnouncerSoundSequences(
   const rarity = CCG_RARITY_KEYS[tierGrade];
   const localePrefix = locale === "fi" ? "fi-" : "";
   const basePath = `/ccg/audio/announcer/components/${locale}`;
+  const includeExclamation = getCcgPullQualityScore({ finish, card: { tierGrade } }) >= CCG_ANNOUNCER_EXCLAMATION_SCORE;
   return CCG_ANNOUNCER_COMPONENT_VARIANTS[locale].flatMap((variant) => (
-    CCG_ANNOUNCER_EXCLAMATIONS.map((exclamation) => [
-      `${basePath}/exclamations/${localePrefix}${exclamation}-${variant}.mp3`,
-      `${basePath}/qualities/${localePrefix}${finish}-${variant}.mp3`,
-      `${basePath}/rarities/${localePrefix}${rarity}-${variant}.mp3`,
-    ])
+    includeExclamation
+      ? CCG_ANNOUNCER_EXCLAMATIONS.map((exclamation) => [
+        `${basePath}/exclamations/${localePrefix}${exclamation}-${variant}.mp3`,
+        `${basePath}/qualities/${localePrefix}${finish}-${variant}.mp3`,
+        `${basePath}/rarities/${localePrefix}${rarity}-${variant}.mp3`,
+      ])
+      : [[
+        `${basePath}/qualities/${localePrefix}${finish}-${variant}.mp3`,
+        `${basePath}/rarities/${localePrefix}${rarity}-${variant}.mp3`,
+      ]]
   ));
 }
 
