@@ -4886,14 +4886,20 @@
 
 @keyframes prototypeToxicIdleFoil {
   from {
-    opacity: 0.52;
-    scale: 1.006;
-    translate: -0.35% -0.2%;
+    background-position:
+      center,
+      42% 47%,
+      3px 7px,
+      -11px 4px,
+      44% 53%;
   }
   to {
-    opacity: 0.6;
-    scale: 1.014;
-    translate: 0.35% 0.2%;
+    background-position:
+      center,
+      61% 55%,
+      16px -9px,
+      -29px 19px,
+      59% 44%;
   }
 }
 
