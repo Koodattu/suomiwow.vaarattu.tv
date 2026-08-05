@@ -12,6 +12,7 @@ import {
 } from "../src/config/ccg";
 import {
   CCG_ALL_FINISHES_BONUS,
+  CCG_COMPLETE_SET_POINTS_PER_CARD,
   CCG_FINISH_POINTS,
   CCG_GRADE_POINTS,
   bestCcgLeaderboardGrade,
@@ -31,6 +32,10 @@ test("collection leaderboard schedules incremental refreshes on every clock quar
   assert.equal(CCG_LEADERBOARD_REFRESH_INTERVAL_SECONDS, 15 * 60);
   assert.equal(cron.validate(CCG_LEADERBOARD_INCREMENTAL_SCHEDULE.cron), true);
   assert.equal(cron.validate(CCG_LEADERBOARD_FULL_SCHEDULE.cron), true);
+});
+
+test("collection leaderboard strongly rewards completing an entire set", () => {
+  assert.equal(CCG_COMPLETE_SET_POINTS_PER_CARD, 100);
 });
 
 test("collection ownership has an index for finding recently changed collectors", () => {

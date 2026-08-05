@@ -6,10 +6,10 @@ import {
   CcgTierGrade,
 } from "../config/ccg";
 
-export const CCG_COLLECTION_SCORE_VERSION = "collection-v3-records";
+export const CCG_COLLECTION_SCORE_VERSION = "collection-v4-set-completion";
 export const CCG_SERIES_BASE_POINTS = 100;
 export const CCG_ALL_FINISHES_BONUS = 25;
-export const CCG_COMPLETE_SET_POINTS_PER_CARD = 10;
+export const CCG_COMPLETE_SET_POINTS_PER_CARD = 100;
 
 export const CCG_GRADE_POINTS: Readonly<Record<CcgTierGrade, number>> = {
   H: 40,
