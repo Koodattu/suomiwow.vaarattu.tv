@@ -1366,7 +1366,7 @@
     inset 0 0 26px rgba(211, 132, 25, 0.2);
   filter: contrast(1.08) saturate(1.12);
   mix-blend-mode: screen;
-  opacity: 0.46;
+  opacity: 0.52;
 }
 .golden .finishLayer::before {
   background:
@@ -1420,7 +1420,7 @@
   box-shadow:
     inset 0 0 0 1px rgba(224, 250, 255, 0.42),
     inset 0 0 28px color-mix(in srgb, var(--lab-accent) 18%, rgba(88, 221, 255, 0.12));
-  filter: brightness(calc(0.9 + var(--pointer-distance) * 0.18)) contrast(1.06) saturate(1.18);
+  filter: brightness(calc(0.9 + var(--pointer-distance) * 0.18)) contrast(1.1) saturate(1.22);
   mix-blend-mode: screen;
   opacity: 0.58;
 }
@@ -1454,7 +1454,7 @@
     15px 12px;
   filter: brightness(calc(0.76 + var(--pointer-distance) * 0.4));
   mix-blend-mode: color-dodge;
-  opacity: 0.36;
+  opacity: 0.42;
 }
 .holographic .finishLayer {
   background:
@@ -1483,7 +1483,7 @@
     31px 37px;
   filter: brightness(calc(0.82 + var(--pointer-distance) * 0.34)) contrast(1.32) saturate(1.5);
   mix-blend-mode: color-dodge;
-  opacity: 0.5;
+  opacity: 0.55;
 }
 .holographic .finishLayer::before {
   background:
@@ -4188,6 +4188,9 @@
   .prototypeCard.holographic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypePrismaticIdleFoil 5.1s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
+  .prototypeCard.holographic:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
+    animation: prototypeHolographicSheenIdle 6.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
   .prototypeCard.rainbow:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeRainbowIdleFoil 6.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
@@ -4377,12 +4380,12 @@
   }
 }
 
-.prototypeCard[data-effects-paused="true"],
-.prototypeCard[data-effects-paused="true"] *,
-.prototypeCard[data-effects-paused="true"]::before,
-.prototypeCard[data-effects-paused="true"]::after,
-.prototypeCard[data-effects-paused="true"] *::before,
-.prototypeCard[data-effects-paused="true"] *::after {
+.prototypeCard:is([data-effects-paused="true"], [data-effects-auto-paused="true"]),
+.prototypeCard:is([data-effects-paused="true"], [data-effects-auto-paused="true"]) *,
+.prototypeCard:is([data-effects-paused="true"], [data-effects-auto-paused="true"])::before,
+.prototypeCard:is([data-effects-paused="true"], [data-effects-auto-paused="true"])::after,
+.prototypeCard:is([data-effects-paused="true"], [data-effects-auto-paused="true"]) *::before,
+.prototypeCard:is([data-effects-paused="true"], [data-effects-auto-paused="true"]) *::after {
   animation-play-state: paused !important;
 }
 
@@ -4427,28 +4430,41 @@
 @keyframes prototypeGoldenIdleFoil {
   from {
     background-position:
-      46% 43%,
-      55% 57%,
-      44% 54%;
+      41% 37%,
+      63% 64%,
+      38% 61%;
   }
   to {
     background-position:
-      56% 54%,
-      44% 45%,
-      57% 46%;
+      62% 63%,
+      37% 38%,
+      64% 39%;
   }
 }
 
 @keyframes prototypePrismaticIdleFoil {
   from {
     background-position:
-      45% 39%,
-      12% 26%;
+      38% 33%,
+      8% 20%;
   }
   to {
     background-position:
-      58% 53%,
-      88% 76%;
+      64% 61%,
+      92% 82%;
+  }
+}
+
+@keyframes prototypeHolographicSheenIdle {
+  from {
+    opacity: 0.5;
+    scale: 1.01;
+    translate: -1.5% 0;
+  }
+  to {
+    opacity: 0.76;
+    scale: 1.025;
+    translate: 1.5% 0;
   }
 }
 
@@ -4883,16 +4899,16 @@
 
 @keyframes prototypeToxicCounterDrift {
   from {
-    opacity: 0.6;
-    rotate: -0.2deg;
-    scale: 1.018;
-    translate: -0.9% 0.7%;
+    background-position:
+      4px 8px,
+      -9px 6px,
+      7px -5px;
   }
   to {
-    opacity: 0.72;
-    rotate: 0.2deg;
-    scale: 1.026;
-    translate: 0.9% -0.7%;
+    background-position:
+      18px -11px,
+      -27px 21px,
+      -12px 16px;
   }
 }
 
@@ -6598,7 +6614,7 @@
     opacity: 0.4;
   }
   .holographic .finishLayer {
-    opacity: 0.56;
+    opacity: 0.58;
   }
   .rainbow .finishLayer {
     opacity: 0.56;
@@ -6634,7 +6650,7 @@
     opacity: 0.66;
   }
   .prismatic .finishLayer {
-    opacity: 0.46;
+    opacity: 0.52;
   }
   .dark .finishLayer {
     opacity: 0.68;

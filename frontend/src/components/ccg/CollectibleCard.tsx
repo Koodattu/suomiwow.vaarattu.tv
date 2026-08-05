@@ -290,6 +290,36 @@ function CollectibleCard({
     [],
   );
 
+  useEffect(() => {
+    const element = cardRef.current;
+    if (!element) return;
+
+    let nearViewport = true;
+    const syncPausedState = () => {
+      if (!nearViewport || document.hidden) element.dataset.effectsAutoPaused = "true";
+      else delete element.dataset.effectsAutoPaused;
+    };
+    const observer = typeof IntersectionObserver === "undefined"
+      ? null
+      : new IntersectionObserver(
+        ([entry]) => {
+          nearViewport = entry.isIntersecting;
+          syncPausedState();
+        },
+        { rootMargin: "160px" },
+      );
+
+    observer?.observe(element);
+    document.addEventListener("visibilitychange", syncPausedState);
+    syncPausedState();
+
+    return () => {
+      observer?.disconnect();
+      document.removeEventListener("visibilitychange", syncPausedState);
+      delete element.dataset.effectsAutoPaused;
+    };
+  }, []);
+
   const clearTouchTiltTimer = () => {
     if (touchTiltTimer.current === null) return;
     window.clearTimeout(touchTiltTimer.current);
