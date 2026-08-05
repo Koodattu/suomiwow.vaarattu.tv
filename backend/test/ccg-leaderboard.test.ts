@@ -120,6 +120,36 @@ test("collection leaderboard uses the rarest unlocked snapshot without counting 
   assert.deepEqual(uniqueCcgLeaderboardFinishes(["foil", "foil", "negative"]), ["foil", "negative"]);
 });
 
+test("personal leaderboard reads do not wait for leaderboard initialization", async () => {
+  const service = ccgLeaderboardService as any;
+  const userId = new mongoose.Types.ObjectId();
+  const originals = {
+    ensureInitialized: service.ensureInitialized,
+    leaderboardFindOne: CcgLeaderboardEntry.findOne,
+  };
+  let initializationAttempts = 0;
+  const leaderboardQueries: Record<string, unknown>[] = [];
+
+  try {
+    service.ensureInitialized = async () => {
+      initializationAttempts += 1;
+      throw new Error("personal reads must not initialize the leaderboard");
+    };
+    (CcgLeaderboardEntry as any).findOne = async (query: Record<string, unknown>) => {
+      leaderboardQueries.push(query);
+      return null;
+    };
+
+    assert.equal(await ccgLeaderboardService.getUserIfReady(userId), null);
+    assert.equal(initializationAttempts, 0);
+    assert.equal(leaderboardQueries.length, 1);
+    assert.equal(leaderboardQueries[0].userId, userId);
+  } finally {
+    service.ensureInitialized = originals.ensureInitialized;
+    (CcgLeaderboardEntry as any).findOne = originals.leaderboardFindOne;
+  }
+});
+
 test("record boards rank every collector and expose only positive top-three results", async () => {
   const service = ccgLeaderboardService as any;
   const originals = {

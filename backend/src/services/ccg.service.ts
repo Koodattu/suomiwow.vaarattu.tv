@@ -938,7 +938,7 @@ class CcgService {
     requireFeature();
     const userId = await this.requireAuthenticatedUser(req, "Log in to join the collection leaderboard");
     const [entry, showcases] = await Promise.all([
-      ccgLeaderboardService.getUser(userId),
+      ccgLeaderboardService.getUserIfReady(userId),
       this.loadLeaderboardShowcases([userId]),
     ]);
     const showcase = showcases.get(String(userId)) ?? [];

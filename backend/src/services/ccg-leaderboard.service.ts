@@ -185,8 +185,7 @@ class CcgLeaderboardService {
       .limit(Math.min(100, Math.max(1, limit)));
   }
 
-  async getUser(userId: mongoose.Types.ObjectId): Promise<ICcgLeaderboardEntry | null> {
-    await this.ensureInitialized();
+  async getUserIfReady(userId: mongoose.Types.ObjectId): Promise<ICcgLeaderboardEntry | null> {
     return CcgLeaderboardEntry.findOne({ userId, scoreVersion: CCG_COLLECTION_SCORE_VERSION });
   }
 
