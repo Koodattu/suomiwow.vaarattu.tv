@@ -161,8 +161,15 @@ router.get("/:pickemId/reference-rankings", async (req: Request, res: Response) 
       return res.status(400).json({ error: "Select an available tracked raid tier" });
     }
 
-    const rankings = await getGuildRankingsForPickem([raidId]);
-    res.json(rankings.slice(0, PICKEM_REFERENCE_RANKINGS_LIMIT));
+    const rankingsCacheKey = cacheService.getPickemReferenceRankingsKey(raidId);
+    const cachedRankings = await cacheService.get<Awaited<ReturnType<typeof getGuildRankingsForPickem>>>(rankingsCacheKey);
+    if (cachedRankings) {
+      return res.json(cachedRankings);
+    }
+
+    const rankings = (await getGuildRankingsForPickem([raidId])).slice(0, PICKEM_REFERENCE_RANKINGS_LIMIT);
+    await cacheService.set(rankingsCacheKey, rankings, cacheService.getTTLForRaid(raidId));
+    res.json(rankings);
   } catch (error) {
     logger.error("Error fetching Pickem reference rankings:", error);
     res.status(500).json({ error: "Failed to fetch reference rankings" });

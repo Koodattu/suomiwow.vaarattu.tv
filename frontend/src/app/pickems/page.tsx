@@ -840,6 +840,8 @@ export default function PickemsPage() {
 
   const raidType = pickems.find((p) => p.id === selectedPickemId)?.type === "rwf" ? "rwf" : "overall";
   const { data: guildsData = [] } = usePickemsGuilds(raidType);
+  // Start this static request before the detail panel mounts so reference rankings do not wait on it.
+  useRaids();
 
   useEffect(() => {
     const syncSelectedPickemFromUrl = () => {

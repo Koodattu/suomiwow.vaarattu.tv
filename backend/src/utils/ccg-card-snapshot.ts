@@ -3,18 +3,22 @@ import { CcgRegularTierGrade, CcgTierGrade } from "../config/ccg";
 export type CcgSnapshotPreviewCandidate = {
   characterId: string;
   tierGrade: CcgRegularTierGrade;
+  classID: number;
   specName: string;
   role: "dps" | "healer" | "tank";
   metric: "dps" | "hps";
+  mythicPlusScore: number | null;
   hasMedia: boolean;
 };
 
-type CcgSnapshotIdentity = Pick<CcgSnapshotPreviewCandidate, "tierGrade" | "specName" | "role" | "metric">;
+type CcgSnapshotIdentity = Pick<CcgSnapshotPreviewCandidate, "tierGrade" | "classID" | "specName" | "role" | "mythicPlusScore">;
 type ExistingCcgSnapshotIdentity = {
   tierGrade: CcgTierGrade;
+  classID?: number | null;
   specName?: string | null;
   role?: "dps" | "healer" | "tank" | null;
   metric?: "dps" | "hps" | null;
+  mythicPlusScore?: number | null;
 };
 
 export type CcgSnapshotPreviewSummary = {
@@ -23,6 +27,7 @@ export type CcgSnapshotPreviewSummary = {
   newCharacters: number;
   rarityChanges: number;
   identityChanges: number;
+  mythicPlusScoreAdds: number;
   unchangedCharacters: number;
   blockedByMissingMedia: number;
   mediaReady: number;
@@ -34,16 +39,21 @@ export type CcgSnapshotPreviewDisposition =
   | "new_character"
   | "rarity_change"
   | "identity_change"
+  | "mythic_plus_score_added"
   | "unchanged"
   | "blocked_new_character"
   | "blocked_rarity_change"
-  | "blocked_identity_change";
+  | "blocked_identity_change"
+  | "blocked_mythic_plus_score_added";
 
 export function shouldPublishCcgCardSnapshot(
   latestCard: ExistingCcgSnapshotIdentity | null | undefined,
   next: CcgSnapshotIdentity,
 ): boolean {
-  return !latestCard || latestCard.tierGrade !== next.tierGrade || !hasSameSnapshotIdentity(latestCard, next);
+  return !latestCard
+    || latestCard.tierGrade !== next.tierGrade
+    || !hasSameSnapshotIdentity(latestCard, next)
+    || hasGainedMythicPlusScore(latestCard, next);
 }
 
 export function nextCcgCardSnapshotVersion(latestCard: { snapshotVersion?: number | null } | null | undefined): number {
@@ -59,7 +69,8 @@ export function getCcgSnapshotPreviewDisposition(
   if (!shouldPublishCcgCardSnapshot(latestCard, next)) return "unchanged";
   if (!latestCard) return hasMedia ? "new_character" : "blocked_new_character";
   if (latestCard.tierGrade !== next.tierGrade) return hasMedia ? "rarity_change" : "blocked_rarity_change";
-  return hasMedia ? "identity_change" : "blocked_identity_change";
+  if (!hasSameSnapshotIdentity(latestCard, next)) return hasMedia ? "identity_change" : "blocked_identity_change";
+  return hasMedia ? "mythic_plus_score_added" : "blocked_mythic_plus_score_added";
 }
 
 export function summarizeCcgSnapshotPreview(
@@ -72,6 +83,7 @@ export function summarizeCcgSnapshotPreview(
   let newCharacters = 0;
   let rarityChanges = 0;
   let identityChanges = 0;
+  let mythicPlusScoreAdds = 0;
   let unchangedCharacters = 0;
   let blockedByMissingMedia = 0;
   let mediaReady = 0;
@@ -87,10 +99,16 @@ export function summarizeCcgSnapshotPreview(
     );
     if (disposition === "unchanged") unchangedCharacters += 1;
     if (disposition.startsWith("blocked_")) blockedByMissingMedia += 1;
-    if (disposition === "new_character" || disposition === "rarity_change" || disposition === "identity_change") projectedSnapshots += 1;
+    if (
+      disposition === "new_character"
+      || disposition === "rarity_change"
+      || disposition === "identity_change"
+      || disposition === "mythic_plus_score_added"
+    ) projectedSnapshots += 1;
     if (disposition === "new_character") newCharacters += 1;
     if (disposition === "rarity_change") rarityChanges += 1;
     if (disposition === "identity_change") identityChanges += 1;
+    if (disposition === "mythic_plus_score_added") mythicPlusScoreAdds += 1;
   }
 
   return {
@@ -99,6 +117,7 @@ export function summarizeCcgSnapshotPreview(
     newCharacters,
     rarityChanges,
     identityChanges,
+    mythicPlusScoreAdds,
     unchangedCharacters,
     blockedByMissingMedia,
     mediaReady,
@@ -108,7 +127,17 @@ export function summarizeCcgSnapshotPreview(
 }
 
 function hasSameSnapshotIdentity(latest: ExistingCcgSnapshotIdentity, next: CcgSnapshotIdentity): boolean {
-  return normalizeSpecName(latest.specName) === normalizeSpecName(next.specName) && latest.role === next.role && latest.metric === next.metric;
+  return latest.classID === next.classID
+    && normalizeSpecName(latest.specName) === normalizeSpecName(next.specName)
+    && latest.role === next.role;
+}
+
+function hasGainedMythicPlusScore(latest: ExistingCcgSnapshotIdentity, next: CcgSnapshotIdentity): boolean {
+  return !isActualMythicPlusScore(latest.mythicPlusScore) && isActualMythicPlusScore(next.mythicPlusScore);
+}
+
+function isActualMythicPlusScore(score: number | null | undefined): boolean {
+  return typeof score === "number" && Number.isFinite(score) && score > 0;
 }
 
 function normalizeSpecName(specName: string | null | undefined): string {

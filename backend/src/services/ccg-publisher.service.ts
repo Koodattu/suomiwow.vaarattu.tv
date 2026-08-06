@@ -245,6 +245,31 @@ class CcgPublisherService {
     return mediaByRootId;
   }
 
+  private async loadMythicPlusScoresByCharacter(
+    context: CcgContinuityContext,
+    season: string,
+  ): Promise<Map<string, number | null>> {
+    if (context.allMemberIds.length === 0) return new Map();
+    const rows = await CharacterMythicPlusSeasonScore.find({
+      characterId: { $in: context.allMemberIds },
+      season,
+      identityStatus: { $ne: "stale" },
+    })
+      .select("characterId scores.all")
+      .lean();
+    const scoresByCharacter = new Map<string, number | null>();
+
+    for (const row of rows) {
+      const rootId = context.rootIdByMemberId.get(String(row.characterId)) ?? String(row.characterId);
+      const score = row.scores.all > 0 ? row.scores.all : null;
+      const current = scoresByCharacter.get(rootId) ?? null;
+      if (score !== null && (current === null || score > current)) scoresByCharacter.set(rootId, score);
+      else if (!scoresByCharacter.has(rootId)) scoresByCharacter.set(rootId, null);
+    }
+
+    return scoresByCharacter;
+  }
+
   private async getActivationState(configured: CcgConfiguredSet, session?: mongoose.ClientSession): Promise<CcgActivationState> {
     const currentSetsQuery = CcgSet.find({
       state: "current",
@@ -514,12 +539,13 @@ class CcgPublisherService {
     const sets: CcgSnapshotSetPreview[] = [];
 
     for (const enabledSet of enabledSets) {
-      const { set, entries, continuity } = await this.loadSnapshotPopulation(enabledSet.zoneId, { ensureConfigured: false });
-      const [mediaByCharacter, existingCards] = await Promise.all([
+      const { configured, set, entries, continuity } = await this.loadSnapshotPopulation(enabledSet.zoneId, { ensureConfigured: false });
+      const [mediaByCharacter, mythicPlusByCharacter, existingCards] = await Promise.all([
         this.loadContinuityMedia(continuity),
+        this.loadMythicPlusScoresByCharacter(continuity, configured.mythicPlusSeason),
         CcgCard.find({ setId: set._id, characterId: { $in: continuity.allMemberIds } })
           .sort({ snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 })
-          .select("characterId tierGrade specName role metric")
+          .select("characterId tierGrade classID specName role metric mythicPlusScore")
           .lean(),
       ]);
       const latestCardByCharacter = new Map<
@@ -527,9 +553,11 @@ class CcgPublisherService {
         {
           characterId: string;
           tierGrade: CcgTierGrade;
+          classID: number;
           specName: string;
           role: "dps" | "healer" | "tank";
           metric: "dps" | "hps";
+          mythicPlusScore: number | null;
         }
       >();
       for (const card of existingCards) {
@@ -538,9 +566,11 @@ class CcgPublisherService {
           latestCardByCharacter.set(characterId, {
             characterId,
             tierGrade: card.tierGrade,
+            classID: card.classID,
             specName: card.specName,
             role: card.role,
             metric: card.metric,
+            mythicPlusScore: card.mythicPlusScore ?? null,
           });
         }
       }
@@ -549,9 +579,11 @@ class CcgPublisherService {
         return {
           characterId: String(entry.characterId),
           tierGrade,
+          classID: entry.classID,
           specName: entry.bestSpecName ?? entry.specName,
           role: entry.role,
           metric: entry.metric,
+          mythicPlusScore: mythicPlusByCharacter.get(String(entry.characterId)) ?? null,
           hasMedia: media?.status === "available" && Boolean(media.mainRawUrl),
         };
       });
@@ -564,9 +596,10 @@ class CcgPublisherService {
           latestCard,
           {
             tierGrade,
+            classID: entry.classID,
             specName: entry.bestSpecName ?? entry.specName,
             role: entry.role,
-            metric: entry.metric,
+            mythicPlusScore: mythicPlusByCharacter.get(characterId) ?? null,
           },
           media?.status === "available" && Boolean(media.mainRawUrl),
         );
@@ -612,6 +645,7 @@ class CcgPublisherService {
           newCharacters: totals.newCharacters + set.newCharacters,
           rarityChanges: totals.rarityChanges + set.rarityChanges,
           identityChanges: totals.identityChanges + set.identityChanges,
+          mythicPlusScoreAdds: totals.mythicPlusScoreAdds + set.mythicPlusScoreAdds,
           unchangedCharacters: totals.unchangedCharacters + set.unchangedCharacters,
           blockedByMissingMedia: totals.blockedByMissingMedia + set.blockedByMissingMedia,
           mediaReady: totals.mediaReady + set.mediaReady,
@@ -623,6 +657,7 @@ class CcgPublisherService {
           newCharacters: 0,
           rarityChanges: 0,
           identityChanges: 0,
+          mythicPlusScoreAdds: 0,
           unchangedCharacters: 0,
           blockedByMissingMedia: 0,
           mediaReady: 0,
@@ -645,24 +680,10 @@ class CcgPublisherService {
     try {
       const { configured, set, entries, participationByCharacter, continuity, characterIds } = await this.loadSnapshotPopulation(zoneId);
       const snapshotKey = `${set.slug}:${getHelsinkiDateKey()}`;
-      const [mediaByCharacter, mythicPlusRows] = await Promise.all([
+      const [mediaByCharacter, mythicPlusByCharacter] = await Promise.all([
         this.loadContinuityMedia(continuity),
-        CharacterMythicPlusSeasonScore.find({
-          characterId: { $in: continuity.allMemberIds },
-          season: configured.mythicPlusSeason,
-          identityStatus: { $ne: "stale" },
-        })
-          .select("characterId scores.all fetchedAt")
-          .lean(),
+        this.loadMythicPlusScoresByCharacter(continuity, configured.mythicPlusSeason),
       ]);
-      const mythicPlusByCharacter = new Map<string, number | null>();
-      for (const row of mythicPlusRows) {
-        const rootId = continuity.rootIdByMemberId.get(String(row.characterId)) ?? String(row.characterId);
-        const score = row.scores.all > 0 ? row.scores.all : null;
-        const current = mythicPlusByCharacter.get(rootId) ?? null;
-        if (score !== null && (current === null || score > current)) mythicPlusByCharacter.set(rootId, score);
-        else if (!mythicPlusByCharacter.has(rootId)) mythicPlusByCharacter.set(rootId, null);
-      }
       const now = new Date();
       const gradeDistribution: Record<string, number> = { S: 0, A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 };
       const operations = entries.map(({ entry, tierGrade }, index) => {
@@ -770,9 +791,10 @@ class CcgPublisherService {
         const payload = candidate.payload as SnapshotPayload;
         return shouldPublishCcgCardSnapshot(latestCardByCharacter.get(rootId), {
           tierGrade: candidate.tierGrade,
+          classID: payload.classID,
           specName: payload.specName,
           role: payload.role,
-          metric: payload.metric,
+          mythicPlusScore: payload.mythicPlusScore,
         });
       };
       const unchanged = candidates.filter((candidate) => !shouldPublish(candidate));

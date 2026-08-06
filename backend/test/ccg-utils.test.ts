@@ -66,12 +66,36 @@ test("canonical grading maps a 100-card population to the versioned S through F 
   assert.deepEqual(Object.fromEntries(counts), { S: 5, A: 10, B: 20, C: 20, D: 20, E: 15, F: 10 });
 });
 
-test("card snapshots publish for new characters and changed rarity or performance identity", () => {
-  const next = { tierGrade: "B" as const, specName: "shadow", role: "dps" as const, metric: "dps" as const };
+test("card snapshots publish for configured card changes only", () => {
+  const next = {
+    tierGrade: "B" as const,
+    classID: 5,
+    specName: "shadow",
+    role: "dps" as const,
+    metric: "dps" as const,
+    mythicPlusScore: null,
+  };
+  const roleOnlyChange = { ...next, role: "healer" as const };
+  const metricOnlyChange = { ...next, metric: "hps" as const };
+  const numericMetricsOnlyChange = {
+    ...next,
+    parseScore: 99,
+    survivalScore: 98,
+    combinedScore: 97,
+  };
   assert.equal(shouldPublishCcgCardSnapshot(null, next), true);
   assert.equal(shouldPublishCcgCardSnapshot(next, next), false);
   assert.equal(shouldPublishCcgCardSnapshot(next, { ...next, tierGrade: "A" }), true);
-  assert.equal(shouldPublishCcgCardSnapshot(next, { ...next, specName: "holy", role: "healer", metric: "hps" }), true);
+  assert.equal(shouldPublishCcgCardSnapshot(next, { ...next, classID: 8 }), true);
+  assert.equal(shouldPublishCcgCardSnapshot(next, { ...next, specName: "holy" }), true);
+  assert.equal(shouldPublishCcgCardSnapshot(next, roleOnlyChange), true);
+  assert.equal(shouldPublishCcgCardSnapshot(next, metricOnlyChange), false);
+  assert.equal(shouldPublishCcgCardSnapshot(next, numericMetricsOnlyChange), false);
+  assert.equal(shouldPublishCcgCardSnapshot(next, { ...next, mythicPlusScore: 2500 }), true);
+  assert.equal(shouldPublishCcgCardSnapshot({ ...next, mythicPlusScore: 0 }, { ...next, mythicPlusScore: 2500 }), true);
+  assert.equal(shouldPublishCcgCardSnapshot(next, { ...next, mythicPlusScore: 0 }), false);
+  assert.equal(shouldPublishCcgCardSnapshot({ ...next, mythicPlusScore: 2400 }, { ...next, mythicPlusScore: 2500 }), false);
+  assert.equal(shouldPublishCcgCardSnapshot({ ...next, mythicPlusScore: 2500 }, next), false);
 });
 
 test("card snapshot versions advance without requiring a legacy version field", () => {
@@ -83,41 +107,47 @@ test("card snapshot versions advance without requiring a legacy version field", 
 test("snapshot previews separate new characters, rarity changes, unchanged cards, and missing media", () => {
   const preview = summarizeCcgSnapshotPreview(
     [
-      { characterId: "new-ready", tierGrade: "S", specName: "shadow", role: "dps", metric: "dps", hasMedia: true },
-      { characterId: "new-blocked", tierGrade: "A", specName: "shadow", role: "dps", metric: "dps", hasMedia: false },
-      { characterId: "changed-ready", tierGrade: "A", specName: "shadow", role: "dps", metric: "dps", hasMedia: true },
-      { characterId: "changed-blocked", tierGrade: "B", specName: "shadow", role: "dps", metric: "dps", hasMedia: false },
-      { characterId: "identity-ready", tierGrade: "C", specName: "holy", role: "healer", metric: "hps", hasMedia: true },
-      { characterId: "identity-blocked", tierGrade: "C", specName: "holy", role: "healer", metric: "hps", hasMedia: false },
-      { characterId: "unchanged", tierGrade: "C", specName: "shadow", role: "dps", metric: "dps", hasMedia: true },
+      { characterId: "new-ready", tierGrade: "S", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: null, hasMedia: true },
+      { characterId: "new-blocked", tierGrade: "A", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: null, hasMedia: false },
+      { characterId: "changed-ready", tierGrade: "A", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: null, hasMedia: true },
+      { characterId: "changed-blocked", tierGrade: "B", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: null, hasMedia: false },
+      { characterId: "identity-ready", tierGrade: "C", classID: 5, specName: "holy", role: "healer", metric: "hps", mythicPlusScore: null, hasMedia: true },
+      { characterId: "identity-blocked", tierGrade: "C", classID: 5, specName: "holy", role: "healer", metric: "hps", mythicPlusScore: null, hasMedia: false },
+      { characterId: "score-ready", tierGrade: "C", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: 2500, hasMedia: true },
+      { characterId: "score-blocked", tierGrade: "C", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: 2500, hasMedia: false },
+      { characterId: "unchanged", tierGrade: "C", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: null, hasMedia: true },
     ] as const,
     [
-      { characterId: "changed-ready", tierGrade: "B", specName: "shadow", role: "dps", metric: "dps" },
-      { characterId: "changed-blocked", tierGrade: "C", specName: "shadow", role: "dps", metric: "dps" },
-      { characterId: "identity-ready", tierGrade: "C", specName: "shadow", role: "dps", metric: "dps" },
-      { characterId: "identity-blocked", tierGrade: "C", specName: "shadow", role: "dps", metric: "dps" },
-      { characterId: "unchanged", tierGrade: "C", specName: "shadow", role: "dps", metric: "dps" },
+      { characterId: "changed-ready", tierGrade: "B", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: null },
+      { characterId: "changed-blocked", tierGrade: "C", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: null },
+      { characterId: "identity-ready", tierGrade: "C", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: null },
+      { characterId: "identity-blocked", tierGrade: "C", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: null },
+      { characterId: "score-ready", tierGrade: "C", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: null },
+      { characterId: "score-blocked", tierGrade: "C", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: null },
+      { characterId: "unchanged", tierGrade: "C", classID: 5, specName: "shadow", role: "dps", metric: "dps", mythicPlusScore: null },
     ],
   );
 
   assert.deepEqual(preview, {
-    eligibleCharacters: 7,
-    projectedSnapshots: 3,
+    eligibleCharacters: 9,
+    projectedSnapshots: 4,
     newCharacters: 1,
     rarityChanges: 1,
     identityChanges: 1,
+    mythicPlusScoreAdds: 1,
     unchangedCharacters: 1,
-    blockedByMissingMedia: 3,
-    mediaReady: 4,
-    missingMedia: 3,
-    gradeDistribution: { S: 1, A: 2, B: 1, C: 3, D: 0, E: 0, F: 0 },
+    blockedByMissingMedia: 4,
+    mediaReady: 5,
+    missingMedia: 4,
+    gradeDistribution: { S: 1, A: 2, B: 1, C: 5, D: 0, E: 0, F: 0 },
   });
 });
 
 test("snapshot preview dispositions identify which missing-media characters need action", () => {
-  const next = { tierGrade: "A" as const, specName: "shadow", role: "dps" as const, metric: "dps" as const };
+  const next = { tierGrade: "A" as const, classID: 5, specName: "shadow", role: "dps" as const, metric: "dps" as const, mythicPlusScore: null };
   const previous = { ...next, tierGrade: "B" as const };
   const changedIdentity = { ...next, specName: "holy", role: "healer" as const, metric: "hps" as const };
+  const gainedMythicPlusScore = { ...next, mythicPlusScore: 2500 };
   assert.equal(getCcgSnapshotPreviewDisposition(null, next, false), "blocked_new_character");
   assert.equal(getCcgSnapshotPreviewDisposition(previous, next, false), "blocked_rarity_change");
   assert.equal(getCcgSnapshotPreviewDisposition(next, next, false), "unchanged");
@@ -125,6 +155,8 @@ test("snapshot preview dispositions identify which missing-media characters need
   assert.equal(getCcgSnapshotPreviewDisposition(previous, next, true), "rarity_change");
   assert.equal(getCcgSnapshotPreviewDisposition(changedIdentity, next, true), "identity_change");
   assert.equal(getCcgSnapshotPreviewDisposition(changedIdentity, next, false), "blocked_identity_change");
+  assert.equal(getCcgSnapshotPreviewDisposition(next, gainedMythicPlusScore, true), "mythic_plus_score_added");
+  assert.equal(getCcgSnapshotPreviewDisposition(next, gainedMythicPlusScore, false), "blocked_mythic_plus_score_added");
 });
 
 test("card crops are deterministic and stay inside each raid's safe flair range", () => {

@@ -128,6 +128,7 @@ class CacheService {
     /^raids:list$/,
     /^raid:\d+:dates$/,
     /^raid:\d+:bosses$/,
+    /^pickems:reference-rankings:/,
     /^ccg:analytics:/,
   ];
 
@@ -999,6 +1000,10 @@ class CacheService {
    */
   getPickemRankingsKey(pickemId: string): string {
     return `pickems:rankings:${pickemId}`;
+  }
+
+  getPickemReferenceRankingsKey(raidId: number): string {
+    return `pickems:reference-rankings:${raidId}`;
   }
 
   getCharacterRankingsOptionsKey(): string {

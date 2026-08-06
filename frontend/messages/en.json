@@ -1285,7 +1285,7 @@
         "publish": "Publish cards now",
         "publishStarting": "Starting publication…",
         "publishConfirmTitle": "Publish the latest snapshots for every enabled raid set?",
-        "publishConfirmDescription": "Continue only after CCG Weekly Raid Snapshot is completed in the Tasks admin tab. This publishes every render-ready new character, rarity change, and spec or role change from the latest snapshots, skips missing renders, rebuilds the active pack pools, and cannot be undone.",
+        "publishConfirmDescription": "Continue only after CCG Weekly Raid Snapshot is completed in the Tasks admin tab. This publishes every render-ready new character, rarity change, class, spec or role change, and newly available Mythic+ score from the latest snapshots, skips missing renders, rebuilds the active pack pools, and cannot be undone.",
         "publishConfirm": "Publish cards",
         "publishStarted": "The publication run started in the background. Follow its progress in the Tasks admin tab.",
         "publishError": "The publication run could not be started.",
@@ -1303,10 +1303,12 @@
         "dispositions": {
           "new_character": "Will add",
           "rarity_change": "Will update",
-          "identity_change": "Spec or role changed",
+          "identity_change": "Class, spec or role changed",
+          "mythic_plus_score_added": "Mythic+ score added",
           "blocked_new_character": "Missing media · new card",
           "blocked_rarity_change": "Missing media · update",
-          "blocked_identity_change": "Missing media · spec or role"
+          "blocked_identity_change": "Missing media · class, spec or role",
+          "blocked_mythic_plus_score_added": "Missing media · Mythic+ score"
         },
         "filters": {
           "all": "All changes",
@@ -1329,7 +1331,7 @@
         },
         "characterList": {
           "title": "Character changes · {raid}",
-          "description": "This list contains actionable card changes only. Characters whose rarity, spec, and role are unchanged remain visible in the raid totals above.",
+          "description": "This list contains actionable card changes only. Characters whose rarity, class, spec, role, and Mythic+ score availability are unchanged remain visible in the raid totals above.",
           "raidFilter": "Raid",
           "outcomeFilter": "Character result filters",
           "searchLabel": "Find a character",
@@ -1343,7 +1345,7 @@
           "attempts": "{count, plural, one {# attempt} other {# attempts}}",
           "nextAttempt": "Next attempt {date}",
           "noError": "No stored error",
-          "noChanges": "This raid has no new cards, rarity updates, spec or role updates, or media-blocked changes.",
+          "noChanges": "This raid has no new cards, rarity, class, spec, role, or Mythic+ score availability updates, or media-blocked changes.",
           "noMatches": "No characters match the selected result and search filters."
         },
         "metrics": {
@@ -1351,7 +1353,8 @@
           "projected": "New snapshots",
           "newCharacters": "New characters",
           "rarityChanges": "Rarity changes",
-          "identityChanges": "Spec / role changes",
+          "identityChanges": "Class / spec / role changes",
+          "mythicPlusScoreAdds": "Mythic+ scores added",
           "unchanged": "Unchanged",
           "blocked": "Blocked by media"
         }

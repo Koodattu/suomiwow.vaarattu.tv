@@ -1285,7 +1285,7 @@
         "publish": "Julkaise kortit nyt",
         "publishStarting": "Julkaisua käynnistetään…",
         "publishConfirmTitle": "Julkaistaanko uusimmat snapshotit kaikille käytössä oleville raidiseteille?",
-        "publishConfirmDescription": "Jatka vasta, kun CCG Weekly Raid Snapshot näkyy valmistuneena hallinnan Tehtävät-välilehdellä. Tämä julkaisee uusimmista snapshoteista kaikki renderiltään valmiit uudet hahmot, harvinaisuusmuutokset sekä spec- ja roolimuutokset, ohittaa puuttuvat renderit, rakentaa aktiiviset pakkapoolit uudelleen eikä toimintoa voi perua.",
+        "publishConfirmDescription": "Jatka vasta, kun CCG Weekly Raid Snapshot näkyy valmistuneena hallinnan Tehtävät-välilehdellä. Tämä julkaisee uusimmista snapshoteista kaikki renderiltään valmiit uudet hahmot, harvinaisuus-, class-, spec- ja roolimuutokset sekä ensimmäistä kertaa saatavilla olevan Mythic+-pistemäärän, ohittaa puuttuvat renderit, rakentaa aktiiviset pakkapoolit uudelleen eikä toimintoa voi perua.",
         "publishConfirm": "Julkaise kortit",
         "publishStarted": "Julkaisuajo käynnistyi taustalla. Voit seurata sen etenemistä hallinnan Tehtävät-välilehdellä.",
         "publishError": "Julkaisuajoa ei voitu käynnistää.",
@@ -1303,10 +1303,12 @@
         "dispositions": {
           "new_character": "Lisätään kortiksi",
           "rarity_change": "Harvinaisuus päivitetään",
-          "identity_change": "Spec tai rooli muuttui",
+          "identity_change": "Class, spec tai rooli muuttui",
+          "mythic_plus_score_added": "Mythic+-pisteet lisätään",
           "blocked_new_character": "Media puuttuu · uusi kortti",
           "blocked_rarity_change": "Media puuttuu · päivitys",
-          "blocked_identity_change": "Media puuttuu · spec tai rooli"
+          "blocked_identity_change": "Media puuttuu · class, spec tai rooli",
+          "blocked_mythic_plus_score_added": "Media puuttuu · Mythic+-pisteet"
         },
         "filters": {
           "all": "Kaikki muutokset",
@@ -1329,7 +1331,7 @@
         },
         "characterList": {
           "title": "Hahmomuutokset · {raid}",
-          "description": "Lista näyttää vain kortteihin vaikuttavat muutokset. Hahmot, joiden harvinaisuus, spec ja rooli eivät muutu, näkyvät yllä raidin kokonaisluvuissa.",
+          "description": "Lista näyttää vain kortteihin vaikuttavat muutokset. Hahmot, joiden harvinaisuus, class, spec, rooli ja Mythic+-pisteiden saatavuus eivät muutu, näkyvät yllä raidin kokonaisluvuissa.",
           "raidFilter": "Raid",
           "outcomeFilter": "Hahmojen tulossuodattimet",
           "searchLabel": "Etsi hahmo",
@@ -1343,7 +1345,7 @@
           "attempts": "{count, plural, one {# yritys} other {# yritystä}}",
           "nextAttempt": "Seuraava yritys {date}",
           "noError": "Ei tallennettua virhettä",
-          "noChanges": "Tälle raidille ei ole uusia kortteja, harvinaisuus-, spec- tai roolipäivityksiä eikä median estämiä muutoksia.",
+          "noChanges": "Tälle raidille ei ole uusia kortteja, harvinaisuus-, class-, spec-, rooli- tai Mythic+-pistepäivityksiä eikä median estämiä muutoksia.",
           "noMatches": "Yksikään hahmo ei vastaa valittua tulosta ja hakuehtoa."
         },
         "metrics": {
@@ -1351,7 +1353,8 @@
           "projected": "Uudet snapshotit",
           "newCharacters": "Uudet hahmot",
           "rarityChanges": "Harvinaisuusmuutokset",
-          "identityChanges": "Spec- / roolimuutokset",
+          "identityChanges": "Class- / spec- / roolimuutokset",
+          "mythicPlusScoreAdds": "Lisätyt Mythic+-pisteet",
           "unchanged": "Ei muutosta",
           "blocked": "Media estää"
         }
