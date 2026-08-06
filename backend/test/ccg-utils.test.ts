@@ -43,8 +43,10 @@ import {
   rollProtectedFinish,
 } from "../src/utils/ccg-random";
 import {
+  getMissingCardEffectiveCandidates,
   planPackSelections,
   resolveMissingCardNudge,
+  rollMissingCardCandidateCount,
   selectCommunityCardCandidates,
   selectPackCards,
   shufflePackResults,
@@ -635,8 +637,8 @@ test("a targeted pack plan stays inside its selected raid pool", () => {
   );
   assert.equal(plan.length, 5);
   assert.equal(plan.every((row) => row.poolId === "pool-a" && row.setId === "raid-a"), true);
-  assert.equal(plan.every((row) => row.missingCardAlternative?.poolId === "pool-a"), true);
-  assert.equal(plan.every((row) => row.missingCardAlternative?.tierGrade === row.tierGrade), true);
+  assert.equal(plan.every((row) => row.missingCardAlternatives[0]?.poolId === "pool-a"), true);
+  assert.equal(plan.every((row) => row.missingCardAlternatives[0]?.tierGrade === row.tierGrade), true);
 });
 
 test("pack plans create same-rarity missing-card alternatives on the five-percent roll", () => {
@@ -650,9 +652,40 @@ test("pack plans create same-rarity missing-card alternatives on the five-percen
     },
   );
 
-  assert.equal(plan[0].missingCardAlternative?.tierGrade, plan[0].tierGrade);
-  assert.equal(plan[0].missingCardAlternative?.bucketOffset, 1);
-  assert.equal(plan.slice(1).every((row) => row.missingCardAlternative === null), true);
+  assert.equal(plan[0].missingCardAlternatives[0]?.tierGrade, plan[0].tierGrade);
+  assert.equal(plan[0].missingCardAlternatives[0]?.bucketOffset, 1);
+  assert.equal(plan.slice(1).every((row) => row.missingCardAlternatives.length === 0), true);
+});
+
+test("missing-card candidate counts scale smoothly from 95 percent completion and cap at four", () => {
+  const assertClose = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-10);
+  assertClose(getMissingCardEffectiveCandidates(0), 1.05);
+  assertClose(getMissingCardEffectiveCandidates(0.95), 1.05);
+  assertClose(getMissingCardEffectiveCandidates(0.97), 1.35);
+  assertClose(getMissingCardEffectiveCandidates(0.98), 1.5);
+  assertClose(getMissingCardEffectiveCandidates(0.99), 2);
+  assertClose(getMissingCardEffectiveCandidates(0.995), 3);
+  assertClose(getMissingCardEffectiveCandidates(0.997), 3.5);
+  assertClose(getMissingCardEffectiveCandidates(0.999), 4);
+  assertClose(getMissingCardEffectiveCandidates(1), 4);
+
+  assert.equal(rollMissingCardCandidateCount(0.95, () => 499), 2);
+  assert.equal(rollMissingCardCandidateCount(0.95, () => 500), 1);
+  assert.equal(rollMissingCardCandidateCount(0.997, () => 4_999), 4);
+  assert.equal(rollMissingCardCandidateCount(0.997, () => 5_000), 3);
+  assert.equal(rollMissingCardCandidateCount(0.999, () => { throw new Error("unexpected roll"); }), 4);
+});
+
+test("late-completion pack plans keep all extra candidates inside the rolled rarity", () => {
+  const plan = planPackSelections(
+    [{ poolId: "pool-a", setId: "raid-a", version: "1", counts: [{ grade: "A", count: 5 }] }],
+    () => 0,
+    true,
+    0.999,
+  );
+
+  assert.equal(plan.every((row) => row.missingCardAlternatives.length === 3), true);
+  assert.equal(plan.every((row) => row.missingCardAlternatives.every((alternative) => alternative.tierGrade === row.tierGrade)), true);
 });
 
 test("the missing-card nudge only replaces an owned primary with a missing alternative", () => {
@@ -661,18 +694,19 @@ test("the missing-card nudge only replaces an owned primary with a missing alter
   const primary = { series: "owned" };
   const missing = { series: "missing" };
 
-  assert.equal(resolveMissingCardNudge(primary, missing, isOwned), missing);
-  assert.equal(resolveMissingCardNudge(missing, primary, isOwned), missing);
-  assert.equal(resolveMissingCardNudge(primary, { series: "also-owned" }, isOwned), primary);
-  assert.equal(resolveMissingCardNudge(primary, null, isOwned), primary);
+  assert.equal(resolveMissingCardNudge(primary, [missing], isOwned), missing);
+  assert.equal(resolveMissingCardNudge(missing, [primary], isOwned), missing);
+  assert.equal(resolveMissingCardNudge(primary, [{ series: "also-owned" }, missing], isOwned), missing);
+  assert.equal(resolveMissingCardNudge(primary, [{ series: "also-owned" }], isOwned), primary);
+  assert.equal(resolveMissingCardNudge(primary, [], isOwned), primary);
 });
 
 test("the missing-card nudge treats earlier cards in the same pack as owned", () => {
   const owned = new Set(["owned"]);
   const isOwned = (card: { series: string }) => owned.has(card.series);
-  const first = resolveMissingCardNudge({ series: "owned" }, { series: "first-new" }, isOwned);
+  const first = resolveMissingCardNudge({ series: "owned" }, [{ series: "first-new" }], isOwned);
   owned.add(first.series);
-  const second = resolveMissingCardNudge({ series: "first-new" }, { series: "second-new" }, isOwned);
+  const second = resolveMissingCardNudge({ series: "first-new" }, [{ series: "second-new" }], isOwned);
 
   assert.equal(first.series, "first-new");
   assert.equal(second.series, "second-new");
@@ -689,7 +723,7 @@ test("each card has a fixed one-percent chance to become a random Community card
   const acceptedRolls = [99, 1, 500];
   assert.deepEqual(selectCommunityCardCandidates(communityCards, () => acceptedRolls.shift()!), {
     primary: communityCards[1],
-    missingCardAlternative: null,
+    missingCardAlternatives: [],
   });
 });
 
@@ -703,8 +737,8 @@ test("Community missing-card alternatives preserve the primary rarity", () => {
   const selected = selectCommunityCardCandidates(communityCards, () => acceptedRolls.shift()!);
 
   assert.equal(selected?.primary.id, "first-a");
-  assert.equal(selected?.missingCardAlternative?.id, "second-a");
-  assert.equal(selected?.missingCardAlternative?.tierGrade, selected?.primary.tierGrade);
+  assert.equal(selected?.missingCardAlternatives[0]?.id, "second-a");
+  assert.equal(selected?.missingCardAlternatives[0]?.tierGrade, selected?.primary.tierGrade);
 });
 
 test("Heirloom stays outside regular raid-card pack odds", () => {

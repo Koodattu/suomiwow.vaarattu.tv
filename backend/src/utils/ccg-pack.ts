@@ -27,13 +27,22 @@ export type CcgPackCardPlan = {
 };
 
 export type CcgPackSelectionPlan = CcgPackCardPlan & {
-  missingCardAlternative: CcgPackCardPlan | null;
+  missingCardAlternatives: CcgPackCardPlan[];
 };
 
 export type CcgCardCandidates<T> = {
   primary: T;
-  missingCardAlternative: T | null;
+  missingCardAlternatives: T[];
 };
+
+const CCG_MISSING_CARD_CANDIDATE_CURVE = [
+  { completionRatio: 0.95, effectiveCandidates: 1 + (CCG_MISSING_CARD_NUDGE_BPS / CCG_BASIS_POINT_SCALE) },
+  { completionRatio: 0.97, effectiveCandidates: 1.35 },
+  { completionRatio: 0.98, effectiveCandidates: 1.5 },
+  { completionRatio: 0.99, effectiveCandidates: 2 },
+  { completionRatio: 0.995, effectiveCandidates: 3 },
+  { completionRatio: 0.999, effectiveCandidates: 4 },
+] as const;
 
 export function shufflePackResults<T>(results: readonly T[], random: (maximum: number) => number = randomInt): T[] {
   const shuffled = [...results];
@@ -72,11 +81,42 @@ function rollBasisPointChance(
 
 export function resolveMissingCardNudge<T>(
   primary: T,
-  missingCardAlternative: T | null | undefined,
+  missingCardAlternatives: readonly T[],
   isOwned: (candidate: T) => boolean,
 ): T {
-  if (!missingCardAlternative || !isOwned(primary) || isOwned(missingCardAlternative)) return primary;
-  return missingCardAlternative;
+  if (!isOwned(primary)) return primary;
+  return missingCardAlternatives.find((candidate) => !isOwned(candidate)) ?? primary;
+}
+
+export function getMissingCardEffectiveCandidates(completionRatio: number): number {
+  if (!Number.isFinite(completionRatio)) throw new Error("Completion ratio must be finite");
+  const clampedRatio = Math.max(0, Math.min(1, completionRatio));
+  const first = CCG_MISSING_CARD_CANDIDATE_CURVE[0];
+  if (clampedRatio <= first.completionRatio) return first.effectiveCandidates;
+
+  for (let index = 1; index < CCG_MISSING_CARD_CANDIDATE_CURVE.length; index += 1) {
+    const upper = CCG_MISSING_CARD_CANDIDATE_CURVE[index];
+    if (clampedRatio > upper.completionRatio) continue;
+    const lower = CCG_MISSING_CARD_CANDIDATE_CURVE[index - 1];
+    const progress = (clampedRatio - lower.completionRatio) / (upper.completionRatio - lower.completionRatio);
+    return lower.effectiveCandidates + ((upper.effectiveCandidates - lower.effectiveCandidates) * progress);
+  }
+
+  return CCG_MISSING_CARD_CANDIDATE_CURVE[CCG_MISSING_CARD_CANDIDATE_CURVE.length - 1].effectiveCandidates;
+}
+
+export function rollMissingCardCandidateCount(
+  completionRatio: number,
+  random: (maximum: number) => number = randomInt,
+): number {
+  const effectiveCandidates = getMissingCardEffectiveCandidates(completionRatio);
+  const guaranteedCandidates = Math.floor(effectiveCandidates);
+  const fractionalCandidateBps = Math.round(
+    (effectiveCandidates - guaranteedCandidates) * CCG_BASIS_POINT_SCALE,
+  );
+  return guaranteedCandidates + (
+    fractionalCandidateBps > 0 && rollBasisPointChance(fractionalCandidateBps, random) ? 1 : 0
+  );
 }
 
 export function selectPackCards<T extends { toString(): string }>(
@@ -103,6 +143,7 @@ export function planPackSelections(
   pools: CcgPackPoolSummary[],
   random: (maximum: number) => number = randomInt,
   includeMissingCardAlternatives = true,
+  completionRatio = 0,
 ): CcgPackSelectionPlan[] {
   const countByPool = new Map(
     pools.map((pool) => [pool.poolId, new Map(pool.counts.filter((row) => row.count > 0).map((row) => [row.grade, row.count]))]),
@@ -132,11 +173,15 @@ export function planPackSelections(
   const choose = (): CcgPackSelectionPlan => {
     const tierGrade = weightedGrade(CCG_WEIGHTED_GRADE_ODDS, available, random);
     const primary = chooseCard(tierGrade);
+    const candidateCount = includeMissingCardAlternatives
+      ? rollMissingCardCandidateCount(completionRatio, random)
+      : 1;
     return {
       ...primary,
-      missingCardAlternative: includeMissingCardAlternatives && rollBasisPointChance(CCG_MISSING_CARD_NUDGE_BPS, random)
-        ? chooseCard(tierGrade)
-        : null,
+      missingCardAlternatives: Array.from(
+        { length: candidateCount - 1 },
+        () => chooseCard(tierGrade),
+      ),
     };
   };
 
@@ -146,17 +191,17 @@ export function planPackSelections(
 export function selectCommunityCardCandidates<T extends { tierGrade: CcgTierGrade }>(
   communityCards: readonly T[],
   random: (maximum: number) => number = randomInt,
-  includeMissingCardAlternative = true,
+  includeMissingCardAlternatives = true,
 ): CcgCardCandidates<T> | null {
   if (communityCards.length === 0) return null;
   if (!rollBasisPointChance(CCG_COMMUNITY_CARD_CHANCE_BPS, random)) return null;
   const primary = communityCards[random(communityCards.length)];
-  if (!includeMissingCardAlternative || !rollBasisPointChance(CCG_MISSING_CARD_NUDGE_BPS, random)) {
-    return { primary, missingCardAlternative: null };
+  if (!includeMissingCardAlternatives || !rollBasisPointChance(CCG_MISSING_CARD_NUDGE_BPS, random)) {
+    return { primary, missingCardAlternatives: [] };
   }
   const sameGradeCards = communityCards.filter((card) => card.tierGrade === primary.tierGrade);
   return {
     primary,
-    missingCardAlternative: sameGradeCards[random(sameGradeCards.length)],
+    missingCardAlternatives: [sameGradeCards[random(sameGradeCards.length)]],
   };
 }

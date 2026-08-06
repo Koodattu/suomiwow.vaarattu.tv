@@ -320,7 +320,7 @@ type CcgPackCardCandidate = {
 };
 
 type CcgPackCardSelection = CcgPackCardCandidate & {
-  missingCardAlternative: CcgPackCardCandidate | null;
+  missingCardAlternatives: CcgPackCardCandidate[];
 };
 
 type SelectedResult = {
@@ -2938,11 +2938,11 @@ class CcgService {
           return;
         }
         const allowanceSource = await this.reservePack(owner, session);
-        const pool = await this.selectPackResults(session, targetSetId);
+        const pool = await this.selectPackResults(session, targetSetId, true, true, owner);
         const candidateSelections = pool.results;
         const candidateIds = candidateSelections.flatMap((result) => [
           result.cardId,
-          ...(result.missingCardAlternative ? [result.missingCardAlternative.cardId] : []),
+          ...result.missingCardAlternatives.map((alternative) => alternative.cardId),
         ]);
         const candidateCards = await CcgCard.find({
           _id: { $in: candidateIds },
@@ -2972,12 +2972,13 @@ class CcgService {
         const selected = candidateSelections.map((selection) => {
           const primary = candidateCardById.get(String(selection.cardId));
           if (!primary) throw new CcgServiceError(409, "pool_invalid", "The pack pool changed while this pack was opening");
-          const missingCardAlternative = selection.missingCardAlternative
-            ? candidateCardById.get(String(selection.missingCardAlternative.cardId)) ?? null
-            : null;
+          const missingCardAlternatives = selection.missingCardAlternatives.flatMap((alternative) => {
+            const card = candidateCardById.get(String(alternative.cardId));
+            return card ? [card] : [];
+          });
           const card = resolveMissingCardNudge(
             primary,
-            missingCardAlternative,
+            missingCardAlternatives,
             (candidate) => selectionOwnedSeriesKeys.has(getSeriesKey(candidate)),
           );
           selectionOwnedSeriesKeys.add(getSeriesKey(card));
@@ -4167,6 +4168,7 @@ class CcgService {
     targetSetId: mongoose.Types.ObjectId | null = null,
     includeCommunity = true,
     includeMissingCardAlternatives = true,
+    missingCardOwner: Pick<CcgOwner, "ownerType" | "ownerId"> | null = null,
   ): Promise<{
     results: CcgPackCardSelection[];
     sourceSetIds: mongoose.Types.ObjectId[];
@@ -4180,7 +4182,7 @@ class CcgService {
     };
     if (targetSetId) setFilter._id = targetSetId;
     const sets = await CcgSet.find(setFilter)
-      .select("_id")
+      .select("_id cardCount")
       .sort({ zoneId: 1 })
       .session(session)
       .lean();
@@ -4220,6 +4222,18 @@ class CcgService {
       );
     }
 
+    const eligibleCardCount = sets.reduce((total, set) => total + set.cardCount, 0);
+    const ownedSeriesCount = includeMissingCardAlternatives && missingCardOwner
+      ? await CcgSeriesOwnership.countDocuments({
+          ownerType: missingCardOwner.ownerType,
+          ownerId: missingCardOwner.ownerId,
+          setId: { $in: normalSetIds },
+        }).session(session)
+      : 0;
+    const completionRatio = eligibleCardCount > 0
+      ? Math.min(ownedSeriesCount, eligibleCardCount) / eligibleCardCount
+      : 0;
+
     const plan = planPackSelections(
       summaries.map((pool) => ({
         poolId: String(pool._id),
@@ -4229,10 +4243,11 @@ class CcgService {
       })),
       randomInt,
       includeMissingCardAlternatives,
+      completionRatio,
     );
     const plannedCards = plan.flatMap((row) => [
       row,
-      ...(row.missingCardAlternative ? [row.missingCardAlternative] : []),
+      ...row.missingCardAlternatives,
     ]);
     const selectedPoolIds = Array.from(new Set(plannedCards.map((row) => row.poolId))).map((id) => new mongoose.Types.ObjectId(id));
     const selectedGrades = Array.from(new Set(plannedCards.map((row) => row.tierGrade)));
@@ -4267,7 +4282,7 @@ class CcgService {
       const primary = resolvePlan(row);
       return {
         ...primary,
-        missingCardAlternative: row.missingCardAlternative ? resolvePlan(row.missingCardAlternative) : null,
+        missingCardAlternatives: row.missingCardAlternatives.map(resolvePlan),
       };
     });
     const communitySet = includeCommunity
@@ -4293,13 +4308,11 @@ class CcgService {
           cardId: primary.cardId,
           setId: communitySet._id,
           tierGrade: primary.tierGrade,
-          missingCardAlternative: communitySelection.missingCardAlternative
-            ? {
-                cardId: communitySelection.missingCardAlternative.cardId,
-                setId: communitySet._id,
-                tierGrade: communitySelection.missingCardAlternative.tierGrade,
-              }
-            : null,
+          missingCardAlternatives: communitySelection.missingCardAlternatives.map((alternative) => ({
+            cardId: alternative.cardId,
+            setId: communitySet._id,
+            tierGrade: alternative.tierGrade,
+          })),
         };
       }
       return base;

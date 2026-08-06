@@ -40,7 +40,7 @@ test("Twitch card rolls use all raid pools and the linked user's finish state", 
       includedCommunity = includeCommunity;
       includedMissingCardAlternatives = includeMissingCardAlternatives;
       return {
-        results: [{ cardId, setId, tierGrade: "A", missingCardAlternative: null }],
+        results: [{ cardId, setId, tierGrade: "A", missingCardAlternatives: [] }],
         sourceSetIds: [setId],
         version: "all:test",
       };
