@@ -1386,7 +1386,7 @@
         "discoverDescription": "Tarkista kaikki hahmot, priorisoi CCG-kelpoiset raidisetit uusimmasta vanhimpaan ja jonota puuttuvat renderit.",
         "refresh": "Vahvista tallennetut renderit",
         "refreshRunning": "Jonotetaan päivitystä…",
-        "refreshDescription": "Jonota Current-settien kuukausipäivitykset sekä kaikki raidikortit, joilta puuttuu vielä ensimmäinen tallennettu WebP-renderi.",
+        "refreshDescription": "Jonota Current-settien kuukausipäivitykset sekä kaikki aiemmin haetut renderit tai raidikortit, joilta puuttuu vielä ensimmäinen tallennettu WebP-renderi.",
         "audit": "Tarkista aiemmat onnistumiset",
         "auditRunning": "Jonotetaan tarkistusta…",
         "auditDescription": "Tarkista uudelleen kaikki hahmot, joiden renderi on aiemmin löytynyt. Ensimmäinen 404 käynnistää varmistuksen; vähintään 24 tunnin kuluttua saatu toinen 404 arkistoi kortin, kunnes hahmo palaa.",

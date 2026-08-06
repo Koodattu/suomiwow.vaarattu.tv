@@ -357,7 +357,7 @@ test("audits every character with a previously stored render, including purged a
   }
 });
 
-test("validation queues every existing raid card that still needs initial WebP storage", async () => {
+test("validation queues every previously fetched render and existing raid card needing initial WebP storage", async () => {
   const setModel = CcgSet as any;
   const tierListModel = CharacterTierListEntry as any;
   const mediaModel = CharacterMedia as any;
@@ -372,6 +372,7 @@ test("validation queues every existing raid card that still needs initial WebP s
   };
   const currentDueId = new mongoose.Types.ObjectId();
   const currentMissingId = new mongoose.Types.ObjectId();
+  const nonEligibleMediaId = new mongoose.Types.ObjectId();
   const historicalCardId = new mongoose.Types.ObjectId();
   let cardFilter: Record<string, unknown> | undefined;
   const queued: Array<{ ids: string[]; priority: number; force: boolean }> = [];
@@ -379,15 +380,18 @@ test("validation queues every existing raid card that still needs initial WebP s
   try {
     setModel.distinct = async () => [999];
     tierListModel.distinct = async () => [currentDueId, currentMissingId];
-    mediaModel.distinct = async (_field: string, filter: Record<string, unknown>) =>
-      filter.status === "available" ? [currentDueId] : [currentDueId];
+    mediaModel.distinct = async (_field: string, filter: Record<string, unknown>) => {
+      if (filter.status === "available") return [currentDueId];
+      if (filter.mainRawUrl) return [currentDueId, nonEligibleMediaId];
+      return [currentDueId];
+    };
     cardModel.distinct = async (_field: string, filter: Record<string, unknown>) => {
       cardFilter = filter;
       return [currentDueId, historicalCardId];
     };
     characterModel.find = () => ({
       select() { return this; },
-      lean: async () => [currentDueId, currentMissingId, historicalCardId].map((_id, index) => ({
+      lean: async () => [currentDueId, currentMissingId, nonEligibleMediaId, historicalCardId].map((_id, index) => ({
         _id,
         name: `Backfill${index}`,
         realm: "Draenor",
@@ -402,11 +406,11 @@ test("validation queues every existing raid card that still needs initial WebP s
 
     const result = await service.enqueueActiveCurrent();
 
-    assert.deepEqual(result, { candidates: 3, queued: 3, purged: 0 });
+    assert.deepEqual(result, { candidates: 4, queued: 4, purged: 0 });
     assert.deepEqual(cardFilter, { renderAssetId: null, communityCharacterId: null });
     assert.deepEqual(queued, [
       { ids: [String(currentDueId), String(currentMissingId)], priority: 100, force: true },
-      { ids: [String(historicalCardId)], priority: 50, force: true },
+      { ids: [String(nonEligibleMediaId), String(historicalCardId)], priority: 50, force: true },
     ]);
   } finally {
     setModel.distinct = originals.setDistinct;

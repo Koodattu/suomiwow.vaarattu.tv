@@ -450,6 +450,10 @@ export class CharacterMediaService {
     });
     const existingMediaIds = new Set((await CharacterMedia.distinct("characterId", { characterId: { $in: characterIds } })).map(String));
     const missingIds = characterIds.filter((id) => !existingMediaIds.has(String(id)));
+    const unbackfilledMediaIds = await CharacterMedia.distinct("characterId", {
+      renderAssetId: null,
+      mainRawUrl: { $ne: null },
+    });
     const unbackfilledCardIds = await CcgCard.distinct("characterId", {
       renderAssetId: null,
       communityCharacterId: null,
@@ -458,6 +462,7 @@ export class CharacterMediaService {
       [...staleMediaIds, ...missingIds].map((characterId) => [String(characterId), characterId]),
     );
     const allTargetIds = new Map(currentTargetIds);
+    for (const characterId of unbackfilledMediaIds) allTargetIds.set(String(characterId), characterId);
     for (const characterId of unbackfilledCardIds) allTargetIds.set(String(characterId), characterId);
     const rows = await Character.find({ _id: { $in: [...allTargetIds.values()] } })
       .select("name realm region identityObservedAt blizzardIdentityOverride")

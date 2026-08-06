@@ -1386,7 +1386,7 @@
         "discoverDescription": "Scan all characters, prioritize eligible CCG raid sets from newest to oldest, and enqueue missing renders.",
         "refresh": "Validate stored renders",
         "refreshRunning": "Queuing refresh…",
-        "refreshDescription": "Queue monthly Current-set refreshes and every existing raid card that still needs its initial stored WebP.",
+        "refreshDescription": "Queue monthly Current-set refreshes plus every previously fetched render or existing raid card that still needs its initial stored WebP.",
         "audit": "Audit previous successes",
         "auditRunning": "Queuing audit…",
         "auditDescription": "Recheck every character whose render has succeeded before. A first 404 starts verification; another 404 at least 24 hours later archives the card until it returns.",
