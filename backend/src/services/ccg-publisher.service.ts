@@ -29,6 +29,7 @@ import CcgPublicationCandidate from "../models/CcgPublicationCandidate";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
 import Character from "../models/Character";
 import CharacterMedia, { CharacterMediaStatus } from "../models/CharacterMedia";
+import { CharacterRenderFit } from "../models/CharacterRenderAsset";
 import CharacterMythicPlusSeasonScore from "../models/CharacterMythicPlusSeasonScore";
 import CharacterTierListEntry from "../models/CharacterTierListEntry";
 import { gradeForPercentile, resolveCardCrop } from "../utils/ccg-random";
@@ -51,6 +52,7 @@ import {
 } from "./character-raid-guild.service";
 import characterContinuityService from "./character-continuity.service";
 import characterMediaService from "./character-media.service";
+import characterRenderStorageService from "./character-render-storage.service";
 
 type SnapshotPayload = {
   wclCanonicalCharacterId: number | null;
@@ -90,7 +92,9 @@ type CcgContinuityContext = {
 type CcgMediaRow = {
   characterId: mongoose.Types.ObjectId;
   avatarUrl?: string | null;
-  mainRawUrl?: string | null;
+  renderAssetId?: mongoose.Types.ObjectId | null;
+  renderAssetExpiresAt?: Date | null;
+  renderFit?: CharacterRenderFit | null;
   fetchedAt?: Date | null;
   status: CharacterMediaStatus;
   attemptCount: number;
@@ -98,6 +102,15 @@ type CcgMediaRow = {
   lastErrorCode?: string | null;
   lastError?: string | null;
 };
+
+function hasStoredRender(media: CcgMediaRow | null | undefined, now = new Date()): boolean {
+  return Boolean(
+    media?.status === "available"
+    && media.renderAssetId
+    && media.renderAssetExpiresAt
+    && media.renderAssetExpiresAt > now,
+  );
+}
 
 type CcgCollectionGuildSource = {
   guildId?: mongoose.Types.ObjectId | null;
@@ -235,8 +248,8 @@ class CcgPublisherService {
       const rootMedia = mediaByMemberId.get(rootId);
       const availableMedia = memberIds
         .map((memberId) => mediaByMemberId.get(String(memberId)))
-        .find((row) => row?.status === "available" && Boolean(row.mainRawUrl));
-      const selected = rootMedia?.status === "available" && rootMedia.mainRawUrl
+        .find((row) => hasStoredRender(row));
+      const selected = hasStoredRender(rootMedia)
         ? rootMedia
         : availableMedia ?? rootMedia ?? memberIds.map((memberId) => mediaByMemberId.get(String(memberId))).find(Boolean);
       if (selected) mediaByRootId.set(rootId, selected);
@@ -584,7 +597,7 @@ class CcgPublisherService {
           role: entry.role,
           metric: entry.metric,
           mythicPlusScore: mythicPlusByCharacter.get(String(entry.characterId)) ?? null,
-          hasMedia: media?.status === "available" && Boolean(media.mainRawUrl),
+          hasMedia: hasStoredRender(media),
         };
       });
       const summary = summarizeCcgSnapshotPreview(candidates, [...latestCardByCharacter.values()]);
@@ -601,7 +614,7 @@ class CcgPublisherService {
             role: entry.role,
             mythicPlusScore: mythicPlusByCharacter.get(characterId) ?? null,
           },
-          media?.status === "available" && Boolean(media.mainRawUrl),
+          hasStoredRender(media),
         );
         if (disposition === "unchanged") return [];
         return [{
@@ -614,7 +627,7 @@ class CcgPublisherService {
           nextTierGrade: tierGrade,
           mediaStatus: !media
             ? ("untracked" as const)
-            : media.status === "available" && !media.mainRawUrl
+            : media.status === "available" && !hasStoredRender(media)
               ? ("render_missing" as const)
               : media.status,
           attemptCount: media?.attemptCount ?? 0,
@@ -726,7 +739,7 @@ class CcgPublisherService {
                 setId: set._id,
                 payload,
                 tierGrade,
-                status: media?.mainRawUrl ? ("ready" as const) : ("missing_media" as const),
+                status: hasStoredRender(media) ? ("ready" as const) : ("missing_media" as const),
               },
             },
             upsert: true,
@@ -738,7 +751,7 @@ class CcgPublisherService {
       await CcgPublicationCandidate.deleteMany({ snapshotKey, characterId: { $nin: characterIds } });
       await CcgSet.updateOne({ _id: set._id }, { $set: { lastSnapshotAt: now } });
 
-      const missing = entries.filter(({ entry }) => !mediaByCharacter.get(String(entry.characterId))?.mainRawUrl);
+      const missing = entries.filter(({ entry }) => !hasStoredRender(mediaByCharacter.get(String(entry.characterId))));
       await characterMediaService.enqueueCharacters(missing.slice(0, 2000).map(({ entry }) => entry.characterId));
 
       return {
@@ -802,7 +815,7 @@ class CcgPublisherService {
       const mediaByCharacter = await this.loadContinuityMedia(continuity);
       const ready = publishable.filter((candidate) => {
         const rootId = continuity.rootIdByMemberId.get(String(candidate.characterId)) ?? String(candidate.characterId);
-        return Boolean(mediaByCharacter.get(rootId)?.mainRawUrl);
+        return hasStoredRender(mediaByCharacter.get(rootId));
       });
       const maximum = await CcgCard.findOne({ setId: set._id }).sort({ setNumber: -1 }).select("setNumber").lean();
       let nextSetNumber = (maximum?.setNumber ?? 0) + 1;
@@ -842,7 +855,9 @@ class CcgPublisherService {
           mythicPlusScore: payload.mythicPlusScore,
           tierGrade: candidate.tierGrade,
           avatarUrl: media.avatarUrl ?? null,
-          renderUrl: media.mainRawUrl ?? null,
+          renderUrl: characterRenderStorageService.getPublicUrl(media.renderAssetId!),
+          renderAssetId: media.renderAssetId,
+          renderFit: media.renderFit ?? null,
           backgroundCrop: resolveCardCrop(`${set.slug}:${rootId}`, set.backgroundSafeCrop),
           pulls: payload.pulls,
           deaths: payload.deaths,
@@ -877,7 +892,10 @@ class CcgPublisherService {
 
       const poolVersion = `${CCG_POOL_VERSION}-${wave}`;
       await this.rebuildPool(set._id, poolVersion);
-      const totalCards = (await CcgCard.distinct("characterId", { setId: set._id })).length;
+      const totalCards = (await CcgCard.distinct("characterId", {
+        setId: set._id,
+        availabilityStatus: { $ne: "archived" },
+      })).length;
       await CcgSet.updateOne(
         { _id: set._id },
         { $set: { publicationWave: wave, cardCount: totalCards, lastPublishedAt: now } },
@@ -1034,7 +1052,7 @@ class CcgPublisherService {
   async rebuildPool(setId: mongoose.Types.ObjectId, version?: string, existingSession?: mongoose.ClientSession): Promise<string> {
     const set = await CcgSet.findById(setId).session(existingSession ?? null).lean();
     if (!set) throw new Error("CCG set not found");
-    const cardFilter: Record<string, unknown> = { setId };
+    const cardFilter: Record<string, unknown> = { setId, availabilityStatus: { $ne: "archived" } };
     if (set.kind === "community") {
       const activeCharacters = await CcgCommunityCharacter.find({ active: { $ne: false } })
         .select("_id")
@@ -1077,6 +1095,7 @@ class CcgPublisherService {
         { _id: setId },
         {
           $set: {
+            cardCount: cards.length,
             collectionGuilds,
             collectionGuildsBuiltAt: new Date(),
             collectionCharacters,
@@ -1111,7 +1130,7 @@ class CcgPublisherService {
       set ? CcgPackPool.findOne({ setId: set._id, active: true }).select("totalCards").lean() : null,
     ]);
     const eligible = population.characterIds.length;
-    const mediaReady = population.characterIds.filter((characterId) => mediaByCharacter.get(String(characterId))?.mainRawUrl).length;
+    const mediaReady = population.characterIds.filter((characterId) => hasStoredRender(mediaByCharacter.get(String(characterId)))).length;
     const evaluation = evaluateCcgReadiness({ eligible, mediaReady, enabled: Boolean(set?.enabledAt) });
     return {
       configured,

@@ -1,4 +1,4 @@
-import fetch from "node-fetch";
+import fetch, { Response } from "node-fetch";
 import mongoose from "mongoose";
 import { CLASSES, getSpecRole } from "../config/classes";
 import { MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY } from "../config/character-eligibility";
@@ -39,6 +39,9 @@ const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE_SIZE = 500;
 const PROCESS_LOG_INTERVAL = 25;
 const PROCESS_IDLE_RECHECK_MS = 60 * 1000;
+const RAIDER_IO_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RAIDER_IO_RATE_LIMIT_BUFFER_MS = 250;
+const DEFAULT_RETRY_AFTER_SECONDS = 60;
 const DEFAULT_NIGHTLY_CURRENT_SEASON_LIMIT = Math.max(25, Number(process.env.RAIDER_IO_MPLUS_NIGHTLY_CHARACTER_LIMIT || 750));
 const DEFAULT_NIGHTLY_ACTIVE_DAYS = Math.max(1, Number(process.env.RAIDER_IO_MPLUS_NIGHTLY_ACTIVE_DAYS || 21));
 const DEFAULT_NIGHTLY_PROFILE_STALE_HOURS = Math.max(1, Number(process.env.RAIDER_IO_MPLUS_NIGHTLY_PROFILE_STALE_HOURS || 24));
@@ -57,7 +60,19 @@ type RaiderIoHttpResult =
       status: number | null;
       error: string;
       retryable: boolean;
+      retryAfterSeconds?: number;
     };
+
+type RaiderIoRateLimitBucketName = "app" | "public";
+
+type RaiderIoRateLimitBucket = {
+  configuredMaxRequestsPerMinute: number;
+  observedMaxRequestsPerMinute: number | null;
+  observedRemaining: number | null;
+  observedResetAt: number | null;
+  blockedUntil: number;
+  requestTimestamps: number[];
+};
 
 type CharacterIdentity = {
   _id: mongoose.Types.ObjectId;
@@ -232,8 +247,17 @@ export interface MythicPlusCrawlerStatusResponse {
     isRunning: boolean;
     currentJob: ReturnType<MythicPlusService["summarizeJob"]> | null;
     lastMessage: string | null;
-    requestsInWindow: number;
-    maxRequestsPerHour: number;
+    rateLimits: Record<
+      RaiderIoRateLimitBucketName,
+      {
+        requestsInWindow: number;
+        maxRequestsPerMinute: number;
+        configuredMaxRequestsPerMinute: number;
+        observedMaxRequestsPerMinute: number | null;
+        observedRemaining: number | null;
+        observedResetAt: Date | null;
+      }
+    >;
   };
   queue: {
     pending: number;
@@ -325,10 +349,32 @@ function redactRaiderIoSecrets(value: string): string {
   return value.replace(/([?&]access_key=)[^&\s]+/gi, "$1[redacted]");
 }
 
+function positiveIntegerEnv(name: string, fallback: number): number {
+  const parsed = Number(process.env[name]);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
 class MythicPlusService {
   private readonly apiKey = process.env.RAIDER_IO_API_KEY || "";
-  private readonly maxRequestsPerHour = Math.max(60, Number(process.env.RAIDER_IO_MPLUS_MAX_REQUESTS_PER_HOUR || 900));
-  private requestTimestamps: number[] = [];
+  private readonly rateLimitBuckets: Record<RaiderIoRateLimitBucketName, RaiderIoRateLimitBucket> = {
+    app: {
+      configuredMaxRequestsPerMinute: positiveIntegerEnv("RAIDER_IO_MPLUS_APP_MAX_REQUESTS_PER_MINUTE", 900),
+      observedMaxRequestsPerMinute: null,
+      observedRemaining: null,
+      observedResetAt: null,
+      blockedUntil: 0,
+      requestTimestamps: [],
+    },
+    public: {
+      configuredMaxRequestsPerMinute: positiveIntegerEnv("RAIDER_IO_MPLUS_PUBLIC_MAX_REQUESTS_PER_MINUTE", 300),
+      observedMaxRequestsPerMinute: null,
+      observedRemaining: null,
+      observedResetAt: null,
+      blockedUntil: 0,
+      requestTimestamps: [],
+    },
+  };
+  private fetchQueue: Promise<void> = Promise.resolve();
   private isRunning = false;
   private isCheckingRecovery = false;
   private currentJob: ReturnType<MythicPlusService["summarizeJob"]> | null = null;
@@ -370,37 +416,105 @@ class MythicPlusService {
     return character ? this.resolveFetchIdentity(character) : null;
   }
 
-  private async waitForRateLimit(): Promise<void> {
-    const oneHourAgo = Date.now() - 3600 * 1000;
-    this.requestTimestamps = this.requestTimestamps.filter((timestamp) => timestamp > oneHourAgo);
-
-    if (this.requestTimestamps.length >= this.maxRequestsPerHour) {
-      const waitMs = this.requestTimestamps[0] + 3600 * 1000 - Date.now() + 250;
-      this.lastMessage = `Waiting ${Math.ceil(waitMs / 1000)}s for Raider.IO M+ rate limit`;
-      logger.warn(`[MythicPlus] ${this.lastMessage}`);
-      await new Promise((resolve) => setTimeout(resolve, Math.max(waitMs, 1000)));
-      const nowOneHourAgo = Date.now() - 3600 * 1000;
-      this.requestTimestamps = this.requestTimestamps.filter((timestamp) => timestamp > nowOneHourAgo);
-    }
-
-    this.requestTimestamps.push(Date.now());
+  private effectiveMaxRequestsPerMinute(bucket: RaiderIoRateLimitBucket): number {
+    return Math.min(bucket.configuredMaxRequestsPerMinute, bucket.observedMaxRequestsPerMinute ?? Number.POSITIVE_INFINITY);
   }
 
-  private async fetchJson(url: string, label: string): Promise<RaiderIoHttpResult> {
+  private async waitForRateLimit(bucketName: RaiderIoRateLimitBucketName): Promise<void> {
+    const bucket = this.rateLimitBuckets[bucketName];
+
+    while (true) {
+      const now = Date.now();
+      const windowStart = now - RAIDER_IO_RATE_LIMIT_WINDOW_MS;
+      bucket.requestTimestamps = bucket.requestTimestamps.filter((timestamp) => timestamp > windowStart);
+
+      if (bucket.observedResetAt !== null && bucket.observedResetAt <= now) {
+        bucket.observedRemaining = null;
+        bucket.observedResetAt = null;
+      }
+
+      const maxRequestsPerMinute = this.effectiveMaxRequestsPerMinute(bucket);
+      const localWindowResetAt =
+        bucket.requestTimestamps.length >= maxRequestsPerMinute
+          ? bucket.requestTimestamps[0] + RAIDER_IO_RATE_LIMIT_WINDOW_MS + RAIDER_IO_RATE_LIMIT_BUFFER_MS
+          : 0;
+      const waitUntil = Math.max(bucket.blockedUntil, localWindowResetAt);
+
+      if (waitUntil <= now) {
+        bucket.blockedUntil = 0;
+        bucket.requestTimestamps.push(now);
+        return;
+      }
+
+      const waitMs = waitUntil - now;
+      this.lastMessage = `Waiting ${Math.ceil(waitMs / 1000)}s for Raider.IO ${bucketName} M+ rate limit (${maxRequestsPerMinute}/min)`;
+      logger.warn(`[MythicPlus] ${this.lastMessage}`);
+      await new Promise((resolve) => setTimeout(resolve, Math.max(waitMs, 1000)));
+    }
+  }
+
+  private recordRateLimitHeaders(bucketName: RaiderIoRateLimitBucketName, response: Response): void {
+    const bucket = this.rateLimitBuckets[bucketName];
+    const observedLimitHeader = response.headers.get("x-ratelimit-limit");
+    const observedRemainingHeader = response.headers.get("x-ratelimit-remaining");
+    const observedResetHeader = response.headers.get("x-ratelimit-reset");
+    const observedLimit = observedLimitHeader === null ? Number.NaN : Number(observedLimitHeader);
+    const observedRemaining = observedRemainingHeader === null ? Number.NaN : Number(observedRemainingHeader);
+    const observedResetSeconds = observedResetHeader === null ? Number.NaN : Number(observedResetHeader);
+
+    if (Number.isFinite(observedLimit) && observedLimit > 0) bucket.observedMaxRequestsPerMinute = Math.floor(observedLimit);
+    if (Number.isFinite(observedRemaining) && observedRemaining >= 0) bucket.observedRemaining = Math.floor(observedRemaining);
+    if (Number.isFinite(observedResetSeconds) && observedResetSeconds > 0) bucket.observedResetAt = Math.floor(observedResetSeconds * 1000);
+
+    if (bucket.observedRemaining === 0 && bucket.observedResetAt !== null) {
+      bucket.blockedUntil = Math.max(bucket.blockedUntil, bucket.observedResetAt + RAIDER_IO_RATE_LIMIT_BUFFER_MS);
+    }
+  }
+
+  private retryAfterMs(response: Response): number {
+    const value = response.headers.get("retry-after");
+    const seconds = value === null ? Number.NaN : Number(value);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.max(1000, Math.ceil(seconds * 1000));
+
+    if (value) {
+      const retryAt = new Date(value).getTime();
+      if (Number.isFinite(retryAt)) return Math.max(1000, retryAt - Date.now());
+    }
+
+    return DEFAULT_RETRY_AFTER_SECONDS * 1000;
+  }
+
+  private fetchJson(url: string, label: string, bucketName: RaiderIoRateLimitBucketName): Promise<RaiderIoHttpResult> {
+    const pending = this.fetchQueue.then(() => this.fetchJsonSequential(url, label, bucketName));
+    this.fetchQueue = pending.then(
+      () => undefined,
+      () => undefined,
+    );
+    return pending;
+  }
+
+  private async fetchJsonSequential(url: string, label: string, bucketName: RaiderIoRateLimitBucketName): Promise<RaiderIoHttpResult> {
     for (let attempt = 1; attempt <= 3; attempt++) {
-      await this.waitForRateLimit();
+      await this.waitForRateLimit(bucketName);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 20000);
       try {
         const response = await fetch(url, { signal: controller.signal as any });
+        this.recordRateLimitHeaders(bucketName, response);
 
         if (response.status === 429) {
+          const retryAfterMs = this.retryAfterMs(response);
+          this.rateLimitBuckets[bucketName].blockedUntil = Math.max(
+            this.rateLimitBuckets[bucketName].blockedUntil,
+            Date.now() + retryAfterMs + RAIDER_IO_RATE_LIMIT_BUFFER_MS,
+          );
           return {
             ok: false,
             status: response.status,
             error: `Raider.IO rate limited ${label}`,
             retryable: true,
+            retryAfterSeconds: Math.ceil(retryAfterMs / 1000),
           };
         }
 
@@ -457,6 +571,10 @@ class MythicPlusService {
   private buildAccessKeyParams(params: URLSearchParams): URLSearchParams {
     if (this.apiKey) params.set("access_key", this.apiKey);
     return params;
+  }
+
+  private appApiBucket(): RaiderIoRateLimitBucketName {
+    return this.apiKey ? "app" : "public";
   }
 
   private getClassSpecMap(classID: number) {
@@ -589,7 +707,7 @@ class MythicPlusService {
     for (const expansionId of RAIDER_IO_MYTHIC_PLUS_EXPANSION_IDS) {
       const params = this.buildAccessKeyParams(new URLSearchParams({ expansion_id: String(expansionId) }));
       const url = `${RAIDER_IO_API_BASE_URL}/mythic-plus/static-data?${params.toString()}`;
-      const result = await this.fetchJson(url, `mythic-plus/static-data expansion ${expansionId}`);
+      const result = await this.fetchJson(url, `mythic-plus/static-data expansion ${expansionId}`, this.appApiBucket());
 
       if (!result.ok) {
         logger.warn(`[MythicPlus] Failed to fetch static data for expansion ${expansionId}: ${result.error}`);
@@ -692,7 +810,7 @@ class MythicPlusService {
       }),
     );
     const url = `${RAIDER_IO_API_BASE_URL}/characters/profile?${params.toString()}`;
-    return this.fetchJson(url, `characters/profile ${character.region}/${character.realm}/${character.name}`);
+    return this.fetchJson(url, `characters/profile ${character.region}/${character.realm}/${character.name}`, this.appApiBucket());
   }
 
   async fetchCharacterSeasonProgress(character: Pick<CharacterIdentity, "name" | "realm" | "region">, season: string): Promise<RaiderIoHttpResult> {
@@ -700,7 +818,7 @@ class MythicPlusService {
     const realm = encodeURIComponent(normalizeRealmSlug(character.realm));
     const name = encodeURIComponent(character.name);
     const url = `${RAIDER_IO_SITE_API_BASE_URL}/characters/${region}/${realm}/${name}/mythic-plus-progress?season=${encodeURIComponent(season)}`;
-    return this.fetchJson(url, `mythic-plus-progress ${character.region}/${character.realm}/${character.name} ${season}`);
+    return this.fetchJson(url, `mythic-plus-progress ${character.region}/${character.realm}/${character.name} ${season}`, "public");
   }
 
   async upsertCharacterProfileScores(
@@ -1911,12 +2029,13 @@ class MythicPlusService {
     }
 
     if (result.status === 429) {
+      const retryAfterSeconds = Math.max(1, result.retryAfterSeconds ?? DEFAULT_RETRY_AFTER_SECONDS);
       await this.markJob(job, "rate_limited", {
         httpStatus: result.status,
         lastError: result.error,
         lastErrorAt: new Date(),
-        nextAttemptAt: new Date(Date.now() + 15 * 60 * 1000),
-        completionReason: "Rate limited; retry scheduled",
+        nextAttemptAt: new Date(Date.now() + retryAfterSeconds * 1000),
+        completionReason: `Rate limited; retry scheduled in ${retryAfterSeconds}s`,
       });
       return;
     }
@@ -2379,16 +2498,36 @@ class MythicPlusService {
       .sort({ lastErrorAt: -1, completedAt: -1 })
       .limit(20)
       .lean();
-    const oneHourAgo = Date.now() - 3600 * 1000;
-    this.requestTimestamps = this.requestTimestamps.filter((timestamp) => timestamp > oneHourAgo);
+    const now = Date.now();
+    const windowStart = now - RAIDER_IO_RATE_LIMIT_WINDOW_MS;
+    for (const bucket of Object.values(this.rateLimitBuckets)) {
+      bucket.requestTimestamps = bucket.requestTimestamps.filter((timestamp) => timestamp > windowStart);
+      if (bucket.observedResetAt !== null && bucket.observedResetAt <= now) {
+        bucket.observedRemaining = null;
+        bucket.observedResetAt = null;
+      }
+    }
+
+    const rateLimits = Object.fromEntries(
+      (Object.entries(this.rateLimitBuckets) as Array<[RaiderIoRateLimitBucketName, RaiderIoRateLimitBucket]>).map(([name, bucket]) => [
+        name,
+        {
+          requestsInWindow: bucket.requestTimestamps.length,
+          maxRequestsPerMinute: this.effectiveMaxRequestsPerMinute(bucket),
+          configuredMaxRequestsPerMinute: bucket.configuredMaxRequestsPerMinute,
+          observedMaxRequestsPerMinute: bucket.observedMaxRequestsPerMinute,
+          observedRemaining: bucket.observedRemaining,
+          observedResetAt: bucket.observedResetAt ? new Date(bucket.observedResetAt) : null,
+        },
+      ]),
+    ) as MythicPlusCrawlerStatusResponse["processor"]["rateLimits"];
 
     return {
       processor: {
         isRunning: this.isRunning,
         currentJob: this.currentJob,
         lastMessage: this.lastMessage,
-        requestsInWindow: this.requestTimestamps.length,
-        maxRequestsPerHour: this.maxRequestsPerHour,
+        rateLimits,
       },
       queue: {
         pending: getCount("pending"),

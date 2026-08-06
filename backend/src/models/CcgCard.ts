@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema } from "mongoose";
 import { CcgTierGrade } from "../config/ccg";
+import { CharacterRenderFit, CharacterRenderFitSchema } from "./CharacterRenderAsset";
 
 export type CcgCommunityScores = {
   performance: number | null;
@@ -7,6 +8,8 @@ export type CcgCommunityScores = {
   combined: number | null;
   mythicPlus: number | null;
 };
+
+export type CcgCardAvailabilityStatus = "active" | "verification_pending" | "archived";
 
 const CcgCommunityScoresSchema = new Schema<CcgCommunityScores>(
   {
@@ -47,6 +50,12 @@ export interface ICcgCard extends Document {
   tierGrade: CcgTierGrade;
   avatarUrl?: string | null;
   renderUrl?: string | null;
+  renderAssetId?: mongoose.Types.ObjectId | null;
+  renderFit?: CharacterRenderFit | null;
+  availabilityStatus: CcgCardAvailabilityStatus;
+  availabilityFirstNotFoundAt?: Date | null;
+  availabilityLastNotFoundAt?: Date | null;
+  availabilityChangedAt?: Date | null;
   backgroundCrop: { x: number; y: number; scale: number };
   pulls: number;
   deaths: number;
@@ -93,6 +102,18 @@ const CcgCardSchema = new Schema<ICcgCard>(
     tierGrade: { type: String, enum: ["H", "S", "A", "B", "C", "D", "E", "F"], required: true, index: true },
     avatarUrl: { type: String, default: null },
     renderUrl: { type: String, default: null },
+    renderAssetId: { type: Schema.Types.ObjectId, ref: "CharacterRenderAsset", default: null, index: true },
+    renderFit: { type: CharacterRenderFitSchema, default: null },
+    availabilityStatus: {
+      type: String,
+      enum: ["active", "verification_pending", "archived"],
+      required: true,
+      default: "active",
+      index: true,
+    },
+    availabilityFirstNotFoundAt: { type: Date, default: null },
+    availabilityLastNotFoundAt: { type: Date, default: null },
+    availabilityChangedAt: { type: Date, default: null },
     backgroundCrop: {
       x: { type: Number, required: true },
       y: { type: Number, required: true },
@@ -125,6 +146,7 @@ CcgCardSchema.index(
 );
 CcgCardSchema.index({ setId: 1, characterId: 1, performanceSnapshotAt: -1, publishedAt: -1 });
 CcgCardSchema.index({ setId: 1, tierGrade: 1, setNumber: 1 });
+CcgCardSchema.index({ setId: 1, availabilityStatus: 1, tierGrade: 1, setNumber: 1 });
 CcgCardSchema.index({ setId: 1, guildId: 1, setNumber: 1 });
 CcgCardSchema.index({ setId: 1, guildId: 1, tierGrade: 1, setNumber: 1 });
 CcgCardSchema.index({ characterId: 1, publishedAt: -1 });

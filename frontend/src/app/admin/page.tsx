@@ -282,8 +282,9 @@ function MythicPlusCrawlerStatusPanel({ status }: { status: MythicPlusCrawlerSta
       </div>
       <div className="flex items-center justify-between text-gray-500 tabular-nums">
         <span>{progressPercent}% complete</span>
-        <span>
-          {status.processor.requestsInWindow}/{status.processor.maxRequestsPerHour} requests
+        <span className="text-right">
+          App key {status.processor.rateLimits.app.requestsInWindow}/{status.processor.rateLimits.app.maxRequestsPerMinute} • Public {status.processor.rateLimits.public.requestsInWindow}/
+          {status.processor.rateLimits.public.maxRequestsPerMinute} req/min
         </span>
       </div>
       <div className="grid grid-cols-3 gap-2 text-center tabular-nums">

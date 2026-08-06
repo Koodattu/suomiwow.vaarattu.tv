@@ -13,11 +13,14 @@ import CharacterTierListEntry from "../models/CharacterTierListEntry";
 import CcgCard from "../models/CcgCard";
 import CcgSet from "../models/CcgSet";
 import TaskLog from "../models/TaskLog";
+import CharacterRenderAsset, { CharacterRenderFit } from "../models/CharacterRenderAsset";
 import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
 import logger from "../utils/logger";
 import { toBlizzardRealmSlug } from "../utils/realm";
 import cacheService from "./cache.service";
+import ccgCardAvailabilityService from "./ccg-card-availability.service";
 import { getCharacterRaidParticipationSummaries } from "./character-raid-guild.service";
+import characterRenderStorageService from "./character-render-storage.service";
 
 const DEFAULT_REFRESH_DAYS = Math.max(1, Number(process.env.CCG_MEDIA_REFRESH_DAYS || 14));
 const PROCESS_IDLE_MS = 5000;
@@ -28,11 +31,13 @@ const GENERAL_DISCOVERY_PRIORITY = 10;
 const CCG_DISCOVERY_PRIORITY_BASE = 1000;
 const TRANSIENT_FAILURE_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
 const NOT_FOUND_RETRY_MS = 30 * 24 * 60 * 60 * 1000;
+const GLOBAL_REVALIDATION_DAYS = 21;
 
 export const CHARACTER_MEDIA_DISCOVERY_TASK_NAME = "CCG Character Media Discovery";
-export const CHARACTER_MEDIA_REFRESH_TASK_NAME = "CCG Active Character Media Refresh";
+export const CHARACTER_MEDIA_REFRESH_TASK_NAME = "CCG Character Media Validation";
 export const CHARACTER_MEDIA_RECOVERY_TASK_NAME = "CCG Character Media Recovery";
 export const CHARACTER_MEDIA_RETRY_TASK_NAME = "CCG Character Media Retry";
+export const CHARACTER_MEDIA_AUDIT_TASK_NAME = "CCG Previously Successful Media Audit";
 
 type CharacterMediaQueueRow = {
   _id: mongoose.Types.ObjectId;
@@ -69,22 +74,24 @@ function mediaIdentityNeedsRefresh(row: CharacterMediaQueueRow): boolean {
 
 export async function syncCharacterCardsFromMedia(
   characterId: mongoose.Types.ObjectId,
-  media: { avatarUrl?: string | null; mainRawUrl?: string | null; fetchedAt?: Date | null },
+  media: {
+    avatarUrl?: string | null;
+    renderAssetId?: mongoose.Types.ObjectId | null;
+    renderFit?: CharacterRenderFit | null;
+    fetchedAt?: Date | null;
+  },
 ): Promise<number> {
-  if (!media.mainRawUrl) return 0;
-  // Published score snapshots stay immutable; these three fields are derived media
-  // pointers and must follow a corrected Blizzard identity after a rename/transfer.
+  if (!media.renderAssetId) return 0;
+  const renderUrl = characterRenderStorageService.getPublicUrl(media.renderAssetId);
+  // Existing URL-only cards are attached once during rollout. Once a card has an
+  // asset reference, later character refreshes must not change its appearance.
   const result = await CcgCard.collection.updateMany(
-    {
-      characterId,
-      $or: [
-        { renderUrl: { $ne: media.mainRawUrl } },
-        { avatarUrl: { $ne: media.avatarUrl ?? null } },
-      ],
-    },
+    { characterId, renderAssetId: null },
     {
       $set: {
-        renderUrl: media.mainRawUrl,
+        renderUrl,
+        renderAssetId: media.renderAssetId,
+        renderFit: media.renderFit ?? null,
         avatarUrl: media.avatarUrl ?? null,
         mediaCapturedAt: media.fetchedAt ?? new Date(),
       },
@@ -98,9 +105,10 @@ export async function syncCardsFromCurrentMedia(characterIds: readonly mongoose.
   const mediaRows = await CharacterMedia.find({
     characterId: { $in: characterIds },
     status: "available",
-    mainRawUrl: { $ne: null },
+    renderAssetId: { $ne: null },
+    renderAssetExpiresAt: { $gt: new Date() },
   })
-    .select("characterId avatarUrl mainRawUrl fetchedAt")
+    .select("characterId avatarUrl renderAssetId renderFit fetchedAt")
     .lean();
   if (mediaRows.length === 0) return { candidates: 0, modified: 0 };
 
@@ -108,14 +116,13 @@ export async function syncCardsFromCurrentMedia(characterIds: readonly mongoose.
     updateMany: {
       filter: {
         characterId: media.characterId,
-        $or: [
-          { renderUrl: { $ne: media.mainRawUrl } },
-          { avatarUrl: { $ne: media.avatarUrl ?? null } },
-        ],
+        renderAssetId: null,
       },
       update: {
         $set: {
-          renderUrl: media.mainRawUrl,
+          renderUrl: characterRenderStorageService.getPublicUrl(media.renderAssetId!),
+          renderAssetId: media.renderAssetId,
+          renderFit: media.renderFit ?? null,
           avatarUrl: media.avatarUrl ?? null,
           mediaCapturedAt: media.fetchedAt ?? new Date(),
         },
@@ -155,6 +162,18 @@ export type CharacterMediaQueueStatus = {
   discoveryRunning: boolean;
   queue: Record<string, number>;
   media: Record<string, number>;
+  assets: {
+    active: number;
+    activeBytes: number;
+    expired: number;
+    expiringWithinSevenDays: number;
+    purged: number;
+  };
+  cardSeries: {
+    active: number;
+    verificationPending: number;
+    archived: number;
+  };
   lastDiscovery: {
     status: "running" | "completed" | "failed";
     startedAt: Date;
@@ -415,26 +434,63 @@ export class CharacterMediaService {
     };
   }
 
-  async enqueueActiveCurrent(): Promise<{ candidates: number; queued: number }> {
+  async enqueueActiveCurrent(): Promise<{ candidates: number; queued: number; purged: number }> {
+    const purged = await characterRenderStorageService.purgeExpired();
+    if (purged > 0) await cacheService.invalidatePattern(/^ccg:/);
+    const now = new Date();
     const zoneIds = await CcgSet.distinct("zoneId", { state: "current", enabledAt: { $ne: null } });
-    if (zoneIds.length === 0) return { candidates: 0, queued: 0 };
-    const characterIds = await CharacterTierListEntry.distinct("characterId", {
-      scope: "global",
-      zoneId: { $in: zoneIds },
-      survivalScore: { $ne: null },
-    });
+    const characterIds = zoneIds.length > 0
+      ? await CharacterTierListEntry.distinct("characterId", {
+          scope: "global",
+          zoneId: { $in: zoneIds },
+          survivalScore: { $ne: null },
+        })
+      : [];
     const refreshBefore = new Date(Date.now() - DEFAULT_REFRESH_DAYS * 24 * 60 * 60 * 1000);
     const staleMediaIds = await CharacterMedia.distinct("characterId", {
       characterId: { $in: characterIds },
       status: "available",
       mainRawUrl: { $ne: null },
-      $or: [{ fetchedAt: null }, { fetchedAt: { $lt: refreshBefore } }, { nextMediaRefreshAt: { $lte: new Date() } }],
+      $or: [{ fetchedAt: null }, { fetchedAt: { $lt: refreshBefore } }, { nextMediaRefreshAt: { $lte: now } }],
     });
     const existingMediaIds = new Set((await CharacterMedia.distinct("characterId", { characterId: { $in: characterIds } })).map(String));
     const missingIds = characterIds.filter((id) => !existingMediaIds.has(String(id)));
-    const targetIds = [...staleMediaIds, ...missingIds];
-    const rows = await Character.find({ _id: { $in: targetIds } }).select("name realm region identityObservedAt blizzardIdentityOverride").lean();
-    return { candidates: rows.length, queued: await this.enqueueRows(rows, 100, true) };
+    const revalidateBefore = new Date(now.getTime() - GLOBAL_REVALIDATION_DAYS * 24 * 60 * 60 * 1000);
+    const expiryWindow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const globallyDueIds = await CharacterMedia.distinct("characterId", {
+      $and: [
+        { $or: [{ mainRawUrl: { $ne: null } }, { lastErrorCode: "validation_expired" }] },
+      ],
+      $or: [
+        { renderAssetId: null },
+        { renderAssetExpiresAt: null },
+        { renderAssetExpiresAt: { $lte: expiryWindow } },
+        { sourceValidatedAt: null },
+        { sourceValidatedAt: { $lt: revalidateBefore } },
+      ],
+    });
+    const currentTargetIds = new Map(
+      [...staleMediaIds, ...missingIds].map((characterId) => [String(characterId), characterId]),
+    );
+    const allTargetIds = new Map(currentTargetIds);
+    for (const characterId of globallyDueIds) allTargetIds.set(String(characterId), characterId);
+    const rows = await Character.find({ _id: { $in: [...allTargetIds.values()] } })
+      .select("name realm region identityObservedAt blizzardIdentityOverride")
+      .lean();
+    const currentRows = rows.filter((row) => currentTargetIds.has(String(row._id)));
+    const generalRows = rows.filter((row) => !currentTargetIds.has(String(row._id)));
+    const currentQueued = await this.enqueueRows(currentRows, 100, true);
+    const generalQueued = await this.enqueueRows(generalRows, 50, true);
+    return { candidates: rows.length, queued: currentQueued + generalQueued, purged };
+  }
+
+  async auditPreviouslySuccessful(): Promise<{ candidates: number; queued: number }> {
+    const characterIds = await CharacterRenderAsset.distinct("characterId");
+    const rows = await Character.find({ _id: { $in: characterIds } })
+      .select("name realm region identityObservedAt blizzardIdentityOverride")
+      .lean();
+    const queued = await this.enqueueRows(rows, 250, true);
+    return { candidates: rows.length, queued };
   }
 
   async enqueueCharacter(characterId: string, priority = 50, force = false): Promise<void> {
@@ -484,10 +540,10 @@ export class CharacterMediaService {
         },
       }));
       const result = await CharacterMediaFetchQueue.bulkWrite(operations, { ordered: false });
-      queued += result.upsertedCount;
+      queued += force ? resolvedBatch.length : result.upsertedCount;
 
       if (force) {
-        const requeued = await CharacterMediaFetchQueue.updateMany(
+        await CharacterMediaFetchQueue.updateMany(
           { characterId: { $in: resolvedBatch.map((row) => row._id) }, status: { $ne: "processing" } },
           {
             $set: {
@@ -500,7 +556,6 @@ export class CharacterMediaService {
             },
           },
         );
-        queued += requeued.modifiedCount;
       }
     }
 
@@ -603,6 +658,7 @@ export class CharacterMediaService {
               avatarUrl: media.avatarUrl,
               insetUrl: media.insetUrl,
               sourceUpdatedAt: now,
+              sourceValidatedAt: now,
               fetchedAt: now,
               status: "available",
               attemptCount: item.attempts,
@@ -630,6 +686,7 @@ export class CharacterMediaService {
         return;
       }
 
+      const renderAsset = await characterRenderStorageService.ingest(item.characterId, media.mainRawUrl, now);
       const storedMedia = await CharacterMedia.findOneAndUpdate(
         { characterId: item.characterId },
         {
@@ -638,7 +695,11 @@ export class CharacterMediaService {
             realmSlug: item.realmSlug,
             characterName: item.name,
             ...media,
+            renderAssetId: renderAsset.assetId,
+            renderAssetExpiresAt: renderAsset.expiresAt,
+            renderFit: renderAsset.fit,
             sourceUpdatedAt: now,
+            sourceValidatedAt: now,
             fetchedAt: now,
             status: "available",
             attemptCount: item.attempts,
@@ -666,9 +727,10 @@ export class CharacterMediaService {
       );
       try {
         const syncedCards = storedMedia ? await syncCharacterCardsFromMedia(item.characterId, storedMedia) : 0;
+        await ccgCardAvailabilityService.noteAvailable(item.characterId, now);
         if (syncedCards > 0) await cacheService.invalidatePattern(/^ccg:/);
       } catch (error) {
-        logger.error(`[CharacterMedia] Failed to propagate refreshed media to cards for ${item.characterId}:`, error);
+        logger.error(`[CharacterMedia] Failed to propagate refreshed media or availability for ${item.characterId}:`, error);
       }
       await cacheService.invalidatePattern(
         new RegExp(`^characters:profile:v4:${escapeRegExp(item.realm.toLowerCase())}:${escapeRegExp(item.name.toLowerCase())}:`),
@@ -678,8 +740,23 @@ export class CharacterMediaService {
       const message = error instanceof Error ? error.message : String(error);
       const transition = getCharacterMediaFailureTransition(item.attempts, item.maxAttempts, status);
       const nextAttemptAt = new Date(now.getTime() + transition.delayMs);
-      const existingMedia = await CharacterMedia.findOne({ characterId: item.characterId }).select("mainRawUrl").lean();
-      const hasExistingRender = Boolean(existingMedia?.mainRawUrl);
+      if (status === 404) {
+        await characterRenderStorageService.purgeCharacter(item.characterId, "source_not_found");
+        try {
+          await ccgCardAvailabilityService.noteNotFound(item.characterId, now);
+        } catch (availabilityError) {
+          logger.error(`[CharacterMedia] Failed to update card availability for ${item.characterId}:`, availabilityError);
+        }
+        await cacheService.invalidatePattern(/^ccg:/);
+      }
+      const existingMedia = await CharacterMedia.findOne({ characterId: item.characterId })
+        .select("renderAssetId renderAssetExpiresAt")
+        .lean();
+      const hasExistingRender = Boolean(
+        existingMedia?.renderAssetId
+        && existingMedia.renderAssetExpiresAt
+        && existingMedia.renderAssetExpiresAt > now,
+      );
 
       await CharacterMedia.findOneAndUpdate(
         { characterId: item.characterId },
@@ -692,6 +769,16 @@ export class CharacterMediaService {
             attemptCount: item.attempts,
             nextAttemptAt,
             ...(hasExistingRender ? { nextMediaRefreshAt: nextAttemptAt } : {}),
+            ...(status === 404
+              ? {
+                  avatarUrl: null,
+                  insetUrl: null,
+                  mainRawUrl: null,
+                  renderAssetId: null,
+                  renderAssetExpiresAt: null,
+                  renderFit: null,
+                }
+              : {}),
             lastErrorCode: status ? String(status) : "request_failed",
             lastError: message.slice(0, 500),
           },
@@ -729,7 +816,11 @@ export class CharacterMediaService {
     if (exhausted.length > 0) {
       const characterIds = exhausted.map((item) => item.characterId);
       const existingRenderIds = new Set(
-        (await CharacterMedia.distinct("characterId", { characterId: { $in: characterIds }, mainRawUrl: { $ne: null } })).map(String),
+        (await CharacterMedia.distinct("characterId", {
+          characterId: { $in: characterIds },
+          renderAssetId: { $ne: null },
+          renderAssetExpiresAt: { $gt: now },
+        })).map(String),
       );
       const nextAttemptAt = new Date(now.getTime() + TRANSIENT_FAILURE_RETRY_MS);
       await CharacterMedia.bulkWrite(
@@ -791,9 +882,29 @@ export class CharacterMediaService {
   }
 
   async getStatus(): Promise<CharacterMediaQueueStatus> {
-    const [queueRows, mediaRows, recentFailures, lastDiscovery] = await Promise.all([
+    const [queueRows, mediaRows, assets, cardSeriesRows, recentFailures, lastDiscovery] = await Promise.all([
       CharacterMediaFetchQueue.aggregate<{ _id: string; count: number }>([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
       CharacterMedia.aggregate<{ _id: string; count: number }>([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
+      characterRenderStorageService.getStats(),
+      CcgCard.aggregate<{ _id: number; count: number }>([
+        {
+          $group: {
+            _id: { setId: "$setId", characterId: "$characterId" },
+            availabilityRank: {
+              $max: {
+                $switch: {
+                  branches: [
+                    { case: { $eq: ["$availabilityStatus", "archived"] }, then: 2 },
+                    { case: { $eq: ["$availabilityStatus", "verification_pending"] }, then: 1 },
+                  ],
+                  default: 0,
+                },
+              },
+            },
+          },
+        },
+        { $group: { _id: "$availabilityRank", count: { $sum: 1 } } },
+      ]),
       CharacterMediaFetchQueue.find({ status: { $in: ["failed", "not_found", "retry"] } })
         .sort({ updatedAt: -1 })
         .limit(20)
@@ -806,6 +917,12 @@ export class CharacterMediaService {
       discoveryRunning: this.discoveryPromise !== null,
       queue: Object.fromEntries(queueRows.map((row) => [row._id, row.count])),
       media: Object.fromEntries(mediaRows.map((row) => [row._id, row.count])),
+      assets,
+      cardSeries: {
+        active: cardSeriesRows.find((row) => row._id === 0)?.count ?? 0,
+        verificationPending: cardSeriesRows.find((row) => row._id === 1)?.count ?? 0,
+        archived: cardSeriesRows.find((row) => row._id === 2)?.count ?? 0,
+      },
       lastDiscovery: lastDiscovery
         ? {
             status: lastDiscovery.status,

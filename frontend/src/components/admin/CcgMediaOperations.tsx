@@ -10,7 +10,7 @@ const secondaryButton =
 const primaryButton =
   "min-h-10 rounded-md bg-cyan-700 px-3 py-2 text-sm font-bold text-white shadow-[inset_0_0_0_1px_rgba(103,232,249,0.18)] transition-transform duration-150 ease-out hover:bg-cyan-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
 
-type MediaAction = "discover" | "refresh" | "recover" | "retry";
+type MediaAction = "discover" | "refresh" | "audit" | "recover" | "retry";
 
 type Props = {
   initialStatus: CcgAdminMediaStatus;
@@ -50,6 +50,7 @@ export default function CcgMediaOperations({ initialStatus, onError, onNotice }:
 
   const runAction = async (action: MediaAction) => {
     if (action === "retry" && !window.confirm(t("retryConfirm"))) return;
+    if (action === "audit" && !window.confirm(t("auditConfirm"))) return;
     setActiveAction(action);
     try {
       if (action === "discover") {
@@ -58,6 +59,9 @@ export default function CcgMediaOperations({ initialStatus, onError, onNotice }:
       } else if (action === "refresh") {
         const result = await api.refreshAdminCcgMedia();
         onNotice(t("refreshSuccess", result));
+      } else if (action === "audit") {
+        const result = await api.auditAdminCcgPreviouslySuccessfulMedia();
+        onNotice(t("auditSuccess", result));
       } else if (action === "recover") {
         const result = await api.recoverAdminCcgMedia();
         onNotice(t("recoverSuccess", result));
@@ -74,7 +78,6 @@ export default function CcgMediaOperations({ initialStatus, onError, onNotice }:
   };
 
   const queue = (key: string) => status.queue[key] ?? 0;
-  const media = (key: string) => status.media[key] ?? 0;
   const queuedNow = queue("pending") + queue("processing") + queue("retry");
   const issues = queue("retry") + queue("failed") + queue("not_found");
   const discoveryBusy = status.discoveryRunning || status.lastDiscovery?.status === "running";
@@ -84,7 +87,10 @@ export default function CcgMediaOperations({ initialStatus, onError, onNotice }:
     [t("lastScanned"), status.lastDiscovery?.scanned],
     [t("lastQueued"), status.lastDiscovery?.queued],
     [t("queuedNow"), queuedNow],
-    [t("rendersReady"), media("available")],
+    [t("rendersReady"), status.assets.active],
+    [t("expiringSoon"), status.assets.expiringWithinSevenDays],
+    [t("verificationPending"), status.cardSeries.verificationPending],
+    [t("archivedCards"), status.cardSeries.archived],
     [t("issues"), issues],
   ] as const;
   const queueStates = ["pending", "processing", "retry", "completed", "not_found", "failed"] as const;
@@ -108,7 +114,7 @@ export default function CcgMediaOperations({ initialStatus, onError, onNotice }:
 
         {loadError ? <p className="mt-3 text-sm text-amber-300" role="status">{t("staleStatus")}</p> : null}
 
-        <dl className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <dl className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-8">
           {summary.map(([label, value]) => (
             <div key={label} className="rounded-lg bg-gray-950/55 p-3 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]">
               <dt className="text-xs font-medium text-gray-500">{label}</dt>
@@ -122,7 +128,7 @@ export default function CcgMediaOperations({ initialStatus, onError, onNotice }:
         <div className="rounded-xl bg-gray-800/65 p-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]">
           <h4 className="font-bold text-white text-balance">{t("actionsTitle")}</h4>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {(["discover", "refresh", "recover", "retry"] as const).map((action) => (
+            {(["discover", "refresh", "audit", "recover", "retry"] as const).map((action) => (
               <div key={action} className="rounded-lg bg-gray-950/45 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]">
                 <p className="min-h-12 text-sm leading-5 text-gray-400 text-pretty">{t(`${action}Description`)}</p>
                 <button

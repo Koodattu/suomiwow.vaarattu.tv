@@ -1,8 +1,10 @@
 import { createHash } from "crypto";
+import { createReadStream } from "fs";
 import { NextFunction, Request, Response, Router } from "express";
 import { CCG_GUEST_COOKIE } from "../config/ccg";
 import { cacheMiddleware } from "../middleware/cache.middleware";
 import ccgService, { CcgServiceError } from "../services/ccg.service";
+import characterRenderStorageService from "../services/character-render-storage.service";
 import logger from "../utils/logger";
 
 const router = Router();
@@ -57,6 +59,30 @@ function asyncRoute(handler: (req: Request, res: Response) => Promise<unknown>) 
     }
   };
 }
+
+router.get("/media/assets/:assetId", async (req, res) => {
+  try {
+    const stored = await characterRenderStorageService.getForServing(req.params.assetId);
+    if (!stored) return res.status(404).end();
+    const etag = `"${stored.asset.sha256}"`;
+    res.setHeader("Cache-Control", `public, max-age=${stored.cacheSeconds}, must-revalidate`);
+    res.setHeader("Content-Type", stored.asset.contentType);
+    res.setHeader("Content-Length", stored.asset.byteLength);
+    res.setHeader("ETag", etag);
+    res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+    if (req.headers["if-none-match"] === etag) return res.status(304).end();
+    const stream = createReadStream(stored.filePath);
+    stream.on("error", (error) => {
+      logger.error(`[CCG] Failed to stream character render asset ${req.params.assetId}:`, error);
+      if (!res.headersSent) res.status(500).end();
+      else res.destroy(error);
+    });
+    stream.pipe(res);
+  } catch (error) {
+    logger.error(`[CCG] Failed to serve character render asset ${req.params.assetId}:`, error);
+    if (!res.headersSent) res.status(500).end();
+  }
+});
 
 router.get(
   "/analytics",

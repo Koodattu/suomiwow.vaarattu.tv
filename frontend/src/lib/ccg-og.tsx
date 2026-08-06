@@ -19,6 +19,7 @@ const IMAGE_MIME_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".png": "image/png",
+  ".webp": "image/webp",
 };
 
 const MAX_REMOTE_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -53,6 +54,23 @@ async function loadPublicImage(path: string | null | undefined): Promise<string 
 
 async function loadCharacterRender(url: string | null | undefined): Promise<string | null> {
   if (!url) return null;
+  if (/^\/api\/ccg\/media\/assets\/[a-f\d]{24}$/i.test(url)) {
+    const apiBase = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    try {
+      const response = await fetch(new URL(url, apiBase), {
+        next: { revalidate: 3600 },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) return null;
+      const mimeType = response.headers.get("content-type")?.split(";")[0] ?? "";
+      if (mimeType !== "image/webp") return null;
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (bytes.byteLength > MAX_REMOTE_IMAGE_BYTES) return null;
+      return imageDataUri(bytes, mimeType);
+    } catch {
+      return null;
+    }
+  }
   if (url.startsWith("/")) return loadPublicImage(url);
 
   let parsedUrl: URL;
@@ -221,6 +239,9 @@ function CardFace({
   const className = getClassInfoById(card.classID).name;
   const guild = card.guildName ? `<${card.guildName}>` : formatRealmName(card.realm);
   const copy = getCcgEmbedCopy(locale).share.embed;
+  const availabilityLabel = card.availabilityStatus && card.availabilityStatus !== "active"
+    ? getCcgEmbedCopy(locale).availability[card.availabilityStatus]
+    : null;
 
   return (
     <div
@@ -284,6 +305,40 @@ function CardFace({
               objectPosition: "center bottom",
             }}
           />
+        ) : availabilityLabel ? (
+          <div
+            style={{
+              position: "absolute",
+              top: compact ? 42 : 66,
+              left: "27%",
+              display: "flex",
+              width: "46%",
+              height: compact ? 125 : 205,
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "column",
+              borderRadius: 999,
+              color: card.availabilityStatus === "verification_pending" ? "#eacb82" : "#c7d0dc",
+              background: "rgba(3,9,16,.76)",
+              boxShadow: "inset 0 0 0 1px rgba(255,255,255,.12), 0 18px 42px rgba(0,0,0,.34)",
+            }}
+          >
+            <div style={{ display: "flex", fontSize: compact ? 34 : 54, opacity: 0.58 }}>◈</div>
+            <div
+              style={{
+                display: "flex",
+                maxWidth: "82%",
+                marginTop: compact ? 7 : 11,
+                fontSize: compact ? 8 : 12,
+                fontWeight: 800,
+                letterSpacing: "0.08em",
+                textAlign: "center",
+                textTransform: "uppercase",
+              }}
+            >
+              {availabilityLabel}
+            </div>
+          </div>
         ) : null}
 
         <div

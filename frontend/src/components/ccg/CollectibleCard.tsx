@@ -226,6 +226,8 @@ function CollectibleCard({
   const realm = formatRealmName(card.realm);
   const raidPreviewFinish = isCcgRaidPreviewFinish(finish);
   const alternativeActive = artVariant === "alternative";
+  const availabilityStatus = card.availabilityStatus ?? "active";
+  const availabilityLabel = availabilityStatus === "active" ? null : t(`availability.${availabilityStatus}`);
   const renderUrl = alternativeActive && card.alternativeArt?.characterArtPath
     ? card.alternativeArt.characterArtPath
     : card.renderUrl;
@@ -450,6 +452,7 @@ function CollectibleCard({
       data-finish={finish}
       data-raid-preview-finish={raidPreviewFinish ? "true" : undefined}
       data-art-variant={artVariant}
+      data-availability={availabilityStatus}
       data-frame="vaultSteel"
       data-ccg-card
       data-forced-hover={forcedPointer ? "true" : undefined}
@@ -462,7 +465,7 @@ function CollectibleCard({
       onPointerLeave={leaveMaterial}
       onPointerUp={finishMaterial}
       onPointerCancel={cancelMaterial}
-      aria-label={`${card.name}, ${guild}, ${realm}, ${card.set.raidName}, ${formatSpecName(card.specName)} ${classInfo.name}, ${rarity}, ${t(`finish.${finish}`)}, ${t(`artwork.${artVariant}`)}${favorite ? `, ${t("collection.favoriteCard")}` : ""}`}
+      aria-label={`${card.name}, ${guild}, ${realm}, ${card.set.raidName}, ${formatSpecName(card.specName)} ${classInfo.name}, ${rarity}, ${t(`finish.${finish}`)}, ${t(`artwork.${artVariant}`)}${availabilityLabel ? `, ${availabilityLabel}` : ""}${favorite ? `, ${t("collection.favoriteCard")}` : ""}`}
     >
       <span className={styles.outerFrame} aria-hidden="true" />
       <span className={styles.innerFrame} aria-hidden="true" />
@@ -498,9 +501,15 @@ function CollectibleCard({
             src={renderUrl}
             className={styles.renderImage}
             fitMode={alternativeActive ? "silhouette" : "stance"}
+            fit={alternativeActive ? null : card.renderFit}
             priority={renderPriority}
             onReady={() => markReady("render")}
           />
+        ) : availabilityLabel ? (
+          <span className={styles.availabilityPlaceholder}>
+            <span className={styles.availabilitySeal} />
+            <span>{availabilityLabel}</span>
+          </span>
         ) : null}
       </span>
       {finish === "astral" ? (

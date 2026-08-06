@@ -43,12 +43,14 @@ services:
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/wow_guild_tracker?replicaSet=rs0
       - NODE_ENV=development
+      - CCG_MEDIA_CACHE_DIR=/app/data/ccg-media
     depends_on:
       mongodb-init:
         condition: service_completed_successfully
     volumes:
       - ./backend/public/icons:/app/public/icons
       - ./backend/logs:/app/logs
+      - ccg_media:/app/data/ccg-media
 
   frontend:
     build: ./frontend
@@ -64,3 +66,4 @@ services:
 
 volumes:
   mongodb_data:
+  ccg_media:

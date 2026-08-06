@@ -55,6 +55,7 @@ services:
       - NODE_ENV=production
       - WORKER_MODE=api
       - ICON_CACHE_DIR=/app/data/icons
+      - CCG_MEDIA_CACHE_DIR=/app/data/ccg-media
     # Higher CPU share = OS gives this container priority when CPU is contested
     cpu_shares: 1024
     mem_limit: 1024m
@@ -62,6 +63,7 @@ services:
     volumes:
       - ./data/icons:/app/data/icons
       - ./backend/logs:/app/logs
+      - ccg_media:/app/data/ccg-media
     depends_on:
       mongo-init:
         condition: service_completed_successfully
@@ -79,6 +81,7 @@ services:
       - NODE_ENV=production
       - WORKER_MODE=worker
       - ICON_CACHE_DIR=/app/data/icons
+      - CCG_MEDIA_CACHE_DIR=/app/data/ccg-media
     # Lower CPU share = OS deprioritizes this when API needs CPU
     # nice -n 15 further lowers kernel scheduling priority
     cpu_shares: 256
@@ -88,6 +91,7 @@ services:
     volumes:
       - ./data/icons:/app/data/icons
       - ./backend/logs:/app/logs
+      - ccg_media:/app/data/ccg-media
     depends_on:
       mongo-init:
         condition: service_completed_successfully
@@ -133,6 +137,7 @@ services:
 volumes:
   mongo_data:
   frontend_cache:
+  ccg_media:
 
 networks:
   app-network:

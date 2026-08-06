@@ -9,7 +9,7 @@ import {
   CcgTierGrade,
   getCcgPackFinishOrder,
 } from "../config/ccg";
-import CcgCard from "../models/CcgCard";
+import CcgCard, { CcgCardAvailabilityStatus } from "../models/CcgCard";
 import CcgJobLock from "../models/CcgJobLock";
 import CcgLeaderboardEntry, { ICcgLeaderboardEntry } from "../models/CcgLeaderboardEntry";
 import CcgOwnership from "../models/CcgOwnership";
@@ -45,7 +45,7 @@ type SeriesRow = {
   firstAcquiredAt: Date;
   unlockedSnapshotVersions: number[];
   finishes: Array<{ finish: CcgFinish }>;
-  cards: Array<{ tierGrade: CcgTierGrade }>;
+  cards: Array<{ tierGrade: CcgTierGrade; availabilityStatus?: CcgCardAvailabilityStatus | null }>;
 };
 
 type MutableScore = {
@@ -138,6 +138,12 @@ type RecordCandidate = {
 
 function emptyFinishCounts(): Record<CcgFinish, number> {
   return Object.fromEntries(CCG_FINISH_ORDER.map((finish) => [finish, 0])) as Record<CcgFinish, number>;
+}
+
+export function isCcgSeriesEligibleForSetCompletion(
+  cards: ReadonlyArray<{ availabilityStatus?: CcgCardAvailabilityStatus | null }>,
+): boolean {
+  return cards.some((card) => (card.availabilityStatus ?? "active") !== "archived");
 }
 
 function topRecordEntries(
@@ -415,7 +421,7 @@ class CcgLeaderboardService {
                 },
               },
             },
-            { $project: { _id: 0, tierGrade: 1 } },
+            { $project: { _id: 0, tierGrade: 1, availabilityStatus: { $ifNull: ["$availabilityStatus", "active"] } } },
           ],
           as: "cards",
         },
@@ -462,7 +468,9 @@ class CcgLeaderboardService {
       score.breakdown.rarity += seriesScore.rarityPoints;
       score.breakdown.finishes += seriesScore.finishPoints;
       score.breakdown.completedCards += seriesScore.allFinishesPoints;
-      score.setCounts.set(String(row.setId), (score.setCounts.get(String(row.setId)) ?? 0) + 1);
+      if (isCcgSeriesEligibleForSetCompletion(row.cards)) {
+        score.setCounts.set(String(row.setId), (score.setCounts.get(String(row.setId)) ?? 0) + 1);
+      }
       scores.set(userKey, score);
     }
 

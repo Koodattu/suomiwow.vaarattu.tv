@@ -7,12 +7,14 @@ import CharacterMediaFetchQueue from "../src/models/CharacterMediaFetchQueue";
 import CharacterRaidParticipation from "../src/models/CharacterRaidParticipation";
 import CharacterTierListEntry from "../src/models/CharacterTierListEntry";
 import CcgCard from "../src/models/CcgCard";
+import CharacterRenderAsset from "../src/models/CharacterRenderAsset";
 import TaskLog from "../src/models/TaskLog";
 import {
   CharacterMediaService,
   getCharacterMediaFailureTransition,
   syncCharacterCardsFromMedia,
 } from "../src/services/character-media.service";
+import characterRenderStorageService from "../src/services/character-render-storage.service";
 import { resolveBlizzardCharacterIdentity } from "../src/utils/character-identity";
 
 type QueueRow = {
@@ -296,6 +298,61 @@ test("requeues terminal queue entries with a fresh per-run attempt budget", asyn
   }
 });
 
+test("audits every character with a previously stored render, including purged assets", async () => {
+  const assetModel = CharacterRenderAsset as any;
+  const characterModel = Character as any;
+  const participationModel = CharacterRaidParticipation as any;
+  const queueModel = CharacterMediaFetchQueue as any;
+  const originals = {
+    assetDistinct: assetModel.distinct,
+    characterFind: characterModel.find,
+    participationFind: participationModel.find,
+    queueBulkWrite: queueModel.bulkWrite,
+    queueUpdateMany: queueModel.updateMany,
+  };
+  const characterIds = [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()];
+  let priority: number | undefined;
+  let forcedFilter: Record<string, any> | undefined;
+
+  try {
+    assetModel.distinct = async () => characterIds;
+    characterModel.find = () => ({
+      select() { return this; },
+      lean: async () => characterIds.map((_id, index) => ({
+        _id,
+        name: `Stored${index}`,
+        realm: "Draenor",
+        region: "EU",
+      })),
+    });
+    participationModel.find = () => ({
+      sort() { return this; },
+      select() { return this; },
+      lean: async () => [],
+    });
+    queueModel.bulkWrite = async (operations: Array<Record<string, any>>) => {
+      priority = operations[0].updateOne.update.$max.priority;
+      return { upsertedCount: 0 };
+    };
+    queueModel.updateMany = async (filter: Record<string, any>) => {
+      forcedFilter = filter;
+      return { modifiedCount: 0 };
+    };
+
+    const result = await new CharacterMediaService().auditPreviouslySuccessful();
+
+    assert.deepEqual(result, { candidates: 2, queued: 2 });
+    assert.equal(priority, 250);
+    assert.deepEqual(forcedFilter?.status, { $ne: "processing" });
+  } finally {
+    assetModel.distinct = originals.assetDistinct;
+    characterModel.find = originals.characterFind;
+    participationModel.find = originals.participationFind;
+    queueModel.bulkWrite = originals.queueBulkWrite;
+    queueModel.updateMany = originals.queueUpdateMany;
+  }
+});
+
 test("a recent manual Blizzard identity overrides older raid participation when media is queued", async () => {
   const participationModel = CharacterRaidParticipation as any;
   const queueModel = CharacterMediaFetchQueue as any;
@@ -418,7 +475,7 @@ test("a newer canonical observation also expires an older manual override", () =
   );
 });
 
-test("propagates corrected character media to existing CCG cards", async () => {
+test("backfills immutable render asset references onto URL-only CCG cards", async () => {
   const cardCollection = CcgCard.collection as any;
   const originalUpdateMany = cardCollection.updateMany;
   const characterId = new mongoose.Types.ObjectId();
@@ -433,14 +490,18 @@ test("propagates corrected character media to existing CCG cards", async () => {
     };
 
     const modified = await syncCharacterCardsFromMedia(characterId, {
-      mainRawUrl: "https://example.test/current-main.jpg",
+      renderAssetId: new mongoose.Types.ObjectId("64f000000000000000000001"),
+      renderFit: { top: 0, ground: 0.92, centerX: 0.48 },
       avatarUrl: "https://example.test/current-avatar.jpg",
       fetchedAt: new Date("2026-07-29T12:00:00.000Z"),
     });
 
     assert.equal(modified, 3);
     assert.equal(String(capturedFilter?.characterId), String(characterId));
-    assert.equal(capturedUpdate?.$set.renderUrl, "https://example.test/current-main.jpg");
+    assert.equal(capturedFilter?.renderAssetId, null);
+    assert.equal(capturedUpdate?.$set.renderUrl, "/api/ccg/media/assets/64f000000000000000000001");
+    assert.equal(String(capturedUpdate?.$set.renderAssetId), "64f000000000000000000001");
+    assert.deepEqual(capturedUpdate?.$set.renderFit, { top: 0, ground: 0.92, centerX: 0.48 });
     assert.equal(capturedUpdate?.$set.avatarUrl, "https://example.test/current-avatar.jpg");
   } finally {
     cardCollection.updateMany = originalUpdateMany;
@@ -523,6 +584,8 @@ test("reports live queue totals and the latest persisted discovery progress", as
     queueFind: queueModel.find,
     mediaAggregate: mediaModel.aggregate,
     taskFindOne: taskLogModel.findOne,
+    cardAggregate: (CcgCard as any).aggregate,
+    assetGetStats: characterRenderStorageService.getStats,
   };
   const startedAt = new Date("2026-07-26T01:30:00.000Z");
 
@@ -533,6 +596,11 @@ test("reports live queue totals and the latest persisted discovery progress", as
       { _id: "failed", count: 2 },
     ];
     mediaModel.aggregate = async () => [{ _id: "available", count: 19 }];
+    (CcgCard as any).aggregate = async () => [
+      { _id: 0, count: 16 },
+      { _id: 1, count: 2 },
+      { _id: 2, count: 1 },
+    ];
     queueModel.find = () => ({
       sort() {
         return this;
@@ -557,6 +625,13 @@ test("reports live queue totals and the latest persisted discovery progress", as
         metadata: { scanned: 100, candidates: 31, queued: 29, eligibleCandidates: 11, generalCandidates: 20 },
       }),
     });
+    characterRenderStorageService.getStats = async () => ({
+      active: 19,
+      activeBytes: 1_234,
+      expired: 1,
+      expiringWithinSevenDays: 2,
+      purged: 3,
+    });
 
     const status = await new CharacterMediaService().getStatus();
 
@@ -567,10 +642,14 @@ test("reports live queue totals and the latest persisted discovery progress", as
     assert.equal(status.lastDiscovery?.scanned, 100);
     assert.equal(status.lastDiscovery?.candidates, 31);
     assert.equal(status.lastDiscovery?.queued, 29);
+    assert.equal(status.assets.active, 19);
+    assert.deepEqual(status.cardSeries, { active: 16, verificationPending: 2, archived: 1 });
   } finally {
     queueModel.aggregate = originals.queueAggregate;
     queueModel.find = originals.queueFind;
     mediaModel.aggregate = originals.mediaAggregate;
     taskLogModel.findOne = originals.taskFindOne;
+    (CcgCard as any).aggregate = originals.cardAggregate;
+    characterRenderStorageService.getStats = originals.assetGetStats;
   }
 });

@@ -6,6 +6,7 @@ import CcgCard from "../models/CcgCard";
 import CcgSet from "../models/CcgSet";
 import Raid from "../models/Raid";
 import characterMediaService, {
+  CHARACTER_MEDIA_AUDIT_TASK_NAME,
   CHARACTER_MEDIA_DISCOVERY_TASK_NAME,
   CHARACTER_MEDIA_RECOVERY_TASK_NAME,
   CHARACTER_MEDIA_REFRESH_TASK_NAME,
@@ -243,7 +244,18 @@ router.get(
 
 router.post(
   "/media/refresh-current",
-  adminRoute(async () => runTrackedMediaAction(CHARACTER_MEDIA_REFRESH_TASK_NAME, () => characterMediaService.enqueueActiveCurrent())),
+  adminRoute(async () => runTrackedMediaAction(CHARACTER_MEDIA_REFRESH_TASK_NAME, async () => ({
+    ...(await characterMediaService.enqueueActiveCurrent()),
+    community: await ccgCommunityService.refreshDueRenders(),
+  }))),
+);
+
+router.post(
+  "/media/audit-previously-successful",
+  adminRoute(async () => runTrackedMediaAction(
+    CHARACTER_MEDIA_AUDIT_TASK_NAME,
+    () => characterMediaService.auditPreviouslySuccessful(),
+  )),
 );
 
 router.post(

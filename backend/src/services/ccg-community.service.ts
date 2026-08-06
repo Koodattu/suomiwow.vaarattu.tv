@@ -9,9 +9,13 @@ import { createCharacterCollectorKey, createWowCharacterIdentityKey } from "../u
 import { normalizeCommunityRole, normalizeCommunityScores } from "../utils/ccg-community";
 import { resolveCardCrop } from "../utils/ccg-random";
 import { resolveRole } from "../utils/spec";
+import logger from "../utils/logger";
 import blizzardService from "./blizzard.service";
+import ccgCardAvailabilityService from "./ccg-card-availability.service";
 import ccgCharacterIdentityService from "./ccg-character-identity.service";
 import ccgPublisherService from "./ccg-publisher.service";
+import characterRenderStorageService from "./character-render-storage.service";
+import cacheService from "./cache.service";
 
 export class CcgCommunityError extends Error {
   constructor(
@@ -81,6 +85,7 @@ class CcgCommunityService {
       linkedCharacterId: row.linkedCharacterId ? String(row.linkedCharacterId) : null,
       avatarUrl: row.avatarUrl ?? null,
       renderUrl: row.renderUrl,
+      renderFit: row.renderFit ?? null,
       active: row.active !== false,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -172,6 +177,12 @@ class CcgCommunityService {
     if (!set) throw new CcgCommunityError(503, "community_set_unavailable", "The Community set is not available");
     const sourceId = linkedCharacter?._id ?? new mongoose.Types.ObjectId();
     const now = new Date();
+    let storedRender;
+    try {
+      storedRender = await characterRenderStorageService.ingest(sourceId, media.mainRawUrl!, now);
+    } catch (error) {
+      throw new CcgCommunityError(422, "character_render_store_failed", error instanceof Error ? error.message : "Character render could not be stored");
+    }
     const community = new CcgCommunityCharacter({
       _id: linkedCharacter ? undefined : sourceId,
       identityKey,
@@ -190,7 +201,10 @@ class CcgCommunityService {
       guildRealm,
       tierGrade,
       avatarUrl: media.avatarUrl,
-      renderUrl: media.mainRawUrl,
+      renderUrl: storedRender.url,
+      renderAssetId: storedRender.assetId,
+      renderAssetExpiresAt: storedRender.expiresAt,
+      renderFit: storedRender.fit,
       active: true,
       createdBy: input.createdBy,
     });
@@ -224,7 +238,9 @@ class CcgCommunityService {
       },
       tierGrade,
       avatarUrl: media.avatarUrl,
-      renderUrl: media.mainRawUrl,
+      renderUrl: storedRender.url,
+      renderAssetId: storedRender.assetId,
+      renderFit: storedRender.fit,
       backgroundCrop: resolveCardCrop(`${set.slug}:${identityKey}`, set.backgroundSafeCrop),
       pulls: 0,
       deaths: 0,
@@ -303,6 +319,18 @@ class CcgCommunityService {
       ? await this.resolveCharacter(community.name, community.realmSlug, community.region, community.linkedCharacterId)
       : null;
     const now = new Date();
+    let refreshedRender = null;
+    if (resolved) {
+      try {
+        refreshedRender = await characterRenderStorageService.ingest(
+          community.linkedCharacterId ?? community._id,
+          resolved.media.mainRawUrl!,
+          now,
+        );
+      } catch (error) {
+        throw new CcgCommunityError(422, "character_render_store_failed", error instanceof Error ? error.message : "Character render could not be stored");
+      }
+    }
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
@@ -325,7 +353,10 @@ class CcgCommunityService {
           community.guildName = resolved.guildName;
           community.guildRealm = resolved.guildRealm;
           community.avatarUrl = resolved.media.avatarUrl;
-          community.renderUrl = resolved.media.mainRawUrl!;
+          community.renderUrl = refreshedRender!.url;
+          community.renderAssetId = refreshedRender!.assetId;
+          community.renderAssetExpiresAt = refreshedRender!.expiresAt;
+          community.renderFit = refreshedRender!.fit;
         }
         await community.save({ session });
 
@@ -345,7 +376,9 @@ class CcgCommunityService {
             classID: resolved.classInfo.id,
             specName: resolved.specName,
             avatarUrl: resolved.media.avatarUrl,
-            renderUrl: resolved.media.mainRawUrl,
+            renderUrl: refreshedRender!.url,
+            renderAssetId: refreshedRender!.assetId,
+            renderFit: refreshedRender!.fit,
             mediaCapturedAt: now,
           });
         }
@@ -372,6 +405,13 @@ class CcgCommunityService {
       await session.endSession();
     }
 
+    if (resolved) {
+      await ccgCardAvailabilityService.noteAvailable(
+        community.linkedCharacterId ?? (community._id as mongoose.Types.ObjectId),
+        now,
+      );
+    }
+
     if (resolved?.linkedCharacter) {
       await ccgCharacterIdentityService.reconcileCommunityById(communityId);
     }
@@ -383,6 +423,87 @@ class CcgCommunityService {
 
   async remove(id: string): Promise<Record<string, unknown>> {
     return this.update(id, { active: false });
+  }
+
+  async refreshDueRenders(limit = 250): Promise<{ candidates: number; refreshed: number; removed: number; failed: number }> {
+    const dueBefore = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const rows = await CcgCommunityCharacter.find({
+      active: true,
+      $or: [
+        { renderAssetId: null },
+        { renderAssetExpiresAt: null },
+        { renderAssetExpiresAt: { $lte: dueBefore } },
+      ],
+    })
+      .sort({ renderAssetExpiresAt: 1, updatedAt: 1 })
+      .limit(Math.max(1, Math.min(limit, 1000)));
+    let refreshed = 0;
+    let removed = 0;
+    let failed = 0;
+
+    for (const row of rows) {
+      const assetCharacterId = row.linkedCharacterId ?? (row._id as mongoose.Types.ObjectId);
+      try {
+        const media = await blizzardService.getCharacterMedia(row.name, row.realmSlug, row.region);
+        if (!media.mainRawUrl) throw new Error("Blizzard media response contained no full character render");
+        const now = new Date();
+        const stored = await characterRenderStorageService.ingest(assetCharacterId, media.mainRawUrl, now);
+        row.avatarUrl = media.avatarUrl;
+        row.renderUrl = stored.url;
+        row.renderAssetId = stored.assetId;
+        row.renderAssetExpiresAt = stored.expiresAt;
+        row.renderFit = stored.fit;
+        await row.save();
+        if (row.cardId) {
+          await CcgCard.collection.updateOne(
+            { _id: row.cardId, communityCharacterId: row._id, sourcePartition: "community-admin" },
+            {
+              $set: {
+                avatarUrl: media.avatarUrl,
+                renderUrl: stored.url,
+                renderAssetId: stored.assetId,
+                renderFit: stored.fit,
+                mediaCapturedAt: now,
+              },
+            },
+          );
+        }
+        try {
+          await ccgCardAvailabilityService.noteAvailable(assetCharacterId, now);
+        } catch (availabilityError) {
+          logger.error(`[CCG/Community] Failed to restore card availability for ${row._id}:`, availabilityError);
+        }
+        refreshed += 1;
+      } catch (error) {
+        const statusMatch = (error instanceof Error ? error.message : String(error)).match(/status (\d{3})/i);
+        if (statusMatch?.[1] === "404") {
+          await characterRenderStorageService.purgeCharacter(assetCharacterId, "source_not_found");
+          row.avatarUrl = null;
+          row.renderUrl = null;
+          row.renderAssetId = null;
+          row.renderAssetExpiresAt = null;
+          row.renderFit = null;
+          await row.save();
+          if (row.cardId) {
+            await CcgCard.collection.updateOne(
+              { _id: row.cardId, communityCharacterId: row._id, sourcePartition: "community-admin" },
+              { $set: { avatarUrl: null, renderUrl: null, renderAssetId: null, renderFit: null } },
+            );
+          }
+          try {
+            await ccgCardAvailabilityService.noteNotFound(assetCharacterId, new Date());
+          } catch (availabilityError) {
+            logger.error(`[CCG/Community] Failed to update card availability for ${row._id}:`, availabilityError);
+          }
+          removed += 1;
+        } else {
+          failed += 1;
+          logger.error(`[CCG/Community] Failed to validate render for ${row._id}:`, error);
+        }
+      }
+    }
+    if (refreshed > 0 || removed > 0) await cacheService.invalidatePattern(/^ccg:/);
+    return { candidates: rows.length, refreshed, removed, failed };
   }
 }
 

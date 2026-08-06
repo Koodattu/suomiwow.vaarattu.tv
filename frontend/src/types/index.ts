@@ -2193,6 +2193,8 @@ export type CcgCard = {
   tierGrade: CcgTierGrade;
   avatarUrl: string | null;
   renderUrl: string | null;
+  renderFit?: { top: number; ground: number; centerX: number } | null;
+  availabilityStatus?: "active" | "verification_pending" | "archived";
   alternativeArt: CcgAlternativeArt | null;
   quip: CcgQuip | null;
   backgroundCrop: { x: number; y: number; scale: number };
@@ -2642,6 +2644,18 @@ export type CcgAdminMediaStatus = {
   discoveryRunning: boolean;
   queue: Record<string, number>;
   media: Record<string, number>;
+  assets: {
+    active: number;
+    activeBytes: number;
+    expired: number;
+    expiringWithinSevenDays: number;
+    purged: number;
+  };
+  cardSeries: {
+    active: number;
+    verificationPending: number;
+    archived: number;
+  };
   lastDiscovery: {
     status: "running" | "completed" | "failed";
     startedAt: string;
@@ -2711,7 +2725,7 @@ export type CcgAdminCommunityCharacter = {
   scores: { performance: number | null; mechanics: number | null; combined: number | null; mythicPlus: number | null };
   linkedCharacterId: string | null;
   avatarUrl: string | null;
-  renderUrl: string;
+  renderUrl: string | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -3494,8 +3508,17 @@ export interface MythicPlusCrawlerStatusResponse {
     isRunning: boolean;
     currentJob: MythicPlusCrawlerJob | null;
     lastMessage: string | null;
-    requestsInWindow: number;
-    maxRequestsPerHour: number;
+    rateLimits: Record<
+      "app" | "public",
+      {
+        requestsInWindow: number;
+        maxRequestsPerMinute: number;
+        configuredMaxRequestsPerMinute: number;
+        observedMaxRequestsPerMinute: number | null;
+        observedRemaining: number | null;
+        observedResetAt: string | null;
+      }
+    >;
   };
   queue: {
     pending: number;

@@ -22,6 +22,7 @@ import characterMediaService, {
 } from "./character-media.service";
 import ccgRaidRunner from "./ccg-snapshot-runner.service";
 import ccgService from "./ccg.service";
+import ccgCommunityService from "./ccg-community.service";
 import FullHistoryRefresh from "../models/FullHistoryRefresh";
 import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
 import {
@@ -862,7 +863,7 @@ class UpdateScheduler {
       logger.info("    * Collection leaderboard incremental refresh: every 15 minutes on the quarter-hour");
       logger.info("    * Collection leaderboard full rebuild: hourly at :07");
       logger.info("    * New-character media discovery: daily at 01:30");
-      logger.info("    * Active-character media refresh: daily at 01:50");
+      logger.info("    * Stored character media validation: daily at 01:50");
       logger.info("    * Media queue recovery: every 15 minutes");
       if (CCG_WEEKLY_AUTOMATION_ENABLED) {
         logger.info("    * Current snapshot: Wednesday at 03:00");
@@ -1017,7 +1018,8 @@ class UpdateScheduler {
     const taskId = await taskTracker.start(CHARACTER_MEDIA_REFRESH_TASK_NAME, { source: "scheduler" });
     try {
       const result = await characterMediaService.enqueueActiveCurrent();
-      await taskTracker.complete(taskId, result);
+      const community = await ccgCommunityService.refreshDueRenders();
+      await taskTracker.complete(taskId, { ...result, community });
     } catch (error) {
       logger.error("[CCG/MediaRefresh] Error:", error);
       await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));

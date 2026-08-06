@@ -165,7 +165,7 @@ type CcgActivityCandidate =
 
 type CcgActivityCardRecord = Pick<
   ICcgCard,
-  "_id" | "setId" | "characterId" | "collectorKey" | "name" | "realm" | "classID" | "avatarUrl" | "renderUrl" | "tierGrade"
+  "_id" | "setId" | "characterId" | "collectorKey" | "name" | "realm" | "classID" | "avatarUrl" | "renderUrl" | "renderFit" | "availabilityStatus" | "tierGrade"
 >;
 type CcgActivitySetRecord = Pick<
   ICcgSet,
@@ -634,6 +634,11 @@ class CcgService {
   } | null = null;
   private collectionGuildsPromise: Promise<NonNullable<CcgService["collectionGuildsCache"]>> | null = null;
   private activeCatalogCardIdsCache = new Map<string, { expiresAt: number; cardIds: mongoose.Types.ObjectId[] }>();
+
+  invalidateCardAvailabilityCaches(): void {
+    this.activeCatalogCardIdsCache.clear();
+  }
+
   private raidIconCache: { expiresAt: number; iconByZone: Map<number, string | null> } | null = null;
   private raidIconPromise: Promise<Map<number, string | null>> | null = null;
 
@@ -1025,6 +1030,29 @@ class CcgService {
     const [rows, iconByZone] = await Promise.all([
       owner ? CcgSeriesOwnership.aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([
         { $match: { ownerType: owner.ownerType, ownerId: owner.ownerId } },
+        {
+          $lookup: {
+            from: CcgCard.collection.name,
+            let: { setId: "$setId", characterId: "$characterId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$setId", "$$setId"] },
+                      { $eq: ["$characterId", "$$characterId"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { snapshotVersion: -1, publishedAt: -1, _id: -1 } },
+              { $limit: 1 },
+              { $project: { _id: 0, availabilityStatus: { $ifNull: ["$availabilityStatus", "active"] } } },
+            ],
+            as: "cardAvailability",
+          },
+        },
+        { $match: { "cardAvailability.availabilityStatus": { $ne: "archived" } } },
         { $group: { _id: "$setId", count: { $sum: 1 } } },
       ]) : Promise.resolve([]),
       this.getRaidIconByZone(visibleSets.map((set) => set.zoneId)),
@@ -1098,7 +1126,7 @@ class CcgService {
         .select("zoneId reportCount mythicReportCount")
         .lean(),
       CharacterMedia.find({ characterId: { $in: memberCharacterIds } })
-        .select("characterId status avatarUrl mainRawUrl lastErrorCode")
+        .select("characterId status avatarUrl renderAssetId renderAssetExpiresAt lastErrorCode")
         .lean(),
       CcgCard.find({ characterId: { $in: memberCharacterIds } })
         .sort({ publishedAt: -1, snapshotVersion: -1 })
@@ -1108,8 +1136,15 @@ class CcgService {
     ]);
 
     const rootMedia = mediaRows.find((row) => String(row.characterId) === rootCharacterId);
-    const availableMedia = mediaRows.find((row) => row.status === "available" && Boolean(row.mainRawUrl));
-    const media = rootMedia?.status === "available" && rootMedia.mainRawUrl
+    const now = new Date();
+    const hasStoredRender = (row: (typeof mediaRows)[number] | null | undefined) => Boolean(
+      row?.status === "available"
+      && row.renderAssetId
+      && row.renderAssetExpiresAt
+      && row.renderAssetExpiresAt > now,
+    );
+    const availableMedia = mediaRows.find(hasStoredRender);
+    const media = hasStoredRender(rootMedia)
       ? rootMedia
       : availableMedia ?? rootMedia ?? mediaRows[0] ?? null;
 
@@ -1181,7 +1216,7 @@ class CcgService {
     ]);
     const mediaStatus = !media
       ? "untracked"
-      : media.status === "available" && !media.mainRawUrl
+      : media.status === "available" && !hasStoredRender(media)
         ? "render_missing"
         : media.status;
     const mediaReady = mediaStatus === "available";
@@ -1432,6 +1467,7 @@ class CcgService {
           {
             $match: {
               setId: set ? set._id : { $in: sets.map((item) => item._id) },
+              availabilityStatus: { $ne: "archived" },
               ...(characterFilter ? { characterId: characterFilter } : {}),
             },
           },
@@ -1562,7 +1598,7 @@ class CcgService {
         : Promise.resolve([]),
       this.loadAlternativeArt(cards),
       missingSeriesOnly ? Promise.resolve(new Set<string>()) : this.loadAlternativeArtUnlocks(owner, cards),
-      set ? CcgSeriesOwnership.countDocuments({ ownerType: owner.ownerType, ownerId: owner.ownerId, setId: set._id }) : Promise.resolve(0),
+      set ? this.countActiveOwnedSeries(owner, [set._id]) : Promise.resolve(0),
     ]);
     const ownershipBySeries = new Map<string, Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>>();
     for (const row of ownership) {
@@ -2697,7 +2733,7 @@ class CcgService {
       finish = input.finish as CcgFinish;
       artVariant = input.artVariant;
 
-      const card = await CcgCard.findById(cardId).lean();
+      const card = await CcgCard.findOne({ _id: cardId, availabilityStatus: { $ne: "archived" } }).lean();
       const cardSet = card ? await CcgSet.findById(card.setId).lean() : null;
       if (!card || !cardSet) {
         throw new CcgServiceError(404, "card_not_found", "The selected published card no longer exists");
@@ -2790,7 +2826,10 @@ class CcgService {
           if (!reservedCode.cardId || !reservedCode.finish || !reservedCode.artVariant) {
             throw new CcgServiceError(409, "reward_unavailable", "This code's card reward is unavailable");
           }
-          const card = await CcgCard.findById(reservedCode.cardId).session(session);
+          const card = await CcgCard.findOne({
+            _id: reservedCode.cardId,
+            availabilityStatus: { $ne: "archived" },
+          }).session(session);
           const cardSet = card ? await CcgSet.findById(card.setId).session(session) : null;
           if (!card || !cardSet || !getCcgRedeemFinishOrder(cardSet.kind, cardSet.customFinish?.key).includes(reservedCode.finish)) {
             throw new CcgServiceError(409, "reward_unavailable", "This code's card reward is unavailable");
@@ -4163,6 +4202,42 @@ class CcgService {
     return Boolean(opening);
   }
 
+  private async countActiveOwnedSeries(
+    owner: Pick<CcgOwner, "ownerType" | "ownerId">,
+    setIds: mongoose.Types.ObjectId[],
+    session?: ClientSession,
+  ): Promise<number> {
+    const aggregation = CcgSeriesOwnership.aggregate<{ count: number }>([
+      { $match: { ownerType: owner.ownerType, ownerId: owner.ownerId, setId: { $in: setIds } } },
+      {
+        $lookup: {
+          from: CcgCard.collection.name,
+          let: { setId: "$setId", characterId: "$characterId" },
+          pipeline: [
+            {
+              $match: {
+                availabilityStatus: { $ne: "archived" },
+                $expr: {
+                  $and: [
+                    { $eq: ["$setId", "$$setId"] },
+                    { $eq: ["$characterId", "$$characterId"] },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+            { $project: { _id: 1 } },
+          ],
+          as: "activeCards",
+        },
+      },
+      { $match: { "activeCards.0": { $exists: true } } },
+      { $count: "count" },
+    ]);
+    if (session) aggregation.session(session);
+    return (await aggregation)[0]?.count ?? 0;
+  }
+
   private async selectPackResults(
     session: ClientSession,
     targetSetId: mongoose.Types.ObjectId | null = null,
@@ -4224,11 +4299,7 @@ class CcgService {
 
     const eligibleCardCount = sets.reduce((total, set) => total + set.cardCount, 0);
     const ownedSeriesCount = includeMissingCardAlternatives && missingCardOwner
-      ? await CcgSeriesOwnership.countDocuments({
-          ownerType: missingCardOwner.ownerType,
-          ownerId: missingCardOwner.ownerId,
-          setId: { $in: normalSetIds },
-        }).session(session)
+      ? await this.countActiveOwnedSeries(missingCardOwner, normalSetIds, session)
       : 0;
     const completionRatio = eligibleCardCount > 0
       ? Math.min(ownedSeriesCount, eligibleCardCount) / eligibleCardCount
@@ -4859,6 +4930,8 @@ class CcgService {
       tierGrade: card.tierGrade,
       avatarUrl: card.avatarUrl ?? null,
       renderUrl: card.renderUrl ?? null,
+      renderFit: card.renderFit ?? null,
+      availabilityStatus: card.availabilityStatus ?? "active",
       alternativeArt: serializeAlternativeArt(alternativeArt),
       quip: serializeQuip(alternativeArt),
       backgroundCrop: card.backgroundCrop,

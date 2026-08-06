@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema } from "mongoose";
 import { CcgTierGrade } from "../config/ccg";
+import { CharacterRenderFit, CharacterRenderFitSchema } from "./CharacterRenderAsset";
 
 export interface ICcgCommunityCharacter extends Document {
   identityKey: string;
@@ -19,7 +20,10 @@ export interface ICcgCommunityCharacter extends Document {
   guildRealm?: string | null;
   tierGrade: CcgTierGrade;
   avatarUrl?: string | null;
-  renderUrl: string;
+  renderUrl?: string | null;
+  renderAssetId?: mongoose.Types.ObjectId | null;
+  renderAssetExpiresAt?: Date | null;
+  renderFit?: CharacterRenderFit | null;
   active: boolean;
   createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -45,7 +49,10 @@ const CcgCommunityCharacterSchema = new Schema<ICcgCommunityCharacter>(
     guildRealm: { type: String, default: null },
     tierGrade: { type: String, enum: ["H", "S", "A", "B", "C", "D", "E", "F"], required: true },
     avatarUrl: { type: String, default: null },
-    renderUrl: { type: String, required: true },
+    renderUrl: { type: String, default: null },
+    renderAssetId: { type: Schema.Types.ObjectId, ref: "CharacterRenderAsset", default: null, index: true },
+    renderAssetExpiresAt: { type: Date, default: null, index: true },
+    renderFit: { type: CharacterRenderFitSchema, default: null },
     active: { type: Boolean, required: true, default: true, index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },

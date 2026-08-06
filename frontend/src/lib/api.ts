@@ -511,9 +511,15 @@ export const api = {
     return response.json();
   },
 
-  async refreshAdminCcgMedia(): Promise<{ candidates: number; queued: number }> {
+  async refreshAdminCcgMedia(): Promise<{ candidates: number; queued: number; purged: number }> {
     const response = await fetch(`${API_URL}/api/admin/ccg/media/refresh-current`, { method: "POST", credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to refresh current character renders");
+    return response.json();
+  },
+
+  async auditAdminCcgPreviouslySuccessfulMedia(): Promise<{ candidates: number; queued: number }> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/media/audit-previously-successful`, { method: "POST", credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to audit previously successful character renders");
     return response.json();
   },
 

@@ -23,7 +23,7 @@ import CcgJobLock from "../src/models/CcgJobLock";
 import CcgLeaderboardEntry from "../src/models/CcgLeaderboardEntry";
 import CcgSeriesOwnership from "../src/models/CcgSeriesOwnership";
 import CcgSet from "../src/models/CcgSet";
-import ccgLeaderboardService from "../src/services/ccg-leaderboard.service";
+import ccgLeaderboardService, { isCcgSeriesEligibleForSetCompletion } from "../src/services/ccg-leaderboard.service";
 import ccgService, { CcgServiceError } from "../src/services/ccg.service";
 
 test("collection leaderboard schedules incremental refreshes on every clock quarter", () => {
@@ -36,6 +36,12 @@ test("collection leaderboard schedules incremental refreshes on every clock quar
 
 test("collection leaderboard strongly rewards completing an entire set", () => {
   assert.equal(CCG_COMPLETE_SET_POINTS_PER_CARD, 100);
+});
+
+test("archived series keep their ownership value but do not satisfy live set completion", () => {
+  assert.equal(isCcgSeriesEligibleForSetCompletion([{ availabilityStatus: "active" }]), true);
+  assert.equal(isCcgSeriesEligibleForSetCompletion([{ availabilityStatus: null }]), true);
+  assert.equal(isCcgSeriesEligibleForSetCompletion([{ availabilityStatus: "archived" }]), false);
 });
 
 test("collection ownership has an index for finding recently changed collectors", () => {

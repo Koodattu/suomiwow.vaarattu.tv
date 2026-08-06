@@ -1,11 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { CSSProperties, SyntheticEvent } from "react";
 import { getCharacterRenderImageUrl } from "@/lib/character-render";
 
-type AlphaBounds = {
+export type AlphaBounds = {
   top: number;
   ground: number;
   centerX: number;
@@ -17,6 +17,7 @@ type AlphaFittedCharacterRenderProps = {
   src: string;
   className?: string;
   fitMode?: AlphaFitMode;
+  fit?: AlphaBounds | null;
   priority?: boolean;
   onReady?: () => void;
 };
@@ -101,7 +102,7 @@ function measureAlphaBounds(image: HTMLImageElement, fitMode: AlphaFitMode): Alp
   };
 }
 
-export default function AlphaFittedCharacterRender({ src, className, fitMode = "stance", priority = false, onReady }: AlphaFittedCharacterRenderProps) {
+export default function AlphaFittedCharacterRender({ src, className, fitMode = "stance", fit, priority = false, onReady }: AlphaFittedCharacterRenderProps) {
   const imageSrc = useMemo(() => getCharacterRenderImageUrl(src), [src]);
   const cacheKey = `${fitMode}:${src}`;
   const [measurement, setMeasurement] = useState<{ key: string; bounds: AlphaBounds } | null>(() => {
@@ -109,12 +110,11 @@ export default function AlphaFittedCharacterRender({ src, className, fitMode = "
     return bounds ? { key: cacheKey, bounds } : null;
   });
 
-  useEffect(() => {
-    const bounds = boundsCache.get(cacheKey);
-    setMeasurement(bounds ? { key: cacheKey, bounds } : null);
-  }, [cacheKey]);
-
   const onLoad = (event: SyntheticEvent<HTMLImageElement>) => {
+    if (fit) {
+      onReady?.();
+      return;
+    }
     const cached = boundsCache.get(cacheKey);
     if (cached) {
       setMeasurement({ key: cacheKey, bounds: cached });
@@ -133,7 +133,7 @@ export default function AlphaFittedCharacterRender({ src, className, fitMode = "
     }
   };
 
-  const bounds = measurement?.key === cacheKey ? measurement.bounds : null;
+  const bounds = fit ?? (measurement?.key === cacheKey ? measurement.bounds : null);
   const opaqueHeight = bounds ? bounds.ground - bounds.top : 1;
   const fitStyle = {
     "--render-fit-height": `${100 / opaqueHeight}%`,
@@ -153,6 +153,7 @@ export default function AlphaFittedCharacterRender({ src, className, fitMode = "
       priority={priority}
       unoptimized
       onLoad={onLoad}
+      onError={onReady}
     />
   );
 }

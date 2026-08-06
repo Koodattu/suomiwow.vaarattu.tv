@@ -132,6 +132,8 @@ test("CCG snapshot population uses the continuity root identity and its availabl
         characterId: targetId,
         status: "available",
         mainRawUrl: "https://render.example/shenzinile.png",
+        renderAssetId: new mongoose.Types.ObjectId(),
+        renderAssetExpiresAt: new Date("2099-01-01T00:00:00.000Z"),
         attemptCount: 1,
       },
     ]);
@@ -228,6 +230,8 @@ test("character checker combines linked raid data with the current character med
         status: "available",
         avatarUrl: "https://render.example/shenzinile-avatar.jpg",
         mainRawUrl: "https://render.example/shenzinile.png",
+        renderAssetId: new mongoose.Types.ObjectId(),
+        renderAssetExpiresAt: new Date("2099-01-01T00:00:00.000Z"),
         lastErrorCode: null,
       },
     ]);
