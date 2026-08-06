@@ -1,4 +1,5 @@
 import Guild, { IBossProgress, IGuild, IRaidProgress } from "../models/Guild";
+import Report from "../models/Report";
 import type { Types } from "mongoose";
 import { CURRENT_RAID_IDS } from "../config/guilds";
 import { compareRaidIdsByPriority } from "../utils/raidPriority";
@@ -6,7 +7,7 @@ import logger from "../utils/logger";
 import bossKillPredictionService, { BossKillPrediction, MostRecentlyPulledBoss } from "./boss-kill-prediction.service";
 import searchService, { SearchResult } from "./search.service";
 
-export type TwitchChatCommandName = "best" | "prediction" | "search";
+export type TwitchChatCommandName = "best" | "log" | "prediction" | "search";
 
 export interface ParsedTwitchChatCommand {
   name: TwitchChatCommandName;
@@ -22,6 +23,7 @@ type GuildLookupResult = Pick<IGuild, "name" | "realm" | "region" | "isCurrently
 };
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const LIVE_REPORT_WINDOW_MS = 30 * 60 * 1000;
 
 const GUILD_LOOKUP_FIELDS = [
   "name",
@@ -95,7 +97,7 @@ export const selectPredictionTarget = (
 class TwitchChatCommandService {
   parse(text: string): ParsedTwitchChatCommand | null {
     const trimmed = text.trim();
-    const match = /^!(best|paras|prediction|ennustus|search)(?:\s+(.*))?$/i.exec(trimmed);
+    const match = /^!(best|paras|log|report|prediction|ennustus|search)(?:\s+(.*))?$/i.exec(trimmed);
     if (!match) {
       return null;
     }
@@ -103,7 +105,14 @@ class TwitchChatCommandService {
     const commandName = match[1].toLowerCase();
 
     return {
-      name: commandName === "search" ? "search" : commandName === "prediction" || commandName === "ennustus" ? "prediction" : "best",
+      name:
+        commandName === "search"
+          ? "search"
+          : commandName === "log" || commandName === "report"
+            ? "log"
+            : commandName === "prediction" || commandName === "ennustus"
+              ? "prediction"
+              : "best",
       args: (match[2] || "").trim(),
     };
   }
@@ -115,6 +124,10 @@ class TwitchChatCommandService {
 
     if (command.name === "prediction") {
       return this.handlePrediction(command.args, channelName, options);
+    }
+
+    if (command.name === "log") {
+      return this.handleLog(command.args, channelName);
     }
 
     return this.handleBest(command.args, channelName, options);
@@ -144,6 +157,34 @@ class TwitchChatCommandService {
     }
 
     return this.limitMessage(this.formatBestPull(guild, options));
+  }
+
+  private async handleLog(query: string, channelName: string): Promise<string> {
+    const guild = query.trim().length > 0 ? await this.findGuildFromQuery(query) : await this.findGuildForChannel(channelName);
+
+    if (!guild) {
+      return query.trim().length > 0
+        ? `No tracked guild found for "${query}". Try !search ${query}`
+        : "I could not tell which guild this stream belongs to. Try !log <guild>";
+    }
+
+    if (!guild.isCurrentlyRaiding) {
+      return `${guild.name}: no live Warcraft Logs report right now.`;
+    }
+
+    const liveReport = await Report.findOne({
+      guildId: guild._id,
+      endTime: { $gte: Date.now() - LIVE_REPORT_WINDOW_MS },
+    })
+      .sort({ endTime: -1, startTime: -1 })
+      .select("code")
+      .lean();
+
+    if (!liveReport?.code) {
+      return `${guild.name}: no live Warcraft Logs report right now.`;
+    }
+
+    return `${guild.name} live log: https://www.warcraftlogs.com/reports/${encodeURIComponent(liveReport.code)}`;
   }
 
   private async handlePrediction(query: string, channelName: string, options: TwitchChatCommandOptions): Promise<string> {

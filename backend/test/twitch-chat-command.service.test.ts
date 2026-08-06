@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { Types } from "mongoose";
 import Guild, { IRaidProgress } from "../src/models/Guild";
+import Report from "../src/models/Report";
 import bossKillPredictionService from "../src/services/boss-kill-prediction.service";
 import twitchChatCommandService, { selectPredictionTarget } from "../src/services/twitch-chat-command.service";
 
@@ -39,6 +40,100 @@ test("does not parse partial prediction command names", () => {
 test("keeps the existing command aliases unchanged", () => {
   assert.deepEqual(twitchChatCommandService.parse("!paras"), { name: "best", args: "" });
   assert.deepEqual(twitchChatCommandService.parse("!search Tuju"), { name: "search", args: "Tuju" });
+});
+
+test("parses both live log command aliases", () => {
+  assert.deepEqual(twitchChatCommandService.parse("!log"), { name: "log", args: "" });
+  assert.deepEqual(twitchChatCommandService.parse("  !RePoRt Tuju  "), { name: "log", args: "Tuju" });
+});
+
+test("returns the fresh Warcraft Logs report for a raiding channel guild", async () => {
+  const originalGuildFind = Guild.find;
+  const originalReportFindOne = Report.findOne;
+  const guildId = new Types.ObjectId();
+  const now = Date.parse("2026-08-06T18:00:00.000Z");
+  const originalDateNow = Date.now;
+  let reportFilter: Record<string, unknown> | undefined;
+
+  Guild.find = (() => ({
+    select: () => ({
+      lean: async () => [
+        {
+          _id: guildId,
+          name: "Test Guild",
+          realm: "Test Realm",
+          region: "EU",
+          isCurrentlyRaiding: true,
+          progress: [],
+          officialProgress: [],
+          streamers: [{ channelName: "testchannel", isLive: true, isPlayingWoW: true }],
+        },
+      ],
+    }),
+  })) as unknown as typeof Guild.find;
+  Report.findOne = ((filter: Record<string, unknown>) => {
+    reportFilter = filter;
+    return {
+      sort: () => ({
+        select: () => ({
+          lean: async () => ({ code: "FreshReport123" }),
+        }),
+      }),
+    };
+  }) as unknown as typeof Report.findOne;
+  Date.now = () => now;
+
+  try {
+    const response = await twitchChatCommandService.handle({ name: "log", args: "" }, "testchannel", { includeUrl: false });
+
+    assert.equal(response, "Test Guild live log: https://www.warcraftlogs.com/reports/FreshReport123");
+    assert.deepEqual(reportFilter, {
+      guildId,
+      endTime: { $gte: now - 30 * 60 * 1000 },
+    });
+  } finally {
+    Guild.find = originalGuildFind;
+    Report.findOne = originalReportFindOne;
+    Date.now = originalDateNow;
+  }
+});
+
+test("does not fall back to an old report when a raiding guild has no fresh stored report", async () => {
+  const originalGuildFind = Guild.find;
+  const originalReportFindOne = Report.findOne;
+
+  Guild.find = (() => ({
+    select: () => ({
+      lean: async () => [
+        {
+          _id: new Types.ObjectId(),
+          name: "Test Guild",
+          realm: "Test Realm",
+          region: "EU",
+          isCurrentlyRaiding: true,
+          progress: [],
+          officialProgress: [],
+          streamers: [{ channelName: "testchannel", isLive: true, isPlayingWoW: true }],
+        },
+      ],
+    }),
+  })) as unknown as typeof Guild.find;
+  Report.findOne = (() => ({
+    sort: () => ({
+      select: () => ({
+        lean: async () => null,
+      }),
+    }),
+  })) as unknown as typeof Report.findOne;
+
+  try {
+    const response = await twitchChatCommandService.handle({ name: "log", args: "" }, "testchannel", { includeUrl: true });
+
+    assert.equal(response, "Test Guild: no live Warcraft Logs report right now.");
+  } finally {
+    Guild.find = originalGuildFind;
+    Report.findOne = originalReportFindOne;
+  }
 });
 
 test("selects the most recently pulled boss across current raids", () => {
