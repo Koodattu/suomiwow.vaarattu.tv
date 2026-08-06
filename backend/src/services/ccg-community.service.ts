@@ -444,11 +444,17 @@ class CcgCommunityService {
     for (const row of rows) {
       const assetCharacterId = row.linkedCharacterId ?? (row._id as mongoose.Types.ObjectId);
       try {
-        const media = await blizzardService.getCharacterMedia(row.name, row.realmSlug, row.region);
-        if (!media.mainRawUrl) throw new Error("Blizzard media response contained no full character render");
         const refreshedAt = new Date();
-        const stored = await characterRenderStorageService.ingest(assetCharacterId, media.mainRawUrl, refreshedAt);
-        row.avatarUrl = media.avatarUrl;
+        let stored = !row.renderAssetId
+          ? await characterRenderStorageService.ingestExistingSource(assetCharacterId, row.renderUrl, refreshedAt)
+          : null;
+        let media = null;
+        if (!stored) {
+          media = await blizzardService.getCharacterMedia(row.name, row.realmSlug, row.region);
+          if (!media.mainRawUrl) throw new Error("Blizzard media response contained no full character render");
+          stored = await characterRenderStorageService.ingest(assetCharacterId, media.mainRawUrl, refreshedAt);
+        }
+        if (media) row.avatarUrl = media.avatarUrl;
         row.renderUrl = stored.url;
         row.renderAssetId = stored.assetId;
         row.nextRenderRefreshAt = new Date(refreshedAt.getTime() + CCG_MEDIA_REFRESH_MS);
@@ -459,7 +465,7 @@ class CcgCommunityService {
             { _id: row.cardId, communityCharacterId: row._id, sourcePartition: "community-admin" },
             {
               $set: {
-                avatarUrl: media.avatarUrl,
+                avatarUrl: row.avatarUrl,
                 renderUrl: stored.url,
                 renderAssetId: stored.assetId,
                 renderFit: stored.fit,

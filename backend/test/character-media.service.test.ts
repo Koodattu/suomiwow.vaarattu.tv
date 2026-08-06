@@ -7,6 +7,7 @@ import CharacterMediaFetchQueue from "../src/models/CharacterMediaFetchQueue";
 import CharacterRaidParticipation from "../src/models/CharacterRaidParticipation";
 import CharacterTierListEntry from "../src/models/CharacterTierListEntry";
 import CcgCard from "../src/models/CcgCard";
+import CcgSet from "../src/models/CcgSet";
 import CharacterRenderAsset from "../src/models/CharacterRenderAsset";
 import TaskLog from "../src/models/TaskLog";
 import cacheService from "../src/services/cache.service";
@@ -353,6 +354,250 @@ test("audits every character with a previously stored render, including purged a
     participationModel.find = originals.participationFind;
     queueModel.bulkWrite = originals.queueBulkWrite;
     queueModel.updateMany = originals.queueUpdateMany;
+  }
+});
+
+test("validation queues every existing raid card that still needs initial WebP storage", async () => {
+  const setModel = CcgSet as any;
+  const tierListModel = CharacterTierListEntry as any;
+  const mediaModel = CharacterMedia as any;
+  const cardModel = CcgCard as any;
+  const characterModel = Character as any;
+  const originals = {
+    setDistinct: setModel.distinct,
+    tierListDistinct: tierListModel.distinct,
+    mediaDistinct: mediaModel.distinct,
+    cardDistinct: cardModel.distinct,
+    characterFind: characterModel.find,
+  };
+  const currentDueId = new mongoose.Types.ObjectId();
+  const currentMissingId = new mongoose.Types.ObjectId();
+  const historicalCardId = new mongoose.Types.ObjectId();
+  let cardFilter: Record<string, unknown> | undefined;
+  const queued: Array<{ ids: string[]; priority: number; force: boolean }> = [];
+
+  try {
+    setModel.distinct = async () => [999];
+    tierListModel.distinct = async () => [currentDueId, currentMissingId];
+    mediaModel.distinct = async (_field: string, filter: Record<string, unknown>) =>
+      filter.status === "available" ? [currentDueId] : [currentDueId];
+    cardModel.distinct = async (_field: string, filter: Record<string, unknown>) => {
+      cardFilter = filter;
+      return [currentDueId, historicalCardId];
+    };
+    characterModel.find = () => ({
+      select() { return this; },
+      lean: async () => [currentDueId, currentMissingId, historicalCardId].map((_id, index) => ({
+        _id,
+        name: `Backfill${index}`,
+        realm: "Draenor",
+        region: "EU",
+      })),
+    });
+    const service = new CharacterMediaService() as any;
+    service.enqueueRows = async (rows: QueueRow[], priority: number, force: boolean) => {
+      queued.push({ ids: rows.map((row) => String(row._id)), priority, force });
+      return rows.length;
+    };
+
+    const result = await service.enqueueActiveCurrent();
+
+    assert.deepEqual(result, { candidates: 3, queued: 3, purged: 0 });
+    assert.deepEqual(cardFilter, { renderAssetId: null, communityCharacterId: null });
+    assert.deepEqual(queued, [
+      { ids: [String(currentDueId), String(currentMissingId)], priority: 100, force: true },
+      { ids: [String(historicalCardId)], priority: 50, force: true },
+    ]);
+  } finally {
+    setModel.distinct = originals.setDistinct;
+    tierListModel.distinct = originals.tierListDistinct;
+    mediaModel.distinct = originals.mediaDistinct;
+    cardModel.distinct = originals.cardDistinct;
+    characterModel.find = originals.characterFind;
+  }
+});
+
+test("initial WebP storage uses the newest saved card render without calling Blizzard", async () => {
+  const previousClientId = process.env.BLIZZARD_CLIENT_ID;
+  const previousClientSecret = process.env.BLIZZARD_CLIENT_SECRET;
+  process.env.BLIZZARD_CLIENT_ID = "test-client";
+  process.env.BLIZZARD_CLIENT_SECRET = "test-secret";
+  const { default: blizzardService } = await import("../src/services/blizzard.service");
+  const mediaModel = CharacterMedia as any;
+  const cardModel = CcgCard as any;
+  const queueModel = CharacterMediaFetchQueue as any;
+  const blizzard = blizzardService as any;
+  const storage = characterRenderStorageService as any;
+  const availability = ccgCardAvailabilityService as any;
+  const cache = cacheService as any;
+  const originals = {
+    mediaFindOne: mediaModel.findOne,
+    mediaFindOneAndUpdate: mediaModel.findOneAndUpdate,
+    cardFindOne: cardModel.findOne,
+    queueUpdateOne: queueModel.updateOne,
+    getCharacterMedia: blizzard.getCharacterMedia,
+    ingestExistingSource: storage.ingestExistingSource,
+    ingest: storage.ingest,
+    noteAvailable: availability.noteAvailable,
+    invalidatePattern: cache.invalidatePattern,
+  };
+  const characterId = new mongoose.Types.ObjectId();
+  const assetId = new mongoose.Types.ObjectId();
+  const legacyUrl = "https://render.worldofwarcraft.com/eu/legacy-main-raw.png";
+  let blizzardCalls = 0;
+  let savedSource: string | null | undefined;
+  let storedUpdate: Record<string, any> | undefined;
+
+  try {
+    mediaModel.findOne = () => ({
+      select() { return this; },
+      lean: async () => ({ avatarUrl: null, insetUrl: null, mainRawUrl: null, renderAssetId: null }),
+    });
+    cardModel.findOne = () => ({
+      sort() { return this; },
+      select() { return this; },
+      lean: async () => ({ avatarUrl: "https://example.com/avatar.jpg", renderUrl: legacyUrl }),
+    });
+    storage.ingestExistingSource = async (_characterId: mongoose.Types.ObjectId, sourceUrl: string | null | undefined) => {
+      savedSource = sourceUrl;
+      return {
+        assetId,
+        url: `/api/ccg/media/assets/${assetId}`,
+        fit: { top: 0, ground: 1, centerX: 0.5 },
+        byteLength: 100,
+        width: 100,
+        height: 200,
+      };
+    };
+    storage.ingest = async () => { throw new Error("fresh ingest should not run"); };
+    blizzard.getCharacterMedia = async () => {
+      blizzardCalls += 1;
+      throw new Error("Blizzard should not be called");
+    };
+    mediaModel.findOneAndUpdate = async (_filter: Record<string, unknown>, update: Record<string, any>) => {
+      storedUpdate = update;
+      return null;
+    };
+    queueModel.updateOne = async () => ({ modifiedCount: 1 });
+    availability.noteAvailable = async () => ({ cardSnapshots: 0, setsRebuilt: 0 });
+    cache.invalidatePattern = async () => undefined;
+
+    const service = new CharacterMediaService() as unknown as TestableCharacterMediaService;
+    await service.processItem({
+      _id: new mongoose.Types.ObjectId(),
+      characterId,
+      name: "Legacy",
+      realm: "Draenor",
+      realmSlug: "draenor",
+      region: "eu",
+      attempts: 1,
+      maxAttempts: 5,
+    });
+
+    assert.equal(savedSource, legacyUrl);
+    assert.equal(blizzardCalls, 0);
+    assert.equal(String(storedUpdate?.$set.renderAssetId), String(assetId));
+    assert.equal(storedUpdate?.$set.mainRawUrl, legacyUrl);
+    assert.equal(storedUpdate?.$set.avatarUrl, "https://example.com/avatar.jpg");
+  } finally {
+    mediaModel.findOne = originals.mediaFindOne;
+    mediaModel.findOneAndUpdate = originals.mediaFindOneAndUpdate;
+    cardModel.findOne = originals.cardFindOne;
+    queueModel.updateOne = originals.queueUpdateOne;
+    blizzard.getCharacterMedia = originals.getCharacterMedia;
+    storage.ingestExistingSource = originals.ingestExistingSource;
+    storage.ingest = originals.ingest;
+    availability.noteAvailable = originals.noteAvailable;
+    cache.invalidatePattern = originals.invalidatePattern;
+    if (previousClientId === undefined) delete process.env.BLIZZARD_CLIENT_ID;
+    else process.env.BLIZZARD_CLIENT_ID = previousClientId;
+    if (previousClientSecret === undefined) delete process.env.BLIZZARD_CLIENT_SECRET;
+    else process.env.BLIZZARD_CLIENT_SECRET = previousClientSecret;
+  }
+});
+
+test("initial WebP storage calls Blizzard when the saved render is unusable", async () => {
+  const previousClientId = process.env.BLIZZARD_CLIENT_ID;
+  const previousClientSecret = process.env.BLIZZARD_CLIENT_SECRET;
+  process.env.BLIZZARD_CLIENT_ID = "test-client";
+  process.env.BLIZZARD_CLIENT_SECRET = "test-secret";
+  const { default: blizzardService } = await import("../src/services/blizzard.service");
+  const mediaModel = CharacterMedia as any;
+  const queueModel = CharacterMediaFetchQueue as any;
+  const blizzard = blizzardService as any;
+  const storage = characterRenderStorageService as any;
+  const availability = ccgCardAvailabilityService as any;
+  const cache = cacheService as any;
+  const originals = {
+    mediaFindOne: mediaModel.findOne,
+    mediaFindOneAndUpdate: mediaModel.findOneAndUpdate,
+    queueUpdateOne: queueModel.updateOne,
+    getCharacterMedia: blizzard.getCharacterMedia,
+    ingestExistingSource: storage.ingestExistingSource,
+    ingest: storage.ingest,
+    noteAvailable: availability.noteAvailable,
+    invalidatePattern: cache.invalidatePattern,
+  };
+  const characterId = new mongoose.Types.ObjectId();
+  const assetId = new mongoose.Types.ObjectId();
+  const legacyUrl = "https://render.worldofwarcraft.com/eu/missing-main-raw.png";
+  const refreshedUrl = "https://render.worldofwarcraft.com/eu/refreshed-main-raw.png";
+  let blizzardCalls = 0;
+  let refreshedSource: string | undefined;
+
+  try {
+    mediaModel.findOne = () => ({
+      select() { return this; },
+      lean: async () => ({ avatarUrl: null, insetUrl: null, mainRawUrl: legacyUrl, renderAssetId: null }),
+    });
+    storage.ingestExistingSource = async () => null;
+    blizzard.getCharacterMedia = async () => {
+      blizzardCalls += 1;
+      return { avatarUrl: null, insetUrl: null, mainRawUrl: refreshedUrl };
+    };
+    storage.ingest = async (_characterId: mongoose.Types.ObjectId, sourceUrl: string) => {
+      refreshedSource = sourceUrl;
+      return {
+        assetId,
+        url: `/api/ccg/media/assets/${assetId}`,
+        fit: { top: 0, ground: 1, centerX: 0.5 },
+        byteLength: 100,
+        width: 100,
+        height: 200,
+      };
+    };
+    mediaModel.findOneAndUpdate = async () => null;
+    queueModel.updateOne = async () => ({ modifiedCount: 1 });
+    availability.noteAvailable = async () => ({ cardSnapshots: 0, setsRebuilt: 0 });
+    cache.invalidatePattern = async () => undefined;
+
+    const service = new CharacterMediaService() as unknown as TestableCharacterMediaService;
+    await service.processItem({
+      _id: new mongoose.Types.ObjectId(),
+      characterId,
+      name: "Legacy",
+      realm: "Draenor",
+      realmSlug: "draenor",
+      region: "eu",
+      attempts: 1,
+      maxAttempts: 5,
+    });
+
+    assert.equal(blizzardCalls, 1);
+    assert.equal(refreshedSource, refreshedUrl);
+  } finally {
+    mediaModel.findOne = originals.mediaFindOne;
+    mediaModel.findOneAndUpdate = originals.mediaFindOneAndUpdate;
+    queueModel.updateOne = originals.queueUpdateOne;
+    blizzard.getCharacterMedia = originals.getCharacterMedia;
+    storage.ingestExistingSource = originals.ingestExistingSource;
+    storage.ingest = originals.ingest;
+    availability.noteAvailable = originals.noteAvailable;
+    cache.invalidatePattern = originals.invalidatePattern;
+    if (previousClientId === undefined) delete process.env.BLIZZARD_CLIENT_ID;
+    else process.env.BLIZZARD_CLIENT_ID = previousClientId;
+    if (previousClientSecret === undefined) delete process.env.BLIZZARD_CLIENT_SECRET;
+    else process.env.BLIZZARD_CLIENT_SECRET = previousClientSecret;
   }
 });
 

@@ -88,7 +88,6 @@ export default function CcgMediaOperations({ initialStatus, onError, onNotice }:
     [t("lastQueued"), status.lastDiscovery?.queued],
     [t("queuedNow"), queuedNow],
     [t("rendersReady"), status.assets.active],
-    [t("expiringSoon"), status.assets.expiringWithinSevenDays],
     [t("verificationPending"), status.cardSeries.verificationPending],
     [t("archivedCards"), status.cardSeries.archived],
     [t("issues"), issues],

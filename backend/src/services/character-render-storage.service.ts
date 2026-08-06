@@ -244,7 +244,13 @@ class CharacterRenderStorageService {
 
   async ingest(characterId: mongoose.Types.ObjectId, sourceUrl: string, validatedAt = new Date()): Promise<StoredCharacterRender> {
     const input = await downloadRender(sourceUrl);
-    const processed = await processCharacterRender(input);
+    let processed;
+    try {
+      processed = await processCharacterRender(input);
+    } catch (error) {
+      if (error instanceof CharacterRenderIngestError) throw error;
+      throw new CharacterRenderIngestError("render_invalid_png", "The Blizzard character render could not be decoded as PNG");
+    }
     const sha256 = createHash("sha256").update(processed.output).digest("hex");
     const storageKey = path.posix.join(sha256.slice(0, 2), `${sha256}.webp`);
     await persistBytes(storageKey, processed.output);
@@ -295,6 +301,21 @@ class CharacterRenderStorageService {
       width: asset.width,
       height: asset.height,
     };
+  }
+
+  async ingestExistingSource(
+    characterId: mongoose.Types.ObjectId,
+    sourceUrl: string | null | undefined,
+    validatedAt = new Date(),
+  ): Promise<StoredCharacterRender | null> {
+    if (!sourceUrl) return null;
+    try {
+      return await this.ingest(characterId, sourceUrl, validatedAt);
+    } catch (error) {
+      if (!(error instanceof CharacterRenderIngestError)) throw error;
+      logger.warn(`[CharacterRenderStorage] Stored source URL was unusable for ${characterId}; falling back to Blizzard media (${error.code})`);
+      return null;
+    }
   }
 
   async getForServing(assetId: string): Promise<{ asset: ICharacterRenderAsset; filePath: string; cacheSeconds: number } | null> {

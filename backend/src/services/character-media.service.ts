@@ -450,14 +450,23 @@ export class CharacterMediaService {
     });
     const existingMediaIds = new Set((await CharacterMedia.distinct("characterId", { characterId: { $in: characterIds } })).map(String));
     const missingIds = characterIds.filter((id) => !existingMediaIds.has(String(id)));
+    const unbackfilledCardIds = await CcgCard.distinct("characterId", {
+      renderAssetId: null,
+      communityCharacterId: null,
+    });
     const currentTargetIds = new Map(
       [...staleMediaIds, ...missingIds].map((characterId) => [String(characterId), characterId]),
     );
-    const rows = await Character.find({ _id: { $in: [...currentTargetIds.values()] } })
+    const allTargetIds = new Map(currentTargetIds);
+    for (const characterId of unbackfilledCardIds) allTargetIds.set(String(characterId), characterId);
+    const rows = await Character.find({ _id: { $in: [...allTargetIds.values()] } })
       .select("name realm region identityObservedAt blizzardIdentityOverride")
       .lean();
-    const queued = await this.enqueueRows(rows, 100, true);
-    return { candidates: rows.length, queued, purged: 0 };
+    const currentRows = rows.filter((row) => currentTargetIds.has(String(row._id)));
+    const backfillRows = rows.filter((row) => !currentTargetIds.has(String(row._id)));
+    const currentQueued = await this.enqueueRows(currentRows, 100, true);
+    const backfillQueued = await this.enqueueRows(backfillRows, 50, true);
+    return { candidates: rows.length, queued: currentQueued + backfillQueued, purged: 0 };
   }
 
   async auditPreviouslySuccessful(): Promise<{ candidates: number; queued: number }> {
@@ -633,52 +642,87 @@ export class CharacterMediaService {
   private async processItem(item: ICharacterMediaFetchQueue): Promise<void> {
     const now = new Date();
     try {
-      const { default: blizzardService } = await import("./blizzard.service");
-      const media = await blizzardService.getCharacterMedia(item.name, item.realmSlug, item.region);
-      if (!media.avatarUrl && !media.mainRawUrl) throw new Error("Blizzard media response contained no usable assets");
+      const existingMedia = await CharacterMedia.findOne({ characterId: item.characterId })
+        .select("avatarUrl insetUrl mainRawUrl renderAssetId")
+        .lean<{
+          avatarUrl?: string | null;
+          insetUrl?: string | null;
+          mainRawUrl?: string | null;
+          renderAssetId?: mongoose.Types.ObjectId | null;
+        }>();
+      const legacyCard = !existingMedia?.renderAssetId && !existingMedia?.mainRawUrl
+        ? await CcgCard.findOne({
+            characterId: item.characterId,
+            communityCharacterId: null,
+            renderAssetId: null,
+            renderUrl: /^https:\/\/render\.worldofwarcraft\.com\//i,
+          })
+            .sort({ publishedAt: -1 })
+            .select("avatarUrl renderUrl")
+            .lean<{ avatarUrl?: string | null; renderUrl?: string | null }>()
+        : null;
+      const existingSourceUrl = existingMedia?.mainRawUrl ?? legacyCard?.renderUrl ?? null;
+      let renderAsset = !existingMedia?.renderAssetId
+        ? await characterRenderStorageService.ingestExistingSource(item.characterId, existingSourceUrl, now)
+        : null;
+      let media = renderAsset
+        ? {
+            avatarUrl: existingMedia?.avatarUrl ?? legacyCard?.avatarUrl ?? null,
+            insetUrl: existingMedia?.insetUrl ?? null,
+            mainRawUrl: existingSourceUrl,
+          }
+        : null;
 
-      if (!media.mainRawUrl) {
-        const transition = getCharacterMediaFailureTransition(item.attempts, item.maxAttempts, null);
-        const nextAttemptAt = new Date(now.getTime() + transition.delayMs);
-        await CharacterMedia.findOneAndUpdate(
-          { characterId: item.characterId },
-          {
-            $set: {
-              region: item.region,
-              realmSlug: item.realmSlug,
-              characterName: item.name,
-              avatarUrl: media.avatarUrl,
-              insetUrl: media.insetUrl,
-              sourceUpdatedAt: now,
-              sourceValidatedAt: now,
-              fetchedAt: now,
-              status: "available",
-              attemptCount: item.attempts,
-              nextAttemptAt,
-              nextMediaRefreshAt: null,
-              lastErrorCode: "render_missing",
-              lastError: "Blizzard media response contained no full character render",
+      if (!renderAsset) {
+        const { default: blizzardService } = await import("./blizzard.service");
+        media = await blizzardService.getCharacterMedia(item.name, item.realmSlug, item.region);
+        if (!media.avatarUrl && !media.mainRawUrl) throw new Error("Blizzard media response contained no usable assets");
+
+        if (!media.mainRawUrl) {
+          const transition = getCharacterMediaFailureTransition(item.attempts, item.maxAttempts, null);
+          const nextAttemptAt = new Date(now.getTime() + transition.delayMs);
+          await CharacterMedia.findOneAndUpdate(
+            { characterId: item.characterId },
+            {
+              $set: {
+                region: item.region,
+                realmSlug: item.realmSlug,
+                characterName: item.name,
+                avatarUrl: media.avatarUrl,
+                insetUrl: media.insetUrl,
+                sourceUpdatedAt: now,
+                sourceValidatedAt: now,
+                fetchedAt: now,
+                status: "available",
+                attemptCount: item.attempts,
+                nextAttemptAt,
+                nextMediaRefreshAt: null,
+                lastErrorCode: "render_missing",
+                lastError: "Blizzard media response contained no full character render",
+              },
             },
-          },
-          { upsert: true, returnDocument: "after" },
-        );
-        await CharacterMediaFetchQueue.updateOne(
-          { _id: item._id },
-          {
-            $set: {
-              status: transition.queueStatus,
-              nextAttemptAt,
-              completedAt: transition.queueStatus === "retry" ? null : now,
-              lastActivityAt: now,
-              lastErrorCode: "render_missing",
-              lastError: "Blizzard media response contained no full character render",
+            { upsert: true, returnDocument: "after" },
+          );
+          await CharacterMediaFetchQueue.updateOne(
+            { _id: item._id },
+            {
+              $set: {
+                status: transition.queueStatus,
+                nextAttemptAt,
+                completedAt: transition.queueStatus === "retry" ? null : now,
+                lastActivityAt: now,
+                lastErrorCode: "render_missing",
+                lastError: "Blizzard media response contained no full character render",
+              },
             },
-          },
-        );
-        return;
+          );
+          return;
+        }
+
+        renderAsset = await characterRenderStorageService.ingest(item.characterId, media.mainRawUrl, now);
       }
 
-      const renderAsset = await characterRenderStorageService.ingest(item.characterId, media.mainRawUrl, now);
+      if (!media || !renderAsset) throw new Error("Character render could not be resolved");
       const storedMedia = await CharacterMedia.findOneAndUpdate(
         { characterId: item.characterId },
         {

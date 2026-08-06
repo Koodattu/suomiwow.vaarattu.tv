@@ -93,6 +93,112 @@ test("Community character resolution uses the current Blizzard guild for an exis
   }
 });
 
+test("Community initial WebP storage uses its saved render without calling Blizzard", async () => {
+  process.env.BLIZZARD_CLIENT_ID ??= "test-client";
+  process.env.BLIZZARD_CLIENT_SECRET ??= "test-secret";
+
+  const [
+    { default: ccgCommunityService },
+    { default: blizzardService },
+    { default: CcgCard },
+    { default: CcgCommunityCharacter },
+    { default: characterRenderStorageService },
+    { default: ccgCardAvailabilityService },
+    { default: cacheService },
+  ] = await Promise.all([
+    import("../src/services/ccg-community.service"),
+    import("../src/services/blizzard.service"),
+    import("../src/models/CcgCard"),
+    import("../src/models/CcgCommunityCharacter"),
+    import("../src/services/character-render-storage.service"),
+    import("../src/services/ccg-card-availability.service"),
+    import("../src/services/cache.service"),
+  ]);
+  const communityModel = CcgCommunityCharacter as any;
+  const cardModel = CcgCard as any;
+  const blizzard = blizzardService as any;
+  const storage = characterRenderStorageService as any;
+  const availability = ccgCardAvailabilityService as any;
+  const cache = cacheService as any;
+  const originals = {
+    communityFind: communityModel.find,
+    cardUpdateOne: cardModel.collection.updateOne,
+    getCharacterMedia: blizzard.getCharacterMedia,
+    ingestExistingSource: storage.ingestExistingSource,
+    ingest: storage.ingest,
+    noteAvailable: availability.noteAvailable,
+    invalidatePattern: cache.invalidatePattern,
+  };
+  const communityId = new mongoose.Types.ObjectId();
+  const cardId = new mongoose.Types.ObjectId();
+  const assetId = new mongoose.Types.ObjectId();
+  const legacyUrl = "https://render.worldofwarcraft.com/eu/community-main-raw.png";
+  const storedUrl = `/api/ccg/media/assets/${assetId}`;
+  let blizzardCalls = 0;
+  let savedSource: string | null | undefined;
+  let cardUpdate: Record<string, any> | undefined;
+  const row: Record<string, any> = {
+    _id: communityId,
+    linkedCharacterId: null,
+    cardId,
+    name: "Community",
+    realmSlug: "draenor",
+    region: "eu",
+    avatarUrl: "https://example.com/community-avatar.jpg",
+    renderUrl: legacyUrl,
+    renderAssetId: null,
+    active: true,
+    save: async () => undefined,
+  };
+
+  try {
+    communityModel.find = () => ({
+      sort() { return this; },
+      limit: async () => [row],
+    });
+    storage.ingestExistingSource = async (_characterId: mongoose.Types.ObjectId, sourceUrl: string | null | undefined) => {
+      savedSource = sourceUrl;
+      return {
+        assetId,
+        url: storedUrl,
+        fit: { top: 0, ground: 1, centerX: 0.5 },
+        byteLength: 100,
+        width: 100,
+        height: 200,
+      };
+    };
+    storage.ingest = async () => { throw new Error("fresh ingest should not run"); };
+    blizzard.getCharacterMedia = async () => {
+      blizzardCalls += 1;
+      throw new Error("Blizzard should not be called");
+    };
+    cardModel.collection.updateOne = async (_filter: Record<string, unknown>, update: Record<string, any>) => {
+      cardUpdate = update;
+      return { modifiedCount: 1 };
+    };
+    availability.noteAvailable = async () => ({ cardSnapshots: 0, setsRebuilt: 0 });
+    cache.invalidatePattern = async () => undefined;
+
+    const result = await ccgCommunityService.refreshDueRenders();
+
+    assert.deepEqual(result, { candidates: 1, refreshed: 1, retained: 0, failed: 0 });
+    assert.equal(savedSource, legacyUrl);
+    assert.equal(blizzardCalls, 0);
+    assert.equal(row.renderUrl, storedUrl);
+    assert.equal(String(row.renderAssetId), String(assetId));
+    assert.equal(cardUpdate?.$set.avatarUrl, "https://example.com/community-avatar.jpg");
+    assert.equal(cardUpdate?.$set.renderUrl, storedUrl);
+  } finally {
+    communityModel.find = originals.communityFind;
+    cardModel.collection.updateOne = originals.cardUpdateOne;
+    blizzard.getCharacterMedia = originals.getCharacterMedia;
+    storage.ingestExistingSource = originals.ingestExistingSource;
+    storage.ingest = originals.ingest;
+    availability.noteAvailable = originals.noteAvailable;
+    cache.invalidatePattern = originals.invalidatePattern;
+  }
+});
+
 test("Community identity resolution recognizes an active Blizzard identity override", async () => {
   const [
     { default: ccgCharacterIdentityService },

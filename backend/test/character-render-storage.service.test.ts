@@ -3,7 +3,7 @@ import test from "node:test";
 import mongoose from "mongoose";
 import sharp from "sharp";
 import CharacterRenderAsset from "../src/models/CharacterRenderAsset";
-import characterRenderStorageService, { processCharacterRender } from "../src/services/character-render-storage.service";
+import characterRenderStorageService, { CharacterRenderIngestError, processCharacterRender } from "../src/services/character-render-storage.service";
 
 function createRgba(width: number, height: number): Buffer {
   return Buffer.alloc(width * height * 4);
@@ -46,6 +46,30 @@ test("crops transparent character renders with safety padding and precomputes fi
 test("rejects renders with no visible alpha", async () => {
   const png = await sharp(createRgba(20, 20), { raw: { width: 20, height: 20, channels: 4 } }).png().toBuffer();
   await assert.rejects(() => processCharacterRender(png), /contained no visible pixels/);
+});
+
+test("saved-source ingestion falls back only for unusable render data", async () => {
+  const storage = characterRenderStorageService as any;
+  const originalIngest = storage.ingest;
+  const characterId = new mongoose.Types.ObjectId();
+
+  try {
+    storage.ingest = async () => {
+      throw new CharacterRenderIngestError("render_download_404", "missing");
+    };
+    assert.equal(
+      await storage.ingestExistingSource(characterId, "https://render.worldofwarcraft.com/eu/missing.png"),
+      null,
+    );
+
+    storage.ingest = async () => { throw new Error("storage unavailable"); };
+    await assert.rejects(
+      () => storage.ingestExistingSource(characterId, "https://render.worldofwarcraft.com/eu/render.png"),
+      /storage unavailable/,
+    );
+  } finally {
+    storage.ingest = originalIngest;
+  }
 });
 
 test("stored character renders have no expiry and serving does not filter by age", async () => {
