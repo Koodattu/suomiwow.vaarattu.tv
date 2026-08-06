@@ -1,8 +1,10 @@
 import fetch from "node-fetch";
+import { CCG_MEDIA_API_CONCURRENCY } from "../config/ccg";
 import { Achievement, BossIcon, RaidIcon, AuthToken, AchievementUpdateLog, GuildCrestEmblem, GuildCrestBorder } from "../models/Achievement";
 import Raid from "../models/Raid";
-import iconCacheService from "./icon-cache.service";
 import logger from "../utils/logger";
+import AsyncSemaphore from "../utils/async-semaphore";
+import iconCacheService from "./icon-cache.service";
 
 interface BlizzardTokenResponse {
   access_token: string;
@@ -201,6 +203,7 @@ export class BlizzardApiClient {
   private readonly apiBaseUrl = "https://us.api.blizzard.com";
   private readonly namespace = "static-us";
   private readonly locale = "en_US";
+  private readonly characterMediaRequests = new AsyncSemaphore(CCG_MEDIA_API_CONCURRENCY);
 
   // In-memory cache for ongoing requests to prevent duplicates
   private readonly pendingBossIconRequests = new Map<string, Promise<string | null>>();
@@ -624,22 +627,24 @@ export class BlizzardApiClient {
   }
 
   public async getCharacterMedia(characterName: string, realmSlug: string, region: string): Promise<BlizzardCharacterMedia> {
-    const regionLower = region.toLowerCase();
-    const apiUrl = this.regionApiUrls[regionLower];
-    if (!apiUrl) throw new Error(`Unsupported Blizzard region: ${region}`);
+    return this.characterMediaRequests.run(async () => {
+      const regionLower = region.toLowerCase();
+      const apiUrl = this.regionApiUrls[regionLower];
+      if (!apiUrl) throw new Error(`Unsupported Blizzard region: ${region}`);
 
-    const nameSlug = encodeURIComponent(characterName.toLowerCase());
-    const normalizedRealmSlug = encodeURIComponent(realmSlug.toLowerCase());
-    const namespace = `profile-${regionLower}`;
-    const url = `${apiUrl}/profile/wow/character/${normalizedRealmSlug}/${nameSlug}/character-media?namespace=${namespace}&locale=${this.locale}`;
-    const response = await this.makeAuthenticatedRequest<BlizzardCharacterMediaResponse>(url, 0, 5);
-    const assets = new Map((response.assets ?? []).map((asset) => [asset.key, asset.value]));
+      const nameSlug = encodeURIComponent(characterName.toLowerCase());
+      const normalizedRealmSlug = encodeURIComponent(realmSlug.toLowerCase());
+      const namespace = `profile-${regionLower}`;
+      const url = `${apiUrl}/profile/wow/character/${normalizedRealmSlug}/${nameSlug}/character-media?namespace=${namespace}&locale=${this.locale}`;
+      const response = await this.makeAuthenticatedRequest<BlizzardCharacterMediaResponse>(url, 0, 5);
+      const assets = new Map((response.assets ?? []).map((asset) => [asset.key, asset.value]));
 
-    return {
-      avatarUrl: assets.get("avatar") ?? null,
-      insetUrl: assets.get("inset") ?? null,
-      mainRawUrl: assets.get("main-raw") ?? assets.get("main") ?? null,
-    };
+      return {
+        avatarUrl: assets.get("avatar") ?? null,
+        insetUrl: assets.get("inset") ?? null,
+        mainRawUrl: assets.get("main-raw") ?? assets.get("main") ?? null,
+      };
+    });
   }
 
   public async getCharacterProfile(characterName: string, realmSlug: string, region: string): Promise<BlizzardCharacterProfile> {

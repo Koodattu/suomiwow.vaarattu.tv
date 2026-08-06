@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import mongoose from "mongoose";
+import { CCG_MEDIA_WORKER_CONCURRENCY } from "../src/config/ccg";
 import Character from "../src/models/Character";
 import CharacterMedia from "../src/models/CharacterMedia";
 import CharacterMediaFetchQueue from "../src/models/CharacterMediaFetchQueue";
@@ -37,6 +38,18 @@ type TestableCharacterMediaService = {
   enqueueRows(rows: QueueRow[], priority: number, force?: boolean): Promise<number>;
   processItem(item: Record<string, any>): Promise<void>;
 };
+
+test("starts the configured number of persistent media workers only once", () => {
+  const service = new CharacterMediaService() as any;
+  const workerIndexes: number[] = [];
+  service.processLoop = async (workerIndex: number) => {
+    workerIndexes.push(workerIndex);
+  };
+
+  assert.equal(service.startProcessing(), true);
+  assert.equal(service.startProcessing(), false);
+  assert.deepEqual(workerIndexes, Array.from({ length: CCG_MEDIA_WORKER_CONCURRENCY }, (_, index) => index));
+});
 
 test("prioritizes missing CCG characters by newest raid before the general character backlog", async () => {
   const characterModel = Character as any;

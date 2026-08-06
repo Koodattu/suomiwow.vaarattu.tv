@@ -4,7 +4,12 @@ import {
   MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY,
   MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY,
 } from "../config/character-eligibility";
-import { CCG_CONFIGURED_SETS, CCG_MEDIA_REFRESH_MS } from "../config/ccg";
+import {
+  CCG_CONFIGURED_SETS,
+  CCG_MEDIA_API_CONCURRENCY,
+  CCG_MEDIA_REFRESH_MS,
+  CCG_MEDIA_WORKER_CONCURRENCY,
+} from "../config/ccg";
 import Character from "../models/Character";
 import CharacterMedia from "../models/CharacterMedia";
 import CharacterMediaFetchQueue, { ICharacterMediaFetchQueue } from "../models/CharacterMediaFetchQueue";
@@ -610,12 +615,16 @@ export class CharacterMediaService {
   startProcessing(): boolean {
     if (this.isRunning) return false;
     this.isRunning = true;
-    void this.processLoop();
-    logger.info("[CharacterMedia] Processor started");
+    for (let workerIndex = 0; workerIndex < CCG_MEDIA_WORKER_CONCURRENCY; workerIndex += 1) {
+      void this.processLoop(workerIndex);
+    }
+    logger.info(
+      `[CharacterMedia] Processor started with ${CCG_MEDIA_WORKER_CONCURRENCY} workers and ${CCG_MEDIA_API_CONCURRENCY} Blizzard media API slot(s)`,
+    );
     return true;
   }
 
-  private async processLoop(): Promise<void> {
+  private async processLoop(workerIndex: number): Promise<void> {
     while (this.isRunning) {
       try {
         const item = await this.claimNext();
@@ -625,7 +634,7 @@ export class CharacterMediaService {
         }
         await this.processItem(item);
       } catch (error) {
-        logger.error("[CharacterMedia] Processor loop failed:", error);
+        logger.error(`[CharacterMedia/Worker ${workerIndex + 1}] Processor loop failed:`, error);
         await new Promise((resolve) => setTimeout(resolve, PROCESS_IDLE_MS));
       }
     }
