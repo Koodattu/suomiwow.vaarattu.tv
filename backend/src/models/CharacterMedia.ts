@@ -12,7 +12,6 @@ export interface ICharacterMedia extends Document {
   insetUrl?: string | null;
   mainRawUrl?: string | null;
   renderAssetId?: mongoose.Types.ObjectId | null;
-  renderAssetExpiresAt?: Date | null;
   renderFit?: CharacterRenderFit | null;
   sourceUpdatedAt?: Date | null;
   sourceValidatedAt?: Date | null;
@@ -37,7 +36,6 @@ const CharacterMediaSchema = new Schema<ICharacterMedia>(
     insetUrl: { type: String, default: null },
     mainRawUrl: { type: String, default: null },
     renderAssetId: { type: Schema.Types.ObjectId, ref: "CharacterRenderAsset", default: null, index: true },
-    renderAssetExpiresAt: { type: Date, default: null, index: true },
     renderFit: { type: CharacterRenderFitSchema, default: null },
     sourceUpdatedAt: { type: Date, default: null },
     sourceValidatedAt: { type: Date, default: null },

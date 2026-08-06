@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import mongoose from "mongoose";
 import sharp from "sharp";
-import { processCharacterRender } from "../src/services/character-render-storage.service";
+import CharacterRenderAsset from "../src/models/CharacterRenderAsset";
+import characterRenderStorageService, { processCharacterRender } from "../src/services/character-render-storage.service";
 
 function createRgba(width: number, height: number): Buffer {
   return Buffer.alloc(width * height * 4);
@@ -44,4 +46,28 @@ test("crops transparent character renders with safety padding and precomputes fi
 test("rejects renders with no visible alpha", async () => {
   const png = await sharp(createRgba(20, 20), { raw: { width: 20, height: 20, channels: 4 } }).png().toBuffer();
   await assert.rejects(() => processCharacterRender(png), /contained no visible pixels/);
+});
+
+test("stored character renders have no expiry and serving does not filter by age", async () => {
+  const assetModel = CharacterRenderAsset as any;
+  const originalFindById = assetModel.findById;
+  const assetId = new mongoose.Types.ObjectId();
+  let capturedFilter: Record<string, unknown> | undefined;
+
+  try {
+    assetModel.findById = async (id: string) => {
+      capturedFilter = { _id: id };
+      return null;
+    };
+
+    await characterRenderStorageService.getForServing(String(assetId));
+
+    assert.equal(CharacterRenderAsset.schema.path("expiresAt"), undefined);
+    assert.deepEqual(capturedFilter, {
+      _id: String(assetId),
+    });
+    assert.equal(Object.prototype.hasOwnProperty.call(capturedFilter, "expiresAt"), false);
+  } finally {
+    assetModel.findById = originalFindById;
+  }
 });

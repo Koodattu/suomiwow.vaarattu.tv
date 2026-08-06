@@ -3,9 +3,6 @@ import { access, mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import mongoose from "mongoose";
 import sharp from "sharp";
-import CcgCard from "../models/CcgCard";
-import CcgCommunityCharacter from "../models/CcgCommunityCharacter";
-import CharacterMedia from "../models/CharacterMedia";
 import CharacterRenderAsset, { CharacterRenderFit, ICharacterRenderAsset } from "../models/CharacterRenderAsset";
 import logger from "../utils/logger";
 
@@ -17,15 +14,13 @@ const CROP_PADDING_PIXELS = 2;
 const STANCE_SCAN_HALF_WIDTH_RATIO = 0.1;
 const STANCE_GROUND_PERCENTILE = 0.85;
 const PUBLIC_ASSET_PREFIX = "/api/ccg/media/assets";
-const ASSET_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const MAX_PUBLIC_CACHE_SECONDS = 24 * 60 * 60;
+const MAX_PUBLIC_CACHE_SECONDS = 365 * 24 * 60 * 60;
 
 const storageRoot = path.resolve(process.env.CCG_MEDIA_CACHE_DIR || path.join(process.cwd(), "data", "ccg-media"));
 
 export type StoredCharacterRender = {
   assetId: mongoose.Types.ObjectId;
   url: string;
-  expiresAt: Date;
   fit: CharacterRenderFit;
   byteLength: number;
   width: number;
@@ -253,12 +248,10 @@ class CharacterRenderStorageService {
     const sha256 = createHash("sha256").update(processed.output).digest("hex");
     const storageKey = path.posix.join(sha256.slice(0, 2), `${sha256}.webp`);
     await persistBytes(storageKey, processed.output);
-    const expiresAt = new Date(validatedAt.getTime() + ASSET_TTL_MS);
     const update = {
       characterId,
       sourceUrl,
       sourceValidatedAt: validatedAt,
-      expiresAt,
       status: "active" as const,
       sha256,
       storageKey,
@@ -297,7 +290,6 @@ class CharacterRenderStorageService {
     return {
       assetId: asset._id as mongoose.Types.ObjectId,
       url: assetUrl(asset._id as mongoose.Types.ObjectId),
-      expiresAt,
       fit: asset.stanceFit,
       byteLength: asset.byteLength,
       width: asset.width,
@@ -307,143 +299,29 @@ class CharacterRenderStorageService {
 
   async getForServing(assetId: string): Promise<{ asset: ICharacterRenderAsset; filePath: string; cacheSeconds: number } | null> {
     if (!mongoose.Types.ObjectId.isValid(assetId)) return null;
-    const now = new Date();
-    const asset = await CharacterRenderAsset.findOne({ _id: assetId, status: "active", expiresAt: { $gt: now } });
+    const asset = await CharacterRenderAsset.findById(assetId);
     if (!asset) return null;
     const filePath = resolveStoragePath(asset.storageKey);
     if (!(await fileExists(filePath))) {
       logger.error(`[CharacterRenderStorage] Missing file for asset ${assetId}`);
       return null;
     }
-    const remainingSeconds = Math.max(0, Math.floor((asset.expiresAt.getTime() - now.getTime()) / 1000));
-    return { asset, filePath, cacheSeconds: Math.min(MAX_PUBLIC_CACHE_SECONDS, remainingSeconds) };
-  }
-
-  async purgeCharacter(characterId: mongoose.Types.ObjectId, reason: string): Promise<number> {
-    const assets = await CharacterRenderAsset.find({ characterId, status: "active" }).select("_id storageKey").lean();
-    const now = new Date();
-    const assetIds = assets.map((asset) => asset._id);
-    await Promise.all([
-      CharacterMedia.updateOne(
-        { characterId },
-        {
-          $set: {
-            avatarUrl: null,
-            insetUrl: null,
-            mainRawUrl: null,
-            renderAssetId: null,
-            renderAssetExpiresAt: null,
-            renderFit: null,
-            sourceValidatedAt: null,
-          },
-        },
-      ),
-      CcgCard.collection.updateMany(
-        { characterId },
-        { $set: { avatarUrl: null, renderUrl: null, renderAssetId: null, renderFit: null } },
-      ),
-      CcgCommunityCharacter.updateMany(
-        { $or: [{ linkedCharacterId: characterId }, { renderAssetId: { $in: assetIds } }] },
-        {
-          $set: {
-            avatarUrl: null,
-            renderUrl: null,
-            renderAssetId: null,
-            renderAssetExpiresAt: null,
-            renderFit: null,
-          },
-        },
-      ),
-    ]);
-    await CharacterRenderAsset.updateMany(
-      { _id: { $in: assetIds }, status: "active" },
-      { $set: { status: "purged", purgedAt: now, purgeReason: reason } },
-    );
-    if (assets.length > 0) await this.removeUnreferencedFiles(assets.map((asset) => asset.storageKey));
-    return assets.length;
-  }
-
-  async purgeExpired(limit = 5000): Promise<number> {
-    const now = new Date();
-    const assets = await CharacterRenderAsset.find({ status: "active", expiresAt: { $lte: now } })
-      .sort({ expiresAt: 1 })
-      .limit(limit)
-      .select("_id characterId storageKey")
-      .lean();
-    if (assets.length === 0) return 0;
-    const assetIds = assets.map((asset) => asset._id);
-    await Promise.all([
-      CharacterMedia.updateMany(
-        { renderAssetId: { $in: assetIds } },
-        {
-          $set: {
-            avatarUrl: null,
-            insetUrl: null,
-            mainRawUrl: null,
-            renderAssetId: null,
-            renderAssetExpiresAt: null,
-            renderFit: null,
-            sourceValidatedAt: null,
-            status: "failed",
-            lastErrorCode: "validation_expired",
-            lastError: "Stored Blizzard media expired before it could be revalidated",
-            nextAttemptAt: now,
-            nextMediaRefreshAt: now,
-          },
-        },
-      ),
-      CcgCard.collection.updateMany(
-        { renderAssetId: { $in: assetIds } },
-        { $set: { avatarUrl: null, renderUrl: null, renderAssetId: null, renderFit: null } },
-      ),
-      CcgCommunityCharacter.updateMany(
-        { renderAssetId: { $in: assetIds } },
-        {
-          $set: {
-            avatarUrl: null,
-            renderUrl: null,
-            renderAssetId: null,
-            renderAssetExpiresAt: null,
-            renderFit: null,
-          },
-        },
-      ),
-    ]);
-    await CharacterRenderAsset.updateMany(
-      { _id: { $in: assetIds }, status: "active" },
-      { $set: { status: "purged", purgedAt: now, purgeReason: "validation_expired" } },
-    );
-    await this.removeUnreferencedFiles(assets.map((asset) => asset.storageKey));
-    return assets.length;
-  }
-
-  private async removeUnreferencedFiles(storageKeys: string[]): Promise<void> {
-    for (const storageKey of new Set(storageKeys)) {
-      const referenced = await CharacterRenderAsset.exists({ storageKey, status: "active" });
-      if (referenced) continue;
-      await unlink(resolveStoragePath(storageKey)).catch((error: NodeJS.ErrnoException) => {
-        if (error.code !== "ENOENT") logger.error(`[CharacterRenderStorage] Failed to delete ${storageKey}:`, error);
-      });
-    }
+    return { asset, filePath, cacheSeconds: MAX_PUBLIC_CACHE_SECONDS };
   }
 
   async getStats(): Promise<CharacterRenderAssetStats> {
-    const now = new Date();
-    const inSevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const [activeRows, expired, expiringWithinSevenDays, purged] = await Promise.all([
+    const [activeRows, purged] = await Promise.all([
       CharacterRenderAsset.aggregate<{ count: number; bytes: number }>([
-        { $match: { status: "active", expiresAt: { $gt: now } } },
+        { $match: { status: "active" } },
         { $group: { _id: null, count: { $sum: 1 }, bytes: { $sum: "$byteLength" } } },
       ]),
-      CharacterRenderAsset.countDocuments({ status: "active", expiresAt: { $lte: now } }),
-      CharacterRenderAsset.countDocuments({ status: "active", expiresAt: { $gt: now, $lte: inSevenDays } }),
       CharacterRenderAsset.countDocuments({ status: "purged" }),
     ]);
     return {
       active: activeRows[0]?.count ?? 0,
       activeBytes: activeRows[0]?.bytes ?? 0,
-      expired,
-      expiringWithinSevenDays,
+      expired: 0,
+      expiringWithinSevenDays: 0,
       purged,
     };
   }

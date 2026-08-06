@@ -81,6 +81,8 @@ function ratio(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : fallback;
 }
 
+export const CCG_MEDIA_REFRESH_DAYS = positiveInteger(process.env.CCG_MEDIA_REFRESH_DAYS, 30);
+export const CCG_MEDIA_REFRESH_MS = CCG_MEDIA_REFRESH_DAYS * 24 * 60 * 60 * 1000;
 export const CCG_ENABLE_MIN_ELIGIBLE_CHARACTERS = positiveInteger(process.env.CCG_ENABLE_MIN_ELIGIBLE_CHARACTERS, 100);
 export const CCG_ENABLE_MIN_MEDIA_READY_CHARACTERS = positiveInteger(process.env.CCG_ENABLE_MIN_MEDIA_READY_CHARACTERS, 50);
 export const CCG_ENABLE_MIN_MEDIA_COVERAGE = ratio(process.env.CCG_ENABLE_MIN_MEDIA_COVERAGE, 0.75);

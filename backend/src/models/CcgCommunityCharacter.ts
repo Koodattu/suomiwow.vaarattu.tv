@@ -22,7 +22,7 @@ export interface ICcgCommunityCharacter extends Document {
   avatarUrl?: string | null;
   renderUrl?: string | null;
   renderAssetId?: mongoose.Types.ObjectId | null;
-  renderAssetExpiresAt?: Date | null;
+  nextRenderRefreshAt?: Date | null;
   renderFit?: CharacterRenderFit | null;
   active: boolean;
   createdBy: mongoose.Types.ObjectId;
@@ -51,7 +51,7 @@ const CcgCommunityCharacterSchema = new Schema<ICcgCommunityCharacter>(
     avatarUrl: { type: String, default: null },
     renderUrl: { type: String, default: null },
     renderAssetId: { type: Schema.Types.ObjectId, ref: "CharacterRenderAsset", default: null, index: true },
-    renderAssetExpiresAt: { type: Date, default: null, index: true },
+    nextRenderRefreshAt: { type: Date, default: null, index: true },
     renderFit: { type: CharacterRenderFitSchema, default: null },
     active: { type: Boolean, required: true, default: true, index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },

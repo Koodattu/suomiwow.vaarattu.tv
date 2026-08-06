@@ -9,6 +9,8 @@ import CharacterTierListEntry from "../src/models/CharacterTierListEntry";
 import CcgCard from "../src/models/CcgCard";
 import CharacterRenderAsset from "../src/models/CharacterRenderAsset";
 import TaskLog from "../src/models/TaskLog";
+import cacheService from "../src/services/cache.service";
+import ccgCardAvailabilityService from "../src/services/ccg-card-availability.service";
 import {
   CharacterMediaService,
   getCharacterMediaFailureTransition,
@@ -32,6 +34,7 @@ type QueueRow = {
 
 type TestableCharacterMediaService = {
   enqueueRows(rows: QueueRow[], priority: number, force?: boolean): Promise<number>;
+  processItem(item: Record<string, any>): Promise<void>;
 };
 
 test("prioritizes missing CCG characters by newest raid before the general character backlog", async () => {
@@ -350,6 +353,121 @@ test("audits every character with a previously stored render, including purged a
     participationModel.find = originals.participationFind;
     queueModel.bulkWrite = originals.queueBulkWrite;
     queueModel.updateMany = originals.queueUpdateMany;
+  }
+});
+
+test("queues only missing or monthly-due renders before card snapshots", async () => {
+  const mediaModel = CharacterMedia as any;
+  const originalFind = mediaModel.find;
+  const now = new Date("2026-08-06T12:00:00.000Z");
+  const currentId = new mongoose.Types.ObjectId();
+  const dueId = new mongoose.Types.ObjectId();
+  const missingId = new mongoose.Types.ObjectId();
+  let queuedIds: mongoose.Types.ObjectId[] = [];
+  let queuedPriority = 0;
+  let forced = false;
+
+  try {
+    mediaModel.find = () => ({
+      select() { return this; },
+      lean: async () => [
+        {
+          characterId: currentId,
+          renderAssetId: new mongoose.Types.ObjectId(),
+          nextMediaRefreshAt: new Date("2026-08-07T12:00:00.000Z"),
+        },
+        {
+          characterId: dueId,
+          renderAssetId: new mongoose.Types.ObjectId(),
+          nextMediaRefreshAt: new Date("2026-08-05T12:00:00.000Z"),
+        },
+      ],
+    });
+    const service = new CharacterMediaService() as any;
+    service.enqueueCharacters = async (characterIds: mongoose.Types.ObjectId[], priority: number, force: boolean) => {
+      queuedIds = characterIds;
+      queuedPriority = priority;
+      forced = force;
+      return characterIds.length;
+    };
+
+    const queued = await service.enqueueDueForCardSnapshots([currentId, dueId, missingId], now);
+
+    assert.equal(queued, 2);
+    assert.deepEqual(queuedIds.map(String), [String(dueId), String(missingId)]);
+    assert.equal(queuedPriority, 500);
+    assert.equal(forced, true);
+  } finally {
+    mediaModel.find = originalFind;
+  }
+});
+
+test("keeps the last stored render when Blizzard no longer finds a character", async () => {
+  const previousClientId = process.env.BLIZZARD_CLIENT_ID;
+  const previousClientSecret = process.env.BLIZZARD_CLIENT_SECRET;
+  process.env.BLIZZARD_CLIENT_ID = "test-client";
+  process.env.BLIZZARD_CLIENT_SECRET = "test-secret";
+  const { default: blizzardService } = await import("../src/services/blizzard.service");
+  const mediaModel = CharacterMedia as any;
+  const queueModel = CharacterMediaFetchQueue as any;
+  const blizzard = blizzardService as any;
+  const availability = ccgCardAvailabilityService as any;
+  const cache = cacheService as any;
+  const originals = {
+    mediaFindOne: mediaModel.findOne,
+    mediaFindOneAndUpdate: mediaModel.findOneAndUpdate,
+    queueUpdateOne: queueModel.updateOne,
+    getCharacterMedia: blizzard.getCharacterMedia,
+    noteNotFound: availability.noteNotFound,
+    invalidatePattern: cache.invalidatePattern,
+  };
+  const characterId = new mongoose.Types.ObjectId();
+  const renderAssetId = new mongoose.Types.ObjectId();
+  let mediaUpdate: Record<string, any> | undefined;
+
+  try {
+    blizzard.getCharacterMedia = async () => {
+      throw new Error("Blizzard character media request returned status 404");
+    };
+    mediaModel.findOne = () => ({
+      select() { return this; },
+      lean: async () => ({ renderAssetId }),
+    });
+    mediaModel.findOneAndUpdate = async (_filter: Record<string, unknown>, update: Record<string, any>) => {
+      mediaUpdate = update;
+      return null;
+    };
+    queueModel.updateOne = async () => ({ modifiedCount: 1 });
+    availability.noteNotFound = async () => ({ cardSnapshots: 0, setsRebuilt: 0 });
+    cache.invalidatePattern = async () => undefined;
+
+    const service = new CharacterMediaService() as unknown as TestableCharacterMediaService;
+    await service.processItem({
+      _id: new mongoose.Types.ObjectId(),
+      characterId,
+      name: "Vanished",
+      realm: "Draenor",
+      realmSlug: "draenor",
+      region: "eu",
+      attempts: 1,
+      maxAttempts: 5,
+    });
+
+    assert.equal(mediaUpdate?.$set.status, "available");
+    assert.equal(Object.prototype.hasOwnProperty.call(mediaUpdate?.$set, "renderAssetId"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(mediaUpdate?.$set, "mainRawUrl"), false);
+    assert.ok(mediaUpdate?.$set.nextMediaRefreshAt instanceof Date);
+  } finally {
+    mediaModel.findOne = originals.mediaFindOne;
+    mediaModel.findOneAndUpdate = originals.mediaFindOneAndUpdate;
+    queueModel.updateOne = originals.queueUpdateOne;
+    blizzard.getCharacterMedia = originals.getCharacterMedia;
+    availability.noteNotFound = originals.noteNotFound;
+    cache.invalidatePattern = originals.invalidatePattern;
+    if (previousClientId === undefined) delete process.env.BLIZZARD_CLIENT_ID;
+    else process.env.BLIZZARD_CLIENT_ID = previousClientId;
+    if (previousClientSecret === undefined) delete process.env.BLIZZARD_CLIENT_SECRET;
+    else process.env.BLIZZARD_CLIENT_SECRET = previousClientSecret;
   }
 });
 

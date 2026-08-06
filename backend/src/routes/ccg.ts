@@ -65,7 +65,7 @@ router.get("/media/assets/:assetId", async (req, res) => {
     const stored = await characterRenderStorageService.getForServing(req.params.assetId);
     if (!stored) return res.status(404).end();
     const etag = `"${stored.asset.sha256}"`;
-    res.setHeader("Cache-Control", `public, max-age=${stored.cacheSeconds}, must-revalidate`);
+    res.setHeader("Cache-Control", `public, max-age=${stored.cacheSeconds}, immutable`);
     res.setHeader("Content-Type", stored.asset.contentType);
     res.setHeader("Content-Length", stored.asset.byteLength);
     res.setHeader("ETag", etag);

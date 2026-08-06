@@ -4,7 +4,7 @@ import {
   MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_CCG_ELIGIBILITY,
   MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY,
 } from "../config/character-eligibility";
-import { CCG_CONFIGURED_SETS } from "../config/ccg";
+import { CCG_CONFIGURED_SETS, CCG_MEDIA_REFRESH_MS } from "../config/ccg";
 import Character from "../models/Character";
 import CharacterMedia from "../models/CharacterMedia";
 import CharacterMediaFetchQueue, { ICharacterMediaFetchQueue } from "../models/CharacterMediaFetchQueue";
@@ -22,7 +22,6 @@ import ccgCardAvailabilityService from "./ccg-card-availability.service";
 import { getCharacterRaidParticipationSummaries } from "./character-raid-guild.service";
 import characterRenderStorageService from "./character-render-storage.service";
 
-const DEFAULT_REFRESH_DAYS = Math.max(1, Number(process.env.CCG_MEDIA_REFRESH_DAYS || 14));
 const PROCESS_IDLE_MS = 5000;
 const STALE_PROCESSING_MS = 15 * 60 * 1000;
 const DISCOVERY_QUERY_MAX_TIME_MS = 30 * 60 * 1000;
@@ -31,7 +30,6 @@ const GENERAL_DISCOVERY_PRIORITY = 10;
 const CCG_DISCOVERY_PRIORITY_BASE = 1000;
 const TRANSIENT_FAILURE_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
 const NOT_FOUND_RETRY_MS = 30 * 24 * 60 * 60 * 1000;
-const GLOBAL_REVALIDATION_DAYS = 21;
 
 export const CHARACTER_MEDIA_DISCOVERY_TASK_NAME = "CCG Character Media Discovery";
 export const CHARACTER_MEDIA_REFRESH_TASK_NAME = "CCG Character Media Validation";
@@ -106,7 +104,6 @@ export async function syncCardsFromCurrentMedia(characterIds: readonly mongoose.
     characterId: { $in: characterIds },
     status: "available",
     renderAssetId: { $ne: null },
-    renderAssetExpiresAt: { $gt: new Date() },
   })
     .select("characterId avatarUrl renderAssetId renderFit fetchedAt")
     .lean();
@@ -435,8 +432,6 @@ export class CharacterMediaService {
   }
 
   async enqueueActiveCurrent(): Promise<{ candidates: number; queued: number; purged: number }> {
-    const purged = await characterRenderStorageService.purgeExpired();
-    if (purged > 0) await cacheService.invalidatePattern(/^ccg:/);
     const now = new Date();
     const zoneIds = await CcgSet.distinct("zoneId", { state: "current", enabledAt: { $ne: null } });
     const characterIds = zoneIds.length > 0
@@ -446,7 +441,7 @@ export class CharacterMediaService {
           survivalScore: { $ne: null },
         })
       : [];
-    const refreshBefore = new Date(Date.now() - DEFAULT_REFRESH_DAYS * 24 * 60 * 60 * 1000);
+    const refreshBefore = new Date(Date.now() - CCG_MEDIA_REFRESH_MS);
     const staleMediaIds = await CharacterMedia.distinct("characterId", {
       characterId: { $in: characterIds },
       status: "available",
@@ -455,33 +450,14 @@ export class CharacterMediaService {
     });
     const existingMediaIds = new Set((await CharacterMedia.distinct("characterId", { characterId: { $in: characterIds } })).map(String));
     const missingIds = characterIds.filter((id) => !existingMediaIds.has(String(id)));
-    const revalidateBefore = new Date(now.getTime() - GLOBAL_REVALIDATION_DAYS * 24 * 60 * 60 * 1000);
-    const expiryWindow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const globallyDueIds = await CharacterMedia.distinct("characterId", {
-      $and: [
-        { $or: [{ mainRawUrl: { $ne: null } }, { lastErrorCode: "validation_expired" }] },
-      ],
-      $or: [
-        { renderAssetId: null },
-        { renderAssetExpiresAt: null },
-        { renderAssetExpiresAt: { $lte: expiryWindow } },
-        { sourceValidatedAt: null },
-        { sourceValidatedAt: { $lt: revalidateBefore } },
-      ],
-    });
     const currentTargetIds = new Map(
       [...staleMediaIds, ...missingIds].map((characterId) => [String(characterId), characterId]),
     );
-    const allTargetIds = new Map(currentTargetIds);
-    for (const characterId of globallyDueIds) allTargetIds.set(String(characterId), characterId);
-    const rows = await Character.find({ _id: { $in: [...allTargetIds.values()] } })
+    const rows = await Character.find({ _id: { $in: [...currentTargetIds.values()] } })
       .select("name realm region identityObservedAt blizzardIdentityOverride")
       .lean();
-    const currentRows = rows.filter((row) => currentTargetIds.has(String(row._id)));
-    const generalRows = rows.filter((row) => !currentTargetIds.has(String(row._id)));
-    const currentQueued = await this.enqueueRows(currentRows, 100, true);
-    const generalQueued = await this.enqueueRows(generalRows, 50, true);
-    return { candidates: rows.length, queued: currentQueued + generalQueued, purged };
+    const queued = await this.enqueueRows(rows, 100, true);
+    return { candidates: rows.length, queued, purged: 0 };
   }
 
   async auditPreviouslySuccessful(): Promise<{ candidates: number; queued: number }> {
@@ -502,6 +478,22 @@ export class CharacterMediaService {
     if (characterIds.length === 0) return 0;
     const rows = await Character.find({ _id: { $in: characterIds } }).select("name realm region identityObservedAt blizzardIdentityOverride").lean();
     return this.enqueueRows(rows, priority, force);
+  }
+
+  async enqueueDueForCardSnapshots(
+    characterIds: readonly mongoose.Types.ObjectId[],
+    now = new Date(),
+  ): Promise<number> {
+    if (characterIds.length === 0) return 0;
+    const mediaRows = await CharacterMedia.find({ characterId: { $in: characterIds } })
+      .select("characterId renderAssetId nextMediaRefreshAt")
+      .lean();
+    const mediaByCharacterId = new Map(mediaRows.map((media) => [String(media.characterId), media]));
+    const dueIds = characterIds.filter((characterId) => {
+      const media = mediaByCharacterId.get(String(characterId));
+      return !media?.renderAssetId || !media.nextMediaRefreshAt || media.nextMediaRefreshAt <= now;
+    });
+    return this.enqueueCharacters(dueIds, 500, true);
   }
 
   private async enqueueRows(
@@ -696,7 +688,6 @@ export class CharacterMediaService {
             characterName: item.name,
             ...media,
             renderAssetId: renderAsset.assetId,
-            renderAssetExpiresAt: renderAsset.expiresAt,
             renderFit: renderAsset.fit,
             sourceUpdatedAt: now,
             sourceValidatedAt: now,
@@ -704,7 +695,7 @@ export class CharacterMediaService {
             status: "available",
             attemptCount: item.attempts,
             nextAttemptAt: null,
-            nextMediaRefreshAt: new Date(now.getTime() + DEFAULT_REFRESH_DAYS * 24 * 60 * 60 * 1000),
+            nextMediaRefreshAt: new Date(now.getTime() + CCG_MEDIA_REFRESH_MS),
             lastErrorCode: null,
             lastError: null,
           },
@@ -741,7 +732,6 @@ export class CharacterMediaService {
       const transition = getCharacterMediaFailureTransition(item.attempts, item.maxAttempts, status);
       const nextAttemptAt = new Date(now.getTime() + transition.delayMs);
       if (status === 404) {
-        await characterRenderStorageService.purgeCharacter(item.characterId, "source_not_found");
         try {
           await ccgCardAvailabilityService.noteNotFound(item.characterId, now);
         } catch (availabilityError) {
@@ -750,13 +740,9 @@ export class CharacterMediaService {
         await cacheService.invalidatePattern(/^ccg:/);
       }
       const existingMedia = await CharacterMedia.findOne({ characterId: item.characterId })
-        .select("renderAssetId renderAssetExpiresAt")
+        .select("renderAssetId")
         .lean();
-      const hasExistingRender = Boolean(
-        existingMedia?.renderAssetId
-        && existingMedia.renderAssetExpiresAt
-        && existingMedia.renderAssetExpiresAt > now,
-      );
+      const hasExistingRender = Boolean(existingMedia?.renderAssetId);
 
       await CharacterMedia.findOneAndUpdate(
         { characterId: item.characterId },
@@ -769,13 +755,12 @@ export class CharacterMediaService {
             attemptCount: item.attempts,
             nextAttemptAt,
             ...(hasExistingRender ? { nextMediaRefreshAt: nextAttemptAt } : {}),
-            ...(status === 404
+            ...(status === 404 && !hasExistingRender
               ? {
                   avatarUrl: null,
                   insetUrl: null,
                   mainRawUrl: null,
                   renderAssetId: null,
-                  renderAssetExpiresAt: null,
                   renderFit: null,
                 }
               : {}),
@@ -819,7 +804,6 @@ export class CharacterMediaService {
         (await CharacterMedia.distinct("characterId", {
           characterId: { $in: characterIds },
           renderAssetId: { $ne: null },
-          renderAssetExpiresAt: { $gt: now },
         })).map(String),
       );
       const nextAttemptAt = new Date(now.getTime() + TRANSIENT_FAILURE_RETRY_MS);

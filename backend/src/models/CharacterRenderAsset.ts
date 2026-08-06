@@ -12,7 +12,6 @@ export interface ICharacterRenderAsset extends Document {
   characterId: mongoose.Types.ObjectId;
   sourceUrl: string;
   sourceValidatedAt: Date;
-  expiresAt: Date;
   status: CharacterRenderAssetStatus;
   sha256: string;
   storageKey: string;
@@ -46,7 +45,6 @@ const CharacterRenderAssetSchema = new Schema<ICharacterRenderAsset>(
     characterId: { type: Schema.Types.ObjectId, ref: "Character", required: true, index: true },
     sourceUrl: { type: String, required: true },
     sourceValidatedAt: { type: Date, required: true },
-    expiresAt: { type: Date, required: true, index: true },
     status: { type: String, enum: ["active", "purged"], required: true, default: "active", index: true },
     sha256: { type: String, required: true },
     storageKey: { type: String, required: true, index: true },
@@ -67,6 +65,5 @@ const CharacterRenderAssetSchema = new Schema<ICharacterRenderAsset>(
 );
 
 CharacterRenderAssetSchema.index({ characterId: 1, sha256: 1 }, { unique: true });
-CharacterRenderAssetSchema.index({ status: 1, expiresAt: 1 });
 
 export default mongoose.model<ICharacterRenderAsset>("CharacterRenderAsset", CharacterRenderAssetSchema);

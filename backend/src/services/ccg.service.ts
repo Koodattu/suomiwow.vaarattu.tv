@@ -1126,7 +1126,7 @@ class CcgService {
         .select("zoneId reportCount mythicReportCount")
         .lean(),
       CharacterMedia.find({ characterId: { $in: memberCharacterIds } })
-        .select("characterId status avatarUrl renderAssetId renderAssetExpiresAt lastErrorCode")
+        .select("characterId status avatarUrl renderAssetId lastErrorCode")
         .lean(),
       CcgCard.find({ characterId: { $in: memberCharacterIds } })
         .sort({ publishedAt: -1, snapshotVersion: -1 })
@@ -1136,12 +1136,9 @@ class CcgService {
     ]);
 
     const rootMedia = mediaRows.find((row) => String(row.characterId) === rootCharacterId);
-    const now = new Date();
     const hasStoredRender = (row: (typeof mediaRows)[number] | null | undefined) => Boolean(
       row?.status === "available"
-      && row.renderAssetId
-      && row.renderAssetExpiresAt
-      && row.renderAssetExpiresAt > now,
+      && row.renderAssetId,
     );
     const availableMedia = mediaRows.find(hasStoredRender);
     const media = hasStoredRender(rootMedia)

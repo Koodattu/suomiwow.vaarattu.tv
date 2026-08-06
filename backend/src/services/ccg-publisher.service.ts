@@ -93,7 +93,6 @@ type CcgMediaRow = {
   characterId: mongoose.Types.ObjectId;
   avatarUrl?: string | null;
   renderAssetId?: mongoose.Types.ObjectId | null;
-  renderAssetExpiresAt?: Date | null;
   renderFit?: CharacterRenderFit | null;
   fetchedAt?: Date | null;
   status: CharacterMediaStatus;
@@ -103,12 +102,10 @@ type CcgMediaRow = {
   lastError?: string | null;
 };
 
-function hasStoredRender(media: CcgMediaRow | null | undefined, now = new Date()): boolean {
+export function hasStoredRender(media: CcgMediaRow | null | undefined): boolean {
   return Boolean(
     media?.status === "available"
-    && media.renderAssetId
-    && media.renderAssetExpiresAt
-    && media.renderAssetExpiresAt > now,
+    && media.renderAssetId,
   );
 }
 
@@ -693,6 +690,7 @@ class CcgPublisherService {
     try {
       const { configured, set, entries, participationByCharacter, continuity, characterIds } = await this.loadSnapshotPopulation(zoneId);
       const snapshotKey = `${set.slug}:${getHelsinkiDateKey()}`;
+      await characterMediaService.enqueueDueForCardSnapshots(characterIds);
       const [mediaByCharacter, mythicPlusByCharacter] = await Promise.all([
         this.loadContinuityMedia(continuity),
         this.loadMythicPlusScoresByCharacter(continuity, configured.mythicPlusSeason),
@@ -752,7 +750,6 @@ class CcgPublisherService {
       await CcgSet.updateOne({ _id: set._id }, { $set: { lastSnapshotAt: now } });
 
       const missing = entries.filter(({ entry }) => !hasStoredRender(mediaByCharacter.get(String(entry.characterId))));
-      await characterMediaService.enqueueCharacters(missing.slice(0, 2000).map(({ entry }) => entry.characterId));
 
       return {
         snapshotKey,

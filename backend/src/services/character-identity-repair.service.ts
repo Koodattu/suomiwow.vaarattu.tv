@@ -273,7 +273,7 @@ export class CharacterIdentityRepairService {
     const mismatchIds = identityMismatches.map((candidate) => candidate.character._id as mongoose.Types.ObjectId);
     const [mediaRows, fingerprintRows, cardRows, accountMemberRows, mediaQueueRows, achievementQueueRows] = await Promise.all([
       CharacterMedia.find({ characterId: { $in: mismatchIds } })
-        .select("characterId characterName realmSlug region status renderAssetId renderAssetExpiresAt")
+        .select("characterId characterName realmSlug region status renderAssetId")
         .lean<Array<{
           characterId: mongoose.Types.ObjectId;
           characterName: string;
@@ -281,7 +281,6 @@ export class CharacterIdentityRepairService {
           region: string;
           status: string;
           renderAssetId?: mongoose.Types.ObjectId | null;
-          renderAssetExpiresAt?: Date | null;
         }>>(),
       CharacterAchievementFingerprint.find({
         characterId: { $in: mismatchIds },
@@ -340,8 +339,6 @@ export class CharacterIdentityRepairService {
         media &&
           media.status === "available" &&
           media.renderAssetId &&
-          media.renderAssetExpiresAt &&
-          media.renderAssetExpiresAt > new Date() &&
           blizzardMediaIdentityMatches(media, candidate.desiredBlizzardIdentity),
       );
       const hasDependentCards = cardCharacterIdSet.has(String(characterId));
@@ -361,8 +358,6 @@ export class CharacterIdentityRepairService {
         !candidate ||
         !media ||
         !media.renderAssetId ||
-        !media.renderAssetExpiresAt ||
-        media.renderAssetExpiresAt <= new Date() ||
         !blizzardMediaIdentityMatches(media, candidate.desiredBlizzardIdentity)
       ) continue;
       if (!card.renderAssetId) {

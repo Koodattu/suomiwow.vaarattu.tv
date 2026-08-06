@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { CLASSES } from "../config/classes";
-import { CCG_COMMUNITY_SET, CCG_GRADING_VERSION, CCG_POOL_VERSION, CCG_THEME_VERSION, CCG_TIER_GRADES, CcgTierGrade } from "../config/ccg";
+import { CCG_COMMUNITY_SET, CCG_GRADING_VERSION, CCG_MEDIA_REFRESH_MS, CCG_POOL_VERSION, CCG_THEME_VERSION, CCG_TIER_GRADES, CcgTierGrade } from "../config/ccg";
 import CcgCard, { type CcgCommunityScores } from "../models/CcgCard";
 import CcgCommunityCharacter from "../models/CcgCommunityCharacter";
 import CcgSet from "../models/CcgSet";
@@ -203,7 +203,7 @@ class CcgCommunityService {
       avatarUrl: media.avatarUrl,
       renderUrl: storedRender.url,
       renderAssetId: storedRender.assetId,
-      renderAssetExpiresAt: storedRender.expiresAt,
+      nextRenderRefreshAt: new Date(now.getTime() + CCG_MEDIA_REFRESH_MS),
       renderFit: storedRender.fit,
       active: true,
       createdBy: input.createdBy,
@@ -355,7 +355,7 @@ class CcgCommunityService {
           community.avatarUrl = resolved.media.avatarUrl;
           community.renderUrl = refreshedRender!.url;
           community.renderAssetId = refreshedRender!.assetId;
-          community.renderAssetExpiresAt = refreshedRender!.expiresAt;
+          community.nextRenderRefreshAt = new Date(now.getTime() + CCG_MEDIA_REFRESH_MS);
           community.renderFit = refreshedRender!.fit;
         }
         await community.save({ session });
@@ -425,20 +425,20 @@ class CcgCommunityService {
     return this.update(id, { active: false });
   }
 
-  async refreshDueRenders(limit = 250): Promise<{ candidates: number; refreshed: number; removed: number; failed: number }> {
-    const dueBefore = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  async refreshDueRenders(limit = 250): Promise<{ candidates: number; refreshed: number; retained: number; failed: number }> {
+    const now = new Date();
     const rows = await CcgCommunityCharacter.find({
       active: true,
       $or: [
         { renderAssetId: null },
-        { renderAssetExpiresAt: null },
-        { renderAssetExpiresAt: { $lte: dueBefore } },
+        { nextRenderRefreshAt: null },
+        { nextRenderRefreshAt: { $lte: now } },
       ],
     })
-      .sort({ renderAssetExpiresAt: 1, updatedAt: 1 })
+      .sort({ nextRenderRefreshAt: 1, updatedAt: 1 })
       .limit(Math.max(1, Math.min(limit, 1000)));
     let refreshed = 0;
-    let removed = 0;
+    let retained = 0;
     let failed = 0;
 
     for (const row of rows) {
@@ -446,12 +446,12 @@ class CcgCommunityService {
       try {
         const media = await blizzardService.getCharacterMedia(row.name, row.realmSlug, row.region);
         if (!media.mainRawUrl) throw new Error("Blizzard media response contained no full character render");
-        const now = new Date();
-        const stored = await characterRenderStorageService.ingest(assetCharacterId, media.mainRawUrl, now);
+        const refreshedAt = new Date();
+        const stored = await characterRenderStorageService.ingest(assetCharacterId, media.mainRawUrl, refreshedAt);
         row.avatarUrl = media.avatarUrl;
         row.renderUrl = stored.url;
         row.renderAssetId = stored.assetId;
-        row.renderAssetExpiresAt = stored.expiresAt;
+        row.nextRenderRefreshAt = new Date(refreshedAt.getTime() + CCG_MEDIA_REFRESH_MS);
         row.renderFit = stored.fit;
         await row.save();
         if (row.cardId) {
@@ -463,13 +463,13 @@ class CcgCommunityService {
                 renderUrl: stored.url,
                 renderAssetId: stored.assetId,
                 renderFit: stored.fit,
-                mediaCapturedAt: now,
+                mediaCapturedAt: refreshedAt,
               },
             },
           );
         }
         try {
-          await ccgCardAvailabilityService.noteAvailable(assetCharacterId, now);
+          await ccgCardAvailabilityService.noteAvailable(assetCharacterId, refreshedAt);
         } catch (availabilityError) {
           logger.error(`[CCG/Community] Failed to restore card availability for ${row._id}:`, availabilityError);
         }
@@ -477,33 +477,22 @@ class CcgCommunityService {
       } catch (error) {
         const statusMatch = (error instanceof Error ? error.message : String(error)).match(/status (\d{3})/i);
         if (statusMatch?.[1] === "404") {
-          await characterRenderStorageService.purgeCharacter(assetCharacterId, "source_not_found");
-          row.avatarUrl = null;
-          row.renderUrl = null;
-          row.renderAssetId = null;
-          row.renderAssetExpiresAt = null;
-          row.renderFit = null;
+          row.nextRenderRefreshAt = new Date(Date.now() + CCG_MEDIA_REFRESH_MS);
           await row.save();
-          if (row.cardId) {
-            await CcgCard.collection.updateOne(
-              { _id: row.cardId, communityCharacterId: row._id, sourcePartition: "community-admin" },
-              { $set: { avatarUrl: null, renderUrl: null, renderAssetId: null, renderFit: null } },
-            );
-          }
           try {
             await ccgCardAvailabilityService.noteNotFound(assetCharacterId, new Date());
           } catch (availabilityError) {
             logger.error(`[CCG/Community] Failed to update card availability for ${row._id}:`, availabilityError);
           }
-          removed += 1;
+          retained += 1;
         } else {
           failed += 1;
           logger.error(`[CCG/Community] Failed to validate render for ${row._id}:`, error);
         }
       }
     }
-    if (refreshed > 0 || removed > 0) await cacheService.invalidatePattern(/^ccg:/);
-    return { candidates: rows.length, refreshed, removed, failed };
+    if (refreshed > 0) await cacheService.invalidatePattern(/^ccg:/);
+    return { candidates: rows.length, refreshed, retained, failed };
   }
 }
 
