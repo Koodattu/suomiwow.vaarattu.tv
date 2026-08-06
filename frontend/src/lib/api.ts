@@ -62,6 +62,7 @@ import {
   HomePageData,
   PickemSummary,
   PickemDetails,
+  PickemCcgRewardClaimResult,
   PickemPrediction,
   GuildRanking,
   GuestPickemImportResult,
@@ -1765,6 +1766,18 @@ export const api = {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || "Failed to submit predictions");
+    }
+    return response.json();
+  },
+
+  async claimPickemCcgReward(pickemId: string): Promise<PickemCcgRewardClaimResult> {
+    const response = await fetch(`${API_URL}/api/pickems/${encodeURIComponent(pickemId)}/ccg-reward/claim`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || "Failed to claim CCG packs");
     }
     return response.json();
   },

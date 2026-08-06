@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { usePickemReferenceRankings, usePickemsGuilds, useRaids } from "@/lib/queries";
+import { queryKeys, usePickemReferenceRankings, usePickemsGuilds, useRaids } from "@/lib/queries";
 import {
   clearGuestPickemDraft,
   getGuestPickemDraftStorageKey,
@@ -20,6 +21,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { PickemStatistics } from "@/components/PickemStatistics";
+import { PickemCcgRewardCard } from "@/components/pickems/PickemCcgRewardCard";
 
 // Guild autocomplete using Headless UI Combobox
 function GuildAutocomplete({
@@ -818,6 +820,7 @@ function placePredictions(predictions: PickemPrediction[], guildCount: number): 
 export default function PickemsPage() {
   const t = useTranslations("pickemsPage");
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, isLoading: authLoading, login } = useAuth();
 
   const [pickems, setPickems] = useState<PickemSummary[]>([]);
@@ -1247,6 +1250,26 @@ export default function PickemsPage() {
     }
   };
 
+  const handleClaimCcgReward = useCallback(async () => {
+    if (!selectedPickemId) return;
+    const requestedPickemId = selectedPickemId;
+    const result = await api.claimPickemCcgReward(requestedPickemId);
+
+    if (selectedPickemIdRef.current !== requestedPickemId) return;
+    setPickemDetails((current) => {
+      if (!current || current.id !== requestedPickemId || !current.ccgReward) return current;
+      return {
+        ...current,
+        ccgReward: {
+          ...current.ccgReward,
+          packs: result.packs,
+          claimed: true,
+        },
+      };
+    });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.ccg.session });
+  }, [queryClient, selectedPickemId]);
+
   const getTimeRemaining = (endDate: string) => {
     const end = new Date(endDate);
     const now = new Date();
@@ -1498,6 +1521,14 @@ export default function PickemsPage() {
                     </button>
                   ))}
               </div>
+
+              {pickemDetails.ccgReward && (
+                <PickemCcgRewardCard
+                  reward={pickemDetails.ccgReward}
+                  isAuthenticated={Boolean(user)}
+                  onClaim={handleClaimCcgReward}
+                />
+              )}
             </div>
 
             {/* Column 2: Current Guild Rankings - Only for regular pickems */}

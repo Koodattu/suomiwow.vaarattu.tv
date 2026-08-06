@@ -28,6 +28,9 @@ export interface IPrizeConfig {
 // Pickem type: regular (Finnish guilds from DB) or rwf (Race to World First guilds from config)
 export type PickemType = "regular" | "rwf";
 
+export const DEFAULT_PICKEM_CCG_REWARD_PACKS = 25;
+export const MAX_PICKEM_CCG_REWARD_PACKS = 100;
+
 // Pickem document interface
 export interface IPickem extends Document {
   pickemId: string; // Unique identifier (e.g., "season-one")
@@ -39,6 +42,7 @@ export interface IPickem extends Document {
   scoreOutOfRangeGuilds: boolean; // For regular pickems, award points for picked guilds ranked beyond guildCount
   votingStart: Date; // When voting opens
   votingEnd: Date; // When voting closes
+  ccgRewardPacks: number; // Generic CCG packs available for an explicit participant claim
   active: boolean; // Whether this pickem is visible/active
   scoringConfig: IScoringConfig; // Point configuration
   streakConfig: IStreakConfig; // Streak bonus configuration
@@ -131,6 +135,13 @@ const PickemSchema = new Schema<IPickem>(
     scoreOutOfRangeGuilds: { type: Boolean, required: true, default: false },
     votingStart: { type: Date, required: true },
     votingEnd: { type: Date, required: true },
+    ccgRewardPacks: {
+      type: Number,
+      required: true,
+      default: DEFAULT_PICKEM_CCG_REWARD_PACKS,
+      min: 0,
+      max: MAX_PICKEM_CCG_REWARD_PACKS,
+    },
     active: { type: Boolean, required: true, default: true },
     scoringConfig: { type: ScoringConfigSchema, required: true, default: () => DEFAULT_SCORING_CONFIG },
     streakConfig: { type: StreakConfigSchema, required: true, default: () => DEFAULT_STREAK_CONFIG },

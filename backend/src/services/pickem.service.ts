@@ -1,5 +1,16 @@
-import Pickem, { IPickem, IScoringConfig, IStreakConfig, IPrizeConfig, DEFAULT_SCORING_CONFIG, DEFAULT_STREAK_CONFIG, DEFAULT_PRIZE_CONFIG, PickemType } from "../models/Pickem";
+import Pickem, {
+  IPickem,
+  IScoringConfig,
+  IStreakConfig,
+  IPrizeConfig,
+  DEFAULT_SCORING_CONFIG,
+  DEFAULT_STREAK_CONFIG,
+  DEFAULT_PRIZE_CONFIG,
+  DEFAULT_PICKEM_CCG_REWARD_PACKS,
+  PickemType,
+} from "../models/Pickem";
 import User from "../models/User";
+import CcgPackCredit from "../models/CcgPackCredit";
 import { PICK_EM_RWF_GUILDS } from "../config/guilds";
 import logger from "../utils/logger";
 import { getRegularPickemRaidIdsValidationError, isPickemPlaceholderRaidIds } from "../utils/pickemRaid";
@@ -7,6 +18,13 @@ import { getRegularPickemRaidIdsValidationError, isPickemPlaceholderRaidIds } fr
 export interface PickemDeletionResult {
   pickemDeleted: boolean;
   affectedUsers: number;
+}
+
+export class PickemRewardConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PickemRewardConfigurationError";
+  }
 }
 
 class PickemService {
@@ -53,6 +71,32 @@ class PickemService {
     return Pickem.findOne({ pickemId }).lean();
   }
 
+  async ensureCcgRewardDefaults(now = new Date()): Promise<{ rewarded: number; disabled: number }> {
+    const missingReward = {
+      $or: [
+        { ccgRewardPacks: { $exists: false } },
+        { ccgRewardPacks: null },
+      ],
+    };
+
+    const [rewarded, disabled] = await Promise.all([
+      Pickem.updateMany(
+        { ...missingReward, votingEnd: { $gte: now } },
+        { $set: { ccgRewardPacks: DEFAULT_PICKEM_CCG_REWARD_PACKS } },
+      ),
+      Pickem.updateMany(
+        { ...missingReward, votingEnd: { $lt: now } },
+        { $set: { ccgRewardPacks: 0 } },
+      ),
+    ]);
+
+    const result = { rewarded: rewarded.modifiedCount, disabled: disabled.modifiedCount };
+    if (result.rewarded > 0 || result.disabled > 0) {
+      logger.info(`[Pickem] Initialized CCG rewards: ${result.rewarded} current/future, ${result.disabled} expired`);
+    }
+    return result;
+  }
+
   /**
    * Create a new pickem
    */
@@ -66,6 +110,7 @@ class PickemService {
     scoreOutOfRangeGuilds?: boolean;
     votingStart: Date;
     votingEnd: Date;
+    ccgRewardPacks?: number;
     active?: boolean;
     scoringConfig?: Partial<IScoringConfig>;
     streakConfig?: Partial<IStreakConfig>;
@@ -93,6 +138,7 @@ class PickemService {
       scoreOutOfRangeGuilds,
       votingStart: data.votingStart,
       votingEnd: data.votingEnd,
+      ccgRewardPacks: data.ccgRewardPacks ?? DEFAULT_PICKEM_CCG_REWARD_PACKS,
       active: data.active ?? true,
       scoringConfig: { ...DEFAULT_SCORING_CONFIG, ...data.scoringConfig },
       streakConfig: { ...DEFAULT_STREAK_CONFIG, ...data.streakConfig },
@@ -116,6 +162,7 @@ class PickemService {
       scoreOutOfRangeGuilds?: boolean;
       votingStart?: Date;
       votingEnd?: Date;
+      ccgRewardPacks?: number;
       active?: boolean;
       scoringConfig?: Partial<IScoringConfig>;
       streakConfig?: Partial<IStreakConfig>;
@@ -124,6 +171,13 @@ class PickemService {
   ): Promise<IPickem | null> {
     const pickem = await Pickem.findOne({ pickemId });
     if (!pickem) return null;
+
+    if (data.ccgRewardPacks !== undefined && data.ccgRewardPacks !== pickem.ccgRewardPacks) {
+      const hasClaims = await CcgPackCredit.exists({ sourceKey: `pickem-reward:${pickem._id}` });
+      if (hasClaims) {
+        throw new PickemRewardConfigurationError("The CCG pack reward cannot be changed after the first claim");
+      }
+    }
 
     if (data.raidIds !== undefined) {
       if (pickem.type === "regular") {
@@ -144,6 +198,7 @@ class PickemService {
     if (data.scoreOutOfRangeGuilds !== undefined) pickem.scoreOutOfRangeGuilds = data.scoreOutOfRangeGuilds;
     if (data.votingStart !== undefined) pickem.votingStart = data.votingStart;
     if (data.votingEnd !== undefined) pickem.votingEnd = data.votingEnd;
+    if (data.ccgRewardPacks !== undefined) pickem.ccgRewardPacks = data.ccgRewardPacks;
     if (data.active !== undefined) pickem.active = data.active;
 
     if (data.scoringConfig) {

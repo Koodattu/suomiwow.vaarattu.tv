@@ -522,6 +522,7 @@ export default function AdminPage() {
     guildCount: 10,
     finalRankingsCount: 0,
     scoreOutOfRangeGuilds: false,
+    ccgRewardPacks: 25,
     votingStart: "",
     votingEnd: "",
     active: true,
@@ -4765,6 +4766,7 @@ export default function AdminPage() {
                     guildCount: 10,
                     finalRankingsCount: 0,
                     scoreOutOfRangeGuilds: false,
+                    ccgRewardPacks: 25,
                     votingStart: "",
                     votingEnd: "",
                     active: true,
@@ -4814,6 +4816,7 @@ export default function AdminPage() {
                             guildCount: pickemForm.guildCount,
                             finalRankingsCount: pickemForm.finalRankingsCount,
                             scoreOutOfRangeGuilds: pickemForm.type === "regular" ? pickemForm.scoreOutOfRangeGuilds : false,
+                            ccgRewardPacks: pickemForm.ccgRewardPacks,
                             votingStart: pickemForm.votingStart,
                             votingEnd: pickemForm.votingEnd,
                             active: pickemForm.active,
@@ -4902,6 +4905,23 @@ export default function AdminPage() {
                         max={pickemForm.type === "rwf" ? 25 : 10}
                       />
                       <p className="text-xs text-gray-500 mt-1">{t("pickems.form.guildCountHelp")}</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="ccgRewardPacks">
+                        {t("pickems.form.ccgRewardPacks")}
+                      </label>
+                      <input
+                        id="ccgRewardPacks"
+                        type="number"
+                        value={pickemForm.ccgRewardPacks}
+                        onChange={(e) => setPickemForm({ ...pickemForm, ccgRewardPacks: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                        min="0"
+                        max="100"
+                        step="1"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">{t("pickems.form.ccgRewardPacksHelp")}</p>
                     </div>
 
                     {/* Finalization Guild Count - only for RWF */}
@@ -5477,6 +5497,7 @@ export default function AdminPage() {
                                   guildCount: pickem.guildCount || 10,
                                   finalRankingsCount: pickem.finalRankingsCount || 0,
                                   scoreOutOfRangeGuilds: pickem.scoreOutOfRangeGuilds ?? false,
+                                  ccgRewardPacks: pickem.ccgRewardPacks ?? 0,
                                   votingStart: new Date(pickem.votingStart).toISOString().slice(0, 16),
                                   votingEnd: new Date(pickem.votingEnd).toISOString().slice(0, 16),
                                   active: pickem.active,

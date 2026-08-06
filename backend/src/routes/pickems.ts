@@ -15,6 +15,7 @@ import {
   PickemSubmissionError,
   validatePickemPredictions,
 } from "../services/pickem-submission.service";
+import pickemCcgRewardService, { PickemCcgRewardError } from "../services/pickem-ccg-reward.service";
 
 const router = Router();
 
@@ -74,6 +75,7 @@ router.get(
         scoreOutOfRangeGuilds: p.scoreOutOfRangeGuilds ?? false,
         votingStart: p.votingStart,
         votingEnd: p.votingEnd,
+        ccgRewardPacks: p.ccgRewardPacks ?? 0,
         isVotingOpen: now >= new Date(p.votingStart) && now <= new Date(p.votingEnd),
         hasEnded: now > new Date(p.votingEnd),
         // RWF finalization status
@@ -241,6 +243,11 @@ router.get("/:pickemId", async (req: Request, res: Response) => {
         userPredictions = entry.predictions;
       }
     }
+    const ccgRewardPromise = pickemCcgRewardService.getStatus(
+      pickem,
+      user?._id ?? null,
+      userPredictions !== null,
+    );
 
     // Get leaderboard (all users' scores for this pickem, two-tier cached with invalidation on prediction submit)
     const leaderboardCacheKey = cacheService.getPickemLeaderboardKey(pickemId);
@@ -284,6 +291,7 @@ router.get("/:pickemId", async (req: Request, res: Response) => {
       scoringConfig: pickem.scoringConfig,
       streakConfig: pickem.streakConfig,
       prizeConfig: pickem.prizeConfig,
+      ccgReward: await ccgRewardPromise,
       guildRankings,
       userPredictions,
       leaderboard: sanitizedLeaderboard,
@@ -292,6 +300,30 @@ router.get("/:pickemId", async (req: Request, res: Response) => {
   } catch (error) {
     logger.error("Error fetching pickem details:", error);
     res.status(500).json({ error: "Failed to fetch pickem details" });
+  }
+});
+
+// Explicitly claim the generic CCG pack reward after submitting predictions.
+router.post("/:pickemId/ccg-reward/claim", async (req: Request, res: Response) => {
+  try {
+    const sessionId = req.session?.id || req.ip || "unknown";
+    if (!checkPredictRateLimit(`ccg-reward:${sessionId}`)) {
+      return res.status(429).json({ error: "Too many requests. Please wait a moment before trying again.", code: "RATE_LIMITED" });
+    }
+
+    const user = await getUserFromSession(req);
+    if (!user) {
+      return res.status(401).json({ error: "Not authenticated", code: "NOT_AUTHENTICATED" });
+    }
+
+    const result = await pickemCcgRewardService.claim(user._id, req.params.pickemId);
+    res.json(result);
+  } catch (error) {
+    if (error instanceof PickemCcgRewardError) {
+      return res.status(error.status).json({ error: error.message, code: error.code });
+    }
+    logger.error("Error claiming Pickem CCG reward:", error);
+    res.status(500).json({ error: "Failed to claim CCG packs", code: "CLAIM_FAILED" });
   }
 });
 

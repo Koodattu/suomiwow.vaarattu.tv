@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 import { CcgHistoricalPackMode } from "../config/ccg";
 
-export type CcgPackCreditSource = "duplicate" | "login_conversion" | "admin" | "raid_rollover" | "twitch_reward";
+export type CcgPackCreditSource = "duplicate" | "login_conversion" | "admin" | "raid_rollover" | "twitch_reward" | "pickem_reward";
 
 export interface ICcgPackCredit extends Document {
   ownerId: mongoose.Types.ObjectId;
@@ -17,7 +17,7 @@ const CcgPackCreditSchema = new Schema<ICcgPackCredit>(
   {
     ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     mode: { type: String, enum: ["current", "legacy"] },
-    source: { type: String, enum: ["duplicate", "login_conversion", "admin", "raid_rollover", "twitch_reward"], required: true },
+    source: { type: String, enum: ["duplicate", "login_conversion", "admin", "raid_rollover", "twitch_reward", "pickem_reward"], required: true },
     sourceKey: { type: String, required: true },
     remaining: { type: Number, required: true, min: 0 },
   },

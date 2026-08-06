@@ -53,6 +53,7 @@ import { ensureCcgSeriesOwnershipMigration } from "./services/ccg-ownership-migr
 import { assertCcgUnifiedPacksReady } from "./services/ccg-pack-migration.service";
 import ccgCharacterIdentityService from "./services/ccg-character-identity.service";
 import { CCG_FEATURE_ENABLED } from "./config/ccg";
+import pickemService from "./services/pickem.service";
 
 // ============================================================================
 // WORKER MODE CONFIGURATION
@@ -546,6 +547,10 @@ const startServer = async () => {
     setStartupTask("Connect to MongoDB");
     await connectDB();
     completeStartupTask("Connect to MongoDB");
+
+    setStartupTask("Initialize Pickem CCG rewards");
+    await pickemService.ensureCcgRewardDefaults();
+    completeStartupTask("Initialize Pickem CCG rewards");
 
     setStartupTask("Preserve CCG guest collections");
     await ensurePersistentCcgGuests();

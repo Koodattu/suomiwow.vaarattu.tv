@@ -1527,6 +1527,7 @@ export interface PickemSummary {
   scoreOutOfRangeGuilds: boolean;
   votingStart: string;
   votingEnd: string;
+  ccgRewardPacks: number;
   isVotingOpen: boolean;
   hasEnded: boolean;
   scoringConfig?: ScoringConfig;
@@ -1592,6 +1593,18 @@ export interface LeaderboardEntry {
   predictions: LeaderboardPrediction[];
 }
 
+export interface PickemCcgReward {
+  packs: number;
+  eligible: boolean;
+  claimed: boolean;
+}
+
+export interface PickemCcgRewardClaimResult {
+  packs: number;
+  claimed: true;
+  alreadyClaimed: boolean;
+}
+
 export interface PickemDetails {
   id: string;
   name: string;
@@ -1603,6 +1616,7 @@ export interface PickemDetails {
   scoreOutOfRangeGuilds: boolean;
   votingStart: string;
   votingEnd: string;
+  ccgReward: PickemCcgReward | null;
   isVotingOpen: boolean;
   hasEnded: boolean;
   scoringConfig?: ScoringConfig;
@@ -1634,6 +1648,7 @@ export interface AdminPickem {
   scoreOutOfRangeGuilds: boolean;
   votingStart: string;
   votingEnd: string;
+  ccgRewardPacks: number;
   active: boolean;
   scoringConfig: ScoringConfig;
   streakConfig: StreakConfig;
@@ -1667,6 +1682,7 @@ export interface CreatePickemInput {
   scoreOutOfRangeGuilds?: boolean;
   votingStart: string;
   votingEnd: string;
+  ccgRewardPacks?: number;
   active?: boolean;
   scoringConfig?: Partial<ScoringConfig>;
   streakConfig?: Partial<StreakConfig>;
@@ -1682,6 +1698,7 @@ export interface UpdatePickemInput {
   scoreOutOfRangeGuilds?: boolean;
   votingStart?: string;
   votingEnd?: string;
+  ccgRewardPacks?: number;
   active?: boolean;
   scoringConfig?: Partial<ScoringConfig>;
   streakConfig?: Partial<StreakConfig>;

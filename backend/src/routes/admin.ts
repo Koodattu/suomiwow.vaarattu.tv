@@ -16,10 +16,10 @@ import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import Ranking from "../models/Ranking";
 import CharacterLeaderboard from "../models/CharacterLeaderboard";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
-import Pickem from "../models/Pickem";
+import Pickem, { DEFAULT_PICKEM_CCG_REWARD_PACKS, MAX_PICKEM_CCG_REWARD_PACKS } from "../models/Pickem";
 import { RequestLog, HourlyStats } from "../models/Analytics";
 import { CLASSES } from "../config/classes";
-import pickemService from "../services/pickem.service";
+import pickemService, { PickemRewardConfigurationError } from "../services/pickem.service";
 import cacheService from "../services/cache.service";
 import rateLimitService from "../services/rate-limit.service";
 import backgroundGuildProcessor from "../services/background-guild-processor.service";
@@ -2346,7 +2346,7 @@ router.get("/pickems/:pickemId", async (req: Request, res: Response) => {
 // Create a new pickem
 router.post("/pickems", async (req: Request, res: Response) => {
   try {
-    const { pickemId, name, raidIds, votingStart, votingEnd, active, scoringConfig, streakConfig, prizeConfig, type, guildCount, finalRankingsCount, scoreOutOfRangeGuilds } = req.body;
+    const { pickemId, name, raidIds, votingStart, votingEnd, active, scoringConfig, streakConfig, prizeConfig, type, guildCount, finalRankingsCount, scoreOutOfRangeGuilds, ccgRewardPacks } = req.body;
 
     // Determine pickem type (default to 'regular' for backwards compatibility)
     const pickemType = type === "rwf" ? "rwf" : "regular";
@@ -2394,12 +2394,18 @@ router.post("/pickems", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "finalRankingsCount must be a number between 0 and 25" });
     }
 
+    const finalCcgRewardPacks = ccgRewardPacks ?? DEFAULT_PICKEM_CCG_REWARD_PACKS;
+    if (!Number.isInteger(finalCcgRewardPacks) || finalCcgRewardPacks < 0 || finalCcgRewardPacks > MAX_PICKEM_CCG_REWARD_PACKS) {
+      return res.status(400).json({ error: `ccgRewardPacks must be an integer between 0 and ${MAX_PICKEM_CCG_REWARD_PACKS}` });
+    }
+
     const pickem = await pickemService.createPickem({
       pickemId,
       name,
       raidIds: pickemType === "regular" ? raidIds : [],
       votingStart: startDate,
       votingEnd: endDate,
+      ccgRewardPacks: finalCcgRewardPacks,
       active: active ?? true,
       scoringConfig,
       streakConfig,
@@ -2477,7 +2483,16 @@ router.put("/pickems/:pickemId", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "scoreOutOfRangeGuilds must be a boolean" });
     }
 
-    const pickem = await pickemService.updatePickem(pickemId, updates);
+    if (updates.ccgRewardPacks !== undefined) {
+      if (!Number.isInteger(updates.ccgRewardPacks) || updates.ccgRewardPacks < 0 || updates.ccgRewardPacks > MAX_PICKEM_CCG_REWARD_PACKS) {
+        return res.status(400).json({ error: `ccgRewardPacks must be an integer between 0 and ${MAX_PICKEM_CCG_REWARD_PACKS}` });
+      }
+    }
+
+    const pickem = await pickemService.runWithMutationLock(
+      pickemId,
+      () => pickemService.updatePickem(pickemId, updates),
+    );
 
     await cacheService.invalidate(cacheService.getPickemLeaderboardKey(pickemId));
     await cacheService.invalidate(cacheService.getPickemRankingsKey(pickemId));
@@ -2485,6 +2500,9 @@ router.put("/pickems/:pickemId", async (req: Request, res: Response) => {
 
     res.json(pickem);
   } catch (error) {
+    if (error instanceof PickemRewardConfigurationError) {
+      return res.status(409).json({ error: error.message });
+    }
     logger.error("Error updating pickem:", error);
     res.status(500).json({ error: "Failed to update pickem" });
   }
