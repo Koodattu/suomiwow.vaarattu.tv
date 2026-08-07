@@ -63,7 +63,17 @@ function formatDuration(seconds?: number) {
 function getProgressLabel(pull: PullHistoryEntry) {
   if (pull.isKill) return "Kill";
   if (pull.progressDisplay) return formatPhaseDisplay(pull.progressDisplay);
-  return formatPercent(pull.fightPercentage);
+  return pull.progressPercentage === null ? "-" : formatPercent(pull.progressPercentage);
+}
+
+function hasUsableBossPercentage(pull: PullHistoryEntry): pull is PullHistoryEntry & { bossPercentage: number } {
+  return (
+    typeof pull.bossPercentage === "number" &&
+    Number.isFinite(pull.bossPercentage) &&
+    pull.bossPercentage >= 0 &&
+    pull.bossPercentage <= 100 &&
+    (pull.isKill || pull.bossPercentage > 0)
+  );
 }
 
 function PullTooltip({ active, payload }: PullTooltipProps) {
@@ -80,10 +90,12 @@ function PullTooltip({ active, payload }: PullTooltipProps) {
         <span className={pull.isKill ? "font-semibold text-green-400" : "font-semibold text-blue-300"}>{getProgressLabel(pull)}</span>
       </div>
       <div className="space-y-0.5 text-gray-400">
-        <div>
-          Fight progress: <span className="text-gray-200">{formatPercent(pull.fightPercentage)}</span>
-        </div>
-        {typeof pull.bossPercentage === "number" && (
+        {(pull.isKill || pull.progressSource === "fight") && (
+          <div>
+            Fight progress: <span className="text-gray-200">{formatPercent(pull.progressPercentage ?? 0)}</span>
+          </div>
+        )}
+        {hasUsableBossPercentage(pull) && (
           <div>
             Boss health: <span className="text-gray-200">{formatPercent(pull.bossPercentage)}</span>
           </div>
@@ -123,7 +135,14 @@ export default function PullProgressChart({ pullHistory }: PullProgressChartProp
   }
 
   const chartData = [...pullHistory].sort((a, b) => a.pullNumber - b.pullNumber);
-  const bestPull = chartData.reduce((best, pull) => (pull.fightPercentage < best.fightPercentage ? pull : best), chartData[0]);
+  const plottablePulls = chartData.filter((pull) => pull.progressPercentage !== null);
+  if (plottablePulls.length === 0) {
+    return null;
+  }
+
+  const bestPull = plottablePulls.reduce((best, pull) =>
+    (pull.progressPercentage ?? Number.POSITIVE_INFINITY) < (best.progressPercentage ?? Number.POSITIVE_INFINITY) ? pull : best,
+  );
   const showDots = chartData.length <= 90;
   const hasWclLinks = chartData.some((pull) => pull.url);
   const firstPullNumber = chartData[0].pullNumber;
@@ -244,11 +263,12 @@ export default function PullProgressChart({ pullHistory }: PullProgressChartProp
           <Tooltip content={<PullTooltip />} cursor={{ stroke: "#6B7280", strokeDasharray: "3 3" }} />
           <Line
             type="linear"
-            dataKey="fightPercentage"
+            dataKey="progressPercentage"
             stroke="#60A5FA"
             strokeWidth={2}
             dot={renderDot}
             activeDot={renderActiveDot}
+            connectNulls={false}
             isAnimationActive={false}
             name="Progress"
           />

@@ -36,7 +36,7 @@ export interface IFight extends Document {
   difficulty: number; // Difficulty ID (3=Normal, 4=Heroic, 5=Mythic)
   isKill: boolean; // Whether the boss was killed
   bossPercentage: number; // Boss health percentage remaining (0 = kill, 100 = wipe at start)
-  fightPercentage: number; // Overall fight progression percentage
+  fightPercentage: number; // Raw WCL fight progression; zero can also mean unavailable on old reports
   reportStartTime: number; // Report's start time (unix ms)
   reportEndTime: number; // Report's end time (unix ms)
   fightStartTime: number; // Fight start time relative to report start (ms)

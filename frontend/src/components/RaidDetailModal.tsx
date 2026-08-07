@@ -305,7 +305,7 @@ function BestPullCards({ pulls }: { pulls: BossBestPull[] }) {
   const getProgressLabel = (pull: BossBestPull) => {
     if (pull.isKill) return "Kill";
     if (pull.progressDisplay) return formatPhaseDisplay(pull.progressDisplay);
-    return formatPercent(pull.fightPercentage);
+    return pull.progressPercentage === null ? "-" : formatPercent(pull.progressPercentage);
   };
 
   return (

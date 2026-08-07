@@ -8,10 +8,14 @@ export interface BestPullPhase {
   displayString: string; // e.g., "45% P3"
 }
 
+export type FightProgressSource = "kill" | "fight" | "boss" | "unknown";
+
 // Pull history entry for progress charts
 export interface PullHistoryEntry {
   pullNumber: number;
-  fightPercentage: number; // 0-100, where 0 = kill, 100 = instant wipe
+  fightPercentage: number; // Raw WCL value; zero can also mean unavailable on old reports
+  progressPercentage: number | null; // Best usable progress metric for display
+  progressSource: FightProgressSource;
   phase?: string; // Phase identifier like "P1", "P2", "I1" etc.
   isKill: boolean;
   reportCode?: string;
@@ -37,6 +41,8 @@ export interface BossBestPull {
   duration: number; // seconds
   bossPercentage: number;
   fightPercentage: number;
+  progressPercentage: number | null;
+  progressSource: FightProgressSource;
   progressDisplay?: string;
   isKill: boolean;
   vodLinks?: Array<{
@@ -125,7 +131,7 @@ export interface BossProgress {
   bossId: number;
   bossName: string;
   kills: number;
-  bestPercent: number; // Best pull: lowest boss health % reached (0 = kill, 100 = no progress)
+  bestPercent: number; // Best pull: lowest resolved fight/boss progress % reached (0 = kill, 100 = no progress)
   pullCount: number;
   timeSpent: number;
   firstKillTime?: string;

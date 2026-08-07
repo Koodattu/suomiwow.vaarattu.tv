@@ -28,6 +28,7 @@ import guildProfileHighlightsService from "./guild-profile-highlights.service";
 import guildLogSourceService, { getGuildLogSourceSnapshot } from "./guild-log-source.service";
 import { yieldToEventLoop } from "../utils/yield";
 import { findDuplicateFight } from "../utils/fight-deduplication";
+import { resolveFightProgress } from "../utils/fight-progress";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
 
@@ -4040,6 +4041,7 @@ class GuildService {
       const isKill = fight.isKill;
       const bossPercent = fight.bossPercentage || 0;
       const fightPercent = fight.fightPercentage || 0;
+      const resolvedProgress = resolveFightProgress(fight);
       const duration = fight.duration / 1000; // Convert ms to seconds
       totalCombatTime += duration;
 
@@ -4132,8 +4134,8 @@ class GuildService {
         const vodCandidates = vodCandidateFightsByBoss.get(encounterId) || [];
         vodCandidates.push(fight);
         vodCandidates.sort((a, b) => {
-          const aProgress = a.isKill ? 0 : a.fightPercentage || 0;
-          const bProgress = b.isKill ? 0 : b.fightPercentage || 0;
+          const aProgress = resolveFightProgress(a).percentage ?? Number.POSITIVE_INFINITY;
+          const bProgress = resolveFightProgress(b).percentage ?? Number.POSITIVE_INFINITY;
           if (aProgress !== bProgress) return aProgress - bProgress;
           return b.timestamp.getTime() - a.timestamp.getTime();
         });
@@ -4154,10 +4156,11 @@ class GuildService {
         }
       } else {
         // Track best pull percentage for non-kills
-        // Use fightPercentage as it's more accurate
+        // Prefer fightPercentage, with bossPercentage as a fallback for reports
+        // where Warcraft Logs does not provide usable fight progress.
         // Only track best percent for pulls before first kill
-        if (shouldCountPull && fightPercent < bossData.bestPercent) {
-          bossData.bestPercent = fightPercent;
+        if (shouldCountPull && resolvedProgress.percentage !== null && resolvedProgress.percentage < bossData.bestPercent) {
+          bossData.bestPercent = resolvedProgress.percentage;
           // Store the report code and fight ID for the best pull
           bossData.bestPullReportCode = fight.reportCode;
           bossData.bestPullFightId = fight.fightId;
@@ -4168,7 +4171,7 @@ class GuildService {
               phaseId: fight.lastPhaseId,
               phaseName: fight.lastPhaseName,
               bossHealth: bossPercent,
-              fightCompletion: fightPercent,
+              fightCompletion: resolvedProgress.percentage,
               displayString: fight.progressDisplay || `${bossPercent.toFixed(1)}%`,
             };
           }
@@ -4359,8 +4362,8 @@ class GuildService {
 
       const bestFights = [...fights]
         .sort((a, b) => {
-          const aProgress = a.isKill ? 0 : a.fightPercentage || 0;
-          const bProgress = b.isKill ? 0 : b.fightPercentage || 0;
+          const aProgress = resolveFightProgress(a).percentage ?? Number.POSITIVE_INFINITY;
+          const bProgress = resolveFightProgress(b).percentage ?? Number.POSITIVE_INFINITY;
           if (aProgress !== bProgress) return aProgress - bProgress;
           return b.timestamp.getTime() - a.timestamp.getTime();
         })
@@ -5528,15 +5531,22 @@ class GuildService {
       fightQuery.timestamp = { $lte: firstKill.timestamp };
     }
 
-    let pullHistory = boss.pullHistory || [];
+    let pullHistory = (boss.pullHistory || []).map((pull: any) => {
+      const progress = resolveFightProgress(pull);
+      return {
+        ...pull,
+        progressPercentage: progress.percentage,
+        progressSource: progress.source,
+      };
+    });
     const historyFights = await Fight.find(fightQuery)
       .select("reportCode fightId encounterID difficulty timestamp duration bossPercentage fightPercentage isKill lastPhaseId lastPhaseName progressDisplay")
       .sort({ timestamp: 1 })
       .lean();
 
+    const uniqueHistoryFights: any[] = [];
     if (historyFights.length > 0) {
       const seenHistoryFights = new Map<string, any>();
-      const uniqueHistoryFights: any[] = [];
 
       for (const fight of historyFights) {
         const duplicateFight = findDuplicateFight(fight, seenHistoryFights);
@@ -5546,19 +5556,24 @@ class GuildService {
         uniqueHistoryFights.push(fight);
       }
 
-      pullHistory = uniqueHistoryFights.map((fight, index) => ({
-        pullNumber: index + 1,
-        fightPercentage: fight.isKill ? 0 : fight.fightPercentage || 0,
-        phase: fight.lastPhaseName ? this.getShortPhaseLabel(fight.lastPhaseName, fight.lastPhaseId || 1) : undefined,
-        isKill: fight.isKill,
-        reportCode: fight.reportCode,
-        fightId: fight.fightId,
-        url: this.getKillLogUrl(fight.reportCode, fight.fightId),
-        timestamp: fight.timestamp instanceof Date ? fight.timestamp.toISOString() : new Date(fight.timestamp).toISOString(),
-        duration: Math.round((fight.duration || 0) / 1000),
-        bossPercentage: fight.bossPercentage || 0,
-        progressDisplay: fight.progressDisplay,
-      }));
+      pullHistory = uniqueHistoryFights.map((fight, index) => {
+        const progress = resolveFightProgress(fight);
+        return {
+          pullNumber: index + 1,
+          fightPercentage: fight.isKill ? 0 : fight.fightPercentage || 0,
+          progressPercentage: progress.percentage,
+          progressSource: progress.source,
+          phase: fight.lastPhaseName ? this.getShortPhaseLabel(fight.lastPhaseName, fight.lastPhaseId || 1) : undefined,
+          isKill: fight.isKill,
+          reportCode: fight.reportCode,
+          fightId: fight.fightId,
+          url: this.getKillLogUrl(fight.reportCode, fight.fightId),
+          timestamp: fight.timestamp instanceof Date ? fight.timestamp.toISOString() : new Date(fight.timestamp).toISOString(),
+          duration: Math.round((fight.duration || 0) / 1000),
+          bossPercentage: fight.bossPercentage || 0,
+          progressDisplay: fight.progressDisplay,
+        };
+      });
     }
 
     // Calculate phase distribution (pullHistory already stores phases as P1, P2, I1, I2 format)
@@ -5575,23 +5590,18 @@ class GuildService {
       .map(([phase, count]) => ({ phase, count }))
       .sort((a, b) => b.count - a.count);
 
-    const candidateLimit = Math.max(25, Math.min((boss.pullCount || 25) * 2, 250));
-    const bestPullCandidates = await Fight.find(fightQuery)
-      .select("reportCode fightId timestamp duration bossPercentage fightPercentage isKill progressDisplay phaseTransitions fightStartTime fightEndTime")
-      .sort({ fightPercentage: 1, timestamp: -1 })
-      .limit(candidateLimit)
-      .lean();
+    const bestPullCandidates = uniqueHistoryFights
+      .map((fight) => ({ fight, progress: resolveFightProgress(fight) }))
+      .filter((candidate) => candidate.progress.percentage !== null)
+      .sort((a, b) => {
+        const progressDifference = (a.progress.percentage ?? Number.POSITIVE_INFINITY) - (b.progress.percentage ?? Number.POSITIVE_INFINITY);
+        if (progressDifference !== 0) return progressDifference;
+        return new Date(b.fight.timestamp).getTime() - new Date(a.fight.timestamp).getTime();
+      });
 
-    const seenFights = new Map<string, any>();
-    const bestFightByKey = new Map<string, any>();
     const bestPulls: any[] = [];
 
-    for (const fight of bestPullCandidates) {
-      const duplicateFight = findDuplicateFight(fight, seenFights);
-      if (duplicateFight) {
-        continue;
-      }
-
+    for (const { fight, progress } of bestPullCandidates.slice(0, 5)) {
       bestPulls.push({
         reportCode: fight.reportCode,
         fightId: fight.fightId,
@@ -5600,17 +5610,24 @@ class GuildService {
         duration: Math.round((fight.duration || 0) / 1000),
         bossPercentage: fight.bossPercentage || 0,
         fightPercentage: fight.isKill ? 0 : fight.fightPercentage || 0,
+        progressPercentage: progress.percentage,
+        progressSource: progress.source,
         progressDisplay: fight.progressDisplay,
         isKill: fight.isKill,
       });
-      bestFightByKey.set(`${fight.reportCode}:${fight.fightId}`, fight);
-
-      if (bestPulls.length === 5) {
-        break;
-      }
     }
 
     if (bestPulls.length > 0) {
+      const bestFightDetails = await Fight.find({
+        $or: bestPulls.map((pull) => ({
+          reportCode: pull.reportCode,
+          fightId: pull.fightId,
+        })),
+      })
+        .select("reportCode fightId duration isKill phaseTransitions fightStartTime fightEndTime")
+        .lean();
+      const bestFightByKey = new Map(bestFightDetails.map((fight) => [`${fight.reportCode}:${fight.fightId}`, fight]));
+
       const vodLinks = await FightVodLink.find({
         status: "resolved",
         availabilityStatus: { $ne: "unavailable" },

@@ -15,7 +15,7 @@ export interface IBestPullPhase {
 // Pull history entry for progress charts
 export interface IPullHistoryEntry {
   pullNumber: number;
-  fightPercentage: number; // 0-100, where 0 = kill, 100 = instant wipe
+  fightPercentage: number; // Raw WCL value; zero can also mean unavailable on old reports
   phase?: string; // Phase identifier like "P1", "P2", "I1" etc.
   isKill: boolean;
   reportCode?: string;
@@ -31,7 +31,7 @@ export interface IBossProgress {
   bossId: number;
   bossName: string;
   kills: number;
-  bestPercent: number; // Best pull: lowest fight completion % reached (0 = complete, 100 = no progress) - uses fightPercentage
+  bestPercent: number; // Best pull: lowest resolved fight/boss progress % reached (0 = complete, 100 = no progress)
   bestPhase?: number; // Best phase reached (for multi-phase bosses)
   pullCount: number;
   timeSpent: number; // in seconds

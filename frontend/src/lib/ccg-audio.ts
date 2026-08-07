@@ -1,4 +1,4 @@
-import type { CcgArtVariant, CcgFinish, CcgTierGrade } from "@/types";
+import type { CcgArtVariant, CcgFinish, CcgRaidFinish, CcgTierGrade } from "@/types";
 import { CCG_RARITY_KEYS, getCcgPullQualityScore } from "@/lib/ccg";
 import { getLocale, type Locale } from "@/lib/locale";
 
@@ -32,6 +32,29 @@ const CCG_ANNOUNCER_COMPONENT_VARIANTS: Record<Locale, readonly AnnouncerVariant
 
 const CCG_ANNOUNCER_EXCLAMATION_SCORE = 60;
 
+const CCG_ANNOUNCER_RECORDED_RAID_FINISHES = [
+  "relic",
+  "slagforged",
+  "felscorched",
+  "nightmare",
+  "nightwell",
+  "moonfall",
+  "worldcore",
+  "quarantine",
+  "tempest",
+  "abyssal",
+  "empire",
+  "sanguine",
+  "runebound",
+  "progenitor",
+  "primalstorm",
+  "shadowflame",
+  "emberbloom",
+  "royal",
+  "jackpot",
+  "phaseglass",
+] as const satisfies readonly CcgRaidFinish[];
+
 const CCG_ANNOUNCER_RECORDED_FINISHES = new Set<CcgFinish>([
   "standard",
   "foil",
@@ -42,7 +65,14 @@ const CCG_ANNOUNCER_RECORDED_FINISHES = new Set<CcgFinish>([
   "toxic",
   "negative",
   "astral",
+  ...CCG_ANNOUNCER_RECORDED_RAID_FINISHES,
 ]);
+
+const CCG_ANNOUNCER_RECORDED_RAID_KEYS = new Set<AnnouncerKey>(
+  CCG_ANNOUNCER_RECORDED_RAID_FINISHES.flatMap((finish) => (
+    Object.values(CCG_RARITY_KEYS).map((rarity): AnnouncerKey => `${finish}-${rarity}`)
+  )),
+);
 
 const CCG_ANNOUNCER_BASELINE_VOLUME: Record<Locale, number> = {
   en: 0.5,
@@ -282,7 +312,7 @@ export function getCcgAnnouncerSoundSequences(
   const rarity = CCG_RARITY_KEYS[tierGrade];
   const quality: AnnouncerQuality = CCG_ANNOUNCER_RECORDED_FINISHES.has(finish) ? finish : "unique";
   const key: AnnouncerKey = `${quality}-${rarity}`;
-  if (!CCG_ANNOUNCER_AVAILABILITY[locale][key]?.length) return [];
+  if (!CCG_ANNOUNCER_AVAILABILITY[locale][key]?.length && !CCG_ANNOUNCER_RECORDED_RAID_KEYS.has(key)) return [];
 
   const localePrefix = locale === "fi" ? "fi-" : "";
   const basePath = `/ccg/audio/announcer/components/${locale}`;
