@@ -87,8 +87,8 @@ export async function syncCharacterCardsFromMedia(
   if (!media.renderAssetId) return 0;
   const renderUrl = characterRenderStorageService.getPublicUrl(media.renderAssetId);
   // Existing URL-only cards are attached once during rollout. Once a card has an
-  // asset reference, later character refreshes must not change its appearance.
-  const result = await CcgCard.collection.updateMany(
+  // asset reference, later character refreshes must not replace its render bytes.
+  const attachmentResult = await CcgCard.collection.updateMany(
     { characterId, renderAssetId: null },
     {
       $set: {
@@ -100,7 +100,15 @@ export async function syncCharacterCardsFromMedia(
       },
     },
   );
-  return result.modifiedCount;
+  if (!media.renderFit) return attachmentResult.modifiedCount;
+
+  // Refresh derived fit metadata only when the immutable render bytes are the
+  // same asset already captured by the card.
+  const fitResult = await CcgCard.collection.updateMany(
+    { characterId, renderAssetId: media.renderAssetId },
+    { $set: { renderFit: media.renderFit } },
+  );
+  return attachmentResult.modifiedCount + fitResult.modifiedCount;
 }
 
 export async function syncCardsFromCurrentMedia(characterIds: readonly mongoose.Types.ObjectId[]): Promise<CharacterCardMediaSyncResult> {

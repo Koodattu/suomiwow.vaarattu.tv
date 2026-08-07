@@ -855,18 +855,16 @@ test("a newer canonical observation also expires an older manual override", () =
   );
 });
 
-test("backfills immutable render asset references onto URL-only CCG cards", async () => {
+test("backfills URL-only cards and refreshes fit metadata for matching immutable render assets", async () => {
   const cardCollection = CcgCard.collection as any;
   const originalUpdateMany = cardCollection.updateMany;
   const characterId = new mongoose.Types.ObjectId();
-  let capturedFilter: Record<string, any> | undefined;
-  let capturedUpdate: Record<string, any> | undefined;
+  const calls: Array<{ filter: Record<string, any>; update: Record<string, any> }> = [];
 
   try {
     cardCollection.updateMany = async (filter: Record<string, any>, update: Record<string, any>) => {
-      capturedFilter = filter;
-      capturedUpdate = update;
-      return { modifiedCount: 3 };
+      calls.push({ filter, update });
+      return { modifiedCount: filter.renderAssetId === null ? 3 : 2 };
     };
 
     const modified = await syncCharacterCardsFromMedia(characterId, {
@@ -876,13 +874,17 @@ test("backfills immutable render asset references onto URL-only CCG cards", asyn
       fetchedAt: new Date("2026-07-29T12:00:00.000Z"),
     });
 
-    assert.equal(modified, 3);
-    assert.equal(String(capturedFilter?.characterId), String(characterId));
-    assert.equal(capturedFilter?.renderAssetId, null);
-    assert.equal(capturedUpdate?.$set.renderUrl, "/api/ccg/media/assets/64f000000000000000000001");
-    assert.equal(String(capturedUpdate?.$set.renderAssetId), "64f000000000000000000001");
-    assert.deepEqual(capturedUpdate?.$set.renderFit, { top: 0, ground: 0.92, centerX: 0.48 });
-    assert.equal(capturedUpdate?.$set.avatarUrl, "https://example.test/current-avatar.jpg");
+    assert.equal(modified, 5);
+    assert.equal(calls.length, 2);
+    assert.equal(String(calls[0].filter.characterId), String(characterId));
+    assert.equal(calls[0].filter.renderAssetId, null);
+    assert.equal(calls[0].update.$set.renderUrl, "/api/ccg/media/assets/64f000000000000000000001");
+    assert.equal(String(calls[0].update.$set.renderAssetId), "64f000000000000000000001");
+    assert.deepEqual(calls[0].update.$set.renderFit, { top: 0, ground: 0.92, centerX: 0.48 });
+    assert.equal(calls[0].update.$set.avatarUrl, "https://example.test/current-avatar.jpg");
+    assert.equal(String(calls[1].filter.characterId), String(characterId));
+    assert.equal(String(calls[1].filter.renderAssetId), "64f000000000000000000001");
+    assert.deepEqual(calls[1].update, { $set: { renderFit: { top: 0, ground: 0.92, centerX: 0.48 } } });
   } finally {
     cardCollection.updateMany = originalUpdateMany;
   }

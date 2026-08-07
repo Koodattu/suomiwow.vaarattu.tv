@@ -10,6 +10,9 @@ const ALLOWED_RENDER_HOST = "render.worldofwarcraft.com";
 const MAX_RENDER_BYTES = 16 * 1024 * 1024;
 const MAX_INPUT_PIXELS = 64 * 1024 * 1024;
 const ALPHA_THRESHOLD = 1;
+const STANCE_TOP_ALPHA_THRESHOLD = 128;
+const STANCE_TOP_SOFT_LEAD_MIN_RATIO = 0.05;
+const STANCE_TOP_SOLID_MASS_MIN_RATIO = 0.5;
 const CROP_PADDING_PIXELS = 2;
 const STANCE_SCAN_HALF_WIDTH_RATIO = 0.1;
 const STANCE_GROUND_PERCENTILE = 0.85;
@@ -50,7 +53,7 @@ function assetUrl(assetId: mongoose.Types.ObjectId | string): string {
   return `${PUBLIC_ASSET_PREFIX}/${assetId}`;
 }
 
-function resolveStoragePath(storageKey: string): string {
+export function resolveCharacterRenderStoragePath(storageKey: string): string {
   const absolutePath = path.resolve(storageRoot, storageKey);
   if (!absolutePath.startsWith(`${storageRoot}${path.sep}`)) throw new Error("Invalid character render storage key");
   return absolutePath;
@@ -128,6 +131,8 @@ function analyzeAlpha(data: Buffer, width: number, height: number, channels: num
   let maxX = -1;
   let maxY = -1;
   let alphaMass = 0;
+  let solidAlphaMass = 0;
+  let solidTopY = height;
   let weightedX = 0;
   const horizontalAlphaMass = new Float64Array(width);
 
@@ -140,6 +145,10 @@ function analyzeAlpha(data: Buffer, width: number, height: number, channels: num
       maxX = Math.max(maxX, x);
       maxY = Math.max(maxY, y);
       alphaMass += alpha;
+      if (alpha >= STANCE_TOP_ALPHA_THRESHOLD) {
+        solidAlphaMass += alpha;
+        solidTopY = Math.min(solidTopY, y);
+      }
       weightedX += (x + 0.5) * alpha;
       horizontalAlphaMass[x] += alpha;
     }
@@ -169,6 +178,10 @@ function analyzeAlpha(data: Buffer, width: number, height: number, channels: num
   }
   stanceColumnBottoms.sort((left, right) => left - right);
   const groundIndex = Math.round((stanceColumnBottoms.length - 1) * STANCE_GROUND_PERCENTILE);
+  const silhouetteHeight = maxY - minY + 1;
+  const hasSoftEffectLead = solidTopY <= maxY
+    && solidTopY - minY >= silhouetteHeight * STANCE_TOP_SOFT_LEAD_MIN_RATIO
+    && solidAlphaMass >= alphaMass * STANCE_TOP_SOLID_MASS_MIN_RATIO;
 
   return {
     minX,
@@ -176,8 +189,43 @@ function analyzeAlpha(data: Buffer, width: number, height: number, channels: num
     maxX,
     maxY,
     centerX: weightedX / alphaMass,
+    stanceTopY: hasSoftEffectLead ? solidTopY : minY,
     stanceGroundY: stanceColumnBottoms[groundIndex] ?? maxY,
   };
+}
+
+function buildCharacterRenderFits(
+  bounds: ReturnType<typeof analyzeAlpha>,
+  frameLeft: number,
+  frameTop: number,
+  frameWidth: number,
+  frameHeight: number,
+): { silhouetteFit: CharacterRenderFit; stanceFit: CharacterRenderFit } {
+  const centerX = clampUnit((bounds.centerX - frameLeft) / frameWidth);
+  return {
+    silhouetteFit: {
+      top: clampUnit((bounds.minY - frameTop) / frameHeight),
+      ground: clampUnit((bounds.maxY + 1 - frameTop) / frameHeight),
+      centerX,
+    },
+    stanceFit: {
+      top: clampUnit((bounds.stanceTopY - frameTop) / frameHeight),
+      ground: clampUnit((bounds.stanceGroundY + 1 - frameTop) / frameHeight),
+      centerX,
+    },
+  };
+}
+
+export async function measureCharacterRenderFits(input: Buffer): Promise<{
+  silhouetteFit: CharacterRenderFit;
+  stanceFit: CharacterRenderFit;
+}> {
+  const decoded = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const bounds = analyzeAlpha(decoded.data, decoded.info.width, decoded.info.height, decoded.info.channels);
+  return buildCharacterRenderFits(bounds, 0, 0, decoded.info.width, decoded.info.height);
 }
 
 export async function processCharacterRender(input: Buffer) {
@@ -194,17 +242,7 @@ export async function processCharacterRender(input: Buffer) {
   const cropBottom = Math.min(metadata.height - 1, bounds.maxY + CROP_PADDING_PIXELS);
   const width = cropRight - cropLeft + 1;
   const height = cropBottom - cropTop + 1;
-  const relativeCenterX = clampUnit((bounds.centerX - cropLeft) / width);
-  const silhouetteFit: CharacterRenderFit = {
-    top: clampUnit((bounds.minY - cropTop) / height),
-    ground: clampUnit((bounds.maxY + 1 - cropTop) / height),
-    centerX: relativeCenterX,
-  };
-  const stanceFit: CharacterRenderFit = {
-    top: silhouetteFit.top,
-    ground: clampUnit((bounds.stanceGroundY + 1 - cropTop) / height),
-    centerX: relativeCenterX,
-  };
+  const { silhouetteFit, stanceFit } = buildCharacterRenderFits(bounds, cropLeft, cropTop, width, height);
   const output = await source
     .extract({ left: cropLeft, top: cropTop, width, height })
     .webp({ quality: 95, alphaQuality: 100, effort: 6, smartSubsample: true })
@@ -224,7 +262,7 @@ export async function processCharacterRender(input: Buffer) {
 }
 
 async function persistBytes(storageKey: string, bytes: Buffer): Promise<void> {
-  const filePath = resolveStoragePath(storageKey);
+  const filePath = resolveCharacterRenderStoragePath(storageKey);
   if (await fileExists(filePath)) return;
   await mkdir(path.dirname(filePath), { recursive: true });
   const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
@@ -322,7 +360,7 @@ class CharacterRenderStorageService {
     if (!mongoose.Types.ObjectId.isValid(assetId)) return null;
     const asset = await CharacterRenderAsset.findById(assetId);
     if (!asset) return null;
-    const filePath = resolveStoragePath(asset.storageKey);
+    const filePath = resolveCharacterRenderStoragePath(asset.storageKey);
     if (!(await fileExists(filePath))) {
       logger.error(`[CharacterRenderStorage] Missing file for asset ${assetId}`);
       return null;

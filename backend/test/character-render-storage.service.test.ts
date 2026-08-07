@@ -3,7 +3,7 @@ import test from "node:test";
 import mongoose from "mongoose";
 import sharp from "sharp";
 import CharacterRenderAsset from "../src/models/CharacterRenderAsset";
-import characterRenderStorageService, { CharacterRenderIngestError, processCharacterRender } from "../src/services/character-render-storage.service";
+import characterRenderStorageService, { CharacterRenderIngestError, measureCharacterRenderFits, processCharacterRender } from "../src/services/character-render-storage.service";
 
 function createRgba(width: number, height: number): Buffer {
   return Buffer.alloc(width * height * 4);
@@ -46,6 +46,56 @@ test("crops transparent character renders with safety padding and precomputes fi
 test("rejects renders with no visible alpha", async () => {
   const png = await sharp(createRgba(20, 20), { raw: { width: 20, height: 20, channels: 4 } }).png().toBuffer();
   await assert.rejects(() => processCharacterRender(png), /contained no visible pixels/);
+});
+
+test("ignores a tall soft effect when fitting the top of a solid stance", async () => {
+  const width = 100;
+  const height = 100;
+  const pixels = createRgba(width, height);
+  for (let y = 10; y < 25; y += 1) {
+    for (let x = 40; x < 60; x += 1) {
+      pixels[(y * width + x) * 4 + 3] = 32;
+    }
+  }
+  for (let y = 30; y < 80; y += 1) {
+    for (let x = 30; x < 70; x += 1) {
+      pixels[(y * width + x) * 4 + 3] = 255;
+    }
+  }
+  const png = await sharp(pixels, { raw: { width, height, channels: 4 } }).png().toBuffer();
+
+  const result = await processCharacterRender(png);
+
+  assert.equal(result.cropTop, 8);
+  assert.equal(result.height, 74);
+  assert.equal(result.silhouetteFit.top, 2 / 74);
+  assert.equal(result.stanceFit.top, 22 / 74);
+  assert.equal(result.stanceFit.ground, 72 / 74);
+  assert.deepEqual((await measureCharacterRenderFits(result.output)).stanceFit, result.stanceFit);
+});
+
+test("preserves the silhouette top for ordinary antialiasing and mostly translucent renders", async () => {
+  const width = 80;
+  const height = 80;
+  const antialiasedPixels = createRgba(width, height);
+  for (let x = 30; x < 50; x += 1) antialiasedPixels[(9 * width + x) * 4 + 3] = 32;
+  for (let y = 10; y < 50; y += 1) {
+    for (let x = 25; x < 55; x += 1) antialiasedPixels[(y * width + x) * 4 + 3] = 255;
+  }
+  const antialiasedPng = await sharp(antialiasedPixels, { raw: { width, height, channels: 4 } }).png().toBuffer();
+  const antialiasedResult = await processCharacterRender(antialiasedPng);
+  assert.equal(antialiasedResult.stanceFit.top, antialiasedResult.silhouetteFit.top);
+
+  const translucentPixels = createRgba(width, height);
+  for (let y = 10; y < 60; y += 1) {
+    for (let x = 25; x < 55; x += 1) translucentPixels[(y * width + x) * 4 + 3] = 96;
+  }
+  for (let y = 45; y < 55; y += 1) {
+    for (let x = 35; x < 45; x += 1) translucentPixels[(y * width + x) * 4 + 3] = 255;
+  }
+  const translucentPng = await sharp(translucentPixels, { raw: { width, height, channels: 4 } }).png().toBuffer();
+  const translucentResult = await processCharacterRender(translucentPng);
+  assert.equal(translucentResult.stanceFit.top, translucentResult.silhouetteFit.top);
 });
 
 test("saved-source ingestion falls back only for unusable render data", async () => {

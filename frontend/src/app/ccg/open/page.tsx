@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgBaseFinish, CcgBootstrapResponse, CcgFinish, CcgOpening } from "@/types";
@@ -121,6 +122,7 @@ function playRandomPackSound(sources: readonly string[], volume: number): void {
 export default function CcgOpenPage() {
   const t = useTranslations("ccg");
   const locale = useLocale() === "fi" ? "fi" : "en";
+  const router = useRouter();
   const { login, user, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const sessionQuery = useCcgSession(!authLoading);
@@ -383,10 +385,10 @@ export default function CcgOpenPage() {
       params.delete("opening");
       params.delete("revealed");
       const search = params.toString();
-      window.history.replaceState(null, "", `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`);
+      router.replace(`${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`, { scroll: false });
     }
     setRecoveryInitialized(true);
-  }, []);
+  }, [router]);
 
   useEffect(
     () => () => {
@@ -506,7 +508,7 @@ export default function CcgOpenPage() {
       else url.searchParams.delete("set");
       url.searchParams.set("opening", result.id);
       url.searchParams.delete("revealed");
-      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+      router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
       return result;
     },
     onSuccess: (result) => {
@@ -603,10 +605,6 @@ export default function CcgOpenPage() {
     setViewerOriginBounds(null);
     setRecoveryId("");
     revealedRecoveryIdRef.current = null;
-    const url = new URL(window.location.href);
-    url.searchParams.delete("opening");
-    url.searchParams.delete("revealed");
-    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   };
 
   const allRevealed = Boolean(opening) && revealedCards.size >= (opening?.results.length ?? 0);
