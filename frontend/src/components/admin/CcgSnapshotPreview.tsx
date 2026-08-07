@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import type { CcgAdminSnapshotPreview, CcgAdminSnapshotPreviewCounts, CcgAdminSnapshotSetPreview, CcgRegularTierGrade } from "@/types";
 
 type PreviewCharacter = CcgAdminSnapshotSetPreview["characters"][number];
+type AvailabilityCharacter = CcgAdminSnapshotPreview["availability"]["characters"][number];
 type OutcomeFilter = "all" | "will_add" | "will_update" | "missing_media";
 type RunAction = "snapshot" | "publication";
 
@@ -34,6 +36,14 @@ function matchesOutcome(character: PreviewCharacter, filter: OutcomeFilter): boo
       || character.disposition === "mythic_plus_score_added";
   }
   return isMissingMedia(character);
+}
+
+function getCharacterHref(character: Pick<PreviewCharacter, "name" | "realm" | "classID">): string {
+  return `/characters/${encodeURIComponent(character.realm)}/${encodeURIComponent(character.name)}?class=${encodeURIComponent(String(character.classID))}`;
+}
+
+function openCharacterProfile(character: Pick<PreviewCharacter, "name" | "realm" | "classID">): void {
+  window.open(getCharacterHref(character), "_blank", "noopener,noreferrer");
 }
 
 export default function CcgSnapshotPreview() {
@@ -87,7 +97,7 @@ export default function CcgSnapshotPreview() {
     };
     return (selectedSet?.characters ?? [])
       .filter((character) => matchesOutcome(character, outcomeFilter))
-      .filter((character) => !query || `${character.name} ${character.realm} ${character.region}`.toLocaleLowerCase(locale).includes(query))
+      .filter((character) => !query || `${character.name} ${character.realm} ${character.region} ${character.guildName ?? ""} ${character.guildRealm ?? ""}`.toLocaleLowerCase(locale).includes(query))
       .sort((left, right) => priority[left.disposition] - priority[right.disposition]
         || left.name.localeCompare(right.name, locale)
         || left.realm.localeCompare(right.realm, locale));
@@ -367,24 +377,45 @@ export default function CcgSnapshotPreview() {
                     </div>
                     {visibleCharacters.length > 0 ? (
                       <div className="max-h-[38rem] overflow-auto">
-                        <table className="w-full min-w-[58rem] table-fixed text-left text-xs">
+                        <table className="w-full min-w-[68rem] table-fixed text-left text-xs">
                           <thead className="sticky top-0 z-10 bg-gray-950/95 text-gray-500 shadow-[0_1px_0_rgba(255,255,255,0.08)]">
                             <tr>
-                              <th scope="col" className="w-[24%] px-3 py-2 font-semibold">{t("characterList.character")}</th>
-                              <th scope="col" className="w-[19%] px-3 py-2 font-semibold">{t("characterList.result")}</th>
-                              <th scope="col" className="w-[10%] px-3 py-2 font-semibold">{t("characterList.rarity")}</th>
-                              <th scope="col" className="w-[20%] px-3 py-2 font-semibold">{t("characterList.media")}</th>
-                              <th scope="col" className="w-[27%] px-3 py-2 font-semibold">{t("characterList.error")}</th>
+                              <th scope="col" className="w-[20%] px-3 py-2 font-semibold">{t("characterList.character")}</th>
+                              <th scope="col" className="w-[17%] px-3 py-2 font-semibold">{t("characterList.guild")}</th>
+                              <th scope="col" className="w-[18%] px-3 py-2 font-semibold">{t("characterList.result")}</th>
+                              <th scope="col" className="w-[9%] px-3 py-2 font-semibold">{t("characterList.rarity")}</th>
+                              <th scope="col" className="w-[18%] px-3 py-2 font-semibold">{t("characterList.media")}</th>
+                              <th scope="col" className="w-[18%] px-3 py-2 font-semibold">{t("characterList.error")}</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-white/5">
                             {visibleCharacters.map((character) => {
                               const blocked = isMissingMedia(character);
                               return (
-                                <tr key={character.characterId} className="text-gray-300 hover:bg-white/[0.025]">
-                                  <td className="truncate px-3 py-2" title={`${character.name}-${character.realm} (${character.region.toUpperCase()})`}>
-                                    <span className="font-semibold text-white">{character.name}</span>
-                                    <span className="text-gray-500"> · {character.realm} · {character.region.toUpperCase()}</span>
+                                <tr
+                                  key={character.characterId}
+                                  className="cursor-pointer text-gray-300 transition-colors hover:bg-white/[0.04]"
+                                  onClick={() => openCharacterProfile(character)}
+                                >
+                                  <td className="truncate px-3 py-0" title={`${character.name}-${character.realm} (${character.region.toUpperCase()})`}>
+                                    <Link
+                                      href={getCharacterHref(character)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex min-h-10 max-w-full items-center overflow-hidden text-white underline-offset-2 hover:text-cyan-200 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                                      onClick={(event) => event.stopPropagation()}
+                                    >
+                                      <span className="shrink-0 font-semibold">{character.name}</span>
+                                      <span className="truncate text-gray-500"> · {character.realm} · {character.region.toUpperCase()}</span>
+                                    </Link>
+                                  </td>
+                                  <td className="truncate px-3 py-2" title={character.guildName ? `${character.guildName} · ${character.guildRealm ?? ""}` : undefined}>
+                                    {character.guildName ? (
+                                      <>
+                                        <span className="font-medium text-gray-200">{character.guildName}</span>
+                                        {character.guildRealm ? <span className="text-gray-500"> · {character.guildRealm}</span> : null}
+                                      </>
+                                    ) : <span className="text-gray-600">—</span>}
                                   </td>
                                   <td className="px-3 py-2">
                                     <span className={`inline-flex rounded-full px-2 py-1 font-semibold ${blocked ? "bg-amber-950/70 text-amber-200" : character.disposition === "new_character" ? "bg-emerald-950/70 text-emerald-200" : "bg-cyan-950/70 text-cyan-200"}`}>
@@ -434,6 +465,81 @@ export default function CcgSnapshotPreview() {
                   </div>
                 </section>
               ) : null}
+
+              <section className="overflow-hidden rounded-xl bg-gray-900/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" aria-labelledby="ccg-availability-preview-title">
+                <div className="p-5 shadow-[inset_0_-1px_0_rgba(255,255,255,0.06)]">
+                  <h3 id="ccg-availability-preview-title" className="font-bold text-balance text-white">{t("availabilityPreview.title")}</h3>
+                  <p className="mt-1 max-w-4xl text-xs leading-5 text-pretty text-gray-500">{t("availabilityPreview.description")}</p>
+                  <dl className="mt-4 grid max-w-xl grid-cols-2 gap-3">
+                    <div className="rounded-lg bg-amber-950/35 p-3 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.18)]">
+                      <dt className="text-xs font-medium text-amber-200/75">{t("availabilityPreview.archiveCandidates")}</dt>
+                      <dd className="mt-1 text-xl font-bold tabular-nums text-amber-100">{preview.availability.archiveCandidates}</dd>
+                    </div>
+                    <div className="rounded-lg bg-emerald-950/35 p-3 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.18)]">
+                      <dt className="text-xs font-medium text-emerald-200/75">{t("availabilityPreview.returnCandidates")}</dt>
+                      <dd className="mt-1 text-xl font-bold tabular-nums text-emerald-100">{preview.availability.returnCandidates}</dd>
+                    </div>
+                  </dl>
+                </div>
+                {preview.availability.characters.length > 0 ? (
+                  <div className="max-h-[32rem] overflow-auto">
+                    <table className="w-full min-w-[64rem] table-fixed text-left text-xs">
+                      <thead className="sticky top-0 z-10 bg-gray-950/95 text-gray-500 shadow-[0_1px_0_rgba(255,255,255,0.08)]">
+                        <tr>
+                          <th scope="col" className="w-[24%] px-4 py-2 font-semibold">{t("characterList.character")}</th>
+                          <th scope="col" className="w-[20%] px-4 py-2 font-semibold">{t("characterList.guild")}</th>
+                          <th scope="col" className="w-[23%] px-4 py-2 font-semibold">{t("availabilityPreview.result")}</th>
+                          <th scope="col" className="w-[21%] px-4 py-2 font-semibold">{t("availabilityPreview.raidSets")}</th>
+                          <th scope="col" className="w-[12%] px-4 py-2 font-semibold">{t("availabilityPreview.lastCheck")}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {preview.availability.characters.map((character: AvailabilityCharacter) => (
+                          <tr
+                            key={character.characterId}
+                            className="cursor-pointer text-gray-300 transition-colors hover:bg-white/[0.04]"
+                            onClick={() => openCharacterProfile(character)}
+                          >
+                            <td className="truncate px-4 py-0" title={`${character.name}-${character.realm} (${character.region.toUpperCase()})`}>
+                              <Link
+                                href={getCharacterHref(character)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex min-h-10 max-w-full items-center overflow-hidden text-white underline-offset-2 hover:text-cyan-200 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <span className="shrink-0 font-semibold">{character.name}</span>
+                                <span className="truncate text-gray-500"> · {character.realm} · {character.region.toUpperCase()}</span>
+                              </Link>
+                            </td>
+                            <td className="truncate px-4 py-3" title={character.guildName ? `${character.guildName} · ${character.guildRealm ?? ""}` : undefined}>
+                              {character.guildName ? (
+                                <>
+                                  <span className="font-medium text-gray-200">{character.guildName}</span>
+                                  {character.guildRealm ? <span className="text-gray-500"> · {character.guildRealm}</span> : null}
+                                </>
+                              ) : <span className="text-gray-600">—</span>}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex rounded-full px-2 py-1 font-semibold ${character.disposition === "archive_if_not_found" ? "bg-amber-950/70 text-amber-200" : "bg-emerald-950/70 text-emerald-200"}`}>
+                                {t(`availabilityPreview.dispositions.${character.disposition}`)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-400">
+                              {character.raidNames.join(" · ")}
+                            </td>
+                            <td className="px-4 py-3 tabular-nums text-gray-500">
+                              {character.lastNotFoundAt ? compactDateFormatter.format(new Date(character.lastNotFoundAt)) : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="px-5 py-8 text-center text-sm text-pretty text-gray-500">{t("availabilityPreview.noCandidates")}</p>
+                )}
+              </section>
             </>
           )}
         </>

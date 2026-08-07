@@ -1339,9 +1339,10 @@
           "raidFilter": "Raid",
           "outcomeFilter": "Hahmojen tulossuodattimet",
           "searchLabel": "Etsi hahmo",
-          "searchPlaceholder": "Nimi, realm tai region",
+          "searchPlaceholder": "Nimi, kilta, realm tai region",
           "results": "Näytettävät hahmot",
           "character": "Hahmo",
+          "guild": "Kilta",
           "result": "Tulos",
           "rarity": "Harvinaisuus",
           "media": "Median tila",
@@ -1351,6 +1352,20 @@
           "noError": "Ei tallennettua virhettä",
           "noChanges": "Tälle raidille ei ole uusia kortteja, harvinaisuus-, class-, spec-, rooli- tai Mythic+-pistepäivityksiä eikä median estämiä muutoksia.",
           "noMatches": "Yksikään hahmo ei vastaa valittua tulosta ja hakuehtoa."
+        },
+        "availabilityPreview": {
+          "title": "Korttien saatavuusehdokkaat",
+          "description": "Tulokset ovat ehdollisia, koska esikatselu ei ota yhteyttä Blizzardiin. Vahvistusta odottava kortti arkistoituu vain, jos seuraava Armory-tarkistus antaa jälleen 404:n. Arkistoitu kortti palaa vasta onnistuneen tarkistuksen jälkeen.",
+          "archiveCandidates": "Arkistoituu uudesta 404:stä",
+          "returnCandidates": "Palaa onnistuneella tarkistuksella",
+          "result": "Ehdollinen tulos",
+          "raidSets": "Raidipakat",
+          "lastCheck": "Viimeisin 404",
+          "dispositions": {
+            "archive_if_not_found": "Arkistoituu, jos seuraava tarkistus antaa 404:n",
+            "return_if_available": "Palaa, jos seuraava tarkistus onnistuu"
+          },
+          "noCandidates": "Yksikään kortti ei odota arkistoinnin vahvistusta tai paluuta."
         },
         "metrics": {
           "eligible": "Kelvolliset hahmot",

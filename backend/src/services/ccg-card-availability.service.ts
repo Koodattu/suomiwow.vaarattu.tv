@@ -1,9 +1,11 @@
 import mongoose from "mongoose";
+import { CCG_CARD_NOT_FOUND_CONFIRMATION_MS } from "../config/ccg";
 import CcgCard, { CcgCardAvailabilityStatus } from "../models/CcgCard";
 import logger from "../utils/logger";
 import cacheService from "./cache.service";
 
-export const CCG_CARD_NOT_FOUND_CONFIRMATION_MS = 24 * 60 * 60 * 1000;
+export { CCG_CARD_NOT_FOUND_CONFIRMATION_MS } from "../config/ccg";
+
 const LEADERBOARD_REFRESH_DEBOUNCE_MS = 5_000;
 
 let leaderboardRefreshTimer: NodeJS.Timeout | null = null;

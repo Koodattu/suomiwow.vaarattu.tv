@@ -2588,6 +2588,9 @@ export type CcgAdminSnapshotSetPreview = CcgAdminSnapshotPreviewCounts & {
     name: string;
     realm: string;
     region: string;
+    classID: number;
+    guildName: string | null;
+    guildRealm: string | null;
     disposition:
       | "new_character"
       | "rarity_change"
@@ -2611,6 +2614,22 @@ export type CcgAdminSnapshotPreview = {
   calculatedAt: string;
   sets: CcgAdminSnapshotSetPreview[];
   totals: CcgAdminSnapshotPreviewCounts;
+  availability: {
+    archiveCandidates: number;
+    returnCandidates: number;
+    characters: Array<{
+      characterId: string;
+      name: string;
+      realm: string;
+      region: string;
+      classID: number;
+      guildName: string | null;
+      guildRealm: string | null;
+      disposition: "archive_if_not_found" | "return_if_available";
+      lastNotFoundAt: string | null;
+      raidNames: string[];
+    }>;
+  };
 };
 
 export type CcgAdminReadinessBlocker = "eligible_population" | "media_ready" | "media_coverage" | "already_enabled";

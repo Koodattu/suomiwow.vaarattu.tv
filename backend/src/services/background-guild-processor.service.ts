@@ -540,7 +540,11 @@ class BackgroundGuildProcessor {
         // Don't fail the queue item for stats calculation failure
       }
 
-      // Mark as completed
+      // Keep full rescans as the report-intake step, then hand the stored reports
+      // to the existing retryable fight-detail and character-appearance jobs.
+      await this.queueFullRescanFollowUps(guild);
+
+      // Mark as completed only after all required follow-ups are safely queued.
       await queueItem.markCompleted();
 
       // Invalidate ALL guild-related caches after new guild is processed
@@ -1389,6 +1393,19 @@ class BackgroundGuildProcessor {
 
     this.validBossIdsCache = validBossIds;
     return validBossIds;
+  }
+
+  private async queueFullRescanFollowUps(guild: IGuild): Promise<void> {
+    const guildLog = getGuildLogger(guild.name, guild.realm);
+    const followUps: Array<{ jobType: JobType; priority: number }> = [
+      { jobType: "rescan_deaths", priority: 15 },
+      { jobType: "backfill_report_characters", priority: 20 },
+    ];
+
+    for (const followUp of followUps) {
+      const queueItem = await this.queueGuild(guild, followUp.priority, followUp.jobType);
+      guildLog.info(`[BackgroundProcessor] Full-rescan follow-up ${followUp.jobType} is ${queueItem.status}`);
+    }
   }
 
   /**

@@ -1,4 +1,5 @@
-import { CcgRegularTierGrade, CcgTierGrade } from "../config/ccg";
+import { CCG_CARD_NOT_FOUND_CONFIRMATION_MS, CcgRegularTierGrade, CcgTierGrade } from "../config/ccg";
+import type { CcgCardAvailabilityStatus } from "../models/CcgCard";
 
 export type CcgSnapshotPreviewCandidate = {
   characterId: string;
@@ -45,6 +46,67 @@ export type CcgSnapshotPreviewDisposition =
   | "blocked_rarity_change"
   | "blocked_identity_change"
   | "blocked_mythic_plus_score_added";
+
+type CcgCardAvailabilitySnapshot = {
+  availabilityStatus?: CcgCardAvailabilityStatus | null;
+  availabilityFirstNotFoundAt?: Date | null;
+  availabilityLastNotFoundAt?: Date | null;
+  availabilityChangedAt?: Date | null;
+};
+
+export type CcgAvailabilityPreviewDisposition = "archive_if_not_found" | "return_if_available";
+
+export function getCcgAvailabilityPreviewDisposition(
+  card: CcgCardAvailabilitySnapshot,
+  calculatedAt: Date,
+): CcgAvailabilityPreviewDisposition | null {
+  if (card.availabilityStatus === "archived") return "return_if_available";
+  if (
+    card.availabilityStatus === "verification_pending"
+    && card.availabilityFirstNotFoundAt
+    && card.availabilityLastNotFoundAt
+    && card.availabilityFirstNotFoundAt.getTime() <= calculatedAt.getTime() - CCG_CARD_NOT_FOUND_CONFIRMATION_MS
+  ) return "archive_if_not_found";
+  return null;
+}
+
+export function inheritCcgCardAvailability(
+  latestCard: CcgCardAvailabilitySnapshot | null | undefined,
+): Required<CcgCardAvailabilitySnapshot> {
+  return {
+    availabilityStatus: latestCard?.availabilityStatus ?? "active",
+    availabilityFirstNotFoundAt: latestCard?.availabilityFirstNotFoundAt ?? null,
+    availabilityLastNotFoundAt: latestCard?.availabilityLastNotFoundAt ?? null,
+    availabilityChangedAt: latestCard?.availabilityChangedAt ?? null,
+  };
+}
+
+export function combineCcgCardAvailability(
+  cards: readonly CcgCardAvailabilitySnapshot[],
+): Required<CcgCardAvailabilitySnapshot> | null {
+  if (cards.length === 0) return null;
+  const snapshots = cards.map(inheritCcgCardAvailability);
+  return {
+    availabilityStatus: snapshots.some((card) => card.availabilityStatus === "archived")
+      ? "archived"
+      : snapshots.some((card) => card.availabilityStatus === "verification_pending") ? "verification_pending" : "active",
+    availabilityFirstNotFoundAt: snapshots.reduce<Date | null>((earliest, card) => (
+      card.availabilityFirstNotFoundAt && (!earliest || card.availabilityFirstNotFoundAt < earliest)
+        ? card.availabilityFirstNotFoundAt
+        : earliest
+    ), null),
+    availabilityLastNotFoundAt: snapshots.reduce<Date | null>((latest, card) => (
+      card.availabilityLastNotFoundAt && (!latest || card.availabilityLastNotFoundAt > latest)
+        ? card.availabilityLastNotFoundAt
+        : latest
+    ), null),
+    availabilityChangedAt: snapshots.reduce<Date | null>((latest, card) => (
+      card.availabilityChangedAt && (!latest || card.availabilityChangedAt > latest)
+        ? card.availabilityChangedAt
+        : latest
+    ), null),
+  };
+}
 
 export function shouldPublishCcgCardSnapshot(
   latestCard: ExistingCcgSnapshotIdentity | null | undefined,
