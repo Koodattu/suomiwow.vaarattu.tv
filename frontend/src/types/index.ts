@@ -2616,8 +2616,8 @@ export type CcgAdminSnapshotPreview = {
   sets: CcgAdminSnapshotSetPreview[];
   totals: CcgAdminSnapshotPreviewCounts;
   availability: {
-    archiveCandidates: number;
-    returnCandidates: number;
+    archivedWithoutRender: number;
+    restoreWithStoredRender: number;
     characters: Array<{
       characterId: string;
       name: string;
@@ -2626,7 +2626,7 @@ export type CcgAdminSnapshotPreview = {
       classID: number;
       guildName: string | null;
       guildRealm: string | null;
-      disposition: "archive_if_not_found" | "return_if_available";
+      disposition: "archived_without_render" | "restore_with_stored_render";
       lastNotFoundAt: string | null;
       raidNames: string[];
     }>;

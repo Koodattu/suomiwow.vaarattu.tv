@@ -1354,18 +1354,18 @@
           "noMatches": "No characters match the selected result and search filters."
         },
         "availabilityPreview": {
-          "title": "Card availability candidates",
-          "description": "These results are conditional because the read-only preview does not contact Blizzard. A verification-pending card archives only if its next Armory check is another 404; an archived card returns only after a successful check.",
-          "archiveCandidates": "Archive on another 404",
-          "returnCandidates": "Return on successful check",
-          "result": "Conditional result",
+          "title": "Card archive policy",
+          "description": "The preview is read-only. A card without a locally stored render archives on its first Blizzard 404 and returns after a later successful fetch. A locally stored render always keeps the card active.",
+          "archivedWithoutRender": "Archived without a stored render",
+          "restoreWithStoredRender": "Restore with stored render",
+          "result": "Policy result",
           "raidSets": "Raid packs",
           "lastCheck": "Latest 404",
           "dispositions": {
-            "archive_if_not_found": "Archives if the next check is 404",
-            "return_if_available": "Returns if the next check succeeds"
+            "archived_without_render": "Archived · waiting to reappear",
+            "restore_with_stored_render": "Restore · stored render"
           },
-          "noCandidates": "No cards are currently ready for archive confirmation or waiting to return."
+          "noCandidates": "No non-active cards need an archive-policy decision."
         },
         "metrics": {
           "eligible": "Eligible characters",

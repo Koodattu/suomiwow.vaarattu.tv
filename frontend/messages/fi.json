@@ -1354,18 +1354,18 @@
           "noMatches": "Yksikään hahmo ei vastaa valittua tulosta ja hakuehtoa."
         },
         "availabilityPreview": {
-          "title": "Korttien saatavuusehdokkaat",
-          "description": "Tulokset ovat ehdollisia, koska esikatselu ei ota yhteyttä Blizzardiin. Vahvistusta odottava kortti arkistoituu vain, jos seuraava Armory-tarkistus antaa jälleen 404:n. Arkistoitu kortti palaa vasta onnistuneen tarkistuksen jälkeen.",
-          "archiveCandidates": "Arkistoituu uudesta 404:stä",
-          "returnCandidates": "Palaa onnistuneella tarkistuksella",
-          "result": "Ehdollinen tulos",
+          "title": "Korttien arkistointisääntö",
+          "description": "Esikatselu on vain luku -tilassa. Kortti ilman paikallisesti tallennettua renderiä arkistoituu Blizzardin ensimmäisestä 404-vastauksesta ja palaa myöhemmän onnistuneen haun jälkeen. Paikallisesti tallennettu render pitää kortin aina aktiivisena.",
+          "archivedWithoutRender": "Arkistoitu ilman tallennettua renderiä",
+          "restoreWithStoredRender": "Palauta tallennetulla renderillä",
+          "result": "Säännön tulos",
           "raidSets": "Raidipakat",
           "lastCheck": "Viimeisin 404",
           "dispositions": {
-            "archive_if_not_found": "Arkistoituu, jos seuraava tarkistus antaa 404:n",
-            "return_if_available": "Palaa, jos seuraava tarkistus onnistuu"
+            "archived_without_render": "Arkistoitu · odottaa paluuta",
+            "restore_with_stored_render": "Palauta · render tallennettu"
           },
-          "noCandidates": "Yksikään kortti ei odota arkistoinnin vahvistusta tai paluuta."
+          "noCandidates": "Yksikään ei-aktiivinen kortti ei tarvitse arkistointisäännön mukaista käsittelyä."
         },
         "metrics": {
           "eligible": "Kelvolliset hahmot",

@@ -54,10 +54,7 @@ import {
 import { createWowCharacterIdentityKey } from "../src/utils/ccg-identity";
 import { getTransferableGuestPacks, resolveGuestClaimOpeningId, verifyGuestLibrary } from "../src/utils/ccg-guest-library";
 import {
-  combineCcgCardAvailability,
-  getCcgAvailabilityPreviewDisposition,
   getCcgSnapshotPreviewDisposition,
-  inheritCcgCardAvailability,
   nextCcgCardSnapshotVersion,
   shouldPublishCcgCardSnapshot,
   summarizeCcgSnapshotPreview,
@@ -112,54 +109,6 @@ test("card snapshot versions advance without requiring a legacy version field", 
   assert.equal(nextCcgCardSnapshotVersion(null), 1);
   assert.equal(nextCcgCardSnapshotVersion({}), 2);
   assert.equal(nextCcgCardSnapshotVersion({ snapshotVersion: 2 }), 3);
-});
-
-test("availability preview only flags conditional transitions that are ready for a recheck", () => {
-  const calculatedAt = new Date("2026-08-07T12:00:00.000Z");
-  assert.equal(getCcgAvailabilityPreviewDisposition({ availabilityStatus: "active" }, calculatedAt), null);
-  assert.equal(getCcgAvailabilityPreviewDisposition({
-    availabilityStatus: "verification_pending",
-    availabilityFirstNotFoundAt: new Date("2026-08-06T13:00:00.000Z"),
-    availabilityLastNotFoundAt: new Date("2026-08-06T13:00:00.000Z"),
-  }, calculatedAt), null);
-  assert.equal(getCcgAvailabilityPreviewDisposition({
-    availabilityStatus: "verification_pending",
-    availabilityFirstNotFoundAt: new Date("2026-08-06T12:00:00.000Z"),
-    availabilityLastNotFoundAt: new Date("2026-08-06T12:00:00.000Z"),
-  }, calculatedAt), "archive_if_not_found");
-  assert.equal(getCcgAvailabilityPreviewDisposition({ availabilityStatus: "archived" }, calculatedAt), "return_if_available");
-});
-
-test("new snapshots inherit the previous card availability state", () => {
-  const firstNotFoundAt = new Date("2026-08-01T10:00:00.000Z");
-  const lastNotFoundAt = new Date("2026-08-02T10:00:00.000Z");
-  const changedAt = new Date("2026-08-02T10:00:00.000Z");
-  assert.deepEqual(inheritCcgCardAvailability(null), {
-    availabilityStatus: "active",
-    availabilityFirstNotFoundAt: null,
-    availabilityLastNotFoundAt: null,
-    availabilityChangedAt: null,
-  });
-  assert.deepEqual(inheritCcgCardAvailability({
-    availabilityStatus: "archived",
-    availabilityFirstNotFoundAt: firstNotFoundAt,
-    availabilityLastNotFoundAt: lastNotFoundAt,
-    availabilityChangedAt: changedAt,
-  }), {
-    availabilityStatus: "archived",
-    availabilityFirstNotFoundAt: firstNotFoundAt,
-    availabilityLastNotFoundAt: lastNotFoundAt,
-    availabilityChangedAt: changedAt,
-  });
-  assert.deepEqual(combineCcgCardAvailability([
-    { availabilityStatus: "verification_pending", availabilityFirstNotFoundAt: firstNotFoundAt, availabilityLastNotFoundAt: firstNotFoundAt },
-    { availabilityStatus: "archived", availabilityFirstNotFoundAt: lastNotFoundAt, availabilityLastNotFoundAt: lastNotFoundAt, availabilityChangedAt: changedAt },
-  ]), {
-    availabilityStatus: "archived",
-    availabilityFirstNotFoundAt: firstNotFoundAt,
-    availabilityLastNotFoundAt: lastNotFoundAt,
-    availabilityChangedAt: changedAt,
-  });
 });
 
 test("snapshot previews separate new characters, rarity changes, unchanged cards, and missing media", () => {

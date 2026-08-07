@@ -472,12 +472,12 @@ export default function CcgSnapshotPreview() {
                   <p className="mt-1 max-w-4xl text-xs leading-5 text-pretty text-gray-500">{t("availabilityPreview.description")}</p>
                   <dl className="mt-4 grid max-w-xl grid-cols-2 gap-3">
                     <div className="rounded-lg bg-amber-950/35 p-3 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.18)]">
-                      <dt className="text-xs font-medium text-amber-200/75">{t("availabilityPreview.archiveCandidates")}</dt>
-                      <dd className="mt-1 text-xl font-bold tabular-nums text-amber-100">{preview.availability.archiveCandidates}</dd>
+                      <dt className="text-xs font-medium text-amber-200/75">{t("availabilityPreview.archivedWithoutRender")}</dt>
+                      <dd className="mt-1 text-xl font-bold tabular-nums text-amber-100">{preview.availability.archivedWithoutRender}</dd>
                     </div>
                     <div className="rounded-lg bg-emerald-950/35 p-3 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.18)]">
-                      <dt className="text-xs font-medium text-emerald-200/75">{t("availabilityPreview.returnCandidates")}</dt>
-                      <dd className="mt-1 text-xl font-bold tabular-nums text-emerald-100">{preview.availability.returnCandidates}</dd>
+                      <dt className="text-xs font-medium text-emerald-200/75">{t("availabilityPreview.restoreWithStoredRender")}</dt>
+                      <dd className="mt-1 text-xl font-bold tabular-nums text-emerald-100">{preview.availability.restoreWithStoredRender}</dd>
                     </div>
                   </dl>
                 </div>
@@ -521,7 +521,7 @@ export default function CcgSnapshotPreview() {
                               ) : <span className="text-gray-600">—</span>}
                             </td>
                             <td className="px-4 py-3">
-                              <span className={`inline-flex rounded-full px-2 py-1 font-semibold ${character.disposition === "archive_if_not_found" ? "bg-amber-950/70 text-amber-200" : "bg-emerald-950/70 text-emerald-200"}`}>
+                              <span className={`inline-flex rounded-full px-2 py-1 font-semibold ${character.disposition === "archived_without_render" ? "bg-amber-950/70 text-amber-200" : "bg-emerald-950/70 text-emerald-200"}`}>
                                 {t(`availabilityPreview.dispositions.${character.disposition}`)}
                               </span>
                             </td>

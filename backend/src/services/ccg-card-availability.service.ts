@@ -1,34 +1,16 @@
 import mongoose from "mongoose";
-import { CCG_CARD_NOT_FOUND_CONFIRMATION_MS } from "../config/ccg";
 import CcgCard, { CcgCardAvailabilityStatus } from "../models/CcgCard";
+import CharacterRenderAsset from "../models/CharacterRenderAsset";
 import logger from "../utils/logger";
 import cacheService from "./cache.service";
-
-export { CCG_CARD_NOT_FOUND_CONFIRMATION_MS } from "../config/ccg";
 
 const LEADERBOARD_REFRESH_DEBOUNCE_MS = 5_000;
 
 let leaderboardRefreshTimer: NodeJS.Timeout | null = null;
 let leaderboardRefreshNeeded = false;
 
-type AvailabilityEvidence = {
-  status?: CcgCardAvailabilityStatus | null;
-  firstNotFoundAt?: Date | null;
-  lastNotFoundAt?: Date | null;
-};
-
-export function resolveCcgCardNotFoundStatus(
-  evidence: AvailabilityEvidence,
-  observedAt: Date,
-): CcgCardAvailabilityStatus {
-  if (evidence.status === "archived") return "archived";
-  const firstNotFoundAt = evidence.firstNotFoundAt;
-  const hasEarlierObservation = Boolean(evidence.lastNotFoundAt);
-  return hasEarlierObservation
-    && firstNotFoundAt instanceof Date
-    && firstNotFoundAt.getTime() <= observedAt.getTime() - CCG_CARD_NOT_FOUND_CONFIRMATION_MS
-    ? "archived"
-    : "verification_pending";
+export function resolveCcgCardNotFoundStatus(hasStoredRender: boolean): CcgCardAvailabilityStatus {
+  return hasStoredRender ? "active" : "archived";
 }
 
 type CardAvailabilityRow = {
@@ -130,17 +112,20 @@ class CcgCardAvailabilityService {
     characterId: mongoose.Types.ObjectId,
     observedAt = new Date(),
   ): Promise<CcgCardAvailabilityTransition> {
-    const rows = await this.loadRows(characterId);
+    const [rows, storedRender] = await Promise.all([
+      this.loadRows(characterId),
+      CharacterRenderAsset.exists({ characterId, status: "active" }),
+    ]);
     if (rows.length === 0) {
       return { characterId, previousStatus: null, status: null, cardSnapshots: 0, setsRebuilt: 0 };
+    }
+    if (resolveCcgCardNotFoundStatus(Boolean(storedRender)) === "active") {
+      return this.noteAvailable(characterId, observedAt);
     }
     const previousStatus = combinedStatus(rows);
     const firstNotFoundAt = earliestDate(rows, "availabilityFirstNotFoundAt") ?? observedAt;
     const lastNotFoundAt = latestDate(rows, "availabilityLastNotFoundAt");
-    const status = resolveCcgCardNotFoundStatus(
-      { status: previousStatus, firstNotFoundAt, lastNotFoundAt },
-      observedAt,
-    );
+    const status = resolveCcgCardNotFoundStatus(false);
     const previousChangedAt = latestDate(rows, "availabilityChangedAt");
     const setIds = [...new Map(rows.map((row) => [String(row.setId), row.setId])).values()];
 

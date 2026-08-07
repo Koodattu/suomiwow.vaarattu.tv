@@ -3,6 +3,7 @@ import test from "node:test";
 import mongoose from "mongoose";
 import CcgCard from "../src/models/CcgCard";
 import CcgSet from "../src/models/CcgSet";
+import CharacterRenderAsset from "../src/models/CharacterRenderAsset";
 import ccgPublisherService from "../src/services/ccg-publisher.service";
 
 function queryResult<T>(value: T) {
@@ -13,18 +14,20 @@ function queryResult<T>(value: T) {
   };
 }
 
-test("snapshot preview exposes live guilds, profile identity, and conditional availability candidates", async () => {
+test("snapshot preview exposes live guilds, profile identity, and archive-policy outcomes", async () => {
   const setId = new mongoose.Types.ObjectId();
   const characterId = new mongoose.Types.ObjectId();
   const archivedCharacterId = new mongoose.Types.ObjectId();
   const guildId = new mongoose.Types.ObjectId();
   const setModel = CcgSet as any;
   const cardModel = CcgCard as any;
+  const renderAssetModel = CharacterRenderAsset as any;
   const publisher = ccgPublisherService as any;
   const originals = {
     setFind: setModel.find,
     cardFind: cardModel.find,
     cardAggregate: cardModel.aggregate,
+    renderAssetDistinct: renderAssetModel.distinct,
     loadSnapshotPopulation: publisher.loadSnapshotPopulation,
     loadContinuityMedia: publisher.loadContinuityMedia,
     loadMythicPlusScoresByCharacter: publisher.loadMythicPlusScoresByCharacter,
@@ -40,6 +43,7 @@ test("snapshot preview exposes live guilds, profile identity, and conditional av
     };
     setModel.find = () => ({ sort: async () => [enabledSet] });
     cardModel.find = () => queryResult([]);
+    renderAssetModel.distinct = async () => [characterId];
     cardModel.aggregate = async () => [
       {
         setId,
@@ -126,16 +130,17 @@ test("snapshot preview exposes live guilds, profile identity, and conditional av
       lastErrorCode: null,
       lastError: null,
     });
-    assert.equal(preview.availability.archiveCandidates, 1);
-    assert.equal(preview.availability.returnCandidates, 1);
+    assert.equal(preview.availability.archivedWithoutRender, 1);
+    assert.equal(preview.availability.restoreWithStoredRender, 1);
     assert.deepEqual(
       preview.availability.characters.map((character: any) => [character.name, character.disposition]),
-      [["Shenzinile", "archive_if_not_found"], ["Archived", "return_if_available"]],
+      [["Archived", "archived_without_render"], ["Shenzinile", "restore_with_stored_render"]],
     );
   } finally {
     setModel.find = originals.setFind;
     cardModel.find = originals.cardFind;
     cardModel.aggregate = originals.cardAggregate;
+    renderAssetModel.distinct = originals.renderAssetDistinct;
     publisher.loadSnapshotPopulation = originals.loadSnapshotPopulation;
     publisher.loadContinuityMedia = originals.loadContinuityMedia;
     publisher.loadMythicPlusScoresByCharacter = originals.loadMythicPlusScoresByCharacter;

@@ -29,7 +29,7 @@ import CcgPublicationCandidate from "../models/CcgPublicationCandidate";
 import CcgSet, { ICcgSet } from "../models/CcgSet";
 import Character from "../models/Character";
 import CharacterMedia, { CharacterMediaStatus } from "../models/CharacterMedia";
-import { CharacterRenderFit } from "../models/CharacterRenderAsset";
+import CharacterRenderAsset, { CharacterRenderFit } from "../models/CharacterRenderAsset";
 import CharacterMythicPlusSeasonScore from "../models/CharacterMythicPlusSeasonScore";
 import CharacterTierListEntry from "../models/CharacterTierListEntry";
 import { gradeForPercentile, resolveCardCrop } from "../utils/ccg-random";
@@ -37,13 +37,9 @@ import { buildCcgCardSearchCandidates } from "../utils/ccg-card-search";
 import { createCharacterCollectorKey } from "../utils/ccg-identity";
 import { CcgReadinessBlocker, evaluateCcgReadiness } from "../utils/ccg-readiness";
 import {
-  CcgAvailabilityPreviewDisposition,
   CcgSnapshotPreviewDisposition,
   CcgSnapshotPreviewSummary,
-  combineCcgCardAvailability,
-  getCcgAvailabilityPreviewDisposition,
   getCcgSnapshotPreviewDisposition,
-  inheritCcgCardAvailability,
   nextCcgCardSnapshotVersion,
   shouldPublishCcgCardSnapshot,
   summarizeCcgSnapshotPreview,
@@ -119,6 +115,8 @@ type CcgCollectionGuildSource = {
   guildRealm?: string | null;
 };
 
+type CcgAvailabilityPreviewDisposition = "archived_without_render" | "restore_with_stored_render";
+
 export type CcgSnapshotSetPreview = CcgSnapshotPreviewSummary & {
   setId: string;
   zoneId: number;
@@ -149,8 +147,8 @@ export type CcgNextSnapshotPreview = {
   sets: CcgSnapshotSetPreview[];
   totals: Omit<CcgSnapshotPreviewSummary, "gradeDistribution">;
   availability: {
-    archiveCandidates: number;
-    returnCandidates: number;
+    archivedWithoutRender: number;
+    restoreWithStoredRender: number;
     characters: Array<{
       characterId: string;
       name: string;
@@ -681,10 +679,7 @@ class CcgPublisherService {
       classID: number;
       guildName?: string | null;
       guildRealm?: string | null;
-      availabilityStatus: "active" | "verification_pending" | "archived";
-      availabilityFirstNotFoundAt?: Date | null;
       availabilityLastNotFoundAt?: Date | null;
-      availabilityChangedAt?: Date | null;
       publishedAt: Date;
     }>([
       { $match: { setId: { $in: enabledSets.map((set) => set._id) } } },
@@ -702,14 +697,19 @@ class CcgPublisherService {
           classID: 1,
           guildName: 1,
           guildRealm: 1,
-          availabilityStatus: 1,
-          availabilityFirstNotFoundAt: 1,
           availabilityLastNotFoundAt: 1,
-          availabilityChangedAt: 1,
           publishedAt: 1,
         },
       },
     ]);
+    const activeStoredRenderCharacterIds = new Set(
+      availabilityCards.length === 0
+        ? []
+        : (await CharacterRenderAsset.distinct("characterId", {
+          characterId: { $in: availabilityCards.map((card) => card.characterId) },
+          status: "active",
+        })).map(String),
+    );
     const availabilityCardsByCharacter = new Map<string, typeof availabilityCards>();
     for (const card of availabilityCards) {
       const characterId = String(card.characterId);
@@ -719,26 +719,13 @@ class CcgPublisherService {
     }
     const availabilityCharacters = Array.from(availabilityCardsByCharacter, ([characterId, cards]) => {
       const newestCard = cards.slice().sort((left, right) => right.publishedAt.getTime() - left.publishedAt.getTime())[0];
-      const currentStatus = cards.some((card) => card.availabilityStatus === "archived") ? "archived" as const : "verification_pending" as const;
-      const firstNotFoundAt = cards.reduce<Date | null>((earliest, card) => {
-        const value = card.availabilityFirstNotFoundAt ?? null;
-        return value && (!earliest || value < earliest) ? value : earliest;
-      }, null);
       const lastNotFoundAt = cards.reduce<Date | null>((latest, card) => {
         const value = card.availabilityLastNotFoundAt ?? null;
         return value && (!latest || value > latest) ? value : latest;
       }, null);
-      const availabilityChangedAt = cards.reduce<Date | null>((latest, card) => {
-        const value = card.availabilityChangedAt ?? null;
-        return value && (!latest || value > latest) ? value : latest;
-      }, null);
-      const disposition = getCcgAvailabilityPreviewDisposition({
-        availabilityStatus: currentStatus,
-        availabilityFirstNotFoundAt: firstNotFoundAt,
-        availabilityLastNotFoundAt: lastNotFoundAt,
-        availabilityChangedAt,
-      }, calculatedAt);
-      if (!disposition) return null;
+      const disposition: CcgAvailabilityPreviewDisposition = activeStoredRenderCharacterIds.has(characterId)
+        ? "restore_with_stored_render"
+        : "archived_without_render";
       return {
         characterId,
         name: newestCard.name,
@@ -753,8 +740,7 @@ class CcgPublisherService {
           .filter((set) => cards.some((card) => String(card.setId) === String(set._id)))
           .map((set) => set.raidName),
       };
-    }).filter((character): character is NonNullable<typeof character> => character !== null)
-      .sort((left, right) => left.disposition.localeCompare(right.disposition) || left.name.localeCompare(right.name) || left.realm.localeCompare(right.realm));
+    }).sort((left, right) => left.disposition.localeCompare(right.disposition) || left.name.localeCompare(right.name) || left.realm.localeCompare(right.realm));
     return {
       calculatedAt,
       sets,
@@ -785,8 +771,8 @@ class CcgPublisherService {
         },
       ),
       availability: {
-        archiveCandidates: availabilityCharacters.filter((character) => character.disposition === "archive_if_not_found").length,
-        returnCandidates: availabilityCharacters.filter((character) => character.disposition === "return_if_available").length,
+        archivedWithoutRender: availabilityCharacters.filter((character) => character.disposition === "archived_without_render").length,
+        restoreWithStoredRender: availabilityCharacters.filter((character) => character.disposition === "restore_with_stored_render").length,
         characters: availabilityCharacters,
       },
     };
@@ -900,36 +886,17 @@ class CcgPublisherService {
         .sort({ "payload.snapshotRank": 1 })
         .lean();
       const continuity = await this.loadContinuityContext(candidates.map((candidate) => candidate.characterId));
-      const [existingCards, nonActiveAvailabilityCards] = await Promise.all([
-        CcgCard.find({
-          setId: set._id,
-          characterId: { $in: continuity.allMemberIds },
-        })
-          .sort({ snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 })
-          .lean(),
-        CcgCard.find({
-          characterId: { $in: continuity.allMemberIds },
-          availabilityStatus: { $in: ["verification_pending", "archived"] },
-        })
-          .select("characterId availabilityStatus availabilityFirstNotFoundAt availabilityLastNotFoundAt availabilityChangedAt")
-          .lean(),
-      ]);
+      const existingCards = await CcgCard.find({
+        setId: set._id,
+        characterId: { $in: continuity.allMemberIds },
+      })
+        .sort({ snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 })
+        .lean();
       const latestCardByCharacter = new Map<string, (typeof existingCards)[number]>();
       for (const card of existingCards) {
         const characterId = continuity.rootIdByMemberId.get(String(card.characterId)) ?? String(card.characterId);
         if (!latestCardByCharacter.has(characterId)) latestCardByCharacter.set(characterId, card);
       }
-      const availabilityCardsByCharacter = new Map<string, typeof nonActiveAvailabilityCards>();
-      for (const card of nonActiveAvailabilityCards) {
-        const characterId = continuity.rootIdByMemberId.get(String(card.characterId)) ?? String(card.characterId);
-        const cards = availabilityCardsByCharacter.get(characterId) ?? [];
-        cards.push(card);
-        availabilityCardsByCharacter.set(characterId, cards);
-      }
-      const inheritedAvailabilityByCharacter = new Map(Array.from(
-        availabilityCardsByCharacter,
-        ([characterId, cards]) => [characterId, combineCcgCardAvailability(cards)!],
-      ));
       const shouldPublish = (candidate: (typeof candidates)[number]) => {
         const rootId = continuity.rootIdByMemberId.get(String(candidate.characterId)) ?? String(candidate.characterId);
         const payload = candidate.payload as SnapshotPayload;
@@ -989,7 +956,6 @@ class CcgPublisherService {
           renderUrl: characterRenderStorageService.getPublicUrl(media.renderAssetId!),
           renderAssetId: media.renderAssetId,
           renderFit: media.renderFit ?? null,
-          ...inheritCcgCardAvailability(inheritedAvailabilityByCharacter.get(rootId) ?? previousCard),
           backgroundCrop: resolveCardCrop(`${set.slug}:${rootId}`, set.backgroundSafeCrop),
           pulls: payload.pulls,
           deaths: payload.deaths,
