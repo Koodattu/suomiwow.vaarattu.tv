@@ -8,7 +8,7 @@ import CcgAlternativeArt from "../src/models/CcgAlternativeArt";
 import CcgCard from "../src/models/CcgCard";
 import CcgSet from "../src/models/CcgSet";
 import Character from "../src/models/Character";
-import ccgService from "../src/services/ccg.service";
+import ccgService, { resolveCcgRaidCardMechanicsScore } from "../src/services/ccg.service";
 import ccgPublisherService from "../src/services/ccg-publisher.service";
 import characterContinuityService from "../src/services/character-continuity.service";
 import { normalizeCommunityRole, normalizeCommunityScores } from "../src/utils/ccg-community";
@@ -130,6 +130,25 @@ test("Community cards serialize manual metrics without changing raid score field
     combined: null,
     mythicPlus: null,
   });
+});
+
+test("raid cards recover the mechanics component used by immutable historical snapshots", () => {
+  assert.equal(resolveCcgRaidCardMechanicsScore({
+    survivalPercentile: 24.2,
+    parseScore: 86.6,
+    survivalScore: 78.6,
+    combinedScore: 55.4,
+  }), 24.2);
+  assert.equal(resolveCcgRaidCardMechanicsScore({
+    parseScore: 98.7,
+    survivalScore: 68,
+    combinedScore: 83.4,
+  }), 68);
+  assert.equal(resolveCcgRaidCardMechanicsScore({
+    parseScore: 86.6,
+    survivalScore: 78.6,
+    combinedScore: 55.4,
+  }), 24.2);
 });
 
 test("admin CCG search matches the current name once while preserving variant snapshot names", async () => {

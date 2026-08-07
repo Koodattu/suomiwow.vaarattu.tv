@@ -243,6 +243,70 @@ export function buildCcgCollectionQualityRank(finishExpression: string): unknown
   };
 }
 
+export function resolveCcgRaidCardMechanicsScore(card: {
+  survivalPercentile?: unknown;
+  combinedScore?: unknown;
+  parseScore?: unknown;
+  survivalScore?: unknown;
+}): number | null {
+  if (typeof card.survivalPercentile === "number" && Number.isFinite(card.survivalPercentile)) {
+    return card.survivalPercentile;
+  }
+
+  const rawSurvival = typeof card.survivalScore === "number" && Number.isFinite(card.survivalScore)
+    ? card.survivalScore
+    : null;
+  if (
+    typeof card.combinedScore === "number"
+    && Number.isFinite(card.combinedScore)
+    && typeof card.parseScore === "number"
+    && Number.isFinite(card.parseScore)
+  ) {
+    const combinedMechanics = Math.round((card.combinedScore * 2 - card.parseScore) * 10) / 10;
+    if (combinedMechanics >= 0 && combinedMechanics <= 100) {
+      return rawSurvival !== null && Math.abs(combinedMechanics - rawSurvival) <= 0.11
+        ? rawSurvival
+        : combinedMechanics;
+    }
+  }
+
+  return rawSurvival;
+}
+
+function buildCcgRaidCardMechanicsScoreExpression(pathPrefix = ""): unknown {
+  const field = (name: string) => `$${pathPrefix}${name}`;
+  const rawSurvival = field("survivalScore");
+  return {
+    $ifNull: [
+      field("survivalPercentile"),
+      {
+        $let: {
+          vars: {
+            combinedMechanics: {
+              $round: [
+                { $subtract: [{ $multiply: [field("combinedScore"), 2] }, field("parseScore")] },
+                1,
+              ],
+            },
+          },
+          in: {
+            $cond: [
+              {
+                $and: [
+                  { $ne: [{ $ifNull: [rawSurvival, null] }, null] },
+                  { $lte: [{ $abs: { $subtract: ["$$combinedMechanics", rawSurvival] } }, 0.11] },
+                ],
+              },
+              rawSurvival,
+              { $ifNull: ["$$combinedMechanics", rawSurvival] },
+            ],
+          },
+        },
+      },
+    ],
+  };
+}
+
 export function buildCcgCollectionSortStages(
   sort: CcgCollectionSort,
   paths: CcgCollectionSortPaths,
@@ -1564,7 +1628,7 @@ class CcgService {
               },
             },
             damage: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.performance", "$parseScore"] },
-            mechanics: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.mechanics", "$survivalPercentile"] },
+            mechanics: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.mechanics", buildCcgRaidCardMechanicsScoreExpression()] },
             combined: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.combined", "$combinedScore"] },
             mythicPlus: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.mythicPlus", "$mythicPlusScore"] },
           })
@@ -1959,7 +2023,7 @@ class CcgService {
               },
             },
             damage: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.performance", "$card.parseScore"] },
-            mechanics: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.mechanics", "$card.survivalPercentile"] },
+            mechanics: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.mechanics", buildCcgRaidCardMechanicsScoreExpression("card.")] },
             combined: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.combined", "$card.combinedScore"] },
             mythicPlus: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.mythicPlus", "$card.mythicPlusScore"] },
           })
@@ -4954,7 +5018,7 @@ class CcgService {
       itemLevel: card.itemLevel,
       scores: {
         performance: set.kind === "community" ? card.communityScores?.performance ?? null : card.parseScore,
-        mechanics: set.kind === "community" ? card.communityScores?.mechanics ?? null : card.survivalPercentile ?? null,
+        mechanics: set.kind === "community" ? card.communityScores?.mechanics ?? null : resolveCcgRaidCardMechanicsScore(card),
         combined: set.kind === "community" ? card.communityScores?.combined ?? null : card.combinedScore,
         mythicPlus: set.kind === "community"
           ? card.communityScores?.mythicPlus ?? null
