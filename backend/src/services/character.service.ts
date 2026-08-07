@@ -26,6 +26,7 @@ import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
 import { createCharacterIdentityAliasKey, createReportRankingSourceIdentityKey, normalizeCharacterIdentityPart } from "../utils/character-identity-link";
 import { areEquivalentRealms, createRealmIdentityKey, realmNameToSlugCandidate } from "../utils/realm";
 import { resolveRole, slugifySpecName } from "../utils/spec";
+import { createAccentInsensitiveSearchRegex } from "../utils/search";
 import cacheService from "./cache.service";
 import characterMediaService from "./character-media.service";
 import characterContinuityService from "./character-continuity.service";
@@ -37,6 +38,7 @@ import wclService from "./warcraftlogs.service";
 import mongoose from "mongoose";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
+const ACCENT_INSENSITIVE_COLLATION = { locale: "en", strength: 1 } as const;
 
 type ProfileMetric = "dps" | "hps";
 type ProfileRole = "dps" | "healer" | "tank";
@@ -715,44 +717,6 @@ class CharacterService {
 
   private escapeRegex(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  }
-
-  private getAccentInsensitiveRegex(value: string, options: { prefix?: boolean } = {}): RegExp {
-    const characterClasses: Record<string, string> = {
-      a: "aàáâãäåāăąǎǟǡǻȁȃạảấầẩẫậắằẳẵặ",
-      c: "cçćĉċč",
-      d: "dďđḍ",
-      e: "eèéêëēĕėęěȅȇẹẻẽếềểễệ",
-      g: "gĝğġģǧ",
-      h: "hĥħḥ",
-      i: "iìíîïĩīĭįıǐȉȋịỉ",
-      j: "jĵ",
-      k: "kķǩḳ",
-      l: "lĺļľŀłḷ",
-      n: "nñńņňŉŋǹṇ",
-      o: "oòóôõöøōŏőơǒǫǭȍȏọỏốồổỗộớờởỡợ",
-      r: "rŕŗřṛ",
-      s: "sśŝşšșṣ",
-      t: "tţťŧțṭ",
-      u: "uùúûüũūŭůűųưǔȕȗụủứừửữự",
-      w: "wŵẁẃẅ",
-      y: "yýÿŷỳỵỷỹ",
-      z: "zźżžẓ",
-    };
-
-    const source = value
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .split("")
-      .map((char) => {
-        const lower = char.toLowerCase();
-        const characterClass = characterClasses[lower];
-        const token = characterClass ? `[${characterClass}]` : this.escapeRegex(char);
-        return `${token}[\u0300-\u036f]*`;
-      })
-      .join("");
-
-    return new RegExp(`${options.prefix ? "^" : ""}${source}`, "i");
   }
 
   private getSourceIdentityKey(parts: { canonicalID?: number | null; region: string; realm: string; name: string; classID: number; source: string }): string {
@@ -2462,9 +2426,9 @@ class CharacterService {
     const trimmedQuery = query.trim().slice(0, 60);
     if (trimmedQuery.length < 2) return [];
 
-    const safeLimit = Math.min(Math.max(limit, 1), 10);
+    const safeLimit = Math.min(Math.max(limit, 1), 20);
     const candidateLimit = Math.max(safeLimit * 10, 50);
-    const nameMatch = this.getAccentInsensitiveRegex(trimmedQuery);
+    const nameMatch = createAccentInsensitiveSearchRegex(trimmedQuery);
 
     const aliasRows = await CharacterRaidParticipation.aggregate([
       {
@@ -2574,12 +2538,47 @@ class CharacterService {
     }));
   }
 
-  async searchCurrentCharacters(query: string, limit = 10): Promise<CharacterSearchResult[]> {
+  async searchExactHistoricalCharacters(query: string, limit = 10): Promise<CharacterSearchResult[]> {
     const trimmedQuery = query.trim().slice(0, 60);
     if (trimmedQuery.length < 2) return [];
 
-    const safeLimit = Math.min(Math.max(limit, 1), 10);
-    const nameMatch = this.getAccentInsensitiveRegex(trimmedQuery);
+    const safeLimit = Math.min(Math.max(limit, 1), 20);
+    const rows = await CharacterRaidParticipation.find({ characterName: trimmedQuery })
+      .collation(ACCENT_INSENSITIVE_COLLATION)
+      .sort({ lastSeenAt: -1 })
+      .limit(Math.max(safeLimit * 10, 50))
+      .select("wclCanonicalCharacterId characterName characterRealm characterRegion classID reportGuildName reportGuildRealm lastSeenAt -_id")
+      .lean();
+
+    const seen = new Set<string>();
+    const results: CharacterSearchResult[] = [];
+    for (const row of rows) {
+      const key = typeof row.wclCanonicalCharacterId === "number"
+        ? `wcl:${row.wclCanonicalCharacterId}:${row.classID}`
+        : `name:${row.characterRegion}:${row.characterRealm}:${row.characterName}:${row.classID}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      results.push({
+        wclCanonicalCharacterId: row.wclCanonicalCharacterId ?? null,
+        name: row.characterName,
+        realm: row.characterRealm,
+        region: row.characterRegion,
+        classID: row.classID,
+        guild: { name: row.reportGuildName, realm: row.reportGuildRealm },
+        lastReportSeenAt: row.lastSeenAt,
+      });
+      if (results.length >= safeLimit) break;
+    }
+
+    return results;
+  }
+
+  async searchCurrentCharacters(query: string, limit = 10, options: { prefix?: boolean } = {}): Promise<CharacterSearchResult[]> {
+    const trimmedQuery = query.trim().slice(0, 60);
+    if (trimmedQuery.length < 2) return [];
+
+    const safeLimit = Math.min(Math.max(limit, 1), 20);
+    const nameMatch = createAccentInsensitiveSearchRegex(trimmedQuery, { prefix: options.prefix });
     const characters = await Character.find({
       $or: [
         { name: nameMatch },
@@ -4371,7 +4370,7 @@ class CharacterService {
     const normalizedCharacterName = characterName?.trim();
     const normalizedGuildName = guildName?.trim();
     const escapeRegex = (input: string) => input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const partialNameRegex = normalizedCharacterName ? this.getAccentInsensitiveRegex(normalizedCharacterName) : undefined;
+    const partialNameRegex = normalizedCharacterName ? createAccentInsensitiveSearchRegex(normalizedCharacterName) : undefined;
     const partialGuildNameRegex = normalizedGuildName ? new RegExp(escapeRegex(normalizedGuildName), "i") : undefined;
 
     const safeLimit = Math.min(Math.max(limit, 1), 500);

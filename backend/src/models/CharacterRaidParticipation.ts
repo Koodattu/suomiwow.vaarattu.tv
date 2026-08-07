@@ -2,6 +2,7 @@ import mongoose, { Schema, Document } from "mongoose";
 import { normalizeRealmSlug } from "../utils/realm";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
+const ACCENT_INSENSITIVE_COLLATION = { locale: "en", strength: 1 } as const;
 
 export interface ICharacterRaidParticipation extends Document {
   characterId?: mongoose.Types.ObjectId | null;
@@ -49,6 +50,7 @@ CharacterRaidParticipationSchema.index({ reportCount: -1, characterId: 1 });
 CharacterRaidParticipationSchema.index({ zoneId: 1, mythicReportCount: -1, characterId: 1 });
 CharacterRaidParticipationSchema.index({ characterRealm: 1, characterName: 1, zoneId: 1, lastSeenAt: -1 }, { collation: CASE_INSENSITIVE_COLLATION });
 CharacterRaidParticipationSchema.index({ characterRealm: 1, characterName: 1, reportGuildId: 1, zoneId: 1, classID: 1 }, { collation: CASE_INSENSITIVE_COLLATION });
+CharacterRaidParticipationSchema.index({ characterName: 1, lastSeenAt: -1 }, { collation: ACCENT_INSENSITIVE_COLLATION });
 CharacterRaidParticipationSchema.index({ wclCanonicalCharacterId: 1, classID: 1, zoneId: 1, firstSeenAt: 1 });
 CharacterRaidParticipationSchema.index(
   {

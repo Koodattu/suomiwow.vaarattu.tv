@@ -1962,6 +1962,11 @@ export type GlobalSearchResult = {
   type: "guild" | "character";
   href: string;
   classID?: number;
+  guild?: {
+    name: string;
+    realm: string;
+  } | null;
+  lastSeenAt?: string;
 };
 
 export type GlobalSearchResponse = {

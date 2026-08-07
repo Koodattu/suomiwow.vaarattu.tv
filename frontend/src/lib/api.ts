@@ -700,11 +700,12 @@ export const api = {
     return response.json();
   },
 
-  async searchSite(query: string, limit = 5, signal?: AbortSignal): Promise<GlobalSearchResponse> {
+  async searchSite(query: string, limit = 5, signal?: AbortSignal, includeHistorical = false): Promise<GlobalSearchResponse> {
     const params = new URLSearchParams({
       q: query,
       limit: String(limit),
     });
+    if (includeHistorical) params.set("scope", "all");
     const response = await fetch(`${API_URL}/api/search?${params}`, { signal });
     if (!response.ok) throw new Error("Failed to search site");
     return response.json();

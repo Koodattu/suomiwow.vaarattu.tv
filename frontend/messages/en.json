@@ -21,6 +21,7 @@
     "searching": "Searching...",
     "searchError": "Search failed",
     "noSearchResults": "No results",
+    "viewAllSearchResults": "See all results for “{query}”",
     "guildType": "Guild",
     "characterType": "Character",
     "language": "Language",
@@ -55,6 +56,21 @@
     "horseRaceBackground": "Background",
     "more": "More",
     "ccg": "CCG"
+  },
+  "searchPage": {
+    "title": "Search",
+    "description": "Search current and historical guilds and characters. Accents and other letter marks can be left out of names.",
+    "inputLabel": "Search guilds or characters",
+    "placeholder": "Character or guild name",
+    "submit": "Search",
+    "minimumQuery": "Type at least 2 letters to search.",
+    "shortQueryNotice": "Two-letter searches are limited to exact names and current-name prefixes.",
+    "resultsFor": "Results for “{query}”",
+    "searching": "Searching...",
+    "searchError": "Search failed. Please try again.",
+    "noResults": "No matching guilds or characters were found.",
+    "lastSeen": "Last seen {date}",
+    "guildContext": "Guild: {guild}"
   },
   "ccg": {
     "brandTitleTop": "Community",

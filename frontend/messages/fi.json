@@ -21,6 +21,7 @@
     "searching": "Haetaan...",
     "searchError": "Haku epäonnistui",
     "noSearchResults": "Ei tuloksia",
+    "viewAllSearchResults": "Näytä kaikki tulokset haulle “{query}”",
     "guildType": "Kilta",
     "characterType": "Hahmo",
     "language": "Kieli",
@@ -55,6 +56,21 @@
     "horseRaceBackground": "Background",
     "more": "Lisää",
     "ccg": "CCG"
+  },
+  "searchPage": {
+    "title": "Haku",
+    "description": "Hae nykyisistä ja historiallisista killoista ja hahmoista. Nimien aksentit ja muut tarkkeet voi jättää pois.",
+    "inputLabel": "Hae kiltoja tai hahmoja",
+    "placeholder": "Hahmon tai killan nimi",
+    "submit": "Hae",
+    "minimumQuery": "Kirjoita vähintään 2 kirjainta hakeaksesi.",
+    "shortQueryNotice": "Kahden kirjaimen haussa näytetään vain täsmälliset nimet ja nykyisten nimien alut.",
+    "resultsFor": "Tulokset haulle “{query}”",
+    "searching": "Haetaan...",
+    "searchError": "Haku epäonnistui. Yritä uudelleen.",
+    "noResults": "Haulla ei löytynyt kiltoja tai hahmoja.",
+    "lastSeen": "Nähty viimeksi {date}",
+    "guildContext": "Kilta: {guild}"
   },
   "ccg": {
     "brandTitleTop": "Community",

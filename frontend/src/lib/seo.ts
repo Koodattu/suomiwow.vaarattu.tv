@@ -108,6 +108,7 @@ function getEmbedLabel(pathname: string) {
   if (pathname === "/guilds") return "Guild directory";
   if (pathname.startsWith("/characters/")) return "Character profile";
   if (pathname === "/characters") return "Character rankings";
+  if (pathname === "/search") return "Search";
   if (pathname === "/compare" || pathname === "/analytics/compare") return "Guild comparison";
   if (pathname === "/analytics/network") return "Guild network";
   if (pathname.startsWith("/analytics")) return "Analytics";
@@ -176,6 +177,12 @@ export function getPageMetadata(
       description: isEnglish
         ? "Compare Finnish WoW guild raid metrics by raid tier, progress, pulls, and boss kills."
         : "Vertaile suomalaisten WoW-kiltojen raid-mittareita raidin, edistymisen, yritysten ja boss-tappojen mukaan.",
+    },
+    "/search": {
+      title: isEnglish ? "Search Guilds and Characters" : "Hae kiltoja ja hahmoja",
+      description: isEnglish
+        ? "Search current and historical Finnish WoW guilds and characters, including names with accented letters."
+        : "Hae nykyisiä ja historiallisia suomalaisia WoW-kiltoja ja hahmoja myös ilman nimien erikoismerkkejä.",
     },
     "/analytics/compare": {
       title: isEnglish

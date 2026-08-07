@@ -1,4 +1,4 @@
-export const normalizeSearchText = (value: string): string =>
+const foldSearchCharacters = (value: string): string =>
   value
     .toLowerCase()
     .replace(/[æǽ]/g, "ae")
@@ -9,10 +9,74 @@ export const normalizeSearchText = (value: string): string =>
     .replace(/þ/g, "th")
     .replace(/ß/g, "ss")
     .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\p{Diacritic}/gu, "");
+
+export const normalizeSearchText = (value: string): string =>
+  foldSearchCharacters(value)
     .replace(/['’]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+
+const SEARCH_CHARACTER_CLASSES: Record<string, string> = {
+  a: "aàáâãäåāăąǎǟǡǻȁȃạảấầẩẫậắằẳẵặ",
+  c: "cçćĉċč",
+  d: "dďđðḍ",
+  e: "eèéêëēĕėęěȅȇẹẻẽếềểễệ",
+  g: "gĝğġģǧ",
+  h: "hĥħḥ",
+  i: "iìíîïĩīĭįıǐȉȋịỉ",
+  j: "jĵ",
+  k: "kķǩḳ",
+  l: "lĺļľŀłḷ",
+  n: "nñńņňŉŋǹṇ",
+  o: "oòóôõöøōŏőơǒǫǭȍȏọỏốồổỗộớờởỡợ",
+  r: "rŕŗřṛ",
+  s: "sśŝşšșṣ",
+  t: "tţťŧțṭ",
+  u: "uùúûüũūŭůűųưǔȕȗụủứừửữự",
+  w: "wŵẁẃẅ",
+  y: "yýÿŷỳỵỷỹ",
+  z: "zźżžẓ",
+};
+
+const SEARCH_SEQUENCE_ALTERNATIVES: Record<string, string> = {
+  ae: "æǽ",
+  oe: "œ",
+  ss: "ß",
+  th: "þ",
+};
+
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export const createAccentInsensitiveSearchRegex = (
+  value: string,
+  options: { prefix?: boolean; exact?: boolean } = {},
+): RegExp => {
+  const foldedValue = foldSearchCharacters(value);
+  const tokens: string[] = [];
+  for (let index = 0; index < foldedValue.length; index += 1) {
+    const sequence = foldedValue.slice(index, index + 2);
+    const alternatives = SEARCH_SEQUENCE_ALTERNATIVES[sequence];
+    if (alternatives) {
+      const expanded = sequence
+        .split("")
+        .map((char) => `[${SEARCH_CHARACTER_CLASSES[char] ?? char}][\u0300-\u036f]*`)
+        .join("");
+      tokens.push(`(?:${expanded}|[${alternatives}][\u0300-\u036f]*)`);
+      index += 1;
+      continue;
+    }
+
+    const char = foldedValue[index];
+    const characterClass = SEARCH_CHARACTER_CLASSES[char];
+    const token = characterClass ? `[${characterClass}]` : escapeRegex(char);
+    tokens.push(`${token}[\u0300-\u036f]*`);
+  }
+
+  const source = tokens.join("");
+
+  return new RegExp(`${options.prefix || options.exact ? "^" : ""}${source}${options.exact ? "$" : ""}`, "i");
+};
 
 const boundedEditDistance = (a: string, b: string, maxDistance: number): number => {
   if (Math.abs(a.length - b.length) > maxDistance) return maxDistance + 1;

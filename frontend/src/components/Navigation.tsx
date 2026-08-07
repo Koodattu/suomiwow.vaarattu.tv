@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect, useRef, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { FaGlobe, FaMagnifyingGlass } from "react-icons/fa6";
 import { api } from "@/lib/api";
@@ -119,6 +119,7 @@ const getHorseRaceSegmentClass = (selected: boolean) =>
 
 export default function Navigation() {
   const pathname = usePathname();
+  const router = useRouter();
   const shouldRemoveBottomMargin = pathname === "/analytics/network" || pathname.startsWith("/ccg");
   const t = useTranslations("navigation");
   const tEvents = useTranslations("eventsPage");
@@ -148,6 +149,7 @@ export default function Navigation() {
   const [currentLocale, setCurrentLocale] = useState<Locale>("en");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<GlobalSearchResult[]>([]);
+  const [activeSearchResultIndex, setActiveSearchResultIndex] = useState(-1);
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -192,6 +194,7 @@ export default function Navigation() {
 
     setSearchQuery("");
     setSearchResults([]);
+    setActiveSearchResultIndex(-1);
     setIsSearchLoading(false);
     setSearchError(false);
   }, [isSearchDropdownOpen]);
@@ -215,6 +218,7 @@ export default function Navigation() {
         .then((data) => {
           if (!isActiveRequest) return;
           setSearchResults(data.results);
+          setActiveSearchResultIndex(-1);
         })
         .catch(() => {
           if (!isActiveRequest) return;
@@ -233,6 +237,32 @@ export default function Navigation() {
       window.clearTimeout(timeoutId);
     };
   }, [isSearchDropdownOpen, trimmedSearchQuery]);
+
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      setIsSearchDropdownOpen(false);
+      return;
+    }
+
+    if (event.key === "ArrowDown" && searchResults.length > 0) {
+      event.preventDefault();
+      setActiveSearchResultIndex((current) => (current + 1) % searchResults.length);
+      return;
+    }
+
+    if (event.key === "ArrowUp" && searchResults.length > 0) {
+      event.preventDefault();
+      setActiveSearchResultIndex((current) => (current <= 0 ? searchResults.length - 1 : current - 1));
+      return;
+    }
+
+    if (event.key !== "Enter" || trimmedSearchQuery.length < 2) return;
+
+    event.preventDefault();
+    const activeResult = searchResults[activeSearchResultIndex];
+    setIsSearchDropdownOpen(false);
+    router.push(activeResult?.href ?? `/search?q=${encodeURIComponent(trimmedSearchQuery)}`);
+  };
 
   // Prevent body scroll when mobile menu is open
   useEffect(() => {
@@ -449,45 +479,73 @@ export default function Navigation() {
                       ref={searchInputRef}
                       type="search"
                       value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
+                      onChange={(event) => {
+                        setSearchQuery(event.target.value);
+                        setActiveSearchResultIndex(-1);
+                      }}
+                      onKeyDown={handleSearchKeyDown}
                       placeholder={t("searchPlaceholder")}
-                      className="h-9 w-full rounded bg-gray-900 px-3 text-sm text-white outline-none ring-1 ring-white/10 transition-shadow placeholder:text-gray-500 focus:ring-2 focus:ring-emerald-500/70"
+                      role="combobox"
+                      aria-autocomplete="list"
+                      aria-controls="global-search-results"
+                      aria-expanded={trimmedSearchQuery.length >= 2}
+                      aria-activedescendant={activeSearchResultIndex >= 0 ? `global-search-result-${activeSearchResultIndex}` : undefined}
+                      className="h-10 w-full rounded bg-gray-900 px-3 text-sm text-white outline-none ring-1 ring-white/10 transition-shadow placeholder:text-gray-500 focus:ring-2 focus:ring-emerald-500/70"
                     />
-                    <div className="mt-2 max-h-[calc(100dvh_-_4.75rem_-_env(safe-area-inset-top))] overflow-y-auto rounded bg-gray-900/70 ring-1 ring-white/5 lg:max-h-none lg:overflow-hidden">
-                      {trimmedSearchQuery.length < 2 ? (
-                        <div className="px-3 py-2.5 text-sm text-gray-500">{t("searchMinCharacters")}</div>
-                      ) : isSearchLoading ? (
-                        <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-400">
-                          <span className="h-3.5 w-3.5 rounded-full border-2 border-gray-500 border-t-transparent animate-spin" />
-                          {t("searching")}
-                        </div>
-                      ) : searchError ? (
-                        <div className="px-3 py-2.5 text-sm text-red-300">{t("searchError")}</div>
-                      ) : searchResults.length === 0 ? (
-                        <div className="px-3 py-2.5 text-sm text-gray-500">{t("noSearchResults")}</div>
-                      ) : (
-                        searchResults.map((result) => (
-                          <Link
-                            key={`${result.type}:${result.realm}:${result.name}`}
-                            href={result.href}
-                            onClick={() => setIsSearchDropdownOpen(false)}
-                            className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-white/10"
-                          >
-                            <span className="flex min-w-0 items-center gap-2">
-                              {result.type === "character" && result.classID ? (
-                                <span className="relative h-6 w-6 shrink-0 overflow-hidden rounded shadow-sm shadow-black/30 ring-1 ring-white/10">
-                                  <IconImage iconFilename={getClassInfoById(result.classID).iconUrl} alt="" fill style={{ objectFit: "cover" }} />
+                    <div className="mt-2 max-h-[calc(100dvh_-_5rem_-_env(safe-area-inset-top))] overflow-y-auto rounded bg-gray-900/70 ring-1 ring-white/5 lg:max-h-none">
+                      <div id="global-search-results" role={searchResults.length > 0 ? "listbox" : undefined}>
+                        {trimmedSearchQuery.length < 2 ? (
+                          <div className="px-3 py-2.5 text-sm text-gray-500">{t("searchMinCharacters")}</div>
+                        ) : isSearchLoading ? (
+                          <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-400">
+                            <span className="h-3.5 w-3.5 rounded-full border-2 border-gray-500 border-t-transparent animate-spin" />
+                            {t("searching")}
+                          </div>
+                        ) : searchError ? (
+                          <div className="px-3 py-2.5 text-sm text-red-300">{t("searchError")}</div>
+                        ) : searchResults.length === 0 ? (
+                          <div className="px-3 py-2.5 text-sm text-gray-500">{t("noSearchResults")}</div>
+                        ) : (
+                          searchResults.map((result, index) => (
+                            <Link
+                              key={`${result.type}:${result.realm}:${result.name}`}
+                              id={`global-search-result-${index}`}
+                              href={result.href}
+                              onClick={() => setIsSearchDropdownOpen(false)}
+                              onFocus={() => setActiveSearchResultIndex(index)}
+                              onMouseEnter={() => setActiveSearchResultIndex(index)}
+                              role="option"
+                              aria-selected={activeSearchResultIndex === index}
+                              className={`flex min-h-10 cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-white/10 ${
+                                activeSearchResultIndex === index ? "bg-white/10" : ""
+                              }`}
+                            >
+                              <span className="flex min-w-0 items-center gap-2">
+                                {result.type === "character" && result.classID ? (
+                                  <span className="relative h-6 w-6 shrink-0 overflow-hidden rounded shadow-sm shadow-black/30 ring-1 ring-white/10">
+                                    <IconImage iconFilename={getClassInfoById(result.classID).iconUrl} alt="" fill style={{ objectFit: "cover" }} />
+                                  </span>
+                                ) : null}
+                                <span className="min-w-0 truncate text-gray-100">
+                                  {result.name} - {formatRealmName(result.realm)}
                                 </span>
-                              ) : null}
-                              <span className="min-w-0 truncate text-gray-100">
-                                {result.name} - {formatRealmName(result.realm)}
                               </span>
-                            </span>
-                            <span className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold uppercase ${result.type === "guild" ? "bg-orange-500/20 text-orange-200" : "bg-blue-500/20 text-blue-200"}`}>
-                              {result.type === "guild" ? t("guildType") : t("characterType")}
-                            </span>
-                          </Link>
-                        ))
+                              <span className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold uppercase ${result.type === "guild" ? "bg-orange-500/20 text-orange-200" : "bg-blue-500/20 text-blue-200"}`}>
+                                {result.type === "guild" ? t("guildType") : t("characterType")}
+                              </span>
+                            </Link>
+                          ))
+                        )}
+                      </div>
+                      {trimmedSearchQuery.length >= 2 && !isSearchLoading && !searchError && (
+                        <Link
+                          href={`/search?q=${encodeURIComponent(trimmedSearchQuery)}`}
+                          onClick={() => setIsSearchDropdownOpen(false)}
+                          className="flex min-h-10 items-center justify-between gap-3 border-t border-white/5 px-3 py-2.5 text-sm font-medium text-emerald-300 transition-[background-color,color,transform] hover:bg-white/10 hover:text-emerald-200 active:scale-[0.96]"
+                        >
+                          <span className="truncate">{t("viewAllSearchResults", { query: trimmedSearchQuery })}</span>
+                          <span aria-hidden="true">→</span>
+                        </Link>
                       )}
                     </div>
                   </div>

@@ -1,8 +1,10 @@
 import Guild, { IGuildCrest } from "../models/Guild";
 import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import { CURRENT_RAID_IDS } from "../config/guilds";
-import { normalizeSearchText, scoreSearchCandidate } from "../utils/search";
+import { createAccentInsensitiveSearchRegex, normalizeSearchText, scoreSearchCandidate } from "../utils/search";
 import characterService from "./character.service";
+
+const ACCENT_INSENSITIVE_COLLATION = { locale: "en", strength: 1 } as const;
 
 export type SearchResultType = "guild" | "character";
 
@@ -19,9 +21,8 @@ export type SearchResult = {
     name: string;
     realm: string;
   } | null;
+  lastSeenAt?: Date;
 };
-
-const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 type BotSearchCandidate = SearchResult & {
   searchText: string[];
@@ -30,7 +31,6 @@ type BotSearchCandidate = SearchResult & {
 
 type ScoredSearchResult = SearchResult & {
   score: number;
-  lastSeenAt?: Date;
 };
 
 type BotCharacterGuild = {
@@ -45,21 +45,24 @@ class SearchService {
   private siteSearchCache = new Map<string, { expiresAt: number; results: SearchResult[] }>();
   private siteSearchPromises = new Map<string, Promise<SearchResult[]>>();
 
-  async searchSite(query: string, requestedLimit = 5): Promise<SearchResult[]> {
+  async searchSite(query: string, requestedLimit = 5, options: { includeHistorical?: boolean } = {}): Promise<SearchResult[]> {
     const trimmedQuery = query.trim().slice(0, 60);
-    const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 5, 1), 5);
+    const normalizedQuery = normalizeSearchText(trimmedQuery);
+    const includeHistorical = options.includeHistorical === true;
+    const maximumLimit = includeHistorical ? 20 : 5;
+    const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 5, 1), maximumLimit);
 
-    if (trimmedQuery.length < 2) {
+    if (normalizedQuery.length < 2) {
       return [];
     }
 
-    const cacheKey = `${normalizeSearchText(trimmedQuery)}:${limit}`;
+    const cacheKey = `${normalizedQuery}:${limit}:${includeHistorical ? "all" : "preview"}`;
     const cached = this.siteSearchCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.results;
     const pending = this.siteSearchPromises.get(cacheKey);
     if (pending) return pending;
 
-    const searchPromise = this.searchSiteUncached(trimmedQuery, limit)
+    const searchPromise = this.searchSiteUncached(trimmedQuery, normalizedQuery, limit, includeHistorical)
       .then((results) => {
         if (this.siteSearchCache.size >= 200) {
           const oldestKey = this.siteSearchCache.keys().next().value;
@@ -75,44 +78,82 @@ class SearchService {
     return searchPromise;
   }
 
-  private async searchSiteUncached(trimmedQuery: string, limit: number): Promise<SearchResult[]> {
+  private async searchSiteUncached(trimmedQuery: string, normalizedQuery: string, limit: number, includeHistorical: boolean): Promise<SearchResult[]> {
     const selectedValueResult = await this.findSelectedValueResult(trimmedQuery);
     if (selectedValueResult) {
       return [selectedValueResult];
     }
 
-    const nameMatch = new RegExp(escapeRegex(trimmedQuery), "i");
-    const perTypeLimit = limit;
+    const prefixOnly = includeHistorical && normalizedQuery.length === 2;
+    const nameMatch = createAccentInsensitiveSearchRegex(trimmedQuery, { prefix: prefixOnly });
+    const candidateLimit = Math.min(includeHistorical ? Math.max(limit, 10) : Math.max(limit * 2, 5), 20);
 
-    const [guilds, currentCharacters] = await Promise.all([
-      Guild.find({ name: nameMatch }).sort({ name: 1, realm: 1 }).limit(perTypeLimit).select("name realm iconUrl crest faction -_id").lean(),
-      characterService.searchCurrentCharacters(trimmedQuery, perTypeLimit),
+    const [exactGuilds, guilds, exactCharacters, currentCharacters, historicalCharacters] = await Promise.all([
+      Guild.find({ name: trimmedQuery })
+        .collation(ACCENT_INSENSITIVE_COLLATION)
+        .sort({ name: 1, realm: 1 })
+        .limit(candidateLimit)
+        .select("name realm iconUrl crest faction -_id")
+        .lean(),
+      Guild.find({ name: nameMatch }).sort({ name: 1, realm: 1 }).limit(candidateLimit).select("name realm iconUrl crest faction -_id").lean(),
+      characterService.searchExactHistoricalCharacters(trimmedQuery, candidateLimit),
+      characterService.searchCurrentCharacters(trimmedQuery, candidateLimit, { prefix: prefixOnly }),
+      includeHistorical && normalizedQuery.length >= 3
+        ? characterService.searchCharacters(trimmedQuery, candidateLimit)
+        : Promise.resolve([]),
     ]);
-    const characters = currentCharacters.length > 0
-      ? currentCharacters
-      : await characterService.searchCharacters(trimmedQuery, perTypeLimit);
 
-    return [
-      ...guilds.map((guild) => ({
-        name: guild.name,
-        realm: guild.realm,
-        type: "guild" as const,
-        href: `/guilds/${encodeURIComponent(guild.realm)}/${encodeURIComponent(guild.name)}`,
-        iconUrl: guild.iconUrl,
-        crest: guild.crest,
-        faction: guild.faction,
-      })),
-      ...characters.map((character) => ({
-        name: character.matchedName ?? character.name,
-        realm: character.matchedRealm ?? character.realm,
-        type: "character" as const,
-        href: `/characters/${encodeURIComponent(character.realm)}/${encodeURIComponent(character.name)}`,
-        classID: character.classID,
-        guild: character.guild ?? null,
-      })),
-    ]
-      .sort((a, b) => a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm) || a.type.localeCompare(b.type))
-      .slice(0, limit);
+    const guildResults = [...exactGuilds, ...guilds].map((guild) => ({
+      name: guild.name,
+      realm: guild.realm,
+      type: "guild" as const,
+      href: `/guilds/${encodeURIComponent(guild.realm)}/${encodeURIComponent(guild.name)}`,
+      iconUrl: guild.iconUrl,
+      crest: guild.crest,
+      faction: guild.faction,
+    }));
+    const characterResults = [...exactCharacters, ...currentCharacters, ...historicalCharacters].map((character) => ({
+      name: character.matchedName ?? character.name,
+      realm: character.matchedRealm ?? character.realm,
+      type: "character" as const,
+      href: `/characters/${encodeURIComponent(character.realm)}/${encodeURIComponent(character.name)}`,
+      classID: character.classID,
+      guild: character.guild ?? null,
+      lastSeenAt: character.lastReportSeenAt,
+    }));
+
+    return this.rankAndLimitResults([...guildResults, ...characterResults], normalizedQuery, limit);
+  }
+
+  private rankAndLimitResults(results: SearchResult[], normalizedQuery: string, limit: number): SearchResult[] {
+    const uniqueResults = new Map<string, SearchResult>();
+    for (const result of results) {
+      const key = `${result.type}:${result.name.normalize("NFC").toLowerCase()}:${result.realm.normalize("NFC").toLowerCase()}`;
+      if (!uniqueResults.has(key)) uniqueResults.set(key, result);
+    }
+
+    return Array.from(uniqueResults.values())
+      .map((result): ScoredSearchResult => ({
+        ...result,
+        score: Math.max(
+          scoreSearchCandidate(normalizedQuery, normalizeSearchText(result.name)),
+          scoreSearchCandidate(normalizedQuery, normalizeSearchText(`${result.name} ${result.realm}`)),
+          scoreSearchCandidate(normalizedQuery, normalizeSearchText(`${result.name}-${result.realm}`)),
+        ),
+      }))
+      .filter((result) => result.score > 0)
+      .sort((a, b) => {
+        const scoreDiff = b.score - a.score;
+        if (scoreDiff !== 0) return scoreDiff;
+
+        const seenDiff = (b.lastSeenAt?.getTime() || 0) - (a.lastSeenAt?.getTime() || 0);
+        if (seenDiff !== 0) return seenDiff;
+
+        if (a.type !== b.type) return a.type === "guild" ? -1 : 1;
+        return a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm);
+      })
+      .slice(0, limit)
+      .map(({ score, ...result }) => result);
   }
 
   async searchForBotCommand(query: string, requestedLimit = 5): Promise<SearchResult[]> {
@@ -315,14 +356,15 @@ class SearchService {
       return null;
     }
 
-    const [guild, characterProfile] = await Promise.all([
+    const [guild, characterProfile, exactHistoricalCharacters] = await Promise.all([
       Guild.findOne({
-        name: new RegExp(`^${escapeRegex(name)}$`, "i"),
-        realm: new RegExp(`^${escapeRegex(realm)}$`, "i"),
+        name: createAccentInsensitiveSearchRegex(name, { exact: true }),
+        realm: createAccentInsensitiveSearchRegex(realm, { exact: true }),
       })
         .select("name realm iconUrl crest faction -_id")
         .lean(),
       characterService.getCharacterProfileByRealmName(realm, name),
+      characterService.searchExactHistoricalCharacters(name, 20),
     ]);
 
     if (guild) {
@@ -358,6 +400,20 @@ class SearchService {
         href: `/characters/${encodeURIComponent(choice.realm)}/${encodeURIComponent(choice.name)}`,
         classID: choice.classID,
         guild: choice.latestGuild ?? null,
+      };
+    }
+
+    const normalizedRealm = normalizeSearchText(realm);
+    const historicalCharacter = exactHistoricalCharacters.find((character) => normalizeSearchText(character.realm) === normalizedRealm);
+    if (historicalCharacter) {
+      return {
+        name: historicalCharacter.name,
+        realm: historicalCharacter.realm,
+        type: "character",
+        href: `/characters/${encodeURIComponent(historicalCharacter.realm)}/${encodeURIComponent(historicalCharacter.name)}`,
+        classID: historicalCharacter.classID,
+        guild: historicalCharacter.guild ?? null,
+        lastSeenAt: historicalCharacter.lastReportSeenAt,
       };
     }
 

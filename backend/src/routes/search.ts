@@ -8,7 +8,8 @@ router.get("/", async (req: Request, res: Response) => {
   try {
     const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
     const requestedLimit = typeof req.query.limit === "string" ? Number(req.query.limit) : 5;
-    const results = await searchService.searchSite(query, requestedLimit);
+    const includeHistorical = req.query.scope === "all";
+    const results = await searchService.searchSite(query, requestedLimit, { includeHistorical });
 
     res.json({ results });
   } catch (error) {
