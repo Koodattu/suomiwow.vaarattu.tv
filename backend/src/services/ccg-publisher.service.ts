@@ -69,7 +69,9 @@ type SnapshotPayload = {
   itemLevel: number;
   parseScore: number;
   survivalScore: number;
+  survivalPercentile: number;
   combinedScore: number;
+  scoreVersion: number;
   mythicPlusScore: number | null;
   pulls: number;
   deaths: number;
@@ -577,7 +579,7 @@ class CcgPublisherService {
         this.loadMythicPlusScoresByCharacter(continuity, configured.mythicPlusSeason),
         CcgCard.find({ setId: set._id, characterId: { $in: continuity.allMemberIds } })
           .sort({ snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 })
-          .select("characterId tierGrade classID specName role metric mythicPlusScore")
+          .select("characterId tierGrade classID specName role metric scoreVersion mythicPlusScore")
           .lean(),
       ]);
       const latestCardByCharacter = new Map<
@@ -589,6 +591,7 @@ class CcgPublisherService {
           specName: string;
           role: "dps" | "healer" | "tank";
           metric: "dps" | "hps";
+          scoreVersion: number | null;
           mythicPlusScore: number | null;
         }
       >();
@@ -602,6 +605,7 @@ class CcgPublisherService {
             specName: card.specName,
             role: card.role,
             metric: card.metric,
+            scoreVersion: card.scoreVersion ?? null,
             mythicPlusScore: card.mythicPlusScore ?? null,
           });
         }
@@ -615,6 +619,7 @@ class CcgPublisherService {
           specName: entry.bestSpecName ?? entry.specName,
           role: entry.role,
           metric: entry.metric,
+          scoreVersion: entry.scoreVersion,
           mythicPlusScore: mythicPlusByCharacter.get(String(entry.characterId)) ?? null,
           hasMedia: hasStoredRender(media),
         };
@@ -631,6 +636,7 @@ class CcgPublisherService {
             classID: entry.classID,
             specName: entry.bestSpecName ?? entry.specName,
             role: entry.role,
+            scoreVersion: entry.scoreVersion,
             mythicPlusScore: mythicPlusByCharacter.get(characterId) ?? null,
           },
           hasStoredRender(media),
@@ -751,6 +757,7 @@ class CcgPublisherService {
           newCharacters: totals.newCharacters + set.newCharacters,
           rarityChanges: totals.rarityChanges + set.rarityChanges,
           identityChanges: totals.identityChanges + set.identityChanges,
+          scoreVersionChanges: totals.scoreVersionChanges + set.scoreVersionChanges,
           mythicPlusScoreAdds: totals.mythicPlusScoreAdds + set.mythicPlusScoreAdds,
           unchangedCharacters: totals.unchangedCharacters + set.unchangedCharacters,
           blockedByMissingMedia: totals.blockedByMissingMedia + set.blockedByMissingMedia,
@@ -763,6 +770,7 @@ class CcgPublisherService {
           newCharacters: 0,
           rarityChanges: 0,
           identityChanges: 0,
+          scoreVersionChanges: 0,
           mythicPlusScoreAdds: 0,
           unchangedCharacters: 0,
           blockedByMissingMedia: 0,
@@ -819,7 +827,9 @@ class CcgPublisherService {
           itemLevel: entry.ilvl,
           parseScore: entry.parseScore,
           survivalScore: entry.survivalScore as number,
+          survivalPercentile: entry.survivalPercentile as number,
           combinedScore: entry.score,
+          scoreVersion: entry.scoreVersion,
           mythicPlusScore: mythicPlusByCharacter.get(characterId) ?? null,
           pulls: entry.pulls,
           deaths: entry.deaths,
@@ -905,6 +915,7 @@ class CcgPublisherService {
           classID: payload.classID,
           specName: payload.specName,
           role: payload.role,
+          scoreVersion: payload.scoreVersion,
           mythicPlusScore: payload.mythicPlusScore,
         });
       };
@@ -949,7 +960,9 @@ class CcgPublisherService {
           itemLevel: payload.itemLevel,
           parseScore: payload.parseScore,
           survivalScore: payload.survivalScore,
+          survivalPercentile: payload.survivalPercentile,
           combinedScore: payload.combinedScore,
+          scoreVersion: payload.scoreVersion,
           mythicPlusScore: payload.mythicPlusScore,
           tierGrade: candidate.tierGrade,
           avatarUrl: media.avatarUrl ?? null,

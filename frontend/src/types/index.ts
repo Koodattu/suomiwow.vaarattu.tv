@@ -2581,6 +2581,7 @@ export type CcgAdminSnapshotPreviewCounts = {
   newCharacters: number;
   rarityChanges: number;
   identityChanges: number;
+  scoreVersionChanges: number;
   mythicPlusScoreAdds: number;
   unchangedCharacters: number;
   blockedByMissingMedia: number;
@@ -2607,10 +2608,12 @@ export type CcgAdminSnapshotSetPreview = CcgAdminSnapshotPreviewCounts & {
       | "new_character"
       | "rarity_change"
       | "identity_change"
+      | "score_version_change"
       | "mythic_plus_score_added"
       | "blocked_new_character"
       | "blocked_rarity_change"
       | "blocked_identity_change"
+      | "blocked_score_version_change"
       | "blocked_mythic_plus_score_added";
     previousTierGrade: CcgTierGrade | null;
     nextTierGrade: CcgRegularTierGrade;

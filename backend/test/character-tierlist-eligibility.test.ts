@@ -70,6 +70,7 @@ test("requires complete scores and at least 40 pulls when materializing generate
     assert.deepEqual(captured.mechanicsQuery?.score, { $gte: 0 });
     assert.deepEqual(captured.mechanicsQuery?.parseScore, { $gte: 0 });
     assert.deepEqual(captured.mechanicsQuery?.survivalScore, { $gte: 0 });
+    assert.deepEqual(captured.mechanicsQuery?.survivalPercentile, { $gte: 0 });
     assert.deepEqual(captured.mechanicsQuery?.pulls, { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY });
 
     const filters = { minReports: 3, role: null, classId: null, limit: null };

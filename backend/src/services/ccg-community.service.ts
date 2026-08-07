@@ -228,7 +228,9 @@ class CcgCommunityService {
       itemLevel: 0,
       parseScore: 0,
       survivalScore: 0,
+      survivalPercentile: 0,
       combinedScore: 0,
+      scoreVersion: 1,
       mythicPlusScore: null,
       communityScores: {
         performance: null,

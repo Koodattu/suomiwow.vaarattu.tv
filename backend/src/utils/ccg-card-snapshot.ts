@@ -7,17 +7,19 @@ export type CcgSnapshotPreviewCandidate = {
   specName: string;
   role: "dps" | "healer" | "tank";
   metric: "dps" | "hps";
+  scoreVersion: number;
   mythicPlusScore: number | null;
   hasMedia: boolean;
 };
 
-type CcgSnapshotIdentity = Pick<CcgSnapshotPreviewCandidate, "tierGrade" | "classID" | "specName" | "role" | "mythicPlusScore">;
+type CcgSnapshotIdentity = Pick<CcgSnapshotPreviewCandidate, "tierGrade" | "classID" | "specName" | "role" | "scoreVersion" | "mythicPlusScore">;
 type ExistingCcgSnapshotIdentity = {
   tierGrade: CcgTierGrade;
   classID?: number | null;
   specName?: string | null;
   role?: "dps" | "healer" | "tank" | null;
   metric?: "dps" | "hps" | null;
+  scoreVersion?: number | null;
   mythicPlusScore?: number | null;
 };
 
@@ -27,6 +29,7 @@ export type CcgSnapshotPreviewSummary = {
   newCharacters: number;
   rarityChanges: number;
   identityChanges: number;
+  scoreVersionChanges: number;
   mythicPlusScoreAdds: number;
   unchangedCharacters: number;
   blockedByMissingMedia: number;
@@ -39,11 +42,13 @@ export type CcgSnapshotPreviewDisposition =
   | "new_character"
   | "rarity_change"
   | "identity_change"
+  | "score_version_change"
   | "mythic_plus_score_added"
   | "unchanged"
   | "blocked_new_character"
   | "blocked_rarity_change"
   | "blocked_identity_change"
+  | "blocked_score_version_change"
   | "blocked_mythic_plus_score_added";
 
 export function shouldPublishCcgCardSnapshot(
@@ -53,6 +58,7 @@ export function shouldPublishCcgCardSnapshot(
   return !latestCard
     || latestCard.tierGrade !== next.tierGrade
     || !hasSameSnapshotIdentity(latestCard, next)
+    || latestCard.scoreVersion !== next.scoreVersion
     || hasGainedMythicPlusScore(latestCard, next);
 }
 
@@ -70,6 +76,7 @@ export function getCcgSnapshotPreviewDisposition(
   if (!latestCard) return hasMedia ? "new_character" : "blocked_new_character";
   if (latestCard.tierGrade !== next.tierGrade) return hasMedia ? "rarity_change" : "blocked_rarity_change";
   if (!hasSameSnapshotIdentity(latestCard, next)) return hasMedia ? "identity_change" : "blocked_identity_change";
+  if (latestCard.scoreVersion !== next.scoreVersion) return hasMedia ? "score_version_change" : "blocked_score_version_change";
   return hasMedia ? "mythic_plus_score_added" : "blocked_mythic_plus_score_added";
 }
 
@@ -83,6 +90,7 @@ export function summarizeCcgSnapshotPreview(
   let newCharacters = 0;
   let rarityChanges = 0;
   let identityChanges = 0;
+  let scoreVersionChanges = 0;
   let mythicPlusScoreAdds = 0;
   let unchangedCharacters = 0;
   let blockedByMissingMedia = 0;
@@ -103,11 +111,13 @@ export function summarizeCcgSnapshotPreview(
       disposition === "new_character"
       || disposition === "rarity_change"
       || disposition === "identity_change"
+      || disposition === "score_version_change"
       || disposition === "mythic_plus_score_added"
     ) projectedSnapshots += 1;
     if (disposition === "new_character") newCharacters += 1;
     if (disposition === "rarity_change") rarityChanges += 1;
     if (disposition === "identity_change") identityChanges += 1;
+    if (disposition === "score_version_change") scoreVersionChanges += 1;
     if (disposition === "mythic_plus_score_added") mythicPlusScoreAdds += 1;
   }
 
@@ -117,6 +127,7 @@ export function summarizeCcgSnapshotPreview(
     newCharacters,
     rarityChanges,
     identityChanges,
+    scoreVersionChanges,
     mythicPlusScoreAdds,
     unchangedCharacters,
     blockedByMissingMedia,

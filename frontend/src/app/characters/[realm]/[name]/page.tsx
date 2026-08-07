@@ -104,7 +104,7 @@ const CHARACTER_PERFORMANCE_TABS: Array<{
   {
     id: "mechanics",
     label: "Mechanics",
-    description: "Survival score with early-death context.",
+    description: "Mechanics percentile with early-death context.",
   },
   {
     id: "combined",
@@ -239,7 +239,7 @@ function RankingsMetricCell({ row, compact = false }: { row: Pick<CharacterRanki
 }
 
 function getMechanicsScoreValue(row: CharacterMechanic, scoreKind: MechanicsScoreKind) {
-  return scoreKind === "survival" ? row.survivalScore : row.score;
+  return scoreKind === "survival" ? row.survivalPercentile : row.score;
 }
 
 function compareMechanicsRows(scoreKind: MechanicsScoreKind) {
@@ -307,7 +307,7 @@ function buildMechanicsRaidGroups(rows: CharacterMechanic[] | undefined, raids: 
   const groups = new Map<number, { zoneId: number; raidName: string; raid?: RaidInfo; overall: CharacterMechanic[]; bossMechanics: Map<number, CharacterMechanic[]> }>();
 
   rows.forEach((row) => {
-    if (!row.deathDataAvailable || row.survivalScore === null) return;
+    if (!row.deathDataAvailable || row.survivalPercentile === null) return;
 
     const group = groups.get(row.zoneId) ?? {
       zoneId: row.zoneId,
@@ -1084,10 +1084,10 @@ export default function CharacterProfilePage({ params }: PageProps) {
   const activePerformanceConfig = CHARACTER_PERFORMANCE_TABS.find((tab) => tab.id === activePerformanceTab) ?? CHARACTER_PERFORMANCE_TABS[0];
   const activeMechanicsScoreKind: MechanicsScoreKind = activePerformanceTab === "mechanics" ? "survival" : "combined";
   const activeMechanicsRaidGroups = activePerformanceTab === "mechanics" ? survivalRaidGroups : combinedRaidGroups;
-  const activeMechanicsScoreLabel = activePerformanceTab === "mechanics" ? "Survival" : "Score";
-  const activeMechanicsBossLabel = activePerformanceTab === "mechanics" ? "Boss survival" : "Boss scores";
+  const activeMechanicsScoreLabel = activePerformanceTab === "mechanics" ? "Mechanics" : "Score";
+  const activeMechanicsBossLabel = activePerformanceTab === "mechanics" ? "Boss mechanics" : "Boss scores";
   const activeMechanicsEmptyLabel =
-    activePerformanceTab === "mechanics" ? "No survival scores have been calculated for this character." : "No combined scores have been calculated for this character.";
+    activePerformanceTab === "mechanics" ? "No mechanics percentiles have been calculated for this character." : "No combined scores have been calculated for this character.";
 
   return (
     <main className="min-h-screen px-4 py-8">
@@ -1446,7 +1446,7 @@ export default function CharacterProfilePage({ params }: PageProps) {
                               key={getBossKey(group.zoneId, bossColumn.encounterId)}
                               className="flex min-w-0 flex-col items-center justify-start gap-1"
                               title={bossColumn.encounterName}
-                              aria-label={`${bossColumn.encounterName} ${activePerformanceTab === "mechanics" ? "survival score" : "combined score"}`}
+                              aria-label={`${bossColumn.encounterName} ${activePerformanceTab === "mechanics" ? "mechanics percentile" : "combined score"}`}
                             >
                               <IconImage
                                 iconFilename={bossColumn.boss?.iconUrl}

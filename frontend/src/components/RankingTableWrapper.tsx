@@ -355,12 +355,12 @@ function isMechanicsVariant(variant: RankingTableVariant) {
 }
 
 function getMechanicsScoreValue(row: CharacterRankingRow, variant: RankingTableVariant) {
-  if (variant === "mechanics") return row.stats.mechanics?.survivalScore;
+  if (variant === "mechanics") return row.stats.mechanics?.survivalPercentile;
   return row.score.value;
 }
 
 function getMechanicsBossScoreValue(bossScore: NonNullable<CharacterRankingRow["bossScores"]>[number] | undefined, variant: RankingTableVariant) {
-  if (variant === "mechanics") return bossScore?.survivalScore;
+  if (variant === "mechanics") return bossScore?.survivalPercentile;
   return bossScore?.score;
 }
 

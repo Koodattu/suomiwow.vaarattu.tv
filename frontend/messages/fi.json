@@ -1310,7 +1310,7 @@
         "publish": "Julkaise kortit nyt",
         "publishStarting": "Julkaisua käynnistetään…",
         "publishConfirmTitle": "Julkaistaanko uusimmat snapshotit kaikille käytössä oleville raidiseteille?",
-        "publishConfirmDescription": "Jatka vasta, kun CCG Weekly Raid Snapshot näkyy valmistuneena hallinnan Tehtävät-välilehdellä. Tämä julkaisee uusimmista snapshoteista kaikki renderiltään valmiit uudet hahmot, harvinaisuus-, class-, spec- ja roolimuutokset sekä ensimmäistä kertaa saatavilla olevan Mythic+-pistemäärän, ohittaa puuttuvat renderit, rakentaa aktiiviset pakkapoolit uudelleen eikä toimintoa voi perua.",
+        "publishConfirmDescription": "Jatka vasta, kun CCG Weekly Raid Snapshot näkyy valmistuneena hallinnan Tehtävät-välilehdellä. Tämä julkaisee uusimmista snapshoteista kaikki renderiltään valmiit uudet hahmot, harvinaisuus-, class-, spec-, rooli- ja pistemallimuutokset sekä ensimmäistä kertaa saatavilla olevan Mythic+-pistemäärän, ohittaa puuttuvat renderit, rakentaa aktiiviset pakkapoolit uudelleen eikä toimintoa voi perua.",
         "publishConfirm": "Julkaise kortit",
         "publishStarted": "Julkaisuajo käynnistyi taustalla. Voit seurata sen etenemistä hallinnan Tehtävät-välilehdellä.",
         "publishError": "Julkaisuajoa ei voitu käynnistää.",
@@ -1329,10 +1329,12 @@
           "new_character": "Lisätään kortiksi",
           "rarity_change": "Harvinaisuus päivitetään",
           "identity_change": "Class, spec tai rooli muuttui",
+          "score_version_change": "Pistemalli päivitetään",
           "mythic_plus_score_added": "Mythic+-pisteet lisätään",
           "blocked_new_character": "Media puuttuu · uusi kortti",
           "blocked_rarity_change": "Media puuttuu · päivitys",
           "blocked_identity_change": "Media puuttuu · class, spec tai rooli",
+          "blocked_score_version_change": "Media puuttuu · pistemalli",
           "blocked_mythic_plus_score_added": "Media puuttuu · Mythic+-pisteet"
         },
         "filters": {
@@ -1356,7 +1358,7 @@
         },
         "characterList": {
           "title": "Hahmomuutokset · {raid}",
-          "description": "Lista näyttää vain kortteihin vaikuttavat muutokset. Hahmot, joiden harvinaisuus, class, spec, rooli ja Mythic+-pisteiden saatavuus eivät muutu, näkyvät yllä raidin kokonaisluvuissa.",
+          "description": "Lista näyttää vain kortteihin vaikuttavat muutokset. Hahmot, joiden harvinaisuus, class, spec, rooli, pistemalli ja Mythic+-pisteiden saatavuus eivät muutu, näkyvät yllä raidin kokonaisluvuissa.",
           "raidFilter": "Raid",
           "outcomeFilter": "Hahmojen tulossuodattimet",
           "searchLabel": "Etsi hahmo",
@@ -1394,6 +1396,7 @@
           "newCharacters": "Uudet hahmot",
           "rarityChanges": "Harvinaisuusmuutokset",
           "identityChanges": "Class- / spec- / roolimuutokset",
+          "scoreVersionChanges": "Pistemallin päivitykset",
           "mythicPlusScoreAdds": "Lisätyt Mythic+-pisteet",
           "unchanged": "Ei muutosta",
           "blocked": "Media estää"
@@ -2272,8 +2275,8 @@
   "characterRankingsPage": {
     "titleAllStars": "Pistesijoitukset",
     "titleForBoss": "Vahinkosijoitukset pomolle",
-    "titleMechanics": "Selviytymispisteet",
-    "titleMechanicsForBoss": "Selviytyminen pomolle",
+    "titleMechanics": "Mekaniikkaprosentti",
+    "titleMechanicsForBoss": "Mekaniikkaprosentti pomolle",
     "titleCombined": "Yhdistetyt pisteet",
     "titleCombinedForBoss": "Yhdistetyt pisteet pomolle",
     "placeholderAllBosses": "Kaikki pomot",
@@ -2293,7 +2296,7 @@
     "columnScore": "Pisteet",
     "columnCombined": "Yhdistetty",
     "columnParse": "Parse",
-    "columnSurvival": "Selviytyminen",
+    "columnSurvival": "Mekaniikka",
     "columnDeaths": "Kuolemat",
     "columnEarlyDeaths": "Varhaiset kuolemat",
     "columnPulls": "Pullit"

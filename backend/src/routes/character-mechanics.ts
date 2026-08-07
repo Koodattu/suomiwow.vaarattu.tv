@@ -39,6 +39,7 @@ router.get(
         zoneId: { $in: TRACKED_RAIDS },
         deathDataAvailable: true,
         survivalScore: { $ne: null },
+        survivalPercentile: { $ne: null },
       });
 
       const sortedZoneIds = (zoneIdsWithMechanics.length > 0 ? zoneIdsWithMechanics : CURRENT_RAID_IDS)

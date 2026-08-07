@@ -6,4 +6,5 @@ export const COMPLETE_CCG_SCORE_FILTER = {
   score: { $gte: 0 },
   parseScore: { $gte: 0 },
   survivalScore: { $gte: 0 },
+  survivalPercentile: { $gte: 0 },
 };

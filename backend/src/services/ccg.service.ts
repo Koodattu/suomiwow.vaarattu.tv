@@ -1118,7 +1118,7 @@ class CcgService {
         type: "overall",
         encounterId: null,
       })
-        .select("zoneId pulls score parseScore survivalScore")
+        .select("zoneId pulls score parseScore survivalScore survivalPercentile")
         .lean(),
       CharacterRaidParticipation.find({
         characterId: { $in: memberCharacterIds },
@@ -1149,9 +1149,9 @@ class CcgService {
     const entryByZone = new Map<number, (typeof entries)[number]>();
     for (const entry of entries) {
       const current = entryByZone.get(entry.zoneId);
-      const entryScoresReady = [entry.score, entry.parseScore, entry.survivalScore].every((score) => typeof score === "number" && Number.isFinite(score));
+      const entryScoresReady = [entry.score, entry.parseScore, entry.survivalScore, entry.survivalPercentile].every((score) => typeof score === "number" && Number.isFinite(score));
       const currentScoresReady = current
-        ? [current.score, current.parseScore, current.survivalScore].every((score) => typeof score === "number" && Number.isFinite(score))
+        ? [current.score, current.parseScore, current.survivalScore, current.survivalPercentile].every((score) => typeof score === "number" && Number.isFinite(score))
         : false;
       if (
         !current
@@ -1564,7 +1564,7 @@ class CcgService {
               },
             },
             damage: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.performance", "$parseScore"] },
-            mechanics: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.mechanics", "$survivalScore"] },
+            mechanics: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.mechanics", "$survivalPercentile"] },
             combined: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.combined", "$combinedScore"] },
             mythicPlus: { $cond: [{ $in: ["$setId", communitySetIds] }, "$communityScores.mythicPlus", "$mythicPlusScore"] },
           })
@@ -1959,7 +1959,7 @@ class CcgService {
               },
             },
             damage: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.performance", "$card.parseScore"] },
-            mechanics: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.mechanics", "$card.survivalScore"] },
+            mechanics: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.mechanics", "$card.survivalPercentile"] },
             combined: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.combined", "$card.combinedScore"] },
             mythicPlus: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.mythicPlus", "$card.mythicPlusScore"] },
           })
@@ -4954,7 +4954,7 @@ class CcgService {
       itemLevel: card.itemLevel,
       scores: {
         performance: set.kind === "community" ? card.communityScores?.performance ?? null : card.parseScore,
-        mechanics: set.kind === "community" ? card.communityScores?.mechanics ?? null : card.survivalScore,
+        mechanics: set.kind === "community" ? card.communityScores?.mechanics ?? null : card.survivalPercentile ?? null,
         combined: set.kind === "community" ? card.communityScores?.combined ?? null : card.combinedScore,
         mythicPlus: set.kind === "community"
           ? card.communityScores?.mythicPlus ?? null

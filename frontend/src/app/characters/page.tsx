@@ -41,13 +41,13 @@ const CHARACTER_TABS: Array<{
     id: "mechanics",
     label: "Mechanics",
     title: "Mechanics",
-    description: "Survival score by raid.",
+    description: "Mechanics percentile by raid.",
   },
   {
     id: "combined",
     label: "Combined",
     title: "Combined Score",
-    description: "Combined parse and survival score by raid.",
+    description: "Combined parse and mechanics percentile by raid.",
   },
   {
     id: "mythic-plus",

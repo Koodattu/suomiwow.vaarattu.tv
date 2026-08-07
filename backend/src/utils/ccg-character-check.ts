@@ -8,6 +8,7 @@ export type CcgCharacterMechanicsRow = {
   score?: number | null;
   parseScore?: number | null;
   survivalScore?: number | null;
+  survivalPercentile?: number | null;
 };
 
 export function resolveCcgCharacterMechanicsStatus(
@@ -22,7 +23,9 @@ export function resolveCcgCharacterMechanicsStatus(
       && typeof row.parseScore === "number"
       && row.parseScore >= COMPLETE_CCG_SCORE_FILTER.parseScore.$gte
       && typeof row.survivalScore === "number"
-      && row.survivalScore >= COMPLETE_CCG_SCORE_FILTER.survivalScore.$gte,
+      && row.survivalScore >= COMPLETE_CCG_SCORE_FILTER.survivalScore.$gte
+      && typeof row.survivalPercentile === "number"
+      && row.survivalPercentile >= COMPLETE_CCG_SCORE_FILTER.survivalPercentile.$gte,
   );
   const selectedCandidates = completeCandidates.length > 0 ? completeCandidates : candidates;
   const selected = selectedCandidates.slice().sort((left, right) => {

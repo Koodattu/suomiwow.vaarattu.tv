@@ -69,6 +69,8 @@ test("CCG snapshot population uses the continuity root identity and its availabl
         score: 42.4,
         parseScore: 23,
         survivalScore: 61.8,
+        survivalPercentile: 61.8,
+        scoreVersion: 2,
         mythicReportCount: 26,
         reportCount: 35,
       },
@@ -84,6 +86,8 @@ test("CCG snapshot population uses the continuity root identity and its availabl
         score: 30,
         parseScore: 25,
         survivalScore: 35,
+        survivalPercentile: 35,
+        scoreVersion: 2,
         mythicReportCount: 1,
         reportCount: 1,
       },
@@ -214,10 +218,10 @@ test("character checker combines linked raid data with the current character med
       },
     ]);
     tierEntryModel.find = () => queryResult([
-      { characterId: sourceId, zoneId: 24, pulls: 546, score: 42.4, parseScore: 23, survivalScore: 61.8 },
+      { characterId: sourceId, zoneId: 24, pulls: 546, score: 42.4, parseScore: 23, survivalScore: 61.8, survivalPercentile: 61.8 },
     ]);
     mechanicsModel.find = () => queryResult([
-      { characterId: sourceId, zoneId: 24, pulls: 546, score: 42.4, parseScore: 23, survivalScore: 61.8 },
+      { characterId: sourceId, zoneId: 24, pulls: 546, score: 42.4, parseScore: 23, survivalScore: 61.8, survivalPercentile: 61.8 },
     ]);
     participationModel.find = () => queryResult([
       { characterId: sourceId, zoneId: 24, reportCount: 35, mythicReportCount: 26 },

@@ -958,7 +958,7 @@ class CharacterMechanicsService {
     const partialGuildNameRegex = normalizedGuildName ? new RegExp(this.escapeRegex(normalizedGuildName), "i") : undefined;
     const safeLimit = Math.min(Math.max(limit, 1), 500);
     const isBossType = encounterId !== undefined;
-    const scoreField = scoreType === "survival" ? "survivalScore" : "score";
+    const scoreField = scoreType === "survival" ? "survivalPercentile" : "score";
 
     const baseQuery: any = {
       zoneId,
@@ -968,6 +968,7 @@ class CharacterMechanicsService {
       metric,
       deathDataAvailable: true,
       survivalScore: { $ne: null },
+      survivalPercentile: { $ne: null },
       pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
     };
 
@@ -1050,13 +1051,13 @@ class CharacterMechanicsService {
     const { baseQuery, normalizedSpecName, partialNameRegex, partialGuildNameRegex, scoreType, page, safeLimit } = options;
     const entries = (await CharacterMechanicsLeaderboard.find({
       ...baseQuery,
-      bossScores: { $elemMatch: { specName: normalizedSpecName, deathDataAvailable: true, survivalScore: { $ne: null } } },
+      bossScores: { $elemMatch: { specName: normalizedSpecName, deathDataAvailable: true, survivalScore: { $ne: null }, survivalPercentile: { $ne: null } } },
     }).lean()) as any[];
     const scoredEntries: any[] = [];
 
     for (const entry of entries) {
       entry.bossScores = (entry.bossScores ?? []).filter(
-        (bossScore: IMechanicsBossScore) => bossScore.specName === normalizedSpecName && bossScore.deathDataAvailable === true && bossScore.survivalScore !== null,
+        (bossScore: IMechanicsBossScore) => bossScore.specName === normalizedSpecName && bossScore.deathDataAvailable === true && bossScore.survivalScore !== null && bossScore.survivalPercentile !== null,
       );
       if (entry.bossScores.length === 0) continue;
 
@@ -1064,6 +1065,7 @@ class CharacterMechanicsService {
       entry.score = totals.score;
       entry.parseScore = totals.parseScore;
       entry.survivalScore = totals.survivalScore;
+      entry.survivalPercentile = totals.survivalPercentile;
       entry.pulls = totals.pulls;
       entry.deaths = totals.deaths;
       entry.survivedPulls = totals.survivedPulls;
@@ -1099,7 +1101,7 @@ class CharacterMechanicsService {
   }
 
   private getMechanicsRankValue(entry: any, scoreType: MechanicsScoreType): number {
-    const value = scoreType === "survival" ? entry.survivalScore : entry.score;
+    const value = scoreType === "survival" ? entry.survivalPercentile : entry.score;
     return typeof value === "number" && Number.isFinite(value) ? value : -Infinity;
   }
 

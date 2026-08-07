@@ -44,7 +44,9 @@ export interface ICcgCard extends Document {
   itemLevel: number;
   parseScore: number;
   survivalScore: number;
+  survivalPercentile: number;
   combinedScore: number;
+  scoreVersion: number;
   mythicPlusScore?: number | null;
   communityScores?: CcgCommunityScores | null;
   tierGrade: CcgTierGrade;
@@ -96,7 +98,9 @@ const CcgCardSchema = new Schema<ICcgCard>(
     itemLevel: { type: Number, required: true, default: 0 },
     parseScore: { type: Number, required: true },
     survivalScore: { type: Number, required: true },
+    survivalPercentile: { type: Number, required: true },
     combinedScore: { type: Number, required: true },
+    scoreVersion: { type: Number, required: true, min: 1 },
     mythicPlusScore: { type: Number, default: null },
     communityScores: { type: CcgCommunityScoresSchema, default: undefined },
     tierGrade: { type: String, enum: ["H", "S", "A", "B", "C", "D", "E", "F"], required: true, index: true },

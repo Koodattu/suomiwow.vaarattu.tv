@@ -33,6 +33,7 @@ function matchesOutcome(character: PreviewCharacter, filter: OutcomeFilter): boo
   if (filter === "will_update") {
     return character.disposition === "rarity_change"
       || character.disposition === "identity_change"
+      || character.disposition === "score_version_change"
       || character.disposition === "mythic_plus_score_added";
   }
   return isMissingMedia(character);
@@ -78,6 +79,7 @@ export default function CcgSnapshotPreview() {
       will_update: characters.filter((character) => (
         character.disposition === "rarity_change"
         || character.disposition === "identity_change"
+        || character.disposition === "score_version_change"
         || character.disposition === "mythic_plus_score_added"
       )).length,
       missing_media: characters.filter(isMissingMedia).length,
@@ -89,11 +91,13 @@ export default function CcgSnapshotPreview() {
       new_character: 0,
       rarity_change: 1,
       identity_change: 2,
-      mythic_plus_score_added: 3,
-      blocked_new_character: 4,
-      blocked_rarity_change: 5,
-      blocked_identity_change: 6,
-      blocked_mythic_plus_score_added: 7,
+      score_version_change: 3,
+      mythic_plus_score_added: 4,
+      blocked_new_character: 5,
+      blocked_rarity_change: 6,
+      blocked_identity_change: 7,
+      blocked_score_version_change: 8,
+      blocked_mythic_plus_score_added: 9,
     };
     return (selectedSet?.characters ?? [])
       .filter((character) => matchesOutcome(character, outcomeFilter))
@@ -153,6 +157,7 @@ export default function CcgSnapshotPreview() {
     { key: "newCharacters", value: counts.newCharacters },
     { key: "rarityChanges", value: counts.rarityChanges },
     { key: "identityChanges", value: counts.identityChanges },
+    { key: "scoreVersionChanges", value: counts.scoreVersionChanges },
     { key: "mythicPlusScoreAdds", value: counts.mythicPlusScoreAdds },
     { key: "blocked", value: counts.blockedByMissingMedia },
     { key: "unchanged", value: counts.unchangedCharacters },
@@ -268,7 +273,7 @@ export default function CcgSnapshotPreview() {
                   <p className="mt-0.5 text-xs text-pretty text-gray-500">{t("raidOverview.description")}</p>
                 </div>
                 <div className="max-h-[26rem] overflow-auto">
-                  <table className="w-full min-w-[46rem] text-left text-xs">
+                  <table className="w-full min-w-[52rem] text-left text-xs">
                     <thead className="sticky top-0 z-10 bg-gray-950/95 text-gray-500 shadow-[0_1px_0_rgba(255,255,255,0.08)]">
                       <tr>
                         <th scope="col" className="px-3 py-2 font-semibold">{t("raidOverview.raid")}</th>
@@ -276,6 +281,7 @@ export default function CcgSnapshotPreview() {
                         <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.newCharacters")}</th>
                         <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.rarityChanges")}</th>
                         <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.identityChanges")}</th>
+                        <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.scoreVersionChanges")}</th>
                         <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.mythicPlusScoreAdds")}</th>
                         <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.blocked")}</th>
                         <th scope="col" className="px-3 py-2 text-right font-semibold">{t("metrics.unchanged")}</th>
@@ -303,7 +309,7 @@ export default function CcgSnapshotPreview() {
                                 </span>
                               </button>
                             </td>
-                            {[set.eligibleCharacters, set.newCharacters, set.rarityChanges, set.identityChanges, set.mythicPlusScoreAdds, set.blockedByMissingMedia, set.unchangedCharacters].map((value, index) => (
+                            {[set.eligibleCharacters, set.newCharacters, set.rarityChanges, set.identityChanges, set.scoreVersionChanges, set.mythicPlusScoreAdds, set.blockedByMissingMedia, set.unchangedCharacters].map((value, index) => (
                               <td key={index} className="px-3 py-2 text-right font-medium tabular-nums text-gray-300">{value}</td>
                             ))}
                           </tr>

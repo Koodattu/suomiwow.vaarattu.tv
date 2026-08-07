@@ -2922,6 +2922,7 @@ class CharacterService {
               zoneId: { $in: TRACKED_RAIDS },
               deathDataAvailable: true,
               survivalScore: { $ne: null },
+              survivalPercentile: { $ne: null },
             })
               .sort({ zoneId: -1, score: -1 })
               .lean()
@@ -2971,6 +2972,7 @@ class CharacterService {
           zoneId: { $in: TRACKED_RAIDS },
           deathDataAvailable: true,
           survivalScore: { $ne: null },
+          survivalPercentile: { $ne: null },
         })
           .sort({ zoneId: -1, score: -1 })
           .lean(),

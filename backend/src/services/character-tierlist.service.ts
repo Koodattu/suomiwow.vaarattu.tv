@@ -486,6 +486,7 @@ class CharacterTierListService {
         score: { $gte: 0 },
         parseScore: { $gte: 0 },
         survivalScore: { $gte: 0 },
+        survivalPercentile: { $gte: 0 },
         pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
       })
         .select(
@@ -551,7 +552,7 @@ class CharacterTierListService {
     const bestRows = new Map<string, MechanicsRow>();
 
     for (const row of rows) {
-      if (!row.characterId || !Number.isFinite(row.score) || !Number.isFinite(row.parseScore) || !Number.isFinite(row.survivalScore)) continue;
+      if (!row.characterId || !Number.isFinite(row.score) || !Number.isFinite(row.parseScore) || !Number.isFinite(row.survivalScore) || !Number.isFinite(row.survivalPercentile)) continue;
       const characterKey = this.buildCharacterKey(row);
       const existing = bestRows.get(characterKey);
       if (!existing || this.isBetterMechanicsRow(row, existing)) {
