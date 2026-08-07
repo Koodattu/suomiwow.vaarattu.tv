@@ -159,6 +159,7 @@ export default function CardViewer({
   const [motionTiltState, setMotionTiltState] = useState<MotionTiltState>("hidden");
   const viewerRef = useRef<HTMLDivElement>(null);
   const cardMotionRef = useRef<HTMLDivElement>(null);
+  const forcedPointerBoundsRef = useRef<Pick<DOMRect, "left" | "top" | "right" | "bottom" | "width" | "height"> | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const enterFrameRef = useRef<number | null>(null);
   const closingRef = useRef(false);
@@ -364,6 +365,7 @@ export default function CardViewer({
     const activationPoint = originBounds?.activationPoint;
     const motionElement = cardMotionRef.current;
     const targetElement = motionElement?.querySelector<HTMLElement>("[data-ccg-card]");
+    forcedPointerBoundsRef.current = null;
     if (!activationPoint || !motionElement || !targetElement) return;
 
     const previousTransform = motionElement.style.transform;
@@ -376,6 +378,7 @@ export default function CardViewer({
     void motionElement.offsetWidth;
     if (previousTransition) motionElement.style.transition = previousTransition;
     else motionElement.style.removeProperty("transition");
+    forcedPointerBoundsRef.current = bounds;
 
     if (
       activationPoint.clientX < bounds.left
@@ -389,6 +392,33 @@ export default function CardViewer({
       y: (activationPoint.clientY - bounds.top) / bounds.height,
     });
   }, [originBounds]);
+
+  const hasForcedPointer = forcedPointer !== undefined;
+  useEffect(() => {
+    if (!hasForcedPointer) return;
+
+    const syncForcedPointer = (event: PointerEvent) => {
+      if (!event.isPrimary || event.pointerType === "touch") return;
+      const bounds = forcedPointerBoundsRef.current;
+      if (!bounds) return;
+      if (
+        event.clientX < bounds.left
+        || event.clientX > bounds.right
+        || event.clientY < bounds.top
+        || event.clientY > bounds.bottom
+      ) {
+        setForcedPointer(undefined);
+        return;
+      }
+      setForcedPointer({
+        x: (event.clientX - bounds.left) / bounds.width,
+        y: (event.clientY - bounds.top) / bounds.height,
+      });
+    };
+
+    window.addEventListener("pointermove", syncForcedPointer, { passive: true });
+    return () => window.removeEventListener("pointermove", syncForcedPointer);
+  }, [hasForcedPointer]);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
