@@ -1279,7 +1279,7 @@ export default function CcgCollectionPage() {
                       artVariant={ownedFinish?.artVariant ?? "standard"}
                       quantity={ownedFinish?.total}
                       favorite={favorite}
-                      missing={!ownedFinish}
+                      missing={!card.seriesOwned}
                       onSelect={(event) => {
                         const originElement = event.currentTarget;
                         openCardViewer(originElement, (sharedTransition, originBounds) => {
@@ -1389,7 +1389,7 @@ export default function CcgCollectionPage() {
           originElement={viewerOriginElement}
           originBounds={viewerOriginBounds}
           sharedTransition={viewerSharedTransition}
-          missing={!bestOwnedFinish(viewerCard)}
+          missing={!viewerCard.seriesOwned}
           onClose={() => {
             setViewerCard(null);
             setViewerOriginElement(null);
