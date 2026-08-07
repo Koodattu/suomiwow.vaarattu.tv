@@ -1219,10 +1219,15 @@
     },
     "mythicPlus": {
       "coverageRecovery": "Coverage and recovery",
-      "coverageRecoveryHelp": "Missing queues eligible characters that have never had a profile fetch. Retry resets failed score fetches. Repair finds missing historical seasons and changed character identities, hides stale identity data, and queues corrected score fetches; the nightly repair uses the same process.",
+      "coverageRecoveryHelp": "Missing queues eligible characters that have never had a profile fetch and reopens characters previously skipped before they became eligible. Retry resets failed score fetches. Repair finds missing historical seasons and changed character identities, hides stale identity data, and queues corrected score fetches; the nightly repair uses the same process.",
       "fetchMissing": "Fetch Missing M+ Scores",
       "retryFailed": "Retry Failed Score Fetches",
       "repairHistorical": "Repair Historical & Identity Scores"
+    },
+    "characterDataRefresh": {
+      "incrementalTitle": "Incremental character-data refresh",
+      "incrementalDescription": "Resolves newly discovered historical WCL identities, rebuilds participation, fetches only missing ranking pairs, and rebuilds mechanics and character tier lists only for affected raids. Missing Mythic+ profiles and character renders are also queued; CCG snapshots remain manual.",
+      "discover": "Discover Missing Ranking Pairs"
     },
     "ccg": {
       "title": "CCG administration",

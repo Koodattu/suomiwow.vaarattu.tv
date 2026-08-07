@@ -191,7 +191,7 @@ class CharacterIdentityResolutionService {
   private currentItem: ResolutionItemSummary | null = null;
   private lastMessage: string | null = null;
 
-  async trigger(options: { refreshCandidates?: boolean; reprocessSkipped?: boolean } = {}): Promise<{
+  async trigger(options: { refreshCandidates?: boolean; reprocessSkipped?: boolean; reprocessSkippedWithNewEvidence?: boolean } = {}): Promise<{
     started: boolean;
     enqueue: CharacterIdentityResolutionEnqueueResult;
     status: CharacterIdentityResolutionStatusResponse;
@@ -247,6 +247,8 @@ class CharacterIdentityResolutionService {
         },
       );
       enqueue.requeued = result.modifiedCount ?? 0;
+    } else if (options.reprocessSkippedWithNewEvidence === true) {
+      enqueue.requeued = await this.requeueTerminalItemsWithNewAppearances();
     }
 
     let started = false;
@@ -256,6 +258,66 @@ class CharacterIdentityResolutionService {
     }
 
     return { started, enqueue, status: await this.getStatus() };
+  }
+
+  private async requeueTerminalItemsWithNewAppearances(): Promise<number> {
+    const rows = await CharacterReportAppearance.aggregate<{ _id: string }>([
+      {
+        $match: {
+          appearanceSource: "reportRankings",
+          wclCanonicalCharacterId: null,
+          reportZoneId: { $in: TRACKED_RAIDS },
+          hidden: { $ne: true },
+          sourceIdentityKey: { $type: "string" },
+        },
+      },
+      {
+        $lookup: {
+          from: CharacterIdentityResolution.collection.name,
+          localField: "sourceIdentityKey",
+          foreignField: "sourceIdentityKey",
+          as: "resolution",
+        },
+      },
+      { $set: { resolution: { $arrayElemAt: ["$resolution", 0] } } },
+      {
+        $match: {
+          "resolution.status": { $in: ["skipped", "failed"] },
+          $expr: {
+            $or: [
+              { $eq: [{ $ifNull: ["$resolution.completedAt", null] }, null] },
+              { $gt: ["$createdAt", "$resolution.completedAt"] },
+            ],
+          },
+        },
+      },
+      { $group: { _id: "$sourceIdentityKey" } },
+    ]).allowDiskUse(true);
+    if (rows.length === 0) return 0;
+
+    const result = await CharacterIdentityResolution.updateMany(
+      { sourceIdentityKey: { $in: rows.map((row) => row._id) }, status: { $in: ["skipped", "failed"] } },
+      {
+        $set: {
+          status: "pending",
+          outcome: null,
+          attempts: 0,
+          targetCharacterId: null,
+          wclCharacterId: null,
+          wclCanonicalCharacterId: null,
+          resolvedName: null,
+          resolvedRealm: null,
+          resolvedRegion: null,
+          resolvedClassID: null,
+          completionReason: "New report-ranking evidence queued identity resolution again",
+          completedAt: null,
+          lastError: null,
+          lastErrorAt: null,
+          lastActivityAt: new Date(),
+        },
+      },
+    );
+    return result.modifiedCount ?? 0;
   }
 
   async enqueueCandidates(): Promise<CharacterIdentityResolutionEnqueueResult> {

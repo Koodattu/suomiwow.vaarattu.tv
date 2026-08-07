@@ -1,17 +1,22 @@
 import { randomUUID } from "crypto";
 import { TRACKED_RAIDS } from "../config/guilds";
+import CharacterIdentityResolution from "../models/CharacterIdentityResolution";
+import CharacterRaidParticipation from "../models/CharacterRaidParticipation";
 import CharacterRankingBackfill from "../models/CharacterRankingBackfill";
+import CharacterReportAppearance from "../models/CharacterReportAppearance";
 import FullHistoryRefresh, { FullHistoryRefreshStage, IFullHistoryRefresh } from "../models/FullHistoryRefresh";
 import Fight from "../models/Fight";
 import GuildProcessingQueue from "../models/GuildProcessingQueue";
 import logger from "../utils/logger";
 import cacheService from "./cache.service";
 import characterIdentityResolutionService, { CharacterIdentityResolutionStatusResponse } from "./character-identity-resolution.service";
+import characterMediaService from "./character-media.service";
 import characterMechanicsService from "./character-mechanics.service";
 import characterRankingBackfillService from "./character-ranking-backfill.service";
 import characterService from "./character.service";
 import characterTierListService from "./character-tierlist.service";
 import guildService from "./guild.service";
+import mythicPlusService from "./mythic-plus.service";
 import taskTracker from "./task-tracker.service";
 
 const PIPELINE_KEY = "all-raids";
@@ -89,6 +94,54 @@ class FullHistoryRefreshService {
     );
 
     logger.info("[FullHistoryRefresh] Full-history refresh requested for all tracked raids");
+    return { started: true, status: await this.getStatus() };
+  }
+
+  async triggerIncrementalCharacterData(): Promise<{ started: boolean; status: FullHistoryRefreshStatusResponse }> {
+    const existing = await FullHistoryRefresh.findOne({ key: PIPELINE_KEY }).lean<IFullHistoryRefresh>();
+    if (existing?.status === "running") {
+      return { started: false, status: await this.getStatus() };
+    }
+
+    const [targets, rankingStatus] = await Promise.all([
+      this.findIncrementalTargets(),
+      characterRankingBackfillService.getStatus(),
+    ]);
+    const rankingMaintenanceActive = rankingStatus.processor.isRunning || rankingStatus.leaderboardRebuild.isRunning;
+    if (rankingMaintenanceActive) characterRankingBackfillService.requestStop();
+
+    const now = new Date();
+    await FullHistoryRefresh.findOneAndUpdate(
+      { key: PIPELINE_KEY },
+      {
+        $set: {
+          runId: randomUUID(),
+          status: "running",
+          stage: rankingMaintenanceActive ? "stop_rankings_for_identity_recovery" : "queue_character_identities",
+          startedAt: now,
+          stageStartedAt: now,
+          lastActivityAt: now,
+          completedAt: null,
+          lastError: null,
+          progress: {
+            mode: "incremental_character_data",
+            message: rankingMaintenanceActive
+              ? "Stopping ranking maintenance before incremental character identity recovery"
+              : "Preparing incremental historical character identity recovery",
+            targetZoneIds: targets.zoneIds,
+            targetGuildIds: targets.guildIds,
+            characterIdentityResolutionCompleted: false,
+          },
+        },
+        $setOnInsert: { key: PIPELINE_KEY },
+      },
+      { upsert: true, returnDocument: "after" },
+    );
+
+    void this.tick();
+    logger.info(
+      `[FullHistoryRefresh] Incremental character-data refresh requested for ${targets.guildIds.length} guild(s), raid(s): ${targets.zoneIds.join(", ") || "none"}`,
+    );
     return { started: true, status: await this.getStatus() };
   }
 
@@ -280,10 +333,17 @@ class FullHistoryRefreshService {
   }
 
   private async queueCharacterIdentities(run: IFullHistoryRefresh): Promise<void> {
-    const result = await characterIdentityResolutionService.trigger({ refreshCandidates: true, reprocessSkipped: true });
+    const incremental = run.progress.mode === "incremental_character_data";
+    const result = await characterIdentityResolutionService.trigger({
+      refreshCandidates: true,
+      reprocessSkipped: !incremental,
+      reprocessSkippedWithNewEvidence: incremental,
+    });
     await this.advance(run, "character_identities", {
       ...run.progress,
-      message: "Historical report-ranking identities queued for WCL resolution",
+      message: incremental
+        ? "New historical report-ranking identities queued for WCL resolution"
+        : "Historical report-ranking identities queued for WCL resolution",
       identityEnqueue: result.enqueue,
       identityQueue: result.status.queue,
     });
@@ -308,11 +368,36 @@ class FullHistoryRefreshService {
 
   private async rebuildCharacterParticipation(run: IFullHistoryRefresh): Promise<void> {
     const result = await characterService.rebuildCharacterRaidParticipations();
+    const incremental = run.progress.mode === "incremental_character_data";
+    const targetGuildIds = incremental ? this.getIncrementalTargetGuildIds(run) : [];
+    const mythicPlusCharacterIds =
+      targetGuildIds.length > 0
+        ? await CharacterRaidParticipation.distinct("characterId", {
+            reportGuildId: { $in: targetGuildIds },
+            characterId: { $ne: null },
+            reportCount: { $gte: 2 },
+          })
+        : [];
+    const mythicPlusEnqueue =
+      incremental && mythicPlusCharacterIds.length > 0
+        ? await mythicPlusService.enqueueProfileJobs({
+            characterIds: mythicPlusCharacterIds.map(String),
+            refresh: true,
+            targetSeasons: [],
+            fetchSeasonProgress: false,
+          })
+        : null;
+    const mythicPlus = mythicPlusEnqueue
+      ? { started: mythicPlusEnqueue.candidates > 0 ? mythicPlusService.startProcessing() : false, enqueue: mythicPlusEnqueue }
+      : null;
     await this.advance(run, "queue_rankings", {
       ...run.progress,
-      message: "Resolved identities linked and character participation rebuilt",
+      message: incremental
+        ? "Resolved identities linked, character participation rebuilt, and missing Mythic+ profiles queued"
+        : "Resolved identities linked and character participation rebuilt",
       characterIdentityResolutionCompleted: true,
       participationRebuild: result,
+      ...(mythicPlus ? { mythicPlus } : {}),
     });
   }
 
@@ -343,7 +428,8 @@ class FullHistoryRefreshService {
       return;
     }
 
-    const restartFromScratch = run.progress.rankingRestartFromScratch === true;
+    const incremental = run.progress.mode === "incremental_character_data";
+    const restartFromScratch = !incremental && run.progress.rankingRestartFromScratch === true;
     if (restartFromScratch) {
       const existingStatus = await characterRankingBackfillService.getStatus();
       if (existingStatus.processor.isRunning) {
@@ -360,12 +446,14 @@ class FullHistoryRefreshService {
 
     const result = await characterRankingBackfillService.triggerBackfill({
       refreshCandidates: true,
-      reprocessCompleted: !restartFromScratch,
+      reprocessCompleted: !incremental && !restartFromScratch,
       reprocessAll: restartFromScratch,
     });
     await this.advance(run, "rankings", {
       ...run.progress,
-      message: restartFromScratch
+      message: incremental
+        ? "Missing character/raid ranking pairs discovered and queued"
+        : restartFromScratch
         ? "All ranking pairs reset and queued from the beginning"
         : "All character/raid pairs queued for all-spec ranking refresh",
       rankingRestartFromScratch: false,
@@ -384,9 +472,18 @@ class FullHistoryRefreshService {
     await characterRankingBackfillService.resumeInterruptedBackfill();
     const status = await characterRankingBackfillService.getStatus();
     const active = status.queue.pending + status.queue.inProgress;
-    await this.updateProgress(run, { ...run.progress, message: "Refetching every class spec for every tracked raid", rankingQueue: status.queue });
+    const incremental = run.progress.mode === "incremental_character_data";
+    await this.updateProgress(run, {
+      ...run.progress,
+      message: incremental ? "Fetching all class specs for newly discovered ranking pairs" : "Refetching every class spec for every tracked raid",
+      rankingQueue: status.queue,
+    });
     if (active > 0) return;
-    await this.advance(run, "mechanics_and_tier_lists", { ...run.progress, message: "All-spec ranking refresh finished", rankingQueue: status.queue });
+    await this.advance(run, "mechanics_and_tier_lists", {
+      ...run.progress,
+      message: incremental ? "New ranking pairs finished; rebuilding affected raid data" : "All-spec ranking refresh finished",
+      rankingQueue: status.queue,
+    });
   }
 
   private async rebuildMechanicsAndTierLists(run: IFullHistoryRefresh): Promise<void> {
@@ -395,9 +492,14 @@ class FullHistoryRefreshService {
       return;
     }
 
-    const taskId = await taskTracker.start("Full History Mechanics and Character Tier Lists", { runId: run.runId, raidIds: TRACKED_RAIDS });
+    const incremental = run.progress.mode === "incremental_character_data";
+    const raidIds = incremental ? this.getIncrementalTargetZoneIds(run) : TRACKED_RAIDS;
+    const taskId = await taskTracker.start(incremental ? "Incremental Mechanics and Character Tier Lists" : "Full History Mechanics and Character Tier Lists", {
+      runId: run.runId,
+      raidIds,
+    });
     try {
-      const mechanics = await characterMechanicsService.buildMechanicsLeaderboards(TRACKED_RAIDS);
+      const mechanics = raidIds.length > 0 ? await characterMechanicsService.buildMechanicsLeaderboards(raidIds) : { zones: [], entries: 0 };
       const skippedZones = mechanics.zones.filter((zone) => zone.status === "skipped");
       if (skippedZones.length > 0) {
         const summary = skippedZones.map((zone) => `${zone.zoneId}: ${zone.reason ?? "insufficient fight coverage"}`).join("; ");
@@ -407,17 +509,151 @@ class FullHistoryRefreshService {
       const builtZoneIds = mechanics.zones.filter((zone) => zone.status === "built").map((zone) => zone.zoneId);
       const tierLists = await characterTierListService.rebuildCharacterTierLists(builtZoneIds);
       await cacheService.invalidateCharacterTierListCaches();
-      await taskTracker.complete(taskId, { mechanics, tierLists });
+      const targetGuildIds = incremental ? this.getIncrementalTargetGuildIds(run) : [];
+      const targetMediaCharacterIds =
+        targetGuildIds.length > 0
+          ? await CharacterRaidParticipation.distinct("characterId", {
+              reportGuildId: { $in: targetGuildIds },
+              characterId: { $ne: null },
+            })
+          : [];
+      const mediaDiscovery = incremental ? await characterMediaService.enqueueMissing() : null;
+      const targetedMediaQueued =
+        incremental && targetMediaCharacterIds.length > 0
+          ? await characterMediaService.enqueueCharacters(targetMediaCharacterIds, 200, true)
+          : 0;
+      const media = mediaDiscovery
+        ? { ...mediaDiscovery, targetedCandidates: targetMediaCharacterIds.length, targetedQueued: targetedMediaQueued }
+        : null;
+      if (media) characterMediaService.startProcessing();
+      await taskTracker.complete(taskId, { mechanics, tierLists, ...(media ? { media } : {}) });
       await this.complete(run, {
         ...run.progress,
-        message: "All tracked fight data, rankings, mechanics leaderboards, and character tier lists refreshed; CCG was not changed",
+        message: incremental
+          ? "Missing identities, participation, rankings, Mythic+ profiles, mechanics, tier lists, and character renders were queued or refreshed; CCG snapshots were not changed"
+          : "All tracked fight data, rankings, mechanics leaderboards, and character tier lists refreshed; CCG was not changed",
         mechanics,
         tierLists,
+        ...(media ? { media } : {}),
       });
     } catch (error) {
       await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
       throw error;
     }
+  }
+
+  private getIncrementalTargetZoneIds(run: Pick<IFullHistoryRefresh, "progress">): number[] {
+    const zoneIds = Array.isArray(run.progress.targetZoneIds) ? run.progress.targetZoneIds : [];
+    return [...new Set(zoneIds.filter((zoneId): zoneId is number => Number.isInteger(zoneId) && TRACKED_RAIDS.includes(zoneId as number)))].sort(
+      (left, right) => right - left,
+    );
+  }
+
+  private getIncrementalTargetGuildIds(run: Pick<IFullHistoryRefresh, "progress">): string[] {
+    const guildIds = Array.isArray(run.progress.targetGuildIds) ? run.progress.targetGuildIds : [];
+    return [...new Set(guildIds.filter((guildId): guildId is string => typeof guildId === "string" && /^[a-f\d]{24}$/i.test(guildId)))];
+  }
+
+  private async findIncrementalTargets(): Promise<{ zoneIds: number[]; guildIds: string[] }> {
+    const [identityRows, rankingRows] = await Promise.all([
+      CharacterReportAppearance.aggregate<{ _id: null; zoneIds: number[]; guildIds: unknown[] }>([
+        {
+          $match: {
+            appearanceSource: "reportRankings",
+            wclCanonicalCharacterId: null,
+            reportZoneId: { $in: TRACKED_RAIDS },
+            hidden: { $ne: true },
+            sourceIdentityKey: { $type: "string" },
+          },
+        },
+        {
+          $lookup: {
+            from: CharacterIdentityResolution.collection.name,
+            localField: "sourceIdentityKey",
+            foreignField: "sourceIdentityKey",
+            as: "identityResolution",
+          },
+        },
+        { $set: { identityResolution: { $arrayElemAt: ["$identityResolution", 0] } } },
+        {
+          $match: {
+            $or: [
+              { identityResolution: null },
+              { "identityResolution.status": { $in: ["pending", "in_progress", "completed"] } },
+              {
+                $expr: {
+                  $and: [
+                    { $in: ["$identityResolution.status", ["skipped", "failed"]] },
+                    {
+                      $or: [
+                        { $eq: [{ $ifNull: ["$identityResolution.completedAt", null] }, null] },
+                        { $gt: ["$createdAt", "$identityResolution.completedAt"] },
+                      ],
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+        { $group: { _id: null, zoneIds: { $addToSet: "$reportZoneId" }, guildIds: { $addToSet: "$reportGuildId" } } },
+      ]).allowDiskUse(true),
+      CharacterReportAppearance.aggregate<{ _id: null; zoneIds: number[]; guildIds: unknown[] }>([
+        {
+          $match: {
+            appearanceSource: "reportRankings",
+            wclCanonicalCharacterId: { $type: "number" },
+            characterId: { $ne: null },
+            reportZoneId: { $in: TRACKED_RAIDS },
+            hidden: { $ne: true },
+            rankingFightIds: { $exists: true, $ne: [] },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              wclCanonicalCharacterId: "$wclCanonicalCharacterId",
+              classID: "$classID",
+              zoneId: "$reportZoneId",
+            },
+            guildIds: { $addToSet: "$reportGuildId" },
+          },
+        },
+        {
+          $lookup: {
+            from: CharacterRankingBackfill.collection.name,
+            let: { canonicalId: "$_id.wclCanonicalCharacterId", classId: "$_id.classID", zoneId: "$_id.zoneId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$wclCanonicalCharacterId", "$$canonicalId"] },
+                      { $eq: ["$classID", "$$classId"] },
+                      { $eq: ["$zoneId", "$$zoneId"] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: "rankingBackfill",
+          },
+        },
+        { $match: { rankingBackfill: { $size: 0 } } },
+        { $unwind: "$guildIds" },
+        { $group: { _id: null, zoneIds: { $addToSet: "$_id.zoneId" }, guildIds: { $addToSet: "$guildIds" } } },
+      ]).allowDiskUse(true),
+    ]);
+
+    return {
+      zoneIds: [
+        ...new Set([...(identityRows[0]?.zoneIds ?? []), ...(rankingRows[0]?.zoneIds ?? [])].filter((zoneId) => TRACKED_RAIDS.includes(zoneId))),
+      ].sort((left, right) => right - left),
+      guildIds: [
+        ...new Set([...(identityRows[0]?.guildIds ?? []), ...(rankingRows[0]?.guildIds ?? [])].map(String).filter((guildId) => /^[a-f\d]{24}$/i.test(guildId))),
+      ],
+    };
   }
 
   private async rewindToIdentityRecovery(run: IFullHistoryRefresh, message: string): Promise<void> {

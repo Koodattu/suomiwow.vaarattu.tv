@@ -9,9 +9,10 @@ import CharacterRaidParticipation from "../src/models/CharacterRaidParticipation
 import cacheService from "../src/services/cache.service";
 import mythicPlusService from "../src/services/mythic-plus.service";
 
-test("missing Mythic+ profile jobs exclude characters with scores or an existing profile job", async (t) => {
+test("missing Mythic+ profile jobs exclude tracked jobs and reopen eligibility-skipped jobs", async (t) => {
   const withScore = new mongoose.Types.ObjectId();
   const withJob = new mongoose.Types.ObjectId();
+  const skipped = new mongoose.Types.ObjectId();
   const missing = new mongoose.Types.ObjectId();
   const originalParticipationDistinct = CharacterRaidParticipation.distinct;
   const originalScoreDistinct = CharacterMythicPlusSeasonScore.distinct;
@@ -25,22 +26,23 @@ test("missing Mythic+ profile jobs exclude characters with scores or an existing
     mythicPlusService.enqueueProfileJobs = originalEnqueueProfileJobs;
   });
 
-  CharacterRaidParticipation.distinct = (async () => [withScore, withJob, missing]) as unknown as typeof CharacterRaidParticipation.distinct;
+  CharacterRaidParticipation.distinct = (async () => [withScore, withJob, skipped, missing]) as unknown as typeof CharacterRaidParticipation.distinct;
   CharacterMythicPlusSeasonScore.distinct = (async () => [withScore]) as unknown as typeof CharacterMythicPlusSeasonScore.distinct;
   CharacterMythicPlusFetchJob.distinct = (async (_field: string, filter: Record<string, unknown>) => {
     assert.deepEqual(filter, {
-      characterId: { $in: [withScore, withJob, missing] },
+      characterId: { $in: [withScore, withJob, skipped, missing] },
       jobType: "profile",
       season: null,
+      status: { $ne: "skipped" },
     });
     return [withJob];
   }) as unknown as typeof CharacterMythicPlusFetchJob.distinct;
   mythicPlusService.enqueueProfileJobs = (async (options: Parameters<typeof mythicPlusService.enqueueProfileJobs>[0]) => {
-    assert.deepEqual(options, { characterIds: [String(missing)], targetSeasons: [], fetchSeasonProgress: false });
-    return { candidates: 1, queued: 1, existing: 0 };
+    assert.deepEqual(options, { characterIds: [String(skipped), String(missing)], refresh: true, targetSeasons: [], fetchSeasonProgress: false });
+    return { candidates: 2, queued: 1, existing: 1 };
   }) as unknown as typeof mythicPlusService.enqueueProfileJobs;
 
-  assert.deepEqual(await mythicPlusService.enqueueMissingProfileJobs(), { candidates: 1, queued: 1, existing: 0 });
+  assert.deepEqual(await mythicPlusService.enqueueMissingProfileJobs(), { candidates: 2, queued: 1, existing: 1 });
 });
 
 test("failed Mythic+ retry resets only failed profile score jobs", async (t) => {

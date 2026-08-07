@@ -2707,6 +2707,16 @@ export async function triggerFullHistoryRefresh(): Promise<FullHistoryRefreshTri
   return data;
 }
 
+export async function triggerIncrementalCharacterDataRefresh(): Promise<FullHistoryRefreshTriggerResponse> {
+  const response = await fetch(`${API_URL}/api/admin/trigger/incremental-character-data-refresh`, {
+    method: "POST",
+    credentials: "include",
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || data.message || "Failed to start incremental character-data refresh");
+  return data;
+}
+
 export async function restartFullHistoryFromIdentityRecovery(): Promise<FullHistoryRefreshTriggerResponse> {
   const response = await fetch(`${API_URL}/api/admin/trigger/full-history-refresh/restart-from-identities`, {
     method: "POST",

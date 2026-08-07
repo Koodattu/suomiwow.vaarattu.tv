@@ -23,6 +23,7 @@ import {
   triggerBackfillFightVods,
   triggerUpdateGuildCrests,
   triggerFullHistoryRefresh,
+  triggerIncrementalCharacterDataRefresh,
   restartFullHistoryFromIdentityRecovery,
   triggerRescanDeathEvents,
   triggerRescanCharacters,
@@ -933,7 +934,11 @@ export default function AdminPage() {
         const status = await api.getAdminCharacterRankingBackfillStatus();
         setCharacterRankingBackfillStatus(status);
       }
-      if (triggerName === "full-history-refresh" || triggerName === "restart-full-history-from-identities") {
+      if (
+        triggerName === "full-history-refresh" ||
+        triggerName === "incremental-character-data-refresh" ||
+        triggerName === "restart-full-history-from-identities"
+      ) {
         setFullHistoryRefreshStatus(await api.getAdminFullHistoryRefreshStatus());
         setCharacterRankingBackfillStatus(await api.getAdminCharacterRankingBackfillStatus());
       }
@@ -2380,9 +2385,15 @@ export default function AdminPage() {
               <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-950/20 p-4">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="space-y-1">
-                    <h3 className="font-semibold text-amber-100">Full-history raid data and mechanics refresh</h3>
+                    <h3 className="font-semibold text-amber-100">
+                      {fullHistoryRefreshStatus?.progress.mode === "incremental_character_data"
+                        ? t("characterDataRefresh.incrementalTitle")
+                        : "Full-history raid data and mechanics refresh"}
+                    </h3>
                     <p className="max-w-4xl text-sm text-gray-300">
-                      Fetches fight details for every tracked raid, resolves missing historical character identities through WCL, refetches every class spec for every character/raid pair, and rebuilds all mechanics and character tier lists. CCG snapshots and card publication remain manual.
+                      {fullHistoryRefreshStatus?.progress.mode === "incremental_character_data"
+                        ? t("characterDataRefresh.incrementalDescription")
+                        : "Fetches fight details for every tracked raid, resolves missing historical character identities through WCL, refetches every class spec for every character/raid pair, and rebuilds all mechanics and character tier lists. CCG snapshots and card publication remain manual."}
                     </p>
                     {fullHistoryRefreshStatus?.stage ? (
                       <p className={`text-sm ${fullHistoryRefreshStatus.status === "failed" ? "text-red-300" : fullHistoryRefreshStatus.status === "completed" ? "text-emerald-300" : "text-cyan-300"}`}>
@@ -2496,7 +2507,12 @@ export default function AdminPage() {
                 <ManualActionCard icon="⚔️" title="Character Ranking Pipeline">
                   <ManualActionGroup title="1. Queue rankings">
                     {renderTriggerButton("backfill-character-rankings", "Backfill Character Rankings", triggerBackfillCharacterRankings)}
-                    {renderTriggerButton("refresh-character-ranking-candidates", "Discover Missing Ranking Pairs", () => triggerBackfillCharacterRankings(true))}
+                    {renderTriggerButton(
+                      "incremental-character-data-refresh",
+                      t("characterDataRefresh.discover"),
+                      triggerIncrementalCharacterDataRefresh,
+                      { disabled: fullHistoryRefreshStatus?.status === "running" },
+                    )}
                     {renderTriggerButton("refresh-current-character-ranking-specs", "Refetch Current-Tier All Specs", () => triggerBackfillCharacterRankings(false, true, "current"))}
                     {renderTriggerButton("refresh-all-character-ranking-specs", "Refetch All-Raid All Specs", () => triggerBackfillCharacterRankings(true, true, "all"))}
                   </ManualActionGroup>

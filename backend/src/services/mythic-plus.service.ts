@@ -1143,13 +1143,14 @@ class MythicPlusService {
         characterId: { $in: eligibleCharacterIds },
         jobType: "profile",
         season: null,
+        status: { $ne: "skipped" },
       }),
     ]);
     const alreadyTracked = new Set([...charactersWithScores, ...charactersWithProfileJobs].map(String));
     const missingCharacterIds = eligibleCharacterIds.filter((characterId) => !alreadyTracked.has(String(characterId))).map(String);
 
     if (missingCharacterIds.length === 0) return { candidates: 0, queued: 0, existing: 0 };
-    return this.enqueueProfileJobs({ characterIds: missingCharacterIds, targetSeasons: [], fetchSeasonProgress: false });
+    return this.enqueueProfileJobs({ characterIds: missingCharacterIds, refresh: true, targetSeasons: [], fetchSeasonProgress: false });
   }
 
   async retryFailedProfileJobs() {

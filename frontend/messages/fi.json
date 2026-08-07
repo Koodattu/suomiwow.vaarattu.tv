@@ -1219,10 +1219,15 @@
     },
     "mythicPlus": {
       "coverageRecovery": "Kattavuus ja palautus",
-      "coverageRecoveryHelp": "Puuttuvat-toiminto jonottaa kelvolliset hahmot, joille ei ole koskaan tehty profiilihakua. Uudelleenyritys nollaa epäonnistuneet pistehaut. Korjaus etsii puuttuvat historialliset kaudet sekä vaihtuneet hahmonimet ja palvelimet, piilottaa vanhan identiteetin tiedot ja jonottaa korjatut pistehaut; yöajo käyttää samaa korjausta.",
+      "coverageRecoveryHelp": "Puuttuvat-toiminto jonottaa kelvolliset hahmot, joille ei ole koskaan tehty profiilihakua, ja avaa uudelleen hahmot, jotka ohitettiin ennen kuin ne täyttivät ehdot. Uudelleenyritys nollaa epäonnistuneet pistehaut. Korjaus etsii puuttuvat historialliset kaudet sekä vaihtuneet hahmonimet ja palvelimet, piilottaa vanhan identiteetin tiedot ja jonottaa korjatut pistehaut; yöajo käyttää samaa korjausta.",
       "fetchMissing": "Nouda puuttuvat M+-pisteet",
       "retryFailed": "Yritä epäonnistuneita pistehakuja uudelleen",
       "repairHistorical": "Korjaa historia- ja identiteettipisteet"
+    },
+    "characterDataRefresh": {
+      "incrementalTitle": "Inkrementaalinen hahmodatan päivitys",
+      "incrementalDescription": "Ratkaisee uudet historialliset WCL-hahmoidentiteetit, rakentaa osallistumistiedot uudelleen, hakee vain puuttuvat hahmo- ja raid-rankingparit sekä päivittää vain tarvittavien raidien mekaniikka- ja hahmotasolistat. Myös puuttuvat M+-profiilit ja hahmorenderit jonotetaan; CCG-snapshotit tehdään edelleen käsin.",
+      "discover": "Etsi puuttuvat rankingparit"
     },
     "ccg": {
       "title": "CCG-hallinta",

@@ -3404,6 +3404,23 @@ router.post("/trigger/full-history-refresh", async (_req: Request, res: Response
   }
 });
 
+// Resolve newly discovered historical identities and build only the missing downstream character data.
+router.post("/trigger/incremental-character-data-refresh", async (_req: Request, res: Response) => {
+  try {
+    const result = await fullHistoryRefreshService.triggerIncrementalCharacterData();
+    res.status(result.started ? 202 : 409).json({
+      success: result.started,
+      message: result.started
+        ? "Missing character identity, ranking, Mythic+, and render discovery started"
+        : "A character-data refresh is already running",
+      ...result,
+    });
+  } catch (error) {
+    logger.error("Error triggering incremental character-data refresh:", error);
+    res.status(500).json({ error: "Failed to start incremental character-data refresh" });
+  }
+});
+
 // Stop an active ranking pass and restart from WCL identity recovery, reusing stored fight details.
 router.post("/trigger/full-history-refresh/restart-from-identities", async (_req: Request, res: Response) => {
   try {
@@ -3522,8 +3539,8 @@ router.post("/trigger/crawl-mythic-plus", async (req: Request, res: Response) =>
       res.json({
         success: true,
         message: result.started
-          ? `Mythic+ missing-character fetch started: ${result.enqueue.queued} never-fetched eligible character(s) queued`
-          : `Mythic+ missing-character fetch queued: ${result.enqueue.queued} never-fetched eligible character(s)`,
+          ? `Mythic+ missing-character fetch started: ${result.enqueue.candidates} missing or newly eligible character(s) queued`
+          : `Mythic+ missing-character fetch queued: ${result.enqueue.candidates} missing or newly eligible character(s)`,
         ...result,
       });
       return;
