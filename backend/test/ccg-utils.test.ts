@@ -7,6 +7,7 @@ import {
   CCG_FINISH_PITY_LIMITS,
   CCG_INITIAL_PACKS,
   CCG_MISSING_CARD_NUDGE_BPS,
+  CCG_MISSING_CARD_NUDGE_START_COMPLETION_RATIO,
   CCG_PACK_STORAGE_CAP,
   CCG_RAID_FINISHES,
   CCG_REGULAR_TIER_GRADES,
@@ -663,6 +664,7 @@ test("pack plans create same-rarity missing-card alternatives on the five-percen
 });
 
 test("missing-card candidate counts scale smoothly from 95 percent completion and cap at four", () => {
+  assert.equal(CCG_MISSING_CARD_NUDGE_START_COMPLETION_RATIO, 0.95);
   const assertClose = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-10);
   assertClose(getMissingCardEffectiveCandidates(0), 1.05);
   assertClose(getMissingCardEffectiveCandidates(0.95), 1.05);

@@ -12,6 +12,7 @@ import {
   CCG_GUEST_COOKIE_MAX_AGE_MS,
   CCG_INITIAL_PACKS,
   CCG_LEADERBOARD_REFRESH_INTERVAL_SECONDS,
+  CCG_MISSING_CARD_NUDGE_START_COMPLETION_RATIO,
   CCG_PACK_BALANCE_VERSION,
   CCG_PACK_RECHARGE_INTERVAL_MINUTES,
   CCG_PACK_RULE_VERSION,
@@ -2974,7 +2975,14 @@ class CcgService {
           return;
         }
         const allowanceSource = await this.reservePack(owner, session);
-        const pool = await this.selectPackResults(session, targetSetId, true, true, owner);
+        const applyMissingCardProtection = targetSetId !== null;
+        const pool = await this.selectPackResults(
+          session,
+          targetSetId,
+          true,
+          applyMissingCardProtection,
+          applyMissingCardProtection ? owner : null,
+        );
         const candidateSelections = pool.results;
         const candidateIds = candidateSelections.flatMap((result) => [
           result.cardId,
@@ -4235,6 +4243,33 @@ class CcgService {
     return (await aggregation)[0]?.count ?? 0;
   }
 
+  private async countPackOwnedSeries(
+    owner: Pick<CcgOwner, "ownerType" | "ownerId">,
+    setId: mongoose.Types.ObjectId,
+    cardCount: number,
+    session: ClientSession,
+  ): Promise<number> {
+    const ownershipFilter = {
+      ownerType: owner.ownerType,
+      ownerId: owner.ownerId,
+      setId,
+    };
+    const rawOwnedSeriesCount = await CcgSeriesOwnership.countDocuments(ownershipFilter).session(session);
+    if (rawOwnedSeriesCount / cardCount <= CCG_MISSING_CARD_NUDGE_START_COMPLETION_RATIO) {
+      return rawOwnedSeriesCount;
+    }
+
+    const activeCharacterIds = await CcgCard.distinct("characterId", {
+      setId,
+      availabilityStatus: { $ne: "archived" },
+    }).session(session);
+    if (activeCharacterIds.length === 0) return 0;
+    return CcgSeriesOwnership.countDocuments({
+      ...ownershipFilter,
+      characterId: { $in: activeCharacterIds },
+    }).session(session);
+  }
+
   private async selectPackResults(
     session: ClientSession,
     targetSetId: mongoose.Types.ObjectId | null = null,
@@ -4294,9 +4329,10 @@ class CcgService {
       );
     }
 
+    const applyMissingCardProtection = Boolean(targetSetId && includeMissingCardAlternatives && missingCardOwner);
     const eligibleCardCount = sets.reduce((total, set) => total + set.cardCount, 0);
-    const ownedSeriesCount = includeMissingCardAlternatives && missingCardOwner
-      ? await this.countActiveOwnedSeries(missingCardOwner, normalSetIds, session)
+    const ownedSeriesCount = applyMissingCardProtection && missingCardOwner
+      ? await this.countPackOwnedSeries(missingCardOwner, sets[0]._id, sets[0].cardCount, session)
       : 0;
     const completionRatio = eligibleCardCount > 0
       ? Math.min(ownedSeriesCount, eligibleCardCount) / eligibleCardCount
@@ -4310,7 +4346,7 @@ class CcgService {
         counts: pool.counts,
       })),
       randomInt,
-      includeMissingCardAlternatives,
+      applyMissingCardProtection,
       completionRatio,
     );
     const plannedCards = plan.flatMap((row) => [
@@ -4369,7 +4405,7 @@ class CcgService {
       }))
     ));
     const results = baseResults.map((base): CcgPackCardSelection => {
-      const communitySelection = selectCommunityCardCandidates(communityCards, randomInt, includeMissingCardAlternatives);
+      const communitySelection = selectCommunityCardCandidates(communityCards, randomInt, applyMissingCardProtection);
       if (communitySet && communitySelection) {
         const primary = communitySelection.primary;
         return {

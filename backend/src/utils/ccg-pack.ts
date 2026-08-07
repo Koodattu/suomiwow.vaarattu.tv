@@ -4,6 +4,7 @@ import {
   CCG_CARDS_PER_PACK,
   CCG_COMMUNITY_CARD_CHANCE_BPS,
   CCG_MISSING_CARD_NUDGE_BPS,
+  CCG_MISSING_CARD_NUDGE_START_COMPLETION_RATIO,
   CCG_REGULAR_TIER_GRADES,
   CCG_WEIGHTED_GRADE_ODDS,
   CcgRegularTierGrade,
@@ -36,7 +37,7 @@ export type CcgCardCandidates<T> = {
 };
 
 const CCG_MISSING_CARD_CANDIDATE_CURVE = [
-  { completionRatio: 0.95, effectiveCandidates: 1 + (CCG_MISSING_CARD_NUDGE_BPS / CCG_BASIS_POINT_SCALE) },
+  { completionRatio: CCG_MISSING_CARD_NUDGE_START_COMPLETION_RATIO, effectiveCandidates: 1 + (CCG_MISSING_CARD_NUDGE_BPS / CCG_BASIS_POINT_SCALE) },
   { completionRatio: 0.97, effectiveCandidates: 1.35 },
   { completionRatio: 0.98, effectiveCandidates: 1.5 },
   { completionRatio: 0.99, effectiveCandidates: 2 },

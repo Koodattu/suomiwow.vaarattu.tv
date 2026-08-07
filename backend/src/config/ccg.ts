@@ -44,6 +44,7 @@ export const CCG_CARDS_PER_PACK = 5;
 export const CCG_BASIS_POINT_SCALE = 10_000;
 export const CCG_COMMUNITY_CARD_CHANCE_BPS = 100;
 export const CCG_MISSING_CARD_NUDGE_BPS = 500;
+export const CCG_MISSING_CARD_NUDGE_START_COMPLETION_RATIO = 0.95;
 export const CCG_PACK_STORAGE_CAP = 100;
 export const CCG_PACK_RECHARGE_INTERVAL_MINUTES = 20;
 export const CCG_INITIAL_PACKS = { user: 40, guest: 40 } as const;
