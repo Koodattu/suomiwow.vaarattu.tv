@@ -2011,6 +2011,8 @@
     "ccgRewardClaiming": "Lunastetaan...",
     "ccgRewardOpenPacks": "Avaa pakat",
     "ccgRewardClaimFailed": "Pakkojen lunastaminen epäonnistui. Yritä uudelleen.",
+    "ccgPacksShort": "{count, plural, one {# CCG-pakka} other {# CCG-pakkaa}}",
+    "entryCount": "{count, plural, =0 {Ei osallistujia} one {# osallistuja} other {# osallistujaa}}",
     "duplicateGuild": "Kilta on valittu kahdesti: {guild}",
     "currentRankings": "Nykyiset sijoitukset",
     "rankingsPendingTitle": "Raidin sijoituksia odotetaan",

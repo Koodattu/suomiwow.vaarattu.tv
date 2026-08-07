@@ -1528,6 +1528,7 @@ export interface PickemSummary {
   votingStart: string;
   votingEnd: string;
   ccgRewardPacks: number;
+  entryCount: number;
   isVotingOpen: boolean;
   hasEnded: boolean;
   scoringConfig?: ScoringConfig;

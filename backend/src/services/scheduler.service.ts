@@ -1,4 +1,4 @@
-import cron from "node-cron";
+import cron, { type TaskFn } from "node-cron";
 import mongoose from "mongoose";
 import Guild, { IGuild } from "../models/Guild";
 import guildService from "./guild.service";
@@ -171,6 +171,20 @@ class UpdateScheduler {
   private isRefreshingCcgMedia: boolean = false;
   private isRecoveringCcgMedia: boolean = false;
   private lastCacheWarmTime: number = 0;
+
+  private scheduleCronTask(name: string, expression: string, taskFn: TaskFn): void {
+    const task = cron.createTask(expression, taskFn, {
+      name,
+      timezone: "Europe/Helsinki",
+    });
+
+    task.on("execution:missed", ({ date, triggeredAt }) => {
+      const delayMs = Math.max(0, triggeredAt.getTime() - date.getTime());
+      logger.warn(`[Cron] Missed execution "${name}" scheduled for ${date.toISOString()} (detected ${delayMs}ms late)`);
+    });
+
+    void task.start();
+  }
 
   private getBlockingDatabaseMaintenanceJob(): string | null {
     if (this.isUpdatingCharacterRaidParticipations) return "character raid participation rebuild";
@@ -440,7 +454,8 @@ class UpdateScheduler {
     }, POLLING_OFF_HOURS_ACTIVE_MS);
 
     // OFF HOURS - Inactive guilds: Check once per day (at 10 AM Finnish time)
-    cron.schedule(
+    this.scheduleCronTask(
+      "daily-inactive-guilds",
       "0 10 * * *",
       async () => {
         if (this.isUpdatingOffInactive) {
@@ -449,15 +464,13 @@ class UpdateScheduler {
         }
         await this.updateInactiveGuilds();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Queue fight spec and death-event backfill (at 00:30 Finnish time)
     // The queued jobs skip fights whose death events and CombatantInfo are already fetched.
     // Uses lower priority than report-character backfill so later maintenance can overtake it.
-    cron.schedule(
+    this.scheduleCronTask(
+      "death-event-backfill",
       "30 0 * * *",
       async () => {
         if (this.isQueueingDeathEventBackfill) {
@@ -466,14 +479,12 @@ class UpdateScheduler {
         }
         await this.queueDeathEventBackfill();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Queue report-level character backfill (at 1 AM Finnish time)
     // The queued jobs skip reports already marked charactersFetchStatus="fetched".
-    cron.schedule(
+    this.scheduleCronTask(
+      "report-character-backfill",
       "0 1 * * *",
       async () => {
         if (this.isQueueingReportCharacterBackfill) {
@@ -482,40 +493,38 @@ class UpdateScheduler {
         }
         await this.queueReportCharacterBackfill();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     if (CCG_FEATURE_ENABLED) {
       void this.processPendingCcgPackAnalytics();
       void this.refreshCcgLeaderboard("full");
 
-      cron.schedule(
+      this.scheduleCronTask(
+        "ccg-pack-analytics",
         "* * * * *",
         async () => {
           if (!this.isProcessingCcgPackAnalytics) await this.processPendingCcgPackAnalytics();
         },
-        { timezone: "Europe/Helsinki" },
       );
 
-      cron.schedule(
+      this.scheduleCronTask(
+        "ccg-leaderboard-full",
         CCG_LEADERBOARD_FULL_SCHEDULE.cron,
         async () => {
           if (!this.isRefreshingCcgLeaderboard) await this.refreshCcgLeaderboard("full");
         },
-        { timezone: "Europe/Helsinki" },
       );
 
-      cron.schedule(
+      this.scheduleCronTask(
+        "ccg-leaderboard-incremental",
         CCG_LEADERBOARD_INCREMENTAL_SCHEDULE.cron,
         async () => {
           if (!this.isRefreshingCcgLeaderboard) await this.refreshCcgLeaderboard("incremental");
         },
-        { timezone: "Europe/Helsinki" },
       );
 
-      cron.schedule(
+      this.scheduleCronTask(
+        "ccg-media-discovery",
         "30 1 * * *",
         async () => {
           if (this.isDiscoveringCcgMedia) {
@@ -524,27 +533,27 @@ class UpdateScheduler {
           }
           await this.discoverCcgMedia();
         },
-        { timezone: "Europe/Helsinki" },
       );
 
-      cron.schedule(
+      this.scheduleCronTask(
+        "ccg-media-refresh",
         "50 1 * * *",
         async () => {
           if (!this.isRefreshingCcgMedia) await this.refreshCcgMedia();
         },
-        { timezone: "Europe/Helsinki" },
       );
 
-      cron.schedule(
+      this.scheduleCronTask(
+        "ccg-media-recovery",
         "*/15 * * * *",
         async () => {
           if (!this.isRecoveringCcgMedia) await this.recoverCcgMedia();
         },
-        { timezone: "Europe/Helsinki" },
       );
 
       if (CCG_WEEKLY_AUTOMATION_ENABLED) {
-        cron.schedule(
+        this.scheduleCronTask(
+          "ccg-weekly-snapshot",
           CCG_WEEKLY_SNAPSHOT_SCHEDULE.cron,
           async () => {
             if (await FullHistoryRefresh.exists({ key: "all-raids", status: "running" })) {
@@ -555,10 +564,10 @@ class UpdateScheduler {
               logger.warn("[CCG/Snapshot] Another CCG snapshot or publication run is still running; skipping this run");
             }
           },
-          { timezone: "Europe/Helsinki" },
         );
 
-        cron.schedule(
+        this.scheduleCronTask(
+          "ccg-weekly-publication",
           CCG_WEEKLY_PUBLICATION_SCHEDULE.cron,
           async () => {
             if (await FullHistoryRefresh.exists({ key: "all-raids", status: "running" })) {
@@ -569,13 +578,13 @@ class UpdateScheduler {
               logger.warn("[CCG/Publication] Another CCG snapshot or publication run is still running; skipping this run");
             }
           },
-          { timezone: "Europe/Helsinki" },
         );
       }
     }
 
     // NIGHTLY: Queue character achievement fingerprints for account matching (at 1:30 AM Finnish time)
-    cron.schedule(
+    this.scheduleCronTask(
+      "character-achievement-backfill",
       "30 1 * * *",
       async () => {
         if (this.isQueueingCharacterAchievementBackfill) {
@@ -584,13 +593,11 @@ class UpdateScheduler {
         }
         await this.queueCharacterAchievementBackfill();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Refresh current-season Mythic+ scores and dungeon runs for active/stale characters (at 2 AM Finnish time)
-    cron.schedule(
+    this.scheduleCronTask(
+      "mythic-plus-current-season",
       "0 2 * * *",
       async () => {
         if (this.isUpdatingMythicPlusCurrentSeason || mythicPlusService.isProcessing()) {
@@ -599,13 +606,11 @@ class UpdateScheduler {
         }
         await this.refreshMythicPlusCurrentSeason();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Repair Mythic+ identity drift and missing historical score rows before the weekly CCG snapshot (at 00:45 Finnish time)
-    cron.schedule(
+    this.scheduleCronTask(
+      "mythic-plus-historical-repair",
       "45 0 * * *",
       async () => {
         if (this.isRepairingMythicPlusHistoricalScores || mythicPlusService.isProcessing()) {
@@ -614,14 +619,12 @@ class UpdateScheduler {
         }
         await this.repairMythicPlusHistoricalScores();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Update all guilds' world ranks for current raid (at 4 AM Finnish time)
     // WCL sometimes updates world ranks with a delay, so this ensures we catch those updates
-    cron.schedule(
+    this.scheduleCronTask(
+      "world-ranks",
       "0 4 * * *",
       async () => {
         if (this.isUpdatingNightlyWorldRanks) {
@@ -630,14 +633,12 @@ class UpdateScheduler {
         }
         await this.updateAllGuildsWorldRanks();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Refetch 3 most recent reports for all active guilds (at 3 AM Finnish time)
     // This catches any fights that might have been missed during live polling or uploaded late
-    cron.schedule(
+    this.scheduleCronTask(
+      "recent-reports-refetch",
       "0 3 * * *",
       async () => {
         if (this.isUpdatingRefetchRecentReports) {
@@ -646,13 +647,11 @@ class UpdateScheduler {
         }
         await this.refetchRecentReportsForAllActiveGuilds();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Remove stale Twitch VOD references before normal reporting jobs.
-    cron.schedule(
+    this.scheduleCronTask(
+      "fight-vod-cleanup",
       "30 2 * * *",
       async () => {
         if (this.isCleaningFightVodLinks) {
@@ -661,15 +660,13 @@ class UpdateScheduler {
         }
         await this.cleanupExpiredFightVodLinks();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Update Raider.IO-only guilds (at 5 AM Finnish time)
     // Fetches raid progress from Raider.IO for guilds not found on WarcraftLogs
     // Runs before tier lists and analytics so RIO guild data is included in calculations
-    cron.schedule(
+    this.scheduleCronTask(
+      "raiderio-guilds",
       "0 5 * * *",
       async () => {
         if (this.isUpdatingRaiderIOGuilds) {
@@ -678,14 +675,12 @@ class UpdateScheduler {
         }
         await this.updateRaiderIOGuilds();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Calculate tier lists (at 6 AM Finnish time)
     // Runs after world ranks + RIO updates so tier lists use all fresh data
-    cron.schedule(
+    this.scheduleCronTask(
+      "tier-lists",
       "0 6 * * *",
       async () => {
         if (this.isUpdatingTierLists) {
@@ -694,14 +689,12 @@ class UpdateScheduler {
         }
         await this.calculateTierLists();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Calculate raid analytics (at 7 AM Finnish time, after tier lists)
     // Provides aggregated statistics across all guilds for each raid
-    cron.schedule(
+    this.scheduleCronTask(
+      "raid-analytics",
       "0 7 * * *",
       async () => {
         if (this.isUpdatingRaidAnalytics) {
@@ -710,13 +703,11 @@ class UpdateScheduler {
         }
         await this.calculateRaidAnalytics();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Rebuild materialized character raid participation data (at 8 AM Finnish time)
-    cron.schedule(
+    this.scheduleCronTask(
+      "character-raid-participation",
       "0 8 * * *",
       async () => {
         if (this.isUpdatingCharacterRaidParticipations) {
@@ -725,15 +716,13 @@ class UpdateScheduler {
         }
         await this.rebuildCharacterRaidParticipations().catch(() => undefined);
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Refresh character rankings (at 08:30 Finnish time)
     // Updates zone rankings and encounter rankings for eligible tracked characters
     // Then rebuilds the materialized leaderboard after character identities have been repaired.
-    cron.schedule(
+    this.scheduleCronTask(
+      "character-rankings",
       "30 8 * * *",
       async () => {
         if (this.isUpdatingCharacterRankings) {
@@ -742,13 +731,11 @@ class UpdateScheduler {
         }
         await this.refreshCharacterRankings();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Rebuild mechanics leaderboard after death backfill and character rankings are done (at 09:15 Finnish time)
-    cron.schedule(
+    this.scheduleCronTask(
+      "character-mechanics",
       "15 9 * * *",
       async () => {
         if (this.isUpdatingCharacterMechanics) {
@@ -757,27 +744,23 @@ class UpdateScheduler {
         }
         await this.refreshCharacterMechanicsLeaderboards();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // Retry the mechanics rebuild during off-hours if rankings finished before the death queue.
-    cron.schedule(
+    this.scheduleCronTask(
+      "character-mechanics-pending-retry",
       "*/30 9-15 * * *",
       async () => {
         if (!this.characterMechanicsRebuildPending) return;
         await this.refreshCharacterMechanicsLeaderboards();
-      },
-      {
-        timezone: "Europe/Helsinki",
       },
     );
 
     // NIGHTLY: Update all guild crests (at 9:30 AM Finnish time)
     // Guild crests can be changed by guilds or sometimes fail to fetch initially
     // Independent of other data; keep it off the 08:00 maintenance window.
-    cron.schedule(
+    this.scheduleCronTask(
+      "guild-crests",
       "30 9 * * *",
       async () => {
         if (this.isUpdatingGuildCrests) {
@@ -786,14 +769,12 @@ class UpdateScheduler {
         }
         await this.updateAllGuildCrests();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Check for hiatus events (at 9 AM Finnish time)
     // Detects guilds that have stopped raiding for 7, 14, or 30 days
-    cron.schedule(
+    this.scheduleCronTask(
+      "hiatus-events",
       "0 9 * * *",
       async () => {
         if (this.isCheckingHiatus) {
@@ -802,14 +783,12 @@ class UpdateScheduler {
         }
         await this.checkHiatusEvents();
       },
-      {
-        timezone: "Europe/Helsinki",
-      },
     );
 
     // NIGHTLY: Full cache warmup at 11:00 Finnish time (after all other nightly jobs)
     // Runs last to ensure all caches are warmed with the freshest data
-    cron.schedule(
+    this.scheduleCronTask(
+      "cache-warmup",
       "0 11 * * *",
       async () => {
         const taskId = await taskTracker.start("Nightly Cache Warmup");
@@ -822,9 +801,6 @@ class UpdateScheduler {
           logger.error("[Nightly/CacheWarmup] Error:", error);
           await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
         }
-      },
-      {
-        timezone: "Europe/Helsinki",
       },
     );
 

@@ -63,6 +63,7 @@ router.get(
     try {
       const now = new Date();
       const pickems = await pickemService.getActivePickems();
+      const entryCounts = await pickemService.getEntryCounts(pickems.map((pickem) => pickem.pickemId));
 
       const result = pickems.map((p) => ({
         id: p.pickemId,
@@ -76,6 +77,7 @@ router.get(
         votingStart: p.votingStart,
         votingEnd: p.votingEnd,
         ccgRewardPacks: p.ccgRewardPacks ?? 0,
+        entryCount: entryCounts.get(p.pickemId) ?? 0,
         isVotingOpen: now >= new Date(p.votingStart) && now <= new Date(p.votingEnd),
         hasEnded: now > new Date(p.votingEnd),
         // RWF finalization status

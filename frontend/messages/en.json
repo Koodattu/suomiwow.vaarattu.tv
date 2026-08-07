@@ -2011,6 +2011,8 @@
     "ccgRewardClaiming": "Claiming...",
     "ccgRewardOpenPacks": "Open packs",
     "ccgRewardClaimFailed": "Your packs could not be claimed. Try again.",
+    "ccgPacksShort": "{count, plural, one {# CCG pack} other {# CCG packs}}",
+    "entryCount": "{count, plural, =0 {No entries} one {# entry} other {# entries}}",
     "duplicateGuild": "Duplicate guild: {guild}",
     "currentRankings": "Current Guild Rankings",
     "rankingsPendingTitle": "Raid rankings pending",

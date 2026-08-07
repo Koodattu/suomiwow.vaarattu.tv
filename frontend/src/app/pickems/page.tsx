@@ -569,6 +569,7 @@ function PointsBadge({ points }: { points: number }) {
 
 // Landing page card for a single pickem
 function PickemCard({ pickem, getTimeRemaining, onClick }: { pickem: PickemSummary; getTimeRemaining: (endDate: string) => string; onClick: () => void }) {
+  const t = useTranslations("pickemsPage");
   const now = new Date();
   const start = new Date(pickem.votingStart);
   const end = new Date(pickem.votingEnd);
@@ -578,19 +579,20 @@ function PickemCard({ pickem, getTimeRemaining, onClick }: { pickem: PickemSumma
   const hasEnded = now > end;
 
   const prizeEnabled = pickem.prizeConfig?.enabled && (pickem.prizeConfig?.goldPool ?? 0) > 0;
+  const ccgRewardEnabled = pickem.ccgRewardPacks > 0;
   const medals = ["🥇", "🥈", "🥉"];
 
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left cursor-pointer bg-gray-800 rounded-xl border transition-all duration-200 hover:scale-[1.02] hover:shadow-lg hover:shadow-black/20 group overflow-hidden ${
+      className={`group w-full cursor-pointer overflow-hidden rounded-xl border bg-gray-800 text-left transition-[transform,box-shadow,border-color] duration-200 hover:scale-[1.02] hover:shadow-lg hover:shadow-black/20 active:scale-[0.96] motion-reduce:transform-none motion-reduce:transition-none ${
         isActive ? "border-emerald-700/60 hover:border-emerald-600/80" : "border-gray-700 hover:border-gray-600"
       }`}
     >
       <div className="p-5">
         {/* Header: name + type badge */}
         <div className="flex items-start justify-between gap-3 mb-3">
-          <h3 className="text-white font-semibold text-lg leading-tight group-hover:text-blue-300 transition-colors">{pickem.name}</h3>
+          <h3 className="text-balance text-lg font-semibold leading-tight text-white transition-colors group-hover:text-blue-300">{pickem.name}</h3>
           <span
             className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
               pickem.type === "rwf" ? "bg-purple-900/60 text-purple-300 border border-purple-700/50" : "bg-blue-900/60 text-blue-300 border border-blue-700/50"
@@ -640,31 +642,48 @@ function PickemCard({ pickem, getTimeRemaining, onClick }: { pickem: PickemSumma
         </div>
 
         {/* Meta info */}
-        <div className="flex items-center gap-3 text-xs text-gray-500">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
           <span>Top {pickem.guildCount} guilds</span>
+          <span className="tabular-nums">{t("entryCount", { count: pickem.entryCount })}</span>
           {isActive && <span className="text-emerald-400/80 font-medium">Vote now →</span>}
         </div>
       </div>
 
-      {/* Prize section */}
-      {prizeEnabled && pickem.prizeConfig && (
-        <div className="px-5 py-3 bg-linear-to-r from-amber-900/20 to-yellow-900/10 border-t border-amber-800/30">
-          <div className="flex items-center gap-1.5 mb-1">
-            <span className="text-sm">🏆</span>
-            <span className="text-amber-300 font-semibold text-sm">{pickem.prizeConfig.goldPool.toLocaleString()} gold</span>
+      {/* Reward section */}
+      {(prizeEnabled || ccgRewardEnabled) && (
+        <div
+          className={`border-t px-5 py-3 ${
+            prizeEnabled ? "border-amber-800/30 bg-linear-to-r from-amber-900/20 to-yellow-900/10" : "border-sky-800/30 bg-sky-950/20"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-4">
+            {prizeEnabled && pickem.prizeConfig && (
+              <div className="min-w-0">
+                <div className="mb-1 flex items-center gap-1.5">
+                  <span className="text-sm">🏆</span>
+                  <span className="text-sm font-semibold text-amber-300 tabular-nums">{pickem.prizeConfig.goldPool.toLocaleString()} gold</span>
+                </div>
+                {pickem.prizeConfig.distribution.length > 0 && (
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-amber-200/60">
+                    {pickem.prizeConfig.distribution.slice(0, 3).map((d, i) => {
+                      const amount = Math.round((pickem.prizeConfig!.goldPool * d.percentage) / 100);
+                      return (
+                        <span key={d.place} className="tabular-nums">
+                          {medals[i] || `#${d.place}`} {amount.toLocaleString()}g
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+            {ccgRewardEnabled && (
+              <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-sky-950/60 px-2.5 py-1 text-xs font-semibold text-sky-200 shadow-[0_0_0_1px_rgba(125,211,252,0.18)]">
+                <span aria-hidden="true">🎁</span>
+                <span className="tabular-nums">{t("ccgPacksShort", { count: pickem.ccgRewardPacks })}</span>
+              </span>
+            )}
           </div>
-          {pickem.prizeConfig.distribution.length > 0 && (
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-amber-200/60">
-              {pickem.prizeConfig.distribution.slice(0, 3).map((d, i) => {
-                const amount = Math.round((pickem.prizeConfig!.goldPool * d.percentage) / 100);
-                return (
-                  <span key={d.place}>
-                    {medals[i] || `#${d.place}`} {amount.toLocaleString()}g
-                  </span>
-                );
-              })}
-            </div>
-          )}
         </div>
       )}
     </button>
@@ -871,6 +890,9 @@ export default function PickemsPage() {
 
   const hydratePickemDetails = useCallback((details: PickemDetails) => {
     setPickemDetails(details);
+    setPickems((currentPickems) =>
+      currentPickems.map((pickem) => (pickem.id === details.id && pickem.entryCount !== details.leaderboard.length ? { ...pickem, entryCount: details.leaderboard.length } : pickem)),
+    );
 
     const guildCount = details.guildCount || 10;
     const storedGuestDraft = readGuestPickemDraft(details.id, guildCount);
@@ -1636,7 +1658,10 @@ export default function PickemsPage() {
               <a href="/pickems-rules" className="block text-xs text-blue-400 hover:text-blue-300 transition-colors mb-3">
                 {t("viewFullRules")} →
               </a>
-              <h3 className="text-base font-semibold text-white mb-3">{t("leaderboard")}</h3>
+              <div className="mb-3 flex items-baseline justify-between gap-3">
+                <h3 className="text-base font-semibold text-white">{t("leaderboard")}</h3>
+                <span className="shrink-0 text-xs text-gray-400 tabular-nums">{t("entryCount", { count: pickemDetails.leaderboard.length })}</span>
+              </div>
               {pickemDetails.leaderboard.length === 0 ? (
                 <p className="text-gray-400 text-sm">{t("noParticipants")}</p>
               ) : (

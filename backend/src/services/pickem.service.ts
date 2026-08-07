@@ -65,6 +65,17 @@ class PickemService {
   }
 
   /**
+   * Count submissions without loading user documents or embedded predictions.
+   * Each query can use the existing pickems.pickemId multikey index.
+   */
+  async getEntryCounts(pickemIds: readonly string[]): Promise<Map<string, number>> {
+    const uniquePickemIds = [...new Set(pickemIds)];
+    const counts = await Promise.all(uniquePickemIds.map((pickemId) => User.countDocuments({ "pickems.pickemId": pickemId })));
+
+    return new Map(uniquePickemIds.map((pickemId, index) => [pickemId, counts[index]]));
+  }
+
+  /**
    * Get a specific pickem by ID
    */
   async getPickemById(pickemId: string): Promise<IPickem | null> {
