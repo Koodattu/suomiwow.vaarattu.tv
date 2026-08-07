@@ -62,6 +62,7 @@ test("missing-card catalog filtering uses series ownership and avoids finish own
   const service = ccgService as any;
   const originals = {
     aggregate: cardModel.aggregate,
+    cardFind: cardModel.find,
     ownershipFind: ownershipModel.find,
     seriesOwnershipFind: seriesOwnershipModel.find,
     setFind: setModel.find,
@@ -135,8 +136,38 @@ test("missing-card catalog filtering uses series ownership and avoids finish own
     assert.equal(result.cards[0].seriesOwned, true);
     assert.equal(result.cards[0].snapshotOwned, false);
     assert.deepEqual(result.cards[0].ownership, []);
+
+    const ownedCard = {
+      ...card,
+      _id: new mongoose.Types.ObjectId(),
+      snapshotVersion: 1,
+      tierGrade: "A",
+      performanceSnapshotAt: new Date("2026-07-20T12:00:00.000Z"),
+      publishedAt: new Date("2026-07-20T12:00:00.000Z"),
+    };
+    cardModel.find = () => ({
+      sort() { return this; },
+      lean: async () => [ownedCard],
+    });
+
+    const combinedResult = await service.getCatalog(
+      { ownerType: "user", ownerId },
+      undefined,
+      { owned: "all", characterId: String(characterId) },
+    );
+
+    assert.equal(combinedResult.cards[0].id, String(ownedCard._id));
+    assert.equal(combinedResult.cards[0].snapshotVersion, 1);
+    assert.equal(combinedResult.cards[0].seriesOwned, true);
+    assert.equal(combinedResult.cards[0].snapshotOwned, true);
+    assert.equal(combinedResult.cards[0].ownership[0].finish, "standard");
+    assert.deepEqual(
+      combinedResult.cards[0].variants.map((variant: any) => variant.card.id),
+      [String(ownedCard._id)],
+    );
   } finally {
     cardModel.aggregate = originals.aggregate;
+    cardModel.find = originals.cardFind;
     ownershipModel.find = originals.ownershipFind;
     seriesOwnershipModel.find = originals.seriesOwnershipFind;
     setModel.find = originals.setFind;

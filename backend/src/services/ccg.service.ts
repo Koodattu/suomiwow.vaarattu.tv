@@ -1547,7 +1547,7 @@ class CcgService {
         {
           $lookup: {
             from: "ccgseriesownerships",
-            let: { setId: "$setId", characterId: "$characterId", snapshotVersion: "$snapshotVersion" },
+            let: { setId: "$setId", characterId: "$characterId" },
             pipeline: [
               {
                 $match: {
@@ -1557,7 +1557,6 @@ class CcgService {
                     $and: [
                       { $eq: ["$setId", "$$setId"] },
                       { $eq: ["$characterId", "$$characterId"] },
-                      ...(missingSeriesOnly ? [] : [{ $in: ["$$snapshotVersion", "$unlockedSnapshotVersions"] }]),
                     ],
                   },
                 },
@@ -1649,7 +1648,7 @@ class CcgService {
     const cards = catalog.items;
     const total = catalog.count[0]?.total ?? 0;
     const seriesPairs = cards.map((card) => ({ setId: card.setId, characterId: card.characterId }));
-    const [ownership, snapshotOwnership, alternativeByCollector, unlockedAlternativeSeries, ownedSeriesCount] = await Promise.all([
+    const [ownership, snapshotOwnership, ownedSeriesCount] = await Promise.all([
       seriesPairs.length > 0 && !missingSeriesOnly
         ? CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, $or: seriesPairs }).lean()
         : Promise.resolve([]),
@@ -1658,8 +1657,6 @@ class CcgService {
             .select("setId characterId unlockedSnapshotVersions -_id")
             .lean()
         : Promise.resolve([]),
-      this.loadAlternativeArt(cards),
-      missingSeriesOnly ? Promise.resolve(new Set<string>()) : this.loadAlternativeArtUnlocks(owner, cards),
       set ? this.countActiveOwnedSeries(owner, [set._id]) : Promise.resolve(0),
     ]);
     const ownershipBySeries = new Map<string, Array<{ finish: CcgFinish; quantity: number; alternativeQuantity?: number }>>();
@@ -1672,6 +1669,29 @@ class CcgService {
     const unlockedVersionsBySeries = new Map(
       snapshotOwnership.map((row) => [getSeriesKey(row), new Set(row.unlockedSnapshotVersions)]),
     );
+    const ownedCardFilters = missingSeriesOnly
+      ? []
+      : snapshotOwnership.map((row) => ({
+          setId: row.setId,
+          characterId: row.characterId,
+          snapshotVersion: { $in: row.unlockedSnapshotVersions },
+        }));
+    const ownedCards = ownedCardFilters.length > 0
+      ? await CcgCard.find({ $or: ownedCardFilters })
+          .sort({ snapshotVersion: -1, performanceSnapshotAt: -1, publishedAt: -1, _id: -1 })
+          .lean()
+      : [];
+    const ownedCardsBySeries = new Map<string, ICcgCard[]>();
+    for (const ownedCard of ownedCards) {
+      const key = getSeriesKey(ownedCard);
+      const seriesCards = ownedCardsBySeries.get(key) ?? [];
+      seriesCards.push(ownedCard);
+      ownedCardsBySeries.set(key, seriesCards);
+    }
+    const [alternativeByCollector, unlockedAlternativeSeries] = await Promise.all([
+      this.loadAlternativeArt([...cards, ...ownedCards]),
+      missingSeriesOnly ? Promise.resolve(new Set<string>()) : this.loadAlternativeArtUnlocks(owner, cards),
+    ]);
 
     const responseSets = set
       ? [{ ...this.serializeSet(set, ownedSeriesCount) }]
@@ -1682,14 +1702,19 @@ class CcgService {
           });
     return {
       sets: responseSets,
-      cards: cards.map((card) => {
+      cards: cards.map((catalogCard) => {
+        const seriesKey = getSeriesKey(catalogCard);
+        const accessibleCards = ownedCardsBySeries.get(seriesKey) ?? [];
+        const card = accessibleCards[0] ?? catalogCard;
         const cardSet = setById.get(String(card.setId));
         if (!cardSet) throw new CcgServiceError(500, "set_not_found", "Card set not found");
         const collectorKey = resolveCollectorKey(card);
         const alternativeArt = alternativeByCollector.get(collectorKey);
-        const unlockedVersions = unlockedVersionsBySeries.get(getSeriesKey(card));
-        const snapshotUnlocked = unlockedVersions?.has(card.snapshotVersion) ?? false;
-        const alternativeArtUnlocked = snapshotUnlocked && unlockedAlternativeSeries.has(getSeriesKey(card))
+        const unlockedVersions = unlockedVersionsBySeries.get(seriesKey);
+        const snapshotUnlocked = accessibleCards.length > 0;
+        const ownershipRows = snapshotUnlocked ? ownershipBySeries.get(seriesKey) ?? [] : [];
+        const totalQuantity = ownershipRows.reduce((total, row) => total + row.quantity, 0);
+        const alternativeArtUnlocked = snapshotUnlocked && unlockedAlternativeSeries.has(seriesKey)
           && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId));
         return {
           ...this.serializeCard(card, cardSet, alternativeArt, {
@@ -1697,9 +1722,22 @@ class CcgService {
             snapshotOwned: snapshotUnlocked,
           }),
           ownership: serializeOwnershipRows(
-            snapshotUnlocked ? ownershipBySeries.get(getSeriesKey(card)) ?? [] : [],
+            ownershipRows,
             alternativeArtUnlocked,
           ),
+          ...(snapshotUnlocked ? {
+            totalQuantity,
+            variants: accessibleCards.map((variant) => {
+              const variantAlternativeArt = alternativeByCollector.get(resolveCollectorKey(variant));
+              const variantAlternativeArtUnlocked = unlockedAlternativeSeries.has(seriesKey)
+                && hasApplicableAlternativeArt(variantAlternativeArt, Boolean(variant.communityCharacterId));
+              return {
+                card: this.serializeCard(variant, cardSet, variantAlternativeArt, { seriesOwned: true, snapshotOwned: true }),
+                ownership: serializeOwnershipRows(ownershipRows, variantAlternativeArtUnlocked),
+                totalQuantity,
+              };
+            }),
+          } : {}),
         };
       }),
       page,

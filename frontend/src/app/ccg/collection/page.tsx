@@ -64,6 +64,99 @@ const collectionSortOptions: Array<{ value: CcgCollectionSort; label: string }> 
   { value: "mythic_plus_desc", label: "sortHighestMythicPlusFirst" },
   { value: "mythic_plus_asc", label: "sortLowestMythicPlusFirst" },
 ];
+const collectionUrlParamNames = [
+  "set",
+  "visibility",
+  "alternative",
+  "favorite",
+  "page",
+  "grade",
+  "finish",
+  "sort",
+  "guild",
+  "character",
+  "characterName",
+  "characterRealm",
+] as const;
+const collectionVisibilityValues = new Set<CollectionVisibility>(["owned", "all", "missing"]);
+const collectionGradeValues = new Set(rarities.map(({ grade }) => grade));
+const collectionFinishValues = new Set<CollectionFinishOption>([...CCG_BASE_FINISH_ORDER, uniqueFinishFilter]);
+const collectionSortValues = new Set(collectionSortOptions.map(({ value }) => value));
+const objectIdPattern = /^[a-f\d]{24}$/i;
+
+type CollectionUrlState = {
+  setSlug: string;
+  guildId: string;
+  selectedCharacter: CollectionCharacterFilter | null;
+  visibility: CollectionVisibility;
+  alternativeOnly: boolean;
+  favoriteOnly: boolean;
+  page: number;
+  grade: string;
+  finish: CollectionFinishFilter;
+  sort: CcgCollectionSort | "";
+};
+
+function collectionUrlValue(params: Pick<URLSearchParams, "get">, name: string, maxLength: number): string {
+  return (params.get(name)?.trim() ?? "").slice(0, maxLength);
+}
+
+function collectionUrlFlag(params: Pick<URLSearchParams, "get">, name: string): boolean {
+  const value = params.get(name);
+  return value === "1" || value === "true";
+}
+
+function parseCollectionUrlState(params: Pick<URLSearchParams, "get">): CollectionUrlState {
+  const requestedSet = collectionUrlValue(params, "set", 100);
+  const requestedVisibility = collectionUrlValue(params, "visibility", 12) as CollectionVisibility;
+  const alternativeOnly = collectionUrlFlag(params, "alternative");
+  const favoriteOnly = collectionUrlFlag(params, "favorite");
+  const visibility = alternativeOnly || favoriteOnly
+    ? "owned"
+    : collectionVisibilityValues.has(requestedVisibility) ? requestedVisibility : "owned";
+  const requestedPage = Number(params.get("page"));
+  const requestedGrade = collectionUrlValue(params, "grade", 1) as CcgTierGrade;
+  const requestedFinish = collectionUrlValue(params, "finish", 24) as CollectionFinishOption;
+  const requestedSort = collectionUrlValue(params, "sort", 32) as CcgCollectionSort;
+  const requestedGuild = collectionUrlValue(params, "guild", 24);
+  const requestedCharacter = collectionUrlValue(params, "character", 24);
+  const characterName = collectionUrlValue(params, "characterName", 60);
+  const characterRealm = collectionUrlValue(params, "characterRealm", 80);
+  const selectedCharacter: CollectionCharacterFilter | null = objectIdPattern.test(requestedCharacter)
+    ? {
+        id: requestedCharacter,
+        name: characterName || requestedCharacter,
+        realm: characterRealm,
+        classID: 0,
+      }
+    : characterName
+      ? { id: `name-search:${characterName}`, search: characterName }
+      : null;
+
+  return {
+    setSlug: /^[a-z0-9-]+$/i.test(requestedSet) ? requestedSet : allSetsSlug,
+    guildId: objectIdPattern.test(requestedGuild) ? requestedGuild : "",
+    selectedCharacter,
+    visibility,
+    alternativeOnly,
+    favoriteOnly,
+    page: Number.isSafeInteger(requestedPage) && requestedPage > 0 && requestedPage <= 100_000 ? requestedPage : 1,
+    grade: collectionGradeValues.has(requestedGrade) ? requestedGrade : "",
+    finish: visibility !== "missing" && collectionFinishValues.has(requestedFinish) ? requestedFinish : "",
+    sort: collectionSortValues.has(requestedSort) ? requestedSort : "",
+  };
+}
+
+function sameCollectionCharacter(
+  left: CollectionCharacterFilter | null,
+  right: CollectionCharacterFilter | null,
+): boolean {
+  if (!left || !right) return left === right;
+  if ("search" in left || "search" in right) {
+    return "search" in left && "search" in right && left.search === right.search;
+  }
+  return left.id === right.id && left.name === right.name && left.realm === right.realm;
+}
 
 function PageArrow({ direction }: { direction: "previous" | "next" }) {
   return (
@@ -117,6 +210,8 @@ function CollectionCard({
 export default function CcgCollectionPage() {
   const t = useTranslations("ccg");
   const searchParams = useSearchParams();
+  const searchParamsKey = searchParams.toString();
+  const initialUrlState = parseCollectionUrlState(searchParams);
   const sessionQuery = useCcgSession();
   const signedIn = sessionQuery.data?.ownerType === "user";
   const favoritesQuery = useCcgLeaderboardMe(signedIn);
@@ -129,29 +224,28 @@ export default function CcgCollectionPage() {
     }),
     [setsQuery.data?.sets],
   );
-  const requestedSetSlug = searchParams.get("set");
-  const [setSlug, setSetSlug] = useState(() => requestedSetSlug || allSetsSlug);
-  const [guildId, setGuildId] = useState("");
+  const [setSlug, setSetSlug] = useState(initialUrlState.setSlug);
+  const [guildId, setGuildId] = useState(initialUrlState.guildId);
   const [guildSearch, setGuildSearch] = useState("");
   const [guildInputFocused, setGuildInputFocused] = useState(false);
-  const [guildsRequested, setGuildsRequested] = useState(false);
+  const [guildsRequested, setGuildsRequested] = useState(Boolean(initialUrlState.guildId));
   const guildInputRef = useRef<HTMLInputElement>(null);
   const mobileGuildInputRef = useRef<HTMLInputElement>(null);
-  const [selectedCharacter, setSelectedCharacter] = useState<CollectionCharacterFilter | null>(null);
+  const [selectedCharacter, setSelectedCharacter] = useState<CollectionCharacterFilter | null>(initialUrlState.selectedCharacter);
   const [characterSearch, setCharacterSearch] = useState("");
   const [debouncedCharacterSearch, setDebouncedCharacterSearch] = useState("");
   const [characterInputFocused, setCharacterInputFocused] = useState(false);
   const characterInputRef = useRef<HTMLInputElement>(null);
   const mobileCharacterInputRef = useRef<HTMLInputElement>(null);
-  const [visibility, setVisibility] = useState<CollectionVisibility>("owned");
-  const [alternativeOnly, setAlternativeOnly] = useState(false);
-  const [favoriteOnly, setFavoriteOnly] = useState(false);
-  const [page, setPage] = useState(1);
+  const [visibility, setVisibility] = useState<CollectionVisibility>(initialUrlState.visibility);
+  const [alternativeOnly, setAlternativeOnly] = useState(initialUrlState.alternativeOnly);
+  const [favoriteOnly, setFavoriteOnly] = useState(initialUrlState.favoriteOnly);
+  const [page, setPage] = useState(initialUrlState.page);
   const [cardsPerPage, setCardsPerPage] = useState(fullPageSize);
   const [pageCountCache, setPageCountCache] = useState({ scope: "", pages: 0 });
-  const [grade, setGrade] = useState("");
-  const [finish, setFinish] = useState<CollectionFinishFilter>("");
-  const [sort, setSort] = useState<CcgCollectionSort | "">("");
+  const [grade, setGrade] = useState(initialUrlState.grade);
+  const [finish, setFinish] = useState<CollectionFinishFilter>(initialUrlState.finish);
+  const [sort, setSort] = useState<CcgCollectionSort | "">(initialUrlState.sort);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [viewerCard, setViewerCard] = useState<CcgCard | null>(null);
   const [viewerOriginElement, setViewerOriginElement] = useState<HTMLElement | null>(null);
@@ -267,6 +361,62 @@ export default function CcgCollectionPage() {
     ?? (pageCountCache.scope === pageCountScope ? pageCountCache.pages : 0);
 
   useEffect(() => {
+    const urlState = parseCollectionUrlState(new URLSearchParams(searchParamsKey));
+    setSetSlug((value) => value === urlState.setSlug ? value : urlState.setSlug);
+    setGuildId((value) => value === urlState.guildId ? value : urlState.guildId);
+    setSelectedCharacter((value) => sameCollectionCharacter(value, urlState.selectedCharacter)
+      ? value
+      : urlState.selectedCharacter);
+    setVisibility((value) => value === urlState.visibility ? value : urlState.visibility);
+    setAlternativeOnly((value) => value === urlState.alternativeOnly ? value : urlState.alternativeOnly);
+    setFavoriteOnly((value) => value === urlState.favoriteOnly ? value : urlState.favoriteOnly);
+    setPage((value) => value === urlState.page ? value : urlState.page);
+    setGrade((value) => value === urlState.grade ? value : urlState.grade);
+    setFinish((value) => value === urlState.finish ? value : urlState.finish);
+    setSort((value) => value === urlState.sort ? value : urlState.sort);
+    if (urlState.guildId) setGuildsRequested(true);
+  }, [searchParamsKey]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    collectionUrlParamNames.forEach((name) => params.delete(name));
+    if (setSlug !== allSetsSlug) params.set("set", setSlug);
+    if (visibility !== "owned") params.set("visibility", visibility);
+    if (alternativeOnly) params.set("alternative", "1");
+    if (favoriteOnly) params.set("favorite", "1");
+    if (page > 1) params.set("page", String(page));
+    if (grade) params.set("grade", grade);
+    if (finish) params.set("finish", finish);
+    if (sort) params.set("sort", sort);
+    if (guildId) params.set("guild", guildId);
+    if (selectedCharacter) {
+      if ("search" in selectedCharacter) {
+        params.set("characterName", selectedCharacter.search);
+      } else {
+        params.set("character", selectedCharacter.id);
+        params.set("characterName", selectedCharacter.name);
+        if (selectedCharacter.realm) params.set("characterRealm", selectedCharacter.realm);
+      }
+    }
+
+    const query = params.toString();
+    const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (nextUrl !== currentUrl) window.history.replaceState(window.history.state, "", nextUrl);
+  }, [
+    alternativeOnly,
+    favoriteOnly,
+    finish,
+    grade,
+    guildId,
+    page,
+    selectedCharacter,
+    setSlug,
+    sort,
+    visibility,
+  ]);
+
+  useEffect(() => {
     if (trimmedCharacterSearch.length < 2) {
       setDebouncedCharacterSearch("");
       return;
@@ -312,12 +462,15 @@ export default function CcgCollectionPage() {
 
   useEffect(() => {
     const shortMobileViewport = window.matchMedia("(max-width: 760px) and (max-height: 760px)");
+    let currentPageSize = shortMobileViewport.matches ? shortMobilePageSize : fullPageSize;
+    setCardsPerPage(currentPageSize);
     const updatePageSize = () => {
       const nextPageSize = shortMobileViewport.matches ? shortMobilePageSize : fullPageSize;
+      if (nextPageSize === currentPageSize) return;
+      currentPageSize = nextPageSize;
       setCardsPerPage(nextPageSize);
       setPage(1);
     };
-    updatePageSize();
     shortMobileViewport.addEventListener("change", updatePageSize);
     return () => shortMobileViewport.removeEventListener("change", updatePageSize);
   }, []);
@@ -352,7 +505,7 @@ export default function CcgCollectionPage() {
     };
   }, [sets, updateSetRailControls]);
 
-  const animateSetRail = useCallback(() => {
+  const animateSetRail = useCallback(function animateSetRailFrame() {
     const rail = setRailRef.current;
     if (!rail) {
       setRailAnimationRef.current = null;
@@ -365,7 +518,7 @@ export default function CcgCollectionPage() {
       return;
     }
     rail.scrollLeft += distance * 0.22;
-    setRailAnimationRef.current = requestAnimationFrame(animateSetRail);
+    setRailAnimationRef.current = requestAnimationFrame(animateSetRailFrame);
   }, []);
 
   const scrollSetRail = (direction: -1 | 1) => {
@@ -1279,7 +1432,7 @@ export default function CcgCollectionPage() {
                       artVariant={ownedFinish?.artVariant ?? "standard"}
                       quantity={ownedFinish?.total}
                       favorite={favorite}
-                      missing={!card.seriesOwned}
+                      missing={!ownedFinish}
                       onSelect={(event) => {
                         const originElement = event.currentTarget;
                         openCardViewer(originElement, (sharedTransition, originBounds) => {
@@ -1389,7 +1542,7 @@ export default function CcgCollectionPage() {
           originElement={viewerOriginElement}
           originBounds={viewerOriginBounds}
           sharedTransition={viewerSharedTransition}
-          missing={!viewerCard.seriesOwned}
+          missing={!bestOwnedFinish(viewerCard)}
           onClose={() => {
             setViewerCard(null);
             setViewerOriginElement(null);
