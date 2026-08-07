@@ -464,7 +464,7 @@ const GuildTableRow = memo(
           {effectivePullDisplay.pulls > 0 ? effectivePullDisplay.pulls : "-"}
         </td>
         <td className={`guild-table-progress-cell px-4 py-3 text-center text-sm tabular-nums ${fallbackTextColor} cursor-pointer transition-colors`} onClick={() => onRaidProgressClick(guild)}>
-          <BestPullValue display={effectivePullDisplay} />
+          <BestPullValue display={effectivePullDisplay} compactPhase />
         </td>
         <td className={`guild-table-progress-cell px-4 py-3 text-center text-sm ${fallbackTextColor} cursor-pointer transition-colors`} onClick={() => onRaidProgressClick(guild)}>
           <StackedTimeValue primary={effectiveTimeProgress?.totalTimeSpent} secondary={effectiveTimeProgress?.progressRaidTimeSpent} />
@@ -556,7 +556,7 @@ export default function GuildTable({ guilds, onGuildClick, onRaidProgressClick, 
             {effectivePullDisplay.pulls > 0 ? effectivePullDisplay.pulls : "-"}
           </MobileStat>
           <MobileStat label="%" className={fallbackTextColor}>
-            <BestPullValue display={effectivePullDisplay} />
+            <BestPullValue display={effectivePullDisplay} compactPhase />
           </MobileStat>
           <MobileStat label={t("time")} className={fallbackTextColor}>
             {formatOptionalTime(progressTime)}
