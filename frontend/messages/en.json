@@ -472,6 +472,7 @@
       "opening": "Opening…",
       "packHint": "Click to break the seal",
       "mobilePackHint": "Tap to break the seal",
+      "noPacks": "No packs right now",
       "openingHint": "The raid vault is opening…",
       "collectionProgressEyebrow": "Pack collection",
       "badLuckProtectionEyebrow": "Bad luck protection",
@@ -500,6 +501,8 @@
       "recoveryFailed": "That saved pack could not be recovered. Clear it before opening another pack.",
       "dismissRecovery": "Clear saved pack",
       "openAnother": "Open another pack",
+      "claimPickemPacks": "Claim {count, plural, one {# Pickem pack} other {# Pickem packs}}",
+      "getPickemPacks": "Get Pickem packs",
       "chooseDifferent": "Choose a different pack",
       "setComplete": "Set complete!"
     },

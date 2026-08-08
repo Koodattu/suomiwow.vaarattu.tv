@@ -20,7 +20,7 @@ import {
 } from "@/lib/ccg-audio";
 import { CCG_CARD_SLIDE_SOUNDS, getCcgQualityRevealSoundFile, hasCcgQualityRevealSound } from "@/lib/ccg-reveal-audio";
 import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
-import { queryKeys, useCcgOpening, useCcgSession, useCcgSets } from "@/lib/queries";
+import { queryKeys, useCcgOpening, useCcgSession, useCcgSets, usePickemCcgOpportunity } from "@/lib/queries";
 import IconImage from "@/components/IconImage";
 import CcgShell from "@/components/ccg/CcgShell";
 import PackBalance from "@/components/ccg/PackBalance";
@@ -178,6 +178,8 @@ export default function CcgOpenPage() {
   });
   const recoveryQuery = useCcgOpening(recoveryId, !authLoading && sessionQuery.isSuccess);
   const session = sessionQuery.data;
+  const noPacks = session ? session.packs.totalRemaining <= 0 : false;
+  const pickemOpportunityQuery = usePickemCcgOpportunity(Boolean(user) && session?.ownerType === "user" && noPacks);
   const sets = setsQuery.data?.sets;
   const raidSets = useMemo(
     () => (sets ?? [])
@@ -579,7 +581,6 @@ export default function CcgOpenPage() {
     || setsQuery.isPending
     || !recoveryInitialized
     || (Boolean(recoveryId) && recoveryQuery.isPending);
-  const noPacks = session ? session.packs.totalRemaining <= 0 : false;
   const clearSavedOpening = () => {
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => undefined);
@@ -1218,7 +1219,13 @@ export default function CcgOpenPage() {
                     <PackBoosterVisual title={raidSets.length > 0 ? poolTitle : t("landing.preparing")} cardsLabel={t("landing.cards")} />
                   </button>
                   <span className={packStyles.packHint}>
-                    {mutation.isPending ? t("open.openingHint") : isMobileRevealViewport ? t("open.mobilePackHint") : t("open.packHint")}
+                    {mutation.isPending
+                      ? t("open.openingHint")
+                      : noPacks
+                        ? t("open.noPacks")
+                        : isMobileRevealViewport
+                          ? t("open.mobilePackHint")
+                          : t("open.packHint")}
                   </span>
                 </div>
 
@@ -1495,6 +1502,18 @@ export default function CcgOpenPage() {
                         onClick={() => login(`${window.location.pathname}${window.location.search}${window.location.hash}`, { ccgOpeningId: opening.id })}
                       >
                         {t("guest.loginForPacks")}
+                      </button>
+                    ) : packComplete && !hasAnotherPack && pickemOpportunityQuery.data?.hasOpportunity ? (
+                      <button
+                        ref={desktopPackActionRef}
+                        type="button"
+                        data-pack-action="pickems"
+                        className={styles.primaryButton}
+                        onClick={() => router.push("/pickems")}
+                      >
+                        {pickemOpportunityQuery.data.claimablePacks > 0
+                          ? t("open.claimPickemPacks", { count: pickemOpportunityQuery.data.claimablePacks })
+                          : t("open.getPickemPacks")}
                       </button>
                     ) : packComplete ? (
                       <button

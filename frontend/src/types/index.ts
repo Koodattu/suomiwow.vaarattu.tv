@@ -1612,6 +1612,11 @@ export interface PickemCcgRewardClaimResult {
   alreadyClaimed: boolean;
 }
 
+export interface PickemCcgOpportunitySummary {
+  hasOpportunity: boolean;
+  claimablePacks: number;
+}
+
 export interface PickemDetails {
   id: string;
   name: string;

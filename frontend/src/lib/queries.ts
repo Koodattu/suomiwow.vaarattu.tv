@@ -61,6 +61,7 @@ export const queryKeys = {
   },
   pickems: {
     list: ["pickems", "list"] as const,
+    ccgOpportunity: ["pickems", "ccgOpportunity"] as const,
     guilds: ["pickems", "guilds"] as const,
     rwfGuilds: ["pickems", "rwfGuilds"] as const,
     referenceRankings: (pickemId: string, raidId: number) => ["pickems", "referenceRankings", pickemId, raidId] as const,
@@ -340,6 +341,15 @@ export function usePickems() {
     staleTime: 5 * 60 * 1000,
     refetchInterval: 60 * 1000,
     refetchIntervalInBackground: false,
+  });
+}
+
+export function usePickemCcgOpportunity(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.pickems.ccgOpportunity,
+    queryFn: () => api.getPickemCcgOpportunity(),
+    enabled,
+    staleTime: 0,
   });
 }
 

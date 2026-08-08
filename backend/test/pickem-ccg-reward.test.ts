@@ -5,7 +5,7 @@ import CcgLedgerEntry from "../src/models/CcgLedgerEntry";
 import CcgPackCredit from "../src/models/CcgPackCredit";
 import Pickem, { DEFAULT_PICKEM_CCG_REWARD_PACKS } from "../src/models/Pickem";
 import User from "../src/models/User";
-import pickemCcgRewardService from "../src/services/pickem-ccg-reward.service";
+import pickemCcgRewardService, { getPickemCcgRewardSourceKey } from "../src/services/pickem-ccg-reward.service";
 import pickemService from "../src/services/pickem.service";
 
 function queryResult<T>(read: () => T) {
@@ -13,6 +13,14 @@ function queryResult<T>(read: () => T) {
     session: async () => read(),
     then: (resolve: (value: T) => unknown, reject: (error: unknown) => unknown) => Promise.resolve(read()).then(resolve, reject),
   };
+}
+
+function leanQueryResult<T>(read: () => T) {
+  const query = {
+    select: () => query,
+    lean: async () => read(),
+  };
+  return query;
 }
 
 test("backfills current and future Pickems with the default reward while disabling expired ones", async () => {
@@ -131,5 +139,68 @@ test("claimed status does not depend on unspent pack balance", async () => {
     assert.deepEqual(status, { packs: 25, eligible: true, claimed: true });
   } finally {
     CcgPackCredit.exists = originalExists;
+  }
+});
+
+test("summarizes claimable and enterable Pickem pack opportunities", async () => {
+  const originalPickemFind = Pickem.find;
+  const originalCreditFind = CcgPackCredit.find;
+  const now = new Date("2026-08-08T12:00:00.000Z");
+  const submittedUnclaimedId = new mongoose.Types.ObjectId();
+  const submittedClaimedId = new mongoose.Types.ObjectId();
+  const openUnsubmittedId = new mongoose.Types.ObjectId();
+  let pickems: any[] = [
+    {
+      _id: submittedUnclaimedId,
+      pickemId: "submitted-unclaimed",
+      ccgRewardPacks: 25,
+      votingStart: new Date("2026-01-01T00:00:00.000Z"),
+      votingEnd: new Date("2026-02-01T00:00:00.000Z"),
+    },
+    {
+      _id: submittedClaimedId,
+      pickemId: "submitted-claimed",
+      ccgRewardPacks: 10,
+      votingStart: new Date("2026-08-01T00:00:00.000Z"),
+      votingEnd: new Date("2026-09-01T00:00:00.000Z"),
+    },
+    {
+      _id: openUnsubmittedId,
+      pickemId: "open-unsubmitted",
+      ccgRewardPacks: 5,
+      votingStart: new Date("2026-08-01T00:00:00.000Z"),
+      votingEnd: new Date("2026-09-01T00:00:00.000Z"),
+    },
+  ];
+  let claimedSourceKeys = [getPickemCcgRewardSourceKey(submittedClaimedId)];
+
+  Pickem.find = (() => leanQueryResult(() => pickems)) as unknown as typeof Pickem.find;
+  CcgPackCredit.find = (() => leanQueryResult(() => claimedSourceKeys.map((sourceKey) => ({ sourceKey })))) as unknown as typeof CcgPackCredit.find;
+
+  try {
+    assert.deepEqual(
+      await pickemCcgRewardService.getOpportunitySummary(
+        new mongoose.Types.ObjectId(),
+        ["submitted-unclaimed", "submitted-claimed"],
+        now,
+      ),
+      { hasOpportunity: true, claimablePacks: 25 },
+    );
+
+    pickems = [pickems[2]];
+    claimedSourceKeys = [];
+    assert.deepEqual(
+      await pickemCcgRewardService.getOpportunitySummary(new mongoose.Types.ObjectId(), [], now),
+      { hasOpportunity: true, claimablePacks: 0 },
+    );
+
+    pickems = [{ ...pickems[0], votingEnd: new Date("2026-08-07T00:00:00.000Z") }];
+    assert.deepEqual(
+      await pickemCcgRewardService.getOpportunitySummary(new mongoose.Types.ObjectId(), [], now),
+      { hasOpportunity: false, claimablePacks: 0 },
+    );
+  } finally {
+    Pickem.find = originalPickemFind;
+    CcgPackCredit.find = originalCreditFind;
   }
 });

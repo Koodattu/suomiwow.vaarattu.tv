@@ -18,6 +18,11 @@ export interface PickemCcgRewardClaimResult {
   alreadyClaimed: boolean;
 }
 
+export interface PickemCcgOpportunitySummary {
+  hasOpportunity: boolean;
+  claimablePacks: number;
+}
+
 export type PickemCcgRewardErrorCode =
   | "CCG_DISABLED"
   | "PICKEM_NOT_FOUND"
@@ -50,6 +55,45 @@ function isDuplicateKeyError(error: unknown): boolean {
 }
 
 class PickemCcgRewardService {
+  async getOpportunitySummary(
+    userId: mongoose.Types.ObjectId,
+    submittedPickemIds: readonly string[],
+    now = new Date(),
+  ): Promise<PickemCcgOpportunitySummary> {
+    if (!CCG_FEATURE_ENABLED) return { hasOpportunity: false, claimablePacks: 0 };
+
+    const rewardPickems = await Pickem.find({ active: true, ccgRewardPacks: { $gt: 0 } })
+      .select("_id pickemId ccgRewardPacks votingStart votingEnd")
+      .lean();
+    if (rewardPickems.length === 0) return { hasOpportunity: false, claimablePacks: 0 };
+
+    const claimedSourceKeys = new Set(
+      (await CcgPackCredit.find({
+        ownerId: userId,
+        sourceKey: { $in: rewardPickems.map((pickem) => getPickemCcgRewardSourceKey(pickem._id)) },
+      }).select("sourceKey -_id").lean()).map((credit) => credit.sourceKey),
+    );
+    const submitted = new Set(submittedPickemIds);
+    let claimablePacks = 0;
+    let hasEnterablePickem = false;
+
+    for (const pickem of rewardPickems) {
+      const hasSubmitted = submitted.has(pickem.pickemId);
+      const claimed = claimedSourceKeys.has(getPickemCcgRewardSourceKey(pickem._id));
+
+      if (hasSubmitted && !claimed) {
+        claimablePacks += pickem.ccgRewardPacks ?? 0;
+      } else if (!hasSubmitted && now >= pickem.votingStart && now <= pickem.votingEnd) {
+        hasEnterablePickem = true;
+      }
+    }
+
+    return {
+      hasOpportunity: claimablePacks > 0 || hasEnterablePickem,
+      claimablePacks,
+    };
+  }
+
   async getStatus(
     pickem: Pick<IPickem, "_id" | "ccgRewardPacks">,
     userId: mongoose.Types.ObjectId | null,

@@ -472,6 +472,7 @@
       "opening": "Avataan…",
       "packHint": "Riko sinetti napsauttamalla",
       "mobilePackHint": "Riko sinetti napauttamalla",
+      "noPacks": "Ei pakkoja juuri nyt",
       "openingHint": "Raidiholvi avautuu…",
       "collectionProgressEyebrow": "Pakan kokoelma",
       "badLuckProtectionEyebrow": "Huonon tuurin suoja",
@@ -500,6 +501,8 @@
       "recoveryFailed": "Tallennettua pakkaa ei voitu palauttaa. Tyhjennä se ennen uuden pakan avaamista.",
       "dismissRecovery": "Tyhjennä tallennettu pakka",
       "openAnother": "Avaa toinen pakka",
+      "claimPickemPacks": "Lunasta {count, plural, one {# veikkauspakka} other {# veikkauspakkaa}}",
+      "getPickemPacks": "Hanki veikkauspakkoja",
       "chooseDifferent": "Valitse toinen pakka",
       "setComplete": "Setti valmis!"
     },

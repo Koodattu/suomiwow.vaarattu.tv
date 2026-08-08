@@ -62,6 +62,7 @@ import {
   HomePageData,
   PickemSummary,
   PickemDetails,
+  PickemCcgOpportunitySummary,
   PickemCcgRewardClaimResult,
   PickemPrediction,
   GuildRanking,
@@ -1565,6 +1566,12 @@ export const api = {
   async getPickems(): Promise<PickemSummary[]> {
     const response = await fetch(`${API_URL}/api/pickems`);
     if (!response.ok) throw new Error("Failed to fetch pickems");
+    return response.json();
+  },
+
+  async getPickemCcgOpportunity(): Promise<PickemCcgOpportunitySummary> {
+    const response = await fetch(`${API_URL}/api/pickems/ccg-opportunity`, { credentials: "include" });
+    if (!response.ok) throw new Error("Failed to load Pickem pack opportunities");
     return response.json();
   },
 
