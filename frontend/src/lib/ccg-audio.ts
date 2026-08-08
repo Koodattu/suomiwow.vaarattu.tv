@@ -1,5 +1,5 @@
-import type { CcgArtVariant, CcgFinish, CcgTierGrade } from "@/types";
-import { CCG_RARITY_KEYS, getCcgPullQualityScore } from "@/lib/ccg";
+import type { CcgArtVariant, CcgFinish, CcgRaidFinish, CcgTierGrade } from "@/types";
+import { CCG_RARITY_KEYS } from "@/lib/ccg";
 import { getLocale, type Locale } from "@/lib/locale";
 
 export const CCG_AUDIO_PREFERENCES_EVENT = "ccg-audio-preferences-change";
@@ -10,38 +10,17 @@ export type CcgAudioChannel = "effects" | "announcer" | "quips";
 
 type AnnouncerVariant = "a" | "b" | "c" | "d";
 type AnnouncerQuality = CcgFinish | "unique";
-type AnnouncerKey = `${CcgFinish}-${(typeof CCG_RARITY_KEYS)[CcgTierGrade]}`;
-
-const CCG_ANNOUNCER_EXCLAMATIONS = [
-  "amazing",
-  "holy",
-  "impossible",
-  "incredible",
-  "nice",
-  "no-way",
-  "oh",
-  "unbelievable",
-  "whoa",
-  "wow",
-] as const;
+type AnnouncerRarity = (typeof CCG_RARITY_KEYS)[CcgTierGrade];
+type AnnouncerKey = `${AnnouncerQuality}-${AnnouncerRarity}`;
 
 const CCG_ANNOUNCER_COMPONENT_VARIANTS: Record<Locale, readonly AnnouncerVariant[]> = {
   en: ["a", "b", "c", "d"],
   fi: ["a", "b"],
 };
 
-const CCG_ANNOUNCER_EXCLAMATION_SCORE = 60;
+const CCG_ANNOUNCER_HIGH_RARITY_GRADES = new Set<CcgTierGrade>(["H", "S", "A", "B", "C"]);
 
-const CCG_ANNOUNCER_COMPONENT_FINISHES = new Set<CcgFinish>([
-  "standard",
-  "foil",
-  "golden",
-  "prismatic",
-  "holographic",
-  "void",
-  "toxic",
-  "negative",
-  "astral",
+const CCG_ANNOUNCER_RAID_FINISHES = new Set<CcgFinish>([
   "relic",
   "slagforged",
   "felscorched",
@@ -62,14 +41,14 @@ const CCG_ANNOUNCER_COMPONENT_FINISHES = new Set<CcgFinish>([
   "royal",
   "jackpot",
   "phaseglass",
-]);
+] satisfies CcgRaidFinish[]);
 
 const CCG_ANNOUNCER_BASELINE_VOLUME: Record<Locale, number> = {
   en: 0.5,
   fi: 1,
 };
 
-const CCG_ANNOUNCER_AVAILABILITY: Record<Locale, Partial<Record<AnnouncerKey, readonly AnnouncerVariant[]>>> = {
+const CCG_ANNOUNCER_RECORDED_VARIANTS: Record<Locale, Partial<Record<AnnouncerKey, readonly AnnouncerVariant[]>>> = {
   en: {
     "standard-heirloom": ["a", "b"],
     "standard-artifact": ["a", "b"],
@@ -119,6 +98,14 @@ const CCG_ANNOUNCER_AVAILABILITY: Record<Locale, Partial<Record<AnnouncerKey, re
     "toxic-uncommon": ["a", "b"],
     "toxic-common": ["a", "b"],
     "toxic-poor": ["a", "b"],
+    "unique-heirloom": ["a", "b"],
+    "unique-artifact": ["a", "b"],
+    "unique-legendary": ["a", "b"],
+    "unique-epic": ["a", "b"],
+    "unique-rare": ["a", "b"],
+    "unique-uncommon": ["a", "b"],
+    "unique-common": ["a", "b"],
+    "unique-poor": ["a", "b"],
     "negative-heirloom": ["a", "b"],
     "negative-artifact": ["a", "b"],
     "negative-legendary": ["a", "b"],
@@ -185,6 +172,14 @@ const CCG_ANNOUNCER_AVAILABILITY: Record<Locale, Partial<Record<AnnouncerKey, re
     "toxic-uncommon": ["a", "b"],
     "toxic-common": ["a", "b"],
     "toxic-poor": ["a", "b"],
+    "unique-heirloom": ["a", "b"],
+    "unique-artifact": ["a", "b"],
+    "unique-legendary": ["a", "b"],
+    "unique-epic": ["a", "b"],
+    "unique-rare": ["a", "b"],
+    "unique-uncommon": ["a", "b"],
+    "unique-common": ["a", "b"],
+    "unique-poor": ["a", "b"],
     "negative-heirloom": ["a", "b"],
     "negative-artifact": ["a", "b"],
     "negative-legendary": ["a", "b"],
@@ -277,42 +272,47 @@ export function getCcgPlaybackVolume(channel: CcgAudioChannel, baseVolume = 1): 
 
 export type CcgAnnouncerSoundSequence = readonly string[];
 
+function getCcgRecordedAnnouncerSoundSequences(
+  locale: Locale,
+  quality: AnnouncerQuality,
+  rarity: AnnouncerRarity,
+  artVariant: CcgArtVariant,
+): CcgAnnouncerSoundSequence[] {
+  const variants = CCG_ANNOUNCER_RECORDED_VARIANTS[locale][`${quality}-${rarity}`] ?? [];
+  const localePrefix = locale === "fi" ? "fi-" : "";
+  const componentBasePath = `/ccg/audio/announcer/components/${locale}`;
+  const directory = quality === "standard" ? "standard-rarity-only" : quality;
+  return variants.map((variant) => [
+    ...(artVariant === "alternative"
+      ? [`${componentBasePath}/qualities/${localePrefix}alternative-${variant}.mp3`]
+      : []),
+    `/ccg/audio/announcer/${locale}/${directory}/${localePrefix}${quality}-${rarity}-${variant}.mp3`,
+  ]);
+}
+
 export function getCcgAnnouncerSoundSequences(
   locale: Locale,
   finish: CcgFinish,
   tierGrade: CcgTierGrade,
   artVariant: CcgArtVariant = "standard",
 ): CcgAnnouncerSoundSequence[] {
+  if ((finish === "standard" || finish === "foil") && !CCG_ANNOUNCER_HIGH_RARITY_GRADES.has(tierGrade)) return [];
+
   const rarity = CCG_RARITY_KEYS[tierGrade];
-  const localePrefix = locale === "fi" ? "fi-" : "";
-  const componentBasePath = `/ccg/audio/announcer/components/${locale}`;
-  const key: AnnouncerKey = `${finish}-${rarity}`;
-  const recordedVariants = CCG_ANNOUNCER_AVAILABILITY[locale][key] ?? [];
-  if (recordedVariants.length > 0) {
-    const directory = finish === "standard" ? "standard-rarity-only" : finish;
-    return recordedVariants.map((variant) => [
-      ...(artVariant === "alternative"
-        ? [`${componentBasePath}/qualities/${localePrefix}alternative-${variant}.mp3`]
-        : []),
-      `/ccg/audio/announcer/${locale}/${directory}/${localePrefix}${finish}-${rarity}-${variant}.mp3`,
-    ]);
+  const recordedSequences = getCcgRecordedAnnouncerSoundSequences(locale, finish, rarity, artVariant);
+  if (recordedSequences.length > 0) return recordedSequences;
+
+  if (!CCG_ANNOUNCER_RAID_FINISHES.has(finish)) {
+    return getCcgRecordedAnnouncerSoundSequences(locale, "unique", rarity, artVariant);
   }
 
-  const quality: AnnouncerQuality = CCG_ANNOUNCER_COMPONENT_FINISHES.has(finish) ? finish : "unique";
-  const includeExclamation = getCcgPullQualityScore({ finish, card: { tierGrade } }) >= CCG_ANNOUNCER_EXCLAMATION_SCORE;
-  return CCG_ANNOUNCER_COMPONENT_VARIANTS[locale].flatMap((variant) => {
-    const announcement = [
-      ...(artVariant === "alternative" ? [`${componentBasePath}/qualities/${localePrefix}alternative-${variant}.mp3`] : []),
-      ...(quality === "standard" ? [] : [`${componentBasePath}/qualities/${localePrefix}${quality}-${variant}.mp3`]),
-      `${componentBasePath}/rarities/${localePrefix}${rarity}-${variant}.mp3`,
-    ];
-    return includeExclamation
-      ? CCG_ANNOUNCER_EXCLAMATIONS.map((exclamation) => [
-        `${componentBasePath}/exclamations/${localePrefix}${exclamation}-${variant}.mp3`,
-        ...announcement,
-      ])
-      : [announcement];
-  });
+  const localePrefix = locale === "fi" ? "fi-" : "";
+  const componentBasePath = `/ccg/audio/announcer/components/${locale}`;
+  return CCG_ANNOUNCER_COMPONENT_VARIANTS[locale].map((variant) => [
+    ...(artVariant === "alternative" ? [`${componentBasePath}/qualities/${localePrefix}alternative-${variant}.mp3`] : []),
+    `${componentBasePath}/qualities/${localePrefix}${finish}-${variant}.mp3`,
+    `${componentBasePath}/rarities/${localePrefix}${rarity}-${variant}.mp3`,
+  ]);
 }
 
 type CcgSoundOptions = {
