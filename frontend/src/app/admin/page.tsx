@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useEffect, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { Fragment, Suspense, useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -142,7 +143,12 @@ const FULL_HISTORY_STAGE_LABELS: Record<FullHistoryRefreshStage, string> = {
   failed: "Failed",
 };
 
-type TabType = "overview" | "users" | "guilds" | "streams" | "characters" | "pickems" | "ccg" | "system" | "tasks";
+const ADMIN_TABS = ["overview", "users", "guilds", "streams", "characters", "pickems", "ccg", "system", "tasks"] as const;
+type TabType = (typeof ADMIN_TABS)[number];
+
+function getAdminTab(value: string | null): TabType {
+  return ADMIN_TABS.includes(value as TabType) ? (value as TabType) : "overview";
+}
 
 const PICKEM_PLACEHOLDER_RAID_ID = -1;
 
@@ -322,8 +328,9 @@ function MythicPlusCrawlerStatusPanel({ status }: { status: MythicPlusCrawlerSta
   );
 }
 
-export default function AdminPage() {
+function AdminPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isLoading: authLoading } = useAuth();
   const t = useTranslations("admin");
   const rateLimitFreshnessLabel = (status: RateLimitStatus) => {
@@ -337,7 +344,7 @@ export default function AdminPage() {
     return t("rateLimit.unknown");
   };
 
-  const [activeTab, setActiveTab] = useState<TabType>("overview");
+  const activeTab = getAdminTab(searchParams.get("tab"));
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -570,29 +577,28 @@ export default function AdminPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const params = new URLSearchParams(window.location.search);
-    const wclUserResult = params.get("wclUser");
-    const twitchBotResult = params.get("twitchBot");
-    const twitchChannelPointsResult = params.get("twitchChannelPoints");
+    const wclUserResult = searchParams.get("wclUser");
+    const twitchBotResult = searchParams.get("twitchBot");
+    const twitchChannelPointsResult = searchParams.get("twitchChannelPoints");
     if (!wclUserResult && !twitchBotResult && !twitchChannelPointsResult) return;
 
-    setActiveTab((twitchBotResult || twitchChannelPointsResult) && !wclUserResult ? "streams" : "system");
+    const callbackTab: TabType = (twitchBotResult || twitchChannelPointsResult) && !wclUserResult ? "streams" : "system";
     if (wclUserResult === "connected") {
       setTriggerMessage({ type: "success", text: "Warcraft Logs user authorization connected" });
     } else if (wclUserResult) {
-      setTriggerMessage({ type: "error", text: `Warcraft Logs authorization failed: ${params.get("reason") || "unknown error"}` });
+      setTriggerMessage({ type: "error", text: `Warcraft Logs authorization failed: ${searchParams.get("reason") || "unknown error"}` });
     } else if (twitchBotResult === "connected") {
       setTriggerMessage({ type: "success", text: "Twitch bot authorization connected" });
     } else if (twitchBotResult) {
-      setTriggerMessage({ type: "error", text: `Twitch bot authorization failed: ${params.get("reason") || "unknown error"}` });
+      setTriggerMessage({ type: "error", text: `Twitch bot authorization failed: ${searchParams.get("reason") || "unknown error"}` });
     } else if (twitchChannelPointsResult === "connected") {
       setTriggerMessage({ type: "success", text: "Twitch channel points broadcaster connected" });
     } else {
-      setTriggerMessage({ type: "error", text: `Twitch channel points authorization failed: ${params.get("reason") || "unknown error"}` });
+      setTriggerMessage({ type: "error", text: `Twitch channel points authorization failed: ${searchParams.get("reason") || "unknown error"}` });
     }
     setTimeout(() => setTriggerMessage(null), 7000);
-    router.replace("/admin");
-  }, [router]);
+    router.replace(`/admin?tab=${callbackTab}`);
+  }, [router, searchParams]);
 
   // Fetch data based on active tab
   useEffect(() => {
@@ -2250,20 +2256,21 @@ export default function AdminPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-700 pb-4">
-          {(["overview", "users", "guilds", "streams", "characters", "pickems", "ccg", "system", "tasks"] as TabType[]).map((tab) => (
-            <button
+        <nav className="flex flex-wrap gap-2 mb-6 border-b border-gray-700 pb-4" aria-label={t("title")}>
+          {ADMIN_TABS.map((tab) => (
+            <Link
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              href={tab === "ccg" ? "/admin?tab=ccg&subtab=studio" : `/admin?tab=${tab}`}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === tab ? "bg-amber-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}
+              aria-current={activeTab === tab ? "page" : undefined}
             >
               {t(`tabs.${tab}`)}
-            </button>
+            </Link>
           ))}
-          <a href="/admin/analytics" className="px-4 py-2 rounded-lg font-medium transition-colors bg-gray-800 text-gray-300 hover:bg-gray-700 flex items-center gap-2">
+          <Link href="/admin/analytics" className="px-4 py-2 rounded-lg font-medium transition-colors bg-gray-800 text-gray-300 hover:bg-gray-700 flex items-center gap-2">
             📊 {t("tabs.analytics")}
-          </a>
-        </div>
+          </Link>
+        </nav>
 
         {/* Error state */}
         {error && (
@@ -7788,5 +7795,13 @@ export default function AdminPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminPageContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import CcgCardStudio from "@/components/admin/CcgCardStudio";
 import CcgPackStudio from "@/components/admin/CcgPackStudio";
@@ -18,6 +20,13 @@ const secondaryButton =
   "min-h-10 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-gray-200 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09)] transition-transform duration-150 ease-out hover:bg-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
 const primaryButton =
   "min-h-10 rounded-md bg-amber-600 px-3 py-2 text-sm font-bold text-white transition-transform duration-150 ease-out hover:bg-amber-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
+const CCG_ADMIN_SECTIONS = ["studio", "packStudio", "snapshots", "analytics", "users", "alternativeArt", "redeemCodes", "community", "media", "sets"] as const;
+type CcgAdminSection = (typeof CCG_ADMIN_SECTIONS)[number];
+
+function getCcgAdminSection(value: string | null): CcgAdminSection {
+  return CCG_ADMIN_SECTIONS.includes(value as CcgAdminSection) ? (value as CcgAdminSection) : "studio";
+}
+
 function readinessMinimum(readiness: CcgAdminSetReadiness, blocker: CcgAdminSetReadiness["blockers"][number]): number {
   if (blocker === "eligible_population") return readiness.thresholds.eligible;
   if (blocker === "media_ready") return readiness.thresholds.mediaReady;
@@ -28,6 +37,7 @@ function readinessMinimum(readiness: CcgAdminSetReadiness, blocker: CcgAdminSetR
 export default function CcgAdminPanel() {
   const t = useTranslations("admin.ccg");
   const locale = useLocale();
+  const searchParams = useSearchParams();
   const [status, setStatus] = useState<CcgAdminStatusResponse | null>(null);
   const [readiness, setReadiness] = useState<Record<number, CcgAdminSetReadiness>>({});
   const [loading, setLoading] = useState(true);
@@ -37,7 +47,7 @@ export default function CcgAdminPanel() {
   const [confirmingZone, setConfirmingZone] = useState<number | null>(null);
   const [forcingZone, setForcingZone] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [section, setSection] = useState<"studio" | "packStudio" | "snapshots" | "analytics" | "users" | "alternativeArt" | "redeemCodes" | "community" | "media" | "sets">("studio");
+  const section = getCcgAdminSection(searchParams.get("subtab"));
   const handleError = useCallback((message: string) => {
     setError(message);
     setNotice(null);
@@ -145,17 +155,16 @@ export default function CcgAdminPanel() {
       {notice ? <div className="rounded-lg bg-emerald-950/45 p-4 text-sm text-emerald-200 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.28)]" role="status">{notice}</div> : null}
 
       <nav className="flex flex-wrap gap-2 border-b border-white/8 pb-3" aria-label={t("sections.label")}>
-        {(["studio", "packStudio", "snapshots", "analytics", "users", "alternativeArt", "redeemCodes", "community", "media", "sets"] as const).map((value) => (
-          <button
+        {CCG_ADMIN_SECTIONS.map((value) => (
+          <Link
             key={value}
-            type="button"
-            onClick={() => setSection(value)}
+            href={`/admin?tab=ccg&subtab=${value}`}
             className={`min-h-10 rounded-md px-4 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 ${section === value ? "bg-cyan-950/80 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(103,232,249,.28)]" : "text-gray-400 hover:bg-white/5 hover:text-white"}`}
             aria-current={section === value ? "page" : undefined}
           >
             {t(`sections.${value}`)}
             {value === "community" ? <span className="ml-2 tabular-nums text-gray-500">{status.community.characters.filter((character) => character.active).length}</span> : null}
-          </button>
+          </Link>
         ))}
       </nav>
 
