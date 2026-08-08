@@ -350,6 +350,7 @@ export function usePickemCcgOpportunity(enabled = true) {
     queryFn: () => api.getPickemCcgOpportunity(),
     enabled,
     staleTime: 0,
+    refetchOnWindowFocus: false,
   });
 }
 

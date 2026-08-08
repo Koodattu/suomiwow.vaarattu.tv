@@ -182,15 +182,15 @@ router.get("/:pickemId/reference-rankings", async (req: Request, res: Response) 
 
 router.get("/ccg-opportunity", async (req: Request, res: Response) => {
   try {
-    const user = await getUserFromSession(req);
-    if (!user) {
+    const userId = req.session.userId;
+    if (!userId) {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    const summary = await pickemCcgRewardService.getOpportunitySummary(
-      user._id,
-      user.pickems?.map((entry: IPickemEntry) => entry.pickemId) ?? [],
-    );
+    const summary = await pickemCcgRewardService.getOpportunitySummary(userId);
+    if (!summary) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
     res.setHeader("Cache-Control", "private, no-store");
     res.json(summary);
   } catch (error) {

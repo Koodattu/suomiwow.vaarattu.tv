@@ -56,15 +56,18 @@ function isDuplicateKeyError(error: unknown): boolean {
 
 class PickemCcgRewardService {
   async getOpportunitySummary(
-    userId: mongoose.Types.ObjectId,
-    submittedPickemIds: readonly string[],
+    userId: string | mongoose.Types.ObjectId,
     now = new Date(),
-  ): Promise<PickemCcgOpportunitySummary> {
+  ): Promise<PickemCcgOpportunitySummary | null> {
     if (!CCG_FEATURE_ENABLED) return { hasOpportunity: false, claimablePacks: 0 };
 
-    const rewardPickems = await Pickem.find({ active: true, ccgRewardPacks: { $gt: 0 } })
-      .select("_id pickemId ccgRewardPacks votingStart votingEnd")
-      .lean();
+    const [user, rewardPickems] = await Promise.all([
+      User.findById(userId).select("pickems.pickemId").lean(),
+      Pickem.find({ active: true, ccgRewardPacks: { $gt: 0 } })
+        .select("_id pickemId ccgRewardPacks votingStart votingEnd")
+        .lean(),
+    ]);
+    if (!user) return null;
     if (rewardPickems.length === 0) return { hasOpportunity: false, claimablePacks: 0 };
 
     const claimedSourceKeys = new Set(
@@ -73,7 +76,7 @@ class PickemCcgRewardService {
         sourceKey: { $in: rewardPickems.map((pickem) => getPickemCcgRewardSourceKey(pickem._id)) },
       }).select("sourceKey -_id").lean()).map((credit) => credit.sourceKey),
     );
-    const submitted = new Set(submittedPickemIds);
+    const submitted = new Set(user.pickems?.map((entry) => entry.pickemId) ?? []);
     let claimablePacks = 0;
     let hasEnterablePickem = false;
 

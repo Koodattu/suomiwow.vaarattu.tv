@@ -179,7 +179,7 @@ export default function CcgOpenPage() {
   const recoveryQuery = useCcgOpening(recoveryId, !authLoading && sessionQuery.isSuccess);
   const session = sessionQuery.data;
   const noPacks = session ? session.packs.totalRemaining <= 0 : false;
-  const pickemOpportunityQuery = usePickemCcgOpportunity(Boolean(user) && session?.ownerType === "user" && noPacks);
+  const pickemOpportunityQuery = usePickemCcgOpportunity(Boolean(user) && session?.ownerType === "user" && Boolean(opening) && noPacks);
   const sets = setsQuery.data?.sets;
   const raidSets = useMemo(
     () => (sets ?? [])

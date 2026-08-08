@@ -143,6 +143,7 @@ test("claimed status does not depend on unspent pack balance", async () => {
 });
 
 test("summarizes claimable and enterable Pickem pack opportunities", async () => {
+  const originalUserFindById = User.findById;
   const originalPickemFind = Pickem.find;
   const originalCreditFind = CcgPackCredit.find;
   const now = new Date("2026-08-08T12:00:00.000Z");
@@ -173,7 +174,9 @@ test("summarizes claimable and enterable Pickem pack opportunities", async () =>
     },
   ];
   let claimedSourceKeys = [getPickemCcgRewardSourceKey(submittedClaimedId)];
+  let submittedPickemIds = ["submitted-unclaimed", "submitted-claimed"];
 
+  User.findById = (() => leanQueryResult(() => ({ pickems: submittedPickemIds.map((pickemId) => ({ pickemId })) }))) as unknown as typeof User.findById;
   Pickem.find = (() => leanQueryResult(() => pickems)) as unknown as typeof Pickem.find;
   CcgPackCredit.find = (() => leanQueryResult(() => claimedSourceKeys.map((sourceKey) => ({ sourceKey })))) as unknown as typeof CcgPackCredit.find;
 
@@ -181,7 +184,6 @@ test("summarizes claimable and enterable Pickem pack opportunities", async () =>
     assert.deepEqual(
       await pickemCcgRewardService.getOpportunitySummary(
         new mongoose.Types.ObjectId(),
-        ["submitted-unclaimed", "submitted-claimed"],
         now,
       ),
       { hasOpportunity: true, claimablePacks: 25 },
@@ -189,17 +191,19 @@ test("summarizes claimable and enterable Pickem pack opportunities", async () =>
 
     pickems = [pickems[2]];
     claimedSourceKeys = [];
+    submittedPickemIds = [];
     assert.deepEqual(
-      await pickemCcgRewardService.getOpportunitySummary(new mongoose.Types.ObjectId(), [], now),
+      await pickemCcgRewardService.getOpportunitySummary(new mongoose.Types.ObjectId(), now),
       { hasOpportunity: true, claimablePacks: 0 },
     );
 
     pickems = [{ ...pickems[0], votingEnd: new Date("2026-08-07T00:00:00.000Z") }];
     assert.deepEqual(
-      await pickemCcgRewardService.getOpportunitySummary(new mongoose.Types.ObjectId(), [], now),
+      await pickemCcgRewardService.getOpportunitySummary(new mongoose.Types.ObjectId(), now),
       { hasOpportunity: false, claimablePacks: 0 },
     );
   } finally {
+    User.findById = originalUserFindById;
     Pickem.find = originalPickemFind;
     CcgPackCredit.find = originalCreditFind;
   }
