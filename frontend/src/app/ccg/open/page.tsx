@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -1504,17 +1505,11 @@ export default function CcgOpenPage() {
                         {t("guest.loginForPacks")}
                       </button>
                     ) : packComplete && !hasAnotherPack && pickemOpportunityQuery.data?.hasOpportunity ? (
-                      <button
-                        ref={desktopPackActionRef}
-                        type="button"
-                        data-pack-action="pickems"
-                        className={styles.primaryButton}
-                        onClick={() => router.push("/pickems")}
-                      >
+                      <Link href="/pickems" className={styles.primaryButton}>
                         {pickemOpportunityQuery.data.claimablePacks > 0
                           ? t("open.claimPickemPacks", { count: pickemOpportunityQuery.data.claimablePacks })
                           : t("open.getPickemPacks")}
-                      </button>
+                      </Link>
                     ) : packComplete ? (
                       <button
                         ref={desktopPackActionRef}
