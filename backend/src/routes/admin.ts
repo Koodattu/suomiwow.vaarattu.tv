@@ -165,7 +165,7 @@ async function syncAdminStreamerClaims(guildId: string, channelNames: string[]):
         },
       },
     },
-  ]);
+  ], { updatePipeline: true });
 }
 
 // ============================================================
