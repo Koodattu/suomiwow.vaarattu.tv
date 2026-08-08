@@ -120,6 +120,9 @@ const CharacterMythicPlusSeasonScoreSchema = new Schema<ICharacterMythicPlusSeas
 
 CharacterMythicPlusSeasonScoreSchema.index({ characterId: 1, season: 1 }, { unique: true });
 CharacterMythicPlusSeasonScoreSchema.index({ season: 1, "scores.all": -1, name: 1 });
+CharacterMythicPlusSeasonScoreSchema.index({ season: 1, "scores.dps": -1, name: 1 });
+CharacterMythicPlusSeasonScoreSchema.index({ season: 1, "scores.healer": -1, name: 1 });
+CharacterMythicPlusSeasonScoreSchema.index({ season: 1, "scores.tank": -1, name: 1 });
 CharacterMythicPlusSeasonScoreSchema.index({ season: 1, classID: 1, "scores.all": -1 });
 CharacterMythicPlusSeasonScoreSchema.index({ season: 1, guildName: 1, "scores.all": -1 });
 CharacterMythicPlusSeasonScoreSchema.index({ season: 1, bestSpecSlug: 1, bestSpecScore: -1 });

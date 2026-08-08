@@ -2001,8 +2001,8 @@ export const api = {
     return response.json();
   },
 
-  async getMythicPlusLeaderboard(queryString = ""): Promise<MythicPlusLeaderboardResponse> {
-    const response = await fetch(`${API_URL}/api/mythic-plus${queryString}`);
+  async getMythicPlusLeaderboard(queryString = "", signal?: AbortSignal): Promise<MythicPlusLeaderboardResponse> {
+    const response = await fetch(`${API_URL}/api/mythic-plus${queryString}`, { signal });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.error || "Failed to fetch Mythic+ leaderboard");

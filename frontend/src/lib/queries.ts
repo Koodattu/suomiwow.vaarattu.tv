@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { CcgActivityFilter, CcgBootstrapResponse, CcgCollectionSort, CharacterTierListRole, EventFilters } from "@/types";
 
@@ -373,11 +373,12 @@ export function usePickemReferenceRankings(pickemId: string, raidId: number | nu
 
 // Character Rankings
 
-export function useCharacterRankingOptions() {
+export function useCharacterRankingOptions(enabled: boolean = true) {
   return useQuery({
     queryKey: queryKeys.characterRankings.options,
     queryFn: () => api.getCharacterRankingOptions(),
     staleTime: 10 * 60 * 1000,
+    enabled,
   });
 }
 
@@ -389,11 +390,12 @@ export function useCharacterRankings(query: string, enabled: boolean = true) {
   });
 }
 
-export function useCharacterMechanicsOptions() {
+export function useCharacterMechanicsOptions(enabled: boolean = true) {
   return useQuery({
     queryKey: queryKeys.characterMechanics.options,
     queryFn: () => api.getCharacterMechanicsOptions(),
     staleTime: 10 * 60 * 1000,
+    enabled,
   });
 }
 
@@ -417,8 +419,10 @@ export function useMythicPlusOptions(enabled: boolean = true) {
 export function useMythicPlusLeaderboard(query: string, enabled: boolean = true) {
   return useQuery({
     queryKey: queryKeys.mythicPlus.leaderboard(query),
-    queryFn: () => api.getMythicPlusLeaderboard(query),
+    queryFn: ({ signal }) => api.getMythicPlusLeaderboard(query, signal),
     enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

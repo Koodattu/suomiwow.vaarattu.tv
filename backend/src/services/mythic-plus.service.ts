@@ -37,6 +37,7 @@ const RAIDER_IO_API_BASE_URL = "https://raider.io/api/v1";
 const RAIDER_IO_SITE_API_BASE_URL = "https://raider.io/api";
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE_SIZE = 500;
+const LEADERBOARD_ELIGIBILITY_CACHE_TTL_MS = 5 * 60 * 1000;
 const PROCESS_LOG_INTERVAL = 25;
 const PROCESS_IDLE_RECHECK_MS = 60 * 1000;
 const RAIDER_IO_RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -183,16 +184,8 @@ export interface MythicPlusLeaderboardResponse {
     } | null;
     dungeonRuns: Array<{
       dungeonId: number;
-      challengeModeId?: number | null;
-      dungeonName: string;
-      dungeonShortName?: string | null;
-      dungeonIconUrl?: string | null;
       mythicLevel: number;
       score: number;
-      clearTimeMs?: number | null;
-      parTimeMs?: number | null;
-      completedAt?: Date | null;
-      url?: string | null;
     }>;
     updatedAt?: Date;
   }>;
@@ -379,6 +372,8 @@ class MythicPlusService {
   private isCheckingRecovery = false;
   private currentJob: ReturnType<MythicPlusService["summarizeJob"]> | null = null;
   private lastMessage: string | null = null;
+  private leaderboardEligibleCharacterIdsCache: { expiresAt: number; ids: mongoose.Types.ObjectId[] } | null = null;
+  private leaderboardEligibleCharacterIdsPromise: Promise<mongoose.Types.ObjectId[]> | null = null;
 
   private async getEligibleCharacterIds(characterIds?: mongoose.Types.ObjectId[]): Promise<mongoose.Types.ObjectId[]> {
     if (characterIds && characterIds.length === 0) return [];
@@ -389,6 +384,26 @@ class MythicPlusService {
     };
     const eligibleIds = await CharacterRaidParticipation.distinct("characterId", filter);
     return eligibleIds.filter((id): id is mongoose.Types.ObjectId => id instanceof mongoose.Types.ObjectId);
+  }
+
+  private async getLeaderboardEligibleCharacterIds(): Promise<mongoose.Types.ObjectId[]> {
+    if (this.leaderboardEligibleCharacterIdsCache && this.leaderboardEligibleCharacterIdsCache.expiresAt > Date.now()) {
+      return this.leaderboardEligibleCharacterIdsCache.ids;
+    }
+    if (this.leaderboardEligibleCharacterIdsPromise) return this.leaderboardEligibleCharacterIdsPromise;
+
+    this.leaderboardEligibleCharacterIdsPromise = this.getEligibleCharacterIds()
+      .then((ids) => {
+        this.leaderboardEligibleCharacterIdsCache = {
+          expiresAt: Date.now() + LEADERBOARD_ELIGIBILITY_CACHE_TTL_MS,
+          ids,
+        };
+        return ids;
+      })
+      .finally(() => {
+        this.leaderboardEligibleCharacterIdsPromise = null;
+      });
+    return this.leaderboardEligibleCharacterIdsPromise;
   }
 
   private async isCharacterEligible(characterId: mongoose.Types.ObjectId): Promise<boolean> {
@@ -2179,7 +2194,9 @@ class MythicPlusService {
     page?: number;
     limit?: number;
     characterName?: string;
+    characterRealm?: string;
     guildName?: string;
+    guildRealm?: string;
   }): Promise<MythicPlusLeaderboardResponse> {
     const season = options.season || (await this.getOptions()).defaultSelection.season;
     if (!season) {
@@ -2193,7 +2210,7 @@ class MythicPlusService {
     const pageSize = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
     const currentPage = Math.max(options.page ?? 1, 1);
     const skip = (currentPage - 1) * pageSize;
-    const eligibleCharacterIds = await this.getEligibleCharacterIds();
+    const eligibleCharacterIds = await this.getLeaderboardEligibleCharacterIds();
     if (eligibleCharacterIds.length === 0) {
       return {
         data: [],
@@ -2209,8 +2226,6 @@ class MythicPlusService {
   }
 
   private async getSeasonLeaderboard(options: any): Promise<MythicPlusLeaderboardResponse> {
-    const characterRegex = buildPartialRegex(options.characterName);
-    const guildRegex = buildPartialRegex(options.guildName);
     const match: any = {
       season: options.season,
       characterId: { $in: options.eligibleCharacterIds },
@@ -2218,38 +2233,91 @@ class MythicPlusService {
     };
     if (options.classId !== undefined) match.classID = options.classId;
     if (options.role) match[`scores.${options.role}`] = { $gt: 0 };
-    if (characterRegex) match.name = characterRegex;
-    if (guildRegex) match.guildName = guildRegex;
+    if (options.characterName) match.name = options.characterRealm ? options.characterName : buildPartialRegex(options.characterName);
+    if (options.characterRealm) match.realm = options.characterRealm;
+    if (options.guildName) match.guildName = options.guildRealm ? options.guildName : buildPartialRegex(options.guildName);
+    if (options.guildRealm) match.guildRealm = options.guildRealm;
     if (options.specName) match["specScores.specSlug"] = options.specName;
 
-    const scoreExpression = options.specName
-      ? {
-          $let: {
-            vars: {
-              matchedSpec: {
-                $first: {
-                  $filter: {
-                    input: "$specScores",
-                    as: "spec",
-                    cond: { $eq: ["$$spec.specSlug", options.specName] },
-                  },
+    let totalItems = 0;
+    let rows: any[] = [];
+    if (options.specName) {
+      const scoreExpression = {
+        $let: {
+          vars: {
+            matchedSpec: {
+              $first: {
+                $filter: {
+                  input: "$specScores",
+                  as: "spec",
+                  cond: { $eq: ["$$spec.specSlug", options.specName] },
                 },
               },
             },
-            in: { $ifNull: ["$$matchedSpec.score", 0] },
           },
-        }
-      : `$scores.${options.bucket}`;
-
-    const basePipeline: any[] = [{ $match: match }, { $addFields: { leaderboardScore: scoreExpression } }, { $match: { leaderboardScore: { $gt: 0 } } }];
-    const [countRow] = await CharacterMythicPlusSeasonScore.aggregate([...basePipeline, { $count: "total" }]);
-    const totalItems = countRow?.total ?? 0;
-    const rows = await CharacterMythicPlusSeasonScore.aggregate([
-      ...basePipeline,
-      { $sort: { leaderboardScore: -1, name: 1 } },
-      { $skip: options.skip },
-      { $limit: options.pageSize },
-    ]);
+          in: { $ifNull: ["$$matchedSpec.score", 0] },
+        },
+      };
+      const basePipeline: any[] = [{ $match: match }, { $addFields: { leaderboardScore: scoreExpression } }, { $match: { leaderboardScore: { $gt: 0 } } }];
+      const [countRows, resultRows] = await Promise.all([
+        CharacterMythicPlusSeasonScore.aggregate([...basePipeline, { $count: "total" }]),
+        CharacterMythicPlusSeasonScore.aggregate([
+          ...basePipeline,
+          { $sort: { leaderboardScore: -1, name: 1 } },
+          { $skip: options.skip },
+          { $limit: options.pageSize },
+          {
+            $project: {
+              characterId: 1,
+              wclCanonicalCharacterId: 1,
+              name: 1,
+              realm: 1,
+              region: 1,
+              classID: 1,
+              guildName: 1,
+              guildRealm: 1,
+              season: 1,
+              leaderboardScore: 1,
+              bestSpecName: 1,
+              bestSpecSlug: 1,
+              bestSpecScore: 1,
+              updatedAt: 1,
+            },
+          },
+        ]),
+      ]);
+      totalItems = countRows[0]?.total ?? 0;
+      rows = resultRows;
+    } else {
+      const scoreField = `scores.${options.bucket}`;
+      match[scoreField] = { $gt: 0 };
+      const rowQuery = CharacterMythicPlusSeasonScore.find(match)
+        .sort({ [scoreField]: -1, name: 1 })
+        .skip(options.skip)
+        .limit(options.pageSize)
+        .select({
+          characterId: 1,
+          wclCanonicalCharacterId: 1,
+          name: 1,
+          realm: 1,
+          region: 1,
+          classID: 1,
+          guildName: 1,
+          guildRealm: 1,
+          season: 1,
+          [scoreField]: 1,
+          bestSpecName: 1,
+          bestSpecSlug: 1,
+          bestSpecScore: 1,
+          updatedAt: 1,
+        });
+      const [count, resultRows] = await Promise.all([CharacterMythicPlusSeasonScore.countDocuments(match), rowQuery.lean()]);
+      totalItems = count;
+      rows = resultRows.map((row: any) => ({
+        ...row,
+        leaderboardScore: row.scores?.[options.bucket] ?? 0,
+      }));
+    }
 
     const characterIds = rows.map((row: any) => row.characterId).filter(Boolean);
     const runBucket = options.specName ? (this.getSpecBucketForClass(options.classId, options.specName) ?? options.bucket) : options.bucket;
@@ -2260,7 +2328,7 @@ class MythicPlusService {
           characterId: { $in: characterIds },
           ...CURRENT_IDENTITY_FILTER,
         })
-          .sort({ dungeonName: 1 })
+          .select("characterId raiderIoDungeonId mythicLevel score -_id")
           .lean()
       : [];
     const runsByCharacter = this.groupRunsByCharacter(runs);
@@ -2278,8 +2346,6 @@ class MythicPlusService {
   }
 
   private async getDungeonLeaderboard(options: any): Promise<MythicPlusLeaderboardResponse> {
-    const characterRegex = buildPartialRegex(options.characterName);
-    const guildRegex = buildPartialRegex(options.guildName);
     const bucket = options.specName ? (this.getSpecBucketForClass(options.classId, options.specName) ?? options.bucket) : options.bucket;
     const match: any = {
       season: options.season,
@@ -2291,12 +2357,20 @@ class MythicPlusService {
     if (options.classId !== undefined) match.classID = options.classId;
     if (options.specName) match.specSlug = options.specName;
     if (options.role) match.role = options.role;
-    if (characterRegex) match.name = characterRegex;
-    if (guildRegex) match.guildName = guildRegex;
+    if (options.characterName) match.name = options.characterRealm ? options.characterName : buildPartialRegex(options.characterName);
+    if (options.characterRealm) match.realm = options.characterRealm;
+    if (options.guildName) match.guildName = options.guildRealm ? options.guildName : buildPartialRegex(options.guildName);
+    if (options.guildRealm) match.guildRealm = options.guildRealm;
 
-    const totalItems = await CharacterMythicPlusDungeonRun.countDocuments(match);
     const sort: any = options.dungeonSort === "level" ? { mythicLevel: -1, clearTimeMs: 1, score: -1, name: 1 } : { score: -1, mythicLevel: -1, clearTimeMs: 1, name: 1 };
-    const rows = await CharacterMythicPlusDungeonRun.find(match).sort(sort).skip(options.skip).limit(options.pageSize).lean();
+    const rowQuery = CharacterMythicPlusDungeonRun.find(match)
+      .sort(sort)
+      .skip(options.skip)
+      .limit(options.pageSize)
+      .select(
+        "characterId wclCanonicalCharacterId name realm region classID guildName guildRealm season bucket raiderIoDungeonId challengeModeId dungeonName dungeonShortName dungeonIconUrl keystoneRunId mythicLevel score clearTimeMs parTimeMs upgrades completedAt url updatedAt",
+      );
+    const [totalItems, rows] = await Promise.all([CharacterMythicPlusDungeonRun.countDocuments(match), rowQuery.lean()]);
 
     return {
       data: rows.map((row: any, index: number) => this.toDungeonLeaderboardRow(row, options.skip + index + 1)),
@@ -2341,6 +2415,14 @@ class MythicPlusService {
     };
   }
 
+  private toLeaderboardRunSummary(run: any) {
+    return {
+      dungeonId: run.raiderIoDungeonId,
+      mythicLevel: run.mythicLevel ?? 0,
+      score: run.score ?? 0,
+    };
+  }
+
   private toSeasonLeaderboardRow(row: any, bucket: MythicPlusScoreBucket, runs: any[], rank: number): MythicPlusLeaderboardResponse["data"][number] {
     return {
       rank,
@@ -2356,9 +2438,8 @@ class MythicPlusService {
       season: row.season,
       score: {
         bucket,
-        value: row.leaderboardScore ?? row.scores?.[bucket] ?? 0,
+        value: row.leaderboardScore ?? 0,
       },
-      scores: row.scores,
       bestSpec: row.bestSpecName
         ? {
             name: row.bestSpecName,
@@ -2368,7 +2449,7 @@ class MythicPlusService {
         : null,
       dungeon: null,
       run: null,
-      dungeonRuns: runs.map((run) => this.toRunSummary(run)),
+      dungeonRuns: runs.map((run) => this.toLeaderboardRunSummary(run)),
       updatedAt: row.updatedAt,
     };
   }
@@ -2407,7 +2488,7 @@ class MythicPlusService {
         completedAt: row.completedAt ?? null,
         url: row.url ?? null,
       },
-      dungeonRuns: [this.toRunSummary(row)],
+      dungeonRuns: [this.toLeaderboardRunSummary(row)],
       updatedAt: row.updatedAt,
     };
   }

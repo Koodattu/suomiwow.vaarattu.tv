@@ -61,7 +61,7 @@ const DEFAULT_MYTHIC_PLUS_FILTERS: MythicPlusLeaderboardFilters = {
   bucket: "all",
   dungeonSort: "score",
   page: 1,
-  limit: 100,
+  limit: 50,
 };
 
 function getCharacterTab(value: string | null): CharacterTab {
@@ -95,13 +95,13 @@ function CharacterRankingsContent() {
   const isMechanicsBackedTab = activeTab === "mechanics" || activeTab === "combined";
   const isMythicPlusTab = activeTab === "mythic-plus";
   const activeTabConfig = CHARACTER_TABS.find((tab) => tab.id === activeTab) ?? CHARACTER_TABS[0];
-  const { data: rankingOptionsData, isLoading: rankingOptionsLoading, error: rankingOptionsError } = useCharacterRankingOptions();
-  const { data: mechanicsOptionsData, isLoading: mechanicsOptionsLoading, error: mechanicsOptionsError } = useCharacterMechanicsOptions();
+  const { data: rankingOptionsData, isLoading: rankingOptionsLoading, error: rankingOptionsError } = useCharacterRankingOptions(!isMythicPlusTab);
+  const { data: mechanicsOptionsData, isLoading: mechanicsOptionsLoading, error: mechanicsOptionsError } = useCharacterMechanicsOptions(isMechanicsBackedTab);
   const { data: mythicPlusOptions, isLoading: mythicPlusOptionsLoading, error: mythicPlusOptionsError } = useMythicPlusOptions(isMythicPlusTab);
   const optionsData = isMechanicsBackedTab ? (mechanicsOptionsData ?? rankingOptionsData) : rankingOptionsData;
   const optionsLoading = isMythicPlusTab ? false : isMechanicsBackedTab ? mechanicsOptionsLoading && !rankingOptionsData : rankingOptionsLoading;
   const optionsError = isMythicPlusTab ? null : isMechanicsBackedTab ? (mechanicsOptionsError ?? rankingOptionsError) : rankingOptionsError;
-  const { data: bosses = [] } = useBosses(selectedRaidPartition?.zoneId ?? null);
+  const { data: bosses = [] } = useBosses(isMythicPlusTab ? null : (selectedRaidPartition?.zoneId ?? null));
 
   const queryFilters = useMemo<Filters>(() => {
     if (!isMechanicsBackedTab) return filters;
@@ -196,6 +196,13 @@ function CharacterRankingsContent() {
     setMythicPlusFilters((prev) => ({ ...prev, ...patch, page: patch.page ?? 1 }));
   };
 
+  const resolvedMythicPlusFilters = useMemo<MythicPlusLeaderboardFilters>(() => {
+    if (mythicPlusFilters.season || !mythicPlusOptions) return mythicPlusFilters;
+    const defaultSeason =
+      mythicPlusOptions.seasons.find((season) => season.slug === mythicPlusOptions.defaultSelection.season)?.slug ?? mythicPlusOptions.seasons[0]?.slug ?? null;
+    return defaultSeason ? { ...mythicPlusFilters, season: defaultSeason } : mythicPlusFilters;
+  }, [mythicPlusFilters, mythicPlusOptions]);
+
   return (
     <div className="container mx-auto px-3 md:px-4 max-w-full md:max-w-[95%] lg:max-w-[90%] py-6">
       <div className="flex flex-col gap-3 mb-4 lg:flex-row lg:items-end lg:justify-between">
@@ -257,7 +264,7 @@ function CharacterRankingsContent() {
 
       {isMythicPlusTab ? (
         <MythicPlusLeaderboard
-          filters={mythicPlusFilters}
+          filters={resolvedMythicPlusFilters}
           onFiltersChange={handleMythicPlusFiltersChange}
           options={mythicPlusOptions}
           optionsLoading={mythicPlusOptionsLoading}

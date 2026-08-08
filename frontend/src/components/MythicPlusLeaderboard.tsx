@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import IconImage from "@/components/IconImage";
+import { api } from "@/lib/api";
 import { useMythicPlusLeaderboard } from "@/lib/queries";
 import { formatRealmName, formatSpecName, getAllClasses, getClassInfoById, getGuildProfileUrl, getSpecIconUrl } from "@/lib/utils";
-import type { ClassInfo, MythicPlusDungeonOption, MythicPlusLeaderboardRow, MythicPlusOptionsResponse, MythicPlusScoreBucket } from "@/types";
+import type { ClassInfo, GlobalSearchResult, MythicPlusDungeonOption, MythicPlusLeaderboardRow, MythicPlusOptionsResponse, MythicPlusScoreBucket } from "@/types";
 
 export type MythicPlusLeaderboardFilters = {
   season?: string | null;
@@ -16,7 +17,9 @@ export type MythicPlusLeaderboardFilters = {
   classId?: number | null;
   specName?: string | null;
   characterName?: string | null;
+  characterRealm?: string | null;
   guildName?: string | null;
+  guildRealm?: string | null;
   page: number;
   limit: number;
 };
@@ -61,27 +64,6 @@ function formatRunTime(ms?: number | null) {
 
 type DungeonRunSummary = MythicPlusLeaderboardRow["dungeonRuns"][number];
 
-function isBetterDungeonKey(candidate: DungeonRunSummary, current: DungeonRunSummary | null) {
-  if (!current) return true;
-
-  const levelDiff = candidate.mythicLevel - current.mythicLevel;
-  if (levelDiff !== 0) return levelDiff > 0;
-
-  const scoreDiff = candidate.score - current.score;
-  if (scoreDiff !== 0) return scoreDiff > 0;
-
-  const candidateTime = candidate.clearTimeMs ?? Number.MAX_SAFE_INTEGER;
-  const currentTime = current.clearTimeMs ?? Number.MAX_SAFE_INTEGER;
-  return candidateTime < currentTime;
-}
-
-function getHighestKeyForDungeon(row: MythicPlusLeaderboardRow, dungeonId: number) {
-  return row.dungeonRuns.reduce<DungeonRunSummary | null>((bestRun, run) => {
-    if (run.dungeonId !== dungeonId) return bestRun;
-    return isBetterDungeonKey(run, bestRun) ? run : bestRun;
-  }, null);
-}
-
 function CharacterCell({ row }: { row: MythicPlusLeaderboardRow }) {
   const classInfo = getClassInfoById(row.character.classID);
 
@@ -107,8 +89,7 @@ function DungeonHeader({ dungeon }: { dungeon: MythicPlusDungeonOption }) {
   );
 }
 
-function DungeonCell({ row, dungeon }: { row: MythicPlusLeaderboardRow; dungeon: MythicPlusDungeonOption }) {
-  const run = getHighestKeyForDungeon(row, dungeon.id);
+function DungeonCell({ run, dungeon }: { run: DungeonRunSummary | null; dungeon: MythicPlusDungeonOption }) {
   if (!run) return <span className="text-gray-700">-</span>;
 
   return (
@@ -116,6 +97,203 @@ function DungeonCell({ row, dungeon }: { row: MythicPlusLeaderboardRow; dungeon:
       <span className="font-bold text-gray-100">+{run.mythicLevel}</span>
       <span className="text-[11px] font-semibold leading-none text-cyan-300">{formatScore(run.score)}</span>
     </span>
+  );
+}
+
+function MythicPlusSearch({
+  selectedCharacter,
+  selectedGuild,
+  onSelect,
+  onClear,
+}: {
+  selectedCharacter: Pick<GlobalSearchResult, "name" | "realm" | "type"> | null;
+  selectedGuild: Pick<GlobalSearchResult, "name" | "realm" | "type"> | null;
+  onSelect: (result: GlobalSearchResult) => void;
+  onClear: (type: GlobalSearchResult["type"]) => void;
+}) {
+  const t = useTranslations("characterRankingsPage");
+  const tNavigation = useTranslations("navigation");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<GlobalSearchResult[]>([]);
+  const [activeResultIndex, setActiveResultIndex] = useState(-1);
+  const [isFocused, setIsFocused] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const trimmedQuery = query.trim();
+  const showResults = isFocused && trimmedQuery.length > 0;
+
+  useEffect(() => {
+    if (!isFocused || trimmedQuery.length < 2) return;
+
+    let isActiveRequest = true;
+    const controller = new AbortController();
+
+    const timeoutId = window.setTimeout(() => {
+      api
+        .searchSite(trimmedQuery, 8, controller.signal, true)
+        .then((data) => {
+          if (!isActiveRequest) return;
+          setResults(data.results);
+          setActiveResultIndex(-1);
+        })
+        .catch(() => {
+          if (!isActiveRequest) return;
+          setResults([]);
+          setHasError(true);
+        })
+        .finally(() => {
+          if (!isActiveRequest) return;
+          setIsLoading(false);
+        });
+    }, 180);
+
+    return () => {
+      isActiveRequest = false;
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [isFocused, trimmedQuery]);
+
+  const selectResult = (result: GlobalSearchResult) => {
+    onSelect(result);
+    setQuery("");
+    setResults([]);
+    setActiveResultIndex(-1);
+    setIsFocused(false);
+    inputRef.current?.blur();
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      setIsFocused(false);
+      inputRef.current?.blur();
+      return;
+    }
+
+    if (event.key === "ArrowDown" && results.length > 0) {
+      event.preventDefault();
+      setActiveResultIndex((current) => (current + 1) % results.length);
+      return;
+    }
+
+    if (event.key === "ArrowUp" && results.length > 0) {
+      event.preventDefault();
+      setActiveResultIndex((current) => (current <= 0 ? results.length - 1 : current - 1));
+      return;
+    }
+
+    if (event.key !== "Enter" || results.length === 0) return;
+    event.preventDefault();
+    selectResult(results[activeResultIndex] ?? results[0]);
+  };
+
+  return (
+    <div className="relative min-w-[240px] flex-[2_1_360px]">
+      <input
+        ref={inputRef}
+        type="search"
+        value={query}
+        onFocus={() => {
+          setIsFocused(true);
+          if (trimmedQuery.length >= 2) {
+            setIsLoading(true);
+            setHasError(false);
+          }
+        }}
+        onBlur={() => setIsFocused(false)}
+        onChange={(event) => {
+          const value = event.target.value;
+          setQuery(value);
+          setActiveResultIndex(-1);
+          if (value.trim().length < 2) {
+            setResults([]);
+            setIsLoading(false);
+            setHasError(false);
+          } else {
+            setIsLoading(true);
+            setHasError(false);
+          }
+        }}
+        onKeyDown={handleKeyDown}
+        placeholder={t("mythicPlusSearchPlaceholder")}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls="mythic-plus-search-results"
+        aria-expanded={showResults}
+        aria-activedescendant={activeResultIndex >= 0 ? `mythic-plus-search-result-${activeResultIndex}` : undefined}
+        autoComplete="off"
+        className="min-h-10 w-full rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md outline-none ring-1 ring-white/5 transition-shadow placeholder:text-gray-400 focus:ring-2 focus:ring-emerald-500/70"
+      />
+
+      {(selectedCharacter || selectedGuild) && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {[selectedCharacter, selectedGuild].filter((result): result is NonNullable<typeof result> => result !== null).map((result) => (
+            <button
+              key={`${result.type}:${result.realm}:${result.name}`}
+              type="button"
+              onClick={() => onClear(result.type)}
+              title={result.type === "character" ? t("clearCharacterFilter") : t("clearGuildFilter")}
+              className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold shadow-sm shadow-black/25 ring-1 transition-[background-color,color,transform] active:scale-[0.96] ${
+                result.type === "character"
+                  ? "bg-blue-500/15 text-blue-100 ring-blue-400/25 hover:bg-blue-500/25"
+                  : "bg-orange-500/15 text-orange-100 ring-orange-400/25 hover:bg-orange-500/25"
+              }`}
+            >
+              <span className="max-w-[240px] truncate">{result.name} - {formatRealmName(result.realm)}</span>
+              <span aria-hidden="true" className="text-base leading-none">×</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {showResults && (
+        <div className="absolute inset-x-0 top-11 z-40 overflow-hidden rounded-md bg-gray-950/95 p-1 shadow-2xl shadow-black/50 ring-1 ring-white/10">
+          <div id="mythic-plus-search-results" role={results.length > 0 ? "listbox" : undefined} className="max-h-80 overflow-y-auto">
+            {trimmedQuery.length < 2 ? (
+              <div className="px-3 py-2.5 text-sm text-gray-500">{tNavigation("searchMinCharacters")}</div>
+            ) : isLoading ? (
+              <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-400">
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-500 border-t-transparent" aria-hidden="true" />
+                {tNavigation("searching")}
+              </div>
+            ) : hasError ? (
+              <div className="px-3 py-2.5 text-sm text-red-300">{tNavigation("searchError")}</div>
+            ) : results.length === 0 ? (
+              <div className="px-3 py-2.5 text-sm text-gray-500">{tNavigation("noSearchResults")}</div>
+            ) : (
+              results.map((result, index) => (
+                <button
+                  key={`${result.type}:${result.realm}:${result.name}`}
+                  id={`mythic-plus-search-result-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={activeResultIndex === index}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() => setActiveResultIndex(index)}
+                  onClick={() => selectResult(result)}
+                  className={`flex min-h-10 w-full items-center justify-between gap-3 rounded px-3 py-2.5 text-left text-sm transition-[background-color,color,transform] hover:bg-white/10 active:scale-[0.96] ${
+                    activeResultIndex === index ? "bg-white/10" : ""
+                  }`}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    {result.type === "character" && result.classID ? (
+                      <span className="relative h-6 w-6 shrink-0 overflow-hidden rounded shadow-sm shadow-black/30 ring-1 ring-white/10">
+                        <IconImage iconFilename={getClassInfoById(result.classID).iconUrl} alt="" fill style={{ objectFit: "cover" }} />
+                      </span>
+                    ) : null}
+                    <span className="min-w-0 truncate text-gray-100">{result.name} - {formatRealmName(result.realm)}</span>
+                  </span>
+                  <span className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold uppercase ${result.type === "guild" ? "bg-orange-500/20 text-orange-200" : "bg-blue-500/20 text-blue-200"}`}>
+                    {result.type === "guild" ? tNavigation("guildType") : tNavigation("characterType")}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -171,11 +349,12 @@ function ClassSpecFilters({
 }
 
 export default function MythicPlusLeaderboard({ filters, onFiltersChange: updateFilters, options, optionsLoading, optionsError }: MythicPlusLeaderboardProps) {
+  const t = useTranslations("characterRankingsPage");
   const selectedSeason = options?.seasons.find((season) => season.slug === filters.season) ?? options?.seasons[0] ?? null;
   const selectedDungeon = selectedSeason?.dungeons.find((dungeon) => dungeon.id === filters.dungeonId) ?? null;
   const queryString = useMemo(() => buildQuery(filters), [filters]);
   const leaderboardEnabled = !!filters.season;
-  const { data, isLoading: leaderboardLoading, error: leaderboardError } = useMythicPlusLeaderboard(queryString, leaderboardEnabled);
+  const { data, isLoading: leaderboardLoading, isFetching: leaderboardFetching, error: leaderboardError } = useMythicPlusLeaderboard(queryString, leaderboardEnabled);
   const rows = data?.data ?? [];
   const pagination = data?.pagination;
   const loading = optionsLoading || leaderboardLoading;
@@ -192,21 +371,23 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
       {error ? <div className="rounded-md border border-red-500/40 bg-red-950/30 px-4 py-3 text-red-200">{error}</div> : null}
 
       <div className="flex flex-wrap gap-3">
-        <input
-          type="text"
-          value={filters.characterName ?? ""}
-          onChange={(event) => updateFilters({ characterName: event.target.value.trim() || null })}
-          maxLength={64}
-          placeholder="Search character"
-          className="min-h-10 min-w-[180px] flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <input
-          type="text"
-          value={filters.guildName ?? ""}
-          onChange={(event) => updateFilters({ guildName: event.target.value.trim() || null })}
-          maxLength={64}
-          placeholder="Search guild"
-          className="min-h-10 min-w-[180px] flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <MythicPlusSearch
+          selectedCharacter={filters.characterName && filters.characterRealm ? { type: "character", name: filters.characterName, realm: filters.characterRealm } : null}
+          selectedGuild={filters.guildName && filters.guildRealm ? { type: "guild", name: filters.guildName, realm: filters.guildRealm } : null}
+          onSelect={(result) => {
+            if (result.type === "character") {
+              updateFilters({ characterName: result.name, characterRealm: result.realm });
+            } else {
+              updateFilters({ guildName: result.name, guildRealm: result.realm });
+            }
+          }}
+          onClear={(type) => {
+            if (type === "character") {
+              updateFilters({ characterName: null, characterRealm: null });
+            } else {
+              updateFilters({ guildName: null, guildRealm: null });
+            }
+          }}
         />
         <select
           value={filters.bucket}
@@ -247,6 +428,12 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
           onClassChange={(classId) => updateFilters({ classId, specName: null })}
           onSpecChange={(specName) => updateFilters({ specName })}
         />
+        {leaderboardFetching && !leaderboardLoading ? (
+          <div className="flex min-h-10 items-center gap-2 px-2 text-sm font-medium text-gray-400" aria-live="polite">
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-500 border-t-transparent" aria-hidden="true" />
+            {t("updating")}
+          </div>
+        ) : null}
       </div>
 
       <div className="overflow-x-auto border border-gray-700">
@@ -290,6 +477,7 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
             ) : (
               rows.map((row, rowIndex) => {
                 const run = row.run ?? null;
+                const dungeonRunById = new Map(row.dungeonRuns.map((dungeonRun) => [dungeonRun.dungeonId, dungeonRun]));
                 return (
                   <tr key={`${row.character.id}-${row.season}-${row.rank}`} className={`border-b border-gray-800 last:border-0 hover:bg-gray-800 ${rowIndex % 2 === 0 ? "bg-gray-950" : "bg-gray-900"}`}>
                     <td className="border-r border-gray-700 px-3 py-3 text-center font-bold tabular-nums text-gray-100">{row.rank}</td>
@@ -324,7 +512,7 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
                     ) : (
                       dungeonColumns.map((dungeon) => (
                         <td key={dungeon.id} className="border-r border-gray-700 px-2 py-2 text-center">
-                          <DungeonCell row={row} dungeon={dungeon} />
+                          <DungeonCell run={dungeonRunById.get(dungeon.id) ?? null} dungeon={dungeon} />
                         </td>
                       ))
                     )}

@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { PickemCcgReward } from "@/types";
+
+// Temporary: once the pack-opening promotion ends, set this to false so claimed
+// rewards remain in the "Claimed" state instead of linking to the pack opener.
+const SHOW_OPEN_PACKS_AFTER_CLAIM = true;
+const CLAIMED_CONFIRMATION_DURATION_MS = 1200;
 
 interface PickemCcgRewardCardProps {
   reward: PickemCcgReward;
@@ -14,13 +19,30 @@ interface PickemCcgRewardCardProps {
 export function PickemCcgRewardCard({ reward, isAuthenticated, onClaim }: PickemCcgRewardCardProps) {
   const t = useTranslations("pickemsPage");
   const [claiming, setClaiming] = useState(false);
+  const [showClaimedConfirmation, setShowClaimedConfirmation] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const claimedConfirmationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (claimedConfirmationTimeoutRef.current) {
+        clearTimeout(claimedConfirmationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const claim = async () => {
     setClaiming(true);
     setError(null);
     try {
       await onClaim();
+      setShowClaimedConfirmation(true);
+
+      if (SHOW_OPEN_PACKS_AFTER_CLAIM) {
+        claimedConfirmationTimeoutRef.current = setTimeout(() => {
+          setShowClaimedConfirmation(false);
+        }, CLAIMED_CONFIRMATION_DURATION_MS);
+      }
     } catch {
       setError(t("ccgRewardClaimFailed"));
     } finally {
@@ -41,7 +63,11 @@ export function PickemCcgRewardCard({ reward, isAuthenticated, onClaim }: Pickem
         </h3>
 
         <div className="shrink-0" aria-live="polite">
-          {reward.claimed ? (
+          {reward.claimed && (showClaimedConfirmation || !SHOW_OPEN_PACKS_AFTER_CLAIM) ? (
+            <span className="inline-flex min-h-11 items-center rounded-lg bg-emerald-950/70 px-4 py-2 text-sm font-semibold text-emerald-200 shadow-[0_0_0_1px_rgba(110,231,183,0.2)]">
+              {t("ccgRewardClaimed")}
+            </span>
+          ) : reward.claimed ? (
             <Link
               href="/ccg/open"
               className="inline-flex min-h-11 items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)] transition-[background-color,transform] duration-150 ease-out hover:bg-emerald-500 active:scale-[0.96] motion-reduce:transform-none motion-reduce:transition-none"

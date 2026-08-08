@@ -1883,7 +1883,7 @@ export type MythicPlusLeaderboardRow = {
     completedAt?: string | null;
     url?: string | null;
   } | null;
-  dungeonRuns: MythicPlusRunSummary[];
+  dungeonRuns: Array<Pick<MythicPlusRunSummary, "dungeonId" | "mythicLevel" | "score">>;
   updatedAt?: string;
 };
 

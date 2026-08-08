@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { MYTHIC_PLUS_SCORE_BUCKETS, MythicPlusScoreBucket } from "../config/mythic-plus";
 import { cacheMiddleware } from "../middleware/cache.middleware";
 import cacheService from "../services/cache.service";
@@ -23,6 +23,45 @@ function parseStringQuery(value: unknown): string | undefined {
   return parsed.length > 0 ? parsed : undefined;
 }
 
+export function isMythicPlusLeaderboardQueryCacheable(query: Request["query"]): boolean {
+  return !parseStringQuery(query.characterName) && !parseStringQuery(query.guildName) && parseStringQuery(query.nocache)?.toLowerCase() !== "true";
+}
+
+export function getMythicPlusLeaderboardCacheKey(query: Request["query"]): string {
+  const params = new URLSearchParams();
+  const season = parseStringQuery(query.season);
+  const bucket = parseStringQuery(query.bucket)?.toLowerCase() ?? "all";
+  const dungeonId = parseNumberQuery(query.dungeonId);
+  const dungeonSort = parseStringQuery(query.dungeonSort)?.toLowerCase() ?? "score";
+  const classId = parseNumberQuery(query.classId);
+  const specName = parseStringQuery(query.specName)?.toLowerCase();
+  const role = parseStringQuery(query.role)?.toLowerCase();
+  const page = parseNumberQuery(query.page) ?? 1;
+  const limit = parseNumberQuery(query.limit) ?? 100;
+
+  if (season) params.set("season", season);
+  params.set("bucket", bucket);
+  if (dungeonId !== undefined) params.set("dungeonId", String(dungeonId));
+  params.set("dungeonSort", dungeonSort);
+  if (classId !== undefined) params.set("classId", String(classId));
+  if (specName) params.set("specName", specName);
+  if (role) params.set("role", role);
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+
+  return `mythic-plus:leaderboard:v3:${params.toString()}`;
+}
+
+const leaderboardCacheMiddleware = cacheMiddleware(
+  (req) => getMythicPlusLeaderboardCacheKey(req.query),
+  () => cacheService.DEFAULT_TTL,
+);
+
+function cachePublicLeaderboard(req: Request, res: Response, next: NextFunction) {
+  if (!isMythicPlusLeaderboardQueryCacheable(req.query)) return next();
+  return leaderboardCacheMiddleware(req, res, next);
+}
+
 router.get(
   "/options",
   cacheMiddleware(
@@ -39,7 +78,7 @@ router.get(
   },
 );
 
-router.get("/", async (req: Request, res: Response) => {
+router.get("/", cachePublicLeaderboard, async (req: Request, res: Response) => {
   try {
     const bucketRaw = parseStringQuery(req.query.bucket)?.toLowerCase() as MythicPlusScoreBucket | undefined;
     const bucket = bucketRaw ?? "all";
@@ -58,7 +97,9 @@ router.get("/", async (req: Request, res: Response) => {
     const page = parseNumberQuery(req.query.page);
     const limit = parseNumberQuery(req.query.limit);
     const characterName = parseStringQuery(req.query.characterName);
+    const characterRealm = parseStringQuery(req.query.characterRealm);
     const guildName = parseStringQuery(req.query.guildName);
+    const guildRealm = parseStringQuery(req.query.guildRealm);
     const season = parseStringQuery(req.query.season);
     const specName = parseStringQuery(req.query.specName)?.toLowerCase();
     const roleRaw = parseStringQuery(req.query.role)?.toLowerCase();
@@ -76,10 +117,10 @@ router.get("/", async (req: Request, res: Response) => {
     if (limit !== undefined && (!Number.isFinite(limit) || limit < 1)) {
       return res.status(400).json({ error: "Invalid limit" });
     }
-    if (characterName !== undefined && characterName.length > 64) {
+    if ((characterName !== undefined && characterName.length > 64) || (characterRealm !== undefined && characterRealm.length > 64)) {
       return res.status(400).json({ error: "Invalid characterName" });
     }
-    if (guildName !== undefined && guildName.length > 64) {
+    if ((guildName !== undefined && guildName.length > 64) || (guildRealm !== undefined && guildRealm.length > 64)) {
       return res.status(400).json({ error: "Invalid guildName" });
     }
     if (role !== undefined && !ALLOWED_ROLES.has(role)) {
@@ -97,7 +138,9 @@ router.get("/", async (req: Request, res: Response) => {
       page,
       limit,
       characterName,
+      characterRealm,
       guildName,
+      guildRealm,
     });
 
     res.json(response);
