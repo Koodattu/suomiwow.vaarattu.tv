@@ -50,12 +50,13 @@ const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]
 
 export const createAccentInsensitiveSearchRegex = (
   value: string,
-  options: { prefix?: boolean; exact?: boolean } = {},
+  options: { prefix?: boolean; exact?: boolean; ignoreSeparators?: boolean } = {},
 ): RegExp => {
   const foldedValue = foldSearchCharacters(value);
+  const searchableValue = options.ignoreSeparators ? foldedValue.replace(/[^a-z0-9]+/g, "") : foldedValue;
   const tokens: string[] = [];
-  for (let index = 0; index < foldedValue.length; index += 1) {
-    const sequence = foldedValue.slice(index, index + 2);
+  for (let index = 0; index < searchableValue.length; index += 1) {
+    const sequence = searchableValue.slice(index, index + 2);
     const alternatives = SEARCH_SEQUENCE_ALTERNATIVES[sequence];
     if (alternatives) {
       const expanded = sequence
@@ -67,13 +68,13 @@ export const createAccentInsensitiveSearchRegex = (
       continue;
     }
 
-    const char = foldedValue[index];
+    const char = searchableValue[index];
     const characterClass = SEARCH_CHARACTER_CLASSES[char];
     const token = characterClass ? `[${characterClass}]` : escapeRegex(char);
     tokens.push(`${token}[\u0300-\u036f]*`);
   }
 
-  const source = tokens.join("");
+  const source = tokens.join(options.ignoreSeparators ? "[^a-z0-9]*" : "");
 
   return new RegExp(`${options.prefix || options.exact ? "^" : ""}${source}${options.exact ? "$" : ""}`, "i");
 };

@@ -20,6 +20,7 @@ test("every Admin CCG route rejects an unauthenticated request", async () => {
   const routes: Array<{ method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; path: string }> = [
     { method: "GET", path: "/status" },
     { method: "GET", path: "/analytics" },
+    { method: "GET", path: "/users" },
     { method: "POST", path: "/community" },
     { method: "PATCH", path: "/community/507f1f77bcf86cd799439011" },
     { method: "DELETE", path: "/community/507f1f77bcf86cd799439011" },

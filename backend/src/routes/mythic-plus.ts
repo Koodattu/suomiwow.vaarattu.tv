@@ -4,6 +4,7 @@ import { cacheMiddleware } from "../middleware/cache.middleware";
 import cacheService from "../services/cache.service";
 import mythicPlusService, { MythicPlusDungeonSort } from "../services/mythic-plus.service";
 import logger from "../utils/logger";
+import { normalizeSearchText } from "../utils/search";
 
 const router = Router();
 
@@ -24,7 +25,7 @@ function parseStringQuery(value: unknown): string | undefined {
 }
 
 export function isMythicPlusLeaderboardQueryCacheable(query: Request["query"]): boolean {
-  return !parseStringQuery(query.characterName) && !parseStringQuery(query.guildName) && parseStringQuery(query.nocache)?.toLowerCase() !== "true";
+  return !parseStringQuery(query.search) && !parseStringQuery(query.characterName) && !parseStringQuery(query.guildName) && parseStringQuery(query.nocache)?.toLowerCase() !== "true";
 }
 
 export function getMythicPlusLeaderboardCacheKey(query: Request["query"]): string {
@@ -96,6 +97,7 @@ router.get("/", cachePublicLeaderboard, async (req: Request, res: Response) => {
     const classId = parseNumberQuery(req.query.classId);
     const page = parseNumberQuery(req.query.page);
     const limit = parseNumberQuery(req.query.limit);
+    const search = parseStringQuery(req.query.search);
     const characterName = parseStringQuery(req.query.characterName);
     const characterRealm = parseStringQuery(req.query.characterRealm);
     const guildName = parseStringQuery(req.query.guildName);
@@ -117,6 +119,9 @@ router.get("/", cachePublicLeaderboard, async (req: Request, res: Response) => {
     if (limit !== undefined && (!Number.isFinite(limit) || limit < 1)) {
       return res.status(400).json({ error: "Invalid limit" });
     }
+    if (search !== undefined && (normalizeSearchText(search).replace(/\s/g, "").length < 2 || search.length > 64)) {
+      return res.status(400).json({ error: "Invalid search" });
+    }
     if ((characterName !== undefined && characterName.length > 64) || (characterRealm !== undefined && characterRealm.length > 64)) {
       return res.status(400).json({ error: "Invalid characterName" });
     }
@@ -137,6 +142,7 @@ router.get("/", cachePublicLeaderboard, async (req: Request, res: Response) => {
       role,
       page,
       limit,
+      search,
       characterName,
       characterRealm,
       guildName,

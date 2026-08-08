@@ -12,6 +12,7 @@ import characterMediaService, {
   CHARACTER_MEDIA_REFRESH_TASK_NAME,
   CHARACTER_MEDIA_RETRY_TASK_NAME,
 } from "../services/character-media.service";
+import { listCcgAdminUsers, parseCcgAdminUsersOptions } from "../services/ccg-admin-users.service";
 import ccgCommunityService, { CcgCommunityError } from "../services/ccg-community.service";
 import ccgPublisherService, { CcgPublisherError } from "../services/ccg-publisher.service";
 import ccgRaidRunner from "../services/ccg-snapshot-runner.service";
@@ -128,6 +129,11 @@ router.post(
 router.get(
   "/analytics",
   adminRoute(async (req) => ccgService.getAnalyticsForAdmin(req.query.days)),
+);
+
+router.get(
+  "/users",
+  adminRoute(async (req) => listCcgAdminUsers(parseCcgAdminUsersOptions(req.query))),
 );
 
 router.patch(

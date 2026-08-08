@@ -172,6 +172,8 @@ import {
   CcgAdminMediaDiscoveryResult,
   CcgAdminAnalyticsRange,
   CcgAdminAnalyticsResponse,
+  CcgAdminUserSort,
+  CcgAdminUsersResponse,
   CcgAdminCommunityCharacter,
   CcgAdminCardSearchResponse,
   CcgAdminAlternativeArtResponse,
@@ -539,6 +541,23 @@ export const api = {
   async getAdminCcgAnalytics(days: CcgAdminAnalyticsRange): Promise<CcgAdminAnalyticsResponse> {
     const response = await fetch(`${API_URL}/api/admin/ccg/analytics?days=${days}`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load CCG analytics");
+    return response.json();
+  },
+
+  async getAdminCcgUsers(options: {
+    page?: number;
+    limit?: number;
+    sort?: CcgAdminUserSort;
+    direction?: "asc" | "desc";
+  } = {}): Promise<CcgAdminUsersResponse> {
+    const params = new URLSearchParams({
+      page: String(options.page ?? 1),
+      limit: String(options.limit ?? 25),
+      sort: options.sort ?? "packOpenings",
+      direction: options.direction ?? "desc",
+    });
+    const response = await fetch(`${API_URL}/api/admin/ccg/users?${params}`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load CCG users");
     return response.json();
   },
 

@@ -2748,6 +2748,32 @@ export type CcgAdminAnalyticsResponse = {
   rarities: Array<{ key: CcgTierGrade; count: number; rate: number }>;
 };
 
+export type CcgAdminUserSort = "packOpenings" | "channelPointsUsed";
+
+export type CcgAdminUsersResponse = {
+  users: Array<{
+    id: string;
+    idPrefix: string;
+    ownerType: "user" | "guest";
+    displayName: string | null;
+    twitchDisplayName: string | null;
+    packOpenings: number;
+    leaderboardScore: number | null;
+    channelPointsUsed: number;
+    timesRedeemed: number;
+  }>;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  sort: {
+    field: CcgAdminUserSort;
+    direction: "asc" | "desc";
+  };
+};
+
 export type CcgAdminCommunityCharacter = {
   id: string;
   cardId: string | null;

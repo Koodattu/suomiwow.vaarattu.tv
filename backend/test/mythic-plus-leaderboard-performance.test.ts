@@ -12,12 +12,13 @@ test("Mythic+ leaderboard caches stable views but not free-text searches", () =>
 
   assert.equal(isMythicPlusLeaderboardQueryCacheable(query), true);
   assert.equal(getMythicPlusLeaderboardCacheKey(query), getMythicPlusLeaderboardCacheKey(reorderedQuery));
+  assert.equal(isMythicPlusLeaderboardQueryCacheable({ ...query, search: "Lääke-Stormreaver" } as any), false);
   assert.equal(isMythicPlusLeaderboardQueryCacheable({ ...query, characterName: "Lääke" } as any), false);
   assert.equal(isMythicPlusLeaderboardQueryCacheable({ ...query, guildName: "Taikaolennot" } as any), false);
   assert.equal(isMythicPlusLeaderboardQueryCacheable({ ...query, nocache: "true" } as any), false);
 });
 
-test("stored score leaderboards use direct indexed sorting, exact selected identities, and compact projections", async (t) => {
+test("stored score leaderboards use direct indexed sorting, normalized submitted search, and compact projections", async (t) => {
   const scoreModel = CharacterMythicPlusSeasonScore as any;
   const runModel = CharacterMythicPlusDungeonRun as any;
   const originalScoreFind = scoreModel.find;
@@ -91,12 +92,12 @@ test("stored score leaderboards use direct indexed sorting, exact selected ident
     currentPage: 1,
     skip: 0,
     eligibleCharacterIds: [characterId],
-    characterName: "Lääke",
-    characterRealm: "stormreaver",
+    search: "Laake-Stormreaver",
   });
 
-  assert.equal(scoreMatch.name, "Lääke");
-  assert.equal(scoreMatch.realm, "stormreaver");
+  const characterIdentityMatch = scoreMatch.$or.find((condition: Record<string, any>) => condition.name && condition.realm);
+  assert.equal(characterIdentityMatch.name.test("Lääke"), true);
+  assert.equal(characterIdentityMatch.realm.test("storm-reaver"), true);
   assert.deepEqual(scoreSort, { "scores.all": -1, name: 1 });
   assert.equal(scoreProjection.rawSeason, undefined);
   assert.equal(scoreProjection["scores.all"], 1);

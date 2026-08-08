@@ -19,6 +19,16 @@ test("accent-insensitive regex accepts plain and decorated spellings in either d
   assert.equal(createAccentInsensitiveSearchRegex("Strasse", { exact: true }).test("Straße"), true);
 });
 
+test("separator-insensitive regex treats punctuation and spacing as optional", () => {
+  const realmSearch = createAccentInsensitiveSearchRegex("Drak-thul", { exact: true, ignoreSeparators: true });
+  const guildSearch = createAccentInsensitiveSearchRegex("Taika olennot", { exact: true, ignoreSeparators: true });
+
+  assert.equal(realmSearch.test("Drak'thul"), true);
+  assert.equal(realmSearch.test("Drakthul"), true);
+  assert.equal(guildSearch.test("Taika-Olennot"), true);
+  assert.equal(guildSearch.test("Taikaolennot"), true);
+});
+
 test("search scoring favors exact, prefix, substring, and close fuzzy matches", () => {
   const candidate = normalizeSearchText("Nickledone");
   assert.ok(scoreSearchCandidate(normalizeSearchText("Nickledone"), candidate) > scoreSearchCandidate(normalizeSearchText("Nick"), candidate));

@@ -29,6 +29,7 @@ import {
 } from "../utils/mythic-plus";
 import logger from "../utils/logger";
 import { normalizeRealmSlug } from "../utils/realm";
+import { createAccentInsensitiveSearchRegex, normalizeSearchText } from "../utils/search";
 import cacheService from "./cache.service";
 import taskTracker from "./task-tracker.service";
 
@@ -299,6 +300,28 @@ function buildPartialRegex(value?: string): RegExp | undefined {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
   return new RegExp(escapeRegex(trimmed), "i");
+}
+
+function buildLeaderboardSearchConditions(value?: string): Record<string, unknown>[] {
+  const normalized = normalizeSearchText(value ?? "");
+  if (!normalized) return [];
+
+  const fullMatch = createAccentInsensitiveSearchRegex(normalized, { ignoreSeparators: true });
+  const conditions: Record<string, unknown>[] = [
+    { name: fullMatch },
+    { realm: fullMatch },
+    { guildName: fullMatch },
+    { guildRealm: fullMatch },
+  ];
+  const parts = normalized.split(" ").filter(Boolean);
+
+  for (let splitIndex = 1; splitIndex < parts.length; splitIndex += 1) {
+    const nameMatch = createAccentInsensitiveSearchRegex(parts.slice(0, splitIndex).join(""), { ignoreSeparators: true });
+    const realmMatch = createAccentInsensitiveSearchRegex(parts.slice(splitIndex).join(""), { ignoreSeparators: true });
+    conditions.push({ name: nameMatch, realm: realmMatch }, { guildName: nameMatch, guildRealm: realmMatch });
+  }
+
+  return conditions;
 }
 
 function getScoreSegmentColor(segments: Record<string, any>, bucket: MythicPlusScoreBucket): string | null {
@@ -2193,6 +2216,7 @@ class MythicPlusService {
     role?: "dps" | "healer" | "tank";
     page?: number;
     limit?: number;
+    search?: string;
     characterName?: string;
     characterRealm?: string;
     guildName?: string;
@@ -2233,6 +2257,8 @@ class MythicPlusService {
     };
     if (options.classId !== undefined) match.classID = options.classId;
     if (options.role) match[`scores.${options.role}`] = { $gt: 0 };
+    const searchConditions = buildLeaderboardSearchConditions(options.search);
+    if (searchConditions.length > 0) match.$or = searchConditions;
     if (options.characterName) match.name = options.characterRealm ? options.characterName : buildPartialRegex(options.characterName);
     if (options.characterRealm) match.realm = options.characterRealm;
     if (options.guildName) match.guildName = options.guildRealm ? options.guildName : buildPartialRegex(options.guildName);
@@ -2357,6 +2383,8 @@ class MythicPlusService {
     if (options.classId !== undefined) match.classID = options.classId;
     if (options.specName) match.specSlug = options.specName;
     if (options.role) match.role = options.role;
+    const searchConditions = buildLeaderboardSearchConditions(options.search);
+    if (searchConditions.length > 0) match.$or = searchConditions;
     if (options.characterName) match.name = options.characterRealm ? options.characterName : buildPartialRegex(options.characterName);
     if (options.characterRealm) match.realm = options.characterRealm;
     if (options.guildName) match.guildName = options.guildRealm ? options.guildName : buildPartialRegex(options.guildName);

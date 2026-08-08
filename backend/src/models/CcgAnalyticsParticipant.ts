@@ -23,5 +23,6 @@ const CcgAnalyticsParticipantSchema = new Schema<ICcgAnalyticsParticipant>(
 );
 
 CcgAnalyticsParticipantSchema.index({ ownerType: 1, ownerId: 1 }, { unique: true });
+CcgAnalyticsParticipantSchema.index({ packOpenings: -1, ownerKey: 1 });
 
 export default mongoose.model<ICcgAnalyticsParticipant>("CcgAnalyticsParticipant", CcgAnalyticsParticipantSchema);
