@@ -2,6 +2,7 @@ import { getSpecRole } from "../../../config/classes";
 import CharacterMythicPlusSeasonScore from "../../../models/CharacterMythicPlusSeasonScore";
 import CharacterRaidAchievementSummary from "../../../models/CharacterRaidAchievementSummary";
 import CharacterRaidParticipation from "../../../models/CharacterRaidParticipation";
+import Guild from "../../../models/Guild";
 import Raid from "../../../models/Raid";
 import { funMythicParticipationFilter } from "../fun-game.eligibility";
 import type { SuomidleCandidate, SuomidleRound } from "../fun-game.types";
@@ -22,7 +23,9 @@ type ParticipationRow = {
   _id: { wclCanonicalCharacterId: number; classID: number };
   firstSeenAt: Date;
   raidId: number;
+  guildId: unknown;
   guildName: string;
+  guildRealm: string;
 };
 
 type AchievementRow = {
@@ -75,7 +78,9 @@ export async function generateSuomidleRound(): Promise<SuomidleRound> {
           _id: { wclCanonicalCharacterId: "$wclCanonicalCharacterId", classID: "$classID" },
           firstSeenAt: { $min: "$firstSeenAt" },
           raidId: { $first: "$zoneId" },
+          guildId: { $first: "$reportGuildId" },
           guildName: { $first: "$reportGuildName" },
+          guildRealm: { $first: "$reportGuildRealm" },
         },
       },
     ]).option({ maxTimeMS: 15_000 }),
@@ -95,14 +100,21 @@ export async function generateSuomidleRound(): Promise<SuomidleRound> {
   const participationByKey = new Map(participationRows.map((row) => [canonicalCharacterKey(row._id.wclCanonicalCharacterId, row._id.classID), row]));
   const achievementByKey = new Map(achievementRows.map((row) => [canonicalCharacterKey(row._id.wclCanonicalCharacterId, row._id.classID), row]));
   const raidIds = Array.from(new Set(participationRows.map((row) => row.raidId)));
-  const raids = await Raid.find({ id: { $in: raidIds } }).select("id name expansion iconUrl -_id").lean();
+  const guildIds = Array.from(new Set(participationRows.map((row) => String(row.guildId))));
+  const [raids, guildDocuments] = await Promise.all([
+    Raid.find({ id: { $in: raidIds } }).select("id name expansion iconUrl -_id").lean(),
+    Guild.find({ _id: { $in: guildIds } }).select("_id faction crest").lean(),
+  ]);
   const raidById = new Map(raids.map((raid) => [raid.id, raid]));
+  const guildDocumentById = new Map(guildDocuments.map((guild) => [String(guild._id), guild]));
 
   const candidates = scoreRows.flatMap((row): SuomidleCandidate[] => {
     const key = canonicalCharacterKey(row.wclCanonicalCharacterId, row.classID);
     const participation = participationByKey.get(key);
     const raid = participation ? raidById.get(participation.raidId) : undefined;
     if (!participation || !raid || !participation.guildName.trim() || !row.bestSpecName.trim()) return [];
+    const guildId = String(participation.guildId);
+    const guildDocument = guildDocumentById.get(guildId);
     const role = resolveRole(row);
     const achievements = achievementByKey.get(key);
     return [{
@@ -113,6 +125,13 @@ export async function generateSuomidleRound(): Promise<SuomidleRound> {
       specName: row.bestSpecName,
       role,
       guildName: participation.guildName,
+      guild: {
+        id: guildId,
+        name: participation.guildName,
+        realm: participation.guildRealm,
+        faction: guildDocument?.faction ?? null,
+        crest: guildDocument?.crest ?? null,
+      },
       raidId: participation.raidId,
       raidName: raid.name,
       raidExpansion: raid.expansion,

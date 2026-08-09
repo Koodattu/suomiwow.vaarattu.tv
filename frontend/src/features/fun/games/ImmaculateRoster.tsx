@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import IconImage from "@/components/IconImage";
 import type { CharacterSearchResult, ImmaculateRosterRound } from "@/types";
 import CharacterGuessInput, { characterGuessKey } from "../CharacterGuessInput";
+import { FunClassIcon } from "../FunCharacterIdentity";
 import FunGuildIdentity from "../FunGuildIdentity";
 import { FunRaidIdentity } from "../FunEncounterIdentity";
 
@@ -95,9 +96,9 @@ export default function ImmaculateRoster({ round }: { round: ImmaculateRosterRou
                     }`}
                   >
                     {answer ? (
-                      <><span className="block font-bold text-emerald-100">{answer.name}</span><span className="mt-1 block text-xs text-emerald-300/70">{answer.realm}</span></>
+                      <span className="flex items-center justify-center gap-2"><FunClassIcon classID={column.classID} size={28} /><span className="min-w-0 text-left"><span className="block truncate font-bold text-emerald-100">{answer.name}</span><span className="mt-0.5 block truncate text-xs text-emerald-300/70">{answer.realm}</span></span></span>
                     ) : showExample ? (
-                      <><span className="block text-xs font-semibold text-red-300">{t("common.exampleAnswer")}</span><span className="mt-1 block font-bold">{example.name}</span></>
+                      <span className="flex items-center justify-center gap-2"><FunClassIcon classID={column.classID} size={28} /><span className="min-w-0 text-left"><span className="block text-xs font-semibold text-red-300">{t("common.exampleAnswer")}</span><span className="mt-0.5 block truncate font-bold">{example.name}</span></span></span>
                     ) : (
                       <span className={selected ? "font-bold text-blue-200" : "text-2xl text-slate-600"}>{selected ? t("immaculate.selected") : "+"}</span>
                     )}

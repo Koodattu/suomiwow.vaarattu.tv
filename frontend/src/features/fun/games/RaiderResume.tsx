@@ -3,12 +3,12 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import CharacterAvatar from "@/components/CharacterAvatar";
-import IconImage from "@/components/IconImage";
 import { getClassInfoById } from "@/lib/utils";
 import type { RaiderResumeCandidate, RaiderResumeRound } from "@/types";
 import FunAutocomplete from "../FunAutocomplete";
+import FunCharacterIdentity, { FunClassIcon } from "../FunCharacterIdentity";
 import { FunRaidIdentity } from "../FunEncounterIdentity";
-import { FunGuildCrest } from "../FunGuildIdentity";
+import FunGuildIdentity from "../FunGuildIdentity";
 import ProgressiveClues from "../ProgressiveClues";
 
 type Comparison = "lower" | "exact" | "higher" | "mismatch";
@@ -37,7 +37,7 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
     if (nextGuesses.length >= 6) setStatus("lost");
   };
   const clueItems = [
-    { label: t("resume.class"), content: <span className="inline-flex items-center gap-2"><span className="relative size-6 overflow-hidden rounded"><IconImage iconFilename={targetClass.iconUrl} alt="" fill style={{ objectFit: "cover" }} /></span>{targetClass.name}</span> },
+    { label: t("resume.class"), content: <span className="inline-flex items-center gap-2"><FunClassIcon classID={target.classID} size={24} />{targetClass.name}</span> },
     { label: t("resume.activeYears"), content: `${new Date(target.firstSeenAt).getFullYear()}–${new Date(target.lastSeenAt).getFullYear()}` },
     { label: t("resume.portrait"), content: <span className="inline-flex items-center gap-2"><CharacterAvatar avatarUrl={target.avatarUrl} classIcon={targetClass.iconUrl} characterName={target.name} className="size-10" />{t("resume.portraitClue")}</span> },
   ];
@@ -60,8 +60,8 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
           <div className="mt-2 flex flex-wrap gap-2">
             {target.guilds.map((guild) => (
               <div key={`${guild.name}:${guild.realm}`} className="flex items-center gap-2 rounded-lg bg-slate-950/55 px-2 py-1.5">
-                <FunGuildCrest crest={guild.crest} faction={guild.faction} size={34} />
-                <span><span className="block text-sm font-bold">{guild.name}</span><span className="block text-xs text-slate-400">{new Date(guild.firstSeenAt).getFullYear()}–{new Date(guild.lastSeenAt).getFullYear()}</span></span>
+                <FunGuildIdentity guild={guild} crestSize={34} />
+                <span className="shrink-0 text-xs text-slate-400">{new Date(guild.firstSeenAt).getFullYear()}–{new Date(guild.lastSeenAt).getFullYear()}</span>
               </div>
             ))}
           </div>
@@ -80,7 +80,7 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
                 getKey={(character) => character.key}
                 getLabel={(character) => character.name}
                 getSearchText={(character) => `${character.name} ${character.realm}`}
-                renderOption={(character) => <><span className="font-semibold">{character.name}</span><span className="ml-2 text-slate-400">{character.realm}</span></>}
+                renderOption={(character) => <FunCharacterIdentity character={character} iconSize={30} />}
                 placeholder={t("resume.searchRaider")}
                 emptyLabel={t("resume.noRaiders")}
                 onSelect={submitGuess}
@@ -92,7 +92,7 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
               <p className="mt-2 text-sm text-slate-400">{t("resume.answerWas")}</p>
               <div className="mt-3 flex items-center justify-center gap-3">
                 <CharacterAvatar avatarUrl={target.avatarUrl} classIcon={targetClass.iconUrl} characterName={target.name} className="size-12" />
-                <div className="text-left"><p className="font-black">{target.name}</p><p className="text-sm text-slate-400">{target.realm}</p></div>
+                <FunCharacterIdentity character={target} iconSize={28} />
               </div>
             </div>
           )}
@@ -111,7 +111,7 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
               return (
                 <div key={character.key} className="grid grid-cols-[12rem_repeat(7,1fr)] gap-2 rounded-lg bg-slate-900/80 px-3 py-3 text-sm">
                   <span className="font-bold">{character.name}</span>
-                  <CompareCell comparison={character.classID === target.classID ? "exact" : "mismatch"}><span className="inline-flex items-center gap-2"><span className="relative size-6 overflow-hidden rounded"><IconImage iconFilename={classInfo.iconUrl} alt="" fill style={{ objectFit: "cover" }} /></span>{classInfo.name}</span></CompareCell>
+                  <CompareCell comparison={character.classID === target.classID ? "exact" : "mismatch"}><span className="inline-flex items-center gap-2"><FunClassIcon classID={character.classID} size={24} />{classInfo.name}</span></CompareCell>
                   <CompareCell comparison={character.realm === target.realm ? "exact" : "mismatch"}>{character.realm}</CompareCell>
                   <CompareCell comparison={compareDate(character.firstSeenAt, target.firstSeenAt)}>{new Date(character.firstSeenAt).getFullYear()}</CompareCell>
                   <CompareCell comparison={compareValue(character.raidCount, target.raidCount)}>{character.raidCount}</CompareCell>

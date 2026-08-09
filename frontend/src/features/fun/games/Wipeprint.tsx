@@ -6,7 +6,7 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import type { WipeprintBossOption, WipeprintRound } from "@/types";
 import { ExpansionIcon, FunBossIdentity, FunRaidIdentity } from "../FunEncounterIdentity";
 import FunAutocomplete from "../FunAutocomplete";
-import FunGuildIdentity from "../FunGuildIdentity";
+import FunGuildIdentity, { FunGuildCrest } from "../FunGuildIdentity";
 import ProgressiveClues from "../ProgressiveClues";
 
 type Direction = "earlier" | "exact" | "later";
@@ -52,7 +52,7 @@ export default function Wipeprint({ round }: { round: WipeprintRound }) {
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-xl font-black">{t("wipeprint.identifyBoss")}</h2>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-400"><ExpansionIcon expansion={target.expansion} className="w-7" /><span>{target.expansion}</span><span aria-hidden="true">·</span><span>{round.solution.sourceGuild.name}</span><span aria-hidden="true">·</span><span>{t("wipeprint.pullCount", { count: round.pulls.length })}</span></p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-400"><ExpansionIcon expansion={target.expansion} className="w-7" /><span>{target.expansion}</span><span aria-hidden="true">·</span><span className="inline-flex items-center gap-1.5"><FunGuildCrest crest={round.solution.sourceGuild.crest} faction={round.solution.sourceGuild.faction} size={24} /><span>{round.solution.sourceGuild.name}</span></span><span aria-hidden="true">·</span><span>{t("wipeprint.pullCount", { count: round.pulls.length })}</span></div>
           </div>
           <p className="text-xs text-slate-400">{t("wipeprint.progressHint")}</p>
         </div>
@@ -77,7 +77,7 @@ export default function Wipeprint({ round }: { round: WipeprintRound }) {
         <div className="mt-3 space-y-2">
           {guesses.map((guess) => (
             <div key={guess.boss.key} className="grid gap-2 rounded-lg border border-red-400/20 bg-red-950/20 px-4 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center">
-              <FunBossIdentity name={guess.boss.bossName} iconUrl={guess.boss.bossIconUrl} iconSize={32} detail={guess.boss.raidName} />
+              <WipeprintBossIdentity boss={guess.boss} />
               <span className={guess.sameRaid ? "text-emerald-300" : "text-red-300"}>{guess.sameRaid ? t("wipeprint.sameRaid") : t("wipeprint.differentRaid")}</span>
               <DirectionLabel label={t("wipeprint.position")} value={guess.position} />
             </div>
@@ -102,7 +102,7 @@ export default function Wipeprint({ round }: { round: WipeprintRound }) {
                 getKey={(boss) => boss.key}
                 getLabel={(boss) => boss.bossName}
                 getSearchText={(boss) => `${boss.bossName} ${boss.raidName} ${boss.expansion}`}
-                renderOption={(boss) => <FunBossIdentity name={boss.bossName} iconUrl={boss.bossIconUrl} iconSize={30} detail={boss.raidName} />}
+                renderOption={(boss) => <WipeprintBossIdentity boss={boss} compact />}
                 placeholder={t("wipeprint.searchBoss")}
                 emptyLabel={t("wipeprint.noBosses")}
                 onSelect={submitGuess}
@@ -112,7 +112,7 @@ export default function Wipeprint({ round }: { round: WipeprintRound }) {
             <div className="text-center" role="status">
               <p className={`text-xl font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p>
               <p className="mt-2 text-sm text-slate-400">{t("wipeprint.answerWas")}</p>
-              <FunBossIdentity name={target.bossName} iconUrl={target.bossIconUrl} iconSize={40} detail={target.raidName} />
+              <WipeprintBossIdentity boss={target} />
             </div>
           )}
         <div className="mt-4 border-t border-white/10 pt-3">
@@ -121,6 +121,19 @@ export default function Wipeprint({ round }: { round: WipeprintRound }) {
         </div>
       </aside>
     </section>
+  );
+}
+
+function WipeprintBossIdentity({ boss, compact = false }: { boss: WipeprintBossOption; compact?: boolean }) {
+  return (
+    <span className="grid min-w-0 gap-2">
+      <FunBossIdentity name={boss.bossName} iconUrl={boss.bossIconUrl} iconSize={compact ? 30 : 34} />
+      <FunRaidIdentity
+        raid={{ id: boss.raidId, name: boss.raidName, expansion: boss.expansion, iconUrl: boss.raidIconUrl }}
+        iconSize={compact ? 24 : 28}
+        compact
+      />
+    </span>
   );
 }
 

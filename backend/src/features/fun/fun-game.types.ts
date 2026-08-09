@@ -172,6 +172,7 @@ export type SuomidleCandidate = {
   specName: string;
   role: "dps" | "healer" | "tank";
   guildName: string;
+  guild: FunGuild;
   raidId: number;
   raidName: string;
   raidExpansion: string;
@@ -187,12 +188,23 @@ export type SuomidleRound = FunRoundBase & {
   solution: { target: SuomidleCandidate };
 };
 
+export type HigherOrWipeOption = {
+  id: string;
+  label: string;
+  detail: string;
+  value: number;
+  classID?: number;
+  guild?: FunGuild;
+  boss?: { id: number; name: string; iconUrl: string | null };
+  raid?: FunRaid;
+};
+
 export type HigherOrWipeQuestion = {
   id: string;
   kind: "guild-pulls" | "cutting-edge" | "mythic-plus" | "boss-progress-time" | "guild-started";
   unit: "pulls" | "achievements" | "score" | "minutes" | "year";
-  left: { id: string; label: string; detail: string; value: number; iconUrl?: string | null; detailIconUrl?: string | null };
-  right: { id: string; label: string; detail: string; value: number; iconUrl?: string | null; detailIconUrl?: string | null };
+  left: HigherOrWipeOption;
+  right: HigherOrWipeOption;
   correctSide: "left" | "right";
 };
 
@@ -210,6 +222,8 @@ export type ClosestWithoutGoingOverRound = FunRoundBase & {
     detail: string;
     raid: FunRaid | null;
     boss: { id: number; name: string; iconUrl: string | null } | null;
+    guild: FunGuild | null;
+    characterClassID: number | null;
   };
   distribution: { min: number; median: number; max: number; values: number[] };
   solution: { value: number };

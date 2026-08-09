@@ -19,12 +19,12 @@ export function FunIcon({ iconUrl, label, size = 32 }: { iconUrl: string | null 
 
 export function FunRaidIdentity({ raid, iconSize = 36, compact = false, className = "" }: { raid: FunRaid; iconSize?: number; compact?: boolean; className?: string }) {
   return (
-    <span className={`flex min-w-0 items-center gap-3 ${className}`}>
+    <span className={`flex min-w-0 items-center ${compact ? "gap-2" : "gap-3"} ${className}`}>
       <FunIcon iconUrl={raid.iconUrl} label={raid.name} size={iconSize} />
       <span className="min-w-0 text-left">
-        <span className="flex items-center gap-2 text-xs font-semibold text-slate-400">
-          <ExpansionIcon expansion={raid.expansion} className="w-7" />
-          {!compact ? <span className="truncate">{raid.expansion}</span> : null}
+        <span className={`flex items-center gap-2 font-semibold text-slate-400 ${compact ? "text-[10px]" : "text-xs"}`}>
+          <ExpansionIcon expansion={raid.expansion} className={compact ? "w-6" : "w-7"} />
+          <span className="truncate">{raid.expansion}</span>
         </span>
         <span className="mt-0.5 block truncate font-black">{raid.name}</span>
       </span>

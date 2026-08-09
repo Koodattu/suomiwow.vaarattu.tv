@@ -2,11 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import IconImage from "@/components/IconImage";
-import { getClassInfoById } from "@/lib/utils";
 import type { FunCharacter, RaidConnectionsRound } from "@/types";
+import FunCharacterIdentity from "../FunCharacterIdentity";
 import { FunRaidIdentity } from "../FunEncounterIdentity";
-import { FunGuildCrest } from "../FunGuildIdentity";
+import FunGuildIdentity from "../FunGuildIdentity";
 
 const GROUP_STYLES = [
   "border-amber-300/30 bg-amber-950/35 text-amber-100",
@@ -69,9 +68,11 @@ export default function RaidConnections({ round }: { round: RaidConnectionsRound
           if (!visible) return null;
           const members = group.memberKeys.map((key) => tilesByKey.get(key)).filter((tile): tile is FunCharacter => Boolean(tile));
           return (
-            <div key={group.id} className={`flex items-center gap-3 rounded-lg border p-3 ${GROUP_STYLES[index % GROUP_STYLES.length]}`}>
-              <FunGuildCrest crest={group.guild.crest} faction={group.guild.faction} size={40} />
-              <div><p className="font-black">{group.guild.name} <span className="font-normal opacity-70">— {group.guild.realm}</span></p><p className="mt-1 text-sm opacity-80">{members.map((member) => member.name).join(", ")}</p></div>
+            <div key={group.id} className={`grid gap-3 rounded-lg border p-3 sm:grid-cols-[13rem_minmax(0,1fr)] sm:items-center ${GROUP_STYLES[index % GROUP_STYLES.length]}`}>
+              <FunGuildIdentity guild={group.guild} crestSize={40} />
+              <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                {members.map((member) => <FunCharacterIdentity key={member.key} character={member} iconSize={24} showRealm={false} />)}
+              </div>
             </div>
           );
         })}
@@ -80,7 +81,6 @@ export default function RaidConnections({ round }: { round: RaidConnectionsRound
       {status !== "lost" ? (
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {remainingTiles.map((tile) => {
-            const classInfo = getClassInfoById(tile.classID);
             const active = selected.includes(tile.key);
             return (
               <button
@@ -91,8 +91,7 @@ export default function RaidConnections({ round }: { round: RaidConnectionsRound
                 aria-pressed={active}
                 className={`flex min-h-20 items-center gap-3 rounded-lg border p-3 text-left transition-[border-color,background-color,transform] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 ${active ? "scale-[0.98] border-blue-300 bg-blue-950/60" : "border-white/10 bg-slate-900/75 hover:border-blue-300/30"}`}
               >
-                <span className="relative size-10 shrink-0 overflow-hidden rounded-md ring-1 ring-white/10"><IconImage iconFilename={classInfo.iconUrl} alt="" fill style={{ objectFit: "cover" }} /></span>
-                <span className="min-w-0"><span className="block truncate font-bold">{tile.name}</span><span className="block truncate text-xs text-slate-400">{tile.realm}</span></span>
+                <FunCharacterIdentity character={tile} iconSize={40} />
               </button>
             );
           })}

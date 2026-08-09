@@ -81,8 +81,8 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
         {guesses.length > 0 ? (
         <div className="mt-3 space-y-2">
           {guesses.map((guess) => (
-            <div key={guess.guild.id} className="grid gap-2 rounded-lg border border-red-400/20 bg-red-950/20 px-4 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center">
-              <span className="font-bold">{guess.guild.name} <span className="font-normal text-slate-400">— {guess.guild.realm}</span></span>
+            <div key={guess.guild.id} className="grid gap-2 rounded-lg border border-red-400/20 bg-red-950/20 px-4 py-3 text-sm sm:grid-cols-[minmax(12rem,1fr)_auto_auto] sm:items-center">
+              <FunGuildIdentity guild={guess.guild} crestSize={34} />
               <span className={guess.sameRealm ? "text-emerald-300" : "text-slate-400"}>
                 {guess.sameRealm ? t("guildGuessr.sameRealm") : t("guildGuessr.differentRealm")}
               </span>
@@ -105,7 +105,7 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
                 getKey={(guild) => guild.id}
                 getLabel={(guild) => guild.name}
                 getSearchText={(guild) => `${guild.name} ${guild.realm}`}
-                renderOption={(guild) => <><span className="font-semibold">{guild.name}</span><span className="ml-2 text-slate-400">{guild.realm}</span></>}
+                renderOption={(guild) => <FunGuildIdentity guild={guild} crestSize={32} />}
                 placeholder={t("guildGuessr.searchGuild")}
                 emptyLabel={t("guildGuessr.noGuilds")}
                 onSelect={submitGuess}
@@ -131,8 +131,7 @@ function Neighbor({ neighbor }: { neighbor: GuildGuessrRound["neighbors"][number
   const t = useTranslations("fun");
   return (
     <div className="flex min-w-0 items-center gap-3 rounded-lg border border-white/10 bg-slate-950/55 p-3">
-      <FunGuildCrest crest={neighbor.guild.crest} faction={neighbor.guild.faction} size={40} />
-      <div className="min-w-0"><p className="truncate font-bold">{neighbor.guild.name}</p><p className="mt-1 text-xs text-blue-200">{t("guildGuessr.sharedCharacters", { count: neighbor.sharedCharacters })}</p><p className="text-xs text-slate-400">{t("guildGuessr.sharedRaids", { count: neighbor.sharedRaids.length })}</p></div>
+      <div className="min-w-0 flex-1"><FunGuildIdentity guild={neighbor.guild} crestSize={40} /><p className="mt-1 text-xs text-blue-200">{t("guildGuessr.sharedCharacters", { count: neighbor.sharedCharacters })}</p><p className="text-xs text-slate-400">{t("guildGuessr.sharedRaids", { count: neighbor.sharedRaids.length })}</p></div>
     </div>
   );
 }

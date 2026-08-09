@@ -4,7 +4,7 @@ import Event from "../../../models/Event";
 import Guild from "../../../models/Guild";
 import Raid from "../../../models/Raid";
 import { funMythicProgressMatch, loadFunEligibleCanonicalCharacterIds } from "../fun-game.eligibility";
-import type { ClosestWithoutGoingOverRound } from "../fun-game.types";
+import type { ClosestWithoutGoingOverRound, FunGuild } from "../fun-game.types";
 import { bossKey, FunRoundUnavailableError, newRoundBase, randomItem, shuffle } from "../fun-game.utils";
 
 type BossGuildRow = {
@@ -95,6 +95,22 @@ export async function generateClosestWithoutGoingOverRound(): Promise<ClosestWit
   ]);
 
   const raidById = new Map(raids.map((raid) => [raid.id, raid]));
+  const guildIds = Array.from(new Set([
+    ...bossGuildRows.map((row) => String(row.guildId)),
+    ...killRankRows.map((row) => String(row.guildId)),
+  ]));
+  const guildDocuments = await Guild.find({ _id: { $in: guildIds } }).select("_id name realm faction crest").lean();
+  const guildDocumentById = new Map(guildDocuments.map((guild) => [String(guild._id), guild]));
+  const toFunGuild = (id: unknown, name: string, realm: string): FunGuild => {
+    const guild = guildDocumentById.get(String(id));
+    return {
+      id: String(id),
+      name: guild?.name ?? name,
+      realm: guild?.realm ?? realm,
+      faction: guild?.faction ?? null,
+      crest: guild?.crest ?? null,
+    };
+  };
   const candidates: ChallengeCandidate[] = [];
   const bossRowsByKey = new Map<string, BossGuildRow[]>();
   for (const row of bossGuildRows) {
@@ -117,6 +133,8 @@ export async function generateClosestWithoutGoingOverRound(): Promise<ClosestWit
         detail: `${row.bossName} · ${row.raidName}`,
         raid: { id: raid.id, name: raid.name, expansion: raid.expansion, iconUrl: raid.iconUrl ?? null },
         boss: { id: boss.id, name: boss.name, iconUrl: boss.iconUrl ?? null },
+        guild: toFunGuild(row.guildId, row.guildName, row.guildRealm),
+        characterClassID: null,
       },
       value: row.pullCount,
       population: rows.map((entry) => entry.pullCount),
@@ -129,6 +147,8 @@ export async function generateClosestWithoutGoingOverRound(): Promise<ClosestWit
         detail: `${row.bossName} · ${row.raidName}`,
         raid: { id: raid.id, name: raid.name, expansion: raid.expansion, iconUrl: raid.iconUrl ?? null },
         boss: { id: boss.id, name: boss.name, iconUrl: boss.iconUrl ?? null },
+        guild: toFunGuild(row.guildId, row.guildName, row.guildRealm),
+        characterClassID: null,
       },
       value: Math.max(1, Math.round(row.timeSpent / 60)),
       population: rows.map((entry) => Math.max(1, Math.round(entry.timeSpent / 60))),
@@ -157,6 +177,8 @@ export async function generateClosestWithoutGoingOverRound(): Promise<ClosestWit
         detail: `${row.bossName ?? "Boss kill"} · ${row.raidName}`,
         raid: { id: raid.id, name: raid.name, expansion: raid.expansion, iconUrl: raid.iconUrl ?? null },
         boss: { id: boss.id, name: boss.name, iconUrl: boss.iconUrl ?? null },
+        guild: toFunGuild(row.guildId, row.guildName, row.guildRealm ?? ""),
+        characterClassID: null,
       },
       value: row.data.killRank!,
       population: rows.map((entry) => entry.data.killRank!).filter((value) => Number.isFinite(value)),
@@ -166,7 +188,7 @@ export async function generateClosestWithoutGoingOverRound(): Promise<ClosestWit
   if (mythicPlusRows.length >= 20) {
     const row = randomItem(mythicPlusRows);
     candidates.push({
-      challenge: { kind: "mythic-plus-score", unit: "score", subject: row.name, detail: row.realm, raid: null, boss: null },
+      challenge: { kind: "mythic-plus-score", unit: "score", subject: row.name, detail: row.realm, raid: null, boss: null, guild: null, characterClassID: row._id.classID },
       value: Math.round(row.value),
       population: mythicPlusRows.map((entry) => Math.round(entry.value)),
     });

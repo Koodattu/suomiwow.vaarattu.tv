@@ -2619,10 +2619,10 @@
     },
     "closest": {
       "prompts": {
-        "guild-boss-pulls": "Montako pullia {subject} tarvitsi?",
-        "guild-boss-minutes": "Montako progressiminuuttia {subject} käytti?",
-        "guild-kill-rank": "Mikä oli killan {subject} seurattu tapposija?",
-        "mythic-plus-score": "Mikä oli hahmon {subject} Mythic+ score?"
+        "guild-boss-pulls": "Montako pullia <identity></identity> tarvitsi?",
+        "guild-boss-minutes": "Montako progressiminuuttia <identity></identity> käytti?",
+        "guild-kill-rank": "Mikä oli killan <identity></identity> seurattu tapposija?",
+        "mythic-plus-score": "Mikä oli hahmon <identity></identity> Mythic+ score?"
       },
       "placeholders": {
         "pulls": "Pullit",

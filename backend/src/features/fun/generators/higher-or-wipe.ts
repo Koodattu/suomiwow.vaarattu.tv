@@ -5,7 +5,7 @@ import CharacterRaidParticipation from "../../../models/CharacterRaidParticipati
 import Guild from "../../../models/Guild";
 import Raid from "../../../models/Raid";
 import { funMythicParticipationFilter, funMythicProgressMatch, loadFunEligibleCanonicalCharacterIds } from "../fun-game.eligibility";
-import type { HigherOrWipeQuestion, HigherOrWipeRound } from "../fun-game.types";
+import type { FunGuild, HigherOrWipeOption, HigherOrWipeQuestion, HigherOrWipeRound } from "../fun-game.types";
 import { bossKey, FunRoundUnavailableError, newRoundBase, shuffle } from "../fun-game.utils";
 
 type BossGuildRow = {
@@ -33,7 +33,7 @@ type GuildStartedRow = {
   firstSeenAt: Date;
 };
 
-type NumericEntry = HigherOrWipeQuestion["left"];
+type NumericEntry = HigherOrWipeOption;
 
 export async function generateHigherOrWipeRound(): Promise<HigherOrWipeRound> {
   const eligibleCanonicalIds = await loadFunEligibleCanonicalCharacterIds();
@@ -101,11 +101,29 @@ export async function generateHigherOrWipeRound(): Promise<HigherOrWipeRound> {
         },
       },
     ]).option({ maxTimeMS: 15_000 }),
-    Raid.find({ id: { $in: TRACKED_RAIDS } }).select("id name iconUrl bosses.id bosses.iconUrl -_id").lean(),
+    Raid.find({ id: { $in: TRACKED_RAIDS } }).select("id name expansion iconUrl bosses.id bosses.name bosses.iconUrl -_id").lean(),
   ]);
 
   const raidById = new Map(raids.map((raid) => [raid.id, raid]));
   const bossIconByKey = new Map(raids.flatMap((raid) => raid.bosses.map((boss) => [bossKey(raid.id, boss.id), boss.iconUrl ?? null] as const)));
+  const guildIds = Array.from(new Set([
+    ...bossGuildRows.map((row) => String(row.guildId)),
+    ...guildStartedRows.map((row) => String(row._id)),
+  ]));
+  const guildDocuments = await Guild.find({ _id: { $in: guildIds } })
+    .select("_id name realm faction crest")
+    .lean();
+  const guildDocumentById = new Map(guildDocuments.map((guild) => [String(guild._id), guild]));
+  const toFunGuild = (id: unknown, name: string, realm: string): FunGuild => {
+    const guild = guildDocumentById.get(String(id));
+    return {
+      id: String(id),
+      name: guild?.name ?? name,
+      realm: guild?.realm ?? realm,
+      faction: guild?.faction ?? null,
+      crest: guild?.crest ?? null,
+    };
+  };
   const questions: HigherOrWipeQuestion[] = [];
   const rowsByBoss = new Map<string, BossGuildRow[]>();
   for (const row of bossGuildRows) {
@@ -116,13 +134,19 @@ export async function generateHigherOrWipeRound(): Promise<HigherOrWipeRound> {
   }
 
   for (const rows of shuffle(Array.from(rowsByBoss.values()))) {
-    const pair = distinctPair(rows.map((row) => ({
-      id: String(row.guildId),
-      label: row.guildName,
-      detail: `${row.bossName} · ${raidById.get(row.raidId)?.name ?? row.guildRealm}`,
-      detailIconUrl: bossIconByKey.get(bossKey(row.raidId, row.bossId)) ?? null,
-      value: row.pullCount,
-    })));
+    const pair = distinctPair(rows.flatMap((row): NumericEntry[] => {
+      const raid = raidById.get(row.raidId);
+      if (!raid) return [];
+      return [{
+        id: String(row.guildId),
+        label: row.guildName,
+        detail: `${row.bossName} · ${raid.name}`,
+        value: row.pullCount,
+        guild: toFunGuild(row.guildId, row.guildName, row.guildRealm),
+        boss: { id: row.bossId, name: row.bossName, iconUrl: bossIconByKey.get(bossKey(row.raidId, row.bossId)) ?? null },
+        raid: { id: raid.id, name: raid.name, expansion: raid.expansion, iconUrl: raid.iconUrl ?? null },
+      }];
+    }));
     if (pair) questions.push(makeQuestion("guild-pulls", "pulls", pair, "higher", questions.length));
     if (questions.filter((question) => question.kind === "guild-pulls").length >= 3) break;
   }
@@ -130,14 +154,14 @@ export async function generateHigherOrWipeRound(): Promise<HigherOrWipeRound> {
   questions.push(...buildQuestions(
     "cutting-edge",
     "achievements",
-    cuttingEdgeRows.map((row) => ({ id: `${row._id.wclCanonicalCharacterId}:${row._id.classID}`, label: row.name, detail: row.realm, value: row.value })),
+    cuttingEdgeRows.map((row) => ({ id: `${row._id.wclCanonicalCharacterId}:${row._id.classID}`, label: row.name, detail: row.realm, value: row.value, classID: row._id.classID })),
     3,
     "higher",
   ));
   questions.push(...buildQuestions(
     "mythic-plus",
     "score",
-    mythicPlusRows.map((row) => ({ id: `${row._id.wclCanonicalCharacterId}:${row._id.classID}`, label: row.name, detail: row.realm, value: Math.round(row.value) })),
+    mythicPlusRows.map((row) => ({ id: `${row._id.wclCanonicalCharacterId}:${row._id.classID}`, label: row.name, detail: row.realm, value: Math.round(row.value), classID: row._id.classID })),
     3,
     "higher",
   ));
@@ -148,12 +172,14 @@ export async function generateHigherOrWipeRound(): Promise<HigherOrWipeRound> {
     const values = rows.map((row) => row.timeSpent).sort((left, right) => left - right);
     const medianSeconds = median(values);
     const first = rows[0];
+    const raid = raidById.get(first.raidId);
+    if (!raid) return [];
     return [{
       id: `${raidIdText}:${bossIdText}`,
       label: first.bossName,
-      detail: raidById.get(first.raidId)?.name ?? "",
-      iconUrl: bossIconByKey.get(key) ?? null,
-      detailIconUrl: raidById.get(first.raidId)?.iconUrl ?? null,
+      detail: raid.name,
+      boss: { id: first.bossId, name: first.bossName, iconUrl: bossIconByKey.get(key) ?? null },
+      raid: { id: raid.id, name: raid.name, expansion: raid.expansion, iconUrl: raid.iconUrl ?? null },
       value: Math.round(medianSeconds / 60),
     }];
   });
@@ -161,7 +187,7 @@ export async function generateHigherOrWipeRound(): Promise<HigherOrWipeRound> {
   questions.push(...buildQuestions(
     "guild-started",
     "year",
-    guildStartedRows.map((row) => ({ id: String(row._id), label: row.name, detail: row.realm, value: row.firstSeenAt.getFullYear() })),
+    guildStartedRows.map((row) => ({ id: String(row._id), label: row.name, detail: row.realm, value: row.firstSeenAt.getFullYear(), guild: toFunGuild(row._id, row.name, row.realm) })),
     3,
     "lower",
   ));

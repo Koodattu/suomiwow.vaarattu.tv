@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ClosestWithoutGoingOverRound } from "@/types";
+import FunCharacterIdentity from "../FunCharacterIdentity";
 import { FunBossIdentity, FunRaidIdentity } from "../FunEncounterIdentity";
+import FunGuildIdentity from "../FunGuildIdentity";
 
 const MAX_GUESSES = 3;
 
@@ -18,6 +20,13 @@ export default function ClosestWithoutGoingOver({ round }: { round: ClosestWitho
   const bestGuess = guesses.reduce<number | null>((best, value) => best === null || Math.abs(answer - value) < Math.abs(answer - best) ? value : best, null);
   const bars = useMemo(() => histogram(round.distribution.values, 10), [round.distribution.values]);
   const maxBar = Math.max(...bars.map((bar) => bar.count), 1);
+  const subjectIdentity = round.challenge.guild ? (
+    <FunGuildIdentity guild={round.challenge.guild} crestSize={32} className="inline-flex align-middle" />
+  ) : round.challenge.characterClassID !== null ? (
+    <FunCharacterIdentity character={{ name: round.challenge.subject, realm: round.challenge.detail, classID: round.challenge.characterClassID }} iconSize={32} className="inline-flex align-middle" />
+  ) : (
+    <span>{round.challenge.subject}</span>
+  );
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -35,8 +44,8 @@ export default function ClosestWithoutGoingOver({ round }: { round: ClosestWitho
           {round.challenge.boss ? <FunBossIdentity name={round.challenge.boss.name} iconUrl={round.challenge.boss.iconUrl} /> : null}
           {round.challenge.raid ? <FunRaidIdentity raid={round.challenge.raid} iconSize={32} compact /> : null}
         </div>
-        <p className={`${round.challenge.boss || round.challenge.raid ? "mt-4" : ""} text-sm text-blue-200`}>{round.challenge.detail}</p>
-        <h2 className="mt-2 text-balance text-2xl font-black">{t(`closest.prompts.${round.challenge.kind}`, { subject: round.challenge.subject })}</h2>
+        {!round.challenge.boss && !round.challenge.raid ? <p className="mt-4 text-sm text-blue-200">{round.challenge.detail}</p> : null}
+        <h2 className="mt-4 text-balance text-2xl font-black">{t.rich(`closest.prompts.${round.challenge.kind}`, { identity: () => subjectIdentity })}</h2>
 
         {guesses.length > 0 ? (
           <ol className="mt-5 grid gap-2 sm:grid-cols-3" aria-label={t("closest.attempts")}>

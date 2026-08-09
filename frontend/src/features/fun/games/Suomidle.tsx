@@ -2,11 +2,12 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import IconImage from "@/components/IconImage";
 import { getClassInfoById } from "@/lib/utils";
 import type { SuomidleCandidate, SuomidleRound } from "@/types";
 import FunAutocomplete from "../FunAutocomplete";
-import { ExpansionIcon, FunIcon } from "../FunEncounterIdentity";
+import FunCharacterIdentity, { FunClassIcon } from "../FunCharacterIdentity";
+import { FunRaidIdentity } from "../FunEncounterIdentity";
+import FunGuildIdentity, { FunGuildCrest } from "../FunGuildIdentity";
 
 type Comparison = "lower" | "exact" | "higher" | "mismatch";
 
@@ -47,9 +48,11 @@ export default function Suomidle({ round }: { round: SuomidleRound }) {
               <p className="mt-1 text-pretty text-xs leading-5 text-slate-400">{t("suomidle.arrows")}</p>
             </>
           ) : (
-            <div role="status">
+            <div className="flex flex-wrap items-center gap-3" role="status">
               <p className={`text-xl font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p>
-              <p className="mt-1 text-sm text-slate-400">{t("suomidle.answerWas")} <span className="font-bold text-white">{target.name}</span> · {target.realm} · {target.guildName}</p>
+              <span className="text-sm text-slate-400">{t("suomidle.answerWas")}</span>
+              <FunCharacterIdentity character={target} iconSize={30} />
+              <FunGuildIdentity guild={target.guild} crestSize={30} />
             </div>
           )}
         </div>
@@ -59,7 +62,7 @@ export default function Suomidle({ round }: { round: SuomidleRound }) {
             getKey={(candidate) => candidate.key}
             getLabel={(candidate) => candidate.name}
             getSearchText={(candidate) => `${candidate.name} ${candidate.realm} ${candidate.guildName}`}
-            renderOption={(candidate) => <><span className="font-semibold">{candidate.name}</span><span className="ml-2 text-slate-400">{candidate.realm}</span></>}
+            renderOption={(candidate) => <FunCharacterIdentity character={candidate} iconSize={30} />}
             placeholder={t("suomidle.search")}
             emptyLabel={t("suomidle.none")}
             onSelect={submit}
@@ -79,18 +82,14 @@ export default function Suomidle({ round }: { round: SuomidleRound }) {
             return (
               <div key={guess.key} className="grid grid-cols-2 gap-1 rounded-lg bg-slate-900/80 p-2 text-sm sm:grid-cols-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.05fr)_minmax(0,.9fr)_minmax(0,.75fr)_minmax(0,.95fr)_minmax(0,1.05fr)_minmax(0,1.25fr)_minmax(0,.8fr)_minmax(0,.8fr)_minmax(0,.8fr)] lg:text-[11px] xl:text-xs">
                 <SuomidleCell label={t("suomidle.character")}><Compare comparison={exactCharacter ? "exact" : "mismatch"}>{guess.name}</Compare></SuomidleCell>
-                <SuomidleCell label={t("suomidle.class")}><Compare comparison={guess.classID === target.classID ? "exact" : "mismatch"}><span className="inline-flex min-w-0 items-center gap-1.5"><span className="relative size-6 shrink-0 overflow-hidden rounded outline outline-1 -outline-offset-1 outline-white/10"><IconImage iconFilename={classInfo.iconUrl} alt="" fill style={{ objectFit: "cover" }} /></span><span className="truncate">{classInfo.name}</span></span></Compare></SuomidleCell>
+                <SuomidleCell label={t("suomidle.class")}><Compare comparison={guess.classID === target.classID ? "exact" : "mismatch"}><span className="inline-flex min-w-0 items-center gap-1.5"><FunClassIcon classID={guess.classID} size={24} /><span className="truncate">{classInfo.name}</span></span></Compare></SuomidleCell>
                 <SuomidleCell label={t("suomidle.spec")}><Compare comparison={guess.specName === target.specName ? "exact" : "mismatch"}>{guess.specName}</Compare></SuomidleCell>
                 <SuomidleCell label={t("suomidle.role")}><Compare comparison={guess.role === target.role ? "exact" : "mismatch"}>{t(`roles.${guess.role}`)}</Compare></SuomidleCell>
                 <SuomidleCell label={t("suomidle.realm")}><Compare comparison={guess.realm === target.realm ? "exact" : "mismatch"}>{guess.realm}</Compare></SuomidleCell>
-                <SuomidleCell label={t("suomidle.guild")}><Compare comparison={guess.guildName === target.guildName ? "exact" : "mismatch"}>{guess.guildName}</Compare></SuomidleCell>
+                <SuomidleCell label={t("suomidle.guild")}><Compare comparison={guess.guild.id === target.guild.id ? "exact" : "mismatch"}><span className="inline-flex min-w-0 items-center gap-1.5"><FunGuildCrest crest={guess.guild.crest} faction={guess.guild.faction} size={24} /><span className="truncate">{guess.guild.name}</span></span></Compare></SuomidleCell>
                 <SuomidleCell label={t("suomidle.raid")}>
                   <Compare comparison={guess.raidId === target.raidId ? "exact" : "mismatch"}>
-                    <span className="inline-flex min-w-0 items-center gap-1.5" title={`${guess.raidName} · ${guess.raidExpansion}`}>
-                      <FunIcon iconUrl={guess.raidIconUrl} label={guess.raidName} size={24} />
-                      <ExpansionIcon expansion={guess.raidExpansion} className="w-5" />
-                      <span className="truncate">{guess.raidName}</span>
-                    </span>
+                    <FunRaidIdentity raid={{ id: guess.raidId, name: guess.raidName, expansion: guess.raidExpansion, iconUrl: guess.raidIconUrl }} iconSize={24} compact />
                   </Compare>
                 </SuomidleCell>
                 <SuomidleCell label={t("suomidle.mythicPlus")}><Compare comparison={compareNumber(guess.mythicPlusScore, target.mythicPlusScore)}>{guess.mythicPlusScore}</Compare></SuomidleCell>

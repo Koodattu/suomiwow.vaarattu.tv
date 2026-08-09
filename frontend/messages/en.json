@@ -2619,10 +2619,10 @@
     },
     "closest": {
       "prompts": {
-        "guild-boss-pulls": "How many pulls did {subject} need?",
-        "guild-boss-minutes": "How many progression minutes did {subject} spend?",
-        "guild-kill-rank": "What was {subject}'s tracked kill rank?",
-        "mythic-plus-score": "What Mythic+ score did {subject} have?"
+        "guild-boss-pulls": "How many pulls did <identity></identity> need?",
+        "guild-boss-minutes": "How many progression minutes did <identity></identity> spend?",
+        "guild-kill-rank": "What was <identity></identity>'s tracked kill rank?",
+        "mythic-plus-score": "What Mythic+ score did <identity></identity> have?"
       },
       "placeholders": {
         "pulls": "Pulls",
