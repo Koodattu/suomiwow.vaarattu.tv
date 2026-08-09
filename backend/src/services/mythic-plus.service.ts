@@ -29,7 +29,7 @@ import {
 } from "../utils/mythic-plus";
 import logger from "../utils/logger";
 import { normalizeRealmSlug } from "../utils/realm";
-import { createAccentInsensitiveSearchRegex, normalizeSearchText } from "../utils/search";
+import { normalizeSearchText } from "../utils/search";
 import cacheService from "./cache.service";
 import taskTracker from "./task-tracker.service";
 
@@ -39,6 +39,7 @@ const RAIDER_IO_SITE_API_BASE_URL = "https://raider.io/api";
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE_SIZE = 500;
 const LEADERBOARD_ELIGIBILITY_CACHE_TTL_MS = 5 * 60 * 1000;
+const LEADERBOARD_SEARCH_INDEX_CACHE_TTL_MS = 5 * 60 * 1000;
 const PROCESS_LOG_INTERVAL = 25;
 const PROCESS_IDLE_RECHECK_MS = 60 * 1000;
 const RAIDER_IO_RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -88,6 +89,18 @@ type CharacterIdentity = {
   lastMythicSeenAt?: Date | null;
   identityObservedAt?: Date | null;
   blizzardIdentityOverride?: ICharacter["blizzardIdentityOverride"];
+};
+
+type MythicPlusLeaderboardSearchIdentity = Pick<CharacterIdentity, "name" | "realm" | "guildName" | "guildRealm" | "blizzardIdentityOverride">;
+
+type MythicPlusLeaderboardSearchValues = {
+  individual: string[];
+  compound: string[];
+};
+
+type MythicPlusLeaderboardSearchEntry = {
+  characterId: mongoose.Types.ObjectId;
+  searchValues: MythicPlusLeaderboardSearchValues;
 };
 
 export type MythicPlusIdentityRepairResult = {
@@ -302,26 +315,66 @@ function buildPartialRegex(value?: string): RegExp | undefined {
   return new RegExp(escapeRegex(trimmed), "i");
 }
 
-function buildLeaderboardSearchConditions(value?: string): Record<string, unknown>[] {
-  const normalized = normalizeSearchText(value ?? "");
-  if (!normalized) return [];
+function normalizeLeaderboardSearchValues(values: Array<string | null | undefined>): string[] {
+  const normalizedValues = new Set<string>();
 
-  const fullMatch = createAccentInsensitiveSearchRegex(normalized, { ignoreSeparators: true });
-  const conditions: Record<string, unknown>[] = [
-    { name: fullMatch },
-    { realm: fullMatch },
-    { guildName: fullMatch },
-    { guildRealm: fullMatch },
-  ];
-  const parts = normalized.split(" ").filter(Boolean);
-
-  for (let splitIndex = 1; splitIndex < parts.length; splitIndex += 1) {
-    const nameMatch = createAccentInsensitiveSearchRegex(parts.slice(0, splitIndex).join(""), { ignoreSeparators: true });
-    const realmMatch = createAccentInsensitiveSearchRegex(parts.slice(splitIndex).join(""), { ignoreSeparators: true });
-    conditions.push({ name: nameMatch, realm: realmMatch }, { guildName: nameMatch, guildRealm: realmMatch });
+  for (const value of values) {
+    if (!value) continue;
+    const normalized = normalizeSearchText(value);
+    if (!normalized) continue;
+    normalizedValues.add(normalized);
+    normalizedValues.add(normalized.replace(/\s/g, ""));
   }
 
-  return conditions;
+  return Array.from(normalizedValues);
+}
+
+function buildLeaderboardSearchValues(identity: MythicPlusLeaderboardSearchIdentity): MythicPlusLeaderboardSearchValues {
+  const individual = [
+    identity.name,
+    identity.realm,
+    identity.guildName,
+    identity.guildRealm,
+    identity.blizzardIdentityOverride?.name,
+    identity.blizzardIdentityOverride?.realm,
+  ];
+  const compound = [
+    `${identity.name} ${identity.realm}`,
+    identity.guildName && identity.guildRealm ? `${identity.guildName} ${identity.guildRealm}` : null,
+    identity.blizzardIdentityOverride ? `${identity.blizzardIdentityOverride.name} ${identity.blizzardIdentityOverride.realm}` : null,
+  ];
+
+  return {
+    individual: normalizeLeaderboardSearchValues(individual),
+    compound: normalizeLeaderboardSearchValues(compound),
+  };
+}
+
+type MythicPlusLeaderboardSearchQueries = { values: string[]; includeCompounds: boolean };
+
+function buildLeaderboardSearchQueries(query: string): MythicPlusLeaderboardSearchQueries {
+  const normalized = normalizeSearchText(query);
+  if (normalized.replace(/\s/g, "").length < 2) return { values: [], includeCompounds: false };
+  return {
+    values: Array.from(new Set([normalized, normalized.replace(/\s/g, "")])),
+    includeCompounds: normalized.includes(" "),
+  };
+}
+
+function searchValuesIncludeQueries(
+  searchValues: MythicPlusLeaderboardSearchValues,
+  normalizedQueries: MythicPlusLeaderboardSearchQueries,
+): boolean {
+  if (normalizedQueries.values.length === 0) return false;
+  if (searchValues.individual.some((value) => normalizedQueries.values.some((normalizedQuery) => value.includes(normalizedQuery)))) {
+    return true;
+  }
+  return normalizedQueries.includeCompounds
+    && searchValues.compound.some((value) => normalizedQueries.values.some((normalizedQuery) => value.includes(normalizedQuery)));
+}
+
+export function matchesMythicPlusLeaderboardSearch(identity: MythicPlusLeaderboardSearchIdentity, query: string): boolean {
+  return searchValuesIncludeQueries(buildLeaderboardSearchValues(identity), buildLeaderboardSearchQueries(query));
 }
 
 function getScoreSegmentColor(segments: Record<string, any>, bucket: MythicPlusScoreBucket): string | null {
@@ -397,6 +450,9 @@ class MythicPlusService {
   private lastMessage: string | null = null;
   private leaderboardEligibleCharacterIdsCache: { expiresAt: number; ids: mongoose.Types.ObjectId[] } | null = null;
   private leaderboardEligibleCharacterIdsPromise: Promise<mongoose.Types.ObjectId[]> | null = null;
+  private leaderboardEligibilityVersion = 0;
+  private leaderboardSearchIndexCache: { expiresAt: number; eligibilityVersion: number; entries: MythicPlusLeaderboardSearchEntry[] } | null = null;
+  private leaderboardSearchIndexPromise: { eligibilityVersion: number; value: Promise<MythicPlusLeaderboardSearchEntry[]> } | null = null;
 
   private async getEligibleCharacterIds(characterIds?: mongoose.Types.ObjectId[]): Promise<mongoose.Types.ObjectId[]> {
     if (characterIds && characterIds.length === 0) return [];
@@ -417,6 +473,7 @@ class MythicPlusService {
 
     this.leaderboardEligibleCharacterIdsPromise = this.getEligibleCharacterIds()
       .then((ids) => {
+        this.leaderboardEligibilityVersion += 1;
         this.leaderboardEligibleCharacterIdsCache = {
           expiresAt: Date.now() + LEADERBOARD_ELIGIBILITY_CACHE_TTL_MS,
           ids,
@@ -427,6 +484,60 @@ class MythicPlusService {
         this.leaderboardEligibleCharacterIdsPromise = null;
       });
     return this.leaderboardEligibleCharacterIdsPromise;
+  }
+
+  private async getLeaderboardSearchIndex(eligibleCharacterIds: mongoose.Types.ObjectId[]): Promise<MythicPlusLeaderboardSearchEntry[]> {
+    const eligibilityVersion = this.leaderboardEligibilityVersion;
+    if (
+      this.leaderboardSearchIndexCache
+      && this.leaderboardSearchIndexCache.eligibilityVersion === eligibilityVersion
+      && this.leaderboardSearchIndexCache.expiresAt > Date.now()
+    ) {
+      return this.leaderboardSearchIndexCache.entries;
+    }
+    if (this.leaderboardSearchIndexPromise?.eligibilityVersion === eligibilityVersion) {
+      return this.leaderboardSearchIndexPromise.value;
+    }
+
+    const indexPromise = Character.find({ _id: { $in: eligibleCharacterIds } })
+      .select("_id name realm guildName guildRealm blizzardIdentityOverride")
+      .lean()
+      .then((characters: any[]) => {
+        const entries = characters.map((character) => ({
+          characterId: character._id,
+          searchValues: buildLeaderboardSearchValues(character),
+        }));
+        if (this.leaderboardEligibilityVersion === eligibilityVersion) {
+          this.leaderboardSearchIndexCache = {
+            expiresAt: Date.now() + LEADERBOARD_SEARCH_INDEX_CACHE_TTL_MS,
+            eligibilityVersion,
+            entries,
+          };
+        }
+        return entries;
+      })
+      .finally(() => {
+        if (this.leaderboardSearchIndexPromise?.value === indexPromise) {
+          this.leaderboardSearchIndexPromise = null;
+        }
+      });
+
+    this.leaderboardSearchIndexPromise = { eligibilityVersion, value: indexPromise };
+    return indexPromise;
+  }
+
+  private async getLeaderboardSearchCharacterIds(
+    eligibleCharacterIds: mongoose.Types.ObjectId[],
+    query: string,
+  ): Promise<mongoose.Types.ObjectId[]> {
+    const normalizedQueries = buildLeaderboardSearchQueries(query);
+    if (normalizedQueries.values.length === 0) return [];
+
+    const entries = await this.getLeaderboardSearchIndex(eligibleCharacterIds);
+    const eligibleCharacterIdSet = new Set(eligibleCharacterIds.map((characterId) => characterId.toString()));
+    return entries
+      .filter((entry) => eligibleCharacterIdSet.has(entry.characterId.toString()) && searchValuesIncludeQueries(entry.searchValues, normalizedQueries))
+      .map((entry) => entry.characterId);
   }
 
   private async isCharacterEligible(characterId: mongoose.Types.ObjectId): Promise<boolean> {
@@ -2234,7 +2345,10 @@ class MythicPlusService {
     const pageSize = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
     const currentPage = Math.max(options.page ?? 1, 1);
     const skip = (currentPage - 1) * pageSize;
-    const eligibleCharacterIds = await this.getLeaderboardEligibleCharacterIds();
+    let eligibleCharacterIds = await this.getLeaderboardEligibleCharacterIds();
+    if (options.search) {
+      eligibleCharacterIds = await this.getLeaderboardSearchCharacterIds(eligibleCharacterIds, options.search);
+    }
     if (eligibleCharacterIds.length === 0) {
       return {
         data: [],
@@ -2257,8 +2371,6 @@ class MythicPlusService {
     };
     if (options.classId !== undefined) match.classID = options.classId;
     if (options.role) match[`scores.${options.role}`] = { $gt: 0 };
-    const searchConditions = buildLeaderboardSearchConditions(options.search);
-    if (searchConditions.length > 0) match.$or = searchConditions;
     if (options.characterName) match.name = options.characterRealm ? options.characterName : buildPartialRegex(options.characterName);
     if (options.characterRealm) match.realm = options.characterRealm;
     if (options.guildName) match.guildName = options.guildRealm ? options.guildName : buildPartialRegex(options.guildName);
@@ -2383,8 +2495,6 @@ class MythicPlusService {
     if (options.classId !== undefined) match.classID = options.classId;
     if (options.specName) match.specSlug = options.specName;
     if (options.role) match.role = options.role;
-    const searchConditions = buildLeaderboardSearchConditions(options.search);
-    if (searchConditions.length > 0) match.$or = searchConditions;
     if (options.characterName) match.name = options.characterRealm ? options.characterName : buildPartialRegex(options.characterName);
     if (options.characterRealm) match.realm = options.characterRealm;
     if (options.guildName) match.guildName = options.guildRealm ? options.guildName : buildPartialRegex(options.guildName);

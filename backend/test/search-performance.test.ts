@@ -209,7 +209,7 @@ test("site search ranks an accent-equivalent historical exact match ahead of cur
   }
 });
 
-test("two-letter full search uses current prefixes and skips broad historical aggregation", async () => {
+test("full site search uses current and indexed exact-history sources without broad historical aggregation", async () => {
   const guildModel = Guild as any;
   const currentSearch = (characterService as any).searchCurrentCharacters;
   const historicalSearch = (characterService as any).searchCharacters;
@@ -219,6 +219,8 @@ test("two-letter full search uses current prefixes and skips broad historical ag
   const originalCache = service.siteSearchCache;
   const originalPromises = service.siteSearchPromises;
   let currentOptions: Record<string, unknown> = {};
+  let currentLimit = 0;
+  let exactHistoricalLimit = 0;
   let historicalCalls = 0;
 
   try {
@@ -231,20 +233,41 @@ test("two-letter full search uses current prefixes and skips broad historical ag
       select() { return this; },
       lean: async () => [],
     });
-    (characterService as any).searchExactHistoricalCharacters = async () => [];
-    (characterService as any).searchCurrentCharacters = async (_query: string, _limit: number, options: Record<string, unknown>) => {
+    (characterService as any).searchExactHistoricalCharacters = async (_query: string, limit: number) => {
+      exactHistoricalLimit = limit;
+      return [{
+        wclCanonicalCharacterId: 1,
+        name: "Röidy",
+        realm: "kazzak",
+        region: "eu",
+        classID: 8,
+        guild: null,
+      }];
+    };
+    (characterService as any).searchCurrentCharacters = async (_query: string, limit: number, options: Record<string, unknown>) => {
       currentOptions = options;
-      return [];
+      currentLimit = limit;
+      return [{
+        wclCanonicalCharacterId: 2,
+        name: "Hammeroid",
+        realm: "stormreaver",
+        region: "eu",
+        classID: 2,
+        guild: null,
+      }];
     };
     (characterService as any).searchCharacters = async () => {
       historicalCalls += 1;
       return [];
     };
 
-    await service.searchSite("ab", 20, { includeHistorical: true });
+    const results = await service.searchSite("röi", 20, { includeHistorical: true });
 
-    assert.deepEqual(currentOptions, { prefix: true });
+    assert.deepEqual(currentOptions, { prefix: false });
+    assert.equal(currentLimit, 20);
+    assert.equal(exactHistoricalLimit, 20);
     assert.equal(historicalCalls, 0);
+    assert.deepEqual(results.map((result: { name: string }) => result.name), ["Röidy", "Hammeroid"]);
   } finally {
     guildModel.find = originalGuildFind;
     (characterService as any).searchCurrentCharacters = currentSearch;

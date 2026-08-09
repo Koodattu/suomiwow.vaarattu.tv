@@ -202,14 +202,20 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
   const selectedDungeon = selectedSeason?.dungeons.find((dungeon) => dungeon.id === filters.dungeonId) ?? null;
   const queryString = useMemo(() => buildQuery(filters), [filters]);
   const leaderboardEnabled = !!filters.season;
-  const { data, isLoading: leaderboardLoading, isFetching: leaderboardFetching, error: leaderboardError } = useMythicPlusLeaderboard(queryString, leaderboardEnabled);
+  const {
+    data,
+    isLoading: leaderboardLoading,
+    isPlaceholderData: leaderboardPlaceholder,
+    error: leaderboardError,
+  } = useMythicPlusLeaderboard(queryString, leaderboardEnabled);
   const rows = data?.data ?? [];
   const pagination = data?.pagination;
-  const loading = optionsLoading || leaderboardLoading;
+  const loading = optionsLoading || leaderboardLoading || leaderboardPlaceholder;
   const error = optionsError?.message ?? leaderboardError?.message ?? null;
   const dungeonColumns = selectedSeason?.dungeons ?? [];
   const tableColumnCount = selectedDungeon ? 7 : 5 + dungeonColumns.length;
   const tableMinWidth = selectedDungeon ? 980 : Math.max(1100, 780 + dungeonColumns.length * 96);
+  const skeletonRowCount = rows.length || Math.min(filters.limit, 8);
 
   const page = pagination?.currentPage ?? filters.page;
   const totalPages = pagination?.totalPages ?? 1;
@@ -259,16 +265,16 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
           onClassChange={(classId) => updateFilters({ classId, specName: null })}
           onSpecChange={(specName) => updateFilters({ specName })}
         />
-        {leaderboardFetching && !leaderboardLoading ? (
-          <div className="flex min-h-10 items-center gap-2 px-2 text-sm font-medium text-gray-400" aria-live="polite">
-            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-500 border-t-transparent" aria-hidden="true" />
-            {t("updating")}
-          </div>
-        ) : null}
       </div>
 
-      <div className="overflow-x-auto border border-gray-700">
-        <table className="w-full border-collapse text-xs md:text-sm" style={{ minWidth: tableMinWidth }}>
+      <div aria-busy={loading}>
+        {loading ? (
+          <span role="status" className="sr-only">
+            {t("updating")}
+          </span>
+        ) : null}
+        <div className="overflow-x-auto border border-gray-700">
+          <table className="w-full border-collapse text-xs md:text-sm" style={{ minWidth: tableMinWidth }}>
           <thead>
             <tr className="border-b border-gray-700 bg-gray-900 text-center font-semibold text-gray-200">
               <th className="w-16 border-r border-gray-700 px-3 py-3">Rank</th>
@@ -292,10 +298,10 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
           </thead>
           <tbody>
             {loading ? (
-              Array.from({ length: 8 }).map((_, rowIndex) => (
+              Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
                 <tr key={`skeleton-${rowIndex}`} className={`border-b border-gray-800 ${rowIndex % 2 === 0 ? "bg-gray-950" : "bg-gray-900"}`}>
                   <td colSpan={tableColumnCount} className="px-3 py-3">
-                    <div className="h-5 w-full animate-pulse rounded bg-gray-800" />
+                    <div className="h-6 w-full animate-pulse rounded bg-gray-800 motion-reduce:animate-none" />
                   </td>
                 </tr>
               ))
@@ -352,34 +358,47 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
               })
             )}
           </tbody>
-        </table>
-      </div>
-
-      {pagination ? (
-        <div className="flex flex-col items-center justify-between gap-3 px-2 py-2 text-sm text-gray-400 sm:flex-row">
-          <div>
-            Page {page} of {totalPages} ({pagination.totalItems} total)
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => updateFilters({ page: page - 1 })}
-              disabled={page <= 1}
-              className="rounded-md bg-gray-800 px-3 py-2 font-semibold text-gray-200 transition-colors hover:enabled:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              onClick={() => updateFilters({ page: page + 1 })}
-              disabled={page >= totalPages}
-              className="rounded-md bg-gray-800 px-3 py-2 font-semibold text-gray-200 transition-colors hover:enabled:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
+          </table>
         </div>
-      ) : null}
+
+        {loading || pagination ? (
+          <div className="flex min-h-14 flex-col items-center justify-between gap-3 px-2 py-2 text-sm text-gray-400 sm:flex-row">
+            {loading ? (
+              <>
+                <div className="h-5 w-36 animate-pulse rounded bg-gray-800 motion-reduce:animate-none" aria-hidden="true" />
+                <div className="flex gap-2" aria-hidden="true">
+                  <div className="h-10 w-20 animate-pulse rounded-md bg-gray-800 motion-reduce:animate-none" />
+                  <div className="h-10 w-14 animate-pulse rounded-md bg-gray-800 motion-reduce:animate-none" />
+                </div>
+              </>
+            ) : pagination ? (
+              <>
+                <div>
+                  Page {page} of {totalPages} ({pagination.totalItems} total)
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => updateFilters({ page: page - 1 })}
+                    disabled={page <= 1}
+                    className="rounded-md bg-gray-800 px-3 py-2 font-semibold text-gray-200 transition-colors hover:enabled:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateFilters({ page: page + 1 })}
+                    disabled={page >= totalPages}
+                    className="rounded-md bg-gray-800 px-3 py-2 font-semibold text-gray-200 transition-colors hover:enabled:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -88,7 +88,7 @@ class SearchService {
     const nameMatch = createAccentInsensitiveSearchRegex(trimmedQuery, { prefix: prefixOnly });
     const candidateLimit = Math.min(includeHistorical ? Math.max(limit, 10) : Math.max(limit * 2, 5), 20);
 
-    const [exactGuilds, guilds, exactCharacters, currentCharacters, historicalCharacters] = await Promise.all([
+    const [exactGuilds, guilds, exactCharacters, currentCharacters] = await Promise.all([
       Guild.find({ name: trimmedQuery })
         .collation(ACCENT_INSENSITIVE_COLLATION)
         .sort({ name: 1, realm: 1 })
@@ -98,9 +98,6 @@ class SearchService {
       Guild.find({ name: nameMatch }).sort({ name: 1, realm: 1 }).limit(candidateLimit).select("name realm iconUrl crest faction -_id").lean(),
       characterService.searchExactHistoricalCharacters(trimmedQuery, candidateLimit),
       characterService.searchCurrentCharacters(trimmedQuery, candidateLimit, { prefix: prefixOnly }),
-      includeHistorical && normalizedQuery.length >= 3
-        ? characterService.searchCharacters(trimmedQuery, candidateLimit)
-        : Promise.resolve([]),
     ]);
 
     const guildResults = [...exactGuilds, ...guilds].map((guild) => ({
@@ -112,7 +109,7 @@ class SearchService {
       crest: guild.crest,
       faction: guild.faction,
     }));
-    const characterResults = [...exactCharacters, ...currentCharacters, ...historicalCharacters].map((character) => ({
+    const characterResults = [...exactCharacters, ...currentCharacters].map((character) => ({
       name: character.matchedName ?? character.name,
       realm: character.matchedRealm ?? character.realm,
       type: "character" as const,
