@@ -5,7 +5,7 @@ import CharacterRaidParticipation from "../../../models/CharacterRaidParticipati
 import Guild from "../../../models/Guild";
 import Raid from "../../../models/Raid";
 import { funMythicParticipationFilter, funMythicProgressMatch, loadFunEligibleCanonicalCharacterIds } from "../fun-game.eligibility";
-import type { FunGuild, HigherOrWipeOption, HigherOrWipeQuestion, HigherOrWipeRound } from "../fun-game.types";
+import type { FunGuild, HigherOrWipeMode, HigherOrWipeOption, HigherOrWipeQuestion, HigherOrWipeRound } from "../fun-game.types";
 import { bossKey, FunRoundUnavailableError, newRoundBase, shuffle } from "../fun-game.utils";
 
 type BossGuildRow = {
@@ -35,7 +35,7 @@ type GuildStartedRow = {
 
 type NumericEntry = HigherOrWipeOption;
 
-export async function generateHigherOrWipeRound(): Promise<HigherOrWipeRound> {
+export async function generateHigherOrWipeRound(mode: HigherOrWipeMode = "random"): Promise<HigherOrWipeRound> {
   const eligibleCanonicalIds = await loadFunEligibleCanonicalCharacterIds();
   const [bossGuildRows, cuttingEdgeRows, mythicPlusRows, guildStartedRows, raids] = await Promise.all([
     Guild.aggregate<BossGuildRow>([
@@ -148,21 +148,21 @@ export async function generateHigherOrWipeRound(): Promise<HigherOrWipeRound> {
       }];
     }));
     if (pair) questions.push(makeQuestion("guild-pulls", "pulls", pair, "higher", questions.length));
-    if (questions.filter((question) => question.kind === "guild-pulls").length >= 3) break;
+    if (questions.filter((question) => question.kind === "guild-pulls").length >= (mode === "pulls" ? 12 : 3)) break;
   }
 
   questions.push(...buildQuestions(
     "cutting-edge",
     "achievements",
     cuttingEdgeRows.map((row) => ({ id: `${row._id.wclCanonicalCharacterId}:${row._id.classID}`, label: row.name, detail: row.realm, value: row.value, classID: row._id.classID })),
-    3,
+    mode === "achievements" ? 12 : 3,
     "higher",
   ));
   questions.push(...buildQuestions(
     "mythic-plus",
     "score",
     mythicPlusRows.map((row) => ({ id: `${row._id.wclCanonicalCharacterId}:${row._id.classID}`, label: row.name, detail: row.realm, value: Math.round(row.value), classID: row._id.classID })),
-    3,
+    mode === "mythic-plus" ? 12 : 3,
     "higher",
   ));
 
@@ -183,18 +183,29 @@ export async function generateHigherOrWipeRound(): Promise<HigherOrWipeRound> {
       value: Math.round(medianSeconds / 60),
     }];
   });
-  questions.push(...buildQuestions("boss-progress-time", "minutes", bossMedianEntries, 3, "higher"));
+  if (mode === "random") questions.push(...buildQuestions("boss-progress-time", "minutes", bossMedianEntries, 3, "higher"));
   questions.push(...buildQuestions(
     "guild-started",
     "year",
     guildStartedRows.map((row) => ({ id: String(row._id), label: row.name, detail: row.realm, value: row.firstSeenAt.getFullYear(), guild: toFunGuild(row._id, row.name, row.realm) })),
-    3,
+    mode === "started" ? 12 : 3,
     "lower",
   ));
 
-  const selectedQuestions = shuffle(questions).slice(0, 12).map((question, index) => ({ ...question, id: `${question.kind}:${index}` }));
+  const selectedKind = mode === "pulls"
+    ? "guild-pulls"
+    : mode === "started"
+      ? "guild-started"
+      : mode === "mythic-plus"
+        ? "mythic-plus"
+        : mode === "achievements"
+          ? "cutting-edge"
+          : null;
+  const selectedQuestions = shuffle(selectedKind ? questions.filter((question) => question.kind === selectedKind) : questions)
+    .slice(0, 12)
+    .map((question, index) => ({ ...question, id: `${question.kind}:${index}` }));
   if (selectedQuestions.length < 6) throw new FunRoundUnavailableError("Not enough comparable records for Higher or Wipe");
-  return { ...newRoundBase(), game: "higher-or-wipe", questions: selectedQuestions };
+  return { ...newRoundBase(), game: "higher-or-wipe", mode, questions: selectedQuestions };
 }
 
 function buildQuestions(

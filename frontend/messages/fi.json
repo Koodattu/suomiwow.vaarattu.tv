@@ -2432,7 +2432,7 @@
       },
       "higher-or-wipe": {
         "title": "Higher or Wipe",
-        "description": "Valitse kummalla killalla, bossilla tai hahmolla on suurempi tulos."
+        "description": "Valitse kategoria tai satunnainen yhdistelmä ja päätä, kummalla killalla, bossilla tai hahmolla on suurempi tulos."
       },
       "closest-without-going-over": {
         "title": "Lähin arvaus",
@@ -2613,6 +2613,14 @@
       "results": "Näytä tulos",
       "finished": "Kierros valmis",
       "best": "Paras putki: {count}",
+      "mode": "Pelimuoto",
+      "modes": {
+        "random": "Satunnainen",
+        "pulls": "Pullit",
+        "started": "Aloitusvuosi",
+        "mythic-plus": "M+",
+        "achievements": "Saavutukset"
+      },
       "prompts": {
         "guild-pulls": "Kumpi kilta tarvitsi enemmän pulleja?",
         "cutting-edge": "Kummalla hahmolla on enemmän Cutting Edge -saavutuksia?",

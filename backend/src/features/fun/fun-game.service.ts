@@ -1,4 +1,4 @@
-import type { FunGameRound, FunGameSlug } from "./fun-game.types";
+import type { FunGameRound, FunGameSlug, HigherOrWipeMode } from "./fun-game.types";
 import { generateGuildGuessrRound } from "./generators/guild-guessr";
 import { generateImmaculateRosterRound } from "./generators/immaculate-roster";
 import { generateLockItInRound } from "./generators/lock-it-in";
@@ -9,7 +9,10 @@ import { generateSuomidleRound } from "./generators/suomidle";
 import { generateHigherOrWipeRound } from "./generators/higher-or-wipe";
 import { generateClosestWithoutGoingOverRound } from "./generators/closest-without-going-over";
 
-export async function generateFunGameRound(game: FunGameSlug): Promise<FunGameRound> {
+export async function generateFunGameRound(
+  game: FunGameSlug,
+  options: { higherOrWipeMode?: HigherOrWipeMode } = {},
+): Promise<FunGameRound> {
   switch (game) {
     case "immaculate-roster":
       return generateImmaculateRosterRound();
@@ -26,7 +29,7 @@ export async function generateFunGameRound(game: FunGameSlug): Promise<FunGameRo
     case "suomidle":
       return generateSuomidleRound();
     case "higher-or-wipe":
-      return generateHigherOrWipeRound();
+      return generateHigherOrWipeRound(options.higherOrWipeMode);
     case "closest-without-going-over":
       return generateClosestWithoutGoingOverRound();
   }

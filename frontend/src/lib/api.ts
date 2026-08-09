@@ -185,6 +185,7 @@ import {
   ReporterStatusResponse,
   FunGameRound,
   FunGameSlug,
+  HigherOrWipeMode,
 } from "@/types";
 import {
   hydrateCcgAdminCardSearch,
@@ -239,8 +240,9 @@ async function buildApiError(response: Response, fallback: string): Promise<Erro
 }
 
 export const api = {
-  async generateFunRound(game: FunGameSlug): Promise<FunGameRound> {
-    const response = await fetch(`${API_URL}/api/fun/${game}/round`, {
+  async generateFunRound(game: FunGameSlug, options: { mode?: HigherOrWipeMode } = {}): Promise<FunGameRound> {
+    const modeQuery = game === "higher-or-wipe" && options.mode ? `?mode=${encodeURIComponent(options.mode)}` : "";
+    const response = await fetch(`${API_URL}/api/fun/${game}/round${modeQuery}`, {
       method: "POST",
       cache: "no-store",
     });

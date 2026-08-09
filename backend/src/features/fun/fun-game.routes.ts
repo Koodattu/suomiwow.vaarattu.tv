@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import logger from "../../utils/logger";
 import { generateFunGameRound } from "./fun-game.service";
-import { isFunGameSlug } from "./fun-game.types";
+import { isFunGameSlug, isHigherOrWipeMode, type HigherOrWipeMode } from "./fun-game.types";
 import { FunRoundUnavailableError } from "./fun-game.utils";
 
 const router = Router();
@@ -13,8 +13,17 @@ router.post("/:game/round", async (req: Request, res: Response) => {
     return;
   }
 
+  let higherOrWipeMode: HigherOrWipeMode = "random";
+  if (game === "higher-or-wipe" && req.query.mode !== undefined) {
+    if (typeof req.query.mode !== "string" || !isHigherOrWipeMode(req.query.mode)) {
+      res.status(400).json({ error: "Unknown Higher or Wipe mode", code: "UNKNOWN_HIGHER_OR_WIPE_MODE" });
+      return;
+    }
+    higherOrWipeMode = req.query.mode;
+  }
+
   try {
-    const round = await generateFunGameRound(game);
+    const round = await generateFunGameRound(game, { higherOrWipeMode });
     res.setHeader("Cache-Control", "no-store");
     res.json(round);
   } catch (error) {

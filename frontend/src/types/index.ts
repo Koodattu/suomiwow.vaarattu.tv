@@ -3328,6 +3328,8 @@ export type HigherOrWipeOption = {
   raid?: FunRaid;
 };
 
+export type HigherOrWipeMode = "random" | "pulls" | "started" | "mythic-plus" | "achievements";
+
 export type HigherOrWipeQuestion = {
   id: string;
   kind: "guild-pulls" | "cutting-edge" | "mythic-plus" | "boss-progress-time" | "guild-started";
@@ -3339,6 +3341,7 @@ export type HigherOrWipeQuestion = {
 
 export type HigherOrWipeRound = FunRoundBase & {
   game: "higher-or-wipe";
+  mode: HigherOrWipeMode;
   questions: HigherOrWipeQuestion[];
 };
 

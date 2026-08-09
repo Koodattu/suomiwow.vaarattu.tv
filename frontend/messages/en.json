@@ -2432,7 +2432,7 @@
       },
       "higher-or-wipe": {
         "title": "Higher or Wipe",
-        "description": "Pick which guild, boss or character owns the higher real-data result."
+        "description": "Choose a category or a random mix, then pick which guild, boss or character owns the higher real-data result."
       },
       "closest-without-going-over": {
         "title": "Closest Guess",
@@ -2613,6 +2613,14 @@
       "results": "See result",
       "finished": "Round complete",
       "best": "Best streak: {count}",
+      "mode": "Mode",
+      "modes": {
+        "random": "Random",
+        "pulls": "Pulls",
+        "started": "Started",
+        "mythic-plus": "M+",
+        "achievements": "Achievements"
+      },
       "prompts": {
         "guild-pulls": "Which guild needed more pulls?",
         "cutting-edge": "Which character has more Cutting Edge achievements?",

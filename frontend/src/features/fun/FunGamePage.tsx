@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import type { FunGameRound, FunGameSlug } from "@/types";
+import type { FunGameRound, FunGameSlug, HigherOrWipeMode } from "@/types";
 import FunGameShell from "./FunGameShell";
 import GuildGuessr from "./games/GuildGuessr";
 import ImmaculateRoster from "./games/ImmaculateRoster";
@@ -14,7 +14,15 @@ import Suomidle from "./games/Suomidle";
 import HigherOrWipe from "./games/HigherOrWipe";
 import ClosestWithoutGoingOver from "./games/ClosestWithoutGoingOver";
 
-function Game({ round }: { round: FunGameRound }) {
+function Game({
+  round,
+  loading,
+  onHigherModeChange,
+}: {
+  round: FunGameRound;
+  loading: boolean;
+  onHigherModeChange: (mode: HigherOrWipeMode) => void;
+}) {
   switch (round.game) {
     case "immaculate-roster":
       return <ImmaculateRoster key={round.roundId} round={round} />;
@@ -31,7 +39,7 @@ function Game({ round }: { round: FunGameRound }) {
     case "suomidle":
       return <Suomidle key={round.roundId} round={round} />;
     case "higher-or-wipe":
-      return <HigherOrWipe key={round.roundId} round={round} />;
+      return <HigherOrWipe key={round.roundId} round={round} loading={loading} onModeChange={onHigherModeChange} />;
     case "closest-without-going-over":
       return <ClosestWithoutGoingOver key={round.roundId} round={round} />;
   }
@@ -41,25 +49,29 @@ export default function FunGamePage({ game }: { game: FunGameSlug }) {
   const [round, setRound] = useState<FunGameRound | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [higherOrWipeMode, setHigherOrWipeMode] = useState<HigherOrWipeMode>("random");
   const requestIdRef = useRef(0);
   const startedRef = useRef(false);
 
-  const generate = useCallback(async () => {
+  const generate = useCallback(async (modeOverride?: HigherOrWipeMode) => {
     const requestId = ++requestIdRef.current;
+    const requestedMode = game === "higher-or-wipe" ? modeOverride ?? higherOrWipeMode : undefined;
     setLoading(true);
     setError(null);
     try {
-      const result = await api.generateFunRound(game);
+      const result = await api.generateFunRound(game, { mode: requestedMode });
       if (requestId !== requestIdRef.current) return;
       if (result.game !== game) throw new Error("The generated game did not match the requested game");
+      if (result.game === "higher-or-wipe" && requestedMode && result.mode !== requestedMode) throw new Error("The generated mode did not match the requested mode");
       setRound(result);
+      if (result.game === "higher-or-wipe") setHigherOrWipeMode(result.mode);
     } catch (generationError) {
       if (requestId !== requestIdRef.current) return;
       setError(generationError instanceof Error ? generationError.message : "generation_failed");
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [game]);
+  }, [game, higherOrWipeMode]);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -69,7 +81,7 @@ export default function FunGamePage({ game }: { game: FunGameSlug }) {
 
   return (
     <FunGameShell game={game} loading={loading} error={error} hasRound={Boolean(round)} onGenerate={() => void generate()}>
-      {round ? <Game round={round} /> : null}
+      {round ? <Game round={round} loading={loading} onHigherModeChange={(mode) => void generate(mode)} /> : null}
     </FunGameShell>
   );
 }

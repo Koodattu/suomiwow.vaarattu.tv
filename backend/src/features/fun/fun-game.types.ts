@@ -201,6 +201,9 @@ export type HigherOrWipeOption = {
   raid?: FunRaid;
 };
 
+export const HIGHER_OR_WIPE_MODES = ["random", "pulls", "started", "mythic-plus", "achievements"] as const;
+export type HigherOrWipeMode = (typeof HIGHER_OR_WIPE_MODES)[number];
+
 export type HigherOrWipeQuestion = {
   id: string;
   kind: "guild-pulls" | "cutting-edge" | "mythic-plus" | "boss-progress-time" | "guild-started";
@@ -212,6 +215,7 @@ export type HigherOrWipeQuestion = {
 
 export type HigherOrWipeRound = FunRoundBase & {
   game: "higher-or-wipe";
+  mode: HigherOrWipeMode;
   questions: HigherOrWipeQuestion[];
 };
 
@@ -244,4 +248,8 @@ export type FunGameRound =
 
 export function isFunGameSlug(value: string): value is FunGameSlug {
   return (FUN_GAME_SLUGS as readonly string[]).includes(value);
+}
+
+export function isHigherOrWipeMode(value: string): value is HigherOrWipeMode {
+  return (HIGHER_OR_WIPE_MODES as readonly string[]).includes(value);
 }
