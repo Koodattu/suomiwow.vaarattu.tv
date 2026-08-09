@@ -4192,3 +4192,82 @@ export interface AdminImportReportResponse {
   trackedFightCount: number;
   affectedRaidIds: number[];
 }
+
+// ============================================================
+// REPORTER
+// ============================================================
+
+export type ReporterPostStatus = "draft" | "published";
+
+export interface ReporterLocaleContent {
+  title: string;
+  summary: string;
+  body: string;
+}
+
+export interface ReporterUsage {
+  inputTokens: number;
+  cachedInputTokens: number;
+  cacheWriteTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+  rates: {
+    inputPerMillion: number;
+    cachedInputPerMillion: number;
+    cacheWritePerMillion: number;
+    outputPerMillion: number;
+  };
+}
+
+export interface ReporterPost {
+  id: string;
+  weekKey: string;
+  slug: string;
+  status: ReporterPostStatus;
+  periodStart: string;
+  periodEnd: string;
+  content: {
+    en: ReporterLocaleContent;
+    fi: ReporterLocaleContent;
+  };
+  usage: ReporterUsage;
+  links: Record<string, { url: string; kind: "guild" | "character" | "pickem" | "event" | "analytics" | "log" }>;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  facts?: Array<{ id: string; kind: string; summary: string }>;
+  snapshotId?: string;
+  previousSnapshotId?: string;
+  generationId?: string;
+}
+
+export interface ReporterStatusResponse {
+  config: {
+    featureEnabled: boolean;
+    automationEnabled: boolean;
+    autoPublish: boolean;
+    settingsUpdatedAt?: string;
+    apiKeyConfigured: boolean;
+    schedule: string;
+    timeZone: string;
+    model: string;
+    reasoningEffort: string;
+    promptVersion: string;
+    pricing: ReporterUsage["rates"];
+  };
+  posts: { total: number; drafts: number; published: number };
+  usage: {
+    attempts: number;
+    completed: number;
+    failed: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    estimatedCostUsd: number;
+  };
+  generationRunning: boolean;
+}
+
+export type ReporterSettingsUpdate = Partial<Pick<ReporterStatusResponse["config"], "featureEnabled" | "automationEnabled" | "autoPublish">>;

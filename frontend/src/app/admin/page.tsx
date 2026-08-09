@@ -9,6 +9,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/context/AuthContext";
 import CcgAdminPanel from "@/components/admin/CcgAdminPanel";
+import ReporterAdminPanel from "@/components/admin/ReporterAdminPanel";
 import { api } from "@/lib/api";
 import { getUmaImageLabel, UMA_IMAGES } from "@/lib/uma-images";
 import {
@@ -143,7 +144,7 @@ const FULL_HISTORY_STAGE_LABELS: Record<FullHistoryRefreshStage, string> = {
   failed: "Failed",
 };
 
-const ADMIN_TABS = ["overview", "users", "guilds", "streams", "characters", "pickems", "ccg", "system", "tasks"] as const;
+const ADMIN_TABS = ["overview", "users", "guilds", "streams", "characters", "pickems", "ccg", "reporter", "system", "tasks"] as const;
 type TabType = (typeof ADMIN_TABS)[number];
 
 function getAdminTab(value: string | null): TabType {
@@ -724,6 +725,7 @@ function AdminPageContent() {
           }
 
           case "ccg":
+          case "reporter":
             break;
 
           case "tasks": {
@@ -2287,6 +2289,7 @@ function AdminPageContent() {
         )}
 
         {!loading && activeTab === "ccg" && <CcgAdminPanel />}
+        {!loading && activeTab === "reporter" && <ReporterAdminPanel />}
 
         {/* Overview Tab */}
         {!loading && activeTab === "overview" && (

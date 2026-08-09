@@ -54,6 +54,10 @@ import { assertCcgUnifiedPacksReady } from "./services/ccg-pack-migration.servic
 import ccgCharacterIdentityService from "./services/ccg-character-identity.service";
 import { CCG_FEATURE_ENABLED } from "./config/ccg";
 import pickemService from "./services/pickem.service";
+import reporterRouter from "./features/reporter/reporter.routes";
+import reporterAdminRouter from "./features/reporter/reporter-admin.routes";
+import reporterTriggerRouter from "./features/reporter/reporter-trigger.routes";
+import reporterScheduler from "./features/reporter/reporter-scheduler.service";
 
 // ============================================================================
 // WORKER MODE CONFIGURATION
@@ -203,6 +207,9 @@ app.use("/api/auth", authRouter);
 app.use("/api/ccg", ccgRouter);
 app.use("/api/twitch/eventsub", twitchEventSubRouter);
 app.use("/api/twitch/ccg-overlay", twitchCcgOverlayRouter);
+app.use("/api/reporter", reporterRouter);
+app.use("/api/admin/reporter", reporterAdminRouter);
+app.use("/api/admin/trigger/reporter", reporterTriggerRouter);
 app.use("/api/admin/ccg", adminCcgRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/pickems", pickemsRouter);
@@ -355,6 +362,10 @@ async function runBackgroundInitialization(): Promise<void> {
   // Start background scheduler (fast - just sets up timers)
   await runStartupTask("Start background scheduler", async () => {
     scheduler.start();
+  });
+
+  await runStartupTask("Start Reporter scheduler", async () => {
+    reporterScheduler.start();
   });
 
   // Start background guild processor (handles initial data fetch for new guilds)
@@ -619,6 +630,8 @@ const startServer = async () => {
       workerApp.use(session(sessionConfig));
       workerApp.use(analyticsMiddleware);
       workerApp.use(express.json());
+      workerApp.use("/api/admin/reporter", reporterAdminRouter);
+      workerApp.use("/api/admin/trigger/reporter", reporterTriggerRouter);
       workerApp.use("/api/admin/ccg", adminCcgRouter);
       workerApp.use("/api/admin", adminRouter);
       workerApp.get("/health", (_req: Request, res: Response) => {
@@ -662,6 +675,7 @@ process.on("SIGINT", async () => {
   logger.info("Shutting down gracefully...");
   if (isWorkerProcess) {
     scheduler.stop();
+    reporterScheduler.stop();
     backgroundGuildProcessor.stop();
     discordBotService.stopEventPublisher();
     await twitchChatBotService.stop();
@@ -674,6 +688,7 @@ process.on("SIGTERM", async () => {
   logger.info("Shutting down gracefully...");
   if (isWorkerProcess) {
     scheduler.stop();
+    reporterScheduler.stop();
     backgroundGuildProcessor.stop();
     discordBotService.stopEventPublisher();
     await twitchChatBotService.stop();

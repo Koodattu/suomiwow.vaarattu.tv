@@ -179,6 +179,10 @@ import {
   CcgAdminAlternativeArtResponse,
   CcgAdminRedeemCode,
   CcgAdminRedeemCodesResponse,
+  ReporterPost,
+  ReporterPostStatus,
+  ReporterSettingsUpdate,
+  ReporterStatusResponse,
 } from "@/types";
 import {
   hydrateCcgAdminCardSearch,
@@ -2566,6 +2570,61 @@ export const api = {
       credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to fetch latest task statuses");
+    return response.json();
+  },
+
+  // Reporter endpoints
+  async getReporterPosts(): Promise<{ posts: ReporterPost[] }> {
+    const response = await fetch(`${API_URL}/api/reporter/posts`, { cache: "no-store" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load Reporter articles");
+    return response.json();
+  },
+
+  async getReporterPost(slug: string): Promise<{ post: ReporterPost }> {
+    const response = await fetch(`${API_URL}/api/reporter/posts/${encodeURIComponent(slug)}`, { cache: "no-store" });
+    if (!response.ok) throw await buildApiError(response, "Reporter article not found");
+    return response.json();
+  },
+
+  async getAdminReporterStatus(): Promise<ReporterStatusResponse> {
+    const response = await fetch(`${API_URL}/api/admin/reporter/status`, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load Reporter status");
+    return response.json();
+  },
+
+  async getAdminReporterPosts(): Promise<{ posts: ReporterPost[] }> {
+    const response = await fetch(`${API_URL}/api/admin/reporter/posts`, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load Reporter articles");
+    return response.json();
+  },
+
+  async updateAdminReporterSettings(input: ReporterSettingsUpdate): Promise<{
+    settings: ReporterSettingsUpdate & { featureEnabled: boolean; automationEnabled: boolean; autoPublish: boolean; updatedAt?: string };
+  }> {
+    const response = await fetch(`${API_URL}/api/admin/reporter/settings`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw await buildApiError(response, "Failed to update Reporter settings");
+    return response.json();
+  },
+
+  async generateAdminReporterPost(): Promise<{ post: ReporterPost }> {
+    const response = await fetch(`${API_URL}/api/admin/trigger/reporter/generate`, { method: "POST", credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Reporter generation failed");
+    return response.json();
+  },
+
+  async updateAdminReporterPostStatus(id: string, status: ReporterPostStatus): Promise<{ post: ReporterPost }> {
+    const response = await fetch(`${API_URL}/api/admin/reporter/posts/${encodeURIComponent(id)}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ status }),
+    });
+    if (!response.ok) throw await buildApiError(response, "Failed to update Reporter article");
     return response.json();
   },
 };
