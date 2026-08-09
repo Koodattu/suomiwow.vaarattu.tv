@@ -183,6 +183,8 @@ import {
   ReporterPostStatus,
   ReporterSettingsUpdate,
   ReporterStatusResponse,
+  FunGameRound,
+  FunGameSlug,
 } from "@/types";
 import {
   hydrateCcgAdminCardSearch,
@@ -237,6 +239,15 @@ async function buildApiError(response: Response, fallback: string): Promise<Erro
 }
 
 export const api = {
+  async generateFunRound(game: FunGameSlug): Promise<FunGameRound> {
+    const response = await fetch(`${API_URL}/api/fun/${game}/round`, {
+      method: "POST",
+      cache: "no-store",
+    });
+    if (!response.ok) throw await buildApiError(response, "A new prototype game could not be generated");
+    return response.json();
+  },
+
   // Home page endpoint - returns all data for the home page in a single request
   async getHomeData(): Promise<HomePageData> {
     const response = await fetch(`${API_URL}/api/home`);
@@ -714,11 +725,12 @@ export const api = {
     return response.json();
   },
 
-  async searchCharacters(query: string, limit = 10): Promise<CharacterSearchResponse> {
+  async searchCharacters(query: string, limit = 10, eligibility?: "fun"): Promise<CharacterSearchResponse> {
     const params = new URLSearchParams({
       q: query,
       limit: String(limit),
     });
+    if (eligibility) params.set("eligibility", eligibility);
     const response = await fetch(`${API_URL}/api/characters/search?${params}`);
     if (!response.ok) throw new Error("Failed to search characters");
     return response.json();

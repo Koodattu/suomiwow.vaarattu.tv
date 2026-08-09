@@ -2385,5 +2385,275 @@
     "columnDeaths": "Kuolemat",
     "columnEarlyDeaths": "Varhaiset kuolemat",
     "columnPulls": "Pullit"
+  },
+  "fun": {
+    "prototype": "Prototyyppipelipaikka",
+    "portal": {
+      "title": "Suomi WoW -pelit",
+      "description": "Nopeita pelejä suomalaisten kiltojen, hahmojen ja raidien historiasta.",
+      "featured": "Esittelyssä",
+      "gamesLabel": "Peliprototyypit",
+      "allGames": "Pelit",
+      "play": "Pelaa"
+    },
+    "ccg": {
+      "title": "SuomiWoW CCG",
+      "description": "Avaa hahmokorttipakkoja ja kerää tuttuja nimiä Suomen WoW-skenestä.",
+      "open": "Avaa CCG"
+    },
+    "games": {
+      "immaculate-roster": {
+        "title": "Täydellinen rosteri",
+        "description": "Täytä 3×3-ruudukko raidaajilla, jotka sopivat sekä kiltarivin että class-sarakkeen vihjeeseen. Hahmoa voi käyttää vain kerran."
+      },
+      "guild-guessr": {
+        "title": "Kilta-arvaus",
+        "description": "Tunnista piilotettu kilta siihen yhteydessä olevista killoista, yhteisistä raidaajista ja raid-historiasta."
+      },
+      "wipeprint": {
+        "title": "Wipeprint",
+        "description": "Tunnista pidemmän Mythic-progressin bossi yhden killan pullikohtaisesta käyrästä."
+      },
+      "raider-resume": {
+        "title": "Raidaajan CV",
+        "description": "Arvaa hahmo raid-aikajanan perusteella ja lähesty vastausta vertailujen sekä uravihjeiden avulla."
+      },
+      "raid-connections": {
+        "title": "Raid-yhteydet",
+        "description": "Jaa kuusitoista raidaajaa neljään neljän ryhmään sen mukaan, mitä kiltaa he edustivat samalla raidilla."
+      },
+      "lock-it-in": {
+        "title": "Lukitse sijoitus",
+        "description": "Järjestä viisi kiltaa pullimäärän mukaan, muuta järjestystä ja lukitse vastaus."
+      },
+      "suomidle": {
+        "title": "Suomidle",
+        "description": "Arvaa hahmo class-, spec-, kilta-, raid- ja suorituspalautteen avulla."
+      },
+      "higher-or-wipe": {
+        "title": "Higher or Wipe",
+        "description": "Valitse kummalla killalla, bossilla tai hahmolla on suurempi tulos."
+      },
+      "closest-without-going-over": {
+        "title": "Lähin arvaus",
+        "description": "Pääse kolmella arvauksella mahdollisimman lähelle. Jokainen huti kertoo, pitääkö arvata suurempi vai pienempi luku."
+      }
+    },
+    "common": {
+      "back": "Kaikki pelit",
+      "generating": "Luodaan peliä…",
+      "newGame": "Uusi peli",
+      "generate": "Luo peli",
+      "generationFailed": "Peliä ei saatu luotua nykyisestä datasta. Kokeile uutta kierrosta.",
+      "retry": "Yritä uudelleen",
+      "searchCharacter": "Hae hahmoa",
+      "typeTwoCharacters": "Kirjoita vähintään kaksi merkkiä",
+      "searching": "Haetaan…",
+      "noCharacters": "Sopivia hahmoja ei löytynyt",
+      "completed": "{count}/{total} täytetty",
+      "mistakes": "Virheet {count}/{total}",
+      "exampleAnswer": "Esimerkkivastaus",
+      "youWon": "Oikein!",
+      "gameOver": "Peli päättyi",
+      "nextMissReveals": "Seuraava huti paljastaa: {clue}",
+      "lockedClue": "Lukittu: {clue}"
+    },
+    "immaculate": {
+      "instructions": "Yhdistä jokainen kiltarivi jokaiseen class-sarakkeeseen.",
+      "duplicate": "Tämä hahmo on jo ruudukossa.",
+      "incorrect": "Hahmo ei sovi tähän ruutuun.",
+      "correct": "Oikein — jatka samaan malliin.",
+      "selected": "Valittu",
+      "chooseCharacter": "Valitse hahmo valittuun ruutuun",
+      "chooseCell": "Valitse ensin tyhjä ruutu",
+      "wonSummary": "Ruudukko täytetty {mistakes} virheellä.",
+      "lostSummary": "Kolme hutia. Tyhjissä ruuduissa näkyy esimerkkivastaukset.",
+      "tip": "Valitse ruutu ja hae siihen sopiva hahmo."
+    },
+    "guildGuessr": {
+      "target": "Piilotettu kilta",
+      "sharedCharacters": "{count} yhteistä raidaajaa",
+      "sharedRaids": "{count} yhteistä raidia",
+      "sameRealm": "Sama realm",
+      "differentRealm": "Eri realm",
+      "clues": "Vihjeet",
+      "cluesPending": "Jokainen väärä arvaus avaa uuden vihjeen.",
+      "realm": "Realm",
+      "raids": "Seuratut raidit",
+      "schedule": "Raid-aikataulu",
+      "noSchedule": "Luotettavaa aikataulua ei löytynyt",
+      "crest": "Vaakuna ja faction",
+      "unknownFaction": "Faction ei tiedossa",
+      "chooseGuild": "Mikä kilta on kyseessä?",
+      "searchGuild": "Hae kiltoja",
+      "noGuilds": "Sopivia kiltoja ei löytynyt",
+      "answerWas": "Piilotettu kilta oli"
+    },
+    "wipeprint": {
+      "chartLabel": "Etenemiskäyrä",
+      "identifyBoss": "Mikä bossi teki tämän etenemiskäyrän?",
+      "progressHint": "Bossin HP jäljellä · 0 % on tappo",
+      "pullCount": "{count} pullia",
+      "singleGuild": "Yksi kilta, ei yhdistettyä dataa",
+      "chartAria": "Bossin jäljellä oleva elämä pullin mukaan",
+      "pull": "Pulli {number}",
+      "bossRemaining": "Bossia jäljellä",
+      "expansion": "Expansion",
+      "position": "Bossin sijainti",
+      "clues": "Vihjeet",
+      "cluesPending": "Jokainen väärä arvaus paljastaa lisää encounterista.",
+      "bossOf": "Bossi {index}/{count}",
+      "raid": "Raid",
+      "sourceGuild": "Lähdekilta",
+      "sameRaid": "Sama raid",
+      "differentRaid": "Eri raid",
+      "chooseBoss": "Mikä bossi on kyseessä?",
+      "searchBoss": "Hae bosseja tai raideja",
+      "noBosses": "Sopivia bosseja ei löytynyt",
+      "answerWas": "Käyrä kuului bossille"
+    },
+    "directions": {
+      "earlier": "Aiempi",
+      "exact": "Täsmää",
+      "later": "Myöhempi"
+    },
+    "resume": {
+      "timeline": "Raid-historia",
+      "identifyRaider": "Kenen raidaajan CV tämä on?",
+      "raider": "Raidaaja",
+      "class": "Class",
+      "realm": "Realm",
+      "firstSeen": "Ensimmäinen havainto",
+      "lastSeen": "Viimeinen havainto",
+      "raids": "Raidit",
+      "guilds": "Killat",
+      "reports": "Reportit",
+      "clues": "Vihjeet",
+      "cluesPending": "Jokainen väärä arvaus avaa uravihjeen.",
+      "latestGuild": "Uusin kilta",
+      "unknownGuild": "Kilta ei tiedossa",
+      "guildHistory": "Kiltahistoria",
+      "activeYears": "Aktiiviset vuodet",
+      "portraitClue": "Tämä on etsityn hahmon kuva.",
+      "portrait": "Hahmokuva",
+      "chooseRaider": "Kuka raidaaja on kyseessä?",
+      "searchRaider": "Hae raidaajia",
+      "noRaiders": "Sopivia raidaajia ei löytynyt",
+      "answerWas": "CV kuului hahmolle"
+    },
+    "comparisons": {
+      "lower": "Oikea arvo on pienempi",
+      "exact": "Täsmälleen oikein",
+      "higher": "Oikea arvo on suurempi",
+      "mismatch": "Eri"
+    },
+    "connections": {
+      "instructions": "Etsi neljä neljän raidaajan ryhmää, jotka edustivat samaa kiltaa tällä raidilla.",
+      "correctGroup": "Oikea ryhmä.",
+      "oneAway": "Yhden päässä — kolme näistä kuuluu yhteen.",
+      "incorrectGroup": "Tämä ei ole ryhmä.",
+      "submitGroup": "Lähetä ryhmä",
+      "selected": "{count}/4 valittu",
+      "wonSummary": "Kaikki neljä kiltarosteria löytyivät {mistakes} virheellä.",
+      "lostSummary": "Neljä kiltarosteria näkyvät yllä."
+    },
+    "lock": {
+      "instructions": "Sijoita paljastuvat killat. Kun kaikki viisi ovat paikoillaan, vedä ne oikeaan järjestykseen ja lukitse. #1 käytti vähiten pulleja.",
+      "currentGuild": "Kilta {current}/{total}",
+      "placeHere": "Sijoita nykyinen kilta tähän",
+      "lockRanking": "Lukitse järjestys",
+      "moveUp": "Siirrä kiltaa {guild} ylöspäin",
+      "moveDown": "Siirrä kiltaa {guild} alaspäin",
+      "dragGuild": "Muuta killan {guild} sijoitusta vetämällä",
+      "score": "Pisteet: {score}/{total}",
+      "scoreRules": "Täsmäsijoituksesta saa kaksi pistettä ja yhden sijan heitosta yhden pisteen.",
+      "pulls": "{count} pullia"
+    },
+    "roles": {
+      "dps": "Damage",
+      "healer": "Healer",
+      "tank": "Tank"
+    },
+    "suomidle": {
+      "start": "Tee arvaus nähdäksesi vertailun.",
+      "guess": "Arvaa hahmo",
+      "search": "Hae hahmoja",
+      "none": "Sopivia hahmoja ei löytynyt",
+      "answerWas": "Hahmo oli",
+      "arrows": "Nuolet osoittavat kohti oikeaa arvoa. Rasti tarkoittaa eri kategoriaa.",
+      "character": "Hahmo",
+      "class": "Class",
+      "spec": "Spec",
+      "role": "Rooli",
+      "realm": "Realm",
+      "guild": "Kilta",
+      "raid": "Uusin raid",
+      "mythicPlus": "M+ score",
+      "achievements": "CE/AOTC",
+      "firstSeen": "Ensi havainto"
+    },
+    "higher": {
+      "question": "{current}/{total}",
+      "streak": "Putki {count}",
+      "choose": "Valitse",
+      "correct": "Oikein",
+      "wrong": "Putki katkesi",
+      "next": "Seuraava",
+      "results": "Näytä tulos",
+      "finished": "Kierros valmis",
+      "best": "Paras putki: {count}",
+      "prompts": {
+        "guild-pulls": "Kumpi kilta tarvitsi enemmän pulleja?",
+        "cutting-edge": "Kummalla hahmolla on enemmän Cutting Edge -saavutuksia?",
+        "mythic-plus": "Kummalla hahmolla on korkeampi Mythic+ score?",
+        "boss-progress-time": "Kummalla bossilla on pidempi progressiajan mediaani?",
+        "guild-started": "Kumpi kilta aloitti raidaamisen aiemmin?"
+      },
+      "values": {
+        "pulls": "{value} pullia",
+        "achievements": "{value} saavutusta",
+        "score": "{value} score",
+        "minutes": "{value} minuuttia",
+        "year": "{value}"
+      }
+    },
+    "closest": {
+      "prompts": {
+        "guild-boss-pulls": "Montako pullia {subject} tarvitsi?",
+        "guild-boss-minutes": "Montako progressiminuuttia {subject} käytti?",
+        "guild-kill-rank": "Mikä oli killan {subject} seurattu tapposija?",
+        "mythic-plus-score": "Mikä oli hahmon {subject} Mythic+ score?"
+      },
+      "placeholders": {
+        "pulls": "Pullit",
+        "minutes": "Minuutit",
+        "rank": "Sija",
+        "score": "Score"
+      },
+      "submitGuess": "Lähetä arvaus",
+      "yourGuess": "Arvauksesi",
+      "answer": "Vastaus",
+      "exact": "Täsmälleen!",
+      "higher": "Arvaa suurempi",
+      "lower": "Arvaa pienempi",
+      "finished": "Lähin arvaus valmis",
+      "attempts": "Arvauksesi",
+      "attempt": "Arvaus {number}",
+      "bestGuess": "Lähin arvaus",
+      "away": "({difference} päässä)",
+      "remaining": "{count, plural, =0 {Ei arvauksia jäljellä} =1 {1 arvaus jäljellä} other {# arvausta jäljellä}}",
+      "distribution": "Vertailudata",
+      "distributionHelp": "Saman mittarin jakauma nykyisessä datassa, ei pelaajien arvauksia.",
+      "median": "Mediaani {value}"
+    },
+    "days": {
+      "monday": "ma",
+      "tuesday": "ti",
+      "wednesday": "ke",
+      "thursday": "to",
+      "friday": "pe",
+      "saturday": "la",
+      "sunday": "su"
+    }
   }
 }

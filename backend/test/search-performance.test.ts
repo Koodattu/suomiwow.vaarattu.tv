@@ -89,6 +89,31 @@ test("historical character search limits candidates before current-identity look
   }
 });
 
+test("fun character search applies Mythic eligibility to aliases and displayed guilds", async () => {
+  const participationModel = CharacterRaidParticipation as any;
+  const originalAggregate = participationModel.aggregate;
+  let pipeline: Array<Record<string, any>> = [];
+
+  try {
+    participationModel.aggregate = (value: Array<Record<string, any>>) => {
+      pipeline = value;
+      return { option: async () => [] };
+    };
+
+    await characterService.searchCharacters("ka", 5, { zoneIds: [42, 43], minMythicReportCount: 3 });
+
+    assert.deepEqual(pipeline[0].$match.zoneId, { $in: [42, 43] });
+    assert.deepEqual(pipeline[0].$match.mythicReportCount, { $gte: 3 });
+    const lookupStage = pipeline.find((stage) => stage.$lookup);
+    assert.ok(lookupStage);
+    const lookupMatch = lookupStage.$lookup.pipeline[0].$match;
+    assert.deepEqual(lookupMatch.zoneId, { $in: [42, 43] });
+    assert.deepEqual(lookupMatch.mythicReportCount, { $gte: 3 });
+  } finally {
+    participationModel.aggregate = originalAggregate;
+  }
+});
+
 test("exact historical search uses accent-insensitive indexed equality and deduplicates raid rows", async () => {
   const participationModel = CharacterRaidParticipation as any;
   const originalFind = participationModel.find;

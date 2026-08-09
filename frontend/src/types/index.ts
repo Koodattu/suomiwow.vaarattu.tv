@@ -3138,6 +3138,226 @@ export interface GuildNetworkMeta {
   movementReady: boolean;
 }
 
+// ============================================================
+// FUN GAME PROTOTYPES
+// ============================================================
+
+export const FUN_GAME_SLUGS = [
+  "immaculate-roster",
+  "guild-guessr",
+  "wipeprint",
+  "raider-resume",
+  "raid-connections",
+  "lock-it-in",
+  "suomidle",
+  "higher-or-wipe",
+  "closest-without-going-over",
+] as const;
+
+export type FunGameSlug = (typeof FUN_GAME_SLUGS)[number];
+
+export type FunRaid = {
+  id: number;
+  name: string;
+  expansion: string;
+  iconUrl: string | null;
+};
+
+export type FunGuild = {
+  id: string;
+  name: string;
+  realm: string;
+  faction: string | null;
+  crest: GuildCrest | null;
+};
+
+export type FunCharacter = {
+  key: string;
+  wclCanonicalCharacterId: number;
+  characterId: string | null;
+  name: string;
+  realm: string;
+  region: string;
+  classID: number;
+  avatarUrl: string | null;
+};
+
+type FunRoundBase = {
+  roundId: string;
+  generatedAt: string;
+};
+
+export type ImmaculateRosterRound = FunRoundBase & {
+  game: "immaculate-roster";
+  raid: FunRaid;
+  rows: Array<{ id: string; guild: FunGuild }>;
+  columns: Array<{ classID: number; name: string; iconUrl: string }>;
+  solution: {
+    validCharacterKeysByCell: Record<string, string[]>;
+    exampleAnswerByCell: Record<string, { key: string; name: string; realm: string }>;
+  };
+};
+
+export type GuildGuessrRound = FunRoundBase & {
+  game: "guild-guessr";
+  neighbors: Array<{ guild: FunGuild; sharedCharacters: number; sharedRaids: string[] }>;
+  guildOptions: FunGuild[];
+  solution: {
+    target: FunGuild & {
+      faction: string | null;
+      crest: GuildCrest | null;
+      raidSchedule: RaidSchedule | null;
+      trackedRaids: FunRaid[];
+      firstSeenAt: string;
+      lastSeenAt: string;
+    };
+  };
+};
+
+export type WipeprintBossOption = {
+  key: string;
+  raidId: number;
+  raidName: string;
+  expansion: string;
+  bossId: number;
+  bossName: string;
+  bossIconUrl: string | null;
+  raidIconUrl: string | null;
+  bossIndex: number;
+  bossCount: number;
+};
+
+export type WipeprintRound = FunRoundBase & {
+  game: "wipeprint";
+  pulls: Array<{
+    pullNumber: number;
+    progressPercentage: number | null;
+    phase: string | null;
+    duration: number | null;
+    isKill: boolean;
+  }>;
+  bossOptions: WipeprintBossOption[];
+  solution: { boss: WipeprintBossOption; sourceGuild: FunGuild };
+};
+
+export type RaiderResumeCandidate = {
+  key: string;
+  name: string;
+  realm: string;
+  region: string;
+  classID: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  raidCount: number;
+  guildCount: number;
+  reportCount: number;
+};
+
+export type RaiderResumeRound = FunRoundBase & {
+  game: "raider-resume";
+  timeline: FunRaid[];
+  candidates: RaiderResumeCandidate[];
+  solution: {
+    target: RaiderResumeCandidate & {
+      avatarUrl: string | null;
+      guilds: Array<{
+        name: string;
+        realm: string;
+        faction: string | null;
+        crest: GuildCrest | null;
+        firstSeenAt: string;
+        lastSeenAt: string;
+        raidNames: string[];
+      }>;
+    };
+  };
+};
+
+export type RaidConnectionsRound = FunRoundBase & {
+  game: "raid-connections";
+  raid: FunRaid;
+  tiles: FunCharacter[];
+  solution: {
+    groups: Array<{ id: string; guild: FunGuild; memberKeys: string[] }>;
+  };
+};
+
+export type LockItInRound = FunRoundBase & {
+  game: "lock-it-in";
+  raid: FunRaid;
+  boss: { id: number; name: string; iconUrl: string | null };
+  revealOrder: FunGuild[];
+  solution: {
+    ranking: Array<{ guild: FunGuild; pullCount: number }>;
+  };
+};
+
+export type SuomidleCandidate = {
+  key: string;
+  name: string;
+  realm: string;
+  classID: number;
+  specName: string;
+  role: "dps" | "healer" | "tank";
+  guildName: string;
+  raidId: number;
+  raidName: string;
+  raidExpansion: string;
+  raidIconUrl: string | null;
+  mythicPlusScore: number;
+  achievementCount: number;
+  firstSeenAt: string;
+};
+
+export type SuomidleRound = FunRoundBase & {
+  game: "suomidle";
+  candidates: SuomidleCandidate[];
+  solution: { target: SuomidleCandidate };
+};
+
+export type HigherOrWipeQuestion = {
+  id: string;
+  kind: "guild-pulls" | "cutting-edge" | "mythic-plus" | "boss-progress-time" | "guild-started";
+  unit: "pulls" | "achievements" | "score" | "minutes" | "year";
+  left: { id: string; label: string; detail: string; value: number; iconUrl?: string | null; detailIconUrl?: string | null };
+  right: { id: string; label: string; detail: string; value: number; iconUrl?: string | null; detailIconUrl?: string | null };
+  correctSide: "left" | "right";
+};
+
+export type HigherOrWipeRound = FunRoundBase & {
+  game: "higher-or-wipe";
+  questions: HigherOrWipeQuestion[];
+};
+
+export type ClosestWithoutGoingOverRound = FunRoundBase & {
+  game: "closest-without-going-over";
+  challenge: {
+    kind: "guild-boss-pulls" | "guild-boss-minutes" | "guild-kill-rank" | "mythic-plus-score";
+    unit: "pulls" | "minutes" | "rank" | "score";
+    subject: string;
+    detail: string;
+    raid: FunRaid | null;
+    boss: { id: number; name: string; iconUrl: string | null } | null;
+  };
+  distribution: { min: number; median: number; max: number; values: number[] };
+  solution: { value: number };
+};
+
+export type FunGameRound =
+  | ImmaculateRosterRound
+  | GuildGuessrRound
+  | WipeprintRound
+  | RaiderResumeRound
+  | RaidConnectionsRound
+  | LockItInRound
+  | SuomidleRound
+  | HigherOrWipeRound
+  | ClosestWithoutGoingOverRound;
+
+export function isFunGameSlug(value: string): value is FunGameSlug {
+  return (FUN_GAME_SLUGS as readonly string[]).includes(value);
+}
+
 export type GuildNetworkMovementGuildTuple = [key: string, name: string, realm: string];
 export type GuildNetworkMovementCharacterTuple = [key: string, name: string, realm: string, classID: number, aliases?: string[]];
 export type GuildNetworkMovementReportTuple = [

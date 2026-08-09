@@ -3,6 +3,8 @@ import characterService from "../services/character.service";
 import logger from "../utils/logger";
 import cacheService from "../services/cache.service";
 import { cacheMiddleware } from "../middleware/cache.middleware";
+import { MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_FUN_ELIGIBILITY } from "../config/character-eligibility";
+import { TRACKED_RAIDS } from "../config/guilds";
 
 const router = Router();
 
@@ -10,8 +12,11 @@ router.get("/search", async (req: Request, res: Response) => {
   try {
     const query = typeof req.query.q === "string" ? req.query.q : "";
     const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : 10;
+    const eligibility = req.query.eligibility === "fun"
+      ? { zoneIds: TRACKED_RAIDS, minMythicReportCount: MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_FUN_ELIGIBILITY }
+      : undefined;
 
-    const characters = await characterService.searchCharacters(query, Number.isFinite(limit) ? limit : 10);
+    const characters = await characterService.searchCharacters(query, Number.isFinite(limit) ? limit : 10, eligibility);
     res.json({ characters });
   } catch (error) {
     logger.error("Error searching characters:", error);

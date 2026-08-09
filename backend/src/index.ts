@@ -38,6 +38,7 @@ import ccgRouter from "./routes/ccg";
 import adminCcgRouter from "./routes/admin-ccg";
 import twitchEventSubRouter from "./routes/twitch-eventsub";
 import twitchCcgOverlayRouter from "./routes/twitch-ccg-overlay";
+import funGameRouter from "./features/fun/fun-game.routes";
 import discordBotService from "./services/discord-bot.service";
 import twitchChatBotService from "./services/twitch-chat-bot.service";
 import backgroundGuildProcessor from "./services/background-guild-processor.service";
@@ -222,6 +223,7 @@ app.use("/api/accounts", accountsRouter);
 app.use("/api/search", searchRouter);
 app.use("/api/discord", discordRouter);
 app.use("/api/guild-network", guildNetworkRouter);
+app.use("/api/fun", funGameRouter);
 
 // ============================================================================
 // HEALTH CHECK WITH STARTUP STATUS

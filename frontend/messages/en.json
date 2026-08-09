@@ -2385,5 +2385,275 @@
     "columnDeaths": "Deaths",
     "columnEarlyDeaths": "Early deaths",
     "columnPulls": "Pulls"
+  },
+  "fun": {
+    "prototype": "Prototype playground",
+    "portal": {
+      "title": "Suomi WoW games",
+      "description": "Quick games built from Finnish guild, character and raid history.",
+      "featured": "Featured game",
+      "gamesLabel": "Game prototypes",
+      "allGames": "Games",
+      "play": "Play"
+    },
+    "ccg": {
+      "title": "SuomiWoW CCG",
+      "description": "Open character card packs and build your collection from familiar names across the Finnish WoW scene.",
+      "open": "Open CCG"
+    },
+    "games": {
+      "immaculate-roster": {
+        "title": "Immaculate Roster",
+        "description": "Fill a 3×3 grid with raiders who match both the guild and class clues. Each character can be used once."
+      },
+      "guild-guessr": {
+        "title": "Guild Guessr",
+        "description": "Identify the hidden guild from the other guilds connected to it by shared raiders and raid history."
+      },
+      "wipeprint": {
+        "title": "Wipeprint",
+        "description": "Identify a longer Mythic progression boss from one guild's pull-by-pull curve."
+      },
+      "raider-resume": {
+        "title": "Raider Résumé",
+        "description": "Guess the character from their raid timeline, then use comparison feedback and career clues to close in."
+      },
+      "raid-connections": {
+        "title": "Raid Connections",
+        "description": "Sort sixteen raiders into four hidden groups of four based on the guild they represented in one raid."
+      },
+      "lock-it-in": {
+        "title": "Lock It In",
+        "description": "Rank five guilds by boss pulls, reorder them, then lock your answer."
+      },
+      "suomidle": {
+        "title": "Suomidle",
+        "description": "Guess a character with class, spec, guild, raid and performance feedback."
+      },
+      "higher-or-wipe": {
+        "title": "Higher or Wipe",
+        "description": "Pick which guild, boss or character owns the higher real-data result."
+      },
+      "closest-without-going-over": {
+        "title": "Closest Guess",
+        "description": "Use three guesses to get as close as possible. Each miss tells you whether to go higher or lower."
+      }
+    },
+    "common": {
+      "back": "All games",
+      "generating": "Generating game…",
+      "newGame": "New game",
+      "generate": "Generate game",
+      "generationFailed": "This game could not be generated from the current data. Try another round.",
+      "retry": "Try again",
+      "searchCharacter": "Search for a character",
+      "typeTwoCharacters": "Type at least two characters",
+      "searching": "Searching…",
+      "noCharacters": "No matching characters",
+      "completed": "{count}/{total} filled",
+      "mistakes": "Mistakes {count}/{total}",
+      "exampleAnswer": "Example answer",
+      "youWon": "You got it!",
+      "gameOver": "Game over",
+      "nextMissReveals": "Next miss reveals {clue}",
+      "lockedClue": "Locked: {clue}"
+    },
+    "immaculate": {
+      "instructions": "Match every guild row with every class column.",
+      "duplicate": "That character is already on the grid.",
+      "incorrect": "That character does not match this cell.",
+      "correct": "Correct — keep going.",
+      "selected": "Selected",
+      "chooseCharacter": "Choose a character for the selected cell",
+      "chooseCell": "Select an empty cell first",
+      "wonSummary": "Grid completed with {mistakes} mistakes.",
+      "lostSummary": "Three misses. Example answers are shown in the empty cells.",
+      "tip": "Pick a cell, then search for any matching character."
+    },
+    "guildGuessr": {
+      "target": "Hidden guild",
+      "sharedCharacters": "{count} shared raiders",
+      "sharedRaids": "{count} shared raids",
+      "sameRealm": "Same realm",
+      "differentRealm": "Different realm",
+      "clues": "Clues",
+      "cluesPending": "Each wrong guess unlocks another clue.",
+      "realm": "Realm",
+      "raids": "Tracked raids",
+      "schedule": "Raid schedule",
+      "noSchedule": "No reliable schedule found",
+      "crest": "Crest and faction",
+      "unknownFaction": "Unknown faction",
+      "chooseGuild": "Which guild is it?",
+      "searchGuild": "Search guilds",
+      "noGuilds": "No matching guilds",
+      "answerWas": "The hidden guild was"
+    },
+    "wipeprint": {
+      "chartLabel": "Progress curve",
+      "identifyBoss": "Which boss made this progress curve?",
+      "progressHint": "Boss health remaining · 0% is a kill",
+      "pullCount": "{count} pulls",
+      "singleGuild": "One guild, not combined data",
+      "chartAria": "Boss progress by pull number",
+      "pull": "Pull {number}",
+      "bossRemaining": "Boss remaining",
+      "expansion": "Expansion",
+      "position": "Boss position",
+      "clues": "Clues",
+      "cluesPending": "Each wrong guess reveals more about the encounter.",
+      "bossOf": "Boss {index} of {count}",
+      "raid": "Raid",
+      "sourceGuild": "Source guild",
+      "sameRaid": "Same raid",
+      "differentRaid": "Different raid",
+      "chooseBoss": "Which boss is it?",
+      "searchBoss": "Search bosses or raids",
+      "noBosses": "No matching bosses",
+      "answerWas": "The curve belonged to"
+    },
+    "directions": {
+      "earlier": "Earlier",
+      "exact": "Exact",
+      "later": "Later"
+    },
+    "resume": {
+      "timeline": "Raid history",
+      "identifyRaider": "Whose raiding résumé is this?",
+      "raider": "Raider",
+      "class": "Class",
+      "realm": "Realm",
+      "firstSeen": "First seen",
+      "lastSeen": "Last seen",
+      "raids": "Raids",
+      "guilds": "Guilds",
+      "reports": "Reports",
+      "clues": "Clues",
+      "cluesPending": "Each wrong guess unlocks a career clue.",
+      "latestGuild": "Latest guild",
+      "unknownGuild": "Unknown guild",
+      "guildHistory": "Guild history",
+      "activeYears": "Active years",
+      "portraitClue": "This is the target character's portrait.",
+      "portrait": "Portrait",
+      "chooseRaider": "Which raider is it?",
+      "searchRaider": "Search raiders",
+      "noRaiders": "No matching raiders",
+      "answerWas": "The résumé belonged to"
+    },
+    "comparisons": {
+      "lower": "The target value is lower",
+      "exact": "Exact match",
+      "higher": "The target value is higher",
+      "mismatch": "Different"
+    },
+    "connections": {
+      "instructions": "Find four groups of four raiders who represented the same guild in this raid.",
+      "correctGroup": "Correct group.",
+      "oneAway": "One away — three of these belong together.",
+      "incorrectGroup": "That is not a group.",
+      "submitGroup": "Submit group",
+      "selected": "{count}/4 selected",
+      "wonSummary": "All four guild rosters found with {mistakes} mistakes.",
+      "lostSummary": "The four guild rosters are revealed above."
+    },
+    "lock": {
+      "instructions": "Place each revealed guild. Once all five are down, drag them into order and lock in. #1 used the fewest pulls.",
+      "currentGuild": "Guild {current} of {total}",
+      "placeHere": "Place the current guild here",
+      "lockRanking": "Lock ranking",
+      "moveUp": "Move {guild} up",
+      "moveDown": "Move {guild} down",
+      "dragGuild": "Drag {guild} to reorder",
+      "score": "Score: {score}/{total}",
+      "scoreRules": "Two points for an exact rank and one point for being one place away.",
+      "pulls": "{count} pulls"
+    },
+    "roles": {
+      "dps": "Damage",
+      "healer": "Healer",
+      "tank": "Tank"
+    },
+    "suomidle": {
+      "start": "Make a guess to reveal the comparison grid.",
+      "guess": "Guess the character",
+      "search": "Search characters",
+      "none": "No matching characters",
+      "answerWas": "The character was",
+      "arrows": "Arrows point toward the target value. A cross means the category differs.",
+      "character": "Character",
+      "class": "Class",
+      "spec": "Spec",
+      "role": "Role",
+      "realm": "Realm",
+      "guild": "Guild",
+      "raid": "Latest raid",
+      "mythicPlus": "M+ score",
+      "achievements": "CE/AOTC",
+      "firstSeen": "First seen"
+    },
+    "higher": {
+      "question": "{current}/{total}",
+      "streak": "Streak {count}",
+      "choose": "Choose",
+      "correct": "Correct",
+      "wrong": "Streak lost",
+      "next": "Next",
+      "results": "See result",
+      "finished": "Round complete",
+      "best": "Best streak: {count}",
+      "prompts": {
+        "guild-pulls": "Which guild needed more pulls?",
+        "cutting-edge": "Which character has more Cutting Edge achievements?",
+        "mythic-plus": "Which character has the higher Mythic+ score?",
+        "boss-progress-time": "Which boss has the longer median progression time?",
+        "guild-started": "Which guild started raiding earlier?"
+      },
+      "values": {
+        "pulls": "{value} pulls",
+        "achievements": "{value} achievements",
+        "score": "{value} score",
+        "minutes": "{value} minutes",
+        "year": "{value}"
+      }
+    },
+    "closest": {
+      "prompts": {
+        "guild-boss-pulls": "How many pulls did {subject} need?",
+        "guild-boss-minutes": "How many progression minutes did {subject} spend?",
+        "guild-kill-rank": "What was {subject}'s tracked kill rank?",
+        "mythic-plus-score": "What Mythic+ score did {subject} have?"
+      },
+      "placeholders": {
+        "pulls": "Pulls",
+        "minutes": "Minutes",
+        "rank": "Rank",
+        "score": "Score"
+      },
+      "submitGuess": "Submit guess",
+      "yourGuess": "Your guess",
+      "answer": "Answer",
+      "exact": "Exact!",
+      "higher": "Go higher",
+      "lower": "Go lower",
+      "finished": "Closest attempt complete",
+      "attempts": "Your attempts",
+      "attempt": "Guess {number}",
+      "bestGuess": "Closest guess",
+      "away": "({difference} away)",
+      "remaining": "{count, plural, =0 {No guesses left} =1 {1 guess left} other {# guesses left}}",
+      "distribution": "Comparable records",
+      "distributionHelp": "Distribution of the same metric in the current dataset, not player guesses.",
+      "median": "Median {value}"
+    },
+    "days": {
+      "monday": "Mon",
+      "tuesday": "Tue",
+      "wednesday": "Wed",
+      "thursday": "Thu",
+      "friday": "Fri",
+      "saturday": "Sat",
+      "sunday": "Sun"
+    }
   }
 }

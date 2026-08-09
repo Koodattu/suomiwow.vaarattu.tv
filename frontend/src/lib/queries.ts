@@ -79,7 +79,7 @@ export const queryKeys = {
     leaderboard: (query: string) => ["mythicPlus", "leaderboard", query] as const,
   },
   characters: {
-    search: (query: string) => ["characters", "search", query] as const,
+    search: (query: string, eligibility?: "fun") => ["characters", "search", eligibility ?? "all", query] as const,
   },
   raidAnalytics: {
     raids: ["raidAnalytics", "raids"] as const,
@@ -426,10 +426,10 @@ export function useMythicPlusLeaderboard(query: string, enabled: boolean = true)
   });
 }
 
-export function useCharacterSearch(query: string, enabled: boolean = true) {
+export function useCharacterSearch(query: string, enabled: boolean = true, eligibility?: "fun") {
   return useQuery({
-    queryKey: queryKeys.characters.search(query),
-    queryFn: () => api.searchCharacters(query, 10),
+    queryKey: queryKeys.characters.search(query, eligibility),
+    queryFn: () => api.searchCharacters(query, 10, eligibility),
     enabled,
     staleTime: 60 * 1000,
   });

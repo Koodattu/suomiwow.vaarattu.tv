@@ -2422,17 +2422,25 @@ class CharacterService {
     };
   }
 
-  async searchCharacters(query: string, limit = 10): Promise<CharacterSearchResult[]> {
+  async searchCharacters(
+    query: string,
+    limit = 10,
+    eligibility?: { zoneIds: readonly number[]; minMythicReportCount: number },
+  ): Promise<CharacterSearchResult[]> {
     const trimmedQuery = query.trim().slice(0, 60);
     if (trimmedQuery.length < 2) return [];
 
     const safeLimit = Math.min(Math.max(limit, 1), 20);
     const candidateLimit = Math.max(safeLimit * 10, 50);
     const nameMatch = createAccentInsensitiveSearchRegex(trimmedQuery);
+    const participationEligibility = eligibility
+      ? { zoneId: { $in: eligibility.zoneIds }, mythicReportCount: { $gte: eligibility.minMythicReportCount } }
+      : {};
 
     const aliasRows = await CharacterRaidParticipation.aggregate([
       {
         $match: {
+          ...participationEligibility,
           characterName: nameMatch,
         },
       },
@@ -2472,6 +2480,7 @@ class CharacterService {
           pipeline: [
             {
               $match: {
+                ...participationEligibility,
                 $expr: {
                   $and: [
                     { $eq: ["$classID", "$$classId"] },

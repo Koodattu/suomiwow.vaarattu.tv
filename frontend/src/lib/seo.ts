@@ -120,6 +120,7 @@ function getEmbedLabel(pathname: string) {
   if (pathname === "/pickems") return "Pickems";
   if (pathname === "/pickems-rules") return "Pickems rules";
   if (pathname.startsWith("/ccg")) return "SuomiWoW CCG";
+  if (pathname.startsWith("/fun")) return "Game prototype";
   if (pathname === "/privacy") return "Privacy";
   if (pathname === "/terms") return "Terms";
   if (pathname.startsWith("/profile")) return "Profile";
@@ -270,6 +271,12 @@ export function getPageMetadata(
       embedCta: isEnglish ? "Explore the card vault" : "Tutustu korttiholviin",
       embedVariant: "collection",
     },
+    "/fun": {
+      title: isEnglish ? "Game Prototypes" : "Peliprototyypit",
+      description: isEnglish
+        ? "Try experimental guessing games built from Finnish WoW guild and character data."
+        : "Kokeile suomalaisten WoW-kiltojen ja hahmojen tiedoista tehtyjä kokeellisia arvauspelejä.",
+    },
     "/privacy": {
       title: isEnglish ? "Privacy Policy" : "Tietosuojakaytanto",
       description: isEnglish
@@ -314,6 +321,10 @@ export function getPageMetadata(
         ? `View ${characterName}'s raid rankings, guild history, mechanics, and logs on ${realm}.`
         : `Katso hahmon ${characterName} raid-rankingit, kiltahistoria, mekaniikat ja logit realmilla ${realm}.`,
     });
+  }
+
+  if (pathname.startsWith("/fun/")) {
+    return withEmbedMetadata(pathname, pages["/fun"]);
   }
 
   return withEmbedMetadata(pathname, pages[pathname] || pages["/"]);
