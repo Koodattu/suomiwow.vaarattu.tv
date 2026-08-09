@@ -153,6 +153,7 @@ export type RaidConnectionsRound = FunRoundBase & {
 
 export type LockItInRound = FunRoundBase & {
   game: "lock-it-in";
+  mode: "pulls" | "kill-order";
   raid: FunRaid;
   boss: { id: number; name: string; iconUrl: string | null };
   revealOrder: FunGuild[];
@@ -160,6 +161,7 @@ export type LockItInRound = FunRoundBase & {
     ranking: Array<{
       guild: FunGuild;
       pullCount: number;
+      killedAt: string | null;
     }>;
   };
 };

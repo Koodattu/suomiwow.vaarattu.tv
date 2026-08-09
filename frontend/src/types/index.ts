@@ -3284,11 +3284,12 @@ export type RaidConnectionsRound = FunRoundBase & {
 
 export type LockItInRound = FunRoundBase & {
   game: "lock-it-in";
+  mode: "pulls" | "kill-order";
   raid: FunRaid;
   boss: { id: number; name: string; iconUrl: string | null };
   revealOrder: FunGuild[];
   solution: {
-    ranking: Array<{ guild: FunGuild; pullCount: number }>;
+    ranking: Array<{ guild: FunGuild; pullCount: number; killedAt: string | null }>;
   };
 };
 

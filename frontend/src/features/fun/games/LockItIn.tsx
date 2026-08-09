@@ -18,13 +18,14 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { FunGuild, LockItInRound } from "@/types";
 import { FunBossIdentity, FunRaidIdentity } from "../FunEncounterIdentity";
 import FunGuildIdentity from "../FunGuildIdentity";
 
 export default function LockItIn({ round }: { round: LockItInRound }) {
   const t = useTranslations("fun");
+  const locale = useLocale();
   const [placements, setPlacements] = useState<Array<FunGuild | null>>([null, null, null, null, null]);
   const [revealIndex, setRevealIndex] = useState(0);
   const [locked, setLocked] = useState(false);
@@ -33,6 +34,10 @@ export default function LockItIn({ round }: { round: LockItInRound }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const killDateFormatter = useMemo(
+    () => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Helsinki" }),
+    [locale],
   );
 
   const score = useMemo(() => {
@@ -67,7 +72,11 @@ export default function LockItIn({ round }: { round: LockItInRound }) {
       <aside className="h-fit rounded-xl bg-slate-900/70 p-4 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)]">
         <FunBossIdentity name={round.boss.name} iconUrl={round.boss.iconUrl} iconSize={40} className="justify-center" />
         <FunRaidIdentity raid={round.raid} className="mt-3 justify-center" />
-        <p className="mt-4 text-pretty text-center text-sm leading-6 text-slate-400">{t("lock.instructions")}</p>
+        <div className="mt-4 rounded-lg bg-blue-950/45 p-3 text-center shadow-[inset_0_0_0_1px_rgb(147_197_253/0.2)]">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-blue-300">{t(`lock.modes.${round.mode}.label`)}</p>
+          <p className="mt-1 text-pretty text-sm leading-5 text-blue-100">{t(`lock.modes.${round.mode}.description`)}</p>
+        </div>
+        <p className="mt-3 text-pretty text-center text-sm leading-6 text-slate-400">{t("lock.instructions")}</p>
         {!complete && current ? (
           <div className="mt-4 border-t border-white/10 pt-4" aria-live="polite">
             <p className="text-center text-xs font-bold text-blue-300 tabular-nums">{t("lock.currentGuild", { current: revealIndex + 1, total: round.revealOrder.length })}</p>
@@ -113,6 +122,7 @@ export default function LockItIn({ round }: { round: LockItInRound }) {
         {locked ? (
           <div className="mt-4 rounded-xl bg-emerald-950/25 p-4 shadow-[inset_0_0_0_1px_rgb(110_231_183/0.2)]" role="status">
             <div className="text-center">
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-300">{t(`lock.modes.${round.mode}.label`)}</p>
               <p className="text-xl font-black text-emerald-300 tabular-nums">{t("lock.score", { score, total: 10 })}</p>
               <p className="mt-1 text-sm text-slate-400">{t("lock.scoreRules")}</p>
             </div>
@@ -121,7 +131,13 @@ export default function LockItIn({ round }: { round: LockItInRound }) {
                 <li key={item.guild.id} className="grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md bg-slate-950/45 px-3 py-2.5 text-sm">
                   <span className="font-black text-blue-300">#{index + 1}</span>
                   <FunGuildIdentity guild={item.guild} crestSize={34} />
-                  <span className="text-slate-400 tabular-nums">{t("lock.pulls", { count: item.pullCount })}</span>
+                  <span className="text-right text-xs text-slate-400 tabular-nums sm:text-sm">
+                    {round.mode === "pulls"
+                      ? t("lock.pulls", { count: item.pullCount })
+                      : item.killedAt
+                        ? t("lock.killedAt", { date: killDateFormatter.format(new Date(item.killedAt)) })
+                        : "—"}
+                  </span>
                 </li>
               ))}
             </ol>

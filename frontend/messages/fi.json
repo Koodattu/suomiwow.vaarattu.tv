@@ -2424,7 +2424,7 @@
       },
       "lock-it-in": {
         "title": "Lukitse sijoitus",
-        "description": "Järjestä viisi kiltaa pullimäärän mukaan, muuta järjestystä ja lukitse vastaus."
+        "description": "Järjestä viisi kiltaa pullimäärän tai bossin tappojärjestyksen mukaan ja lukitse vastaus."
       },
       "suomidle": {
         "title": "Suomidle",
@@ -2558,7 +2558,17 @@
       "lostSummary": "Neljä kiltarosteria näkyvät yllä."
     },
     "lock": {
-      "instructions": "Sijoita paljastuvat killat. Kun kaikki viisi ovat paikoillaan, vedä ne oikeaan järjestykseen ja lukitse. #1 käytti vähiten pulleja.",
+      "instructions": "Sijoita paljastuvat killat. Kun kaikki viisi ovat paikoillaan, vedä ne oikeaan järjestykseen ja lukitse.",
+      "modes": {
+        "pulls": {
+          "label": "Vähiten pulleja",
+          "description": "Järjestä killat tarvittujen pullien mukaan. #1 käytti vähiten."
+        },
+        "kill-order": {
+          "label": "Tappojärjestys",
+          "description": "Järjestä killat ensimmäisen tapon ajankohdan mukaan. #1 tappoi bossin ensimmäisenä."
+        }
+      },
       "currentGuild": "Kilta {current}/{total}",
       "placeHere": "Sijoita nykyinen kilta tähän",
       "lockRanking": "Lukitse järjestys",
@@ -2567,7 +2577,8 @@
       "dragGuild": "Muuta killan {guild} sijoitusta vetämällä",
       "score": "Pisteet: {score}/{total}",
       "scoreRules": "Täsmäsijoituksesta saa kaksi pistettä ja yhden sijan heitosta yhden pisteen.",
-      "pulls": "{count} pullia"
+      "pulls": "{count} pullia",
+      "killedAt": "Tappo {date}"
     },
     "roles": {
       "dps": "Damage",

@@ -14,6 +14,7 @@ type KillRow = {
   raidId: number;
   bossId: number;
   pullCount: number;
+  firstKillTime?: Date | null;
 };
 
 export async function generateLockItInRound(): Promise<LockItInRound> {
@@ -43,6 +44,7 @@ export async function generateLockItInRound(): Promise<LockItInRound> {
           raidId: "$progress.raidId",
           bossId: "$progress.bosses.bossId",
           pullCount: "$progress.bosses.pullCount",
+          firstKillTime: "$progress.bosses.firstKillTime",
         },
       },
     ]).option({ maxTimeMS: 15_000 }),
@@ -58,13 +60,26 @@ export async function generateLockItInRound(): Promise<LockItInRound> {
     killsByBoss.set(key, entries);
   }
 
-  const eligible = Array.from(killsByBoss.entries()).filter(([key, entries]) => {
+  const bossGroups = Array.from(killsByBoss.entries());
+  const hasRaidMetadata = ([key]: [string, KillRow[]]) => {
     const [raidIdText] = key.split(":");
-    return raidById.has(Number(raidIdText)) && new Set(entries.map((entry) => entry.pullCount)).size >= 5;
-  });
-  if (eligible.length === 0) throw new FunRoundUnavailableError("No boss has five distinct guild kill totals");
+    return raidById.has(Number(raidIdText));
+  };
+  const allModePools: Array<{ mode: LockItInRound["mode"]; bosses: Array<[string, KillRow[]]> }> = [
+    {
+      mode: "pulls",
+      bosses: bossGroups.filter((group) => hasRaidMetadata(group) && new Set(group[1].map((entry) => entry.pullCount)).size >= 5),
+    },
+    {
+      mode: "kill-order",
+      bosses: bossGroups.filter((group) => hasRaidMetadata(group) && new Set(group[1].flatMap((entry) => entry.firstKillTime ? [entry.firstKillTime.getTime()] : [])).size >= 5),
+    },
+  ];
+  const modePools = allModePools.filter((pool) => pool.bosses.length > 0);
+  if (modePools.length === 0) throw new FunRoundUnavailableError("No boss has five distinct guild results");
 
-  const [key, entries] = randomItem(eligible);
+  const { mode, bosses } = randomItem(modePools);
+  const [key, entries] = randomItem(bosses);
   const [raidIdText, bossIdText] = key.split(":");
   const raidId = Number(raidIdText);
   const bossId = Number(bossIdText);
@@ -72,16 +87,21 @@ export async function generateLockItInRound(): Promise<LockItInRound> {
   const boss = raid?.bosses.find((candidate) => candidate.id === bossId);
   if (!raid || !boss) throw new FunRoundUnavailableError("The selected boss metadata is unavailable");
 
-  const entriesByPullCount = new Map<number, KillRow[]>();
+  const entriesByMetric = new Map<number, KillRow[]>();
   for (const entry of entries) {
-    const peers = entriesByPullCount.get(entry.pullCount) ?? [];
+    const metric = mode === "pulls" ? entry.pullCount : entry.firstKillTime?.getTime();
+    if (metric === undefined) continue;
+    const peers = entriesByMetric.get(metric) ?? [];
     peers.push(entry);
-    entriesByPullCount.set(entry.pullCount, peers);
+    entriesByMetric.set(metric, peers);
   }
-  const selectedPullCounts = sample(Array.from(entriesByPullCount.keys()), 5);
-  const selected = selectedPullCounts.map((pullCount) => randomItem(entriesByPullCount.get(pullCount) ?? []));
+  const selectedMetrics = sample(Array.from(entriesByMetric.keys()), 5);
+  const selected = selectedMetrics.map((metric) => randomItem(entriesByMetric.get(metric) ?? []));
   const ranking = selected
-    .sort((left, right) => left.pullCount - right.pullCount)
+    .sort((left, right) => {
+      if (mode === "pulls") return left.pullCount - right.pullCount;
+      return (left.firstKillTime?.getTime() ?? Number.POSITIVE_INFINITY) - (right.firstKillTime?.getTime() ?? Number.POSITIVE_INFINITY);
+    })
     .map((entry) => ({
       guild: {
         id: String(entry.guildId),
@@ -91,11 +111,13 @@ export async function generateLockItInRound(): Promise<LockItInRound> {
         crest: entry.crest ?? null,
       },
       pullCount: entry.pullCount,
+      killedAt: entry.firstKillTime?.toISOString() ?? null,
     }));
 
   return {
     ...newRoundBase(),
     game: "lock-it-in",
+    mode,
     raid: { id: raid.id, name: raid.name, expansion: raid.expansion, iconUrl: raid.iconUrl ?? null },
     boss: { id: boss.id, name: boss.name, iconUrl: boss.iconUrl ?? null },
     revealOrder: shuffle(ranking.map((entry) => entry.guild)),

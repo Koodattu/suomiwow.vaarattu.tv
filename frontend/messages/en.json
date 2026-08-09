@@ -2424,7 +2424,7 @@
       },
       "lock-it-in": {
         "title": "Lock It In",
-        "description": "Rank five guilds by boss pulls, reorder them, then lock your answer."
+        "description": "Rank five guilds by boss pulls or by who killed the boss first, then lock your answer."
       },
       "suomidle": {
         "title": "Suomidle",
@@ -2558,7 +2558,17 @@
       "lostSummary": "The four guild rosters are revealed above."
     },
     "lock": {
-      "instructions": "Place each revealed guild. Once all five are down, drag them into order and lock in. #1 used the fewest pulls.",
+      "instructions": "Place each revealed guild. Once all five are down, drag them into order and lock in.",
+      "modes": {
+        "pulls": {
+          "label": "Fewest pulls",
+          "description": "Order the guilds by the pulls they needed. #1 used the fewest."
+        },
+        "kill-order": {
+          "label": "Earliest kill",
+          "description": "Order the guilds by their first kill time. #1 killed the boss first."
+        }
+      },
       "currentGuild": "Guild {current} of {total}",
       "placeHere": "Place the current guild here",
       "lockRanking": "Lock ranking",
@@ -2567,7 +2577,8 @@
       "dragGuild": "Drag {guild} to reorder",
       "score": "Score: {score}/{total}",
       "scoreRules": "Two points for an exact rank and one point for being one place away.",
-      "pulls": "{count} pulls"
+      "pulls": "{count} pulls",
+      "killedAt": "Killed {date}"
     },
     "roles": {
       "dps": "Damage",
