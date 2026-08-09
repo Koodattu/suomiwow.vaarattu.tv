@@ -104,7 +104,7 @@ function MythicPlusSearch({ value, onSubmit }: { value?: string | null; onSubmit
 
   return (
     <form
-      className="flex min-w-[240px] flex-[2_1_420px] gap-2"
+      className="flex min-w-[240px] flex-1 gap-2"
       onSubmit={(event) => {
         event.preventDefault();
         const search = String(new FormData(event.currentTarget).get("search") ?? "").trim();
@@ -169,7 +169,7 @@ function ClassSpecFilters({
           onClassChange(value);
           onSpecChange(null);
         }}
-        className="min-h-10 min-w-[150px] rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="min-h-10 min-w-[160px] flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
         <option value="">{t("allClasses")}</option>
         {classes.map((classInfo: ClassInfo) => (
@@ -183,7 +183,7 @@ function ClassSpecFilters({
         value={selectedSpecName ?? ""}
         disabled={!selectedClass}
         onChange={(event) => onSpecChange(event.target.value || null)}
-        className="min-h-10 min-w-[150px] rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="min-h-10 min-w-[160px] flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
         <option value="">{selectedClass ? t("allSpecs") : t("selectClassFirst")}</option>
         {selectedClass?.specs.map((spec) => (
@@ -224,12 +224,12 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
     <div className="space-y-4">
       {error ? <div className="rounded-md border border-red-500/40 bg-red-950/30 px-4 py-3 text-red-200">{error}</div> : null}
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex w-full flex-wrap gap-3">
         <MythicPlusSearch value={filters.search} onSubmit={(search) => updateFilters({ search })} />
         <select
           value={filters.bucket}
           onChange={(event) => updateFilters({ bucket: event.target.value as MythicPlusScoreBucket })}
-          className="min-h-10 min-w-[130px] rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="min-h-10 min-w-[160px] flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           {BUCKET_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -240,7 +240,7 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
         <select
           value={filters.dungeonId ?? ""}
           onChange={(event) => updateFilters({ dungeonId: event.target.value ? Number(event.target.value) : null })}
-          className="min-h-10 min-w-[190px] rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="min-h-10 min-w-[160px] flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">Overall score</option>
           {selectedSeason?.dungeons.map((dungeon) => (
@@ -253,7 +253,7 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
           <select
             value={filters.dungeonSort}
             onChange={(event) => updateFilters({ dungeonSort: event.target.value as "score" | "level" })}
-            className="min-h-10 min-w-[130px] rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="min-h-10 min-w-[160px] flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="score">By score</option>
             <option value="level">By key</option>
