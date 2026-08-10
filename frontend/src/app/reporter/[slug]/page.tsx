@@ -12,7 +12,7 @@ export default function ReporterArticlePage({ params }: { params: Promise<{ slug
   const { slug } = use(params);
   const t = useTranslations("reporter");
   const locale = useLocale();
-  const { language, selectLanguage } = useReporterLanguage(locale === "fi" ? "fi" : "en");
+  const { language, selectLanguage } = useReporterLanguage();
   const [post, setPost] = useState<ReporterPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);

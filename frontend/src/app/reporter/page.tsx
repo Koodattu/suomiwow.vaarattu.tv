@@ -10,7 +10,7 @@ import type { ReporterPost } from "@/types";
 export default function ReporterIndexPage() {
   const t = useTranslations("reporter");
   const locale = useLocale();
-  const { language, selectLanguage } = useReporterLanguage(locale === "fi" ? "fi" : "en");
+  const { language, selectLanguage } = useReporterLanguage();
   const [posts, setPosts] = useState<ReporterPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);

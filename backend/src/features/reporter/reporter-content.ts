@@ -115,6 +115,18 @@ export function getReporterPromptFacts(facts: ReporterFact[]): ReporterFact[] {
   }));
 }
 
+export function getReporterEditorialFactPack(facts: ReporterFact[]) {
+  const promptFacts = getReporterPromptFacts(facts);
+  const leadKinds = new Set(["boss_kill", "best_pull", "milestone", "weekly_guild_movement"]);
+  const supportingKinds = new Set(["regress", "reproge", "hiatus", "player_leaderboard_change", "pickem_change"]);
+
+  return {
+    leadCandidates: promptFacts.filter((fact) => leadKinds.has(fact.kind)),
+    supportingDevelopments: promptFacts.filter((fact) => supportingKinds.has(fact.kind)),
+    background: promptFacts.filter((fact) => !leadKinds.has(fact.kind) && !supportingKinds.has(fact.kind)),
+  };
+}
+
 export function getReporterLinks(facts: ReporterFact[]): Record<string, ReporterResolvedLink> {
   return Object.fromEntries(
     facts.flatMap((fact) => fact.links.map((link) => [link.ref, { url: link.url, kind: link.kind, ...(link.visual ? { visual: link.visual } : {}) }])),

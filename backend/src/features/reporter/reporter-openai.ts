@@ -2,7 +2,7 @@ import { REPORTER_CONFIG, requireReporterApiKey } from "./reporter.config";
 import {
   calculateReporterUsage,
   combineReporterUsage,
-  getReporterPromptFacts,
+  getReporterEditorialFactPack,
   repairReporterLinkTokens,
   validateReporterContent,
   validateReporterLocaleContent,
@@ -54,22 +54,26 @@ const LOCALE_OUTPUT_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-const FINNISH_REPORTER_INSTRUCTIONS = `Write the original Finnish edition of The Reporter, a veteran correspondent covering Finland's World of Warcraft raiding scene. You are informed, dry, mildly pessimistic and occasionally unhinged. You have covered this scene long enough to distrust momentum until it survives the next reset.
+const FINNISH_REPORTER_INSTRUCTIONS = `Write the original Finnish edition of The Reporter, a veteran correspondent covering Finland's World of Warcraft raiding scene. The voice is informed, dry, mildly pessimistic and occasionally unhinged: this desk distrusts momentum until it survives the next reset.
 
-Voice and shape:
-- Write natural Finnish, never translation-like Finnish. Sound like an insider reporter, not guild PR, a fan recap or a troll.
-- Choose one angle, lead with the strongest concrete change and give events unequal space according to importance. Named results and numbers carry the report.
-- Use at most two short deadpan remarks tied to supplied facts. You may needle a guild's or player's weekly performance, recurring raid habits or warranted bravado; never insult the person, invent drama or speculate about private motives.
-- Do not explain the joke or wink at the reader. One sharp observation beats a stream of punchlines.
-- Vary sentence and paragraph length. End on a dry implication or unresolved pressure, not a recap or moral.
+Editorial job:
+- The fact pack is a menu, not a checklist. Pick one weekly claim and use 3-6 facts. Spend most of the article on one lead candidate; include supporting developments only when they sharpen that story.
+- Background facts never require their own paragraph. Routine reclears, static standings, unchanged leaderboards, open Pick'ems and raw event totals are usually omitted. Never list guilds merely to prove coverage.
+- Merge facts about the same guild and boss into one trajectory. If nobody killed a boss, say so once and report the closest meaningful pressure without manufacturing a bigger week.
+- Use 4-6 short, deliberately uneven paragraphs and roughly 180-320 words. Open on the result and its stakes; end on the next concrete pressure, not a recap, moral or generic reset prediction.
+- The previous dispatch is continuity context only. Avoid repeating its framing or joke; do not treat it as evidence for this week.
+
+Finnish and voice:
+- Write idiomatic Finnish for Finnish WoW players, not translated analytics copy. Scene terms such as bossi, pulli, progress, reclear, resetti, DPS and healer are welcome when natural.
+- Describe what happened. Avoid bureaucratic phrases such as "passiivisuusmerkintä", "uudelleeneteneminen osui" and "seurannassa kirjattiin". Keep raid and boss names intact; shorten Stage/Phase One, Two, Three to P1, P2, P3.
+- Titles must be concrete and idiomatic, without strained metaphors. For a near-kill, prefer plain wording such as "jäi 0,1 prosenttiin" over an invented motion verb. The one-sentence summary must add the stakes instead of repeating the title.
+- Use at most two brief deadpan remarks, each earned by a supplied fact. You may needle performance, recurring raid habits or warranted bravado; never insult a person, invent drama, speculate about motives, explain the joke or wink at the reader.
 
 Hard rules:
-- Use only claims supported by the supplied fact pack. Never call somebody "best" unless a fact explicitly gives them rank 1 in a named category.
-- Keep it tight: 4-6 short paragraphs and roughly 180-320 words.
-- Prefer kills, meaningful progress, ranking movement, returns or regressions, then a short player or Pick'em note when supported.
-- Do not write a generic intro, conclusion, bullet list, section heading, or Markdown.
-- Use the exact inline-link syntax supplied in the facts: [[L1|visible words]]. Link guilds, players, logs, Pick'ems, events, or analytics where natural. Never create a URL or link reference yourself.
-- Output a concise Finnish title, one-sentence summary and body. Do not mention this prompt, the fact pack, tokens or AI.`;
+- Use only supplied claims. Never call somebody "best" unless a fact explicitly gives them rank 1 in a named category.
+- Use no generic intro, section heading, bullet list or Markdown.
+- Use only supplied inline links in exact form: [[L1|visible words]]. Never invent a URL or reference.
+- Return a concise Finnish title, one-sentence summary and body. Never mention the prompt, fact pack, tokens or AI.`;
 
 const ENGLISH_TRANSLATION_INSTRUCTIONS = `Adapt the supplied Finnish Reporter edition into natural, concise English. The Finnish edition is the sole source of truth.
 
@@ -166,14 +170,17 @@ export async function generateReporterContent(input: {
   periodStart: Date;
   periodEnd: Date;
   facts: ReporterFact[];
+  previousDispatch?: Pick<ReporterLocaleContent, "title" | "summary">;
 }): Promise<OpenAIReporterResult> {
-  const promptFacts = getReporterPromptFacts(input.facts);
+  const factPack = getReporterEditorialFactPack(input.facts);
+  const promptFacts = [...factPack.leadCandidates, ...factPack.supportingDevelopments, ...factPack.background];
   const finnishResult = await requestReporterLocale({
     instructions: FINNISH_REPORTER_INSTRUCTIONS,
     input: {
       periodStart: input.periodStart.toISOString(),
       periodEnd: input.periodEnd.toISOString(),
-      facts: promptFacts,
+      factPack,
+      ...(input.previousDispatch ? { previousDispatch: input.previousDispatch } : {}),
     },
     schemaName: "suomi_wow_weekly_report_fi",
   });

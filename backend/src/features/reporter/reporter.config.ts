@@ -10,7 +10,7 @@ export const REPORTER_CONFIG = {
   reasoningEffort: "medium" as const,
   verbosity: "low" as const,
   maxOutputTokens: 5000,
-  promptVersion: "reporter-v2",
+  promptVersion: "reporter-v3",
   pricing: {
     inputPerMillion: parsePositiveNumber(process.env.REPORTER_INPUT_COST_PER_MILLION, 0.2),
     cachedInputPerMillion: parsePositiveNumber(process.env.REPORTER_CACHED_INPUT_COST_PER_MILLION, 0.02),

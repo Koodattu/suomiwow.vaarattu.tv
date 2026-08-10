@@ -6,7 +6,7 @@ import test from "node:test";
 import express from "express";
 import session from "express-session";
 import { REPORTER_CONFIG } from "../src/features/reporter/reporter.config";
-import { calculateReporterUsage, combineReporterUsage, getReporterLinks, getReporterPromptFacts, repairReporterLinkTokens, validateReporterContent } from "../src/features/reporter/reporter-content";
+import { calculateReporterUsage, combineReporterUsage, getReporterEditorialFactPack, getReporterLinks, getReporterPromptFacts, repairReporterLinkTokens, validateReporterContent } from "../src/features/reporter/reporter-content";
 import { generateReporterContent, ReporterOpenAIError } from "../src/features/reporter/reporter-openai";
 import { ReporterPost, ReporterSettings } from "../src/features/reporter/reporter.models";
 import { DEFAULT_REPORTER_SETTINGS, shouldAutoPublishReporterPost } from "../src/features/reporter/reporter-settings.service";
@@ -65,6 +65,18 @@ test("Reporter content accepts known inline links and rejects invented reference
   assert.doesNotThrow(() => validateReporterContent(validContent(), facts));
   assert.throws(() => validateReporterContent(validContent("L999"), facts), /unknown link L999/);
   assert.deepEqual(getReporterLinks(facts), { L1: { url: "/guilds/example/example", kind: "guild" } });
+});
+
+test("Reporter separates lead candidates from supporting developments and background", () => {
+  const factPack = getReporterEditorialFactPack([
+    facts[0],
+    { ...facts[0], id: "F2", kind: "reproge" },
+    { ...facts[0], id: "F3", kind: "player_leaderboard_context" },
+  ]);
+
+  assert.deepEqual(factPack.leadCandidates.map((fact) => fact.id), ["F1"]);
+  assert.deepEqual(factPack.supportingDevelopments.map((fact) => fact.id), ["F2"]);
+  assert.deepEqual(factPack.background.map((fact) => fact.id), ["F3"]);
 });
 
 test("Reporter repairs malformed known link tokens and degrades unknown tokens to plain text", () => {
@@ -172,7 +184,13 @@ test("Reporter writes Finnish first, translates it to English and totals both Op
   }) as typeof fetch;
 
   try {
-    const result = await generateReporterContent({ periodStart: new Date("2026-08-01T00:00:00Z"), periodEnd: new Date("2026-08-08T00:00:00Z"), facts });
+    const previousDispatch = { title: "Edellisen viikon otsikko", summary: "Edellisen viikon tiivis mutta riittävän pitkä yhteenveto." };
+    const result = await generateReporterContent({
+      periodStart: new Date("2026-08-01T00:00:00Z"),
+      periodEnd: new Date("2026-08-08T00:00:00Z"),
+      facts,
+      previousDispatch,
+    });
     const finnishRequest = requestBodies[0] as unknown as {
       model: string;
       reasoning: { effort: string };
@@ -190,8 +208,11 @@ test("Reporter writes Finnish first, translates it to English and totals both Op
     assert.equal(finnishRequest.text.format.name, "suomi_wow_weekly_report_fi");
     assert.equal(finnishRequest.store, false);
     assert.match(finnishRequest.instructions, /mildly pessimistic/);
-    assert.match(finnishRequest.instructions, /at most two short deadpan remarks/);
-    assert.equal(JSON.parse(finnishRequest.input).facts[0].links[0].visual, undefined);
+    assert.match(finnishRequest.instructions, /fact pack is a menu, not a checklist/i);
+    assert.match(finnishRequest.instructions, /use 3-6 facts/);
+    assert.match(finnishRequest.instructions, /passiivisuusmerkintä/);
+    assert.equal(JSON.parse(finnishRequest.input).factPack.leadCandidates[0].links[0].visual, undefined);
+    assert.deepEqual(JSON.parse(finnishRequest.input).previousDispatch, previousDispatch);
     assert.equal(englishRequest.text.format.name, "suomi_wow_weekly_report_en");
     assert.match(englishRequest.instructions, /Finnish edition is the sole source of truth/);
     assert.deepEqual(JSON.parse(englishRequest.input).sourceFinnish, generated.fi);
@@ -201,6 +222,7 @@ test("Reporter writes Finnish first, translates it to English and totals both Op
     assert.equal(result.usage.inputTokens, 800);
     assert.equal(result.usage.outputTokens, 300);
     assert.equal(result.usage.totalTokens, 1_100);
+    assert.equal(REPORTER_CONFIG.promptVersion, "reporter-v3");
   } finally {
     global.fetch = originalFetch;
     if (originalApiKey === undefined) delete process.env.OPENAI_API_KEY;

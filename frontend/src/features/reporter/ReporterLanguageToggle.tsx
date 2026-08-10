@@ -25,7 +25,7 @@ function subscribeToReporterLanguage(onStoreChange: () => void) {
   };
 }
 
-export function useReporterLanguage(defaultLanguage: ReporterLanguage) {
+export function useReporterLanguage(defaultLanguage: ReporterLanguage = "fi") {
   const language = useSyncExternalStore(
     subscribeToReporterLanguage,
     () => readReporterLanguage(defaultLanguage),

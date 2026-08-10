@@ -157,20 +157,20 @@ function snapshotProgress(progress: IRaidProgress, raid?: LeanRaidVisuals): Repo
 function describeEvent(event: LeanEvent): string {
   const difficulty = event.difficulty === "mythic" ? "Mythic" : "Heroic";
   const boss = event.bossName || "an unnamed boss";
-  const pulls = event.data.pullCount ? ` after ${event.data.pullCount} recorded pulls` : "";
+  const pulls = event.data.pullCount ? ` at ${event.data.pullCount} total recorded pulls` : "";
   const progress = event.data.progressDisplay || (event.data.bestPercent !== undefined ? `${event.data.bestPercent.toFixed(1)}%` : "a new best");
 
   switch (event.type) {
     case "boss_kill":
       return `${event.guildName} killed ${boss} on ${difficulty}${pulls}${event.data.killRank ? `, recorded as tracked-guild kill rank ${event.data.killRank}` : ""}.`;
     case "best_pull":
-      return `${event.guildName} improved its ${difficulty} ${boss} progress to ${progress}${pulls}.`;
+      return `${event.guildName} moved its ${difficulty} ${boss} best pull to ${progress}${pulls}.`;
     case "hiatus":
-      return `${event.guildName} crossed the ${event.data.hiatusDays || "recorded"}-day inactivity threshold for ${event.raidName}.`;
+      return `${event.guildName} reached ${event.data.hiatusDays || "several"} days without a tracked raid log in ${event.raidName}.`;
     case "regress":
-      return `${event.guildName} logged a ${difficulty} ${boss} regression event: a raid session with pulls but no progress improvement.`;
+      return `${event.guildName} pulled ${difficulty} ${boss} during a raid night without beating its previous best.`;
     case "reproge":
-      return `${event.guildName} needed more than five pulls to re-kill ${boss} on ${difficulty}, recorded as re-progression.`;
+      return `${event.guildName} needed more than five pulls to kill ${difficulty} ${boss} again.`;
     case "milestone":
       return `${event.guildName} reached a ${difficulty} milestone in ${event.raidName}.`;
   }
@@ -183,6 +183,7 @@ function buildFacts(input: {
   previousPlayers: ReporterPlayerSnapshot[];
   pickems: ReporterPickemSnapshot[];
   events: LeanEvent[];
+  periodStart: Date;
   periodEnd: Date;
 }): ReporterFact[] {
   let factNumber = 0;
@@ -206,7 +207,7 @@ function buildFacts(input: {
   const primaryRaid = input.currentGuilds.flatMap((guild) => guild.progress).find((progress) => progress.raidId === PRIMARY_RAID_ID);
   addFact(
     "scene_summary",
-    `The seven-day window contains ${input.events.length} tracked events: ${counts.get("boss_kill") || 0} boss kills, ${counts.get("best_pull") || 0} best-pull improvements, ${counts.get("reproge") || 0} re-progression events, ${counts.get("regress") || 0} regression events, and ${counts.get("hiatus") || 0} inactivity events.`,
+    `Seven-day context: ${counts.get("boss_kill") || 0} new boss kills, ${counts.get("best_pull") || 0} best-pull improvements, ${counts.get("reproge") || 0} bosses that took more than five pulls to kill again, ${counts.get("regress") || 0} raid nights without a new best, and ${counts.get("hiatus") || 0} newly recorded long breaks from raiding.`,
     [
       makeLink("event", "the event feed", "/events"),
       makeLink(
@@ -278,9 +279,17 @@ function buildFacts(input: {
 
   const previousPlayerMap = new Map(input.previousPlayers.map((player) => [`${player.category}:${player.realm}:${player.name}`, player]));
   const currentGuildIdentityMap = new Map(input.currentGuilds.map((guild) => [`${guild.realm.toLowerCase()}:${guild.name.toLowerCase()}`, guild]));
+  const hasPreviousPlayerSnapshot = input.previousPlayers.length > 0;
   for (const player of input.currentPlayers.filter((entry) => entry.rank <= 3)) {
     const old = previousPlayerMap.get(`${player.category}:${player.realm}:${player.name}`);
-    const movement = old ? `; one-week snapshot rank ${old.rank} to ${player.rank}, score ${old.score.toFixed(1)} to ${player.score.toFixed(1)}` : "";
+    const rankChanged = Boolean(old && old.rank !== player.rank);
+    const enteredTopThree = hasPreviousPlayerSnapshot && !old;
+    if (!rankChanged && !enteredTopThree && player.rank !== 1) continue;
+    const movement = old
+      ? `; one-week snapshot rank ${old.rank} to ${player.rank}, score ${old.score.toFixed(1)} to ${player.score.toFixed(1)}`
+      : enteredTopThree
+        ? "; entered the tracked top three since the previous snapshot"
+        : "";
     const classInfo = CLASSES.find((entry) => entry.id === player.classId);
     const links = [
       makeLink(
@@ -295,17 +304,24 @@ function buildFacts(input: {
       links.push(makeLink("guild", player.guildName, guildUrl(player.guildRealm, player.guildName), guildVisual(guild)));
     }
     addFact(
-      "player_leaderboard",
+      rankChanged || enteredTopThree ? "player_leaderboard_change" : "player_leaderboard_context",
       `${player.name} is currently rank ${player.rank} in the ${player.category} Mythic all-stars snapshot for raid ${PRIMARY_RAID_ID}, playing ${player.specName}, with score ${player.score.toFixed(1)}${movement}.`,
       links,
     );
   }
 
   for (const pickem of input.pickems) {
+    const updatedAt = new Date(pickem.updatedAt).getTime();
+    const votingStart = new Date(pickem.votingStart).getTime();
+    const votingEnd = new Date(pickem.votingEnd).getTime();
+    const periodStart = input.periodStart.getTime();
     const now = input.periodEnd.getTime();
-    const status = pickem.finalized ? "finalized" : now < new Date(pickem.votingStart).getTime() ? "not yet open" : now <= new Date(pickem.votingEnd).getTime() ? "open for voting" : "voting closed";
+    const changedDuringWindow =
+      (updatedAt >= periodStart && updatedAt <= now) || (votingStart >= periodStart && votingStart <= now) || (votingEnd >= periodStart && votingEnd <= now);
+    if (!changedDuringWindow) continue;
+    const status = pickem.finalized ? "finalized" : now < votingStart ? "not yet open" : now <= votingEnd ? "open for voting" : "voting closed";
     addFact(
-      "pickem_status",
+      "pickem_change",
       `${pickem.name} (${pickem.type}) is ${status}; voting window ${pickem.votingStart} to ${pickem.votingEnd}.`,
       [makeLink("pickem", pickem.name, "/pickems")],
     );
@@ -414,12 +430,15 @@ class ReporterService {
     const existing = await ReporterPost.findOne({ weekKey });
     if (existing?.status === "published") throw new Error("This week's Reporter article is published; move it back to draft before regenerating");
 
-    const previousSnapshot = await ReporterSnapshot.findOne({
-      capturedAt: {
-        $gte: new Date(periodEnd.getTime() - 9 * DAY_MS),
-        $lte: new Date(periodEnd.getTime() - 5 * DAY_MS),
-      },
-    }).sort({ capturedAt: -1 });
+    const [previousSnapshot, previousPost] = await Promise.all([
+      ReporterSnapshot.findOne({
+        capturedAt: {
+          $gte: new Date(periodEnd.getTime() - 9 * DAY_MS),
+          $lte: new Date(periodEnd.getTime() - 5 * DAY_MS),
+        },
+      }).sort({ capturedAt: -1 }),
+      ReporterPost.findOne({ weekKey: { $ne: weekKey }, periodEnd: { $lt: periodEnd } }).sort({ periodEnd: -1 }),
+    ]);
     const snapshot = await captureSnapshot(periodStart, periodEnd, weekKey);
     const events = (await Event.find({ timestamp: { $gte: periodStart, $lte: periodEnd }, raidId: { $in: CURRENT_RAID_IDS } })
       .sort({ timestamp: -1 })
@@ -432,6 +451,7 @@ class ReporterService {
       previousPlayers: previousSnapshot?.players || [],
       pickems: snapshot.pickems,
       events,
+      periodStart,
       periodEnd,
     });
 
@@ -448,7 +468,12 @@ class ReporterService {
     });
 
     try {
-      const result = await generateReporterContent({ periodStart, periodEnd, facts });
+      const result = await generateReporterContent({
+        periodStart,
+        periodEnd,
+        facts,
+        ...(previousPost ? { previousDispatch: { title: previousPost.content.fi.title, summary: previousPost.content.fi.summary } } : {}),
+      });
       generation.responseId = result.responseId;
       generation.usage = result.usage;
       validateReporterContent(result.content, facts);
