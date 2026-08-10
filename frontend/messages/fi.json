@@ -2471,17 +2471,21 @@
       "lockedClue": "Lukittu: {clue}"
     },
     "immaculate": {
-      "instructions": "Yhdistä jokainen kiltarivi jokaiseen class-sarakkeeseen.",
       "duplicate": "Tämä hahmo on jo ruudukossa.",
       "incorrect": "Hahmo ei sovi tähän ruutuun.",
       "incorrectAttempts": "Väärät yritykset",
+      "guessedCharacter": "Arvattu hahmo",
+      "attemptedCell": "Yritetty ruutu",
+      "guildRow": "Kiltarivi",
+      "classColumn": "Class-sarake",
+      "noGuild": "Ei kiltaa",
       "result": "Tulos",
       "correct": "Oikein — jatka samaan malliin.",
       "selected": "Valittu",
       "chooseCharacter": "Valitse hahmo valittuun ruutuun",
       "chooseCell": "Valitse ensin tyhjä ruutu",
       "wonSummary": "Ruudukko täytetty {mistakes} virheellä.",
-      "lostSummary": "Kolme hutia. Tyhjissä ruuduissa näkyy esimerkkivastaukset.",
+      "lostSummary": "Viisi hutia. Tyhjissä ruuduissa näkyy esimerkkivastaukset.",
       "tip": "Valitse ruutu ja hae siihen sopiva hahmo."
     },
     "guildGuessr": {

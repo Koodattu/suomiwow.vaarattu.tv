@@ -11,31 +11,39 @@ type FunGameShellProps = {
   error: string | null;
   hasRound: boolean;
   onGenerate: () => void;
+  mistakes?: { count: number; total: number };
   children: ReactNode;
 };
 
-export default function FunGameShell({ game, loading, error, hasRound, onGenerate, children }: FunGameShellProps) {
+export default function FunGameShell({ game, loading, error, hasRound, onGenerate, mistakes, children }: FunGameShellProps) {
   const t = useTranslations("fun");
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#0b1020] px-4 py-5 text-white sm:py-7">
       <div className="mx-auto max-w-6xl">
-        <header className="border-b border-white/10 pb-4">
+        <header className="relative border-b border-white/10 pb-4">
           <div className="flex items-center justify-between gap-4">
             <Link href="/fun" className="inline-flex min-h-10 items-center text-sm font-semibold text-slate-400 transition-colors hover:text-blue-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
               <span aria-hidden="true">←</span>&nbsp;{t("common.back")}
             </Link>
-            <button
-              type="button"
-              onClick={onGenerate}
-              disabled={loading}
-              className="min-h-10 shrink-0 rounded-md bg-blue-600 px-4 py-2 text-sm font-bold text-white transition-[background-color,transform] hover:bg-blue-500 active:not-disabled:scale-[0.97] disabled:cursor-wait disabled:opacity-55 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
-            >
-              {loading ? t("common.generating") : hasRound ? t("common.newGame") : t("common.generate")}
-            </button>
+            <div className="flex shrink-0 items-center gap-2 sm:absolute sm:bottom-4 sm:right-0">
+              {mistakes ? (
+                <span className="inline-flex min-h-10 items-center rounded-md bg-red-950/45 px-3 text-xs font-bold text-red-200 tabular-nums">
+                  {t("common.mistakes", mistakes)}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                onClick={onGenerate}
+                disabled={loading}
+                className="min-h-10 shrink-0 rounded-md bg-blue-600 px-4 py-2 text-sm font-bold text-white transition-[background-color,transform] hover:bg-blue-500 active:not-disabled:scale-[0.97] disabled:cursor-wait disabled:opacity-55 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
+              >
+                {loading ? t("common.generating") : hasRound ? t("common.newGame") : t("common.generate")}
+              </button>
+            </div>
           </div>
           <h1 className="mt-1 text-balance text-3xl font-black tracking-[-0.03em] sm:text-4xl">{t(`games.${game}.title`)}</h1>
-          <p className="mt-1 max-w-3xl text-pretty text-sm leading-5 text-slate-300">{t(`games.${game}.description`)}</p>
+          <p className={`mt-1 max-w-3xl text-pretty text-sm leading-5 text-slate-300 ${mistakes ? "sm:pr-56" : "sm:pr-28"}`}>{t(`games.${game}.description`)}</p>
         </header>
 
         {error ? (

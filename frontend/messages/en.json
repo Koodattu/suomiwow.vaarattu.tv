@@ -2471,17 +2471,21 @@
       "lockedClue": "Locked: {clue}"
     },
     "immaculate": {
-      "instructions": "Match every guild row with every class column.",
       "duplicate": "That character is already on the grid.",
       "incorrect": "That character does not match this cell.",
       "incorrectAttempts": "Incorrect attempts",
+      "guessedCharacter": "Guessed character",
+      "attemptedCell": "Attempted cell",
+      "guildRow": "Guild row",
+      "classColumn": "Class column",
+      "noGuild": "No guild",
       "result": "Result",
       "correct": "Correct — keep going.",
       "selected": "Selected",
       "chooseCharacter": "Choose a character for the selected cell",
       "chooseCell": "Select an empty cell first",
       "wonSummary": "Grid completed with {mistakes} mistakes.",
-      "lostSummary": "Three misses. Example answers are shown in the empty cells.",
+      "lostSummary": "Five misses. Example answers are shown in the empty cells.",
       "tip": "Pick a cell, then search for any matching character."
     },
     "guildGuessr": {

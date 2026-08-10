@@ -3,6 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import IconImage from "@/components/IconImage";
+import { getClassInfoById } from "@/lib/utils";
 import type { CharacterSearchResult, ImmaculateRosterRound } from "@/types";
 import CharacterGuessInput, { characterGuessKey } from "../CharacterGuessInput";
 import { FunClassIcon } from "../FunCharacterIdentity";
@@ -10,15 +11,17 @@ import FunGuildIdentity, { FunGuildCrest } from "../FunGuildIdentity";
 import { FunRaidIdentity } from "../FunEncounterIdentity";
 
 type FilledCell = { key: string; name: string; realm: string };
+export const MAX_IMMACULATE_MISTAKES = 5;
+
 type IncorrectAttempt = {
   id: string;
-  character: { name: string; realm: string; classID: number };
+  character: { name: string; realm: string; classID: number; guild: CharacterSearchResult["guild"] };
   guild: ImmaculateRosterRound["rows"][number]["guild"];
   column: ImmaculateRosterRound["columns"][number];
   reason: "duplicate" | "incorrect";
 };
 
-export default function ImmaculateRoster({ round }: { round: ImmaculateRosterRound }) {
+export default function ImmaculateRoster({ round, onMistakesChange }: { round: ImmaculateRosterRound; onMistakesChange: (mistakes: number) => void }) {
   const t = useTranslations("fun");
   const cellKeys = useMemo(() => round.rows.flatMap((row) => round.columns.map((column) => `${row.id}:${column.classID}`)), [round.columns, round.rows]);
   const [selectedCell, setSelectedCell] = useState<string | null>(cellKeys[0] ?? null);
@@ -43,7 +46,7 @@ export default function ImmaculateRoster({ round }: { round: ImmaculateRosterRou
           ...current,
           {
             id: `${key}:${selectedCell}:${nextMistakes}`,
-            character: { name: character.name, realm: character.realm, classID: character.classID },
+            character: { name: character.name, realm: character.realm, classID: character.classID, guild: character.guild },
             guild: row.guild,
             column,
             reason: used ? "duplicate" : "incorrect",
@@ -51,8 +54,9 @@ export default function ImmaculateRoster({ round }: { round: ImmaculateRosterRou
         ]);
       }
       setMistakes(nextMistakes);
+      onMistakesChange(nextMistakes);
       setNotice(used ? t("immaculate.duplicate") : t("immaculate.incorrect"));
-      if (nextMistakes >= 3) setStatus("lost");
+      if (nextMistakes >= MAX_IMMACULATE_MISTAKES) setStatus("lost");
       return;
     }
 
@@ -69,28 +73,11 @@ export default function ImmaculateRoster({ round }: { round: ImmaculateRosterRou
 
   return (
     <section className="mt-5">
-      <div className="min-w-0 overflow-hidden rounded-xl border border-white/10 bg-slate-950/45">
-        <div className="grid gap-4 bg-slate-900/70 p-4 sm:grid-cols-[minmax(0,1fr)_minmax(17rem,24rem)] sm:items-center">
-          <div className="min-w-0">
-            <FunRaidIdentity raid={round.raid} iconSize={42} />
-          </div>
-          {status === "playing" ? (
-            <div className="sm:text-right">
-              <p className="text-sm text-slate-300">{t("immaculate.instructions")}</p>
-              {notice ? <p className="mt-1.5 text-xs font-semibold text-blue-200" role="status">{notice}</p> : null}
-            </div>
-          ) : (
-            <div className="sm:text-right" role="status">
-              <p className={`text-lg font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p>
-              <p className="text-sm text-slate-400">{status === "won" ? t("immaculate.wonSummary", { mistakes }) : t("immaculate.lostSummary")}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="overflow-x-auto border-t border-white/10 p-2 sm:p-3">
-          <div className="grid min-w-[43rem] grid-cols-[14rem_repeat(3,minmax(9rem,1fr))] gap-2">
-          <div className="flex min-h-16 items-center justify-center rounded-lg bg-slate-900/60 px-3 text-center text-xs font-bold">
-            <span className="text-red-200 tabular-nums">{t("common.mistakes", { count: mistakes, total: 3 })}</span>
+      <div className="min-w-0 overflow-hidden rounded-xl bg-slate-950/45">
+        <div className="overflow-x-auto p-2 sm:p-3">
+          <div className="grid min-w-[46rem] grid-cols-[17rem_repeat(3,minmax(9rem,1fr))] gap-2">
+          <div className="flex min-h-16 items-center rounded-lg bg-slate-900/60 px-3">
+            <FunRaidIdentity raid={round.raid} iconSize={38} className="w-full" />
           </div>
           {round.columns.map((column) => (
             <div key={column.classID} className="flex min-h-16 items-center justify-center gap-2 rounded-lg bg-slate-800/80 px-3 text-center text-sm font-bold">
@@ -112,7 +99,7 @@ export default function ImmaculateRoster({ round }: { round: ImmaculateRosterRou
                 if (selected && !answer && status === "playing") {
                   return (
                     <div key={cellKey} className="min-h-24">
-                      <CharacterGuessInput onSelect={submitCharacter} autoFocus immediate={false} cell />
+                      <CharacterGuessInput onSelect={submitCharacter} autoFocus immediate={false} cell showClassIcon={false} />
                     </div>
                   );
                 }
@@ -142,34 +129,49 @@ export default function ImmaculateRoster({ round }: { round: ImmaculateRosterRou
           ))}
           </div>
         </div>
+        {status === "playing" ? (
+          notice ? <p className="border-t border-white/10 px-4 py-2 text-xs font-semibold text-blue-200" role="status">{notice}</p> : null
+        ) : (
+          <div className="border-t border-white/10 px-4 py-3" role="status">
+            <p className={`font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p>
+            <p className="text-sm text-slate-400">{status === "won" ? t("immaculate.wonSummary", { mistakes }) : t("immaculate.lostSummary")}</p>
+          </div>
+        )}
       </div>
 
       {incorrectAttempts.length > 0 ? (
         <div className="mt-3 border-y border-white/10 py-2" role="table" aria-label={t("immaculate.incorrectAttempts")}>
           <h2 className="px-2 py-2 text-sm font-black">{t("immaculate.incorrectAttempts")}</h2>
-          <div className="hidden grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,.8fr)_minmax(0,1.25fr)] gap-3 border-t border-white/10 px-3 py-2 text-xs font-bold text-slate-400 sm:grid" role="row">
-            <span role="columnheader">{t("suomidle.character")}</span>
-            <span role="columnheader">{t("suomidle.guild")}</span>
-            <span role="columnheader">{t("suomidle.class")}</span>
+          <div className="hidden grid-cols-[minmax(0,1.15fr)_minmax(0,1.25fr)_minmax(0,1fr)] gap-4 border-t border-white/10 px-3 py-2 text-xs font-bold text-slate-400 sm:grid" role="row">
+            <span role="columnheader">{t("immaculate.guessedCharacter")}</span>
+            <span role="columnheader">{t("immaculate.attemptedCell")}</span>
             <span role="columnheader">{t("immaculate.result")}</span>
           </div>
           <div className="divide-y divide-white/10 border-t border-white/10 sm:border-t-0">
-            {incorrectAttempts.map((attempt) => (
-              <div key={attempt.id} className="grid grid-cols-2 gap-1 px-1 py-2 text-sm sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,.8fr)_minmax(0,1.25fr)] sm:gap-3 sm:px-3" role="row">
-                <AttemptCell label={t("suomidle.character")}>
-                  <span className="flex min-w-0 items-center gap-2"><FunClassIcon classID={attempt.character.classID} size={24} /><span className="min-w-0"><span className="block truncate font-bold">{attempt.character.name}</span><span className="block truncate text-xs text-slate-400">{attempt.character.realm}</span></span></span>
-                </AttemptCell>
-                <AttemptCell label={t("suomidle.guild")}>
-                  <span className="flex min-w-0 items-center gap-2"><FunGuildCrest crest={attempt.guild.crest} faction={attempt.guild.faction} size={24} /><span className="truncate">{attempt.guild.name}</span></span>
-                </AttemptCell>
-                <AttemptCell label={t("suomidle.class")}>
-                  <span className="flex min-w-0 items-center gap-2"><FunClassIcon classID={attempt.column.classID} size={24} /><span className="truncate">{attempt.column.name}</span></span>
-                </AttemptCell>
-                <AttemptCell label={t("immaculate.result")}>
-                  <span className="flex items-start gap-1.5 text-red-200"><span aria-hidden="true">×</span><span>{t(`immaculate.${attempt.reason}`)}</span></span>
-                </AttemptCell>
-              </div>
-            ))}
+            {incorrectAttempts.map((attempt) => {
+              const guessedClass = getClassInfoById(attempt.character.classID);
+              return (
+                <div key={attempt.id} className="grid grid-cols-2 gap-1 px-1 py-2 text-sm sm:grid-cols-[minmax(0,1.15fr)_minmax(0,1.25fr)_minmax(0,1fr)] sm:gap-4 sm:px-3" role="row">
+                  <AttemptCell label={t("immaculate.guessedCharacter")}>
+                    <div className="min-w-0">
+                      <span className="block truncate font-bold">{attempt.character.name}</span>
+                      <span className="block truncate text-xs text-slate-400">{attempt.character.realm}</span>
+                      <span className="mt-2 flex min-w-0 items-center gap-2"><FunClassIcon classID={attempt.character.classID} size={24} /><span className="truncate">{guessedClass.name}</span></span>
+                      <span className="mt-1 block truncate text-xs text-slate-300">{attempt.character.guild ? `${attempt.character.guild.name} · ${attempt.character.guild.realm}` : t("immaculate.noGuild")}</span>
+                    </div>
+                  </AttemptCell>
+                  <AttemptCell label={t("immaculate.attemptedCell")}>
+                    <div className="grid gap-2">
+                      <span><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">{t("immaculate.guildRow")}</span><span className="flex min-w-0 items-center gap-2"><FunGuildCrest crest={attempt.guild.crest} faction={attempt.guild.faction} size={24} /><span className="truncate font-semibold">{attempt.guild.name}</span></span></span>
+                      <span><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">{t("immaculate.classColumn")}</span><span className="flex min-w-0 items-center gap-2"><FunClassIcon classID={attempt.column.classID} size={24} /><span className="truncate font-semibold">{attempt.column.name}</span></span></span>
+                    </div>
+                  </AttemptCell>
+                  <AttemptCell label={t("immaculate.result")} className="col-span-2 sm:col-span-1">
+                    <span className="flex items-start gap-1.5 text-red-200"><span aria-hidden="true">×</span><span>{t(`immaculate.${attempt.reason}`)}</span></span>
+                  </AttemptCell>
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : null}
@@ -178,9 +180,9 @@ export default function ImmaculateRoster({ round }: { round: ImmaculateRosterRou
   );
 }
 
-function AttemptCell({ label, children }: { label: string; children: ReactNode }) {
+function AttemptCell({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <div className="min-w-0 rounded-md bg-slate-950/25 px-2 py-2 sm:bg-transparent sm:px-0" role="cell">
+    <div className={`min-w-0 rounded-md bg-slate-950/25 px-2 py-2 sm:bg-transparent sm:px-0 ${className}`} role="cell">
       <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:hidden">{label}</span>
       {children}
     </div>

@@ -18,12 +18,14 @@ export default function CharacterGuessInput({
   autoFocus,
   immediate,
   cell,
+  showClassIcon = true,
 }: {
   onSelect: (character: CharacterSearchResult) => void;
   disabled?: boolean;
   autoFocus?: boolean;
   immediate?: boolean;
   cell?: boolean;
+  showClassIcon?: boolean;
 }) {
   const t = useTranslations("fun");
   const [query, setQuery] = useState("");
@@ -38,7 +40,11 @@ export default function CharacterGuessInput({
       getKey={(character) => characterGuessKey(character)!}
       getLabel={(character) => `${character.name} — ${character.realm}`}
       getSearchText={(character) => `${character.name} ${character.realm} ${character.matchedName ?? ""}`}
-      renderOption={(character) => <FunCharacterIdentity character={character} iconSize={30} />}
+      renderOption={(character) => showClassIcon ? (
+        <FunCharacterIdentity character={character} iconSize={30} />
+      ) : (
+        <span className="block min-w-0 text-left"><span className="block truncate font-bold">{character.name}</span><span className="block truncate text-xs text-slate-400">{character.realm}</span></span>
+      )}
       placeholder={t("common.searchCharacter")}
       emptyLabel={debounce.trimmedQuery.length < 2 ? t("common.typeTwoCharacters") : isSearching ? t("common.searching") : search.isError ? t("common.searchFailed") : t("common.noCharacters")}
       disabled={disabled}

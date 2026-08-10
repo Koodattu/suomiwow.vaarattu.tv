@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import type { FunGameRound, FunGameSlug, HigherOrWipeMode } from "@/types";
 import FunGameShell from "./FunGameShell";
 import GuildGuessr from "./games/GuildGuessr";
-import ImmaculateRoster from "./games/ImmaculateRoster";
+import ImmaculateRoster, { MAX_IMMACULATE_MISTAKES } from "./games/ImmaculateRoster";
 import LockItIn from "./games/LockItIn";
 import RaidConnections from "./games/RaidConnections";
 import RaiderResume from "./games/RaiderResume";
@@ -18,14 +18,16 @@ function Game({
   round,
   loading,
   onHigherModeChange,
+  onImmaculateMistakesChange,
 }: {
   round: FunGameRound;
   loading: boolean;
   onHigherModeChange: (mode: HigherOrWipeMode) => void;
+  onImmaculateMistakesChange: (mistakes: number) => void;
 }) {
   switch (round.game) {
     case "immaculate-roster":
-      return <ImmaculateRoster key={round.roundId} round={round} />;
+      return <ImmaculateRoster key={round.roundId} round={round} onMistakesChange={onImmaculateMistakesChange} />;
     case "guild-guessr":
       return <GuildGuessr key={round.roundId} round={round} />;
     case "wipeprint":
@@ -50,6 +52,7 @@ export default function FunGamePage({ game }: { game: FunGameSlug }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [higherOrWipeMode, setHigherOrWipeMode] = useState<HigherOrWipeMode>("random");
+  const [immaculateMistakes, setImmaculateMistakes] = useState(0);
   const requestIdRef = useRef(0);
   const startedRef = useRef(false);
 
@@ -63,6 +66,7 @@ export default function FunGamePage({ game }: { game: FunGameSlug }) {
       if (requestId !== requestIdRef.current) return;
       if (result.game !== game) throw new Error("The generated game did not match the requested game");
       if (result.game === "higher-or-wipe" && requestedMode && result.mode !== requestedMode) throw new Error("The generated mode did not match the requested mode");
+      if (result.game === "immaculate-roster") setImmaculateMistakes(0);
       setRound(result);
       if (result.game === "higher-or-wipe") setHigherOrWipeMode(result.mode);
     } catch (generationError) {
@@ -80,8 +84,22 @@ export default function FunGamePage({ game }: { game: FunGameSlug }) {
   }, [generate]);
 
   return (
-    <FunGameShell game={game} loading={loading} error={error} hasRound={Boolean(round)} onGenerate={() => void generate()}>
-      {round ? <Game round={round} loading={loading} onHigherModeChange={(mode) => void generate(mode)} /> : null}
+    <FunGameShell
+      game={game}
+      loading={loading}
+      error={error}
+      hasRound={Boolean(round)}
+      onGenerate={() => void generate()}
+      mistakes={round?.game === "immaculate-roster" ? { count: immaculateMistakes, total: MAX_IMMACULATE_MISTAKES } : undefined}
+    >
+      {round ? (
+        <Game
+          round={round}
+          loading={loading}
+          onHigherModeChange={(mode) => void generate(mode)}
+          onImmaculateMistakesChange={setImmaculateMistakes}
+        />
+      ) : null}
     </FunGameShell>
   );
 }
