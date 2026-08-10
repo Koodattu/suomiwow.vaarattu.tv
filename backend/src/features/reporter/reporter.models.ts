@@ -96,6 +96,7 @@ const ReporterPlayerSnapshotSchema = new Schema<ReporterPlayerSnapshot>(
     rank: { type: Number, required: true },
     name: { type: String, required: true },
     realm: { type: String, required: true },
+    classId: { type: Number },
     guildName: { type: String },
     guildRealm: { type: String },
     role: { type: String, required: true },

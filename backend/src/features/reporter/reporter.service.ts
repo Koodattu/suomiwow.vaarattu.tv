@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { CLASSES } from "../../config/classes";
 import { CURRENT_RAID_IDS, PRIMARY_RAID_ID } from "../../config/guilds";
 import CharacterLeaderboard from "../../models/CharacterLeaderboard";
 import Event, { EventType } from "../../models/Event";
@@ -64,6 +65,7 @@ type LeanEvent = {
 type LeanLeaderboard = {
   name: string;
   realm: string;
+  classID: number;
   guildName?: string | null;
   guildRealm?: string | null;
   role: string;
@@ -279,7 +281,15 @@ function buildFacts(input: {
   for (const player of input.currentPlayers.filter((entry) => entry.rank <= 3)) {
     const old = previousPlayerMap.get(`${player.category}:${player.realm}:${player.name}`);
     const movement = old ? `; one-week snapshot rank ${old.rank} to ${player.rank}, score ${old.score.toFixed(1)} to ${player.score.toFixed(1)}` : "";
-    const links = [makeLink("character", player.name, characterUrl(player.realm, player.name))];
+    const classInfo = CLASSES.find((entry) => entry.id === player.classId);
+    const links = [
+      makeLink(
+        "character",
+        player.name,
+        characterUrl(player.realm, player.name),
+        classInfo ? { type: "icon", iconUrl: `${classInfo.iconUrl}.jpg` } : undefined,
+      ),
+    ];
     if (player.guildName && player.guildRealm) {
       const guild = currentGuildIdentityMap.get(`${player.guildRealm.toLowerCase()}:${player.guildName.toLowerCase()}`);
       links.push(makeLink("guild", player.guildName, guildUrl(player.guildRealm, player.guildName), guildVisual(guild)));
@@ -344,6 +354,7 @@ async function captureSnapshot(periodStart: Date, periodEnd: Date, weekKey: stri
       rank: index + 1,
       name: entry.name,
       realm: entry.realm,
+      classId: entry.classID,
       guildName: entry.guildName || undefined,
       guildRealm: entry.guildRealm || undefined,
       role: entry.role,
@@ -556,6 +567,13 @@ class ReporterService {
     );
     if (!post) throw new Error("Reporter post not found");
     return serializePost(post, true);
+  }
+
+  async deletePost(id: string): Promise<{ deletedId: string }> {
+    if (!mongoose.isValidObjectId(id)) throw new Error("Invalid Reporter post ID");
+    const post = await ReporterPost.findByIdAndDelete(id);
+    if (!post) throw new Error("Reporter post not found");
+    return { deletedId: post._id.toString() };
   }
 
   async listPublishedPosts() {

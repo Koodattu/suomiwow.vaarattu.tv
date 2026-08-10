@@ -47,4 +47,16 @@ router.patch("/posts/:id/status", async (req: Request, res: Response) => {
   }
 });
 
+router.delete("/posts/:id", async (req: Request, res: Response) => {
+  if (reporterRunner.isRunning) return res.status(409).json({ error: "Wait for the active Reporter generation to finish before deleting an article" });
+  try {
+    res.json(await reporterService.deletePost(req.params.id));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to delete Reporter article";
+    if (message.includes("not found")) return res.status(404).json({ error: message });
+    if (message.includes("Invalid")) return res.status(400).json({ error: message });
+    res.status(500).json({ error: "Failed to delete Reporter article" });
+  }
+});
+
 export default router;

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
+import { FaTrash } from "react-icons/fa";
 import ReporterArticleBody from "@/features/reporter/ReporterArticleBody";
 import { api } from "@/lib/api";
 import type { ReporterPost, ReporterSettingsUpdate, ReporterStatusResponse } from "@/types";
@@ -19,6 +20,7 @@ export default function ReporterAdminPanel() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [savingSetting, setSavingSetting] = useState<ReporterSettingKey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -76,6 +78,23 @@ export default function ReporterAdminPanel() {
       setError(statusError instanceof Error ? statusError.message : t("statusError"));
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const deleteSelected = async () => {
+    if (!selectedPost || !window.confirm(t("deleteConfirm", { title: selectedPost.content[language].title }))) return;
+    setDeleting(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await api.deleteAdminReporterPost(selectedPost.id);
+      setSelectedId(null);
+      setNotice(t("deletedNotice"));
+      await load();
+    } catch {
+      setError(t("deleteError"));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -217,8 +236,18 @@ export default function ReporterAdminPanel() {
                       {t("openPublic")}
                     </Link>
                   )}
-                  <button type="button" onClick={() => void togglePublished()} disabled={updatingStatus} className="min-h-10 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600 disabled:opacity-50">
+                  <button type="button" onClick={() => void togglePublished()} disabled={updatingStatus || deleting} className="min-h-10 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600 disabled:opacity-50">
                     {updatingStatus ? t("saving") : selectedPost.status === "published" ? t("moveToDraft") : t("publish")}
+                  </button>
+                  <button
+                    type="button"
+                    aria-busy={deleting}
+                    onClick={() => void deleteSelected()}
+                    disabled={deleting || updatingStatus || status?.generationRunning}
+                    className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-red-950/70 pl-3 pr-3.5 py-2 text-sm font-bold text-red-200 shadow-[0_0_0_1px_rgba(248,113,113,0.25)] transition-[scale,background-color,box-shadow] duration-150 ease-out hover:bg-red-900/80 hover:shadow-[0_0_0_1px_rgba(248,113,113,0.4)] active:scale-[0.96] disabled:cursor-wait disabled:opacity-50"
+                  >
+                    <FaTrash aria-hidden="true" className="shrink-0" />
+                    {deleting ? t("deleting") : t("delete")}
                   </button>
                 </div>
               </div>

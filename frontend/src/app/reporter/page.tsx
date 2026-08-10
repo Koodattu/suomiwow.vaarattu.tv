@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
+import ReporterLanguageToggle, { useReporterLanguage } from "@/features/reporter/ReporterLanguageToggle";
 import { api } from "@/lib/api";
 import type { ReporterPost } from "@/types";
 
 export default function ReporterIndexPage() {
   const t = useTranslations("reporter");
   const locale = useLocale();
-  const language = locale === "fi" ? "fi" : "en";
+  const { language, selectLanguage } = useReporterLanguage(locale === "fi" ? "fi" : "en");
   const [posts, setPosts] = useState<ReporterPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -36,7 +37,10 @@ export default function ReporterIndexPage() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.12),transparent_38%),linear-gradient(to_bottom,#090e1a,#111827)] px-4 py-14 text-white sm:py-20">
       <div className="mx-auto max-w-4xl">
         <header className="border-b border-amber-400/20 pb-10">
-          <p className="text-xs font-bold uppercase tracking-[0.28em] text-amber-400">{t("eyebrow")}</p>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs font-bold uppercase tracking-[0.28em] text-amber-400">{t("eyebrow")}</p>
+            <ReporterLanguageToggle language={language} onChange={selectLanguage} />
+          </div>
           <h1 className="mt-4 text-balance text-4xl font-black tracking-tight sm:text-6xl">{t("title")}</h1>
           <p className="mt-5 max-w-2xl text-pretty text-lg leading-8 text-slate-300">{t("description")}</p>
         </header>

@@ -2650,6 +2650,15 @@ export const api = {
     if (!response.ok) throw await buildApiError(response, "Failed to update Reporter article");
     return response.json();
   },
+
+  async deleteAdminReporterPost(id: string): Promise<{ deletedId: string }> {
+    const response = await fetch(`${API_URL}/api/admin/reporter/posts/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) throw await buildApiError(response, "Failed to delete Reporter article");
+    return response.json();
+  },
 };
 
 // ==================== Admin Trigger Functions ====================

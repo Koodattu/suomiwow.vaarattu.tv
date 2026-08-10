@@ -110,6 +110,7 @@ export interface ReporterPlayerSnapshot {
   rank: number;
   name: string;
   realm: string;
+  classId?: number;
   guildName?: string;
   guildRealm?: string;
   role: string;

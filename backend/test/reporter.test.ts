@@ -10,6 +10,7 @@ import { calculateReporterUsage, getReporterLinks, getReporterPromptFacts, valid
 import { generateReporterContent } from "../src/features/reporter/reporter-openai";
 import { ReporterPost, ReporterSettings } from "../src/features/reporter/reporter.models";
 import { DEFAULT_REPORTER_SETTINGS, shouldAutoPublishReporterPost } from "../src/features/reporter/reporter-settings.service";
+import reporterService from "../src/features/reporter/reporter.service";
 import { ReporterFact, ReporterGeneratedContent } from "../src/features/reporter/reporter.types";
 
 const facts: ReporterFact[] = [
@@ -108,6 +109,10 @@ test("Reporter database switches default off and only scheduled runs may auto-pu
   assert.equal(shouldAutoPublishReporterPost("cron", { ...enabled, automationEnabled: false }), false);
 });
 
+test("Reporter deletion validates the article ID before querying MongoDB", async () => {
+  await assert.rejects(reporterService.deletePost("not-an-object-id"), /Invalid Reporter post ID/);
+});
+
 test("Reporter OpenAI request pins Luna, medium reasoning, low verbosity and structured output", async () => {
   const originalFetch = global.fetch;
   const originalApiKey = process.env.OPENAI_API_KEY;
@@ -177,6 +182,7 @@ test("Reporter admin and trigger routes reject unauthenticated requests", async 
       { method: "GET", path: "/api/admin/reporter/posts" },
       { method: "PATCH", path: "/api/admin/reporter/settings" },
       { method: "PATCH", path: "/api/admin/reporter/posts/507f1f77bcf86cd799439011/status" },
+      { method: "DELETE", path: "/api/admin/reporter/posts/507f1f77bcf86cd799439011" },
       { method: "POST", path: "/api/admin/trigger/reporter/generate" },
     ]) {
       const response = await fetch(`http://127.0.0.1:${port}${request.path}`, {
