@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import IconImage from "@/components/IconImage";
-import { getClassInfoById } from "@/lib/utils";
+import { formatRealmName, getClassInfoById } from "@/lib/utils";
 import type { CharacterSearchResult, ImmaculateRosterRound } from "@/types";
 import CharacterGuessInput, { characterGuessKey } from "../CharacterGuessInput";
 import { FunClassIcon } from "../FunCharacterIdentity";
@@ -118,7 +118,7 @@ export default function ImmaculateRoster({ round, onMistakesChange }: { round: I
                     }`}
                   >
                     {answer ? (
-                      <span className="flex items-center justify-center gap-2"><FunClassIcon classID={column.classID} size={28} /><span className="min-w-0 text-left"><span className="block truncate font-bold text-emerald-100">{answer.name}</span><span className="mt-0.5 block truncate text-xs text-emerald-300/70">{answer.realm}</span></span></span>
+                      <span className="flex items-center justify-center gap-2"><FunClassIcon classID={column.classID} size={28} /><span className="min-w-0 text-left"><span className="block truncate font-bold text-emerald-100">{answer.name}</span><span className="mt-0.5 block truncate text-xs text-emerald-300/70">{formatRealmName(answer.realm)}</span></span></span>
                     ) : showExample ? (
                       <span className="flex items-center justify-center gap-2"><FunClassIcon classID={column.classID} size={28} /><span className="min-w-0 text-left"><span className="block text-xs font-semibold text-red-300">{t("common.exampleAnswer")}</span><span className="mt-0.5 block truncate font-bold">{example.name}</span></span></span>
                     ) : <span className="text-2xl text-slate-600">+</span>}
@@ -155,9 +155,9 @@ export default function ImmaculateRoster({ round, onMistakesChange }: { round: I
                   <AttemptCell label={t("immaculate.guessedCharacter")}>
                     <div className="min-w-0">
                       <span className="block truncate font-bold">{attempt.character.name}</span>
-                      <span className="block truncate text-xs text-slate-400">{attempt.character.realm}</span>
+                      <span className="block truncate text-xs text-slate-400">{formatRealmName(attempt.character.realm)}</span>
                       <span className="mt-2 flex min-w-0 items-center gap-2"><FunClassIcon classID={attempt.character.classID} size={24} /><span className="truncate">{guessedClass.name}</span></span>
-                      <span className="mt-1 block truncate text-xs text-slate-300">{attempt.character.guild ? `${attempt.character.guild.name} · ${attempt.character.guild.realm}` : t("immaculate.noGuild")}</span>
+                      <span className="mt-1 block truncate text-xs text-slate-300">{attempt.character.guild ? `${attempt.character.guild.name} · ${formatRealmName(attempt.character.guild.realm)}` : t("immaculate.noGuild")}</span>
                     </div>
                   </AttemptCell>
                   <AttemptCell label={t("immaculate.attemptedCell")}>

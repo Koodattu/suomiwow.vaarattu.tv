@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { formatRealmName } from "@/lib/utils";
 import type { FunGuild, GuildGuessrRound } from "@/types";
 import FunAutocomplete from "../FunAutocomplete";
 import { FunRaidIdentity } from "../FunEncounterIdentity";
@@ -57,7 +58,7 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
     .map((day) => `${t(`days.${day.day.toLocaleLowerCase("en-US")}`)} ${formatHour(day.startHour)}–${formatHour(day.endHour)}`)
     .join(", ");
   const clueItems = [
-    { label: t("guildGuessr.realm"), content: target.realm },
+    { label: t("guildGuessr.realm"), content: formatRealmName(target.realm) },
     { label: t("guildGuessr.raids"), content: <span className="grid gap-2">{target.trackedRaids.map((raid) => <FunRaidIdentity key={raid.id} raid={raid} iconSize={28} compact />)}</span> },
     { label: t("guildGuessr.schedule"), content: schedule || t("guildGuessr.noSchedule") },
     {

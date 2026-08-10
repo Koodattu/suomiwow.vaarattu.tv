@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useCharacterSearch } from "@/lib/queries";
+import { formatRealmName } from "@/lib/utils";
 import type { CharacterSearchResult } from "@/types";
 import FunAutocomplete from "./FunAutocomplete";
 import FunCharacterIdentity from "./FunCharacterIdentity";
@@ -38,12 +39,12 @@ export default function CharacterGuessInput({
     <FunAutocomplete
       items={characters}
       getKey={(character) => characterGuessKey(character)!}
-      getLabel={(character) => `${character.name} — ${character.realm}`}
-      getSearchText={(character) => `${character.name} ${character.realm} ${character.matchedName ?? ""}`}
+      getLabel={(character) => `${character.name} — ${formatRealmName(character.realm)}`}
+      getSearchText={(character) => `${character.name} ${character.realm} ${formatRealmName(character.realm)} ${character.matchedName ?? ""}`}
       renderOption={(character) => showClassIcon ? (
         <FunCharacterIdentity character={character} iconSize={30} />
       ) : (
-        <span className="block min-w-0 text-left"><span className="block truncate font-bold">{character.name}</span><span className="block truncate text-xs text-slate-400">{character.realm}</span></span>
+        <span className="block min-w-0 text-left"><span className="block truncate font-bold">{character.name}</span><span className="block truncate text-xs text-slate-400">{formatRealmName(character.realm)}</span></span>
       )}
       placeholder={t("common.searchCharacter")}
       emptyLabel={debounce.trimmedQuery.length < 2 ? t("common.typeTwoCharacters") : isSearching ? t("common.searching") : search.isError ? t("common.searchFailed") : t("common.noCharacters")}

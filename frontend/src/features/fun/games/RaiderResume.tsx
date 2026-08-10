@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import CharacterAvatar from "@/components/CharacterAvatar";
-import { getClassInfoById } from "@/lib/utils";
+import { formatRealmName, getClassInfoById } from "@/lib/utils";
 import type { RaiderResumeCandidate, RaiderResumeRound } from "@/types";
 import FunAutocomplete from "../FunAutocomplete";
 import FunCharacterIdentity, { FunClassIcon } from "../FunCharacterIdentity";
@@ -123,7 +123,7 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
                 <div key={character.key} className="grid grid-cols-2 gap-1 rounded-lg bg-slate-900/70 p-2 text-sm sm:grid-cols-4 lg:grid-cols-[12rem_repeat(7,1fr)] lg:gap-2 lg:px-3 lg:py-3">
                   <ResumeGuessCell label={t("resume.raider")}><span className="font-bold">{character.name}</span></ResumeGuessCell>
                   <ResumeGuessCell label={t("resume.class")}><CompareCell comparison={character.classID === target.classID ? "exact" : "mismatch"}><span className="inline-flex items-center gap-2"><FunClassIcon classID={character.classID} size={24} />{classInfo.name}</span></CompareCell></ResumeGuessCell>
-                  <ResumeGuessCell label={t("resume.realm")}><CompareCell comparison={character.realm === target.realm ? "exact" : "mismatch"}>{character.realm}</CompareCell></ResumeGuessCell>
+                  <ResumeGuessCell label={t("resume.realm")}><CompareCell comparison={character.realm === target.realm ? "exact" : "mismatch"}>{formatRealmName(character.realm)}</CompareCell></ResumeGuessCell>
                   <ResumeGuessCell label={t("resume.firstSeen")}><CompareCell comparison={compareDate(character.firstSeenAt, target.firstSeenAt)}>{new Date(character.firstSeenAt).getFullYear()}</CompareCell></ResumeGuessCell>
                   <ResumeGuessCell label={t("resume.raids")}><CompareCell comparison={compareValue(character.raidCount, target.raidCount)}>{character.raidCount}</CompareCell></ResumeGuessCell>
                   <ResumeGuessCell label={t("resume.guilds")}><CompareCell comparison={compareValue(character.guildCount, target.guildCount)}>{character.guildCount}</CompareCell></ResumeGuessCell>

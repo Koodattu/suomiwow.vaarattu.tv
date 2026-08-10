@@ -1,6 +1,7 @@
 "use client";
 
 import GuildCrest from "@/components/GuildCrest";
+import { formatRealmName } from "@/lib/utils";
 import type { FunGuild, GuildCrest as GuildCrestType } from "@/types";
 
 export function FunGuildCrest({
@@ -37,7 +38,7 @@ export default function FunGuildIdentity({
       <FunGuildCrest crest={guild.crest} faction={guild.faction} size={crestSize} />
       <span className="min-w-0 text-left">
         <span className={`block font-bold ${wrapName ? "line-clamp-2 leading-tight" : "truncate"}`}>{guild.name}</span>
-        <span className="block truncate text-xs text-slate-400">{guild.realm}</span>
+        <span className="block truncate text-xs text-slate-400">{formatRealmName(guild.realm)}</span>
       </span>
     </span>
   );

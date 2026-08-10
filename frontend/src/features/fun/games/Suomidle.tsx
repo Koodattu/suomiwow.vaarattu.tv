@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { getClassInfoById } from "@/lib/utils";
+import { formatRealmName, getClassInfoById } from "@/lib/utils";
 import type { SuomidleCandidate, SuomidleRound } from "@/types";
 import FunAutocomplete from "../FunAutocomplete";
 import FunCharacterIdentity, { FunClassIcon } from "../FunCharacterIdentity";
@@ -96,7 +96,7 @@ export default function Suomidle({ round }: { round: SuomidleRound }) {
                 <SuomidleCell label={t("suomidle.class")}><Compare comparison={guess.classID === target.classID ? "exact" : "mismatch"}><span className="inline-flex min-w-0 items-center gap-1.5"><FunClassIcon classID={guess.classID} size={24} /><span className="truncate">{classInfo.name}</span></span></Compare></SuomidleCell>
                 <SuomidleCell label={t("suomidle.spec")}><Compare comparison={guess.specName === target.specName ? "exact" : "mismatch"}>{guess.specName}</Compare></SuomidleCell>
                 <SuomidleCell label={t("suomidle.role")}><Compare comparison={guess.role === target.role ? "exact" : "mismatch"}>{t(`roles.${guess.role}`)}</Compare></SuomidleCell>
-                <SuomidleCell label={t("suomidle.realm")}><Compare comparison={guess.realm === target.realm ? "exact" : "mismatch"}>{guess.realm}</Compare></SuomidleCell>
+                <SuomidleCell label={t("suomidle.realm")}><Compare comparison={guess.realm === target.realm ? "exact" : "mismatch"}>{formatRealmName(guess.realm)}</Compare></SuomidleCell>
                 <SuomidleCell label={t("suomidle.guild")}><Compare comparison={guess.guild.id === target.guild.id ? "exact" : "mismatch"}><span className="inline-flex min-w-0 items-center gap-1.5"><FunGuildCrest crest={guess.guild.crest} faction={guess.guild.faction} size={24} /><span className="truncate">{guess.guild.name}</span></span></Compare></SuomidleCell>
                 <SuomidleCell label={t("suomidle.raid")}>
                   <Compare comparison={guess.raidId === target.raidId ? "exact" : "mismatch"}>

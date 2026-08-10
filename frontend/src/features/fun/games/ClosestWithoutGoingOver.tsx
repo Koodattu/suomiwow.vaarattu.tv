@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { formatRealmName } from "@/lib/utils";
 import type { ClosestWithoutGoingOverRound } from "@/types";
 import FunCharacterIdentity from "../FunCharacterIdentity";
 import { FunBossIdentity, FunRaidIdentity } from "../FunEncounterIdentity";
@@ -44,7 +45,7 @@ export default function ClosestWithoutGoingOver({ round }: { round: ClosestWitho
           {round.challenge.boss ? <FunBossIdentity name={round.challenge.boss.name} iconUrl={round.challenge.boss.iconUrl} /> : null}
           {round.challenge.raid ? <FunRaidIdentity raid={round.challenge.raid} iconSize={32} compact /> : null}
         </div>
-        {!round.challenge.boss && !round.challenge.raid ? <p className="mt-4 text-sm text-blue-200">{round.challenge.detail}</p> : null}
+        {!round.challenge.boss && !round.challenge.raid ? <p className="mt-4 text-sm text-blue-200">{formatRealmName(round.challenge.detail)}</p> : null}
         <h2 className="mt-3 text-balance text-2xl font-black">{t.rich(`closest.prompts.${round.challenge.kind}`, { identity: () => subjectIdentity })}</h2>
 
         {guesses.length > 0 ? (

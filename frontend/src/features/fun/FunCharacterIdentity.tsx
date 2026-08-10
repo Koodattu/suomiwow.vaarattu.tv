@@ -1,7 +1,7 @@
 "use client";
 
 import IconImage from "@/components/IconImage";
-import { getClassInfoById } from "@/lib/utils";
+import { formatRealmName, getClassInfoById } from "@/lib/utils";
 
 export function FunClassIcon({ classID, size = 32 }: { classID: number; size?: number }) {
   const classInfo = getClassInfoById(classID);
@@ -32,7 +32,7 @@ export default function FunCharacterIdentity({
       <FunClassIcon classID={character.classID} size={iconSize} />
       <span className="min-w-0 text-left">
         <span className="block truncate font-bold">{character.name}</span>
-        {showRealm ? <span className="block truncate text-xs text-slate-400">{character.realm}</span> : null}
+        {showRealm ? <span className="block truncate text-xs text-slate-400">{formatRealmName(character.realm)}</span> : null}
       </span>
     </span>
   );
