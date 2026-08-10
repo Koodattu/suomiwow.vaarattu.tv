@@ -221,11 +221,17 @@ function describeEvent(event: LeanEvent): string {
   }
 }
 
-function getProgressPhaseLabel(progressDisplay?: string): string | undefined {
-  const match = progressDisplay?.match(/\b(?:stage|phase)\s+(one|two|three|four|1|2|3|4)\b/i);
+function getProgressPhaseNumber(progressDisplay?: string): number | undefined {
+  const match = progressDisplay?.match(/\b(?:stage|phase)\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b/i);
   if (!match) return undefined;
-  const phaseNumber = { one: "1", two: "2", three: "3", four: "4" }[match[1].toLowerCase()] || match[1];
-  return `P${phaseNumber}`;
+  const phaseNumber =
+    { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }[match[1].toLowerCase()] || Number(match[1]);
+  return Number.isInteger(phaseNumber) && phaseNumber > 0 ? phaseNumber : undefined;
+}
+
+function getProgressPhaseLabel(progressDisplay?: string): string | undefined {
+  const phaseNumber = getProgressPhaseNumber(progressDisplay);
+  return phaseNumber ? `P${phaseNumber}` : undefined;
 }
 
 export function buildReporterFacts(input: {
@@ -356,18 +362,21 @@ export function buildReporterFacts(input: {
     const latestGuild = getEventGuild(latest);
     const latestProgress = latestGuild?.progress.find((entry) => entry.raidId === latest.raidId && entry.difficulty === latest.difficulty);
     const latestBoss = latestProgress?.bosses.find((entry) => entry.bossId === latest.bossId);
-    const latestPhase = latestBoss?.bestPullPhase ? `P${latestBoss.bestPullPhase.phaseId}` : getProgressPhaseLabel(latest.data.progressDisplay);
+    const phaseContext = latestBoss?.bestPullPhase;
+    const latestPhaseNumber = getProgressPhaseNumber(phaseContext?.phaseName) || getProgressPhaseNumber(phaseContext?.displayString) || getProgressPhaseNumber(latest.data.progressDisplay);
+    const latestPhase = latestPhaseNumber ? `P${latestPhaseNumber}` : undefined;
     const progressMeasure = latestBoss?.bestPullPhase ? "overall fight progress remaining" : "stored progress remaining";
     const points = ordered.map((event) => {
       const progress = event.data.bestPercent !== undefined ? `${event.data.bestPercent.toFixed(1)}%` : event.data.progressDisplay || "a new best";
       return event.data.pullCount ? `${progress} ${progressMeasure} at ${event.data.pullCount} total pulls` : `${progress} ${progressMeasure}`;
     });
-    const phaseContext = latestBoss?.bestPullPhase;
-    const phasePosition = phaseContext && latestBoss.totalPhases ? `P${phaseContext.phaseId} of ${latestBoss.totalPhases}` : latestPhase;
+    const phasePosition = latestPhaseNumber && latestBoss?.totalPhases ? `P${latestPhaseNumber} of ${latestBoss.totalPhases}` : latestPhase;
     const phaseCaveat =
-      phaseContext && latestBoss.totalPhases
-        ? phaseContext.phaseId < latestBoss.totalPhases
-          ? ` ${phasePosition} is not the final phase.`
+      latestPhaseNumber && latestBoss?.totalPhases
+        ? latestPhaseNumber < latestBoss.totalPhases
+          ? latestPhaseNumber + 1 === latestBoss.totalPhases
+            ? ` P${latestPhaseNumber} was not the final phase; P${latestBoss.totalPhases}, the final phase, remained.`
+            : ` P${latestPhaseNumber} was not the final phase; P${latestPhaseNumber + 1}-P${latestBoss.totalPhases} remained.`
           : ` ${phasePosition} is the final stored phase.`
         : "";
     const progressContext = phaseContext
@@ -597,14 +606,19 @@ async function captureSnapshot(periodStart: Date, periodEnd: Date, weekKey: stri
   ]);
   const rawRaidRows = rawRaids as unknown as LeanRaidVisuals[];
   const bossIds = rawRaidRows.flatMap((raid) => raid.bosses.map((boss) => boss.id));
-  const phaseCounts =
+  const phaseNamesByBoss =
     bossIds.length > 0
-      ? await Fight.aggregate<{ _id: number; totalPhases: number }>([
-          { $match: { encounterID: { $in: bossIds }, difficulty: 5, isKill: true, lastPhaseId: { $gt: 0 } } },
-          { $group: { _id: "$encounterID", totalPhases: { $max: "$lastPhaseId" } } },
+      ? await Fight.aggregate<{ _id: number; phaseNames: string[] }>([
+          { $match: { encounterID: { $in: bossIds }, difficulty: 5, isKill: true, lastPhaseName: { $type: "string" } } },
+          { $group: { _id: "$encounterID", phaseNames: { $addToSet: "$lastPhaseName" } } },
         ])
       : [];
-  const phaseCountMap = new Map(phaseCounts.map((entry) => [entry._id, entry.totalPhases]));
+  const phaseCountMap = new Map(
+    phaseNamesByBoss.flatMap((entry) => {
+      const totalPhases = Math.max(0, ...entry.phaseNames.map((name) => getProgressPhaseNumber(name) || 0));
+      return totalPhases > 0 ? [[entry._id, totalPhases] as const] : [];
+    }),
+  );
   const raids = rawRaidRows.map((raid) => ({
     ...raid,
     bosses: raid.bosses.map((boss) => ({ ...boss, totalPhases: phaseCountMap.get(boss.id) })),

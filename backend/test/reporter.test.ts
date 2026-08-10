@@ -111,7 +111,7 @@ test("Reporter consolidates progress and reclears while naming raids in player a
         bestPullFightId: 17,
         totalPhases: 4,
         bestPullPhase: {
-          phaseId: 3,
+          phaseId: 4,
           phaseName: "Stage Three: Midnight Falls",
           bossHealth: 0.1,
           fightCompletion: 15.1,
@@ -192,7 +192,8 @@ test("Reporter consolidates progress and reclears while naming raids in player a
   const benchmark = reporterFacts.find((fact) => fact.kind === "boss_benchmark");
   const mythicPlus = reporterFacts.find((fact) => fact.kind === "mythic_plus_leaderboard_context");
   assert.match(trajectory?.summary || "", /52\.9% overall fight progress remaining at 323 total pulls; 15\.1% overall fight progress remaining at 396 total pulls/);
-  assert.match(trajectory?.summary || "", /15\.1% overall fight progress remained.*boss health was 0\.1%.*P3 of 4.*not the final phase/i);
+  assert.match(trajectory?.summary || "", /15\.1% overall fight progress remained.*boss health was 0\.1%.*P3 of 4.*P3 was not the final phase; P4, the final phase, remained/i);
+  assert.doesNotMatch(trajectory?.summary || "", /P4 of 5/);
   assert.equal(reporterFacts.filter((fact) => fact.kind === "progress_trajectory").length, 1);
   assert.match(benchmark?.summary || "", /average first-kill total of 248 pulls.*range of 103-421.*396 total recorded pulls without a kill/i);
   assert.match(reclears?.summary || "", /2 tracked guild-boss reclears/);
@@ -222,6 +223,19 @@ test("Reporter repairs malformed known link tokens and degrades unknown tokens t
   assert.match(repaired.body, /\[\[L1\|Example Guild\]\]/);
   assert.doesNotMatch(repaired.body, /L999|\[\[unfinished/);
   assert.doesNotThrow(() => validateReporterContent({ en: { ...source.en, body: repaired.body }, fi: repaired }, facts));
+});
+
+test("Reporter unwraps Markdown mistakenly placed around an inline Reporter link", () => {
+  const source = validContent();
+  const wrapped = {
+    ...source.fi,
+    body: `[Kaaokselle]([[L1|Example Guild]]) ${"reported steady progress this week ".repeat(60)}`.trim(),
+  };
+  const repaired = repairReporterLinkTokens(wrapped, facts);
+
+  assert.match(repaired.body, /^\[\[L1\|Kaaokselle\]\]/);
+  assert.doesNotMatch(repaired.body, /\[Kaaokselle\]\(/);
+  assert.doesNotThrow(() => validateReporterLocaleContent(repaired, "fi", facts));
 });
 
 test("Reporter keeps trusted visual data out of the prompt while exposing presentation hints", () => {

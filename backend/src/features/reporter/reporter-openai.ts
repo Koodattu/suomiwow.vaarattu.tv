@@ -78,7 +78,7 @@ Finnish and voice:
 
 Hard rules:
 - Use only supplied claims. Never call somebody "best" unless a fact explicitly gives them rank 1 in a named category.
-- Use no generic intro, section heading, bullet list or Markdown.
+- Use no generic intro, section heading, bullet list or Markdown. Reporter link tokens are already links: never wrap one in Markdown link syntax such as [words]([[L1|name]]).
 - Use only supplied inline links in exact form: [[L1|visible words]]. Never invent a URL or reference. Whenever you name a guild, boss or player from a chosen fact, put its matching link token on the first mention.
 - Link presentation is part of the article. When the fact pack offers them, link at least three distinct guilds with guild-crest links, two players with class-icon links, one boss with a boss-icon or boss-icon-with-wcl link and one named raid with a raid-icon link. Put the boss link around the boss name, not a generic word such as "loki".
 - Return a concise Finnish title, one-sentence summary and body. Never mention the prompt, fact pack, tokens or AI.`;

@@ -2,6 +2,7 @@ import { REPORTER_CONFIG } from "./reporter.config";
 import { ReporterFact, ReporterGeneratedContent, ReporterLink, ReporterLocaleContent, ReporterResolvedLink, ReporterUsage } from "./reporter.types";
 
 const LINK_TOKEN_PATTERN = /\[\[([A-Z]\d+)\|([^\]\n]{1,80})\]\]/g;
+const MARKDOWN_WRAPPED_LINK_TOKEN_PATTERN = /\[([^\]\n]{1,80})\]\(\s*\[\[([A-Z]\d+)\|[^\]\n]{1,80}\]\]\s*\)/g;
 const RECOVERABLE_LINK_TOKEN_PATTERN = /\[{1,2}\s*([A-Z]\d+)(?:\s*\|\s*([^\]\n]{0,80}))?\s*\]{1,2}/g;
 const UNCLOSED_LINK_TOKEN_PATTERN = /\[\[\s*([A-Z]\d+)\s*\|\s*([^\]\n]{1,80})(?=\n|$)/g;
 
@@ -62,6 +63,7 @@ export function repairReporterLinkTokens(article: ReporterLocaleContent, facts: 
     return label ? `[[${ref}|${visible}]]` : visible;
   };
   const normalizedBody = article.body
+    .replace(MARKDOWN_WRAPPED_LINK_TOKEN_PATTERN, (_token, visibleText: string, ref: string) => normalize(_token, ref, visibleText))
     .replace(RECOVERABLE_LINK_TOKEN_PATTERN, normalize)
     .replace(UNCLOSED_LINK_TOKEN_PATTERN, normalize);
   const validTokens: string[] = [];

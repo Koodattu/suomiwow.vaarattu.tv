@@ -6,6 +6,11 @@ import IconImage from "@/components/IconImage";
 import type { ReporterPost } from "@/types";
 
 const LINK_PATTERN = /\[\[([A-Z]\d+)\|([^\]\n]{1,80})\]\]/g;
+const MARKDOWN_WRAPPED_LINK_PATTERN = /\[([^\]\n]{1,80})\]\(\s*\[\[([A-Z]\d+)\|[^\]\n]{1,80}\]\]\s*\)/g;
+
+function normalizeReporterLinkWrappers(text: string): string {
+  return text.replace(MARKDOWN_WRAPPED_LINK_PATTERN, (_token, visibleText: string, ref: string) => `[[${ref}|${visibleText.trim()}]]`);
+}
 
 type ResolvedReporterLink = ReporterPost["links"][string];
 
@@ -77,9 +82,10 @@ function renderInlineLinks(text: string, links: ReporterPost["links"], paragraph
 }
 
 export default function ReporterArticleBody({ body, links }: { body: string; links: ReporterPost["links"] }) {
+  const normalizedBody = normalizeReporterLinkWrappers(body);
   return (
     <div className="space-y-5 text-pretty text-base leading-8 text-slate-200 sm:text-lg">
-      {body
+      {normalizedBody
         .split(/\n\s*\n/u)
         .map((paragraph) => paragraph.trim())
         .filter(Boolean)
