@@ -86,65 +86,15 @@ export function validateReporterLocaleContent(article: ReporterLocaleContent, lo
   const wordCount = article.body.trim().split(/\s+/u).filter(Boolean).length;
   if (titleLength < 5 || titleLength > 140) throw new Error(`Reporter ${locale.toUpperCase()} title has an invalid length`);
   if (summaryLength < 20 || summaryLength > 360) throw new Error(`Reporter ${locale.toUpperCase()} summary has an invalid length`);
-  if (wordCount < 260 || wordCount > 520) throw new Error(`Reporter ${locale.toUpperCase()} body must contain 260-520 words`);
-  if (locale === "fi" && /\b(?:\d+,\d+\s*%|\d+[.,]\d+\s*prosent\p{L}*)/iu.test(`${article.title}\n${article.summary}\n${article.body}`)) {
-    throw new Error("Reporter FI progress percentages must use dot-plus-percent notation such as 27.9%");
-  }
-  if (locale === "fi") {
-    const percentageCounts = new Map<string, number>();
-    for (const match of `${article.title}\n${article.summary}\n${article.body}`.matchAll(/\b\d+\.\d+%/gu)) {
-      percentageCounts.set(match[0], (percentageCounts.get(match[0]) || 0) + 1);
-    }
-    if ([...percentageCounts.values()].some((count) => count > 2)) {
-      throw new Error("Reporter FI body repeats the same progress percentage too many times");
-    }
-  }
+  if (wordCount < 120 || wordCount > 600) throw new Error(`Reporter ${locale.toUpperCase()} body must contain 120-600 words`);
 
-  let linkCount = 0;
-  const usedLinks = new Set<string>();
   for (const match of article.body.matchAll(LINK_TOKEN_PATTERN)) {
-    linkCount += 1;
     if (!allowedLinks.has(match[1])) throw new Error(`Reporter ${locale.toUpperCase()} body used unknown link ${match[1]}`);
-    usedLinks.add(match[1]);
   }
-  if (linkCount === 0) throw new Error(`Reporter ${locale.toUpperCase()} body must include at least one source link`);
 
   const withoutValidLinks = article.body.replace(LINK_TOKEN_PATTERN, "");
   if (withoutValidLinks.includes("[[") || withoutValidLinks.includes("]]")) {
     throw new Error(`Reporter ${locale.toUpperCase()} body contains a malformed link token`);
-  }
-
-  const visualRequirements = [
-    {
-      label: "guild crest",
-      matches: (link: ReporterLink) => link.kind === "guild" && link.visual?.type === "guild-crest" && Boolean(link.visual.crest),
-      minimum: 3,
-    },
-    {
-      label: "boss icon",
-      matches: (link: ReporterLink) => link.kind === "log" && link.visual?.type === "icon" && link.visual.provider === "wcl",
-      minimum: 1,
-    },
-    {
-      label: "character class icon",
-      matches: (link: ReporterLink) => link.kind === "character" && link.visual?.type === "icon",
-      minimum: 2,
-    },
-    {
-      label: "raid icon",
-      matches: (link: ReporterLink) => link.kind === "analytics" && link.visual?.type === "icon",
-      minimum: 1,
-    },
-  ];
-  const links = facts.flatMap((fact) => fact.links);
-  for (const requirement of visualRequirements) {
-    const candidates = links.filter(requirement.matches);
-    const candidateTargets = new Set(candidates.map((link) => link.url));
-    const minimum = Math.min(requirement.minimum, candidateTargets.size);
-    const usedTargets = new Set(candidates.filter((link) => usedLinks.has(link.ref)).map((link) => link.url));
-    if (minimum > 0 && usedTargets.size < minimum) {
-      throw new Error(`Reporter ${locale.toUpperCase()} body must use at least ${minimum} distinct ${requirement.label} link${minimum === 1 ? "" : "s"}`);
-    }
   }
 }
 

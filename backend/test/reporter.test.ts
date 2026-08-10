@@ -67,21 +67,13 @@ test("Reporter content accepts known inline links and rejects invented reference
   assert.deepEqual(getReporterLinks(facts), { L1: { url: "/guilds/example/example", kind: "guild" } });
 });
 
-test("Reporter Finnish progress uses raid-chat percentage notation", () => {
+test("Reporter treats Finnish style and link coverage preferences as non-fatal", () => {
   const article = validContent().fi;
-  assert.throws(
-    () => validateReporterLocaleContent({ ...article, body: article.body.replace("reported", "reached 27,9 prosenttia and reported") }, "fi", facts),
-    /dot-plus-percent notation/,
-  );
-  assert.throws(
-    () => validateReporterLocaleContent({ ...article, body: article.body.replace("reported", "reached 27.9 prosenttiin and reported") }, "fi", facts),
-    /dot-plus-percent notation/,
-  );
-  assert.doesNotThrow(() => validateReporterLocaleContent({ ...article, body: article.body.replace("reported", "reached 27.9% and reported") }, "fi", facts));
-  assert.throws(
-    () => validateReporterLocaleContent({ ...article, body: article.body.replace("reported", "reached 0.1%, held 0.1%, repeated 0.1% and reported") }, "fi", facts),
-    /repeats the same progress percentage/,
-  );
+  const imperfectBody = article.body.replace("reported", "reached 27,9 prosenttia, then repeated 0.1%, 0.1% and 0.1% before reporting");
+  const unlinkedBody = article.body.replace("[[L1|Example Guild]]", "Example Guild");
+
+  assert.doesNotThrow(() => validateReporterLocaleContent({ ...article, body: imperfectBody }, "fi", facts));
+  assert.doesNotThrow(() => validateReporterLocaleContent({ ...article, body: unlinkedBody }, "fi", facts));
 });
 
 test("Reporter separates lead candidates from supporting developments and background", () => {
@@ -238,7 +230,7 @@ test("Reporter keeps trusted visual data out of the prompt while exposing presen
   assert.equal(post.facts[0].links[0].visual?.iconUrl, "example-boss.jpg");
 });
 
-test("Reporter requires available guild, boss, character and raid visuals to be used", () => {
+test("Reporter does not discard usable copy when optional visual links are omitted", () => {
   const visualFacts: ReporterFact[] = [
     {
       id: "F1",
@@ -297,9 +289,9 @@ test("Reporter requires available guild, boss, character and raid visuals to be 
   const missingRaidBody = `[[L1|Example Guild]] reached [[L2|Example Boss]], while [[L3|Example Player]] led the player note. ${prose}`;
 
   assert.doesNotThrow(() => validateReporterLocaleContent({ ...validContent().fi, body: completeBody }, "fi", visualFacts));
-  assert.throws(() => validateReporterLocaleContent({ ...validContent().fi, body: missingBossBody }, "fi", visualFacts), /boss icon link/);
-  assert.throws(() => validateReporterLocaleContent({ ...validContent().fi, body: missingPlayerBody }, "fi", visualFacts), /character class icon link/);
-  assert.throws(() => validateReporterLocaleContent({ ...validContent().fi, body: missingRaidBody }, "fi", visualFacts), /raid icon link/);
+  assert.doesNotThrow(() => validateReporterLocaleContent({ ...validContent().fi, body: missingBossBody }, "fi", visualFacts));
+  assert.doesNotThrow(() => validateReporterLocaleContent({ ...validContent().fi, body: missingPlayerBody }, "fi", visualFacts));
+  assert.doesNotThrow(() => validateReporterLocaleContent({ ...validContent().fi, body: missingRaidBody }, "fi", visualFacts));
 });
 
 test("Reporter database switches default off and only scheduled runs may auto-publish", () => {
