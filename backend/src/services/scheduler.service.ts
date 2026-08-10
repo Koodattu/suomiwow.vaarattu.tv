@@ -163,6 +163,7 @@ class UpdateScheduler {
   private isUpdatingRaidAnalytics: boolean = false;
   private isCheckingHiatus: boolean = false;
   private isUpdatingRaiderIOGuilds: boolean = false;
+  private isRefreshingRaidDates: boolean = false;
   private isUpdatingMythicPlusCurrentSeason: boolean = false;
   private isRepairingMythicPlusHistoricalScores: boolean = false;
   private isProcessingCcgPackAnalytics: boolean = false;
@@ -608,6 +609,19 @@ class UpdateScheduler {
       },
     );
 
+    // WEEKLY: Refresh current raid start/end dates from Raider.IO (Monday at 02:15 Finnish time)
+    this.scheduleCronTask(
+      "current-raid-dates",
+      "15 2 * * 1",
+      async () => {
+        if (this.isRefreshingRaidDates) {
+          logger.info("[Weekly/RaidDates] Previous refresh still in progress, skipping...");
+          return;
+        }
+        await this.refreshCurrentRaidDates();
+      },
+    );
+
     // NIGHTLY: Repair Mythic+ identity drift and missing historical score rows before the weekly CCG snapshot (at 00:45 Finnish time)
     this.scheduleCronTask(
       "mythic-plus-historical-repair",
@@ -819,6 +833,7 @@ class UpdateScheduler {
     logger.info("    * Report character backfill queue: daily at 01:00");
     logger.info("    * Character achievement account matching backfill: daily at 01:30");
     logger.info("    * Mythic+ current season refresh: daily at 02:00");
+    logger.info("    * Current raid dates refresh: Monday at 02:15");
     logger.info("    * Mythic+ historical and identity score repair: daily at 00:45");
     logger.info("    * Fight VOD cleanup: daily at 02:30");
     logger.info("    * Refetch recent reports: daily at 03:00");
@@ -930,6 +945,14 @@ class UpdateScheduler {
     this.updateRaiderIOGuilds()
       .then(() => logger.info("[Admin] Raider.IO guilds update completed"))
       .catch((err) => logger.error("[Admin] Raider.IO guilds update failed:", err));
+    return true;
+  }
+
+  triggerRaidDatesRefresh(raidIds: number[]): boolean {
+    if (this.isRefreshingRaidDates) {
+      return false;
+    }
+    void this.refreshRaidDates(raidIds, "Admin");
     return true;
   }
 
@@ -1294,6 +1317,38 @@ class UpdateScheduler {
       this.offHoursActiveInterval = null;
     }
     logger.info("Background scheduler stopped");
+  }
+
+  async refreshCurrentRaidDates(): Promise<void> {
+    await this.refreshRaidDates(CURRENT_RAID_IDS, "Weekly");
+  }
+
+  private async refreshRaidDates(raidIds: number[], source: "Weekly" | "Admin"): Promise<void> {
+    this.isRefreshingRaidDates = true;
+    const taskId = await taskTracker.start("Refresh Raid Dates", { raidIds, source: source.toLowerCase() });
+
+    try {
+      const result = await guildService.refreshRaidDates(raidIds);
+
+      if (result.requested > 0 && result.matched === 0) {
+        throw new Error("Raider.IO returned no matches for the requested raids");
+      }
+
+      if (result.updatedRaidIds.length > 0) {
+        await Promise.all(result.updatedRaidIds.map((raidId) => cacheService.invalidate(cacheService.getRaidDatesKey(raidId))));
+        await cacheWarmerService.warmHomeCacheData();
+      }
+
+      logger.info(
+        `[${source}/RaidDates] Checked ${result.requested} raid(s); matched ${result.matched}, updated ${result.updatedRaidIds.length}`,
+      );
+      await taskTracker.complete(taskId, { ...result });
+    } catch (error) {
+      logger.error(`[${source}/RaidDates] Error:`, error);
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+    } finally {
+      this.isRefreshingRaidDates = false;
+    }
   }
 
   private async resumeMythicPlusCrawler(source: "startup" | "watchdog"): Promise<void> {

@@ -59,9 +59,11 @@ const FINNISH_REPORTER_INSTRUCTIONS = `Write the original Finnish edition of The
 Editorial job:
 - The fact pack is a menu, not a checklist. Pick one weekly claim and use roughly 6-10 facts. Spend most of the article on one lead candidate, then widen into a compact scene roundup.
 - Give the lead 2-3 paragraphs. Give the wider scene 1-2 paragraphs naming 3-5 relevant guilds; prefer guilds with distinct or multiple developments instead of an exhaustive roll call.
-- If player facts are supplied, include one compact paragraph naming 2-3 players. Prefer weekly rank changes or new top-three entries; when the leaders are unchanged, combine the DPS, healer and tank leaders without pretending they are new results.
+- If player facts are supplied, include one compact paragraph naming 2-3 players. Prefer weekly rank changes or new top-three entries; when the leaders are unchanged, combine the DPS, healer and tank leaders without pretending they are new results. A supplied Mythic+ snapshot can replace or briefly extend this paragraph when it adds a distinct scene detail, but never present a static rank as weekly movement.
 - Background facts rarely require their own paragraph. Static standings, open Pick'ems and raw event totals are usually omitted unless they add timely context.
 - Merge facts about the same guild and boss into one trajectory. If nobody killed a boss, say so once and report the closest meaningful pressure without manufacturing a bigger week.
+- Progress facts distinguish overall fight progress remaining from the active phase's boss HP remaining. Preserve that distinction. For a multi-phase encounter, use overall fight progress for claims about distance from the kill; low boss HP in P3 of 4 does not mean the encounter was 0.1% from dying. Never call a phase final unless the fact explicitly says it is final.
+- Pull benchmarks are tracked-guild context, not destiny. Use them for a concise comparison when useful, but do not turn an average or range into a prediction or a verdict on a guild.
 - Use 5-7 short, deliberately uneven paragraphs and roughly 320-450 words. Open on the result and its stakes; end with a new concrete scene detail or pressure, not another restatement of the lead, a moral or a generic reset prediction.
 - The previous dispatch is continuity context only. Avoid repeating its framing or joke; do not treat it as evidence for this week.
 - Raid-window start and end dates are background context. Use them only when the age or remaining life of the tier materially sharpens the reporting.
@@ -78,14 +80,16 @@ Hard rules:
 - Use only supplied claims. Never call somebody "best" unless a fact explicitly gives them rank 1 in a named category.
 - Use no generic intro, section heading, bullet list or Markdown.
 - Use only supplied inline links in exact form: [[L1|visible words]]. Never invent a URL or reference. Whenever you name a guild, boss or player from a chosen fact, put its matching link token on the first mention.
-- Link presentation is part of the article. When the fact pack offers them, link at least three distinct guilds with guild-crest links, two players with class-icon links, one boss with a boss-icon-with-wcl link and one named raid with a raid-icon link. Put the boss link around the boss name, not a generic word such as "loki".
+- Link presentation is part of the article. When the fact pack offers them, link at least three distinct guilds with guild-crest links, two players with class-icon links, one boss with a boss-icon or boss-icon-with-wcl link and one named raid with a raid-icon link. Put the boss link around the boss name, not a generic word such as "loki".
 - Return a concise Finnish title, one-sentence summary and body. Never mention the prompt, fact pack, tokens or AI.`;
 
 const ENGLISH_TRANSLATION_INSTRUCTIONS = `Adapt the supplied Finnish Reporter edition into natural, concise English. The Finnish edition is the sole source of truth.
 
 - Preserve its reporting angle, factual claims, emphasis, paragraph order, degree of praise and dry sarcasm. Do not add context, facts or jokes.
 - Sound like the same mildly pessimistic veteran correspondent, not a literal translation or polished PR copy.
-- Keep every inline link in the corresponding sentence. Preserve each L-number exactly while translating its visible words naturally: [[L1|visible words]].
+- Canonical entities and source facts are terminology safeguards only. Never add a source fact that the Finnish article omitted.
+- Preserve every supplied guild, player, boss and raid name exactly. Never translate, anglicize or otherwise rewrite a guild name. When Finnish grammar inflects a linked proper name, restore the exact canonical label in English.
+- Keep every inline link in the corresponding sentence. Preserve each L-number exactly while translating ordinary visible words naturally: [[L1|visible words]]. Proper-name link text must use its canonical label.
 - Return only an English title, one-sentence summary and body. Use no Markdown, headings or commentary about the translation.`;
 
 function extractOutputText(body: OpenAIResponseBody): string {
@@ -214,11 +218,24 @@ export async function generateReporterContent(input: {
 
   let englishResult: OpenAIReporterLocaleResult;
   try {
+    const usedLinkRefs = new Set([...fi.body.matchAll(/\[\[([A-Z]\d+)\|/g)].map((match) => match[1]));
+    const sourceFacts = promptFacts
+      .filter((fact) => fact.links.some((link) => usedLinkRefs.has(link.ref)))
+      .map(({ id, kind, summary }) => ({ id, kind, summary }));
+    const canonicalEntityEntries = promptFacts.flatMap((fact) =>
+      fact.links.flatMap((link) => {
+        const entityKind = link.kind === "log" ? "boss" : link.presentationHint === "raid-icon" ? "raid" : ["guild", "character", "boss"].includes(link.kind) ? link.kind : undefined;
+        return entityKind ? [[`${entityKind}:${link.label}`, { kind: entityKind, name: link.label }] as const] : [];
+      }),
+    );
+    const canonicalEntities = [...new Map(canonicalEntityEntries).values()];
     englishResult = await requestReporterLocale({
       instructions: ENGLISH_TRANSLATION_INSTRUCTIONS,
       input: {
         sourceFinnish: fi,
-        availableLinks: promptFacts.flatMap((fact) => fact.links.map(({ ref, label }) => ({ ref, label }))),
+        availableLinks: promptFacts.flatMap((fact) => fact.links.map(({ ref, label, kind }) => ({ ref, label, kind }))),
+        canonicalEntities,
+        sourceFacts,
       },
       schemaName: "suomi_wow_weekly_report_en",
     });

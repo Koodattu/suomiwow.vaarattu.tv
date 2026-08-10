@@ -1344,6 +1344,10 @@ export const RAID_RIO_SLUG_OVERRIDES: Record<number, string> = {
 // PRIMARY_RAID_ID is the raid used for single-raid defaults and featured views.
 export const PRIMARY_RAID_ID = 46;
 export const CURRENT_RAID_IDS = [46, 50];
+export const RECENT_RAID_DATE_REFRESH_IDS = [
+  ...CURRENT_RAID_IDS,
+  ...TRACKED_RAIDS.filter((raidId) => !CURRENT_RAID_IDS.includes(raidId)).slice(0, 2),
+];
 
 export const DIFFICULTIES = {
   MYTHIC: 5,

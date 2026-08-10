@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { requireAdmin } from "../middleware/admin.middleware";
-import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
+import { CURRENT_RAID_IDS, RECENT_RAID_DATE_REFRESH_IDS, TRACKED_RAIDS } from "../config/guilds";
 import User from "../models/User";
 import Guild from "../models/Guild";
 import Report from "../models/Report";
@@ -3128,6 +3128,27 @@ router.post("/trigger/sync-raids-from-wcl", async (_req: Request, res: Response)
     isSyncingRaidsFromWCL = false;
     logger.error("Error triggering raid sync from WarcraftLogs:", error);
     res.status(500).json({ error: "Failed to trigger raid sync from WarcraftLogs" });
+  }
+});
+
+// Refresh dates for current raids and the two newest tracked raids outside the current tier.
+router.post("/trigger/refresh-recent-raid-dates", async (_req: Request, res: Response) => {
+  try {
+    const started = scheduler.triggerRaidDatesRefresh(RECENT_RAID_DATE_REFRESH_IDS);
+
+    if (!started) {
+      res.json({ success: false, message: "A raid date refresh is already running" });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: `Raid date refresh started for ${RECENT_RAID_DATE_REFRESH_IDS.length} raids`,
+      raidIds: RECENT_RAID_DATE_REFRESH_IDS,
+    });
+  } catch (error) {
+    logger.error("Error triggering recent raid date refresh:", error);
+    res.status(500).json({ error: "Failed to trigger raid date refresh" });
   }
 });
 

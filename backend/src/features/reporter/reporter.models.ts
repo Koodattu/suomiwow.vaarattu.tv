@@ -58,6 +58,14 @@ const ReporterBossSnapshotSchema = new Schema<ReporterBossSnapshot>(
     firstKillFightId: { type: Number },
     bestPullReportCode: { type: String },
     bestPullFightId: { type: Number },
+    totalPhases: { type: Number },
+    bestPullPhase: {
+      phaseId: { type: Number },
+      phaseName: { type: String },
+      bossHealth: { type: Number },
+      fightCompletion: { type: Number },
+      displayString: { type: String },
+    },
   },
   { _id: false },
 );
@@ -136,7 +144,7 @@ const ReporterLinkSchema = new Schema<ReporterLink>(
     ref: { type: String, required: true },
     label: { type: String, required: true },
     url: { type: String, required: true },
-    kind: { type: String, enum: ["guild", "character", "pickem", "event", "analytics", "log"], required: true },
+    kind: { type: String, enum: ["guild", "character", "boss", "pickem", "event", "analytics", "log"], required: true },
     visual: { type: ReporterLinkVisualSchema },
   },
   { _id: false },

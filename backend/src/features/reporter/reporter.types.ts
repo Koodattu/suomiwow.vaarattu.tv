@@ -24,7 +24,7 @@ export interface ReporterLink {
   ref: string;
   label: string;
   url: string;
-  kind: "guild" | "character" | "pickem" | "event" | "analytics" | "log";
+  kind: "guild" | "character" | "boss" | "pickem" | "event" | "analytics" | "log";
   visual?: ReporterLinkVisual;
 }
 
@@ -81,6 +81,14 @@ export interface ReporterBossSnapshot {
   firstKillFightId?: number;
   bestPullReportCode?: string;
   bestPullFightId?: number;
+  totalPhases?: number;
+  bestPullPhase?: {
+    phaseId: number;
+    phaseName: string;
+    bossHealth: number;
+    fightCompletion: number;
+    displayString: string;
+  };
 }
 
 export interface ReporterProgressSnapshot {

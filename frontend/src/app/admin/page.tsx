@@ -48,6 +48,7 @@ import {
   triggerRebuildCharacterRaidParticipations,
   triggerRefreshCharacterRankings,
   triggerSyncRaidsFromWCL,
+  triggerRefreshRecentRaidDates,
   triggerUpdateRaiderIOGuilds,
   triggerTwitchBotReconnect,
   triggerTwitchBotReconcile,
@@ -2458,6 +2459,7 @@ function AdminPageContent() {
                     {renderTriggerButton("guild-crests", "Update Guild Crests", triggerUpdateGuildCrests)}
                   </ManualActionGroup>
                   <ManualActionGroup title="Raid metadata">
+                    {renderTriggerButton("refresh-recent-raid-dates", "Update Current & Recent Raid Dates Now", triggerRefreshRecentRaidDates)}
                     {renderTriggerButton("sync-raids-from-wcl", "Sync Raids from WCL", triggerSyncRaidsFromWCL)}
                   </ManualActionGroup>
                   <ManualActionGroup title="Report queues">

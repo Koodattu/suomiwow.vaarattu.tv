@@ -4487,7 +4487,7 @@ export interface ReporterPost {
     fi: ReporterLocaleContent;
   };
   usage: ReporterUsage;
-  links: Record<string, { url: string; kind: "guild" | "character" | "pickem" | "event" | "analytics" | "log"; visual?: ReporterLinkVisual }>;
+  links: Record<string, { url: string; kind: "guild" | "character" | "boss" | "pickem" | "event" | "analytics" | "log"; visual?: ReporterLinkVisual }>;
   publishedAt?: string;
   createdAt: string;
   updatedAt: string;

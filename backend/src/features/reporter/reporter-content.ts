@@ -103,7 +103,7 @@ export function validateReporterContent(content: ReporterGeneratedContent, facts
 }
 
 type ReporterPromptLink = Pick<ReporterLink, "ref" | "label" | "url" | "kind"> & {
-  presentationHint?: "guild-crest" | "boss-icon-with-wcl" | "class-icon" | "raid-icon" | "wcl-icon";
+  presentationHint?: "guild-crest" | "boss-icon" | "boss-icon-with-wcl" | "class-icon" | "raid-icon" | "wcl-icon";
 };
 
 type ReporterPromptFact = Omit<ReporterFact, "links"> & { links: ReporterPromptLink[] };
@@ -111,6 +111,7 @@ type ReporterPromptFact = Omit<ReporterFact, "links"> & { links: ReporterPromptL
 function getReporterLinkPresentationHint(link: ReporterLink): ReporterPromptLink["presentationHint"] {
   if (link.kind === "guild" && link.visual?.type === "guild-crest" && link.visual.crest) return "guild-crest";
   if (link.kind === "character" && link.visual?.type === "icon") return "class-icon";
+  if (link.kind === "boss" && link.visual?.type === "icon") return "boss-icon";
   if (link.kind === "log" && link.visual?.type === "icon" && link.visual.provider === "wcl") return "boss-icon-with-wcl";
   if (link.kind === "log") return "wcl-icon";
   if (link.visual?.type === "icon") return "raid-icon";
@@ -139,7 +140,7 @@ export function getReporterPromptFacts(facts: ReporterFact[]): ReporterPromptFac
 export function getReporterEditorialFactPack(facts: ReporterFact[]) {
   const promptFacts = getReporterPromptFacts(facts);
   const leadKinds = new Set(["boss_kill", "best_pull", "progress_trajectory", "milestone", "weekly_guild_movement"]);
-  const supportingKinds = new Set(["regress", "reproge", "reclear_roundup", "hiatus", "player_leaderboard_change", "pickem_change"]);
+  const supportingKinds = new Set(["regress", "reproge", "reclear_roundup", "hiatus", "boss_benchmark", "player_leaderboard_change", "pickem_change"]);
 
   return {
     leadCandidates: promptFacts.filter((fact) => leadKinds.has(fact.kind)),

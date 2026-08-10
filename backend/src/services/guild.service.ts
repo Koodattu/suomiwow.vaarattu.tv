@@ -47,6 +47,13 @@ interface GuildRaidingTodayItem {
   };
 }
 
+interface RaidDatesRefreshResult {
+  requested: number;
+  found: number;
+  matched: number;
+  updatedRaidIds: number[];
+}
+
 interface FightVodTarget {
   reportCode: string;
   fightId: number;
@@ -720,6 +727,50 @@ class GuildService {
     } catch (error) {
       logger.error("Error syncing raids from WarcraftLogs:", error);
     }
+  }
+
+  async refreshRaidDates(raidIds: number[] = CURRENT_RAID_IDS): Promise<RaidDatesRefreshResult> {
+    const targetRaidIds = [...new Set(raidIds)];
+    const raids = await Raid.find({ id: { $in: targetRaidIds } }).select("id name slug rioSlug");
+    const raidDatesMap = await raiderIOService.fetchAllRaidDates();
+    const updatedRaidIds: number[] = [];
+    let matched = 0;
+
+    for (const raid of raids) {
+      const rioSlugOverride = RAID_RIO_SLUG_OVERRIDES[raid.id];
+      const storedRioMatch = raid.rioSlug ? raidDatesMap.get(raid.rioSlug.toLowerCase()) : undefined;
+      const raiderIOMatch = storedRioMatch ?? (rioSlugOverride ? raidDatesMap.get(rioSlugOverride.toLowerCase()) : raiderIOService.findRaidMatch(raidDatesMap, raid.name, raid.slug));
+
+      if (!raiderIOMatch) {
+        logger.warn(`[Raid Dates] No Raider.IO match found for ${raid.name} (${raid.id}); preserving stored dates`);
+        continue;
+      }
+
+      matched++;
+      const dateFields: Record<string, Date | string> = { rioSlug: raiderIOMatch.slug };
+
+      for (const region of ["us", "eu", "tw", "kr", "cn"] as const) {
+        const start = raiderIOMatch.starts?.[region];
+        const end = raiderIOMatch.ends?.[region];
+        if (start) dateFields[`starts.${region}`] = new Date(start);
+        if (end) dateFields[`ends.${region}`] = new Date(end);
+      }
+
+      const result = await Raid.updateOne({ id: raid.id }, { $set: dateFields });
+      if (result.modifiedCount > 0) {
+        updatedRaidIds.push(raid.id);
+        logger.info(`[Raid Dates] Updated Raider.IO dates for ${raid.name} (${raid.id})`);
+      } else {
+        logger.info(`[Raid Dates] Dates already current for ${raid.name} (${raid.id})`);
+      }
+    }
+
+    return {
+      requested: targetRaidIds.length,
+      found: raids.length,
+      matched,
+      updatedRaidIds,
+    };
   }
 
   /**

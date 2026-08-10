@@ -79,13 +79,14 @@ test("Reporter treats Finnish style and link coverage preferences as non-fatal",
 test("Reporter separates lead candidates from supporting developments and background", () => {
   const factPack = getReporterEditorialFactPack([
     { ...facts[0], kind: "progress_trajectory" },
-    { ...facts[0], id: "F2", kind: "reclear_roundup" },
-    { ...facts[0], id: "F3", kind: "player_leaderboard_context" },
+    { ...facts[0], id: "F2", kind: "boss_benchmark" },
+    { ...facts[0], id: "F3", kind: "reclear_roundup" },
+    { ...facts[0], id: "F4", kind: "player_leaderboard_context" },
   ]);
 
   assert.deepEqual(factPack.leadCandidates.map((fact) => fact.id), ["F1"]);
-  assert.deepEqual(factPack.supportingDevelopments.map((fact) => fact.id), ["F2"]);
-  assert.deepEqual(factPack.background.map((fact) => fact.id), ["F3"]);
+  assert.deepEqual(factPack.supportingDevelopments.map((fact) => fact.id), ["F2", "F3"]);
+  assert.deepEqual(factPack.background.map((fact) => fact.id), ["F4"]);
 });
 
 test("Reporter consolidates progress and reclears while naming raids in player and hiatus facts", () => {
@@ -104,22 +105,30 @@ test("Reporter consolidates progress and reclears while naming raids in player a
         bossName: "Midnight Falls",
         iconUrl: "boss.jpg",
         kills: 0,
-        bestPercent: 0.1,
+        bestPercent: 15.1,
         pullCount: 396,
         bestPullReportCode: "REPORT",
         bestPullFightId: 17,
+        totalPhases: 4,
+        bestPullPhase: {
+          phaseId: 3,
+          phaseName: "Stage Three: Midnight Falls",
+          bossHealth: 0.1,
+          fightCompletion: 15.1,
+          displayString: "0.1% Stage Three: Midnight Falls",
+        },
       },
     ],
   };
-  const event = (type: string, guildName: string, timestamp: string, data: Record<string, unknown>) => ({
+  const event = (type: string, guildName: string, timestamp: string, data: Record<string, unknown>, bossId = 101, bossName = "Midnight Falls") => ({
     type,
     guildId: guildName === "Kaaos" ? "kaaos" : guildName.toLowerCase(),
     guildName,
     guildRealm: "Stormreaver",
     raidId: 46,
     raidName,
-    bossId: 101,
-    bossName: "Midnight Falls",
+    bossId,
+    bossName,
     difficulty: "mythic",
     data,
     timestamp: new Date(timestamp),
@@ -148,15 +157,29 @@ test("Reporter consolidates progress and reclears while naming raids in player a
         iconUrl: "raid.jpg",
         starts: { eu: new Date("2026-03-18T04:00:00Z") },
         ends: { eu: new Date("2026-12-17T04:00:00Z") },
-        bosses: [{ id: 101, name: "Midnight Falls", iconUrl: "boss.jpg" }],
+        bosses: [
+          { id: 101, name: "Midnight Falls", iconUrl: "boss.jpg" },
+          { id: 102, name: "Crown of the Cosmos", iconUrl: "crown.jpg" },
+        ],
       },
     ],
+    raidAnalytics: [
+      {
+        raidId: 46,
+        bosses: [{ bossId: 101, bossName: "Midnight Falls", guildsKilled: 8, pullCount: { average: 248, lowest: 103, highest: 421 } }],
+      },
+    ],
+    mythicPlus: {
+      seasonSlug: "midnight-season-2",
+      seasonName: "Midnight Season 2",
+      leaders: [{ rank: 1, name: "Keymaster", realm: "Stormreaver", classId: 10, score: 3210.4, specName: "windwalker" }],
+    },
     events: [
-      event("best_pull", "Kaaos", "2026-08-09T20:00:00Z", { bestPercent: 0.1, pullCount: 396, progressDisplay: "0.1% Stage Three: Midnight Falls" }),
-      event("reproge", "Slack", "2026-08-09T19:00:00Z", {}),
+      event("best_pull", "Kaaos", "2026-08-09T20:00:00Z", { bestPercent: 15.1, pullCount: 396, progressDisplay: "0.1% Stage Three: Midnight Falls" }),
+      event("reproge", "Slack", "2026-08-09T19:00:00Z", {}, 102, "Crown of the Cosmos"),
       event("reproge", "Noni", "2026-08-09T18:00:00Z", {}),
       event("hiatus", "Tuju", "2026-08-09T17:00:00Z", { hiatusDays: 30 }),
-      event("best_pull", "Kaaos", "2026-08-08T20:00:00Z", { bestPercent: 44.5, pullCount: 323, progressDisplay: "44.5% Stage Three: Midnight Falls" }),
+      event("best_pull", "Kaaos", "2026-08-08T20:00:00Z", { bestPercent: 52.9, pullCount: 323, progressDisplay: "44.5% Stage Three: Midnight Falls" }),
     ],
     periodStart: new Date("2026-08-03T12:00:00Z"),
     periodEnd,
@@ -166,14 +189,26 @@ test("Reporter consolidates progress and reclears while naming raids in player a
   const reclears = reporterFacts.find((fact) => fact.kind === "reclear_roundup");
   const hiatus = reporterFacts.find((fact) => fact.kind === "hiatus");
   const player = reporterFacts.find((fact) => fact.kind === "player_leaderboard_context");
-  assert.match(trajectory?.summary || "", /44\.5% at 323 total pulls; 0\.1% at 396 total pulls/);
-  assert.match(trajectory?.summary || "", /latest best was in P3/i);
+  const benchmark = reporterFacts.find((fact) => fact.kind === "boss_benchmark");
+  const mythicPlus = reporterFacts.find((fact) => fact.kind === "mythic_plus_leaderboard_context");
+  assert.match(trajectory?.summary || "", /52\.9% overall fight progress remaining at 323 total pulls; 15\.1% overall fight progress remaining at 396 total pulls/);
+  assert.match(trajectory?.summary || "", /15\.1% overall fight progress remained.*boss health was 0\.1%.*P3 of 4.*not the final phase/i);
   assert.equal(reporterFacts.filter((fact) => fact.kind === "progress_trajectory").length, 1);
+  assert.match(benchmark?.summary || "", /average first-kill total of 248 pulls.*range of 103-421.*396 total recorded pulls without a kill/i);
   assert.match(reclears?.summary || "", /2 tracked guild-boss reclears/);
   assert.doesNotMatch(reclears?.summary || "", /2 bosses/);
+  assert.ok(reclears?.links.some((link) => link.kind === "boss" && link.label === "Crown of the Cosmos" && link.visual?.iconUrl === "crown.jpg"));
+  assert.ok(reclears?.links.some((link) => link.kind === "boss" && link.label === "Midnight Falls" && link.visual?.iconUrl === "boss.jpg"));
+  assert.equal(
+    getReporterPromptFacts([reclears!])[0].links.find((link) => link.label === "Crown of the Cosmos")?.presentationHint,
+    "boss-icon",
+  );
   assert.ok(hiatus?.links.some((link) => link.label === raidName && link.visual?.iconUrl === "raid.jpg"));
   assert.match(player?.summary || "", new RegExp(raidName.replaceAll("/", "\\/")));
   assert.doesNotMatch(player?.summary || "", /raid 46/);
+  assert.ok(player?.links.some((link) => link.url === "/tierlists/characters"));
+  assert.match(mythicPlus?.summary || "", /Midnight Season 2.*Keymaster.*3210\.4.*not a claimed weekly change/i);
+  assert.ok(mythicPlus?.links.some((link) => link.url === "/characters?tab=mythic-plus"));
 });
 
 test("Reporter repairs malformed known link tokens and degrades unknown tokens to plain text", () => {
@@ -386,14 +421,18 @@ test("Reporter writes Finnish first, translates it to English and totals both Op
     assert.deepEqual(JSON.parse(finnishRequest.input).previousDispatch, previousDispatch);
     assert.equal(englishRequest.text.format.name, "suomi_wow_weekly_report_en");
     assert.match(englishRequest.instructions, /Finnish edition is the sole source of truth/);
+    assert.match(englishRequest.instructions, /Never translate, anglicize or otherwise rewrite a guild name/);
     assert.deepEqual(JSON.parse(englishRequest.input).sourceFinnish, generated.fi);
     assert.equal(JSON.parse(englishRequest.input).facts, undefined);
+    assert.deepEqual(JSON.parse(englishRequest.input).canonicalEntities, [{ kind: "guild", name: "Example Guild" }]);
+    assert.deepEqual(JSON.parse(englishRequest.input).sourceFacts, [{ id: "F1", kind: "boss_kill", summary: "Example Guild killed Example Boss." }]);
+    assert.deepEqual(JSON.parse(englishRequest.input).availableLinks, [{ ref: "L1", label: "Example Guild", kind: "guild" }]);
     assert.equal(result.responseId, "resp_reporter_fi,resp_reporter_en");
     assert.deepEqual(result.content, generated);
     assert.equal(result.usage.inputTokens, 800);
     assert.equal(result.usage.outputTokens, 300);
     assert.equal(result.usage.totalTokens, 1_100);
-    assert.equal(REPORTER_CONFIG.promptVersion, "reporter-v5");
+    assert.equal(REPORTER_CONFIG.promptVersion, "reporter-v6");
   } finally {
     global.fetch = originalFetch;
     if (originalApiKey === undefined) delete process.env.OPENAI_API_KEY;
