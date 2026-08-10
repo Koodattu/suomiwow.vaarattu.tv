@@ -1,5 +1,5 @@
 import { REPORTER_CONFIG } from "./reporter.config";
-import { ReporterFact, ReporterGeneratedContent, ReporterUsage } from "./reporter.types";
+import { ReporterFact, ReporterGeneratedContent, ReporterResolvedLink, ReporterUsage } from "./reporter.types";
 
 const LINK_TOKEN_PATTERN = /\[\[([A-Z]\d+)\|([^\]\n]{1,80})\]\]/g;
 
@@ -66,6 +66,18 @@ export function validateReporterContent(content: ReporterGeneratedContent, facts
   }
 }
 
-export function getReporterLinks(facts: ReporterFact[]): Record<string, { url: string; kind: ReporterFact["links"][number]["kind"] }> {
-  return Object.fromEntries(facts.flatMap((fact) => fact.links.map((link) => [link.ref, { url: link.url, kind: link.kind }])));
+export function getReporterPromptFacts(facts: ReporterFact[]): ReporterFact[] {
+  return facts.map((fact) => ({
+    id: fact.id,
+    kind: fact.kind,
+    summary: fact.summary,
+    ...(fact.occurredAt ? { occurredAt: fact.occurredAt } : {}),
+    links: fact.links.map(({ ref, label, url, kind }) => ({ ref, label, url, kind })),
+  }));
+}
+
+export function getReporterLinks(facts: ReporterFact[]): Record<string, ReporterResolvedLink> {
+  return Object.fromEntries(
+    facts.flatMap((fact) => fact.links.map((link) => [link.ref, { url: link.url, kind: link.kind, ...(link.visual ? { visual: link.visual } : {}) }])),
+  );
 }

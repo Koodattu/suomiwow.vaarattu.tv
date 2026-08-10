@@ -12,6 +12,7 @@ interface IconImageProps {
   className?: string;
   style?: React.CSSProperties;
   onReady?: () => void;
+  hideOnFailure?: boolean;
 }
 
 /**
@@ -29,6 +30,7 @@ export default function IconImage({
   className = "",
   style,
   onReady,
+  hideOnFailure = false,
 }: IconImageProps) {
   const [imageState, setImageState] = useState<
     "local" | "backend" | "placeholder"
@@ -48,6 +50,7 @@ export default function IconImage({
   }, [backendFailed, iconFilename, imageState]);
 
   if (!iconFilename) {
+    if (hideOnFailure) return null;
     return (
       <div
         className={`bg-gray-700 rounded ${className}`}
@@ -82,6 +85,7 @@ export default function IconImage({
 
   // Show placeholder if both local and backend failed
   if (imageState === "placeholder" || backendFailed) {
+    if (hideOnFailure) return null;
     return (
       <div
         className={`bg-gray-700 rounded ${className}`}

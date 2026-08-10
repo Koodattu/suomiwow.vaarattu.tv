@@ -4467,6 +4467,14 @@ export interface ReporterUsage {
   };
 }
 
+export interface ReporterLinkVisual {
+  type: "guild-crest" | "icon" | "wcl";
+  crest?: GuildCrest;
+  faction?: string;
+  iconUrl?: string;
+  provider?: "wcl";
+}
+
 export interface ReporterPost {
   id: string;
   weekKey: string;
@@ -4479,7 +4487,7 @@ export interface ReporterPost {
     fi: ReporterLocaleContent;
   };
   usage: ReporterUsage;
-  links: Record<string, { url: string; kind: "guild" | "character" | "pickem" | "event" | "analytics" | "log" }>;
+  links: Record<string, { url: string; kind: "guild" | "character" | "pickem" | "event" | "analytics" | "log"; visual?: ReporterLinkVisual }>;
   publishedAt?: string;
   createdAt: string;
   updatedAt: string;

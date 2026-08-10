@@ -1,3 +1,5 @@
+import type { IGuildCrest } from "../../models/Guild";
+
 export type ReporterRunSource = "admin" | "cron";
 export type ReporterPostStatus = "draft" | "published";
 
@@ -10,11 +12,26 @@ export interface ReporterSettingsValue {
 
 export type ReporterSettingsUpdate = Partial<Pick<ReporterSettingsValue, "featureEnabled" | "automationEnabled" | "autoPublish">>;
 
+export interface ReporterLinkVisual {
+  type: "guild-crest" | "icon" | "wcl";
+  crest?: IGuildCrest;
+  faction?: string;
+  iconUrl?: string;
+  provider?: "wcl";
+}
+
 export interface ReporterLink {
   ref: string;
   label: string;
   url: string;
   kind: "guild" | "character" | "pickem" | "event" | "analytics" | "log";
+  visual?: ReporterLinkVisual;
+}
+
+export interface ReporterResolvedLink {
+  url: string;
+  kind: ReporterLink["kind"];
+  visual?: ReporterLinkVisual;
 }
 
 export interface ReporterFact {
@@ -55,6 +72,7 @@ export interface ReporterUsage {
 export interface ReporterBossSnapshot {
   bossId: number;
   bossName: string;
+  iconUrl?: string;
   kills: number;
   bestPercent: number;
   pullCount: number;
@@ -68,6 +86,7 @@ export interface ReporterBossSnapshot {
 export interface ReporterProgressSnapshot {
   raidId: number;
   raidName: string;
+  iconUrl?: string;
   difficulty: "mythic" | "heroic";
   bossesDefeated: number;
   totalBosses: number;
@@ -80,6 +99,8 @@ export interface ReporterGuildSnapshot {
   guildId: string;
   name: string;
   realm: string;
+  faction?: string;
+  crest?: IGuildCrest;
   parentGuild?: string;
   progress: ReporterProgressSnapshot[];
 }

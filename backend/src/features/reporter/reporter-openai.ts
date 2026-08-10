@@ -1,5 +1,5 @@
 import { REPORTER_CONFIG, requireReporterApiKey } from "./reporter.config";
-import { calculateReporterUsage } from "./reporter-content";
+import { calculateReporterUsage, getReporterPromptFacts } from "./reporter-content";
 import { ReporterFact, ReporterGeneratedContent, ReporterUsage } from "./reporter.types";
 
 interface OpenAIReporterResult {
@@ -104,7 +104,7 @@ export async function generateReporterContent(input: {
           {
             periodStart: input.periodStart.toISOString(),
             periodEnd: input.periodEnd.toISOString(),
-            facts: input.facts,
+            facts: getReporterPromptFacts(input.facts),
           },
           null,
           2,

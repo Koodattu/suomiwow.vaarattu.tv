@@ -5,6 +5,7 @@ import {
   ReporterGeneratedContent,
   ReporterGuildSnapshot,
   ReporterLink,
+  ReporterLinkVisual,
   ReporterLocaleContent,
   ReporterPickemSnapshot,
   ReporterPlayerSnapshot,
@@ -15,10 +16,40 @@ import {
   ReporterUsage,
 } from "./reporter.types";
 
+const ReporterColorSchema = new Schema(
+  {
+    r: { type: Number, required: true },
+    g: { type: Number, required: true },
+    b: { type: Number, required: true },
+    a: { type: Number, required: true },
+  },
+  { _id: false },
+);
+
+const ReporterGuildCrestSchema = new Schema(
+  {
+    emblem: {
+      id: { type: Number, required: true },
+      imageName: { type: String, required: true },
+      color: { type: ReporterColorSchema, required: true },
+    },
+    border: {
+      id: { type: Number, required: true },
+      imageName: { type: String, required: true },
+      color: { type: ReporterColorSchema, required: true },
+    },
+    background: {
+      color: { type: ReporterColorSchema, required: true },
+    },
+  },
+  { _id: false },
+);
+
 const ReporterBossSnapshotSchema = new Schema<ReporterBossSnapshot>(
   {
     bossId: { type: Number, required: true },
     bossName: { type: String, required: true },
+    iconUrl: { type: String },
     kills: { type: Number, required: true },
     bestPercent: { type: Number, required: true },
     pullCount: { type: Number, required: true },
@@ -35,6 +66,7 @@ const ReporterProgressSnapshotSchema = new Schema<ReporterProgressSnapshot>(
   {
     raidId: { type: Number, required: true },
     raidName: { type: String, required: true },
+    iconUrl: { type: String },
     difficulty: { type: String, enum: ["mythic", "heroic"], required: true },
     bossesDefeated: { type: Number, required: true },
     totalBosses: { type: Number, required: true },
@@ -50,6 +82,8 @@ const ReporterGuildSnapshotSchema = new Schema<ReporterGuildSnapshot>(
     guildId: { type: String, required: true },
     name: { type: String, required: true },
     realm: { type: String, required: true },
+    faction: { type: String },
+    crest: { type: ReporterGuildCrestSchema },
     parentGuild: { type: String },
     progress: { type: [ReporterProgressSnapshotSchema], required: true, default: [] },
   },
@@ -67,6 +101,17 @@ const ReporterPlayerSnapshotSchema = new Schema<ReporterPlayerSnapshot>(
     role: { type: String, required: true },
     specName: { type: String, required: true },
     score: { type: Number, required: true },
+  },
+  { _id: false },
+);
+
+const ReporterLinkVisualSchema = new Schema<ReporterLinkVisual>(
+  {
+    type: { type: String, enum: ["guild-crest", "icon", "wcl"], required: true },
+    crest: { type: ReporterGuildCrestSchema },
+    faction: { type: String },
+    iconUrl: { type: String },
+    provider: { type: String, enum: ["wcl"] },
   },
   { _id: false },
 );
@@ -91,6 +136,7 @@ const ReporterLinkSchema = new Schema<ReporterLink>(
     label: { type: String, required: true },
     url: { type: String, required: true },
     kind: { type: String, enum: ["guild", "character", "pickem", "event", "analytics", "log"], required: true },
+    visual: { type: ReporterLinkVisualSchema },
   },
   { _id: false },
 );

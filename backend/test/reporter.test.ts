@@ -6,9 +6,9 @@ import test from "node:test";
 import express from "express";
 import session from "express-session";
 import { REPORTER_CONFIG } from "../src/features/reporter/reporter.config";
-import { calculateReporterUsage, getReporterLinks, validateReporterContent } from "../src/features/reporter/reporter-content";
+import { calculateReporterUsage, getReporterLinks, getReporterPromptFacts, validateReporterContent } from "../src/features/reporter/reporter-content";
 import { generateReporterContent } from "../src/features/reporter/reporter-openai";
-import { ReporterSettings } from "../src/features/reporter/reporter.models";
+import { ReporterPost, ReporterSettings } from "../src/features/reporter/reporter.models";
 import { DEFAULT_REPORTER_SETTINGS, shouldAutoPublishReporterPost } from "../src/features/reporter/reporter-settings.service";
 import { ReporterFact, ReporterGeneratedContent } from "../src/features/reporter/reporter.types";
 
@@ -55,6 +55,43 @@ test("Reporter content accepts known inline links and rejects invented reference
   assert.deepEqual(getReporterLinks(facts), { L1: { url: "/guilds/example/example", kind: "guild" } });
 });
 
+test("Reporter keeps trusted link visuals out of the OpenAI fact pack", () => {
+  const visualFacts: ReporterFact[] = [
+    {
+      ...facts[0],
+      links: [
+        {
+          ...facts[0].links[0],
+          visual: { type: "icon", iconUrl: "example-boss.jpg", provider: "wcl" },
+        },
+      ],
+    },
+  ];
+
+  assert.deepEqual(getReporterLinks(visualFacts), {
+    L1: {
+      url: "/guilds/example/example",
+      kind: "guild",
+      visual: { type: "icon", iconUrl: "example-boss.jpg", provider: "wcl" },
+    },
+  });
+  assert.equal(getReporterPromptFacts(visualFacts)[0].links[0].visual, undefined);
+
+  const post = new ReporterPost({
+    weekKey: "2026-08-10",
+    slug: "visual-link-test",
+    status: "draft",
+    periodStart: new Date("2026-08-03T00:00:00Z"),
+    periodEnd: new Date("2026-08-10T00:00:00Z"),
+    snapshotId: "507f1f77bcf86cd799439011",
+    generationId: "507f1f77bcf86cd799439012",
+    facts: visualFacts,
+    content: validContent(),
+    usage: calculateReporterUsage({}),
+  });
+  assert.equal(post.facts[0].links[0].visual?.iconUrl, "example-boss.jpg");
+});
+
 test("Reporter database switches default off and only scheduled runs may auto-publish", () => {
   const settings = new ReporterSettings({ key: "global" });
   assert.deepEqual(
@@ -97,12 +134,19 @@ test("Reporter OpenAI request pins Luna, medium reasoning, low verbosity and str
 
   try {
     const result = await generateReporterContent({ periodStart: new Date("2026-08-01T00:00:00Z"), periodEnd: new Date("2026-08-08T00:00:00Z"), facts });
-    const sentRequest = requestBody as unknown as { model: string; reasoning: { effort: string }; text: { verbosity: string; format: { type: string } }; store: boolean };
+    const sentRequest = requestBody as unknown as {
+      model: string;
+      reasoning: { effort: string };
+      input: string;
+      text: { verbosity: string; format: { type: string } };
+      store: boolean;
+    };
     assert.equal(sentRequest.model, "gpt-5.6-luna");
     assert.equal(sentRequest.reasoning.effort, "medium");
     assert.equal(sentRequest.text.verbosity, "low");
     assert.equal(sentRequest.text.format.type, "json_schema");
     assert.equal(sentRequest.store, false);
+    assert.equal(JSON.parse(sentRequest.input).facts[0].links[0].visual, undefined);
     assert.equal(result.responseId, "resp_reporter_test");
     assert.equal(result.usage.inputTokens, 500);
     assert.equal(result.usage.outputTokens, 200);

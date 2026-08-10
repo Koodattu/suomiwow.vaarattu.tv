@@ -2,8 +2,9 @@ import mongoose from "mongoose";
 import { CURRENT_RAID_IDS, PRIMARY_RAID_ID } from "../../config/guilds";
 import CharacterLeaderboard from "../../models/CharacterLeaderboard";
 import Event, { EventType } from "../../models/Event";
-import Guild, { IRaidProgress } from "../../models/Guild";
+import Guild, { IGuildCrest, IRaidProgress } from "../../models/Guild";
 import Pickem from "../../models/Pickem";
+import Raid from "../../models/Raid";
 import { REPORTER_CONFIG } from "./reporter.config";
 import { getReporterLinks, validateReporterContent } from "./reporter-content";
 import { IReporterPost, ReporterGeneration, ReporterPost, ReporterSnapshot } from "./reporter.models";
@@ -13,6 +14,7 @@ import {
   ReporterFact,
   ReporterGuildSnapshot,
   ReporterLink,
+  ReporterLinkVisual,
   ReporterPickemSnapshot,
   ReporterPlayerSnapshot,
   ReporterPostStatus,
@@ -26,9 +28,17 @@ type LeanGuild = {
   _id: mongoose.Types.ObjectId;
   name: string;
   realm: string;
+  faction?: string;
+  crest?: IGuildCrest;
   parent_guild?: string;
   excludedRaidIds?: number[];
   progress?: IRaidProgress[];
+};
+
+type LeanRaidVisuals = {
+  id: number;
+  iconUrl?: string;
+  bosses: Array<{ id: number; name: string; iconUrl?: string }>;
 };
 
 type LeanEvent = {
@@ -99,10 +109,28 @@ function logUrl(reportCode: string, fightId: number): string {
   return `https://www.warcraftlogs.com/reports/${encodeURIComponent(reportCode)}#fight=${fightId}`;
 }
 
-function snapshotProgress(progress: IRaidProgress): ReporterProgressSnapshot {
+function hasReporterColor(color: IGuildCrest["emblem"]["color"] | undefined): color is IGuildCrest["emblem"]["color"] {
+  return Boolean(color && [color.r, color.g, color.b, color.a].every((value) => typeof value === "number" && Number.isFinite(value)));
+}
+
+function snapshotGuildCrest(crest?: IGuildCrest): IGuildCrest | undefined {
+  if (
+    !crest?.emblem?.imageName ||
+    !crest.border?.imageName ||
+    !hasReporterColor(crest.emblem.color) ||
+    !hasReporterColor(crest.border.color) ||
+    !hasReporterColor(crest.background?.color)
+  ) {
+    return undefined;
+  }
+  return crest;
+}
+
+function snapshotProgress(progress: IRaidProgress, raid?: LeanRaidVisuals): ReporterProgressSnapshot {
   return {
     raidId: progress.raidId,
     raidName: progress.raidName,
+    iconUrl: raid?.iconUrl,
     difficulty: progress.difficulty,
     bossesDefeated: progress.bossesDefeated,
     totalBosses: progress.totalBosses,
@@ -111,6 +139,7 @@ function snapshotProgress(progress: IRaidProgress): ReporterProgressSnapshot {
     bosses: progress.bosses.map((boss) => ({
       bossId: boss.bossId,
       bossName: boss.bossName,
+      iconUrl: (raid?.bosses.find((entry) => entry.id === boss.bossId) || raid?.bosses.find((entry) => entry.name === boss.bossName))?.iconUrl,
       kills: boss.kills,
       bestPercent: boss.bestPercent,
       pullCount: boss.pullCount,
@@ -157,33 +186,54 @@ function buildFacts(input: {
   let factNumber = 0;
   let linkNumber = 0;
   const facts: ReporterFact[] = [];
-  const makeLink = (kind: ReporterLink["kind"], label: string, url: string): ReporterLink => ({
+  const makeLink = (kind: ReporterLink["kind"], label: string, url: string, visual?: ReporterLinkVisual): ReporterLink => ({
     ref: `L${++linkNumber}`,
     kind,
     label,
     url,
+    ...(visual ? { visual } : {}),
   });
+  const guildVisual = (guild?: ReporterGuildSnapshot): ReporterLinkVisual | undefined =>
+    guild?.crest ? { type: "guild-crest", crest: guild.crest, ...(guild.faction ? { faction: guild.faction } : {}) } : undefined;
   const addFact = (kind: string, summary: string, links: ReporterLink[], occurredAt?: string) => {
     facts.push({ id: `F${++factNumber}`, kind, summary, links, ...(occurredAt ? { occurredAt } : {}) });
   };
 
   const counts = new Map<EventType, number>();
   for (const event of input.events) counts.set(event.type, (counts.get(event.type) || 0) + 1);
+  const primaryRaid = input.currentGuilds.flatMap((guild) => guild.progress).find((progress) => progress.raidId === PRIMARY_RAID_ID);
   addFact(
     "scene_summary",
     `The seven-day window contains ${input.events.length} tracked events: ${counts.get("boss_kill") || 0} boss kills, ${counts.get("best_pull") || 0} best-pull improvements, ${counts.get("reproge") || 0} re-progression events, ${counts.get("regress") || 0} regression events, and ${counts.get("hiatus") || 0} inactivity events.`,
-    [makeLink("event", "the event feed", "/events"), makeLink("analytics", "raid analytics", "/raid-analytics")],
+    [
+      makeLink("event", "the event feed", "/events"),
+      makeLink(
+        "analytics",
+        primaryRaid ? `${primaryRaid.raidName} raid analytics` : "raid analytics",
+        "/raid-analytics",
+        primaryRaid?.iconUrl ? { type: "icon", iconUrl: primaryRaid.iconUrl } : undefined,
+      ),
+    ],
   );
 
   const currentGuildMap = new Map(input.currentGuilds.map((guild) => [guild.guildId, guild]));
   for (const event of input.events.slice(0, 50)) {
     const guild = currentGuildMap.get(event.guildId.toString());
-    const links = [makeLink("guild", event.guildName, guildUrl(guild?.realm || event.guildRealm || "unknown", event.guildName))];
+    const links = [makeLink("guild", event.guildName, guildUrl(guild?.realm || event.guildRealm || "unknown", event.guildName), guildVisual(guild))];
     const progress = guild?.progress.find((entry) => entry.raidId === event.raidId && entry.difficulty === event.difficulty);
     const boss = progress?.bosses.find((entry) => entry.bossId === event.bossId);
     const reportCode = event.type === "boss_kill" ? boss?.firstKillReportCode : boss?.bestPullReportCode;
     const fightId = event.type === "boss_kill" ? boss?.firstKillFightId : boss?.bestPullFightId;
-    if (reportCode && fightId) links.push(makeLink("log", `${event.bossName || "boss"} log`, logUrl(reportCode, fightId)));
+    if (reportCode && fightId) {
+      links.push(
+        makeLink(
+          "log",
+          `${event.bossName || "boss"} log`,
+          logUrl(reportCode, fightId),
+          boss?.iconUrl ? { type: "icon", iconUrl: boss.iconUrl, provider: "wcl" } : { type: "wcl" },
+        ),
+      );
+    }
     addFact(event.type, describeEvent(event), links, event.timestamp.toISOString());
   }
 
@@ -198,7 +248,7 @@ function buildFacts(input: {
       `Current ${standings[0].progress.raidName} Mythic tracked-guild standings: ${standings
         .map(({ guild, progress }, index) => `${index + 1}. ${guild.name} ${progress.bossesDefeated}/${progress.totalBosses}${progress.guildRank ? ` (stored guild rank ${progress.guildRank})` : ""}`)
         .join("; ")}.`,
-      standings.map(({ guild }) => makeLink("guild", guild.name, guildUrl(guild.realm, guild.name))),
+      standings.map(({ guild }) => makeLink("guild", guild.name, guildUrl(guild.realm, guild.name), guildVisual(guild))),
     );
   }
 
@@ -221,15 +271,19 @@ function buildFacts(input: {
     }
   }
   for (const movement of movements.sort((a, b) => b.importance - a.importance).slice(0, 15)) {
-    addFact("weekly_guild_movement", movement.summary, [makeLink("guild", movement.guild.name, guildUrl(movement.guild.realm, movement.guild.name))]);
+    addFact("weekly_guild_movement", movement.summary, [makeLink("guild", movement.guild.name, guildUrl(movement.guild.realm, movement.guild.name), guildVisual(movement.guild))]);
   }
 
   const previousPlayerMap = new Map(input.previousPlayers.map((player) => [`${player.category}:${player.realm}:${player.name}`, player]));
+  const currentGuildIdentityMap = new Map(input.currentGuilds.map((guild) => [`${guild.realm.toLowerCase()}:${guild.name.toLowerCase()}`, guild]));
   for (const player of input.currentPlayers.filter((entry) => entry.rank <= 3)) {
     const old = previousPlayerMap.get(`${player.category}:${player.realm}:${player.name}`);
     const movement = old ? `; one-week snapshot rank ${old.rank} to ${player.rank}, score ${old.score.toFixed(1)} to ${player.score.toFixed(1)}` : "";
     const links = [makeLink("character", player.name, characterUrl(player.realm, player.name))];
-    if (player.guildName && player.guildRealm) links.push(makeLink("guild", player.guildName, guildUrl(player.guildRealm, player.guildName)));
+    if (player.guildName && player.guildRealm) {
+      const guild = currentGuildIdentityMap.get(`${player.guildRealm.toLowerCase()}:${player.guildName.toLowerCase()}`);
+      links.push(makeLink("guild", player.guildName, guildUrl(player.guildRealm, player.guildName), guildVisual(guild)));
+    }
     addFact(
       "player_leaderboard",
       `${player.name} is currently rank ${player.rank} in the ${player.category} Mythic all-stars snapshot for raid ${PRIMARY_RAID_ID}, playing ${player.specName}, with score ${player.score.toFixed(1)}${movement}.`,
@@ -251,7 +305,7 @@ function buildFacts(input: {
 }
 
 async function captureSnapshot(periodStart: Date, periodEnd: Date, weekKey: string) {
-  const guildQuery = Guild.find({}, { name: 1, realm: 1, parent_guild: 1, excludedRaidIds: 1, progress: 1 }).lean();
+  const guildQuery = Guild.find({}, { name: 1, realm: 1, faction: 1, crest: 1, parent_guild: 1, excludedRaidIds: 1, progress: 1 }).lean();
   const leaderboardBase = {
     zoneId: PRIMARY_RAID_ID,
     difficulty: 5,
@@ -260,23 +314,27 @@ async function captureSnapshot(periodStart: Date, periodEnd: Date, weekKey: stri
     partition: null,
   } as const;
 
-  const [rawGuilds, dps, healers, tanks, rawPickems] = await Promise.all([
+  const [rawGuilds, dps, healers, tanks, rawPickems, rawRaids] = await Promise.all([
     guildQuery,
     CharacterLeaderboard.find({ ...leaderboardBase, role: "dps", metric: "dps" }).sort({ score: -1 }).limit(5).lean(),
     CharacterLeaderboard.find({ ...leaderboardBase, role: "healer", metric: "hps" }).sort({ score: -1 }).limit(5).lean(),
     CharacterLeaderboard.find({ ...leaderboardBase, role: "tank", metric: "dps" }).sort({ score: -1 }).limit(5).lean(),
     Pickem.find({ $or: [{ active: true }, { updatedAt: { $gte: periodStart } }] }).sort({ votingStart: -1 }).lean(),
+    Raid.find({ id: { $in: CURRENT_RAID_IDS } }).select("id iconUrl bosses.id bosses.name bosses.iconUrl -_id").lean(),
   ]);
+  const raidVisuals = new Map((rawRaids as unknown as LeanRaidVisuals[]).map((raid) => [raid.id, raid]));
 
   const guilds: ReporterGuildSnapshot[] = (rawGuilds as unknown as LeanGuild[])
     .map((guild) => ({
       guildId: guild._id.toString(),
       name: guild.name,
       realm: guild.realm,
+      faction: guild.faction,
+      crest: snapshotGuildCrest(guild.crest),
       parentGuild: guild.parent_guild,
       progress: (guild.progress || [])
         .filter((progress) => CURRENT_RAID_IDS.includes(progress.raidId) && !(guild.excludedRaidIds || []).includes(progress.raidId))
-        .map(snapshotProgress),
+        .map((progress) => snapshotProgress(progress, raidVisuals.get(progress.raidId))),
     }))
     .filter((guild) => guild.progress.length > 0);
 
