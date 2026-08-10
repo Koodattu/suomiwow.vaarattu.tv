@@ -179,7 +179,14 @@ function describeEvent(event: LeanEvent): string {
   }
 }
 
-function buildFacts(input: {
+function getProgressPhaseLabel(progressDisplay?: string): string | undefined {
+  const match = progressDisplay?.match(/\b(?:stage|phase)\s+(one|two|three|1|2|3)\b/i);
+  if (!match) return undefined;
+  const phaseNumber = { one: "1", two: "2", three: "3" }[match[1].toLowerCase()] || match[1];
+  return `P${phaseNumber}`;
+}
+
+export function buildReporterFacts(input: {
   currentGuilds: ReporterGuildSnapshot[];
   previousGuilds: ReporterGuildSnapshot[];
   currentPlayers: ReporterPlayerSnapshot[];
@@ -205,13 +212,53 @@ function buildFacts(input: {
   const addFact = (kind: string, summary: string, links: ReporterLink[], occurredAt?: string) => {
     facts.push({ id: `F${++factNumber}`, kind, summary, links, ...(occurredAt ? { occurredAt } : {}) });
   };
+  const uniqueLinks = (links: ReporterLink[]) => {
+    const byTarget = new Map<string, ReporterLink>();
+    for (const link of links) {
+      const key = `${link.kind}:${link.url}`;
+      if (!byTarget.has(key)) byTarget.set(key, link);
+    }
+    return [...byTarget.values()];
+  };
+
+  const raidMap = new Map(input.raids.map((raid) => [raid.id, raid]));
+  const currentGuildMap = new Map(input.currentGuilds.map((guild) => [guild.guildId, guild]));
+  const currentGuildIdentityMap = new Map(input.currentGuilds.map((guild) => [`${guild.realm.toLowerCase()}:${guild.name.toLowerCase()}`, guild]));
+  const getEventGuild = (event: LeanEvent) =>
+    currentGuildMap.get(event.guildId.toString()) ||
+    currentGuildIdentityMap.get(`${(event.guildRealm || "").toLowerCase()}:${event.guildName.toLowerCase()}`);
+  const getEventLinks = (event: LeanEvent, includeLog: boolean): ReporterLink[] => {
+    const guild = getEventGuild(event);
+    const raid = raidMap.get(event.raidId);
+    const links = [makeLink("guild", event.guildName, guildUrl(guild?.realm || event.guildRealm || "unknown", event.guildName), guildVisual(guild))];
+    if (raid) {
+      links.push(makeLink("analytics", raid.name, "/raid-analytics", raid.iconUrl ? { type: "icon", iconUrl: raid.iconUrl } : undefined));
+    }
+    if (!includeLog) return links;
+    const progress = guild?.progress.find((entry) => entry.raidId === event.raidId && entry.difficulty === event.difficulty);
+    const boss = progress?.bosses.find((entry) => entry.bossId === event.bossId);
+    const reportCode = event.type === "boss_kill" ? boss?.firstKillReportCode : boss?.bestPullReportCode;
+    const fightId = event.type === "boss_kill" ? boss?.firstKillFightId : boss?.bestPullFightId;
+    if (reportCode && fightId) {
+      links.push(
+        makeLink(
+          "log",
+          `${event.bossName || "boss"} log`,
+          logUrl(reportCode, fightId),
+          boss?.iconUrl ? { type: "icon", iconUrl: boss.iconUrl, provider: "wcl" } : { type: "wcl" },
+        ),
+      );
+    }
+    return links;
+  };
 
   const counts = new Map<EventType, number>();
   for (const event of input.events) counts.set(event.type, (counts.get(event.type) || 0) + 1);
   const primaryRaid = input.currentGuilds.flatMap((guild) => guild.progress).find((progress) => progress.raidId === PRIMARY_RAID_ID);
+  const primaryRaidName = primaryRaid?.raidName || raidMap.get(PRIMARY_RAID_ID)?.name || "the primary tracked raid";
   addFact(
     "scene_summary",
-    `Seven-day context: ${counts.get("boss_kill") || 0} new boss kills, ${counts.get("best_pull") || 0} best-pull improvements, ${counts.get("reproge") || 0} bosses that took more than five pulls to kill again, ${counts.get("regress") || 0} raid nights without a new best, and ${counts.get("hiatus") || 0} newly recorded long breaks from raiding.`,
+    `Seven-day context: ${counts.get("boss_kill") || 0} new boss kills, ${counts.get("best_pull") || 0} best-pull improvements, ${counts.get("reproge") || 0} tracked guild-boss reclears that took more than five pulls, ${counts.get("regress") || 0} raid nights without a new best, and ${counts.get("hiatus") || 0} newly recorded long breaks from raiding.`,
     [
       makeLink("event", "the event feed", "/events"),
       makeLink(
@@ -228,35 +275,62 @@ function buildFacts(input: {
     const endsAt = raid.ends?.eu;
     if (!startsAt && !endsAt) continue;
     const elapsedDays = startsAt && startsAt <= input.periodEnd ? Math.floor((input.periodEnd.getTime() - startsAt.getTime()) / DAY_MS) : undefined;
+    const remainingDays = endsAt && endsAt > input.periodEnd ? Math.ceil((endsAt.getTime() - input.periodEnd.getTime()) / DAY_MS) : undefined;
     addFact(
       "raid_timeline_context",
-      `${raid.name} EU raid window: start ${startsAt ? startsAt.toISOString() : "not stored"}; end ${endsAt ? endsAt.toISOString() : "not stored"}${elapsedDays !== undefined ? `; ${elapsedDays} full days had elapsed since opening at the end of this reporting period` : ""}.`,
+      `${raid.name} EU raid window: start ${startsAt ? startsAt.toISOString() : "not stored"}; end ${endsAt ? endsAt.toISOString() : "not stored"}${elapsedDays !== undefined ? `; ${elapsedDays} full days had elapsed since opening at the end of this reporting period` : ""}${remainingDays !== undefined ? `; ${remainingDays} days remained until the stored end date` : ""}.`,
       [makeLink("analytics", `${raid.name} raid analytics`, "/raid-analytics", raid.iconUrl ? { type: "icon", iconUrl: raid.iconUrl } : undefined)],
     );
   }
 
-  const currentGuildMap = new Map(input.currentGuilds.map((guild) => [guild.guildId, guild]));
+  const bestPullGroups = new Map<string, LeanEvent[]>();
+  const reclearEvents: LeanEvent[] = [];
+  const otherEvents: LeanEvent[] = [];
   for (const event of input.events.slice(0, 50)) {
-    const guild = currentGuildMap.get(event.guildId.toString());
-    const links = [makeLink("guild", event.guildName, guildUrl(guild?.realm || event.guildRealm || "unknown", event.guildName), guildVisual(guild))];
-    const progress = guild?.progress.find((entry) => entry.raidId === event.raidId && entry.difficulty === event.difficulty);
-    const boss = progress?.bosses.find((entry) => entry.bossId === event.bossId);
-    const reportCode = event.type === "boss_kill" ? boss?.firstKillReportCode : boss?.bestPullReportCode;
-    const fightId = event.type === "boss_kill" ? boss?.firstKillFightId : boss?.bestPullFightId;
-    if (reportCode && fightId) {
-      links.push(
-        makeLink(
-          "log",
-          `${event.bossName || "boss"} log`,
-          logUrl(reportCode, fightId),
-          boss?.iconUrl ? { type: "icon", iconUrl: boss.iconUrl, provider: "wcl" } : { type: "wcl" },
-        ),
-      );
+    if (event.type === "best_pull") {
+      const key = `${event.guildId}:${event.raidId}:${event.bossId ?? event.bossName}:${event.difficulty}`;
+      bestPullGroups.set(key, [...(bestPullGroups.get(key) || []), event]);
+    } else if (event.type === "reproge") {
+      reclearEvents.push(event);
+    } else {
+      otherEvents.push(event);
     }
-    addFact(event.type, describeEvent(event), links, event.timestamp.toISOString());
+  }
+
+  for (const events of [...bestPullGroups.values()].sort((a, b) => b[0].timestamp.getTime() - a[0].timestamp.getTime())) {
+    const ordered = [...events].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    const latest = ordered[ordered.length - 1];
+    const latestPhase = getProgressPhaseLabel(latest.data.progressDisplay);
+    const points = ordered.map((event) => {
+      const progress = event.data.bestPercent !== undefined ? `${event.data.bestPercent.toFixed(1)}%` : event.data.progressDisplay || "a new best";
+      return event.data.pullCount ? `${progress} at ${event.data.pullCount} total pulls` : progress;
+    });
+    addFact(
+      "progress_trajectory",
+      `${latest.guildName} improved its ${latest.difficulty === "mythic" ? "Mythic" : "Heroic"} ${latest.bossName || "boss"} best pull ${ordered.length} time${ordered.length === 1 ? "" : "s"} during the reporting window: ${points.join("; ")}.${latestPhase ? ` The latest best was in ${latestPhase}.` : ""}`,
+      uniqueLinks(getEventLinks(latest, true)),
+      latest.timestamp.toISOString(),
+    );
+  }
+
+  if (reclearEvents.length > 0) {
+    const ordered = [...reclearEvents].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    addFact(
+      "reclear_roundup",
+      `${ordered.length} tracked guild-boss reclears took more than five pulls: ${ordered
+        .map((event) => `${event.guildName} — ${event.difficulty === "mythic" ? "Mythic" : "Heroic"} ${event.bossName || "boss"}`)
+        .join("; ")}.`,
+      uniqueLinks(ordered.flatMap((event) => getEventLinks(event, false))),
+      ordered[0].timestamp.toISOString(),
+    );
+  }
+
+  for (const event of otherEvents) {
+    addFact(event.type, describeEvent(event), uniqueLinks(getEventLinks(event, event.type === "boss_kill")), event.timestamp.toISOString());
   }
 
   for (const raidId of CURRENT_RAID_IDS) {
+    const raid = raidMap.get(raidId);
     const standings = input.currentGuilds
       .flatMap((guild) => guild.progress.filter((progress) => progress.raidId === raidId && progress.difficulty === "mythic").map((progress) => ({ guild, progress })))
       .sort((a, b) => (a.progress.guildRank ?? 999_999) - (b.progress.guildRank ?? 999_999) || b.progress.bossesDefeated - a.progress.bossesDefeated)
@@ -267,12 +341,15 @@ function buildFacts(input: {
       `Current ${standings[0].progress.raidName} Mythic tracked-guild standings: ${standings
         .map(({ guild, progress }, index) => `${index + 1}. ${guild.name} ${progress.bossesDefeated}/${progress.totalBosses}${progress.guildRank ? ` (stored guild rank ${progress.guildRank})` : ""}`)
         .join("; ")}.`,
-      standings.map(({ guild }) => makeLink("guild", guild.name, guildUrl(guild.realm, guild.name), guildVisual(guild))),
+      [
+        ...standings.map(({ guild }) => makeLink("guild", guild.name, guildUrl(guild.realm, guild.name), guildVisual(guild))),
+        ...(raid ? [makeLink("analytics", raid.name, "/raid-analytics", raid.iconUrl ? { type: "icon", iconUrl: raid.iconUrl } : undefined)] : []),
+      ],
     );
   }
 
   const previousGuildMap = new Map(input.previousGuilds.map((guild) => [guild.guildId, guild]));
-  const movements: Array<{ importance: number; summary: string; guild: ReporterGuildSnapshot }> = [];
+  const movements: Array<{ importance: number; summary: string; guild: ReporterGuildSnapshot; raidId: number }> = [];
   for (const guild of input.currentGuilds) {
     const previous = previousGuildMap.get(guild.guildId);
     if (!previous) continue;
@@ -285,16 +362,26 @@ function buildFacts(input: {
       movements.push({
         importance: bossDelta * 100 + Math.abs(rankDelta),
         guild,
+        raidId: progress.raidId,
         summary: `${guild.name} moved from ${old.bossesDefeated}/${old.totalBosses} to ${progress.bossesDefeated}/${progress.totalBosses} in ${progress.raidName} ${progress.difficulty}${old.guildRank && progress.guildRank ? `; its stored tracked-guild rank changed from ${old.guildRank} to ${progress.guildRank}` : ""}.`,
       });
     }
   }
   for (const movement of movements.sort((a, b) => b.importance - a.importance).slice(0, 15)) {
-    addFact("weekly_guild_movement", movement.summary, [makeLink("guild", movement.guild.name, guildUrl(movement.guild.realm, movement.guild.name), guildVisual(movement.guild))]);
+    const raidContext = raidMap.get(movement.raidId);
+    addFact(
+      "weekly_guild_movement",
+      movement.summary,
+      [
+        makeLink("guild", movement.guild.name, guildUrl(movement.guild.realm, movement.guild.name), guildVisual(movement.guild)),
+        ...(raidContext
+          ? [makeLink("analytics", raidContext.name, "/raid-analytics", raidContext.iconUrl ? { type: "icon", iconUrl: raidContext.iconUrl } : undefined)]
+          : []),
+      ],
+    );
   }
 
   const previousPlayerMap = new Map(input.previousPlayers.map((player) => [`${player.category}:${player.realm}:${player.name}`, player]));
-  const currentGuildIdentityMap = new Map(input.currentGuilds.map((guild) => [`${guild.realm.toLowerCase()}:${guild.name.toLowerCase()}`, guild]));
   const hasPreviousPlayerSnapshot = input.previousPlayers.length > 0;
   for (const player of input.currentPlayers.filter((entry) => entry.rank <= 3)) {
     const old = previousPlayerMap.get(`${player.category}:${player.realm}:${player.name}`);
@@ -315,13 +402,17 @@ function buildFacts(input: {
         classInfo ? { type: "icon", iconUrl: `${classInfo.iconUrl}.jpg` } : undefined,
       ),
     ];
+    const playerRaid = raidMap.get(PRIMARY_RAID_ID);
+    if (playerRaid) {
+      links.push(makeLink("analytics", playerRaid.name, "/raid-analytics", playerRaid.iconUrl ? { type: "icon", iconUrl: playerRaid.iconUrl } : undefined));
+    }
     if (player.guildName && player.guildRealm) {
       const guild = currentGuildIdentityMap.get(`${player.guildRealm.toLowerCase()}:${player.guildName.toLowerCase()}`);
       links.push(makeLink("guild", player.guildName, guildUrl(player.guildRealm, player.guildName), guildVisual(guild)));
     }
     addFact(
       rankChanged || enteredTopThree ? "player_leaderboard_change" : "player_leaderboard_context",
-      `${player.name} is currently rank ${player.rank} in the ${player.category} Mythic all-stars snapshot for raid ${PRIMARY_RAID_ID}, playing ${player.specName}, with score ${player.score.toFixed(1)}${movement}.`,
+      `${player.name} ${player.rank === 1 ? `currently leads the ${primaryRaidName} Mythic ${player.category.toUpperCase()} all-stars standings` : `is currently rank ${player.rank} in the ${primaryRaidName} Mythic ${player.category.toUpperCase()} all-stars standings`}, playing ${player.specName}, with score ${player.score.toFixed(1)}${movement}.`,
       links,
     );
   }
@@ -336,9 +427,10 @@ function buildFacts(input: {
       (updatedAt >= periodStart && updatedAt <= now) || (votingStart >= periodStart && votingStart <= now) || (votingEnd >= periodStart && votingEnd <= now);
     if (!changedDuringWindow) continue;
     const status = pickem.finalized ? "finalized" : now < votingStart ? "not yet open" : now <= votingEnd ? "open for voting" : "voting closed";
+    const daysUntilVotingEnd = votingEnd > now ? Math.ceil((votingEnd - now) / DAY_MS) : undefined;
     addFact(
       "pickem_change",
-      `${pickem.name} (${pickem.type}) is ${status}; voting window ${pickem.votingStart} to ${pickem.votingEnd}.`,
+      `${pickem.name} (${pickem.type}) is ${status}; voting window ${pickem.votingStart} to ${pickem.votingEnd}${daysUntilVotingEnd !== undefined ? `; ${daysUntilVotingEnd} days remained until voting closed at reporting time` : ""}.`,
       [makeLink("pickem", pickem.name, "/pickems")],
     );
   }
@@ -462,7 +554,7 @@ class ReporterService {
       .sort({ timestamp: -1 })
       .limit(60)
       .lean()) as unknown as LeanEvent[];
-    const facts = buildFacts({
+    const facts = buildReporterFacts({
       currentGuilds: snapshot.guilds,
       previousGuilds: previousSnapshot?.guilds || [],
       currentPlayers: snapshot.players,

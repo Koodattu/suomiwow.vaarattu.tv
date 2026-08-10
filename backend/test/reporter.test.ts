@@ -10,7 +10,7 @@ import { calculateReporterUsage, combineReporterUsage, getReporterEditorialFactP
 import { generateReporterContent, ReporterOpenAIError } from "../src/features/reporter/reporter-openai";
 import { ReporterPost, ReporterSettings } from "../src/features/reporter/reporter.models";
 import { DEFAULT_REPORTER_SETTINGS, shouldAutoPublishReporterPost } from "../src/features/reporter/reporter-settings.service";
-import reporterService from "../src/features/reporter/reporter.service";
+import reporterService, { buildReporterFacts } from "../src/features/reporter/reporter.service";
 import { ReporterFact, ReporterGeneratedContent } from "../src/features/reporter/reporter.types";
 
 const facts: ReporterFact[] = [
@@ -23,7 +23,7 @@ const facts: ReporterFact[] = [
 ];
 
 function validContent(linkRef = "L1"): ReporterGeneratedContent {
-  const body = `[[${linkRef}|Example Guild]] ${"reported steady progress this week ".repeat(30)}`.trim();
+  const body = `[[${linkRef}|Example Guild]] ${"reported steady progress this week ".repeat(60)}`.trim();
   return {
     en: { title: "A valid weekly report", summary: "A concise summary of the tracked weekly scene.", body },
     fi: { title: "Kelvollinen viikkoraportti", summary: "Tiivis yhteenveto seuratun viikon tapahtumista.", body },
@@ -73,13 +73,21 @@ test("Reporter Finnish progress uses raid-chat percentage notation", () => {
     () => validateReporterLocaleContent({ ...article, body: article.body.replace("reported", "reached 27,9 prosenttia and reported") }, "fi", facts),
     /dot-plus-percent notation/,
   );
+  assert.throws(
+    () => validateReporterLocaleContent({ ...article, body: article.body.replace("reported", "reached 27.9 prosenttiin and reported") }, "fi", facts),
+    /dot-plus-percent notation/,
+  );
   assert.doesNotThrow(() => validateReporterLocaleContent({ ...article, body: article.body.replace("reported", "reached 27.9% and reported") }, "fi", facts));
+  assert.throws(
+    () => validateReporterLocaleContent({ ...article, body: article.body.replace("reported", "reached 0.1%, held 0.1%, repeated 0.1% and reported") }, "fi", facts),
+    /repeats the same progress percentage/,
+  );
 });
 
 test("Reporter separates lead candidates from supporting developments and background", () => {
   const factPack = getReporterEditorialFactPack([
-    facts[0],
-    { ...facts[0], id: "F2", kind: "reproge" },
+    { ...facts[0], kind: "progress_trajectory" },
+    { ...facts[0], id: "F2", kind: "reclear_roundup" },
     { ...facts[0], id: "F3", kind: "player_leaderboard_context" },
   ]);
 
@@ -88,11 +96,99 @@ test("Reporter separates lead candidates from supporting developments and backgr
   assert.deepEqual(factPack.background.map((fact) => fact.id), ["F3"]);
 });
 
+test("Reporter consolidates progress and reclears while naming raids in player and hiatus facts", () => {
+  const raidName = "VS / DR / MQD";
+  const periodEnd = new Date("2026-08-10T12:00:00Z");
+  const progress = {
+    raidId: 46,
+    raidName,
+    iconUrl: "raid.jpg",
+    difficulty: "mythic" as const,
+    bossesDefeated: 8,
+    totalBosses: 9,
+    bosses: [
+      {
+        bossId: 101,
+        bossName: "Midnight Falls",
+        iconUrl: "boss.jpg",
+        kills: 0,
+        bestPercent: 0.1,
+        pullCount: 396,
+        bestPullReportCode: "REPORT",
+        bestPullFightId: 17,
+      },
+    ],
+  };
+  const event = (type: string, guildName: string, timestamp: string, data: Record<string, unknown>) => ({
+    type,
+    guildId: guildName === "Kaaos" ? "kaaos" : guildName.toLowerCase(),
+    guildName,
+    guildRealm: "Stormreaver",
+    raidId: 46,
+    raidName,
+    bossId: 101,
+    bossName: "Midnight Falls",
+    difficulty: "mythic",
+    data,
+    timestamp: new Date(timestamp),
+  });
+  const reporterFacts = buildReporterFacts({
+    currentGuilds: [{ guildId: "kaaos", name: "Kaaos", realm: "Argent-Dawn", progress: [progress] }],
+    previousGuilds: [],
+    currentPlayers: [
+      {
+        category: "dps",
+        rank: 1,
+        name: "Chijing",
+        realm: "Stormreaver",
+        classId: 10,
+        role: "dps",
+        specName: "windwalker",
+        score: 1058.7,
+      },
+    ],
+    previousPlayers: [],
+    pickems: [],
+    raids: [
+      {
+        id: 46,
+        name: raidName,
+        iconUrl: "raid.jpg",
+        starts: { eu: new Date("2026-03-18T04:00:00Z") },
+        ends: { eu: new Date("2026-12-17T04:00:00Z") },
+        bosses: [{ id: 101, name: "Midnight Falls", iconUrl: "boss.jpg" }],
+      },
+    ],
+    events: [
+      event("best_pull", "Kaaos", "2026-08-09T20:00:00Z", { bestPercent: 0.1, pullCount: 396, progressDisplay: "0.1% Stage Three: Midnight Falls" }),
+      event("reproge", "Slack", "2026-08-09T19:00:00Z", {}),
+      event("reproge", "Noni", "2026-08-09T18:00:00Z", {}),
+      event("hiatus", "Tuju", "2026-08-09T17:00:00Z", { hiatusDays: 30 }),
+      event("best_pull", "Kaaos", "2026-08-08T20:00:00Z", { bestPercent: 44.5, pullCount: 323, progressDisplay: "44.5% Stage Three: Midnight Falls" }),
+    ],
+    periodStart: new Date("2026-08-03T12:00:00Z"),
+    periodEnd,
+  } as any);
+
+  const trajectory = reporterFacts.find((fact) => fact.kind === "progress_trajectory");
+  const reclears = reporterFacts.find((fact) => fact.kind === "reclear_roundup");
+  const hiatus = reporterFacts.find((fact) => fact.kind === "hiatus");
+  const player = reporterFacts.find((fact) => fact.kind === "player_leaderboard_context");
+  assert.match(trajectory?.summary || "", /44\.5% at 323 total pulls; 0\.1% at 396 total pulls/);
+  assert.match(trajectory?.summary || "", /latest best was in P3/i);
+  assert.equal(reporterFacts.filter((fact) => fact.kind === "progress_trajectory").length, 1);
+  assert.match(reclears?.summary || "", /2 tracked guild-boss reclears/);
+  assert.doesNotMatch(reclears?.summary || "", /2 bosses/);
+  assert.ok(hiatus?.links.some((link) => link.label === raidName && link.visual?.iconUrl === "raid.jpg"));
+  assert.match(player?.summary || "", new RegExp(raidName.replaceAll("/", "\\/")));
+  assert.doesNotMatch(player?.summary || "", /raid 46/);
+});
+
 test("Reporter repairs malformed known link tokens and degrades unknown tokens to plain text", () => {
   const source = validContent();
   const broken = {
     ...source.fi,
-    body: `[[ L1 | Example Guild] ${"reported steady progress this week ".repeat(30)} [[L999|Unknown target]] [[unfinished note]]`.trim(),
+    body: `[[ L1 | Example Guild] ${"reported steady progress this week ".repeat(60)} [[L999|Unknown target]] [[unfinished note]]`.trim(),
   };
   const repaired = repairReporterLinkTokens(broken, facts);
 
@@ -142,7 +238,7 @@ test("Reporter keeps trusted visual data out of the prompt while exposing presen
   assert.equal(post.facts[0].links[0].visual?.iconUrl, "example-boss.jpg");
 });
 
-test("Reporter requires available guild, boss and character visuals to be used", () => {
+test("Reporter requires available guild, boss, character and raid visuals to be used", () => {
   const visualFacts: ReporterFact[] = [
     {
       id: "F1",
@@ -184,17 +280,26 @@ test("Reporter requires available guild, boss and character visuals to be used",
           kind: "character",
           visual: { type: "icon", iconUrl: "class-icon.jpg" },
         },
+        {
+          ref: "L4",
+          label: "Example Raid",
+          url: "/raid-analytics",
+          kind: "analytics",
+          visual: { type: "icon", iconUrl: "raid-icon.jpg" },
+        },
       ],
     },
   ];
-  const prose = "reported steady progress this week ".repeat(30);
-  const completeBody = `[[L1|Example Guild]] reached [[L2|Example Boss]], while [[L3|Example Player]] led the player note. ${prose}`;
-  const missingBossBody = `[[L1|Example Guild]] reported progress, while [[L3|Example Player]] led the player note. ${prose}`;
-  const missingPlayerBody = `[[L1|Example Guild]] reached [[L2|Example Boss]]. ${prose}`;
+  const prose = "reported steady progress this week ".repeat(60);
+  const completeBody = `[[L1|Example Guild]] reached [[L2|Example Boss]] in [[L4|Example Raid]], while [[L3|Example Player]] led the player note. ${prose}`;
+  const missingBossBody = `[[L1|Example Guild]] reported progress in [[L4|Example Raid]], while [[L3|Example Player]] led the player note. ${prose}`;
+  const missingPlayerBody = `[[L1|Example Guild]] reached [[L2|Example Boss]] in [[L4|Example Raid]]. ${prose}`;
+  const missingRaidBody = `[[L1|Example Guild]] reached [[L2|Example Boss]], while [[L3|Example Player]] led the player note. ${prose}`;
 
   assert.doesNotThrow(() => validateReporterLocaleContent({ ...validContent().fi, body: completeBody }, "fi", visualFacts));
   assert.throws(() => validateReporterLocaleContent({ ...validContent().fi, body: missingBossBody }, "fi", visualFacts), /boss icon link/);
   assert.throws(() => validateReporterLocaleContent({ ...validContent().fi, body: missingPlayerBody }, "fi", visualFacts), /character class icon link/);
+  assert.throws(() => validateReporterLocaleContent({ ...validContent().fi, body: missingRaidBody }, "fi", visualFacts), /raid icon link/);
 });
 
 test("Reporter database switches default off and only scheduled runs may auto-publish", () => {
@@ -277,12 +382,15 @@ test("Reporter writes Finnish first, translates it to English and totals both Op
     assert.equal(finnishRequest.store, false);
     assert.match(finnishRequest.instructions, /mildly pessimistic/);
     assert.match(finnishRequest.instructions, /fact pack is a menu, not a checklist/i);
-    assert.match(finnishRequest.instructions, /use 3-6 facts/);
+    assert.match(finnishRequest.instructions, /use roughly 6-10 facts/);
     assert.match(finnishRequest.instructions, /passiivisuusmerkintä/);
-    assert.match(finnishRequest.instructions, /exactly one compact player spotlight/);
+    assert.match(finnishRequest.instructions, /one compact paragraph naming 2-3 players/);
     assert.match(finnishRequest.instructions, /27\.9%/);
     assert.match(finnishRequest.instructions, /boss-icon-with-wcl/);
     assert.equal(JSON.parse(finnishRequest.input).factPack.leadCandidates[0].links[0].visual, undefined);
+    assert.equal(JSON.parse(finnishRequest.input).reportingAsOf.utc, "2026-08-08T00:00:00.000Z");
+    assert.equal(JSON.parse(finnishRequest.input).reportingAsOf.timeZone, "Europe/Helsinki");
+    assert.match(JSON.parse(finnishRequest.input).reportingAsOf.helsinkiLocal, /2026-08-08.*03[.:]00/);
     assert.deepEqual(JSON.parse(finnishRequest.input).previousDispatch, previousDispatch);
     assert.equal(englishRequest.text.format.name, "suomi_wow_weekly_report_en");
     assert.match(englishRequest.instructions, /Finnish edition is the sole source of truth/);
@@ -293,7 +401,7 @@ test("Reporter writes Finnish first, translates it to English and totals both Op
     assert.equal(result.usage.inputTokens, 800);
     assert.equal(result.usage.outputTokens, 300);
     assert.equal(result.usage.totalTokens, 1_100);
-    assert.equal(REPORTER_CONFIG.promptVersion, "reporter-v4");
+    assert.equal(REPORTER_CONFIG.promptVersion, "reporter-v5");
   } finally {
     global.fetch = originalFetch;
     if (originalApiKey === undefined) delete process.env.OPENAI_API_KEY;
