@@ -6,7 +6,7 @@ import test from "node:test";
 import express from "express";
 import session from "express-session";
 import { REPORTER_CONFIG } from "../src/features/reporter/reporter.config";
-import { calculateReporterUsage, combineReporterUsage, getReporterEditorialFactPack, getReporterLinks, getReporterPromptFacts, repairReporterLinkTokens, validateReporterContent } from "../src/features/reporter/reporter-content";
+import { calculateReporterUsage, combineReporterUsage, getReporterEditorialFactPack, getReporterLinks, getReporterPromptFacts, repairReporterLinkTokens, validateReporterContent, validateReporterLocaleContent } from "../src/features/reporter/reporter-content";
 import { generateReporterContent, ReporterOpenAIError } from "../src/features/reporter/reporter-openai";
 import { ReporterPost, ReporterSettings } from "../src/features/reporter/reporter.models";
 import { DEFAULT_REPORTER_SETTINGS, shouldAutoPublishReporterPost } from "../src/features/reporter/reporter-settings.service";
@@ -67,6 +67,15 @@ test("Reporter content accepts known inline links and rejects invented reference
   assert.deepEqual(getReporterLinks(facts), { L1: { url: "/guilds/example/example", kind: "guild" } });
 });
 
+test("Reporter Finnish progress uses raid-chat percentage notation", () => {
+  const article = validContent().fi;
+  assert.throws(
+    () => validateReporterLocaleContent({ ...article, body: article.body.replace("reported", "reached 27,9 prosenttia and reported") }, "fi", facts),
+    /dot-plus-percent notation/,
+  );
+  assert.doesNotThrow(() => validateReporterLocaleContent({ ...article, body: article.body.replace("reported", "reached 27.9% and reported") }, "fi", facts));
+});
+
 test("Reporter separates lead candidates from supporting developments and background", () => {
   const factPack = getReporterEditorialFactPack([
     facts[0],
@@ -92,13 +101,16 @@ test("Reporter repairs malformed known link tokens and degrades unknown tokens t
   assert.doesNotThrow(() => validateReporterContent({ en: { ...source.en, body: repaired.body }, fi: repaired }, facts));
 });
 
-test("Reporter keeps trusted link visuals out of the OpenAI fact pack", () => {
+test("Reporter keeps trusted visual data out of the prompt while exposing presentation hints", () => {
   const visualFacts: ReporterFact[] = [
     {
       ...facts[0],
       links: [
         {
           ...facts[0].links[0],
+          label: "Example Boss log",
+          url: "https://www.warcraftlogs.com/reports/example#fight=1",
+          kind: "log",
           visual: { type: "icon", iconUrl: "example-boss.jpg", provider: "wcl" },
         },
       ],
@@ -107,12 +119,13 @@ test("Reporter keeps trusted link visuals out of the OpenAI fact pack", () => {
 
   assert.deepEqual(getReporterLinks(visualFacts), {
     L1: {
-      url: "/guilds/example/example",
-      kind: "guild",
+      url: "https://www.warcraftlogs.com/reports/example#fight=1",
+      kind: "log",
       visual: { type: "icon", iconUrl: "example-boss.jpg", provider: "wcl" },
     },
   });
-  assert.equal(getReporterPromptFacts(visualFacts)[0].links[0].visual, undefined);
+  assert.equal("visual" in getReporterPromptFacts(visualFacts)[0].links[0], false);
+  assert.equal(getReporterPromptFacts(visualFacts)[0].links[0].presentationHint, "boss-icon-with-wcl");
 
   const post = new ReporterPost({
     weekKey: "2026-08-10",
@@ -127,6 +140,61 @@ test("Reporter keeps trusted link visuals out of the OpenAI fact pack", () => {
     usage: calculateReporterUsage({}),
   });
   assert.equal(post.facts[0].links[0].visual?.iconUrl, "example-boss.jpg");
+});
+
+test("Reporter requires available guild, boss and character visuals to be used", () => {
+  const visualFacts: ReporterFact[] = [
+    {
+      id: "F1",
+      kind: "best_pull",
+      summary: "Example Guild reached Example Boss.",
+      links: [
+        {
+          ref: "L1",
+          label: "Example Guild",
+          url: "/guilds/example/example",
+          kind: "guild",
+          visual: {
+            type: "guild-crest",
+            crest: {
+              emblem: { id: 1, imageName: "emblem.png", color: { r: 1, g: 2, b: 3, a: 1 } },
+              border: { id: 1, imageName: "border.png", color: { r: 1, g: 2, b: 3, a: 1 } },
+              background: { color: { r: 1, g: 2, b: 3, a: 1 } },
+            },
+          },
+        },
+        {
+          ref: "L2",
+          label: "Example Boss log",
+          url: "https://www.warcraftlogs.com/reports/example#fight=1",
+          kind: "log",
+          visual: { type: "icon", iconUrl: "example-boss.jpg", provider: "wcl" },
+        },
+      ],
+    },
+    {
+      id: "F2",
+      kind: "player_leaderboard_context",
+      summary: "Example Player is rank 1.",
+      links: [
+        {
+          ref: "L3",
+          label: "Example Player",
+          url: "/characters/example/example-player",
+          kind: "character",
+          visual: { type: "icon", iconUrl: "class-icon.jpg" },
+        },
+      ],
+    },
+  ];
+  const prose = "reported steady progress this week ".repeat(30);
+  const completeBody = `[[L1|Example Guild]] reached [[L2|Example Boss]], while [[L3|Example Player]] led the player note. ${prose}`;
+  const missingBossBody = `[[L1|Example Guild]] reported progress, while [[L3|Example Player]] led the player note. ${prose}`;
+  const missingPlayerBody = `[[L1|Example Guild]] reached [[L2|Example Boss]]. ${prose}`;
+
+  assert.doesNotThrow(() => validateReporterLocaleContent({ ...validContent().fi, body: completeBody }, "fi", visualFacts));
+  assert.throws(() => validateReporterLocaleContent({ ...validContent().fi, body: missingBossBody }, "fi", visualFacts), /boss icon link/);
+  assert.throws(() => validateReporterLocaleContent({ ...validContent().fi, body: missingPlayerBody }, "fi", visualFacts), /character class icon link/);
 });
 
 test("Reporter database switches default off and only scheduled runs may auto-publish", () => {
@@ -211,6 +279,9 @@ test("Reporter writes Finnish first, translates it to English and totals both Op
     assert.match(finnishRequest.instructions, /fact pack is a menu, not a checklist/i);
     assert.match(finnishRequest.instructions, /use 3-6 facts/);
     assert.match(finnishRequest.instructions, /passiivisuusmerkintä/);
+    assert.match(finnishRequest.instructions, /exactly one compact player spotlight/);
+    assert.match(finnishRequest.instructions, /27\.9%/);
+    assert.match(finnishRequest.instructions, /boss-icon-with-wcl/);
     assert.equal(JSON.parse(finnishRequest.input).factPack.leadCandidates[0].links[0].visual, undefined);
     assert.deepEqual(JSON.parse(finnishRequest.input).previousDispatch, previousDispatch);
     assert.equal(englishRequest.text.format.name, "suomi_wow_weekly_report_en");
@@ -222,7 +293,7 @@ test("Reporter writes Finnish first, translates it to English and totals both Op
     assert.equal(result.usage.inputTokens, 800);
     assert.equal(result.usage.outputTokens, 300);
     assert.equal(result.usage.totalTokens, 1_100);
-    assert.equal(REPORTER_CONFIG.promptVersion, "reporter-v3");
+    assert.equal(REPORTER_CONFIG.promptVersion, "reporter-v4");
   } finally {
     global.fetch = originalFetch;
     if (originalApiKey === undefined) delete process.env.OPENAI_API_KEY;

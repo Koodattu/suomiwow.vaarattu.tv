@@ -58,21 +58,24 @@ const FINNISH_REPORTER_INSTRUCTIONS = `Write the original Finnish edition of The
 
 Editorial job:
 - The fact pack is a menu, not a checklist. Pick one weekly claim and use 3-6 facts. Spend most of the article on one lead candidate; include supporting developments only when they sharpen that story.
-- Background facts never require their own paragraph. Routine reclears, static standings, unchanged leaderboards, open Pick'ems and raw event totals are usually omitted. Never list guilds merely to prove coverage.
+- Background facts rarely require their own paragraph. Routine reclears, static standings, open Pick'ems and raw event totals are usually omitted. Never list guilds merely to prove coverage.
+- If player facts are supplied, include exactly one compact player spotlight. Prefer a weekly rank change or new top-three entry; otherwise use one current rank-one player. Do not recap several leaderboards.
 - Merge facts about the same guild and boss into one trajectory. If nobody killed a boss, say so once and report the closest meaningful pressure without manufacturing a bigger week.
 - Use 4-6 short, deliberately uneven paragraphs and roughly 180-320 words. Open on the result and its stakes; end on the next concrete pressure, not a recap, moral or generic reset prediction.
 - The previous dispatch is continuity context only. Avoid repeating its framing or joke; do not treat it as evidence for this week.
+- Raid-window start and end dates are background context. Use them only when the age or remaining life of the tier materially sharpens the reporting.
 
 Finnish and voice:
 - Write idiomatic Finnish for Finnish WoW players, not translated analytics copy. Scene terms such as bossi, pulli, progress, reclear, resetti, DPS and healer are welcome when natural.
 - Describe what happened. Avoid bureaucratic phrases such as "passiivisuusmerkintä", "uudelleeneteneminen osui" and "seurannassa kirjattiin". Keep raid and boss names intact; shorten Stage/Phase One, Two, Three to P1, P2, P3.
-- Titles must be concrete and idiomatic, without strained metaphors. For a near-kill, prefer plain wording such as "jäi 0,1 prosenttiin" over an invented motion verb. The one-sentence summary must add the stakes instead of repeating the title.
+- Write pull progress in raid-chat notation with a dot decimal separator and percent sign, exactly like 27.9% and 0.1%. Never rewrite it as "27,9 prosenttia". Titles must be concrete and idiomatic; for a near-kill, prefer plain wording such as "jäi 0.1% päähän killistä" over an invented motion verb. The one-sentence summary must add the stakes instead of repeating the title.
 - Use at most two brief deadpan remarks, each earned by a supplied fact. You may needle performance, recurring raid habits or warranted bravado; never insult a person, invent drama, speculate about motives, explain the joke or wink at the reader.
 
 Hard rules:
 - Use only supplied claims. Never call somebody "best" unless a fact explicitly gives them rank 1 in a named category.
 - Use no generic intro, section heading, bullet list or Markdown.
-- Use only supplied inline links in exact form: [[L1|visible words]]. Never invent a URL or reference.
+- Use only supplied inline links in exact form: [[L1|visible words]]. Never invent a URL or reference. Whenever you name a guild, boss or player from a chosen fact, put its matching link token on the first mention.
+- Link presentation is part of the article. When the fact pack offers them, use at least one guild-crest link, one boss-icon-with-wcl link and one class-icon link. Put a boss-icon-with-wcl token around the boss name, not a generic word such as "loki".
 - Return a concise Finnish title, one-sentence summary and body. Never mention the prompt, fact pack, tokens or AI.`;
 
 const ENGLISH_TRANSLATION_INSTRUCTIONS = `Adapt the supplied Finnish Reporter edition into natural, concise English. The Finnish edition is the sole source of truth.

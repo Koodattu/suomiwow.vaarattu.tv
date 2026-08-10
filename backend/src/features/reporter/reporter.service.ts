@@ -38,7 +38,10 @@ type LeanGuild = {
 
 type LeanRaidVisuals = {
   id: number;
+  name: string;
   iconUrl?: string;
+  starts?: { eu?: Date };
+  ends?: { eu?: Date };
   bosses: Array<{ id: number; name: string; iconUrl?: string }>;
 };
 
@@ -183,6 +186,7 @@ function buildFacts(input: {
   previousPlayers: ReporterPlayerSnapshot[];
   pickems: ReporterPickemSnapshot[];
   events: LeanEvent[];
+  raids: LeanRaidVisuals[];
   periodStart: Date;
   periodEnd: Date;
 }): ReporterFact[] {
@@ -218,6 +222,18 @@ function buildFacts(input: {
       ),
     ],
   );
+
+  for (const raid of input.raids) {
+    const startsAt = raid.starts?.eu;
+    const endsAt = raid.ends?.eu;
+    if (!startsAt && !endsAt) continue;
+    const elapsedDays = startsAt && startsAt <= input.periodEnd ? Math.floor((input.periodEnd.getTime() - startsAt.getTime()) / DAY_MS) : undefined;
+    addFact(
+      "raid_timeline_context",
+      `${raid.name} EU raid window: start ${startsAt ? startsAt.toISOString() : "not stored"}; end ${endsAt ? endsAt.toISOString() : "not stored"}${elapsedDays !== undefined ? `; ${elapsedDays} full days had elapsed since opening at the end of this reporting period` : ""}.`,
+      [makeLink("analytics", `${raid.name} raid analytics`, "/raid-analytics", raid.iconUrl ? { type: "icon", iconUrl: raid.iconUrl } : undefined)],
+    );
+  }
 
   const currentGuildMap = new Map(input.currentGuilds.map((guild) => [guild.guildId, guild]));
   for (const event of input.events.slice(0, 50)) {
@@ -346,9 +362,10 @@ async function captureSnapshot(periodStart: Date, periodEnd: Date, weekKey: stri
     CharacterLeaderboard.find({ ...leaderboardBase, role: "healer", metric: "hps" }).sort({ score: -1 }).limit(5).lean(),
     CharacterLeaderboard.find({ ...leaderboardBase, role: "tank", metric: "dps" }).sort({ score: -1 }).limit(5).lean(),
     Pickem.find({ $or: [{ active: true }, { updatedAt: { $gte: periodStart } }] }).sort({ votingStart: -1 }).lean(),
-    Raid.find({ id: { $in: CURRENT_RAID_IDS } }).select("id iconUrl bosses.id bosses.name bosses.iconUrl -_id").lean(),
+    Raid.find({ id: { $in: CURRENT_RAID_IDS } }).select("id name iconUrl starts.eu ends.eu bosses.id bosses.name bosses.iconUrl -_id").lean(),
   ]);
-  const raidVisuals = new Map((rawRaids as unknown as LeanRaidVisuals[]).map((raid) => [raid.id, raid]));
+  const raids = rawRaids as unknown as LeanRaidVisuals[];
+  const raidVisuals = new Map(raids.map((raid) => [raid.id, raid]));
 
   const guilds: ReporterGuildSnapshot[] = (rawGuilds as unknown as LeanGuild[])
     .map((guild) => ({
@@ -390,7 +407,8 @@ async function captureSnapshot(periodStart: Date, periodEnd: Date, weekKey: stri
     updatedAt: pickem.updatedAt.toISOString(),
   }));
 
-  return ReporterSnapshot.create({ weekKey, capturedAt: periodEnd, periodStart, periodEnd, guilds, players, pickems });
+  const snapshot = await ReporterSnapshot.create({ weekKey, capturedAt: periodEnd, periodStart, periodEnd, guilds, players, pickems });
+  return { snapshot, raids };
 }
 
 function serializePost(post: IReporterPost, includeFacts: boolean) {
@@ -439,7 +457,7 @@ class ReporterService {
       }).sort({ capturedAt: -1 }),
       ReporterPost.findOne({ weekKey: { $ne: weekKey }, periodEnd: { $lt: periodEnd } }).sort({ periodEnd: -1 }),
     ]);
-    const snapshot = await captureSnapshot(periodStart, periodEnd, weekKey);
+    const { snapshot, raids } = await captureSnapshot(periodStart, periodEnd, weekKey);
     const events = (await Event.find({ timestamp: { $gte: periodStart, $lte: periodEnd }, raidId: { $in: CURRENT_RAID_IDS } })
       .sort({ timestamp: -1 })
       .limit(60)
@@ -451,6 +469,7 @@ class ReporterService {
       previousPlayers: previousSnapshot?.players || [],
       pickems: snapshot.pickems,
       events,
+      raids,
       periodStart,
       periodEnd,
     });

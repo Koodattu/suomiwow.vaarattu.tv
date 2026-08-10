@@ -1,5 +1,5 @@
 import { REPORTER_CONFIG } from "./reporter.config";
-import { ReporterFact, ReporterGeneratedContent, ReporterLocaleContent, ReporterResolvedLink, ReporterUsage } from "./reporter.types";
+import { ReporterFact, ReporterGeneratedContent, ReporterLink, ReporterLocaleContent, ReporterResolvedLink, ReporterUsage } from "./reporter.types";
 
 const LINK_TOKEN_PATTERN = /\[\[([A-Z]\d+)\|([^\]\n]{1,80})\]\]/g;
 const RECOVERABLE_LINK_TOKEN_PATTERN = /\[{1,2}\s*([A-Z]\d+)(?:\s*\|\s*([^\]\n]{0,80}))?\s*\]{1,2}/g;
@@ -87,11 +87,16 @@ export function validateReporterLocaleContent(article: ReporterLocaleContent, lo
   if (titleLength < 5 || titleLength > 140) throw new Error(`Reporter ${locale.toUpperCase()} title has an invalid length`);
   if (summaryLength < 20 || summaryLength > 360) throw new Error(`Reporter ${locale.toUpperCase()} summary has an invalid length`);
   if (wordCount < 120 || wordCount > 600) throw new Error(`Reporter ${locale.toUpperCase()} body must contain 120-600 words`);
+  if (locale === "fi" && /\b\d+,\d+\s*(?:%|prosent\p{L}*)/iu.test(`${article.title}\n${article.summary}\n${article.body}`)) {
+    throw new Error("Reporter FI progress percentages must use dot-plus-percent notation such as 27.9%");
+  }
 
   let linkCount = 0;
+  const usedLinks = new Set<string>();
   for (const match of article.body.matchAll(LINK_TOKEN_PATTERN)) {
     linkCount += 1;
     if (!allowedLinks.has(match[1])) throw new Error(`Reporter ${locale.toUpperCase()} body used unknown link ${match[1]}`);
+    usedLinks.add(match[1]);
   }
   if (linkCount === 0) throw new Error(`Reporter ${locale.toUpperCase()} body must include at least one source link`);
 
@@ -99,19 +104,65 @@ export function validateReporterLocaleContent(article: ReporterLocaleContent, lo
   if (withoutValidLinks.includes("[[") || withoutValidLinks.includes("]]")) {
     throw new Error(`Reporter ${locale.toUpperCase()} body contains a malformed link token`);
   }
+
+  const visualRequirements = [
+    {
+      label: "guild crest",
+      matches: (link: ReporterLink) => link.kind === "guild" && link.visual?.type === "guild-crest" && Boolean(link.visual.crest),
+    },
+    {
+      label: "boss icon",
+      matches: (link: ReporterLink) => link.kind === "log" && link.visual?.type === "icon" && link.visual.provider === "wcl",
+    },
+    {
+      label: "character class icon",
+      matches: (link: ReporterLink) => link.kind === "character" && link.visual?.type === "icon",
+    },
+  ];
+  const links = facts.flatMap((fact) => fact.links);
+  for (const requirement of visualRequirements) {
+    const candidates = links.filter(requirement.matches);
+    if (candidates.length > 0 && !candidates.some((link) => usedLinks.has(link.ref))) {
+      throw new Error(`Reporter ${locale.toUpperCase()} body must use at least one ${requirement.label} link`);
+    }
+  }
 }
 
 export function validateReporterContent(content: ReporterGeneratedContent, facts: ReporterFact[]): void {
   for (const locale of ["en", "fi"] as const) validateReporterLocaleContent(content[locale], locale, facts);
 }
 
-export function getReporterPromptFacts(facts: ReporterFact[]): ReporterFact[] {
+type ReporterPromptLink = Pick<ReporterLink, "ref" | "label" | "url" | "kind"> & {
+  presentationHint?: "guild-crest" | "boss-icon-with-wcl" | "class-icon" | "raid-icon" | "wcl-icon";
+};
+
+type ReporterPromptFact = Omit<ReporterFact, "links"> & { links: ReporterPromptLink[] };
+
+function getReporterLinkPresentationHint(link: ReporterLink): ReporterPromptLink["presentationHint"] {
+  if (link.kind === "guild" && link.visual?.type === "guild-crest" && link.visual.crest) return "guild-crest";
+  if (link.kind === "character" && link.visual?.type === "icon") return "class-icon";
+  if (link.kind === "log" && link.visual?.type === "icon" && link.visual.provider === "wcl") return "boss-icon-with-wcl";
+  if (link.kind === "log") return "wcl-icon";
+  if (link.visual?.type === "icon") return "raid-icon";
+  return undefined;
+}
+
+export function getReporterPromptFacts(facts: ReporterFact[]): ReporterPromptFact[] {
   return facts.map((fact) => ({
     id: fact.id,
     kind: fact.kind,
     summary: fact.summary,
     ...(fact.occurredAt ? { occurredAt: fact.occurredAt } : {}),
-    links: fact.links.map(({ ref, label, url, kind }) => ({ ref, label, url, kind })),
+    links: fact.links.map((link) => {
+      const presentationHint = getReporterLinkPresentationHint(link);
+      return {
+        ref: link.ref,
+        label: link.label,
+        url: link.url,
+        kind: link.kind,
+        ...(presentationHint ? { presentationHint } : {}),
+      };
+    }),
   }));
 }
 
