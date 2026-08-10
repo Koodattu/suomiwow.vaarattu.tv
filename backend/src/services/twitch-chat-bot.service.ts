@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 import Event, { EventType, IEvent } from "../models/Event";
 import Guild from "../models/Guild";
 import TwitchBotSettings, { type TwitchBotDifficulty, type TwitchBotMessageTemplateKey, type TwitchBotMessageTemplates } from "../models/TwitchBotSettings";
-import TwitchBotRuntimeState, { type ITwitchBotChannelBan } from "../models/TwitchBotRuntimeState";
+import TwitchBotRuntimeState, { type ITwitchBotChannelBan, type TwitchBotCommandOutcome } from "../models/TwitchBotRuntimeState";
 import TwitchEventDelivery from "../models/TwitchEventDelivery";
 import TwitchCcgRedemption from "../models/TwitchCcgRedemption";
 import User from "../models/User";
@@ -41,6 +41,12 @@ export interface TwitchChatBotStatus extends TwitchBotAuthStatus {
     lastDisconnectedAt?: Date;
     lastReconciledAt?: Date;
     lastMessageAt?: Date;
+    lastInboundMessageAt?: Date;
+    lastInboundChannel?: string;
+    lastCommandAt?: Date;
+    lastCommandChannel?: string;
+    lastCommandName?: string;
+    lastCommandOutcome?: TwitchBotCommandOutcome;
     lastErrorAt?: Date;
     lastError?: string;
   };
@@ -80,6 +86,7 @@ const MAX_CCG_CHAT_DELIVERY_ATTEMPTS = 10;
 const CCG_LINK_PROMPT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const BANNED_CHANNEL_RETRY_BASE_MS = 60 * 60 * 1000;
 const BANNED_CHANNEL_RETRY_MAX_MS = 12 * 60 * 60 * 1000;
+const INBOUND_DIAGNOSTIC_INTERVAL_MS = 30 * 1000;
 
 type TwitchBotMessagePlaceholder = (typeof MESSAGE_TEMPLATE_PLACEHOLDERS)[number];
 type TwitchBotMessageTemplateValues = Record<TwitchBotMessagePlaceholder, string>;
@@ -122,7 +129,9 @@ class TwitchChatBotService {
   private userCooldowns = new Map<string, number>();
   private channelCommandCooldowns = new Map<string, number>();
   private outboundQueue: Promise<void> = Promise.resolve();
+  private diagnosticQueue: Promise<void> = Promise.resolve();
   private lastOutboundAt = 0;
+  private lastInboundDiagnosticAt = 0;
 
   start(): void {
     if (!this.isEnabled()) {
@@ -214,8 +223,9 @@ class TwitchChatBotService {
       this.getSettings(),
     ]);
     const countsByStatus = new Map(deliveryCounts.map((entry: { _id: string; count: number }) => [entry._id, entry.count]));
-    const desiredChannels = runtime?.desiredChannels?.length ? runtime.desiredChannels : Array.from(this.desiredChannels).sort();
-    const joinedChannels = runtime?.joinedChannels?.length ? runtime.joinedChannels : Array.from(this.joinedChannels).sort();
+    const desiredChannels = this.running ? Array.from(this.desiredChannels).sort() : runtime?.desiredChannels || [];
+    const chatConnected = this.chatClient ? this.chatClient.isConnected : false;
+    const joinedChannels = chatConnected ? this.getClientJoinedChannels() : [];
     const bannedChannels =
       authStatus.twitchUserId && runtime?.channelBansBotUserId === authStatus.twitchUserId ? this.serializeChannelBans(runtime.channelBans) : [];
 
@@ -224,8 +234,8 @@ class TwitchChatBotService {
       botEnabled: this.isEnabled(),
       settings,
       chat: {
-        running: runtime?.running ?? this.running,
-        connected: runtime?.connected ?? this.connected,
+        running: this.running,
+        connected: chatConnected,
         desiredChannels,
         joinedChannels,
         bannedChannels,
@@ -237,6 +247,12 @@ class TwitchChatBotService {
         lastDisconnectedAt: runtime?.lastDisconnectedAt,
         lastReconciledAt: runtime?.lastReconciledAt,
         lastMessageAt: runtime?.lastMessageAt,
+        lastInboundMessageAt: runtime?.lastInboundMessageAt,
+        lastInboundChannel: runtime?.lastInboundChannel,
+        lastCommandAt: runtime?.lastCommandAt,
+        lastCommandChannel: runtime?.lastCommandChannel,
+        lastCommandName: runtime?.lastCommandName,
+        lastCommandOutcome: runtime?.lastCommandOutcome,
         lastErrorAt: runtime?.lastErrorAt,
         lastError: runtime?.lastError,
       },
@@ -310,6 +326,25 @@ class TwitchChatBotService {
       await this.disconnectClient();
     }
 
+    if (this.chatClient) {
+      const clientConnected = this.chatClient.isConnected;
+      if (this.connected !== clientConnected) {
+        this.connected = clientConnected;
+        if (!clientConnected) {
+          this.joinedChannels.clear();
+        }
+        await this.writeRuntimeState({
+          connected: clientConnected,
+          joinedChannels: clientConnected ? this.getClientJoinedChannels() : [],
+          ...(clientConnected ? { lastConnectedAt: new Date() } : { lastDisconnectedAt: new Date() }),
+        });
+      }
+
+      if (!clientConnected) {
+        return;
+      }
+    }
+
     if (!this.connected && !this.connecting) {
       await this.connectClient();
     }
@@ -351,14 +386,32 @@ class TwitchChatBotService {
       });
       await authProvider.addUserForToken(tokenData, ["chat"]);
 
-      const chatClient = new ChatClient({ authProvider, channels: [] });
+      const chatClient = new ChatClient({ authProvider, channels: [], rejoinChannelsOnReconnect: true });
       chatClient.onMessage(async (channel, user, text) => {
-        await this.handleMessage(channel, user, text);
+        try {
+          await this.handleMessage(channel, user, text);
+        } catch (error) {
+          await this.recordError("Unhandled Twitch chat message error", error).catch((recordingError) => {
+            logger.error("[TwitchBot] Failed to persist an unhandled Twitch chat message error:", recordingError);
+          });
+        }
       });
       chatClient.onBan((channel, user) => {
         if (user.toLowerCase() === this.botLogin) {
           void this.handleBotBan(channel).catch((error) => logger.error(`[TwitchBot] Failed to record ban in #${channel}:`, error));
         }
+      });
+      chatClient.onMessageFailed((channel, reason) => {
+        this.recordChatClientError(`Twitch rejected an outbound chat message in #${this.normalizeChannelName(channel) || channel}`, reason);
+      });
+      chatClient.onMessageRatelimit((channel) => {
+        this.recordChatClientError(`Twitch rate-limited an outbound chat message in #${this.normalizeChannelName(channel) || channel}`, "msg_ratelimit");
+      });
+      chatClient.onNoPermission((channel) => {
+        this.recordChatClientError(`Twitch denied permission for an outbound chat action in #${this.normalizeChannelName(channel) || channel}`, "no_permission");
+      });
+      chatClient.onAuthenticationFailure((reason, retryCount) => {
+        this.recordChatClientError(`Twitch IRC authentication failed on attempt ${retryCount}`, reason);
       });
 
       await chatClient.connect();
@@ -410,12 +463,13 @@ class TwitchChatBotService {
   }
 
   private async reconcileJoinedChannels(): Promise<void> {
-    if (this.reconciling || !this.connected || !this.chatClient) {
+    if (this.reconciling || !this.connected || !this.chatClient?.isConnected) {
       return;
     }
 
     this.reconciling = true;
     try {
+      this.joinedChannels = new Set(this.getClientJoinedChannels());
       const desiredChannels = await this.findDesiredChannels();
       const desiredSet = new Set(desiredChannels);
       const now = Date.now();
@@ -578,37 +632,61 @@ class TwitchChatBotService {
     logger.info(`[TwitchBot] Left #${channel}`);
   }
 
-  private async handleMessage(channel: string, user: string, text: string): Promise<void> {
-    const parsed = twitchChatCommandService.parse(text);
-    if (!parsed) {
-      return;
+  private getClientJoinedChannels(): string[] {
+    if (!this.chatClient) {
+      return [];
     }
 
+    return this.chatClient.currentChannels
+      .map((channel) => this.normalizeChannelName(channel))
+      .filter((channel): channel is string => Boolean(channel))
+      .sort();
+  }
+
+  private async handleMessage(channel: string, user: string, text: string): Promise<void> {
     const channelName = this.normalizeChannelName(channel);
     if (!channelName) {
       return;
     }
 
-    const botLogin = await twitchBotAuthService.getBotLogin();
-    if (botLogin && user.toLowerCase() === botLogin.toLowerCase()) {
+    if (this.botLogin && user.toLowerCase() === this.botLogin) {
       return;
     }
 
-    if (!(await this.isChannelAllowedToChat(channelName))) {
+    const commandName = this.getCommandName(text);
+    this.recordInboundDiagnostic(channelName, Boolean(commandName));
+
+    const parsed = twitchChatCommandService.parse(text);
+    if (!parsed) {
+      if (commandName) {
+        this.recordCommandDiagnostic(channelName, commandName, "unsupported");
+      }
       return;
     }
 
-    if (this.isOnCooldown(channelName, user, parsed.name)) {
-      return;
-    }
+    this.recordCommandDiagnostic(channelName, parsed.name, "received");
 
     try {
+      if (!(await this.isChannelAllowedToChat(channelName))) {
+        this.recordCommandDiagnostic(channelName, parsed.name, "channel_not_allowed");
+        return;
+      }
+
+      if (this.isOnCooldown(channelName, user, parsed.name)) {
+        this.recordCommandDiagnostic(channelName, parsed.name, "cooldown");
+        return;
+      }
+
       const settings = await this.getSettings();
       const response = await twitchChatCommandService.handle(parsed, channelName, { includeUrl: settings.includeUrl });
       if (response) {
         await this.queueSay(channelName, response);
+        this.recordCommandDiagnostic(channelName, parsed.name, "replied");
+      } else {
+        this.recordCommandDiagnostic(channelName, parsed.name, "no_response");
       }
     } catch (error) {
+      this.recordCommandDiagnostic(channelName, parsed.name, "handler_failed");
       try {
         await this.recordError(`Failed to handle Twitch chat command !${parsed.name} in #${channelName}`, error);
       } catch (recordingError) {
@@ -618,9 +696,54 @@ class TwitchChatBotService {
       try {
         await this.queueSay(channelName, "Command failed. Please try again.");
       } catch (replyError) {
+        this.recordCommandDiagnostic(channelName, parsed.name, "reply_failed");
         logger.error(`[TwitchBot] Failed to send the fallback command reply in #${channelName}:`, replyError);
       }
     }
+  }
+
+  private getCommandName(text: string): string | null {
+    const match = /^!([^\s!]{1,32})/.exec(text.trim());
+    return match ? match[1].toLowerCase().replace(/[^a-z0-9_-]/g, "?") : null;
+  }
+
+  private recordChatClientError(message: string, reason: string): void {
+    void this.recordError(message, reason).catch((recordingError) => {
+      logger.error("[TwitchBot] Failed to persist a Twitch IRC client error:", recordingError);
+    });
+  }
+
+  private recordInboundDiagnostic(channelName: string, force: boolean): void {
+    const now = Date.now();
+    if (!force && now - this.lastInboundDiagnosticAt < INBOUND_DIAGNOSTIC_INTERVAL_MS) {
+      return;
+    }
+
+    this.lastInboundDiagnosticAt = now;
+    this.queueDiagnosticUpdate({
+      lastInboundMessageAt: new Date(now),
+      lastInboundChannel: channelName,
+    });
+  }
+
+  private recordCommandDiagnostic(channelName: string, commandName: string, outcome: TwitchBotCommandOutcome): void {
+    logger.info(`[TwitchBot] Command !${commandName} in #${channelName}: ${outcome}`);
+    this.queueDiagnosticUpdate({
+      lastCommandAt: new Date(),
+      lastCommandChannel: channelName,
+      lastCommandName: commandName,
+      lastCommandOutcome: outcome,
+    });
+  }
+
+  private queueDiagnosticUpdate(update: Parameters<TwitchChatBotService["writeRuntimeState"]>[0]): void {
+    const task = this.diagnosticQueue
+      .catch(() => undefined)
+      .then(() => this.writeRuntimeState(update));
+
+    this.diagnosticQueue = task.catch((error) => {
+      logger.error("[TwitchBot] Failed to persist Twitch chat diagnostics:", error);
+    });
   }
 
   private async isChannelAllowedToChat(channelName: string): Promise<boolean> {
@@ -939,7 +1062,7 @@ class TwitchChatBotService {
     const task = this.outboundQueue
       .catch(() => undefined)
       .then(async () => {
-        if (!this.chatClient || !this.connected) {
+        if (!this.chatClient?.isConnected) {
           throw new Error("Twitch chat is not connected");
         }
 
@@ -1143,6 +1266,12 @@ class TwitchChatBotService {
     lastDisconnectedAt: Date;
     lastReconciledAt: Date;
     lastMessageAt: Date;
+    lastInboundMessageAt: Date;
+    lastInboundChannel: string;
+    lastCommandAt: Date;
+    lastCommandChannel: string;
+    lastCommandName: string;
+    lastCommandOutcome: TwitchBotCommandOutcome;
     lastErrorAt?: Date;
     lastError?: string;
   }>): Promise<void> {

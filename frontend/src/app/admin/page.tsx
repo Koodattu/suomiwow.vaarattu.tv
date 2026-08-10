@@ -880,6 +880,19 @@ function AdminPageContent() {
     return new Date(dateStr).toLocaleString();
   };
 
+  const twitchCommandOutcome = twitchBotStatus?.chat.lastCommandOutcome
+    ? {
+        received: { label: "Received", detail: "The bot saw the command and is still processing it.", className: "bg-amber-900/50 text-amber-200" },
+        replied: { label: "Replied", detail: "The command completed and the reply was handed to Twitch IRC.", className: "bg-green-900/50 text-green-200" },
+        unsupported: { label: "Unsupported", detail: "The bot saw the message, but the ! command is not supported.", className: "bg-gray-700 text-gray-200" },
+        channel_not_allowed: { label: "Channel blocked", detail: "The bot saw the command, but chat commands are disabled for that channel.", className: "bg-amber-900/50 text-amber-200" },
+        cooldown: { label: "Cooldown", detail: "The bot saw the command, but suppressed it because of the user or channel cooldown.", className: "bg-amber-900/50 text-amber-200" },
+        no_response: { label: "No reply", detail: "The command handler completed without producing a reply.", className: "bg-amber-900/50 text-amber-200" },
+        handler_failed: { label: "Handler failed", detail: "The bot saw the command, but command processing failed. Check the bot error below.", className: "bg-red-900/50 text-red-200" },
+        reply_failed: { label: "Reply failed", detail: "The bot saw and processed the command, but Twitch chat rejected or lost the reply.", className: "bg-red-900/50 text-red-200" },
+      }[twitchBotStatus.chat.lastCommandOutcome]
+    : null;
+
   const formatBytes = (bytes: number): string => {
     if (bytes === 0) return "0 B";
     const k = 1024;
@@ -3126,13 +3139,53 @@ function AdminPageContent() {
                     <div className="rounded-lg border border-red-500/40 bg-red-950/30 px-4 py-3 text-sm text-red-200">{twitchBotStatus.chat.lastError}</div>
                   )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {renderTriggerButton("twitch-bot-reconnect", "Reconnect Chat", triggerTwitchBotReconnect, {
                       disabled: !twitchBotStatus.connected,
                     })}
                     {renderTriggerButton("twitch-bot-reconcile", "Reconcile Channels", triggerTwitchBotReconcile, {
                       disabled: !twitchBotStatus.connected,
                     })}
+                    {renderTriggerButton("twitch-bot-diagnostics", "Refresh Diagnostics", async () => {
+                      await refreshTwitchBotStatus();
+                      return { success: true, message: "Twitch bot diagnostics refreshed" };
+                    })}
+                  </div>
+
+                  <div className="rounded-lg bg-gray-900/70 p-4">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <h4 className="text-sm font-medium text-white text-balance">Chat command diagnostics</h4>
+                      <span className="text-xs text-gray-500">Supported: !best, !log, !prediction, !search (plus aliases)</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div>
+                        <p className="text-xs font-medium uppercase text-gray-500">Last inbound chat message</p>
+                        <p className="mt-1 text-sm text-gray-200 tabular-nums">
+                          {twitchBotStatus.chat.lastInboundMessageAt
+                            ? `${formatDate(twitchBotStatus.chat.lastInboundMessageAt)}${twitchBotStatus.chat.lastInboundChannel ? ` in #${twitchBotStatus.chat.lastInboundChannel}` : ""}`
+                            : "No inbound chat observed since diagnostics were added."}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium uppercase text-gray-500">Last ! command</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-200">
+                          {twitchBotStatus.chat.lastCommandAt ? (
+                            <>
+                              <span className="tabular-nums">
+                                {formatDate(twitchBotStatus.chat.lastCommandAt)} · !{twitchBotStatus.chat.lastCommandName || "unknown"}
+                                {twitchBotStatus.chat.lastCommandChannel ? ` in #${twitchBotStatus.chat.lastCommandChannel}` : ""}
+                              </span>
+                              {twitchCommandOutcome && <span className={`rounded px-2 py-0.5 text-xs font-medium ${twitchCommandOutcome.className}`}>{twitchCommandOutcome.label}</span>}
+                            </>
+                          ) : (
+                            "No ! command observed since diagnostics were added."
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-sm text-gray-400 text-pretty">
+                      {twitchCommandOutcome?.detail || "Send !best in chat, then refresh diagnostics. If neither timestamp changes, the IRC client did not receive the message."}
+                    </p>
                   </div>
 
                   {(twitchBotStatus.chat.joinedChannels.length > 0 || twitchBotStatus.chat.desiredChannels.length > 0) && (

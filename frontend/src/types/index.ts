@@ -3592,6 +3592,20 @@ export interface TwitchChatBotStatus {
     lastDisconnectedAt?: string;
     lastReconciledAt?: string;
     lastMessageAt?: string;
+    lastInboundMessageAt?: string;
+    lastInboundChannel?: string;
+    lastCommandAt?: string;
+    lastCommandChannel?: string;
+    lastCommandName?: string;
+    lastCommandOutcome?:
+      | "received"
+      | "replied"
+      | "unsupported"
+      | "channel_not_allowed"
+      | "cooldown"
+      | "no_response"
+      | "handler_failed"
+      | "reply_failed";
     lastErrorAt?: string;
     lastError?: string;
   };

@@ -89,28 +89,62 @@ test("historical character search limits candidates before current-identity look
   }
 });
 
-test("fun character search applies Mythic eligibility to aliases and displayed guilds", async () => {
+test("fun character search avoids the broad historical aggregation and validates bounded candidates", async () => {
   const participationModel = CharacterRaidParticipation as any;
   const originalAggregate = participationModel.aggregate;
-  let pipeline: Array<Record<string, any>> = [];
+  const originalFind = participationModel.find;
+  const currentSearch = (characterService as any).searchCurrentCharacters;
+  const exactHistoricalSearch = (characterService as any).searchExactHistoricalCharacters;
+  let query: Record<string, any> = {};
 
   try {
-    participationModel.aggregate = (value: Array<Record<string, any>>) => {
-      pipeline = value;
-      return { option: async () => [] };
+    participationModel.aggregate = () => {
+      throw new Error("eligible searches must not use the historical aggregation");
+    };
+    (characterService as any).searchCurrentCharacters = async () => [];
+    (characterService as any).searchExactHistoricalCharacters = async () => [{
+      wclCanonicalCharacterId: 123,
+      name: "Oldname",
+      realm: "old-realm",
+      region: "eu",
+      classID: 8,
+      guild: { name: "Old Guild", realm: "old-realm" },
+      lastReportSeenAt: new Date("2025-01-01T00:00:00.000Z"),
+    }];
+    participationModel.find = (value: Record<string, any>) => {
+      query = value;
+      return {
+        sort() { return this; },
+        select() { return this; },
+        lean: async () => [{
+          wclCanonicalCharacterId: 123,
+          characterName: "Currentname",
+          characterRealm: "current-realm",
+          characterRegion: "eu",
+          classID: 8,
+          reportGuildName: "Current Guild",
+          reportGuildRealm: "current-realm",
+          lastSeenAt: new Date("2026-08-01T00:00:00.000Z"),
+        }],
+      };
     };
 
-    await characterService.searchCharacters("ka", 5, { zoneIds: [42, 43], minMythicReportCount: 3 });
+    const results = await characterService.searchCharacters("oldname", 5, { zoneIds: [42, 43], minMythicReportCount: 3 });
 
-    assert.deepEqual(pipeline[0].$match.zoneId, { $in: [42, 43] });
-    assert.deepEqual(pipeline[0].$match.mythicReportCount, { $gte: 3 });
-    const lookupStage = pipeline.find((stage) => stage.$lookup);
-    assert.ok(lookupStage);
-    const lookupMatch = lookupStage.$lookup.pipeline[0].$match;
-    assert.deepEqual(lookupMatch.zoneId, { $in: [42, 43] });
-    assert.deepEqual(lookupMatch.mythicReportCount, { $gte: 3 });
+    assert.deepEqual(query.zoneId, { $in: [42, 43] });
+    assert.deepEqual(query.mythicReportCount, { $gte: 3 });
+    assert.deepEqual(query.$or, [{ wclCanonicalCharacterId: 123, classID: 8 }]);
+    assert.equal(results.length, 1);
+    assert.equal(results[0].name, "Currentname");
+    assert.equal(results[0].realm, "current-realm");
+    assert.equal(results[0].matchedName, "Oldname");
+    assert.equal(results[0].matchedRealm, "old-realm");
+    assert.deepEqual(results[0].guild, { name: "Current Guild", realm: "current-realm" });
   } finally {
     participationModel.aggregate = originalAggregate;
+    participationModel.find = originalFind;
+    (characterService as any).searchCurrentCharacters = currentSearch;
+    (characterService as any).searchExactHistoricalCharacters = exactHistoricalSearch;
   }
 });
 

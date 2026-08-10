@@ -8,6 +8,16 @@ export interface ITwitchBotChannelBan {
   failureCount: number;
 }
 
+export type TwitchBotCommandOutcome =
+  | "received"
+  | "replied"
+  | "unsupported"
+  | "channel_not_allowed"
+  | "cooldown"
+  | "no_response"
+  | "handler_failed"
+  | "reply_failed";
+
 export interface ITwitchBotRuntimeState extends Document {
   key: string;
   enabled: boolean;
@@ -24,6 +34,12 @@ export interface ITwitchBotRuntimeState extends Document {
   lastDisconnectedAt?: Date;
   lastReconciledAt?: Date;
   lastMessageAt?: Date;
+  lastInboundMessageAt?: Date;
+  lastInboundChannel?: string;
+  lastCommandAt?: Date;
+  lastCommandChannel?: string;
+  lastCommandName?: string;
+  lastCommandOutcome?: TwitchBotCommandOutcome;
   lastErrorAt?: Date;
   lastError?: string;
   createdAt: Date;
@@ -58,6 +74,15 @@ const TwitchBotRuntimeStateSchema = new Schema<ITwitchBotRuntimeState>(
     lastDisconnectedAt: { type: Date },
     lastReconciledAt: { type: Date },
     lastMessageAt: { type: Date },
+    lastInboundMessageAt: { type: Date },
+    lastInboundChannel: { type: String },
+    lastCommandAt: { type: Date },
+    lastCommandChannel: { type: String },
+    lastCommandName: { type: String },
+    lastCommandOutcome: {
+      type: String,
+      enum: ["received", "replied", "unsupported", "channel_not_allowed", "cooldown", "no_response", "handler_failed", "reply_failed"],
+    },
     lastErrorAt: { type: Date },
     lastError: { type: String },
   },

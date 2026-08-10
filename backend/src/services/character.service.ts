@@ -2431,16 +2431,16 @@ class CharacterService {
     if (trimmedQuery.length < 2) return [];
 
     const safeLimit = Math.min(Math.max(limit, 1), 20);
+    if (eligibility) {
+      return this.searchEligibleCharacters(trimmedQuery, safeLimit, eligibility);
+    }
+
     const candidateLimit = Math.max(safeLimit * 10, 50);
     const nameMatch = createAccentInsensitiveSearchRegex(trimmedQuery);
-    const participationEligibility = eligibility
-      ? { zoneId: { $in: eligibility.zoneIds }, mythicReportCount: { $gte: eligibility.minMythicReportCount } }
-      : {};
 
     const aliasRows = await CharacterRaidParticipation.aggregate([
       {
         $match: {
-          ...participationEligibility,
           characterName: nameMatch,
         },
       },
@@ -2480,7 +2480,6 @@ class CharacterService {
           pipeline: [
             {
               $match: {
-                ...participationEligibility,
                 $expr: {
                   $and: [
                     { $eq: ["$classID", "$$classId"] },
@@ -2547,11 +2546,81 @@ class CharacterService {
     }));
   }
 
+  private async searchEligibleCharacters(
+    query: string,
+    limit: number,
+    eligibility: { zoneIds: readonly number[]; minMythicReportCount: number },
+  ): Promise<CharacterSearchResult[]> {
+    const candidateLimit = Math.max(limit * 10, 50);
+    const [exactAliases, currentCharacters] = await Promise.all([
+      this.searchExactHistoricalCharacters(query, candidateLimit),
+      this.searchCurrentCharacters(query, candidateLimit, { maximumLimit: candidateLimit }),
+    ]);
+
+    const candidatesByKey = new Map<string, CharacterSearchResult>();
+    for (const candidate of [...exactAliases, ...currentCharacters]) {
+      if (typeof candidate.wclCanonicalCharacterId !== "number") continue;
+      const key = `${candidate.wclCanonicalCharacterId}:${candidate.classID}`;
+      if (!candidatesByKey.has(key)) candidatesByKey.set(key, candidate);
+    }
+    const candidates = Array.from(candidatesByKey.values());
+    if (candidates.length === 0) return [];
+
+    const participationRows = await CharacterRaidParticipation.find({
+      zoneId: { $in: eligibility.zoneIds },
+      mythicReportCount: { $gte: eligibility.minMythicReportCount },
+      $or: candidates.map((candidate) => ({
+        wclCanonicalCharacterId: candidate.wclCanonicalCharacterId,
+        classID: candidate.classID,
+      })),
+    })
+      .sort({ lastSeenAt: -1 })
+      .select("wclCanonicalCharacterId characterName characterRealm characterRegion classID reportGuildName reportGuildRealm lastSeenAt -_id")
+      .lean();
+
+    const latestParticipationByKey = new Map<string, (typeof participationRows)[number]>();
+    for (const row of participationRows) {
+      if (typeof row.wclCanonicalCharacterId !== "number") continue;
+      const key = `${row.wclCanonicalCharacterId}:${row.classID}`;
+      if (!latestParticipationByKey.has(key)) latestParticipationByKey.set(key, row);
+    }
+
+    return candidates
+      .flatMap((candidate): CharacterSearchResult[] => {
+        const key = `${candidate.wclCanonicalCharacterId}:${candidate.classID}`;
+        const participation = latestParticipationByKey.get(key);
+        if (!participation) return [];
+
+        const matchedName = candidate.matchedName ?? candidate.name;
+        const matchedRealm = candidate.matchedRealm ?? candidate.realm;
+        const matchedCurrentIdentity = matchedName === participation.characterName && matchedRealm === participation.characterRealm;
+        return [{
+          wclCanonicalCharacterId: participation.wclCanonicalCharacterId ?? null,
+          name: participation.characterName,
+          realm: participation.characterRealm,
+          region: participation.characterRegion,
+          classID: participation.classID,
+          matchedName: matchedCurrentIdentity ? undefined : matchedName,
+          matchedRealm: matchedCurrentIdentity ? undefined : matchedRealm,
+          guild: {
+            name: participation.reportGuildName,
+            realm: participation.reportGuildRealm,
+          },
+          lastReportSeenAt: participation.lastSeenAt,
+        }];
+      })
+      .sort((left, right) => {
+        const seenDiff = (right.lastReportSeenAt?.getTime() ?? 0) - (left.lastReportSeenAt?.getTime() ?? 0);
+        return seenDiff || left.name.localeCompare(right.name) || left.realm.localeCompare(right.realm) || left.classID - right.classID;
+      })
+      .slice(0, limit);
+  }
+
   async searchExactHistoricalCharacters(query: string, limit = 10): Promise<CharacterSearchResult[]> {
     const trimmedQuery = query.trim().slice(0, 60);
     if (trimmedQuery.length < 2) return [];
 
-    const safeLimit = Math.min(Math.max(limit, 1), 20);
+    const safeLimit = Math.min(Math.max(limit, 1), 200);
     const rows = await CharacterRaidParticipation.find({ characterName: trimmedQuery })
       .collation(ACCENT_INSENSITIVE_COLLATION)
       .sort({ lastSeenAt: -1 })
@@ -2582,11 +2651,16 @@ class CharacterService {
     return results;
   }
 
-  async searchCurrentCharacters(query: string, limit = 10, options: { prefix?: boolean } = {}): Promise<CharacterSearchResult[]> {
+  async searchCurrentCharacters(
+    query: string,
+    limit = 10,
+    options: { prefix?: boolean; maximumLimit?: number } = {},
+  ): Promise<CharacterSearchResult[]> {
     const trimmedQuery = query.trim().slice(0, 60);
     if (trimmedQuery.length < 2) return [];
 
-    const safeLimit = Math.min(Math.max(limit, 1), 20);
+    const maximumLimit = Math.min(Math.max(options.maximumLimit ?? 20, 1), 200);
+    const safeLimit = Math.min(Math.max(limit, 1), maximumLimit);
     const nameMatch = createAccentInsensitiveSearchRegex(trimmedQuery, { prefix: options.prefix });
     const characters = await Character.find({
       $or: [
