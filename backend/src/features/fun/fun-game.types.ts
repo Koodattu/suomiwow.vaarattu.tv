@@ -63,7 +63,6 @@ export type GuildGuessrRound = FunRoundBase & {
     sharedCharacters: number;
     sharedRaids: string[];
   }>;
-  guildOptions: FunGuild[];
   solution: {
     target: FunGuild & {
       faction: string | null;
@@ -121,7 +120,6 @@ export type RaiderResumeCandidate = {
 export type RaiderResumeRound = FunRoundBase & {
   game: "raider-resume";
   timeline: FunRaid[];
-  candidates: RaiderResumeCandidate[];
   solution: {
     target: RaiderResumeCandidate & {
       avatarUrl: string | null;
@@ -186,9 +184,15 @@ export type SuomidleCandidate = {
 
 export type SuomidleRound = FunRoundBase & {
   game: "suomidle";
-  candidates: SuomidleCandidate[];
   solution: { target: SuomidleCandidate };
 };
+
+export const FUN_GAME_SEARCH_SLUGS = ["guild-guessr", "raider-resume", "suomidle"] as const;
+export type FunGameSearchSlug = (typeof FUN_GAME_SEARCH_SLUGS)[number];
+export type FunGameSearchResponse =
+  | { game: "guild-guessr"; candidates: FunGuild[] }
+  | { game: "raider-resume"; candidates: RaiderResumeCandidate[] }
+  | { game: "suomidle"; candidates: SuomidleCandidate[] };
 
 export type HigherOrWipeOption = {
   id: string;
@@ -252,4 +256,8 @@ export function isFunGameSlug(value: string): value is FunGameSlug {
 
 export function isHigherOrWipeMode(value: string): value is HigherOrWipeMode {
   return (HIGHER_OR_WIPE_MODES as readonly string[]).includes(value);
+}
+
+export function isFunGameSearchSlug(value: string): value is FunGameSearchSlug {
+  return (FUN_GAME_SEARCH_SLUGS as readonly string[]).includes(value);
 }

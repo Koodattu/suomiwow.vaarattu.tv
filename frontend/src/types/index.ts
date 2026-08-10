@@ -3201,7 +3201,6 @@ export type ImmaculateRosterRound = FunRoundBase & {
 export type GuildGuessrRound = FunRoundBase & {
   game: "guild-guessr";
   neighbors: Array<{ guild: FunGuild; sharedCharacters: number; sharedRaids: string[] }>;
-  guildOptions: FunGuild[];
   solution: {
     target: FunGuild & {
       faction: string | null;
@@ -3256,7 +3255,6 @@ export type RaiderResumeCandidate = {
 export type RaiderResumeRound = FunRoundBase & {
   game: "raider-resume";
   timeline: FunRaid[];
-  candidates: RaiderResumeCandidate[];
   solution: {
     target: RaiderResumeCandidate & {
       avatarUrl: string | null;
@@ -3313,8 +3311,18 @@ export type SuomidleCandidate = {
 
 export type SuomidleRound = FunRoundBase & {
   game: "suomidle";
-  candidates: SuomidleCandidate[];
   solution: { target: SuomidleCandidate };
+};
+
+export type FunGameSearchSlug = "guild-guessr" | "raider-resume" | "suomidle";
+export type FunGameSearchCandidateByGame = {
+  "guild-guessr": FunGuild;
+  "raider-resume": RaiderResumeCandidate;
+  suomidle: SuomidleCandidate;
+};
+export type FunGameSearchResponse<Game extends FunGameSearchSlug = FunGameSearchSlug> = {
+  game: Game;
+  candidates: FunGameSearchCandidateByGame[Game][];
 };
 
 export type HigherOrWipeOption = {

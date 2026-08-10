@@ -3,8 +3,9 @@ import { TRACKED_RAIDS } from "../../../config/guilds";
 import CharacterRaidParticipation from "../../../models/CharacterRaidParticipation";
 import Guild from "../../../models/Guild";
 import Raid from "../../../models/Raid";
+import { createAccentInsensitiveSearchRegex, normalizeSearchText, scoreSearchCandidate } from "../../../utils/search";
 import { funMythicGuildFilter, funMythicParticipationFilter } from "../fun-game.eligibility";
-import type { GuildGuessrRound } from "../fun-game.types";
+import type { FunGuild, GuildGuessrRound } from "../fun-game.types";
 import { canonicalCharacterKey, FunRoundUnavailableError, newRoundBase, shuffle } from "../fun-game.utils";
 
 type GuildCandidate = {
@@ -94,13 +95,11 @@ export async function generateGuildGuessrRound(): Promise<GuildGuessrRound> {
       .slice(0, 4);
     if (topNeighbors.length < 4) continue;
 
-    const [targetGuild, guildDocuments, neighborGuildDocuments] = await Promise.all([
-      Guild.findById(candidate._id).select("name realm faction crest raidSchedule -_id").lean(),
-      Guild.find(funMythicGuildFilter()).sort({ name: 1, realm: 1 }).select("_id name realm").lean(),
+    const [targetGuild, neighborGuildDocuments] = await Promise.all([
+      Guild.findOne({ _id: candidate._id, ...funMythicGuildFilter() }).select("name realm faction crest raidSchedule -_id").lean(),
       Guild.find({ _id: { $in: topNeighbors.map(([id]) => id) } }).select("_id faction crest").lean(),
     ]);
     if (!targetGuild) continue;
-    if (!guildDocuments.some((guild) => String(guild._id) === targetGuildId)) continue;
     const guildDocumentById = new Map(neighborGuildDocuments.map((guild) => [String(guild._id), guild]));
 
     return {
@@ -116,13 +115,6 @@ export async function generateGuildGuessrRound(): Promise<GuildGuessrRound> {
         },
         sharedCharacters: neighbor.characterKeys.size,
         sharedRaids: Array.from(neighbor.raidIds).map((raidId) => raidById.get(raidId)?.name).filter((name): name is string => Boolean(name)),
-      })),
-      guildOptions: guildDocuments.map((guild) => ({
-        id: String(guild._id),
-        name: guild.name,
-        realm: guild.realm,
-        faction: null,
-        crest: null,
       })),
       solution: {
         target: {
@@ -144,4 +136,37 @@ export async function generateGuildGuessrRound(): Promise<GuildGuessrRound> {
   }
 
   throw new FunRoundUnavailableError("No guild has four usable character connections");
+}
+
+export async function searchGuildGuessrCandidates(query: string, limit: number): Promise<FunGuild[]> {
+  const trimmedQuery = query.trim().slice(0, 60);
+  const normalizedQuery = normalizeSearchText(trimmedQuery);
+  if (normalizedQuery.length < 2) return [];
+  const match = createAccentInsensitiveSearchRegex(trimmedQuery);
+  const guilds = await Guild.find({
+    ...funMythicGuildFilter(),
+    $or: [{ name: match }, { realm: match }],
+  })
+    .limit(Math.max(limit * 5, 50))
+    .select("_id name realm faction crest")
+    .lean();
+
+  return guilds
+    .map((guild) => ({
+      guild: {
+        id: String(guild._id),
+        name: guild.name,
+        realm: guild.realm,
+        faction: guild.faction ?? null,
+        crest: guild.crest ?? null,
+      },
+      score: Math.max(
+        scoreSearchCandidate(normalizedQuery, normalizeSearchText(guild.name)),
+        scoreSearchCandidate(normalizedQuery, normalizeSearchText(`${guild.name} ${guild.realm}`)),
+      ),
+    }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((left, right) => right.score - left.score || left.guild.name.localeCompare(right.guild.name) || left.guild.realm.localeCompare(right.guild.realm))
+    .slice(0, limit)
+    .map((candidate) => candidate.guild);
 }

@@ -1,6 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { CcgActivityFilter, CcgBootstrapResponse, CcgCollectionSort, CharacterTierListRole, EventFilters } from "@/types";
+import type { CcgActivityFilter, CcgBootstrapResponse, CcgCollectionSort, CharacterTierListRole, EventFilters, FunGameSearchSlug } from "@/types";
 
 const LIVE_STATUS_STALE_TIME = 15 * 60 * 1000;
 const LIVE_STATUS_REFETCH_INTERVAL = 15 * 60 * 1000;
@@ -81,6 +81,7 @@ export const queryKeys = {
   characters: {
     search: (query: string, eligibility?: "fun") => ["characters", "search", eligibility ?? "all", query] as const,
   },
+  funSearch: (game: FunGameSearchSlug, query: string) => ["fun", "search", game, query] as const,
   raidAnalytics: {
     raids: ["raidAnalytics", "raids"] as const,
     detail: (raidId: number) => ["raidAnalytics", "detail", raidId] as const,
@@ -429,9 +430,18 @@ export function useMythicPlusLeaderboard(query: string, enabled: boolean = true)
 export function useCharacterSearch(query: string, enabled: boolean = true, eligibility?: "fun") {
   return useQuery({
     queryKey: queryKeys.characters.search(query, eligibility),
-    queryFn: () => api.searchCharacters(query, 10, eligibility),
+    queryFn: ({ signal }) => api.searchCharacters(query, 10, eligibility, signal),
     enabled,
     staleTime: 60 * 1000,
+  });
+}
+
+export function useFunGameSearch<Game extends FunGameSearchSlug>(game: Game, query: string, enabled: boolean = true) {
+  return useQuery({
+    queryKey: queryKeys.funSearch(game, query),
+    queryFn: ({ signal }) => api.searchFunGame(game, query, 10, signal),
+    enabled,
+    staleTime: 2 * 60 * 1000,
   });
 }
 

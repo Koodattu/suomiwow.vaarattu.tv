@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { FunGuild, GuildGuessrRound } from "@/types";
 import FunAutocomplete from "../FunAutocomplete";
 import { FunRaidIdentity } from "../FunEncounterIdentity";
 import FunGuildIdentity, { FunGuildCrest } from "../FunGuildIdentity";
 import ProgressiveClues from "../ProgressiveClues";
+import { useDebouncedFunGameSearch } from "../useFunGameSearch";
 
 type GuessFeedback = {
   guild: FunGuild;
@@ -17,13 +18,20 @@ type GuessFeedback = {
 export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
   const t = useTranslations("fun");
   const target = round.solution.target;
+  const [query, setQuery] = useState("");
   const [guesses, setGuesses] = useState<GuessFeedback[]>([]);
   const [status, setStatus] = useState<"playing" | "won" | "lost">("playing");
 
-  const availableGuilds = useMemo(() => {
-    const guessedIds = new Set(guesses.map((guess) => guess.guild.id));
-    return round.guildOptions.filter((guild) => !guessedIds.has(guild.id));
-  }, [guesses, round.guildOptions]);
+  const search = useDebouncedFunGameSearch("guild-guessr", query);
+  const guessedIds = new Set(guesses.map((guess) => guess.guild.id));
+  const availableGuilds = search.candidates.filter((guild) => !guessedIds.has(guild.id));
+  const emptyLabel = search.trimmedQuery.length < 2
+    ? t("common.typeTwoCharacters")
+    : search.isSearching
+      ? t("common.searching")
+      : search.isError
+        ? t("common.searchFailed")
+        : t("guildGuessr.noGuilds");
 
   const submitGuess = (guild: FunGuild) => {
     if (status !== "playing") return;
@@ -107,8 +115,11 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
                 getSearchText={(guild) => `${guild.name} ${guild.realm}`}
                 renderOption={(guild) => <FunGuildIdentity guild={guild} crestSize={32} />}
                 placeholder={t("guildGuessr.searchGuild")}
-                emptyLabel={t("guildGuessr.noGuilds")}
+                emptyLabel={emptyLabel}
+                loading={search.isSearching}
+                filterItems={false}
                 onSelect={submitGuess}
+                onQueryChange={setQuery}
               />
             </>
           ) : (

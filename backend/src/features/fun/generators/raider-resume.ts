@@ -1,10 +1,13 @@
+import { MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_FUN_ELIGIBILITY } from "../../../config/character-eligibility";
+import { TRACKED_RAIDS } from "../../../config/guilds";
 import CharacterMedia from "../../../models/CharacterMedia";
 import CharacterRaidParticipation from "../../../models/CharacterRaidParticipation";
 import Guild from "../../../models/Guild";
 import Raid from "../../../models/Raid";
+import characterService from "../../../services/character.service";
 import { funMythicParticipationFilter } from "../fun-game.eligibility";
 import type { RaiderResumeCandidate, RaiderResumeRound } from "../fun-game.types";
-import { canonicalCharacterKey, FunRoundUnavailableError, newRoundBase, randomItem, shuffle } from "../fun-game.utils";
+import { canonicalCharacterKey, FunRoundUnavailableError, newRoundBase, randomItem } from "../fun-game.utils";
 
 type ResumeParticipation = {
   zoneId: number;
@@ -44,52 +47,11 @@ function toCandidate(row: ResumeAggregate): RaiderResumeCandidate {
 }
 
 export async function generateRaiderResumeRound(): Promise<RaiderResumeRound> {
-  const candidates = await CharacterRaidParticipation.aggregate<ResumeAggregate>([
-    {
-      $match: {
-        ...funMythicParticipationFilter(),
-        wclCanonicalCharacterId: { $type: "number" },
-      },
-    },
-    { $sort: { lastSeenAt: -1 } },
-    {
-      $group: {
-        _id: { wclCanonicalCharacterId: "$wclCanonicalCharacterId", classID: "$classID" },
-        characterId: { $first: "$characterId" },
-        name: { $first: "$characterName" },
-        realm: { $first: "$characterRealm" },
-        region: { $first: "$characterRegion" },
-        firstSeenAt: { $min: "$firstSeenAt" },
-        lastSeenAt: { $max: "$lastSeenAt" },
-        reportCount: { $sum: "$mythicReportCount" },
-        raidIds: { $addToSet: "$zoneId" },
-        guildIds: { $addToSet: "$reportGuildId" },
-        participations: {
-          $push: {
-            zoneId: "$zoneId",
-            guildName: "$reportGuildName",
-            guildRealm: "$reportGuildRealm",
-            firstSeenAt: "$firstSeenAt",
-            lastSeenAt: "$lastSeenAt",
-          },
-        },
-      },
-    },
-    {
-      $match: {
-        "raidIds.2": { $exists: true },
-        reportCount: { $gte: 12 },
-      },
-    },
-  ]).option({ maxTimeMS: 15_000 });
+  const candidates = await loadResumeCandidates();
 
   if (candidates.length === 0) throw new FunRoundUnavailableError("No character has enough raid history for a résumé");
   const targetRow = randomItem(candidates);
   const target = toCandidate(targetRow);
-  const optionRows = shuffle(candidates).slice(0, 300);
-  if (!optionRows.some((row) => row._id.wclCanonicalCharacterId === targetRow._id.wclCanonicalCharacterId && row._id.classID === targetRow._id.classID)) {
-    optionRows[optionRows.length - 1] = targetRow;
-  }
 
   const raidIds = Array.from(new Set(targetRow.raidIds));
   const raids = await Raid.find({ id: { $in: raidIds } }).select("id name expansion iconUrl starts -_id").lean();
@@ -141,7 +103,6 @@ export async function generateRaiderResumeRound(): Promise<RaiderResumeRound> {
     ...newRoundBase(),
     game: "raider-resume",
     timeline,
-    candidates: optionRows.map(toCandidate).sort((left, right) => left.name.localeCompare(right.name) || left.realm.localeCompare(right.realm)),
     solution: {
       target: {
         ...target,
@@ -164,4 +125,66 @@ export async function generateRaiderResumeRound(): Promise<RaiderResumeRound> {
       },
     },
   };
+}
+
+export async function searchRaiderResumeCandidates(query: string, limit: number): Promise<RaiderResumeCandidate[]> {
+  const identities = await characterService.searchCharacters(query, Math.min(Math.max(limit * 2, 10), 20), {
+    zoneIds: TRACKED_RAIDS,
+    minMythicReportCount: MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_FUN_ELIGIBILITY,
+  });
+  const canonicalIds = identities.flatMap((identity) => typeof identity.wclCanonicalCharacterId === "number" ? [identity.wclCanonicalCharacterId] : []);
+  if (canonicalIds.length === 0) return [];
+  const rows = await loadResumeCandidates(canonicalIds);
+  const candidateByKey = new Map(rows.map((row) => {
+    const candidate = toCandidate(row);
+    return [candidate.key, candidate];
+  }));
+  return identities
+    .flatMap((identity): RaiderResumeCandidate[] => {
+      if (typeof identity.wclCanonicalCharacterId !== "number") return [];
+      const candidate = candidateByKey.get(canonicalCharacterKey(identity.wclCanonicalCharacterId, identity.classID));
+      return candidate ? [candidate] : [];
+    })
+    .slice(0, limit);
+}
+
+async function loadResumeCandidates(canonicalIds?: number[]): Promise<ResumeAggregate[]> {
+  return CharacterRaidParticipation.aggregate<ResumeAggregate>([
+    {
+      $match: {
+        ...funMythicParticipationFilter(),
+        wclCanonicalCharacterId: canonicalIds ? { $in: canonicalIds } : { $type: "number" },
+      },
+    },
+    { $sort: { lastSeenAt: -1 } },
+    {
+      $group: {
+        _id: { wclCanonicalCharacterId: "$wclCanonicalCharacterId", classID: "$classID" },
+        characterId: { $first: "$characterId" },
+        name: { $first: "$characterName" },
+        realm: { $first: "$characterRealm" },
+        region: { $first: "$characterRegion" },
+        firstSeenAt: { $min: "$firstSeenAt" },
+        lastSeenAt: { $max: "$lastSeenAt" },
+        reportCount: { $sum: "$mythicReportCount" },
+        raidIds: { $addToSet: "$zoneId" },
+        guildIds: { $addToSet: "$reportGuildId" },
+        participations: {
+          $push: {
+            zoneId: "$zoneId",
+            guildName: "$reportGuildName",
+            guildRealm: "$reportGuildRealm",
+            firstSeenAt: "$firstSeenAt",
+            lastSeenAt: "$lastSeenAt",
+          },
+        },
+      },
+    },
+    {
+      $match: {
+        "raidIds.2": { $exists: true },
+        reportCount: { $gte: 12 },
+      },
+    },
+  ]).option({ maxTimeMS: 15_000 });
 }

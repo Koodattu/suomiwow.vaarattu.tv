@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { getClassInfoById } from "@/lib/utils";
 import type { SuomidleCandidate, SuomidleRound } from "@/types";
@@ -8,6 +8,7 @@ import FunAutocomplete from "../FunAutocomplete";
 import FunCharacterIdentity, { FunClassIcon } from "../FunCharacterIdentity";
 import { FunRaidIdentity } from "../FunEncounterIdentity";
 import FunGuildIdentity, { FunGuildCrest } from "../FunGuildIdentity";
+import { useDebouncedFunGameSearch } from "../useFunGameSearch";
 
 type Comparison = "lower" | "exact" | "higher" | "mismatch";
 
@@ -16,13 +17,20 @@ const columns = ["character", "class", "spec", "role", "realm", "guild", "raid",
 export default function Suomidle({ round }: { round: SuomidleRound }) {
   const t = useTranslations("fun");
   const target = round.solution.target;
+  const [query, setQuery] = useState("");
   const [guesses, setGuesses] = useState<SuomidleCandidate[]>([]);
   const [status, setStatus] = useState<"playing" | "won" | "lost">("playing");
   const mistakes = guesses.filter((guess) => guess.key !== target.key).length;
-  const available = useMemo(() => {
-    const used = new Set(guesses.map((guess) => guess.key));
-    return round.candidates.filter((candidate) => !used.has(candidate.key));
-  }, [guesses, round.candidates]);
+  const search = useDebouncedFunGameSearch("suomidle", query);
+  const used = new Set(guesses.map((guess) => guess.key));
+  const available = search.candidates.filter((candidate) => !used.has(candidate.key));
+  const emptyLabel = search.trimmedQuery.length < 2
+    ? t("common.typeTwoCharacters")
+    : search.isSearching
+      ? t("common.searching")
+      : search.isError
+        ? t("common.searchFailed")
+        : t("suomidle.none");
 
   const submit = (candidate: SuomidleCandidate) => {
     if (status !== "playing") return;
@@ -64,8 +72,11 @@ export default function Suomidle({ round }: { round: SuomidleRound }) {
             getSearchText={(candidate) => `${candidate.name} ${candidate.realm} ${candidate.guildName}`}
             renderOption={(candidate) => <FunCharacterIdentity character={candidate} iconSize={30} />}
             placeholder={t("suomidle.search")}
-            emptyLabel={t("suomidle.none")}
+            emptyLabel={emptyLabel}
+            loading={search.isSearching}
+            filterItems={false}
             onSelect={submit}
+            onQueryChange={setQuery}
           />
         ) : null}
       </div>

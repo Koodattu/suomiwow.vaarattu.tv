@@ -2449,6 +2449,7 @@
       "searchCharacter": "Search for a character",
       "typeTwoCharacters": "Type at least two characters",
       "searching": "Searching…",
+      "searchFailed": "Search failed. Try again.",
       "noCharacters": "No matching characters",
       "completed": "{count}/{total} filled",
       "mistakes": "Mistakes {count}/{total}",

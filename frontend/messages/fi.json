@@ -2449,6 +2449,7 @@
       "searchCharacter": "Hae hahmoa",
       "typeTwoCharacters": "Kirjoita vähintään kaksi merkkiä",
       "searching": "Haetaan…",
+      "searchFailed": "Haku epäonnistui. Yritä uudelleen.",
       "noCharacters": "Sopivia hahmoja ei löytynyt",
       "completed": "{count}/{total} täytetty",
       "mistakes": "Virheet {count}/{total}",

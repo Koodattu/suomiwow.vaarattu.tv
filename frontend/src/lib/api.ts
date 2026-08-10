@@ -184,6 +184,8 @@ import {
   ReporterSettingsUpdate,
   ReporterStatusResponse,
   FunGameRound,
+  FunGameSearchResponse,
+  FunGameSearchSlug,
   FunGameSlug,
   HigherOrWipeMode,
 } from "@/types";
@@ -727,13 +729,13 @@ export const api = {
     return response.json();
   },
 
-  async searchCharacters(query: string, limit = 10, eligibility?: "fun"): Promise<CharacterSearchResponse> {
+  async searchCharacters(query: string, limit = 10, eligibility?: "fun", signal?: AbortSignal): Promise<CharacterSearchResponse> {
     const params = new URLSearchParams({
       q: query,
       limit: String(limit),
     });
     if (eligibility) params.set("eligibility", eligibility);
-    const response = await fetch(`${API_URL}/api/characters/search?${params}`);
+    const response = await fetch(`${API_URL}/api/characters/search?${params}`, { signal });
     if (!response.ok) throw new Error("Failed to search characters");
     return response.json();
   },
@@ -1603,6 +1605,13 @@ export const api = {
   async getPickems(): Promise<PickemSummary[]> {
     const response = await fetch(`${API_URL}/api/pickems`);
     if (!response.ok) throw new Error("Failed to fetch pickems");
+    return response.json();
+  },
+
+  async searchFunGame<Game extends FunGameSearchSlug>(game: Game, query: string, limit = 10, signal?: AbortSignal): Promise<FunGameSearchResponse<Game>> {
+    const params = new URLSearchParams({ q: query, limit: String(limit) });
+    const response = await fetch(`${API_URL}/api/fun/${game}/search?${params}`, { signal });
+    if (!response.ok) throw await buildApiError(response, "Failed to search game candidates");
     return response.json();
   },
 

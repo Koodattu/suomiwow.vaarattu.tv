@@ -1,12 +1,15 @@
 import { getSpecRole } from "../../../config/classes";
+import { MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_FUN_ELIGIBILITY } from "../../../config/character-eligibility";
+import { TRACKED_RAIDS } from "../../../config/guilds";
 import CharacterMythicPlusSeasonScore from "../../../models/CharacterMythicPlusSeasonScore";
 import CharacterRaidAchievementSummary from "../../../models/CharacterRaidAchievementSummary";
 import CharacterRaidParticipation from "../../../models/CharacterRaidParticipation";
 import Guild from "../../../models/Guild";
 import Raid from "../../../models/Raid";
+import characterService from "../../../services/character.service";
 import { funMythicParticipationFilter } from "../fun-game.eligibility";
 import type { SuomidleCandidate, SuomidleRound } from "../fun-game.types";
-import { canonicalCharacterKey, FunRoundUnavailableError, newRoundBase, randomItem, shuffle } from "../fun-game.utils";
+import { canonicalCharacterKey, FunRoundUnavailableError, newRoundBase, randomItem } from "../fun-game.utils";
 
 type ScoreRow = {
   wclCanonicalCharacterId: number;
@@ -34,14 +37,15 @@ type AchievementRow = {
   aheadOfTheCurveCount: number;
 };
 
+const LATEST_SCORE_SEASON_TTL_MS = 5 * 60 * 1000;
+let latestScoreSeasonCache: { expiresAt: number; season: string | null } | null = null;
+let latestScoreSeasonPromise: Promise<string | null> | null = null;
+
 export async function generateSuomidleRound(): Promise<SuomidleRound> {
-  const latestScore = await CharacterMythicPlusSeasonScore.findOne({ identityStatus: "current", scoreStatus: "available", "scores.all": { $gt: 0 } })
-    .sort({ fetchedAt: -1 })
-    .select("season -_id")
-    .lean();
-  if (!latestScore) throw new FunRoundUnavailableError("No characters have enough Suomidle data");
+  const season = await loadLatestScoreSeason();
+  if (!season) throw new FunRoundUnavailableError("No characters have enough Suomidle data");
   const scoreDocuments = await CharacterMythicPlusSeasonScore.find({
-    season: latestScore.season,
+    season,
     identityStatus: "current",
     scoreStatus: "available",
     "scores.all": { $gt: 0 },
@@ -51,7 +55,81 @@ export async function generateSuomidleRound(): Promise<SuomidleRound> {
     .limit(350)
     .select("wclCanonicalCharacterId name realm classID bestSpecName activeSpecRole specScores scores.all -_id")
     .lean();
-  const scoreRows: ScoreRow[] = scoreDocuments.map((row) => ({
+  const scoreRows = scoreDocuments.map(toScoreRow);
+
+  if (scoreRows.length === 0) throw new FunRoundUnavailableError("No characters have enough Suomidle data");
+  const candidates = await loadSuomidleCandidates(scoreRows);
+  if (candidates.length < 20) throw new FunRoundUnavailableError("No characters have a complete Suomidle profile");
+  const target = randomItem(candidates);
+  return {
+    ...newRoundBase(),
+    game: "suomidle",
+    solution: { target },
+  };
+}
+
+export async function searchSuomidleCandidates(query: string, limit: number): Promise<SuomidleCandidate[]> {
+  const identities = await characterService.searchCharacters(query, Math.min(Math.max(limit * 2, 10), 20), {
+    zoneIds: TRACKED_RAIDS,
+    minMythicReportCount: MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_FUN_ELIGIBILITY,
+  });
+  const identityPairs = identities.flatMap((identity) => typeof identity.wclCanonicalCharacterId === "number"
+    ? [{ wclCanonicalCharacterId: identity.wclCanonicalCharacterId, classID: identity.classID }]
+    : []);
+  if (identityPairs.length === 0) return [];
+
+  const season = await loadLatestScoreSeason();
+  if (!season) return [];
+  const scoreDocuments = await CharacterMythicPlusSeasonScore.find({
+    season,
+    identityStatus: "current",
+    scoreStatus: "available",
+    "scores.all": { $gt: 0 },
+    bestSpecName: { $type: "string" },
+    $or: identityPairs,
+  })
+    .select("wclCanonicalCharacterId name realm classID bestSpecName activeSpecRole specScores scores.all -_id")
+    .lean();
+  const candidates = await loadSuomidleCandidates(scoreDocuments.map(toScoreRow));
+  const candidateByKey = new Map(candidates.map((candidate) => [candidate.key, candidate]));
+  return identities
+    .flatMap((identity): SuomidleCandidate[] => {
+      if (typeof identity.wclCanonicalCharacterId !== "number") return [];
+      const candidate = candidateByKey.get(canonicalCharacterKey(identity.wclCanonicalCharacterId, identity.classID));
+      return candidate ? [candidate] : [];
+    })
+    .slice(0, limit);
+}
+
+async function loadLatestScoreSeason(): Promise<string | null> {
+  if (latestScoreSeasonCache && latestScoreSeasonCache.expiresAt > Date.now()) return latestScoreSeasonCache.season;
+  if (latestScoreSeasonPromise) return latestScoreSeasonPromise;
+  latestScoreSeasonPromise = CharacterMythicPlusSeasonScore.findOne({ identityStatus: "current", scoreStatus: "available", "scores.all": { $gt: 0 } })
+    .sort({ fetchedAt: -1 })
+    .select("season -_id")
+    .lean()
+    .then((latestScore) => {
+      const season = latestScore?.season ?? null;
+      latestScoreSeasonCache = { expiresAt: Date.now() + LATEST_SCORE_SEASON_TTL_MS, season };
+      return season;
+    })
+    .finally(() => {
+      latestScoreSeasonPromise = null;
+    });
+  return latestScoreSeasonPromise;
+}
+
+function toScoreRow(row: {
+  wclCanonicalCharacterId: number;
+  name: string;
+  realm: string;
+  classID: number;
+  bestSpecName?: string | null;
+  activeSpecRole?: string | null;
+  specScores: Array<{ specName?: string | null; role?: string | null }>;
+  scores: { all: number };
+}): ScoreRow {
+  return {
     wclCanonicalCharacterId: row.wclCanonicalCharacterId,
     name: row.name,
     realm: row.realm,
@@ -60,9 +138,11 @@ export async function generateSuomidleRound(): Promise<SuomidleRound> {
     activeSpecRole: row.activeSpecRole,
     specScores: row.specScores,
     mythicPlusScore: row.scores.all,
-  }));
+  };
+}
 
-  if (scoreRows.length === 0) throw new FunRoundUnavailableError("No characters have enough Suomidle data");
+async function loadSuomidleCandidates(scoreRows: ScoreRow[]): Promise<SuomidleCandidate[]> {
+  if (scoreRows.length === 0) return [];
   const canonicalIds = Array.from(new Set(scoreRows.map((row) => row.wclCanonicalCharacterId)));
   const [participationRows, achievementRows] = await Promise.all([
     CharacterRaidParticipation.aggregate<ParticipationRow>([
@@ -108,7 +188,7 @@ export async function generateSuomidleRound(): Promise<SuomidleRound> {
   const raidById = new Map(raids.map((raid) => [raid.id, raid]));
   const guildDocumentById = new Map(guildDocuments.map((guild) => [String(guild._id), guild]));
 
-  const candidates = scoreRows.flatMap((row): SuomidleCandidate[] => {
+  return scoreRows.flatMap((row): SuomidleCandidate[] => {
     const key = canonicalCharacterKey(row.wclCanonicalCharacterId, row.classID);
     const participation = participationByKey.get(key);
     const raid = participation ? raidById.get(participation.raidId) : undefined;
@@ -141,18 +221,6 @@ export async function generateSuomidleRound(): Promise<SuomidleRound> {
       firstSeenAt: participation.firstSeenAt.toISOString(),
     }];
   });
-
-  if (candidates.length < 20) throw new FunRoundUnavailableError("No characters have a complete Suomidle profile");
-  const sortedCandidates = candidates.sort((left, right) => left.name.localeCompare(right.name) || left.realm.localeCompare(right.realm));
-  const target = randomItem(sortedCandidates);
-  const optionCandidates = shuffle(sortedCandidates).slice(0, 250);
-  if (!optionCandidates.some((candidate) => candidate.key === target.key)) optionCandidates[optionCandidates.length - 1] = target;
-  return {
-    ...newRoundBase(),
-    game: "suomidle",
-    candidates: optionCandidates.sort((left, right) => left.name.localeCompare(right.name) || left.realm.localeCompare(right.realm)),
-    solution: { target },
-  };
 }
 
 function resolveRole(row: ScoreRow): "dps" | "healer" | "tank" {

@@ -1,10 +1,28 @@
 import { Router, type Request, type Response } from "express";
 import logger from "../../utils/logger";
-import { generateFunGameRound } from "./fun-game.service";
-import { isFunGameSlug, isHigherOrWipeMode, type HigherOrWipeMode } from "./fun-game.types";
+import { generateFunGameRound, searchFunGameCandidates } from "./fun-game.service";
+import { isFunGameSearchSlug, isFunGameSlug, isHigherOrWipeMode, type HigherOrWipeMode } from "./fun-game.types";
 import { FunRoundUnavailableError } from "./fun-game.utils";
 
 const router = Router();
+
+router.get("/:game/search", async (req: Request, res: Response) => {
+  const game = req.params.game;
+  if (!isFunGameSearchSlug(game)) {
+    res.status(404).json({ error: "Search is not available for this prototype game", code: "UNKNOWN_FUN_SEARCH" });
+    return;
+  }
+
+  const query = typeof req.query.q === "string" ? req.query.q : "";
+  const requestedLimit = typeof req.query.limit === "string" ? Number(req.query.limit) : 10;
+  try {
+    const response = await searchFunGameCandidates(game, query, requestedLimit);
+    res.json(response);
+  } catch (error) {
+    logger.error(`[Fun] Failed to search ${game}:`, error);
+    res.status(500).json({ error: "Failed to search prototype game", code: "FUN_SEARCH_FAILED" });
+  }
+});
 
 router.post("/:game/round", async (req: Request, res: Response) => {
   const game = req.params.game;

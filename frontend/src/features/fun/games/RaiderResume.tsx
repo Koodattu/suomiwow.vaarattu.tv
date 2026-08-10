@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import CharacterAvatar from "@/components/CharacterAvatar";
 import { getClassInfoById } from "@/lib/utils";
@@ -10,6 +10,7 @@ import FunCharacterIdentity, { FunClassIcon } from "../FunCharacterIdentity";
 import { FunRaidIdentity } from "../FunEncounterIdentity";
 import FunGuildIdentity from "../FunGuildIdentity";
 import ProgressiveClues from "../ProgressiveClues";
+import { useDebouncedFunGameSearch } from "../useFunGameSearch";
 
 type Comparison = "lower" | "exact" | "higher" | "mismatch";
 type ResumeGuess = { character: RaiderResumeCandidate };
@@ -17,14 +18,21 @@ type ResumeGuess = { character: RaiderResumeCandidate };
 export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
   const t = useTranslations("fun");
   const target = round.solution.target;
+  const [query, setQuery] = useState("");
   const [guesses, setGuesses] = useState<ResumeGuess[]>([]);
   const [status, setStatus] = useState<"playing" | "won" | "lost">("playing");
   const targetClass = getClassInfoById(target.classID);
 
-  const availableCandidates = useMemo(() => {
-    const guessedKeys = new Set(guesses.map((guess) => guess.character.key));
-    return round.candidates.filter((candidate) => !guessedKeys.has(candidate.key));
-  }, [guesses, round.candidates]);
+  const search = useDebouncedFunGameSearch("raider-resume", query);
+  const guessedKeys = new Set(guesses.map((guess) => guess.character.key));
+  const availableCandidates = search.candidates.filter((candidate) => !guessedKeys.has(candidate.key));
+  const emptyLabel = search.trimmedQuery.length < 2
+    ? t("common.typeTwoCharacters")
+    : search.isSearching
+      ? t("common.searching")
+      : search.isError
+        ? t("common.searchFailed")
+        : t("resume.noRaiders");
 
   const submitGuess = (character: RaiderResumeCandidate) => {
     if (status !== "playing") return;
@@ -82,8 +90,11 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
                 getSearchText={(character) => `${character.name} ${character.realm}`}
                 renderOption={(character) => <FunCharacterIdentity character={character} iconSize={30} />}
                 placeholder={t("resume.searchRaider")}
-                emptyLabel={t("resume.noRaiders")}
+                emptyLabel={emptyLabel}
+                loading={search.isSearching}
+                filterItems={false}
                 onSelect={submitGuess}
+                onQueryChange={setQuery}
               />
             </>
           ) : (
