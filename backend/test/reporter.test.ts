@@ -6,8 +6,8 @@ import test from "node:test";
 import express from "express";
 import session from "express-session";
 import { REPORTER_CONFIG } from "../src/features/reporter/reporter.config";
-import { calculateReporterUsage, getReporterLinks, getReporterPromptFacts, validateReporterContent } from "../src/features/reporter/reporter-content";
-import { generateReporterContent } from "../src/features/reporter/reporter-openai";
+import { calculateReporterUsage, combineReporterUsage, getReporterLinks, getReporterPromptFacts, repairReporterLinkTokens, validateReporterContent } from "../src/features/reporter/reporter-content";
+import { generateReporterContent, ReporterOpenAIError } from "../src/features/reporter/reporter-openai";
 import { ReporterPost, ReporterSettings } from "../src/features/reporter/reporter.models";
 import { DEFAULT_REPORTER_SETTINGS, shouldAutoPublishReporterPost } from "../src/features/reporter/reporter-settings.service";
 import reporterService from "../src/features/reporter/reporter.service";
@@ -50,10 +50,34 @@ test("Reporter usage separates cached, cache-write, regular input and output cos
   assert.equal(usage.estimatedCostUsd, Number(expected.toFixed(8)));
 });
 
+test("Reporter usage combines every Finnish-first generation request", () => {
+  const first = calculateReporterUsage({ input_tokens: 500, output_tokens: 200, total_tokens: 700 });
+  const second = calculateReporterUsage({ input_tokens: 300, output_tokens: 100, total_tokens: 400 });
+  const combined = combineReporterUsage(first, second);
+
+  assert.equal(combined.inputTokens, 800);
+  assert.equal(combined.outputTokens, 300);
+  assert.equal(combined.totalTokens, 1_100);
+  assert.equal(combined.estimatedCostUsd, Number((first.estimatedCostUsd + second.estimatedCostUsd).toFixed(8)));
+});
+
 test("Reporter content accepts known inline links and rejects invented references", () => {
   assert.doesNotThrow(() => validateReporterContent(validContent(), facts));
   assert.throws(() => validateReporterContent(validContent("L999"), facts), /unknown link L999/);
   assert.deepEqual(getReporterLinks(facts), { L1: { url: "/guilds/example/example", kind: "guild" } });
+});
+
+test("Reporter repairs malformed known link tokens and degrades unknown tokens to plain text", () => {
+  const source = validContent();
+  const broken = {
+    ...source.fi,
+    body: `[[ L1 | Example Guild] ${"reported steady progress this week ".repeat(30)} [[L999|Unknown target]] [[unfinished note]]`.trim(),
+  };
+  const repaired = repairReporterLinkTokens(broken, facts);
+
+  assert.match(repaired.body, /\[\[L1\|Example Guild\]\]/);
+  assert.doesNotMatch(repaired.body, /L999|\[\[unfinished/);
+  assert.doesNotThrow(() => validateReporterContent({ en: { ...source.en, body: repaired.body }, fi: repaired }, facts));
 });
 
 test("Reporter keeps trusted link visuals out of the OpenAI fact pack", () => {
@@ -113,25 +137,35 @@ test("Reporter deletion validates the article ID before querying MongoDB", async
   await assert.rejects(reporterService.deletePost("not-an-object-id"), /Invalid Reporter post ID/);
 });
 
-test("Reporter OpenAI request pins Luna, medium reasoning, low verbosity and structured output", async () => {
+test("Reporter writes Finnish first, translates it to English and totals both OpenAI requests", async () => {
   const originalFetch = global.fetch;
   const originalApiKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = "test-key";
-  let requestBody: Record<string, any> | null = null;
+  const requestBodies: Array<Record<string, any>> = [];
+  const generated = validContent();
   global.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
-    requestBody = JSON.parse(String(init?.body));
+    requestBodies.push(JSON.parse(String(init?.body)));
+    const isFinnishRequest = requestBodies.length === 1;
     return new Response(
       JSON.stringify({
-        id: "resp_reporter_test",
+        id: isFinnishRequest ? "resp_reporter_fi" : "resp_reporter_en",
         status: "completed",
-        output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(validContent()) }] }],
-        usage: {
-          input_tokens: 500,
-          input_tokens_details: { cached_tokens: 100, cache_write_tokens: 0 },
-          output_tokens: 200,
-          output_tokens_details: { reasoning_tokens: 50 },
-          total_tokens: 700,
-        },
+        output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(isFinnishRequest ? generated.fi : generated.en) }] }],
+        usage: isFinnishRequest
+          ? {
+              input_tokens: 500,
+              input_tokens_details: { cached_tokens: 100, cache_write_tokens: 0 },
+              output_tokens: 200,
+              output_tokens_details: { reasoning_tokens: 50 },
+              total_tokens: 700,
+            }
+          : {
+              input_tokens: 300,
+              input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+              output_tokens: 100,
+              output_tokens_details: { reasoning_tokens: 20 },
+              total_tokens: 400,
+            },
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
@@ -139,22 +173,82 @@ test("Reporter OpenAI request pins Luna, medium reasoning, low verbosity and str
 
   try {
     const result = await generateReporterContent({ periodStart: new Date("2026-08-01T00:00:00Z"), periodEnd: new Date("2026-08-08T00:00:00Z"), facts });
-    const sentRequest = requestBody as unknown as {
+    const finnishRequest = requestBodies[0] as unknown as {
       model: string;
       reasoning: { effort: string };
+      instructions: string;
       input: string;
-      text: { verbosity: string; format: { type: string } };
+      text: { verbosity: string; format: { type: string; name: string } };
       store: boolean;
     };
-    assert.equal(sentRequest.model, "gpt-5.6-luna");
-    assert.equal(sentRequest.reasoning.effort, "medium");
-    assert.equal(sentRequest.text.verbosity, "low");
-    assert.equal(sentRequest.text.format.type, "json_schema");
-    assert.equal(sentRequest.store, false);
-    assert.equal(JSON.parse(sentRequest.input).facts[0].links[0].visual, undefined);
-    assert.equal(result.responseId, "resp_reporter_test");
-    assert.equal(result.usage.inputTokens, 500);
-    assert.equal(result.usage.outputTokens, 200);
+    const englishRequest = requestBodies[1] as typeof finnishRequest;
+    assert.equal(requestBodies.length, 2);
+    assert.equal(finnishRequest.model, "gpt-5.6-luna");
+    assert.equal(finnishRequest.reasoning.effort, "medium");
+    assert.equal(finnishRequest.text.verbosity, "low");
+    assert.equal(finnishRequest.text.format.type, "json_schema");
+    assert.equal(finnishRequest.text.format.name, "suomi_wow_weekly_report_fi");
+    assert.equal(finnishRequest.store, false);
+    assert.match(finnishRequest.instructions, /mildly pessimistic/);
+    assert.match(finnishRequest.instructions, /at most two short deadpan remarks/);
+    assert.equal(JSON.parse(finnishRequest.input).facts[0].links[0].visual, undefined);
+    assert.equal(englishRequest.text.format.name, "suomi_wow_weekly_report_en");
+    assert.match(englishRequest.instructions, /Finnish edition is the sole source of truth/);
+    assert.deepEqual(JSON.parse(englishRequest.input).sourceFinnish, generated.fi);
+    assert.equal(JSON.parse(englishRequest.input).facts, undefined);
+    assert.equal(result.responseId, "resp_reporter_fi,resp_reporter_en");
+    assert.deepEqual(result.content, generated);
+    assert.equal(result.usage.inputTokens, 800);
+    assert.equal(result.usage.outputTokens, 300);
+    assert.equal(result.usage.totalTokens, 1_100);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalApiKey;
+  }
+});
+
+test("Reporter retains Finnish request usage when the English translation fails", async () => {
+  const originalFetch = global.fetch;
+  const originalApiKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-key";
+  let requestCount = 0;
+  global.fetch = (async () => {
+    requestCount += 1;
+    if (requestCount === 1) {
+      return new Response(
+        JSON.stringify({
+          id: "resp_partial_fi",
+          status: "completed",
+          output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(validContent().fi) }] }],
+          usage: { input_tokens: 500, output_tokens: 200, total_tokens: 700 },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    return new Response(
+      JSON.stringify({
+        id: "resp_partial_en",
+        status: "failed",
+        error: { message: "translation failed" },
+        usage: { input_tokens: 300, output_tokens: 50, total_tokens: 350 },
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      generateReporterContent({ periodStart: new Date("2026-08-01T00:00:00Z"), periodEnd: new Date("2026-08-08T00:00:00Z"), facts }),
+      (error: unknown) => {
+        assert.ok(error instanceof ReporterOpenAIError);
+        assert.equal(error.responseId, "resp_partial_fi,resp_partial_en");
+        assert.equal(error.usage.inputTokens, 800);
+        assert.equal(error.usage.outputTokens, 250);
+        assert.equal(error.usage.totalTokens, 1_050);
+        return true;
+      },
+    );
   } finally {
     global.fetch = originalFetch;
     if (originalApiKey === undefined) delete process.env.OPENAI_API_KEY;
