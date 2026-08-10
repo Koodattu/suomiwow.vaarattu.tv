@@ -38,14 +38,14 @@ export default function ClosestWithoutGoingOver({ round }: { round: ClosestWitho
   };
 
   return (
-    <section className="mx-auto mt-5 grid max-w-4xl gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="rounded-xl bg-slate-900/70 p-5 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)] sm:p-6">
+    <section className="mx-auto mt-5 grid max-w-5xl overflow-hidden rounded-xl border border-white/10 bg-slate-900/55 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
           {round.challenge.boss ? <FunBossIdentity name={round.challenge.boss.name} iconUrl={round.challenge.boss.iconUrl} /> : null}
           {round.challenge.raid ? <FunRaidIdentity raid={round.challenge.raid} iconSize={32} compact /> : null}
         </div>
         {!round.challenge.boss && !round.challenge.raid ? <p className="mt-4 text-sm text-blue-200">{round.challenge.detail}</p> : null}
-        <h2 className="mt-4 text-balance text-2xl font-black">{t.rich(`closest.prompts.${round.challenge.kind}`, { identity: () => subjectIdentity })}</h2>
+        <h2 className="mt-3 text-balance text-2xl font-black">{t.rich(`closest.prompts.${round.challenge.kind}`, { identity: () => subjectIdentity })}</h2>
 
         {guesses.length > 0 ? (
           <ol className="mt-5 grid gap-2 sm:grid-cols-3" aria-label={t("closest.attempts")}>
@@ -89,7 +89,7 @@ export default function ClosestWithoutGoingOver({ round }: { round: ClosestWitho
         <p className="mt-3 text-xs text-slate-400 tabular-nums">{t("closest.remaining", { count: Math.max(0, MAX_GUESSES - guesses.length) })}</p>
       </div>
 
-      <aside className="rounded-xl bg-slate-950/35 p-4 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)]">
+      <aside className="border-t border-white/10 bg-slate-950/25 p-4 lg:border-l lg:border-t-0">
         <h3 className="font-black">{t("closest.distribution")}</h3>
         <p className="mt-1 text-pretty text-xs leading-5 text-slate-400">{t("closest.distributionHelp")}</p>
         <div className="mt-4 flex h-28 items-end gap-1" aria-hidden="true">

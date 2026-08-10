@@ -12,7 +12,19 @@ export function characterGuessKey(character: Pick<CharacterSearchResult, "wclCan
   return typeof character.wclCanonicalCharacterId === "number" ? `wcl:${character.wclCanonicalCharacterId}:${character.classID}` : null;
 }
 
-export default function CharacterGuessInput({ onSelect, disabled }: { onSelect: (character: CharacterSearchResult) => void; disabled?: boolean }) {
+export default function CharacterGuessInput({
+  onSelect,
+  disabled,
+  autoFocus,
+  immediate,
+  cell,
+}: {
+  onSelect: (character: CharacterSearchResult) => void;
+  disabled?: boolean;
+  autoFocus?: boolean;
+  immediate?: boolean;
+  cell?: boolean;
+}) {
   const t = useTranslations("fun");
   const [query, setQuery] = useState("");
   const debounce = useDebouncedSearchQuery(query);
@@ -32,6 +44,9 @@ export default function CharacterGuessInput({ onSelect, disabled }: { onSelect: 
       disabled={disabled}
       loading={isSearching}
       filterItems={false}
+      autoFocus={autoFocus}
+      immediate={immediate}
+      cell={cell}
       onSelect={onSelect}
       onQueryChange={setQuery}
     />

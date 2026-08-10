@@ -11,6 +11,7 @@ interface RaidSelectorProps {
   selectedRaidId: number | null;
   onRaidSelect: (raidId: number | null) => void;
   showOverall?: boolean;
+  compact?: boolean;
 }
 
 // Convert expansion name to filename format (lowercase, spaces to hyphens)
@@ -19,7 +20,7 @@ function getExpansionIconPath(expansionName: string): string {
   return `/expansions/${filename}.png`;
 }
 
-export default function RaidSelector({ raids, selectedRaidId, onRaidSelect, showOverall = false }: RaidSelectorProps) {
+export default function RaidSelector({ raids, selectedRaidId, onRaidSelect, showOverall = false, compact = false }: RaidSelectorProps) {
   const t = useTranslations("raidSelector");
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -59,7 +60,9 @@ export default function RaidSelector({ raids, selectedRaidId, onRaidSelect, show
       <button
         id="raid-select"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-white transition-colors hover:bg-gray-750 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-w-[350px]"
+        className={`flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-white transition-colors hover:bg-gray-750 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          compact ? "xl:min-w-[340px]" : "sm:min-w-[350px]"
+        }`}
       >
         <div className="flex items-center gap-2">
           {selectedRaid?.iconUrl && <IconImage iconFilename={selectedRaid.iconUrl} alt="Raid icon" width={24} height={24} className="rounded" />}

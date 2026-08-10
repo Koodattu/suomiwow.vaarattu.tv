@@ -6,30 +6,12 @@ import RaidSelector from "@/components/RaidSelector";
 import CharacterTierBoard, { CharacterTierBoardItem } from "@/components/character-tier-lists/CharacterTierBoard";
 import { useCharacterTierListRaids, useGlobalCharacterTierList, useRaids } from "@/lib/queries";
 import { getAllClasses } from "@/lib/utils";
-import type { CharacterTierListRole } from "@/types";
+import type { CharacterTierListCharacter, CharacterTierListRole } from "@/types";
 
-type GeneratedView = "roles" | "combined";
+type GeneratedView = "role" | "all";
+type GeneratedMetric = "performance" | "mechanics" | "combined";
 
-function toBoardItem(character: {
-  characterKey: string;
-  accountGroupId?: string | null;
-  name: string;
-  realm: string;
-  region: string;
-  classID: number;
-  guildName: string | null;
-  reportCount: number;
-  score: number;
-  parseScore: number;
-  survivalScore: number | null;
-  role: CharacterTierListRole;
-  metric: "dps" | "hps";
-  specName: string;
-  bestSpecName: string | null;
-  pulls: number;
-  deaths: number;
-  lastSeenAt?: string | Date | null;
-}): CharacterTierBoardItem {
+function toBoardItem(character: CharacterTierListCharacter, metric: GeneratedMetric): CharacterTierBoardItem {
   return {
     characterKey: character.characterKey,
     accountGroupId: character.accountGroupId,
@@ -39,7 +21,7 @@ function toBoardItem(character: {
     classID: character.classID,
     guildName: character.guildName,
     reportCount: character.reportCount,
-    score: character.score,
+    score: metric === "performance" ? character.parseScore : metric === "mechanics" ? character.survivalScore : character.score,
     parseScore: character.parseScore,
     survivalScore: character.survivalScore,
     role: character.role,
@@ -55,9 +37,11 @@ function toBoardItem(character: {
 export default function CharacterTierListsPage() {
   const t = useTranslations("characterTierListsPage");
   const [selectedRaidId, setSelectedRaidId] = useState<number | null>(null);
-  const [minReports, setMinReports] = useState(3);
+  const [guildName, setGuildName] = useState("all");
+  const [characterSearch, setCharacterSearch] = useState("");
   const [classId, setClassId] = useState<number | "all">("all");
-  const [view, setView] = useState<GeneratedView>("combined");
+  const [view, setView] = useState<GeneratedView>("all");
+  const [metric, setMetric] = useState<GeneratedMetric>("combined");
 
   const { data: allRaids } = useRaids();
   const { data: tierListRaids } = useCharacterTierListRaids();
@@ -77,16 +61,29 @@ export default function CharacterTierListsPage() {
 
   const filters = useMemo(
     () => ({
-      minReports,
+      minReports: 3,
       role: null as CharacterTierListRole | null,
       classId: classId === "all" ? null : classId,
       limit: "all" as const,
     }),
-    [classId, minReports],
+    [classId],
   );
 
   const { data, isLoading, error } = useGlobalCharacterTierList(selectedRaidId, filters, selectedRaidId !== null);
-  const characters = useMemo(() => data?.characters.map(toBoardItem) ?? [], [data]);
+  const referenceCharacters = useMemo(() => data?.characters.map((character) => toBoardItem(character, metric)) ?? [], [data, metric]);
+  const guildNames = useMemo(
+    () => Array.from(new Set(data?.characters.map((character) => character.guildName?.trim()).filter((name): name is string => !!name) ?? [])).sort((a, b) => a.localeCompare(b)),
+    [data],
+  );
+  const activeGuildName = guildName === "all" || guildNames.includes(guildName) ? guildName : "all";
+  const normalizedCharacterSearch = characterSearch.trim().toLowerCase();
+  const characters = useMemo(
+    () =>
+      referenceCharacters
+        .filter((character) => activeGuildName === "all" || character.guildName?.trim() === activeGuildName)
+        .filter((character) => !normalizedCharacterSearch || character.name.toLowerCase().includes(normalizedCharacterSearch)),
+    [activeGuildName, normalizedCharacterSearch, referenceCharacters],
+  );
   const roleGroups = useMemo(
     () => ({
       tank: characters.filter((character) => character.role === "tank"),
@@ -95,39 +92,67 @@ export default function CharacterTierListsPage() {
     }),
     [characters],
   );
+  const referenceRoleGroups = useMemo(
+    () => ({
+      tank: referenceCharacters.filter((character) => character.role === "tank"),
+      healer: referenceCharacters.filter((character) => character.role === "healer"),
+      dps: referenceCharacters.filter((character) => character.role === "dps"),
+    }),
+    [referenceCharacters],
+  );
 
   return (
     <main className="min-h-screen bg-gray-950 px-4 py-6 text-white md:px-6 md:py-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="min-w-0 xl:max-w-sm">
-            <h1 className="text-balance text-2xl font-bold lg:text-3xl">{t("globalTitle")}</h1>
-            {data?.generatedAt && <p className="mt-1 text-sm text-gray-400">{t("lastCalculated", { date: new Date(data.generatedAt).toLocaleString() })}</p>}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 sm:items-end xl:grid-cols-[minmax(260px,350px)_auto_auto_auto] xl:shrink-0">
-            <div>
-              <RaidSelector raids={raids} selectedRaidId={selectedRaidId} onRaidSelect={(raidId) => setSelectedRaidId(raidId)} />
+        <div className="space-y-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-balance text-2xl font-bold lg:text-3xl">{t("globalTitle")}</h1>
+              {data?.generatedAt && <p className="mt-1 text-sm text-gray-400">{t("lastCalculated", { date: new Date(data.generatedAt).toLocaleString() })}</p>}
             </div>
 
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("minReports")}</label>
+            <div className="w-full lg:w-auto">
+              <RaidSelector raids={raids} selectedRaidId={selectedRaidId} onRaidSelect={(raidId) => setSelectedRaidId(raidId)} compact />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-3 lg:justify-end">
+            <div className="w-full sm:w-auto">
+              <label htmlFor="character-tier-list-search" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                {t("character")}
+              </label>
               <input
-                type="number"
-                min={1}
-                max={999}
-                value={minReports}
-                onChange={(event) => setMinReports(Math.max(1, Number(event.target.value) || 1))}
-                className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-28"
+                id="character-tier-list-search"
+                type="search"
+                value={characterSearch}
+                onChange={(event) => setCharacterSearch(event.target.value)}
+                placeholder={t("searchCharacters")}
+                className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 placeholder:text-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-44"
               />
             </div>
 
-            <div>
+            <div className="w-full sm:w-auto">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("guild")}</label>
+              <select
+                value={activeGuildName}
+                onChange={(event) => setGuildName(event.target.value)}
+                className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-2 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-48"
+              >
+                <option value="all">{t("allGuilds")}</option>
+                {guildNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="w-full sm:w-auto">
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("class")}</label>
               <select
                 value={classId}
                 onChange={(event) => setClassId(event.target.value === "all" ? "all" : Number(event.target.value))}
-                className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-44"
+                className="min-h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-2 text-sm text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-36"
               >
                 <option value="all">{t("allClasses")}</option>
                 {classes.map((classInfo) => (
@@ -138,13 +163,28 @@ export default function CharacterTierListsPage() {
               </select>
             </div>
 
-            <div>
+            <div className="w-full sm:w-auto">
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("view")}</label>
               <div role="group" aria-label={t("view")} className="inline-flex min-h-10 w-full overflow-hidden rounded-md border border-gray-700 bg-gray-800 sm:w-auto">
-                <button type="button" aria-pressed={view === "roles"} onClick={() => setView("roles")} className={`flex-1 px-3 text-sm font-semibold sm:flex-none ${view === "roles" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
+                <button type="button" aria-pressed={view === "role"} onClick={() => setView("role")} className={`flex-1 px-2.5 text-sm font-semibold sm:flex-none ${view === "role" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
                   {t("byRole")}
                 </button>
-                <button type="button" aria-pressed={view === "combined"} onClick={() => setView("combined")} className={`flex-1 px-3 text-sm font-semibold sm:flex-none ${view === "combined" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
+                <button type="button" aria-pressed={view === "all"} onClick={() => setView("all")} className={`flex-1 px-2.5 text-sm font-semibold sm:flex-none ${view === "all" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
+                  {t("all")}
+                </button>
+              </div>
+            </div>
+
+            <div className="w-full sm:w-auto">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">{t("metric")}</label>
+              <div role="group" aria-label={t("metric")} className="inline-flex min-h-10 w-full overflow-hidden rounded-md border border-gray-700 bg-gray-800 sm:w-auto">
+                <button type="button" aria-pressed={metric === "performance"} onClick={() => setMetric("performance")} className={`flex-1 px-2.5 text-sm font-semibold sm:flex-none ${metric === "performance" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
+                  {t("performance")}
+                </button>
+                <button type="button" aria-pressed={metric === "mechanics"} onClick={() => setMetric("mechanics")} className={`flex-1 px-2.5 text-sm font-semibold sm:flex-none ${metric === "mechanics" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
+                  {t("mechanics")}
+                </button>
+                <button type="button" aria-pressed={metric === "combined"} onClick={() => setMetric("combined")} className={`flex-1 px-2.5 text-sm font-semibold sm:flex-none ${metric === "combined" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}>
                   {t("combined")}
                 </button>
               </div>
@@ -156,13 +196,13 @@ export default function CharacterTierListsPage() {
         {error && <div className="rounded-lg border border-red-900 bg-red-950/40 px-4 py-8 text-center text-red-200">{t("error")}</div>}
         {!isLoading && !error && data && (
           <div className="space-y-5">
-            {view === "combined" ? (
-              <CharacterTierBoard characters={characters} showSpecIcons emptyMessage={t("noScoredCharacters")} />
+            {view === "all" ? (
+              <CharacterTierBoard characters={characters} referenceCharacters={referenceCharacters} showSpecIcons emptyMessage={t("noScoredCharacters")} />
             ) : (
               <div className="grid gap-5 xl:grid-cols-3">
-                <CharacterTierBoard title={t("tank")} characters={roleGroups.tank} showSpecIcons emptyMessage={t("noScoredCharacters")} />
-                <CharacterTierBoard title={t("healer")} characters={roleGroups.healer} showSpecIcons emptyMessage={t("noScoredCharacters")} />
-                <CharacterTierBoard title={t("dps")} characters={roleGroups.dps} showSpecIcons emptyMessage={t("noScoredCharacters")} />
+                <CharacterTierBoard title={t("tank")} characters={roleGroups.tank} referenceCharacters={referenceRoleGroups.tank} showSpecIcons emptyMessage={t("noScoredCharacters")} />
+                <CharacterTierBoard title={t("healer")} characters={roleGroups.healer} referenceCharacters={referenceRoleGroups.healer} showSpecIcons emptyMessage={t("noScoredCharacters")} />
+                <CharacterTierBoard title={t("dps")} characters={roleGroups.dps} referenceCharacters={referenceRoleGroups.dps} showSpecIcons emptyMessage={t("noScoredCharacters")} />
               </div>
             )}
           </div>

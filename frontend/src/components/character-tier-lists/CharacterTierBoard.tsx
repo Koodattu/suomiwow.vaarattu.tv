@@ -206,7 +206,7 @@ export function CharacterTierCard({
   );
 }
 
-export function groupCharactersIntoTiers(characters: CharacterTierBoardItem[]): Record<CharacterTierName, CharacterTierBoardItem[]> {
+export function groupCharactersIntoTiers(characters: CharacterTierBoardItem[], referenceCharacters: CharacterTierBoardItem[] = characters): Record<CharacterTierName, CharacterTierBoardItem[]> {
   const sorted = [...characters].filter((character) => character.score !== null).sort(sortTierCharacters);
   const groups: Record<CharacterTierName, CharacterTierBoardItem[]> = {
     S: [],
@@ -220,7 +220,8 @@ export function groupCharactersIntoTiers(characters: CharacterTierBoardItem[]): 
 
   if (sorted.length === 0) return groups;
 
-  const thresholds = calculateDynamicThresholds(sorted.map((character) => character.score ?? 0));
+  const referenceScores = referenceCharacters.map((character) => character.score).filter((score): score is number => score !== null);
+  const thresholds = calculateDynamicThresholds(referenceScores);
 
   sorted.forEach((character) => {
     groups[getTierByScore(character.score ?? 0, thresholds)].push(character);
@@ -236,15 +237,17 @@ export function groupCharactersIntoTiers(characters: CharacterTierBoardItem[]): 
 export default function CharacterTierBoard({
   title,
   characters,
+  referenceCharacters,
   showSpecIcons = false,
   emptyMessage,
 }: {
   title?: string;
   characters: CharacterTierBoardItem[];
+  referenceCharacters?: CharacterTierBoardItem[];
   showSpecIcons?: boolean;
   emptyMessage: string;
 }) {
-  const tierGroups = groupCharactersIntoTiers(characters);
+  const tierGroups = groupCharactersIntoTiers(characters, referenceCharacters);
   const hasAnyCharacters = characters.some((character) => character.score !== null);
 
   if (!hasAnyCharacters) {

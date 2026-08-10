@@ -25,16 +25,18 @@ export default function FunGuildIdentity({
   guild,
   crestSize = 40,
   className = "",
+  wrapName = false,
 }: {
   guild: Pick<FunGuild, "name" | "realm" | "crest" | "faction">;
   crestSize?: number;
   className?: string;
+  wrapName?: boolean;
 }) {
   return (
     <span className={`flex min-w-0 items-center gap-3 ${className}`}>
       <FunGuildCrest crest={guild.crest} faction={guild.faction} size={crestSize} />
       <span className="min-w-0 text-left">
-        <span className="block truncate font-bold">{guild.name}</span>
+        <span className={`block font-bold ${wrapName ? "line-clamp-2 leading-tight" : "truncate"}`}>{guild.name}</span>
         <span className="block truncate text-xs text-slate-400">{guild.realm}</span>
       </span>
     </span>

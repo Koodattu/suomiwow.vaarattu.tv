@@ -44,8 +44,8 @@ export default function Suomidle({ round }: { round: SuomidleRound }) {
   };
 
   return (
-    <section className="mt-5 space-y-4">
-      <div className="grid gap-4 rounded-xl bg-slate-900/70 p-4 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)] sm:grid-cols-[minmax(0,1fr)_minmax(16rem,24rem)] sm:items-center">
+    <section className="mt-5 space-y-3">
+      <div className="grid gap-3 border-y border-white/10 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(16rem,24rem)] sm:items-center">
         <div className="min-w-0">
           {status === "playing" ? (
             <>
@@ -53,7 +53,7 @@ export default function Suomidle({ round }: { round: SuomidleRound }) {
                 <h2 className="font-black">{t("suomidle.guess")}</h2>
                 <span className="text-sm text-slate-400 tabular-nums">{t("common.mistakes", { count: mistakes, total: 6 })}</span>
               </div>
-              <p className="mt-1 text-pretty text-xs leading-5 text-slate-400">{t("suomidle.arrows")}</p>
+              <p className="mt-0.5 text-pretty text-xs leading-5 text-slate-400">{t("suomidle.arrows")}</p>
             </>
           ) : (
             <div className="flex flex-wrap items-center gap-3" role="status">
@@ -81,11 +81,11 @@ export default function Suomidle({ round }: { round: SuomidleRound }) {
         ) : null}
       </div>
 
-      <div className="min-w-0 rounded-xl bg-slate-950/35 p-2 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)]">
+      <div className="min-w-0 border-y border-white/10 py-2">
         <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1.05fr)_minmax(0,.9fr)_minmax(0,.75fr)_minmax(0,.95fr)_minmax(0,1.05fr)_minmax(0,1.25fr)_minmax(0,.8fr)_minmax(0,.8fr)_minmax(0,.8fr)] gap-1 px-2 py-1 text-[11px] font-bold text-slate-400 lg:grid xl:text-xs">
           {columns.map((key) => <span key={key} className="truncate">{t(`suomidle.${key}`)}</span>)}
         </div>
-        {guesses.length === 0 ? <div className="grid min-h-40 place-items-center text-sm text-slate-400">{t("suomidle.start")}</div> : null}
+        {guesses.length === 0 ? <div className="grid min-h-24 place-items-center text-sm text-slate-400">{t("suomidle.start")}</div> : null}
         <div className="space-y-2">
           {guesses.map((guess) => {
             const classInfo = getClassInfoById(guess.classID);

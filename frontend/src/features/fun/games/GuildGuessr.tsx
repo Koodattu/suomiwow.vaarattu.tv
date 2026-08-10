@@ -67,9 +67,41 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
   ];
 
   return (
-    <section className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_19rem]">
+    <section className="mt-5">
+      <div className="grid gap-3 border-y border-white/10 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(17rem,24rem)] sm:items-center">
+        {status === "playing" ? (
+          <div className="flex items-center justify-between gap-3 text-sm sm:order-2 sm:justify-end">
+            <label className="font-bold sm:sr-only">{t("guildGuessr.chooseGuild")}</label>
+            <span className="text-slate-400 tabular-nums">{t("common.mistakes", { count: guesses.length, total: 5 })}</span>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3" role="status">
+            <p className={`text-lg font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p>
+            <FunGuildIdentity guild={target} crestSize={34} />
+          </div>
+        )}
+        {status === "playing" ? (
+          <div className="sm:row-start-1 sm:col-start-2">
+            <FunAutocomplete
+              items={availableGuilds}
+              getKey={(guild) => guild.id}
+              getLabel={(guild) => guild.name}
+              getSearchText={(guild) => `${guild.name} ${guild.realm}`}
+              renderOption={(guild) => <FunGuildIdentity guild={guild} crestSize={32} />}
+              placeholder={t("guildGuessr.searchGuild")}
+              emptyLabel={emptyLabel}
+              loading={search.isSearching}
+              filterItems={false}
+              onSelect={submitGuess}
+              onQueryChange={setQuery}
+            />
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_19rem]">
       <div className="min-w-0">
-        <div className="rounded-xl border border-white/10 bg-slate-900/70 p-4">
+        <div className="border-y border-white/10 py-4">
         <div className="mx-auto grid max-w-3xl gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)] sm:items-center">
           <div className="min-w-0 space-y-3">
             {round.neighbors.slice(0, 2).map((neighbor) => <Neighbor key={neighbor.guild.id} neighbor={neighbor} />)}
@@ -101,39 +133,13 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
         ) : null}
       </div>
 
-      <aside className="h-fit rounded-xl border border-white/10 bg-slate-900/70 p-4">
-          {status === "playing" ? (
-            <>
-              <div className="mb-3 flex items-center justify-between gap-3 text-sm">
-                <label className="font-bold">{t("guildGuessr.chooseGuild")}</label>
-                <span className="text-slate-400 tabular-nums">{t("common.mistakes", { count: guesses.length, total: 5 })}</span>
-              </div>
-              <FunAutocomplete
-                items={availableGuilds}
-                getKey={(guild) => guild.id}
-                getLabel={(guild) => guild.name}
-                getSearchText={(guild) => `${guild.name} ${guild.realm}`}
-                renderOption={(guild) => <FunGuildIdentity guild={guild} crestSize={32} />}
-                placeholder={t("guildGuessr.searchGuild")}
-                emptyLabel={emptyLabel}
-                loading={search.isSearching}
-                filterItems={false}
-                onSelect={submitGuess}
-                onQueryChange={setQuery}
-              />
-            </>
-          ) : (
-            <div className="text-center" role="status">
-              <p className={`text-xl font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p>
-              <p className="mt-2 text-sm text-slate-400">{t("guildGuessr.answerWas")}</p>
-              <FunGuildIdentity guild={target} crestSize={48} className="mt-3 justify-center" />
-            </div>
-          )}
-          <div className="mt-4 border-t border-white/10 pt-3">
+      <aside className="h-fit border-t border-white/10 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+          <div>
             <h2 className="font-black">{t("guildGuessr.clues")}</h2>
             <ProgressiveClues items={clueItems} revealed={guesses.length} />
           </div>
       </aside>
+      </div>
     </section>
   );
 }
@@ -141,7 +147,7 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
 function Neighbor({ neighbor }: { neighbor: GuildGuessrRound["neighbors"][number] }) {
   const t = useTranslations("fun");
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-lg border border-white/10 bg-slate-950/55 p-3">
+    <div className="flex min-w-0 items-center gap-3 border-b border-white/10 px-1 py-3 last:border-b-0">
       <div className="min-w-0 flex-1"><FunGuildIdentity guild={neighbor.guild} crestSize={40} /><p className="mt-1 text-xs text-blue-200">{t("guildGuessr.sharedCharacters", { count: neighbor.sharedCharacters })}</p><p className="text-xs text-slate-400">{t("guildGuessr.sharedRaids", { count: neighbor.sharedRaids.length })}</p></div>
     </div>
   );

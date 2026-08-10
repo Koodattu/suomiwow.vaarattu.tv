@@ -6,7 +6,7 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import type { WipeprintBossOption, WipeprintRound } from "@/types";
 import { ExpansionIcon, FunBossIdentity, FunRaidIdentity } from "../FunEncounterIdentity";
 import FunAutocomplete from "../FunAutocomplete";
-import FunGuildIdentity, { FunGuildCrest } from "../FunGuildIdentity";
+import { FunGuildCrest } from "../FunGuildIdentity";
 import ProgressiveClues from "../ProgressiveClues";
 
 type Direction = "earlier" | "exact" | "later";
@@ -46,9 +46,36 @@ export default function Wipeprint({ round }: { round: WipeprintRound }) {
   ];
 
   return (
-    <section className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_19rem]">
+    <section className="mt-5">
+      <div className="grid gap-3 border-y border-white/10 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(17rem,24rem)] sm:items-center">
+        {status === "playing" ? (
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <label className="font-bold">{t("wipeprint.chooseBoss")}</label>
+            <span className="text-slate-400 tabular-nums">{t("common.mistakes", { count: guesses.length, total: 5 })}</span>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3" role="status">
+            <p className={`text-lg font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p>
+            <WipeprintBossIdentity boss={target} compact />
+          </div>
+        )}
+        {status === "playing" ? (
+          <FunAutocomplete
+            items={availableBosses}
+            getKey={(boss) => boss.key}
+            getLabel={(boss) => boss.bossName}
+            getSearchText={(boss) => `${boss.bossName} ${boss.raidName} ${boss.expansion}`}
+            renderOption={(boss) => <WipeprintBossIdentity boss={boss} compact />}
+            placeholder={t("wipeprint.searchBoss")}
+            emptyLabel={t("wipeprint.noBosses")}
+            onSelect={submitGuess}
+          />
+        ) : null}
+      </div>
+
+      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_19rem]">
       <div className="min-w-0">
-        <div className="rounded-xl border border-white/10 bg-slate-900/70 p-4">
+        <div className="border-y border-white/10 py-4">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-xl font-black">{t("wipeprint.identifyBoss")}</h2>
@@ -56,7 +83,7 @@ export default function Wipeprint({ round }: { round: WipeprintRound }) {
           </div>
           <p className="text-xs text-slate-400">{t("wipeprint.progressHint")}</p>
         </div>
-        <div className="mt-5 h-72 w-full" aria-label={t("wipeprint.chartAria") }>
+        <div className="mt-3 h-64 w-full sm:h-72" aria-label={t("wipeprint.chartAria") }>
           <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 640, height: 288 }}>
             <LineChart data={round.pulls} margin={{ top: 8, right: 12, bottom: 8, left: 0 }}>
               <CartesianGrid stroke="rgba(148,163,184,0.13)" vertical={false} />
@@ -86,40 +113,14 @@ export default function Wipeprint({ round }: { round: WipeprintRound }) {
         ) : null}
       </div>
 
-      <aside className="h-fit rounded-xl border border-white/10 bg-slate-900/70 p-4">
-        <div className="border-b border-white/10 pb-3">
-          <p className="mb-2 text-xs text-slate-400">{t("wipeprint.singleGuild")}</p>
-          <FunGuildIdentity guild={round.solution.sourceGuild} crestSize={42} />
-        </div>
-          {status === "playing" ? (
-            <>
-              <div className="mb-3 mt-4 flex items-center justify-between gap-3 text-sm">
-                <label className="font-bold">{t("wipeprint.chooseBoss")}</label>
-                <span className="text-slate-400 tabular-nums">{t("common.mistakes", { count: guesses.length, total: 5 })}</span>
-              </div>
-              <FunAutocomplete
-                items={availableBosses}
-                getKey={(boss) => boss.key}
-                getLabel={(boss) => boss.bossName}
-                getSearchText={(boss) => `${boss.bossName} ${boss.raidName} ${boss.expansion}`}
-                renderOption={(boss) => <WipeprintBossIdentity boss={boss} compact />}
-                placeholder={t("wipeprint.searchBoss")}
-                emptyLabel={t("wipeprint.noBosses")}
-                onSelect={submitGuess}
-              />
-            </>
-          ) : (
-            <div className="text-center" role="status">
-              <p className={`text-xl font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p>
-              <p className="mt-2 text-sm text-slate-400">{t("wipeprint.answerWas")}</p>
-              <WipeprintBossIdentity boss={target} />
-            </div>
-          )}
-        <div className="mt-4 border-t border-white/10 pt-3">
+      <aside className="h-fit border-t border-white/10 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+        <p className="mb-3 text-xs text-slate-400">{t("wipeprint.singleGuild")}</p>
+        <div>
           <h2 className="font-black">{t("wipeprint.clues")}</h2>
           <ProgressiveClues items={clueItems} revealed={guesses.length} />
         </div>
       </aside>
+      </div>
     </section>
   );
 }

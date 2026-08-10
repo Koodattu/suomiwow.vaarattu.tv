@@ -68,33 +68,37 @@ export default function LockItIn({ round }: { round: LockItInRound }) {
   };
 
   return (
-    <section className="mt-5 grid gap-4 lg:grid-cols-[19rem_minmax(0,1fr)]">
-      <aside className="h-fit rounded-xl bg-slate-900/70 p-4 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)]">
-        <FunBossIdentity name={round.boss.name} iconUrl={round.boss.iconUrl} iconSize={40} className="justify-center" />
-        <FunRaidIdentity raid={round.raid} className="mt-3 justify-center" />
-        <div className="mt-4 rounded-lg bg-blue-950/45 p-3 text-center shadow-[inset_0_0_0_1px_rgb(147_197_253/0.2)]">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-blue-300">{t(`lock.modes.${round.mode}.label`)}</p>
-          <p className="mt-1 text-pretty text-sm leading-5 text-blue-100">{t(`lock.modes.${round.mode}.description`)}</p>
+    <section className="mt-5">
+      <div className="grid gap-3 border-y border-white/10 py-3 sm:grid-cols-[minmax(15rem,auto)_minmax(0,1fr)] sm:items-center">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <FunBossIdentity name={round.boss.name} iconUrl={round.boss.iconUrl} iconSize={40} />
+          <FunRaidIdentity raid={round.raid} />
         </div>
-        <p className="mt-3 text-pretty text-center text-sm leading-6 text-slate-400">{t("lock.instructions")}</p>
+        <div className="border-l-2 border-blue-400/40 pl-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-blue-300">{t(`lock.modes.${round.mode}.label`)}</p>
+          <p className="mt-0.5 text-pretty text-sm leading-5 text-slate-300">{t(`lock.modes.${round.mode}.description`)}</p>
+        </div>
+      </div>
+
+      {!locked ? <div className="flex min-h-16 items-center justify-between gap-3 border-b border-white/10 py-3" aria-live="polite">
         {!complete && current ? (
-          <div className="mt-4 border-t border-white/10 pt-4" aria-live="polite">
-            <p className="text-center text-xs font-bold text-blue-300 tabular-nums">{t("lock.currentGuild", { current: revealIndex + 1, total: round.revealOrder.length })}</p>
-            <FunGuildIdentity guild={current} className="mt-3 justify-center" />
+          <div className="flex min-w-0 items-center gap-3">
+            <p className="shrink-0 text-xs font-bold text-blue-300 tabular-nums">{t("lock.currentGuild", { current: revealIndex + 1, total: round.revealOrder.length })}</p>
+            <FunGuildIdentity guild={current} crestSize={38} />
           </div>
         ) : null}
         {complete && !locked ? (
           <button
             type="button"
             onClick={() => setLocked(true)}
-            className="mt-4 min-h-11 w-full rounded-md bg-blue-600 px-5 py-2.5 text-sm font-bold transition-[background-color,transform] hover:bg-blue-500 active:scale-[0.96] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
+            className="ml-auto min-h-10 rounded-md bg-blue-600 px-5 py-2 text-sm font-bold transition-[background-color,transform] hover:bg-blue-500 active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
           >
             {t("lock.lockRanking")}
           </button>
         ) : null}
-      </aside>
+      </div> : null}
 
-      <div>
+      <div className="mt-3">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={placements.flatMap((guild) => (guild ? [guild.id] : []))} strategy={verticalListSortingStrategy}>
             <div className="space-y-2">
@@ -107,7 +111,7 @@ export default function LockItIn({ round }: { round: LockItInRound }) {
                     type="button"
                     onClick={() => place(index)}
                     disabled={complete || !current}
-                    className="group grid min-h-20 w-full grid-cols-[3rem_1fr_auto] items-center rounded-lg border border-dashed border-blue-300/25 bg-slate-950/45 px-3 text-left transition-[background-color,border-color,box-shadow,transform] hover:-translate-y-px hover:border-blue-300/60 hover:bg-blue-950/35 hover:shadow-[0_0_0_3px_rgb(96_165_250/0.1)] active:scale-[0.96] disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:border-blue-300/25 disabled:hover:bg-slate-950/45 disabled:hover:shadow-none"
+                    className="group grid min-h-[4.5rem] w-full grid-cols-[3rem_1fr_auto] items-center rounded-lg border border-dashed border-blue-300/25 bg-slate-950/35 px-3 text-left transition-[background-color,border-color,transform] hover:border-blue-300/60 hover:bg-blue-950/35 active:scale-[0.98] disabled:cursor-not-allowed disabled:hover:border-blue-300/25 disabled:hover:bg-slate-950/35"
                   >
                     <span className="text-lg font-black text-blue-300">#{index + 1}</span>
                     <span className="font-semibold text-slate-400 transition-colors group-hover:text-blue-100">{t("lock.placeHere")}</span>

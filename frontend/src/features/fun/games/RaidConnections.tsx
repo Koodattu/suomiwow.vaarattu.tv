@@ -55,11 +55,22 @@ export default function RaidConnections({ round }: { round: RaidConnectionsRound
   };
 
   return (
-    <section className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-      <div className="min-w-0">
+    <section className="mt-5 min-w-0">
+      <div>
         <div className="flex flex-col gap-2 border-b border-white/10 pb-3 sm:flex-row sm:items-end sm:justify-between">
           <FunRaidIdentity raid={round.raid} iconSize={42} />
           <span className="text-sm font-bold text-red-200 tabular-nums">{t("common.mistakes", { count: mistakes, total: 4 })}</span>
+        </div>
+
+        <div className="sticky bottom-3 z-20 -mx-1 mt-3 flex items-center justify-between gap-3 border-y border-white/10 bg-[#0b1020]/95 px-1 py-3 backdrop-blur-sm lg:static lg:mx-0 lg:bg-transparent lg:backdrop-blur-none">
+          {status === "playing" ? (
+            <>
+              <p className="min-w-0 text-sm text-slate-400" role="status">{notice ?? t("connections.selected", { count: selected.length })}</p>
+              <button type="button" onClick={submit} disabled={selected.length !== 4} className="min-h-10 shrink-0 rounded-md bg-blue-600 px-5 py-2 text-sm font-bold transition-[background-color,transform] hover:bg-blue-500 active:not-disabled:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45">{t("connections.submitGroup")}</button>
+            </>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3" role="status"><p className={`text-lg font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p><p className="text-sm text-slate-400">{status === "won" ? t("connections.wonSummary", { mistakes }) : t("connections.lostSummary")}</p></div>
+          )}
         </div>
 
       <div className="mt-3 space-y-2">
@@ -89,7 +100,7 @@ export default function RaidConnections({ round }: { round: RaidConnectionsRound
                 onClick={() => toggle(tile.key)}
                 disabled={status !== "playing"}
                 aria-pressed={active}
-                className={`flex min-h-20 items-center gap-3 rounded-lg border p-3 text-left transition-[border-color,background-color,transform] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 ${active ? "scale-[0.98] border-blue-300 bg-blue-950/60" : "border-white/10 bg-slate-900/75 hover:border-blue-300/30"}`}
+                className={`flex min-h-[4.5rem] items-center gap-3 rounded-lg border p-3 text-left transition-[border-color,background-color,transform] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 ${active ? "scale-[0.98] border-blue-300 bg-blue-950/60" : "border-white/10 bg-slate-900/65 hover:border-blue-300/30"}`}
               >
                 <FunCharacterIdentity character={tile} iconSize={40} />
               </button>
@@ -97,22 +108,7 @@ export default function RaidConnections({ round }: { round: RaidConnectionsRound
           })}
         </div>
       ) : null}
-
       </div>
-
-      <aside className="h-fit rounded-xl border border-white/10 bg-slate-900/70 p-4 text-center">
-        <p className="text-sm leading-6 text-slate-400">{t("connections.instructions")}</p>
-      <div className="mt-4 flex flex-col items-center justify-center gap-3">
-        {status === "playing" ? (
-          <>
-            <button type="button" onClick={submit} disabled={selected.length !== 4} className="min-h-11 rounded-md bg-blue-600 px-6 py-2.5 text-sm font-bold transition-[background-color,transform] hover:bg-blue-500 active:not-disabled:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-45">{t("connections.submitGroup")}</button>
-            <p className="min-h-5 text-sm text-slate-400 tabular-nums" role="status">{notice ?? t("connections.selected", { count: selected.length })}</p>
-          </>
-        ) : (
-          <div role="status"><p className={`text-xl font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p><p className="mt-2 text-sm text-slate-400">{status === "won" ? t("connections.wonSummary", { mistakes }) : t("connections.lostSummary")}</p></div>
-        )}
-      </div>
-      </aside>
     </section>
   );
 }
