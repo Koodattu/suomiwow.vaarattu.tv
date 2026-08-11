@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { FaArrowLeft, FaClockRotateLeft, FaMagnifyingGlass, FaTrophy, FaVault } from "react-icons/fa6";
+import { FaArrowLeft, FaClockRotateLeft, FaDiceD20, FaMagnifyingGlass, FaTrophy, FaVault } from "react-icons/fa6";
 import CcgAccountMenu from "./CcgAccountMenu";
 import CcgControls from "./CcgControls";
 import styles from "./ccg.module.css";
@@ -53,6 +53,7 @@ export default function CcgShell({
   const t = useTranslations("ccg");
   const links = [
     { href: "/ccg", label: t("nav.home"), icon: VaultOverviewIcon },
+    { href: "/ccg/play", label: t("nav.play"), icon: FaDiceD20 },
     { href: "/ccg/open", label: t("nav.open"), icon: CardPackIcon },
     { href: "/ccg/collection", label: t("nav.collection"), icon: FaVault },
     { href: "/ccg/leaderboard", label: t("nav.leaderboard"), icon: FaTrophy },

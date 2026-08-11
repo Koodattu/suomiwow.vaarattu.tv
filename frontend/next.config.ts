@@ -4,6 +4,17 @@ import createNextIntlPlugin from "next-intl/plugin";
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
+  async rewrites() {
+    const backendUrl = process.env.API_URL || "http://localhost:3001";
+    return {
+      fallback: [
+        {
+          source: "/api/:path*",
+          destination: `${backendUrl}/api/:path*`,
+        },
+      ],
+    };
+  },
   async redirects() {
     return [
       {

@@ -179,6 +179,7 @@ type CollectibleCardProps = {
   renderPriority?: boolean;
   onReady?: () => void;
   effectsPaused?: boolean;
+  anonymous?: boolean;
 };
 
 function CollectibleCard({
@@ -201,6 +202,7 @@ function CollectibleCard({
   renderPriority = false,
   onReady,
   effectsPaused = false,
+  anonymous = false,
 }: CollectibleCardProps) {
   const t = useTranslations("ccg");
   const metamorphicFilterId = `vault-metamorphic-${useId().replace(/:/g, "")}`;
@@ -250,11 +252,11 @@ function CollectibleCard({
 
   useEffect(() => {
     if (!renderUrl) markReady("render");
-    if (hideCornerIcons) {
+    if (hideCornerIcons || anonymous) {
       markReady("class");
       markReady("spec");
     }
-  }, [hideCornerIcons, markReady, renderUrl]);
+  }, [anonymous, hideCornerIcons, markReady, renderUrl]);
   const cardStyle = {
     "--lab-accent": card.set.theme.accent,
     "--lab-glow": card.set.theme.glow,
@@ -448,7 +450,7 @@ function CollectibleCard({
     <span
       ref={cardRef}
       className={`${styles.prototypeCard} ${styles.vaultRelic} ${styles[finish]} ${guides ? styles.guides : ""}`}
-      data-grade={card.tierGrade}
+      data-grade={anonymous ? undefined : card.tierGrade}
       data-finish={finish}
       data-raid-preview-finish={raidPreviewFinish ? "true" : undefined}
       data-art-variant={artVariant}
@@ -465,7 +467,9 @@ function CollectibleCard({
       onPointerLeave={leaveMaterial}
       onPointerUp={finishMaterial}
       onPointerCancel={cancelMaterial}
-      aria-label={`${card.name}, ${guild}, ${realm}, ${card.set.raidName}, ${formatSpecName(card.specName)} ${classInfo.name}, ${rarity}, ${t(`finish.${finish}`)}, ${t(`artwork.${artVariant}`)}${availabilityLabel ? `, ${availabilityLabel}` : ""}${favorite ? `, ${t("collection.favoriteCard")}` : ""}`}
+      aria-label={anonymous
+        ? `${t(`finish.${finish}`)}, ${t(`artwork.${artVariant}`)}`
+        : `${card.name}, ${guild}, ${realm}, ${card.set.raidName}, ${formatSpecName(card.specName)} ${classInfo.name}, ${rarity}, ${t(`finish.${finish}`)}, ${t(`artwork.${artVariant}`)}${availabilityLabel ? `, ${availabilityLabel}` : ""}${favorite ? `, ${t("collection.favoriteCard")}` : ""}`}
     >
       <span className={styles.outerFrame} aria-hidden="true" />
       <span className={styles.innerFrame} aria-hidden="true" />
@@ -516,30 +520,30 @@ function CollectibleCard({
         <span className={styles.astralGalaxyForeground} aria-hidden="true" />
       ) : null}
 
-      <span className={styles.identity}><strong className={styles.characterName}>{card.name}</strong><span className={styles.guildName}>{guild}</span></span>
+      {!anonymous ? <span className={styles.identity}><strong className={styles.characterName}>{card.name}</strong><span className={styles.guildName}>{guild}</span></span> : null}
 
-      {!hideCornerIcons ? (
+      {!hideCornerIcons && !anonymous ? (
         <>
           <span className={`${styles.cornerCrest} ${styles.classCrest}`}><IconImage iconFilename={classInfo.iconUrl} alt="" width={40} height={40} onReady={() => markReady("class")} /><span>{classInfo.name}</span></span>
           <span className={`${styles.cornerCrest} ${styles.specCrest}`}><IconImage iconFilename={specIcon} alt="" width={40} height={40} onReady={() => markReady("spec")} /><span>{formatSpecName(card.specName)}</span></span>
         </>
       ) : null}
 
-      <span className={styles.rarityPlate} data-quality={finish}><span className={styles.qualityLabel}>{t(`finish.${finish}`)}</span><strong>{rarity}</strong></span>
-      <span className={styles.characterMeta}><span>{formatSpecName(card.specName)}</span><span>{classInfo.name}</span></span>
-      {!hideBadges ? <span className={styles.setChip}><span>{card.set.raidName.toLowerCase()}</span></span> : null}
+      {!anonymous ? <span className={styles.rarityPlate} data-quality={finish}><span className={styles.qualityLabel}>{t(`finish.${finish}`)}</span><strong>{rarity}</strong></span> : null}
+      {!anonymous ? <span className={styles.characterMeta}><span>{formatSpecName(card.specName)}</span><span>{classInfo.name}</span></span> : null}
+      {!hideBadges && !anonymous ? <span className={styles.setChip}><span>{card.set.raidName.toLowerCase()}</span></span> : null}
 
-      <span className={styles.statsPanel}>
+      {!anonymous ? <span className={styles.statsPanel}>
         <span className={styles.stat}><span>{t(card.role === "healer" ? "score.healing" : "score.damage")}</span><strong style={{ color: raidScoreColor(card.scores.performance) }}>{score(card.scores.performance)}</strong></span>
         <span className={styles.stat}><span>{t("score.mechanics")}</span><strong style={{ color: raidScoreColor(card.scores.mechanics) }}>{score(card.scores.mechanics)}</strong></span>
         <span className={styles.stat}><span>{t("score.combined")}</span><strong style={{ color: raidScoreColor(card.scores.combined) }}>{score(card.scores.combined)}</strong></span>
         <span className={styles.stat}><span>{t("score.mythicPlus")}</span><strong style={{ color: mythicPlusScoreColor(card.scores.mythicPlus) }}>{score(card.scores.mythicPlus)}</strong></span>
-      </span>
+      </span> : null}
 
-      <span className={`${styles.cardBrand} ${styles.cardBrandLeft}`} aria-hidden="true">SUOMIWOW</span>
-      <span className={`${styles.cardBrand} ${styles.cardBrandRight}`} aria-hidden="true">{realm}</span>
-      {favorite ? <span className={styles.favoriteMark} aria-hidden="true"><FaStar /></span> : null}
-      {quantity && quantity > 1 ? <span className={styles.quantity}>×{quantity}</span> : null}
+      {!anonymous ? <span className={`${styles.cardBrand} ${styles.cardBrandLeft}`} aria-hidden="true">SUOMIWOW</span> : null}
+      {!anonymous ? <span className={`${styles.cardBrand} ${styles.cardBrandRight}`} aria-hidden="true">{realm}</span> : null}
+      {favorite && !anonymous ? <span className={styles.favoriteMark} aria-hidden="true"><FaStar /></span> : null}
+      {quantity && quantity > 1 && !anonymous ? <span className={styles.quantity}>×{quantity}</span> : null}
       <span className={styles.finishLayer} aria-hidden="true" />
       <span className={styles.materialLight} aria-hidden="true" />
     </span>

@@ -142,6 +142,10 @@ import {
   CcgCatalogResponse,
   CcgFeaturedCardResponse,
   CcgCollectionResponse,
+  CcgExpeditionLeaderboardResponse,
+  CcgExpeditionResult,
+  CcgGameAssignments,
+  CcgGamesBootstrapResponse,
   CcgGuildsResponse,
   CcgCharacterSearchResponse,
   CcgCollectionSort,
@@ -149,6 +153,8 @@ import {
   CcgArtVariant,
   CcgTierGrade,
   CcgOpening,
+  CcgRaceEntry,
+  CcgRaidResult,
   CcgActivityFilter,
   CcgActivityResponse,
   CcgCharacterCheckResponse,
@@ -163,6 +169,9 @@ import {
   CcgRedeemResult,
   CcgSession,
   CcgSet,
+  CcgStyleLeaderboardResponse,
+  CcgStylePairResponse,
+  CcgStyleSubmission,
   CcgBootstrapResponse,
   CcgAdminEnableResponse,
   CcgAdminSnapshotPreview,
@@ -196,20 +205,26 @@ import {
   hydrateCcgCatalog,
   hydrateCcgCollection,
   hydrateCcgFeaturedCard,
+  hydrateCcgGamesBootstrap,
   hydrateCcgOpening,
   hydrateCcgOverlayEvent,
   hydrateCcgRedeemResult,
   hydrateCcgShare,
+  hydrateCcgStyleLeaderboard,
+  hydrateCcgStylePair,
   type CcgAdminCardSearchResponseWire,
   type CcgAdminRedeemCodeResponseWire,
   type CcgAdminRedeemCodesResponseWire,
   type CcgCatalogResponseWire,
   type CcgCollectionResponseWire,
   type CcgFeaturedCardResponseWire,
+  type CcgGamesBootstrapWire,
   type CcgOpeningWire,
   type CcgOverlayEventWire,
   type CcgRedeemResultWire,
   type CcgShareWire,
+  type CcgStyleLeaderboardWire,
+  type CcgStylePairWire,
 } from "@/lib/ccg-wire";
 
 // For client-side: use NEXT_PUBLIC_API_URL (browser requests)
@@ -219,8 +234,9 @@ const getApiUrl = () => {
     // Server-side: use internal Docker network
     return process.env.API_URL || "http://localhost:3001";
   }
-  // Client-side: use public URL
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  // Client-side: use an explicit public URL when configured. Otherwise Next's
+  // fallback rewrite proxies unmatched API routes to the backend same-origin.
+  return process.env.NEXT_PUBLIC_API_URL || "";
 };
 
 const API_URL = getApiUrl();
@@ -416,6 +432,102 @@ export const api = {
     const response = await fetch(`${API_URL}/api/ccg/collection?${params}`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load your collection");
     return hydrateCcgCollection(await response.json() as CcgCollectionResponseWire);
+  },
+
+  async getCcgGamesBootstrap(): Promise<CcgGamesBootstrapResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/games/bootstrap`, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load Raid Director");
+    return hydrateCcgGamesBootstrap(await response.json() as CcgGamesBootstrapWire);
+  },
+
+  async runCcgExpedition(input: {
+    idempotencyKey: string;
+    cardIds: string[];
+    route: "safe" | "score";
+    pullSize: "small" | "standard" | "large";
+    boon: "refreshing-kick" | "guardian-echo" | "farshot";
+    assignments: CcgGameAssignments;
+  }): Promise<CcgExpeditionResult> {
+    const response = await fetch(`${API_URL}/api/ccg/games/expedition/runs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw await buildApiError(response, "The expedition could not be simulated");
+    return response.json();
+  },
+
+  async getCcgExpeditionLeaderboard(): Promise<CcgExpeditionLeaderboardResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/games/expedition/leaderboard`, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load the expedition leaderboard");
+    return response.json();
+  },
+
+  async pullCcgRaid(input: {
+    idempotencyKey: string;
+    rosterCardIds: string[];
+    activeCardIds: string[];
+    difficulty: "story" | "normal" | "heroic";
+    assignments: CcgGameAssignments;
+  }): Promise<CcgRaidResult> {
+    const response = await fetch(`${API_URL}/api/ccg/games/raid/pulls`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw await buildApiError(response, "The raid pull could not be simulated");
+    return response.json();
+  },
+
+  async enterCcgRaidRace(input: {
+    idempotencyKey: string;
+    activeCardIds: string[];
+    assignments: CcgGameAssignments;
+  }): Promise<CcgRaceEntry> {
+    const response = await fetch(`${API_URL}/api/ccg/games/race/entries`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw await buildApiError(response, "The raid race entry could not be submitted");
+    return response.json();
+  },
+
+  async submitCcgStyle(input: { cardId: string; finish: CcgFinish; artVariant: CcgArtVariant }): Promise<CcgStyleSubmission> {
+    const response = await fetch(`${API_URL}/api/ccg/games/style/submissions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw await buildApiError(response, "The runway entry could not be saved");
+    return response.json();
+  },
+
+  async getCcgStylePair(): Promise<CcgStylePairResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/games/style/pair`, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load a runway pair");
+    return hydrateCcgStylePair(await response.json() as CcgStylePairWire);
+  },
+
+  async voteCcgStyle(submissionIds: string[], winnerSubmissionId: string): Promise<{ accepted: true }> {
+    const response = await fetch(`${API_URL}/api/ccg/games/style/votes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ submissionIds, winnerSubmissionId }),
+    });
+    if (!response.ok) throw await buildApiError(response, "The runway vote could not be saved");
+    return response.json();
+  },
+
+  async getCcgStyleLeaderboard(): Promise<CcgStyleLeaderboardResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/games/style/leaderboard`, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load runway standings");
+    return hydrateCcgStyleLeaderboard(await response.json() as CcgStyleLeaderboardWire);
   },
 
   async openCcgPack(input: { idempotencyKey: string; setId?: string }): Promise<CcgOpening> {

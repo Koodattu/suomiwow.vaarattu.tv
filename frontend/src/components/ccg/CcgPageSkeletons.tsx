@@ -10,7 +10,7 @@ function SkeletonHeader() {
           <span className={`${styles.initialSkeletonBlock} ${styles.initialCcgLogo}`} />
         </div>
         <div className={styles.initialShellNav}>
-          {Array.from({ length: 4 }, (_, index) => <span key={index} className={styles.initialSkeletonBlock} />)}
+          {Array.from({ length: 5 }, (_, index) => <span key={index} className={styles.initialSkeletonBlock} />)}
         </div>
         <div className={styles.initialShellContext}>
           {Array.from({ length: 3 }, (_, index) => <span key={index} className={styles.initialSkeletonBlock} />)}

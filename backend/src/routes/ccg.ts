@@ -4,8 +4,10 @@ import { NextFunction, Request, Response, Router } from "express";
 import { CCG_GUEST_COOKIE } from "../config/ccg";
 import { cacheMiddleware } from "../middleware/cache.middleware";
 import ccgService, { CcgServiceError } from "../services/ccg.service";
+import ccgGameService from "../services/ccg-game.service";
 import characterRenderStorageService from "../services/character-render-storage.service";
 import logger from "../utils/logger";
+import { resolveCcgGameUtilities } from "../utils/ccg-game-engine";
 
 const router = Router();
 const CCG_ANALYTICS_CACHE_TTL_MS = 15 * 60 * 1000;
@@ -57,6 +59,87 @@ function asyncRoute(handler: (req: Request, res: Response) => Promise<unknown>) 
       logger.error("[CCG] Request failed:", error);
       res.status(500).json({ error: "The card vault could not complete that request", code: "ccg_request_failed" });
     }
+  };
+}
+
+async function loadGameCollection(owner: Parameters<typeof ccgGameService.getState>[0]) {
+  const first = await ccgService.getCollection(owner, { page: 1, limit: 45 }) as {
+    sets: Array<Record<string, unknown>>;
+    cards: Array<Record<string, unknown>>;
+    total: number;
+    pages: number;
+  };
+  const pageCount = Math.min(first.pages, 8);
+  const remaining = pageCount > 1
+    ? await Promise.all(Array.from({ length: pageCount - 1 }, (_, index) => (
+        ccgService.getCollection(owner, { page: index + 2, limit: 45 }) as Promise<{
+          sets: Array<Record<string, unknown>>;
+          cards: Array<Record<string, unknown>>;
+        }>
+      )))
+    : [];
+  const pages = [first, ...remaining];
+  const setById = new Map<string, Record<string, unknown>>();
+  for (const page of pages) {
+    for (const set of page.sets) setById.set(String(set.id), set);
+  }
+  return {
+    sets: [...setById.values()],
+    cards: pages.flatMap((page) => page.cards),
+    total: first.total,
+    truncated: first.pages > pageCount,
+  };
+}
+
+async function attachStyleCards(payload: Record<string, any>): Promise<Record<string, unknown>> {
+  const anonymous = Array.isArray(payload.pair);
+  const entries: Array<Record<string, any>> = Array.isArray(payload.pair)
+    ? payload.pair
+    : Array.isArray(payload.entries) ? payload.entries : [];
+  const cards = await Promise.all(entries.map((entry) => ccgService.getCard(String(entry.cardId))));
+  const setById = new Map<string, Record<string, unknown>>();
+  cards.forEach((cardResponse) => cardResponse.sets.forEach((set) => setById.set(String(set.id), set)));
+  const withCards = entries.map((entry, index) => {
+    const card = cards[index].card as Record<string, any>;
+    if (!anonymous) return { ...entry, card };
+    const { ownership: _ownership, totalQuantity: _totalQuantity, variants: _variants, ...visualCard } = card;
+    return {
+      ...entry,
+      card: {
+        ...visualCard,
+        anonymous: true,
+        characterId: "",
+        setNumber: 0,
+        snapshotVersion: 0,
+        snapshotKey: null,
+        name: "",
+        realm: "",
+        region: "",
+        guildId: null,
+        guildName: null,
+        guildRealm: null,
+        classID: 0,
+        specName: "",
+        role: "dps",
+        metric: "dps",
+        itemLevel: 0,
+        scores: { performance: null, mechanics: null, combined: null, mythicPlus: null },
+        tierGrade: "F",
+        avatarUrl: null,
+        quip: null,
+        performanceSnapshotAt: "",
+        mediaCapturedAt: null,
+        publicationWave: 0,
+        publishedAt: "",
+        seriesOwned: false,
+        snapshotOwned: false,
+      },
+    };
+  });
+  return {
+    ...payload,
+    sets: [...setById.values()],
+    ...(Array.isArray(payload.pair) ? { pair: withCards } : { entries: withCards }),
   };
 }
 
@@ -248,6 +331,102 @@ router.get(
       alternativeOnly: req.query.alternative === "true",
       favoriteOnly: req.query.favorite === "true",
     });
+  }),
+);
+
+router.get(
+  "/games/bootstrap",
+  rateLimit(45, 60_000, ownerRateLimitKey),
+  asyncRoute(async (req, res) => {
+    const owner = await ccgService.resolveOwner(req, res);
+    const [collection, state] = await Promise.all([
+      loadGameCollection(owner),
+      ccgGameService.getState(owner),
+    ]);
+    return {
+      collection,
+      utilitiesByCardId: Object.fromEntries(collection.cards.map((card) => [
+        String(card.id),
+        resolveCcgGameUtilities({
+          classID: Number(card.classID),
+          specName: String(card.specName),
+          role: card.role as "tank" | "healer" | "dps",
+        }),
+      ])),
+      ...state,
+    };
+  }),
+);
+
+router.post(
+  "/games/expedition/runs",
+  rateLimit(30, 60_000, ownerRateLimitKey),
+  asyncRoute(async (req, res) => {
+    const owner = await ccgService.resolveOwner(req, res);
+    return ccgGameService.runExpedition(owner, req.body ?? {});
+  }),
+);
+
+router.get(
+  "/games/expedition/leaderboard",
+  rateLimit(60, 60_000, ownerRateLimitKey),
+  asyncRoute(async (req, res) => {
+    const owner = await ccgService.resolveOwner(req, res);
+    return ccgGameService.getExpeditionLeaderboard(owner);
+  }),
+);
+
+router.post(
+  "/games/raid/pulls",
+  rateLimit(30, 60_000, ownerRateLimitKey),
+  asyncRoute(async (req, res) => {
+    const owner = await ccgService.resolveOwner(req, res);
+    return ccgGameService.pullRaid(owner, req.body ?? {});
+  }),
+);
+
+router.post(
+  "/games/race/entries",
+  rateLimit(15, 60_000, ownerRateLimitKey),
+  asyncRoute(async (req, res) => {
+    const owner = await ccgService.resolveOwner(req, res);
+    return ccgGameService.enterRace(owner, req.body ?? {});
+  }),
+);
+
+router.post(
+  "/games/style/submissions",
+  rateLimit(20, 60_000, ownerRateLimitKey),
+  asyncRoute(async (req, res) => {
+    const owner = await ccgService.resolveOwner(req, res);
+    return ccgGameService.submitStyle(owner, req.body ?? {});
+  }),
+);
+
+router.get(
+  "/games/style/pair",
+  rateLimit(60, 60_000, ownerRateLimitKey),
+  asyncRoute(async (req, res) => {
+    const owner = await ccgService.resolveOwner(req, res);
+    return attachStyleCards(await ccgGameService.getStylePair(owner));
+  }),
+);
+
+router.post(
+  "/games/style/votes",
+  rateLimit(40, 60_000, ownerRateLimitKey),
+  asyncRoute(async (req, res) => {
+    const owner = await ccgService.resolveOwner(req, res);
+    return ccgGameService.voteStyle(owner, req.body ?? {});
+  }),
+);
+
+router.get(
+  "/games/style/leaderboard",
+  rateLimit(60, 60_000, ownerRateLimitKey),
+  asyncRoute(async (req, res) => {
+    const owner = await ccgService.resolveOwner(req, res);
+    return attachStyleCards(await ccgGameService.getStyleLeaderboard(owner));
   }),
 );
 

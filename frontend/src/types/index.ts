@@ -2881,6 +2881,172 @@ export type CcgCollectionResponse = {
   pages: number;
 };
 
+export type CcgGameMode = "expedition" | "raid" | "race" | "style";
+export type CcgGameStrategy = "safe" | "standard" | "aggressive";
+export type CcgGameUtility =
+  | "interrupt"
+  | "ranged_interrupt"
+  | "dispel"
+  | "battle_resurrection"
+  | "heroism"
+  | "mobility"
+  | "raid_defensive"
+  | "external_defensive"
+  | "immunity"
+  | "crowd_control"
+  | "melee"
+  | "ranged"
+  | "burst"
+  | "sustained";
+
+export type CcgGameAssignments = {
+  interruptCardIds: string[];
+  dispelCardId: string | null;
+  soakCardIds: string[];
+  heroismPhase: string | null;
+  defensivePhase: string | null;
+  strategy: CcgGameStrategy;
+};
+
+export type CcgGameCheckResult = {
+  id: string;
+  type: string;
+  label: string;
+  passed: boolean;
+  contribution: number;
+  utilityBonus: number;
+  assignmentBonus: number;
+  strategyBonus: number;
+  die: number;
+  dieModifier: number;
+  total: number;
+  difficulty: number;
+  margin: number;
+  deaths: number;
+  explanation: string;
+};
+
+export type CcgGamePhaseResult = {
+  id: string;
+  label: string;
+  checks: CcgGameCheckResult[];
+  bossHealthBefore: number;
+  bossHealthAfter: number;
+  deaths: number;
+  battleResurrections: number;
+  durationSeconds: number;
+};
+
+export type CcgGameSimulationResult = {
+  rulesVersion: string;
+  encounterId: string;
+  encounterVersion: string;
+  seed: string;
+  killed: boolean;
+  bossHealthRemaining: number;
+  durationSeconds: number;
+  deaths: number;
+  battleResurrections: number;
+  failedChecks: number;
+  phaseReached: string;
+  phases: CcgGamePhaseResult[];
+  suggestions: string[];
+};
+
+export type CcgExpeditionResult = {
+  mode: "expedition";
+  rulesVersion: string;
+  weeklyKey: string;
+  seed: string;
+  route: "safe" | "score";
+  pullSize: "small" | "standard" | "large";
+  boon: "refreshing-kick" | "guardian-echo" | "farshot";
+  completed: boolean;
+  timed: boolean;
+  keyLevel: number;
+  durationSeconds: number;
+  timerSeconds: number;
+  deaths: number;
+  score: number;
+  encounters: CcgGameSimulationResult[];
+};
+
+export type CcgRaidResult = {
+  mode: "raid";
+  weeklyKey: string;
+  difficulty: "story" | "normal" | "heroic";
+  pullNumber: number;
+  bossIndex: number;
+  bossKills: string[];
+  raidComplete: boolean;
+  simulation: CcgGameSimulationResult;
+};
+
+export type CcgRaceEntry = {
+  id: string;
+  status: "queued" | "matched";
+  rosterCost: number;
+  result: CcgGameSimulationResult;
+  outcome: "win" | "loss" | "draw" | null;
+  opponent: { rosterCost: number; result: CcgGameSimulationResult; submittedAt: string } | null;
+  submittedAt: string;
+};
+
+export type CcgGamePhaseDefinition = {
+  id: string;
+  label: string;
+  healthShare: number;
+  checks: Array<{ id: string; type: string; label: string; difficulty: number; requiredCount?: number; requiredUtility?: CcgGameUtility }>;
+};
+
+export type CcgGamesBootstrapResponse = {
+  rulesVersion: string;
+  weeklyKey: string;
+  weeklySeed: string;
+  gradeCosts: Record<CcgTierGrade, number>;
+  utilitiesByCardId: Record<string, CcgGameUtility[]>;
+  collection: { sets: CcgSet[]; cards: CcgCard[]; total: number; truncated: boolean };
+  expedition: { timerSeconds: number; keyLevel: number; encounters: Array<{ id: string; name: string; phases: CcgGamePhaseDefinition[] }> };
+  raid: {
+    encounters: Array<{ id: string; name: string; phases: CcgGamePhaseDefinition[] }>;
+    lockout: null | {
+      difficulty: "story" | "normal" | "heroic";
+      rosterCardIds: string[];
+      activeCardIds: string[];
+      bossIndex: number;
+      bossKills: string[];
+      pullCount: number;
+    };
+  };
+  race: { rosterBudget: number; encounterId: string; entry: CcgRaceEntry | null };
+  style: { dateKey: string; theme: string; submission: CcgStyleSubmission | null };
+};
+
+export type CcgExpeditionLeaderboardResponse = {
+  weeklyKey: string;
+  entries: Array<{ rank: number; collector: string; score: number; timed: boolean; durationSeconds: number; deaths: number; isMe: boolean }>;
+};
+
+export type CcgStyleSubmission = {
+  id: string;
+  cardId: string;
+  finish: CcgFinish;
+  artVariant: CcgArtVariant;
+  card?: CcgCard;
+};
+
+export type CcgStylePairResponse = {
+  theme: string;
+  pairKey?: string;
+  pair: Array<Required<CcgStyleSubmission>> | null;
+};
+
+export type CcgStyleLeaderboardResponse = {
+  theme: string;
+  minimumVotes: number;
+  entries: Array<Required<CcgStyleSubmission> & { wins: number; votes: number; winRate: number }>;
+};
+
 export type CharacterAccountResponse = {
   account: {
     id: string;

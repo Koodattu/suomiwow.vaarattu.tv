@@ -9,11 +9,14 @@ import type {
   CcgCollectionResponse,
   CcgFeaturedCardResponse,
   CcgFinish,
+  CcgGamesBootstrapResponse,
   CcgOpening,
   CcgOverlayEvent,
   CcgRedeemResult,
   CcgSet,
   CcgShare,
+  CcgStyleLeaderboardResponse,
+  CcgStylePairResponse,
 } from "@/types";
 
 export type CcgCardWire = Omit<CcgCard, "set" | "variants"> & {
@@ -94,6 +97,20 @@ export type CcgAdminRedeemCodeResponseWire = {
   code: CcgAdminRedeemCodeWire;
 };
 
+export type CcgGamesBootstrapWire = Omit<CcgGamesBootstrapResponse, "collection"> & {
+  collection: Omit<CcgGamesBootstrapResponse["collection"], "cards"> & { cards: CcgCardWire[] };
+};
+
+export type CcgStylePairWire = Omit<CcgStylePairResponse, "pair"> & {
+  sets: CcgSet[];
+  pair: Array<Omit<NonNullable<CcgStylePairResponse["pair"]>[number], "card"> & { card: CcgCardWire }> | null;
+};
+
+export type CcgStyleLeaderboardWire = Omit<CcgStyleLeaderboardResponse, "entries"> & {
+  sets: CcgSet[];
+  entries: Array<Omit<CcgStyleLeaderboardResponse["entries"][number], "card"> & { card: CcgCardWire }>;
+};
+
 function getSetMap(sets: CcgSet[]): Map<string, CcgSet> {
   return new Map(sets.map((set) => [set.id, set]));
 }
@@ -130,6 +147,34 @@ export function hydrateCcgFeaturedCard(response: CcgFeaturedCardResponseWire): C
 
 export function hydrateCcgCollection(response: CcgCollectionResponseWire): CcgCollectionResponse {
   return { ...response, cards: hydrateCards(response.cards, response.sets) };
+}
+
+export function hydrateCcgGamesBootstrap(response: CcgGamesBootstrapWire): CcgGamesBootstrapResponse {
+  return {
+    ...response,
+    collection: {
+      ...response.collection,
+      cards: hydrateCards(response.collection.cards, response.collection.sets),
+    },
+  };
+}
+
+export function hydrateCcgStylePair(response: CcgStylePairWire): CcgStylePairResponse {
+  const setById = getSetMap(response.sets);
+  return {
+    theme: response.theme,
+    pairKey: response.pairKey,
+    pair: response.pair?.map((entry) => ({ ...entry, card: hydrateCard(entry.card, setById) })) ?? null,
+  };
+}
+
+export function hydrateCcgStyleLeaderboard(response: CcgStyleLeaderboardWire): CcgStyleLeaderboardResponse {
+  const setById = getSetMap(response.sets);
+  return {
+    theme: response.theme,
+    minimumVotes: response.minimumVotes,
+    entries: response.entries.map((entry) => ({ ...entry, card: hydrateCard(entry.card, setById) })),
+  };
 }
 
 export function hydrateCcgOpening(opening: CcgOpeningWire): CcgOpening {
