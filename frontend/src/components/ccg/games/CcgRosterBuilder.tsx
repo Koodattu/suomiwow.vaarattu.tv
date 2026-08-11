@@ -155,7 +155,7 @@ export default function CcgRosterBuilder({ cards, activeIds, benchIds, formation
         {ROLE_ORDER.map((role) => {
           const laneCards = activeCards.filter((card) => card.role === role);
           return (
-            <div className={styles.roleLane} key={role} data-valid={laneCards.length === formation[role]}>
+            <div className={styles.roleLane} key={role} data-role={role} data-valid={laneCards.length === formation[role]}>
               <div className={styles.roleLaneHeading}>
                 <span>{t(`role.${role}`)}</span>
                 <span className={styles.tabular}>{laneCards.length}/{formation[role]}</span>
@@ -167,6 +167,7 @@ export default function CcgRosterBuilder({ cards, activeIds, benchIds, formation
                     <button type="button" className={styles.rosterChip} key={card.id} onClick={() => toggleCard(card)} title={rosterLimit > targetCount ? t("roster.moveToBench") : t("roster.remove")}>
                       {card.avatarUrl ? <Image src={card.avatarUrl} alt="" width={32} height={32} /> : <FaUserGroup aria-hidden="true" />}
                       <span><strong>{card.name}</strong><small>{card.specName}</small></span>
+                      <span className={styles.rosterChipStats}><small>{t("roster.performance")}</small><b className={styles.tabular}>{compactScore(card.performance)}</b><small>{t("roster.mechanics")}</small><b className={styles.tabular}>{compactScore(card.mechanics)}</b></span>
                       <FaXmark aria-hidden="true" />
                     </button>
                   ) : <span className={styles.emptySlot} key={`${role}-${index}`}>{t("roster.empty")}</span>;

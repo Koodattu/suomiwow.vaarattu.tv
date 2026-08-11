@@ -109,6 +109,50 @@
         "title": "Tabletop checks, WoW decisions",
         "description": "Stats, utility, and assignments build the total. A shared seeded d20 adds only a small, visible swing."
       },
+      "readiness": {
+        "planProgress": "Pull preparation",
+        "encounterRoute": "Encounter route",
+        "commandRail": "Raid leader command rail",
+        "routeAndRisk": "Route and risk",
+        "title": "Ready check",
+        "readyHint": "Roster and calls are locked.",
+        "incompleteHint": "Finish the formation before pulling.",
+        "roster": "Formation ready",
+        "calls": "Core assignments made",
+        "callsOptional": "You can pull now, but unassigned mechanics are likely to fail."
+      },
+      "replay": {
+        "flowLabel": "Run flow",
+        "steps": { "briefing": "Briefing", "formation": "Formation", "assignments": "Assignments", "ready": "Ready check", "pull": "Pull", "debrief": "Debrief" },
+        "roster": "Active roster",
+        "adjust": "Adjust plan",
+        "live": "Pull in progress",
+        "phasePosition": "Phase {current} / {total}",
+        "bossHealth": "Boss health",
+        "mechanic": "Active mechanic",
+        "pullStarting": "Pull starting",
+        "countdown": "3… 2… 1… Pull!",
+        "elapsed": "Elapsed",
+        "pause": "Pause",
+        "resume": "Resume",
+        "speedLabel": "Replay speed",
+        "skip": "Skip to result",
+        "debrief": "Open debrief",
+        "eventsLabel": "Live pull events",
+        "events": "Live events",
+        "pullBegins": "Pull begins",
+        "why": "Why this happened",
+        "passedWhy": "The plan cleared this check by {margin}.",
+        "failedWhy": "The plan missed this check by {margin}.",
+        "planLocked": "The roster and assignments are locked for this immutable result.",
+        "watchAgain": "Watch again"
+      },
+      "debrief": {
+        "title": "After-action report",
+        "description": "Read the pull, identify the deciding checks, then change one meaningful call.",
+        "replay": "Replay pull",
+        "adjust": "Adjust and pull again"
+      },
       "modes": {
         "expedition": { "title": "Expedition", "short": "Five-card dungeon", "eyebrow": "Mode 1 · Mythic+", "heading": "Midnight Expedition", "description": "Lead one tank, one healer, and three damage cards through two dangerous packs and a three-phase boss before the timer expires.", "timer": "Timer", "key": "Key" },
         "raid-night": { "title": "Raid Night", "short": "Twenty-card progression", "eyebrow": "Mode 2 · Progression", "heading": "Raid Night", "description": "Maintain a 25-card lockout roster, field a 2/4/14 raid, learn each wipe, and clear the two-boss pilot raid." },
@@ -198,9 +242,9 @@
       },
       "leaderboard": { "eyebrow": "Shared weekly seed", "title": "Expedition leaderboard", "timed": "Timed", "untimed": "Over time", "empty": "No scored expeditions yet. Set the first mark." },
       "raid": { "boss": "Current boss", "progress": "Progress", "difficulty": "Difficulty", "story": "Story · PUGs allowed", "normal": "Normal · PUGs allowed", "heroic": "Heroic · owned cards only", "pull": "Pull boss", "complete": "Raid complete", "cleared": "Lockout cleared. That was the last boss.", "nextBoss": "Boss defeated. The next encounter is unlocked.", "pullAgain": "Review the report, adjust the plan, and pull again." },
-      "race": { "budget": "Roster cost", "cost": "Roster cost {cost} / {budget}", "submit": "Submit race pull", "waiting": "Waiting for an opponent", "waitingHint": "Your immutable result is saved. The first compatible entry will be paired with it.", "win": "Race won", "loss": "Race lost", "draw": "Dead heat", "matchedHint": "Both pulls used the same boss, rules, and seeded d20 sequence.", "yourPull": "Your pull", "opponentPull": "Opponent pull" },
+      "race": { "budget": "Roster cost", "cost": "Roster cost {cost} / {budget}", "submit": "Submit race pull", "waiting": "Waiting for an opponent", "waitingHint": "Your immutable result is saved. The first compatible entry will be paired with it.", "win": "Race won", "loss": "Race lost", "draw": "Dead heat", "matchedHint": "Both pulls used the same boss, rules, and seeded d20 sequence.", "yourPull": "Your pull", "opponentPull": "Opponent pull", "viewSaved": "View saved race result" },
       "style": {
-        "theme": "Daily theme", "format": "Format", "async": "Anonymous async", "entryEyebrow": "Daily entry", "entryTitle": "Choose your captured look", "finish": "Finish", "art": "Artwork", "standardArt": "Standard", "alternativeArt": "Alternative", "submit": "Enter runway", "update": "Update entry", "choose": "Choose an owned card to preview its finish and artwork.", "voteEyebrow": "Anonymous judging", "voteTitle": "Choose the stronger look", "voteHint": "Names, grades, scores, owners, and totals are hidden until voting is complete.", "refresh": "Load another pair", "voteFor": "Vote for this look", "noPair": "No runway pair is ready", "noPairHint": "At least two entries from other collectors are needed. Your own submission is never shown to you for voting.", "standingsEyebrow": "Independent votes only", "standings": "Daily standings", "winRate": "{rate}% win rate", "voteCount": "{count, plural, one {# vote} other {# votes}}", "standingsEmpty": "Standings appear after each entry receives at least {count} independent votes."
+        "theme": "Daily theme", "format": "Format", "async": "Anonymous async", "entryEyebrow": "Daily entry", "entryTitle": "Choose your captured look", "finish": "Finish", "art": "Artwork", "standardArt": "Standard", "alternativeArt": "Alternative", "submit": "Enter runway", "update": "Update entry", "search": "Search captured looks", "entering": "Entering runway…", "saved": "Your look is on the runway.", "stageHint": "Only captured artwork and finish are judged. Card stats stay hidden.", "chooseTitle": "Choose a headliner", "choose": "Choose an owned card to preview its finish and artwork.", "voteEyebrow": "Anonymous judging", "voteTitle": "Choose the stronger look", "voteHint": "Names, grades, scores, owners, and totals are hidden until voting is complete.", "refresh": "Load another pair", "voteFor": "Vote for this look", "voteLocked": "Vote locked", "noPair": "No runway pair is ready", "noPairHint": "At least two entries from other collectors are needed. Your own submission is never shown to you for voting.", "standingsEyebrow": "Independent votes only", "standings": "Daily standings", "winRate": "{rate}% win rate", "voteCount": "{count, plural, one {# vote} other {# votes}}", "standingsEmpty": "Standings appear after each entry receives at least {count} independent votes."
       },
       "labels": {
         "causeway": "The Patrol", "gallery": "The Double Pull", "fractured-light": "Fractured Light", "void-choir": "Void Choir", "sunwell-collapse": "Sunwell Collapse", "ashen-court": "The Ashen Court", "ember-maze": "Ember Maze", "last-light": "Last Light",
