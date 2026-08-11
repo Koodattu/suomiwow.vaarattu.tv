@@ -44,6 +44,7 @@ const POLLING_OFF_HOURS_ACTIVE_MS = 60 * 60 * 1000; // 1 hour
 const POLLING_TWITCH_MS = 15 * 60 * 1000; // 15 minutes
 const POLLING_FIGHT_VODS_MS = 30 * 60 * 1000; // 30 minutes
 const MYTHIC_PLUS_RECOVERY_MS = 5 * 60 * 1000; // 5 minutes
+const CHARACTER_WCL_IDENTITY_AUDIT_NIGHTLY_ENABLED = process.env.CHARACTER_WCL_IDENTITY_AUDIT_NIGHTLY_ENABLED !== "false";
 const ACTIVITY_STATUS_ACTIVE_DAYS = 14;
 const SCHEDULE_POLLING_WINDOW_BEFORE_HOURS = 1;
 const SCHEDULE_POLLING_WINDOW_AFTER_HOURS = 1;
@@ -501,23 +502,25 @@ class UpdateScheduler {
       },
     );
 
-    // NIGHTLY: Queue Armory-not-found characters that have never had their
-    // canonical WCL identity checked, then resume the persistent audit queue.
-    this.scheduleCronTask(
-      "character-wcl-identity-audit",
-      "15 1 * * *",
-      async () => {
-        try {
-          const result = await characterWclIdentityAuditService.triggerNightly();
-          logger.info(
-            `[Nightly/CharacterWclIdentityAudit] Queued ${result.enqueue.queued} unchecked Armory-missing character(s), `
-            + `existing=${result.enqueue.existing}, processorStarted=${result.started}`,
-          );
-        } catch (error) {
-          logger.error("[Nightly/CharacterWclIdentityAudit] Failed to queue unchecked Armory-missing characters:", error);
-        }
-      },
-    );
+    if (CHARACTER_WCL_IDENTITY_AUDIT_NIGHTLY_ENABLED) {
+      // NIGHTLY: Queue Armory-not-found characters that have never had their
+      // canonical WCL identity checked, then resume the persistent audit queue.
+      this.scheduleCronTask(
+        "character-wcl-identity-audit",
+        "15 1 * * *",
+        async () => {
+          try {
+            const result = await characterWclIdentityAuditService.triggerNightly();
+            logger.info(
+              `[Nightly/CharacterWclIdentityAudit] Queued ${result.enqueue.queued} unchecked Armory-missing character(s), `
+              + `existing=${result.enqueue.existing}, processorStarted=${result.started}`,
+            );
+          } catch (error) {
+            logger.error("[Nightly/CharacterWclIdentityAudit] Failed to queue unchecked Armory-missing characters:", error);
+          }
+        },
+      );
+    }
 
     if (CCG_FEATURE_ENABLED) {
       void this.processPendingCcgPackAnalytics();
@@ -854,6 +857,11 @@ class UpdateScheduler {
     logger.info("  - Fight VOD resolver: every 30 minutes");
     logger.info("  - Nightly jobs (Europe/Helsinki):");
     logger.info("    * Report character backfill queue: daily at 01:00");
+    logger.info(
+      CHARACTER_WCL_IDENTITY_AUDIT_NIGHTLY_ENABLED
+        ? "    * WCL recovery for Armory-missing characters: daily at 01:15"
+        : "    * WCL recovery for Armory-missing characters: disabled",
+    );
     logger.info("    * Character achievement account matching backfill: daily at 01:30");
     logger.info("    * Mythic+ current season refresh: daily at 02:00");
     logger.info("    * Current raid dates refresh: Monday at 02:15");

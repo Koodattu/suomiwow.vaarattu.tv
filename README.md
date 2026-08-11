@@ -74,6 +74,7 @@ For development without Docker, use Node.js 24 and MongoDB 7, install dependenci
 - Copy [`backend/.env.example`](backend/.env.example) to `backend/.env` for credentials and feature flags.
 - Edit [`backend/src/config/guilds.ts`](backend/src/config/guilds.ts) to choose guilds, raid tiers, current raids, streamers, and Pick'em options.
 - Use `CCG_FEATURE_ENABLED=false` to hide the CCG or `CCG_WEEKLY_AUTOMATION_ENABLED=false` to stop its weekly publication jobs without removing collection data.
+- Use `CHARACTER_WCL_IDENTITY_AUDIT_NIGHTLY_ENABLED=false` to disable the nightly WCL recovery of Armory-missing characters; the manual admin action remains available.
 
 ## License and disclaimer
 
