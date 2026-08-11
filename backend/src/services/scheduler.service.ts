@@ -20,6 +20,7 @@ import characterMediaService, {
   CHARACTER_MEDIA_DISCOVERY_TASK_NAME,
   CHARACTER_MEDIA_REFRESH_TASK_NAME,
 } from "./character-media.service";
+import characterWclIdentityAuditService from "./character-wcl-identity-audit.service";
 import ccgRaidRunner from "./ccg-snapshot-runner.service";
 import ccgService from "./ccg.service";
 import ccgCommunityService from "./ccg-community.service";
@@ -369,6 +370,10 @@ class UpdateScheduler {
     logger.info("Finnish time hot hours: 16:00 - 01:00 (4 PM - 1 AM)");
     logger.info("Off hours: 01:00 - 16:00 (1 AM - 4 PM)");
 
+    void characterWclIdentityAuditService.resumeInterrupted().catch((error) => {
+      logger.error("[CharacterWclIdentityAudit] Failed to resume pending audit work on startup:", error);
+    });
+
     // HOT HOURS - Active guilds: Check at configured interval
     this.hotHoursActiveInterval = setInterval(async () => {
       if (!this.isHotHours()) return; // Skip if not hot hours
@@ -493,6 +498,24 @@ class UpdateScheduler {
           return;
         }
         await this.queueReportCharacterBackfill();
+      },
+    );
+
+    // NIGHTLY: Queue Armory-not-found characters that have never had their
+    // canonical WCL identity checked, then resume the persistent audit queue.
+    this.scheduleCronTask(
+      "character-wcl-identity-audit",
+      "15 1 * * *",
+      async () => {
+        try {
+          const result = await characterWclIdentityAuditService.triggerNightly();
+          logger.info(
+            `[Nightly/CharacterWclIdentityAudit] Queued ${result.enqueue.queued} unchecked Armory-missing character(s), `
+            + `existing=${result.enqueue.existing}, processorStarted=${result.started}`,
+          );
+        } catch (error) {
+          logger.error("[Nightly/CharacterWclIdentityAudit] Failed to queue unchecked Armory-missing characters:", error);
+        }
       },
     );
 

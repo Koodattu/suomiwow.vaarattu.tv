@@ -9,6 +9,7 @@ import Raid from "../models/Raid";
 import Ranking from "../models/Ranking";
 import logger from "../utils/logger";
 import { resolveRole, slugifySpecName } from "../utils/spec";
+import { getWclRankingPartitionIds, toWclPartitionRankingAlias } from "../utils/wcl-ranking-partitions";
 import cacheService from "./cache.service";
 import { getPrimaryCharacterRaidGuilds } from "./character-raid-guild.service";
 import rateLimitService from "./rate-limit.service";
@@ -18,7 +19,6 @@ import wclService from "./warcraftlogs.service";
 const TASK_NAME = "Character Ranking Backfill";
 const LEADERBOARD_REBUILD_TASK_NAME = "Rebuild Character Ranking Tables";
 const MYTHIC_DIFFICULTY = 5;
-const ALL_PARTITIONS = -1;
 const ESTIMATED_POINTS_PER_RANKING_ALIAS = 5;
 const PROCESS_LOG_INTERVAL = 25;
 
@@ -97,6 +97,10 @@ interface SpecQuery {
   wclName: string;
   role: Role;
   source: "observed" | "fallback";
+}
+
+interface PartitionSpecQuery extends SpecQuery {
+  partition: number;
 }
 
 interface BackfillItemSummary {
@@ -1024,16 +1028,18 @@ class CharacterRankingBackfillService {
 
         try {
           const specQueries = this.buildSpecQueries(item);
-          const estimatedPoints = specQueries.length > 0 ? specQueries.length * ESTIMATED_POINTS_PER_RANKING_ALIAS + 1 : 0;
+          const partitionIds = specQueries.length > 0 ? await this.getRaidPartitionIds(item.zoneId) : [];
+          const partitionQueries = this.buildPartitionQueries(specQueries, partitionIds);
+          const estimatedPoints = partitionQueries.length > 0 ? partitionQueries.length * ESTIMATED_POINTS_PER_RANKING_ALIAS + 1 : 0;
 
           logger.info(
-            `[CharacterRankingBackfill] Processing ${item.name}-${item.realm} zone ${item.zoneId} (${item.raidName ?? "unknown raid"}), attempt ${item.attempts}/${item.maxAttempts}, aliases=${specQueries.length}, specs=${this.describeSpecQueries(specQueries)}`,
+            `[CharacterRankingBackfill] Processing ${item.name}-${item.realm} zone ${item.zoneId} (${item.raidName ?? "unknown raid"}), attempt ${item.attempts}/${item.maxAttempts}, partitions=${partitionIds.join(",") || "none"}, aliases=${partitionQueries.length}, specs=${this.describeSpecQueries(specQueries)}`,
           );
 
           if (estimatedPoints > 0) {
             await this.waitForBackgroundCapacity(estimatedPoints, `${item.name}-${item.realm} zone ${item.zoneId}`);
           }
-          const outcome = await this.processItem(item, specQueries);
+          const outcome = await this.processItem(item, partitionQueries);
 
           await CharacterRankingBackfill.findByIdAndUpdate(item._id, {
             $set: {
@@ -1139,11 +1145,11 @@ class CharacterRankingBackfillService {
     });
   }
 
-  private async processItem(item: ICharacterRankingBackfill, specQueries: SpecQuery[]): Promise<ProcessOutcome> {
-    const specQuerySource = specQueries[0]?.source ?? null;
-    const specsQueried = Array.from(new Set(specQueries.map((query) => query.specSlug))).sort((a, b) => a.localeCompare(b));
+  private async processItem(item: ICharacterRankingBackfill, partitionQueries: PartitionSpecQuery[]): Promise<ProcessOutcome> {
+    const specQuerySource = partitionQueries[0]?.source ?? null;
+    const specsQueried = Array.from(new Set(partitionQueries.map((query) => query.specSlug))).sort((a, b) => a.localeCompare(b));
 
-    if (specQueries.length === 0) {
+    if (partitionQueries.length === 0) {
       return {
         status: "skipped",
         reason: "No known specs for character class",
@@ -1155,7 +1161,7 @@ class CharacterRankingBackfillService {
       };
     }
 
-    const query = this.buildWclQuery(specQueries);
+    const query = this.buildWclQuery(partitionQueries);
     const result = await wclService.query<WclCharacterRankingsResponse>(
       query,
       {
@@ -1164,7 +1170,7 @@ class CharacterRankingBackfillService {
       },
       false,
       2,
-      { estimatedPoints: specQueries.length * ESTIMATED_POINTS_PER_RANKING_ALIAS + 1, sampleRateLimit: true },
+      { estimatedPoints: partitionQueries.length * ESTIMATED_POINTS_PER_RANKING_ALIAS + 1, sampleRateLimit: true },
     );
 
     const character = result.characterData?.character;
@@ -1172,7 +1178,7 @@ class CharacterRankingBackfillService {
       return {
         status: "skipped",
         reason: "WCL character not found by canonical ID",
-        aliasesQueried: specQueries.length,
+        aliasesQueried: partitionQueries.length,
         specQuerySource,
         specsQueried,
         rankingsWritten: 0,
@@ -1185,7 +1191,7 @@ class CharacterRankingBackfillService {
       return {
         status: "skipped",
         reason: "WCL character profile is hidden",
-        aliasesQueried: specQueries.length,
+        aliasesQueried: partitionQueries.length,
         specQuerySource,
         specsQueried,
         rankingsWritten: 0,
@@ -1195,7 +1201,7 @@ class CharacterRankingBackfillService {
 
     const operations: any[] = [];
 
-    for (const specQuery of specQueries) {
+    for (const specQuery of partitionQueries) {
       const zoneRankings = character[specQuery.alias] as WclZoneRankings | null | undefined;
       if (!zoneRankings || zoneRankings.error) {
         continue;
@@ -1214,7 +1220,7 @@ class CharacterRankingBackfillService {
         const rankingSpecSlug = ranking.spec ? slugifySpecName(ranking.spec) : specQuery.specSlug;
         const bestSpecName = ranking.bestSpec ? slugifySpecName(ranking.bestSpec) : rankingSpecSlug;
         const role = resolveRole(item.classID, rankingSpecSlug);
-        const partition = this.resolveRankingPartition(ranking, zoneRankings);
+        const partition = specQuery.partition;
         const canonicalId = typeof character.canonicalID === "number" ? character.canonicalID : item.wclCanonicalCharacterId;
 
         operations.push({
@@ -1269,7 +1275,7 @@ class CharacterRankingBackfillService {
       return {
         status: "skipped",
         reason: "No meaningful mythic rankings returned",
-        aliasesQueried: specQueries.length,
+        aliasesQueried: partitionQueries.length,
         specQuerySource,
         specsQueried,
         rankingsWritten: 0,
@@ -1283,7 +1289,7 @@ class CharacterRankingBackfillService {
     return {
       status: "completed",
       reason: "Rankings fetched and stored",
-      aliasesQueried: specQueries.length,
+      aliasesQueried: partitionQueries.length,
       specQuerySource,
       specsQueried,
       rankingsWritten: operations.length,
@@ -1362,6 +1368,25 @@ class CharacterRankingBackfillService {
     return queries;
   }
 
+  private async getRaidPartitionIds(zoneId: number): Promise<number[]> {
+    const raid = await Raid.findOne({ id: zoneId }).select("partitions -_id").lean();
+    const partitionIds = getWclRankingPartitionIds(raid?.partitions);
+    if (partitionIds.length === 0) {
+      throw new Error(`No Warcraft Logs partitions are configured for zone ${zoneId}`);
+    }
+    return partitionIds;
+  }
+
+  private buildPartitionQueries(specQueries: SpecQuery[], partitionIds: number[]): PartitionSpecQuery[] {
+    return partitionIds.flatMap((partition) =>
+      specQueries.map((specQuery) => ({
+        ...specQuery,
+        alias: toWclPartitionRankingAlias(specQuery.alias, partition),
+        partition,
+      })),
+    );
+  }
+
   private describeSpecQueries(specQueries: SpecQuery[]): string {
     if (specQueries.length === 0) return "none";
 
@@ -1377,9 +1402,9 @@ class CharacterRankingBackfillService {
       .join(",");
   }
 
-  private buildWclQuery(specQueries: SpecQuery[]): string {
-    const specAliasFields = specQueries.map((specQuery) => {
-      return `${specQuery.alias}: zoneRankings(zoneID: $zoneID, difficulty: ${MYTHIC_DIFFICULTY}, metric: ${specQuery.metric}, compare: Rankings, timeframe: Historical, partition: ${ALL_PARTITIONS}, specName: "${specQuery.wclName}")`;
+  private buildWclQuery(partitionQueries: PartitionSpecQuery[]): string {
+    const specAliasFields = partitionQueries.map((specQuery) => {
+      return `${specQuery.alias}: zoneRankings(zoneID: $zoneID, difficulty: ${MYTHIC_DIFFICULTY}, metric: ${specQuery.metric}, compare: Rankings, timeframe: Historical, partition: ${specQuery.partition}, specName: "${specQuery.wclName}")`;
     });
 
     return `
@@ -1406,16 +1431,6 @@ class CharacterRankingBackfillService {
       isFinitePositive(ranking.totalKills) ||
       isFinitePositive(ranking.allStars?.points)
     );
-  }
-
-  private resolveRankingPartition(ranking: WclRanking, zoneRankings: WclZoneRankings): number {
-    const allStarsPartition = toFiniteNumber(ranking.allStars?.partition, 0);
-    if (allStarsPartition > 0) return allStarsPartition;
-
-    const payloadPartition = toFiniteNumber(zoneRankings.partition, 0);
-    if (payloadPartition > 0) return payloadPartition;
-
-    return 1;
   }
 
   private flattenObservedSpecNames(specNameLists?: string[][]): string[] {
