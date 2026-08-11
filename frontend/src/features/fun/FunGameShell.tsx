@@ -19,7 +19,7 @@ export default function FunGameShell({ game, loading, error, hasRound, onGenerat
   const t = useTranslations("fun");
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#0b1020] px-4 py-5 text-white sm:py-7">
+    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_50%_-10%,rgba(59,130,246,0.16),transparent_32rem),linear-gradient(to_bottom,#0b1020,#090d18)] px-4 py-5 text-white sm:py-7">
       <div className="mx-auto max-w-6xl">
         <header className="relative border-b border-white/10 pb-4">
           <div className="flex items-center justify-between gap-4">
@@ -36,7 +36,7 @@ export default function FunGameShell({ game, loading, error, hasRound, onGenerat
                 type="button"
                 onClick={onGenerate}
                 disabled={loading}
-                className="min-h-10 shrink-0 rounded-md bg-blue-600 px-4 py-2 text-sm font-bold text-white transition-[background-color,transform] hover:bg-blue-500 active:not-disabled:scale-[0.97] disabled:cursor-wait disabled:opacity-55 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
+                className="min-h-11 shrink-0 rounded-md bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-[0_8px_24px_rgba(37,99,235,0.18)] transition-[background-color,box-shadow,transform] duration-150 ease-out hover:bg-blue-500 hover:shadow-[0_10px_28px_rgba(37,99,235,0.28)] active:not-disabled:scale-[0.96] disabled:cursor-wait disabled:opacity-55 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 motion-reduce:transform-none motion-reduce:transition-none"
               >
                 {loading ? t("common.generating") : hasRound ? t("common.newGame") : t("common.generate")}
               </button>
@@ -63,7 +63,7 @@ export default function FunGameShell({ game, loading, error, hasRound, onGenerat
             </div>
           </div>
         ) : (
-          <div className={loading && hasRound ? "pointer-events-none opacity-60" : ""} aria-busy={loading}>
+          <div className={`transition-opacity duration-200 motion-reduce:transition-none ${loading && hasRound ? "pointer-events-none opacity-55" : "opacity-100"}`} aria-busy={loading}>
             {children}
           </div>
         )}

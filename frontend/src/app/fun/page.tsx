@@ -4,16 +4,16 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { FunGameSlug } from "@/types";
 
-const GAMES: Array<{ slug: FunGameSlug; symbol: string }> = [
-  { slug: "immaculate-roster", symbol: "▦" },
-  { slug: "guild-guessr", symbol: "⌘" },
-  { slug: "wipeprint", symbol: "⌁" },
-  { slug: "raider-resume", symbol: "◉" },
-  { slug: "raid-connections", symbol: "⌗" },
-  { slug: "lock-it-in", symbol: "↕" },
-  { slug: "suomidle", symbol: "◎" },
-  { slug: "higher-or-wipe", symbol: "⇅" },
-  { slug: "closest-without-going-over", symbol: "≤" },
+const GAMES: Array<{ slug: FunGameSlug; symbol: string; accent: string }> = [
+  { slug: "immaculate-roster", symbol: "▦", accent: "from-emerald-500/15" },
+  { slug: "guild-guessr", symbol: "⌘", accent: "from-violet-500/15" },
+  { slug: "wipeprint", symbol: "⌁", accent: "from-cyan-500/15" },
+  { slug: "raider-resume", symbol: "◉", accent: "from-amber-500/15" },
+  { slug: "raid-connections", symbol: "⌗", accent: "from-fuchsia-500/15" },
+  { slug: "lock-it-in", symbol: "↕", accent: "from-orange-500/15" },
+  { slug: "suomidle", symbol: "◎", accent: "from-sky-500/15" },
+  { slug: "higher-or-wipe", symbol: "⇅", accent: "from-rose-500/15" },
+  { slug: "closest-without-going-over", symbol: "≤", accent: "from-blue-500/15" },
 ];
 
 export default function FunPortalPage() {
@@ -45,18 +45,23 @@ export default function FunPortalPage() {
         <section className="mt-6" aria-label={t("portal.gamesLabel")}>
           <h2 className="text-lg font-black">{t("portal.allGames")}</h2>
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {GAMES.map(({ slug, symbol }) => (
-            <Link
-              key={slug}
-              href={`/fun/${slug}`}
-              className="group flex min-h-32 flex-col rounded-xl bg-slate-900/70 p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.08)] transition-[background-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-slate-900 hover:shadow-[0_0_0_1px_rgba(147,197,253,0.28)] active:scale-[0.96] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-300 motion-reduce:transform-none"
-            >
-              <span className="flex items-center gap-3">
-                <span className="grid size-9 place-items-center rounded-md bg-blue-500/10 text-xl font-black text-blue-200 ring-1 ring-blue-300/15" aria-hidden="true">{symbol}</span>
-                <span className="text-balance text-lg font-black">{t(`games.${slug}.title`)}</span>
-              </span>
-              <span className="mt-3 text-pretty text-sm leading-5 text-slate-400">{t(`games.${slug}.description`)}</span>
-            </Link>
+            {GAMES.map(({ slug, symbol, accent }) => (
+              <Link
+                key={slug}
+                href={`/fun/${slug}`}
+                className={`group relative flex min-h-36 overflow-hidden rounded-xl bg-gradient-to-br ${accent} to-slate-900/70 p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.08)] transition-[background-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-1 hover:shadow-[0_12px_34px_rgba(15,23,42,0.5),0_0_0_1px_rgba(147,197,253,0.3)] active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-300 motion-reduce:transform-none motion-reduce:transition-none`}
+              >
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="flex items-center gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-blue-500/10 text-xl font-black text-blue-200 ring-1 ring-blue-300/15 transition-transform duration-200 ease-out group-hover:scale-110 group-hover:-rotate-3 motion-reduce:transform-none motion-reduce:transition-none" aria-hidden="true">{symbol}</span>
+                    <span className="text-balance text-lg font-black">{t(`games.${slug}.title`)}</span>
+                  </span>
+                  <span className="mt-3 text-pretty text-sm leading-5 text-slate-300/80">{t(`games.${slug}.description`)}</span>
+                  <span className="mt-auto inline-flex items-center gap-2 pt-3 text-xs font-black uppercase tracking-wider text-blue-200">
+                    {t("portal.play")} <span className="transition-transform duration-200 ease-out group-hover:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none" aria-hidden="true">→</span>
+                  </span>
+                </span>
+              </Link>
             ))}
           </div>
         </section>

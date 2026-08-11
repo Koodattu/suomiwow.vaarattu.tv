@@ -13,6 +13,7 @@ import Wipeprint from "./games/Wipeprint";
 import Suomidle from "./games/Suomidle";
 import HigherOrWipe from "./games/HigherOrWipe";
 import ClosestWithoutGoingOver from "./games/ClosestWithoutGoingOver";
+import styles from "./fun-feedback.module.css";
 
 function Game({
   round,
@@ -93,12 +94,14 @@ export default function FunGamePage({ game }: { game: FunGameSlug }) {
       mistakes={round?.game === "immaculate-roster" ? { count: immaculateMistakes, total: MAX_IMMACULATE_MISTAKES } : undefined}
     >
       {round ? (
-        <Game
-          round={round}
-          loading={loading}
-          onHigherModeChange={(mode) => void generate(mode)}
-          onImmaculateMistakesChange={setImmaculateMistakes}
-        />
+        <div key={round.roundId} className={styles.gameEnter}>
+          <Game
+            round={round}
+            loading={loading}
+            onHigherModeChange={(mode) => void generate(mode)}
+            onImmaculateMistakesChange={setImmaculateMistakes}
+          />
+        </div>
       ) : null}
     </FunGameShell>
   );

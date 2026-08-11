@@ -8,6 +8,8 @@ import { ExpansionIcon, FunBossIdentity, FunRaidIdentity } from "../FunEncounter
 import FunAutocomplete from "../FunAutocomplete";
 import { FunGuildCrest } from "../FunGuildIdentity";
 import ProgressiveClues from "../ProgressiveClues";
+import FunOutcome from "../FunOutcome";
+import styles from "../fun-feedback.module.css";
 
 type Direction = "earlier" | "exact" | "later";
 type BossGuess = { boss: WipeprintBossOption; sameRaid: boolean; position: Direction };
@@ -54,10 +56,10 @@ export default function Wipeprint({ round }: { round: WipeprintRound }) {
             <span className="text-slate-400 tabular-nums">{t("common.mistakes", { count: guesses.length, total: 5 })}</span>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-3" role="status">
-            <p className={`text-lg font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p>
-            <WipeprintBossIdentity boss={target} compact />
-          </div>
+          <FunOutcome status={status} className="sm:col-span-2">
+            <span className="mt-1 block text-slate-400">{t("wipeprint.answerWas")}</span>
+            <span className="mt-2 block"><WipeprintBossIdentity boss={target} compact /></span>
+          </FunOutcome>
         )}
         {status === "playing" ? (
           <FunAutocomplete
@@ -68,6 +70,7 @@ export default function Wipeprint({ round }: { round: WipeprintRound }) {
             renderOption={(boss) => <WipeprintBossIdentity boss={boss} compact />}
             placeholder={t("wipeprint.searchBoss")}
             emptyLabel={t("wipeprint.noBosses")}
+            autoFocus
             onSelect={submitGuess}
           />
         ) : null}
@@ -103,7 +106,7 @@ export default function Wipeprint({ round }: { round: WipeprintRound }) {
       {guesses.length > 0 ? (
         <div className="mt-3 space-y-2">
           {guesses.map((guess) => (
-            <div key={guess.boss.key} className="grid gap-2 rounded-lg border border-red-400/20 bg-red-950/20 px-4 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center">
+            <div key={guess.boss.key} className={`${styles.bad} grid gap-2 rounded-lg border border-red-400/20 bg-red-950/20 px-4 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center`}>
               <WipeprintBossIdentity boss={guess.boss} />
               <span className={guess.sameRaid ? "text-emerald-300" : "text-red-300"}>{guess.sameRaid ? t("wipeprint.sameRaid") : t("wipeprint.differentRaid")}</span>
               <DirectionLabel label={t("wipeprint.position")} value={guess.position} />
@@ -117,6 +120,7 @@ export default function Wipeprint({ round }: { round: WipeprintRound }) {
         <p className="mb-3 text-xs text-slate-400">{t("wipeprint.singleGuild")}</p>
         <div>
           <h2 className="font-black">{t("wipeprint.clues")}</h2>
+          {guesses.length === 0 ? <p className="mt-1 text-xs leading-5 text-slate-400">{t("wipeprint.cluesPending")}</p> : null}
           <ProgressiveClues items={clueItems} revealed={guesses.length} />
         </div>
       </aside>
