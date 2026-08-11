@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { HigherOrWipeMode, HigherOrWipeOption, HigherOrWipeRound } from "@/types";
 import FunCharacterIdentity from "../FunCharacterIdentity";
 import { FunBossIdentity, FunRaidIdentity } from "../FunEncounterIdentity";
 import FunGuildIdentity from "../FunGuildIdentity";
+import FunOutcome from "../FunOutcome";
+import styles from "../fun-feedback.module.css";
 
 const MODES: HigherOrWipeMode[] = ["random", "pulls", "started", "mythic-plus", "achievements"];
 
@@ -24,6 +26,8 @@ export default function HigherOrWipe({
   const [best, setBest] = useState(0);
   const [answered, setAnswered] = useState<"left" | "right" | null>(null);
   const [lastCorrect, setLastCorrect] = useState(false);
+  const leftChoiceRef = useRef<HTMLButtonElement>(null);
+  const nextButtonRef = useRef<HTMLButtonElement>(null);
   const complete = index >= round.questions.length;
   const question = round.questions[index];
   const modeSelector = <HigherModeSelector selected={round.mode} loading={loading} onChange={onModeChange} />;
@@ -43,30 +47,48 @@ export default function HigherOrWipe({
     setAnswered(null);
   };
 
+  useEffect(() => {
+    if (complete) return;
+    if (answered) nextButtonRef.current?.focus();
+    else leftChoiceRef.current?.focus();
+  }, [answered, complete, index]);
+
   if (complete) {
-    return <section className="mx-auto mt-5 max-w-5xl">{modeSelector}<div className="mx-auto mt-4 max-w-2xl border-y border-emerald-300/20 bg-emerald-950/25 p-6 text-center" role="status"><p className="text-2xl font-black text-emerald-300">{t("higher.finished")}</p><p className="mt-2 text-emerald-100/80">{t("higher.best", { count: best })}</p></div></section>;
+    return <section className="mx-auto mt-5 max-w-5xl">{modeSelector}<FunOutcome status="won" title={t("higher.finished")} className="mx-auto mt-4 max-w-2xl"><span className={`${styles.scorePop} text-base font-bold text-emerald-100`}>{t("higher.best", { count: best })}</span></FunOutcome></section>;
   }
 
   return (
     <section className="mx-auto mt-5 max-w-5xl">
       {modeSelector}
-      <div className="mt-4 flex items-center justify-between border-b border-white/10 pb-3 text-sm"><span className="text-slate-400 tabular-nums">{t("higher.question", { current: index + 1, total: round.questions.length })}</span><span className="font-bold text-blue-200 tabular-nums">{t("higher.streak", { count: streak })}</span></div>
+      <div className="mt-4 border-b border-white/10 pb-3">
+        <div className="flex items-center justify-between text-sm"><span className="text-slate-400 tabular-nums">{t("higher.question", { current: index + 1, total: round.questions.length })}</span><span key={streak} className={`${streak > 0 ? styles.scorePop : ""} font-bold text-blue-200 tabular-nums`}>{t("higher.streak", { count: streak })}</span></div>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800" role="progressbar" aria-label={t("higher.question", { current: index + 1, total: round.questions.length })} aria-valuemin={1} aria-valuemax={round.questions.length} aria-valuenow={index + 1}>
+          <span className="block h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-300 transition-[width] duration-300 ease-out motion-reduce:transition-none" style={{ width: `${((index + 1) / round.questions.length) * 100}%` }} />
+        </div>
+      </div>
       <h2 className="mx-auto mt-4 max-w-2xl text-balance text-center text-xl font-black sm:text-2xl">{t(`higher.prompts.${question.kind}`)}</h2>
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3">
+      <div
+        className="mt-4 grid grid-cols-2 gap-2 sm:gap-3"
+        onKeyDown={(event) => {
+          if (answered || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+          event.preventDefault();
+          answer(event.key === "ArrowLeft" ? "left" : "right");
+        }}
+      >
         {(["left", "right"] as const).map((side) => {
           const option = question[side];
           const correct = question.correctSide === side;
           const selected = answered === side;
           const stateClass = answered ? correct ? "border-emerald-400/55 bg-emerald-950/35" : selected ? "border-red-400/55 bg-red-950/30" : "border-white/10 bg-slate-900/60" : "border-white/10 bg-slate-900/75 hover:border-blue-300/45 hover:bg-slate-900";
           return (
-            <button key={side} type="button" onClick={() => answer(side)} disabled={Boolean(answered)} className={`min-h-32 rounded-lg border p-3 text-left transition-[border-color,background-color,transform] active:not-disabled:scale-[0.97] disabled:cursor-default sm:min-h-36 sm:p-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 ${stateClass}`}>
+            <button ref={side === "left" ? leftChoiceRef : undefined} key={side} type="button" onClick={() => answer(side)} disabled={Boolean(answered)} aria-keyshortcuts={side === "left" ? "ArrowLeft" : "ArrowRight"} className={`min-h-32 rounded-lg border p-3 text-left transition-[border-color,background-color,box-shadow,transform] duration-150 ease-out active:not-disabled:scale-[0.97] disabled:cursor-default sm:min-h-36 sm:p-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 motion-reduce:transform-none motion-reduce:transition-none ${answered && correct ? styles.good : answered && selected ? styles.bad : ""} ${stateClass}`}>
               <HigherOptionIdentity option={option} />
               {answered ? <span className={`mt-3 block text-xl font-black tabular-nums sm:text-2xl ${correct ? "text-emerald-300" : "text-slate-300"}`}>{formatValue(option.value, question.unit, t)}</span> : <span className="mt-3 block text-sm font-bold text-blue-300">{t("higher.choose")}</span>}
             </button>
           );
         })}
       </div>
-      {answered ? <div className="mt-4 flex flex-col items-center gap-3 text-center" role="status"><p className={`font-bold ${lastCorrect ? "text-emerald-300" : "text-red-300"}`}>{lastCorrect ? t("higher.correct") : t("higher.wrong")}</p><button type="button" onClick={next} className="min-h-11 rounded-md bg-blue-600 px-6 py-2.5 text-sm font-bold hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">{index + 1 === round.questions.length ? t("higher.results") : t("higher.next")}</button></div> : null}
+      {answered ? <div className={`${lastCorrect ? styles.good : styles.bad} mt-4 flex flex-col items-center gap-3 text-center`} role="status"><p className={`font-bold ${lastCorrect ? "text-emerald-300" : "text-red-300"}`}>{lastCorrect ? t("higher.correct") : t("higher.wrong")}</p><button ref={nextButtonRef} type="button" onClick={next} className="min-h-11 rounded-md bg-blue-600 px-6 py-2.5 text-sm font-bold transition-[background-color,transform] hover:bg-blue-500 active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 motion-reduce:transform-none motion-reduce:transition-none">{index + 1 === round.questions.length ? t("higher.results") : t("higher.next")}</button></div> : null}
     </section>
   );
 }
@@ -86,7 +108,7 @@ function HigherModeSelector({ selected, loading, onChange }: { selected: HigherO
               aria-pressed={active}
               disabled={loading || active}
               onClick={() => onChange(mode)}
-              className={`min-h-10 rounded-md px-3 py-2 text-sm font-bold transition-[background-color,color,transform] active:not-disabled:scale-[0.97] disabled:cursor-default ${active ? "bg-blue-600 text-white" : "text-blue-100/70 hover:bg-white/5 hover:text-white disabled:opacity-55"}`}
+              className={`min-h-11 rounded-md px-3 py-2 text-sm font-bold transition-[background-color,color,transform] active:not-disabled:scale-[0.97] disabled:cursor-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 motion-reduce:transform-none motion-reduce:transition-none ${active ? "bg-blue-600 text-white" : "text-blue-100/70 hover:bg-white/5 hover:text-white disabled:opacity-55"}`}
             >
               {t(`higher.modes.${mode}`)}
             </button>

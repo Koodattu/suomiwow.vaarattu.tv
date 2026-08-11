@@ -113,6 +113,8 @@ import {
   CharacterRankingBackfillTriggerResponse,
   CharacterRankingLeaderboardRebuildTriggerResponse,
   CharacterRankingMythicEvidenceCleanupResponse,
+  CharacterWclIdentityAuditStatusResponse,
+  CharacterWclIdentityAuditTriggerResponse,
   CharacterAchievementBackfillStatusResponse,
   CharacterAchievementBackfillTriggerResponse,
   CharacterAccountGroupRebuildResponse,
@@ -2390,6 +2392,14 @@ export const api = {
     return response.json();
   },
 
+  async getAdminCharacterWclIdentityAuditStatus(): Promise<CharacterWclIdentityAuditStatusResponse> {
+    const response = await fetch(`${API_URL}/api/admin/character-wcl-identity-audit/status`, {
+      credentials: "include",
+    });
+    if (!response.ok) throw new Error("Failed to fetch WCL character identity audit status");
+    return response.json();
+  },
+
   async getAdminFullHistoryRefreshStatus(): Promise<FullHistoryRefreshStatusResponse> {
     const response = await fetch(`${API_URL}/api/admin/full-history-refresh/status`, {
       credentials: "include",
@@ -2890,8 +2900,21 @@ export async function triggerBackfillCharacterRankings(refreshCandidates = false
     credentials: "include",
     body: JSON.stringify({ refreshCandidates, reprocessCompleted, scope }),
   });
-  if (!response.ok) throw new Error("Failed to trigger character ranking backfill");
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || "Failed to trigger character ranking backfill");
+  }
   return response.json();
+}
+
+export async function triggerBackfillWclCharacterIdentities(): Promise<CharacterWclIdentityAuditTriggerResponse> {
+  const response = await fetch(`${API_URL}/api/admin/trigger/backfill-wcl-character-identities`, {
+    method: "POST",
+    credentials: "include",
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Failed to start WCL identity recovery");
+  return data;
 }
 
 export async function triggerBackfillCharacterAchievements(refreshCandidates = false, refreshAll = false): Promise<CharacterAchievementBackfillTriggerResponse> {

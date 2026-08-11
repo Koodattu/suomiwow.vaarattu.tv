@@ -9,6 +9,8 @@ import { FunRaidIdentity } from "../FunEncounterIdentity";
 import FunGuildIdentity, { FunGuildCrest } from "../FunGuildIdentity";
 import ProgressiveClues from "../ProgressiveClues";
 import { useDebouncedFunGameSearch } from "../useFunGameSearch";
+import FunOutcome from "../FunOutcome";
+import styles from "../fun-feedback.module.css";
 
 type GuessFeedback = {
   guild: FunGuild;
@@ -76,10 +78,10 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
             <span className="text-slate-400 tabular-nums">{t("common.mistakes", { count: guesses.length, total: 5 })}</span>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-3" role="status">
-            <p className={`text-lg font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p>
-            <FunGuildIdentity guild={target} crestSize={34} />
-          </div>
+          <FunOutcome status={status} className="sm:col-span-2">
+            <span className="mt-1 block text-slate-400">{t("guildGuessr.answerWas")}</span>
+            <FunGuildIdentity guild={target} crestSize={34} className="mt-2" />
+          </FunOutcome>
         )}
         {status === "playing" ? (
           <div className="sm:row-start-1 sm:col-start-2">
@@ -93,6 +95,7 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
               emptyLabel={emptyLabel}
               loading={search.isSearching}
               filterItems={false}
+              autoFocus
               onSelect={submitGuess}
               onQueryChange={setQuery}
             />
@@ -107,7 +110,7 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
           <div className="min-w-0 space-y-3">
             {round.neighbors.slice(0, 2).map((neighbor) => <Neighbor key={neighbor.guild.id} neighbor={neighbor} />)}
           </div>
-          <div className="grid min-h-32 place-items-center rounded-xl border-2 border-dashed border-blue-300/35 bg-blue-950/35 text-center">
+          <div className={`${styles.softPulse} grid min-h-32 place-items-center rounded-xl border-2 border-dashed border-blue-300/35 bg-blue-950/35 text-center`}>
             <div>
               <span className="text-4xl font-black text-blue-200" aria-hidden="true">?</span>
               <p className="mt-1 text-xs font-bold uppercase tracking-wider text-slate-400">{t("guildGuessr.target")}</p>
@@ -122,7 +125,7 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
         {guesses.length > 0 ? (
         <div className="mt-3 space-y-2">
           {guesses.map((guess) => (
-            <div key={guess.guild.id} className="grid gap-2 rounded-lg border border-red-400/20 bg-red-950/20 px-4 py-3 text-sm sm:grid-cols-[minmax(12rem,1fr)_auto_auto] sm:items-center">
+            <div key={guess.guild.id} className={`${styles.bad} grid gap-2 rounded-lg border border-red-400/20 bg-red-950/20 px-4 py-3 text-sm sm:grid-cols-[minmax(12rem,1fr)_auto_auto] sm:items-center`}>
               <FunGuildIdentity guild={guess.guild} crestSize={34} />
               <span className={guess.sameRealm ? "text-emerald-300" : "text-slate-400"}>
                 {guess.sameRealm ? t("guildGuessr.sameRealm") : t("guildGuessr.differentRealm")}
@@ -137,6 +140,7 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
       <aside className="h-fit border-t border-white/10 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
           <div>
             <h2 className="font-black">{t("guildGuessr.clues")}</h2>
+            {guesses.length === 0 ? <p className="mt-1 text-xs leading-5 text-slate-400">{t("guildGuessr.cluesPending")}</p> : null}
             <ProgressiveClues items={clueItems} revealed={guesses.length} />
           </div>
       </aside>

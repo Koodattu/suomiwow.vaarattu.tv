@@ -1,0 +1,174 @@
+.gameEnter {
+  transform-origin: top center;
+  animation: gameEnter 360ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.reveal {
+  animation: reveal 300ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.good {
+  transform-origin: center;
+  animation: goodPop 380ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.bad {
+  animation: badNudge 300ms cubic-bezier(0.36, 0.07, 0.19, 0.97) backwards;
+}
+
+.scorePop {
+  display: inline-block;
+  animation: scorePop 340ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.outcome {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  animation: outcomeEnter 480ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.outcome::after {
+  position: absolute;
+  z-index: -1;
+  inset: -80% 35% auto;
+  height: 12rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgb(255 255 255 / 0.16), transparent 68%);
+  content: "";
+  opacity: 0;
+  animation: outcomeGlow 900ms ease-out backwards;
+}
+
+.barRise {
+  transform-origin: bottom;
+  animation: barRise 560ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.softPulse {
+  animation: softPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes gameEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes goodPop {
+  0% {
+    transform: scale(0.94);
+    filter: brightness(1.35);
+  }
+  58% {
+    transform: scale(1.025);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes badNudge {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  55% {
+    transform: translateX(3px);
+  }
+  78% {
+    transform: translateX(-1px);
+  }
+}
+
+@keyframes scorePop {
+  from {
+    opacity: 0.6;
+    transform: translateY(3px) scale(0.78);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes outcomeEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  65% {
+    transform: translateY(-1px) scale(1.008);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes outcomeGlow {
+  from {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  45% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes barRise {
+  from {
+    opacity: 0.35;
+    transform: scaleY(0.08);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes softPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgb(96 165 250 / 0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgb(96 165 250 / 0.1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gameEnter,
+  .reveal,
+  .good,
+  .bad,
+  .scorePop,
+  .outcome,
+  .outcome::after,
+  .barRise,
+  .softPulse {
+    animation: none;
+  }
+}

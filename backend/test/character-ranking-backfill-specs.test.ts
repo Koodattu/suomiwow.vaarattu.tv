@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import characterRankingBackfillService from "../src/services/character-ranking-backfill.service";
 import rateLimitService from "../src/services/rate-limit.service";
+import { getWclRankingPartitionIds } from "../src/utils/wcl-ranking-partitions";
 
 test("ranking backfill fetches every class spec even when one spec was already observed", () => {
   const service = characterRankingBackfillService as any;
@@ -31,6 +32,20 @@ test("ranking backfill recognizes WCL spec names whose stored slug contains punc
   });
 
   assert.equal(queries.find((query: any) => query.specSlug === "beast-mastery")?.source, "observed");
+});
+
+test("ranking backfill queries every configured raid partition explicitly", () => {
+  const service = characterRankingBackfillService as any;
+  const partitionIds = getWclRankingPartitionIds([{ id: 2 }, { id: 1 }, { id: 2 }, { id: 0 }, { id: "3" }]);
+  const specQueries = service.buildSpecQueries({ classID: 8, observedSpecNames: ["Assassination"] });
+  const partitionQueries = service.buildPartitionQueries(specQueries, partitionIds);
+  const query = service.buildWclQuery(partitionQueries);
+
+  assert.deepEqual(partitionIds, [1, 2]);
+  assert.equal(partitionQueries.length, specQueries.length * 2);
+  assert.match(query, /assassinationDpsRankingsPartition1: zoneRankings\([^\n]+partition: 1/);
+  assert.match(query, /assassinationDpsRankingsPartition2: zoneRankings\([^\n]+partition: 2/);
+  assert.doesNotMatch(query, /partition: -1/);
 });
 
 test("ranking backfill cooperative stop interrupts a rate-limit wait", async () => {

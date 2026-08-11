@@ -9,6 +9,8 @@ import CharacterGuessInput, { characterGuessKey } from "../CharacterGuessInput";
 import { FunClassIcon } from "../FunCharacterIdentity";
 import FunGuildIdentity, { FunGuildCrest } from "../FunGuildIdentity";
 import { FunRaidIdentity } from "../FunEncounterIdentity";
+import FunOutcome from "../FunOutcome";
+import styles from "../fun-feedback.module.css";
 
 type FilledCell = { key: string; name: string; realm: string };
 export const MAX_IMMACULATE_MISTAKES = 5;
@@ -73,6 +75,7 @@ export default function ImmaculateRoster({ round, onMistakesChange }: { round: I
 
   return (
     <section className="mt-5">
+      <p className="mb-3 text-pretty text-sm text-slate-400">{t("immaculate.tip")}</p>
       <div className="min-w-0 overflow-hidden rounded-xl bg-slate-950/45">
         <div className="overflow-x-auto p-2 sm:p-3">
           <div className="grid min-w-[46rem] grid-cols-[17rem_repeat(3,minmax(9rem,1fr))] gap-2">
@@ -98,7 +101,7 @@ export default function ImmaculateRoster({ round, onMistakesChange }: { round: I
                 const selected = selectedCell === cellKey;
                 if (selected && !answer && status === "playing") {
                   return (
-                    <div key={cellKey} className="min-h-24">
+                    <div key={cellKey} className={`${styles.softPulse} min-h-24 rounded-lg`}>
                       <CharacterGuessInput onSelect={submitCharacter} autoFocus immediate={false} cell showClassIcon={false} />
                     </div>
                   );
@@ -109,12 +112,13 @@ export default function ImmaculateRoster({ round, onMistakesChange }: { round: I
                     type="button"
                     onClick={() => status === "playing" && !answer && setSelectedCell(cellKey)}
                     disabled={status !== "playing" || Boolean(answer)}
-                    className={`min-h-24 rounded-lg border p-3 text-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 ${
+                    aria-label={`${row.guild.name} · ${column.name}`}
+                    className={`min-h-24 rounded-lg border p-3 text-center transition-[border-color,background-color,transform] duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 motion-reduce:transform-none motion-reduce:transition-none ${
                       answer
-                        ? "border-emerald-400/30 bg-emerald-950/35"
+                        ? `${styles.good} border-emerald-400/30 bg-emerald-950/35`
                         : showExample
-                          ? "border-red-400/25 bg-red-950/25"
-                          : "border-white/10 bg-slate-900/75 hover:border-blue-300/35"
+                          ? `${styles.reveal} border-red-400/25 bg-red-950/25`
+                          : "border-white/10 bg-slate-900/75 hover:-translate-y-0.5 hover:border-blue-300/35 active:not-disabled:scale-[0.98]"
                     }`}
                   >
                     {answer ? (
@@ -132,9 +136,8 @@ export default function ImmaculateRoster({ round, onMistakesChange }: { round: I
         {status === "playing" ? (
           notice ? <p className="border-t border-white/10 px-4 py-2 text-xs font-semibold text-blue-200" role="status">{notice}</p> : null
         ) : (
-          <div className="border-t border-white/10 px-4 py-3" role="status">
-            <p className={`font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p>
-            <p className="text-sm text-slate-400">{status === "won" ? t("immaculate.wonSummary", { mistakes }) : t("immaculate.lostSummary")}</p>
+          <div className="border-t border-white/10 p-3">
+            <FunOutcome status={status}>{status === "won" ? t("immaculate.wonSummary", { mistakes }) : t("immaculate.lostSummary")}</FunOutcome>
           </div>
         )}
       </div>
@@ -151,7 +154,7 @@ export default function ImmaculateRoster({ round, onMistakesChange }: { round: I
             {incorrectAttempts.map((attempt) => {
               const guessedClass = getClassInfoById(attempt.character.classID);
               return (
-                <div key={attempt.id} className="grid grid-cols-2 gap-1 px-1 py-2 text-sm sm:grid-cols-[minmax(0,1.15fr)_minmax(0,1.25fr)_minmax(0,1fr)] sm:gap-4 sm:px-3" role="row">
+                <div key={attempt.id} className={`${styles.bad} grid grid-cols-2 gap-1 px-1 py-2 text-sm sm:grid-cols-[minmax(0,1.15fr)_minmax(0,1.25fr)_minmax(0,1fr)] sm:gap-4 sm:px-3`} role="row">
                   <AttemptCell label={t("immaculate.guessedCharacter")}>
                     <div className="min-w-0">
                       <span className="block truncate font-bold">{attempt.character.name}</span>

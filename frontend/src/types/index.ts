@@ -3980,6 +3980,14 @@ export interface CharacterRankingBackfillStatusResponse {
 
 export interface CharacterRankingBackfillTriggerResponse extends TriggerResponse {
   started: boolean;
+  partitionRefresh: {
+    requestedRaidIds: number[];
+    updatedRaidIds: number[];
+    failures: Array<{
+      raidId: number;
+      reason: string;
+    }>;
+  };
   enqueue: {
     candidates: number;
     queued: number;
@@ -4002,6 +4010,68 @@ export interface CharacterRankingMythicEvidenceCleanupResponse extends TriggerRe
   rankingsDeleted: number;
   leaderboardEntriesDeleted: number;
   backfillItemsDeleted: number;
+}
+
+export type CharacterWclIdentityAuditItemStatus = "pending" | "in_progress" | "completed" | "skipped" | "failed";
+export type CharacterWclIdentityAuditOutcome = "resolved" | "hidden" | "not_found" | "class_mismatch" | "invalid_response";
+
+export interface CharacterWclIdentityAuditItem {
+  id: string;
+  characterId: string;
+  expectedWclCanonicalCharacterId: number;
+  expectedClassID: number;
+  sourceName: string;
+  sourceRealm: string;
+  sourceRegion: string;
+  status: CharacterWclIdentityAuditItemStatus;
+  outcome?: CharacterWclIdentityAuditOutcome | null;
+  identityChanged: boolean;
+  attempts: number;
+  maxAttempts: number;
+  resolvedName?: string | null;
+  resolvedRealm?: string | null;
+  resolvedRegion?: string | null;
+  resolvedClassID?: number | null;
+  completionReason?: string | null;
+  lastError?: string | null;
+  lastActivityAt: string;
+}
+
+export interface CharacterWclIdentityAuditStatusResponse {
+  processor: {
+    isRunning: boolean;
+    isWaitingForRateLimit: boolean;
+    currentItem: CharacterWclIdentityAuditItem | null;
+    lastMessage: string | null;
+  };
+  queue: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    skipped: number;
+    failed: number;
+    total: number;
+    resolved: number;
+    hidden: number;
+    notFound: number;
+    classMismatch: number;
+    invalidResponse: number;
+    identitiesChanged: number;
+  };
+  recentIssues: CharacterWclIdentityAuditItem[];
+  updatedAt: string;
+}
+
+export interface CharacterWclIdentityAuditTriggerResponse extends TriggerResponse {
+  started: boolean;
+  enqueue: {
+    candidates: number;
+    queued: number;
+    existing: number;
+    requeued: number;
+    limit: number | null;
+  };
+  status: CharacterWclIdentityAuditStatusResponse;
 }
 
 export type CharacterAchievementBackfillItemStatus = "pending" | "in_progress" | "completed" | "not_found" | "skipped" | "failed";

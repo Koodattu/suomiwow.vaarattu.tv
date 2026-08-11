@@ -80,15 +80,15 @@ export default function FunAutocomplete<T>({
             <path d="m13 13 4 4" />
           </svg>
         ) : null}
-        {loading ? <span className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin rounded-full border-2 border-slate-500 border-t-blue-300" aria-hidden="true" /> : null}
+        {loading ? <span className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin rounded-full border-2 border-slate-500 border-t-blue-300 motion-reduce:animate-none" aria-hidden="true" /> : null}
         <Combobox.Options
           anchor="bottom start"
           className="z-50 max-h-64 w-[--input-width] min-w-72 max-w-[calc(100vw-2rem)] overflow-auto rounded-md border border-blue-300/25 bg-slate-900 py-1 shadow-2xl [--anchor-gap:4px] empty:invisible"
         >
           {filtered.length === 0 ? <div className="px-3 py-3 text-sm text-slate-400">{emptyLabel}</div> : null}
           {filtered.map((item) => (
-            <Combobox.Option key={getKey(item)} value={item} className="cursor-pointer data-focus:bg-blue-600/35">
-              <div className="px-3 py-2 text-sm text-white">{renderOption ? renderOption(item) : getLabel(item)}</div>
+            <Combobox.Option key={getKey(item)} value={item} className="cursor-pointer outline-none transition-colors data-focus:bg-blue-600/35 data-focus:shadow-[inset_3px_0_0_#93c5fd] motion-reduce:transition-none">
+              <div className="min-h-11 px-3 py-2 text-sm text-white">{renderOption ? renderOption(item) : getLabel(item)}</div>
             </Combobox.Option>
           ))}
         </Combobox.Options>

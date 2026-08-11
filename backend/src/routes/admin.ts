@@ -41,6 +41,7 @@ import ccgCharacterIdentityService from "../services/ccg-character-identity.serv
 import characterMechanicsService from "../services/character-mechanics.service";
 import characterTierListService from "../services/character-tierlist.service";
 import characterRankingBackfillService from "../services/character-ranking-backfill.service";
+import characterWclIdentityAuditService from "../services/character-wcl-identity-audit.service";
 import fullHistoryRefreshService from "../services/full-history-refresh.service";
 import characterGuildAttributionRepairService from "../services/character-guild-attribution-repair.service";
 import characterAchievementService from "../services/character-achievement.service";
@@ -2676,6 +2677,15 @@ router.get("/character-ranking-backfill/status", async (req: Request, res: Respo
   }
 });
 
+router.get("/character-wcl-identity-audit/status", async (_req: Request, res: Response) => {
+  try {
+    res.json(await characterWclIdentityAuditService.getStatus());
+  } catch (error) {
+    logger.error("Error fetching character WCL identity audit status:", error);
+    res.status(500).json({ error: "Failed to fetch character WCL identity audit status" });
+  }
+});
+
 router.get("/full-history-refresh/status", async (_req: Request, res: Response) => {
   try {
     res.json(await fullHistoryRefreshService.getStatus());
@@ -3519,7 +3529,18 @@ router.post("/trigger/backfill-character-rankings", async (req: Request, res: Re
     const refreshCandidates = req.body?.refreshCandidates === true;
     const reprocessCompleted = req.body?.reprocessCompleted === true;
     const scope = req.body?.scope === "all" ? "all" : "current";
-    const zoneIds = scope === "all" ? undefined : CURRENT_RAID_IDS;
+    const partitionRaidIds = scope === "all" ? TRACKED_RAIDS : CURRENT_RAID_IDS;
+    const partitionRefresh = await guildService.refreshRaidPartitions(partitionRaidIds);
+    if (partitionRefresh.failures.length > 0) {
+      const failedRaidIds = partitionRefresh.failures.map((failure) => failure.raidId).join(", ");
+      res.status(502).json({
+        error: `Ranking backfill was not started because Warcraft Logs partition metadata could not be refreshed for raid(s): ${failedRaidIds}`,
+        partitionRefresh,
+      });
+      return;
+    }
+
+    const zoneIds = scope === "all" ? undefined : partitionRaidIds;
     const result = await characterRankingBackfillService.triggerBackfill({ refreshCandidates, reprocessCompleted, zoneIds });
     const queueMessage = result.enqueue.discoverySkipped
       ? `candidate discovery skipped, ${result.enqueue.existing} persistent queue items already exist`
@@ -3528,11 +3549,35 @@ router.post("/trigger/backfill-character-rankings", async (req: Request, res: Re
     res.json({
       success: true,
       message: result.started ? `Character ranking backfill started: ${queueMessage}${requeueMessage}` : `Character ranking backfill is already running: ${queueMessage}${requeueMessage}`,
+      partitionRefresh,
       ...result,
     });
   } catch (error) {
     logger.error("Error triggering character ranking backfill:", error);
     res.status(500).json({ error: "Failed to trigger character ranking backfill" });
+  }
+});
+
+router.post("/trigger/backfill-wcl-character-identities", async (req: Request, res: Response) => {
+  try {
+    const requestedLimit = Number(req.body?.maxCandidates);
+    const maxCandidates = Number.isInteger(requestedLimit) && requestedLimit > 0 ? requestedLimit : undefined;
+    const result = await characterWclIdentityAuditService.triggerBackfill({
+      maxCandidates,
+      reprocessFailed: req.body?.reprocessFailed === true,
+    });
+    res.json({
+      success: true,
+      message: result.started
+        ? `WCL identity recovery started with ${result.enqueue.queued} new Armory-missing character(s)`
+        : result.status.processor.isRunning
+          ? `WCL identity recovery is already running; ${result.enqueue.queued} new Armory-missing character(s) queued`
+          : "No unchecked Armory-missing characters were found",
+      ...result,
+    });
+  } catch (error) {
+    logger.error("Error triggering character WCL identity audit:", error);
+    res.status(500).json({ error: "Failed to trigger character WCL identity audit" });
   }
 });
 

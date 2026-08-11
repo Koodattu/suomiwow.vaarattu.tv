@@ -54,6 +54,15 @@ interface RaidDatesRefreshResult {
   updatedRaidIds: number[];
 }
 
+export interface RaidPartitionRefreshResult {
+  requestedRaidIds: number[];
+  updatedRaidIds: number[];
+  failures: Array<{
+    raidId: number;
+    reason: string;
+  }>;
+}
+
 interface FightVodTarget {
   reportCode: string;
   fightId: number;
@@ -466,15 +475,23 @@ class GuildService {
       }));
   }
 
-  async refreshRaidPartitions(raidIds: number[] = CURRENT_RAID_IDS): Promise<void> {
-    if (raidIds.length === 0) return;
+  async refreshRaidPartitions(raidIds: number[] = CURRENT_RAID_IDS): Promise<RaidPartitionRefreshResult> {
+    const requestedRaidIds = Array.from(new Set(raidIds));
+    const result: RaidPartitionRefreshResult = {
+      requestedRaidIds,
+      updatedRaidIds: [],
+      failures: [],
+    };
 
-    for (const raidId of raidIds) {
+    if (requestedRaidIds.length === 0) return result;
+
+    for (const raidId of requestedRaidIds) {
       try {
         const detailResult = await wclService.getZone(raidId);
         const zoneData = detailResult.worldData?.zone;
-        if (!zoneData?.partitions) {
+        if (!Array.isArray(zoneData?.partitions) || zoneData.partitions.length === 0) {
           logger.warn(`[Raids] No partitions returned for raid ${raidId}`);
+          result.failures.push({ raidId, reason: "Warcraft Logs returned no partitions" });
           continue;
         }
 
@@ -484,12 +501,16 @@ class GuildService {
         }));
 
         await Raid.updateOne({ id: raidId }, { $set: { partitions } });
+        result.updatedRaidIds.push(raidId);
 
         logger.info(`[Raids] Refreshed partitions for raid ${raidId} (${partitions.length} entries)`);
       } catch (error) {
         logger.error(`[Raids] Failed to refresh partitions for raid ${raidId}:`, error);
+        result.failures.push({ raidId, reason: error instanceof Error ? error.message : String(error) });
       }
     }
+
+    return result;
   }
 
   // Sync raid information from WarcraftLogs to database

@@ -2086,7 +2086,23 @@
     "characterIdentity": {
       "refreshAllAchievementData": "Päivitä kaikki achievement-data",
       "raidSummaries": "{count} raid-yhteenvetoa",
-      "raidAchievementTargets": "{count} CE/AOTC-kohdetta"
+      "raidAchievementTargets": "{count} CE/AOTC-kohdetta",
+      "wclRecoveryGroup": "1. Palauta Armoryssa puuttuvat hahmot",
+      "wclRecoveryButton": "Etsi puuttuvat Armory-hahmot WCL:stä",
+      "wclRecoveryStatus": "WCL-identiteettien palautus",
+      "achievementGroup": "2. Achievement-tunnisteet",
+      "accountGroup": "3. Tiliryhmät",
+      "rateLimited": "Rate limit saavutettu",
+      "running": "Käynnissä",
+      "idle": "Odottaa",
+      "pending": "jonossa",
+      "verified": "varmistettu",
+      "updated": "päivitetty",
+      "notFound": "ei löytynyt",
+      "classMismatch": "väärä luokka",
+      "failed": "epäonnistui",
+      "tracked": "{count} seurannassa",
+      "current": "Käsitellään"
     }
   },
   "pickemsRulesPage": {

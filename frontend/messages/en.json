@@ -2086,7 +2086,23 @@
     "characterIdentity": {
       "refreshAllAchievementData": "Refresh All Achievement Data",
       "raidSummaries": "{count} raid summaries",
-      "raidAchievementTargets": "{count} CE/AOTC targets"
+      "raidAchievementTargets": "{count} CE/AOTC targets",
+      "wclRecoveryGroup": "1. Recover missing Armory identities",
+      "wclRecoveryButton": "Match Missing Armory Characters via WCL",
+      "wclRecoveryStatus": "WCL identity recovery",
+      "achievementGroup": "2. Achievement fingerprints",
+      "accountGroup": "3. Account groups",
+      "rateLimited": "Rate limited",
+      "running": "Running",
+      "idle": "Idle",
+      "pending": "pending",
+      "verified": "verified",
+      "updated": "updated",
+      "notFound": "not found",
+      "classMismatch": "class mismatch",
+      "failed": "failed",
+      "tracked": "{count} tracked",
+      "current": "Current"
     }
   },
   "pickemsRulesPage": {

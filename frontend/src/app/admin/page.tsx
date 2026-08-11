@@ -31,6 +31,7 @@ import {
   triggerRescanCharacters,
   triggerBackfillReportCharacters,
   triggerBackfillCharacterRankings,
+  triggerBackfillWclCharacterIdentities,
   triggerBackfillCharacterAchievements,
   triggerBackfillMythicPlusHistorical,
   triggerFetchMissingMythicPlusCharacters,
@@ -107,6 +108,7 @@ import {
   AdminCharacterContinuityLinkPreview,
   AdminCharacterStats,
   CharacterRankingBackfillStatusResponse,
+  CharacterWclIdentityAuditStatusResponse,
   FullHistoryRefreshStatusResponse,
   FullHistoryRefreshStage,
   CharacterAchievementBackfillStatusResponse,
@@ -435,6 +437,7 @@ function AdminPageContent() {
   const [processorStatus, setProcessorStatus] = useState<ProcessorStatus | null>(null);
   const [queueStats, setQueueStats] = useState<QueueStatistics | null>(null);
   const [characterRankingBackfillStatus, setCharacterRankingBackfillStatus] = useState<CharacterRankingBackfillStatusResponse | null>(null);
+  const [characterWclIdentityAuditStatus, setCharacterWclIdentityAuditStatus] = useState<CharacterWclIdentityAuditStatusResponse | null>(null);
   const [fullHistoryRefreshStatus, setFullHistoryRefreshStatus] = useState<FullHistoryRefreshStatusResponse | null>(null);
   const [characterAchievementBackfillStatus, setCharacterAchievementBackfillStatus] = useState<CharacterAchievementBackfillStatusResponse | null>(null);
   const [mythicPlusCrawlerStatus, setMythicPlusCrawlerStatus] = useState<MythicPlusCrawlerStatusResponse | null>(null);
@@ -617,12 +620,13 @@ function AdminPageContent() {
       try {
         switch (activeTab) {
           case "overview": {
-            const [overviewData, rateLimitData, queueStatsData, adminRaidsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData, fullHistoryRefreshData] = await Promise.all([
+            const [overviewData, rateLimitData, queueStatsData, adminRaidsData, characterRankingBackfillData, characterWclIdentityAuditData, characterAchievementBackfillData, mythicPlusCrawlerData, fullHistoryRefreshData] = await Promise.all([
               api.getAdminOverview(),
               api.getAdminRateLimitStatus(),
               api.getAdminProcessingQueueStats(),
               getAdminRaids(),
               api.getAdminCharacterRankingBackfillStatus(),
+              api.getAdminCharacterWclIdentityAuditStatus(),
               api.getAdminCharacterAchievementBackfillStatus(),
               api.getAdminMythicPlusCrawlerStatus(),
               api.getAdminFullHistoryRefreshStatus(),
@@ -635,6 +639,7 @@ function AdminPageContent() {
             setQueueStats(queueStatsData.queue);
             setAdminRaids(adminRaidsData.raids);
             setCharacterRankingBackfillStatus(characterRankingBackfillData);
+            setCharacterWclIdentityAuditStatus(characterWclIdentityAuditData);
             setCharacterAchievementBackfillStatus(characterAchievementBackfillData);
             setMythicPlusCrawlerStatus(mythicPlusCrawlerData);
             setFullHistoryRefreshStatus(fullHistoryRefreshData);
@@ -698,13 +703,14 @@ function AdminPageContent() {
           }
 
           case "system": {
-            const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData, fullHistoryRefreshData] = await Promise.all([
+            const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterWclIdentityAuditData, characterAchievementBackfillData, mythicPlusCrawlerData, fullHistoryRefreshData] = await Promise.all([
               api.getAdminRateLimitStatus(),
               api.getAdminWarcraftLogsUserAuthStatus(),
               api.getAdminProcessingQueueStats(),
               api.getAdminProcessingQueue(queuePage, 20, queueFilter || undefined),
               api.getAdminProcessingQueueErrors(1, 50),
               api.getAdminCharacterRankingBackfillStatus(),
+              api.getAdminCharacterWclIdentityAuditStatus(),
               api.getAdminCharacterAchievementBackfillStatus(),
               api.getAdminMythicPlusCrawlerStatus(),
               api.getAdminFullHistoryRefreshStatus(),
@@ -719,6 +725,7 @@ function AdminPageContent() {
             setQueueTotalPages(queueData.pagination.totalPages);
             setErrorItems(errorsData.items);
             setCharacterRankingBackfillStatus(characterRankingBackfillData);
+            setCharacterWclIdentityAuditStatus(characterWclIdentityAuditData);
             setCharacterAchievementBackfillStatus(characterAchievementBackfillData);
             setMythicPlusCrawlerStatus(mythicPlusCrawlerData);
             setFullHistoryRefreshStatus(fullHistoryRefreshData);
@@ -780,13 +787,14 @@ function AdminPageContent() {
     if (activeTab === "system" && user?.isAdmin) {
       const interval = setInterval(async () => {
         try {
-          const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData, fullHistoryRefreshData] = await Promise.all([
+          const [rateLimitData, wclUserAuthData, queueStatsData, queueData, errorsData, characterRankingBackfillData, characterWclIdentityAuditData, characterAchievementBackfillData, mythicPlusCrawlerData, fullHistoryRefreshData] = await Promise.all([
             api.getAdminRateLimitStatus(),
             api.getAdminWarcraftLogsUserAuthStatus(),
             api.getAdminProcessingQueueStats(),
             api.getAdminProcessingQueue(queuePage, 20, queueFilter || undefined),
             api.getAdminProcessingQueueErrors(1, 50),
             api.getAdminCharacterRankingBackfillStatus(),
+            api.getAdminCharacterWclIdentityAuditStatus(),
             api.getAdminCharacterAchievementBackfillStatus(),
             api.getAdminMythicPlusCrawlerStatus(),
             api.getAdminFullHistoryRefreshStatus(),
@@ -801,6 +809,7 @@ function AdminPageContent() {
           setQueueTotalPages(queueData.pagination.totalPages);
           setErrorItems(errorsData.items);
           setCharacterRankingBackfillStatus(characterRankingBackfillData);
+          setCharacterWclIdentityAuditStatus(characterWclIdentityAuditData);
           setCharacterAchievementBackfillStatus(characterAchievementBackfillData);
           setMythicPlusCrawlerStatus(mythicPlusCrawlerData);
           setFullHistoryRefreshStatus(fullHistoryRefreshData);
@@ -823,9 +832,10 @@ function AdminPageContent() {
 
     const interval = setInterval(async () => {
       try {
-        const [rateLimitData, characterRankingBackfillData, characterAchievementBackfillData, mythicPlusCrawlerData, fullHistoryRefreshData] = await Promise.all([
+        const [rateLimitData, characterRankingBackfillData, characterWclIdentityAuditData, characterAchievementBackfillData, mythicPlusCrawlerData, fullHistoryRefreshData] = await Promise.all([
           api.getAdminRateLimitStatus(),
           api.getAdminCharacterRankingBackfillStatus(),
+          api.getAdminCharacterWclIdentityAuditStatus(),
           api.getAdminCharacterAchievementBackfillStatus(),
           api.getAdminMythicPlusCrawlerStatus(),
           api.getAdminFullHistoryRefreshStatus(),
@@ -834,6 +844,7 @@ function AdminPageContent() {
         setRateLimitBuckets(rateLimitData.buckets);
         setRateLimitConfig(rateLimitData.config);
         setCharacterRankingBackfillStatus(characterRankingBackfillData);
+        setCharacterWclIdentityAuditStatus(characterWclIdentityAuditData);
         setCharacterAchievementBackfillStatus(characterAchievementBackfillData);
         setMythicPlusCrawlerStatus(mythicPlusCrawlerData);
         setFullHistoryRefreshStatus(fullHistoryRefreshData);
@@ -911,6 +922,13 @@ function AdminPageContent() {
   const characterAchievementQueue = characterAchievementBackfillStatus?.queue;
   const characterAchievementPercent =
     characterAchievementQueue && characterAchievementQueue.total > 0 ? Math.round((characterAchievementQueue.terminal / characterAchievementQueue.total) * 100) : 0;
+  const characterWclIdentityAuditQueue = characterWclIdentityAuditStatus?.queue;
+  const characterWclIdentityAuditTerminal = characterWclIdentityAuditQueue
+    ? characterWclIdentityAuditQueue.completed + characterWclIdentityAuditQueue.skipped + characterWclIdentityAuditQueue.failed
+    : 0;
+  const characterWclIdentityAuditPercent = characterWclIdentityAuditQueue && characterWclIdentityAuditQueue.total > 0
+    ? Math.round((characterWclIdentityAuditTerminal / characterWclIdentityAuditQueue.total) * 100)
+    : 0;
   const mythicPlusQueue = mythicPlusCrawlerStatus?.queue;
   const mythicPlusActiveJobs = mythicPlusQueue ? mythicPlusQueue.pending + mythicPlusQueue.inProgress + mythicPlusQueue.rateLimited : 0;
   const mythicPlusPercent = mythicPlusQueue && mythicPlusQueue.total > 0 ? Math.round((mythicPlusQueue.terminal / mythicPlusQueue.total) * 100) : 0;
@@ -972,6 +990,9 @@ function AdminPageContent() {
       ) {
         const status = await api.getAdminCharacterAchievementBackfillStatus();
         setCharacterAchievementBackfillStatus(status);
+      }
+      if (triggerName === "backfill-wcl-character-identities") {
+        setCharacterWclIdentityAuditStatus(await api.getAdminCharacterWclIdentityAuditStatus());
       }
       if (
         triggerName === "backfill-mythic-plus-historical" ||
@@ -2658,12 +2679,73 @@ function AdminPageContent() {
                 </ManualActionCard>
 
                 <ManualActionCard icon="🧬" title="Character Identity Pipeline">
-                  <ManualActionGroup title="1. Achievement fingerprints">
+                  <ManualActionGroup title={t("characterIdentity.wclRecoveryGroup")}>
+                    {renderTriggerButton(
+                      "backfill-wcl-character-identities",
+                      t("characterIdentity.wclRecoveryButton"),
+                      triggerBackfillWclCharacterIdentities,
+                      { disabled: characterWclIdentityAuditStatus?.processor.isRunning },
+                    )}
+                  </ManualActionGroup>
+                  {characterWclIdentityAuditStatus && characterWclIdentityAuditQueue && (
+                    <div className="rounded bg-gray-900/60 border border-gray-700 p-3 text-xs text-gray-300 space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium text-white">{t("characterIdentity.wclRecoveryStatus")}</span>
+                        <span className={characterWclIdentityAuditStatus.processor.isRunning ? "text-blue-400" : "text-gray-400"}>
+                          {characterWclIdentityAuditStatus.processor.isWaitingForRateLimit
+                            ? t("characterIdentity.rateLimited")
+                            : characterWclIdentityAuditStatus.processor.isRunning
+                              ? t("characterIdentity.running")
+                              : t("characterIdentity.idle")}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-1.5">
+                        <div className="h-1.5 rounded-full bg-violet-500" style={{ width: `${Math.min(100, characterWclIdentityAuditPercent)}%` }} />
+                      </div>
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center tabular-nums">
+                        <div>
+                          <div className="text-amber-400 font-semibold">{characterWclIdentityAuditQueue.pending}</div>
+                          <div className="text-gray-500">{t("characterIdentity.pending")}</div>
+                        </div>
+                        <div>
+                          <div className="text-green-400 font-semibold">{characterWclIdentityAuditQueue.completed}</div>
+                          <div className="text-gray-500">{t("characterIdentity.verified")}</div>
+                        </div>
+                        <div>
+                          <div className="text-violet-300 font-semibold">{characterWclIdentityAuditQueue.identitiesChanged}</div>
+                          <div className="text-gray-500">{t("characterIdentity.updated")}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-400 font-semibold">{characterWclIdentityAuditQueue.notFound}</div>
+                          <div className="text-gray-500">{t("characterIdentity.notFound")}</div>
+                        </div>
+                        <div>
+                          <div className="text-orange-300 font-semibold">{characterWclIdentityAuditQueue.classMismatch}</div>
+                          <div className="text-gray-500">{t("characterIdentity.classMismatch")}</div>
+                        </div>
+                        <div>
+                          <div className="text-red-400 font-semibold">{characterWclIdentityAuditQueue.failed}</div>
+                          <div className="text-gray-500">{t("characterIdentity.failed")}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-gray-500 tabular-nums">
+                        <span>{characterWclIdentityAuditPercent}%</span>
+                        <span>{t("characterIdentity.tracked", { count: characterWclIdentityAuditQueue.total })}</span>
+                      </div>
+                      {characterWclIdentityAuditStatus.processor.currentItem && (
+                        <div className="text-gray-400 truncate">
+                          {t("characterIdentity.current")}: {characterWclIdentityAuditStatus.processor.currentItem.sourceName}-{characterWclIdentityAuditStatus.processor.currentItem.sourceRealm}
+                        </div>
+                      )}
+                      {characterWclIdentityAuditStatus.processor.lastMessage && <div className="text-gray-500 truncate">{characterWclIdentityAuditStatus.processor.lastMessage}</div>}
+                    </div>
+                  )}
+                  <ManualActionGroup title={t("characterIdentity.achievementGroup")}>
                     {renderTriggerButton("backfill-character-achievements", "Start Achievement Backfill", triggerBackfillCharacterAchievements)}
                     {renderTriggerButton("refresh-character-achievement-candidates", "Retry Missing Achievement Fingerprints", () => triggerBackfillCharacterAchievements(true))}
                     {renderTriggerButton("refresh-character-achievement-all", t("characterIdentity.refreshAllAchievementData"), () => triggerBackfillCharacterAchievements(false, true))}
                   </ManualActionGroup>
-                  <ManualActionGroup title="2. Account groups">
+                  <ManualActionGroup title={t("characterIdentity.accountGroup")}>
                     {renderTriggerButton("rebuild-character-account-groups", "Rebuild Character Account Groups", triggerRebuildCharacterAccountGroups, {
                       disabled: characterAchievementBackfillStatus?.processor.isRunning,
                     })}

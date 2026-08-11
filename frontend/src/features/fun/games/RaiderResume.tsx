@@ -11,6 +11,8 @@ import { FunRaidIdentity } from "../FunEncounterIdentity";
 import FunGuildIdentity from "../FunGuildIdentity";
 import ProgressiveClues from "../ProgressiveClues";
 import { useDebouncedFunGameSearch } from "../useFunGameSearch";
+import FunOutcome from "../FunOutcome";
+import styles from "../fun-feedback.module.css";
 
 type Comparison = "lower" | "exact" | "higher" | "mismatch";
 type ResumeGuess = { character: RaiderResumeCandidate };
@@ -59,11 +61,10 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
             <span className="text-slate-400 tabular-nums">{t("common.mistakes", { count: guesses.length, total: 6 })}</span>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-3" role="status">
-            <p className={`text-lg font-black ${status === "won" ? "text-emerald-300" : "text-red-300"}`}>{status === "won" ? t("common.youWon") : t("common.gameOver")}</p>
-            <CharacterAvatar avatarUrl={target.avatarUrl} classIcon={targetClass.iconUrl} characterName={target.name} className="size-10" />
-            <FunCharacterIdentity character={target} iconSize={28} />
-          </div>
+          <FunOutcome status={status} className="sm:col-span-2">
+            <span className="mt-1 block text-slate-400">{t("resume.answerWas")}</span>
+            <span className="mt-2 flex items-center gap-3"><CharacterAvatar avatarUrl={target.avatarUrl} classIcon={targetClass.iconUrl} characterName={target.name} className="size-10" /><FunCharacterIdentity character={target} iconSize={28} /></span>
+          </FunOutcome>
         )}
         {status === "playing" ? (
           <FunAutocomplete
@@ -76,6 +77,7 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
             emptyLabel={emptyLabel}
             loading={search.isSearching}
             filterItems={false}
+            autoFocus
             onSelect={submitGuess}
             onQueryChange={setQuery}
           />
@@ -107,7 +109,7 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
         </div>
 
         <aside className="h-fit border-t border-white/10 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
-          <div><h2 className="font-black">{t("resume.clues")}</h2><ProgressiveClues items={clueItems} revealed={guesses.length} /></div>
+          <div><h2 className="font-black">{t("resume.clues")}</h2>{guesses.length === 0 ? <p className="mt-1 text-xs leading-5 text-slate-400">{t("resume.cluesPending")}</p> : null}<ProgressiveClues items={clueItems} revealed={guesses.length} /></div>
         </aside>
       </div>
 
@@ -120,7 +122,7 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
             {guesses.map(({ character }) => {
               const classInfo = getClassInfoById(character.classID);
               return (
-                <div key={character.key} className="grid grid-cols-2 gap-1 rounded-lg bg-slate-900/70 p-2 text-sm sm:grid-cols-4 lg:grid-cols-[12rem_repeat(7,1fr)] lg:gap-2 lg:px-3 lg:py-3">
+                <div key={character.key} className={`${styles.bad} grid grid-cols-2 gap-1 rounded-lg bg-slate-900/70 p-2 text-sm sm:grid-cols-4 lg:grid-cols-[12rem_repeat(7,1fr)] lg:gap-2 lg:px-3 lg:py-3`}>
                   <ResumeGuessCell label={t("resume.raider")}><span className="font-bold">{character.name}</span></ResumeGuessCell>
                   <ResumeGuessCell label={t("resume.class")}><CompareCell comparison={character.classID === target.classID ? "exact" : "mismatch"}><span className="inline-flex items-center gap-2"><FunClassIcon classID={character.classID} size={24} />{classInfo.name}</span></CompareCell></ResumeGuessCell>
                   <ResumeGuessCell label={t("resume.realm")}><CompareCell comparison={character.realm === target.realm ? "exact" : "mismatch"}>{formatRealmName(character.realm)}</CompareCell></ResumeGuessCell>
