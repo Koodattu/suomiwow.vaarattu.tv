@@ -913,7 +913,9 @@ function AdminPageContent() {
   };
 
   const characterBackfillQueue = characterRankingBackfillStatus?.queue;
-  const characterBackfillPercent = characterBackfillQueue && characterBackfillQueue.total > 0 ? Math.round((characterBackfillQueue.terminal / characterBackfillQueue.total) * 100) : 0;
+  const characterBackfillPercent = characterBackfillQueue && characterBackfillQueue.total > 0
+    ? Math.round((characterBackfillQueue.terminal / characterBackfillQueue.total) * 1000) / 10
+    : 0;
   const characterLeaderboardRebuild = characterRankingBackfillStatus?.leaderboardRebuild;
   const characterLeaderboardRebuildPercent =
     characterLeaderboardRebuild && characterLeaderboardRebuild.totalPairs > 0
@@ -2626,6 +2628,9 @@ function AdminPageContent() {
                           Current: {characterRankingBackfillStatus.processor.currentItem.name}-{characterRankingBackfillStatus.processor.currentItem.realm} /{" "}
                           {characterRankingBackfillStatus.processor.currentItem.raidName ?? `Raid ${characterRankingBackfillStatus.processor.currentItem.zoneId}`}
                         </div>
+                      )}
+                      {characterRankingBackfillStatus.processor.lastMessage && (
+                        <div className="text-gray-500 truncate">{characterRankingBackfillStatus.processor.lastMessage}</div>
                       )}
                       {characterLeaderboardRebuild && (characterLeaderboardRebuild.isRunning || characterLeaderboardRebuild.processedPairs > 0 || characterLeaderboardRebuild.lastError) && (
                         <div className="border-t border-gray-700 pt-2 space-y-2">

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import characterRankingBackfillService from "../src/services/character-ranking-backfill.service";
 import rateLimitService from "../src/services/rate-limit.service";
+import CharacterRankingBackfill from "../src/models/CharacterRankingBackfill";
 import { getWclRankingPartitionIds } from "../src/utils/wcl-ranking-partitions";
 
 test("ranking backfill fetches every class spec even when one spec was already observed", () => {
@@ -68,6 +69,84 @@ test("ranking backfill cooperative stop interrupts a rate-limit wait", async () 
     service.isRunning = originalRunning;
     service.stopRequested = originalStopRequested;
     service.stopListeners.clear();
+  }
+});
+
+test("ranking backfill continues after the WCL quota resets", async () => {
+  const service = characterRankingBackfillService as any;
+  const rateLimit = rateLimitService as any;
+  const originals = {
+    refreshSharedState: rateLimit.refreshSharedState,
+    canProceedBackground: rateLimit.canProceedBackground,
+    getBackgroundCapacity: rateLimit.getBackgroundCapacity,
+    getSharedStatus: rateLimit.getSharedStatus,
+    waitForReset: rateLimit.waitForReset,
+    stopRequested: service.stopRequested,
+    isWaitingForRateLimit: service.isWaitingForRateLimit,
+  };
+  let resetCompleted = false;
+  let waits = 0;
+
+  try {
+    service.stopRequested = false;
+    rateLimit.refreshSharedState = async () => undefined;
+    rateLimit.canProceedBackground = () => resetCompleted;
+    rateLimit.getBackgroundCapacity = () => resetCompleted ? 100 : 0;
+    rateLimit.getSharedStatus = async () => ({ resetInSeconds: 60 });
+    rateLimit.waitForReset = async () => {
+      waits += 1;
+      resetCompleted = true;
+    };
+
+    await service.waitForBackgroundCapacity(25, "quota reset test");
+
+    assert.equal(waits, 1);
+    assert.equal(service.isWaitingForRateLimit, false);
+  } finally {
+    rateLimit.refreshSharedState = originals.refreshSharedState;
+    rateLimit.canProceedBackground = originals.canProceedBackground;
+    rateLimit.getBackgroundCapacity = originals.getBackgroundCapacity;
+    rateLimit.getSharedStatus = originals.getSharedStatus;
+    rateLimit.waitForReset = originals.waitForReset;
+    service.stopRequested = originals.stopRequested;
+    service.isWaitingForRateLimit = originals.isWaitingForRateLimit;
+    service.stopListeners.clear();
+  }
+});
+
+test("ranking backfill startup recovery requeues an interrupted item and starts pending work", async () => {
+  const service = characterRankingBackfillService as any;
+  const model = CharacterRankingBackfill as any;
+  const originals = {
+    updateMany: model.updateMany,
+    countDocuments: model.countDocuments,
+    startProcessing: service.startProcessing,
+    isRunning: service.isRunning,
+  };
+  let resetFilter: Record<string, unknown> | null = null;
+  let starts = 0;
+
+  try {
+    service.isRunning = false;
+    model.updateMany = async (filter: Record<string, unknown>) => {
+      resetFilter = filter;
+      return { modifiedCount: 1 };
+    };
+    model.countDocuments = async () => 1;
+    service.startProcessing = () => {
+      starts += 1;
+      return true;
+    };
+
+    assert.equal(await service.resumeInterruptedBackfill(0), true);
+    assert.equal((resetFilter as any)?.status, "in_progress");
+    assert.ok((resetFilter as any)?.lastActivityAt?.$lt instanceof Date);
+    assert.equal(starts, 1);
+  } finally {
+    model.updateMany = originals.updateMany;
+    model.countDocuments = originals.countDocuments;
+    service.startProcessing = originals.startProcessing;
+    service.isRunning = originals.isRunning;
   }
 });
 

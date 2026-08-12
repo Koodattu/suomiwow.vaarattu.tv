@@ -15,6 +15,7 @@ import cacheWarmerService from "./cache-warmer.service";
 import taskTracker from "./task-tracker.service";
 import fightVodService from "./fight-vod.service";
 import characterAchievementService from "./character-achievement.service";
+import characterRankingBackfillService from "./character-ranking-backfill.service";
 import mythicPlusService from "./mythic-plus.service";
 import characterMediaService, {
   CHARACTER_MEDIA_DISCOVERY_TASK_NAME,
@@ -44,6 +45,7 @@ const POLLING_OFF_HOURS_ACTIVE_MS = 60 * 60 * 1000; // 1 hour
 const POLLING_TWITCH_MS = 15 * 60 * 1000; // 15 minutes
 const POLLING_FIGHT_VODS_MS = 30 * 60 * 1000; // 30 minutes
 const MYTHIC_PLUS_RECOVERY_MS = 5 * 60 * 1000; // 5 minutes
+const CHARACTER_RANKING_RECOVERY_MS = 5 * 60 * 1000; // 5 minutes
 const CHARACTER_WCL_IDENTITY_AUDIT_NIGHTLY_ENABLED = process.env.CHARACTER_WCL_IDENTITY_AUDIT_NIGHTLY_ENABLED !== "false";
 const ACTIVITY_STATUS_ACTIVE_DAYS = 14;
 const SCHEDULE_POLLING_WINDOW_BEFORE_HOURS = 1;
@@ -136,6 +138,7 @@ class UpdateScheduler {
   private hotHoursTwitchInterval: NodeJS.Timeout | null = null;
   private fightVodResolverInterval: NodeJS.Timeout | null = null;
   private mythicPlusRecoveryInterval: NodeJS.Timeout | null = null;
+  private characterRankingRecoveryInterval: NodeJS.Timeout | null = null;
   private homeCacheRefreshInterval: NodeJS.Timeout | null = null;
   private offHoursActiveInterval: NodeJS.Timeout | null = null;
   private offHoursDailyInterval: NodeJS.Timeout | null = null;
@@ -375,6 +378,8 @@ class UpdateScheduler {
       logger.error("[CharacterWclIdentityAudit] Failed to resume pending audit work on startup:", error);
     });
 
+    void this.resumeCharacterRankingBackfill("startup");
+
     // HOT HOURS - Active guilds: Check at configured interval
     this.hotHoursActiveInterval = setInterval(async () => {
       if (!this.isHotHours()) return; // Skip if not hot hours
@@ -423,6 +428,10 @@ class UpdateScheduler {
     this.mythicPlusRecoveryInterval = setInterval(() => {
       void this.resumeMythicPlusCrawler("watchdog");
     }, MYTHIC_PLUS_RECOVERY_MS);
+
+    this.characterRankingRecoveryInterval = setInterval(() => {
+      void this.resumeCharacterRankingBackfill("watchdog");
+    }, CHARACTER_RANKING_RECOVERY_MS);
 
     this.homeCacheRefreshInterval = setInterval(async () => {
       const blockingJob = this.getBlockingDatabaseMaintenanceJob();
@@ -1339,6 +1348,10 @@ class UpdateScheduler {
       clearInterval(this.mythicPlusRecoveryInterval);
       this.mythicPlusRecoveryInterval = null;
     }
+    if (this.characterRankingRecoveryInterval) {
+      clearInterval(this.characterRankingRecoveryInterval);
+      this.characterRankingRecoveryInterval = null;
+    }
     if (this.homeCacheRefreshInterval) {
       clearInterval(this.homeCacheRefreshInterval);
       this.homeCacheRefreshInterval = null;
@@ -1388,6 +1401,18 @@ class UpdateScheduler {
       if (started) logger.info(`[MythicPlus] ${source} recovery started the crawler`);
     } catch (error) {
       logger.error(`[MythicPlus] ${source} recovery failed:`, error);
+    }
+  }
+
+  private async resumeCharacterRankingBackfill(source: "startup" | "watchdog"): Promise<void> {
+    try {
+      const activeFullHistoryRun = await FullHistoryRefresh.findOne({ key: "all-raids", status: "running" }).select("stage -_id").lean();
+      if (activeFullHistoryRun && activeFullHistoryRun.stage !== "rankings") return;
+
+      const started = await characterRankingBackfillService.resumeInterruptedBackfill(source === "startup" ? 0 : undefined);
+      if (started) logger.info(`[CharacterRankingBackfill] ${source} recovery started processor`);
+    } catch (error) {
+      logger.error(`[CharacterRankingBackfill] ${source} recovery failed:`, error);
     }
   }
 
