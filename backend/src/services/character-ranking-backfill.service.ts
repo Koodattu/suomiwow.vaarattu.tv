@@ -93,9 +93,9 @@ interface CandidateAggregateRow {
 interface SpecQuery {
   alias: string;
   metric: RankingMetric;
-  specSlug: string;
-  wclName: string;
-  role: Role;
+  coveredSpecSlugs: string[];
+  specSlug?: string;
+  wclName?: string;
   source: "observed" | "fallback";
 }
 
@@ -204,6 +204,13 @@ interface ProcessOutcome {
   specsQueried: string[];
   rankingsWritten: number;
   leaderboardEntriesWritten: number;
+}
+
+interface RankingCleanupScope {
+  partition: number;
+  metric: RankingMetric;
+  specSlug?: string;
+  retainedRows: Array<{ encounterId: number; specName: string }>;
 }
 
 class RankingBackfillStopRequestedError extends Error {
@@ -1147,7 +1154,7 @@ class CharacterRankingBackfillService {
 
   private async processItem(item: ICharacterRankingBackfill, partitionQueries: PartitionSpecQuery[]): Promise<ProcessOutcome> {
     const specQuerySource = partitionQueries[0]?.source ?? null;
-    const specsQueried = Array.from(new Set(partitionQueries.map((query) => query.specSlug))).sort((a, b) => a.localeCompare(b));
+    const specsQueried = Array.from(new Set(partitionQueries.flatMap((query) => query.coveredSpecSlugs))).sort((a, b) => a.localeCompare(b));
 
     if (partitionQueries.length === 0) {
       return {
@@ -1200,12 +1207,21 @@ class CharacterRankingBackfillService {
     }
 
     const operations: any[] = [];
+    const cleanupScopes = new Map<string, RankingCleanupScope>();
 
     for (const specQuery of partitionQueries) {
       const zoneRankings = character[specQuery.alias] as WclZoneRankings | null | undefined;
       if (!zoneRankings || zoneRankings.error) {
         continue;
       }
+      const cleanupKey = `${specQuery.partition}:${specQuery.metric}:${specQuery.specSlug ?? "all-specs"}`;
+      const cleanupScope = cleanupScopes.get(cleanupKey) ?? {
+        partition: specQuery.partition,
+        metric: specQuery.metric,
+        specSlug: specQuery.specSlug,
+        retainedRows: [],
+      };
+      cleanupScopes.set(cleanupKey, cleanupScope);
 
       for (const ranking of zoneRankings.rankings ?? []) {
         if (!this.isMeaningfulRanking(ranking)) {
@@ -1218,10 +1234,14 @@ class CharacterRankingBackfillService {
         }
 
         const rankingSpecSlug = ranking.spec ? slugifySpecName(ranking.spec) : specQuery.specSlug;
+        if (!rankingSpecSlug) {
+          continue;
+        }
         const bestSpecName = ranking.bestSpec ? slugifySpecName(ranking.bestSpec) : rankingSpecSlug;
         const role = resolveRole(item.classID, rankingSpecSlug);
         const partition = specQuery.partition;
         const canonicalId = typeof character.canonicalID === "number" ? character.canonicalID : item.wclCanonicalCharacterId;
+        cleanupScope.retainedRows.push({ encounterId, specName: rankingSpecSlug });
 
         operations.push({
           updateOne: {
@@ -1271,19 +1291,48 @@ class CharacterRankingBackfillService {
       }
     }
 
+    const cleanStaleRankings = async (): Promise<number> => {
+      let deleted = 0;
+      for (const scope of cleanupScopes.values()) {
+        const result = await Ranking.deleteMany({
+          characterId: item.characterId,
+          zoneId: item.zoneId,
+          difficulty: MYTHIC_DIFFICULTY,
+          partition: scope.partition,
+          metric: scope.metric,
+          ...(scope.specSlug ? { specName: scope.specSlug } : {}),
+          ...(scope.retainedRows.length > 0
+            ? {
+                $nor: scope.retainedRows.map((row) => ({
+                  "encounter.id": row.encounterId,
+                  specName: row.specName,
+                })),
+              }
+            : {}),
+        });
+        deleted += result.deletedCount ?? 0;
+      }
+      return deleted;
+    };
+
     if (operations.length === 0) {
+      const staleRankingsDeleted = await cleanStaleRankings();
+      const leaderboardEntriesWritten = staleRankingsDeleted > 0
+        ? await this.rebuildLeaderboardForCharacterZone(item.characterId, item.zoneId)
+        : 0;
       return {
-        status: "skipped",
-        reason: "No meaningful mythic rankings returned",
+        status: staleRankingsDeleted > 0 ? "completed" : "skipped",
+        reason: staleRankingsDeleted > 0 ? "Removed stale rankings after an empty WCL response" : "No meaningful mythic rankings returned",
         aliasesQueried: partitionQueries.length,
         specQuerySource,
         specsQueried,
         rankingsWritten: 0,
-        leaderboardEntriesWritten: 0,
+        leaderboardEntriesWritten,
       };
     }
 
     await Ranking.bulkWrite(operations, { ordered: false });
+    await cleanStaleRankings();
     const leaderboardEntriesWritten = await this.rebuildLeaderboardForCharacterZone(item.characterId, item.zoneId);
 
     return {
@@ -1321,7 +1370,6 @@ class CharacterRankingBackfillService {
   }
 
   private buildSpecQueries(item: ICharacterRankingBackfill): SpecQuery[] {
-    const specsByWclName = new Map<string, { specSlug: string; wclName: string; role: Role; source: SpecQuery["source"] }>();
     const classSpecMap = ROLE_BY_CLASS_AND_SPEC[item.classID] ?? {};
     const observedSpecSlugs = new Set<string>();
 
@@ -1329,40 +1377,29 @@ class CharacterRankingBackfillService {
       const specSlug = normalizeObservedSpecSlug(observedSpecName, classSpecMap);
       if (!specSlug) continue;
       observedSpecSlugs.add(specSlug);
-      const wclName = toWclSpecName(specSlug);
-      if (!wclName) continue;
-      specsByWclName.set(wclName.toLowerCase(), {
-        specSlug,
-        wclName,
-        role: classSpecMap[specSlug] ?? resolveRole(item.classID, specSlug),
-        source: "observed",
-      });
     }
 
-    for (const [specSlug, role] of Object.entries(classSpecMap)) {
-      const wclName = toWclSpecName(specSlug);
-      specsByWclName.set(wclName.toLowerCase(), {
+    const classSpecs = Object.entries(classSpecMap);
+    if (classSpecs.length === 0) return [];
+
+    const source: SpecQuery["source"] = observedSpecSlugs.size > 0 ? "observed" : "fallback";
+    const queries: SpecQuery[] = [{
+      alias: "allSpecsDpsRankings",
+      metric: "dps",
+      coveredSpecSlugs: classSpecs.map(([specSlug]) => specSlug),
+      source,
+    }];
+
+    for (const [specSlug, role] of classSpecs) {
+      if (role !== "healer") continue;
+      queries.push({
+        alias: toSpecAlias(specSlug, "hps"),
+        metric: "hps",
+        coveredSpecSlugs: [specSlug],
         specSlug,
-        wclName,
-        role,
+        wclName: toWclSpecName(specSlug),
         source: observedSpecSlugs.has(specSlug) ? "observed" : "fallback",
       });
-    }
-
-    const queries: SpecQuery[] = [];
-    for (const spec of specsByWclName.values()) {
-      queries.push({
-        ...spec,
-        metric: "dps",
-        alias: toSpecAlias(spec.specSlug, "dps"),
-      });
-      if (spec.role === "healer") {
-        queries.push({
-          ...spec,
-          metric: "hps",
-          alias: toSpecAlias(spec.specSlug, "hps"),
-        });
-      }
     }
 
     return queries;
@@ -1390,21 +1427,15 @@ class CharacterRankingBackfillService {
   private describeSpecQueries(specQueries: SpecQuery[]): string {
     if (specQueries.length === 0) return "none";
 
-    const bySpec = new Map<string, { source: SpecQuery["source"]; metrics: RankingMetric[] }>();
-    for (const specQuery of specQueries) {
-      const existing = bySpec.get(specQuery.specSlug) ?? { source: specQuery.source, metrics: [] };
-      existing.metrics.push(specQuery.metric);
-      bySpec.set(specQuery.specSlug, existing);
-    }
-
-    return Array.from(bySpec.entries())
-      .map(([spec, entry]) => `${spec}:${entry.metrics.join("+")}@${entry.source}`)
+    return specQueries
+      .map((query) => `${query.specSlug ?? "all-class-specs"}:${query.metric}@${query.source}`)
       .join(",");
   }
 
   private buildWclQuery(partitionQueries: PartitionSpecQuery[]): string {
     const specAliasFields = partitionQueries.map((specQuery) => {
-      return `${specQuery.alias}: zoneRankings(zoneID: $zoneID, difficulty: ${MYTHIC_DIFFICULTY}, metric: ${specQuery.metric}, compare: Rankings, timeframe: Historical, partition: ${specQuery.partition}, specName: "${specQuery.wclName}")`;
+      const specArgument = specQuery.wclName ? `, specName: "${specQuery.wclName}"` : "";
+      return `${specQuery.alias}: zoneRankings(zoneID: $zoneID, difficulty: ${MYTHIC_DIFFICULTY}, metric: ${specQuery.metric}, compare: Rankings, timeframe: Historical, partition: ${specQuery.partition}${specArgument})`;
     });
 
     return `
