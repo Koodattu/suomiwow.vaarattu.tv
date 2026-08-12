@@ -3590,13 +3590,16 @@ class CharacterService {
           try {
             // WCL's partition: -1 response can omit later partitions, so query every
             // configured partition explicitly in one aliased request.
-            const dpsPartitionQueries = partitions.map((partition) => ({
-              alias: toWclPartitionRankingAlias("allSpecsDpsRankings", partition),
-              partition,
-            }));
+            const dpsPartitionQueries = partitions.flatMap((partition) =>
+              specSlugs.map((slug) => {
+                const wclName = toWclSpecName(slug);
+                const alias = toWclPartitionRankingAlias(toSpecAlias(slug), partition);
+                return { alias, partition, specSlug: slug, wclName };
+              }),
+            );
             const specAliasFields = dpsPartitionQueries.map(
-              ({ alias, partition }) =>
-                `${alias}: zoneRankings(zoneID: $zoneID, difficulty: ${MYTHIC_DIFFICULTY}, metric: dps, compare: Rankings, timeframe: Historical, partition: ${partition})`,
+              ({ alias, partition, wclName }) =>
+                `${alias}: zoneRankings(zoneID: $zoneID, difficulty: ${MYTHIC_DIFFICULTY}, metric: dps, compare: Rankings, timeframe: Historical, partition: ${partition}, specName: "${wclName}")`,
             );
 
             const query = `
@@ -3652,8 +3655,8 @@ class CharacterService {
 
             let hasAnySpecRankings = false;
 
-            // WCL chooses the highest-percentile DPS performance across every class spec.
-            for (const { alias, partition } of dpsPartitionQueries) {
+            // Process each partition/spec payload from the single response.
+            for (const { alias, partition, specSlug } of dpsPartitionQueries) {
               const zoneRankings = (character as Record<string, unknown>)[alias] as IWarcraftLogsZoneRankings | null;
 
               if (!zoneRankings || (zoneRankings as any).error) {
@@ -3662,13 +3665,14 @@ class CharacterService {
                   zoneId: CURRENT_TIER_ID,
                   difficulty: MYTHIC_DIFFICULTY,
                   partition,
+                  specName: specSlug,
                   metric: "dps",
                 });
-                logger.debug(`[CharacterRankings] No DPS rankings for ${char.name} (${char.realm}) [partition: ${partition}]`);
+                logger.debug(`[CharacterRankings] No DPS rankings for ${char.name} (${char.realm}) [partition: ${partition}, spec: ${specSlug}]`);
                 continue;
               }
 
-              // Data is already filtered to this partition by WCL.
+              // Data is already filtered to this partition and spec by WCL.
               const allStarsEntries = zoneRankings.allStars ?? [];
               const rankingsEntries = zoneRankings.rankings ?? [];
 
@@ -3678,9 +3682,10 @@ class CharacterService {
                   zoneId: CURRENT_TIER_ID,
                   difficulty: MYTHIC_DIFFICULTY,
                   partition,
+                  specName: specSlug,
                   metric: "dps",
                 });
-                logger.debug(`[CharacterRankings] No DPS rankings for ${char.name} (${char.realm}) [partition: ${partition}]`);
+                logger.debug(`[CharacterRankings] No DPS rankings for ${char.name} (${char.realm}) [partition: ${partition}, spec: ${specSlug}]`);
                 continue;
               }
 
@@ -3693,6 +3698,7 @@ class CharacterService {
                 zoneId: CURRENT_TIER_ID,
                 difficulty: MYTHIC_DIFFICULTY,
                 partition,
+                specName: specSlug,
                 metric: "dps",
               }).lean();
 
@@ -3704,25 +3710,24 @@ class CharacterService {
               const allStarsChanged = freshPoints !== storedPoints || freshPossiblePoints !== storedPossiblePoints;
 
               const freshBossFingerprint = rankingsEntries
-                .map((r) => `${r.encounter.id}:${r.spec ?? ""}:${r.bestAmount ?? 0}:${r.rankPercent ?? 0}:${r.totalKills ?? 0}`)
+                .map((r) => `${r.encounter.id}:${r.bestAmount ?? 0}:${r.rankPercent ?? 0}:${r.totalKills ?? 0}`)
                 .sort()
                 .join("|");
               const storedBossFingerprint = existingRankings
-                .map((r: any) => `${r.encounter?.id}:${r.specName ?? ""}:${r.bestAmount ?? 0}:${r.rankPercent ?? 0}:${r.totalKills ?? 0}`)
+                .map((r: any) => `${r.encounter?.id}:${r.bestAmount ?? 0}:${r.rankPercent ?? 0}:${r.totalKills ?? 0}`)
                 .sort()
                 .join("|");
 
               const hasChanged = existingRankings.length === 0 || allStarsChanged || freshBossFingerprint !== storedBossFingerprint;
 
               if (!hasChanged) {
-                logger.debug(`[CharacterRankings] No DPS changes for ${char.name} (${char.realm}) [partition: ${partition}]`);
+                logger.debug(`[CharacterRankings] No DPS changes for ${char.name} (${char.realm}) [partition: ${partition}, spec: ${specSlug}]`);
                 continue;
               }
 
-              const retainedRankings: Array<{ encounterId: number; specName: string }> = [];
+              const retainedEncounterIds: number[] = [];
               for (const r of rankingsEntries) {
-                const rankingSpecSlug = r.spec ? slugifySpecName(r.spec) : "";
-                if (!rankingSpecSlug) continue;
+                const rankingSpecSlug = r.spec ? slugifySpecName(r.spec) : specSlug;
                 const role = resolveRole(char.classID, rankingSpecSlug);
                 const normalizedBestSpecName = r.bestSpec ? slugifySpecName(r.bestSpec) : rankingSpecSlug;
 
@@ -3777,7 +3782,7 @@ class CharacterService {
                   },
                   { upsert: true, returnDocument: "after" },
                 );
-                retainedRankings.push({ encounterId: r.encounter.id, specName: rankingSpecSlug });
+                retainedEncounterIds.push(r.encounter.id);
               }
 
               await Ranking.deleteMany({
@@ -3785,18 +3790,16 @@ class CharacterService {
                 zoneId: CURRENT_TIER_ID,
                 difficulty: MYTHIC_DIFFICULTY,
                 partition,
+                specName: specSlug,
                 metric: "dps",
-                ...(retainedRankings.length > 0
+                ...(retainedEncounterIds.length > 0
                   ? {
-                      $nor: retainedRankings.map((ranking) => ({
-                        "encounter.id": ranking.encounterId,
-                        specName: ranking.specName,
-                      })),
+                      "encounter.id": { $nin: retainedEncounterIds },
                     }
                   : {}),
               });
 
-              logger.info(`[CharacterRankings] Updated best DPS rankings for ${char.name} (${char.realm}) [partition: ${partition}]`);
+              logger.info(`[CharacterRankings] Updated DPS rankings for ${char.name} (${char.realm}) [partition: ${partition}, spec: ${specSlug}]`);
             }
 
             // ── HPS rankings for healer specs ─────────────────────────

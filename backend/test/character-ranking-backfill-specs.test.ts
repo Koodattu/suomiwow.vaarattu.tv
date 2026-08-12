@@ -7,28 +7,24 @@ import Ranking from "../src/models/Ranking";
 import wclService from "../src/services/warcraftlogs.service";
 import { getWclRankingPartitionIds } from "../src/utils/wcl-ranking-partitions";
 
-test("ranking backfill fetches best DPS across every class spec with one alias", () => {
+test("ranking backfill fetches every class spec even when one spec was already observed", () => {
   const service = characterRankingBackfillService as any;
   const queries = service.buildSpecQueries({
     classID: 13,
     observedSpecNames: ["Augmentation"],
   });
 
-  assert.equal(queries.length, 2);
-  assert.deepEqual(queries[0], {
-    alias: "allSpecsDpsRankings",
-    metric: "dps",
-    coveredSpecSlugs: ["devastation", "augmentation", "preservation"],
-    source: "observed",
-  });
-  assert.deepEqual(queries[1], {
-    alias: "preservationHpsRankings",
-    metric: "hps",
-    coveredSpecSlugs: ["preservation"],
-    specSlug: "preservation",
-    wclName: "Preservation",
-    source: "fallback",
-  });
+  assert.deepEqual(
+    queries.map((query: any) => `${query.specSlug}:${query.metric}`).sort(),
+    [
+      "augmentation:dps",
+      "devastation:dps",
+      "preservation:dps",
+      "preservation:hps",
+    ],
+  );
+  assert.equal(queries.find((query: any) => query.specSlug === "augmentation")?.source, "observed");
+  assert.equal(queries.find((query: any) => query.specSlug === "devastation")?.source, "fallback");
 });
 
 test("ranking backfill recognizes WCL spec names whose stored slug contains punctuation", () => {
@@ -38,8 +34,7 @@ test("ranking backfill recognizes WCL spec names whose stored slug contains punc
     observedSpecNames: ["BeastMastery"],
   });
 
-  assert.equal(queries[0]?.source, "observed");
-  assert.ok(queries[0]?.coveredSpecSlugs.includes("beast-mastery"));
+  assert.equal(queries.find((query: any) => query.specSlug === "beast-mastery")?.source, "observed");
 });
 
 test("ranking backfill queries every configured raid partition explicitly", () => {
@@ -51,9 +46,8 @@ test("ranking backfill queries every configured raid partition explicitly", () =
 
   assert.deepEqual(partitionIds, [1, 2]);
   assert.equal(partitionQueries.length, specQueries.length * 2);
-  assert.match(query, /allSpecsDpsRankingsPartition1: zoneRankings\([^\n]+partition: 1\)/);
-  assert.match(query, /allSpecsDpsRankingsPartition2: zoneRankings\([^\n]+partition: 2\)/);
-  assert.doesNotMatch(query, /specName:/);
+  assert.match(query, /assassinationDpsRankingsPartition1: zoneRankings\([^\n]+partition: 1, specName: "Assassination"\)/);
+  assert.match(query, /assassinationDpsRankingsPartition2: zoneRankings\([^\n]+partition: 2, specName: "Assassination"\)/);
   assert.doesNotMatch(query, /partition: -1/);
 });
 
@@ -63,14 +57,14 @@ test("ranking backfill keeps HPS restricted to healer specs", () => {
   const partitionQueries = service.buildPartitionQueries(specQueries, [1]);
   const query = service.buildWclQuery(partitionQueries);
 
-  assert.equal(specQueries.length, 3);
-  assert.match(query, /allSpecsDpsRankingsPartition1: zoneRankings\([^\n]+metric: dps[^\n]+partition: 1\)/);
+  assert.equal(specQueries.length, 5);
+  assert.match(query, /shadowDpsRankingsPartition1: zoneRankings\([^\n]+metric: dps[^\n]+partition: 1, specName: "Shadow"\)/);
   assert.match(query, /disciplineHpsRankingsPartition1: zoneRankings\([^\n]+metric: hps[^\n]+specName: "Discipline"\)/);
   assert.match(query, /holyHpsRankingsPartition1: zoneRankings\([^\n]+metric: hps[^\n]+specName: "Holy"\)/);
   assert.doesNotMatch(query, /shadowHpsRankings/);
 });
 
-test("ranking backfill removes stale explicit-spec DPS rows after an all-spec response", async () => {
+test("ranking backfill removes stale rows only within the queried spec and partition", async () => {
   const service = characterRankingBackfillService as any;
   const rankingModel = Ranking as any;
   const wcl = wclService as any;
@@ -87,7 +81,7 @@ test("ranking backfill removes stale explicit-spec DPS rows after an all-spec re
       characterData: {
         character: {
           canonicalID: 123,
-          allSpecsDpsRankingsPartition1: {
+          assassinationDpsRankingsPartition1: {
             rankings: [{
               encounter: { id: 1, name: "Test Boss" },
               spec: "Assassination",
@@ -125,7 +119,7 @@ test("ranking backfill removes stale explicit-spec DPS rows after an all-spec re
 
     assert.equal(outcome.status, "completed");
     assert.equal((cleanupFilter as any)?.metric, "dps");
-    assert.equal(Object.prototype.hasOwnProperty.call(cleanupFilter ?? {}, "specName"), false);
+    assert.equal((cleanupFilter as any)?.specName, "assassination");
     assert.deepEqual((cleanupFilter as any)?.$nor, [{ "encounter.id": 1, specName: "assassination" }]);
   } finally {
     wcl.query = originals.query;

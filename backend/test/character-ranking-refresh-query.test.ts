@@ -11,7 +11,7 @@ import characterService from "../src/services/character.service";
 import rateLimitService from "../src/services/rate-limit.service";
 import wclService from "../src/services/warcraftlogs.service";
 
-test("nightly ranking refresh queries only recent participants with one all-spec DPS alias per partition", async () => {
+test("nightly ranking refresh queries all specs for every partition and only recent raid participants", async () => {
   const characterId = new mongoose.Types.ObjectId();
   const characterModel = Character as any;
   const participationModel = CharacterRaidParticipation as any;
@@ -92,8 +92,12 @@ test("nightly ranking refresh queries only recent participants with one all-spec
             name: "Testrogue",
             classID: 8,
             hidden: false,
-            allSpecsDpsRankingsPartition1: { allStars: [], rankings: [ranking] },
-            allSpecsDpsRankingsPartition2: { allStars: [], rankings: [ranking] },
+            assassinationRankingsPartition1: { allStars: [], rankings: [ranking] },
+            assassinationRankingsPartition2: { allStars: [], rankings: [ranking] },
+            outlawRankingsPartition1: { allStars: [], rankings: [] },
+            outlawRankingsPartition2: { allStars: [], rankings: [] },
+            subtletyRankingsPartition1: { allStars: [], rankings: [] },
+            subtletyRankingsPartition2: { allStars: [], rankings: [] },
           },
         },
       };
@@ -104,11 +108,12 @@ test("nightly ranking refresh queries only recent participants with one all-spec
     assert.equal((participationFilter as any)?.zoneId, 46);
     assert.deepEqual((participationFilter as any)?.mythicReportCount, { $gt: 0 });
     assert.ok((participationFilter as any)?.lastSeenAt?.$gte instanceof Date);
-    assert.match(capturedQuery, /allSpecsDpsRankingsPartition1: zoneRankings\([^\n]+partition: 1\)/);
-    assert.match(capturedQuery, /allSpecsDpsRankingsPartition2: zoneRankings\([^\n]+partition: 2\)/);
-    assert.doesNotMatch(capturedQuery, /specName:/);
-    assert.deepEqual(capturedTracking, { estimatedPoints: 11, sampleRateLimit: true });
-    assert.equal(deleteFilters.filter((filter) => filter.metric === "dps" && filter.$nor).length, 2);
+    assert.match(capturedQuery, /assassinationRankingsPartition1: zoneRankings\([^\n]+partition: 1, specName: "Assassination"\)/);
+    assert.match(capturedQuery, /assassinationRankingsPartition2: zoneRankings\([^\n]+partition: 2, specName: "Assassination"\)/);
+    assert.match(capturedQuery, /outlawRankingsPartition1: zoneRankings\([^\n]+partition: 1, specName: "Outlaw"\)/);
+    assert.match(capturedQuery, /subtletyRankingsPartition2: zoneRankings\([^\n]+partition: 2, specName: "Subtlety"\)/);
+    assert.deepEqual(capturedTracking, { estimatedPoints: 31, sampleRateLimit: true });
+    assert.equal(deleteFilters.filter((filter) => filter.metric === "dps" && filter["encounter.id"]?.$nin).length, 2);
   } finally {
     raidModel.findOne = originals.raidFindOne;
     participationModel.distinct = originals.participationDistinct;
