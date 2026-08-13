@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getMissingMythicPlusSeasons,
+  hasMythicPlusSeasonStarted,
   mythicPlusCharacterIdentitiesMatch,
+  resolveCurrentMythicPlusSeasonSlug,
   resolveMythicPlusSeasonRows,
 } from "../src/utils/mythic-plus";
+import { RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SLUGS } from "../src/config/mythic-plus";
 
 test("Mythic+ identity comparison preserves significant names and normalizes realm display values", () => {
   const current = { name: "Maisié", realm: "stormreaver", region: "eu", classID: 6 };
@@ -58,4 +61,24 @@ test("unlabelled profile rows use positional mapping only for a complete respons
     { season: "season-a", row: null },
     { season: "season-b", row: null },
   ]);
+});
+
+test("Midnight Season 2 stays staged until the EU start timestamp", () => {
+  const seasons = [
+    {
+      slug: "season-mn-2",
+      starts: { eu: "2026-08-19T04:00:00Z" },
+      ends: { eu: "2030-01-01T00:00:00Z" },
+    },
+    {
+      slug: "season-mn-1",
+      starts: { eu: "2026-03-25T04:00:00Z" },
+      ends: { eu: "2026-08-19T04:00:00Z" },
+    },
+  ];
+
+  assert.equal(RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SLUGS[0], "season-mn-2");
+  assert.equal(hasMythicPlusSeasonStarted(seasons[0], "eu", new Date("2026-08-19T03:59:59Z")), false);
+  assert.equal(resolveCurrentMythicPlusSeasonSlug(seasons, "eu", new Date("2026-08-19T03:59:59Z")), "season-mn-1");
+  assert.equal(resolveCurrentMythicPlusSeasonSlug(seasons, "eu", new Date("2026-08-19T04:00:00Z")), "season-mn-2");
 });

@@ -8,7 +8,9 @@ import {
   MythicPlusScoreBucket,
   RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SET,
   RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SLUGS,
+  RAIDER_IO_MYTHIC_PLUS_CURRENT_REGION,
   RAIDER_IO_MYTHIC_PLUS_EXPANSION_IDS,
+  RAIDER_IO_MYTHIC_PLUS_SEASON_STARTS,
 } from "../config/mythic-plus";
 import { RAIDER_IO_SPEC_FIELDS, RAIDER_IO_SPEC_SLOTS_BY_BLIZZARD_CLASS_ID, RaiderIoSpecField } from "../config/raiderio-specs";
 import Character, { ICharacter } from "../models/Character";
@@ -24,7 +26,9 @@ import MythicPlusSeason from "../models/MythicPlusSeason";
 import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
 import {
   getMissingMythicPlusSeasons,
+  hasMythicPlusSeasonStarted,
   mythicPlusCharacterIdentitiesMatch,
+  resolveCurrentMythicPlusSeasonSlug,
   resolveMythicPlusSeasonRows,
 } from "../utils/mythic-plus";
 import logger from "../utils/logger";
@@ -943,9 +947,30 @@ class MythicPlusService {
     return [...RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SLUGS];
   }
 
-  async getCurrentSeasonSlug(): Promise<string | null> {
-    const seasons = await this.getMainSeasonSlugs();
-    return seasons[0] ?? null;
+  private async getMainSeasonWindows() {
+    const seasons = await MythicPlusSeason.find({ isMainSeason: true })
+      .select("slug starts ends order -_id")
+      .sort({ order: 1 })
+      .lean();
+    if (seasons.length > 0) return seasons;
+    return RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SLUGS.map((slug, index) => ({
+      slug,
+      starts: RAIDER_IO_MYTHIC_PLUS_SEASON_STARTS[slug] ?? null,
+      ends: null,
+      order: index + 1,
+    }));
+  }
+
+  async getStartedMainSeasonSlugs(now: Date = new Date()): Promise<string[]> {
+    const seasons = await this.getMainSeasonWindows();
+    return seasons
+      .filter((season) => hasMythicPlusSeasonStarted(season, RAIDER_IO_MYTHIC_PLUS_CURRENT_REGION, now))
+      .map((season) => season.slug);
+  }
+
+  async getCurrentSeasonSlug(now: Date = new Date()): Promise<string | null> {
+    const seasons = await this.getMainSeasonWindows();
+    return resolveCurrentMythicPlusSeasonSlug(seasons, RAIDER_IO_MYTHIC_PLUS_CURRENT_REGION, now);
   }
 
   async fetchCharacterProfileScores(character: Pick<CharacterIdentity, "name" | "realm" | "region">, seasons: string[]): Promise<RaiderIoHttpResult> {
@@ -1472,7 +1497,7 @@ class MythicPlusService {
     const enqueue = await this.enqueueProfileJobs({
       characterIds: selectedIds,
       refresh: true,
-      targetSeasons: await this.getMainSeasonSlugs(),
+      targetSeasons: await this.getStartedMainSeasonSlugs(),
       fetchSeasonProgress: false,
     });
     const [scoreResult, runResult] = await Promise.all([
@@ -1660,8 +1685,8 @@ class MythicPlusService {
   }
 
   async enqueueHistoricalScoreRepairJobs(options: { limit?: number } = {}) {
-    const mainSeasons = await this.getMainSeasonSlugs();
-    const currentSeason = mainSeasons[0] ?? null;
+    const mainSeasons = await this.getStartedMainSeasonSlugs();
+    const currentSeason = await this.getCurrentSeasonSlug();
     const historicalSeasons = mainSeasons.filter((season) => season !== currentSeason);
     const limit = Math.min(Math.max(Math.floor(options.limit ?? DEFAULT_NIGHTLY_HISTORICAL_REPAIR_LIMIT), 1), 10000);
     const identityRepair = await this.reconcileCharacterIdentities({ limit });
@@ -2089,7 +2114,7 @@ class MythicPlusService {
       ? Array.from(new Set(job.targetSeasons.filter((season) => typeof season === "string" && season.trim()).map((season) => season.trim())))
       : [];
     if (targetSeasons.length > 0) return targetSeasons;
-    return this.getMainSeasonSlugs();
+    return this.getStartedMainSeasonSlugs();
   }
 
   private async processJob(job: ICharacterMythicPlusFetchJob): Promise<void> {
@@ -2261,15 +2286,16 @@ class MythicPlusService {
       },
     ]);
 
-    const seasonsWithData = Array.from(new Set([...scoreSeasons, ...runRows.map((row) => row._id.season)].filter((value): value is string => typeof value === "string")));
-    const seasonDocs = await MythicPlusSeason.find({ slug: { $in: seasonsWithData } }).select("slug name shortName expansionId order -_id").sort({ order: 1 }).lean();
+    const currentSeason = await this.getCurrentSeasonSlug();
+    const seasonsWithData = Array.from(
+      new Set([...scoreSeasons, ...runRows.map((row) => row._id.season), currentSeason].filter((value): value is string => typeof value === "string")),
+    );
+    const seasonDocs = await MythicPlusSeason.find({ slug: { $in: seasonsWithData } })
+      .select("slug name shortName expansionId order raw -_id")
+      .sort({ order: 1 })
+      .lean();
     const seasonBySlug = new Map(seasonDocs.map((season) => [season.slug, season]));
     const seasonOrder = new Map<string, number>(RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SLUGS.map((slug, index) => [slug, index + 1]));
-    const dungeonIds = Array.from(new Set(runRows.map((row) => row._id.dungeonId).filter((id) => typeof id === "number")));
-    const dungeons = await MythicPlusDungeon.find({ raiderIoDungeonId: { $in: dungeonIds } })
-      .select("raiderIoDungeonId challengeModeId slug name shortName iconUrl expansionId -_id")
-      .lean();
-    const dungeonById = new Map(dungeons.map((dungeon: any) => [dungeon.raiderIoDungeonId, dungeon]));
 
     const dungeonIdsBySeason = new Map<string, Set<number>>();
     for (const row of runRows) {
@@ -2277,6 +2303,20 @@ class MythicPlusService {
       set.add(row._id.dungeonId);
       dungeonIdsBySeason.set(row._id.season, set);
     }
+    for (const season of seasonDocs) {
+      const set = dungeonIdsBySeason.get(season.slug) ?? new Set<number>();
+      const staticDungeons = Array.isArray((season.raw as any)?.dungeons) ? (season.raw as any).dungeons : [];
+      for (const dungeon of staticDungeons) {
+        const dungeonId = toFiniteNumber(dungeon?.id, 0);
+        if (dungeonId > 0) set.add(dungeonId);
+      }
+      dungeonIdsBySeason.set(season.slug, set);
+    }
+    const dungeonIds = Array.from(new Set([...dungeonIdsBySeason.values()].flatMap((ids) => [...ids])));
+    const dungeons = await MythicPlusDungeon.find({ raiderIoDungeonId: { $in: dungeonIds } })
+      .select("raiderIoDungeonId challengeModeId slug name shortName iconUrl expansionId -_id")
+      .lean();
+    const dungeonById = new Map(dungeons.map((dungeon: any) => [dungeon.raiderIoDungeonId, dungeon]));
 
     const orderedSeasonSlugs = seasonsWithData.sort((a, b) => {
       const orderA = seasonBySlug.get(a)?.order ?? seasonOrder.get(a) ?? 99999;

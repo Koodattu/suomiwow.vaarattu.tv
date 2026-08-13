@@ -59,3 +59,39 @@ export function getMissingMythicPlusSeasons(
   const stored = new Set(storedSeasons);
   return expectedSeasons.filter((season) => !stored.has(season));
 }
+
+export type MythicPlusSeasonWindow = {
+  slug: string;
+  starts?: Record<string, string> | null;
+  ends?: Record<string, string> | null;
+};
+
+function getSeasonBoundary(boundaries: Record<string, string> | null | undefined, region: string): number | null {
+  const value = boundaries?.[region.toLowerCase()];
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+export function hasMythicPlusSeasonStarted(
+  season: MythicPlusSeasonWindow,
+  region: string,
+  now: Date = new Date(),
+): boolean {
+  const startsAt = getSeasonBoundary(season.starts, region);
+  return startsAt === null || startsAt <= now.getTime();
+}
+
+export function resolveCurrentMythicPlusSeasonSlug(
+  seasons: readonly MythicPlusSeasonWindow[],
+  region: string,
+  now: Date = new Date(),
+): string | null {
+  const nowMs = now.getTime();
+  const current = seasons.find((season) => {
+    const startsAt = getSeasonBoundary(season.starts, region);
+    const endsAt = getSeasonBoundary(season.ends, region);
+    return (startsAt === null || startsAt <= nowMs) && (endsAt === null || endsAt > nowMs);
+  });
+  return current?.slug ?? null;
+}

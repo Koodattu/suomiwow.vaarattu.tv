@@ -1282,6 +1282,7 @@ export const GUILDS_PROD: TrackedGuild[] = [
 
 // Raid zones to track (IDs only - names and encounter info come from DB)
 export const TRACKED_RAIDS = [
+  53, // The Venomous Abyss / The Tidebound Grotto
   50, // Sporefall
   46, // Voidspire / Dreamrift / March on Quel'Danas
   44, // Manaforge Omega
@@ -1316,6 +1317,7 @@ export const RAIDER_IO_EXPANSION_IDS = [11, 10, 9, 8, 7, 6];
 // WarcraftLogs zone ID -> Raider.IO raid slug.
 // Raider.IO only exposes retail raid static data from Legion onward.
 export const RAID_RIO_SLUG_OVERRIDES: Record<number, string> = {
+  53: "the-venomous-abyss",
   50: "sporefall",
   46: "tier-mn-1",
   44: "manaforge-omega",
@@ -1338,6 +1340,16 @@ export const RAID_RIO_SLUG_OVERRIDES: Record<number, string> = {
   11: "the-nighthold",
   10: "the-emerald-nightmare",
 };
+
+// Some WarcraftLogs zones are split into multiple raid tiers by Raider.IO.
+// These slugs are combined into one official progress entry for the WCL zone.
+export const RAID_RIO_PROGRESS_SLUG_OVERRIDES: Record<number, readonly string[]> = {
+  53: ["the-tidebound-grotto", "the-venomous-abyss"],
+};
+
+// Raider.IO ranks the split zone 53 raids separately, so neither rank
+// represents the combined nine-encounter WarcraftLogs zone.
+export const RAID_RIO_RANKING_DISABLED_IDS = new Set<number>([53]);
 
 // Current raids that are actively being tracked for updates
 // Multiple raids can be current at the same time during expansion transitions.

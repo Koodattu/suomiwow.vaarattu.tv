@@ -208,6 +208,7 @@ test("every raid artwork uses its configured horizontal crop range", () => {
     [42, [39, 70]],
     [44, [28, 64]],
     [46, [26, 80]],
+    [53, [18, 86]],
   ]);
 
   assert.equal(CCG_CONFIGURED_SETS.length, expectedRanges.size);
@@ -260,6 +261,7 @@ test("every raid set is pinned to its intended Mythic+ season", () => {
     [42, "season-tww-2"],
     [44, "season-tww-3"],
     [46, "season-mn-1"],
+    [53, "season-mn-2"],
   ]);
 
   assert.deepEqual(
@@ -270,6 +272,16 @@ test("every raid set is pinned to its intended Mythic+ season", () => {
   for (const set of CCG_CONFIGURED_SETS) {
     assert.equal(set.mythicPlusSeason === "none" || RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SET.has(set.mythicPlusSeason), true);
   }
+});
+
+test("The Venomous Abyss is staged as the next CCG set while March on Quel'Danas targets legacy", () => {
+  const march = CCG_CONFIGURED_SETS.find((set) => set.zoneId === 46);
+  const venomousAbyss = CCG_CONFIGURED_SETS.find((set) => set.zoneId === 53);
+
+  assert.equal(march?.state, "legacy");
+  assert.equal(venomousAbyss?.state, "current");
+  assert.equal(venomousAbyss?.mythicPlusSeason, "season-mn-2");
+  assert.equal(venomousAbyss?.backgroundPath, "/ccg/the-venomous-abyss-desktop.webp");
 });
 
 test("WoD and Legion CCG sets use their supplied backgrounds", () => {
@@ -373,6 +385,7 @@ test("raid-scoped finishes extend only their configured set's ladder", () => {
     true,
   );
   assert.equal(CCG_CONFIGURED_SETS.find((set) => set.slug === "march-on-queldanas")?.customFinish?.key, "void");
+  assert.equal(CCG_CONFIGURED_SETS.find((set) => set.slug === "the-venomous-abyss")?.customFinish?.key, "toxic");
   assert.deepEqual(
     CCG_CONFIGURED_SETS.slice(0, CCG_RAID_FINISHES.length).map((set) => set.customFinish?.key),
     CCG_RAID_FINISHES,

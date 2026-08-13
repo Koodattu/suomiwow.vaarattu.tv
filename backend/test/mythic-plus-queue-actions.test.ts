@@ -177,7 +177,7 @@ test("Mythic+ identity repair quarantines stale scores and queues the resolved i
   const originalRunAggregate = runModel.aggregate;
   const originalRunUpdateMany = runModel.updateMany;
   const originalEnqueueProfileJobs = mythicPlusService.enqueueProfileJobs;
-  const originalGetMainSeasonSlugs = mythicPlusService.getMainSeasonSlugs;
+  const originalGetStartedMainSeasonSlugs = mythicPlusService.getStartedMainSeasonSlugs;
   const originalInvalidatePattern = cacheService.invalidatePattern;
   let scoreUpdate: { filter: Record<string, unknown>; update: Record<string, unknown> } | null = null;
   let jobOperations: any[] = [];
@@ -192,7 +192,7 @@ test("Mythic+ identity repair quarantines stale scores and queues the resolved i
     runModel.aggregate = originalRunAggregate;
     runModel.updateMany = originalRunUpdateMany;
     mythicPlusService.enqueueProfileJobs = originalEnqueueProfileJobs;
-    mythicPlusService.getMainSeasonSlugs = originalGetMainSeasonSlugs;
+    mythicPlusService.getStartedMainSeasonSlugs = originalGetStartedMainSeasonSlugs;
     cacheService.invalidatePattern = originalInvalidatePattern;
   });
 
@@ -226,7 +226,7 @@ test("Mythic+ identity repair quarantines stale scores and queues the resolved i
     jobOperations = operations;
     return { modifiedCount: 1 };
   };
-  mythicPlusService.getMainSeasonSlugs = async () => ["season-mn-1", "season-tww-3"];
+  mythicPlusService.getStartedMainSeasonSlugs = async () => ["season-mn-1", "season-tww-3"];
   mythicPlusService.enqueueProfileJobs = (async (options: Parameters<typeof mythicPlusService.enqueueProfileJobs>[0]) => {
     enqueueOptions = options;
     return { candidates: 1, queued: 0, existing: 1 };

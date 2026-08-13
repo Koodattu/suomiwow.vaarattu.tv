@@ -13,11 +13,22 @@ import { BossIcon } from "../models/Achievement";
 import wclService, { type FightRosterResult } from "./warcraftlogs.service";
 import blizzardService from "./blizzard.service";
 import raiderIOService from "./raiderio.service";
-import type { RaiderIORaidDifficultyRankings } from "./raiderio.service";
+import type { RaiderIORaidDifficultyRankings, RaiderIORaidTierProgress } from "./raiderio.service";
 import cacheService from "./cache.service";
 import backgroundGuildProcessor from "./background-guild-processor.service";
 import taskTracker from "./task-tracker.service";
-import { GUILDS_DEV, TRACKED_RAIDS, CURRENT_RAID_IDS, PRIMARY_RAID_ID, DIFFICULTIES, GUILDS_PROD, MANUAL_RAID_DATES, RAID_RIO_SLUG_OVERRIDES } from "../config/guilds";
+import {
+  GUILDS_DEV,
+  TRACKED_RAIDS,
+  CURRENT_RAID_IDS,
+  PRIMARY_RAID_ID,
+  DIFFICULTIES,
+  GUILDS_PROD,
+  MANUAL_RAID_DATES,
+  RAID_RIO_PROGRESS_SLUG_OVERRIDES,
+  RAID_RIO_RANKING_DISABLED_IDS,
+  RAID_RIO_SLUG_OVERRIDES,
+} from "../config/guilds";
 import { filterUniqueGuilds } from "../utils/filterUniqueGuilds";
 import mongoose from "mongoose";
 import logger, { getGuildLogger, releaseGuildLogger } from "../utils/logger";
@@ -31,6 +42,14 @@ import { findDuplicateFight } from "../utils/fight-deduplication";
 import { resolveFightProgress } from "../utils/fight-progress";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
+
+export function getWclZoneSyncTargets(zones: readonly any[], trackedRaidIds: readonly number[]): any[] {
+  const listedZoneIds = new Set<number>(zones.map((zone) => zone.id));
+  const missingTrackedZones = trackedRaidIds
+    .filter((raidId) => !listedZoneIds.has(raidId))
+    .map((id) => ({ id, name: `tracked raid ${id}` }));
+  return [...zones, ...missingTrackedZones];
+}
 
 interface GuildRaidingTodayItem {
   _id: string;
@@ -565,13 +584,19 @@ class GuildService {
 
         logger.info(`Found ${zones.length} zones from WarcraftLogs`);
 
+        const zonesToSync = getWclZoneSyncTargets(zones, TRACKED_RAIDS);
+        const missingTrackedZones = zonesToSync.slice(zones.length);
+        if (missingTrackedZones.length > 0) {
+          logger.info(`Fetching tracked raid IDs missing from worldData.zones directly: ${missingTrackedZones.map((zone) => zone.id).join(", ")}`);
+        }
+
         // Collect all raid and boss names for batch icon fetching
         const allRaidNames: string[] = [];
         const allBossNames: string[] = [];
         const zoneDataCache = new Map<number, any>(); // Cache zone data to avoid refetching
 
         // Sync all zones to database
-        for (const zone of zones) {
+        for (const zone of zonesToSync) {
           try {
             // Get detailed zone info with encounters
             const detailResult = await wclService.getZone(zone.id);
@@ -1576,6 +1601,7 @@ class GuildService {
           if (!raidData) continue;
 
           const raidEntries = raidsWithProgress.filter((p) => p.raidId === raidId);
+          if (RAID_RIO_RANKING_DISABLED_IDS.has(raidData.id)) continue;
           const diffRankings = this.findRaiderIORaidRankings(rioRankings, raidData.slug, raidData.name, raidData.rioSlug || RAID_RIO_SLUG_OVERRIDES[raidData.id]);
           if (!diffRankings) {
             guildLog.info(`${raidData.name}: No matching Raider.IO rankings found`);
@@ -1662,7 +1688,7 @@ class GuildService {
       );
       const hasWclWorldRank = Boolean(mythicProgress?.wclWorldRank || heroicProgress?.wclWorldRank);
       const hasRioWorldRank = Boolean(mythicProgress?.rioWorldRank || heroicProgress?.rioWorldRank);
-      const rioSupported = Boolean(raidData.rioSlug || RAID_RIO_SLUG_OVERRIDES[raidData.id]);
+      const rioSupported = !RAID_RIO_RANKING_DISABLED_IDS.has(raidData.id) && Boolean(raidData.rioSlug || RAID_RIO_SLUG_OVERRIDES[raidData.id]);
       const missingSupportedSourceRank = !hasWclWorldRank || (rioSupported && !hasRioWorldRank);
 
       if (!options.refreshCompleted && hasCompletedMythic && hasExistingWorldRank && !missingSupportedSourceRank) {
@@ -1715,6 +1741,7 @@ class GuildService {
 
       if (rioRankings) {
         for (const { raidData, mythicProgress, heroicProgress, raidName } of raidsToUpdate) {
+          if (RAID_RIO_RANKING_DISABLED_IDS.has(raidData.id)) continue;
           const diffRankings = this.findRaiderIORaidRankings(rioRankings, raidData.slug, raidData.name, raidData.rioSlug || RAID_RIO_SLUG_OVERRIDES[raidData.id]);
           if (!diffRankings) {
             guildLog.info(`${raidName}: No matching Raider.IO rankings found`);
@@ -1792,29 +1819,16 @@ class GuildService {
         return;
       }
 
-      const updatedEntries = Object.entries(profile.raid_progression).map(([tierSlug, tierData]) => ({
-        raidTierSlug: tierSlug,
-        summary: tierData.summary,
-        totalBosses: tierData.total_bosses,
-        normalBossesKilled: tierData.normal_bosses_killed,
-        heroicBossesKilled: tierData.heroic_bosses_killed,
-        mythicBossesKilled: tierData.mythic_bosses_killed,
-        lastUpdated: new Date(),
-      }));
-
-      guild.officialProgress = updatedEntries;
-
       // Ensure synthetic progress entries exist for tracked raids where RIO reports kills
       // but no WCL progress entry exists (e.g. guild stopped logging but still raids)
       const trackedRaids = await Raid.find({ id: { $in: TRACKED_RAIDS } }).lean();
+      const updatedEntries = this.normalizeRaiderIOOfficialProgress(profile.raid_progression, trackedRaids);
+      guild.officialProgress = updatedEntries;
       let progressModified = false;
 
       for (const entry of updatedEntries) {
         const matchedRaid = this.findRaidForRIOTierSlug(entry.raidTierSlug, trackedRaids);
         if (!matchedRaid) continue;
-
-        // Normalize RIO tier slug to WCL slug so downstream consumers can match
-        entry.raidTierSlug = matchedRaid.slug;
 
         if (entry.mythicBossesKilled > 0) {
           this.upsertSyntheticProgress(guild, matchedRaid, "mythic", entry.mythicBossesKilled, entry.totalBosses);
@@ -1874,48 +1888,34 @@ class GuildService {
         guild.faction = faction;
       }
 
-      // Update official progress from progression data
-      const updatedOfficialEntries = Object.entries(progression).map(([tierSlug, tierData]) => ({
-        raidTierSlug: tierSlug,
-        summary: tierData.summary,
-        totalBosses: tierData.total_bosses,
-        normalBossesKilled: tierData.normal_bosses_killed,
-        heroicBossesKilled: tierData.heroic_bosses_killed,
-        mythicBossesKilled: tierData.mythic_bosses_killed,
-        lastUpdated: new Date(),
-      }));
-      guild.officialProgress = updatedOfficialEntries;
-
       // Load all tracked raids from DB to map RIO tier slugs to our internal raid IDs
       const trackedRaids = await Raid.find({ id: { $in: TRACKED_RAIDS } }).lean();
+      const updatedOfficialEntries = this.normalizeRaiderIOOfficialProgress(progression, trackedRaids);
+      guild.officialProgress = updatedOfficialEntries;
 
       let hasCurrentTierProgress = false;
 
-      // Create/update synthetic progress entries for each RIO tier with kills
-      for (const [tierSlug, tierData] of Object.entries(progression)) {
+      // Create/update synthetic progress entries for each normalized RIO tier with kills
+      for (const tierData of updatedOfficialEntries) {
         // Find matching raid in our DB by slug
-        const matchedRaid = this.findRaidForRIOTierSlug(tierSlug, trackedRaids);
+        const matchedRaid = this.findRaidForRIOTierSlug(tierData.raidTierSlug, trackedRaids);
         if (!matchedRaid) {
-          guildLog.info(`RIO tier "${tierSlug}" has no matching tracked raid, skipping`);
+          guildLog.info(`RIO tier "${tierData.raidTierSlug}" has no matching tracked raid, skipping`);
           continue;
         }
-
-        // Normalize RIO tier slug to WCL slug in officialProgress so downstream consumers can match
-        const officialEntry = updatedOfficialEntries.find((e) => e.raidTierSlug === tierSlug);
-        if (officialEntry) officialEntry.raidTierSlug = matchedRaid.slug;
 
         // Check if this is a current raid
         const isCurrentRaid = CURRENT_RAID_IDS.includes(matchedRaid.id);
 
         // Create synthetic progress for Mythic if kills exist
-        if (tierData.mythic_bosses_killed > 0) {
-          this.upsertSyntheticProgress(guild, matchedRaid, "mythic", tierData.mythic_bosses_killed, tierData.total_bosses);
+        if (tierData.mythicBossesKilled > 0) {
+          this.upsertSyntheticProgress(guild, matchedRaid, "mythic", tierData.mythicBossesKilled, tierData.totalBosses);
           if (isCurrentRaid) hasCurrentTierProgress = true;
         }
 
         // Create synthetic progress for Heroic if kills exist
-        if (tierData.heroic_bosses_killed > 0) {
-          this.upsertSyntheticProgress(guild, matchedRaid, "heroic", tierData.heroic_bosses_killed, tierData.total_bosses);
+        if (tierData.heroicBossesKilled > 0) {
+          this.upsertSyntheticProgress(guild, matchedRaid, "heroic", tierData.heroicBossesKilled, tierData.totalBosses);
           if (isCurrentRaid) hasCurrentTierProgress = true;
         }
       }
@@ -1926,6 +1926,7 @@ class GuildService {
           const raidData = trackedRaids.find((r) => r.id === raidProgress.raidId);
           if (!raidData) continue;
 
+          if (RAID_RIO_RANKING_DISABLED_IDS.has(raidData.id)) continue;
           const diffRankings = this.findRaiderIORaidRankings(rankings, raidData.slug, raidData.name, raidData.rioSlug || RAID_RIO_SLUG_OVERRIDES[raidData.id]);
           if (!diffRankings) continue;
 
@@ -1963,8 +1964,12 @@ class GuildService {
   private findRaidForRIOTierSlug(tierSlug: string, raids: IRaid[]): IRaid | undefined {
     const normalized = tierSlug.toLowerCase();
 
+    // A WCL zone can combine multiple Raider.IO raid tiers.
+    let match = raids.find((r) => RAID_RIO_PROGRESS_SLUG_OVERRIDES[r.id]?.some((slug) => slug.toLowerCase() === normalized));
+    if (match) return match;
+
     // Explicit WCL zone ID -> RIO slug mapping handles known provider naming differences.
-    let match = raids.find((r) => RAID_RIO_SLUG_OVERRIDES[r.id]?.toLowerCase() === normalized);
+    match = raids.find((r) => RAID_RIO_SLUG_OVERRIDES[r.id]?.toLowerCase() === normalized);
     if (match) return match;
 
     // Check stored rioSlug first (most reliable after raid sync/backfill)
@@ -1982,6 +1987,68 @@ class GuildService {
       return rSlug.includes(normalized) || normalized.includes(rSlug) || rName.includes(normalized) || normalized.includes(rName);
     });
     return match;
+  }
+
+  private normalizeRaiderIOOfficialProgress(
+    progression: Record<string, RaiderIORaidTierProgress>,
+    raids: IRaid[],
+  ): IOfficialRaidProgress[] {
+    const now = new Date();
+    const normalizedEntries: IOfficialRaidProgress[] = [];
+    const entryIndexByRaidId = new Map<number, number>();
+
+    for (const [tierSlug, tierData] of Object.entries(progression)) {
+      const matchedRaid = this.findRaidForRIOTierSlug(tierSlug, raids);
+      if (!matchedRaid) {
+        normalizedEntries.push({
+          raidTierSlug: tierSlug,
+          summary: tierData.summary,
+          totalBosses: tierData.total_bosses,
+          normalBossesKilled: tierData.normal_bosses_killed,
+          heroicBossesKilled: tierData.heroic_bosses_killed,
+          mythicBossesKilled: tierData.mythic_bosses_killed,
+          lastUpdated: now,
+        });
+        continue;
+      }
+
+      const existingIndex = entryIndexByRaidId.get(matchedRaid.id);
+      const progressSlugs = RAID_RIO_PROGRESS_SLUG_OVERRIDES[matchedRaid.id] ?? [];
+      const combinedTotalBosses = progressSlugs.length > 1 && matchedRaid.bosses.length > 0
+        ? matchedRaid.bosses.length
+        : tierData.total_bosses;
+
+      if (existingIndex === undefined) {
+        entryIndexByRaidId.set(matchedRaid.id, normalizedEntries.length);
+        normalizedEntries.push({
+          raidTierSlug: matchedRaid.slug,
+          summary: tierData.summary,
+          totalBosses: combinedTotalBosses,
+          normalBossesKilled: tierData.normal_bosses_killed,
+          heroicBossesKilled: tierData.heroic_bosses_killed,
+          mythicBossesKilled: tierData.mythic_bosses_killed,
+          lastUpdated: now,
+        });
+        continue;
+      }
+
+      const existing = normalizedEntries[existingIndex];
+      existing.totalBosses = combinedTotalBosses;
+      existing.normalBossesKilled = Math.min(existing.totalBosses, existing.normalBossesKilled + tierData.normal_bosses_killed);
+      existing.heroicBossesKilled = Math.min(existing.totalBosses, existing.heroicBossesKilled + tierData.heroic_bosses_killed);
+      existing.mythicBossesKilled = Math.min(existing.totalBosses, existing.mythicBossesKilled + tierData.mythic_bosses_killed);
+    }
+
+    for (const entry of normalizedEntries) {
+      const matchedRaid = this.findRaidForRIOTierSlug(entry.raidTierSlug, raids);
+      if (!matchedRaid || (RAID_RIO_PROGRESS_SLUG_OVERRIDES[matchedRaid.id]?.length ?? 0) < 2) continue;
+      if (entry.mythicBossesKilled > 0) entry.summary = `${entry.mythicBossesKilled}/${entry.totalBosses} M`;
+      else if (entry.heroicBossesKilled > 0) entry.summary = `${entry.heroicBossesKilled}/${entry.totalBosses} H`;
+      else if (entry.normalBossesKilled > 0) entry.summary = `${entry.normalBossesKilled}/${entry.totalBosses} N`;
+      else entry.summary = `0/${entry.totalBosses} M`;
+    }
+
+    return normalizedEntries;
   }
 
   // Create or update a synthetic IRaidProgress entry from Raider.IO data.

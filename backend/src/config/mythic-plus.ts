@@ -4,6 +4,7 @@ export const RAIDER_IO_MYTHIC_PLUS_EXPANSION_IDS = [11, 10, 9, 8, 7, 6];
 // still the source of truth, but this list keeps cutoff/event seasons out of
 // public views unless we explicitly opt into them later.
 export const RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SLUGS = [
+  "season-mn-2",
   "season-mn-1",
   "season-tww-3",
   "season-tww-2",
@@ -25,6 +26,21 @@ export const RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SLUGS = [
   "season-7.2.5",
   "season-7.2.0",
 ] as const;
+
+export const RAIDER_IO_MYTHIC_PLUS_CURRENT_REGION = "eu";
+
+// Used only until Raider.IO static data has been persisted. Keeping the
+// upcoming start here prevents a failed pre-release sync from activating the
+// future season early.
+export const RAIDER_IO_MYTHIC_PLUS_SEASON_STARTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  "season-mn-2": {
+    us: "2026-08-18T15:00:00Z",
+    eu: "2026-08-19T04:00:00Z",
+    tw: "2026-08-19T23:00:00Z",
+    kr: "2026-08-19T23:00:00Z",
+    cn: "2026-08-19T23:00:00Z",
+  },
+};
 
 export const RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SET = new Set<string>(RAIDER_IO_MAIN_MYTHIC_PLUS_SEASON_SLUGS);
 
