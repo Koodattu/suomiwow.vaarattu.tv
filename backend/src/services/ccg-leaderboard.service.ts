@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import mongoose from "mongoose";
 import {
+  CCG_CONFIGURED_SETS,
   CCG_FINISH_ORDER,
   CCG_TIER_GRADES,
   CcgCustomFinish,
@@ -222,6 +223,11 @@ class CcgLeaderboardService {
     const calculatedAt = candidates.reduce<Date | null>((latest, candidate) => (
       !latest || candidate.calculatedAt > latest ? candidate.calculatedAt : latest
     ), null);
+    const configuredRaidNameByFinish = new Map<CcgFinish, string>(
+      CCG_CONFIGURED_SETS.flatMap((set) => (
+        set.customFinish ? [[set.customFinish.key, set.raidName]] : []
+      )),
+    );
     const boards: CcgLeaderboardRecordBoard[] = [
       {
         key: "uniqueCards",
@@ -245,7 +251,7 @@ class CcgLeaderboardService {
         key: `finish:${finish}`,
         kind: "finish",
         finish,
-        raidName: null,
+        raidName: configuredRaidNameByFinish.get(finish) ?? null,
         entries: topRecordEntries(candidates, (candidate) => candidate.finishCounts?.[finish] ?? 0),
       })),
     ];

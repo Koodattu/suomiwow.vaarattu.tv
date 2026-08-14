@@ -227,6 +227,8 @@ test("record boards rank every collector and expose only positive top-three resu
     assert.deepEqual(records.boards[3].entries.map((entry) => entry.username), ["Second", "First", "Third"]);
     assert.deepEqual(records.boards[4].entries.map((entry) => entry.username), ["First"]);
     assert.deepEqual(records.boards[5].entries.map((entry) => entry.username), ["First", "Second", "Third"]);
+    assert.equal(records.boards[5].kind, "finish");
+    if (records.boards[5].kind === "finish") assert.equal(records.boards[5].raidName, "The Venomous Abyss");
     assert.equal(records.boards[6].kind, "finish");
     if (records.boards[6].kind === "finish") assert.equal(records.boards[6].raidName, "March on Quel'Danas");
     assert.equal(records.boards[7].kind, "finish");
