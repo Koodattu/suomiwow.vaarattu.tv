@@ -169,15 +169,31 @@ function analyzeAlpha(data: Buffer, width: number, height: number, channels: num
   const stanceStartX = Math.max(minX, Math.floor(stanceCenterX - stanceHalfWidth));
   const stanceEndX = Math.min(maxX, Math.ceil(stanceCenterX + stanceHalfWidth));
   const stanceColumnBottoms: number[] = [];
-  for (let x = stanceStartX; x <= stanceEndX; x += 1) {
+  const leftColumnBottoms: number[] = [];
+  const rightColumnBottoms: number[] = [];
+  const leftEndX = Math.floor(stanceCenterX - 0.5);
+  const rightStartX = Math.ceil(stanceCenterX + 0.5);
+  for (let x = minX; x <= maxX; x += 1) {
     for (let y = maxY; y >= minY; y -= 1) {
       if (data[(y * width + x) * channels + 3] < ALPHA_THRESHOLD) continue;
-      stanceColumnBottoms.push(y);
+      if (x >= stanceStartX && x <= stanceEndX) stanceColumnBottoms.push(y);
+      if (x <= leftEndX) leftColumnBottoms.push(y);
+      if (x >= rightStartX) rightColumnBottoms.push(y);
       break;
     }
   }
   stanceColumnBottoms.sort((left, right) => left - right);
-  const groundIndex = Math.round((stanceColumnBottoms.length - 1) * STANCE_GROUND_PERCENTILE);
+  leftColumnBottoms.sort((left, right) => left - right);
+  rightColumnBottoms.sort((left, right) => left - right);
+  const groundAtPercentile = (bottoms: number[]) => bottoms[
+    Math.round((bottoms.length - 1) * STANCE_GROUND_PERCENTILE)
+  ];
+  const centralGroundY = groundAtPercentile(stanceColumnBottoms) ?? maxY;
+  const leftGroundY = groundAtPercentile(leftColumnBottoms) ?? centralGroundY;
+  const rightGroundY = groundAtPercentile(rightColumnBottoms) ?? centralGroundY;
+  // A deeper ground must have support on both sides of the character. This
+  // catches wide stances without letting a low side-held weapon set the floor.
+  const bilateralGroundY = Math.min(leftGroundY, rightGroundY);
   const silhouetteHeight = maxY - minY + 1;
   const hasSoftEffectLead = solidTopY <= maxY
     && solidTopY - minY >= silhouetteHeight * STANCE_TOP_SOFT_LEAD_MIN_RATIO
@@ -190,7 +206,7 @@ function analyzeAlpha(data: Buffer, width: number, height: number, channels: num
     maxY,
     centerX: weightedX / alphaMass,
     stanceTopY: hasSoftEffectLead ? solidTopY : minY,
-    stanceGroundY: stanceColumnBottoms[groundIndex] ?? maxY,
+    stanceGroundY: Math.max(centralGroundY, bilateralGroundY),
   };
 }
 

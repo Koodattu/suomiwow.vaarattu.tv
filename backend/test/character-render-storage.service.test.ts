@@ -98,6 +98,44 @@ test("preserves the silhouette top for ordinary antialiasing and mostly transluc
   assert.equal(translucentResult.stanceFit.top, translucentResult.silhouetteFit.top);
 });
 
+test("detects the ground beneath a wide stance", async () => {
+  const width = 100;
+  const height = 100;
+  const pixels = createRgba(width, height);
+  for (let y = 10; y < 55; y += 1) {
+    for (let x = 40; x < 60; x += 1) pixels[(y * width + x) * 4 + 3] = 255;
+  }
+  for (let y = 45; y < 80; y += 1) {
+    for (let x = 20; x < 32; x += 1) pixels[(y * width + x) * 4 + 3] = 255;
+    for (let x = 68; x < 80; x += 1) pixels[(y * width + x) * 4 + 3] = 255;
+  }
+  const png = await sharp(pixels, { raw: { width, height, channels: 4 } }).png().toBuffer();
+
+  const result = await processCharacterRender(png);
+
+  assert.equal(result.stanceFit.ground, result.silhouetteFit.ground);
+  assert.deepEqual((await measureCharacterRenderFits(result.output)).stanceFit, result.stanceFit);
+});
+
+test("does not use a low side-held object as the stance ground", async () => {
+  const width = 100;
+  const height = 100;
+  const pixels = createRgba(width, height);
+  for (let y = 10; y < 70; y += 1) {
+    for (let x = 30; x < 70; x += 1) pixels[(y * width + x) * 4 + 3] = 255;
+  }
+  for (let y = 20; y < 90; y += 1) {
+    for (let x = 75; x < 80; x += 1) pixels[(y * width + x) * 4 + 3] = 255;
+  }
+  const png = await sharp(pixels, { raw: { width, height, channels: 4 } }).png().toBuffer();
+
+  const result = await processCharacterRender(png);
+
+  assert.equal(result.height, 84);
+  assert.equal(result.stanceFit.ground, 62 / 84);
+  assert.equal(result.silhouetteFit.ground, 82 / 84);
+});
+
 test("saved-source ingestion falls back only for unusable render data", async () => {
   const storage = characterRenderStorageService as any;
   const originalIngest = storage.ingest;

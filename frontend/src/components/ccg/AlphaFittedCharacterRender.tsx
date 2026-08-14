@@ -77,23 +77,36 @@ function measureAlphaBounds(image: HTMLImageElement, fitMode: AlphaFitMode): Alp
     break;
   }
 
-  // Scan beneath the character's central stance so a side-held weapon cannot
-  // make the boots appear to float above the bottom of the render window.
   const stanceHalfWidth = Math.max(1, Math.round(width * STANCE_SCAN_HALF_WIDTH_RATIO));
   const stanceStartX = Math.max(0, Math.floor(stanceCenterX - stanceHalfWidth));
   const stanceEndX = Math.min(width - 1, Math.ceil(stanceCenterX + stanceHalfWidth));
   const stanceColumnBottoms: number[] = [];
+  const leftColumnBottoms: number[] = [];
+  const rightColumnBottoms: number[] = [];
+  const leftEndX = Math.floor(stanceCenterX - 0.5);
+  const rightStartX = Math.ceil(stanceCenterX + 0.5);
 
-  for (let x = stanceStartX; x <= stanceEndX; x += 1) {
+  for (let x = 0; x < width; x += 1) {
     for (let y = maxY; y >= minY; y -= 1) {
       if (pixels[(y * width + x) * 4 + 3] < ALPHA_THRESHOLD) continue;
-      stanceColumnBottoms.push(y);
+      if (x >= stanceStartX && x <= stanceEndX) stanceColumnBottoms.push(y);
+      if (x <= leftEndX) leftColumnBottoms.push(y);
+      if (x >= rightStartX) rightColumnBottoms.push(y);
       break;
     }
   }
   stanceColumnBottoms.sort((a, b) => a - b);
-  const groundIndex = Math.round((stanceColumnBottoms.length - 1) * STANCE_GROUND_PERCENTILE);
-  const groundY = stanceColumnBottoms[groundIndex] ?? maxY;
+  leftColumnBottoms.sort((a, b) => a - b);
+  rightColumnBottoms.sort((a, b) => a - b);
+  const groundAtPercentile = (bottoms: number[]) => bottoms[
+    Math.round((bottoms.length - 1) * STANCE_GROUND_PERCENTILE)
+  ];
+  const centralGroundY = groundAtPercentile(stanceColumnBottoms) ?? maxY;
+  const leftGroundY = groundAtPercentile(leftColumnBottoms) ?? centralGroundY;
+  const rightGroundY = groundAtPercentile(rightColumnBottoms) ?? centralGroundY;
+  // A deeper ground must have support on both sides of the character. This
+  // catches wide stances without letting a low side-held weapon set the floor.
+  const groundY = Math.max(centralGroundY, Math.min(leftGroundY, rightGroundY));
 
   return {
     top: minY / height,
