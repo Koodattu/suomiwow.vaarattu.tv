@@ -217,8 +217,10 @@ function CollectibleCard({
   const suppressTouchClickUntil = useRef(0);
   const cardRef = useRef<HTMLSpanElement | null>(null);
   const hadForcedPointer = useRef(false);
-  const readyAssets = useRef(new Set<"render" | "class" | "spec">());
-  const readyCard = useRef<string | null>(null);
+  const readiness = useRef({
+    key: null as string | null,
+    assets: new Set<"render" | "class" | "spec">(),
+  });
   const classInfo = getClassInfoById(card.classID);
   const specIcon = getSpecIconUrl(card.classID, card.specName);
   const rarity = t(`rarity.${CCG_RARITY_KEYS[card.tierGrade]}`);
@@ -238,15 +240,15 @@ function CollectibleCard({
   const backgroundIsVideo = isWebmArtwork(backgroundPath);
   const readyKey = `${card.id}:${artVariant}:${renderUrl ?? ""}:${classInfo.iconUrl ?? ""}:${specIcon ?? ""}`;
 
-  if (readyCard.current !== readyKey) {
-    readyCard.current = readyKey;
-    readyAssets.current.clear();
-  }
-
   const markReady = useCallback((asset: "render" | "class" | "spec") => {
-    readyAssets.current.add(asset);
-    if (readyAssets.current.size === 3) onReady?.();
-  }, [onReady]);
+    if (readiness.current.key !== readyKey) {
+      readiness.current.key = readyKey;
+      readiness.current.assets.clear();
+    }
+
+    readiness.current.assets.add(asset);
+    if (readiness.current.assets.size === 3) onReady?.();
+  }, [onReady, readyKey]);
 
   useEffect(() => {
     if (!renderUrl) markReady("render");

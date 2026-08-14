@@ -366,7 +366,7 @@ const GuildTableRow = memo(
     onGuildClick: (guild: GuildListItem) => void;
     onRaidProgressClick: (guild: GuildListItem) => void;
     getLatestProgress: (guild: GuildListItem, difficulty: "mythic" | "heroic") => RaidProgressSummary | null;
-    t: any;
+    t: ReturnType<typeof useTranslations<"guildTable">>;
   }) => {
     const mythicProgress = getLatestProgress(guild, "mythic");
     const heroicProgress = getLatestProgress(guild, "heroic");

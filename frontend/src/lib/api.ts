@@ -1399,8 +1399,9 @@ export const api = {
     });
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: "Failed to refresh characters" }));
-      const error: any = new Error(errorData.error || "Failed to refresh characters");
-      error.response = { data: errorData };
+      const error = Object.assign(new Error(errorData.error || "Failed to refresh characters"), {
+        response: { data: errorData },
+      });
       throw error;
     }
     return response.json();

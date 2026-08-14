@@ -400,6 +400,38 @@ function StackedHeaderLabel({ label }: { label: string }) {
   );
 }
 
+function SortableHeader({
+  sortKey,
+  children,
+  className = "",
+  sort,
+  onToggleSort,
+}: {
+  sortKey: string;
+  children: ReactNode;
+  className?: string;
+  sort: SortState;
+  onToggleSort: (key: string) => void;
+}) {
+  const isActive = sort?.key === sortKey;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onToggleSort(sortKey)}
+      className={`inline-flex w-full cursor-pointer items-center gap-1 transition-colors hover:text-white ${className}`}
+      aria-sort={isActive ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <span>{children}</span>
+      {isActive && (
+        <svg className={`h-3 w-3 text-blue-300 ${sort.direction === "asc" ? "" : "rotate-180"}`} viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+          <path d="M6 2 2 7h8L6 2Z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 function CompareTable({ compare, t }: { compare: RaidCompare; t: ReturnType<typeof useTranslations> }) {
   const [sort, setSort] = useState<SortState>(null);
   const sortedGuilds = useMemo(() => sortGuildsForTable(compare.guilds, sort), [compare.guilds, sort]);
@@ -415,33 +447,7 @@ function CompareTable({ compare, t }: { compare: RaidCompare; t: ReturnType<type
     });
   };
 
-  const SortableHeader = ({
-    sortKey,
-    children,
-    className = "",
-  }: {
-    sortKey: string;
-    children: ReactNode;
-    className?: string;
-  }) => {
-    const isActive = sort?.key === sortKey;
-
-    return (
-      <button
-        type="button"
-        onClick={() => toggleSort(sortKey)}
-        className={`inline-flex w-full cursor-pointer items-center gap-1 transition-colors hover:text-white ${className}`}
-        aria-sort={isActive ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
-      >
-        <span>{children}</span>
-        {isActive && (
-          <svg className={`h-3 w-3 text-blue-300 ${sort.direction === "asc" ? "" : "rotate-180"}`} viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
-            <path d="M6 2 2 7h8L6 2Z" />
-          </svg>
-        )}
-      </button>
-    );
-  };
+  const sortableHeaderProps = { sort, onToggleSort: toggleSort };
 
   return (
     <div className="overflow-x-auto border border-gray-800 rounded bg-gray-950/40">
@@ -449,25 +455,25 @@ function CompareTable({ compare, t }: { compare: RaidCompare; t: ReturnType<type
         <thead>
           <tr className="bg-gray-900 text-xs uppercase text-gray-400">
             <th rowSpan={2} className="sticky left-0 z-20 bg-gray-900 px-3 pb-2 pt-3 text-left align-bottom font-semibold">
-              <SortableHeader sortKey="guild">{t("guild")}</SortableHeader>
+              <SortableHeader {...sortableHeaderProps} sortKey="guild">{t("guild")}</SortableHeader>
             </th>
             <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
-              <SortableHeader sortKey="rank" className="justify-end"><StackedHeaderLabel label={t("rank")} /></SortableHeader>
+              <SortableHeader {...sortableHeaderProps} sortKey="rank" className="justify-end"><StackedHeaderLabel label={t("rank")} /></SortableHeader>
             </th>
             <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
-              <SortableHeader sortKey="worldRank" className="justify-end"><StackedHeaderLabel label={t("worldRank")} /></SortableHeader>
+              <SortableHeader {...sortableHeaderProps} sortKey="worldRank" className="justify-end"><StackedHeaderLabel label={t("worldRank")} /></SortableHeader>
             </th>
             <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
-              <SortableHeader sortKey="progress" className="justify-end"><StackedHeaderLabel label={t("progress")} /></SortableHeader>
+              <SortableHeader {...sortableHeaderProps} sortKey="progress" className="justify-end"><StackedHeaderLabel label={t("progress")} /></SortableHeader>
             </th>
             <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
-              <SortableHeader sortKey="totalPulls" className="justify-end"><StackedHeaderLabel label={t("totalPulls")} /></SortableHeader>
+              <SortableHeader {...sortableHeaderProps} sortKey="totalPulls" className="justify-end"><StackedHeaderLabel label={t("totalPulls")} /></SortableHeader>
             </th>
             <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
-              <SortableHeader sortKey="progressTime" className="justify-end"><StackedHeaderLabel label={t("progressTime")} /></SortableHeader>
+              <SortableHeader {...sortableHeaderProps} sortKey="progressTime" className="justify-end"><StackedHeaderLabel label={t("progressTime")} /></SortableHeader>
             </th>
             <th rowSpan={2} className="px-3 pb-2 pt-3 text-right align-bottom font-semibold">
-              <SortableHeader sortKey="progressRaidTime" className="justify-end"><StackedHeaderLabel label={t("progressTimeWithBreaks")} /></SortableHeader>
+              <SortableHeader {...sortableHeaderProps} sortKey="progressRaidTime" className="justify-end"><StackedHeaderLabel label={t("progressTimeWithBreaks")} /></SortableHeader>
             </th>
             {compare.raid.bosses.map((boss) => (
               <th key={boss.id} colSpan={2} className="border-l border-gray-800 px-2 py-2 text-center font-semibold" title={boss.name}>
@@ -486,10 +492,10 @@ function CompareTable({ compare, t }: { compare: RaidCompare; t: ReturnType<type
             {compare.raid.bosses.map((boss) => (
               <Fragment key={boss.id}>
                 <th key={`${boss.id}-pulls`} className="border-l border-gray-800 px-3 py-2 text-right font-medium">
-                  <SortableHeader sortKey={`boss:${boss.id}:pulls`} className="justify-end">{t("pulls")}</SortableHeader>
+                  <SortableHeader {...sortableHeaderProps} sortKey={`boss:${boss.id}:pulls`} className="justify-end">{t("pulls")}</SortableHeader>
                 </th>
                 <th key={`${boss.id}-time`} className="px-3 py-2 text-right font-medium">
-                  <SortableHeader sortKey={`boss:${boss.id}:time`} className="justify-end">{t("time")}</SortableHeader>
+                  <SortableHeader {...sortableHeaderProps} sortKey={`boss:${boss.id}:time`} className="justify-end">{t("time")}</SortableHeader>
                 </th>
               </Fragment>
             ))}

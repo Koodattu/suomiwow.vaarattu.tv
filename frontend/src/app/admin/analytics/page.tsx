@@ -47,7 +47,7 @@ function DailyTrafficChart({ data }: { data: DailyChartPoint[] }) {
   }
 
   const onlyPoint = data.length === 1;
-  const timestamp = data[0]?.timestamp || Date.now();
+  const timestamp = data[0].timestamp;
   const xDomain = onlyPoint ? ([timestamp - DAY_MS, timestamp + DAY_MS] as [number, number]) : (["dataMin", "dataMax"] as const);
 
   return (

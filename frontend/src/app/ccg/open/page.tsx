@@ -722,13 +722,14 @@ export default function CcgOpenPage() {
     if (!opening || revealPhase !== "ready") return;
     setActiveReveal(null);
     playRandomPackSound(CCG_CARD_SLIDE_SOUNDS, 0.32);
-    opening.results.forEach((result, index) => {
-      if (!revealedCards.has(index) && hasCcgQualityRevealSound(result.finish, result.card.tierGrade, result.artVariant)) playQualitySoundAfterFlip(index);
-    });
     const prioritizedResults = opening.results
       .map((result, index) => ({ result, index }))
       .filter(({ index }) => !revealedCards.has(index))
       .sort((left, right) => compareCcgPullQuality(left.result, right.result) || left.index - right.index);
+    const qualityResult = prioritizedResults.find(({ result }) => (
+      hasCcgQualityRevealSound(result.finish, result.card.tierGrade, result.artVariant)
+    ));
+    if (qualityResult) playQualitySoundAfterFlip(qualityResult.index);
     const voiceResult = prioritizedResults.find(({ result }) => (
       result.card.quip?.audioPath
         ? getCcgPlaybackVolume("quips", 0.9) > 0
