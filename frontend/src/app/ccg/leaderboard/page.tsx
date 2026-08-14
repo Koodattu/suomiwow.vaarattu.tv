@@ -48,7 +48,7 @@ function ShowcaseCards({
             onClick={(event) => onSelect(item, event)}
             aria-label={item.card.name}
           >
-            <CollectibleCard card={item.card} finish={item.finish} artVariant={item.artVariant} compact />
+            <CollectibleCard card={item.card} finish={item.finish} artVariant={item.artVariant} compact effectsPaused />
           </button>
         </div>
       ))}
@@ -212,6 +212,7 @@ function CollectorShowcaseDialog({
                   finish={item.finish}
                   artVariant={item.artVariant}
                   compact
+                  effectsPaused
                   className={styles.leaderboardCollectorCard}
                   onSelect={(event) => inspectCard(item, event)}
                   renderPriority

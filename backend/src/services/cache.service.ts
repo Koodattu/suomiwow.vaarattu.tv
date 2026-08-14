@@ -677,7 +677,7 @@ class CacheService {
     const data = await warmer();
     const ttl = this.inferTTLFromKey(key);
     await this.set(key, data, ttl);
-    logger.info(`[Refresh] Cache refreshed for key: ${key}`);
+    logger.debug(`[Refresh] Cache refreshed for key: ${key}`);
   }
 
   /**
@@ -703,7 +703,7 @@ class CacheService {
       const data = await warmer();
       const ttl = this.inferTTLFromKey(key);
       await this.set(key, data, ttl);
-      logger.info(`[Refresh] Cache refreshed in place for key: ${key}`);
+      logger.debug(`[Refresh] Cache refreshed in place for key: ${key}`);
       return true;
     } catch (error) {
       logger.error(`[Refresh] Failed to refresh cache for key ${key}:`, error);
@@ -738,7 +738,7 @@ class CacheService {
       // Remove from L2
       const result = await Cache.deleteOne({ key });
       if (result.deletedCount > 0) {
-        logger.info(`Cache invalidated for key: ${key}`);
+        logger.debug(`Cache invalidated for key: ${key}`);
       }
     } catch (error) {
       logger.error(`Cache invalidate error for key ${key}:`, error);
@@ -758,7 +758,7 @@ class CacheService {
       // Remove from L2
       const result = await Cache.deleteMany({ key: { $regex: pattern } });
       if (result.deletedCount > 0 || memoryRemoved > 0) {
-        logger.info(`Cache invalidated ${result.deletedCount} L2 + ${memoryRemoved} L1 entries matching pattern: ${pattern}`);
+        logger.debug(`Cache invalidated ${result.deletedCount} L2 + ${memoryRemoved} L1 entries matching pattern: ${pattern}`);
       }
     } catch (error) {
       logger.error(`Cache invalidatePattern error for ${pattern}:`, error);

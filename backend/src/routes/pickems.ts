@@ -117,7 +117,7 @@ router.get(
       }
 
       // Fallback to direct DB query if cache is cold
-      logger.warn("Pickems guild list cache miss — falling back to DB query");
+      logger.debug("Pickems guild list cache miss — falling back to DB query");
       const guilds = await Guild.find({ $or: [{ parent_guild: null }, { parent_guild: "" }, { parent_guild: { $exists: false } }] }, { name: 1, realm: 1, _id: 0 }).lean();
       res.json(guilds);
     } catch (error) {
@@ -498,8 +498,8 @@ async function getGuildRankingsForPickem(raidIds: number[]) {
     return buildRankingsFromCachedProgress(cachedGuildsByRaid, raidIds);
   }
 
-  // Fallback: query DB directly (only happens if cache warmer hasn't run yet)
-  logger.warn(`Pickems rankings cache miss for raids [${raidIds.join(",")}] — falling back to DB query`);
+  // Fallback: query DB directly when the shared progress cache is unavailable.
+  logger.debug(`Pickems rankings cache miss for raids [${raidIds.join(",")}] — falling back to DB query`);
   return buildRankingsFromDB(raidIds);
 }
 
