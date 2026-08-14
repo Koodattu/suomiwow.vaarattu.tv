@@ -394,30 +394,45 @@ export default function CardViewer({
   }, [originBounds]);
 
   const hasForcedPointer = forcedPointer !== undefined;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!hasForcedPointer) return;
+    const targetElement = cardMotionRef.current?.querySelector<HTMLElement>("[data-ccg-card]");
+    const bounds = forcedPointerBoundsRef.current;
+    if (!targetElement || !bounds) return;
 
-    const syncForcedPointer = (event: PointerEvent) => {
+    const clearForcedPointer = () => {
+      delete targetElement.dataset.pointerActive;
+      resetCardMaterial(targetElement);
+      setForcedPointer(undefined);
+    };
+
+    const trackForcedPointer = (event: PointerEvent) => {
       if (!event.isPrimary || event.pointerType === "touch") return;
-      const bounds = forcedPointerBoundsRef.current;
-      if (!bounds) return;
       if (
         event.clientX < bounds.left
         || event.clientX > bounds.right
         || event.clientY < bounds.top
         || event.clientY > bounds.bottom
       ) {
-        setForcedPointer(undefined);
+        clearForcedPointer();
         return;
       }
-      setForcedPointer({
-        x: (event.clientX - bounds.left) / bounds.width,
-        y: (event.clientY - bounds.top) / bounds.height,
-      });
+
+      if (event.target instanceof Node && targetElement.contains(event.target)) return;
+      targetElement.dataset.pointerActive = "true";
+      applyCardMaterial(
+        targetElement,
+        (event.clientX - bounds.left) / bounds.width,
+        (event.clientY - bounds.top) / bounds.height,
+      );
     };
 
-    window.addEventListener("pointermove", syncForcedPointer, { passive: true });
-    return () => window.removeEventListener("pointermove", syncForcedPointer);
+    window.addEventListener("pointermove", trackForcedPointer, { passive: true });
+    window.addEventListener("blur", clearForcedPointer);
+    return () => {
+      window.removeEventListener("pointermove", trackForcedPointer);
+      window.removeEventListener("blur", clearForcedPointer);
+    };
   }, [hasForcedPointer]);
 
   useEffect(() => {

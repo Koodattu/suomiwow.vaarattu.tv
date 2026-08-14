@@ -54,6 +54,23 @@ test("collection ownership has an index for finding recently changed collectors"
   )));
 });
 
+test("leaderboard refresh start reports busy when the shared lock is held", async () => {
+  const originalDeleteOne = CcgJobLock.deleteOne;
+  const originalCreate = CcgJobLock.create;
+
+  try {
+    (CcgJobLock as any).deleteOne = async () => ({ deletedCount: 0 });
+    (CcgJobLock as any).create = async () => {
+      throw Object.assign(new Error("duplicate lock"), { code: 11000 });
+    };
+
+    assert.deepEqual(await ccgLeaderboardService.startRefresh("full"), { started: false });
+  } finally {
+    (CcgJobLock as any).deleteOne = originalDeleteOne;
+    (CcgJobLock as any).create = originalCreate;
+  }
+});
+
 test("incremental leaderboard refresh uses an overlap window and skips the full aggregation when nobody changed", async () => {
   const baseline = new Date("2026-07-30T10:10:00.000Z");
   let dirtyQuery: Record<string, any> | null = null;
