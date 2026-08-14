@@ -195,6 +195,14 @@ class CcgLeaderboardService {
     return CcgLeaderboardEntry.findOne({ userId, scoreVersion: CCG_COLLECTION_SCORE_VERSION });
   }
 
+  async getPublicEntryIfReady(entryId: mongoose.Types.ObjectId): Promise<ICcgLeaderboardEntry | null> {
+    return CcgLeaderboardEntry.findOne({
+      _id: entryId,
+      scoreVersion: CCG_COLLECTION_SCORE_VERSION,
+      rank: { $lte: 100 },
+    });
+  }
+
   async listRecords(): Promise<CcgLeaderboardRecords> {
     await this.ensureInitialized();
     const [candidates, finishSets] = await Promise.all([

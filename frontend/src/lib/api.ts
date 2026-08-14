@@ -161,6 +161,7 @@ import {
   CcgLeaderboardResponse,
   CcgLeaderboardRecordsResponse,
   CcgLeaderboardMeResponse,
+  CcgLeaderboardShowcaseResponse,
   CcgShowcaseCardInput,
   CcgRedeemResult,
   CcgSession,
@@ -332,8 +333,14 @@ export const api = {
   },
 
   async getCcgLeaderboard(): Promise<CcgLeaderboardResponse> {
-    const response = await fetch(`${API_URL}/api/ccg/leaderboard`);
+    const response = await fetch(`${API_URL}/api/ccg/leaderboard?showcases=compact`);
     if (!response.ok) throw await buildApiError(response, "Failed to load the collection leaderboard");
+    return response.json();
+  },
+
+  async getCcgLeaderboardShowcase(collectorId: string): Promise<CcgLeaderboardShowcaseResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/leaderboard/${encodeURIComponent(collectorId)}/showcase`);
+    if (!response.ok) throw await buildApiError(response, "Failed to load the collector showcase");
     return response.json();
   },
 

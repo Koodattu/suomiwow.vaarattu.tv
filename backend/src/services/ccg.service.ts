@@ -980,17 +980,41 @@ class CcgService {
     };
   }
 
-  async getLeaderboard(): Promise<Record<string, unknown>> {
+  async getLeaderboard(options: { compactShowcases?: boolean } = {}): Promise<Record<string, unknown>> {
     requireFeature();
     const entries = await ccgLeaderboardService.list(100);
-    const showcases = await this.loadLeaderboardShowcases(entries.map((entry) => entry.userId));
+    const userIds = entries.map((entry) => entry.userId);
+    const compactShowcases = options.compactShowcases === true;
+    const [showcases, showcaseSummaries] = await Promise.all([
+      this.loadLeaderboardShowcases(compactShowcases ? userIds.slice(0, 6) : userIds),
+      compactShowcases ? this.loadLeaderboardShowcaseSummaries(userIds) : Promise.resolve(new Map()),
+    ]);
     return {
       scoreVersion: getCcgLeaderboardScoringRules().version,
       calculatedAt: entries[0]?.calculatedAt ?? null,
       refreshIntervalSeconds: CCG_LEADERBOARD_REFRESH_INTERVAL_SECONDS,
       scoring: getCcgLeaderboardScoringRules(),
-      entries: entries.map((entry) => this.serializeLeaderboardEntry(entry, showcases.get(String(entry.userId)) ?? [])),
+      entries: entries.map((entry, index) => {
+        const userId = String(entry.userId);
+        if (!compactShowcases) {
+          return this.serializeLeaderboardEntry(entry, showcases.get(userId) ?? []);
+        }
+        return {
+          ...this.serializeLeaderboardEntry(entry, showcaseSummaries.get(userId) ?? []),
+          collectorId: String(entry._id),
+          showcaseCards: index < 6 ? showcases.get(userId) ?? [] : [],
+        };
+      }),
     };
+  }
+
+  async getLeaderboardShowcase(entryId: string): Promise<Record<string, unknown>> {
+    requireFeature();
+    const leaderboardEntryId = validateObjectId(entryId, "leaderboard collector ID");
+    const entry = await ccgLeaderboardService.getPublicEntryIfReady(leaderboardEntryId);
+    if (!entry) throw new CcgServiceError(404, "leaderboard_collector_not_found", "Leaderboard collector not found");
+    const showcases = await this.loadLeaderboardShowcases([entry.userId]);
+    return { showcase: showcases.get(String(entry.userId)) ?? [] };
   }
 
   async getLeaderboardRecords(): Promise<Record<string, unknown>> {
@@ -4912,6 +4936,46 @@ class CcgService {
       throw new CcgServiceError(400, "invalid_showcase", "A card can only appear once in your showcase");
     }
     return showcase;
+  }
+
+  private async loadLeaderboardShowcaseSummaries(
+    userIds: mongoose.Types.ObjectId[],
+  ): Promise<Map<string, Array<Record<string, unknown>>>> {
+    if (userIds.length === 0) return new Map();
+    const profiles = await CcgCollectorProfile.find({ userId: { $in: userIds } })
+      .select("userId showcase -_id")
+      .lean();
+    const showcaseItems = profiles.flatMap((profile) => profile.showcase ?? []);
+    const cards = showcaseItems.length > 0
+      ? await CcgCard.find({ _id: { $in: showcaseItems.map((item) => item.cardId) } })
+          .select("_id setId name realm classID tierGrade")
+          .lean()
+      : [];
+    const enabledSets = cards.length > 0
+      ? await CcgSet.find({ _id: { $in: cards.map((card) => card.setId) }, enabledAt: { $ne: null } })
+          .select("_id")
+          .lean()
+      : [];
+    const cardById = new Map(cards.map((card) => [String(card._id), card]));
+    const enabledSetIds = new Set(enabledSets.map((set) => String(set._id)));
+    return new Map(profiles.map((profile) => [
+      String(profile.userId),
+      (profile.showcase ?? []).flatMap((item: ICcgShowcaseCard) => {
+        const card = cardById.get(String(item.cardId));
+        if (!card || !enabledSetIds.has(String(card.setId))) return [];
+        return [{
+          card: {
+            id: String(card._id),
+            name: card.name,
+            realm: card.realm,
+            classID: card.classID,
+            tierGrade: card.tierGrade,
+          },
+          finish: item.finish,
+          artVariant: item.artVariant,
+        }];
+      }),
+    ]));
   }
 
   private async loadLeaderboardShowcases(

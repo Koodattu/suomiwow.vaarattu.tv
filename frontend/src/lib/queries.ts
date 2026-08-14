@@ -97,6 +97,7 @@ export const queryKeys = {
   ccg: {
     analytics: ["ccg", "analytics"] as const,
     leaderboard: ["ccg", "leaderboard"] as const,
+    leaderboardShowcase: (collectorId: string) => ["ccg", "leaderboard", "showcase", collectorId] as const,
     leaderboardRecords: ["ccg", "leaderboard", "records"] as const,
     leaderboardMe: ["ccg", "leaderboard", "me"] as const,
     bootstrap: CCG_BOOTSTRAP_QUERY_KEY,
@@ -529,6 +530,15 @@ export function useCcgLeaderboard() {
     queryFn: () => api.getCcgLeaderboard(),
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
+  });
+}
+
+export function useCcgLeaderboardShowcase(collectorId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.ccg.leaderboardShowcase(collectorId ?? "none"),
+    queryFn: () => api.getCcgLeaderboardShowcase(collectorId!),
+    enabled: Boolean(collectorId),
+    staleTime: 5 * 60 * 1000,
   });
 }
 

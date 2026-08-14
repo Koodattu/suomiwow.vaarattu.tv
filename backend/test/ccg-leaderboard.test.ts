@@ -268,6 +268,91 @@ test("leaderboard participation and showcase updates require a logged-in user", 
   );
 });
 
+test("compact leaderboard responses keep full cards only for highlighted collectors", async () => {
+  const service = ccgService as any;
+  const leaderboardService = ccgLeaderboardService as any;
+  const entries = Array.from({ length: 7 }, (_, index) => ({
+    _id: new mongoose.Types.ObjectId(),
+    userId: new mongoose.Types.ObjectId(),
+    rank: index + 1,
+    username: `Collector ${index + 1}`,
+    avatarUrl: `https://example.com/${index + 1}.png`,
+    score: 1000 - index,
+    cardsOwned: 10,
+    snapshotsOwned: 10,
+    finishesOwned: 10,
+    premiumFinishesOwned: 2,
+    completedCards: 1,
+    completedSets: 0,
+    breakdown: { collection: 1, rarity: 2, finishes: 3, completedCards: 4, completedSets: 5 },
+    calculatedAt: new Date("2026-08-14T10:00:00.000Z"),
+  }));
+  const fullShowcases = new Map(entries.map((entry) => [String(entry.userId), [{ card: { id: `full-${entry.rank}` }, finish: "foil", artVariant: "standard" }]]));
+  const summaries = new Map(entries.map((entry) => [String(entry.userId), [{ card: { id: `summary-${entry.rank}` }, finish: "foil", artVariant: "standard" }]]));
+  const fullShowcaseRequests: string[][] = [];
+  const originals = {
+    list: leaderboardService.list,
+    loadShowcases: service.loadLeaderboardShowcases,
+    loadSummaries: service.loadLeaderboardShowcaseSummaries,
+  };
+
+  try {
+    leaderboardService.list = async () => entries;
+    service.loadLeaderboardShowcases = async (userIds: mongoose.Types.ObjectId[]) => {
+      fullShowcaseRequests.push(userIds.map(String));
+      return new Map(userIds.map((userId) => [String(userId), fullShowcases.get(String(userId)) ?? []]));
+    };
+    service.loadLeaderboardShowcaseSummaries = async () => summaries;
+
+    const compact = await ccgService.getLeaderboard({ compactShowcases: true }) as any;
+    assert.deepEqual(fullShowcaseRequests[0], entries.slice(0, 6).map((entry) => String(entry.userId)));
+    assert.equal(compact.entries[0].collectorId, String(entries[0]._id));
+    assert.equal(compact.entries[0].showcase[0].card.id, "summary-1");
+    assert.equal(compact.entries[0].showcaseCards[0].card.id, "full-1");
+    assert.deepEqual(compact.entries[6].showcaseCards, []);
+
+    const legacy = await ccgService.getLeaderboard() as any;
+    assert.deepEqual(fullShowcaseRequests[1], entries.map((entry) => String(entry.userId)));
+    assert.equal(legacy.entries[6].showcase[0].card.id, "full-7");
+    assert.equal(legacy.entries[6].collectorId, undefined);
+  } finally {
+    leaderboardService.list = originals.list;
+    service.loadLeaderboardShowcases = originals.loadShowcases;
+    service.loadLeaderboardShowcaseSummaries = originals.loadSummaries;
+  }
+});
+
+test("public leaderboard showcase lookup uses a stable entry ID", async () => {
+  const service = ccgService as any;
+  const leaderboardService = ccgLeaderboardService as any;
+  const entryId = new mongoose.Types.ObjectId();
+  const userId = new mongoose.Types.ObjectId();
+  const originals = {
+    getPublicEntryIfReady: leaderboardService.getPublicEntryIfReady,
+    loadShowcases: service.loadLeaderboardShowcases,
+  };
+
+  try {
+    leaderboardService.getPublicEntryIfReady = async (requestedId: mongoose.Types.ObjectId) => {
+      assert.equal(String(requestedId), String(entryId));
+      return { _id: entryId, userId };
+    };
+    service.loadLeaderboardShowcases = async () => new Map([[String(userId), [{ card: { id: "full-card" }, finish: "foil", artVariant: "standard" }]]]);
+
+    const response = await ccgService.getLeaderboardShowcase(String(entryId)) as any;
+    assert.equal(response.showcase[0].card.id, "full-card");
+
+    leaderboardService.getPublicEntryIfReady = async () => null;
+    await assert.rejects(
+      () => ccgService.getLeaderboardShowcase(String(entryId)),
+      (error: unknown) => error instanceof CcgServiceError && error.status === 404 && error.code === "leaderboard_collector_not_found",
+    );
+  } finally {
+    leaderboardService.getPublicEntryIfReady = originals.getPublicEntryIfReady;
+    service.loadLeaderboardShowcases = originals.loadShowcases;
+  }
+});
+
 test("showcases allow at most three distinct cards", () => {
   const service = ccgService as any;
   const cardId = "64b64b64b64b64b64b64b641";

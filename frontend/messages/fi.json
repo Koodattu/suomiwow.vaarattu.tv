@@ -367,6 +367,8 @@
         "title": "Suosikkikortit",
         "body": "Valitse enintään kolme korttia esiteltäväksi. Tarkastele suosikkia napauttamalla sitä.",
         "empty": "Ei valittua suosikkia",
+        "loading": "Ladataan suosikkikortteja",
+        "loadError": "Suosikkikortteja ei voitu ladata.",
         "openCollector": "Näytä käyttäjän {name} suosikkikortit",
         "collectorTitle": "Käyttäjän {name} suosikkikortit",
         "choose": "Valitse kokoelmasta",

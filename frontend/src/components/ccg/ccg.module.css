@@ -3191,6 +3191,15 @@
   min-width: 0;
 }
 
+.leaderboardShowcasePlaceholder,
+.leaderboardCollectorCardPlaceholder {
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 7;
+  border-radius: 0.55rem;
+  background: linear-gradient(145deg, rgba(22, 40, 72, 0.78), rgba(7, 15, 32, 0.9));
+}
+
 .leaderboardShowcaseCard,
 .leaderboardShowcaseEmpty {
   display: grid;
@@ -3716,6 +3725,14 @@
   color: #8292aa;
   font-size: 0.82rem;
   font-weight: 650;
+  text-align: center;
+}
+
+.leaderboardCollectorLoadError {
+  display: grid;
+  justify-items: center;
+  gap: 0.8rem;
+  color: #d5dfef;
   text-align: center;
 }
 

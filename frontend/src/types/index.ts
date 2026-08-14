@@ -2295,7 +2295,13 @@ export type CcgLeaderboardShowcaseCard = {
   artVariant: CcgArtVariant;
 };
 
-export type CcgLeaderboardEntry = {
+export type CcgLeaderboardShowcaseSummary = {
+  card: Pick<CcgCard, "id" | "name" | "realm" | "classID" | "tierGrade">;
+  finish: CcgFinish;
+  artVariant: CcgArtVariant;
+};
+
+export type CcgLeaderboardEntryBase = {
   rank: number;
   username: string;
   avatarUrl: string;
@@ -2313,7 +2319,16 @@ export type CcgLeaderboardEntry = {
     completedCards: number;
     completedSets: number;
   };
+};
+
+export type CcgLeaderboardEntry = CcgLeaderboardEntryBase & {
   showcase: CcgLeaderboardShowcaseCard[];
+};
+
+export type CcgLeaderboardCollectorEntry = CcgLeaderboardEntryBase & {
+  collectorId: string;
+  showcase: CcgLeaderboardShowcaseSummary[];
+  showcaseCards: CcgLeaderboardShowcaseCard[];
 };
 
 export type CcgLeaderboardResponse = {
@@ -2328,11 +2343,15 @@ export type CcgLeaderboardResponse = {
     allFinishesBonus: number;
     completeSetPerCard: number;
   };
-  entries: CcgLeaderboardEntry[];
+  entries: CcgLeaderboardCollectorEntry[];
 };
 
 export type CcgLeaderboardMeResponse = {
   entry: CcgLeaderboardEntry | null;
+  showcase: CcgLeaderboardShowcaseCard[];
+};
+
+export type CcgLeaderboardShowcaseResponse = {
   showcase: CcgLeaderboardShowcaseCard[];
 };
 

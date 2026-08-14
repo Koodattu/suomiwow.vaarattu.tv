@@ -6,10 +6,15 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { FaCrown, FaTrophy, FaXmark } from "react-icons/fa6";
-import type { CcgLeaderboardEntry, CcgLeaderboardShowcaseCard } from "@/types";
+import type {
+  CcgLeaderboardCollectorEntry,
+  CcgLeaderboardEntryBase,
+  CcgLeaderboardShowcaseCard,
+  CcgLeaderboardShowcaseSummary,
+} from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { CCG_CLASS_COLORS, CCG_FINISH_COLORS, CCG_RARITY_COLORS, CCG_RARITY_KEYS } from "@/lib/ccg";
-import { useCcgLeaderboard, useCcgLeaderboardMe } from "@/lib/queries";
+import { useCcgLeaderboard, useCcgLeaderboardMe, useCcgLeaderboardShowcase } from "@/lib/queries";
 import { formatRealmName } from "@/lib/utils";
 import CcgShell from "@/components/ccg/CcgShell";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
@@ -38,8 +43,36 @@ function ShowcaseCards({
   emptyLabel?: string;
   personal?: boolean;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [cardsMounted, setCardsMounted] = useState(false);
+
+  useEffect(() => {
+    if (cardsMounted || cards.length === 0) return;
+    const element = containerRef.current;
+    if (!element) return;
+    if (typeof IntersectionObserver === "undefined") {
+      const frame = window.requestAnimationFrame(() => setCardsMounted(true));
+      return () => window.cancelAnimationFrame(frame);
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setCardsMounted(true);
+        observer.disconnect();
+      },
+      { rootMargin: "500px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [cards.length, cardsMounted]);
+
   return (
-    <div className={`${styles.leaderboardShowcaseCards} ${personal ? styles.leaderboardShowcaseCardsPersonal : ""}`}>
+    <div
+      ref={containerRef}
+      className={`${styles.leaderboardShowcaseCards} ${personal ? styles.leaderboardShowcaseCardsPersonal : ""}`}
+      onFocusCapture={() => setCardsMounted(true)}
+      onPointerEnter={() => setCardsMounted(true)}
+    >
       {cards.map((item) => (
         <div className={styles.leaderboardShowcaseSlot} key={item.card.id}>
           <button
@@ -48,7 +81,9 @@ function ShowcaseCards({
             onClick={(event) => onSelect(item, event)}
             aria-label={item.card.name}
           >
-            <CollectibleCard card={item.card} finish={item.finish} artVariant={item.artVariant} compact effectsPaused />
+            {cardsMounted ? (
+              <CollectibleCard card={item.card} finish={item.finish} artVariant={item.artVariant} compact effectsPaused />
+            ) : <span className={styles.leaderboardShowcasePlaceholder} aria-hidden="true" />}
           </button>
         </div>
       ))}
@@ -61,7 +96,7 @@ function ShowcaseCards({
   );
 }
 
-function CollectorStats({ entry, t }: { entry: CcgLeaderboardEntry; t: ReturnType<typeof useTranslations> }) {
+function CollectorStats({ entry, t }: { entry: CcgLeaderboardEntryBase; t: ReturnType<typeof useTranslations> }) {
   return (
     <dl className={styles.leaderboardStats}>
       <div><dt>{t("stats.cards")}</dt><dd>{entry.cardsOwned}</dd></div>
@@ -71,7 +106,7 @@ function CollectorStats({ entry, t }: { entry: CcgLeaderboardEntry; t: ReturnTyp
   );
 }
 
-function ShowcaseSummary({ cards }: { cards: CcgLeaderboardShowcaseCard[] }) {
+function ShowcaseSummary({ cards }: { cards: CcgLeaderboardShowcaseSummary[] }) {
   const tCcg = useTranslations("ccg");
 
   if (cards.length === 0) return null;
@@ -98,16 +133,24 @@ function ShowcaseSummary({ cards }: { cards: CcgLeaderboardShowcaseCard[] }) {
 
 function CollectorShowcaseDialog({
   entry,
+  cards,
+  isLoading,
+  isError,
   isInspectingCard,
   emptyLabel,
   onDismiss,
   onInspectCard,
+  onRetry,
 }: {
-  entry: CcgLeaderboardEntry;
+  entry: CcgLeaderboardCollectorEntry;
+  cards: CcgLeaderboardShowcaseCard[] | null;
+  isLoading: boolean;
+  isError: boolean;
   isInspectingCard: boolean;
   emptyLabel: string;
   onDismiss: () => void;
   onInspectCard: (viewer: LeaderboardCardViewer) => void;
+  onRetry: () => void;
 }) {
   const t = useTranslations("ccg.leaderboard");
   const [phase, setPhase] = useState<DialogPhase>("entering");
@@ -199,9 +242,22 @@ function CollectorShowcaseDialog({
           <img src={entry.avatarUrl} alt="" className={styles.leaderboardCollectorAvatar} />
           <h2 id="ccg-collector-showcase-title">{t("showcase.collectorTitle", { name: entry.username })}</h2>
         </div>
-        {entry.showcase.length > 0 ? (
+        {isLoading ? (
+          <div className={styles.leaderboardCollectorCards} aria-label={t("showcase.loading")}>
+            {Array.from({ length: entry.showcase.length }, (_, index) => (
+              <div className={styles.leaderboardCollectorCardSlot} key={index}>
+                <span className={styles.leaderboardCollectorCardPlaceholder} aria-hidden="true" />
+              </div>
+            ))}
+          </div>
+        ) : isError ? (
+          <div className={styles.leaderboardCollectorLoadError} role="alert" onPointerDown={(event) => event.stopPropagation()}>
+            <p>{t("showcase.loadError")}</p>
+            <button type="button" className={styles.secondaryButton} onClick={onRetry}>{t("retry")}</button>
+          </div>
+        ) : cards && cards.length > 0 ? (
           <div className={styles.leaderboardCollectorCards}>
-            {entry.showcase.map((item) => (
+            {cards.map((item) => (
               <div
                 className={styles.leaderboardCollectorCardSlot}
                 key={item.card.id}
@@ -233,8 +289,12 @@ export default function CcgLeaderboardPage() {
   const leaderboardQuery = useCcgLeaderboard();
   const meQuery = useCcgLeaderboardMe(Boolean(user));
   const [viewerItem, setViewerItem] = useState<LeaderboardCardViewer | null>(null);
-  const [selectedCollector, setSelectedCollector] = useState<CcgLeaderboardEntry | null>(null);
+  const [selectedCollector, setSelectedCollector] = useState<CcgLeaderboardCollectorEntry | null>(null);
   const [scoringOpen, setScoringOpen] = useState(false);
+  const selectedCollectorId = selectedCollector && selectedCollector.showcase.length > 0
+    ? selectedCollector.collectorId
+    : null;
+  const selectedShowcaseQuery = useCcgLeaderboardShowcase(selectedCollectorId);
   const entries = leaderboardQuery.data?.entries ?? [];
   const highlightedCollectors = entries.slice(0, 6);
   const remainingCollectors = entries.slice(6);
@@ -252,7 +312,7 @@ export default function CcgLeaderboardPage() {
     }, event);
   };
 
-  const renderHighlightedCollector = (entry: CcgLeaderboardEntry) => (
+  const renderHighlightedCollector = (entry: CcgLeaderboardCollectorEntry) => (
     <article className={styles.leaderboardPodiumCard} data-rank={entry.rank} key={entry.rank}>
       <div className={styles.leaderboardCollectorHeader}>
         <span className={styles.leaderboardRank}>
@@ -266,7 +326,7 @@ export default function CcgLeaderboardPage() {
         </div>
         <CollectorStats entry={entry} t={t} />
       </div>
-      <ShowcaseCards cards={entry.showcase} onSelect={inspect} emptyLabel={t("showcase.empty")} />
+      <ShowcaseCards cards={entry.showcaseCards} onSelect={inspect} emptyLabel={t("showcase.empty")} />
     </article>
   );
 
@@ -454,10 +514,14 @@ export default function CcgLeaderboardPage() {
       {selectedCollector ? (
         <CollectorShowcaseDialog
           entry={selectedCollector}
+          cards={selectedCollector.showcase.length === 0 ? [] : selectedShowcaseQuery.data?.showcase ?? null}
+          isLoading={Boolean(selectedCollectorId) && selectedShowcaseQuery.isPending}
+          isError={Boolean(selectedCollectorId) && selectedShowcaseQuery.isError}
           isInspectingCard={Boolean(viewerItem)}
           emptyLabel={t("showcase.empty")}
           onDismiss={() => setSelectedCollector(null)}
           onInspectCard={setViewerItem}
+          onRetry={() => void selectedShowcaseQuery.refetch()}
         />
       ) : null}
 

@@ -367,6 +367,8 @@
         "title": "Favorite cards",
         "body": "Choose up to three cards to show off. Tap a favorite to inspect it.",
         "empty": "No favorite selected",
+        "loading": "Loading favorite cards",
+        "loadError": "The favorite cards could not be loaded.",
         "openCollector": "View {name}'s favorite cards",
         "collectorTitle": "{name}'s favorite cards",
         "choose": "Choose from collection",
