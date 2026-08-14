@@ -133,7 +133,7 @@ test("Reporter consolidates progress and reclears while naming raids in player a
     data,
     timestamp: new Date(timestamp),
   });
-  const reporterFacts = buildReporterFacts({
+  const factInput = {
     currentGuilds: [{ guildId: "kaaos", name: "Kaaos", realm: "Argent-Dawn", progress: [progress] }],
     previousGuilds: [],
     currentPlayers: [
@@ -183,7 +183,8 @@ test("Reporter consolidates progress and reclears while naming raids in player a
     ],
     periodStart: new Date("2026-08-03T12:00:00Z"),
     periodEnd,
-  } as any);
+  };
+  const reporterFacts = buildReporterFacts(factInput as any);
 
   const trajectory = reporterFacts.find((fact) => fact.kind === "progress_trajectory");
   const reclears = reporterFacts.find((fact) => fact.kind === "reclear_roundup");
@@ -210,6 +211,12 @@ test("Reporter consolidates progress and reclears while naming raids in player a
   assert.ok(player?.links.some((link) => link.url === "/tierlists/characters"));
   assert.match(mythicPlus?.summary || "", /Midnight Season 2.*Keymaster.*3210\.4.*not a claimed weekly change/i);
   assert.ok(mythicPlus?.links.some((link) => link.url === "/characters?tab=mythic-plus"));
+
+  delete (progress.bosses[0].bestPullPhase as any).fightCompletion;
+  delete (progress.bosses[0].bestPullPhase as any).bossHealth;
+  const partialSnapshotFacts = buildReporterFacts(factInput as any);
+  const partialTrajectory = partialSnapshotFacts.find((fact) => fact.kind === "progress_trajectory");
+  assert.match(partialTrajectory?.summary || "", /latest best reached P3 of 4.*P4, the final phase, remained/i);
 });
 
 test("Reporter repairs malformed known link tokens and degrades unknown tokens to plain text", () => {

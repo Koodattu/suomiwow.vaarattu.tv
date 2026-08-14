@@ -83,11 +83,11 @@ export interface ReporterBossSnapshot {
   bestPullFightId?: number;
   totalPhases?: number;
   bestPullPhase?: {
-    phaseId: number;
-    phaseName: string;
-    bossHealth: number;
-    fightCompletion: number;
-    displayString: string;
+    phaseId?: number;
+    phaseName?: string;
+    bossHealth?: number;
+    fightCompletion?: number;
+    displayString?: string;
   };
 }
 

@@ -139,6 +139,10 @@ function characterUrl(realm: string, name: string): string {
   return `/characters/${encodePath(realm)}/${encodePath(name)}`;
 }
 
+function formatOneDecimal(value: unknown): string | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(1) : undefined;
+}
+
 function logUrl(reportCode: string, fightId: number): string {
   return `https://www.warcraftlogs.com/reports/${encodeURIComponent(reportCode)}#fight=${fightId}`;
 }
@@ -203,7 +207,8 @@ function describeEvent(event: LeanEvent): string {
   const difficulty = event.difficulty === "mythic" ? "Mythic" : "Heroic";
   const boss = event.bossName || "an unnamed boss";
   const pulls = event.data.pullCount ? ` at ${event.data.pullCount} total recorded pulls` : "";
-  const progress = event.data.progressDisplay || (event.data.bestPercent !== undefined ? `${event.data.bestPercent.toFixed(1)}%` : "a new best");
+  const bestPercent = formatOneDecimal(event.data.bestPercent);
+  const progress = event.data.progressDisplay || (bestPercent ? `${bestPercent}%` : "a new best");
 
   switch (event.type) {
     case "boss_kill":
@@ -365,9 +370,12 @@ export function buildReporterFacts(input: {
     const phaseContext = latestBoss?.bestPullPhase;
     const latestPhaseNumber = getProgressPhaseNumber(phaseContext?.phaseName) || getProgressPhaseNumber(phaseContext?.displayString) || getProgressPhaseNumber(latest.data.progressDisplay);
     const latestPhase = latestPhaseNumber ? `P${latestPhaseNumber}` : undefined;
-    const progressMeasure = latestBoss?.bestPullPhase ? "overall fight progress remaining" : "stored progress remaining";
+    const fightCompletion = formatOneDecimal(phaseContext?.fightCompletion);
+    const bossHealth = formatOneDecimal(phaseContext?.bossHealth);
+    const progressMeasure = fightCompletion ? "overall fight progress remaining" : "stored progress remaining";
     const points = ordered.map((event) => {
-      const progress = event.data.bestPercent !== undefined ? `${event.data.bestPercent.toFixed(1)}%` : event.data.progressDisplay || "a new best";
+      const bestPercent = formatOneDecimal(event.data.bestPercent);
+      const progress = bestPercent ? `${bestPercent}%` : event.data.progressDisplay || "a new best";
       return event.data.pullCount ? `${progress} ${progressMeasure} at ${event.data.pullCount} total pulls` : `${progress} ${progressMeasure}`;
     });
     const phasePosition = latestPhaseNumber && latestBoss?.totalPhases ? `P${latestPhaseNumber} of ${latestBoss.totalPhases}` : latestPhase;
@@ -379,11 +387,15 @@ export function buildReporterFacts(input: {
             : ` P${latestPhaseNumber} was not the final phase; P${latestPhaseNumber + 1}-P${latestBoss.totalPhases} remained.`
           : ` ${phasePosition} is the final stored phase.`
         : "";
-    const progressContext = phaseContext
-      ? ` Current best-pull detail: ${phaseContext.fightCompletion.toFixed(1)}% overall fight progress remained, while the active phase's boss health was ${phaseContext.bossHealth.toFixed(1)}%${phasePosition ? ` in ${phasePosition}` : ""}. These are different measures.${phaseCaveat}`
-      : latestPhase
-        ? ` The latest best was in ${latestPhase}.`
-        : "";
+    const progressContext = fightCompletion
+      ? bossHealth
+        ? ` Current best-pull detail: ${fightCompletion}% overall fight progress remained, while the active phase's boss health was ${bossHealth}%${phasePosition ? ` in ${phasePosition}` : ""}. These are different measures.${phaseCaveat}`
+        : ` Current best-pull detail: ${fightCompletion}% overall fight progress remained${phasePosition ? ` in ${phasePosition}` : ""}.${phaseCaveat}`
+      : bossHealth
+        ? ` Current best-pull detail: the active phase's boss health was ${bossHealth}%${phasePosition ? ` in ${phasePosition}` : ""}. Boss HP alone is not overall encounter progress.${phaseCaveat}`
+        : latestPhase
+          ? ` The latest best reached ${phasePosition || latestPhase}.${phaseCaveat}`
+          : "";
     addFact(
       "progress_trajectory",
       `${latest.guildName} improved its ${latest.difficulty === "mythic" ? "Mythic" : "Heroic"} ${latest.bossName || "boss"} best pull ${ordered.length} time${ordered.length === 1 ? "" : "s"} during the reporting window: ${points.join("; ")}.${progressContext}`,
