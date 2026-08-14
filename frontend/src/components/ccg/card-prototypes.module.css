@@ -291,6 +291,7 @@
   --metal-mid: #4b5664;
   --metal-dark: #090d13;
   --card-width: 400px;
+  --card-cqw: 4px;
   --tilt-x: 0deg;
   --tilt-y: 0deg;
   --pointer-x: 50%;
@@ -313,7 +314,6 @@
   width: min(var(--card-width), 84vw);
   max-width: calc(100% - 10px);
   isolation: isolate;
-  container-type: inline-size;
   aspect-ratio: 5 / 7;
   margin: -5px;
   overflow: hidden;
@@ -556,7 +556,7 @@
     inset 0 1px rgba(255, 255, 255, 0.16),
     0 2px 5px rgba(0, 0, 0, 0.48);
   color: #fff;
-  font-size: 2.9cqw;
+  font-size: calc(var(--card-cqw) * 2.9);
   font-variant-numeric: tabular-nums;
   font-weight: 850;
   pointer-events: none;
@@ -643,7 +643,7 @@
   place-items: center;
   color: #ffd45c;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 4px rgba(255, 190, 40, 0.45));
-  font-size: 5.2cqw;
+  font-size: calc(var(--card-cqw) * 5.2);
   pointer-events: none;
 }
 
@@ -790,7 +790,7 @@
 
 .availabilityPlaceholder > :last-child {
   max-width: 82%;
-  font-size: clamp(0.38rem, 1.75cqw, 0.56rem);
+  font-size: clamp(0.38rem, calc(var(--card-cqw) * 1.75), 0.56rem);
   font-weight: 760;
   letter-spacing: 0.075em;
   line-height: 1.15;
@@ -1052,7 +1052,7 @@
 }
 .characterName {
   color: var(--class-color);
-  font-size: var(--card-character-name-font-size, clamp(1.12rem, 7.5cqw, 2.05rem));
+  font-size: var(--card-character-name-font-size, clamp(1.12rem, calc(var(--card-cqw) * 7.5), 2.05rem));
   font-weight: 900;
   letter-spacing: -0.035em;
   line-height: 1;
@@ -1061,7 +1061,7 @@
 .guildName {
   margin-top: var(--card-guild-name-gap, 0.28rem);
   color: #edf3fb;
-  font-size: var(--card-guild-name-font-size, clamp(0.58rem, 3.45cqw, 0.92rem));
+  font-size: var(--card-guild-name-font-size, clamp(0.58rem, calc(var(--card-cqw) * 3.45), 0.92rem));
   font-weight: 760;
   line-height: 1.2;
 }
@@ -1099,7 +1099,7 @@
   top: 104%;
   display: none;
   color: #dfe8f4;
-  font-size: clamp(0.34rem, 1.7cqw, 0.47rem);
+  font-size: clamp(0.34rem, calc(var(--card-cqw) * 1.7), 0.47rem);
   font-weight: 760;
   text-transform: uppercase;
   white-space: nowrap;
@@ -1110,15 +1110,15 @@
   align-items: center;
   gap: 0.34rem;
   color: #dce7f4;
-  font-size: clamp(0.43rem, 2.15cqw, 0.6rem);
+  font-size: clamp(0.43rem, calc(var(--card-cqw) * 2.15), 0.6rem);
   font-weight: 780;
   line-height: 1;
   text-transform: uppercase;
 }
 
 .roleCrest img {
-  width: clamp(0.78rem, 4.2cqw, 1.15rem);
-  height: clamp(0.78rem, 4.2cqw, 1.15rem);
+  width: clamp(0.78rem, calc(var(--card-cqw) * 4.2), 1.15rem);
+  height: clamp(0.78rem, calc(var(--card-cqw) * 4.2), 1.15rem);
   object-fit: contain;
 }
 
@@ -1140,7 +1140,7 @@
 
 .rarityPlate strong {
   color: color-mix(in srgb, var(--rarity) 82%, white);
-  font-size: var(--card-detail-font-size, clamp(0.46rem, 2.35cqw, 0.66rem));
+  font-size: var(--card-detail-font-size, clamp(0.46rem, calc(var(--card-cqw) * 2.35), 0.66rem));
   font-weight: 850;
   letter-spacing: 0.04em;
   line-height: 1;
@@ -1155,7 +1155,7 @@
   justify-content: center;
   gap: 0.24rem;
   color: #becbda;
-  font-size: clamp(0.42rem, 2.15cqw, 0.6rem);
+  font-size: clamp(0.42rem, calc(var(--card-cqw) * 2.15), 0.6rem);
   font-weight: 720;
   line-height: 1;
   text-shadow: 0 2px 4px #000;
@@ -1177,7 +1177,7 @@
     inset 0 0 0 1px color-mix(in srgb, var(--lab-accent) 40%, rgba(255, 255, 255, 0.12)),
     inset 0 0 0 3px rgba(0, 0, 0, 0.44);
   color: #f0f5fb;
-  font-size: clamp(0.47rem, 2.45cqw, 0.69rem);
+  font-size: clamp(0.47rem, calc(var(--card-cqw) * 2.45), 0.69rem);
   font-weight: 820;
   letter-spacing: 0.045em;
   line-height: 1;
@@ -1224,7 +1224,7 @@
 .stat span {
   overflow: hidden;
   color: #aab7c8;
-  font-size: var(--card-stat-label-font-size, clamp(0.36rem, 1.75cqw, 0.49rem));
+  font-size: var(--card-stat-label-font-size, clamp(0.36rem, calc(var(--card-cqw) * 1.75), 0.49rem));
   font-weight: 800;
   letter-spacing: 0.015em;
   line-height: 1;
@@ -1235,7 +1235,7 @@
 .stat strong {
   margin-top: var(--card-stat-value-gap, 0.38rem);
   color: white;
-  font-size: var(--card-stat-value-font-size, clamp(0.76rem, 4.75cqw, 1.25rem));
+  font-size: var(--card-stat-value-font-size, clamp(0.76rem, calc(var(--card-cqw) * 4.75), 1.25rem));
   font-variant-numeric: tabular-nums;
   font-weight: 850;
   letter-spacing: -0.025em;
@@ -1250,7 +1250,7 @@
   justify-content: space-between;
   gap: 0.6rem;
   color: #b7c3d2;
-  font-size: clamp(0.39rem, 1.95cqw, 0.54rem);
+  font-size: clamp(0.39rem, calc(var(--card-cqw) * 1.95), 0.54rem);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   line-height: 1;
@@ -5570,7 +5570,7 @@
     inset 0 -1px rgba(0, 0, 0, 0.9);
   clip-path: polygon(7% 0, 93% 0, 100% 50%, 93% 100%, 7% 100%, 0 50%);
   color: #e7eef7;
-  font-size: clamp(0.4rem, 1.8cqw, 0.53rem);
+  font-size: clamp(0.4rem, calc(var(--card-cqw) * 1.8), 0.53rem);
   font-weight: 780;
   letter-spacing: 0.045em;
   line-height: 1;
@@ -5582,7 +5582,7 @@
 }
 .vaultRelic .characterName {
   overflow: visible;
-  font-size: var(--card-character-name-font-size, clamp(1.08rem, 6.8cqw, 1.88rem));
+  font-size: var(--card-character-name-font-size, clamp(1.08rem, calc(var(--card-cqw) * 6.8), 1.88rem));
   letter-spacing: -0.04em;
   text-overflow: clip;
 }
@@ -5626,7 +5626,7 @@
   letter-spacing: 0.07em;
 }
 .vaultRelic .qualityLabel {
-  font-size: var(--card-detail-font-size, clamp(0.46rem, 2.35cqw, 0.66rem));
+  font-size: var(--card-detail-font-size, clamp(0.46rem, calc(var(--card-cqw) * 2.35), 0.66rem));
   line-height: 1;
   text-transform: uppercase;
   white-space: nowrap;
@@ -5857,7 +5857,7 @@
   justify-content: flex-end;
   gap: var(--card-detail-gap, 0.24rem);
   color: var(--class-color);
-  font-size: var(--card-detail-font-size, clamp(0.46rem, 2.35cqw, 0.66rem));
+  font-size: var(--card-detail-font-size, clamp(0.46rem, calc(var(--card-cqw) * 2.35), 0.66rem));
   font-weight: 800;
   letter-spacing: 0.04em;
   text-shadow: none;
@@ -5870,7 +5870,7 @@
   z-index: 20;
   bottom: 3%;
   color: #becbda;
-  font-size: var(--card-brand-font-size, clamp(0.42rem, 2.15cqw, 0.6rem));
+  font-size: var(--card-brand-font-size, clamp(0.42rem, calc(var(--card-cqw) * 2.15), 0.6rem));
   font-weight: 720;
   line-height: 1;
   text-shadow: 0 2px 4px #000;
@@ -6580,7 +6580,7 @@
     inset 0 1px rgba(255, 255, 255, 0.14),
     inset 0 -1px rgba(0, 0, 0, 0.92);
   clip-path: polygon(5% 0, 95% 0, 100% 50%, 95% 100%, 5% 100%, 0 50%);
-  font-size: clamp(0.43rem, 2.15cqw, 0.62rem);
+  font-size: clamp(0.43rem, calc(var(--card-cqw) * 2.15), 0.62rem);
   padding: 0.45% 6%;
   text-shadow: 0 1px 2px #000;
   transform: translateX(-50%);
@@ -6614,7 +6614,7 @@
 .prototypeCard[data-frame] .realmLabel {
   top: 0.45%;
   height: 3%;
-  font-size: clamp(0.48rem, 2.6cqw, 0.74rem);
+  font-size: clamp(0.48rem, calc(var(--card-cqw) * 2.6), 0.74rem);
 }
 
 .prototypeCard[data-frame] .setChip {
@@ -6625,7 +6625,7 @@
   height: 5%;
   color: color-mix(in srgb, var(--lab-accent) 64%, white);
   font-family: "LifeCraft", fantasy;
-  font-size: var(--card-set-name-font-size, clamp(0.7rem, 4.8cqw, 1.1rem));
+  font-size: var(--card-set-name-font-size, clamp(0.7rem, calc(var(--card-cqw) * 4.8), 1.1rem));
   font-synthesis: none;
   font-weight: 400;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.88);

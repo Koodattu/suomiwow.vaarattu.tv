@@ -292,6 +292,37 @@ function CollectibleCard({
     [],
   );
 
+  useLayoutEffect(() => {
+    const element = cardRef.current;
+    if (!element) return;
+    const typographyContainer = element.closest<HTMLElement>("[data-card-typography-container]");
+
+    let cardCqw = 0;
+    const syncCardScale = (contentWidth: number) => {
+      if (contentWidth <= 0) return;
+      const nextCardCqw = contentWidth / 100;
+      if (Math.abs(nextCardCqw - cardCqw) < 0.001) return;
+      cardCqw = nextCardCqw;
+      element.style.setProperty("--card-cqw", `${nextCardCqw}px`);
+      if (contentWidth <= 232) element.dataset.narrowTypography = "true";
+      else delete element.dataset.narrowTypography;
+    };
+    const syncContainerTypography = (contentWidth: number, contentHeight: number) => {
+      if (contentWidth <= 160 || contentHeight <= 224) element.dataset.containerCompactTypography = "true";
+      else delete element.dataset.containerCompactTypography;
+    };
+
+    syncCardScale(element.clientWidth);
+    if (typographyContainer) syncContainerTypography(typographyContainer.clientWidth, typographyContainer.clientHeight);
+    const observer = new ResizeObserver((entries) => entries.forEach((entry) => {
+      if (entry.target === element) syncCardScale(entry.contentRect.width);
+      else syncContainerTypography(entry.contentRect.width, entry.contentRect.height);
+    }));
+    observer.observe(element);
+    if (typographyContainer) observer.observe(typographyContainer);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     const element = cardRef.current;
     if (!element) return;

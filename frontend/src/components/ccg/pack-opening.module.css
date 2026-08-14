@@ -1051,22 +1051,22 @@
 }
 
 .packButton[data-reward-pack="true"] .packBrand {
-  font-size: clamp(0.24rem, 6.4cqw, 0.68rem);
+  font-size: clamp(0.24rem, calc(var(--reward-pack-cqw) * 6.4), 0.68rem);
   letter-spacing: 0.14em;
 }
 
 .packButton[data-reward-pack="true"] .packTitle {
-  font-size: clamp(0.42rem, 12cqw, 1.35rem);
+  font-size: clamp(0.42rem, calc(var(--reward-pack-cqw) * 12), 1.35rem);
   line-height: 0.98;
 }
 
 .packButton[data-reward-pack="true"] .packCount strong {
-  font-size: clamp(0.6rem, 16cqw, 1.75rem);
+  font-size: clamp(0.6rem, calc(var(--reward-pack-cqw) * 16), 1.75rem);
 }
 
 .packButton[data-reward-pack="true"] .packCount span {
-  margin-top: 0.5cqw;
-  font-size: clamp(0.2rem, 4.4cqw, 0.5rem);
+  margin-top: calc(var(--reward-pack-cqw) * 0.5);
+  font-size: clamp(0.2rem, calc(var(--reward-pack-cqw) * 4.4), 0.5rem);
 }
 
 .packHint {
@@ -2952,11 +2952,9 @@
     width: 100%;
   }
 
-  @container (max-width: 14.5rem) {
-    .openedCard > [data-frame="vaultSteel"] > * {
-      --card-detail-font-size: clamp(0.39rem, 2.15cqw, 0.52rem);
-      --card-stat-value-gap: clamp(0.16rem, 1.2cqw, 0.2rem);
-    }
+  .openedCard > [data-frame="vaultSteel"][data-narrow-typography="true"] {
+    --card-detail-font-size: clamp(0.39rem, calc(var(--card-cqw) * 2.15), 0.52rem);
+    --card-stat-value-gap: clamp(0.16rem, calc(var(--card-cqw) * 1.2), 0.2rem);
   }
 }
 
@@ -3516,16 +3514,16 @@
   }
 
   .cardFanSummary .openedCard > [data-frame="vaultSteel"] {
-    --card-character-name-font-size: 6.8cqw;
-    --card-guild-name-font-size: 3.45cqw;
-    --card-guild-name-gap: 1.4cqw;
-    --card-detail-font-size: 2.35cqw;
-    --card-detail-gap: 1.2cqw;
-    --card-stat-label-font-size: 1.75cqw;
-    --card-stat-value-font-size: 4.75cqw;
-    --card-stat-value-gap: 1.6cqw;
-    --card-brand-font-size: 2.15cqw;
-    --card-set-name-font-size: 4.8cqw;
+    --card-character-name-font-size: calc(var(--card-cqw) * 6.8);
+    --card-guild-name-font-size: calc(var(--card-cqw) * 3.45);
+    --card-guild-name-gap: calc(var(--card-cqw) * 1.4);
+    --card-detail-font-size: calc(var(--card-cqw) * 2.35);
+    --card-detail-gap: calc(var(--card-cqw) * 1.2);
+    --card-stat-label-font-size: calc(var(--card-cqw) * 1.75);
+    --card-stat-value-font-size: calc(var(--card-cqw) * 4.75);
+    --card-stat-value-gap: calc(var(--card-cqw) * 1.6);
+    --card-brand-font-size: calc(var(--card-cqw) * 2.15);
+    --card-set-name-font-size: calc(var(--card-cqw) * 4.8);
   }
 
   .cardFanSummary .revealSlotDealt:not(:disabled):hover {

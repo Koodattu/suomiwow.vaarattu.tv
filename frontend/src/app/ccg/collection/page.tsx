@@ -187,7 +187,7 @@ function CollectionCard({
   const markReady = useCallback(() => setReady(true), []);
 
   return (
-    <div className={styles.collectionCardSlot} aria-busy={!ready}>
+    <div className={styles.collectionCardSlot} aria-busy={!ready} data-card-typography-container>
       <div
         className={`${styles.collectionSkeleton} ${styles.collectionCardSkeleton} ${ready ? styles.collectionCardSkeletonHidden : ""}`}
         aria-hidden="true"

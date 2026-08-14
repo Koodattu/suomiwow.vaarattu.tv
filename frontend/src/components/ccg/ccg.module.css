@@ -3227,11 +3227,6 @@
   transition: transform 140ms ease, filter 140ms ease;
 }
 
-.leaderboardShowcaseCard [data-ccg-card],
-.leaderboardCollectorCard [data-ccg-card] {
-  container-type: normal;
-}
-
 .leaderboardPodiumCard .leaderboardShowcaseCard {
   --card-brand-font-size: 0.28rem;
   --card-character-name-font-size: 0.65rem;
@@ -5746,19 +5741,15 @@
   height: 100%;
   min-height: 0;
   place-items: center;
-  container-name: collection-card-slot;
-  container-type: size;
+  contain: size;
 }
 
 .collectionCardSlot > button {
-  width: var(--collection-card-width);
+  width: auto;
+  height: 100%;
+  max-width: 100%;
   max-height: 100%;
-}
-
-@supports (width: 1cqh) {
-  .collectionCardSlot {
-    --collection-card-width: min(100%, calc(100cqh * 5 / 7));
-  }
+  aspect-ratio: 5 / 7;
 }
 
 .collectionCardAsset {
@@ -5766,19 +5757,17 @@
   transition: opacity 180ms ease-out;
 }
 
-@container collection-card-slot (max-width: 10rem) or (max-height: 14rem) {
-  .collectionCardAsset {
-    --card-brand-font-size: 2.15cqw;
-    --card-character-name-font-size: 6.8cqw;
-    --card-detail-font-size: 2.35cqw;
-    --card-detail-gap: 1.2cqw;
-    --card-guild-name-font-size: 3.45cqw;
-    --card-guild-name-gap: 1.4cqw;
-    --card-set-name-font-size: 4.8cqw;
-    --card-stat-label-font-size: 1.75cqw;
-    --card-stat-value-font-size: 4.75cqw;
-    --card-stat-value-gap: 1.6cqw;
-  }
+.collectionCardAsset > [data-ccg-card][data-container-compact-typography="true"] {
+  --card-brand-font-size: calc(var(--card-cqw) * 2.15);
+  --card-character-name-font-size: calc(var(--card-cqw) * 6.8);
+  --card-detail-font-size: calc(var(--card-cqw) * 2.35);
+  --card-detail-gap: calc(var(--card-cqw) * 1.2);
+  --card-guild-name-font-size: calc(var(--card-cqw) * 3.45);
+  --card-guild-name-gap: calc(var(--card-cqw) * 1.4);
+  --card-set-name-font-size: calc(var(--card-cqw) * 4.8);
+  --card-stat-label-font-size: calc(var(--card-cqw) * 1.75);
+  --card-stat-value-font-size: calc(var(--card-cqw) * 4.75);
+  --card-stat-value-gap: calc(var(--card-cqw) * 1.6);
 }
 
 .collectionMissingCard > [data-ccg-card],
@@ -6933,6 +6922,7 @@
 
 .redeemPackPile {
   --reward-pack-width: 7.75rem;
+  --reward-pack-cqw: 0.0775rem;
   --reward-stage-width: 10.5rem;
   --reward-stage-height: 14.25rem;
   position: relative;
@@ -6971,7 +6961,6 @@
   left: var(--reward-pack-left);
   width: var(--reward-pack-width);
   aspect-ratio: 0.66;
-  container-type: inline-size;
   cursor: default;
   opacity: 0;
   pointer-events: none;
@@ -6997,24 +6986,28 @@
 
 .redeemPackPile[data-layout="pair"] {
   --reward-pack-width: 6.75rem;
+  --reward-pack-cqw: 0.0675rem;
   --reward-stage-width: 18rem;
   --reward-stage-height: 14rem;
 }
 
 .redeemPackPile[data-layout="fan"] {
   --reward-pack-width: 6.4rem;
+  --reward-pack-cqw: 0.064rem;
   --reward-stage-width: 30rem;
   --reward-stage-height: 15.5rem;
 }
 
 .redeemPackPile[data-layout="scatter"] {
   --reward-pack-width: 5.2rem;
+  --reward-pack-cqw: 0.052rem;
   --reward-stage-width: 38rem;
   --reward-stage-height: 18rem;
 }
 
 .redeemPackPile[data-layout="pile"] {
   --reward-pack-width: 4.1rem;
+  --reward-pack-cqw: 0.041rem;
   --reward-stage-width: 46rem;
   --reward-stage-height: 21rem;
 }
@@ -7609,30 +7602,35 @@
 
   .redeemPackPile[data-layout="single"] {
     --reward-pack-width: 6.75rem;
+    --reward-pack-cqw: 0.0675rem;
     --reward-stage-width: 9.5rem;
     --reward-stage-height: 12rem;
   }
 
   .redeemPackPile[data-layout="pair"] {
     --reward-pack-width: 5.8rem;
+    --reward-pack-cqw: 0.058rem;
     --reward-stage-width: 18rem;
     --reward-stage-height: 12rem;
   }
 
   .redeemPackPile[data-layout="fan"] {
     --reward-pack-width: 5.2rem;
+    --reward-pack-cqw: 0.052rem;
     --reward-stage-width: 22rem;
     --reward-stage-height: 12.5rem;
   }
 
   .redeemPackPile[data-layout="scatter"] {
     --reward-pack-width: 3.8rem;
+    --reward-pack-cqw: 0.038rem;
     --reward-stage-width: 30rem;
     --reward-stage-height: 15rem;
   }
 
   .redeemPackPile[data-layout="pile"] {
     --reward-pack-width: 2.65rem;
+    --reward-pack-cqw: 0.0265rem;
     --reward-stage-width: 30rem;
     --reward-stage-height: 16rem;
   }
@@ -8756,6 +8754,14 @@
     --collection-card-width: min(100%, 17rem);
   }
 
+  .collectionCardSlot > button {
+    width: var(--collection-card-width);
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+    aspect-ratio: auto;
+  }
+
   .collectionSkeleton {
     width: min(100%, 17rem);
   }
@@ -8944,8 +8950,12 @@
     grid-template-rows: repeat(4, minmax(0, 1fr));
   }
 
-  .collectionCardSlot {
-    --collection-card-width: min(100%, calc(100cqh * 5 / 7));
+  .collectionCardSlot > button {
+    width: auto;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    aspect-ratio: 5 / 7;
   }
 }
 
