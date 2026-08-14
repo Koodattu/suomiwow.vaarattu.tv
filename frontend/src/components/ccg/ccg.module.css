@@ -3210,8 +3210,16 @@
 }
 
 .leaderboardShowcaseCard {
-  --card-detail-font-size: clamp(0.32rem, 3.05cqw, 0.66rem);
-  --card-stat-value-gap: clamp(0.12rem, 1cqw, 0.24rem);
+  --card-brand-font-size: 0.42rem;
+  --card-character-name-font-size: 1.08rem;
+  --card-detail-font-size: 0.43rem;
+  --card-detail-gap: 0.12rem;
+  --card-guild-name-font-size: 0.58rem;
+  --card-guild-name-gap: 0.28rem;
+  --card-set-name-font-size: 0.7rem;
+  --card-stat-label-font-size: 0.36rem;
+  --card-stat-value-font-size: 0.76rem;
+  --card-stat-value-gap: 0.13rem;
   border: 0;
   background: transparent;
   box-shadow: 0 12px 22px rgba(0, 0, 0, 0.24);
@@ -3219,17 +3227,22 @@
   transition: transform 140ms ease, filter 140ms ease;
 }
 
+.leaderboardShowcaseCard [data-ccg-card],
+.leaderboardCollectorCard [data-ccg-card] {
+  container-type: normal;
+}
+
 .leaderboardPodiumCard .leaderboardShowcaseCard {
-  --card-brand-font-size: clamp(0.28rem, 2.15cqw, 0.48rem);
-  --card-character-name-font-size: clamp(0.48rem, 6.5cqw, 0.96rem);
-  --card-detail-font-size: clamp(0.24rem, 3.05cqw, 0.48rem);
-  --card-detail-gap: clamp(0.04rem, 0.65cqw, 0.12rem);
-  --card-guild-name-font-size: clamp(0.4rem, 3cqw, 0.72rem);
-  --card-guild-name-gap: clamp(0.06rem, 0.4cqw, 0.1rem);
-  --card-set-name-font-size: clamp(0.38rem, 4.8cqw, 0.72rem);
-  --card-stat-label-font-size: clamp(0.24rem, 2cqw, 0.42rem);
-  --card-stat-value-font-size: clamp(0.46rem, 5cqw, 0.9rem);
-  --card-stat-value-gap: clamp(0.03rem, 0.6cqw, 0.1rem);
+  --card-brand-font-size: 0.28rem;
+  --card-character-name-font-size: 0.65rem;
+  --card-detail-font-size: 0.3rem;
+  --card-detail-gap: 0.06rem;
+  --card-guild-name-font-size: 0.4rem;
+  --card-guild-name-gap: 0.06rem;
+  --card-set-name-font-size: 0.48rem;
+  --card-stat-label-font-size: 0.24rem;
+  --card-stat-value-font-size: 0.5rem;
+  --card-stat-value-gap: 0.06rem;
 }
 
 .leaderboardShowcaseCard:hover {
@@ -3705,6 +3718,16 @@
 }
 
 .leaderboardCollectorCard {
+  --card-brand-font-size: 0.47rem;
+  --card-character-name-font-size: 1.5rem;
+  --card-detail-font-size: 0.52rem;
+  --card-detail-gap: 0.24rem;
+  --card-guild-name-font-size: 0.76rem;
+  --card-guild-name-gap: 0.28rem;
+  --card-set-name-font-size: 1.05rem;
+  --card-stat-label-font-size: 0.38rem;
+  --card-stat-value-font-size: 1.05rem;
+  --card-stat-value-gap: 0.35rem;
   width: 100%;
   filter: drop-shadow(0 22px 35px rgba(0, 0, 0, 0.34));
   transition-property: transform, filter, translate, scale;
