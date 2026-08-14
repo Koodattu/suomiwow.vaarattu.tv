@@ -14,6 +14,7 @@ import characterMediaService, {
 } from "../services/character-media.service";
 import { listCcgAdminUsers, parseCcgAdminUsersOptions } from "../services/ccg-admin-users.service";
 import ccgCommunityService, { CcgCommunityError } from "../services/ccg-community.service";
+import ccgLeaderboardRunner from "../services/ccg-leaderboard-runner.service";
 import ccgPublisherService, { CcgPublisherError } from "../services/ccg-publisher.service";
 import ccgRaidRunner from "../services/ccg-snapshot-runner.service";
 import ccgService, { CcgServiceError } from "../services/ccg.service";
@@ -206,6 +207,20 @@ router.post(
       throw new CcgPublisherError(409, "ccg_raid_run_already_running", "A CCG snapshot or publication run is already in progress");
     }
     return { started: true };
+  }),
+);
+
+router.post(
+  "/leaderboard/:mode",
+  adminRoute(async (req) => {
+    const mode = req.params.mode;
+    if (mode !== "full" && mode !== "incremental") {
+      throw new CcgServiceError(400, "invalid_leaderboard_refresh_mode", "Choose a full or incremental leaderboard refresh");
+    }
+    if (!await ccgLeaderboardRunner.trigger(mode, "admin")) {
+      throw new CcgServiceError(409, "ccg_leaderboard_refresh_running", "A CCG leaderboard refresh is already running");
+    }
+    return { started: true, mode };
   }),
 );
 

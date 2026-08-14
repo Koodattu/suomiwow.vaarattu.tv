@@ -1366,12 +1366,33 @@
         "packStudio": "Pack studio",
         "snapshots": "Snapshot preview",
         "analytics": "Analytics",
+        "leaderboard": "Leaderboard",
         "users": "Users",
         "alternativeArt": "Artwork & quips",
         "redeemCodes": "Redeem codes",
         "community": "Community",
         "media": "Character media",
         "sets": "Raid sets"
+      },
+      "leaderboard": {
+        "title": "Collection leaderboard builds",
+        "description": "Start the same full or incremental leaderboard refresh used by automation. A shared database lock prevents manual and automatic builds from overlapping. Every started build appears in the Tasks tab with its source.",
+        "automaticSchedule": "Automatic schedule (Helsinki time): incremental at :00, :15, :30, and :45; full at :07 every hour. A full build also starts when the backend starts.",
+        "startError": "The leaderboard refresh could not be started.",
+        "incremental": {
+          "title": "Incremental refresh",
+          "description": "Recalculate collectors whose collection changed since the previous refresh, then rerank the complete leaderboard. If no leaderboard exists yet, this safely becomes a full rebuild.",
+          "action": "Run incremental refresh",
+          "starting": "Starting…",
+          "started": "The incremental leaderboard refresh started. Follow it in the Tasks tab."
+        },
+        "full": {
+          "title": "Full rebuild",
+          "description": "Recalculate every eligible collector from collection ownership and replace the complete leaderboard read model.",
+          "action": "Run full rebuild",
+          "starting": "Starting…",
+          "started": "The full leaderboard rebuild started. Follow it in the Tasks tab."
+        }
       },
       "users": {
         "title": "CCG users",

@@ -10,6 +10,7 @@ import CcgAdminAnalytics from "@/components/admin/CcgAdminAnalytics";
 import CcgAdminUsers from "@/components/admin/CcgAdminUsers";
 import CcgAlternativeArtManager from "@/components/admin/CcgAlternativeArtManager";
 import CcgCommunityManager from "@/components/admin/CcgCommunityManager";
+import CcgLeaderboardOperations from "@/components/admin/CcgLeaderboardOperations";
 import CcgMediaOperations from "@/components/admin/CcgMediaOperations";
 import CcgRedeemCodeManager from "@/components/admin/CcgRedeemCodeManager";
 import CcgSnapshotPreview from "@/components/admin/CcgSnapshotPreview";
@@ -20,7 +21,7 @@ const secondaryButton =
   "min-h-10 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-gray-200 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09)] transition-transform duration-150 ease-out hover:bg-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
 const primaryButton =
   "min-h-10 rounded-md bg-amber-600 px-3 py-2 text-sm font-bold text-white transition-transform duration-150 ease-out hover:bg-amber-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
-const CCG_ADMIN_SECTIONS = ["studio", "packStudio", "snapshots", "analytics", "users", "alternativeArt", "redeemCodes", "community", "media", "sets"] as const;
+const CCG_ADMIN_SECTIONS = ["studio", "packStudio", "snapshots", "analytics", "leaderboard", "users", "alternativeArt", "redeemCodes", "community", "media", "sets"] as const;
 type CcgAdminSection = (typeof CCG_ADMIN_SECTIONS)[number];
 
 function getCcgAdminSection(value: string | null): CcgAdminSection {
@@ -172,6 +173,7 @@ export default function CcgAdminPanel() {
       {section === "packStudio" ? <CcgPackStudio sets={status.sets} /> : null}
       {section === "snapshots" ? <CcgSnapshotPreview /> : null}
       {section === "analytics" ? <CcgAdminAnalytics /> : null}
+      {section === "leaderboard" ? <CcgLeaderboardOperations onError={handleError} onNotice={handleNotice} /> : null}
       {section === "users" ? <CcgAdminUsers /> : null}
       {section === "alternativeArt" ? (
         <CcgAlternativeArtManager

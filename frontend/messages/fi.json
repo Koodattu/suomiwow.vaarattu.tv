@@ -1366,12 +1366,33 @@
         "packStudio": "Pakkastudio",
         "snapshots": "Snapshot-esikatselu",
         "analytics": "Analytiikka",
+        "leaderboard": "Tulostaulu",
         "users": "Käyttäjät",
         "alternativeArt": "Kuvitus ja repliikit",
         "redeemCodes": "Lunastuskoodit",
         "community": "Community",
         "media": "Hahmomedia",
         "sets": "Raidisetit"
+      },
+      "leaderboard": {
+        "title": "Kokoelmatulostaulun rakennusajot",
+        "description": "Käynnistä sama täysi tai inkrementaalinen tulostaulun päivitys, jota automaatio käyttää. Yhteinen tietokantalukko estää käsin ja automaattisesti käynnistettyjen ajojen päällekkäisyyden. Jokainen käynnistynyt ajo näkyy Tehtävät-välilehdellä lähteineen.",
+        "automaticSchedule": "Automaattinen aikataulu (Helsingin aika): inkrementaalinen ajo minuuteilla :00, :15, :30 ja :45 sekä täysi ajo joka tunti minuutilla :07. Täysi ajo käynnistyy myös backendin käynnistyessä.",
+        "startError": "Tulostaulun päivitystä ei voitu käynnistää.",
+        "incremental": {
+          "title": "Inkrementaalinen päivitys",
+          "description": "Laske edellisen päivityksen jälkeen muuttuneet kokoelmat uudelleen ja järjestä sitten koko tulostaulu. Jos tulostaulua ei vielä ole, ajo muuttuu turvallisesti täydelliseksi uudelleenrakennukseksi.",
+          "action": "Aja inkrementaalinen päivitys",
+          "starting": "Käynnistetään…",
+          "started": "Tulostaulun inkrementaalinen päivitys käynnistyi. Seuraa ajoa Tehtävät-välilehdellä."
+        },
+        "full": {
+          "title": "Täysi uudelleenrakennus",
+          "description": "Laske jokainen kelvollinen keräilijä uudelleen kokoelmaomistuksista ja korvaa tulostaulun koko lukumalli.",
+          "action": "Aja täysi uudelleenrakennus",
+          "starting": "Käynnistetään…",
+          "started": "Tulostaulun täysi uudelleenrakennus käynnistyi. Seuraa ajoa Tehtävät-välilehdellä."
+        }
       },
       "users": {
         "title": "CCG-käyttäjät",

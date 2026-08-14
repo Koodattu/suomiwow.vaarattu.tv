@@ -24,6 +24,7 @@ import {
   scoreCcgSeries,
   uniqueCcgLeaderboardFinishes,
 } from "../utils/ccg-leaderboard";
+import logger from "../utils/logger";
 import discordService from "./discord.service";
 
 const LEADERBOARD_LOCK_KEY = "ccg-leaderboard-refresh-v1";
@@ -94,6 +95,10 @@ export type CcgLeaderboardRefreshResult = {
   durationMs: number;
   calculatedAt: Date | null;
 };
+
+export type CcgLeaderboardRefreshStart =
+  | { started: false }
+  | { started: true; completion: Promise<CcgLeaderboardRefreshResult> };
 
 export type CcgLeaderboardRecordMetric = "uniqueCards" | "finishes" | "completedSets";
 
@@ -273,6 +278,23 @@ class CcgLeaderboardService {
 
   async refresh(requestedMode: CcgLeaderboardRefreshMode = "full"): Promise<CcgLeaderboardRefreshResult> {
     const refreshStartedMs = Date.now();
+    const start = await this.startRefresh(requestedMode, refreshStartedMs);
+    if (start.started) return start.completion;
+    return {
+      refreshed: false,
+      mode: requestedMode,
+      participants: await CcgLeaderboardEntry.countDocuments({ scoreVersion: CCG_COLLECTION_SCORE_VERSION }),
+      changedCollectors: 0,
+      seriesScanned: 0,
+      durationMs: Date.now() - refreshStartedMs,
+      calculatedAt: null,
+    };
+  }
+
+  async startRefresh(
+    requestedMode: CcgLeaderboardRefreshMode = "full",
+    refreshStartedMs = Date.now(),
+  ): Promise<CcgLeaderboardRefreshStart> {
     const lockOwner = randomUUID();
     const now = new Date();
     await CcgJobLock.deleteOne({ key: LEADERBOARD_LOCK_KEY, expiresAt: { $lte: now } });
@@ -284,17 +306,29 @@ class CcgLeaderboardService {
       });
     } catch (error) {
       if (!isDuplicateKeyError(error)) throw error;
-      return {
-        refreshed: false,
-        mode: requestedMode,
-        participants: await CcgLeaderboardEntry.countDocuments({ scoreVersion: CCG_COLLECTION_SCORE_VERSION }),
-        changedCollectors: 0,
-        seriesScanned: 0,
-        durationMs: Date.now() - refreshStartedMs,
-        calculatedAt: null,
-      };
+      return { started: false };
     }
 
+    return {
+      started: true,
+      completion: this.runRefresh(requestedMode, refreshStartedMs, lockOwner),
+    };
+  }
+
+  private async runRefresh(
+    requestedMode: CcgLeaderboardRefreshMode,
+    refreshStartedMs: number,
+    lockOwner: string,
+  ): Promise<CcgLeaderboardRefreshResult> {
+    const lockHeartbeat = setInterval(() => {
+      void CcgJobLock.updateOne(
+        { key: LEADERBOARD_LOCK_KEY, owner: lockOwner },
+        { $set: { expiresAt: new Date(Date.now() + LEADERBOARD_LOCK_MS) } },
+      ).then((result) => {
+        if (result.matchedCount === 0) logger.warn("[CCG/Leaderboard] Refresh lock was lost while the build was running");
+      }).catch((error) => logger.error("[CCG/Leaderboard] Failed to renew refresh lock:", error));
+    }, LEADERBOARD_LOCK_MS / 3);
+    lockHeartbeat.unref();
     try {
       const sets = await CcgSet.find({ enabledAt: { $ne: null }, cardCount: { $gt: 0 } })
         .select("_id kind customFinish cardCount")
@@ -380,6 +414,7 @@ class CcgLeaderboardService {
         calculatedAt: sourceThroughAt,
       };
     } finally {
+      clearInterval(lockHeartbeat);
       await CcgJobLock.deleteOne({ key: LEADERBOARD_LOCK_KEY, owner: lockOwner });
     }
   }

@@ -530,6 +530,12 @@ export const api = {
     return response.json();
   },
 
+  async triggerAdminCcgLeaderboard(mode: "full" | "incremental"): Promise<{ started: true; mode: "full" | "incremental" }> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/leaderboard/${mode}`, { method: "POST", credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "Failed to start the CCG leaderboard refresh");
+    return response.json();
+  },
+
   async getAdminCcgMediaStatus(): Promise<CcgAdminMediaStatus> {
     const response = await fetch(`${API_URL}/api/admin/ccg/media/status`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load CCG media status");

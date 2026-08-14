@@ -24,6 +24,7 @@ import characterMediaService, {
 import characterWclIdentityAuditService from "./character-wcl-identity-audit.service";
 import ccgRaidRunner from "./ccg-snapshot-runner.service";
 import ccgService from "./ccg.service";
+import ccgLeaderboardRunner from "./ccg-leaderboard-runner.service";
 import ccgCommunityService from "./ccg-community.service";
 import FullHistoryRefresh from "../models/FullHistoryRefresh";
 import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
@@ -172,7 +173,6 @@ class UpdateScheduler {
   private isUpdatingMythicPlusCurrentSeason: boolean = false;
   private isRepairingMythicPlusHistoricalScores: boolean = false;
   private isProcessingCcgPackAnalytics: boolean = false;
-  private isRefreshingCcgLeaderboard: boolean = false;
   private isDiscoveringCcgMedia: boolean = false;
   private isRefreshingCcgMedia: boolean = false;
   private isRecoveringCcgMedia: boolean = false;
@@ -533,7 +533,7 @@ class UpdateScheduler {
 
     if (CCG_FEATURE_ENABLED) {
       void this.processPendingCcgPackAnalytics();
-      void this.refreshCcgLeaderboard("full");
+      void this.triggerCcgLeaderboardRefresh("full", "startup");
 
       this.scheduleCronTask(
         "ccg-pack-analytics",
@@ -546,17 +546,13 @@ class UpdateScheduler {
       this.scheduleCronTask(
         "ccg-leaderboard-full",
         CCG_LEADERBOARD_FULL_SCHEDULE.cron,
-        async () => {
-          if (!this.isRefreshingCcgLeaderboard) await this.refreshCcgLeaderboard("full");
-        },
+        async () => this.triggerCcgLeaderboardRefresh("full", "cron"),
       );
 
       this.scheduleCronTask(
         "ccg-leaderboard-incremental",
         CCG_LEADERBOARD_INCREMENTAL_SCHEDULE.cron,
-        async () => {
-          if (!this.isRefreshingCcgLeaderboard) await this.refreshCcgLeaderboard("incremental");
-        },
+        async () => this.triggerCcgLeaderboardRefresh("incremental", "cron"),
       );
 
       this.scheduleCronTask(
@@ -1019,22 +1015,13 @@ class UpdateScheduler {
     }
   }
 
-  private async refreshCcgLeaderboard(mode: "full" | "incremental"): Promise<void> {
-    this.isRefreshingCcgLeaderboard = true;
+  private async triggerCcgLeaderboardRefresh(mode: "full" | "incremental", source: "cron" | "startup"): Promise<void> {
     try {
-      const result = await ccgService.refreshLeaderboard(mode);
-      if (result.refreshed) {
-        logger.info(
-          `[CCG/Leaderboard] ${result.mode} refresh ranked ${result.participants} collector(s), `
-          + `changed=${result.changedCollectors}, series=${result.seriesScanned}, durationMs=${result.durationMs}`,
-        );
-      } else {
-        logger.info(`[CCG/Leaderboard] ${mode} refresh skipped because another process holds the refresh lock`);
+      if (!await ccgLeaderboardRunner.trigger(mode, source)) {
+        logger.info(`[CCG/Leaderboard] ${mode} refresh skipped because another refresh is already running`);
       }
     } catch (error) {
-      logger.error("[CCG/Leaderboard] Error:", error);
-    } finally {
-      this.isRefreshingCcgLeaderboard = false;
+      logger.error(`[CCG/Leaderboard] Failed to start ${mode} refresh:`, error);
     }
   }
 

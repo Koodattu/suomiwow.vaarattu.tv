@@ -1110,6 +1110,11 @@ class CcgService {
     return ccgLeaderboardService.refresh(mode);
   }
 
+  async startLeaderboardRefresh(mode: "full" | "incremental" = "full") {
+    requireFeature();
+    return ccgLeaderboardService.startRefresh(mode);
+  }
+
   async getSets(owner?: CcgOwner): Promise<Record<string, unknown>[]> {
     requireFeature();
     const visibleSets = await CcgSet.find({ enabledAt: { $ne: null }, cardCount: { $gt: 0 } })
