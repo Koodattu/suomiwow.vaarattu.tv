@@ -136,6 +136,27 @@ test("does not use a low side-held object as the stance ground", async () => {
   assert.equal(result.silhouetteFit.ground, 82 / 84);
 });
 
+test("ignores a translucent effect that crosses the central ground scan", async () => {
+  const width = 100;
+  const height = 100;
+  const pixels = createRgba(width, height);
+  for (let y = 10; y < 70; y += 1) {
+    for (let x = 30; x < 70; x += 1) pixels[(y * width + x) * 4 + 3] = 255;
+  }
+  for (let y = 70; y < 90; y += 1) {
+    const effectX = 42 + Math.floor((y - 70) / 2);
+    for (let x = effectX; x < effectX + 2; x += 1) pixels[(y * width + x) * 4 + 3] = 16;
+  }
+  const png = await sharp(pixels, { raw: { width, height, channels: 4 } }).png().toBuffer();
+
+  const result = await processCharacterRender(png);
+
+  assert.equal(result.height, 84);
+  assert.equal(result.stanceFit.ground, 62 / 84);
+  assert.equal(result.silhouetteFit.ground, 82 / 84);
+  assert.deepEqual((await measureCharacterRenderFits(result.output)).stanceFit, result.stanceFit);
+});
+
 test("saved-source ingestion falls back only for unusable render data", async () => {
   const storage = characterRenderStorageService as any;
   const originalIngest = storage.ingest;

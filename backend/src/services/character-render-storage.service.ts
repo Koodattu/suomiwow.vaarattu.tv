@@ -15,6 +15,7 @@ const STANCE_TOP_SOFT_LEAD_MIN_RATIO = 0.05;
 const STANCE_TOP_SOLID_MASS_MIN_RATIO = 0.5;
 const CROP_PADDING_PIXELS = 2;
 const STANCE_SCAN_HALF_WIDTH_RATIO = 0.1;
+const STANCE_GROUND_ALPHA_THRESHOLD = 32;
 const STANCE_GROUND_PERCENTILE = 0.85;
 const PUBLIC_ASSET_PREFIX = "/api/ccg/media/assets";
 const MAX_PUBLIC_CACHE_SECONDS = 365 * 24 * 60 * 60;
@@ -175,7 +176,7 @@ function analyzeAlpha(data: Buffer, width: number, height: number, channels: num
   const rightStartX = Math.ceil(stanceCenterX + 0.5);
   for (let x = minX; x <= maxX; x += 1) {
     for (let y = maxY; y >= minY; y -= 1) {
-      if (data[(y * width + x) * channels + 3] < ALPHA_THRESHOLD) continue;
+      if (data[(y * width + x) * channels + 3] < STANCE_GROUND_ALPHA_THRESHOLD) continue;
       if (x >= stanceStartX && x <= stanceEndX) stanceColumnBottoms.push(y);
       if (x <= leftEndX) leftColumnBottoms.push(y);
       if (x >= rightStartX) rightColumnBottoms.push(y);

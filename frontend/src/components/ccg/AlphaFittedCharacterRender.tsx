@@ -25,6 +25,7 @@ type AlphaFittedCharacterRenderProps = {
 const MAX_MEASUREMENT_SIZE = 256;
 const ALPHA_THRESHOLD = 1;
 const STANCE_SCAN_HALF_WIDTH_RATIO = 0.1;
+const STANCE_GROUND_ALPHA_THRESHOLD = 32;
 const STANCE_GROUND_PERCENTILE = 0.85;
 const boundsCache = new Map<string, AlphaBounds>();
 
@@ -88,7 +89,7 @@ function measureAlphaBounds(image: HTMLImageElement, fitMode: AlphaFitMode): Alp
 
   for (let x = 0; x < width; x += 1) {
     for (let y = maxY; y >= minY; y -= 1) {
-      if (pixels[(y * width + x) * 4 + 3] < ALPHA_THRESHOLD) continue;
+      if (pixels[(y * width + x) * 4 + 3] < STANCE_GROUND_ALPHA_THRESHOLD) continue;
       if (x >= stanceStartX && x <= stanceEndX) stanceColumnBottoms.push(y);
       if (x <= leftEndX) leftColumnBottoms.push(y);
       if (x >= rightStartX) rightColumnBottoms.push(y);
