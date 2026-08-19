@@ -1,4 +1,4 @@
-import Guild, { IGuild, IRaidProgress, IBossProgress, IOfficialRaidProgress } from "../models/Guild";
+import Guild, { IGuild, IRaidProgress, IBossProgress, IOfficialRaidProgress, type IRaidSchedule } from "../models/Guild";
 import GuildLogSource, { IGuildLogSource } from "../models/GuildLogSource";
 import type { IStreamer } from "../models/Streamer";
 import Event from "../models/Event";
@@ -49,6 +49,10 @@ export function getWclZoneSyncTargets(zones: readonly any[], trackedRaidIds: rea
     .filter((raidId) => !listedZoneIds.has(raidId))
     .map((id) => ({ id, name: `tracked raid ${id}` }));
   return [...zones, ...missingTrackedZones];
+}
+
+export function shouldPreservePreviousRaidSchedule(raidSchedule: IRaidSchedule | undefined, raidId: number): boolean {
+  return Boolean(raidSchedule?.days?.length && raidSchedule.sourceRaidId !== raidId);
 }
 
 interface GuildRaidingTodayItem {
@@ -1359,6 +1363,8 @@ class GuildService {
         guild.isCurrentlyRaiding = false;
         guild.initialFetchCompleted = true;
         guild.initialFetchCompletedAt = new Date();
+      } else if (hasNewData) {
+        guild.activityStatus = "active";
       }
 
       guild.lastFetched = new Date();
@@ -3675,8 +3681,12 @@ class GuildService {
         .lean();
 
       if (fights.length === 0) {
-        guildLog.info(`No fights found for ${raidData.name}, clearing stale schedule`);
-        guild.raidSchedule = { days: [], lastCalculated: new Date() };
+        if (shouldPreservePreviousRaidSchedule(guild.raidSchedule, raidId)) {
+          guildLog.info(`No fights found for ${raidData.name}, preserving the previous-tier schedule`);
+          return;
+        }
+        guildLog.info(`No fights found for ${raidData.name}, clearing stale current-tier schedule`);
+        guild.raidSchedule = { days: [], lastCalculated: new Date(), sourceRaidId: raidId };
         guild.markModified("raidSchedule");
         return;
       }
@@ -3690,8 +3700,12 @@ class GuildService {
       });
 
       if (filteredFights.length === 0) {
-        guildLog.info(`No fights in date range for ${raidData.name}, clearing stale schedule`);
-        guild.raidSchedule = { days: [], lastCalculated: new Date() };
+        if (shouldPreservePreviousRaidSchedule(guild.raidSchedule, raidId)) {
+          guildLog.info(`No fights in date range for ${raidData.name}, preserving the previous-tier schedule`);
+          return;
+        }
+        guildLog.info(`No fights in date range for ${raidData.name}, clearing stale current-tier schedule`);
+        guild.raidSchedule = { days: [], lastCalculated: new Date(), sourceRaidId: raidId };
         guild.markModified("raidSchedule");
         return;
       }
@@ -3942,6 +3956,11 @@ class GuildService {
         }
       }
 
+      if (filteredDays.length === 0 && shouldPreservePreviousRaidSchedule(guild.raidSchedule, raidId)) {
+        guildLog.info(`No stable ${raidData.name} schedule yet, preserving the previous-tier schedule`);
+        return;
+      }
+
       // Save the raiding schedule (only most likely days, no duplicates, no outliers)
       guild.raidSchedule = {
         days: filteredDays.map((slot) => ({
@@ -3951,6 +3970,7 @@ class GuildService {
           raidCount: slot.count,
         })),
         lastCalculated: new Date(),
+        sourceRaidId: raidId,
       };
 
       guild.markModified("raidSchedule");

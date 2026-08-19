@@ -136,16 +136,15 @@ test("does not fall back to an old report when a raiding guild has no fresh stor
   }
 });
 
-test("selects the most recently pulled boss across current raids", () => {
-  const primaryRaid = raidProgress(46, 1001, "Primary raid boss");
-  const secondaryRaid = raidProgress(50, 2001, "Secondary raid boss");
-  secondaryRaid.bosses.push({ ...secondaryRaid.bosses[0], bossId: 2002, bossName: "Most recent boss" });
+test("selects the most recently pulled boss in the current raid", () => {
+  const primaryRaid = raidProgress(53, 1001, "Primary raid boss");
+  primaryRaid.bosses.push({ ...primaryRaid.bosses[0], bossId: 1002, bossName: "Most recent boss" });
 
-  const fallback = selectPredictionTarget([primaryRaid, secondaryRaid], null);
-  const recent = selectPredictionTarget([primaryRaid, secondaryRaid], {
-    raidId: secondaryRaid.raidId,
-    difficulty: secondaryRaid.difficulty,
-    bossId: 2002,
+  const fallback = selectPredictionTarget([primaryRaid], null);
+  const recent = selectPredictionTarget([primaryRaid], {
+    raidId: primaryRaid.raidId,
+    difficulty: primaryRaid.difficulty,
+    bossId: 1002,
   });
 
   assert.equal(fallback?.boss?.bossName, "Primary raid boss");
@@ -156,7 +155,7 @@ test("returns a visible unavailable reply when prediction lookups fail", async (
   const originalFind = Guild.find;
   const originalFindMostRecentlyPulledBoss = bossKillPredictionService.findMostRecentlyPulledBoss;
   const originalPredict = bossKillPredictionService.predict;
-  const progress = raidProgress(46, 1001, "Test Boss");
+  const progress = raidProgress(53, 1001, "Test Boss");
 
   Guild.find = (() => ({
     select: () => ({

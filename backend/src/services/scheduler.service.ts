@@ -1,6 +1,7 @@
 import cron, { type TaskFn } from "node-cron";
 import mongoose from "mongoose";
-import Guild, { IGuild } from "../models/Guild";
+import Guild, { IGuild, type IRaidSchedule } from "../models/Guild";
+import Raid from "../models/Raid";
 import guildService from "./guild.service";
 import twitchService, { StreamStatus } from "./twitch.service";
 import tierListService from "./tierlist.service";
@@ -27,7 +28,7 @@ import ccgService from "./ccg.service";
 import ccgLeaderboardRunner from "./ccg-leaderboard-runner.service";
 import ccgCommunityService from "./ccg-community.service";
 import FullHistoryRefresh from "../models/FullHistoryRefresh";
-import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
+import { CURRENT_RAID_IDS, PRIMARY_RAID_ID, TIER_TRANSITION_PREVIOUS_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
 import {
   CCG_FEATURE_ENABLED,
   CCG_LEADERBOARD_FULL_SCHEDULE,
@@ -42,6 +43,9 @@ import logger from "../utils/logger";
 const POLLING_ACTIVE_GUILDS_MS = parseInt(process.env.POLLING_ACTIVE_GUILDS_MINUTES || "5", 10) * 60 * 1000;
 const POLLING_RAIDING_GUILDS_MS = parseInt(process.env.POLLING_RAIDING_GUILDS_MINUTES || "3", 10) * 60 * 1000;
 const POLLING_KNOWN_SCHEDULE_NOT_TODAY_MS = 30 * 60 * 1000; // 30 minutes
+const POLLING_TIER_TRANSITION_GUILDS_MS = 15 * 60 * 1000; // 15 minutes
+const POLLING_TIER_TRANSITION_UNSCHEDULED_MS = 60 * 60 * 1000; // 1 hour
+const POLLING_TIER_TRANSITION_RIO_MS = 60 * 60 * 1000; // 1 hour
 const POLLING_OFF_HOURS_ACTIVE_MS = 60 * 60 * 1000; // 1 hour
 const POLLING_TWITCH_MS = 15 * 60 * 1000; // 15 minutes
 const POLLING_FIGHT_VODS_MS = 30 * 60 * 1000; // 30 minutes
@@ -49,6 +53,10 @@ const MYTHIC_PLUS_RECOVERY_MS = 5 * 60 * 1000; // 5 minutes
 const CHARACTER_RANKING_RECOVERY_MS = 5 * 60 * 1000; // 5 minutes
 const CHARACTER_WCL_IDENTITY_AUDIT_NIGHTLY_ENABLED = process.env.CHARACTER_WCL_IDENTITY_AUDIT_NIGHTLY_ENABLED !== "false";
 const ACTIVITY_STATUS_ACTIVE_DAYS = 14;
+const TIER_TRANSITION_DISCOVERY_DAYS = 14;
+const TIER_TRANSITION_SCHEDULED_LIMIT = 25;
+const TIER_TRANSITION_UNSCHEDULED_LIMIT = 5;
+const TIER_TRANSITION_RIO_LIMIT = 25;
 const SCHEDULE_POLLING_WINDOW_BEFORE_HOURS = 1;
 const SCHEDULE_POLLING_WINDOW_AFTER_HOURS = 1;
 const HOURS_PER_WEEK = 7 * 24;
@@ -69,6 +77,62 @@ const WEEKDAY_INDEX: Record<string, number> = {
   Friday: 5,
   Saturday: 6,
 };
+
+interface TierTransitionScheduleCandidate {
+  raidSchedule?: IRaidSchedule;
+  lastFetched?: Date;
+}
+
+export function isTierTransitionDiscoveryActive(raidStart: Date | null | undefined, now: Date, discoveryDays: number = TIER_TRANSITION_DISCOVERY_DAYS): boolean {
+  const raidStartMs = raidStart?.getTime();
+  if (raidStartMs === undefined || !Number.isFinite(raidStartMs)) return false;
+  const discoveryEndMs = raidStartMs + discoveryDays * 24 * 60 * 60 * 1000;
+  return now.getTime() >= raidStartMs && now.getTime() < discoveryEndMs;
+}
+
+export function isWithinRaidSchedulePollingWindow(
+  raidSchedule: IRaidSchedule | undefined,
+  weekday: string,
+  hour: number,
+  beforeHours: number = SCHEDULE_POLLING_WINDOW_BEFORE_HOURS,
+  afterHours: number = SCHEDULE_POLLING_WINDOW_AFTER_HOURS,
+): boolean {
+  const currentDayIndex = WEEKDAY_INDEX[weekday];
+  if (currentDayIndex === undefined) return false;
+
+  const currentHourOfWeek = currentDayIndex * 24 + hour;
+  return (
+    raidSchedule?.days?.some((day) => {
+      const scheduleDayIndex = WEEKDAY_INDEX[day.day];
+      if (scheduleDayIndex === undefined) return false;
+
+      const scheduleDayStart = scheduleDayIndex * 24;
+      const windowStart = scheduleDayStart + day.startHour - beforeHours;
+      let windowEnd = scheduleDayStart + day.endHour;
+      if (day.endHour < day.startHour) windowEnd += 24;
+      windowEnd += afterHours;
+
+      return [currentHourOfWeek, currentHourOfWeek + HOURS_PER_WEEK, currentHourOfWeek - HOURS_PER_WEEK].some(
+        (candidateHour) => candidateHour >= windowStart && candidateHour <= windowEnd,
+      );
+    }) ?? false
+  );
+}
+
+export function selectTierTransitionScheduledCandidates<T extends TierTransitionScheduleCandidate>(
+  guilds: readonly T[],
+  currentTime: { weekday: string; hour: number },
+  now: Date,
+  pollingIntervalMs: number = POLLING_TIER_TRANSITION_GUILDS_MS,
+  limit: number = TIER_TRANSITION_SCHEDULED_LIMIT,
+): T[] {
+  const dueBeforeMs = now.getTime() - pollingIntervalMs;
+  return guilds
+    .filter((guild) => isWithinRaidSchedulePollingWindow(guild.raidSchedule, currentTime.weekday, currentTime.hour))
+    .filter((guild) => !guild.lastFetched || guild.lastFetched.getTime() <= dueBeforeMs)
+    .sort((a, b) => (a.lastFetched?.getTime() ?? 0) - (b.lastFetched?.getTime() ?? 0))
+    .slice(0, limit);
+}
 
 /**
  * Yield to the event loop to prevent blocking.
@@ -133,9 +197,15 @@ interface HotActiveGuildBuckets {
   knownScheduleNotTodayDeferred: IGuild[];
 }
 
+interface TierTransitionContext {
+  currentRaidSlug: string;
+  previousRaidSlugs: string[];
+}
+
 class UpdateScheduler {
   private hotHoursActiveInterval: NodeJS.Timeout | null = null;
   private hotHoursRaidingInterval: NodeJS.Timeout | null = null;
+  private hotHoursTierTransitionInterval: NodeJS.Timeout | null = null;
   private hotHoursTwitchInterval: NodeJS.Timeout | null = null;
   private fightVodResolverInterval: NodeJS.Timeout | null = null;
   private mythicPlusRecoveryInterval: NodeJS.Timeout | null = null;
@@ -145,6 +215,7 @@ class UpdateScheduler {
   private offHoursDailyInterval: NodeJS.Timeout | null = null;
   private isUpdatingHotActive: boolean = false;
   private isUpdatingHotRaiding: boolean = false;
+  private isUpdatingTierTransitionDiscovery: boolean = false;
   private isUpdatingTwitchStreams: boolean = false;
   private isResolvingFightVodLinks: boolean = false;
   private isRefreshingHomeCache: boolean = false;
@@ -177,6 +248,8 @@ class UpdateScheduler {
   private isRefreshingCcgMedia: boolean = false;
   private isRecoveringCcgMedia: boolean = false;
   private lastCacheWarmTime: number = 0;
+  private lastTierTransitionUnscheduledSampleTime: number = 0;
+  private lastTierTransitionRioSampleTime: number = 0;
 
   private scheduleCronTask(name: string, expression: string, taskFn: TaskFn): void {
     const task = cron.createTask(expression, taskFn, {
@@ -274,27 +347,7 @@ class UpdateScheduler {
   }
 
   private isWithinSchedulePollingWindow(guild: IGuild, weekday: string, hour: number): boolean {
-    const currentDayIndex = WEEKDAY_INDEX[weekday];
-    if (currentDayIndex === undefined) return false;
-
-    const currentHourOfWeek = currentDayIndex * 24 + hour;
-
-    return (
-      guild.raidSchedule?.days?.some((day) => {
-        const scheduleDayIndex = WEEKDAY_INDEX[day.day];
-        if (scheduleDayIndex === undefined) return false;
-
-        const scheduleDayStart = scheduleDayIndex * 24;
-        const windowStart = scheduleDayStart + day.startHour - SCHEDULE_POLLING_WINDOW_BEFORE_HOURS;
-        let windowEnd = scheduleDayStart + day.endHour;
-        if (day.endHour < day.startHour) {
-          windowEnd += 24;
-        }
-        windowEnd += SCHEDULE_POLLING_WINDOW_AFTER_HOURS;
-
-        return [currentHourOfWeek, currentHourOfWeek + HOURS_PER_WEEK, currentHourOfWeek - HOURS_PER_WEEK].some((candidateHour) => candidateHour >= windowStart && candidateHour <= windowEnd);
-      }) ?? false
-    );
+    return isWithinRaidSchedulePollingWindow(guild.raidSchedule, weekday, hour);
   }
 
   private isDueForUpdate(guild: IGuild, intervalMs: number): boolean {
@@ -401,6 +454,11 @@ class UpdateScheduler {
       }
       await this.updateRaidingGuilds();
     }, POLLING_RAIDING_GUILDS_MS);
+
+    this.hotHoursTierTransitionInterval = setInterval(async () => {
+      if (!this.isHotHours()) return;
+      await this.updateTierTransitionDiscovery();
+    }, POLLING_TIER_TRANSITION_GUILDS_MS);
 
     // HOT HOURS - Twitch stream status: Check every 15 minutes
     this.hotHoursTwitchInterval = setInterval(async () => {
@@ -853,6 +911,10 @@ class UpdateScheduler {
     logger.info("  - Hot hours (16:00-01:00):");
     logger.info(`    * Active guilds: every ${POLLING_ACTIVE_GUILDS_MS / 60000} minutes`);
     logger.info(`    * Raiding guilds: every ${POLLING_RAIDING_GUILDS_MS / 60000} minutes`);
+    logger.info(
+      `    * Tier-transition discovery: every ${POLLING_TIER_TRANSITION_GUILDS_MS / 60000} minutes for ${TIER_TRANSITION_DISCOVERY_DAYS} days `
+      + `(previous raid IDs: ${TIER_TRANSITION_PREVIOUS_RAID_IDS.join(", ")})`,
+    );
     logger.info(`    * Known schedule, not today: every ${POLLING_KNOWN_SCHEDULE_NOT_TODAY_MS / 60000} minutes`);
     logger.info("    * Twitch streams: every 15 minutes");
     logger.info("  - Off hours (01:00-16:00):");
@@ -916,6 +978,7 @@ class UpdateScheduler {
     if (this.isHotHours()) {
       logger.info("Currently HOT HOURS - starting initial active guild check");
       this.updateActiveGuilds();
+      void this.updateTierTransitionDiscovery();
     } else {
       logger.info("Currently OFF HOURS - starting initial active guild check");
       this.updateActiveGuildsOffHours();
@@ -1323,6 +1386,10 @@ class UpdateScheduler {
       clearInterval(this.hotHoursRaidingInterval);
       this.hotHoursRaidingInterval = null;
     }
+    if (this.hotHoursTierTransitionInterval) {
+      clearInterval(this.hotHoursTierTransitionInterval);
+      this.hotHoursTierTransitionInterval = null;
+    }
     if (this.hotHoursTwitchInterval) {
       clearInterval(this.hotHoursTwitchInterval);
       this.hotHoursTwitchInterval = null;
@@ -1425,6 +1492,183 @@ class UpdateScheduler {
       await Guild.updateMany({ lastLogEndTime: { $gte: activeCutoff } }, { $set: { activityStatus: "active" } });
     } catch (error) {
       logger.error("[Activity Status] Error updating guild activity status:", error);
+    }
+  }
+
+  private async updateTierTransitionDiscovery(now: Date = new Date()): Promise<void> {
+    if (this.isUpdatingTierTransitionDiscovery) {
+      logger.info("[Hot/Transition] Previous discovery pass is still running, skipping...");
+      return;
+    }
+
+    const blockingJob = this.getBlockingDatabaseMaintenanceJob();
+    if (blockingJob) {
+      logger.info(`[Hot/Transition] Skipping returning-guild discovery while ${blockingJob} is running`);
+      return;
+    }
+
+    this.isUpdatingTierTransitionDiscovery = true;
+    let taskId = "";
+
+    try {
+      const transitionRaidIds = [PRIMARY_RAID_ID, ...TIER_TRANSITION_PREVIOUS_RAID_IDS];
+      const transitionRaids = await Raid.find({ id: { $in: transitionRaidIds } }).select("id slug starts -_id").lean();
+      const currentRaid = transitionRaids.find((raid) => raid.id === PRIMARY_RAID_ID);
+      const raidStart = currentRaid?.starts?.eu ? new Date(currentRaid.starts.eu) : null;
+
+      if (!currentRaid || !isTierTransitionDiscoveryActive(raidStart, now)) {
+        return;
+      }
+
+      const previousRaidSlugs = transitionRaids
+        .filter((raid) => TIER_TRANSITION_PREVIOUS_RAID_IDS.includes(raid.id))
+        .map((raid) => raid.slug);
+      const context: TierTransitionContext = {
+        currentRaidSlug: currentRaid.slug,
+        previousRaidSlugs,
+      };
+
+      if (context.previousRaidSlugs.length === 0) {
+        logger.warn(`[Hot/Transition] No raid metadata found for configured previous raid IDs [${TIER_TRANSITION_PREVIOUS_RAID_IDS.join(", ")}]`);
+        return;
+      }
+
+      const currentTime = this.getHelsinkiTime();
+      const wclCandidateFilter = {
+        activityStatus: "inactive" as const,
+        isCurrentlyRaiding: { $ne: true },
+        wclStatus: { $ne: "not_found" as const },
+        excludedRaidIds: { $nin: CURRENT_RAID_IDS },
+        "progress.raidId": { $in: TIER_TRANSITION_PREVIOUS_RAID_IDS, $nin: CURRENT_RAID_IDS },
+      };
+
+      const scheduledPool = await Guild.find({
+        ...wclCandidateFilter,
+        "raidSchedule.days.0": { $exists: true },
+      });
+      const scheduledCandidates = selectTierTransitionScheduledCandidates(
+        scheduledPool,
+        currentTime,
+        now,
+        POLLING_TIER_TRANSITION_GUILDS_MS,
+        TIER_TRANSITION_SCHEDULED_LIMIT,
+      );
+
+      let unscheduledCandidates: IGuild[] = [];
+      if (now.getTime() - this.lastTierTransitionUnscheduledSampleTime >= POLLING_TIER_TRANSITION_UNSCHEDULED_MS) {
+        this.lastTierTransitionUnscheduledSampleTime = now.getTime();
+        const unscheduledDueBefore = new Date(now.getTime() - POLLING_TIER_TRANSITION_UNSCHEDULED_MS);
+        unscheduledCandidates = await Guild.find({
+          ...wclCandidateFilter,
+          "raidSchedule.days.0": { $exists: false },
+          $or: [{ lastFetched: { $exists: false } }, { lastFetched: null }, { lastFetched: { $lte: unscheduledDueBefore } }],
+        })
+          .sort({ lastFetched: 1 })
+          .limit(TIER_TRANSITION_UNSCHEDULED_LIMIT);
+      }
+
+      const positiveProgress = [
+        { normalBossesKilled: { $gt: 0 } },
+        { heroicBossesKilled: { $gt: 0 } },
+        { mythicBossesKilled: { $gt: 0 } },
+      ];
+      let rioCandidates: IGuild[] = [];
+      if (now.getTime() - this.lastTierTransitionRioSampleTime >= POLLING_TIER_TRANSITION_RIO_MS) {
+        this.lastTierTransitionRioSampleTime = now.getTime();
+        const rioDueBefore = new Date(now.getTime() - POLLING_TIER_TRANSITION_RIO_MS);
+        rioCandidates = await Guild.find({
+          wclStatus: "not_found",
+          initialFetchCompleted: true,
+          excludedRaidIds: { $nin: CURRENT_RAID_IDS },
+          officialProgress: {
+            $elemMatch: {
+              raidTierSlug: { $in: context.previousRaidSlugs },
+              $or: positiveProgress,
+            },
+          },
+          $nor: [
+            {
+              officialProgress: {
+                $elemMatch: {
+                  raidTierSlug: context.currentRaidSlug,
+                  $or: positiveProgress,
+                },
+              },
+            },
+          ],
+          $or: [{ lastRioUpdate: { $exists: false } }, { lastRioUpdate: null }, { lastRioUpdate: { $lte: rioDueBefore } }],
+        })
+          .sort({ lastRioUpdate: 1 })
+          .limit(TIER_TRANSITION_RIO_LIMIT);
+      }
+
+      const wclCandidates = [...scheduledCandidates, ...unscheduledCandidates];
+      if (wclCandidates.length === 0 && rioCandidates.length === 0) {
+        logger.debug(
+          `[Hot/Transition] No returning guilds due (scheduled pool=${scheduledPool.length}, weekday=${currentTime.weekday}, hour=${currentTime.hour.toFixed(2)})`,
+        );
+        return;
+      }
+
+      taskId = await taskTracker.start("Discover Returning Guilds (Tier Transition)", {
+        currentRaidId: PRIMARY_RAID_ID,
+        previousRaidIds: TIER_TRANSITION_PREVIOUS_RAID_IDS,
+      });
+
+      const wclStats = await this.updateGuildProgressBatch(wclCandidates, "[Hot/Transition/WCL]", 250);
+      let rioAttempted = 0;
+      let rioSucceeded = 0;
+      let rioWithProgress = 0;
+
+      for (let i = 0; i < rioCandidates.length; i++) {
+        const activeBlockingJob = this.getBlockingDatabaseMaintenanceJob();
+        if (activeBlockingJob) {
+          logger.info(`[Hot/Transition/RIO] Deferring ${rioCandidates.length - i} guild(s) while ${activeBlockingJob} is running`);
+          break;
+        }
+
+        const guild = rioCandidates[i];
+        rioAttempted++;
+        try {
+          const hasProgress = await guildService.updateGuildFromRaiderIO((guild._id as mongoose.Types.ObjectId).toString());
+          rioSucceeded++;
+          if (hasProgress) rioWithProgress++;
+        } catch (error) {
+          logger.error(`[Hot/Transition/RIO] Failed to update ${guild.name}:`, error instanceof Error ? error.message : "Unknown");
+        }
+
+        if (i < rioCandidates.length - 1) await throttleDelay(2000);
+      }
+
+      if (rioWithProgress > 0) {
+        for (const raidId of CURRENT_RAID_IDS) {
+          await guildService.calculateGuildRankingsForRaid(raidId);
+        }
+      }
+
+      if (this.shouldWarmCachesAfterUpdate(wclStats) || rioWithProgress > 0) {
+        await this.debouncedWarmCurrentRaidCaches();
+      }
+
+      logger.info(
+        `[Hot/Transition] Completed: WCL ${wclStats.succeeded}/${wclStats.attempted} `
+        + `(scheduled=${scheduledCandidates.length}, sampled=${unscheduledCandidates.length}, newData=${wclStats.withNewData}); `
+        + `RIO ${rioSucceeded}/${rioAttempted} (currentProgress=${rioWithProgress})`,
+      );
+      await taskTracker.complete(taskId, {
+        scheduledCandidates: scheduledCandidates.length,
+        unscheduledCandidates: unscheduledCandidates.length,
+        wclUpdated: wclStats.succeeded,
+        wclWithNewData: wclStats.withNewData,
+        rioAttempted,
+        rioSucceeded,
+        rioWithProgress,
+      });
+    } catch (error) {
+      logger.error("[Hot/Transition] Error:", error);
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+    } finally {
+      this.isUpdatingTierTransitionDiscovery = false;
     }
   }
 

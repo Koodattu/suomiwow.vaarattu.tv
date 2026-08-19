@@ -90,10 +90,10 @@ test("Reporter separates lead candidates from supporting developments and backgr
 });
 
 test("Reporter consolidates progress and reclears while naming raids in player and hiatus facts", () => {
-  const raidName = "VS / DR / MQD";
+  const raidName = "The Venomous Abyss";
   const periodEnd = new Date("2026-08-10T12:00:00Z");
   const progress = {
-    raidId: 46,
+    raidId: 53,
     raidName,
     iconUrl: "raid.jpg",
     difficulty: "mythic" as const,
@@ -125,7 +125,7 @@ test("Reporter consolidates progress and reclears while naming raids in player a
     guildId: guildName === "Kaaos" ? "kaaos" : guildName.toLowerCase(),
     guildName,
     guildRealm: "Stormreaver",
-    raidId: 46,
+    raidId: 53,
     raidName,
     bossId,
     bossName,
@@ -152,7 +152,7 @@ test("Reporter consolidates progress and reclears while naming raids in player a
     pickems: [],
     raids: [
       {
-        id: 46,
+        id: 53,
         name: raidName,
         iconUrl: "raid.jpg",
         starts: { eu: new Date("2026-03-18T04:00:00Z") },
@@ -165,7 +165,7 @@ test("Reporter consolidates progress and reclears while naming raids in player a
     ],
     raidAnalytics: [
       {
-        raidId: 46,
+        raidId: 53,
         bosses: [{ bossId: 101, bossName: "Midnight Falls", guildsKilled: 8, pullCount: { average: 248, lowest: 103, highest: 421 } }],
       },
     ],
@@ -207,7 +207,7 @@ test("Reporter consolidates progress and reclears while naming raids in player a
   );
   assert.ok(hiatus?.links.some((link) => link.label === raidName && link.visual?.iconUrl === "raid.jpg"));
   assert.match(player?.summary || "", new RegExp(raidName.replaceAll("/", "\\/")));
-  assert.doesNotMatch(player?.summary || "", /raid 46/);
+  assert.doesNotMatch(player?.summary || "", /raid 53/);
   assert.ok(player?.links.some((link) => link.url === "/tierlists/characters"));
   assert.match(mythicPlus?.summary || "", /Midnight Season 2.*Keymaster.*3210\.4.*not a claimed weekly change/i);
   assert.ok(mythicPlus?.links.some((link) => link.url === "/characters?tab=mythic-plus"));

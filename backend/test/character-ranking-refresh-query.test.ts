@@ -105,7 +105,7 @@ test("nightly ranking refresh queries all specs for every partition and only rec
 
     await characterService.checkAndRefreshCharacterRankings();
 
-    assert.equal((participationFilter as any)?.zoneId, 46);
+    assert.equal((participationFilter as any)?.zoneId, 53);
     assert.deepEqual((participationFilter as any)?.mythicReportCount, { $gt: 0 });
     assert.ok((participationFilter as any)?.lastSeenAt?.$gte instanceof Date);
     assert.match(capturedQuery, /assassinationRankingsPartition1: zoneRankings\([^\n]+partition: 1, specName: "Assassination"\)/);

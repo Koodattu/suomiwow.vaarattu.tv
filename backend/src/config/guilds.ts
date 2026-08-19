@@ -1354,8 +1354,12 @@ export const RAID_RIO_RANKING_DISABLED_IDS = new Set<number>([53]);
 // Current raids that are actively being tracked for updates
 // Multiple raids can be current at the same time during expansion transitions.
 // PRIMARY_RAID_ID is the raid used for single-raid defaults and featured views.
-export const PRIMARY_RAID_ID = 46;
-export const CURRENT_RAID_IDS = [46, 50];
+export const PRIMARY_RAID_ID = 53;
+export const CURRENT_RAID_IDS = [53];
+
+// Main raid tier(s) used to find likely returning guilds during the launch
+// window. Side raids such as Sporefall are intentionally excluded.
+export const TIER_TRANSITION_PREVIOUS_RAID_IDS = [46];
 export const RECENT_RAID_DATE_REFRESH_IDS = [
   ...CURRENT_RAID_IDS,
   ...TRACKED_RAIDS.filter((raidId) => !CURRENT_RAID_IDS.includes(raidId)).slice(0, 2),

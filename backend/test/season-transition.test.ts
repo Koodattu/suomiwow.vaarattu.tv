@@ -13,10 +13,10 @@ process.env.RAIDER_IO_API_KEY ||= "test";
 process.env.BLIZZARD_CLIENT_ID ||= "test";
 process.env.BLIZZARD_CLIENT_SECRET ||= "test";
 
-test("Season 2 raid support is staged without changing current raid defaults", () => {
+test("Season 2 raid support uses the new raid as the current default", () => {
   assert.equal(TRACKED_RAIDS[0], 53);
-  assert.equal(PRIMARY_RAID_ID, 46);
-  assert.deepEqual(CURRENT_RAID_IDS, [46, 50]);
+  assert.equal(PRIMARY_RAID_ID, 53);
+  assert.deepEqual(CURRENT_RAID_IDS, [53]);
   assert.equal(RAID_RIO_SLUG_OVERRIDES[53], "the-venomous-abyss");
   assert.deepEqual(RAID_RIO_PROGRESS_SLUG_OVERRIDES[53], ["the-tidebound-grotto", "the-venomous-abyss"]);
   assert.equal(RAID_RIO_RANKING_DISABLED_IDS.has(53), true);

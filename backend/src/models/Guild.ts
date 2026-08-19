@@ -117,6 +117,7 @@ export interface IRaidScheduleDay {
 export interface IRaidSchedule {
   days: IRaidScheduleDay[]; // Most common raiding days and hours
   lastCalculated?: Date;
+  sourceRaidId?: number;
 }
 
 export interface IGuild extends Document {
@@ -283,6 +284,7 @@ const GuildSchema: Schema = new Schema(
         },
       ],
       lastCalculated: { type: Date },
+      sourceRaidId: { type: Number },
     },
     isCurrentlyRaiding: { type: Boolean, default: false },
     lastLogEndTime: { type: Date }, // End time of the most recent log
