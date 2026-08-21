@@ -187,6 +187,7 @@ import {
   ReporterSettingsUpdate,
   ReporterStatusResponse,
   BossMechanicCharactersResponse,
+  BossMechanicGuildsResponse,
   FunGameRound,
   FunGameSearchResponse,
   FunGameSearchSlug,
@@ -246,8 +247,15 @@ async function buildApiError(response: Response, fallback: string): Promise<Erro
 }
 
 export const api = {
-  async getBossMechanicCharacters(): Promise<BossMechanicCharactersResponse> {
-    const response = await fetch(`${API_URL}/api/fun/boss-mechanics/characters`, { cache: "no-store" });
+  async getBossMechanicGuilds(): Promise<BossMechanicGuildsResponse> {
+    const response = await fetch(`${API_URL}/api/fun/boss-mechanics/guilds`);
+    if (!response.ok) throw await buildApiError(response, "The guild list could not be loaded");
+    return response.json();
+  },
+
+  async getBossMechanicCharacters(guildId?: string): Promise<BossMechanicCharactersResponse> {
+    const guildQuery = guildId ? `?guildId=${encodeURIComponent(guildId)}` : "";
+    const response = await fetch(`${API_URL}/api/fun/boss-mechanics/characters${guildQuery}`, { cache: "no-store" });
     if (!response.ok) throw await buildApiError(response, "The raid group could not be assembled");
     return response.json();
   },

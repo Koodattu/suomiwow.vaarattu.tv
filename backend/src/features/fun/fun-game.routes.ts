@@ -1,14 +1,32 @@
 import { Router, type Request, type Response } from "express";
+import { isValidObjectId } from "mongoose";
 import logger from "../../utils/logger";
-import { generateFunGameRound, loadBossMechanicCharacters, searchFunGameCandidates } from "./fun-game.service";
+import { generateFunGameRound, loadBossMechanicCharacters, loadBossMechanicGuilds, searchFunGameCandidates } from "./fun-game.service";
 import { isFunGameSearchSlug, isFunGameSlug, isHigherOrWipeMode, type HigherOrWipeMode } from "./fun-game.types";
 import { FunRoundUnavailableError } from "./fun-game.utils";
 
 const router = Router();
 
-router.get("/boss-mechanics/characters", async (_req: Request, res: Response) => {
+router.get("/boss-mechanics/guilds", async (_req: Request, res: Response) => {
   try {
-    const response = await loadBossMechanicCharacters();
+    const response = await loadBossMechanicGuilds();
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
+    res.json(response);
+  } catch (error) {
+    logger.error("[Fun] Failed to load boss mechanic guilds:", error);
+    res.status(500).json({ error: "Failed to load boss mechanic guilds", code: "BOSS_MECHANIC_GUILDS_FAILED" });
+  }
+});
+
+router.get("/boss-mechanics/characters", async (req: Request, res: Response) => {
+  const guildId = typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+  if (guildId && !isValidObjectId(guildId)) {
+    res.status(400).json({ error: "Unknown boss mechanic guild", code: "UNKNOWN_BOSS_MECHANIC_GUILD" });
+    return;
+  }
+
+  try {
+    const response = await loadBossMechanicCharacters(guildId);
     res.setHeader("Cache-Control", "no-store");
     res.json(response);
   } catch (error) {

@@ -9,7 +9,7 @@ import { FaArrowUpRightFromSquare } from "react-icons/fa6";
 import AlphaFittedCharacterRender from "@/components/ccg/AlphaFittedCharacterRender";
 import { api } from "@/lib/api";
 import { CCG_CLASS_COLORS } from "@/lib/ccg";
-import type { BossMechanicCharacter } from "@/types";
+import type { BossMechanicCharacter, BossMechanicGuild } from "@/types";
 import styles from "./helical-toxins.module.css";
 
 const ROUND_DURATION_MS = 10_000;
@@ -49,6 +49,10 @@ function clampPosition(position: Position): Position {
   const y = Math.min(ARENA_MAX_Y, Math.max(ARENA_MIN_Y, position.y));
   const [minX, maxX] = getArenaXBounds(y);
   return { x: Math.min(maxX, Math.max(minX, position.x)), y };
+}
+
+function getPlayerDepth(y: number): number {
+  return 10 + Math.round(y * 80);
 }
 
 function randomSpawnPosition(): Position {
@@ -129,6 +133,7 @@ export default function HelicalToxinsGame() {
   const startedAtRef = useRef(0);
   const loadIdRef = useRef(0);
   const autoStartRef = useRef(false);
+  const selectedGuildIdRef = useRef("");
   const [players, setPlayers] = useState<Player[]>([]);
   const [phase, setPhase] = useState<Phase>("loading");
   const [remainingMs, setRemainingMs] = useState(ROUND_DURATION_MS);
@@ -136,10 +141,12 @@ export default function HelicalToxinsGame() {
   const [pullCount, setPullCount] = useState(0);
   const [wipeCount, setWipeCount] = useState(0);
   const [mythicDifficulty, setMythicDifficulty] = useState(false);
+  const [guilds, setGuilds] = useState<BossMechanicGuild[]>([]);
+  const [selectedGuildId, setSelectedGuildId] = useState("");
   const [readyRenders, setReadyRenders] = useState<Set<string>>(() => new Set());
   playersRef.current = players;
 
-  const assembleRaid = useCallback(async (autoStart = false) => {
+  const assembleRaid = useCallback(async (autoStart = false, guildId = selectedGuildIdRef.current) => {
     const loadId = ++loadIdRef.current;
     autoStartRef.current = autoStart;
     setPhase("loading");
@@ -148,7 +155,7 @@ export default function HelicalToxinsGame() {
     setRemainingMs(ROUND_DURATION_MS);
     setReadyRenders(new Set());
     try {
-      const response = await api.getBossMechanicCharacters();
+      const response = await api.getBossMechanicCharacters(guildId || undefined);
       if (loadId !== loadIdRef.current) return;
       if (response.characters.length !== PLAYER_COUNT) throw new Error("A full raid group was not returned");
       const arenaRect = arenaRef.current?.getBoundingClientRect();
@@ -166,6 +173,16 @@ export default function HelicalToxinsGame() {
     void assembleRaid();
     return () => { loadIdRef.current += 1; };
   }, [assembleRaid]);
+
+  useEffect(() => {
+    let active = true;
+    void api.getBossMechanicGuilds()
+      .then((response) => {
+        if (active) setGuilds(response.guilds);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (phase !== "playing") return;
@@ -212,6 +229,12 @@ export default function HelicalToxinsGame() {
       next.add(id);
       return next;
     });
+  };
+
+  const selectGuild = (guildId: string) => {
+    selectedGuildIdRef.current = guildId;
+    setSelectedGuildId(guildId);
+    void assembleRaid(false, guildId);
   };
 
   const wipe = (total: number) => {
@@ -341,17 +364,33 @@ export default function HelicalToxinsGame() {
           <Link href="/fun" className={styles.back}>← {t("back")}</Link>
           <div className={styles.titleRow}>
             <h1>{t("title")}</h1>
-            <button
-              type="button"
-              className={styles.difficultyToggle}
-              role="switch"
-              aria-checked={mythicDifficulty}
-              disabled={phase === "playing"}
-              onClick={() => setMythicDifficulty((current) => !current)}
-            >
-              <span className={styles.difficultyLabel}><span className={styles.skull} aria-hidden="true">💀</span>{t("mythicDifficulty")}</span>
-              <span className={styles.toggleTrack} aria-hidden="true"><span /></span>
-            </button>
+            <div className={styles.headerControls}>
+              <label className={styles.guildSelect}>
+                <span className={styles.guildSelectLabel}>{t("raidTeam")}</span>
+                <span className={styles.guildSelectShell}>
+                  <select
+                    value={selectedGuildId}
+                    disabled={phase === "playing" || phase === "loading"}
+                    onChange={(event) => selectGuild(event.target.value)}
+                  >
+                    <option value="">{t("dreamTeam")}</option>
+                    {guilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name} — {guild.realm}</option>)}
+                  </select>
+                  <span className={styles.selectChevron} aria-hidden="true">⌄</span>
+                </span>
+              </label>
+              <button
+                type="button"
+                className={styles.difficultyToggle}
+                role="switch"
+                aria-checked={mythicDifficulty}
+                disabled={phase === "playing"}
+                onClick={() => setMythicDifficulty((current) => !current)}
+              >
+                <span className={styles.difficultyLabel}><span className={styles.skull} aria-hidden="true">💀</span>{t("mythicDifficulty")}</span>
+                <span className={styles.toggleTrack} aria-hidden="true"><span /></span>
+              </button>
+            </div>
           </div>
         </header>
 
@@ -372,7 +411,7 @@ export default function HelicalToxinsGame() {
               key={player.id}
               data-player-id={player.id}
               className={`${styles.player} ${player.matched ? styles.matched : ""}`}
-              style={{ left: `${player.x * 100}%`, top: `${player.y * 100}%`, zIndex: player.matched ? 20 + index : 30 + index }}
+              style={{ left: `${player.x * 100}%`, top: `${player.y * 100}%`, zIndex: getPlayerDepth(player.y) }}
               role="group"
               aria-label={phase === "playing" ? t("playerLabel", { name: player.name, green: player.greenCount }) : player.name}
             >

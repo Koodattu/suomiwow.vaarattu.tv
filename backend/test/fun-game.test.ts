@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { Types } from "mongoose";
 import Guild from "../src/models/Guild";
 import Raid from "../src/models/Raid";
 import CharacterMedia from "../src/models/CharacterMedia";
 import CharacterRaidParticipation from "../src/models/CharacterRaidParticipation";
 import { generateLockItInRound } from "../src/features/fun/generators/lock-it-in";
-import { loadBossMechanicCharacters } from "../src/features/fun/fun-game.service";
+import { loadBossMechanicCharacters, loadBossMechanicGuilds } from "../src/features/fun/fun-game.service";
 import {
   funMythicGuildFilter,
   funMythicParticipationFilter,
@@ -97,6 +98,84 @@ test("boss mechanic raids use twenty distinct stored character renders", async (
     );
   } finally {
     mediaModel.aggregate = originalAggregate;
+  }
+});
+
+test("boss mechanic guilds come only from The Venomous Abyss and are sorted alphabetically", async () => {
+  const participationModel = CharacterRaidParticipation as any;
+  const originalAggregate = participationModel.aggregate;
+  let pipeline: any[] = [];
+  const firstGuildId = new Types.ObjectId();
+  const secondGuildId = new Types.ObjectId();
+
+  try {
+    participationModel.aggregate = (nextPipeline: any[]) => {
+      pipeline = nextPipeline;
+      return {
+        option: async () => [
+          { guildId: firstGuildId, name: "Alpha", realm: "first-realm" },
+          { guildId: secondGuildId, name: "Zulu", realm: "second-realm" },
+        ],
+      };
+    };
+
+    const response = await loadBossMechanicGuilds();
+    assert.deepEqual(response.guilds, [
+      { id: firstGuildId.toString(), name: "Alpha", realm: "first-realm" },
+      { id: secondGuildId.toString(), name: "Zulu", realm: "second-realm" },
+    ]);
+    assert.deepEqual(pipeline[0], { $match: { zoneId: 53 } });
+    assert.deepEqual(
+      pipeline.find((stage) => stage.$sort)?.$sort,
+      { sortName: 1, sortRealm: 1, guildId: 1 },
+    );
+  } finally {
+    participationModel.aggregate = originalAggregate;
+  }
+});
+
+test("boss mechanic guild selection prioritizes eligible guild characters and fills remaining slots globally", async () => {
+  const mediaModel = CharacterMedia as any;
+  const participationModel = CharacterRaidParticipation as any;
+  const originalAggregate = mediaModel.aggregate;
+  const originalDistinct = participationModel.distinct;
+  const guildId = new Types.ObjectId();
+  const guildCharacterIds = Array.from({ length: 8 }, () => new Types.ObjectId());
+  const makeRow = (characterId: Types.ObjectId, index: number) => ({
+    characterId,
+    characterName: `Raider ${index}`,
+    realmSlug: "test-realm",
+    region: "EU",
+    classID: (index % 13) + 1,
+    renderAssetId: new Types.ObjectId(),
+    renderFit: { top: 0.05, ground: 0.95, centerX: 0.5 },
+  });
+  const guildRows = guildCharacterIds.map(makeRow);
+  const fillRows = Array.from({ length: 12 }, (_, index) => makeRow(new Types.ObjectId(), index + guildRows.length));
+  const pipelines: any[][] = [];
+
+  try {
+    participationModel.distinct = async (field: string, filter: Record<string, unknown>) => {
+      assert.equal(field, "characterId");
+      assert.equal(filter.zoneId, 53);
+      assert.equal(String(filter.reportGuildId), guildId.toString());
+      return guildCharacterIds;
+    };
+    mediaModel.aggregate = (pipeline: any[]) => {
+      const callIndex = pipelines.length;
+      pipelines.push(pipeline);
+      return { option: async () => callIndex === 0 ? guildRows : fillRows };
+    };
+
+    const response = await loadBossMechanicCharacters(guildId.toString());
+    assert.equal(response.characters.length, 20);
+    assert.deepEqual(pipelines[0][0].$match.characterId, { $in: guildCharacterIds });
+    assert.deepEqual(pipelines[1][0].$match.characterId, { $nin: guildRows.map((row) => row.characterId) });
+    assert.ok(pipelines[0].some((stage) => stage.$limit === 20));
+    assert.ok(pipelines[1].some((stage) => stage.$limit === 12));
+  } finally {
+    mediaModel.aggregate = originalAggregate;
+    participationModel.distinct = originalDistinct;
   }
 });
 

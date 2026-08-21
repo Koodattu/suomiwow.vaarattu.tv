@@ -32,6 +32,16 @@ export type BossMechanicCharactersResponse = {
   characters: BossMechanicCharacter[];
 };
 
+export type BossMechanicGuild = {
+  id: string;
+  name: string;
+  realm: string;
+};
+
+export type BossMechanicGuildsResponse = {
+  guilds: BossMechanicGuild[];
+};
+
 export type FunRaid = {
   id: number;
   name: string;

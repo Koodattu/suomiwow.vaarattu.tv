@@ -2471,6 +2471,8 @@
     "helicalToxins": {
       "back": "All games",
       "title": "Helical Toxins",
+      "raidTeam": "Raid team",
+      "dreamTeam": "Dream team",
       "mythicDifficulty": "Mythic difficulty",
       "time": "Time",
       "pairs": "Pairs",

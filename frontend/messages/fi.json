@@ -2471,6 +2471,8 @@
     "helicalToxins": {
       "back": "Kaikki pelit",
       "title": "Helical Toxins",
+      "raidTeam": "Raidiryhmä",
+      "dreamTeam": "Dream team",
       "mythicDifficulty": "Mythic-vaikeustaso",
       "time": "Aika",
       "pairs": "Parit",

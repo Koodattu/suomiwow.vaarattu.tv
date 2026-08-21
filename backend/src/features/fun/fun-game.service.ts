@@ -1,4 +1,4 @@
-import type { Types } from "mongoose";
+import { Types } from "mongoose";
 import { TRACKED_RAIDS } from "../../config/guilds";
 import Character from "../../models/Character";
 import CharacterMedia from "../../models/CharacterMedia";
@@ -6,7 +6,7 @@ import CharacterRaidParticipation from "../../models/CharacterRaidParticipation"
 import CharacterRenderAsset from "../../models/CharacterRenderAsset";
 import characterRenderStorageService from "../../services/character-render-storage.service";
 import { normalizeSearchText } from "../../utils/search";
-import type { BossMechanicCharactersResponse, FunGameRound, FunGameSearchResponse, FunGameSearchSlug, FunGameSlug, HigherOrWipeMode } from "./fun-game.types";
+import type { BossMechanicCharactersResponse, BossMechanicGuildsResponse, FunGameRound, FunGameSearchResponse, FunGameSearchSlug, FunGameSlug, HigherOrWipeMode } from "./fun-game.types";
 import { generateGuildGuessrRound, searchGuildGuessrCandidates } from "./generators/guild-guessr";
 import { generateImmaculateRosterRound } from "./generators/immaculate-roster";
 import { generateLockItInRound } from "./generators/lock-it-in";
@@ -22,6 +22,7 @@ import { FunRoundUnavailableError } from "./fun-game.utils";
 const FUN_SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
 const BOSS_MECHANIC_PLAYER_COUNT = 20;
 const BOSS_MECHANIC_CANDIDATE_SAMPLE_SIZE = BOSS_MECHANIC_PLAYER_COUNT * 10;
+const BOSS_MECHANIC_RAID_ID = 53;
 const funSearchCache = new Map<string, { expiresAt: number; response: FunGameSearchResponse }>();
 const funSearchPromises = new Map<string, Promise<FunGameSearchResponse>>();
 
@@ -35,9 +36,25 @@ type BossMechanicCharacterRow = {
   renderFit: { top: number; ground: number; centerX: number };
 };
 
-export async function loadBossMechanicCharacters(): Promise<BossMechanicCharactersResponse> {
-  const rows = await CharacterMedia.aggregate<BossMechanicCharacterRow>([
-    { $match: { status: "available", renderAssetId: { $ne: null } } },
+type BossMechanicGuildRow = {
+  guildId: Types.ObjectId;
+  name: string;
+  realm: string;
+};
+
+async function loadBossMechanicCharacterRows(
+  limit: number,
+  options: { includeCharacterIds?: Types.ObjectId[]; excludeCharacterIds?: Types.ObjectId[] } = {},
+): Promise<BossMechanicCharacterRow[]> {
+  if (limit <= 0 || options.includeCharacterIds?.length === 0) return [];
+  const characterId = options.includeCharacterIds
+    ? { $in: options.includeCharacterIds }
+    : options.excludeCharacterIds?.length
+      ? { $nin: options.excludeCharacterIds }
+      : undefined;
+
+  return CharacterMedia.aggregate<BossMechanicCharacterRow>([
+    { $match: { status: "available", renderAssetId: { $ne: null }, ...(characterId ? { characterId } : {}) } },
     { $sample: { size: BOSS_MECHANIC_CANDIDATE_SAMPLE_SIZE } },
     {
       $lookup: {
@@ -73,7 +90,7 @@ export async function loadBossMechanicCharacters(): Promise<BossMechanicCharacte
       },
     },
     { $unwind: "$character" },
-    { $limit: BOSS_MECHANIC_PLAYER_COUNT },
+    { $limit: limit },
     {
       $project: {
         _id: 0,
@@ -87,6 +104,54 @@ export async function loadBossMechanicCharacters(): Promise<BossMechanicCharacte
       },
     },
   ]).option({ maxTimeMS: 10_000 });
+}
+
+export async function loadBossMechanicGuilds(): Promise<BossMechanicGuildsResponse> {
+  const rows = await CharacterRaidParticipation.aggregate<BossMechanicGuildRow>([
+    { $match: { zoneId: BOSS_MECHANIC_RAID_ID } },
+    {
+      $group: {
+        _id: "$reportGuildId",
+        name: { $first: "$reportGuildName" },
+        realm: { $first: "$reportGuildRealm" },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        guildId: "$_id",
+        name: 1,
+        realm: 1,
+        sortName: { $toLower: "$name" },
+        sortRealm: { $toLower: "$realm" },
+      },
+    },
+    { $sort: { sortName: 1, sortRealm: 1, guildId: 1 } },
+    { $project: { sortName: 0, sortRealm: 0 } },
+  ]).option({ maxTimeMS: 5_000 });
+
+  return {
+    guilds: rows.map((row) => ({ id: row.guildId.toString(), name: row.name, realm: row.realm })),
+  };
+}
+
+export async function loadBossMechanicCharacters(guildId?: string): Promise<BossMechanicCharactersResponse> {
+  let rows: BossMechanicCharacterRow[] = [];
+  if (guildId) {
+    const guildCharacterIds = await CharacterRaidParticipation.distinct("characterId", {
+      zoneId: BOSS_MECHANIC_RAID_ID,
+      reportGuildId: new Types.ObjectId(guildId),
+      characterId: { $ne: null },
+    }) as Types.ObjectId[];
+    rows = await loadBossMechanicCharacterRows(BOSS_MECHANIC_PLAYER_COUNT, { includeCharacterIds: guildCharacterIds });
+  }
+
+  if (rows.length < BOSS_MECHANIC_PLAYER_COUNT) {
+    const fillRows = await loadBossMechanicCharacterRows(BOSS_MECHANIC_PLAYER_COUNT - rows.length, {
+      excludeCharacterIds: rows.map((row) => row.characterId),
+    });
+    rows = [...rows, ...fillRows];
+  }
 
   if (rows.length < BOSS_MECHANIC_PLAYER_COUNT) {
     throw new FunRoundUnavailableError("Twenty eligible stored character renders are required for this boss mechanic");
