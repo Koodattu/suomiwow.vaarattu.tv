@@ -39,19 +39,20 @@ type DragState = {
 };
 type GameSelectOption = { value: string; label: string; icon?: string };
 
-function GameSelect({ label, value, options, disabled, accent, onChange }: {
+function GameSelect({ label, value, options, disabled, accent, wide, onChange }: {
   label: string;
   value: string;
   options: GameSelectOption[];
   disabled: boolean;
   accent?: BossMechanicDifficulty;
+  wide?: boolean;
   onChange: (value: string) => void;
 }) {
   const selected = options.find((option) => option.value === value) ?? options[0];
 
   return (
     <Listbox value={value} onChange={onChange} disabled={disabled}>
-      <div className={styles.selectField}>
+      <div className={`${styles.selectField} ${wide ? styles.raidTeamSelectField : ""}`}>
         <span className={styles.selectFieldLabel} aria-hidden="true">{label}</span>
         <ListboxButton className={styles.selectButton} data-accent={accent} aria-label={label}>
           <span className={styles.selectValue}>
@@ -60,7 +61,7 @@ function GameSelect({ label, value, options, disabled, accent, onChange }: {
           </span>
           <FaChevronDown className={styles.selectButtonChevron} aria-hidden="true" />
         </ListboxButton>
-        <ListboxOptions className={styles.selectMenu} transition>
+        <ListboxOptions className={styles.selectMenu} modal={false} transition>
           {options.map((option) => (
             <ListboxOption key={option.value || "default"} value={option.value} className={styles.selectOption}>
               <span className={styles.selectOptionValue}>
@@ -535,6 +536,7 @@ export default function HelicalToxinsGame() {
                 value={selectedGuildId}
                 options={guildOptions}
                 disabled={phase === "playing" || phase === "loading"}
+                wide
                 onChange={selectGuild}
               />
               <GameSelect
