@@ -133,6 +133,9 @@ export default function HelicalToxinsGame() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [remainingMs, setRemainingMs] = useState(ROUND_DURATION_MS);
   const [wipeTotal, setWipeTotal] = useState<number | null>(null);
+  const [pullCount, setPullCount] = useState(0);
+  const [wipeCount, setWipeCount] = useState(0);
+  const [mythicDifficulty, setMythicDifficulty] = useState(false);
   const [readyRenders, setReadyRenders] = useState<Set<string>>(() => new Set());
   playersRef.current = players;
 
@@ -167,9 +170,12 @@ export default function HelicalToxinsGame() {
   useEffect(() => {
     if (phase !== "playing") return;
     const tick = () => {
+      if (startedAtRef.current === 0) return;
       const nextRemaining = Math.max(0, ROUND_DURATION_MS - (Date.now() - startedAtRef.current));
       setRemainingMs(nextRemaining);
       if (nextRemaining === 0) {
+        startedAtRef.current = 0;
+        setWipeCount((current) => current + 1);
         setPhase("wiped");
         dragRef.current = null;
       }
@@ -183,6 +189,7 @@ export default function HelicalToxinsGame() {
     if (phase !== "ready" || readyRenders.size < PLAYER_COUNT) return;
     autoStartRef.current = false;
     startedAtRef.current = Date.now();
+    setPullCount((current) => current + 1);
     setRemainingMs(ROUND_DURATION_MS);
     setWipeTotal(null);
     setPhase("playing");
@@ -192,6 +199,7 @@ export default function HelicalToxinsGame() {
     if (!autoStartRef.current || phase !== "ready" || readyRenders.size < PLAYER_COUNT) return;
     autoStartRef.current = false;
     startedAtRef.current = Date.now();
+    setPullCount((current) => current + 1);
     setRemainingMs(ROUND_DURATION_MS);
     setWipeTotal(null);
     setPhase("playing");
@@ -207,6 +215,9 @@ export default function HelicalToxinsGame() {
   };
 
   const wipe = (total: number) => {
+    if (startedAtRef.current === 0) return;
+    startedAtRef.current = 0;
+    setWipeCount((current) => current + 1);
     setWipeTotal(total);
     dragRef.current = null;
     setPhase("wiped");
@@ -232,7 +243,10 @@ export default function HelicalToxinsGame() {
     playersRef.current = nextPlayers;
     setPlayers(nextPlayers);
     dragRef.current = null;
-    if (nextPlayers.every((player) => player.matched)) setPhase("won");
+    if (nextPlayers.every((player) => player.matched)) {
+      startedAtRef.current = 0;
+      setPhase("won");
+    }
   };
 
   const getPointerPosition = (clientX: number, clientY: number, drag: DragState): Position | null => {
@@ -244,7 +258,7 @@ export default function HelicalToxinsGame() {
     });
   };
 
-  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>, player: Player) => {
+  const onPointerDown = (event: ReactPointerEvent<HTMLSpanElement>, player: Player) => {
     if (phase !== "playing" || player.matched) return;
     const rect = arenaRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -258,7 +272,7 @@ export default function HelicalToxinsGame() {
     };
   };
 
-  const movePlayer = (event: ReactPointerEvent<HTMLDivElement>): Position | null => {
+  const movePlayer = (event: ReactPointerEvent<HTMLSpanElement>): Position | null => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId || drag.id !== event.currentTarget.dataset.playerId) return null;
     const position = getPointerPosition(event.clientX, event.clientY, drag);
@@ -300,11 +314,11 @@ export default function HelicalToxinsGame() {
     return position;
   };
 
-  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const onPointerMove = (event: ReactPointerEvent<HTMLSpanElement>) => {
     movePlayer(event);
   };
 
-  const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const onPointerUp = (event: ReactPointerEvent<HTMLSpanElement>) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId || drag.id !== event.currentTarget.dataset.playerId) return;
     movePlayer(event);
@@ -312,18 +326,33 @@ export default function HelicalToxinsGame() {
   };
 
   const matchedPairs = players.filter((player) => player.matched).length / 2;
+  const showToxinMarkers = (phase === "playing" || phase === "won" || phase === "wiped")
+    && (!mythicDifficulty || remainingMs > ROUND_DURATION_MS / 2);
   const resultCopy = phase === "won"
-    ? { title: t("clearTitle"), body: t("clearBody") }
+    ? { title: t("clearTitle"), body: t("clearBody", { pulls: pullCount }) }
     : wipeTotal === null
-      ? { title: t("wipeTitle"), body: t("timeoutBody") }
-      : { title: t("wipeTitle"), body: t("wrongPairBody", { total: wipeTotal }) };
+      ? { title: t("wipeTitle", { count: wipeCount }), body: t("timeoutBody") }
+      : { title: t("wipeTitle", { count: wipeCount }), body: t("wrongPairBody", { total: wipeTotal }) };
 
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
         <header className={styles.header}>
           <Link href="/fun" className={styles.back}>← {t("back")}</Link>
-          <h1>{t("title")}</h1>
+          <div className={styles.titleRow}>
+            <h1>{t("title")}</h1>
+            <button
+              type="button"
+              className={styles.difficultyToggle}
+              role="switch"
+              aria-checked={mythicDifficulty}
+              disabled={phase === "playing"}
+              onClick={() => setMythicDifficulty((current) => !current)}
+            >
+              <span className={styles.difficultyLabel}><span className={styles.skull} aria-hidden="true">💀</span>{t("mythicDifficulty")}</span>
+              <span className={styles.toggleTrack} aria-hidden="true"><span /></span>
+            </button>
+          </div>
         </header>
 
         <div className={styles.hud}>
@@ -346,14 +375,17 @@ export default function HelicalToxinsGame() {
               style={{ left: `${player.x * 100}%`, top: `${player.y * 100}%`, zIndex: player.matched ? 20 + index : 30 + index }}
               role="group"
               aria-label={phase === "playing" ? t("playerLabel", { name: player.name, green: player.greenCount }) : player.name}
-              onPointerDown={(event) => onPointerDown(event, player)}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerCancel={() => { dragRef.current = null; }}
             >
-              {phase === "playing" || phase === "won" || phase === "wiped" ? <ToxinMarker greenCount={player.greenCount} /> : null}
+              {showToxinMarkers ? <ToxinMarker greenCount={player.greenCount} /> : null}
               <span className={styles.nameplate} style={{ color: CCG_CLASS_COLORS[player.classID] ?? "#e2e8f0" }}>{player.name}</span>
-              <span className={styles.renderWindow} aria-hidden="true">
+              <span
+                className={styles.renderWindow}
+                data-player-id={player.id}
+                onPointerDown={(event) => onPointerDown(event, player)}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={() => { dragRef.current = null; }}
+              >
                 <AlphaFittedCharacterRender
                   src={player.renderUrl}
                   className={styles.renderImage}
@@ -367,7 +399,7 @@ export default function HelicalToxinsGame() {
           ))}
 
           {phase === "loading" ? (
-            <div className={styles.overlay} role="status"><span className={styles.spinner} /><h2 className={styles.singleLineTitle}>{t("loading")}</h2></div>
+            <div className={styles.overlay} role="status"><h2 className={styles.singleLineTitle}>{t("loading")}</h2><span className={styles.spinner} /></div>
           ) : null}
           {phase === "ready" ? (
             <div className={styles.overlay}>
@@ -376,7 +408,7 @@ export default function HelicalToxinsGame() {
             </div>
           ) : null}
           {phase === "error" ? (
-            <div className={styles.overlay} role="alert"><h2>{t("errorTitle")}</h2><p>{t("errorBody")}</p><button type="button" onClick={() => void assembleRaid()}>{t("retry")}</button></div>
+            <div className={styles.overlay} role="alert"><h2 className={styles.fitTitle}>{t("errorTitle")}</h2><button type="button" onClick={() => void assembleRaid()}>{t("retry")}</button></div>
           ) : null}
           {phase === "won" || phase === "wiped" ? (
             <div className={`${styles.overlay} ${phase === "won" ? styles.winOverlay : styles.wipeOverlay}`} role="status">
@@ -394,7 +426,7 @@ export default function HelicalToxinsGame() {
                     {t("guideLink")} <FaArrowUpRightFromSquare aria-hidden="true" />
                   </a>
                 ) : null}
-                <button type="button" onClick={() => void assembleRaid(true)}>{t("newPull")}</button>
+                <button type="button" onClick={() => void assembleRaid(true)}>{t("newPull", { count: pullCount + 1 })}</button>
               </div>
             </div>
           ) : null}

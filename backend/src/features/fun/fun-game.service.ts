@@ -1,6 +1,8 @@
 import type { Types } from "mongoose";
+import { TRACKED_RAIDS } from "../../config/guilds";
 import Character from "../../models/Character";
 import CharacterMedia from "../../models/CharacterMedia";
+import CharacterRaidParticipation from "../../models/CharacterRaidParticipation";
 import CharacterRenderAsset from "../../models/CharacterRenderAsset";
 import characterRenderStorageService from "../../services/character-render-storage.service";
 import { normalizeSearchText } from "../../utils/search";
@@ -14,10 +16,12 @@ import { generateWipeprintRound } from "./generators/wipeprint";
 import { generateSuomidleRound, searchSuomidleCandidates } from "./generators/suomidle";
 import { generateHigherOrWipeRound } from "./generators/higher-or-wipe";
 import { generateClosestWithoutGoingOverRound } from "./generators/closest-without-going-over";
+import { MIN_FUN_CHARACTER_MYTHIC_REPORTS } from "./fun-game.eligibility";
 import { FunRoundUnavailableError } from "./fun-game.utils";
 
 const FUN_SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
 const BOSS_MECHANIC_PLAYER_COUNT = 20;
+const BOSS_MECHANIC_CANDIDATE_SAMPLE_SIZE = BOSS_MECHANIC_PLAYER_COUNT * 10;
 const funSearchCache = new Map<string, { expiresAt: number; response: FunGameSearchResponse }>();
 const funSearchPromises = new Map<string, Promise<FunGameSearchResponse>>();
 
@@ -34,6 +38,7 @@ type BossMechanicCharacterRow = {
 export async function loadBossMechanicCharacters(): Promise<BossMechanicCharactersResponse> {
   const rows = await CharacterMedia.aggregate<BossMechanicCharacterRow>([
     { $match: { status: "available", renderAssetId: { $ne: null } } },
+    { $sample: { size: BOSS_MECHANIC_CANDIDATE_SAMPLE_SIZE } },
     {
       $lookup: {
         from: CharacterRenderAsset.collection.name,
@@ -44,7 +49,21 @@ export async function loadBossMechanicCharacters(): Promise<BossMechanicCharacte
     },
     { $unwind: "$renderAsset" },
     { $match: { "renderAsset.status": "active" } },
-    { $sample: { size: BOSS_MECHANIC_PLAYER_COUNT } },
+    {
+      $lookup: {
+        from: CharacterRaidParticipation.collection.name,
+        let: { characterId: "$characterId" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$characterId", "$$characterId"] } } },
+          { $match: { zoneId: { $in: TRACKED_RAIDS } } },
+          { $group: { _id: "$zoneId", mythicReportCount: { $sum: "$mythicReportCount" } } },
+          { $match: { mythicReportCount: { $gte: MIN_FUN_CHARACTER_MYTHIC_REPORTS } } },
+          { $limit: 1 },
+        ],
+        as: "eligibleMythicParticipation",
+      },
+    },
+    { $match: { "eligibleMythicParticipation.0": { $exists: true } } },
     {
       $lookup: {
         from: Character.collection.name,
@@ -54,6 +73,7 @@ export async function loadBossMechanicCharacters(): Promise<BossMechanicCharacte
       },
     },
     { $unwind: "$character" },
+    { $limit: BOSS_MECHANIC_PLAYER_COUNT },
     {
       $project: {
         _id: 0,
@@ -69,7 +89,7 @@ export async function loadBossMechanicCharacters(): Promise<BossMechanicCharacte
   ]).option({ maxTimeMS: 10_000 });
 
   if (rows.length < BOSS_MECHANIC_PLAYER_COUNT) {
-    throw new FunRoundUnavailableError("Twenty stored character renders are required for this boss mechanic");
+    throw new FunRoundUnavailableError("Twenty eligible stored character renders are required for this boss mechanic");
   }
 
   return {

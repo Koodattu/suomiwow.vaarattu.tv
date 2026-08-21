@@ -3,6 +3,7 @@ import test from "node:test";
 import Guild from "../src/models/Guild";
 import Raid from "../src/models/Raid";
 import CharacterMedia from "../src/models/CharacterMedia";
+import CharacterRaidParticipation from "../src/models/CharacterRaidParticipation";
 import { generateLockItInRound } from "../src/features/fun/generators/lock-it-in";
 import { loadBossMechanicCharacters } from "../src/features/fun/fun-game.service";
 import {
@@ -57,6 +58,7 @@ test("fun game sampling preserves candidates and rejects undersized pools", () =
 test("boss mechanic raids use twenty distinct stored character renders", async () => {
   const mediaModel = CharacterMedia as any;
   const originalAggregate = mediaModel.aggregate;
+  let pipeline: any[] = [];
   const rows = Array.from({ length: 20 }, (_, index) => ({
     characterId: { toString: () => `character-${index}` },
     characterName: `Raider ${index}`,
@@ -68,13 +70,31 @@ test("boss mechanic raids use twenty distinct stored character renders", async (
   }));
 
   try {
-    mediaModel.aggregate = () => ({ option: async () => rows });
+    mediaModel.aggregate = (nextPipeline: any[]) => {
+      pipeline = nextPipeline;
+      return { option: async () => rows };
+    };
     const response = await loadBossMechanicCharacters();
     assert.equal(response.characters.length, 20);
     assert.equal(new Set(response.characters.map((character) => character.id)).size, 20);
     assert.equal(response.characters[0].renderUrl, "/api/ccg/media/assets/asset-0");
     assert.equal(response.characters[0].classID, 1);
     assert.deepEqual(response.characters[0].renderFit, rows[0].renderFit);
+    const participationLookup = pipeline.find((stage) => stage.$lookup?.from === CharacterRaidParticipation.collection.name)?.$lookup;
+    assert.ok(participationLookup);
+    const candidateSampleIndex = pipeline.findIndex((stage) => stage.$sample);
+    const participationLookupIndex = pipeline.findIndex((stage) => stage.$lookup?.from === CharacterRaidParticipation.collection.name);
+    assert.equal(pipeline[candidateSampleIndex].$sample.size, 200);
+    assert.ok(candidateSampleIndex < participationLookupIndex);
+    assert.ok(pipeline.findIndex((stage) => stage.$limit === 20) > participationLookupIndex);
+    assert.deepEqual(
+      participationLookup.pipeline.find((stage: any) => stage.$group)?.$group,
+      { _id: "$zoneId", mythicReportCount: { $sum: "$mythicReportCount" } },
+    );
+    assert.deepEqual(
+      participationLookup.pipeline.find((stage: any) => stage.$match?.mythicReportCount)?.$match,
+      { mythicReportCount: { $gte: MIN_FUN_CHARACTER_MYTHIC_REPORTS } },
+    );
   } finally {
     mediaModel.aggregate = originalAggregate;
   }
