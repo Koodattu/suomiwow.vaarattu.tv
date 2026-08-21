@@ -376,11 +376,11 @@ export default function HelicalToxinsGame() {
               role="group"
               aria-label={phase === "playing" ? t("playerLabel", { name: player.name, green: player.greenCount }) : player.name}
             >
-              {showToxinMarkers ? <ToxinMarker greenCount={player.greenCount} /> : null}
               <span className={styles.nameplate} style={{ color: CCG_CLASS_COLORS[player.classID] ?? "#e2e8f0" }}>{player.name}</span>
               <span
                 className={styles.renderWindow}
                 data-player-id={player.id}
+                onDragStart={(event) => event.preventDefault()}
                 onPointerDown={(event) => onPointerDown(event, player)}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
@@ -391,12 +391,27 @@ export default function HelicalToxinsGame() {
                   className={styles.renderImage}
                   fit={player.renderFit}
                   priority={index < 8}
+                  draggable={false}
                   onReady={() => markRenderReady(player.id)}
                 />
               </span>
               <span className={styles.footZone} aria-hidden="true" />
             </div>
           ))}
+
+          {showToxinMarkers ? (
+            <div className={styles.markerLayer} aria-hidden="true">
+              {players.filter((player) => !player.matched).map((player) => (
+                <span
+                  key={player.id}
+                  className={styles.markerAnchor}
+                  style={{ left: `${player.x * 100}%`, top: `${player.y * 100}%` }}
+                >
+                  <ToxinMarker greenCount={player.greenCount} />
+                </span>
+              ))}
+            </div>
+          ) : null}
 
           {phase === "loading" ? (
             <div className={styles.overlay} role="status"><h2 className={styles.singleLineTitle}>{t("loading")}</h2><span className={styles.spinner} /></div>
