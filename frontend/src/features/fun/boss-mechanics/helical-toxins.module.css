@@ -97,7 +97,8 @@
 .leaderboardEmpty { padding: 1.5rem 0.75rem; color: #64748b; font-size: 0.72rem; text-align: center; }
 
 @media (min-width: 1050px) {
-  .gameLayout.withLeaderboard { grid-template-columns: minmax(0, 1fr) 15rem; }
+  .shellWithLeaderboard .header { margin-right: 17.75rem; }
+  .gameLayout.withLeaderboard { grid-template-columns: minmax(0, 1fr) 17rem; }
 }
 
 .hud {
