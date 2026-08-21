@@ -186,6 +186,7 @@ import {
   ReporterPostStatus,
   ReporterSettingsUpdate,
   ReporterStatusResponse,
+  BossMechanicCharactersResponse,
   FunGameRound,
   FunGameSearchResponse,
   FunGameSearchSlug,
@@ -245,6 +246,12 @@ async function buildApiError(response: Response, fallback: string): Promise<Erro
 }
 
 export const api = {
+  async getBossMechanicCharacters(): Promise<BossMechanicCharactersResponse> {
+    const response = await fetch(`${API_URL}/api/fun/boss-mechanics/characters`, { cache: "no-store" });
+    if (!response.ok) throw await buildApiError(response, "The raid group could not be assembled");
+    return response.json();
+  },
+
   async generateFunRound(game: FunGameSlug, options: { mode?: HigherOrWipeMode } = {}): Promise<FunGameRound> {
     const modeQuery = game === "higher-or-wipe" && options.mode ? `?mode=${encodeURIComponent(options.mode)}` : "";
     const response = await fetch(`${API_URL}/api/fun/${game}/round${modeQuery}`, {

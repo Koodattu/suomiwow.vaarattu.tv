@@ -4,6 +4,15 @@ import createNextIntlPlugin from "next-intl/plugin";
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
+  async rewrites() {
+    const backendUrl = process.env.API_URL || "http://localhost:3001";
+    return [
+      {
+        source: "/api/ccg/media/assets/:assetId",
+        destination: `${backendUrl}/api/ccg/media/assets/:assetId`,
+      },
+    ];
+  },
   async redirects() {
     return [
       {

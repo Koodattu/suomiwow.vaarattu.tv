@@ -1,5 +1,9 @@
+import type { Types } from "mongoose";
+import CharacterMedia from "../../models/CharacterMedia";
+import CharacterRenderAsset from "../../models/CharacterRenderAsset";
+import characterRenderStorageService from "../../services/character-render-storage.service";
 import { normalizeSearchText } from "../../utils/search";
-import type { FunGameRound, FunGameSearchResponse, FunGameSearchSlug, FunGameSlug, HigherOrWipeMode } from "./fun-game.types";
+import type { BossMechanicCharactersResponse, FunGameRound, FunGameSearchResponse, FunGameSearchSlug, FunGameSlug, HigherOrWipeMode } from "./fun-game.types";
 import { generateGuildGuessrRound, searchGuildGuessrCandidates } from "./generators/guild-guessr";
 import { generateImmaculateRosterRound } from "./generators/immaculate-roster";
 import { generateLockItInRound } from "./generators/lock-it-in";
@@ -9,10 +13,64 @@ import { generateWipeprintRound } from "./generators/wipeprint";
 import { generateSuomidleRound, searchSuomidleCandidates } from "./generators/suomidle";
 import { generateHigherOrWipeRound } from "./generators/higher-or-wipe";
 import { generateClosestWithoutGoingOverRound } from "./generators/closest-without-going-over";
+import { FunRoundUnavailableError } from "./fun-game.utils";
 
 const FUN_SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
+const BOSS_MECHANIC_PLAYER_COUNT = 20;
 const funSearchCache = new Map<string, { expiresAt: number; response: FunGameSearchResponse }>();
 const funSearchPromises = new Map<string, Promise<FunGameSearchResponse>>();
+
+type BossMechanicCharacterRow = {
+  characterId: Types.ObjectId;
+  characterName: string;
+  realmSlug: string;
+  region: string;
+  renderAssetId: Types.ObjectId;
+  renderFit: { top: number; ground: number; centerX: number };
+};
+
+export async function loadBossMechanicCharacters(): Promise<BossMechanicCharactersResponse> {
+  const rows = await CharacterMedia.aggregate<BossMechanicCharacterRow>([
+    { $match: { status: "available", renderAssetId: { $ne: null } } },
+    {
+      $lookup: {
+        from: CharacterRenderAsset.collection.name,
+        localField: "renderAssetId",
+        foreignField: "_id",
+        as: "renderAsset",
+      },
+    },
+    { $unwind: "$renderAsset" },
+    { $match: { "renderAsset.status": "active" } },
+    { $sample: { size: BOSS_MECHANIC_PLAYER_COUNT } },
+    {
+      $project: {
+        _id: 0,
+        characterId: 1,
+        characterName: 1,
+        realmSlug: 1,
+        region: 1,
+        renderAssetId: "$renderAsset._id",
+        renderFit: "$renderAsset.stanceFit",
+      },
+    },
+  ]).option({ maxTimeMS: 10_000 });
+
+  if (rows.length < BOSS_MECHANIC_PLAYER_COUNT) {
+    throw new FunRoundUnavailableError("Twenty stored character renders are required for this boss mechanic");
+  }
+
+  return {
+    characters: rows.map((row) => ({
+      id: row.characterId.toString(),
+      name: row.characterName,
+      realm: row.realmSlug,
+      region: row.region,
+      renderUrl: characterRenderStorageService.getPublicUrl(row.renderAssetId),
+      renderFit: row.renderFit,
+    })),
+  };
+}
 
 export async function generateFunGameRound(
   game: FunGameSlug,

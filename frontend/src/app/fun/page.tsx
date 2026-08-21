@@ -42,6 +42,30 @@ export default function FunPortalPage() {
           </span>
         </Link>
 
+        <section className="mt-6" aria-label={t("bossMechanics.sectionTitle")}>
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+            <h2 className="text-lg font-black">{t("bossMechanics.sectionTitle")}</h2>
+            <p className="max-w-2xl text-sm text-slate-400 sm:text-right">{t("bossMechanics.sectionDescription")}</p>
+          </div>
+          <Link
+            href="/fun/boss-mechanics/entombed-sentinels"
+            className="group relative mt-3 block min-h-48 overflow-hidden rounded-xl border border-lime-300/20 bg-[#10170b] shadow-[0_18px_45px_rgba(0,0,0,0.25)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-1 hover:border-lime-300/40 hover:shadow-[0_22px_55px_rgba(20,83,45,0.24)] active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-lime-300 motion-reduce:transform-none motion-reduce:transition-none"
+          >
+            <span className="absolute inset-0 bg-[url('/fun/boss-mechanics/entombed-sentinels-arena.png')] bg-cover bg-center opacity-50 transition-transform duration-500 group-hover:scale-[1.025] motion-reduce:transition-none" aria-hidden="true" />
+            <span className="absolute inset-0 bg-gradient-to-r from-[#071008] via-[#071008]/85 to-[#071008]/10" aria-hidden="true" />
+            <span className="absolute bottom-[-12%] right-[-3%] top-[2%] w-[58%] bg-[url('/fun/boss-mechanics/entombed-sentinels.png')] bg-contain bg-right-bottom bg-no-repeat opacity-80 transition-transform duration-300 group-hover:scale-[1.025] motion-reduce:transition-none" aria-hidden="true" />
+            <span className="relative flex min-h-48 max-w-2xl flex-col justify-center p-5 sm:p-6">
+              <span className="text-[11px] font-black uppercase tracking-[0.16em] text-lime-300">{t("bossMechanics.raid")}</span>
+              <span className="mt-1 text-2xl font-black sm:text-3xl">{t("bossMechanics.title")}</span>
+              <span className="mt-1 text-sm font-bold text-lime-100/80">{t("bossMechanics.boss")}</span>
+              <span className="mt-2 max-w-xl text-sm leading-6 text-slate-300">{t("bossMechanics.description")}</span>
+              <span className="mt-3 inline-flex min-h-10 items-center text-sm font-black text-lime-200 group-hover:text-white">
+                {t("bossMechanics.play")} <span className="ml-2 transition-transform group-hover:translate-x-1 motion-reduce:transform-none" aria-hidden="true">→</span>
+              </span>
+            </span>
+          </Link>
+        </section>
+
         <section className="mt-6" aria-label={t("portal.gamesLabel")}>
           <h2 className="text-lg font-black">{t("portal.allGames")}</h2>
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

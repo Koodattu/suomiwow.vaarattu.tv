@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import Guild from "../src/models/Guild";
 import Raid from "../src/models/Raid";
+import CharacterMedia from "../src/models/CharacterMedia";
 import { generateLockItInRound } from "../src/features/fun/generators/lock-it-in";
+import { loadBossMechanicCharacters } from "../src/features/fun/fun-game.service";
 import {
   funMythicGuildFilter,
   funMythicParticipationFilter,
@@ -50,6 +52,30 @@ test("fun game sampling preserves candidates and rejects undersized pools", () =
   assert.equal(selected.length, 3);
   assert.equal(new Set(selected).size, 3);
   assert.throws(() => sample(candidates, 6), FunRoundUnavailableError);
+});
+
+test("boss mechanic raids use twenty distinct stored character renders", async () => {
+  const mediaModel = CharacterMedia as any;
+  const originalAggregate = mediaModel.aggregate;
+  const rows = Array.from({ length: 20 }, (_, index) => ({
+    characterId: { toString: () => `character-${index}` },
+    characterName: `Raider ${index}`,
+    realmSlug: "test-realm",
+    region: "EU",
+    renderAssetId: { toString: () => `asset-${index}` },
+    renderFit: { top: 0.05, ground: 0.95, centerX: 0.5 },
+  }));
+
+  try {
+    mediaModel.aggregate = () => ({ option: async () => rows });
+    const response = await loadBossMechanicCharacters();
+    assert.equal(response.characters.length, 20);
+    assert.equal(new Set(response.characters.map((character) => character.id)).size, 20);
+    assert.equal(response.characters[0].renderUrl, "/api/ccg/media/assets/asset-0");
+    assert.deepEqual(response.characters[0].renderFit, rows[0].renderFit);
+  } finally {
+    mediaModel.aggregate = originalAggregate;
+  }
 });
 
 test("distinct cell assignments reject impossible grids and solve overlapping candidates", () => {

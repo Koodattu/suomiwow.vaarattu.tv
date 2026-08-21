@@ -14,6 +14,23 @@ export const FUN_GAME_SLUGS = [
 
 export type FunGameSlug = (typeof FUN_GAME_SLUGS)[number];
 
+export type BossMechanicCharacter = {
+  id: string;
+  name: string;
+  realm: string;
+  region: string;
+  renderUrl: string;
+  renderFit: {
+    top: number;
+    ground: number;
+    centerX: number;
+  };
+};
+
+export type BossMechanicCharactersResponse = {
+  characters: BossMechanicCharacter[];
+};
+
 export type FunRaid = {
   id: number;
   name: string;

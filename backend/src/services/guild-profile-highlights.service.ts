@@ -313,10 +313,10 @@ class GuildProfileHighlightsService {
     return Array.from(memberAggregates.values())
       .map((member) => this.toMainstay(member))
       .sort((a, b) => {
-        const firstSeenDiff = a.firstSeenAt.getTime() - b.firstSeenAt.getTime();
-        if (firstSeenDiff !== 0) return firstSeenDiff;
         const raidDiff = b.raidCount - a.raidCount;
         if (raidDiff !== 0) return raidDiff;
+        const firstSeenDiff = a.firstSeenAt.getTime() - b.firstSeenAt.getTime();
+        if (firstSeenDiff !== 0) return firstSeenDiff;
         const reportDiff = b.reportCount - a.reportCount;
         if (reportDiff !== 0) return reportDiff;
         const lastSeenDiff = b.lastSeenAt.getTime() - a.lastSeenAt.getTime();

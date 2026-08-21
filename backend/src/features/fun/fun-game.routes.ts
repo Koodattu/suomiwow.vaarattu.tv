@@ -1,10 +1,26 @@
 import { Router, type Request, type Response } from "express";
 import logger from "../../utils/logger";
-import { generateFunGameRound, searchFunGameCandidates } from "./fun-game.service";
+import { generateFunGameRound, loadBossMechanicCharacters, searchFunGameCandidates } from "./fun-game.service";
 import { isFunGameSearchSlug, isFunGameSlug, isHigherOrWipeMode, type HigherOrWipeMode } from "./fun-game.types";
 import { FunRoundUnavailableError } from "./fun-game.utils";
 
 const router = Router();
+
+router.get("/boss-mechanics/characters", async (_req: Request, res: Response) => {
+  try {
+    const response = await loadBossMechanicCharacters();
+    res.setHeader("Cache-Control", "no-store");
+    res.json(response);
+  } catch (error) {
+    if (error instanceof FunRoundUnavailableError) {
+      res.status(503).json({ error: "A playable raid group could not be generated from the current data", code: "NO_BOSS_MECHANIC_GROUP" });
+      return;
+    }
+
+    logger.error("[Fun] Failed to load boss mechanic characters:", error);
+    res.status(500).json({ error: "Failed to load boss mechanic characters", code: "BOSS_MECHANIC_CHARACTERS_FAILED" });
+  }
+});
 
 router.get("/:game/search", async (req: Request, res: Response) => {
   const game = req.params.game;
