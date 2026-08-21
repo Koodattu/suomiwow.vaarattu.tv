@@ -13,13 +13,8 @@ async function getAuthenticatedUser(req: Request) {
   return req.session.userId ? discordService.getUserFromSession(req.session.userId) : null;
 }
 
-router.get("/boss-mechanics/leaderboard", async (req: Request, res: Response) => {
+router.get("/boss-mechanics/leaderboard", async (_req: Request, res: Response) => {
   try {
-    const user = await getAuthenticatedUser(req);
-    if (!user) {
-      res.status(401).json({ error: "Not authenticated", code: "AUTH_REQUIRED" });
-      return;
-    }
     res.setHeader("Cache-Control", "no-store");
     res.json(await loadBossMechanicLeaderboard());
   } catch (error) {

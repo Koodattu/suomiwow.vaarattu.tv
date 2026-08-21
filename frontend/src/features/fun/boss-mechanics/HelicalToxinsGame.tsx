@@ -361,11 +361,6 @@ export default function HelicalToxinsGame() {
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      setLeaderboard([]);
-      setLeaderboardLoaded(false);
-      return;
-    }
     let active = true;
     void api.getBossMechanicLeaderboard()
       .then((response) => {
@@ -376,7 +371,7 @@ export default function HelicalToxinsGame() {
         if (active) setLeaderboardLoaded(true);
       });
     return () => { active = false; };
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     if (phase !== "playing") return;
@@ -454,7 +449,7 @@ export default function HelicalToxinsGame() {
     void assembleRaid(false, guildId);
   };
 
-  const selectDifficulty = (nextDifficulty: BossMechanicDifficulty) => {
+  const selectDifficulty = (nextDifficulty: BossMechanicDifficulty, autoStart = false) => {
     difficultyRef.current = nextDifficulty;
     setDifficulty(nextDifficulty);
     const storedWipes = readStoredWipes(nextDifficulty);
@@ -462,7 +457,7 @@ export default function HelicalToxinsGame() {
     setWipeCount(storedWipes);
     setClearPulls(1);
     setRemainingMs(DIFFICULTY_BY_ID[nextDifficulty].durationMs);
-    void assembleRaid();
+    void assembleRaid(autoStart);
   };
 
   const wipe = (reason: WipeReason) => {
@@ -658,10 +653,11 @@ export default function HelicalToxinsGame() {
     label: t(option.labelKey),
     icon: option.emoji,
   }));
+  const nextDifficulty = difficulty === "normal" ? "heroic" : difficulty === "heroic" ? "mythic" : null;
 
   return (
     <main className={styles.page}>
-      <div className={`${styles.shell} ${user ? styles.shellWithLeaderboard : ""}`}>
+      <div className={`${styles.shell} ${styles.shellWithLeaderboard}`}>
         <header className={styles.header}>
           <Link href="/fun" className={styles.back}>← {t("back")}</Link>
           <div className={styles.titleRow}>
@@ -692,7 +688,7 @@ export default function HelicalToxinsGame() {
           </div>
         </header>
 
-        <div className={`${styles.gameLayout} ${user ? styles.withLeaderboard : ""}`}>
+        <div className={`${styles.gameLayout} ${styles.withLeaderboard}`}>
           <section className={styles.gameColumn}>
             <div className={styles.hud}>
           <div><span>{t("time")}</span><strong>{(remainingMs / 1000).toFixed(1)}</strong></div>
@@ -790,6 +786,11 @@ export default function HelicalToxinsGame() {
               <h2>{resultCopy.title}</h2>
               <p>{resultCopy.body}</p>
               <div className={styles.resultActions}>
+                {phase === "won" && nextDifficulty ? (
+                  <button type="button" onClick={() => selectDifficulty(nextDifficulty, true)}>
+                    {t("nextDifficulty", { difficulty: t(DIFFICULTY_BY_ID[nextDifficulty].labelKey) })}
+                  </button>
+                ) : null}
                 {phase === "wiped" ? (
                   <a
                     className={styles.guideLink}
@@ -807,8 +808,7 @@ export default function HelicalToxinsGame() {
             </div>
           </section>
 
-          {user ? (
-            <aside className={styles.leaderboard} aria-label={t("leaderboard")}>
+          <aside className={styles.leaderboard} aria-label={t("leaderboard")}>
               <h2>{t("leaderboard")}</h2>
               {leaderboard.length > 0 ? (
                 <table>
@@ -842,8 +842,7 @@ export default function HelicalToxinsGame() {
               ) : (
                 <p className={styles.leaderboardEmpty}>{leaderboardLoaded ? t("leaderboardEmpty") : t("leaderboardLoading")}</p>
               )}
-            </aside>
-          ) : null}
+          </aside>
         </div>
       </div>
     </main>

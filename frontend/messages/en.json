@@ -2500,6 +2500,7 @@
       "manualWipeBody": "The pull was called before the mechanic was cleared.",
       "wipe": "Wipe",
       "newPull": "New pull #{count}",
+      "nextDifficulty": "Continue to {difficulty}",
       "guideLink": "View guide",
       "playerLabel": "{name}, {green} green toxins"
     },

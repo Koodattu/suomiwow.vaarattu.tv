@@ -2500,6 +2500,7 @@
       "manualWipeBody": "Pulli keskeytettiin ennen mekaniikan suorittamista.",
       "wipe": "Wipe",
       "newPull": "Uusi pulli #{count}",
+      "nextDifficulty": "Siirry tasolle {difficulty}",
       "guideLink": "Katso opas",
       "playerLabel": "{name}, {green} vihreää myrkkyä"
     },
