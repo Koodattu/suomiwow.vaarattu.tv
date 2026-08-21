@@ -37,7 +37,44 @@ type DragState = {
   offsetY: number;
   lastPosition: Position;
 };
+type AlphaHitMask = {
+  width: number;
+  height: number;
+  alpha: Uint8Array;
+};
+type RenderHitArea = {
+  image: HTMLImageElement;
+  mask: AlphaHitMask;
+};
 type GameSelectOption = { value: string; label: string; icon?: string };
+
+const HIT_MASK_MAX_SIZE = 128;
+const HIT_ALPHA_THRESHOLD = 8;
+
+function createAlphaHitMask(image: HTMLImageElement): AlphaHitMask | null {
+  const scale = Math.min(1, HIT_MASK_MAX_SIZE / Math.max(image.naturalWidth, image.naturalHeight));
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+
+  canvas.width = width;
+  canvas.height = height;
+  context.drawImage(image, 0, 0, width, height);
+  const pixels = context.getImageData(0, 0, width, height).data;
+  const alpha = new Uint8Array(width * height);
+  for (let index = 0; index < alpha.length; index += 1) alpha[index] = pixels[index * 4 + 3];
+  return { width, height, alpha };
+}
+
+function hitsOpaquePixel(clientX: number, clientY: number, hitArea: RenderHitArea): boolean {
+  const rect = hitArea.image.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0 || clientX < rect.left || clientX >= rect.right || clientY < rect.top || clientY >= rect.bottom) return false;
+  const x = Math.min(hitArea.mask.width - 1, Math.floor((clientX - rect.left) / rect.width * hitArea.mask.width));
+  const y = Math.min(hitArea.mask.height - 1, Math.floor((clientY - rect.top) / rect.height * hitArea.mask.height));
+  return hitArea.mask.alpha[y * hitArea.mask.width + x] >= HIT_ALPHA_THRESHOLD;
+}
 
 function GameSelect({ label, value, options, disabled, accent, wide, onChange }: {
   label: string;
@@ -230,6 +267,7 @@ export default function HelicalToxinsGame() {
   const arenaRef = useRef<HTMLDivElement>(null);
   const playersRef = useRef<Player[]>([]);
   const dragRef = useRef<DragState | null>(null);
+  const renderHitAreasRef = useRef<Map<string, RenderHitArea>>(new Map());
   const startedAtRef = useRef(0);
   const loadIdRef = useRef(0);
   const autoStartRef = useRef(false);
@@ -248,6 +286,8 @@ export default function HelicalToxinsGame() {
   const [leaderboard, setLeaderboard] = useState<BossMechanicLeaderboardEntry[]>([]);
   const [leaderboardLoaded, setLeaderboardLoaded] = useState(false);
   const [readyRenders, setReadyRenders] = useState<Set<string>>(() => new Set());
+  const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
+  const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
   playersRef.current = players;
   wipeCountRef.current = wipeCount;
   difficultyRef.current = difficulty;
@@ -261,6 +301,9 @@ export default function HelicalToxinsGame() {
     setWipeReason("timeout");
     setRemainingMs(DIFFICULTY_BY_ID[difficultyRef.current].durationMs);
     setReadyRenders(new Set());
+    setHoveredPlayerId(null);
+    setDraggingPlayerId(null);
+    renderHitAreasRef.current.clear();
     try {
       const response = await api.getBossMechanicCharacters(guildId || undefined);
       if (loadId !== loadIdRef.current) return;
@@ -335,6 +378,8 @@ export default function HelicalToxinsGame() {
         setWipeReason("timeout");
         setPhase("wiped");
         dragRef.current = null;
+        setHoveredPlayerId(null);
+        setDraggingPlayerId(null);
       }
     };
     tick();
@@ -369,6 +414,25 @@ export default function HelicalToxinsGame() {
     });
   };
 
+  const registerRenderHitArea = (id: string, image: HTMLImageElement) => {
+    try {
+      const mask = createAlphaHitMask(image);
+      if (mask) renderHitAreasRef.current.set(id, { image, mask });
+    } catch {
+      renderHitAreasRef.current.delete(id);
+    }
+  };
+
+  const findPlayerAtPoint = (clientX: number, clientY: number): Player | null => (
+    playersRef.current
+      .map((player, index) => ({ player, index }))
+      .sort((left, right) => getPlayerDepth(right.player.y) - getPlayerDepth(left.player.y) || right.index - left.index)
+      .find(({ player }) => {
+        const hitArea = renderHitAreasRef.current.get(player.id);
+        return hitArea ? hitsOpaquePixel(clientX, clientY, hitArea) : false;
+      })?.player ?? null
+  );
+
   const selectGuild = (guildId: string) => {
     selectedGuildIdRef.current = guildId;
     setSelectedGuildId(guildId);
@@ -395,6 +459,8 @@ export default function HelicalToxinsGame() {
     writeStoredWipes(difficultyRef.current, nextWipeCount);
     setWipeReason(reason);
     dragRef.current = null;
+    setHoveredPlayerId(null);
+    setDraggingPlayerId(null);
     setPhase("wiped");
   };
 
@@ -412,6 +478,8 @@ export default function HelicalToxinsGame() {
         playersRef.current = nextPlayers;
         setPlayers(nextPlayers);
         dragRef.current = null;
+        setHoveredPlayerId(null);
+        setDraggingPlayerId(null);
         return;
       }
       wipe({ total });
@@ -430,6 +498,8 @@ export default function HelicalToxinsGame() {
     playersRef.current = nextPlayers;
     setPlayers(nextPlayers);
     dragRef.current = null;
+    setHoveredPlayerId(null);
+    setDraggingPlayerId(null);
     if (nextPlayers.filter((player) => player.hasMechanic).every((player) => player.matched)) {
       const timeLeftMs = Math.max(0, roundDurationMs - (Date.now() - startedAtRef.current));
       const pulls = wipeCountRef.current + 1;
@@ -461,10 +531,12 @@ export default function HelicalToxinsGame() {
     });
   };
 
-  const onPointerDown = (event: ReactPointerEvent<HTMLSpanElement>, player: Player) => {
-    if (phase !== "playing") return;
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (phase !== "playing" || event.button !== 0) return;
     const rect = arenaRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    const player = findPlayerAtPoint(event.clientX, event.clientY);
+    if (!rect || !player) return;
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = {
       id: player.id,
@@ -473,11 +545,13 @@ export default function HelicalToxinsGame() {
       offsetY: event.clientY - rect.top - player.y * rect.height,
       lastPosition: { x: player.x, y: player.y },
     };
+    setHoveredPlayerId(player.id);
+    setDraggingPlayerId(player.id);
   };
 
-  const movePlayer = (event: ReactPointerEvent<HTMLSpanElement>): Position | null => {
+  const movePlayer = (event: ReactPointerEvent<HTMLDivElement>): Position | null => {
     const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId || drag.id !== event.currentTarget.dataset.playerId) return null;
+    if (!drag || drag.pointerId !== event.pointerId) return null;
     const position = getPointerPosition(event.clientX, event.clientY, drag);
     const rect = arenaRef.current?.getBoundingClientRect();
     if (!position || !rect) return null;
@@ -516,19 +590,37 @@ export default function HelicalToxinsGame() {
     }
 
     drag.lastPosition = position;
-    setPlayers((current) => current.map((player) => player.id === drag.id ? { ...player, ...position } : player));
+    const nextPlayers = playersRef.current.map((player) => player.id === drag.id ? { ...player, ...position } : player);
+    playersRef.current = nextPlayers;
+    setPlayers(nextPlayers);
     return position;
   };
 
-  const onPointerMove = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    movePlayer(event);
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (dragRef.current) {
+      movePlayer(event);
+      return;
+    }
+    const hovered = phase === "playing" ? findPlayerAtPoint(event.clientX, event.clientY)?.id ?? null : null;
+    setHoveredPlayerId((current) => current === hovered ? current : hovered);
   };
 
-  const onPointerUp = (event: ReactPointerEvent<HTMLSpanElement>) => {
+  const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId || drag.id !== event.currentTarget.dataset.playerId) return;
+    if (!drag || drag.pointerId !== event.pointerId) return;
     movePlayer(event);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     dragRef.current = null;
+    setDraggingPlayerId(null);
+    const hovered = phase === "playing" ? findPlayerAtPoint(event.clientX, event.clientY)?.id ?? null : null;
+    setHoveredPlayerId(hovered);
+  };
+
+  const onPointerCancel = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    dragRef.current = null;
+    setHoveredPlayerId(null);
+    setDraggingPlayerId(null);
   };
 
   const matchedPairs = players.filter((player) => player.matched).length / 2;
@@ -598,7 +690,20 @@ export default function HelicalToxinsGame() {
           </button>
             </div>
 
-            <div ref={arenaRef} className={styles.arena} data-phase={phase}>
+            <div
+              ref={arenaRef}
+              className={styles.arena}
+              data-phase={phase}
+              data-model-hovered={hoveredPlayerId ? "true" : "false"}
+              data-dragging={draggingPlayerId ? "true" : "false"}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerCancel}
+              onPointerLeave={() => {
+                if (!dragRef.current) setHoveredPlayerId(null);
+              }}
+            >
           <div className={styles.arenaShade} aria-hidden="true" />
           <div className={styles.boss} aria-hidden="true">
             <Image src="/fun/boss-mechanics/entombed-sentinels.png" alt="" fill sizes="(max-width: 700px) 46vw, 320px" priority />
@@ -609,6 +714,8 @@ export default function HelicalToxinsGame() {
               key={player.id}
               data-player-id={player.id}
               className={`${styles.player} ${player.matched ? styles.matched : ""}`}
+              data-hovered={hoveredPlayerId === player.id ? "true" : "false"}
+              data-dragging={draggingPlayerId === player.id ? "true" : "false"}
               style={{ left: `${player.x * 100}%`, top: `${player.y * 100}%`, zIndex: getPlayerDepth(player.y) }}
               role="group"
               aria-label={phase === "playing" && player.hasMechanic ? t("playerLabel", { name: player.name, green: player.greenCount }) : player.name}
@@ -616,12 +723,6 @@ export default function HelicalToxinsGame() {
               <span className={styles.nameplate} style={{ color: CCG_CLASS_COLORS[player.classID] ?? "#e2e8f0" }}>{player.name}</span>
               <span
                 className={styles.renderWindow}
-                data-player-id={player.id}
-                onDragStart={(event) => event.preventDefault()}
-                onPointerDown={(event) => onPointerDown(event, player)}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                onPointerCancel={() => { dragRef.current = null; }}
               >
                 <AlphaFittedCharacterRender
                   src={player.renderUrl}
@@ -629,6 +730,7 @@ export default function HelicalToxinsGame() {
                   fit={player.renderFit}
                   priority={index < 8}
                   draggable={false}
+                  onImageReady={(image) => registerRenderHitArea(player.id, image)}
                   onReady={() => markRenderReady(player.id)}
                 />
               </span>

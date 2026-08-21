@@ -139,6 +139,9 @@
   box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.45), inset 0 0 5rem rgba(104, 153, 12, 0.28);
   user-select: none;
 }
+.arena[data-phase="playing"] { touch-action: none; }
+.arena[data-phase="playing"][data-model-hovered="true"] { cursor: grab; }
+.arena[data-phase="playing"][data-dragging="true"] { cursor: grabbing; }
 
 .arenaShade { position: absolute; z-index: 1; inset: 0; background: radial-gradient(circle at center, transparent 12%, rgba(1, 8, 3, 0.17) 72%, rgba(1, 6, 2, 0.68)); pointer-events: none; }
 .boss { position: absolute; z-index: 2; top: 52%; left: 50%; width: min(28%, 20rem); aspect-ratio: 1.25; transform: translate(-50%, -50%); filter: drop-shadow(0 1.1rem 1rem rgba(0, 0, 0, 0.65)); opacity: 0.72; pointer-events: none; }
@@ -154,14 +157,14 @@
   color: white;
   transform: translate(-50%, -100%);
   transition: filter 120ms ease, opacity 120ms ease;
+  pointer-events: none;
 }
 
-.player:active { z-index: 100 !important; }
-.renderWindow { position: absolute; z-index: 5; inset: 2.05rem 0 0.42rem; overflow: visible; cursor: grab; filter: drop-shadow(0 0.4rem 0.25rem rgba(0, 0, 0, 0.92)); touch-action: none; -webkit-user-drag: none; }
-.renderWindow:active { cursor: grabbing; }
+.player[data-dragging="true"] { z-index: 100 !important; }
+.renderWindow { position: absolute; z-index: 5; inset: 2.05rem 0 0.42rem; overflow: visible; filter: drop-shadow(0 0.4rem 0.25rem rgba(0, 0, 0, 0.92)); pointer-events: none; -webkit-user-drag: none; }
 .renderImage { top: var(--render-fit-top) !important; right: auto !important; bottom: auto !important; left: 50% !important; width: auto !important; height: var(--render-fit-height) !important; max-width: none !important; object-fit: contain; opacity: 0; transform: translateX(var(--render-fit-translate-x)); filter: brightness(1); transition: filter 120ms ease; user-select: none; -webkit-user-drag: none; }
 .renderImage[data-fit-ready="true"] { opacity: 1; }
-.arena[data-phase="playing"] .renderWindow:hover .renderImage { filter: brightness(1.28); }
+.arena[data-phase="playing"] .player[data-hovered="true"] .renderImage { filter: brightness(1.28); }
 
 .nameplate { position: absolute; z-index: 9; top: 1.28rem; left: 50%; max-width: 6.5rem; overflow: hidden; font-size: clamp(0.48rem, 1vw, 0.62rem); font-weight: 850; line-height: 1.2; text-overflow: ellipsis; text-shadow: 0 1px 2px #000, 0 0 4px #000; transform: translateX(-50%); white-space: nowrap; pointer-events: none; }
 .footZone { position: absolute; z-index: 4; bottom: -0.38rem; left: 50%; width: clamp(1.9rem, 4.6vw, 3.15rem); height: clamp(0.72rem, 1.8vw, 1.15rem); border: 2px solid #ef4444; border-radius: 50%; background: rgba(127, 29, 29, 0.13); box-shadow: 0 0 0.75rem rgba(239, 68, 68, 0.38), inset 0 0 0.5rem rgba(239, 68, 68, 0.2); transform: translateX(-50%); pointer-events: none; }

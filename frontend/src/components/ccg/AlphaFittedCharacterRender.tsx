@@ -20,6 +20,7 @@ type AlphaFittedCharacterRenderProps = {
   fit?: AlphaBounds | null;
   priority?: boolean;
   draggable?: boolean;
+  onImageReady?: (image: HTMLImageElement) => void;
   onReady?: () => void;
 };
 
@@ -117,7 +118,7 @@ function measureAlphaBounds(image: HTMLImageElement, fitMode: AlphaFitMode): Alp
   };
 }
 
-export default function AlphaFittedCharacterRender({ src, className, fitMode = "stance", fit, priority = false, draggable, onReady }: AlphaFittedCharacterRenderProps) {
+export default function AlphaFittedCharacterRender({ src, className, fitMode = "stance", fit, priority = false, draggable, onImageReady, onReady }: AlphaFittedCharacterRenderProps) {
   const imageSrc = useMemo(() => getCharacterRenderImageUrl(src), [src]);
   const cacheKey = `${fitMode}:${src}`;
   const [measurement, setMeasurement] = useState<{ key: string; bounds: AlphaBounds } | null>(() => {
@@ -126,6 +127,7 @@ export default function AlphaFittedCharacterRender({ src, className, fitMode = "
   });
 
   const onLoad = (event: SyntheticEvent<HTMLImageElement>) => {
+    onImageReady?.(event.currentTarget);
     if (fit) {
       onReady?.();
       return;
