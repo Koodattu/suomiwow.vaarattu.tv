@@ -50,6 +50,8 @@ type GameSelectOption = { value: string; label: string; icon?: string };
 
 const HIT_MASK_MAX_SIZE = 128;
 const HIT_ALPHA_THRESHOLD = 8;
+const HIT_GAP_EDGE_ALPHA_THRESHOLD = 32;
+const HIT_MAX_BRIDGED_GAP_RATIO = 0.26;
 
 function createAlphaHitMask(image: HTMLImageElement): AlphaHitMask | null {
   const scale = Math.min(1, HIT_MASK_MAX_SIZE / Math.max(image.naturalWidth, image.naturalHeight));
@@ -65,6 +67,19 @@ function createAlphaHitMask(image: HTMLImageElement): AlphaHitMask | null {
   const pixels = context.getImageData(0, 0, width, height).data;
   const alpha = new Uint8Array(width * height);
   for (let index = 0; index < alpha.length; index += 1) alpha[index] = pixels[index * 4 + 3];
+
+  const maxBridgedGap = Math.max(1, Math.round(width * HIT_MAX_BRIDGED_GAP_RATIO));
+  for (let y = 0; y < height; y += 1) {
+    let previousOpaqueX = -1;
+    for (let x = 0; x < width; x += 1) {
+      if (alpha[y * width + x] < HIT_GAP_EDGE_ALPHA_THRESHOLD) continue;
+      const gap = x - previousOpaqueX - 1;
+      if (previousOpaqueX >= 0 && gap > 0 && gap <= maxBridgedGap) {
+        alpha.fill(255, y * width + previousOpaqueX + 1, y * width + x);
+      }
+      previousOpaqueX = x;
+    }
+  }
   return { width, height, alpha };
 }
 
@@ -650,7 +665,12 @@ export default function HelicalToxinsGame() {
         <header className={styles.header}>
           <Link href="/fun" className={styles.back}>← {t("back")}</Link>
           <div className={styles.titleRow}>
-            <h1>{t("title")}</h1>
+            <div className={styles.encounterTitle}>
+              <span className={styles.encounterIcon} aria-hidden="true">
+                <Image src="/fun/boss-mechanics/entombed-sentinels.png" alt="" fill sizes="72px" priority />
+              </span>
+              <h1>{t("title")}</h1>
+            </div>
             <div className={styles.headerControls}>
               <GameSelect
                 label={t("raidTeam")}

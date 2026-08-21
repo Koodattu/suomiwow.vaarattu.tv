@@ -57,7 +57,7 @@ export default function FunPortalPage() {
             <span className="relative flex min-h-48 max-w-2xl flex-col justify-center p-5 sm:p-6">
               <span className="text-[11px] font-black uppercase tracking-[0.16em] text-lime-300">{t("bossMechanics.raid")}</span>
               <span className="mt-1 text-2xl font-black sm:text-3xl">{t("bossMechanics.title")}</span>
-              <span className="mt-1 text-sm font-bold text-lime-100/80">{t("bossMechanics.boss")}</span>
+              <span className="mt-1 text-sm font-bold text-lime-100/80">{t("bossMechanics.mechanic")}</span>
               <span className="mt-2 max-w-xl text-sm leading-6 text-slate-300">{t("bossMechanics.description")}</span>
               <span className="mt-3 inline-flex min-h-10 items-center text-sm font-black text-lime-200 group-hover:text-white">
                 {t("bossMechanics.play")} <span className="ml-2 transition-transform group-hover:translate-x-1 motion-reduce:transform-none" aria-hidden="true">→</span>

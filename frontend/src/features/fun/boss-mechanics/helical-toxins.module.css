@@ -44,13 +44,16 @@
 
 .header h1 {
   margin-top: 0.15rem;
-  font-size: clamp(2.2rem, 6vw, 4rem);
+  font-size: clamp(2rem, 5vw, 3.5rem);
   font-weight: 950;
   letter-spacing: -0.045em;
   line-height: 0.98;
 }
 
 .titleRow { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem 1.5rem; }
+.encounterTitle { display: flex; min-width: 0; align-items: center; gap: 0.8rem; }
+.encounterIcon { position: relative; width: clamp(3.4rem, 6vw, 4.5rem); flex: none; aspect-ratio: 1; overflow: hidden; border: 1px solid rgba(190, 242, 100, 0.28); border-radius: 0.75rem; background: radial-gradient(circle at 50% 42%, rgba(132, 204, 22, 0.3), rgba(3, 12, 6, 0.92) 72%); box-shadow: inset 0 0 1rem rgba(163, 230, 53, 0.12), 0 0.65rem 1.4rem rgba(0, 0, 0, 0.3); }
+.encounterIcon img { object-fit: contain; transform: scale(1.16) translateY(4%); }
 .headerControls { display: flex; align-items: flex-end; gap: 0.75rem; margin-top: 0.15rem; margin-left: auto; }
 .selectField { position: relative; display: grid; width: 11.5rem; min-width: 0; gap: 0.38rem; }
 .raidTeamSelectField { width: 14.4rem; }
