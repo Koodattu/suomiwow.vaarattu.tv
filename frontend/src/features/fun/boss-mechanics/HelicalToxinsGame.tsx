@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
-import { FaArrowUpRightFromSquare } from "react-icons/fa6";
+import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
+import { FaArrowUpRightFromSquare, FaCheck, FaChevronDown } from "react-icons/fa6";
 import AlphaFittedCharacterRender from "@/components/ccg/AlphaFittedCharacterRender";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
@@ -36,6 +37,44 @@ type DragState = {
   offsetY: number;
   lastPosition: Position;
 };
+type GameSelectOption = { value: string; label: string; icon?: string };
+
+function GameSelect({ label, value, options, disabled, accent, onChange }: {
+  label: string;
+  value: string;
+  options: GameSelectOption[];
+  disabled: boolean;
+  accent?: BossMechanicDifficulty;
+  onChange: (value: string) => void;
+}) {
+  const selected = options.find((option) => option.value === value) ?? options[0];
+
+  return (
+    <Listbox value={value} onChange={onChange} disabled={disabled}>
+      <div className={styles.selectField}>
+        <span className={styles.selectFieldLabel} aria-hidden="true">{label}</span>
+        <ListboxButton className={styles.selectButton} data-accent={accent} aria-label={label}>
+          <span className={styles.selectValue}>
+            {selected.icon ? <span className={styles.selectIcon} aria-hidden="true">{selected.icon}</span> : null}
+            <span>{selected.label}</span>
+          </span>
+          <FaChevronDown className={styles.selectButtonChevron} aria-hidden="true" />
+        </ListboxButton>
+        <ListboxOptions className={styles.selectMenu} transition>
+          {options.map((option) => (
+            <ListboxOption key={option.value || "default"} value={option.value} className={styles.selectOption}>
+              <span className={styles.selectOptionValue}>
+                {option.icon ? <span className={styles.selectIcon} aria-hidden="true">{option.icon}</span> : null}
+                <span>{option.label}</span>
+              </span>
+              <FaCheck className={styles.selectCheck} aria-hidden="true" />
+            </ListboxOption>
+          ))}
+        </ListboxOptions>
+      </div>
+    </Listbox>
+  );
+}
 
 function shuffle<T>(items: readonly T[]): T[] {
   const shuffled = [...items];
@@ -396,7 +435,7 @@ export default function HelicalToxinsGame() {
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLSpanElement>, player: Player) => {
-    if (phase !== "playing" || player.matched) return;
+    if (phase !== "playing") return;
     const rect = arenaRef.current?.getBoundingClientRect();
     if (!rect) return;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -418,27 +457,30 @@ export default function HelicalToxinsGame() {
 
     const radiusX = Math.min(25, Math.max(15, rect.width * 0.025));
     const radiusY = Math.min(14, Math.max(9, rect.height * 0.02));
-    const collision = playersRef.current
-      .filter((player) => player.id !== drag.id && !player.matched)
-      .map((player) => {
-        const startX = (drag.lastPosition.x - player.x) * rect.width / (radiusX * 2);
-        const startY = (drag.lastPosition.y - player.y) * rect.height / (radiusY * 2);
-        const endX = (position.x - player.x) * rect.width / (radiusX * 2);
-        const endY = (position.y - player.y) * rect.height / (radiusY * 2);
-        const pathX = endX - startX;
-        const pathY = endY - startY;
-        const pathLengthSquared = pathX ** 2 + pathY ** 2;
-        const progress = pathLengthSquared === 0
-          ? 0
-          : Math.max(0, Math.min(1, -(startX * pathX + startY * pathY) / pathLengthSquared));
-        return {
-          player,
-          progress,
-          distance: (startX + pathX * progress) ** 2 + (startY + pathY * progress) ** 2,
-        };
-      })
-      .filter(({ distance }) => distance <= 1)
-      .sort((left, right) => left.progress - right.progress || left.distance - right.distance)[0];
+    const draggedPlayer = playersRef.current.find((player) => player.id === drag.id);
+    const collision = draggedPlayer?.matched
+      ? undefined
+      : playersRef.current
+        .filter((player) => player.id !== drag.id && !player.matched)
+        .map((player) => {
+          const startX = (drag.lastPosition.x - player.x) * rect.width / (radiusX * 2);
+          const startY = (drag.lastPosition.y - player.y) * rect.height / (radiusY * 2);
+          const endX = (position.x - player.x) * rect.width / (radiusX * 2);
+          const endY = (position.y - player.y) * rect.height / (radiusY * 2);
+          const pathX = endX - startX;
+          const pathY = endY - startY;
+          const pathLengthSquared = pathX ** 2 + pathY ** 2;
+          const progress = pathLengthSquared === 0
+            ? 0
+            : Math.max(0, Math.min(1, -(startX * pathX + startY * pathY) / pathLengthSquared));
+          return {
+            player,
+            progress,
+            distance: (startX + pathX * progress) ** 2 + (startY + pathY * progress) ** 2,
+          };
+        })
+        .filter(({ distance }) => distance <= 1)
+        .sort((left, right) => left.progress - right.progress || left.distance - right.distance)[0];
 
     if (collision) {
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
@@ -470,6 +512,15 @@ export default function HelicalToxinsGame() {
     : wipeTotal === null
       ? { title: t("wipeTitle", { count: wipeCount }), body: t("timeoutBody") }
       : { title: t("wipeTitle", { count: wipeCount }), body: t("wrongPairBody", { total: wipeTotal }) };
+  const guildOptions: GameSelectOption[] = [
+    { value: "", label: t("dreamTeam") },
+    ...guilds.map((guild) => ({ value: guild.id, label: guild.name })),
+  ];
+  const difficultyOptions: GameSelectOption[] = DIFFICULTIES.map((option) => ({
+    value: option.id,
+    label: t(option.labelKey),
+    icon: option.emoji,
+  }));
 
   return (
     <main className={styles.page}>
@@ -479,35 +530,21 @@ export default function HelicalToxinsGame() {
           <div className={styles.titleRow}>
             <h1>{t("title")}</h1>
             <div className={styles.headerControls}>
-              <label className={styles.guildSelect}>
-                <span className={styles.guildSelectLabel}>{t("raidTeam")}</span>
-                <span className={styles.guildSelectShell}>
-                  <select
-                    value={selectedGuildId}
-                    disabled={phase === "playing" || phase === "loading"}
-                    onChange={(event) => selectGuild(event.target.value)}
-                  >
-                    <option value="">{t("dreamTeam")}</option>
-                    {guilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name} — {guild.realm}</option>)}
-                  </select>
-                  <span className={styles.selectChevron} aria-hidden="true">⌄</span>
-                </span>
-              </label>
-              <label className={`${styles.guildSelect} ${styles.difficultySelect}`} data-difficulty={difficulty}>
-                <span className={styles.guildSelectLabel}>{t("difficulty")}</span>
-                <span className={styles.guildSelectShell}>
-                  <select
-                    value={difficulty}
-                    disabled={phase === "playing" || phase === "loading"}
-                    onChange={(event) => selectDifficulty(event.target.value as BossMechanicDifficulty)}
-                  >
-                    {DIFFICULTIES.map((option) => (
-                      <option key={option.id} value={option.id}>{option.emoji} {t(option.labelKey)}</option>
-                    ))}
-                  </select>
-                  <span className={styles.selectChevron} aria-hidden="true">⌄</span>
-                </span>
-              </label>
+              <GameSelect
+                label={t("raidTeam")}
+                value={selectedGuildId}
+                options={guildOptions}
+                disabled={phase === "playing" || phase === "loading"}
+                onChange={selectGuild}
+              />
+              <GameSelect
+                label={t("difficulty")}
+                value={difficulty}
+                options={difficultyOptions}
+                disabled={phase === "playing" || phase === "loading"}
+                accent={difficulty}
+                onChange={(value) => selectDifficulty(value as BossMechanicDifficulty)}
+              />
             </div>
           </div>
         </header>
