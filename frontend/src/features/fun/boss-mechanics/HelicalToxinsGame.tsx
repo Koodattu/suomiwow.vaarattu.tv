@@ -252,18 +252,20 @@ function buildPlayers(characters: BossMechanicCharacter[], arenaWidth: number, a
   }));
 }
 
-function ToxinMarker({ greenCount }: { greenCount: number }) {
+function ToxinMarker({ greenCount, concealed = false }: { greenCount: number; concealed?: boolean }) {
   const positions = ["top", "left", "right", "bottom"];
-  const colors = greenCount === 1
-    ? ["green", "red", "red", "red"]
-    : greenCount === 2
-      ? ["red", "green", "green", "red"]
-      : ["green", "green", "green", "red"];
+  const colors = concealed
+    ? ["purple", "purple", "purple", "purple"]
+    : greenCount === 1
+      ? ["green", "red", "red", "red"]
+      : greenCount === 2
+        ? ["red", "green", "green", "red"]
+        : ["green", "green", "green", "red"];
 
   return (
     <span className={styles.toxinMarker} aria-label={`${greenCount} green, ${4 - greenCount} red`}>
-      {greenCount === 2 ? <span className={styles.toxinTube} data-segment="horizontal" /> : null}
-      {greenCount === 3 ? (
+      {!concealed && greenCount === 2 ? <span className={styles.toxinTube} data-segment="horizontal" /> : null}
+      {!concealed && greenCount === 3 ? (
         <>
           <span className={styles.toxinTube} data-segment="upper-left" />
           <span className={styles.toxinTube} data-segment="upper-right" />
@@ -635,8 +637,8 @@ export default function HelicalToxinsGame() {
 
   const matchedPairs = players.filter((player) => player.matched).length / 2;
   const pairCount = DIFFICULTY_BY_ID[difficulty].pairCount;
-  const showToxinMarkers = (phase === "playing" || phase === "won" || phase === "wiped")
-    && (difficulty !== "mythic" || remainingMs > 5_000);
+  const showToxinMarkers = phase === "playing" || phase === "won" || phase === "wiped";
+  const concealToxinMarkers = difficulty === "mythic" && remainingMs <= 5_000;
   const resultCopy = phase === "won"
     ? { title: t("clearTitle"), body: t("clearBody", { pulls: clearPulls, pairs: pairCount }) }
     : wipeReason === "manual"
@@ -762,7 +764,7 @@ export default function HelicalToxinsGame() {
                   className={styles.markerAnchor}
                   style={{ left: `${player.x * 100}%`, top: `${player.y * 100}%` }}
                 >
-                  <ToxinMarker greenCount={player.greenCount} />
+                  <ToxinMarker greenCount={player.greenCount} concealed={concealToxinMarkers} />
                 </span>
               ))}
             </div>

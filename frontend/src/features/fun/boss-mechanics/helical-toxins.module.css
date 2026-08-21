@@ -187,6 +187,7 @@
 .toxinOrb[data-position="bottom"] { bottom: 0; left: 50%; transform: translateX(-50%); }
 .toxinOrb[data-color="green"] { background: #20c55b; }
 .toxinOrb[data-color="red"] { background: #f01f2d; }
+.toxinOrb[data-color="purple"] { background: #a855f7; }
 
 .overlay { position: absolute; z-index: 120; inset: 0; display: grid; align-content: center; justify-items: center; padding: 1.5rem; background: radial-gradient(circle, rgba(5, 15, 7, 0.73), rgba(1, 7, 3, 0.9)); text-align: center; backdrop-filter: blur(2px); }
 .overlay h2 { max-width: 34rem; margin-top: 0.35rem; font-size: clamp(1.8rem, 5vw, 3.2rem); font-weight: 950; letter-spacing: -0.035em; line-height: 1; }
