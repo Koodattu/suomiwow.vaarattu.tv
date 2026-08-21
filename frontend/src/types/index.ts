@@ -3180,6 +3180,7 @@ export type BossMechanicCharacter = {
   name: string;
   realm: string;
   region: string;
+  classID: number;
   renderUrl: string;
   renderFit: {
     top: number;

@@ -62,6 +62,7 @@ test("boss mechanic raids use twenty distinct stored character renders", async (
     characterName: `Raider ${index}`,
     realmSlug: "test-realm",
     region: "EU",
+    classID: (index % 13) + 1,
     renderAssetId: { toString: () => `asset-${index}` },
     renderFit: { top: 0.05, ground: 0.95, centerX: 0.5 },
   }));
@@ -72,6 +73,7 @@ test("boss mechanic raids use twenty distinct stored character renders", async (
     assert.equal(response.characters.length, 20);
     assert.equal(new Set(response.characters.map((character) => character.id)).size, 20);
     assert.equal(response.characters[0].renderUrl, "/api/ccg/media/assets/asset-0");
+    assert.equal(response.characters[0].classID, 1);
     assert.deepEqual(response.characters[0].renderFit, rows[0].renderFit);
   } finally {
     mediaModel.aggregate = originalAggregate;

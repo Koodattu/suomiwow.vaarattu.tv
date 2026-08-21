@@ -1,4 +1,5 @@
 import type { Types } from "mongoose";
+import Character from "../../models/Character";
 import CharacterMedia from "../../models/CharacterMedia";
 import CharacterRenderAsset from "../../models/CharacterRenderAsset";
 import characterRenderStorageService from "../../services/character-render-storage.service";
@@ -25,6 +26,7 @@ type BossMechanicCharacterRow = {
   characterName: string;
   realmSlug: string;
   region: string;
+  classID: number;
   renderAssetId: Types.ObjectId;
   renderFit: { top: number; ground: number; centerX: number };
 };
@@ -44,12 +46,22 @@ export async function loadBossMechanicCharacters(): Promise<BossMechanicCharacte
     { $match: { "renderAsset.status": "active" } },
     { $sample: { size: BOSS_MECHANIC_PLAYER_COUNT } },
     {
+      $lookup: {
+        from: Character.collection.name,
+        localField: "characterId",
+        foreignField: "_id",
+        as: "character",
+      },
+    },
+    { $unwind: "$character" },
+    {
       $project: {
         _id: 0,
         characterId: 1,
         characterName: 1,
         realmSlug: 1,
         region: 1,
+        classID: "$character.classID",
         renderAssetId: "$renderAsset._id",
         renderFit: "$renderAsset.stanceFit",
       },
@@ -66,6 +78,7 @@ export async function loadBossMechanicCharacters(): Promise<BossMechanicCharacte
       name: row.characterName,
       realm: row.realmSlug,
       region: row.region,
+      classID: row.classID,
       renderUrl: characterRenderStorageService.getPublicUrl(row.renderAssetId),
       renderFit: row.renderFit,
     })),
