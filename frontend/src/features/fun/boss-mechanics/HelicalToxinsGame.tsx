@@ -7,17 +7,24 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
 import { FaArrowUpRightFromSquare } from "react-icons/fa6";
 import AlphaFittedCharacterRender from "@/components/ccg/AlphaFittedCharacterRender";
+import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { CCG_CLASS_COLORS } from "@/lib/ccg";
-import type { BossMechanicCharacter, BossMechanicGuild } from "@/types";
+import type { BossMechanicCharacter, BossMechanicDifficulty, BossMechanicGuild, BossMechanicLeaderboardEntry } from "@/types";
 import styles from "./helical-toxins.module.css";
 
-const ROUND_DURATION_MS = 10_000;
 const PLAYER_COUNT = 20;
 const PAIR_COUNT = PLAYER_COUNT / 2;
 const ARENA_MIN_Y = 0.18;
 const ARENA_MAX_Y = 0.93;
 const ARENA_CENTER_Y = 0.56;
+const WIPE_STORAGE_PREFIX = "helical-toxins:wipes:";
+const DIFFICULTIES: Array<{ id: BossMechanicDifficulty; emoji: string; durationMs: number; labelKey: "difficultyNormal" | "difficultyHeroic" | "difficultyMythic" }> = [
+  { id: "normal", emoji: "🛡️", durationMs: 20_000, labelKey: "difficultyNormal" },
+  { id: "heroic", emoji: "⚔️", durationMs: 10_000, labelKey: "difficultyHeroic" },
+  { id: "mythic", emoji: "💀", durationMs: 10_000, labelKey: "difficultyMythic" },
+];
+const DIFFICULTY_BY_ID = Object.fromEntries(DIFFICULTIES.map((difficulty) => [difficulty.id, difficulty])) as Record<BossMechanicDifficulty, (typeof DIFFICULTIES)[number]>;
 
 type Position = { x: number; y: number };
 type Player = BossMechanicCharacter & Position & { greenCount: number; matched: boolean };
@@ -53,6 +60,42 @@ function clampPosition(position: Position): Position {
 
 function getPlayerDepth(y: number): number {
   return 10 + Math.round(y * 80);
+}
+
+function readStoredWipes(difficulty: BossMechanicDifficulty): number {
+  try {
+    const value = Number(window.localStorage.getItem(`${WIPE_STORAGE_PREFIX}${difficulty}`));
+    return Number.isInteger(value) && value >= 0 ? Math.min(value, 9_999) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeStoredWipes(difficulty: BossMechanicDifficulty, wipes: number): void {
+  try {
+    window.localStorage.setItem(`${WIPE_STORAGE_PREFIX}${difficulty}`, String(wipes));
+  } catch {
+    // The game still works when browser storage is unavailable.
+  }
+}
+
+function getKnockedPosition(source: Position, target: Position): Position {
+  let dx = target.x - source.x;
+  let dy = target.y - source.y;
+  if (Math.abs(dx) + Math.abs(dy) < 0.001) {
+    const angle = Math.random() * Math.PI * 2;
+    dx = Math.cos(angle);
+    dy = Math.sin(angle);
+  }
+  const length = Math.hypot(dx, dy);
+  return clampPosition({
+    x: target.x + (dx / length) * 0.045,
+    y: target.y + (dy / length) * 0.035,
+  });
+}
+
+function formatTimeLeft(timeLeftMs: number): string {
+  return `${(timeLeftMs / 1_000).toFixed(1)}s`;
 }
 
 function randomSpawnPosition(): Position {
@@ -127,6 +170,7 @@ function ToxinMarker({ greenCount }: { greenCount: number }) {
 
 export default function HelicalToxinsGame() {
   const t = useTranslations("fun.helicalToxins");
+  const { user } = useAuth();
   const arenaRef = useRef<HTMLDivElement>(null);
   const playersRef = useRef<Player[]>([]);
   const dragRef = useRef<DragState | null>(null);
@@ -134,17 +178,24 @@ export default function HelicalToxinsGame() {
   const loadIdRef = useRef(0);
   const autoStartRef = useRef(false);
   const selectedGuildIdRef = useRef("");
+  const difficultyRef = useRef<BossMechanicDifficulty>("heroic");
+  const wipeCountRef = useRef(0);
   const [players, setPlayers] = useState<Player[]>([]);
   const [phase, setPhase] = useState<Phase>("loading");
-  const [remainingMs, setRemainingMs] = useState(ROUND_DURATION_MS);
+  const [remainingMs, setRemainingMs] = useState(DIFFICULTY_BY_ID.heroic.durationMs);
   const [wipeTotal, setWipeTotal] = useState<number | null>(null);
-  const [pullCount, setPullCount] = useState(0);
   const [wipeCount, setWipeCount] = useState(0);
-  const [mythicDifficulty, setMythicDifficulty] = useState(false);
+  const [clearPulls, setClearPulls] = useState(1);
+  const [difficulty, setDifficulty] = useState<BossMechanicDifficulty>("heroic");
   const [guilds, setGuilds] = useState<BossMechanicGuild[]>([]);
   const [selectedGuildId, setSelectedGuildId] = useState("");
+  const [leaderboard, setLeaderboard] = useState<BossMechanicLeaderboardEntry[]>([]);
+  const [leaderboardLoaded, setLeaderboardLoaded] = useState(false);
   const [readyRenders, setReadyRenders] = useState<Set<string>>(() => new Set());
   playersRef.current = players;
+  wipeCountRef.current = wipeCount;
+  difficultyRef.current = difficulty;
+  const roundDurationMs = DIFFICULTY_BY_ID[difficulty].durationMs;
 
   const assembleRaid = useCallback(async (autoStart = false, guildId = selectedGuildIdRef.current) => {
     const loadId = ++loadIdRef.current;
@@ -152,7 +203,7 @@ export default function HelicalToxinsGame() {
     setPhase("loading");
     setPlayers([]);
     setWipeTotal(null);
-    setRemainingMs(ROUND_DURATION_MS);
+    setRemainingMs(DIFFICULTY_BY_ID[difficultyRef.current].durationMs);
     setReadyRenders(new Set());
     try {
       const response = await api.getBossMechanicCharacters(guildId || undefined);
@@ -175,6 +226,12 @@ export default function HelicalToxinsGame() {
   }, [assembleRaid]);
 
   useEffect(() => {
+    const storedWipes = readStoredWipes(difficultyRef.current);
+    wipeCountRef.current = storedWipes;
+    setWipeCount(storedWipes);
+  }, []);
+
+  useEffect(() => {
     let active = true;
     void api.getBossMechanicGuilds()
       .then((response) => {
@@ -185,14 +242,35 @@ export default function HelicalToxinsGame() {
   }, []);
 
   useEffect(() => {
+    if (!user) {
+      setLeaderboard([]);
+      setLeaderboardLoaded(false);
+      return;
+    }
+    let active = true;
+    void api.getBossMechanicLeaderboard()
+      .then((response) => {
+        if (active) setLeaderboard(response.entries);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setLeaderboardLoaded(true);
+      });
+    return () => { active = false; };
+  }, [user]);
+
+  useEffect(() => {
     if (phase !== "playing") return;
     const tick = () => {
       if (startedAtRef.current === 0) return;
-      const nextRemaining = Math.max(0, ROUND_DURATION_MS - (Date.now() - startedAtRef.current));
+      const nextRemaining = Math.max(0, roundDurationMs - (Date.now() - startedAtRef.current));
       setRemainingMs(nextRemaining);
       if (nextRemaining === 0) {
         startedAtRef.current = 0;
-        setWipeCount((current) => current + 1);
+        const nextWipeCount = Math.min(wipeCountRef.current + 1, 9_999);
+        wipeCountRef.current = nextWipeCount;
+        setWipeCount(nextWipeCount);
+        writeStoredWipes(difficultyRef.current, nextWipeCount);
         setPhase("wiped");
         dragRef.current = null;
       }
@@ -200,14 +278,13 @@ export default function HelicalToxinsGame() {
     tick();
     const interval = window.setInterval(tick, 50);
     return () => window.clearInterval(interval);
-  }, [phase]);
+  }, [phase, roundDurationMs]);
 
   const startRound = () => {
     if (phase !== "ready" || readyRenders.size < PLAYER_COUNT) return;
     autoStartRef.current = false;
     startedAtRef.current = Date.now();
-    setPullCount((current) => current + 1);
-    setRemainingMs(ROUND_DURATION_MS);
+    setRemainingMs(roundDurationMs);
     setWipeTotal(null);
     setPhase("playing");
   };
@@ -216,11 +293,10 @@ export default function HelicalToxinsGame() {
     if (!autoStartRef.current || phase !== "ready" || readyRenders.size < PLAYER_COUNT) return;
     autoStartRef.current = false;
     startedAtRef.current = Date.now();
-    setPullCount((current) => current + 1);
-    setRemainingMs(ROUND_DURATION_MS);
+    setRemainingMs(roundDurationMs);
     setWipeTotal(null);
     setPhase("playing");
-  }, [phase, readyRenders]);
+  }, [phase, readyRenders, roundDurationMs]);
 
   const markRenderReady = (id: string) => {
     setReadyRenders((current) => {
@@ -237,10 +313,24 @@ export default function HelicalToxinsGame() {
     void assembleRaid(false, guildId);
   };
 
+  const selectDifficulty = (nextDifficulty: BossMechanicDifficulty) => {
+    difficultyRef.current = nextDifficulty;
+    setDifficulty(nextDifficulty);
+    const storedWipes = readStoredWipes(nextDifficulty);
+    wipeCountRef.current = storedWipes;
+    setWipeCount(storedWipes);
+    setClearPulls(1);
+    setRemainingMs(DIFFICULTY_BY_ID[nextDifficulty].durationMs);
+    void assembleRaid();
+  };
+
   const wipe = (total: number) => {
     if (startedAtRef.current === 0) return;
     startedAtRef.current = 0;
-    setWipeCount((current) => current + 1);
+    const nextWipeCount = Math.min(wipeCountRef.current + 1, 9_999);
+    wipeCountRef.current = nextWipeCount;
+    setWipeCount(nextWipeCount);
+    writeStoredWipes(difficultyRef.current, nextWipeCount);
     setWipeTotal(total);
     dragRef.current = null;
     setPhase("wiped");
@@ -254,6 +344,14 @@ export default function HelicalToxinsGame() {
 
     const total = source.greenCount + target.greenCount;
     if (total !== 4) {
+      if (difficulty === "normal") {
+        const knockedPosition = getKnockedPosition(source, target);
+        const nextPlayers = current.map((player) => player.id === targetId ? { ...player, ...knockedPosition } : player);
+        playersRef.current = nextPlayers;
+        setPlayers(nextPlayers);
+        dragRef.current = null;
+        return;
+      }
       wipe(total);
       return;
     }
@@ -267,8 +365,24 @@ export default function HelicalToxinsGame() {
     setPlayers(nextPlayers);
     dragRef.current = null;
     if (nextPlayers.every((player) => player.matched)) {
+      const timeLeftMs = Math.max(0, roundDurationMs - (Date.now() - startedAtRef.current));
+      const pulls = wipeCountRef.current + 1;
       startedAtRef.current = 0;
+      setRemainingMs(timeLeftMs);
+      setClearPulls(pulls);
+      wipeCountRef.current = 0;
+      setWipeCount(0);
+      writeStoredWipes(difficulty, 0);
       setPhase("won");
+      if (user) {
+        const team = guilds.find((guild) => guild.id === selectedGuildId)?.name ?? t("dreamTeam");
+        void api.submitBossMechanicScore({ difficulty, pulls, timeLeftMs, team })
+          .then((response) => {
+            setLeaderboard(response.entries);
+            setLeaderboardLoaded(true);
+          })
+          .catch(() => undefined);
+      }
     }
   };
 
@@ -350,16 +464,16 @@ export default function HelicalToxinsGame() {
 
   const matchedPairs = players.filter((player) => player.matched).length / 2;
   const showToxinMarkers = (phase === "playing" || phase === "won" || phase === "wiped")
-    && (!mythicDifficulty || remainingMs > ROUND_DURATION_MS / 2);
+    && (difficulty !== "mythic" || remainingMs > 5_000);
   const resultCopy = phase === "won"
-    ? { title: t("clearTitle"), body: t("clearBody", { pulls: pullCount }) }
+    ? { title: t("clearTitle"), body: t("clearBody", { pulls: clearPulls }) }
     : wipeTotal === null
       ? { title: t("wipeTitle", { count: wipeCount }), body: t("timeoutBody") }
       : { title: t("wipeTitle", { count: wipeCount }), body: t("wrongPairBody", { total: wipeTotal }) };
 
   return (
     <main className={styles.page}>
-      <div className={styles.shell}>
+      <div className={`${styles.shell} ${user ? styles.shellWithLeaderboard : ""}`}>
         <header className={styles.header}>
           <Link href="/fun" className={styles.back}>← {t("back")}</Link>
           <div className={styles.titleRow}>
@@ -379,28 +493,34 @@ export default function HelicalToxinsGame() {
                   <span className={styles.selectChevron} aria-hidden="true">⌄</span>
                 </span>
               </label>
-              <button
-                type="button"
-                className={styles.difficultyToggle}
-                role="switch"
-                aria-checked={mythicDifficulty}
-                disabled={phase === "playing"}
-                onClick={() => setMythicDifficulty((current) => !current)}
-              >
-                <span className={styles.difficultyLabel}><span className={styles.skull} aria-hidden="true">💀</span>{t("mythicDifficulty")}</span>
-                <span className={styles.toggleTrack} aria-hidden="true"><span /></span>
-              </button>
+              <label className={`${styles.guildSelect} ${styles.difficultySelect}`} data-difficulty={difficulty}>
+                <span className={styles.guildSelectLabel}>{t("difficulty")}</span>
+                <span className={styles.guildSelectShell}>
+                  <select
+                    value={difficulty}
+                    disabled={phase === "playing" || phase === "loading"}
+                    onChange={(event) => selectDifficulty(event.target.value as BossMechanicDifficulty)}
+                  >
+                    {DIFFICULTIES.map((option) => (
+                      <option key={option.id} value={option.id}>{option.emoji} {t(option.labelKey)}</option>
+                    ))}
+                  </select>
+                  <span className={styles.selectChevron} aria-hidden="true">⌄</span>
+                </span>
+              </label>
             </div>
           </div>
         </header>
 
-        <div className={styles.hud}>
+        <div className={`${styles.gameLayout} ${user ? styles.withLeaderboard : ""}`}>
+          <section className={styles.gameColumn}>
+            <div className={styles.hud}>
           <div><span>{t("time")}</span><strong>{(remainingMs / 1000).toFixed(1)}</strong></div>
-          <div className={styles.timerTrack} aria-hidden="true"><span style={{ width: `${(remainingMs / ROUND_DURATION_MS) * 100}%` }} /></div>
+          <div className={styles.timerTrack} aria-hidden="true"><span style={{ width: `${(remainingMs / roundDurationMs) * 100}%` }} /></div>
           <div><span>{t("pairs")}</span><strong>{matchedPairs}/{PAIR_COUNT}</strong></div>
-        </div>
+            </div>
 
-        <div ref={arenaRef} className={styles.arena} data-phase={phase}>
+            <div ref={arenaRef} className={styles.arena} data-phase={phase}>
           <div className={styles.arenaShade} aria-hidden="true" />
           <div className={styles.boss} aria-hidden="true">
             <Image src="/fun/boss-mechanics/entombed-sentinels.png" alt="" fill sizes="(max-width: 700px) 46vw, 320px" priority />
@@ -480,12 +600,51 @@ export default function HelicalToxinsGame() {
                     {t("guideLink")} <FaArrowUpRightFromSquare aria-hidden="true" />
                   </a>
                 ) : null}
-                <button type="button" onClick={() => void assembleRaid(true)}>{t("newPull", { count: pullCount + 1 })}</button>
+                <button type="button" onClick={() => void assembleRaid(true)}>{t("newPull", { count: wipeCount + 1 })}</button>
               </div>
             </div>
           ) : null}
-        </div>
+            </div>
+          </section>
 
+          {user ? (
+            <aside className={styles.leaderboard} aria-label={t("leaderboard")}>
+              <h2>{t("leaderboard")}</h2>
+              {leaderboard.length > 0 ? (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{t("raider")}</th>
+                      <th>{t("pulls")}</th>
+                      <th>{t("timeLeft")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leaderboard.map((entry) => (
+                      <tr key={entry.id}>
+                        <td>
+                          <span className={styles.leaderboardPlayer}>
+                            <span className={styles.leaderboardRank}>{entry.rank}</span>
+                            <Image src={entry.avatarUrl} alt="" width={24} height={24} unoptimized />
+                            <span className={styles.leaderboardDifficulty} title={t(DIFFICULTY_BY_ID[entry.difficulty].labelKey)}>{DIFFICULTY_BY_ID[entry.difficulty].emoji}</span>
+                            <span className={styles.leaderboardIdentity}>
+                              <span className={styles.leaderboardName}>{entry.username}</span>
+                              <span className={styles.leaderboardTeam}>{entry.team}</span>
+                            </span>
+                          </span>
+                        </td>
+                        <td>{entry.pulls}</td>
+                        <td>{formatTimeLeft(entry.timeLeftMs)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className={styles.leaderboardEmpty}>{leaderboardLoaded ? t("leaderboardEmpty") : t("leaderboardLoading")}</p>
+              )}
+            </aside>
+          ) : null}
+        </div>
       </div>
     </main>
   );

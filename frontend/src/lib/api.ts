@@ -188,6 +188,8 @@ import {
   ReporterStatusResponse,
   BossMechanicCharactersResponse,
   BossMechanicGuildsResponse,
+  BossMechanicDifficulty,
+  BossMechanicLeaderboardResponse,
   FunGameRound,
   FunGameSearchResponse,
   FunGameSearchSlug,
@@ -257,6 +259,27 @@ export const api = {
     const guildQuery = guildId ? `?guildId=${encodeURIComponent(guildId)}` : "";
     const response = await fetch(`${API_URL}/api/fun/boss-mechanics/characters${guildQuery}`, { cache: "no-store" });
     if (!response.ok) throw await buildApiError(response, "The raid group could not be assembled");
+    return response.json();
+  },
+
+  async getBossMechanicLeaderboard(): Promise<BossMechanicLeaderboardResponse> {
+    const response = await fetch(`${API_URL}/api/fun/boss-mechanics/leaderboard`, {
+      cache: "no-store",
+      credentials: "include",
+    });
+    if (!response.ok) throw await buildApiError(response, "The leaderboard could not be loaded");
+    return response.json();
+  },
+
+  async submitBossMechanicScore(input: { difficulty: BossMechanicDifficulty; pulls: number; timeLeftMs: number; team: string }): Promise<BossMechanicLeaderboardResponse> {
+    const response = await fetch(`${API_URL}/api/fun/boss-mechanics/leaderboard`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw await buildApiError(response, "The score could not be submitted");
     return response.json();
   },
 

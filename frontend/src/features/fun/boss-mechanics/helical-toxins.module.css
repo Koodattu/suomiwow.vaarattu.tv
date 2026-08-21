@@ -12,6 +12,7 @@
   width: min(100%, 76rem);
   margin: 0 auto;
 }
+.shellWithLeaderboard { width: min(100%, 92rem); }
 
 .header {
   position: relative;
@@ -30,7 +31,7 @@
 }
 
 .back:hover { color: #bef264; }
-.back:focus-visible, .guildSelect:focus-within, .difficultyToggle:focus-visible, .overlay button:focus-visible { outline: 2px solid #bef264; outline-offset: 3px; }
+.back:focus-visible, .guildSelect:focus-within, .overlay button:focus-visible { outline: 2px solid #bef264; outline-offset: 3px; }
 
 .overlayEyebrow {
   color: #a3e635;
@@ -58,18 +59,36 @@
 .guildSelect select:disabled { cursor: not-allowed; opacity: 0.62; }
 .guildSelect option { background: #071108; color: #f7fee7; }
 .selectChevron { position: absolute; top: 50%; right: 0; color: #a3e635; font-size: 1.05rem; line-height: 1; transform: translateY(-58%); pointer-events: none; }
-.difficultyToggle { display: inline-flex; min-width: 14rem; min-height: 3.5rem; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.7rem 0.85rem; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 0.7rem; background: rgba(3, 10, 6, 0.76); color: #cbd5e1; font-size: 0.8rem; font-weight: 850; letter-spacing: 0.055em; text-transform: uppercase; box-shadow: 0 0.65rem 1.5rem rgba(0, 0, 0, 0.18); transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease, color 150ms ease, opacity 150ms ease; }
-.difficultyToggle:hover:not(:disabled) { border-color: rgba(251, 146, 60, 0.62); background: rgba(67, 29, 8, 0.45); color: #fed7aa; box-shadow: 0 0.75rem 1.75rem rgba(124, 45, 18, 0.2); }
-.difficultyToggle[aria-checked="true"] { border-color: rgba(249, 115, 22, 0.72); background: rgba(124, 45, 18, 0.3); color: #fb923c; box-shadow: 0 0.75rem 1.75rem rgba(194, 65, 12, 0.18); }
-.difficultyToggle[aria-checked="true"]:hover:not(:disabled) { border-color: #fb923c; background: rgba(154, 52, 18, 0.38); color: #fdba74; }
-.difficultyToggle:disabled { cursor: not-allowed; opacity: 0.62; }
-.difficultyLabel { display: inline-flex; align-items: center; gap: 0.55rem; }
-.skull { font-size: 1.25rem; line-height: 1; filter: grayscale(1); transition: filter 150ms ease, transform 150ms ease; }
-.difficultyToggle:hover:not(:disabled) .skull, .difficultyToggle[aria-checked="true"] .skull { filter: none; transform: scale(1.06); }
-.toggleTrack { position: relative; flex: none; width: 2.65rem; height: 1.4rem; border-radius: 999px; background: #334155; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); transition: background 150ms ease, box-shadow 150ms ease; }
-.toggleTrack > span { position: absolute; top: 0.2rem; left: 0.2rem; width: 1rem; height: 1rem; border-radius: 50%; background: #e2e8f0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45); transition: transform 150ms ease, background 150ms ease; }
-.difficultyToggle[aria-checked="true"] .toggleTrack { background: #c2410c; box-shadow: inset 0 0 0 1px rgba(255, 237, 213, 0.22), 0 0 0.8rem rgba(249, 115, 22, 0.25); }
-.difficultyToggle[aria-checked="true"] .toggleTrack > span { background: #ffedd5; transform: translateX(1.25rem); }
+.difficultySelect[data-difficulty="normal"] { border-color: rgba(74, 222, 128, 0.38); }
+.difficultySelect[data-difficulty="heroic"] { border-color: rgba(250, 204, 21, 0.38); }
+.difficultySelect[data-difficulty="mythic"] { border-color: rgba(249, 115, 22, 0.72); background: rgba(124, 45, 18, 0.3); box-shadow: 0 0.75rem 1.75rem rgba(194, 65, 12, 0.18); }
+.difficultySelect[data-difficulty="mythic"] .guildSelectLabel, .difficultySelect[data-difficulty="mythic"] select, .difficultySelect[data-difficulty="mythic"] .selectChevron { color: #fb923c; }
+
+.gameLayout { display: grid; min-width: 0; column-gap: 0.75rem; }
+.gameColumn { min-width: 0; }
+
+.leaderboard { min-width: 0; margin-top: 0.75rem; overflow: hidden; border: 1px solid rgba(190, 242, 100, 0.17); border-radius: 0.8rem; background: rgba(4, 9, 8, 0.94); box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.3); }
+.leaderboard h2 { padding: 0.78rem 0.75rem 0.68rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); color: #d9f99d; font-size: 0.72rem; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; }
+.leaderboard table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.leaderboard th { padding: 0.5rem 0.32rem; color: #64748b; font-size: 0.53rem; font-weight: 850; letter-spacing: 0.08em; text-align: right; text-transform: uppercase; }
+.leaderboard th:first-child { width: auto; padding-left: 0.55rem; text-align: left; }
+.leaderboard th:nth-child(2) { width: 2.6rem; }
+.leaderboard th:nth-child(3) { width: 3.4rem; padding-right: 0.55rem; }
+.leaderboard td { height: 2rem; padding: 0.18rem 0.32rem; border-top: 1px solid rgba(255, 255, 255, 0.045); color: #dbe7de; font-size: 0.69rem; font-weight: 750; text-align: right; font-variant-numeric: tabular-nums; }
+.leaderboard td:first-child { overflow: hidden; padding-left: 0.45rem; text-align: left; }
+.leaderboard td:last-child { padding-right: 0.55rem; color: #bef264; }
+.leaderboardPlayer { display: flex; min-width: 0; align-items: center; gap: 0.28rem; }
+.leaderboardPlayer img { width: 1.2rem; height: 1.2rem; flex: none; border-radius: 50%; background: #172117; }
+.leaderboardRank { width: 1rem; flex: none; color: #64748b; font-size: 0.58rem; text-align: right; }
+.leaderboardDifficulty { flex: none; font-size: 0.66rem; line-height: 1; }
+.leaderboardIdentity { display: grid; min-width: 0; line-height: 1.05; }
+.leaderboardName, .leaderboardTeam { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leaderboardTeam { margin-top: 0.12rem; color: #64748b; font-size: 0.52rem; font-weight: 650; }
+.leaderboardEmpty { padding: 1.5rem 0.75rem; color: #64748b; font-size: 0.72rem; text-align: center; }
+
+@media (min-width: 1050px) {
+  .gameLayout.withLeaderboard { grid-template-columns: minmax(0, 1fr) 15rem; }
+}
 
 .hud {
   display: grid;
@@ -173,7 +192,7 @@
 @media (max-width: 700px) {
   .page { padding-inline: 0.5rem; }
   .headerControls { width: 100%; }
-  .guildSelect, .difficultyToggle { min-width: 0; flex: 1; }
+  .guildSelect { min-width: 0; flex: 1; }
   .hud { grid-template-columns: 4.8rem 1fr 4.8rem; gap: 0.5rem; }
   .hud > div:not(.timerTrack) { display: grid; gap: 0.1rem; }
   .hud > div:last-child { text-align: right; }
@@ -184,10 +203,10 @@
 
 @media (max-width: 520px) {
   .headerControls { flex-direction: column; }
-  .guildSelect, .difficultyToggle { width: 100%; }
+  .guildSelect { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; }
-  .timerTrack span, .back, .player, .guildSelect, .difficultyToggle, .toggleTrack, .toggleTrack > span, .overlay button, .guideLink { transition: none; }
+  .timerTrack span, .back, .player, .guildSelect, .overlay button, .guideLink { transition: none; }
 }

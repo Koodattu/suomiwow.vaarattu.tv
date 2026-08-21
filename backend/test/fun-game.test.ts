@@ -6,6 +6,7 @@ import Raid from "../src/models/Raid";
 import CharacterMedia from "../src/models/CharacterMedia";
 import CharacterRaidParticipation from "../src/models/CharacterRaidParticipation";
 import { generateLockItInRound } from "../src/features/fun/generators/lock-it-in";
+import { isBossMechanicScoreBetter, sanitizeBossMechanicScoreInput } from "../src/features/fun/boss-mechanic-leaderboard.service";
 import { loadBossMechanicCharacters, loadBossMechanicGuilds } from "../src/features/fun/fun-game.service";
 import {
   funMythicGuildFilter,
@@ -177,6 +178,34 @@ test("boss mechanic guild selection prioritizes eligible guild characters and fi
     mediaModel.aggregate = originalAggregate;
     participationModel.distinct = originalDistinct;
   }
+});
+
+test("boss mechanic leaderboard validates scores and prioritizes difficulty, time, then pulls", () => {
+  assert.deepEqual(
+    sanitizeBossMechanicScoreInput({ difficulty: "normal", pulls: 4, timeLeftMs: 20_000, team: " Dream   team " }),
+    { difficulty: "normal", pulls: 4, timeLeftMs: 20_000, team: "Dream team" },
+  );
+  assert.equal(sanitizeBossMechanicScoreInput({ difficulty: "heroic", pulls: 1, timeLeftMs: 10_001, team: "Dream team" }), null);
+  assert.equal(sanitizeBossMechanicScoreInput({ difficulty: "mythic", pulls: 1.5, timeLeftMs: 5_000, team: "Dream team" }), null);
+  assert.equal(sanitizeBossMechanicScoreInput({ difficulty: "lfr", pulls: 1, timeLeftMs: 5_000, team: "Dream team" }), null);
+  assert.equal(sanitizeBossMechanicScoreInput({ difficulty: "mythic", pulls: 1, timeLeftMs: 5_000, team: "  " }), null);
+
+  assert.equal(isBossMechanicScoreBetter(
+    { difficulty: "mythic", difficultyRank: 3, pulls: 100, timeLeftMs: 0 },
+    { difficulty: "heroic", difficultyRank: 2, pulls: 1, timeLeftMs: 10_000 },
+  ), true);
+  assert.equal(isBossMechanicScoreBetter(
+    { difficulty: "heroic", difficultyRank: 2, pulls: 4, timeLeftMs: 8_001 },
+    { difficulty: "heroic", difficultyRank: 2, pulls: 1, timeLeftMs: 8_000 },
+  ), true);
+  assert.equal(isBossMechanicScoreBetter(
+    { difficulty: "heroic", difficultyRank: 2, pulls: 2, timeLeftMs: 8_000 },
+    { difficulty: "heroic", difficultyRank: 2, pulls: 3, timeLeftMs: 8_000 },
+  ), true);
+  assert.equal(isBossMechanicScoreBetter(
+    { difficulty: "heroic", difficultyRank: 2, pulls: 1, timeLeftMs: 7_999 },
+    { difficulty: "heroic", difficultyRank: 2, pulls: 10, timeLeftMs: 8_000 },
+  ), false);
 });
 
 test("distinct cell assignments reject impossible grids and solve overlapping candidates", () => {

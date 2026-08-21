@@ -3203,6 +3203,27 @@ export type BossMechanicGuildsResponse = {
   guilds: BossMechanicGuild[];
 };
 
+export const BOSS_MECHANIC_DIFFICULTIES = ["normal", "heroic", "mythic"] as const;
+export type BossMechanicDifficulty = (typeof BOSS_MECHANIC_DIFFICULTIES)[number];
+
+export type BossMechanicScoreInput = {
+  difficulty: BossMechanicDifficulty;
+  pulls: number;
+  timeLeftMs: number;
+  team: string;
+};
+
+export type BossMechanicLeaderboardEntry = BossMechanicScoreInput & {
+  id: string;
+  rank: number;
+  username: string;
+  avatarUrl: string;
+};
+
+export type BossMechanicLeaderboardResponse = {
+  entries: BossMechanicLeaderboardEntry[];
+};
+
 export type FunRaid = {
   id: number;
   name: string;

@@ -1,11 +1,52 @@
 import { Router, type Request, type Response } from "express";
 import { isValidObjectId } from "mongoose";
+import discordService from "../../services/discord.service";
 import logger from "../../utils/logger";
+import { loadBossMechanicLeaderboard, sanitizeBossMechanicScoreInput, submitBossMechanicScore } from "./boss-mechanic-leaderboard.service";
 import { generateFunGameRound, loadBossMechanicCharacters, loadBossMechanicGuilds, searchFunGameCandidates } from "./fun-game.service";
 import { isFunGameSearchSlug, isFunGameSlug, isHigherOrWipeMode, type HigherOrWipeMode } from "./fun-game.types";
 import { FunRoundUnavailableError } from "./fun-game.utils";
 
 const router = Router();
+
+async function getAuthenticatedUser(req: Request) {
+  return req.session.userId ? discordService.getUserFromSession(req.session.userId) : null;
+}
+
+router.get("/boss-mechanics/leaderboard", async (req: Request, res: Response) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
+      res.status(401).json({ error: "Not authenticated", code: "AUTH_REQUIRED" });
+      return;
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json(await loadBossMechanicLeaderboard());
+  } catch (error) {
+    logger.error("[Fun] Failed to load boss mechanic leaderboard:", error);
+    res.status(500).json({ error: "Failed to load boss mechanic leaderboard", code: "BOSS_MECHANIC_LEADERBOARD_FAILED" });
+  }
+});
+
+router.post("/boss-mechanics/leaderboard", async (req: Request, res: Response) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
+      res.status(401).json({ error: "Not authenticated", code: "AUTH_REQUIRED" });
+      return;
+    }
+    const input = sanitizeBossMechanicScoreInput(req.body);
+    if (!input) {
+      res.status(400).json({ error: "Invalid boss mechanic score", code: "INVALID_BOSS_MECHANIC_SCORE" });
+      return;
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json(await submitBossMechanicScore(user, input));
+  } catch (error) {
+    logger.error("[Fun] Failed to submit boss mechanic score:", error);
+    res.status(500).json({ error: "Failed to submit boss mechanic score", code: "BOSS_MECHANIC_SCORE_FAILED" });
+  }
+});
 
 router.get("/boss-mechanics/guilds", async (_req: Request, res: Response) => {
   try {

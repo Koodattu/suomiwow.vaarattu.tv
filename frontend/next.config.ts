@@ -66,6 +66,11 @@ const nextConfig: NextConfig = {
         hostname: "render.worldofwarcraft.com",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "cdn.discordapp.com",
+        pathname: "/**",
+      },
     ],
     // Local development uses backend hostnames that the image optimizer cannot resolve reliably.
     unoptimized: process.env.NODE_ENV === "development",
