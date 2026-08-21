@@ -2493,7 +2493,7 @@
       "retry": "Try again",
       "success": "Intermission survived",
       "clearTitle": "Mechanic cleared",
-      "clearBody": "{pulls, plural, one {All ten pairs neutralized their Helical Toxins on the first pull.} other {All ten pairs neutralized their Helical Toxins in # pulls.}}",
+      "clearBody": "{pulls, plural, one {All {pairs} pairs neutralized their Helical Toxins on the first pull.} other {All {pairs} pairs neutralized their Helical Toxins in # pulls.}}",
       "wipeTitle": "Wipe #{count}",
       "timeoutBody": "Vitriolic Stasis ended before every pair was matched.",
       "wrongPairBody": "That collision made {total} green toxins instead of exactly four.",

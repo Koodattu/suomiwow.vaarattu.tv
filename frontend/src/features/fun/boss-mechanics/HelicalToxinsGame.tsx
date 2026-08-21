@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
-import { FaArrowUpRightFromSquare, FaCheck, FaChevronDown } from "react-icons/fa6";
+import { FaArrowUpRightFromSquare, FaChevronDown } from "react-icons/fa6";
 import AlphaFittedCharacterRender from "@/components/ccg/AlphaFittedCharacterRender";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
@@ -15,20 +15,19 @@ import type { BossMechanicCharacter, BossMechanicDifficulty, BossMechanicGuild, 
 import styles from "./helical-toxins.module.css";
 
 const PLAYER_COUNT = 20;
-const PAIR_COUNT = PLAYER_COUNT / 2;
 const ARENA_MIN_Y = 0.18;
 const ARENA_MAX_Y = 0.93;
 const ARENA_CENTER_Y = 0.56;
 const WIPE_STORAGE_PREFIX = "helical-toxins:wipes:";
-const DIFFICULTIES: Array<{ id: BossMechanicDifficulty; emoji: string; durationMs: number; labelKey: "difficultyNormal" | "difficultyHeroic" | "difficultyMythic" }> = [
-  { id: "normal", emoji: "🛡️", durationMs: 20_000, labelKey: "difficultyNormal" },
-  { id: "heroic", emoji: "⚔️", durationMs: 10_000, labelKey: "difficultyHeroic" },
-  { id: "mythic", emoji: "💀", durationMs: 10_000, labelKey: "difficultyMythic" },
+const DIFFICULTIES: Array<{ id: BossMechanicDifficulty; emoji: string; durationMs: number; pairCount: number; labelKey: "difficultyNormal" | "difficultyHeroic" | "difficultyMythic" }> = [
+  { id: "normal", emoji: "🛡️", durationMs: 20_000, pairCount: 6, labelKey: "difficultyNormal" },
+  { id: "heroic", emoji: "⚔️", durationMs: 10_000, pairCount: 7, labelKey: "difficultyHeroic" },
+  { id: "mythic", emoji: "💀", durationMs: 10_000, pairCount: 8, labelKey: "difficultyMythic" },
 ];
 const DIFFICULTY_BY_ID = Object.fromEntries(DIFFICULTIES.map((difficulty) => [difficulty.id, difficulty])) as Record<BossMechanicDifficulty, (typeof DIFFICULTIES)[number]>;
 
 type Position = { x: number; y: number };
-type Player = BossMechanicCharacter & Position & { greenCount: number; matched: boolean };
+type Player = BossMechanicCharacter & Position & { greenCount: number; hasMechanic: boolean; matched: boolean };
 type Phase = "loading" | "ready" | "playing" | "won" | "wiped" | "error";
 type WipeReason = "timeout" | "manual" | { total: number };
 type DragState = {
@@ -69,7 +68,6 @@ function GameSelect({ label, value, options, disabled, accent, wide, onChange }:
                 {option.icon ? <span className={styles.selectIcon} aria-hidden="true">{option.icon}</span> : null}
                 <span>{option.label}</span>
               </span>
-              <FaCheck className={styles.selectCheck} aria-hidden="true" />
             </ListboxOption>
           ))}
         </ListboxOptions>
@@ -135,6 +133,17 @@ function getKnockedPosition(source: Position, target: Position): Position {
   });
 }
 
+function getMatchedPairPositions(target: Position, arenaWidth: number): [Position, Position] {
+  const [minX, maxX] = getArenaXBounds(target.y);
+  const separation = Math.min(maxX - minX, Math.max(0.07, Math.min(0.15, 90 / arenaWidth)));
+  const halfSeparation = separation / 2;
+  const midpoint = Math.min(maxX - halfSeparation, Math.max(minX + halfSeparation, target.x));
+  return [
+    { x: midpoint - halfSeparation, y: target.y },
+    { x: midpoint + halfSeparation, y: target.y },
+  ];
+}
+
 function formatTimeLeft(timeLeftMs: number): string {
   return `${(timeLeftMs / 1_000).toFixed(1)}s`;
 }
@@ -173,14 +182,20 @@ function buildSpawnPositions(arenaWidth: number, arenaHeight: number): Position[
   return positions;
 }
 
-function buildPlayers(characters: BossMechanicCharacter[], arenaWidth: number, arenaHeight: number): Player[] {
-  const greenCounts = shuffle(Array.from({ length: PAIR_COUNT / 2 }, () => [1, 3, 2, 2]).flat());
+function buildPlayers(characters: BossMechanicCharacter[], arenaWidth: number, arenaHeight: number, pairCount: number): Player[] {
+  const mechanicGreenCounts = Array.from({ length: pairCount }, (_, index) => (
+    index % 2 === 0 ? [1, 3] : [2, 2]
+  )).flat();
+  const assignments = shuffle([
+    ...mechanicGreenCounts.map((greenCount) => ({ greenCount, hasMechanic: true })),
+    ...Array.from({ length: PLAYER_COUNT - mechanicGreenCounts.length }, () => ({ greenCount: 0, hasMechanic: false })),
+  ]);
   const positions = buildSpawnPositions(arenaWidth, arenaHeight);
 
   return shuffle(characters).map((character, index) => ({
     ...character,
     ...positions[index],
-    greenCount: greenCounts[index],
+    ...assignments[index],
     matched: false,
   }));
 }
@@ -251,7 +266,12 @@ export default function HelicalToxinsGame() {
       if (loadId !== loadIdRef.current) return;
       if (response.characters.length !== PLAYER_COUNT) throw new Error("A full raid group was not returned");
       const arenaRect = arenaRef.current?.getBoundingClientRect();
-      setPlayers(buildPlayers(response.characters, arenaRect?.width || 1_200, arenaRect?.height || 675));
+      setPlayers(buildPlayers(
+        response.characters,
+        arenaRect?.width || 1_200,
+        arenaRect?.height || 675,
+        DIFFICULTY_BY_ID[difficultyRef.current].pairCount,
+      ));
       setPhase("ready");
     } catch {
       if (loadId === loadIdRef.current) {
@@ -382,7 +402,7 @@ export default function HelicalToxinsGame() {
     const current = playersRef.current;
     const source = current.find((player) => player.id === sourceId);
     const target = current.find((player) => player.id === targetId);
-    if (!source || !target || source.matched || target.matched || phase !== "playing") return;
+    if (!source || !target || !source.hasMechanic || !target.hasMechanic || source.matched || target.matched || phase !== "playing") return;
 
     const total = source.greenCount + target.greenCount;
     if (total !== 4) {
@@ -398,15 +418,19 @@ export default function HelicalToxinsGame() {
       return;
     }
 
+    const [sourcePosition, targetPosition] = getMatchedPairPositions(
+      target,
+      arenaRef.current?.getBoundingClientRect().width || 1_200,
+    );
     const nextPlayers = current.map((player) => {
-      if (player.id === sourceId) return { ...player, x: target.x, y: target.y, matched: true };
-      if (player.id === targetId) return { ...player, matched: true };
+      if (player.id === sourceId) return { ...player, ...sourcePosition, matched: true };
+      if (player.id === targetId) return { ...player, ...targetPosition, matched: true };
       return player;
     });
     playersRef.current = nextPlayers;
     setPlayers(nextPlayers);
     dragRef.current = null;
-    if (nextPlayers.every((player) => player.matched)) {
+    if (nextPlayers.filter((player) => player.hasMechanic).every((player) => player.matched)) {
       const timeLeftMs = Math.max(0, roundDurationMs - (Date.now() - startedAtRef.current));
       const pulls = wipeCountRef.current + 1;
       startedAtRef.current = 0;
@@ -461,10 +485,10 @@ export default function HelicalToxinsGame() {
     const radiusX = Math.min(25, Math.max(15, rect.width * 0.025));
     const radiusY = Math.min(14, Math.max(9, rect.height * 0.02));
     const draggedPlayer = playersRef.current.find((player) => player.id === drag.id);
-    const collision = draggedPlayer?.matched
+    const collision = !draggedPlayer?.hasMechanic || draggedPlayer.matched
       ? undefined
       : playersRef.current
-        .filter((player) => player.id !== drag.id && !player.matched)
+        .filter((player) => player.id !== drag.id && player.hasMechanic && !player.matched)
         .map((player) => {
           const startX = (drag.lastPosition.x - player.x) * rect.width / (radiusX * 2);
           const startY = (drag.lastPosition.y - player.y) * rect.height / (radiusY * 2);
@@ -508,10 +532,11 @@ export default function HelicalToxinsGame() {
   };
 
   const matchedPairs = players.filter((player) => player.matched).length / 2;
+  const pairCount = DIFFICULTY_BY_ID[difficulty].pairCount;
   const showToxinMarkers = (phase === "playing" || phase === "won" || phase === "wiped")
     && (difficulty !== "mythic" || remainingMs > 5_000);
   const resultCopy = phase === "won"
-    ? { title: t("clearTitle"), body: t("clearBody", { pulls: clearPulls }) }
+    ? { title: t("clearTitle"), body: t("clearBody", { pulls: clearPulls, pairs: pairCount }) }
     : wipeReason === "manual"
       ? { title: t("wipeTitle", { count: wipeCount }), body: t("manualWipeBody") }
       : wipeReason === "timeout"
@@ -560,7 +585,7 @@ export default function HelicalToxinsGame() {
             <div className={styles.hud}>
           <div><span>{t("time")}</span><strong>{(remainingMs / 1000).toFixed(1)}</strong></div>
           <div className={styles.timerTrack} aria-hidden="true"><span style={{ width: `${(remainingMs / roundDurationMs) * 100}%` }} /></div>
-          <div className={styles.hudPairs}><span>{t("pairs")}</span><strong>{matchedPairs}/{PAIR_COUNT}</strong></div>
+          <div className={styles.hudPairs}><span>{t("pairs")}</span><strong>{matchedPairs}/{pairCount}</strong></div>
           <button
             type="button"
             className={styles.wipeButton}
@@ -586,7 +611,7 @@ export default function HelicalToxinsGame() {
               className={`${styles.player} ${player.matched ? styles.matched : ""}`}
               style={{ left: `${player.x * 100}%`, top: `${player.y * 100}%`, zIndex: getPlayerDepth(player.y) }}
               role="group"
-              aria-label={phase === "playing" ? t("playerLabel", { name: player.name, green: player.greenCount }) : player.name}
+              aria-label={phase === "playing" && player.hasMechanic ? t("playerLabel", { name: player.name, green: player.greenCount }) : player.name}
             >
               <span className={styles.nameplate} style={{ color: CCG_CLASS_COLORS[player.classID] ?? "#e2e8f0" }}>{player.name}</span>
               <span
@@ -607,13 +632,13 @@ export default function HelicalToxinsGame() {
                   onReady={() => markRenderReady(player.id)}
                 />
               </span>
-              <span className={styles.footZone} aria-hidden="true" />
+              {player.hasMechanic ? <span className={styles.footZone} aria-hidden="true" /> : null}
             </div>
           ))}
 
           {showToxinMarkers ? (
             <div className={styles.markerLayer} aria-hidden="true">
-              {players.filter((player) => !player.matched).map((player) => (
+              {players.filter((player) => player.hasMechanic && !player.matched).map((player) => (
                 <span
                   key={player.id}
                   className={styles.markerAnchor}

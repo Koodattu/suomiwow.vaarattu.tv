@@ -2493,7 +2493,7 @@
       "retry": "Yritä uudelleen",
       "success": "Välivaihe selvitetty",
       "clearTitle": "Mekaniikka suoritettu",
-      "clearBody": "{pulls, plural, one {Kaikki kymmenen paria neutraloivat Helical Toxins -myrkkynsä ensimmäisellä pullilla.} other {Kaikki kymmenen paria neutraloivat Helical Toxins -myrkkynsä # pullilla.}}",
+      "clearBody": "{pulls, plural, one {Kaikki {pairs} paria neutraloivat Helical Toxins -myrkkynsä ensimmäisellä pullilla.} other {Kaikki {pairs} paria neutraloivat Helical Toxins -myrkkynsä # pullilla.}}",
       "wipeTitle": "Wipe #{count}",
       "timeoutBody": "Vitriolic Stasis päättyi ennen kuin kaikki parit löytyivät.",
       "wrongPairBody": "Törmäyksessä oli {total} vihreää myrkkyä tasan neljän sijaan.",
