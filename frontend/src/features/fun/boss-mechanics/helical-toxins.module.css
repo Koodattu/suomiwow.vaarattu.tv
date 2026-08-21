@@ -113,7 +113,7 @@
 }
 
 .player:active { z-index: 100 !important; }
-.renderWindow { position: absolute; inset: 2.05rem 0 0.42rem; overflow: visible; cursor: grab; filter: drop-shadow(0 0.4rem 0.25rem rgba(0, 0, 0, 0.92)); touch-action: none; -webkit-user-drag: none; }
+.renderWindow { position: absolute; z-index: 5; inset: 2.05rem 0 0.42rem; overflow: visible; cursor: grab; filter: drop-shadow(0 0.4rem 0.25rem rgba(0, 0, 0, 0.92)); touch-action: none; -webkit-user-drag: none; }
 .renderWindow:active { cursor: grabbing; }
 .renderImage { top: var(--render-fit-top) !important; right: auto !important; bottom: auto !important; left: 50% !important; width: auto !important; height: var(--render-fit-height) !important; max-width: none !important; object-fit: contain; opacity: 0; transform: translateX(var(--render-fit-translate-x)); user-select: none; -webkit-user-drag: none; }
 .renderImage[data-fit-ready="true"] { opacity: 1; }
