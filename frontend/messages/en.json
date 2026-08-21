@@ -2497,6 +2497,8 @@
       "wipeTitle": "Wipe #{count}",
       "timeoutBody": "Vitriolic Stasis ended before every pair was matched.",
       "wrongPairBody": "That collision made {total} green toxins instead of exactly four.",
+      "manualWipeBody": "The pull was called before the mechanic was cleared.",
+      "wipe": "Wipe",
       "newPull": "New pull #{count}",
       "guideLink": "View guide",
       "playerLabel": "{name}, {green} green toxins"

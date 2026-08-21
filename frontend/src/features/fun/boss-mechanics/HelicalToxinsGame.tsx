@@ -30,6 +30,7 @@ const DIFFICULTY_BY_ID = Object.fromEntries(DIFFICULTIES.map((difficulty) => [di
 type Position = { x: number; y: number };
 type Player = BossMechanicCharacter & Position & { greenCount: number; matched: boolean };
 type Phase = "loading" | "ready" | "playing" | "won" | "wiped" | "error";
+type WipeReason = "timeout" | "manual" | { total: number };
 type DragState = {
   id: string;
   pointerId: number;
@@ -218,15 +219,15 @@ export default function HelicalToxinsGame() {
   const loadIdRef = useRef(0);
   const autoStartRef = useRef(false);
   const selectedGuildIdRef = useRef("");
-  const difficultyRef = useRef<BossMechanicDifficulty>("heroic");
+  const difficultyRef = useRef<BossMechanicDifficulty>("normal");
   const wipeCountRef = useRef(0);
   const [players, setPlayers] = useState<Player[]>([]);
   const [phase, setPhase] = useState<Phase>("loading");
-  const [remainingMs, setRemainingMs] = useState(DIFFICULTY_BY_ID.heroic.durationMs);
-  const [wipeTotal, setWipeTotal] = useState<number | null>(null);
+  const [remainingMs, setRemainingMs] = useState(DIFFICULTY_BY_ID.normal.durationMs);
+  const [wipeReason, setWipeReason] = useState<WipeReason>("timeout");
   const [wipeCount, setWipeCount] = useState(0);
   const [clearPulls, setClearPulls] = useState(1);
-  const [difficulty, setDifficulty] = useState<BossMechanicDifficulty>("heroic");
+  const [difficulty, setDifficulty] = useState<BossMechanicDifficulty>("normal");
   const [guilds, setGuilds] = useState<BossMechanicGuild[]>([]);
   const [selectedGuildId, setSelectedGuildId] = useState("");
   const [leaderboard, setLeaderboard] = useState<BossMechanicLeaderboardEntry[]>([]);
@@ -242,7 +243,7 @@ export default function HelicalToxinsGame() {
     autoStartRef.current = autoStart;
     setPhase("loading");
     setPlayers([]);
-    setWipeTotal(null);
+    setWipeReason("timeout");
     setRemainingMs(DIFFICULTY_BY_ID[difficultyRef.current].durationMs);
     setReadyRenders(new Set());
     try {
@@ -311,6 +312,7 @@ export default function HelicalToxinsGame() {
         wipeCountRef.current = nextWipeCount;
         setWipeCount(nextWipeCount);
         writeStoredWipes(difficultyRef.current, nextWipeCount);
+        setWipeReason("timeout");
         setPhase("wiped");
         dragRef.current = null;
       }
@@ -325,7 +327,7 @@ export default function HelicalToxinsGame() {
     autoStartRef.current = false;
     startedAtRef.current = Date.now();
     setRemainingMs(roundDurationMs);
-    setWipeTotal(null);
+    setWipeReason("timeout");
     setPhase("playing");
   };
 
@@ -334,7 +336,7 @@ export default function HelicalToxinsGame() {
     autoStartRef.current = false;
     startedAtRef.current = Date.now();
     setRemainingMs(roundDurationMs);
-    setWipeTotal(null);
+    setWipeReason("timeout");
     setPhase("playing");
   }, [phase, readyRenders, roundDurationMs]);
 
@@ -364,14 +366,14 @@ export default function HelicalToxinsGame() {
     void assembleRaid();
   };
 
-  const wipe = (total: number) => {
+  const wipe = (reason: WipeReason) => {
     if (startedAtRef.current === 0) return;
     startedAtRef.current = 0;
     const nextWipeCount = Math.min(wipeCountRef.current + 1, 9_999);
     wipeCountRef.current = nextWipeCount;
     setWipeCount(nextWipeCount);
     writeStoredWipes(difficultyRef.current, nextWipeCount);
-    setWipeTotal(total);
+    setWipeReason(reason);
     dragRef.current = null;
     setPhase("wiped");
   };
@@ -392,7 +394,7 @@ export default function HelicalToxinsGame() {
         dragRef.current = null;
         return;
       }
-      wipe(total);
+      wipe({ total });
       return;
     }
 
@@ -510,9 +512,11 @@ export default function HelicalToxinsGame() {
     && (difficulty !== "mythic" || remainingMs > 5_000);
   const resultCopy = phase === "won"
     ? { title: t("clearTitle"), body: t("clearBody", { pulls: clearPulls }) }
-    : wipeTotal === null
+    : wipeReason === "manual"
+      ? { title: t("wipeTitle", { count: wipeCount }), body: t("manualWipeBody") }
+      : wipeReason === "timeout"
       ? { title: t("wipeTitle", { count: wipeCount }), body: t("timeoutBody") }
-      : { title: t("wipeTitle", { count: wipeCount }), body: t("wrongPairBody", { total: wipeTotal }) };
+      : { title: t("wipeTitle", { count: wipeCount }), body: t("wrongPairBody", { total: wipeReason.total }) };
   const guildOptions: GameSelectOption[] = [
     { value: "", label: t("dreamTeam") },
     ...guilds.map((guild) => ({ value: guild.id, label: guild.name })),
@@ -556,7 +560,17 @@ export default function HelicalToxinsGame() {
             <div className={styles.hud}>
           <div><span>{t("time")}</span><strong>{(remainingMs / 1000).toFixed(1)}</strong></div>
           <div className={styles.timerTrack} aria-hidden="true"><span style={{ width: `${(remainingMs / roundDurationMs) * 100}%` }} /></div>
-          <div><span>{t("pairs")}</span><strong>{matchedPairs}/{PAIR_COUNT}</strong></div>
+          <div className={styles.hudPairs}><span>{t("pairs")}</span><strong>{matchedPairs}/{PAIR_COUNT}</strong></div>
+          <button
+            type="button"
+            className={styles.wipeButton}
+            data-visible={phase === "playing"}
+            disabled={phase !== "playing"}
+            aria-hidden={phase !== "playing"}
+            onClick={() => wipe("manual")}
+          >
+            {t("wipe")}
+          </button>
             </div>
 
             <div ref={arenaRef} className={styles.arena} data-phase={phase}>

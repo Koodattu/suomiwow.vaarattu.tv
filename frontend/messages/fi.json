@@ -2497,6 +2497,8 @@
       "wipeTitle": "Wipe #{count}",
       "timeoutBody": "Vitriolic Stasis päättyi ennen kuin kaikki parit löytyivät.",
       "wrongPairBody": "Törmäyksessä oli {total} vihreää myrkkyä tasan neljän sijaan.",
+      "manualWipeBody": "Pulli keskeytettiin ennen mekaniikan suorittamista.",
+      "wipe": "Wipe",
       "newPull": "Uusi pulli #{count}",
       "guideLink": "Katso opas",
       "playerLabel": "{name}, {green} vihreää myrkkyä"
