@@ -74,6 +74,7 @@ const collectionUrlParamNames = [
   "finish",
   "sort",
   "guild",
+  "guildRealm",
   "character",
   "characterName",
   "characterRealm",
@@ -86,7 +87,8 @@ const objectIdPattern = /^[a-f\d]{24}$/i;
 
 type CollectionUrlState = {
   setSlug: string;
-  guildId: string;
+  guild: string;
+  guildRealm: string;
   selectedCharacter: CollectionCharacterFilter | null;
   visibility: CollectionVisibility;
   alternativeOnly: boolean;
@@ -106,6 +108,28 @@ function collectionUrlFlag(params: Pick<URLSearchParams, "get">, name: string): 
   return value === "1" || value === "true";
 }
 
+function normalizeGuildIdentity(value: string): string {
+  return value.normalize("NFC").toLocaleLowerCase();
+}
+
+function resolveCollectionGuild(
+  guilds: readonly CcgGuildFacet[],
+  guildIdentifier: string,
+  guildRealm: string,
+): CcgGuildFacet | undefined {
+  if (!guildIdentifier) return undefined;
+  const normalizedGuild = normalizeGuildIdentity(guildIdentifier);
+  const idMatch = !guildRealm && objectIdPattern.test(guildIdentifier)
+    ? guilds.find((guild) => normalizeGuildIdentity(guild.id) === normalizedGuild)
+    : undefined;
+  if (idMatch) return idMatch;
+
+  const nameMatches = guilds.filter((guild) => normalizeGuildIdentity(guild.name) === normalizedGuild);
+  if (!guildRealm) return nameMatches.length === 1 ? nameMatches[0] : undefined;
+  const normalizedRealm = normalizeGuildIdentity(guildRealm);
+  return nameMatches.find((guild) => normalizeGuildIdentity(guild.realm) === normalizedRealm);
+}
+
 function parseCollectionUrlState(params: Pick<URLSearchParams, "get">): CollectionUrlState {
   const requestedSet = collectionUrlValue(params, "set", 100);
   const requestedVisibility = collectionUrlValue(params, "visibility", 12) as CollectionVisibility;
@@ -118,7 +142,8 @@ function parseCollectionUrlState(params: Pick<URLSearchParams, "get">): Collecti
   const requestedGrade = collectionUrlValue(params, "grade", 1) as CcgTierGrade;
   const requestedFinish = collectionUrlValue(params, "finish", 24) as CollectionFinishOption;
   const requestedSort = collectionUrlValue(params, "sort", 32) as CcgCollectionSort;
-  const requestedGuild = collectionUrlValue(params, "guild", 24);
+  const requestedGuild = collectionUrlValue(params, "guild", 100);
+  const requestedGuildRealm = collectionUrlValue(params, "guildRealm", 80);
   const requestedCharacter = collectionUrlValue(params, "character", 24);
   const characterName = collectionUrlValue(params, "characterName", 60);
   const characterRealm = collectionUrlValue(params, "characterRealm", 80);
@@ -135,7 +160,8 @@ function parseCollectionUrlState(params: Pick<URLSearchParams, "get">): Collecti
 
   return {
     setSlug: /^[a-z0-9-]+$/i.test(requestedSet) ? requestedSet : allSetsSlug,
-    guildId: objectIdPattern.test(requestedGuild) ? requestedGuild : "",
+    guild: requestedGuild,
+    guildRealm: requestedGuildRealm,
     selectedCharacter,
     visibility,
     alternativeOnly,
@@ -225,10 +251,14 @@ export default function CcgCollectionPage() {
     [setsQuery.data?.sets],
   );
   const [setSlug, setSetSlug] = useState(initialUrlState.setSlug);
-  const [guildId, setGuildId] = useState(initialUrlState.guildId);
+  const [guildId, setGuildId] = useState(
+    !initialUrlState.guildRealm && objectIdPattern.test(initialUrlState.guild) ? initialUrlState.guild : "",
+  );
+  const [requestedGuild, setRequestedGuild] = useState(initialUrlState.guild);
+  const [requestedGuildRealm, setRequestedGuildRealm] = useState(initialUrlState.guildRealm);
   const [guildSearch, setGuildSearch] = useState("");
   const [guildInputFocused, setGuildInputFocused] = useState(false);
-  const [guildsRequested, setGuildsRequested] = useState(Boolean(initialUrlState.guildId));
+  const [guildsRequested, setGuildsRequested] = useState(Boolean(initialUrlState.guild));
   const guildInputRef = useRef<HTMLInputElement>(null);
   const mobileGuildInputRef = useRef<HTMLInputElement>(null);
   const [selectedCharacter, setSelectedCharacter] = useState<CollectionCharacterFilter | null>(initialUrlState.selectedCharacter);
@@ -294,6 +324,7 @@ export default function CcgCollectionPage() {
     return new Set([...nameCounts].filter(([, count]) => count > 1).map(([name]) => name));
   }, [guilds]);
   const selectedGuild = guilds.find((guild) => guild.id === guildId);
+  const guildFilterReady = !requestedGuild || (!requestedGuildRealm && objectIdPattern.test(requestedGuild));
   const filteredGuilds = useMemo(() => {
     const search = guildSearch.trim().toLocaleLowerCase();
     if (!search) return guilds;
@@ -349,13 +380,13 @@ export default function CcgCollectionPage() {
       alternative: alternativeOnly || undefined,
       favorite: favoriteOnly || undefined,
     },
-    setSelectionReady && !showCatalog,
+    setSelectionReady && guildFilterReady && !showCatalog,
   );
-  const catalogQuery = useCcgCatalog(collectionSetSlug, page, catalogOwnership, grade, guildId, characterId, selectedCharacterNameSearch, finish, sort, setSelectionReady && showCatalog, cardsPerPage);
+  const catalogQuery = useCcgCatalog(collectionSetSlug, page, catalogOwnership, grade, guildId, characterId, selectedCharacterNameSearch, finish, sort, setSelectionReady && guildFilterReady && showCatalog, cardsPerPage);
   const cardsQuery = showCatalog ? catalogQuery : ownedQuery;
-  const cardsData = cardsQuery.data;
-  const cardsLoading = setsQuery.isPending || cardsQuery.isPending;
-  const cardsError = cardsQuery.isError;
+  const cardsData = guildFilterReady ? cardsQuery.data : undefined;
+  const cardsLoading = setsQuery.isPending || !guildFilterReady || cardsQuery.isPending;
+  const cardsError = guildFilterReady && cardsQuery.isError;
   const pageCountScope = JSON.stringify([setSlug, characterId, selectedCharacterNameSearch, guildId, grade, finish, sort, visibility, alternativeOnly, favoriteOnly, cardsPerPage]);
   const displayedPageCount = cardsData?.pages
     ?? (pageCountCache.scope === pageCountScope ? pageCountCache.pages : 0);
@@ -363,7 +394,15 @@ export default function CcgCollectionPage() {
   useEffect(() => {
     const urlState = parseCollectionUrlState(new URLSearchParams(searchParamsKey));
     setSetSlug((value) => value === urlState.setSlug ? value : urlState.setSlug);
-    setGuildId((value) => value === urlState.guildId ? value : urlState.guildId);
+    const resolvedGuild = resolveCollectionGuild(guilds, urlState.guild, urlState.guildRealm);
+    const nextGuildId = resolvedGuild?.id
+      ?? (!urlState.guildRealm && objectIdPattern.test(urlState.guild) ? urlState.guild : "");
+    const guildLookupFinished = guildsQuery.isSuccess || guildsQuery.isError;
+    const nextRequestedGuild = resolvedGuild || guildLookupFinished ? "" : urlState.guild;
+    const nextRequestedGuildRealm = nextRequestedGuild ? urlState.guildRealm : "";
+    setGuildId((value) => value === nextGuildId ? value : nextGuildId);
+    setRequestedGuild((value) => value === nextRequestedGuild ? value : nextRequestedGuild);
+    setRequestedGuildRealm((value) => value === nextRequestedGuildRealm ? value : nextRequestedGuildRealm);
     setSelectedCharacter((value) => sameCollectionCharacter(value, urlState.selectedCharacter)
       ? value
       : urlState.selectedCharacter);
@@ -374,8 +413,8 @@ export default function CcgCollectionPage() {
     setGrade((value) => value === urlState.grade ? value : urlState.grade);
     setFinish((value) => value === urlState.finish ? value : urlState.finish);
     setSort((value) => value === urlState.sort ? value : urlState.sort);
-    if (urlState.guildId) setGuildsRequested(true);
-  }, [searchParamsKey]);
+    if (urlState.guild) setGuildsRequested(true);
+  }, [guilds, guildsQuery.isError, guildsQuery.isSuccess, searchParamsKey]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -388,7 +427,15 @@ export default function CcgCollectionPage() {
     if (grade) params.set("grade", grade);
     if (finish) params.set("finish", finish);
     if (sort) params.set("sort", sort);
-    if (guildId) params.set("guild", guildId);
+    if (selectedGuild) {
+      params.set("guild", selectedGuild.name);
+      params.set("guildRealm", selectedGuild.realm);
+    } else if (requestedGuild) {
+      params.set("guild", requestedGuild);
+      if (requestedGuildRealm) params.set("guildRealm", requestedGuildRealm);
+    } else if (guildId) {
+      params.set("guild", guildId);
+    }
     if (selectedCharacter) {
       if ("search" in selectedCharacter) {
         params.set("characterName", selectedCharacter.search);
@@ -410,7 +457,10 @@ export default function CcgCollectionPage() {
     grade,
     guildId,
     page,
+    requestedGuild,
+    requestedGuildRealm,
     selectedCharacter,
+    selectedGuild,
     setSlug,
     sort,
     visibility,
@@ -605,6 +655,8 @@ export default function CcgCollectionPage() {
     setSelectedCharacter(null);
     setCharacterSearch("");
     setGuildId("");
+    setRequestedGuild("");
+    setRequestedGuildRealm("");
     setGrade("");
     setFinish("");
     setSort("");
@@ -836,7 +888,11 @@ export default function CcgCollectionPage() {
             value={selectedGuild ?? null}
             by="id"
             onChange={(guild) => {
-              updateFilter(() => setGuildId(guild?.id ?? ""));
+              updateFilter(() => {
+                setGuildId(guild?.id ?? "");
+                setRequestedGuild("");
+                setRequestedGuildRealm("");
+              });
               setGuildSearch("");
               if (guild) {
                 window.requestAnimationFrame(() => {
@@ -1223,7 +1279,11 @@ export default function CcgCollectionPage() {
               value={selectedGuild ?? null}
               by="id"
               onChange={(guild) => {
-                updateFilter(() => setGuildId(guild?.id ?? ""));
+                updateFilter(() => {
+                  setGuildId(guild?.id ?? "");
+                  setRequestedGuild("");
+                  setRequestedGuildRealm("");
+                });
                 setGuildSearch("");
                 if (guild) {
                   window.requestAnimationFrame(() => {

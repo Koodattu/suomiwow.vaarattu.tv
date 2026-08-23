@@ -112,28 +112,44 @@ function MythicPlusSearch({ value, onSubmit }: { value?: string | null; onSubmit
         onSubmit(search);
       }}
     >
-      <input
-        name="search"
-        type="search"
-        value={draft}
-        onChange={(event) => {
-          const search = event.target.value;
-          setDraft(search);
-          if (!search && activeSearch) onSubmit(null);
-        }}
-        onKeyDown={(event) => {
-          if (event.key !== "Enter") return;
-          event.preventDefault();
-          const search = event.currentTarget.value.trim();
-          if (search.length >= 2) onSubmit(search);
-        }}
-        placeholder={t("mythicPlusSearchPlaceholder")}
-        aria-label={t("mythicPlusSearchPlaceholder")}
-        minLength={2}
-        maxLength={64}
-        autoComplete="off"
-        className="min-h-10 min-w-0 w-full rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md outline-none ring-1 ring-white/5 transition-shadow placeholder:text-gray-400 focus:ring-2 focus:ring-emerald-500/70"
-      />
+      <div className="relative min-w-0 flex-1">
+        <input
+          name="search"
+          type="search"
+          value={draft}
+          onChange={(event) => {
+            const search = event.target.value;
+            setDraft(search);
+            if (!search && activeSearch) onSubmit(null);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            const search = event.currentTarget.value.trim();
+            if (search.length >= 2) onSubmit(search);
+          }}
+          placeholder={t("mythicPlusSearchPlaceholder")}
+          aria-label={t("mythicPlusSearchPlaceholder")}
+          minLength={2}
+          maxLength={64}
+          autoComplete="off"
+          className="min-h-10 min-w-0 w-full rounded-md bg-gray-800 py-2 pl-3 pr-10 text-sm font-semibold text-white shadow-md outline-none ring-1 ring-white/5 transition-shadow placeholder:text-gray-400 focus:ring-2 focus:ring-emerald-500/70"
+        />
+        {draft ? (
+          <button
+            type="button"
+            onClick={() => {
+              setDraft("");
+              if (activeSearch) onSubmit(null);
+            }}
+            aria-label={t("clearSearch")}
+            title={t("clearSearch")}
+            className="absolute right-1.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded text-lg leading-none text-red-300 transition-colors hover:bg-red-950/50 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-500"
+          >
+            ×
+          </button>
+        ) : null}
+      </div>
       <button
         type="submit"
         disabled={draft.trim().length < 2}
@@ -162,37 +178,53 @@ function ClassSpecFilters({
 
   return (
     <>
-      <select
-        value={selectedClassId ?? ""}
-        onChange={(event) => {
-          const value = event.target.value ? Number(event.target.value) : null;
-          onClassChange(value);
-          onSpecChange(null);
-        }}
-        className="min-h-10 min-w-[160px] flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-      >
-        <option value="">{t("allClasses")}</option>
-        {classes.map((classInfo: ClassInfo) => (
-          <option key={classInfo.id} value={classInfo.id}>
-            {classInfo.name}
-          </option>
-        ))}
-      </select>
+      <div className="flex min-w-[160px] flex-1 gap-1.5">
+        <select
+          value={selectedClassId ?? ""}
+          onChange={(event) => onClassChange(event.target.value ? Number(event.target.value) : null)}
+          className="min-h-10 min-w-0 flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">{t("allClasses")}</option>
+          {classes.map((classInfo: ClassInfo) => (
+            <option key={classInfo.id} value={classInfo.id}>
+              {classInfo.name}
+            </option>
+          ))}
+        </select>
+        {selectedClass ? <ClearFilterButton label={t("clearClass")} onClick={() => onClassChange(null)} /> : null}
+      </div>
 
-      <select
-        value={selectedSpecName ?? ""}
-        disabled={!selectedClass}
-        onChange={(event) => onSpecChange(event.target.value || null)}
-        className="min-h-10 min-w-[160px] flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      >
-        <option value="">{selectedClass ? t("allSpecs") : t("selectClassFirst")}</option>
-        {selectedClass?.specs.map((spec) => (
-          <option key={spec.name} value={spec.name}>
-            {formatSpecName(spec.name)}
-          </option>
-        ))}
-      </select>
+      <div className="flex min-w-[160px] flex-1 gap-1.5">
+        <select
+          value={selectedSpecName ?? ""}
+          disabled={!selectedClass}
+          onChange={(event) => onSpecChange(event.target.value || null)}
+          className="min-h-10 min-w-0 flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">{selectedClass ? t("allSpecs") : t("selectClassFirst")}</option>
+          {selectedClass?.specs.map((spec) => (
+            <option key={spec.name} value={spec.name}>
+              {formatSpecName(spec.name)}
+            </option>
+          ))}
+        </select>
+        {selectedSpecName ? <ClearFilterButton label={t("clearSpec")} onClick={() => onSpecChange(null)} /> : null}
+      </div>
     </>
+  );
+}
+
+function ClearFilterButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="inline-flex min-h-10 w-9 shrink-0 items-center justify-center rounded-md border border-red-500/30 bg-red-950/20 text-xl leading-none text-red-300 transition-colors hover:bg-red-950/50 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-500"
+    >
+      ×
+    </button>
   );
 }
 
@@ -225,39 +257,48 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
       {error ? <div className="rounded-md border border-red-500/40 bg-red-950/30 px-4 py-3 text-red-200">{error}</div> : null}
 
       <div className="flex w-full flex-wrap gap-3">
-        <MythicPlusSearch value={filters.search} onSubmit={(search) => updateFilters({ search })} />
-        <select
-          value={filters.bucket}
-          onChange={(event) => updateFilters({ bucket: event.target.value as MythicPlusScoreBucket })}
-          className="min-h-10 min-w-[160px] flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {BUCKET_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={filters.dungeonId ?? ""}
-          onChange={(event) => updateFilters({ dungeonId: event.target.value ? Number(event.target.value) : null })}
-          className="min-h-10 min-w-[160px] flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Overall score</option>
-          {selectedSeason?.dungeons.map((dungeon) => (
-            <option key={dungeon.id} value={dungeon.id}>
-              {dungeon.shortName || dungeon.name}
-            </option>
-          ))}
-        </select>
-        {selectedDungeon ? (
+        <MythicPlusSearch key={filters.search ?? ""} value={filters.search} onSubmit={(search) => updateFilters({ search })} />
+        <div className="flex min-w-[160px] flex-1 gap-1.5">
           <select
-            value={filters.dungeonSort}
-            onChange={(event) => updateFilters({ dungeonSort: event.target.value as "score" | "level" })}
-            className="min-h-10 min-w-[160px] flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={filters.bucket}
+            onChange={(event) => updateFilters({ bucket: event.target.value as MythicPlusScoreBucket })}
+            className="min-h-10 min-w-0 flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="score">By score</option>
-            <option value="level">By key</option>
+            {BUCKET_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
+          {filters.bucket !== "all" ? <ClearFilterButton label={t("clearRole")} onClick={() => updateFilters({ bucket: "all" })} /> : null}
+        </div>
+        <div className="flex min-w-[160px] flex-1 gap-1.5">
+          <select
+            value={filters.dungeonId ?? ""}
+            onChange={(event) => updateFilters({ dungeonId: event.target.value ? Number(event.target.value) : null, dungeonSort: "score" })}
+            className="min-h-10 min-w-0 flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Overall score</option>
+            {selectedSeason?.dungeons.map((dungeon) => (
+              <option key={dungeon.id} value={dungeon.id}>
+                {dungeon.shortName || dungeon.name}
+              </option>
+            ))}
+          </select>
+          {selectedDungeon ? <ClearFilterButton label={t("clearDungeon")} onClick={() => updateFilters({ dungeonId: null, dungeonSort: "score" })} /> : null}
+        </div>
+        {selectedDungeon ? (
+          <div className="flex min-w-[160px] flex-1 gap-1.5">
+            <select
+              value={filters.dungeonSort}
+              onChange={(event) => updateFilters({ dungeonSort: event.target.value as "score" | "level" })}
+              className="min-h-10 min-w-0 flex-1 rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="score">By score</option>
+              <option value="level">By key</option>
+            </select>
+            {filters.dungeonSort !== "score" ? <ClearFilterButton label={t("clearSort")} onClick={() => updateFilters({ dungeonSort: "score" })} /> : null}
+          </div>
         ) : null}
         <ClassSpecFilters
           selectedClassId={filters.classId}

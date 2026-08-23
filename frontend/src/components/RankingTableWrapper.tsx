@@ -15,6 +15,7 @@ import { useTranslations } from "next-intl";
 interface RankingTableWrapperProps {
   data: CharacterRankingRow[];
   bosses: Boss[];
+  filters: RankingFilters;
   variant?: RankingTableVariant;
   partitionOptions?: PatchPartitionOption[];
   showPartitionSelector?: boolean;
@@ -39,7 +40,7 @@ interface RankingTableWrapperProps {
   }) => void;
 }
 
-type RankingFilters = {
+export type RankingFilters = {
   encounterId?: number;
   classId?: number | null;
   specName?: string | null;
@@ -586,9 +587,24 @@ function MetricSelector({ selectedMetric, onChange }: MetricSelectorProps) {
   );
 }
 
+function ClearFilterButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="inline-flex min-h-10 w-9 shrink-0 items-center justify-center rounded-md border border-red-500/30 bg-red-950/20 text-xl leading-none text-red-300 transition-colors hover:bg-red-950/50 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-500"
+    >
+      ×
+    </button>
+  );
+}
+
 export function RankingTableWrapper({
   data,
   bosses,
+  filters,
   variant = "rankings",
   partitionOptions = [],
   showPartitionSelector = true,
@@ -598,15 +614,16 @@ export function RankingTableWrapper({
   onFiltersChange,
 }: RankingTableWrapperProps) {
   const t = useTranslations("characterRankingsPage");
-  const [selectedBoss, setSelectedBoss] = useState<Boss | null>(null);
-  const [selectedClass, setSelectedClass] = useState<ClassInfo | null>(null);
-  const [selectedSpec, setSelectedSpec] = useState<string | null>(null);
-  const [selectedPartition, setSelectedPartition] = useState<PatchPartitionOption | null>(null);
-  const [searchValue, setSearchValue] = useState("");
-  const [guildSearchValue, setGuildSearchValue] = useState("");
-  const [selectedMetric, setSelectedMetric] = useState<"dps" | "hps">("dps");
-  const searchInitializedRef = useRef(false);
-  const guildSearchInitializedRef = useRef(false);
+  const selectedBoss = useMemo(() => bosses.find((boss) => boss.id === filters.encounterId) ?? null, [bosses, filters.encounterId]);
+  const selectedClass = useMemo(() => getAllClasses().find((classInfo) => classInfo.id === filters.classId) ?? null, [filters.classId]);
+  const selectedSpec = selectedClass?.specs.some((spec) => spec.name === filters.specName) ? (filters.specName ?? null) : null;
+  const selectedPartition = useMemo(
+    () => partitionOptions.find((partition) => partition.value === filters.partition) ?? null,
+    [filters.partition, partitionOptions],
+  );
+  const selectedMetric = filters.metric ?? "dps";
+  const [searchValue, setSearchValue] = useState(filters.characterName ?? "");
+  const [guildSearchValue, setGuildSearchValue] = useState(filters.guildName ?? "");
   const searchDebounceRef = useRef<number | null>(null);
   const guildSearchDebounceRef = useRef<number | null>(null);
   const applyFiltersRef = useRef<(overrides?: Partial<RankingFilters>) => void>(() => undefined);
@@ -618,14 +635,14 @@ export function RankingTableWrapper({
         classId: selectedClass?.id ?? null,
         specName: selectedSpec,
         metric: selectedMetric,
-        partition: selectedPartition?.value ?? null,
+        partition: showPartitionSelector ? (selectedPartition?.value ?? null) : filters.partition,
         characterName: searchValue.trim() || null,
         guildName: guildSearchValue.trim() || null,
         page: 1,
         ...overrides,
       });
     },
-    [onFiltersChange, selectedBoss?.id, selectedClass?.id, selectedPartition?.value, selectedMetric, selectedSpec, searchValue, guildSearchValue],
+    [filters.partition, guildSearchValue, onFiltersChange, searchValue, selectedBoss?.id, selectedClass?.id, selectedMetric, selectedPartition?.value, selectedSpec, showPartitionSelector],
   );
 
   useEffect(() => {
@@ -633,10 +650,7 @@ export function RankingTableWrapper({
   }, [applyFilters]);
 
   useEffect(() => {
-    if (!searchInitializedRef.current) {
-      searchInitializedRef.current = true;
-      return;
-    }
+    if (searchValue === (filters.characterName ?? "")) return;
 
     if (searchDebounceRef.current) {
       window.clearTimeout(searchDebounceRef.current);
@@ -655,14 +669,11 @@ export function RankingTableWrapper({
         searchDebounceRef.current = null;
       }
     };
-  }, [searchValue]);
+  }, [filters.characterName, searchValue]);
 
   // Guild name search debounce
   useEffect(() => {
-    if (!guildSearchInitializedRef.current) {
-      guildSearchInitializedRef.current = true;
-      return;
-    }
+    if (guildSearchValue === (filters.guildName ?? "")) return;
 
     if (guildSearchDebounceRef.current) {
       window.clearTimeout(guildSearchDebounceRef.current);
@@ -681,47 +692,35 @@ export function RankingTableWrapper({
         guildSearchDebounceRef.current = null;
       }
     };
-  }, [guildSearchValue]);
+  }, [filters.guildName, guildSearchValue]);
 
   const handleBossChange = (boss: Boss | null) => {
-    setSelectedBoss(boss);
     applyFilters({ encounterId: boss?.id, page: 1 });
   };
 
   const handleClassChange = (classInfo: ClassInfo) => {
-    setSelectedClass(classInfo);
-    setSelectedSpec(null);
     applyFilters({ classId: classInfo.id, specName: null, page: 1 });
   };
 
   const handleSpecSelect = (classInfo: ClassInfo, specName: string) => {
-    setSelectedClass(classInfo);
-    setSelectedSpec(specName);
     applyFilters({ classId: classInfo.id, specName, page: 1 });
   };
 
   const clearClassAndSpec = () => {
-    setSelectedClass(null);
-    setSelectedSpec(null);
     applyFilters({ classId: null, specName: null, page: 1 });
   };
 
   const handlePartitionChange = (partition: PatchPartitionOption | null) => {
-    setSelectedPartition(partition);
     applyFilters({ partition: partition?.value ?? null, page: 1 });
   };
 
   const handleMetricChange = (metric: "dps" | "hps") => {
-    setSelectedMetric(metric);
-
     // When switching to HPS, clear any class/spec selection that isn't a healer
     if (metric === "hps" && selectedClass) {
       const hasHealerSpec = selectedClass.specs.some((spec) => spec.role === "healer");
       const isSpecHealer = selectedSpec ? selectedClass.specs.some((spec) => spec.name === selectedSpec && spec.role === "healer") : false;
 
       if ((selectedSpec && !isSpecHealer) || (!selectedSpec && !hasHealerSpec)) {
-        setSelectedClass(null);
-        setSelectedSpec(null);
         applyFilters({ metric, classId: null, specName: null, page: 1 });
         return;
       }
@@ -777,63 +776,98 @@ export function RankingTableWrapper({
         <h2 className="text-xl font-semibold text-white">{title}</h2>
         <div className="flex flex-wrap gap-3 w-full">
           {/* Character Search */}
-          <input
-            type="text"
-            value={searchValue}
-            onChange={(event) => setSearchValue(event.target.value)}
-            maxLength={64}
-            placeholder={t("searchPlaceholder")}
-            className="flex-1 min-w-[160px] min-h-10 rounded-md bg-gray-800 py-2 px-3 text-white shadow-md placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm font-bold whitespace-nowrap"
-          />
+          <div className="relative min-w-[160px] flex-1">
+            <input
+              type="text"
+              value={searchValue}
+              onChange={(event) => setSearchValue(event.target.value)}
+              maxLength={64}
+              placeholder={t("searchPlaceholder")}
+              className="min-h-10 w-full rounded-md bg-gray-800 py-2 pl-3 pr-10 font-bold text-white shadow-md placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+            />
+            {searchValue ? (
+              <button
+                type="button"
+                onClick={() => setSearchValue("")}
+                aria-label={t("clearCharacterSearch")}
+                title={t("clearCharacterSearch")}
+                className="absolute right-1.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded text-lg leading-none text-red-300 transition-colors hover:bg-red-950/50 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
 
           {/* Guild Search */}
-          <input
-            type="text"
-            value={guildSearchValue}
-            onChange={(event) => setGuildSearchValue(event.target.value)}
-            maxLength={64}
-            placeholder={t("searchGuildPlaceholder")}
-            className="flex-1 min-w-[160px] min-h-10 rounded-md bg-gray-800 py-2 px-3 text-white shadow-md placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm font-bold whitespace-nowrap"
-          />
+          <div className="relative min-w-[160px] flex-1">
+            <input
+              type="text"
+              value={guildSearchValue}
+              onChange={(event) => setGuildSearchValue(event.target.value)}
+              maxLength={64}
+              placeholder={t("searchGuildPlaceholder")}
+              className="min-h-10 w-full rounded-md bg-gray-800 py-2 pl-3 pr-10 font-bold text-white shadow-md placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+            />
+            {guildSearchValue ? (
+              <button
+                type="button"
+                onClick={() => setGuildSearchValue("")}
+                aria-label={t("clearGuildSearch")}
+                title={t("clearGuildSearch")}
+                className="absolute right-1.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded text-lg leading-none text-red-300 transition-colors hover:bg-red-950/50 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
 
           {/* Boss Selector */}
-          <div className="flex-1 min-w-[160px]">
-            <Selector
-              items={bosses}
-              selectedItem={selectedBoss}
-              onChange={handleBossChange}
-              placeholder={t("placeholderAllBosses")}
-              renderButton={(boss) => (
-                <div className="flex items-center gap-2 whitespace-nowrap">
-                  <IconImage iconFilename={boss?.iconUrl} alt={`${boss?.name} icon`} width={24} height={24} />
-                  {boss?.name}
-                </div>
-              )}
-              renderOption={(boss) => (
-                <>
-                  <IconImage iconFilename={boss.iconUrl} alt={`${boss.name} icon`} width={24} height={24} />
-                  {boss.name}
-                </>
-              )}
-            />
+          <div className="flex min-w-[160px] flex-1 gap-1.5">
+            <div className="min-w-0 flex-1">
+              <Selector
+                items={bosses}
+                selectedItem={selectedBoss}
+                onChange={handleBossChange}
+                placeholder={t("placeholderAllBosses")}
+                renderButton={(boss) => (
+                  <div className="flex items-center gap-2 whitespace-nowrap">
+                    <IconImage iconFilename={boss?.iconUrl} alt={`${boss?.name} icon`} width={24} height={24} />
+                    {boss?.name}
+                  </div>
+                )}
+                renderOption={(boss) => (
+                  <>
+                    <IconImage iconFilename={boss.iconUrl} alt={`${boss.name} icon`} width={24} height={24} />
+                    {boss.name}
+                  </>
+                )}
+              />
+            </div>
+            {selectedBoss ? <ClearFilterButton label={t("clearBoss")} onClick={() => handleBossChange(null)} /> : null}
           </div>
 
           {/* Class / Spec Selector */}
-          <div className="flex-1 min-w-[160px]">
-            <ClassSpecSelector
-              selectedClass={selectedClass}
-              selectedSpec={selectedSpec}
-              selectedRole={selectedMetric === "hps" ? "healer" : null}
-              allClassesLabel={t("allClasses")}
-              onClassSelect={handleClassChange}
-              onSpecSelect={handleSpecSelect}
-              onClear={clearClassAndSpec}
-            />
+          <div className="flex min-w-[160px] flex-1 gap-1.5">
+            <div className="min-w-0 flex-1">
+              <ClassSpecSelector
+                selectedClass={selectedClass}
+                selectedSpec={selectedSpec}
+                selectedRole={selectedMetric === "hps" ? "healer" : null}
+                allClassesLabel={t("allClasses")}
+                onClassSelect={handleClassChange}
+                onSpecSelect={handleSpecSelect}
+                onClear={clearClassAndSpec}
+              />
+            </div>
+            {selectedClass ? <ClearFilterButton label={t("clearClass")} onClick={clearClassAndSpec} /> : null}
           </div>
 
           {/* Metric Selector */}
-          <div className="min-w-[120px]">
-            <MetricSelector selectedMetric={selectedMetric} onChange={handleMetricChange} />
+          <div className="flex min-w-[120px] gap-1.5">
+            <div className="min-w-0 flex-1">
+              <MetricSelector selectedMetric={selectedMetric} onChange={handleMetricChange} />
+            </div>
+            {selectedMetric !== "dps" ? <ClearFilterButton label={t("clearRole")} onClick={() => handleMetricChange("dps")} /> : null}
           </div>
 
           {showPartitionSelector && (

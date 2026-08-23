@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import RaidSelector from "@/components/RaidSelector";
 import CharacterTierBoard, { CharacterTierBoardItem } from "@/components/character-tier-lists/CharacterTierBoard";
@@ -10,6 +11,28 @@ import type { CharacterTierListCharacter, CharacterTierListRole } from "@/types"
 
 type GeneratedView = "role" | "all";
 type GeneratedMetric = "performance" | "mechanics" | "combined";
+
+type CharacterTierListUrlState = {
+  raidId: number | null;
+  guildName: string;
+  classId: number | "all";
+  view: GeneratedView;
+  metric: GeneratedMetric;
+};
+
+function getCharacterTierListUrlState(searchParams: URLSearchParams): CharacterTierListUrlState {
+  const requestedRaidId = Number(searchParams.get("raid"));
+  const requestedClassId = Number(searchParams.get("class"));
+  const guildName = searchParams.get("guild")?.trim().slice(0, 100) || "all";
+
+  return {
+    raidId: Number.isSafeInteger(requestedRaidId) && requestedRaidId > 0 ? requestedRaidId : null,
+    guildName,
+    classId: getAllClasses().some((classInfo) => classInfo.id === requestedClassId) ? requestedClassId : "all",
+    view: searchParams.get("view") === "role" ? "role" : "all",
+    metric: searchParams.get("metric") === "performance" || searchParams.get("metric") === "mechanics" ? (searchParams.get("metric") as GeneratedMetric) : "combined",
+  };
+}
 
 function toBoardItem(character: CharacterTierListCharacter, metric: GeneratedMetric): CharacterTierBoardItem {
   return {
@@ -34,14 +57,31 @@ function toBoardItem(character: CharacterTierListCharacter, metric: GeneratedMet
   };
 }
 
-export default function CharacterTierListsPage() {
-  const t = useTranslations("characterTierListsPage");
-  const [selectedRaidId, setSelectedRaidId] = useState<number | null>(null);
-  const [guildName, setGuildName] = useState("all");
+function CharacterTierListsContent() {
+  const searchParamsKey = useSearchParams().toString();
   const [characterSearch, setCharacterSearch] = useState("");
-  const [classId, setClassId] = useState<number | "all">("all");
-  const [view, setView] = useState<GeneratedView>("all");
-  const [metric, setMetric] = useState<GeneratedMetric>("combined");
+  return <CharacterTierListsState key={searchParamsKey} searchParamsKey={searchParamsKey} characterSearch={characterSearch} setCharacterSearch={setCharacterSearch} />;
+}
+
+function CharacterTierListsState({
+  searchParamsKey,
+  characterSearch,
+  setCharacterSearch,
+}: {
+  searchParamsKey: string;
+  characterSearch: string;
+  setCharacterSearch: (value: string) => void;
+}) {
+  const searchParams = useMemo(() => new URLSearchParams(searchParamsKey), [searchParamsKey]);
+  const initialUrlState = getCharacterTierListUrlState(searchParams);
+  const t = useTranslations("characterTierListsPage");
+  const pathname = usePathname();
+  const router = useRouter();
+  const [requestedRaidId, setRequestedRaidId] = useState<number | null>(initialUrlState.raidId);
+  const [guildName, setGuildName] = useState(initialUrlState.guildName);
+  const [classId, setClassId] = useState<number | "all">(initialUrlState.classId);
+  const [view, setView] = useState<GeneratedView>(initialUrlState.view);
+  const [metric, setMetric] = useState<GeneratedMetric>(initialUrlState.metric);
 
   const { data: allRaids } = useRaids();
   const { data: tierListRaids } = useCharacterTierListRaids();
@@ -52,12 +92,12 @@ export default function CharacterTierListsPage() {
     const availableRaidIds = new Set(tierListRaids.map((raid) => raid.raidId));
     return allRaids.filter((raid) => availableRaidIds.has(raid.id));
   }, [allRaids, tierListRaids]);
-
-  useEffect(() => {
-    if (!selectedRaidId && raids.length > 0) {
-      setSelectedRaidId(raids[0].id);
-    }
-  }, [raids, selectedRaidId]);
+  const raidsInitialized = !!allRaids && !!tierListRaids;
+  const selectedRaidId = useMemo(() => {
+    if (!raidsInitialized) return null;
+    if (requestedRaidId && raids.some((raid) => raid.id === requestedRaidId)) return requestedRaidId;
+    return raids[0]?.id ?? null;
+  }, [raids, raidsInitialized, requestedRaidId]);
 
   const filters = useMemo(
     () => ({
@@ -75,7 +115,8 @@ export default function CharacterTierListsPage() {
     () => Array.from(new Set(data?.characters.map((character) => character.guildName?.trim()).filter((name): name is string => !!name) ?? [])).sort((a, b) => a.localeCompare(b)),
     [data],
   );
-  const activeGuildName = guildName === "all" || guildNames.includes(guildName) ? guildName : "all";
+  const activeGuildName = data && guildName !== "all" && guildNames.includes(guildName) ? guildName : "all";
+  const resolvedGuildName = data ? activeGuildName : guildName;
   const normalizedCharacterSearch = characterSearch.trim().toLowerCase();
   const characters = useMemo(
     () =>
@@ -101,6 +142,24 @@ export default function CharacterTierListsPage() {
     [referenceCharacters],
   );
 
+  useEffect(() => {
+    const urlRaidId = selectedRaidId ?? requestedRaidId;
+    if (!urlRaidId) return;
+    const params = new URLSearchParams(searchParamsKey);
+    params.set("raid", String(urlRaidId));
+    if (resolvedGuildName === "all") params.delete("guild");
+    else params.set("guild", resolvedGuildName);
+    if (classId === "all") params.delete("class");
+    else params.set("class", String(classId));
+    if (view === "all") params.delete("view");
+    else params.set("view", view);
+    if (metric === "combined") params.delete("metric");
+    else params.set("metric", metric);
+    const nextSearchParamsKey = params.toString();
+    if (nextSearchParamsKey === searchParamsKey) return;
+    router.replace(`${pathname}?${nextSearchParamsKey}`, { scroll: false });
+  }, [classId, metric, pathname, requestedRaidId, resolvedGuildName, router, searchParamsKey, selectedRaidId, view]);
+
   return (
     <main className="min-h-screen bg-gray-950 px-4 py-6 text-white md:px-6 md:py-8">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -112,7 +171,7 @@ export default function CharacterTierListsPage() {
             </div>
 
             <div className="w-full lg:w-auto">
-              <RaidSelector raids={raids} selectedRaidId={selectedRaidId} onRaidSelect={(raidId) => setSelectedRaidId(raidId)} compact />
+              <RaidSelector raids={raids} selectedRaidId={selectedRaidId} onRaidSelect={(raidId) => setRequestedRaidId(raidId)} compact />
             </div>
           </div>
 
@@ -209,5 +268,13 @@ export default function CharacterTierListsPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function CharacterTierListsPage() {
+  return (
+    <Suspense fallback={null}>
+      <CharacterTierListsContent />
+    </Suspense>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState, useMemo } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { GuildTierScore } from "@/types";
 import { useTranslations } from "next-intl";
@@ -238,12 +238,25 @@ function GuildScoresTable({ guilds, onGuildClick, calculatedAt, t }: GuildScores
   );
 }
 
-export default function TierListsPage() {
+function getRequestedRaidId(searchParams: URLSearchParams): number | null | undefined {
+  const value = searchParams.get("raid");
+  if (value === "overall") return null;
+  const raidId = Number(value);
+  return Number.isSafeInteger(raidId) && raidId > 0 ? raidId : undefined;
+}
+
+function TierListsContent() {
+  const searchParamsKey = useSearchParams().toString();
+  return <TierListsState key={searchParamsKey} searchParamsKey={searchParamsKey} />;
+}
+
+function TierListsState({ searchParamsKey }: { searchParamsKey: string }) {
+  const searchParams = useMemo(() => new URLSearchParams(searchParamsKey), [searchParamsKey]);
   const t = useTranslations("tierListsPage");
   const navigationT = useTranslations("navigation");
+  const pathname = usePathname();
   const router = useRouter();
-  const [selectedRaidId, setSelectedRaidId] = useState<number | null>(null);
-  const [initialized, setInitialized] = useState(false);
+  const [requestedRaidId, setRequestedRaidId] = useState<number | null | undefined>(() => getRequestedRaidId(searchParams));
 
   // Fetch raid metadata
   const { data: allRaids } = useRaids();
@@ -255,16 +268,23 @@ export default function TierListsPage() {
     const tierListRaidIds = new Set(tierListRaidsData.map((r) => r.raidId));
     return allRaids.filter((r) => tierListRaidIds.has(r.id));
   }, [allRaids, tierListRaidsData]);
+  const initialized = !!allRaids && !!tierListRaidsData;
+  const defaultRaidId = raids.find((raid) => raid.isPrimary)?.id ?? raids[0]?.id ?? null;
+  const selectedRaidId = useMemo(() => {
+    if (!initialized) return null;
+    if (requestedRaidId === null) return null;
+    if (requestedRaidId && raids.some((raid) => raid.id === requestedRaidId)) return requestedRaidId;
+    return defaultRaidId;
+  }, [defaultRaidId, initialized, raids, requestedRaidId]);
 
-  // Set initial selectedRaidId when raids data loads (only once)
   useEffect(() => {
-    if (!initialized && allRaids && tierListRaidsData) {
-      if (raids.length > 0) {
-        setSelectedRaidId(raids.find((raid) => raid.isPrimary)?.id ?? raids[0].id);
-      }
-      setInitialized(true);
-    }
-  }, [initialized, allRaids, tierListRaidsData, raids]);
+    if (!initialized) return;
+    const params = new URLSearchParams(searchParamsKey);
+    params.set("raid", selectedRaidId === null ? "overall" : String(selectedRaidId));
+    const nextSearchParamsKey = params.toString();
+    if (nextSearchParamsKey === searchParamsKey) return;
+    router.replace(`${pathname}?${nextSearchParamsKey}`, { scroll: false });
+  }, [initialized, pathname, router, searchParamsKey, selectedRaidId]);
 
   // Fetch tier data based on selection
   const isOverallSelected = selectedRaidId === null && initialized;
@@ -279,7 +299,7 @@ export default function TierListsPage() {
   const calculatedAt = isOverallSelected ? (overallData?.calculatedAt ?? null) : (raidData?.calculatedAt ?? null);
 
   const handleRaidSelect = (raidId: number | null) => {
-    setSelectedRaidId(raidId);
+    setRequestedRaidId(raidId);
   };
 
   if (loading) {
@@ -318,10 +338,10 @@ export default function TierListsPage() {
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-end lg:shrink-0">
           <div className="flex shrink-0 self-start rounded bg-gray-900 border border-gray-800 p-1 sm:self-end">
-            <Link href="/tierlists" aria-current="page" className="rounded bg-blue-600 px-3 py-2 text-sm text-white transition-colors">
+            <Link href={selectedRaidId === null ? "/tierlists?raid=overall" : `/tierlists?raid=${selectedRaidId}`} aria-current="page" className="rounded bg-blue-600 px-3 py-2 text-sm text-white transition-colors">
               {navigationT("guildType")}
             </Link>
-            <Link href="/tierlists/characters" className="rounded px-3 py-2 text-sm text-gray-400 transition-colors hover:text-white">
+            <Link href={selectedRaidId ? `/tierlists/characters?raid=${selectedRaidId}` : "/tierlists/characters"} className="rounded px-3 py-2 text-sm text-gray-400 transition-colors hover:text-white">
               {navigationT("characterType")}
             </Link>
           </div>
@@ -348,5 +368,13 @@ export default function TierListsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function TierListsPage() {
+  return (
+    <Suspense fallback={null}>
+      <TierListsContent />
+    </Suspense>
   );
 }
