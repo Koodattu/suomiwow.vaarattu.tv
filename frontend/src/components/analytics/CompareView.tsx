@@ -10,7 +10,7 @@ import IconImage from "@/components/IconImage";
 import RaidSelector from "@/components/RaidSelector";
 import { useRaidCompare, useRaids } from "@/lib/queries";
 import { getLeaderboardRankColor, getWorldRankColor } from "@/lib/utils";
-import { CompareGuildBossMetric, CompareGuildMetric, RaidCompare } from "@/types";
+import { CompareDifficulty, CompareGuildBossMetric, CompareGuildMetric, RaidCompare } from "@/types";
 
 type ViewMode = "table" | "visual";
 
@@ -571,10 +571,11 @@ export default function ComparePage() {
   const t = useTranslations("comparePage");
   const [selectedRaidId, setSelectedRaidId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const [difficulty, setDifficulty] = useState<CompareDifficulty>("mythic");
   const [showAllTotalEffort, setShowAllTotalEffort] = useState(false);
   const [showAllWorldRanks, setShowAllWorldRanks] = useState(false);
   const { data: raids = [], isLoading: raidsLoading } = useRaids();
-  const { data: compare, isLoading: compareLoading, error } = useRaidCompare(selectedRaidId);
+  const { data: compare, isLoading: compareLoading, error } = useRaidCompare(selectedRaidId, difficulty);
 
   useEffect(() => {
     if (selectedRaidId === null && raids.length > 0) {
@@ -603,7 +604,7 @@ export default function ComparePage() {
       <div className="flex flex-col gap-4 mb-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl lg:text-3xl font-bold text-white">{t("title")}</h1>
-          <p className="text-sm text-gray-500">{t("subtitle")}</p>
+          <p className="text-sm text-gray-500">{t("subtitle", { difficulty: t(difficulty) })}</p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-end lg:shrink-0">
           <div className="flex shrink-0 self-start rounded bg-gray-900 border border-gray-800 p-1 sm:self-end">
@@ -618,6 +619,24 @@ export default function ComparePage() {
               className={`px-3 py-2 text-sm rounded transition-colors ${viewMode === "visual" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
             >
               {t("visual")}
+            </button>
+          </div>
+          <div className="flex shrink-0 self-start rounded bg-gray-900 border border-gray-800 p-1 sm:self-end" role="group" aria-label={t("difficulty")}>
+            <button
+              type="button"
+              onClick={() => setDifficulty("mythic")}
+              aria-pressed={difficulty === "mythic"}
+              className={`px-3 py-2 text-sm rounded transition-colors ${difficulty === "mythic" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
+            >
+              {t("mythic")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDifficulty("heroic")}
+              aria-pressed={difficulty === "heroic"}
+              className={`px-3 py-2 text-sm rounded transition-colors ${difficulty === "heroic" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
+            >
+              {t("heroic")}
             </button>
           </div>
           <RaidSelector raids={raids} selectedRaidId={selectedRaidId} onRaidSelect={setSelectedRaidId} />

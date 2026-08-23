@@ -1,5 +1,6 @@
 import logger from "../utils/logger";
 import { CURRENT_RAID_IDS, TRACKED_RAIDS } from "../config/guilds";
+import { COMPARE_DIFFICULTIES, CompareDifficulty } from "../config/compare";
 import Cache from "../models/Cache";
 
 /**
@@ -809,8 +810,8 @@ class CacheService {
   /**
    * Get cache key for compare page by raid.
    */
-  getCompareKey(raidId: number): string {
-    return `compare:raid:${raidId}`;
+  getCompareKey(raidId: number, difficulty: CompareDifficulty = "mythic"): string {
+    return `compare:raid:${raidId}:${difficulty}`;
   }
 
   /**
@@ -1109,9 +1110,11 @@ class CacheService {
         await this.refreshCache(guildsKey, this.warmers.get(guildsKey)!);
       }
 
-      const compareKey = this.getCompareKey(raidId);
-      if (this.warmers.has(compareKey)) {
-        await this.refreshCache(compareKey, this.warmers.get(compareKey)!);
+      for (const difficulty of COMPARE_DIFFICULTIES) {
+        const compareKey = this.getCompareKey(raidId, difficulty);
+        if (this.warmers.has(compareKey)) {
+          await this.refreshCache(compareKey, this.warmers.get(compareKey)!);
+        }
       }
     }
 
@@ -1145,9 +1148,11 @@ class CacheService {
         await this.refreshCache(guildsKey, this.warmers.get(guildsKey)!);
       }
 
-      const compareKey = this.getCompareKey(raidId);
-      if (this.warmers.has(compareKey)) {
-        await this.refreshCache(compareKey, this.warmers.get(compareKey)!);
+      for (const difficulty of COMPARE_DIFFICULTIES) {
+        const compareKey = this.getCompareKey(raidId, difficulty);
+        if (this.warmers.has(compareKey)) {
+          await this.refreshCache(compareKey, this.warmers.get(compareKey)!);
+        }
       }
     }
 

@@ -3519,6 +3519,8 @@ export interface CompareGuildMetric {
   bosses: CompareGuildBossMetric[];
 }
 
+export type CompareDifficulty = "mythic" | "heroic";
+
 export interface RaidCompare {
   raid: {
     id: number;
@@ -3526,7 +3528,7 @@ export interface RaidCompare {
     iconUrl?: string;
     bosses: CompareBossInfo[];
   };
-  difficulty: "mythic";
+  difficulty: CompareDifficulty;
   guilds: CompareGuildMetric[];
   generatedAt: string;
 }

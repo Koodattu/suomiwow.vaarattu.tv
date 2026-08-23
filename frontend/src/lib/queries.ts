@@ -1,6 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { CcgActivityFilter, CcgBootstrapResponse, CcgCollectionSort, CharacterTierListRole, EventFilters, FunGameSearchSlug } from "@/types";
+import type { CcgActivityFilter, CcgBootstrapResponse, CcgCollectionSort, CharacterTierListRole, CompareDifficulty, EventFilters, FunGameSearchSlug } from "@/types";
 
 const LIVE_STATUS_STALE_TIME = 15 * 60 * 1000;
 const LIVE_STATUS_REFETCH_INTERVAL = 15 * 60 * 1000;
@@ -92,7 +92,7 @@ export const queryKeys = {
     meta: ["guildNetwork", "meta"] as const,
   },
   compare: {
-    raid: (raidId: number) => ["compare", "raid", raidId] as const,
+    raid: (raidId: number, difficulty: CompareDifficulty) => ["compare", "raid", raidId, difficulty] as const,
   },
   ccg: {
     analytics: ["ccg", "analytics"] as const,
@@ -491,10 +491,10 @@ export function useGuildNetworkMeta() {
 
 // Compare
 
-export function useRaidCompare(raidId: number | null) {
+export function useRaidCompare(raidId: number | null, difficulty: CompareDifficulty) {
   return useQuery({
-    queryKey: queryKeys.compare.raid(raidId!),
-    queryFn: () => api.getRaidCompare(raidId!),
+    queryKey: queryKeys.compare.raid(raidId!, difficulty),
+    queryFn: () => api.getRaidCompare(raidId!, difficulty),
     enabled: raidId !== null && raidId > 0,
   });
 }

@@ -140,6 +140,7 @@ import {
   AdminDeleteReportResponse,
   AdminImportReportResponse,
   RaidCompare,
+  CompareDifficulty,
   BossPredictionResponse,
   CcgCatalogResponse,
   CcgFeaturedCardResponse,
@@ -2187,8 +2188,8 @@ export const api = {
   // RAID COMPARE
   // ============================================================================
 
-  async getRaidCompare(raidId: number): Promise<RaidCompare> {
-    const response = await fetch(`${API_URL}/api/compare/${raidId}`);
+  async getRaidCompare(raidId: number, difficulty: CompareDifficulty = "mythic"): Promise<RaidCompare> {
+    const response = await fetch(`${API_URL}/api/compare/${raidId}?difficulty=${difficulty}`);
     if (!response.ok) {
       throw new Error("Failed to fetch raid compare data");
     }

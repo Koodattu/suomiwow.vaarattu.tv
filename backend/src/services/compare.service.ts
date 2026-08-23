@@ -1,6 +1,7 @@
 import Guild from "../models/Guild";
 import Raid from "../models/Raid";
 import { IGuildCrest } from "../models/Guild";
+import { CompareDifficulty } from "../config/compare";
 
 export interface CompareBossInfo {
   id: number;
@@ -44,13 +45,13 @@ export interface RaidCompareResponse {
     iconUrl?: string;
     bosses: CompareBossInfo[];
   };
-  difficulty: "mythic";
+  difficulty: CompareDifficulty;
   guilds: CompareGuildMetric[];
   generatedAt: Date;
 }
 
 class CompareService {
-  async getRaidCompare(raidId: number): Promise<RaidCompareResponse | null> {
+  async getRaidCompare(raidId: number, difficulty: CompareDifficulty = "mythic"): Promise<RaidCompareResponse | null> {
     const raid = await Raid.findOne({ id: raidId }).lean();
     if (!raid) {
       return null;
@@ -69,7 +70,7 @@ class CompareService {
           progress: {
             $elemMatch: {
               raidId,
-              difficulty: "mythic",
+              difficulty,
               bossesDefeated: { $gt: 0 },
             },
           },
@@ -84,14 +85,14 @@ class CompareService {
           faction: 1,
           crest: 1,
           parent_guild: 1,
-          mythicProgress: {
+          selectedProgress: {
             $arrayElemAt: [
               {
                 $filter: {
                   input: "$progress",
                   as: "p",
                   cond: {
-                    $and: [{ $eq: ["$$p.raidId", raidId] }, { $eq: ["$$p.difficulty", "mythic"] }],
+                    $and: [{ $eq: ["$$p.raidId", raidId] }, { $eq: ["$$p.difficulty", difficulty] }],
                   },
                 },
               },
@@ -102,20 +103,20 @@ class CompareService {
       },
       {
         $addFields: {
-          sortRank: { $ifNull: ["$mythicProgress.guildRank", 99999] },
+          sortRank: { $ifNull: ["$selectedProgress.guildRank", 99999] },
         },
       },
       {
         $sort: {
           sortRank: 1,
-          "mythicProgress.worldRank": 1,
+          "selectedProgress.worldRank": 1,
           name: 1,
         },
       },
     ]);
 
     const guildMetrics: CompareGuildMetric[] = guilds.map((guild) => {
-      const progress = guild.mythicProgress;
+      const progress = guild.selectedProgress;
       const bosses = bossInfo.map((boss) => {
         const bossProgress = progress.bosses?.find((entry: any) => entry.bossId === boss.id);
 
@@ -159,7 +160,7 @@ class CompareService {
         iconUrl: raid.iconUrl,
         bosses: bossInfo,
       },
-      difficulty: "mythic",
+      difficulty,
       guilds: guildMetrics,
       generatedAt: new Date(),
     };

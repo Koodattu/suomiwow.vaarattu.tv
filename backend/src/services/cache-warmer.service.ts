@@ -9,6 +9,7 @@ import Raid from "../models/Raid";
 import Event from "../models/Event";
 import Guild from "../models/Guild";
 import { addRaidPriorityFlagsAndSort } from "../utils/raidPriority";
+import { COMPARE_DIFFICULTIES } from "../config/compare";
 
 /**
  * Cache Warming Service
@@ -38,11 +39,13 @@ class CacheWarmerService {
     for (const raidId of TRACKED_RAIDS) {
       cacheService.registerWarmer(cacheService.getProgressKey(raidId), () => guildService.getAllGuildsForRaid(raidId));
       cacheService.registerWarmer(cacheService.getGuildsKey(raidId), () => guildService.getAllGuildsForRaid(raidId));
-      cacheService.registerWarmer(cacheService.getCompareKey(raidId), async () => {
-        const data = await compareService.getRaidCompare(raidId);
-        if (!data) throw new Error(`Compare data not found for raid ${raidId}`);
-        return data;
-      });
+      for (const difficulty of COMPARE_DIFFICULTIES) {
+        cacheService.registerWarmer(cacheService.getCompareKey(raidId, difficulty), async () => {
+          const data = await compareService.getRaidCompare(raidId, difficulty);
+          if (!data) throw new Error(`Compare data not found for raid ${raidId} on ${difficulty}`);
+          return data;
+        });
+      }
       cacheService.registerWarmer(cacheService.getRaidDatesKey(raidId), () => this.getRaidDates(raidId));
       cacheService.registerWarmer(cacheService.getRaidBossesKey(raidId), () => this.getRaidBosses(raidId));
     }
@@ -184,13 +187,15 @@ class CacheWarmerService {
 
     for (const raidId of TRACKED_RAIDS) {
       try {
-        const key = cacheService.getCompareKey(raidId);
-        const data = await compareService.getRaidCompare(raidId);
-        if (!data) {
-          continue;
+        for (const difficulty of COMPARE_DIFFICULTIES) {
+          const key = cacheService.getCompareKey(raidId, difficulty);
+          const data = await compareService.getRaidCompare(raidId, difficulty);
+          if (!data) {
+            continue;
+          }
+          const ttl = cacheService.getTTLForRaid(raidId);
+          await cacheService.set(key, data, ttl);
         }
-        const ttl = cacheService.getTTLForRaid(raidId);
-        await cacheService.set(key, data, ttl);
         logger.debug(`[Cache Warmer] Compare cache warmed for raid ${raidId}`);
       } catch (error) {
         logger.error(`[Cache Warmer] Failed to warm compare cache for raid ${raidId}:`, error);
@@ -334,10 +339,12 @@ class CacheWarmerService {
         const data = await guildService.getAllGuildsForRaid(raidId);
         await cacheService.set(key, data, cacheService.CURRENT_RAID_TTL);
 
-        const compareKey = cacheService.getCompareKey(raidId);
-        const compareData = await compareService.getRaidCompare(raidId);
-        if (compareData) {
-          await cacheService.set(compareKey, compareData, cacheService.CURRENT_RAID_TTL);
+        for (const difficulty of COMPARE_DIFFICULTIES) {
+          const compareKey = cacheService.getCompareKey(raidId, difficulty);
+          const compareData = await compareService.getRaidCompare(raidId, difficulty);
+          if (compareData) {
+            await cacheService.set(compareKey, compareData, cacheService.CURRENT_RAID_TTL);
+          }
         }
       }
 
