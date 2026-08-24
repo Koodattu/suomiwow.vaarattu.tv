@@ -41,6 +41,8 @@ export interface IGuildProfileHighlightTopPerformer {
   pulls: number;
   deaths: number;
   earlyDeaths: number;
+  zoneId: number;
+  raidName: string;
 }
 
 export interface IGuildProfileHighlight extends Document {
@@ -91,6 +93,8 @@ const GuildProfileHighlightTopPerformerSchema = new Schema<IGuildProfileHighligh
     pulls: { type: Number, required: true, default: 0 },
     deaths: { type: Number, required: true, default: 0 },
     earlyDeaths: { type: Number, required: true, default: 0 },
+    zoneId: { type: Number, required: true },
+    raidName: { type: String, required: true },
   },
   { _id: false },
 );

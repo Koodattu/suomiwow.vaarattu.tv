@@ -29,6 +29,9 @@ test("uses the median of later kill samples instead of being pulled by an outlie
   assert.ok(normal);
   assert.ok(withOutlier);
   assert.ok(withOutlier.estimatedKillPull < 200);
+  assert.ok(normal.optimisticKillPull < normal.estimatedKillPull);
+  assert.ok(normal.pessimisticKillPull > normal.estimatedKillPull);
+  assert.ok(withOutlier.pessimisticKillPull < 200);
   assert.equal(normal.confidence, "medium");
   assert.equal(normal.medianKillPull, 80);
 });
@@ -100,6 +103,9 @@ test("always predicts at least one more pull after the target has passed every k
   assert.ok(result);
   assert.ok(result.estimatedRemainingPulls >= 1);
   assert.ok(result.estimatedKillPull > 200);
+  assert.ok(result.optimisticKillPull > 200);
+  assert.ok(result.optimisticKillPull < result.estimatedKillPull);
+  assert.ok(result.pessimisticKillPull > result.estimatedKillPull);
   assert.equal(result.confidence, "low");
 });
 
@@ -162,6 +168,8 @@ test("returns the exact-boss prediction facts from aggregated counts", async () 
     assert.equal(result.facts.killedGuilds, 3);
     assert.equal(result.facts.progressingGuilds, 1);
     assert.equal(result.facts.medianKillPull, 80);
+    assert.ok(result.estimate.optimisticKillPull < result.estimate.killPull);
+    assert.ok(result.estimate.pessimisticKillPull > result.estimate.killPull);
     assert.deepEqual((capturedPipelines[0][0] as { $match: { excludedRaidIds: unknown } }).$match.excludedRaidIds, { $ne: 46 });
   } finally {
     Guild.aggregate = originalAggregate;

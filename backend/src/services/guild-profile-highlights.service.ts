@@ -10,6 +10,7 @@ import GuildProfileHighlight, {
   IGuildProfileHighlightTopPerformer,
   GuildProfileHighlightKind,
 } from "../models/GuildProfileHighlight";
+import Raid from "../models/Raid";
 import cacheService from "./cache.service";
 import logger from "../utils/logger";
 
@@ -21,6 +22,11 @@ type GuildRow = {
   _id: mongoose.Types.ObjectId;
   name: string;
   realm: string;
+};
+
+type RaidRow = {
+  id: number;
+  name: string;
 };
 
 type ParticipationRow = {
@@ -345,11 +351,6 @@ class GuildProfileHighlightsService {
     return row.role === "healer" ? row.metric === "hps" : row.metric === "dps";
   }
 
-  private averageScore(total: number, count: number): number {
-    if (count === 0) return 0;
-    return Math.round((total / count) * 100) / 100;
-  }
-
   private createTopAggregate(identityKey: string, row: MechanicsRow, account?: AccountInfo): TopPerformerAggregate {
     const characterId = row.characterId.toString();
     return {
@@ -406,14 +407,10 @@ class GuildProfileHighlightsService {
     }
   }
 
-  private toTopPerformer(member: TopPerformerAggregate): IGuildProfileHighlightTopPerformer {
+  private toTopPerformer(member: TopPerformerAggregate, raidNameById: Map<number, string>): IGuildProfileHighlightTopPerformer {
     const kind = this.resolveKind(member);
     const bestRow = member.bestRow;
     const performanceRows = Array.from(member.performanceByRaid.values());
-    const scoreTotal = performanceRows.reduce((sum, row) => sum + row.score, 0);
-    const parseScoreTotal = performanceRows.reduce((sum, row) => sum + row.parseScore, 0);
-    const survivalRows = performanceRows.filter((row): row is MechanicsRow & { survivalScore: number } => row.survivalScore !== null && Number.isFinite(row.survivalScore));
-    const survivalScoreTotal = survivalRows.reduce((sum, row) => sum + row.survivalScore, 0);
 
     return {
       kind,
@@ -431,12 +428,14 @@ class GuildProfileHighlightsService {
       performanceRaidCount: performanceRows.length,
       firstSeenAt: member.firstSeenAt,
       lastSeenAt: member.lastSeenAt,
-      score: this.averageScore(scoreTotal, performanceRows.length),
-      parseScore: this.averageScore(parseScoreTotal, performanceRows.length),
-      survivalScore: survivalRows.length > 0 ? this.averageScore(survivalScoreTotal, survivalRows.length) : null,
+      score: bestRow.score,
+      parseScore: bestRow.parseScore,
+      survivalScore: bestRow.survivalScore,
       pulls: performanceRows.reduce((sum, row) => sum + row.pulls, 0),
       deaths: performanceRows.reduce((sum, row) => sum + row.deaths, 0),
       earlyDeaths: performanceRows.reduce((sum, row) => sum + row.earlyDeaths, 0),
+      zoneId: bestRow.zoneId,
+      raidName: raidNameById.get(bestRow.zoneId) ?? `Raid ${bestRow.zoneId}`,
     };
   }
 
@@ -445,6 +444,7 @@ class GuildProfileHighlightsService {
     accountByCharacterId: Map<string, AccountInfo>,
     accountMemberCountsByGuild: Map<string, number>,
     participationsByCharacterZone: Map<string, ParticipationTarget[]>,
+    raidNameById: Map<number, string>,
   ): Map<string, IGuildProfileHighlightTopPerformer[]> {
     const bestMechanicsByCharacterZone = new Map<string, MechanicsRow>();
 
@@ -490,7 +490,7 @@ class GuildProfileHighlightsService {
     const result = new Map<string, IGuildProfileHighlightTopPerformer[]>();
     for (const [guildId, guildTopAggregates] of topAggregatesByGuild.entries()) {
       const topPerformers = Array.from(guildTopAggregates.values())
-        .map((member) => this.toTopPerformer(member))
+        .map((member) => this.toTopPerformer(member, raidNameById))
         .filter((member) => member.pulls >= TOP_PERFORMER_MIN_PULLS)
         .sort((a, b) => {
           const scoreDiff = b.score - a.score;
@@ -514,7 +514,7 @@ class GuildProfileHighlightsService {
     const generatedAt = new Date();
     logger.info("[GuildProfileHighlights] Starting rebuild");
 
-    const [guilds, participationRows, mechanicsRows, accountGroups, latestParticipation, latestMechanics, latestAccountGroup] = await Promise.all([
+    const [guilds, participationRows, mechanicsRows, raids, accountGroups, latestParticipation, latestMechanics, latestAccountGroup] = await Promise.all([
       Guild.find({}).select("_id name realm").lean<GuildRow[]>(),
       CharacterRaidParticipation.find({ zoneId: { $in: TRACKED_RAIDS } })
         .select(
@@ -533,6 +533,7 @@ class GuildProfileHighlightsService {
           "characterId wclCanonicalCharacterId zoneId name realm region classID role metric score parseScore survivalScore pulls deaths earlyDeaths updatedAt -_id",
         )
         .lean<MechanicsRow[]>(),
+      Raid.find({ id: { $in: TRACKED_RAIDS } }).select("id name -_id").lean<RaidRow[]>(),
       CharacterAccountGroup.find({ signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION })
         .select("_id slug displayName characterIds")
         .lean<AccountGroupRow[]>(),
@@ -562,6 +563,7 @@ class GuildProfileHighlightsService {
     }
 
     const characterAggregatesByGuild = new Map<string, Map<string, CharacterParticipationAggregate>>();
+    const raidNameById = new Map(raids.map((raid) => [raid.id, raid.name]));
 
     for (const row of participationRows) {
       this.addParticipationToCharacterAggregate(characterAggregatesByGuild, row);
@@ -605,6 +607,7 @@ class GuildProfileHighlightsService {
       accountByCharacterId,
       accountMemberCountsByGuild,
       participationsByCharacterZone,
+      raidNameById,
     );
 
     const sourceUpdatedAt =

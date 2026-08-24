@@ -138,6 +138,15 @@ export default function BossPredictionDialog({
                       </span>
                     </div>
                     <p className="mt-2 text-sm text-blue-100">{t("prediction.remaining", { count: data.estimate.remainingPulls })}</p>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-blue-400/15 pt-3 text-sm">
+                      <span className="text-blue-200">{t("prediction.estimatedRange")}</span>
+                      <span className="font-semibold tabular-nums text-white">
+                        {t("prediction.pullRange", {
+                          low: numberFormat.format(data.estimate.optimisticKillPull),
+                          high: numberFormat.format(data.estimate.pessimisticKillPull),
+                        })}
+                      </span>
+                    </div>
                   </section>
 
                   <section className="rounded-xl border border-gray-800 bg-gray-950/40 p-4">
@@ -184,13 +193,9 @@ export default function BossPredictionDialog({
                       ) : (
                         <p className="mt-1 text-sm text-gray-500">{t("prediction.noPhaseData")}</p>
                       )}
-                      <p className="mt-2 text-xs leading-5 text-gray-500">
-                        {data.facts.usedPhaseData ? t("prediction.phaseUsed") : t("prediction.phaseNotUsed")}
-                      </p>
+                      {!data.facts.usedPhaseData && <p className="mt-2 text-xs leading-5 text-gray-500">{t("prediction.phaseNotUsed")}</p>}
                     </div>
                   </section>
-
-                  <p className="text-center text-xs leading-5 text-gray-500">{t("prediction.disclaimer")}</p>
                 </div>
               ) : null}
             </div>

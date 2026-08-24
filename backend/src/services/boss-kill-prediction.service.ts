@@ -21,6 +21,8 @@ export interface BossPredictionTarget {
 export interface BossKillPrediction {
   estimatedKillPull: number;
   estimatedRemainingPulls: number;
+  optimisticKillPull: number;
+  pessimisticKillPull: number;
   killedGuilds: number;
   progressingGuilds: number;
   medianKillPull: number | null;
@@ -52,6 +54,8 @@ export type GuildBossPredictionResult =
       estimate: {
         killPull: number;
         remainingPulls: number;
+        optimisticKillPull: number;
+        pessimisticKillPull: number;
         confidence: BossKillPrediction["confidence"];
       };
       facts: {
@@ -96,6 +100,16 @@ const median = (values: number[]): number | null => {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
+};
+
+const quantile = (values: number[], fraction: number): number | null => {
+  if (values.length === 0) {
+    return null;
+  }
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * fraction) - 1));
+  return sorted[index];
 };
 
 const normalizePullCount = (value: number): number | null => {
@@ -204,11 +218,14 @@ export const estimateBossKillPull = (target: BossPredictionTarget, rawPeers: Bos
   const bestPercent = clamp(Number.isFinite(target.bestPercent) ? target.bestPercent : 100, 0, 100);
   const learnedFraction = clamp(1 - bestPercent / 100, 0.1, 0.95);
   const bestPullRemaining = Math.max(1, targetPulls / learnedFraction - targetPulls);
+  const blendPeerAndBestPull = (remainingPulls: number): number => {
+    const boundedBestPullRemaining = clamp(bestPullRemaining, remainingPulls * 0.5, remainingPulls * 2);
+    return remainingPulls * 0.75 + boundedBestPullRemaining * 0.25;
+  };
 
   let rawRemaining: number;
   if (killedPeers.length > 0 && peerRemaining !== null) {
-    const boundedBestPullRemaining = clamp(bestPullRemaining, peerRemaining * 0.5, peerRemaining * 2);
-    rawRemaining = peerRemaining * 0.75 + boundedBestPullRemaining * 0.25;
+    rawRemaining = blendPeerAndBestPull(peerRemaining);
   } else {
     rawRemaining = Math.max(bestPullRemaining, activeFloor || 0, 1);
   }
@@ -217,14 +234,37 @@ export const estimateBossKillPull = (target: BossPredictionTarget, rawPeers: Bos
   const estimatedRemainingPulls = Math.ceil(Math.max(1, rawRemaining * phaseAdjustment.factor));
   const killedGuilds = killedPeers.length;
   const comparableKilledGuilds = laterKillRemaining.length;
+  const confidence = comparableKilledGuilds >= 10 ? "high" : comparableKilledGuilds >= 3 ? "medium" : "low";
+  const uncertaintyFraction = confidence === "high" ? 0.2 : confidence === "medium" ? 0.3 : 0.5;
+  const minimumRangeSpread = Math.max(1, Math.ceil(estimatedRemainingPulls * uncertaintyFraction));
+  const comparableEstimates = laterKillRemaining.map((remainingPulls) =>
+    Math.ceil(Math.max(1, blendPeerAndBestPull(Math.max(remainingPulls, activeFloor || 0)) * phaseAdjustment.factor)),
+  );
+  const sampleOptimistic = quantile(comparableEstimates, 0.25);
+  const samplePessimistic = quantile(comparableEstimates, 0.75);
+  const robustSampleMinimum = Math.max(1, Math.floor(estimatedRemainingPulls * 0.5));
+  const robustSampleMaximum = Math.max(1, Math.ceil(estimatedRemainingPulls * 2));
+  const optimisticRemainingPulls = Math.max(
+    1,
+    Math.min(
+      estimatedRemainingPulls - minimumRangeSpread,
+      sampleOptimistic === null ? estimatedRemainingPulls : clamp(sampleOptimistic, robustSampleMinimum, robustSampleMaximum),
+    ),
+  );
+  const pessimisticRemainingPulls = Math.max(
+    estimatedRemainingPulls + minimumRangeSpread,
+    samplePessimistic === null ? estimatedRemainingPulls : clamp(samplePessimistic, robustSampleMinimum, robustSampleMaximum),
+  );
 
   return {
     estimatedKillPull: targetPulls + estimatedRemainingPulls,
     estimatedRemainingPulls,
+    optimisticKillPull: targetPulls + optimisticRemainingPulls,
+    pessimisticKillPull: targetPulls + pessimisticRemainingPulls,
     killedGuilds,
     progressingGuilds: progressingPeers.length,
     medianKillPull: killedPullMedian,
-    confidence: comparableKilledGuilds >= 10 ? "high" : comparableKilledGuilds >= 3 ? "medium" : "low",
+    confidence,
     usedPhaseData: phaseAdjustment.usedPhaseData,
   };
 };
@@ -354,6 +394,8 @@ class BossKillPredictionService {
       estimate: {
         killPull: prediction.estimatedKillPull,
         remainingPulls: prediction.estimatedRemainingPulls,
+        optimisticKillPull: prediction.optimisticKillPull,
+        pessimisticKillPull: prediction.pessimisticKillPull,
         confidence: prediction.confidence,
       },
       facts: {

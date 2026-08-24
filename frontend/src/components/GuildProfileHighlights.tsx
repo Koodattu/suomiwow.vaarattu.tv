@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import IconImage from "@/components/IconImage";
 import type { GuildProfileHighlightMember, GuildProfileHighlightTopPerformer, GuildProfileHighlights as GuildProfileHighlightsData } from "@/types";
-import { formatRealmName, getClassInfoById } from "@/lib/utils";
+import { formatRealmName, getClassInfoById, getParseColor } from "@/lib/utils";
 
 const CLASS_COLORS: Record<string, string> = {
   "Death Knight": "#C41E3A",
@@ -63,7 +63,7 @@ function HighlightCard({ item }: { item: HighlightCardItem }) {
   const href = getItemHref(item);
   const title = isAccount ? `${item.name} (${t("inferredAccount")})` : `${item.name}-${formatRealmName(item.realm)}`;
   const ariaLabel = topPerformer
-    ? `${title}, ${formatScore(topPerformer.score)} ${t("combined")}`
+    ? `${title}, ${topPerformer.raidName}, ${formatScore(topPerformer.score)} ${t("combined")}`
     : `${title}, ${t("since", { date: formatShortDate(item.firstSeenAt) })}, ${t("raids", { count: item.raidCount })}, ${t("reports", { count: item.reportCount })}`;
 
   return (
@@ -89,12 +89,18 @@ function HighlightCard({ item }: { item: HighlightCardItem }) {
             <span className="tabular-nums">{t("raids", { count: item.raidCount })}</span>
             <span className="tabular-nums">{t("reports", { count: item.reportCount })}</span>
           </span>
-        ) : null}
+        ) : (
+          <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-semibold text-gray-400">
+            <span className="truncate">{topPerformer.raidName}</span>
+          </span>
+        )}
       </span>
 
       {topPerformer ? (
         <span className="ml-1 flex min-w-[52px] flex-col items-end leading-none">
-          <span className="text-base font-bold tabular-nums text-gray-100">{formatScore(topPerformer.score)}</span>
+          <span className="text-base font-bold tabular-nums" style={{ color: getParseColor(Math.round(topPerformer.score)) }}>
+            {formatScore(topPerformer.score)}
+          </span>
           <span className="mt-1 text-[10px] font-semibold uppercase text-gray-500">{t("combined")}</span>
         </span>
       ) : null}

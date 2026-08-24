@@ -83,6 +83,8 @@ export type BossPredictionResponse =
       estimate: {
         killPull: number;
         remainingPulls: number;
+        optimisticKillPull: number;
+        pessimisticKillPull: number;
         confidence: "low" | "medium" | "high";
       };
       facts: {
@@ -380,6 +382,8 @@ export interface GuildProfileHighlightTopPerformer {
   pulls: number;
   deaths: number;
   earlyDeaths: number;
+  zoneId: number;
+  raidName: string;
 }
 
 export interface GuildProfileHighlights {
