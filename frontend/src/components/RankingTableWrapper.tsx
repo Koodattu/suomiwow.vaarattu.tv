@@ -20,6 +20,7 @@ interface RankingTableWrapperProps {
   partitionOptions?: PatchPartitionOption[];
   showPartitionSelector?: boolean;
   loading?: boolean;
+  updating?: boolean;
   error?: string | null;
   pagination?: {
     totalItems: number;
@@ -406,6 +407,7 @@ function buildRankingColumns({ selectedBoss, bosses, variant, currentPage, pageS
               )}
               <Link
                 href={`/characters/${encodeURIComponent(realm)}/${encodeURIComponent(name)}`}
+                prefetch={false}
                 className="flex items-center gap-2 transition-colors hover:text-blue-300"
                 onClick={(event) => event.stopPropagation()}
               >
@@ -433,7 +435,7 @@ function buildRankingColumns({ selectedBoss, bosses, variant, currentPage, pageS
         const guild = row.character.guild;
         if (!guild?.name || !guild?.realm) return "—";
         return (
-          <Link href={getGuildProfileUrl(guild.realm, guild.name)} className="hover:text-blue-300 transition-colors" onClick={(event) => event.stopPropagation()}>
+          <Link href={getGuildProfileUrl(guild.realm, guild.name)} prefetch={false} className="hover:text-blue-300 transition-colors" onClick={(event) => event.stopPropagation()}>
             {guild.name}
           </Link>
         );
@@ -609,6 +611,7 @@ export function RankingTableWrapper({
   partitionOptions = [],
   showPartitionSelector = true,
   loading = false,
+  updating = false,
   error = null,
   pagination,
   onFiltersChange,
@@ -622,11 +625,24 @@ export function RankingTableWrapper({
     [filters.partition, partitionOptions],
   );
   const selectedMetric = filters.metric ?? "dps";
-  const [searchValue, setSearchValue] = useState(filters.characterName ?? "");
-  const [guildSearchValue, setGuildSearchValue] = useState(filters.guildName ?? "");
+  const filterCharacterName = filters.characterName ?? "";
+  const filterGuildName = filters.guildName ?? "";
+  const [searchValue, setSearchValue] = useState(filterCharacterName);
+  const [guildSearchValue, setGuildSearchValue] = useState(filterGuildName);
+  const [previousFilterCharacterName, setPreviousFilterCharacterName] = useState(filterCharacterName);
+  const [previousFilterGuildName, setPreviousFilterGuildName] = useState(filterGuildName);
   const searchDebounceRef = useRef<number | null>(null);
   const guildSearchDebounceRef = useRef<number | null>(null);
   const applyFiltersRef = useRef<(overrides?: Partial<RankingFilters>) => void>(() => undefined);
+
+  if (previousFilterCharacterName !== filterCharacterName) {
+    setPreviousFilterCharacterName(filterCharacterName);
+    setSearchValue(filterCharacterName);
+  }
+  if (previousFilterGuildName !== filterGuildName) {
+    setPreviousFilterGuildName(filterGuildName);
+    setGuildSearchValue(filterGuildName);
+  }
 
   const applyFilters = useCallback(
     (overrides: Partial<RankingFilters> = {}) => {
@@ -773,7 +789,15 @@ export function RankingTableWrapper({
     <div className="space-y-4">
       {error ? <div className="rounded-md border border-red-500/40 bg-red-950/30 px-4 py-3 text-red-200">{error}</div> : null}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="text-xl font-semibold text-white">{title}</h2>
+        <div className="flex min-h-7 items-center gap-3">
+          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          {updating ? (
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-400" role="status" aria-live="polite">
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-500 border-t-transparent motion-reduce:animate-none" aria-hidden="true" />
+              {t("updating")}
+            </div>
+          ) : null}
+        </div>
         <div className="flex flex-wrap gap-3 w-full">
           {/* Character Search */}
           <div className="relative min-w-[160px] flex-1">

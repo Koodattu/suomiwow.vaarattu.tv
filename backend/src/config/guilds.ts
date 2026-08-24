@@ -1347,9 +1347,9 @@ export const RAID_RIO_PROGRESS_SLUG_OVERRIDES: Record<number, readonly string[]>
   53: ["the-tidebound-grotto", "the-venomous-abyss"],
 };
 
-// Raider.IO ranks the split zone 53 raids separately, so neither rank
-// represents the combined nine-encounter WarcraftLogs zone.
-export const RAID_RIO_RANKING_DISABLED_IDS = new Set<number>([53]);
+// Raider.IO rankings use the configured primary raid slug even when progress
+// is aggregated from multiple Raider.IO raids into one WarcraftLogs zone.
+export const RAID_RIO_RANKING_DISABLED_IDS = new Set<number>();
 
 // Current raids that are actively being tracked for updates
 // Multiple raids can be current at the same time during expansion transitions.

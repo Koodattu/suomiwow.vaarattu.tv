@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useCharacterMechanics, useCharacterMechanicsOptions, useCharacterRankingOptions, useBosses, useCharacterRankings, useMythicPlusOptions } from "@/lib/queries";
 import { RankingTableWrapper, type RankingFilters } from "@/components/RankingTableWrapper";
@@ -176,18 +176,18 @@ function buildQuery(filters: Filters) {
 
 function CharacterRankingsContent() {
   const searchParamsKey = useSearchParams().toString();
-  return <CharacterRankingsState key={searchParamsKey} searchParamsKey={searchParamsKey} />;
+  return <CharacterRankingsState searchParamsKey={searchParamsKey} />;
 }
 
 function CharacterRankingsState({ searchParamsKey }: { searchParamsKey: string }) {
   const searchParams = useMemo(() => new URLSearchParams(searchParamsKey), [searchParamsKey]);
   const pathname = usePathname();
-  const router = useRouter();
   const t = useTranslations("characterRankingsPage");
   const activeTab = getCharacterTab(searchParams.get("tab"));
-  const [selectedRaidPartition, setSelectedRaidPartition] = useState<CharacterRankingsSelection | null>(() => getRankingUrlState(searchParams).selection);
-  const [filters, setFilters] = useState<Filters>(() => getRankingUrlState(searchParams).filters);
-  const [mythicPlusFilters, setMythicPlusFilters] = useState<MythicPlusLeaderboardFilters>(() => getMythicPlusUrlState(searchParams));
+  const rankingUrlState = useMemo(() => getRankingUrlState(searchParams), [searchParams]);
+  const mythicPlusFilters = useMemo(() => getMythicPlusUrlState(searchParams), [searchParams]);
+  const selectedRaidPartition = rankingUrlState.selection;
+  const filters = rankingUrlState.filters;
 
   // ─── React Query hooks ───────────────────────────────────────────────────────
 
@@ -254,8 +254,8 @@ function CharacterRankingsState({ searchParamsKey }: { searchParamsKey: string }
   const queryString = useMemo(() => buildQuery(queryFilters), [queryFilters]);
   const rankingsEnabled = activeTab === "rankings" && !!resolvedFilters.zoneId;
   const mechanicsEnabled = isMechanicsBackedTab && !!resolvedFilters.zoneId;
-  const { data: rankingsData, isLoading: rankingsLoading, error: rankingsError } = useCharacterRankings(queryString, rankingsEnabled);
-  const { data: mechanicsData, isLoading: mechanicsLoading, error: mechanicsError } = useCharacterMechanics(queryString, mechanicsEnabled);
+  const { data: rankingsData, isLoading: rankingsLoading, isFetching: rankingsFetching, error: rankingsError } = useCharacterRankings(queryString, rankingsEnabled);
+  const { data: mechanicsData, isLoading: mechanicsLoading, isFetching: mechanicsFetching, error: mechanicsError } = useCharacterMechanics(queryString, mechanicsEnabled);
 
   // ─── Derived state ───────────────────────────────────────────────────────────
 
@@ -269,6 +269,7 @@ function CharacterRankingsState({ searchParamsKey }: { searchParamsKey: string }
     pageSize: 100,
   };
   const loading = optionsLoading || (isMechanicsBackedTab ? mechanicsLoading : rankingsLoading);
+  const updating = !loading && (isMechanicsBackedTab ? mechanicsFetching : rankingsFetching);
   const error = optionsError?.message ?? (isMechanicsBackedTab ? mechanicsError?.message : rankingsError?.message) ?? null;
 
   const hasResettableRankingState =
@@ -300,61 +301,91 @@ function CharacterRankingsState({ searchParamsKey }: { searchParamsKey: string }
         (activeTab === "rankings" && resolvedRaidSelection.partition !== defaultRaidSelection.partition));
   const canResetAll = isMythicPlusTab ? hasResettableMythicPlusState : hasResettableRankingState;
 
-  useEffect(() => {
-    const nextUrl = buildCharactersUrl(activeTab, resolvedFilters, resolvedRaidSelection, resolvedMythicPlusFilters);
-    const nextSearchParamsKey = nextUrl.slice(1);
-    if (nextSearchParamsKey === searchParamsKey) return;
+  const replaceCharactersUrl = useCallback(
+    (
+      nextTab: CharacterTab,
+      nextFilters: Filters,
+      nextRaidPartition: CharacterRankingsSelection | null,
+      nextMythicPlusFilters: MythicPlusLeaderboardFilters,
+    ) => {
+      const nextUrl = buildCharactersUrl(nextTab, nextFilters, nextRaidPartition, nextMythicPlusFilters);
+      if (nextUrl.slice(1) === searchParamsKey) return;
+      window.history.replaceState(null, "", `${pathname}${nextUrl}`);
+    },
+    [pathname, searchParamsKey],
+  );
 
-    router.replace(`${pathname}${nextUrl}`, { scroll: false });
-  }, [activeTab, pathname, resolvedFilters, resolvedMythicPlusFilters, resolvedRaidSelection, router, searchParamsKey]);
+  useEffect(() => {
+    replaceCharactersUrl(activeTab, resolvedFilters, resolvedRaidSelection, resolvedMythicPlusFilters);
+  }, [activeTab, replaceCharactersUrl, resolvedFilters, resolvedMythicPlusFilters, resolvedRaidSelection]);
 
   // ─── Handlers ─────────────────────────────────────────────────────────────────
 
-  const handleRaidPartitionChange = (selection: CharacterRankingsSelection) => {
-    setSelectedRaidPartition(selection);
-    setFilters((prev) => ({
-      ...prev,
-      zoneId: selection.zoneId,
-      partition: selection.partition,
-      encounterId: undefined,
-      page: 1,
-    }));
-  };
+  const handleRaidPartitionChange = useCallback(
+    (selection: CharacterRankingsSelection) => {
+      replaceCharactersUrl(activeTab, {
+        ...resolvedFilters,
+        zoneId: selection.zoneId,
+        partition: selection.partition,
+        encounterId: undefined,
+        page: 1,
+      }, selection, resolvedMythicPlusFilters);
+    },
+    [activeTab, replaceCharactersUrl, resolvedFilters, resolvedMythicPlusFilters],
+  );
 
-  const handleMythicPlusFiltersChange = (patch: Partial<MythicPlusLeaderboardFilters>) => {
-    setMythicPlusFilters((prev) => ({ ...prev, ...patch, page: patch.page ?? 1 }));
-  };
+  const handleMythicPlusFiltersChange = useCallback(
+    (patch: Partial<MythicPlusLeaderboardFilters>) => {
+      replaceCharactersUrl(activeTab, resolvedFilters, resolvedRaidSelection, {
+        ...resolvedMythicPlusFilters,
+        ...patch,
+        page: patch.page ?? 1,
+      });
+    },
+    [activeTab, replaceCharactersUrl, resolvedFilters, resolvedMythicPlusFilters, resolvedRaidSelection],
+  );
+
+  const handleRankingFiltersChange = useCallback(
+    (newFilters: Partial<Filters>) => {
+      replaceCharactersUrl(activeTab, { ...resolvedFilters, ...newFilters }, resolvedRaidSelection, resolvedMythicPlusFilters);
+    },
+    [activeTab, replaceCharactersUrl, resolvedFilters, resolvedMythicPlusFilters, resolvedRaidSelection],
+  );
 
   const resetRaidSelection = useCallback(() => {
     if (!defaultRaidSelection) return;
-    setSelectedRaidPartition(defaultRaidSelection);
-    setFilters((prev) => ({
-      ...prev,
+    replaceCharactersUrl(activeTab, {
+      ...resolvedFilters,
       zoneId: defaultRaidSelection.zoneId,
       partition: defaultRaidSelection.partition,
       encounterId: undefined,
       page: 1,
-    }));
-  }, [defaultRaidSelection]);
+    }, defaultRaidSelection, resolvedMythicPlusFilters);
+  }, [activeTab, defaultRaidSelection, replaceCharactersUrl, resolvedFilters, resolvedMythicPlusFilters]);
 
   const resetSeasonSelection = useCallback(() => {
     if (!defaultMythicPlusSeason) return;
-    setMythicPlusFilters((prev) => ({ ...prev, season: defaultMythicPlusSeason, dungeonId: null, dungeonSort: "score", page: 1 }));
-  }, [defaultMythicPlusSeason]);
+    replaceCharactersUrl(activeTab, resolvedFilters, resolvedRaidSelection, {
+      ...resolvedMythicPlusFilters,
+      season: defaultMythicPlusSeason,
+      dungeonId: null,
+      dungeonSort: "score",
+      page: 1,
+    });
+  }, [activeTab, defaultMythicPlusSeason, replaceCharactersUrl, resolvedFilters, resolvedMythicPlusFilters, resolvedRaidSelection]);
 
   const resetAllFilters = useCallback(() => {
     if (isMythicPlusTab) {
-      setMythicPlusFilters({ ...DEFAULT_MYTHIC_PLUS_FILTERS, season: defaultMythicPlusSeason });
+      replaceCharactersUrl(activeTab, resolvedFilters, resolvedRaidSelection, { ...DEFAULT_MYTHIC_PLUS_FILTERS, season: defaultMythicPlusSeason });
       return;
     }
 
-    setSelectedRaidPartition(defaultRaidSelection);
-    setFilters({
+    replaceCharactersUrl(activeTab, {
       ...DEFAULT_RANKING_FILTERS,
       zoneId: defaultRaidSelection?.zoneId,
       partition: defaultRaidSelection?.partition ?? null,
-    });
-  }, [defaultMythicPlusSeason, defaultRaidSelection, isMythicPlusTab]);
+    }, defaultRaidSelection, resolvedMythicPlusFilters);
+  }, [activeTab, defaultMythicPlusSeason, defaultRaidSelection, isMythicPlusTab, replaceCharactersUrl, resolvedFilters, resolvedMythicPlusFilters, resolvedRaidSelection]);
 
   return (
     <div className="container mx-auto px-3 md:px-4 max-w-full md:max-w-[95%] lg:max-w-[90%] py-6">
@@ -442,7 +473,6 @@ function CharacterRankingsState({ searchParamsKey }: { searchParamsKey: string }
         />
       ) : (
         <RankingTableWrapper
-          key={`${activeTab}-${resolvedRaidSelection?.zoneId ?? "none"}-${resolvedFilters.characterName ?? ""}-${resolvedFilters.guildName ?? ""}`}
           data={rows}
           bosses={bosses}
           variant={activeTab}
@@ -450,11 +480,10 @@ function CharacterRankingsState({ searchParamsKey }: { searchParamsKey: string }
           showPartitionSelector={false}
           filters={resolvedFilters}
           loading={loading}
+          updating={updating}
           error={error}
           pagination={pagination}
-          onFiltersChange={(newFilters) => {
-            setFilters((prev) => ({ ...prev, ...newFilters }));
-          }}
+          onFiltersChange={handleRankingFiltersChange}
         />
       )}
     </div>

@@ -19,7 +19,19 @@ test("Season 2 raid support uses the new raid as the current default", () => {
   assert.deepEqual(CURRENT_RAID_IDS, [53]);
   assert.equal(RAID_RIO_SLUG_OVERRIDES[53], "the-venomous-abyss");
   assert.deepEqual(RAID_RIO_PROGRESS_SLUG_OVERRIDES[53], ["the-tidebound-grotto", "the-venomous-abyss"]);
-  assert.equal(RAID_RIO_RANKING_DISABLED_IDS.has(53), true);
+  assert.equal(RAID_RIO_RANKING_DISABLED_IDS.has(53), false);
+});
+
+test("Raider.IO world ranks stay tied to their raid difficulty", async () => {
+  const { default: guildService } = await import("../src/services/guild.service");
+  const rankings = {
+    heroic: { world: 395, region: 177, realm: 22 },
+    mythic: { world: 81, region: 42, realm: 7 },
+  };
+
+  assert.equal((guildService as any).getRaiderIOWorldRankForDifficulty(rankings, "heroic"), 395);
+  assert.equal((guildService as any).getRaiderIOWorldRankForDifficulty(rankings, "mythic"), 81);
+  assert.equal((guildService as any).getRaiderIOWorldRankForDifficulty({ heroic: { world: 0 } }, "heroic"), undefined);
 });
 
 test("configured WCL raid IDs missing from worldData.zones are queried directly", async () => {

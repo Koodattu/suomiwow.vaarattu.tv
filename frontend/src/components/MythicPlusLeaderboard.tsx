@@ -67,7 +67,11 @@ function CharacterCell({ row }: { row: MythicPlusLeaderboardRow }) {
     <div className="flex min-w-0 items-center gap-2">
       <IconImage iconFilename={classInfo.iconUrl} alt={classInfo.name} width={24} height={24} className="h-6 w-6 shrink-0 rounded" />
       <div className="min-w-0">
-        <Link href={`/characters/${encodeURIComponent(row.character.realm)}/${encodeURIComponent(row.character.name)}?class=${row.character.classID}`} className="truncate font-semibold text-gray-100 hover:text-blue-300">
+        <Link
+          href={`/characters/${encodeURIComponent(row.character.realm)}/${encodeURIComponent(row.character.name)}?class=${row.character.classID}`}
+          prefetch={false}
+          className="truncate font-semibold text-gray-100 hover:text-blue-300"
+        >
           {row.character.name}
         </Link>
         <div className="truncate text-xs text-gray-500">{formatRealmName(row.character.realm)}</div>
@@ -237,12 +241,13 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
   const {
     data,
     isLoading: leaderboardLoading,
-    isPlaceholderData: leaderboardPlaceholder,
+    isFetching: leaderboardFetching,
     error: leaderboardError,
   } = useMythicPlusLeaderboard(queryString, leaderboardEnabled);
   const rows = data?.data ?? [];
   const pagination = data?.pagination;
-  const loading = optionsLoading || leaderboardLoading || leaderboardPlaceholder;
+  const loading = optionsLoading || leaderboardLoading;
+  const updating = !loading && leaderboardFetching;
   const error = optionsError?.message ?? leaderboardError?.message ?? null;
   const dungeonColumns = selectedSeason?.dungeons ?? [];
   const tableColumnCount = selectedDungeon ? 7 : 5 + dungeonColumns.length;
@@ -306,9 +311,15 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
           onClassChange={(classId) => updateFilters({ classId, specName: null })}
           onSpecChange={(specName) => updateFilters({ specName })}
         />
+        {updating ? (
+          <div className="flex min-h-10 items-center gap-2 px-2 text-sm font-medium text-gray-400" role="status" aria-live="polite">
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-500 border-t-transparent motion-reduce:animate-none" aria-hidden="true" />
+            {t("updating")}
+          </div>
+        ) : null}
       </div>
 
-      <div aria-busy={loading}>
+      <div aria-busy={loading || updating}>
         {loading ? (
           <span role="status" className="sr-only">
             {t("updating")}
@@ -364,7 +375,7 @@ export default function MythicPlusLeaderboard({ filters, onFiltersChange: update
                     </td>
                     <td className="border-r border-gray-700 px-3 py-3 text-center">
                       {row.character.guild?.name && row.character.guild.realm ? (
-                        <Link href={getGuildProfileUrl(row.character.guild.realm, row.character.guild.name)} className="font-semibold text-gray-200 hover:text-blue-300">
+                        <Link href={getGuildProfileUrl(row.character.guild.realm, row.character.guild.name)} prefetch={false} className="font-semibold text-gray-200 hover:text-blue-300">
                           {row.character.guild.name}
                         </Link>
                       ) : (

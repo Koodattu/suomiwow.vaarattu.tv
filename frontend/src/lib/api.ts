@@ -2039,7 +2039,7 @@ export const api = {
     return response.json();
   },
 
-  async getCharacterRankings(queryString = ""): Promise<{
+  async getCharacterRankings(queryString = "", signal?: AbortSignal): Promise<{
     data: CharacterRankingRow[];
     pagination: {
       totalItems: number;
@@ -2049,7 +2049,7 @@ export const api = {
       pageSize: number;
     };
   }> {
-    const response = await fetch(`${API_URL}/api/character-rankings${queryString}`);
+    const response = await fetch(`${API_URL}/api/character-rankings${queryString}`, { signal });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.error || "Failed to fetch character rankings");
@@ -2057,7 +2057,7 @@ export const api = {
     return response.json();
   },
 
-  async getCharacterMechanics(queryString = ""): Promise<{
+  async getCharacterMechanics(queryString = "", signal?: AbortSignal): Promise<{
     data: CharacterRankingRow[];
     pagination: {
       totalItems: number;
@@ -2067,7 +2067,7 @@ export const api = {
       pageSize: number;
     };
   }> {
-    const response = await fetch(`${API_URL}/api/character-mechanics${queryString}`);
+    const response = await fetch(`${API_URL}/api/character-mechanics${queryString}`, { signal });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.error || "Failed to fetch character mechanics");

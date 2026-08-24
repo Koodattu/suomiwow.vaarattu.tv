@@ -387,8 +387,10 @@ export function useCharacterRankingOptions(enabled: boolean = true) {
 export function useCharacterRankings(query: string, enabled: boolean = true) {
   return useQuery({
     queryKey: queryKeys.characterRankings.list(query),
-    queryFn: () => api.getCharacterRankings(query),
+    queryFn: ({ signal }) => api.getCharacterRankings(query, signal),
     enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -404,8 +406,10 @@ export function useCharacterMechanicsOptions(enabled: boolean = true) {
 export function useCharacterMechanics(query: string, enabled: boolean = true) {
   return useQuery({
     queryKey: queryKeys.characterMechanics.list(query),
-    queryFn: () => api.getCharacterMechanics(query),
+    queryFn: ({ signal }) => api.getCharacterMechanics(query, signal),
     enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

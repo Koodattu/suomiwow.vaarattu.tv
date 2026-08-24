@@ -89,6 +89,9 @@ interface MongoCacheEntry {
  * - `progress:raid:*` - Raid progress pages
  * - `guilds:list` - Guild directory
  * - `guilds:raid:*` - Guild lists by raid
+ * - `character-rankings:*` - Character ranking filter options
+ * - `character-mechanics:*` - Character mechanics filter options
+ * - `mythic-plus:*` - Mythic+ options and leaderboards
  */
 class CacheService {
   private warmers: Map<string, CacheWarmer> = new Map();
@@ -126,6 +129,9 @@ class CacheService {
     /^guilds:horse-race-uma-reservations$/,
     /^events:/,
     /^characters:profile:/,
+    /^character-rankings:/,
+    /^character-mechanics:/,
+    /^mythic-plus:/,
     /^raids:list$/,
     /^raid:\d+:dates$/,
     /^raid:\d+:bosses$/,

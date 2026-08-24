@@ -901,6 +901,11 @@ class GuildService {
     return null;
   }
 
+  private getRaiderIOWorldRankForDifficulty(rankings: RaiderIORaidDifficultyRankings, difficulty: IRaidProgress["difficulty"]): number | undefined {
+    const rank = rankings[difficulty]?.world;
+    return typeof rank === "number" && rank > 0 ? rank : undefined;
+  }
+
   // Get all valid boss encounter IDs from tracked raids
   // This is used to filter out dungeon bosses and other non-raid content
   private async getValidBossEncounterIds(): Promise<Set<number>> {
@@ -1614,13 +1619,16 @@ class GuildService {
             continue;
           }
 
-          const rank = diffRankings.mythic?.world || diffRankings.heroic?.world;
-          if (rank) {
-            for (const raidProgress of raidEntries) {
-              raidProgress.rioWorldRank = rank;
-            }
-            guildLog.info(`${raidData.name}: Raider.IO World Rank #${rank}`);
-          } else {
+          let rankAssigned = false;
+          for (const raidProgress of raidEntries) {
+            const rank = this.getRaiderIOWorldRankForDifficulty(diffRankings, raidProgress.difficulty);
+            if (!rank) continue;
+
+            raidProgress.rioWorldRank = rank;
+            rankAssigned = true;
+            guildLog.info(`${raidData.name} (${raidProgress.difficulty}): Raider.IO World Rank #${rank}`);
+          }
+          if (!rankAssigned) {
             guildLog.info(`${raidData.name}: Raider.IO returned no valid world rank`);
           }
         }
@@ -1693,9 +1701,9 @@ class GuildService {
         heroicProgress?.rioWorldRank,
       );
       const hasWclWorldRank = Boolean(mythicProgress?.wclWorldRank || heroicProgress?.wclWorldRank);
-      const hasRioWorldRank = Boolean(mythicProgress?.rioWorldRank || heroicProgress?.rioWorldRank);
+      const hasRioWorldRanks = Boolean((!mythicProgress || mythicProgress.rioWorldRank) && (!heroicProgress || heroicProgress.rioWorldRank));
       const rioSupported = !RAID_RIO_RANKING_DISABLED_IDS.has(raidData.id) && Boolean(raidData.rioSlug || RAID_RIO_SLUG_OVERRIDES[raidData.id]);
-      const missingSupportedSourceRank = !hasWclWorldRank || (rioSupported && !hasRioWorldRank);
+      const missingSupportedSourceRank = !hasWclWorldRank || (rioSupported && !hasRioWorldRanks);
 
       if (!options.refreshCompleted && hasCompletedMythic && hasExistingWorldRank && !missingSupportedSourceRank) {
         guildLog.info(`Has completed raid ${raidId} mythic (${mythicProgress.bossesDefeated}/${raidData.bosses.length}), world rank is final - skipping update`);
@@ -1754,16 +1762,18 @@ class GuildService {
             continue;
           }
 
-          const rank = diffRankings.mythic?.world || diffRankings.heroic?.world;
-          if (rank) {
-            if (mythicProgress) {
-              mythicProgress.rioWorldRank = rank;
-            }
-            if (heroicProgress) {
-              heroicProgress.rioWorldRank = rank;
-            }
-            guildLog.info(`${raidName}: Raider.IO World Rank #${rank}`);
-          } else {
+          let rankAssigned = false;
+          for (const progress of [mythicProgress, heroicProgress]) {
+            if (!progress) continue;
+
+            const rank = this.getRaiderIOWorldRankForDifficulty(diffRankings, progress.difficulty);
+            if (!rank) continue;
+
+            progress.rioWorldRank = rank;
+            rankAssigned = true;
+            guildLog.info(`${raidName} (${progress.difficulty}): Raider.IO World Rank #${rank}`);
+          }
+          if (!rankAssigned) {
             guildLog.info(`${raidName}: Raider.IO returned no valid world rank`);
           }
         }
@@ -1784,7 +1794,7 @@ class GuildService {
 
     // Record rank snapshots for current raid tier (after save so guild._id is available)
     for (const { raidId, mythicProgress, heroicProgress } of raidsToUpdate) {
-      // Use mythic progress preferentially since both have the same worldRank
+      // Mirror the displayed ranking by preferring Mythic progress when present.
       const progressForSnapshot = mythicProgress || heroicProgress;
       if (progressForSnapshot) {
         await this.recordWorldRankSnapshot(guild._id as mongoose.Types.ObjectId, raidId, progressForSnapshot);
@@ -1936,7 +1946,7 @@ class GuildService {
           const diffRankings = this.findRaiderIORaidRankings(rankings, raidData.slug, raidData.name, raidData.rioSlug || RAID_RIO_SLUG_OVERRIDES[raidData.id]);
           if (!diffRankings) continue;
 
-          const rank = raidProgress.difficulty === "mythic" ? diffRankings.mythic?.world : diffRankings.heroic?.world;
+          const rank = this.getRaiderIOWorldRankForDifficulty(diffRankings, raidProgress.difficulty);
           if (rank) {
             raidProgress.rioWorldRank = rank;
             this.computeBestWorldRank(raidProgress);
