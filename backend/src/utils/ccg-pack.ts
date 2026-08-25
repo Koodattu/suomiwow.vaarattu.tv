@@ -37,12 +37,12 @@ export type CcgCardCandidates<T> = {
 };
 
 const CCG_MISSING_CARD_CANDIDATE_CURVE = [
-  { completionRatio: CCG_MISSING_CARD_NUDGE_START_COMPLETION_RATIO, effectiveCandidates: 1 + (CCG_MISSING_CARD_NUDGE_BPS / CCG_BASIS_POINT_SCALE) },
-  { completionRatio: 0.97, effectiveCandidates: 1.35 },
-  { completionRatio: 0.98, effectiveCandidates: 1.5 },
-  { completionRatio: 0.99, effectiveCandidates: 2 },
-  { completionRatio: 0.995, effectiveCandidates: 3 },
-  { completionRatio: 0.999, effectiveCandidates: 4 },
+  { completionRatio: CCG_MISSING_CARD_NUDGE_START_COMPLETION_RATIO, effectiveCandidates: 1.25 },
+  { completionRatio: 0.97, effectiveCandidates: 1.5 },
+  { completionRatio: 0.98, effectiveCandidates: 2.5 },
+  { completionRatio: 0.99, effectiveCandidates: 4 },
+  { completionRatio: 0.995, effectiveCandidates: 8 },
+  { completionRatio: 0.999, effectiveCandidates: 20 },
 ] as const;
 
 export function shufflePackResults<T>(results: readonly T[], random: (maximum: number) => number = randomInt): T[] {
@@ -93,7 +93,9 @@ export function getMissingCardEffectiveCandidates(completionRatio: number): numb
   if (!Number.isFinite(completionRatio)) throw new Error("Completion ratio must be finite");
   const clampedRatio = Math.max(0, Math.min(1, completionRatio));
   const first = CCG_MISSING_CARD_CANDIDATE_CURVE[0];
-  if (clampedRatio <= first.completionRatio) return first.effectiveCandidates;
+  if (clampedRatio < first.completionRatio) {
+    return 1 + (CCG_MISSING_CARD_NUDGE_BPS / CCG_BASIS_POINT_SCALE);
+  }
 
   for (let index = 1; index < CCG_MISSING_CARD_CANDIDATE_CURVE.length; index += 1) {
     const upper = CCG_MISSING_CARD_CANDIDATE_CURVE[index];

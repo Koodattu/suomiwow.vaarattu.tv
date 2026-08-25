@@ -683,24 +683,26 @@ test("pack plans create same-rarity missing-card alternatives on the five-percen
   assert.equal(plan.slice(1).every((row) => row.missingCardAlternatives.length === 0), true);
 });
 
-test("missing-card candidate counts scale smoothly from 95 percent completion and cap at four", () => {
+test("missing-card candidate counts become aggressive at 95 percent completion and cap at twenty", () => {
   assert.equal(CCG_MISSING_CARD_NUDGE_START_COMPLETION_RATIO, 0.95);
   const assertClose = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-10);
   assertClose(getMissingCardEffectiveCandidates(0), 1.05);
-  assertClose(getMissingCardEffectiveCandidates(0.95), 1.05);
-  assertClose(getMissingCardEffectiveCandidates(0.97), 1.35);
-  assertClose(getMissingCardEffectiveCandidates(0.98), 1.5);
-  assertClose(getMissingCardEffectiveCandidates(0.99), 2);
-  assertClose(getMissingCardEffectiveCandidates(0.995), 3);
-  assertClose(getMissingCardEffectiveCandidates(0.997), 3.5);
-  assertClose(getMissingCardEffectiveCandidates(0.999), 4);
-  assertClose(getMissingCardEffectiveCandidates(1), 4);
+  assertClose(getMissingCardEffectiveCandidates(0.949999), 1.05);
+  assertClose(getMissingCardEffectiveCandidates(0.95), 1.25);
+  assertClose(getMissingCardEffectiveCandidates(0.96), 1.375);
+  assertClose(getMissingCardEffectiveCandidates(0.97), 1.5);
+  assertClose(getMissingCardEffectiveCandidates(0.98), 2.5);
+  assertClose(getMissingCardEffectiveCandidates(0.99), 4);
+  assertClose(getMissingCardEffectiveCandidates(0.995), 8);
+  assertClose(getMissingCardEffectiveCandidates(0.997), 14);
+  assertClose(getMissingCardEffectiveCandidates(0.999), 20);
+  assertClose(getMissingCardEffectiveCandidates(1), 20);
 
-  assert.equal(rollMissingCardCandidateCount(0.95, () => 499), 2);
-  assert.equal(rollMissingCardCandidateCount(0.95, () => 500), 1);
-  assert.equal(rollMissingCardCandidateCount(0.997, () => 4_999), 4);
-  assert.equal(rollMissingCardCandidateCount(0.997, () => 5_000), 3);
-  assert.equal(rollMissingCardCandidateCount(0.999, () => { throw new Error("unexpected roll"); }), 4);
+  assert.equal(rollMissingCardCandidateCount(0.95, () => 2_499), 2);
+  assert.equal(rollMissingCardCandidateCount(0.95, () => 2_500), 1);
+  assert.equal(rollMissingCardCandidateCount(0.9975, () => 4_999), 16);
+  assert.equal(rollMissingCardCandidateCount(0.9975, () => 5_000), 15);
+  assert.equal(rollMissingCardCandidateCount(0.999, () => { throw new Error("unexpected roll"); }), 20);
 });
 
 test("late-completion pack plans keep all extra candidates inside the rolled rarity", () => {
@@ -711,7 +713,7 @@ test("late-completion pack plans keep all extra candidates inside the rolled rar
     0.999,
   );
 
-  assert.equal(plan.every((row) => row.missingCardAlternatives.length === 3), true);
+  assert.equal(plan.every((row) => row.missingCardAlternatives.length === 19), true);
   assert.equal(plan.every((row) => row.missingCardAlternatives.every((alternative) => alternative.tierGrade === row.tierGrade)), true);
 });
 
