@@ -43,6 +43,7 @@ interface BlizzardAchievementMedia {
 }
 
 const BLIZZARD_REQUEST_TIMEOUT_MS = 30_000;
+const BLIZZARD_RENDER_BASE_URL = "https://render.worldofwarcraft.com";
 
 export interface BlizzardCharacterMedia {
   avatarUrl: string | null;
@@ -636,7 +637,29 @@ export class BlizzardApiClient {
       const normalizedRealmSlug = encodeURIComponent(realmSlug.toLowerCase());
       const namespace = `profile-${regionLower}`;
       const url = `${apiUrl}/profile/wow/character/${normalizedRealmSlug}/${nameSlug}/character-media?namespace=${namespace}&locale=${this.locale}`;
-      const response = await this.makeAuthenticatedRequest<BlizzardCharacterMediaResponse>(url, 0, 5);
+      let response: BlizzardCharacterMediaResponse;
+      try {
+        response = await this.makeAuthenticatedRequest<BlizzardCharacterMediaResponse>(url, 0, 5);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/status 404\b/i.test(message)) throw error;
+
+        const profile = await this.getCharacterProfile(characterName, realmSlug, regionLower);
+        if (!Number.isSafeInteger(profile.id) || profile.id <= 0) {
+          throw new Error(`Blizzard returned an invalid character ID for ${characterName}-${realmSlug}`);
+        }
+
+        const profileRealmSlug = encodeURIComponent(profile.realm.slug.toLowerCase());
+        const renderBaseUrl = `${BLIZZARD_RENDER_BASE_URL}/${regionLower}/character/${profileRealmSlug}/${profile.id % 256}/${profile.id}`;
+        const fallbackMedia = {
+          avatarUrl: `${renderBaseUrl}-avatar.jpg`,
+          insetUrl: `${renderBaseUrl}-inset.jpg`,
+          mainRawUrl: `${renderBaseUrl}-main-raw.png`,
+        };
+        await this.verifyCharacterRender(fallbackMedia.mainRawUrl);
+        logger.warn(`[CharacterMedia] Blizzard media document was missing for ${characterName}-${realmSlug}; using verified CDN assets`);
+        return fallbackMedia;
+      }
       const assets = new Map((response.assets ?? []).map((asset) => [asset.key, asset.value]));
 
       return {
@@ -645,6 +668,28 @@ export class BlizzardApiClient {
         mainRawUrl: assets.get("main-raw") ?? assets.get("main") ?? null,
       };
     });
+  }
+
+  private async verifyCharacterRender(renderUrl: string): Promise<void> {
+    let response;
+    try {
+      response = await fetch(renderUrl, {
+        method: "HEAD",
+        redirect: "error",
+        signal: AbortSignal.timeout(BLIZZARD_REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Blizzard character render fallback request failed: ${message}`);
+    }
+
+    if (!response.ok) {
+      throw new Error(`Blizzard character render fallback failed with status ${response.status}: ${response.statusText}`);
+    }
+    const contentType = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ?? "";
+    if (contentType !== "image/png") {
+      throw new Error(`Blizzard character render fallback returned unexpected content type: ${contentType || "missing"}`);
+    }
   }
 
   public async getCharacterProfile(characterName: string, realmSlug: string, region: string): Promise<BlizzardCharacterProfile> {
