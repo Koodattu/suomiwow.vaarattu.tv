@@ -272,19 +272,15 @@ class GuildProfileHighlightsService {
     return member.account && member.characterIds.size > 1 ? "account" : "character";
   }
 
-  private getMemberName(member: MemberAggregate): string {
-    return this.resolveKind(member) === "account" ? member.account?.displayName || member.primary.name : member.primary.name;
-  }
-
   private toMainstay(member: MemberAggregate): IGuildProfileHighlightMainstay {
     const kind = this.resolveKind(member);
     return {
       kind,
-      characterId: kind === "character" ? member.primary.characterId ?? null : null,
+      characterId: member.primary.characterId ?? null,
       accountGroupId: kind === "account" ? member.account?.id ?? null : null,
       accountSlug: kind === "account" ? member.account?.slug ?? null : null,
       accountDisplayName: kind === "account" ? member.account?.displayName ?? null : null,
-      name: this.getMemberName(member),
+      name: member.primary.name,
       realm: member.primary.realm,
       region: member.primary.region,
       classID: member.primary.classID,
@@ -351,11 +347,10 @@ class GuildProfileHighlightsService {
     return row.role === "healer" ? row.metric === "hps" : row.metric === "dps";
   }
 
-  private createTopAggregate(identityKey: string, row: MechanicsRow, account?: AccountInfo): TopPerformerAggregate {
+  private createTopAggregate(identityKey: string, row: MechanicsRow): TopPerformerAggregate {
     const characterId = row.characterId.toString();
     return {
       identityKey,
-      account,
       characterIds: new Set([characterId]),
       raidIds: new Set(),
       reportCount: 0,
@@ -395,34 +390,24 @@ class GuildProfileHighlightsService {
 
     if (this.isBetterMechanicsRow(row, topAggregate.bestRow)) {
       topAggregate.bestRow = row;
-      topAggregate.primary = this.preferIdentity(topAggregate.primary, {
-        characterId: row.characterId,
-        name: row.name,
-        realm: row.realm,
-        region: row.region,
-        classID: row.classID,
-        reportCount: topAggregate.primary.reportCount,
-        lastSeenAt: row.updatedAt ?? null,
-      });
     }
   }
 
   private toTopPerformer(member: TopPerformerAggregate, raidNameById: Map<number, string>): IGuildProfileHighlightTopPerformer {
-    const kind = this.resolveKind(member);
     const bestRow = member.bestRow;
     const performanceRows = Array.from(member.performanceByRaid.values());
 
     return {
-      kind,
-      characterId: kind === "character" ? member.primary.characterId ?? bestRow.characterId : null,
-      accountGroupId: kind === "account" ? member.account?.id ?? null : null,
-      accountSlug: kind === "account" ? member.account?.slug ?? null : null,
-      accountDisplayName: kind === "account" ? member.account?.displayName ?? null : null,
-      name: this.getMemberName(member),
-      realm: member.primary.realm,
-      region: member.primary.region,
-      classID: member.primary.classID,
-      characterCount: member.characterIds.size,
+      kind: "character",
+      characterId: bestRow.characterId,
+      accountGroupId: null,
+      accountSlug: null,
+      accountDisplayName: null,
+      name: bestRow.name,
+      realm: bestRow.realm,
+      region: bestRow.region,
+      classID: bestRow.classID,
+      characterCount: 1,
       reportCount: member.reportCount,
       raidCount: member.raidIds.size || performanceRows.length,
       performanceRaidCount: performanceRows.length,
@@ -441,8 +426,6 @@ class GuildProfileHighlightsService {
 
   private buildTopPerformersByGuild(
     mechanicsRows: MechanicsRow[],
-    accountByCharacterId: Map<string, AccountInfo>,
-    accountMemberCountsByGuild: Map<string, number>,
     participationsByCharacterZone: Map<string, ParticipationTarget[]>,
     raidNameById: Map<number, string>,
   ): Map<string, IGuildProfileHighlightTopPerformer[]> {
@@ -466,9 +449,7 @@ class GuildProfileHighlightsService {
       const participationTargets = participationsByCharacterZone.get(`${characterId}:${row.zoneId}`) ?? [];
 
       for (const target of participationTargets) {
-        const account = accountByCharacterId.get(characterId);
-        const accountGuildCharacterCount = account ? accountMemberCountsByGuild.get(`${target.guildId}:${account.idString}`) ?? 0 : 0;
-        const identityKey = account && accountGuildCharacterCount > 1 ? `account:${account.idString}` : `character:${characterId}`;
+        const identityKey = `character:${characterId}`;
 
         let guildTopAggregates = topAggregatesByGuild.get(target.guildId);
         if (!guildTopAggregates) {
@@ -478,7 +459,7 @@ class GuildProfileHighlightsService {
 
         let topAggregate = guildTopAggregates.get(identityKey);
         if (!topAggregate) {
-          topAggregate = this.createTopAggregate(identityKey, row, account && accountGuildCharacterCount > 1 ? account : undefined);
+          topAggregate = this.createTopAggregate(identityKey, row);
           guildTopAggregates.set(identityKey, topAggregate);
         }
 
@@ -570,11 +551,8 @@ class GuildProfileHighlightsService {
     }
 
     const participationsByCharacterZone = new Map<string, ParticipationTarget[]>();
-    const accountMemberCountsByGuild = new Map<string, number>();
 
     for (const [guildId, characterAggregates] of characterAggregatesByGuild.entries()) {
-      const accountCharacterIdsByGuild = new Map<string, Set<string>>();
-
       for (const characterAggregate of characterAggregates.values()) {
         const characterId = this.toObjectIdString(characterAggregate.characterId);
         if (!characterId) continue;
@@ -585,30 +563,10 @@ class GuildProfileHighlightsService {
           targets.push({ guildId, participation: characterAggregate });
           participationsByCharacterZone.set(characterZoneKey, targets);
         }
-
-        const account = accountByCharacterId.get(characterId);
-        if (!account) continue;
-
-        let characterIds = accountCharacterIdsByGuild.get(account.idString);
-        if (!characterIds) {
-          characterIds = new Set();
-          accountCharacterIdsByGuild.set(account.idString, characterIds);
-        }
-        characterIds.add(characterId);
-      }
-
-      for (const [accountId, characterIds] of accountCharacterIdsByGuild.entries()) {
-        accountMemberCountsByGuild.set(`${guildId}:${accountId}`, characterIds.size);
       }
     }
 
-    const topPerformersByGuild = this.buildTopPerformersByGuild(
-      mechanicsRows,
-      accountByCharacterId,
-      accountMemberCountsByGuild,
-      participationsByCharacterZone,
-      raidNameById,
-    );
+    const topPerformersByGuild = this.buildTopPerformersByGuild(mechanicsRows, participationsByCharacterZone, raidNameById);
 
     const sourceUpdatedAt =
       this.maxDate([latestParticipation?.updatedAt, latestMechanics?.updatedAt, latestAccountGroup?.updatedAt, latestAccountGroup?.generatedAt]) ?? generatedAt;

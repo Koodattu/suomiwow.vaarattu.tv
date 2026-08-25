@@ -121,6 +121,7 @@ function getEmbedLabel(pathname: string) {
   if (pathname === "/pickems-rules") return "Pickems rules";
   if (pathname.startsWith("/ccg")) return "SuomiWoW CCG";
   if (pathname.startsWith("/fun")) return "Game prototype";
+  if (pathname.startsWith("/tools")) return "Browser tool";
   if (pathname === "/privacy") return "Privacy";
   if (pathname === "/terms") return "Terms";
   if (pathname.startsWith("/profile")) return "Profile";
@@ -276,6 +277,18 @@ export function getPageMetadata(
       description: isEnglish
         ? "Try experimental guessing games built from Finnish WoW guild and character data."
         : "Kokeile suomalaisten WoW-kiltojen ja hahmojen tiedoista tehtyjä kokeellisia arvauspelejä.",
+    },
+    "/tools": {
+      title: isEnglish ? "WoW Tools" : "WoW-työkalut",
+      description: isEnglish
+        ? "Browser-based tools for working with your own World of Warcraft data."
+        : "Selaimessa toimivia työkaluja omien World of Warcraft -tietojen käsittelyyn.",
+    },
+    "/tools/rclc": {
+      title: isEnglish ? "RCLootCouncil Loot Analyzer" : "RCLootCouncil-loot-analyysi",
+      description: isEnglish
+        ? "Analyze an RCLootCouncil JSON export by raid date, instance, character, and loot response without uploading the file."
+        : "Analysoi RCLootCouncilin JSON-vientiä raidipäivän, instanssin, hahmon ja loot-valinnan mukaan lähettämättä tiedostoa palvelimelle.",
     },
     "/privacy": {
       title: isEnglish ? "Privacy Policy" : "Tietosuojakaytanto",

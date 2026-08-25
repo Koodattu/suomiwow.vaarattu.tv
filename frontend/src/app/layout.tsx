@@ -50,7 +50,7 @@ export default function RootLayout({
   const isCcgOverlayPage = pathname === "/ccg/overlay";
   const isHomePage = pathname === "/";
   const robotsContent =
-    pathname.startsWith("/admin") || pathname.startsWith("/profile") || pathname.startsWith("/reporter") || pathname.startsWith("/fun") || isCcgOverlayPage
+    pathname.startsWith("/admin") || pathname.startsWith("/profile") || pathname.startsWith("/reporter") || pathname.startsWith("/fun") || pathname.startsWith("/tools") || isCcgOverlayPage
       ? "noindex, nofollow"
       : "index, follow";
   const [locale, setLocale] = useState<Locale>("en");
