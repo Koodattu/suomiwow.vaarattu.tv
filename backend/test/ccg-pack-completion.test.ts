@@ -109,7 +109,71 @@ test("pack completion counting uses active characters above 95 percent", async (
   }
 });
 
-test("all-raids packs skip missing-card protection even when it is requested", async () => {
+test("Community completion loads only active pool series and indexed owner rows", async () => {
+  const ownerId = new mongoose.Types.ObjectId();
+  const setId = new mongoose.Types.ObjectId();
+  const session = {} as mongoose.ClientSession;
+  const cardRows = Array.from({ length: 10 }, (_, index) => ({
+    _id: new mongoose.Types.ObjectId(),
+    characterId: new mongoose.Types.ObjectId(),
+    tierGrade: index === 9 ? "S" : "F",
+  }));
+  const service = ccgService as any;
+  const cardModel = CcgCard as any;
+  const seriesModel = CcgSeriesOwnership as any;
+  const originals = {
+    cardFind: cardModel.find,
+    seriesFind: seriesModel.find,
+  };
+  let cardFilter: Record<string, unknown> | null = null;
+  let ownershipFilter: Record<string, unknown> | null = null;
+
+  try {
+    cardModel.find = (filter: Record<string, unknown>) => {
+      cardFilter = filter;
+      return {
+        select() { return this; },
+        session(value: unknown) { assert.equal(value, session); return this; },
+        lean: async () => cardRows,
+      };
+    };
+    seriesModel.find = (filter: Record<string, unknown>) => {
+      ownershipFilter = filter;
+      return {
+        select() { return this; },
+        session(value: unknown) { assert.equal(value, session); return this; },
+        lean: async () => cardRows.slice(0, 9).map((card) => ({ characterId: card.characterId })),
+      };
+    };
+
+    const state = await service.loadCommunityPackNudgeState(
+      { ownerType: "user", ownerId },
+      setId,
+      cardRows.map((card) => card._id),
+      session,
+    );
+
+    assert.equal(state.completionRatio, 0.9);
+    assert.equal(state.cardById.size, 10);
+    assert.deepEqual(state.missingCards, [{
+      cardId: cardRows[9]._id,
+      characterId: cardRows[9].characterId,
+      tierGrade: "S",
+    }]);
+    assert.deepEqual(cardFilter, { _id: { $in: cardRows.map((card) => card._id) }, setId });
+    assert.deepEqual(ownershipFilter, {
+      ownerType: "user",
+      ownerId,
+      setId,
+      characterId: { $in: cardRows.map((card) => card.characterId) },
+    });
+  } finally {
+    cardModel.find = originals.cardFind;
+    seriesModel.find = originals.seriesFind;
+  }
+});
+
+test("all-raids packs skip raid missing-card protection even when it is requested", async () => {
   const ownerId = new mongoose.Types.ObjectId();
   const setId = new mongoose.Types.ObjectId();
   const poolId = new mongoose.Types.ObjectId();

@@ -44,11 +44,13 @@ import {
   rollProtectedFinish,
 } from "../src/utils/ccg-random";
 import {
+  getCommunityMissingCardNudgeBps,
   getMissingCardEffectiveCandidates,
   planPackSelections,
   resolveMissingCardNudge,
   rollMissingCardCandidateCount,
-  selectCommunityCardCandidates,
+  selectCommunityCard,
+  selectCommunityMissingCard,
   selectPackCards,
   shufflePackResults,
 } from "../src/utils/ccg-pack";
@@ -746,28 +748,34 @@ test("each card has a fixed one-percent chance to become a random Community card
     { id: "heirloom", tierGrade: "H" as const },
     { id: "meme", tierGrade: "H" as const },
   ];
-  assert.equal(selectCommunityCardCandidates([], () => { throw new Error("unexpected roll"); }), null);
-  assert.equal(selectCommunityCardCandidates(communityCards, () => 100), null);
+  assert.equal(selectCommunityCard([], () => { throw new Error("unexpected roll"); }), null);
+  assert.equal(selectCommunityCard(communityCards, () => 100), null);
 
-  const acceptedRolls = [99, 1, 500];
-  assert.deepEqual(selectCommunityCardCandidates(communityCards, () => acceptedRolls.shift()!), {
-    primary: communityCards[1],
-    missingCardAlternatives: [],
-  });
+  const acceptedRolls = [99, 1];
+  assert.equal(selectCommunityCard(communityCards, () => acceptedRolls.shift()!), communityCards[1]);
 });
 
-test("Community missing-card alternatives preserve the primary rarity", () => {
-  const communityCards = [
-    { id: "first-a", tierGrade: "A" as const },
-    { id: "only-b", tierGrade: "B" as const },
-    { id: "second-a", tierGrade: "A" as const },
-  ];
-  const acceptedRolls = [0, 0, 499, 1];
-  const selected = selectCommunityCardCandidates(communityCards, () => acceptedRolls.shift()!);
+test("Community missing-card selection scales at 90, 95, and 99 percent completion", () => {
+  assert.equal(getCommunityMissingCardNudgeBps(0), 0);
+  assert.equal(getCommunityMissingCardNudgeBps(0.899999), 0);
+  assert.equal(getCommunityMissingCardNudgeBps(0.9), 2_500);
+  assert.equal(getCommunityMissingCardNudgeBps(0.949999), 2_500);
+  assert.equal(getCommunityMissingCardNudgeBps(0.95), 5_000);
+  assert.equal(getCommunityMissingCardNudgeBps(0.989999), 5_000);
+  assert.equal(getCommunityMissingCardNudgeBps(0.99), 7_500);
+  assert.equal(getCommunityMissingCardNudgeBps(1), 7_500);
+  assert.throws(() => getCommunityMissingCardNudgeBps(Number.NaN), /must be finite/);
 
-  assert.equal(selected?.primary.id, "first-a");
-  assert.equal(selected?.missingCardAlternatives[0]?.id, "second-a");
-  assert.equal(selected?.missingCardAlternatives[0]?.tierGrade, selected?.primary.tierGrade);
+  const missingCards = [{ id: "missing-a" }, { id: "missing-b" }];
+  assert.equal(selectCommunityMissingCard([], 0.99, () => { throw new Error("unexpected roll"); }), null);
+  assert.equal(selectCommunityMissingCard(missingCards, 0.89, () => { throw new Error("unexpected roll"); }), null);
+  assert.equal(selectCommunityMissingCard(missingCards, 0.9, () => 2_500), null);
+
+  const acceptedRolls = [7_499, 1];
+  assert.equal(
+    selectCommunityMissingCard(missingCards, 0.99, () => acceptedRolls.shift()!),
+    missingCards[1],
+  );
 });
 
 test("Heirloom stays outside regular raid-card pack odds", () => {

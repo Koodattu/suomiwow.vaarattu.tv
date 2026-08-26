@@ -81,7 +81,8 @@ import { createCcgShareShortId, resolveCcgShareLookup } from "../utils/ccg-share
 import {
   planPackSelections,
   resolveMissingCardNudge,
-  selectCommunityCardCandidates,
+  selectCommunityCard,
+  selectCommunityMissingCard,
   shufflePackResults,
   type CcgPackCardPlan,
 } from "../utils/ccg-pack";
@@ -386,6 +387,12 @@ type CcgPackCardCandidate = {
 
 type CcgPackCardSelection = CcgPackCardCandidate & {
   missingCardAlternatives: CcgPackCardCandidate[];
+};
+
+type CcgCommunityPackCard = {
+  cardId: mongoose.Types.ObjectId;
+  characterId: mongoose.Types.ObjectId;
+  tierGrade: CcgTierGrade;
 };
 
 type SelectedResult = {
@@ -3112,7 +3119,7 @@ class CcgService {
           targetSetId,
           true,
           applyMissingCardProtection,
-          applyMissingCardProtection ? owner : null,
+          owner,
         );
         const candidateSelections = pool.results;
         const candidateIds = candidateSelections.flatMap((result) => [
@@ -4401,12 +4408,51 @@ class CcgService {
     }).session(session);
   }
 
+  private async loadCommunityPackNudgeState(
+    owner: Pick<CcgOwner, "ownerType" | "ownerId">,
+    setId: mongoose.Types.ObjectId,
+    cardIds: mongoose.Types.ObjectId[],
+    session: ClientSession,
+  ): Promise<{
+    cardById: Map<string, CcgCommunityPackCard>;
+    missingCards: CcgCommunityPackCard[];
+    completionRatio: number;
+  }> {
+    const cardRows = await CcgCard.find({ _id: { $in: cardIds }, setId })
+      .select("_id characterId tierGrade")
+      .session(session)
+      .lean();
+    const cards = cardRows.map((card): CcgCommunityPackCard => ({
+      cardId: card._id,
+      characterId: card.characterId,
+      tierGrade: card.tierGrade,
+    }));
+    const cardById = new Map(cards.map((card) => [String(card.cardId), card]));
+    const activeCardBySeries = new Map(cards.map((card) => [String(card.characterId), card]));
+    const activeCards = Array.from(activeCardBySeries.values());
+    if (activeCards.length === 0) return { cardById, missingCards: [], completionRatio: 0 };
+
+    const ownershipRows = await CcgSeriesOwnership.find({
+      ownerType: owner.ownerType,
+      ownerId: owner.ownerId,
+      setId,
+      characterId: { $in: activeCards.map((card) => card.characterId) },
+    }).select("characterId").session(session).lean();
+    const ownedCharacterIds = new Set(ownershipRows.map((row) => String(row.characterId)));
+    const missingCards = activeCards.filter((card) => !ownedCharacterIds.has(String(card.characterId)));
+    return {
+      cardById,
+      missingCards,
+      completionRatio: (activeCards.length - missingCards.length) / activeCards.length,
+    };
+  }
+
   private async selectPackResults(
     session: ClientSession,
     targetSetId: mongoose.Types.ObjectId | null = null,
     includeCommunity = true,
     includeMissingCardAlternatives = true,
-    missingCardOwner: Pick<CcgOwner, "ownerType" | "ownerId"> | null = null,
+    packOwner: Pick<CcgOwner, "ownerType" | "ownerId"> | null = null,
   ): Promise<{
     results: CcgPackCardSelection[];
     sourceSetIds: mongoose.Types.ObjectId[];
@@ -4460,10 +4506,10 @@ class CcgService {
       );
     }
 
-    const applyMissingCardProtection = Boolean(targetSetId && includeMissingCardAlternatives && missingCardOwner);
+    const applyRaidMissingCardProtection = Boolean(targetSetId && includeMissingCardAlternatives && packOwner);
     const eligibleCardCount = sets.reduce((total, set) => total + set.cardCount, 0);
-    const ownedSeriesCount = applyMissingCardProtection && missingCardOwner
-      ? await this.countPackOwnedSeries(missingCardOwner, sets[0]._id, sets[0].cardCount, session)
+    const ownedSeriesCount = applyRaidMissingCardProtection && packOwner
+      ? await this.countPackOwnedSeries(packOwner, sets[0]._id, sets[0].cardCount, session)
       : 0;
     const completionRatio = eligibleCardCount > 0
       ? Math.min(ownedSeriesCount, eligibleCardCount) / eligibleCardCount
@@ -4477,7 +4523,7 @@ class CcgService {
         counts: pool.counts,
       })),
       randomInt,
-      applyMissingCardProtection,
+      applyRaidMissingCardProtection,
       completionRatio,
     );
     const plannedCards = plan.flatMap((row) => [
@@ -4535,22 +4581,51 @@ class CcgService {
         tierGrade: bucket.grade as CcgTierGrade,
       }))
     ));
-    const results = baseResults.map((base): CcgPackCardSelection => {
-      const communitySelection = selectCommunityCardCandidates(communityCards, randomInt, applyMissingCardProtection);
-      if (communitySet && communitySelection) {
-        const primary = communitySelection.primary;
-        return {
-          cardId: primary.cardId,
-          setId: communitySet._id,
-          tierGrade: primary.tierGrade,
-          missingCardAlternatives: communitySelection.missingCardAlternatives.map((alternative) => ({
-            cardId: alternative.cardId,
-            setId: communitySet._id,
-            tierGrade: alternative.tierGrade,
-          })),
-        };
+    const communityRolls = baseResults.map((base) => ({
+      base,
+      communityCard: selectCommunityCard(communityCards, randomInt),
+    }));
+    const hasCommunityRoll = communityRolls.some((row) => row.communityCard !== null);
+    const communityNudgeState = communitySet && packOwner && hasCommunityRoll
+      ? await this.loadCommunityPackNudgeState(
+          packOwner,
+          communitySet._id,
+          communityCards.map((card) => card.cardId),
+          session,
+        )
+      : null;
+    const remainingMissingCommunityCards = [...(communityNudgeState?.missingCards ?? [])];
+    const results = communityRolls.map(({ base, communityCard }): CcgPackCardSelection => {
+      if (!communitySet || !communityCard) return base;
+
+      let selectedCommunityCard = communityCard;
+      const primaryDetails = communityNudgeState?.cardById.get(String(communityCard.cardId));
+      if (primaryDetails && communityNudgeState) {
+        const primaryMissingIndex = remainingMissingCommunityCards.findIndex(
+          (card) => card.characterId.equals(primaryDetails.characterId),
+        );
+        if (primaryMissingIndex >= 0) {
+          selectedCommunityCard = primaryDetails;
+          remainingMissingCommunityCards.splice(primaryMissingIndex, 1);
+        } else {
+          const missingCard = selectCommunityMissingCard(
+            remainingMissingCommunityCards,
+            communityNudgeState.completionRatio,
+            randomInt,
+          );
+          if (missingCard) {
+            selectedCommunityCard = missingCard;
+            remainingMissingCommunityCards.splice(remainingMissingCommunityCards.indexOf(missingCard), 1);
+          }
+        }
       }
-      return base;
+
+      return {
+        cardId: selectedCommunityCard.cardId,
+        setId: communitySet._id,
+        tierGrade: selectedCommunityCard.tierGrade,
+        missingCardAlternatives: [],
+      };
     });
     const sourceSetIds = [...normalSetIds, ...(communitySet && communityPool ? [communitySet._id] : [])];
     const versionSeed = [...summaries.map((pool) => `${pool.setId}:${pool.version}`), ...(communitySet && communityPool ? [`${communitySet._id}:${communityPool.version}`] : [])]

@@ -31,11 +31,6 @@ export type CcgPackSelectionPlan = CcgPackCardPlan & {
   missingCardAlternatives: CcgPackCardPlan[];
 };
 
-export type CcgCardCandidates<T> = {
-  primary: T;
-  missingCardAlternatives: T[];
-};
-
 const CCG_MISSING_CARD_CANDIDATE_CURVE = [
   { completionRatio: CCG_MISSING_CARD_NUDGE_START_COMPLETION_RATIO, effectiveCandidates: 1.25 },
   { completionRatio: 0.97, effectiveCandidates: 1.5 },
@@ -43,6 +38,12 @@ const CCG_MISSING_CARD_CANDIDATE_CURVE = [
   { completionRatio: 0.99, effectiveCandidates: 4 },
   { completionRatio: 0.995, effectiveCandidates: 8 },
   { completionRatio: 0.999, effectiveCandidates: 20 },
+] as const;
+
+const CCG_COMMUNITY_MISSING_CARD_NUDGE_CURVE = [
+  { completionRatio: 0.99, chanceBps: 7_500 },
+  { completionRatio: 0.95, chanceBps: 5_000 },
+  { completionRatio: 0.9, chanceBps: 2_500 },
 ] as const;
 
 export function shufflePackResults<T>(results: readonly T[], random: (maximum: number) => number = randomInt): T[] {
@@ -191,20 +192,31 @@ export function planPackSelections(
   return Array.from({ length: CCG_CARDS_PER_PACK }, choose);
 }
 
-export function selectCommunityCardCandidates<T extends { tierGrade: CcgTierGrade }>(
+export function selectCommunityCard<T>(
   communityCards: readonly T[],
   random: (maximum: number) => number = randomInt,
-  includeMissingCardAlternatives = true,
-): CcgCardCandidates<T> | null {
+): T | null {
   if (communityCards.length === 0) return null;
   if (!rollBasisPointChance(CCG_COMMUNITY_CARD_CHANCE_BPS, random)) return null;
-  const primary = communityCards[random(communityCards.length)];
-  if (!includeMissingCardAlternatives || !rollBasisPointChance(CCG_MISSING_CARD_NUDGE_BPS, random)) {
-    return { primary, missingCardAlternatives: [] };
+  return communityCards[random(communityCards.length)];
+}
+
+export function getCommunityMissingCardNudgeBps(completionRatio: number): number {
+  if (!Number.isFinite(completionRatio)) throw new Error("Completion ratio must be finite");
+  const clampedRatio = Math.max(0, Math.min(1, completionRatio));
+  for (const point of CCG_COMMUNITY_MISSING_CARD_NUDGE_CURVE) {
+    if (clampedRatio >= point.completionRatio) return point.chanceBps;
   }
-  const sameGradeCards = communityCards.filter((card) => card.tierGrade === primary.tierGrade);
-  return {
-    primary,
-    missingCardAlternatives: [sameGradeCards[random(sameGradeCards.length)]],
-  };
+  return 0;
+}
+
+export function selectCommunityMissingCard<T>(
+  missingCommunityCards: readonly T[],
+  completionRatio: number,
+  random: (maximum: number) => number = randomInt,
+): T | null {
+  if (missingCommunityCards.length === 0) return null;
+  const chanceBps = getCommunityMissingCardNudgeBps(completionRatio);
+  if (chanceBps === 0 || !rollBasisPointChance(chanceBps, random)) return null;
+  return missingCommunityCards[random(missingCommunityCards.length)];
 }
