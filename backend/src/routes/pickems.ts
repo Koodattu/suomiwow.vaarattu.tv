@@ -16,6 +16,7 @@ import {
   validatePickemPredictions,
 } from "../services/pickem-submission.service";
 import pickemCcgRewardService, { PickemCcgRewardError } from "../services/pickem-ccg-reward.service";
+import { getPickemRankingProgress } from "../utils/pickemRankings";
 
 const router = Router();
 
@@ -535,10 +536,9 @@ async function buildRankingsFromCachedProgress(cachedGuildsByRaid: Map<number, a
           progressByRaid: new Map(),
         });
       }
-      // Find mythic progress for this raid from the filtered progress array
-      const mythicProgress = guild.progress?.find((p: any) => p.difficulty === "mythic" && p.raidId === raidId);
-      if (mythicProgress) {
-        guildMap.get(key)!.progressByRaid.set(raidId, mythicProgress);
+      const rankingProgress = getPickemRankingProgress(guild.progress, raidId);
+      if (rankingProgress) {
+        guildMap.get(key)!.progressByRaid.set(raidId, rankingProgress);
       }
     }
   }
@@ -604,7 +604,7 @@ async function buildRankingsFromDB(raidIds: number[]) {
     const progressByRaid = new Map<number, any>();
 
     for (const raidId of raidIds) {
-      const raidProgress = guild.progress?.find((p: { raidId: number; difficulty: string }) => p.raidId === raidId && p.difficulty === "mythic");
+      const raidProgress = getPickemRankingProgress(guild.progress, raidId);
       if (raidProgress) {
         progressByRaid.set(raidId, raidProgress);
       }
@@ -677,6 +677,7 @@ function consolidateAndRankGuilds(guildMap: Map<string, GuildMapEntry>, raidIds:
     fightCompletion: number;
     bossHealth: number;
     worldRank: number | null;
+    difficulty: "mythic" | "heroic" | null;
   }
 
   const allProgress: GuildProgressEntry[] = [];
@@ -692,6 +693,7 @@ function consolidateAndRankGuilds(guildMap: Map<string, GuildMapEntry>, raidIds:
     let fightCompletion = 100;
     let bossHealth = 100;
     let worldRank: number | null = null;
+    let difficulty: "mythic" | "heroic" | null = null;
 
     for (const raidId of raidIds) {
       const raidProgress = guild.progressByRaid.get(raidId);
@@ -709,6 +711,7 @@ function consolidateAndRankGuilds(guildMap: Map<string, GuildMapEntry>, raidIds:
         }
 
         if (useSingleRaidRanking) {
+          difficulty = raidProgress.difficulty;
           guildRank = readNumber(raidProgress.guildRank);
           worldRank = readNumber(raidProgress.worldRank);
           const currentBossSignals = getCurrentBossSignals(raidProgress, bossesDefeated);
@@ -734,6 +737,7 @@ function consolidateAndRankGuilds(guildMap: Map<string, GuildMapEntry>, raidIds:
       fightCompletion,
       bossHealth,
       worldRank,
+      difficulty,
     });
   }
 
@@ -797,6 +801,7 @@ function consolidateAndRankGuilds(guildMap: Map<string, GuildMapEntry>, raidIds:
     fightCompletion: number;
     bossHealth: number;
     worldRank: number | null;
+    difficulty: "mythic" | "heroic" | null;
   }[] = [];
 
   for (const [familyKey, members] of guildFamilies) {
@@ -817,6 +822,7 @@ function consolidateAndRankGuilds(guildMap: Map<string, GuildMapEntry>, raidIds:
       fightCompletion: best.fightCompletion,
       bossHealth: best.bossHealth,
       worldRank: best.worldRank,
+      difficulty: best.difficulty,
     });
   }
 
@@ -832,6 +838,7 @@ function consolidateAndRankGuilds(guildMap: Map<string, GuildMapEntry>, raidIds:
     totalBosses: g.totalBosses,
     isComplete: g.isComplete,
     lastKillTime: g.lastKillTime,
+    difficulty: g.difficulty ?? undefined,
   }));
 }
 

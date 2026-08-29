@@ -1575,6 +1575,7 @@ export interface GuildRanking {
   rank: number;
   name: string;
   realm: string;
+  difficulty?: "mythic" | "heroic";
   bossesKilled?: number;
   totalBosses?: number;
   isComplete?: boolean;

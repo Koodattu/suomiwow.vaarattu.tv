@@ -151,6 +151,7 @@ function GuildRankingsTable({ rankings, cutoffRank }: { rankings: GuildRanking[]
               <td className="py-1.5 px-2 text-right whitespace-nowrap">
                 <span className={`text-xs ${guild.isComplete ? "text-green-400" : "text-gray-300"}`}>
                   {guild.bossesKilled}/{guild.totalBosses}
+                  {guild.difficulty ? ` ${guild.difficulty === "mythic" ? "M" : "H"}` : ""}
                 </span>
               </td>
             </tr>
