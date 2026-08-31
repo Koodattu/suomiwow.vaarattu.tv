@@ -64,6 +64,31 @@ type TwitchChatBotServiceInternals = {
   channelCommandCooldowns: Map<string, number>;
 };
 
+test("accepts legacy channel restrictions that predate restrictionType", async () => {
+  const timestamp = new Date("2026-08-31T12:00:00.000Z");
+  const runtime = TwitchBotRuntimeState.hydrate({
+    _id: new Types.ObjectId(),
+    key: "twitch-chat-bot",
+    enabled: true,
+    running: true,
+    connected: true,
+    desiredChannels: [],
+    joinedChannels: [],
+    channelBans: {
+      channel_alpha: {
+        reason: "msg_banned",
+        detectedAt: timestamp,
+        lastAttemptAt: timestamp,
+        nextRetryAt: timestamp,
+        failureCount: 1,
+      },
+    },
+  });
+
+  await assert.doesNotReject(runtime.validate());
+  assert.equal(runtime.channelBans.get("channel_alpha")?.restrictionType, "unknown");
+});
+
 test("targets live WoW streamers without requiring their guild to be raiding", async () => {
   const originalFind = Guild.find;
   const originalFindById = Guild.findById;

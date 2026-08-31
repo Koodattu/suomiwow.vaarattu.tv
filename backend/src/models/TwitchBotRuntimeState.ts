@@ -64,7 +64,7 @@ export interface ITwitchBotRuntimeState extends Document {
 const TwitchBotChannelBanSchema = new Schema<ITwitchBotChannelBan>(
   {
     reason: { type: String, required: true, enum: ["msg_banned", "timeout", "permanent_ban"] },
-    restrictionType: { type: String, required: true, enum: ["temporary", "permanent", "unknown"], default: "unknown" },
+    restrictionType: { type: String, enum: ["temporary", "permanent", "unknown"], default: "unknown" },
     detectedAt: { type: Date, required: true },
     lastAttemptAt: { type: Date, required: true },
     nextRetryAt: { type: Date, required: true },
