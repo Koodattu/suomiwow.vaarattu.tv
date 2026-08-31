@@ -1,11 +1,23 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface ITwitchBotChannelBan {
-  reason: "msg_banned";
+  reason: "msg_banned" | "timeout" | "permanent_ban";
+  restrictionType: "temporary" | "permanent" | "unknown";
   detectedAt: Date;
   lastAttemptAt: Date;
   nextRetryAt: Date;
   failureCount: number;
+  durationSeconds?: number;
+  expiresAt?: Date;
+}
+
+export interface ITwitchBotSharedChatSession {
+  sessionId: string;
+  hostBroadcasterId: string;
+  participantBroadcasterIds: string[];
+  trackedChannels: string[];
+  representativeChannel: string;
+  detectedAt: Date;
 }
 
 export type TwitchBotCommandOutcome =
@@ -13,6 +25,7 @@ export type TwitchBotCommandOutcome =
   | "replied"
   | "unsupported"
   | "channel_not_allowed"
+  | "channel_disabled"
   | "cooldown"
   | "no_response"
   | "handler_failed"
@@ -27,6 +40,8 @@ export interface ITwitchBotRuntimeState extends Document {
   joinedChannels: string[];
   channelBansBotUserId?: string;
   channelBans: Map<string, ITwitchBotChannelBan>;
+  sharedChatSessions: ITwitchBotSharedChatSession[];
+  lastSharedChatCheckAt?: Date;
   lastEventCreatedAt?: Date;
   lastStartedAt?: Date;
   lastStoppedAt?: Date;
@@ -48,11 +63,26 @@ export interface ITwitchBotRuntimeState extends Document {
 
 const TwitchBotChannelBanSchema = new Schema<ITwitchBotChannelBan>(
   {
-    reason: { type: String, required: true, enum: ["msg_banned"] },
+    reason: { type: String, required: true, enum: ["msg_banned", "timeout", "permanent_ban"] },
+    restrictionType: { type: String, required: true, enum: ["temporary", "permanent", "unknown"], default: "unknown" },
     detectedAt: { type: Date, required: true },
     lastAttemptAt: { type: Date, required: true },
     nextRetryAt: { type: Date, required: true },
     failureCount: { type: Number, required: true, min: 1 },
+    durationSeconds: { type: Number, min: 1 },
+    expiresAt: { type: Date },
+  },
+  { _id: false },
+);
+
+const TwitchBotSharedChatSessionSchema = new Schema<ITwitchBotSharedChatSession>(
+  {
+    sessionId: { type: String, required: true },
+    hostBroadcasterId: { type: String, required: true },
+    participantBroadcasterIds: [{ type: String }],
+    trackedChannels: [{ type: String }],
+    representativeChannel: { type: String, required: true },
+    detectedAt: { type: Date, required: true },
   },
   { _id: false },
 );
@@ -67,6 +97,8 @@ const TwitchBotRuntimeStateSchema = new Schema<ITwitchBotRuntimeState>(
     joinedChannels: [{ type: String }],
     channelBansBotUserId: { type: String },
     channelBans: { type: Map, of: TwitchBotChannelBanSchema, default: {} },
+    sharedChatSessions: { type: [TwitchBotSharedChatSessionSchema], default: [] },
+    lastSharedChatCheckAt: { type: Date },
     lastEventCreatedAt: { type: Date },
     lastStartedAt: { type: Date },
     lastStoppedAt: { type: Date },
@@ -81,7 +113,7 @@ const TwitchBotRuntimeStateSchema = new Schema<ITwitchBotRuntimeState>(
     lastCommandName: { type: String },
     lastCommandOutcome: {
       type: String,
-      enum: ["received", "replied", "unsupported", "channel_not_allowed", "cooldown", "no_response", "handler_failed", "reply_failed"],
+      enum: ["received", "replied", "unsupported", "channel_not_allowed", "channel_disabled", "cooldown", "no_response", "handler_failed", "reply_failed"],
     },
     lastErrorAt: { type: Date },
     lastError: { type: String },

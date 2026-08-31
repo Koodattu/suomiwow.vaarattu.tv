@@ -50,6 +50,7 @@ import {
   CharacterRaidParticipationSummary,
   getCharacterRaidParticipationSummaries,
 } from "./character-raid-guild.service";
+import cacheService from "./cache.service";
 import characterContinuityService from "./character-continuity.service";
 import characterMediaService from "./character-media.service";
 import characterRenderStorageService from "./character-render-storage.service";
@@ -1337,6 +1338,7 @@ class CcgPublisherService {
         await session.endSession();
       }
 
+      await cacheService.invalidate(cacheService.getCcgPromoKey());
       return { readiness: await this.preview(zoneId), publication, movedToLegacy };
     } finally {
       await this.releaseLock("set-activation", lockOwner);

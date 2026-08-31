@@ -94,6 +94,10 @@ import {
   TwitchChatBotStatus,
   TwitchBotFollowsResponse,
   TwitchBotSettings,
+  TwitchChannelBotSettings,
+  TwitchChatAuditDirection,
+  TwitchChatAuditKind,
+  TwitchChatAuditResponse,
   TwitchChannelPointsStatus,
   TwitchCustomReward,
   DeathEventsResetResponse,
@@ -144,6 +148,7 @@ import {
   BossPredictionResponse,
   CcgCatalogResponse,
   CcgFeaturedCardResponse,
+  CcgPromoResponse,
   CcgCollectionResponse,
   CcgGuildsResponse,
   CcgCharacterSearchResponse,
@@ -204,6 +209,7 @@ import {
   hydrateCcgCatalog,
   hydrateCcgCollection,
   hydrateCcgFeaturedCard,
+  hydrateCcgPromo,
   hydrateCcgOpening,
   hydrateCcgOverlayEvent,
   hydrateCcgRedeemResult,
@@ -214,6 +220,7 @@ import {
   type CcgCatalogResponseWire,
   type CcgCollectionResponseWire,
   type CcgFeaturedCardResponseWire,
+  type CcgPromoResponseWire,
   type CcgOpeningWire,
   type CcgOverlayEventWire,
   type CcgRedeemResultWire,
@@ -438,6 +445,12 @@ export const api = {
     const response = await fetch(`${API_URL}/api/ccg/sets/${encodeURIComponent(setSlug)}/featured`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load the featured card");
     return hydrateCcgFeaturedCard(await response.json() as CcgFeaturedCardResponseWire);
+  },
+
+  async getCcgPromo(): Promise<CcgPromoResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/promo`);
+    if (!response.ok) throw await buildApiError(response, "Failed to load the card vault promo");
+    return hydrateCcgPromo(await response.json() as CcgPromoResponseWire);
   },
 
   async getCcgCollectionGuilds(setSlug?: string): Promise<CcgGuildsResponse> {
@@ -2285,6 +2298,47 @@ export const api = {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Failed to update Twitch bot settings");
+    return data;
+  },
+
+  async getAdminTwitchChannelBotSettings(): Promise<{ channels: TwitchChannelBotSettings[] }> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-bot/channels/settings`, { credentials: "include" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to fetch Twitch channel bot settings");
+    return data;
+  },
+
+  async updateAdminTwitchChannelBotSettings(
+    channelName: string,
+    settings: Partial<Pick<TwitchChannelBotSettings, "alertsEnabled" | "commandsEnabled" | "joinAnnouncementEnabled">>,
+  ): Promise<TwitchChannelBotSettings> {
+    const response = await fetch(`${API_URL}/api/admin/twitch-bot/channels/${encodeURIComponent(channelName)}/settings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(settings),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to update Twitch channel bot settings");
+    return data;
+  },
+
+  async getAdminTwitchChatAudit(filters: {
+    channel?: string;
+    direction?: TwitchChatAuditDirection;
+    kind?: TwitchChatAuditKind;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<TwitchChatAuditResponse> {
+    const params = new URLSearchParams();
+    if (filters.channel) params.set("channel", filters.channel);
+    if (filters.direction) params.set("direction", filters.direction);
+    if (filters.kind) params.set("kind", filters.kind);
+    if (filters.page) params.set("page", String(filters.page));
+    if (filters.limit) params.set("limit", String(filters.limit));
+    const response = await fetch(`${API_URL}/api/admin/twitch-bot/audit?${params.toString()}`, { credentials: "include" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to fetch Twitch chat audit events");
     return data;
   },
 

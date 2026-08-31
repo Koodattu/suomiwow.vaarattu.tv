@@ -1254,6 +1254,49 @@ export interface TwitchBotSettings {
   messageTemplates: TwitchBotMessageTemplates;
 }
 
+export interface TwitchChannelBotSettings {
+  channelName: string;
+  alertsEnabled: boolean;
+  commandsEnabled: boolean;
+  joinAnnouncementEnabled: boolean;
+  lastJoinAnnouncementAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export type TwitchChatAuditDirection = "inbound" | "outbound";
+export type TwitchChatAuditKind =
+  | "command"
+  | "mention"
+  | "command_reply"
+  | "progress_alert"
+  | "join_announcement"
+  | "reward"
+  | "system_reply";
+
+export interface TwitchChatAuditEvent {
+  id: string;
+  direction: TwitchChatAuditDirection;
+  kind: TwitchChatAuditKind;
+  channelName: string;
+  message: string;
+  twitchMessageId?: string;
+  userId?: string;
+  userName?: string;
+  userDisplayName?: string;
+  commandName?: string;
+  commandOutcome?: TwitchChatBotStatus["chat"]["lastCommandOutcome"];
+  deliveryStatus: "received" | "sent" | "failed";
+  relatedEventId?: string;
+  error?: string;
+  createdAt: string;
+}
+
+export interface TwitchChatAuditResponse {
+  events: TwitchChatAuditEvent[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
 export interface TwitchBotFollowedChannel {
   broadcasterId: string;
   broadcasterLogin: string;
@@ -2873,6 +2916,12 @@ export type CcgFeaturedCardResponse = {
   card: CcgCard | null;
 };
 
+export type CcgPromoResponse = {
+  currentSet: CcgSet | null;
+  legacySet: CcgSet | null;
+  cards: CcgCard[];
+};
+
 export type CcgGuildFacet = {
   id: string;
   name: string;
@@ -3653,11 +3702,22 @@ export interface TwitchChatBotStatus {
     joinedChannels: string[];
     bannedChannels: Array<{
       channelName: string;
-      reason: "msg_banned";
+      reason: "msg_banned" | "timeout" | "permanent_ban";
+      restrictionType: "temporary" | "permanent" | "unknown";
       detectedAt: string;
       lastAttemptAt: string;
       nextRetryAt: string;
       failureCount: number;
+      durationSeconds?: number;
+      expiresAt?: string;
+    }>;
+    sharedChatSessions: Array<{
+      sessionId: string;
+      hostBroadcasterId: string;
+      participantBroadcasterIds: string[];
+      trackedChannels: string[];
+      representativeChannel: string;
+      detectedAt: string;
     }>;
     desiredCount: number;
     joinedCount: number;
@@ -3666,6 +3726,7 @@ export interface TwitchChatBotStatus {
     lastConnectedAt?: string;
     lastDisconnectedAt?: string;
     lastReconciledAt?: string;
+    lastSharedChatCheckAt?: string;
     lastMessageAt?: string;
     lastInboundMessageAt?: string;
     lastInboundChannel?: string;
@@ -3677,6 +3738,7 @@ export interface TwitchChatBotStatus {
       | "replied"
       | "unsupported"
       | "channel_not_allowed"
+      | "channel_disabled"
       | "cooldown"
       | "no_response"
       | "handler_failed"

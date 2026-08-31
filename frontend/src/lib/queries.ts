@@ -105,6 +105,7 @@ export const queryKeys = {
     sets: CCG_BOOTSTRAP_QUERY_KEY,
     catalog: (setSlug: string | undefined, page: number, owned: string, grade: string, guildId: string, characterId: string, characterName: string, finish: string, sort: string, limit: number) => ["ccg", "catalog", setSlug ?? "all", page, owned, grade, guildId, characterId, characterName, finish, sort, limit] as const,
     featured: (setSlug: string) => ["ccg", "featured", setSlug] as const,
+    promo: ["ccg", "promo"] as const,
     guilds: (setSlug?: string) => ["ccg", "guilds", setSlug ?? "all"] as const,
     characterSearch: (search: string) => ["ccg", "characterSearch", search] as const,
     collection: (options: Record<string, unknown>) => ["ccg", "collection", options] as const,
@@ -589,6 +590,14 @@ export function useCcgFeaturedCard(setSlug: string, enabled = true) {
     queryFn: () => api.getCcgFeaturedCard(setSlug),
     enabled: enabled && Boolean(setSlug),
     staleTime: 60 * 60 * 1000,
+  });
+}
+
+export function useCcgPromo() {
+  return useQuery({
+    queryKey: queryKeys.ccg.promo,
+    queryFn: () => api.getCcgPromo(),
+    staleTime: 5 * 60 * 1000,
   });
 }
 

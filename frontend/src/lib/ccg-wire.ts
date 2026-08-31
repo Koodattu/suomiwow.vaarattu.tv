@@ -11,6 +11,7 @@ import type {
   CcgFinish,
   CcgOpening,
   CcgOverlayEvent,
+  CcgPromoResponse,
   CcgRedeemResult,
   CcgSet,
   CcgShare,
@@ -31,6 +32,13 @@ export type CcgCatalogResponseWire = Omit<CcgCatalogResponse, "cards"> & {
 
 export type CcgFeaturedCardResponseWire = Omit<CcgFeaturedCardResponse, "card"> & {
   card: CcgCardWire | null;
+};
+
+export type CcgPromoResponseWire = {
+  sets: CcgSet[];
+  currentSetId: string | null;
+  legacySetId: string | null;
+  cards: CcgCardWire[];
 };
 
 export type CcgCollectionResponseWire = Omit<CcgCollectionResponse, "cards"> & {
@@ -126,6 +134,19 @@ export function hydrateCcgCatalog(response: CcgCatalogResponseWire): CcgCatalogR
 export function hydrateCcgFeaturedCard(response: CcgFeaturedCardResponseWire): CcgFeaturedCardResponse {
   const setById = getSetMap(response.sets);
   return { ...response, card: response.card ? hydrateCard(response.card, setById) : null };
+}
+
+export function hydrateCcgPromo(response: CcgPromoResponseWire): CcgPromoResponse {
+  const setById = getSetMap(response.sets);
+  const currentSet = response.currentSetId ? setById.get(response.currentSetId) : null;
+  const legacySet = response.legacySetId ? setById.get(response.legacySetId) : null;
+  if (response.currentSetId && !currentSet) throw new Error(`CCG promo response omitted set ${response.currentSetId}`);
+  if (response.legacySetId && !legacySet) throw new Error(`CCG promo response omitted set ${response.legacySetId}`);
+  return {
+    currentSet: currentSet ?? null,
+    legacySet: legacySet ?? null,
+    cards: hydrateCards(response.cards, response.sets),
+  };
 }
 
 export function hydrateCcgCollection(response: CcgCollectionResponseWire): CcgCollectionResponse {

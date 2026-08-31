@@ -4,102 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { FaArrowRight, FaChartSimple, FaCoins, FaNetworkWired, FaRankingStar, FaScaleBalanced } from "react-icons/fa6";
-import { usePickems } from "@/lib/queries";
+import { useCcgPromo, usePickems } from "@/lib/queries";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import PackBoosterVisual, { getPackTheme } from "@/components/ccg/PackBoosterVisual";
 import packStyles from "@/components/ccg/pack-opening.module.css";
-import type { CcgCard, CcgSet, PickemSummary } from "@/types";
+import type { PickemSummary } from "@/types";
 
 const HIGHLIGHTED_PICKEM_IDS = ["midnight-s2", "rwf-midnight-s2"] as const;
-
-const CCG_PROMO_SET = {
-  id: "6a652d042348af33dde6f6da",
-  slug: "march-on-queldanas",
-  zoneId: 46,
-  raidName: "March on Quel'Danas",
-  expansionName: "Midnight",
-  state: "current",
-  kind: "raid",
-  enabledAt: "2026-07-26T07:36:23.287Z",
-  themeKey: "queldanas",
-  theme: { mark: "MQD", accent: "#46CFFF", glow: "rgba(70, 207, 255, 0.35)" },
-  customFinish: { key: "void", hardPity: 250 },
-  backgroundPath: "/ccg/march-on-queldanas-desktop.jpg",
-  packArtOffsetX: 57,
-  cardCount: 911,
-  ownedCards: 0,
-  publicationWave: 1,
-  lastPublishedAt: "2026-07-26T07:36:22.092Z",
-} satisfies CcgSet;
-
-const CCG_PROMO_YOLOBOLT_CARD = {
-  id: "6a65b8f6505fc5b8bd7197ab",
-  characterId: "698cd13057d282dad2e1db28",
-  setNumber: 519,
-  snapshotVersion: 1,
-  snapshotKey: "march-on-queldanas:2026-07-26",
-  name: "Yolobolt",
-  realm: "kazzak",
-  region: "eu",
-  guildId: "690789b7cac26f9ef1fc4ebd",
-  guildName: "Tuju",
-  guildRealm: "Kazzak",
-  classID: 10,
-  specName: "demonology",
-  role: "dps",
-  metric: "dps",
-  itemLevel: 288,
-  scores: { performance: 73.1, mechanics: 59.1, combined: 66.1, mythicPlus: 3737.8 },
-  tierGrade: "D",
-  avatarUrl: "https://render.worldofwarcraft.com/eu/character/kazzak/115/87645299-avatar.jpg",
-  renderUrl: "https://render.worldofwarcraft.com/eu/character/kazzak/115/87645299-main-raw.png",
-  alternativeArt: null,
-  quip: null,
-  backgroundCrop: { x: 30.96, y: 46.93, scale: 1.109 },
-  performanceSnapshotAt: "2026-07-26T07:36:21.457Z",
-  mediaCapturedAt: "2026-07-25T22:37:18.050Z",
-  publicationWave: 1,
-  publishedAt: "2026-07-26T07:36:22.092Z",
-  set: CCG_PROMO_SET,
-} satisfies CcgCard;
-
-const CCG_PROMO_LAKU_CARD = {
-  id: "6a65b8f6505fc5b8bd7195d2",
-  characterId: "69caa03355d67a743ef46daf",
-  setNumber: 46,
-  snapshotVersion: 1,
-  snapshotKey: "march-on-queldanas:2026-07-26",
-  name: "Laku",
-  realm: "stormreaver",
-  region: "eu",
-  guildId: "690bc8fc9c728d953ba60d9b",
-  guildName: "Tony Halme Pro Skater",
-  guildRealm: "Stormreaver",
-  classID: 4,
-  specName: "frost",
-  role: "dps",
-  metric: "dps",
-  itemLevel: 290,
-  scores: { performance: 97, mechanics: 64.9, combined: 81, mythicPlus: 2868 },
-  tierGrade: "S",
-  avatarUrl: "https://render.worldofwarcraft.com/eu/character/stormreaver/117/186501237-avatar.jpg",
-  renderUrl: "https://render.worldofwarcraft.com/eu/character/stormreaver/117/186501237-main-raw.png",
-  alternativeArt: {
-    characterArtFilename: "laku_clap.png",
-    characterArtPath: "/ccg/alternative/character/laku_clap.png",
-    characterArtEnabled: true,
-    backgroundArtFilename: null,
-    backgroundArtPath: null,
-    backgroundArtEnabled: false,
-  },
-  quip: { text: "Boom", audioFilename: "lakuclap.mp3", audioPath: "/ccg/audio/quips/lakuclap.mp3" },
-  backgroundCrop: { x: 26.36, y: 45.3, scale: 1.122 },
-  performanceSnapshotAt: "2026-07-26T07:36:21.457Z",
-  mediaCapturedAt: "2026-07-25T22:06:39.054Z",
-  publicationWave: 1,
-  publishedAt: "2026-07-26T07:36:22.092Z",
-  set: CCG_PROMO_SET,
-} satisfies CcgCard;
 
 const FEATURE_HIGHLIGHTS = [
   {
@@ -195,6 +106,9 @@ export default function HomeHighlights() {
   const t = useTranslations("homeHighlights");
   const ccg = useTranslations("ccg");
   const { data: pickems = [], isLoading } = usePickems();
+  const { data: ccgPromo } = useCcgPromo();
+  const promoSet = ccgPromo?.currentSet ?? undefined;
+  const [leftPromoCard, rightPromoCard] = ccgPromo?.cards ?? [];
   const pickemById = new Map(pickems.map((pickem) => [pickem.id, pickem]));
   const highlightedPickems = HIGHLIGHTED_PICKEM_IDS.map((id) => pickemById.get(id)).filter((pickem): pickem is PickemSummary => Boolean(pickem?.isVotingOpen));
   const showPickems = isLoading || highlightedPickems.length > 0;
@@ -226,32 +140,27 @@ export default function HomeHighlights() {
           <span className="pointer-events-none absolute -top-4 right-6 z-20 h-[calc(100%+1.5rem)] w-36 sm:-right-3 sm:w-[17rem] xl:right-2" aria-hidden="true">
             <span className="absolute bottom-3 left-0 z-10 h-[7.4rem] w-[4.9rem] -rotate-[9deg] drop-shadow-[0_9px_9px_rgba(0,0,0,0.55)] transition-transform duration-300 ease-out group-hover:-translate-y-1 group-hover:-rotate-[12deg] motion-reduce:transform-none motion-reduce:transition-none sm:bottom-2 sm:-left-2">
               <span className="absolute bottom-0 left-0 w-[300px] origin-bottom-left scale-[0.225] sm:scale-[0.316]">
-                <span className={packStyles.packButton} style={getPackTheme(CCG_PROMO_SET)}>
-                  <PackBoosterVisual title={CCG_PROMO_SET.raidName} cardsLabel={ccg("landing.cards")} />
+                <span className={packStyles.packButton} style={getPackTheme(promoSet, !promoSet)}>
+                  <PackBoosterVisual title={promoSet?.raidName ?? ccg("landing.allRaids")} cardsLabel={ccg("landing.cards")} />
                 </span>
               </span>
             </span>
 
             <span className="absolute bottom-2 left-[4.75rem] z-20 hidden h-[7.7rem] w-[5.5rem] -rotate-[1deg] drop-shadow-[0_10px_10px_rgba(0,0,0,0.6)] transition-transform duration-300 ease-out group-hover:-translate-y-2 motion-reduce:transform-none motion-reduce:transition-none sm:block">
               <span className="absolute bottom-0 left-0 w-[410px] origin-bottom-left scale-[0.261]">
-                <CollectibleCard card={CCG_PROMO_LAKU_CARD} finish="golden" width={400} forcedPointer={{ x: 0.4, y: 0.24 }} />
+                {leftPromoCard ? <CollectibleCard card={leftPromoCard} finish="golden" width={400} forcedPointer={{ x: 0.4, y: 0.24 }} /> : null}
               </span>
             </span>
 
             <span className="absolute -right-2 bottom-2 z-30 h-[7.7rem] w-[5.5rem] rotate-[5deg] sm:hidden">
               <span className="absolute right-0 bottom-0 w-[410px] origin-bottom-right scale-[0.2]">
-                <CollectibleCard
-                  card={CCG_PROMO_YOLOBOLT_CARD}
-                  finish="standard"
-                  width={400}
-                  renderPriority
-                />
+                {rightPromoCard ? <CollectibleCard card={rightPromoCard} finish="standard" width={400} renderPriority /> : null}
               </span>
             </span>
 
             <span className="absolute right-0 bottom-2 z-30 hidden h-[7.7rem] w-[5.5rem] rotate-[9deg] drop-shadow-[0_10px_10px_rgba(0,0,0,0.6)] transition-transform duration-300 ease-out group-hover:-translate-y-1 group-hover:rotate-[12deg] motion-reduce:transform-none motion-reduce:transition-none sm:block">
               <span className="absolute right-0 bottom-0 w-[410px] origin-bottom-right scale-[0.261]">
-                <CollectibleCard card={CCG_PROMO_YOLOBOLT_CARD} finish="prismatic" width={400} forcedPointer={{ x: 0.7, y: 0.28 }} renderPriority />
+                {rightPromoCard ? <CollectibleCard card={rightPromoCard} finish="prismatic" width={400} forcedPointer={{ x: 0.7, y: 0.28 }} renderPriority /> : null}
               </span>
             </span>
           </span>

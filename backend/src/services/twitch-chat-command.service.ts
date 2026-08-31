@@ -7,7 +7,7 @@ import logger from "../utils/logger";
 import bossKillPredictionService, { BossKillPrediction, MostRecentlyPulledBoss } from "./boss-kill-prediction.service";
 import searchService, { SearchResult } from "./search.service";
 
-export type TwitchChatCommandName = "best" | "log" | "prediction" | "search";
+export type TwitchChatCommandName = "best" | "log" | "prediction" | "search" | "commands" | "alerts";
 
 export interface ParsedTwitchChatCommand {
   name: TwitchChatCommandName;
@@ -97,27 +97,35 @@ export const selectPredictionTarget = (
 class TwitchChatCommandService {
   parse(text: string): ParsedTwitchChatCommand | null {
     const trimmed = text.trim();
-    const match = /^!(best|paras|log|report|prediction|ennustus|search)(?:\s+(.*))?$/i.exec(trimmed);
+    const match = /^!(best|paras|log|report|prediction|ennustus|search|commands|komennot|alerts|alertit)(?:\s+(.*))?$/i.exec(trimmed);
     if (!match) {
       return null;
     }
 
     const commandName = match[1].toLowerCase();
+    let name: TwitchChatCommandName;
+    if (commandName === "commands" || commandName === "komennot") name = "commands";
+    else if (commandName === "alerts" || commandName === "alertit") name = "alerts";
+    else if (commandName === "search") name = "search";
+    else if (commandName === "log" || commandName === "report") name = "log";
+    else if (commandName === "prediction" || commandName === "ennustus") name = "prediction";
+    else name = "best";
 
     return {
-      name:
-        commandName === "search"
-          ? "search"
-          : commandName === "log" || commandName === "report"
-            ? "log"
-            : commandName === "prediction" || commandName === "ennustus"
-              ? "prediction"
-              : "best",
+      name,
       args: (match[2] || "").trim(),
     };
   }
 
   async handle(command: ParsedTwitchChatCommand, channelName: string, options: TwitchChatCommandOptions): Promise<string | null> {
+    if (command.name === "commands") {
+      return "Commands: !best/!paras, !log/!report, !prediction/!ennustus, !search <name>. Broadcaster: !alerts <on|off>.";
+    }
+
+    if (command.name === "alerts") {
+      return null;
+    }
+
     if (command.name === "search") {
       return this.handleSearch(command.args, options);
     }

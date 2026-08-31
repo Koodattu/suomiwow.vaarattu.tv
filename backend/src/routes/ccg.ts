@@ -3,6 +3,7 @@ import { createReadStream } from "fs";
 import { NextFunction, Request, Response, Router } from "express";
 import { CCG_GUEST_COOKIE } from "../config/ccg";
 import { cacheMiddleware } from "../middleware/cache.middleware";
+import cacheService from "../services/cache.service";
 import ccgService, { CcgServiceError } from "../services/ccg.service";
 import characterRenderStorageService from "../services/character-render-storage.service";
 import logger from "../utils/logger";
@@ -126,6 +127,13 @@ router.get(
     res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
     return ccgService.getLeaderboard({ compactShowcases: req.query.showcases === "compact" });
   }),
+);
+
+router.get(
+  "/promo",
+  rateLimit(90, 60_000),
+  cacheMiddleware(() => cacheService.getCcgPromoKey(), () => cacheService.DEFAULT_TTL),
+  asyncRoute(async () => ccgService.getPromo()),
 );
 
 router.get(

@@ -47,6 +47,13 @@ test("parses both live log command aliases", () => {
   assert.deepEqual(twitchChatCommandService.parse("  !RePoRt Tuju  "), { name: "log", args: "Tuju" });
 });
 
+test("parses help and broadcaster alert controls", () => {
+  assert.deepEqual(twitchChatCommandService.parse("!commands"), { name: "commands", args: "" });
+  assert.deepEqual(twitchChatCommandService.parse("!komennot"), { name: "commands", args: "" });
+  assert.deepEqual(twitchChatCommandService.parse("!alerts off"), { name: "alerts", args: "off" });
+  assert.deepEqual(twitchChatCommandService.parse("!alertit ON"), { name: "alerts", args: "ON" });
+});
+
 test("returns the fresh Warcraft Logs report for a raiding channel guild", async () => {
   const originalGuildFind = Guild.find;
   const originalReportFindOne = Report.findOne;

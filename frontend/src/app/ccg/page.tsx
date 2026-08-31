@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useCallback, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { CcgCard } from "@/types";
+import type { CcgCard, CcgSet } from "@/types";
 import { useCcgFeaturedCard, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
 import PackBalance from "@/components/ccg/PackBalance";
@@ -18,6 +18,11 @@ import CcgRedeemPanel from "@/components/ccg/CcgRedeemPanel";
 import CcgTwitchPanel from "@/components/ccg/CcgTwitchPanel";
 import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
+
+function newestEnabledFirst(left: CcgSet, right: CcgSet): number {
+  const enabledAtDifference = Date.parse(right.enabledAt ?? "") - Date.parse(left.enabledAt ?? "");
+  return enabledAtDifference || right.zoneId - left.zoneId;
+}
 
 function VaultPackShortcut({
   href,
@@ -112,12 +117,12 @@ export default function CcgLandingPage() {
   const setsQuery = useCcgSets();
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets ?? [];
-  const currentSets = sets.filter((set) => set.kind === "raid" && set.state === "current");
+  const currentSets = sets.filter((set) => set.kind === "raid" && set.state === "current").sort(newestEnabledFirst);
   const current = currentSets[0];
   const currentCardCount = currentSets.reduce((total, set) => total + set.cardCount, 0);
   const currentOwnedCount = currentSets.reduce((total, set) => total + set.ownedCards, 0);
   const currentProgress = currentCardCount > 0 ? Math.min(100, (currentOwnedCount / currentCardCount) * 100) : 0;
-  const legacy = sets.filter((set) => set.kind === "raid" && set.state === "legacy").sort((left, right) => right.zoneId - left.zoneId);
+  const legacy = sets.filter((set) => set.kind === "raid" && set.state === "legacy").sort(newestEnabledFirst);
   const recentPackSets = legacy.slice(0, 1);
   const community = sets.filter((set) => set.kind === "community");
   const collectionSets = [...currentSets, ...legacy, ...community];

@@ -113,8 +113,10 @@ export default function AdminAnalyticsPage() {
   const [trends, setTrends] = useState<AnalyticsTrends | null>(null);
   const [slowEndpoints, setSlowEndpoints] = useState<AnalyticsSlowEndpoint[]>([]);
   const [errors, setErrors] = useState<AnalyticsErrors | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [baseLoading, setBaseLoading] = useState(true);
+  const [rangeLoading, setRangeLoading] = useState(true);
+  const [baseError, setBaseError] = useState<string | null>(null);
+  const [rangeError, setRangeError] = useState<string | null>(null);
   const [selectedDays, setSelectedDays] = useState(7);
   const [activeTab, setActiveTab] = useState<TabType>("overview");
 
@@ -133,40 +135,83 @@ export default function AdminAnalyticsPage() {
   useEffect(() => {
     if (!user?.isAdmin) return;
 
-    const fetchData = async () => {
+    let cancelled = false;
+
+    const fetchBaseData = async () => {
       try {
-        setLoading(true);
-        const [overviewData, dailyData, endpointsData, statusCodesData, realtimeData, peakHoursData, trendsData, slowData, errorsData] = await Promise.all([
-          api.getAnalyticsOverview(),
-          api.getAnalyticsDaily(selectedDays),
-          api.getAnalyticsEndpoints(selectedDays),
-          api.getAnalyticsStatusCodes(selectedDays),
-          api.getAnalyticsRealtime(),
-          api.getAnalyticsPeakHours(selectedDays),
-          api.getAnalyticsTrends(),
-          api.getAnalyticsSlowEndpoints(selectedDays),
-          api.getAnalyticsErrors(selectedDays),
-        ]);
+        setBaseLoading(true);
+        setBaseError(null);
+
+        const overviewData = await api.getAnalyticsOverview();
+        if (cancelled) return;
         setOverview(overviewData);
-        setDaily(dailyData);
-        setEndpoints(endpointsData);
-        setStatusCodes(statusCodesData);
+
+        const realtimeData = await api.getAnalyticsRealtime();
+        if (cancelled) return;
         setRealtime(realtimeData);
-        setPeakHours(peakHoursData);
+
+        const trendsData = await api.getAnalyticsTrends();
+        if (cancelled) return;
         setTrends(trendsData);
-        setSlowEndpoints(slowData);
-        setErrors(errorsData);
-        setError(null);
       } catch (err) {
-        setError("Failed to load analytics data");
+        if (!cancelled) setBaseError("Failed to load analytics data");
         console.error(err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setBaseLoading(false);
       }
     };
 
-    fetchData();
-  }, [selectedDays, user?.isAdmin]);
+    void fetchBaseData();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.isAdmin]);
+
+  useEffect(() => {
+    if (!user?.isAdmin) return;
+
+    let cancelled = false;
+
+    const fetchRangeData = async () => {
+      try {
+        setRangeLoading(true);
+        setRangeError(null);
+
+        if (activeTab === "overview") {
+          const dailyData = await api.getAnalyticsDaily(selectedDays);
+          if (cancelled) return;
+          setDaily(dailyData);
+
+          const statusCodesData = await api.getAnalyticsStatusCodes(selectedDays);
+          if (cancelled) return;
+          setStatusCodes(statusCodesData);
+
+          const peakHoursData = await api.getAnalyticsPeakHours(selectedDays);
+          if (cancelled) return;
+          setPeakHours(peakHoursData);
+        } else if (activeTab === "endpoints") {
+          const endpointsData = await api.getAnalyticsEndpoints(selectedDays);
+          if (!cancelled) setEndpoints(endpointsData);
+        } else if (activeTab === "performance") {
+          const slowData = await api.getAnalyticsSlowEndpoints(selectedDays);
+          if (!cancelled) setSlowEndpoints(slowData);
+        } else {
+          const errorsData = await api.getAnalyticsErrors(selectedDays);
+          if (!cancelled) setErrors(errorsData);
+        }
+      } catch (err) {
+        if (!cancelled) setRangeError("Failed to load analytics data");
+        console.error(err);
+      } finally {
+        if (!cancelled) setRangeLoading(false);
+      }
+    };
+
+    void fetchRangeData();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, selectedDays, user?.isAdmin]);
 
   // Refresh realtime data every 30 seconds
   useEffect(() => {
@@ -243,7 +288,7 @@ export default function AdminAnalyticsPage() {
     return null;
   }
 
-  if (loading) {
+  if (baseLoading || rangeLoading) {
     return (
       <div className="min-h-screen bg-linear-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
         <div className="text-amber-400 text-xl">Loading analytics...</div>
@@ -251,6 +296,7 @@ export default function AdminAnalyticsPage() {
     );
   }
 
+  const error = baseError || rangeError;
   if (error) {
     return (
       <div className="min-h-screen bg-linear-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">

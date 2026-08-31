@@ -137,6 +137,7 @@ class CacheService {
     /^raid:\d+:bosses$/,
     /^pickems:reference-rankings:/,
     /^ccg:analytics:/,
+    /^ccg:promo:/,
   ];
 
   // ============================================================================
@@ -797,6 +798,13 @@ class CacheService {
    */
   getHomeKey(): string {
     return "home:data";
+  }
+
+  /**
+   * Get cache key for the public CCG home-page promo.
+   */
+  getCcgPromoKey(): string {
+    return "ccg:promo:v1";
   }
 
   /**

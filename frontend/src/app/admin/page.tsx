@@ -10,6 +10,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/context/AuthContext";
 import CcgAdminPanel from "@/components/admin/CcgAdminPanel";
 import ReporterAdminPanel from "@/components/admin/ReporterAdminPanel";
+import TwitchChatAuditPanel from "@/components/admin/TwitchChatAuditPanel";
 import { api } from "@/lib/api";
 import { getUmaImageLabel, UMA_IMAGES } from "@/lib/uma-images";
 import {
@@ -897,6 +898,7 @@ function AdminPageContent() {
         replied: { label: "Replied", detail: "The command completed and the reply was handed to Twitch IRC.", className: "bg-green-900/50 text-green-200" },
         unsupported: { label: "Unsupported", detail: "The bot saw the message, but the ! command is not supported.", className: "bg-gray-700 text-gray-200" },
         channel_not_allowed: { label: "Channel blocked", detail: "The bot saw the command, but chat commands are disabled for that channel.", className: "bg-amber-900/50 text-amber-200" },
+        channel_disabled: { label: "Replies off", detail: "The bot saw the command, but command replies are off for that channel.", className: "bg-amber-900/50 text-amber-200" },
         cooldown: { label: "Cooldown", detail: "The bot saw the command, but suppressed it because of the user or channel cooldown.", className: "bg-amber-900/50 text-amber-200" },
         no_response: { label: "No reply", detail: "The command handler completed without producing a reply.", className: "bg-amber-900/50 text-amber-200" },
         handler_failed: { label: "Handler failed", detail: "The bot saw the command, but command processing failed. Check the bot error below.", className: "bg-red-900/50 text-red-200" },
@@ -946,6 +948,9 @@ function AdminPageContent() {
   const twitchBotFollowedChannels = new Set(twitchBotFollows?.channels.map((channel) => channel.broadcasterLogin.toLowerCase()) || []);
   const twitchBotBannedChannels = new Map(twitchBotStatus?.chat.bannedChannels.map((ban) => [ban.channelName.toLowerCase(), ban]) || []);
   const twitchBotJoinedChannels = new Set(twitchBotStatus?.chat.joinedChannels.map((channel) => channel.toLowerCase()) || []);
+  const twitchBotSharedChatByChannel = new Map(
+    twitchBotStatus?.chat.sharedChatSessions.flatMap((session) => session.trackedChannels.map((channel) => [channel.toLowerCase(), session] as const)) || [],
+  );
   const twitchBotSettingsChanged =
     twitchBotSettingsDraft && twitchBotStatus
       ? JSON.stringify(twitchBotSettingsDraft) !== JSON.stringify(twitchBotStatus.settings)
@@ -3200,6 +3205,7 @@ function AdminPageContent() {
                       </p>
                       <p className="text-sm text-gray-500 tabular-nums">
                         {twitchBotStatus.chat.joinedCount}/{twitchBotStatus.chat.desiredCount} channels
+                        {twitchBotStatus.chat.sharedChatSessions.length > 0 ? ` · ${twitchBotStatus.chat.sharedChatSessions.length} shared` : ""}
                       </p>
                       {twitchBotStatus.chat.lastReconciledAt && <p className="text-sm text-gray-500">reconciled: {formatDate(twitchBotStatus.chat.lastReconciledAt)}</p>}
                     </div>
@@ -3740,6 +3746,8 @@ function AdminPageContent() {
               </div>
             )}
 
+            <TwitchChatAuditPanel />
+
             {twitchStreamStats && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <div className="bg-gray-800 rounded-lg p-4">
@@ -3809,7 +3817,7 @@ function AdminPageContent() {
               )}
               <div className="bg-gray-800 rounded-lg overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1220px]">
+                  <table className="w-full min-w-[1360px]">
                     <thead className="bg-gray-900">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Channel</th>
@@ -3818,6 +3826,7 @@ function AdminPageContent() {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Guild</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Bot Follows</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Bot Chat</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Shared Chat</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Last Checked</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Last Live</th>
                       </tr>
@@ -3825,7 +3834,7 @@ function AdminPageContent() {
                     <tbody className="divide-y divide-gray-700">
                       {filteredTwitchStreams.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                          <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
                             No tracked streams found.
                           </td>
                         </tr>
@@ -3840,9 +3849,18 @@ function AdminPageContent() {
                           const botFollows = twitchBotFollows?.hasRequiredScope ? twitchBotFollowedChannels.has(stream.channelName.toLowerCase()) : null;
                           const botChatBan = twitchBotBannedChannels.get(stream.channelName.toLowerCase());
                           const botChatJoined = twitchBotJoinedChannels.has(stream.channelName.toLowerCase());
+                          const sharedChatSession = twitchBotSharedChatByChannel.get(stream.channelName.toLowerCase());
+                          const sharedChatRepresentative = sharedChatSession?.representativeChannel.toLowerCase();
+                          const botChatViaShared = Boolean(
+                            sharedChatRepresentative && sharedChatRepresentative !== stream.channelName.toLowerCase() && twitchBotJoinedChannels.has(sharedChatRepresentative),
+                          );
+                          const botChatRestrictionLabel =
+                            botChatBan?.restrictionType === "temporary" ? "Timed out" : botChatBan?.restrictionType === "permanent" ? "Permanent ban" : "Restricted";
                           const botChatRetryLabel = botChatBan
-                            ? new Date(botChatBan.nextRetryAt).getTime() > Date.now()
-                              ? `Retry ${formatDate(botChatBan.nextRetryAt)}`
+                            ? botChatBan.restrictionType === "temporary" && botChatBan.expiresAt
+                              ? `Until ${formatDate(botChatBan.expiresAt)}`
+                              : new Date(botChatBan.nextRetryAt).getTime() > Date.now()
+                                ? `${botChatBan.restrictionType === "permanent" ? "Check" : "Retry"} ${formatDate(botChatBan.nextRetryAt)}`
                               : stream.isLive && stream.isPlayingWoW && stream.guild.isCurrentlyRaiding
                                 ? "Retry pending"
                                 : "Retry when live"
@@ -3887,15 +3905,20 @@ function AdminPageContent() {
                                 {botChatBan ? (
                                   <div>
                                     <span
-                                      title={`Detected ${formatDate(botChatBan.detectedAt)}; observed ${botChatBan.failureCount} ${botChatBan.failureCount === 1 ? "time" : "times"}.`}
-                                      className="inline-flex items-center rounded-full bg-red-900/50 px-2 py-1 text-xs font-medium text-red-300"
+                                      title={`${botChatRestrictionLabel}. Detected ${formatDate(botChatBan.detectedAt)}; observed ${botChatBan.failureCount} ${botChatBan.failureCount === 1 ? "time" : "times"}.`}
+                                      className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                                        botChatBan.restrictionType === "permanent" ? "bg-red-900/50 text-red-300" : "bg-amber-900/40 text-amber-300"
+                                      }`}
                                     >
-                                      Banned
+                                      {botChatRestrictionLabel}
                                     </span>
                                     <div className="mt-1 text-xs text-gray-500 tabular-nums">{botChatRetryLabel}</div>
+                                    {botChatViaShared && <div className="mt-1 text-xs text-green-400">Covered via #{sharedChatRepresentative}</div>}
                                   </div>
                                 ) : botChatJoined ? (
                                   <span className="inline-flex items-center rounded-full bg-green-900/50 px-2 py-1 text-xs font-medium text-green-300">Joined</span>
+                                ) : botChatViaShared ? (
+                                  <span className="inline-flex items-center rounded-full bg-green-900/50 px-2 py-1 text-xs font-medium text-green-300">Via #{sharedChatRepresentative}</span>
                                 ) : (
                                   <span
                                     title="The bot only checks chat access while a tracked raid stream is live in WoW."
@@ -3903,6 +3926,18 @@ function AdminPageContent() {
                                   >
                                     {twitchBotStatus?.chat.connected ? "Not checked" : "Bot offline"}
                                   </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                {sharedChatSession ? (
+                                  <div>
+                                    <span className="inline-flex items-center rounded-full bg-purple-900/50 px-2 py-1 text-xs font-medium text-purple-300">
+                                      {stream.twitchUserId === sharedChatSession.hostBroadcasterId ? "Host" : "Shared"}
+                                    </span>
+                                    <div className="mt-1 text-xs text-gray-500">Bot via #{sharedChatSession.representativeChannel}</div>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-gray-500">No</span>
                                 )}
                               </td>
                               <td className="px-4 py-3 text-gray-400 text-sm">{stream.lastChecked ? formatDate(stream.lastChecked) : "-"}</td>

@@ -50,7 +50,11 @@ import wclService from "../services/warcraftlogs.service";
 import wclUserAuthService from "../services/warcraftlogs-user-auth.service";
 import blizzardService from "../services/blizzard.service";
 import twitchBotAuthService from "../services/twitch-bot-auth.service";
-import twitchChatBotService, { TwitchBotSettingsValidationError } from "../services/twitch-chat-bot.service";
+import twitchChatBotService, {
+  TwitchBotChannelSettingsValidationError,
+  TwitchBotSettingsValidationError,
+} from "../services/twitch-chat-bot.service";
+import type { TwitchChatAuditDirection, TwitchChatAuditKind } from "../models/TwitchChatAuditEvent";
 import twitchChannelPointsService, { TwitchChannelPointsValidationError } from "../services/twitch-channel-points.service";
 import guildLogSourceService, { GuildLogSourceError } from "../services/guild-log-source.service";
 
@@ -364,6 +368,59 @@ router.put("/twitch-bot/settings", async (req: Request, res: Response) => {
 
     logger.error("Error updating Twitch bot settings:", error);
     res.status(500).json({ error: "Failed to update Twitch bot settings" });
+  }
+});
+
+router.get("/twitch-bot/channels/settings", async (_req: Request, res: Response) => {
+  try {
+    res.json({ channels: await twitchChatBotService.listChannelSettings() });
+  } catch (error) {
+    logger.error("Error fetching Twitch channel bot settings:", error);
+    res.status(500).json({ error: "Failed to fetch Twitch channel bot settings" });
+  }
+});
+
+router.put("/twitch-bot/channels/:channelName/settings", async (req: Request, res: Response) => {
+  try {
+    const adminUser = (req as any).user;
+    const settings = await twitchChatBotService.updateChannelSettings(
+      req.params.channelName,
+      {
+        alertsEnabled: req.body?.alertsEnabled,
+        commandsEnabled: req.body?.commandsEnabled,
+        joinAnnouncementEnabled: req.body?.joinAnnouncementEnabled,
+      },
+      `admin:${adminUser?.discord?.username || "unknown"}`,
+    );
+    res.json(settings);
+  } catch (error) {
+    if (error instanceof TwitchBotChannelSettingsValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
+    logger.error("Error updating Twitch channel bot settings:", error);
+    res.status(500).json({ error: "Failed to update Twitch channel bot settings" });
+  }
+});
+
+router.get("/twitch-bot/audit", async (req: Request, res: Response) => {
+  try {
+    const direction = typeof req.query.direction === "string" ? (req.query.direction as TwitchChatAuditDirection) : undefined;
+    const kind = typeof req.query.kind === "string" ? (req.query.kind as TwitchChatAuditKind) : undefined;
+    res.json(
+      await twitchChatBotService.getChatAuditEvents({
+        channelName: typeof req.query.channel === "string" ? req.query.channel : undefined,
+        direction,
+        kind,
+        page: Number(req.query.page) || 1,
+        limit: Number(req.query.limit) || 50,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof TwitchBotChannelSettingsValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
+    logger.error("Error fetching Twitch chat audit events:", error);
+    res.status(500).json({ error: "Failed to fetch Twitch chat audit events" });
   }
 });
 

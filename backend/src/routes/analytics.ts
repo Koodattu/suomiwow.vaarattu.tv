@@ -4,6 +4,7 @@ import { requireAdmin } from "../middleware/admin.middleware";
 import logger from "../utils/logger";
 
 const router = Router();
+const DAILY_STATS_BATCH_SIZE = 10;
 
 router.use(requireAdmin);
 
@@ -52,6 +53,33 @@ type EndpointAggregate = {
   statusCodes: Map<string, number>;
 };
 
+type OverviewStatsAggregate = {
+  totalRequests24h: number;
+  totalResponseTime24h: number;
+  totalDataTransferred24h: number;
+  totalRequests7d: number;
+  totalResponseTime7d: number;
+  totalDataTransferred7d: number;
+  totalRequests30d: number;
+  totalResponseTime30d: number;
+  totalDataTransferred30d: number;
+};
+
+type OverviewVisitorAggregate = {
+  uniqueVisitors24h: number;
+  uniqueVisitors7d: number;
+  uniqueVisitors30d: number;
+};
+
+type SlowEndpointAggregate = {
+  _id: string;
+  count: number;
+  avgResponseTime: number;
+  maxResponseTime: number;
+  minResponseTime: number;
+  p95ResponseTime: number[];
+};
+
 const mapEntries = <T>(value: StatsMap<T>): [string, T][] => {
   if (!value) return [];
   if (value instanceof Map) return Array.from(value.entries());
@@ -77,10 +105,11 @@ const getErrorCountFromStatusCodes = (statusCodes: StatsMap<number>): number =>
   mapEntries(statusCodes).reduce((total, [statusCode, count]) => total + (parseInt(statusCode, 10) >= 400 ? count || 0 : 0), 0);
 
 const aggregateEndpointsFromDailyStats = async (startDate: Date, limit: number): Promise<EndpointAggregate[]> => {
-  const dailyDocs = (await DailyStats.find({ date: { $gte: startDate } }).select("endpointStats").lean()) as DailyStatsDocument[];
+  const dailyDocs = DailyStats.find({ date: { $gte: startDate } }).select("endpointStats").lean().cursor({ batchSize: DAILY_STATS_BATCH_SIZE });
   const byEndpoint = new Map<string, EndpointAggregate>();
 
-  for (const day of dailyDocs) {
+  for await (const document of dailyDocs) {
+    const day = document as unknown as DailyStatsDocument;
     for (const [key, stat] of mapEntries(day.endpointStats)) {
       const endpoint = stat.endpoint || key;
       const existing =
@@ -129,10 +158,11 @@ const aggregateEndpointsFromDailyStats = async (startDate: Date, limit: number):
 };
 
 const aggregateStatusCodesFromDailyStats = async (startDate: Date): Promise<Array<{ statusCode: number; count: number }>> => {
-  const dailyDocs = (await DailyStats.find({ date: { $gte: startDate } }).select("statusCodeSummary").lean()) as DailyStatsDocument[];
+  const dailyDocs = DailyStats.find({ date: { $gte: startDate } }).select("statusCodeSummary").lean().cursor({ batchSize: DAILY_STATS_BATCH_SIZE });
   const statusCounts = new Map<string, number>();
 
-  for (const day of dailyDocs) {
+  for await (const document of dailyDocs) {
+    const day = document as unknown as DailyStatsDocument;
     for (const [statusCode, count] of mapEntries(day.statusCodeSummary)) {
       statusCounts.set(statusCode, (statusCounts.get(statusCode) || 0) + (count || 0));
     }
@@ -170,73 +200,62 @@ router.get("/overview", async (req: Request, res: Response) => {
     const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Aggregate stats for different periods
-    const [stats24h, stats7d, stats30d, unique24h, unique7d, unique30d] = await Promise.all([
-      HourlyStats.aggregate([
-        { $match: { hour: { $gte: last24h } } },
-        {
-          $group: {
-            _id: null,
-            totalRequests: { $sum: "$totalRequests" },
-            totalResponseTime: { $sum: "$totalResponseTime" },
-            totalDataTransferred: { $sum: "$totalDataTransferred" },
-          },
-        },
-      ]),
-      HourlyStats.aggregate([
-        { $match: { hour: { $gte: last7d } } },
-        {
-          $group: {
-            _id: null,
-            totalRequests: { $sum: "$totalRequests" },
-            totalResponseTime: { $sum: "$totalResponseTime" },
-            totalDataTransferred: { $sum: "$totalDataTransferred" },
-          },
-        },
-      ]),
-      HourlyStats.aggregate([
+    // One pass per collection avoids scanning the same windows repeatedly. The
+    // visitor aggregation returns three numbers instead of materializing every
+    // distinct visitor hash in the Node.js process.
+    const [statsResult, visitorResult] = await Promise.all([
+      HourlyStats.aggregate<OverviewStatsAggregate>([
         { $match: { hour: { $gte: last30d } } },
         {
           $group: {
             _id: null,
-            totalRequests: { $sum: "$totalRequests" },
-            totalResponseTime: { $sum: "$totalResponseTime" },
-            totalDataTransferred: { $sum: "$totalDataTransferred" },
+            totalRequests24h: { $sum: { $cond: [{ $gte: ["$hour", last24h] }, "$totalRequests", 0] } },
+            totalResponseTime24h: { $sum: { $cond: [{ $gte: ["$hour", last24h] }, "$totalResponseTime", 0] } },
+            totalDataTransferred24h: { $sum: { $cond: [{ $gte: ["$hour", last24h] }, "$totalDataTransferred", 0] } },
+            totalRequests7d: { $sum: { $cond: [{ $gte: ["$hour", last7d] }, "$totalRequests", 0] } },
+            totalResponseTime7d: { $sum: { $cond: [{ $gte: ["$hour", last7d] }, "$totalResponseTime", 0] } },
+            totalDataTransferred7d: { $sum: { $cond: [{ $gte: ["$hour", last7d] }, "$totalDataTransferred", 0] } },
+            totalRequests30d: { $sum: "$totalRequests" },
+            totalResponseTime30d: { $sum: "$totalResponseTime" },
+            totalDataTransferred30d: { $sum: "$totalDataTransferred" },
           },
         },
       ]),
-      RequestLog.distinct("visitorHash", {
-        timestamp: { $gte: last24h },
-        visitorHash: { $exists: true, $ne: null },
-      }),
-      RequestLog.distinct("visitorHash", {
-        timestamp: { $gte: last7d },
-        visitorHash: { $exists: true, $ne: null },
-      }),
-      RequestLog.distinct("visitorHash", {
-        timestamp: { $gte: last30d },
-        visitorHash: { $exists: true, $ne: null },
-      }),
+      RequestLog.aggregate<OverviewVisitorAggregate>([
+        {
+          $match: {
+            timestamp: { $gte: last30d },
+            visitorHash: { $exists: true, $ne: null },
+          },
+        },
+        { $group: { _id: "$visitorHash", lastSeen: { $max: "$timestamp" } } },
+        {
+          $group: {
+            _id: null,
+            uniqueVisitors24h: { $sum: { $cond: [{ $gte: ["$lastSeen", last24h] }, 1, 0] } },
+            uniqueVisitors7d: { $sum: { $cond: [{ $gte: ["$lastSeen", last7d] }, 1, 0] } },
+            uniqueVisitors30d: { $sum: 1 },
+          },
+        },
+      ]).allowDiskUse(true),
     ]);
 
-    const formatPeriodStats = (stats: Array<{ totalRequests: number; totalResponseTime: number; totalDataTransferred: number }>, uniqueVisitors: unknown[]) => {
-      if (!stats || stats.length === 0) {
-        return { totalRequests: 0, avgResponseTime: 0, totalDataTransferred: 0, formattedData: "0 B", uniqueVisitors: uniqueVisitors.length };
-      }
-      const s = stats[0];
+    const stats = statsResult[0];
+    const visitors = visitorResult[0];
+    const formatPeriodStats = (totalRequests = 0, totalResponseTime = 0, totalDataTransferred = 0, uniqueVisitors = 0) => {
       return {
-        totalRequests: s.totalRequests || 0,
-        avgResponseTime: s.totalRequests > 0 ? Math.round(s.totalResponseTime / s.totalRequests) : 0,
-        totalDataTransferred: s.totalDataTransferred || 0,
-        formattedData: formatBytes(s.totalDataTransferred || 0),
-        uniqueVisitors: uniqueVisitors.length,
+        totalRequests,
+        avgResponseTime: totalRequests > 0 ? Math.round(totalResponseTime / totalRequests) : 0,
+        totalDataTransferred,
+        formattedData: formatBytes(totalDataTransferred),
+        uniqueVisitors,
       };
     };
 
     res.json({
-      last24Hours: formatPeriodStats(stats24h, unique24h),
-      last7Days: formatPeriodStats(stats7d, unique7d),
-      last30Days: formatPeriodStats(stats30d, unique30d),
+      last24Hours: formatPeriodStats(stats?.totalRequests24h, stats?.totalResponseTime24h, stats?.totalDataTransferred24h, visitors?.uniqueVisitors24h),
+      last7Days: formatPeriodStats(stats?.totalRequests7d, stats?.totalResponseTime7d, stats?.totalDataTransferred7d, visitors?.uniqueVisitors7d),
+      last30Days: formatPeriodStats(stats?.totalRequests30d, stats?.totalResponseTime30d, stats?.totalDataTransferred30d, visitors?.uniqueVisitors30d),
     });
   } catch (error) {
     logger.error("Error fetching analytics overview:", error);
@@ -255,6 +274,7 @@ router.get("/hourly", async (req: Request, res: Response) => {
     const hourlyStats = await HourlyStats.find({
       hour: { $gte: startDate },
     })
+      .select("hour totalRequests totalResponseTime totalDataTransferred")
       .sort({ hour: 1 })
       .lean();
 
@@ -280,7 +300,7 @@ router.get("/daily", async (req: Request, res: Response) => {
     const startDate = getStartDate(days);
 
     // Aggregate hourly stats into daily
-    const [dailyStats, persistedDailyStats, dailyUniqueVisitors] = await Promise.all([
+    const [dailyStats, persistedDailyStats] = await Promise.all([
       HourlyStats.aggregate([
         { $match: { hour: { $gte: startDate } } },
         {
@@ -296,29 +316,6 @@ router.get("/daily", async (req: Request, res: Response) => {
         { $sort: { _id: 1 } },
       ]),
       DailyStats.find({ date: { $gte: startDate } }).select("date totalRequests totalResponseTime totalDataTransferred uniqueVisitors").sort({ date: 1 }).lean(),
-      RequestLog.aggregate([
-        {
-          $match: {
-            timestamp: { $gte: startDate },
-            visitorHash: { $exists: true, $ne: null },
-          },
-        },
-        {
-          $group: {
-            _id: {
-              $dateToString: { format: "%Y-%m-%d", date: "$timestamp" },
-            },
-            uniqueVisitors: { $addToSet: "$visitorHash" },
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            uniqueVisitors: { $size: "$uniqueVisitors" },
-          },
-        },
-        { $sort: { _id: 1 } },
-      ]),
     ]);
 
     const rowsByDate = new Map<
@@ -356,13 +353,6 @@ router.get("/daily", async (req: Request, res: Response) => {
           dataTransferred: stat.totalDataTransferred || 0,
           uniqueVisitors: stat.uniqueVisitors || 0,
         });
-      }
-    }
-
-    for (const day of dailyUniqueVisitors) {
-      const existing = rowsByDate.get(day._id as string);
-      if (existing && existing.uniqueVisitors === 0) {
-        existing.uniqueVisitors = day.uniqueVisitors as number;
       }
     }
 
@@ -510,7 +500,11 @@ router.get("/recent", async (req: Request, res: Response) => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
 
-    const recentLogs = await RequestLog.find().sort({ timestamp: -1 }).limit(limit).lean();
+    const recentLogs = await RequestLog.find()
+      .select("endpoint method statusCode responseTime responseSize timestamp")
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .lean();
 
     const formatted = recentLogs.map((log) => ({
       endpoint: log.endpoint,
@@ -536,7 +530,7 @@ router.get("/realtime", async (req: Request, res: Response) => {
     currentHour.setMinutes(0, 0, 0);
 
     const [hourlyData, recentRequests] = await Promise.all([
-      HourlyStats.findOne({ hour: currentHour }).lean(),
+      HourlyStats.findOne({ hour: currentHour }).select("totalRequests totalResponseTime totalDataTransferred").lean(),
       RequestLog.countDocuments({
         timestamp: { $gte: new Date(Date.now() - 60000) }, // Last minute
       }),
@@ -697,7 +691,7 @@ router.get("/slow-endpoints", async (req: Request, res: Response) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const slowEndpoints = await RequestLog.aggregate([
+    const slowEndpoints = await RequestLog.aggregate<SlowEndpointAggregate>([
       { $match: { timestamp: { $gte: startDate } } },
       {
         $group: {
@@ -706,29 +700,28 @@ router.get("/slow-endpoints", async (req: Request, res: Response) => {
           avgResponseTime: { $avg: "$responseTime" },
           maxResponseTime: { $max: "$responseTime" },
           minResponseTime: { $min: "$responseTime" },
-          responseTimes: { $push: "$responseTime" },
+          p95ResponseTime: {
+            $percentile: {
+              input: "$responseTime",
+              p: [0.95],
+              method: "approximate",
+            },
+          },
         },
       },
       { $match: { count: { $gte: threshold } } },
       { $sort: { avgResponseTime: -1 } },
       { $limit: 10 },
-    ]);
+    ]).allowDiskUse(true);
 
-    const formatted = slowEndpoints.map((stat) => {
-      // Calculate p95 manually
-      const sorted = (stat.responseTimes as number[]).sort((a, b) => a - b);
-      const p95Index = Math.floor(sorted.length * 0.95);
-      const p95 = sorted[p95Index] || stat.maxResponseTime;
-
-      return {
-        endpoint: stat._id,
-        count: stat.count,
-        avgResponseTime: Math.round(stat.avgResponseTime),
-        maxResponseTime: stat.maxResponseTime,
-        minResponseTime: stat.minResponseTime,
-        p95ResponseTime: Math.round(p95),
-      };
-    });
+    const formatted = slowEndpoints.map((stat) => ({
+      endpoint: stat._id,
+      count: stat.count,
+      avgResponseTime: Math.round(stat.avgResponseTime),
+      maxResponseTime: stat.maxResponseTime,
+      minResponseTime: stat.minResponseTime,
+      p95ResponseTime: Math.round(stat.p95ResponseTime[0] ?? stat.maxResponseTime),
+    }));
 
     res.json(formatted);
   } catch (error) {

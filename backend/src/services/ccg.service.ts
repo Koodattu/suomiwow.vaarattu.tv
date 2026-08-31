@@ -1165,6 +1165,93 @@ class CcgService {
     }));
   }
 
+  async getPromo(): Promise<{
+    sets: Record<string, unknown>[];
+    currentSetId: string | null;
+    legacySetId: string | null;
+    cards: Record<string, unknown>[];
+  }> {
+    requireFeature();
+    const setFilter = { kind: "raid", enabledAt: { $ne: null }, cardCount: { $gt: 0 } } as const;
+    const [currentSet, legacySet] = await Promise.all([
+      CcgSet.findOne({ ...setFilter, state: "current" })
+        .select(CCG_PUBLIC_SET_FIELDS)
+        .sort({ enabledAt: -1, zoneId: -1, _id: -1 })
+        .lean(),
+      CcgSet.findOne({ ...setFilter, state: "legacy" })
+        .select(CCG_PUBLIC_SET_FIELDS)
+        .sort({ enabledAt: -1, zoneId: -1, _id: -1 })
+        .lean(),
+    ]);
+    const visibleSets: NonNullable<typeof currentSet>[] = [];
+    if (currentSet) visibleSets.push(currentSet);
+    if (legacySet) visibleSets.push(legacySet);
+
+    if (!currentSet) {
+      return {
+        sets: visibleSets.map((set) => this.serializeSet(set)),
+        currentSetId: null,
+        legacySetId: legacySet ? String(legacySet._id) : null,
+        cards: [],
+      };
+    }
+
+    const pool = await CcgPackPool.findOne({ setId: currentSet._id, active: true, totalCards: { $gt: 0 } })
+      .select("buckets")
+      .sort({ updatedAt: -1 })
+      .lean();
+    const buckets = new Map((pool?.buckets ?? []).map((bucket) => [bucket.grade, bucket.cardIds]));
+    const featuredIds: mongoose.Types.ObjectId[] = [];
+    const selectedIds = new Set<string>();
+    const hourlyIndex = Math.floor(Date.now() / (60 * 60 * 1000));
+    const addRotatedCards = (cardIds: mongoose.Types.ObjectId[]) => {
+      for (let offset = 0; offset < cardIds.length && featuredIds.length < 2; offset += 1) {
+        const cardId = cardIds[(hourlyIndex + offset) % cardIds.length];
+        const key = String(cardId);
+        if (selectedIds.has(key)) continue;
+        selectedIds.add(key);
+        featuredIds.push(cardId);
+      }
+    };
+    addRotatedCards(buckets.get("S") ?? []);
+    for (const grade of CCG_TIER_GRADES) {
+      if (grade === "S" || featuredIds.length >= 2) continue;
+      addRotatedCards(buckets.get(grade) ?? []);
+    }
+
+    if (featuredIds.length === 0) {
+      return {
+        sets: visibleSets.map((set) => this.serializeSet(set)),
+        currentSetId: String(currentSet._id),
+        legacySetId: legacySet ? String(legacySet._id) : null,
+        cards: [],
+      };
+    }
+
+    const cards = await CcgCard.find({
+      _id: { $in: featuredIds },
+      setId: currentSet._id,
+      availabilityStatus: { $ne: "archived" },
+    }).lean();
+    const cardById = new Map(cards.map((card) => [String(card._id), card]));
+    const orderedCards = featuredIds.flatMap((cardId) => {
+      const card = cardById.get(String(cardId));
+      return card ? [card] : [];
+    });
+    const alternativeByCollector = await this.loadAlternativeArt(orderedCards);
+
+    return {
+      sets: visibleSets.map((set) => this.serializeSet(set)),
+      currentSetId: String(currentSet._id),
+      legacySetId: legacySet ? String(legacySet._id) : null,
+      cards: orderedCards.map((card) => this.serializeCard(
+        card,
+        currentSet,
+        alternativeByCollector.get(resolveCollectorKey(card)),
+      )),
+    };
+  }
+
   async checkCharacter(rawName: unknown, rawRealm: unknown): Promise<Record<string, unknown>> {
     requireFeature();
     const name = typeof rawName === "string" ? rawName.trim().slice(0, 50) : "";
