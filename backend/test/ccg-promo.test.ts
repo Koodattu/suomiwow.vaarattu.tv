@@ -117,8 +117,8 @@ test("CCG promo is owner-neutral and returns the newest current and legacy prese
     assert.equal(result.cards[0].tierGrade, "S");
     assert.equal(result.cards[1].tierGrade, "A");
     assert.deepEqual(setSorts, [
-      { enabledAt: -1, zoneId: -1, _id: -1 },
-      { enabledAt: -1, zoneId: -1, _id: -1 },
+      { zoneId: -1, _id: -1 },
+      { zoneId: -1, _id: -1 },
     ]);
   } finally {
     setModel.findOne = originals.setFindOne;

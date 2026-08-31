@@ -19,9 +19,8 @@ import CcgTwitchPanel from "@/components/ccg/CcgTwitchPanel";
 import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 
-function newestEnabledFirst(left: CcgSet, right: CcgSet): number {
-  const enabledAtDifference = Date.parse(right.enabledAt ?? "") - Date.parse(left.enabledAt ?? "");
-  return enabledAtDifference || right.zoneId - left.zoneId;
+function newestRaidFirst(left: CcgSet, right: CcgSet): number {
+  return right.zoneId - left.zoneId;
 }
 
 function VaultPackShortcut({
@@ -117,12 +116,12 @@ export default function CcgLandingPage() {
   const setsQuery = useCcgSets();
   const session = sessionQuery.data;
   const sets = setsQuery.data?.sets ?? [];
-  const currentSets = sets.filter((set) => set.kind === "raid" && set.state === "current").sort(newestEnabledFirst);
+  const currentSets = sets.filter((set) => set.kind === "raid" && set.state === "current").sort(newestRaidFirst);
   const current = currentSets[0];
   const currentCardCount = currentSets.reduce((total, set) => total + set.cardCount, 0);
   const currentOwnedCount = currentSets.reduce((total, set) => total + set.ownedCards, 0);
   const currentProgress = currentCardCount > 0 ? Math.min(100, (currentOwnedCount / currentCardCount) * 100) : 0;
-  const legacy = sets.filter((set) => set.kind === "raid" && set.state === "legacy").sort(newestEnabledFirst);
+  const legacy = sets.filter((set) => set.kind === "raid" && set.state === "legacy").sort(newestRaidFirst);
   const recentPackSets = legacy.slice(0, 1);
   const community = sets.filter((set) => set.kind === "community");
   const collectionSets = [...currentSets, ...legacy, ...community];

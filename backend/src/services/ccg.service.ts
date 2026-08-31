@@ -1176,11 +1176,11 @@ class CcgService {
     const [currentSet, legacySet] = await Promise.all([
       CcgSet.findOne({ ...setFilter, state: "current" })
         .select(CCG_PUBLIC_SET_FIELDS)
-        .sort({ enabledAt: -1, zoneId: -1, _id: -1 })
+        .sort({ zoneId: -1, _id: -1 })
         .lean(),
       CcgSet.findOne({ ...setFilter, state: "legacy" })
         .select(CCG_PUBLIC_SET_FIELDS)
-        .sort({ enabledAt: -1, zoneId: -1, _id: -1 })
+        .sort({ zoneId: -1, _id: -1 })
         .lean(),
     ]);
     const visibleSets: NonNullable<typeof currentSet>[] = [];
