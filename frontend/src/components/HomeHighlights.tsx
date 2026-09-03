@@ -191,23 +191,55 @@ function PickemSkeleton() {
   );
 }
 
+function BossMechanicsHighlight() {
+  const t = useTranslations("fun.bossMechanics");
+
+  return (
+    <Link
+      href="/fun/boss-mechanics/entombed-sentinels"
+      className="group relative flex h-full min-h-[102px] overflow-hidden rounded border border-lime-400/30 bg-[#071008] shadow-[0_8px_30px_rgba(10,40,18,0.28)] transition-[border-color,box-shadow,transform] duration-150 hover:border-lime-300/55 hover:shadow-[0_10px_36px_rgba(34,197,94,0.16)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-400 active:scale-[0.96] motion-reduce:transform-none motion-reduce:transition-none sm:min-h-[124px] xl:min-h-0"
+    >
+      <Image
+        src="/fun/boss-mechanics/entombed-sentinels-arena.png"
+        alt=""
+        fill
+        sizes="(min-width: 1280px) 18vw, 100vw"
+        className="object-cover opacity-45 transition-transform duration-300 ease-out group-hover:scale-[1.025] motion-reduce:transform-none motion-reduce:transition-none"
+      />
+      <span className="absolute inset-0 bg-gradient-to-r from-[#061008] via-[#061008]/80 to-[#061008]/10" aria-hidden="true" />
+      <span className="pointer-events-none absolute -right-3 -bottom-2 top-1 w-[62%] transition-transform duration-300 ease-out group-hover:scale-[1.025] motion-reduce:transform-none motion-reduce:transition-none" aria-hidden="true">
+        <Image
+          src="/fun/boss-mechanics/entombed-sentinels.png"
+          alt=""
+          fill
+          sizes="(min-width: 1280px) 12vw, 62vw"
+          className="object-contain object-right-bottom opacity-90"
+        />
+      </span>
+
+      <span className="relative z-10 flex w-[68%] min-w-0 flex-col justify-end p-2.5 sm:p-3">
+        <span className="text-[9px] font-black uppercase tracking-[0.14em] text-lime-300/80 sm:text-[10px]">{t("raid")}</span>
+        <span className="mt-0.5 block text-sm leading-4 font-black text-balance text-white sm:text-base sm:leading-5">{t("title")}</span>
+        <span className="mt-1 inline-flex items-center gap-1.5 text-[10px] font-bold text-lime-100/80 sm:text-[11px]">
+          {t("mechanic")}
+          <FaArrowRight className="h-3 w-3 transition-transform duration-150 ease-out group-hover:translate-x-0.5 motion-reduce:transform-none motion-reduce:transition-none" aria-hidden="true" />
+        </span>
+      </span>
+    </Link>
+  );
+}
+
 export default function HomeHighlights() {
   const t = useTranslations("homeHighlights");
   const ccg = useTranslations("ccg");
   const { data: pickems = [], isLoading } = usePickems();
   const pickemById = new Map(pickems.map((pickem) => [pickem.id, pickem]));
   const highlightedPickems = HIGHLIGHTED_PICKEM_IDS.map((id) => pickemById.get(id)).filter((pickem): pickem is PickemSummary => Boolean(pickem?.isVotingOpen));
-  const showPickems = isLoading || highlightedPickems.length > 0;
+  const hasOpenPickems = highlightedPickems.length > 0;
 
   return (
     <section className="mb-3">
-      <div
-        className={`grid gap-2 sm:gap-2.5 xl:grid-rows-2 ${
-          showPickems
-            ? "xl:grid-cols-[minmax(12rem,1.43fr)_minmax(0,1fr)_minmax(0,0.86fr)_minmax(0,0.86fr)]"
-            : "xl:grid-cols-[minmax(12rem,1.43fr)_repeat(2,minmax(0,0.86fr))]"
-        }`}
-      >
+      <div className="grid gap-2 sm:gap-2.5 xl:grid-cols-[minmax(12rem,1.43fr)_minmax(0,1fr)_minmax(0,0.86fr)_minmax(0,0.86fr)] xl:grid-rows-2">
         <Link
           href="/ccg"
           className="group relative z-0 flex min-h-[102px] rounded border border-blue-400/35 bg-slate-950 shadow-[0_8px_30px_rgba(15,23,42,0.35)] transition-[border-color,box-shadow,transform] duration-150 hover:z-10 hover:border-blue-300/60 hover:shadow-[0_10px_36px_rgba(37,99,235,0.22)] focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 active:scale-[0.96] motion-reduce:transform-none motion-reduce:transition-none sm:min-h-[124px] xl:row-span-2 xl:min-h-0"
@@ -270,8 +302,8 @@ export default function HomeHighlights() {
           </span>
         </Link>
 
-        {showPickems && (
-          <div className="min-w-0 xl:row-span-2">
+        <div className="min-w-0 xl:row-span-2">
+          {isLoading || hasOpenPickems ? (
             <div className="grid grid-cols-2 gap-1.5 sm:gap-2 xl:h-full xl:grid-cols-1 xl:grid-rows-2">
               {isLoading ? (
                 <>
@@ -282,8 +314,10 @@ export default function HomeHighlights() {
                 highlightedPickems.map((pickem) => <PickemHighlight key={pickem.id} pickem={pickem} />)
               )}
             </div>
-          </div>
-        )}
+          ) : (
+            <BossMechanicsHighlight />
+          )}
+        </div>
 
         <div className="min-w-0 xl:col-span-2 xl:row-span-2">
           <div className="grid grid-cols-2 gap-1.5 sm:gap-2 xl:h-full xl:grid-rows-2">
