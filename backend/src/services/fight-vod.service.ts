@@ -14,6 +14,8 @@ const AFFILIATE_VOD_RETENTION_DAYS = 14;
 const EXTENDED_VOD_RETENTION_DAYS = 60;
 const MAX_VOD_RETENTION_DAYS = EXTENDED_VOD_RETENTION_DAYS;
 const RESOLUTION_RETRY_MS = 30 * 60 * 1000;
+const VOD_PUBLICATION_GRACE_MS = DAY_MS;
+const MAX_RESOLUTION_ATTEMPTS = 4;
 const STREAM_END_TOLERANCE_MS = 30 * 60 * 1000;
 const VOD_LINK_PREROLL_SECONDS = 10;
 const HISTORICAL_MATCH_START_TOLERANCE_MS = 2 * 60 * 1000;
@@ -351,6 +353,10 @@ class FightVodService {
     return videos.find((video) => video.stream_id === streamId);
   }
 
+  private shouldStopResolving(attempts: number, fightStartedAt: Date, now: Date): boolean {
+    return attempts >= MAX_RESOLUTION_ATTEMPTS && now.getTime() - fightStartedAt.getTime() >= VOD_PUBLICATION_GRACE_MS;
+  }
+
   private getDifficultyId(difficulty: "mythic" | "heroic"): number {
     return difficulty === "mythic" ? 5 : 4;
   }
@@ -580,14 +586,15 @@ class FightVodService {
           fightId: candidate.fight.fightId,
           channelName: { $in: streamers.map((streamer) => streamer.channelName) },
         })
-          .select("channelName -_id")
+          .select("channelName status streamId -_id")
           .lean();
-        const existingChannels = new Set(existingLinks.map((link) => link.channelName));
+        const existingLinksByChannel = new Map(existingLinks.map((link) => [link.channelName, link]));
 
         for (const streamer of streamers) {
           result.fightsConsidered += 1;
 
-          if (existingChannels.has(streamer.channelName)) {
+          const existingLink = existingLinksByChannel.get(streamer.channelName);
+          if (existingLink?.status === "resolved") {
             result.skippedExisting += 1;
             continue;
           }
@@ -611,7 +618,7 @@ class FightVodService {
             continue;
           }
 
-          const writeResult = await FightVodLink.updateOne(
+          await FightVodLink.updateOne(
             {
               reportCode: candidate.fight.reportCode,
               fightId: candidate.fight.fightId,
@@ -628,8 +635,11 @@ class FightVodService {
                 fightId: candidate.fight.fightId,
                 fightStartedAt,
                 channelName: streamer.channelName,
+                attempts: 1,
+              },
+              $set: {
                 twitchUserId: streamer.twitchUserId,
-                streamId: match.video.stream_id || `video:${match.video.id}`,
+                streamId: match.video.stream_id || existingLink?.streamId || `video:${match.video.id}`,
                 streamStartedAt: match.streamStartedAt,
                 videoId: match.video.id,
                 vodUrl: this.buildTwitchVodUrl(match.video.id, match.offsetSeconds),
@@ -644,19 +654,13 @@ class FightVodService {
                 expectedExpiresAt: availability.expectedExpiresAt,
                 hardExpiresAt: availability.hardExpiresAt,
                 nextAvailabilityCheckAt: availability.nextAvailabilityCheckAt,
-                attempts: 1,
                 lastCheckedAt: now,
                 expiresAt: availability.expiresAt,
               },
             },
             { upsert: true },
           );
-
-          if (writeResult.upsertedCount && writeResult.upsertedCount > 0) {
-            result.matched += 1;
-          } else {
-            result.skippedExisting += 1;
-          }
+          result.matched += 1;
         }
       }
     }
@@ -680,7 +684,7 @@ class FightVodService {
         { $or: [{ lastCheckedAt: { $exists: false } }, { lastCheckedAt: { $lte: retryBefore } }] },
       ],
     })
-      .sort({ createdAt: 1 })
+      .sort({ lastCheckedAt: 1, createdAt: 1 })
       .limit(limit);
 
     if (pendingLinks.length === 0) {
@@ -694,7 +698,7 @@ class FightVodService {
     for (const link of pendingLinks) {
       try {
         if (!videosByUser.has(link.twitchUserId)) {
-          videosByUser.set(link.twitchUserId, await twitchService.getRecentArchiveVideos(link.twitchUserId, 10));
+          videosByUser.set(link.twitchUserId, await twitchService.getRecentArchiveVideos(link.twitchUserId, 100));
         }
 
         const videos = videosByUser.get(link.twitchUserId) || [];
@@ -704,6 +708,11 @@ class FightVodService {
         link.lastCheckedAt = now;
 
         if (!video) {
+          if (this.shouldStopResolving(link.attempts, link.fightStartedAt, now)) {
+            link.status = "unavailable";
+            link.availabilityStatus = "unavailable";
+            unavailable += 1;
+          }
           await link.save();
           continue;
         }
@@ -712,8 +721,11 @@ class FightVodService {
         const durationSeconds = this.parseTwitchDuration(video.duration);
 
         if (durationSeconds > 0 && offsetSeconds > durationSeconds + 60) {
-          link.status = link.attempts >= 4 ? "unavailable" : "pending";
-          if (link.status === "unavailable") unavailable += 1;
+          if (this.shouldStopResolving(link.attempts, link.fightStartedAt, now)) {
+            link.status = "unavailable";
+            link.availabilityStatus = "unavailable";
+            unavailable += 1;
+          }
           await link.save();
           continue;
         }
