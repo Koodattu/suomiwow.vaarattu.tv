@@ -30,8 +30,28 @@ export const CCG_STUDIO_EXISTING_DEVELOPMENT_FINISHES = [
   "transcendent",
   "singularity",
   "metamorphic",
-  "parallax",
   "neon",
+] as const;
+
+export const CCG_STUDIO_AFFIXES = [
+  "none",
+  "parallax",
+  "misprint",
+  "glass",
+  "embossed",
+  "cracked",
+  "frosted",
+  "gilded",
+  "spectral",
+  "weathered",
+  "miscut",
+  "voidmarked",
+  "raidseal",
+  "soulbound",
+  "runestone",
+  "forged",
+  "luckydrop",
+  "soulprojection",
 ] as const;
 
 export const CCG_RAID_PREVIEW_FINISHES = CCG_RAID_FINISHES;
@@ -41,6 +61,7 @@ export const CCG_STUDIO_DEVELOPMENT_FINISHES = CCG_STUDIO_EXISTING_DEVELOPMENT_F
 export type CcgRaidPreviewFinish = (typeof CCG_RAID_PREVIEW_FINISHES)[number];
 export type CcgStudioDevelopmentFinish = (typeof CCG_STUDIO_DEVELOPMENT_FINISHES)[number];
 export type CcgPreviewFinish = CcgFinish | CcgStudioDevelopmentFinish;
+export type CcgPreviewAffix = (typeof CCG_STUDIO_AFFIXES)[number];
 
 const raidPreviewFinishSet = new Set<string>(CCG_RAID_PREVIEW_FINISHES);
 

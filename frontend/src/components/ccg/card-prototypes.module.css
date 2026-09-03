@@ -533,6 +533,7 @@
 .statsPanel,
 .cardFooter,
 .finishMark,
+.affixLayer,
 .finishLayer,
 .astralDepth,
 .materialLight {
@@ -695,30 +696,16 @@
   transform: scale(var(--crop-scale));
 }
 
-.parallax .raidArt {
+.prototypeCard[data-affix="parallax"] .raidArt {
   transform: translate3d(var(--parallax-background-x), var(--parallax-background-y), 0) scale(calc(var(--crop-scale) + 0.22));
   transition-property: transform;
   transition-duration: 140ms;
   transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
-.parallax .raidArtVideo {
+.prototypeCard[data-affix="parallax"] .raidArtVideo {
   transform: translate3d(var(--parallax-background-x), var(--parallax-background-y), 0) scale(calc(var(--crop-scale) + 0.22));
   transition: transform 140ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-.astral .raidArt {
-  transform: translate3d(var(--parallax-background-x, 0%), var(--parallax-background-y, 0%), 0) scale(calc(var(--crop-scale) + 0.22));
-  transition-property: transform;
-  transition-duration: 140ms;
-  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
-}
-
-.astral .raidArtVideo {
-  transform: translate3d(var(--parallax-background-x, 0%), var(--parallax-background-y, 0%), 0) scale(calc(var(--crop-scale) + 0.22));
-  transition-property: transform;
-  transition-duration: 140ms;
-  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
 .raidShade {
@@ -836,29 +823,254 @@
   transform: none;
 }
 
-.parallax .renderImage {
+.prototypeCard[data-affix="parallax"] .renderImage {
   transform: translateX(calc(var(--render-fit-translate-x) + var(--parallax-character-x))) translateY(var(--parallax-character-y));
   transition-property: transform;
   transition-duration: 140ms;
   transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
-.parallax .renderVideo {
+.prototypeCard[data-affix="parallax"] .renderVideo {
   transform: translate3d(var(--parallax-character-x), var(--parallax-character-y), 0) scale(1.08);
-}
-
-.astral .renderImage {
-  transform: translateX(calc(var(--render-fit-translate-x) + var(--parallax-character-x, 0%))) translateY(var(--parallax-character-y, 0%));
   transition-property: transform;
   transition-duration: 140ms;
   transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
-.astral .renderVideo {
-  transform: translate3d(var(--parallax-character-x, 0%), var(--parallax-character-y, 0%), 0) scale(1.08);
-  transition-property: transform;
-  transition-duration: 140ms;
-  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+.prototypeCard[data-affix="misprint"] .renderWindow {
+  filter:
+    var(--surface-filter)
+    drop-shadow(-3px 0 rgba(43, 225, 255, 0.52))
+    drop-shadow(3px 0 rgba(255, 57, 163, 0.48))
+    drop-shadow(0 8px 5px rgba(0, 0, 0, 0.62));
+  transform: translateZ(18px) rotate(180deg) scale(0.97);
+  transform-origin: 50% 50%;
+}
+
+.prototypeCard[data-affix="glass"] {
+  background-color: rgba(7, 18, 27, 0.42);
+  box-shadow:
+    inset 0 0 0 1px rgba(225, 250, 255, 0.2),
+    inset 0 0 32px rgba(119, 218, 255, 0.08),
+    0 18px 38px rgba(0, 0, 0, 0.5);
+  -webkit-backdrop-filter: blur(8px) saturate(1.18);
+  backdrop-filter: blur(8px) saturate(1.18);
+}
+
+.prototypeCard[data-affix="glass"] .artworkClip {
+  filter: brightness(1.06) contrast(0.9) saturate(0.78);
+  opacity: 0.42;
+}
+
+.prototypeCard[data-affix="glass"] .renderWindow {
+  filter: var(--surface-filter) drop-shadow(0 7px 5px rgba(214, 245, 255, 0.26));
+  opacity: 0.64;
+}
+
+.prototypeCard[data-affix="glass"] .frameGeometry {
+  filter: drop-shadow(0 0 5px rgba(198, 241, 255, 0.24));
+  opacity: 0.58;
+}
+
+.prototypeCard[data-affix="glass"] .statsPanel {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(218, 249, 255, 0.12), transparent 48%),
+    linear-gradient(180deg, rgba(25, 44, 55, 0.76), rgba(3, 9, 14, 0.82));
+  -webkit-backdrop-filter: blur(6px) saturate(1.12);
+  backdrop-filter: blur(6px) saturate(1.12);
+}
+
+.prototypeCard[data-affix="embossed"] .renderWindow {
+  filter:
+    var(--surface-filter)
+    drop-shadow(-1px -1px rgba(255, 255, 255, 0.52))
+    drop-shadow(2px 3px rgba(0, 0, 0, 0.72));
+}
+
+.prototypeCard[data-affix="embossed"] .frameGeometry,
+.prototypeCard[data-affix="embossed"] .statsPanel {
+  filter:
+    drop-shadow(-1px -1px rgba(255, 255, 255, 0.26))
+    drop-shadow(2px 3px rgba(0, 0, 0, 0.58));
+}
+
+.prototypeCard[data-affix="cracked"] {
+  box-shadow:
+    inset 0 0 0 1px rgba(221, 244, 255, 0.18),
+    inset 0 0 24px rgba(173, 226, 255, 0.08),
+    0 18px 38px rgba(0, 0, 0, 0.56);
+}
+
+.prototypeCard[data-affix="frosted"] {
+  box-shadow:
+    inset 0 0 18px rgba(190, 240, 255, 0.24),
+    0 0 12px rgba(135, 220, 255, 0.18),
+    0 18px 38px rgba(0, 0, 0, 0.5);
+}
+
+.prototypeCard[data-affix="frosted"] .artworkClip {
+  filter: var(--surface-filter) saturate(0.7) brightness(1.08) contrast(0.92);
+}
+
+.prototypeCard[data-affix="frosted"] .renderWindow {
+  filter: var(--surface-filter) saturate(0.72) drop-shadow(0 6px 5px rgba(177, 236, 255, 0.38));
+}
+
+.prototypeCard[data-affix="gilded"] .outerFrame,
+.prototypeCard[data-affix="gilded"] .frameGeometry {
+  filter:
+    sepia(0.82)
+    saturate(1.65)
+    brightness(1.12)
+    drop-shadow(0 0 5px rgba(255, 200, 76, 0.38));
+}
+
+.prototypeCard[data-affix="gilded"] .innerFrame {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 241, 175, 0.72),
+    inset 0 0 0 4px rgba(63, 35, 4, 0.82),
+    inset 0 0 12px rgba(255, 190, 50, 0.26);
+}
+
+.prototypeCard[data-affix="spectral"] .artworkClip {
+  filter: var(--surface-filter) hue-rotate(128deg) saturate(0.72) brightness(0.72);
+}
+
+.prototypeCard[data-affix="spectral"] .renderWindow {
+  filter:
+    var(--surface-filter)
+    saturate(0.52)
+    hue-rotate(112deg)
+    drop-shadow(-4px 1px rgba(83, 255, 222, 0.42))
+    drop-shadow(5px -1px rgba(137, 115, 255, 0.3));
+  opacity: 0.78;
+}
+
+.prototypeCard[data-affix="weathered"] .artworkClip {
+  filter: var(--surface-filter) sepia(0.46) saturate(0.62) brightness(0.78) contrast(1.18);
+}
+
+.prototypeCard[data-affix="weathered"] .renderWindow {
+  filter: var(--surface-filter) sepia(0.34) saturate(0.74) contrast(1.08) drop-shadow(0 7px 4px rgba(0, 0, 0, 0.76));
+}
+
+.prototypeCard[data-affix="weathered"] .frameGeometry {
+  filter: sepia(0.36) saturate(0.76) contrast(1.12);
+}
+
+.prototypeCard[data-affix="miscut"] .artworkClip,
+.prototypeCard[data-affix="miscut"] .renderWindow,
+.prototypeCard[data-affix="miscut"] .identity,
+.prototypeCard[data-affix="miscut"] .characterMeta,
+.prototypeCard[data-affix="miscut"] .statsPanel,
+.prototypeCard[data-affix="miscut"] .cardFooter,
+.prototypeCard[data-affix="miscut"] .rarityPlate,
+.prototypeCard[data-affix="miscut"] .finishMark {
+  translate: -3.2% 1.35%;
+}
+
+.prototypeCard[data-affix="voidmarked"] .artworkClip {
+  filter: var(--surface-filter) saturate(0.66) brightness(0.65) hue-rotate(18deg);
+}
+
+.prototypeCard[data-affix="voidmarked"] .renderWindow {
+  filter:
+    var(--surface-filter)
+    saturate(0.72)
+    drop-shadow(0 0 7px rgba(170, 75, 255, 0.62))
+    drop-shadow(0 7px 6px rgba(0, 0, 0, 0.78));
+}
+
+.prototypeCard[data-affix="raidseal"] {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--lab-accent) 38%, rgba(255, 255, 255, 0.16)),
+    inset 0 0 20px color-mix(in srgb, var(--lab-glow) 22%, transparent),
+    0 18px 38px rgba(0, 0, 0, 0.54);
+}
+
+.prototypeCard[data-affix="soulbound"] .renderWindow {
+  filter:
+    var(--surface-filter)
+    drop-shadow(0 0 5px rgba(79, 180, 255, 0.34))
+    drop-shadow(0 8px 5px rgba(0, 0, 0, 0.72));
+}
+
+.prototypeCard[data-affix="runestone"] {
+  background-color: #15191c;
+  box-shadow:
+    inset 0 0 0 2px rgba(218, 229, 230, 0.16),
+    inset 0 0 34px rgba(0, 0, 0, 0.74),
+    0 18px 38px rgba(0, 0, 0, 0.58);
+}
+
+.prototypeCard[data-affix="runestone"] .artworkClip {
+  filter: var(--surface-filter) grayscale(0.82) saturate(0.42) brightness(0.62) contrast(1.28);
+}
+
+.prototypeCard[data-affix="runestone"] .renderWindow {
+  filter:
+    var(--surface-filter)
+    grayscale(0.72)
+    saturate(0.42)
+    contrast(1.3)
+    drop-shadow(-1px -1px rgba(222, 235, 235, 0.34))
+    drop-shadow(2px 3px rgba(0, 0, 0, 0.86));
+}
+
+.prototypeCard[data-affix="runestone"] .frameGeometry,
+.prototypeCard[data-affix="runestone"] .statsPanel {
+  filter: grayscale(0.78) saturate(0.34) contrast(1.18);
+}
+
+.prototypeCard[data-affix="forged"] {
+  background-color: #161d22;
+  box-shadow:
+    inset 0 0 0 2px rgba(222, 235, 241, 0.2),
+    inset 0 0 24px rgba(110, 148, 166, 0.12),
+    0 20px 40px rgba(0, 0, 0, 0.58);
+}
+
+.prototypeCard[data-affix="forged"] .artworkClip {
+  filter: var(--surface-filter) saturate(0.56) contrast(1.16) brightness(0.76);
+}
+
+.prototypeCard[data-affix="forged"] .renderWindow {
+  filter:
+    var(--surface-filter)
+    saturate(0.62)
+    contrast(1.18)
+    drop-shadow(-1px -1px rgba(220, 238, 245, 0.3))
+    drop-shadow(2px 4px rgba(0, 0, 0, 0.78));
+}
+
+.prototypeCard[data-affix="forged"] .frameGeometry {
+  filter: grayscale(0.62) saturate(0.5) brightness(1.04) contrast(1.22);
+}
+
+.prototypeCard[data-affix="luckydrop"] .renderWindow {
+  filter:
+    var(--surface-filter)
+    saturate(1.14)
+    drop-shadow(0 0 5px color-mix(in srgb, var(--rarity) 48%, rgba(255, 220, 79, 0.36)))
+    drop-shadow(0 8px 5px rgba(0, 0, 0, 0.68));
+}
+
+.prototypeCard[data-affix="soulprojection"] .renderWindow {
+  filter:
+    var(--surface-filter)
+    drop-shadow(-4px 2px rgba(100, 255, 231, 0.42))
+    drop-shadow(0 0 8px rgba(124, 127, 255, 0.38))
+    drop-shadow(0 10px 7px rgba(0, 0, 0, 0.62));
+}
+
+.prototypeCard[data-affix="soulprojection"] .renderImage {
+  transform: translateX(calc(var(--render-fit-translate-x) + var(--parallax-character-x))) translateY(var(--parallax-character-y)) scale(1.025);
+  transition: transform 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.prototypeCard[data-affix="soulprojection"] .renderVideo {
+  transform: translate3d(var(--parallax-character-x), var(--parallax-character-y), 0) scale(1.04);
+  transition: transform 140ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .astralDepth {
@@ -1319,12 +1531,370 @@
   color: white;
 }
 
+.affixLayer,
 .finishLayer,
 .materialLight {
   overflow: hidden;
   border-radius: inherit;
   clip-path: inset(4px round calc(0.8rem - 4px));
   pointer-events: none;
+}
+.affixLayer {
+  z-index: 29;
+  inset: 0;
+  opacity: 0;
+  transition-property: opacity, filter;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+.affixLayer::before,
+.affixLayer::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  content: "";
+}
+.prototypeCard[data-affix="misprint"] .affixLayer {
+  background:
+    radial-gradient(circle at 8% 16%, transparent 0 4px, rgba(58, 229, 255, 0.9) 4.5px 5.5px, transparent 6px 7px, rgba(255, 64, 169, 0.82) 7.5px 8.5px, transparent 9px),
+    radial-gradient(circle at 92% 82%, transparent 0 4px, rgba(255, 64, 169, 0.82) 4.5px 5.5px, transparent 6px 7px, rgba(58, 229, 255, 0.9) 7.5px 8.5px, transparent 9px);
+  mix-blend-mode: screen;
+  opacity: 0.72;
+}
+.prototypeCard[data-affix="misprint"] .affixLayer::before {
+  inset: 2.8%;
+  border: 1px solid rgba(82, 224, 255, 0.26);
+  box-shadow:
+    2px 0 rgba(255, 54, 160, 0.22),
+    -2px 0 rgba(44, 226, 255, 0.24);
+}
+.prototypeCard[data-affix="misprint"] .affixLayer::after {
+  background: repeating-linear-gradient(0deg, transparent 0 10px, rgba(255, 255, 255, 0.055) 11px, transparent 12px 19px);
+  mix-blend-mode: screen;
+  opacity: 0.58;
+}
+.prototypeCard[data-affix="glass"] .affixLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(239, 253, 255, 0.42), rgba(136, 224, 255, 0.11) 15%, transparent 36%),
+    linear-gradient(var(--foil-angle), transparent 24%, rgba(211, 249, 255, 0.04) 38%, rgba(255, 255, 255, 0.34) 49%, rgba(148, 224, 255, 0.08) 60%, transparent 74%);
+  background-position: center, var(--foil-x) var(--foil-y);
+  background-size: 100% 100%, 210% 210%;
+  mix-blend-mode: screen;
+  opacity: 0.62;
+}
+.prototypeCard[data-affix="glass"] .affixLayer::before {
+  inset: 2.1%;
+  border: 1px solid rgba(222, 250, 255, 0.34);
+  box-shadow:
+    inset 0 0 18px rgba(196, 242, 255, 0.12),
+    inset 8px 0 18px rgba(255, 255, 255, 0.05),
+    inset -8px 0 18px rgba(83, 186, 224, 0.08);
+}
+.prototypeCard[data-affix="glass"] .affixLayer::after {
+  background:
+    radial-gradient(circle at 18% 24%, rgba(255, 255, 255, 0.5) 0 0.55px, transparent 1.2px),
+    radial-gradient(circle at 72% 68%, rgba(202, 245, 255, 0.42) 0 0.7px, transparent 1.35px),
+    radial-gradient(circle at 44% 82%, rgba(255, 255, 255, 0.34) 0 0.45px, transparent 1px);
+  background-position: 3px 5px, 11px -7px, -13px 17px;
+  background-size: 23px 29px, 37px 43px, 53px 61px;
+  filter: blur(0.12px);
+  opacity: 0.46;
+}
+.prototypeCard[data-affix="embossed"] .affixLayer {
+  background:
+    linear-gradient(132deg, rgba(255, 255, 255, 0.22), transparent 14% 42%, rgba(0, 0, 0, 0.2) 57%, transparent 76%),
+    repeating-linear-gradient(135deg, transparent 0 8px, rgba(255, 255, 255, 0.035) 9px, rgba(0, 0, 0, 0.055) 10px, transparent 11px 18px);
+  mix-blend-mode: soft-light;
+  opacity: 0.68;
+}
+.prototypeCard[data-affix="embossed"] .affixLayer::before {
+  inset: 2.2%;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  box-shadow:
+    inset 2px 2px 2px rgba(255, 255, 255, 0.14),
+    inset -2px -2px 3px rgba(0, 0, 0, 0.5);
+}
+.prototypeCard[data-affix="cracked"] .affixLayer {
+  background:
+    linear-gradient(116deg, transparent 0 35%, rgba(225, 247, 255, 0.84) 35.35% 35.55%, transparent 35.9%),
+    linear-gradient(68deg, transparent 0 51%, rgba(211, 241, 255, 0.72) 51.3% 51.55%, transparent 51.9%),
+    linear-gradient(143deg, transparent 0 66%, rgba(255, 255, 255, 0.62) 66.25% 66.5%, transparent 66.85%),
+    linear-gradient(24deg, transparent 0 74%, rgba(190, 230, 247, 0.58) 74.2% 74.45%, transparent 74.8%);
+  filter: drop-shadow(1px 1px 1px rgba(0, 0, 0, 0.7));
+  mix-blend-mode: screen;
+  opacity: 0.72;
+}
+.prototypeCard[data-affix="cracked"] .affixLayer::before {
+  top: 17%;
+  right: 13%;
+  bottom: auto;
+  left: auto;
+  width: 28%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(235, 252, 255, 0.58);
+  border-radius: 50%;
+  clip-path: polygon(45% 0, 56% 39%, 100% 48%, 61% 58%, 77% 100%, 48% 66%, 10% 92%, 36% 56%, 0 34%, 42% 43%);
+}
+.prototypeCard[data-affix="frosted"] .affixLayer {
+  background:
+    radial-gradient(ellipse at 0 0, rgba(235, 253, 255, 0.88), rgba(154, 224, 255, 0.28) 16%, transparent 34%),
+    radial-gradient(ellipse at 100% 100%, rgba(229, 252, 255, 0.82), rgba(128, 213, 255, 0.22) 18%, transparent 38%),
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.22), transparent 34%);
+  mix-blend-mode: screen;
+  opacity: 0.7;
+}
+.prototypeCard[data-affix="frosted"] .affixLayer::before {
+  inset: 1.7%;
+  border: 2px solid rgba(216, 249, 255, 0.48);
+  box-shadow:
+    inset 0 0 15px rgba(194, 241, 255, 0.4),
+    0 0 7px rgba(121, 215, 255, 0.3);
+}
+.prototypeCard[data-affix="frosted"] .affixLayer::after {
+  background: repeating-conic-gradient(from 18deg at 50% 50%, rgba(255, 255, 255, 0.1) 0 2deg, transparent 2deg 17deg);
+  filter: blur(0.35px);
+  opacity: 0.32;
+}
+.prototypeCard[data-affix="gilded"] .affixLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 251, 205, 0.42), transparent 29%),
+    linear-gradient(var(--foil-angle), transparent 25%, rgba(255, 219, 115, 0.06) 38%, rgba(255, 249, 206, 0.56) 49%, rgba(189, 112, 20, 0.08) 61%, transparent 75%);
+  background-position: center, var(--foil-x) var(--foil-y);
+  background-size: 100% 100%, 220% 220%;
+  mix-blend-mode: screen;
+  opacity: 0.58;
+}
+.prototypeCard[data-affix="gilded"] .affixLayer::before {
+  inset: 1.25%;
+  border: 2px solid rgba(255, 218, 112, 0.62);
+  box-shadow:
+    inset 0 0 0 1px rgba(93, 48, 5, 0.66),
+    inset 0 0 10px rgba(255, 211, 87, 0.28),
+    0 0 6px rgba(255, 187, 49, 0.28);
+}
+.prototypeCard[data-affix="spectral"] .affixLayer {
+  background:
+    radial-gradient(ellipse at var(--pointer-x) 38%, rgba(138, 255, 225, 0.28), transparent 36%),
+    repeating-linear-gradient(102deg, transparent 0 16px, rgba(111, 255, 225, 0.08) 18px, transparent 25px 42px),
+    linear-gradient(180deg, transparent 20%, rgba(82, 231, 205, 0.12) 64%, rgba(118, 80, 238, 0.2));
+  filter: blur(0.25px);
+  mix-blend-mode: screen;
+  opacity: 0.72;
+}
+.prototypeCard[data-affix="spectral"] .affixLayer::before {
+  inset: 2%;
+  border: 1px solid rgba(146, 255, 226, 0.3);
+  box-shadow: inset 0 0 22px rgba(82, 232, 211, 0.18);
+}
+.prototypeCard[data-affix="weathered"] .affixLayer {
+  background:
+    radial-gradient(ellipse at 5% 8%, rgba(8, 4, 1, 0.76), transparent 20%),
+    radial-gradient(ellipse at 97% 91%, rgba(23, 10, 2, 0.72), transparent 24%),
+    repeating-linear-gradient(104deg, transparent 0 13px, rgba(255, 235, 198, 0.1) 14px, transparent 15px 31px);
+  mix-blend-mode: multiply;
+  opacity: 0.66;
+}
+.prototypeCard[data-affix="weathered"] .affixLayer::before {
+  inset: 2.1%;
+  border: 2px dashed rgba(48, 28, 11, 0.52);
+  box-shadow: inset 0 0 20px rgba(20, 8, 1, 0.62);
+}
+.prototypeCard[data-affix="weathered"] .affixLayer::after {
+  background: repeating-linear-gradient(172deg, transparent 0 17px, rgba(244, 222, 180, 0.18) 18px, transparent 19px 37px);
+  mix-blend-mode: screen;
+  opacity: 0.42;
+}
+.prototypeCard[data-affix="miscut"] .affixLayer {
+  opacity: 0.82;
+}
+.prototypeCard[data-affix="miscut"] .affixLayer::before {
+  inset: 4.2% 1.4% 1.4% 4.2%;
+  border: 1px dashed rgba(255, 255, 255, 0.48);
+  box-shadow:
+    -8px 6px 0 -7px rgba(51, 226, 255, 0.74),
+    8px -6px 0 -7px rgba(255, 67, 161, 0.68);
+}
+.prototypeCard[data-affix="miscut"] .affixLayer::after {
+  background:
+    linear-gradient(90deg, rgba(248, 244, 225, 0.34) 0 1.3%, transparent 1.3% 98.7%, rgba(248, 244, 225, 0.34) 98.7%),
+    linear-gradient(0deg, rgba(248, 244, 225, 0.26) 0 0.9%, transparent 0.9% 99.1%, rgba(248, 244, 225, 0.26) 99.1%);
+}
+.prototypeCard[data-affix="voidmarked"] .affixLayer {
+  background:
+    radial-gradient(circle at 67% 31%, transparent 0 7%, rgba(188, 94, 255, 0.46) 7.4% 7.9%, transparent 8.4% 12%, rgba(99, 28, 164, 0.28) 12.5% 13.2%, transparent 14%),
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(194, 85, 255, 0.24), transparent 27%),
+    radial-gradient(ellipse at 50% 45%, transparent 28%, rgba(25, 2, 38, 0.26) 65%, rgba(4, 0, 9, 0.78));
+  mix-blend-mode: screen;
+  opacity: 0.78;
+}
+.prototypeCard[data-affix="voidmarked"] .affixLayer::before {
+  inset: 2%;
+  border: 1px solid rgba(178, 89, 255, 0.28);
+  box-shadow:
+    inset 0 0 24px rgba(58, 5, 90, 0.72),
+    inset 0 0 5px rgba(209, 128, 255, 0.3);
+}
+.prototypeCard[data-affix="voidmarked"] .affixLayer::after {
+  background: repeating-conic-gradient(from var(--foil-angle) at 67% 31%, transparent 0 12deg, rgba(209, 135, 255, 0.14) 13deg 14deg, transparent 15deg 36deg);
+  opacity: 0.56;
+}
+.prototypeCard[data-affix="raidseal"] .affixLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), color-mix(in srgb, var(--lab-accent) 20%, transparent), transparent 31%),
+    linear-gradient(135deg, transparent 36%, color-mix(in srgb, var(--lab-glow) 14%, transparent) 49%, transparent 62%);
+  mix-blend-mode: screen;
+  opacity: 0.82;
+}
+.prototypeCard[data-affix="raidseal"] .affixLayer::before {
+  top: 16%;
+  right: 5.5%;
+  bottom: auto;
+  left: auto;
+  width: 18%;
+  aspect-ratio: 1;
+  border: 2px solid color-mix(in srgb, var(--lab-accent) 68%, white 12%);
+  border-radius: 50%;
+  background:
+    conic-gradient(from 12deg, rgba(255, 255, 255, 0.24), transparent 12% 25%, rgba(255, 255, 255, 0.16) 31%, transparent 44% 72%, rgba(0, 0, 0, 0.28) 82%),
+    radial-gradient(circle, color-mix(in srgb, var(--lab-accent) 76%, #32140d) 0 48%, color-mix(in srgb, var(--lab-accent) 38%, #160704) 49% 65%, transparent 66%);
+  box-shadow:
+    inset 0 0 0 3px rgba(30, 4, 2, 0.45),
+    0 2px 7px rgba(0, 0, 0, 0.76),
+    0 0 10px color-mix(in srgb, var(--lab-glow) 64%, transparent);
+}
+.prototypeCard[data-affix="raidseal"] .affixLayer::after {
+  top: 19.7%;
+  right: 9.25%;
+  bottom: auto;
+  left: auto;
+  width: 10.5%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 244, 220, 0.62);
+  border-radius: 24% 76% 28% 72%;
+  box-shadow:
+    inset 0 0 0 2px rgba(29, 6, 3, 0.48),
+    0 0 5px rgba(255, 227, 177, 0.26);
+  rotate: 45deg;
+}
+.prototypeCard[data-affix="soulbound"] .affixLayer {
+  background:
+    radial-gradient(circle at 15% 18%, rgba(110, 209, 255, 0.44), transparent 18%),
+    linear-gradient(124deg, transparent 0 42%, rgba(97, 145, 255, 0.06) 46%, rgba(148, 96, 255, 0.22) 49%, rgba(84, 190, 255, 0.06) 53%, transparent 57%);
+  mix-blend-mode: screen;
+  opacity: 0.78;
+}
+.prototypeCard[data-affix="soulbound"] .affixLayer::before {
+  top: 9%;
+  right: auto;
+  bottom: auto;
+  left: 6%;
+  width: 17%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(141, 220, 255, 0.68);
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(from 18deg, rgba(146, 100, 255, 0.5) 0 4deg, transparent 5deg 43deg),
+    radial-gradient(circle, transparent 0 38%, rgba(82, 190, 255, 0.28) 40% 48%, transparent 50%);
+  box-shadow:
+    inset 0 0 9px rgba(128, 91, 255, 0.52),
+    0 0 9px rgba(75, 191, 255, 0.42);
+}
+.prototypeCard[data-affix="soulbound"] .affixLayer::after {
+  background: repeating-linear-gradient(124deg, transparent 0 32px, rgba(119, 173, 255, 0.08) 34px, transparent 38px 66px);
+}
+.prototypeCard[data-affix="runestone"] .affixLayer {
+  background:
+    radial-gradient(circle at 14% 19%, rgba(255, 255, 255, 0.12) 0 0.7px, transparent 1.2px),
+    radial-gradient(circle at 73% 66%, rgba(0, 0, 0, 0.38) 0 0.8px, transparent 1.4px),
+    repeating-linear-gradient(128deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 7px, rgba(0, 0, 0, 0.045) 8px 9px);
+  background-size: 13px 17px, 19px 23px, auto;
+  mix-blend-mode: overlay;
+  opacity: 0.86;
+}
+.prototypeCard[data-affix="runestone"] .affixLayer::before {
+  inset: 2%;
+  border: 2px solid rgba(189, 207, 209, 0.24);
+  box-shadow:
+    inset 2px 2px 3px rgba(255, 255, 255, 0.12),
+    inset -3px -3px 5px rgba(0, 0, 0, 0.62);
+}
+.prototypeCard[data-affix="runestone"] .affixLayer::after {
+  background:
+    linear-gradient(118deg, transparent 0 34%, rgba(133, 226, 255, 0.34) 34.4% 34.7%, transparent 35.1%),
+    linear-gradient(61deg, transparent 0 68%, rgba(133, 226, 255, 0.24) 68.3% 68.6%, transparent 69%);
+  filter: drop-shadow(0 0 3px rgba(75, 201, 255, 0.42));
+}
+.prototypeCard[data-affix="forged"] .affixLayer {
+  background:
+    radial-gradient(circle at 5.5% 5%, #d9e3e6 0 1px, #36434a 1.5px 3px, transparent 3.5px),
+    radial-gradient(circle at 94.5% 5%, #d9e3e6 0 1px, #36434a 1.5px 3px, transparent 3.5px),
+    radial-gradient(circle at 5.5% 95%, #d9e3e6 0 1px, #36434a 1.5px 3px, transparent 3.5px),
+    radial-gradient(circle at 94.5% 95%, #d9e3e6 0 1px, #36434a 1.5px 3px, transparent 3.5px),
+    repeating-linear-gradient(96deg, transparent 0 4px, rgba(227, 240, 245, 0.07) 5px, transparent 6px 11px);
+  mix-blend-mode: screen;
+  opacity: 0.76;
+}
+.prototypeCard[data-affix="forged"] .affixLayer::before {
+  inset: 1.6%;
+  border: 2px solid rgba(180, 204, 213, 0.36);
+  box-shadow:
+    inset 0 0 0 1px rgba(8, 13, 16, 0.74),
+    inset 0 0 13px rgba(142, 192, 213, 0.12);
+}
+.prototypeCard[data-affix="luckydrop"] .affixLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 248, 181, 0.48), transparent 24%),
+    radial-gradient(circle at 16% 24%, rgba(255, 224, 86, 0.92) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 79% 37%, rgba(255, 255, 228, 0.86) 0 1.2px, transparent 2px),
+    radial-gradient(circle at 28% 76%, color-mix(in srgb, var(--rarity) 72%, white) 0 1px, transparent 2px),
+    radial-gradient(circle at 87% 83%, rgba(255, 214, 74, 0.9) 0 0.9px, transparent 1.8px);
+  background-position: center, 3px 7px, -9px 5px, 11px -13px, -5px 9px;
+  background-size: 100% 100%, 31px 37px, 43px 47px, 53px 61px, 67px 71px;
+  mix-blend-mode: screen;
+  opacity: 0.78;
+}
+.prototypeCard[data-affix="luckydrop"] .affixLayer::before {
+  top: 13%;
+  right: 8%;
+  bottom: auto;
+  left: auto;
+  width: 13%;
+  aspect-ratio: 1;
+  background: linear-gradient(45deg, transparent 42%, rgba(255, 245, 172, 0.9) 48% 52%, transparent 58%), linear-gradient(-45deg, transparent 42%, rgba(255, 245, 172, 0.9) 48% 52%, transparent 58%);
+  filter: drop-shadow(0 0 5px rgba(255, 211, 73, 0.72));
+  clip-path: polygon(50% 0, 58% 39%, 100% 50%, 58% 61%, 50% 100%, 42% 61%, 0 50%, 42% 39%);
+}
+.prototypeCard[data-affix="luckydrop"] .affixLayer::after {
+  top: 66%;
+  right: auto;
+  bottom: auto;
+  left: 7%;
+  width: 12%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 232, 142, 0.68);
+  border-radius: 22%;
+  background:
+    radial-gradient(circle at 28% 28%, #fff3a9 0 8%, transparent 10%),
+    radial-gradient(circle at 72% 72%, #fff3a9 0 8%, transparent 10%),
+    radial-gradient(circle, #fff3a9 0 8%, transparent 10%),
+    rgba(87, 55, 4, 0.48);
+  box-shadow: 0 0 8px rgba(255, 208, 58, 0.46);
+  rotate: -9deg;
+}
+.prototypeCard[data-affix="soulprojection"] .affixLayer {
+  background:
+    radial-gradient(ellipse at var(--pointer-x) 44%, rgba(116, 255, 225, 0.26), transparent 31%),
+    linear-gradient(180deg, transparent 10%, rgba(108, 126, 255, 0.04) 48%, rgba(87, 252, 215, 0.14));
+  filter: blur(0.2px);
+  mix-blend-mode: screen;
+  opacity: 0.64;
+}
+.prototypeCard[data-affix="soulprojection"] .affixLayer::before {
+  inset: 3%;
+  border: 1px solid rgba(119, 255, 224, 0.24);
+  box-shadow:
+    inset 0 0 22px rgba(82, 224, 211, 0.13),
+    0 0 8px rgba(113, 123, 255, 0.14);
 }
 .finishLayer {
   z-index: 30;
@@ -1343,22 +1913,6 @@
   content: "";
 }
 .standard .finishLayer {
-  background:
-    radial-gradient(circle at 22% 19%, rgba(255, 255, 255, 0.48) 0 0.7px, transparent 1.15px),
-    radial-gradient(circle at 73% 64%, rgba(255, 255, 255, 0.34) 0 0.75px, transparent 1.2px), radial-gradient(circle at 44% 86%, rgba(0, 0, 0, 0.52) 0 0.8px, transparent 1.25px);
-  background-position:
-    calc(var(--pointer-left) * 18px) calc(var(--pointer-top) * 22px),
-    calc(var(--pointer-left) * -24px) calc(var(--pointer-top) * 16px),
-    calc(var(--pointer-left) * 14px) calc(var(--pointer-top) * -20px);
-  background-size:
-    7px 9px,
-    11px 13px,
-    13px 10px;
-  filter: contrast(1.16) brightness(calc(0.9 + var(--pointer-distance) * 0.32));
-  mix-blend-mode: overlay;
-  opacity: 0.17;
-}
-.parallax .finishLayer {
   background:
     radial-gradient(circle at 22% 19%, rgba(255, 255, 255, 0.48) 0 0.7px, transparent 1.15px),
     radial-gradient(circle at 73% 64%, rgba(255, 255, 255, 0.34) 0 0.75px, transparent 1.2px), radial-gradient(circle at 44% 86%, rgba(0, 0, 0, 0.52) 0 0.8px, transparent 1.25px);
@@ -3694,9 +4248,6 @@
 .prototypeCard.standard:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.28 + var(--pointer-distance) * 0.14);
 }
-.prototypeCard.parallax:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
-  opacity: calc(0.28 + var(--pointer-distance) * 0.14);
-}
 .prototypeCard.foil:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.54 + var(--pointer-distance) * 0.16);
 }
@@ -3765,6 +4316,10 @@
 .prototypeCard.astral:is([data-pointer-active="true"], [data-forced-hover="true"]) .astralGalaxyForeground {
   opacity: 0.82;
   transform: scale(1.2);
+}
+.prototypeCard[data-affix="glass"]:is([data-pointer-active="true"], [data-forced-hover="true"]) .affixLayer {
+  filter: brightness(1.12) saturate(1.08);
+  opacity: 0.82;
 }
 .prototypeCard.radiant:is([data-pointer-active="true"], [data-forced-hover="true"]) .finishLayer {
   opacity: calc(0.8 + var(--pointer-distance) * 0.14);
@@ -4235,9 +4790,6 @@
     animation: prototypeIdleDrift 6.5s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
   .prototypeCard.standard:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
-    animation: prototypeStandardIdleGrain 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
-  }
-  .prototypeCard.parallax:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
     animation: prototypeStandardIdleGrain 6.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
   .prototypeCard.foil:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer {
@@ -6763,6 +7315,7 @@
 @media (prefers-reduced-motion: reduce) {
   .prototypeCard,
   .materialLight,
+  .affixLayer,
   .astralDepth,
   .astralDepth::before,
   .astralDepth::after,
@@ -6777,11 +7330,14 @@
     translate: none;
     rotate: none;
   }
-  .finishLayer {
+  .finishLayer,
+  .affixLayer {
     animation: none;
   }
   .finishLayer::before,
   .finishLayer::after,
+  .affixLayer::before,
+  .affixLayer::after,
   .astralDepth,
   .astralDepth::before,
   .astralDepth::after,
@@ -6793,24 +7349,25 @@
   }
   .finishLayer,
   .finishLayer::before,
+  .affixLayer,
   .materialLight,
   .materialLight::before {
     background-position: center;
   }
-  .parallax .raidArt {
+  .prototypeCard[data-affix="parallax"] .raidArt,
+  .prototypeCard[data-affix="parallax"] .raidArtVideo {
     transform: scale(var(--crop-scale));
   }
-  .parallax .renderImage {
+  .prototypeCard[data-affix="parallax"] .renderImage {
     transform: translateX(var(--render-fit-translate-x));
   }
-  .astral .raidArt,
-  .astral .raidArtVideo {
-    transform: scale(var(--crop-scale));
-  }
-  .astral .renderImage {
-    transform: translateX(var(--render-fit-translate-x));
-  }
-  .astral .renderVideo {
+  .prototypeCard[data-affix="parallax"] .renderVideo {
     transform: none;
+  }
+  .prototypeCard[data-affix="soulprojection"] .renderImage {
+    transform: translateX(var(--render-fit-translate-x)) scale(1.025);
+  }
+  .prototypeCard[data-affix="soulprojection"] .renderVideo {
+    transform: scale(1.04);
   }
 }

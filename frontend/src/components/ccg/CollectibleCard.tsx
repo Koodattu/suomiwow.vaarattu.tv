@@ -6,7 +6,7 @@ import { FaStar } from "react-icons/fa6";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgArtVariant, CcgCard } from "@/types";
 import { CCG_CLASS_COLORS, CCG_RARITY_KEYS } from "@/lib/ccg";
-import { isCcgRaidPreviewFinish, type CcgPreviewFinish } from "@/lib/ccg-preview-finishes";
+import { isCcgRaidPreviewFinish, type CcgPreviewAffix, type CcgPreviewFinish } from "@/lib/ccg-preview-finishes";
 import { formatRealmName, formatSpecName, getClassInfoById, getParseColor, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
 import AlphaFittedCharacterRender from "./AlphaFittedCharacterRender";
@@ -145,7 +145,7 @@ export function applyCardMaterial(element: HTMLElement, x: number, y: number) {
   element.style.setProperty("--foil-x-reverse", `${(50 - (x - 0.5) * 76).toFixed(1)}%`);
   element.style.setProperty("--foil-y-reverse", `${(50 - (y - 0.5) * 64).toFixed(1)}%`);
   element.style.setProperty("--foil-angle", `${(118 + (x - 0.5) * 18 - (y - 0.5) * 10).toFixed(1)}deg`);
-  if (element.dataset.finish === "parallax" || element.dataset.finish === "astral") {
+  if (element.dataset.affix === "parallax" || element.dataset.affix === "soulprojection") {
     element.style.setProperty("--parallax-background-x", `${((0.5 - x) * 19.2).toFixed(3)}%`);
     element.style.setProperty("--parallax-background-y", `${((0.38 - y) * 6.4).toFixed(3)}%`);
     element.style.setProperty("--parallax-character-x", `${((x - 0.5) * 1.05).toFixed(3)}%`);
@@ -162,6 +162,7 @@ export function resetCardMaterial(element: HTMLElement) {
 type CollectibleCardProps = {
   card: CcgCard;
   finish?: CcgPreviewFinish;
+  affix?: CcgPreviewAffix;
   artVariant?: CcgArtVariant;
   compact?: boolean;
   quantity?: number;
@@ -184,6 +185,7 @@ type CollectibleCardProps = {
 function CollectibleCard({
   card,
   finish = "standard",
+  affix = "none",
   artVariant = "standard",
   compact = false,
   quantity,
@@ -278,7 +280,7 @@ function CollectibleCard({
     "--foil-x-reverse": "50%",
     "--foil-y-reverse": "50%",
     "--foil-angle": "118deg",
-    "--surface-filter": finish === "metamorphic" ? `url(#${metamorphicFilterId})` : "none",
+    "--surface-filter": finish === "metamorphic" ? `url(#${metamorphicFilterId})` : "brightness(1)",
     "--parallax-background-x": "0%",
     "--parallax-background-y": "0%",
     "--parallax-character-x": "0%",
@@ -483,6 +485,7 @@ function CollectibleCard({
       className={`${styles.prototypeCard} ${styles.vaultRelic} ${styles[finish]} ${guides ? styles.guides : ""}`}
       data-grade={card.tierGrade}
       data-finish={finish}
+      data-affix={affix}
       data-raid-preview-finish={raidPreviewFinish ? "true" : undefined}
       data-art-variant={artVariant}
       data-availability={availabilityStatus}
@@ -498,7 +501,7 @@ function CollectibleCard({
       onPointerLeave={leaveMaterial}
       onPointerUp={finishMaterial}
       onPointerCancel={cancelMaterial}
-      aria-label={`${card.name}, ${guild}, ${realm}, ${card.set.raidName}, ${formatSpecName(card.specName)} ${classInfo.name}, ${rarity}, ${t(`finish.${finish}`)}, ${t(`artwork.${artVariant}`)}${availabilityLabel ? `, ${availabilityLabel}` : ""}${favorite ? `, ${t("collection.favoriteCard")}` : ""}`}
+      aria-label={`${card.name}, ${guild}, ${realm}, ${card.set.raidName}, ${formatSpecName(card.specName)} ${classInfo.name}, ${rarity}, ${t(`finish.${finish}`)}, ${t(`artwork.${artVariant}`)}${affix !== "none" ? `, ${t(`affix.${affix}`)}` : ""}${availabilityLabel ? `, ${availabilityLabel}` : ""}${favorite ? `, ${t("collection.favoriteCard")}` : ""}`}
     >
       <span className={styles.outerFrame} aria-hidden="true" />
       <span className={styles.innerFrame} aria-hidden="true" />
@@ -573,6 +576,7 @@ function CollectibleCard({
       <span className={`${styles.cardBrand} ${styles.cardBrandRight}`} aria-hidden="true">{realm}</span>
       {favorite ? <span className={styles.favoriteMark} aria-hidden="true"><FaStar /></span> : null}
       {quantity && quantity > 1 ? <span className={styles.quantity}>×{quantity}</span> : null}
+      <span className={styles.affixLayer} aria-hidden="true" />
       <span className={styles.finishLayer} aria-hidden="true" />
       <span className={styles.materialLight} aria-hidden="true" />
     </span>

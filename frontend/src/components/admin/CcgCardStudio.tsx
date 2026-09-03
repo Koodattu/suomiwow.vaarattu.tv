@@ -6,8 +6,10 @@ import CollectibleCard from "@/components/ccg/CollectibleCard";
 import { api } from "@/lib/api";
 import { CCG_RARITY_KEYS, hasAlternativeArtwork } from "@/lib/ccg";
 import {
+  CCG_STUDIO_AFFIXES,
   CCG_STUDIO_DEVELOPMENT_FINISHES,
   CCG_STUDIO_PRODUCTION_FINISHES,
+  type CcgPreviewAffix,
   type CcgPreviewFinish,
 } from "@/lib/ccg-preview-finishes";
 import { formatRealmName } from "@/lib/utils";
@@ -33,6 +35,7 @@ export default function CcgCardStudio() {
     production: CCG_STUDIO_PRODUCTION_FINISHES[0],
     development: CCG_STUDIO_DEVELOPMENT_FINISHES[0],
   });
+  const [affix, setAffix] = useState<CcgPreviewAffix>("none");
   const [artVariant, setArtVariant] = useState<CcgArtVariant>("standard");
   const [tierGrade, setTierGrade] = useState<CcgTierGrade>("C");
   const [cardWidth, setCardWidth] = useState(400);
@@ -214,6 +217,12 @@ export default function CcgCardStudio() {
             </select>
           </label>
           <label className="grid gap-1 text-xs font-semibold text-gray-400">
+            {ccg("affix.label")}
+            <select className={fieldClass} value={affix} onChange={(event) => setAffix(event.target.value as CcgPreviewAffix)}>
+              {CCG_STUDIO_AFFIXES.map((value) => <option key={value} value={value}>{ccg(`affix.${value}`)}</option>)}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-semibold text-gray-400">
             {t("size")}
             <select className={fieldClass} value={cardWidth} onChange={(event) => setCardWidth(Number(event.target.value))}>
               {[320, 360, 400, 440].map((value) => <option key={value} value={value}>{value} px</option>)}
@@ -254,7 +263,7 @@ export default function CcgCardStudio() {
         <div className="absolute inset-0 opacity-20" style={previewCard ? { background: `radial-gradient(circle at 50% 45%, ${previewCard.set.theme.glow}, transparent 55%), url(${previewCard.set.backgroundPath}) center/cover` } : undefined} aria-hidden="true" />
         {previewCard ? (
           <div className="relative z-10">
-            <CollectibleCard card={previewCard} finish={finish} artVariant={artVariant} width={cardWidth} guides={guides} hideCornerIcons={hideCornerIcons} hideBadges={hideBadges} raidArtOffsetX={raidArtOffsetX} />
+            <CollectibleCard card={previewCard} finish={finish} affix={affix} artVariant={artVariant} width={cardWidth} guides={guides} hideCornerIcons={hideCornerIcons} hideBadges={hideBadges} raidArtOffsetX={raidArtOffsetX} />
           </div>
         ) : (
           <p className="relative z-10 text-sm text-gray-500">{t("selectCard")}</p>

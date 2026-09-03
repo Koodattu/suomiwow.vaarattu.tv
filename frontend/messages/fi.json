@@ -697,7 +697,6 @@
       "transcendent": "Transsendentti",
       "singularity": "Singulariteetti",
       "metamorphic": "Metamorfinen",
-      "parallax": "Parallaksi",
       "neon": "Neon",
       "relic": "Reliikki",
       "slagforged": "Kuonataottu",
@@ -720,6 +719,27 @@
       "jackpot": "Jättipotti",
       "phaseglass": "Vaihelasi",
       "negative": "Negatiivi"
+    },
+    "affix": {
+      "label": "Affiksi",
+      "none": "Ei affiksia",
+      "parallax": "Parallaksi",
+      "misprint": "Painovirhe",
+      "glass": "Lasi",
+      "embossed": "Kohokuvioitu",
+      "cracked": "Halkeillut",
+      "frosted": "Huurrettu",
+      "gilded": "Kullattu",
+      "spectral": "Aavemainen",
+      "weathered": "Kulunut",
+      "miscut": "Vinoleikattu",
+      "voidmarked": "Tyhjiömerkitty",
+      "raidseal": "Raid-sinetti",
+      "soulbound": "Sielunsidottu",
+      "runestone": "Riimukivi",
+      "forged": "Taottu",
+      "luckydrop": "Onnekas löytö",
+      "soulprojection": "Sieluheijastus"
     },
     "artwork": {
       "label": "Kuvitus",
@@ -1663,7 +1683,7 @@
       },
       "studio": {
         "title": "Korttistudio",
-        "description": "Etsi mikä tahansa julkaistu kortti ja esikatsele sen saatavilla olevia kuvitus-, harvinaisuus- ja laatuvaihtoehtoja.",
+        "description": "Etsi mikä tahansa julkaistu kortti ja esikatsele sen kuvitus-, harvinaisuus-, laatu- ja kokeellisia affiksiyhdistelmiä.",
         "search": "Etsi kortti",
         "searchPlaceholder": "Hahmo, realm tai kilta",
         "loading": "Etsitään kortteja…",
@@ -1684,7 +1704,7 @@
         "showGuides": "Näytä suojattu alue",
         "hideCornerIcons": "Piilota kulmakuvakkeet",
         "hideBadges": "Piilota kehyksen tekstit",
-        "previewOnly": "Kuvitus-, harvinaisuus- ja laatumuutokset koskevat vain esikatselua.",
+        "previewOnly": "Kuvitus-, harvinaisuus-, laatu- ja affiksimuutokset koskevat vain esikatselua.",
         "rarityNames": {
           "H": "Heirloom",
           "S": "Artifact",

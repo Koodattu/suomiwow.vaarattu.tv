@@ -697,7 +697,6 @@
       "transcendent": "Transcendent",
       "singularity": "Singularity",
       "metamorphic": "Metamorphic",
-      "parallax": "Parallax",
       "neon": "Neon",
       "relic": "Relic",
       "slagforged": "Slagforged",
@@ -720,6 +719,27 @@
       "jackpot": "Jackpot",
       "phaseglass": "Phaseglass",
       "negative": "Negative"
+    },
+    "affix": {
+      "label": "Affix",
+      "none": "None",
+      "parallax": "Parallax",
+      "misprint": "Misprint",
+      "glass": "Glass",
+      "embossed": "Embossed",
+      "cracked": "Cracked",
+      "frosted": "Frosted",
+      "gilded": "Gilded",
+      "spectral": "Spectral",
+      "weathered": "Weathered",
+      "miscut": "Mis-cut",
+      "voidmarked": "Voidmarked",
+      "raidseal": "Raid Seal",
+      "soulbound": "Soulbound",
+      "runestone": "Runestone",
+      "forged": "Forged",
+      "luckydrop": "Lucky Drop",
+      "soulprojection": "Soul Projection"
     },
     "artwork": {
       "label": "Artwork",
@@ -1663,7 +1683,7 @@
       },
       "studio": {
         "title": "Card studio",
-        "description": "Search every published card and preview its available artwork, rarity, and quality combinations.",
+        "description": "Search every published card and preview its artwork, rarity, quality, and experimental affix combinations.",
         "search": "Find a card",
         "searchPlaceholder": "Character, realm, or guild",
         "loading": "Searching cards…",
@@ -1684,7 +1704,7 @@
         "showGuides": "Show protected area",
         "hideCornerIcons": "Hide corner icons",
         "hideBadges": "Hide frame labels",
-        "previewOnly": "Artwork, rarity, and quality changes are preview only.",
+        "previewOnly": "Artwork, rarity, quality, and affix changes are preview only.",
         "rarityNames": {
           "H": "Heirloom",
           "S": "Artifact",
