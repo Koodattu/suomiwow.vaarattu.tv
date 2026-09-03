@@ -2554,6 +2554,7 @@
       "raid": "The Venomous Abyss",
       "title": "Entombed Sentinels",
       "mechanic": "Helical Toxins",
+      "hook": "Osaatko laskea neljään?",
       "description": "Muodosta 20 raidaajasta parit, joiden vihreiden myrkkyjen summa on tasan neljä ennen välivaiheen loppua.",
       "play": "Harjoittele mekaniikkaa"
     },

@@ -2554,6 +2554,7 @@
       "raid": "The Venomous Abyss",
       "title": "Entombed Sentinels",
       "mechanic": "Helical Toxins",
+      "hook": "Can you count to four?",
       "description": "Pair all 20 raiders so their green toxins add up to exactly four — before the intermission expires.",
       "play": "Train the mechanic"
     },

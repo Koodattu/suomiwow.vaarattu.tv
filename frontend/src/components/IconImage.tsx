@@ -108,6 +108,7 @@ export default function IconImage({
       width={fill ? undefined : width}
       height={fill ? undefined : height}
       fill={fill}
+      unoptimized
       className={className}
       style={style}
       onLoad={notifyReady}
