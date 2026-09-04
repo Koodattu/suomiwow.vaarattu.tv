@@ -2475,10 +2475,10 @@
     "columnCombined": "Combined",
     "columnParse": "Parse",
     "columnSurvival": "Mechanics",
-    "columnMechanicsHelp": "A role-relative boss percentile based on survival, first meaningful death order and timing, and repeat deaths. The raid-wide value is the unweighted average of those boss percentiles.",
+    "columnMechanicsHelp": "A role-relative boss percentile based on survival, death order, timing within each pull, and repeat deaths. The raid-wide value is the unweighted average of those boss percentiles.",
     "columnDeaths": "Deaths",
     "columnEarlyDeaths": "Early deaths",
-    "columnEarlyDeathsHelp": "Pulls where the character was among the first three unique players to die, excluding raid-wide death bursts and the terminal wipe cascade.",
+    "columnEarlyDeathsHelp": "Early-death pulls / evaluated pulls. An early death means the character was among the first three meaningful unique players to die. Likely resets and deaths during or after the first raid-wide death burst are excluded.",
     "columnPulls": "Pulls"
   },
   "tools": {

@@ -253,7 +253,7 @@ class CharacterTierListService {
 
   async getAvailableRaids(): Promise<Array<{ raidId: number; raidName: string; generatedAt: Date | null; characterCount: number }>> {
     const rows = await CharacterTierListEntry.aggregate([
-      { $match: { scope: "global", pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY } } },
+      { $match: { scope: "global", evaluatedPulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY } } },
       {
         $group: {
           _id: "$zoneId",
@@ -487,7 +487,7 @@ class CharacterTierListService {
         parseScore: { $gte: 0 },
         survivalScore: { $gte: 0 },
         survivalPercentile: { $gte: 0 },
-        pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
+        evaluatedPulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
       })
         .select(
           "characterId wclCanonicalCharacterId name realm region classID role metric specName bestSpecName identityMethod identityConfidence ilvl score parseScore survivalScore survivalPercentile rankPercent medianPercent totalKills pulls evaluatedPulls deaths survivedPulls earlyDeaths averageDeathPercent deathDataAvailable bossScores scoreVersion raidFightCoverage eligibleFightCount evaluatedFightCount updatedAt",
@@ -777,7 +777,7 @@ class CharacterTierListService {
         scope: "guild",
         guildId: guild._id,
         zoneId,
-        pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
+        evaluatedPulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
       }).lean<ICharacterTierListEntry[]>(),
     ]);
 
@@ -1075,7 +1075,7 @@ class CharacterTierListService {
       scope: guildId ? "guild" : "global",
       guildId,
       reportCount: { $gte: filters.minReports },
-      pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
+      evaluatedPulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
     };
 
     if (filters.role) {

@@ -18,7 +18,7 @@ type TestableCharacterTierListService = {
   ): Record<string, unknown>;
 };
 
-test("requires complete scores and at least 40 pulls when materializing generated character tier lists", async () => {
+test("requires complete scores and at least 40 evaluated pulls when materializing generated character tier lists", async () => {
   const mechanicsModel = CharacterMechanicsLeaderboard as any;
   const participationModel = CharacterRaidParticipation as any;
   const entryModel = CharacterTierListEntry as any;
@@ -71,18 +71,18 @@ test("requires complete scores and at least 40 pulls when materializing generate
     assert.deepEqual(captured.mechanicsQuery?.parseScore, { $gte: 0 });
     assert.deepEqual(captured.mechanicsQuery?.survivalScore, { $gte: 0 });
     assert.deepEqual(captured.mechanicsQuery?.survivalPercentile, { $gte: 0 });
-    assert.deepEqual(captured.mechanicsQuery?.pulls, { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY });
+    assert.deepEqual(captured.mechanicsQuery?.evaluatedPulls, { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY });
 
     const filters = { minReports: 3, role: null, classId: null, limit: null };
     const globalQuery = service.buildEntryQuery(46, filters, null);
     const guildQuery = service.buildEntryQuery(46, filters, new mongoose.Types.ObjectId());
-    assert.deepEqual(globalQuery.pulls, { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY });
-    assert.deepEqual(guildQuery.pulls, { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY });
+    assert.deepEqual(globalQuery.evaluatedPulls, { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY });
+    assert.deepEqual(guildQuery.evaluatedPulls, { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY });
     assert.equal(39 >= MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY, false);
     assert.equal(40 >= MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY, true);
 
     await service.getAvailableRaids();
-    assert.deepEqual(captured.availableRaidsPipeline?.[0]?.$match?.pulls, { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY });
+    assert.deepEqual(captured.availableRaidsPipeline?.[0]?.$match?.evaluatedPulls, { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY });
   } finally {
     mechanicsModel.find = originals.mechanicsFind;
     participationModel.find = originals.participationFind;

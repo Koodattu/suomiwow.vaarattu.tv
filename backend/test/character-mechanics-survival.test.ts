@@ -25,7 +25,6 @@ type TestableCharacterMechanicsService = {
     encounterStats: Map<string, SurvivalStats>,
     pullsBySpec: Map<string, Map<string, number>>,
     unknownPulls: Map<string, number>,
-    expectedDurations: Map<number, number>,
   ): void;
   scorePullDeaths(deaths: DeathRecord[]): number;
   capSurvivalScore(rawScore: number, stats: SurvivalStats): number;
@@ -62,7 +61,7 @@ function deathsAt(startPlayer: number, count: number, startTime: number, interva
 
 function evaluate(
   fights: ScenarioFight[],
-  options: { expectedDuration?: number | null; aliasCount?: number } = {},
+  options: { aliasCount?: number } = {},
 ) {
   scenarioId += 1;
   const aliasCount = options.aliasCount ?? 20;
@@ -104,9 +103,6 @@ function evaluate(
     encounterStats,
     new Map(),
     new Map(),
-    options.expectedDuration === null
-      ? new Map()
-      : new Map([[ENCOUNTER_ID, options.expectedDuration ?? 100_000]]),
   );
 
   return {
@@ -133,16 +129,6 @@ describe("character mechanics survival scoring", () => {
       assert.equal(stats.deaths, 1);
       assert.equal(stats.earlyDeaths, 1);
       assert.ok(stats.scoreTotal >= 100 && stats.scoreTotal < 200);
-    });
-
-    test("a missing expected encounter duration leaves the pull neutral", () => {
-      const stats = evaluate([{ deaths: [death(1, 20_000)] }], { expectedDuration: null }).stats(1);
-
-      assert.equal(stats.pulls, 1);
-      assert.equal(stats.evaluatedPulls, 0);
-      assert.equal(stats.deaths, 0);
-      assert.equal(stats.earlyDeaths, 0);
-      assert.equal(stats.scoreTotal, 0);
     });
 
     test("the first three unique deaths are early and a repeat does not consume another position", () => {
@@ -242,14 +228,24 @@ describe("character mechanics survival scoring", () => {
       assert.equal(summary.averageDeathPercent, 50);
     });
 
-    test("death timing is capped at the expected encounter duration", () => {
-      const stats = evaluate(
-        [{ duration: 120_000, deaths: [death(1, 110_000)] }],
-        { expectedDuration: 100_000 },
-      ).stats(1);
+    test("death timing is measured against the actual pull duration", () => {
+      const stats = evaluate([{ duration: 120_000, deaths: [death(1, 60_000)] }]).stats(1);
 
-      assert.equal(stats.deathPercentTotal, 1);
-      assert.equal(service.summarizeSurvivalStats(stats).averageDeathPercent, 100);
+      assert.equal(stats.deathPercentTotal, 0.5);
+      assert.equal(service.summarizeSurvivalStats(stats).averageDeathPercent, 50);
+    });
+
+    test("a fourth death at ninety percent scores better than one at forty percent", () => {
+      const earlyFourth = evaluate([{
+        deaths: [death(1, 10_000), death(2, 20_000), death(3, 30_000), death(4, 40_000)],
+      }]);
+      const lateFourth = evaluate([{
+        deaths: [death(1, 10_000), death(2, 20_000), death(3, 30_000), death(4, 90_000)],
+      }]);
+
+      assert.ok(lateFourth.stats(4).scoreTotal > earlyFourth.stats(4).scoreTotal);
+      assert.equal(earlyFourth.stats(4).earlyDeaths, 0);
+      assert.equal(lateFourth.stats(4).earlyDeaths, 0);
     });
 
     test("invalid and exact duplicate death records do not create penalties", () => {
@@ -283,8 +279,8 @@ describe("character mechanics survival scoring", () => {
       assert.equal(result.stats(1).deaths, 0);
       assert.equal(result.stats(1).survivedPulls, 1);
       assert.equal(result.stats(10).deaths, 0);
-      assert.equal(result.stats(11).deaths, 1);
-      assert.equal(result.stats(11).earlyDeaths, 1);
+      assert.equal(result.stats(11).deaths, 0);
+      assert.equal(result.stats(11).survivedPulls, 1);
     });
 
     test("exactly half the observed roster within one second reaches the threshold", () => {
@@ -320,7 +316,7 @@ describe("character mechanics survival scoring", () => {
       assert.equal(outside.stats(2).deaths, 1);
     });
 
-    test("multiple raid-wide bursts are independently ignored", () => {
+    test("the first raid-wide burst ends individual death observation for the pull", () => {
       const result = evaluate([{
         deaths: [
           ...deathsAt(1, 10, 20_000, 25),
@@ -358,20 +354,26 @@ describe("character mechanics survival scoring", () => {
     });
   });
 
-  describe("terminal wipe cascades", () => {
-    test("a gradual half-raid collapse within five seconds near the end is ignored", () => {
-      const result = evaluate([{
+  describe("pull outcomes and the observation endpoint", () => {
+    test("a gradual collapse is scored the same way on a wipe and a kill", () => {
+      const wipe = evaluate([{
         duration: 100_000,
         isKill: false,
         deaths: deathsAt(1, 10, 85_000, 500),
       }]);
+      const kill = evaluate([{
+        duration: 100_000,
+        isKill: true,
+        deaths: deathsAt(1, 10, 85_000, 500),
+      }]);
 
-      assert.equal(result.stats(1).deaths, 0);
-      assert.equal(result.stats(10).deaths, 0);
-      assert.equal(result.stats(1).survivedPulls, 1);
+      assert.equal(wipe.stats(1).deaths, 1);
+      assert.equal(wipe.stats(10).deaths, 1);
+      assert.deepEqual(wipe.stats(1), kill.stats(1));
+      assert.deepEqual(wipe.stats(10), kill.stats(10));
     });
 
-    test("the same gradual group far from the pull end remains scored", () => {
+    test("a gradual group far from the pull end remains scored", () => {
       const result = evaluate([{
         duration: 100_000,
         isKill: false,
@@ -382,18 +384,7 @@ describe("character mechanics survival scoring", () => {
       assert.equal(result.stats(10).deaths, 1);
     });
 
-    test("a gradual end-of-fight collapse on a kill is not treated as a terminal wipe", () => {
-      const result = evaluate([{
-        duration: 100_000,
-        isKill: true,
-        deaths: deathsAt(1, 10, 85_000, 500),
-      }]);
-
-      assert.equal(result.stats(1).deaths, 1);
-      assert.equal(result.stats(10).deaths, 1);
-    });
-
-    test("an isolated precursor is retained when the rest die in a terminal burst", () => {
+    test("an isolated precursor is retained when the rest die in a raid-wide burst", () => {
       const result = evaluate([{
         duration: 36_000,
         isKill: false,
@@ -409,7 +400,7 @@ describe("character mechanics survival scoring", () => {
       assert.equal(result.stats(2).survivedPulls, 1);
     });
 
-    test("resurrected players can participate in terminal detection without double-penalizing them", () => {
+    test("resurrected players can trigger the observation endpoint without a second penalty", () => {
       const result = evaluate([{
         duration: 100_000,
         isKill: false,
@@ -420,7 +411,7 @@ describe("character mechanics survival scoring", () => {
           death(3, 30_000),
           death(4, 40_000),
           death(5, 50_000),
-          ...deathsAt(1, 5, 95_000, 1_000),
+          ...deathsAt(1, 5, 95_000, 100),
         ],
       }], { aliasCount: 10 });
 
@@ -428,6 +419,72 @@ describe("character mechanics survival scoring", () => {
       assert.equal(result.stats(1).earlyDeaths, 1);
       assert.equal(result.stats(5).deaths, 1);
       assert.equal(result.stats(5).earlyDeaths, 0);
+    });
+  });
+
+  describe("likely resets", () => {
+    test("a non-kill with no deaths is neutral regardless of duration", () => {
+      const short = evaluate([{ duration: 10_000, isKill: false }]).stats(1);
+      const long = evaluate([{ duration: 90_000, isKill: false }]).stats(1);
+
+      for (const stats of [short, long]) {
+        assert.equal(stats.pulls, 1);
+        assert.equal(stats.evaluatedPulls, 0);
+        assert.equal(stats.scoreTotal, 0);
+      }
+    });
+
+    test("a short non-kill with at most two deaths is neutral", () => {
+      const result = evaluate([{
+        duration: 20_000,
+        isKill: false,
+        deaths: [death(1, 5_000), death(2, 10_000)],
+      }]);
+
+      assert.equal(result.stats(1).evaluatedPulls, 0);
+      assert.equal(result.stats(1).deaths, 0);
+      assert.equal(result.stats(2).earlyDeaths, 0);
+    });
+
+    test("two early failures followed by an instant raid wipe remain a valid pull", () => {
+      const result = evaluate([{
+        duration: 10_000,
+        isKill: false,
+        deaths: [
+          death(1, 1_000),
+          death(2, 2_000),
+          ...deathsAt(3, 18, 9_000, 25),
+        ],
+      }]);
+
+      assert.equal(result.stats(1).evaluatedPulls, 1);
+      assert.equal(result.stats(1).deaths, 1);
+      assert.equal(result.stats(1).earlyDeaths, 1);
+      assert.equal(result.stats(2).deaths, 1);
+      assert.equal(result.stats(2).earlyDeaths, 1);
+      assert.equal(result.stats(3).deaths, 0);
+      assert.equal(result.stats(3).survivedPulls, 1);
+    });
+
+    test("three deaths make a short non-kill a scored pull", () => {
+      const result = evaluate([{
+        duration: 20_000,
+        isKill: false,
+        deaths: [death(1, 5_000), death(2, 10_000), death(3, 15_000)],
+      }]);
+
+      assert.equal(result.stats(1).evaluatedPulls, 1);
+      assert.equal(result.stats(1).earlyDeaths, 1);
+      assert.equal(result.stats(2).earlyDeaths, 1);
+      assert.equal(result.stats(3).earlyDeaths, 1);
+    });
+
+    test("a kill is evaluated even when nobody dies", () => {
+      const stats = evaluate([{ duration: 10_000, isKill: true }]).stats(1);
+
+      assert.equal(stats.evaluatedPulls, 1);
+      assert.equal(stats.survivedPulls, 1);
+      assert.equal(stats.scoreTotal, 100);
     });
   });
 
@@ -446,7 +503,7 @@ describe("character mechanics survival scoring", () => {
       assert.equal(result.stats(3).deaths, 1);
     });
 
-    test("frequency caps retain separate pressure from events, death pulls, and early deaths", () => {
+    test("only early-death frequency caps the timing-sensitive aggregate score", () => {
       const base: SurvivalStats = {
         pulls: 10,
         evaluatedPulls: 10,
@@ -458,7 +515,7 @@ describe("character mechanics survival scoring", () => {
         earlyDeathSeverityTotal: 0,
       };
 
-      assert.equal(service.capSurvivalScore(100, { ...base, deaths: 20, survivedPulls: 0 }), 40);
+      assert.equal(service.capSurvivalScore(92, { ...base, deaths: 20, survivedPulls: 0 }), 92);
       assert.equal(service.capSurvivalScore(100, { ...base, deaths: 5, survivedPulls: 5, earlyDeathSeverityTotal: 5 }), 55);
       assert.equal(service.capSurvivalScore(100, base), 100);
     });

@@ -172,9 +172,9 @@ function formatNullableScore(value?: number | null) {
   return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
-function formatEarlyDeaths(row?: Pick<CharacterMechanic, "deathDataAvailable" | "earlyDeaths" | "pulls">) {
-  if (!row?.deathDataAvailable || row.pulls <= 0) return "-";
-  return `${row.earlyDeaths}/${row.pulls}`;
+function formatEarlyDeaths(row?: Pick<CharacterMechanic, "deathDataAvailable" | "earlyDeaths" | "evaluatedPulls">) {
+  if (!row?.deathDataAvailable || row.evaluatedPulls <= 0) return "-";
+  return `${row.earlyDeaths}/${row.evaluatedPulls}`;
 }
 
 function getBossKey(zoneId: number, encounterId: number) {
@@ -1401,13 +1401,13 @@ export default function CharacterProfilePage({ params }: PageProps) {
                     <th className="px-3 py-2.5 text-right">Metric</th>
                     <th
                       className="px-3 py-2.5 text-right"
-                      title={activePerformanceTab === "mechanics" ? "A role-relative boss percentile based on survival, first meaningful death order and timing, and repeat deaths. The raid-wide value is the unweighted average of those boss percentiles." : undefined}
+                      title={activePerformanceTab === "mechanics" ? "A role-relative boss percentile based on survival, death order, timing within each pull, and repeat deaths. The raid-wide value is the unweighted average of those boss percentiles." : undefined}
                     >
                       {activeMechanicsScoreLabel}
                     </th>
                     <th
                       className="px-3 py-2.5 text-right"
-                      title="Pulls where the character was among the first three unique players to die, excluding raid-wide death bursts and the terminal wipe cascade."
+                      title="Early-death pulls / evaluated pulls. An early death means the character was among the first three meaningful unique players to die. Likely resets and deaths during or after the first raid-wide death burst are excluded."
                     >
                       Early deaths
                     </th>

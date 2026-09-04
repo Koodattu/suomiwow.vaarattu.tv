@@ -16,7 +16,6 @@ type TestableCharacterMechanicsService = {
     encounterStats: Map<string, any>,
     pullsBySpec: Map<string, Map<string, number>>,
     unknownPulls: Map<string, number>,
-    expectedDurations: Map<number, number>,
   ): void;
 };
 
@@ -167,7 +166,7 @@ test("missing pull specs use raid-only killed bosses and role-compatible parse q
   assert.equal(identity?.role, "dps");
 });
 
-test("wipe-only reports count exact CombatantInfo specs through canonical character aliases", () => {
+test("wipe-only reports count exact specs while a zero-death reset stays neutral", () => {
   const service = characterMechanicsService as unknown as TestableCharacterMechanicsService;
   const characterId = new mongoose.Types.ObjectId("64b000000000000000000002");
   const encounterStats = new Map<string, any>();
@@ -190,15 +189,14 @@ test("wipe-only reports count exact CombatantInfo specs through canonical charac
     encounterStats,
     pullsBySpec,
     unknownPulls,
-    new Map([[999, 120_000]]),
   );
 
   assert.equal(pullsBySpec.get(String(characterId))?.get("augmentation"), 1);
   assert.equal([...encounterStats.values()][0]?.pulls, 1);
-  assert.equal([...encounterStats.values()][0]?.evaluatedPulls, 1);
+  assert.equal([...encounterStats.values()][0]?.evaluatedPulls, 0);
 });
 
-test("terminal wipe deaths are ignored while surviving to the cascade counts as a successful pull", () => {
+test("a raid-wide death burst ends individual observation after an earlier death", () => {
   const service = characterMechanicsService as unknown as TestableCharacterMechanicsService;
   const earlyCharacterId = new mongoose.Types.ObjectId();
   const cascadeCharacterId = new mongoose.Types.ObjectId();
@@ -222,8 +220,8 @@ test("terminal wipe deaths are ignored while surviving to the cascade counts as 
         ...Array.from({ length: 5 }, (_, index) => ({
           name: `P${index + 2}`,
           server: "Kazzak",
-          timestamp: 110_000 + index * 1_000,
-          deathTime: 110_000 + index * 1_000,
+          timestamp: 110_000 + index * 100,
+          deathTime: 110_000 + index * 100,
         })),
       ],
     }],
@@ -236,7 +234,6 @@ test("terminal wipe deaths are ignored while surviving to the cascade counts as 
     encounterStats,
     new Map(),
     new Map(),
-    new Map([[999, 120_000]]),
   );
 
   assert.equal(encounterStats.get(`${earlyCharacterId}|999`)?.evaluatedPulls, 1);
@@ -285,7 +282,6 @@ test("an isolated death immediately before a raid-wide wipe burst remains an ear
     encounterStats,
     new Map(),
     new Map(),
-    new Map([[999, 120_000]]),
   );
 
   assert.equal(encounterStats.get(`${earlyCharacterId}|999`)?.deaths, 1);
@@ -333,7 +329,6 @@ test("early deaths use the first three unique player deaths even on short pulls"
     encounterStats,
     new Map(),
     new Map(),
-    new Map([[999, 120_000]]),
   );
 
   assert.equal(encounterStats.get(`${characterIds[0]}|999`)?.deaths, 2);
@@ -385,12 +380,11 @@ test("raid-wide one-second death bursts do not assign individual death blame", (
     encounterStats,
     new Map(),
     new Map(),
-    new Map([[999, 120_000]]),
   );
 
   assert.equal(encounterStats.get(`${characterIds[0]}|999`)?.deaths, 0);
   assert.equal(encounterStats.get(`${characterIds[0]}|999`)?.earlyDeaths, 0);
   assert.equal(encounterStats.get(`${characterIds[0]}|999`)?.survivedPulls, 1);
-  assert.equal(encounterStats.get(`${characterIds[5]}|999`)?.deaths, 1);
-  assert.equal(encounterStats.get(`${characterIds[5]}|999`)?.earlyDeaths, 1);
+  assert.equal(encounterStats.get(`${characterIds[5]}|999`)?.deaths, 0);
+  assert.equal(encounterStats.get(`${characterIds[5]}|999`)?.survivedPulls, 1);
 });

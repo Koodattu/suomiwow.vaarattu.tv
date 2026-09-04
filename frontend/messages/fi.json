@@ -2475,10 +2475,10 @@
     "columnCombined": "Yhdistetty",
     "columnParse": "Parse",
     "columnSurvival": "Mekaniikka",
-    "columnMechanicsHelp": "Roolikohtainen pomoprosenttipiste, joka perustuu selviytymiseen, ensimmäisen merkityksellisen kuoleman järjestykseen ja ajoitukseen sekä uusintakuolemiin. Raidin kokonaisarvo on pomokohtaisten prosenttipisteiden painottamaton keskiarvo.",
+    "columnMechanicsHelp": "Roolikohtainen pomoprosenttipiste, joka perustuu selviytymiseen, kuolemajärjestykseen, kuoleman ajoitukseen kunkin pullin aikana ja uusintakuolemiin. Raidin kokonaisarvo on pomokohtaisten prosenttipisteiden painottamaton keskiarvo.",
     "columnDeaths": "Kuolemat",
     "columnEarlyDeaths": "Varhaiset kuolemat",
-    "columnEarlyDeathsHelp": "Pullit, joissa hahmo oli kolmen ensimmäisen eri pelaajan joukossa kuolemassa. Raidinlaajuiset kuolemapyrähdykset ja lopullinen wipe-kuolemaryöppy jätetään huomiotta.",
+    "columnEarlyDeathsHelp": "Varhaisen kuoleman pullit / arvioidut pullit. Kuolema on varhainen, kun hahmo on kolmen ensimmäisen merkityksellisen eri pelaajan joukossa kuolemassa. Todennäköiset resetit sekä ensimmäisen raidinlaajuisen kuolemapyrähdyksen aikaiset ja sen jälkeiset kuolemat jätetään pois.",
     "columnPulls": "Pullit"
   },
   "tools": {

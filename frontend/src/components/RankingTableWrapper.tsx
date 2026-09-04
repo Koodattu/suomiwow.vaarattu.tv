@@ -348,8 +348,8 @@ function formatScore(value: number | null | undefined) {
 
 function formatMechanicsEarlyDeaths(row: CharacterRankingRow) {
   const mechanics = row.stats.mechanics;
-  if (!mechanics?.deathDataAvailable || mechanics.pulls <= 0) return "—";
-  return `${mechanics.earlyDeaths}/${mechanics.pulls}`;
+  if (!mechanics?.deathDataAvailable || mechanics.evaluatedPulls <= 0) return "—";
+  return `${mechanics.earlyDeaths}/${mechanics.evaluatedPulls}`;
 }
 
 function isMechanicsVariant(variant: RankingTableVariant) {

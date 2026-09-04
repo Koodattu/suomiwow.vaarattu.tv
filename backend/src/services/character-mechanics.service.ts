@@ -21,11 +21,10 @@ const REPORT_GROUP_BATCH_SIZE = 200;
 const FIGHT_CURSOR_BATCH_SIZE = 1000;
 const DEATH_TIMING_EXPONENT = 1.15;
 const MIN_RAID_FIGHT_COVERAGE = 0.9;
-const TERMINAL_CASCADE_MIN_ROSTER_SHARE = 0.5;
-const TERMINAL_CASCADE_WINDOW_MS = 5_000;
-const TERMINAL_CASCADE_MAX_END_OFFSET_MS = 15_000;
 const RAID_WIDE_DEATH_MIN_ROSTER_SHARE = 0.5;
 const RAID_WIDE_DEATH_WINDOW_MS = 1_000;
+const LIKELY_RESET_MAX_DURATION_MS = 30_000;
+const LIKELY_RESET_MAX_UNIQUE_DEATHS = 2;
 
 type Metric = "dps" | "hps";
 type Role = "dps" | "healer" | "tank";
@@ -115,12 +114,6 @@ type DeathRecord = {
   order: number;
   deathPercent: number;
   deathTime: number;
-};
-
-type DeathWindow = {
-  start: number;
-  end: number;
-  thresholdReachedAt: number;
 };
 
 class CharacterMechanicsService {
@@ -380,7 +373,6 @@ class CharacterMechanicsService {
     const survivalByCharacterEncounter = new Map<string, SurvivalStats>();
     const specPullsByCharacter = new Map<string, Map<string, number>>();
     const unknownSpecPullsByCharacter = new Map<string, number>();
-    const expectedKillDurationByEncounter = await this.getExpectedKillDurationsByEncounter(zoneId, encounterIds);
     const fightGroups = new Map<string, MechanicsFight[]>();
     const seenReports = new Set<string>();
     let fightCount = 0;
@@ -426,7 +418,6 @@ class CharacterMechanicsService {
         survivalByCharacterEncounter,
         specPullsByCharacter,
         unknownSpecPullsByCharacter,
-        expectedKillDurationByEncounter,
       );
       fightGroups.clear();
     };
@@ -460,60 +451,6 @@ class CharacterMechanicsService {
       reports: seenReports.size,
       appearances: appearanceLookupRows,
     };
-  }
-
-  private async getExpectedKillDurationsByEncounter(zoneId: number, encounterIds: number[]): Promise<Map<number, number>> {
-    if (encounterIds.length === 0) return new Map();
-
-    const rows = (await Fight.aggregate([
-      {
-        $match: {
-          zoneId,
-          difficulty: MYTHIC_DIFFICULTY,
-          encounterID: { $in: encounterIds },
-          isKill: true,
-          duration: { $gt: 0 },
-        },
-      },
-      {
-        $group: {
-          _id: "$encounterID",
-          durations: { $push: "$duration" },
-        },
-      },
-    ]).allowDiskUse(true)) as Array<{ _id: number; durations: number[] }>;
-
-    const expectedDurations = new Map<number, number>();
-    for (const row of rows) {
-      const medianDuration = this.median(row.durations);
-      if (medianDuration !== null) {
-        expectedDurations.set(row._id, medianDuration);
-      }
-    }
-
-    const missingEncounterIds = encounterIds.filter((encounterId) => !expectedDurations.has(encounterId));
-    if (missingEncounterIds.length > 0) {
-      const wipeRows = (await Fight.aggregate([
-        {
-          $match: {
-            zoneId,
-            difficulty: MYTHIC_DIFFICULTY,
-            encounterID: { $in: missingEncounterIds },
-            isKill: false,
-            duration: { $gte: 30_000 },
-          },
-        },
-        { $group: { _id: "$encounterID", durations: { $push: "$duration" } } },
-      ]).allowDiskUse(true)) as Array<{ _id: number; durations: number[] }>;
-
-      for (const row of wipeRows) {
-        if (row.durations.length < 3) continue;
-        const referenceDuration = this.percentile(row.durations, 0.75);
-        if (referenceDuration !== null) expectedDurations.set(row._id, referenceDuration);
-      }
-    }
-
-    return expectedDurations;
   }
 
   private async findReportAppearances(reportCodes: string[]): Promise<Array<AppearanceIdentity & { reportCode: string }>> {
@@ -618,7 +555,6 @@ class CharacterMechanicsService {
     survivalByCharacterEncounter: Map<string, SurvivalStats>,
     specPullsByCharacter: Map<string, Map<string, number>>,
     unknownSpecPullsByCharacter: Map<string, number>,
-    expectedKillDurationByEncounter: Map<number, number>,
   ): void {
     const exactIdentityByReport = new Map<string, Map<string, AppearanceIdentity & { reportCode: string }>>();
     const nameIdentityByReport = new Map<string, Map<string, (AppearanceIdentity & { reportCode: string }) | null>>();
@@ -667,9 +603,8 @@ class CharacterMechanicsService {
       const nameMap = nameIdentityByReport.get(fight.reportCode) ?? new Map();
       const reportRegion = reportRegions.get(fight.reportCode) ?? "";
       const participants = new Map<string, { appearance: AppearanceIdentity; specName: string | null }>();
-      const expectedDuration = expectedKillDurationByEncounter.get(fight.encounterID);
-      const raidWideDeathWindows = this.detectRaidWideDeathWindows(fight, deaths);
-      const terminalCascadeStart = fight.isKill ? null : this.detectTerminalCascadeStart(fight, deaths, raidWideDeathWindows);
+      const raidWideDeathStart = this.detectRaidWideDeathStart(fight, deaths);
+      const neutralPull = this.isLikelyReset(fight, deaths);
 
       for (const combatant of fight.combatants) {
         const appearance =
@@ -684,9 +619,7 @@ class CharacterMechanicsService {
       }
 
       const meaningfulDeaths = deaths.filter((death) => {
-        const deathTime = Number.isFinite(death.deathTime) ? death.deathTime : 0;
-        if (terminalCascadeStart !== null && deathTime >= terminalCascadeStart) return false;
-        return !raidWideDeathWindows.some((window) => deathTime >= window.start && deathTime <= window.end);
+        return raidWideDeathStart === null || death.deathTime < raidWideDeathStart;
       });
 
       const firstDeathPlayersByTime = new Map<number, string[]>();
@@ -726,7 +659,7 @@ class CharacterMechanicsService {
         }
         deathsByCharacter.get(characterKey)!.push({
           order: deathOrderByPlayer.get(deathIdentityKey)!,
-          deathPercent: expectedDuration ? this.clamp(deathTime / expectedDuration, 0, 1) : 0,
+          deathPercent: this.clamp(deathTime / fight.duration, 0, 1),
           deathTime,
         });
       }
@@ -734,7 +667,6 @@ class CharacterMechanicsService {
       for (const { appearance, specName } of participants.values()) {
         const characterKey = this.getCharacterKey(appearance.characterId);
         const deathRecords = deathsByCharacter.get(characterKey) ?? [];
-        const neutralPull = !expectedDuration;
         this.addPullToStats(
           survivalByCharacterEncounter,
           this.getCharacterEncounterKey(appearance.characterId, fight.encounterID),
@@ -824,74 +756,32 @@ class CharacterMechanicsService {
     return identities;
   }
 
-  private detectTerminalCascadeStart(
-    fight: { duration: number; combatants?: IFightCombatant[] },
+  private detectRaidWideDeathStart(
+    fight: { combatants?: IFightCombatant[] },
     deaths: IPlayerDeath[],
-    raidWideDeathWindows: DeathWindow[],
   ): number | null {
-    const requiredDeaths = this.getRequiredClusterDeaths(fight, deaths, TERMINAL_CASCADE_MIN_ROSTER_SHARE);
+    const requiredDeaths = this.getRequiredClusterDeaths(fight, deaths, RAID_WIDE_DEATH_MIN_ROSTER_SHARE);
     if (requiredDeaths === null) return null;
 
-    const terminalRaidWideWindow = raidWideDeathWindows.find(
-      (window) => fight.duration - window.thresholdReachedAt <= TERMINAL_CASCADE_MAX_END_OFFSET_MS,
-    );
-    if (terminalRaidWideWindow) return terminalRaidWideWindow.start;
-
-    const events = this.getTimedDeaths(deaths).filter(
-      (event) => !raidWideDeathWindows.some((window) => event.deathTime >= window.start && event.deathTime <= window.end),
-    );
+    const events = this.getTimedDeaths(deaths);
     for (let startIndex = 0; startIndex < events.length; startIndex += 1) {
       const clusterStart = events[startIndex].deathTime;
       const players = new Set<string>();
       for (let endIndex = startIndex; endIndex < events.length; endIndex += 1) {
         const event = events[endIndex];
-        if (event.deathTime - clusterStart > TERMINAL_CASCADE_WINDOW_MS) break;
+        if (event.deathTime - clusterStart > RAID_WIDE_DEATH_WINDOW_MS) break;
         players.add(event.identityKey);
-        if (players.size < requiredDeaths) continue;
-        if (fight.duration - event.deathTime <= TERMINAL_CASCADE_MAX_END_OFFSET_MS) return clusterStart;
+        if (players.size >= requiredDeaths) return clusterStart;
       }
     }
     return null;
   }
 
-  private detectRaidWideDeathWindows(
-    fight: { combatants?: IFightCombatant[] },
-    deaths: IPlayerDeath[],
-  ): DeathWindow[] {
-    const requiredDeaths = this.getRequiredClusterDeaths(fight, deaths, RAID_WIDE_DEATH_MIN_ROSTER_SHARE);
-    if (requiredDeaths === null) return [];
-
-    const events = this.getTimedDeaths(deaths);
-    const windows: DeathWindow[] = [];
-    let searchIndex = 0;
-
-    while (searchIndex < events.length) {
-      let matchedWindow: DeathWindow | null = null;
-      for (let startIndex = searchIndex; startIndex < events.length; startIndex += 1) {
-        const clusterStart = events[startIndex].deathTime;
-        const players = new Set<string>();
-        for (let endIndex = startIndex; endIndex < events.length; endIndex += 1) {
-          const event = events[endIndex];
-          if (event.deathTime - clusterStart > RAID_WIDE_DEATH_WINDOW_MS) break;
-          players.add(event.identityKey);
-          if (players.size >= requiredDeaths) {
-            matchedWindow = {
-              start: clusterStart,
-              end: clusterStart + RAID_WIDE_DEATH_WINDOW_MS,
-              thresholdReachedAt: event.deathTime,
-            };
-            break;
-          }
-        }
-        if (matchedWindow) break;
-      }
-
-      if (!matchedWindow) break;
-      windows.push(matchedWindow);
-      while (searchIndex < events.length && events[searchIndex].deathTime <= matchedWindow.end) searchIndex += 1;
-    }
-
-    return windows;
+  private isLikelyReset(fight: Pick<MechanicsFight, "duration" | "isKill">, deaths: IPlayerDeath[]): boolean {
+    if (fight.isKill) return false;
+    const uniqueDeaths = new Set(deaths.map((death) => this.getDeathIdentityKey(death.name, death.server))).size;
+    return uniqueDeaths === 0
+      || (fight.duration <= LIKELY_RESET_MAX_DURATION_MS && uniqueDeaths <= LIKELY_RESET_MAX_UNIQUE_DEATHS);
   }
 
   private getRequiredClusterDeaths(
@@ -1080,7 +970,7 @@ class CharacterMechanicsService {
       deathDataAvailable: true,
       survivalScore: { $ne: null },
       survivalPercentile: { $ne: null },
-      pulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
+      evaluatedPulls: { $gte: MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY },
     };
 
     if (classId !== undefined) baseQuery.classID = classId;
@@ -1178,12 +1068,13 @@ class CharacterMechanicsService {
       entry.survivalScore = totals.survivalScore;
       entry.survivalPercentile = totals.survivalPercentile;
       entry.pulls = totals.pulls;
+      entry.evaluatedPulls = totals.evaluatedPulls;
       entry.deaths = totals.deaths;
       entry.survivedPulls = totals.survivedPulls;
       entry.earlyDeaths = totals.earlyDeaths;
       entry.averageDeathPercent = totals.averageDeathPercent;
       entry.deathDataAvailable = totals.deathDataAvailable;
-      if (entry.pulls < MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY) continue;
+      if (entry.evaluatedPulls < MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY) continue;
       entry.specName = normalizedSpecName;
       scoredEntries.push(entry);
     }
@@ -1410,31 +1301,10 @@ class CharacterMechanicsService {
   }
 
   private capSurvivalScore(rawScore: number, stats: SurvivalStats): number {
-    const deathEventRate = stats.deaths / stats.evaluatedPulls;
-    const deathPullRate = (stats.evaluatedPulls - stats.survivedPulls) / stats.evaluatedPulls;
     const earlyDeathSeverityRate = stats.earlyDeathSeverityTotal / stats.evaluatedPulls;
-    const deathEventCap = 100 - 35 * Math.min(deathEventRate, 1) - 25 * Math.max(0, deathEventRate - 1);
-    const deathPullCap = 100 - 25 * Math.pow(Math.min(deathPullRate, 1), 0.85);
     const earlyDeathCap = 100 - 90 * Math.min(earlyDeathSeverityRate, 1);
 
-    return this.roundScore(this.clamp(Math.min(rawScore, deathEventCap, deathPullCap, earlyDeathCap), 0, 100));
-  }
-
-  private median(values: number[]): number | null {
-    const sorted = values.filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
-    if (sorted.length === 0) return null;
-
-    const middle = Math.floor(sorted.length / 2);
-    if (sorted.length % 2 === 1) return sorted[middle];
-
-    return (sorted[middle - 1] + sorted[middle]) / 2;
-  }
-
-  private percentile(values: number[], percentile: number): number | null {
-    const sorted = values.filter((value) => Number.isFinite(value) && value > 0).sort((left, right) => left - right);
-    if (sorted.length === 0) return null;
-    const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(percentile * sorted.length) - 1));
-    return sorted[index];
+    return this.roundScore(this.clamp(Math.min(rawScore, earlyDeathCap), 0, 100));
   }
 
   private toUniqueFilter(entry: any): Record<string, unknown> {
