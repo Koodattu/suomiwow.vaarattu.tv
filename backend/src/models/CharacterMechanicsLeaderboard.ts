@@ -12,7 +12,7 @@ export interface IMechanicsBossScore {
   evaluatedPulls: number;
   deaths: number;
   survivedPulls: number;
-  earlyDeaths: number;
+  earlyDeaths: number; // Pulls where this character was among the first three unique deaths
   averageDeathPercent: number | null;
   deathDataAvailable: boolean;
   specName: string;
@@ -55,7 +55,7 @@ export interface ICharacterMechanicsLeaderboard extends Document {
   evaluatedPulls: number;
   deaths: number;
   survivedPulls: number;
-  earlyDeaths: number;
+  earlyDeaths: number; // Pulls where this character was among the first three unique deaths
   averageDeathPercent: number | null;
   deathDataAvailable: boolean;
   bossScores: IMechanicsBossScore[];
@@ -133,7 +133,7 @@ const CharacterMechanicsLeaderboardSchema = new Schema<ICharacterMechanicsLeader
     averageDeathPercent: { type: Number, default: null },
     deathDataAvailable: { type: Boolean, default: false },
     bossScores: { type: [MechanicsBossScoreSchema], default: [] },
-    scoreVersion: { type: Number, default: 2 },
+    scoreVersion: { type: Number, default: 3 },
     raidFightCoverage: { type: Number, default: 0 },
     eligibleFightCount: { type: Number, default: 0 },
     evaluatedFightCount: { type: Number, default: 0 },

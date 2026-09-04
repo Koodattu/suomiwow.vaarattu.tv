@@ -2475,8 +2475,10 @@
     "columnCombined": "Yhdistetty",
     "columnParse": "Parse",
     "columnSurvival": "Mekaniikka",
+    "columnMechanicsHelp": "Roolikohtainen pomoprosenttipiste, joka perustuu selviytymiseen, ensimmäisen merkityksellisen kuoleman järjestykseen ja ajoitukseen sekä uusintakuolemiin. Raidin kokonaisarvo on pomokohtaisten prosenttipisteiden painottamaton keskiarvo.",
     "columnDeaths": "Kuolemat",
     "columnEarlyDeaths": "Varhaiset kuolemat",
+    "columnEarlyDeathsHelp": "Pullit, joissa hahmo oli kolmen ensimmäisen eri pelaajan joukossa kuolemassa. Raidinlaajuiset kuolemapyrähdykset ja lopullinen wipe-kuolemaryöppy jätetään huomiotta.",
     "columnPulls": "Pullit"
   },
   "tools": {

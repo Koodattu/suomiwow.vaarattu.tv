@@ -123,7 +123,7 @@ const CharacterTierListEntrySchema = new Schema<ICharacterTierListEntry>(
     averageDeathPercent: { type: Number, default: null },
     deathDataAvailable: { type: Boolean, default: false },
     bossScores: { type: [MechanicsBossScoreSchema], default: [] },
-    scoreVersion: { type: Number, default: 2 },
+    scoreVersion: { type: Number, default: 3 },
     raidFightCoverage: { type: Number, default: 0 },
     eligibleFightCount: { type: Number, default: 0 },
     evaluatedFightCount: { type: Number, default: 0 },

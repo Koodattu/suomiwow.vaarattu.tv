@@ -1399,8 +1399,18 @@ export default function CharacterProfilePage({ params }: PageProps) {
                   <tr className="border-b border-gray-800 text-left text-xs font-semibold text-gray-400">
                     <th className="px-4 py-2.5">Raid</th>
                     <th className="px-3 py-2.5 text-right">Metric</th>
-                    <th className="px-3 py-2.5 text-right">{activeMechanicsScoreLabel}</th>
-                    <th className="px-3 py-2.5 text-right">Early deaths</th>
+                    <th
+                      className="px-3 py-2.5 text-right"
+                      title={activePerformanceTab === "mechanics" ? "A role-relative boss percentile based on survival, first meaningful death order and timing, and repeat deaths. The raid-wide value is the unweighted average of those boss percentiles." : undefined}
+                    >
+                      {activeMechanicsScoreLabel}
+                    </th>
+                    <th
+                      className="px-3 py-2.5 text-right"
+                      title="Pulls where the character was among the first three unique players to die, excluding raid-wide death bursts and the terminal wipe cascade."
+                    >
+                      Early deaths
+                    </th>
                     <th className="px-3 py-2.5">{activeMechanicsBossLabel}</th>
                   </tr>
                 </thead>

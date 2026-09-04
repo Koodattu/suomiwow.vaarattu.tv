@@ -455,7 +455,9 @@ function buildRankingColumns({ selectedBoss, bosses, variant, currentPage, pageS
 
   columns.push({
     id: "metric",
-    header: isSurvival ? t("columnSurvival") : isMechanics ? t("columnCombined") : isShowingDamage ? (selectedMetric === "hps" ? t("columnHps") : t("columnDps")) : t("columnScore"),
+    header: isSurvival
+      ? <span title={t("columnMechanicsHelp")}>{t("columnSurvival")}</span>
+      : isMechanics ? t("columnCombined") : isShowingDamage ? (selectedMetric === "hps" ? t("columnHps") : t("columnDps")) : t("columnScore"),
     shrink: true,
     accessor: (row: CharacterRankingRow) => {
       if (isMechanics) {
@@ -472,7 +474,7 @@ function buildRankingColumns({ selectedBoss, bosses, variant, currentPage, pageS
   if (isMechanics) {
     columns.push({
       id: "earlyDeaths",
-      header: t("columnEarlyDeaths"),
+      header: <span title={t("columnEarlyDeathsHelp")}>{t("columnEarlyDeaths")}</span>,
       shrink: true,
       mobileHidden: true,
       accessor: (row: CharacterRankingRow) => <span className="font-semibold tabular-nums text-gray-100">{formatMechanicsEarlyDeaths(row)}</span>,

@@ -7,6 +7,7 @@ import { resolveCharacterRaidIdentity } from "../src/utils/character-raid-identi
 type TestableCharacterMechanicsService = {
   buildOverallEntries(entries: Array<Record<string, unknown>>): Array<Record<string, any>>;
   normalizeBossSurvivalScores(entries: Array<Record<string, any>>): void;
+  scorePullDeaths(deaths: Array<{ order: number; deathPercent: number; deathTime: number }>): number;
   addSurvivalStats(
     fights: Array<Record<string, unknown>>,
     appearances: Array<Record<string, unknown>>,
@@ -18,6 +19,21 @@ type TestableCharacterMechanicsService = {
     expectedDurations: Map<number, number>,
   ): void;
 };
+
+test("death scoring retains timing, raid order, and repeat-death penalties", () => {
+  const service = characterMechanicsService as unknown as TestableCharacterMechanicsService;
+  const earlyFirst = service.scorePullDeaths([{ order: 1, deathPercent: 0.2, deathTime: 20_000 }]);
+  const lateFirst = service.scorePullDeaths([{ order: 1, deathPercent: 0.8, deathTime: 80_000 }]);
+  const lateFourth = service.scorePullDeaths([{ order: 4, deathPercent: 0.8, deathTime: 80_000 }]);
+  const repeated = service.scorePullDeaths([
+    { order: 4, deathPercent: 0.8, deathTime: 80_000 },
+    { order: 4, deathPercent: 0.9, deathTime: 90_000 },
+  ]);
+
+  assert.ok(earlyFirst < lateFirst);
+  assert.ok(lateFirst < lateFourth);
+  assert.ok(repeated < lateFourth);
+});
 
 function bossEntry(overrides: Record<string, unknown>): Record<string, unknown> {
   return {
@@ -89,6 +105,21 @@ test("combined score uses role-and-boss survival percentiles after sample shrink
 
   assert.deepEqual(entries.map((entry) => entry.survivalPercentile), [0, 50, 100]);
   assert.deepEqual(entries.map((entry) => entry.score), [35, 60, 85]);
+});
+
+test("low-sample rows do not change the mechanics percentile reference population", () => {
+  const service = characterMechanicsService as unknown as TestableCharacterMechanicsService;
+  const entries = [
+    bossEntry({ characterId: new mongoose.Types.ObjectId(), survivalScore: 0, survivalPercentile: null, evaluatedPulls: 1 }),
+    bossEntry({ characterId: new mongoose.Types.ObjectId(), survivalScore: 40, survivalPercentile: null, evaluatedPulls: 40 }),
+    bossEntry({ characterId: new mongoose.Types.ObjectId(), survivalScore: 60, survivalPercentile: null, evaluatedPulls: 80 }),
+    bossEntry({ characterId: new mongoose.Types.ObjectId(), survivalScore: 80, survivalPercentile: null, evaluatedPulls: 400 }),
+  ] as Array<Record<string, any>>;
+
+  service.normalizeBossSurvivalScores(entries);
+
+  assert.deepEqual(entries.slice(1).map((entry) => entry.survivalPercentile), [0, 50, 100]);
+  assert.equal(entries[0].survivalPercentile, 50);
 });
 
 test("overall survival equal-weights bosses instead of progression pull counts", () => {
@@ -167,7 +198,7 @@ test("wipe-only reports count exact CombatantInfo specs through canonical charac
   assert.equal([...encounterStats.values()][0]?.evaluatedPulls, 1);
 });
 
-test("terminal wipe deaths are neutral while a pre-collapse death remains penalized", () => {
+test("terminal wipe deaths are ignored while surviving to the cascade counts as a successful pull", () => {
   const service = characterMechanicsService as unknown as TestableCharacterMechanicsService;
   const earlyCharacterId = new mongoose.Types.ObjectId();
   const cascadeCharacterId = new mongoose.Types.ObjectId();
@@ -210,6 +241,156 @@ test("terminal wipe deaths are neutral while a pre-collapse death remains penali
 
   assert.equal(encounterStats.get(`${earlyCharacterId}|999`)?.evaluatedPulls, 1);
   assert.equal(encounterStats.get(`${earlyCharacterId}|999`)?.deaths, 1);
+  assert.equal(encounterStats.get(`${earlyCharacterId}|999`)?.earlyDeaths, 1);
   assert.equal(encounterStats.get(`${cascadeCharacterId}|999`)?.pulls, 1);
-  assert.equal(encounterStats.get(`${cascadeCharacterId}|999`)?.evaluatedPulls, 0);
+  assert.equal(encounterStats.get(`${cascadeCharacterId}|999`)?.evaluatedPulls, 1);
+  assert.equal(encounterStats.get(`${cascadeCharacterId}|999`)?.survivedPulls, 1);
+});
+
+test("an isolated death immediately before a raid-wide wipe burst remains an early death", () => {
+  const service = characterMechanicsService as unknown as TestableCharacterMechanicsService;
+  const earlyCharacterId = new mongoose.Types.ObjectId();
+  const cascadeCharacterId = new mongoose.Types.ObjectId();
+  const encounterStats = new Map<string, any>();
+  const combatants = Array.from({ length: 20 }, (_, index) => ({
+    name: `P${index + 1}`,
+    server: "Kazzak",
+    specName: "augmentation",
+  }));
+
+  service.addSurvivalStats(
+    [{
+      reportCode: "precursor-before-cascade",
+      fightId: 1,
+      encounterID: 999,
+      duration: 36_000,
+      isKill: false,
+      combatants,
+      deaths: [
+        { name: "P1", server: "Kazzak", timestamp: 30_000, deathTime: 30_000 },
+        ...Array.from({ length: 19 }, (_, index) => ({
+          name: `P${index + 2}`,
+          server: "Kazzak",
+          timestamp: 35_000 + index * 25,
+          deathTime: 35_000 + index * 25,
+        })),
+      ],
+    }],
+    [],
+    [
+      { characterId: earlyCharacterId, wclCanonicalCharacterId: 1, name: "P1", realm: "Kazzak", region: "EU", classID: 13 },
+      { characterId: cascadeCharacterId, wclCanonicalCharacterId: 2, name: "P2", realm: "Kazzak", region: "EU", classID: 13 },
+    ],
+    new Map([["precursor-before-cascade", "EU"]]),
+    encounterStats,
+    new Map(),
+    new Map(),
+    new Map([[999, 120_000]]),
+  );
+
+  assert.equal(encounterStats.get(`${earlyCharacterId}|999`)?.deaths, 1);
+  assert.equal(encounterStats.get(`${earlyCharacterId}|999`)?.earlyDeaths, 1);
+  assert.equal(encounterStats.get(`${cascadeCharacterId}|999`)?.deaths, 0);
+  assert.equal(encounterStats.get(`${cascadeCharacterId}|999`)?.survivedPulls, 1);
+});
+
+test("early deaths use the first three unique player deaths even on short pulls", () => {
+  const service = characterMechanicsService as unknown as TestableCharacterMechanicsService;
+  const characterIds = Array.from({ length: 4 }, () => new mongoose.Types.ObjectId());
+  const encounterStats = new Map<string, any>();
+  const combatants = characterIds.map((_, index) => ({
+    name: `P${index + 1}`,
+    server: "Kazzak",
+    specName: "augmentation",
+  }));
+
+  service.addSurvivalStats(
+    [{
+      reportCode: "short-ordered-deaths",
+      fightId: 1,
+      encounterID: 999,
+      duration: 20_000,
+      isKill: true,
+      combatants,
+      deaths: [
+        { name: "P1", server: "Kazzak", timestamp: 1_000, deathTime: 1_000 },
+        { name: "P1", server: "Kazzak", timestamp: 2_500, deathTime: 2_500 },
+        { name: "P2", server: "Kazzak", timestamp: 4_000, deathTime: 4_000 },
+        { name: "P3", server: "Kazzak", timestamp: 5_500, deathTime: 5_500 },
+        { name: "P4", server: "Kazzak", timestamp: 7_000, deathTime: 7_000 },
+      ],
+    }],
+    [],
+    characterIds.map((characterId, index) => ({
+      characterId,
+      wclCanonicalCharacterId: index + 1,
+      name: `P${index + 1}`,
+      realm: "Kazzak",
+      region: "EU",
+      classID: 13,
+    })),
+    new Map([["short-ordered-deaths", "EU"]]),
+    encounterStats,
+    new Map(),
+    new Map(),
+    new Map([[999, 120_000]]),
+  );
+
+  assert.equal(encounterStats.get(`${characterIds[0]}|999`)?.deaths, 2);
+  assert.equal(encounterStats.get(`${characterIds[0]}|999`)?.earlyDeaths, 1);
+  assert.equal(encounterStats.get(`${characterIds[1]}|999`)?.earlyDeaths, 1);
+  assert.equal(encounterStats.get(`${characterIds[2]}|999`)?.earlyDeaths, 1);
+  assert.equal(encounterStats.get(`${characterIds[3]}|999`)?.earlyDeaths, 0);
+  assert.equal(encounterStats.get(`${characterIds[3]}|999`)?.evaluatedPulls, 1);
+});
+
+test("raid-wide one-second death bursts do not assign individual death blame", () => {
+  const service = characterMechanicsService as unknown as TestableCharacterMechanicsService;
+  const characterIds = Array.from({ length: 6 }, () => new mongoose.Types.ObjectId());
+  const encounterStats = new Map<string, any>();
+  const combatants = Array.from({ length: 10 }, (_, index) => ({
+    name: `P${index + 1}`,
+    server: "Kazzak",
+    specName: "augmentation",
+  }));
+
+  service.addSurvivalStats(
+    [{
+      reportCode: "raid-wide-death",
+      fightId: 1,
+      encounterID: 999,
+      duration: 120_000,
+      isKill: true,
+      combatants,
+      deaths: [
+        ...Array.from({ length: 5 }, (_, index) => ({
+          name: `P${index + 1}`,
+          server: "Kazzak",
+          timestamp: 40_000 + index * 100,
+          deathTime: 40_000 + index * 100,
+        })),
+        { name: "P6", server: "Kazzak", timestamp: 80_000, deathTime: 80_000 },
+      ],
+    }],
+    [],
+    characterIds.map((characterId, index) => ({
+      characterId,
+      wclCanonicalCharacterId: index + 1,
+      name: `P${index + 1}`,
+      realm: "Kazzak",
+      region: "EU",
+      classID: 13,
+    })),
+    new Map([["raid-wide-death", "EU"]]),
+    encounterStats,
+    new Map(),
+    new Map(),
+    new Map([[999, 120_000]]),
+  );
+
+  assert.equal(encounterStats.get(`${characterIds[0]}|999`)?.deaths, 0);
+  assert.equal(encounterStats.get(`${characterIds[0]}|999`)?.earlyDeaths, 0);
+  assert.equal(encounterStats.get(`${characterIds[0]}|999`)?.survivedPulls, 1);
+  assert.equal(encounterStats.get(`${characterIds[5]}|999`)?.deaths, 1);
+  assert.equal(encounterStats.get(`${characterIds[5]}|999`)?.earlyDeaths, 1);
 });
