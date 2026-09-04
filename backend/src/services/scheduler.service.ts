@@ -591,7 +591,7 @@ class UpdateScheduler {
 
     if (CCG_FEATURE_ENABLED) {
       void this.processPendingCcgPackAnalytics();
-      void this.triggerCcgLeaderboardRefresh("full", "startup");
+      void this.triggerCcgLeaderboardRefresh("incremental", "startup");
 
       this.scheduleCronTask(
         "ccg-pack-analytics",
@@ -950,7 +950,7 @@ class UpdateScheduler {
       logger.info("  - SuomiWoW CCG jobs (Europe/Helsinki):");
       logger.info("    * Guest expiry reconciliation: daily at 00:15");
       logger.info("    * Collection leaderboard incremental refresh: every 15 minutes on the quarter-hour");
-      logger.info("    * Collection leaderboard full rebuild: hourly at :07");
+      logger.info(`    * Collection leaderboard full rebuild: daily at ${CCG_LEADERBOARD_FULL_SCHEDULE.localTime}`);
       logger.info("    * New-character media discovery: daily at 01:30");
       logger.info("    * Stored character media validation: daily at 01:50");
       logger.info("    * Media queue recovery: every 15 minutes");

@@ -26,9 +26,10 @@ import CcgSet from "../src/models/CcgSet";
 import ccgLeaderboardService, { isCcgSeriesEligibleForSetCompletion } from "../src/services/ccg-leaderboard.service";
 import ccgService, { CcgServiceError } from "../src/services/ccg.service";
 
-test("collection leaderboard schedules incremental refreshes on every clock quarter", () => {
+test("collection leaderboard schedules incremental refreshes every quarter-hour and a nightly full rebuild", () => {
   assert.equal(CCG_LEADERBOARD_INCREMENTAL_SCHEDULE.cron, "*/15 * * * *");
-  assert.equal(CCG_LEADERBOARD_FULL_SCHEDULE.cron, "7 * * * *");
+  assert.equal(CCG_LEADERBOARD_FULL_SCHEDULE.cron, "7 5 * * *");
+  assert.equal(CCG_LEADERBOARD_FULL_SCHEDULE.localTime, "05:07");
   assert.equal(CCG_LEADERBOARD_REFRESH_INTERVAL_SECONDS, 15 * 60);
   assert.equal(cron.validate(CCG_LEADERBOARD_INCREMENTAL_SCHEDULE.cron), true);
   assert.equal(cron.validate(CCG_LEADERBOARD_FULL_SCHEDULE.cron), true);
