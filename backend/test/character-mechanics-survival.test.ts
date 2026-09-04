@@ -404,21 +404,26 @@ describe("character mechanics survival scoring", () => {
       const result = evaluate([{
         duration: 100_000,
         isKill: false,
-        combatantCount: 10,
+        combatantCount: 20,
         deaths: [
           death(1, 10_000),
           death(2, 20_000),
           death(3, 30_000),
           death(4, 40_000),
           death(5, 50_000),
-          ...deathsAt(1, 5, 95_000, 100),
+          death(6, 60_000),
+          death(7, 70_000),
+          death(8, 80_000),
+          death(9, 85_000),
+          death(10, 90_000),
+          ...deathsAt(1, 10, 95_000, 100),
         ],
-      }], { aliasCount: 10 });
+      }]);
 
       assert.equal(result.stats(1).deaths, 1);
       assert.equal(result.stats(1).earlyDeaths, 1);
-      assert.equal(result.stats(5).deaths, 1);
-      assert.equal(result.stats(5).earlyDeaths, 0);
+      assert.equal(result.stats(10).deaths, 1);
+      assert.equal(result.stats(10).earlyDeaths, 0);
     });
   });
 
@@ -489,6 +494,17 @@ describe("character mechanics survival scoring", () => {
   });
 
   describe("data coverage and aggregate caps", () => {
+    test("an incomplete small roster cannot turn ordinary deaths into a raid-wide burst", () => {
+      const result = evaluate([{
+        combatantCount: 6,
+        deaths: deathsAt(1, 3, 10_000),
+      }], { aliasCount: 6 });
+
+      assert.equal(result.stats(1).deaths, 1);
+      assert.equal(result.stats(2).deaths, 1);
+      assert.equal(result.stats(3).deaths, 1);
+    });
+
     test("death identities supplement an incomplete legacy combatant roster for burst thresholds", () => {
       const result = evaluate([{
         combatantCount: 6,

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY } from "../config/character-eligibility";
 import { CURRENT_RAID_IDS } from "../config/guilds";
-import CharacterMechanicsLeaderboard, { IMechanicsBossScore } from "../models/CharacterMechanicsLeaderboard";
+import CharacterMechanicsLeaderboard, { CHARACTER_MECHANICS_SCORE_VERSION, IMechanicsBossScore } from "../models/CharacterMechanicsLeaderboard";
 import Character from "../models/Character";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
 import Fight, { IFightCombatant, IPlayerDeath } from "../models/Fight";
@@ -22,6 +22,7 @@ const FIGHT_CURSOR_BATCH_SIZE = 1000;
 const DEATH_TIMING_EXPONENT = 1.15;
 const MIN_RAID_FIGHT_COVERAGE = 0.9;
 const RAID_WIDE_DEATH_MIN_ROSTER_SHARE = 0.5;
+const RAID_WIDE_DEATH_MIN_PLAYERS = 10;
 const RAID_WIDE_DEATH_WINDOW_MS = 1_000;
 const LIKELY_RESET_MAX_DURATION_MS = 30_000;
 const LIKELY_RESET_MAX_UNIQUE_DEATHS = 2;
@@ -280,7 +281,7 @@ class CharacterMechanicsService {
           averageDeathPercent: survivalSummary.averageDeathPercent,
           deathDataAvailable: true,
           bossScores: [],
-          scoreVersion: 3,
+          scoreVersion: CHARACTER_MECHANICS_SCORE_VERSION,
           raidFightCoverage: survivalBuild.coverage,
           eligibleFightCount: survivalBuild.eligibleFights,
           evaluatedFightCount: survivalBuild.fights,
@@ -796,7 +797,9 @@ class CharacterMechanicsService {
       deaths.map((death) => this.getDeathIdentityKey(death.name, death.server)),
     ).size;
     const rosterSize = Math.max(combatantRosterSize, deathRosterSize);
-    return rosterSize > 0 ? Math.ceil(rosterSize * minimumRosterShare) : null;
+    return rosterSize > 0
+      ? Math.max(RAID_WIDE_DEATH_MIN_PLAYERS, Math.ceil(rosterSize * minimumRosterShare))
+      : null;
   }
 
   private getTimedDeaths(deaths: IPlayerDeath[]): Array<{ identityKey: string; deathTime: number }> {

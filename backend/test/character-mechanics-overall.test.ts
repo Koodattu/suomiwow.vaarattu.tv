@@ -201,7 +201,7 @@ test("a raid-wide death burst ends individual observation after an earlier death
   const earlyCharacterId = new mongoose.Types.ObjectId();
   const cascadeCharacterId = new mongoose.Types.ObjectId();
   const encounterStats = new Map<string, any>();
-  const combatants = Array.from({ length: 10 }, (_, index) => ({
+  const combatants = Array.from({ length: 20 }, (_, index) => ({
     name: `P${index + 1}`,
     server: "Kazzak",
     specName: "augmentation",
@@ -217,7 +217,7 @@ test("a raid-wide death burst ends individual observation after an earlier death
       combatants,
       deaths: [
         { name: "P1", server: "Kazzak", timestamp: 40_000, deathTime: 40_000 },
-        ...Array.from({ length: 5 }, (_, index) => ({
+        ...Array.from({ length: 10 }, (_, index) => ({
           name: `P${index + 2}`,
           server: "Kazzak",
           timestamp: 110_000 + index * 100,
@@ -343,7 +343,7 @@ test("raid-wide one-second death bursts do not assign individual death blame", (
   const service = characterMechanicsService as unknown as TestableCharacterMechanicsService;
   const characterIds = Array.from({ length: 6 }, () => new mongoose.Types.ObjectId());
   const encounterStats = new Map<string, any>();
-  const combatants = Array.from({ length: 10 }, (_, index) => ({
+  const combatants = Array.from({ length: 20 }, (_, index) => ({
     name: `P${index + 1}`,
     server: "Kazzak",
     specName: "augmentation",
@@ -358,7 +358,7 @@ test("raid-wide one-second death bursts do not assign individual death blame", (
       isKill: true,
       combatants,
       deaths: [
-        ...Array.from({ length: 5 }, (_, index) => ({
+        ...Array.from({ length: 10 }, (_, index) => ({
           name: `P${index + 1}`,
           server: "Kazzak",
           timestamp: 40_000 + index * 100,

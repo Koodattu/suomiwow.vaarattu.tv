@@ -1,6 +1,8 @@
 import mongoose, { Schema, Document } from "mongoose";
 import type { RaidIdentityConfidence, RaidIdentityMethod } from "../utils/character-raid-identity";
 
+export const CHARACTER_MECHANICS_SCORE_VERSION = 4;
+
 export interface IMechanicsBossScore {
   encounterId: number;
   encounterName: string;
@@ -133,7 +135,7 @@ const CharacterMechanicsLeaderboardSchema = new Schema<ICharacterMechanicsLeader
     averageDeathPercent: { type: Number, default: null },
     deathDataAvailable: { type: Boolean, default: false },
     bossScores: { type: [MechanicsBossScoreSchema], default: [] },
-    scoreVersion: { type: Number, default: 3 },
+    scoreVersion: { type: Number, default: CHARACTER_MECHANICS_SCORE_VERSION },
     raidFightCoverage: { type: Number, default: 0 },
     eligibleFightCount: { type: Number, default: 0 },
     evaluatedFightCount: { type: Number, default: 0 },
