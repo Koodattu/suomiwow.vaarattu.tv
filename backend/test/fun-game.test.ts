@@ -6,6 +6,7 @@ import Raid from "../src/models/Raid";
 import CharacterMedia from "../src/models/CharacterMedia";
 import CharacterRaidParticipation from "../src/models/CharacterRaidParticipation";
 import { generateLockItInRound } from "../src/features/fun/generators/lock-it-in";
+import { generateImmaculateRosterRound } from "../src/features/fun/generators/immaculate-roster";
 import { isBossMechanicScoreBetter, sanitizeBossMechanicScoreInput } from "../src/features/fun/boss-mechanic-leaderboard.service";
 import { loadBossMechanicCharacters, loadBossMechanicGuilds } from "../src/features/fun/fun-game.service";
 import {
@@ -269,5 +270,48 @@ test("lock it in creates a five-guild ascending solution and shuffled reveal", a
   } finally {
     guildModel.aggregate = originalAggregate;
     raidModel.find = originalFind;
+  }
+});
+
+test("immaculate roster pools guild and class answers across raids", async () => {
+  const participationModel = CharacterRaidParticipation as any;
+  const guildModel = Guild as any;
+  const originalAggregate = participationModel.aggregate;
+  const originalFind = guildModel.find;
+  try {
+    participationModel.aggregate = (pipeline: Array<Record<string, any>>) => {
+      const group = pipeline.find((stage) => stage.$group)?.$group;
+      // A raid (or a historical guild name) must not split a guild/class cell.
+      assert.deepEqual(group._id, { guildId: "$reportGuildId", classID: "$classID" });
+      const cells = [0, 1, 2].flatMap((guildIndex) => [1, 2, 3].map((classID) => ({
+        _id: { guildId: `guild-${guildIndex}`, classID },
+        guildName: `Guild ${guildIndex}`,
+        guildRealm: "stormreaver",
+        characters: [0, 1].map((raidIndex) => ({
+          wclCanonicalCharacterId: guildIndex * 100 + classID * 10 + raidIndex,
+          classID,
+          name: `Raider from raid ${raidIndex}`,
+          realm: "stormreaver",
+        })),
+      })));
+      return { option: async () => cells };
+    };
+    guildModel.find = () => ({ select() { return this; }, lean: async () => [] });
+
+    const round = await generateImmaculateRosterRound();
+    assert.equal("raid" in round, false);
+    assert.equal(Object.keys(round.solution.validCharacterKeysByCell).length, 9);
+    for (const row of round.rows) {
+      const guildIndex = Number(row.id.split("-")[1]);
+      for (const column of round.columns) {
+        assert.deepEqual(round.solution.validCharacterKeysByCell[`${row.id}:${column.classID}`], [0, 1].map((raidIndex) =>
+          canonicalCharacterKey(guildIndex * 100 + column.classID * 10 + raidIndex, column.classID),
+        ));
+      }
+    }
+    assert.equal(new Set(Object.values(round.solution.exampleAnswerByCell).map((answer) => answer.key)).size, 9);
+  } finally {
+    participationModel.aggregate = originalAggregate;
+    guildModel.find = originalFind;
   }
 });

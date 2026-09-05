@@ -1,3 +1,5 @@
+import reportOverrideService from "../services/report-override.service";
+import reportOverridePolicy, { normalizeReportCode, ReportOverrideError } from "../services/report-override-policy.service";
 import { Router, Request, Response } from "express";
 import { requireAdmin } from "../middleware/admin.middleware";
 import { CURRENT_RAID_IDS, RECENT_RAID_DATE_REFRESH_IDS, TRACKED_RAIDS } from "../config/guilds";
@@ -1538,7 +1540,10 @@ router.get("/guilds/:guildId/verify-reports", async (req: Request, res: Response
       );
 
       // Find reports in WCL that we don't have
-      const missingReports = wclReports.data.filter((r: { code: string }) => !storedReportCodes.has(r.code));
+      const eligibleReports = await Promise.all(wclReports.data.map(async (report: { code: string }) =>
+        (await reportOverridePolicy.allowed(report.code, guild._id)) ? report : null,
+      ));
+      const missingReports = eligibleReports.filter((report): report is { code: string } => report !== null && !storedReportCodes.has(report.code));
 
       res.json({
         guildName: guild.name,
@@ -1674,7 +1679,7 @@ router.get("/guilds/:guildId/reports", async (req: Request, res: Response) => {
 router.post("/guilds/:guildId/reports/import", async (req: Request, res: Response) => {
   try {
     const { guildId } = req.params;
-    const reportCode = typeof req.body?.reportCode === "string" ? req.body.reportCode.trim() : "";
+    const reportCode = normalizeReportCode(req.body?.reportCode);
     const guildLogSourceId = typeof req.body?.guildLogSourceId === "string" ? req.body.guildLogSourceId : undefined;
 
     if (!/^[a-zA-Z0-9]+$/.test(reportCode)) {
@@ -1692,7 +1697,7 @@ router.post("/guilds/:guildId/reports/import", async (req: Request, res: Respons
       ...result,
     });
   } catch (error) {
-    if (error instanceof GuildReportImportError) {
+    if (error instanceof GuildReportImportError || error instanceof ReportOverrideError) {
       return res.status(error.statusCode).json({
         error: error.message,
         code: error.code,
@@ -1704,46 +1709,55 @@ router.post("/guilds/:guildId/reports/import", async (req: Request, res: Respons
   }
 });
 
-// Delete a single report and all associated fights
+// Report rules survive deletion and every subsequent fetch or rescan.
+router.get("/guilds/:guildId/report-overrides", async (req: Request, res: Response) => {
+  try {
+    if (!(await Guild.exists({ _id: req.params.guildId }))) return res.status(404).json({ error: "Guild not found" });
+    return res.json(await reportOverrideService.list(req.params.guildId));
+  } catch (error) {
+    logger.error("Failed to list report rules:", error);
+    return res.status(500).json({ error: "Failed to load report rules" });
+  }
+});
+
+router.post("/guilds/:guildId/report-overrides", async (req: Request, res: Response) => {
+  try {
+    const action = req.body?.action;
+    if (!["assign", "exclude", "restore", "clear_assignment"].includes(action)) {
+      return res.status(400).json({ error: "Choose a valid report action" });
+    }
+    const result = await reportOverrideService.change({
+      guildId: req.params.guildId,
+      reportCode: req.body?.reportCode,
+      action,
+      targetGuildId: typeof req.body?.targetGuildId === "string" ? req.body.targetGuildId : undefined,
+      reason: typeof req.body?.reason === "string" ? req.body.reason : undefined,
+      updatedBy: (req as any).user?._id,
+    });
+    return res.json(result);
+  } catch (error) {
+    if (error instanceof ReportOverrideError) return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    logger.error("Failed to change report rules:", error);
+    return res.status(500).json({ error: "Failed to update report rules" });
+  }
+});
+
+// Removing a report now also prevents this guild from fetching it again.
 router.delete("/guilds/:guildId/reports/:reportId", async (req: Request, res: Response) => {
   try {
-    const { guildId, reportId } = req.params;
-
-    const guild = await Guild.findById(guildId).lean();
-    if (!guild) {
-      return res.status(404).json({ error: "Guild not found" });
-    }
-
-    const report = await Report.findOne({ _id: reportId, guildId: guild._id });
-    if (!report) {
-      return res.status(404).json({ error: "Report not found for this guild" });
-    }
-
-    // Delete all fights and character appearances for this report, then the report itself
-    const [fightDeleteResult, appearanceDeleteResult] = await Promise.all([
-      Fight.deleteMany({
-        reportCode: report.code,
-        guildId: report.guildId,
-      }),
-      CharacterReportAppearance.deleteMany({
-        reportCode: report.code,
-        reportGuildId: report.guildId,
-      }),
-    ]);
-
-    await Report.deleteOne({ _id: report._id });
-
-    logger.info(`Deleted report ${report.code}, ${fightDeleteResult.deletedCount} fights, and ${appearanceDeleteResult.deletedCount} character appearances for guild ${guild.name}`);
-
-    res.json({
-      success: true,
-      message: `Report ${report.code} deleted with ${fightDeleteResult.deletedCount} fights`,
-      deletedFights: fightDeleteResult.deletedCount,
+    const report = await Report.findOne({ _id: req.params.reportId, guildId: req.params.guildId }).lean();
+    if (!report) return res.status(404).json({ error: "Report not found for this guild" });
+    const result = await reportOverrideService.change({
+      guildId: req.params.guildId,
       reportCode: report.code,
+      action: "exclude",
+      updatedBy: (req as any).user?._id,
     });
+    return res.json({ ...result, message: `Report ${report.code} removed and excluded from future guild fetches` });
   } catch (error) {
-    logger.error("Error deleting report:", error);
-    res.status(500).json({ error: "Failed to delete report" });
+    if (error instanceof ReportOverrideError) return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    logger.error("Failed to remove and exclude report:", error);
+    return res.status(500).json({ error: "Failed to remove and exclude report" });
   }
 });
 

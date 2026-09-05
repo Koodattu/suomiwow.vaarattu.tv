@@ -1253,6 +1253,49 @@
     "footer": "Reported from tracked Suomi WoW data. Rankings and progress reflect the article's reporting window."
   },
   "admin": {
+    "reportOverrides": {
+      "title": "Correct report ownership",
+      "description": "Move a stored report to another guild, or remove it and prevent this guild from fetching it again. Rules apply to polling, imports, and full rescans.",
+      "report": "Report code or WCL link",
+      "action": "Action",
+      "move": "Move to another guild",
+      "exclude": "Remove and ignore",
+      "search": "Search destination guild",
+      "destination": "Destination guild",
+      "chooseGuild": "Choose a guild",
+      "reason": "Reason (optional)",
+      "saving": "Saving…",
+      "rules": "Saved report rules",
+      "noRules": "No report rules for this guild.",
+      "assignedTo": "Assigned to {guild}",
+      "excluded": "Ignored for this guild",
+      "release": "Use WCL ownership",
+      "restore": "Allow fetching",
+      "restoreHelp": "Allow fetching removes an exclusion; import the report or run a rescan to fetch it again. Use WCL ownership releases an assignment; ownership can change on a future fetch. To move it back now, move the report from its current guild.",
+      "importHelp": "Manual imports stay assigned to this guild until their assignment is released.",
+      "confirmExclude": "Remove {count} fights and ignore this report for this guild?",
+      "loadFailed": "Could not load report rules.",
+      "searchFailed": "Could not search guilds.",
+      "changeFailed": "Could not update the report rule. Refresh and try again.",
+      "refreshWarning": "The correction was saved, but part of the statistics or derived data refresh failed. Check Admin tasks and rerun the affected refresh.",
+      "success": {
+        "assign": "Report moved. Guild statistics have been refreshed; character data and tier lists are refreshing in the background.",
+        "exclude": "Report ignored for this guild. Any stored report data was removed; affected statistics have been refreshed.",
+        "restore": "Fetching is allowed again. Import the report or run a guild rescan to restore it.",
+        "clear_assignment": "The assignment was released. Future fetches can use WCL ownership."
+      },
+      "errors": {
+        "invalid_report_code": "Enter a valid Warcraft Logs report code or report link.",
+        "invalid_guild": "Choose a valid guild.",
+        "same_guild": "Choose a different destination guild.",
+        "invalid_reason": "Keep the reason under 500 characters.",
+        "guild_not_found": "Guild not found.",
+        "guild_busy": "A guild update is queued or running. Try again after it finishes.",
+        "report_busy": "This report is being updated. Try again when the update finishes.",
+        "report_conflict": "The report belongs to a different guild. Refresh the report list and try again.",
+        "report_excluded": "This report is ignored for the destination guild. Allow fetching there before moving it."
+      }
+    },
     "title": "Admin Panel",
     "description": "Manage users, guilds, and view analytics.",
     "loading": "Loading...",
@@ -2651,7 +2694,7 @@
       },
       "closest-without-going-over": {
         "title": "Closest Guess",
-        "description": "Use three guesses to get as close as possible. Each miss tells you whether to go higher or lower."
+        "description": "Find the exact number with unlimited guesses. Each miss tells you whether to go higher or lower."
       }
     },
     "common": {
@@ -2667,7 +2710,7 @@
       "searchFailed": "Search failed. Try again.",
       "noCharacters": "No matching characters",
       "completed": "{count}/{total} filled",
-      "mistakes": "Mistakes {count}/{total}",
+      "mistakes": "Mistakes: {count}",
       "exampleAnswer": "Example answer",
       "youWon": "You got it!",
       "gameOver": "Game over",
@@ -2690,7 +2733,8 @@
       "chooseCell": "Select an empty cell first",
       "wonSummary": "Grid completed with {mistakes} mistakes.",
       "lostSummary": "Five misses. Example answers are shown in the empty cells.",
-      "tip": "Pick a cell, then search for any matching character."
+      "allRaids": "All raids & expansions",
+      "tip": "Pick a cell, then search for a matching raider from any tracked raid or expansion."
     },
     "guildGuessr": {
       "target": "Hidden guild",
@@ -2780,7 +2824,8 @@
       "lostSummary": "The four guild rosters are revealed above."
     },
     "lock": {
-      "instructions": "Place each revealed guild. Once all five are down, drag them into order and lock in.",
+      "instructions": "Place each revealed guild, then drag them into order. You can retry until every guild is in the right place.",
+      "tryAgain": "{count}/{total} in the right place. Reorder and try again.",
       "modes": {
         "pulls": {
           "label": "Fewest pulls",
@@ -2808,12 +2853,12 @@
       "tank": "Tank"
     },
     "suomidle": {
-      "start": "Make a guess to reveal the comparison grid.",
+      "start": "Search for a character to start. Each guess reveals matches and clues to the hidden character.",
       "guess": "Guess the character",
       "search": "Search characters",
       "none": "No matching characters",
       "answerWas": "The character was",
-      "arrows": "Arrows point toward the target value. A cross means the category differs.",
+      "arrows": "Green means a match. Arrows show whether the target value is higher or lower. Keep guessing until you find them.",
       "character": "Character",
       "class": "Class",
       "spec": "Spec",
@@ -2830,7 +2875,8 @@
       "streak": "Streak {count}",
       "choose": "Choose",
       "correct": "Correct",
-      "wrong": "Streak lost",
+      "wrong": "Incorrect",
+      "autoAdvance": "Advance automatically after 2.5 seconds",
       "next": "Next",
       "results": "See result",
       "finished": "Round complete",

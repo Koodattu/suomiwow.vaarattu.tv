@@ -1,3 +1,4 @@
+import ReportOverride from "../models/ReportOverride";
 import mongoose from "mongoose";
 import Guild, { IGuild } from "../models/Guild";
 import GuildLogSource, { GuildLogSourceSyncPolicy, IGuildLogSource } from "../models/GuildLogSource";
@@ -392,6 +393,10 @@ class GuildLogSourceService {
       (guild) => guild.logSourceMigrationLockToken && guild.logSourceMigrationLockedAt && guild.logSourceMigrationLockedAt.getTime() >= activeMigrationCutoff,
     ).length;
     const integrityMismatches = fightOwnershipMismatches + appearanceOwnershipMismatches + reportFightMismatches + reportAppearanceMismatches;
+    if (await ReportOverride.exists({ $or: [
+      { "assignment.guildId": sourceGuild._id },
+      { "exclusions.guildId": sourceGuild._id },
+    ] })) blockers.push("The source guild has report assignments or exclusions. Resolve its report rules before converting the whole guild.");
     if (activeQueues > 0) blockers.push("Pause or finish all pending, running, and paused queue jobs for both guilds before migrating.");
     if (activeUpdateLocks > 0) blockers.push("A Warcraft Logs update is currently running for the source or target guild. Wait for it to finish.");
     if (activeMigrationLocks > 0) blockers.push("The source or target guild is already locked by another log-source migration.");

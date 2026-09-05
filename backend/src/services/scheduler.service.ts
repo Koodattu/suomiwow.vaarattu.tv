@@ -1255,6 +1255,48 @@ class UpdateScheduler {
     }
   }
 
+  private reportCorrectionRefreshPending = false;
+  private isRefreshingReportCorrections = false;
+  private reportCorrectionRetryTimer: NodeJS.Timeout | null = null;
+
+  triggerReportCorrectionRefresh(): void {
+    this.reportCorrectionRefreshPending = true;
+    void this.refreshReportCorrections();
+  }
+
+  private async refreshReportCorrections(): Promise<void> {
+    if (!this.reportCorrectionRefreshPending || this.isRefreshingReportCorrections) return;
+    if (this.isUpdatingCharacterRaidParticipations || this.isUpdatingCharacterMechanics || this.isUpdatingCharacterRankings || this.isRebuildingCharacterTierLists || this.isRebuildingGuildProfileHighlights || this.isRebuildingGuildNetworkSnapshot) {
+      if (!this.reportCorrectionRetryTimer) {
+        this.reportCorrectionRetryTimer = setTimeout(() => {
+          this.reportCorrectionRetryTimer = null;
+          void this.refreshReportCorrections();
+        }, 5000);
+        this.reportCorrectionRetryTimer.unref();
+      }
+      return;
+    }
+    this.reportCorrectionRefreshPending = false;
+    this.isRefreshingReportCorrections = true;
+    const taskId = await taskTracker.start("Refresh Report Corrections");
+    try {
+      await this.rebuildCharacterRaidParticipations();
+      await characterMechanicsService.buildMechanicsLeaderboards(TRACKED_RAIDS);
+      await this.rebuildCharacterTierLists(TRACKED_RAIDS);
+      await this.rebuildGuildProfileHighlights();
+      await tierListService.calculateTierLists();
+      await cacheService.invalidateAllGuildCaches();
+      await cacheService.invalidateCharacterTierListCaches();
+      await taskTracker.complete(taskId);
+    } catch (error) {
+      logger.error("Report correction derived-data refresh failed:", error);
+      await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+    } finally {
+      this.isRefreshingReportCorrections = false;
+      if (this.reportCorrectionRefreshPending) void this.refreshReportCorrections();
+    }
+  }
+
   // Trigger character raid participation rebuild from admin panel (returns false if already running)
   triggerCharacterRaidParticipationRebuild(): boolean {
     if (this.isUpdatingCharacterRaidParticipations) {
@@ -2163,6 +2205,7 @@ class UpdateScheduler {
       throw error;
     } finally {
       this.isUpdatingCharacterRaidParticipations = false;
+      if (this.reportCorrectionRefreshPending) void this.refreshReportCorrections();
     }
 
     if (participationRebuildCompleted) {

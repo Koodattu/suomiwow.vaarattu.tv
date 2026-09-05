@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import type { FunGameRound, FunGameSlug, HigherOrWipeMode } from "@/types";
 import FunGameShell from "./FunGameShell";
 import GuildGuessr from "./games/GuildGuessr";
-import ImmaculateRoster, { MAX_IMMACULATE_MISTAKES } from "./games/ImmaculateRoster";
+import ImmaculateRoster from "./games/ImmaculateRoster";
 import LockItIn from "./games/LockItIn";
 import RaidConnections from "./games/RaidConnections";
 import RaiderResume from "./games/RaiderResume";
@@ -91,7 +91,7 @@ export default function FunGamePage({ game }: { game: FunGameSlug }) {
       error={error}
       hasRound={Boolean(round)}
       onGenerate={() => void generate()}
-      mistakes={round?.game === "immaculate-roster" ? { count: immaculateMistakes, total: MAX_IMMACULATE_MISTAKES } : undefined}
+      mistakes={round?.game === "immaculate-roster" ? { count: immaculateMistakes } : undefined}
     >
       {round ? (
         <div key={round.roundId} className={styles.gameEnter}>

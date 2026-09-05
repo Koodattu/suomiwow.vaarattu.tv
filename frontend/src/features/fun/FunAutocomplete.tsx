@@ -73,6 +73,7 @@ export default function FunAutocomplete<T>({
           autoFocus={autoFocus}
           autoComplete="off"
           aria-busy={loading}
+          aria-label={placeholder}
         />
         {!cell ? (
           <svg aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-blue-300/70 transition-colors group-focus-within:text-blue-200" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -83,11 +84,11 @@ export default function FunAutocomplete<T>({
         {loading ? <span className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin rounded-full border-2 border-slate-500 border-t-blue-300 motion-reduce:animate-none" aria-hidden="true" /> : null}
         <Combobox.Options
           anchor="bottom start"
-          className="z-50 max-h-64 w-[--input-width] min-w-72 max-w-[calc(100vw-2rem)] overflow-auto rounded-md border border-blue-300/25 bg-slate-900 py-1 shadow-2xl [--anchor-gap:4px] empty:invisible"
+          className="z-50 max-h-64 w-[var(--input-width)] min-w-72 max-w-[calc(100vw-2rem)] overflow-auto rounded-md border border-blue-300/25 bg-slate-900 p-1.5 shadow-2xl [--anchor-gap:4px] empty:invisible"
         >
           {filtered.length === 0 ? <div className="px-3 py-3 text-sm text-slate-400">{emptyLabel}</div> : null}
           {filtered.map((item) => (
-            <Combobox.Option key={getKey(item)} value={item} className="cursor-pointer outline-none transition-colors data-focus:bg-blue-600/35 data-focus:shadow-[inset_3px_0_0_#93c5fd] motion-reduce:transition-none">
+            <Combobox.Option key={getKey(item)} value={item} className="mb-1 cursor-pointer rounded-md outline-none transition-colors last:mb-0 data-focus:bg-blue-600/35 data-focus:shadow-[inset_3px_0_0_#93c5fd] motion-reduce:transition-none">
               <div className="min-h-11 px-3 py-2 text-sm text-white">{renderOption ? renderOption(item) : getLabel(item)}</div>
             </Combobox.Option>
           ))}

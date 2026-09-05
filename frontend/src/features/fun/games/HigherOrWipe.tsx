@@ -24,6 +24,8 @@ export default function HigherOrWipe({
   const [index, setIndex] = useState(0);
   const [streak, setStreak] = useState(0);
   const [best, setBest] = useState(0);
+  const [mistakes, setMistakes] = useState(0);
+  const [autoAdvance, setAutoAdvance] = useState(true);
   const [answered, setAnswered] = useState<"left" | "right" | null>(null);
   const [lastCorrect, setLastCorrect] = useState(false);
   const leftChoiceRef = useRef<HTMLButtonElement>(null);
@@ -36,6 +38,7 @@ export default function HigherOrWipe({
     if (!question || answered) return;
     const correct = side === question.correctSide;
     const nextStreak = correct ? streak + 1 : 0;
+    if (!correct) setMistakes((count) => count + 1);
     setAnswered(side);
     setLastCorrect(correct);
     setStreak(nextStreak);
@@ -43,6 +46,7 @@ export default function HigherOrWipe({
   };
 
   const next = () => {
+    if (!answered || complete) return;
     setIndex((current) => current + 1);
     setAnswered(null);
   };
@@ -53,13 +57,29 @@ export default function HigherOrWipe({
     else leftChoiceRef.current?.focus();
   }, [answered, complete, index]);
 
+  useEffect(() => {
+    if (!autoAdvance || !answered || complete || loading) return;
+    const timer = window.setTimeout(() => {
+      setIndex((current) => current + 1);
+      setAnswered(null);
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [autoAdvance, answered, complete, index, loading]);
+
   if (complete) {
-    return <section className="mx-auto mt-5 max-w-5xl">{modeSelector}<FunOutcome status="won" title={t("higher.finished")} className="mx-auto mt-4 max-w-2xl"><span className={`${styles.scorePop} text-base font-bold text-emerald-100`}>{t("higher.best", { count: best })}</span></FunOutcome></section>;
+    return <section className="mx-auto mt-5 max-w-5xl">{modeSelector}<FunOutcome status="won" title={t("higher.finished")} className="mx-auto mt-4 max-w-2xl"><span className={`${styles.scorePop} text-base font-bold text-emerald-100`}>{t("higher.best", { count: best })}</span><span className="mt-2 block">{t("common.mistakes", { count: mistakes })}</span></FunOutcome></section>;
   }
 
   return (
     <section className="mx-auto mt-5 max-w-5xl">
       {modeSelector}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-300">
+        <span className="tabular-nums">{t("common.mistakes", { count: mistakes })}</span>
+        <label className="flex min-h-11 cursor-pointer items-center gap-2">
+          <input type="checkbox" checked={autoAdvance} onChange={(event) => setAutoAdvance(event.target.checked)} className="size-4 accent-blue-500" />
+          {t("higher.autoAdvance")}
+        </label>
+      </div>
       <div className="mt-4 border-b border-white/10 pb-3">
         <div className="flex items-center justify-between text-sm"><span className="text-slate-400 tabular-nums">{t("higher.question", { current: index + 1, total: round.questions.length })}</span><span key={streak} className={`${streak > 0 ? styles.scorePop : ""} font-bold text-blue-200 tabular-nums`}>{t("higher.streak", { count: streak })}</span></div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800" role="progressbar" aria-label={t("higher.question", { current: index + 1, total: round.questions.length })} aria-valuemin={1} aria-valuemax={round.questions.length} aria-valuenow={index + 1}>

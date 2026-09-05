@@ -22,7 +22,7 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
   const target = round.solution.target;
   const [query, setQuery] = useState("");
   const [guesses, setGuesses] = useState<ResumeGuess[]>([]);
-  const [status, setStatus] = useState<"playing" | "won" | "lost">("playing");
+  const [status, setStatus] = useState<"playing" | "won">("playing");
   const targetClass = getClassInfoById(target.classID);
 
   const search = useDebouncedFunGameSearch("raider-resume", query);
@@ -44,7 +44,6 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
     }
     const nextGuesses = [...guesses, { character }];
     setGuesses(nextGuesses);
-    if (nextGuesses.length >= 6) setStatus("lost");
   };
   const clueItems = [
     { label: t("resume.class"), content: <span className="inline-flex items-center gap-2"><FunClassIcon classID={target.classID} size={24} />{targetClass.name}</span> },
@@ -58,10 +57,11 @@ export default function RaiderResume({ round }: { round: RaiderResumeRound }) {
         {status === "playing" ? (
           <div className="flex items-center justify-between gap-3 text-sm">
             <label className="font-bold">{t("resume.chooseRaider")}</label>
-            <span className="text-slate-400 tabular-nums">{t("common.mistakes", { count: guesses.length, total: 6 })}</span>
+            <span className="text-slate-400 tabular-nums">{t("common.mistakes", { count: guesses.length })}</span>
           </div>
         ) : (
           <FunOutcome status={status} className="sm:col-span-2">
+            <span className="block text-slate-400">{t("common.mistakes", { count: guesses.length })}</span>
             <span className="mt-1 block text-slate-400">{t("resume.answerWas")}</span>
             <span className="mt-2 flex items-center gap-3"><CharacterAvatar avatarUrl={target.avatarUrl} classIcon={targetClass.iconUrl} characterName={target.name} className="size-10" /><FunCharacterIdentity character={target} iconSize={28} /></span>
           </FunOutcome>

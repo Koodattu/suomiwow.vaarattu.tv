@@ -100,7 +100,6 @@ type FunRoundBase = {
 
 export type ImmaculateRosterRound = FunRoundBase & {
   game: "immaculate-roster";
-  raid: FunRaid;
   rows: Array<{ id: string; guild: FunGuild }>;
   columns: Array<{ classID: number; name: string; iconUrl: string }>;
   solution: {

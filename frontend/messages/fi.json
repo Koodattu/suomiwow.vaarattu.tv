@@ -1253,6 +1253,49 @@
     "footer": "Raportti perustuu Suomi WoW:n seuraamaan dataan. Rankingit ja edistyminen kuvaavat artikkelin raportointijaksoa."
   },
   "admin": {
+    "reportOverrides": {
+      "title": "Korjaa raportin kilta",
+      "description": "Siirrä tallennettu raportti toiseen kiltaan tai poista se ja estä sen hakeminen uudelleen tälle killalle. Säännöt koskevat automaattisia päivityksiä, tuontia ja täysiä uudelleenhakuja.",
+      "report": "Raportin tunnus tai WCL-linkki",
+      "action": "Toiminto",
+      "move": "Siirrä toiseen kiltaan",
+      "exclude": "Poista ja ohita jatkossa",
+      "search": "Hae kohdekiltaa",
+      "destination": "Kohdekilta",
+      "chooseGuild": "Valitse kilta",
+      "reason": "Syy (valinnainen)",
+      "saving": "Tallennetaan…",
+      "rules": "Tallennetut raporttisäännöt",
+      "noRules": "Tällä killalla ei ole raporttisääntöjä.",
+      "assignedTo": "Määritetty killalle {guild}",
+      "excluded": "Ohitetaan tältä killalta",
+      "release": "Käytä WCL:n kiltaa",
+      "restore": "Salli hakeminen",
+      "restoreHelp": "Salli hakeminen poistaa ohituksen. Tuo raportti tai käynnistä killan uudelleenhaku palauttaaksesi sen. Käytä WCL:n kiltaa poistaa määrityksen, jolloin kilta voi muuttua seuraavassa haussa. Jos haluat siirtää raportin heti takaisin, tee siirto sen nykyisen killan kautta.",
+      "importHelp": "Käsin tuodut raportit pysyvät tällä killalla, kunnes määritys poistetaan.",
+      "confirmExclude": "Poistetaanko {count} taistelua ja ohitetaanko raportti tältä killalta jatkossa?",
+      "loadFailed": "Raporttisääntöjen lataaminen epäonnistui.",
+      "searchFailed": "Kiltojen hakeminen epäonnistui.",
+      "changeFailed": "Raporttisäännön päivittäminen epäonnistui. Päivitä sivu ja yritä uudelleen.",
+      "refreshWarning": "Korjaus tallennettiin, mutta osa tilastojen tai muiden tietojen päivityksestä epäonnistui. Tarkista ylläpidon tehtävät ja käynnistä epäonnistunut päivitys uudelleen.",
+      "success": {
+        "assign": "Raportti siirrettiin. Kiltatilastot on päivitetty. Hahmotiedot ja tier-listat päivittyvät taustalla.",
+        "exclude": "Raportti ohitetaan tältä killalta. Sen tallennetut tiedot poistettiin ja muuttuneet tilastot päivitettiin.",
+        "restore": "Hakeminen on jälleen sallittu. Palauta raportti tuomalla se tai käynnistämällä killan uudelleenhaku.",
+        "clear_assignment": "Määritys poistettiin. Tulevat haut voivat käyttää WCL:n kiltaa."
+      },
+      "errors": {
+        "invalid_report_code": "Anna kelvollinen Warcraft Logs -raportin tunnus tai linkki.",
+        "invalid_guild": "Valitse kelvollinen kilta.",
+        "same_guild": "Valitse eri kohdekilta.",
+        "invalid_reason": "Kirjoita enintään 500 merkin pituinen syy.",
+        "guild_not_found": "Kiltaa ei löytynyt.",
+        "guild_busy": "Killan päivitys on jonossa tai käynnissä. Yritä uudelleen sen valmistuttua.",
+        "report_busy": "Raporttia päivitetään. Yritä uudelleen päivityksen valmistuttua.",
+        "report_conflict": "Raportti kuuluu eri killalle. Päivitä raporttilista ja yritä uudelleen.",
+        "report_excluded": "Raportti ohitetaan kohdekillalta. Salli sen hakeminen siellä ennen siirtoa."
+      }
+    },
     "title": "Hallintapaneeli",
     "description": "Hallitse käyttäjiä, kiltoja ja tarkastele analytiikkaa.",
     "loading": "Ladataan...",
@@ -2651,7 +2694,7 @@
       },
       "closest-without-going-over": {
         "title": "Lähin arvaus",
-        "description": "Pääse kolmella arvauksella mahdollisimman lähelle. Jokainen huti kertoo, pitääkö arvata suurempi vai pienempi luku."
+        "description": "Löydä tarkka luku rajattomilla arvauksilla. Jokainen huti kertoo, pitääkö arvata suurempi vai pienempi luku."
       }
     },
     "common": {
@@ -2667,7 +2710,7 @@
       "searchFailed": "Haku epäonnistui. Yritä uudelleen.",
       "noCharacters": "Sopivia hahmoja ei löytynyt",
       "completed": "{count}/{total} täytetty",
-      "mistakes": "Virheet {count}/{total}",
+      "mistakes": "Virheet: {count}",
       "exampleAnswer": "Esimerkkivastaus",
       "youWon": "Oikein!",
       "gameOver": "Peli päättyi",
@@ -2690,7 +2733,8 @@
       "chooseCell": "Valitse ensin tyhjä ruutu",
       "wonSummary": "Ruudukko täytetty {mistakes} virheellä.",
       "lostSummary": "Viisi hutia. Tyhjissä ruuduissa näkyy esimerkkivastaukset.",
-      "tip": "Valitse ruutu ja hae siihen sopiva hahmo."
+      "allRaids": "Kaikki raidit ja lisäosat",
+      "tip": "Valitse ruutu ja etsi siihen sopiva raidaaja mistä tahansa seuratusta raidista tai lisäosasta."
     },
     "guildGuessr": {
       "target": "Piilotettu kilta",
@@ -2780,7 +2824,8 @@
       "lostSummary": "Neljä kiltarosteria näkyvät yllä."
     },
     "lock": {
-      "instructions": "Sijoita paljastuvat killat. Kun kaikki viisi ovat paikoillaan, vedä ne oikeaan järjestykseen ja lukitse.",
+      "instructions": "Sijoita paljastuvat killat ja vedä ne sitten järjestykseen. Voit yrittää uudelleen, kunnes jokainen kilta on oikealla paikalla.",
+      "tryAgain": "{count}/{total} oikealla paikalla. Muuta järjestystä ja yritä uudelleen.",
       "modes": {
         "pulls": {
           "label": "Vähiten pulleja",
@@ -2808,12 +2853,12 @@
       "tank": "Tank"
     },
     "suomidle": {
-      "start": "Tee arvaus nähdäksesi vertailun.",
+      "start": "Aloita etsimällä hahmo. Jokainen arvaus paljastaa osumat ja vihjeitä piilotetusta hahmosta.",
       "guess": "Arvaa hahmo",
       "search": "Hae hahmoja",
       "none": "Sopivia hahmoja ei löytynyt",
       "answerWas": "Hahmo oli",
-      "arrows": "Nuolet osoittavat kohti oikeaa arvoa. Rasti tarkoittaa eri kategoriaa.",
+      "arrows": "Vihreä tarkoittaa osumaa. Nuolet kertovat, onko kohteen arvo suurempi vai pienempi. Jatka arvaamista, kunnes löydät hahmon.",
       "character": "Hahmo",
       "class": "Class",
       "spec": "Spec",
@@ -2830,7 +2875,8 @@
       "streak": "Putki {count}",
       "choose": "Valitse",
       "correct": "Oikein",
-      "wrong": "Putki katkesi",
+      "wrong": "Väärin",
+      "autoAdvance": "Siirry automaattisesti 2,5 sekunnin kuluttua",
       "next": "Seuraava",
       "results": "Näytä tulos",
       "finished": "Kierros valmis",

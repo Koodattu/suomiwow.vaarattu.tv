@@ -1,3 +1,4 @@
+import type { AdminReportOverride, AdminReportOverrideAction } from "@/types";
 import {
   GuildListItem,
   GuildDirectoryItem,
@@ -3372,5 +3373,27 @@ export async function deleteAdminReport(guildId: string, reportId: string): Prom
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.error || "Failed to delete report");
   }
+  return response.json();
+}
+
+export async function getAdminReportOverrides(guildId: string): Promise<AdminReportOverride[]> {
+  const response = await fetch(`${API_URL}/api/admin/guilds/${guildId}/report-overrides`, { credentials: "include" });
+  if (!response.ok) throw await buildApiError(response, "Failed to load report rules");
+  return response.json();
+}
+
+export async function updateAdminReportOverride(guildId: string, input: {
+  action: AdminReportOverrideAction;
+  reportCode: string;
+  targetGuildId?: string;
+  reason?: string;
+}): Promise<{ success: boolean; reportCode: string; warnings: string[] }> {
+  const response = await fetch(`${API_URL}/api/admin/guilds/${guildId}/report-overrides`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await buildApiError(response, "Failed to update report rules");
   return response.json();
 }

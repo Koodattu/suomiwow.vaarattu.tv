@@ -31,6 +31,8 @@ export default function LockItIn({ round }: { round: LockItInRound }) {
   const [placements, setPlacements] = useState<Array<FunGuild | null>>([null, null, null, null, null]);
   const [revealIndex, setRevealIndex] = useState(0);
   const [locked, setLocked] = useState(false);
+  const [mistakes, setMistakes] = useState(0);
+  const [correctPositions, setCorrectPositions] = useState<number | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const lockButtonRef = useRef<HTMLButtonElement>(null);
   const complete = placements.every(Boolean);
@@ -44,15 +46,13 @@ export default function LockItIn({ round }: { round: LockItInRound }) {
     [locale],
   );
 
-  const score = useMemo(() => {
-    if (!locked) return 0;
-    return placements.reduce((total, guild, index) => {
-      if (!guild) return total;
-      const actual = round.solution.ranking.findIndex((item) => item.guild.id === guild.id);
-      if (actual === index) return total + 2;
-      return Math.abs(actual - index) === 1 ? total + 1 : total;
-    }, 0);
-  }, [locked, placements, round.solution.ranking]);
+  const submitRanking = () => {
+    if (!complete || locked) return;
+    const correct = placements.filter((guild, index) => guild?.id === round.solution.ranking[index].guild.id).length;
+    setCorrectPositions(correct);
+    if (correct === placements.length) setLocked(true);
+    else setMistakes((count) => count + 1);
+  };
 
   useEffect(() => {
     if (locked) return;
@@ -73,6 +73,7 @@ export default function LockItIn({ round }: { round: LockItInRound }) {
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     if (!complete || locked || !over || active.id === over.id) return;
+    setCorrectPositions(null);
     setPlacements((items) => {
       const oldIndex = items.findIndex((guild) => guild?.id === active.id);
       const newIndex = items.findIndex((guild) => guild?.id === over.id);
@@ -94,6 +95,7 @@ export default function LockItIn({ round }: { round: LockItInRound }) {
         </div>
       </div>
 
+      <p className="mt-3 text-sm text-slate-400 tabular-nums">{t("common.mistakes", { count: mistakes })}</p>
       {!locked ? <div className="flex min-h-16 items-center justify-between gap-3 border-b border-white/10 py-3" aria-live="polite">
         {!complete && current ? (
           <div key={current.id} className={`${styles.reveal} flex min-w-0 items-center gap-3`}>
@@ -101,11 +103,12 @@ export default function LockItIn({ round }: { round: LockItInRound }) {
             <FunGuildIdentity guild={current} crestSize={38} />
           </div>
         ) : null}
+        {correctPositions !== null ? <p role="status" className="text-sm text-blue-200">{t("lock.tryAgain", { count: correctPositions, total: placements.length })}</p> : null}
         {complete && !locked ? (
           <button
             ref={lockButtonRef}
             type="button"
-            onClick={() => setLocked(true)}
+            onClick={submitRanking}
             className="ml-auto min-h-10 rounded-md bg-blue-600 px-5 py-2 text-sm font-bold transition-[background-color,transform] hover:bg-blue-500 active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
           >
             {t("lock.lockRanking")}
@@ -141,9 +144,9 @@ export default function LockItIn({ round }: { round: LockItInRound }) {
 
         {locked ? (
           <div className="mt-4">
-            <FunOutcome status="won" title={<span className={styles.scorePop}>{t("lock.score", { score, total: 10 })}</span>}>
+            <FunOutcome status="won">
               <span className="block text-xs font-bold uppercase tracking-wider text-blue-300">{t(`lock.modes.${round.mode}.label`)}</span>
-              <span className="mt-1 block">{t("lock.scoreRules")}</span>
+              <span className="mt-1 block">{t("common.mistakes", { count: mistakes })}</span>
             </FunOutcome>
             <ol className="mt-5 space-y-2">
               {round.solution.ranking.map((item, index) => (

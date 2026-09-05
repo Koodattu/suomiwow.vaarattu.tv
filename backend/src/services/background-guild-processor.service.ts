@@ -1,3 +1,4 @@
+import reportOverridePolicy from "./report-override-policy.service";
 import Guild, { IGuild } from "../models/Guild";
 import Report, { IReport, IReportFightSequenceEntry } from "../models/Report";
 import Fight from "../models/Fight";
@@ -246,6 +247,17 @@ class BackgroundGuildProcessor {
       });
 
       try {
+        const correctionInProgress = await Guild.exists({
+          _id: queueItem.guildId,
+          logSourceMigrationLockToken: { $exists: true },
+          logSourceMigrationLockedAt: { $gte: new Date(Date.now() - 2 * 60 * 60 * 1000) },
+        });
+        if (correctionInProgress) {
+          await GuildProcessingQueue.updateOne({ _id: queueItem._id }, { $set: { status: "pending" }, $unset: { startedAt: 1 } });
+          await taskTracker.complete(taskId, { deferred: true });
+          this.scheduleNextCheck(this.config.idleCheckInterval);
+          return;
+        }
         // Route to appropriate processing method based on job type
         switch (queueItem.jobType) {
           case "rescan_deaths":
@@ -493,6 +505,15 @@ class BackgroundGuildProcessor {
         }
       }
 
+      if (source.isPrimary) {
+        for (const code of await reportOverridePolicy.assignedCodes(guild._id)) {
+          const data = await wclService.getReportByCodeAllDifficulties(code);
+          const assignedReport = data.reportData?.report;
+          if (!assignedReport || assignedReport.code !== code) throw new Error(`Assigned report ${code} could not be fetched`);
+          totalFightsSaved += await this.processReport(assignedReport, guild, source, validBossIds);
+        }
+      }
+
       const [mostRecentSourceReport, mostRecentReport] = await Promise.all([
         Report.findOne({ guildId: guild._id, warcraftLogsSourceId: source._id }).sort({ endTime: -1 }).limit(1),
         Report.findOne({ guildId: guild._id }).sort({ endTime: -1 }).limit(1),
@@ -635,147 +656,155 @@ class BackgroundGuildProcessor {
   }
 
   private async processReport(report: any, guild: IGuild, source: IGuildLogSource, validBossIds: Set<number>): Promise<number> {
-    let fightsSaved = 0;
-    const zoneId = report.zone?.id;
-    const isOngoing = !report.endTime || report.endTime === 0;
+    const reportWriteToken = await reportOverridePolicy.acquireForIngestion(report.code, guild._id);
+    if (!reportWriteToken) return 0;
+    try {
+      let fightsSaved = 0;
+      const zoneId = report.zone?.id;
+      const isOngoing = !report.endTime || report.endTime === 0;
 
-    // Save report metadata
-    await Report.findOneAndUpdate(
-      { code: report.code },
-      {
-        code: report.code,
-        guildId: guild._id,
-        warcraftLogsSourceId: source._id,
-        sourceGuildSnapshot: getGuildLogSourceSnapshot(source),
-        zoneId: zoneId || 0,
-        startTime: report.startTime,
-        endTime: report.endTime,
-        isOngoing,
-        fightCount: report.fights?.length || 0,
-        fightSequence: this.buildReportFightSequence(report),
-        lastProcessed: new Date(),
-      },
-      { upsert: true, returnDocument: "after" },
-    );
+      // Save report metadata
+      await Report.findOneAndUpdate(
+        { code: report.code },
+        {
+          code: report.code,
+          guildId: guild._id,
+          ...(await reportOverridePolicy.sourceFields(report.code, {
+            warcraftLogsSourceId: source._id,
+            sourceGuildSnapshot: getGuildLogSourceSnapshot(source),
+          })),
+          zoneId: zoneId || 0,
+          startTime: report.startTime,
+          endTime: report.endTime,
+          isOngoing,
+          fightCount: report.fights?.length || 0,
+          fightSequence: this.buildReportFightSequence(report),
+          lastProcessed: new Date(),
+        },
+        { upsert: true, returnDocument: "after" },
+      );
 
-    // Process fights
-    if (report.fights && report.fights.length > 0) {
-      const encounterPhases = report.phases || [];
+      // Process fights
+      if (report.fights && report.fights.length > 0) {
+        const encounterPhases = report.phases || [];
 
-      // Get fight IDs for tracked raid bosses only
-      const trackedFightIds: number[] = [];
-      for (const fight of report.fights) {
-        if (validBossIds.has(fight.encounterID)) {
-          trackedFightIds.push(fight.id);
-        }
-      }
-
-      const fightDetailFightIds = this.fetchDeathEvents
-        ? trackedFightIds
-        : report.fights.filter((fight: any) => validBossIds.has(fight.encounterID) && fight.difficulty === 5).map((fight: any) => fight.id);
-
-      let deathsByFight = new Map<number, any[]>();
-      let combatantsByFight = new Map<number, any[]>();
-      let rostersByFight = new Map<number, FightRosterResult>();
-      let deathEventsFetchedAt: Date | null = null;
-      let combatantInfoFetchedAt: Date | null = null;
-      if (fightDetailFightIds.length > 0) {
-        try {
-          const deathData = await wclService.getDeathEventsForReport(report.code, fightDetailFightIds, {
-            includeCombatantInfo: true,
-            includeDeathEvents: this.fetchDeathEvents,
-          });
-          if (deathData.reportData?.report) {
-            const actors = deathData.reportData.report.masterData?.actors || [];
-            if (this.fetchDeathEvents && Array.isArray(deathData.reportData.report.events?.data)) {
-              deathsByFight = wclService.parseDeathEventsByFight(deathData.reportData.report, actors, report.fights);
-              deathEventsFetchedAt = new Date();
-            }
-            rostersByFight = wclService.parseFightRostersByFight(deathData.reportData.report, actors);
-            combatantsByFight = new Map(Array.from(rostersByFight, ([fightId, roster]) => [fightId, roster.participants]));
-            combatantInfoFetchedAt = new Date();
+        // Get fight IDs for tracked raid bosses only
+        const trackedFightIds: number[] = [];
+        for (const fight of report.fights) {
+          if (validBossIds.has(fight.encounterID)) {
+            trackedFightIds.push(fight.id);
           }
-        } catch (error: any) {
-          // Non-fatal, leave fight-detail statuses pending for the repair queue.
-          logger.debug(`Failed to fetch fight details for report ${report.code}: ${error.message}`);
-        }
-      }
-
-      for (const fight of report.fights) {
-        const encounterId = fight.encounterID;
-
-        // Only save fights for tracked raid bosses
-        if (!validBossIds.has(encounterId)) {
-          continue;
         }
 
-        const bossPercent = fight.bossPercentage || 0;
-        const fightPercent = fight.fightPercentage || 0;
-        const duration = fight.endTime - fight.startTime;
-        const difficulty = fight.difficulty;
+        const fightDetailFightIds = this.fetchDeathEvents
+          ? trackedFightIds
+          : report.fights.filter((fight: any) => validBossIds.has(fight.encounterID) && fight.difficulty === 5).map((fight: any) => fight.id);
 
-        // Determine phase information
-        const phaseInfo = wclService.determinePhaseInfo(fight, encounterPhases);
-
-        // Get deaths for this fight
-        const deaths = deathsByFight.get(fight.id) || [];
-        const combatants = combatantsByFight.get(fight.id) || [];
-        const roster = rostersByFight.get(fight.id);
-        const fightDetailsFetchUpdate = {
-          ...(deathEventsFetchedAt !== null
-            ? { deaths, deathEventsFetchStatus: "fetched", deathEventsFetchedAt }
-            : {}),
-          ...(combatantInfoFetchedAt !== null && roster?.rosterComplete
-            ? {
-                combatants,
-                combatantInfoFetchStatus: roster.status,
-                combatantInfoFetchedAt,
-                combatantInfoSource: roster.source,
-                combatantInfoRosterComplete: true,
-                combatantInfoKnownSpecCount: roster.knownSpecCount,
+        let deathsByFight = new Map<number, any[]>();
+        let combatantsByFight = new Map<number, any[]>();
+        let rostersByFight = new Map<number, FightRosterResult>();
+        let deathEventsFetchedAt: Date | null = null;
+        let combatantInfoFetchedAt: Date | null = null;
+        if (fightDetailFightIds.length > 0) {
+          try {
+            const deathData = await wclService.getDeathEventsForReport(report.code, fightDetailFightIds, {
+              includeCombatantInfo: true,
+              includeDeathEvents: this.fetchDeathEvents,
+            });
+            if (deathData.reportData?.report) {
+              const actors = deathData.reportData.report.masterData?.actors || [];
+              if (this.fetchDeathEvents && Array.isArray(deathData.reportData.report.events?.data)) {
+                deathsByFight = wclService.parseDeathEventsByFight(deathData.reportData.report, actors, report.fights);
+                deathEventsFetchedAt = new Date();
               }
-            : {}),
-        };
+              rostersByFight = wclService.parseFightRostersByFight(deathData.reportData.report, actors);
+              combatantsByFight = new Map(Array.from(rostersByFight, ([fightId, roster]) => [fightId, roster.participants]));
+              combatantInfoFetchedAt = new Date();
+            }
+          } catch (error: any) {
+            // Non-fatal, leave fight-detail statuses pending for the repair queue.
+            logger.debug(`Failed to fetch fight details for report ${report.code}: ${error.message}`);
+          }
+        }
 
-        // Save fight to database
-        const fightTimestamp = new Date(report.startTime + fight.startTime);
-        await Fight.findOneAndUpdate(
-          { reportCode: report.code, fightId: fight.id },
-          {
-            reportCode: report.code,
-            guildId: guild._id,
-            fightId: fight.id,
-            zoneId: zoneId || 0,
-            encounterID: encounterId,
-            encounterName: fight.name || `Boss ${encounterId}`,
-            difficulty: difficulty,
-            isKill: fight.kill === true,
-            bossPercentage: bossPercent,
-            fightPercentage: fightPercent,
-            lastPhaseId: phaseInfo.lastPhase?.phaseId,
-            lastPhaseName: phaseInfo.lastPhase?.phaseName,
-            phaseTransitions: fight.phaseTransitions?.map((pt: any) => ({
-              id: pt.id,
-              startTime: pt.startTime,
-              name: encounterPhases.find((ep: any) => ep.encounterID === encounterId)?.phases?.find((p: any) => p.id === pt.id)?.name,
-            })),
-            progressDisplay: phaseInfo.progressDisplay,
-            ...fightDetailsFetchUpdate,
-            reportStartTime: report.startTime,
-            reportEndTime: report.endTime || 0,
-            fightStartTime: fight.startTime,
-            fightEndTime: fight.endTime,
-            duration: duration,
-            timestamp: fightTimestamp,
-          },
-          { upsert: true, returnDocument: "after" },
-        );
+        for (const fight of report.fights) {
+          const encounterId = fight.encounterID;
 
-        fightsSaved++;
+          // Only save fights for tracked raid bosses
+          if (!validBossIds.has(encounterId)) {
+            continue;
+          }
+
+          const bossPercent = fight.bossPercentage || 0;
+          const fightPercent = fight.fightPercentage || 0;
+          const duration = fight.endTime - fight.startTime;
+          const difficulty = fight.difficulty;
+
+          // Determine phase information
+          const phaseInfo = wclService.determinePhaseInfo(fight, encounterPhases);
+
+          // Get deaths for this fight
+          const deaths = deathsByFight.get(fight.id) || [];
+          const combatants = combatantsByFight.get(fight.id) || [];
+          const roster = rostersByFight.get(fight.id);
+          const fightDetailsFetchUpdate = {
+            ...(deathEventsFetchedAt !== null
+              ? { deaths, deathEventsFetchStatus: "fetched", deathEventsFetchedAt }
+              : {}),
+            ...(combatantInfoFetchedAt !== null && roster?.rosterComplete
+              ? {
+                  combatants,
+                  combatantInfoFetchStatus: roster.status,
+                  combatantInfoFetchedAt,
+                  combatantInfoSource: roster.source,
+                  combatantInfoRosterComplete: true,
+                  combatantInfoKnownSpecCount: roster.knownSpecCount,
+                }
+              : {}),
+          };
+
+          // Save fight to database
+          const fightTimestamp = new Date(report.startTime + fight.startTime);
+          await Fight.findOneAndUpdate(
+            { reportCode: report.code, fightId: fight.id },
+            {
+              reportCode: report.code,
+              guildId: guild._id,
+              fightId: fight.id,
+              zoneId: zoneId || 0,
+              encounterID: encounterId,
+              encounterName: fight.name || `Boss ${encounterId}`,
+              difficulty: difficulty,
+              isKill: fight.kill === true,
+              bossPercentage: bossPercent,
+              fightPercentage: fightPercent,
+              lastPhaseId: phaseInfo.lastPhase?.phaseId,
+              lastPhaseName: phaseInfo.lastPhase?.phaseName,
+              phaseTransitions: fight.phaseTransitions?.map((pt: any) => ({
+                id: pt.id,
+                startTime: pt.startTime,
+                name: encounterPhases.find((ep: any) => ep.encounterID === encounterId)?.phases?.find((p: any) => p.id === pt.id)?.name,
+              })),
+              progressDisplay: phaseInfo.progressDisplay,
+              ...fightDetailsFetchUpdate,
+              reportStartTime: report.startTime,
+              reportEndTime: report.endTime || 0,
+              fightStartTime: fight.startTime,
+              fightEndTime: fight.endTime,
+              duration: duration,
+              timestamp: fightTimestamp,
+            },
+            { upsert: true, returnDocument: "after" },
+          );
+
+          fightsSaved++;
+        }
       }
-    }
 
-    return fightsSaved;
+      return fightsSaved;
+    } finally {
+      await reportOverridePolicy.release(report.code, reportWriteToken);
+    }
   }
 
   /**

@@ -9,6 +9,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/context/AuthContext";
 import CcgAdminPanel from "@/components/admin/CcgAdminPanel";
+import ReportOverridesPanel from "@/components/admin/ReportOverridesPanel";
 import ReporterAdminPanel from "@/components/admin/ReporterAdminPanel";
 import TwitchChatAuditPanel from "@/components/admin/TwitchChatAuditPanel";
 import { api } from "@/lib/api";
@@ -1607,11 +1608,6 @@ function AdminPageContent() {
       return;
     }
 
-    if (!/^[a-zA-Z0-9]+$/.test(reportCode)) {
-      setTriggerMessage({ type: "error", text: "Report code can only contain letters and numbers" });
-      return;
-    }
-
     setManualReportImporting(true);
     try {
       const result = await importAdminGuildReport(guildId, reportCode, manualReportSourceId || undefined);
@@ -1637,7 +1633,7 @@ function AdminPageContent() {
     setDeletingReportId(reportId);
     try {
       const result = await deleteAdminReport(guildId, reportId);
-      setTriggerMessage({ type: "success", text: result.message });
+      setTriggerMessage({ type: "success", text: result.warnings.length ? t("reportOverrides.refreshWarning") : t("reportOverrides.success.exclude") });
       // Refresh the reports list
       const data = await getAdminGuildReports(guildId);
       setGuildReports(data);
@@ -6054,7 +6050,7 @@ function AdminPageContent() {
                       <input
                         value={wclProbeReportCode}
                         onChange={(event) => setWclProbeReportCode(event.target.value)}
-                        placeholder="Report code"
+                        placeholder={t("reportOverrides.report")}
                         className="w-full bg-gray-700 text-white rounded-lg px-3 py-2"
                       />
                     </label>
@@ -7511,12 +7507,13 @@ function AdminPageContent() {
                   className="mb-4 rounded-lg border border-gray-700 bg-gray-900/40 p-3"
                 >
                   <label className="block text-sm font-medium text-gray-300 mb-2">Add WCL Report</label>
+                  <p className="mb-2 text-xs text-gray-400">{t("reportOverrides.importHelp")}</p>
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <input
                       type="text"
                       value={manualReportCode}
                       onChange={(event) => setManualReportCode(event.target.value)}
-                      placeholder="Report code"
+                      placeholder={t("reportOverrides.report")}
                       className="min-w-0 flex-1 rounded border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-amber-500 focus:outline-none disabled:opacity-60"
                       disabled={manualReportImporting}
                     />
@@ -7542,6 +7539,15 @@ function AdminPageContent() {
                     </button>
                   </div>
                 </form>
+                {guildReports && <ReportOverridesPanel
+                  guildId={selectedGuild.id}
+                  reports={guildReports.raids.flatMap((raid) => raid.reports)}
+                  onChanged={async () => {
+                    const [reports, detail] = await Promise.all([getAdminGuildReports(selectedGuild.id), getAdminGuildDetail(selectedGuild.id)]);
+                    setGuildReports(reports);
+                    setSelectedGuild(detail);
+                  }}
+                />}
                 {reportsLoading ? (
                   <div className="text-center py-8 text-gray-400">Loading reports...</div>
                 ) : guildReports ? (
@@ -7636,13 +7642,13 @@ function AdminPageContent() {
                                       <td className="px-4 py-2 text-right">
                                         {isConfirming ? (
                                           <div className="flex items-center justify-end gap-2">
-                                            <span className="text-red-400 text-xs">Delete {report.fightCount} fights?</span>
+                                            <span className="text-red-400 text-xs">{t("reportOverrides.confirmExclude", { count: report.fightCount })}</span>
                                             <button
                                               onClick={() => handleDeleteReport(selectedGuild.id, report.id)}
                                               disabled={isDeleting}
                                               className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
                                             >
-                                              {isDeleting ? "..." : "Yes"}
+                                              {isDeleting ? "..." : t("reportOverrides.exclude")}
                                             </button>
                                             <button onClick={() => setReportDeleteConfirm(null)} className="px-2 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-500">
                                               No
@@ -7659,7 +7665,7 @@ function AdminPageContent() {
                                             }
                                             className="px-2 py-1 bg-red-900/50 text-red-400 text-xs rounded hover:bg-red-900 hover:text-red-300"
                                           >
-                                            Delete
+                                            {t("reportOverrides.exclude")}
                                           </button>
                                         )}
                                       </td>

@@ -9,8 +9,6 @@ import { FunBossIdentity, FunRaidIdentity } from "../FunEncounterIdentity";
 import FunGuildIdentity from "../FunGuildIdentity";
 import styles from "../fun-feedback.module.css";
 
-const MAX_GUESSES = 3;
-
 export default function ClosestWithoutGoingOver({ round }: { round: ClosestWithoutGoingOverRound }) {
   const t = useTranslations("fun");
   const [guess, setGuess] = useState("");
@@ -18,10 +16,8 @@ export default function ClosestWithoutGoingOver({ round }: { round: ClosestWitho
   const answer = round.solution.value;
   const latest = guesses.at(-1);
   const exact = latest === answer;
-  const finished = exact || guesses.length >= MAX_GUESSES;
   const parsedGuess = Number(guess);
   const canSubmit = guess.trim() !== "" && Number.isFinite(parsedGuess) && parsedGuess >= 0;
-  const bestGuess = guesses.reduce<number | null>((best, value) => best === null || Math.abs(answer - value) < Math.abs(answer - best) ? value : best, null);
   const bars = useMemo(() => histogram(round.distribution.values, 10), [round.distribution.values]);
   const maxBar = Math.max(...bars.map((bar) => bar.count), 1);
   const subjectIdentity = round.challenge.guild ? (
@@ -34,7 +30,7 @@ export default function ClosestWithoutGoingOver({ round }: { round: ClosestWitho
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (finished) return;
+    if (exact) return;
     if (!canSubmit) return;
     setGuesses((current) => [...current, Math.round(parsedGuess)]);
     setGuess("");
@@ -64,7 +60,7 @@ export default function ClosestWithoutGoingOver({ round }: { round: ClosestWitho
           </ol>
         ) : null}
 
-        {!finished ? (
+        {!exact ? (
           <form onSubmit={submit} className="mt-6 flex flex-col gap-3 sm:flex-row">
             <label className="sr-only" htmlFor="closest-guess">{t("closest.yourGuess")}</label>
             <input
@@ -81,18 +77,14 @@ export default function ClosestWithoutGoingOver({ round }: { round: ClosestWitho
             <button type="submit" disabled={!canSubmit} className="min-h-12 rounded-md bg-blue-600 px-6 text-sm font-bold transition-[background-color,transform] hover:bg-blue-500 active:not-disabled:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 motion-reduce:transform-none motion-reduce:transition-none">{t("closest.submitGuess")}</button>
           </form>
         ) : (
-          <div className={`${styles.outcome} mt-6 rounded-xl border p-4 ${exact ? "border-emerald-300/25 bg-emerald-950/30" : "border-blue-300/20 bg-blue-950/25"}`} role="status">
-            <p className={`text-2xl font-black ${exact ? "text-emerald-300" : "text-blue-200"}`}>{exact ? t("closest.exact") : t("closest.finished")}</p>
+          <div className={`${styles.outcome} mt-6 rounded-xl border border-emerald-300/25 bg-emerald-950/30 p-4`} role="status">
+            <p className="text-2xl font-black text-emerald-300">{t("closest.exact")}</p>
             <div className="mt-4 flex flex-wrap gap-x-8 gap-y-3 text-sm">
               <span><span className="block text-slate-400">{t("closest.answer")}</span><span className="text-xl font-black text-emerald-300 tabular-nums">{answer}</span></span>
-              {bestGuess !== null ? <span><span className="block text-slate-400">{t("closest.bestGuess")}</span><span className="text-xl font-black tabular-nums">{bestGuess} <span className="text-sm font-semibold text-slate-400">{t("closest.away", { difference: Math.abs(answer - bestGuess) })}</span></span></span> : null}
             </div>
           </div>
         )}
-        <div className="mt-3 flex items-center gap-3">
-          <div className="flex gap-1.5" aria-hidden="true">{Array.from({ length: MAX_GUESSES }, (_, index) => <span key={index} className={`h-1.5 w-7 rounded-full transition-colors duration-200 motion-reduce:transition-none ${index < guesses.length ? "bg-blue-300" : "bg-slate-700"}`} />)}</div>
-          <p className="text-xs text-slate-400 tabular-nums">{t("closest.remaining", { count: Math.max(0, MAX_GUESSES - guesses.length) })}</p>
-        </div>
+        <p className="mt-3 text-sm text-slate-400 tabular-nums">{t("common.mistakes", { count: guesses.filter((value) => value !== answer).length })}</p>
       </div>
 
       <aside className="border-t border-white/10 bg-slate-950/25 p-4 lg:border-l lg:border-t-0">

@@ -23,7 +23,7 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
   const target = round.solution.target;
   const [query, setQuery] = useState("");
   const [guesses, setGuesses] = useState<GuessFeedback[]>([]);
-  const [status, setStatus] = useState<"playing" | "won" | "lost">("playing");
+  const [status, setStatus] = useState<"playing" | "won">("playing");
 
   const search = useDebouncedFunGameSearch("guild-guessr", query);
   const guessedIds = new Set(guesses.map((guess) => guess.guild.id));
@@ -53,7 +53,6 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
       },
     ];
     setGuesses(nextGuesses);
-    if (nextGuesses.length >= 5) setStatus("lost");
   };
 
   const schedule = target.raidSchedule?.days
@@ -73,12 +72,13 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
     <section className="mt-5">
       <div className="grid gap-3 border-y border-white/10 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(17rem,24rem)] sm:items-center">
         {status === "playing" ? (
-          <div className="flex items-center justify-between gap-3 text-sm sm:order-2 sm:justify-end">
-            <label className="font-bold sm:sr-only">{t("guildGuessr.chooseGuild")}</label>
-            <span className="text-slate-400 tabular-nums">{t("common.mistakes", { count: guesses.length, total: 5 })}</span>
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <label className="font-bold">{t("guildGuessr.chooseGuild")}</label>
+            <span className="text-slate-400 tabular-nums">{t("common.mistakes", { count: guesses.length })}</span>
           </div>
         ) : (
           <FunOutcome status={status} className="sm:col-span-2">
+            <span className="block text-slate-400">{t("common.mistakes", { count: guesses.length })}</span>
             <span className="mt-1 block text-slate-400">{t("guildGuessr.answerWas")}</span>
             <FunGuildIdentity guild={target} crestSize={34} className="mt-2" />
           </FunOutcome>
@@ -108,7 +108,7 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
         <div className="border-y border-white/10 py-4">
         <div className="mx-auto grid max-w-3xl gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)] sm:items-center">
           <div className="min-w-0 space-y-3">
-            {round.neighbors.slice(0, 2).map((neighbor) => <Neighbor key={neighbor.guild.id} neighbor={neighbor} />)}
+            {round.neighbors.slice(0, 2).map((neighbor) => <Neighbor key={neighbor.guild.id} neighbor={neighbor} side="left" />)}
           </div>
           <div className={`${styles.softPulse} grid min-h-32 place-items-center rounded-xl border-2 border-dashed border-blue-300/35 bg-blue-950/35 text-center`}>
             <div>
@@ -149,11 +149,17 @@ export default function GuildGuessr({ round }: { round: GuildGuessrRound }) {
   );
 }
 
-function Neighbor({ neighbor }: { neighbor: GuildGuessrRound["neighbors"][number] }) {
+function Neighbor({ neighbor, side = "right" }: { neighbor: GuildGuessrRound["neighbors"][number]; side?: "left" | "right" }) {
   const t = useTranslations("fun");
   return (
-    <div className="flex min-w-0 items-center gap-3 border-b border-white/10 px-1 py-3 last:border-b-0">
-      <div className="min-w-0 flex-1"><FunGuildIdentity guild={neighbor.guild} crestSize={40} /><p className="mt-1 text-xs text-blue-200">{t("guildGuessr.sharedCharacters", { count: neighbor.sharedCharacters })}</p><p className="text-xs text-slate-400">{t("guildGuessr.sharedRaids", { count: neighbor.sharedRaids.length })}</p></div>
+    <div className={`flex min-w-0 items-center gap-3 py-4 ${side === "left" ? "sm:flex-row-reverse" : ""}`}>
+      <FunGuildCrest crest={neighbor.guild.crest} faction={neighbor.guild.faction} size={48} />
+      <div className={`min-w-0 flex-1 ${side === "left" ? "sm:text-right" : "text-left"}`}>
+        <p className="text-balance font-bold leading-tight">{neighbor.guild.name}</p>
+        <p className="mt-1 text-xs text-slate-400">{formatRealmName(neighbor.guild.realm)}</p>
+        <p className="mt-2 text-xs font-semibold text-blue-200">{t("guildGuessr.sharedCharacters", { count: neighbor.sharedCharacters })}</p>
+        <p className="mt-0.5 text-xs text-slate-400">{t("guildGuessr.sharedRaids", { count: neighbor.sharedRaids.length })}</p>
+      </div>
     </div>
   );
 }

@@ -23,7 +23,7 @@ export default function RaidConnections({ round }: { round: RaidConnectionsRound
   const [mistakes, setMistakes] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<"good" | "bad" | null>(null);
-  const [status, setStatus] = useState<"playing" | "won" | "lost">("playing");
+  const [status, setStatus] = useState<"playing" | "won">("playing");
   const boardRef = useRef<HTMLDivElement>(null);
 
   const tilesByKey = useMemo(() => new Map(round.tiles.map((tile) => [tile.key, tile])), [round.tiles]);
@@ -63,7 +63,6 @@ export default function RaidConnections({ round }: { round: RaidConnectionsRound
     setSelected([]);
     setNotice(closest === 3 ? t("connections.oneAway") : t("connections.incorrectGroup"));
     setFeedback("bad");
-    if (nextMistakes >= 4) setStatus("lost");
   };
 
   return (
@@ -74,7 +73,7 @@ export default function RaidConnections({ round }: { round: RaidConnectionsRound
             <FunRaidIdentity raid={round.raid} iconSize={42} />
             <p className="mt-2 max-w-2xl text-pretty text-sm text-slate-400">{t("connections.instructions")}</p>
           </div>
-          <span className="shrink-0 text-sm font-bold text-red-200 tabular-nums">{t("common.mistakes", { count: mistakes, total: 4 })}</span>
+          <span className="shrink-0 text-sm font-bold text-red-200 tabular-nums">{t("common.mistakes", { count: mistakes })}</span>
         </div>
 
         <div className="sticky bottom-3 z-20 -mx-1 mt-3 flex items-center justify-between gap-3 border-y border-white/10 bg-[#0b1020]/95 px-1 py-3 backdrop-blur-sm lg:static lg:mx-0 lg:bg-transparent lg:backdrop-blur-none">
@@ -84,13 +83,13 @@ export default function RaidConnections({ round }: { round: RaidConnectionsRound
               <button type="button" onClick={submit} disabled={selected.length !== 4} className="min-h-11 shrink-0 rounded-md bg-blue-600 px-5 py-2 text-sm font-bold transition-[background-color,transform] hover:bg-blue-500 active:not-disabled:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 motion-reduce:transform-none motion-reduce:transition-none">{t("connections.submitGroup")}</button>
             </>
           ) : (
-            <FunOutcome status={status} className="w-full">{status === "won" ? t("connections.wonSummary", { mistakes }) : t("connections.lostSummary")}</FunOutcome>
+            <FunOutcome status={status} className="w-full">{t("connections.wonSummary", { mistakes })}</FunOutcome>
           )}
         </div>
 
       <div className="mt-3 space-y-2">
         {round.solution.groups.map((group, index) => {
-          const visible = solvedIds.includes(group.id) || status === "lost";
+          const visible = solvedIds.includes(group.id);
           if (!visible) return null;
           const members = group.memberKeys.map((key) => tilesByKey.get(key)).filter((tile): tile is FunCharacter => Boolean(tile));
           return (
@@ -104,7 +103,6 @@ export default function RaidConnections({ round }: { round: RaidConnectionsRound
         })}
       </div>
 
-      {status !== "lost" ? (
         <div ref={boardRef} className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label={t("connections.instructions")}>
           {remainingTiles.map((tile) => {
             const active = selected.includes(tile.key);
@@ -124,7 +122,6 @@ export default function RaidConnections({ round }: { round: RaidConnectionsRound
             );
           })}
         </div>
-      ) : null}
       </div>
     </section>
   );

@@ -8,12 +8,10 @@ import type { CharacterSearchResult, ImmaculateRosterRound } from "@/types";
 import CharacterGuessInput, { characterGuessKey } from "../CharacterGuessInput";
 import { FunClassIcon } from "../FunCharacterIdentity";
 import FunGuildIdentity, { FunGuildCrest } from "../FunGuildIdentity";
-import { FunRaidIdentity } from "../FunEncounterIdentity";
 import FunOutcome from "../FunOutcome";
 import styles from "../fun-feedback.module.css";
 
 type FilledCell = { key: string; name: string; realm: string };
-export const MAX_IMMACULATE_MISTAKES = 5;
 
 type IncorrectAttempt = {
   id: string;
@@ -30,7 +28,7 @@ export default function ImmaculateRoster({ round, onMistakesChange }: { round: I
   const [filled, setFilled] = useState<Record<string, FilledCell>>({});
   const [mistakes, setMistakes] = useState(0);
   const [incorrectAttempts, setIncorrectAttempts] = useState<IncorrectAttempt[]>([]);
-  const [status, setStatus] = useState<"playing" | "won" | "lost">("playing");
+  const [status, setStatus] = useState<"playing" | "won">("playing");
   const [notice, setNotice] = useState<string | null>(null);
 
   const submitCharacter = (character: CharacterSearchResult) => {
@@ -58,7 +56,6 @@ export default function ImmaculateRoster({ round, onMistakesChange }: { round: I
       setMistakes(nextMistakes);
       onMistakesChange(nextMistakes);
       setNotice(used ? t("immaculate.duplicate") : t("immaculate.incorrect"));
-      if (nextMistakes >= MAX_IMMACULATE_MISTAKES) setStatus("lost");
       return;
     }
 
@@ -80,7 +77,7 @@ export default function ImmaculateRoster({ round, onMistakesChange }: { round: I
         <div className="overflow-x-auto p-2 sm:p-3">
           <div className="grid min-w-[46rem] grid-cols-[17rem_repeat(3,minmax(9rem,1fr))] gap-2">
           <div className="flex min-h-16 items-center rounded-lg bg-slate-900/60 px-3">
-            <FunRaidIdentity raid={round.raid} iconSize={38} className="w-full" />
+            <span className="text-sm font-bold text-slate-300">{t("immaculate.allRaids")}</span>
           </div>
           {round.columns.map((column) => (
             <div key={column.classID} className="flex min-h-16 items-center justify-center gap-2 rounded-lg bg-slate-800/80 px-3 text-center text-sm font-bold">
@@ -96,8 +93,6 @@ export default function ImmaculateRoster({ round, onMistakesChange }: { round: I
               {round.columns.map((column) => {
                 const cellKey = `${row.id}:${column.classID}`;
                 const answer = filled[cellKey];
-                const example = round.solution.exampleAnswerByCell[cellKey];
-                const showExample = status === "lost" && !answer && example;
                 const selected = selectedCell === cellKey;
                 if (selected && !answer && status === "playing") {
                   return (
@@ -116,15 +111,11 @@ export default function ImmaculateRoster({ round, onMistakesChange }: { round: I
                     className={`min-h-24 rounded-lg border p-3 text-center transition-[border-color,background-color,transform] duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 motion-reduce:transform-none motion-reduce:transition-none ${
                       answer
                         ? `${styles.good} border-emerald-400/30 bg-emerald-950/35`
-                        : showExample
-                          ? `${styles.reveal} border-red-400/25 bg-red-950/25`
-                          : "border-white/10 bg-slate-900/75 hover:-translate-y-0.5 hover:border-blue-300/35 active:not-disabled:scale-[0.98]"
+                        : "border-white/10 bg-slate-900/75 hover:-translate-y-0.5 hover:border-blue-300/35 active:not-disabled:scale-[0.98]"
                     }`}
                   >
                     {answer ? (
                       <span className="flex items-center justify-center gap-2"><FunClassIcon classID={column.classID} size={28} /><span className="min-w-0 text-left"><span className="block truncate font-bold text-emerald-100">{answer.name}</span><span className="mt-0.5 block truncate text-xs text-emerald-300/70">{formatRealmName(answer.realm)}</span></span></span>
-                    ) : showExample ? (
-                      <span className="flex items-center justify-center gap-2"><FunClassIcon classID={column.classID} size={28} /><span className="min-w-0 text-left"><span className="block text-xs font-semibold text-red-300">{t("common.exampleAnswer")}</span><span className="mt-0.5 block truncate font-bold">{example.name}</span></span></span>
                     ) : <span className="text-2xl text-slate-600">+</span>}
                   </button>
                 );
@@ -137,7 +128,7 @@ export default function ImmaculateRoster({ round, onMistakesChange }: { round: I
           notice ? <p className="border-t border-white/10 px-4 py-2 text-xs font-semibold text-blue-200" role="status">{notice}</p> : null
         ) : (
           <div className="border-t border-white/10 p-3">
-            <FunOutcome status={status}>{status === "won" ? t("immaculate.wonSummary", { mistakes }) : t("immaculate.lostSummary")}</FunOutcome>
+            <FunOutcome status={status}>{t("immaculate.wonSummary", { mistakes })}</FunOutcome>
           </div>
         )}
       </div>

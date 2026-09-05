@@ -11,7 +11,7 @@ type FunGameShellProps = {
   error: string | null;
   hasRound: boolean;
   onGenerate: () => void;
-  mistakes?: { count: number; total: number };
+  mistakes?: { count: number };
   children: ReactNode;
 };
 

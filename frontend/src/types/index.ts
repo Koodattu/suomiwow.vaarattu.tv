@@ -3311,7 +3311,6 @@ type FunRoundBase = {
 
 export type ImmaculateRosterRound = FunRoundBase & {
   game: "immaculate-roster";
-  raid: FunRaid;
   rows: Array<{ id: string; guild: FunGuild }>;
   columns: Array<{ classID: number; name: string; iconUrl: string }>;
   solution: {
@@ -4640,7 +4639,22 @@ export interface AdminGuildReportsResponse {
   totalReports: number;
 }
 
+export type AdminReportOverrideAction = "assign" | "exclude" | "restore" | "clear_assignment";
+
+export interface AdminReportOverride {
+  _id: string;
+  code: string;
+  assignment?: {
+    guildId: { _id: string; name: string; realm: string } | null;
+    previousGuildId?: string;
+    reason?: string;
+    updatedAt?: string;
+  };
+  exclusions: Array<{ guildId: string; reason?: string; updatedAt?: string }>;
+}
+
 export interface AdminDeleteReportResponse {
+  warnings: string[];
   success: boolean;
   message: string;
   deletedFights: number;
