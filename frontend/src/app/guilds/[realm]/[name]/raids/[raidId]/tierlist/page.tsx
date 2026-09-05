@@ -31,7 +31,7 @@ function toBoardItem(character: CharacterTierListCharacter, metric: GeneratedMet
     region: character.region,
     classID: character.classID,
     reportCount: character.reportCount,
-    score: metric === "performance" ? character.parseScore : metric === "mechanics" ? character.survivalScore : character.score,
+    score: metric === "performance" ? character.parseScore : metric === "mechanics" ? character.survivalPercentile : character.score,
     parseScore: character.parseScore,
     survivalScore: character.survivalScore,
     role: character.role,
