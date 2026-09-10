@@ -1,3 +1,11 @@
+import { PICK_EM_RWF_GUILDS } from "../config/guilds";
+
+export function getRwfFinalRankingsCount(pickem: { guildCount: number; finalRankingsCount?: number; finalized?: boolean; finalRankings?: string[] }): number {
+  if (pickem.finalized) return pickem.finalRankings?.length ?? 0;
+
+  return Math.min(new Set(PICK_EM_RWF_GUILDS).size, Math.max(pickem.guildCount + 5, pickem.finalRankingsCount || 0));
+}
+
 interface PickemRaidProgress {
   raidId: number;
   difficulty: "mythic" | "heroic";

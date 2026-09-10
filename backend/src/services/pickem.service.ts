@@ -14,6 +14,7 @@ import CcgPackCredit from "../models/CcgPackCredit";
 import { PICK_EM_RWF_GUILDS } from "../config/guilds";
 import logger from "../utils/logger";
 import { getRegularPickemRaidIdsValidationError, isPickemPlaceholderRaidIds } from "../utils/pickemRaid";
+import { getRwfFinalRankingsCount } from "../utils/pickemRankings";
 
 export interface PickemDeletionResult {
   pickemDeleted: boolean;
@@ -304,8 +305,8 @@ class PickemService {
       return { success: false, error: `Invalid guilds in rankings: ${invalidGuilds.join(", ")}` };
     }
 
-    // Validate ranking count matches finalRankingsCount (or guildCount if not configured)
-    const expectedCount = pickem.finalRankingsCount || pickem.guildCount;
+    // Include nearby finishes beyond the prediction range for scoring.
+    const expectedCount = getRwfFinalRankingsCount(pickem);
     if (finalRankings.length !== expectedCount) {
       return { success: false, error: `Expected ${expectedCount} guilds in rankings, got ${finalRankings.length}` };
     }

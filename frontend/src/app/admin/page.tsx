@@ -5127,7 +5127,7 @@ function AdminPageContent() {
                     {/* Finalization Guild Count - only for RWF */}
                     {pickemForm.type === "rwf" && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Finalization Guild Count</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-1">{t("pickems.form.finalRankingsCount")}</label>
                         <input
                           type="number"
                           value={pickemForm.finalRankingsCount}
@@ -5137,7 +5137,7 @@ function AdminPageContent() {
                           max="25"
                         />
                         <p className="text-xs text-gray-500 mt-1">
-                          How many guilds admin must provide when finalizing (e.g. 10). Set to 0 to use guild count. Scoring uses all finalized guilds.
+                          {t("pickems.form.finalRankingsCountHelp")}
                         </p>
                       </div>
                     )}
@@ -5481,7 +5481,7 @@ function AdminPageContent() {
             {showFinalizeModal &&
               finalizingPickem &&
               (() => {
-                const requiredCount = finalizingPickem.finalRankingsCount || finalizingPickem.guildCount || 10;
+                const requiredCount = Math.min(allRwfGuilds.length, Math.max(finalizingPickem.guildCount + 5, finalizingPickem.finalRankingsCount || 0));
                 const availableGuilds = allRwfGuilds.filter((g) => !finalizationRankings.includes(g));
                 const filteredAvailable = finalizeSearch ? availableGuilds.filter((g) => g.toLowerCase().includes(finalizeSearch.toLowerCase())) : availableGuilds;
 
@@ -5758,7 +5758,7 @@ function AdminPageContent() {
                                   try {
                                     const rwfGuilds = await api.getPickemsRwfGuilds();
                                     setFinalizingPickem(pickem);
-                                    setAllRwfGuilds(rwfGuilds.map((g) => g.name));
+                                    setAllRwfGuilds([...new Set(rwfGuilds.map((g) => g.name))]);
                                     setFinalizationRankings([]); // Start empty, admin picks guilds
                                     setFinalizeSearch("");
                                     setShowFinalizeModal(true);

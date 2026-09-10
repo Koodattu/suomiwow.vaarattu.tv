@@ -1647,8 +1647,7 @@ export default function PickemsPage() {
                     </p>
                     {pickemDetails?.type === "rwf" && (pickemDetails?.finalRankingsCount || 0) > pickemDetails.guildCount && (
                       <p className="mt-2 text-blue-400 text-xs">
-                        You predict {pickemDetails.guildCount} guilds, but scoring uses the top {pickemDetails.finalRankingsCount} finalized rankings — nearby misses still earn
-                        points.
+                        {t("rwfScoringRange", { predictions: pickemDetails.guildCount, rankings: pickemDetails.finalRankingsCount })}
                       </p>
                     )}
                     {isUnfinalizedRwf && <p className="mt-2 text-purple-400 font-medium">RWF scores are calculated when the race ends and admin finalizes the results.</p>}

@@ -16,7 +16,7 @@ import {
   validatePickemPredictions,
 } from "../services/pickem-submission.service";
 import pickemCcgRewardService, { PickemCcgRewardError } from "../services/pickem-ccg-reward.service";
-import { getPickemRankingProgress } from "../utils/pickemRankings";
+import { getPickemRankingProgress, getRwfFinalRankingsCount } from "../utils/pickemRankings";
 
 const router = Router();
 
@@ -73,7 +73,7 @@ router.get(
         raidIds: p.raidIds,
         rankingsPending: (p.type || "regular") === "regular" && isPickemPlaceholderRaidIds(p.raidIds),
         guildCount: p.guildCount || 10,
-        finalRankingsCount: p.finalRankingsCount || 0,
+        finalRankingsCount: p.type === "rwf" ? getRwfFinalRankingsCount(p) : p.finalRankingsCount || 0,
         scoreOutOfRangeGuilds: p.scoreOutOfRangeGuilds ?? false,
         votingStart: p.votingStart,
         votingEnd: p.votingEnd,
@@ -300,7 +300,7 @@ router.get("/:pickemId", async (req: Request, res: Response) => {
       raidIds: pickem.raidIds,
       rankingsPending,
       guildCount,
-      finalRankingsCount: pickem.finalRankingsCount || 0,
+      finalRankingsCount: pickemType === "rwf" ? getRwfFinalRankingsCount(pickem) : pickem.finalRankingsCount || 0,
       scoreOutOfRangeGuilds: pickem.scoreOutOfRangeGuilds ?? false,
       votingStart: pickem.votingStart,
       votingEnd: pickem.votingEnd,

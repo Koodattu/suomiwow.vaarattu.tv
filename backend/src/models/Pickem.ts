@@ -38,7 +38,7 @@ export interface IPickem extends Document {
   type: PickemType; // Type of pickem: "regular" for Finnish guilds, "rwf" for Race to World First
   raidIds: number[]; // Array of raid IDs included in this pickem (only used for regular type)
   guildCount: number; // Number of guilds to predict (10 for regular, 5 for rwf)
-  finalRankingsCount: number; // Number of guilds required for finalization (e.g., 10 for RWF) — defaults to guildCount if not set
+  finalRankingsCount: number; // RWF finalization override; at least guildCount + 5, capped by available guilds
   scoreOutOfRangeGuilds: boolean; // For regular pickems, award points for picked guilds ranked beyond guildCount
   votingStart: Date; // When voting opens
   votingEnd: Date; // When voting closes
