@@ -85,8 +85,8 @@ function DailyTrafficChart({ data }: { data: DailyChartPoint[] }) {
           <Tooltip
             contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151", borderRadius: "0.5rem" }}
             labelStyle={{ color: "#9CA3AF" }}
-            labelFormatter={(value: string | number) => formatFullChartDate(Number(value))}
-            formatter={(value: string | number | undefined, name: string | number | undefined) => {
+            labelFormatter={(value) => formatFullChartDate(Number(value))}
+            formatter={(value, name) => {
               const label = name === "requests" ? "Requests" : "Unique visitors";
               const numericValue = typeof value === "number" ? value : Number(value || 0);
               return [numericValue.toLocaleString(), label];

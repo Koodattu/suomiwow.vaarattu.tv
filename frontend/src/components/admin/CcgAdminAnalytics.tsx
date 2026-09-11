@@ -167,8 +167,8 @@ export default function CcgAdminAnalytics() {
                 <Tooltip
                   contentStyle={{ backgroundColor: "#111827", border: "1px solid #374151", borderRadius: "0.5rem" }}
                   labelStyle={{ color: "#9ca3af" }}
-                  labelFormatter={(value: string | number) => fullDateFormat.format(parseDateKey(String(value)))}
-                  formatter={(value: string | number | undefined, name: string | number | undefined) => [
+                  labelFormatter={(value) => fullDateFormat.format(parseDateKey(String(value)))}
+                  formatter={(value, name) => [
                     numberFormat.format(Number(value ?? 0)),
                     name === "packOpenings" ? t("packsOpened") : t("activeUsers"),
                   ]}

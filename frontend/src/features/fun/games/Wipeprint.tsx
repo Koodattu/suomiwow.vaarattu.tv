@@ -94,7 +94,7 @@ export default function Wipeprint({ round }: { round: WipeprintRound }) {
               <YAxis domain={[0, 100]} stroke="#94a3b8" tickLine={false} axisLine={false} unit="%" width={48} />
               <Tooltip
                 contentStyle={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8 }}
-                labelFormatter={(value) => t("wipeprint.pull", { number: value })}
+                labelFormatter={(value) => t("wipeprint.pull", { number: Number(value) })}
                 formatter={(value) => [`${value ?? "–"}%`, t("wipeprint.bossRemaining")]}
               />
               <Line type="monotone" dataKey="progressPercentage" stroke="#60a5fa" strokeWidth={3} dot={{ r: 3, fill: "#93c5fd" }} activeDot={{ r: 5 }} connectNulls />

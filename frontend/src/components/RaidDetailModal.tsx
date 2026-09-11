@@ -268,8 +268,8 @@ function WorldRankHistorySection({ history }: { history: WorldRankHistoryEntry[]
               <Tooltip
                 contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151", borderRadius: "0.5rem" }}
                 labelStyle={{ color: "#9CA3AF" }}
-                labelFormatter={(timestamp: number) =>
-                  new Date(timestamp).toLocaleString("fi-FI", { day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                labelFormatter={(timestamp) =>
+                  new Date(Number(timestamp)).toLocaleString("fi-FI", { day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
                 }
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 formatter={(value: any, name: any) => {
