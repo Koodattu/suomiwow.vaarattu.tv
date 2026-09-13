@@ -18,6 +18,14 @@ const CCG_ANNOUNCER_COMPONENT_VARIANTS: Record<Locale, readonly AnnouncerVariant
   fi: ["a", "b"],
 };
 
+const CCG_ANNOUNCER_RAID_VARIANTS: Record<Locale, Partial<Record<CcgRaidFinish, readonly AnnouncerVariant[]>>> = {
+  en: {
+    felforged: ["b", "c"],
+    worldcore: ["a", "b", "d"],
+  },
+  fi: {},
+};
+
 const CCG_ANNOUNCER_HIGH_RARITY_GRADES = new Set<CcgTierGrade>(["H", "S", "A", "B", "C"]);
 
 const CCG_ANNOUNCER_RAID_FINISHES = new Set<CcgFinish>([
@@ -28,6 +36,7 @@ const CCG_ANNOUNCER_RAID_FINISHES = new Set<CcgFinish>([
   "nightwell",
   "moonfall",
   "worldcore",
+  "felforged",
   "quarantine",
   "tempest",
   "abyssal",
@@ -308,7 +317,9 @@ export function getCcgAnnouncerSoundSequences(
 
   const localePrefix = locale === "fi" ? "fi-" : "";
   const componentBasePath = `/ccg/audio/announcer/components/${locale}`;
-  return CCG_ANNOUNCER_COMPONENT_VARIANTS[locale].map((variant) => [
+  const variants = CCG_ANNOUNCER_RAID_VARIANTS[locale][finish as CcgRaidFinish]
+    ?? CCG_ANNOUNCER_COMPONENT_VARIANTS[locale];
+  return variants.map((variant) => [
     ...(artVariant === "alternative" ? [`${componentBasePath}/qualities/${localePrefix}alternative-${variant}.mp3`] : []),
     `${componentBasePath}/qualities/${localePrefix}${finish}-${variant}.mp3`,
     `${componentBasePath}/rarities/${localePrefix}${rarity}-${variant}.mp3`,

@@ -8,7 +8,7 @@ export const CCG_RAID_FINISHES = [
   "nightmare",
   "nightwell",
   "moonfall",
-  "worldcore",
+  "felforged",
   "quarantine",
   "tempest",
   "abyssal",
@@ -22,6 +22,8 @@ export const CCG_RAID_FINISHES = [
   "royal",
   "jackpot",
   "phaseglass",
+  // Worldsoul is reserved for The Worldcore; retain its stored key for existing rewards.
+  "worldcore",
 ] as const;
 export type CcgRaidFinish = (typeof CCG_RAID_FINISHES)[number];
 export type CcgCustomFinish = "void" | "toxic" | CcgRaidFinish;
@@ -295,7 +297,7 @@ const CCG_CONFIGURED_SET_DEFINITIONS = [
     mark: "ANT",
     accent: "#63E074",
     glow: "rgba(99, 224, 116, 0.34)",
-    customFinish: { key: "worldcore", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
+    customFinish: { key: "felforged", hardPity: CCG_CUSTOM_FINISH_HARD_PITY },
     crop: cropWithHorizontalRange(21, 75, 50, 1.1, 10),
   },
   {

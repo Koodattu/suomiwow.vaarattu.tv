@@ -3477,36 +3477,45 @@
   --raid-tone: #9b5bdb;
   --raid-edge: #e8c56e;
   --raid-idle-duration: 9.6s;
-  --raid-idle-opacity: 0.54;
-  --raid-hover-opacity: 0.74;
+  --raid-idle-opacity: 0.62;
+  --raid-hover-opacity: 0.8;
   --raid-drift-x: 1.6%;
   --raid-drift-y: -0.8%;
 }
 .royal .finishLayer {
   background:
-    radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), rgba(244, 220, 255, 0.54), rgba(158, 86, 218, 0.2) 14%, transparent 34%),
-    repeating-linear-gradient(calc(var(--foil-angle) - 92deg), rgba(243, 220, 255, 0.16) 0 0.45px, rgba(39, 4, 55, 0.18) 0.9px 1.5px, transparent 2px 6px),
-    linear-gradient(145deg, rgba(48, 8, 61, 0.46), rgba(7, 2, 12, 0.58) 56%, rgba(105, 58, 14, 0.28));
+    radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), rgba(244, 220, 255, 0.64), rgba(158, 86, 218, 0.24) 14%, transparent 34%),
+    repeating-linear-gradient(calc(var(--foil-angle) - 92deg), rgba(243, 220, 255, 0.22) 0 0.55px, rgba(39, 4, 55, 0.2) 0.9px 1.5px, transparent 2px 6px),
+    linear-gradient(145deg, rgba(48, 8, 61, 0.26), rgba(7, 2, 12, 0.2) 56%, rgba(105, 58, 14, 0.18));
   background-position: center, calc(var(--pointer-left) * 14px) 0, center;
   background-size: 100% 100%, 17px 100%, 100% 100%;
-  mix-blend-mode: screen;
+  mix-blend-mode: normal;
 }
 .royal .finishLayer::before {
   background:
-    repeating-conic-gradient(from 8deg at 50% 44%, transparent 0 13deg, rgba(231, 210, 255, 0.2) 14deg 14.7deg, transparent 15.5deg 30deg),
-    repeating-radial-gradient(circle at 50% 44%, transparent 0 7%, rgba(214, 180, 247, 0.18) 7.4% 7.9%, transparent 8.3% 15%);
+    radial-gradient(circle at 24% 22%, rgba(255, 232, 164, 0.76) 0 0.7px, transparent 2.6px),
+    radial-gradient(circle at 78% 68%, rgba(255, 232, 164, 0.66) 0 0.7px, transparent 2.6px),
+    repeating-conic-gradient(from 8deg at 50% 44%, transparent 0 13deg, rgba(231, 210, 255, 0.3) 14deg 14.7deg, transparent 15.5deg 30deg),
+    repeating-radial-gradient(circle at 50% 44%, transparent 0 7%, rgba(232, 201, 143, 0.27) 7.4% 7.9%, transparent 8.3% 15%);
   mix-blend-mode: screen;
-  opacity: 0.74;
+  opacity: 0.8;
 }
 .royal .finishLayer::after {
   background:
-    radial-gradient(ellipse at 13% 23%, rgba(7, 0, 13, 0.92) 0 1.2%, rgba(115, 55, 148, 0.5) 1.6%, transparent 2.3%),
-    radial-gradient(ellipse at 81% 72%, rgba(6, 0, 12, 0.9) 0 1.5%, rgba(213, 173, 255, 0.32) 1.9%, transparent 2.7%),
-    linear-gradient(var(--foil-angle), transparent 42%, rgba(255, 224, 159, 0.38) 49%, transparent 56%);
-  background-size: 71px 89px, 93px 117px, 260% 260%;
-  background-position: 0 0, 17px 29px, var(--foil-x) var(--foil-y);
-  mix-blend-mode: screen;
-  opacity: 0.62;
+    radial-gradient(ellipse at 12% 26%, rgba(7, 0, 13, 0.94) 0 1.1%, rgba(213, 173, 255, 0.62) 1.4%, transparent 1.9%),
+    radial-gradient(ellipse at 86% 71%, rgba(6, 0, 12, 0.92) 0 1.3%, rgba(213, 173, 255, 0.54) 1.6%, transparent 2.2%),
+    linear-gradient(var(--foil-angle), transparent 42%, rgba(255, 224, 159, 0.46) 49%, transparent 56%);
+  background-size: 100% 100%, 100% 100%, 260% 260%;
+  background-position: center, center, var(--foil-x) var(--foil-y);
+  mix-blend-mode: normal;
+  opacity: 0.72;
+}
+.royal .materialLight {
+  background:
+    radial-gradient(ellipse 42% 28% at var(--pointer-x) var(--pointer-y), rgba(255, 237, 188, 0.68), rgba(191, 127, 241, 0.26) 18%, transparent 48%),
+    linear-gradient(var(--foil-angle), transparent 41%, rgba(190, 127, 232, 0.2) 46%, rgba(255, 228, 164, 0.5) 50%, transparent 58%);
+  background-position: center, var(--foil-x) var(--foil-y);
+  background-size: 100% 100%, 240% 240%;
 }
 
 /* Prototype 5: Undermine — casino chrome, slot reels and a chasing marquee. */
@@ -3849,27 +3858,106 @@
   opacity: 0.62;
 }
 
+.prototypeCard.felforged {
+  --raid-tone: #83ed45;
+  --raid-edge: #d4bd7a;
+  --raid-idle-duration: 7.2s;
+  --raid-idle-opacity: 0.66;
+  --raid-hover-opacity: 0.86;
+  --raid-drift-x: 0.4%;
+  --raid-drift-y: -0.6%;
+  --raid-counter-x: -0.5%;
+  --raid-counter-y: -3.8%;
+  --raid-quality-background: linear-gradient(100deg, #729645 0%, #b2f56b 20%, #ddc28a 36%, #f2ffda 49%, #8dd34c 65%, #a58a52 82%, #b2f56b 100%);
+  --raid-quality-background-size: 240% 100%;
+  --raid-quality-sweep-start: 8%;
+  --raid-quality-sweep-end: 92%;
+}
+.felforged .finishLayer {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(239, 255, 203, 0.78), rgba(125, 245, 54, 0.3) 9%, transparent 27%),
+    repeating-linear-gradient(90deg, transparent 0 46px, rgba(180, 156, 96, 0.22) 47px 48px, rgba(4, 9, 5, 0.42) 49px 53px, transparent 54px 96px),
+    repeating-linear-gradient(30deg, rgba(3, 8, 5, 0.32) 0 30px, rgba(85, 104, 66, 0.18) 31px 32px, rgba(12, 20, 15, 0.22) 33px 64px),
+    linear-gradient(145deg, rgba(4, 8, 9, 0.26), rgba(36, 54, 25, 0.14), rgba(2, 5, 7, 0.3));
+  background-blend-mode: screen, normal, normal, normal;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.15), #000 22% 68%, rgba(0, 0, 0, 0.2) 90%);
+  mix-blend-mode: normal;
+}
+.felforged .finishLayer::before {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 46px, rgba(141, 255, 69, 0.62) 47px 48px, rgba(234, 255, 173, 0.44) 49px, transparent 50px 96px),
+    repeating-linear-gradient(30deg, transparent 0 62px, rgba(156, 255, 75, 0.38) 63px 64px, transparent 65px 128px),
+    repeating-conic-gradient(from 30deg at 50% 50%, rgba(221, 192, 118, 0.24) 0 2deg, transparent 3deg 60deg);
+  background-size: 100% 100%, 100% 100%, 96px 128px;
+  mask-image: linear-gradient(135deg, #000, rgba(0, 0, 0, 0.18) 32%, #000 48%, rgba(0, 0, 0, 0.25) 70%, #000);
+  mask-size: 200% 200%;
+  mix-blend-mode: screen;
+  opacity: 0.82;
+}
+.felforged .finishLayer::after {
+  background:
+    radial-gradient(circle, rgba(234, 255, 184, 0.9) 0 0.65px, rgba(134, 249, 66, 0.46) 1px, transparent 1.7px),
+    radial-gradient(circle, rgba(187, 239, 97, 0.66) 0 0.7px, transparent 1.5px),
+    linear-gradient(var(--foil-angle), transparent 39%, rgba(180, 154, 92, 0.22) 46%, rgba(229, 255, 192, 0.5) 50%, transparent 59%);
+  background-position: 11px 19px, 37px 53px, var(--foil-x) var(--foil-y);
+  background-size: 67px 89px, 97px 127px, 250% 250%;
+  mix-blend-mode: screen;
+  opacity: 0.7;
+}
+.felforged .materialLight {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(242, 255, 215, 0.8), rgba(136, 247, 68, 0.28) 10%, transparent 27%),
+    linear-gradient(var(--foil-angle), transparent 40%, rgba(195, 165, 98, 0.2) 46%, rgba(231, 255, 192, 0.48) 50%, transparent 60%);
+  background-position: center, var(--foil-x) var(--foil-y);
+  background-size: 100% 100%, 230% 230%;
+}
+
 .prototypeCard.worldcore {
-  --raid-tone: #ff4d24;
-  --raid-edge: #a5ff58;
-  --raid-idle-duration: 6.6s;
-  --raid-idle-opacity: 0.68;
-  --raid-hover-opacity: 0.9;
+  --raid-tone: #ffe078;
+  --raid-edge: #59dfff;
+  --raid-idle-duration: 10.8s;
+  --raid-idle-opacity: 0.64;
+  --raid-hover-opacity: 0.84;
+  --raid-drift-x: -1.2%;
+  --raid-drift-y: 1.6%;
+  --raid-counter-x: 0.8%;
+  --raid-counter-y: -4.2%;
 }
 .worldcore .finishLayer {
-  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 244, 201, 0.76), rgba(255, 73, 29, 0.36) 10%, transparent 28%), radial-gradient(circle at 50% 48%, rgba(255, 78, 25, 0.42), rgba(124, 13, 0, 0.24) 18%, transparent 37%), linear-gradient(145deg, rgba(4, 5, 8, 0.65), rgba(65, 12, 3, 0.28), rgba(2, 3, 5, 0.72));
+  background:
+    radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), rgba(255, 254, 226, 0.72), rgba(255, 221, 96, 0.3) 10%, rgba(91, 227, 255, 0.16) 23%, transparent 35%),
+    radial-gradient(ellipse at 50% 43%, rgba(255, 235, 143, 0.3), rgba(255, 205, 65, 0.2) 15%, transparent 31%, rgba(63, 202, 251, 0.18) 35%, transparent 46%),
+    radial-gradient(ellipse at 50% 90%, rgba(255, 217, 94, 0.18), transparent 42%),
+    linear-gradient(155deg, rgba(9, 37, 65, 0.38), rgba(38, 83, 110, 0.12) 40%, rgba(97, 72, 23, 0.2) 70%, rgba(6, 27, 56, 0.42));
   mix-blend-mode: screen;
 }
 .worldcore .finishLayer::before {
-  background: repeating-conic-gradient(from 5deg at 50% 48%, rgba(130, 255, 57, 0.28) 0 1.5deg, transparent 2deg 22deg), radial-gradient(circle, rgba(228, 242, 255, 0.72) 0 0.55px, transparent 1.1px);
-  background-size: 100% 100%, 43px 61px;
+  background:
+    radial-gradient(ellipse 43% 18% at 50% 43%, transparent 91%, rgba(192, 143, 55, 0.22) 93%, rgba(255, 235, 166, 0.48) 94%, transparent 96%),
+    radial-gradient(ellipse 25% 38% at 50% 43%, transparent 91%, rgba(86, 214, 255, 0.3) 93%, rgba(213, 250, 255, 0.4) 94%, transparent 96%),
+    repeating-conic-gradient(from 15deg at 50% 43%, rgba(255, 229, 149, 0.3) 0 1deg, transparent 1.6deg 30deg);
+  mask-image: radial-gradient(ellipse at 50% 43%, transparent 0 20%, #000 28% 44%, transparent 58%);
   mix-blend-mode: screen;
-  opacity: 0.68;
+  opacity: 0.78;
 }
 .worldcore .finishLayer::after {
-  background: repeating-radial-gradient(circle at var(--pointer-x) var(--pointer-y), transparent 0 9%, rgba(255, 84, 31, 0.18) 9.5% 10%, transparent 10.5% 18%);
-  mix-blend-mode: color-dodge;
-  opacity: 0.72;
+  background:
+    url("/ccg/effects/worldsoul-crystals.svg"),
+    radial-gradient(circle, rgba(255, 246, 192, 0.84) 0 0.6px, rgba(255, 217, 107, 0.36) 1px, transparent 1.7px),
+    radial-gradient(circle, rgba(150, 242, 255, 0.7) 0 0.65px, transparent 1.5px),
+    linear-gradient(var(--foil-angle), transparent 36%, rgba(255, 224, 119, 0.2) 45%, rgba(227, 254, 255, 0.38) 50%, rgba(75, 205, 255, 0.2) 56%, transparent 66%);
+  background-position: center, 13px 29px, 37px 11px, var(--foil-x) var(--foil-y);
+  background-size: 100% 100%, 67px 89px, 97px 113px, 250% 250%;
+  background-repeat: no-repeat, repeat, repeat, no-repeat;
+  mix-blend-mode: screen;
+  opacity: 0.8;
+}
+.worldcore .materialLight {
+  background:
+    radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), rgba(255, 254, 227, 0.74), rgba(255, 225, 112, 0.3) 12%, rgba(81, 222, 255, 0.22) 24%, transparent 38%),
+    linear-gradient(var(--foil-angle), transparent 37%, rgba(255, 222, 119, 0.2) 45%, rgba(224, 253, 255, 0.42) 51%, rgba(62, 199, 253, 0.16) 58%, transparent 67%);
+  background-position: center, var(--foil-x) var(--foil-y);
+  background-size: 100% 100%, 230% 230%;
 }
 
 .prototypeCard.quarantine {
@@ -4050,29 +4138,36 @@
   --raid-tone: #43d89c;
   --raid-edge: #ff7a32;
   --raid-idle-duration: 7.8s;
-  --raid-idle-opacity: 0.58;
-  --raid-hover-opacity: 0.8;
+  --raid-idle-opacity: 0.65;
+  --raid-hover-opacity: 0.85;
   --raid-drift-x: 1.2%;
   --raid-drift-y: 4%;
   --raid-counter-y: -4%;
 }
 .emberbloom .finishLayer {
-  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(221, 255, 235, 0.66), rgba(65, 216, 156, 0.24) 11%, rgba(255, 112, 41, 0.16) 21%, transparent 33%), repeating-radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), transparent 0 9%, rgba(72, 211, 146, 0.16) 9.5% 10%, transparent 10.5% 18%), linear-gradient(148deg, rgba(7, 48, 37, 0.44), rgba(53, 17, 42, 0.28), rgba(36, 10, 4, 0.4));
+  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(221, 255, 235, 0.74), rgba(65, 216, 156, 0.3) 11%, rgba(255, 112, 41, 0.22) 21%, transparent 33%), repeating-radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), transparent 0 9%, rgba(72, 211, 146, 0.23) 9.5% 10%, transparent 10.5% 18%), radial-gradient(ellipse at 50% 100%, rgba(255, 105, 36, 0.2), transparent 42%), linear-gradient(148deg, rgba(7, 48, 37, 0.44), rgba(53, 17, 42, 0.28), rgba(36, 10, 4, 0.4));
   mix-blend-mode: screen;
 }
 .emberbloom .finishLayer::before {
-  background: radial-gradient(ellipse, rgba(174, 122, 255, 0.5) 0 1px, transparent 2px), radial-gradient(ellipse, rgba(255, 103, 39, 0.62) 0 0.8px, transparent 1.5px);
+  background: radial-gradient(ellipse 2px 4px at center, rgba(198, 157, 255, 0.68) 0 42%, rgba(146, 99, 211, 0.36) 65%, transparent 100%), radial-gradient(ellipse 3px 1.5px at center, rgba(143, 245, 193, 0.6) 0 45%, transparent 100%);
   background-position: 7px 11px, 29px 37px;
-  background-size: 41px 53px, 47px 61px;
+  background-size: 53px 71px, 79px 97px;
+  mix-blend-mode: screen;
+  opacity: 0.82;
+}
+.emberbloom .finishLayer::after {
+  background: radial-gradient(circle, rgba(255, 239, 175, 0.88) 0 0.6px, rgba(255, 114, 41, 0.72) 1px, transparent 1.8px), repeating-linear-gradient(58deg, transparent 0 41px, rgba(94, 225, 167, 0.28) 42px 44px, transparent 45px 83px), linear-gradient(var(--foil-angle), transparent 40%, rgba(255, 130, 54, 0.44) 49%, transparent 59%);
+  background-position: 29px 37px, center, var(--foil-x) var(--foil-y);
+  background-size: 47px 61px, 100% 100%, 250% 250%;
   mix-blend-mode: screen;
   opacity: 0.74;
 }
-.emberbloom .finishLayer::after {
-  background: repeating-linear-gradient(58deg, transparent 0 41px, rgba(94, 225, 167, 0.2) 42px 44px, transparent 45px 83px), linear-gradient(var(--foil-angle), transparent 40%, rgba(255, 130, 54, 0.38) 49%, transparent 59%);
+.emberbloom .materialLight {
+  background:
+    radial-gradient(ellipse at var(--pointer-x) var(--pointer-y), rgba(228, 255, 239, 0.68), rgba(77, 233, 160, 0.3) 12%, rgba(255, 139, 64, 0.24) 22%, transparent 34%),
+    linear-gradient(var(--foil-angle), transparent 39%, rgba(142, 245, 192, 0.22) 46%, rgba(255, 193, 120, 0.42) 51%, transparent 62%);
   background-position: center, var(--foil-x) var(--foil-y);
-  background-size: 100% 100%, 250% 250%;
-  mix-blend-mode: screen;
-  opacity: 0.64;
+  background-size: 100% 100%, 230% 230%;
 }
 
 /* Raid quality names retain shared behavior but use finish-specific materials. */
@@ -4119,8 +4214,8 @@
 }
 
 .prototypeCard.worldcore {
-  --raid-quality-background: linear-gradient(100deg, #a65b3a 0%, #ff5a35 20%, #ffd05a 37%, #e7ff8b 50%, #70cf46 67%, #96603a 100%);
-  --raid-quality-background-size: 215% 100%;
+  --raid-quality-background: linear-gradient(105deg, #c39c4c 0%, #ffe078 20%, #fff9dc 37%, #a7f4ff 50%, #47cfff 66%, #e9c264 83%, #ffe9a3 100%);
+  --raid-quality-background-size: 240% 100%;
   --raid-quality-sweep-start: 4%;
   --raid-quality-sweep-end: 96%;
 }
@@ -4943,6 +5038,9 @@
   .prototypeCard[data-raid-preview-finish="true"]:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::after {
     animation: prototypeRaidFinishCounterDrift var(--raid-idle-duration) cubic-bezier(0.45, 0, 0.55, 1) -3.1s infinite alternate;
   }
+  .prototypeCard.felforged:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .finishLayer::before {
+    animation: prototypeFelforgedConduits var(--raid-idle-duration) cubic-bezier(0.45, 0, 0.55, 1) -1.7s infinite alternate;
+  }
   .prototypeCard[data-raid-preview-finish="true"]:not([data-pointer-active="true"]):not([data-forced-hover="true"]) .materialLight {
     animation: prototypeRaidMaterialSweep var(--raid-idle-duration) cubic-bezier(0.45, 0, 0.55, 1) -2.3s infinite alternate;
   }
@@ -5755,6 +5853,19 @@
       center,
       68% center,
       center;
+  }
+}
+
+@keyframes prototypeFelforgedConduits {
+  from {
+    mask-position: 0% 20%;
+    filter: brightness(0.86);
+    opacity: 0.66;
+  }
+  to {
+    mask-position: 100% 80%;
+    filter: brightness(1.18);
+    opacity: 0.9;
   }
 }
 

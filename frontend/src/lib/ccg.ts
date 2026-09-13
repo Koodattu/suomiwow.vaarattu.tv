@@ -8,7 +8,7 @@ export const CCG_RAID_FINISHES = [
   "nightmare",
   "nightwell",
   "moonfall",
-  "worldcore",
+  "felforged",
   "quarantine",
   "tempest",
   "abyssal",
@@ -22,6 +22,7 @@ export const CCG_RAID_FINISHES = [
   "royal",
   "jackpot",
   "phaseglass",
+  "worldcore",
 ] as const satisfies readonly CcgRaidFinish[];
 const CCG_RAID_FINISH_SET = new Set<CcgFinish>(CCG_RAID_FINISHES);
 export const CCG_CUSTOM_FINISHES: readonly CcgCustomFinish[] = ["void", "toxic", ...CCG_RAID_FINISHES];
@@ -65,7 +66,8 @@ export const CCG_FINISH_COLORS: Readonly<Record<CcgFinish, string>> = {
   nightmare: "#e22a51",
   nightwell: "#7c8cff",
   moonfall: "#b9c7e8",
-  worldcore: "#ff7a32",
+  worldcore: "#ffe078",
+  felforged: "#b2f56b",
   quarantine: "#65efd8",
   tempest: "#6dbaff",
   abyssal: "#70e3e7",

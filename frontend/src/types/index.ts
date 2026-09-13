@@ -2180,6 +2180,7 @@ export type CcgRaidFinish =
   | "nightwell"
   | "moonfall"
   | "worldcore"
+  | "felforged"
   | "quarantine"
   | "tempest"
   | "abyssal"

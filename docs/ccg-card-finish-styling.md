@@ -2,6 +2,8 @@
 
 Status: implemented and attached to their configured raid sets. The finishes remain available in the Admin CCG Card Studio for continued visual iteration.
 
+September 2026 update: Antorus uses **Felforged**, Hellfire retains **Felscorched**, and **Worldsoul** is reserved for The Worldcore raid. Worldsoul retains the stored `worldcore` key for compatibility with existing rewards and the Antorus migration. Royal and Emberbloom retain their existing themes with stronger material highlights and more legible details. Existing Antorus cards require the [Antorus finish migration](ccg-antorus-finish-migration.md) before deploying the new backend.
+
 ## Scope
 
 The configured CCG raid list in [`backend/src/config/ccg.ts`](../backend/src/config/ccg.ts) is the source of truth. This gives the research scope 20 raids from Warlords of Draenor through The War Within:
@@ -62,7 +64,7 @@ The raid themes are unusually distinct: corrupted nature in Emerald Nightmare, o
 | The Emerald Nightmare | **Nightmare** | Black and crimson root veins, thorn silhouettes, diseased petals, and dark organic blotches. It should read as corrupted forest rather than generic shadow magic. | Veins pulse almost imperceptibly; red spores drift; thin tendrils creep only a few pixels. | A corrupted bloom opens around the pointer, drawing nearby veins inward and briefly intensifying the red organic texture. | Medium |
 | The Nighthold | **Nightwell** | Polished midnight-blue crystal, lavender arcane filigree, clean constellation lines, and formal palace-glass reflections. It should be ordered and elegant, not a random star field like Cosmos. | Arcane energy flows vertically like liquid light; constellation points twinkle; one large astronomical ring rotates extremely slowly. | A cool white-violet lens follows the pointer while star-map lines shift at different parallax depths. | Quiet |
 | Tomb of Sargeras | **Moonfall** | Moon-silver and deep-blue temple marble, a partially eclipsed lunar disc, broken Elune glyphs, and hairline green fel fractures. | A broad moonbeam crosses the surface, low mist gathers near the bottom, and the fel cracks breathe out of sync with the moonlight. | The eclipse rim brightens around the pointer; nearby cracks ignite green and release a trace of smoky fel vapor. | Medium |
-| Antorus, the Burning Throne | **Worldcore** | Obsidian Legion machinery surrounding a red-orange primordial core, with sparse stars and sharp acid-green energy conduits. It should feel cosmic-industrial rather than like another Hellfire finish. | The core beats slowly, stars move almost imperceptibly, and rare green lightning forks across the black shell. | Energy converges from the edges toward the pointer before feeding the central core, creating a localized gravity-lens effect. | Spectacle |
+| Antorus, the Burning Throne | **Felforged** | Angular obsidian machinery, engraved demonic geometry, sharp green conduits, and restrained brass accents. The material remains distinct from Hellfire's scorched metal and smoke. | Light travels through masked conduits while sparse sparks rise over the plates. | A concentrated pale-green hotspot follows the pointer and plate edges catch a brass-green reflection. | Medium-high |
 
 ## Battle for Azeroth
 
@@ -93,7 +95,7 @@ Vault of the Incarnates represents all four primal elements with storm as the cl
 | --- | --- | --- | --- | --- | --- |
 | Vault of the Incarnates | **Primalstorm** | Dark basalt and storm slate with white-violet lightning. The four edges carry restrained elemental accents: ember, frost, earth, and wind. | Snow and ash cross in opposite directions; pressure bands move through the air; lightning fires sparingly rather than constantly. | The pointer becomes the eye of the storm. The closest edge element dominates locally: frost crystallizes, embers flare, dust lifts, or wind ribbons tighten. | Spectacle |
 | Aberrus, the Shadowed Crucible | **Shadowflame** | Blackened elementium and dark purple glass, orange molten seams, violet smoke, and heavy chain impressions. | Orange flame and purple smoke curl around one another while heat distortion rises through both. | Where the pointer brings the two energies together, they form a bright magenta-white hotspot; cracks flare while smoke peels away. | Medium-high |
-| Amirdrassil, the Dream's Hope | **Emberbloom** | Deep emerald and teal dream-glass, lavender leaves, root filigree, and orange singed margins. | Leaves and petals fall while embers rise in the opposite direction; soft dream mist gathers around the roots. | New leaves or flowers bloom around the pointer, followed by an orange singe at their outer edge and a cooling teal counterglow. | Medium |
+| Amirdrassil, the Dream's Hope | **Emberbloom** | Deep emerald and teal dream-glass, more distinct lavender leaves, green vein accents, and warm orange lower margins. | Leaves and embers occupy separate layers with opposing drift; ember highlights have pale hot centers. | A stronger emerald bloom follows the pointer, with an orange outer highlight and teal counterglow. | Medium |
 
 ## The War Within
 
@@ -101,7 +103,7 @@ Nerub-ar Palace combines royal silk, chitin, and Black Blood; Liberation of Unde
 
 | Raid | Proposed finish | Static identity | Idle | Hover | Intensity |
 | --- | --- | --- | --- | --- | --- |
-| Nerub-ar Palace | **Royal** | Aubergine and black chitin lacquer, gold court accents, ultrafine pearlescent silk, and a few viscous Black Blood beads near the margins. | Highlights travel along individual web strands; silk flexes at different parallax depths; dark droplets creep extremely slowly. | Strands pull taut toward the pointer, flashing violet-gold iridescence, while one dark bead refracts the art beneath it. | Quiet |
+| Nerub-ar Palace | **Royal** | Aubergine chitin lacquer, stronger pearl-gold web strands, directional silk sheen, and two dark Black Blood beads with violet rims near the margins. | Silk and web highlights drift slowly at different depths, with sparse gold glints. | A narrow violet-gold reflection reveals the web and silk around the pointer. | Quiet-medium |
 | Liberation of Undermine | **Jackpot** | Tarnished chrome, oil-slick edges, lime and turquoise neon, marquee bulbs, and a subtle casino-diamond pattern. Unlike Disco, it should contain no field of projected colored squares. | Marquee bulbs chase, exhaust smoke puffs from the edges, spotlights sweep, and occasional sparks or fireworks appear behind the art. | A spotlight locks to the pointer, the chrome shifts from green to jackpot gold, and a localized sequence of reel-like light bands races past. | Spectacle |
 | Manaforge Omega | **Phaseglass** | Translucent cobalt-violet glass over black and bronze machine rings, magenta electricity, floating fractured polygons, and deep space behind the machinery. | Energy flows through the rings, fragments drift at different depths, and the surface occasionally phase-splits into subtle cyan/magenta afterimages. | The pointer bends an electric arc, pulls the glass refraction toward itself, and makes the central aperture contract like a camera lens. | Spectacle |
 
@@ -111,6 +113,7 @@ Nerub-ar Palace combines royal silk, chitin, and Black Blood; Liberation of Unde
 | --- | --- |
 | Void and Empire | Void remains cosmic absence and distortion; Empire uses architecture, red fog, and watching eyes. |
 | Toxic and Felscorched | Toxic remains liquid, chemical, and acidic; Felscorched is flame, smoke, and charred iron. |
+| Felscorched and Felforged | Felscorched uses irregular burning seams and smoke; Felforged uses engineered plates, angular conduits, and brass-green energy highlights. |
 | Galaxy, Cosmos, and Nightwell | Galaxy is colorful nebula; Cosmos is a natural night sky; Nightwell is ordered arcane astronomy and palace glass. |
 | Disco and Jackpot | Disco is mirror-ball projection; Jackpot is casino chrome, marquee bulbs, exhaust, and spotlights. |
 | Golden and Tempest | Golden is precious foil; Tempest is wet carved architecture with rain, storm, and frost. |
@@ -123,13 +126,14 @@ The 20 finishes should be composed from a controlled set of reusable primitives 
 | Primitive | Candidate finishes |
 | --- | --- |
 | Material relief and directional sheen | Relic, Sanguine, Progenitor, Royal |
-| Sparks, embers, and heat distortion | Slagforged, Felscorched, Worldcore, Shadowflame, Emberbloom |
+| Sparks, embers, and heat distortion | Slagforged, Felscorched, Felforged, Shadowflame, Emberbloom |
 | Smoke, fog, and mist | Felscorched, Moonfall, Empire, Runebound, Emberbloom, Jackpot |
 | Weather fields | Tempest rain, Primalstorm snow and ash, Runebound soul ash |
 | Bubbles, droplets, and caustics | Abyssal, Toxic, Tempest |
 | Organic growth and particles | Nightmare, Emberbloom, Royal |
 | Procedural lines and marks | Nightwell star maps, Uldir containment grids, Runebound chains and runes, Progenitor circuits, Royal webs |
-| Refraction and distortion | Abyssal water lens, Worldcore gravity lens, Empire perspective bend, Phaseglass chromatic phase split |
+| Refraction and distortion | Abyssal water lens, Empire perspective bend, Phaseglass chromatic phase split |
+| Soul-light, orbital rings, and crystal fragments | Worldsoul |
 | Reactive light lens | All finishes; each should use a raid-specific shape, color, and blend behavior |
 
 ## Recommended prototype order
@@ -146,6 +150,8 @@ This sequence develops the broadest reusable effect vocabulary before the most c
 8. **Primalstorm** — combines weather primitives once rain, snow, ash, and lightning are proven.
 
 ## Midnight locked finish roadmap
+
+**The Worldcore — Worldsoul:** The finish uses warm yellow soul-light, pale gold Titan rings, cyan crystal highlights, and sparse floating Azerite shards. Its central glow stays translucent to preserve the portrait, while a gold-to-cyan reflection follows the pointer. The two existing ambient layers move slowly in opposing directions; reduced motion keeps the material, rings, and crystals static. The name is **Worldsoul** in English and **Maailmansielu** in Finnish; the stored key remains `worldcore`. It is available in Card Studio and on existing non-Antorus rewards. Further refinement can follow the raid artwork. No placeholder raid ID, artwork, release date, or active pack pool is added now.
 
 March on Quel'Danas is the current Midnight Season 1 CCG set and is already configured with Void. Blizzard describes darkness engulfing Quel'Danas, a Void-exposed phoenix defending the Sunwell, and L'ura's dark energies threatening the Sunwell itself. Venomous Abyss is the Midnight Season 2 raid on the corrupted Coiled Isle, culminating in Ula'tek, an ancient creature of hatred, corruption, and venom. Sources: [Midnight Season 1 and March on Quel'Danas](https://worldofwarcraft.blizzard.com/en-us/news/24244646) and [Curse of Ula'tek and Venomous Abyss](https://worldofwarcraft.blizzard.com/en-us/news/24280285).
 

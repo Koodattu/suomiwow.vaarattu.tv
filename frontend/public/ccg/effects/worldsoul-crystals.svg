@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 700" fill="none">
+  <defs>
+    <linearGradient id="azerite" x1="0" y1="0" x2="0.3" y2="1">
+      <stop stop-color="#36cfff" stop-opacity=".85"/>
+      <stop offset=".43" stop-color="#c0f8ff" stop-opacity=".68"/>
+      <stop offset=".6" stop-color="#fff8ce" stop-opacity=".8"/>
+      <stop offset="1" stop-color="#ffd35d" stop-opacity=".78"/>
+    </linearGradient>
+    <g id="shard">
+      <path d="M0-20 9 0 0 18-7 1Z" fill="url(#azerite)"/>
+      <path d="M0-20 1 0 0 18M-7 1 1 0 9 0" stroke="#e0fcff" stroke-opacity=".62" stroke-width=".7"/>
+      <path d="M0-20 9 0 0 18" stroke="#79eaff" stroke-opacity=".72" stroke-width=".8"/>
+    </g>
+  </defs>
+  <use href="#shard" transform="translate(65 185) rotate(-18) scale(.8)"/>
+  <use href="#shard" transform="translate(427 150) rotate(22) scale(.65)"/>
+  <use href="#shard" transform="translate(43 374) rotate(14) scale(.55)"/>
+  <use href="#shard" transform="translate(453 335) rotate(-12) scale(.95)"/>
+  <use href="#shard" transform="translate(98 523) rotate(-28) scale(.7)"/>
+  <use href="#shard" transform="translate(405 512) rotate(18) scale(.5)"/>
+</svg>

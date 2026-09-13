@@ -388,9 +388,12 @@ test("raid-scoped finishes extend only their configured set's ladder", () => {
   );
   assert.equal(CCG_CONFIGURED_SETS.find((set) => set.slug === "march-on-queldanas")?.customFinish?.key, "void");
   assert.equal(CCG_CONFIGURED_SETS.find((set) => set.slug === "the-venomous-abyss")?.customFinish?.key, "toxic");
+  assert.equal(CCG_CONFIGURED_SETS.find((set) => set.slug === "antorus")?.customFinish?.key, "felforged");
+  assert.equal(CCG_CONFIGURED_SETS.some((set) => set.customFinish?.key === "worldcore"), false);
+  assert.equal(CCG_FINISH_ORDER.includes("worldcore"), true);
   assert.deepEqual(
-    CCG_CONFIGURED_SETS.slice(0, CCG_RAID_FINISHES.length).map((set) => set.customFinish?.key),
-    CCG_RAID_FINISHES,
+    CCG_CONFIGURED_SETS.filter((set) => set.expansionName !== "Midnight").map((set) => set.customFinish?.key),
+    CCG_RAID_FINISHES.filter((finish) => finish !== "worldcore"),
   );
 });
 

@@ -52,6 +52,7 @@ import ccgPublisherService from "./services/ccg-publisher.service";
 import { ensurePersistentCcgGuests } from "./services/ccg-guest-persistence-migration.service";
 import { ensureCcgSeriesOwnershipMigration } from "./services/ccg-ownership-migration.service";
 import { assertCcgUnifiedPacksReady } from "./services/ccg-pack-migration.service";
+import { assertCcgAntorusFinishReady } from "./services/ccg-antorus-finish-migration.service";
 import ccgCharacterIdentityService from "./services/ccg-character-identity.service";
 import { CCG_FEATURE_ENABLED } from "./config/ccg";
 import pickemService from "./services/pickem.service";
@@ -578,6 +579,10 @@ const startServer = async () => {
       setStartupTask("Verify CCG unified packs");
       await assertCcgUnifiedPacksReady();
       completeStartupTask("Verify CCG unified packs");
+
+      setStartupTask("Verify CCG Antorus finish");
+      await assertCcgAntorusFinishReady();
+      completeStartupTask("Verify CCG Antorus finish");
 
       setStartupTask("Migrate CCG collection ownership");
       await ensureCcgSeriesOwnershipMigration();
