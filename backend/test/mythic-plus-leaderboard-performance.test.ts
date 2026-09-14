@@ -16,6 +16,8 @@ test("Mythic+ leaderboard caches stable views but not free-text searches", () =>
   assert.equal(isMythicPlusLeaderboardQueryCacheable({ ...query, search: "Lääke-Stormreaver" } as any), false);
   assert.equal(isMythicPlusLeaderboardQueryCacheable({ ...query, characterName: "Lääke" } as any), false);
   assert.equal(isMythicPlusLeaderboardQueryCacheable({ ...query, guildName: "Taikaolennot" } as any), false);
+  assert.equal(isMythicPlusLeaderboardQueryCacheable({ ...query, characterRealm: "Stormreaver" } as any), false);
+  assert.equal(isMythicPlusLeaderboardQueryCacheable({ ...query, guildRealm: "Stormreaver" } as any), false);
   assert.equal(isMythicPlusLeaderboardQueryCacheable({ ...query, nocache: "true" } as any), false);
 });
 

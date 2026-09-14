@@ -17,6 +17,7 @@
     "test:featured-achievements": "ts-node src/scripts/test-featured-achievements.ts",
     "test:ccg-antorus-migration": "node --test -r ts-node/register integration/ccg-antorus-finish-migration.test.ts",
     "test:ccg-leaderboard": "node --test -r ts-node/register integration/ccg-leaderboard.test.ts",
+    "test:mythic-plus-cache": "node --test -r ts-node/register integration/mythic-plus-cache.test.ts",
     "start": "node --max-old-space-size=1536 dist/index.js",
     "test": "node --test -r ts-node/register \"test/**/*.test.ts\""
   },

@@ -35,6 +35,8 @@ import logger from "../utils/logger";
 import { normalizeRealmSlug } from "../utils/realm";
 import { normalizeSearchText } from "../utils/search";
 import cacheService from "./cache.service";
+import mythicPlusCache, { MYTHIC_PLUS_OPTIONS_CACHE_KEY, MYTHIC_PLUS_OPTIONS_TTL_MS, MYTHIC_PLUS_LEADERBOARD_TTL_MS } from "./mythic-plus-cache.service";
+import { getMythicPlusLeaderboardCacheKey } from "../utils/mythic-plus-cache";
 import taskTracker from "./task-tracker.service";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
@@ -937,7 +939,7 @@ class MythicPlusService {
       }
     }
 
-    await cacheService.invalidatePattern(/^mythic-plus:/);
+    await mythicPlusCache.markOptionsStale();
     return { seasons: seasonCount, dungeons: dungeonCount };
   }
 
@@ -1055,7 +1057,7 @@ class MythicPlusService {
 
     if (operations.length > 0) {
       await CharacterMythicPlusSeasonScore.bulkWrite(operations, { ordered: false });
-      await Promise.all([cacheService.invalidatePattern(/^mythic-plus:/), cacheService.invalidatePattern(/^characters:profile:/)]);
+      await cacheService.invalidatePattern(/^characters:profile:/);
     }
 
     return {
@@ -1195,7 +1197,7 @@ class MythicPlusService {
     }
 
     if (operations.length > 0 || processedDungeonIdsByBucket.size > 0) {
-      await Promise.all([cacheService.invalidatePattern(/^mythic-plus:/), cacheService.invalidatePattern(/^characters:profile:/)]);
+      await cacheService.invalidatePattern(/^characters:profile:/);
     }
 
     return operations.length;
@@ -1543,7 +1545,7 @@ class MythicPlusService {
     const jobResult =
       jobOperations.length > 0 ? await CharacterMythicPlusFetchJob.bulkWrite(jobOperations, { ordered: false }) : null;
     if ((scoreResult?.modifiedCount ?? 0) > 0 || (runResult?.modifiedCount ?? 0) > 0) {
-      await Promise.all([cacheService.invalidatePattern(/^mythic-plus:/), cacheService.invalidatePattern(/^characters:profile:/)]);
+      await cacheService.invalidatePattern(/^characters:profile:/);
     }
 
     return {
@@ -2036,9 +2038,11 @@ class MythicPlusService {
         processed += 1;
         if (processed % PROCESS_LOG_INTERVAL === 0) {
           logger.info(`[MythicPlus] Processed ${processed} crawler jobs`);
+          await mythicPlusCache.markOptionsStale(60 * 60 * 1000);
         }
       }
 
+      if (processed > 0) await mythicPlusCache.markOptionsStale(60 * 60 * 1000);
       await taskTracker.complete(taskId, { processed });
       return processed;
     } catch (error) {
@@ -2268,12 +2272,34 @@ class MythicPlusService {
   }
 
   async getOptions(): Promise<MythicPlusOptionsResponse> {
+    return mythicPlusCache.get(MYTHIC_PLUS_OPTIONS_CACHE_KEY, () => this.buildOptions(), MYTHIC_PLUS_OPTIONS_TTL_MS);
+  }
+
+  async warmLeaderboardCaches(): Promise<void> {
+    const warmPage = async (season: string) => {
+      const query = { season, bucket: "all", dungeonSort: "score", page: 1, limit: 50 };
+      await mythicPlusCache.get(getMythicPlusLeaderboardCacheKey(query), () => this.getLeaderboard({ season, bucket: "all", page: 1, limit: 50 }), MYTHIC_PLUS_LEADERBOARD_TTL_MS, true);
+    };
+    // The common page can refresh even while historical options are slow or unavailable.
+    const currentSeason = await this.getCurrentSeasonSlug();
+    if (currentSeason) await warmPage(currentSeason);
+    let options = await mythicPlusCache.get(MYTHIC_PLUS_OPTIONS_CACHE_KEY, () => this.buildOptions(), MYTHIC_PLUS_OPTIONS_TTL_MS, true);
+    // Season activation is time-based and can happen without a static-data import.
+    if (currentSeason && !options.seasons.some((season) => season.slug === currentSeason)) {
+      await mythicPlusCache.markOptionsStale();
+      options = await mythicPlusCache.get(MYTHIC_PLUS_OPTIONS_CACHE_KEY, () => this.buildOptions(), MYTHIC_PLUS_OPTIONS_TTL_MS, true);
+    }
+    const season = options.defaultSelection.season;
+    if (season && season !== currentSeason) await warmPage(season);
+  }
+
+  private async buildOptions(): Promise<MythicPlusOptionsResponse> {
     const eligibleCharacterIds = await this.getEligibleCharacterIds();
     const scoreSeasons = await CharacterMythicPlusSeasonScore.distinct("season", {
       characterId: { $in: eligibleCharacterIds },
       "scores.all": { $gt: 0 },
       ...CURRENT_IDENTITY_FILTER,
-    });
+    }).maxTimeMS(120_000);
     const runRows = await CharacterMythicPlusDungeonRun.aggregate<{ _id: { season: string; dungeonId: number } }>([
       { $match: { characterId: { $in: eligibleCharacterIds }, ...CURRENT_IDENTITY_FILTER } },
       {
@@ -2284,7 +2310,7 @@ class MythicPlusService {
           },
         },
       },
-    ]);
+    ]).option({ maxTimeMS: 120_000 });
 
     const currentSeason = await this.getCurrentSeasonSlug();
     const seasonsWithData = Array.from(

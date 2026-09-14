@@ -29,6 +29,7 @@ import { resolveRole, slugifySpecName } from "../utils/spec";
 import { createAccentInsensitiveSearchRegex } from "../utils/search";
 import { getWclRankingPartitionIds, toWclPartitionRankingAlias } from "../utils/wcl-ranking-partitions";
 import cacheService from "./cache.service";
+import mythicPlusCache from "./mythic-plus-cache.service";
 import characterMediaService from "./character-media.service";
 import characterContinuityService from "./character-continuity.service";
 import { updateCharacterIdentityFromObservation } from "./character-observed-identity.service";
@@ -2365,7 +2366,7 @@ class CharacterService {
       await tempCollection.rename(targetCollectionName, { dropTarget: true });
       logger.info(`[CharacterRaidParticipation] Step 7/7 complete: replaced ${previousRows} rows with ${inserted} rows (${elapsed()})`);
 
-      await Promise.all([cacheService.invalidatePattern(/^characters:profile:/), cacheService.invalidatePattern(/^mythic-plus:/)]);
+      await Promise.all([cacheService.invalidatePattern(/^characters:profile:/), mythicPlusCache.markOptionsStale()]);
 
       logger.info(
         `[CharacterRaidParticipation] Rebuild complete in ${elapsed()}: relinked ${relinkedCanonicalClasses.relinkedGroups}/${relinkedCanonicalClasses.groups} canonical-class groups across ${relinkedCanonicalClasses.canonicalIds} multi-class canonical IDs, matched ${matchedFallbackAppearances} fallback appearances, corrected ${reconciledRankedCharacterClasses} rankedCharacters classes, deleted ${previousRows}, inserted ${inserted}`,

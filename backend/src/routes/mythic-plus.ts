@@ -1,10 +1,12 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router, Request, Response } from "express";
 import { MYTHIC_PLUS_SCORE_BUCKETS, MythicPlusScoreBucket } from "../config/mythic-plus";
-import { cacheMiddleware } from "../middleware/cache.middleware";
-import cacheService from "../services/cache.service";
+import mythicPlusCache, { MYTHIC_PLUS_LEADERBOARD_TTL_MS } from "../services/mythic-plus-cache.service";
+import { parseNumberQuery, parseStringQuery, getMythicPlusLeaderboardCacheKey, isMythicPlusLeaderboardQueryCacheable } from "../utils/mythic-plus-cache";
 import mythicPlusService, { MythicPlusDungeonSort } from "../services/mythic-plus.service";
 import logger from "../utils/logger";
 import { normalizeSearchText } from "../utils/search";
+
+export { getMythicPlusLeaderboardCacheKey, isMythicPlusLeaderboardQueryCacheable } from "../utils/mythic-plus-cache";
 
 const router = Router();
 
@@ -12,65 +14,11 @@ const ALLOWED_BUCKETS = new Set<MythicPlusScoreBucket>(MYTHIC_PLUS_SCORE_BUCKETS
 const ALLOWED_DUNGEON_SORTS = new Set<MythicPlusDungeonSort>(["score", "level"]);
 const ALLOWED_ROLES = new Set(["dps", "healer", "tank"] as const);
 
-function parseNumberQuery(value: unknown): number | undefined {
-  if (value === undefined) return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function parseStringQuery(value: unknown): string | undefined {
-  if (value === undefined) return undefined;
-  const parsed = String(value).trim();
-  return parsed.length > 0 ? parsed : undefined;
-}
-
-export function isMythicPlusLeaderboardQueryCacheable(query: Request["query"]): boolean {
-  return !parseStringQuery(query.search) && !parseStringQuery(query.characterName) && !parseStringQuery(query.guildName) && parseStringQuery(query.nocache)?.toLowerCase() !== "true";
-}
-
-export function getMythicPlusLeaderboardCacheKey(query: Request["query"]): string {
-  const params = new URLSearchParams();
-  const season = parseStringQuery(query.season);
-  const bucket = parseStringQuery(query.bucket)?.toLowerCase() ?? "all";
-  const dungeonId = parseNumberQuery(query.dungeonId);
-  const dungeonSort = parseStringQuery(query.dungeonSort)?.toLowerCase() ?? "score";
-  const classId = parseNumberQuery(query.classId);
-  const specName = parseStringQuery(query.specName)?.toLowerCase();
-  const role = parseStringQuery(query.role)?.toLowerCase();
-  const page = parseNumberQuery(query.page) ?? 1;
-  const limit = parseNumberQuery(query.limit) ?? 100;
-
-  if (season) params.set("season", season);
-  params.set("bucket", bucket);
-  if (dungeonId !== undefined) params.set("dungeonId", String(dungeonId));
-  params.set("dungeonSort", dungeonSort);
-  if (classId !== undefined) params.set("classId", String(classId));
-  if (specName) params.set("specName", specName);
-  if (role) params.set("role", role);
-  params.set("page", String(page));
-  params.set("limit", String(limit));
-
-  return `mythic-plus:leaderboard:v3:${params.toString()}`;
-}
-
-const leaderboardCacheMiddleware = cacheMiddleware(
-  (req) => getMythicPlusLeaderboardCacheKey(req.query),
-  () => cacheService.DEFAULT_TTL,
-);
-
-function cachePublicLeaderboard(req: Request, res: Response, next: NextFunction) {
-  if (!isMythicPlusLeaderboardQueryCacheable(req.query)) return next();
-  return leaderboardCacheMiddleware(req, res, next);
-}
-
 router.get(
   "/options",
-  cacheMiddleware(
-    () => "mythic-plus:options:v2",
-    () => cacheService.STATIC_TTL,
-  ),
   async (_req: Request, res: Response) => {
     try {
+      res.setHeader("Cache-Control", "no-cache");
       res.json(await mythicPlusService.getOptions());
     } catch (error) {
       logger.error("Error fetching Mythic+ options:", error);
@@ -79,7 +27,7 @@ router.get(
   },
 );
 
-router.get("/", cachePublicLeaderboard, async (req: Request, res: Response) => {
+router.get("/", async (req: Request, res: Response) => {
   try {
     const bucketRaw = parseStringQuery(req.query.bucket)?.toLowerCase() as MythicPlusScoreBucket | undefined;
     const bucket = bucketRaw ?? "all";
@@ -132,7 +80,7 @@ router.get("/", cachePublicLeaderboard, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid role" });
     }
 
-    const response = await mythicPlusService.getLeaderboard({
+    const build = () => mythicPlusService.getLeaderboard({
       season,
       bucket,
       dungeonId,
@@ -149,6 +97,10 @@ router.get("/", cachePublicLeaderboard, async (req: Request, res: Response) => {
       guildRealm,
     });
 
+    const response = isMythicPlusLeaderboardQueryCacheable(req.query)
+      ? await mythicPlusCache.get(getMythicPlusLeaderboardCacheKey(req.query), build, MYTHIC_PLUS_LEADERBOARD_TTL_MS)
+      : await build();
+    res.setHeader("Cache-Control", "no-cache");
     res.json(response);
   } catch (error) {
     logger.error("Error fetching Mythic+ leaderboard:", error);

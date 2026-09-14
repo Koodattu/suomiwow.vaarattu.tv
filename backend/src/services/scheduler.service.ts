@@ -209,6 +209,8 @@ class UpdateScheduler {
   private hotHoursTwitchInterval: NodeJS.Timeout | null = null;
   private fightVodResolverInterval: NodeJS.Timeout | null = null;
   private mythicPlusRecoveryInterval: NodeJS.Timeout | null = null;
+  private mythicPlusCacheInterval: NodeJS.Timeout | null = null;
+  private isRefreshingMythicPlusCache = false;
   private characterRankingRecoveryInterval: NodeJS.Timeout | null = null;
   private homeCacheRefreshInterval: NodeJS.Timeout | null = null;
   private offHoursActiveInterval: NodeJS.Timeout | null = null;
@@ -271,6 +273,18 @@ class UpdateScheduler {
     if (this.isUpdatingCharacterRankings) return "character rankings refresh";
     if (this.isUpdatingCharacterMechanics) return "character mechanics leaderboard rebuild";
     return null;
+  }
+
+  private async refreshMythicPlusCache(): Promise<void> {
+    if (this.isRefreshingMythicPlusCache || this.getBlockingDatabaseMaintenanceJob()) return;
+    this.isRefreshingMythicPlusCache = true;
+    try {
+      await mythicPlusService.warmLeaderboardCaches();
+    } catch (error) {
+      logger.error("[Mythic+ Cache] Scheduled refresh failed:", error);
+    } finally {
+      this.isRefreshingMythicPlusCache = false;
+    }
   }
 
   private async updateGuildProgressBatch(guilds: IGuild[], logPrefix: string, throttleMs: number, yieldEvery: number = 1): Promise<GuildBatchUpdateStats> {
@@ -486,6 +500,11 @@ class UpdateScheduler {
     this.mythicPlusRecoveryInterval = setInterval(() => {
       void this.resumeMythicPlusCrawler("watchdog");
     }, MYTHIC_PLUS_RECOVERY_MS);
+
+    void this.refreshMythicPlusCache();
+    this.mythicPlusCacheInterval = setInterval(() => {
+      void this.refreshMythicPlusCache();
+    }, 2 * 60 * 1000);
 
     this.characterRankingRecoveryInterval = setInterval(() => {
       void this.resumeCharacterRankingBackfill("watchdog");
@@ -1443,6 +1462,10 @@ class UpdateScheduler {
     if (this.mythicPlusRecoveryInterval) {
       clearInterval(this.mythicPlusRecoveryInterval);
       this.mythicPlusRecoveryInterval = null;
+    }
+    if (this.mythicPlusCacheInterval) {
+      clearInterval(this.mythicPlusCacheInterval);
+      this.mythicPlusCacheInterval = null;
     }
     if (this.characterRankingRecoveryInterval) {
       clearInterval(this.characterRankingRecoveryInterval);

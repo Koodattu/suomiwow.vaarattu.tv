@@ -3,6 +3,7 @@ import guildService from "./guild.service";
 import compareService from "./compare.service";
 import tierListService from "./tierlist.service";
 import raidAnalyticsService from "./raid-analytics.service";
+import mythicPlusService from "./mythic-plus.service";
 import { TRACKED_RAIDS, CURRENT_RAID_IDS, PRIMARY_RAID_ID } from "../config/guilds";
 import logger from "../utils/logger";
 import Raid from "../models/Raid";
@@ -141,7 +142,7 @@ class CacheWarmerService {
 
     try {
       // Warm caches in priority order (most important first)
-      await Promise.all([this.warmProgressCaches(), this.warmCompareCaches(), this.warmHomeCacheData(), this.warmGuildListCaches()]);
+      await Promise.all([this.warmProgressCaches(), this.warmCompareCaches(), this.warmHomeCacheData(), this.warmGuildListCaches(), mythicPlusService.warmLeaderboardCaches()]);
 
       // Warm tier lists and analytics (can take longer)
       await Promise.all([this.warmTierListCaches(), this.warmRaidAnalyticsCaches()]);
