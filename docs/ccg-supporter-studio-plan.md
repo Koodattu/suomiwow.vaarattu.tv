@@ -1,0 +1,244 @@
+# Card Studio and Supporter set
+
+Planning proposal, 2026-09-16, updated with the product decisions from the grill-me session. No feature implementation is included. Engineering defaults below remain proposals until final plan confirmation.
+
+## Product contract
+
+Add **Card Studio** at `/ccg/studio` in the CCG navigation. It has two views:
+
+1. **My characters:** discover existing CCG cards depicting characters on the connected Battle.net account, grouped by character and set. Distinguish cards that exist from copies the user owns.
+2. **My creations:** prepare and publish custom Supporter cards for those characters, using permanently earned publication slots from verified Twitch support of the `vaarattu` channel.
+
+Confirmed requirements:
+
+- Character ownership comes from Battle.net; public character data and the render come from Armory. No guild, raid participation, logs, gear, performance, or site-tracking requirement.
+- One permanent published card per character in the Supporter set; subsequent updates change that same card for all collectors. No additional collectible snapshots.
+- Creators choose rarity, role/spec, custom scores, and one creator-exclusive raid finish. Normal copies can roll only standard, foil, golden, prismatic, holographic, negative, and astral.
+- Published cards cannot be deleted by creators. Drafts can be saved and deleted.
+- Supporter has a dedicated pack at the bottom of Open Packs. It never enters All Raid Sets, custom raid selections, or raid-pack replacement rolls.
+- Supporter cards count toward leaderboard points at launch. A later scoring-policy change must be applicable with a full rebuild.
+- Alternative art and audio are out of scope for this phase, including automatic inheritance from an existing character's alternative art.
+
+## Confirmed launch decisions
+
+These product decisions were settled in the grill-me session.
+
+| Topic | Decision |
+| --- | --- |
+| Initial slots | Following earns +1 once; subscribing earns +3 once. A follower who subscribes starts with four. The follower grant requires verified following. |
+| Subscription tiers | Equal allowance for all active tiers, including Prime and gifted subscriptions. |
+| Monthly growth | +1 for each qualifying calendar month in Europe/Helsinki, starting the month after the first verified subscriber month. No bonus in that initial month. At most one monthly grant per account per month. |
+| Tracking start | Starts when Twitch is connected to the site. No rewards for months before connection. |
+| Twitch disconnection | Intentionally disconnecting pauses new reward tracking until reconnection. Earned slots remain usable. No rewards for disconnected intervals; reconnecting preserves original grant history and the first-month exception. |
+| Draft limit | Five saved drafts per creator, independent of earned slots. Drafts are deletable and do not consume publication slots. |
+| Subscription expiry | All earned slots remain usable. Published cards, creator copies, editing access, and pack availability remain. Battle.net character ownership is still required for publishing and editing. |
+| Re-subscription | Can qualify for future monthly grants; never repeats initial grants, resets usage, or restarts the first-month exception. |
+| Rarity and creator finish | Editable in a draft; locked at first publication. Stats, valid spec/role, and appearance remain editable afterward. |
+| Pack access | Everyone who can open ordinary packs, including guests. One existing pack credit buys five Supporter cards; no Twitch requirement for collecting. |
+| Pack size and selection | Five cards, uniformly chosen from published Supporter characters, with replacement. Existing base-finish odds and pity behavior. |
+| Geography | Preserve the current EU account integration for the first release and explicitly label it. No level filter. Supporting US/KR/TW account ownership is additional work; public Armory lookup support alone does not provide ownership proof. |
+| Distribution after departure | Published cards remain in packs even if the creator leaves or the character disappears from Armory. Keep the last saved render. Loss of verified ownership freezes editing; admin can suppress distribution when necessary. |
+| Transmog refresh | Initial Armory import immediately; later successful refreshes at most once per character per six hours. Failed requests permit an earlier retry. Refresh prepares a preview; Apply changes updates the published card. |
+
+There is no fixed four-card lifetime cap: four is the initial total for someone who both follows and subscribes. Monthly grants increase permanent capacity. No additional total-cap rule has been requested.
+
+Unused slots accumulate and never expire. A published card permanently consumes one slot and cannot be swapped for a different character to recycle it. Following/subscription status governs earning additional slots, not spending slots already earned.
+
+## What Twitch can verify
+
+Current subscription status is available through [Get Broadcaster Subscriptions](https://dev.twitch.tv/docs/api/reference/#get-broadcaster-subscriptions), using the broadcaster's token with `channel:read:subscriptions`. Its response includes tier and gift status, but no historical subscription-month count.
+
+Follower status is available through [Get Channel Followers](https://dev.twitch.tv/docs/api/reference/#get-channel-followers), using the broadcaster's or an authorized moderator's token with `moderator:read:followers`.
+
+[Subscription Message events](https://dev.twitch.tv/docs/eventsub/eventsub-reference/#channel-subscription-message-event) include cumulative months. However, [the event is triggered by a shared resubscription chat message](https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/#channelsubscriptionmessage), so it is not a complete historical lookup for every subscriber. Subscription-start events are also not a monthly renewal ledger. Do not infer actual lifetime subscribed months from elapsed time since first observation.
+
+Recommendation: use broadcaster authorization for both checks. Viewers keep their existing identity connection; they do not need additional subscription/follow scopes. Extend the existing broadcaster authorization deliberately and show its required capabilities in admin. Verify the saved token belongs to the configured broadcaster ID. Do not use the chatbot identity as a substitute for the broadcaster.
+
+Monthly rewards use subscription evidence collected after the account connects, not Twitch's historical tenure. Record successful subscription checks and verified subscription events with their observation/effective times. A qualified month can grant immediately; the user need not visit again at month end.
+
+## Permanent grants and calendar months
+
+- Persist the original tracking start and first verified subscriber month. Neither resets on reconnect, an expired subscription, or an account-recovery operation.
+- Use a durable grant ledger with unique keys for `(broadcasterId, twitchUserId, grantKind, periodKey)`: one follower grant, one initial subscriber grant, and one grant per eligible `YYYY-MM` in Europe/Helsinki. A grant's slot amount is +1, +3, or +1 respectively.
+- Atomically insert the grant and increase earned capacity. Duplicate login, webhook, manual refresh, and job deliveries must not double-credit. Used slots are allocated separately, with `used < earned` checked transactionally.
+- The initial subscriber month never receives its monthly +1, even when subscription verification repeats or the user reconnects. Following can qualify separately before or after that month.
+- Later months qualify when supported by a verified active-subscription observation or valid subscription event in that month. Qualifying once is sufficient; ending the subscription later does not revoke that month's grant.
+- Example: a follower first connects and is verified subscribed on September 30: four slots. A verified subscription on October 1 grants a fifth. No September monthly bonus. If November has no qualifying evidence, no November bonus; verified subscription in December grants one more.
+- No inference of uninterrupted subscription from first-seen date, stale cached status, or a later positive check. No automatic backfill for months without evidence. Stored evidence and grant-processing failures can be replayed safely for the correct historical month after tracking began.
+- Persist tracking-enabled intervals or connection revisions. Disconnect stops account-specific polling and reward evidence collection; reject evidence from disconnected intervals, including delayed events received after reconnection. Fence in-flight checks against disconnection so they cannot introduce new qualification after tracking stops. Qualification already durably recorded before disconnect remains valid and can finish processing idempotently.
+
+Polling cannot prove every real-world subscription interval during an outage. Keep coverage failures visible to admin and retain evidence for reconciliation instead of promising complete historical coverage or fabricating grants. Intentional disconnection pauses qualification; it does not revoke grants or erase previous usage.
+
+## Eligibility checks and failures
+
+Maintain cached status separately from permanent grants and publication usage. Store the broadcaster ID, Twitch user ID, following/subscription result, tier, successful check timestamps, and verification error state. An API error is **unknown**, not **not subscribed**. Grant processing runs through the same idempotent service for every source below.
+
+- On Twitch connect: check status immediately.
+- On site login: queue a refresh when stale; do not delay or fail site login.
+- On Studio entry: serve cached state immediately and refresh if older than 15 minutes.
+- Manual **Refresh status**: bypass the normal cache, subject to a 60-second server cooldown.
+- On publication: require an unused earned slot and current Battle.net ownership proof. Do not require a current follow/subscription or a successful Twitch request to spend an existing slot. Reuse very recent ownership proof to absorb double clicks.
+- Recommended background coverage: a weekly reconciliation of tracked linked accounts, a month-boundary pass, and subscription events between checks. Batch requests and reuse the existing scheduler/job locks. Retry transient failures with backoff and respect provider limits. Check all tracked linked reward participants, not only recent Studio visitors.
+- If Twitch verification cannot complete: preserve earned slots, drafts, collections, and last known status. Delay unverified new grants; spending earned slots remains available. Failed Battle.net ownership verification pauses publication/editing, not collection access.
+
+Monthly accrual makes subscription EventSub useful in the first release: weekly polling alone can miss eligibility between checks. Reuse existing signature verification, broadcaster validation, and delivery deduplication for subscription start/end events. A valid delayed start event can supply historical evidence for its own eligible month without overwriting a newer current-status observation. Events never replace month-boundary and periodic checks, since subscription-start events do not represent every renewal. Process notification time carefully and reject events from before tracking started. Out-of-order events must not revoke a permanent grant.
+
+## Character ownership and identity
+
+Use the existing site session, then connect Battle.net. The current application signs users in through Discord; Battle.net and Twitch are linked identities. Do not silently introduce new primary sign-in methods as part of this feature.
+
+The current Battle.net sync is EU-only, filters to level 60+, and does not store realm ID or region on each character. The Studio needs an unfiltered account-character result with explicit region, realm ID, Blizzard character ID, and the selected character's public profile. Preserve other profile consumers' existing behavior through an explicit Studio path or option.
+
+- The browser submits a selection from a server-provided account roster, not arbitrary name/realm ownership claims.
+- At publication, verify the selected character still appears in the authenticated roster and matches the public Armory response.
+- Store region, realm ID, and Blizzard character ID as external identity evidence, with a stable internal identity for the Supporter series.
+- Treat name and realm slug as display/lookup data, not sufficient ownership evidence. Do not assume Blizzard IDs survive every transfer unchanged.
+- Reuse tracked-character and continuity resolution when available, but never require a tracked character to create a Supporter card.
+- Keep an untracked Supporter card's series ID stable if it later becomes a tracked raid character. Linking must not replace its collectible identity or ownership records.
+- Renames/transfers that cannot be proven automatically require recovery; no automatic takeover based only on a matching name.
+- If the character is no longer on the linked Battle.net account, freeze mutations. Existing published cards and collected copies remain.
+- A missing render or temporary Armory failure leaves a recoverable draft. Publication requires a successfully stored render. Missing active-spec data on a lower-level character should permit a valid manual spec selection.
+
+To prevent reconnect farming, bind publication usage durably to the creator and the original Twitch/Battle.net identities. Use database uniqueness and transactional allocation, not only the current account-link fields. Reconnecting the same identities preserves usage; changing the identities must not grant a new allowance or transfer editing rights automatically. Account-recovery cases should be explicit admin operations.
+
+## Studio experience
+
+Show the page and a useful connection state even before accounts are linked. Require Battle.net for private character discovery and ownership verification. Require verified Twitch support to earn new slots; publishing spends previously earned slots even after unfollowing or unsubscribing.
+
+**My characters** groups cards by character, with raid/set name, available snapshots, and owned-copy indicators. Default to all cards that exist for those characters, with an **Owned only** filter. This does not grant the raid cards to the character owner. Include empty states for characters with no existing cards.
+
+**My creations** shows:
+
+- A compact account/status strip: Battle.net connected, Twitch identity, follower/subscriber status, last checked time, and refresh action.
+- Publication usage such as “2 of 5 cards published,” with earned/used/available counts and this month's reward state. On expiry, explain that earned slots remain usable and future monthly rewards require a qualifying subscription. Never shrink displayed earned capacity.
+- Separate Draft and Published sections, with a clear create action and remaining capacity.
+
+Editor sequence:
+
+1. Select an owned character. Load Armory profile and stored render immediately with a visible loading state.
+2. Show a large live card preview. Choose a valid class specialization and role, rarity, creator finish, performance score, mechanics score, and M+ score. Class/name/identity are not editable text fields.
+3. Show the public standard appearance and creator finish as preview choices so users understand what everyone else can collect.
+4. Save Draft, or review and Publish. Publication review states that the character slot is permanent, the creator receives one exclusive-finish copy, and future saved changes affect everyone's copy.
+
+After publication, edits use a working draft while the live card remains unchanged. **Apply changes** updates the existing card. Refreshing transmog updates the preview first; it does not silently change every collector's card. Show save state and recover from reloads and request failures. Use optimistic revision checks to prevent an old browser tab overwriting a newer edit. Recommended editor default: at most one working draft per character; saved working copies count toward the five-draft limit, with discard/apply freeing that space.
+
+Use the existing card renderer, finish styling, account connection components, and English/Finnish localization. Keep the editor usable as a single column on mobile with a reachable preview and explicit save/publish controls.
+
+## Scores, rarity, and creator finish
+
+- Treat the performance field as the existing card's 0–100 DPS/HPS score, not raw damage or healing per second. Label based on role; tanks use DPS.
+- Accept finite performance/mechanics values between 0 and 100, rounded to one decimal. M+ is a finite nonnegative score with a documented upper bound, initially the existing 100,000 ceiling. An unset value remains visibly unset.
+- Calculate combined on the server: `roundTo1Decimal((performance + mechanics) / 2)`. If either component is unset, combined is unset. Reject/ignore client-supplied combined rather than storing it as authoritative.
+- **Randomize stats** changes preview values only, within the same bounds, and recalculates combined. It makes no Armory request and never auto-publishes.
+- Explain in card details that Supporter stats and rarity are creator selected. They are not measured raid results. Keep them out of verified performance records and combat scoring unless a future mode deliberately supports custom stats.
+- Allow existing rarity grades, including H. Do not force a grade distribution or raid-style A-or-better guarantee on this pool: creators control grades, so those assumptions are unreliable.
+- Creator finishes come from an explicit allowlist of released raid finishes, excluding reserved keys. The chosen effect does not make the card a member of that raid's set or import its background/theme.
+- Grant exactly one exclusive copy during first publication. Use an idempotent grant identity and the existing ownership/series bookkeeping. Lock the chosen finish at publication in v1; unlimited switching would undermine the “only one creator variant” contract.
+- All other grant paths, including redemption, admin codes, Twitch rewards, guest merges, and future trading/crafting, must preserve the creator-only restriction for that Supporter card. Sharing a preview must not grant ownership.
+
+## Rendering and mutable publication
+
+Community cards already call `characterRenderStorageService.ingest`, persist `renderAssetId`, and use stored WebP assets with content hashing and fit metadata. Regular cards use the same service. No separate Community render migration is needed for this feature based on the inspected code.
+
+Reuse that pipeline. Only accept server-fetched Blizzard media URLs, keeping the service's host, format, size, and timeout checks. Retain the last good asset on failure. Identical refresh results should produce a “No appearance changes found” result and preserve the published image. A changed image gets a different asset reference; never overwrite immutable image bytes at a cacheable URL.
+
+Do not copy Community's automatic render refresh into Supporter publication behavior: the creator should choose when a new appearance becomes public. Avoid introducing a broad asset garbage-collection project here; any cleanup added for discarded drafts must preserve shared and published references.
+
+Keep `CcgCard._id`, series identity, set number, and `snapshotVersion = 1` stable. A separate edit revision supports concurrency/audit without creating collectible snapshots. Store private draft edits separately from the public card payload.
+
+Published raid cards currently reject mutation through model hooks; Community uses a narrowly filtered raw collection update. Add an equally narrow, reviewed Supporter update path restricted to Supporter source/card/creator identity and an explicit editable-field allowlist. Do not weaken raid-card immutability globally.
+
+All reads of collection cards, catalogue, card shares, and pack-reveal details must resolve the current Supporter card. Preserve historical opening/grant facts, but do not render stale embedded Supporter stats as a second snapshot. Invalidate relevant response/share/OG caches; already downloaded images or third-party link previews cannot be forcibly updated.
+
+## Pack isolation
+
+Introduce `CcgSet.kind = "supporter"`, a `supporter` slug, and a reserved non-raid zone identity. Do not put it in `CCG_CONFIGURED_SETS`, which drives raid behavior.
+
+Use an explicit Supporter pack selection mode. Reuse transactional balance deduction, pack-opening persistence, idempotency, finish rolling, and ownership writes, but keep candidate selection separate from `selectPackResults`, which currently selects raids and can inject Community cards.
+
+Hard invariants:
+
+- All Raid Sets selects raids and retains its existing Community behavior; no Supporter candidates.
+- Custom raid selections accept only raid IDs, even when a forged request includes Supporter.
+- The Supporter pack selects only published, distributable Supporter cards. No Community substitutions or alternate art.
+- Supporter packs have no creator-finish pity. They must not advance/reset raid-specific finish pity; scope the existing pity mechanism explicitly and test switching pack types.
+- An empty pool disables the pack action; a pool race must never charge a pack balance without producing a valid opening.
+- A small pool can contain fewer than five unique characters. Duplicates are expected; no new minimum-card publication gate.
+- Publishing another card expands the pool. Applying only score/spec/render changes does not rebuild an unchanged membership pool.
+
+## Leaderboards
+
+User decision: Supporter counts at launch. Include ordinary collection, rarity, finish, and completion points under the existing model, including the creator's exclusive finish points. Completion requires the seven public finishes only; the exclusive finish is an extra, not a requirement.
+
+The inspected leaderboard service recalculates from ownership and card data during a full refresh. Add the Supporter inclusion decision in one scoring-policy location shared by full and incremental calculation. A later exclusion changes the policy, advances the scoring version as appropriate, and runs a full rebuild; it does not delete cards or rewrite acquisitions. Keep UI explanation in sync with the active policy.
+
+Critical existing constraint: incremental selection currently uses `lastAcquiredAt`. A new Supporter publication changes the set-completion denominator for everyone who already owns that set, even if they acquire nothing. A metadata change that affects scoring has the same issue. Do not falsify acquisition timestamps to trigger a refresh.
+
+For launch, persist a pending full-rebuild request after publication/moderation or scoring-relevant changes. Debounce/coalesce requests into the existing scheduled runner. Capture the requested revision so a change during a rebuild remains pending for the next run. The runner currently skips when busy, so a one-shot trigger alone would lose work. The daily full rebuild remains recovery coverage.
+
+Locking rarity at publication avoids repeated user-driven score changes. Custom performance/M+ values do not themselves contribute collection points, and must not enter verified raid-performance record leaderboards.
+
+## Minimal engineering shape
+
+Reuse the existing MongoDB, Express services, scheduler, React Query, and CCG components; no new production dependency or queue system is needed.
+
+New responsibilities:
+
+- Supporter status service: broadcaster checks, freshness, error classification, and bounded reconciliation.
+- Durable creator/usage record and grant ledger: owner identity bindings, tracking start, first subscriber month, permanent earned/consumed slots, monthly evidence, and unique grant constraints.
+- Supporter creation record: character identity, draft working copy, publication pointer, selected creator finish, revision, and cooldowns.
+- Supporter service: ownership authorization, validation, rendering, publication, updates, and narrow moderation.
+
+Reuse `CcgSet`, `CcgCard`, `CcgPackPool`, `CcgOwnership`, and `CcgSeriesOwnership`. Reuse score-shape and render utilities where their semantics match; do not route public writes into admin Community endpoints. Existing Community score normalization accepts negative values and independently supplied combined values, so it is not sufficient unchanged for Supporter validation. Preserve Community behavior unless a separate fix is agreed.
+
+Representative authenticated API boundaries:
+
+- `GET /ccg/studio`: capabilities, connection/status state, usage, and paginated creations.
+- `GET /ccg/studio/characters`: owned characters with matching catalogue/collection summaries.
+- `POST /ccg/studio/status/refresh`: force status verification within cooldown.
+- `POST /ccg/studio/drafts`, `PATCH /ccg/studio/drafts/:id`, `DELETE /ccg/studio/drafts/:id`.
+- `POST /ccg/studio/drafts/:id/render-refresh`.
+- `POST /ccg/studio/drafts/:id/publish`: first publication or apply an edit, distinguished and validated server-side.
+- Existing pack-opening API extended with an explicit Supporter selection contract.
+
+First-publication transaction: verify actor/bindings/revision, reserve a remaining slot with a conditional write, allocate a permanent set number, create the single card, mark publication, grant creator ownership and snapshot 1, update the pool, and record pending leaderboard work. Perform external verification/media ingestion before the short DB transaction, then recheck local identity/proof versions inside it. A retry must return the original publication and never grant a second copy or consume a second slot.
+
+Keep set-number allocation monotonic and separate from the current distributable card count. Moderation must not let numbers be reused.
+
+Draft CRUD and published edits require owner authorization and existing session/CSRF protections. Tokens and the private Battle.net roster never appear in public CCG responses. Admin can freeze edits or suppress distribution for abuse without deleting collectors' ownership; creators cannot unpublish or reclaim used slots.
+
+## Initial rate limits
+
+| Action | Proposed limit |
+| --- | --- |
+| Twitch manual status refresh | Once per 60 seconds per linked Twitch identity, coalescing concurrent checks |
+| Battle.net roster manual refresh | Once per 5 minutes per account; publication verification uses a short cached proof |
+| Render ingestion/refresh | Confirmed: immediate initial fetch, then once per character per 6 hours after a successful fetch. Proposed abuse ceiling: 10 attempts per creator per day across draft creation and refresh |
+| Failed render retry | Short backoff (initially 60 seconds), not the six-hour success cooldown |
+| Draft saves | Debounced, up to 30 per minute per creator |
+| Apply published edits | Once per card per 5 minutes |
+| Publication attempts | Up to 5 per minute per creator, with idempotency and lifetime slot checks |
+
+Use database-backed conditional cooldowns/counters for expensive operations so parallel tabs, multiple processes, reconnects, or restarts cannot bypass them. Add ordinary per-IP abuse protection using existing middleware. Return `nextAllowedAt`/`Retry-After` where useful. Provider failures must not consume publication capacity. Stats randomization stays local until save and needs no external quota.
+
+## Delivery and verification
+
+1. **Status and identity:** broadcaster authorization capabilities, status cache, subscription events/reconciliation, monthly grant ledger, unfiltered Studio roster, durable usage binding, and connection UI. Verify current subscriber/follower and provider-error cases with mocked APIs plus controlled account smoke checks.
+2. **Studio drafts:** character discovery, shared preview, draft persistence, score calculation, render ingestion/refresh, and localized states. Verify ownership and cross-user access, low-level/untracked characters, and expired Battle.net authorization.
+3. **Publication:** atomic slot allocation, one stable snapshot, creator grant, edits, cache invalidation, and moderation. Test simultaneous last-slot publishes, same-draft retries, stale tabs, disconnect/reconnect, failure after render storage, and subscription lapse.
+4. **Pack and scoring:** explicit Supporter mode, base-only finish policy, every grant-path restriction, leaderboard inclusion and rebuild invalidation, and collection/share integration.
+5. **Launch checks:** mobile/desktop Studio walkthrough in both locales; existing Community, raid packs, Twitch rewards, immutable snapshots, and collection sorting remain covered.
+
+Required automated regressions include forged Supporter IDs in All Raid Sets, accidental Community injection, creator finishes through redemption/reward paths, all-H or very small pools, concurrent pack/publish operations, identical render refreshes, correct cache/read-model updates after edits, seven-finish completion, and a full rebuild both including and excluding Supporter. Test that new publications invalidate prior set-completion bonuses even for collectors with no recent acquisitions.
+
+Grant regressions must cover the excluded first month; Helsinki month/year boundaries and DST; concurrent job/login/event grants; duplicate and delayed events; gaps and subsequent subscriptions; Prime/gifted/all paid tiers; no grants before connection or for disconnected intervals; disconnect racing an in-flight check; replay after partial failure; reconnects without duplicated initial or monthly grants; and publication from banked slots after unfollowing, subscription expiry, intentional Twitch disconnection, or Twitch API failure. Published cards must remain distributable when Armory no longer returns the character.
+
+Use the repository's targeted `node --test -r ts-node/register` tests, backend TypeScript build, frontend lint/build, and Mongo-backed integration tests for transactional behavior. Run these during implementation; no tests were run for this planning-only change.
+
+Before release, enable the set only after its indexes, pool, stored rendering, broadcaster scopes, and full leaderboard rebuild are ready. Rollback disables new creation/pack distribution while preserving published cards and ownership.
+
+## Interview outcome
+
+The product questions raised in the interview are resolved. Intentionally disconnecting Twitch stops future reward tracking until reconnection, while preserving earned slots, publication rights, original tracking start, first subscriber month, and grant identities. Reconnecting the same Twitch identity resumes qualification without repeating initial grants or restarting the first-month exception.
+
+Technical limits other than the confirmed five-draft and six-hour transmog limits, plus scheduling details, remain proposed engineering defaults. This document is the reviewable implementation plan; the interview has not authorized feature implementation.
