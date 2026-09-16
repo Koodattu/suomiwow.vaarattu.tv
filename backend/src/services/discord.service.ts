@@ -150,6 +150,12 @@ class DiscordService {
       logger.info(`New user created: ${discordUser.username} (${discordUser.id})`);
     }
 
+    if (user.twitch) {
+      void import("./ccg-supporter-status.service").then(async ({ default: supporter }) => {
+        await supporter.initializeExistingLink(String(user._id));
+        await supporter.refresh(String(user._id));
+      }).catch(() => logger.warn("[CCG/Supporter] Login verification will retry"));
+    }
     return user;
   }
 

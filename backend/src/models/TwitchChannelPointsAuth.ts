@@ -47,6 +47,9 @@ export interface ITwitchChannelPointsAuth extends Document {
   lastVerifiedAt?: Date;
   lastVerifiedError?: string;
   lastError?: string;
+  supporterSubscriptionIds?: string[];
+  supporterEventsError?: string;
+  supporterEventsCheckedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -99,6 +102,9 @@ const TwitchChannelPointsAuthSchema = new Schema<ITwitchChannelPointsAuth>(
     lastVerifiedAt: { type: Date },
     lastVerifiedError: { type: String },
     lastError: { type: String },
+    supporterSubscriptionIds: { type: [String], default: [] },
+    supporterEventsError: { type: String },
+    supporterEventsCheckedAt: { type: Date },
   },
   { timestamps: true },
 );

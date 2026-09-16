@@ -38,6 +38,7 @@ test("CCG activity uses the opened pack source instead of the first pulled card"
   assert.equal(String(resolveCcgActivityPackSetId("raid", null, [currentSetId, communitySetId])), String(currentSetId));
   assert.equal(String(resolveCcgActivityPackSetId("raid", targetedLegacySetId, [targetedLegacySetId, communitySetId])), String(targetedLegacySetId));
   assert.equal(resolveCcgActivityPackSetId("all", null, [targetedLegacySetId, communitySetId]), null);
+  assert.equal(String(resolveCcgActivityPackSetId("supporter", null, [currentSetId])), String(currentSetId));
   assert.equal(resolveCcgActivityPackSetId(undefined, null, [currentSetId, communitySetId]), null);
 });
 

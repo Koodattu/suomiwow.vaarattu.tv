@@ -1,6 +1,26 @@
 # Card Studio and Supporter set
 
-Planning proposal, 2026-09-16, updated with the product decisions from the grill-me session. No feature implementation is included. Engineering defaults below remain proposals until final plan confirmation.
+Implemented 2026-09-16 from the product decisions in the grill-me session. The implementation and rollout notes below take precedence over the original engineering sketch later in this document.
+
+## Implementation and rollout
+
+- `/ccg/studio` provides character discovery, five saved drafts, publication, and edits to the single shared Supporter snapshot. Both English and Finnish are included.
+- Studio verifies the complete EU Battle.net roster without a level filter. Durable Twitch and Battle.net identity bindings prevent moving allowances between site accounts. Publication, slot usage, creator ownership, pool updates, and leaderboard invalidation share a MongoDB transaction.
+- Stored character renders use the existing shared ingestion service. Community render storage needs no migration. Successful refreshes have a six-hour cooldown, failed requests a one-minute retry delay, and creators have ten ingestion attempts per day.
+- Signed subscription events and weekly status checks supply evidence. A monthly sweep checks accounts in each Helsinki calendar month. Earned grants are permanent and uniquely indexed; outages never revoke them. Twitch does not provide a complete historical subscription timeline: activity missed by both events and checks cannot be credited automatically.
+- Public Supporter packs cost one normal pack credit and contain five cards with replacement. Each card can roll the seven base finishes plus its selected raid finish. Custom pity uses separate `supporter-<finish>` counters with the existing 250-pull hard pity, advancing only when that finish is eligible. Base-finish pity remains shared; raid-pack pity is untouched. The selected finish is also eligible for redemption. Alternative art and audio are excluded.
+- Admin CCG controls can freeze editing and suppress distribution. Suppressed cards retain existing copies and points but leave the active completion denominator. Publication and moderation persist a revision that requests a full leaderboard rebuild through the existing runner.
+- `CCG_SUPPORTER_LEADERBOARD_ENABLED` in `backend/src/config/ccg.ts` controls launch scoring. Changing it also changes the leaderboard score version; run the existing full leaderboard rebuild after changing this policy.
+
+Deployment uses the existing MongoDB replica set, media storage, Twitch configuration, scheduler, and CCG feature gate. No new dependency or environment variable is required. Ensure the new model indexes are created before accepting traffic, especially creator identity, character identity, and grant-ledger unique indexes. The Supporter set is created by the existing publisher initialization; no historical card migration is needed.
+
+After deployment, reconnect the **vaarattu broadcaster** through the existing admin Twitch connection to authorize `channel:read:subscriptions` and `moderator:read:followers` alongside the existing reward permission. Viewer connections do not need these broadcaster scopes. The scheduler creates `channel.subscribe` and `channel.subscription.end` EventSub subscriptions using the existing signed HTTPS callback. The admin panel reports setup failures; weekly API checks continue independently. Confirm the callback is reachable and Twitch accepts both subscriptions.
+
+Before public launch, perform a controlled real-account check: connect Battle.net and Twitch, verify follower/subscriber allowance, publish a draft, open a Supporter pack, and apply a score/transmog update. Automated verification uses mocked provider responses and an isolated MongoDB replica set; it does not exercise real OAuth consent or live Blizzard/Twitch availability.
+
+The implemented API is under `/api/ccg/studio`: `GET /`, `POST /roster`, `POST /status`, `POST /drafts`, `PATCH` and `DELETE /drafts/:id`, `POST /drafts/:id/render`, and `POST /drafts/:id/publish`. Admin moderation uses `GET /moderation` and `PATCH /moderation/:id`. Mutations require the existing session, JSON content, and the site's allowed Origin. Public card and opening responses never expose the private roster or tokens.
+
+Verification includes focused backend tests plus `npm run test:ccg-supporter --prefix backend`. The latter requires a disposable local MongoDB replica set at the address documented in `backend/integration/ccg-supporter.test.ts`; it creates and drops its own process-specific database. Coverage includes duplicate and out-of-order events, simultaneous slot grants/publications, five-draft enforcement, ownership rejection, mutable snapshot edits, actual user/guest pack openings, pity, creator-finish isolation, moderation, and leaderboard invalidation.
 
 ## Product contract
 
@@ -13,7 +33,7 @@ Confirmed requirements:
 
 - Character ownership comes from Battle.net; public character data and the render come from Armory. No guild, raid participation, logs, gear, performance, or site-tracking requirement.
 - One permanent published card per character in the Supporter set; subsequent updates change that same card for all collectors. No additional collectible snapshots.
-- Creators choose rarity, role/spec, custom scores, and one creator-exclusive raid finish. Normal copies can roll only standard, foil, golden, prismatic, holographic, negative, and astral.
+- Creators choose rarity, role/spec, custom scores, and one card-specific raid finish. All collectors can obtain standard, foil, golden, prismatic, holographic, negative, astral, and that card's selected finish. For example, choosing Phaseglass allows Phaseglass on that card but no other raid finishes.
 - Published cards cannot be deleted by creators. Drafts can be saved and deleted.
 - Supporter has a dedicated pack at the bottom of Open Packs. It never enters All Raid Sets, custom raid selections, or raid-pack replacement rolls.
 - Supporter cards count toward leaderboard points at launch. A later scoring-policy change must be applicable with a full rebuild.
@@ -118,7 +138,7 @@ Editor sequence:
 1. Select an owned character. Load Armory profile and stored render immediately with a visible loading state.
 2. Show a large live card preview. Choose a valid class specialization and role, rarity, creator finish, performance score, mechanics score, and M+ score. Class/name/identity are not editable text fields.
 3. Show the public standard appearance and creator finish as preview choices so users understand what everyone else can collect.
-4. Save Draft, or review and Publish. Publication review states that the character slot is permanent, the creator receives one exclusive-finish copy, and future saved changes affect everyone's copy.
+4. Save Draft, or review and Publish. Publication review states that the character slot is permanent, the creator receives one copy with the selected raid finish, and future saved changes affect everyone's copy.
 
 After publication, edits use a working draft while the live card remains unchanged. **Apply changes** updates the existing card. Refreshing transmog updates the preview first; it does not silently change every collector's card. Show save state and recover from reloads and request failures. Use optimistic revision checks to prevent an old browser tab overwriting a newer edit. Recommended editor default: at most one working draft per character; saved working copies count toward the five-draft limit, with discard/apply freeing that space.
 
@@ -133,8 +153,8 @@ Use the existing card renderer, finish styling, account connection components, a
 - Explain in card details that Supporter stats and rarity are creator selected. They are not measured raid results. Keep them out of verified performance records and combat scoring unless a future mode deliberately supports custom stats.
 - Allow existing rarity grades, including H. Do not force a grade distribution or raid-style A-or-better guarantee on this pool: creators control grades, so those assumptions are unreliable.
 - Creator finishes come from an explicit allowlist of released raid finishes, excluding reserved keys. The chosen effect does not make the card a member of that raid's set or import its background/theme.
-- Grant exactly one exclusive copy during first publication. Use an idempotent grant identity and the existing ownership/series bookkeeping. Lock the chosen finish at publication in v1; unlimited switching would undermine the “only one creator variant” contract.
-- All other grant paths, including redemption, admin codes, Twitch rewards, guest merges, and future trading/crafting, must preserve the creator-only restriction for that Supporter card. Sharing a preview must not grant ownership.
+- Grant exactly one copy with the selected raid finish during first publication. Use an idempotent grant identity and the existing ownership/series bookkeeping. Lock the chosen finish at publication so a card's obtainable finishes stay stable.
+- All other grant paths, including redemption and admin codes, allow only the seven base finishes plus the selected finish for that Supporter card. Other raid finishes and alternative artwork are rejected. Sharing a preview must not grant ownership.
 
 ## Rendering and mutable publication
 
@@ -161,14 +181,14 @@ Hard invariants:
 - All Raid Sets selects raids and retains its existing Community behavior; no Supporter candidates.
 - Custom raid selections accept only raid IDs, even when a forged request includes Supporter.
 - The Supporter pack selects only published, distributable Supporter cards. No Community substitutions or alternate art.
-- Supporter packs have no creator-finish pity. They must not advance/reset raid-specific finish pity; scope the existing pity mechanism explicitly and test switching pack types.
+- Supporter packs track custom-finish pity separately for each eligible selected finish, without advancing or resetting raid-pack finish pity. Test switching pack types and mixing Supporter cards with different selected finishes.
 - An empty pool disables the pack action; a pool race must never charge a pack balance without producing a valid opening.
 - A small pool can contain fewer than five unique characters. Duplicates are expected; no new minimum-card publication gate.
 - Publishing another card expands the pool. Applying only score/spec/render changes does not rebuild an unchanged membership pool.
 
 ## Leaderboards
 
-User decision: Supporter counts at launch. Include ordinary collection, rarity, finish, and completion points under the existing model, including the creator's exclusive finish points. Completion requires the seven public finishes only; the exclusive finish is an extra, not a requirement.
+User decision: Supporter counts at launch. Include ordinary collection, rarity, finish, and completion points under the existing model. Card finish completion requires all eight obtainable finishes: the seven bases plus that card's selected raid finish. The score version advances for this rule so the existing rebuild recalculates completion.
 
 The inspected leaderboard service recalculates from ownership and card data during a full refresh. Add the Supporter inclusion decision in one scoring-policy location shared by full and incremental calculation. A later exclusion changes the policy, advances the scoring version as appropriate, and runs a full rebuild; it does not delete cards or rewrite acquisitions. Keep UI explanation in sync with the active policy.
 
@@ -226,10 +246,10 @@ Use database-backed conditional cooldowns/counters for expensive operations so p
 1. **Status and identity:** broadcaster authorization capabilities, status cache, subscription events/reconciliation, monthly grant ledger, unfiltered Studio roster, durable usage binding, and connection UI. Verify current subscriber/follower and provider-error cases with mocked APIs plus controlled account smoke checks.
 2. **Studio drafts:** character discovery, shared preview, draft persistence, score calculation, render ingestion/refresh, and localized states. Verify ownership and cross-user access, low-level/untracked characters, and expired Battle.net authorization.
 3. **Publication:** atomic slot allocation, one stable snapshot, creator grant, edits, cache invalidation, and moderation. Test simultaneous last-slot publishes, same-draft retries, stale tabs, disconnect/reconnect, failure after render storage, and subscription lapse.
-4. **Pack and scoring:** explicit Supporter mode, base-only finish policy, every grant-path restriction, leaderboard inclusion and rebuild invalidation, and collection/share integration.
+4. **Pack and scoring:** explicit Supporter mode, seven base finishes plus the selected raid finish per card, every grant-path restriction, leaderboard inclusion and rebuild invalidation, and collection/share integration.
 5. **Launch checks:** mobile/desktop Studio walkthrough in both locales; existing Community, raid packs, Twitch rewards, immutable snapshots, and collection sorting remain covered.
 
-Required automated regressions include forged Supporter IDs in All Raid Sets, accidental Community injection, creator finishes through redemption/reward paths, all-H or very small pools, concurrent pack/publish operations, identical render refreshes, correct cache/read-model updates after edits, seven-finish completion, and a full rebuild both including and excluding Supporter. Test that new publications invalidate prior set-completion bonuses even for collectors with no recent acquisitions.
+Required automated regressions include forged Supporter IDs in All Raid Sets, accidental Community injection, per-card finish restrictions through redemption/reward paths, all-H or very small pools, concurrent pack/publish operations, identical render refreshes, correct cache/read-model updates after edits, eight-finish completion, and a full rebuild both including and excluding Supporter. Test that new publications invalidate prior set-completion bonuses even for collectors with no recent acquisitions.
 
 Grant regressions must cover the excluded first month; Helsinki month/year boundaries and DST; concurrent job/login/event grants; duplicate and delayed events; gaps and subsequent subscriptions; Prime/gifted/all paid tiers; no grants before connection or for disconnected intervals; disconnect racing an in-flight check; replay after partial failure; reconnects without duplicated initial or monthly grants; and publication from banked slots after unfollowing, subscription expiry, intentional Twitch disconnection, or Twitch API failure. Published cards must remain distributable when Armory no longer returns the character.
 

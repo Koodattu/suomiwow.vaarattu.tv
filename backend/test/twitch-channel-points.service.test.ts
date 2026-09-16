@@ -6,6 +6,7 @@ import TwitchChannelPointsAuth from "../src/models/TwitchChannelPointsAuth";
 import TwitchCcgOverlayEvent from "../src/models/TwitchCcgOverlayEvent";
 import TwitchCcgRedemption from "../src/models/TwitchCcgRedemption";
 import User from "../src/models/User";
+import supporterStatus from "../src/services/ccg-supporter-status.service";
 import twitchChannelPointsService, {
   isTwitchChannelPointsRewardEnabled,
   resolveTwitchChannelPointsRewardKind,
@@ -16,6 +17,30 @@ import twitchCcgRewardService, {
   getTwitchCcgPackGrantCount,
   isTwitchCcgRevealEnabled,
 } from "../src/services/twitch-ccg-reward.service";
+
+test("signed subscription webhooks validate the broadcaster and route positive and end evidence", async (t) => {
+  const secret = "supporter-test-secret-only";
+  t.mock.method(TwitchChannelPointsAuth, "findOne", async () => ({ webhookSecret: secret, broadcasterUserId: "channel" }) as any);
+  const record = t.mock.method(supporterStatus, "recordEvent", async () => {});
+  const deliver = async (type: string, broadcaster = "channel", validSignature = true) => {
+    const timestamp = new Date().toISOString();
+    const body = JSON.stringify({ subscription: { type, version: "1", condition: { broadcaster_user_id: broadcaster } }, event: { broadcaster_user_id: broadcaster, user_id: "viewer", tier: "1000" } });
+    const signature = crypto.createHmac("sha256", secret).update(type + timestamp + body).digest("hex");
+    return twitchChannelPointsService.handleWebhook({
+      "twitch-eventsub-message-id": type, "twitch-eventsub-message-timestamp": timestamp,
+      "twitch-eventsub-message-type": "notification", "twitch-eventsub-message-signature": `sha256=${validSignature ? signature : "0".repeat(64)}`,
+    }, body);
+  };
+  assert.equal((await deliver("channel.subscribe", "other")).status, 403);
+  assert.equal((await deliver("channel.subscribe", "channel", false)).status, 403);
+  assert.equal(record.mock.callCount(), 0);
+  assert.equal((await deliver("channel.subscribe")).status, 204);
+  assert.equal((await deliver("channel.subscription.end")).status, 204);
+  assert.deepEqual(record.mock.calls.map(({ arguments: args }) => args.slice(0, 5)), [
+    ["channel.subscribe", "channel", "viewer", true, "1000"],
+    ["channel.subscription.end", "channel", "viewer", false, "1000"],
+  ]);
+});
 import ccgService from "../src/services/ccg.service";
 
 test("verifies Twitch EventSub HMAC signatures and rejects tampering", () => {

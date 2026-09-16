@@ -609,6 +609,10 @@ class UpdateScheduler {
     }
 
     if (CCG_FEATURE_ENABLED) {
+      this.scheduleCronTask("ccg-supporter-status", "* * * * *", async () => {
+        try { await (await import("./ccg-supporter-status.service")).default.reconcile(); }
+        catch { logger.warn("[CCG/Supporter] Scheduled verification will retry"); }
+      });
       void this.processPendingCcgPackAnalytics();
       void this.triggerCcgLeaderboardRefresh("incremental", "startup");
 

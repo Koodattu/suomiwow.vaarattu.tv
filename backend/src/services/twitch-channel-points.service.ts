@@ -9,6 +9,7 @@ import twitchCcgRewardService, { isTwitchCcgRevealEnabled, TwitchCcgRewardCounts
 
 const AUTH_KEY = "global";
 const REDEMPTION_SCOPE = "channel:read:redemptions";
+const BROADCASTER_SCOPES = [REDEMPTION_SCOPE, "channel:read:subscriptions", "moderator:read:followers"];
 const SUBSCRIPTION_TYPE = "channel.channel_points_custom_reward_redemption.add";
 
 interface TwitchTokenResponse {
@@ -61,6 +62,8 @@ interface TwitchEventSubResponse {
 }
 
 export interface TwitchChannelPointsStatus {
+  supporterEventsError?: string;
+  supporterEventsCheckedAt?: Date;
   enabled: boolean;
   connected: boolean;
   expectedBroadcasterLogin: string;
@@ -128,6 +131,7 @@ interface EventSubPayload {
     user_name?: string;
     status?: string;
     redeemed_at?: string;
+    tier?: string;
     reward?: { id?: string; title?: string; cost?: number };
   };
 }
@@ -225,7 +229,7 @@ class TwitchChannelPointsService {
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
       response_type: "code",
-      scope: REDEMPTION_SCOPE,
+      scope: BROADCASTER_SCOPES.join(" "),
       state,
       force_verify: "true",
     });
@@ -269,6 +273,7 @@ class TwitchChannelPointsService {
           broadcasterLogin: user.login,
           broadcasterDisplayName: user.display_name,
           connectedAt: new Date(),
+          supporterEventsCheckedAt: new Date(0),
           connectedByUserId: new mongoose.Types.ObjectId(adminUser._id.toString()),
           connectedByUsername: adminUser.discord?.username,
           lastRefreshError: undefined,
@@ -326,12 +331,14 @@ class TwitchChannelPointsService {
     return {
       enabled: this.isEnabled(),
       connected: Boolean(auth?.refreshToken),
+      supporterEventsError: auth?.supporterEventsError,
+      supporterEventsCheckedAt: auth?.supporterEventsCheckedAt,
       expectedBroadcasterLogin: this.getExpectedBroadcasterLogin(),
       redirectUri: this.redirectUri,
       callbackUrl: this.callbackUrl,
       scopes,
-      requiredScopes: [REDEMPTION_SCOPE],
-      missingScopes: auth?.refreshToken && !scopes.includes(REDEMPTION_SCOPE) ? [REDEMPTION_SCOPE] : [],
+      requiredScopes: BROADCASTER_SCOPES,
+      missingScopes: auth?.refreshToken ? BROADCASTER_SCOPES.filter((scope) => !scopes.includes(scope)) : [],
       broadcasterUserId: auth?.broadcasterUserId,
       broadcasterLogin: auth?.broadcasterLogin,
       broadcasterDisplayName: auth?.broadcasterDisplayName,
@@ -566,7 +573,7 @@ class TwitchChannelPointsService {
   async disconnect(): Promise<void> {
     const auth = await TwitchChannelPointsAuth.findOne({ key: AUTH_KEY });
     await Promise.all(
-      [auth?.subscriptionId, auth?.tenPackSubscriptionId, auth?.cardSubscriptionId].map((subscriptionId) =>
+      [auth?.subscriptionId, auth?.tenPackSubscriptionId, auth?.cardSubscriptionId, ...(auth?.supporterSubscriptionIds ?? [])].map((subscriptionId) =>
         this.deleteSubscription(subscriptionId).catch((error) => logger.warn("Failed to delete Twitch EventSub subscription while disconnecting:", error)),
       ),
     );
@@ -590,6 +597,21 @@ class TwitchChannelPointsService {
       payload = JSON.parse(rawBody) as EventSubPayload;
     } catch {
       return { status: 400 };
+    }
+    if (["channel.subscribe", "channel.subscription.end"].includes(payload.subscription?.type ?? "")) {
+      if (payload.subscription?.version !== "1") return { status: 400 };
+      if (payload.subscription?.condition?.broadcaster_user_id !== auth.broadcasterUserId) return { status: 403 };
+      if (messageType === "webhook_callback_verification") return payload.challenge
+        ? { status: 200, body: payload.challenge, contentType: "text/plain" } : { status: 400 };
+      if (messageType === "revocation") {
+        await TwitchChannelPointsAuth.updateOne({ key: AUTH_KEY }, { $set: { supporterEventsError: "subscription_revoked", supporterEventsCheckedAt: new Date(0) } });
+        return { status: 204 };
+      }
+      if (messageType !== "notification" || !payload.event?.user_id || payload.event.broadcaster_user_id !== auth.broadcasterUserId) return { status: 400 };
+      const supporterStatus = (await import("./ccg-supporter-status.service")).default;
+      await supporterStatus.recordEvent(messageId, auth.broadcasterUserId, payload.event.user_id,
+        payload.subscription?.type === "channel.subscribe", payload.event.tier ?? null, new Date(timestamp));
+      return { status: 204 };
     }
     const rewardKind = resolveTwitchChannelPointsRewardKind(auth, payload.subscription);
     if (!rewardKind) return { status: 403 };
@@ -699,9 +721,65 @@ class TwitchChannelPointsService {
     return auth;
   }
 
-  private async getAccessToken(): Promise<string> {
+  async getSupporterCredentials(forceRefresh = false) {
     const auth = await this.requireAuth();
-    if (auth.accessToken && auth.tokenExpiresAt.getTime() > Date.now() + 60 * 1000) return auth.accessToken;
+    if (auth.broadcasterLogin.toLowerCase() !== this.getExpectedBroadcasterLogin()
+      || BROADCASTER_SCOPES.slice(1).some((scope) => !auth.scope.includes(scope))) {
+      const { CcgSupporterError } = await import("../utils/ccg-supporter");
+      throw new CcgSupporterError(503, "broadcaster_reconnect_required");
+    }
+    return { clientId: this.clientId, broadcasterId: auth.broadcasterUserId, accessToken: await this.getAccessToken(forceRefresh) };
+  }
+
+  async ensureSupporterSubscriptions(): Promise<void> {
+    const auth = await TwitchChannelPointsAuth.findOneAndUpdate({ key: AUTH_KEY, $or: [
+      { supporterEventsCheckedAt: { $exists: false } }, { supporterEventsCheckedAt: { $lt: new Date(Date.now() - 3600_000) } },
+    ] }, { $set: { supporterEventsCheckedAt: new Date() } }, { returnDocument: "after" });
+    if (!auth) return;
+    const createdIds: string[] = [];
+    try {
+      await this.getSupporterCredentials();
+      const token = await this.getAppAccessToken();
+      const headers = { Authorization: `Bearer ${token}`, "Client-ID": this.clientId, "Content-Type": "application/json" };
+      const ids: string[] = [];
+      for (const type of ["channel.subscribe", "channel.subscription.end"]) {
+        let cursor: string | undefined;
+        let existing: TwitchEventSubSubscription | undefined;
+        do {
+          const params = new URLSearchParams({ type, ...(cursor ? { after: cursor } : {}) });
+          const response = await fetch(`https://api.twitch.tv/helix/eventsub/subscriptions?${params}`, { headers });
+          if (!response.ok) throw new Error("eventsub_unavailable");
+          const result = await response.json() as { data: TwitchEventSubSubscription[]; pagination?: { cursor?: string } };
+          existing = result.data.find((entry) => entry.condition?.broadcaster_user_id === auth.broadcasterUserId
+            && entry.transport?.callback === this.callbackUrl && ["enabled", "webhook_callback_verification_pending"].includes(entry.status));
+          cursor = result.pagination?.cursor;
+        } while (!existing && cursor);
+        if (existing) { ids.push(existing.id); continue; }
+        const response = await fetch("https://api.twitch.tv/helix/eventsub/subscriptions", { method: "POST", headers,
+          body: JSON.stringify({ type, version: "1", condition: { broadcaster_user_id: auth.broadcasterUserId },
+            transport: { method: "webhook", callback: this.callbackUrl, secret: auth.webhookSecret } }) });
+        if (!response.ok) throw new Error("eventsub_unavailable");
+        const result = await response.json() as { data: TwitchEventSubSubscription[] };
+        ids.push(result.data[0].id);
+        createdIds.push(result.data[0].id);
+        const saved = await TwitchChannelPointsAuth.updateOne({ _id: auth._id, connectedAt: auth.connectedAt },
+          { $addToSet: { supporterSubscriptionIds: result.data[0].id } });
+        if (!saved.matchedCount) throw new Error("broadcaster_disconnected");
+      }
+      const saved = await TwitchChannelPointsAuth.updateOne({ _id: auth._id, connectedAt: auth.connectedAt }, { $set: { supporterSubscriptionIds: ids }, $unset: { supporterEventsError: 1 } });
+      if (!saved.matchedCount) throw new Error("broadcaster_disconnected");
+    } catch {
+      if (!await TwitchChannelPointsAuth.exists({ _id: auth._id, connectedAt: auth.connectedAt })) {
+        for (const id of createdIds) await this.deleteSubscription(id).catch(() => logger.warn("[CCG/Supporter] EventSub cleanup requires retry"));
+      }
+      await TwitchChannelPointsAuth.updateOne({ _id: auth._id }, { $set: { supporterEventsError: "eventsub_unavailable" } });
+      logger.warn("[CCG/Supporter] Subscription events unavailable; broadcaster authorization may need renewal");
+    }
+  }
+
+  private async getAccessToken(forceRefresh = false): Promise<string> {
+    const auth = await this.requireAuth();
+    if (!forceRefresh && auth.accessToken && auth.tokenExpiresAt.getTime() > Date.now() + 60 * 1000) return auth.accessToken;
     if (this.activeRefresh) return (await this.activeRefresh).accessToken;
     this.activeRefresh = this.refreshAccessToken(auth).finally(() => {
       this.activeRefresh = null;

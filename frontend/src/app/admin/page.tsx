@@ -339,6 +339,7 @@ function AdminPageContent() {
   const searchParams = useSearchParams();
   const { user, isLoading: authLoading } = useAuth();
   const t = useTranslations("admin");
+  const studioT = useTranslations("ccg.studio");
   const rateLimitFreshnessLabel = (status: RateLimitStatus) => {
     const time = (value: string | null) => new Date(value || status.lastUpdated).toLocaleTimeString();
     if (status.source === "observed") return t("rateLimit.observedAt", { time: time(status.lastObservedAt) });
@@ -3562,6 +3563,9 @@ function AdminPageContent() {
                       </div>
                     </div>
 
+                    {twitchChannelPointsStatus.supporterEventsError && (
+                      <p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">{studioT("eventsUnavailable")}</p>
+                    )}
                     {(twitchChannelPointsStatus.rewards.packs.lastError || twitchChannelPointsStatus.rewards.packs_10.lastError || twitchChannelPointsStatus.rewards.card_reveal.lastError) && (
                       <div className="rounded-lg border border-red-500/40 bg-red-950/30 px-4 py-3 text-sm text-red-200">
                         {twitchChannelPointsStatus.rewards.packs.lastError || twitchChannelPointsStatus.rewards.packs_10.lastError || twitchChannelPointsStatus.rewards.card_reveal.lastError}

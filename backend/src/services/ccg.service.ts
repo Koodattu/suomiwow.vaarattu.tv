@@ -5,6 +5,7 @@ import {
   CCG_CARDS_PER_PACK,
   CCG_BASE_FINISH_ORDER,
   CCG_CUSTOM_FINISHES,
+  CCG_CUSTOM_FINISH_HARD_PITY,
   CCG_FEATURE_ENABLED,
   CCG_FINISH_ORDER,
   CCG_FINISH_PITY_LIMITS,
@@ -669,7 +670,7 @@ export function resolveCcgActivityPackSetId(
 ): mongoose.Types.ObjectId | null {
   if (targetSetId) return targetSetId;
   if (selectionType === "all") return null;
-  if (selectionType === "raid") return sourceSetIds[0] ?? null;
+  if (selectionType === "raid" || selectionType === "supporter") return sourceSetIds[0] ?? null;
   return null;
 }
 
@@ -872,7 +873,7 @@ class CcgService {
 
   private async buildSession(owner: CcgOwner): Promise<Record<string, unknown>> {
     const now = new Date();
-    const [packState, qualityProgress, ownershipCount, sets] = await Promise.all([
+    const [packState, qualityProgress, ownershipCount, sets, supporterFinishes] = await Promise.all([
       this.getSessionPackState(owner, now),
       CcgQualityProgress.findOne({ ownerType: owner.ownerType, ownerId: owner.ownerId }).lean(),
       CcgOwnership.countDocuments({
@@ -884,6 +885,7 @@ class CcgService {
       CcgSet.find({ enabledAt: { $ne: null }, cardCount: { $gt: 0 }, "customFinish.key": { $exists: true } })
         .select("slug raidName customFinish enabledAt cardCount")
         .lean(),
+      CcgCard.distinct("creatorFinish", { supporterCharacterId: { $ne: null }, availabilityStatus: { $ne: "archived" } }),
     ]);
     const resetAt = getNextHelsinkiReset();
     const qualityProtection = this.readFinishPity(qualityProgress ?? undefined);
@@ -911,7 +913,11 @@ class CcgService {
             counter,
             hardPity,
           };
-        }),
+        }).concat(CCG_CUSTOM_FINISHES.filter((finish) => supporterFinishes.includes(finish)).map((finish) => ({
+          setSlug: `supporter-${finish}`, raidName: "Supporter", finish,
+          counter: this.readCustomFinishPity(qualityProgress ?? undefined, `supporter-${finish}`),
+          hardPity: CCG_CUSTOM_FINISH_HARD_PITY,
+        }))),
       ownedFinishes: ownershipCount,
     };
   }
@@ -1096,7 +1102,7 @@ class CcgService {
           const collectorKey = resolveCollectorKey(card);
           if (
             !alternativeSeries.has(seriesKey)
-            || !hasApplicableAlternativeArt(alternativeByCollector.get(collectorKey), Boolean(card.communityCharacterId))
+            || !(!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeByCollector.get(collectorKey), Boolean(card.communityCharacterId)))
           ) {
             throw new CcgServiceError(403, "showcase_card_not_owned", "Only cards in your collection can be showcased");
           }
@@ -1124,7 +1130,7 @@ class CcgService {
 
   async getSets(owner?: CcgOwner): Promise<Record<string, unknown>[]> {
     requireFeature();
-    const visibleSets = await CcgSet.find({ enabledAt: { $ne: null }, cardCount: { $gt: 0 } })
+    const visibleSets = await CcgSet.find({ enabledAt: { $ne: null }, $or: [{ cardCount: { $gt: 0 } }, { kind: "supporter" }] })
       .select(CCG_PUBLIC_SET_FIELDS)
       .sort({ zoneId: 1 })
       .lean();
@@ -1629,7 +1635,7 @@ class CcgService {
     const sort = resolveCcgCollectionSort(options.sort);
     const qualitySort = sort === "quality_desc" || sort === "quality_asc";
     const ownershipSort = qualitySort || sort === "duplicates_desc";
-    const communitySetIds = sets.filter((item) => item.kind === "community").map((item) => item._id);
+    const communitySetIds = sets.filter((item) => item.kind !== "raid").map((item) => item._id);
     const finishMatch = resolveCollectionFinishMatch(options.finish);
     const cardFilter: Record<string, unknown> = {};
     if (grade) cardFilter.tierGrade = grade;
@@ -1838,7 +1844,7 @@ class CcgService {
         const ownershipRows = snapshotUnlocked ? ownershipBySeries.get(seriesKey) ?? [] : [];
         const totalQuantity = ownershipRows.reduce((total, row) => total + row.quantity, 0);
         const alternativeArtUnlocked = snapshotUnlocked && unlockedAlternativeSeries.has(seriesKey)
-          && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId));
+          && (!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)));
         return {
           ...this.serializeCard(card, cardSet, alternativeArt, {
             seriesOwned: Boolean(unlockedVersions),
@@ -1853,7 +1859,7 @@ class CcgService {
             variants: accessibleCards.map((variant) => {
               const variantAlternativeArt = alternativeByCollector.get(resolveCollectorKey(variant));
               const variantAlternativeArtUnlocked = unlockedAlternativeSeries.has(seriesKey)
-                && hasApplicableAlternativeArt(variantAlternativeArt, Boolean(variant.communityCharacterId));
+                && (!variant.supporterCharacterId && hasApplicableAlternativeArt(variantAlternativeArt, Boolean(variant.communityCharacterId)));
               return {
                 card: this.serializeCard(variant, cardSet, variantAlternativeArt, { seriesOwned: true, snapshotOwned: true }),
                 ownership: serializeOwnershipRows(ownershipRows, variantAlternativeArtUnlocked),
@@ -1911,7 +1917,7 @@ class CcgService {
         ownership: serializeOwnershipRows(
           snapshotOwned ? ownership : [],
           snapshotOwned && unlockedAlternativeSeries.has(getSeriesKey(card))
-            && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)),
+            && (!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))),
         ),
       },
     };
@@ -2062,7 +2068,7 @@ class CcgService {
       else match.characterId = { $in: [] };
     }
     const setById = new Map(sets.map((set) => [String(set._id), set]));
-    const communitySetIds = sets.filter((set) => set.kind === "community").map((set) => set._id);
+    const communitySetIds = sets.filter((set) => set.kind !== "raid").map((set) => set._id);
     const guildId = options.guildId ? validateObjectId(options.guildId, "guild ID") : null;
     if (guildId) cardMatch["card.guildId"] = guildId;
     const characterIds = options.characterId
@@ -2218,7 +2224,7 @@ class CcgService {
         const representativeCollectorKey = resolveCollectorKey(row.card);
         const alternative = alternativeByCollector.get(representativeCollectorKey);
         const alternativeArtUnlocked = unlockedAlternativeSeries.has(getSeriesKey(row.card))
-          && hasApplicableAlternativeArt(alternative, Boolean(row.card.communityCharacterId));
+          && (!row.card.supporterCharacterId && hasApplicableAlternativeArt(alternative, Boolean(row.card.communityCharacterId)));
         return {
           ...this.serializeCard(row.card, cardSet, alternative, { seriesOwned: true, snapshotOwned: true }),
           ownership: serializeOwnershipRows(row.finishes, alternativeArtUnlocked),
@@ -2227,7 +2233,7 @@ class CcgService {
             const collectorKey = resolveCollectorKey(variant);
             const alternativeArt = alternativeByCollector.get(collectorKey);
             const alternativeArtUnlocked = unlockedAlternativeSeries.has(getSeriesKey(variant))
-              && hasApplicableAlternativeArt(alternativeArt, Boolean(variant.communityCharacterId));
+              && (!variant.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(variant.communityCharacterId)));
             return {
               card: this.serializeCard(variant, cardSet, alternativeArt, { seriesOwned: true, snapshotOwned: true }),
               ownership: serializeOwnershipRows(row.finishes, alternativeArtUnlocked),
@@ -2282,7 +2288,7 @@ class CcgService {
         ownership: serializeOwnershipRows(
           snapshotOwned ? ownership : [],
           snapshotOwned && unlockedAlternativeSeries.has(getSeriesKey(card))
-            && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)),
+            && (!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))),
         ),
       },
     };
@@ -2366,7 +2372,7 @@ class CcgService {
                     $cond: [
                       { $ne: [{ $ifNull: ["$targetSetId", null] }, null] },
                       "$targetSetId",
-                      null,
+                      { $cond: [{ $eq: ["$selectionType", "supporter"] }, { $arrayElemAt: ["$sourceSetIds", 0] }, null] },
                     ],
                   },
                 },
@@ -2629,7 +2635,7 @@ class CcgService {
       characterId: card.characterId,
       snapshotVersion: card.snapshotVersion,
       finish: rolled.finish,
-      artVariant: rollArtVariant(hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))),
+      artVariant: rollArtVariant((!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)))),
       tierGrade: card.tierGrade,
       poolVersion: pool.version,
     };
@@ -2654,7 +2660,7 @@ class CcgService {
     const finish = validateFinish(body.finish);
     const artVariant = validateArtVariant(body.artVariant);
     const card = await CcgCard.findById(cardId)
-      .select("_id setId characterId snapshotVersion collectorKey communityCharacterId")
+      .select("_id setId characterId snapshotVersion collectorKey communityCharacterId supporterCharacterId")
       .lean();
     if (!card || !(await CcgSet.exists({ _id: card.setId, enabledAt: { $ne: null } }))) {
       throw new CcgServiceError(404, "card_not_found", "Card not found");
@@ -2687,7 +2693,7 @@ class CcgService {
       const collectorKey = resolveCollectorKey(card);
       if (
         !unlockedAlternativeSeries.has(getSeriesKey(card))
-        || !hasApplicableAlternativeArt(alternativeByCollector.get(collectorKey), Boolean(card.communityCharacterId))
+        || !(!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeByCollector.get(collectorKey), Boolean(card.communityCharacterId)))
       ) {
         throw new CcgServiceError(403, "card_not_owned", "Only cards in your collection can be shared");
       }
@@ -2961,12 +2967,12 @@ class CcgService {
       if (!card || !cardSet) {
         throw new CcgServiceError(404, "card_not_found", "The selected published card no longer exists");
       }
-      if (!getCcgRedeemFinishOrder(cardSet.kind, cardSet.customFinish?.key).includes(finish)) {
+      if (!getCcgRedeemFinishOrder(cardSet.kind, cardSet.kind === "supporter" ? card.creatorFinish : cardSet.customFinish?.key).includes(finish)) {
         throw new CcgServiceError(400, "finish_unavailable_for_set", "That quality is not available for this card");
       }
       if (artVariant === "alternative") {
         const alternativeArt = (await this.loadAlternativeArt([card])).get(resolveCollectorKey(card));
-        if (!hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))) {
+        if (!(!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)))) {
           throw new CcgServiceError(400, "alternative_art_unavailable", "This card does not have enabled custom artwork");
         }
       }
@@ -3054,12 +3060,12 @@ class CcgService {
             availabilityStatus: { $ne: "archived" },
           }).session(session);
           const cardSet = card ? await CcgSet.findById(card.setId).session(session) : null;
-          if (!card || !cardSet || !getCcgRedeemFinishOrder(cardSet.kind, cardSet.customFinish?.key).includes(reservedCode.finish)) {
+          if (!card || !cardSet || !getCcgRedeemFinishOrder(cardSet.kind, cardSet.kind === "supporter" ? card.creatorFinish : cardSet.customFinish?.key).includes(reservedCode.finish)) {
             throw new CcgServiceError(409, "reward_unavailable", "This code's card reward is unavailable");
           }
           if (reservedCode.artVariant === "alternative") {
             const alternativeArt = (await this.loadAlternativeArt([card], session)).get(resolveCollectorKey(card));
-            if (!hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))) {
+            if (!(!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)))) {
               throw new CcgServiceError(409, "reward_unavailable", "This code's custom artwork is unavailable");
             }
           }
@@ -3157,7 +3163,7 @@ class CcgService {
           ownership: serializeOwnershipRows(
             ownership,
             unlockedAlternativeSeries.has(getSeriesKey(card))
-              && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)),
+              && (!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))),
           ),
           totalQuantity: ownership.reduce((total, row) => total + row.quantity, 0),
         },
@@ -3171,7 +3177,10 @@ class CcgService {
     const targetSetId = body.setId === undefined || body.setId === null || body.setId === ""
       ? null
       : validateObjectId(String(body.setId), "card set ID");
-    const selectionType: CcgPackSelectionType = targetSetId ? "raid" : "all";
+    const selectionType: CcgPackSelectionType = body.type === "supporter" ? "supporter" : targetSetId ? "raid" : "all";
+    if (selectionType === "supporter" && (targetSetId || body.setIds !== undefined)) {
+      throw new CcgServiceError(400, "invalid_pack_sets", "Supporter packs cannot contain raid sets");
+    }
     let selectedSetIds: mongoose.Types.ObjectId[] | undefined;
     if (body.setIds !== undefined) {
       if (targetSetId || !Array.isArray(body.setIds) || body.setIds.length === 0 || body.setIds.length > CCG_CONFIGURED_SETS.length) {
@@ -3209,7 +3218,7 @@ class CcgService {
         }
         const allowanceSource = await this.reservePack(owner, session);
         const applyMissingCardProtection = targetSetId !== null;
-        const pool = await this.selectPackResults(
+        const pool = selectionType === "supporter" ? await this.selectSupporterPackResults(session) : await this.selectPackResults(
           session,
           targetSetId,
           true,
@@ -3299,26 +3308,27 @@ class CcgService {
           const ownedFinishes = ownedFinishesBySeries.get(seriesKey) ?? new Set<CcgFinish>();
           const isNewCard = !ownedSnapshotVersionsBySeries.has(seriesKey);
           const ownedSnapshotVersions = ownedSnapshotVersionsBySeries.get(seriesKey) ?? new Set<number>();
-          const customFinish = cardSet.kind === "raid" ? cardSet.customFinish?.key ?? null : null;
+          const customFinish = cardSet.kind === "supporter" ? card.creatorFinish ?? null : cardSet.kind === "raid" ? cardSet.customFinish?.key ?? null : null;
+          const customPityKey = cardSet.kind === "supporter" ? `supporter-${customFinish}` : cardSet.slug;
           const finishOrder = getCcgPackFinishOrder(cardSet.kind, customFinish);
           const activePity: CcgFinishPity = { ...pity };
-          if (customFinish) activePity[customFinish] = this.readCustomFinishPity(qualityProgress, cardSet.slug);
+          if (customFinish) activePity[customFinish] = this.readCustomFinishPity(qualityProgress, customPityKey);
           const rolled = rollOwnedFinish(
             activePity,
             ownedFinishes,
             randomInt,
             finishOrder,
             customFinish
-              ? { ...CCG_FINISH_PITY_LIMITS, [customFinish]: cardSet.customFinish!.hardPity }
+              ? { ...CCG_FINISH_PITY_LIMITS, [customFinish]: cardSet.kind === "supporter" ? CCG_CUSTOM_FINISH_HARD_PITY : cardSet.customFinish!.hardPity }
               : CCG_FINISH_PITY_LIMITS,
           );
           const finish = rolled.finish;
           const isNewFinish = !ownedFinishes.has(finish);
           const isNewSnapshot = !ownedSnapshotVersions.has(card.snapshotVersion);
           const alternativeArt = alternativeByCollector.get(collectorKey);
-          const artVariant = rollArtVariant(hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)));
+          const artVariant = rollArtVariant((!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))));
           pity = this.readFinishPity(rolled.pity);
-          if (customFinish) this.writeCustomFinishPity(qualityProgress, cardSet.slug, rolled.pity[customFinish] ?? 0);
+          if (customFinish) this.writeCustomFinishPity(qualityProgress, customPityKey, rolled.pity[customFinish] ?? 0);
           ownedFinishes.add(finish);
           ownedFinishesBySeries.set(seriesKey, ownedFinishes);
           ownedSnapshotVersions.add(card.snapshotVersion);
@@ -3420,6 +3430,10 @@ class CcgService {
               counter,
             };
           });
+        for (const finish of new Set(cards.filter((card) => card.supporterCharacterId && card.creatorFinish).map((card) => card.creatorFinish!))) {
+          const setSlug = `supporter-${finish}`;
+          customQualityProtection.push({ setSlug, counter: this.readCustomFinishPity(qualityProgress, setSlug) });
+        }
         cacheUpdates = {
           packs: this.serializePackBalances(allowanceSource.balance, creditBalance),
           qualityProtection,
@@ -4544,6 +4558,23 @@ class CcgService {
     };
   }
 
+  private async selectSupporterPackResults(session: ClientSession) {
+    const set = await CcgSet.findOne({ kind: "supporter", enabledAt: { $ne: null }, cardCount: { $gt: 0 } }).session(session);
+    const pool = set ? await CcgPackPool.findOne({ setId: set._id, active: true }).session(session) : null;
+    const candidates = (pool?.buckets ?? []).flatMap((bucket) => bucket.cardIds.map((cardId) => ({
+      cardId, setId: set!._id, tierGrade: bucket.grade as CcgTierGrade, missingCardAlternatives: [],
+    })));
+    if (!set || !pool || candidates.length === 0) throw new CcgServiceError(409, "pack_pool_unavailable", "The Supporter set has no available cards");
+    return { results: Array.from({ length: CCG_CARDS_PER_PACK }, () => candidates[randomInt(candidates.length)]),
+      sourceSetIds: [set._id], version: pool.version };
+  }
+
+  async grantSupporterCreator(userId: mongoose.Types.ObjectId, card: ICcgCard, finish: CcgFinish, session: ClientSession) {
+    await this.addOwnership({ ownerType: "user", ownerId: userId, dateKey: getHelsinkiDateKey() }, [{
+      cardId: card._id, setId: card.setId, characterId: card.characterId, snapshotVersion: 1, finish, artVariant: "standard",
+    }], session);
+  }
+
   private async selectPackResults(
     session: ClientSession,
     targetSetId: mongoose.Types.ObjectId | null = null,
@@ -4745,6 +4776,16 @@ class CcgService {
     results: Array<Pick<SelectedResult, "cardId" | "setId" | "characterId" | "snapshotVersion" | "finish" | "artVariant">>,
     session: ClientSession,
   ): Promise<void> {
+    const supporterCards = await CcgCard.find({ _id: { $in: results.map((result) => result.cardId) }, supporterCharacterId: { $ne: null } })
+      .select("_id creatorFinish").session(session).lean();
+    for (const card of supporterCards) {
+      for (const result of results.filter((row) => String(row.cardId) === String(card._id))) {
+        if (result.artVariant !== "standard" || (CCG_CUSTOM_FINISHES.includes(result.finish as typeof CCG_CUSTOM_FINISHES[number])
+          && card.creatorFinish !== result.finish)) {
+          throw new CcgServiceError(403, "supporter_finish_unavailable", "This finish or artwork is unavailable for this Supporter card");
+        }
+      }
+    }
     const quantities = new Map<string, {
       cardId: mongoose.Types.ObjectId;
       setId: mongoose.Types.ObjectId;
@@ -5055,7 +5096,7 @@ class CcgService {
     );
     return {
       id: String(opening._id),
-      selection: selectionType === "raid" && selectionSetId
+      selection: selectionType === "supporter" ? { type: "supporter" } : selectionType === "raid" && selectionSetId
         ? { type: "raid", setId: String(selectionSetId) }
         : { type: "all", ...(opening.selectedSetIds?.length ? { setIds: opening.selectedSetIds.map(String) } : {}) },
       sets: sets.map((set) => this.serializeSet(set)),
@@ -5217,7 +5258,7 @@ class CcgService {
     };
   }
 
-  private serializeSet(set: ICcgSet | Record<string, any>, ownedCards = 0): Record<string, unknown> {
+  serializeSet(set: ICcgSet | Record<string, any>, ownedCards = 0): Record<string, unknown> {
     return {
       id: String(set._id),
       slug: set.slug,
@@ -5277,7 +5318,7 @@ class CcgService {
     return new Set(unlocks.map(getSeriesKey));
   }
 
-  private serializeCard(
+  serializeCard(
     card: ICcgCard | Record<string, any>,
     set: ICcgSet | Record<string, any>,
     alternativeArt?: CcgAlternativeArtDefinition,
@@ -5301,20 +5342,21 @@ class CcgService {
       metric: card.metric,
       itemLevel: card.itemLevel,
       scores: {
-        performance: set.kind === "community" ? card.communityScores?.performance ?? null : card.parseScore,
-        mechanics: set.kind === "community" ? card.communityScores?.mechanics ?? null : resolveCcgRaidCardMechanicsScore(card),
-        combined: set.kind === "community" ? card.communityScores?.combined ?? null : card.combinedScore,
-        mythicPlus: set.kind === "community"
+        performance: set.kind !== "raid" ? card.communityScores?.performance ?? null : card.parseScore,
+        mechanics: set.kind !== "raid" ? card.communityScores?.mechanics ?? null : resolveCcgRaidCardMechanicsScore(card),
+        combined: set.kind !== "raid" ? card.communityScores?.combined ?? null : card.combinedScore,
+        mythicPlus: set.kind !== "raid"
           ? card.communityScores?.mythicPlus ?? null
           : typeof card.mythicPlusScore === "number" && card.mythicPlusScore > 0 ? card.mythicPlusScore : null,
       },
       tierGrade: card.tierGrade,
+      creatorFinish: set.kind === "supporter" ? card.creatorFinish ?? null : null,
       avatarUrl: card.avatarUrl ?? null,
       renderUrl: card.renderUrl ?? null,
       renderFit: card.renderFit ?? null,
       availabilityStatus: card.availabilityStatus ?? "active",
-      alternativeArt: serializeAlternativeArt(alternativeArt),
-      quip: serializeQuip(alternativeArt),
+      alternativeArt: set.kind === "supporter" ? null : serializeAlternativeArt(alternativeArt),
+      quip: set.kind === "supporter" ? null : serializeQuip(alternativeArt),
       backgroundCrop: card.backgroundCrop,
       performanceSnapshotAt: card.performanceSnapshotAt,
       mediaCapturedAt: card.mediaCapturedAt ?? null,

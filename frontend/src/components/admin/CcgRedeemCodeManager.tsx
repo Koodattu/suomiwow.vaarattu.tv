@@ -61,9 +61,9 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
   const selectedVariant = variants.find((variant) => variant.id === selectedVariantId) ?? variants[0] ?? null;
   const finishes = useMemo(
     () => selectedVariant
-      ? getCcgRedeemFinishOrder(selectedVariant.set.kind, selectedVariant.set.customFinish?.key)
+      ? getCcgRedeemFinishOrder(selectedVariant.set.kind, selectedVariant.set.kind === "supporter" ? selectedVariant.creatorFinish : selectedVariant.set.customFinish?.key)
       : CCG_BASE_FINISH_ORDER,
-    [selectedVariant?.set.customFinish?.key, selectedVariant?.set.kind],
+    [selectedVariant],
   );
   const customArtAvailable = hasAlternativeArtwork(selectedVariant);
 

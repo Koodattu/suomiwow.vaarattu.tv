@@ -7,8 +7,10 @@ import cacheService from "../services/cache.service";
 import ccgService, { CcgServiceError } from "../services/ccg.service";
 import characterRenderStorageService from "../services/character-render-storage.service";
 import logger from "../utils/logger";
+import studioRouter from "./ccg-studio";
 
 const router = Router();
+router.use("/studio", studioRouter);
 const CCG_ANALYTICS_CACHE_TTL_MS = 15 * 60 * 1000;
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
 

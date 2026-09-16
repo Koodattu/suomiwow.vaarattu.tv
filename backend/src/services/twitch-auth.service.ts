@@ -1,6 +1,8 @@
 import logger from "../utils/logger";
 import User, { IUser, ITwitchAccount } from "../models/User";
 import twitchCcgRewardService from "./twitch-ccg-reward.service";
+import mongoose from "mongoose";
+import supporterStatus from "./ccg-supporter-status.service";
 
 interface TwitchTokenResponse {
   access_token: string;
@@ -153,7 +155,15 @@ class TwitchAuthService {
       connectedAt: new Date(),
     };
 
-    await user.save();
+    await supporterStatus.ensureCreator(userId);
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await supporterStatus.connect(userId, twitchUser.id, session);
+        await User.updateOne({ _id: userId }, { $set: { twitch: user.twitch }, $inc: { __v: 1 } }, { session });
+      });
+    } finally { await session.endSession(); }
+    void supporterStatus.refresh(userId).catch(() => logger.warn("[CCG/Supporter] Initial status check unavailable"));
     logger.info(`Twitch account connected: ${twitchUser.display_name} (${twitchUser.id}) to user ${userId}`);
 
     try {
@@ -181,7 +191,13 @@ class TwitchAuthService {
 
     const twitchLogin = user.twitch.login;
     user.twitch = undefined;
-    await user.save();
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await User.updateOne({ _id: userId }, { $unset: { twitch: 1 }, $inc: { __v: 1 } }, { session });
+        await supporterStatus.disconnect(userId, session);
+      });
+    } finally { await session.endSession(); }
 
     logger.info(`Twitch account disconnected: ${twitchLogin} from user ${userId}`);
     return user;

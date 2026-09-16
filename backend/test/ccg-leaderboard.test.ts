@@ -20,6 +20,7 @@ import {
   uniqueCcgLeaderboardFinishes,
 } from "../src/utils/ccg-leaderboard";
 import CcgJobLock from "../src/models/CcgJobLock";
+import CcgLeaderboardInvalidation from "../src/models/CcgLeaderboardInvalidation";
 import CcgLeaderboardEntry from "../src/models/CcgLeaderboardEntry";
 import CcgSeriesOwnership from "../src/models/CcgSeriesOwnership";
 import CcgSet from "../src/models/CcgSet";
@@ -84,10 +85,12 @@ test("incremental leaderboard refresh uses an overlap window and skips the full 
     leaderboardUpdateMany: CcgLeaderboardEntry.updateMany,
     seriesDistinct: CcgSeriesOwnership.distinct,
     seriesAggregate: CcgSeriesOwnership.aggregate,
+    invalidationFind: CcgLeaderboardInvalidation.findOne,
   };
 
   try {
     (CcgJobLock as any).deleteOne = async () => ({ deletedCount: 1 });
+    (CcgLeaderboardInvalidation as any).findOne = () => ({ lean: async () => null });
     (CcgJobLock as any).create = async () => ({});
     (CcgSet as any).find = () => ({
       select: () => ({
@@ -131,6 +134,7 @@ test("incremental leaderboard refresh uses an overlap window and skips the full 
     (CcgLeaderboardEntry as any).updateMany = originals.leaderboardUpdateMany;
     (CcgSeriesOwnership as any).distinct = originals.seriesDistinct;
     (CcgSeriesOwnership as any).aggregate = originals.seriesAggregate;
+    (CcgLeaderboardInvalidation as any).findOne = originals.invalidationFind;
   }
 });
 

@@ -24,6 +24,7 @@ export interface ITwitchAccount {
 
 export interface IWoWCharacter {
   id: number; // Character ID from Battle.net
+  realmId?: number;
   name: string;
   realm: string;
   realmSlug: string;

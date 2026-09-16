@@ -226,7 +226,7 @@ class BattleNetAuthService {
    * @param accessToken - Battle.net access token
    * @param fetchGuilds - Whether to fetch guild information (default: false for fast initial load)
    */
-  async getWoWCharacters(accessToken: string, fetchGuilds: boolean = false): Promise<IWoWCharacter[]> {
+  async getWoWCharacters(accessToken: string, fetchGuilds: boolean = false, minimumLevel = 60): Promise<IWoWCharacter[]> {
     const apiUrl = `https://${this.region}.api.blizzard.com/profile/user/wow?namespace=profile-${this.region}&locale=en_US`;
 
     logger.info(`[API REQUEST] GET ${apiUrl}`);
@@ -253,8 +253,7 @@ class BattleNetAuthService {
       for (const account of profile.wow_accounts) {
         if (account.characters) {
           for (const char of account.characters) {
-            // Only include characters level 60+
-            if (char.level >= 60) {
+            if (char.level >= minimumLevel) {
               // Optionally fetch guild information from protected character profile
               let guildName: string | undefined;
               if (fetchGuilds) {
@@ -268,6 +267,7 @@ class BattleNetAuthService {
 
               characters.push({
                 id: char.id,
+                ...(minimumLevel === 0 ? { realmId: char.realm.id } : {}),
                 name: char.name,
                 realm: char.realm.name,
                 realmSlug: char.realm.slug,
@@ -288,7 +288,7 @@ class BattleNetAuthService {
     // Sort by level descending
     characters.sort((a, b) => b.level - a.level);
 
-    logger.info(`Fetched ${characters.length} WoW characters (level 60+)${fetchGuilds ? " with guild info" : ""}`);
+    logger.info(`Fetched ${characters.length} WoW characters (level ${minimumLevel}+)${fetchGuilds ? " with guild info" : ""}`);
     return characters;
   }
 

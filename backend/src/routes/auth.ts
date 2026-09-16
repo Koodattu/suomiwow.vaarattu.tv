@@ -250,7 +250,7 @@ async function sanitizeUserStreamerGuild(user: IUser): Promise<void> {
 
 // State store for OAuth state validation (prevents CSRF)
 // In production, consider using Redis for distributed state
-const stateStore: Map<string, { userId: string; expiresAt: Date }> = new Map();
+const stateStore: Map<string, { userId: string; expiresAt: Date; returnTo?: string }> = new Map();
 
 // Clean up expired states periodically
 setInterval(
@@ -268,10 +268,11 @@ setInterval(
 /**
  * Generate a secure state token for OAuth flow
  */
-function generateState(userId: string): string {
+function generateState(userId: string, returnTo?: unknown): string {
   const state = crypto.randomBytes(32).toString("hex");
   stateStore.set(state, {
     userId,
+    returnTo: returnTo === "/ccg/studio" ? returnTo : undefined,
     expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
   });
   return state;
@@ -529,7 +530,7 @@ router.get("/twitch/connect", async (req: Request, res: Response) => {
       return res.status(503).json({ error: "Twitch integration not configured" });
     }
 
-    const state = generateState(user._id.toString());
+    const state = generateState(user._id.toString(), req.query.returnTo);
     const authUrl = twitchAuthService.getAuthorizationUrl(user._id.toString(), state);
     res.json({ url: authUrl });
   } catch (error) {
@@ -554,8 +555,9 @@ router.get("/twitch/callback", async (req: Request, res: Response) => {
     }
 
     // Validate state and get user ID
+    const returnTo = stateStore.get(state)?.returnTo ?? "/profile";
     const userId = validateState(state);
-    if (!userId) {
+    if (!userId || req.session.userId !== userId) {
       logger.warn("Twitch callback invalid or expired state");
       return res.redirect(getFrontendUrl() + "/profile?error=invalid_state");
     }
@@ -569,7 +571,7 @@ router.get("/twitch/callback", async (req: Request, res: Response) => {
     // Connect Twitch account to user
     await twitchAuthService.connectTwitchAccount(userId, twitchUser, tokens);
 
-    res.redirect(getFrontendUrl() + "/profile?connected=twitch");
+    res.redirect(getFrontendUrl() + returnTo + "?connected=twitch");
   } catch (error) {
     logger.error("Error in Twitch OAuth callback:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -619,7 +621,7 @@ router.get("/battlenet/connect", async (req: Request, res: Response) => {
       return res.status(503).json({ error: "Battle.net integration not configured" });
     }
 
-    const state = generateState(user._id.toString());
+    const state = generateState(user._id.toString(), req.query.returnTo);
     const authUrl = battlenetAuthService.getAuthorizationUrl(user._id.toString(), state);
     res.json({ url: authUrl });
   } catch (error) {
@@ -644,8 +646,9 @@ router.get("/battlenet/callback", async (req: Request, res: Response) => {
     }
 
     // Validate state and get user ID
+    const returnTo = stateStore.get(state)?.returnTo ?? "/profile";
     const userId = validateState(state);
-    if (!userId) {
+    if (!userId || req.session.userId !== userId) {
       logger.warn("Battle.net callback invalid or expired state");
       return res.redirect(getFrontendUrl() + "/profile?error=invalid_state");
     }
@@ -662,7 +665,7 @@ router.get("/battlenet/callback", async (req: Request, res: Response) => {
     // Connect Battle.net account to user
     await battlenetAuthService.connectBattleNetAccount(userId, userInfo, tokens, characters);
 
-    res.redirect(getFrontendUrl() + "/profile?connected=battlenet");
+    res.redirect(getFrontendUrl() + returnTo + "?connected=battlenet");
   } catch (error) {
     logger.error("Error in Battle.net OAuth callback:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";

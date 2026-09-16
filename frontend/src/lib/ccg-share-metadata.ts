@@ -91,7 +91,13 @@ export async function fetchCcgShare(shareId: string): Promise<CcgShare | null> {
       next: { revalidate: 3600 },
     });
     if (!response.ok) return null;
-    return hydrateCcgShare(await response.json() as CcgShareWire);
+    const share = hydrateCcgShare(await response.json() as CcgShareWire);
+    const isSupporter = share.kind === "card"
+      ? share.card.card.set.kind === "supporter"
+      : share.pack.selection.type === "supporter";
+    if (!isSupporter) return share;
+    const current = await fetch(`${apiUrl}/api/ccg/shares/${encodeURIComponent(shareId)}`, { cache: "no-store" });
+    return current.ok ? hydrateCcgShare(await current.json() as CcgShareWire) : null;
   } catch {
     return null;
   }

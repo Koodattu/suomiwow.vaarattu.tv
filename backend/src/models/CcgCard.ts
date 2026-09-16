@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CcgTierGrade } from "../config/ccg";
+import { CCG_CUSTOM_FINISHES, CcgCustomFinish, CcgTierGrade } from "../config/ccg";
 import { CharacterRenderFit, CharacterRenderFitSchema } from "./CharacterRenderAsset";
 
 export type CcgCommunityScores = {
@@ -30,6 +30,9 @@ export interface ICcgCard extends Document {
   characterId: mongoose.Types.ObjectId;
   collectorKey?: string | null;
   communityCharacterId?: mongoose.Types.ObjectId | null;
+  supporterCharacterId?: mongoose.Types.ObjectId | null;
+  creatorUserId?: mongoose.Types.ObjectId | null;
+  creatorFinish?: CcgCustomFinish | null;
   wclCanonicalCharacterId?: number | null;
   name: string;
   realm: string;
@@ -84,6 +87,9 @@ const CcgCardSchema = new Schema<ICcgCard>(
     characterId: { type: Schema.Types.ObjectId, ref: "Character", required: true, index: true },
     collectorKey: { type: String, default: null, index: true },
     communityCharacterId: { type: Schema.Types.ObjectId, ref: "CcgCommunityCharacter", default: null, index: true },
+    supporterCharacterId: { type: Schema.Types.ObjectId, ref: "CcgSupporterCharacter", default: null, index: true },
+    creatorUserId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    creatorFinish: { type: String, enum: CCG_CUSTOM_FINISHES, default: null },
     wclCanonicalCharacterId: { type: Number, default: null, index: true },
     name: { type: String, required: true, index: true },
     realm: { type: String, required: true },

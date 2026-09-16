@@ -1339,6 +1339,8 @@ export interface TwitchChannelPointsRewardStatus {
 }
 
 export interface TwitchChannelPointsStatus {
+  supporterEventsError?: string;
+  supporterEventsCheckedAt?: string;
   enabled: boolean;
   connected: boolean;
   expectedBroadcasterLogin: string;
@@ -2171,7 +2173,7 @@ export type CharacterProfileChoicesResponse = {
 export type CharacterProfileLookupResponse = CharacterProfileResponse | CharacterProfileChoicesResponse;
 
 export type CcgSetLifecycle = "current" | "legacy";
-export type CcgPackSelection = { type: "all"; setIds?: string[] } | { type: "raid"; setId: string };
+export type CcgPackSelection = { type: "all"; setIds?: string[] } | { type: "raid"; setId: string } | { type: "supporter" };
 export type CcgBaseFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative" | "astral";
 export type CcgRaidFinish =
   | "relic"
@@ -2208,7 +2210,7 @@ export type CcgSet = {
   raidName: string;
   expansionName: string;
   state: "draft" | "current" | "legacy" | "locked";
-  kind: "raid" | "community";
+  kind: "raid" | "community" | "supporter";
   enabledAt: string | null;
   themeKey: string;
   theme: { mark: string; accent: string; glow: string };
@@ -2240,6 +2242,7 @@ export type CcgQuip = {
 };
 
 export type CcgCard = {
+  creatorFinish?: CcgCustomFinish | null;
   id: string;
   characterId: string;
   setNumber: number;

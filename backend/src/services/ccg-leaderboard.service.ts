@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import mongoose from "mongoose";
 import {
   CCG_CONFIGURED_SETS,
+  CCG_SUPPORTER_LEADERBOARD_ENABLED,
   CCG_FINISH_ORDER,
   CCG_TIER_GRADES,
   CcgCustomFinish,
@@ -12,6 +13,7 @@ import {
 } from "../config/ccg";
 import CcgCard, { CcgCardAvailabilityStatus } from "../models/CcgCard";
 import CcgJobLock from "../models/CcgJobLock";
+import CcgLeaderboardInvalidation from "../models/CcgLeaderboardInvalidation";
 import CcgLeaderboardEntry, { ICcgLeaderboardEntry } from "../models/CcgLeaderboardEntry";
 import CcgOwnership from "../models/CcgOwnership";
 import CcgSeriesOwnership from "../models/CcgSeriesOwnership";
@@ -48,7 +50,7 @@ type SeriesRow = {
   firstAcquiredAt: Date;
   unlockedSnapshotVersions: number[];
   finishes: Array<{ finish: CcgFinish }>;
-  cards: Array<{ tierGrade: CcgTierGrade; availabilityStatus?: CcgCardAvailabilityStatus | null }>;
+  cards: Array<{ tierGrade: CcgTierGrade; creatorFinish?: CcgCustomFinish | null; availabilityStatus?: CcgCardAvailabilityStatus | null }>;
 };
 
 type MutableScore = {
@@ -337,11 +339,13 @@ class CcgLeaderboardService {
       phaseStartedMs = now;
     };
     try {
-      const sets = await CcgSet.find({ enabledAt: { $ne: null }, cardCount: { $gt: 0 } })
+      const invalidation = await CcgLeaderboardInvalidation.findOne({ key: "supporter" }).lean();
+      const sets = await CcgSet.find({ enabledAt: { $ne: null }, $or: [{ cardCount: { $gt: 0 } }, { kind: "supporter" }],
+        ...(!CCG_SUPPORTER_LEADERBOARD_ENABLED ? { kind: { $ne: "supporter" } } : {}) })
         .select("_id kind customFinish cardCount")
         .lean<EnabledSet[]>();
       const sourceThroughAt = new Date();
-      let mode = requestedMode;
+      let mode = invalidation && invalidation.revision > invalidation.completedRevision ? "full" as const : requestedMode;
       let ownerIds: mongoose.Types.ObjectId[] | undefined;
 
       if (mode === "incremental") {
@@ -407,6 +411,7 @@ class CcgLeaderboardService {
 
       if (mode === "full") {
         await CcgLeaderboardEntry.deleteMany({ calculatedAt: { $ne: sourceThroughAt } });
+        if (invalidation) await CcgLeaderboardInvalidation.updateOne({ _id: invalidation._id }, { $max: { completedRevision: invalidation.revision } });
       } else if (ownerIds) {
         const calculatedOwnerIds = new Set(calculated.entries.map((entry) => String(entry.userId)));
         const missingOwnerIds = ownerIds.filter((ownerId) => !calculatedOwnerIds.has(String(ownerId)));
@@ -491,7 +496,7 @@ class CcgLeaderboardService {
                 },
               },
             },
-            { $project: { _id: 0, tierGrade: 1, availabilityStatus: { $ifNull: ["$availabilityStatus", "active"] } } },
+            { $project: { _id: 0, tierGrade: 1, creatorFinish: 1, availabilityStatus: { $ifNull: ["$availabilityStatus", "active"] } } },
           ],
           as: "cards",
         },
@@ -509,7 +514,9 @@ class CcgLeaderboardService {
     try {
       for await (const row of cursor) {
         seriesScanned += 1;
-        const requiredFinishes = requiredFinishesBySet.get(String(row.setId));
+        const requiredFinishes = setById.get(String(row.setId))?.kind === "supporter"
+          ? getCcgPackFinishOrder("supporter", row.cards[0]?.creatorFinish)
+          : requiredFinishesBySet.get(String(row.setId));
         if (!requiredFinishes) continue;
         const userKey = String(row.ownerId);
         const score = scores.get(userKey) ?? {

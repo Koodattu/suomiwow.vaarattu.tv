@@ -1,5 +1,5 @@
 export type CcgHistoricalPackMode = "current" | "legacy";
-export type CcgPackSelectionType = "all" | "raid";
+export type CcgPackSelectionType = "all" | "raid" | "supporter";
 export type CcgBaseFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative" | "astral";
 export const CCG_RAID_FINISHES = [
   "relic",
@@ -32,7 +32,7 @@ export type CcgArtVariant = "standard" | "alternative";
 export type CcgRegularTierGrade = "S" | "A" | "B" | "C" | "D" | "E" | "F";
 export type CcgTierGrade = "H" | CcgRegularTierGrade;
 export type CcgSetState = "draft" | "current" | "legacy" | "locked";
-export type CcgSetKind = "raid" | "community";
+export type CcgSetKind = "raid" | "community" | "supporter";
 
 export const CCG_TIME_ZONE = "Europe/Helsinki";
 export const CCG_FEATURE_ENABLED = process.env.CCG_FEATURE_ENABLED !== "false";
@@ -78,6 +78,10 @@ function positiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
+
+export const CCG_SUPPORTER_SET = { ...CCG_COMMUNITY_SET, zoneId: -2, slug: "supporter", raidName: "Supporter",
+  themeKey: "supporter", mark: "SP", accent: "#B699FF", glow: "rgba(182, 153, 255, 0.36)" };
+export const CCG_SUPPORTER_LEADERBOARD_ENABLED = true;
 
 function ratio(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -137,7 +141,7 @@ export function getCcgFinishOrder(customFinish?: CcgCustomFinish | null): readon
 }
 
 export function getCcgPackFinishOrder(setKind: CcgSetKind, customFinish?: CcgCustomFinish | null): readonly CcgFinish[] {
-  return getCcgFinishOrder(setKind === "raid" ? customFinish : null);
+  return getCcgFinishOrder(setKind !== "community" ? customFinish : null);
 }
 
 export function getCcgRedeemFinishOrder(setKind: CcgSetKind, customFinish?: CcgCustomFinish | null): readonly CcgFinish[] {

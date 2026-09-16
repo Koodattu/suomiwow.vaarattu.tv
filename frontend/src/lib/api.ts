@@ -480,7 +480,26 @@ export const api = {
     return hydrateCcgCollection(await response.json() as CcgCollectionResponseWire);
   },
 
-  async openCcgPack(input: { idempotencyKey: string; setId?: string; setIds?: string[] }): Promise<CcgOpening> {
+  async getCcgStudio(): Promise<import("@/types/ccg-studio").StudioState> {
+    const response = await fetch(`${API_URL}/api/ccg/studio`, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw await buildApiError(response, "Studio unavailable");
+    return response.json();
+  },
+
+  async getCcgSupporterModeration(): Promise<{ creations: import("@/types/ccg-studio").SupporterModerationRow[] }> {
+    const response = await fetch(`${API_URL}/api/ccg/studio/moderation`, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw await buildApiError(response, "Studio unavailable");
+    return response.json();
+  },
+
+  async updateCcgStudio(path: string, body: Record<string, unknown> = {}, method = "POST"): Promise<import("@/types/ccg-studio").StudioState> {
+    const response = await fetch(`${API_URL}/api/ccg/studio/${path}`, { method, credentials: "include",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!response.ok) throw await buildApiError(response, "Studio unavailable");
+    return response.json();
+  },
+
+  async openCcgPack(input: { idempotencyKey: string; type?: "supporter"; setId?: string; setIds?: string[] }): Promise<CcgOpening> {
     const response = await fetch(`${API_URL}/api/ccg/packs/open`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1397,8 +1416,8 @@ export const api = {
   },
 
   // Twitch account connection
-  async getTwitchConnectUrl(): Promise<{ url: string }> {
-    const response = await fetch(`${API_URL}/api/auth/twitch/connect`, {
+  async getTwitchConnectUrl(returnTo?: "/ccg/studio"): Promise<{ url: string }> {
+    const response = await fetch(`${API_URL}/api/auth/twitch/connect${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`, {
       credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to get Twitch connect URL");
@@ -1414,8 +1433,8 @@ export const api = {
   },
 
   // Battle.net account connection
-  async getBattleNetConnectUrl(): Promise<{ url: string }> {
-    const response = await fetch(`${API_URL}/api/auth/battlenet/connect`, {
+  async getBattleNetConnectUrl(returnTo?: "/ccg/studio"): Promise<{ url: string }> {
+    const response = await fetch(`${API_URL}/api/auth/battlenet/connect${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`, {
       credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to get Battle.net connect URL");

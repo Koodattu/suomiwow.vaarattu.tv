@@ -63,7 +63,7 @@ const CcgPackOpeningSchema = new Schema<ICcgPackOpening>(
     ownerType: { type: String, enum: ["user", "guest"], required: true, index: true },
     ownerId: { type: Schema.Types.ObjectId, required: true, index: true },
     mode: { type: String, enum: ["current", "legacy"] },
-    selectionType: { type: String, enum: ["all", "raid"], index: true },
+    selectionType: { type: String, enum: ["all", "raid", "supporter"], index: true },
     targetSetId: { type: Schema.Types.ObjectId, ref: "CcgSet", default: null },
     selectedSetIds: { type: [Schema.Types.ObjectId], ref: "CcgSet", default: undefined },
     sourceSetIds: { type: [Schema.Types.ObjectId], ref: "CcgSet", required: true, default: [] },

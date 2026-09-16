@@ -21,6 +21,16 @@ function profileResponse(characters: IWoWCharacter[]): Response {
   })) }] });
 }
 
+test("Studio ownership includes low-level characters and stable realm IDs without changing profile defaults", async (t) => {
+  const lowLevel = { ...character(1), level: 10 };
+  t.mock.method(globalThis, "fetch", async () => profileResponse([lowLevel]));
+  assert.deepEqual(await service.getWoWCharacters("test-token", false), []);
+  const roster = await service.getWoWCharacters("test-token", false, 0);
+  assert.equal(roster.length, 1);
+  assert.equal(roster[0].level, 10);
+  assert.equal(roster[0].realmId, 1);
+});
+
 // Model snapshots reproduce the separate documents read by simultaneous requests.
 function mockStore(t: TestContext, initial = account()) {
   let current: { battlenet?: IBattleNetAccount } = { battlenet: initial };

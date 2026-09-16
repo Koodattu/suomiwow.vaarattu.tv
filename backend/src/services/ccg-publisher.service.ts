@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import {
   CCG_CONFIGURED_SETS,
   CCG_COMMUNITY_SET,
+  CCG_SUPPORTER_SET,
   CCG_ENABLE_MIN_ELIGIBLE_CHARACTERS,
   CCG_ENABLE_MIN_MEDIA_COVERAGE,
   CCG_ENABLE_MIN_MEDIA_READY_CHARACTERS,
@@ -23,6 +24,7 @@ import {
 } from "../config/character-eligibility";
 import CcgCard, { ICcgCard } from "../models/CcgCard";
 import CcgCommunityCharacter from "../models/CcgCommunityCharacter";
+import CcgSupporterCharacter from "../models/CcgSupporterCharacter";
 import CcgJobLock from "../models/CcgJobLock";
 import CcgPackPool from "../models/CcgPackPool";
 import CcgPublicationCandidate from "../models/CcgPublicationCandidate";
@@ -365,7 +367,7 @@ class CcgPublisherService {
       }
       await this.configuredPromise;
     }
-    return CcgSet.find({ zoneId: { $in: [...CCG_CONFIGURED_SETS.map((set) => set.zoneId), CCG_COMMUNITY_SET.zoneId] } }).sort({ zoneId: 1 });
+    return CcgSet.find({ zoneId: { $in: [...CCG_CONFIGURED_SETS.map((set) => set.zoneId), CCG_COMMUNITY_SET.zoneId, CCG_SUPPORTER_SET.zoneId] } }).sort({ zoneId: 1 });
   }
 
   private async upsertConfiguredSets(): Promise<void> {
@@ -443,7 +445,17 @@ class CcgPublisherService {
       { zoneId: { $in: CCG_CONFIGURED_SETS.map((set) => set.zoneId) }, enabledAt: null, state: { $ne: "draft" } },
       { $set: { state: "draft", opensAt: null, closesAt: null } },
     );
-    const configuredZoneIds = [...CCG_CONFIGURED_SETS.map((set) => set.zoneId), CCG_COMMUNITY_SET.zoneId];
+    const supporter = CCG_SUPPORTER_SET;
+    await CcgSet.findOneAndUpdate({ zoneId: supporter.zoneId }, {
+      $set: { slug: supporter.slug, raidName: supporter.raidName, expansionName: supporter.expansionName,
+        mythicPlusSeason: supporter.mythicPlusSeason, kind: "supporter", state: "legacy",
+        themeKey: supporter.themeKey, themeVersion: CCG_THEME_VERSION,
+        theme: { mark: supporter.mark, accent: supporter.accent, glow: supporter.glow }, customFinish: null,
+        backgroundPath: supporter.backgroundPath, packArtOffsetX: 50, backgroundSafeCrop: supporter.crop,
+        eligibilityVersion: "supporter-v1", gradingVersion: CCG_GRADING_VERSION, packRuleVersion: CCG_PACK_RULE_VERSION },
+      $setOnInsert: { enabledAt: new Date(), opensAt: new Date(), publicationWave: 0, cardCount: 0, nextSetNumber: 0 },
+    }, { upsert: true });
+    const configuredZoneIds = [...CCG_CONFIGURED_SETS.map((set) => set.zoneId), CCG_COMMUNITY_SET.zoneId, supporter.zoneId];
     const unconfiguredSets = await CcgSet.find({ zoneId: { $nin: configuredZoneIds } }).select("_id").lean();
     if (unconfiguredSets.length > 0) {
       const unconfiguredSetIds = unconfiguredSets.map((set) => set._id);
@@ -1165,6 +1177,11 @@ class CcgPublisherService {
     const set = await CcgSet.findById(setId).session(existingSession ?? null).lean();
     if (!set) throw new Error("CCG set not found");
     const cardFilter: Record<string, unknown> = { setId, availabilityStatus: { $ne: "archived" } };
+    if (set.kind === "supporter") {
+      const sources = await CcgSupporterCharacter.find({ distributable: true, cardId: { $exists: true } })
+        .select("_id").session(existingSession ?? null).lean();
+      cardFilter.supporterCharacterId = { $in: sources.map((source) => source._id) };
+    }
     if (set.kind === "community") {
       const activeCharacters = await CcgCommunityCharacter.find({ active: { $ne: false } })
         .select("_id")
@@ -1183,7 +1200,7 @@ class CcgPublisherService {
     if (existingSession) latestCards.session(existingSession);
     const cards = await latestCards;
     const poolVersion = version ?? `${CCG_POOL_VERSION}-${set.publicationWave}`;
-    const poolGrades = set.kind === "community" ? CCG_TIER_GRADES : CCG_REGULAR_TIER_GRADES;
+    const poolGrades = set.kind !== "raid" ? CCG_TIER_GRADES : CCG_REGULAR_TIER_GRADES;
     const buckets = poolGrades.map((grade) => ({
       grade,
       cardIds: cards.filter((card) => card.tierGrade === grade).map((card) => card._id),

@@ -111,7 +111,7 @@ export function getCcgFinishOrder(customFinish?: CcgCustomFinish | null): readon
   return [...CCG_BASE_FINISH_ORDER.slice(0, -2), customFinish, ...CCG_BASE_FINISH_ORDER.slice(-2)];
 }
 
-export function getCcgRedeemFinishOrder(setKind: "raid" | "community", customFinish?: CcgCustomFinish | null): readonly CcgFinish[] {
+export function getCcgRedeemFinishOrder(setKind: "raid" | "community" | "supporter", customFinish?: CcgCustomFinish | null): readonly CcgFinish[] {
   return setKind === "community" ? CCG_FINISH_ORDER : getCcgFinishOrder(customFinish);
 }
 
@@ -174,7 +174,7 @@ export function compareCcgPullQuality(left: CcgPullQuality, right: CcgPullQualit
 export function compareCcgFinish(
   left: CcgFinish,
   right: CcgFinish,
-  setKind: "raid" | "community",
+  setKind: "raid" | "community" | "supporter",
   customFinish?: CcgCustomFinish | null,
 ): number {
   const finishOrder = getCcgRedeemFinishOrder(setKind, customFinish);
@@ -182,7 +182,7 @@ export function compareCcgFinish(
 }
 
 export function hasAlternativeArtwork(card: CcgCard | null): boolean {
-  if (!card?.alternativeArt) return false;
+  if (!card?.alternativeArt || card.set.kind === "supporter") return false;
   return card.alternativeArt.characterArtEnabled
     || (card.set.kind === "community" && card.alternativeArt.backgroundArtEnabled);
 }
@@ -194,7 +194,7 @@ export function bestOwnedFinish(
   const ownership = card.ownership?.filter((row) => !artVariant || row.artVariant === artVariant) ?? [];
   if (ownership.length === 0) return null;
   const row = [...ownership].sort((left, right) => (
-    compareCcgFinish(right.finish, left.finish, card.set.kind, card.set.customFinish?.key)
+    compareCcgFinish(right.finish, left.finish, card.set.kind, card.set.kind === "supporter" ? card.creatorFinish : card.set.customFinish?.key)
     || Number(right.artVariant === "alternative") - Number(left.artVariant === "alternative")
   ))[0];
   const quantityByFinish = (card.ownership ?? []).reduce((quantities, item) => {

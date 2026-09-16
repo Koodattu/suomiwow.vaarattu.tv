@@ -26,6 +26,7 @@ export interface ICcgSet extends Document {
   packRuleVersion: string;
   publicationWave: number;
   cardCount: number;
+  nextSetNumber: number;
   collectionGuilds?: Array<{
     guildId: mongoose.Types.ObjectId;
     name: string;
@@ -86,7 +87,8 @@ const CcgSetSchema = new Schema<ICcgSet>(
     expansionName: { type: String, required: true },
     mythicPlusSeason: { type: String, required: true },
     state: { type: String, enum: ["draft", "current", "legacy", "locked"], required: true, index: true },
-    kind: { type: String, enum: ["raid", "community"], required: true, default: "raid", index: true },
+    kind: { type: String, enum: ["raid", "community", "supporter"], required: true, default: "raid", index: true },
+    nextSetNumber: { type: Number, default: 0 },
     enabledAt: { type: Date, default: null, index: true },
     enabledBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     opensAt: { type: Date, default: null },

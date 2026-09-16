@@ -170,7 +170,7 @@ export default function CardViewer({
   const ownedArtVariants = (["standard", "alternative"] as const).filter((value) => ownership.some((row) => row.artVariant === value));
   const ownedFinishes = ownership
     .filter((row) => row.artVariant === artVariant)
-    .sort((left, right) => compareCcgFinish(left.finish, right.finish, displayedCard.set.kind, displayedCard.set.customFinish?.key));
+    .sort((left, right) => compareCcgFinish(left.finish, right.finish, displayedCard.set.kind, displayedCard.set.kind === "supporter" ? displayedCard.creatorFinish : displayedCard.set.customFinish?.key));
   const isOwned = ownership.length > 0;
   const isDisplayedFinishOwned = ownership.some((row) => row.finish === finish && row.artVariant === artVariant);
   const showsDefaultActions = footerAction === undefined || footerAction === null;
@@ -564,6 +564,8 @@ export default function CardViewer({
             ) : null}
           </div>
           <h2>{displayedCard.name}</h2>
+          {displayedCard.set.kind === "supporter" && <p className={styles.viewerIdentity}>{t("studio.manualScores")}</p>}
+          {displayedCard.set.kind === "supporter" && displayedCard.creatorFinish && <p className={styles.viewerIdentity}>{t("studio.cardFinish", { finish: t(`finish.${displayedCard.creatorFinish}`) })}</p>}
           {displayedCard.guildName ? <p className={styles.viewerIdentity}>{`<${displayedCard.guildName}>`}</p> : null}
 
           {displayedCard.quip ? (

@@ -1,12 +1,13 @@
 import {
   CCG_CUSTOM_FINISHES,
+  CCG_SUPPORTER_LEADERBOARD_ENABLED,
   CCG_FINISH_ORDER,
   CCG_TIER_GRADES,
   CcgFinish,
   CcgTierGrade,
 } from "../config/ccg";
 
-export const CCG_COLLECTION_SCORE_VERSION = "collection-v5-active-set-completion";
+export const CCG_COLLECTION_SCORE_VERSION = `collection-v7-supporter-${CCG_SUPPORTER_LEADERBOARD_ENABLED ? "included" : "excluded"}`;
 export const CCG_SERIES_BASE_POINTS = 100;
 export const CCG_ALL_FINISHES_BONUS = 25;
 export const CCG_COMPLETE_SET_POINTS_PER_CARD = 100;

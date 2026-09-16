@@ -37,7 +37,7 @@ import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 
 type RevealPhase = "idle" | "holding" | "tearing" | "dealing" | "ready";
-type PackSelection = { setId?: string; setIds?: string[] };
+type PackSelection = { type?: "supporter"; setId?: string; setIds?: string[] };
 type PackRequest = PackSelection & { idempotencyKey: string };
 
 const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
@@ -193,12 +193,14 @@ export default function CcgOpenPage() {
   );
   const currentSets = useMemo(() => raidSets.filter((set) => set.state === "current"), [raidSets]);
   const currentSet = currentSets[0];
-  const selectedSet = raidSets.find((set) => set.id === selectedSetId);
+  const supporterSet = sets?.find((set) => set.kind === "supporter");
+  const selectableSets = useMemo(() => [...raidSets, ...(supporterSet ? [supporterSet] : [])], [raidSets, supporterSet]);
+  const selectedSet = useMemo(() => selectableSets.find((set) => set.id === selectedSetId), [selectableSets, selectedSetId]);
   const allRaids = !selectedSet;
   const featuredPackSet = selectedSet ?? currentSet;
   const selectorSet = selectedSet;
-  const selectedPackSets = raidSets.filter((set) => selectedSet ? set.id === selectedSet.id : customSetIds === null || customSetIds.includes(set.id));
-  const hasCustomQualityRow = Boolean(selectedSet?.customFinish);
+  const selectedPackSets = selectedSet ? [selectedSet] : raidSets.filter((set) => customSetIds === null || customSetIds.includes(set.id));
+  const hasCustomQualityRow = Boolean(selectedSet?.customFinish || selectedSet?.kind === "supporter");
   const qualityRows = useMemo(() => [
     ...protectedFinishes.map((finish) => ({
       key: finish,
@@ -207,6 +209,9 @@ export default function CcgOpenPage() {
       hardPity: CCG_FINISH_PITY_LIMITS[finish],
     })),
     ...[selectedSet].flatMap((set) => {
+      if (set?.kind === "supporter") return (session?.customQualityProtection ?? [])
+        .filter((row) => row.setSlug.startsWith("supporter-"))
+        .map((row) => ({ key: row.setSlug, finish: row.finish, counter: row.counter, hardPity: row.hardPity }));
       if (!set?.customFinish) return [];
       const progress = session?.customQualityProtection?.find((row) => row.setSlug === set.slug);
       return [{
@@ -373,10 +378,10 @@ export default function CcgOpenPage() {
 
   useEffect(() => {
     if (!sets) return;
-    if (selectedSetId !== ALL_RAIDS && !raidSets.some((set) => set.id === selectedSetId)) {
+    if (selectedSetId !== ALL_RAIDS && !selectableSets.some((set) => set.id === selectedSetId)) {
       setSelectedSetId(ALL_RAIDS);
     }
-  }, [raidSets, selectedSetId, sets]);
+  }, [selectableSets, selectedSetId, sets]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -415,10 +420,10 @@ export default function CcgOpenPage() {
   useEffect(() => {
     const recovered = recoveryQuery.data;
     if (!recovered || opening?.id === recovered.id) return;
-    setSelectedSetId(recovered.selection.type === "raid" ? recovered.selection.setId : ALL_RAIDS);
+    setSelectedSetId(recovered.selection.type === "supporter" ? supporterSet?.id ?? ALL_RAIDS : recovered.selection.type === "raid" ? recovered.selection.setId : ALL_RAIDS);
     if (recovered.selection.type === "all") setCustomSetIds(recovered.selection.setIds ?? null);
     setOpening(recovered);
-  }, [opening?.id, recoveryQuery.data]);
+  }, [opening?.id, recoveryQuery.data, supporterSet?.id]);
 
   useEffect(() => {
     if (!opening) return;
@@ -508,13 +513,15 @@ export default function CcgOpenPage() {
     mutationFn: async (request: PackRequest) => {
       const result = await api.openCcgPack({
         idempotencyKey: request.idempotencyKey,
+        type: request.type,
         setId: request.setId,
         setIds: request.setIds,
       });
       queryClient.setQueryData(queryKeys.ccg.opening(result.id), result);
       const url = new URL(window.location.href);
       url.searchParams.delete("mode");
-      if (result.selection.type === "raid") url.searchParams.set("set", result.selection.setId);
+      if (result.selection.type === "supporter") url.searchParams.set("set", supporterSet?.id ?? "");
+      else if (result.selection.type === "raid") url.searchParams.set("set", result.selection.setId);
       else url.searchParams.delete("set");
       if (result.selection.type === "all" && result.selection.setIds) url.searchParams.set("sets", result.selection.setIds.join(","));
       else url.searchParams.delete("sets");
@@ -530,7 +537,7 @@ export default function CcgOpenPage() {
       setDealtCards(0);
       setRevealedCards(new Set());
       setActiveReveal(null);
-      setSelectedSetId(result.selection.type === "raid" ? result.selection.setId : ALL_RAIDS);
+      setSelectedSetId(result.selection.type === "supporter" ? supporterSet?.id ?? ALL_RAIDS : result.selection.type === "raid" ? result.selection.setId : ALL_RAIDS);
       if (result.selection.type === "all") setCustomSetIds(result.selection.setIds ?? null);
       setOpening(result);
       const updates = result.cacheUpdates;
@@ -853,7 +860,7 @@ export default function CcgOpenPage() {
     }, 0);
   };
 
-  const canOpen = recoveryInitialized && !recoveryId && Boolean(session) && !queryFailed && selectedPackSets.length > 0 && !noPacks && !mutation.isPending && !customizeSetsOpen;
+  const canOpen = recoveryInitialized && !recoveryId && Boolean(session) && !queryFailed && selectedPackCardCount > 0 && !noPacks && !mutation.isPending && !customizeSetsOpen;
   const hasAnotherPack = Boolean(opening && session && session.packs.totalRemaining > 0);
   const shouldPromptGuestLogin = session?.ownerType === "guest" && !hasAnotherPack;
   const nextPackRemaining = opening && session
@@ -871,7 +878,7 @@ export default function CcgOpenPage() {
         .join(". ") ?? "",
     [opening, revealedCards, t],
   );
-  const openingTargetSetId = opening?.selection.type === "raid" ? opening.selection.setId : null;
+  const openingTargetSetId = opening?.selection.type === "supporter" ? supporterSet?.id ?? opening.sets.find((set) => set.kind === "supporter")?.id : opening?.selection.type === "raid" ? opening.selection.setId : null;
   const openingTargetSet = openingTargetSetId
     ? sets?.find((set) => set.id === openingTargetSetId) ?? opening?.sets.find((set) => set.id === openingTargetSetId)
     : undefined;
@@ -1049,7 +1056,7 @@ export default function CcgOpenPage() {
     }
     if (!canOpen) return;
     requestMobileFullscreen();
-    if (!submitPackOpening(selectedSet ? { setId: selectedSet.id } : { setIds: customSetIds === null ? undefined : selectedPackSets.map((set) => set.id) })) return;
+    if (!submitPackOpening(selectedSet?.kind === "supporter" ? { type: "supporter" } : selectedSet ? { setId: selectedSet.id } : { setIds: customSetIds === null ? undefined : selectedPackSets.map((set) => set.id) })) return;
     resumeCcgAudio();
   };
 
@@ -1058,7 +1065,7 @@ export default function CcgOpenPage() {
       skipNextDesktopCardAutofocusRef.current = false;
       return;
     }
-    const selection = opening.selection.type === "raid" ? { setId: opening.selection.setId } : { setIds: opening.selection.setIds };
+    const selection: PackSelection = opening.selection.type === "supporter" ? { type: "supporter" } : opening.selection.type === "raid" ? { setId: opening.selection.setId } : { setIds: opening.selection.setIds };
     const delayMs = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 470;
     if (!submitPackOpening(selection, delayMs)) {
       skipNextDesktopCardAutofocusRef.current = false;
@@ -1199,10 +1206,11 @@ export default function CcgOpenPage() {
 
                         <div className={packStyles.legacyTarget}>
                           <div className={packStyles.raidList} aria-label={t("open.chooseRaidSet")}>
-                            {raidSets.map((set) => (
+                            {selectableSets.map((set) => (
                               <button
                                 key={set.id}
                                 type="button"
+                                disabled={set.cardCount === 0}
                                 aria-pressed={selectedSetId === set.id}
                                 className={packStyles.modeChoice}
                                 onClick={() => {
@@ -1214,7 +1222,7 @@ export default function CcgOpenPage() {
                                   {raidIconByZone.get(set.zoneId) ? <IconImage iconFilename={raidIconByZone.get(set.zoneId)} alt="" width={40} height={40} /> : <ArchiveIcon />}
                                 </span>
                                 <span className={packStyles.modeChoiceCopy}>
-                                  <small>{set.expansionName}</small>
+                                  <small>{set.kind === "supporter" ? t("open.supporterEyebrow") : set.expansionName}</small>
                                   <strong>{set.raidName}</strong>
                                 </span>
                                 <span className={packStyles.modeChoiceMark} aria-hidden="true" />
@@ -1247,7 +1255,7 @@ export default function CcgOpenPage() {
                     aria-label={t("open.openPack")}
                     aria-busy={mutation.isPending}
                   >
-                    <PackBoosterVisual title={raidSets.length > 0 ? poolTitle : t("landing.preparing")} cardsLabel={t("landing.cards")} />
+                    <PackBoosterVisual title={selectedPackCardCount > 0 ? poolTitle : t("landing.preparing")} cardsLabel={t("landing.cards")} />
                   </button>
                   <span className={packStyles.packHint}>
                     {mutation.isPending
@@ -1287,6 +1295,7 @@ export default function CcgOpenPage() {
                         ) : null}
                         <section className={packStyles.qualityDetail}>
                           <h2>{t("open.badLuckProtectionEyebrow")}</h2>
+                          {selectedSet?.kind === "supporter" && <p>{t("open.supporterFinishes")}</p>}
                           <dl>
                             {qualityRows.map((row) => (
                               <div key={row.key}>
