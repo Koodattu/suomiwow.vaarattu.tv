@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { CLASSES } from "../config/classes";
 import { CCG_GRADING_VERSION, CCG_SUPPORTER_SET, CCG_THEME_VERSION, CcgFinish } from "../config/ccg";
 import User, { IWoWCharacter } from "../models/User";
+import Guild from "../models/Guild";
 import CcgCard from "../models/CcgCard";
 import CcgSet from "../models/CcgSet";
 import CcgOwnership from "../models/CcgOwnership";
@@ -97,9 +98,19 @@ class CcgSupporterService {
   private cardFields(source: Source) {
     const draft = source.draft!;
     return { name: source.name, realm: source.realm, specName: draft.specName, role: draft.role,
+      guildId: source.guildId ?? null, guildName: source.guildName ?? null, guildRealm: source.guildRealm ?? null,
       metric: draft.role === "healer" ? "hps" : "dps", communityScores: supporterScores(draft),
       renderUrl: draft.renderUrl, renderAssetId: draft.renderAssetId, renderFit: draft.renderFit,
       avatarUrl: draft.avatarUrl, mediaCapturedAt: draft.mediaCapturedAt };
+  }
+
+  private async armoryGuild(profile: Awaited<ReturnType<typeof blizzard.getCharacterProfile>>) {
+    const guildName = profile.guild?.name ?? null;
+    const guildRealm = guildName ? profile.guild?.realm?.name ?? profile.realm.name : null;
+    const guild = guildName && guildRealm
+      ? await Guild.findOne({ name: guildName, realm: guildRealm, region: "eu" }).collation({ locale: "en", strength: 2 }).select("_id").lean()
+      : null;
+    return { guildId: guild?._id ?? null, guildName, guildRealm };
   }
 
   private async serialize(source: Source, set: NonNullable<Awaited<ReturnType<typeof CcgSet.findOne>>>) {
@@ -180,6 +191,7 @@ class CcgSupporterService {
     try { profile = await blizzard.getCharacterProfile(character.name, character.realmSlug, "eu"); }
     catch { throw new CcgSupporterError(422, "armory_unavailable"); }
     if (profile.id !== character.id) throw new CcgSupporterError(403, "ownership_required");
+    const guild = await this.armoryGuild(profile);
     const classInfo = CLASSES.find((entry) => entry.name.toLowerCase() === profile.character_class.name.toLowerCase());
     if (!classInfo) throw new CcgSupporterError(422, "invalid_spec");
     const spec = classInfo.specs.find((entry) => entry.name === slugifySpecName(profile.active_spec?.name ?? "")) ?? classInfo.specs[0];
@@ -197,6 +209,7 @@ class CcgSupporterService {
           blizzardCharacterId: character.id, realmId: character.realmId, name: profile.name, realm: profile.realm.name,
           realmSlug: profile.realm.slug, classID: classInfo.id,
           collectorKey: createWowCharacterIdentityKey("eu", profile.realm.slug, profile.name) });
+        source.set(guild);
         source.set("draft", { ...source.toObject().lastRender, specName: spec.name, role: spec.role, tierGrade: "S", creatorFinish: SUPPORTER_CREATOR_FINISHES[0] });
         source.revision += 1;
         await source.save({ session });
@@ -278,6 +291,7 @@ class CcgSupporterService {
         blizzard.getCharacterMedia(proof.character.name, proof.character.realmSlug, "eu"),
       ]);
       if (profile.id !== source.blizzardCharacterId) throw new CcgSupporterError(403, "ownership_required");
+      const guild = await this.armoryGuild(profile);
       if (!media.mainRawUrl) throw new CcgSupporterError(422, "render_missing");
       const stored = await renders.ingest(source._id, media.mainRawUrl, now);
       const session = await mongoose.startSession();
@@ -292,6 +306,7 @@ class CcgSupporterService {
           current.set("lastRender", { renderUrl: stored.url, renderAssetId: stored.assetId, renderFit: stored.fit,
             avatarUrl: media.avatarUrl, mediaCapturedAt: now });
           current.name = profile.name; current.realm = profile.realm.name; current.realmSlug = profile.realm.slug;
+          current.set(guild);
           current.nextRenderRefreshAt = new Date(Date.now() + SUPPORTER_RENDER_COOLDOWN_MS);
           current.renderError = false; current.revision += 1;
           current.renderLeaseToken = null;
@@ -324,10 +339,14 @@ class CcgSupporterService {
         if (current.nextEditAt > new Date()) throw new CcgSupporterError(429, "edit_cooldown", current.nextEditAt);
         validateSupporterDraft(current.classID, current.toObject().draft!);
         if (current.cardId) {
+          const previous = await CcgCard.findById(current.cardId).select("guildId guildName guildRealm").session(session).orFail();
           await CcgCard.collection.updateOne({ _id: current.cardId, supporterCharacterId: current._id, snapshotVersion: 1 },
             { $set: this.cardFields(current) }, { session });
           const card = await CcgCard.findById(current.cardId).session(session).orFail();
           await refreshCcgCollectionReadModelsForSeries(card.setId, card.characterId, session);
+          if (String(previous.guildId) !== String(card.guildId) || previous.guildName !== card.guildName || previous.guildRealm !== card.guildRealm) {
+            await publisher.rebuildPool(card.setId, undefined, session);
+          }
         } else {
           const allowance = await CcgSupporterCreator.updateOne({ _id: current.creatorId, $expr: { $lt: ["$usedSlots", "$earnedSlots"] } },
             { $inc: { usedSlots: 1 } }, { session });

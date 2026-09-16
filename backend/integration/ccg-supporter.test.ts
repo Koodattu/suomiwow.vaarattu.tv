@@ -18,6 +18,7 @@ import mediaService from "../src/services/ccg-supporter-media.service";
 import ccgRouter from "../src/routes/ccg";
 import { resolveAlternativeArtKey } from "../src/utils/ccg-alternative-art";
 import User from "../src/models/User";
+import Guild from "../src/models/Guild";
 import Creator from "../src/models/CcgSupporterCreator";
 import Source from "../src/models/CcgSupporterCharacter";
 import Grant from "../src/models/CcgSupporterGrant";
@@ -49,7 +50,7 @@ const userId = new mongoose.Types.ObjectId();
 const otherId = new mongoose.Types.ObjectId();
 let server: Server;
 let baseUrl: string;
-const models = [User, Creator, Source, Grant, Event, Limit, Card, SetModel, Pool, Ownership, Series, Invalidation,
+const models = [User, Guild, Creator, Source, Grant, Event, Limit, Card, SetModel, Pool, Ownership, Series, Invalidation,
   CcgJobLock, CcgLeaderboardEntry, CcgPackBalance, CcgPackOpening, CcgQualityProgress, Media, AlternativeArt];
 const chars = Array.from({ length: 7 }, (_, i) => ({ id: i + 1, realmId: 10, name: `Mage${i + 1}`, realm: "Stormreaver",
   realmSlug: "stormreaver", class: "Mage", race: "Human", level: 10, faction: "ALLIANCE" as const, selected: false }));
@@ -166,6 +167,64 @@ test("publication is idempotent and later edits update one card without changing
   assert.equal(card.snapshotVersion, 1);
   assert.equal(await Card.countDocuments(), 1);
   assert.equal((await Creator.findOne({ userId }))?.draftCount, 0);
+});
+
+test("Supporter guild follows Armory through preview, publication, guild changes and departure", async (t) => {
+  const trackedGuildId = new mongoose.Types.ObjectId();
+  await Guild.collection.insertOne({ _id: trackedGuildId, name: "Tracked Guild", realm: "Ravencrest", region: "eu" } as any);
+  let guild: { name: string; realm?: { name: string; slug: string } } | undefined = {
+    name: "tracked guild", realm: { name: "Ravencrest", slug: "ravencrest" },
+  };
+  let unavailable = false;
+  const originalProfile = blizzard.getCharacterProfile.bind(blizzard);
+  t.mock.method(blizzard, "getCharacterProfile", async (...args: Parameters<typeof originalProfile>) => {
+    if (unavailable) throw new Error("Armory unavailable");
+    return { ...await originalProfile(...args), guild };
+  });
+  const source = await draft();
+  const id = String(source._id);
+  const state = await studio.getState(String(userId));
+  assert.equal((state.creations[0].preview as Record<string, unknown> | null)?.guildName, "tracked guild");
+  assert.equal(source.guildRealm, "Ravencrest", "Use the guild realm for cross-realm membership");
+  assert.equal(String(source.guildId), String(trackedGuildId));
+  await studio.publish(String(userId), id, source.revision);
+  let current = await Source.findById(source._id).orFail();
+  const cardId = current.cardId!;
+  assert.equal((await Card.findById(cardId))?.guildName, "tracked guild");
+  assert.equal((await SetModel.findById((await Card.findById(cardId))!.setId))?.collectionGuilds?.length, 1);
+
+  await studio.save(String(userId), id, { ...source.toObject().draft, revision: current.revision });
+  await Source.updateOne({ _id: source._id }, { $set: { nextRenderRefreshAt: new Date(0), nextEditAt: new Date(0) } });
+  guild = { name: "Untracked Guild" };
+  const refreshed = await studio.refreshRender(String(userId), id);
+  assert.equal((refreshed.creations[0].preview as Record<string, unknown> | null)?.guildName, "Untracked Guild");
+  assert.equal((await Card.findById(cardId))?.guildName, "tracked guild", "Refresh only changes the preview until applied");
+  current = await Source.findById(source._id).orFail();
+  assert.equal(current.guildId, null);
+  assert.equal(current.guildRealm, "Stormreaver", "Missing guild realm falls back to character realm");
+  await studio.publish(String(userId), id, current.revision);
+  assert.equal((await Card.findById(cardId))?.guildName, "Untracked Guild", "Guild need not be tracked by the site");
+  assert.equal((await Card.findById(cardId))?.guildId, null);
+  assert.equal((await SetModel.findById((await Card.findById(cardId))!.setId))?.collectionGuilds?.length, 0, "Guild filters lose the previous membership");
+
+  current = await Source.findById(source._id).orFail();
+  await studio.save(String(userId), id, { ...source.toObject().draft, revision: current.revision });
+  await Source.updateOne({ _id: source._id }, { $set: { nextRenderRefreshAt: new Date(0), nextEditAt: new Date(0) } });
+  unavailable = true;
+  await assert.rejects(studio.refreshRender(String(userId), id), { code: "armory_unavailable" });
+  assert.equal((await Source.findById(source._id))?.guildName, "Untracked Guild", "Failed refresh preserves the guild");
+  unavailable = false;
+  guild = undefined;
+  await Source.updateOne({ _id: source._id }, { $set: { nextRenderRefreshAt: new Date(0) } });
+  await studio.refreshRender(String(userId), id);
+  current = await Source.findById(source._id).orFail();
+  await studio.publish(String(userId), id, current.revision);
+  const card = await Card.findById(cardId).orFail();
+  assert.equal(card.guildId, null);
+  assert.equal(card.guildName, null);
+  assert.equal(card.guildRealm, null);
+  assert.equal(card.snapshotVersion, 1);
+  assert.equal(await Card.countDocuments(), 1);
 });
 
 test("five draft limit is enforced concurrently and discarding preserves render cooldown", async () => {

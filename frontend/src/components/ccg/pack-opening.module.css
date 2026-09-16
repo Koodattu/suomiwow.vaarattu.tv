@@ -308,8 +308,43 @@
 }
 
 .modeChoices {
+  position: relative;
   display: grid;
-  gap: 0.5rem;
+}
+
+.modeChoice.allSetsChoice {
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  padding-right: 6.25rem;
+}
+
+.customizeSetsButton {
+  position: absolute;
+  top: 50%;
+  right: 0.6rem;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  padding: 0.5rem 0.2rem;
+  color: #7ddcff;
+  font-size: 0.75rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.customizeSetsButton:hover:not(:disabled) {
+  color: #b8efff;
+  text-decoration: underline;
+}
+
+.customizeSetsButton:focus-visible {
+  outline: 2px solid #7ddcff;
+  outline-offset: 2px;
+  border-radius: 0.2rem;
+}
+
+.customizeSetsButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .setPickerActions {

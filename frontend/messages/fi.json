@@ -612,7 +612,6 @@
     },
     "open": {
       "supporterEyebrow": "Yhteisön luomukset",
-      "supporterFinishes": "Kortista voi saada seitsemän tavallista viimeistelyä tai sille valitun raid-viimeistelyn. Raid-viimeistelyn huonon tuurin suoja etenee vain, kun nostat kortin, jolla kyseinen viimeistely on mahdollinen. Laskurit ovat erillisiä raid-pakkojen laskureista.",
       "title": "Astu raidiholviin",
       "body": "Valitse raidisetti tai mukauta, mistä seteistä Kaikki setit -pakan kortit arvotaan. Sivun päivitys ei arvo pakkaa uudelleen.",
       "chooseMode": "Korttivalikoima",

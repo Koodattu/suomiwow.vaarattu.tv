@@ -1178,7 +1178,7 @@ export default function CcgOpenPage() {
                               setSelectedSetId(ALL_RAIDS);
                               closePackSelector();
                             }}
-                            className={packStyles.modeChoice}
+                            className={`${packStyles.modeChoice} ${packStyles.allSetsChoice}`}
                           >
                             <span className={packStyles.modeChoiceIcon}>
                               <ArchiveIcon />
@@ -1187,11 +1187,10 @@ export default function CcgOpenPage() {
                               <small>{customSetIds === null ? t("open.allRaidsEyebrow") : t("open.selectedSets", { count: raidSets.filter((set) => customSetIds.includes(set.id)).length, total: raidSets.length })}</small>
                               <strong>{t("open.allRaids")}</strong>
                             </span>
-                            <span className={packStyles.modeChoiceMark} aria-hidden="true" />
                           </button>
                           <button
                             type="button"
-                            className={styles.secondaryButton}
+                            className={packStyles.customizeSetsButton}
                             disabled={mutation.isPending || raidSets.length === 0}
                             onClick={() => {
                               setPackSelectorOpen(false);
@@ -1295,7 +1294,6 @@ export default function CcgOpenPage() {
                         ) : null}
                         <section className={packStyles.qualityDetail}>
                           <h2>{t("open.badLuckProtectionEyebrow")}</h2>
-                          {selectedSet?.kind === "supporter" && <p>{t("open.supporterFinishes")}</p>}
                           <dl>
                             {qualityRows.map((row) => (
                               <div key={row.key}>
