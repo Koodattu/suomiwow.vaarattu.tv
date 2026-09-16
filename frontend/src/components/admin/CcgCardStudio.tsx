@@ -71,7 +71,19 @@ export default function CcgCardStudio() {
     void api.searchAdminCcgCards(debouncedSearch, 10)
       .then((result) => {
         if (cancelled || result.search !== activeSearchRef.current) return;
-        setCards(result.cards);
+        setCards(result.cards.map((card) => {
+          const seenSetIds = new Set<string>();
+          return {
+            ...card,
+            // Admin search returns snapshots newest first.
+            variants: card.variants?.filter((variant) => {
+              const setId = variant.card.set.id;
+              if (seenSetIds.has(setId)) return false;
+              seenSetIds.add(setId);
+              return true;
+            }),
+          };
+        }));
       })
       .catch((loadError) => {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : t("loadError"));
