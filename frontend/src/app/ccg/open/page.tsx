@@ -8,7 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgBaseFinish, CcgBootstrapResponse, CcgFinish, CcgOpening } from "@/types";
 import { useAuth } from "@/context/AuthContext";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { CCG_BASE_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS, compareCcgPullQuality } from "@/lib/ccg";
 import {
   getCcgAnnouncerSoundSequences,
@@ -25,6 +25,7 @@ import { queryKeys, useCcgOpening, useCcgSession, useCcgSets, usePickemCcgOpport
 import IconImage from "@/components/IconImage";
 import CcgShell from "@/components/ccg/CcgShell";
 import PackBalance from "@/components/ccg/PackBalance";
+import CcgPackSetPicker from "@/components/ccg/CcgPackSetPicker";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
 import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
@@ -36,7 +37,7 @@ import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 
 type RevealPhase = "idle" | "holding" | "tearing" | "dealing" | "ready";
-type PackSelection = { setId?: string };
+type PackSelection = { setId?: string; setIds?: string[] };
 type PackRequest = PackSelection & { idempotencyKey: string };
 
 const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
@@ -129,6 +130,8 @@ export default function CcgOpenPage() {
   const sessionQuery = useCcgSession(!authLoading);
   const setsQuery = useCcgSets(!authLoading);
   const [selectedSetId, setSelectedSetId] = useState(ALL_RAIDS);
+  const [customSetIds, setCustomSetIds] = useState<string[] | null>(null);
+  const [customizeSetsOpen, setCustomizeSetsOpen] = useState(false);
   const [opening, setOpening] = useState<CcgOpening | null>(null);
   const [recoveryId, setRecoveryId] = useState("");
   const [recoveryInitialized, setRecoveryInitialized] = useState(false);
@@ -194,7 +197,7 @@ export default function CcgOpenPage() {
   const allRaids = !selectedSet;
   const featuredPackSet = selectedSet ?? currentSet;
   const selectorSet = selectedSet;
-  const selectedPackSets = selectedSet ? [selectedSet] : raidSets;
+  const selectedPackSets = raidSets.filter((set) => selectedSet ? set.id === selectedSet.id : customSetIds === null || customSetIds.includes(set.id));
   const hasCustomQualityRow = Boolean(selectedSet?.customFinish);
   const qualityRows = useMemo(() => [
     ...protectedFinishes.map((finish) => ({
@@ -379,6 +382,8 @@ export default function CcgOpenPage() {
     const params = new URLSearchParams(window.location.search);
     const requestedSet = params.get("set");
     if (requestedSet) setSelectedSetId(requestedSet);
+    const requestedSets = params.get("sets");
+    if (requestedSets) setCustomSetIds(requestedSets.split(",").filter((id) => /^[a-f\d]{24}$/i.test(id)));
     const requestedOpening = params.get("opening");
     if (requestedOpening && /^[a-f\d]{24}$/i.test(requestedOpening)) {
       setRecoveryId(requestedOpening);
@@ -411,6 +416,7 @@ export default function CcgOpenPage() {
     const recovered = recoveryQuery.data;
     if (!recovered || opening?.id === recovered.id) return;
     setSelectedSetId(recovered.selection.type === "raid" ? recovered.selection.setId : ALL_RAIDS);
+    if (recovered.selection.type === "all") setCustomSetIds(recovered.selection.setIds ?? null);
     setOpening(recovered);
   }, [opening?.id, recoveryQuery.data]);
 
@@ -503,12 +509,15 @@ export default function CcgOpenPage() {
       const result = await api.openCcgPack({
         idempotencyKey: request.idempotencyKey,
         setId: request.setId,
+        setIds: request.setIds,
       });
       queryClient.setQueryData(queryKeys.ccg.opening(result.id), result);
       const url = new URL(window.location.href);
       url.searchParams.delete("mode");
       if (result.selection.type === "raid") url.searchParams.set("set", result.selection.setId);
       else url.searchParams.delete("set");
+      if (result.selection.type === "all" && result.selection.setIds) url.searchParams.set("sets", result.selection.setIds.join(","));
+      else url.searchParams.delete("sets");
       url.searchParams.set("opening", result.id);
       url.searchParams.delete("revealed");
       router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
@@ -522,6 +531,7 @@ export default function CcgOpenPage() {
       setRevealedCards(new Set());
       setActiveReveal(null);
       setSelectedSetId(result.selection.type === "raid" ? result.selection.setId : ALL_RAIDS);
+      if (result.selection.type === "all") setCustomSetIds(result.selection.setIds ?? null);
       setOpening(result);
       const updates = result.cacheUpdates;
       if (updates) {
@@ -577,6 +587,11 @@ export default function CcgOpenPage() {
   };
 
   const queryFailed = sessionQuery.isError || setsQuery.isError;
+  const packError = mutation.error instanceof ApiError && mutation.error.code === "selected_sets_unavailable"
+    ? t("open.selectedSetsUnavailable")
+    : mutation.error instanceof ApiError && mutation.error.code === "invalid_pack_sets"
+      ? t("open.selectAtLeastOneSet")
+      : mutation.error?.message;
   const bootstrapLoading = authLoading
     || sessionQuery.isPending
     || setsQuery.isPending
@@ -838,7 +853,7 @@ export default function CcgOpenPage() {
     }, 0);
   };
 
-  const canOpen = recoveryInitialized && !recoveryId && Boolean(session) && !queryFailed && raidSets.length > 0 && !noPacks && !mutation.isPending;
+  const canOpen = recoveryInitialized && !recoveryId && Boolean(session) && !queryFailed && selectedPackSets.length > 0 && !noPacks && !mutation.isPending && !customizeSetsOpen;
   const hasAnotherPack = Boolean(opening && session && session.packs.totalRemaining > 0);
   const shouldPromptGuestLogin = session?.ownerType === "guest" && !hasAnotherPack;
   const nextPackRemaining = opening && session
@@ -863,7 +878,10 @@ export default function CcgOpenPage() {
   const openingIsAllRaids = opening?.selection.type === "all";
   const openingPackSet = openingTargetSet ?? currentSet;
   const openingPackName = openingTargetSet?.raidName ?? t("open.allRaids");
-  const openingCollectionSets = openingTargetSet ? [openingTargetSet] : openingIsAllRaids ? raidSets : [];
+  const openingSelection = opening?.selection;
+  const openingCollectionSets = openingTargetSet ? [openingTargetSet] : openingSelection?.type === "all"
+    ? raidSets.filter((set) => !openingSelection.setIds || openingSelection.setIds.includes(set.id))
+    : [];
   const openingCollectionSetIds = new Set(openingCollectionSets.map((set) => set.id));
   const openingCollectionCardCount = openingCollectionSets.reduce((total, set) => total + set.cardCount, 0);
   const openingCollectionOwnedCount = openingCollectionSets.reduce((total, set) => total + set.ownedCards, 0);
@@ -1031,7 +1049,7 @@ export default function CcgOpenPage() {
     }
     if (!canOpen) return;
     requestMobileFullscreen();
-    if (!submitPackOpening({ setId: selectedSet?.id })) return;
+    if (!submitPackOpening(selectedSet ? { setId: selectedSet.id } : { setIds: customSetIds === null ? undefined : selectedPackSets.map((set) => set.id) })) return;
     resumeCcgAudio();
   };
 
@@ -1040,7 +1058,7 @@ export default function CcgOpenPage() {
       skipNextDesktopCardAutofocusRef.current = false;
       return;
     }
-    const selection = { setId: opening.selection.type === "raid" ? opening.selection.setId : undefined };
+    const selection = opening.selection.type === "raid" ? { setId: opening.selection.setId } : { setIds: opening.selection.setIds };
     const delayMs = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 470;
     if (!submitPackOpening(selection, delayMs)) {
       skipNextDesktopCardAutofocusRef.current = false;
@@ -1159,10 +1177,21 @@ export default function CcgOpenPage() {
                               <ArchiveIcon />
                             </span>
                             <span className={packStyles.modeChoiceCopy}>
-                              <small>{t("open.allRaidsEyebrow")}</small>
+                              <small>{customSetIds === null ? t("open.allRaidsEyebrow") : t("open.selectedSets", { count: raidSets.filter((set) => customSetIds.includes(set.id)).length, total: raidSets.length })}</small>
                               <strong>{t("open.allRaids")}</strong>
                             </span>
                             <span className={packStyles.modeChoiceMark} aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.secondaryButton}
+                            disabled={mutation.isPending || raidSets.length === 0}
+                            onClick={() => {
+                              setPackSelectorOpen(false);
+                              setCustomizeSetsOpen(true);
+                            }}
+                          >
+                            {t("open.customizeSets")}
                           </button>
                         </div>
 
@@ -1200,7 +1229,7 @@ export default function CcgOpenPage() {
 
                 <div className={packStyles.packPresentation}>
                   <span className={packStyles.packMode}>
-                    {selectedSet ? selectedSet.expansionName : t("open.allRaidsEyebrow")}
+                    {selectedSet ? selectedSet.expansionName : customSetIds === null ? t("open.allRaidsEyebrow") : t("open.selectedSets", { count: selectedPackSets.length, total: raidSets.length })}
                   </span>
                   <button
                     type="button"
@@ -1302,7 +1331,7 @@ export default function CcgOpenPage() {
                   ) : null}
                   {mutation.error ? (
                     <p className="mt-4 text-sm text-red-300" role="alert">
-                      {mutation.error.message}
+                      {packError}
                     </p>
                   ) : null}
                 </aside>
@@ -1639,7 +1668,7 @@ export default function CcgOpenPage() {
               </div>
               {packComplete && mutation.error ? (
                 <p className={packStyles.packActionError} role="alert">
-                  {mutation.error.message}
+                  {packError}
                 </p>
               ) : null}
             </div>
@@ -1661,6 +1690,24 @@ export default function CcgOpenPage() {
           </section>
         )}
       </div>
+      {customizeSetsOpen ? (
+        <CcgPackSetPicker
+          sets={raidSets}
+          selectedSetIds={customSetIds}
+          onClose={() => setCustomizeSetsOpen(false)}
+          onApply={(setIds) => {
+            setCustomSetIds(setIds);
+            setSelectedSetId(ALL_RAIDS);
+            setCustomizeSetsOpen(false);
+            mutation.reset();
+            const url = new URL(window.location.href);
+            url.searchParams.delete("set");
+            if (setIds) url.searchParams.set("sets", setIds.join(","));
+            else url.searchParams.delete("sets");
+            router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+          }}
+        />
+      ) : null}
       {opening && viewerIndex !== null ? (
         <CardViewer
           card={{

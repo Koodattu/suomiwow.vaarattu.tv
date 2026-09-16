@@ -312,6 +312,52 @@
   gap: 0.5rem;
 }
 
+.setPickerActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #b8c5da;
+  font-size: 0.8rem;
+}
+
+.setPickerList {
+  display: grid;
+  max-height: min(45dvh, 24rem);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #345174 transparent;
+  gap: 0.4rem;
+  padding: 0.2rem;
+}
+
+.setPickerChoice {
+  display: grid;
+  grid-template-columns: 1rem 2rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem;
+  border: 1px solid rgba(142, 178, 230, 0.16);
+  border-radius: 0.55rem;
+  color: #b8c5da;
+  cursor: pointer;
+}
+
+.setPickerChoice:has(input:checked) {
+  background: rgba(91, 174, 255, 0.12);
+  border-color: rgba(91, 174, 255, 0.5);
+  color: white;
+}
+
+.setPickerChoice input {
+  accent-color: #5baeff;
+}
+
+.setPickerChoice:focus-within {
+  outline: 2px solid #7ddcff;
+  outline-offset: 1px;
+}
+
 .packChoiceDivider {
   height: 1px;
   flex: 0 0 auto;

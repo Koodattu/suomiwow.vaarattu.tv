@@ -3172,6 +3172,14 @@ class CcgService {
       ? null
       : validateObjectId(String(body.setId), "card set ID");
     const selectionType: CcgPackSelectionType = targetSetId ? "raid" : "all";
+    let selectedSetIds: mongoose.Types.ObjectId[] | undefined;
+    if (body.setIds !== undefined) {
+      if (targetSetId || !Array.isArray(body.setIds) || body.setIds.length === 0 || body.setIds.length > CCG_CONFIGURED_SETS.length) {
+        throw new CcgServiceError(400, "invalid_pack_sets", "Choose at least one available raid set");
+      }
+      selectedSetIds = Array.from(new Set(body.setIds.map((id) => String(validateObjectId(String(id), "card set ID")))))
+        .map((id) => new mongoose.Types.ObjectId(id));
+    }
     const idempotencyKey = validateIdempotencyKey(body.idempotencyKey);
     const existing = await CcgPackOpening.findOne({ ownerType: owner.ownerType, ownerId: owner.ownerId, idempotencyKey }).lean();
     if (existing) {
@@ -3207,6 +3215,7 @@ class CcgService {
           true,
           applyMissingCardProtection,
           owner,
+          selectedSetIds,
         );
         const candidateSelections = pool.results;
         const candidateIds = candidateSelections.flatMap((result) => [
@@ -3364,6 +3373,7 @@ class CcgService {
               ownerId: owner.ownerId,
               selectionType,
               targetSetId,
+              selectedSetIds,
               sourceSetIds: pool.sourceSetIds,
               allowanceSource: allowanceSource.source,
               creditId: allowanceSource.creditId ?? null,
@@ -4540,6 +4550,7 @@ class CcgService {
     includeCommunity = true,
     includeMissingCardAlternatives = true,
     packOwner: Pick<CcgOwner, "ownerType" | "ownerId"> | null = null,
+    selectedSetIds?: mongoose.Types.ObjectId[],
   ): Promise<{
     results: CcgPackCardSelection[];
     sourceSetIds: mongoose.Types.ObjectId[];
@@ -4552,11 +4563,15 @@ class CcgService {
       cardCount: { $gt: 0 },
     };
     if (targetSetId) setFilter._id = targetSetId;
+    else if (selectedSetIds) setFilter._id = { $in: selectedSetIds };
     const sets = await CcgSet.find(setFilter)
       .select("_id cardCount")
       .sort({ zoneId: 1 })
       .session(session)
       .lean();
+    if (selectedSetIds && sets.length !== selectedSetIds.length) {
+      throw new CcgServiceError(409, "selected_sets_unavailable", "Some selected raid sets are no longer available. Choose your sets again");
+    }
     if (sets.length === 0) {
       if (targetSetId) throw new CcgServiceError(409, "target_set_unavailable", "That raid is not available for pack opening");
       throw new CcgServiceError(409, "pack_pool_unavailable", "The raid card pool is still being prepared");
@@ -5042,7 +5057,7 @@ class CcgService {
       id: String(opening._id),
       selection: selectionType === "raid" && selectionSetId
         ? { type: "raid", setId: String(selectionSetId) }
-        : { type: "all" },
+        : { type: "all", ...(opening.selectedSetIds?.length ? { setIds: opening.selectedSetIds.map(String) } : {}) },
       sets: sets.map((set) => this.serializeSet(set)),
       allowanceSource: opening.allowanceSource,
       duplicateRewards: opening.duplicateRewards,

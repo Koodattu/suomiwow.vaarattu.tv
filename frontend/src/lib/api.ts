@@ -480,7 +480,7 @@ export const api = {
     return hydrateCcgCollection(await response.json() as CcgCollectionResponseWire);
   },
 
-  async openCcgPack(input: { idempotencyKey: string; setId?: string }): Promise<CcgOpening> {
+  async openCcgPack(input: { idempotencyKey: string; setId?: string; setIds?: string[] }): Promise<CcgOpening> {
     const response = await fetch(`${API_URL}/api/ccg/packs/open`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

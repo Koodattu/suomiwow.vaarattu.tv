@@ -23,6 +23,7 @@ export interface ICcgPackOpening extends Document {
   mode?: CcgHistoricalPackMode;
   selectionType?: CcgPackSelectionType;
   targetSetId?: mongoose.Types.ObjectId | null;
+  selectedSetIds?: mongoose.Types.ObjectId[];
   sourceSetIds: mongoose.Types.ObjectId[];
   allowanceSource: CcgAllowanceSource;
   creditId?: mongoose.Types.ObjectId | null;
@@ -64,6 +65,7 @@ const CcgPackOpeningSchema = new Schema<ICcgPackOpening>(
     mode: { type: String, enum: ["current", "legacy"] },
     selectionType: { type: String, enum: ["all", "raid"], index: true },
     targetSetId: { type: Schema.Types.ObjectId, ref: "CcgSet", default: null },
+    selectedSetIds: { type: [Schema.Types.ObjectId], ref: "CcgSet", default: undefined },
     sourceSetIds: { type: [Schema.Types.ObjectId], ref: "CcgSet", required: true, default: [] },
     allowanceSource: { type: String, enum: ["daily", "recharge", "credit"], required: true },
     creditId: { type: Schema.Types.ObjectId, ref: "CcgPackCredit", default: null },

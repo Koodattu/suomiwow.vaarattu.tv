@@ -2170,7 +2170,7 @@ export type CharacterProfileChoicesResponse = {
 export type CharacterProfileLookupResponse = CharacterProfileResponse | CharacterProfileChoicesResponse;
 
 export type CcgSetLifecycle = "current" | "legacy";
-export type CcgPackSelection = { type: "all" } | { type: "raid"; setId: string };
+export type CcgPackSelection = { type: "all"; setIds?: string[] } | { type: "raid"; setId: string };
 export type CcgBaseFinish = "standard" | "foil" | "golden" | "prismatic" | "holographic" | "negative" | "astral";
 export type CcgRaidFinish =
   | "relic"
