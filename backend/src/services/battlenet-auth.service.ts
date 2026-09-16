@@ -1,5 +1,12 @@
 import logger from "../utils/logger";
 import User, { IUser, IWoWCharacter } from "../models/User";
+import AsyncSemaphore from "../utils/async-semaphore";
+
+export class BattleNetSyncError extends Error {
+  constructor(public readonly code: string, public readonly status: number, message: string) {
+    super(message);
+  }
+}
 
 interface BattleNetTokenResponse {
   access_token: string;
@@ -97,6 +104,7 @@ class BattleNetAuthService {
   private redirectUri: string;
   private region: string = "eu"; // Default to EU for Finnish users
   private activeRefreshes: Map<string, Promise<IWoWCharacter[]>> = new Map(); // Track ongoing refreshes
+  private characterRequests = new AsyncSemaphore(5);
 
   constructor() {
     this.clientId = process.env.BLIZZARD_CLIENT_ID || "";
@@ -157,6 +165,7 @@ class BattleNetAuthService {
         Authorization: `Basic ${credentials}`,
       },
       body: params.toString(),
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
@@ -174,6 +183,7 @@ class BattleNetAuthService {
   async getUserInfo(accessToken: string): Promise<BattleNetUserInfo> {
     logger.info(`[API REQUEST] GET https://oauth.battle.net/userinfo`);
     const response = await fetch("https://oauth.battle.net/userinfo", {
+      signal: AbortSignal.timeout(10000),
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -196,6 +206,7 @@ class BattleNetAuthService {
 
     logger.info(`[API REQUEST] GET ${apiUrl}`);
     const response = await fetch(apiUrl, {
+      signal: AbortSignal.timeout(10000),
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -220,16 +231,17 @@ class BattleNetAuthService {
 
     logger.info(`[API REQUEST] GET ${apiUrl}`);
     const response = await fetch(apiUrl, {
+      signal: AbortSignal.timeout(10000),
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      logger.error("Failed to get WoW profile:", error);
-      // Return empty array instead of throwing - user might not have WoW
-      return [];
+      if (response.status === 401 || response.status === 403) {
+        throw new BattleNetSyncError("BATTLENET_RECONNECT_REQUIRED", 409, "Reconnect Battle.net to refresh your characters.");
+      }
+      throw new BattleNetSyncError("BATTLENET_UNAVAILABLE", 502, "Could not load characters from Battle.net. Please try again.");
     }
 
     const profile = (await response.json()) as WoWProfileSummary;
@@ -286,16 +298,17 @@ class BattleNetAuthService {
    */
   private async _enrichSingleCharacterWithGuild(char: IWoWCharacter, accessToken: string): Promise<boolean> {
     try {
-      const apiUrl = `https://${this.region}.api.blizzard.com/profile/wow/character/${char.realmSlug}/${char.name.toLowerCase()}?namespace=profile-${this.region}&locale=en_US`;
+      const apiUrl = `https://${this.region}.api.blizzard.com/profile/wow/character/${encodeURIComponent(char.realmSlug)}/${encodeURIComponent(char.name.toLowerCase())}?namespace=profile-${this.region}&locale=en_US`;
 
       const response = await fetch(apiUrl, {
+        signal: AbortSignal.timeout(5000),
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       });
 
       if (response.ok) {
-        const profile: any = await response.json();
+        const profile = (await response.json()) as ProtectedCharacterProfile;
         if (profile.guild && profile.guild.name) {
           char.guild = profile.guild.name;
           char.guildRealm = profile.guild.realm?.name;
@@ -306,12 +319,17 @@ class BattleNetAuthService {
         } else {
           // Character has no guild but is active
           char.inactive = false;
-          return false;
+          char.guild = undefined;
+          char.guildRealm = undefined;
+          char.guildRealmSlug = undefined;
+          return true;
         }
       } else if (response.status === 404) {
         // Character is inactive (not found in API)
         char.inactive = true;
         char.guild = "inactive";
+        char.guildRealm = undefined;
+        char.guildRealmSlug = undefined;
         logger.info(`Marked ${char.name} as inactive (404 from API)`);
         return true;
       } else {
@@ -368,6 +386,21 @@ class BattleNetAuthService {
       throw new Error("User not found");
     }
 
+    // Reauthorizing the same account must preserve the user's choices.
+    if (user.battlenet?.id === userInfo.sub) {
+      const existing = new Map(user.battlenet.characters.map((character) => [character.id, character]));
+      for (const character of characters) {
+        const previous = existing.get(character.id);
+        if (previous) {
+          character.selected = previous.selected;
+          character.guild = previous.guild;
+          character.guildRealm = previous.guildRealm;
+          character.guildRealmSlug = previous.guildRealmSlug;
+          character.inactive = previous.inactive;
+        }
+      }
+    }
+
     // Update user with Battle.net account
     user.battlenet = {
       id: userInfo.sub,
@@ -390,21 +423,23 @@ class BattleNetAuthService {
    * Update character selection for a user
    */
   async updateCharacterSelection(userId: string, characterIds: number[]): Promise<IUser> {
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    if (!user.battlenet) {
-      throw new Error("No Battle.net account connected");
-    }
-
-    // Update selected status for each character
-    for (const char of user.battlenet.characters) {
-      char.selected = characterIds.includes(char.id);
-    }
-
-    await user.save();
+    const user = await User.findOneAndUpdate(
+      { _id: userId, "battlenet.id": { $exists: true } },
+      {
+        $set: {
+          "battlenet.characters.$[selected].selected": true,
+          "battlenet.characters.$[unselected].selected": false,
+        },
+      },
+      {
+        new: true,
+        arrayFilters: [
+          { "selected.id": { $in: characterIds } },
+          { "unselected.id": { $nin: characterIds } },
+        ],
+      },
+    );
+    if (!user) throw new Error("No Battle.net account connected");
     logger.info(`Updated character selection for user ${userId}: ${characterIds.length} characters selected`);
 
     return user;
@@ -451,52 +486,62 @@ class BattleNetAuthService {
       throw new Error("No Battle.net account connected");
     }
 
-    // Rate limiting: prevent refreshes more often than once per 30 seconds
+    if (user.battlenet.tokenExpiresAt.getTime() <= Date.now()) {
+      throw new BattleNetSyncError("BATTLENET_RECONNECT_REQUIRED", 409, "Reconnect Battle.net to refresh your characters.");
+    }
+
+    // Reuse a recent successful sync instead of reporting a failed refresh.
     if (user.battlenet.lastCharacterSync) {
       const timeSinceLastSync = Date.now() - user.battlenet.lastCharacterSync.getTime();
       const minInterval = 30000; // 30 seconds
       if (timeSinceLastSync < minInterval) {
-        const remainingTime = Math.ceil((minInterval - timeSinceLastSync) / 1000);
-        throw new Error(`Please wait ${remainingTime} seconds before refreshing again`);
+        return user.battlenet.characters;
       }
     }
 
     logger.info(`Starting character refresh for user ${userId}`);
 
-    // TODO: Check if token needs refresh and refresh it if needed
-
     // Get fresh character list WITHOUT guild information (fast initial fetch)
     const characters = await this.getWoWCharacters(user.battlenet.accessToken, false);
 
-    // Preserve selection state from existing characters
-    const existingSelections = new Set(user.battlenet.characters.filter((c) => c.selected).map((c) => c.id));
-
+    const previousCharacters = new Map(user.battlenet.characters.map((character) => [character.id, character]));
     for (const char of characters) {
-      char.selected = existingSelections.has(char.id);
+      const previous = previousCharacters.get(char.id);
+      if (previous) {
+        char.guild = previous.guild;
+        char.guildRealm = previous.guildRealm;
+        char.guildRealmSlug = previous.guildRealmSlug;
+        char.inactive = previous.inactive;
+      }
     }
 
-    // Save characters first (without guilds)
-    user.battlenet.characters = characters;
-    user.battlenet.lastCharacterSync = new Date();
-    await user.save();
+    // Optional guild lookups share a concurrency limit and a total time budget.
+    const deadline = Date.now() + 10000;
+    const enrichmentOrder = [...characters].sort((a, b) => Number(previousCharacters.get(b.id)?.selected ?? false) - Number(previousCharacters.get(a.id)?.selected ?? false));
+    const accessToken = user.battlenet.accessToken;
+    await Promise.all(enrichmentOrder.map((character) =>
+      this.characterRequests.run(async () => {
+        if (Date.now() < deadline) await this._enrichSingleCharacterWithGuild(character, accessToken);
+      }),
+    ));
 
-    logger.info(`Fetched ${characters.length} characters, now enriching with guild info`);
-
-    // Now enrich with guild information synchronously
-    let updated = 0;
-    for (const char of user.battlenet.characters) {
-      const wasUpdated = await this._enrichSingleCharacterWithGuild(char, user.battlenet.accessToken);
-      if (wasUpdated) updated++;
-
-      // Small delay to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    // Compare the current list when saving so concurrent selections are never lost.
+    // The token guard also prevents an old sync from restoring a disconnected account.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const current = await User.findById(userId);
+      if (!current?.battlenet || current.battlenet.accessToken !== user.battlenet.accessToken) {
+        throw new BattleNetSyncError("BATTLENET_ACCOUNT_CHANGED", 409, "Battle.net connection changed. Please try again.");
+      }
+      const selected = new Set(current.battlenet.characters.filter((character) => character.selected).map((character) => character.id));
+      for (const character of characters) character.selected = selected.has(character.id);
+      const updated = await User.findOneAndUpdate(
+        { _id: userId, "battlenet.accessToken": user.battlenet.accessToken, "battlenet.characters": current.battlenet.characters },
+        { $set: { "battlenet.characters": characters, "battlenet.lastCharacterSync": new Date() } },
+        { new: true },
+      );
+      if (updated?.battlenet) return updated.battlenet.characters;
     }
-
-    // Save again with enriched data
-    await user.save();
-
-    logger.info(`Completed character refresh for user ${userId}: ${characters.length} characters, ${updated} enriched with guild/inactive status`);
-    return user.battlenet.characters;
+    throw new BattleNetSyncError("BATTLENET_ACCOUNT_CHANGED", 409, "Character selection changed. Please try again.");
   }
 
   /**

@@ -984,6 +984,7 @@ export interface BattleNetUserInfo {
   connectedAt: string;
   characters: WoWCharacter[];
   lastCharacterSync: string | null;
+  needsReconnect?: boolean;
 }
 
 // Minimal user info from /me endpoint (used for auth check)

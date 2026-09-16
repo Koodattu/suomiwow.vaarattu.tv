@@ -1,6 +1,6 @@
 import { WoWCharacter } from "@/types";
 import { useTranslations } from "next-intl";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 
 interface CharacterSelectorDialogProps {
   characters: WoWCharacter[];
@@ -8,6 +8,9 @@ interface CharacterSelectorDialogProps {
   onCancel: () => void;
   onRefresh: () => void;
   isRefreshing: boolean;
+  isLoading: boolean;
+  isSaving: boolean;
+  errorMessage?: string;
 }
 
 // WoW Class colors (from official WoW UI)
@@ -27,15 +30,14 @@ const CLASS_COLORS: { [key: string]: string } = {
   Warrior: "#C69B6D",
 };
 
-export default function CharacterSelectorDialog({ characters, onSave, onCancel, onRefresh, isRefreshing }: CharacterSelectorDialogProps) {
+export default function CharacterSelectorDialog({ characters, onSave, onCancel, onRefresh, isRefreshing, isLoading, isSaving, errorMessage }: CharacterSelectorDialogProps) {
   const t = useTranslations("characterSelector");
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set(characters.filter((c) => c.selected).map((c) => c.id)));
+  const [selectionChanges, setSelectionChanges] = useState<Map<number, boolean>>(new Map());
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Sync selectedIds when characters prop changes
-  useEffect(() => {
-    setSelectedIds(new Set(characters.filter((c) => c.selected).map((c) => c.id)));
-  }, [characters]);
+  const selectedIds = useMemo(() => new Set(characters
+    .filter((character) => selectionChanges.get(character.id) ?? character.selected)
+    .map((character) => character.id)), [characters, selectionChanges]);
+  const isBusy = isRefreshing || isLoading || isSaving;
 
   // Filter characters based on search query
   const filteredCharacters = useMemo(() => {
@@ -54,27 +56,23 @@ export default function CharacterSelectorDialog({ characters, onSave, onCancel, 
   }, [characters, searchQuery]);
 
   const handleToggle = (charId: number) => {
-    setSelectedIds((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(charId)) {
-        newSet.delete(charId);
-      } else {
-        newSet.add(charId);
-      }
-      return newSet;
-    });
+    setSelectionChanges((previous) => new Map(previous).set(charId, !selectedIds.has(charId)));
   };
 
   const handleSelectAll = () => {
-    setSelectedIds(new Set(filteredCharacters.map((c) => c.id)));
+    setSelectionChanges((previous) => {
+      const next = new Map(previous);
+      for (const character of filteredCharacters) next.set(character.id, true);
+      return next;
+    });
   };
 
   const handleDeselectAll = () => {
-    setSelectedIds(new Set());
+    setSelectionChanges(new Map(characters.map((character) => [character.id, false])));
   };
 
   const handleSave = () => {
-    onSave(Array.from(selectedIds));
+    if (!isBusy) onSave(Array.from(selectedIds));
   };
 
   const getClassColor = (className: string): string => {
@@ -92,7 +90,7 @@ export default function CharacterSelectorDialog({ characters, onSave, onCancel, 
         <div className="p-6 border-b border-gray-700">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-white">{t("title")}</h2>
-            <button onClick={onCancel} className="text-gray-400 hover:text-white transition-colors" aria-label="Close">
+            <button onClick={onCancel} disabled={isSaving} className="text-gray-400 hover:text-white transition-colors" aria-label={t("cancel")}>
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -114,15 +112,15 @@ export default function CharacterSelectorDialog({ characters, onSave, onCancel, 
               </svg>
             </div>
             <div className="flex gap-2">
-              <button onClick={handleSelectAll} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors text-sm font-medium">
+              <button onClick={handleSelectAll} disabled={isLoading || isSaving} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors text-sm font-medium">
                 {t("selectAll")}
               </button>
-              <button onClick={handleDeselectAll} className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors text-sm font-medium">
+              <button onClick={handleDeselectAll} disabled={isLoading || isSaving} className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors text-sm font-medium">
                 {t("deselectAll")}
               </button>
               <button
                 onClick={onRefresh}
-                disabled={isRefreshing}
+                disabled={isBusy}
                 className="px-3 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-md transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 <svg className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -143,7 +141,7 @@ export default function CharacterSelectorDialog({ characters, onSave, onCancel, 
 
         {/* Character List */}
         <div className="flex-1 overflow-y-auto p-4">
-          {isRefreshing && filteredCharacters.length === 0 ? (
+          {(isLoading || isRefreshing) && characters.length === 0 ? (
             <div className="text-center text-gray-400 py-12">
               <svg className="animate-spin h-8 w-8 mx-auto mb-3 text-blue-500" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -153,7 +151,7 @@ export default function CharacterSelectorDialog({ characters, onSave, onCancel, 
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
-              <p>{t("loading") || "Loading characters..."}</p>
+              <p>{t("loading")}</p>
             </div>
           ) : filteredCharacters.length === 0 ? (
             <div className="text-center text-gray-400 py-12">{searchQuery ? t("noResults") : t("noCharacters")}</div>
@@ -170,6 +168,7 @@ export default function CharacterSelectorDialog({ characters, onSave, onCancel, 
                 >
                   <input
                     type="checkbox"
+                    disabled={isLoading || isSaving}
                     checked={selectedIds.has(character.id)}
                     onChange={() => handleToggle(character.id)}
                     className="mt-1 w-5 h-5 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 shrink-0"
@@ -204,12 +203,13 @@ export default function CharacterSelectorDialog({ characters, onSave, onCancel, 
         </div>
 
         {/* Footer */}
+        {errorMessage && <p role="alert" className="px-6 py-3 text-red-300">{errorMessage}</p>}
         <div className="p-6 border-t border-gray-700 flex justify-end gap-3">
-          <button onClick={onCancel} className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors font-medium">
+          <button onClick={onCancel} disabled={isSaving} className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors font-medium">
             {t("cancel")}
           </button>
-          <button onClick={handleSave} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors font-medium">
-            {t("save")}
+          <button onClick={handleSave} disabled={isBusy} className="disabled:opacity-50 disabled:cursor-not-allowed px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors font-medium">
+            {isSaving ? t("saving") : t("save")}
           </button>
         </div>
       </div>

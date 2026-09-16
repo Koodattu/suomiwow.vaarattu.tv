@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import CharacterSelectorDialog from "@/components/CharacterSelectorDialog";
 import { WoWCharacter, UserProfile, UserPickemEntry, StreamerSettings } from "@/types";
 import Link from "next/link";
@@ -36,6 +36,7 @@ export default function ProfilePage() {
   // Profile data state (fetched separately from auth)
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const profileRequest = useRef(0);
 
   const [isConnectingTwitch, setIsConnectingTwitch] = useState(false);
   const [isConnectingBattleNet, setIsConnectingBattleNet] = useState(false);
@@ -43,13 +44,14 @@ export default function ProfilePage() {
   const [isDisconnectingBattleNet, setIsDisconnectingBattleNet] = useState(false);
   const [isRefreshingCharacters, setIsRefreshingCharacters] = useState(false);
   const [isRefreshingTwitch, setIsRefreshingTwitch] = useState(false);
-  const [isRefreshingBattleNet, setIsRefreshingBattleNet] = useState(false);
   const [isSavingCharacters, setIsSavingCharacters] = useState(false);
   const [showCharacterDialog, setShowCharacterDialog] = useState(false);
-  const [allCharacters, setAllCharacters] = useState<WoWCharacter[]>([]);
+  const [allCharacters, setAllCharacters] = useState<WoWCharacter[] | null>(null);
   const [isLoadingCharacters, setIsLoadingCharacters] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const hasTriggeredRefresh = useRef(false);
+  const characterOperation = useRef(false);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
 
   // Streamer listing state
   const [streamerSettings, setStreamerSettings] = useState<StreamerSettings | null>(null);
@@ -69,12 +71,13 @@ export default function ProfilePage() {
 
   // Fetch profile data
   const refreshProfile = useCallback(async () => {
+    const request = ++profileRequest.current;
     try {
       const profileData = await api.getProfile();
-      setProfile(profileData);
+      if (request === profileRequest.current) setProfile(profileData);
     } catch (error) {
       console.error("Failed to fetch profile:", error);
-      setProfile(null);
+      // Keep the last successfully loaded profile available during a temporary failure.
     }
   }, []);
 
@@ -97,7 +100,8 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!isAuthLoading && authUser) {
       setIsLoadingProfile(true);
-      Promise.all([refreshProfile(), refreshStreamerSettings()]).finally(() => setIsLoadingProfile(false));
+      void refreshProfile().finally(() => setIsLoadingProfile(false));
+      void refreshStreamerSettings();
     }
   }, [isAuthLoading, authUser, refreshProfile, refreshStreamerSettings]);
 
@@ -113,55 +117,9 @@ export default function ProfilePage() {
     }
   }, [isAuthLoading, authUser]);
 
-  // Check if we should open the dialog after Battle.net connection
+  // Leave failures visible until the user takes another action.
   useEffect(() => {
-    const connected = searchParams.get("connected");
-    if (connected === "battlenet" && profile?.battlenet && !hasTriggeredRefresh.current) {
-      hasTriggeredRefresh.current = true;
-      // Trigger character refresh with guild enrichment
-      handleRefreshCharacters();
-      // Open dialog after a short delay to allow refresh to start
-      setTimeout(() => {
-        handleOpenCharacterDialog();
-      }, 500);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, profile?.battlenet]);
-
-  // Handle OAuth callback messages
-  useEffect(() => {
-    const connected = searchParams.get("connected");
-    const error = searchParams.get("error");
-
-    if (connected === "twitch") {
-      setMessage({ type: "success", text: t("twitchConnected") });
-      refreshProfile();
-      refreshStreamerSettings();
-      router.replace("/profile");
-    } else if (connected === "battlenet") {
-      setMessage({ type: "success", text: t("battlenetConnected") });
-      refreshProfile();
-      refreshStreamerSettings();
-      router.replace("/profile");
-    } else if (error) {
-      let errorText = t("connectionError");
-      if (error === "twitch_already_linked") {
-        errorText = t("twitchAlreadyLinked");
-      } else if (error === "battlenet_already_linked") {
-        errorText = t("battlenetAlreadyLinked");
-      } else if (error === "twitch_failed") {
-        errorText = t("twitchConnectionFailed");
-      } else if (error === "battlenet_failed") {
-        errorText = t("battlenetConnectionFailed");
-      }
-      setMessage({ type: "error", text: errorText });
-      router.replace("/profile");
-    }
-  }, [searchParams, t, refreshProfile, refreshStreamerSettings, router]);
-
-  // Clear message after 5 seconds
-  useEffect(() => {
-    if (message) {
+    if (message?.type === "success") {
       const timeout = setTimeout(() => setMessage(null), 5000);
       return () => clearTimeout(timeout);
     }
@@ -214,9 +172,15 @@ export default function ProfilePage() {
   };
 
   const handleDisconnectBattleNet = async () => {
+    if (characterOperation.current) return;
+    characterOperation.current = true;
     try {
       setIsDisconnectingBattleNet(true);
       await api.disconnectBattleNet();
+      setAllCharacters(null);
+      setShowCharacterDialog(false);
+      setNeedsReconnect(false);
+      setProfile((current) => current ? { ...current, battlenet: undefined } : current);
       await refreshProfile();
       await refreshStreamerSettings();
       setMessage({ type: "success", text: t("battlenetDisconnected") });
@@ -224,42 +188,35 @@ export default function ProfilePage() {
       console.error("Failed to disconnect Battle.net:", error);
       setMessage({ type: "error", text: t("disconnectionError") });
     } finally {
+      characterOperation.current = false;
       setIsDisconnectingBattleNet(false);
     }
   };
 
   const handleRefreshCharacters = useCallback(async () => {
-    // Prevent duplicate calls
-    if (isRefreshingCharacters) {
-      return;
-    }
-
+    if (characterOperation.current) return;
+    characterOperation.current = true;
     try {
+      setMessage(null);
       setIsRefreshingCharacters(true);
-      await api.refreshWoWCharacters();
-      await refreshProfile();
-      await refreshStreamerSettings();
-
-      // Always fetch the full character list after refresh (for dialog updates)
-      // This ensures the dialog gets updated enriched data even if opened during refresh
-      try {
-        const { characters } = await api.getAllWoWCharacters();
-        setAllCharacters(characters);
-      } catch (error) {
-        console.error("Failed to fetch updated character list:", error);
-      }
-
+      const { characters } = await api.refreshWoWCharacters();
+      setAllCharacters(characters);
+      setProfile((current) => current?.battlenet ? {
+        ...current, battlenet: { ...current.battlenet, characters: characters.filter((character) => character.selected) },
+      } : current);
+      setNeedsReconnect(false);
+      await Promise.all([refreshProfile(), refreshStreamerSettings()]);
       setMessage({ type: "success", text: t("charactersRefreshed") });
-    } catch (error: unknown) {
+    } catch (error) {
       console.error("Failed to refresh characters:", error);
-      // Check if it's a rate limit error
-      const errorObj = error as { response?: { data?: { error?: string } }; message?: string };
-      const errorMessage = errorObj?.response?.data?.error || errorObj?.message || t("refreshError");
-      setMessage({ type: "error", text: errorMessage });
+      const reconnect = error instanceof ApiError && error.code === "BATTLENET_RECONNECT_REQUIRED";
+      if (reconnect) setNeedsReconnect(true);
+      setMessage({ type: "error", text: t(reconnect ? "reconnectRequired" : "refreshError") });
     } finally {
+      characterOperation.current = false;
       setIsRefreshingCharacters(false);
     }
-  }, [isRefreshingCharacters, refreshProfile, refreshStreamerSettings, t]);
+  }, [refreshProfile, refreshStreamerSettings, t]);
 
   const handleRefreshTwitch = async () => {
     try {
@@ -274,54 +231,70 @@ export default function ProfilePage() {
     }
   };
 
-  const handleRefreshBattleNet = async () => {
-    try {
-      setIsRefreshingBattleNet(true);
-      await refreshProfile();
-      setMessage({ type: "success", text: "Battle.net data refreshed!" });
-    } catch (error) {
-      console.error("Failed to refresh Battle.net:", error);
-      setMessage({ type: "error", text: "Failed to refresh Battle.net data." });
-    } finally {
-      setIsRefreshingBattleNet(false);
-    }
-  };
-
   const handleSaveCharacters = async (selectedIds: number[]) => {
+    if (characterOperation.current) return;
+    characterOperation.current = true;
     try {
+      setMessage(null);
       setIsSavingCharacters(true);
-      await api.updateCharacterSelection(selectedIds);
-      await refreshProfile();
-      await refreshStreamerSettings();
+      const { characters } = await api.updateCharacterSelection(selectedIds);
+      const selected = new Set(selectedIds);
+      setAllCharacters((current) => current?.map((character) => ({ ...character, selected: selected.has(character.id) })) ?? null);
+      setProfile((current) => current?.battlenet ? { ...current, battlenet: { ...current.battlenet, characters } } : current);
+      await Promise.all([refreshProfile(), refreshStreamerSettings()]);
       setMessage({ type: "success", text: t("charactersSaved") });
       setShowCharacterDialog(false);
     } catch (error) {
       console.error("Failed to save character selection:", error);
       setMessage({ type: "error", text: t("saveError") });
     } finally {
+      characterOperation.current = false;
       setIsSavingCharacters(false);
     }
   };
 
-  const handleOpenCharacterDialog = async () => {
+  const handleOpenCharacterDialog = useCallback(async () => {
+    if (allCharacters === null && characterOperation.current) return;
     setShowCharacterDialog(true);
-
-    // Fetch all characters when dialog opens if not already loaded/refreshing
-    // Don't fetch if we're currently refreshing (handleRefreshCharacters will do it)
-    if (allCharacters.length === 0 && !isRefreshingCharacters) {
-      try {
-        setIsLoadingCharacters(true);
-        const { characters } = await api.getAllWoWCharacters();
-        setAllCharacters(characters);
-      } catch (error) {
-        console.error("Failed to fetch characters:", error);
-        setMessage({ type: "error", text: t("refreshError") });
-        setShowCharacterDialog(false);
-      } finally {
-        setIsLoadingCharacters(false);
-      }
+    if (allCharacters !== null || characterOperation.current) return;
+    characterOperation.current = true;
+    try {
+      setIsLoadingCharacters(true);
+      const { characters } = await api.getAllWoWCharacters();
+      setAllCharacters(characters);
+    } catch (error) {
+      console.error("Failed to fetch characters:", error);
+      setMessage({ type: "error", text: t("refreshError") });
+      setShowCharacterDialog(false);
+    } finally {
+      characterOperation.current = false;
+      setIsLoadingCharacters(false);
     }
-  };
+  }, [allCharacters, t]);
+
+  // Wait for the connected profile before consuming the callback parameters.
+  useEffect(() => {
+    const connected = searchParams.get("connected");
+    const error = searchParams.get("error");
+    if (hasTriggeredRefresh.current) return;
+    if (connected === "battlenet") {
+      if (!profile?.battlenet || isLoadingProfile) return;
+      hasTriggeredRefresh.current = true;
+      setMessage({ type: "success", text: t("battlenetConnected") });
+      void handleOpenCharacterDialog().then(() => handleRefreshCharacters());
+    } else if (connected === "twitch") {
+      hasTriggeredRefresh.current = true;
+      setMessage({ type: "success", text: t("twitchConnected") });
+    } else if (error) {
+      hasTriggeredRefresh.current = true;
+      const errorKey = error === "battlenet_already_linked" ? "battlenetAlreadyLinked"
+        : error === "twitch_already_linked" ? "twitchAlreadyLinked"
+        : error === "battlenet_failed" ? "battlenetConnectionFailed"
+        : error === "twitch_failed" ? "twitchConnectionFailed" : "connectionError";
+      setMessage({ type: "error", text: t(errorKey) });
+    } else return;
+    router.replace("/profile");
+  }, [searchParams, profile?.battlenet, isLoadingProfile, handleOpenCharacterDialog, handleRefreshCharacters, router, t]);
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== "DELETE") return;
@@ -386,9 +359,24 @@ export default function ProfilePage() {
   }
 
   // Don't render if not authenticated
-  if (!authUser || !profile) {
-    return null;
+  if (!authUser) return null;
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-white">
+        <p>{t("profileLoadError")}</p>
+        <button
+          onClick={() => {
+            setIsLoadingProfile(true);
+            void refreshProfile().finally(() => setIsLoadingProfile(false));
+          }}
+          className="px-4 py-2 bg-blue-600 rounded-md"
+        >
+          {t("refresh")}
+        </button>
+      </div>
+    );
   }
+  const isCharacterBusy = isRefreshingCharacters || isSavingCharacters || isLoadingCharacters || isDisconnectingBattleNet;
 
   const selectedCharacters = profile.battlenet?.characters.filter((c) => c.selected) || [];
 
@@ -535,12 +523,17 @@ export default function ProfilePage() {
               <div className="flex gap-2">
                 {profile.battlenet ? (
                   <>
+                    {(needsReconnect || profile.battlenet.needsReconnect) && (
+                      <button onClick={handleConnectBattleNet} disabled={isCharacterBusy || isConnectingBattleNet} className="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm disabled:opacity-50">
+                        {isConnectingBattleNet ? t("connecting") : t("reconnect")}
+                      </button>
+                    )}
                     <button
-                      onClick={handleRefreshBattleNet}
-                      disabled={isRefreshingBattleNet}
+                      onClick={handleRefreshCharacters}
+                      disabled={isCharacterBusy}
                       className="px-3 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-md transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                     >
-                      <svg className={`w-4 h-4 ${isRefreshingBattleNet ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className={`w-4 h-4 ${isRefreshingCharacters ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -552,7 +545,7 @@ export default function ProfilePage() {
                     </button>
                     <button
                       onClick={handleDisconnectBattleNet}
-                      disabled={isDisconnectingBattleNet}
+                      disabled={isCharacterBusy}
                       className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors text-sm disabled:opacity-50"
                     >
                       {isDisconnectingBattleNet ? t("disconnecting") : t("disconnect")}
@@ -608,7 +601,7 @@ export default function ProfilePage() {
           <div className="mt-8 bg-gray-800 rounded-lg border border-gray-700 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-white">{t("wowCharacters")}</h3>
-              <button onClick={handleOpenCharacterDialog} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors text-sm font-medium">
+              <button onClick={handleOpenCharacterDialog} disabled={isDisconnectingBattleNet} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors text-sm font-medium">
                 {t("editCharacters")}
               </button>
             </div>
@@ -616,7 +609,7 @@ export default function ProfilePage() {
             {selectedCharacters.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-400 mb-4">{t("noCharactersSelected")}</p>
-                <button onClick={handleOpenCharacterDialog} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors text-sm font-medium">
+                <button onClick={handleOpenCharacterDialog} disabled={isDisconnectingBattleNet} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors text-sm font-medium">
                   {t("selectCharactersDescription")}
                 </button>
               </div>
@@ -853,11 +846,14 @@ export default function ProfilePage() {
         {/* Character Selector Dialog */}
         {showCharacterDialog && profile.battlenet && (
           <CharacterSelectorDialog
-            characters={allCharacters.length > 0 ? allCharacters : profile.battlenet.characters}
+            characters={allCharacters ?? []}
             onSave={handleSaveCharacters}
             onCancel={() => setShowCharacterDialog(false)}
             onRefresh={handleRefreshCharacters}
-            isRefreshing={isRefreshingCharacters || isSavingCharacters || isLoadingCharacters}
+            isRefreshing={isRefreshingCharacters}
+            isLoading={isLoadingCharacters || allCharacters === null}
+            isSaving={isSavingCharacters}
+            errorMessage={message?.type === "error" ? message.text : undefined}
           />
         )}
       </div>

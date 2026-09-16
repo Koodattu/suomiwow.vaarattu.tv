@@ -1151,6 +1151,9 @@
     "viewLess": "Näytä Vähemmän"
   },
   "profilePage": {
+    "reconnect": "Yhdistä uudelleen",
+    "reconnectRequired": "Yhdistä Battle.net uudelleen päivittääksesi hahmosi. Tallennetut valintasi ovat edelleen käytettävissä.",
+    "profileLoadError": "Profiilin lataaminen epäonnistui. Yritä uudelleen.",
     "title": "Profiili",
     "discordAccount": "Discord-tili",
     "discordId": "Discord ID",
@@ -1231,6 +1234,7 @@
     "cancel": "Peruuta"
   },
   "characterSelector": {
+    "saving": "Tallennetaan...",
     "title": "Valitse Hahmot",
     "searchPlaceholder": "Etsi nimellä, realmilla, luokalla, rodulla, tasolla tai killalla...",
     "selectAll": "Valitse kaikki",

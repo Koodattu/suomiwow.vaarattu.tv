@@ -1457,11 +1457,7 @@ export const api = {
       credentials: "include",
     });
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: "Failed to refresh characters" }));
-      const error = Object.assign(new Error(errorData.error || "Failed to refresh characters"), {
-        response: { data: errorData },
-      });
-      throw error;
+      throw await buildApiError(response, "Failed to refresh characters");
     }
     return response.json();
   },

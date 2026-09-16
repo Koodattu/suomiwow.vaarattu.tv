@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import crypto from "crypto";
 import discordService from "../services/discord.service";
 import twitchAuthService from "../services/twitch-auth.service";
-import battlenetAuthService from "../services/battlenet-auth.service";
+import battlenetAuthService, { BattleNetSyncError } from "../services/battlenet-auth.service";
 import logger from "../utils/logger";
 import User, { IUser } from "../models/User";
 import Pickem from "../models/Pickem";
@@ -468,6 +468,7 @@ router.get("/profile", async (req: Request, res: Response) => {
       const selectedCharacters = user.battlenet.characters
         .filter((c) => c.selected)
         .map((c) => ({
+          id: c.id,
           name: c.name,
           realm: c.realm,
           class: c.class,
@@ -484,6 +485,7 @@ router.get("/profile", async (req: Request, res: Response) => {
         connectedAt: user.battlenet.connectedAt,
         characters: selectedCharacters,
         lastCharacterSync: user.battlenet.lastCharacterSync,
+        needsReconnect: user.battlenet.tokenExpiresAt.getTime() <= Date.now(),
       };
     }
 
@@ -732,8 +734,8 @@ router.post("/battlenet/characters", async (req: Request, res: Response) => {
     }
 
     const { characterIds } = req.body;
-    if (!Array.isArray(characterIds)) {
-      return res.status(400).json({ error: "characterIds must be an array" });
+    if (!Array.isArray(characterIds) || !characterIds.every((id) => Number.isSafeInteger(id) && id > 0)) {
+      return res.status(400).json({ error: "characterIds must contain valid character IDs" });
     }
 
     const updatedUser = await battlenetAuthService.updateCharacterSelection(user._id.toString(), characterIds);
@@ -744,6 +746,7 @@ router.post("/battlenet/characters", async (req: Request, res: Response) => {
       updatedUser.battlenet?.characters
         .filter((c) => c.selected)
         .map((c) => ({
+          id: c.id,
           name: c.name,
           realm: c.realm,
           class: c.class,
@@ -781,6 +784,9 @@ router.post("/battlenet/characters/refresh", async (req: Request, res: Response)
     res.json({ characters });
   } catch (error) {
     logger.error("Error refreshing characters:", error);
+    if (error instanceof BattleNetSyncError) {
+      return res.status(error.status).json({ error: error.message, code: error.code });
+    }
     res.status(500).json({ error: "Failed to refresh characters" });
   }
 });

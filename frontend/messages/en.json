@@ -1151,6 +1151,9 @@
     "viewLess": "View Less"
   },
   "profilePage": {
+    "reconnect": "Reconnect",
+    "reconnectRequired": "Reconnect Battle.net to refresh your characters. Your saved selections are still available.",
+    "profileLoadError": "Could not load your profile. Please try again.",
     "title": "Profile",
     "discordAccount": "Discord Account",
     "discordId": "Discord ID",
@@ -1231,6 +1234,7 @@
     "cancel": "Cancel"
   },
   "characterSelector": {
+    "saving": "Saving...",
     "title": "Select Your Characters",
     "searchPlaceholder": "Search by name, realm, class, race, level, or guild...",
     "selectAll": "Select All",
