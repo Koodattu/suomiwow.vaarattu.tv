@@ -24,6 +24,8 @@ import status, { supporterLimit } from "./ccg-supporter-status.service";
 import cache from "./cache.service";
 import { refreshCcgCollectionReadModelsForSeries } from "./ccg-collection-read-model.service";
 import identities from "./ccg-character-identity.service";
+import Media from "../models/CcgSupporterMedia";
+import media, { SupporterMediaKind } from "./ccg-supporter-media.service";
 
 type Source = mongoose.HydratedDocument<mongoose.InferSchemaType<typeof CcgSupporterCharacter.schema>>;
 type Proof = { accountId: string; connectionAt: Date; character: IWoWCharacter };
@@ -158,6 +160,7 @@ class CcgSupporterService {
         nextManualCheckAt: creator.nextManualCheckAt, firstSubscriberMonth: creator.firstSubscriberMonth },
       finishes: SUPPORTER_CREATOR_FINISHES, classes: CLASSES.map(({ id, name, specs }) => ({ id, name, specs })),
       creations: await Promise.all(sources.map((source) => this.serialize(source, set))),
+      media: await media.list(sources.map((source) => source._id)),
       characters: characters.map((character, index) => ({ id: character.id, realmId: character.realmId, name: character.name,
         realm: character.realm, className: character.class, level: character.level,
         cards: matches.filter(({ card }) => setById.has(String(card.setId)) && ((card.name.toLowerCase() === character.name.toLowerCase()
@@ -378,6 +381,46 @@ class CcgSupporterService {
     ccg.invalidateCardAvailabilityCaches();
     await cache.invalidatePattern(/^ccg:/);
     return { ok: true };
+  }
+
+  async submitMedia(userId: string, id: string, kind: SupporterMediaKind, input: Buffer) {
+    const source = await this.source(userId, id);
+    if (!source.cardId) throw new CcgSupporterError(409, "media_publish_first");
+    const proof = await this.proof(userId, source);
+    await supporterLimit(`media:${userId}`, 6, 86_400_000);
+    const submission = new Media({ sourceId: source._id, userId, kind, status: "processing", purgeAfter: new Date(Date.now() + 3_600_000) });
+    submission.storageKey = `supporter/${submission._id}.${kind === "image" ? "webp" : "mp3"}`;
+    try { await submission.save(); }
+    catch (error) {
+      if ((error as { code?: number }).code === 11000) throw new CcgSupporterError(409, "media_pending");
+      throw error;
+    }
+    try {
+      const stored = await media.prepare(submission._id, kind, input);
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          await this.fenceAccount(userId, proof, session);
+          const current = await CcgSupporterCharacter.updateOne({ _id: source._id, creatorId: source.creatorId, editsFrozen: false }, { $inc: { __v: 1 } }, { session });
+          if (!current.matchedCount) throw new CcgSupporterError(403, "editing_frozen");
+          const saved = await Media.updateOne({ _id: submission._id, status: "processing", purgedAt: null }, { $set: { ...stored, status: "pending", purgeAfter: null } }, { session });
+          if (!saved.matchedCount) throw new CcgSupporterError(409, "media_changed");
+        });
+      } finally { await session.endSession(); }
+    } catch (error) {
+      await Media.updateOne({ _id: submission._id, status: "processing" }, { $set: { status: "failed", reason: error instanceof CcgSupporterError ? error.code : "media_upload_failed", purgeAfter: new Date() } });
+      throw error;
+    }
+    return this.getState(userId);
+  }
+
+  async withdrawMedia(userId: string, id: string) {
+    const creator = await status.ensureCreator(userId);
+    const submission = await Media.findOne({ _id: objectId(id), userId, status: "pending" });
+    if (!submission || !await CcgSupporterCharacter.exists({ _id: submission.sourceId, creatorId: creator._id })) throw new CcgSupporterError(404, "invalid_media");
+    const result = await Media.updateOne({ _id: submission._id, status: "pending" }, { $set: { status: "withdrawn", purgeAfter: new Date(Date.now() + 7 * 86_400_000) } });
+    if (!result.modifiedCount) throw new CcgSupporterError(409, "media_changed");
+    return this.getState(userId);
   }
 }
 

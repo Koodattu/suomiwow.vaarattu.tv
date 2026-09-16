@@ -8,6 +8,11 @@ import ccgService, { CcgServiceError } from "../services/ccg.service";
 import characterRenderStorageService from "../services/character-render-storage.service";
 import logger from "../utils/logger";
 import studioRouter from "./ccg-studio";
+import Media from "../models/CcgSupporterMedia";
+import mongoose from "mongoose";
+import User from "../models/User";
+import discord from "../services/discord.service";
+import { resolveCharacterRenderStoragePath } from "../services/character-render-storage.service";
 
 const router = Router();
 router.use("/studio", studioRouter);
@@ -85,6 +90,26 @@ router.get("/media/assets/:assetId", async (req, res) => {
     logger.error(`[CCG] Failed to serve character render asset ${req.params.assetId}:`, error);
     if (!res.headersSent) res.status(500).end();
   }
+});
+
+router.get("/media/supporter/:assetId", async (req, res) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  if (!mongoose.Types.ObjectId.isValid(req.params.assetId)) return res.status(404).end();
+  try {
+    const row = await Media.findOne({ _id: req.params.assetId, purgedAt: null, storageKey: { $exists: true }, status: { $ne: "processing" } }).lean();
+    if (!row?.contentType) return res.status(404).end();
+    if (row.status !== "approved" && String(row.userId) !== req.session.userId) {
+      const user = req.session.userId ? await User.findById(req.session.userId).select("discord.username").lean() : null;
+      if (!user || !discord.isAdmin(user.discord.username)) return res.status(404).end();
+    }
+    res.setHeader("Content-Type", row.contentType);
+    res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+    return res.sendFile(resolveCharacterRenderStoragePath(row.storageKey!), { cacheControl: false, lastModified: false }, (error) => {
+      if (error && !res.headersSent) res.status(404).end();
+      else if (error) res.destroy(error);
+    });
+  } catch { return res.status(500).end(); }
 });
 
 router.get(

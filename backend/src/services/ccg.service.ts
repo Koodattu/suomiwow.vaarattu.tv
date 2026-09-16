@@ -38,6 +38,8 @@ import {
 } from "../config/character-eligibility";
 import CcgCard, { ICcgCard } from "../models/CcgCard";
 import CcgAlternativeArt from "../models/CcgAlternativeArt";
+import CcgSupporterMedia from "../models/CcgSupporterMedia";
+import { supporterMediaUrl } from "./ccg-supporter-media.service";
 import CcgCommunityCharacter from "../models/CcgCommunityCharacter";
 import CcgAnalyticsDaily from "../models/CcgAnalyticsDaily";
 import CcgAnalyticsDailyParticipant from "../models/CcgAnalyticsDailyParticipant";
@@ -69,6 +71,7 @@ import User from "../models/User";
 import TwitchCcgRedemption, { ITwitchCcgRedemption } from "../models/TwitchCcgRedemption";
 import {
   CcgAlternativeArtDefinition,
+  resolveAlternativeArtKey,
   hasApplicableAlternativeArt,
   normalizeAlternativeArtFilename,
   normalizeQuipAudioFilename,
@@ -1099,10 +1102,9 @@ class CcgService {
           throw new CcgServiceError(403, "showcase_card_not_owned", "Only cards in your collection can be showcased");
         }
         if (item.artVariant === "alternative") {
-          const collectorKey = resolveCollectorKey(card);
           if (
             !alternativeSeries.has(seriesKey)
-            || !(!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeByCollector.get(collectorKey), Boolean(card.communityCharacterId)))
+            || !(hasApplicableAlternativeArt(alternativeByCollector.get(resolveAlternativeArtKey(card)), Boolean(card.communityCharacterId)))
           ) {
             throw new CcgServiceError(403, "showcase_card_not_owned", "Only cards in your collection can be showcased");
           }
@@ -1253,7 +1255,7 @@ class CcgService {
       cards: orderedCards.map((card) => this.serializeCard(
         card,
         currentSet,
-        alternativeByCollector.get(resolveCollectorKey(card)),
+        alternativeByCollector.get(resolveAlternativeArtKey(card)),
       )),
     };
   }
@@ -1837,14 +1839,13 @@ class CcgService {
         const card = accessibleCards[0] ?? catalogCard;
         const cardSet = setById.get(String(card.setId));
         if (!cardSet) throw new CcgServiceError(500, "set_not_found", "Card set not found");
-        const collectorKey = resolveCollectorKey(card);
-        const alternativeArt = alternativeByCollector.get(collectorKey);
+        const alternativeArt = alternativeByCollector.get(resolveAlternativeArtKey(card));
         const unlockedVersions = unlockedVersionsBySeries.get(seriesKey);
         const snapshotUnlocked = accessibleCards.length > 0;
         const ownershipRows = snapshotUnlocked ? ownershipBySeries.get(seriesKey) ?? [] : [];
         const totalQuantity = ownershipRows.reduce((total, row) => total + row.quantity, 0);
         const alternativeArtUnlocked = snapshotUnlocked && unlockedAlternativeSeries.has(seriesKey)
-          && (!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)));
+          && (hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)));
         return {
           ...this.serializeCard(card, cardSet, alternativeArt, {
             seriesOwned: Boolean(unlockedVersions),
@@ -1857,9 +1858,9 @@ class CcgService {
           ...(snapshotUnlocked ? {
             totalQuantity,
             variants: accessibleCards.map((variant) => {
-              const variantAlternativeArt = alternativeByCollector.get(resolveCollectorKey(variant));
+              const variantAlternativeArt = alternativeByCollector.get(resolveAlternativeArtKey(variant));
               const variantAlternativeArtUnlocked = unlockedAlternativeSeries.has(seriesKey)
-                && (!variant.supporterCharacterId && hasApplicableAlternativeArt(variantAlternativeArt, Boolean(variant.communityCharacterId)));
+                && (hasApplicableAlternativeArt(variantAlternativeArt, Boolean(variant.communityCharacterId)));
               return {
                 card: this.serializeCard(variant, cardSet, variantAlternativeArt, { seriesOwned: true, snapshotOwned: true }),
                 ownership: serializeOwnershipRows(ownershipRows, variantAlternativeArtUnlocked),
@@ -1904,8 +1905,7 @@ class CcgService {
       this.loadAlternativeArt([card]),
       this.loadAlternativeArtUnlocks(owner, [card]),
     ]);
-    const collectorKey = resolveCollectorKey(card);
-    const alternativeArt = alternativeByCollector.get(collectorKey);
+    const alternativeArt = alternativeByCollector.get(resolveAlternativeArtKey(card));
     const snapshotOwned = seriesOwnership?.unlockedSnapshotVersions.includes(card.snapshotVersion) ?? false;
     return {
       sets: [this.serializeSet(set)],
@@ -1917,7 +1917,7 @@ class CcgService {
         ownership: serializeOwnershipRows(
           snapshotOwned ? ownership : [],
           snapshotOwned && unlockedAlternativeSeries.has(getSeriesKey(card))
-            && (!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))),
+            && (hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))),
         ),
       },
     };
@@ -2221,19 +2221,17 @@ class CcgService {
       cards: rows.items.map((row) => {
         const cardSet = setById.get(String(row.card.setId));
         if (!cardSet) throw new CcgServiceError(500, "set_not_found", "Card set not found");
-        const representativeCollectorKey = resolveCollectorKey(row.card);
-        const alternative = alternativeByCollector.get(representativeCollectorKey);
+        const alternative = alternativeByCollector.get(resolveAlternativeArtKey(row.card));
         const alternativeArtUnlocked = unlockedAlternativeSeries.has(getSeriesKey(row.card))
-          && (!row.card.supporterCharacterId && hasApplicableAlternativeArt(alternative, Boolean(row.card.communityCharacterId)));
+          && (hasApplicableAlternativeArt(alternative, Boolean(row.card.communityCharacterId)));
         return {
           ...this.serializeCard(row.card, cardSet, alternative, { seriesOwned: true, snapshotOwned: true }),
           ownership: serializeOwnershipRows(row.finishes, alternativeArtUnlocked),
           totalQuantity: row.totalQuantity,
           variants: row.accessibleCards.map((variant) => {
-            const collectorKey = resolveCollectorKey(variant);
-            const alternativeArt = alternativeByCollector.get(collectorKey);
+            const alternativeArt = alternativeByCollector.get(resolveAlternativeArtKey(variant));
             const alternativeArtUnlocked = unlockedAlternativeSeries.has(getSeriesKey(variant))
-              && (!variant.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(variant.communityCharacterId)));
+              && (hasApplicableAlternativeArt(alternativeArt, Boolean(variant.communityCharacterId)));
             return {
               card: this.serializeCard(variant, cardSet, alternativeArt, { seriesOwned: true, snapshotOwned: true }),
               ownership: serializeOwnershipRows(row.finishes, alternativeArtUnlocked),
@@ -2275,8 +2273,7 @@ class CcgService {
       this.loadAlternativeArt([card]),
       owner ? this.loadAlternativeArtUnlocks(owner, [card]) : new Set<string>(),
     ]);
-    const collectorKey = resolveCollectorKey(card);
-    const alternativeArt = alternativeByCollector.get(collectorKey);
+    const alternativeArt = alternativeByCollector.get(resolveAlternativeArtKey(card));
     const snapshotOwned = seriesOwnership?.unlockedSnapshotVersions.includes(card.snapshotVersion) ?? false;
     return {
       sets: [this.serializeSet(set)],
@@ -2288,7 +2285,7 @@ class CcgService {
         ownership: serializeOwnershipRows(
           snapshotOwned ? ownership : [],
           snapshotOwned && unlockedAlternativeSeries.has(getSeriesKey(card))
-            && (!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))),
+            && (hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))),
         ),
       },
     };
@@ -2470,7 +2467,7 @@ class CcgService {
         ...this.serializeCard(
           card as unknown as Record<string, any>,
           set as unknown as Record<string, any>,
-          alternativeByCollector.get(resolveCollectorKey(card)),
+          alternativeByCollector.get(resolveAlternativeArtKey(card)),
           { seriesOwned: true, snapshotOwned: true },
         ),
         set: this.serializeSet(set as unknown as Record<string, any>),
@@ -2627,7 +2624,7 @@ class CcgService {
       if (customFinish) this.writeCustomFinishPity(qualityProgress, set.slug, rolled.pity[customFinish] ?? 0);
       await qualityProgress.save({ session });
     }
-    const alternativeArt = (await this.loadAlternativeArt([card], session)).get(resolveCollectorKey(card));
+    const alternativeArt = (await this.loadAlternativeArt([card], session)).get(resolveAlternativeArtKey(card));
 
     return {
       cardId: card._id,
@@ -2635,7 +2632,7 @@ class CcgService {
       characterId: card.characterId,
       snapshotVersion: card.snapshotVersion,
       finish: rolled.finish,
-      artVariant: rollArtVariant((!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)))),
+      artVariant: rollArtVariant((hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)))),
       tierGrade: card.tierGrade,
       poolVersion: pool.version,
     };
@@ -2690,10 +2687,9 @@ class CcgService {
         this.loadAlternativeArt([card]),
         this.loadAlternativeArtUnlocks({ ownerType: "user", ownerId: userId }, [card]),
       ]);
-      const collectorKey = resolveCollectorKey(card);
       if (
         !unlockedAlternativeSeries.has(getSeriesKey(card))
-        || !(!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeByCollector.get(collectorKey), Boolean(card.communityCharacterId)))
+        || !(hasApplicableAlternativeArt(alternativeByCollector.get(resolveAlternativeArtKey(card)), Boolean(card.communityCharacterId)))
       ) {
         throw new CcgServiceError(403, "card_not_owned", "Only cards in your collection can be shared");
       }
@@ -2766,7 +2762,7 @@ class CcgService {
         ...response,
         sets: [this.serializeSet(set)],
         card: {
-          card: this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card))),
+          card: this.serializeCard(card, set, alternativeByCollector.get(resolveAlternativeArtKey(card))),
           finish: share.finish,
           artVariant: share.artVariant,
         },
@@ -2781,8 +2777,9 @@ class CcgService {
 
   async updateAlternativeArtForAdmin(cardId: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
     const id = validateObjectId(cardId, "card ID");
-    const card = await CcgCard.findById(id).select("_id characterId collectorKey").lean();
+    const card = await CcgCard.findById(id).select("_id characterId collectorKey supporterCharacterId").lean();
     if (!card) throw new CcgServiceError(404, "card_not_found", "Card not found");
+    if (card.supporterCharacterId) throw new CcgServiceError(400, "supporter_media_review_required", "Manage this card's artwork and audio in Supporter media review");
 
     let characterArtFilename: string | null;
     let backgroundArtFilename: string | null;
@@ -2916,10 +2913,10 @@ class CcgService {
           .sort((a, b) => b.card.performanceSnapshotAt.getTime() - a.card.performanceSnapshotAt.getTime() || b.card.publishedAt.getTime() - a.card.publishedAt.getTime());
         const representative = variants[0];
         return representative ? [{
-          ...this.serializeCard(representative.card, representative.set, alternativeByCollector.get(resolveCollectorKey(representative.card))),
+          ...this.serializeCard(representative.card, representative.set, alternativeByCollector.get(resolveAlternativeArtKey(representative.card))),
           name: candidate.name,
           variants: variants.map((variant) => ({
-            card: this.serializeCard(variant.card, variant.set, alternativeByCollector.get(resolveCollectorKey(variant.card))),
+            card: this.serializeCard(variant.card, variant.set, alternativeByCollector.get(resolveAlternativeArtKey(variant.card))),
             ownership: [],
             totalQuantity: 0,
           })),
@@ -2971,8 +2968,8 @@ class CcgService {
         throw new CcgServiceError(400, "finish_unavailable_for_set", "That quality is not available for this card");
       }
       if (artVariant === "alternative") {
-        const alternativeArt = (await this.loadAlternativeArt([card])).get(resolveCollectorKey(card));
-        if (!(!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)))) {
+        const alternativeArt = (await this.loadAlternativeArt([card])).get(resolveAlternativeArtKey(card));
+        if (!(hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)))) {
           throw new CcgServiceError(400, "alternative_art_unavailable", "This card does not have enabled custom artwork");
         }
       }
@@ -3064,8 +3061,8 @@ class CcgService {
             throw new CcgServiceError(409, "reward_unavailable", "This code's card reward is unavailable");
           }
           if (reservedCode.artVariant === "alternative") {
-            const alternativeArt = (await this.loadAlternativeArt([card], session)).get(resolveCollectorKey(card));
-            if (!(!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)))) {
+            const alternativeArt = (await this.loadAlternativeArt([card], session)).get(resolveAlternativeArtKey(card));
+            if (!(hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId)))) {
               throw new CcgServiceError(409, "reward_unavailable", "This code's custom artwork is unavailable");
             }
           }
@@ -3149,8 +3146,7 @@ class CcgService {
       this.loadAlternativeArt([card]),
       this.loadAlternativeArtUnlocks(owner, [card]),
     ]);
-    const collectorKey = resolveCollectorKey(card);
-    const alternativeArt = alternativeByCollector.get(collectorKey);
+    const alternativeArt = alternativeByCollector.get(resolveAlternativeArtKey(card));
     return {
       code: reward.code,
       sets: [this.serializeSet(set)],
@@ -3163,7 +3159,7 @@ class CcgService {
           ownership: serializeOwnershipRows(
             ownership,
             unlockedAlternativeSeries.has(getSeriesKey(card))
-              && (!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))),
+              && (hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))),
           ),
           totalQuantity: ownership.reduce((total, row) => total + row.quantity, 0),
         },
@@ -3301,7 +3297,6 @@ class CcgService {
         for (const result of selected) {
           const card = cardById.get(String(result.cardId));
           if (!card) continue;
-          const collectorKey = resolveCollectorKey(card);
           const seriesKey = getSeriesKey(card);
           const cardSet = setById.get(String(card.setId));
           if (!cardSet) throw new CcgServiceError(409, "pool_invalid", "The pack references an unavailable card set");
@@ -3325,8 +3320,8 @@ class CcgService {
           const finish = rolled.finish;
           const isNewFinish = !ownedFinishes.has(finish);
           const isNewSnapshot = !ownedSnapshotVersions.has(card.snapshotVersion);
-          const alternativeArt = alternativeByCollector.get(collectorKey);
-          const artVariant = rollArtVariant((!card.supporterCharacterId && hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))));
+          const alternativeArt = alternativeByCollector.get(resolveAlternativeArtKey(card));
+          const artVariant = rollArtVariant((hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))));
           pity = this.readFinishPity(rolled.pity);
           if (customFinish) this.writeCustomFinishPity(qualityProgress, customPityKey, rolled.pity[customFinish] ?? 0);
           ownedFinishes.add(finish);
@@ -4777,10 +4772,13 @@ class CcgService {
     session: ClientSession,
   ): Promise<void> {
     const supporterCards = await CcgCard.find({ _id: { $in: results.map((result) => result.cardId) }, supporterCharacterId: { $ne: null } })
-      .select("_id creatorFinish").session(session).lean();
+      .select("_id creatorFinish supporterCharacterId").session(session).lean();
+    const approvedImages = supporterCards.length && results.some((result) => result.artVariant === "alternative") ? await CcgSupporterMedia.find({ sourceId: { $in: supporterCards.map((card) => card.supporterCharacterId!) }, kind: "image", status: "approved", purgedAt: null })
+      .select("sourceId").session(session).lean() : [];
+    const approvedImageSources = new Set(approvedImages.map((image) => String(image.sourceId)));
     for (const card of supporterCards) {
       for (const result of results.filter((row) => String(row.cardId) === String(card._id))) {
-        if (result.artVariant !== "standard" || (CCG_CUSTOM_FINISHES.includes(result.finish as typeof CCG_CUSTOM_FINISHES[number])
+        if ((result.artVariant === "alternative" && !approvedImageSources.has(String(card.supporterCharacterId))) || (CCG_CUSTOM_FINISHES.includes(result.finish as typeof CCG_CUSTOM_FINISHES[number])
           && card.creatorFinish !== result.finish)) {
           throw new CcgServiceError(403, "supporter_finish_unavailable", "This finish or artwork is unavailable for this Supporter card");
         }
@@ -5058,7 +5056,7 @@ class CcgService {
             finish: code.finish ?? null,
             artVariant: code.artVariant ?? null,
             card: card && set
-              ? this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card)))
+              ? this.serializeCard(card, set, alternativeByCollector.get(resolveAlternativeArtKey(card)))
               : null,
           },
         };
@@ -5119,7 +5117,7 @@ class CcgService {
             ? this.serializeCard(
                 card,
                 set,
-                alternativeByCollector.get(resolveCollectorKey(card as ICcgCard)),
+                alternativeByCollector.get(resolveAlternativeArtKey(card as ICcgCard)),
                 { seriesOwned: true, snapshotOwned: true },
               )
             : null,
@@ -5228,7 +5226,7 @@ class CcgService {
         if (!card || !set) return [];
         return [{
           card: {
-            ...this.serializeCard(card, set, alternativeByCollector.get(resolveCollectorKey(card))),
+            ...this.serializeCard(card, set, alternativeByCollector.get(resolveAlternativeArtKey(card))),
             set: this.serializeSet(set),
           },
           finish: item.finish,
@@ -5283,15 +5281,31 @@ class CcgService {
   }
 
   private async loadAlternativeArt(
-    cards: ReadonlyArray<{ collectorKey?: string | null; characterId: mongoose.Types.ObjectId | string }>,
+    cards: ReadonlyArray<{ supporterCharacterId?: mongoose.Types.ObjectId | string | null; collectorKey?: string | null; characterId: mongoose.Types.ObjectId | string }>,
     session?: ClientSession,
   ): Promise<Map<string, CcgAlternativeArtDefinition>> {
-    const collectorKeys = Array.from(new Set(cards.map(resolveCollectorKey)));
-    if (collectorKeys.length === 0) return new Map();
+    const collectorKeys = Array.from(new Set(cards.filter((card) => !card.supporterCharacterId).map(resolveCollectorKey)));
     const query = CcgAlternativeArt.find({ collectorKey: { $in: collectorKeys } }).lean();
     if (session) query.session(session);
     const rows = await query;
-    return new Map(rows.map((row) => [row.collectorKey, row]));
+    const definitions = new Map<string, CcgAlternativeArtDefinition>(rows.map((row) => [row.collectorKey, row]));
+    const sourceIds = cards.flatMap((card) => card.supporterCharacterId ? [card.supporterCharacterId] : []);
+    if (sourceIds.length) {
+      const mediaQuery = CcgSupporterMedia.find({ sourceId: { $in: sourceIds }, status: "approved", purgedAt: null }).lean();
+      if (session) mediaQuery.session(session);
+      for (const row of await mediaQuery) {
+        const key = `supporter:${row.sourceId}`;
+        const definition = definitions.get(key) ?? { collectorKey: key };
+        if (row.kind === "image") {
+          definition.characterArtFilename = `${row._id}.webp`; definition.characterArtEnabled = true;
+          definition.characterArtPath = supporterMediaUrl(row._id);
+        } else {
+          definition.quipAudioFilename = `${row._id}.mp3`; definition.quipAudioPath = supporterMediaUrl(row._id);
+        }
+        definitions.set(key, definition);
+      }
+    }
+    return definitions;
   }
 
   private async loadAlternativeArtUnlocks(
@@ -5355,8 +5369,8 @@ class CcgService {
       renderUrl: card.renderUrl ?? null,
       renderFit: card.renderFit ?? null,
       availabilityStatus: card.availabilityStatus ?? "active",
-      alternativeArt: set.kind === "supporter" ? null : serializeAlternativeArt(alternativeArt),
-      quip: set.kind === "supporter" ? null : serializeQuip(alternativeArt),
+      alternativeArt: serializeAlternativeArt(alternativeArt),
+      quip: serializeQuip(alternativeArt),
       backgroundCrop: card.backgroundCrop,
       performanceSnapshotAt: card.performanceSnapshotAt,
       mediaCapturedAt: card.mediaCapturedAt ?? null,

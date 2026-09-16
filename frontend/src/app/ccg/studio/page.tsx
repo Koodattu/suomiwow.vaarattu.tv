@@ -12,6 +12,7 @@ import type { CcgCustomFinish, CcgTierGrade } from "@/types";
 import type { StudioCreation, StudioDraft, StudioState } from "@/types/ccg-studio";
 import CcgShell from "@/components/ccg/CcgShell";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
+import SupporterMediaUploader from "@/components/ccg/SupporterMediaUploader";
 import styles from "@/components/ccg/studio.module.css";
 
 function Editor({ source, data, pending, run, onDirty }: { source: StudioCreation; data: StudioState; pending: boolean; onDirty: (dirty: boolean) => void;
@@ -122,7 +123,8 @@ export default function StudioPage() {
   };
   const [now, setNow] = useState(Date.now);
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
-  const query = useQuery({ queryKey: key, queryFn: () => api.getCcgStudio(), enabled: Boolean(user), staleTime: 60_000, refetchOnWindowFocus: false });
+  const query = useQuery({ queryKey: key, queryFn: () => api.getCcgStudio(), enabled: Boolean(user), staleTime: 60_000, refetchOnWindowFocus: false,
+    refetchInterval: (current) => current.state.data?.media?.some((row) => row.status === "pending" || row.status === "processing") ? 60_000 : false });
   const data = query.data;
   const mutation = useMutation({
     mutationFn: ({ path, body, method }: { path: string; body: Record<string, unknown>; method: string }) => api.updateCcgStudio(path, body, method),
@@ -185,6 +187,8 @@ export default function StudioPage() {
           {data.creations.length === 0 ? <div className={styles.panel}><p>{t("studio.noCreations")}</p><button onClick={() => setTab("characters")}>{t("studio.characters")}</button></div> : <>
             <div className={styles.creationList}>{data.creations.map((source) => <button key={source.id} aria-pressed={selection?.id === source.id} onClick={() => switchView("creations", source.id)}><strong>{source.name}</strong><small>{t(source.draft ? "studio.draft" : "studio.published")}</small></button>)}</div>
             {selection?.preview && <Editor key={`${selection.id}:${selection.revision}`} source={selection} data={data} pending={mutation.isPending} run={run} onDirty={onDirty} />}
+            {selection?.cardId && <SupporterMediaUploader key={selection.id} source={selection} media={data.media ?? []}
+              disabled={selection.editsFrozen || !data.characters.some((character) => character.id === selection.characterId && character.realmId === selection.realmId)} />}
           </>}
         </>}
       </>}

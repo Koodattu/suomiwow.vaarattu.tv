@@ -19,6 +19,8 @@ RUN npm prune --omit=dev
 FROM node:24-alpine AS runtime
 WORKDIR /app
 
+RUN apk add --no-cache ffmpeg
+
 ENV NODE_ENV=production
 
 COPY package*.json ./

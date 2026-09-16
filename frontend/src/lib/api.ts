@@ -486,6 +486,25 @@ export const api = {
     return response.json();
   },
 
+  async uploadSupporterMedia(sourceId: string, kind: "image" | "audio", file: File): Promise<import("@/types/ccg-studio").StudioState> {
+    const response = await fetch(`${API_URL}/api/ccg/studio/media/${sourceId}/${kind}`, { method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/octet-stream" }, body: file });
+    if (!response.ok) throw await buildApiError(response, "Media upload failed");
+    return response.json();
+  },
+
+  async getSupporterMediaQueue(): Promise<import("@/types/ccg-studio").SupporterMediaQueue> {
+    const response = await fetch(`${API_URL}/api/ccg/studio/media-review`, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw await buildApiError(response, "Media review unavailable");
+    return response.json();
+  },
+
+  async reviewSupporterMedia(id: string, action: "approve" | "reject" | "revoke", reason: string): Promise<void> {
+    const response = await fetch(`${API_URL}/api/ccg/studio/media-review/${id}`, { method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, reason }) });
+    if (!response.ok) throw await buildApiError(response, "Media review failed");
+  },
+
   async getCcgSupporterModeration(): Promise<{ creations: import("@/types/ccg-studio").SupporterModerationRow[] }> {
     const response = await fetch(`${API_URL}/api/ccg/studio/moderation`, { credentials: "include", cache: "no-store" });
     if (!response.ok) throw await buildApiError(response, "Studio unavailable");

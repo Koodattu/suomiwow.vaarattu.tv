@@ -8,19 +8,35 @@ Implemented 2026-09-16 from the product decisions in the grill-me session. The i
 - Studio verifies the complete EU Battle.net roster without a level filter. Durable Twitch and Battle.net identity bindings prevent moving allowances between site accounts. Publication, slot usage, creator ownership, pool updates, and leaderboard invalidation share a MongoDB transaction.
 - Stored character renders use the existing shared ingestion service. Community render storage needs no migration. Successful refreshes have a six-hour cooldown, failed requests a one-minute retry delay, and creators have ten ingestion attempts per day.
 - Signed subscription events and weekly status checks supply evidence. A monthly sweep checks accounts in each Helsinki calendar month. Earned grants are permanent and uniquely indexed; outages never revoke them. Twitch does not provide a complete historical subscription timeline: activity missed by both events and checks cannot be credited automatically.
-- Public Supporter packs cost one normal pack credit and contain five cards with replacement. Each card can roll the seven base finishes plus its selected raid finish. Custom pity uses separate `supporter-<finish>` counters with the existing 250-pull hard pity, advancing only when that finish is eligible. Base-finish pity remains shared; raid-pack pity is untouched. The selected finish is also eligible for redemption. Alternative art and audio are excluded.
+- Public Supporter packs cost one normal pack credit and contain five cards with replacement. Each card can roll the seven base finishes plus its selected raid finish. Custom pity uses separate `supporter-<finish>` counters with the existing 250-pull hard pity, advancing only when that finish is eligible. Base-finish pity remains shared; raid-pack pity is untouched. The selected finish is also eligible for redemption. Approved alternative images use the existing 25% alternative-art roll and unlock rules; approved audio uses the existing card-audio playback independently of the image unlock.
 - Admin CCG controls can freeze editing and suppress distribution. Suppressed cards retain existing copies and points but leave the active completion denominator. Publication and moderation persist a revision that requests a full leaderboard rebuild through the existing runner.
 - `CCG_SUPPORTER_LEADERBOARD_ENABLED` in `backend/src/config/ccg.ts` controls launch scoring. Changing it also changes the leaderboard score version; run the existing full leaderboard rebuild after changing this policy.
 
-Deployment uses the existing MongoDB replica set, media storage, Twitch configuration, scheduler, and CCG feature gate. No new dependency or environment variable is required. Ensure the new model indexes are created before accepting traffic, especially creator identity, character identity, and grant-ledger unique indexes. The Supporter set is created by the existing publisher initialization; no historical card migration is needed.
+Deployment uses the existing MongoDB replica set, media storage, Twitch configuration, scheduler, and CCG feature gate. The backend runtime image now installs FFmpeg; rebuild the backend/worker image and frontend, and reload the updated nginx configuration. Both Compose configurations already mount the persistent `ccg_media` volume, so no Compose change or new environment variable is needed. Ensure the new model indexes are created before accepting traffic, especially creator identity, character identity, grant-ledger, and pending/approved media unique indexes. The Supporter set is created by the existing publisher initialization; no historical card migration is needed.
 
 After deployment, reconnect the **vaarattu broadcaster** through the existing admin Twitch connection to authorize `channel:read:subscriptions` and `moderator:read:followers` alongside the existing reward permission. Viewer connections do not need these broadcaster scopes. The scheduler creates `channel.subscribe` and `channel.subscription.end` EventSub subscriptions using the existing signed HTTPS callback. The admin panel reports setup failures; weekly API checks continue independently. Confirm the callback is reachable and Twitch accepts both subscriptions.
 
 Before public launch, perform a controlled real-account check: connect Battle.net and Twitch, verify follower/subscriber allowance, publish a draft, open a Supporter pack, and apply a score/transmog update. Automated verification uses mocked provider responses and an isolated MongoDB replica set; it does not exercise real OAuth consent or live Blizzard/Twitch availability.
 
-The implemented API is under `/api/ccg/studio`: `GET /`, `POST /roster`, `POST /status`, `POST /drafts`, `PATCH` and `DELETE /drafts/:id`, `POST /drafts/:id/render`, and `POST /drafts/:id/publish`. Admin moderation uses `GET /moderation` and `PATCH /moderation/:id`. Mutations require the existing session, JSON content, and the site's allowed Origin. Public card and opening responses never expose the private roster or tokens.
+The implemented API is under `/api/ccg/studio`: `GET /`, `POST /roster`, `POST /status`, `POST /drafts`, `PATCH` and `DELETE /drafts/:id`, `POST /drafts/:id/render`, and `POST /drafts/:id/publish`. Admin moderation uses `GET /moderation` and `PATCH /moderation/:id`. Mutations require the existing session, JSON content (except raw media uploads), and the site's allowed Origin. Public card and opening responses never expose the private roster or tokens.
 
 Verification includes focused backend tests plus `npm run test:ccg-supporter --prefix backend`. The latter requires a disposable local MongoDB replica set at the address documented in `backend/integration/ccg-supporter.test.ts`; it creates and drops its own process-specific database. Coverage includes duplicate and out-of-order events, simultaneous slot grants/publications, five-draft enforcement, ownership rejection, mutable snapshot edits, actual user/guest pack openings, pity, creator-finish isolation, moderation, and leaderboard invalidation.
+
+## Supporter media extension
+
+Published cards accept optional alternative character images and audio in Card Studio. Only these uploads require review in **Admin → CCG → Supporter media review**. Publishing and editing the card itself remain immediate and never create another collectible snapshot.
+
+- Files live under `supporter/` in the existing persistent `ccg_media` volume; MongoDB stores ownership, review state, checksums, and media metadata. Back up the volume together with MongoDB. Pending files are accessible only to their uploader and admins. Public serving rechecks approval, uses `no-store`, and supports audio range requests.
+- Images: static PNG/WebP, up to 5 MiB and 40 million decoded pixels, with visible pixels and actual transparency. The existing Sharp dependency resizes to fit 2048 × 2048 without enlargement, converts to WebP, and strips metadata.
+- Audio: common FFmpeg audio/container formats (MP3, WAV, FLAC, Ogg, AAC/M4A, MP4, WebM/Matroska, AIFF, WMA), up to 8 MiB. Decode and measure the first 10.01 seconds; reject decoded duration at or above 10 seconds. Re-encode accepted audio as 96 kbps stereo MP3 at 44.1 kHz without metadata. Input format/protocol allowlists and subprocess timeouts limit processing. Local development/tests require `ffmpeg` and `ffprobe` on PATH, or `FFMPEG_PATH` / `FFPROBE_PATH` overrides.
+- Six upload attempts per creator per 24-hour rate-limit window. At most one pending/processing submission per card and kind, with two active conversions and two waiting per API process. A new image and audio can be reviewed separately.
+- Replacements preserve the currently approved media until approval. Admins approve, reject, or remove approved media; rejection/removal requires a reason shown to the creator. Creators may withdraw a pending upload. Approval replaces that media kind for all collectors without changing stats, rarity, finish, or snapshot.
+- Media is scoped to the Supporter card, never inherited from or applied to the same character's raid/Community cards. The legacy admin artwork editor cannot modify Supporter media. Only approved images permit alternative-art grants.
+- The hourly worker cleanup removes failed/abandoned uploads, withdrawn files after 7 days, and rejected/superseded files after 30 days. Approved files are retained. Review records remain after file cleanup.
+
+Media endpoints: `POST /api/ccg/studio/media/:sourceId/:kind` with an `application/octet-stream` body, `DELETE /api/ccg/studio/media/:submissionId`, admin `GET /api/ccg/studio/media-review` and `POST /api/ccg/studio/media-review/:submissionId`, and access-controlled `GET /api/ccg/media/supporter/:submissionId`. Nginx allows 8 MiB bodies and a 120-second upstream timeout on the upload path.
+
+Verification adds actual image/audio normalization tests and replica-set integration coverage for privacy, ownership, publication gating, independent review, concurrent approval, replacement, withdrawal, rejection, cleanup, audio range serving, and real pack alternative-art/audio results.
 
 ## Product contract
 
@@ -37,7 +53,7 @@ Confirmed requirements:
 - Published cards cannot be deleted by creators. Drafts can be saved and deleted.
 - Supporter has a dedicated pack at the bottom of Open Packs. It never enters All Raid Sets, custom raid selections, or raid-pack replacement rolls.
 - Supporter cards count toward leaderboard points at launch. A later scoring-policy change must be applicable with a full rebuild.
-- Alternative art and audio are out of scope for this phase, including automatic inheritance from an existing character's alternative art.
+- Alternative art and audio are available through the reviewed-media extension above. Existing character-wide alternative art is never inherited automatically.
 
 ## Confirmed launch decisions
 
@@ -154,7 +170,7 @@ Use the existing card renderer, finish styling, account connection components, a
 - Allow existing rarity grades, including H. Do not force a grade distribution or raid-style A-or-better guarantee on this pool: creators control grades, so those assumptions are unreliable.
 - Creator finishes come from an explicit allowlist of released raid finishes, excluding reserved keys. The chosen effect does not make the card a member of that raid's set or import its background/theme.
 - Grant exactly one copy with the selected raid finish during first publication. Use an idempotent grant identity and the existing ownership/series bookkeeping. Lock the chosen finish at publication so a card's obtainable finishes stay stable.
-- All other grant paths, including redemption and admin codes, allow only the seven base finishes plus the selected finish for that Supporter card. Other raid finishes and alternative artwork are rejected. Sharing a preview must not grant ownership.
+- All other grant paths, including redemption and admin codes, allow only the seven base finishes plus the selected finish for that Supporter card. Other raid finishes and unapproved alternative artwork are rejected. Sharing a preview must not grant ownership.
 
 ## Rendering and mutable publication
 

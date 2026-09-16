@@ -1,10 +1,22 @@
 /// <reference path="../src/types/express-session.d.ts" />
 process.env.BLIZZARD_CLIENT_ID = "supporter-test";
 process.env.BLIZZARD_CLIENT_SECRET = "supporter-test";
+process.env.CCG_MEDIA_CACHE_DIR = require("node:path").join(require("node:os").tmpdir(), `ccg-supporter-media-test-${process.pid}`);
 import assert from "node:assert/strict";
 import test, { before, beforeEach, after, mock } from "node:test";
 import mongoose from "mongoose";
 import crypto from "crypto";
+import sharp from "sharp";
+import express from "express";
+import { Server } from "node:http";
+import { rm } from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
+import Media from "../src/models/CcgSupporterMedia";
+import AlternativeArt from "../src/models/CcgAlternativeArt";
+import mediaService from "../src/services/ccg-supporter-media.service";
+import ccgRouter from "../src/routes/ccg";
+import { resolveAlternativeArtKey } from "../src/utils/ccg-alternative-art";
 import User from "../src/models/User";
 import Creator from "../src/models/CcgSupporterCreator";
 import Source from "../src/models/CcgSupporterCharacter";
@@ -35,8 +47,10 @@ import { CCG_BASE_FINISH_ORDER, CCG_PACK_BALANCE_VERSION, CcgCustomFinish } from
 const database = `ccg_supporter_test_${process.pid}`;
 const userId = new mongoose.Types.ObjectId();
 const otherId = new mongoose.Types.ObjectId();
+let server: Server;
+let baseUrl: string;
 const models = [User, Creator, Source, Grant, Event, Limit, Card, SetModel, Pool, Ownership, Series, Invalidation,
-  CcgJobLock, CcgLeaderboardEntry, CcgPackBalance, CcgPackOpening, CcgQualityProgress];
+  CcgJobLock, CcgLeaderboardEntry, CcgPackBalance, CcgPackOpening, CcgQualityProgress, Media, AlternativeArt];
 const chars = Array.from({ length: 7 }, (_, i) => ({ id: i + 1, realmId: 10, name: `Mage${i + 1}`, realm: "Stormreaver",
   realmSlug: "stormreaver", class: "Mage", race: "Human", level: 10, faction: "ALLIANCE" as const, selected: false }));
 
@@ -48,11 +62,23 @@ before(async () => {
   mock.method(blizzard, "getCharacterMedia", async () => ({ avatarUrl: null, mainRawUrl: "https://render.worldofwarcraft.com/test.png", insetUrl: null }));
   mock.method(renders, "ingest", async () => ({ url: "/api/ccg/media/assets/test", assetId: new mongoose.Types.ObjectId(), fit: null }) as any);
   mock.method(ccg as any, "enqueuePackOpeningAnalytics", () => undefined);
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => { req.session = { userId: req.headers["x-test-user"] } as any; next(); });
+  app.use("/api/ccg", ccgRouter);
+  server = app.listen(0, "127.0.0.1");
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  baseUrl = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 });
 after(async () => {
   mock.restoreAll();
   if (mongoose.connection.name === database) await mongoose.connection.dropDatabase();
   await mongoose.disconnect();
+  if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
+  const directory = path.resolve(process.env.CCG_MEDIA_CACHE_DIR!);
+  assert.ok(directory.startsWith(path.resolve(os.tmpdir()) + path.sep));
+  assert.equal(path.basename(directory), `ccg-supporter-media-test-${process.pid}`);
+  await rm(directory, { recursive: true, force: true });
 });
 beforeEach(async () => {
   for (const model of models) await model.collection.deleteMany({});
@@ -297,4 +323,106 @@ test("Supporter redemption accepts its chosen finish and rejects other raid fini
   await ccg.createRedeemCodeForAdmin(input, userId);
   await ccg.redeemCode({ session: { userId: String(otherId) } } as any, { code: input.code });
   assert.equal((await Ownership.findOne({ ownerId: otherId, cardId: source.cardId }))?.finish, "phaseglass");
+});
+
+async function uploadImage(sourceId: mongoose.Types.ObjectId, red = 100) {
+  const image = await sharp({ create: { width: 30, height: 40, channels: 4, background: { r: red, g: 20, b: 30, alpha: 0.5 } } }).png().toBuffer();
+  await studio.submitMedia(String(userId), String(sourceId), "image", image);
+  return Media.findOne({ sourceId, kind: "image", status: "pending" }).orFail();
+}
+
+test("pending media is private, card stays public, approval unlocks only that Supporter card", async () => {
+  const source = await publish(1, "phaseglass");
+  const card = await Card.findById(source.cardId).orFail();
+  await AlternativeArt.create({ collectorKey: card.collectorKey!, characterArtFilename: "existing.png", characterArtEnabled: true, quipAudioFilename: "existing.mp3" });
+  await assert.rejects(ccg.updateAlternativeArtForAdmin(String(card._id), {}), { code: "supporter_media_review_required" });
+  const pending = await uploadImage(source._id);
+  assert.equal(await Card.countDocuments(), 1);
+  assert.equal((await Card.findById(card._id))?.snapshotVersion, 1);
+  const load = () => (ccg as any).loadAlternativeArt([card]);
+  assert.equal((await load()).get(resolveAlternativeArtKey(card)), undefined, "Pending and character-wide art must not leak");
+  const url = `${baseUrl}/api/ccg/media/supporter/${pending._id}`;
+  assert.equal((await fetch(url)).status, 404);
+  assert.equal((await fetch(url, { headers: { "x-test-user": String(otherId) } })).status, 404);
+  const preview = await fetch(url, { headers: { "x-test-user": String(userId) } });
+  assert.equal(preview.status, 200); assert.match(preview.headers.get("cache-control")!, /no-store/);
+  assert.equal((await fetch(`${baseUrl}/api/ccg/studio/media-review/${pending._id}`, { method: "POST", headers: { "x-test-user": String(userId), origin: "http://localhost:3000", "content-type": "application/json" }, body: JSON.stringify({ action: "approve" }) })).status, 403);
+  await mediaService.review(String(pending._id), String(otherId), "approve", "");
+  assert.equal((await fetch(url)).status, 200);
+  const definitions = await (ccg as any).loadAlternativeArt([card, { characterId: new mongoose.Types.ObjectId(), collectorKey: card.collectorKey }]);
+  assert.equal(definitions.get(resolveAlternativeArtKey(card)).characterArtPath, `/api/ccg/media/supporter/${pending._id}`);
+  assert.equal(definitions.get(card.collectorKey).characterArtFilename, "existing.png");
+  assert.equal(definitions.get(resolveAlternativeArtKey(card)).quipAudioFilename, undefined);
+  const session = await mongoose.startSession();
+  try { await session.withTransaction(() => (ccg as any).addOwnership({ ownerType: "user", ownerId: otherId }, [{ cardId: card._id, setId: card.setId, characterId: card.characterId, snapshotVersion: 1, finish: "phaseglass", artVariant: "alternative" }], session)); }
+  finally { await session.endSession(); }
+  assert.equal((await Ownership.findOne({ ownerId: otherId, cardId: card._id }))?.alternativeQuantity, 1);
+});
+
+test("replacement approval is atomic and withdrawal or rejection leaves approved media live", async () => {
+  const source = await publish();
+  const first = await uploadImage(source._id);
+  await mediaService.review(String(first._id), String(otherId), "approve", "");
+  const replacement = await uploadImage(source._id, 150);
+  await assert.rejects(uploadImage(source._id, 180), { code: "media_pending" });
+  assert.equal((await fetch(`${baseUrl}/api/ccg/media/supporter/${replacement._id}`)).status, 404);
+  assert.equal((await fetch(`${baseUrl}/api/ccg/media/supporter/${first._id}`)).status, 200);
+  const decisions = await Promise.allSettled([mediaService.review(String(replacement._id), String(otherId), "approve", ""), mediaService.review(String(replacement._id), String(otherId), "approve", "")]);
+  assert.equal(decisions.filter((result) => result.status === "fulfilled").length, 1);
+  assert.equal((await Media.findById(first._id))?.status, "superseded");
+  assert.equal(await Media.countDocuments({ sourceId: source._id, kind: "image", status: "approved" }), 1);
+  const next = await uploadImage(source._id, 190);
+  await studio.withdrawMedia(String(userId), String(next._id));
+  await assert.rejects(mediaService.review(String(next._id), String(otherId), "approve", ""), { code: "media_changed" });
+  await mediaService.review(String(replacement._id), String(otherId), "revoke", "Please use a different image.");
+  assert.equal((await fetch(`${baseUrl}/api/ccg/media/supporter/${replacement._id}`)).status, 404);
+  const card = await Card.findById(source.cardId).orFail();
+  assert.equal((await (ccg as any).loadAlternativeArt([card])).get(resolveAlternativeArtKey(card)), undefined);
+});
+
+test("media upload requires publication and ownership; cleanup never removes approved files", async () => {
+  const source = await draft();
+  await assert.rejects(studio.submitMedia(String(userId), String(source._id), "image", Buffer.from("bad")), { code: "media_publish_first" });
+  await studio.publish(String(userId), String(source._id), source.revision);
+  await assert.rejects(studio.submitMedia(String(otherId), String(source._id), "image", Buffer.from("bad")), { code: "character_not_found" });
+  const image = await uploadImage(source._id);
+  await mediaService.review(String(image._id), String(otherId), "approve", "");
+  const rejected = await uploadImage(source._id, 140);
+  await mediaService.review(String(rejected._id), String(otherId), "reject", "Please remove the background.");
+  await Media.updateOne({ _id: rejected._id }, { $set: { purgeAfter: new Date(0) } });
+  await mediaService.cleanup();
+  assert.ok((await Media.findById(rejected._id))?.purgedAt);
+  assert.equal((await fetch(`${baseUrl}/api/ccg/media/supporter/${image._id}`)).status, 200);
+  const response = await fetch(`${baseUrl}/api/ccg/studio/media/${source._id}/image`, { method: "POST", headers: { "x-test-user": String(userId), origin: "https://other.invalid", "content-type": "application/octet-stream" }, body: "bad" });
+  assert.equal(response.status, 403);
+});
+
+test("audio submission is reviewed independently and approved media rolls through real Supporter packs", async (t) => {
+  const source = await publish(1, "phaseglass");
+  const card = await Card.findById(source.cardId).orFail();
+  const wav = Buffer.alloc(44 + 32000);
+  wav.write("RIFF", 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write("WAVEfmt ", 8);
+  wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+  wav.write("data", 36); wav.writeUInt32LE(32000, 40);
+  const response = await fetch(`${baseUrl}/api/ccg/studio/media/${source._id}/audio`, { method: "POST", headers: {
+    "x-test-user": String(userId), origin: "http://localhost:3000", "content-type": "application/octet-stream",
+  }, body: wav });
+  assert.equal(response.status, 200, await response.text());
+  const audio = await Media.findOne({ sourceId: source._id, kind: "audio", status: "pending" }).orFail();
+  const image = await uploadImage(source._id);
+  await mediaService.review(String(audio._id), String(otherId), "approve", "");
+  const definition = (await (ccg as any).loadAlternativeArt([card])).get(resolveAlternativeArtKey(card));
+  assert.ok(definition.quipAudioPath); assert.equal(definition.characterArtEnabled, undefined);
+  assert.equal((await Media.findById(image._id))?.status, "pending");
+  const audioResponse = await fetch(`${baseUrl}${definition.quipAudioPath}`, { headers: { Range: "bytes=0-127" } });
+  assert.equal(audioResponse.status, 206); assert.equal(audioResponse.headers.get("content-type"), "audio/mpeg");
+  await mediaService.review(String(image._id), String(otherId), "approve", "");
+  t.mock.method(crypto, "randomInt", ((maximum: number) => maximum - 1) as typeof crypto.randomInt);
+  const owner = { ownerType: "user" as const, ownerId: otherId, dateKey: "2026-09-16" };
+  t.mock.method(ccg, "resolveOwner", async () => owner);
+  await CcgPackBalance.create({ ...owner, remaining: 10, lastRechargeAt: new Date(), grantVersion: CCG_PACK_BALANCE_VERSION });
+  const opening = await ccg.openPack({} as any, {} as any, { type: "supporter", idempotencyKey: "approved_media_pack" }) as any;
+  assert.ok(opening.results.every((row: any) => row.artVariant === "alternative" && row.card.alternativeArt.characterArtEnabled && row.card.quip.audioPath === definition.quipAudioPath));
+  assert.equal((await Card.findById(card._id))?.snapshotVersion, 1);
 });

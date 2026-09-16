@@ -182,7 +182,7 @@ export function compareCcgFinish(
 }
 
 export function hasAlternativeArtwork(card: CcgCard | null): boolean {
-  if (!card?.alternativeArt || card.set.kind === "supporter") return false;
+  if (!card?.alternativeArt) return false;
   return card.alternativeArt.characterArtEnabled
     || (card.set.kind === "community" && card.alternativeArt.backgroundArtEnabled);
 }

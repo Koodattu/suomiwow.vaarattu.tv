@@ -1,4 +1,6 @@
 import { CcgArtVariant, CcgFinish } from "../config/ccg";
+import { resolveCollectorKey } from "./ccg-identity";
+import mongoose from "mongoose";
 
 export const CCG_ALTERNATIVE_CHARACTER_PATH = "/ccg/alternative/character";
 export const CCG_ALTERNATIVE_BACKGROUND_PATH = "/ccg/alternative/background";
@@ -16,7 +18,13 @@ export type CcgAlternativeArtDefinition = {
   backgroundArtEnabled?: boolean;
   quipText?: string | null;
   quipAudioFilename?: string | null;
+  characterArtPath?: string | null;
+  quipAudioPath?: string | null;
 };
+
+export function resolveAlternativeArtKey(card: { supporterCharacterId?: mongoose.Types.ObjectId | string | null; collectorKey?: string | null; characterId: mongoose.Types.ObjectId | string }) {
+  return card.supporterCharacterId ? `supporter:${card.supporterCharacterId}` : resolveCollectorKey(card);
+}
 
 export type CcgStoredOwnership = {
   finish: CcgFinish;
@@ -73,7 +81,7 @@ export function serializeAlternativeArt(definition: CcgAlternativeArtDefinition 
   return {
     characterArtFilename: definition.characterArtFilename ?? null,
     characterArtPath: definition.characterArtFilename
-      ? `${CCG_ALTERNATIVE_CHARACTER_PATH}/${encodeURIComponent(definition.characterArtFilename)}`
+      ? definition.characterArtPath ?? `${CCG_ALTERNATIVE_CHARACTER_PATH}/${encodeURIComponent(definition.characterArtFilename)}`
       : null,
     characterArtEnabled: Boolean(definition.characterArtEnabled && definition.characterArtFilename),
     backgroundArtFilename: definition.backgroundArtFilename ?? null,
@@ -92,7 +100,7 @@ export function serializeQuip(definition: CcgAlternativeArtDefinition | undefine
   return {
     text,
     audioFilename,
-    audioPath: audioFilename ? `${CCG_QUIP_AUDIO_PATH}/${encodeURIComponent(audioFilename)}` : null,
+    audioPath: audioFilename ? definition.quipAudioPath ?? `${CCG_QUIP_AUDIO_PATH}/${encodeURIComponent(audioFilename)}` : null,
   };
 }
 

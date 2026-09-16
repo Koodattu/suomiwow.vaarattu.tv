@@ -613,6 +613,9 @@ class UpdateScheduler {
         try { await (await import("./ccg-supporter-status.service")).default.reconcile(); }
         catch { logger.warn("[CCG/Supporter] Scheduled verification will retry"); }
       });
+      this.scheduleCronTask("ccg-supporter-media-cleanup", "17 * * * *", async () => {
+        await (await import("./ccg-supporter-media.service")).default.cleanup();
+      });
       void this.processPendingCcgPackAnalytics();
       void this.triggerCcgLeaderboardRefresh("incremental", "startup");
 

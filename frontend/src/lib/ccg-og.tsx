@@ -54,11 +54,11 @@ async function loadPublicImage(path: string | null | undefined): Promise<string 
 
 async function loadCharacterRender(url: string | null | undefined): Promise<string | null> {
   if (!url) return null;
-  if (/^\/api\/ccg\/media\/assets\/[a-f\d]{24}$/i.test(url)) {
+  if (/^\/api\/ccg\/media\/(?:assets|supporter)\/[a-f\d]{24}$/i.test(url)) {
     const apiBase = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     try {
       const response = await fetch(new URL(url, apiBase), {
-        next: { revalidate: 3600 },
+        ...(url.includes("/supporter/") ? { cache: "no-store" as const } : { next: { revalidate: 3600 } }),
         signal: AbortSignal.timeout(5000),
       });
       if (!response.ok) return null;

@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
         source: "/api/ccg/media/assets/:assetId",
         destination: `${backendUrl}/api/ccg/media/assets/:assetId`,
       },
+      {
+        source: "/api/ccg/media/supporter/:assetId",
+        destination: `${backendUrl}/api/ccg/media/supporter/:assetId`,
+      },
     ];
   },
   async redirects() {

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, raw } from "express";
 import { CCG_FEATURE_ENABLED } from "../config/ccg";
 import User from "../models/User";
 import CcgSupporterCharacter from "../models/CcgSupporterCharacter";
@@ -7,6 +7,8 @@ import studio from "../services/ccg-supporter.service";
 import supporterStatus, { supporterLimit } from "../services/ccg-supporter-status.service";
 import { CcgSupporterError } from "../utils/ccg-supporter";
 import logger from "../utils/logger";
+import media from "../services/ccg-supporter-media.service";
+import Media from "../models/CcgSupporterMedia";
 
 const router = Router();
 
@@ -16,7 +18,8 @@ router.use(async (req, res, next) => {
   if (!req.session.userId) return res.status(401).json({ code: "authentication_required" });
   if (req.method !== "GET") {
     const allowedOrigin = process.env.NODE_ENV === "production" ? "https://suomiwow.vaarattu.tv" : "http://localhost:3000";
-    if (req.headers.origin !== allowedOrigin || !req.is("application/json")) return res.status(403).json({ code: "invalid_origin" });
+    const upload = req.method === "POST" && /^\/media\/[a-f0-9]{24}\/(image|audio)$/i.test(req.path);
+    if (req.headers.origin !== allowedOrigin || !req.is(upload ? "application/octet-stream" : "application/json")) return res.status(403).json({ code: "invalid_origin" });
   }
   try {
     if (!await User.exists({ _id: req.session.userId })) return res.status(401).json({ code: "authentication_required" });
@@ -46,8 +49,22 @@ router.post("/drafts/:id/publish", route((userId, body, id) => studio.publish(us
 router.get("/moderation", requireAdmin, route(async () => ({ creations: await CcgSupporterCharacter.find({ cardId: { $exists: true } })
   .select("_id name realm cardId editsFrozen distributable").sort({ createdAt: -1 }).lean() })));
 router.patch("/moderation/:id", requireAdmin, route((_userId, body, id) => studio.moderate(id, body)));
+router.post("/media/:id/:kind", raw({ type: "application/octet-stream", limit: "8mb" }), async (req, res, next) => {
+  try {
+    if (!["image", "audio"].includes(req.params.kind) || !Buffer.isBuffer(req.body)) throw new CcgSupporterError(400, "invalid_media");
+    res.json(await studio.submitMedia(req.session.userId!, req.params.id, req.params.kind as "image" | "audio", req.body));
+  } catch (error) { next(error); }
+});
+router.delete("/media/:id", route((userId, _body, id) => studio.withdrawMedia(userId, id)));
+router.get("/media-review", requireAdmin, route(async () => {
+  const ids = await Media.distinct("sourceId", { status: { $in: ["pending", "approved"] }, purgedAt: null });
+  const sources = await CcgSupporterCharacter.find({ _id: { $in: ids } }).select("_id name realm cardId").lean();
+  return { submissions: await media.list(sources.map((source) => source._id)), sources };
+}));
+router.post("/media-review/:id", requireAdmin, route((userId, body, id) => media.review(id, userId, body.action, body.reason)));
 
-router.use((error: unknown, _req: import("express").Request, res: import("express").Response, _next: import("express").NextFunction) => {
+router.use((error: unknown, req: import("express").Request, res: import("express").Response, _next: import("express").NextFunction) => {
+  if ((error as { type?: string })?.type === "entity.too.large") return res.status(413).json({ code: req.path.endsWith("/image") ? "media_image_size" : "media_audio_size" });
   if (error instanceof CcgSupporterError) return res.status(error.status).json({ code: error.code, nextAllowedAt: error.nextAllowedAt });
   logger.error("[CCG/Studio] Request failed", error instanceof Error ? error.name : "unknown");
   res.status(500).json({ code: "studio_unavailable" });
