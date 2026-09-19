@@ -119,6 +119,13 @@
         "submit": "Submit for review",
         "uploading": "Uploading and checking…",
         "withdraw": "Withdraw submission",
+        "clearSelection": "Clear selection",
+        "remove": { "image": "Remove image", "audio": "Remove audio" },
+        "confirmRemove": {
+          "image": "Remove this alternative image from all copies of this card? The card will use its standard character image.",
+          "audio": "Remove this audio from all copies of this card? The card will no longer play your uploaded audio."
+        },
+        "pendingUnaffected": "Your replacement is still awaiting review. Withdraw it separately if you no longer want it.",
         "queue": "Supporter media review",
         "reviewDescription": "Approve the image or audio only. The card is already public. Approval replaces the previous media of the same type for all collectors.",
         "reason": "Reason for rejection or removal (shown to creator)",
@@ -134,7 +141,7 @@
           "pending": "Awaiting admin review",
           "approved": "Approved",
           "rejected": "Rejected or removed",
-          "withdrawn": "Withdrawn",
+          "withdrawn": "Removed by creator",
           "superseded": "Replaced",
           "failed": "Upload failed"
         },

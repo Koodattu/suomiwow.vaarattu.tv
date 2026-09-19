@@ -438,10 +438,19 @@ class CcgSupporterService {
 
   async withdrawMedia(userId: string, id: string) {
     const creator = await status.ensureCreator(userId);
-    const submission = await Media.findOne({ _id: objectId(id), userId, status: "pending" });
+    const submission = await Media.findOne({ _id: objectId(id), userId, status: { $in: ["pending", "approved"] } });
     if (!submission || !await CcgSupporterCharacter.exists({ _id: submission.sourceId, creatorId: creator._id })) throw new CcgSupporterError(404, "invalid_media");
-    const result = await Media.updateOne({ _id: submission._id, status: "pending" }, { $set: { status: "withdrawn", purgeAfter: new Date(Date.now() + 7 * 86_400_000) } });
-    if (!result.modifiedCount) throw new CcgSupporterError(409, "media_changed");
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const source = await CcgSupporterCharacter.updateOne({ _id: submission.sourceId, creatorId: creator._id }, { $inc: { __v: 1 } }, { session });
+        if (!source.matchedCount) throw new CcgSupporterError(404, "invalid_media");
+        const result = await Media.updateOne({ _id: submission._id, status: submission.status },
+          { $set: { status: "withdrawn", purgeAfter: new Date(Date.now() + 7 * 86_400_000) } }, { session });
+        if (!result.modifiedCount) throw new CcgSupporterError(409, "media_changed");
+      });
+    } finally { await session.endSession(); }
+    await cache.invalidatePattern(/^ccg:/);
     return this.getState(userId);
   }
 }

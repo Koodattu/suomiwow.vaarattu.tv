@@ -483,6 +483,46 @@ test("replacement approval is atomic and withdrawal or rejection leaves approved
   assert.equal((await (ccg as any).loadAlternativeArt([card])).get(resolveAlternativeArtKey(card)), undefined);
 });
 
+test("creators can remove approved images without removing the card or pending replacement", async () => {
+  const source = await publish();
+  const card = await Card.findById(source.cardId).orFail();
+  const image = await uploadImage(source._id);
+  await mediaService.review(String(image._id), String(otherId), "approve", "");
+  const replacement = await uploadImage(source._id, 150);
+  const remove = (actor: mongoose.Types.ObjectId) => fetch(`${baseUrl}/api/ccg/studio/media/${image._id}`, {
+    method: "DELETE", headers: { "x-test-user": String(actor), origin: "http://localhost:3000", "content-type": "application/json" }, body: "{}",
+  });
+  assert.equal((await remove(otherId)).status, 404);
+  assert.equal((await Media.findById(image._id))?.status, "approved");
+  const response = await remove(userId);
+  assert.equal(response.status, 200, await response.text());
+  assert.equal((await Media.findById(image._id))?.status, "withdrawn");
+  assert.ok((await Media.findById(image._id))?.purgeAfter);
+  assert.equal((await fetch(`${baseUrl}/api/ccg/media/supporter/${image._id}`)).status, 404);
+  assert.equal((await (ccg as any).loadAlternativeArt([card])).get(resolveAlternativeArtKey(card)), undefined);
+  assert.equal((await Card.findById(card._id))?.snapshotVersion, 1);
+  assert.equal((await Media.findById(replacement._id))?.status, "pending");
+  await mediaService.review(String(replacement._id), String(otherId), "approve", "");
+  assert.equal((await remove(userId)).status, 404, "A stale removal cannot remove the replacement");
+  assert.equal((await Media.findById(replacement._id))?.status, "approved");
+});
+
+test("removal racing replacement approval cannot remove the replacement", async () => {
+  const source = await publish();
+  const image = await uploadImage(source._id);
+  await mediaService.review(String(image._id), String(otherId), "approve", "");
+  const replacement = await uploadImage(source._id, 150);
+  const [removal, approval] = await Promise.allSettled([
+    studio.withdrawMedia(String(userId), String(image._id)),
+    mediaService.review(String(replacement._id), String(otherId), "approve", ""),
+  ]);
+  assert.equal(approval.status, "fulfilled");
+  if (removal.status === "rejected") assert.ok(["invalid_media", "media_changed"].includes(removal.reason.code));
+  assert.equal((await Media.findById(replacement._id))?.status, "approved");
+  assert.equal(await Media.countDocuments({ sourceId: source._id, status: "approved" }), 1);
+  assert.notEqual((await Media.findById(image._id))?.status, "approved");
+});
+
 test("media upload requires publication and ownership; cleanup never removes approved files", async () => {
   const source = await draft();
   await assert.rejects(studio.submitMedia(String(userId), String(source._id), "image", Buffer.from("bad")), { code: "media_publish_first" });
@@ -528,4 +568,10 @@ test("audio submission is reviewed independently and approved media rolls throug
   const opening = await ccg.openPack({} as any, {} as any, { type: "supporter", idempotencyKey: "approved_media_pack" }) as any;
   assert.ok(opening.results.every((row: any) => row.artVariant === "alternative" && row.card.alternativeArt.characterArtEnabled && row.card.quip.audioPath === definition.quipAudioPath));
   assert.equal((await Card.findById(card._id))?.snapshotVersion, 1);
+  await studio.withdrawMedia(String(userId), String(audio._id));
+  const afterRemoval = (await (ccg as any).loadAlternativeArt([card])).get(resolveAlternativeArtKey(card));
+  assert.equal(afterRemoval.quipAudioPath, undefined);
+  assert.equal(afterRemoval.characterArtEnabled, true);
+  assert.equal((await Media.findById(image._id))?.status, "approved");
+  assert.equal((await fetch(`${baseUrl}${definition.quipAudioPath}`)).status, 404);
 });

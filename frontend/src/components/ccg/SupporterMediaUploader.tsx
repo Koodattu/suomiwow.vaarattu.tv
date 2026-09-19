@@ -22,18 +22,21 @@ export default function SupporterMediaUploader({ source, media, disabled }: { so
   const [files, setFiles] = useState<Partial<Record<"image" | "audio", File>>>({});
   const [fileKeys, setFileKeys] = useState({ image: 0, audio: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [confirmRemoval, setConfirmRemoval] = useState<string | null>(null);
+  const clearFile = (kind: "image" | "audio") => {
+    setFiles((previous) => ({ ...previous, [kind]: undefined }));
+    setFileKeys((previous) => ({ ...previous, [kind]: previous[kind] + 1 }));
+    setError(null);
+  };
   const mutation = useMutation({
     mutationFn: ({ kind, file, withdrawId }: { kind?: "image" | "audio"; file?: File; withdrawId?: string }) => withdrawId
       ? api.updateCcgStudio(`media/${withdrawId}`, {}, "DELETE")
       : api.uploadSupporterMedia(source.id, kind!, file!),
     onSuccess: async (_data, input) => {
       setError(null);
-      if (input.kind) {
-        const kind = input.kind;
-        setFiles((previous) => ({ ...previous, [kind]: undefined }));
-        setFileKeys((previous) => ({ ...previous, [kind]: previous[kind] + 1 }));
-      }
-      await client.invalidateQueries({ queryKey: ["ccg", "studio"] });
+      setConfirmRemoval(null);
+      if (input.kind) clearFile(input.kind);
+      await client.invalidateQueries({ queryKey: ["ccg"] });
     },
     onError: (failure) => setError(failure instanceof ApiError && failure.code ? failure.code : "media_upload_failed"),
   });
@@ -54,14 +57,26 @@ export default function SupporterMediaUploader({ source, media, disabled }: { so
       const latest = rows[0];
       return <div key={kind} className={styles.media}>
         <h3>{t(`media.${kind}`)}</h3><p>{t(`media.${kind}Limits`)}</p>
-        {approved && <><p>{t("media.status.approved")}</p><SupporterMediaPreview media={approved} /></>}
+        {approved && <><p>{t("media.status.approved")}</p><SupporterMediaPreview media={approved} />
+          {confirmRemoval === approved.id ? <div className={styles.confirm}>
+            <p>{t(`media.confirmRemove.${kind}`)}</p>
+            {pending && <p>{t("media.pendingUnaffected")}</p>}
+            <div className={styles.actions}>
+              <button disabled={mutation.isPending} onClick={() => mutation.mutate({ withdrawId: approved.id })}>{t(`media.remove.${kind}`)}</button>
+              <button disabled={mutation.isPending} onClick={() => setConfirmRemoval(null)}>{t("cancel")}</button>
+            </div>
+          </div> : <button disabled={mutation.isPending} onClick={() => setConfirmRemoval(approved.id)}>{t(`media.remove.${kind}`)}</button>}
+        </>}
         {pending ? <><p role="status">{t(`media.status.${pending.status}`)}</p><SupporterMediaPreview media={pending} />
           {pending.status === "pending" && <button disabled={mutation.isPending} onClick={() => mutation.mutate({ withdrawId: pending.id })}>{t("media.withdraw")}</button>}</>
           : <>
             {latest && latest.status !== "approved" && <p>{t(`media.status.${latest.status}`)}{latest.reason && `: ${latest.status === "failed" ? t(t.has(`errors.${latest.reason}`) ? `errors.${latest.reason}` : "errors.media_upload_failed") : latest.reason}`}</p>}
             <label>{t(`media.${kind}`)}<input key={`${kind}:${fileKeys[kind]}`} type="file" accept={kind === "image" ? "image/png,image/webp" : "audio/*,.m4a,.mp4,.webm,.flac,.aiff,.wma"}
               disabled={disabled || mutation.isPending} onChange={(event) => setFiles((previous) => ({ ...previous, [kind]: event.target.files?.[0] }))} /></label>
-            <button disabled={disabled || mutation.isPending || !files[kind]} onClick={() => submit(kind)}>{t(mutation.isPending && mutation.variables.kind === kind ? "media.uploading" : "media.submit")}</button>
+            <div className={styles.actions}>
+              <button disabled={disabled || mutation.isPending || !files[kind]} onClick={() => submit(kind)}>{t(mutation.isPending && mutation.variables.kind === kind ? "media.uploading" : "media.submit")}</button>
+              {files[kind] && <button disabled={mutation.isPending} onClick={() => clearFile(kind)}>{t("media.clearSelection")}</button>}
+            </div>
           </>}
       </div>;
     })}

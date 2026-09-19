@@ -119,6 +119,13 @@
         "submit": "Lähetä tarkistettavaksi",
         "uploading": "Lähetetään ja tarkistetaan…",
         "withdraw": "Peru lähetys",
+        "clearSelection": "Tyhjennä valinta",
+        "remove": { "image": "Poista kuva", "audio": "Poista ääni" },
+        "confirmRemove": {
+          "image": "Poistetaanko tämä vaihtoehtoinen kuva kortin kaikista kappaleista? Kortti käyttää tämän jälkeen tavallista hahmokuvaansa.",
+          "audio": "Poistetaanko tämä ääni kortin kaikista kappaleista? Kortti ei tämän jälkeen toista lähettämääsi ääntä."
+        },
+        "pendingUnaffected": "Korvaava tiedosto odottaa edelleen tarkistusta. Peru sen lähetys erikseen, jos et enää halua käyttää sitä.",
         "queue": "Supporter-median tarkistus",
         "reviewDescription": "Hyväksy vain kuva tai ääni. Kortti on jo julkinen. Hyväksyntä korvaa aiemman samantyyppisen median kaikilla kerääjillä.",
         "reason": "Hylkäyksen tai poiston syy (näkyy tekijälle)",
@@ -134,7 +141,7 @@
           "pending": "Odottaa ylläpidon tarkistusta",
           "approved": "Hyväksytty",
           "rejected": "Hylätty tai poistettu",
-          "withdrawn": "Peruttu",
+          "withdrawn": "Tekijän poistama",
           "superseded": "Korvattu",
           "failed": "Lähetys epäonnistui"
         },
