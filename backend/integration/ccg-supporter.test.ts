@@ -123,6 +123,7 @@ test("baseline slots work without Twitch and cannot be replenished by reopening 
   await Creator.updateOne({ userId }, { $set: { earnedSlots: 0 } });
   const initial = await studio.getState(String(userId));
   assert.equal(initial.twitchConnected, false);
+  assert.deepEqual(initial.entitlements, { base: 2, follower: false, subscriber: false });
   assert.deepEqual(initial.allowance, { earned: 2, used: 0, available: 2, drafts: 0, draftLimit: 5 });
   await publish(1);
   await publish(2);
@@ -156,7 +157,9 @@ test("new and existing creators receive the baseline on top of permanent Twitch 
   await observe(true, true, "2026-10-17T12:00:00Z");
   assert.equal((await studio.getState(String(userId))).allowance.available, 7);
   await observe(false, false, "2026-11-17T12:00:00Z");
-  assert.equal((await studio.getState(String(userId))).allowance.available, 7);
+  const expired = await studio.getState(String(userId));
+  assert.equal(expired.allowance.available, 7);
+  assert.deepEqual(expired.entitlements, { base: 2, follower: true, subscriber: true });
 });
 
 test("disconnect fences in-flight checks, preserves allowance and rejects account transfer", async () => {
@@ -165,6 +168,7 @@ test("disconnect fences in-flight checks, preserves allowance and rejects accoun
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(() => status.disconnect(String(userId), session));
+    assert.deepEqual((await studio.getState(String(userId))).entitlements, { base: 2, follower: true, subscriber: true });
     await status.observe(creator._id, creator.connectionRevision, "channel", true, true, "1000", new Date("2026-10-16T12:00:00Z"));
     assert.equal((await Creator.findById(creator._id))?.earnedSlots, 4);
     await assert.rejects(session.withTransaction(() => status.connect(String(otherId), "twitch0", session)), { code: "account_bound" });

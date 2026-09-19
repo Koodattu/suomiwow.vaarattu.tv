@@ -8,6 +8,7 @@ import CcgCard from "../models/CcgCard";
 import CcgSet from "../models/CcgSet";
 import CcgOwnership from "../models/CcgOwnership";
 import CcgSupporterCreator from "../models/CcgSupporterCreator";
+import CcgSupporterGrant from "../models/CcgSupporterGrant";
 import CcgSupporterCharacter from "../models/CcgSupporterCharacter";
 import CcgLeaderboardInvalidation from "../models/CcgLeaderboardInvalidation";
 import { CcgSupporterError, SUPPORTER_BASE_SLOTS, SUPPORTER_CREATOR_FINISHES, SUPPORTER_DRAFT_LIMIT, SUPPORTER_RENDER_COOLDOWN_MS,
@@ -141,6 +142,7 @@ class CcgSupporterService {
     }
     const creator = await status.ensureCreator(userId);
     const set = await CcgSet.findOne({ zoneId: CCG_SUPPORTER_SET.zoneId }).orFail();
+    const earnedGrants = await CcgSupporterGrant.distinct("kind", { creatorId: creator._id });
     const sources = await CcgSupporterCharacter.find({ creatorId: creator._id, $or: [{ draft: { $ne: null } }, { cardId: { $exists: true } }] }).sort({ createdAt: -1 });
     const tracked = await Promise.all(characters.map(async (character) => {
       const classID = CLASSES.find((entry) => entry.name === character.class)?.id;
@@ -164,6 +166,7 @@ class CcgSupporterService {
     ]) : [];
     const ownedBySeries = new Map(owned.map((entry) => [`${entry._id.setId}:${entry._id.characterId}`, entry.quantity]));
     return { region: "eu", battlenetConnected: Boolean(user?.battlenet), twitchConnected: Boolean(user?.twitch), rosterError,
+      entitlements: { base: SUPPORTER_BASE_SLOTS, follower: earnedGrants.includes("follower"), subscriber: earnedGrants.includes("subscriber") },
       allowance: { earned: SUPPORTER_BASE_SLOTS + creator.earnedSlots, used: creator.usedSlots, available: SUPPORTER_BASE_SLOTS + creator.earnedSlots - creator.usedSlots,
         drafts: creator.draftCount, draftLimit: SUPPORTER_DRAFT_LIMIT },
       status: { tracking: creator.trackingEnabled, following: creator.following, subscribed: creator.subscribed,

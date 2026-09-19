@@ -41,10 +41,9 @@ Verification adds actual image/audio normalization tests and replica-set integra
 
 ## Product contract
 
-Add **Card Studio** at `/ccg/studio` in the CCG navigation. It has two views:
+**Card Studio** at `/ccg/studio` uses a slot-driven workspace without tabs. The top grid starts with six positions: two base slots, one follower opportunity, and three subscriber opportunities. Permanent grants unlock those positions; additional earned capacity extends the grid. Clicking an available position opens a compact character picker below the slots; clicking a creation opens its editor. The roster is hidden until creation begins. Draft placement is provisional and only publication spends capacity. A saved-drafts drawer keeps all five working copies accessible even when publication capacity is exhausted.
 
-1. **My characters:** discover existing CCG cards depicting characters on the connected Battle.net account, grouped by character and set. Distinguish cards that exist from copies the user owns.
-2. **My creations:** prepare and publish custom Supporter cards for those characters, using permanently earned publication slots from verified Twitch support of the `vaarattu` channel.
+The default page also shows a collection grid of the latest raid cards featuring the connected account's characters. There are no captions beneath those cards. Inspection provides snapshot/ownership counts and a collection link. Battle.net, Twitch, and slot explanations are accessible through compact header controls, with a contextual Battle.net prompt when connection is needed. Character-load failures remain in the corresponding picker tile; appearance, save, and publication feedback remains in the editor.
 
 Confirmed requirements:
 
@@ -142,13 +141,9 @@ To prevent reconnect farming, bind publication usage durably to the creator and 
 
 Show the page and a useful connection state even before accounts are linked. Require Battle.net for private character discovery and ownership verification. Require verified Twitch support to earn new slots; publishing spends previously earned slots even after unfollowing or unsubscribing.
 
-**My characters** groups cards by character, with raid/set name, available snapshots, and owned-copy indicators. Default to all cards that exist for those characters, with an **Owned only** filter. This does not grant the raid cards to the character owner. Include empty states for characters with no existing cards.
+The supporter shelf stays mounted while the picker/editor is open. Desktop uses six columns, with three and two columns at narrower widths. Card typography scales with the rendered card width through the shared CCG typography variables. Raid cards are separate from Supporter/Community creations and do not grant ownership to the character owner.
 
-**My creations** shows:
-
-- A compact account/status strip: Battle.net connected, Twitch identity, follower/subscriber status, last checked time, and refresh action.
-- Publication usage such as “2 of 5 cards published,” with earned/used/available counts and this month's reward state. On expiry, explain that earned slots remain usable and future monthly rewards require a qualifying subscription. Never shrink displayed earned capacity.
-- Separate Draft and Published sections, with a clear create action and remaining capacity.
+Connection controls show current provider status separately from permanent slot entitlements. The authenticated Studio response derives follower/subscriber entitlements from the grant ledger, not current Twitch status. Aggregate earned/used/available counts remain authoritative. Failed creation retries reconcile saved creations first so a lost response does not leave an inaccessible draft.
 
 Editor sequence:
 

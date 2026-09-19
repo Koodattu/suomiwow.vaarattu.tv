@@ -17,6 +17,7 @@ export type StudioCreation = {
 };
 export type StudioState = {
   region: "eu"; battlenetConnected: boolean; twitchConnected: boolean; rosterError: string | null;
+  entitlements: { base: number; follower: boolean; subscriber: boolean };
   allowance: { earned: number; used: number; available: number; drafts: number; draftLimit: number };
   status: { tracking: boolean; following: boolean | null; subscribed: boolean | null; checkedAt: string | null;
     error: string | null; nextCheckAt: string; nextManualCheckAt: string; firstSubscriberMonth: string | null };

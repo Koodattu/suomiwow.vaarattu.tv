@@ -5757,6 +5757,7 @@
   transition: opacity 180ms ease-out;
 }
 
+.scaledCardTypography > [data-ccg-card],
 .collectionCardAsset > [data-ccg-card][data-container-compact-typography="true"] {
   --card-brand-font-size: calc(var(--card-cqw) * 2.15);
   --card-character-name-font-size: calc(var(--card-cqw) * 6.8);
