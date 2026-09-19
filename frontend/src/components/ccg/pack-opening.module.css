@@ -308,23 +308,23 @@
 }
 
 .modeChoices {
-  position: relative;
   display: grid;
+  gap: 0.25rem;
 }
 
-.modeChoice.allSetsChoice {
-  grid-template-columns: 2.5rem minmax(0, 1fr);
-  padding-right: 6.25rem;
+.allSetsToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: #b8c5da;
+  font-size: 0.75rem;
 }
 
 .customizeSetsButton {
-  position: absolute;
-  top: 50%;
-  right: 0.6rem;
-  transform: translateY(-50%);
   border: 0;
   background: transparent;
-  padding: 0.5rem 0.2rem;
+  padding: 0.25rem 0;
   color: #7ddcff;
   font-size: 0.75rem;
   font-weight: 650;
@@ -349,6 +349,7 @@
 
 .setPickerActions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
@@ -356,14 +357,37 @@
   font-size: 0.8rem;
 }
 
+.setPickerBulkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.setPickerDialog.setPickerDialog {
+  width: min(100%, 54rem);
+}
+
 .setPickerList {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   max-height: min(45dvh, 24rem);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #345174 transparent;
   gap: 0.4rem;
   padding: 0.2rem;
+}
+
+@media (min-width: 640px) {
+  .setPickerList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .setPickerList {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .setPickerChoice {
@@ -1994,7 +2018,7 @@
   border-radius: 0.65rem;
   background:
     linear-gradient(180deg, rgba(1, 4, 11, 0.38), rgba(1, 4, 11, 0.78)),
-    var(--pack-art) var(--pack-art-position-x) center / var(--pack-art-size) no-repeat,
+    var(--pack-stage-art) var(--pack-art-position-x) center / var(--pack-art-size) no-repeat,
     #061020;
   filter: saturate(0.72) contrast(1.08);
 }

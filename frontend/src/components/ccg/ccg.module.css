@@ -6083,6 +6083,20 @@
   font-size: 0.78rem;
 }
 
+.vaultCurrentActions .primaryButton {
+  border-color: color-mix(in srgb, var(--set-accent) 65%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--set-accent) 45%, #07101f), color-mix(in srgb, var(--set-accent) 30%, #07101f));
+  box-shadow:
+    0 9px 28px var(--set-glow),
+    inset 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.vaultCurrentActions .primaryButton:hover {
+  box-shadow:
+    0 12px 34px var(--set-glow),
+    inset 0 1px rgba(255, 255, 255, 0.22);
+}
+
 @media (min-width: 1101px) {
   .vaultCurrentActions .primaryButton,
   .vaultAllActions .primaryButton {

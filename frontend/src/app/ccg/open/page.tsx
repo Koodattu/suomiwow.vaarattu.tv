@@ -50,6 +50,7 @@ const dealOffsets = [
   "calc(-200% - var(--card-fan-gap) - var(--card-fan-gap))",
 ];
 const ALL_RAIDS = "all";
+const CUSTOM_SET_IDS_STORAGE_KEY = "ccg-pack-set-selection";
 const MOBILE_REVEAL_BREAKPOINT = "(max-width: 760px)";
 const DESKTOP_REVEAL_BREAKPOINT = "(min-width: 1251px)";
 const MOBILE_SUMMARY_DELAY_MS = 300;
@@ -200,7 +201,7 @@ export default function CcgOpenPage() {
   const featuredPackSet = selectedSet ?? currentSet;
   const selectorSet = selectedSet;
   const selectedPackSets = selectedSet ? [selectedSet] : raidSets.filter((set) => customSetIds === null || customSetIds.includes(set.id));
-  const hasCustomQualityRow = Boolean(selectedSet?.customFinish || selectedSet?.kind === "supporter");
+  const hasCustomQualityRow = Boolean(selectedSet?.kind === "raid" && selectedSet.customFinish);
   const qualityRows = useMemo(() => [
     ...protectedFinishes.map((finish) => ({
       key: finish,
@@ -209,10 +210,7 @@ export default function CcgOpenPage() {
       hardPity: CCG_FINISH_PITY_LIMITS[finish],
     })),
     ...[selectedSet].flatMap((set) => {
-      if (set?.kind === "supporter") return (session?.customQualityProtection ?? [])
-        .filter((row) => row.setSlug.startsWith("supporter-"))
-        .map((row) => ({ key: row.setSlug, finish: row.finish, counter: row.counter, hardPity: row.hardPity }));
-      if (!set?.customFinish) return [];
+      if (set?.kind !== "raid" || !set.customFinish) return [];
       const progress = session?.customQualityProtection?.find((row) => row.setSlug === set.slug);
       return [{
         key: `${set.slug}:${set.customFinish.key}`,
@@ -388,7 +386,18 @@ export default function CcgOpenPage() {
     const requestedSet = params.get("set");
     if (requestedSet) setSelectedSetId(requestedSet);
     const requestedSets = params.get("sets");
-    if (requestedSets) setCustomSetIds(requestedSets.split(",").filter((id) => /^[a-f\d]{24}$/i.test(id)));
+    if (requestedSets) {
+      setCustomSetIds(requestedSets.split(",").filter((id) => /^[a-f\d]{24}$/i.test(id)));
+    } else {
+      try {
+        const stored: unknown = JSON.parse(window.localStorage.getItem(CUSTOM_SET_IDS_STORAGE_KEY) ?? "null");
+        if (Array.isArray(stored) && stored.length > 0 && stored.every((id) => typeof id === "string" && /^[a-f\d]{24}$/i.test(id))) {
+          setCustomSetIds(stored);
+        }
+      } catch {
+        // Keep the default selection when saved preferences cannot be read.
+      }
+    }
     const requestedOpening = params.get("opening");
     if (requestedOpening && /^[a-f\d]{24}$/i.test(requestedOpening)) {
       setRecoveryId(requestedOpening);
@@ -1171,6 +1180,22 @@ export default function CcgOpenPage() {
 
                       <div className={packStyles.packSelectorBody}>
                         <div className={packStyles.modeChoices}>
+                          <div className={packStyles.allSetsToolbar}>
+                            <button
+                              type="button"
+                              className={packStyles.customizeSetsButton}
+                              disabled={mutation.isPending || raidSets.length === 0}
+                              onClick={() => {
+                                setPackSelectorOpen(false);
+                                setCustomizeSetsOpen(true);
+                              }}
+                            >
+                              {t("open.customizeSets")}
+                            </button>
+                            <span aria-live="polite">
+                              {t("open.selectedSets", { count: raidSets.filter((set) => customSetIds === null || customSetIds.includes(set.id)).length, total: raidSets.length })}
+                            </span>
+                          </div>
                           <button
                             type="button"
                             aria-pressed={selectedSetId === ALL_RAIDS}
@@ -1178,26 +1203,16 @@ export default function CcgOpenPage() {
                               setSelectedSetId(ALL_RAIDS);
                               closePackSelector();
                             }}
-                            className={`${packStyles.modeChoice} ${packStyles.allSetsChoice}`}
+                            className={packStyles.modeChoice}
                           >
                             <span className={packStyles.modeChoiceIcon}>
                               <ArchiveIcon />
                             </span>
                             <span className={packStyles.modeChoiceCopy}>
-                              <small>{customSetIds === null ? t("open.allRaidsEyebrow") : t("open.selectedSets", { count: raidSets.filter((set) => customSetIds.includes(set.id)).length, total: raidSets.length })}</small>
+                              <small>{t("open.allRaidsEyebrow")}</small>
                               <strong>{t("open.allRaids")}</strong>
                             </span>
-                          </button>
-                          <button
-                            type="button"
-                            className={packStyles.customizeSetsButton}
-                            disabled={mutation.isPending || raidSets.length === 0}
-                            onClick={() => {
-                              setPackSelectorOpen(false);
-                              setCustomizeSetsOpen(true);
-                            }}
-                          >
-                            {t("open.customizeSets")}
+                            <span className={packStyles.modeChoiceMark} aria-hidden="true" />
                           </button>
                         </div>
 
@@ -1704,6 +1719,11 @@ export default function CcgOpenPage() {
           onClose={() => setCustomizeSetsOpen(false)}
           onApply={(setIds) => {
             setCustomSetIds(setIds);
+            try {
+              window.localStorage.setItem(CUSTOM_SET_IDS_STORAGE_KEY, JSON.stringify(setIds));
+            } catch {
+              console.warn("Unable to save pack set preferences in this browser.");
+            }
             setSelectedSetId(ALL_RAIDS);
             setCustomizeSetsOpen(false);
             mutation.reset();

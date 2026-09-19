@@ -124,7 +124,8 @@ export default function CcgLandingPage() {
   const legacy = sets.filter((set) => set.kind === "raid" && set.state === "legacy").sort(newestRaidFirst);
   const recentPackSets = legacy.slice(0, 1);
   const community = sets.filter((set) => set.kind === "community");
-  const collectionSets = [...currentSets, ...legacy, ...community];
+  const supporter = sets.filter((set) => set.kind === "supporter");
+  const collectionSets = [...currentSets, ...legacy, ...community, ...supporter];
   const allCardCount = collectionSets.reduce((total, set) => total + set.cardCount, 0);
   const allOwnedCount = collectionSets.reduce((total, set) => total + set.ownedCards, 0);
   const allProgress = allCardCount > 0 ? Math.min(100, (allOwnedCount / allCardCount) * 100) : 0;
@@ -325,7 +326,7 @@ export default function CcgLandingPage() {
                   style={{
                     "--set-accent": set.theme.accent,
                     "--set-glow": set.theme.glow,
-                    backgroundImage: set.kind === "community" ? 'url("/ccg/general_alt_wide.png")' : `url("${set.backgroundPath}")`,
+                    backgroundImage: `url("${set.backgroundPath}")`,
                   } as CSSProperties}
                 >
                   <span className={styles.vaultLegacyShade} aria-hidden="true" />

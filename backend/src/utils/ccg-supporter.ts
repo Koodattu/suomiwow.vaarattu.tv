@@ -3,6 +3,7 @@ import { CLASSES } from "../config/classes";
 import { getHelsinkiDateKey } from "./helsinki-time";
 import { slugifySpecName } from "./spec";
 
+export const SUPPORTER_BASE_SLOTS = 2;
 export const SUPPORTER_DRAFT_LIMIT = 5;
 export const SUPPORTER_RENDER_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 export const SUPPORTER_CREATOR_FINISHES: CcgCustomFinish[] = [...new Set(CCG_CONFIGURED_SETS

@@ -10,7 +10,7 @@ import CcgOwnership from "../models/CcgOwnership";
 import CcgSupporterCreator from "../models/CcgSupporterCreator";
 import CcgSupporterCharacter from "../models/CcgSupporterCharacter";
 import CcgLeaderboardInvalidation from "../models/CcgLeaderboardInvalidation";
-import { CcgSupporterError, SUPPORTER_CREATOR_FINISHES, SUPPORTER_DRAFT_LIMIT, SUPPORTER_RENDER_COOLDOWN_MS,
+import { CcgSupporterError, SUPPORTER_BASE_SLOTS, SUPPORTER_CREATOR_FINISHES, SUPPORTER_DRAFT_LIMIT, SUPPORTER_RENDER_COOLDOWN_MS,
   supporterScores, validateSupporterDraft } from "../utils/ccg-supporter";
 import { createWowCharacterIdentityKey } from "../utils/ccg-identity";
 import { resolveCardCrop } from "../utils/ccg-random";
@@ -164,7 +164,7 @@ class CcgSupporterService {
     ]) : [];
     const ownedBySeries = new Map(owned.map((entry) => [`${entry._id.setId}:${entry._id.characterId}`, entry.quantity]));
     return { region: "eu", battlenetConnected: Boolean(user?.battlenet), twitchConnected: Boolean(user?.twitch), rosterError,
-      allowance: { earned: creator.earnedSlots, used: creator.usedSlots, available: creator.earnedSlots - creator.usedSlots,
+      allowance: { earned: SUPPORTER_BASE_SLOTS + creator.earnedSlots, used: creator.usedSlots, available: SUPPORTER_BASE_SLOTS + creator.earnedSlots - creator.usedSlots,
         drafts: creator.draftCount, draftLimit: SUPPORTER_DRAFT_LIMIT },
       status: { tracking: creator.trackingEnabled, following: creator.following, subscribed: creator.subscribed,
         checkedAt: creator.checkedAt, error: creator.checkError, nextCheckAt: creator.nextCheckAt,
@@ -348,7 +348,7 @@ class CcgSupporterService {
             await publisher.rebuildPool(card.setId, undefined, session);
           }
         } else {
-          const allowance = await CcgSupporterCreator.updateOne({ _id: current.creatorId, $expr: { $lt: ["$usedSlots", "$earnedSlots"] } },
+          const allowance = await CcgSupporterCreator.updateOne({ _id: current.creatorId, $expr: { $lt: ["$usedSlots", { $add: ["$earnedSlots", SUPPORTER_BASE_SLOTS] }] } },
             { $inc: { usedSlots: 1 } }, { session });
           if (!allowance.modifiedCount) throw new CcgSupporterError(409, "no_slots");
           const set = await CcgSet.findOneAndUpdate({ zoneId: CCG_SUPPORTER_SET.zoneId, kind: "supporter" },

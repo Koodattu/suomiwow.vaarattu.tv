@@ -80,6 +80,7 @@ function positiveInteger(value: string | undefined, fallback: number): number {
 }
 
 export const CCG_SUPPORTER_SET = { ...CCG_COMMUNITY_SET, zoneId: -2, slug: "supporter", raidName: "Supporter",
+  backgroundPath: "/ccg/general_alt_wide.png",
   themeKey: "supporter", mark: "SP", accent: "#B699FF", glow: "rgba(182, 153, 255, 0.36)" };
 export const CCG_SUPPORTER_LEADERBOARD_ENABLED = true;
 

@@ -119,6 +119,46 @@ test("concurrent observations credit each permanent and monthly grant exactly on
   assert.equal(await Grant.countDocuments(), 3);
 });
 
+test("baseline slots work without Twitch and cannot be replenished by reopening Studio", async () => {
+  await Creator.updateOne({ userId }, { $set: { earnedSlots: 0 } });
+  const initial = await studio.getState(String(userId));
+  assert.equal(initial.twitchConnected, false);
+  assert.deepEqual(initial.allowance, { earned: 2, used: 0, available: 2, drafts: 0, draftLimit: 5 });
+  await publish(1);
+  await publish(2);
+  const source = await draft(3);
+  await assert.rejects(studio.publish(String(userId), String(source._id), source.revision), { code: "no_slots" });
+  const exhausted = await studio.getState(String(userId));
+  assert.equal(exhausted.allowance.available, 0);
+  assert.equal(exhausted.allowance.used, 2);
+  assert.equal(await Card.countDocuments(), 2);
+  assert.equal(await Grant.countDocuments(), 0);
+});
+
+test("new and existing creators receive the baseline on top of permanent Twitch bonuses", async () => {
+  await User.updateOne({ _id: otherId }, { $unset: { battlenet: "" } });
+  const fresh = await studio.getState(String(otherId));
+  assert.equal(fresh.allowance.earned, 2);
+  assert.equal(fresh.allowance.available, 2);
+  await Creator.updateOne({ userId }, { $set: { usedSlots: 3 } });
+  const existing = await studio.getState(String(userId));
+  assert.equal(existing.allowance.earned, 6);
+  assert.equal(existing.allowance.available, 3);
+
+  const creator = await connect();
+  await Creator.updateOne({ userId }, { $set: { usedSlots: 0 } });
+  const observe = (following: boolean, subscribed: boolean, date: string) => status.observe(creator._id,
+    creator.connectionRevision, "channel", following, subscribed, subscribed ? "1000" : null, new Date(date));
+  await observe(true, false, "2026-09-16T12:00:00Z");
+  assert.equal((await studio.getState(String(userId))).allowance.available, 3);
+  await observe(true, true, "2026-09-17T12:00:00Z");
+  assert.equal((await studio.getState(String(userId))).allowance.available, 6);
+  await observe(true, true, "2026-10-17T12:00:00Z");
+  assert.equal((await studio.getState(String(userId))).allowance.available, 7);
+  await observe(false, false, "2026-11-17T12:00:00Z");
+  assert.equal((await studio.getState(String(userId))).allowance.available, 7);
+});
+
 test("disconnect fences in-flight checks, preserves allowance and rejects account transfer", async () => {
   const creator = await connect();
   await status.observe(creator._id, creator.connectionRevision, "channel", true, true, "1000", new Date("2026-09-16T12:00:00Z"));
@@ -242,7 +282,7 @@ test("five draft limit is enforced concurrently and discarding preserves render 
 
 test("ownership loss and unavailable slots prevent publication without partial writes", async () => {
   const source = await draft();
-  await Creator.updateOne({ userId }, { $set: { earnedSlots: 0 } });
+  await Creator.updateOne({ userId }, { $set: { earnedSlots: 0, usedSlots: 2 } });
   await assert.rejects(studio.publish(String(userId), String(source._id), source.revision), { code: "no_slots" });
   assert.equal(await Card.countDocuments(), 0);
   assert.equal((await Creator.findOne({ userId }))?.draftCount, 1);
@@ -303,11 +343,11 @@ test("persistent rate limits remain bounded under concurrency", async () => {
 
 test("last publication slot cannot be consumed twice by simultaneous different drafts", async () => {
   const first = await draft(1), second = await draft(2);
-  await Creator.updateOne({ userId }, { $set: { earnedSlots: 1 } });
+  await Creator.updateOne({ userId }, { $set: { earnedSlots: 0, usedSlots: 1 } });
   const results = await Promise.allSettled([first, second].map((source) => studio.publish(String(userId), String(source._id), source.revision)));
   assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
   assert.equal(await Card.countDocuments(), 1);
-  assert.equal((await Creator.findOne({ userId }))?.usedSlots, 1);
+  assert.equal((await Creator.findOne({ userId }))?.usedSlots, 2);
   assert.equal((await Creator.findOne({ userId }))?.draftCount, 1);
 });
 

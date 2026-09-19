@@ -244,6 +244,8 @@ export default function CcgCollectionPage() {
   const setsQuery = useCcgSets();
   const sets = useMemo(
     () => [...(setsQuery.data?.sets ?? [])].sort((a, b) => {
+      if (a.kind === "supporter") return b.kind === "supporter" ? 0 : 1;
+      if (b.kind === "supporter") return -1;
       if (a.kind === "community") return b.kind === "community" ? 0 : 1;
       if (b.kind === "community") return -1;
       return b.zoneId - a.zoneId;
@@ -1088,7 +1090,7 @@ export default function CcgCollectionPage() {
                   className={styles.collectionSet}
                   style={{
                     "--set-accent": set.theme.accent,
-                    backgroundImage: `linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("${set.kind === "community" ? "/ccg/general_alt_wide.png" : set.backgroundPath}")`,
+                    backgroundImage: `linear-gradient(90deg, rgba(2,6,15,.9), rgba(2,6,15,.54)), url("${set.backgroundPath}")`,
                   } as CSSProperties}
                 >
                   <span className={styles.collectionSetTitle}>{set.raidName}</span>

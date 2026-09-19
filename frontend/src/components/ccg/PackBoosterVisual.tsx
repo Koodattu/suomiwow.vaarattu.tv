@@ -113,7 +113,7 @@ export function getPackTheme(
     "--pack-title-color": title,
     "--pack-brand-color": brand,
     "--pack-stage-art": combinedPool ? 'url("/ccg/general_wide.webp")' : set ? `url("${set.backgroundPath}")` : "none",
-    "--pack-art": combinedPool ? 'url("/ccg/general_tall.webp")' : set ? `url("${set.backgroundPath}")` : "none",
+    "--pack-art": combinedPool ? 'url("/ccg/general_tall.webp")' : set?.slug === "supporter" ? 'url("/ccg/general_alt_tall.png")' : set ? `url("${set.backgroundPath}")` : "none",
     "--pack-art-size": combinedPool ? "cover" : "auto 100%",
     "--pack-art-position-x": `${combinedPool ? 50 : (set?.packArtOffsetX ?? 50)}%`,
     "--pack-logo-fill": combinedPool
