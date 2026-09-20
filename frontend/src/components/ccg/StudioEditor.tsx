@@ -10,6 +10,7 @@ import { formatSpecName, getClassInfoById } from "@/lib/utils";
 import type { CcgCustomFinish, CcgTierGrade } from "@/types";
 import type { StudioCreation, StudioDraft, StudioState } from "@/types/ccg-studio";
 import CollectibleCard from "./CollectibleCard";
+import SupporterMediaUploader from "./SupporterMediaUploader";
 import type { StudioFeedback } from "./StudioAccounts";
 import styles from "./studio.module.css";
 import cardStyles from "./ccg.module.css";
@@ -28,24 +29,39 @@ export default function StudioEditor({ source, data, pending, action, run, onDir
   }, [confirm]);
   const [now, setNow] = useState(Date.now);
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
-  const original: StudioDraft = source.draft ?? { specName: source.preview!.specName, role: source.preview!.role,
+  const initialBackground = data.backgrounds.find((entry) => entry.path === (source.preview?.backgroundPath ?? source.preview?.set.backgroundPath)) ?? data.backgrounds[0];
+  const original: StudioDraft = { backgroundId: initialBackground.id, backgroundOffsetX: source.preview?.backgroundCrop.x ?? initialBackground.crop.x,
+    ...(source.draft ?? { specName: source.preview!.specName, role: source.preview!.role,
     tierGrade: source.tierGrade!, creatorFinish: source.creatorFinish!, performance: source.preview!.scores.performance,
-    mechanics: source.preview!.scores.mechanics, mythicPlus: source.preview!.scores.mythicPlus };
+    mechanics: source.preview!.scores.mechanics, mythicPlus: source.preview!.scores.mythicPlus }) };
   const [form, setForm] = useState<StudioDraft>(original);
+  const [revision, setRevision] = useState(source.revision);
+  if (revision !== source.revision) {
+    setRevision(source.revision);
+    setForm(original);
+    setConfirm(false);
+  }
+  const [alternativePreview, setAlternativePreview] = useState<string | null>(null);
+  const [hasLocalFiles, setHasLocalFiles] = useState(false);
   const dirty = JSON.stringify(form) !== JSON.stringify(original);
+  const unsaved = dirty || hasLocalFiles;
   useEffect(() => {
-    onDirty(dirty);
-    const preventLoss = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ""; } };
+    onDirty(unsaved);
+    const preventLoss = (event: BeforeUnloadEvent) => { if (unsaved) { event.preventDefault(); event.returnValue = ""; } };
     window.addEventListener("beforeunload", preventLoss);
-    return () => window.removeEventListener("beforeunload", preventLoss);
-  }, [dirty, onDirty]);
+    return () => { window.removeEventListener("beforeunload", preventLoss); onDirty(false); };
+  }, [unsaved, onDirty]);
   const owned = data.characters.some((character) => character.id === source.characterId && character.realmId === source.realmId);
   const disabled = pending || !owned || source.editsFrozen;
   const valid = (["performance", "mechanics", "mythicPlus"] as const).every((key) => form[key] === null || (Number.isFinite(form[key]) && form[key]! >= 0 && form[key]! <= (key === "mythicPlus" ? 100000 : 100)));
   const path = `drafts/${source.id}`;
   const specs = data.classes.find((entry) => entry.id === source.classID)?.specs ?? [];
   const combined = form.performance === null || form.mechanics === null ? null : Math.round((form.performance + form.mechanics) * 5) / 10;
+  const background = data.backgrounds.find((entry) => entry.id === form.backgroundId) ?? initialBackground;
   const preview = source.preview ? { ...source.preview, tierGrade: form.tierGrade, specName: form.specName, role: form.role,
+    backgroundPath: background.path, backgroundCrop: { ...background.crop, x: form.backgroundOffsetX ?? background.crop.x },
+    alternativeArt: alternativePreview ? { characterArtPath: alternativePreview, characterArtFilename: null, characterArtEnabled: true,
+      backgroundArtPath: null, backgroundArtFilename: null, backgroundArtEnabled: false } : null,
     metric: form.role === "healer" ? "hps" as const : "dps" as const,
     scores: { performance: form.performance, mechanics: form.mechanics, combined, mythicPlus: form.mythicPlus } } : null;
   const date = (value: string) => new Date(value).toLocaleString(locale);
@@ -56,7 +72,7 @@ export default function StudioEditor({ source, data, pending, action, run, onDir
 
   return <section className={styles.editor} aria-label={t("studio.editor")} aria-busy={pending} style={{ "--class-color": CCG_CLASS_COLORS[source.classID] ?? "#c4cddd" } as CSSProperties}>
     <div className={styles.preview}>
-      {preview && <div className={styles.previewCard}><CollectibleCard card={preview} finish={form.creatorFinish} compact className={cardStyles.scaledCardTypography} /></div>}
+      {preview && <div className={styles.previewCard}><CollectibleCard card={preview} finish={form.creatorFinish} artVariant={alternativePreview ? "alternative" : "standard"} compact className={cardStyles.scaledCardTypography} /></div>}
       <span className={styles.previewLabel}>{t("studio.livePreview")}</span>
       {source.draft && <div className={styles.renderFeedback}>
         {source.renderError && <p className={styles.inlineError} role="status">{t("studio.appearanceFailed")}</p>}
@@ -83,9 +99,16 @@ export default function StudioEditor({ source, data, pending, action, run, onDir
           <label>{t("studio.finish")}<select value={form.creatorFinish} disabled={Boolean(source.cardId)} onChange={(event) => {
             setForm((previous) => ({ ...previous, creatorFinish: event.target.value as CcgCustomFinish })); setConfirm(false);
           }}>{data.finishes.map((finish) => <option key={finish} value={finish}>{t(`finish.${finish}`)}</option>)}</select></label>
+          <label>{t("studio.background")}<select value={form.backgroundId} onChange={(event) => {
+            const selected = data.backgrounds.find((entry) => entry.id === event.target.value)!;
+            setForm((previous) => ({ ...previous, backgroundId: selected.id, backgroundOffsetX: selected.crop.x })); setConfirm(false);
+          }}>{data.backgrounds.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}</select></label>
+          <label>{t("studio.backgroundOffset")}<input type="range" min={0} max={100} step={1} value={form.backgroundOffsetX ?? background.crop.x} onChange={(event) => {
+            setForm((previous) => ({ ...previous, backgroundOffsetX: Number(event.target.value) })); setConfirm(false);
+          }} /></label>
         </div>
         {source.cardId && <p className={styles.hint}>{t("studio.locked")}</p>}
-        <div className={styles.sectionHeading}><h3>{t("studio.scores")}</h3><button type="button" className={styles.textButton} onClick={() => { setForm((previous) => ({ ...previous, performance: Math.floor(Math.random() * 101), mechanics: Math.floor(Math.random() * 101) })); setConfirm(false); }}>{t("studio.randomize")}</button></div>
+        <div className={styles.sectionHeading}><h3>{t("studio.scores")}</h3><button type="button" className={styles.textButton} onClick={() => { setForm((previous) => ({ ...previous, performance: Math.floor(Math.random() * 101), mechanics: Math.floor(Math.random() * 101), mythicPlus: Math.floor(Math.random() * 4001) })); setConfirm(false); }}>{t("studio.randomize")}</button></div>
         <div className={styles.scoreFields}>
           {(["performance", "mechanics", "mythicPlus"] as const).map((key) => <label key={key}>{t(`studio.${key}`)}
             <input type="number" min={0} max={key === "mythicPlus" ? 100000 : 100} step="0.1" value={form[key] ?? ""}
@@ -93,7 +116,6 @@ export default function StudioEditor({ source, data, pending, action, run, onDir
           </label>)}
           <label>{t("studio.combined")}<output>{combined ?? "—"}</output></label>
         </div>
-        <p className={styles.hint}>{t("studio.manualScores")}</p>
       </fieldset>
       {!valid && <p className={styles.inlineError} role="alert">{t("studio.errors.invalid_scores")}</p>}
       <div className={styles.saveBar}><span className={styles.hint} role="status">{t(dirty ? "studio.unsavedShort" : source.draft ? "studio.savedDraft" : "studio.published")}</span>
@@ -117,6 +139,7 @@ export default function StudioEditor({ source, data, pending, action, run, onDir
       </>}
       {feedback?.path === `${path}/publish` && <p role={feedback.error ? "alert" : "status"} className={feedback.error ? styles.inlineError : styles.success}>{feedback.message}</p>}
     </div>
+    <SupporterMediaUploader source={source} media={data.media ?? []} disabled={disabled} onPreview={setAlternativePreview} onSelectionChange={setHasLocalFiles} />
   </section>;
 }
 

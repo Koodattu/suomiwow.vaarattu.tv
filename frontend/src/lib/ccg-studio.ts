@@ -37,7 +37,7 @@ export function getStudioSlots(data: StudioState, placements: Record<string, str
       }
     }
   }
-  return slots;
+  return slots.sort((a, b) => Number(Boolean(a.unlock)) - Number(Boolean(b.unlock)));
 }
 
 export function getStudioRaidCards(characters: StudioState["characters"]) {

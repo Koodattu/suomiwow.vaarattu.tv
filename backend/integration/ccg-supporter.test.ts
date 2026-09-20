@@ -15,6 +15,7 @@ import os from "node:os";
 import Media from "../src/models/CcgSupporterMedia";
 import AlternativeArt from "../src/models/CcgAlternativeArt";
 import mediaService from "../src/services/ccg-supporter-media.service";
+import artReview, { SupporterArtReview } from "../src/services/ccg-supporter-art-review.service";
 import ccgRouter from "../src/routes/ccg";
 import { resolveAlternativeArtKey } from "../src/utils/ccg-alternative-art";
 import User from "../src/models/User";
@@ -56,6 +57,8 @@ const chars = Array.from({ length: 7 }, (_, i) => ({ id: i + 1, realmId: 10, nam
   realmSlug: "stormreaver", class: "Mage", race: "Human", level: 10, faction: "ALLIANCE" as const, selected: false }));
 
 before(async () => {
+  mock.method(artReview, "review", async (): Promise<SupporterArtReview> => ({ decision: "error", safetyConfidence: null, reason: "review_unavailable",
+    model: "gpt-5.6-luna", policyVersion: "supporter-art-v1", responseId: null, autoApproved: false, reviewedAt: new Date() }));
   await mongoose.connect(`mongodb://127.0.0.1:27139/${database}?directConnection=true`, { serverSelectionTimeoutMS: 5000 });
   for (const model of Object.values(mongoose.models)) await model.init();
   mock.method(blizzard, "getCharacterProfile", async (name: string) => ({ id: Number(name.replace("Mage", "")), name,
@@ -201,7 +204,7 @@ test("publication is idempotent and later edits update one card without changing
   assert.equal((await Ownership.findOne({ cardId: current.cardId }))?.quantity, 1);
   assert.equal((await Ownership.findOne({ cardId: current.cardId }))?.finish, current.creatorFinish);
   await assert.rejects(studio.save(String(userId), String(current._id), { ...source.toObject().draft, revision: current.revision, tierGrade: "F" }), { code: "rarity_locked" });
-  await studio.save(String(userId), String(current._id), { ...source.toObject().draft, revision: current.revision, performance: 80, mechanics: 60 });
+  await studio.save(String(userId), String(current._id), { ...source.toObject().draft, revision: current.revision, performance: 80, mechanics: 60, backgroundId: "highmaul", backgroundOffsetX: 83 });
   current = await Source.findById(source._id).orFail();
   await assert.rejects(studio.publish(String(userId), String(current._id), current.revision), { code: "edit_cooldown" });
   await Source.updateOne({ _id: current._id }, { $set: { nextEditAt: new Date(0) } });
@@ -209,6 +212,10 @@ test("publication is idempotent and later edits update one card without changing
   const card = await Card.findById(current.cardId).orFail();
   assert.equal(card.communityScores?.combined, 70);
   assert.equal(card.snapshotVersion, 1);
+  assert.equal(card.backgroundPath, "/ccg/highmaul.png");
+  assert.equal(card.backgroundCrop.x, 83);
+  const serialized = ccg.serializeCard(card, await SetModel.findById(card.setId).orFail());
+  assert.equal(serialized.backgroundPath, "/ccg/highmaul.png");
   assert.equal(await Card.countDocuments(), 1);
   assert.equal((await Creator.findOne({ userId }))?.draftCount, 0);
 });
@@ -434,6 +441,39 @@ async function uploadImage(sourceId: mongoose.Types.ObjectId, red = 100) {
   return Media.findOne({ sourceId, kind: "image", status: "pending" }).orFail();
 }
 
+test("AI approval is audited, replaces approved art and can be revoked by an admin", async (t) => {
+  const source = await publish();
+  const first = await uploadImage(source._id);
+  await mediaService.review(String(first._id), String(otherId), "approve", "");
+  t.mock.method(artReview, "review", async (): Promise<SupporterArtReview> => ({ decision: "safe", safetyConfidence: 99, reason: "Fantasy character.",
+    model: "gpt-5.6-luna", policyVersion: "supporter-art-v1", responseId: "test-response", autoApproved: true, reviewedAt: new Date() }));
+  const image = await sharp({ create: { width: 30, height: 40, channels: 4, background: { r: 150, g: 20, b: 30, alpha: 0.5 } } }).png().toBuffer();
+  await studio.submitMedia(String(userId), String(source._id), "image", image);
+  const approved = await Media.findOne({ sourceId: source._id, status: "approved" }).orFail();
+  assert.equal(approved.aiReview?.autoApproved, true);
+  assert.equal(approved.reviewedBy, null);
+  assert.equal((await Media.findById(first._id))?.status, "superseded");
+  assert.equal(await Card.countDocuments(), 1);
+  const queue = await mediaService.list([source._id], true);
+  assert.equal(queue.find((row) => row.id === String(approved._id))?.aiReview?.safetyConfidence, 99);
+  assert.ok((await mediaService.list([source._id])).every((row) => !row.aiReview), "AI details are admin-only");
+  await mediaService.review(String(approved._id), String(otherId), "revoke", "Needs a different image.");
+  assert.equal((await Media.findById(approved._id))?.status, "rejected");
+});
+
+test("uncertain, rejected and failed AI reviews all stay pending", async (t) => {
+  const source = await publish();
+  for (const decision of ["review", "reject", "error"] as const) {
+    const review = t.mock.method(artReview, "review", async (): Promise<SupporterArtReview> => ({ decision, safetyConfidence: decision === "error" ? null : 40,
+      reason: "Needs admin review.", model: "gpt-5.6-luna", policyVersion: "supporter-art-v1", responseId: null, autoApproved: false, reviewedAt: new Date() }));
+    const row = await uploadImage(source._id);
+    assert.equal(row.status, "pending");
+    assert.equal(row.aiReview?.decision, decision);
+    await studio.withdrawMedia(String(userId), String(row._id));
+    review.mock.restore();
+  }
+});
+
 test("pending media is private, card stays public, approval unlocks only that Supporter card", async () => {
   const source = await publish(1, "phaseglass");
   const card = await Card.findById(source.cardId).orFail();
@@ -541,6 +581,7 @@ test("media upload requires publication and ownership; cleanup never removes app
 });
 
 test("audio submission is reviewed independently and approved media rolls through real Supporter packs", async (t) => {
+  const ai = t.mock.method(artReview, "review", artReview.review);
   const source = await publish(1, "phaseglass");
   const card = await Card.findById(source.cardId).orFail();
   const wav = Buffer.alloc(44 + 32000);
@@ -553,6 +594,8 @@ test("audio submission is reviewed independently and approved media rolls throug
   }, body: wav });
   assert.equal(response.status, 200, await response.text());
   const audio = await Media.findOne({ sourceId: source._id, kind: "audio", status: "pending" }).orFail();
+  assert.equal(ai.mock.callCount(), 0, "Audio never goes through AI review");
+  assert.equal(audio.aiReview, null);
   const image = await uploadImage(source._id);
   await mediaService.review(String(audio._id), String(otherId), "approve", "");
   const definition = (await (ccg as any).loadAlternativeArt([card])).get(resolveAlternativeArtKey(card));

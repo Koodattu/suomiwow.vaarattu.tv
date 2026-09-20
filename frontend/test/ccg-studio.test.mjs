@@ -31,11 +31,14 @@ test("a subscriber who never followed keeps the follower opportunity locked", ()
   assert.equal(slots.length, 6);
   assert.equal(slots.find((slot) => slot.id === "follower").unlock, "follower");
   assert.equal(slots.filter((slot) => !slot.unlock).length, 5);
+  assert.equal(slots.at(-1).id, "follower");
 });
 
 test("aggregate banked capacity is preserved even without historical grant rows", () => {
   const slots = getStudioSlots(state({ allowance: { earned: 7, used: 0, available: 7 } }));
   assert.equal(slots.filter((slot) => !slot.unlock).length, 7);
+  assert.ok(slots.slice(0, 7).every((slot) => !slot.unlock));
+  assert.ok(slots.slice(7).every((slot) => slot.unlock));
 });
 
 test("a draft created in the second slot stays selected there through publication", () => {

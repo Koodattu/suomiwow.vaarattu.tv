@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getCcgPackFinishOrder, getCcgRedeemFinishOrder, CCG_BASE_FINISH_ORDER } from "../src/config/ccg";
-import { supporterMonth, supporterScores, supporterGrants, validateSupporterDraft, SUPPORTER_CREATOR_FINISHES } from "../src/utils/ccg-supporter";
+import { supporterMonth, supporterScores, supporterGrants, validateSupporterDraft, SUPPORTER_CREATOR_FINISHES, SUPPORTER_BACKGROUNDS } from "../src/utils/ccg-supporter";
 
 test("Supporter allowance uses Helsinki calendar months, including DST boundaries", () => {
   assert.equal(supporterMonth(new Date("2026-09-30T20:59:59Z")), "2026-09");
@@ -36,4 +36,20 @@ test("Supporter pack and redeem finishes contain only the bases and the card's c
   assert.deepEqual(getCcgRedeemFinishOrder("supporter", "phaseglass"), expected);
   assert.deepEqual(getCcgPackFinishOrder("supporter"), CCG_BASE_FINISH_ORDER);
   assert.ok(!getCcgPackFinishOrder("supporter", "phaseglass").includes("relic"));
+});
+
+test("supporter backgrounds include raid, community and supporter art with bounded offsets", () => {
+  const input = { specName: "Fire", tierGrade: "H", creatorFinish: SUPPORTER_CREATOR_FINISHES[0] };
+  assert.ok(SUPPORTER_BACKGROUNDS.some((entry) => entry.id === "community"));
+  assert.ok(SUPPORTER_BACKGROUNDS.some((entry) => entry.id === "supporter"));
+  assert.ok(SUPPORTER_BACKGROUNDS.some((entry) => entry.id === "highmaul"));
+  for (const background of SUPPORTER_BACKGROUNDS) {
+    for (const x of [0, 50, 100]) assert.equal(validateSupporterDraft(4, { ...input, backgroundId: background.id, backgroundOffsetX: x }).backgroundOffsetX, x);
+  }
+  for (const backgroundId of ["missing", "https://example.com/art.png", null]) {
+    assert.throws(() => validateSupporterDraft(4, { ...input, backgroundId }), { code: "invalid_background" });
+  }
+  for (const backgroundOffsetX of [-1, 101, NaN, Infinity, "50", null]) {
+    assert.throws(() => validateSupporterDraft(4, { ...input, backgroundOffsetX }), { code: "invalid_background" });
+  }
 });

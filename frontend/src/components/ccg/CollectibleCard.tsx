@@ -237,7 +237,7 @@ function CollectibleCard({
     : card.renderUrl;
   const backgroundPath = alternativeActive && card.set.kind === "community" && card.alternativeArt?.backgroundArtPath
     ? card.alternativeArt.backgroundArtPath
-    : card.set.backgroundPath;
+    : card.backgroundPath ?? card.set.backgroundPath;
   const renderIsVideo = isWebmArtwork(renderUrl);
   const backgroundIsVideo = isWebmArtwork(backgroundPath);
   const readyKey = `${card.id}:${artVariant}:${renderUrl ?? ""}:${classInfo.iconUrl ?? ""}:${specIcon ?? ""}`;

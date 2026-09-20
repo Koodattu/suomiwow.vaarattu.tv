@@ -59,7 +59,7 @@ router.delete("/media/:id", route((userId, _body, id) => studio.withdrawMedia(us
 router.get("/media-review", requireAdmin, route(async () => {
   const ids = await Media.distinct("sourceId", { status: { $in: ["pending", "approved"] }, purgedAt: null });
   const sources = await CcgSupporterCharacter.find({ _id: { $in: ids } }).select("_id name realm cardId").lean();
-  return { submissions: await media.list(sources.map((source) => source._id)), sources };
+  return { submissions: await media.list(sources.map((source) => source._id), true), sources };
 }));
 router.post("/media-review/:id", requireAdmin, route((userId, body, id) => media.review(id, userId, body.action, body.reason)));
 

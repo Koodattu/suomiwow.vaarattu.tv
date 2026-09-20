@@ -564,8 +564,6 @@ export default function CardViewer({
             ) : null}
           </div>
           <h2>{displayedCard.name}</h2>
-          {displayedCard.set.kind === "supporter" && <p className={styles.viewerIdentity}>{t("studio.manualScores")}</p>}
-          {displayedCard.set.kind === "supporter" && displayedCard.creatorFinish && <p className={styles.viewerIdentity}>{t("studio.cardFinish", { finish: t(`finish.${displayedCard.creatorFinish}`) })}</p>}
           {displayedCard.guildName ? <p className={styles.viewerIdentity}>{`<${displayedCard.guildName}>`}</p> : null}
 
           {displayedCard.quip ? (

@@ -7,6 +7,8 @@ const DraftSchema = new Schema({
   role: { type: String, enum: ["dps", "healer", "tank"], required: true },
   tierGrade: { type: String, enum: CCG_TIER_GRADES, required: true },
   creatorFinish: { type: String, enum: CCG_CUSTOM_FINISHES, required: true },
+  backgroundId: String,
+  backgroundOffsetX: { type: Number, min: 0, max: 100 },
   performance: { type: Number, min: 0, max: 100, default: null },
   mechanics: { type: Number, min: 0, max: 100, default: null },
   mythicPlus: { type: Number, min: 0, max: 100_000, default: null },

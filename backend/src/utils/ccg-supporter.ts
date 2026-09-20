@@ -1,4 +1,4 @@
-import { CCG_CONFIGURED_SETS, CCG_TIER_GRADES, CcgCustomFinish, CcgTierGrade } from "../config/ccg";
+import { CCG_COMMUNITY_SET, CCG_SUPPORTER_SET, CCG_CONFIGURED_SETS, CCG_TIER_GRADES, CcgCustomFinish, CcgTierGrade } from "../config/ccg";
 import { CLASSES } from "../config/classes";
 import { getHelsinkiDateKey } from "./helsinki-time";
 import { slugifySpecName } from "./spec";
@@ -6,6 +6,8 @@ import { slugifySpecName } from "./spec";
 export const SUPPORTER_BASE_SLOTS = 2;
 export const SUPPORTER_DRAFT_LIMIT = 5;
 export const SUPPORTER_RENDER_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+export const SUPPORTER_BACKGROUNDS = [CCG_SUPPORTER_SET, CCG_COMMUNITY_SET, ...CCG_CONFIGURED_SETS.filter((set) => set.state !== "locked")]
+  .map((set) => ({ id: set.slug, name: set.raidName, path: set.backgroundPath, crop: { x: set.crop.x, y: set.crop.y, scale: set.crop.scale } }));
 export const SUPPORTER_CREATOR_FINISHES: CcgCustomFinish[] = [...new Set(CCG_CONFIGURED_SETS
   .filter((set) => set.state !== "locked")
   .flatMap((set) => set.customFinish && set.customFinish.key !== "worldcore" ? [set.customFinish.key] : []))];
@@ -56,7 +58,14 @@ export function validateSupporterDraft(classID: number, input: Record<string, un
   if (!CCG_TIER_GRADES.includes(input.tierGrade as CcgTierGrade)) throw new CcgSupporterError(400, "invalid_rarity");
   if (!SUPPORTER_CREATOR_FINISHES.includes(input.creatorFinish as CcgCustomFinish)) throw new CcgSupporterError(400, "invalid_finish");
   const scores = supporterScores(input);
+  if (input.backgroundId !== undefined && !SUPPORTER_BACKGROUNDS.some((background) => background.id === input.backgroundId)) {
+    throw new CcgSupporterError(400, "invalid_background");
+  }
+  if (input.backgroundOffsetX !== undefined && (typeof input.backgroundOffsetX !== "number" || !Number.isFinite(input.backgroundOffsetX)
+    || input.backgroundOffsetX < 0 || input.backgroundOffsetX > 100)) throw new CcgSupporterError(400, "invalid_background");
   return { specName: spec.name, role: spec.role, tierGrade: input.tierGrade as CcgTierGrade,
     creatorFinish: input.creatorFinish as CcgCustomFinish,
+    ...(input.backgroundId !== undefined ? { backgroundId: input.backgroundId as string } : {}),
+    ...(input.backgroundOffsetX !== undefined ? { backgroundOffsetX: input.backgroundOffsetX as number } : {}),
     performance: scores.performance, mechanics: scores.mechanics, mythicPlus: scores.mythicPlus };
 }

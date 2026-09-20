@@ -11,6 +11,8 @@ import { CcgSupporterError } from "../utils/ccg-supporter";
 import { resolveCharacterRenderStoragePath } from "./character-render-storage.service";
 import cache from "./cache.service";
 import AsyncSemaphore from "../utils/async-semaphore";
+import artReview, { SupporterArtReview } from "./ccg-supporter-art-review.service";
+import logger from "../utils/logger";
 
 const execute = promisify(execFile);
 export const SUPPORTER_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -97,7 +99,20 @@ class SupporterMediaService {
     }
   }
 
-  async review(id: string, reviewer: string, action: unknown, reason: unknown) {
+  async autoReview(id: string) {
+    const row = await Media.findOne({ _id: id, kind: "image", status: "pending", aiReview: null, purgedAt: null }).lean();
+    if (!row?.storageKey) return;
+    try {
+      const result = await artReview.review(await readFile(resolveCharacterRenderStoragePath(row.storageKey)));
+      if (result.autoApproved) await this.review(id, null, "approve", undefined, result);
+      else await Media.updateOne({ _id: id, status: "pending", aiReview: null }, { $set: { aiReview: result } });
+    } catch {
+      // The durable pending submission remains available if approval races with an admin or storage fails.
+      logger.warn("[CCG/Studio] Automatic art review could not be applied", { submissionId: id });
+    }
+  }
+
+  async review(id: string, reviewer: string | null, action: unknown, reason: unknown, aiReview?: SupporterArtReview) {
     if (!mongoose.Types.ObjectId.isValid(id) || !["approve", "reject", "revoke"].includes(String(action))) throw new CcgSupporterError(400, "invalid_media");
     if (reason !== undefined && (typeof reason !== "string" || reason.trim().length > 500)) throw new CcgSupporterError(400, "invalid_media");
     if (action !== "approve" && !String(reason ?? "").trim()) throw new CcgSupporterError(400, "media_reason_required");
@@ -106,6 +121,7 @@ class SupporterMediaService {
       await session.withTransaction(async () => {
         const row = await Media.findById(id).session(session);
         if (!row || row.status !== (action === "revoke" ? "approved" : "pending")) throw new CcgSupporterError(409, "media_changed");
+        if (!reviewer && (!aiReview?.autoApproved || row.kind !== "image" || row.aiReview || action !== "approve")) throw new CcgSupporterError(409, "media_changed");
         if (action === "approve") {
           const file = row.storageKey ? await stat(resolveCharacterRenderStoragePath(row.storageKey)).catch(() => null) : null;
           if (!file || file.size !== row.byteLength) throw new CcgSupporterError(409, "invalid_media");
@@ -116,7 +132,8 @@ class SupporterMediaService {
           { $set: { status: "superseded", purgeAfter: new Date(Date.now() + 30 * DAY) } }, { session });
         row.status = action === "approve" ? "approved" : "rejected";
         row.reason = action === "approve" ? null : String(reason).trim();
-        row.reviewedBy = new mongoose.Types.ObjectId(reviewer); row.reviewedAt = new Date();
+        row.reviewedBy = reviewer ? new mongoose.Types.ObjectId(reviewer) : null; row.reviewedAt = new Date();
+        if (aiReview) row.set("aiReview", aiReview);
         row.purgeAfter = action === "approve" ? null : new Date(Date.now() + 30 * DAY);
         await row.save({ session });
       });
@@ -125,11 +142,11 @@ class SupporterMediaService {
     return { ok: true };
   }
 
-  async list(sourceIds: mongoose.Types.ObjectId[]) {
+  async list(sourceIds: mongoose.Types.ObjectId[], includeReview = false) {
     const rows = await Media.find({ sourceId: { $in: sourceIds }, purgedAt: null }).sort({ createdAt: -1 }).lean();
     return rows.map((row) => ({ id: String(row._id), sourceId: String(row.sourceId), kind: row.kind, status: row.status,
       url: row.contentType ? supporterMediaUrl(row._id) : null, reason: row.reason, width: row.width, height: row.height,
-      duration: row.duration, createdAt: row.createdAt }));
+      duration: row.duration, createdAt: row.createdAt, ...(includeReview ? { aiReview: row.aiReview ?? null } : {}) }));
   }
 
   async cleanup() {

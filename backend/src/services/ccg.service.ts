@@ -5372,6 +5372,7 @@ class CcgService {
       alternativeArt: serializeAlternativeArt(alternativeArt),
       quip: serializeQuip(alternativeArt),
       backgroundCrop: card.backgroundCrop,
+      backgroundPath: set.kind === "supporter" ? card.backgroundPath ?? null : null,
       performanceSnapshotAt: card.performanceSnapshotAt,
       mediaCapturedAt: card.mediaCapturedAt ?? null,
       publicationWave: card.publicationWave,

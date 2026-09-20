@@ -15,6 +15,11 @@ function Review({ media }: { media: SupporterMedia }) {
     onSuccess: () => client.invalidateQueries({ queryKey: ["ccg"] }) });
   return <div className="space-y-3">
     <p>{t(media.kind)} · {t(`status.${media.status}`)}</p><SupporterMediaPreview media={media} />
+    {media.aiReview && <div className="rounded border border-gray-700 p-3 text-sm">
+      <p>{t(media.aiReview.autoApproved ? "aiApproved" : "aiReviewed")} · {media.aiReview.model}</p>
+      {media.aiReview.safetyConfidence !== null && <p>{t("aiConfidence", { score: media.aiReview.safetyConfidence })}</p>}
+      <p>{media.aiReview.decision === "error" ? t("aiUnavailable") : media.aiReview.reason}</p>
+    </div>}
     <label className="block">{t("reason")}<textarea maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} className="mt-1 block w-full rounded bg-gray-950 p-2" /></label>
     <div className="flex gap-3">
       {media.status === "pending" && <button disabled={mutation.isPending} onClick={() => mutation.mutate("approve")} className="rounded bg-green-800 px-4 py-2 disabled:opacity-50">{t("approve")}</button>}

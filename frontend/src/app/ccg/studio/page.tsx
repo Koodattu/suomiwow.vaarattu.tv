@@ -18,7 +18,6 @@ import StudioEditor from "@/components/ccg/StudioEditor";
 import StudioAccounts from "@/components/ccg/StudioAccounts";
 import type { StudioAccountPanel, StudioFeedback } from "@/components/ccg/StudioAccounts";
 import StudioRaidGallery from "@/components/ccg/StudioRaidGallery";
-import SupporterMediaUploader from "@/components/ccg/SupporterMediaUploader";
 import styles from "@/components/ccg/studio.module.css";
 import cardStyles from "@/components/ccg/ccg.module.css";
 
@@ -86,7 +85,6 @@ export default function StudioPage() {
     try {
       const next = await mutation.mutateAsync({ path, body, method });
       client.setQueryData(key, next);
-      if (path.startsWith("drafts")) dirtyRef.current = false;
       const message = method === "DELETE" ? "discarded" : path.endsWith("/publish") ? selection?.cardId ? "applied" : "published"
         : path.endsWith("/render") ? "appearanceRefreshed" : path === "status" ? "statusChecked" : path === "roster" ? "rosterRefreshed" : "saved";
       setFeedback({ path, message: t(`studio.feedback.${message}`) });
@@ -135,29 +133,29 @@ export default function StudioPage() {
 
   return <CcgShell><div className={styles.studio}>
     <header className={styles.heading}>
-      <div><span className={styles.eyebrow}>{t("studio.eyebrow")}</span><h1>{t("studio.title")}</h1></div>
+      <h1>{t("studio.title")}</h1>
+      {data && <small className={styles.slotCount}>{t("studio.slots", { available: data.allowance.available, earned: data.allowance.earned })}</small>}
       {data && <div className={styles.accountLinks}>
         {(["battlenet", "twitch", "rules"] as const).map((panel) => <button key={panel} aria-expanded={accounts === panel} aria-controls="studio-accounts" onClick={() => setAccounts(accounts === panel ? null : panel)}>
           {panel === "twitch" && <FaTwitch aria-hidden="true" />}{panel === "rules" ? t("studio.slotRules") : panel === "battlenet" ? "Battle.net" : "Twitch"}
           {panel === "rules" ? <FaChevronDown aria-hidden="true" /> : <><span className={styles.connectionDot} data-connected={panel === "battlenet" ? data.battlenetConnected && !data.rosterError : data.twitchConnected && !data.status.error} /><span className={styles.srOnly}>{t(panel === "battlenet" ? data.rosterError ? "studio.needsAttention" : data.battlenetConnected ? "studio.connected" : "studio.notConnected" : data.status.error ? "studio.needsAttention" : data.twitchConnected ? "studio.connected" : "studio.notConnected")}</span></>}
         </button>)}
       </div>}
+      {data && <button className={styles.textButton} aria-expanded={savedDrafts} aria-controls="studio-drafts" onClick={() => setSavedDrafts(!savedDrafts)}>{t("studio.drafts", { count: data.allowance.drafts, limit: data.allowance.draftLimit })}<FaChevronDown aria-hidden="true" /></button>}
     </header>
     {accounts && data && <StudioAccounts panel={accounts} data={data} busy={busy} connecting={connecting} action={activePath} feedback={feedback} connect={(provider) => void connect(provider)} run={run} close={() => setAccounts(null)} />}
     {isLoading ? <p role="status">{t("studio.loading")}</p> : !user ? <div className={styles.empty}><h2>{t("studio.signInTitle")}</h2><p>{t("studio.signInDescription")}</p><button className={styles.primary} onClick={() => void login("/ccg/studio")}>{t("studio.signIn")}</button></div> : <>
       {query.isLoading && <div className={styles.slotGrid} aria-label={t("studio.loading")} aria-busy="true">{Array.from({ length: 6 }, (_, index) => <div key={index} className={styles.slotSkeleton} />)}</div>}
       {query.error && <div className={styles.error} role="alert">{errorText(query.error)}<button onClick={() => void query.refetch()}>{t("studio.reload")}</button></div>}
       {data && <>
-        <section className={styles.shelf} aria-labelledby="supporter-heading">
-          <div className={styles.sectionHeading}><div><h2 id="supporter-heading">{t("studio.supporterSlots")}</h2><p>{t("studio.slots", { available: data.allowance.available, earned: data.allowance.earned })}</p></div>
-            <button className={styles.textButton} aria-expanded={savedDrafts} aria-controls="studio-drafts" onClick={() => setSavedDrafts(!savedDrafts)}>{t("studio.drafts", { count: data.allowance.drafts, limit: data.allowance.draftLimit })}<FaChevronDown aria-hidden="true" /></button></div>
+        <section className={styles.shelf} aria-label={t("studio.supporterCard")}>
           <div className={styles.slotGrid}>{slots.map((slot, index) => {
             const source = slot.creation;
             const selected = workspace?.kind === "choose" ? workspace.slotId === slot.id : workspace?.kind === "edit" && source?.id === workspace.sourceId;
             return <div key={slot.id} className={styles.slot} data-selected={selected} data-locked={Boolean(slot.unlock)}>
               <button className={source?.preview ? styles.filledSlot : styles.emptySlot} aria-pressed={Boolean(selected)} aria-controls={slot.unlock ? "studio-accounts" : "studio-workspace"}
                 disabled={busy || (slot.used && !source)} onClick={() => slot.unlock ? setAccounts("twitch") : switchWorkspace(source ? { kind: "edit", sourceId: source.id } : { kind: "choose", slotId: slot.id })}>
-                {source?.preview ? <><CollectibleCard card={source.preview} finish={source.draft?.creatorFinish ?? source.creatorFinish ?? "standard"} compact effectsPaused hideCornerIcons className={cardStyles.scaledCardTypography} />
+                {source?.preview ? <><CollectibleCard card={source.preview} finish={source.draft?.creatorFinish ?? source.creatorFinish ?? "standard"} compact effectsPaused className={cardStyles.scaledCardTypography} />
                   <span className={styles.slotBadge} data-tone={source.draft ? "draft" : "success"}>{t(source.cardId ? source.draft ? "studio.unpublishedChanges" : "studio.published" : "studio.draft")}</span><span className={styles.srOnly}>{t("studio.openCreation")} {source.name}</span></>
                   : <><span className={styles.slotNumber}>{String(index + 1).padStart(2, "0")}</span><span className={styles.slotIcon}>{slot.unlock ? <FaLock aria-hidden="true" /> : slot.used ? <FaCheck aria-hidden="true" /> : <FaPlus aria-hidden="true" />}</span>
                     <strong>{t(slot.unlock === "follower" ? "studio.followUnlock" : slot.unlock === "subscriber" ? "studio.subscribeUnlock" : slot.used ? "studio.published" : "studio.createCard")}</strong>
@@ -196,9 +194,8 @@ export default function StudioPage() {
               })}</div>
             </>}
           </div> : selection?.preview ? <>
-            <StudioEditor key={`${selection.id}:${selection.revision}`} source={selection} data={data} pending={busy} action={mutation.variables?.method === "DELETE" ? null : activePath} run={run} onDirty={onDirty}
+            <StudioEditor key={selection.id} source={selection} data={data} pending={busy} action={mutation.variables?.method === "DELETE" ? null : activePath} run={run} onDirty={onDirty}
               feedback={feedback?.path.startsWith(`drafts/${selection.id}`) ? feedback : null} />
-            {selection.cardId && <SupporterMediaUploader key={selection.id} source={selection} media={data.media ?? []} disabled={selection.editsFrozen || !data.characters.some((character) => character.id === selection.characterId && character.realmId === selection.realmId)} />}
           </> : <div className={styles.empty}><p>{t("studio.errors.character_not_found")}</p><button onClick={() => void query.refetch()}>{t("studio.reload")}</button></div>}
         </div>}
         <StudioRaidGallery data={data} />

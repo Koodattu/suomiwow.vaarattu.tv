@@ -15,6 +15,16 @@ const schema = new Schema({
   reason: { type: String, maxlength: 500, default: null },
   reviewedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
   reviewedAt: { type: Date, default: null },
+  aiReview: { type: new Schema({
+    decision: { type: String, enum: ["safe", "review", "reject", "error"], required: true },
+    safetyConfidence: { type: Number, min: 0, max: 100, default: null },
+    reason: { type: String, maxlength: 500, required: true },
+    model: { type: String, required: true },
+    policyVersion: { type: String, required: true },
+    responseId: { type: String, default: null },
+    autoApproved: { type: Boolean, required: true },
+    reviewedAt: { type: Date, required: true },
+  }, { _id: false }), default: null },
   purgeAfter: { type: Date, default: null, index: true },
   purgedAt: { type: Date, default: null },
 }, { timestamps: true });

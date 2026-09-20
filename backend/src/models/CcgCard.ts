@@ -62,6 +62,7 @@ export interface ICcgCard extends Document {
   availabilityLastNotFoundAt?: Date | null;
   availabilityChangedAt?: Date | null;
   backgroundCrop: { x: number; y: number; scale: number };
+  backgroundPath?: string | null;
   pulls: number;
   deaths: number;
   reportCount: number;
@@ -124,6 +125,7 @@ const CcgCardSchema = new Schema<ICcgCard>(
     availabilityFirstNotFoundAt: { type: Date, default: null },
     availabilityLastNotFoundAt: { type: Date, default: null },
     availabilityChangedAt: { type: Date, default: null },
+    backgroundPath: { type: String, default: null },
     backgroundCrop: {
       x: { type: Number, required: true },
       y: { type: Number, required: true },

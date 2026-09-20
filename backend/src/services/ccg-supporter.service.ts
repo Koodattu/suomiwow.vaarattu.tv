@@ -12,7 +12,7 @@ import CcgSupporterGrant from "../models/CcgSupporterGrant";
 import CcgSupporterCharacter from "../models/CcgSupporterCharacter";
 import CcgLeaderboardInvalidation from "../models/CcgLeaderboardInvalidation";
 import { CcgSupporterError, SUPPORTER_BASE_SLOTS, SUPPORTER_CREATOR_FINISHES, SUPPORTER_DRAFT_LIMIT, SUPPORTER_RENDER_COOLDOWN_MS,
-  supporterScores, validateSupporterDraft } from "../utils/ccg-supporter";
+  supporterScores, validateSupporterDraft, SUPPORTER_BACKGROUNDS } from "../utils/ccg-supporter";
 import { createWowCharacterIdentityKey } from "../utils/ccg-identity";
 import { resolveCardCrop } from "../utils/ccg-random";
 import { normalizeRealmSlug } from "../utils/realm";
@@ -98,7 +98,9 @@ class CcgSupporterService {
 
   private cardFields(source: Source) {
     const draft = source.draft!;
+    const background = SUPPORTER_BACKGROUNDS.find((entry) => entry.id === draft.backgroundId);
     return { name: source.name, realm: source.realm, specName: draft.specName, role: draft.role,
+      ...(background ? { backgroundPath: background.path, backgroundCrop: { ...background.crop, x: draft.backgroundOffsetX ?? background.crop.x } } : {}),
       guildId: source.guildId ?? null, guildName: source.guildName ?? null, guildRealm: source.guildRealm ?? null,
       metric: draft.role === "healer" ? "hps" : "dps", communityScores: supporterScores(draft),
       renderUrl: draft.renderUrl, renderAssetId: draft.renderAssetId, renderFit: draft.renderFit,
@@ -119,7 +121,7 @@ class CcgSupporterService {
     const preview = source.draft ? { ...(card ?? {}), ...this.cardFields(source), _id: card?._id ?? source._id,
       characterId: source._id, setNumber: card?.setNumber ?? 0, region: "eu", classID: source.classID,
       tierGrade: source.draft.tierGrade, creatorFinish: source.draft.creatorFinish, snapshotVersion: 1, itemLevel: 0,
-      backgroundCrop: card?.backgroundCrop ?? resolveCardCrop(`${set.slug}:${source.identityKey}`, set.backgroundSafeCrop),
+      backgroundCrop: this.cardFields(source).backgroundCrop ?? card?.backgroundCrop ?? resolveCardCrop(`${set.slug}:${source.identityKey}`, set.backgroundSafeCrop),
       performanceSnapshotAt: card?.performanceSnapshotAt ?? source.createdAt, publishedAt: card?.publishedAt ?? null } : card;
     return { id: String(source._id), cardId: source.cardId ? String(source.cardId) : null,
       characterId: source.blizzardCharacterId, realmId: source.realmId, name: source.name, realm: source.realm,
@@ -172,7 +174,7 @@ class CcgSupporterService {
       status: { tracking: creator.trackingEnabled, following: creator.following, subscribed: creator.subscribed,
         checkedAt: creator.checkedAt, error: creator.checkError, nextCheckAt: creator.nextCheckAt,
         nextManualCheckAt: creator.nextManualCheckAt, firstSubscriberMonth: creator.firstSubscriberMonth },
-      finishes: SUPPORTER_CREATOR_FINISHES, classes: CLASSES.map(({ id, name, specs }) => ({ id, name, specs })),
+      finishes: SUPPORTER_CREATOR_FINISHES, backgrounds: SUPPORTER_BACKGROUNDS, classes: CLASSES.map(({ id, name, specs }) => ({ id, name, specs })),
       creations: await Promise.all(sources.map((source) => this.serialize(source, set))),
       media: await media.list(sources.map((source) => source._id)),
       characters: characters.map((character, index) => ({ id: character.id, realmId: character.realmId, name: character.name,
@@ -252,6 +254,8 @@ class CcgSupporterService {
           if (!reserved.modifiedCount) throw new CcgSupporterError(409, "draft_limit");
           const card = await CcgCard.findById(current.cardId).session(session).orFail();
           current.set("draft", { ...values, renderUrl: card.renderUrl, renderAssetId: card.renderAssetId, renderFit: card.renderFit,
+            backgroundId: values.backgroundId ?? SUPPORTER_BACKGROUNDS.find((entry) => entry.path === card.backgroundPath)?.id,
+            backgroundOffsetX: values.backgroundOffsetX ?? card.backgroundCrop.x,
             avatarUrl: card.avatarUrl, mediaCapturedAt: card.mediaCapturedAt });
         } else current.set("draft", { ...current.toObject().draft, ...values });
         current.revision += 1;
@@ -361,7 +365,7 @@ class CcgSupporterService {
             creatorFinish: current.draft.creatorFinish, collectorKey: current.collectorKey, region: "eu", classID: current.classID,
             snapshotVersion: 1, tierGrade: current.draft.tierGrade, itemLevel: 0, parseScore: 0, survivalScore: 0,
             survivalPercentile: 0, combinedScore: 0, scoreVersion: 1,
-            backgroundCrop: resolveCardCrop(`${set.slug}:${current.identityKey}`, set.backgroundSafeCrop),
+            backgroundCrop: this.cardFields(current).backgroundCrop ?? resolveCardCrop(`${set.slug}:${current.identityKey}`, set.backgroundSafeCrop),
             performanceSnapshotAt: new Date(), sourcePartition: "supporter", publicationWave: set.publicationWave,
             gradingVersion: CCG_GRADING_VERSION, eligibilityVersion: "supporter-v1", themeVersion: CCG_THEME_VERSION });
           await card.save({ session });
@@ -433,6 +437,7 @@ class CcgSupporterService {
       await Media.updateOne({ _id: submission._id, status: "processing" }, { $set: { status: "failed", reason: error instanceof CcgSupporterError ? error.code : "media_upload_failed", purgeAfter: new Date() } });
       throw error;
     }
+    if (kind === "image") await media.autoReview(String(submission._id));
     return this.getState(userId);
   }
 

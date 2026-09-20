@@ -2268,6 +2268,7 @@ export type CcgCard = {
   alternativeArt: CcgAlternativeArt | null;
   quip: CcgQuip | null;
   backgroundCrop: { x: number; y: number; scale: number };
+  backgroundPath?: string | null;
   performanceSnapshotAt: string;
   mediaCapturedAt: string | null;
   publicationWave: number;

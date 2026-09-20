@@ -12,6 +12,7 @@ for (const environment of ["development", "production"]) {
     });
 
     for (const url of [
+      "blob:http://localhost:3000/local-preview",
       "/api/ccg/media/supporter/6aaab7f5ab5d1701ab43ed51",
       "/api/ccg/media/assets/6aaab7f5ab5d1701ab43ed51",
     ]) {
