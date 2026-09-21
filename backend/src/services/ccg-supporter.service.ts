@@ -7,6 +7,8 @@ import Guild from "../models/Guild";
 import CcgCard from "../models/CcgCard";
 import CcgSet from "../models/CcgSet";
 import CcgOwnership from "../models/CcgOwnership";
+import CcgPackCredit from "../models/CcgPackCredit";
+import CcgLedgerEntry from "../models/CcgLedgerEntry";
 import CcgSupporterCreator from "../models/CcgSupporterCreator";
 import CcgSupporterGrant from "../models/CcgSupporterGrant";
 import CcgSupporterCharacter from "../models/CcgSupporterCharacter";
@@ -30,6 +32,9 @@ import Media from "../models/CcgSupporterMedia";
 import media, { SupporterMediaKind } from "./ccg-supporter-media.service";
 
 type Source = mongoose.HydratedDocument<mongoose.InferSchemaType<typeof CcgSupporterCharacter.schema>>;
+const CREATION_REWARD_PACKS = 10;
+const rewardKey = (id: mongoose.Types.ObjectId) => `supporter-creation:${id}`;
+
 type Proof = { accountId: string; connectionAt: Date; character: IWoWCharacter };
 
 function objectId(value: string) {
@@ -132,20 +137,43 @@ class CcgSupporterService {
       preview: preview ? { ...ccg.serializeCard(preview, set), set: ccg.serializeSet(set) } : null };
   }
 
-  async getState(userId: string, refreshRoster = false) {
+  async getState(userId: string) {
     await status.initializeExistingLink(userId);
     await publisher.ensureConfiguredSets();
-    const user = await User.findById(userId).select("battlenet.id twitch.id");
+    const [user, creator, set] = await Promise.all([
+      User.findById(userId).select("battlenet.id twitch.id"),
+      status.ensureCreator(userId),
+      CcgSet.findOne({ zoneId: CCG_SUPPORTER_SET.zoneId }).orFail(),
+    ]);
+    const [earnedGrants, sources] = await Promise.all([
+      CcgSupporterGrant.distinct("kind", { creatorId: creator._id }),
+      CcgSupporterCharacter.find({ creatorId: creator._id, $or: [{ draft: { $ne: null } }, { cardId: { $exists: true } }] }).sort({ createdAt: -1 }),
+    ]);
+    const [creations, submissions, rewards] = await Promise.all([
+      Promise.all(sources.map((source) => this.serialize(source, set))),
+      media.list(sources.map((source) => source._id)),
+      this.packRewards(userId, sources),
+    ]);
+    return { region: "eu", battlenetConnected: Boolean(user?.battlenet), twitchConnected: Boolean(user?.twitch),
+      entitlements: { base: SUPPORTER_BASE_SLOTS, follower: earnedGrants.includes("follower"), subscriber: earnedGrants.includes("subscriber") },
+      allowance: { earned: SUPPORTER_BASE_SLOTS + creator.earnedSlots, used: creator.usedSlots, available: SUPPORTER_BASE_SLOTS + creator.earnedSlots - creator.usedSlots,
+        drafts: creator.draftCount, draftLimit: SUPPORTER_DRAFT_LIMIT },
+      status: { tracking: creator.trackingEnabled, following: creator.following, subscribed: creator.subscribed,
+        checkedAt: creator.checkedAt, error: creator.checkError, nextCheckAt: creator.nextCheckAt,
+        nextManualCheckAt: creator.nextManualCheckAt, firstSubscriberMonth: creator.firstSubscriberMonth },
+      finishes: SUPPORTER_CREATOR_FINISHES, backgrounds: SUPPORTER_BACKGROUNDS, classes: CLASSES.map(({ id, name, specs }) => ({ id, name, specs })),
+      creations, media: submissions, rewards,
+    };
+  }
+
+  async getCharacters(userId: string, refreshRoster = false) {
+    const user = await User.findById(userId).select("battlenet.id");
     let characters: IWoWCharacter[] = [];
     let rosterError: string | null = null;
     if (user?.battlenet) {
       try { characters = (await this.roster(userId, refreshRoster)).characters; }
       catch (error) { rosterError = error instanceof CcgSupporterError ? error.code : "armory_unavailable"; }
     }
-    const creator = await status.ensureCreator(userId);
-    const set = await CcgSet.findOne({ zoneId: CCG_SUPPORTER_SET.zoneId }).orFail();
-    const earnedGrants = await CcgSupporterGrant.distinct("kind", { creatorId: creator._id });
-    const sources = await CcgSupporterCharacter.find({ creatorId: creator._id, $or: [{ draft: { $ne: null } }, { cardId: { $exists: true } }] }).sort({ createdAt: -1 });
     const tracked = await Promise.all(characters.map(async (character) => {
       const classID = CLASSES.find((entry) => entry.name === character.class)?.id;
       if (!classID) return null;
@@ -167,16 +195,7 @@ class CcgSupporterService {
       { $group: { _id: { setId: "$setId", characterId: "$characterId" }, quantity: { $sum: "$quantity" } } },
     ]) : [];
     const ownedBySeries = new Map(owned.map((entry) => [`${entry._id.setId}:${entry._id.characterId}`, entry.quantity]));
-    return { region: "eu", battlenetConnected: Boolean(user?.battlenet), twitchConnected: Boolean(user?.twitch), rosterError,
-      entitlements: { base: SUPPORTER_BASE_SLOTS, follower: earnedGrants.includes("follower"), subscriber: earnedGrants.includes("subscriber") },
-      allowance: { earned: SUPPORTER_BASE_SLOTS + creator.earnedSlots, used: creator.usedSlots, available: SUPPORTER_BASE_SLOTS + creator.earnedSlots - creator.usedSlots,
-        drafts: creator.draftCount, draftLimit: SUPPORTER_DRAFT_LIMIT },
-      status: { tracking: creator.trackingEnabled, following: creator.following, subscribed: creator.subscribed,
-        checkedAt: creator.checkedAt, error: creator.checkError, nextCheckAt: creator.nextCheckAt,
-        nextManualCheckAt: creator.nextManualCheckAt, firstSubscriberMonth: creator.firstSubscriberMonth },
-      finishes: SUPPORTER_CREATOR_FINISHES, backgrounds: SUPPORTER_BACKGROUNDS, classes: CLASSES.map(({ id, name, specs }) => ({ id, name, specs })),
-      creations: await Promise.all(sources.map((source) => this.serialize(source, set))),
-      media: await media.list(sources.map((source) => source._id)),
+    return { rosterError,
       characters: characters.map((character, index) => ({ id: character.id, realmId: character.realmId, name: character.name,
         realm: character.realm, className: character.class, level: character.level,
         cards: matches.filter(({ card }) => setById.has(String(card.setId)) && ((card.name.toLowerCase() === character.name.toLowerCase()
@@ -185,6 +204,42 @@ class CcgSupporterService {
             set: ccg.serializeSet(setById.get(String(card.setId))!), snapshots,
             owned: ownedBySeries.get(`${card.setId}:${card.characterId}`) ?? 0 })) })),
     };
+  }
+
+  private async packRewards(userId: string, sources: Array<{ _id: mongoose.Types.ObjectId; cardId?: mongoose.Types.ObjectId | null }>) {
+    const keys = sources.filter((source) => source.cardId).map((source) => rewardKey(source._id));
+    const claimed = keys.length ? await CcgPackCredit.countDocuments({ ownerId: userId, sourceKey: { $in: keys } }) : 0;
+    return { packsPerCard: CREATION_REWARD_PACKS, availablePacks: (keys.length - claimed) * CREATION_REWARD_PACKS };
+  }
+
+  async claimPacks(userId: string) {
+    await supporterLimit(`claim-packs:${userId}`, 10, 60_000);
+    const creator = await status.ensureCreator(userId);
+    const session = await mongoose.startSession();
+    let claimedPacks = 0;
+    try {
+      await session.withTransaction(async () => {
+        claimedPacks = 0;
+        // Serialize claims for this creator, including requests from different tabs.
+        await CcgSupporterCreator.updateOne({ _id: creator._id }, { $inc: { __v: 1 } }, { session });
+        const sources = await CcgSupporterCharacter.find({ creatorId: creator._id, cardId: { $ne: null } })
+          .select("_id cardId").session(session);
+        const claimed = new Set(await CcgPackCredit.distinct("sourceKey", {
+          ownerId: userId, sourceKey: { $in: sources.map((source) => rewardKey(source._id)) },
+        }).session(session));
+        for (const source of sources) {
+          const sourceKey = rewardKey(source._id);
+          if (claimed.has(sourceKey)) continue;
+          await CcgPackCredit.create([{ ownerId: userId, source: "supporter_creation", sourceKey, remaining: CREATION_REWARD_PACKS }], { session });
+          await CcgLedgerEntry.create([{ ownerType: "user", ownerId: userId, action: "supporter_creation",
+            idempotencyKey: sourceKey, amount: CREATION_REWARD_PACKS,
+            metadata: { sourceId: String(source._id), cardId: String(source.cardId) } }], { session });
+          claimedPacks += CREATION_REWARD_PACKS;
+        }
+      });
+    } finally { await session.endSession(); }
+    const sources = await CcgSupporterCharacter.find({ creatorId: creator._id, cardId: { $ne: null } }).select("_id cardId");
+    return { claimedPacks, rewards: await this.packRewards(userId, sources) };
   }
 
   async create(userId: string, input: Record<string, unknown>) {

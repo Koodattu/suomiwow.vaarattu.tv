@@ -74,6 +74,19 @@
   },
   "ccg": {
     "studio": {
+      "loadingCharacters": "Ladataan hahmoja…",
+      "rewards": {
+        "title": "Lunasta pakat",
+        "close": "Sulje",
+        "description": "Saat {count} pakkaa jokaisesta julkaisemastasi Supporter-kortista. Palkinnon voi lunastaa kerran korttia kohden.",
+        "available": "pakkaa lunastettavissa",
+        "claim": "Lunasta {count} pakkaa",
+        "claiming": "Lunastetaan…",
+        "claimed": "{count} pakkaa lisätty.",
+        "alreadyClaimed": "Kaikki saatavilla olevat pakat on lunastettu.",
+        "failed": "Pakkojen lunastus epäonnistui. Yritä uudelleen.",
+        "open": "Avaa pakkoja"
+      },
       "supporterSlots": "Omat tukijakorttisi",
       "supporterCard": "Tukijakortti",
       "createCard": "Luo kortti",

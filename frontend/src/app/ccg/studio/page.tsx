@@ -11,12 +11,14 @@ import { CCG_CLASS_COLORS } from "@/lib/ccg";
 import { getStudioSlots } from "@/lib/ccg-studio";
 import { getClassInfoById } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
-import type { StudioState } from "@/types/ccg-studio";
+import type { StudioState, StudioOverview } from "@/types/ccg-studio";
 import CcgShell from "@/components/ccg/CcgShell";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import StudioEditor from "@/components/ccg/StudioEditor";
 import StudioAccounts from "@/components/ccg/StudioAccounts";
 import type { StudioAccountPanel, StudioFeedback } from "@/components/ccg/StudioAccounts";
+import StudioRewardsDialog from "@/components/ccg/StudioRewardsDialog";
+import StudioLoading from "@/components/ccg/StudioLoading";
 import StudioRaidGallery from "@/components/ccg/StudioRaidGallery";
 import styles from "@/components/ccg/studio.module.css";
 import cardStyles from "@/components/ccg/ccg.module.css";
@@ -36,6 +38,7 @@ export default function StudioPage() {
   const [feedback, setFeedback] = useState<StudioFeedback | null>(null);
   const [search, setSearch] = useState("");
   const [accounts, setAccounts] = useState<StudioAccountPanel | null>(null);
+  const [rewardsOpen, setRewardsOpen] = useState(false);
   const [savedDrafts, setSavedDrafts] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [creating, setCreating] = useState<string | null>(null);
@@ -56,13 +59,20 @@ export default function StudioPage() {
   }, [workspace]);
   const query = useQuery({ queryKey: key, queryFn: () => api.getCcgStudio(), enabled: Boolean(user), staleTime: 60_000, refetchOnWindowFocus: false,
     refetchInterval: (current) => current.state.data?.media?.some((row) => row.status === "pending" || row.status === "processing") ? 60_000 : false });
-  const data = query.data;
+  const charactersKey = ["ccg", "studio-characters", user?.discord.username];
+  const charactersQuery = useQuery({ queryKey: charactersKey, queryFn: () => api.getCcgStudioCharacters(),
+    enabled: Boolean(user && query.data?.battlenetConnected), staleTime: 5 * 60_000, refetchOnWindowFocus: false });
+  const rosterMutation = useMutation({ mutationFn: () => api.getCcgStudioCharacters(true) });
+  const charactersLoading = Boolean(query.data?.battlenetConnected && !charactersQuery.data && charactersQuery.isPending);
+  const data: StudioState | undefined = query.data ? { ...query.data,
+    characters: query.data.battlenetConnected ? charactersQuery.data?.characters ?? [] : [],
+    rosterError: query.data.battlenetConnected ? charactersQuery.error ? "armory_unavailable" : charactersQuery.data?.rosterError ?? null : null } : undefined;
   const slots = data ? getStudioSlots(data, placements) : [];
   const selection = workspace?.kind === "edit" ? data?.creations.find((source) => source.id === workspace.sourceId) : null;
   const drafts = data?.creations.filter((source) => source.draft) ?? [];
   const mutation = useMutation({ mutationFn: ({ path, body, method }: { path: string; body: Record<string, unknown>; method: string }) => api.updateCcgStudio(path, body, method) });
-  const busy = mutation.isPending || creating !== null;
-  const activePath = mutation.isPending ? mutation.variables.path : null;
+  const busy = mutation.isPending || rosterMutation.isPending || creating !== null;
+  const activePath = rosterMutation.isPending ? "roster" : mutation.isPending ? mutation.variables.path : null;
   const errorText = (failure: unknown) => {
     const code = failure instanceof ApiError ? failure.code : typeof failure === "string" ? failure : null;
     return code && t.has(`studio.errors.${code}`) ? t(`studio.errors.${code}`) : t("studio.errors.studio_unavailable");
@@ -83,6 +93,13 @@ export default function StudioPage() {
     requestRef.current = true;
     setFeedback(null);
     try {
+      if (path === "roster") {
+        await client.cancelQueries({ queryKey: charactersKey });
+        const characters = await rosterMutation.mutateAsync();
+        client.setQueryData(charactersKey, characters);
+        setFeedback({ path, message: characters.rosterError ? errorText(characters.rosterError) : t("studio.feedback.rosterRefreshed"), error: Boolean(characters.rosterError) });
+        return query.data;
+      }
       const next = await mutation.mutateAsync({ path, body, method });
       client.setQueryData(key, next);
       const message = method === "DELETE" ? "discarded" : path.endsWith("/publish") ? selection?.cardId ? "applied" : "published"
@@ -141,11 +158,21 @@ export default function StudioPage() {
           {panel === "rules" ? <FaChevronDown aria-hidden="true" /> : <><span className={styles.connectionDot} data-connected={panel === "battlenet" ? data.battlenetConnected && !data.rosterError : data.twitchConnected && !data.status.error} /><span className={styles.srOnly}>{t(panel === "battlenet" ? data.rosterError ? "studio.needsAttention" : data.battlenetConnected ? "studio.connected" : "studio.notConnected" : data.status.error ? "studio.needsAttention" : data.twitchConnected ? "studio.connected" : "studio.notConnected")}</span></>}
         </button>)}
       </div>}
-      {data && <button className={styles.textButton} aria-expanded={savedDrafts} aria-controls="studio-drafts" onClick={() => setSavedDrafts(!savedDrafts)}>{t("studio.drafts", { count: data.allowance.drafts, limit: data.allowance.draftLimit })}<FaChevronDown aria-hidden="true" /></button>}
+      {data && <div className={styles.headerActions}>
+        <button className={styles.textButton} aria-expanded={savedDrafts} aria-controls="studio-drafts" onClick={() => setSavedDrafts(!savedDrafts)}>{t("studio.drafts", { count: data.allowance.drafts, limit: data.allowance.draftLimit })}<FaChevronDown aria-hidden="true" /></button>
+        <button className={data.rewards.availablePacks > 0 ? styles.primary : undefined} aria-haspopup="dialog" onClick={() => setRewardsOpen(true)}>
+          {t("studio.rewards.title")}{data.rewards.availablePacks > 0 && <span className={styles.rewardBadge}>{data.rewards.availablePacks}</span>}
+        </button>
+      </div>}
     </header>
+    {rewardsOpen && data && <StudioRewardsDialog rewards={data.rewards} close={() => setRewardsOpen(false)} onClaim={(result) => {
+      client.setQueryData<StudioOverview>(key, (previous) => previous ? { ...previous, rewards: result.rewards } : previous);
+      void client.invalidateQueries({ queryKey: key, exact: true });
+      void client.invalidateQueries({ predicate: (item) => item.queryKey[0] === "ccg" && !String(item.queryKey[1]).startsWith("studio") });
+    }} />}
+    {(isLoading || (user && query.isPending)) && <StudioLoading label={t("studio.loading")} />}
     {accounts && data && <StudioAccounts panel={accounts} data={data} busy={busy} connecting={connecting} action={activePath} feedback={feedback} connect={(provider) => void connect(provider)} run={run} close={() => setAccounts(null)} />}
-    {isLoading ? <p role="status">{t("studio.loading")}</p> : !user ? <div className={styles.empty}><h2>{t("studio.signInTitle")}</h2><p>{t("studio.signInDescription")}</p><button className={styles.primary} onClick={() => void login("/ccg/studio")}>{t("studio.signIn")}</button></div> : <>
-      {query.isLoading && <div className={styles.slotGrid} aria-label={t("studio.loading")} aria-busy="true">{Array.from({ length: 6 }, (_, index) => <div key={index} className={styles.slotSkeleton} />)}</div>}
+    {isLoading ? null : !user ? <div className={styles.empty}><h2>{t("studio.signInTitle")}</h2><p>{t("studio.signInDescription")}</p><button className={styles.primary} onClick={() => void login("/ccg/studio")}>{t("studio.signIn")}</button></div> : <>
       {query.error && <div className={styles.error} role="alert">{errorText(query.error)}<button onClick={() => void query.refetch()}>{t("studio.reload")}</button></div>}
       {data && <>
         <section className={styles.shelf} aria-label={t("studio.supporterCard")}>
@@ -173,7 +200,7 @@ export default function StudioPage() {
             <button disabled={busy} onClick={() => switchWorkspace(null)} aria-label={t("studio.closeEditor")}><FaXmark aria-hidden="true" /></button></div>
           {workspace.kind === "choose" ? <div className={styles.picker}>
             {feedback && !feedback.error && feedback.path.startsWith("drafts/") && <p className={styles.success} role="status">{feedback.message}</p>}
-            {!data.battlenetConnected ? <div className={styles.empty}><p>{t("studio.bnetRequired")}</p><button disabled={connecting} className={styles.primary} onClick={() => void connect("battlenet")}>{t("studio.connectBnet")}</button></div> : <>
+            {charactersLoading ? <div className={styles.sectionLoading} role="status"><FaSpinner className={styles.spinner} aria-hidden="true" />{t("studio.loadingCharacters")}</div> : !data.battlenetConnected ? <div className={styles.empty}><p>{t("studio.bnetRequired")}</p><button disabled={connecting} className={styles.primary} onClick={() => void connect("battlenet")}>{t("studio.connectBnet")}</button></div> : <>
               <div className={styles.toolbar}><label className={styles.search}><FaMagnifyingGlass aria-hidden="true" /><input type="search" disabled={busy} aria-label={t("studio.searchCharacters")} placeholder={t("studio.searchCharacters")} value={search} onChange={(event) => setSearch(event.target.value)} /></label><span className={styles.hint}>{t("studio.characterCount", { count: visibleCharacters.length, total: data.characters.length })}</span></div>
               {data.allowance.drafts >= data.allowance.draftLimit && <p className={styles.inlineError}>{t("studio.draftLimitReached", { limit: data.allowance.draftLimit })}</p>}
               {visibleCharacters.length === 0 && <div className={styles.empty}><p>{t(data.characters.length ? "studio.noMatches" : "studio.noCharacters")}</p><button onClick={() => search ? setSearch("") : setAccounts("battlenet")}>{t(search ? "studio.clearSearch" : "studio.manageConnection")}</button></div>}
@@ -198,7 +225,9 @@ export default function StudioPage() {
               feedback={feedback?.path.startsWith(`drafts/${selection.id}`) ? feedback : null} />
           </> : <div className={styles.empty}><p>{t("studio.errors.character_not_found")}</p><button onClick={() => void query.refetch()}>{t("studio.reload")}</button></div>}
         </div>}
-        <StudioRaidGallery data={data} />
+        {charactersLoading ? <div className={styles.sectionLoading} role="status"><FaSpinner className={styles.spinner} aria-hidden="true" />{t("studio.loadingCharacters")}</div>
+          : charactersQuery.error ? <div className={styles.error} role="alert">{errorText(charactersQuery.error)}<button onClick={() => void charactersQuery.refetch()}>{t("studio.reload")}</button></div>
+          : <StudioRaidGallery data={data} />}
       </>}
     </>}
   </div></CcgShell>;

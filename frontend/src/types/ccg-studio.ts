@@ -18,6 +18,7 @@ export type StudioCreation = {
   editsFrozen: boolean; nextEditAt: string; nextRenderRefreshAt: string; renderError: boolean; renderUnchanged: boolean; preview: CcgCard | null;
 };
 export type StudioState = {
+  rewards: { packsPerCard: number; availablePacks: number };
   region: "eu"; battlenetConnected: boolean; twitchConnected: boolean; rosterError: string | null;
   entitlements: { base: number; follower: boolean; subscriber: boolean };
   allowance: { earned: number; used: number; available: number; drafts: number; draftLimit: number };
@@ -30,3 +31,7 @@ export type StudioState = {
   characters: Array<{ id: number; realmId: number; name: string; realm: string; className: string; level: number;
     cards: Array<CcgCard & { snapshots: number; owned: number }> }>;
 };
+
+export type StudioOverview = Omit<StudioState, "characters" | "rosterError">;
+export type StudioCharacters = Pick<StudioState, "characters" | "rosterError">;
+export type StudioRewardClaim = { claimedPacks: number; rewards: StudioState["rewards"] };

@@ -1,5 +1,7 @@
 import styles from "./ccg.module.css";
 import packStyles from "./pack-opening.module.css";
+import studioStyles from "./studio.module.css";
+import StudioLoading from "./StudioLoading";
 
 function SkeletonHeader() {
   return (
@@ -264,7 +266,9 @@ function LeaderboardRecordsContentSkeleton() {
 
 export default function CcgInitialSkeleton({ pathname }: { pathname: string }) {
   const landing = pathname === "/ccg" || pathname === "/ccg/";
-  const content = pathname.startsWith("/ccg/open")
+  const content = pathname.startsWith("/ccg/studio")
+    ? <div className={studioStyles.studio}><StudioLoading /></div>
+    : pathname.startsWith("/ccg/open")
     ? <CcgOpenContentSkeleton />
     : pathname.startsWith("/ccg/collection")
       ? <CollectionContentSkeleton />

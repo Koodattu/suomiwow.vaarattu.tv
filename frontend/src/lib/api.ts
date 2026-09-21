@@ -480,13 +480,28 @@ export const api = {
     return hydrateCcgCollection(await response.json() as CcgCollectionResponseWire);
   },
 
-  async getCcgStudio(): Promise<import("@/types/ccg-studio").StudioState> {
+  async getCcgStudio(): Promise<import("@/types/ccg-studio").StudioOverview> {
     const response = await fetch(`${API_URL}/api/ccg/studio`, { credentials: "include", cache: "no-store" });
     if (!response.ok) throw await buildApiError(response, "Studio unavailable");
     return response.json();
   },
 
-  async uploadSupporterMedia(sourceId: string, kind: "image" | "audio", file: File): Promise<import("@/types/ccg-studio").StudioState> {
+  async getCcgStudioCharacters(refresh = false): Promise<import("@/types/ccg-studio").StudioCharacters> {
+    const response = await fetch(`${API_URL}/api/ccg/studio/${refresh ? "roster" : "characters"}`, {
+      credentials: "include", cache: "no-store", ...(refresh ? { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" } : {}),
+    });
+    if (!response.ok) throw await buildApiError(response, "Characters unavailable");
+    return response.json();
+  },
+
+  async claimCcgStudioPacks(): Promise<import("@/types/ccg-studio").StudioRewardClaim> {
+    const response = await fetch(`${API_URL}/api/ccg/studio/rewards/claim`, { method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (!response.ok) throw await buildApiError(response, "Pack claiming unavailable");
+    return response.json();
+  },
+
+  async uploadSupporterMedia(sourceId: string, kind: "image" | "audio", file: File): Promise<import("@/types/ccg-studio").StudioOverview> {
     const response = await fetch(`${API_URL}/api/ccg/studio/media/${sourceId}/${kind}`, { method: "POST", credentials: "include",
       headers: { "Content-Type": "application/octet-stream" }, body: file });
     if (!response.ok) throw await buildApiError(response, "Media upload failed");
@@ -511,7 +526,7 @@ export const api = {
     return response.json();
   },
 
-  async updateCcgStudio(path: string, body: Record<string, unknown> = {}, method = "POST"): Promise<import("@/types/ccg-studio").StudioState> {
+  async updateCcgStudio(path: string, body: Record<string, unknown> = {}, method = "POST"): Promise<import("@/types/ccg-studio").StudioOverview> {
     const response = await fetch(`${API_URL}/api/ccg/studio/${path}`, { method, credentials: "include",
       headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!response.ok) throw await buildApiError(response, "Studio unavailable");

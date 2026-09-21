@@ -74,6 +74,19 @@
   },
   "ccg": {
     "studio": {
+      "loadingCharacters": "Loading characters…",
+      "rewards": {
+        "title": "Claim packs",
+        "close": "Close",
+        "description": "Earn {count} packs for each Supporter card you publish. Claim once per card.",
+        "available": "packs available",
+        "claim": "Claim {count} packs",
+        "claiming": "Claiming…",
+        "claimed": "{count} packs added.",
+        "alreadyClaimed": "All available packs have been claimed.",
+        "failed": "Could not claim packs. Try again.",
+        "open": "Open packs"
+      },
       "supporterSlots": "Your Supporter cards",
       "supporterCard": "Supporter card",
       "createCard": "Create card",

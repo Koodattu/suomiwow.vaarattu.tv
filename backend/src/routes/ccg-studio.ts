@@ -35,7 +35,9 @@ const route = (fn: (userId: string, body: Record<string, unknown>, id: string) =
   };
 
 router.get("/", route((userId) => studio.getState(userId)));
-router.post("/roster", route((userId) => studio.getState(userId, true)));
+router.get("/characters", route((userId) => studio.getCharacters(userId)));
+router.post("/roster", route((userId) => studio.getCharacters(userId, true)));
+router.post("/rewards/claim", route((userId) => studio.claimPacks(userId)));
 router.post("/status", route(async (userId) => {
   await supporterStatus.initializeExistingLink(userId);
   await supporterStatus.refresh(userId, true);

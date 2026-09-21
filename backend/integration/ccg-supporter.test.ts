@@ -34,6 +34,8 @@ import Invalidation from "../src/models/CcgLeaderboardInvalidation";
 import CcgJobLock from "../src/models/CcgJobLock";
 import CcgLeaderboardEntry from "../src/models/CcgLeaderboardEntry";
 import CcgPackBalance from "../src/models/CcgPackBalance";
+import CcgPackCredit from "../src/models/CcgPackCredit";
+import CcgLedgerEntry from "../src/models/CcgLedgerEntry";
 import CcgPackOpening from "../src/models/CcgPackOpening";
 import CcgQualityProgress from "../src/models/CcgQualityProgress";
 import status, { supporterLimit } from "../src/services/ccg-supporter-status.service";
@@ -42,6 +44,7 @@ import publisher from "../src/services/ccg-publisher.service";
 import ccg from "../src/services/ccg.service";
 import leaderboard from "../src/services/ccg-leaderboard.service";
 import blizzard from "../src/services/blizzard.service";
+import battlenet from "../src/services/battlenet-auth.service";
 import renders from "../src/services/character-render-storage.service";
 import { CCG_BASE_FINISH_ORDER, CCG_PACK_BALANCE_VERSION, CcgCustomFinish } from "../src/config/ccg";
 
@@ -52,7 +55,7 @@ const otherId = new mongoose.Types.ObjectId();
 let server: Server;
 let baseUrl: string;
 const models = [User, Guild, Creator, Source, Grant, Event, Limit, Card, SetModel, Pool, Ownership, Series, Invalidation,
-  CcgJobLock, CcgLeaderboardEntry, CcgPackBalance, CcgPackOpening, CcgQualityProgress, Media, AlternativeArt];
+  CcgJobLock, CcgLeaderboardEntry, CcgPackBalance, CcgPackCredit, CcgLedgerEntry, CcgPackOpening, CcgQualityProgress, Media, AlternativeArt];
 const chars = Array.from({ length: 7 }, (_, i) => ({ id: i + 1, realmId: 10, name: `Mage${i + 1}`, realm: "Stormreaver",
   realmSlug: "stormreaver", class: "Mage", race: "Human", level: 10, faction: "ALLIANCE" as const, selected: false }));
 
@@ -111,6 +114,86 @@ async function connect() {
   await Creator.updateOne({ userId }, { $set: { earnedSlots: 0, connectedSince: new Date("2026-09-01T00:00:00Z") } });
   return Creator.findOne({ userId }).orFail();
 }
+
+test("Studio overview does not wait for Battle.net; characters load separately", async (t) => {
+  await Creator.updateOne({ userId }, { $set: { rosterCheckedAt: new Date(0) } });
+  const roster = t.mock.method(battlenet, "getWoWCharacters", async () => chars);
+  const overview = await studio.getState(String(userId));
+  assert.equal(overview.battlenetConnected, true);
+  assert.equal(roster.mock.callCount(), 0);
+  assert.equal("characters" in overview, false);
+  assert.equal((await studio.getCharacters(String(userId))).characters.length, chars.length);
+  assert.equal(roster.mock.callCount(), 1);
+  await studio.getCharacters(String(userId));
+  assert.equal(roster.mock.callCount(), 1, "Subsequent character reads reuse the roster cache");
+});
+
+test("Battle.net failures affect character loading without blocking Studio", async (t) => {
+  await Creator.updateOne({ userId }, { $set: { rosterCheckedAt: new Date(0) } });
+  t.mock.method(battlenet, "getWoWCharacters", async () => { throw new Error("offline"); });
+  assert.equal((await studio.getCharacters(String(userId))).rosterError, "armory_unavailable");
+  assert.equal((await studio.getState(String(userId))).allowance.available, 6);
+});
+
+test("claim-all rewards only this creator's published cards, once even across concurrent requests", async () => {
+  await publish(1);
+  await publish(2);
+  await draft(3);
+  const foreign = await publish(4);
+  const otherCreator = await status.ensureCreator(otherId);
+  await Source.updateOne({ _id: foreign._id }, { $set: { creatorId: otherCreator._id } });
+  assert.equal((await studio.getState(String(userId))).rewards.availablePacks, 20);
+  const results = await Promise.all([studio.claimPacks(String(userId)), studio.claimPacks(String(userId))]);
+  assert.deepEqual(results.map((row) => row.claimedPacks).sort((a, b) => a - b), [0, 20]);
+  assert.equal(await CcgPackCredit.countDocuments({ ownerId: userId, source: "supporter_creation" }), 2);
+  assert.equal(await CcgPackCredit.countDocuments({ ownerId: otherId }), 0);
+  assert.equal(await CcgLedgerEntry.countDocuments({ ownerId: userId, action: "supporter_creation", amount: 10 }), 2);
+  assert.equal((await studio.getState(String(userId))).rewards.availablePacks, 0);
+  assert.equal((await studio.claimPacks(String(otherId))).claimedPacks, 10);
+});
+
+test("spent rewards and edits never reopen a claim or duplicate a snapshot", async () => {
+  const source = await publish();
+  await studio.claimPacks(String(userId));
+  await CcgPackCredit.updateMany({ ownerId: userId }, { $set: { remaining: 0 } });
+  await studio.save(String(userId), String(source._id), { revision: source.revision,
+    specName: "fire", role: "dps", tierGrade: source.tierGrade, creatorFinish: source.creatorFinish, performance: 70, mechanics: 80, mythicPlus: 2000 });
+  await Source.updateOne({ _id: source._id }, { $set: { nextEditAt: new Date(0) } });
+  const edited = await Source.findById(source._id).orFail();
+  await studio.publish(String(userId), String(source._id), edited.revision);
+  assert.equal((await studio.claimPacks(String(userId))).claimedPacks, 0);
+  assert.equal((await studio.getState(String(userId))).rewards.availablePacks, 0);
+  assert.equal(await Card.countDocuments({ supporterCharacterId: source._id }), 1);
+  assert.equal((await Card.findById(source.cardId))?.snapshotVersion, 1);
+});
+
+test("failed claim transactions roll back credits and can be retried", async (t) => {
+  await publish();
+  const failure = t.mock.method(CcgLedgerEntry, "create", async () => { throw new Error("ledger failed"); });
+  await assert.rejects(studio.claimPacks(String(userId)), /ledger failed/);
+  assert.equal(await CcgPackCredit.countDocuments({ source: "supporter_creation" }), 0);
+  assert.equal((await studio.getState(String(userId))).rewards.availablePacks, 10);
+  failure.mock.restore();
+  assert.equal((await studio.claimPacks(String(userId))).claimedPacks, 10);
+});
+
+test("claim endpoint ignores client amounts and keeps rewards above the recharge cap", async () => {
+  await publish();
+  await CcgPackBalance.create({ ownerType: "user", ownerId: userId, remaining: 100,
+    lastRechargeAt: new Date(), grantVersion: CCG_PACK_BALANCE_VERSION, hasPlayed: true });
+  const request = (headers: Record<string, string>) => fetch(`${baseUrl}/api/ccg/studio/rewards/claim`, {
+    method: "POST", headers: { "Content-Type": "application/json", Origin: "http://localhost:3000", ...headers },
+    body: JSON.stringify({ amount: 9999, userId: String(otherId) }),
+  });
+  assert.equal((await request({})).status, 401);
+  assert.equal((await request({ "x-test-user": String(userId), Origin: "https://wrong.example" })).status, 403);
+  const response = await request({ "x-test-user": String(userId) });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json() as { claimedPacks: number }).claimedPacks, 10);
+  assert.equal((await CcgPackBalance.findOne({ ownerId: userId }))?.remaining, 100);
+  assert.equal((await CcgPackCredit.findOne({ ownerId: userId, source: "supporter_creation" }))?.remaining, 10);
+  assert.equal(await CcgPackCredit.countDocuments({ ownerId: otherId }), 0);
+});
 
 test("concurrent observations credit each permanent and monthly grant exactly once", async () => {
   const creator = await connect();
