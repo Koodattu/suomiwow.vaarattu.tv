@@ -43,29 +43,26 @@ function objectId(value: string) {
 }
 
 class CcgSupporterService {
-  private async roster(userId: string, refresh = false, maxAge = 300_000) {
+  private async roster(userId: string, refresh = false) {
     const user = await User.findById(userId);
     if (!user?.battlenet) throw new CcgSupporterError(409, "battlenet_required");
     const creator = await status.ensureCreator(userId);
     if (creator.battlenetId && creator.battlenetId !== user.battlenet.id) throw new CcgSupporterError(409, "account_bound");
     let characters: IWoWCharacter[];
-    if (!refresh && creator.rosterCheckedAt && Date.now() - creator.rosterCheckedAt.getTime() < maxAge
-      && creator.rosterConnectionAt?.getTime() === user.battlenet.connectedAt.getTime()) {
-      characters = creator.roster as IWoWCharacter[];
-    } else {
-      await supporterLimit(`roster:${userId}`, 1, refresh ? 300_000 : 30_000);
-      try { characters = await battlenet.getWoWCharacters(user.battlenet.accessToken, false, 0); }
-      catch (error) {
-        const code = (error as { code?: string }).code;
-        throw new CcgSupporterError(503, code === "BATTLENET_RECONNECT_REQUIRED" ? "battlenet_required" : "armory_unavailable");
-      }
+    if (refresh) await supporterLimit(`roster:${userId}`, 1, 300_000);
+    try { characters = await (refresh ? battlenet.refreshCharacters(userId) : battlenet.getCharacters(userId)); }
+    catch (error) {
+      const code = (error as { code?: string }).code;
+      throw new CcgSupporterError(503, code === "BATTLENET_RECONNECT_REQUIRED" ? "battlenet_required" : "armory_unavailable");
+    }
+    if (!creator.battlenetId) {
       const session = await mongoose.startSession();
       try {
         await session.withTransaction(async () => {
           await this.fenceAccount(userId, { accountId: user.battlenet!.id, connectionAt: user.battlenet!.connectedAt }, session);
           const bound = await CcgSupporterCreator.updateOne({ _id: creator._id,
             $or: [{ battlenetId: { $exists: false } }, { battlenetId: user.battlenet!.id }] },
-          { $set: { battlenetId: user.battlenet!.id, roster: characters, rosterCheckedAt: new Date(), rosterConnectionAt: user.battlenet!.connectedAt } }, { session });
+          { $set: { battlenetId: user.battlenet!.id } }, { session });
           if (!bound.matchedCount) throw new CcgSupporterError(409, "account_bound");
         });
       } catch (error) {
@@ -83,7 +80,7 @@ class CcgSupporterService {
   }
 
   private async proof(userId: string, source: Source): Promise<Proof> {
-    const roster = await this.roster(userId, false, 60_000);
+    const roster = await this.roster(userId);
     const character = roster.characters.find((entry) => entry.id === source.blizzardCharacterId && entry.realmId === source.realmId);
     if (!character) throw new CcgSupporterError(403, "ownership_required");
     return { ...roster, character };
@@ -112,9 +109,11 @@ class CcgSupporterService {
       avatarUrl: draft.avatarUrl, mediaCapturedAt: draft.mediaCapturedAt };
   }
 
-  private async armoryGuild(profile: Awaited<ReturnType<typeof blizzard.getCharacterProfile>>) {
-    const guildName = profile.guild?.name ?? null;
-    const guildRealm = guildName ? profile.guild?.realm?.name ?? profile.realm.name : null;
+  private async rosterGuild(character: IWoWCharacter) {
+    // An unavailable first guild lookup is not proof that the character left its guild.
+    if (!character.guildCheckedAt && !character.guild && !character.inactive) return {};
+    const guildName = character.inactive ? null : character.guild ?? null;
+    const guildRealm = guildName ? character.guildRealm ?? character.realm : null;
     const guild = guildName && guildRealm
       ? await Guild.findOne({ name: guildName, realm: guildRealm, region: "eu" }).collation({ locale: "en", strength: 2 }).select("_id").lean()
       : null;
@@ -167,12 +166,15 @@ class CcgSupporterService {
   }
 
   async getCharacters(userId: string, refreshRoster = false) {
-    const user = await User.findById(userId).select("battlenet.id");
+    const user = await User.findById(userId).select("battlenet.id battlenet.characters");
     let characters: IWoWCharacter[] = [];
     let rosterError: string | null = null;
     if (user?.battlenet) {
       try { characters = (await this.roster(userId, refreshRoster)).characters; }
-      catch (error) { rosterError = error instanceof CcgSupporterError ? error.code : "armory_unavailable"; }
+      catch (error) {
+        rosterError = error instanceof CcgSupporterError ? error.code : "armory_unavailable";
+        if (rosterError !== "account_bound") characters = user.battlenet.characters.filter((character) => character.realmId);
+      }
     }
     const tracked = await Promise.all(characters.map(async (character) => {
       const classID = CLASSES.find((entry) => entry.name === character.class)?.id;
@@ -244,14 +246,14 @@ class CcgSupporterService {
 
   async create(userId: string, input: Record<string, unknown>) {
     await supporterLimit(`draft:${userId}`, 30, 60_000);
-    const roster = await this.roster(userId, false, 60_000);
+    const roster = await this.roster(userId);
     const character = roster.characters.find((entry) => entry.id === input.characterId && entry.realmId === input.realmId);
     if (!character?.realmId) throw new CcgSupporterError(403, "ownership_required");
     let profile;
     try { profile = await blizzard.getCharacterProfile(character.name, character.realmSlug, "eu"); }
     catch { throw new CcgSupporterError(422, "armory_unavailable"); }
     if (profile.id !== character.id) throw new CcgSupporterError(403, "ownership_required");
-    const guild = await this.armoryGuild(profile);
+    const guild = await this.rosterGuild(character);
     const classInfo = CLASSES.find((entry) => entry.name.toLowerCase() === profile.character_class.name.toLowerCase());
     if (!classInfo) throw new CcgSupporterError(422, "invalid_spec");
     const spec = classInfo.specs.find((entry) => entry.name === slugifySpecName(profile.active_spec?.name ?? "")) ?? classInfo.specs[0];
@@ -295,6 +297,7 @@ class CcgSupporterService {
     const source = await this.source(userId, id);
     const proof = await this.proof(userId, source);
     const values = validateSupporterDraft(source.classID, input);
+    const guild = await this.rosterGuild(proof.character);
     if (source.cardId && (values.tierGrade !== source.tierGrade || values.creatorFinish !== source.creatorFinish)) throw new CcgSupporterError(409, "rarity_locked");
     const session = await mongoose.startSession();
     try {
@@ -313,6 +316,7 @@ class CcgSupporterService {
             backgroundOffsetX: values.backgroundOffsetX ?? card.backgroundCrop.x,
             avatarUrl: card.avatarUrl, mediaCapturedAt: card.mediaCapturedAt });
         } else current.set("draft", { ...current.toObject().draft, ...values });
+        current.set(guild);
         current.revision += 1;
         await current.save({ session });
       });
@@ -353,7 +357,7 @@ class CcgSupporterService {
         blizzard.getCharacterMedia(proof.character.name, proof.character.realmSlug, "eu"),
       ]);
       if (profile.id !== source.blizzardCharacterId) throw new CcgSupporterError(403, "ownership_required");
-      const guild = await this.armoryGuild(profile);
+      const guild = await this.rosterGuild(proof.character);
       if (!media.mainRawUrl) throw new CcgSupporterError(422, "render_missing");
       const stored = await renders.ingest(source._id, media.mainRawUrl, now);
       const session = await mongoose.startSession();
@@ -388,6 +392,7 @@ class CcgSupporterService {
     await supporterLimit(`publish:${userId}`, 5, 60_000);
     const source = await this.source(userId, id);
     const proof = await this.proof(userId, source);
+    const guild = await this.rosterGuild(proof.character);
     await publisher.ensureConfiguredSets();
     const session = await mongoose.startSession();
     try {
@@ -400,6 +405,7 @@ class CcgSupporterService {
         if (!current.draft?.renderAssetId) throw new CcgSupporterError(422, "render_missing");
         if (current.nextEditAt > new Date()) throw new CcgSupporterError(429, "edit_cooldown", current.nextEditAt);
         validateSupporterDraft(current.classID, current.toObject().draft!);
+        current.set(guild);
         if (current.cardId) {
           const previous = await CcgCard.findById(current.cardId).select("guildId guildName guildRealm").session(session).orFail();
           await CcgCard.collection.updateOne({ _id: current.cardId, supporterCharacterId: current._id, snapshotVersion: 1 },

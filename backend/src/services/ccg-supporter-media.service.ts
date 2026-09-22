@@ -21,8 +21,9 @@ const AUDIO_FORMATS = "mp3,wav,flac,ogg,aac,mov,matroska,webm,aiff,asf";
 const DAY = 86_400_000;
 export type SupporterMediaKind = "image" | "audio";
 
-export function supporterMediaUrl(id: mongoose.Types.ObjectId | string) {
-  return `/api/ccg/media/supporter/${id}`;
+export function supporterMediaUrl(id: mongoose.Types.ObjectId | string, contentType?: string | null) {
+  // The fragment identifies video to artwork renderers without changing the media endpoint.
+  return `/api/ccg/media/supporter/${id}${contentType === "video/webm" ? "#art.webm" : ""}`;
 }
 
 export async function normalizeSupporterImage(input: Buffer) {
@@ -40,6 +41,44 @@ export async function normalizeSupporterImage(input: Buffer) {
     return { data: normalized.data, contentType: "image/webp", width: normalized.info.width, height: normalized.info.height };
   } catch (error) {
     if (error instanceof CcgSupporterError) throw error;
+    throw new CcgSupporterError(400, "media_image_format");
+  }
+}
+
+export async function normalizeSupporterVideo(input: Buffer, directory: string) {
+  if (!input.length || input.length > SUPPORTER_IMAGE_BYTES) throw new CcgSupporterError(400, "media_image_size");
+  const source = path.join(directory, "input");
+  const output = path.join(directory, "output.webm");
+  await writeFile(source, input, { flag: "wx" });
+  const inputOptions = ["-protocol_whitelist", "file,pipe", "-format_whitelist", "matroska,webm"];
+  try {
+    const probe = await execute(process.env.FFPROBE_PATH || "ffprobe", ["-v", "error", ...inputOptions, "-show_streams", "-of", "json", source],
+      { timeout: 15_000, maxBuffer: 256 * 1024, windowsHide: true });
+    const details = JSON.parse(probe.stdout);
+    const stream = details.streams?.find((entry: { codec_type?: string }) => entry.codec_type === "video");
+    if (!stream || !["vp8", "vp9"].includes(stream.codec_name) || !(stream.width > 0 && stream.height > 0)
+      || stream.width * stream.height > 40_000_000) throw new CcgSupporterError(400, "media_image_format");
+    if (String(stream.tags?.alpha_mode ?? stream.tags?.ALPHA_MODE) !== "1") throw new CcgSupporterError(400, "media_image_transparency");
+    const scale = Math.min(1, 2048 / stream.width, 2048 / stream.height);
+    const width = Math.max(2, Math.floor(stream.width * scale / 2) * 2);
+    const height = Math.max(2, Math.floor(stream.height * scale / 2) * 2);
+    // libvpx decoders retain WebM alpha; the native VP8/VP9 decoders discard it.
+    const decoded = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-xerror", "-nostdin", "-threads", "1", ...inputOptions,
+      "-c:v", stream.codec_name === "vp9" ? "libvpx-vp9" : "libvpx", "-i", source,
+      "-filter_complex", `[0:v:0]scale=${width}:${height},format=yuva420p,split[video][alpha];[alpha]alphaextract,scale=32:32[mask]`,
+      "-map", "[video]", "-an", "-map_metadata", "-1", "-map_chapters", "-1", "-c:v", "libvpx-vp9", "-threads", "1", "-deadline", "realtime", "-cpu-used", "8",
+      "-b:v", "0", "-crf", "32", "-fs", String(SUPPORTER_IMAGE_BYTES + 1), output,
+      "-map", "[mask]", "-c:v", "rawvideo", "-threads", "1", "-f", "rawvideo", "pipe:1"],
+    { encoding: "buffer", timeout: 30_000, maxBuffer: 16 * 1024 * 1024, windowsHide: true });
+    if (!decoded.stdout.length || !decoded.stdout.some((alpha) => alpha < 255) || !decoded.stdout.some((alpha) => alpha > 0)) {
+      throw new CcgSupporterError(400, "media_image_transparency");
+    }
+    const data = await readFile(output);
+    if (data.length > SUPPORTER_IMAGE_BYTES) throw new CcgSupporterError(400, "media_image_size");
+    return { data, contentType: "video/webm", width, height };
+  } catch (error) {
+    if (error instanceof CcgSupporterError) throw error;
+    if (["ENOENT", "EPERM", "EACCES"].includes((error as NodeJS.ErrnoException).code ?? "")) throw new CcgSupporterError(503, "media_processor_unavailable");
     throw new CcgSupporterError(400, "media_image_format");
   }
 }
@@ -86,9 +125,12 @@ class SupporterMediaService {
     const root = resolveCharacterRenderStoragePath("supporter");
     await mkdir(root, { recursive: true });
     const temporary = await mkdtemp(path.join(root, "upload-"));
-    const storageKey = `supporter/${id}.${kind === "image" ? "webp" : "mp3"}`;
     try {
-      const { data, ...metadata } = kind === "image" ? await normalizeSupporterImage(input) : await normalizeSupporterAudio(input, temporary);
+      const { data, ...metadata } = kind === "image"
+        ? input.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
+          ? await normalizeSupporterVideo(input, temporary) : await normalizeSupporterImage(input)
+        : await normalizeSupporterAudio(input, temporary);
+      const storageKey = `supporter/${id}.${metadata.contentType === "video/webm" ? "webm" : kind === "image" ? "webp" : "mp3"}`;
       const staged = path.join(temporary, "normalized");
       await writeFile(staged, data, { flag: "wx" });
       await rename(staged, resolveCharacterRenderStoragePath(storageKey));
@@ -101,7 +143,7 @@ class SupporterMediaService {
 
   async autoReview(id: string) {
     const row = await Media.findOne({ _id: id, kind: "image", status: "pending", aiReview: null, purgedAt: null }).lean();
-    if (!row?.storageKey) return;
+    if (!row?.storageKey || row.contentType === "video/webm") return;
     try {
       const result = await artReview.review(await readFile(resolveCharacterRenderStoragePath(row.storageKey)));
       if (result.autoApproved) await this.review(id, null, "approve", undefined, result);
@@ -145,7 +187,7 @@ class SupporterMediaService {
   async list(sourceIds: mongoose.Types.ObjectId[], includeReview = false) {
     const rows = await Media.find({ sourceId: { $in: sourceIds }, purgedAt: null }).sort({ createdAt: -1 }).lean();
     return rows.map((row) => ({ id: String(row._id), sourceId: String(row.sourceId), kind: row.kind, status: row.status,
-      url: row.contentType ? supporterMediaUrl(row._id) : null, reason: row.reason, width: row.width, height: row.height,
+      url: row.contentType ? supporterMediaUrl(row._id, row.contentType) : null, reason: row.reason, width: row.width, height: row.height,
       duration: row.duration, createdAt: row.createdAt, ...(includeReview ? { aiReview: row.aiReview ?? null } : {}) }));
   }
 

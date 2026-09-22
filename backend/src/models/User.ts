@@ -35,6 +35,7 @@ export interface IWoWCharacter {
   guild?: string;
   guildRealm?: string; // Guild's realm name
   guildRealmSlug?: string; // Guild's realm slug
+  guildCheckedAt?: Date;
   selected: boolean; // Whether user has selected this character to display
   inactive?: boolean; // Whether the character is inactive (404 from API)
 }
@@ -48,6 +49,7 @@ export interface IBattleNetAccount {
   connectedAt: Date;
   characters: IWoWCharacter[];
   lastCharacterSync: Date | null;
+  rosterSyncedAt?: Date | null; // Complete all-level roster, shared by profile and Card Studio
 }
 
 // Pickem prediction for a single guild
@@ -106,6 +108,7 @@ const TwitchAccountSchema = new Schema<ITwitchAccount>(
 const WoWCharacterSchema = new Schema<IWoWCharacter>(
   {
     id: { type: Number, required: true },
+    realmId: { type: Number },
     name: { type: String, required: true },
     realm: { type: String, required: true },
     realmSlug: { type: String, required: true },
@@ -116,6 +119,7 @@ const WoWCharacterSchema = new Schema<IWoWCharacter>(
     guild: { type: String, required: false },
     guildRealm: { type: String, required: false },
     guildRealmSlug: { type: String, required: false },
+    guildCheckedAt: { type: Date },
     selected: { type: Boolean, default: false },
     inactive: { type: Boolean, default: false },
   },
@@ -132,6 +136,7 @@ const BattleNetAccountSchema = new Schema<IBattleNetAccount>(
     connectedAt: { type: Date, default: Date.now },
     characters: { type: [WoWCharacterSchema], default: [] },
     lastCharacterSync: { type: Date, default: null },
+    rosterSyncedAt: { type: Date, default: null },
   },
   { _id: false },
 );

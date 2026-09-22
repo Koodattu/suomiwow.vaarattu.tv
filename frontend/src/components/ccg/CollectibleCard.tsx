@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { FaStar } from "react-icons/fa6";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgArtVariant, CcgCard } from "@/types";
-import { CCG_CLASS_COLORS, CCG_RARITY_KEYS } from "@/lib/ccg";
+import { CCG_CLASS_COLORS, CCG_RARITY_KEYS, isWebmArtwork } from "@/lib/ccg";
 import { isCcgRaidPreviewFinish, type CcgPreviewAffix, type CcgPreviewFinish } from "@/lib/ccg-preview-finishes";
 import { formatRealmName, formatSpecName, getClassInfoById, getParseColor, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
@@ -53,10 +53,6 @@ const mythicPlusScoreColors = [
 const TOUCH_TILT_HOLD_MS = 220;
 const TOUCH_TILT_INTENT_THRESHOLD = 8;
 const TOUCH_CLICK_SUPPRESSION_MS = 500;
-
-function isWebmArtwork(path: string | null): path is string {
-  return Boolean(path && /\.webm(?:$|[?#])/i.test(path));
-}
 
 const frameRingPath = [
   "M 24 4 H 476 Q 496 4 496 24 V 676 Q 496 696 476 696",

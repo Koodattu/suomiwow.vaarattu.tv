@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { normalizeSupporterAudio, normalizeSupporterImage } from "../src/services/ccg-supporter-media.service";
+import { normalizeSupporterAudio, normalizeSupporterImage, normalizeSupporterVideo, supporterMediaUrl } from "../src/services/ccg-supporter-media.service";
 import { resolveAlternativeArtKey, serializeAlternativeArt, serializeQuip } from "../src/utils/ccg-alternative-art";
 
 function wav(seconds: number) {
@@ -51,7 +53,52 @@ test("audio is decoded and converted to MP3; ten seconds and malformed files are
   }
 });
 
+test("WebM artwork retains animation and transparency, strips audio, and rejects invalid files", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "supporter-video-test-"));
+  const execute = promisify(execFile);
+  try {
+    for (const codec of ["libvpx", "libvpx-vp9"]) {
+      for (const alpha of [0, 0.5, 1]) {
+        const directory = await mkdtemp(path.join(root, "case-"));
+        for (const frame of [0, 1]) {
+          await sharp({ create: { width: 64, height: 48, channels: 4, background: { r: frame * 200, g: 20, b: 100, alpha } } })
+            .png().toFile(path.join(directory, `frame${frame}.png`));
+        }
+        const fixture = path.join(directory, "fixture.webm");
+        await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-framerate", "2", "-i", path.join(directory, "frame%d.png"),
+          "-f", "lavfi", "-i", "sine=duration=1", "-c:v", codec, "-auto-alt-ref", "0", "-pix_fmt", "yuva420p", "-c:a", "libopus", "-shortest", fixture], { windowsHide: true });
+        const input = await readFile(fixture);
+        if (alpha !== 0.5) {
+          await assert.rejects(normalizeSupporterVideo(input, directory), { code: "media_image_transparency" });
+          continue;
+        }
+        const result = await normalizeSupporterVideo(input, directory);
+        assert.equal(result.contentType, "video/webm");
+        assert.equal(result.width, 64); assert.equal(result.height, 48);
+        assert.ok(result.data.length > 0);
+        const probe = await execute(process.env.FFPROBE_PATH || "ffprobe", ["-v", "error", "-count_frames", "-show_streams", "-of", "json", path.join(directory, "output.webm")], { windowsHide: true });
+        const streams = JSON.parse(probe.stdout).streams;
+        assert.equal(streams.length, 1, "artwork has no audio stream");
+        assert.equal(streams[0].codec_name, "vp9");
+        assert.equal(Number(streams[0].nb_read_frames), 2, "both animation frames are retained");
+        const decoded = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-c:v", "libvpx-vp9", "-i", path.join(directory, "output.webm"),
+          "-vf", "alphaextract", "-f", "rawvideo", "pipe:1"], { encoding: "buffer", windowsHide: true });
+        assert.ok(decoded.stdout.every((value) => value > 100 && value < 150), "encoded WebM retains translucent pixels");
+      }
+    }
+    await assert.rejects(normalizeSupporterVideo(Buffer.from("not WebM"), await mkdtemp(path.join(root, "invalid-"))), { code: "media_image_format" });
+    await assert.rejects(normalizeSupporterVideo(Buffer.alloc(5 * 1024 * 1024 + 1), root), { code: "media_image_size" });
+  } finally {
+    assert.ok(path.resolve(root).startsWith(path.resolve(os.tmpdir()) + path.sep));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("Supporter customization has a card-specific key and serves approved asset paths", () => {
+  assert.equal(supporterMediaUrl("image", "image/webp"), "/api/ccg/media/supporter/image");
+  const videoUrl = supporterMediaUrl("video", "video/webm");
+  assert.match(videoUrl, /\.webm$/);
+  assert.equal(new URL(videoUrl, "https://example.com").pathname, "/api/ccg/media/supporter/video");
   const card = { characterId: "character", collectorKey: "wow:eu:realm:name" };
   assert.equal(resolveAlternativeArtKey(card), card.collectorKey);
   assert.equal(resolveAlternativeArtKey({ ...card, supporterCharacterId: "supporter" }), "supporter:supporter");

@@ -40,6 +40,7 @@ function mockStore(t: TestContext, initial = account()) {
       || JSON.stringify(filter["battlenet.characters"]) !== JSON.stringify(current.battlenet?.characters)) return null;
     current.battlenet!.characters = structuredClone(operation.$set["battlenet.characters"]);
     current.battlenet!.lastCharacterSync = operation.$set["battlenet.lastCharacterSync"];
+    current.battlenet!.rosterSyncedAt = operation.$set["battlenet.rosterSyncedAt"];
     return structuredClone(current) as any;
   });
   return { find, update, get current() { return current; }, disconnect() { current = {}; } };
@@ -84,6 +85,7 @@ test("expired access requests reconnection without calling Blizzard", async (t) 
 test("a recent successful sync returns saved data without a rate-limit error", async (t) => {
   const initial = account();
   initial.lastCharacterSync = new Date();
+  initial.rosterSyncedAt = new Date();
   mockStore(t, initial);
   const fetch = t.mock.method(globalThis, "fetch", async () => { throw new Error("Unexpected request"); });
   assert.deepEqual(await service.refreshCharacters("user"), initial.characters);
@@ -132,7 +134,7 @@ test("a selection changed between reading and writing is re-read instead of over
   assert.equal(result[0].selected, false);
 });
 
-test("slow guild lookups stop starting new requests after the budget and prioritize selected characters", async (t) => {
+test("slow guild lookups still check every character with bounded concurrency", async (t) => {
   const chars = Array.from({ length: 12 }, (_, index) => character(index + 1, index === 11));
   mockStore(t, account(chars));
   let now = Date.now();
@@ -145,9 +147,9 @@ test("slow guild lookups stop starting new requests after the budget and priorit
     return Response.json({});
   });
   const result = await service.refreshCharacters("user");
-  assert.equal(requested.length, 1);
-  assert.ok(requested[0].includes("character12?"));
-  assert.equal(result.length, 12, "Optional guild lookups never truncate the character list");
+  assert.equal(requested.length, 12);
+  assert.equal(result.length, 12);
+  assert.ok(result.every((character) => character.guildCheckedAt instanceof Date));
   assert.equal(result[11].selected, true);
 });
 
@@ -169,7 +171,7 @@ test("optional guild failures preserve cached guild details", async (t) => {
   const chars = [{ ...character(1, true), guild: "Old Guild", guildRealm: "Kazzak", guildRealmSlug: "kazzak" }];
   mockStore(t, account(chars));
   t.mock.method(globalThis, "fetch", async (url: Parameters<typeof fetch>[0]) => String(url).includes("/profile/user/wow?") ? profileResponse(chars) : new Response(null, { status: 503 }));
-  assert.deepEqual((await service.refreshCharacters("user"))[0], { ...chars[0], inactive: undefined });
+  assert.deepEqual((await service.refreshCharacters("user"))[0], { ...chars[0], realmId: 1, inactive: undefined, guildCheckedAt: undefined });
 });
 
 test("a successful guildless profile clears stale guild and inactive details", async (t) => {
@@ -187,12 +189,65 @@ test("reauthorizing the same account preserves selections and cached guilds", as
   const user = { battlenet: account([{ ...character(1, true), guild: "Guild" }]), save: async () => {} };
   t.mock.method(User, "findOne", async () => null as any);
   t.mock.method(User, "findById", async () => user as any);
+  t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 503 }));
   const result = await service.connectBattleNetAccount("user", { sub: "account", id: 1, battletag: "Test#1234" },
     { access_token: "new-token", expires_in: 60000, token_type: "bearer", scope: "wow.profile", sub: "account" }, [character(1), character(2)]);
   assert.equal(result.battlenet?.characters[0].selected, true);
   assert.equal(result.battlenet?.characters[0].guild, "Guild");
   assert.equal(result.battlenet?.characters[1].selected, false);
   assert.equal(result.battlenet?.accessToken, "new-token");
+  assert.ok(result.battlenet?.rosterSyncedAt instanceof Date);
+});
+
+test("saved rosters including empty accounts never expire or need a live token", async (t) => {
+  for (const characters of [[], [character(1)]]) {
+    const initial = account(characters);
+    initial.rosterSyncedAt = new Date(0);
+    initial.tokenExpiresAt = new Date(0);
+    const store = mockStore(t, initial);
+    const fetch = t.mock.method(globalThis, "fetch", async () => { throw new Error("Unexpected request"); });
+    assert.deepEqual(await service.getCharacters("user"), initial.characters);
+    assert.deepEqual(await service.getCharacters("user"), initial.characters);
+    assert.equal(fetch.mock.callCount(), 0);
+    assert.equal(store.update.mock.callCount(), 0);
+    t.mock.restoreAll();
+  }
+});
+
+test("legacy caches refresh once with all levels and persist guilds and realm IDs", async (t) => {
+  const initial = account();
+  initial.lastCharacterSync = new Date();
+  const store = mockStore(t, initial);
+  const chars = [{ ...character(1), level: 10 }];
+  let summaries = 0;
+  const fetch = t.mock.method(globalThis, "fetch", async (url: Parameters<typeof globalThis.fetch>[0]) => {
+    if (String(url).includes("/profile/user/wow?")) { summaries++; return profileResponse(chars); }
+    return Response.json({ guild: { name: "New Guild", realm: { name: "Ravencrest", slug: "ravencrest" } } });
+  });
+  const [first, concurrent] = await Promise.all([service.getCharacters("user"), service.getCharacters("user")]);
+  assert.deepEqual(concurrent, first);
+  assert.equal(first[0].realmId, 1);
+  assert.equal(first[0].level, 10);
+  assert.equal(first[0].guild, "New Guild");
+  assert.equal(first[0].guildRealm, "Ravencrest");
+  assert.equal(summaries, 1);
+  assert.ok(store.current.battlenet?.rosterSyncedAt instanceof Date);
+  assert.deepEqual(await service.getCharacters("user"), first);
+  assert.equal(fetch.mock.callCount(), 2);
+});
+
+test("connecting caches the supplied roster and guilds without fetching the list again", async (t) => {
+  const user: any = { save: async () => {} };
+  t.mock.method(User, "findOne", async () => null as any);
+  t.mock.method(User, "findById", async () => user);
+  const fetch = t.mock.method(globalThis, "fetch", async (url: Parameters<typeof globalThis.fetch>[0]) => {
+    assert.ok(String(url).includes("/profile/wow/character/"));
+    return Response.json({ guild: { name: "Guild", realm: { name: "Kazzak", slug: "kazzak" } } });
+  });
+  await service.connectBattleNetAccount("user", { sub: "account", id: 1, battletag: "Test#1234" },
+    { access_token: "new-token", expires_in: 60000, token_type: "bearer", scope: "wow.profile", sub: "account" }, [{ ...character(1), realmId: 1 }]);
+  assert.equal((await service.getCharacters("user"))[0].guild, "Guild");
+  assert.equal(fetch.mock.callCount(), 1);
 });
 
 test("selection saving updates only selection flags on the current connected account", async (t) => {

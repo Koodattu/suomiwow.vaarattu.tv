@@ -208,3 +208,7 @@ export function bestOwnedFinish(
     total: card.totalQuantity ?? Array.from(quantityByFinish.values()).reduce((sum, quantity) => sum + quantity, 0),
   };
 }
+
+export function isWebmArtwork(path: string | null): path is string {
+  return Boolean(path && /\.webm(?:$|[?#])/i.test(path));
+}

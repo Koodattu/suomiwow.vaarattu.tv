@@ -57,7 +57,7 @@ let baseUrl: string;
 const models = [User, Guild, Creator, Source, Grant, Event, Limit, Card, SetModel, Pool, Ownership, Series, Invalidation,
   CcgJobLock, CcgLeaderboardEntry, CcgPackBalance, CcgPackCredit, CcgLedgerEntry, CcgPackOpening, CcgQualityProgress, Media, AlternativeArt];
 const chars = Array.from({ length: 7 }, (_, i) => ({ id: i + 1, realmId: 10, name: `Mage${i + 1}`, realm: "Stormreaver",
-  realmSlug: "stormreaver", class: "Mage", race: "Human", level: 10, faction: "ALLIANCE" as const, selected: false }));
+  realmSlug: "stormreaver", class: "Mage", race: "Human", level: 10, faction: "ALLIANCE" as const, selected: false, inactive: false }));
 
 before(async () => {
   mock.method(artReview, "review", async (): Promise<SupporterArtReview> => ({ decision: "error", safetyConfidence: null, reason: "review_unavailable",
@@ -91,8 +91,9 @@ beforeEach(async () => {
   for (const model of models) await model.collection.deleteMany({});
   const connectedAt = new Date();
   await User.collection.insertMany([userId, otherId].map((id, index) => ({ _id: id, discord: { id: `discord${index}`, username: `Tester${index}` },
-    battlenet: { id: `bnet${index}`, connectedAt, accessToken: "fixture", tokenExpiresAt: new Date(Date.now() + 3600_000) } })));
-  await Creator.create({ userId, battlenetId: "bnet0", earnedSlots: 4, roster: chars, rosterCheckedAt: new Date(), rosterConnectionAt: connectedAt });
+    battlenet: { id: `bnet${index}`, connectedAt, accessToken: "fixture", tokenExpiresAt: new Date(Date.now() + 3600_000),
+      characters: chars, rosterSyncedAt: new Date() } })));
+  await Creator.create({ userId, battlenetId: "bnet0", earnedSlots: 4 });
   (publisher as any).configuredAt = 0;
   ccg.invalidateCardAvailabilityCaches();
 });
@@ -116,23 +117,65 @@ async function connect() {
 }
 
 test("Studio overview does not wait for Battle.net; characters load separately", async (t) => {
-  await Creator.updateOne({ userId }, { $set: { rosterCheckedAt: new Date(0) } });
-  const roster = t.mock.method(battlenet, "getWoWCharacters", async () => chars);
+  await User.updateOne({ _id: userId }, { $set: { "battlenet.rosterSyncedAt": null } });
+  const roster = t.mock.method(battlenet, "getWoWCharacters", async () => structuredClone(chars));
+  t.mock.method(globalThis, "fetch", async () => Response.json({}));
   const overview = await studio.getState(String(userId));
   assert.equal(overview.battlenetConnected, true);
   assert.equal(roster.mock.callCount(), 0);
   assert.equal("characters" in overview, false);
-  assert.equal((await studio.getCharacters(String(userId))).characters.length, chars.length);
+  const loaded = await studio.getCharacters(String(userId));
+  assert.equal(loaded.rosterError, null);
+  assert.equal(loaded.characters.length, chars.length);
   assert.equal(roster.mock.callCount(), 1);
   await studio.getCharacters(String(userId));
   assert.equal(roster.mock.callCount(), 1, "Subsequent character reads reuse the roster cache");
+  assert.ok((await User.findById(userId))?.battlenet?.rosterSyncedAt);
 });
 
 test("Battle.net failures affect character loading without blocking Studio", async (t) => {
-  await Creator.updateOne({ userId }, { $set: { rosterCheckedAt: new Date(0) } });
+  await User.updateOne({ _id: userId }, { $set: { "battlenet.rosterSyncedAt": null } });
   t.mock.method(battlenet, "getWoWCharacters", async () => { throw new Error("offline"); });
   assert.equal((await studio.getCharacters(String(userId))).rosterError, "armory_unavailable");
+  assert.equal((await studio.getCharacters(String(userId))).characters.length, chars.length, "Saved characters survive provider failures");
   assert.equal((await studio.getState(String(userId))).allowance.available, 6);
+});
+
+test("old cached rosters support visits, saves and publication even after the Battle.net token expires", async (t) => {
+  const source = await draft();
+  await User.updateOne({ _id: userId }, { $set: {
+    "battlenet.rosterSyncedAt": new Date(0), "battlenet.tokenExpiresAt": new Date(0),
+  } });
+  const roster = t.mock.method(battlenet, "getWoWCharacters", async () => { throw new Error("Unexpected roster fetch"); });
+  const profile = t.mock.method(blizzard, "getCharacterProfile", async () => { throw new Error("Unexpected profile fetch"); });
+  for (let visit = 0; visit < 2; visit++) {
+    assert.equal((await studio.getCharacters(String(userId))).characters.length, chars.length);
+  }
+  await studio.save(String(userId), String(source._id), { ...source.toObject().draft, revision: source.revision });
+  const saved = await Source.findById(source._id).orFail();
+  await studio.publish(String(userId), String(source._id), saved.revision);
+  assert.equal(await Card.countDocuments({ supporterCharacterId: source._id }), 1);
+  assert.equal(roster.mock.callCount(), 0);
+  assert.equal(profile.mock.callCount(), 0);
+});
+
+test("failed explicit refresh retains the roster and ordinary reads do not retry Blizzard", async (t) => {
+  const roster = t.mock.method(battlenet, "getWoWCharacters", async () => { throw new Error("offline"); });
+  const refreshed = await studio.getCharacters(String(userId), true);
+  assert.equal(refreshed.rosterError, "armory_unavailable");
+  assert.equal(refreshed.characters.length, chars.length);
+  assert.equal((await studio.getCharacters(String(userId))).rosterError, null);
+  assert.equal(roster.mock.callCount(), 1);
+});
+
+test("an unknown guild after a failed first lookup cannot erase the card's saved guild", async () => {
+  const source = await draft();
+  await Source.updateOne({ _id: source._id }, { $set: { guildName: "Known Guild", guildRealm: "Stormreaver" } });
+  await studio.save(String(userId), String(source._id), { ...source.toObject().draft, revision: source.revision });
+  const saved = await Source.findById(source._id).orFail();
+  assert.equal(saved.guildName, "Known Guild");
+  await studio.publish(String(userId), String(source._id), saved.revision);
+  assert.equal((await Card.findById((await Source.findById(source._id))!.cardId))?.guildName, "Known Guild");
 });
 
 test("claim-all rewards only this creator's published cards, once even across concurrent requests", async () => {
@@ -303,18 +346,15 @@ test("publication is idempotent and later edits update one card without changing
   assert.equal((await Creator.findOne({ userId }))?.draftCount, 0);
 });
 
-test("Supporter guild follows Armory through preview, publication, guild changes and departure", async (t) => {
+test("Supporter guild follows the shared roster on save and publication without refreshing artwork", async (t) => {
   const trackedGuildId = new mongoose.Types.ObjectId();
   await Guild.collection.insertOne({ _id: trackedGuildId, name: "Tracked Guild", realm: "Ravencrest", region: "eu" } as any);
   let guild: { name: string; realm?: { name: string; slug: string } } | undefined = {
     name: "tracked guild", realm: { name: "Ravencrest", slug: "ravencrest" },
   };
-  let unavailable = false;
-  const originalProfile = blizzard.getCharacterProfile.bind(blizzard);
-  t.mock.method(blizzard, "getCharacterProfile", async (...args: Parameters<typeof originalProfile>) => {
-    if (unavailable) throw new Error("Armory unavailable");
-    return { ...await originalProfile(...args), guild };
-  });
+  t.mock.method(battlenet, "getWoWCharacters", async () => structuredClone(chars));
+  const provider = t.mock.method(globalThis, "fetch", async () => Response.json({ guild }));
+  assert.equal((await studio.getCharacters(String(userId), true)).rosterError, null);
   const source = await draft();
   const id = String(source._id);
   const state = await studio.getState(String(userId));
@@ -327,10 +367,13 @@ test("Supporter guild follows Armory through preview, publication, guild changes
   assert.equal((await Card.findById(cardId))?.guildName, "tracked guild");
   assert.equal((await SetModel.findById((await Card.findById(cardId))!.setId))?.collectionGuilds?.length, 1);
 
-  await studio.save(String(userId), id, { ...source.toObject().draft, revision: current.revision });
-  await Source.updateOne({ _id: source._id }, { $set: { nextRenderRefreshAt: new Date(0), nextEditAt: new Date(0) } });
   guild = { name: "Untracked Guild" };
-  const refreshed = await studio.refreshRender(String(userId), id);
+  await User.updateOne({ _id: userId }, { $set: { "battlenet.lastCharacterSync": new Date(0) } });
+  await battlenet.refreshCharacters(String(userId));
+  const callsAfterRefresh = provider.mock.callCount();
+  const profile = t.mock.method(blizzard, "getCharacterProfile", async () => { throw new Error("Save must use the roster"); });
+  const refreshed = await studio.save(String(userId), id, { ...source.toObject().draft, revision: current.revision });
+  await Source.updateOne({ _id: source._id }, { $set: { nextEditAt: new Date(0) } });
   assert.equal((refreshed.creations[0].preview as Record<string, unknown> | null)?.guildName, "Untracked Guild");
   assert.equal((await Card.findById(cardId))?.guildName, "tracked guild", "Refresh only changes the preview until applied");
   current = await Source.findById(source._id).orFail();
@@ -340,17 +383,20 @@ test("Supporter guild follows Armory through preview, publication, guild changes
   assert.equal((await Card.findById(cardId))?.guildName, "Untracked Guild", "Guild need not be tracked by the site");
   assert.equal((await Card.findById(cardId))?.guildId, null);
   assert.equal((await SetModel.findById((await Card.findById(cardId))!.setId))?.collectionGuilds?.length, 0, "Guild filters lose the previous membership");
+  assert.equal(provider.mock.callCount(), callsAfterRefresh);
+  assert.equal(profile.mock.callCount(), 0);
 
   current = await Source.findById(source._id).orFail();
   await studio.save(String(userId), id, { ...source.toObject().draft, revision: current.revision });
-  await Source.updateOne({ _id: source._id }, { $set: { nextRenderRefreshAt: new Date(0), nextEditAt: new Date(0) } });
-  unavailable = true;
-  await assert.rejects(studio.refreshRender(String(userId), id), { code: "armory_unavailable" });
-  assert.equal((await Source.findById(source._id))?.guildName, "Untracked Guild", "Failed refresh preserves the guild");
-  unavailable = false;
+  await Source.updateOne({ _id: source._id }, { $set: { nextEditAt: new Date(0) } });
+  provider.mock.mockImplementation(async () => new Response(null, { status: 503 }));
+  await User.updateOne({ _id: userId }, { $set: { "battlenet.lastCharacterSync": new Date(0) } });
+  await battlenet.refreshCharacters(String(userId));
+  assert.equal((await User.findById(userId))?.battlenet?.characters[0].guild, "Untracked Guild", "Failed guild lookup preserves cached membership");
   guild = undefined;
-  await Source.updateOne({ _id: source._id }, { $set: { nextRenderRefreshAt: new Date(0) } });
-  await studio.refreshRender(String(userId), id);
+  provider.mock.mockImplementation(async () => Response.json({}));
+  await User.updateOne({ _id: userId }, { $set: { "battlenet.lastCharacterSync": new Date(0) } });
+  await battlenet.refreshCharacters(String(userId));
   current = await Source.findById(source._id).orFail();
   await studio.publish(String(userId), id, current.revision);
   const card = await Card.findById(cardId).orFail();
@@ -380,7 +426,8 @@ test("ownership loss and unavailable slots prevent publication without partial w
   await assert.rejects(studio.publish(String(userId), String(source._id), source.revision), { code: "no_slots" });
   assert.equal(await Card.countDocuments(), 0);
   assert.equal((await Creator.findOne({ userId }))?.draftCount, 1);
-  await Creator.updateOne({ userId }, { $set: { earnedSlots: 4, roster: [] } });
+  await Creator.updateOne({ userId }, { $set: { earnedSlots: 4 } });
+  await User.updateOne({ _id: userId }, { $set: { "battlenet.characters": [] } });
   await assert.rejects(studio.publish(String(userId), String(source._id), source.revision), { code: "ownership_required" });
   assert.equal(await Card.countDocuments(), 0);
 });

@@ -309,6 +309,7 @@ class BattleNetAuthService {
 
       if (response.ok) {
         const profile = (await response.json()) as ProtectedCharacterProfile;
+        char.guildCheckedAt = new Date();
         if (profile.guild && profile.guild.name) {
           char.guild = profile.guild.name;
           char.guildRealm = profile.guild.realm?.name;
@@ -327,6 +328,7 @@ class BattleNetAuthService {
       } else if (response.status === 404) {
         // Character is inactive (not found in API)
         char.inactive = true;
+        char.guildCheckedAt = new Date();
         char.guild = "inactive";
         char.guildRealm = undefined;
         char.guildRealmSlug = undefined;
@@ -369,6 +371,12 @@ class BattleNetAuthService {
     logger.info(`Completed guild enrichment for user ${userId}: ${updated}/${user.battlenet.characters.length} characters updated with guild info`);
   }
 
+  private async enrichRoster(characters: IWoWCharacter[], accessToken: string): Promise<void> {
+    await Promise.all(characters.map((character) =>
+      this.characterRequests.run(() => this._enrichSingleCharacterWithGuild(character, accessToken)),
+    ));
+  }
+
   /**
    * Connect Battle.net account to existing user
    */
@@ -396,10 +404,14 @@ class BattleNetAuthService {
           character.guild = previous.guild;
           character.guildRealm = previous.guildRealm;
           character.guildRealmSlug = previous.guildRealmSlug;
+          character.guildCheckedAt = previous.guildCheckedAt;
           character.inactive = previous.inactive;
         }
       }
     }
+
+    await this.enrichRoster(characters, tokens.access_token);
+    const syncedAt = new Date();
 
     // Update user with Battle.net account
     user.battlenet = {
@@ -410,7 +422,8 @@ class BattleNetAuthService {
       tokenExpiresAt,
       connectedAt: new Date(),
       characters,
-      lastCharacterSync: null, // Set to null initially to allow immediate refresh for guild enrichment
+      lastCharacterSync: syncedAt,
+      rosterSyncedAt: syncedAt,
     };
 
     await user.save();
@@ -443,6 +456,16 @@ class BattleNetAuthService {
     logger.info(`Updated character selection for user ${userId}: ${characterIds.length} characters selected`);
 
     return user;
+  }
+
+  /**
+   * Read the persisted roster, filling legacy or missing caches only once.
+   */
+  async getCharacters(userId: string): Promise<IWoWCharacter[]> {
+    const user = await User.findById(userId);
+    if (!user?.battlenet) throw new BattleNetSyncError("BATTLENET_RECONNECT_REQUIRED", 409, "Reconnect Battle.net to refresh your characters.");
+    if (user.battlenet.rosterSyncedAt) return user.battlenet.characters;
+    return this.refreshCharacters(userId);
   }
 
   /**
@@ -491,7 +514,7 @@ class BattleNetAuthService {
     }
 
     // Reuse a recent successful sync instead of reporting a failed refresh.
-    if (user.battlenet.lastCharacterSync) {
+    if (user.battlenet.rosterSyncedAt && user.battlenet.lastCharacterSync) {
       const timeSinceLastSync = Date.now() - user.battlenet.lastCharacterSync.getTime();
       const minInterval = 30000; // 30 seconds
       if (timeSinceLastSync < minInterval) {
@@ -502,7 +525,7 @@ class BattleNetAuthService {
     logger.info(`Starting character refresh for user ${userId}`);
 
     // Get fresh character list WITHOUT guild information (fast initial fetch)
-    const characters = await this.getWoWCharacters(user.battlenet.accessToken, false);
+    const characters = await this.getWoWCharacters(user.battlenet.accessToken, false, 0);
 
     const previousCharacters = new Map(user.battlenet.characters.map((character) => [character.id, character]));
     for (const char of characters) {
@@ -511,19 +534,12 @@ class BattleNetAuthService {
         char.guild = previous.guild;
         char.guildRealm = previous.guildRealm;
         char.guildRealmSlug = previous.guildRealmSlug;
+        char.guildCheckedAt = previous.guildCheckedAt;
         char.inactive = previous.inactive;
       }
     }
 
-    // Optional guild lookups share a concurrency limit and a total time budget.
-    const deadline = Date.now() + 10000;
-    const enrichmentOrder = [...characters].sort((a, b) => Number(previousCharacters.get(b.id)?.selected ?? false) - Number(previousCharacters.get(a.id)?.selected ?? false));
-    const accessToken = user.battlenet.accessToken;
-    await Promise.all(enrichmentOrder.map((character) =>
-      this.characterRequests.run(async () => {
-        if (Date.now() < deadline) await this._enrichSingleCharacterWithGuild(character, accessToken);
-      }),
-    ));
+    await this.enrichRoster(characters, user.battlenet.accessToken);
 
     // Compare the current list when saving so concurrent selections are never lost.
     // The token guard also prevents an old sync from restoring a disconnected account.
@@ -536,7 +552,7 @@ class BattleNetAuthService {
       for (const character of characters) character.selected = selected.has(character.id);
       const updated = await User.findOneAndUpdate(
         { _id: userId, "battlenet.accessToken": user.battlenet.accessToken, "battlenet.characters": current.battlenet.characters },
-        { $set: { "battlenet.characters": characters, "battlenet.lastCharacterSync": new Date() } },
+        { $set: { "battlenet.characters": characters, "battlenet.lastCharacterSync": new Date(), "battlenet.rosterSyncedAt": new Date() } },
         { new: true },
       );
       if (updated?.battlenet) return updated.battlenet.characters;

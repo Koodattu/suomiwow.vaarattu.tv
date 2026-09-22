@@ -54,7 +54,9 @@ export function supporterScores(input: { performance?: unknown; mechanics?: unkn
 export function validateSupporterDraft(classID: number, input: Record<string, unknown>) {
   if (typeof input.specName !== "string") throw new CcgSupporterError(400, "invalid_spec");
   const spec = CLASSES.find((entry) => entry.id === classID)?.specs.find((entry) => entry.name === slugifySpecName(input.specName as string));
-  if (!spec || (input.role !== undefined && input.role !== spec.role)) throw new CcgSupporterError(400, "invalid_spec");
+  if (!spec) throw new CcgSupporterError(400, "invalid_spec");
+  const role = input.role === undefined ? spec.role : input.role;
+  if (role !== "tank" && role !== "healer" && role !== "dps") throw new CcgSupporterError(400, "invalid_role");
   if (!CCG_TIER_GRADES.includes(input.tierGrade as CcgTierGrade)) throw new CcgSupporterError(400, "invalid_rarity");
   if (!SUPPORTER_CREATOR_FINISHES.includes(input.creatorFinish as CcgCustomFinish)) throw new CcgSupporterError(400, "invalid_finish");
   const scores = supporterScores(input);
@@ -63,7 +65,7 @@ export function validateSupporterDraft(classID: number, input: Record<string, un
   }
   if (input.backgroundOffsetX !== undefined && (typeof input.backgroundOffsetX !== "number" || !Number.isFinite(input.backgroundOffsetX)
     || input.backgroundOffsetX < 0 || input.backgroundOffsetX > 100)) throw new CcgSupporterError(400, "invalid_background");
-  return { specName: spec.name, role: spec.role, tierGrade: input.tierGrade as CcgTierGrade,
+  return { specName: spec.name, role, tierGrade: input.tierGrade as CcgTierGrade,
     creatorFinish: input.creatorFinish as CcgCustomFinish,
     ...(input.backgroundId !== undefined ? { backgroundId: input.backgroundId as string } : {}),
     ...(input.backgroundOffsetX !== undefined ? { backgroundOffsetX: input.backgroundOffsetX as number } : {}),

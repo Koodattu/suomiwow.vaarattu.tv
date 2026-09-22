@@ -5297,8 +5297,8 @@ class CcgService {
         const key = `supporter:${row.sourceId}`;
         const definition = definitions.get(key) ?? { collectorKey: key };
         if (row.kind === "image") {
-          definition.characterArtFilename = `${row._id}.webp`; definition.characterArtEnabled = true;
-          definition.characterArtPath = supporterMediaUrl(row._id);
+          definition.characterArtFilename = `${row._id}.${row.contentType === "video/webm" ? "webm" : "webp"}`; definition.characterArtEnabled = true;
+          definition.characterArtPath = supporterMediaUrl(row._id, row.contentType);
         } else {
           definition.quipAudioFilename = `${row._id}.mp3`; definition.quipAudioPath = supporterMediaUrl(row._id);
         }

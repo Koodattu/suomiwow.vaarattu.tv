@@ -660,7 +660,7 @@ router.get("/battlenet/callback", async (req: Request, res: Response) => {
     const userInfo = await battlenetAuthService.getUserInfo(tokens.access_token);
 
     // Get WoW characters
-    const characters = await battlenetAuthService.getWoWCharacters(tokens.access_token);
+    const characters = await battlenetAuthService.getWoWCharacters(tokens.access_token, false, 0);
 
     // Connect Battle.net account to user
     await battlenetAuthService.connectBattleNetAccount(userId, userInfo, tokens, characters);

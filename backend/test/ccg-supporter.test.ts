@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { CLASSES } from "../src/config/classes";
 import { getCcgPackFinishOrder, getCcgRedeemFinishOrder, CCG_BASE_FINISH_ORDER } from "../src/config/ccg";
 import { supporterMonth, supporterScores, supporterGrants, validateSupporterDraft, SUPPORTER_CREATOR_FINISHES, SUPPORTER_BACKGROUNDS } from "../src/utils/ccg-supporter";
 
@@ -22,12 +23,28 @@ test("manual scores reject invalid values and derive combined on the server", ()
   assert.throws(() => supporterScores({ mythicPlus: 100001 }), { code: "invalid_scores" });
 });
 
-test("spec and role must belong to the character class; unreleased finishes cannot be selected", () => {
+test("specializations must belong to the character class; unreleased finishes cannot be selected", () => {
   const input = { specName: "Fire", role: "dps", tierGrade: "H", creatorFinish: SUPPORTER_CREATOR_FINISHES[0] };
   assert.equal(validateSupporterDraft(4, input).specName, "fire");
-  assert.throws(() => validateSupporterDraft(4, { ...input, role: "healer" }), { code: "invalid_spec" });
   assert.throws(() => validateSupporterDraft(4, { ...input, specName: "blood" }), { code: "invalid_spec" });
   assert.throws(() => validateSupporterDraft(4, { ...input, creatorFinish: "worldcore" }), { code: "invalid_finish" });
+});
+
+test("every class specialization supports any role, with the normal role as the default", () => {
+  const input = { tierGrade: "H", creatorFinish: SUPPORTER_CREATOR_FINISHES[0] };
+  for (const characterClass of CLASSES) {
+    for (const spec of characterClass.specs) {
+      assert.equal(validateSupporterDraft(characterClass.id, { ...input, specName: spec.name }).role, spec.role);
+      for (const role of ["tank", "healer", "dps"]) {
+        const draft = validateSupporterDraft(characterClass.id, { ...input, specName: spec.name, role });
+        assert.equal(draft.role, role);
+        assert.equal(draft.specName, spec.name);
+      }
+    }
+  }
+  for (const role of [null, "", "damage", "invalid", 1, {}]) {
+    assert.throws(() => validateSupporterDraft(4, { ...input, specName: "fire", role }), { code: "invalid_role" });
+  }
 });
 
 test("Supporter pack and redeem finishes contain only the bases and the card's chosen raid finish", () => {

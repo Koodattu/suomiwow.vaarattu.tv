@@ -6,12 +6,14 @@ import { FaLock } from "react-icons/fa6";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { api, ApiError } from "@/lib/api";
+import { isWebmArtwork } from "@/lib/ccg";
 import type { StudioCreation, SupporterMedia } from "@/types/ccg-studio";
 import styles from "./studio.module.css";
 
 export function SupporterMediaPreview({ media }: { media: SupporterMedia }) {
   const t = useTranslations("ccg.studio.media");
   if (!media.url) return null;
+  if (media.kind === "image" && isWebmArtwork(media.url)) return <video controls autoPlay loop muted playsInline src={media.url} aria-label={t("preview")} style={{ width: 240, height: 280, objectFit: "contain", maxWidth: "100%", background: "#292934" }} />;
   return media.kind === "image"
     ? <Image src={media.url} alt={t("preview")} width={240} height={280} unoptimized style={{ objectFit: "contain", maxWidth: "100%", background: "#292934" }} />
     : <audio controls preload="none" src={media.url} aria-label={t("audio")} style={{ maxWidth: "100%" }} />;
@@ -29,7 +31,7 @@ export default function SupporterMediaUploader({ source, media, disabled, onPrev
   const imageFile = files.image;
   const hasFiles = Boolean(files.image || files.audio);
   useEffect(() => { onSelectionChange(hasFiles); }, [hasFiles, onSelectionChange]);
-  useEffect(() => () => { if (localImage) URL.revokeObjectURL(localImage); }, [localImage]);
+  useEffect(() => () => { if (localImage) URL.revokeObjectURL(localImage.split("#")[0]); }, [localImage]);
   const imageRows = media.filter((row) => row.sourceId === source.id && row.kind === "image");
   const imageUrl = imageFile ? localImage : imageRows.find((row) => row.status === "pending")?.url ?? imageRows.find((row) => row.status === "approved")?.url ?? null;
   useEffect(() => { onPreview(showAlternative ? imageUrl : null); }, [imageUrl, showAlternative, onPreview]);
@@ -86,17 +88,18 @@ export default function SupporterMediaUploader({ source, media, disabled, onPrev
           {pending.status === "pending" && <button disabled={mutation.isPending} onClick={() => mutation.mutate({ withdrawId: pending.id })}>{t("media.withdraw")}</button>}</>
           : <>
             {latest && latest.status !== "approved" && <p>{t(`media.status.${latest.status}`)}{latest.reason && `: ${latest.status === "failed" ? t(t.has(`errors.${latest.reason}`) ? `errors.${latest.reason}` : "errors.media_upload_failed") : latest.reason}`}</p>}
-            <label>{t(`media.${kind}`)}<input key={`${kind}:${fileKeys[kind]}`} type="file" accept={kind === "image" ? "image/png,image/webp" : "audio/*,.m4a,.mp4,.webm,.flac,.aiff,.wma"}
+            <label>{t(`media.${kind}`)}<input key={`${kind}:${fileKeys[kind]}`} type="file" accept={kind === "image" ? "image/png,image/webp,video/webm,.webm" : "audio/*,.m4a,.mp4,.webm,.flac,.aiff,.wma"}
               disabled={locked || mutation.isPending} onChange={(event) => {
                 const file = event.target.files?.[0];
-                if (file && (file.size > (kind === "image" ? 5 : 8) * 1024 * 1024 || (kind === "image" && !["image/png", "image/webp"].includes(file.type)))) {
+                const webm = file && (file.type === "video/webm" || isWebmArtwork(file.name));
+                if (file && (file.size > (kind === "image" ? 5 : 8) * 1024 * 1024 || (kind === "image" && !["image/png", "image/webp"].includes(file.type) && !webm))) {
                   setError(kind === "image" ? file.size > 5 * 1024 * 1024 ? "media_image_size" : "media_image_format" : "media_audio_size");
                   setFiles((previous) => ({ ...previous, [kind]: undefined }));
                   if (kind === "image") setLocalImage(null);
                   event.target.value = ""; return;
                 }
                 setError(null); setFiles((previous) => ({ ...previous, [kind]: file }));
-                if (kind === "image") { setLocalImage(file ? URL.createObjectURL(file) : null); setShowAlternative(true); }
+                if (kind === "image") { setLocalImage(file ? `${URL.createObjectURL(file)}${webm ? "#art.webm" : ""}` : null); setShowAlternative(true); }
               }} /></label>
             <div className={styles.actions}>
               <button disabled={locked || mutation.isPending || !files[kind]} onClick={() => submit(kind)}>{t(mutation.isPending && mutation.variables.kind === kind ? "media.uploading" : "media.submit")}</button>

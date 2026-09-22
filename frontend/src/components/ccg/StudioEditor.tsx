@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { FaSpinner } from "react-icons/fa6";
+import { FaCheck, FaSpinner } from "react-icons/fa6";
 import { useLocale, useTranslations } from "next-intl";
 import { CCG_CLASS_COLORS, CCG_RARITY_KEYS } from "@/lib/ccg";
-import { formatSpecName, getClassInfoById } from "@/lib/utils";
+import { formatSpecName, getClassInfoById, getSpecIconUrl } from "@/lib/utils";
+import IconImage from "@/components/IconImage";
 import type { CcgCustomFinish, CcgTierGrade } from "@/types";
 import type { StudioCreation, StudioDraft, StudioState } from "@/types/ccg-studio";
 import CollectibleCard from "./CollectibleCard";
@@ -19,6 +20,8 @@ export default function StudioEditor({ source, data, pending, action, run, onDir
   run: (path: string, body?: Record<string, unknown>, method?: string) => Promise<unknown> }) {
   const t = useTranslations("ccg");
   const locale = useLocale();
+  const selectionId = useId();
+  const [previewRaidFinish, setPreviewRaidFinish] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const confirmationRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -72,8 +75,13 @@ export default function StudioEditor({ source, data, pending, action, run, onDir
 
   return <section className={styles.editor} aria-label={t("studio.editor")} aria-busy={pending} style={{ "--class-color": CCG_CLASS_COLORS[source.classID] ?? "#c4cddd" } as CSSProperties}>
     <div className={styles.preview}>
-      {preview && <div className={styles.previewCard}><CollectibleCard card={preview} finish={form.creatorFinish} artVariant={alternativePreview ? "alternative" : "standard"} compact className={cardStyles.scaledCardTypography} /></div>}
+      {preview && <div className={styles.previewCard}><CollectibleCard card={preview} finish={previewRaidFinish ? form.creatorFinish : "standard"} artVariant={alternativePreview ? "alternative" : "standard"} compact className={cardStyles.scaledCardTypography} /></div>}
       <span className={styles.previewLabel}>{t("studio.livePreview")}</span>
+      <label className={styles.finishToggle}>
+        <input className={styles.srOnly} type="checkbox" role="switch" checked={previewRaidFinish} onChange={(event) => setPreviewRaidFinish(event.target.checked)} />
+        <span className={styles.switchTrack} aria-hidden="true" />
+        {t("studio.previewRaidFinish")}
+      </label>
       {source.draft && <div className={styles.renderFeedback}>
         {source.renderError && <p className={styles.inlineError} role="status">{t("studio.appearanceFailed")}</p>}
         <button type="button" disabled={disabled || dirty || Date.parse(source.nextRenderRefreshAt) > now} onClick={() => void run(`${path}/render`)}>{action === `${path}/render` && <FaSpinner className={styles.spinner} aria-hidden="true" />}{t(action === `${path}/render` ? "studio.refreshing" : source.renderError ? "studio.retryAppearance" : "studio.refreshRender")}</button>
@@ -88,11 +96,35 @@ export default function StudioEditor({ source, data, pending, action, run, onDir
         <span className={styles.badge} data-tone={source.cardId && !source.draft ? "success" : "draft"}>{t(source.cardId ? source.draft ? "studio.unpublishedChanges" : "studio.published" : "studio.draft")}</span></div>
       {(!owned || source.editsFrozen) && <p role="status">{t(source.editsFrozen ? "studio.errors.editing_frozen" : "studio.errors.ownership_required")}</p>}
       <fieldset disabled={disabled}>
+        <fieldset className={styles.choiceGroup}>
+          <legend>{t("studio.spec")}</legend>
+          <div className={styles.specChoices}>
+            {specs.map((spec) => <label key={spec.name} className={styles.iconChoice}>
+              <input className={styles.srOnly} type="radio" name={`${selectionId}-spec`} value={spec.name} checked={form.specName === spec.name} onChange={() => {
+                setForm((previous) => ({ ...previous, specName: spec.name })); setConfirm(false);
+              }} />
+              <span className={styles.choiceTile}>
+                <IconImage iconFilename={getSpecIconUrl(source.classID, spec.name)} alt="" width={32} height={32} />
+                <span>{formatSpecName(spec.name)}</span><FaCheck className={styles.choiceCheck} aria-hidden="true" />
+              </span>
+            </label>)}
+          </div>
+        </fieldset>
+        <fieldset className={styles.choiceGroup}>
+          <legend>{t("studio.role")}</legend>
+          <div className={styles.roleChoices}>
+            {(["tank", "healer", "dps"] as const).map((role) => <label key={role} className={styles.iconChoice}>
+              <input className={styles.srOnly} type="radio" name={`${selectionId}-role`} value={role} checked={form.role === role} onChange={() => {
+                setForm((previous) => ({ ...previous, role })); setConfirm(false);
+              }} />
+              <span className={styles.choiceTile}>
+                <IconImage iconFilename={`roleicon_${role === "dps" ? "damage" : role}.png`} alt="" width={32} height={32} />
+                <span>{t(`role.${role}`)}</span><FaCheck className={styles.choiceCheck} aria-hidden="true" />
+              </span>
+            </label>)}
+          </div>
+        </fieldset>
         <div className={styles.fields}>
-          <label>{t("studio.spec")}<select value={form.specName} onChange={(event) => {
-            const spec = specs.find((entry) => entry.name === event.target.value)!;
-            setForm((previous) => ({ ...previous, specName: spec.name, role: spec.role })); setConfirm(false);
-          }}>{specs.map((spec) => <option key={spec.name} value={spec.name}>{formatSpecName(spec.name)} · {t(`role.${spec.role}`)}</option>)}</select></label>
           <label>{t("studio.rarity")}<select value={form.tierGrade} disabled={Boolean(source.cardId)} onChange={(event) => {
             setForm((previous) => ({ ...previous, tierGrade: event.target.value as CcgTierGrade })); setConfirm(false);
           }}>{Object.entries(CCG_RARITY_KEYS).map(([grade, key]) => <option key={grade} value={grade}>{t(`rarity.${key}`)}</option>)}</select></label>

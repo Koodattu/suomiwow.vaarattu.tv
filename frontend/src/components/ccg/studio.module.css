@@ -44,6 +44,24 @@
 .editorHeading { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
 .editorHeading h2 { margin-bottom: 3px; font-size: 20px; }
 .form fieldset { border: 0; padding: 0; margin: 16px 0 0; min-width: 0; }
+.form .choiceGroup { margin: 0 0 16px; }
+.choiceGroup legend { padding: 0; margin-bottom: 8px; font-size: 11px; color: #aab8cc; }
+.specChoices { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 6px; }
+.roleChoices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.iconChoice { position: relative; min-width: 0; cursor: pointer; }
+.choiceTile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; height: 100%; min-height: 76px; padding: 10px 6px; border: 1px solid #34435c; border-radius: 7px; background: #0a111e; color: #aab8cc; font-size: 11px; line-height: 1.3; text-align: center; overflow-wrap: anywhere; }
+.choiceTile img { flex-shrink: 0; width: 32px; height: 32px; object-fit: contain; border-radius: 4px; }
+.choiceCheck { position: absolute; top: 5px; right: 5px; font-size: 9px; visibility: hidden; }
+.iconChoice:hover .choiceTile { border-color: #6eafc9; }
+.iconChoice input:checked + .choiceTile { border-color: #89d9f3; background: #163043; color: #d9f4ff; }
+.iconChoice input:checked + .choiceTile .choiceCheck { visibility: visible; }
+.iconChoice input:focus-visible + .choiceTile, .finishToggle input:focus-visible + .switchTrack { outline: 2px solid #7ddcff; outline-offset: 3px; }
+.iconChoice input:disabled + .choiceTile { cursor: not-allowed; opacity: .45; }
+.finishToggle { display: flex; align-items: center; gap: 9px; min-height: 36px; color: #aab8cc; font-size: 12px; cursor: pointer; }
+.switchTrack { display: block; width: 32px; height: 18px; padding: 2px; border: 1px solid #526077; border-radius: 20px; background: #172033; }
+.switchTrack::before { content: ""; display: block; width: 12px; height: 12px; border-radius: 50%; background: #aab8cc; }
+.finishToggle input:checked + .switchTrack { background: #a5e6fa; border-color: #a5e6fa; }
+.finishToggle input:checked + .switchTrack::before { transform: translateX(14px); background: #0b2132; }
 .fields, .scoreFields { display: grid; gap: 8px; }
 .fields label, .scoreFields label { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: center; gap: 10px; font-size: 11px; color: #aab8cc; min-width: 0; }
 .scoreFields label { grid-template-columns: minmax(0, 1fr) 88px; }

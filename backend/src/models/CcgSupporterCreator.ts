@@ -23,9 +23,6 @@ const CcgSupporterCreatorSchema = new Schema({
   nextManualCheckAt: { type: Date, default: () => new Date(0), required: true },
   checkError: { type: String, default: null },
   nextCheckAt: { type: Date, default: () => new Date(0), index: true },
-  roster: { type: [Schema.Types.Mixed], default: [] },
-  rosterCheckedAt: { type: Date, default: null },
-  rosterConnectionAt: { type: Date, default: null },
 }, { timestamps: true });
 
 CcgSupporterCreatorSchema.index({ twitchUserId: 1 }, { unique: true, sparse: true });
