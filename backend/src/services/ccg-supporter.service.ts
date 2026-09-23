@@ -478,7 +478,6 @@ class CcgSupporterService {
     const source = await this.source(userId, id);
     if (!source.cardId) throw new CcgSupporterError(409, "media_publish_first");
     const proof = await this.proof(userId, source);
-    await supporterLimit(`media:${userId}`, 6, 86_400_000);
     const submission = new Media({ sourceId: source._id, userId, kind, status: "processing", purgeAfter: new Date(Date.now() + 3_600_000) });
     submission.storageKey = `supporter/${submission._id}.${kind === "image" ? "webp" : "mp3"}`;
     try { await submission.save(); }
@@ -488,6 +487,7 @@ class CcgSupporterService {
     }
     try {
       const stored = await media.prepare(submission._id, kind, input);
+      submission.storageKey = stored.storageKey;
       const session = await mongoose.startSession();
       try {
         await session.withTransaction(async () => {
@@ -496,10 +496,11 @@ class CcgSupporterService {
           if (!current.matchedCount) throw new CcgSupporterError(403, "editing_frozen");
           const saved = await Media.updateOne({ _id: submission._id, status: "processing", purgedAt: null }, { $set: { ...stored, status: "pending", purgeAfter: null } }, { session });
           if (!saved.matchedCount) throw new CcgSupporterError(409, "media_changed");
+          await supporterLimit(`media-accepted:${userId}`, 10, 86_400_000, new Date(), session);
         });
       } finally { await session.endSession(); }
     } catch (error) {
-      await Media.updateOne({ _id: submission._id, status: "processing" }, { $set: { status: "failed", reason: error instanceof CcgSupporterError ? error.code : "media_upload_failed", purgeAfter: new Date() } });
+      await Media.updateOne({ _id: submission._id, status: "processing" }, { $set: { storageKey: submission.storageKey, status: "failed", reason: error instanceof CcgSupporterError ? error.code : "media_upload_failed", purgeAfter: new Date() } });
       throw error;
     }
     if (kind === "image") await media.autoReview(String(submission._id));

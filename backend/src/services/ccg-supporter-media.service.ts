@@ -21,6 +21,16 @@ const AUDIO_FORMATS = "mp3,wav,flac,ogg,aac,mov,matroska,webm,aiff,asf";
 const DAY = 86_400_000;
 export type SupporterMediaKind = "image" | "audio";
 
+function isAvif(input: Buffer) {
+  if (input.length < 16 || input.toString("ascii", 4, 8) !== "ftyp") return false;
+  const boxSize = input.readUInt32BE(0);
+  if (boxSize < 16 || boxSize > input.length || boxSize % 4 !== 0) return false;
+  for (let offset = 8; offset < boxSize; offset += offset === 8 ? 8 : 4) {
+    if (["avif", "avis"].includes(input.toString("ascii", offset, offset + 4))) return true;
+  }
+  return false;
+}
+
 export function supporterMediaUrl(id: mongoose.Types.ObjectId | string, contentType?: string | null) {
   // The fragment identifies video to artwork renderers without changing the media endpoint.
   return `/api/ccg/media/supporter/${id}${contentType === "video/webm" ? "#art.webm" : ""}`;
@@ -50,27 +60,37 @@ export async function normalizeSupporterVideo(input: Buffer, directory: string) 
   const source = path.join(directory, "input");
   const output = path.join(directory, "output.webm");
   await writeFile(source, input, { flag: "wx" });
-  const inputOptions = ["-protocol_whitelist", "file,pipe", "-format_whitelist", "matroska,webm,gif"];
+  const avif = isAvif(input);
+  const inputOptions = ["-protocol_whitelist", "file,pipe", "-format_whitelist", avif ? "mov" : "matroska,webm,gif"];
   try {
     const probe = await execute(process.env.FFPROBE_PATH || "ffprobe", ["-v", "error", ...inputOptions, "-show_streams", "-of", "json", source],
       { timeout: 15_000, maxBuffer: 256 * 1024, windowsHide: true });
     const details = JSON.parse(probe.stdout);
-    const stream = details.streams?.find((entry: { codec_type?: string }) => entry.codec_type === "video");
-    if (!stream || !["vp8", "vp9", "gif"].includes(stream.codec_name) || !(stream.width > 0 && stream.height > 0)
+    const streams: Array<{ index: number; codec_type: string; codec_name: string; width: number; height: number;
+      nb_frames?: string; duration?: string; pix_fmt?: string; tags?: Record<string, string> }> = details.streams ?? [];
+    // AVIF can expose a still cover before its animation. Prefer the full sequence.
+    const videos = streams.filter((entry) => entry.codec_type === "video");
+    if (avif) videos.sort((a, b) => Number(b.nb_frames ?? 1) - Number(a.nb_frames ?? 1));
+    const stream = videos[0];
+    if (!stream || !(avif ? ["av1"] : ["vp8", "vp9", "gif"]).includes(stream.codec_name) || !(stream.width > 0 && stream.height > 0)
       || stream.width * stream.height > 40_000_000) throw new CcgSupporterError(400, "media_image_format");
     const gif = stream.codec_name === "gif";
-    if (!gif && String(stream.tags?.alpha_mode ?? stream.tags?.ALPHA_MODE) !== "1") throw new CcgSupporterError(400, "media_image_transparency");
+    const alphaStream = avif ? videos.find((entry) => entry.index !== stream.index && entry.codec_name === "av1"
+      && entry.pix_fmt?.startsWith("gray") && entry.width === stream.width && entry.height === stream.height
+      && entry.nb_frames === stream.nb_frames && entry.duration === stream.duration) : undefined;
+    if (avif ? !alphaStream : !gif && String(stream.tags?.alpha_mode ?? stream.tags?.ALPHA_MODE) !== "1") throw new CcgSupporterError(400, "media_image_transparency");
     const scale = Math.min(1, 2048 / stream.width, 2048 / stream.height);
     const width = Math.max(2, Math.floor(stream.width * scale / 2) * 2);
     const height = Math.max(2, Math.floor(stream.height * scale / 2) * 2);
     // libvpx decoders retain WebM alpha; the native VP8/VP9 decoders discard it.
-    const decoderOptions = gif ? ["-ignore_loop", "1"] : ["-c:v", stream.codec_name === "vp9" ? "libvpx-vp9" : "libvpx"];
+    const decoderOptions = avif ? [] : gif ? ["-ignore_loop", "1"] : ["-c:v", stream.codec_name === "vp9" ? "libvpx-vp9" : "libvpx"];
+    const frames = alphaStream ? `[0:${stream.index}][0:${alphaStream.index}]alphamerge,` : `[0:${stream.index}]`;
     const decoded = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-xerror", "-nostdin", "-threads", "1", ...inputOptions,
       ...decoderOptions, "-i", source,
-      "-filter_complex", `[0:v:0]scale=${width}:${height},format=yuva420p,split[video][alpha];[alpha]alphaextract,scale=32:32[mask]`,
+      "-filter_complex", `${frames}scale=${width}:${height},format=yuva420p,split[video][alpha];[alpha]alphaextract,scale=32:32[mask]`,
       "-map", "[video]", "-an", "-map_metadata", "-1", "-map_chapters", "-1", "-c:v", "libvpx-vp9", "-threads", "1", "-deadline", "realtime", "-cpu-used", "8",
-      "-b:v", "0", "-crf", "32", "-fs", String(SUPPORTER_IMAGE_BYTES + 1), output,
-      "-map", "[mask]", "-c:v", "rawvideo", "-threads", "1", "-f", "rawvideo", "pipe:1"],
+      "-b:v", "0", "-crf", "32", "-fps_mode", "passthrough", "-fs", String(SUPPORTER_IMAGE_BYTES + 1), output,
+      "-map", "[mask]", "-c:v", "rawvideo", "-threads", "1", "-fps_mode", "passthrough", "-f", "rawvideo", "pipe:1"],
     { encoding: "buffer", timeout: 30_000, maxBuffer: 16 * 1024 * 1024, windowsHide: true });
     if (!decoded.stdout.length || !decoded.stdout.some((alpha) => alpha < 255) || !decoded.stdout.some((alpha) => alpha > 0)) {
       throw new CcgSupporterError(400, "media_image_transparency");
@@ -130,7 +150,7 @@ class SupporterMediaService {
     const temporary = await mkdtemp(path.join(root, "upload-"));
     try {
       const { data, ...metadata } = kind === "image"
-        ? input.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3])) || ["GIF87a", "GIF89a"].includes(input.subarray(0, 6).toString("ascii"))
+        ? isAvif(input) || input.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3])) || ["GIF87a", "GIF89a"].includes(input.subarray(0, 6).toString("ascii"))
           ? await normalizeSupporterVideo(input, temporary) : await normalizeSupporterImage(input)
         : await normalizeSupporterAudio(input, temporary);
       const storageKey = `supporter/${id}.${metadata.contentType === "video/webm" ? "webm" : kind === "image" ? "webp" : "mp3"}`;

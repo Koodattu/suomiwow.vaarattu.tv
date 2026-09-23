@@ -10,9 +10,16 @@ import { CcgSupporterError, supporterGrants, supporterMonth } from "../utils/ccg
 import logger from "../utils/logger";
 import twitchChannelPointsService from "./twitch-channel-points.service";
 
-export async function supporterLimit(key: string, limit: number, windowMs: number, now = new Date()): Promise<void> {
+export async function supporterLimit(key: string, limit: number, windowMs: number, now = new Date(), session?: ClientSession): Promise<void> {
   const window = Math.floor(now.getTime() / windowMs);
   const expiresAt = new Date((window + 1) * windowMs);
+  if (session) {
+    // Charge only when the surrounding operation commits; avoid duplicate-key errors inside a transaction.
+    await CcgSupporterLimit.updateOne({ key: `${key}:${window}` }, { $setOnInsert: { count: 0, expiresAt } }, { upsert: true, session });
+    const charged = await CcgSupporterLimit.findOneAndUpdate({ key: `${key}:${window}`, count: { $lt: limit } }, { $inc: { count: 1 } }, { session });
+    if (!charged) throw new CcgSupporterError(429, "rate_limited", expiresAt);
+    return;
+  }
   try {
     await CcgSupporterLimit.findOneAndUpdate(
       { key: `${key}:${window}`, count: { $lt: limit } },

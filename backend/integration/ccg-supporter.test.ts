@@ -9,7 +9,7 @@ import crypto from "crypto";
 import sharp from "sharp";
 import express from "express";
 import { Server } from "node:http";
-import { rm } from "node:fs/promises";
+import { rm, stat } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import Media from "../src/models/CcgSupporterMedia";
@@ -570,6 +570,70 @@ async function uploadImage(sourceId: mongoose.Types.ObjectId, red = 100) {
   await studio.submitMedia(String(userId), String(sourceId), "image", image);
   return Media.findOne({ sourceId, kind: "image", status: "pending" }).orFail();
 }
+
+test("media quota allows ten successful uploads and ignores failures and legacy attempt counts", async () => {
+  const source = await publish();
+  const window = Math.floor(Date.now() / 86_400_000);
+  const key = `media-accepted:${userId}:${window}`;
+  await Limit.create({ key: `media:${userId}:${window}`, count: 6, expiresAt: new Date((window + 1) * 86_400_000) });
+  for (let attempt = 0; attempt < 12; attempt++) {
+    await assert.rejects(studio.submitMedia(String(userId), String(source._id), "image", Buffer.from("bad")), { code: "media_image_format" });
+  }
+  assert.equal(await Limit.findOne({ key }), null);
+  for (let accepted = 1; accepted <= 10; accepted++) {
+    const row = await uploadImage(source._id);
+    await assert.rejects(studio.submitMedia(String(userId), String(source._id), "image", Buffer.from("bad")), { code: "media_pending" });
+    assert.equal((await Limit.findOne({ key }))?.count, accepted);
+    await studio.withdrawMedia(String(userId), String(row._id));
+  }
+  await assert.rejects(uploadImage(source._id), { code: "rate_limited" });
+  assert.equal((await Limit.findOne({ key }))?.count, 10);
+  assert.equal(await Media.countDocuments({ sourceId: source._id, status: { $in: ["pending", "processing"] } }), 0);
+});
+
+test("media quota rolls back with a failed upload transaction", async (t) => {
+  const source = await publish();
+  const charge = Limit.findOneAndUpdate;
+  const failure = t.mock.method(Limit, "findOneAndUpdate", (async (...args: any[]) => {
+    await (charge as any).apply(Limit, args);
+    throw new Error("Simulated transaction failure after quota charge");
+  }) as any);
+  await assert.rejects(uploadImage(source._id), /Simulated transaction failure/);
+  failure.mock.restore();
+  assert.equal(await Limit.countDocuments({ key: new RegExp(`^media-accepted:${userId}:`) }), 0);
+  await uploadImage(source._id);
+  assert.equal((await Limit.findOne({ key: new RegExp(`^media-accepted:${userId}:`) }))?.count, 1);
+});
+
+test("concurrent uploads cannot both claim the last daily media slot", async () => {
+  const first = await publish(1);
+  const second = await publish(2);
+  const window = Math.floor(Date.now() / 86_400_000);
+  const key = `media-accepted:${userId}:${window}`;
+  await Limit.create({ key, count: 9, expiresAt: new Date((window + 1) * 86_400_000) });
+  const results = await Promise.allSettled([uploadImage(first._id), uploadImage(second._id)]);
+  assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
+  const rejected = results.find((result) => result.status === "rejected") as PromiseRejectedResult;
+  assert.equal(rejected.reason.code, "rate_limited");
+  assert.equal((await Limit.findOne({ key }))?.count, 10);
+  assert.equal(await Media.countDocuments({ status: "pending" }), 1);
+});
+
+test("quota rejection keeps converted animation eligible for file cleanup", async () => {
+  const source = await publish();
+  const window = Math.floor(Date.now() / 86_400_000);
+  await Limit.create({ key: `media-accepted:${userId}:${window}`, count: 10, expiresAt: new Date((window + 1) * 86_400_000) });
+  const pixels = Buffer.alloc(32 * 32 * 4);
+  pixels.fill(255, 0, pixels.length / 2);
+  const gif = await sharp(pixels, { raw: { width: 32, height: 32, channels: 4 } }).gif().toBuffer();
+  await assert.rejects(studio.submitMedia(String(userId), String(source._id), "image", gif), { code: "rate_limited" });
+  const failed = await Media.findOne({ sourceId: source._id, status: "failed" }).orFail();
+  assert.match(failed.storageKey!, /\.webm$/);
+  const file = path.join(process.env.CCG_MEDIA_CACHE_DIR!, failed.storageKey!);
+  assert.ok((await stat(file)).size > 0);
+  await mediaService.cleanup();
+  await assert.rejects(stat(file), { code: "ENOENT" });
+});
 
 test("AI approval is audited, replaces approved art and can be revoked by an admin", async (t) => {
   const source = await publish();

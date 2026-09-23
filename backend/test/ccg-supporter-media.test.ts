@@ -211,6 +211,59 @@ test("GIF uploads retain all frames and transparency as WebM and review only the
   }
 });
 
+test("AVIF contents upload regardless of filename, retain animation and alpha, and receive first-frame review", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "supporter-avif-test-"));
+  const execute = promisify(execFile);
+  t.mock.method(storage, "resolveCharacterRenderStoragePath", (key: string) => path.join(root, key));
+  try {
+    for (const frameCount of [1, 2]) {
+      for (const alpha of [0, 0.5, 1]) {
+        const directory = await mkdtemp(path.join(root, "case-"));
+        for (let frame = 0; frame < frameCount; frame++) {
+          await sharp({ create: { width: 64, height: 48, channels: 4, background: { r: frame ? 220 : 20, g: 20, b: frame ? 20 : 220, alpha } } })
+            .png().toFile(path.join(directory, `frame${frame}.png`));
+        }
+        const fixture = path.join(directory, "fixture.gif");
+        await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-framerate", "2", "-i", path.join(directory, "frame%d.png"),
+          "-filter_complex", "[0:v]split[color][alpha];[alpha]alphaextract,setparams=colorspace=bt709[mask]", "-map", "[color]", "-map", "[mask]",
+          "-c:v", "libaom-av1", "-threads", "1", "-cpu-used", "8", "-crf", "20", "-pix_fmt:v:0", "yuv444p", "-pix_fmt:v:1", "gray", "-f", "avif", fixture], { windowsHide: true });
+        const input = await readFile(fixture);
+        assert.equal(input.toString("ascii", 4, 8), "ftyp", "The .gif fixture actually contains AVIF");
+        if (alpha !== 0.5) {
+          await assert.rejects(media.prepare(new mongoose.Types.ObjectId(), "image", input), { code: "media_image_transparency" });
+          continue;
+        }
+        const result = await media.prepare(new mongoose.Types.ObjectId(), "image", input);
+        assert.equal(result.contentType, "video/webm");
+        const output = path.join(root, result.storageKey);
+        const probe = await execute(process.env.FFPROBE_PATH || "ffprobe", ["-v", "error", "-count_frames", "-show_streams", "-show_packets", "-of", "json", output], { windowsHide: true });
+        const { streams, packets } = JSON.parse(probe.stdout);
+        assert.equal(streams.length, 1, "Only the combined color and transparency stream is stored");
+        assert.equal(Number(streams[0].nb_read_frames), frameCount, "The animation is not replaced by its still cover");
+        if (frameCount > 1) assert.equal(Number(packets[1].pts_time) - Number(packets[0].pts_time), 0.5);
+        const decoded = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-c:v", "libvpx-vp9", "-i", output,
+          "-fps_mode", "passthrough", "-pix_fmt", "rgba", "-f", "rawvideo", "pipe:1"], { encoding: "buffer", windowsHide: true });
+        assert.equal(decoded.stdout.length, 64 * 48 * 4 * frameCount);
+        assert.ok(decoded.stdout.filter((_value, index) => index % 4 === 3).every((value) => value > 120 && value < 135));
+        if (frameCount > 1) assert.ok(decoded.stdout[64 * 48 * 4] > 200, "The second color frame survives");
+        await assertFirstFrameReview(t, output, 20, 220, 127);
+
+        const unsupported = Buffer.from(input);
+        for (let offset = 8; offset < unsupported.readUInt32BE(0); offset += 4) {
+          if (["avif", "avis"].includes(unsupported.toString("ascii", offset, offset + 4))) unsupported.write("isom", offset);
+        }
+        await assert.rejects(media.prepare(new mongoose.Types.ObjectId(), "image", unsupported), { code: "media_image_format" });
+      }
+    }
+    const broken = Buffer.from("0000ftypavif0000broken data");
+    broken.writeUInt32BE(16, 0);
+    await assert.rejects(media.prepare(new mongoose.Types.ObjectId(), "image", broken), { code: "media_image_format" });
+  } finally {
+    assert.ok(path.resolve(root).startsWith(path.resolve(os.tmpdir()) + path.sep));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("failed animation frame extraction leaves the submission pending without calling AI", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "supporter-frame-failure-"));
   try {
