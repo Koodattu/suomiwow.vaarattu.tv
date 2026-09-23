@@ -496,7 +496,7 @@ class CcgSupporterService {
           if (!current.matchedCount) throw new CcgSupporterError(403, "editing_frozen");
           const saved = await Media.updateOne({ _id: submission._id, status: "processing", purgedAt: null }, { $set: { ...stored, status: "pending", purgeAfter: null } }, { session });
           if (!saved.matchedCount) throw new CcgSupporterError(409, "media_changed");
-          await supporterLimit(`media-accepted:${userId}`, 10, 86_400_000, new Date(), session);
+          await supporterLimit(`media-accepted:${userId}`, 15, 86_400_000, new Date(), session);
         });
       } finally { await session.endSession(); }
     } catch (error) {

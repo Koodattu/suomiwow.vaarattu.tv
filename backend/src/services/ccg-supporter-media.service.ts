@@ -41,13 +41,10 @@ export async function normalizeSupporterImage(input: Buffer) {
   try {
     const options = { limitInputPixels: 40_000_000, failOn: "warning" as const };
     const metadata = await sharp(input, options).metadata();
-    if (!["png", "webp"].includes(metadata.format ?? "") || (metadata.pages ?? 1) !== 1 || !metadata.hasAlpha) {
+    if (!["png", "webp"].includes(metadata.format ?? "") || (metadata.pages ?? 1) !== 1) {
       throw new CcgSupporterError(400, "media_image_format");
     }
     const normalized = await sharp(input, options).rotate().resize(2048, 2048, { fit: "inside", withoutEnlargement: true }).webp({ quality: 85, alphaQuality: 100 }).toBuffer({ resolveWithObject: true });
-    const stats = await sharp(normalized.data).stats();
-    const alpha = stats.channels[3];
-    if (!alpha || alpha.min === 255 || alpha.max === 0) throw new CcgSupporterError(400, "media_image_transparency");
     return { data: normalized.data, contentType: "image/webp", width: normalized.info.width, height: normalized.info.height };
   } catch (error) {
     if (error instanceof CcgSupporterError) throw error;
@@ -67,7 +64,7 @@ export async function normalizeSupporterVideo(input: Buffer, directory: string) 
       { timeout: 15_000, maxBuffer: 256 * 1024, windowsHide: true });
     const details = JSON.parse(probe.stdout);
     const streams: Array<{ index: number; codec_type: string; codec_name: string; width: number; height: number;
-      nb_frames?: string; duration?: string; pix_fmt?: string; tags?: Record<string, string> }> = details.streams ?? [];
+      nb_frames?: string; duration?: string; pix_fmt?: string }> = details.streams ?? [];
     // AVIF can expose a still cover before its animation. Prefer the full sequence.
     const videos = streams.filter((entry) => entry.codec_type === "video");
     if (avif) videos.sort((a, b) => Number(b.nb_frames ?? 1) - Number(a.nb_frames ?? 1));
@@ -78,23 +75,18 @@ export async function normalizeSupporterVideo(input: Buffer, directory: string) 
     const alphaStream = avif ? videos.find((entry) => entry.index !== stream.index && entry.codec_name === "av1"
       && entry.pix_fmt?.startsWith("gray") && entry.width === stream.width && entry.height === stream.height
       && entry.nb_frames === stream.nb_frames && entry.duration === stream.duration) : undefined;
-    if (avif ? !alphaStream : !gif && String(stream.tags?.alpha_mode ?? stream.tags?.ALPHA_MODE) !== "1") throw new CcgSupporterError(400, "media_image_transparency");
     const scale = Math.min(1, 2048 / stream.width, 2048 / stream.height);
     const width = Math.max(2, Math.floor(stream.width * scale / 2) * 2);
     const height = Math.max(2, Math.floor(stream.height * scale / 2) * 2);
     // libvpx decoders retain WebM alpha; the native VP8/VP9 decoders discard it.
     const decoderOptions = avif ? [] : gif ? ["-ignore_loop", "1"] : ["-c:v", stream.codec_name === "vp9" ? "libvpx-vp9" : "libvpx"];
     const frames = alphaStream ? `[0:${stream.index}][0:${alphaStream.index}]alphamerge,` : `[0:${stream.index}]`;
-    const decoded = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-xerror", "-nostdin", "-threads", "1", ...inputOptions,
+    await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-xerror", "-nostdin", "-threads", "1", ...inputOptions,
       ...decoderOptions, "-i", source,
-      "-filter_complex", `${frames}scale=${width}:${height},format=yuva420p,split[video][alpha];[alpha]alphaextract,scale=32:32[mask]`,
+      "-filter_complex", `${frames}scale=${width}:${height},format=yuva420p[video]`,
       "-map", "[video]", "-an", "-map_metadata", "-1", "-map_chapters", "-1", "-c:v", "libvpx-vp9", "-threads", "1", "-deadline", "realtime", "-cpu-used", "8",
-      "-b:v", "0", "-crf", "32", "-fps_mode", "passthrough", "-fs", String(SUPPORTER_IMAGE_BYTES + 1), output,
-      "-map", "[mask]", "-c:v", "rawvideo", "-threads", "1", "-fps_mode", "passthrough", "-f", "rawvideo", "pipe:1"],
-    { encoding: "buffer", timeout: 30_000, maxBuffer: 16 * 1024 * 1024, windowsHide: true });
-    if (!decoded.stdout.length || !decoded.stdout.some((alpha) => alpha < 255) || !decoded.stdout.some((alpha) => alpha > 0)) {
-      throw new CcgSupporterError(400, "media_image_transparency");
-    }
+      "-b:v", "0", "-crf", "32", "-fps_mode", "passthrough", "-fs", String(SUPPORTER_IMAGE_BYTES + 1), output],
+    { timeout: 30_000, maxBuffer: 256 * 1024, windowsHide: true });
     const data = await readFile(output);
     if (data.length > SUPPORTER_IMAGE_BYTES) throw new CcgSupporterError(400, "media_image_size");
     return { data, contentType: "video/webm", width, height };

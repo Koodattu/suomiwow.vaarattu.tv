@@ -85,6 +85,7 @@
 .mediaPanel h2 svg { display: inline; font-size: 11px; }
 .mediaPanel[data-locked="true"] { opacity: .6; }
 .mediaPanel p { font-size: 11px; margin: 0; }
+.mediaPanel .mediaError { color: #fca5a5; }
 .mediaPanel > p { margin: 8px 0 14px; }
 .mediaPanel .actions { margin-top: 2px; }
 .media .previewToggle { display: flex; align-items: center; gap: 8px; }

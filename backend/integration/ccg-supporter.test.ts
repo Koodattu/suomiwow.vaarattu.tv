@@ -571,7 +571,7 @@ async function uploadImage(sourceId: mongoose.Types.ObjectId, red = 100) {
   return Media.findOne({ sourceId, kind: "image", status: "pending" }).orFail();
 }
 
-test("media quota allows ten successful uploads and ignores failures and legacy attempt counts", async () => {
+test("media quota allows fifteen successful uploads and ignores failures and legacy attempt counts", async () => {
   const source = await publish();
   const window = Math.floor(Date.now() / 86_400_000);
   const key = `media-accepted:${userId}:${window}`;
@@ -580,14 +580,14 @@ test("media quota allows ten successful uploads and ignores failures and legacy 
     await assert.rejects(studio.submitMedia(String(userId), String(source._id), "image", Buffer.from("bad")), { code: "media_image_format" });
   }
   assert.equal(await Limit.findOne({ key }), null);
-  for (let accepted = 1; accepted <= 10; accepted++) {
+  for (let accepted = 1; accepted <= 15; accepted++) {
     const row = await uploadImage(source._id);
     await assert.rejects(studio.submitMedia(String(userId), String(source._id), "image", Buffer.from("bad")), { code: "media_pending" });
     assert.equal((await Limit.findOne({ key }))?.count, accepted);
     await studio.withdrawMedia(String(userId), String(row._id));
   }
   await assert.rejects(uploadImage(source._id), { code: "rate_limited" });
-  assert.equal((await Limit.findOne({ key }))?.count, 10);
+  assert.equal((await Limit.findOne({ key }))?.count, 15);
   assert.equal(await Media.countDocuments({ sourceId: source._id, status: { $in: ["pending", "processing"] } }), 0);
 });
 
@@ -610,19 +610,19 @@ test("concurrent uploads cannot both claim the last daily media slot", async () 
   const second = await publish(2);
   const window = Math.floor(Date.now() / 86_400_000);
   const key = `media-accepted:${userId}:${window}`;
-  await Limit.create({ key, count: 9, expiresAt: new Date((window + 1) * 86_400_000) });
+  await Limit.create({ key, count: 14, expiresAt: new Date((window + 1) * 86_400_000) });
   const results = await Promise.allSettled([uploadImage(first._id), uploadImage(second._id)]);
   assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
   const rejected = results.find((result) => result.status === "rejected") as PromiseRejectedResult;
   assert.equal(rejected.reason.code, "rate_limited");
-  assert.equal((await Limit.findOne({ key }))?.count, 10);
+  assert.equal((await Limit.findOne({ key }))?.count, 15);
   assert.equal(await Media.countDocuments({ status: "pending" }), 1);
 });
 
 test("quota rejection keeps converted animation eligible for file cleanup", async () => {
   const source = await publish();
   const window = Math.floor(Date.now() / 86_400_000);
-  await Limit.create({ key: `media-accepted:${userId}:${window}`, count: 10, expiresAt: new Date((window + 1) * 86_400_000) });
+  await Limit.create({ key: `media-accepted:${userId}:${window}`, count: 15, expiresAt: new Date((window + 1) * 86_400_000) });
   const pixels = Buffer.alloc(32 * 32 * 4);
   pixels.fill(255, 0, pixels.length / 2);
   const gif = await sharp(pixels, { raw: { width: 32, height: 32, channels: 4 } }).gif().toBuffer();

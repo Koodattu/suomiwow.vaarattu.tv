@@ -63,7 +63,7 @@ export default function SupporterMediaUploader({ source, media, disabled, onPrev
   return <aside className={`${styles.panel} ${styles.mediaPanel}`} data-locked={locked} aria-label={t("media.title")}>
     <div className={styles.mediaHeading}><h2>{locked && <FaLock aria-hidden="true" />} {t("media.title")}</h2><small>{t("media.optional")}</small></div>
     <p>{t(!source.cardId ? "media.publishFirst" : disabled ? "media.unavailable" : "media.description")}</p>
-    {error && <p role="alert">{t(t.has(`errors.${error}`) ? `errors.${error}` : "errors.media_upload_failed")}</p>}
+    {error && <p className={styles.mediaError} role="alert">{t(t.has(`errors.${error}`) ? `errors.${error}` : "errors.media_upload_failed")}</p>}
     <div className={styles.mediaGrid}>
     {(["image", "audio"] as const).map((kind) => {
       const rows = media.filter((row) => row.sourceId === source.id && row.kind === kind);
@@ -87,7 +87,7 @@ export default function SupporterMediaUploader({ source, media, disabled, onPrev
         {pending ? <><p role="status">{t(`media.status.${pending.status}`)}</p>{kind === "audio" && <SupporterMediaPreview media={pending} />}
           {pending.status === "pending" && <button disabled={mutation.isPending} onClick={() => mutation.mutate({ withdrawId: pending.id })}>{t("media.withdraw")}</button>}</>
           : <>
-            {latest && latest.status !== "approved" && <p>{t(`media.status.${latest.status}`)}{latest.reason && `: ${latest.status === "failed" ? t(t.has(`errors.${latest.reason}`) ? `errors.${latest.reason}` : "errors.media_upload_failed") : latest.reason}`}</p>}
+            {latest && latest.status !== "approved" && <p className={latest.status === "failed" || latest.status === "rejected" ? styles.mediaError : undefined}>{t(`media.status.${latest.status}`)}{latest.reason && `: ${latest.status === "failed" ? t(t.has(`errors.${latest.reason}`) ? `errors.${latest.reason}` : "errors.media_upload_failed") : latest.reason}`}</p>}
             <label>{t(`media.${kind}`)}<input key={`${kind}:${fileKeys[kind]}`} type="file" accept={kind === "image" ? "image/png,image/webp,image/gif,.gif,image/avif,image/avif-sequence,.avif,.avifs,video/webm,.webm" : "audio/*,.m4a,.mp4,.webm,.flac,.aiff,.wma"}
               disabled={locked || mutation.isPending} onChange={(event) => {
                 const file = event.target.files?.[0];

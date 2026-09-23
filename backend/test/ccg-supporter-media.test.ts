@@ -56,15 +56,21 @@ async function assertFirstFrameReview(t: TestContext, source: string, red: numbe
   }
 }
 
-test("transparent PNG is resized to WebP while opaque and invisible images are rejected", async () => {
+test("PNG and WebP accept opaque, translucent and invisible images while preserving alpha", async () => {
   const image = await sharp({ create: { width: 3000, height: 2000, channels: 4, background: { r: 100, g: 20, b: 30, alpha: 0.5 } } }).png().toBuffer();
   const result = await normalizeSupporterImage(image);
   assert.equal(result.width, 2048); assert.ok(result.height < 2048);
   assert.equal((await sharp(result.data).metadata()).format, "webp");
-  for (const alpha of [0, 1]) {
-    const invalid = await sharp({ create: { width: 10, height: 10, channels: 4, background: { r: 1, g: 2, b: 3, alpha } } }).png().toBuffer();
-    await assert.rejects(normalizeSupporterImage(invalid), { code: "media_image_transparency" });
+  for (const alpha of [0, 0.5, 1]) {
+    for (const format of ["png", "webp"] as const) {
+      const input = await sharp({ create: { width: 10, height: 10, channels: 4, background: { r: 1, g: 2, b: 3, alpha } } }).toFormat(format).toBuffer();
+      const accepted = await normalizeSupporterImage(input);
+      const pixels = await sharp(accepted.data).ensureAlpha().raw().toBuffer();
+      assert.ok(pixels.filter((_value, index) => index % 4 === 3).every((value) => Math.abs(value - alpha * 255) <= 1));
+    }
   }
+  const rgb = await sharp({ create: { width: 10, height: 10, channels: 3, background: { r: 10, g: 20, b: 30 } } }).png().toBuffer();
+  assert.equal((await normalizeSupporterImage(rgb)).contentType, "image/webp");
   await assert.rejects(normalizeSupporterImage(Buffer.from("not an image")), { code: "media_image_format" });
   await assert.rejects(normalizeSupporterImage(Buffer.alloc(5 * 1024 * 1024 + 1)), { code: "media_image_size" });
 });
@@ -129,12 +135,8 @@ test("WebM artwork retains animation and transparency, strips audio, and reviews
         }
         const fixture = path.join(directory, "fixture.webm");
         await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-framerate", "2", "-i", path.join(directory, "frame%d.png"),
-          "-f", "lavfi", "-i", "sine=duration=1", "-c:v", codec, "-auto-alt-ref", "0", "-pix_fmt", "yuva420p", "-c:a", "libopus", "-shortest", fixture], { windowsHide: true });
+          "-f", "lavfi", "-i", "sine=duration=1", "-c:v", codec, "-auto-alt-ref", "0", "-pix_fmt", alpha === 1 ? "yuv420p" : "yuva420p", "-c:a", "libopus", "-shortest", fixture], { windowsHide: true });
         const input = await readFile(fixture);
-        if (alpha !== 0.5) {
-          await assert.rejects(normalizeSupporterVideo(input, directory), { code: "media_image_transparency" });
-          continue;
-        }
         const result = await normalizeSupporterVideo(input, directory);
         assert.equal(result.contentType, "video/webm");
         assert.equal(result.width, 64); assert.equal(result.height, 48);
@@ -146,8 +148,9 @@ test("WebM artwork retains animation and transparency, strips audio, and reviews
         assert.equal(Number(streams[0].nb_read_frames), 2, "both animation frames are retained");
         const decoded = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-c:v", "libvpx-vp9", "-i", path.join(directory, "output.webm"),
           "-vf", "alphaextract", "-f", "rawvideo", "pipe:1"], { encoding: "buffer", windowsHide: true });
-        assert.ok(decoded.stdout.every((value) => value > 100 && value < 150), "encoded WebM retains translucent pixels");
-        await assertFirstFrameReview(t, path.join(directory, "output.webm"), 0, 100, 127);
+        // VP8/VP9 encoding is lossy, including its alpha plane.
+        assert.ok(decoded.stdout.every((value) => Math.abs(value - Math.round(alpha * 255)) <= 2), `${codec} alpha ${alpha}: decoded values ${[...new Set(decoded.stdout)]}`);
+        if (alpha === 0.5) await assertFirstFrameReview(t, path.join(directory, "output.webm"), 0, 100, 127);
       }
     }
     await assert.rejects(normalizeSupporterVideo(Buffer.from("not WebM"), await mkdtemp(path.join(root, "invalid-"))), { code: "media_image_format" });
@@ -178,10 +181,6 @@ test("GIF uploads retain all frames and transparency as WebM and review only the
       await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-framerate", "2", "-i", path.join(directory, "frame%d.png"),
         "-filter_complex", "split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=dither=none", "-loop", "0", fixture], { windowsHide: true });
       const input = await readFile(fixture);
-      if (mode !== "transparent") {
-        await assert.rejects(normalizeSupporterVideo(input, directory), { code: "media_image_transparency" });
-        continue;
-      }
       const id = new mongoose.Types.ObjectId();
       const result = await media.prepare(id, "image", input);
       assert.equal(result.contentType, "video/webm");
@@ -199,10 +198,11 @@ test("GIF uploads retain all frames and transparency as WebM and review only the
         "-fps_mode", "passthrough", "-pix_fmt", "rgba", "-f", "rawvideo", "pipe:1"], { encoding: "buffer", windowsHide: true });
       const frameBytes = 64 * 48 * 4;
       assert.equal(decoded.stdout.length, frameBytes * 2);
-      assert.notDeepEqual(decoded.stdout.subarray(0, frameBytes), decoded.stdout.subarray(frameBytes), "Both distinct animation frames survive conversion");
+      if (mode !== "invisible") assert.notDeepEqual(decoded.stdout.subarray(0, frameBytes), decoded.stdout.subarray(frameBytes), "Both distinct animation frames survive conversion");
       const alpha = decoded.stdout.filter((_value, index) => index % 4 === 3);
-      assert.ok(alpha.some((value) => value === 0) && alpha.some((value) => value === 255));
-      await assertFirstFrameReview(t, output, 20, 220, 255);
+      if (mode === "transparent") assert.ok(alpha.some((value) => value === 0) && alpha.some((value) => value === 255));
+      else assert.ok(alpha.every((value) => Math.abs(value - (mode === "invisible" ? 0 : 255)) <= 1), `${mode}: decoded alpha values ${[...new Set(alpha)]}`);
+      if (mode === "transparent") await assertFirstFrameReview(t, output, 20, 220, 255);
     }
     await assert.rejects(media.prepare(new mongoose.Types.ObjectId(), "image", Buffer.from("GIF89a broken data")), { code: "media_image_format" });
   } finally {
@@ -225,14 +225,10 @@ test("AVIF contents upload regardless of filename, retain animation and alpha, a
         }
         const fixture = path.join(directory, "fixture.gif");
         await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-framerate", "2", "-i", path.join(directory, "frame%d.png"),
-          "-filter_complex", "[0:v]split[color][alpha];[alpha]alphaextract,setparams=colorspace=bt709[mask]", "-map", "[color]", "-map", "[mask]",
-          "-c:v", "libaom-av1", "-threads", "1", "-cpu-used", "8", "-crf", "20", "-pix_fmt:v:0", "yuv444p", "-pix_fmt:v:1", "gray", "-f", "avif", fixture], { windowsHide: true });
+          ...(alpha === 1 ? ["-map", "0:v"] : ["-filter_complex", "[0:v]split[color][alpha];[alpha]alphaextract,setparams=colorspace=bt709[mask]", "-map", "[color]", "-map", "[mask]"]),
+          "-c:v", "libaom-av1", "-threads", "1", "-cpu-used", "8", "-crf", "20", "-pix_fmt:v:0", "yuv444p", ...(alpha === 1 ? [] : ["-pix_fmt:v:1", "gray"]), "-f", "avif", fixture], { windowsHide: true });
         const input = await readFile(fixture);
         assert.equal(input.toString("ascii", 4, 8), "ftyp", "The .gif fixture actually contains AVIF");
-        if (alpha !== 0.5) {
-          await assert.rejects(media.prepare(new mongoose.Types.ObjectId(), "image", input), { code: "media_image_transparency" });
-          continue;
-        }
         const result = await media.prepare(new mongoose.Types.ObjectId(), "image", input);
         assert.equal(result.contentType, "video/webm");
         const output = path.join(root, result.storageKey);
@@ -244,9 +240,9 @@ test("AVIF contents upload regardless of filename, retain animation and alpha, a
         const decoded = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-c:v", "libvpx-vp9", "-i", output,
           "-fps_mode", "passthrough", "-pix_fmt", "rgba", "-f", "rawvideo", "pipe:1"], { encoding: "buffer", windowsHide: true });
         assert.equal(decoded.stdout.length, 64 * 48 * 4 * frameCount);
-        assert.ok(decoded.stdout.filter((_value, index) => index % 4 === 3).every((value) => value > 120 && value < 135));
-        if (frameCount > 1) assert.ok(decoded.stdout[64 * 48 * 4] > 200, "The second color frame survives");
-        await assertFirstFrameReview(t, output, 20, 220, 127);
+        assert.ok(decoded.stdout.filter((_value, index) => index % 4 === 3).every((value) => Math.abs(value - alpha * 255) <= 1));
+        if (frameCount > 1 && alpha > 0) assert.ok(decoded.stdout[64 * 48 * 4] > 200, "The second color frame survives");
+        if (alpha === 0.5) await assertFirstFrameReview(t, output, 20, 220, 127);
 
         const unsupported = Buffer.from(input);
         for (let offset = 8; offset < unsupported.readUInt32BE(0); offset += 4) {
