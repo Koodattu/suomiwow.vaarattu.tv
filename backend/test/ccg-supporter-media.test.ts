@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import test, { TestContext } from "node:test";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { normalizeSupporterAudio, normalizeSupporterImage, normalizeSupporterVideo, supporterMediaUrl } from "../src/services/ccg-supporter-media.service";
+import mongoose from "mongoose";
+import media, { normalizeSupporterAudio, normalizeSupporterImage, normalizeSupporterVideo, supporterMediaUrl } from "../src/services/ccg-supporter-media.service";
+import * as storage from "../src/services/character-render-storage.service";
+import Media from "../src/models/CcgSupporterMedia";
+import artReview, { SupporterArtReview } from "../src/services/ccg-supporter-art-review.service";
 import { resolveAlternativeArtKey, serializeAlternativeArt, serializeQuip } from "../src/utils/ccg-alternative-art";
 
 function wav(seconds: number) {
@@ -18,6 +22,38 @@ function wav(seconds: number) {
   result.write("data", 36); result.writeUInt32LE(samples * 2, 40);
   for (let i = 0; i < samples; i++) result.writeInt16LE(Math.round(Math.sin(i * 440 * 2 * Math.PI / rate) * 4000), 44 + i * 2);
   return result;
+}
+
+async function assertFirstFrameReview(t: TestContext, source: string, red: number, blue: number, alpha: number) {
+  const id = String(new mongoose.Types.ObjectId());
+  const resolve = t.mock.method(storage, "resolveCharacterRenderStoragePath", () => source);
+  const find = t.mock.method(Media, "findOne", () => ({ lean: async () => ({ storageKey: "animation.webm", contentType: "video/webm" }) }) as any);
+  const approved = t.mock.method(media, "review", async () => ({ ok: true }));
+  const updated = t.mock.method(Media, "updateOne", (() => Promise.resolve({})) as any);
+  let result: SupporterArtReview = { decision: "safe", safetyConfidence: 99, reason: "Harmless image.", model: "test",
+    policyVersion: "test", responseId: null, autoApproved: true, reviewedAt: new Date() };
+  const review = t.mock.method(artReview, "review", async (_image: Buffer) => result);
+  try {
+    await media.autoReview(id);
+    assert.equal(review.mock.callCount(), 1, "Animation must reach AI review");
+    const image = review.mock.calls[0].arguments[0];
+    const metadata = await sharp(image).metadata();
+    assert.equal(metadata.format, "webp");
+    assert.equal(metadata.pages ?? 1, 1, "AI receives a single still frame");
+    assert.equal(metadata.width, 64); assert.equal(metadata.height, 48);
+    const pixels = await sharp(image).ensureAlpha().raw().toBuffer();
+    assert.ok(Math.abs(pixels[0] - red) < 15 && Math.abs(pixels[2] - blue) < 15, "AI sees the first frame's colors, not the later frame");
+    assert.ok(Math.abs(pixels[3] - alpha) < 5, "First-frame transparency is retained");
+    assert.deepEqual(approved.mock.calls[0].arguments, [id, null, "approve", undefined, result]);
+    assert.equal(updated.mock.callCount(), 0);
+
+    result = { ...result, safetyConfidence: 74.9, autoApproved: false };
+    await media.autoReview(id);
+    assert.equal(approved.mock.callCount(), 1, "Below-threshold animation remains pending");
+    assert.deepEqual(updated.mock.calls[0].arguments, [{ _id: id, status: "pending", aiReview: null }, { $set: { aiReview: result } }]);
+  } finally {
+    for (const mock of [resolve, find, approved, updated, review]) mock.mock.restore();
+  }
 }
 
 test("transparent PNG is resized to WebP while opaque and invisible images are rejected", async () => {
@@ -53,7 +89,34 @@ test("audio is decoded and converted to MP3; ten seconds and malformed files are
   }
 });
 
-test("WebM artwork retains animation and transparency, strips audio, and rejects invalid files", async () => {
+test("recoverable MP3 damage is re-encoded into clean audio", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "supporter-audio-recovery-"));
+  const execute = promisify(execFile);
+  try {
+    const source = path.join(root, "source.wav");
+    const encoded = path.join(root, "source.mp3");
+    await writeFile(source, wav(1));
+    await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-i", source, "-c:a", "libmp3lame", encoded], { windowsHide: true });
+    const damaged = Buffer.concat([await readFile(encoded), Buffer.alloc(128, 0xff)]);
+    const fixture = path.join(root, "damaged.mp3");
+    await writeFile(fixture, damaged);
+    await assert.rejects(execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-xerror", "-i", fixture, "-f", "null", "-"], { windowsHide: true }),
+      (error: unknown) => /Invalid data|Header missing/i.test(String((error as { stderr?: string }).stderr)), "The fixture must reproduce strict decoder rejection");
+    const result = await normalizeSupporterAudio(damaged, await mkdtemp(path.join(root, "normalize-")));
+    assert.equal(result.contentType, "audio/mpeg");
+    assert.ok(Math.abs(result.duration - 1) < 0.01);
+    const output = path.join(root, "clean.mp3");
+    await writeFile(output, result.data);
+    const verified = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-xerror", "-i", output, "-f", "null", "-"], { windowsHide: true });
+    assert.equal(verified.stderr, "", "The normalized MP3 must decode without errors");
+    await assert.rejects(normalizeSupporterAudio(Buffer.alloc(8 * 1024 * 1024 + 1), root), { code: "media_audio_size" });
+  } finally {
+    assert.ok(path.resolve(root).startsWith(path.resolve(os.tmpdir()) + path.sep));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("WebM artwork retains animation and transparency, strips audio, and reviews only the first frame", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "supporter-video-test-"));
   const execute = promisify(execFile);
   try {
@@ -84,10 +147,84 @@ test("WebM artwork retains animation and transparency, strips audio, and rejects
         const decoded = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-c:v", "libvpx-vp9", "-i", path.join(directory, "output.webm"),
           "-vf", "alphaextract", "-f", "rawvideo", "pipe:1"], { encoding: "buffer", windowsHide: true });
         assert.ok(decoded.stdout.every((value) => value > 100 && value < 150), "encoded WebM retains translucent pixels");
+        await assertFirstFrameReview(t, path.join(directory, "output.webm"), 0, 100, 127);
       }
     }
     await assert.rejects(normalizeSupporterVideo(Buffer.from("not WebM"), await mkdtemp(path.join(root, "invalid-"))), { code: "media_image_format" });
     await assert.rejects(normalizeSupporterVideo(Buffer.alloc(5 * 1024 * 1024 + 1), root), { code: "media_image_size" });
+  } finally {
+    assert.ok(path.resolve(root).startsWith(path.resolve(os.tmpdir()) + path.sep));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("GIF uploads retain all frames and transparency as WebM and review only the first frame", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "supporter-gif-test-"));
+  const execute = promisify(execFile);
+  t.mock.method(storage, "resolveCharacterRenderStoragePath", (key: string) => path.join(root, key));
+  try {
+    for (const mode of ["transparent", "opaque", "invisible"]) {
+      const directory = await mkdtemp(path.join(root, "case-"));
+      for (const frame of [0, 1]) {
+        const pixels = Buffer.alloc(64 * 48 * 4);
+        for (let pixel = 0; pixel < 64 * 48; pixel++) {
+          pixels[pixel * 4] = frame ? 220 : 20;
+          pixels[pixel * 4 + 2] = frame ? 20 : 220;
+          pixels[pixel * 4 + 3] = mode === "invisible" || (mode === "transparent" && pixel % 64 >= 32) ? 0 : 255;
+        }
+        await sharp(pixels, { raw: { width: 64, height: 48, channels: 4 } }).png().toFile(path.join(directory, `frame${frame}.png`));
+      }
+      const fixture = path.join(directory, "fixture.gif");
+      await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-framerate", "2", "-i", path.join(directory, "frame%d.png"),
+        "-filter_complex", "split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=dither=none", "-loop", "0", fixture], { windowsHide: true });
+      const input = await readFile(fixture);
+      if (mode !== "transparent") {
+        await assert.rejects(normalizeSupporterVideo(input, directory), { code: "media_image_transparency" });
+        continue;
+      }
+      const id = new mongoose.Types.ObjectId();
+      const result = await media.prepare(id, "image", input);
+      assert.equal(result.contentType, "video/webm");
+      assert.equal(result.storageKey, `supporter/${id}.webm`);
+      assert.ok("width" in result && "height" in result);
+      assert.equal(result.width, 64); assert.equal(result.height, 48);
+      const output = path.join(root, result.storageKey);
+      const probe = await execute(process.env.FFPROBE_PATH || "ffprobe", ["-v", "error", "-count_frames", "-show_streams", "-show_packets", "-show_format", "-of", "json", output], { windowsHide: true });
+      const { streams, packets, format } = JSON.parse(probe.stdout);
+      assert.equal(streams.length, 1);
+      assert.equal(Number(streams[0].nb_read_frames), 2, "GIF loops are not expanded or flattened into a single frame");
+      assert.equal(Number(packets[1].pts_time) - Number(packets[0].pts_time), 0.5, "GIF frame timing is preserved");
+      assert.equal(Number(format.duration), 1, "The final GIF frame retains its display duration");
+      const decoded = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-c:v", "libvpx-vp9", "-i", output,
+        "-fps_mode", "passthrough", "-pix_fmt", "rgba", "-f", "rawvideo", "pipe:1"], { encoding: "buffer", windowsHide: true });
+      const frameBytes = 64 * 48 * 4;
+      assert.equal(decoded.stdout.length, frameBytes * 2);
+      assert.notDeepEqual(decoded.stdout.subarray(0, frameBytes), decoded.stdout.subarray(frameBytes), "Both distinct animation frames survive conversion");
+      const alpha = decoded.stdout.filter((_value, index) => index % 4 === 3);
+      assert.ok(alpha.some((value) => value === 0) && alpha.some((value) => value === 255));
+      await assertFirstFrameReview(t, output, 20, 220, 255);
+    }
+    await assert.rejects(media.prepare(new mongoose.Types.ObjectId(), "image", Buffer.from("GIF89a broken data")), { code: "media_image_format" });
+  } finally {
+    assert.ok(path.resolve(root).startsWith(path.resolve(os.tmpdir()) + path.sep));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("failed animation frame extraction leaves the submission pending without calling AI", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "supporter-frame-failure-"));
+  try {
+    const source = path.join(root, "broken.webm");
+    await writeFile(source, "not WebM");
+    t.mock.method(storage, "resolveCharacterRenderStoragePath", () => source);
+    t.mock.method(Media, "findOne", () => ({ lean: async () => ({ storageKey: "broken.webm", contentType: "video/webm" }) }) as any);
+    const review = t.mock.method(artReview, "review");
+    const approve = t.mock.method(media, "review", async () => ({ ok: true }));
+    const update = t.mock.method(Media, "updateOne", (() => Promise.resolve({})) as any);
+    await media.autoReview(String(new mongoose.Types.ObjectId()));
+    assert.equal(review.mock.callCount(), 0);
+    assert.equal(approve.mock.callCount(), 0);
+    assert.equal(update.mock.callCount(), 0);
   } finally {
     assert.ok(path.resolve(root).startsWith(path.resolve(os.tmpdir()) + path.sep));
     await rm(root, { recursive: true, force: true });

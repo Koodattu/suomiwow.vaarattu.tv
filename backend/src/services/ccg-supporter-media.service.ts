@@ -50,21 +50,23 @@ export async function normalizeSupporterVideo(input: Buffer, directory: string) 
   const source = path.join(directory, "input");
   const output = path.join(directory, "output.webm");
   await writeFile(source, input, { flag: "wx" });
-  const inputOptions = ["-protocol_whitelist", "file,pipe", "-format_whitelist", "matroska,webm"];
+  const inputOptions = ["-protocol_whitelist", "file,pipe", "-format_whitelist", "matroska,webm,gif"];
   try {
     const probe = await execute(process.env.FFPROBE_PATH || "ffprobe", ["-v", "error", ...inputOptions, "-show_streams", "-of", "json", source],
       { timeout: 15_000, maxBuffer: 256 * 1024, windowsHide: true });
     const details = JSON.parse(probe.stdout);
     const stream = details.streams?.find((entry: { codec_type?: string }) => entry.codec_type === "video");
-    if (!stream || !["vp8", "vp9"].includes(stream.codec_name) || !(stream.width > 0 && stream.height > 0)
+    if (!stream || !["vp8", "vp9", "gif"].includes(stream.codec_name) || !(stream.width > 0 && stream.height > 0)
       || stream.width * stream.height > 40_000_000) throw new CcgSupporterError(400, "media_image_format");
-    if (String(stream.tags?.alpha_mode ?? stream.tags?.ALPHA_MODE) !== "1") throw new CcgSupporterError(400, "media_image_transparency");
+    const gif = stream.codec_name === "gif";
+    if (!gif && String(stream.tags?.alpha_mode ?? stream.tags?.ALPHA_MODE) !== "1") throw new CcgSupporterError(400, "media_image_transparency");
     const scale = Math.min(1, 2048 / stream.width, 2048 / stream.height);
     const width = Math.max(2, Math.floor(stream.width * scale / 2) * 2);
     const height = Math.max(2, Math.floor(stream.height * scale / 2) * 2);
     // libvpx decoders retain WebM alpha; the native VP8/VP9 decoders discard it.
+    const decoderOptions = gif ? ["-ignore_loop", "1"] : ["-c:v", stream.codec_name === "vp9" ? "libvpx-vp9" : "libvpx"];
     const decoded = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-xerror", "-nostdin", "-threads", "1", ...inputOptions,
-      "-c:v", stream.codec_name === "vp9" ? "libvpx-vp9" : "libvpx", "-i", source,
+      ...decoderOptions, "-i", source,
       "-filter_complex", `[0:v:0]scale=${width}:${height},format=yuva420p,split[video][alpha];[alpha]alphaextract,scale=32:32[mask]`,
       "-map", "[video]", "-an", "-map_metadata", "-1", "-map_chapters", "-1", "-c:v", "libvpx-vp9", "-threads", "1", "-deadline", "realtime", "-cpu-used", "8",
       "-b:v", "0", "-crf", "32", "-fs", String(SUPPORTER_IMAGE_BYTES + 1), output,
@@ -94,7 +96,8 @@ export async function normalizeSupporterAudio(input: Buffer, directory: string) 
     const details = JSON.parse(probe.stdout);
     const stream = details.streams?.find((entry: { codec_type?: string }) => entry.codec_type === "audio");
     if (!stream) throw new CcgSupporterError(400, "media_audio_format");
-    const decoded = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-xerror", "-nostdin", "-threads", "1", ...inputOptions, "-i", source,
+    // Recover decodable audio from damaged packets before validating and re-encoding it.
+    const decoded = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-nostdin", "-threads", "1", ...inputOptions, "-i", source,
       "-map", "0:a:0", "-t", "10.01", "-ac", "1", "-ar", "48000", "-f", "s16le", "pipe:1"],
     { encoding: "buffer", timeout: 15_000, maxBuffer: 2 * 1024 * 1024, windowsHide: true });
     const duration = decoded.stdout.length / 96_000;
@@ -127,7 +130,7 @@ class SupporterMediaService {
     const temporary = await mkdtemp(path.join(root, "upload-"));
     try {
       const { data, ...metadata } = kind === "image"
-        ? input.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
+        ? input.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3])) || ["GIF87a", "GIF89a"].includes(input.subarray(0, 6).toString("ascii"))
           ? await normalizeSupporterVideo(input, temporary) : await normalizeSupporterImage(input)
         : await normalizeSupporterAudio(input, temporary);
       const storageKey = `supporter/${id}.${metadata.contentType === "video/webm" ? "webm" : kind === "image" ? "webp" : "mp3"}`;
@@ -143,9 +146,18 @@ class SupporterMediaService {
 
   async autoReview(id: string) {
     const row = await Media.findOne({ _id: id, kind: "image", status: "pending", aiReview: null, purgedAt: null }).lean();
-    if (!row?.storageKey || row.contentType === "video/webm") return;
+    if (!row?.storageKey) return;
     try {
-      const result = await artReview.review(await readFile(resolveCharacterRenderStoragePath(row.storageKey)));
+      const source = resolveCharacterRenderStoragePath(row.storageKey);
+      const image = row.contentType === "video/webm" ? await this.processing.run(async () => {
+        // Stored animations are normalized VP9 WebM; review only the first frame, retaining alpha.
+        const frame = await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-xerror", "-nostdin", "-threads", "1",
+          "-protocol_whitelist", "file,pipe", "-format_whitelist", "matroska,webm", "-c:v", "libvpx-vp9", "-i", source,
+          "-map", "0:v:0", "-frames:v", "1", "-an", "-c:v", "png", "-threads", "1", "-f", "image2pipe", "pipe:1"],
+        { encoding: "buffer", timeout: 15_000, maxBuffer: 16 * 1024 * 1024, windowsHide: true });
+        return sharp(frame.stdout, { limitInputPixels: 40_000_000 }).webp({ quality: 85, alphaQuality: 100 }).toBuffer();
+      }) : await readFile(source);
+      const result = await artReview.review(image);
       if (result.autoApproved) await this.review(id, null, "approve", undefined, result);
       else await Media.updateOne({ _id: id, status: "pending", aiReview: null }, { $set: { aiReview: result } });
     } catch {

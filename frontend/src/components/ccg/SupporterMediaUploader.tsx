@@ -88,11 +88,12 @@ export default function SupporterMediaUploader({ source, media, disabled, onPrev
           {pending.status === "pending" && <button disabled={mutation.isPending} onClick={() => mutation.mutate({ withdrawId: pending.id })}>{t("media.withdraw")}</button>}</>
           : <>
             {latest && latest.status !== "approved" && <p>{t(`media.status.${latest.status}`)}{latest.reason && `: ${latest.status === "failed" ? t(t.has(`errors.${latest.reason}`) ? `errors.${latest.reason}` : "errors.media_upload_failed") : latest.reason}`}</p>}
-            <label>{t(`media.${kind}`)}<input key={`${kind}:${fileKeys[kind]}`} type="file" accept={kind === "image" ? "image/png,image/webp,video/webm,.webm" : "audio/*,.m4a,.mp4,.webm,.flac,.aiff,.wma"}
+            <label>{t(`media.${kind}`)}<input key={`${kind}:${fileKeys[kind]}`} type="file" accept={kind === "image" ? "image/png,image/webp,image/gif,.gif,video/webm,.webm" : "audio/*,.m4a,.mp4,.webm,.flac,.aiff,.wma"}
               disabled={locked || mutation.isPending} onChange={(event) => {
                 const file = event.target.files?.[0];
                 const webm = file && (file.type === "video/webm" || isWebmArtwork(file.name));
-                if (file && (file.size > (kind === "image" ? 5 : 8) * 1024 * 1024 || (kind === "image" && !["image/png", "image/webp"].includes(file.type) && !webm))) {
+                const gif = file && (file.type === "image/gif" || /\.gif$/i.test(file.name));
+                if (file && (file.size > (kind === "image" ? 5 : 8) * 1024 * 1024 || (kind === "image" && !["image/png", "image/webp"].includes(file.type) && !webm && !gif))) {
                   setError(kind === "image" ? file.size > 5 * 1024 * 1024 ? "media_image_size" : "media_image_format" : "media_audio_size");
                   setFiles((previous) => ({ ...previous, [kind]: undefined }));
                   if (kind === "image") setLocalImage(null);
