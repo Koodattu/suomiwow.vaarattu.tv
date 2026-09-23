@@ -13,7 +13,7 @@ interface BattleNetTokenResponse {
   token_type: string;
   expires_in: number;
   refresh_token?: string; // Battle.net may not always return a refresh token
-  scope: string;
+  scope?: string | string[];
   sub: string; // Battle.net account ID
 }
 
@@ -59,7 +59,7 @@ interface WoWCharacterFromAPI {
     name: string;
   };
   faction: {
-    type: "ALLIANCE" | "HORDE";
+    type: IWoWCharacter["faction"];
     name: string;
   };
   level: number;
@@ -169,12 +169,18 @@ class BattleNetAuthService {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      logger.error("Failed to exchange Battle.net code:", error);
+      logger.error(`Failed to exchange Battle.net code: HTTP ${response.status}`);
       throw new Error("Failed to exchange authorization code");
     }
 
-    return response.json() as Promise<BattleNetTokenResponse>;
+    const tokens = await response.json() as BattleNetTokenResponse;
+    // OAuth may omit scope when it is identical to the requested scopes.
+    const scopes = typeof tokens.scope === "string" ? tokens.scope.split(/\s+/) : tokens.scope;
+    if (scopes && !scopes.includes("wow.profile")) {
+      logger.warn("Battle.net authorization did not grant wow.profile");
+      throw new BattleNetSyncError("BATTLENET_PERMISSION_REQUIRED", 409, "Allow access to your World of Warcraft profile in Battle.net, then reconnect.");
+    }
+    return tokens;
   }
 
   /**
@@ -190,8 +196,7 @@ class BattleNetAuthService {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      logger.error("Failed to get Battle.net user info:", error);
+      logger.error(`Failed to get Battle.net user info: HTTP ${response.status}`);
       throw new Error("Failed to get user info");
     }
 
@@ -238,8 +243,15 @@ class BattleNetAuthService {
     });
 
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
+      logger.warn(`Battle.net EU account profile request failed: HTTP ${response.status}`);
+      if (response.status === 401) {
         throw new BattleNetSyncError("BATTLENET_RECONNECT_REQUIRED", 409, "Reconnect Battle.net to refresh your characters.");
+      }
+      if (response.status === 403) {
+        throw new BattleNetSyncError("BATTLENET_PROFILE_ACCESS_DENIED", 409, "Blizzard denied access to your WoW profile. Check your Battle.net permissions and game data privacy settings.");
+      }
+      if (response.status === 404) {
+        throw new BattleNetSyncError("BATTLENET_PROFILE_UNAVAILABLE", 409, "Blizzard could not find your EU WoW profile. Check game data sharing and log out of WoW before trying again.");
       }
       throw new BattleNetSyncError("BATTLENET_UNAVAILABLE", 502, "Could not load characters from Battle.net. Please try again.");
     }

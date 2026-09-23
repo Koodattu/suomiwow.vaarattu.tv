@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { TestContext } from "node:test";
 import User, { IBattleNetAccount, IWoWCharacter } from "../src/models/User";
 import service, { BattleNetSyncError } from "../src/services/battlenet-auth.service";
+import logger from "../src/utils/logger";
 
 function character(id: number, selected = false): IWoWCharacter {
   return { id, name: `Character${id}`, realm: "Kazzak", realmSlug: "kazzak", class: "Mage", race: "Orc", level: 80, faction: "HORDE", selected };
@@ -31,6 +32,22 @@ test("Studio ownership includes low-level characters and stable realm IDs withou
   assert.equal(roster[0].realmId, 1);
 });
 
+test("connecting an all-level roster accepts neutral characters in the saved user model", async (t) => {
+  const neutral: IWoWCharacter = { ...character(1), level: 1, faction: "NEUTRAL" };
+  const user = new User({ discord: { id: "discord", username: "Tester", accessToken: "test", refreshToken: "test", tokenExpiresAt: new Date() } });
+  t.mock.method(User, "findOne", async () => null as any);
+  t.mock.method(User, "findById", async () => user as any);
+  t.mock.method(user, "save", async () => { await user.validate(); return user; });
+  t.mock.method(globalThis, "fetch", async (url: Parameters<typeof fetch>[0]) =>
+    String(url).includes("/profile/user/wow?") ? profileResponse([neutral]) : Response.json({}));
+  const roster = await service.getWoWCharacters("test-token", false, 0);
+  await service.connectBattleNetAccount(user.id, { sub: "account", id: 1, battletag: "Test#1234" },
+    { access_token: "test-token", expires_in: 60000, token_type: "bearer", scope: "wow.profile", sub: "account" }, roster);
+  assert.equal(user.battlenet?.characters[0].faction, "NEUTRAL");
+  assert.equal((await service.getCharacters(user.id))[0].faction, "NEUTRAL");
+  assert.ok(user.battlenet?.rosterSyncedAt);
+});
+
 // Model snapshots reproduce the separate documents read by simultaneous requests.
 function mockStore(t: TestContext, initial = account()) {
   let current: { battlenet?: IBattleNetAccount } = { battlenet: initial };
@@ -46,13 +63,17 @@ function mockStore(t: TestContext, initial = account()) {
   return { find, update, get current() { return current; }, disconnect() { current = {}; } };
 }
 
-for (const status of [401, 403, 404, 429, 500, 503]) {
+for (const [status, code] of [
+  [401, "BATTLENET_RECONNECT_REQUIRED"], [403, "BATTLENET_PROFILE_ACCESS_DENIED"],
+  [404, "BATTLENET_PROFILE_UNAVAILABLE"], [429, "BATTLENET_UNAVAILABLE"],
+  [500, "BATTLENET_UNAVAILABLE"], [503, "BATTLENET_UNAVAILABLE"],
+] as const) {
   test(`Blizzard HTTP ${status} never clears saved characters or advances sync time`, async (t) => {
     const store = mockStore(t);
     t.mock.method(globalThis, "fetch", async () => new Response(null, { status }));
     await assert.rejects(service.refreshCharacters("user"), (error: unknown) => {
       assert.ok(error instanceof BattleNetSyncError);
-      assert.equal(error.code, [401, 403].includes(status) ? "BATTLENET_RECONNECT_REQUIRED" : "BATTLENET_UNAVAILABLE");
+      assert.equal(error.code, code);
       return true;
     });
     assert.deepEqual(store.current.battlenet?.characters, [character(1, true)]);
@@ -60,6 +81,29 @@ for (const status of [401, 403, 404, 429, 500, 503]) {
     assert.equal(store.update.mock.callCount(), 0);
   });
 }
+
+test("authorization detects denied WoW permission without exposing tokens", async (t) => {
+  const warn = t.mock.method(logger, "warn", () => logger);
+  for (const scope of ["openid", "", [], ["openid"]]) {
+    t.mock.method(globalThis, "fetch", async () => Response.json({ access_token: "private-token", scope }));
+    await assert.rejects(service.exchangeCode("private-code"), { code: "BATTLENET_PERMISSION_REQUIRED" });
+  }
+  assert.ok(warn.mock.calls.every((call) => !JSON.stringify(call.arguments).includes("private-")));
+});
+
+test("authorization accepts granted WoW scopes and the OAuth omitted-scope response", async (t) => {
+  for (const scope of ["openid wow.profile", ["openid", "wow.profile"], undefined]) {
+    t.mock.method(globalThis, "fetch", async () => Response.json({ access_token: "test-token", scope }));
+    assert.equal((await service.exchangeCode("test-code")).access_token, "test-token");
+  }
+});
+
+test("profile failures log the HTTP status without logging the response body or token", async (t) => {
+  const warn = t.mock.method(logger, "warn", () => logger);
+  t.mock.method(globalThis, "fetch", async () => new Response("private-response", { status: 403 }));
+  await assert.rejects(service.getWoWCharacters("private-token"), { code: "BATTLENET_PROFILE_ACCESS_DENIED" });
+  assert.deepEqual(warn.mock.calls[0].arguments, ["Battle.net EU account profile request failed: HTTP 403"]);
+});
 
 test("a failed refresh releases its lock and can be retried", async (t) => {
   const store = mockStore(t);

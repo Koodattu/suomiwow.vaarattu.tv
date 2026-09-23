@@ -47,6 +47,19 @@ export default function StudioPage() {
   const focusWorkspace = useRef(false);
   const dirtyRef = useRef(false);
   const requestRef = useRef(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get("error");
+    if (error) {
+      setAccounts("battlenet");
+      const errorKey = t.has(`studio.errors.${error}`) ? `studio.errors.${error}` : "studio.errors.battlenet_failed";
+      setFeedback({ path: "battlenet", message: t(errorKey), error: true, code: error });
+    } else if (params.get("connected") === "battlenet") {
+      setAccounts("battlenet");
+      setFeedback({ path: "battlenet", message: t("studio.feedback.battlenetConnected") });
+    } else return;
+    window.history.replaceState(null, "", "/ccg/studio");
+  }, [t]);
   const onDirty = useCallback((dirty: boolean) => { dirtyRef.current = dirty; }, []);
   useEffect(() => {
     if (feedback?.error && feedback.characterKey) characterButtons.current[feedback.characterKey]?.focus({ preventScroll: true });
@@ -97,7 +110,7 @@ export default function StudioPage() {
         await client.cancelQueries({ queryKey: charactersKey });
         const characters = await rosterMutation.mutateAsync();
         client.setQueryData(charactersKey, characters);
-        setFeedback({ path, message: characters.rosterError ? errorText(characters.rosterError) : t("studio.feedback.rosterRefreshed"), error: Boolean(characters.rosterError) });
+        setFeedback({ path, message: characters.rosterError ? errorText(characters.rosterError) : t("studio.feedback.rosterRefreshed"), error: Boolean(characters.rosterError), code: characters.rosterError ?? undefined });
         return query.data;
       }
       const next = await mutation.mutateAsync({ path, body, method });
@@ -110,7 +123,7 @@ export default function StudioPage() {
       }
       if (path.endsWith("/publish")) void client.invalidateQueries({ predicate: (item) => item.queryKey[0] === "ccg" && item.queryKey[1] !== "studio" });
       return next;
-    } catch (failure) { setFeedback({ path, message: errorText(failure), error: true }); }
+    } catch (failure) { setFeedback({ path, message: errorText(failure), error: true, code: failure instanceof ApiError ? failure.code : undefined }); }
     finally { requestRef.current = false; }
   };
   const chooseCharacter = async (character: Character) => {

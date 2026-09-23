@@ -1,6 +1,7 @@
 import { WoWCharacter } from "@/types";
 import { useTranslations } from "next-intl";
 import { useState, useMemo } from "react";
+import BattleNetAccessHelp from "@/components/BattleNetAccessHelp";
 
 interface CharacterSelectorDialogProps {
   characters: WoWCharacter[];
@@ -11,6 +12,7 @@ interface CharacterSelectorDialogProps {
   isLoading: boolean;
   isSaving: boolean;
   errorMessage?: string;
+  errorCode?: string;
 }
 
 // WoW Class colors (from official WoW UI)
@@ -30,7 +32,7 @@ const CLASS_COLORS: { [key: string]: string } = {
   Warrior: "#C69B6D",
 };
 
-export default function CharacterSelectorDialog({ characters, onSave, onCancel, onRefresh, isRefreshing, isLoading, isSaving, errorMessage }: CharacterSelectorDialogProps) {
+export default function CharacterSelectorDialog({ characters, onSave, onCancel, onRefresh, isRefreshing, isLoading, isSaving, errorMessage, errorCode }: CharacterSelectorDialogProps) {
   const t = useTranslations("characterSelector");
   const [selectionChanges, setSelectionChanges] = useState<Map<number, boolean>>(new Map());
   const [searchQuery, setSearchQuery] = useState("");
@@ -79,8 +81,8 @@ export default function CharacterSelectorDialog({ characters, onSave, onCancel, 
     return CLASS_COLORS[className] || "#FFFFFF";
   };
 
-  const getFactionColor = (faction: "ALLIANCE" | "HORDE"): string => {
-    return faction === "ALLIANCE" ? "#3B82F6" : "#EF4444";
+  const getFactionColor = (faction: WoWCharacter["faction"]): string => {
+    return faction === "ALLIANCE" ? "#3B82F6" : faction === "HORDE" ? "#EF4444" : "#9CA3AF";
   };
 
   return (
@@ -203,7 +205,7 @@ export default function CharacterSelectorDialog({ characters, onSave, onCancel, 
         </div>
 
         {/* Footer */}
-        {errorMessage && <p role="alert" className="px-6 py-3 text-red-300">{errorMessage}</p>}
+        {errorMessage && <div role="alert" className="px-6 py-3 text-red-300">{errorMessage}<BattleNetAccessHelp code={errorCode} /></div>}
         <div className="p-6 border-t border-gray-700 flex justify-end gap-3">
           <button onClick={onCancel} disabled={isSaving} className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors font-medium">
             {t("cancel")}

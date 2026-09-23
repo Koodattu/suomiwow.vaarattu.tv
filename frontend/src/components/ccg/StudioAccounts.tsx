@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { FaTwitch, FaXmark } from "react-icons/fa6";
 import type { StudioState } from "@/types/ccg-studio";
+import BattleNetAccessHelp from "@/components/BattleNetAccessHelp";
 import styles from "./studio.module.css";
 
 export type StudioAccountPanel = "battlenet" | "twitch" | "rules";
-export type StudioFeedback = { path: string; message: string; error?: boolean; characterKey?: string };
+export type StudioFeedback = { path: string; message: string; error?: boolean; characterKey?: string; code?: string };
 
 export default function StudioAccounts({ panel, data, busy, connecting, action, feedback, connect, run, close }: {
   panel: StudioAccountPanel; data: StudioState; busy: boolean; connecting: boolean; action: string | null;
@@ -32,6 +33,7 @@ export default function StudioAccounts({ panel, data, busy, connecting, action, 
       <h2>Battle.net <small>EU · {t(data.battlenetConnected ? "connected" : "notConnected")}</small></h2>
       <p>{t("bnetRequired")}</p>
       {data.rosterError && <p className={styles.inlineError} role="alert">{errorText(data.rosterError)}</p>}
+      <BattleNetAccessHelp code={data.rosterError || (relevant ? feedback?.code : undefined)} />
       <div className={styles.actions}><button disabled={connecting || busy} onClick={() => connect("battlenet")}>{t(data.battlenetConnected ? "reconnect" : "connectBnet")}</button>
         {data.battlenetConnected && <button disabled={busy} onClick={() => void run("roster")}>{t(action === "roster" ? "refreshing" : "refreshCharacters")}</button>}</div>
     </> : panel === "twitch" ? <>

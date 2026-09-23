@@ -632,13 +632,9 @@ router.get("/battlenet/connect", async (req: Request, res: Response) => {
 
 // Battle.net OAuth callback
 router.get("/battlenet/callback", async (req: Request, res: Response) => {
+  let returnTo = "/profile";
   try {
     const { code, state } = req.query;
-
-    if (!code || typeof code !== "string") {
-      logger.warn("Battle.net callback missing code parameter");
-      return res.redirect(getFrontendUrl() + "/profile?error=missing_code");
-    }
 
     if (!state || typeof state !== "string") {
       logger.warn("Battle.net callback missing state parameter");
@@ -646,11 +642,20 @@ router.get("/battlenet/callback", async (req: Request, res: Response) => {
     }
 
     // Validate state and get user ID
-    const returnTo = stateStore.get(state)?.returnTo ?? "/profile";
+    const destination = stateStore.get(state)?.returnTo ?? "/profile";
     const userId = validateState(state);
     if (!userId || req.session.userId !== userId) {
       logger.warn("Battle.net callback invalid or expired state");
       return res.redirect(getFrontendUrl() + "/profile?error=invalid_state");
+    }
+    returnTo = destination;
+
+    if (req.query.error === "access_denied") {
+      return res.redirect(getFrontendUrl() + returnTo + "?error=battlenet_permission_required");
+    }
+    if (!code || typeof code !== "string") {
+      logger.warn("Battle.net callback missing code parameter");
+      return res.redirect(getFrontendUrl() + returnTo + "?error=battlenet_failed");
     }
 
     // Exchange code for tokens
@@ -670,9 +675,11 @@ router.get("/battlenet/callback", async (req: Request, res: Response) => {
     logger.error("Error in Battle.net OAuth callback:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     if (errorMessage.includes("already connected")) {
-      res.redirect(getFrontendUrl() + "/profile?error=battlenet_already_linked");
+      res.redirect(getFrontendUrl() + returnTo + "?error=battlenet_already_linked");
+    } else if (error instanceof BattleNetSyncError) {
+      res.redirect(getFrontendUrl() + returnTo + "?error=" + error.code.toLowerCase());
     } else {
-      res.redirect(getFrontendUrl() + "/profile?error=battlenet_failed");
+      res.redirect(getFrontendUrl() + returnTo + "?error=battlenet_failed");
     }
   }
 });

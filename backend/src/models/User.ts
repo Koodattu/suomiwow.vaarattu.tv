@@ -31,7 +31,7 @@ export interface IWoWCharacter {
   class: string;
   race: string;
   level: number;
-  faction: "ALLIANCE" | "HORDE";
+  faction: "ALLIANCE" | "HORDE" | "NEUTRAL";
   guild?: string;
   guildRealm?: string; // Guild's realm name
   guildRealmSlug?: string; // Guild's realm slug
@@ -115,7 +115,7 @@ const WoWCharacterSchema = new Schema<IWoWCharacter>(
     class: { type: String, required: true },
     race: { type: String, required: true },
     level: { type: Number, required: true },
-    faction: { type: String, enum: ["ALLIANCE", "HORDE"], required: true },
+    faction: { type: String, enum: ["ALLIANCE", "HORDE", "NEUTRAL"], required: true },
     guild: { type: String, required: false },
     guildRealm: { type: String, required: false },
     guildRealmSlug: { type: String, required: false },

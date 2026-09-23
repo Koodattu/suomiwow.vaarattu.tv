@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api, ApiError } from "@/lib/api";
 import CharacterSelectorDialog from "@/components/CharacterSelectorDialog";
+import BattleNetAccessHelp from "@/components/BattleNetAccessHelp";
 import { WoWCharacter, UserProfile, UserPickemEntry, StreamerSettings } from "@/types";
 import Link from "next/link";
 import { FaBattleNet, FaDiscord, FaTwitch } from "react-icons/fa";
@@ -48,7 +49,7 @@ export default function ProfilePage() {
   const [showCharacterDialog, setShowCharacterDialog] = useState(false);
   const [allCharacters, setAllCharacters] = useState<WoWCharacter[] | null>(null);
   const [isLoadingCharacters, setIsLoadingCharacters] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string; code?: string } | null>(null);
   const hasTriggeredRefresh = useRef(false);
   const characterOperation = useRef(false);
   const [needsReconnect, setNeedsReconnect] = useState(false);
@@ -211,7 +212,8 @@ export default function ProfilePage() {
       console.error("Failed to refresh characters:", error);
       const reconnect = error instanceof ApiError && error.code === "BATTLENET_RECONNECT_REQUIRED";
       if (reconnect) setNeedsReconnect(true);
-      setMessage({ type: "error", text: t(reconnect ? "reconnectRequired" : "refreshError") });
+      const code = error instanceof ApiError ? error.code?.toLowerCase() : undefined;
+      setMessage({ type: "error", code, text: t(code && t.has(code) ? code : reconnect ? "reconnectRequired" : "refreshError") });
     } finally {
       characterOperation.current = false;
       setIsRefreshingCharacters(false);
@@ -281,20 +283,21 @@ export default function ProfilePage() {
       if (!profile?.battlenet || isLoadingProfile) return;
       hasTriggeredRefresh.current = true;
       setMessage({ type: "success", text: t("battlenetConnected") });
-      void handleOpenCharacterDialog().then(() => handleRefreshCharacters());
+      void handleOpenCharacterDialog();
     } else if (connected === "twitch") {
       hasTriggeredRefresh.current = true;
       setMessage({ type: "success", text: t("twitchConnected") });
     } else if (error) {
       hasTriggeredRefresh.current = true;
-      const errorKey = error === "battlenet_already_linked" ? "battlenetAlreadyLinked"
+      const errorKey = error.startsWith("battlenet_") && t.has(error) ? error
+        : error === "battlenet_already_linked" ? "battlenetAlreadyLinked"
         : error === "twitch_already_linked" ? "twitchAlreadyLinked"
         : error === "battlenet_failed" ? "battlenetConnectionFailed"
         : error === "twitch_failed" ? "twitchConnectionFailed" : "connectionError";
-      setMessage({ type: "error", text: t(errorKey) });
+      setMessage({ type: "error", text: t(errorKey), code: error });
     } else return;
     router.replace("/profile");
-  }, [searchParams, profile?.battlenet, isLoadingProfile, handleOpenCharacterDialog, handleRefreshCharacters, router, t]);
+  }, [searchParams, profile?.battlenet, isLoadingProfile, handleOpenCharacterDialog, router, t]);
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== "DELETE") return;
@@ -345,8 +348,8 @@ export default function ProfilePage() {
     return CLASS_COLORS[className] || "#FFFFFF";
   };
 
-  const getFactionColor = (faction: "ALLIANCE" | "HORDE"): string => {
-    return faction === "ALLIANCE" ? "#3B82F6" : "#EF4444";
+  const getFactionColor = (faction: WoWCharacter["faction"]): string => {
+    return faction === "ALLIANCE" ? "#3B82F6" : faction === "HORDE" ? "#EF4444" : "#9CA3AF";
   };
 
   // Show loading while checking auth or loading profile
@@ -393,6 +396,7 @@ export default function ProfilePage() {
             }`}
           >
             {message.text}
+            <BattleNetAccessHelp code={message.code} />
           </div>
         )}
 
@@ -854,6 +858,7 @@ export default function ProfilePage() {
             isLoading={isLoadingCharacters || allCharacters === null}
             isSaving={isSavingCharacters}
             errorMessage={message?.type === "error" ? message.text : undefined}
+            errorCode={message?.type === "error" ? message.code : undefined}
           />
         )}
       </div>

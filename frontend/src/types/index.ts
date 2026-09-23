@@ -973,7 +973,7 @@ export interface WoWCharacter {
   class: string;
   race: string;
   level: number;
-  faction: "ALLIANCE" | "HORDE";
+  faction: "ALLIANCE" | "HORDE" | "NEUTRAL";
   guild?: string;
   selected: boolean;
   inactive?: boolean;

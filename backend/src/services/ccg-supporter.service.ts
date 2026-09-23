@@ -53,7 +53,11 @@ class CcgSupporterService {
     try { characters = await (refresh ? battlenet.refreshCharacters(userId) : battlenet.getCharacters(userId)); }
     catch (error) {
       const code = (error as { code?: string }).code;
-      throw new CcgSupporterError(503, code === "BATTLENET_RECONNECT_REQUIRED" ? "battlenet_required" : "armory_unavailable");
+      if (code === "BATTLENET_RECONNECT_REQUIRED") throw new CcgSupporterError(409, "battlenet_required");
+      if (code === "BATTLENET_PROFILE_ACCESS_DENIED" || code === "BATTLENET_PROFILE_UNAVAILABLE") {
+        throw new CcgSupporterError(409, code.toLowerCase());
+      }
+      throw new CcgSupporterError(503, "armory_unavailable");
     }
     if (!creator.battlenetId) {
       const session = await mongoose.startSession();
