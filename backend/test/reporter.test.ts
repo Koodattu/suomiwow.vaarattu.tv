@@ -422,7 +422,7 @@ test("Reporter writes Finnish first, translates it to English and totals both Op
     };
     const englishRequest = requestBodies[1] as typeof finnishRequest;
     assert.equal(requestBodies.length, 2);
-    assert.equal(finnishRequest.model, "gpt-5.6-luna");
+    assert.equal(finnishRequest.model, "gpt-6-luna");
     assert.equal(finnishRequest.reasoning.effort, "medium");
     assert.equal(finnishRequest.text.verbosity, "low");
     assert.equal(finnishRequest.text.format.type, "json_schema");

@@ -61,7 +61,7 @@ const chars = Array.from({ length: 7 }, (_, i) => ({ id: i + 1, realmId: 10, nam
 
 before(async () => {
   mock.method(artReview, "review", async (): Promise<SupporterArtReview> => ({ decision: "error", safetyConfidence: null, reason: "review_unavailable",
-    model: "gpt-5.6-luna", policyVersion: "supporter-art-v1", responseId: null, autoApproved: false, reviewedAt: new Date() }));
+    model: "gpt-6-luna", policyVersion: "supporter-art-v1", responseId: null, autoApproved: false, reviewedAt: new Date() }));
   await mongoose.connect(`mongodb://127.0.0.1:27139/${database}?directConnection=true`, { serverSelectionTimeoutMS: 5000 });
   for (const model of Object.values(mongoose.models)) await model.init();
   mock.method(blizzard, "getCharacterProfile", async (name: string) => ({ id: Number(name.replace("Mage", "")), name,
@@ -576,7 +576,7 @@ test("AI approval is audited, replaces approved art and can be revoked by an adm
   const first = await uploadImage(source._id);
   await mediaService.review(String(first._id), String(otherId), "approve", "");
   t.mock.method(artReview, "review", async (): Promise<SupporterArtReview> => ({ decision: "safe", safetyConfidence: 99, reason: "Fantasy character.",
-    model: "gpt-5.6-luna", policyVersion: "supporter-art-v1", responseId: "test-response", autoApproved: true, reviewedAt: new Date() }));
+    model: "gpt-6-luna", policyVersion: "supporter-art-v1", responseId: "test-response", autoApproved: true, reviewedAt: new Date() }));
   const image = await sharp({ create: { width: 30, height: 40, channels: 4, background: { r: 150, g: 20, b: 30, alpha: 0.5 } } }).png().toBuffer();
   await studio.submitMedia(String(userId), String(source._id), "image", image);
   const approved = await Media.findOne({ sourceId: source._id, status: "approved" }).orFail();
@@ -595,7 +595,7 @@ test("uncertain, rejected and failed AI reviews all stay pending", async (t) => 
   const source = await publish();
   for (const decision of ["review", "reject", "error"] as const) {
     const review = t.mock.method(artReview, "review", async (): Promise<SupporterArtReview> => ({ decision, safetyConfidence: decision === "error" ? null : 40,
-      reason: "Needs admin review.", model: "gpt-5.6-luna", policyVersion: "supporter-art-v1", responseId: null, autoApproved: false, reviewedAt: new Date() }));
+      reason: "Needs admin review.", model: "gpt-6-luna", policyVersion: "supporter-art-v1", responseId: null, autoApproved: false, reviewedAt: new Date() }));
     const row = await uploadImage(source._id);
     assert.equal(row.status, "pending");
     assert.equal(row.aiReview?.decision, decision);

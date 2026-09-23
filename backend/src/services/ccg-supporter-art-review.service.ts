@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-export const SUPPORTER_ART_MODEL = "gpt-5.6-luna";
+export const SUPPORTER_ART_MODEL = "gpt-6-luna";
 export const SUPPORTER_ART_APPROVAL_THRESHOLD = 98;
 export const SUPPORTER_ART_POLICY = "supporter-art-v1";
 const issues = ["sexual_content", "nudity", "graphic_violence", "hate", "harassment", "personal_data", "advertising", "unrelated", "unclear"];
