@@ -10,7 +10,7 @@ test("Supporter allowance uses Helsinki calendar months, including DST boundarie
   assert.equal(supporterMonth(new Date("2026-10-31T21:59:59Z")), "2026-10");
   assert.equal(supporterMonth(new Date("2026-10-31T22:00:00Z")), "2026-11");
   assert.deepEqual(supporterGrants(true, true, "2026-09", new Date("2026-09-16T12:00:00Z")), [
-    { kind: "follower", period: "once", amount: 1 }, { kind: "subscriber", period: "once", amount: 3 },
+    { kind: "follower", period: "once", amount: 3 }, { kind: "subscriber", period: "once", amount: 5 },
   ]);
   assert.equal(supporterGrants(false, true, "2026-09", new Date("2026-10-01T12:00:00Z")).find((grant) => grant.kind === "monthly")?.period, "2026-10");
   assert.deepEqual(supporterGrants(false, false, "2026-09", new Date("2026-10-01T12:00:00Z")), []);

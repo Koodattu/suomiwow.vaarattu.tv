@@ -51,7 +51,7 @@ Published cards accept optional alternative character images and audio in Card S
 - Static and animated AVIF (`.avif` / `.avifs`), including AVIF files named `.gif`, are identified by their file contents and converted to the same WebM format. The converter selects the full animation rather than its still cover, merges the matching AV1 transparency stream, and preserves frame timestamps. The existing size, pixel and processing limits and first-frame AI review apply.
 - Audio: common FFmpeg audio/container formats (MP3, WAV, FLAC, Ogg, AAC/M4A, MP4, WebM/Matroska, AIFF, WMA), up to 8 MiB. Decode and measure the first 10.01 seconds; reject decoded duration at or above 10 seconds. Re-encode accepted audio as 96 kbps stereo MP3 at 44.1 kHz without metadata. Input format/protocol allowlists and subprocess timeouts limit processing. Local development/tests require `ffmpeg` and `ffprobe` on PATH, or `FFMPEG_PATH` / `FFPROBE_PATH` overrides.
 - Audio decoding allows FFmpeg to recover from damaged packets before validation and re-encoding. Empty, undecodable, oversized, and over-duration files are still rejected; uploaded source bytes are never served as the approved audio.
-- Fifteen successful uploads per creator per UTC day, shared between image and audio uploads. The quota is charged in the transaction that saves normalized media for review; validation, processing, and transaction failures do not consume it. The accepted-upload counter is separate from the former attempt counter, so earlier failed attempts do not carry over. At most one pending/processing submission per card and kind, with two active conversions and two waiting per API process. A new image and audio can be reviewed separately.
+- Forty successful uploads per creator per UTC day, shared between image and audio uploads. The quota is charged in the transaction that saves normalized media for review; validation, processing, and transaction failures do not consume it. The accepted-upload counter is separate from the former attempt counter, so earlier failed attempts do not carry over. At most one pending/processing submission per card and kind, with two active conversions and eighteen waiting per API process. A new image and audio can be reviewed separately.
 - Replacements preserve the currently approved media until approval. Admins approve, reject, or remove approved media; rejection/removal requires a reason shown to the creator. Creators may withdraw a pending upload. Approval replaces that media kind for all collectors without changing stats, rarity, finish, or snapshot.
 - Media is scoped to the Supporter card, never inherited from or applied to the same character's raid/Community cards. The legacy admin artwork editor cannot modify Supporter media. Only approved images permit alternative-art grants.
 - The hourly worker cleanup removes failed/abandoned uploads, withdrawn files after 7 days, and rejected/superseded files after 30 days. Approved files are retained. Review records remain after file cleanup.
@@ -62,7 +62,7 @@ Verification adds actual image/audio normalization tests and replica-set integra
 
 ## Product contract
 
-**Card Studio** at `/ccg/studio` uses a slot-driven workspace without tabs. The top grid starts with six positions: two base slots, one follower opportunity, and three subscriber opportunities. Permanent grants unlock those positions; additional earned capacity extends the grid. Clicking an available position opens a compact character picker below the slots; clicking a creation opens its editor. The roster is hidden until creation begins. Draft placement is provisional and only publication spends capacity. A saved-drafts drawer keeps all five working copies accessible even when publication capacity is exhausted.
+**Card Studio** at `/ccg/studio` uses a slot-driven workspace without tabs. The top grid starts with ten positions: two base slots, three follower opportunities, and five subscriber opportunities. Permanent grants unlock those positions; additional earned capacity extends the grid. Clicking an available position opens a compact character picker below the slots; clicking a creation opens its editor. The roster is hidden until creation begins. Draft placement is provisional and only publication spends capacity. A saved-drafts drawer keeps all five working copies accessible even when publication capacity is exhausted.
 
 The default page also shows a collection grid of the latest raid cards featuring the connected account's characters. There are no captions beneath those cards. Inspection provides snapshot/ownership counts and a collection link. Battle.net, Twitch, and slot explanations are accessible through compact header controls, with a contextual Battle.net prompt when connection is needed. Character-load failures remain in the corresponding picker tile; appearance, save, and publication feedback remains in the editor.
 
@@ -82,7 +82,7 @@ These product decisions were settled in the grill-me session.
 
 | Topic | Decision |
 | --- | --- |
-| Initial slots | Following earns +1 once; subscribing earns +3 once. A follower who subscribes starts with four. The follower grant requires verified following. |
+| Initial slots | Every user starts with two slots. Following earns +3 once; subscribing earns +5 once. A follower who subscribes starts with ten. The follower grant requires verified following. |
 | Subscription tiers | Equal allowance for all active tiers, including Prime and gifted subscriptions. |
 | Monthly growth | +1 for each qualifying calendar month in Europe/Helsinki, starting the month after the first verified subscriber month. No bonus in that initial month. At most one monthly grant per account per month. |
 | Tracking start | Starts when Twitch is connected to the site. No rewards for months before connection. |
@@ -97,7 +97,7 @@ These product decisions were settled in the grill-me session.
 | Distribution after departure | Published cards remain in packs even if the creator leaves or the character disappears from Armory. Keep the last saved render. Loss of verified ownership freezes editing; admin can suppress distribution when necessary. |
 | Transmog refresh | Initial Armory import immediately; later successful refreshes at most once per character per six hours. Failed requests permit an earlier retry. Refresh prepares a preview; Apply changes updates the published card. |
 
-There is no fixed four-card lifetime cap: four is the initial total for someone who both follows and subscribes. Monthly grants increase permanent capacity. No additional total-cap rule has been requested.
+There is no fixed ten-card lifetime cap: ten is the initial total for someone who both follows and subscribes. Monthly grants increase permanent capacity. No additional total-cap rule has been requested.
 
 Unused slots accumulate and never expire. A published card permanently consumes one slot and cannot be swapped for a different character to recycle it. Following/subscription status governs earning additional slots, not spending slots already earned.
 
@@ -116,11 +116,11 @@ Monthly rewards use subscription evidence collected after the account connects, 
 ## Permanent grants and calendar months
 
 - Persist the original tracking start and first verified subscriber month. Neither resets on reconnect, an expired subscription, or an account-recovery operation.
-- Use a durable grant ledger with unique keys for `(broadcasterId, twitchUserId, grantKind, periodKey)`: one follower grant, one initial subscriber grant, and one grant per eligible `YYYY-MM` in Europe/Helsinki. A grant's slot amount is +1, +3, or +1 respectively.
+- Use a durable grant ledger with unique keys for `(broadcasterId, twitchUserId, grantKind, periodKey)`: one follower grant, one initial subscriber grant, and one grant per eligible `YYYY-MM` in Europe/Helsinki. A grant's slot amount is +3, +5, or +1 respectively. Studio access transactionally tops up older initial grants to the new amounts once, including after support ends or Twitch is disconnected.
 - Atomically insert the grant and increase earned capacity. Duplicate login, webhook, manual refresh, and job deliveries must not double-credit. Used slots are allocated separately, with `used < earned` checked transactionally.
 - The initial subscriber month never receives its monthly +1, even when subscription verification repeats or the user reconnects. Following can qualify separately before or after that month.
 - Later months qualify when supported by a verified active-subscription observation or valid subscription event in that month. Qualifying once is sufficient; ending the subscription later does not revoke that month's grant.
-- Example: a follower first connects and is verified subscribed on September 30: four slots. A verified subscription on October 1 grants a fifth. No September monthly bonus. If November has no qualifying evidence, no November bonus; verified subscription in December grants one more.
+- Example: a follower first connects and is verified subscribed on September 30: ten slots. A verified subscription on October 1 grants an eleventh. No September monthly bonus. If November has no qualifying evidence, no November bonus; verified subscription in December grants one more.
 - No inference of uninterrupted subscription from first-seen date, stale cached status, or a later positive check. No automatic backfill for months without evidence. Stored evidence and grant-processing failures can be replayed safely for the correct historical month after tracking began.
 - Persist tracking-enabled intervals or connection revisions. Disconnect stops account-specific polling and reward evidence collection; reject evidence from disconnected intervals, including delayed events received after reconnection. Fence in-flight checks against disconnection so they cannot introduce new qualification after tracking stops. Qualification already durably recorded before disconnect remains valid and can finish processing idempotently.
 
@@ -160,7 +160,7 @@ To prevent reconnect farming, bind publication usage durably to the creator and 
 
 ## Studio experience
 
-Show the page and a useful connection state even before accounts are linked. Require Battle.net for private character discovery and ownership verification. Require verified Twitch support to earn new slots; publishing spends previously earned slots even after unfollowing or unsubscribing.
+Show the page and a useful connection state even before accounts are linked. Require Battle.net for private character discovery and ownership verification. Everyone receives two base slots. Require verified Twitch support to earn additional slots; publishing spends previously earned slots even after unfollowing or unsubscribing.
 
 The supporter shelf stays mounted while the picker/editor is open. Desktop uses six columns, with three and two columns at narrower widths. Card typography scales with the rendered card width through the shared CCG typography variables. Raid cards are separate from Supporter/Community creations and do not grant ownership to the character owner.
 
@@ -266,11 +266,12 @@ Draft CRUD and published edits require owner authorization and existing session/
 | --- | --- |
 | Twitch manual status refresh | Once per 60 seconds per linked Twitch identity, coalescing concurrent checks |
 | Battle.net roster manual refresh | Once per 5 minutes per account; publication verification uses a short cached proof |
-| Render ingestion/refresh | Confirmed: immediate initial fetch, then once per character per 6 hours after a successful fetch. Proposed abuse ceiling: 10 attempts per creator per day across draft creation and refresh |
+| Studio requests | Up to 180 per minute per creator, allowing ten-card creation sessions with repeated saves and overview reads |
+| Render ingestion/refresh | Confirmed: immediate initial fetch, then once per character per 6 hours after a successful fetch. Abuse ceiling: 20 attempts per creator per day across draft creation and refresh |
 | Failed render retry | Short backoff (initially 60 seconds), not the six-hour success cooldown |
-| Draft saves | Debounced, up to 30 per minute per creator |
+| Draft saves | Debounced, up to 60 per minute per creator |
 | Apply published edits | Once per card per 5 minutes |
-| Publication attempts | Up to 5 per minute per creator, with idempotency and lifetime slot checks |
+| Publication attempts | Up to 20 per minute per creator, with idempotency and lifetime slot checks |
 
 Use database-backed conditional cooldowns/counters for expensive operations so parallel tabs, multiple processes, reconnects, or restarts cannot bypass them. Add ordinary per-IP abuse protection using existing middleware. Return `nextAllowedAt`/`Retry-After` where useful. Provider failures must not consume publication capacity. Stats randomization stays local until save and needs no external quota.
 

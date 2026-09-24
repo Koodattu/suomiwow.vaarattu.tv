@@ -4,6 +4,7 @@ import { getHelsinkiDateKey } from "./helsinki-time";
 import { slugifySpecName } from "./spec";
 
 export const SUPPORTER_BASE_SLOTS = 2;
+export const SUPPORTER_INITIAL_GRANTS = { follower: 3, subscriber: 5 } as const;
 export const SUPPORTER_DRAFT_LIMIT = 5;
 export const SUPPORTER_RENDER_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 export const SUPPORTER_BACKGROUNDS = [CCG_SUPPORTER_SET, CCG_COMMUNITY_SET, ...CCG_CONFIGURED_SETS.filter((set) => set.state !== "locked")]
@@ -26,9 +27,9 @@ export function supporterMonth(date = new Date()): string {
 export function supporterGrants(following: boolean | null, subscribed: boolean | null, firstMonth: string | null, observedAt: Date) {
   const month = supporterMonth(observedAt);
   const grants: Array<{ kind: "follower" | "subscriber" | "monthly"; period: string; amount: number }> = [];
-  if (following) grants.push({ kind: "follower", period: "once", amount: 1 });
+  if (following) grants.push({ kind: "follower", period: "once", amount: SUPPORTER_INITIAL_GRANTS.follower });
   if (subscribed) {
-    grants.push({ kind: "subscriber", period: "once", amount: 3 });
+    grants.push({ kind: "subscriber", period: "once", amount: SUPPORTER_INITIAL_GRANTS.subscriber });
     if (firstMonth && month > firstMonth) grants.push({ kind: "monthly", period: month, amount: 1 });
   }
   return grants;

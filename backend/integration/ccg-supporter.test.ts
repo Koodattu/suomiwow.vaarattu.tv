@@ -56,7 +56,7 @@ let server: Server;
 let baseUrl: string;
 const models = [User, Guild, Creator, Source, Grant, Event, Limit, Card, SetModel, Pool, Ownership, Series, Invalidation,
   CcgJobLock, CcgLeaderboardEntry, CcgPackBalance, CcgPackCredit, CcgLedgerEntry, CcgPackOpening, CcgQualityProgress, Media, AlternativeArt];
-const chars = Array.from({ length: 7 }, (_, i) => ({ id: i + 1, realmId: 10, name: `Mage${i + 1}`, realm: "Stormreaver",
+const chars = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, realmId: 10, name: `Mage${i + 1}`, realm: "Stormreaver",
   realmSlug: "stormreaver", class: "Mage", race: "Human", level: 10, faction: "ALLIANCE" as const, selected: false, inactive: false }));
 
 before(async () => {
@@ -242,9 +242,9 @@ test("concurrent observations credit each permanent and monthly grant exactly on
   const creator = await connect();
   const observe = (date: string) => status.observe(creator._id, creator.connectionRevision, "channel", true, true, "1000", new Date(date));
   await Promise.all(Array.from({ length: 4 }, () => observe("2026-09-16T12:00:00Z")));
-  assert.equal((await Creator.findById(creator._id))?.earnedSlots, 4);
+  assert.equal((await Creator.findById(creator._id))?.earnedSlots, 8);
   await Promise.all(Array.from({ length: 4 }, () => observe("2026-10-16T12:00:00Z")));
-  assert.equal((await Creator.findById(creator._id))?.earnedSlots, 5);
+  assert.equal((await Creator.findById(creator._id))?.earnedSlots, 9);
   assert.equal(await Grant.countDocuments(), 3);
 });
 
@@ -280,15 +280,49 @@ test("new and existing creators receive the baseline on top of permanent Twitch 
   const observe = (following: boolean, subscribed: boolean, date: string) => status.observe(creator._id,
     creator.connectionRevision, "channel", following, subscribed, subscribed ? "1000" : null, new Date(date));
   await observe(true, false, "2026-09-16T12:00:00Z");
-  assert.equal((await studio.getState(String(userId))).allowance.available, 3);
+  assert.equal((await studio.getState(String(userId))).allowance.available, 5);
   await observe(true, true, "2026-09-17T12:00:00Z");
-  assert.equal((await studio.getState(String(userId))).allowance.available, 6);
+  assert.equal((await studio.getState(String(userId))).allowance.available, 10);
   await observe(true, true, "2026-10-17T12:00:00Z");
-  assert.equal((await studio.getState(String(userId))).allowance.available, 7);
+  assert.equal((await studio.getState(String(userId))).allowance.available, 11);
   await observe(false, false, "2026-11-17T12:00:00Z");
   const expired = await studio.getState(String(userId));
-  assert.equal(expired.allowance.available, 7);
+  assert.equal(expired.allowance.available, 11);
   assert.deepEqual(expired.entitlements, { base: 2, follower: true, subscriber: true });
+});
+
+test("older permanent grants are topped up once after disconnection without changing usage or monthly rewards", async () => {
+  const creator = await Creator.findOne({ userId }).orFail();
+  await Creator.updateOne({ _id: creator._id }, { $set: { earnedSlots: 6, usedSlots: 3,
+    trackingEnabled: false, following: false, subscribed: false } });
+  await Grant.insertMany([
+    { kind: "follower", period: "once", amount: 1 },
+    { kind: "subscriber", period: "once", amount: 3 },
+    { kind: "monthly", period: "2026-08", amount: 1 },
+    { kind: "monthly", period: "2026-09", amount: 1 },
+  ].map((grant) => ({ ...grant, creatorId: creator._id, broadcasterId: "channel", twitchUserId: "twitch0", observedAt: new Date() })));
+  await Promise.all(Array.from({ length: 4 }, () => status.ensureCreator(userId)));
+  const state = await studio.getState(String(userId));
+  assert.deepEqual(state.entitlements, { base: 2, follower: true, subscriber: true });
+  assert.deepEqual(state.allowance, { earned: 12, used: 3, available: 9, drafts: 0, draftLimit: 5 });
+  assert.equal((await studio.getState(String(userId))).allowance.earned, 12);
+  assert.equal(await Grant.countDocuments(), 4);
+  assert.equal((await Grant.findOne({ kind: "follower" }))?.amount, 3);
+  assert.equal((await Grant.findOne({ kind: "subscriber" }))?.amount, 5);
+  assert.equal(await Grant.countDocuments({ kind: "monthly", amount: 1 }), 2);
+});
+
+test("a failed legacy bonus top-up rolls back its ledger change and can be retried", async (t) => {
+  const creator = await Creator.findOne({ userId }).orFail();
+  await Creator.updateOne({ _id: creator._id }, { $set: { earnedSlots: 1 } });
+  const grant = await Grant.create({ creatorId: creator._id, broadcasterId: "channel", twitchUserId: "twitch0",
+    kind: "follower", period: "once", amount: 1, observedAt: new Date() });
+  const failure = t.mock.method(Creator, "updateOne", () => { throw new Error("top-up failed"); });
+  await assert.rejects(status.ensureCreator(userId), /top-up failed/);
+  assert.equal((await Grant.findById(grant._id))?.amount, 1);
+  assert.equal((await Creator.findById(creator._id))?.earnedSlots, 1);
+  failure.mock.restore();
+  assert.equal((await status.ensureCreator(userId)).earnedSlots, 3);
 });
 
 test("disconnect fences in-flight checks, preserves allowance and rejects account transfer", async () => {
@@ -299,12 +333,12 @@ test("disconnect fences in-flight checks, preserves allowance and rejects accoun
     await session.withTransaction(() => status.disconnect(String(userId), session));
     assert.deepEqual((await studio.getState(String(userId))).entitlements, { base: 2, follower: true, subscriber: true });
     await status.observe(creator._id, creator.connectionRevision, "channel", true, true, "1000", new Date("2026-10-16T12:00:00Z"));
-    assert.equal((await Creator.findById(creator._id))?.earnedSlots, 4);
+    assert.equal((await Creator.findById(creator._id))?.earnedSlots, 8);
     await assert.rejects(session.withTransaction(() => status.connect(String(otherId), "twitch0", session)), { code: "account_bound" });
     await session.withTransaction(() => status.connect(String(userId), "twitch0", session));
     const current = await Creator.findById(creator._id).orFail();
     await status.observe(current._id, current.connectionRevision, "channel", true, true, "2000", new Date("2026-11-16T12:00:00Z"));
-    assert.equal((await Creator.findById(creator._id))?.earnedSlots, 5);
+    assert.equal((await Creator.findById(creator._id))?.earnedSlots, 9);
   } finally { await session.endSession(); }
 });
 
@@ -315,7 +349,7 @@ test("duplicate and out-of-order events preserve grants and latest status", asyn
   await status.recordEvent("end", "channel", "twitch0", false, null, new Date("2026-11-02T00:00:00Z"));
   await status.recordEvent("late", "channel", "twitch0", true, "1000", new Date("2026-10-15T00:00:00Z"));
   const creator = await Creator.findOne({ userId }).orFail();
-  assert.equal(creator.earnedSlots, 5);
+  assert.equal(creator.earnedSlots, 7);
   assert.equal(creator.firstSubscriberMonth, "2026-09");
   assert.equal(creator.subscribed, false);
   assert.equal(await Event.countDocuments({ processed: false }), 0);
@@ -571,7 +605,67 @@ async function uploadImage(sourceId: mongoose.Types.ObjectId, red = 100) {
   return Media.findOne({ sourceId, kind: "image", status: "pending" }).orFail();
 }
 
-test("media quota allows fifteen successful uploads and ignores failures and legacy attempt counts", async () => {
+function audioFixture() {
+  const wav = Buffer.alloc(44 + 32000);
+  wav.write("RIFF", 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write("WAVEfmt ", 8);
+  wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+  wav.write("data", 36); wav.writeUInt32LE(32000, 40);
+  return wav;
+}
+
+test("ten cards can be created, saved, published and uploaded with art and audio in one rate-limit window", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const creator = await Creator.findOneAndUpdate({ userId }, { $set: { earnedSlots: 8 } }, { returnDocument: "after" }).orFail();
+  // An earlier render attempt must not prevent importing the tenth new character.
+  await supporterLimit(`render:${creator._id}`, 20, 86_400_000);
+  const request = async (endpoint: string, method = "GET", body?: Record<string, unknown> | Buffer) => {
+    const response = await fetch(`${baseUrl}/api/ccg/studio${endpoint}`, {
+      method, headers: { "x-test-user": String(userId), origin: "http://localhost:3000",
+        "content-type": Buffer.isBuffer(body) ? "application/octet-stream" : "application/json" },
+      body: body === undefined ? undefined : Buffer.isBuffer(body) ? body : JSON.stringify(body),
+    });
+    const result = await response.json() as Awaited<ReturnType<typeof studio.getState>>;
+    assert.equal(response.status, 200, `${method} ${endpoint}: ${JSON.stringify(result)}`);
+    return result;
+  };
+  await request("");
+  await request("/characters");
+  const ids: string[] = [];
+  for (const character of chars) {
+    let state = await request("/drafts", "POST", { characterId: character.id, realmId: character.realmId });
+    let source = state.creations.find((entry) => entry.characterId === character.id)!;
+    assert.equal(source.renderError, false);
+    assert.ok(source.draft?.renderAssetId);
+    await request("");
+    for (const performance of [50, 70, 90]) {
+      state = await request(`/drafts/${source.id}`, "PATCH", { ...source.draft, performance, revision: source.revision });
+      source = state.creations.find((entry) => entry.id === source.id)!;
+      await request("");
+    }
+    await request(`/drafts/${source.id}/publish`, "POST", { revision: source.revision });
+    await request("");
+    ids.push(source.id);
+  }
+  const image = await sharp({ create: { width: 30, height: 40, channels: 4, background: { r: 100, g: 20, b: 30, alpha: 0.5 } } }).png().toBuffer();
+  const audio = audioFixture();
+  const uploads = await Promise.allSettled(ids.flatMap((id) => [
+    request(`/media/${id}/image`, "POST", image), request(`/media/${id}/audio`, "POST", audio),
+  ]));
+  for (const upload of uploads) if (upload.status === "rejected") throw upload.reason;
+  const final = await request("");
+  assert.equal(final.allowance.used, 10);
+  assert.equal(final.allowance.available, 0);
+  assert.equal(final.allowance.drafts, 0);
+  for (const id of ids) {
+    const rows = await Media.find({ sourceId: id, status: "pending" });
+    assert.deepEqual(rows.map((row) => row.kind).sort(), ["audio", "image"]);
+  }
+  assert.equal(await Card.countDocuments({ creatorUserId: userId }), 10);
+  assert.equal((await Limit.findOne({ key: `media-accepted:${userId}:${Math.floor(Date.now() / 86_400_000)}` }))?.count, 20);
+});
+
+test("media quota allows forty successful uploads and ignores failures and legacy attempt counts", async () => {
   const source = await publish();
   const window = Math.floor(Date.now() / 86_400_000);
   const key = `media-accepted:${userId}:${window}`;
@@ -580,14 +674,14 @@ test("media quota allows fifteen successful uploads and ignores failures and leg
     await assert.rejects(studio.submitMedia(String(userId), String(source._id), "image", Buffer.from("bad")), { code: "media_image_format" });
   }
   assert.equal(await Limit.findOne({ key }), null);
-  for (let accepted = 1; accepted <= 15; accepted++) {
+  for (let accepted = 1; accepted <= 40; accepted++) {
     const row = await uploadImage(source._id);
     await assert.rejects(studio.submitMedia(String(userId), String(source._id), "image", Buffer.from("bad")), { code: "media_pending" });
     assert.equal((await Limit.findOne({ key }))?.count, accepted);
     await studio.withdrawMedia(String(userId), String(row._id));
   }
   await assert.rejects(uploadImage(source._id), { code: "rate_limited" });
-  assert.equal((await Limit.findOne({ key }))?.count, 15);
+  assert.equal((await Limit.findOne({ key }))?.count, 40);
   assert.equal(await Media.countDocuments({ sourceId: source._id, status: { $in: ["pending", "processing"] } }), 0);
 });
 
@@ -610,19 +704,19 @@ test("concurrent uploads cannot both claim the last daily media slot", async () 
   const second = await publish(2);
   const window = Math.floor(Date.now() / 86_400_000);
   const key = `media-accepted:${userId}:${window}`;
-  await Limit.create({ key, count: 14, expiresAt: new Date((window + 1) * 86_400_000) });
+  await Limit.create({ key, count: 39, expiresAt: new Date((window + 1) * 86_400_000) });
   const results = await Promise.allSettled([uploadImage(first._id), uploadImage(second._id)]);
   assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
   const rejected = results.find((result) => result.status === "rejected") as PromiseRejectedResult;
   assert.equal(rejected.reason.code, "rate_limited");
-  assert.equal((await Limit.findOne({ key }))?.count, 15);
+  assert.equal((await Limit.findOne({ key }))?.count, 40);
   assert.equal(await Media.countDocuments({ status: "pending" }), 1);
 });
 
 test("quota rejection keeps converted animation eligible for file cleanup", async () => {
   const source = await publish();
   const window = Math.floor(Date.now() / 86_400_000);
-  await Limit.create({ key: `media-accepted:${userId}:${window}`, count: 15, expiresAt: new Date((window + 1) * 86_400_000) });
+  await Limit.create({ key: `media-accepted:${userId}:${window}`, count: 40, expiresAt: new Date((window + 1) * 86_400_000) });
   const pixels = Buffer.alloc(32 * 32 * 4);
   pixels.fill(255, 0, pixels.length / 2);
   const gif = await sharp(pixels, { raw: { width: 32, height: 32, channels: 4 } }).gif().toBuffer();
@@ -778,11 +872,7 @@ test("audio submission is reviewed independently and approved media rolls throug
   const ai = t.mock.method(artReview, "review", artReview.review);
   const source = await publish(1, "phaseglass");
   const card = await Card.findById(source.cardId).orFail();
-  const wav = Buffer.alloc(44 + 32000);
-  wav.write("RIFF", 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write("WAVEfmt ", 8);
-  wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
-  wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
-  wav.write("data", 36); wav.writeUInt32LE(32000, 40);
+  const wav = audioFixture();
   const response = await fetch(`${baseUrl}/api/ccg/studio/media/${source._id}/audio`, { method: "POST", headers: {
     "x-test-user": String(userId), origin: "http://localhost:3000", "content-type": "application/octet-stream",
   }, body: wav });

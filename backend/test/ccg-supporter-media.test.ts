@@ -13,6 +13,28 @@ import Media from "../src/models/CcgSupporterMedia";
 import artReview, { SupporterArtReview } from "../src/services/ccg-supporter-art-review.service";
 import { resolveAlternativeArtKey, serializeAlternativeArt, serializeQuip } from "../src/utils/ccg-alternative-art";
 
+test("twenty simultaneous media submissions queue with only two active conversions", async (t) => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let active = 0;
+  let peak = 0;
+  t.mock.method(media as any, "prepareFile", async () => {
+    active++;
+    peak = Math.max(peak, active);
+    try { await gate; return { storageKey: "fixture" }; }
+    finally { active--; }
+  });
+  const submissions = Promise.all(Array.from({ length: 20 }, (_, index) =>
+    media.prepare(new mongoose.Types.ObjectId(), index % 2 ? "audio" : "image", Buffer.from("fixture"))));
+  try {
+    await assert.rejects(media.prepare(new mongoose.Types.ObjectId(), "image", Buffer.from("fixture")), { code: "media_busy" });
+    assert.equal(active, 2);
+  } finally { release(); }
+  assert.equal((await submissions).length, 20);
+  assert.equal(peak, 2);
+  await media.prepare(new mongoose.Types.ObjectId(), "image", Buffer.from("fixture"));
+});
+
 function wav(seconds: number) {
   const rate = 16000, samples = Math.round(seconds * rate);
   const result = Buffer.alloc(44 + samples * 2);

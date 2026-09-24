@@ -10,28 +10,38 @@ const state = (overrides = {}) => ({
 });
 const creation = (id, published = false) => ({ id, cardId: published ? `card-${id}` : null, draft: published ? null : {} });
 
-test("a fresh account has two usable slots and four specific unlock opportunities", () => {
+test("a fresh account has two usable slots and eight specific unlock opportunities", () => {
   const slots = getStudioSlots(state());
-  assert.equal(slots.length, 6);
-  assert.deepEqual(slots.map((slot) => slot.unlock), [null, null, "follower", "subscriber", "subscriber", "subscriber"]);
+  assert.equal(slots.length, 10);
+  assert.deepEqual(slots.map((slot) => slot.unlock), [null, null, "follower", "follower", "follower", "subscriber", "subscriber", "subscriber", "subscriber", "subscriber"]);
 });
 
 test("current Twitch status cannot relock earned slots; monthly grants extend capacity", () => {
   const slots = getStudioSlots(state({
     entitlements: { base: 2, follower: true, subscriber: true },
     status: { following: false, subscribed: false }, twitchConnected: false,
-    allowance: { earned: 8, used: 0, available: 8 },
+    allowance: { earned: 12, used: 0, available: 12 },
   }));
-  assert.equal(slots.length, 8);
+  assert.equal(slots.length, 12);
   assert.ok(slots.every((slot) => slot.unlock === null));
 });
 
-test("a subscriber who never followed keeps the follower opportunity locked", () => {
-  const slots = getStudioSlots(state({ entitlements: { base: 2, follower: false, subscriber: true }, allowance: { earned: 5, used: 0, available: 5 } }));
-  assert.equal(slots.length, 6);
-  assert.equal(slots.find((slot) => slot.id === "follower").unlock, "follower");
+test("following unlocks three permanent slots on top of the two base slots", () => {
+  const slots = getStudioSlots(state({
+    entitlements: { base: 2, follower: true, subscriber: false },
+    allowance: { earned: 5, used: 0, available: 5 },
+  }));
   assert.equal(slots.filter((slot) => !slot.unlock).length, 5);
-  assert.equal(slots.at(-1).id, "follower");
+  assert.equal(slots.filter((slot) => slot.unlock === "subscriber").length, 5);
+  assert.equal(new Set(slots.map((slot) => slot.id)).size, slots.length);
+});
+
+test("a subscriber who never followed keeps the follower opportunity locked", () => {
+  const slots = getStudioSlots(state({ entitlements: { base: 2, follower: false, subscriber: true }, allowance: { earned: 7, used: 0, available: 7 } }));
+  assert.equal(slots.length, 10);
+  assert.equal(slots.find((slot) => slot.id === "follower").unlock, "follower");
+  assert.equal(slots.filter((slot) => !slot.unlock).length, 7);
+  assert.equal(slots.filter((slot) => slot.unlock === "follower").length, 3);
 });
 
 test("aggregate banked capacity is preserved even without historical grant rows", () => {

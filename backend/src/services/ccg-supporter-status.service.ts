@@ -6,7 +6,7 @@ import CcgSupporterLimit from "../models/CcgSupporterLimit";
 import CcgJobLock from "../models/CcgJobLock";
 import { randomUUID } from "crypto";
 import User from "../models/User";
-import { CcgSupporterError, supporterGrants, supporterMonth } from "../utils/ccg-supporter";
+import { CcgSupporterError, SUPPORTER_INITIAL_GRANTS, supporterGrants, supporterMonth } from "../utils/ccg-supporter";
 import logger from "../utils/logger";
 import twitchChannelPointsService from "./twitch-channel-points.service";
 
@@ -38,12 +38,32 @@ export async function supporterLimit(key: string, limit: number, windowMs: numbe
 
 class CcgSupporterStatusService {
   async ensureCreator(userId: mongoose.Types.ObjectId | string) {
+    let creator;
     try {
-      return await CcgSupporterCreator.findOneAndUpdate({ userId }, { $setOnInsert: { userId } }, { upsert: true, returnDocument: "after" });
+      creator = await CcgSupporterCreator.findOneAndUpdate({ userId }, { $setOnInsert: { userId } }, { upsert: true, returnDocument: "after" });
     } catch (error) {
-      if (error instanceof mongoose.mongo.MongoServerError && error.code === 11000) return CcgSupporterCreator.findOne({ userId }).orFail();
-      throw error;
+      if (!(error instanceof mongoose.mongo.MongoServerError && error.code === 11000)) throw error;
+      creator = await CcgSupporterCreator.findOne({ userId }).orFail();
     }
+    // Upgrade already-earned bonuses even after unfollowing, expiry or disconnection.
+    const olderGrants = { creatorId: creator._id, period: "once", $or: (["follower", "subscriber"] as const)
+      .map((kind) => ({ kind, amount: { $lt: SUPPORTER_INITIAL_GRANTS[kind] } })) };
+    if (!await CcgSupporterGrant.exists(olderGrants)) return creator;
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const grants = await CcgSupporterGrant.find(olderGrants).session(session);
+        let amount = 0;
+        for (const grant of grants) {
+          const target = SUPPORTER_INITIAL_GRANTS[grant.kind as keyof typeof SUPPORTER_INITIAL_GRANTS];
+          amount += target - grant.amount;
+          grant.amount = target;
+          await grant.save({ session });
+        }
+        if (amount) await CcgSupporterCreator.updateOne({ _id: creator._id }, { $inc: { earnedSlots: amount } }, { session });
+      });
+    } finally { await session.endSession(); }
+    return CcgSupporterCreator.findById(creator._id).orFail();
   }
 
   async connect(userId: string, twitchUserId: string, session: ClientSession) {

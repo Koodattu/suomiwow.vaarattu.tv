@@ -23,7 +23,7 @@ router.use(async (req, res, next) => {
   }
   try {
     if (!await User.exists({ _id: req.session.userId })) return res.status(401).json({ code: "authentication_required" });
-    await supporterLimit(`studio:${req.session.userId}`, 90, 60_000);
+    await supporterLimit(`studio:${req.session.userId}`, 180, 60_000);
     next();
   } catch (error) { next(error); }
 });

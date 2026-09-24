@@ -130,7 +130,8 @@ class SupporterMediaService {
   private queued = 0;
 
   async prepare(id: mongoose.Types.ObjectId, kind: SupporterMediaKind, input: Buffer) {
-    if (this.queued >= 4) throw new CcgSupporterError(503, "media_busy");
+    // Accept image and audio for ten cards together while keeping conversions bounded.
+    if (this.queued >= 20) throw new CcgSupporterError(503, "media_busy");
     this.queued += 1;
     try { return await this.processing.run(() => this.prepareFile(id, kind, input)); }
     finally { this.queued -= 1; }

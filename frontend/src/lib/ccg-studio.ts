@@ -11,8 +11,8 @@ export type StudioSlot = {
 export function getStudioSlots(data: StudioState, placements: Record<string, string> = {}) {
   const slots: StudioSlot[] = [
     ...Array.from({ length: data.entitlements.base }, (_, index) => ({ id: `base:${index}`, unlock: null })),
-    { id: "follower", unlock: data.entitlements.follower ? null : "follower" as const },
-    ...Array.from({ length: 3 }, (_, index) => ({ id: `subscriber:${index}`, unlock: data.entitlements.subscriber ? null : "subscriber" as const })),
+    ...Array.from({ length: 3 }, (_, index) => ({ id: index === 0 ? "follower" : `follower:${index}`, unlock: data.entitlements.follower ? null : "follower" as const })),
+    ...Array.from({ length: 5 }, (_, index) => ({ id: `subscriber:${index}`, unlock: data.entitlements.subscriber ? null : "subscriber" as const })),
   ].map((slot) => ({ ...slot, creation: null, used: false }));
   const extra = Math.max(0, data.allowance.earned - slots.filter((slot) => !slot.unlock).length);
   for (let index = 0; index < extra; index++) slots.push({ id: `earned:${index}`, unlock: null, creation: null, used: false });

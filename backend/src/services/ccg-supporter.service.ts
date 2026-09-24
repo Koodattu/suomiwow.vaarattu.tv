@@ -277,7 +277,7 @@ class CcgSupporterService {
   }
 
   async create(userId: string, input: Record<string, unknown>) {
-    await supporterLimit(`draft:${userId}`, 30, 60_000);
+    await supporterLimit(`draft:${userId}`, 60, 60_000);
     const roster = await this.roster(userId);
     const character = roster.characters.find((entry) => entry.id === input.characterId && entry.realmId === input.realmId);
     if (!character?.realmId) throw new CcgSupporterError(403, "ownership_required");
@@ -325,7 +325,7 @@ class CcgSupporterService {
   }
 
   async save(userId: string, id: string, input: Record<string, unknown>) {
-    await supporterLimit(`draft:${userId}`, 30, 60_000);
+    await supporterLimit(`draft:${userId}`, 60, 60_000);
     const source = await this.source(userId, id);
     const proof = await this.proof(userId, source);
     const values = validateSupporterDraft(source.classID, input);
@@ -379,7 +379,7 @@ class CcgSupporterService {
     if (!source.draft) throw new CcgSupporterError(409, "draft_required");
     const now = new Date();
     const leaseToken = randomUUID();
-    await supporterLimit(`render:${source.creatorId}`, 10, 86_400_000);
+    await supporterLimit(`render:${source.creatorId}`, 20, 86_400_000);
     const lease = await CcgSupporterCharacter.updateOne({ _id: source._id, nextRenderRefreshAt: { $lte: now }, draft: { $ne: null }, editsFrozen: false },
       { $set: { nextRenderRefreshAt: new Date(now.getTime() + 300_000), renderLeaseToken: leaseToken } });
     if (!lease.modifiedCount) throw new CcgSupporterError(429, "render_cooldown", source.nextRenderRefreshAt);
@@ -421,7 +421,7 @@ class CcgSupporterService {
   }
 
   async publish(userId: string, id: string, revision: unknown) {
-    await supporterLimit(`publish:${userId}`, 5, 60_000);
+    await supporterLimit(`publish:${userId}`, 20, 60_000);
     const source = await this.source(userId, id);
     const proof = await this.proof(userId, source);
     const guild = await this.rosterGuild(proof.character);
@@ -524,7 +524,7 @@ class CcgSupporterService {
           if (!current.matchedCount) throw new CcgSupporterError(403, "editing_frozen");
           const saved = await Media.updateOne({ _id: submission._id, status: "processing", purgedAt: null }, { $set: { ...stored, status: "pending", purgeAfter: null } }, { session });
           if (!saved.matchedCount) throw new CcgSupporterError(409, "media_changed");
-          await supporterLimit(`media-accepted:${userId}`, 15, 86_400_000, new Date(), session);
+          await supporterLimit(`media-accepted:${userId}`, 40, 86_400_000, new Date(), session);
         });
       } finally { await session.endSession(); }
     } catch (error) {
