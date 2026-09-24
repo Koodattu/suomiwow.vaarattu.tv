@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { CcgBaseFinish, CcgBootstrapResponse, CcgFinish, CcgOpening } from "@/types";
+import type { CcgBaseFinish, CcgBootstrapResponse, CcgFinish, CcgOpening, CcgSet } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/lib/api";
 import { CCG_BASE_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS, compareCcgPullQuality } from "@/lib/ccg";
@@ -25,9 +26,8 @@ import { queryKeys, useCcgOpening, useCcgSession, useCcgSets, usePickemCcgOpport
 import IconImage from "@/components/IconImage";
 import CcgShell from "@/components/ccg/CcgShell";
 import PackBalance from "@/components/ccg/PackBalance";
-import CcgPackSetPicker from "@/components/ccg/CcgPackSetPicker";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
-import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
+import CardViewer, { openCardViewer } from "@/components/ccg/LazyCardViewer";
 import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import { CcgOpenContentSkeleton } from "@/components/ccg/CcgPageSkeletons";
@@ -35,6 +35,8 @@ import CcgShareButton from "@/components/ccg/CcgShareButton";
 import PackBoosterVisual, { getPackTheme } from "@/components/ccg/PackBoosterVisual";
 import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
+
+const CcgPackSetPicker = dynamic(() => import("@/components/ccg/CcgPackSetPicker"));
 
 type RevealPhase = "idle" | "holding" | "tearing" | "dealing" | "ready";
 type PackSelection = { type?: "supporter"; setId?: string; setIds?: string[] };
@@ -100,13 +102,17 @@ function getPullStatusKey(result: CcgOpening["results"][number]):
   return result.isDuplicate ? "open.duplicate" : "open.newPull";
 }
 
-function ArchiveIcon() {
+function PackSetIcon({ set, size = 40, className }: { set?: CcgSet; size?: number; className?: string }) {
   return (
-    <span className={packStyles.archiveIcon} aria-hidden="true">
-      <i />
-      <i />
-      <i />
-    </span>
+    <IconImage
+      iconFilename={set?.kind === "supporter"
+        ? "inv_misc_ticket_tarot_madness.jpg"
+        : set?.iconUrl ?? "inv_inscription_tarot_6ohealerdeck.jpg"}
+      alt=""
+      width={size}
+      height={size}
+      className={className}
+    />
   );
 }
 
@@ -195,11 +201,13 @@ export default function CcgOpenPage() {
   const currentSets = useMemo(() => raidSets.filter((set) => set.state === "current"), [raidSets]);
   const currentSet = currentSets[0];
   const supporterSet = sets?.find((set) => set.kind === "supporter");
+  const latestRaidSet = raidSets[0];
+  const pinnedSets = [supporterSet, latestRaidSet].filter((set): set is CcgSet => Boolean(set));
+  const remainingRaidSets = raidSets.filter((set) => set.id !== latestRaidSet?.id);
   const selectableSets = useMemo(() => [...raidSets, ...(supporterSet ? [supporterSet] : [])], [raidSets, supporterSet]);
   const selectedSet = useMemo(() => selectableSets.find((set) => set.id === selectedSetId), [selectableSets, selectedSetId]);
   const allRaids = !selectedSet;
   const featuredPackSet = selectedSet ?? currentSet;
-  const selectorSet = selectedSet;
   const selectedPackSets = selectedSet ? [selectedSet] : raidSets.filter((set) => customSetIds === null || customSetIds.includes(set.id));
   const hasCustomQualityRow = Boolean(selectedSet?.kind === "raid" && selectedSet.customFinish);
   const qualityRows = useMemo(() => [
@@ -227,7 +235,6 @@ export default function CcgOpenPage() {
   const selectedPackCardCount = selectedPackSets.reduce((total, set) => total + set.cardCount, 0);
   const selectedPackOwnedCount = selectedPackSets.reduce((total, set) => total + set.ownedCards, 0);
   const selectedPackProgress = selectedPackCardCount > 0 ? Math.min(1, selectedPackOwnedCount / selectedPackCardCount) : 0;
-  const raidIconByZone = useMemo(() => new Map((sets ?? []).map((set) => [set.zoneId, set.iconUrl ?? undefined])), [sets]);
   const poolTitle = selectedSet?.raidName ?? t("open.allRaids");
 
   useEffect(() => {
@@ -725,7 +732,7 @@ export default function CcgOpenPage() {
         return;
       }
       const originElement = event?.currentTarget ?? cardRefs.current[index];
-      openCardViewer(originElement, (sharedTransition, originBounds) => {
+      void openCardViewer(originElement, (sharedTransition, originBounds) => {
         setViewerOriginElement(originElement);
         setViewerOriginBounds(originBounds);
         setViewerSharedTransition(sharedTransition);
@@ -917,7 +924,6 @@ export default function CcgOpenPage() {
     ? Math.min(1, openingCollectionOwnedCount / openingCollectionCardCount)
     : 0;
   const openingCollectionName = openingPackName;
-  const openingCollectionIcon = openingIsAllRaids ? undefined : openingPackSet?.iconUrl ?? undefined;
   const stageTheme = opening ? getPackTheme(openingPackSet, openingIsAllRaids) : getPackTheme(featuredPackSet, allRaids);
 
   const updatePackLight = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -1095,6 +1101,29 @@ export default function CcgOpenPage() {
     return () => window.clearInterval(timer);
   }, [opening, hasAnotherPack]);
 
+  const renderSetChoice = (set: CcgSet) => (
+    <button
+      key={set.id}
+      type="button"
+      disabled={set.cardCount === 0}
+      aria-pressed={selectedSetId === set.id}
+      className={packStyles.modeChoice}
+      onClick={() => {
+        setSelectedSetId(set.id);
+        closePackSelector();
+      }}
+    >
+      <span className={packStyles.modeChoiceIcon}>
+        <PackSetIcon set={set} />
+      </span>
+      <span className={packStyles.modeChoiceCopy}>
+        <small>{set.kind === "supporter" ? t("open.supporterEyebrow") : set.expansionName}</small>
+        <strong>{set.raidName}</strong>
+      </span>
+      <span className={packStyles.modeChoiceMark} aria-hidden="true" />
+    </button>
+  );
+
   if (queryFailed) {
     return (
       <CcgShell>
@@ -1136,15 +1165,7 @@ export default function CcgOpenPage() {
                       onClick={() => setPackSelectorOpen((open) => !open)}
                     >
                       <span className={packStyles.modeChoiceIcon}>
-                        {allRaids ? (
-                          <ArchiveIcon />
-                        ) : selectorSet && raidIconByZone.get(selectorSet.zoneId) ? (
-                          <IconImage iconFilename={raidIconByZone.get(selectorSet.zoneId)} alt="" width={40} height={40} />
-                        ) : (
-                          <span className={packStyles.modeChoiceFallback} aria-hidden="true">
-                            R
-                          </span>
-                        )}
+                        <PackSetIcon set={selectedSet} />
                       </span>
                       <span className={packStyles.mobilePackSelectorCopy}>
                         <strong>
@@ -1206,7 +1227,7 @@ export default function CcgOpenPage() {
                             className={packStyles.modeChoice}
                           >
                             <span className={packStyles.modeChoiceIcon}>
-                              <ArchiveIcon />
+                              <PackSetIcon />
                             </span>
                             <span className={packStyles.modeChoiceCopy}>
                               <small>{t("open.allRaidsEyebrow")}</small>
@@ -1214,34 +1235,14 @@ export default function CcgOpenPage() {
                             </span>
                             <span className={packStyles.modeChoiceMark} aria-hidden="true" />
                           </button>
+                          {pinnedSets.map(renderSetChoice)}
                         </div>
 
                         <div className={packStyles.packChoiceDivider} aria-hidden="true" />
 
                         <div className={packStyles.legacyTarget}>
                           <div className={packStyles.raidList} aria-label={t("open.chooseRaidSet")}>
-                            {selectableSets.map((set) => (
-                              <button
-                                key={set.id}
-                                type="button"
-                                disabled={set.cardCount === 0}
-                                aria-pressed={selectedSetId === set.id}
-                                className={packStyles.modeChoice}
-                                onClick={() => {
-                                  setSelectedSetId(set.id);
-                                  closePackSelector();
-                                }}
-                              >
-                                <span className={packStyles.modeChoiceIcon}>
-                                  {raidIconByZone.get(set.zoneId) ? <IconImage iconFilename={raidIconByZone.get(set.zoneId)} alt="" width={40} height={40} /> : <ArchiveIcon />}
-                                </span>
-                                <span className={packStyles.modeChoiceCopy}>
-                                  <small>{set.kind === "supporter" ? t("open.supporterEyebrow") : set.expansionName}</small>
-                                  <strong>{set.raidName}</strong>
-                                </span>
-                                <span className={packStyles.modeChoiceMark} aria-hidden="true" />
-                              </button>
-                            ))}
+                            {remainingRaidSets.map(renderSetChoice)}
                           </div>
                         </div>
                       </div>
@@ -1651,17 +1652,11 @@ export default function CcgOpenPage() {
                       } as CSSProperties}
                     >
                       <span className={packStyles.revealCollectionIcon} aria-hidden="true">
-                        {openingCollectionIcon ? (
-                          <IconImage
-                            iconFilename={openingCollectionIcon}
-                            alt=""
-                            width={36}
-                            height={36}
-                            className={packStyles.revealCollectionIconImage}
-                          />
-                        ) : (
-                          <ArchiveIcon />
-                        )}
+                        <PackSetIcon
+                          set={openingIsAllRaids ? undefined : openingPackSet}
+                          size={36}
+                          className={packStyles.revealCollectionIconImage}
+                        />
                       </span>
                       <span className={packStyles.revealCollectionDetails}>
                         <span className={packStyles.revealCollectionHeading}>

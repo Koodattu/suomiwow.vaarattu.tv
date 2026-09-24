@@ -9,7 +9,7 @@ import { FaMagnifyingGlassPlus } from "react-icons/fa6";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/lib/api";
 import type { CcgRedeemResult, CcgSet } from "@/types";
-import CardViewer, { openCardViewer } from "./CardViewer";
+import CardViewer, { openCardViewer } from "./LazyCardViewer";
 import type { CardViewerOriginBounds } from "./CardViewer";
 import CollectibleCard from "./CollectibleCard";
 import PackBoosterVisual, { getPackTheme } from "./PackBoosterVisual";
@@ -184,7 +184,7 @@ function CcgRedeemRewardDialog({
     const reward = result.reward;
     if (reward.type !== "card") return;
     const originElement = event.currentTarget;
-    openCardViewer(originElement, (sharedTransition, originBounds) => {
+    void openCardViewer(originElement, (sharedTransition, originBounds) => {
       inspectingCardRef.current = true;
       onInspectCard({
         ...reward,

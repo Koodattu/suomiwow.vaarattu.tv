@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { FaArrowLeft, FaClockRotateLeft, FaMagnifyingGlass, FaTrophy, FaVault, FaPaintbrush } from "react-icons/fa6";
 import CcgAccountMenu from "./CcgAccountMenu";
+import CcgIntentLink from "./CcgIntentLink";
 import CcgControls from "./CcgControls";
 import styles from "./ccg.module.css";
 
@@ -64,14 +65,14 @@ export default function CcgShell({
       <header className={styles.shellHeader}>
         <div className={styles.shellHeaderInner}>
           <div className={styles.shellBrand}>
-            <Link href="/" className={styles.shellBrandLink} aria-label={t("nav.backToMain")}>
+            <CcgIntentLink href="/" className={styles.shellBrandLink} aria-label={t("nav.backToMain")}>
               <span className={styles.shellBackLabel} aria-hidden="true">
                 <span>{t("nav.backLabelTop")}</span>
                 <FaArrowLeft />
                 <span>{t("nav.backLabelBottom")}</span>
               </span>
               <Image src="/logo.png" alt="SuomiWoW" width={112} height={51} priority />
-            </Link>
+            </CcgIntentLink>
             <Link href="/ccg" className={styles.shellVaultLink}>
               <Image className={styles.shellCcgLogo} src="/ccg/ccg_logo.png" alt="CCG" width={491} height={351} priority />
               <span className={styles.shellBrandTitle}>
@@ -84,8 +85,9 @@ export default function CcgShell({
             {links.map((link) => {
               const active = link.href === "/ccg" ? pathname === link.href : pathname.startsWith(link.href);
               const Icon = link.icon;
+              const NavLink = link.href === "/ccg" || link.href === "/ccg/open" ? Link : CcgIntentLink;
               return (
-                <Link
+                <NavLink
                   key={link.href}
                   href={link.href}
                   onClick={link.href === "/ccg/open" ? onOpenPacksClick : undefined}
@@ -96,29 +98,29 @@ export default function CcgShell({
                     <Icon />
                   </span>
                   <span className={styles.subnavLabel}>{link.label}</span>
-                </Link>
+                </NavLink>
               );
             })}
           </nav>
           <div className={styles.shellContext}>
             {context}
             <div className={styles.shellPromotedLinks}>
-              <Link
+              <CcgIntentLink
                 href="/ccg/character-checker"
                 aria-current={pathname.startsWith("/ccg/character-checker") ? "page" : undefined}
                 className={styles.shellPromotedLink}
               >
                 <FaMagnifyingGlass aria-hidden="true" />
                 {t("characterChecker.menuLabel")}
-              </Link>
-              <Link
+              </CcgIntentLink>
+              <CcgIntentLink
                 href="/ccg/activity"
                 aria-current={pathname.startsWith("/ccg/activity") ? "page" : undefined}
                 className={styles.shellPromotedLink}
               >
                 <FaClockRotateLeft aria-hidden="true" />
                 {t("activity.menuLabel")}
-              </Link>
+              </CcgIntentLink>
             </div>
             <CcgControls />
             <CcgAccountMenu />

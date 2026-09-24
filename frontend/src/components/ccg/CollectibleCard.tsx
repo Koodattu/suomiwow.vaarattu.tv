@@ -6,6 +6,7 @@ import { FaStar } from "react-icons/fa6";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CcgArtVariant, CcgCard } from "@/types";
 import { CCG_CLASS_COLORS, CCG_RARITY_KEYS, isWebmArtwork } from "@/lib/ccg";
+import { getCcgBackground } from "@/lib/ccg-backgrounds";
 import { isCcgRaidPreviewFinish, type CcgPreviewAffix, type CcgPreviewFinish } from "@/lib/ccg-preview-finishes";
 import { formatRealmName, formatSpecName, getClassInfoById, getParseColor, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
@@ -259,7 +260,7 @@ function CollectibleCard({
     "--lab-accent": card.set.theme.accent,
     "--lab-glow": card.set.theme.glow,
     "--class-color": CCG_CLASS_COLORS[card.classID] ?? "#ffffff",
-    "--lab-art": backgroundIsVideo ? "none" : `url("${backgroundPath}")`,
+    "--lab-art": backgroundIsVideo ? "none" : `url("${getCcgBackground(backgroundPath)}")`,
     "--crop-x": `${raidArtOffsetX ?? card.backgroundCrop.x}%`,
     "--crop-y": `${card.backgroundCrop.y}%`,
     "--crop-scale": card.backgroundCrop.scale,

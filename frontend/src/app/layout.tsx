@@ -5,12 +5,14 @@ import "./globals.css";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { usePathname } from "next/navigation";
-import { NextIntlClientProvider } from "next-intl";
+import { NextIntlClientProvider, type AbstractIntlMessages } from "next-intl";
 import { useEffect, useState, useMemo } from "react";
 import { AuthProvider } from "@/context/AuthContext";
 import { QueryProvider } from "@/lib/query-provider";
 import CcgInitialSkeleton from "@/components/ccg/CcgPageSkeletons";
 import { getLocale, LOCALE_CHANGE_EVENT, type Locale } from "@/lib/locale";
+import englishMessages from "../../messages/en.json";
+import finnishMessages from "../../messages/fi.json";
 import {
   buildWebSiteStructuredData,
   getCanonicalUrl,
@@ -36,6 +38,7 @@ const geistMono = Geist_Mono({
 
 const WEBSITE_STRUCTURED_DATA = buildWebSiteStructuredData();
 const KEYWORDS = SEO_KEYWORDS.join(", ");
+const LOCALE_MESSAGES = { en: englishMessages, fi: finnishMessages };
 
 export default function RootLayout({
   children,
@@ -54,7 +57,7 @@ export default function RootLayout({
       ? "noindex, nofollow"
       : "index, follow";
   const [locale, setLocale] = useState<Locale>("en");
-  const [messages, setMessages] = useState<Record<string, string> | null>(null);
+  const [messages, setMessages] = useState<AbstractIntlMessages | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -64,10 +67,10 @@ export default function RootLayout({
       const currentLoadId = ++loadId;
       document.documentElement.lang = nextLocale;
 
-      import(`../../messages/${nextLocale}.json`).then((m) => {
+      Promise.resolve(LOCALE_MESSAGES[nextLocale]).then((nextMessages) => {
         if (!active || currentLoadId !== loadId) return;
         setLocale(nextLocale);
-        setMessages(m.default);
+        setMessages(nextMessages);
       });
     };
 

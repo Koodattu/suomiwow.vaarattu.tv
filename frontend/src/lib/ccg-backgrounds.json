@@ -1,0 +1,106 @@
+{
+  "/ccg/general_wide.webp": {
+    "tile": "/ccg/optimized/general_wide-tile.webp",
+    "display": "/ccg/optimized/general_wide-display.webp"
+  },
+  "/ccg/general_alt_wide.png": {
+    "tile": "/ccg/optimized/general_alt_wide-tile.webp",
+    "display": "/ccg/optimized/general_alt_wide-display.webp"
+  },
+  "/ccg/highmaul.png": {
+    "tile": "/ccg/optimized/highmaul-tile.webp",
+    "display": "/ccg/optimized/highmaul-display.webp"
+  },
+  "/ccg/blackrock_foundry.png": {
+    "tile": "/ccg/optimized/blackrock_foundry-tile.webp",
+    "display": "/ccg/optimized/blackrock_foundry-display.webp"
+  },
+  "/ccg/hellfire_citadel.png": {
+    "tile": "/ccg/optimized/hellfire_citadel-tile.webp",
+    "display": "/ccg/optimized/hellfire_citadel-display.webp"
+  },
+  "/ccg/emerald_nightmare.png": {
+    "tile": "/ccg/optimized/emerald_nightmare-tile.webp",
+    "display": "/ccg/optimized/emerald_nightmare-display.webp"
+  },
+  "/ccg/nighthold.png": {
+    "tile": "/ccg/optimized/nighthold-tile.webp",
+    "display": "/ccg/optimized/nighthold-display.webp"
+  },
+  "/ccg/tomb_of_sargeras.png": {
+    "tile": "/ccg/optimized/tomb_of_sargeras-tile.webp",
+    "display": "/ccg/optimized/tomb_of_sargeras-display.webp"
+  },
+  "/ccg/antorus.png": {
+    "tile": "/ccg/optimized/antorus-tile.webp",
+    "display": "/ccg/optimized/antorus-display.webp"
+  },
+  "/ccg/uldir-desktop.avif": {
+    "tile": "/ccg/optimized/uldir-desktop-tile.webp",
+    "display": "/ccg/optimized/uldir-desktop-display.webp"
+  },
+  "/ccg/battle-of-dazaralor-desktop.webp": {
+    "tile": "/ccg/optimized/battle-of-dazaralor-desktop-tile.webp",
+    "display": "/ccg/optimized/battle-of-dazaralor-desktop-display.webp"
+  },
+  "/ccg/the-eternal-palace-desktop.avif": {
+    "tile": "/ccg/optimized/the-eternal-palace-desktop-tile.webp",
+    "display": "/ccg/optimized/the-eternal-palace-desktop-display.webp"
+  },
+  "/ccg/nyalotha-desktop.webp": {
+    "tile": "/ccg/optimized/nyalotha-desktop-tile.webp",
+    "display": "/ccg/optimized/nyalotha-desktop-display.webp"
+  },
+  "/ccg/castle-nathria-desktop.jpg": {
+    "tile": "/ccg/optimized/castle-nathria-desktop-tile.webp",
+    "display": "/ccg/optimized/castle-nathria-desktop-display.webp"
+  },
+  "/ccg/sanctum-of-domination-desktop.avif": {
+    "tile": "/ccg/optimized/sanctum-of-domination-desktop-tile.webp",
+    "display": "/ccg/optimized/sanctum-of-domination-desktop-display.webp"
+  },
+  "/ccg/sepulcher-of-the-first-ones-desktop.avif": {
+    "tile": "/ccg/optimized/sepulcher-of-the-first-ones-desktop-tile.webp",
+    "display": "/ccg/optimized/sepulcher-of-the-first-ones-desktop-display.webp"
+  },
+  "/ccg/vault-of-the-incarnates-desktop.avif": {
+    "tile": "/ccg/optimized/vault-of-the-incarnates-desktop-tile.webp",
+    "display": "/ccg/optimized/vault-of-the-incarnates-desktop-display.webp"
+  },
+  "/ccg/aberrus-desktop.jpg": {
+    "tile": "/ccg/optimized/aberrus-desktop-tile.webp",
+    "display": "/ccg/optimized/aberrus-desktop-display.webp"
+  },
+  "/ccg/amirdrassil-desktop.jpg": {
+    "tile": "/ccg/optimized/amirdrassil-desktop-tile.webp",
+    "display": "/ccg/optimized/amirdrassil-desktop-display.webp"
+  },
+  "/ccg/nerubar-palace-desktop.avif": {
+    "tile": "/ccg/optimized/nerubar-palace-desktop-tile.webp",
+    "display": "/ccg/optimized/nerubar-palace-desktop-display.webp"
+  },
+  "/ccg/liberation-of-undermine-desktop.webp": {
+    "tile": "/ccg/optimized/liberation-of-undermine-desktop-tile.webp",
+    "display": "/ccg/optimized/liberation-of-undermine-desktop-display.webp"
+  },
+  "/ccg/manaforge-omega-desktop.jpg": {
+    "tile": "/ccg/optimized/manaforge-omega-desktop-tile.webp",
+    "display": "/ccg/optimized/manaforge-omega-desktop-display.webp"
+  },
+  "/ccg/march-on-queldanas-desktop.jpg": {
+    "tile": "/ccg/optimized/march-on-queldanas-desktop-tile.webp",
+    "display": "/ccg/optimized/march-on-queldanas-desktop-display.webp"
+  },
+  "/ccg/the-venomous-abyss-desktop.webp": {
+    "tile": "/ccg/optimized/the-venomous-abyss-desktop-tile.webp",
+    "display": "/ccg/optimized/the-venomous-abyss-desktop-display.webp"
+  },
+  "/ccg/general_tall.webp": {
+    "tile": "/ccg/optimized/general_tall-tile.webp",
+    "display": "/ccg/optimized/general_tall-display.webp"
+  },
+  "/ccg/general_alt_tall.png": {
+    "tile": "/ccg/optimized/general_alt_tall-tile.webp",
+    "display": "/ccg/optimized/general_alt_tall-display.webp"
+  }
+}

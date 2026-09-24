@@ -7,15 +7,17 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as Reac
 import type { CcgCard, CcgSet } from "@/types";
 import { useCcgFeaturedCard, useCcgSession, useCcgSets } from "@/lib/queries";
 import CcgShell from "@/components/ccg/CcgShell";
+import CcgIntentLink from "@/components/ccg/CcgIntentLink";
 import PackBalance from "@/components/ccg/PackBalance";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
-import CardViewer, { openCardViewer } from "@/components/ccg/CardViewer";
+import CardViewer, { openCardViewer } from "@/components/ccg/LazyCardViewer";
 import type { CardViewerOriginBounds } from "@/components/ccg/CardViewer";
 import CcgLoadError from "@/components/ccg/CcgLoadError";
 import PackBoosterVisual, { getPackTheme } from "@/components/ccg/PackBoosterVisual";
 import CcgAnalyticsPanel from "@/components/ccg/CcgAnalyticsPanel";
 import CcgRedeemPanel from "@/components/ccg/CcgRedeemPanel";
 import CcgTwitchPanel from "@/components/ccg/CcgTwitchPanel";
+import { getCcgBackground } from "@/lib/ccg-backgrounds";
 import styles from "@/components/ccg/ccg.module.css";
 import packStyles from "@/components/ccg/pack-opening.module.css";
 
@@ -101,6 +103,7 @@ function FeaturedCard({ card, onSelect }: { card: CcgCard; onSelect: (event: Rea
           card={card}
           finish={card.set.customFinish?.key ?? "holographic"}
           compact
+          renderPriority
           className={ready ? "" : styles.collectionCardAssetLoading}
           onReady={markReady}
           onSelect={onSelect}
@@ -155,7 +158,7 @@ export default function CcgLandingPage() {
               style={{
                 "--set-accent": current?.theme.accent ?? "#46CFFF",
                 "--set-glow": current?.theme.glow ?? "rgba(70,207,255,.25)",
-                backgroundImage: current ? `url("${current.backgroundPath}")` : undefined,
+                backgroundImage: current ? `url("${getCcgBackground(current.backgroundPath)}")` : undefined,
               } as CSSProperties}
             >
               <div className={styles.vaultCurrentShade} aria-hidden="true" />
@@ -175,12 +178,12 @@ export default function CcgLandingPage() {
                 </div>
               </div>
               <div className={styles.vaultCurrentActions}>
-                <Link
+                <CcgIntentLink
                   href={current ? `/ccg/collection?set=${encodeURIComponent(current.slug)}` : "/ccg/collection"}
                   className={`${styles.secondaryButton} ${styles.vaultCurrentAction}`}
                 >
                   {t("landing.viewInCollection")}
-                </Link>
+                </CcgIntentLink>
                 {currentCardCount > 0 ? (
                   <Link href={`/ccg/open?set=${encodeURIComponent(current!.id)}`} className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>{t("landing.openCurrent")}</Link>
                 ) : (
@@ -194,7 +197,7 @@ export default function CcgLandingPage() {
               style={{
                 "--set-accent": "#9c7cff",
                 "--set-glow": "rgba(126, 105, 255, 0.42)",
-                backgroundImage: 'url("/ccg/general_wide.webp")',
+                backgroundImage: `url("${getCcgBackground("/ccg/general_wide.webp")}")`,
               } as CSSProperties}
             >
               <div className={styles.vaultAllShade} aria-hidden="true" />
@@ -212,9 +215,9 @@ export default function CcgLandingPage() {
                 </div>
               </div>
               <div className={styles.vaultAllActions}>
-                <Link href="/ccg/collection" className={`${styles.secondaryButton} ${styles.vaultCurrentAction}`}>
+                <CcgIntentLink href="/ccg/collection" className={`${styles.secondaryButton} ${styles.vaultCurrentAction}`}>
                   {t("landing.viewInCollection")}
-                </Link>
+                </CcgIntentLink>
                 <Link href="/ccg/open" className={`${styles.primaryButton} ${styles.vaultCurrentAction}`}>
                   {t("landing.openAllRaids")}
                 </Link>
@@ -282,7 +285,7 @@ export default function CcgLandingPage() {
                 card={featuredCard}
                 onSelect={(event) => {
                   const originElement = event.currentTarget;
-                  openCardViewer(originElement, (sharedTransition, originBounds) => {
+                  void openCardViewer(originElement, (sharedTransition, originBounds) => {
                     setViewerOriginElement(originElement);
                     setViewerOriginBounds(originBounds);
                     setViewerSharedTransition(sharedTransition);
@@ -292,7 +295,7 @@ export default function CcgLandingPage() {
               />
             ) : (
               <div className={styles.vaultFeaturedStage}>
-                <Link href="/ccg/collection" className={styles.vaultFeaturedEmpty}>{t("landing.collection")}</Link>
+                <CcgIntentLink href="/ccg/collection" className={styles.vaultFeaturedEmpty}>{t("landing.collection")}</CcgIntentLink>
               </div>
             )}
           </aside>
@@ -319,14 +322,14 @@ export default function CcgLandingPage() {
                 } as CSSProperties}
               >
               {gridSets.map((set) => (
-                <Link
+                <CcgIntentLink
                   key={set.id}
                   href={`/ccg/collection?set=${encodeURIComponent(set.slug)}`}
                   className={styles.vaultLegacySet}
                   style={{
                     "--set-accent": set.theme.accent,
                     "--set-glow": set.theme.glow,
-                    backgroundImage: `url("${set.backgroundPath}")`,
+                    backgroundImage: `url("${getCcgBackground(set.backgroundPath, "tile")}")`,
                   } as CSSProperties}
                 >
                   <span className={styles.vaultLegacyShade} aria-hidden="true" />
@@ -339,7 +342,7 @@ export default function CcgLandingPage() {
                       <i style={{ transform: `scaleX(${set.cardCount > 0 ? Math.min(1, set.ownedCards / set.cardCount) : 0})` }} />
                     </span>
                   </span>
-                </Link>
+                </CcgIntentLink>
               ))}
               </div>
             ) : (

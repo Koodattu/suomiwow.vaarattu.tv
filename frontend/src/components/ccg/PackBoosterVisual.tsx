@@ -1,6 +1,7 @@
 import { useId } from "react";
 import type { CSSProperties } from "react";
 import type { CcgSet } from "@/types";
+import { getCcgBackground } from "@/lib/ccg-backgrounds";
 import styles from "./pack-opening.module.css";
 
 type PackPalette = {
@@ -112,9 +113,9 @@ export function getPackTheme(
     "--pack-glow": glow,
     "--pack-title-color": title,
     "--pack-brand-color": brand,
-    "--pack-stage-art": combinedPool ? 'url("/ccg/general_wide.webp")' : set ? `url("${set.backgroundPath}")` : "none",
-    "--pack-art": combinedPool ? 'url("/ccg/general_tall.webp")' : set?.slug === "supporter" ? 'url("/ccg/general_alt_tall.png")' : set ? `url("${set.backgroundPath}")` : "none",
-    "--pack-art-size": combinedPool ? "cover" : "auto 100%",
+    "--pack-stage-art": combinedPool ? `url("${getCcgBackground("/ccg/general_wide.webp")}")` : set ? `url("${getCcgBackground(set.backgroundPath)}")` : "none",
+    "--pack-art": combinedPool ? `url("${getCcgBackground("/ccg/general_tall.webp")}")` : set?.slug === "supporter" ? `url("${getCcgBackground("/ccg/general_alt_tall.png")}")` : set ? `url("${getCcgBackground(set.backgroundPath)}")` : "none",
+    "--pack-art-size": combinedPool || set?.slug === "supporter" ? "cover" : "auto 100%",
     "--pack-art-position-x": `${combinedPool ? 50 : (set?.packArtOffsetX ?? 50)}%`,
     "--pack-logo-fill": combinedPool
       ? "linear-gradient(145deg, #edfcff 0%, #9ce9ff 52%, #55bcd9 100%)"
