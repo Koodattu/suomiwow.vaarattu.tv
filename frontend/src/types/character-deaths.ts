@@ -10,6 +10,7 @@ export interface CharacterDeathsResponse {
     averageFirstDeathTime: number | null;
   };
   timing: number[];
+  eventOptions: { phases: string[]; hasUnknownPhase: boolean };
   events: Array<{
     reportCode: string;
     fightId: number;

@@ -4,6 +4,8 @@ Open `/death-analysis` from Characters or select a boss icon in a character prof
 
 The page uses stored data only. `GET /api/characters/:realm/:name/deaths` accepts `class`, `region`, `zoneId`, `encounterId`, `difficulty` (3/4/5), `outcome` (all/kills/wipes), and `page`. It returns full-selection aggregates and 50 individual deaths per page.
 
+The individual-deaths table also accepts `orderFilter` (all/first/firstThree/later/unknown), `timingFilter` (all or a zero-based quarter 0–3), `phaseFilter` (all/unknown/phase:NAME), `sortBy` (date/isKill/deathTime/deathPercent/duration/order/phase), and `sortDirection` (asc/desc). Filtering and sorting happen before pagination. Summary totals and phase options cover the full selection; pagination counts only matching deaths. Unknown sort values remain last in either direction. Table changes reset pagination, and changing the character or encounter selection clears the phase filter.
+
 Report appearances resolve historical names and linked character identities using the profile's existing identity helpers. A fight roster, death, or ranking for that specific fight must confirm participation; appearing somewhere in a report is insufficient. Only fights with fetched death data contribute deaths or survival. Unconfirmed report pulls and missing death-data coverage are shown separately.
 
 Timing uses elapsed fight time. Death order counts unique roster members, ties share an order, and repeated deaths retain the player's first-death order. Missing or incomplete rosters produce unknown order. Raw analysis includes all roles, resets, raid-wide wipes, and resurrection deaths; it does not reproduce the mechanics score's exclusions.

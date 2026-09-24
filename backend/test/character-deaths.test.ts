@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { getCharacterDeaths, summarizeCharacterDeaths } from "../src/services/character-deaths.service";
+import { once } from "node:events";
+import type { AddressInfo } from "node:net";
+import express from "express";
+import { getCharacterDeaths, parseDeathEventOptions, summarizeCharacterDeaths } from "../src/services/character-deaths.service";
 import characterService from "../src/services/character.service";
 import Fight from "../src/models/Fight";
+import Character from "../src/models/Character";
+import CharacterReportAppearance from "../src/models/CharacterReportAppearance";
+import charactersRouter from "../src/routes/characters";
 
 type DeathFight = Parameters<typeof summarizeCharacterDeaths>[0][number];
 const appearance = new Map([["report", [{ characterName: "Player", characterRealm: "azjol-nerub", rankingFightIds: [] as number[] }]]]);
@@ -86,6 +92,78 @@ test("pagination keeps full aggregates and returns the latest deaths first", () 
   assert.equal(summarizeCharacterDeaths(fights, appearance, 99).pagination.currentPage, 2);
 });
 
+test("filters and sorts all events before pagination while preserving the summary", () => {
+  const fights = Array.from({ length: 80 }, (_, index) => fight({
+    fightId: index + 1,
+    deaths: [...(index < 60 ? [] : [death("Other", 1), death("Third", 2), death("Fourth", 3)]), death("Player", (index + 1) * 1000)],
+  }));
+  const result = summarizeCharacterDeaths(fights, appearance, 2, { orderFilter: "firstThree", sortBy: "deathTime", sortDirection: "asc" });
+  assert.equal(result.summary.deaths, 80);
+  assert.equal(result.timing.reduce((sum, count) => sum + count, 0), 80);
+  assert.deepEqual(result.pagination, { currentPage: 2, totalPages: 2, totalItems: 60 });
+  assert.deepEqual(result.events.map((event) => event.fightId), Array.from({ length: 10 }, (_, index) => index + 51));
+  const later = summarizeCharacterDeaths(fights, appearance, 1, { orderFilter: "later" });
+  assert.equal(later.pagination.totalItems, 20);
+  assert.ok(later.events.every((event) => event.order === 4));
+});
+
+test("timing filters use non-overlapping quarters and include the end of a pull", () => {
+  const fights = [24999, 25000, 50000, 75000, 100000].map((time, index) => fight({ fightId: index + 1, deaths: [death("Player", time)] }));
+  for (const [timingFilter, expected] of [["0", [24999]], ["1", [25000]], ["2", [50000]], ["3", [75000, 100000]]] as const) {
+    const result = summarizeCharacterDeaths(fights, appearance, 1, { timingFilter, sortBy: "deathTime", sortDirection: "asc" });
+    assert.deepEqual(result.events.map((event) => event.deathTime), expected);
+  }
+});
+
+test("combines phase, timing and order filters and keeps phase options available for empty results", () => {
+  const fights = [
+    fight({ deaths: [death("Player", 25000)], phaseTransitions: [{ id: 1, name: "Phase 2", startTime: 1000 }] }),
+    fight({ fightId: 2, deaths: [death("Player", 75000)], phaseTransitions: [{ id: 2, name: "Phase 10", startTime: 1000 }] }),
+    fight({ fightId: 3, deaths: [death("Player", 25000)], combatantInfoRosterComplete: false }),
+  ];
+  const result = summarizeCharacterDeaths(fights, appearance, 1, { phaseFilter: "phase:Phase 2", timingFilter: "1", orderFilter: "first" });
+  assert.deepEqual(result.events.map((event) => event.fightId), [1]);
+  assert.deepEqual(result.eventOptions, { phases: ["Phase 2", "Phase 10"], hasUnknownPhase: true });
+  const empty = summarizeCharacterDeaths(fights, appearance, 9, { phaseFilter: "phase:Phase 2", timingFilter: "3" });
+  assert.equal(empty.events.length, 0);
+  assert.equal(empty.summary.deaths, 3);
+  assert.deepEqual(empty.pagination, { currentPage: 1, totalPages: 1, totalItems: 0 });
+  assert.deepEqual(empty.eventOptions, result.eventOptions);
+  const unknown = summarizeCharacterDeaths(fights, appearance, 1, { phaseFilter: "unknown", orderFilter: "unknown" });
+  assert.deepEqual(unknown.events.map((event) => event.fightId), [3]);
+});
+
+test("sorts each column in both directions, with unknowns last and deterministic ties", () => {
+  const fights = [
+    fight({ reportCode: "report", fightId: 1, deaths: [death("Other", 1), death("Player", 10000)], phaseTransitions: [{ id: 2, name: "Phase 2", startTime: 1000 }] }),
+    fight({ fightId: 2, timestamp: new Date("2026-09-02"), isKill: true, fightEndTime: 201000, deaths: [death("Player", 40000)], phaseTransitions: [{ id: 10, name: "Phase 10", startTime: 1000 }] }),
+    fight({ fightId: 3, combatantInfoRosterComplete: false, deaths: [death("Player", 50000)] }),
+  ];
+  for (const sortBy of ["order", "phase"] as const) {
+    for (const sortDirection of ["asc", "desc"] as const) {
+      const result = summarizeCharacterDeaths(fights, appearance, 1, { sortBy, sortDirection });
+      assert.equal(result.events[2].fightId, 3);
+      const ascending = sortBy === "order" ? [2, 1] : [1, 2];
+      assert.deepEqual(result.events.slice(0, 2).map((event) => event.fightId), sortDirection === "asc" ? ascending : ascending.reverse());
+    }
+  }
+  for (const sortBy of ["date", "isKill", "deathTime", "deathPercent", "duration"] as const) {
+    for (const sortDirection of ["asc", "desc"] as const) {
+      const result = summarizeCharacterDeaths(fights, appearance, 1, { sortBy, sortDirection });
+      const values = result.events.map((event) => sortBy === "date" ? Date.parse(event.date) : Number(event[sortBy]));
+      assert.deepEqual(values, [...values].sort((a, b) => sortDirection === "asc" ? a - b : b - a));
+    }
+  }
+  assert.deepEqual(summarizeCharacterDeaths(fights, appearance).events, summarizeCharacterDeaths([...fights].reverse(), appearance).events);
+});
+
+test("validates table query values without coercing duplicate or structured filters", () => {
+  assert.ok(parseDeathEventOptions({ orderFilter: "first", phaseFilter: "phase:Final phase", sortBy: "order", sortDirection: "asc", timingFilter: "3" }));
+  for (const query of [{ sortBy: "invalid" }, { sortDirection: "up" }, { orderFilter: ["first"] }, { phaseFilter: {} }, { timingFilter: "4" }, { phaseFilter: "phase:" }]) {
+    assert.equal(parseDeathEventOptions(query), null);
+  }
+});
+
 test("queries only the selected character's reports, boss, raid, difficulty and outcome", async (context) => {
   const lookup = context.mock.method(characterService, "getDeathAnalysisAppearances", async () => [
     { reportCode: "report", characterName: "Player", characterRealm: "azjol-nerub", rankingFightIds: [] },
@@ -99,4 +177,49 @@ test("queries only the selected character's reports, boss, raid, difficulty and 
   assert.deepEqual(lookup.mock.calls[0].arguments, ["azjol-nerub", "Player", 9, "eu"]);
   assert.deepEqual(filter, { reportCode: { $in: ["report"] }, zoneId: 53, encounterID: 123, difficulty: 5, isKill: false });
   assert.equal(result.summary.survivedPulls, 1);
+});
+
+test("death endpoint accepts uppercase regions in profile links and still rejects invalid regions", async (context) => {
+  const lookup = context.mock.method(characterService, "getDeathAnalysisAppearances", async () => []);
+  const app = express();
+  app.use("/api/characters", charactersRouter);
+  const server = app.listen(0, "127.0.0.1");
+  context.after(() => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
+  await once(server, "listening");
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/characters/stormreaver/Ironiwr/deaths?class=11&zoneId=44&encounterId=3134&difficulty=5`;
+  for (const region of ["EU", "eu", "Eu"]) {
+    const response = await fetch(`${url}&region=${region}`);
+    assert.equal(response.status, 200);
+    const body = await response.json() as ReturnType<typeof summarizeCharacterDeaths>;
+    assert.equal(body.summary.pulls, 0);
+    assert.deepEqual(lookup.mock.calls[lookup.mock.callCount() - 1].arguments, ["stormreaver", "Ironiwr", 11, "eu"]);
+  }
+  for (const regionQuery of ["region=invalid", "region=EU&region=US", "region="]) {
+    const response = await fetch(`${url}&${regionQuery}`);
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: "Invalid death analysis filters" });
+  }
+  assert.equal(lookup.mock.callCount(), 3);
+  for (const tableQuery of ["sortBy=invalid", "sortDirection=up", "orderFilter=first&orderFilter=later", "timingFilter=4", "phaseFilter=phase:"]) {
+    const response = await fetch(`${url}&region=EU&${tableQuery}`);
+    assert.equal(response.status, 400);
+    await response.json();
+  }
+  assert.equal(lookup.mock.callCount(), 3);
+});
+
+test("lowercase region filters retain canonical identity lookup for uppercase stored regions", async (context) => {
+  const candidates = [{ wclCanonicalCharacterId: 123, name: "Ironiwr", realm: "stormreaver", region: "EU", classID: 11 }];
+  // The first lookup resolves the route; no persisted Character is needed for continuity in this fixture.
+  let characterQueries = 0;
+  context.mock.method(Character, "find", () => ({ select: () => ({ lean: async () => ++characterQueries === 1 ? candidates : [] }) }));
+  let appearanceFilter: unknown;
+  context.mock.method(CharacterReportAppearance, "find", (query: unknown) => {
+    appearanceFilter = query;
+    return { collation: () => ({ select: () => ({ lean: async () => [] }) }) };
+  });
+  await characterService.getDeathAnalysisAppearances("stormreaver", "Ironiwr", 11, "eu");
+  assert.deepEqual(appearanceFilter, {
+    wclCanonicalCharacterId: { $in: [123] }, classID: 11, characterRegion: "eu", hidden: { $ne: true },
+  });
 });

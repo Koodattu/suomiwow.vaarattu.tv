@@ -3354,7 +3354,7 @@ class CharacterService {
   }
 
   async getDeathAnalysisAppearances(realm: string, name: string, classId: number, region: string) {
-    const candidates = (await this.findCanonicalRouteCharacters(realm, name, classId)).filter((character) => character.region === region);
+    const candidates = (await this.findCanonicalRouteCharacters(realm, name, classId)).filter((character) => character.region.toLowerCase() === region.toLowerCase());
     let canonicalIds = candidates.map((character) => character.wclCanonicalCharacterId);
     if (canonicalIds.length) {
       canonicalIds = (await this.resolveContinuityContext(canonicalIds, classId, { name, realm })).canonicalIds;

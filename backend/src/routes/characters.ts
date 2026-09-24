@@ -5,7 +5,7 @@ import cacheService from "../services/cache.service";
 import { cacheMiddleware } from "../middleware/cache.middleware";
 import { MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_FUN_ELIGIBILITY } from "../config/character-eligibility";
 import { TRACKED_RAIDS } from "../config/guilds";
-import { getCharacterDeaths } from "../services/character-deaths.service";
+import { getCharacterDeaths, parseDeathEventOptions } from "../services/character-deaths.service";
 
 const router = Router();
 
@@ -32,16 +32,17 @@ router.get("/:realm/:name/deaths", async (req: Request, res: Response) => {
   const classId = number(req.query.class);
   const difficulty = req.query.difficulty === undefined ? 5 : number(req.query.difficulty);
   const page = req.query.page === undefined ? 1 : number(req.query.page);
-  const region = req.query.region ?? "eu";
+  const region = typeof req.query.region === "string" ? req.query.region.trim().toLowerCase() : req.query.region ?? "eu";
   const outcome = req.query.outcome ?? "all";
+  const eventOptions = parseDeathEventOptions(req.query);
   if (![zoneId, encounterId, classId, page].every((value) => Number.isSafeInteger(value) && value > 0)
     || ![3, 4, 5].includes(difficulty) || !["eu", "us", "kr", "tw", "cn"].includes(String(region))
     || typeof region !== "string" || !["all", "kills", "wipes"].includes(String(outcome)) || typeof outcome !== "string"
-    || req.params.realm.length > 64 || req.params.name.length > 64) {
+    || req.params.realm.length > 64 || req.params.name.length > 64 || !eventOptions) {
     return res.status(400).json({ error: "Invalid death analysis filters" });
   }
   try {
-    const result = await getCharacterDeaths({ realm: req.params.realm, name: req.params.name, classId, region, zoneId, encounterId, difficulty, page, outcome: outcome as "all" | "kills" | "wipes" });
+    const result = await getCharacterDeaths({ realm: req.params.realm, name: req.params.name, classId, region, zoneId, encounterId, difficulty, page, outcome: outcome as "all" | "kills" | "wipes", eventOptions });
     return res.json(result);
   } catch (error) {
     logger.error("Error fetching character death analysis:", error);

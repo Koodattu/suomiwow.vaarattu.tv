@@ -147,8 +147,8 @@ export default function AccountPage({ params }: PageProps) {
 
   return (
     <main className="min-h-screen px-4 py-8">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <header className="py-2">
+      <div className="space-y-8">
+        <header className="mx-auto max-w-5xl py-2">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-4">
               {primaryClass ? (
@@ -195,9 +195,9 @@ export default function AccountPage({ params }: PageProps) {
           </div>
         </header>
 
-        <AccountRaidTimeline account={account} getClassColor={getClassColor} />
+        <AccountRaidTimeline key={slug} account={account} getClassColor={getClassColor} />
 
-        <section className="rounded-lg border border-gray-700 bg-gray-900">
+        <section className="mx-auto max-w-5xl rounded-lg border border-gray-700 bg-gray-900">
           <div className="grid grid-cols-[40px_minmax(0,1fr)_64px_64px_80px] gap-3 border-b border-gray-700 px-4 py-3 text-xs font-semibold uppercase text-gray-500 md:grid-cols-[44px_minmax(0,1fr)_84px_84px_120px_120px]">
             <span />
             <span>Character</span>

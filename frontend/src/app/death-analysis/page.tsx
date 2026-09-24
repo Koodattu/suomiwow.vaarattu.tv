@@ -11,6 +11,12 @@ import { formatRealmName } from "@/lib/utils";
 
 const time = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
 const fieldClass = "mt-2 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2.5 text-sm text-gray-100 focus:border-amber-400 focus:outline-none";
+const eventColumns = [
+  { label: "date", sort: "date" }, { label: "outcome", sort: "isKill" },
+  { label: "deathTime", sort: "deathTime" }, { label: "deathPercent", sort: "deathPercent" },
+  { label: "pullDuration", sort: "duration" }, { label: "deathOrder", sort: "order" },
+  { label: "phase", sort: "phase" },
+] as const;
 
 function DeathAnalysis() {
   const t = useTranslations("deathAnalysis");
@@ -31,20 +37,29 @@ function DeathAnalysis() {
   const encounterId = params.get("encounterId") ?? "";
   const difficulty = params.get("difficulty") ?? "5";
   const outcome = params.get("outcome") ?? "all";
+  const orderFilter = params.get("orderFilter") ?? "all";
+  const timingFilter = params.get("timingFilter") ?? "all";
+  const phaseFilter = params.get("phaseFilter") ?? "all";
+  const sortBy = params.get("sortBy") ?? "date";
+  const sortDirection = params.get("sortDirection") ?? "desc";
   const { data: raids = [], error: raidsError } = useRaids();
   const { data: bosses = [], error: bossesError } = useBosses(zoneId);
   const searchResult = useCharacterSearch(debouncedSearch, debouncedSearch.length >= 2);
   const ready = !!(name && realm && classId && zoneId && encounterId);
-  const query = new URLSearchParams({ zoneId: String(zoneId ?? ""), encounterId, class: classId, region: params.get("region") ?? "eu", difficulty, outcome, page: params.get("page") ?? "1" }).toString();
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["character-deaths", realm, name, query],
+  const scopeQuery = new URLSearchParams({ zoneId: String(zoneId ?? ""), encounterId, class: classId, region: params.get("region") ?? "eu", difficulty, outcome }).toString();
+  const eventQuery = new URLSearchParams({ orderFilter, timingFilter, phaseFilter, sortBy, sortDirection, page: params.get("page") ?? "1" }).toString();
+  const query = `${scopeQuery}&${eventQuery}`;
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ["character-deaths", realm, name, scopeQuery, eventQuery],
     queryFn: ({ signal }) => api.getCharacterDeaths(realm, name, query, signal),
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === realm && previousQuery.queryKey[2] === name && previousQuery.queryKey[3] === scopeQuery ? previous : undefined,
     enabled: ready,
     staleTime: 60_000,
   });
   const update = (values: Record<string, string>) => {
     const next = new URLSearchParams(params.toString());
     next.delete("page");
+    if (["name", "realm", "class", "zoneId", "encounterId", "difficulty", "outcome"].some((key) => key in values)) next.delete("phaseFilter");
     Object.entries(values).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key));
     router.push(`/death-analysis?${next}`, { scroll: false });
   };
@@ -121,15 +136,41 @@ function DeathAnalysis() {
             ))}</div>
             <p className="mt-5 text-sm text-gray-400">{t("rawNote", { count: summary.firstThreePulls })}</p>
           </section>
-          <section className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900/60">
-            <h2 className="p-5 text-lg font-semibold text-white">{t("eventsTitle")}</h2>
-            {!data.events.length ? <p className="px-5 pb-6 text-gray-400">{summary.evaluatedPulls ? t("noDeaths") : t("noData")}</p> : (
+          <section aria-busy={isFetching} className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900/60">
+            <div className="space-y-4 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-white">{t("eventsTitle")}</h2>
+                <button type="button" className="text-sm text-amber-300 hover:underline disabled:opacity-40" disabled={orderFilter === "all" && timingFilter === "all" && phaseFilter === "all" && sortBy === "date" && sortDirection === "desc"} onClick={() => update({ orderFilter: "", timingFilter: "", phaseFilter: "", sortBy: "", sortDirection: "" })}>{t("resetTable")}</button>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <label className="text-sm text-gray-300">{t("deathOrder")}<select className={fieldClass} value={orderFilter} onChange={(event) => update({ orderFilter: event.target.value })}>
+                  <option value="all">{t("allOrders")}</option><option value="first">{t("firstDeath")}</option><option value="firstThree">{t("firstThree")}</option><option value="later">{t("afterFirstThree")}</option><option value="unknown">{t("unknown")}</option>
+                </select></label>
+                <label className="text-sm text-gray-300">{t("timingFilter")}<select className={fieldClass} value={timingFilter} onChange={(event) => update({ timingFilter: event.target.value })}>
+                  <option value="all">{t("allTimings")}</option>{[0, 1, 2, 3].map((quarter) => <option key={quarter} value={quarter}>{t("timingRange", { from: quarter * 25, to: (quarter + 1) * 25 })}</option>)}
+                </select></label>
+                <label className="text-sm text-gray-300">{t("phase")}<select className={fieldClass} value={phaseFilter} onChange={(event) => update({ phaseFilter: event.target.value })}>
+                  <option value="all">{t("allPhases")}</option>
+                  {data.eventOptions.phases.map((phase) => <option key={phase} value={`phase:${phase}`}>{phase}</option>)}
+                  {(data.eventOptions.hasUnknownPhase || phaseFilter === "unknown") && <option value="unknown">{t("unknown")}</option>}
+                  {phaseFilter.startsWith("phase:") && !data.eventOptions.phases.includes(phaseFilter.slice(6)) && <option value={phaseFilter}>{phaseFilter.slice(6)}</option>}
+                </select></label>
+              </div>
+              <p className="text-sm text-gray-400" role="status">{isFetching ? t("loading") : t("matchingDeaths", { count: data.pagination.totalItems, total: summary.deaths })}</p>
+              <p className="text-xs text-gray-500">{t("tableFiltersNote")}</p>
+            </div>
+            {!data.events.length ? <p className="px-5 pb-6 text-gray-400">{summary.deaths ? t("noMatchingDeaths") : summary.evaluatedPulls ? t("noDeaths") : t("noData")}</p> : (
               <div className="overflow-x-auto"><table className="w-full whitespace-nowrap text-left text-sm">
-                <thead className="border-y border-gray-800 bg-gray-950/50 text-gray-400"><tr>{["date", "outcome", "deathTime", "pullDuration", "deathOrder", "phase", "log"].map((key) => <th key={key} className="px-5 py-3 font-medium">{t(key)}</th>)}</tr></thead>
+                <thead className="border-y border-gray-800 bg-gray-950/50 text-gray-400"><tr>{eventColumns.map((column) => <th key={column.sort} scope="col" aria-sort={sortBy === column.sort ? sortDirection === "asc" ? "ascending" : "descending" : "none"} className="px-5 py-3 font-medium">
+                  <button type="button" className="flex items-center gap-2 rounded py-1 hover:text-white focus-visible:outline-2 focus-visible:outline-amber-400" onClick={() => update({ sortBy: column.sort, sortDirection: sortBy === column.sort ? sortDirection === "asc" ? "desc" : "asc" : column.sort === "date" ? "desc" : "asc" })}>
+                    {t(column.label)} <span aria-hidden="true" className={sortBy === column.sort ? "text-amber-300" : "text-gray-600"}>{sortBy === column.sort ? sortDirection === "asc" ? "↑" : "↓" : "↕"}</span>
+                  </button>
+                </th>)}<th scope="col" className="px-5 py-3 font-medium">{t("log")}</th></tr></thead>
                 <tbody>{data.events.map((event, index) => <tr key={`${event.reportCode}:${event.fightId}:${index}`} className="border-b border-gray-800/60 text-gray-300">
                   <td className="px-5 py-3">{new Date(event.date).toLocaleDateString(locale)}</td>
                   <td className="px-5 py-3">{event.isKill ? t("kill") : t("wipe")}</td>
-                  <td className="px-5 py-3 font-medium tabular-nums text-white">{time(event.deathTime)} <span className="text-gray-500">({Math.round(event.deathPercent)}%)</span></td>
+                  <td className="px-5 py-3 font-medium tabular-nums text-white">{time(event.deathTime)}</td>
+                  <td className="px-5 py-3 tabular-nums">{Math.round(event.deathPercent)}%</td>
                   <td className="px-5 py-3 tabular-nums">{time(event.duration)}</td>
                   <td className="px-5 py-3">{event.order === null ? "—" : `#${event.order}`}</td>
                   <td className="px-5 py-3">{event.phase ?? "—"}</td>
@@ -138,9 +179,9 @@ function DeathAnalysis() {
               </table></div>
             )}
             {data.pagination.totalPages > 1 && <nav aria-label={t("pagination")} className="flex items-center justify-between gap-4 p-5 text-sm text-gray-300">
-              <button type="button" className="rounded border border-gray-700 px-3 py-2 disabled:opacity-30" disabled={data.pagination.currentPage <= 1} onClick={() => update({ page: String(data.pagination.currentPage - 1) })}>{t("previous")}</button>
+              <button type="button" className="rounded border border-gray-700 px-3 py-2 disabled:opacity-30" disabled={isFetching || data.pagination.currentPage <= 1} onClick={() => update({ page: String(data.pagination.currentPage - 1) })}>{t("previous")}</button>
               <span>{t("page", { page: data.pagination.currentPage, total: data.pagination.totalPages })}</span>
-              <button type="button" className="rounded border border-gray-700 px-3 py-2 disabled:opacity-30" disabled={data.pagination.currentPage >= data.pagination.totalPages} onClick={() => update({ page: String(data.pagination.currentPage + 1) })}>{t("next")}</button>
+              <button type="button" className="rounded border border-gray-700 px-3 py-2 disabled:opacity-30" disabled={isFetching || data.pagination.currentPage >= data.pagination.totalPages} onClick={() => update({ page: String(data.pagination.currentPage + 1) })}>{t("next")}</button>
             </nav>}
           </section>
         </>

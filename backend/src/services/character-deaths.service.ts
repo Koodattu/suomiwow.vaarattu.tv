@@ -6,7 +6,26 @@ type Identity = { characterName: string; characterRealm: string; rankingFightIds
 type DeathFight = Pick<IFight, "reportCode" | "fightId" | "duration" | "fightStartTime" | "fightEndTime" | "timestamp" | "isKill" | "deaths" | "combatants" | "deathEventsFetchStatus" | "phaseTransitions" | "combatantInfoRosterComplete" | "combatantInfoFetchStatus">;
 const actorKey = (name: string, realm: string) => `${name.trim().toLocaleLowerCase("en-US")}:${createRealmIdentityKey(realm)}`;
 
-export function summarizeCharacterDeaths(fights: DeathFight[], appearances: Map<string, Identity[]>, page = 1) {
+const SORT_FIELDS = ["date", "isKill", "deathTime", "deathPercent", "duration", "order", "phase"] as const;
+type DeathEventOptions = {
+  orderFilter?: "all" | "first" | "firstThree" | "later" | "unknown";
+  timingFilter?: "all" | "0" | "1" | "2" | "3";
+  phaseFilter?: string;
+  sortBy?: typeof SORT_FIELDS[number];
+  sortDirection?: "asc" | "desc";
+};
+
+export function parseDeathEventOptions(query: Record<string, unknown>): DeathEventOptions | null {
+  const { orderFilter = "all", timingFilter = "all", phaseFilter = "all", sortBy = "date", sortDirection = "desc" } = query;
+  if (typeof orderFilter !== "string" || !["all", "first", "firstThree", "later", "unknown"].includes(orderFilter)
+    || typeof timingFilter !== "string" || !["all", "0", "1", "2", "3"].includes(timingFilter)
+    || typeof phaseFilter !== "string" || phaseFilter.length > 200 || !(phaseFilter === "all" || phaseFilter === "unknown" || (phaseFilter.startsWith("phase:") && phaseFilter.length > 6))
+    || typeof sortBy !== "string" || !SORT_FIELDS.includes(sortBy as typeof SORT_FIELDS[number])
+    || (sortDirection !== "asc" && sortDirection !== "desc")) return null;
+  return { orderFilter, timingFilter, phaseFilter, sortBy, sortDirection } as DeathEventOptions;
+}
+
+export function summarizeCharacterDeaths(fights: DeathFight[], appearances: Map<string, Identity[]>, page = 1, options: DeathEventOptions = {}) {
   let pulls = 0;
   let evaluatedPulls = 0;
   let pullsWithDeaths = 0;
@@ -68,18 +87,44 @@ export function summarizeCharacterDeaths(fights: DeathFight[], appearances: Map<
       });
     }
   }
-  events.sort((a, b) => b.date.localeCompare(a.date) || b.fightId - a.fightId || a.deathTime - b.deathTime);
-  const totalPages = Math.max(1, Math.ceil(events.length / 50));
+  const eventOptions = {
+    phases: [...new Set(events.flatMap((event) => event.phase === null ? [] : [event.phase]))].sort((a, b) => a.localeCompare(b, "en", { numeric: true })),
+    hasUnknownPhase: events.some((event) => event.phase === null),
+  };
+  const filteredEvents = events.filter((event) => {
+    if (options.orderFilter === "first" && event.order !== 1) return false;
+    if (options.orderFilter === "firstThree" && (event.order === null || event.order > 3)) return false;
+    if (options.orderFilter === "later" && (event.order === null || event.order <= 3)) return false;
+    if (options.orderFilter === "unknown" && event.order !== null) return false;
+    if (options.timingFilter && options.timingFilter !== "all" && Math.min(3, Math.floor(event.deathPercent / 25)) !== Number(options.timingFilter)) return false;
+    if (options.phaseFilter === "unknown" && event.phase !== null) return false;
+    if (options.phaseFilter?.startsWith("phase:") && event.phase !== options.phaseFilter.slice(6)) return false;
+    return true;
+  });
+  const sortBy = options.sortBy ?? "date";
+  const direction = options.sortDirection === "asc" ? 1 : -1;
+  filteredEvents.sort((a, b) => {
+    const left = a[sortBy];
+    const right = b[sortBy];
+    // Unknown values remain last in either direction.
+    if (left === null && right !== null) return 1;
+    if (right === null && left !== null) return -1;
+    const comparison = typeof left === "string" && typeof right === "string"
+      ? left.localeCompare(right, "en", { numeric: true }) : Number(left) - Number(right);
+    return direction * comparison || b.date.localeCompare(a.date) || b.fightId - a.fightId || a.reportCode.localeCompare(b.reportCode) || a.deathTime - b.deathTime;
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredEvents.length / 50));
   const currentPage = Math.min(page, totalPages);
   return {
     summary: { pulls, evaluatedPulls, unconfirmedPulls, pullsWithDeaths, survivedPulls: evaluatedPulls - pullsWithDeaths, deaths: events.length, firstThreePulls, averageFirstDeathTime: pullsWithDeaths ? firstDeathTimeTotal / pullsWithDeaths : null },
     timing,
-    events: events.slice((currentPage - 1) * 50, currentPage * 50),
-    pagination: { currentPage, totalPages, totalItems: events.length },
+    eventOptions,
+    events: filteredEvents.slice((currentPage - 1) * 50, currentPage * 50),
+    pagination: { currentPage, totalPages, totalItems: filteredEvents.length },
   };
 }
 
-export async function getCharacterDeaths(input: { realm: string; name: string; classId: number; region: string; zoneId: number; encounterId: number; difficulty: number; outcome: "all" | "kills" | "wipes"; page: number }) {
+export async function getCharacterDeaths(input: { realm: string; name: string; classId: number; region: string; zoneId: number; encounterId: number; difficulty: number; outcome: "all" | "kills" | "wipes"; page: number; eventOptions?: DeathEventOptions }) {
   const rows = await characterService.getDeathAnalysisAppearances(input.realm, input.name, input.classId, input.region);
   const appearances = new Map<string, Identity[]>();
   for (const row of rows) appearances.set(row.reportCode, [...(appearances.get(row.reportCode) ?? []), row]);
@@ -93,5 +138,5 @@ export async function getCharacterDeaths(input: { realm: string; name: string; c
     }).select("reportCode fightId duration fightStartTime fightEndTime timestamp isKill deaths combatants deathEventsFetchStatus phaseTransitions combatantInfoRosterComplete combatantInfoFetchStatus").lean();
     fights.push(...batch);
   }
-  return summarizeCharacterDeaths(fights, appearances, input.page);
+  return summarizeCharacterDeaths(fights, appearances, input.page, input.eventOptions);
 }
