@@ -162,7 +162,7 @@ To prevent reconnect farming, bind publication usage durably to the creator and 
 
 Show the page and a useful connection state even before accounts are linked. Require Battle.net for private character discovery and ownership verification. Everyone receives two base slots. Require verified Twitch support to earn additional slots; publishing spends previously earned slots even after unfollowing or unsubscribing.
 
-The supporter shelf stays mounted while the picker/editor is open. Desktop uses six columns, with three and two columns at narrower widths. Card typography scales with the rendered card width through the shared CCG typography variables. Raid cards are separate from Supporter/Community creations and do not grant ownership to the character owner.
+The supporter shelf stays mounted while the picker/editor is open. Desktop uses five columns for the Supporter shelf and six for the raid gallery below, with both grids using three and two columns at narrower widths. Card typography scales with the rendered card width through the shared CCG typography variables. Raid cards are separate from Supporter/Community creations and do not grant ownership to the character owner.
 
 Connection controls show current provider status separately from permanent slot entitlements. The authenticated Studio response derives follower/subscriber entitlements from the grant ledger, not current Twitch status. Aggregate earned/used/available counts remain authoritative. Failed creation retries reconcile saved creations first so a lost response does not leave an inaccessible draft.
 

@@ -113,6 +113,9 @@
 .shelf > .sectionHeading, .raidGallery > .sectionHeading { margin: 0 0 15px; }
 .shelf > .sectionHeading p, .raidGallery > .sectionHeading p { margin: 4px 0 0; font-size: 12px; }
 .slotGrid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; align-items: start; }
+@media (min-width: 901px) {
+  .shelf > .slotGrid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
 .slot { position: relative; min-width: 0; border-radius: 12px; transition: box-shadow .15s; }
 .slot[data-selected="true"] { box-shadow: 0 0 0 2px #8ddeff, 0 0 32px #48c6ff19; }
 .slot[data-selected="true"]::after { content: ""; position: absolute; left: calc(50% - 5px); bottom: -14px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid #8ddeff; }
