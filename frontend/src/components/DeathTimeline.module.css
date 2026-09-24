@@ -29,7 +29,7 @@
 .axis > div > span { position: absolute; transform: translateX(-50%); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .axis > span:last-child { text-align: right; }
 .pullList { height: 396px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
-.pull { width: 100%; display: grid; grid-template-columns: 66px minmax(0, 1fr) 58px; gap: 12px; align-items: center; height: 44px; text-align: left; border-bottom: 1px solid #192338; padding: 0 4px; content-visibility: auto; contain-intrinsic-size: auto 44px; }
+.pull { width: 100%; display: grid; grid-template-columns: 66px minmax(0, 1fr) 58px; gap: 12px; align-items: center; height: 44px; text-align: left; border-bottom: 1px solid #192338; padding: 0 4px; contain: layout style; }
 .pull:hover { background: #142033; }
 .pull[data-selected=true] { background: #252b32; box-shadow: inset 0 0 0 1px #85713e; }
 .pullLabel { display: flex; flex-direction: column; line-height: 1.3; }
@@ -86,8 +86,9 @@
 }
 @media (max-width: 600px) {
   .toolbar { gap: 12px; }.toolbar label { width: calc(50% - 6px); }.toolbar select { width: 100%; font-size: 12px; }.axisSwitch { margin-left: 0; width: 100%; }.axisSwitch button { flex: 1; }
-  .chart { padding: 14px 10px 12px; }.chartHeading { flex-wrap: wrap; }.density { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }.densityLabels > span:nth-child(2) { max-width: 170px; text-align: center; }
+  .chart { padding: 14px 10px 12px; }.chartHeading { flex-wrap: wrap; }.density { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }.densityLabels > span:nth-child(2) { max-width: 170px; text-align: center; }
   .axis, .pull { grid-template-columns: 49px minmax(0, 1fr) 40px; gap: 7px; }.axis { font-size: 10px; }.pullOutcome { font-size: 10px; }.pullList { height: 352px; }
+  .axis > div > span:nth-child(even) { display: none; }
   .legend { gap: 10px; }.inspector { padding: 18px; }
 }
 @media (prefers-reduced-motion: reduce) { .explorer button, .explorer select, .explorer a { transition: none; } }

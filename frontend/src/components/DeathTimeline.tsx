@@ -67,7 +67,11 @@ export default function DeathTimeline({ pulls, name, update }: { pulls: DeathAna
                 aria-label={t("pullLabel", { number: pullNumber.get(key) ?? 0, date: date(pull.date), duration: deathTimeLabel(pull.duration), status: status(pull) })}
                 onClick={(event) => {
                   const marker = (event.target as HTMLElement).closest<HTMLElement>("[data-death]");
-                  selectPull(pull, marker ? Number(marker.dataset.death) : 0);
+                  const firstVisibleDeath = pull.deaths.findIndex((death) => {
+                    const x = position(death.deathTime, pull.duration);
+                    return x >= 0 && x <= 100;
+                  });
+                  selectPull(pull, marker ? Number(marker.dataset.death) : Math.max(0, firstVisibleDeath));
                 }}>
                 <span className={styles.pullLabel}><strong>#{pullNumber.get(key)}</strong><small>{date(pull.date)}</small></span>
                 <span className={styles.track}>
