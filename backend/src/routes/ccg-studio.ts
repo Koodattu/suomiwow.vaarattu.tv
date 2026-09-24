@@ -67,8 +67,12 @@ router.post("/media-review/:id", requireAdmin, route((userId, body, id) => media
 
 router.use((error: unknown, req: import("express").Request, res: import("express").Response, _next: import("express").NextFunction) => {
   if ((error as { type?: string })?.type === "entity.too.large") return res.status(413).json({ code: req.path.endsWith("/image") ? "media_image_size" : "media_audio_size" });
-  if (error instanceof CcgSupporterError) return res.status(error.status).json({ code: error.code, nextAllowedAt: error.nextAllowedAt });
-  logger.error("[CCG/Studio] Request failed", error instanceof Error ? error.name : "unknown");
+  const context = { userId: req.session.userId, method: req.method, route: req.route?.path ?? "middleware" };
+  if (error instanceof CcgSupporterError) {
+    logger.warn("[CCG/Studio] Request rejected", { ...context, code: error.code, status: error.status, nextAllowedAt: error.nextAllowedAt ?? null });
+    return res.status(error.status).json({ code: error.code, nextAllowedAt: error.nextAllowedAt });
+  }
+  logger.error("[CCG/Studio] Request failed", { ...context, errorName: error instanceof Error ? error.name : "unknown" });
   res.status(500).json({ code: "studio_unavailable" });
 });
 

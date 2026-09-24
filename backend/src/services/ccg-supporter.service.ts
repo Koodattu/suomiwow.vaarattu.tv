@@ -12,6 +12,8 @@ import CcgLedgerEntry from "../models/CcgLedgerEntry";
 import CcgSupporterCreator from "../models/CcgSupporterCreator";
 import CcgSupporterGrant from "../models/CcgSupporterGrant";
 import CcgSupporterCharacter from "../models/CcgSupporterCharacter";
+import CcgSupporterLimit from "../models/CcgSupporterLimit";
+import logger from "../utils/logger";
 import CcgLeaderboardInvalidation from "../models/CcgLeaderboardInvalidation";
 import { CcgSupporterError, SUPPORTER_BASE_SLOTS, SUPPORTER_CREATOR_FINISHES, SUPPORTER_DRAFT_LIMIT, SUPPORTER_RENDER_COOLDOWN_MS,
   supporterScores, validateSupporterDraft, SUPPORTER_BACKGROUNDS } from "../utils/ccg-supporter";
@@ -19,7 +21,7 @@ import { createWowCharacterIdentityKey } from "../utils/ccg-identity";
 import { resolveCardCrop } from "../utils/ccg-random";
 import { normalizeRealmSlug } from "../utils/realm";
 import { slugifySpecName } from "../utils/spec";
-import battlenet from "./battlenet-auth.service";
+import battlenet, { BattleNetSyncError } from "./battlenet-auth.service";
 import blizzard from "./blizzard.service";
 import renders from "./character-render-storage.service";
 import publisher from "./ccg-publisher.service";
@@ -49,11 +51,32 @@ class CcgSupporterService {
     const creator = await status.ensureCreator(userId);
     if (creator.battlenetId && creator.battlenetId !== user.battlenet.id) throw new CcgSupporterError(409, "account_bound");
     let characters: IWoWCharacter[];
-    if (refresh) await supporterLimit(`roster:${userId}`, 1, 300_000);
+    const refreshAt = new Date();
+    if (refresh) await supporterLimit(`roster:${userId}`, 1, 300_000, refreshAt);
     try { characters = await (refresh ? battlenet.refreshCharacters(userId) : battlenet.getCharacters(userId)); }
     catch (error) {
+      // A failed sync must not turn the next attempt into a five-minute lockout.
+      // Refund only the window this request charged, even if the sync crossed its boundary.
+      if (refresh) {
+        try {
+          await CcgSupporterLimit.updateOne(
+            { key: `roster:${userId}:${Math.floor(refreshAt.getTime() / 300_000)}`, count: { $gt: 0 } },
+            { $inc: { count: -1 } },
+          );
+        } catch {
+          logger.error("[CCG/Studio] Failed to release roster cooldown", { userId });
+        }
+      }
+      logger.warn("[CCG/Studio] Battle.net roster operation failed", {
+        userId, operation: refresh ? "refresh" : "read",
+        code: error instanceof BattleNetSyncError ? error.code : "unexpected_error",
+        upstreamStatus: error instanceof BattleNetSyncError ? error.upstreamStatus : undefined,
+        errorName: error instanceof Error ? error.name : "unknown",
+        savedCharacterCount: user.battlenet.characters.length,
+        rosterSyncedAt: user.battlenet.rosterSyncedAt ?? null,
+      });
       const code = (error as { code?: string }).code;
-      if (code === "BATTLENET_RECONNECT_REQUIRED") throw new CcgSupporterError(409, "battlenet_required");
+      if (code === "BATTLENET_RECONNECT_REQUIRED") throw new CcgSupporterError(409, "battlenet_reconnect_required");
       if (code === "BATTLENET_PROFILE_ACCESS_DENIED" || code === "BATTLENET_PROFILE_UNAVAILABLE") {
         throw new CcgSupporterError(409, code.toLowerCase());
       }
@@ -178,6 +201,11 @@ class CcgSupporterService {
       catch (error) {
         rosterError = error instanceof CcgSupporterError ? error.code : "armory_unavailable";
         if (rosterError !== "account_bound") characters = user.battlenet.characters.filter((character) => character.realmId);
+        logger.warn("[CCG/Studio] Serving roster fallback", {
+          userId, operation: refreshRoster ? "refresh" : "read", code: rosterError,
+          savedCharacterCount: characters.length,
+          nextAllowedAt: error instanceof CcgSupporterError ? error.nextAllowedAt ?? null : null,
+        });
       }
     }
     const tracked = await Promise.all(characters.map(async (character) => {

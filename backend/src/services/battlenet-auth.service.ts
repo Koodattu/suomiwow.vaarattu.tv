@@ -3,8 +3,9 @@ import User, { IUser, IWoWCharacter } from "../models/User";
 import AsyncSemaphore from "../utils/async-semaphore";
 
 export class BattleNetSyncError extends Error {
-  constructor(public readonly code: string, public readonly status: number, message: string) {
+  constructor(public readonly code: string, public readonly status: number, message: string, public readonly upstreamStatus?: number) {
     super(message);
+    this.name = "BattleNetSyncError";
   }
 }
 
@@ -245,15 +246,15 @@ class BattleNetAuthService {
     if (!response.ok) {
       logger.warn(`Battle.net EU account profile request failed: HTTP ${response.status}`);
       if (response.status === 401) {
-        throw new BattleNetSyncError("BATTLENET_RECONNECT_REQUIRED", 409, "Reconnect Battle.net to refresh your characters.");
+        throw new BattleNetSyncError("BATTLENET_RECONNECT_REQUIRED", 409, "Reconnect Battle.net to refresh your characters.", response.status);
       }
       if (response.status === 403) {
-        throw new BattleNetSyncError("BATTLENET_PROFILE_ACCESS_DENIED", 409, "Blizzard denied access to your WoW profile. Check your Battle.net permissions and game data privacy settings.");
+        throw new BattleNetSyncError("BATTLENET_PROFILE_ACCESS_DENIED", 409, "Blizzard denied access to your WoW profile. Check your Battle.net permissions and game data privacy settings.", response.status);
       }
       if (response.status === 404) {
-        throw new BattleNetSyncError("BATTLENET_PROFILE_UNAVAILABLE", 409, "Blizzard could not find your EU WoW profile. Check game data sharing and log out of WoW before trying again.");
+        throw new BattleNetSyncError("BATTLENET_PROFILE_UNAVAILABLE", 409, "Blizzard could not find your EU WoW profile. Check game data sharing and log out of WoW before trying again.", response.status);
       }
-      throw new BattleNetSyncError("BATTLENET_UNAVAILABLE", 502, "Could not load characters from Battle.net. Please try again.");
+      throw new BattleNetSyncError("BATTLENET_UNAVAILABLE", 502, "Could not load characters from Battle.net. Please try again.", response.status);
     }
 
     const profile = (await response.json()) as WoWProfileSummary;
@@ -477,6 +478,7 @@ class BattleNetAuthService {
     const user = await User.findById(userId);
     if (!user?.battlenet) throw new BattleNetSyncError("BATTLENET_RECONNECT_REQUIRED", 409, "Reconnect Battle.net to refresh your characters.");
     if (user.battlenet.rosterSyncedAt) return user.battlenet.characters;
+    logger.info("[Battle.net] Filling missing roster cache", { userId, savedCharacterCount: user.battlenet.characters.length });
     return this.refreshCharacters(userId);
   }
 
@@ -493,7 +495,19 @@ class BattleNetAuthService {
     }
 
     // Create the refresh promise
-    const refreshPromise = this._doRefreshCharacters(userId);
+    const startedAt = Date.now();
+    const refreshPromise = this._doRefreshCharacters(userId).then((characters) => {
+      logger.info("[Battle.net] Character refresh completed", { userId, characterCount: characters.length, durationMs: Date.now() - startedAt });
+      return characters;
+    }).catch((error: unknown) => {
+      logger.warn("[Battle.net] Character refresh failed", {
+        userId, durationMs: Date.now() - startedAt,
+        code: error instanceof BattleNetSyncError ? error.code : "unexpected_error",
+        upstreamStatus: error instanceof BattleNetSyncError ? error.upstreamStatus : undefined,
+        errorName: error instanceof Error ? error.name : "unknown",
+      });
+      throw error;
+    });
 
     // Store it to prevent concurrent refreshes
     this.activeRefreshes.set(userId, refreshPromise);
@@ -521,6 +535,11 @@ class BattleNetAuthService {
       throw new Error("No Battle.net account connected");
     }
 
+    logger.info("[Battle.net] Character refresh requested", {
+      userId, savedCharacterCount: user.battlenet.characters.length,
+      rosterSyncedAt: user.battlenet.rosterSyncedAt ?? null,
+      tokenExpired: user.battlenet.tokenExpiresAt.getTime() <= Date.now(),
+    });
     if (user.battlenet.tokenExpiresAt.getTime() <= Date.now()) {
       throw new BattleNetSyncError("BATTLENET_RECONNECT_REQUIRED", 409, "Reconnect Battle.net to refresh your characters.");
     }

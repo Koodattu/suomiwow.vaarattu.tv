@@ -265,7 +265,7 @@
         "battlenet_permission_required": "World of Warcraft profile access was not granted. Remove this site's authorization in Battle.net Connections, then reconnect and allow access to your World of Warcraft profile.",
         "battlenet_profile_access_denied": "Blizzard denied access to your EU WoW profile. Check this site's World of Warcraft permission in Battle.net Connections and allow game data sharing in Privacy, then reconnect.",
         "battlenet_profile_unavailable": "Blizzard could not find your EU WoW profile. Check that game data sharing is enabled in Battle.net Privacy, then log in to EU WoW, fully exit the game and try again.",
-        "battlenet_reconnect_required": "Battle.net did not accept your authorization. Please reconnect.",
+        "battlenet_reconnect_required": "Reconnect Battle.net to refresh your character list. Characters already loaded in Studio remain usable.",
         "battlenet_unavailable": "Battle.net could not load your characters. Please try again shortly.",
         "battlenet_failed": "Failed to connect Battle.net account. Please try again.",
         "battlenet_already_linked": "This Battle.net account is already connected to another user.",

@@ -265,7 +265,7 @@
         "battlenet_permission_required": "World of Warcraft -profiilin käyttöoikeutta ei myönnetty. Poista tämän sivuston valtuutus Battle.netin Yhteydet-asetuksista. Yhdistä sitten uudelleen ja salli World of Warcraft -profiilisi käyttö.",
         "battlenet_profile_access_denied": "Blizzard esti EU:n WoW-profiilisi käytön. Tarkista sivuston World of Warcraft -käyttöoikeus Battle.netin Yhteydet-asetuksista ja salli pelitietojen jakaminen yksityisyysasetuksista. Yhdistä sitten uudelleen.",
         "battlenet_profile_unavailable": "Blizzard ei löytänyt EU:n WoW-profiiliasi. Tarkista, että pelitietojen jakaminen on sallittu Battle.netin yksityisyysasetuksissa. Kirjaudu sitten EU:n WoW-tilillesi, sulje peli kokonaan ja yritä uudelleen.",
-        "battlenet_reconnect_required": "Battle.net ei hyväksynyt valtuutusta. Yhdistä uudelleen.",
+        "battlenet_reconnect_required": "Yhdistä Battle.net uudelleen päivittääksesi hahmolistan. Voit edelleen käyttää Studioon jo ladattuja hahmoja.",
         "battlenet_unavailable": "Hahmojen lataaminen Battle.netistä epäonnistui. Yritä hetken kuluttua uudelleen.",
         "battlenet_failed": "Battle.net-tilin yhdistäminen epäonnistui. Yritä uudelleen.",
         "battlenet_already_linked": "Tämä Battle.net-tili on jo yhdistetty toiseen käyttäjään.",
