@@ -8,6 +8,7 @@ import { CharacterAccountResponse } from "@/types";
 import { formatRealmName, getClassInfoById } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
 import { RaidAchievementMetric } from "@/components/RaidAchievementMetric";
+import AccountRaidTimeline from "@/components/AccountRaidTimeline";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -193,6 +194,8 @@ export default function AccountPage({ params }: PageProps) {
             </div>
           </div>
         </header>
+
+        <AccountRaidTimeline account={account} getClassColor={getClassColor} />
 
         <section className="rounded-lg border border-gray-700 bg-gray-900">
           <div className="grid grid-cols-[40px_minmax(0,1fr)_64px_64px_80px] gap-3 border-b border-gray-700 px-4 py-3 text-xs font-semibold uppercase text-gray-500 md:grid-cols-[44px_minmax(0,1fr)_84px_84px_120px_120px]">

@@ -800,6 +800,7 @@ export default function CharacterProfilePage({ params }: PageProps) {
   const router = useRouter();
   const tRaidAchievements = useTranslations("raidAchievements");
   const tCharacterProfile = useTranslations("characterProfile");
+  const tDeaths = useTranslations("deathAnalysis");
   const realm = decodeURIComponent(resolvedParams.realm);
   const name = decodeURIComponent(resolvedParams.name);
   const searchParams = useSearchParams();
@@ -1458,13 +1459,18 @@ export default function CharacterProfilePage({ params }: PageProps) {
                               title={bossColumn.encounterName}
                               aria-label={`${bossColumn.encounterName} ${activePerformanceTab === "mechanics" ? "mechanics percentile" : "combined score"}`}
                             >
-                              <IconImage
-                                iconFilename={bossColumn.boss?.iconUrl}
-                                alt=""
-                                width={28}
-                                height={28}
-                                className="h-7 w-7 shrink-0 rounded object-cover ring-1 ring-white/10"
-                              />
+                              {activePerformanceTab === "mechanics" ? (
+                                <Link
+                                  href={`/death-analysis?${new URLSearchParams({ name: character.name, realm: character.realm, region: character.region, class: String(character.classID), zoneId: String(group.zoneId), encounterId: String(bossColumn.encounterId), difficulty: "5" })}`}
+                                  title={tDeaths("analyzeBoss", { boss: bossColumn.encounterName })}
+                                  aria-label={tDeaths("analyzeBoss", { boss: bossColumn.encounterName })}
+                                  className="rounded ring-amber-400 transition hover:ring-2 focus-visible:outline-none focus-visible:ring-2"
+                                >
+                                  <IconImage iconFilename={bossColumn.boss?.iconUrl} alt="" width={28} height={28} className="h-7 w-7 rounded object-cover ring-1 ring-white/10" />
+                                </Link>
+                              ) : (
+                                <IconImage iconFilename={bossColumn.boss?.iconUrl} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded object-cover ring-1 ring-white/10" />
+                              )}
                               <MechanicsBossScoreCell row={bossColumn.bestMechanic} scoreKind={activeMechanicsScoreKind} compact />
                             </div>
                           ))}

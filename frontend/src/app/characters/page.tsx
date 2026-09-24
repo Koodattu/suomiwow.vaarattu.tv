@@ -183,6 +183,7 @@ function CharacterRankingsState({ searchParamsKey }: { searchParamsKey: string }
   const searchParams = useMemo(() => new URLSearchParams(searchParamsKey), [searchParamsKey]);
   const pathname = usePathname();
   const t = useTranslations("characterRankingsPage");
+  const tDeaths = useTranslations("deathAnalysis");
   const activeTab = getCharacterTab(searchParams.get("tab"));
   const rankingUrlState = useMemo(() => getRankingUrlState(searchParams), [searchParams]);
   const mythicPlusFilters = useMemo(() => getMythicPlusUrlState(searchParams), [searchParams]);
@@ -393,6 +394,7 @@ function CharacterRankingsState({ searchParamsKey }: { searchParamsKey: string }
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-white">{activeTabConfig.title}</h1>
           <p className="text-gray-500 text-sm">{activeTabConfig.description}</p>
+          <Link href="/death-analysis" className="mt-2 inline-block text-sm text-amber-300 hover:underline">{tDeaths("title")} →</Link>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-end lg:ml-auto">
           <div className="inline-flex self-start rounded-md bg-gray-900/80 p-1 ring-1 ring-white/10 sm:self-auto">

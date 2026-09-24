@@ -34,6 +34,7 @@ import characterMediaService from "./character-media.service";
 import characterContinuityService from "./character-continuity.service";
 import { updateCharacterIdentityFromObservation } from "./character-observed-identity.service";
 import { getPrimaryCharacterRaidGuilds } from "./character-raid-guild.service";
+import { AccountRaidTimeline, getAccountRaidTimeline } from "./account-raid-timeline.service";
 import mythicPlusService, { CharacterMythicPlusProfileResponse } from "./mythic-plus.service";
 import rateLimitService from "./rate-limit.service";
 import wclService from "./warcraftlogs.service";
@@ -386,6 +387,7 @@ export type CharacterProfileChoicesResponse = {
 export type CharacterProfileLookupResponse = CharacterProfileResponse | CharacterProfileChoicesResponse;
 
 export type CharacterAccountResponse = {
+  raidTimeline: AccountRaidTimeline;
   account: {
     id: string;
     slug: string;
@@ -2712,7 +2714,11 @@ class CharacterService {
 
     if (!group) return null;
 
-    const characters = await this.buildAccountCharacters([...(group.members ?? [])]);
+    const members = [...(group.members ?? [])];
+    const [characters, raidTimeline] = await Promise.all([
+      this.buildAccountCharacters(members),
+      getAccountRaidTimeline(members.map((member) => member.characterId)),
+    ]);
     const raidAchievements = this.buildAccountRaidAchievementSummary(
       characters.map((character) => character.raidAchievements).filter((summary): summary is CharacterRaidAchievementSummaryResponse => summary !== null),
     );
@@ -2733,6 +2739,7 @@ class CharacterService {
         raidAchievements,
       },
       characters,
+      raidTimeline,
     };
   }
 
@@ -3344,6 +3351,20 @@ class CharacterService {
       })),
       mythicPlus,
     };
+  }
+
+  async getDeathAnalysisAppearances(realm: string, name: string, classId: number, region: string) {
+    const candidates = (await this.findCanonicalRouteCharacters(realm, name, classId)).filter((character) => character.region === region);
+    let canonicalIds = candidates.map((character) => character.wclCanonicalCharacterId);
+    if (canonicalIds.length) {
+      canonicalIds = (await this.resolveContinuityContext(canonicalIds, classId, { name, realm })).canonicalIds;
+    }
+    return CharacterReportAppearance.find({
+      ...(canonicalIds.length ? { wclCanonicalCharacterId: { $in: canonicalIds } } : { characterRealm: realm, characterName: name }),
+      classID: classId,
+      characterRegion: region,
+      hidden: { $ne: true },
+    }).collation(CASE_INSENSITIVE_COLLATION).select("reportCode characterName characterRealm rankingFightIds -_id").lean();
   }
 
   async getCharacterRaidReportsByRealmName(realm: string, name: string, zoneId: number, guildId: string, classId?: number): Promise<CharacterRaidReportsResponse | null> {

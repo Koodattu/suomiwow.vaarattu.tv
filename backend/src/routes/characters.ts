@@ -5,6 +5,7 @@ import cacheService from "../services/cache.service";
 import { cacheMiddleware } from "../middleware/cache.middleware";
 import { MIN_CHARACTER_RAID_MYTHIC_REPORTS_FOR_FUN_ELIGIBILITY } from "../config/character-eligibility";
 import { TRACKED_RAIDS } from "../config/guilds";
+import { getCharacterDeaths } from "../services/character-deaths.service";
 
 const router = Router();
 
@@ -21,6 +22,30 @@ router.get("/search", async (req: Request, res: Response) => {
   } catch (error) {
     logger.error("Error searching characters:", error);
     res.status(500).json({ error: "Failed to search characters" });
+  }
+});
+
+router.get("/:realm/:name/deaths", async (req: Request, res: Response) => {
+  const number = (value: unknown) => typeof value === "string" && /^\d+$/.test(value) ? Number(value) : NaN;
+  const zoneId = number(req.query.zoneId);
+  const encounterId = number(req.query.encounterId);
+  const classId = number(req.query.class);
+  const difficulty = req.query.difficulty === undefined ? 5 : number(req.query.difficulty);
+  const page = req.query.page === undefined ? 1 : number(req.query.page);
+  const region = req.query.region ?? "eu";
+  const outcome = req.query.outcome ?? "all";
+  if (![zoneId, encounterId, classId, page].every((value) => Number.isSafeInteger(value) && value > 0)
+    || ![3, 4, 5].includes(difficulty) || !["eu", "us", "kr", "tw", "cn"].includes(String(region))
+    || typeof region !== "string" || !["all", "kills", "wipes"].includes(String(outcome)) || typeof outcome !== "string"
+    || req.params.realm.length > 64 || req.params.name.length > 64) {
+    return res.status(400).json({ error: "Invalid death analysis filters" });
+  }
+  try {
+    const result = await getCharacterDeaths({ realm: req.params.realm, name: req.params.name, classId, region, zoneId, encounterId, difficulty, page, outcome: outcome as "all" | "kills" | "wipes" });
+    return res.json(result);
+  } catch (error) {
+    logger.error("Error fetching character death analysis:", error);
+    return res.status(500).json({ error: "Failed to fetch death analysis" });
   }
 });
 

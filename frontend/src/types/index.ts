@@ -2961,6 +2961,7 @@ export type CcgCollectionResponse = {
 };
 
 export type CharacterAccountResponse = {
+  raidTimeline: AccountRaidTimeline;
   account: {
     id: string;
     slug: string;
@@ -2989,6 +2990,22 @@ export type CharacterAccountResponse = {
     raidAchievements: CharacterRaidAchievementSummary | null;
   }>;
 };
+
+export type AccountRaidTimeline = Array<{
+  id: number;
+  name: string;
+  expansion: string;
+  iconUrl?: string;
+  starts?: RegionDates;
+  ends?: RegionDates;
+  characters: Array<{
+    characterId: string;
+    firstSeenAt: string;
+    lastSeenAt: string;
+    reportCount: number;
+    specs: string[];
+  }>;
+}>;
 
 export type CharacterRaidReport = {
   code: string;

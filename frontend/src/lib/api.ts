@@ -1,4 +1,5 @@
 import type { AdminReportOverride, AdminReportOverrideAction } from "@/types";
+import type { CharacterDeathsResponse } from "@/types/character-deaths";
 import {
   GuildListItem,
   GuildDirectoryItem,
@@ -258,6 +259,11 @@ async function buildApiError(response: Response, fallback: string): Promise<Erro
 }
 
 export const api = {
+  async getCharacterDeaths(realm: string, name: string, query: string, signal?: AbortSignal): Promise<CharacterDeathsResponse> {
+    const response = await fetch(`${API_URL}/api/characters/${encodeURIComponent(realm)}/${encodeURIComponent(name)}/deaths?${query}`, { signal });
+    if (!response.ok) throw new Error("Failed to fetch death analysis");
+    return response.json();
+  },
   async getBossMechanicGuilds(): Promise<BossMechanicGuildsResponse> {
     const response = await fetch(`${API_URL}/api/fun/boss-mechanics/guilds`);
     if (!response.ok) throw await buildApiError(response, "The guild list could not be loaded");
