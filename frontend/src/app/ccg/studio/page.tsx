@@ -191,11 +191,14 @@ export default function StudioPage() {
         <section className={styles.shelf} aria-label={t("studio.supporterCard")}>
           <div className={styles.slotGrid}>{slots.map((slot, index) => {
             const source = slot.creation;
+            const approvedArt = source?.cardId ? data.media.find((row) => row.sourceId === source.id && row.kind === "image" && row.status === "approved")?.url : null;
+            const alternativeArt = approvedArt ? { characterArtPath: approvedArt, characterArtFilename: null, characterArtEnabled: true,
+              backgroundArtPath: null, backgroundArtFilename: null, backgroundArtEnabled: false } : null;
             const selected = workspace?.kind === "choose" ? workspace.slotId === slot.id : workspace?.kind === "edit" && source?.id === workspace.sourceId;
             return <div key={slot.id} className={styles.slot} data-selected={selected} data-locked={Boolean(slot.unlock)}>
               <button className={source?.preview ? styles.filledSlot : styles.emptySlot} aria-pressed={Boolean(selected)} aria-controls={slot.unlock ? "studio-accounts" : "studio-workspace"}
                 disabled={busy || (slot.used && !source)} onClick={() => slot.unlock ? setAccounts("twitch") : switchWorkspace(source ? { kind: "edit", sourceId: source.id } : { kind: "choose", slotId: slot.id })}>
-                {source?.preview ? <><CollectibleCard card={source.preview} finish={source.draft?.creatorFinish ?? source.creatorFinish ?? "standard"} compact effectsPaused className={cardStyles.scaledCardTypography} />
+                {source?.preview ? <><CollectibleCard card={{ ...source.preview, alternativeArt }} artVariant={alternativeArt ? "alternative" : "standard"} finish={source.draft?.creatorFinish ?? source.creatorFinish ?? "standard"} compact effectsPaused className={cardStyles.scaledCardTypography} />
                   <span className={styles.slotBadge} data-tone={source.draft ? "draft" : "success"}>{t(source.cardId ? source.draft ? "studio.unpublishedChanges" : "studio.published" : "studio.draft")}</span><span className={styles.srOnly}>{t("studio.openCreation")} {source.name}</span></>
                   : <><span className={styles.slotNumber}>{String(index + 1).padStart(2, "0")}</span><span className={styles.slotIcon}>{slot.unlock ? <FaLock aria-hidden="true" /> : slot.used ? <FaCheck aria-hidden="true" /> : <FaPlus aria-hidden="true" />}</span>
                     <strong>{t(slot.unlock === "follower" ? "studio.followUnlock" : slot.unlock === "subscriber" ? "studio.subscribeUnlock" : slot.used ? "studio.published" : "studio.createCard")}</strong>
