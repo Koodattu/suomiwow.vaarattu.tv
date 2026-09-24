@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { FiMinus, FiPlus, FiMaximize2 } from "react-icons/fi";
 import type { CharacterAccountResponse } from "@/types";
-import { createAccountTimeline, packTimelineRanges, timelineRange, timelineTicks, type TimelineRaid } from "@/lib/account-raid-timeline";
+import { accountTimelineActivity, createAccountTimeline, packTimelineRanges, timelineRange, timelineTicks, timelineZoomViewport, type TimelineRaid } from "@/lib/account-raid-timeline";
 import { formatRealmName, formatSpecName, getClassInfoById, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
 import styles from "./AccountRaidTimeline.module.css";
@@ -21,8 +21,81 @@ export default function AccountRaidTimeline({ account, getClassColor }: Props) {
   const locale = useLocale();
   const [expanded, setExpanded] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [minimumDays, setMinimumDays] = useState(14);
   const [inspection, setInspection] = useState<Inspection | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef(1);
+  const pendingScroll = useRef<number | null>(null);
+  const drag = useRef<{ id: number; x: number; scrollLeft: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
   const scale = useMemo(() => createAccountTimeline(account.raidTimeline ?? [], account.characters[0]?.region ?? "eu", !expanded), [account, expanded]);
+  const hasTimeline = scale !== null;
+  const bars = useMemo(() => scale ? accountTimelineActivity(scale, account.characters, minimumDays) : [], [scale, account.characters, minimumDays]);
+  const activityHeight = Math.max(1, ...bars.map((bar) => bar.lane + 1)) * 24 + 8;
+
+  const changeZoom = useCallback((requestedZoom: number, anchor?: number) => {
+    const viewport = scrollRef.current;
+    if (!viewport) return;
+    const next = timelineZoomViewport(zoomRef.current, requestedZoom, pendingScroll.current ?? viewport.scrollLeft, viewport.clientWidth, anchor ?? viewport.clientWidth / 2);
+    if (next.zoom === zoomRef.current) return;
+    zoomRef.current = next.zoom;
+    pendingScroll.current = next.scrollLeft;
+    setZoom(next.zoom);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (scrollRef.current && pendingScroll.current !== null) scrollRef.current.scrollLeft = pendingScroll.current;
+    pendingScroll.current = null;
+  }, [zoom]);
+
+  useEffect(() => {
+    const viewport = scrollRef.current;
+    if (!viewport) return;
+    const wheel = (event: WheelEvent) => {
+      // Horizontal trackpad gestures keep their native pan behavior.
+      if (!event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+      event.preventDefault();
+      const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1);
+      changeZoom(zoomRef.current * Math.exp(-Math.max(-120, Math.min(120, delta)) * 0.003), event.clientX - viewport.getBoundingClientRect().left);
+    };
+    viewport.addEventListener("wheel", wheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", wheel);
+  }, [hasTimeline, changeZoom]);
+
+  const startDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (!event.isPrimary || event.button !== 0) return;
+    suppressClick.current = false;
+    drag.current = { id: event.pointerId, x: event.clientX, scrollLeft: event.currentTarget.scrollLeft, moved: false };
+  };
+  const moveDrag = (event: PointerEvent<HTMLDivElement>) => {
+    const current = drag.current;
+    if (!current || current.id !== event.pointerId) return;
+    const distance = event.clientX - current.x;
+    if (!current.moved && Math.abs(distance) < 5) return;
+    if (!current.moved) {
+      current.moved = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.currentTarget.dataset.dragging = "true";
+    }
+    event.preventDefault();
+    suppressClick.current = true;
+    event.currentTarget.scrollLeft = current.scrollLeft - distance;
+  };
+  const endDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (drag.current?.id !== event.pointerId) return;
+    drag.current = null;
+    delete event.currentTarget.dataset.dragging;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  const inspect = (next: Inspection) => {
+    if (!drag.current?.moved) setInspection(next);
+  };
+  const fitHistory = () => {
+    const wasZoomed = zoomRef.current !== 1;
+    changeZoom(1, 0);
+    pendingScroll.current = wasZoomed ? 0 : null;
+    if (scrollRef.current) scrollRef.current.scrollLeft = 0;
+  };
   const date = (value: number | string) => new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(value));
   const month = (value: number) => new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" }).format(value);
   const raidBands = scale ? packTimelineRanges(scale.raids
@@ -43,6 +116,7 @@ export default function AccountRaidTimeline({ account, getClassColor }: Props) {
   const activeCount = scale?.raids.filter((raid) => raid.characters.length).length ?? 0;
   const inspectedColor = inspection?.character ? getClassColor(getClassInfoById(inspection.character.classID).name) : undefined;
   const rangeStyle = (left: number, width: number): CSSProperties => ({ left: `${left}%`, width: `${width}%` });
+  const raidColor = (id: number) => `hsl(${(id * 137.508) % 360} 65% 62%)`;
 
   return (
     <section aria-labelledby="account-timeline-title" className={styles.timeline}>
@@ -52,90 +126,77 @@ export default function AccountRaidTimeline({ account, getClassColor }: Props) {
           <span>{t("activeRaids", { count: activeCount })}</span>
         </div>
         {scale && <div className={styles.controls}>
+          <label className={styles.filter}>
+            <span>{t("minimumSpan")}</span>
+            <select value={minimumDays} onChange={(event) => { setMinimumDays(Number(event.target.value)); setInspection(null); }}>
+              <option value={0}>{t("allAppearances")}</option>
+              <option value={14}>{t("minimumDays", { count: 14 })}</option>
+              <option value={30}>{t("minimumDays", { count: 30 })}</option>
+            </select>
+          </label>
           <button type="button" aria-pressed={expanded} onClick={() => setExpanded(!expanded)}>{t(expanded ? "compress" : "expand")}</button>
           <span className={styles.controlDivider} />
-          <button type="button" aria-label={t("zoomOut")} title={t("zoomOut")} disabled={zoom === 1} onClick={() => setZoom(Math.max(1, zoom - 1))}><FiMinus /></button>
-          <button type="button" aria-label={t("fit")} title={t("fit")} onClick={() => setZoom(1)}><FiMaximize2 /><span>{t("fit")}</span></button>
-          <button type="button" aria-label={t("zoomIn")} title={t("zoomIn")} disabled={zoom === 6} onClick={() => setZoom(Math.min(6, zoom + 1))}><FiPlus /></button>
+          <button type="button" aria-label={t("zoomOut")} title={t("zoomOut")} disabled={zoom === 1} onClick={() => changeZoom(zoom / 1.5)}><FiMinus /></button>
+          <button type="button" aria-label={t("fit")} title={t("fit")} onClick={fitHistory}><FiMaximize2 /><span>{t("fit")}</span></button>
+          <button type="button" aria-label={t("zoomIn")} title={t("zoomIn")} disabled={zoom === 16} onClick={() => changeZoom(zoom * 1.5)}><FiPlus /></button>
         </div>}
       </div>
       {!scale ? <p className={styles.empty}>{t("empty")}</p> : <>
-        <div className={styles.scroll} role="region" aria-label={t("title")} tabIndex={0}>
-          <div className={styles.canvas} style={{ width: `${zoom * 100}%` }}>
-            <div className={styles.timelineRow}>
-              <div className={styles.axisLabel}>{t("raids")}</div>
+        <p id="account-timeline-gestures" className={styles.gestureHint}>{t("gestures")}</p>
+        <div ref={scrollRef} className={styles.scroll} role="region" aria-label={t("title")} aria-describedby="account-timeline-gestures" tabIndex={0}
+          onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={endDrag}
+          onPointerLeave={(event) => { if (!drag.current?.moved) endDrag(event); }}
+          onDragStart={(event) => event.preventDefault()}
+          onClickCapture={(event) => { if (suppressClick.current && event.detail !== 0) { event.preventDefault(); event.stopPropagation(); suppressClick.current = false; } }}>
+          <div className={styles.canvas} style={{ width: `${zoom * 100}%`, minWidth: 640 * zoom }}>
               <div className={styles.raidAxis} style={{ height: raidHeight }}>
                 {raidBands.map(({ raid, left, width, lane }) => <button
                   key={raid.id}
                   type="button"
                   className={styles.raidBand}
-                  style={{ ...rangeStyle(left, width), top: lane * 24 + 4 }}
+                  style={{ ...rangeStyle(left, width), top: lane * 24 + 4, "--raid-color": raidColor(raid.id) } as CSSProperties}
                   title={`${raid.name} · ${date(raid.start)} – ${date(raid.end)}`}
                   aria-label={`${raid.name} · ${date(raid.start)} – ${date(raid.end)}`}
-                  onMouseEnter={() => setInspection({ raid })}
-                  onFocus={() => setInspection({ raid })}
-                  onClick={() => setInspection({ raid })}
+                  onMouseEnter={() => inspect({ raid })}
+                  onFocus={() => inspect({ raid })}
+                  onClick={() => inspect({ raid })}
                 ><IconImage iconFilename={raid.iconUrl} alt="" width={16} height={16} /><span>{raid.name}</span></button>)}
               </div>
-            </div>
-            <div className={styles.timelineRow}>
-              <div className={styles.axisLabel}>{new Date(scale.start).getUTCFullYear()} – {new Date(scale.end).getUTCFullYear()}</div>
               <div className={styles.ruler}>
                 {ticks.map((tick) => <span key={tick.time} className={tick.major ? styles.yearTick : styles.monthTick} style={{ left: `${tick.left}%` }}>
                   {tickLabels.has(tick.time) ? <span>{tick.major ? new Date(tick.time).getUTCFullYear() : month(tick.time)}</span> : null}
                 </span>)}
                 {gaps.map((gap) => <span key={gap.start} className={styles.axisBreak} style={{ left: `${timelineRange(scale, gap.start, gap.end).left}%` }} title={`${t("gap")} · ${date(gap.start)} – ${date(gap.end)}`}>{"//"}</span>)}
               </div>
-            </div>
-            {account.characters.map((character) => {
-              const classInfo = getClassInfoById(character.classID);
-              const color = getClassColor(classInfo.name);
-              const bars = packTimelineRanges(scale.raids.flatMap((raid) => {
-                const activity = raid.characters.find((entry) => entry.characterId === character.characterId);
-                if (!activity) return [];
-                const start = Date.parse(activity.firstSeenAt);
-                const end = Date.parse(activity.lastSeenAt);
-                if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return [];
-                return [{ raid, activity, ...timelineRange(scale, start, end) }];
-              }));
-              if (!bars.length) return null;
-              const height = Math.max(...bars.map((bar) => bar.lane + 1)) * 22 + 8;
-              return <div key={character.characterId} className={styles.timelineRow}>
-                <Link
-                  className={styles.character}
-                  href={`/characters/${encodeURIComponent(character.realm)}/${encodeURIComponent(character.name)}?class=${character.classID}`}
-                  title={`${character.name} · ${formatRealmName(character.realm)}`}
-                  style={{ color }}
-                ><IconImage iconFilename={classInfo.iconUrl} alt="" width={20} height={20} /><span>{character.name}</span></Link>
-                <div className={styles.track} style={{ height }}>
+                <div className={styles.track} style={{ height: activityHeight }}>
                   {ticks.filter((tick) => tick.major).map((tick) => <span key={tick.time} className={styles.guide} style={{ left: `${tick.left}%` }} />)}
                   {gaps.map((gap) => <span key={gap.start} className={styles.gap} style={rangeStyle(timelineRange(scale, gap.start, gap.end).left, timelineRange(scale, gap.start, gap.end).width)} />)}
-                  {bars.map(({ raid, activity, left, width, lane }) => {
+                  {bars.map(({ raid, activity, character, left, width, lane }) => {
                     const label = `${character.name} · ${raid.name} · ${activity.specs.map(formatSpecName).join(", ") || t("unknownSpec")} · ${date(activity.firstSeenAt)} – ${date(activity.lastSeenAt)} · ${t("reports", { count: activity.reportCount })}`;
                     return <button
-                      key={raid.id}
+                      key={`${raid.id}-${character.characterId}`}
                       type="button"
                       className={styles.bar}
-                      style={{ ...rangeStyle(left, width), top: lane * 22 + 4, "--class-color": color } as CSSProperties}
+                      style={{ ...rangeStyle(left, width), top: lane * 24 + 4, "--class-color": getClassColor(getClassInfoById(character.classID).name) } as CSSProperties}
                       title={label}
                       aria-label={label}
-                      onMouseEnter={() => setInspection({ raid, activity, character })}
-                      onFocus={() => setInspection({ raid, activity, character })}
-                      onClick={() => setInspection({ raid, activity, character })}
+                      onMouseEnter={() => inspect({ raid, activity, character })}
+                      onFocus={() => inspect({ raid, activity, character })}
+                      onClick={() => inspect({ raid, activity, character })}
                     ><span className={styles.barContent}>
                       {activity.specs.slice(0, 2).map((spec) => <IconImage key={spec} iconFilename={getSpecIconUrl(character.classID, spec)} alt="" width={18} height={18} />)}
-                      <span>{activity.specs.map(formatSpecName).join(" / ") || t("unknownSpec")}</span>
+                      {!activity.specs.length && <IconImage iconFilename={getClassInfoById(character.classID).iconUrl} alt="" width={18} height={18} />}
+                      <span>{character.name}</span>
                     </span></button>;
                   })}
                 </div>
-              </div>;
-            })}
           </div>
         </div>
+        {!bars.length && <p className={styles.empty}>{t("noMatchingActivity")}</p>}
         <div className={styles.inspection} aria-live="polite">
           {inspection ? <>
             <IconImage iconFilename={inspection.raid.iconUrl} alt="" width={24} height={24} className="rounded" />
-            <strong style={{ color: inspectedColor }}>{inspection.character?.name ?? inspection.raid.name}</strong>
+            {inspection.character ? <Link style={{ color: inspectedColor }} title={formatRealmName(inspection.character.realm)} href={`/characters/${encodeURIComponent(inspection.character.realm)}/${encodeURIComponent(inspection.character.name)}?class=${inspection.character.classID}`}>{inspection.character.name}</Link> : <strong style={{ color: raidColor(inspection.raid.id) }}>{inspection.raid.name}</strong>}
             {inspection.character && <span>{inspection.raid.name}</span>}
             {inspection.activity && <span className={styles.specs}>{inspection.activity.specs.map((spec) => <span key={spec}><IconImage iconFilename={getSpecIconUrl(inspection.character!.classID, spec)} alt="" width={16} height={16} />{formatSpecName(spec)}</span>)}{!inspection.activity.specs.length && t("unknownSpec")}</span>}
             <span>{date(inspection.activity?.firstSeenAt ?? inspection.raid.start)} – {date(inspection.activity?.lastSeenAt ?? inspection.raid.end)}</span>

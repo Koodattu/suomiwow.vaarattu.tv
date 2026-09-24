@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createAccountTimeline, positionOnTimeline, timelineRange, packTimelineRanges, timelineTicks } from "../src/lib/account-raid-timeline.ts";
+import { accountTimelineActivity, createAccountTimeline, positionOnTimeline, timelineRange, packTimelineRanges, timelineTicks, timelineZoomViewport } from "../src/lib/account-raid-timeline.ts";
 
 const now = Date.parse("2026-01-01");
 const activity = (start, end, characterId = "one") => ({ characterId, firstSeenAt: start, lastSeenAt: end, reportCount: 4, specs: ["frost"] });
@@ -76,4 +76,49 @@ test("calendar ticks increase monotonically and omit compressed interiors", () =
   assert.ok(ticks.every((tick, index) => index === 0 || tick.left > ticks[index - 1].left));
   assert.ok(!ticks.some((tick) => new Date(tick.time).getUTCFullYear() === 2024));
   assert.ok(ticks.some((tick) => tick.major));
+});
+
+test("packs different characters into reusable lanes instead of reserving character rows", () => {
+  const scale = createAccountTimeline([raid(1, "2025-01-01", "2025-06-01", [
+    activity("2025-01-01", "2025-02-01", "one"),
+    activity("2025-01-15", "2025-02-15", "two"),
+    activity("2025-03-01", "2025-04-01", "three"),
+  ])], "eu", true, now);
+  const bars = accountTimelineActivity(scale, ["one", "two", "three"].map((characterId) => ({ characterId })), 14);
+  assert.deepEqual(bars.map((bar) => [bar.character.characterId, bar.lane]), [["one", 0], ["two", 1], ["three", 0]]);
+});
+
+test("minimum span is per character per raid, inclusive, and brief visits can be restored", () => {
+  const scale = createAccountTimeline([raid(1, "2025-01-01", "2025-06-01", [
+    activity("2025-01-01", "2025-01-14", "short"),
+    activity("2025-01-01", "2025-01-15", "boundary"),
+    activity("2025-01-01", "2025-02-01", "long"),
+    activity("2025-01-01", "2025-01-01", "single"),
+  ])], "eu", true, now);
+  const characters = ["short", "boundary", "long", "single"].map((characterId) => ({ characterId }));
+  assert.deepEqual(accountTimelineActivity(scale, characters, 14).map((bar) => bar.character.characterId), ["boundary", "long"]);
+  assert.equal(accountTimelineActivity(scale, characters, 0).length, 4);
+  assert.equal(accountTimelineActivity(scale, characters, 90).length, 0);
+});
+
+test("filters invalid and unlinked activity without changing the calendar", () => {
+  const scale = createAccountTimeline([raid(1, "2025-01-01", "2025-06-01", [activity("2025-01-01", "2025-02-01")])], "eu", true, now);
+  const before = JSON.stringify(scale);
+  assert.equal(accountTimelineActivity(scale, [], 0).length, 0);
+  assert.equal(JSON.stringify(scale), before);
+  scale.raids[0].characters.push(activity("invalid", "2025-01-01"), activity("2025-02-01", "2025-01-01"));
+  assert.equal(accountTimelineActivity(scale, [{ characterId: "one" }], 0).length, 1);
+});
+
+test("zoom preserves the calendar point under the cursor and round-trips", () => {
+  const next = timelineZoomViewport(2, 3, 400, 1000, 300);
+  assert.deepEqual(next, { zoom: 3, scrollLeft: 750 });
+  assert.equal((400 + 300) / 2000, (next.scrollLeft + 300) / 3000);
+  assert.deepEqual(timelineZoomViewport(3, 2, next.scrollLeft, 1000, 300), { zoom: 2, scrollLeft: 400 });
+});
+
+test("zoom and pan bounds include the minimum mobile canvas width", () => {
+  assert.deepEqual(timelineZoomViewport(1, 2, 100, 390, 200), { zoom: 2, scrollLeft: 400 });
+  assert.deepEqual(timelineZoomViewport(4, 0, 2000, 1000, 500), { zoom: 1, scrollLeft: 0 });
+  assert.deepEqual(timelineZoomViewport(16, 100, 15000, 1000, 1000), { zoom: 16, scrollLeft: 15000 });
 });

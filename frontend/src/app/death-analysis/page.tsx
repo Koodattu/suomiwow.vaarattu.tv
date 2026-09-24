@@ -7,9 +7,11 @@ import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useBosses, useCharacterSearch, useRaids } from "@/lib/queries";
-import { formatRealmName } from "@/lib/utils";
+import { formatRealmName, getClassInfoById } from "@/lib/utils";
+import IconImage from "@/components/IconImage";
+import DeathTimeline from "@/components/DeathTimeline";
+import { deathTimeLabel as time } from "@/lib/death-timeline";
 
-const time = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
 const fieldClass = "mt-2 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2.5 text-sm text-gray-100 focus:border-amber-400 focus:outline-none";
 const eventColumns = [
   { label: "date", sort: "date" }, { label: "outcome", sort: "isKill" },
@@ -37,19 +39,20 @@ function DeathAnalysis() {
   const encounterId = params.get("encounterId") ?? "";
   const difficulty = params.get("difficulty") ?? "5";
   const outcome = params.get("outcome") ?? "all";
+  const view = params.get("view") === "records" ? "records" : "timeline";
   const orderFilter = params.get("orderFilter") ?? "all";
   const timingFilter = params.get("timingFilter") ?? "all";
   const phaseFilter = params.get("phaseFilter") ?? "all";
   const sortBy = params.get("sortBy") ?? "date";
   const sortDirection = params.get("sortDirection") ?? "desc";
-  const { data: raids = [], error: raidsError } = useRaids();
-  const { data: bosses = [], error: bossesError } = useBosses(zoneId);
+  const { data: raids = [], error: raidsError, refetch: refetchRaids } = useRaids();
+  const { data: bosses = [], error: bossesError, refetch: refetchBosses } = useBosses(zoneId);
   const searchResult = useCharacterSearch(debouncedSearch, debouncedSearch.length >= 2);
   const ready = !!(name && realm && classId && zoneId && encounterId);
   const scopeQuery = new URLSearchParams({ zoneId: String(zoneId ?? ""), encounterId, class: classId, region: params.get("region") ?? "eu", difficulty, outcome }).toString();
   const eventQuery = new URLSearchParams({ orderFilter, timingFilter, phaseFilter, sortBy, sortDirection, page: params.get("page") ?? "1" }).toString();
   const query = `${scopeQuery}&${eventQuery}`;
-  const { data, isLoading, isFetching, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["character-deaths", realm, name, scopeQuery, eventQuery],
     queryFn: ({ signal }) => api.getCharacterDeaths(realm, name, query, signal),
     placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === realm && previousQuery.queryKey[2] === name && previousQuery.queryKey[3] === scopeQuery ? previous : undefined,
@@ -59,7 +62,9 @@ function DeathAnalysis() {
   const update = (values: Record<string, string>) => {
     const next = new URLSearchParams(params.toString());
     next.delete("page");
-    if (["name", "realm", "class", "zoneId", "encounterId", "difficulty", "outcome"].some((key) => key in values)) next.delete("phaseFilter");
+    if (["name", "realm", "class", "zoneId", "encounterId", "difficulty", "outcome"].some((key) => key in values)) {
+      for (const key of ["phaseFilter", "session", "cluster", "pull", "death"]) next.delete(key);
+    }
     Object.entries(values).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key));
     router.push(`/death-analysis?${next}`, { scroll: false });
   };
@@ -67,14 +72,21 @@ function DeathAnalysis() {
   const summary = data?.summary;
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 px-4 py-8">
-      <header className="rounded-2xl border border-gray-800 bg-gradient-to-br from-gray-900 to-gray-950 p-6">
-        <Link href="/characters" className="text-sm text-gray-400 hover:text-white">← {t("characters")}</Link>
-        <h1 className="mt-4 text-3xl font-bold text-white">{t("title")}</h1>
-        <p className="mt-2 max-w-3xl text-gray-400">{t("description")}</p>
+    <main className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6">
+      <header className="mb-5 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <Link href="/characters" className="text-xs text-slate-400 hover:text-white">← {t("characters")}</Link>
+          <h1 className="mt-2 text-xl font-semibold text-white">{t("title")}</h1>
+        </div>
+        {name && <div className="flex min-w-0 items-center gap-3">
+          <IconImage iconFilename={getClassInfoById(Number(classId)).iconUrl} alt="" width={36} height={36} className="rounded-md" />
+          <div><div className="font-semibold text-white">{name}</div><div className="text-xs text-slate-400">{formatRealmName(realm)}</div></div>
+          {boss && <><span className="mx-1 text-slate-500">/</span><IconImage iconFilename={boss.iconUrl} alt="" width={36} height={36} className="rounded-md" /><div className="min-w-0"><div className="text-sm font-medium text-slate-100">{boss.name}</div><div className="text-xs text-slate-400">{t(difficulty === "5" ? "mythic" : difficulty === "4" ? "heroic" : "normal")}</div></div></>}
+        </div>}
       </header>
-
-      <section aria-label={t("filters")} className="grid gap-4 rounded-xl border border-gray-800 bg-gray-900/60 p-5 sm:grid-cols-2 lg:grid-cols-5">
+      <details open={!ready} className="mb-5 border-y border-slate-800 py-2">
+        <summary className="cursor-pointer py-2 text-sm text-slate-300 hover:text-white">{ready ? t("changeSelection") : t("chooseFilters")}</summary>
+      <section aria-label={t("filters")} className="grid gap-4 py-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="sm:col-span-2 lg:col-span-1">
           <label className="text-sm text-gray-300" htmlFor="death-character">{t("character")}</label>
           <input id="death-character" className={fieldClass} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("searchPlaceholder")} autoComplete="off" />
@@ -104,38 +116,25 @@ function DeathAnalysis() {
         </select></label>
       </section>
 
-      <aside className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm leading-relaxed text-amber-100/80">
-        <strong className="block text-amber-200">{t("causeTitle")}</strong>{t("causeDescription")}
-      </aside>
-      {(error || raidsError || bossesError) && <p role="alert" className="text-red-300">{t("error")}</p>}
-      {!ready && <p className="py-10 text-center text-gray-400">{t("chooseFilters")}</p>}
-      {ready && isLoading && <p role="status" className="py-10 text-center text-gray-400">{t("loading")}</p>}
+      </details>
+      {(error || raidsError || bossesError) && <div role="alert" className="my-6 flex flex-wrap items-center gap-4 text-sm text-rose-300"><span>{t("error")}</span><button type="button" className="rounded border border-slate-600 px-3 py-2 text-slate-100" onClick={() => { if (raidsError) void refetchRaids(); if (bossesError) void refetchBosses(); if (error) void refetch(); }}>{t("retry")}</button></div>}
+      {!ready && <p className="py-16 text-center text-slate-300">{t("chooseFilters")}</p>}
+      {ready && isLoading && <div role="status" className="space-y-4 py-5"><p className="text-sm text-slate-300">{t("loading")}</p><div className="h-10 rounded bg-slate-900 motion-safe:animate-pulse" /><div className="h-96 rounded bg-slate-900 motion-safe:animate-pulse" /></div>}
       {ready && data && summary && (
         <>
-          <section aria-label={t("summary")}>
-            <h2 className="text-xl font-semibold text-white">{name}{boss ? ` · ${boss.name}` : ""}</h2>
-            <p className="mt-2 text-sm text-gray-400">{t("coverage", { evaluated: summary.evaluatedPulls, total: summary.pulls, unconfirmed: summary.unconfirmedPulls })}</p>
-            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {[
-                [t("deaths"), String(summary.deaths)],
-                [t("pullsWithDeaths"), `${summary.pullsWithDeaths} / ${summary.evaluatedPulls}`],
-                [t("survivedPulls"), String(summary.survivedPulls)],
-                [t("averageFirstDeath"), summary.averageFirstDeathTime === null ? "—" : time(summary.averageFirstDeathTime)],
-              ].map(([label, value]) => <div key={label} className="rounded-xl border border-gray-800 bg-gray-900 p-4"><div className="text-sm text-gray-400">{label}</div><div className="mt-2 text-2xl font-semibold tabular-nums text-white">{value}</div></div>)}
-            </div>
-          </section>
-          <section className="rounded-xl border border-gray-800 bg-gray-900/60 p-5">
-            <h2 className="text-lg font-semibold text-white">{t("timingTitle")}</h2>
-            <p className="mt-1 text-sm text-gray-400">{t("timingDescription")}</p>
-            <div className="mt-5 space-y-3">{data.timing.map((count, index) => (
-              <div key={index} className="flex items-center gap-3 text-sm">
-                <span className="w-24 shrink-0 tabular-nums text-gray-400">{index * 25}–{(index + 1) * 25}%</span>
-                <div className="h-5 flex-1 overflow-hidden rounded bg-gray-800"><div className="h-full rounded bg-amber-400/80" style={{ width: `${summary.deaths ? count / summary.deaths * 100 : 0}%` }} /></div>
-                <span className="w-12 text-right tabular-nums text-gray-200">{count}</span>
-              </div>
-            ))}</div>
-            <p className="mt-5 text-sm text-gray-400">{t("rawNote", { count: summary.firstThreePulls })}</p>
-          </section>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 text-sm">
+            <dl aria-label={t("summary")} className="flex flex-wrap gap-x-6 gap-y-2 text-slate-300">
+              <div className="flex gap-2"><dd className="font-semibold tabular-nums text-white">{summary.pulls}</dd><dt>{t("confirmedPulls")}</dt></div>
+              <div className="flex gap-2"><dd className="font-semibold tabular-nums text-rose-300">{summary.deaths}</dd><dt>{t("deaths")}</dt></div>
+              <div className="flex gap-2"><dd className="font-semibold tabular-nums text-emerald-300">{summary.survivedPulls}</dd><dt>{t("survivedPulls")}</dt></div>
+              <div className="flex gap-2"><dd className="font-semibold tabular-nums text-white">{summary.averageFirstDeathTime === null ? "—" : time(summary.averageFirstDeathTime)}</dd><dt>{t("averageFirstDeathShort")}</dt></div>
+            </dl>
+            <details className="max-w-2xl text-xs leading-relaxed text-slate-300"><summary className="cursor-pointer py-2">{t("coverageShort", { count: summary.evaluatedPulls, total: summary.pulls })} · {t("aboutData")}</summary><p className="mt-2">{t("coverage", { evaluated: summary.evaluatedPulls, total: summary.pulls, unconfirmed: summary.unconfirmedPulls })}</p><p className="mt-2">{t("rawNote", { count: summary.firstThreePulls })}</p><p className="mt-2">{t("causeDescription")}</p></details>
+          </div>
+          <div className="flex gap-5 border-b border-slate-800" role="group" aria-label={t("analysisView")}>
+            {(["timeline", "records"] as const).map((value) => <button type="button" key={value} aria-pressed={view === value} onClick={() => update({ view: value })} className={"min-h-11 border-b-2 px-1 text-sm font-medium transition-colors motion-reduce:transition-none " + (view === value ? "border-amber-300 text-amber-200" : "border-transparent text-slate-300 hover:text-white")}>{t(value)}</button>)}
+          </div>
+          {view === "timeline" ? <DeathTimeline pulls={data.timeline} name={name} update={update} /> : (
           <section aria-busy={isFetching} className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900/60">
             <div className="space-y-4 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -184,6 +183,7 @@ function DeathAnalysis() {
               <button type="button" className="rounded border border-gray-700 px-3 py-2 disabled:opacity-30" disabled={isFetching || data.pagination.currentPage >= data.pagination.totalPages} onClick={() => update({ page: String(data.pagination.currentPage + 1) })}>{t("next")}</button>
             </nav>}
           </section>
+          )}
         </>
       )}
     </main>

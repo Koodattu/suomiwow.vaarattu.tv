@@ -1,4 +1,4 @@
-import type { AccountRaidTimeline, RegionDates } from "../types/index";
+import type { AccountRaidTimeline, CharacterAccountResponse, RegionDates } from "../types/index";
 
 const DAY = 86_400_000;
 type Range = { start: number; end: number };
@@ -87,6 +87,26 @@ export function packTimelineRanges<T extends { left: number; width: number }>(ra
     laneEnds[lane] = range.left + Math.max(range.width, 0.5);
     return { ...range, lane };
   });
+}
+
+export function accountTimelineActivity(scale: TimelineScale, characters: CharacterAccountResponse["characters"], minimumDays: number) {
+  const byId = new Map(characters.map((character) => [character.characterId, character]));
+  return packTimelineRanges(scale.raids.flatMap((raid) => raid.characters.flatMap((activity) => {
+    const character = byId.get(activity.characterId);
+    const start = timestamp(activity.firstSeenAt);
+    const end = timestamp(activity.lastSeenAt);
+    if (!character || start === null || end === null || end < start || end - start < minimumDays * DAY) return [];
+    return [{ raid, activity, character, ...timelineRange(scale, start, end) }];
+  })));
+}
+
+// Preserve the calendar position under the cursor while changing the canvas size.
+export function timelineZoomViewport(zoom: number, requestedZoom: number, scrollLeft: number, viewportWidth: number, anchor: number) {
+  const nextZoom = Math.max(1, Math.min(16, requestedZoom));
+  const cursor = Math.max(0, Math.min(viewportWidth, anchor));
+  const nextWidth = Math.max(640, viewportWidth) * nextZoom;
+  const nextScroll = (scrollLeft + cursor) * nextZoom / zoom - cursor;
+  return { zoom: nextZoom, scrollLeft: Math.max(0, Math.min(nextWidth - viewportWidth, nextScroll)) };
 }
 
 export function timelineTicks(scale: TimelineScale) {

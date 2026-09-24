@@ -37,6 +37,13 @@ export function summarizeCharacterDeaths(fights: DeathFight[], appearances: Map<
     reportCode: string; fightId: number; date: string; isKill: boolean;
     deathTime: number; duration: number; deathPercent: number; order: number | null; phase: string | null;
   }> = [];
+  const timeline: Array<{
+    reportCode: string; fightId: number; date: string; duration: number; isKill: boolean;
+    complete: boolean; rosterComplete: boolean;
+    deaths: Array<{ deathTime: number; order: number | null; phase: string | null }>;
+    otherDeathTimes: number[];
+    phases: Array<{ time: number; name: string }>;
+  }> = [];
   const seen = new Set<string>();
   for (const fight of fights) {
     const fightKey = `${fight.reportCode}:${fight.fightId}`;
@@ -55,14 +62,22 @@ export function summarizeCharacterDeaths(fights: DeathFight[], appearances: Map<
       continue;
     }
     pulls++;
+    const rosterComplete = fight.combatantInfoRosterComplete === true || (fight.combatantInfoRosterComplete === undefined && fight.combatantInfoFetchStatus === "fetched" && !!fight.combatants?.length);
+    const roster = new Set((fight.combatants ?? []).map((actor) => actorKey(actor.name, actor.server)));
+    const pull: typeof timeline[number] = {
+      reportCode: fight.reportCode, fightId: fight.fightId, date: new Date(fight.timestamp).toISOString(), duration, isKill: fight.isKill,
+      complete: fight.deathEventsFetchStatus === "fetched", rosterComplete, deaths: [],
+      otherDeathTimes: fight.deathEventsFetchStatus === "fetched" ? deaths.filter((death) => !matches(death) && roster.has(actorKey(death.name, death.server))).map((death) => death.deathTime) : [],
+      phases: (fight.phaseTransitions ?? []).map((phase) => ({ time: phase.startTime - fight.fightStartTime, name: phase.name ?? String(phase.id) }))
+        .filter((phase) => Number.isFinite(phase.time) && phase.time >= 0 && phase.time <= duration).sort((a, b) => a.time - b.time),
+    };
+    timeline.push(pull);
     if (fight.deathEventsFetchStatus !== "fetched") continue;
     evaluatedPulls++;
     if (!characterDeaths.length) continue;
     pullsWithDeaths++;
     firstDeathTimeTotal += characterDeaths[0].deathTime;
 
-    const rosterComplete = fight.combatantInfoRosterComplete === true || (fight.combatantInfoRosterComplete === undefined && fight.combatantInfoFetchStatus === "fetched" && !!fight.combatants?.length);
-    const roster = new Set((fight.combatants ?? []).map((actor) => actorKey(actor.name, actor.server)));
     const firstDeaths = new Map<string, number>();
     for (const death of deaths) {
       const key = actorKey(death.name, death.server);
@@ -79,6 +94,7 @@ export function summarizeCharacterDeaths(fights: DeathFight[], appearances: Map<
       const deathPercent = death.deathTime / duration * 100;
       timing[Math.min(3, Math.floor(deathPercent / 25))]++;
       const phase = [...(fight.phaseTransitions ?? [])].sort((a, b) => a.startTime - b.startTime).filter((transition) => transition.startTime <= death.timestamp).pop();
+      pull.deaths.push({ deathTime: death.deathTime, order: orderAt(death), phase: phase ? (phase.name ?? String(phase.id)) : null });
       events.push({
         reportCode: fight.reportCode, fightId: fight.fightId, date: new Date(fight.timestamp).toISOString(), isKill: fight.isKill,
         deathTime: death.deathTime, duration, deathPercent,
@@ -118,6 +134,7 @@ export function summarizeCharacterDeaths(fights: DeathFight[], appearances: Map<
   return {
     summary: { pulls, evaluatedPulls, unconfirmedPulls, pullsWithDeaths, survivedPulls: evaluatedPulls - pullsWithDeaths, deaths: events.length, firstThreePulls, averageFirstDeathTime: pullsWithDeaths ? firstDeathTimeTotal / pullsWithDeaths : null },
     timing,
+    timeline: timeline.sort((a, b) => a.date.localeCompare(b.date) || a.reportCode.localeCompare(b.reportCode) || a.fightId - b.fightId),
     eventOptions,
     events: filteredEvents.slice((currentPage - 1) * 50, currentPage * 50),
     pagination: { currentPage, totalPages, totalItems: filteredEvents.length },

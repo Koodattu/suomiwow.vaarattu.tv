@@ -90,6 +90,28 @@ test("pagination keeps full aggregates and returns the latest deaths first", () 
   assert.equal(result.events[0].fightId, 5);
   assert.equal(result.pagination.totalPages, 2);
   assert.equal(summarizeCharacterDeaths(fights, appearance, 99).pagination.currentPage, 2);
+  assert.equal(result.timeline.length, 55);
+  assert.equal(result.timeline[0].fightId, 1);
+  assert.equal(result.timeline[54].fightId, 55);
+});
+
+test("timeline retains survival, missing data, repeated deaths, and context independently of record filters", () => {
+  const result = summarizeCharacterDeaths([
+    fight({ deaths: [death("Player", 20000), death("Other", 30000), death("Pet", 40000), death("Player", 80000)], phaseTransitions: [{ id: 2, name: "Second", startTime: 31000 }] }),
+    fight({ fightId: 2 }),
+    fight({ fightId: 3, deathEventsFetchStatus: "failed", deaths: [death("Player", 10000), death("Other", 20000)] }),
+    fight({ fightId: 4, combatants: [], deaths: [], combatantInfoRosterComplete: false }),
+  ], appearance, 1, { phaseFilter: "phase:no matches" });
+  assert.equal(result.events.length, 0);
+  assert.equal(result.timeline.length, 3);
+  assert.deepEqual(result.timeline[0].deaths.map((entry) => entry.deathTime), [20000, 80000]);
+  assert.deepEqual(result.timeline[0].otherDeathTimes, [30000]);
+  assert.deepEqual(result.timeline[0].phases, [{ time: 30000, name: "Second" }]);
+  assert.equal(result.timeline[1].complete, true);
+  assert.deepEqual(result.timeline[1].deaths, []);
+  assert.equal(result.timeline[2].complete, false);
+  assert.deepEqual(result.timeline[2].deaths, []);
+  assert.deepEqual(result.timeline[2].otherDeathTimes, []);
 });
 
 test("filters and sorts all events before pagination while preserving the summary", () => {
