@@ -193,7 +193,7 @@
   display: grid;
   width: 100%;
   min-height: 3.5rem;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
   gap: clamp(0.75rem, 1.5vw, 1.5rem);
   padding: 0.2rem clamp(0.6rem, 1vw, 1rem);
@@ -9066,3 +9066,6 @@
     animation: none;
   }
 }
+
+.rewardInitStatus { margin: 0; padding: .5rem 1rem; color: #c7d4e8; font-size: .8rem; background: #101d32; }
+.rewardInitStatus button { text-decoration: underline; cursor: pointer; }

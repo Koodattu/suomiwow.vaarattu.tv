@@ -1,0 +1,79 @@
+.page {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+  font-size: .9375rem;
+}
+
+.header, .codeControls { display: flex; align-items: center; gap: 1rem; }
+.header { justify-content: space-between; margin-bottom: 1.5rem; }
+.header h1 { font-size: 1.5rem; font-weight: 700; }
+.header a { color: #aebed3; font-size: .875rem; }
+.header a:hover { color: #eef5ff; }
+.list { padding: 0; margin: 0; list-style: none; }
+.reward {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 6rem;
+  align-items: start;
+  gap: 1rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--vault-line);
+}
+.reward:first-child { border-top: 1px solid var(--vault-line); }
+.identity { min-width: 0; }
+.identity h2 { font-size: .9375rem; font-weight: 600; overflow-wrap: anywhere; }
+.identity p, .details { margin-top: .25rem; color: #aebed3; font-size: .8125rem; }
+.amount { padding-top: .625rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.claimButton {
+  min-height: 2.75rem;
+  padding: .5rem 1rem;
+  border: 1px solid rgba(144, 178, 236, .32);
+  border-radius: .4rem;
+  background: var(--vault-panel);
+  color: #eef5ff;
+  font-size: .875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.claimButton:hover:not(:disabled) { background: #17243b; border-color: #7b98c5; }
+.claimButton:active:not(:disabled) { background: #22324d; }
+.claimButton:disabled { opacity: .5; cursor: default; }
+.page :is(button, input, a, summary):focus-visible { outline: 2px solid #91cfff; outline-offset: 3px; }
+.details summary, .help summary { cursor: pointer; width: fit-content; padding-block: .25rem; }
+.breakdown { max-width: 16rem; margin-top: .5rem; }
+.breakdown > div { display: flex; justify-content: space-between; gap: 1rem; padding-block: .2rem; }
+.cardPreview { width: min(100%, 180px); margin-top: .75rem; }
+.note, .help, .empty, .signIn p { color: #aebed3; font-size: .8125rem; line-height: 1.6; }
+.note { margin-top: .75rem; }
+.empty { padding: 1.5rem 0; border-block: 1px solid var(--vault-line); }
+.signIn { display: flex; align-items: center; gap: 1rem; }
+.codeForm { margin-top: 2rem; }
+.codeForm label { display: block; font-size: .875rem; font-weight: 600; margin-bottom: .5rem; }
+.codeControls { gap: .5rem; max-width: 25rem; }
+.codeControls input {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: .5rem .75rem;
+  background: var(--vault-ink);
+  border: 1px solid rgba(144, 178, 236, .32);
+  border-radius: .4rem;
+  color: #eef5ff;
+  font-size: 1rem;
+}
+.codeControls input::placeholder { color: #aebed3; }
+.help { margin-top: 1.5rem; }
+.help p { margin-top: .5rem; max-width: 65ch; }
+.success, .error { font-size: .875rem; margin-bottom: 1rem; }
+.success { color: #a2ebc9; }
+.error { color: #ffc0be; }
+
+@media (max-width: 480px) {
+  .page { padding-top: 1.5rem; }
+  .reward { grid-template-columns: minmax(0, 1fr) auto; gap: .5rem 1rem; }
+  .identity { grid-column: 1 / -1; }
+  .amount { align-self: center; padding: 0; }
+  .reward > button { min-width: 6rem; }
+  .signIn { align-items: flex-start; flex-direction: column; }
+}

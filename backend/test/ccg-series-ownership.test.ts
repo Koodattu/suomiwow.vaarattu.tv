@@ -1,5 +1,7 @@
 /// <reference path="../src/types/express-session.d.ts" />
 
+import duplicateRewards from "../src/services/ccg-duplicate-rewards.service";
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import "express-session";
@@ -181,7 +183,9 @@ test("alternative art unlock lookup keeps identical characters scoped to their r
   }
 });
 
-test("finish grants update one series entitlement and one shared series finish", async () => {
+test("finish grants update one series entitlement and one shared series finish", async (t) => {
+  t.mock.method(ccgService as any, "ensurePackBalance", async () => undefined);
+  t.mock.method(duplicateRewards, "acquire", async (_owner: unknown, rows: unknown[]) => rows.map(() => ({ packs: 0 })));
   const ownerId = new mongoose.Types.ObjectId();
   const setId = new mongoose.Types.ObjectId();
   const characterId = new mongoose.Types.ObjectId();
@@ -275,7 +279,9 @@ test("finish grants update one series entitlement and one shared series finish",
   }
 });
 
-test("an exact historical reward unlocks only that snapshot version", async () => {
+test("an exact historical reward unlocks only that snapshot version", async (t) => {
+  t.mock.method(ccgService as any, "ensurePackBalance", async () => undefined);
+  t.mock.method(duplicateRewards, "acquire", async (_owner: unknown, rows: unknown[]) => rows.map(() => ({ packs: 0 })));
   const ownerId = new mongoose.Types.ObjectId();
   const setId = new mongoose.Types.ObjectId();
   const characterId = new mongoose.Types.ObjectId();

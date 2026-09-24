@@ -55,6 +55,8 @@ export type CcgOpeningWire = Omit<CcgOpening, "results"> & {
     isNewFinish?: boolean;
     isNewSnapshot?: boolean;
     bonusPackReward: boolean;
+    duplicateMilestonePacks?: number;
+    duplicateProgress?: number;
     card: CcgCardWire;
   }>;
 };

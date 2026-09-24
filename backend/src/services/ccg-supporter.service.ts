@@ -246,7 +246,15 @@ class CcgSupporterService {
     return { packsPerCard: CREATION_REWARD_PACKS, availablePacks: (keys.length - claimed) * CREATION_REWARD_PACKS };
   }
 
-  async claimPacks(userId: string) {
+  async getClaimableRewards(userId: string) {
+    const creator = await CcgSupporterCreator.findOne({ userId }).select("_id").lean();
+    if (!creator) return [];
+    const sources = await CcgSupporterCharacter.find({ creatorId: creator._id, cardId: { $ne: null } }).select("_id name").lean();
+    const claimed = new Set(await CcgPackCredit.distinct("sourceKey", { ownerId: userId, sourceKey: { $in: sources.map(source => rewardKey(source._id)) } }));
+    return sources.filter(source => !claimed.has(rewardKey(source._id))).map(source => ({ id: String(source._id), title: source.name, packs: CREATION_REWARD_PACKS, source: "studio" as const }));
+  }
+
+  async claimPacks(userId: string, sourceId?: string) {
     await supporterLimit(`claim-packs:${userId}`, 10, 60_000);
     const creator = await status.ensureCreator(userId);
     const session = await mongoose.startSession();
@@ -254,9 +262,10 @@ class CcgSupporterService {
     try {
       await session.withTransaction(async () => {
         claimedPacks = 0;
+        await ccg.settleRewardRecharge(new mongoose.Types.ObjectId(userId), session);
         // Serialize claims for this creator, including requests from different tabs.
         await CcgSupporterCreator.updateOne({ _id: creator._id }, { $inc: { __v: 1 } }, { session });
-        const sources = await CcgSupporterCharacter.find({ creatorId: creator._id, cardId: { $ne: null } })
+        const sources = await CcgSupporterCharacter.find({ creatorId: creator._id, cardId: { $ne: null }, ...(sourceId ? { _id: objectId(sourceId) } : {}) })
           .select("_id cardId").session(session);
         const claimed = new Set(await CcgPackCredit.distinct("sourceKey", {
           ownerId: userId, sourceKey: { $in: sources.map((source) => rewardKey(source._id)) },

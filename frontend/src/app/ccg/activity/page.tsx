@@ -199,6 +199,7 @@ function ActivityPackThumbnail({ item }: { item: Extract<CcgActivityItem, { kind
 function ActivityRow({ item, timeFormatter }: { item: CcgActivityItem; timeFormatter: Intl.DateTimeFormat }) {
   const t = useTranslations("ccg.activity");
   const tCcg = useTranslations("ccg");
+  const tRewards = useTranslations("ccg.rewards");
   const occurredAt = new Date(item.occurredAt);
   const time = <time dateTime={item.occurredAt}>{timeFormatter.format(occurredAt)}</time>;
 
@@ -273,11 +274,11 @@ function ActivityRow({ item, timeFormatter }: { item: CcgActivityItem; timeForma
       ) : rewardCard ? (
         <ActivityRewardCardThumbnail reward={item.reward} />
       ) : (
-        <ActivityThumbnail kind={item.kind} fallback={isTwitch ? <FaTwitch /> : <FaTicket />} />
+        <ActivityThumbnail kind={item.kind} fallback={isTwitch ? <FaTwitch /> : item.kind === "reward" ? <FaGift /> : <FaTicket />} />
       )}
       <div className={styles.activityRowContent}>
         <div className={styles.activityRowHeading}>
-          <h3>{t(isTwitch ? "twitch.title" : "code.title")}</h3>
+          <h3>{item.kind === "reward" ? tRewards(item.source) : t(isTwitch ? "twitch.title" : "code.title")}</h3>
           {time}
         </div>
         {isTwitch ? <p className={styles.activitySource}>{item.rewardTitle}</p> : null}

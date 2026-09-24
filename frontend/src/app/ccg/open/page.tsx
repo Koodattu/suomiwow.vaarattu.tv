@@ -89,12 +89,14 @@ function randomIndex(length: number): number {
 }
 
 function getPullStatusKey(result: CcgOpening["results"][number]):
+  | "open.duplicateBonusPack"
   | "open.completedBonusPack"
   | "open.newCard"
   | "open.newFinish"
   | "open.newSnapshot"
   | "open.duplicate"
   | "open.newPull" {
+  if (result.duplicateMilestonePacks) return "open.duplicateBonusPack";
   if (result.bonusPackReward) return "open.completedBonusPack";
   if (result.isNewCard) return "open.newCard";
   if (result.isNewFinish) return "open.newFinish";
@@ -1286,6 +1288,7 @@ export default function CcgOpenPage() {
                   <aside className={packStyles.packBalancePanel}>
                     <div className={packStyles.packBalanceSummary}>
                       {session ? <PackBalance session={session} stripOnMobile /> : <div className={packStyles.balancePlaceholder} />}
+                      {session?.ownerType === "user" ? <Link href="/ccg/rewards" className={styles.shellPromotedLink}>{t("rewards.view")}</Link> : null}
                     </div>
                     {session ? (
                       <div className={packStyles.qualityDetails}>
@@ -1529,7 +1532,8 @@ export default function CcgOpenPage() {
                           <span className={packStyles.revealMotes} />
                         </span>
                         <span className={`${packStyles.pullStatus} ${result.bonusPackReward ? packStyles.pullStatusReward : ""}`} aria-hidden={!revealed}>
-                          <strong>{t(getPullStatusKey(result))}</strong>
+                          <strong>{t(getPullStatusKey(result), { count: result.duplicateMilestonePacks ?? 1 })}</strong>
+                          {result.duplicateProgress !== undefined && !result.duplicateMilestonePacks ? <small>{t("open.duplicateProgress", { count: result.duplicateProgress })}</small> : null}
                         </span>
                       </button>
                     );

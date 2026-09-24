@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomInt } from "crypto";
 import { Request, Response } from "express";
+import duplicateRewards from "./ccg-duplicate-rewards.service";
 import mongoose, { ClientSession, PipelineStage } from "mongoose";
 import {
   CCG_CARDS_PER_PACK,
@@ -135,12 +136,13 @@ const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
 
 export const CCG_ACTIVITY_FILTERS = ["all", "packs", "codes", "twitch"] as const;
 export type CcgActivityFilter = (typeof CCG_ACTIVITY_FILTERS)[number];
-type CcgActivityKind = "pack" | "code" | "twitch";
+type CcgActivityKind = "pack" | "code" | "twitch" | "reward";
 
 const CCG_ACTIVITY_KIND_RANK: Readonly<Record<CcgActivityKind, number>> = {
   pack: 3,
   code: 2,
   twitch: 1,
+  reward: 0,
 };
 
 type CcgActivityCursor = {
@@ -167,7 +169,8 @@ type CcgActivityTwitchRecord = Pick<
 type CcgActivityCandidate =
   | { kind: "pack"; sourceId: mongoose.Types.ObjectId; occurredAt: Date; record: CcgActivityPackRecord }
   | { kind: "code"; sourceId: mongoose.Types.ObjectId; occurredAt: Date; record: CcgActivityCodeRecord }
-  | { kind: "twitch"; sourceId: mongoose.Types.ObjectId; occurredAt: Date; record: CcgActivityTwitchRecord };
+  | { kind: "twitch"; sourceId: mongoose.Types.ObjectId; occurredAt: Date; record: CcgActivityTwitchRecord }
+  | { kind: "reward"; sourceId: mongoose.Types.ObjectId; occurredAt: Date; record: { _id: mongoose.Types.ObjectId; action: string; amount: number; createdAt: Date } };
 
 type CcgActivityCardRecord = Pick<
   ICcgCard,
@@ -875,6 +878,7 @@ class CcgService {
   }
 
   private async buildSession(owner: CcgOwner): Promise<Record<string, unknown>> {
+    if (owner.ownerType === "user") await duplicateRewards.ensure(owner.ownerId);
     const now = new Date();
     const [packState, qualityProgress, ownershipCount, sets, supporterFinishes] = await Promise.all([
       this.getSessionPackState(owner, now),
@@ -2317,7 +2321,7 @@ class CcgService {
         }
       : { state: "committed", ...packOwnerFilter };
 
-    const [openingRows, codeRows, twitchRows, summaryRows] = await Promise.all([
+    const [openingRows, codeRows, twitchRows, summaryRows, rewardRows] = await Promise.all([
       filter === "all" || filter === "packs"
         ? CcgPackOpening.find(packFilter)
             .select("_id mode selectionType targetSetId sourceSetIds results duplicateRewards createdAt")
@@ -2383,9 +2387,14 @@ class CcgService {
             ]),
             CcgSeriesOwnership.countDocuments({ ownerType: "user", ownerId: userId }),
           ]).then(([packs, finishes, uniqueCards]) => ({ packs, finishes, uniqueCards })),
+      filter === "all" ? CcgLedgerEntry.find({ ownerType: "user", ownerId: userId,
+        action: { $in: ["duplicate_backfill", "supporter_creation", "pickem_reward"] },
+        ...buildCcgActivityCursorFilter("createdAt", "reward", cursor),
+      }).select("action amount createdAt").sort({ createdAt: -1, _id: -1 }).limit(rowLimit).lean() : Promise.resolve([]),
     ]);
 
     const candidates: CcgActivityCandidate[] = [
+      ...rewardRows.map(record => ({ kind: "reward" as const, sourceId: record._id, occurredAt: record.createdAt, record })),
       ...openingRows.map((record) => ({ kind: "pack" as const, sourceId: record._id, occurredAt: record.createdAt, record })),
       ...codeRows.map((record) => ({ kind: "code" as const, sourceId: record._id, occurredAt: record.redeemedAt, record })),
       ...twitchRows.map((record) => ({ kind: "twitch" as const, sourceId: record._id, occurredAt: record.redeemedAt, record })),
@@ -2397,6 +2406,7 @@ class CcgService {
     const rewardCardIds = new Set<string>();
     const setIds = new Set<string>();
     pageCandidates.forEach((candidate) => {
+      if (candidate.kind === "reward") return;
       if (candidate.kind === "pack") {
         candidate.record.sourceSetIds.forEach((setId) => setIds.add(String(setId)));
         if (candidate.record.targetSetId) setIds.add(String(candidate.record.targetSetId));
@@ -2503,6 +2513,8 @@ class CcgService {
         kind: candidate.kind,
         occurredAt: candidate.occurredAt,
       };
+      if (candidate.kind === "reward") return { ...base, source: candidate.record.action,
+        reward: { type: "packs", packs: candidate.record.amount, packArt: null } };
       if (candidate.kind === "pack") {
         const packSetId = resolveCcgActivityPackSetId(
           candidate.record.selectionType,
@@ -2939,6 +2951,7 @@ class CcgService {
       throw new CcgServiceError(400, "invalid_reward_type", "Choose either packs or one card");
     }
 
+    if (input.public !== undefined && typeof input.public !== "boolean") throw new CcgServiceError(400, "invalid_visibility", "Visibility must be true or false");
     const packs = validatePackGrant(input.rewardType === "packs" ? input.packs : 0, "Pack reward");
     let cardId: mongoose.Types.ObjectId | null = null;
     let finish: CcgFinish | null = null;
@@ -2984,6 +2997,7 @@ class CcgService {
         finish,
         artVariant,
         active: true,
+        public: input.public === true,
         createdBy,
       });
       const serialized = await this.serializeRedeemCodes([created.toObject()]);
@@ -2992,6 +3006,46 @@ class CcgService {
       if (isDuplicateKeyError(error)) throw new CcgServiceError(409, "redeem_code_exists", "That redeem code already exists");
       throw error;
     }
+  }
+
+  async setRedeemCodeVisibilityForAdmin(codeId: string, publicValue: unknown) {
+    const id = validateObjectId(codeId, "redeem code ID");
+    if (typeof publicValue !== "boolean") throw new CcgServiceError(400, "invalid_visibility", "Visibility must be true or false");
+    const code = await CcgRedeemCode.findByIdAndUpdate(id, { $set: { public: publicValue } }, { returnDocument: "after" }).lean();
+    if (!code) throw new CcgServiceError(404, "redeem_code_not_found", "Redeem code not found");
+    const serialized = await this.serializeRedeemCodes([code]);
+    return { code: serialized.codes[0], sets: serialized.sets };
+  }
+
+  async getPublicRedeemCodes(userId: mongoose.Types.ObjectId) {
+    const claimed = await CcgRedeemClaim.distinct("codeId", { userId });
+    const codes = await CcgRedeemCode.find({ public: true, active: true, _id: { $nin: claimed } }).sort({ createdAt: -1 }).lean();
+    return this.serializeRedeemCodes(codes, true);
+  }
+
+  async claimPublicRedeemCode(req: Request, codeId: string) {
+    const id = validateObjectId(codeId, "redeem code ID");
+    const code = await CcgRedeemCode.findOne({ _id: id, public: true, active: true }).select("code").lean();
+    if (!code) throw new CcgServiceError(404, "redeem_code_not_found", "That reward is no longer available");
+    return this.redeemCode(req, { code: code.code }, true);
+  }
+
+  async claimHistoricalDuplicates(req: Request) {
+    requireFeature();
+    const ownerId = await this.requireAuthenticatedUser(req, "Log in to claim rewards");
+    const session = await mongoose.startSession();
+    let claimedPacks = 0;
+    try {
+      await session.withTransaction(async () => {
+        await this.ensurePackBalance({ ownerType: "user", ownerId, dateKey: getHelsinkiDateKey() }, session);
+        claimedPacks = await duplicateRewards.claim(ownerId, session);
+      });
+    } finally { await session.endSession(); }
+    return { claimedPacks };
+  }
+
+  async settleRewardRecharge(ownerId: mongoose.Types.ObjectId, session: ClientSession) {
+    await this.ensurePackBalance({ ownerType: "user", ownerId, dateKey: getHelsinkiDateKey() }, session);
   }
 
   async setRedeemCodeActiveForAdmin(codeId: string, activeValue: unknown): Promise<Record<string, unknown>> {
@@ -3003,7 +3057,7 @@ class CcgService {
     return { code: serialized.codes[0], sets: serialized.sets };
   }
 
-  async redeemCode(req: Request, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async redeemCode(req: Request, input: Record<string, unknown>, publicOnly = false): Promise<Record<string, unknown>> {
     requireFeature();
     if (!req.session.userId || !mongoose.Types.ObjectId.isValid(req.session.userId)) {
       throw new CcgServiceError(401, "authentication_required", "Log in to redeem codes");
@@ -3018,14 +3072,14 @@ class CcgService {
     try {
       await session.withTransaction(async () => {
         redeemed = null;
-        const code = await CcgRedeemCode.findOne({ code: normalizedCode, active: true }).session(session);
+        const code = await CcgRedeemCode.findOne({ code: normalizedCode, active: true, ...(publicOnly ? { public: true } : {}) }).session(session);
         if (!code) throw new CcgServiceError(404, "redeem_code_not_found", "That code is invalid or inactive");
         if (await CcgRedeemClaim.exists({ codeId: code._id, userId }).session(session)) {
           throw new CcgServiceError(409, "redeem_code_already_used", "You have already redeemed this code");
         }
 
         const reservedCode = await CcgRedeemCode.findOneAndUpdate(
-          { _id: code._id, active: true },
+          { _id: code._id, active: true, ...(publicOnly ? { public: true } : {}) },
           { $inc: { redemptionCount: 1 } },
           { returnDocument: "after", session },
         );
@@ -3356,11 +3410,11 @@ class CcgService {
         const ownedCardsBySetDelta = this.getOwnedCardDeltas(cards, alreadyOwnedSeriesKeys);
         this.writeFinishPity(qualityProgress, pity);
         await qualityProgress.save({ session });
-        await this.addOwnership(owner, results, session);
+        const milestoneRewards = await this.addOwnership(owner, results, session);
         const completionRewards = owner.ownerType === "user"
           ? await this.grantCompletedCardRewards(owner.ownerId, completedCardDuplicates, session)
           : { total: 0, rewardedSeriesKeys: new Set<string>() };
-        const duplicateRewards = completionRewards.total;
+        const duplicateRewards = completionRewards.total + milestoneRewards.reduce((sum, reward) => sum + reward.packs, 0);
         const pendingRewardSeriesKeys = new Set(completionRewards.rewardedSeriesKeys);
         const rewardedResultIndexes = new Set<number>();
         for (const candidate of completedCardDuplicates) {
@@ -3368,7 +3422,9 @@ class CcgService {
         }
         const shuffledResults = shufflePackResults(results.map((result, index) => ({
           ...result,
-          bonusPackReward: rewardedResultIndexes.has(index),
+          bonusPackReward: rewardedResultIndexes.has(index) || Boolean(milestoneRewards[index]?.packs),
+          duplicateMilestonePacks: milestoneRewards[index]?.packs ?? 0,
+          duplicateProgress: milestoneRewards[index]?.progress,
         })));
         const [opening] = await CcgPackOpening.create(
           [
@@ -3623,6 +3679,7 @@ class CcgService {
           },
           { session },
         );
+        await duplicateRewards.importGuest(userId, session);
         await CcgQualityProgress.updateMany(
           { ownerType: "guest", ownerId: transactionalGuest._id },
           {
@@ -4770,7 +4827,11 @@ class CcgService {
     owner: CcgOwner,
     results: Array<Pick<SelectedResult, "cardId" | "setId" | "characterId" | "snapshotVersion" | "finish" | "artVariant">>,
     session: ClientSession,
-  ): Promise<void> {
+  ): Promise<Array<{ packs: number; progress?: number }>> {
+    if (owner.ownerType === "user") await this.ensurePackBalance(owner, session);
+    const milestoneRewards = owner.ownerType === "user"
+      ? await duplicateRewards.acquire(owner.ownerId, results, session)
+      : results.map(() => ({ packs: 0 }));
     const supporterCards = await CcgCard.find({ _id: { $in: results.map((result) => result.cardId) }, supporterCharacterId: { $ne: null } })
       .select("_id creatorFinish supporterCharacterId").session(session).lean();
     const approvedImages = supporterCards.length && results.some((result) => result.artVariant === "alternative") ? await CcgSupporterMedia.find({ sourceId: { $in: supporterCards.map((card) => card.supporterCharacterId!) }, kind: "image", status: "approved", purgedAt: null })
@@ -4916,6 +4977,7 @@ class CcgService {
       })),
       { session, ordered: true },
     );
+    return milestoneRewards;
   }
 
   private getOwnedCardDeltas(
@@ -5018,6 +5080,7 @@ class CcgService {
 
   private async serializeRedeemCodes(
     codes: ReadonlyArray<ICcgRedeemCode | Record<string, any>>,
+    availableOnly = false,
   ): Promise<{ codes: Record<string, unknown>[]; sets: Record<string, unknown>[] }> {
     const cardIds = codes.flatMap((code) => code.rewardType === "card" && code.cardId ? [code.cardId] : []);
     const cards = cardIds.length > 0 ? await CcgCard.find({ _id: { $in: cardIds } }).lean() : [];
@@ -5030,11 +5093,20 @@ class CcgService {
 
     return {
       sets: sets.map((set) => this.serializeSet(set)),
-      codes: codes.map((code) => {
+      codes: codes.filter((code) => {
+        if (!availableOnly || code.rewardType === "packs") return true;
+        const card = cardById.get(String(code.cardId));
+        const set = card ? setById.get(String(card.setId)) : null;
+        if (!card || !set || card.availabilityStatus === "archived" || !code.finish || !code.artVariant) return false;
+        if (!getCcgRedeemFinishOrder(set.kind, set.kind === "supporter" ? card.creatorFinish : set.customFinish?.key).includes(code.finish)) return false;
+        return code.artVariant !== "alternative"
+          || hasApplicableAlternativeArt(alternativeByCollector.get(resolveAlternativeArtKey(card)), Boolean(card.communityCharacterId));
+      }).map((code) => {
         const base = {
           id: String(code._id),
           code: code.code,
           active: code.active,
+          public: code.public === true,
           redemptionCount: code.redemptionCount ?? 0,
           createdAt: code.createdAt,
           updatedAt: code.updatedAt,
@@ -5113,6 +5185,8 @@ class CcgService {
           isNewFinish: result.isNewFinish,
           isNewSnapshot: result.isNewSnapshot,
           bonusPackReward: Boolean(result.bonusPackReward),
+          duplicateMilestonePacks: result.duplicateMilestonePacks ?? 0,
+          duplicateProgress: result.duplicateProgress,
           card: card && set
             ? this.serializeCard(
                 card,

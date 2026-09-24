@@ -543,9 +543,9 @@
       }
     },
     "activity": {
-      "menuLabel": "My activity",
+      "menuLabel": "Activity",
       "eyebrow": "Your card vault",
-      "title": "Collection activity",
+      "title": "Activity",
       "body": "Your pack openings and rewards, newest first.",
       "summary": {
         "title": "Lifetime totals",
@@ -899,7 +899,9 @@
       "claimPickemPacks": "Claim {count, plural, one {# Pickem pack} other {# Pickem packs}}",
       "getPickemPacks": "Get Pickem packs",
       "chooseDifferent": "Choose a different pack",
-      "setComplete": "Set complete!"
+      "setComplete": "Set complete!",
+      "duplicateBonusPack": "{count, plural, one {10 duplicates collected · +1 pack} other {Duplicate milestones · +# packs}}",
+      "duplicateProgress": "{count}/10 toward a bonus pack"
     },
     "prototypes": {
       "kicker": "Temporary design lab",
@@ -1186,7 +1188,44 @@
     "motionTiltDisable": "Turn off motion tilt",
     "motionTiltRequesting": "Requesting motion access",
     "motionTiltDenied": "Motion access was denied",
-    "motionTiltUnavailable": "Motion tilt is unavailable"
+    "motionTiltUnavailable": "Motion tilt is unavailable",
+    "rewards": {
+      "title": "Rewards",
+      "view": "View rewards",
+      "loading": "Loading rewards…",
+      "loadError": "Rewards could not be loaded.",
+      "login": "Sign in to see and claim your rewards.",
+      "signIn": "Sign in",
+      "storageNote": "Recharge pauses at 100 stored packs. Rewards can exceed this limit.",
+      "claimed": "Reward claimed.",
+      "alreadyClaimed": "You have already claimed this code.",
+      "invalidCode": "This code is invalid or no longer available.",
+      "claimError": "The reward could not be claimed. Please try again.",
+      "claim": "Claim",
+      "claiming": "Claiming…",
+      "empty": "No rewards to claim.",
+      "duplicates": "Past duplicates",
+      "packCount": "{count, plural, one {# pack} other {# packs}}",
+      "breakdown": "View breakdown",
+      "raid": "Raid",
+      "community": "Community",
+      "supporter": "Supporter",
+      "studio": "Card Studio",
+      "pickem": "Pick’ems",
+      "promotion": "Code",
+      "enterCode": "Redeem a code",
+      "codePlaceholder": "Enter code",
+      "redeem": "Redeem",
+      "automaticRule": "After unlocking all finishes of a card, every 10 duplicates of that card grant a pack automatically. Past duplicate rewards can be claimed here whenever you want.",
+      "activity": "View Activity",
+      "redeem_code": "Reward code",
+      "cardReward": "1 card",
+      "duplicate_backfill": "Past duplicate rewards",
+      "supporter_creation": "Card Studio reward",
+      "pickem_reward": "Pick’ems reward",
+      "duplicate_milestone": "Duplicate milestone",
+      "duplicateHelp": "How duplicate rewards work"
+    }
   },
   "infoDialog": {
     "title": "About This Site",
@@ -2129,7 +2168,11 @@
         "updating": "Updating…",
         "updateError": "The redeem code could not be updated.",
         "enabledNotice": "Enabled redeem code {code}.",
-        "disabledNotice": "Disabled redeem code {code}."
+        "disabledNotice": "Disabled redeem code {code}.",
+        "showOnRewards": "Show on Rewards page",
+        "public": "Public",
+        "private": "Private",
+        "visibilityUpdated": "Code visibility updated."
       },
       "studio": {
         "title": "Card studio",

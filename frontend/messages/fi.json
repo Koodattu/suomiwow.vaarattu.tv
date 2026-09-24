@@ -543,9 +543,9 @@
       }
     },
     "activity": {
-      "menuLabel": "Omat tapahtumat",
+      "menuLabel": "Tapahtumat",
       "eyebrow": "Oma korttiholvisi",
-      "title": "Kokoelman tapahtumat",
+      "title": "Tapahtumat",
       "body": "Pakka-avauksesi ja palkintosi uusimmasta vanhimpaan.",
       "summary": {
         "title": "Kaikki yhteensä",
@@ -899,7 +899,9 @@
       "claimPickemPacks": "Lunasta {count, plural, one {# veikkauspakka} other {# veikkauspakkaa}}",
       "getPickemPacks": "Hanki veikkauspakkoja",
       "chooseDifferent": "Valitse toinen pakka",
-      "setComplete": "Setti valmis!"
+      "setComplete": "Setti valmis!",
+      "duplicateBonusPack": "{count, plural, one {10 duplikaattia kerätty · +1 pakka} other {Duplikaattipalkinnot · +# pakkaa}}",
+      "duplicateProgress": "{count}/10 kohti bonuspakkaa"
     },
     "prototypes": {
       "kicker": "Väliaikainen design-labra",
@@ -1186,7 +1188,44 @@
     "motionTiltDisable": "Poista liikekallistus käytöstä",
     "motionTiltRequesting": "Pyydetään liiketunnistuksen käyttöoikeutta",
     "motionTiltDenied": "Liiketunnistuksen käyttö estettiin",
-    "motionTiltUnavailable": "Liikekallistus ei ole käytettävissä"
+    "motionTiltUnavailable": "Liikekallistus ei ole käytettävissä",
+    "rewards": {
+      "title": "Palkinnot",
+      "view": "Näytä palkinnot",
+      "loading": "Ladataan palkintoja…",
+      "loadError": "Palkintojen lataaminen epäonnistui.",
+      "login": "Kirjaudu sisään nähdäksesi ja lunastaaksesi palkintosi.",
+      "signIn": "Kirjaudu sisään",
+      "storageNote": "Pakkojen kertyminen pysähtyy 100 pakkaan. Palkinnot voivat ylittää tämän rajan.",
+      "claimed": "Palkinto lunastettu.",
+      "alreadyClaimed": "Olet jo lunastanut tämän koodin.",
+      "invalidCode": "Koodi on virheellinen tai ei ole enää käytettävissä.",
+      "claimError": "Palkinnon lunastaminen epäonnistui. Yritä uudelleen.",
+      "claim": "Lunasta",
+      "claiming": "Lunastetaan…",
+      "empty": "Ei lunastettavia palkintoja.",
+      "duplicates": "Aiemmat duplikaatit",
+      "packCount": "{count, plural, one {# pakka} other {# pakkaa}}",
+      "breakdown": "Näytä erittely",
+      "raid": "Raid",
+      "community": "Community",
+      "supporter": "Supporter",
+      "studio": "Korttistudio",
+      "pickem": "Pick’ems",
+      "promotion": "Koodi",
+      "enterCode": "Lunasta koodi",
+      "codePlaceholder": "Syötä koodi",
+      "redeem": "Lunasta",
+      "automaticRule": "Kun olet avannut kortin kaikki viimeistelyt, jokaiset 10 saman kortin duplikaattia tuovat automaattisesti yhden pakan. Aiempien duplikaattien palkinnot voit lunastaa täältä milloin haluat.",
+      "activity": "Näytä tapahtumat",
+      "redeem_code": "Palkintokoodi",
+      "cardReward": "1 kortti",
+      "duplicate_backfill": "Aiempien duplikaattien palkinnot",
+      "supporter_creation": "Korttistudion palkinto",
+      "pickem_reward": "Pick’ems-palkinto",
+      "duplicate_milestone": "Duplikaattipalkinto",
+      "duplicateHelp": "Miten duplikaattipalkinnot toimivat"
+    }
   },
   "infoDialog": {
     "title": "Tietoa Sivustosta",
@@ -2129,7 +2168,11 @@
         "updating": "Päivitetään…",
         "updateError": "Lunastuskoodia ei voitu päivittää.",
         "enabledNotice": "Lunastuskoodi {code} otettiin käyttöön.",
-        "disabledNotice": "Lunastuskoodi {code} poistettiin käytöstä."
+        "disabledNotice": "Lunastuskoodi {code} poistettiin käytöstä.",
+        "showOnRewards": "Näytä Palkinnot-sivulla",
+        "public": "Julkinen",
+        "private": "Yksityinen",
+        "visibilityUpdated": "Koodin näkyvyys päivitetty."
       },
       "studio": {
         "title": "Korttistudio",

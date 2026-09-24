@@ -13,6 +13,7 @@ export interface ICcgRedeemCode extends Document {
   cardId?: mongoose.Types.ObjectId | null;
   finish?: CcgFinish | null;
   artVariant?: CcgArtVariant | null;
+  public: boolean;
   active: boolean;
   redemptionCount: number;
   createdBy: mongoose.Types.ObjectId;
@@ -44,6 +45,7 @@ const CcgRedeemCodeSchema = new Schema<ICcgRedeemCode>(
       immutable: true,
     },
     artVariant: { type: String, enum: ["standard", "alternative", null], default: null, immutable: true },
+    public: { type: Boolean, default: false },
     active: { type: Boolean, required: true, default: true, index: true },
     redemptionCount: { type: Number, required: true, min: 0, default: 0 },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true, immutable: true },

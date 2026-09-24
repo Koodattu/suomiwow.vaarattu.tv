@@ -15,6 +15,8 @@ export interface ICcgPackResult {
   isNewFinish?: boolean;
   isNewSnapshot?: boolean;
   bonusPackReward: boolean;
+  duplicateMilestonePacks?: number;
+  duplicateProgress?: number;
 }
 
 export interface ICcgPackOpening extends Document {
@@ -53,6 +55,8 @@ const ResultSchema = new Schema<ICcgPackResult>(
     isNewCard: { type: Boolean },
     isNewFinish: { type: Boolean },
     isNewSnapshot: { type: Boolean },
+    duplicateMilestonePacks: { type: Number, min: 0 },
+    duplicateProgress: { type: Number, min: 0, max: 9 },
     bonusPackReward: { type: Boolean, required: true, default: false },
   },
   { _id: false },

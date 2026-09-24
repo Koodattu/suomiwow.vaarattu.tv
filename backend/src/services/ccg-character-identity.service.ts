@@ -3,6 +3,9 @@ import CcgAlternativeArt from "../models/CcgAlternativeArt";
 import CcgCard from "../models/CcgCard";
 import CcgCommunityCharacter from "../models/CcgCommunityCharacter";
 import CcgOwnership from "../models/CcgOwnership";
+import CcgDuplicateRewardAccount from "../models/CcgDuplicateRewardAccount";
+import CcgDuplicateRewardProgress from "../models/CcgDuplicateRewardProgress";
+import User from "../models/User";
 import CcgSeriesOwnership from "../models/CcgSeriesOwnership";
 import CcgSet from "../models/CcgSet";
 import Character, { ICharacter } from "../models/Character";
@@ -171,6 +174,25 @@ class CcgCharacterIdentityService {
     const sourceOwnershipRows = await CcgOwnership.find({ setId, characterId: sourceCharacterId })
       .session(session)
       .lean();
+    const ownerIds = sourceOwnershipRows.filter(row => row.ownerType === "user").map(row => row.ownerId);
+    // Serialize with both first-visit initialization and ongoing duplicate acquisitions.
+    if (ownerIds.length) {
+      await User.updateMany({ _id: { $in: ownerIds } }, { $inc: { __v: 1 } }, { session });
+      await CcgDuplicateRewardAccount.updateMany({ ownerId: { $in: ownerIds } }, { $inc: { revision: 1 } }, { session });
+    }
+    const rewardRows = await CcgDuplicateRewardProgress.find({ setId, characterId: sourceCharacterId }).session(session);
+    for (const source of rewardRows) {
+      const target = await CcgDuplicateRewardProgress.findOne({ ownerId: source.ownerId, setId, characterId: targetCharacterId }).session(session);
+      if (target) {
+        target.duplicates += source.duplicates;
+        target.processedMilestones += source.processedMilestones;
+        await target.save({ session });
+        await source.deleteOne({ session });
+      } else {
+        source.characterId = targetCharacterId;
+        await source.save({ session });
+      }
+    }
     const targetOwnershipRows = sourceOwnershipRows.length > 0
       ? await CcgOwnership.find({
           setId,

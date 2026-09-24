@@ -38,6 +38,8 @@ import CcgPackCredit from "../src/models/CcgPackCredit";
 import CcgLedgerEntry from "../src/models/CcgLedgerEntry";
 import CcgPackOpening from "../src/models/CcgPackOpening";
 import CcgQualityProgress from "../src/models/CcgQualityProgress";
+import CcgDuplicateRewardAccount from "../src/models/CcgDuplicateRewardAccount";
+import CcgDuplicateRewardProgress from "../src/models/CcgDuplicateRewardProgress";
 import status, { supporterLimit } from "../src/services/ccg-supporter-status.service";
 import studio from "../src/services/ccg-supporter.service";
 import publisher from "../src/services/ccg-publisher.service";
@@ -55,7 +57,8 @@ const otherId = new mongoose.Types.ObjectId();
 let server: Server;
 let baseUrl: string;
 const models = [User, Guild, Creator, Source, Grant, Event, Limit, Card, SetModel, Pool, Ownership, Series, Invalidation,
-  CcgJobLock, CcgLeaderboardEntry, CcgPackBalance, CcgPackCredit, CcgLedgerEntry, CcgPackOpening, CcgQualityProgress, Media, AlternativeArt];
+  CcgJobLock, CcgLeaderboardEntry, CcgPackBalance, CcgPackCredit, CcgLedgerEntry, CcgPackOpening, CcgQualityProgress, Media, AlternativeArt,
+  CcgDuplicateRewardAccount, CcgDuplicateRewardProgress];
 const chars = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, realmId: 10, name: `Mage${i + 1}`, realm: "Stormreaver",
   realmSlug: "stormreaver", class: "Mage", race: "Human", level: 10, faction: "ALLIANCE" as const, selected: false, inactive: false }));
 
@@ -222,8 +225,8 @@ test("failed claim transactions roll back credits and can be retried", async (t)
 
 test("claim endpoint ignores client amounts and keeps rewards above the recharge cap", async () => {
   await publish();
-  await CcgPackBalance.create({ ownerType: "user", ownerId: userId, remaining: 100,
-    lastRechargeAt: new Date(), grantVersion: CCG_PACK_BALANCE_VERSION, hasPlayed: true });
+  await CcgPackBalance.updateOne({ ownerType: "user", ownerId: userId }, { $set: { remaining: 100,
+    lastRechargeAt: new Date(), grantVersion: CCG_PACK_BALANCE_VERSION, hasPlayed: true } }, { upsert: true });
   const request = (headers: Record<string, string>) => fetch(`${baseUrl}/api/ccg/studio/rewards/claim`, {
     method: "POST", headers: { "Content-Type": "application/json", Origin: "http://localhost:3000", ...headers },
     body: JSON.stringify({ amount: 9999, userId: String(otherId) }),

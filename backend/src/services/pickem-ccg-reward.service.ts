@@ -1,3 +1,4 @@
+import ccg from "./ccg.service";
 import mongoose from "mongoose";
 import { CCG_FEATURE_ENABLED } from "../config/ccg";
 import CcgLedgerEntry from "../models/CcgLedgerEntry";
@@ -55,6 +56,13 @@ function isDuplicateKeyError(error: unknown): boolean {
 }
 
 class PickemCcgRewardService {
+  async getClaimableRewards(userId: mongoose.Types.ObjectId) {
+    const user = await User.findById(userId).select("pickems.pickemId").lean();
+    const pickems = await Pickem.find({ active: true, ccgRewardPacks: { $gt: 0 }, pickemId: { $in: user?.pickems?.map(entry => entry.pickemId) ?? [] } }).select("_id pickemId name ccgRewardPacks").lean();
+    const claimed = new Set(await CcgPackCredit.distinct("sourceKey", { ownerId: userId, sourceKey: { $in: pickems.map(pickem => getPickemCcgRewardSourceKey(pickem._id)) } }));
+    return pickems.filter(pickem => !claimed.has(getPickemCcgRewardSourceKey(pickem._id))).map(pickem => ({ id: pickem.pickemId, title: pickem.name, packs: pickem.ccgRewardPacks, source: "pickem" as const }));
+  }
+
   async getOpportunitySummary(
     userId: string | mongoose.Types.ObjectId,
     now = new Date(),
@@ -146,6 +154,7 @@ class PickemCcgRewardService {
             return;
           }
 
+          await ccg.settleRewardRecharge(userId, session);
           await CcgPackCredit.create(
             [{ ownerId: userId, source: "pickem_reward", sourceKey, remaining: packs }],
             { session },

@@ -1,3 +1,4 @@
+import ccg from "../src/services/ccg.service";
 import assert from "node:assert/strict";
 import test from "node:test";
 import mongoose from "mongoose";
@@ -64,7 +65,8 @@ test("uses durable unique keys for one Pickem reward per user", () => {
   assert.equal((User.schema.path("pickems") as any).schema.path("ccgRewardClaimed"), undefined);
 });
 
-test("claims generic packs once for submitted regular and RWF Pickems even after voting ends", async () => {
+test("claims generic packs once for submitted regular and RWF Pickems even after voting ends", async (t) => {
+  const recharge = t.mock.method(ccg, "settleRewardRecharge", async () => undefined);
   const originalStartSession = mongoose.startSession;
   const originalPickemFindOne = Pickem.findOne;
   const originalUserExists = User.exists;
@@ -112,6 +114,7 @@ test("claims generic packs once for submitted regular and RWF Pickems even after
       });
     }
 
+    assert.equal(recharge.mock.callCount(), 2, "Only new claims settle recharge before adding credits");
     assert.equal(creditCreates.length, 2);
     assert.equal(ledgerCreates.length, 2);
     assert.ok(creditCreates.every((credit) => credit.source === "pickem_reward" && credit.remaining === 25 && credit.mode === undefined));

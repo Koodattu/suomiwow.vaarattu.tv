@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { FaArrowRightFromBracket, FaChevronDown, FaClockRotateLeft, FaGear, FaMagnifyingGlass, FaUser } from "react-icons/fa6";
+import { FaGift, FaArrowRightFromBracket, FaChevronDown, FaClockRotateLeft, FaGear, FaMagnifyingGlass, FaUser } from "react-icons/fa6";
 import { useAuth } from "@/context/AuthContext";
 import styles from "./ccg.module.css";
 
@@ -78,6 +78,9 @@ export default function CcgAccountMenu() {
           <Link href="/ccg/character-checker" role="menuitem" className={styles.accountPromotedMenuItem} onClick={() => setIsOpen(false)}>
             <FaMagnifyingGlass aria-hidden="true" />
             {t("characterChecker.menuLabel")}
+          </Link>
+          <Link href="/ccg/rewards" role="menuitem" className={styles.accountPromotedMenuItem} onClick={() => setIsOpen(false)}>
+            <FaGift aria-hidden="true" />{t("rewards.title")}
           </Link>
           {user.isAdmin ? (
             <Link href="/admin" role="menuitem" className={styles.accountAdminLink} onClick={() => setIsOpen(false)}>

@@ -171,6 +171,11 @@ router.post(
 );
 
 router.patch(
+  "/redeem-codes/:id/visibility",
+  adminRoute(async (req) => ccgService.setRedeemCodeVisibilityForAdmin(req.params.id, req.body?.public)),
+);
+
+router.patch(
   "/redeem-codes/:id",
   adminRoute(async (req) => ccgService.setRedeemCodeActiveForAdmin(req.params.id, req.body?.active)),
 );

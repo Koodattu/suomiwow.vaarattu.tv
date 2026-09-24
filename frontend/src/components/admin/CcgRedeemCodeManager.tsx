@@ -14,6 +14,7 @@ type Props = {
 };
 
 type Draft = {
+  public: boolean;
   code: string;
   rewardType: "packs" | "card";
   packs: number;
@@ -22,6 +23,7 @@ type Draft = {
 };
 
 const emptyDraft: Draft = {
+  public: false,
   code: "",
   rewardType: "packs",
   packs: 0,
@@ -142,6 +144,7 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
     try {
       const result = await api.createAdminCcgRedeemCode({
         code: normalizedCode,
+        public: draft.public,
         rewardType: draft.rewardType,
         packs: draft.rewardType === "packs" ? draft.packs : 0,
         cardId: draft.rewardType === "card" ? selectedVariant?.id ?? null : null,
@@ -175,6 +178,16 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
     }
   };
 
+  const updateVisibility = async (code: CcgAdminRedeemCode) => {
+    setUpdatingId(code.id);
+    try {
+      const result = await api.setAdminCcgRedeemCodePublic(code.id, !code.public);
+      setCodes(current => current.map(row => row.id === code.id ? result.code : row));
+      onNotice(t("visibilityUpdated"));
+    } catch { onError(t("updateError")); }
+    finally { setUpdatingId(null); }
+  };
+
   return (
     <section className="grid gap-5 xl:grid-cols-[minmax(21rem,27rem)_minmax(0,1fr)]" aria-labelledby="ccg-redeem-code-title">
       <div className="self-start rounded-xl bg-gray-900/70 p-5 shadow-[0_0_0_1px_rgba(255,255,255,.08),0_12px_28px_rgba(0,0,0,.16)]">
@@ -202,6 +215,10 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
           </label>
           {draft.code && !validCode ? <p className="text-xs text-amber-300">{t("codeHelp")}</p> : null}
 
+          <label className="flex items-center gap-2 text-sm text-gray-300">
+            <input type="checkbox" checked={draft.public} onChange={event => setDraft(current => ({ ...current, public: event.target.checked }))} />
+            {t("showOnRewards")}
+          </label>
           <fieldset>
             <legend className="text-xs font-semibold text-gray-400">{t("rewardType")}</legend>
             <div className="mt-1.5 grid grid-cols-2 gap-2">
@@ -360,6 +377,9 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
                       <span className="tabular-nums">{t("redemptions", { count: code.redemptionCount })}</span> · {dateFormatter.format(new Date(code.createdAt))}
                     </p>
                   </div>
+                  <button type="button" className={secondaryButton} disabled={updatingId === code.id} onClick={() => void updateVisibility(code)} aria-pressed={code.public}>
+                    {t(code.public ? "public" : "private")}
+                  </button>
                   <button type="button" className={secondaryButton} disabled={updatingId === code.id} onClick={() => void updateActive(code)}>
                     {updatingId === code.id ? t("updating") : t(code.active ? "disable" : "enable")}
                   </button>

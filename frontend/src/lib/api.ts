@@ -367,6 +367,20 @@ export const api = {
     return response.json();
   },
 
+  async getCcgRewards(): Promise<import("@/types").CcgRewardsResponse> {
+    const response = await fetch(`${API_URL}/api/ccg/rewards`, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw await buildApiError(response, "Failed to load rewards");
+    const data = await response.json();
+    return { ...data, publicCodes: hydrateCcgAdminRedeemCodes(data.publicCodes).codes };
+  },
+
+  async claimCcgReward(source: "duplicates" | "pickem" | "studio" | "code", id?: string): Promise<void> {
+    const response = await fetch(`${API_URL}/api/ccg/rewards/claim`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source, id }),
+    });
+    if (!response.ok) throw await buildApiError(response, "Failed to claim reward");
+  },
+
   async getCcgSession(): Promise<CcgSession> {
     const response = await fetch(`${API_URL}/api/ccg/session`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load the card vault");
@@ -767,6 +781,7 @@ export const api = {
 
   async createAdminCcgRedeemCode(input: {
     code: string;
+    public: boolean;
     rewardType: "packs" | "card";
     packs: number;
     cardId: string | null;
@@ -780,6 +795,14 @@ export const api = {
       body: JSON.stringify(input),
     });
     if (!response.ok) throw await buildApiError(response, "Failed to create the redeem code");
+    return hydrateCcgAdminRedeemCode(await response.json() as CcgAdminRedeemCodeResponseWire);
+  },
+
+  async setAdminCcgRedeemCodePublic(codeId: string, isPublic: boolean): Promise<{ code: CcgAdminRedeemCode }> {
+    const response = await fetch(`${API_URL}/api/admin/ccg/redeem-codes/${encodeURIComponent(codeId)}/visibility`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ public: isPublic }),
+    });
+    if (!response.ok) throw await buildApiError(response, "Failed to update code visibility");
     return hydrateCcgAdminRedeemCode(await response.json() as CcgAdminRedeemCodeResponseWire);
   },
 

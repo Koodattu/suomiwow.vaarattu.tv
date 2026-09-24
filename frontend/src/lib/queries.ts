@@ -662,3 +662,7 @@ export function useCcgCharacterCheck(name: string, realm: string, enabled = true
     staleTime: 30 * 1000,
   });
 }
+
+export function useCcgRewards(userId?: string) {
+  return useQuery({ queryKey: ["ccg", "rewards", userId], queryFn: () => api.getCcgRewards(), enabled: Boolean(userId), staleTime: 30_000 });
+}

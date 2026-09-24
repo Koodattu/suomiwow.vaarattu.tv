@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { FaArrowLeft, FaClockRotateLeft, FaMagnifyingGlass, FaTrophy, FaVault, FaPaintbrush } from "react-icons/fa6";
+import { useAuth } from "@/context/AuthContext";
+import { useCcgRewards } from "@/lib/queries";
 import CcgAccountMenu from "./CcgAccountMenu";
 import CcgIntentLink from "./CcgIntentLink";
 import CcgControls from "./CcgControls";
@@ -51,6 +53,8 @@ export default function CcgShell({
   onOpenPacksClick?: () => void;
 }) {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const rewards = useCcgRewards(user?.discord.username);
   const t = useTranslations("ccg");
   const links = [
     { href: "/ccg", label: t("nav.home"), icon: VaultOverviewIcon },
@@ -113,6 +117,9 @@ export default function CcgShell({
                 <FaMagnifyingGlass aria-hidden="true" />
                 {t("characterChecker.menuLabel")}
               </CcgIntentLink>
+              <CcgIntentLink href="/ccg/rewards" aria-current={pathname.startsWith("/ccg/rewards") ? "page" : undefined} className={styles.shellPromotedLink}>
+                {t("rewards.title")}
+              </CcgIntentLink>
               <CcgIntentLink
                 href="/ccg/activity"
                 aria-current={pathname.startsWith("/ccg/activity") ? "page" : undefined}
@@ -127,7 +134,11 @@ export default function CcgShell({
           </div>
         </div>
       </header>
-      <div className={styles.shellContent}>{children}</div>
+      <div className={styles.shellContent}>
+        {user && rewards.isPending ? <p className={styles.rewardInitStatus} role="status">{t("rewards.loading")}</p> : null}
+        {user && rewards.isError ? <p className={styles.rewardInitStatus} role="alert">{t("rewards.loadError")} <button type="button" onClick={() => void rewards.refetch()}>{t("error.retry")}</button></p> : null}
+        {children}
+      </div>
     </main>
   );
 }

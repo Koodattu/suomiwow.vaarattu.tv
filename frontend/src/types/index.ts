@@ -2469,6 +2469,8 @@ export type CcgOpening = {
     isNewFinish?: boolean;
     isNewSnapshot?: boolean;
     bonusPackReward: boolean;
+    duplicateMilestonePacks?: number;
+    duplicateProgress?: number;
     card: CcgCard;
   }>;
   cacheUpdates?: {
@@ -2527,6 +2529,7 @@ export type CcgActivityPackCard = {
 };
 
 export type CcgActivityItem =
+  | { id: string; kind: "reward"; occurredAt: string; source: "duplicate_backfill" | "supporter_creation" | "pickem_reward"; reward: CcgActivityReward }
   | {
       id: string;
       kind: "pack";
@@ -2875,6 +2878,7 @@ export type CcgAdminCardSearchResponse = {
 };
 
 export type CcgAdminRedeemCode = {
+  public: boolean;
   id: string;
   code: string;
   active: boolean;
@@ -4783,3 +4787,10 @@ export interface ReporterStatusResponse {
 }
 
 export type ReporterSettingsUpdate = Partial<Pick<ReporterStatusResponse["config"], "featureEnabled" | "automationEnabled" | "autoPublish">>;
+
+export type CcgRewardsResponse = {
+  historical: { availablePacks: number; breakdown: { raid: number; community: number; supporter: number }; claimedAt: string | null };
+  items: Array<{ id: string; source: "pickem" | "studio"; title: string; packs: number }>;
+  publicCodes: CcgAdminRedeemCode[];
+  recent: Array<{ id: string; source: "duplicate_backfill" | "supporter_creation" | "pickem_reward" | "redeem_code"; rewardType: "packs" | "card"; packs: number; at: string }>;
+};

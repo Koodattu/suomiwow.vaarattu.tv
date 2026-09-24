@@ -1,3 +1,4 @@
+import rewardsRouter from "./ccg-rewards";
 import { createHash } from "crypto";
 import { createReadStream } from "fs";
 import { NextFunction, Request, Response, Router } from "express";
@@ -16,6 +17,7 @@ import { resolveCharacterRenderStoragePath } from "../services/character-render-
 
 const router = Router();
 router.use("/studio", studioRouter);
+router.use("/rewards", rateLimit(60, 60_000, ownerRateLimitKey), rewardsRouter);
 const CCG_ANALYTICS_CACHE_TTL_MS = 15 * 60 * 1000;
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
 
