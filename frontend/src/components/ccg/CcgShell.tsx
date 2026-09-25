@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { FaArrowLeft, FaClockRotateLeft, FaMagnifyingGlass, FaTrophy, FaVault, FaPaintbrush } from "react-icons/fa6";
+import { FaGift, FaArrowLeft, FaClockRotateLeft, FaMagnifyingGlass, FaTrophy, FaVault, FaPaintbrush } from "react-icons/fa6";
 import { useAuth } from "@/context/AuthContext";
 import { useCcgRewards } from "@/lib/queries";
 import CcgAccountMenu from "./CcgAccountMenu";
@@ -118,7 +118,7 @@ export default function CcgShell({
                 {t("characterChecker.menuLabel")}
               </CcgIntentLink>
               <CcgIntentLink href="/ccg/rewards" aria-current={pathname.startsWith("/ccg/rewards") ? "page" : undefined} className={styles.shellPromotedLink}>
-                {t("rewards.title")}
+                <FaGift aria-hidden="true" />{t("rewards.title")}
               </CcgIntentLink>
               <CcgIntentLink
                 href="/ccg/activity"

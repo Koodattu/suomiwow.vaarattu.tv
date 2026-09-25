@@ -1,13 +1,14 @@
 # CCG Rewards
 
 `/ccg/rewards` lists historical duplicate packs, eligible Pick'em rewards, individual
-Card Studio creation rewards, and active public redeem codes. Existing claim
+Card Studio creation rewards, active public redeem codes, and all codes claimed by
+the signed-in user (including codes later made private or inactive). Existing claim
 locations and manual code entry share the same claim records. Public visibility
 defaults to false and is editable in the admin redeem-code manager.
 
-The page uses a compact claim list and code entry. Claim history lives in Activity;
-duplicate rules and the historical breakdown are available on demand. The desktop
-Rewards navigation link is text only, without a count badge.
+The page uses a compact claim list and code entry. Full activity lives in Activity; claimed codes also remain visible on Rewards.
+Duplicate rules and the historical breakdown are available on demand. The desktop
+Rewards navigation link has a gift icon, without a count badge.
 
 ## Duplicate rules
 

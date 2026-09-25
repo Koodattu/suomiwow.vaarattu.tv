@@ -4792,5 +4792,6 @@ export type CcgRewardsResponse = {
   historical: { availablePacks: number; breakdown: { raid: number; community: number; supporter: number }; claimedAt: string | null };
   items: Array<{ id: string; source: "pickem" | "studio"; title: string; packs: number }>;
   publicCodes: CcgAdminRedeemCode[];
+  claimedCodes: Array<CcgAdminRedeemCode & { claimedAt: string }>;
   recent: Array<{ id: string; source: "duplicate_backfill" | "supporter_creation" | "pickem_reward" | "redeem_code"; rewardType: "packs" | "card"; packs: number; at: string }>;
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { FaGift, FaIdCard, FaTicket } from "react-icons/fa6";
 import { api } from "@/lib/api";
@@ -37,6 +38,7 @@ const primaryButton = "min-h-10 rounded-md bg-amber-600 px-4 py-2 text-sm font-b
 
 export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
   const t = useTranslations("admin.ccg.redeemCodes");
+  const queryClient = useQueryClient();
   const ccg = useTranslations("ccg");
   const locale = useLocale();
   const [codes, setCodes] = useState<CcgAdminRedeemCode[]>([]);
@@ -152,6 +154,7 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
         artVariant: draft.rewardType === "card" ? draft.artVariant : null,
       });
       setCodes((current) => [result.code, ...current]);
+      void queryClient.invalidateQueries({ queryKey: ["ccg", "rewards"] });
       setDraft(emptyDraft);
       setSearch("");
       setCards([]);
@@ -170,6 +173,7 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
     try {
       const result = await api.setAdminCcgRedeemCodeActive(code.id, !code.active);
       setCodes((current) => current.map((row) => row.id === code.id ? result.code : row));
+      void queryClient.invalidateQueries({ queryKey: ["ccg", "rewards"] });
       onNotice(t(result.code.active ? "enabledNotice" : "disabledNotice", { code: result.code.code }));
     } catch (error) {
       onError(error instanceof Error ? error.message : t("updateError"));
@@ -183,6 +187,7 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
     try {
       const result = await api.setAdminCcgRedeemCodePublic(code.id, !code.public);
       setCodes(current => current.map(row => row.id === code.id ? result.code : row));
+      void queryClient.invalidateQueries({ queryKey: ["ccg", "rewards"] });
       onNotice(t("visibilityUpdated"));
     } catch { onError(t("updateError")); }
     finally { setUpdatingId(null); }
@@ -374,11 +379,11 @@ export default function CcgRedeemCodeManager({ onError, onNotice }: Props) {
                           : t("missingCard")}
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
-                      <span className="tabular-nums">{t("redemptions", { count: code.redemptionCount })}</span> · {dateFormatter.format(new Date(code.createdAt))}
+                      {t(code.public ? "public" : "private")} · <span className="tabular-nums">{t("redemptions", { count: code.redemptionCount })}</span> · {dateFormatter.format(new Date(code.createdAt))}
                     </p>
                   </div>
-                  <button type="button" className={secondaryButton} disabled={updatingId === code.id} onClick={() => void updateVisibility(code)} aria-pressed={code.public}>
-                    {t(code.public ? "public" : "private")}
+                  <button type="button" className={secondaryButton} disabled={updatingId === code.id} onClick={() => void updateVisibility(code)}>
+                    {t(code.public ? "makePrivate" : "makePublic")}
                   </button>
                   <button type="button" className={secondaryButton} disabled={updatingId === code.id} onClick={() => void updateActive(code)}>
                     {updatingId === code.id ? t("updating") : t(code.active ? "disable" : "enable")}

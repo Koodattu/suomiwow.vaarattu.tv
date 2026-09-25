@@ -208,6 +208,7 @@ import {
   hydrateCcgAdminCardSearch,
   hydrateCcgAdminRedeemCode,
   hydrateCcgAdminRedeemCodes,
+  hydrateCcgClaimedRedeemCodes,
   hydrateCcgCatalog,
   hydrateCcgCollection,
   hydrateCcgFeaturedCard,
@@ -371,7 +372,8 @@ export const api = {
     const response = await fetch(`${API_URL}/api/ccg/rewards`, { credentials: "include", cache: "no-store" });
     if (!response.ok) throw await buildApiError(response, "Failed to load rewards");
     const data = await response.json();
-    return { ...data, publicCodes: hydrateCcgAdminRedeemCodes(data.publicCodes).codes };
+    return { ...data, publicCodes: hydrateCcgAdminRedeemCodes(data.publicCodes).codes,
+      claimedCodes: hydrateCcgClaimedRedeemCodes(data.claimedCodes) };
   },
 
   async claimCcgReward(source: "duplicates" | "pickem" | "studio" | "code", id?: string): Promise<void> {

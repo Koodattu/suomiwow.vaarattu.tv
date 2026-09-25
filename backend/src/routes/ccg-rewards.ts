@@ -28,12 +28,13 @@ router.get("/", async (req, res, next) => {
   res.setHeader("Cache-Control", "private, no-store");
   try {
     const ownerId = new mongoose.Types.ObjectId(req.session.userId!);
-    const [historical, pickem, creation, publicCodes, recent] = await Promise.all([
+    const [historical, pickem, creation, publicCodes, claimedCodes, recent] = await Promise.all([
       duplicates.status(ownerId), pickems.getClaimableRewards(ownerId), studio.getClaimableRewards(String(ownerId)), ccg.getPublicRedeemCodes(ownerId),
+      ccg.getClaimedRedeemCodes(ownerId),
       CcgLedgerEntry.find({ ownerType: "user", ownerId, action: { $in: ["duplicate_backfill", "supporter_creation", "pickem_reward", "redeem_code"] } })
         .select("action amount metadata.rewardType createdAt").sort({ createdAt: -1, _id: -1 }).limit(10).lean(),
     ]);
-    res.json({ historical, items: [...pickem, ...creation], publicCodes,
+    res.json({ historical, items: [...pickem, ...creation], publicCodes, claimedCodes,
       recent: recent.map(row => ({ id: String(row._id), source: row.action, packs: row.metadata?.rewardType === "card" ? 0 : row.amount,
         rewardType: row.metadata?.rewardType === "card" ? "card" : "packs", at: row.createdAt })) });
   } catch (error) { next(error); }

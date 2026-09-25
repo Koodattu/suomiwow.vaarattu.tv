@@ -1224,6 +1224,7 @@
       "supporter_creation": "Korttistudion palkinto",
       "pickem_reward": "Pick’ems-palkinto",
       "duplicate_milestone": "Duplikaattipalkinto",
+      "codeClaimed": "Lunastettu",
       "duplicateHelp": "Miten duplikaattipalkinnot toimivat"
     }
   },
@@ -2172,6 +2173,8 @@
         "showOnRewards": "Näytä Palkinnot-sivulla",
         "public": "Julkinen",
         "private": "Yksityinen",
+        "makePublic": "Muuta julkiseksi",
+        "makePrivate": "Muuta yksityiseksi",
         "visibilityUpdated": "Koodin näkyvyys päivitetty."
       },
       "studio": {

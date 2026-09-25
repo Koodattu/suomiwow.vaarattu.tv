@@ -1224,6 +1224,7 @@
       "supporter_creation": "Card Studio reward",
       "pickem_reward": "Pick’ems reward",
       "duplicate_milestone": "Duplicate milestone",
+      "codeClaimed": "Claimed",
       "duplicateHelp": "How duplicate rewards work"
     }
   },
@@ -2172,6 +2173,8 @@
         "showOnRewards": "Show on Rewards page",
         "public": "Public",
         "private": "Private",
+        "makePublic": "Make public",
+        "makePrivate": "Make private",
         "visibilityUpdated": "Code visibility updated."
       },
       "studio": {

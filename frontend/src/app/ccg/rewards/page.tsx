@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import CcgShell from "@/components/ccg/CcgShell";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
 import { useAuth } from "@/context/AuthContext";
@@ -13,6 +13,7 @@ import styles from "./rewards.module.css";
 
 export default function RewardsPage() {
   const t = useTranslations("ccg.rewards");
+  const locale = useLocale();
   const { user, isLoading, login } = useAuth();
   const query = useCcgRewards(user?.discord.username);
   const client = useQueryClient();
@@ -32,7 +33,13 @@ export default function RewardsPage() {
     onError: () => { void client.invalidateQueries({ queryKey: ["ccg", "rewards"] }); },
   });
   const data = query.data;
-  const available = (data?.items.length ?? 0) + (data?.publicCodes.length ?? 0) + Number((data?.historical.availablePacks ?? 0) > 0);
+  const claimedIds = new Set(data?.claimedCodes.map(item => item.id));
+  const unclaimedCodes = data?.publicCodes.filter(item => !claimedIds.has(item.id)) ?? [];
+  const available = (data?.items.length ?? 0) + unclaimedCodes.length + Number((data?.historical.availablePacks ?? 0) > 0);
+  const codeRows = [
+    ...unclaimedCodes.map(item => ({ ...item, claimedAt: null as string | null })),
+    ...(data?.claimedCodes ?? []),
+  ];
   const errorCode = claim.error instanceof ApiError ? claim.error.code : undefined;
   const claimButton = (source: "duplicates" | "pickem" | "studio" | "code", id?: string) => (
     <button type="button" className={styles.claimButton} disabled={claim.isPending} onClick={() => claim.mutate({ source, id })}>
@@ -53,7 +60,8 @@ export default function RewardsPage() {
       {user && data ? <>
         {claim.isSuccess ? <p className={styles.success} role="status">{t("claimed")}</p> : null}
         {claim.isError ? <p className={styles.error} role="alert">{t(errorCode === "redeem_code_already_used" ? "alreadyClaimed" : errorCode === "redeem_code_not_found" || errorCode === "invalid_redeem_code" ? "invalidCode" : "claimError")}</p> : null}
-        {available === 0 ? <p className={styles.empty}>{t("empty")}</p> : <ul className={styles.list}>
+        {available === 0 ? <p className={styles.empty}>{t("empty")}</p> : null}
+        {available > 0 || codeRows.length > 0 ? <ul className={styles.list}>
           {data.historical.availablePacks > 0 ? <li className={styles.reward}>
             <div className={styles.identity}>
               <h2>{t("duplicates")}</h2>
@@ -72,7 +80,7 @@ export default function RewardsPage() {
             <span className={styles.amount}>{t("packCount", { count: item.packs })}</span>
             {claimButton(item.source, item.id)}
           </li>)}
-          {data.publicCodes.map(item => <li className={styles.reward} key={`code:${item.id}`}>
+          {codeRows.map(item => <li className={styles.reward} key={`code:${item.id}`}>
             <div className={styles.identity}>
               <h2>{item.code}</h2>
               {item.reward.type === "card" && item.reward.card ? <details className={styles.details}>
@@ -81,9 +89,9 @@ export default function RewardsPage() {
               </details> : <p>{t("promotion")}</p>}
             </div>
             <span className={styles.amount}>{item.reward.type === "packs" ? t("packCount", { count: item.reward.packs }) : t("cardReward")}</span>
-            {claimButton("code", item.id)}
+            {item.claimedAt ? <div className={styles.claimedStatus}><span>{t("codeClaimed")}</span><time dateTime={item.claimedAt}>{new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(item.claimedAt))}</time></div> : claimButton("code", item.id)}
           </li>)}
-        </ul>}
+        </ul> : null}
         {available > 0 ? <p className={styles.note}>{t("storageNote")}</p> : null}
         <form className={styles.codeForm} onSubmit={event => {
           event.preventDefault();

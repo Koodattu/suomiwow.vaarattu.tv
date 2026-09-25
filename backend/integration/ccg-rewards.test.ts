@@ -227,6 +227,35 @@ test("Rewards requires authentication and lists only active public unclaimed cod
   assert.equal(history[0].source, "redeem_code");
   assert.equal(history[0].packs, 5);
   assert.equal(history[0].rewardType, "packs");
+  const claimedCodes = (await (await request()).json() as any).claimedCodes.codes;
+  assert.deepEqual(new Set(claimedCodes.map((code: any) => code.code)), new Set(["PUBLIC", "USED"]));
+});
+
+test("Rewards retains all of this account's claimed codes, including private and disabled codes", async () => {
+  const codes = await Codes.create(Array.from({ length: 15 }, (_, index) => ({
+    code: `HISTORY-${index}`, rewardType: "packs" as const, packs: index + 1, createdBy: ownerId,
+    public: index % 2 === 0, active: index % 3 !== 0,
+  })));
+  await Claims.insertMany(codes.map((code, index) => ({ codeId: code._id, userId: ownerId,
+    rewardType: "packs", packs: code.packs, redeemedAt: new Date(Date.UTC(2026, 8, index + 1)) })));
+  const otherCode = await Codes.create({ code: "OTHER-USER", rewardType: "packs", packs: 50, createdBy: ownerId });
+  await Claims.create({ codeId: otherCode._id, userId: new mongoose.Types.ObjectId(), rewardType: "packs", packs: 50 });
+  const response = await (await request()).json() as any;
+  assert.equal(response.publicCodes.codes.length, 0);
+  assert.equal(response.claimedCodes.codes.length, 15, "History is not truncated to the ten recent ledger entries");
+  assert.equal(response.claimedCodes.codes[0].code, "HISTORY-14");
+  assert.equal(response.claimedCodes.codes[0].claimedAt, "2026-09-15T00:00:00.000Z");
+  assert.equal(response.claimedCodes.codes[0].reward.packs, 15);
+  assert.ok(!response.claimedCodes.codes.some((code: any) => code.code === "OTHER-USER"));
+});
+
+test("legacy codes without visibility stay private until explicitly made public", async () => {
+  const legacy = await Codes.collection.insertOne({ code: "LEGACY", rewardType: "packs", packs: 5, active: true, createdBy: ownerId });
+  assert.equal((await ccg.getPublicRedeemCodes(ownerId)).codes.length, 0);
+  await ccg.setRedeemCodeVisibilityForAdmin(String(legacy.insertedId), true);
+  assert.equal((await (await request()).json() as any).publicCodes.codes[0].code, "LEGACY");
+  await ccg.setRedeemCodeVisibilityForAdmin(String(legacy.insertedId), false);
+  assert.equal((await (await request()).json() as any).publicCodes.codes.length, 0);
 });
 
 test("public card rewards honor availability and grant a duplicate milestone once", async () => {
@@ -244,6 +273,10 @@ test("public card rewards honor availability and grant a duplicate milestone onc
   const history = (await (await request()).json() as any).recent;
   assert.equal(history[0].rewardType, "card");
   assert.equal(history[0].packs, 0);
+  await Card.collection.updateOne({ _id: card.cardId }, { $set: { availabilityStatus: "archived" } });
+  const claimed = (await (await request()).json() as any).claimedCodes.codes;
+  assert.equal(claimed[0].code, "CARD", "Archived card rewards remain visible in claim history");
+  assert.equal(claimed[0].reward.type, "card");
 });
 
 test("public/private edits retain manual redemption and previous claims", async () => {

@@ -215,6 +215,11 @@ export function hydrateCcgAdminRedeemCodes(response: CcgAdminRedeemCodesResponse
   return { codes: response.codes.map((code) => hydrateAdminRedeemCode(code, setById)) };
 }
 
+export function hydrateCcgClaimedRedeemCodes(response: { sets: CcgSet[]; codes: Array<CcgAdminRedeemCodeWire & { claimedAt: string }> }) {
+  const setById = getSetMap(response.sets);
+  return response.codes.map(code => ({ ...hydrateAdminRedeemCode(code, setById), claimedAt: code.claimedAt }));
+}
+
 export function hydrateCcgAdminRedeemCode(response: CcgAdminRedeemCodeResponseWire): { code: CcgAdminRedeemCode } {
   return { code: hydrateAdminRedeemCode(response.code, getSetMap(response.sets)) };
 }

@@ -3023,6 +3023,17 @@ class CcgService {
     return this.serializeRedeemCodes(codes, true);
   }
 
+  async getClaimedRedeemCodes(userId: mongoose.Types.ObjectId) {
+    const claims = await CcgRedeemClaim.find({ userId }).select("codeId redeemedAt").sort({ redeemedAt: -1, _id: -1 }).lean();
+    const codes = await CcgRedeemCode.find({ _id: { $in: claims.map(claim => claim.codeId) } }).lean();
+    const serialized = await this.serializeRedeemCodes(codes);
+    const byId = new Map(serialized.codes.map(code => [code.id, code]));
+    return { sets: serialized.sets, codes: claims.flatMap(claim => {
+      const code = byId.get(String(claim.codeId));
+      return code ? [{ ...code, claimedAt: claim.redeemedAt }] : [];
+    }) };
+  }
+
   async claimPublicRedeemCode(req: Request, codeId: string) {
     const id = validateObjectId(codeId, "redeem code ID");
     const code = await CcgRedeemCode.findOne({ _id: id, public: true, active: true }).select("code").lean();

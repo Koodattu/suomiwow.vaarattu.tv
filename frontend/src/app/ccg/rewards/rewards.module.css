@@ -24,6 +24,8 @@
 .identity h2 { font-size: .9375rem; font-weight: 600; overflow-wrap: anywhere; }
 .identity p, .details { margin-top: .25rem; color: #aebed3; font-size: .8125rem; }
 .amount { padding-top: .625rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.claimedStatus { align-self: center; text-align: center; font-size: .875rem; color: #aebed3; }
+.claimedStatus time { display: block; margin-top: .25rem; font-size: .75rem; }
 .claimButton {
   min-height: 2.75rem;
   padding: .5rem 1rem;
