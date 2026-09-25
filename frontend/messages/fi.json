@@ -900,8 +900,7 @@
       "getPickemPacks": "Hanki veikkauspakkoja",
       "chooseDifferent": "Valitse toinen pakka",
       "setComplete": "Setti valmis!",
-      "duplicateBonusPack": "{count, plural, one {10 duplikaattia kerätty · +1 pakka} other {Duplikaattipalkinnot · +# pakkaa}}",
-      "duplicateProgress": "{count}/10 kohti bonuspakkaa"
+      "duplicateBonusPack": "{count, plural, one {10x duplikaatti! +1 bonuspaketti} other {10x duplikaatti! +# bonuspakettia}}"
     },
     "prototypes": {
       "kicker": "Väliaikainen design-labra",

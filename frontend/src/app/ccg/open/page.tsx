@@ -892,7 +892,7 @@ export default function CcgOpenPage() {
     () =>
       opening?.results
         .filter((_, index) => revealedCards.has(index))
-        .map((row) => `${row.card.name}, ${t(`finish.${row.finish}`)}, ${t(getPullStatusKey(row))}`)
+        .map((row) => `${row.card.name}, ${t(`finish.${row.finish}`)}, ${t(getPullStatusKey(row), { count: row.duplicateMilestonePacks ?? 1 })}`)
         .join(". ") ?? "",
     [opening, revealedCards, t],
   );
@@ -1533,7 +1533,6 @@ export default function CcgOpenPage() {
                         </span>
                         <span className={`${packStyles.pullStatus} ${result.bonusPackReward ? packStyles.pullStatusReward : ""}`} aria-hidden={!revealed}>
                           <strong>{t(getPullStatusKey(result), { count: result.duplicateMilestonePacks ?? 1 })}</strong>
-                          {result.duplicateProgress !== undefined && !result.duplicateMilestonePacks ? <small>{t("open.duplicateProgress", { count: result.duplicateProgress })}</small> : null}
                         </span>
                       </button>
                     );

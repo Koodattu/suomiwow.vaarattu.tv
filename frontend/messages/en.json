@@ -900,8 +900,7 @@
       "getPickemPacks": "Get Pickem packs",
       "chooseDifferent": "Choose a different pack",
       "setComplete": "Set complete!",
-      "duplicateBonusPack": "{count, plural, one {10 duplicates collected · +1 pack} other {Duplicate milestones · +# packs}}",
-      "duplicateProgress": "{count}/10 toward a bonus pack"
+      "duplicateBonusPack": "{count, plural, one {10x duplicate! +1 bonus pack} other {10x duplicate! +# bonus packs}}"
     },
     "prototypes": {
       "kicker": "Temporary design lab",
