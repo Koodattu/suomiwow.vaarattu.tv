@@ -96,6 +96,50 @@ test("empty accounts persist initialization and do not recalculate later", async
   assert.equal((await duplicates.status(ownerId)).availablePacks, 0);
 });
 
+test("vault sessions and rewards ignore preserved malformed legacy ownership", async () => {
+  const card = await fixture("community", 19);
+  const validOwnership = await Ownership.collection.find({ ownerId }).sort({ _id: 1 }).toArray();
+  const malformed = [
+    { cardId: null, finish: null },
+    { setId: null, characterId: card.characterId },
+    { setId: String(card.setId), characterId: card.characterId },
+    { setId: card.setId },
+    { setId: card.setId, characterId: null },
+    { setId: card.setId, characterId: String(card.characterId) },
+  ].map(fields => ({
+    _id: new mongoose.Types.ObjectId(), ownerType: "user", ownerId,
+    cardId: new mongoose.Types.ObjectId(), finish: "standard", quantity: 5, ...fields,
+  }));
+  // Bypass schema validation to reproduce records preserved by the ownership migration.
+  await Ownership.collection.insertMany(malformed as any);
+  const before = await Ownership.collection.find({ ownerId }).sort({ _id: 1 }).toArray();
+
+  const session = await ccg.getSession(req, {} as any);
+  assert.equal(session.ownerType, "user");
+  assert.equal(session.ownedFinishes, validOwnership.length);
+  const response = await request();
+  assert.equal(response.status, 200);
+  const state = (await response.json() as any).historical;
+  assert.equal(state.availablePacks, 1);
+  assert.deepEqual(state.breakdown, { raid: 0, community: 1, supporter: 0 });
+  assert.equal(await Account.countDocuments({ ownerId }), 1);
+  const progress = await Progress.find({ ownerId }).lean();
+  assert.equal(progress.length, 1);
+  assert.equal(String(progress[0].characterId), String(card.characterId));
+  assert.equal(progress[0].duplicates, 19);
+  assert.equal(progress[0].processedMilestones, 1);
+  assert.equal(await Credit.countDocuments(), 0, "Historical rewards remain unclaimed");
+  assert.deepEqual(await Ownership.collection.find({ ownerId }).sort({ _id: 1 }).toArray(), before);
+});
+
+test("reward initialization still rejects valid ownership whose set metadata is missing", async () => {
+  const card = await fixture("community", 19);
+  await SetModel.deleteOne({ _id: card.setId });
+  await assert.rejects(duplicates.ensure(ownerId), /Duplicate reward set metadata missing/);
+  assert.equal(await Account.countDocuments(), 0);
+  assert.equal(await Progress.countDocuments(), 0);
+});
+
 test("character identity reconciliation preserves milestones and combines outstanding progress", async () => {
   const card = await fixture("community", 19);
   const target = new mongoose.Types.ObjectId();

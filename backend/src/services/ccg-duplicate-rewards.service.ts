@@ -41,7 +41,12 @@ class CcgDuplicateRewardsService {
   }
 
   private async seed(ownerId: mongoose.Types.ObjectId, session: ClientSession) {
-    const rows = await CcgOwnership.find({ ownerType: "user", ownerId, quantity: { $gt: 0 } }).session(session).lean();
+    // Match collections: legacy malformed rows are preserved, but cannot earn rewards.
+    const rows = await CcgOwnership.find({
+      ownerType: "user", ownerId, quantity: { $gt: 0 },
+      setId: { $type: "objectId" },
+      characterId: { $type: "objectId" },
+    }).session(session).lean();
     const sets = await CcgSet.find({ _id: { $in: rows.map(row => row.setId) } }).session(session).lean();
     const setById = new Map(sets.map(set => [String(set._id), set]));
     const supporterIds = sets.filter(set => set.kind === "supporter").map(set => set._id);
