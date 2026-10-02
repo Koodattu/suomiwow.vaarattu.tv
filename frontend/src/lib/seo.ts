@@ -45,6 +45,7 @@ export const PUBLIC_ROUTES = [
   { path: "/guilds", changeFrequency: "daily", priority: 0.9 },
   { path: "/characters", changeFrequency: "daily", priority: 0.75 },
   { path: "/analytics/compare", changeFrequency: "daily", priority: 0.75 },
+  { path: "/analytics/mechanics", changeFrequency: "daily", priority: 0.65 },
   { path: "/raid-analytics", changeFrequency: "daily", priority: 0.75 },
   { path: "/timetable", changeFrequency: "daily", priority: 0.75 },
   { path: "/livestreams", changeFrequency: "hourly", priority: 0.7 },
@@ -111,6 +112,7 @@ function getEmbedLabel(pathname: string) {
   if (pathname === "/search") return "Search";
   if (pathname === "/compare" || pathname === "/analytics/compare") return "Guild comparison";
   if (pathname === "/analytics/network") return "Guild network";
+  if (pathname === "/analytics/mechanics") return "Mechanic magnets";
   if (pathname.startsWith("/analytics")) return "Analytics";
   if (pathname === "/raid-analytics") return "Raid analytics";
   if (pathname === "/events") return "Live events";
@@ -193,6 +195,12 @@ export function getPageMetadata(
       description: isEnglish
         ? "Compare Finnish WoW guild raid metrics by raid tier, progress, pulls, and boss kills."
         : "Vertaile suomalaisten WoW-kiltojen raid-mittareita raidin, edistymisen, yritysten ja boss-tappojen mukaan.",
+    },
+    "/analytics/mechanics": {
+      title: isEnglish ? "Mechanic magnets" : "Osumamagneetit",
+      description: isEnglish
+        ? "Compare damage taken and hits from iconic Mythic boss mechanics across Finnish WoW guilds."
+        : "Vertaa suomalaisten WoW-kiltojen pelaajien saamia osumia ja vahinkoa Mythic-pomojen tutuista mekaniikoista.",
     },
     "/raid-analytics": {
       title: isEnglish

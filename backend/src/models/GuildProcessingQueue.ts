@@ -5,7 +5,7 @@ import mongoose, { Schema, Document } from "mongoose";
  */
 export type ProcessingStatus = "pending" | "in_progress" | "completed" | "failed" | "paused";
 
-export type JobType = "full_rescan" | "rescan_deaths" | "rescan_characters" | "backfill_report_characters" | "recalculate_stats";
+export type JobType = "full_rescan" | "rescan_deaths" | "rescan_characters" | "backfill_report_characters" | "backfill_avoidable_damage" | "recalculate_stats";
 
 /**
  * Interface for guild processing queue entry
@@ -18,6 +18,9 @@ export interface IGuildProcessingQueue extends Document {
   guildRegion: string;
   jobType: JobType;
   targetRaidIds?: number[];
+  targetMechanicKeys?: string[];
+  mechanicRequestRevision?: number;
+  mechanicSeedRevision?: number;
 
   // Processing status
   status: ProcessingStatus;
@@ -83,10 +86,13 @@ const GuildProcessingQueueSchema = new Schema<IGuildProcessingQueue>(
     },
     jobType: {
       type: String,
-      enum: ["full_rescan", "rescan_deaths", "rescan_characters", "backfill_report_characters", "recalculate_stats"],
+      enum: ["full_rescan", "rescan_deaths", "rescan_characters", "backfill_report_characters", "backfill_avoidable_damage", "recalculate_stats"],
       required: true,
     },
     targetRaidIds: [{ type: Number }],
+    targetMechanicKeys: { type: [String], default: undefined },
+    mechanicRequestRevision: Number,
+    mechanicSeedRevision: Number,
     guildLogSourceId: {
       type: Schema.Types.ObjectId,
       ref: "GuildLogSource",

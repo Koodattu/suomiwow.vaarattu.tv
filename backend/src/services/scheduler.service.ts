@@ -9,6 +9,7 @@ import characterService from "./character.service";
 import characterMechanicsService from "./character-mechanics.service";
 import characterTierListService from "./character-tierlist.service";
 import raidAnalyticsService from "./raid-analytics.service";
+import avoidableDamageService from "./avoidable-damage.service";
 import guildNetworkService from "./guild-network.service";
 import guildProfileHighlightsService from "./guild-profile-highlights.service";
 import cacheService from "./cache.service";
@@ -234,6 +235,7 @@ class UpdateScheduler {
   private isRebuildingCharacterTierLists: boolean = false;
   private characterMechanicsRebuildPending: boolean = false;
   private isQueueingDeathEventBackfill: boolean = false;
+  private isQueueingAvoidableDamage: boolean = false;
   private isQueueingReportCharacterBackfill: boolean = false;
   private isQueueingCharacterAchievementBackfill: boolean = false;
   private isUpdatingCharacterRaidParticipations: boolean = false;
@@ -573,6 +575,21 @@ class UpdateScheduler {
         await this.queueDeathEventBackfill();
       },
     );
+
+    // Independent of report discovery and deaths; historical work uses spare WCL budget.
+    this.scheduleCronTask("avoidable-damage-backfill", "30 1 * * *", async () => {
+      if (this.isQueueingAvoidableDamage) return;
+      this.isQueueingAvoidableDamage = true;
+      const taskId = await taskTracker.start("Queue Avoidable Damage Backfill");
+      try {
+        await taskTracker.complete(taskId, await avoidableDamageService.queueBackfill());
+      } catch (error) {
+        logger.error("[AvoidableDamage] Could not queue nightly backfill", error);
+        await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
+      } finally {
+        this.isQueueingAvoidableDamage = false;
+      }
+    });
 
     // NIGHTLY: Queue report-level character backfill (at 1 AM Finnish time)
     // The queued jobs skip reports already marked charactersFetchStatus="fetched".

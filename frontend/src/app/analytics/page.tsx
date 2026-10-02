@@ -1,45 +1,53 @@
+"use client";
+
 import Link from "next/link";
-import { FaArrowRight, FaChartLine, FaNetworkWired, FaScaleBalanced } from "react-icons/fa6";
+import { useTranslations } from "next-intl";
+import { FaArrowRight, FaChartLine, FaCrosshairs, FaNetworkWired, FaScaleBalanced } from "react-icons/fa6";
 
 const ANALYTICS_OPTIONS = [
   {
     href: "/analytics/raids",
-    title: "Raid Analytics",
-    description: "Inspect progression, boss kills, raid activity, and performance trends across tracked guilds.",
+    key: "raids",
     Icon: FaChartLine,
     iconClass: "bg-blue-500/15 text-blue-200 shadow-[0_0_0_1px_rgba(96,165,250,0.22)]",
     hoverShadow: "hover:shadow-[0_0_0_1px_rgba(96,165,250,0.28),0_18px_50px_rgba(37,99,235,0.16)]",
   },
   {
     href: "/analytics/compare",
-    title: "Compare",
-    description: "Compare guild tier metrics by progress, pulls, raid time, combat time, and boss kills.",
+    key: "compare",
     Icon: FaScaleBalanced,
     iconClass: "bg-amber-500/15 text-amber-200 shadow-[0_0_0_1px_rgba(251,191,36,0.22)]",
     hoverShadow: "hover:shadow-[0_0_0_1px_rgba(251,191,36,0.28),0_18px_50px_rgba(217,119,6,0.14)]",
   },
   {
     href: "/analytics/network",
-    title: "Character Guild Network",
-    description: "Explore character movement and guild relationships as a connected network view.",
+    key: "network",
     Icon: FaNetworkWired,
     iconClass: "bg-emerald-500/15 text-emerald-200 shadow-[0_0_0_1px_rgba(52,211,153,0.22)]",
     hoverShadow: "hover:shadow-[0_0_0_1px_rgba(52,211,153,0.28),0_18px_50px_rgba(5,150,105,0.14)]",
   },
+  {
+    href: "/analytics/mechanics",
+    key: "mechanics",
+    Icon: FaCrosshairs,
+    iconClass: "bg-rose-500/15 text-rose-200 shadow-[0_0_0_1px_rgba(251,113,133,0.22)]",
+    hoverShadow: "hover:shadow-[0_0_0_1px_rgba(251,113,133,0.28),0_18px_50px_rgba(225,29,72,0.14)]",
+  },
 ] as const;
 
 export default function AnalyticsPage() {
+  const t = useTranslations("analyticsLanding");
   return (
     <main className="min-h-[calc(100vh-5rem)] px-4 py-8 text-white md:px-6 md:py-12">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
         <div className="max-w-3xl">
-          <p className="text-sm font-semibold uppercase tracking-wide text-blue-300">Analytics</p>
-          <h1 className="mt-3 text-3xl font-bold text-balance md:text-5xl">Choose an analytics view</h1>
-          <p className="mt-4 max-w-2xl text-base text-gray-400 text-pretty md:text-lg">Start with raid progression metrics, compare guild effort, or open the character guild network for relationship and movement analysis.</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-blue-300">{t("eyebrow")}</p>
+          <h1 className="mt-3 text-3xl font-bold text-balance md:text-5xl">{t("title")}</h1>
+          <p className="mt-4 max-w-2xl text-base text-gray-400 text-pretty md:text-lg">{t("description")}</p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          {ANALYTICS_OPTIONS.map(({ href, title, description, Icon, iconClass, hoverShadow }) => (
+        <div className="grid gap-4 md:grid-cols-2">
+          {ANALYTICS_OPTIONS.map(({ href, key, Icon, iconClass, hoverShadow }) => (
             <Link
               key={href}
               href={href}
@@ -49,11 +57,11 @@ export default function AnalyticsPage() {
                 <span className={`inline-flex h-14 w-14 items-center justify-center rounded-md ${iconClass}`}>
                   <Icon className="h-6 w-6" aria-hidden="true" />
                 </span>
-                <h2 className="mt-6 text-2xl font-bold text-balance">{title}</h2>
-                <p className="mt-3 text-sm leading-6 text-gray-400 text-pretty">{description}</p>
+                <h2 className="mt-6 text-2xl font-bold text-balance">{t(`${key}.title`)}</h2>
+                <p className="mt-3 text-sm leading-6 text-gray-400 text-pretty">{t(`${key}.description`)}</p>
               </div>
               <span className="mt-8 inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-gray-200 transition-colors group-hover:text-white">
-                Open view
+                {t("open")}
                 <FaArrowRight className="h-4 w-4 transition-transform duration-150 ease-out group-hover:translate-x-1" aria-hidden="true" />
               </span>
             </Link>

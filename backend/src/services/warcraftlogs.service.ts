@@ -1,4 +1,5 @@
 import fetch from "node-fetch";
+import { addMechanicDamage, emptyDamageTotals, DamageTotals, MechanicActor, MechanicDamageEvent, MechanicFight, MechanicCollectionPaused } from "../utils/avoidable-damage";
 import logger from "../utils/logger";
 import { GUILDS_DEV, GUILDS_PROD, TrackedGuild } from "../config/guilds";
 import rateLimitService, { WCLRateLimitData, WCLRateLimitEndpoint } from "./rate-limit.service";
@@ -20,6 +21,7 @@ type FightDetailFetchOptions = {
 type WclQueryTrackingOptions = {
   estimatedPoints?: number;
   sampleRateLimit?: boolean;
+  onRateLimit?: () => never;
 };
 
 export function parseRetryAfterMs(retryAfter: string | null, nowMs = Date.now()): number {
@@ -264,7 +266,12 @@ class WarcraftLogsService {
   ): Promise<T> {
     // A WCL 429 is authoritative for its credential bucket. Check shared state
     // before every request so the API and worker processes honor it together.
-    await rateLimitService.waitForHardLimit(endpoint);
+    if (tracking.onRateLimit) {
+      await rateLimitService.refreshSharedState(endpoint);
+      if (rateLimitService.isHardLimited(endpoint)) tracking.onRateLimit();
+    } else {
+      await rateLimitService.waitForHardLimit(endpoint);
+    }
 
     // Add delay between requests to avoid bursting
     await this.requestDelay();
@@ -289,6 +296,7 @@ class WarcraftLogsService {
       logger.warn(
         `[RateLimit] WCL HTTP 429 endpoint=${endpoint} bucket=${bucket.bucketId} retryAfter=${Math.ceil(waitTime / 1000)}s; pausing this credential bucket before retry`,
       );
+      if (tracking.onRateLimit) tracking.onRateLimit();
       await rateLimitService.waitForHardLimit(endpoint);
       return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries, tracking); // Retry the request
     }
@@ -393,6 +401,83 @@ class WarcraftLogsService {
     } catch (error) {
       logger.warn(`[RateLimit] WCL probe failed; retaining conservative local estimate: ${this.formatError(error)}`);
     }
+  }
+
+  /** Fetch only selected damage events; reduce pages immediately instead of retaining raw events. */
+  async getAvoidableDamage(
+    reportCode: string,
+    encounterId: number,
+    fightIds: number[],
+    spellIds: readonly number[],
+    beforePage: (endpoint: "client" | "user") => Promise<void>,
+  ): Promise<{ actors: MechanicActor[]; fights: MechanicFight[]; damage: Map<number, Map<number, DamageTotals>> }> {
+    if (!fightIds.length || !spellIds.length || [...fightIds, ...spellIds, encounterId].some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+      throw new Error("Explicit fight, encounter and damage spell IDs are required");
+    }
+    const query = `query($code: String!, $fightIds: [Int]!, $encounter: Int!, $filter: String!, $start: Float, $metadata: Boolean!) {
+      reportData { report(code: $code) {
+        masterData @include(if: $metadata) { actors(type: "Player") { id name server subType } }
+        fights(fightIDs: $fightIds) @include(if: $metadata) { id encounterID difficulty friendlyPlayers }
+        events(fightIDs: $fightIds, encounterID: $encounter, difficulty: 5, dataType: DamageTaken,
+          hostilityType: Friendlies, filterExpression: $filter, startTime: $start,
+          includeResources: false, useActorIDs: true, useAbilityIDs: true, limit: 10000) { data nextPageTimestamp }
+      } }
+    }`;
+    type Response = { reportData?: { report?: {
+      masterData?: { actors: MechanicActor[] }; fights?: MechanicFight[];
+      events?: { data: MechanicDamageEvent[]; nextPageTimestamp?: number | null };
+    } | null } };
+    const variables = { code: reportCode, fightIds, encounter: encounterId,
+      filter: `target.type = 'Player' AND ability.id IN (${spellIds.join(",")})`,
+      start: 0 as number, metadata: true };
+    const tracking = { estimatedPoints: 2, sampleRateLimit: true,
+      onRateLimit: (): never => { throw new MechanicCollectionPaused("WCL rate limit reached"); } };
+    let endpoint: "client" | "user" = "client";
+    let actors: MechanicActor[] = [];
+    let fights: MechanicFight[] = [];
+    const damage = new Map<number, Map<number, DamageTotals>>();
+    const allowedSpells = new Set(spellIds);
+    let players = new Set<number>();
+    for (;;) {
+      await beforePage(endpoint);
+      let response: Response;
+      try {
+        response = endpoint === "user"
+          ? await this.queryUser<Response>(query, variables, false, 0, tracking)
+          : await this.query<Response>(query, variables, false, 0, tracking);
+      } catch (error) {
+        if (endpoint !== "client" || !this.shouldRetryReportWithUserEndpoint(error) || !(await this.hasUserAuthConnected())) throw error;
+        endpoint = "user";
+        await beforePage(endpoint);
+        response = await this.queryUser<Response>(query, variables, false, 0, tracking);
+      }
+      const report = response.reportData?.report;
+      if (!report) throw new Error("Report unavailable");
+      if (variables.metadata) {
+        actors = report.masterData?.actors ?? [];
+        fights = report.fights ?? [];
+        players = new Set(actors.map((actor) => actor.id));
+        for (const fightId of fightIds) {
+          const fight = fights.find((entry) => entry.id === fightId);
+          if (!fight || fight.difficulty !== 5 || fight.encounterID !== encounterId || !fight.friendlyPlayers?.length ||
+              fight.friendlyPlayers.some((id) => !players.has(id))) {
+            throw new Error(`Incomplete Mythic fight roster: ${fightId}`);
+          }
+          damage.set(fightId, new Map(fight.friendlyPlayers.map((id) => [id, emptyDamageTotals()])));
+        }
+      }
+      if (!Array.isArray(report.events?.data)) throw new Error("Missing damage event page");
+      for (const event of report.events.data) {
+        const totals = damage.get(event.fight)?.get(event.targetID);
+        if (totals && players.has(event.targetID) && allowedSpells.has(event.abilityGameID)) addMechanicDamage(totals, event);
+      }
+      const next = report.events.nextPageTimestamp;
+      if (next === null || next === undefined) break;
+      if (!Number.isFinite(next) || next <= variables.start) throw new Error("Damage pagination did not advance");
+      variables.start = next;
+      variables.metadata = false;
+    }
+    return { actors, fights, damage };
   }
 
   private shouldRetryReportWithUserEndpoint(error: unknown): boolean {

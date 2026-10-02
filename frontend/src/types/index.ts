@@ -3839,7 +3839,7 @@ export interface QueueItem {
   guildName: string;
   guildRealm: string;
   guildRegion: string;
-  jobType: "full_rescan" | "rescan_deaths" | "rescan_characters" | "backfill_report_characters" | "recalculate_stats";
+  jobType: "full_rescan" | "rescan_deaths" | "rescan_characters" | "backfill_report_characters" | "backfill_avoidable_damage" | "recalculate_stats";
   status: ProcessingStatus;
   priority: number;
   progress: QueueItemProgress;
@@ -3865,7 +3865,7 @@ export interface ProcessingQueueErrorItem {
   guildName: string;
   guildRealm: string;
   guildRegion: string;
-  jobType: "full_rescan" | "rescan_deaths" | "rescan_characters" | "backfill_report_characters" | "recalculate_stats";
+  jobType: "full_rescan" | "rescan_deaths" | "rescan_characters" | "backfill_report_characters" | "backfill_avoidable_damage" | "recalculate_stats";
   status: ProcessingStatus;
   errorType?: ErrorType;
   isPermanentError?: boolean;

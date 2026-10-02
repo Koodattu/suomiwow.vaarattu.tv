@@ -1,4 +1,7 @@
 import reportOverridePolicy from "./report-override-policy.service";
+import avoidableDamageService from "./avoidable-damage.service";
+import { MechanicCollectionPaused } from "../utils/avoidable-damage";
+import { activeAvoidableMechanics } from "../config/avoidable-mechanics";
 import Guild, { IGuild } from "../models/Guild";
 import Report, { IReport, IReportFightSequenceEntry } from "../models/Report";
 import Fight from "../models/Fight";
@@ -234,6 +237,7 @@ class BackgroundGuildProcessor {
       }
 
       this.currentGuildQueue = queueItem;
+      let useIdleDelay = false;
 
       logger.info(`[BackgroundProcessor] Processing guild: ${queueItem.guildName}-${queueItem.guildRealm} (ID: ${queueItem.guildId}, job: ${queueItem.jobType})`);
 
@@ -269,6 +273,9 @@ class BackgroundGuildProcessor {
           case "backfill_report_characters":
             await this.processGuildReportCharacterBackfill(queueItem);
             break;
+          case "backfill_avoidable_damage":
+            useIdleDelay = !(await this.processGuildAvoidableDamage(queueItem));
+            break;
           case "recalculate_stats":
             await this.processGuildStatsRecalculation(queueItem);
             break;
@@ -301,10 +308,40 @@ class BackgroundGuildProcessor {
       }
 
       // Check for next item immediately
-      this.scheduleNextCheck(this.config.activeCheckInterval);
+      this.scheduleNextCheck(useIdleDelay ? this.config.idleCheckInterval : this.config.activeCheckInterval);
     } catch (error) {
       logger.error("[BackgroundProcessor] Error in queue processing:", error);
       this.scheduleNextCheck(this.config.idleCheckInterval);
+    }
+  }
+
+  private async processGuildAvoidableDamage(queueItem: IGuildProcessingQueue): Promise<boolean> {
+    try {
+      const complete = await avoidableDamageService.collectGuild(queueItem, async (endpoint) => {
+        await this.refreshProcessorPauseState();
+        await rateLimitService.getAllSharedStatuses();
+        // Check the fallback budget up front too, so an exhausted user bucket
+        // cannot cause repeated paid client requests for an archived report.
+        if (!this.isRunning || this.isPaused || !rateLimitService.canProceedBackground(endpoint) ||
+            !rateLimitService.canProceedBackground("user") ||
+            !(await GuildProcessingQueue.exists({ _id: queueItem._id, status: "in_progress" }))) {
+          throw new MechanicCollectionPaused("Mechanic collection yielded to the queue or WCL budget");
+        }
+        await GuildProcessingQueue.updateOne({ _id: queueItem._id }, { $set: { lastActivityAt: new Date() } });
+      });
+      await avoidableDamageService.releaseGuild(queueItem, complete);
+      return true;
+    } catch (error) {
+      if (error instanceof MechanicCollectionPaused) {
+        await avoidableDamageService.releaseGuild(queueItem, false);
+      } else {
+        await GuildProcessingQueue.updateOne({ _id: queueItem._id, status: "in_progress" }, {
+          $set: { status: queueItem.retryCount < queueItem.maxRetries ? "pending" : "failed",
+            lastError: error instanceof Error ? error.message : String(error), errorType: "unknown", lastErrorAt: new Date(), lastActivityAt: new Date() },
+          $inc: { errorCount: 1, retryCount: 1 },
+        });
+      }
+      return false;
     }
   }
 
@@ -1445,7 +1482,7 @@ class BackgroundGuildProcessor {
     priority: number = 10,
     jobType: JobType = "full_rescan",
     guildLogSourceId?: mongoose.Types.ObjectId | string,
-    options: { targetRaidIds?: number[] } = {},
+    options: { targetRaidIds?: number[]; targetMechanicKeys?: string[] } = {},
   ): Promise<IGuildProcessingQueue> {
     const freshGuild = await Guild.findById(guild._id).select("logSourceMigrationLockToken logSourceMigrationLockedAt").lean();
     if (!freshGuild) throw new Error("Guild no longer exists");
@@ -1455,6 +1492,10 @@ class BackgroundGuildProcessor {
       freshGuild.logSourceMigrationLockedAt.getTime() >= Date.now() - 2 * 60 * 60 * 1000;
     if (migrationLockIsFresh) {
       throw new Error("Guild is locked while an existing guild is being converted to a log source");
+    }
+
+    if (jobType === "backfill_avoidable_damage") {
+      return avoidableDamageService.enqueueGuild(guild, options.targetMechanicKeys ?? activeAvoidableMechanics().map((entry) => entry.key), priority);
     }
 
     let source: IGuildLogSource | null = null;

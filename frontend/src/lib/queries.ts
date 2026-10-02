@@ -1,5 +1,14 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import type { MechanicFilters } from "@/types/avoidable-damage";
+
+export function useAvoidableMechanicOptions() {
+  return useQuery({ queryKey: ["avoidable-damage", "options"], queryFn: ({ signal }) => api.getAvoidableMechanicOptions(signal), staleTime: 5 * 60 * 1000 });
+}
+
+export function useAvoidableDamage(filters: MechanicFilters) {
+  return useQuery({ queryKey: ["avoidable-damage", "leaderboard", filters], queryFn: ({ signal }) => api.getAvoidableDamage(filters, signal), enabled: Boolean(filters.mechanic), staleTime: 5 * 60 * 1000 });
+}
 import type { CcgActivityFilter, CcgBootstrapResponse, CcgCollectionSort, CharacterTierListRole, CompareDifficulty, EventFilters, FunGameSearchSlug } from "@/types";
 
 const LIVE_STATUS_STALE_TIME = 15 * 60 * 1000;

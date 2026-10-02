@@ -1,5 +1,6 @@
 import type { AdminReportOverride, AdminReportOverrideAction } from "@/types";
 import type { CharacterDeathsResponse } from "@/types/character-deaths";
+import type { MechanicFilters, MechanicLeaderboard, MechanicOptions, MechanicCollectionStatus, MechanicBackfillRequest, MechanicBackfillResult } from "@/types/avoidable-damage";
 import {
   GuildListItem,
   GuildDirectoryItem,
@@ -260,6 +261,18 @@ async function buildApiError(response: Response, fallback: string): Promise<Erro
 }
 
 export const api = {
+  async getAvoidableMechanicOptions(signal?: AbortSignal): Promise<MechanicOptions> {
+    const response = await fetch(`${API_URL}/api/avoidable-damage/options`, { signal });
+    if (!response.ok) throw new Error("Could not load mechanic options");
+    return response.json();
+  },
+  async getAvoidableDamage(filters: MechanicFilters, signal?: AbortSignal): Promise<MechanicLeaderboard> {
+    const query = new URLSearchParams({ mechanic: filters.mechanic, outcome: filters.outcome, sort: filters.sort, page: String(filters.page) });
+    if (filters.guildId) query.set("guildId", filters.guildId);
+    const response = await fetch(`${API_URL}/api/avoidable-damage?${query}`, { signal });
+    if (!response.ok) throw new Error("Could not load mechanic leaderboard");
+    return response.json();
+  },
   async getCharacterDeaths(realm: string, name: string, query: string, signal?: AbortSignal): Promise<CharacterDeathsResponse> {
     const response = await fetch(`${API_URL}/api/characters/${encodeURIComponent(realm)}/${encodeURIComponent(name)}/deaths?${query}`, { signal });
     if (!response.ok) throw new Error("Failed to fetch death analysis");
@@ -2299,6 +2312,21 @@ export const api = {
       credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to fetch rate limit status");
+    return response.json();
+  },
+
+  async getAdminMechanicCollection(guildId?: string, signal?: AbortSignal): Promise<MechanicCollectionStatus> {
+    const params = new URLSearchParams(guildId ? { guildId } : {});
+    const response = await fetch(`${API_URL}/api/admin/avoidable-damage?${params}`, { credentials: "include", cache: "no-store", signal });
+    if (!response.ok) throw new Error("Failed to fetch mechanic collection status");
+    return response.json();
+  },
+
+  async queueAdminMechanicCollection(options: MechanicBackfillRequest): Promise<MechanicBackfillResult> {
+    const response = await fetch(`${API_URL}/api/admin/avoidable-damage/queue`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(options),
+    });
+    if (!response.ok) throw new Error("Failed to queue mechanic collection");
     return response.json();
   },
 

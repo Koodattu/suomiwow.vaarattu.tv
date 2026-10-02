@@ -12,6 +12,7 @@ import CcgAdminPanel from "@/components/admin/CcgAdminPanel";
 import ReportOverridesPanel from "@/components/admin/ReportOverridesPanel";
 import ReporterAdminPanel from "@/components/admin/ReporterAdminPanel";
 import TwitchChatAuditPanel from "@/components/admin/TwitchChatAuditPanel";
+import MechanicCollectionPanel from "@/components/admin/MechanicCollectionPanel";
 import { api } from "@/lib/api";
 import { getUmaImageLabel, UMA_IMAGES } from "@/lib/uma-images";
 import {
@@ -339,6 +340,7 @@ function AdminPageContent() {
   const searchParams = useSearchParams();
   const { user, isLoading: authLoading } = useAuth();
   const t = useTranslations("admin");
+  const mechanicT = useTranslations("mechanicLeaderboard");
   const studioT = useTranslations("ccg.studio");
   const rateLimitFreshnessLabel = (status: RateLimitStatus) => {
     const time = (value: string | null) => new Date(value || status.lastUpdated).toLocaleTimeString();
@@ -2430,6 +2432,8 @@ function AdminPageContent() {
               <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <span>⚙️</span> Manual Actions
               </h2>
+
+              <MechanicCollectionPanel />
 
               <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-950/20 p-4">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -6421,7 +6425,7 @@ function AdminPageContent() {
                                               : "bg-cyan-900 text-cyan-300"
                                         }`}
                                       >
-                                        {item.jobType === "rescan_deaths" ? "Fight data" : item.jobType === "backfill_report_characters" ? "Report Chars" : "Characters"}
+                                        {item.jobType === "backfill_avoidable_damage" ? mechanicT("queueLabel") : item.jobType === "rescan_deaths" ? "Fight data" : item.jobType === "backfill_report_characters" ? "Report Chars" : "Characters"}
                                       </span>
                                     )}
                                   </td>
@@ -6502,7 +6506,7 @@ function AdminPageContent() {
                                     : "bg-cyan-900 text-cyan-300"
                               }`}
                             >
-                              {item.jobType === "rescan_deaths" ? "Fight data" : item.jobType === "backfill_report_characters" ? "Report Chars" : "Characters"}
+                              {item.jobType === "backfill_avoidable_damage" ? mechanicT("queueLabel") : item.jobType === "rescan_deaths" ? "Fight data" : item.jobType === "backfill_report_characters" ? "Report Chars" : "Characters"}
                             </span>
                           )}
                         </td>
