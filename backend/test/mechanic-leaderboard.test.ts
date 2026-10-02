@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { findAvoidableMechanic } from "../src/config/avoidable-mechanics";
 import service from "../src/services/avoidable-damage.service";
-import cache from "../src/services/cache.service";
+import { mockSnapshotStorage } from "./helpers/snapshot-cache";
 import { MechanicLeaderboardFilters, MechanicSnapshot, MechanicSnapshotRow, selectMechanicLeaderboard } from "../src/utils/mechanic-leaderboard";
 
 const mechanic = findAvoidableMechanic("sszorak-tempest")!;
@@ -103,14 +103,12 @@ test("ascending and descending sort the complete filtered leaderboard before pag
 });
 
 test("concurrent cold filters share one build; subsequent filters do not aggregate", async (t) => {
+  mockSnapshotStorage(t);
   const builder = service as unknown as { buildLeaderboardSnapshot(): Promise<MechanicSnapshot> };
-  let stored: { data: MechanicSnapshot; expiresAt: Date } | null = null;
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   let builds = 0;
   t.mock.method(builder, "buildLeaderboardSnapshot", async () => { builds++; await gate; return snapshot; });
-  t.mock.method(cache, "getWithMetadata", async () => stored);
-  t.mock.method(cache, "set", async (_key: string, data: MechanicSnapshot) => { stored = { data, expiresAt: new Date(Date.now() + 300_000) }; });
   const pending = [service.getLeaderboard(filters), service.getLeaderboard({ ...filters, roles: ["tank"], order: "asc" })];
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(builds, 1);
@@ -122,29 +120,34 @@ test("concurrent cold filters share one build; subsequent filters do not aggrega
 });
 
 test("stale results return while one background refresh is still pending", { timeout: 3000 }, async (t) => {
-  const builder = service as unknown as { buildLeaderboardSnapshot(): Promise<MechanicSnapshot> };
+  const { entries } = mockSnapshotStorage(t);
+  const key = `avoidable-damage:snapshot:v3:${mechanic.key}:${mechanic.version}`;
+  entries.set(key, { key, data: snapshot, cachedAt: new Date(Date.now() - 11 * 60_000),
+    expiresAt: new Date(Date.now() - 6 * 60_000), staleExpiresAt: new Date(Date.now() + 54 * 60_000) });
+  const builder = service as unknown as {
+    buildLeaderboardSnapshot(): Promise<MechanicSnapshot>;
+    getSnapshot(mechanic: typeof snapshot.mechanic, warm: boolean): Promise<MechanicSnapshot>;
+  };
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   let builds = 0;
   t.mock.method(builder, "buildLeaderboardSnapshot", async () => { builds++; await gate; return snapshot; });
-  t.mock.method(cache, "getWithMetadata", async () => ({ data: snapshot, expiresAt: new Date(0) }));
-  t.mock.method(cache, "set", async () => {});
   try {
     const results = await Promise.all([service.getLeaderboard(filters), service.getLeaderboard({ ...filters, sort: "hits" })]);
     assert.equal(results[0].totals.players, 4);
+    await new Promise<void>((resolve) => setImmediate(resolve));
     assert.equal(builds, 1);
   } finally {
     release();
-    await service.warmLeaderboardCaches([mechanic.key]);
+    await builder.getSnapshot(mechanic, true);
   }
 });
 
 test("failed cold builds can be retried instead of retaining a rejected promise", async (t) => {
+  mockSnapshotStorage(t);
   const builder = service as unknown as { buildLeaderboardSnapshot(): Promise<MechanicSnapshot> };
   let builds = 0;
   t.mock.method(builder, "buildLeaderboardSnapshot", async () => { if (++builds === 1) throw new Error("fixture failure"); return snapshot; });
-  t.mock.method(cache, "getWithMetadata", async () => null);
-  t.mock.method(cache, "set", async () => {});
   await assert.rejects(service.getLeaderboard(filters), /fixture failure/);
   assert.equal((await service.getLeaderboard(filters)).totals.players, 4);
   assert.equal(builds, 2);

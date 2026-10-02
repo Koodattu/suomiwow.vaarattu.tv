@@ -114,16 +114,16 @@ test("mechanic collection and leaderboard work together against MongoDB", { skip
 
     // Later privacy changes, exclusions and deleted source fights are respected on cache refresh.
     await Character.collection.insertOne({ wclCanonicalCharacterId: 42, classID: 4, wclProfileHidden: true });
-    await service.warmLeaderboardCaches([mechanic.key]);
+    await service.warmLeaderboardCaches([mechanic.key], true);
     board = await service.getLeaderboard(filters);
     assert.equal(board.totals.players, 1);
     assert.equal(board.totals.damage, 0);
     await Guild.collection.updateOne({ _id: guildId }, { $set: { excludedRaidIds: [53] } });
-    await service.warmLeaderboardCaches([mechanic.key]);
+    await service.warmLeaderboardCaches([mechanic.key], true);
     assert.equal((await service.getLeaderboard(filters)).coverage.fetched, 0);
     await Guild.collection.updateOne({ _id: guildId }, { $set: { excludedRaidIds: [] } });
     await Fight.deleteOne({ reportCode: "A", fightId: 2 });
-    await service.warmLeaderboardCaches([mechanic.key]);
+    await service.warmLeaderboardCaches([mechanic.key], true);
     assert.equal((await service.getLeaderboard(filters)).coverage.fetched, 1);
   } finally {
     await service.warmLeaderboardCaches([mechanic.key]);

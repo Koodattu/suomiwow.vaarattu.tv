@@ -212,6 +212,8 @@ class UpdateScheduler {
   private mythicPlusRecoveryInterval: NodeJS.Timeout | null = null;
   private mythicPlusCacheInterval: NodeJS.Timeout | null = null;
   private isRefreshingMythicPlusCache = false;
+  private mechanicCacheInterval: NodeJS.Timeout | null = null;
+  private isRefreshingMechanicCache = false;
   private characterRankingRecoveryInterval: NodeJS.Timeout | null = null;
   private homeCacheRefreshInterval: NodeJS.Timeout | null = null;
   private offHoursActiveInterval: NodeJS.Timeout | null = null;
@@ -286,6 +288,18 @@ class UpdateScheduler {
       logger.error("[Mythic+ Cache] Scheduled refresh failed:", error);
     } finally {
       this.isRefreshingMythicPlusCache = false;
+    }
+  }
+
+  private async refreshMechanicCache(): Promise<void> {
+    if (this.isRefreshingMechanicCache || this.getBlockingDatabaseMaintenanceJob()) return;
+    this.isRefreshingMechanicCache = true;
+    try {
+      await avoidableDamageService.warmLeaderboardCaches();
+    } catch (error) {
+      logger.error("[Mechanics Cache] Scheduled refresh failed:", error);
+    } finally {
+      this.isRefreshingMechanicCache = false;
     }
   }
 
@@ -506,6 +520,11 @@ class UpdateScheduler {
     void this.refreshMythicPlusCache();
     this.mythicPlusCacheInterval = setInterval(() => {
       void this.refreshMythicPlusCache();
+    }, 2 * 60 * 1000);
+
+    void this.refreshMechanicCache();
+    this.mechanicCacheInterval = setInterval(() => {
+      void this.refreshMechanicCache();
     }, 2 * 60 * 1000);
 
     this.characterRankingRecoveryInterval = setInterval(() => {
@@ -1490,6 +1509,10 @@ class UpdateScheduler {
     if (this.mythicPlusCacheInterval) {
       clearInterval(this.mythicPlusCacheInterval);
       this.mythicPlusCacheInterval = null;
+    }
+    if (this.mechanicCacheInterval) {
+      clearInterval(this.mechanicCacheInterval);
+      this.mechanicCacheInterval = null;
     }
     if (this.characterRankingRecoveryInterval) {
       clearInterval(this.characterRankingRecoveryInterval);

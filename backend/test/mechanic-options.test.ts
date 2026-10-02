@@ -26,7 +26,7 @@ test("guild options identify participation in the exact Mythic boss and respect 
   ] }) }) as unknown as ReturnType<typeof Raid.find>);
   t.mock.method(Guild, "find", () => ({ select: () => ({ sort: () => ({ lean: async () => guilds }) }) }) as unknown as ReturnType<typeof Guild.find>);
 
-  const options = await service.getOptions();
+  const options = await (service as unknown as { buildOptions: typeof service.getOptions }).buildOptions();
   const participants = (key: string) => options.guilds.filter((guild) => guild.mechanicKeys.includes(key)).map((guild) => guild.id);
   assert.deepEqual(participants(mechanic.key), ["both", "kill"]);
   assert.deepEqual(participants(other.key), ["both", "other-boss"]);

@@ -1,7 +1,6 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import { findAvoidableMechanic } from "../config/avoidable-mechanics";
-import { cacheMiddleware } from "../middleware/cache.middleware";
 import avoidableDamageService, { MechanicLeaderboardFilters } from "../services/avoidable-damage.service";
 import { MECHANIC_MIN_PULLS, MECHANIC_ROLES } from "../utils/mechanic-leaderboard";
 import logger from "../utils/logger";
@@ -23,8 +22,12 @@ export function parseMechanicFilters(query: Record<string, unknown>): MechanicLe
 }
 
 const router = Router();
-router.get("/options", cacheMiddleware(() => "avoidable-damage:options:v3", () => 5 * 60 * 1000), async (_req, res) => {
-  try { res.json(await avoidableDamageService.getOptions()); }
+router.get("/options", async (_req, res) => {
+  try {
+    const data = await avoidableDamageService.getOptions();
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=240");
+    res.json(data);
+  }
   catch (error) { logger.error("[AvoidableDamage] Options failed", error); res.status(500).json({ error: "Could not load mechanic options" }); }
 });
 router.get("/", (req, res, next) => {

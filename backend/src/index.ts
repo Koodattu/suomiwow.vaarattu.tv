@@ -49,6 +49,7 @@ import taskTracker from "./services/task-tracker.service";
 import { analyticsMiddleware, flushAnalytics } from "./middleware/analytics.middleware";
 import cacheService from "./services/cache.service";
 import cacheWarmerService from "./services/cache-warmer.service";
+import avoidableDamageService from "./services/avoidable-damage.service";
 import guildLogSourceService from "./services/guild-log-source.service";
 import ccgPublisherService from "./services/ccg-publisher.service";
 import { ensurePersistentCcgGuests } from "./services/ccg-guest-persistence-migration.service";
@@ -552,8 +553,8 @@ async function runBackgroundInitialization(): Promise<void> {
 
 /**
  * Start the server with async initialization.
- * The API starts serving immediately after database connection.
- * All other initialization runs in the background.
+ * Prepare required data and mechanic snapshots before accepting requests.
+ * The remaining worker initialization runs in the background.
  */
 const startServer = async () => {
   try {
@@ -613,7 +614,10 @@ const startServer = async () => {
     }
 
     if (isApiProcess) {
-      // Start Express server IMMEDIATELY after database connection
+      // Prepare every selectable mechanic before the first visitor, including in API-only mode.
+      // Persisted snapshots and shared leases avoid duplicate work during rolling restarts.
+      await runStartupTask("Warm mechanic caches", () => avoidableDamageService.warmLeaderboardCaches());
+
       app.listen(PORT, () => {
         logger.info(`[Startup] Server running on port ${PORT}`);
         logger.info(`[Startup] API available at http://localhost:${PORT}/api`);

@@ -18,7 +18,7 @@ import { normalizeRealmSlug } from "../utils/realm";
 import { resolveSpecByBlizzardSpecId, slugifySpecName, tryResolveRole } from "../utils/spec";
 import { MechanicLeaderboardFilters, MechanicSnapshot, MechanicSnapshotRow, selectMechanicLeaderboard } from "../utils/mechanic-leaderboard";
 import iconCacheService from "./icon-cache.service";
-import cacheService from "./cache.service";
+import { SharedSnapshotCacheService } from "./shared-snapshot-cache.service";
 import rateLimitService from "./rate-limit.service";
 import { reportAllowedForGuild } from "./report-override-policy.service";
 import wclService from "./warcraftlogs.service";
@@ -27,6 +27,7 @@ const RETRY_MS = 24 * 60 * 60 * 1000;
 const REPORTS_PER_TURN = 10;
 const FIGHTS_PER_REQUEST = 50;
 const LEADERBOARD_CACHE_MS = 5 * 60 * 1000;
+const OPTIONS_CACHE_KEY = "avoidable-damage:options:v3";
 const currentVersions = (mechanics = activeAvoidableMechanics()) => mechanics.map((entry) => ({ mechanicKey: entry.key, version: entry.version }));
 const queueMechanics = (queue: IGuildProcessingQueue) => activeAvoidableMechanics().filter((entry) =>
   queue.targetMechanicKeys === undefined || queue.targetMechanicKeys.includes(entry.key));
@@ -48,7 +49,7 @@ export interface MechanicBackfillOptions {
 }
 
 class AvoidableDamageService {
-  private snapshotBuilds = new Map<string, Promise<MechanicSnapshot>>();
+  private snapshotCache = new SharedSnapshotCacheService("Mechanics Cache");
 
   async queueBackfill({ guildId, mechanicKeys, retryUnavailable = false }: MechanicBackfillOptions = {}) {
     if (mechanicKeys?.some((key) => !findAvoidableMechanic(key))) throw new Error("Unknown mechanic selection");
@@ -281,11 +282,15 @@ class AvoidableDamageService {
       await queue.updateProgress(queue.progress.reportsFetched + 1, queue.progress.fightsSaved, queue.progress.currentPage + 1);
     }
     // Refresh in place: visitors keep the previous snapshot while new results are prepared.
-    if (collectedMechanics.size) void this.warmLeaderboardCaches([...collectedMechanics]);
+    if (collectedMechanics.size) void this.warmLeaderboardCaches([...collectedMechanics], true);
     return !(await AvoidableDamageFight.exists({ guildId: queue.guildId, $and: [{ $or: versions }, dueFilter()] }));
   }
 
   async getOptions() {
+    return this.snapshotCache.get(OPTIONS_CACHE_KEY, () => this.buildOptions(), LEADERBOARD_CACHE_MS);
+  }
+
+  private async buildOptions() {
     const mechanics = activeAvoidableMechanics();
     const [raids, guilds] = await Promise.all([
       Raid.find({ id: { $in: mechanics.map((entry) => entry.zoneId) } }).select("id name expansion iconUrl bosses.id bosses.iconUrl -_id").lean(),
@@ -393,25 +398,24 @@ class AvoidableDamageService {
     return `avoidable-damage:snapshot:v3:${mechanic.key}:${mechanic.version}`;
   }
 
-  private refreshSnapshot(mechanic: AvoidableMechanic): Promise<MechanicSnapshot> {
-    const key = this.snapshotKey(mechanic);
-    const existing = this.snapshotBuilds.get(key);
-    if (existing) return existing;
-    const build = (async () => {
-      const snapshot = await this.buildLeaderboardSnapshot(mechanic);
-      await cacheService.set(key, snapshot, LEADERBOARD_CACHE_MS);
-      return snapshot;
-    })().finally(() => this.snapshotBuilds.delete(key));
-    this.snapshotBuilds.set(key, build);
-    return build;
+  private getSnapshot(mechanic: AvoidableMechanic, warm = false): Promise<MechanicSnapshot> {
+    return this.snapshotCache.get(this.snapshotKey(mechanic), () => this.buildLeaderboardSnapshot(mechanic), LEADERBOARD_CACHE_MS, warm);
   }
 
-  async warmLeaderboardCaches(mechanicKeys = activeAvoidableMechanics().map((entry) => entry.key)): Promise<void> {
-    // Sequential warming avoids flooding MongoDB during startup or a collection run.
+  async warmLeaderboardCaches(mechanicKeys = activeAvoidableMechanics().map((entry) => entry.key), forceRefresh = false): Promise<void> {
+    try {
+      await this.snapshotCache.get(OPTIONS_CACHE_KEY, () => this.buildOptions(), LEADERBOARD_CACHE_MS, true);
+    } catch (error) { logger.error("[AvoidableDamage] Options cache refresh failed", error); }
+
+    // Warm every enabled mechanic without traffic; fresh snapshots are cheap cache reads.
+    // Sequential builds avoid flooding MongoDB during startup or a collection run.
     for (const key of mechanicKeys) {
       const mechanic = findAvoidableMechanic(key);
       if (!mechanic) continue;
-      try { await this.refreshSnapshot(mechanic); }
+      try {
+        if (forceRefresh) await this.snapshotCache.markStale(this.snapshotKey(mechanic));
+        await this.getSnapshot(mechanic, true);
+      }
       catch (error) { logger.error(`[AvoidableDamage] Cache refresh failed for ${key}`, error); }
     }
   }
@@ -419,12 +423,7 @@ class AvoidableDamageService {
   async getLeaderboard(filters: MechanicLeaderboardFilters) {
     const mechanic = findAvoidableMechanic(filters.mechanic);
     if (!mechanic) throw new Error("Unknown mechanic");
-    const cached = await cacheService.getWithMetadata<MechanicSnapshot>(this.snapshotKey(mechanic));
-    if (cached && new Date(cached.expiresAt).getTime() <= Date.now()) {
-      // Serve stale data immediately; concurrent visitors share the same refresh.
-      void this.warmLeaderboardCaches([mechanic.key]);
-    }
-    const snapshot = cached?.data ?? await this.refreshSnapshot(mechanic);
+    const snapshot = await this.getSnapshot(mechanic);
     return selectMechanicLeaderboard(snapshot, filters);
   }
 }
