@@ -59,7 +59,10 @@ class AvoidableDamageService {
       ...(guildId ? { guildId: new mongoose.Types.ObjectId(guildId) } : {}), difficulty: 5,
       $or: mechanics.map((entry) => ({ zoneId: entry.zoneId, encounterID: entry.encounterId })),
     });
-    const guilds = await Guild.find({ _id: { $in: ids }, logSourceMigrationLockToken: { $exists: false } });
+    // Progress embeds years of pull history. Loading/hydrating it for all guilds
+    // can exhaust the API heap before any background job is queued.
+    const guilds = await Guild.find({ _id: { $in: ids }, logSourceMigrationLockToken: { $exists: false } })
+      .select("_id name realm region excludedRaidIds").lean();
     let queued = 0;
     let retried = 0;
     for (const guild of guilds) {
@@ -76,7 +79,7 @@ class AvoidableDamageService {
     return { queued, retried, mechanicKeys: mechanics.map((entry) => entry.key) };
   }
 
-  async enqueueGuild(guild: IGuild, mechanicKeys: string[], priority = 30): Promise<IGuildProcessingQueue> {
+  async enqueueGuild(guild: Pick<IGuild, "_id" | "name" | "realm" | "region">, mechanicKeys: string[], priority = 30): Promise<IGuildProcessingQueue> {
     const identity = { guildId: guild._id, jobType: "backfill_avoidable_damage" as const, guildLogSourceId: { $exists: false } };
     // Compare-and-swap protects requests made concurrently by the API and scheduler.
     // A running job keeps its snapshot; the next turn seeds any newly selected keys.

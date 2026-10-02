@@ -8,6 +8,10 @@ import router, { parseMechanicBackfill } from "../src/routes/admin-avoidable-dam
 import service, { MechanicBackfillOptions } from "../src/services/avoidable-damage.service";
 import discord from "../src/services/discord.service";
 import { activeAvoidableMechanics } from "../src/config/avoidable-mechanics";
+import mongoose from "mongoose";
+import Fight from "../src/models/Fight";
+import Guild from "../src/models/Guild";
+import AvoidableDamageFight from "../src/models/AvoidableDamageFight";
 
 test("admin mechanic requests require an explicit valid bounded selection", () => {
   const valid = { mechanicKeys: ["sszorak-tempest"] };
@@ -20,6 +24,40 @@ test("admin mechanic requests require an explicit valid bounded selection", () =
   for (const body of [null, [], {}, { mechanicKeys: [] }, { mechanicKeys: "sszorak-tempest" }, { mechanicKeys: ["removed"] },
     { mechanicKeys: [{ $ne: null }] }, { ...valid, guildId: { $ne: null } }, { ...valid, guildId: "x" },
     { ...valid, retryUnavailable: "false" }, { mechanicKeys: Array(100).fill("sszorak-tempest") }]) assert.equal(parseMechanicBackfill(body), null);
+});
+
+test("queueing reads lean guild metadata without loading embedded pull histories", async (t) => {
+  const [includedId, excludedId] = [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()];
+  const keys = ["sszorak-tempest", "coiled-altar-axegrinder"];
+  const queued: Array<{ guildId: string; keys: string[] }> = [];
+  t.mock.method(Fight, "distinct", async (field: string, filter: Record<string, unknown>) => {
+    assert.equal(field, "guildId");
+    assert.equal(filter.difficulty, 5);
+    assert.deepEqual(filter.$or, [{ zoneId: 53, encounterID: 3420 }, { zoneId: 53, encounterID: 3429 }]);
+    return [includedId, excludedId];
+  });
+  // Use a real Mongoose query so projection and lean are checked at execution,
+  // before any database data could be transferred or hydrated.
+  const query = Guild.find();
+  t.mock.method(query, "exec", async () => {
+    assert.deepEqual(query.projection(), { _id: 1, name: 1, realm: 1, region: 1, excludedRaidIds: 1 });
+    assert.equal(query.mongooseOptions().lean, true);
+    return [
+      { _id: includedId, name: "Included", realm: "realm", region: "EU", excludedRaidIds: [] },
+      { _id: excludedId, name: "Excluded", realm: "realm", region: "EU", excludedRaidIds: [53] },
+    ];
+  });
+  t.mock.method(Guild, "find", (filter: unknown) => {
+    assert.deepEqual(filter, { _id: { $in: [includedId, excludedId] }, logSourceMigrationLockToken: { $exists: false } });
+    return query;
+  });
+  t.mock.method(AvoidableDamageFight, "updateMany", async () => { assert.fail("A normal queue request must not reset collected data"); });
+  t.mock.method(service, "enqueueGuild", async (guild: { _id: unknown }, selected: string[]) => {
+    queued.push({ guildId: String(guild._id), keys: selected });
+    return {};
+  });
+  assert.deepEqual(await service.queueBackfill({ mechanicKeys: keys }), { queued: 1, retried: 0, mechanicKeys: keys });
+  assert.deepEqual(queued, [{ guildId: String(includedId), keys }]);
 });
 
 test("admin endpoints enforce authorization and only enqueue the selected scope", async (t) => {
