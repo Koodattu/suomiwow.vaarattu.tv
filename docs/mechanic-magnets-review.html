@@ -1,0 +1,3285 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mechanic magnets — selection checklist</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #e7edf6; background: #0b101a; accent-color: #5bd3c7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    button, input, select, textarea { font: inherit; }
+    button, input, select, textarea, .mechanic { border: 1px solid #344258; border-radius: 6px; }
+    button { cursor: pointer; background: #202d40; color: #e7edf6; padding: .5rem .75rem; font-weight: 600; }
+    button:hover { background: #304159; }
+    button:disabled { opacity: .45; cursor: default; }
+    :focus-visible { outline: 2px solid #5bd3c7; outline-offset: 3px; }
+    .primary { background: #5bd3c7; color: #082925; border-color: #5bd3c7; }
+    .primary:hover { background: #80e2d8; }
+    a { color: #90c6ef; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    input:not([type="checkbox"]), select, textarea { min-width: 0; padding: .55rem .65rem; color: inherit; background: #101927; width: 100%; }
+    input[type="checkbox"] { width: 1rem; height: 1rem; margin: 0; flex: 0 0 auto; cursor: pointer; }
+    input[type="checkbox"]:disabled { cursor: default; }
+    input::placeholder, textarea::placeholder { color: #8898ae; }
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 1.3rem 1.25rem 3rem; }
+    .header { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+    h1 { margin: 0; font-size: clamp(1.3rem, 3vw, 1.7rem); letter-spacing: -.035em; }
+    .intro { color: #a6b4c8; margin: .35rem 0 1rem; font-size: .9rem; }
+    .actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .toolbar { position: sticky; top: 0; z-index: 2; background: #0b101af5; padding: .75rem 0; border-block: 1px solid #29354a; backdrop-filter: blur(12px); }
+    .filters { display: grid; grid-template-columns: minmax(180px, 1fr) 190px auto auto; align-items: center; gap: .7rem; }
+    .selected-toggle { display: flex; align-items: center; gap: .5rem; white-space: nowrap; font-size: .87rem; padding: .4rem 0; }
+    .summary { display: flex; justify-content: space-between; gap: .5rem 1rem; flex-wrap: wrap; align-items: center; font-size: .82rem; margin-top: .55rem; }
+    #counts { color: #80e2d8; font-weight: 600; }
+    #save-status, .muted { color: #a6b4c8; }
+    .note { color: #a6b4c8; font-size: .8rem; margin: .75rem 0; }
+    #catalogue { display: grid; gap: .85rem; }
+    .raid { border: 1px solid #29354a; border-radius: 8px; background: #101927; overflow: clip; }
+    .raid > summary { display: flex; align-items: center; gap: .55rem; padding: .75rem .9rem; background: #182335; cursor: pointer; list-style: none; }
+    .raid > summary::-webkit-details-marker { display: none; }
+    .raid > summary::before { content: "▸"; color: #7e91ad; }
+    .raid[open] > summary::before { content: "▾"; }
+    .raid-title { font-weight: 650; }
+    .expansion-label { font-size: .77rem; color: #a6b4c8; }
+    .raid-count { font-size: .78rem; color: #80e2d8; margin-left: auto; white-space: nowrap; }
+    .boss { display: grid; grid-template-columns: minmax(220px, .85fr) minmax(0, 2fr); gap: .55rem 1rem; padding: .75rem .9rem; border-top: 1px solid #243147; }
+    .boss-title { display: flex; align-items: center; gap: .55rem; font-weight: 600; font-size: .91rem; overflow-wrap: anywhere; }
+    .boss-meta { display: flex; gap: .65rem; align-items: center; margin: .35rem 0 0 1.55rem; font-size: .75rem; }
+    .text-button { padding: 0; border: 0; background: transparent; color: #90c6ef; font-weight: 500; font-size: inherit; }
+    .text-button:hover { background: transparent; text-decoration: underline; }
+    .custom-tag { color: #f5c87a; font-size: .73rem; }
+    .mechanics { display: flex; gap: .45rem; flex-wrap: wrap; align-items: center; }
+    .mechanic { display: flex; align-items: center; gap: .45rem; padding: .4rem .55rem; background: #0c1421; font-size: .82rem; }
+    .mechanic:has(input:checked) { background: #12332f; border-color: #357b70; }
+    .mechanic label { display: flex; gap: .5rem; align-items: center; cursor: pointer; overflow-wrap: anywhere; }
+    .remove { color: #abbbce; border: 0; padding: 0 .1rem; background: none; font-size: 1rem; line-height: 1; }
+    .remove:hover { color: #ffb9b9; background: none; }
+    .empty { text-align: center; padding: 3rem 1rem; color: #a6b4c8; }
+    dialog { width: min(550px, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); border: 1px solid #42536d; border-radius: 10px; background: #101927; color: inherit; padding: 1.25rem; }
+    dialog::backdrop { background: #030711bd; }
+    dialog h2 { margin: 0 0 .4rem; font-size: 1.2rem; }
+    dialog p { color: #a6b4c8; font-size: .86rem; margin: 0 0 1rem; }
+    .field { display: block; margin: .85rem 0; }
+    .field span { display: block; font-size: .84rem; margin-bottom: .35rem; }
+    textarea { resize: vertical; min-height: 100px; }
+    .dialog-actions { display: flex; justify-content: end; gap: .5rem; margin-top: 1rem; }
+    .error { color: #ffb9b9; font-size: .85rem; margin: .6rem 0 0; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+    [hidden] { display: none !important; }
+    @media (max-width: 960px) {
+      .wrap { padding: 1rem .65rem 2rem; }
+      .header { flex-direction: column; gap: 0; }
+      .actions { grid-column: 1 / -1; }
+      .filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      .search-field { grid-column: 1 / -1; }
+      .boss { grid-template-columns: 1fr; }
+      .raid > summary { flex-wrap: wrap; gap: .3rem .5rem; }
+      .expansion-label { flex-basis: 100%; margin-left: 1rem; order: 2; }
+      .mechanics { margin-left: 1.55rem; }
+      #save-status { flex-basis: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header class="header">
+      <div>
+        <h1>Mechanic magnets</h1>
+        <p class="intro">Choose mechanics, add ideas, then save a copy to send back.</p>
+      </div>
+    </header>
+    <div class="toolbar">
+      <div class="filters">
+        <label class="search-field"><span class="sr-only">Search bosses, raids or mechanics</span><input id="search" type="search" placeholder="Search bosses, raids or mechanics…" autocomplete="off"></label>
+        <label><span class="sr-only">Expansion</span><select id="expansion"><option value="">All expansions</option></select></label>
+        <label class="selected-toggle"><input id="selected-only" type="checkbox"> Selected bosses only</label>
+        <div class="actions">
+          <button type="button" id="add-boss">+ Add boss</button>
+          <button type="button" class="primary" id="save-html">Save selections as HTML</button>
+        </div>
+      </div>
+      <div class="summary">
+        <span id="counts" role="status" aria-live="polite"></span>
+        <span id="save-status" role="status" aria-live="polite"></span>
+      </div>
+    </div>
+    <p class="note">Boss checkboxes select all of that boss’s mechanics. † = count only the stated avoidable component. Save the HTML and send the downloaded file back so your choices can be read.</p>
+    <div id="catalogue"></div>
+    <noscript><p>Enable JavaScript to use this checklist.</p></noscript>
+  </main>
+
+  <dialog id="boss-dialog" aria-labelledby="boss-dialog-title">
+    <form id="boss-form">
+      <h2 id="boss-dialog-title">Add a boss</h2>
+      <p>Pick an existing expansion and raid, or type new names. New mechanics start selected.</p>
+      <label class="field"><span>Expansion</span><input id="boss-expansion" list="expansion-options" required maxlength="120"></label>
+      <label class="field"><span>Raid</span><input id="boss-raid" list="raid-options" required maxlength="160"></label>
+      <label class="field"><span>Boss</span><input id="boss-name" required maxlength="160" autocomplete="off"></label>
+      <label class="field"><span>Mechanics — one per line, optional</span><textarea id="boss-mechanics" placeholder="Ability name&#10;Another mechanic"></textarea></label>
+      <p id="boss-error" class="error" role="alert" hidden></p>
+      <div class="dialog-actions"><button type="button" data-close="boss-dialog">Cancel</button><button class="primary" type="submit">Add boss</button></div>
+    </form>
+  </dialog>
+  <dialog id="mechanic-dialog" aria-labelledby="mechanic-dialog-title">
+    <form id="mechanic-form">
+      <h2 id="mechanic-dialog-title">Add mechanics</h2>
+      <p id="mechanic-context"></p>
+      <label class="field"><span>Mechanics — one per line</span><textarea id="mechanic-names" required placeholder="Ability name&#10;Another mechanic"></textarea></label>
+      <p id="mechanic-error" class="error" role="alert" hidden></p>
+      <div class="dialog-actions"><button type="button" data-close="mechanic-dialog">Cancel</button><button class="primary" type="submit">Add mechanics</button></div>
+    </form>
+  </dialog>
+  <datalist id="expansion-options"></datalist>
+  <datalist id="raid-options"></datalist>
+
+  <!-- Read this JSON to recover the checklist. Selection is stored in bosses[].mechanics[].selected. -->
+  <script id="mechanic-selection-data" type="application/json">{
+  "schemaVersion": 1,
+  "catalogueDate": "2026-10-02",
+  "sourceDocument": "mechanic-magnets-candidates.md",
+  "snapshotId": "catalogue-2026-10-02",
+  "savedAt": null,
+  "updatedAt": null,
+  "bosses": [
+    {
+      "id": "boss-001",
+      "expansion": "Midnight",
+      "raid": "Venomous Abyss",
+      "name": "Nek’zali the Soulcoiler",
+      "source": "https://www.method.gg/guides/the-venomous-abyss/nekzali-the-soulcoiler-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-001-mechanic-1",
+          "name": "Anguished Echoes",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-002",
+      "expansion": "Midnight",
+      "raid": "Venomous Abyss",
+      "name": "Entombed Sentinels",
+      "source": "https://www.method.gg/guides/the-venomous-abyss/entombed-sentinels-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-002-mechanic-1",
+          "name": "Living Venom — outgoing and returning lines",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-003",
+      "expansion": "Midnight",
+      "raid": "Venomous Abyss",
+      "name": "The Lost Explorers",
+      "source": "https://www.method.gg/guides/the-venomous-abyss/the-lost-explorers-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-003-mechanic-1",
+          "name": "Shell Spin",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-003-mechanic-2",
+          "name": "Blast Wave",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-003-mechanic-3",
+          "name": "Aftershock",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-004",
+      "expansion": "Midnight",
+      "raid": "Venomous Abyss",
+      "name": "Vashnik the Malignant",
+      "source": "https://www.method.gg/guides/the-venomous-abyss/vashnik-the-malignant-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-004-mechanic-1",
+          "name": "Plague Froth",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-005",
+      "expansion": "Midnight",
+      "raid": "Venomous Abyss",
+      "name": "Sszorak",
+      "source": "https://www.method.gg/guides/the-venomous-abyss/sszorak-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-005-mechanic-1",
+          "name": "Tempest",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-006",
+      "expansion": "Midnight",
+      "raid": "Venomous Abyss",
+      "name": "The Twin Fangs",
+      "source": "https://www.method.gg/guides/the-venomous-abyss/the-twin-fangs-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-006-mechanic-1",
+          "name": "Vile Flood",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-006-mechanic-2",
+          "name": "Sanguine Storm",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-007",
+      "expansion": "Midnight",
+      "raid": "Venomous Abyss",
+      "name": "The Coiled Altar",
+      "source": "https://www.method.gg/guides/the-venomous-abyss/the-coiled-altar-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-007-mechanic-1",
+          "name": "Axegrinder",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-008",
+      "expansion": "Midnight",
+      "raid": "Venomous Abyss",
+      "name": "Ula’tek",
+      "source": "https://www.method.gg/guides/the-venomous-abyss/ulatek-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-008-mechanic-1",
+          "name": "Caustic Waves",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-009",
+      "expansion": "Midnight",
+      "raid": "Tidebound Grotto",
+      "name": "Nymrissa Wavecaller",
+      "source": "https://www.method.gg/guides/the-tidebound-grotto/nymrissa-wavecaller",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-009-mechanic-1",
+          "name": "Swirling Whirlpools",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-010",
+      "expansion": "Midnight",
+      "raid": "Voidspire",
+      "name": "Imperator Averzian",
+      "source": "https://www.method.gg/guides/the-voidspire/imperator-averzian-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-010-mechanic-1",
+          "name": "Oblivion’s Wrath",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-011",
+      "expansion": "Midnight",
+      "raid": "Voidspire",
+      "name": "Vorasius",
+      "source": "https://www.method.gg/guides/the-voidspire/vorasius-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-011-mechanic-1",
+          "name": "Aftershock",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-011-mechanic-2",
+          "name": "Void Breath",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-012",
+      "expansion": "Midnight",
+      "raid": "Voidspire",
+      "name": "Fallen-King Salhadaar",
+      "source": "https://www.method.gg/guides/the-voidspire/fallen-king-salhadaar-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-012-mechanic-1",
+          "name": "Umbral Beams",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-013",
+      "expansion": "Midnight",
+      "raid": "Voidspire",
+      "name": "Lightblinded Vanguard",
+      "source": "https://www.method.gg/guides/the-voidspire/lightblinded-vanguard",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-013-mechanic-1",
+          "name": "Divine Toll",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-014",
+      "expansion": "Midnight",
+      "raid": "Voidspire",
+      "name": "Crown of the Cosmos",
+      "source": "https://www.method.gg/guides/the-voidspire/crown-of-the-cosmos-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-014-mechanic-1",
+          "name": "Grasp of Emptiness — obelisk beams†",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-015",
+      "expansion": "Midnight",
+      "raid": "Dreamrift",
+      "name": "Chimaerus the Undreamt God",
+      "source": "https://www.method.gg/guides/the-dreamrift/chimaerus-the-undreamt-god-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-015-mechanic-1",
+          "name": "Corrupted Devastation",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-016",
+      "expansion": "Midnight",
+      "raid": "March on Quel’Danas",
+      "name": "Midnight Falls",
+      "source": "https://www.method.gg/guides/march-on-queldanas/midnight-falls",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-016-mechanic-1",
+          "name": "Heaven’s Glaives",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-016-mechanic-2",
+          "name": "Dark Quasar",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-017",
+      "expansion": "The War Within",
+      "raid": "Manaforge Omega",
+      "name": "Plexus Sentinel",
+      "source": "https://www.method.gg/guides/manaforge-omega/plexus-sentinel-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-017-mechanic-1",
+          "name": "Arcane Radiation",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-017-mechanic-2",
+          "name": "Atomize — failed wall crossings",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-018",
+      "expansion": "The War Within",
+      "raid": "Manaforge Omega",
+      "name": "Loom’ithar",
+      "source": "https://www.method.gg/guides/manaforge-omega/loomithar-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-018-mechanic-1",
+          "name": "Primal Spellstorm",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-018-mechanic-2",
+          "name": "Living Silk",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-019",
+      "expansion": "The War Within",
+      "raid": "Manaforge Omega",
+      "name": "Forgeweaver Araz",
+      "source": "https://www.wowhead.com/npc=247989/forgeweaver-araz",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-019-mechanic-1",
+          "name": "Prime Sequence — discs",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-020",
+      "expansion": "The War Within",
+      "raid": "Manaforge Omega",
+      "name": "The Soul Hunters",
+      "source": "https://www.method.gg/guides/manaforge-omega/the-soul-hunters-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-020-mechanic-1",
+          "name": "Voidstep",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-020-mechanic-2",
+          "name": "Hungering Slash",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-020-mechanic-3",
+          "name": "Blade Dance",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-021",
+      "expansion": "The War Within",
+      "raid": "Manaforge Omega",
+      "name": "Nexus-King Salhadaar",
+      "source": "https://www.wowhead.com/npc=245826/nexus-king-salhadaar/normal-encounter-journal",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-021-mechanic-1",
+          "name": "Nexus Beams — add-platform lasers",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-022",
+      "expansion": "The War Within",
+      "raid": "Manaforge Omega",
+      "name": "Dimensius",
+      "source": "https://www.method.gg/guides/manaforge-omega/dimensius-the-all-devouring-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-022-mechanic-1",
+          "name": "Extinction — world-fragment projectiles",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-023",
+      "expansion": "The War Within",
+      "raid": "Liberation of Undermine",
+      "name": "Cauldron of Carnage",
+      "source": "https://www.method.gg/guides/liberation-of-undermine/cauldron-of-carnage",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-023-mechanic-1",
+          "name": "Blastburn Roarcannon",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-024",
+      "expansion": "The War Within",
+      "raid": "Liberation of Undermine",
+      "name": "Rik Reverb",
+      "source": "https://www.method.gg/guides/liberation-of-undermine/rik-reverb-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-024-mechanic-1",
+          "name": "Resonant Echoes",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-025",
+      "expansion": "The War Within",
+      "raid": "Liberation of Undermine",
+      "name": "Sprocketmonger Lockenstock",
+      "source": "https://www.method.gg/guides/liberation-of-undermine/sprocketmonger-lockenstock-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-025-mechanic-1",
+          "name": "Blazing Beam",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-025-mechanic-2",
+          "name": "Jumbo Void Beam",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-026",
+      "expansion": "The War Within",
+      "raid": "Liberation of Undermine",
+      "name": "One-Armed Bandit",
+      "source": "https://www.wowhead.com/npc=228458/one-armed-bandit/normal-encounter-journal",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-026-mechanic-1",
+          "name": "Crushed! — rolling chips",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-027",
+      "expansion": "The War Within",
+      "raid": "Liberation of Undermine",
+      "name": "Chrome King Gallywix",
+      "source": "https://www.method.gg/guides/liberation-of-undermine/chrome-king-gallywix",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-027-mechanic-1",
+          "name": "Giga Blast",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-028",
+      "expansion": "The War Within",
+      "raid": "Nerub’ar Palace",
+      "name": "The Bloodbound Horror",
+      "source": "https://www.method.gg/guides/nerubar-palace/the-bloodbound-horror-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-028-mechanic-1",
+          "name": "Spewing Hemorrhage",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-029",
+      "expansion": "The War Within",
+      "raid": "Nerub’ar Palace",
+      "name": "Rasha’nan",
+      "source": "https://www.method.gg/guides/nerubar-palace/rashanan",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-029-mechanic-1",
+          "name": "Rolling Acid",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-030",
+      "expansion": "The War Within",
+      "raid": "Nerub’ar Palace",
+      "name": "Nexus-Princess Ky’veza",
+      "source": "https://www.method.gg/guides/nerubar-palace/nexus-princess-kyveza",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-030-mechanic-1",
+          "name": "Nexus Daggers",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-031",
+      "expansion": "The War Within",
+      "raid": "Nerub’ar Palace",
+      "name": "The Silken Court",
+      "source": "https://www.method.gg/guides/nerubar-palace/the-silken-court-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-031-mechanic-1",
+          "name": "Shatter Existence — cones†",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-031-mechanic-2",
+          "name": "Spike Eruption / Impaled",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-032",
+      "expansion": "The War Within",
+      "raid": "Nerub’ar Palace",
+      "name": "Queen Ansurek",
+      "source": "https://www.method.gg/guides/nerubar-palace/queen-ansurek",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-032-mechanic-1",
+          "name": "Venom Nova",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-032-mechanic-2",
+          "name": "Web Blades",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-033",
+      "expansion": "Dragonflight",
+      "raid": "Amirdrassil",
+      "name": "Igira the Cruel",
+      "source": "https://www.method.gg/guides/amirdrassil-the-dreams-hope/igira-the-cruel-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-033-mechanic-1",
+          "name": "Twisting Blade",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-034",
+      "expansion": "Dragonflight",
+      "raid": "Amirdrassil",
+      "name": "Nymue",
+      "source": "https://www.method.gg/guides/amirdrassil-the-dreams-hope/nymue-weaver-of-the-cycle-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-034-mechanic-1",
+          "name": "Impending Loom — moving stun lines",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-035",
+      "expansion": "Dragonflight",
+      "raid": "Amirdrassil",
+      "name": "Smolderon",
+      "source": "https://www.method.gg/guides/amirdrassil-the-dreams-hope/smolderon",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-035-mechanic-1",
+          "name": "World in Flames",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-036",
+      "expansion": "Dragonflight",
+      "raid": "Amirdrassil",
+      "name": "Tindral Sageswift",
+      "source": "https://www.method.gg/guides/amirdrassil-the-dreams-hope/tindral-sageswift",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-036-mechanic-1",
+          "name": "Fire Beam",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-037",
+      "expansion": "Dragonflight",
+      "raid": "Amirdrassil",
+      "name": "Fyrakk",
+      "source": "https://www.method.gg/guides/amirdrassil-the-dreams-hope/fyrakk-the-blazing-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-037-mechanic-1",
+          "name": "Shadowflame Devastation",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-037-mechanic-2",
+          "name": "Shadowflame Breath",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-037-mechanic-3",
+          "name": "Eternal Firestorm tornadoes†",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-038",
+      "expansion": "Dragonflight",
+      "raid": "Aberrus",
+      "name": "Kazzara",
+      "source": "https://www.method.gg/guides/aberrus-the-shadowed-crucible/kazzara-the-hellforged-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-038-mechanic-1",
+          "name": "Hellbeam",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-038-mechanic-2",
+          "name": "Hellsteel Fragment",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-039",
+      "expansion": "Dragonflight",
+      "raid": "Aberrus",
+      "name": "The Amalgamation Chamber",
+      "source": "https://www.method.gg/guides/aberrus-the-shadowed-crucible/the-amalgamation-chamber-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-039-mechanic-1",
+          "name": "Swirling Flame",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-040",
+      "expansion": "Dragonflight",
+      "raid": "Aberrus",
+      "name": "The Forgotten Experiments",
+      "source": "https://www.method.gg/guides/aberrus-the-shadowed-crucible/the-forgotten-experiments-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-040-mechanic-1",
+          "name": "Massive Slam",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-040-mechanic-2",
+          "name": "Volatile Spew",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-041",
+      "expansion": "Dragonflight",
+      "raid": "Aberrus",
+      "name": "Rashok",
+      "source": "https://www.method.gg/guides/aberrus-the-shadowed-crucible/rashok-the-elder-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-041-mechanic-1",
+          "name": "Lava Wave",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-041-mechanic-2",
+          "name": "Shadowlava Blast",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-042",
+      "expansion": "Dragonflight",
+      "raid": "Aberrus",
+      "name": "Zskarn",
+      "source": "https://www.method.gg/guides/aberrus-the-shadowed-crucible/the-vigilant-steward-zskarn-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-042-mechanic-1",
+          "name": "Tactical Destruction",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-042-mechanic-2",
+          "name": "Dragonfire Traps",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-043",
+      "expansion": "Dragonflight",
+      "raid": "Aberrus",
+      "name": "Scalecommander Sarkareth",
+      "source": "https://www.method.gg/guides/aberrus-the-shadowed-crucible/scalecommander-sarkareth-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-043-mechanic-1",
+          "name": "Scouring Eternity",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-043-mechanic-2",
+          "name": "Drifting Embers",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-044",
+      "expansion": "Dragonflight",
+      "raid": "Vault of the Incarnates",
+      "name": "Eranog",
+      "source": "https://www.method.gg/guides/vault-of-the-incarnates/eranog-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-044-mechanic-1",
+          "name": "Molten Spikes",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-045",
+      "expansion": "Dragonflight",
+      "raid": "Vault of the Incarnates",
+      "name": "Terros",
+      "source": "https://www.method.gg/guides/vault-of-the-incarnates/terros-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-045-mechanic-1",
+          "name": "Shattering Impact",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-045-mechanic-2",
+          "name": "Fractured Rubble",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-045-mechanic-3",
+          "name": "Aftershock",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-046",
+      "expansion": "Dragonflight",
+      "raid": "Vault of the Incarnates",
+      "name": "Kurog Grimtotem",
+      "source": "https://www.method.gg/guides/vault-of-the-incarnates/kurog-grimtotem-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-046-mechanic-1",
+          "name": "Molten Rupture",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-046-mechanic-2",
+          "name": "Searing Carnage",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-047",
+      "expansion": "Dragonflight",
+      "raid": "Vault of the Incarnates",
+      "name": "Dathea",
+      "source": "https://www.method.gg/guides/vault-of-the-incarnates/dathea-ascended-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-047-mechanic-1",
+          "name": "Raging Tempest",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-047-mechanic-2",
+          "name": "Raging Burst",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-048",
+      "expansion": "Dragonflight",
+      "raid": "Vault of the Incarnates",
+      "name": "Raszageth",
+      "source": "https://www.method.gg/guides/vault-of-the-incarnates/raszageth-the-storm-eater-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-048-mechanic-1",
+          "name": "Lightning Breath",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-049",
+      "expansion": "Shadowlands",
+      "raid": "Sepulcher of the First Ones",
+      "name": "Vigilant Guardian",
+      "source": "https://www.method.gg/guides/sepulcher-of-the-first-ones/vigilant-guardian",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-049-mechanic-1",
+          "name": "Refracted Blast",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-049-mechanic-2",
+          "name": "Split Resolution",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-050",
+      "expansion": "Shadowlands",
+      "raid": "Sepulcher of the First Ones",
+      "name": "Artificer Xy’mox",
+      "source": "https://www.method.gg/guides/sepulcher-of-the-first-ones/artificer-xy-mox",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-050-mechanic-1",
+          "name": "Genesis Rings",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-051",
+      "expansion": "Shadowlands",
+      "raid": "Sepulcher of the First Ones",
+      "name": "Prototype Pantheon",
+      "source": "https://www.method.gg/guides/sepulcher-of-the-first-ones/prototype-pantheon",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-051-mechanic-1",
+          "name": "Pinning Volley",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-051-mechanic-2",
+          "name": "Wild Stampede",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-052",
+      "expansion": "Shadowlands",
+      "raid": "Sepulcher of the First Ones",
+      "name": "Anduin Wrynn",
+      "source": "https://www.method.gg/guides/sepulcher-of-the-first-ones/anduin-wrynn",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-052-mechanic-1",
+          "name": "Wicked Star",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-052-mechanic-2",
+          "name": "Empowered Wicked Star",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-053",
+      "expansion": "Shadowlands",
+      "raid": "Sepulcher of the First Ones",
+      "name": "Rygelon",
+      "source": "https://www.method.gg/guides/sepulcher-of-the-first-ones/rygelon",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-053-mechanic-1",
+          "name": "Celestial Terminator",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-054",
+      "expansion": "Shadowlands",
+      "raid": "Sanctum of Domination",
+      "name": "The Tarragrue",
+      "source": "https://www.method.gg/guides/sanctum-of-domination/the-tarragrue",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-054-mechanic-1",
+          "name": "Hungering Mist",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-055",
+      "expansion": "Shadowlands",
+      "raid": "Sanctum of Domination",
+      "name": "The Eye of the Jailer",
+      "source": "https://www.method.gg/guides/sanctum-of-domination/the-eye-of-the-jailer",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-055-mechanic-1",
+          "name": "Annihilating Glare",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-055-mechanic-2",
+          "name": "Fractured Soul",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-056",
+      "expansion": "Shadowlands",
+      "raid": "Sanctum of Domination",
+      "name": "The Nine",
+      "source": "https://www.method.gg/guides/sanctum-of-domination/the-nine",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-056-mechanic-1",
+          "name": "Wings of Rage",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-056-mechanic-2",
+          "name": "Reverberating Refrain",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-057",
+      "expansion": "Shadowlands",
+      "raid": "Sanctum of Domination",
+      "name": "Remnant of Ner’zhul",
+      "source": "https://www.method.gg/guides/sanctum-of-domination/remnant-of-nerzhul",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-057-mechanic-1",
+          "name": "Grasp of Malice",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-058",
+      "expansion": "Shadowlands",
+      "raid": "Sanctum of Domination",
+      "name": "Soulrender Dormazain",
+      "source": "https://www.method.gg/guides/sanctum-of-domination/soulrender-dormazain",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-058-mechanic-1",
+          "name": "Torment — floor eruptions",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-059",
+      "expansion": "Shadowlands",
+      "raid": "Sanctum of Domination",
+      "name": "Painsmith Raznal",
+      "source": "https://tanknotes.com/sanctum-of-domination/painsmith-raznal/",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-059-mechanic-1",
+          "name": "Spiked",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-060",
+      "expansion": "Shadowlands",
+      "raid": "Sanctum of Domination",
+      "name": "Fatescribe Roh-Kalo",
+      "source": "https://www.method.gg/guides/sanctum-of-domination/fatescribe-roh-kalo",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-060-mechanic-1",
+          "name": "Fated Conjunction",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-061",
+      "expansion": "Shadowlands",
+      "raid": "Sanctum of Domination",
+      "name": "Kel’Thuzad",
+      "source": "https://www.method.gg/guides/sanctum-of-domination/kelthuzad",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-061-mechanic-1",
+          "name": "Freezing Blast",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-061-mechanic-2",
+          "name": "Shadow Fissure",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-061-mechanic-3",
+          "name": "Glacial Winds",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-062",
+      "expansion": "Shadowlands",
+      "raid": "Sanctum of Domination",
+      "name": "Sylvanas Windrunner",
+      "source": "https://www.wowhead.com/guide/sylvanas-windrunner-sanctum-of-domination-normal-heroic-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-062-mechanic-1",
+          "name": "Haunting Wave",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-062-mechanic-2",
+          "name": "Rive",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-062-mechanic-3",
+          "name": "Riven Debris",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-063",
+      "expansion": "Shadowlands",
+      "raid": "Castle Nathria",
+      "name": "Shriekwing",
+      "source": "https://tanknotes.com/castle-nathria/shriekwing/",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-063-mechanic-1",
+          "name": "Echoing Screech",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-063-mechanic-2",
+          "name": "Echoing Sonar",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-063-mechanic-3",
+          "name": "Earsplitting Shriek",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-064",
+      "expansion": "Shadowlands",
+      "raid": "Castle Nathria",
+      "name": "Artificer Xy’mox",
+      "source": "https://tanknotes.com/castle-nathria/artificer-xymox/",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-064-mechanic-1",
+          "name": "Rift Blast",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-064-mechanic-2",
+          "name": "Edge of Annihilation",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-065",
+      "expansion": "Shadowlands",
+      "raid": "Castle Nathria",
+      "name": "Sun King’s Salvation",
+      "source": "https://www.wowhead.com/guide/mythic-sun-kings-salvation-castle-nathria-strategy",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-065-mechanic-1",
+          "name": "Blazing Surge",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-066",
+      "expansion": "Shadowlands",
+      "raid": "Castle Nathria",
+      "name": "The Council of Blood",
+      "source": "https://www.icy-veins.com/wow/the-council-of-blood-mythic-encounter-journal",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-066-mechanic-1",
+          "name": "Waltzing Venthyr — moving dancers",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-067",
+      "expansion": "Shadowlands",
+      "raid": "Castle Nathria",
+      "name": "Sludgefist",
+      "source": "https://tanknotes.com/castle-nathria/sludgefist/",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-067-mechanic-1",
+          "name": "Destructive Stomp",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-068",
+      "expansion": "Shadowlands",
+      "raid": "Castle Nathria",
+      "name": "Sire Denathrius",
+      "source": "https://tanknotes.com/castle-nathria/sire-denathrius/",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-068-mechanic-1",
+          "name": "Massacre",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-069",
+      "expansion": "Battle for Azeroth",
+      "raid": "Ny’alotha",
+      "name": "Wrathion",
+      "source": "https://www.wowhead.com/guide/wrathion-the-black-emperor-nyalotha-waking-city-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-069-mechanic-1",
+          "name": "Scorching Blister",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-069-mechanic-2",
+          "name": "Molten Eruption",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-070",
+      "expansion": "Battle for Azeroth",
+      "raid": "Ny’alotha",
+      "name": "Maut",
+      "source": "https://www.wowhead.com/guide/maut-nyalotha-waking-city-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-070-mechanic-1",
+          "name": "Black Wings",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-071",
+      "expansion": "Battle for Azeroth",
+      "raid": "Ny’alotha",
+      "name": "Dark Inquisitor Xanesh",
+      "source": "https://www.wowhead.com/guide/dark-inquisitor-xanesh-nyalotha-waking-city-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-071-mechanic-1",
+          "name": "Torment — floor sectors",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-072",
+      "expansion": "Battle for Azeroth",
+      "raid": "Ny’alotha",
+      "name": "The Hivemind",
+      "source": "https://www.wowhead.com/guide/hivemind-nyalotha-waking-city-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-072-mechanic-1",
+          "name": "Acidic Aqir / Corrosion — rolling bugs",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-073",
+      "expansion": "Battle for Azeroth",
+      "raid": "Ny’alotha",
+      "name": "Shad’har",
+      "source": "https://www.wowhead.com/guide/shadhar-the-insatiable-nyalotha-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-073-mechanic-1",
+          "name": "Umbral Breath",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-073-mechanic-2",
+          "name": "Bubbling Breath",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-073-mechanic-3",
+          "name": "Umbral Eruption",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-074",
+      "expansion": "Battle for Azeroth",
+      "raid": "Ny’alotha",
+      "name": "Drest’agath",
+      "source": "https://www.wowhead.com/guide/drestagath-nyalotha-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-074-mechanic-1",
+          "name": "Void Glare",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-074-mechanic-2",
+          "name": "Reality Tear",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-074-mechanic-3",
+          "name": "Spine Eruption",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-075",
+      "expansion": "Battle for Azeroth",
+      "raid": "Ny’alotha",
+      "name": "Il’gynoth",
+      "source": "https://www.wowhead.com/guide/ilgynoth-corruption-reborn-nyalotha-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-075-mechanic-1",
+          "name": "Corruptor’s Gaze — damaging trails†",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-076",
+      "expansion": "Battle for Azeroth",
+      "raid": "Ny’alotha",
+      "name": "Vexiona",
+      "source": "https://www.wowhead.com/guide/vexiona-nyalotha-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-076-mechanic-1",
+          "name": "Twilight Decimator",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-077",
+      "expansion": "Battle for Azeroth",
+      "raid": "Ny’alotha",
+      "name": "Ra-den",
+      "source": "https://www.icy-veins.com/wow/ra-den-tactics-and-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-077-mechanic-1",
+          "name": "Void Eruption",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-078",
+      "expansion": "Battle for Azeroth",
+      "raid": "Ny’alotha",
+      "name": "Carapace of N’Zoth",
+      "source": "https://www.wowhead.com/guide/carapace-of-nzoth-nyalotha-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-078-mechanic-1",
+          "name": "Growth-Covered Tentacle slams",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-078-mechanic-2",
+          "name": "Occipital Blast",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-079",
+      "expansion": "Battle for Azeroth",
+      "raid": "Ny’alotha",
+      "name": "N’Zoth",
+      "source": "https://www.wowhead.com/guide/nzoth-the-corruptor-nyalotha-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-079-mechanic-1",
+          "name": "Stupefying Glare",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-080",
+      "expansion": "Battle for Azeroth",
+      "raid": "Eternal Palace",
+      "name": "Radiance of Azshara",
+      "source": "https://www.wowhead.com/guide/radiance-azsharas-eternal-palace-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-080-mechanic-1",
+          "name": "Arcanado",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-080-mechanic-2",
+          "name": "Arcanado Burst",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-081",
+      "expansion": "Battle for Azeroth",
+      "raid": "Eternal Palace",
+      "name": "Lady Ashvane",
+      "source": "https://www.icy-veins.com/wow/lady-ashvane-strategy-guide-in-the-eternal-palace-raid",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-081-mechanic-1",
+          "name": "Upsurge",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-082",
+      "expansion": "Battle for Azeroth",
+      "raid": "Eternal Palace",
+      "name": "Orgozoa",
+      "source": "https://www.wowhead.com/guide/orgozoa-azsharas-eternal-palace-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-082-mechanic-1",
+          "name": "Dribbling Ichor",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-083",
+      "expansion": "Battle for Azeroth",
+      "raid": "Eternal Palace",
+      "name": "The Queen’s Court",
+      "source": "https://www.wowhead.com/guide/queens-court-azsharas-eternal-palace-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-083-mechanic-1",
+          "name": "Sphere of Influence",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-084",
+      "expansion": "Battle for Azeroth",
+      "raid": "Eternal Palace",
+      "name": "Za’qul",
+      "source": "https://www.wowhead.com/guide/zaqul-azsharas-eternal-palace-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-084-mechanic-1",
+          "name": "Crushing Grasp",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-085",
+      "expansion": "Battle for Azeroth",
+      "raid": "Eternal Palace",
+      "name": "Queen Azshara",
+      "source": "https://www.wowhead.com/guide/queen-azshara-azsharas-eternal-palace-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-085-mechanic-1",
+          "name": "Piercing Gaze",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-085-mechanic-2",
+          "name": "Arcane Detonation",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-086",
+      "expansion": "Battle for Azeroth",
+      "raid": "Battle of Dazar’alor",
+      "name": "Champion of the Light",
+      "source": "https://www.wowhead.com/guide/champion-of-the-light-battle-of-dazaralor-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-086-mechanic-1",
+          "name": "Wave of Light",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-087",
+      "expansion": "Battle for Azeroth",
+      "raid": "Battle of Dazar’alor",
+      "name": "Opulence",
+      "source": "https://www.wowhead.com/guide/opulence-treasure-guardian-battle-of-dazaralor-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-087-mechanic-1",
+          "name": "Flames of Punishment",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-087-mechanic-2",
+          "name": "Ruby Beam",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-088",
+      "expansion": "Battle for Azeroth",
+      "raid": "Battle of Dazar’alor",
+      "name": "Conclave of the Chosen",
+      "source": "https://www.wowhead.com/guide/conclave-of-the-chosen-battle-of-dazaralor-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-088-mechanic-1",
+          "name": "Krag’wa’s Wrath",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-088-mechanic-2",
+          "name": "Thundering Storm",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-089",
+      "expansion": "Battle for Azeroth",
+      "raid": "Battle of Dazar’alor",
+      "name": "King Rastakhan",
+      "source": "https://www.wowhead.com/guide/king-rastakhan-battle-of-dazaralor-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-089-mechanic-1",
+          "name": "Plague of Toads",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-089-mechanic-2",
+          "name": "Dread Reaping",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-090",
+      "expansion": "Battle for Azeroth",
+      "raid": "Battle of Dazar’alor",
+      "name": "High Tinker Mekkatorque",
+      "source": "https://www.wowhead.com/guide/high-tinker-mekkatorque-battle-of-dazaralor-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-090-mechanic-1",
+          "name": "Buster Cannon",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-091",
+      "expansion": "Battle for Azeroth",
+      "raid": "Battle of Dazar’alor",
+      "name": "Stormwall Blockade",
+      "source": "https://www.wowhead.com/guide/stormwall-blockade-battle-of-dazaralor-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-091-mechanic-1",
+          "name": "Sea Swell",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-092",
+      "expansion": "Battle for Azeroth",
+      "raid": "Battle of Dazar’alor",
+      "name": "Lady Jaina Proudmoore",
+      "source": "https://www.wowhead.com/guide/lady-jaina-proudmoore-battle-of-dazaralor-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-092-mechanic-1",
+          "name": "Icefall",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-092-mechanic-2",
+          "name": "Glacial Shards",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-092-mechanic-3",
+          "name": "Blistering Tornado",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-093",
+      "expansion": "Battle for Azeroth",
+      "raid": "Uldir",
+      "name": "Taloc",
+      "source": "https://www.wowhead.com/npc=137119/taloc",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-093-mechanic-1",
+          "name": "Sanguine Static",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-094",
+      "expansion": "Battle for Azeroth",
+      "raid": "Uldir",
+      "name": "MOTHER",
+      "source": "https://www.wowhead.com/guide/mother-uldir-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-094-mechanic-1",
+          "name": "Uldir Defensive Beam",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-095",
+      "expansion": "Battle for Azeroth",
+      "raid": "Uldir",
+      "name": "Vectis",
+      "source": "https://www.wowhead.com/guide/vectis-uldir-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-095-mechanic-1",
+          "name": "Blood Geyser",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-096",
+      "expansion": "Battle for Azeroth",
+      "raid": "Uldir",
+      "name": "Zek’voz",
+      "source": "https://www.wowhead.com/guide/zekvoz-herald-of-nzoth-uldir-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-096-mechanic-1",
+          "name": "Surging Darkness",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-097",
+      "expansion": "Battle for Azeroth",
+      "raid": "Uldir",
+      "name": "Mythrax",
+      "source": "https://www.wowhead.com/guide/mythrax-the-unraveler-uldir-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-097-mechanic-1",
+          "name": "Obliteration Blast",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-097-mechanic-2",
+          "name": "Obliteration Beam",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-098",
+      "expansion": "Battle for Azeroth",
+      "raid": "Uldir",
+      "name": "G’huun",
+      "source": "https://www.wowhead.com/guide/ghuun-uldir-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-098-mechanic-1",
+          "name": "Virulent Corruption",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-099",
+      "expansion": "Legion",
+      "raid": "Antorus",
+      "name": "Portal Keeper Hasabel",
+      "source": "https://www.wowhead.com/guide/portal-keeper-hasabel-antorus-raid-strategy-guide-5636",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-099-mechanic-1",
+          "name": "Felstorm Barrage",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-100",
+      "expansion": "Legion",
+      "raid": "Antorus",
+      "name": "Kin’garoth",
+      "source": "https://www.wowhead.com/npc=125050/kingaroth",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-100-mechanic-1",
+          "name": "Ruiner",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-100-mechanic-2",
+          "name": "Ruination",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-101",
+      "expansion": "Legion",
+      "raid": "Antorus",
+      "name": "Varimathras",
+      "source": "https://www.wowhead.com/guide/varimathras-antorus-raid-strategy-guide-5646",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-101-mechanic-1",
+          "name": "Dark Fissure",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-102",
+      "expansion": "Legion",
+      "raid": "Antorus",
+      "name": "The Coven of Shivarra",
+      "source": "https://www.wowhead.com/guide/the-coven-of-shivarra-antorus-raid-strategy-guide-5654",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-102-mechanic-1",
+          "name": "Whirling Saber",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-102-mechanic-2",
+          "name": "Spectral Army of Norgannon",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-103",
+      "expansion": "Legion",
+      "raid": "Antorus",
+      "name": "Aggramar",
+      "source": "https://www.icy-veins.com/wow/aggramar-guide-for-antorus-the-burning-throne",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-103-mechanic-1",
+          "name": "Wake of Flame",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-104",
+      "expansion": "Legion",
+      "raid": "Antorus",
+      "name": "Argus the Unmaker",
+      "source": "https://www.wowhead.com/guide/mythic-argus-antorus-strategy-guide-6070",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-104-mechanic-1",
+          "name": "Edge of Obliteration",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-104-mechanic-2",
+          "name": "Edge of Annihilation",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-105",
+      "expansion": "Legion",
+      "raid": "Tomb of Sargeras",
+      "name": "Goroth",
+      "source": "https://www.icy-veins.com/wow/goroth-strategy-tactics-normal-heroic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-105-mechanic-1",
+          "name": "Infernal Burning",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-106",
+      "expansion": "Legion",
+      "raid": "Tomb of Sargeras",
+      "name": "Demonic Inquisition",
+      "source": "https://www.wowhead.com/guide/demonic-inquisition-tomb-of-sargeras-strategy-guide-5148",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-106-mechanic-1",
+          "name": "Bone Saw",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-106-mechanic-2",
+          "name": "Fel Squall",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-106-mechanic-3",
+          "name": "Tormented Eruption",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-107",
+      "expansion": "Legion",
+      "raid": "Tomb of Sargeras",
+      "name": "Sisters of the Moon",
+      "source": "https://www.wowhead.com/guide/sisters-of-the-moon-tomb-of-sargeras-strategy-guide-5243",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-107-mechanic-1",
+          "name": "Glaive Storm",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-108",
+      "expansion": "Legion",
+      "raid": "Tomb of Sargeras",
+      "name": "Mistress Sassz’ine",
+      "source": "https://www.wowhead.com/npc=115767/mistress-sasszine",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-108-mechanic-1",
+          "name": "Slicing Tornado",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-108-mechanic-2",
+          "name": "Crashing Wave",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-109",
+      "expansion": "Legion",
+      "raid": "Tomb of Sargeras",
+      "name": "Fallen Avatar",
+      "source": "https://www.wowhead.com/guide/fallen-avatar-tomb-of-sargeras-raid-strategy-guide-5222",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-109-mechanic-1",
+          "name": "Unbound Chaos — ground explosions†",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-110",
+      "expansion": "Legion",
+      "raid": "Tomb of Sargeras",
+      "name": "Kil’jaeden",
+      "source": "https://www.icy-veins.com/wow/kil-jaeden-mythic-strategy-tactics",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-110-mechanic-1",
+          "name": "Demonic Obelisk — cross-shaped beams",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-111",
+      "expansion": "Legion",
+      "raid": "Trial of Valor",
+      "name": "Odyn",
+      "source": "https://www.icy-veins.com/wow/odyn-abilities",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-111-mechanic-1",
+          "name": "Glowing Fragment",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-111-mechanic-2",
+          "name": "Cleansing Flame",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-112",
+      "expansion": "Legion",
+      "raid": "Trial of Valor",
+      "name": "Guarm",
+      "source": "https://www.wowhead.com/guide/guarm-trial-of-valor-raid-strategy-guide-4804",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-112-mechanic-1",
+          "name": "Trample — Headlong Charge collisions†",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-113",
+      "expansion": "Legion",
+      "raid": "Trial of Valor",
+      "name": "Helya",
+      "source": "https://www.icy-veins.com/wow/helya-mythic-strategy-tactics",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-113-mechanic-1",
+          "name": "Orb of Corruption",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-113-mechanic-2",
+          "name": "Corrupted Slicer",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-114",
+      "expansion": "Legion",
+      "raid": "Nighthold",
+      "name": "Skorpyron",
+      "source": "https://www.wowhead.com/guide/skorpyron-nighthold-raid-strategy-guide-4869",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-114-mechanic-1",
+          "name": "Focused Blast",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-114-mechanic-2",
+          "name": "Shockwave",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-115",
+      "expansion": "Legion",
+      "raid": "Nighthold",
+      "name": "Chronomatic Anomaly",
+      "source": "https://www.wowhead.com/guide/chronomatic-anomaly-nighthold-raid-strategy-guide-4870",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-115-mechanic-1",
+          "name": "Temporal Orbs",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-115-mechanic-2",
+          "name": "Burst of Time",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-116",
+      "expansion": "Legion",
+      "raid": "Nighthold",
+      "name": "Trilliax",
+      "source": "https://www.wowhead.com/guide/trilliax-nighthold-raid-strategy-guide-4868",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-116-mechanic-1",
+          "name": "Annihilation",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-117",
+      "expansion": "Legion",
+      "raid": "Nighthold",
+      "name": "Krosus",
+      "source": "https://www.wowhead.com/guide/krosus-nighthold-raid-strategy-guide-4862",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-117-mechanic-1",
+          "name": "Fel Beam",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-118",
+      "expansion": "Legion",
+      "raid": "Nighthold",
+      "name": "Tichondrius",
+      "source": "https://www.wowhead.com/guide/tichondrius-nighthold-raid-strategy-guide-4864",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-118-mechanic-1",
+          "name": "Carrion Nightmare",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-118-mechanic-2",
+          "name": "Echoes of the Void",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-119",
+      "expansion": "Legion",
+      "raid": "Nighthold",
+      "name": "High Botanist Tel’arn",
+      "source": "https://www.wowhead.com/guide/high-botanist-telarn-nighthold-raid-strategy-guide-4867",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-119-mechanic-1",
+          "name": "Solar Collapse",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-120",
+      "expansion": "Legion",
+      "raid": "Nighthold",
+      "name": "Star Augur Etraeus",
+      "source": "https://www.wowhead.com/guide/star-augur-etraeus-nighthold-raid-strategy-guide-4865",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-120-mechanic-1",
+          "name": "Frigid Pulse",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-120-mechanic-2",
+          "name": "Fel Ember",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-120-mechanic-3",
+          "name": "World-Devouring Force",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-121",
+      "expansion": "Legion",
+      "raid": "Nighthold",
+      "name": "Grand Magistrix Elisande",
+      "source": "https://www.wowhead.com/guide/elisande-nighthold-raid-strategy-guide-4861",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-121-mechanic-1",
+          "name": "Arcanetic Ring",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-122",
+      "expansion": "Legion",
+      "raid": "Emerald Nightmare",
+      "name": "Nythendra",
+      "source": "https://www.wowhead.com/guide/nythendra-raid-strategy",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-122-mechanic-1",
+          "name": "Infested Breath",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-122-mechanic-2",
+          "name": "Burst of Corruption",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-123",
+      "expansion": "Legion",
+      "raid": "Emerald Nightmare",
+      "name": "Elerethe Renferal",
+      "source": "https://www.wowhead.com/guide/elerethe-renferal-strategy",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-123-mechanic-1",
+          "name": "Twisting Shadows — tornado contact†",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-124",
+      "expansion": "Legion",
+      "raid": "Emerald Nightmare",
+      "name": "Dragons of Nightmare",
+      "source": "https://www.wowhead.com/guide/dragons-of-nightmare-raid-strategy",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-124-mechanic-1",
+          "name": "Seeping Fog",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-124-mechanic-2",
+          "name": "Gloom",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-125",
+      "expansion": "Legion",
+      "raid": "Emerald Nightmare",
+      "name": "Cenarius",
+      "source": "https://www.wowhead.com/guide/cenarius-strategy",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-125-mechanic-1",
+          "name": "Nightmare Brambles",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-126",
+      "expansion": "Legion",
+      "raid": "Emerald Nightmare",
+      "name": "Xavius",
+      "source": "https://www.wowhead.com/guide/xavius-strategy",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-126-mechanic-1",
+          "name": "Nightmare Blades",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-127",
+      "expansion": "Warlords of Draenor",
+      "raid": "Hellfire Citadel",
+      "name": "Iron Reaver",
+      "source": "https://www.wowhead.com/guide/raiding/hellfire-citadel/iron-reaver-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-127-mechanic-1",
+          "name": "Barrage",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-127-mechanic-2",
+          "name": "Blitz",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-128",
+      "expansion": "Warlords of Draenor",
+      "raid": "Hellfire Citadel",
+      "name": "Kormrok",
+      "source": "https://www.wowhead.com/guide/raiding/hellfire-citadel/kormrok-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-128-mechanic-1",
+          "name": "Fel Outpouring",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-128-mechanic-2",
+          "name": "Empowered Fel Outpouring",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-129",
+      "expansion": "Warlords of Draenor",
+      "raid": "Hellfire Citadel",
+      "name": "Hellfire High Council",
+      "source": "https://www.wowhead.com/guide/raiding/hellfire-citadel/hellfire-high-council-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-129-mechanic-1",
+          "name": "Wailing Horror",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-129-mechanic-2",
+          "name": "Fel Blade",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-130",
+      "expansion": "Warlords of Draenor",
+      "raid": "Hellfire Citadel",
+      "name": "Gorefiend",
+      "source": "https://www.wowhead.com/guide/raiding/hellfire-citadel/gorefiend-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-130-mechanic-1",
+          "name": "Crushing Darkness",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-131",
+      "expansion": "Warlords of Draenor",
+      "raid": "Hellfire Citadel",
+      "name": "Shadow-Lord Iskar",
+      "source": "https://www.wowhead.com/guide/raiding/hellfire-citadel/shadow-lord-iskar-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-131-mechanic-1",
+          "name": "Fel Incineration — fire trails†",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-132",
+      "expansion": "Warlords of Draenor",
+      "raid": "Hellfire Citadel",
+      "name": "Tyrant Velhari",
+      "source": "https://www.wowhead.com/guide/raiding/hellfire-citadel/tyrant-velhari-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-132-mechanic-1",
+          "name": "Searing Blaze",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-133",
+      "expansion": "Warlords of Draenor",
+      "raid": "Hellfire Citadel",
+      "name": "Mannoroth",
+      "source": "https://www.wowhead.com/guide/raiding/hellfire-citadel/mannoroth-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-133-mechanic-1",
+          "name": "Fel Hellstorm",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-133-mechanic-2",
+          "name": "Empowered Fel Hellstorm",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-134",
+      "expansion": "Warlords of Draenor",
+      "raid": "Hellfire Citadel",
+      "name": "Archimonde",
+      "source": "https://www.wowhead.com/guide/raiding/hellfire-citadel/mythic/methods-archimonde-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-134-mechanic-1",
+          "name": "Seething Corruption",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-135",
+      "expansion": "Warlords of Draenor",
+      "raid": "Blackrock Foundry",
+      "name": "Gruul",
+      "source": "https://www.wowhead.com/guide/raiding/blackrock-foundry/gruul-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-135-mechanic-1",
+          "name": "Overhead Smash",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-135-mechanic-2",
+          "name": "Cave In",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-136",
+      "expansion": "Warlords of Draenor",
+      "raid": "Blackrock Foundry",
+      "name": "Oregorger",
+      "source": "https://www.wowhead.com/guide/raiding/blackrock-foundry/oregorger-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-136-mechanic-1",
+          "name": "Rolling Fury",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-136-mechanic-2",
+          "name": "Explosive Shard",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-137",
+      "expansion": "Warlords of Draenor",
+      "raid": "Blackrock Foundry",
+      "name": "Hans’gar and Franzok",
+      "source": "https://www.wowhead.com/guide/raiding/blackrock-foundry/hansgar-and-franzok-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-137-mechanic-1",
+          "name": "Pulverized",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-137-mechanic-2",
+          "name": "Searing Plates",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-138",
+      "expansion": "Warlords of Draenor",
+      "raid": "Blackrock Foundry",
+      "name": "Beastlord Darmac",
+      "source": "https://www.icy-veins.com/wow/beastlord-darmac-strategy-guide-normal-heroic-mythic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-138-mechanic-1",
+          "name": "Pin Down — direct impalement†",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-139",
+      "expansion": "Warlords of Draenor",
+      "raid": "Blackrock Foundry",
+      "name": "Operator Thogar",
+      "source": "https://www.wowhead.com/guide/raiding/blackrock-foundry/operator-thogar-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-139-mechanic-1",
+          "name": "Moving Trains — collisions",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-140",
+      "expansion": "Warlords of Draenor",
+      "raid": "Blackrock Foundry",
+      "name": "Kromog",
+      "source": "https://www.icy-veins.com/wow/kromog-strategy-guide-normal-heroic-mythic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-140-mechanic-1",
+          "name": "Reverberations",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-140-mechanic-2",
+          "name": "Rippling Smash",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-140-mechanic-3",
+          "name": "Rune of Crushing Earth",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-141",
+      "expansion": "Warlords of Draenor",
+      "raid": "Blackrock Foundry",
+      "name": "The Iron Maidens",
+      "source": "https://www.wowhead.com/guide/raiding/blackrock-foundry/iron-maidens-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-141-mechanic-1",
+          "name": "Rapid Fire",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-141-mechanic-2",
+          "name": "Dominator Turret projectiles",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-142",
+      "expansion": "Warlords of Draenor",
+      "raid": "Blackrock Foundry",
+      "name": "Blackhand",
+      "source": "https://www.wowhead.com/guide/raiding/blackrock-foundry/blackhand-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-142-mechanic-1",
+          "name": "Slag Bomb — phases 1–2 ground mines†",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-143",
+      "expansion": "Warlords of Draenor",
+      "raid": "Highmaul",
+      "name": "Kargath Bladefist",
+      "source": "https://www.icy-veins.com/wow/kargath-bladefist-strategy-guide-normal-heroic-mythic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-143-mechanic-1",
+          "name": "Flame Gout",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-144",
+      "expansion": "Warlords of Draenor",
+      "raid": "Highmaul",
+      "name": "Tectus",
+      "source": "https://www.icy-veins.com/wow/tectus-strategy-guide-normal-heroic-mythic",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-144-mechanic-1",
+          "name": "Fracture",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-144-mechanic-2",
+          "name": "Crystalline Barrage",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-145",
+      "expansion": "Warlords of Draenor",
+      "raid": "Highmaul",
+      "name": "Brackenspore",
+      "source": "https://www.wowhead.com/guide/raiding/highmaul/mythic/methods-brackenspore-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-145-mechanic-1",
+          "name": "Call of the Tides",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-145-mechanic-2",
+          "name": "Exploding Fungus",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-146",
+      "expansion": "Warlords of Draenor",
+      "raid": "Highmaul",
+      "name": "Twin Ogron",
+      "source": "https://www.wowhead.com/guide/raiding/highmaul/twin-ogron-raid-strategy-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-146-mechanic-1",
+          "name": "Blaze",
+          "selected": false,
+          "custom": false
+        },
+        {
+          "id": "boss-146-mechanic-2",
+          "name": "Shield Charge",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-147",
+      "expansion": "Warlords of Draenor",
+      "raid": "Highmaul",
+      "name": "Ko’ragh",
+      "source": "https://www.wowhead.com/guide/raiding/highmaul/mythic/methods-koragh-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-147-mechanic-1",
+          "name": "Expel Magic: Fel",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    },
+    {
+      "id": "boss-148",
+      "expansion": "Warlords of Draenor",
+      "raid": "Highmaul",
+      "name": "Imperator Mar’gok",
+      "source": "https://www.wowhead.com/guide/raiding/highmaul/mythic/methods-imperator-margok-guide",
+      "custom": false,
+      "mechanics": [
+        {
+          "id": "boss-148-mechanic-1",
+          "name": "Orbs of Chaos",
+          "selected": false,
+          "custom": false
+        }
+      ]
+    }
+  ]
+}</script>
+  <script>
+    'use strict';
+    const byId = (id) => document.getElementById(id);
+    const template = document.documentElement.cloneNode(true);
+    const embedded = JSON.parse(byId('mechanic-selection-data').textContent);
+    const storageKey = 'mechanic-magnets-review:' + embedded.snapshotId;
+    let state = embedded;
+    let draftAvailable = true;
+    let mechanicBossId = null;
+    const closedRaids = new Set();
+    const normalize = (value) => value.normalize('NFKC').trim().replace(/\s+/g, ' ').replace(/[’‘]/g, "'").toLocaleLowerCase();
+    const makeId = (prefix) => prefix + '-' + (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2));
+    const safeJSON = (value) => JSON.stringify(value, null, 2).replace(/</g, '\\u003c');
+    const raidKey = (boss) => JSON.stringify([boss.expansion, boss.raid]);
+
+    function validDraft(value) {
+      if (!value || value.schemaVersion !== 1 || value.snapshotId !== embedded.snapshotId || !Array.isArray(value.bosses)) return false;
+      const ids = new Set();
+      const uniqueId = (id) => typeof id === 'string' && id.length > 0 && !ids.has(id) && Boolean(ids.add(id));
+      return value.bosses.every((boss) => boss && uniqueId(boss.id) &&
+        ['name', 'expansion', 'raid'].every((key) => typeof boss[key] === 'string' && boss[key].trim()) &&
+        (boss.source === null || typeof boss.source === 'string') && typeof boss.custom === 'boolean' &&
+        Array.isArray(boss.mechanics) && boss.mechanics.every((mechanic) => mechanic && uniqueId(mechanic.id) &&
+          typeof mechanic.name === 'string' && mechanic.name.trim() && typeof mechanic.selected === 'boolean' && typeof mechanic.custom === 'boolean'));
+    }
+
+    let restoredDraft = false;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const draft = JSON.parse(saved);
+        if (validDraft(draft)) { state = draft; restoredDraft = true; }
+      }
+    } catch { draftAvailable = false; }
+
+    function persist() {
+      state.updatedAt = new Date().toISOString();
+      byId('mechanic-selection-data').textContent = safeJSON(state);
+      try { localStorage.setItem(storageKey, JSON.stringify(state)); draftAvailable = true; }
+      catch { draftAvailable = false; }
+      byId('save-status').textContent = draftAvailable
+        ? 'Draft saved in this browser · Save HTML to share changes'
+        : 'Browser draft unavailable · Save HTML to keep changes';
+    }
+
+    function element(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function button(text, className, action, bossId, mechanicId) {
+      const node = element('button', className, text);
+      node.type = 'button';
+      node.dataset.action = action;
+      node.dataset.bossId = bossId;
+      if (mechanicId) node.dataset.mechanicId = mechanicId;
+      return node;
+    }
+
+    function updateOptions() {
+      const current = byId('expansion').value;
+      const expansions = [...new Set(state.bosses.map((boss) => boss.expansion))];
+      byId('expansion').replaceChildren(new Option('All expansions', ''));
+      byId('expansion-options').replaceChildren();
+      for (const expansion of expansions) {
+        byId('expansion').add(new Option(expansion, expansion));
+        byId('expansion-options').append(new Option(expansion, expansion));
+      }
+      if (expansions.includes(current)) byId('expansion').value = current;
+      updateRaidOptions();
+    }
+
+    function updateRaidOptions() {
+      const expansion = normalize(byId('boss-expansion').value);
+      const raids = [...new Set(state.bosses.filter((boss) => !expansion || normalize(boss.expansion) === expansion).map((boss) => boss.raid))];
+      byId('raid-options').replaceChildren(...raids.map((raid) => new Option(raid, raid)));
+    }
+
+    function matchingBosses() {
+      const query = normalize(byId('search').value);
+      const expansion = byId('expansion').value;
+      return state.bosses.filter((boss) => (!expansion || boss.expansion === expansion) &&
+        (!byId('selected-only').checked || boss.mechanics.some((mechanic) => mechanic.selected)) &&
+        (!query || normalize([boss.expansion, boss.raid, boss.name, ...boss.mechanics.map((mechanic) => mechanic.name)].join(' ')).includes(query)));
+    }
+
+    function refreshCounts(shown) {
+      const mechanics = state.bosses.flatMap((boss) => boss.mechanics);
+      const selectedBosses = state.bosses.filter((boss) => boss.mechanics.some((mechanic) => mechanic.selected)).length;
+      byId('counts').textContent = mechanics.filter((mechanic) => mechanic.selected).length + ' / ' + mechanics.length +
+        ' mechanics selected · ' + selectedBosses + ' bosses · Showing ' + shown + ' / ' + state.bosses.length + ' bosses';
+    }
+
+    function render() {
+      const focusId = document.activeElement?.id;
+      const bosses = matchingBosses();
+      const groups = new Map();
+      for (const boss of bosses) {
+        const key = raidKey(boss);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(boss);
+      }
+      const fragment = document.createDocumentFragment();
+      for (const [key, group] of groups) {
+        const raid = element('details', 'raid');
+        raid.open = !closedRaids.has(key);
+        raid.addEventListener('toggle', () => {
+          if (!raid.isConnected) return;
+          if (raid.open) closedRaids.delete(key); else closedRaids.add(key);
+        });
+        const heading = element('summary');
+        const selected = group.flatMap((boss) => boss.mechanics).filter((mechanic) => mechanic.selected).length;
+        heading.append(element('span', 'raid-title', group[0].raid), element('span', 'expansion-label', group[0].expansion),
+          element('span', 'raid-count', selected + ' selected'));
+        raid.append(heading);
+        for (const boss of group) {
+          const row = element('div', 'boss');
+          row.id = 'row-' + boss.id;
+          const identity = element('div');
+          const title = element('label', 'boss-title');
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.id = 'boss-check-' + boss.id;
+          checkbox.dataset.bossId = boss.id;
+          const selectedCount = boss.mechanics.filter((mechanic) => mechanic.selected).length;
+          checkbox.checked = boss.mechanics.length > 0 && selectedCount === boss.mechanics.length;
+          checkbox.indeterminate = selectedCount > 0 && selectedCount < boss.mechanics.length;
+          checkbox.disabled = boss.mechanics.length === 0;
+          checkbox.setAttribute('aria-label', 'Select all mechanics for ' + boss.name);
+          title.append(checkbox, element('span', '', boss.name));
+          const meta = element('div', 'boss-meta');
+          if (boss.source && /^https:\/\//i.test(boss.source)) {
+            const link = element('a', '', 'Guide ↗');
+            link.href = boss.source;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.setAttribute('aria-label', 'Encounter guide for ' + boss.name);
+            meta.append(link);
+          }
+          const add = button('+ Mechanic', 'text-button', 'add-mechanic', boss.id);
+          add.id = 'add-mechanic-' + boss.id;
+          add.setAttribute('aria-label', 'Add mechanics to ' + boss.name);
+          meta.append(add);
+          if (boss.custom) {
+            meta.append(element('span', 'custom-tag', 'Added'));
+            const remove = button('Remove boss', 'text-button', 'remove-boss', boss.id);
+            remove.setAttribute('aria-label', 'Remove added boss ' + boss.name);
+            meta.append(remove);
+          }
+          identity.append(title, meta);
+          const mechanics = element('div', 'mechanics');
+          for (const mechanic of boss.mechanics) {
+            const pill = element('div', 'mechanic');
+            const label = document.createElement('label');
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.id = 'mechanic-check-' + mechanic.id;
+            input.dataset.bossId = boss.id;
+            input.dataset.mechanicId = mechanic.id;
+            input.checked = mechanic.selected;
+            input.setAttribute('aria-label', boss.name + ': ' + mechanic.name);
+            label.append(input, element('span', '', mechanic.name));
+            pill.append(label);
+            if (mechanic.custom) {
+              const remove = button('×', 'remove', 'remove-mechanic', boss.id, mechanic.id);
+              remove.setAttribute('aria-label', 'Remove added mechanic ' + mechanic.name + ' from ' + boss.name);
+              pill.append(remove);
+            }
+            mechanics.append(pill);
+          }
+          if (!boss.mechanics.length) mechanics.append(element('span', 'muted', 'No mechanics yet — add one to select this boss.'));
+          row.append(identity, mechanics);
+          raid.append(row);
+        }
+        fragment.append(raid);
+      }
+      if (!bosses.length) fragment.append(element('div', 'empty', 'No bosses match these filters.'));
+      byId('catalogue').replaceChildren(fragment);
+      refreshCounts(bosses.length);
+      if (focusId) byId(focusId)?.focus({ preventScroll: true });
+    }
+
+    byId('catalogue').addEventListener('change', (event) => {
+      const input = event.target;
+      if (!input.matches('input[type="checkbox"]')) return;
+      const boss = state.bosses.find((item) => item.id === input.dataset.bossId);
+      for (const mechanic of boss.mechanics) {
+        if (!input.dataset.mechanicId || mechanic.id === input.dataset.mechanicId) mechanic.selected = input.checked;
+      }
+      persist();
+      render();
+    });
+
+    byId('catalogue').addEventListener('click', (event) => {
+      const target = event.target.closest('button[data-action]');
+      if (!target) return;
+      const boss = state.bosses.find((item) => item.id === target.dataset.bossId);
+      if (target.dataset.action === 'add-mechanic') {
+        mechanicBossId = boss.id;
+        byId('mechanic-form').reset();
+        byId('mechanic-error').hidden = true;
+        byId('mechanic-context').textContent = boss.name + ' · ' + boss.raid + '. New mechanics start selected.';
+        byId('mechanic-dialog').showModal();
+        byId('mechanic-names').focus();
+        return;
+      }
+      if (target.dataset.action === 'remove-mechanic') boss.mechanics = boss.mechanics.filter((mechanic) => !mechanic.custom || mechanic.id !== target.dataset.mechanicId);
+      if (target.dataset.action === 'remove-boss' && boss.custom) state.bosses = state.bosses.filter((item) => item.id !== boss.id);
+      persist();
+      updateOptions();
+      render();
+    });
+
+    byId('search').addEventListener('input', render);
+    byId('expansion').addEventListener('change', render);
+    byId('selected-only').addEventListener('change', render);
+    byId('boss-expansion').addEventListener('input', updateRaidOptions);
+    byId('add-boss').addEventListener('click', () => {
+      byId('boss-form').reset();
+      byId('boss-error').hidden = true;
+      byId('boss-expansion').value = byId('expansion').value;
+      updateRaidOptions();
+      byId('boss-dialog').showModal();
+    });
+    document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => byId(button.dataset.close).close()));
+
+    function showError(id, message) { byId(id).textContent = message; byId(id).hidden = false; }
+    function namesFrom(value) { return value.split(/\r?\n/).map((name) => name.trim()).filter(Boolean); }
+    function newMechanics(names) { return names.map((name) => ({ id: makeId('mechanic'), name, selected: true, custom: true })); }
+    function duplicateNames(names, existing = []) {
+      const seen = new Set(existing.map((name) => normalize(name)));
+      for (const name of names) { const key = normalize(name); if (seen.has(key)) return true; seen.add(key); }
+      return false;
+    }
+
+    function reveal(boss) {
+      byId('search').value = '';
+      byId('selected-only').checked = false;
+      byId('expansion').value = boss.expansion;
+      closedRaids.delete(raidKey(boss));
+      render();
+      const row = byId('row-' + boss.id);
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      byId('add-mechanic-' + boss.id).focus({ preventScroll: true });
+    }
+
+    byId('boss-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      let expansion = byId('boss-expansion').value.trim();
+      let raid = byId('boss-raid').value.trim();
+      const name = byId('boss-name').value.trim();
+      const names = namesFrom(byId('boss-mechanics').value);
+      if (!expansion || !raid || !name) { showError('boss-error', 'Enter an expansion, raid and boss name.'); return; }
+      expansion = state.bosses.find((boss) => normalize(boss.expansion) === normalize(expansion))?.expansion || expansion;
+      raid = state.bosses.find((boss) => boss.expansion === expansion && normalize(boss.raid) === normalize(raid))?.raid || raid;
+      if (state.bosses.some((boss) => boss.expansion === expansion && boss.raid === raid && normalize(boss.name) === normalize(name))) {
+        showError('boss-error', 'That boss is already listed. Use its + Mechanic button to add abilities.'); return;
+      }
+      if (duplicateNames(names)) { showError('boss-error', 'List each mechanic only once.'); return; }
+      const boss = { id: makeId('boss'), expansion, raid, name, source: null, custom: true, mechanics: newMechanics(names) };
+      state.bosses.push(boss);
+      persist();
+      updateOptions();
+      byId('boss-dialog').close();
+      reveal(boss);
+    });
+
+    byId('mechanic-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const boss = state.bosses.find((item) => item.id === mechanicBossId);
+      const names = namesFrom(byId('mechanic-names').value);
+      if (!names.length) { showError('mechanic-error', 'Enter at least one mechanic.'); return; }
+      if (duplicateNames(names, boss.mechanics.map((mechanic) => mechanic.name))) {
+        showError('mechanic-error', 'A mechanic with that name is already listed for this boss.'); return;
+      }
+      boss.mechanics.push(...newMechanics(names));
+      persist();
+      byId('mechanic-dialog').close();
+      reveal(boss);
+    });
+
+    byId('save-html').addEventListener('click', () => {
+      const exported = { ...state, snapshotId: makeId('snapshot'), savedAt: new Date().toISOString() };
+      const copy = template.cloneNode(true);
+      copy.querySelector('#mechanic-selection-data').textContent = safeJSON(exported);
+      const blob = new Blob(['<!doctype html>\n' + copy.outerHTML], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'mechanic-magnets-selections-' + exported.savedAt.slice(0, 10) + '.html';
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      byId('save-status').textContent = 'HTML download started · Send the downloaded file back';
+    });
+
+    updateOptions();
+    byId('mechanic-selection-data').textContent = safeJSON(state);
+    byId('save-status').textContent = restoredDraft ? 'Restored your browser draft · Save HTML to share changes' :
+      state.savedAt ? 'Opened saved selections · Changes stay in this browser until saved' :
+      'Nothing selected yet · Changes stay in this browser until saved';
+    if (!draftAvailable) byId('save-status').textContent = 'Browser draft unavailable · Save HTML to keep changes';
+    render();
+  </script>
+</body>
+</html>

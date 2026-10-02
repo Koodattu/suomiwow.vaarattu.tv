@@ -102,7 +102,39 @@ test("ascending and descending sort the complete filtered leaderboard before pag
   }
 });
 
-test("concurrent cold filters share one build; subsequent filters do not aggregate", async (t) => {
+test("character search uses sitewide accent folding and searches names only", () => {
+  const names = ["Käris", "Shánkdk", "Ægir", "Smørrebrød", "Straße", "Laa\u0308ke", "Plainname"];
+  const searchable: MechanicSnapshot = { ...snapshot, rows: names.map((name) => row(name)) };
+  for (const [search, expected] of [["KARIS", "Käris"], ["hank", "Shánkdk"], ["aegir", "Ægir"], ["smorrebrod", "Smørrebrød"], ["strasse", "Straße"], ["laake", "Laa\u0308ke"], ["PLÁÎN", "Plainname"]]) {
+    const result = selectMechanicLeaderboard(searchable, { ...filters, search });
+    assert.deepEqual(result.rows.map((entry) => entry.name), [expected]);
+    assert.equal(result.totals.players, 1);
+    assert.equal(result.totals.damage, 100);
+  }
+  assert.equal(selectMechanicLeaderboard(searchable, { ...filters, search: "one" }).totals.players, 0, "guild names must not match character search");
+  assert.equal(selectMechanicLeaderboard(searchable, { ...filters, search: "test" }).totals.players, 0, "realms must not match character search");
+  assert.equal(selectMechanicLeaderboard(searchable, { ...filters, search: "  " }).totals.players, names.length);
+  assert.deepEqual(searchable.rows.map((entry) => entry.name), names, "search must preserve displayed spelling and the shared snapshot");
+});
+
+test("search finds later-page characters and applies minimum pulls after merging matching roles", () => {
+  const searchable: MechanicSnapshot = { ...snapshot, rows: [
+    ...Array.from({ length: 60 }, (_, index) => row(`other-${index}`, { damage: 1000 })),
+    row("match", { name: "Käris", pulls: 25, damage: 50 }),
+    row("match", { name: "Käris", role: "healer", pulls: 25, damage: 20 }),
+    row("other-match", { name: "Karisalt", pulls: 50, damage: 10 }),
+  ] };
+  assert.equal(selectMechanicLeaderboard(searchable, filters).rows.some((entry) => entry.key === "match"), false);
+  const result = selectMechanicLeaderboard(searchable, { ...filters, search: "karis", minPulls: 50, limit: 1 });
+  assert.equal(result.rows[0].name, "Käris");
+  assert.equal(result.rows[0].pulls, 50);
+  assert.equal(result.totals.players, 2);
+  assert.equal(result.totalPages, 2);
+  assert.equal(selectMechanicLeaderboard(searchable, { ...filters, search: "karis", minPulls: 50, roles: ["healer"] }).totals.players, 0);
+  assert.equal(selectMechanicLeaderboard(searchable, { ...filters, search: "karis", minPulls: 50, limit: 1, page: 2 }).rows[0].name, "Karisalt");
+});
+
+test("concurrent cold filters share one build; subsequent filters and searches do not aggregate", async (t) => {
   mockSnapshotStorage(t);
   const builder = service as unknown as { buildLeaderboardSnapshot(): Promise<MechanicSnapshot> };
   let release!: () => void;
@@ -116,6 +148,7 @@ test("concurrent cold filters share one build; subsequent filters do not aggrega
   const results = await Promise.all(pending);
   assert.equal(results[1].totals.players, 1);
   await service.getLeaderboard({ ...filters, page: 2, outcome: "kills", guildId: "two", minPulls: 50 });
+  assert.equal((await service.getLeaderboard({ ...filters, search: "TÁNK" })).rows[0].name, "tank");
   assert.equal(builds, 1);
 });
 

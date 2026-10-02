@@ -7,11 +7,16 @@ import session from "express-session";
 import router, { parseMechanicBackfill } from "../src/routes/admin-avoidable-damage";
 import service, { MechanicBackfillOptions } from "../src/services/avoidable-damage.service";
 import discord from "../src/services/discord.service";
+import { activeAvoidableMechanics } from "../src/config/avoidable-mechanics";
 
 test("admin mechanic requests require an explicit valid bounded selection", () => {
   const valid = { mechanicKeys: ["sszorak-tempest"] };
   assert.deepEqual(parseMechanicBackfill(valid), { ...valid, guildId: undefined, retryUnavailable: false });
   assert.deepEqual(parseMechanicBackfill({ mechanicKeys: ["sszorak-tempest", "sszorak-tempest"] })?.mechanicKeys, valid.mechanicKeys);
+  const allKeys = activeAvoidableMechanics().map((entry) => entry.key);
+  assert.deepEqual(parseMechanicBackfill({ mechanicKeys: allKeys })?.mechanicKeys, allKeys);
+  const sameBoss = ["sarkareth-scorching-bomb", "sarkareth-abyssal-breath", "sarkareth-scouring-eternity"];
+  assert.deepEqual(parseMechanicBackfill({ mechanicKeys: sameBoss })?.mechanicKeys, sameBoss);
   for (const body of [null, [], {}, { mechanicKeys: [] }, { mechanicKeys: "sszorak-tempest" }, { mechanicKeys: ["removed"] },
     { mechanicKeys: [{ $ne: null }] }, { ...valid, guildId: { $ne: null } }, { ...valid, guildId: "x" },
     { ...valid, retryUnavailable: "false" }, { mechanicKeys: Array(100).fill("sszorak-tempest") }]) assert.equal(parseMechanicBackfill(body), null);

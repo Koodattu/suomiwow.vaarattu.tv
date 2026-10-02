@@ -6,7 +6,7 @@ import { MECHANIC_MIN_PULLS, MECHANIC_ROLES } from "../utils/mechanic-leaderboar
 import logger from "../utils/logger";
 
 export function parseMechanicFilters(query: Record<string, unknown>): MechanicLeaderboardFilters | null {
-  const { mechanic, guildId, outcome = "all", sort = "damage", order = "desc", roles = "dps,healer,tank", minPulls = "10", page = "1", limit = "50" } = query;
+  const { mechanic, guildId, outcome = "all", sort = "damage", order = "desc", roles = "dps,healer,tank", minPulls = "10", search = "", page = "1", limit = "50" } = query;
   if (typeof mechanic !== "string" || !findAvoidableMechanic(mechanic) ||
       (guildId !== undefined && (typeof guildId !== "string" || !mongoose.isObjectIdOrHexString(guildId))) ||
       typeof outcome !== "string" || !["all", "kills", "wipes"].includes(outcome) ||
@@ -14,9 +14,10 @@ export function parseMechanicFilters(query: Record<string, unknown>): MechanicLe
       typeof order !== "string" || !["asc", "desc"].includes(order) ||
       typeof roles !== "string" || (roles !== "" && roles.split(",").some((role) => !MECHANIC_ROLES.includes(role as typeof MECHANIC_ROLES[number]))) ||
       typeof minPulls !== "string" || !/^(0|[1-9]\d*)$/.test(minPulls) || !MECHANIC_MIN_PULLS.includes(Number(minPulls)) ||
+      typeof search !== "string" || search.length > 60 ||
       typeof page !== "string" || !/^[1-9]\d*$/.test(page) || Number(page) > 10000 ||
       typeof limit !== "string" || !/^[1-9]\d*$/.test(limit) || Number(limit) > 100) return null;
-  return { mechanic, guildId: guildId?.toLowerCase(), outcome, sort, order,
+  return { mechanic, guildId: guildId?.toLowerCase(), outcome, sort, order, search: search.trim(),
     roles: MECHANIC_ROLES.filter((role) => roles.split(",").includes(role)), minPulls: Number(minPulls),
     page: Number(page), limit: Number(limit) } as MechanicLeaderboardFilters;
 }

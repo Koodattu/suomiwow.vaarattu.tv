@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions, Label, Listbox, ListboxButton, ListboxLabel, ListboxOption, ListboxOptions } from "@headlessui/react";
-import { FaArrowLeft, FaArrowRight, FaCheck, FaChevronDown, FaMagnifyingGlass } from "react-icons/fa6";
+import { FaArrowLeft, FaArrowRight, FaArrowRotateLeft, FaCheck, FaChevronDown, FaMagnifyingGlass } from "react-icons/fa6";
 import IconImage from "@/components/IconImage";
+import { useDebouncedSearchQuery } from "@/features/fun/useFunGameSearch";
 import { useAvoidableDamage, useAvoidableMechanicOptions } from "@/lib/queries";
 import { formatSpecName, getClassInfoById, getSpecIconUrl } from "@/lib/utils";
 import type { MechanicFilters, MechanicRole } from "@/types/avoidable-damage";
@@ -15,7 +16,7 @@ const CLASS_COLORS: Record<string, string> = {
   "Death Knight": "#C41E3A", Druid: "#FF7C0A", Hunter: "#AAD372", Mage: "#3FC7EB", Monk: "#00FF98", Paladin: "#F48CBA",
   Priest: "#FFFFFF", Rogue: "#FFF468", Shaman: "#0070DD", Warlock: "#8788EE", Warrior: "#C69B6D", "Demon Hunter": "#A330C9", Evoker: "#33937F",
 };
-const selectStyle = "h-11 w-full min-w-0 rounded-md border border-gray-700 bg-gray-900 px-2.5 text-xs text-gray-100 focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400";
+const selectStyle = "h-11 w-full min-w-0 rounded-md border border-gray-700 bg-gray-900 px-2.5 text-xs text-gray-100 focus:outline-none focus-visible:border-gray-500 focus-visible:ring-1 focus-visible:ring-gray-500";
 const labelStyle = "flex min-w-0 flex-col gap-1 text-[11px] font-medium text-gray-400";
 const ROLES: MechanicRole[] = ["dps", "healer", "tank"];
 const roleIcon = (role: MechanicRole) => `roleicon_${role === "dps" ? "damage" : role}.png`;
@@ -28,6 +29,8 @@ export default function MechanicLeaderboardView() {
   const [mechanicKey, setMechanicKey] = useState("");
   const [guildId, setGuildId] = useState("");
   const [guildSearch, setGuildSearch] = useState("");
+  const [characterSearch, setCharacterSearch] = useState("");
+  const search = useDebouncedSearchQuery(characterSearch);
   const [sort, setSort] = useState<MechanicFilters["sort"]>("damage");
   const [order, setOrder] = useState<MechanicFilters["order"]>("desc");
   const [roles, setRoles] = useState<MechanicRole[]>(ROLES);
@@ -38,9 +41,10 @@ export default function MechanicLeaderboardView() {
   const selectedRaid = options.data?.raids.find((entry) => entry.id === selected?.zoneId);
   const guilds = options.data?.guilds.filter((entry) => selected && entry.mechanicKeys?.includes(selected.key)) ?? [];
   const selectedGuild = guilds.find((entry) => entry.id === guildId);
-  const search = guildSearch.trim().toLocaleLowerCase(locale);
-  const filteredGuilds = guilds.filter((entry) => `${entry.name} ${entry.realm}`.toLocaleLowerCase(locale).includes(search));
-  const board = useAvoidableDamage({ mechanic: selected?.key ?? "", guildId: selectedGuild?.id, outcome: "all", sort, order, roles, minPulls, page });
+  const filteredGuilds = guilds.filter((entry) => entry.name.toLocaleLowerCase(locale).includes(guildSearch.trim().toLocaleLowerCase(locale)));
+  const board = useAvoidableDamage({ mechanic: selected?.key ?? "", guildId: selectedGuild?.id, outcome: "all", sort, order, roles, minPulls, page,
+    search: search.trimmedQuery ? search.debouncedQuery : undefined });
+  const searchPending = Boolean(search.trimmedQuery) && !search.isCurrent;
   const number = (value: number, digits = 0) => new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(value);
   const compact = (value: number) => new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 2 }).format(value);
   const data = board.data;
@@ -54,6 +58,19 @@ export default function MechanicLeaderboardView() {
   };
   const sortDirection = order === "asc" ? "ascending" : "descending";
   const sortArrow = order === "asc" ? " ↑" : " ↓";
+  const hasChanges = selected?.key !== mechanics[0]?.key || Boolean(selectedGuild) || roles.length !== ROLES.length ||
+    minPulls !== 10 || sort !== "damage" || order !== "desc" || Boolean(characterSearch) || page !== 1;
+  const resetFilters = () => {
+    setMechanicKey("");
+    setGuildId("");
+    setGuildSearch("");
+    setCharacterSearch("");
+    setRoles(ROLES);
+    setMinPulls(10);
+    setSort("damage");
+    setOrder("desc");
+    setPage(1);
+  };
 
   return (
     <main className="min-h-[calc(100vh-5rem)] px-4 py-4 text-gray-100 md:px-6 md:py-5">
@@ -62,19 +79,19 @@ export default function MechanicLeaderboardView() {
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h1 className="text-xl font-bold sm:text-2xl">{t("title")}</h1>
             {data && <span className="text-xs tabular-nums text-gray-400">{t("playerCount", { count: data.totals.players })}</span>}
-            <span role="status" className="text-xs text-gray-500">{board.isFetching && data ? t("updating") : ""}</span>
+            <span role="status" className="text-xs text-gray-500">{(board.isFetching || searchPending) && data ? t("updating") : ""}</span>
           </div>
           <Link href="/analytics" className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-white"><FaArrowLeft aria-hidden="true" />{t("back")}</Link>
         </header>
 
-        <section aria-label={t("filters")} className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-[minmax(0,2.5fr)_minmax(0,1.7fr)_minmax(0,.8fr)_minmax(0,1fr)]">
+        <section aria-label={t("filters")} className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.15fr)_7.25rem_7.5rem_minmax(0,1fr)]">
           <Listbox value={selected?.key ?? ""} onChange={(key: string) => {
             setMechanicKey(key);
             if (!selectedGuild?.mechanicKeys.includes(key)) setGuildId("");
             setGuildSearch("");
             setPage(1);
           }} disabled={!mechanics.length}>
-            <div className={`relative col-span-2 sm:col-span-4 lg:col-span-1 ${labelStyle}`}>
+            <div className={`relative col-span-2 lg:col-span-1 ${labelStyle}`}>
               <ListboxLabel>{t("mechanic")}</ListboxLabel>
               <ListboxButton className={`${selectStyle} flex items-center gap-2 text-left`} title={selected ? `${selectedRaid?.name ?? ""} · ${selected.boss} · ${selected.name}` : undefined}>
                 {selected ? <>
@@ -99,14 +116,14 @@ export default function MechanicLeaderboardView() {
                     <span className="min-w-0 flex-1 truncate">{raid.name}</span>
                     <span className="text-[10px] text-gray-500">{raid.expansion}</span>
                   </div>
-                  {mechanics.filter((entry) => entry.zoneId === raid.id).map((entry) => <ListboxOption key={entry.key} value={entry.key} className="group flex cursor-pointer items-center gap-2.5 px-3 py-2.5 data-focus:bg-gray-800 data-selected:bg-rose-400/10">
+                  {mechanics.filter((entry) => entry.zoneId === raid.id).map((entry) => <ListboxOption key={entry.key} value={entry.key} className="group flex cursor-pointer items-center gap-2.5 px-3 py-2.5 data-focus:bg-gray-800 data-selected:bg-gray-800/60">
                     {({ selected: checked }) => <>
                       <IconImage iconFilename={entry.bossIcon} alt="" width={28} height={28} className="shrink-0 rounded" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[11px] text-gray-400">{entry.boss}</span>
                         <span className="mt-0.5 flex items-center gap-1.5"><IconImage iconFilename={entry.icon} alt="" width={16} height={16} className="shrink-0 rounded-sm" /><span className="truncate">{entry.name}</span></span>
                       </span>
-                      {checked && <FaCheck className="h-3 w-3 shrink-0 text-rose-400" aria-hidden="true" />}
+                      {checked && <FaCheck className="h-3 w-3 shrink-0 text-gray-200" aria-hidden="true" />}
                     </>}
                   </ListboxOption>)}
                 </div>)}
@@ -119,16 +136,16 @@ export default function MechanicLeaderboardView() {
               <div className="relative">
                 <FaMagnifyingGlass className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-500" aria-hidden="true" />
                 <ComboboxInput className={`${selectStyle} pl-8 pr-8`} autoComplete="off" placeholder={t("searchGuilds")} title={t("searchGuilds")}
-                  displayValue={(id: string) => { const guild = guilds.find((entry) => entry.id === id); return guild ? `${guild.name} · ${guild.realm}` : t("allGuilds"); }}
+                  displayValue={(id: string) => guilds.find((entry) => entry.id === id)?.name ?? t("allGuilds")}
                   onChange={(event) => setGuildSearch(event.target.value)} onFocus={(event) => event.target.select()} />
-                <ComboboxButton aria-label={t("searchGuilds")} className="absolute inset-y-0 right-0 px-2.5 text-gray-400"><FaChevronDown className="h-3 w-3" aria-hidden="true" /></ComboboxButton>
+                <ComboboxButton aria-label={t("searchGuilds")} className="absolute inset-y-0 right-0 rounded-r-md px-2.5 text-gray-400 focus:outline-none focus-visible:outline-1 focus-visible:outline-gray-500"><FaChevronDown className="h-3 w-3" aria-hidden="true" /></ComboboxButton>
               </div>
               <ComboboxOptions className="absolute top-full z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-md border border-gray-700 bg-gray-900 p-1 text-sm text-gray-100 shadow-xl focus:outline-none">
                 <ComboboxOption value="" className="flex cursor-pointer items-center justify-between gap-2 rounded px-3 py-2.5 data-focus:bg-gray-800">
-                  {({ selected: checked }) => <>{t("allGuilds")}{checked && <FaCheck className="h-3 w-3 shrink-0 text-rose-400" aria-hidden="true" />}</>}
+                  {({ selected: checked }) => <>{t("allGuilds")}{checked && <FaCheck className="h-3 w-3 shrink-0 text-gray-200" aria-hidden="true" />}</>}
                 </ComboboxOption>
                 {filteredGuilds.map((guild) => <ComboboxOption key={guild.id} value={guild.id} className="flex cursor-pointer items-center justify-between gap-2 rounded px-3 py-2.5 data-focus:bg-gray-800">
-                  {({ selected: checked }) => <><span className="min-w-0"><span className="block truncate">{guild.name}</span><span className="block truncate text-[11px] text-gray-400">{guild.realm}</span></span>{checked && <FaCheck className="h-3 w-3 shrink-0 text-rose-400" aria-hidden="true" />}</>}
+                  {({ selected: checked }) => <><span className="min-w-0 truncate">{guild.name}</span>{checked && <FaCheck className="h-3 w-3 shrink-0 text-gray-200" aria-hidden="true" />}</>}
                 </ComboboxOption>)}
                 {filteredGuilds.length === 0 && <p role="status" className="px-3 py-2.5 text-xs text-gray-400">{t("noGuilds")}</p>}
               </ComboboxOptions>
@@ -144,9 +161,9 @@ export default function MechanicLeaderboardView() {
                 </span>
                 <FaChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
               </ListboxButton>
-              <ListboxOptions className="absolute top-full z-20 mt-1 min-w-full rounded-md border border-gray-700 bg-gray-900 p-1 text-sm text-gray-100 shadow-xl focus:outline-none">
+              <ListboxOptions className="absolute top-full z-20 mt-1 min-w-full whitespace-nowrap rounded-md border border-gray-700 bg-gray-900 p-1 text-sm text-gray-100 shadow-xl focus:outline-none">
                 {ROLES.map((role) => <ListboxOption key={role} value={role} className="flex cursor-pointer items-center gap-3 rounded px-3 py-2.5 data-focus:bg-gray-800">
-                  {({ selected: checked }) => <><span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-rose-400 bg-rose-400 text-gray-950" : "border-gray-500"}`} aria-hidden="true">{checked && <FaCheck className="h-3 w-3" />}</span><IconImage iconFilename={roleIcon(role)} alt="" width={20} height={20} className="shrink-0" />{t(`role.${role}`)}</>}
+                  {({ selected: checked }) => <><span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-gray-300 bg-gray-300 text-gray-950" : "border-gray-500"}`} aria-hidden="true">{checked && <FaCheck className="h-3 w-3" />}</span><IconImage iconFilename={roleIcon(role)} alt="" width={20} height={20} className="shrink-0" />{t(`role.${role}`)}</>}
                 </ListboxOption>)}
               </ListboxOptions>
             </div>
@@ -156,6 +173,21 @@ export default function MechanicLeaderboardView() {
               {[10, 25, 50, 100].map((count) => <option key={count} value={count}>{t("atLeastPulls", { count })}</option>)}
             </select>
           </label>
+          <div className={`col-span-2 lg:col-span-1 ${labelStyle}`}>
+            <label htmlFor="mechanic-character-search">{t("character")}</label>
+            <div className="flex items-center gap-1.5">
+              <div className="relative min-w-0 flex-1">
+                <FaMagnifyingGlass className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-500" aria-hidden="true" />
+                <input id="mechanic-character-search" type="search" value={characterSearch} maxLength={60} autoComplete="off" spellCheck={false}
+                  placeholder={t("searchCharacters")} className={`${selectStyle} pl-8`}
+                  onChange={(event) => { setCharacterSearch(event.target.value); setPage(1); }} />
+              </div>
+              {hasChanges && <button type="button" onClick={resetFilters} aria-label={t("reset")} title={t("reset")}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-red-400 hover:bg-red-400/10 hover:text-red-300 focus-visible:outline-1 focus-visible:outline-gray-500">
+                <FaArrowRotateLeft className="h-4 w-4" aria-hidden="true" />
+              </button>}
+            </div>
+          </div>
         </section>
 
         {error ? <div role="alert" className="mt-6 rounded-lg border border-red-900 bg-red-950/20 p-6 text-sm"><p>{t("error")}</p><button className="mt-3 rounded border border-red-700 px-4 py-2 hover:bg-red-900/30" onClick={() => { void options.refetch(); void board.refetch(); }}>{t("retry")}</button></div> :
@@ -185,7 +217,7 @@ export default function MechanicLeaderboardView() {
                     else router.push(characterHref);
                   }}>
                     <td className="px-3 py-3 text-xs text-gray-500">{(data.page - 1) * data.limit + index + 1}</td>
-                    <td className="px-3 py-2"><div className="flex items-center gap-2.5"><span title={row.specName ? t("specHint", { spec: formatSpecName(row.specName) }) : classInfo.name}><IconImage key={icon} iconFilename={icon} alt="" width={24} height={24} className="rounded" /></span><div><Link href={characterHref} prefetch={false} className="font-medium hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-rose-400" style={{ color }} aria-label={t("openCharacter", { name: row.name })}>{row.name}</Link><p className="mt-0.5 text-[11px] text-gray-500">{row.guildName} · {row.realm}</p></div></div></td>
+                    <td className="px-3 py-2"><div className="flex items-center gap-2.5"><span title={row.specName ? t("specHint", { spec: formatSpecName(row.specName) }) : classInfo.name}><IconImage key={icon} iconFilename={icon} alt="" width={24} height={24} className="rounded" /></span><div><Link href={characterHref} prefetch={false} className="font-medium hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-gray-400" style={{ color }} aria-label={t("openCharacter", { name: row.name })}>{row.name}</Link><p className="mt-0.5 text-[11px] text-gray-500">{row.guildName}</p></div></div></td>
                     <td className="px-3 py-2"><div className="relative flex h-7 items-center justify-between gap-3 overflow-hidden rounded-sm px-2"><span aria-hidden="true" className="absolute inset-y-0 left-0 opacity-35" style={{ width: `${bar}%`, backgroundColor: color }} /><span className="relative text-xs text-gray-300">{number(share, 2)}%</span><span className="relative font-medium" title={number(row.damage)}>{compact(row.damage)}</span></div></td>
                     <td className="px-3 py-2 text-right" title={t("hitBreakdown", { direct: number(row.directHits), ticks: number(row.ticks) })}>{number(row.hits)}</td>
                     <td className="px-3 py-2 text-right text-gray-400">{number(row.pulls)}</td>

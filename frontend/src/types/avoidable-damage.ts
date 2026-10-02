@@ -23,6 +23,7 @@ export interface MechanicFilters {
   order: "asc" | "desc";
   roles: MechanicRole[];
   minPulls: number;
+  search?: string;
   page: number;
 }
 export interface MechanicLeaderboard {

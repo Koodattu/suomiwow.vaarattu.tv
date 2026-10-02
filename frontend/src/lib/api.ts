@@ -270,6 +270,7 @@ export const api = {
     const query = new URLSearchParams({ mechanic: filters.mechanic, outcome: filters.outcome, sort: filters.sort,
       order: filters.order, roles: filters.roles.join(","), minPulls: String(filters.minPulls), page: String(filters.page) });
     if (filters.guildId) query.set("guildId", filters.guildId);
+    if (filters.search) query.set("search", filters.search);
     const response = await fetch(`${API_URL}/api/avoidable-damage?${query}`, { signal });
     if (!response.ok) throw new Error("Could not load mechanic leaderboard");
     return response.json();

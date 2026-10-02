@@ -15,13 +15,15 @@ const response = (events: MechanicDamageEvent[], next: number | null = null) => 
 
 test("the approved catalogue uses stable keys and explicit damage IDs", () => {
   const catalogue = activeAvoidableMechanics();
-  assert.equal(catalogue.length, 31);
+  assert.equal(catalogue.length, 62);
+  assert.equal(new Set(catalogue.map((entry) => `${entry.zoneId}:${entry.encounterId}`)).size, 56);
   assert.equal(new Set(catalogue.map((entry) => entry.key)).size, catalogue.length);
   for (const entry of catalogue) {
     assert.ok(entry.version > 0 && entry.damageSpellIds.length > 0);
     assert.ok(entry.damageSpellIds.every((id) => Number.isSafeInteger(id) && id > 0));
     assert.equal(new Set(entry.damageSpellIds).size, entry.damageSpellIds.length);
-    assert.match(entry.icon, /^[a-z0-9_]+\.jpg$/);
+    // WCL also uses hyphenated icon names, e.g. Azshara's spell_priest_void-flay.
+    assert.match(entry.icon, /^[a-z0-9_-]+\.jpg$/);
   }
   assert.deepEqual(findAvoidableMechanic("zekvoz-surging-darkness")?.damageSpellIds, [265451, 265452, 265454]);
   assert.ok(!findAvoidableMechanic("vanguard-divine-toll")?.damageSpellIds.includes(375576));
@@ -61,6 +63,43 @@ test("pagination fetches only the whitelist and keeps zero-hit roster participan
   assert.equal(calls[1].variables.metadata, false);
   assert.deepEqual(result.damage.get(7)?.get(1), { damage: 125, hits: 2, directHits: 1, ticks: 1 });
   assert.deepEqual(result.damage.get(7)?.get(2), emptyDamageTotals());
+});
+
+test("selected spell families exclude casts, required damage and unrelated follow-up damage", async (t) => {
+  const cases = [
+    { key: "sprocketmonger-screwed", included: [1217261], excluded: [1216508, 1216509, 1220396, 1216415] },
+    { key: "rashanan-rolling-acid", included: [439785], excluded: [439787, 439790, 439786, 439776] },
+    { key: "kazzara-hellbeam", included: [400432], excluded: [400430, 404813] },
+    { key: "sarkareth-scorching-bomb", included: [401621], excluded: [401500, 401525, 406989] },
+    { key: "sarkareth-abyssal-breath", included: [410243], excluded: [404456, 404499, 403625] },
+    { key: "shriekwing-echoing-sonar", included: [342866, 343022], excluded: [342863, 329362] },
+    { key: "xanesh-torment", included: [311369, 311383], excluded: [306208, 185245, 311368] },
+    { key: "hivemind-acidic-aqir", included: [313461], excluded: [310343, 313420, 316756] },
+    { key: "carapace-tentacle-slam", included: [313564], excluded: [307131, 315947, 315862, 310614] },
+    { key: "cenarius-nightmare-brambles", included: [210315, 210337, 214308], excluded: [210290, 225808] },
+    { key: "xavius-nightmare-blades", included: [206656], excluded: [211802, 206653] },
+    { key: "guarm-trample", included: [227843], excluded: [227816, 228344, 227833, 232197, 232224] },
+    { key: "helya-corrupted-breath", included: [228566], excluded: [228565, 232418, 203028] },
+    { key: "elisande-arcanetic-ring", included: [208659], excluded: [208666, 228877, 229107, 229109] },
+    { key: "sisters-glaive-storm", included: [236480], excluded: [239379, 239383, 239386, 242556] },
+    { key: "argus-edges", included: [251815, 258834], excluded: [255826, 255839, 248499, 258838] },
+    { key: "argus-sweeping-scythe", included: [248499], excluded: [258838, 251815, 258834] },
+  ];
+  for (const { key, included, excluded } of cases) await t.test(key, async (subtest) => {
+    const mechanic = findAvoidableMechanic(key)!;
+    let filter: unknown;
+    subtest.mock.method(wcl, "query", async (_query: string, variables: Record<string, unknown>) => {
+      filter = variables.filter;
+      const data = response([...included, ...excluded].map((abilityGameID) => event({ abilityGameID })));
+      data.reportData.report.fights[0].encounterID = mechanic.encounterId;
+      return data;
+    });
+    const result = await wcl.getAvoidableDamage("SELECTED", mechanic.encounterId, [7], mechanic.damageSpellIds, async () => {});
+    assert.equal(filter, `target.type = 'Player' AND ability.id IN (${included.join(",")})`);
+    assert.equal(result.damage.get(7)?.get(1)?.damage, included.length * 100);
+    assert.equal(result.damage.get(7)?.get(1)?.hits, included.length);
+    assert.deepEqual(result.damage.get(7)?.get(2), emptyDamageTotals());
+  });
 });
 
 test("a failed or paused later page never returns a partial success", async (t) => {
@@ -123,11 +162,13 @@ test("regional tier windows exclude later over-levelled runs", () => {
 
 test("public filters reject unknown mechanics, query objects and unbounded pagination", () => {
   const valid = { mechanic: "sszorak-tempest" };
-  assert.deepEqual(parseMechanicFilters(valid), { ...valid, guildId: undefined, outcome: "all", sort: "damage", order: "desc", roles: ["dps", "healer", "tank"], minPulls: 10, page: 1, limit: 50 });
+  assert.deepEqual(parseMechanicFilters(valid), { ...valid, guildId: undefined, outcome: "all", sort: "damage", order: "desc", roles: ["dps", "healer", "tank"], minPulls: 10, search: "", page: 1, limit: 50 });
+  assert.equal(parseMechanicFilters({ ...valid, search: "  Käris  " })?.search, "Käris");
   for (const minPulls of ["10", "25", "50", "100"]) assert.equal(parseMechanicFilters({ ...valid, minPulls })?.minPulls, Number(minPulls));
   assert.deepEqual(parseMechanicFilters({ ...valid, roles: "tank,dps,tank", order: "asc", minPulls: "25" })?.roles, ["dps", "tank"]);
   assert.deepEqual(parseMechanicFilters({ ...valid, roles: "" })?.roles, []);
   for (const changes of [{ mechanic: "removed" }, { mechanic: ["sszorak-tempest"] }, { page: "1.5" }, { page: "10001" }, { limit: "101" }, { guildId: { $ne: null } }, { sort: "$where" }, { outcome: "heroic" },
+    { search: ["name"] }, { search: { $regex: ".*" } }, { search: "a".repeat(61) },
     { roles: ["dps"] }, { roles: "damage" }, { roles: "tank," }, { order: "up" }, { minPulls: "0" }, { minPulls: "-1" }, { minPulls: "11" }, { minPulls: "10.0" }, { minPulls: { $gt: 0 } }]) {
     assert.equal(parseMechanicFilters({ ...valid, ...changes }), null);
   }

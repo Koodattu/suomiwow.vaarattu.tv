@@ -51,7 +51,7 @@ test("warming covers options and every enabled mechanic before the first HTTP vi
   assert.equal(options.status, 200);
   assert.equal((await options.json() as { mechanics: unknown[] }).mechanics.length, mechanics.length);
   for (const mechanic of [mechanics[0], mechanics[mechanics.length - 1]]) {
-    for (const query of ["", "&roles=tank&sort=hits&order=asc&minPulls=50&page=2"]) {
+    for (const query of ["", "&roles=tank&sort=hits&order=asc&minPulls=50&page=2", "&search=K%C3%A4ris"]) {
       const response = await fetch(`${url}?mechanic=${mechanic.key}${query}`);
       assert.equal(response.status, 200);
       assert.match(response.headers.get("cache-control")!, /stale-while-revalidate/);

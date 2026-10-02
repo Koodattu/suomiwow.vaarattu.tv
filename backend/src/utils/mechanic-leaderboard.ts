@@ -1,6 +1,7 @@
 import type { AvoidableMechanic } from "../config/avoidable-mechanics";
 import type { Role } from "../config/specs";
 import type { DamageTotals } from "./avoidable-damage";
+import { normalizeSearchText } from "./search";
 
 export const MECHANIC_ROLES: Role[] = ["dps", "healer", "tank"];
 export const MECHANIC_MIN_PULLS = [10, 25, 50, 100];
@@ -13,6 +14,7 @@ export interface MechanicLeaderboardFilters {
   order?: "asc" | "desc";
   roles?: Role[];
   minPulls?: number;
+  search?: string;
   page: number;
   limit: number;
 }
@@ -50,6 +52,7 @@ export function selectMechanicLeaderboard(snapshot: MechanicSnapshot, filters: M
     (!filters.guildId || row.guildId === filters.guildId) && (filters.outcome === "all" || row.isKill === (filters.outcome === "kills"));
   const roles = filters.roles ?? MECHANIC_ROLES;
   const includeUnknown = MECHANIC_ROLES.every((role) => roles.includes(role));
+  const search = normalizeSearchText(filters.search ?? "");
   const players = new Map<string, { row: LeaderboardRow; timestamp: number; specs: Map<string, { pulls: number; timestamp: number }> }>();
   for (const entry of snapshot.rows) {
     if (!inScope(entry) || (entry.role ? !roles.includes(entry.role) : !includeUnknown)) continue;
@@ -79,7 +82,7 @@ export function selectMechanicLeaderboard(snapshot: MechanicSnapshot, filters: M
     // Count attendance, including zero-hit pulls. Break ties by the most recent spec.
     specName: [...specs].sort(([a, left], [b, right]) => right.pulls - left.pulls || right.timestamp - left.timestamp || a.localeCompare(b))[0]?.[0] ?? null,
   }))
-    .filter((row) => row.pulls >= (filters.minPulls ?? 0));
+    .filter((row) => row.pulls >= (filters.minPulls ?? 0) && (!search || normalizeSearchText(row.name).includes(search)));
   const direction = filters.order === "asc" ? 1 : -1;
   rows.sort((a, b) => direction * (a[filters.sort] - b[filters.sort]) || b.damage - a.damage || a.key.localeCompare(b.key));
   const totals = rows.reduce((sum, row) => ({
