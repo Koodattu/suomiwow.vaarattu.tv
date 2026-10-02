@@ -3,7 +3,7 @@ import type { Role } from "../config/specs";
 import type { DamageTotals } from "./avoidable-damage";
 
 export const MECHANIC_ROLES: Role[] = ["dps", "healer", "tank"];
-export const MECHANIC_MIN_PULLS = [0, 10, 25, 50, 100];
+export const MECHANIC_MIN_PULLS = [10, 25, 50, 100];
 
 export interface MechanicLeaderboardFilters {
   mechanic: string;
@@ -23,6 +23,7 @@ export interface MechanicSnapshotRow extends DamageTotals {
   realm: string;
   region: string;
   classId: number;
+  specName: string | null;
   guildId: string;
   guildName: string;
   isKill: boolean;
@@ -49,26 +50,35 @@ export function selectMechanicLeaderboard(snapshot: MechanicSnapshot, filters: M
     (!filters.guildId || row.guildId === filters.guildId) && (filters.outcome === "all" || row.isKill === (filters.outcome === "kills"));
   const roles = filters.roles ?? MECHANIC_ROLES;
   const includeUnknown = MECHANIC_ROLES.every((role) => roles.includes(role));
-  const players = new Map<string, { row: LeaderboardRow; timestamp: number }>();
+  const players = new Map<string, { row: LeaderboardRow; timestamp: number; specs: Map<string, { pulls: number; timestamp: number }> }>();
   for (const entry of snapshot.rows) {
     if (!inScope(entry) || (entry.role ? !roles.includes(entry.role) : !includeUnknown)) continue;
     const { guildId: _guildId, isKill: _isKill, role: _role, timestamp, ...values } = entry;
-    const existing = players.get(entry.key);
+    let existing = players.get(entry.key);
     if (!existing) {
-      players.set(entry.key, { row: { ...values, hitsPerPull: 0 }, timestamp });
-      continue;
+      existing = { row: { ...values, hitsPerPull: 0 }, timestamp, specs: new Map() };
+      players.set(entry.key, existing);
+    } else {
+      const totals = {
+        damage: existing.row.damage + entry.damage, hits: existing.row.hits + entry.hits,
+        directHits: existing.row.directHits + entry.directHits, ticks: existing.row.ticks + entry.ticks,
+        pulls: existing.row.pulls + entry.pulls,
+      };
+      if (timestamp > existing.timestamp) {
+        existing.row = { ...values, ...totals, hitsPerPull: 0 };
+        existing.timestamp = timestamp;
+      } else Object.assign(existing.row, totals);
     }
-    const totals = {
-      damage: existing.row.damage + entry.damage, hits: existing.row.hits + entry.hits,
-      directHits: existing.row.directHits + entry.directHits, ticks: existing.row.ticks + entry.ticks,
-      pulls: existing.row.pulls + entry.pulls,
-    };
-    if (timestamp > existing.timestamp) {
-      existing.row = { ...values, ...totals, hitsPerPull: 0 };
-      existing.timestamp = timestamp;
-    } else Object.assign(existing.row, totals);
+    if (entry.specName) {
+      const spec = existing.specs.get(entry.specName);
+      existing.specs.set(entry.specName, { pulls: (spec?.pulls ?? 0) + entry.pulls, timestamp: Math.max(spec?.timestamp ?? 0, timestamp) });
+    }
   }
-  const rows = [...players.values()].map(({ row }) => ({ ...row, hitsPerPull: row.hits / row.pulls }))
+  const rows = [...players.values()].map(({ row, specs }) => ({
+    ...row, hitsPerPull: row.hits / row.pulls,
+    // Count attendance, including zero-hit pulls. Break ties by the most recent spec.
+    specName: [...specs].sort(([a, left], [b, right]) => right.pulls - left.pulls || right.timestamp - left.timestamp || a.localeCompare(b))[0]?.[0] ?? null,
+  }))
     .filter((row) => row.pulls >= (filters.minPulls ?? 0));
   const direction = filters.order === "asc" ? 1 : -1;
   rows.sort((a, b) => direction * (a[filters.sort] - b[filters.sort]) || b.damage - a.damage || a.key.localeCompare(b.key));

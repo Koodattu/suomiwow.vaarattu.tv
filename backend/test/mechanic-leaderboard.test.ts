@@ -8,7 +8,7 @@ import { MechanicLeaderboardFilters, MechanicSnapshot, MechanicSnapshotRow, sele
 const mechanic = findAvoidableMechanic("sszorak-tempest")!;
 const filters: MechanicLeaderboardFilters = { mechanic: mechanic.key, outcome: "all", sort: "damage", order: "desc", page: 1, limit: 50 };
 const row = (key: string, values: Partial<MechanicSnapshotRow> = {}): MechanicSnapshotRow => ({
-  key, name: key, realm: "test", region: "eu", classId: 2, guildId: "one", guildName: "One", isKill: false, role: "dps",
+  key, name: key, realm: "test", region: "eu", classId: 2, specName: null, guildId: "one", guildName: "One", isKill: false, role: "dps",
   damage: 100, hits: 10, directHits: 10, ticks: 0, pulls: 10, reportCode: "A", fightId: 1, actorId: 1, timestamp: 1, ...values,
 });
 const snapshot: MechanicSnapshot = { mechanic, rows: [
@@ -42,6 +42,36 @@ test("role combinations count only matching pulls, keep zero hits and never gues
   assert.equal(selectMechanicLeaderboard(snapshot, { ...filters, roles: ["healer"], minPulls: 25 }).totals.players, 0);
   assert.equal(healer.coverage.fetched, 105);
   assert.equal(snapshot.rows[0].damage, 100, "filtering must not mutate the shared cache");
+});
+
+test("most-played spec counts matching boss pulls, including zero-hit pulls, across all groups", () => {
+  const specs: MechanicSnapshot = { mechanic, coverage: [], rows: [
+    row("hybrid", { specName: "balance", pulls: 6, damage: 0, hits: 0, directHits: 0 }),
+    row("hybrid", { specName: "restoration", role: "healer", pulls: 8, timestamp: 4, damage: 1000 }),
+    row("hybrid", { specName: "balance", isKill: true, pulls: 5, timestamp: 2, damage: 0, hits: 0, directHits: 0 }),
+    row("hybrid", { specName: "restoration", role: "healer", guildId: "two", isKill: true, pulls: 2, timestamp: 5 }),
+    row("hybrid", { specName: "feral", guildId: "two", isKill: true, pulls: 3, timestamp: 6 }),
+    row("hybrid", { specName: null, role: null, pulls: 100, timestamp: 7 }),
+  ] };
+  const select = (scope: Partial<MechanicLeaderboardFilters> = {}) => selectMechanicLeaderboard(specs, { ...filters, ...scope }).rows[0];
+  assert.equal(select().specName, "balance", "total attendance wins over damage, group size and latest spec");
+  assert.equal(select().pulls, 124, "unknown specs still contribute to totals");
+  assert.equal(select({ roles: ["healer"] }).specName, "restoration");
+  assert.equal(select({ roles: ["dps"] }).specName, "balance");
+  assert.equal(select({ guildId: "two" }).specName, "feral");
+  assert.equal(select({ outcome: "wipes" }).specName, "restoration");
+  assert.equal(selectMechanicLeaderboard({ ...specs, rows: [...specs.rows].reverse() }, filters).rows[0].specName, "balance");
+});
+
+test("spec ties prefer recent attendance and missing specs remain unknown", () => {
+  const specs: MechanicSnapshot = { mechanic, coverage: [], rows: [
+    row("recent", { specName: "balance", timestamp: 1 }), row("recent", { specName: "restoration", timestamp: 2 }),
+    row("tied", { specName: "restoration" }), row("tied", { specName: "balance" }), row("unknown"),
+  ] };
+  const rows = selectMechanicLeaderboard(specs, filters).rows;
+  assert.equal(rows.find((entry) => entry.key === "recent")?.specName, "restoration");
+  assert.equal(rows.find((entry) => entry.key === "tied")?.specName, "balance");
+  assert.equal(rows.find((entry) => entry.key === "unknown")?.specName, null);
 });
 
 test("minimum pulls use inclusive thresholds after guild, outcome and role filtering", () => {

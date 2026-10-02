@@ -7,7 +7,7 @@ import { MECHANIC_MIN_PULLS, MECHANIC_ROLES } from "../utils/mechanic-leaderboar
 import logger from "../utils/logger";
 
 export function parseMechanicFilters(query: Record<string, unknown>): MechanicLeaderboardFilters | null {
-  const { mechanic, guildId, outcome = "all", sort = "damage", order = "desc", roles = "dps,healer,tank", minPulls = "0", page = "1", limit = "50" } = query;
+  const { mechanic, guildId, outcome = "all", sort = "damage", order = "desc", roles = "dps,healer,tank", minPulls = "10", page = "1", limit = "50" } = query;
   if (typeof mechanic !== "string" || !findAvoidableMechanic(mechanic) ||
       (guildId !== undefined && (typeof guildId !== "string" || !mongoose.isObjectIdOrHexString(guildId))) ||
       typeof outcome !== "string" || !["all", "kills", "wipes"].includes(outcome) ||
@@ -23,7 +23,7 @@ export function parseMechanicFilters(query: Record<string, unknown>): MechanicLe
 }
 
 const router = Router();
-router.get("/options", cacheMiddleware(() => "avoidable-damage:options:v1", () => 5 * 60 * 1000), async (_req, res) => {
+router.get("/options", cacheMiddleware(() => "avoidable-damage:options:v3", () => 5 * 60 * 1000), async (_req, res) => {
   try { res.json(await avoidableDamageService.getOptions()); }
   catch (error) { logger.error("[AvoidableDamage] Options failed", error); res.status(500).json({ error: "Could not load mechanic options" }); }
 });

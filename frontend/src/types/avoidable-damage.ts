@@ -4,14 +4,15 @@ export interface AvoidableMechanic {
   zoneId: number;
   encounterId: number;
   boss: string;
+  bossIcon?: string;
   name: string;
   damageSpellIds: number[];
   icon: string;
 }
 export interface MechanicOptions {
   mechanics: AvoidableMechanic[];
-  raids: { id: number; name: string; expansion: string }[];
-  guilds: { id: string; name: string; realm: string; region: string }[];
+  raids: { id: number; name: string; expansion: string; iconUrl?: string }[];
+  guilds: { id: string; name: string; realm: string; region: string; mechanicKeys: string[] }[];
 }
 export type MechanicRole = "dps" | "healer" | "tank";
 export interface MechanicFilters {
@@ -27,7 +28,7 @@ export interface MechanicFilters {
 export interface MechanicLeaderboard {
   mechanic: AvoidableMechanic;
   rows: {
-    key: string; name: string; realm: string; region: string; classId: number; guildName: string;
+    key: string; name: string; realm: string; region: string; classId: number; specName: string | null; guildName: string;
     damage: number; hits: number; directHits: number; ticks: number; pulls: number; hitsPerPull: number;
     reportCode: string; fightId: number; actorId: number;
   }[];

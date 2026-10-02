@@ -15,7 +15,7 @@ import { isSameMechanicPull, mechanicClassId, mechanicIdentity, MechanicCollecti
 import logger from "../utils/logger";
 import { classifyError, ErrorType } from "../utils/error-classifier";
 import { normalizeRealmSlug } from "../utils/realm";
-import { resolveSpecByBlizzardSpecId, tryResolveRole } from "../utils/spec";
+import { resolveSpecByBlizzardSpecId, slugifySpecName, tryResolveRole } from "../utils/spec";
 import { MechanicLeaderboardFilters, MechanicSnapshot, MechanicSnapshotRow, selectMechanicLeaderboard } from "../utils/mechanic-leaderboard";
 import iconCacheService from "./icon-cache.service";
 import cacheService from "./cache.service";
@@ -288,10 +288,22 @@ class AvoidableDamageService {
   async getOptions() {
     const mechanics = activeAvoidableMechanics();
     const [raids, guilds] = await Promise.all([
-      Raid.find({ id: { $in: mechanics.map((entry) => entry.zoneId) } }).select("id name expansion -_id").lean(),
-      Guild.find().select("name realm region").sort({ name: 1, realm: 1 }).lean(),
+      Raid.find({ id: { $in: mechanics.map((entry) => entry.zoneId) } }).select("id name expansion iconUrl bosses.id bosses.iconUrl -_id").lean(),
+      Guild.find().select("name realm region excludedRaidIds progress.raidId progress.difficulty progress.bosses.bossId progress.bosses.pullCount progress.bosses.kills").sort({ name: 1, realm: 1 }).lean(),
     ]);
-    return { mechanics, raids, guilds: guilds.map((guild) => ({ id: String(guild._id), name: guild.name, realm: guild.realm, region: guild.region })) };
+    const raidsById = new Map(raids.map((raid) => [raid.id, raid]));
+    return {
+      mechanics: mechanics.map((mechanic) => ({ ...mechanic, bossIcon: raidsById.get(mechanic.zoneId)?.bosses?.find((boss) => boss.id === mechanic.encounterId)?.iconUrl })),
+      raids: raids.map(({ bosses: _bosses, ...raid }) => raid),
+      guilds: guilds.map((guild) => ({
+        id: String(guild._id), name: guild.name, realm: guild.realm, region: guild.region,
+        // Reuse the stored boss participation summaries; no fight/event scan is needed.
+        mechanicKeys: mechanics.filter((mechanic) => !guild.excludedRaidIds?.includes(mechanic.zoneId) &&
+          guild.progress?.some((raid) => raid.raidId === mechanic.zoneId && raid.difficulty === "mythic" &&
+            raid.bosses.some((boss) => boss.bossId === mechanic.encounterId && (boss.pullCount > 0 || boss.kills > 0))))
+          .map((mechanic) => mechanic.key),
+      })),
+    };
   }
 
   async getCollectionStatus(guildId?: string) {
@@ -341,7 +353,7 @@ class AvoidableDamageService {
     // Rosters retain WCL display realms; mechanic players store realm slugs.
     const realmIdentity = (field: string) => [" ", "\t", "\r", "\n", "-", "'", "’", "`"].reduce<unknown>(
       (input, find) => ({ $replaceAll: { input, find, replacement: "" } }), { $toLower: { $ifNull: [field, ""] } });
-    type AggregateRow = Omit<MechanicSnapshotRow, "key" | "guildId" | "isKill" | "role" | "timestamp"> & {
+    type AggregateRow = Omit<MechanicSnapshotRow, "key" | "guildId" | "isKill" | "role" | "specName" | "timestamp"> & {
       _id: { identity: string; guildId: mongoose.Types.ObjectId; isKill: boolean; role?: MechanicSnapshotRow["role"]; specID?: number; specName?: string };
       timestamp: Date;
     };
@@ -367,17 +379,18 @@ class AvoidableDamageService {
     return {
       mechanic,
       rows: leaderboard.map(({ _id, timestamp, ...row }) => {
-        const specName = _id.specName ?? (_id.specID ? resolveSpecByBlizzardSpecId(_id.specID)?.specName : null);
+        const specName = _id.specName || (_id.specID ? resolveSpecByBlizzardSpecId(_id.specID)?.specName : null);
+        const specRole = tryResolveRole(row.classId, specName);
         const classRoles = [...new Set(Object.values(ROLE_BY_CLASS_AND_SPEC[row.classId] ?? {}))];
-        const role = tryResolveRole(row.classId, specName) ?? _id.role ?? (classRoles.length === 1 ? classRoles[0] : null);
-        return { ...row, key: _id.identity, guildId: String(_id.guildId), isKill: _id.isKill, role, timestamp: timestamp.getTime() };
+        const role = specRole ?? _id.role ?? (classRoles.length === 1 ? classRoles[0] : null);
+        return { ...row, key: _id.identity, guildId: String(_id.guildId), isKill: _id.isKill, role, specName: specRole && specName ? slugifySpecName(specName) : null, timestamp: timestamp.getTime() };
       }),
       coverage: coverageRows.map(({ _id, fights, updatedAt }) => ({ ..._id, guildId: String(_id.guildId), fights, updatedAt: updatedAt?.toISOString() ?? null })),
     };
   }
 
   private snapshotKey(mechanic: AvoidableMechanic): string {
-    return `avoidable-damage:snapshot:v2:${mechanic.key}:${mechanic.version}`;
+    return `avoidable-damage:snapshot:v3:${mechanic.key}:${mechanic.version}`;
   }
 
   private refreshSnapshot(mechanic: AvoidableMechanic): Promise<MechanicSnapshot> {
