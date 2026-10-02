@@ -1,5 +1,6 @@
 import mongoose, { PipelineStage } from "mongoose";
 import { activeAvoidableMechanics, AvoidableMechanic, findAvoidableMechanic } from "../config/avoidable-mechanics";
+import { ROLE_BY_CLASS_AND_SPEC } from "../config/specs";
 import AvoidableDamageFight, { MechanicPlayer } from "../models/AvoidableDamageFight";
 import Character from "../models/Character";
 import CharacterReportAppearance from "../models/CharacterReportAppearance";
@@ -14,6 +15,8 @@ import { isSameMechanicPull, mechanicClassId, mechanicIdentity, MechanicCollecti
 import logger from "../utils/logger";
 import { classifyError, ErrorType } from "../utils/error-classifier";
 import { normalizeRealmSlug } from "../utils/realm";
+import { resolveSpecByBlizzardSpecId, tryResolveRole } from "../utils/spec";
+import { MechanicLeaderboardFilters, MechanicSnapshot, MechanicSnapshotRow, selectMechanicLeaderboard } from "../utils/mechanic-leaderboard";
 import iconCacheService from "./icon-cache.service";
 import cacheService from "./cache.service";
 import rateLimitService from "./rate-limit.service";
@@ -23,6 +26,7 @@ import wclService from "./warcraftlogs.service";
 const RETRY_MS = 24 * 60 * 60 * 1000;
 const REPORTS_PER_TURN = 10;
 const FIGHTS_PER_REQUEST = 50;
+const LEADERBOARD_CACHE_MS = 5 * 60 * 1000;
 const currentVersions = (mechanics = activeAvoidableMechanics()) => mechanics.map((entry) => ({ mechanicKey: entry.key, version: entry.version }));
 const queueMechanics = (queue: IGuildProcessingQueue) => activeAvoidableMechanics().filter((entry) =>
   queue.targetMechanicKeys === undefined || queue.targetMechanicKeys.includes(entry.key));
@@ -35,14 +39,7 @@ export function isWithinMechanicTier(timestamp: number, region: string, raid: { 
   return (start === undefined || timestamp >= start) && (end === undefined || timestamp <= end);
 }
 
-export interface MechanicLeaderboardFilters {
-  mechanic: string;
-  guildId?: string;
-  outcome: "all" | "kills" | "wipes";
-  sort: "damage" | "hits" | "hitsPerPull";
-  page: number;
-  limit: number;
-}
+export type { MechanicLeaderboardFilters } from "../utils/mechanic-leaderboard";
 
 export interface MechanicBackfillOptions {
   guildId?: string;
@@ -51,6 +48,8 @@ export interface MechanicBackfillOptions {
 }
 
 class AvoidableDamageService {
+  private snapshotBuilds = new Map<string, Promise<MechanicSnapshot>>();
+
   async queueBackfill({ guildId, mechanicKeys, retryUnavailable = false }: MechanicBackfillOptions = {}) {
     if (mechanicKeys?.some((key) => !findAvoidableMechanic(key))) throw new Error("Unknown mechanic selection");
     const mechanics = activeAvoidableMechanics().filter((entry) => mechanicKeys === undefined || mechanicKeys.includes(entry.key));
@@ -179,6 +178,7 @@ class AvoidableDamageService {
 
   async collectGuild(queue: IGuildProcessingQueue, beforePage: (endpoint: "client" | "user") => Promise<void>): Promise<boolean> {
     const mechanics = queueMechanics(queue);
+    const collectedMechanics = new Set<string>();
     if (!mechanics.length) return true;
     const versions = currentVersions(mechanics);
     if (queue.progress.currentPage === 0 || (queue.mechanicSeedRevision ?? 0) !== (queue.mechanicRequestRevision ?? 0)) {
@@ -263,7 +263,7 @@ class AvoidableDamageService {
             });
             // Nothing is committed until EVERY event page in this batch has succeeded.
             await AvoidableDamageFight.bulkWrite(updates, { ordered: false });
-            await cacheService.invalidatePattern(/^avoidable-damage:/);
+            collectedMechanics.add(mechanic.key);
             await queue.updateProgress(queue.progress.reportsFetched, queue.progress.fightsSaved + batch.length, queue.progress.currentPage);
           } catch (error) {
             if (error instanceof MechanicCollectionPaused) throw error;
@@ -280,6 +280,8 @@ class AvoidableDamageService {
       }
       await queue.updateProgress(queue.progress.reportsFetched + 1, queue.progress.fightsSaved, queue.progress.currentPage + 1);
     }
+    // Refresh in place: visitors keep the previous snapshot while new results are prepared.
+    if (collectedMechanics.size) void this.warmLeaderboardCaches([...collectedMechanics]);
     return !(await AvoidableDamageFight.exists({ guildId: queue.guildId, $and: [{ $or: versions }, dueFilter()] }));
   }
 
@@ -319,51 +321,98 @@ class AvoidableDamageService {
     };
   }
 
-  private async visibleFightStages(mechanic: AvoidableMechanic, filters: MechanicLeaderboardFilters): Promise<PipelineStage[]> {
+  private async visibleFightStages(mechanic: AvoidableMechanic): Promise<PipelineStage[]> {
     const hidden = await Character.find({ wclProfileHidden: true }).select("wclCanonicalCharacterId").lean();
     return [
-      { $match: { mechanicKey: mechanic.key, version: mechanic.version,
-        ...(filters.guildId ? { guildId: new mongoose.Types.ObjectId(filters.guildId) } : {}),
-        ...(filters.outcome !== "all" ? { isKill: filters.outcome === "kills" } : {}) } },
+      { $match: { mechanicKey: mechanic.key, version: mechanic.version } },
       // Respect report deletion/reassignment and guild exclusions without waiting for another backfill.
-      { $lookup: { from: Fight.collection.name, localField: "sourceFightId", foreignField: "_id", as: "source" } },
+      { $lookup: { from: Fight.collection.name, localField: "sourceFightId", foreignField: "_id",
+        pipeline: [{ $project: { guildId: 1, combatants: 1 } }], as: "source" } },
       { $match: { $expr: { $eq: [{ $arrayElemAt: ["$source.guildId", 0] }, "$guildId"] } } },
-      { $lookup: { from: Guild.collection.name, localField: "guildId", foreignField: "_id", as: "guild" } },
+      { $lookup: { from: Guild.collection.name, localField: "guildId", foreignField: "_id",
+        pipeline: [{ $project: { name: 1, excludedRaidIds: 1 } }], as: "guild" } },
       { $unwind: "$guild" }, { $match: { "guild.excludedRaidIds": { $ne: mechanic.zoneId } } },
       { $set: { players: { $filter: { input: "$players", as: "player", cond: { $not: [{ $in: ["$$player.canonicalCharacterId", hidden.map((entry) => entry.wclCanonicalCharacterId)] }] } } } } },
-      { $unset: "source" },
     ];
+  }
+
+  private async buildLeaderboardSnapshot(mechanic: AvoidableMechanic): Promise<MechanicSnapshot> {
+    const stages = await this.visibleFightStages(mechanic);
+    // Rosters retain WCL display realms; mechanic players store realm slugs.
+    const realmIdentity = (field: string) => [" ", "\t", "\r", "\n", "-", "'", "’", "`"].reduce<unknown>(
+      (input, find) => ({ $replaceAll: { input, find, replacement: "" } }), { $toLower: { $ifNull: [field, ""] } });
+    type AggregateRow = Omit<MechanicSnapshotRow, "key" | "guildId" | "isKill" | "role" | "timestamp"> & {
+      _id: { identity: string; guildId: mongoose.Types.ObjectId; isKill: boolean; role?: MechanicSnapshotRow["role"]; specID?: number; specName?: string };
+      timestamp: Date;
+    };
+    const [coverageRows, leaderboard] = await Promise.all([
+      AvoidableDamageFight.aggregate([...stages, { $group: { _id: { guildId: "$guildId", isKill: "$isKill", status: "$status" }, fights: { $sum: 1 }, updatedAt: { $max: "$fetchedAt" } } }]),
+      AvoidableDamageFight.aggregate<AggregateRow>([...stages,
+        { $match: { status: "fetched" } }, { $unwind: "$players" }, { $sort: { timestamp: -1, reportCode: 1 } },
+        // Join the already stored roster for this pull. Never guess a hybrid class's role.
+        { $set: { combatant: { $arrayElemAt: [{ $filter: {
+          input: { $ifNull: [{ $arrayElemAt: ["$source.combatants", 0] }, []] }, as: "combatant",
+          cond: { $and: [
+            { $eq: [{ $toLower: "$$combatant.name" }, { $toLower: "$players.name" }] },
+            { $eq: [realmIdentity("$$combatant.server"), realmIdentity("$players.realm")] },
+          ] },
+        } }, 0] } } },
+        { $group: { _id: { identity: "$players.identity", guildId: "$guildId", isKill: "$isKill", role: "$combatant.role", specID: "$combatant.specID", specName: "$combatant.specName" },
+          name: { $first: "$players.name" }, realm: { $first: "$players.realm" }, region: { $first: "$players.region" },
+          classId: { $first: "$players.classId" }, guildName: { $first: "$guild.name" },
+          damage: { $sum: "$players.damage" }, hits: { $sum: "$players.hits" }, directHits: { $sum: "$players.directHits" }, ticks: { $sum: "$players.ticks" }, pulls: { $sum: 1 },
+          reportCode: { $first: "$reportCode" }, fightId: { $first: "$fightId" }, actorId: { $first: "$players.actorId" }, timestamp: { $first: "$timestamp" } } },
+      ]).allowDiskUse(true),
+    ]);
+    return {
+      mechanic,
+      rows: leaderboard.map(({ _id, timestamp, ...row }) => {
+        const specName = _id.specName ?? (_id.specID ? resolveSpecByBlizzardSpecId(_id.specID)?.specName : null);
+        const classRoles = [...new Set(Object.values(ROLE_BY_CLASS_AND_SPEC[row.classId] ?? {}))];
+        const role = tryResolveRole(row.classId, specName) ?? _id.role ?? (classRoles.length === 1 ? classRoles[0] : null);
+        return { ...row, key: _id.identity, guildId: String(_id.guildId), isKill: _id.isKill, role, timestamp: timestamp.getTime() };
+      }),
+      coverage: coverageRows.map(({ _id, fights, updatedAt }) => ({ ..._id, guildId: String(_id.guildId), fights, updatedAt: updatedAt?.toISOString() ?? null })),
+    };
+  }
+
+  private snapshotKey(mechanic: AvoidableMechanic): string {
+    return `avoidable-damage:snapshot:v2:${mechanic.key}:${mechanic.version}`;
+  }
+
+  private refreshSnapshot(mechanic: AvoidableMechanic): Promise<MechanicSnapshot> {
+    const key = this.snapshotKey(mechanic);
+    const existing = this.snapshotBuilds.get(key);
+    if (existing) return existing;
+    const build = (async () => {
+      const snapshot = await this.buildLeaderboardSnapshot(mechanic);
+      await cacheService.set(key, snapshot, LEADERBOARD_CACHE_MS);
+      return snapshot;
+    })().finally(() => this.snapshotBuilds.delete(key));
+    this.snapshotBuilds.set(key, build);
+    return build;
+  }
+
+  async warmLeaderboardCaches(mechanicKeys = activeAvoidableMechanics().map((entry) => entry.key)): Promise<void> {
+    // Sequential warming avoids flooding MongoDB during startup or a collection run.
+    for (const key of mechanicKeys) {
+      const mechanic = findAvoidableMechanic(key);
+      if (!mechanic) continue;
+      try { await this.refreshSnapshot(mechanic); }
+      catch (error) { logger.error(`[AvoidableDamage] Cache refresh failed for ${key}`, error); }
+    }
   }
 
   async getLeaderboard(filters: MechanicLeaderboardFilters) {
     const mechanic = findAvoidableMechanic(filters.mechanic);
     if (!mechanic) throw new Error("Unknown mechanic");
-    const stages = await this.visibleFightStages(mechanic, filters);
-    const [coverageRows, leaderboard] = await Promise.all([
-      AvoidableDamageFight.aggregate([...stages, { $group: { _id: "$status", fights: { $sum: 1 }, updatedAt: { $max: "$fetchedAt" } } }]),
-      AvoidableDamageFight.aggregate([...stages,
-        { $match: { status: "fetched" } }, { $unwind: "$players" }, { $sort: { timestamp: -1, reportCode: 1 } },
-        { $group: { _id: "$players.identity", name: { $first: "$players.name" }, realm: { $first: "$players.realm" }, region: { $first: "$players.region" },
-          classId: { $first: "$players.classId" }, guildName: { $first: "$guild.name" },
-          damage: { $sum: "$players.damage" }, hits: { $sum: "$players.hits" }, directHits: { $sum: "$players.directHits" }, ticks: { $sum: "$players.ticks" }, pulls: { $sum: 1 },
-          reportCode: { $first: "$reportCode" }, fightId: { $first: "$fightId" }, actorId: { $first: "$players.actorId" } } },
-        { $set: { hitsPerPull: { $divide: ["$hits", "$pulls"] } } },
-        { $facet: {
-          rows: [{ $sort: { [filters.sort]: -1, damage: -1, _id: 1 } }, { $skip: (filters.page - 1) * filters.limit }, { $limit: filters.limit }],
-          totals: [{ $group: { _id: null, players: { $sum: 1 }, damage: { $sum: "$damage" }, hits: { $sum: "$hits" }, maxDamage: { $max: "$damage" }, maxHits: { $max: "$hits" }, maxHitsPerPull: { $max: "$hitsPerPull" } } }],
-        } },
-      ]).allowDiskUse(true),
-    ]);
-    const coverage: Record<string, number> = { pending: 0, fetched: 0, failed: 0, archived: 0, unavailable: 0, duplicate: 0 };
-    let updatedAt: Date | null = null;
-    for (const row of coverageRows) {
-      coverage[row._id] = row.fights;
-      if (row.updatedAt && (!updatedAt || row.updatedAt > updatedAt)) updatedAt = row.updatedAt;
+    const cached = await cacheService.getWithMetadata<MechanicSnapshot>(this.snapshotKey(mechanic));
+    if (cached && new Date(cached.expiresAt).getTime() <= Date.now()) {
+      // Serve stale data immediately; concurrent visitors share the same refresh.
+      void this.warmLeaderboardCaches([mechanic.key]);
     }
-    const board = leaderboard[0];
-    const totals = board?.totals?.[0] ?? { players: 0, damage: 0, hits: 0, maxDamage: 0, maxHits: 0, maxHitsPerPull: 0 };
-    return { mechanic, rows: (board?.rows ?? []).map(({ _id, ...row }: { _id: string; [key: string]: unknown }) => ({ key: _id, ...row })),
-      totals, coverage, updatedAt, page: filters.page, limit: filters.limit, totalPages: Math.ceil(totals.players / filters.limit) };
+    const snapshot = cached?.data ?? await this.refreshSnapshot(mechanic);
+    return selectMechanicLeaderboard(snapshot, filters);
   }
 }
 

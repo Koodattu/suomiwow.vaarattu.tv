@@ -267,7 +267,8 @@ export const api = {
     return response.json();
   },
   async getAvoidableDamage(filters: MechanicFilters, signal?: AbortSignal): Promise<MechanicLeaderboard> {
-    const query = new URLSearchParams({ mechanic: filters.mechanic, outcome: filters.outcome, sort: filters.sort, page: String(filters.page) });
+    const query = new URLSearchParams({ mechanic: filters.mechanic, outcome: filters.outcome, sort: filters.sort,
+      order: filters.order, roles: filters.roles.join(","), minPulls: String(filters.minPulls), page: String(filters.page) });
     if (filters.guildId) query.set("guildId", filters.guildId);
     const response = await fetch(`${API_URL}/api/avoidable-damage?${query}`, { signal });
     if (!response.ok) throw new Error("Could not load mechanic leaderboard");

@@ -7,7 +7,19 @@ export function useAvoidableMechanicOptions() {
 }
 
 export function useAvoidableDamage(filters: MechanicFilters) {
-  return useQuery({ queryKey: ["avoidable-damage", "leaderboard", filters], queryFn: ({ signal }) => api.getAvoidableDamage(filters, signal), enabled: Boolean(filters.mechanic), staleTime: 5 * 60 * 1000 });
+  return useQuery({
+    queryKey: ["avoidable-damage", "leaderboard", filters],
+    queryFn: ({ signal }) => api.getAvoidableDamage(filters, signal),
+    enabled: Boolean(filters.mechanic),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    placeholderData: (previousData, previousQuery) => {
+      const previous = previousQuery?.queryKey[2] as MechanicFilters | undefined;
+      // Keep the table mounted during filtering, but never show another boss/guild's data.
+      return previous?.mechanic === filters.mechanic && previous.guildId === filters.guildId && previous.outcome === filters.outcome
+        ? previousData : undefined;
+    },
+  });
 }
 import type { CcgActivityFilter, CcgBootstrapResponse, CcgCollectionSort, CharacterTierListRole, CompareDifficulty, EventFilters, FunGameSearchSlug } from "@/types";
 

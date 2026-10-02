@@ -123,8 +123,11 @@ test("regional tier windows exclude later over-levelled runs", () => {
 
 test("public filters reject unknown mechanics, query objects and unbounded pagination", () => {
   const valid = { mechanic: "sszorak-tempest" };
-  assert.deepEqual(parseMechanicFilters(valid), { ...valid, guildId: undefined, outcome: "all", sort: "damage", page: 1, limit: 50 });
-  for (const changes of [{ mechanic: "removed" }, { mechanic: ["sszorak-tempest"] }, { page: "1.5" }, { page: "10001" }, { limit: "101" }, { guildId: { $ne: null } }, { sort: "$where" }, { outcome: "heroic" }]) {
+  assert.deepEqual(parseMechanicFilters(valid), { ...valid, guildId: undefined, outcome: "all", sort: "damage", order: "desc", roles: ["dps", "healer", "tank"], minPulls: 0, page: 1, limit: 50 });
+  assert.deepEqual(parseMechanicFilters({ ...valid, roles: "tank,dps,tank", order: "asc", minPulls: "25" })?.roles, ["dps", "tank"]);
+  assert.deepEqual(parseMechanicFilters({ ...valid, roles: "" })?.roles, []);
+  for (const changes of [{ mechanic: "removed" }, { mechanic: ["sszorak-tempest"] }, { page: "1.5" }, { page: "10001" }, { limit: "101" }, { guildId: { $ne: null } }, { sort: "$where" }, { outcome: "heroic" },
+    { roles: ["dps"] }, { roles: "damage" }, { roles: "tank," }, { order: "up" }, { minPulls: "-1" }, { minPulls: "11" }, { minPulls: "10.0" }, { minPulls: { $gt: 0 } }]) {
     assert.equal(parseMechanicFilters({ ...valid, ...changes }), null);
   }
 });

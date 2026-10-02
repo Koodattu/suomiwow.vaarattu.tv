@@ -2433,64 +2433,6 @@ function AdminPageContent() {
                 <span>⚙️</span> Manual Actions
               </h2>
 
-              <MechanicCollectionPanel />
-
-              <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-950/20 p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-amber-100">
-                      {fullHistoryRefreshStatus?.progress.mode === "incremental_character_data"
-                        ? t("characterDataRefresh.incrementalTitle")
-                        : "Full-history raid data and mechanics refresh"}
-                    </h3>
-                    <p className="max-w-4xl text-sm text-gray-300">
-                      {fullHistoryRefreshStatus?.progress.mode === "incremental_character_data"
-                        ? t("characterDataRefresh.incrementalDescription")
-                        : "Fetches fight details for every tracked raid, resolves missing historical character identities through WCL, refetches every class spec for every character/raid pair, and rebuilds all mechanics and character tier lists. CCG snapshots and card publication remain manual."}
-                    </p>
-                    {fullHistoryRefreshStatus?.stage ? (
-                      <p className={`text-sm ${fullHistoryRefreshStatus.status === "failed" ? "text-red-300" : fullHistoryRefreshStatus.status === "completed" ? "text-emerald-300" : "text-cyan-300"}`}>
-                        {FULL_HISTORY_STAGE_LABELS[fullHistoryRefreshStatus.stage]}
-                        {typeof fullHistoryRefreshStatus.progress.message === "string" ? ` — ${fullHistoryRefreshStatus.progress.message}` : ""}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-gray-500">No full-history run has been started.</p>
-                    )}
-                    {fullHistoryRefreshStatus?.status === "running" ? (
-                      <p className="text-xs tabular-nums text-gray-400">
-                        Fight-detail jobs active: {fullHistoryRefreshStatus.fightDetailsQueue.active} · Identity lookups active: {fullHistoryRefreshStatus.identityQueue.active} · Ranking pairs active: {fullHistoryRefreshStatus.rankingQueue.active}
-                      </p>
-                    ) : null}
-                    {fullHistoryRefreshStatus && fullHistoryRefreshStatus.identityQueue.total > 0 ? (
-                      <p className="text-xs tabular-nums text-gray-400">
-                        WCL identities: {fullHistoryRefreshStatus.identityQueue.resolved} resolved ({fullHistoryRefreshStatus.identityQueue.resolvedAppearances} appearances) · {fullHistoryRefreshStatus.identityQueue.manualLink} manual · {fullHistoryRefreshStatus.identityQueue.hidden} hidden · {fullHistoryRefreshStatus.identityQueue.notFound} not found · {fullHistoryRefreshStatus.identityQueue.classMismatch} class mismatch · {fullHistoryRefreshStatus.identityQueue.invalidResponse} invalid · {fullHistoryRefreshStatus.identityQueue.failed} failed
-                      </p>
-                    ) : null}
-                    {fullHistoryRefreshStatus?.lastError ? <p className="text-xs text-red-300">{fullHistoryRefreshStatus.lastError}</p> : null}
-                  </div>
-                  <div className="w-full shrink-0 lg:w-72">
-                    {renderTriggerButton("full-history-refresh", "Run Full History Data Refresh", triggerFullHistoryRefresh, {
-                      disabled: fullHistoryRefreshStatus?.status === "running",
-                    })}
-                    <div className="mt-2">
-                      {renderTriggerButton(
-                        "restart-full-history-from-identities",
-                        "Restart From Identity Recovery",
-                        restartFullHistoryFromIdentityRecovery,
-                        {
-                          disabled:
-                            fullHistoryRefreshStatus?.status !== "running" ||
-                            !["queue_rankings", "rankings"].includes(fullHistoryRefreshStatus.stage ?? ""),
-                        },
-                      )}
-                    </div>
-                    <p className="mt-2 text-xs text-gray-500">
-                      During a ranking pass, restart from identity recovery to reuse existing fight details and reset every ranking pair.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                 <ManualActionCard icon="🏰" title="Guild & Report Intake">
                   <ManualActionGroup title="Guild state">
@@ -2851,6 +2793,70 @@ function AdminPageContent() {
                     {renderTriggerButton("backfill-fight-vods", "Backfill Best-Pull VODs", triggerBackfillFightVods)}
                   </ManualActionGroup>
                 </ManualActionCard>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <MechanicCollectionPanel />
+                <details className="rounded-lg bg-gray-800">
+                  <summary className="cursor-pointer rounded-lg px-4 py-3 text-sm text-white marker:text-gray-500 hover:bg-gray-700/40 focus-visible:outline-2 focus-visible:outline-cyan-500">
+                    <span className="font-medium">
+                      {fullHistoryRefreshStatus?.progress.mode === "incremental_character_data"
+                        ? t("characterDataRefresh.incrementalTitle")
+                        : t("characterDataRefresh.fullTitle")}
+                    </span>{" "}
+                    {fullHistoryRefreshStatus ? <span className={`ml-3 text-xs ${fullHistoryRefreshStatus.status === "failed" ? "text-red-300" : fullHistoryRefreshStatus.status === "completed" ? "text-emerald-300" : "text-gray-400"}`}>
+                      {t(`characterDataRefresh.status.${fullHistoryRefreshStatus.status}`)}
+                    </span> : null}
+                  </summary>
+                  <div className="flex flex-col gap-4 border-t border-gray-700 p-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-2">
+                      <p className="max-w-4xl text-sm text-gray-300">
+                        {fullHistoryRefreshStatus?.progress.mode === "incremental_character_data"
+                          ? t("characterDataRefresh.incrementalDescription")
+                          : "Fetches fight details for every tracked raid, resolves missing historical character identities through WCL, refetches every class spec for every character/raid pair, and rebuilds all mechanics and character tier lists. CCG snapshots and card publication remain manual."}
+                      </p>
+                      {fullHistoryRefreshStatus?.stage ? (
+                        <p className={`text-sm ${fullHistoryRefreshStatus.status === "failed" ? "text-red-300" : fullHistoryRefreshStatus.status === "completed" ? "text-emerald-300" : "text-cyan-300"}`}>
+                          {FULL_HISTORY_STAGE_LABELS[fullHistoryRefreshStatus.stage]}
+                          {typeof fullHistoryRefreshStatus.progress.message === "string" ? ` — ${fullHistoryRefreshStatus.progress.message}` : ""}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-500">No full-history run has been started.</p>
+                      )}
+                      {fullHistoryRefreshStatus?.status === "running" ? (
+                        <p className="text-xs tabular-nums text-gray-400">
+                          Fight-detail jobs active: {fullHistoryRefreshStatus.fightDetailsQueue.active} · Identity lookups active: {fullHistoryRefreshStatus.identityQueue.active} · Ranking pairs active: {fullHistoryRefreshStatus.rankingQueue.active}
+                        </p>
+                      ) : null}
+                      {fullHistoryRefreshStatus && fullHistoryRefreshStatus.identityQueue.total > 0 ? (
+                        <p className="text-xs tabular-nums text-gray-400">
+                          WCL identities: {fullHistoryRefreshStatus.identityQueue.resolved} resolved ({fullHistoryRefreshStatus.identityQueue.resolvedAppearances} appearances) · {fullHistoryRefreshStatus.identityQueue.manualLink} manual · {fullHistoryRefreshStatus.identityQueue.hidden} hidden · {fullHistoryRefreshStatus.identityQueue.notFound} not found · {fullHistoryRefreshStatus.identityQueue.classMismatch} class mismatch · {fullHistoryRefreshStatus.identityQueue.invalidResponse} invalid · {fullHistoryRefreshStatus.identityQueue.failed} failed
+                        </p>
+                      ) : null}
+                      {fullHistoryRefreshStatus?.lastError ? <p className="text-xs text-red-300">{fullHistoryRefreshStatus.lastError}</p> : null}
+                    </div>
+                    <div className="w-full shrink-0 lg:w-72">
+                      {renderTriggerButton("full-history-refresh", "Run Full History Data Refresh", triggerFullHistoryRefresh, {
+                        disabled: fullHistoryRefreshStatus?.status === "running",
+                      })}
+                      <div className="mt-2">
+                        {renderTriggerButton(
+                          "restart-full-history-from-identities",
+                          "Restart From Identity Recovery",
+                          restartFullHistoryFromIdentityRecovery,
+                          {
+                            disabled:
+                              fullHistoryRefreshStatus?.status !== "running" ||
+                              !["queue_rankings", "rankings"].includes(fullHistoryRefreshStatus.stage ?? ""),
+                          },
+                        )}
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">
+                        During a ranking pass, restart from identity recovery to reuse existing fight details and reset every ranking pair.
+                      </p>
+                    </div>
+                  </div>
+                </details>
               </div>
             </div>
           </div>

@@ -13,11 +13,15 @@ export interface MechanicOptions {
   raids: { id: number; name: string; expansion: string }[];
   guilds: { id: string; name: string; realm: string; region: string }[];
 }
+export type MechanicRole = "dps" | "healer" | "tank";
 export interface MechanicFilters {
   mechanic: string;
   guildId?: string;
   outcome: "all" | "kills" | "wipes";
   sort: "damage" | "hits" | "hitsPerPull";
+  order: "asc" | "desc";
+  roles: MechanicRole[];
+  minPulls: number;
   page: number;
 }
 export interface MechanicLeaderboard {

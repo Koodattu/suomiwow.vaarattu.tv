@@ -4,6 +4,7 @@ import compareService from "./compare.service";
 import tierListService from "./tierlist.service";
 import raidAnalyticsService from "./raid-analytics.service";
 import mythicPlusService from "./mythic-plus.service";
+import avoidableDamageService from "./avoidable-damage.service";
 import { TRACKED_RAIDS, CURRENT_RAID_IDS, PRIMARY_RAID_ID } from "../config/guilds";
 import logger from "../utils/logger";
 import Raid from "../models/Raid";
@@ -145,7 +146,7 @@ class CacheWarmerService {
       await Promise.all([this.warmProgressCaches(), this.warmCompareCaches(), this.warmHomeCacheData(), this.warmGuildListCaches(), mythicPlusService.warmLeaderboardCaches()]);
 
       // Warm tier lists and analytics (can take longer)
-      await Promise.all([this.warmTierListCaches(), this.warmRaidAnalyticsCaches()]);
+      await Promise.all([this.warmTierListCaches(), this.warmRaidAnalyticsCaches(), avoidableDamageService.warmLeaderboardCaches()]);
 
       const duration = Math.round((Date.now() - startTime) / 1000);
       logger.info(`[Cache Warmer] Full cache warm-up completed in ${duration}s`);

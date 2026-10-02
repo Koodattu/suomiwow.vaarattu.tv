@@ -14,6 +14,7 @@ import service from "../src/services/avoidable-damage.service";
 import iconCache from "../src/services/icon-cache.service";
 import wcl from "../src/services/warcraftlogs.service";
 import { MechanicCollectionPaused } from "../src/utils/avoidable-damage";
+import cache from "../src/services/cache.service";
 
 const mongoUri = process.env.MECHANIC_TEST_MONGO_URI;
 test("mechanic collection and leaderboard work together against MongoDB", { skip: !mongoUri }, async (t) => {
@@ -34,6 +35,14 @@ test("mechanic collection and leaderboard work together against MongoDB", { skip
     await insertPull("A", 1, 0);
     await insertPull("B", 1, 500); // Reupload of the first pull.
     await insertPull("A", 2, 60_000, { isKill: true });
+    await Fight.updateOne({ reportCode: "A", fightId: 1 }, { $set: { combatants: [
+      { name: "hit", server: "test-realm", specName: "fire", role: "dps" },
+      { name: "Dodge", server: "different-realm", role: "tank" }, // Never match a namesake on another realm.
+      { name: "Dodge", server: "Test Realm", specID: 257 }, // Holy priest; derive the role from its recorded spec.
+    ] } });
+    await Fight.updateOne({ reportCode: "A", fightId: 2 }, { $set: { combatants: [
+      { name: "Dodge", server: "Test Realm", role: "dps" }, // The same priest changed role on the kill.
+    ] } });
     await insertPull("ARCHIVE", 1, 120_000);
     await insertPull("A", 3, 180_000, { difficulty: 4 });
     await insertPull("A", 4, 240_000, { encounterID: 999 });
@@ -72,6 +81,20 @@ test("mechanic collection and leaderboard work together against MongoDB", { skip
     const kills = await service.getLeaderboard({ ...filters, outcome: "kills" });
     assert.equal(kills.coverage.fetched, 1);
     assert.equal(kills.totals.damage, 0);
+    const healers = await service.getLeaderboard({ ...filters, roles: ["healer"] });
+    assert.equal(healers.totals.players, 1);
+    assert.equal(healers.rows[0].name, "Dodge");
+    assert.equal(healers.rows[0].pulls, 1);
+    assert.equal(healers.rows[0].hits, 0);
+    const damage = await service.getLeaderboard({ ...filters, roles: ["dps"], limit: 50 });
+    assert.equal(damage.rows.find((entry) => entry.name === "Hit")?.pulls, 2, "a pure damage class needs no guessed hybrid role");
+    assert.equal(damage.rows.find((entry) => entry.name === "Dodge")?.pulls, 1);
+    assert.equal((await service.getLeaderboard({ ...filters, roles: ["tank"] })).totals.players, 0);
+    // All filter combinations above must share the stored, unpaginated snapshot.
+    const aggregate = t.mock.method(AvoidableDamageFight, "aggregate", () => { throw new Error("unexpected repeat aggregation"); });
+    assert.equal((await service.getLeaderboard({ ...filters, sort: "damage", order: "asc" })).rows[0].name, "Dodge");
+    assert.equal((await service.getLeaderboard({ ...filters, minPulls: 10 })).totals.players, 0);
+    aggregate.mock.restore();
 
     // Nightly reruns seed idempotently and don't spend any WCL requests on completed/archived data.
     queue.progress.currentPage = 0;
@@ -89,18 +112,23 @@ test("mechanic collection and leaderboard work together against MongoDB", { skip
     assert.equal(board.totals.damage, 120);
     assert.equal(board.coverage.fetched, 2);
 
-    // Later privacy changes, exclusions and deleted source fights are respected on reads.
+    // Later privacy changes, exclusions and deleted source fights are respected on cache refresh.
     await Character.collection.insertOne({ wclCanonicalCharacterId: 42, classID: 4, wclProfileHidden: true });
+    await service.warmLeaderboardCaches([mechanic.key]);
     board = await service.getLeaderboard(filters);
     assert.equal(board.totals.players, 1);
     assert.equal(board.totals.damage, 0);
     await Guild.collection.updateOne({ _id: guildId }, { $set: { excludedRaidIds: [53] } });
+    await service.warmLeaderboardCaches([mechanic.key]);
     assert.equal((await service.getLeaderboard(filters)).coverage.fetched, 0);
     await Guild.collection.updateOne({ _id: guildId }, { $set: { excludedRaidIds: [] } });
     await Fight.deleteOne({ reportCode: "A", fightId: 2 });
+    await service.warmLeaderboardCaches([mechanic.key]);
     assert.equal((await service.getLeaderboard(filters)).coverage.fetched, 1);
   } finally {
+    await service.warmLeaderboardCaches([mechanic.key]);
     mechanic.version = initialVersion;
+    await cache.invalidatePattern(/^avoidable-damage:/);
     await mongoose.connection.dropDatabase();
     await mongoose.disconnect();
   }
@@ -242,6 +270,8 @@ test("selected collection persists scope, merges concurrent requests and resumes
     await service.releaseGuild(latest, true);
     assert.equal(await GuildProcessingQueue.exists({ _id: latest._id }), null);
   } finally {
+    await service.warmLeaderboardCaches([tempest.key, axe.key]);
+    await cache.invalidatePattern(/^avoidable-damage:/);
     await mongoose.connection.dropDatabase();
     await mongoose.disconnect();
   }

@@ -131,6 +131,7 @@ class CacheService {
     /^characters:profile:/,
     /^character-rankings:/,
     /^character-mechanics:/,
+    /^avoidable-damage:/,
     /^mythic-plus:/,
     /^raids:list$/,
     /^raid:\d+:dates$/,
