@@ -2,7 +2,7 @@
 
 ## Investigation: 4 October 2026
 
-Production was inspected over `ssh suomiwow-server`; no production character or account data was changed during the investigation.
+Production was inspected over `ssh suomiwow-server`; no production character or account data was changed during the investigation. The authorized production repair was subsequently completed on 4 October 2026 as recorded below.
 
 Jappe-Stormreaver has two separate character records:
 
@@ -35,7 +35,7 @@ The worker now fetches the profile first, translates Blizzard's class ID using t
 
 `repair:character-account-collisions` defaults to a read-only audit. A repair candidate must have a current class mismatch and at least 50 distinct saved signals identical to a same-route fingerprint of the current class. Similar fingerprints, unavailable profiles, and cases without that peer are not automatically repaired.
 
-Apply removes only the selected fingerprints and their derived token memberships, automatic matches, and raid-achievement summaries. It marks matching old queue snapshots as skipped and rebuilds account groups through the existing service. Characters, historical reports, WCL identities, manual edges, and continuity links are preserved. Deletions and token counts are transactional; changed fingerprint fetch timestamps abort the transaction. Repeating apply with an empty plan still rebuilds groups, recovering from a failure after the transaction committed.
+Apply removes only the selected fingerprints and their derived token memberships, automatic matches, and raid-achievement summaries. It marks matching old queue snapshots as skipped and rebuilds account groups through the existing service. Characters, historical reports, WCL identities, manual edges, and continuity links are preserved. It checks all fingerprint fetch timestamps before writing, then uses transactions of at most five fingerprints with another timestamp check in each transaction. This bounds the multikey index pages pinned in MongoDB's cache; one transaction for the full production selection exceeded that cache and was rolled back without changes. If a later batch fails, earlier batches remain committed: keep the application stopped, rerun the dry-run, and apply the remaining selection. Repeating apply with an empty plan still rebuilds groups, recovering from a failure after batches committed.
 
 When removing copied members leaves the rest of an account together, the repair preserves its document ID and existing URL, including on subsequent scheduled rebuilds. If removing false links splits or dissolves an account, the standard rebuild creates the resulting groups or removes the singleton. Review the affected slug list in the dry-run output before applying.
 
@@ -60,6 +60,18 @@ Restarting both processes also clears their process-local profile/account caches
 Run the dry-run again: `copiedFingerprints`, `automaticMatchesToRemove`, and `raidSummariesToRemove` should be zero. Review the remaining cases separately. Check the class-specific Jappe profiles and the rebuilt account: the rogue remains linked, the warlock has no automatic account association, and the warlock's historical reports remain accessible.
 
 ## Verification
+
+### Production result: 4 October 2026
+
+After deployment of `0fabd401`, the automatic backup `/root/wow-backups/wow_db_backup_20261004_203301.gz` completed at 1,696,432,423 bytes. Its checksum was saved, its full gzip integrity check passed, and `mongorestore --dryRun` accepted the archive without importing documents. Both backends and the frontend were stopped; only Nginx and MongoDB were running, and the public account page served the offline screen with HTTP 503 before repair.
+
+The initial single transaction was rolled back by MongoDB's cache eviction guard. Read-only checks confirmed that all 110 fingerprints, 834 matches, and 110 summaries remained. The revised five-fingerprint transactions passed local integration tests and were executed in an isolated maintenance process using the deployed image's dependencies.
+
+The repair removed exactly 110 fingerprints, their token memberships, 834 automatic matches, and 110 raid-achievement summaries. It preserved all 110 character records, 1,616 report appearances, 180 raid participation records, and 12 continuity links checked before and after. Account groups were rebuilt; the follow-up audit reported zero eligible copied fingerprints, with the 22 uncertain mismatches and six unavailable routes still untouched.
+
+`jape-76782833` retained account ID `6a320b2e96e31a62ccd026d2`, with 14 members, 91 automatic edges, and 510 reports. The rogue remains linked; the warlock has no account association. Both backends and the frontend were restarted after these checks passed. The server-side repair log is `/root/wow-backups/character-account-repair-0fabd401-batched.log`.
+
+### Local checks
 
 ```sh
 cd backend

@@ -110,7 +110,7 @@ test("repair removes derived evidence, preserves characters and manual links, an
   assert.equal(await CharacterAccountMatch.countDocuments({}), 1);
 });
 
-test("a changed snapshot aborts the transaction and leaves all evidence intact", async () => {
+test("a changed snapshot aborts the repair before any writes", async () => {
   const fingerprints = await CharacterAchievementFingerprint.find({}).lean();
   await CharacterAchievementFingerprint.updateOne({ characterId: rogue }, { $set: { fetchedAt: new Date("2026-08-01") } });
   await assert.rejects(applyCharacterAccountCollisionRepair(fingerprints), /Fingerprints changed since the audit/);
@@ -118,6 +118,39 @@ test("a changed snapshot aborts the transaction and leaves all evidence intact",
   assert.equal(await CharacterAccountMatch.countDocuments({}), 3);
   assert.equal((await CharacterAchievementToken.findOne({ signalVersion, token: tokens[0] }))?.characterCount, 3);
   assert.equal((await CharacterAchievementFetchQueue.findOne({ characterId: warlock }))?.status, "completed");
+});
+
+test("a failure after deleting a fingerprint rolls back the entire batch", async (t) => {
+  const fingerprint = await CharacterAchievementFingerprint.findOne({ characterId: warlock }).lean();
+  assert.ok(fingerprint);
+  t.mock.method(CharacterAchievementToken, "updateMany", (() => { throw new Error("Simulated token update failure"); }) as any);
+  await assert.rejects(applyCharacterAccountCollisionRepair([fingerprint]), /Simulated token update failure/);
+  assert.equal(await CharacterAchievementFingerprint.countDocuments({ characterId: warlock }), 1);
+  assert.equal(await CharacterAccountMatch.countDocuments({}), 3);
+  assert.equal((await CharacterAchievementToken.findOne({ signalVersion, token: tokens[0] }))?.characterCount, 3);
+});
+
+test("removing members in separate batches preserves the same account ID and URL", async (t) => {
+  const extraIds = Array.from({ length: 5 }, () => new mongoose.Types.ObjectId());
+  await Character.collection.insertMany(extraIds.map((_id, i) => ({ ...historical, _id, wclCanonicalCharacterId: 400 + i })));
+  await CharacterAchievementFingerprint.collection.insertMany(extraIds.map((characterId) => ({ ...historical, characterId, signalVersion, signalTokens: tokens, fetchedAt })));
+  await CharacterAccountMatch.collection.insertMany(extraIds.map((characterAId) => ({ signalVersion, characterAId, characterBId: rogue, confidence: "high", score: 95 })));
+  await service.rebuildAccountGroups();
+  const originalAccount = await CharacterAccountGroup.findOne({ characterIds: rogue }).lean();
+  const fingerprints = await CharacterAchievementFingerprint.find({ characterId: { $in: [warlock, ...extraIds] } }).lean();
+  const transaction = mongoose.connection.transaction.bind(mongoose.connection);
+  let transactionCount = 0;
+  t.mock.method(mongoose.connection, "transaction", ((...args: Parameters<typeof transaction>) => {
+    transactionCount += 1;
+    return transaction(...args);
+  }) as any);
+  await applyCharacterAccountCollisionRepair(fingerprints);
+  assert.equal(transactionCount, 2);
+  const account = await CharacterAccountGroup.findOne({ characterIds: rogue }).lean();
+  assert.equal(String(account?._id), String(originalAccount?._id));
+  assert.equal(account?.slug, originalAccount?.slug);
+  assert.deepEqual(account?.characterIds.map(String).sort(), [String(rogue), String(alt)].sort());
+  assert.equal(await CharacterAchievementFingerprint.countDocuments({}), 1);
 });
 
 test("an explicit manual association of a repaired character remains authoritative", async () => {

@@ -117,16 +117,26 @@ export async function auditCharacterAccountCollisions() {
 }
 
 export async function applyCharacterAccountCollisionRepair(repairs: Fingerprint[]) {
-  const ids = repairs.map((row) => row.characterId);
-  if (ids.length > 0) {
+  if (repairs.length > 0) {
+    const unchanged = await CharacterAchievementFingerprint.countDocuments({
+      signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
+      $or: repairs.map((row) => ({ _id: row._id, fetchedAt: row.fetchedAt })),
+    });
+    if (unchanged !== repairs.length) throw new Error("Fingerprints changed since the audit; no repair was applied. Run the audit again.");
+  }
+  // Each fingerprint has hundreds of multikey index entries. Bound the dirty
+  // index pages pinned by a transaction to fit the production MongoDB cache.
+  for (let offset = 0; offset < repairs.length; offset += 5) {
+    const batch = repairs.slice(offset, offset + 5);
+    const ids = batch.map((row) => row.characterId);
     // Both application processes must be stopped before applying. Recheck each
     // snapshot inside the transaction so a changed plan cannot delete new data.
     await mongoose.connection.transaction(async (session) => {
       const deleted = await CharacterAchievementFingerprint.deleteMany({
         signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
-        $or: repairs.map((row) => ({ _id: row._id, fetchedAt: row.fetchedAt })),
+        $or: batch.map((row) => ({ _id: row._id, fetchedAt: row.fetchedAt })),
       }, { session });
-      if (deleted.deletedCount !== repairs.length) throw new Error("Fingerprints changed since the audit; no repair was applied. Run the audit again.");
+      if (deleted.deletedCount !== batch.length) throw new Error("Fingerprints changed during repair; this batch was rolled back. Run the audit again.");
       await CharacterAchievementToken.updateMany(
         { signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION, characterIds: { $in: ids } },
         [
@@ -137,7 +147,7 @@ export async function applyCharacterAccountCollisionRepair(repairs: Fingerprint[
       );
       await CharacterAchievementToken.deleteMany({
         signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
-        token: { $in: [...new Set(repairs.flatMap((row) => row.signalTokens))] },
+        token: { $in: [...new Set(batch.flatMap((row) => row.signalTokens))] },
         characterCount: 0,
       }, { session });
       await CharacterAccountMatch.deleteMany({
@@ -149,7 +159,7 @@ export async function applyCharacterAccountCollisionRepair(repairs: Fingerprint[
       }, { session });
       await CharacterAchievementFetchQueue.updateMany({
         signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
-        $or: repairs.map((row) => ({ characterId: row.characterId, snapshotKey: buildCharacterAchievementSnapshotKey(row) })),
+        $or: batch.map((row) => ({ characterId: row.characterId, snapshotKey: buildCharacterAchievementSnapshotKey(row) })),
       }, { $set: {
         status: "skipped", errorCode: "character_class_mismatch", httpStatus: 200, isPermanentError: true,
         completionReason: "Removed copied achievements from a different class using the same name and realm",
@@ -174,13 +184,17 @@ export async function applyCharacterAccountCollisionRepair(repairs: Fingerprint[
         const remainingIds = group.characterIds.map(String).filter((id) => !removedIds.has(id));
         if (remainingIds.length < 2) continue;
         await CharacterAccountGroup.updateOne({ _id: group._id }, {
-          $set: { groupKey: remainingIds.sort().join(":") },
+          $set: {
+            groupKey: remainingIds.sort().join(":"),
+            characterIds: remainingIds.map((id) => new mongoose.Types.ObjectId(id)),
+          },
         }, { session });
       }
     });
+    console.log(`Repaired copied achievement evidence: ${Math.min(offset + batch.length, repairs.length)}/${repairs.length}`);
   }
   // Also run on an empty plan, so a rerun recovers if rebuilding failed after
-  // the transaction committed. Manual account edges remain authoritative.
+  // a batch committed. Manual account edges remain authoritative.
   return characterAchievementService.rebuildAccountGroups();
 }
 
