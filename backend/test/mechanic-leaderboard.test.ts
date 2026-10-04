@@ -3,6 +3,7 @@ import test from "node:test";
 import { findAvoidableMechanic } from "../src/config/avoidable-mechanics";
 import service from "../src/services/avoidable-damage.service";
 import { mockSnapshotStorage } from "./helpers/snapshot-cache";
+import { mechanicIdentity } from "../src/utils/avoidable-damage";
 import { MechanicLeaderboardFilters, MechanicSnapshot, MechanicSnapshotRow, selectMechanicLeaderboard } from "../src/utils/mechanic-leaderboard";
 
 const mechanic = findAvoidableMechanic("sszorak-tempest")!;
@@ -22,6 +23,121 @@ const snapshot: MechanicSnapshot = { mechanic, rows: [
   { guildId: "two", isKill: true, status: "fetched", fights: 5, updatedAt: "2026-09-02T00:00:00.000Z" },
   { guildId: "one", isKill: false, status: "unavailable", fights: 3, updatedAt: null },
 ] };
+
+const splitIdentity: MechanicSnapshot = { mechanic, coverage: [], rows: [
+  row("eu:stormreaver:cbt:4", { name: "Cbt", realm: "stormreaver", classId: 4, specName: "arcane",
+    damage: 1000, hits: 443, directHits: 440, ticks: 3, pulls: 296, timestamp: 2, reportCode: "LATEST" }),
+  row("wcl:75211992:4", { name: "Cbt", realm: "stormreaver", classId: 4, specName: "frost",
+    damage: 2000, hits: 162, directHits: 160, ticks: 2, pulls: 126 }),
+] };
+
+test("merges fallback and WCL identities before calculating totals, attendance and rates", () => {
+  const before = structuredClone(splitIdentity);
+  const result = selectMechanicLeaderboard(splitIdentity, { ...filters, minPulls: 100 });
+  assert.equal(result.totals.players, 1);
+  assert.equal(result.totals.damage, 3000);
+  assert.equal(result.totals.hits, 605);
+  assert.equal(result.rows[0].key, "wcl:75211992:4");
+  assert.equal(result.rows[0].pulls, 422);
+  assert.equal(result.rows[0].hitsPerPull, 605 / 422);
+  assert.equal(result.rows[0].directHits, 600);
+  assert.equal(result.rows[0].ticks, 5);
+  assert.equal(result.rows[0].specName, "arcane");
+  assert.equal(result.rows[0].reportCode, "LATEST");
+  assert.deepEqual(selectMechanicLeaderboard({ ...splitIdentity, rows: [...splitIdentity.rows].reverse() }, { ...filters, minPulls: 100 }), result);
+  assert.deepEqual(splitIdentity, before, "identity resolution must not mutate the shared snapshot");
+});
+
+test("identity evidence survives filters but only matching pulls contribute to the merged row", () => {
+  const identity = { name: "Hybrid", realm: "test-realm" };
+  const fallback = mechanicIdentity(identity.name, identity.realm, "eu", 2);
+  const scoped: MechanicSnapshot = { mechanic, coverage: [], rows: [
+    row(fallback, { ...identity, pulls: 25, hits: 0, directHits: 0, damage: 0 }),
+    row(fallback, { ...identity, pulls: 25, role: "healer", hits: 2, directHits: 2, damage: 30 }),
+    row("wcl:42:2", { ...identity, guildId: "two", guildName: "Two", isKill: true, role: "tank", damage: 1000, timestamp: 2 }),
+  ] };
+  const scope: MechanicLeaderboardFilters = { ...filters, guildId: "one", outcome: "wipes", roles: ["dps", "healer"], minPulls: 50, search: "hybrid" };
+  const result = selectMechanicLeaderboard(scoped, scope);
+  assert.equal(result.totals.players, 1);
+  assert.equal(result.rows[0].key, "wcl:42:2");
+  assert.equal(result.rows[0].pulls, 50);
+  assert.equal(result.rows[0].damage, 30);
+  assert.equal(result.rows[0].hitsPerPull, 2 / 50);
+  assert.equal(result.rows[0].guildName, "One");
+  assert.equal(selectMechanicLeaderboard(scoped, { ...scope, roles: ["dps"] }).totals.players, 0);
+});
+
+test("identity matching normalizes spelling and realm aliases without folding name accents", () => {
+  const aliases: MechanicSnapshot = { mechanic, coverage: [], rows: [
+    row("wcl:42:4", { name: "MÄGE", realm: "Lightning's Blade", region: "EU", classId: 4 }),
+    row("eu:lightningsblade:mäge:4", { name: "Ma\u0308ge", realm: "lightnings-blade", classId: 4 }),
+    row("eu:lightningsblade:mage:4", { name: "Mage", realm: "lightnings-blade", classId: 4 }),
+  ] };
+  const result = selectMechanicLeaderboard(aliases, filters);
+  assert.equal(result.totals.players, 2);
+  assert.equal(result.rows.find((entry) => entry.key === "wcl:42:4")?.pulls, 20);
+  assert.equal(result.rows.find((entry) => entry.name === "Mage")?.pulls, 10);
+});
+
+test("namesakes on different realms, regions or classes and incomplete identities stay separate", () => {
+  const identity = { name: "Cbt", realm: "stormreaver", region: "eu", classId: 4 };
+  const separate = [
+    { ...identity, realm: "kazzak" }, { ...identity, region: "us" }, { ...identity, classId: 5 },
+    { ...identity, classId: 0 }, { ...identity, region: "" },
+  ].map((entry) => row(mechanicIdentity(entry.name, entry.realm, entry.region, entry.classId), entry));
+  const namesakes: MechanicSnapshot = { mechanic, coverage: [], rows: [
+    row("wcl:42:4", identity), ...separate,
+    row("REPORT_A:1", { ...identity, realm: "" }), row("REPORT_B:1", { ...identity, realm: "" }),
+    row("wcl:43:4", { ...identity, realm: "" }),
+  ] };
+  const result = selectMechanicLeaderboard(namesakes, filters);
+  assert.equal(result.totals.players, namesakes.rows.length);
+  assert.ok(result.rows.every((entry) => entry.pulls === 10));
+});
+
+test("conflicting WCL identities never absorb an ambiguous fallback even when one ID is filtered out", () => {
+  const identity = { name: "Cbt", realm: "stormreaver", classId: 4 };
+  const ambiguous: MechanicSnapshot = { mechanic, coverage: [], rows: [
+    row("wcl:42:4", identity),
+    row("wcl:43:4", { ...identity, guildId: "two", isKill: true, role: "tank" }),
+    row("wcl:42:4", { ...identity, specName: "frost" }),
+    row("eu:stormreaver:cbt:4", identity),
+  ] };
+  for (const rows of [ambiguous.rows, [...ambiguous.rows].reverse()]) {
+    assert.equal(selectMechanicLeaderboard({ ...ambiguous, rows }, filters).totals.players, 3);
+    const scoped = selectMechanicLeaderboard({ ...ambiguous, rows }, { ...filters, guildId: "one", outcome: "wipes", roles: ["dps"] });
+    assert.equal(scoped.totals.players, 2);
+    assert.equal(scoped.rows.find((entry) => entry.key === "eu:stormreaver:cbt:4")?.pulls, 10);
+  }
+});
+
+test("known aliases of one WCL character retain continuity across names and realms", () => {
+  const aliases: MechanicSnapshot = { mechanic, coverage: [], rows: [
+    row("wcl:42:4", { name: "Oldname", realm: "old-realm", classId: 4 }),
+    row("eu:oldrealm:oldname:4", { name: "Oldname", realm: "old-realm", classId: 4 }),
+    row("wcl:42:4", { name: "Newname", realm: "new-realm", classId: 4, guildId: "two", timestamp: 2 }),
+    row("eu:newrealm:newname:4", { name: "Newname", realm: "new-realm", classId: 4 }),
+  ] };
+  const result = selectMechanicLeaderboard(aliases, filters);
+  assert.equal(result.totals.players, 1);
+  assert.equal(result.rows[0].key, "wcl:42:4");
+  assert.equal(result.rows[0].name, "Newname");
+  assert.equal(result.rows[0].realm, "new-realm");
+  assert.equal(result.rows[0].pulls, 40);
+});
+
+test("existing cached snapshots merge split identities without a rebuild or new WCL requests", async (t) => {
+  const { entries } = mockSnapshotStorage(t);
+  const key = `avoidable-damage:snapshot:v3:${mechanic.key}:${mechanic.version}`;
+  entries.set(key, { key, data: splitIdentity, cachedAt: new Date(),
+    expiresAt: new Date(Date.now() + 5 * 60_000), staleExpiresAt: new Date(Date.now() + 65 * 60_000) });
+  const builder = service as unknown as { buildLeaderboardSnapshot(): Promise<MechanicSnapshot> };
+  t.mock.method(builder, "buildLeaderboardSnapshot", async () => { throw new Error("unexpected snapshot rebuild"); });
+  const result = await service.getLeaderboard(filters);
+  assert.equal(result.totals.players, 1);
+  assert.equal(result.rows[0].pulls, 422);
+  assert.equal(result.rows[0].key, "wcl:75211992:4");
+});
 
 test("role combinations count only matching pulls, keep zero hits and never guess an unknown role", () => {
   const all = selectMechanicLeaderboard(snapshot, filters);

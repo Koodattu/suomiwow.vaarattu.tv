@@ -1,6 +1,6 @@
 import type { AvoidableMechanic } from "../config/avoidable-mechanics";
 import type { Role } from "../config/specs";
-import type { DamageTotals } from "./avoidable-damage";
+import { mechanicIdentity, type DamageTotals } from "./avoidable-damage";
 import { normalizeSearchText } from "./search";
 
 export const MECHANIC_ROLES: Role[] = ["dps", "healer", "tank"];
@@ -46,8 +46,17 @@ export interface MechanicSnapshot {
 
 type LeaderboardRow = Omit<MechanicSnapshotRow, "guildId" | "isKill" | "role" | "timestamp"> & { hitsPerPull: number };
 
-/** Filter the shared snapshot before merging characters, calculating totals or paging. */
+/** Resolve identities, then filter pulls before merging characters, calculating totals or paging. */
 export function selectMechanicLeaderboard(snapshot: MechanicSnapshot, filters: MechanicLeaderboardFilters) {
+  // Some reports lack a WCL ID. Link their fallback key only when the complete
+  // snapshot identifies exactly one WCL character, regardless of active filters.
+  const canonicalKeys = new Map<string, string | null>();
+  for (const entry of snapshot.rows) {
+    if (!entry.key.startsWith("wcl:") || !entry.name || !entry.realm || !entry.region || entry.classId <= 0) continue;
+    const identity = mechanicIdentity(entry.name, entry.realm, entry.region, entry.classId);
+    const existing = canonicalKeys.get(identity);
+    canonicalKeys.set(identity, existing === undefined || existing === entry.key ? entry.key : null);
+  }
   const inScope = (row: { guildId: string; isKill: boolean }) =>
     (!filters.guildId || row.guildId === filters.guildId) && (filters.outcome === "all" || row.isKill === (filters.outcome === "kills"));
   const roles = filters.roles ?? MECHANIC_ROLES;
@@ -57,10 +66,11 @@ export function selectMechanicLeaderboard(snapshot: MechanicSnapshot, filters: M
   for (const entry of snapshot.rows) {
     if (!inScope(entry) || (entry.role ? !roles.includes(entry.role) : !includeUnknown)) continue;
     const { guildId: _guildId, isKill: _isKill, role: _role, timestamp, ...values } = entry;
-    let existing = players.get(entry.key);
+    values.key = canonicalKeys.get(entry.key) ?? entry.key;
+    let existing = players.get(values.key);
     if (!existing) {
       existing = { row: { ...values, hitsPerPull: 0 }, timestamp, specs: new Map() };
-      players.set(entry.key, existing);
+      players.set(values.key, existing);
     } else {
       const totals = {
         damage: existing.row.damage + entry.damage, hits: existing.row.hits + entry.hits,
