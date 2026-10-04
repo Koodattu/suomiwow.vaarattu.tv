@@ -2124,7 +2124,7 @@ export type CharacterProfileResponse = {
     role: string | null;
     specName: string | null;
     rankPercent: number | null;
-    score: number;
+    score: number | null;
     parseScore: number | null;
     survivalScore: number | null;
     survivalPercentile: number | null;

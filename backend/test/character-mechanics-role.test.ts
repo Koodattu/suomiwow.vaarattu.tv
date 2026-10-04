@@ -5,6 +5,8 @@ import service from "../src/services/character-mechanics.service";
 import Fight from "../src/models/Fight";
 import CharacterMechanicsLeaderboard from "../src/models/CharacterMechanicsLeaderboard";
 import CharacterTierListEntry from "../src/models/CharacterTierListEntry";
+import characterTierListService from "../src/services/character-tierlist.service";
+import { shouldPublishCcgCardSnapshot } from "../src/utils/ccg-card-snapshot";
 import { resolveCcgCharacterMechanicsStatus } from "../src/utils/ccg-character-check";
 
 const mechanics = service as any;
@@ -120,6 +122,78 @@ test("Holy and Discipline share healer mechanics and ignore incompatible damage 
   assert.equal(result.overall.metric, "hps");
   assert.equal(result.overall.pulls, 55);
   assert.equal(result.overall.parseScore, 70);
+});
+
+test("Dirlandaa's Restoration damage parses fill missing DPS-role boss parses without changing raid identity", () => {
+  const result = build([
+    ...fights(3470, "enhancement", 6), ...fights(3445, "enhancement", 53),
+    ...fights(3455, "enhancement", 7), ...fights(3497, "enhancement", 4),
+    ...fights(3420, "enhancement", 62), ...fights(3379, "enhancement", 3),
+    ...fights(3445, "restoration", 1, true), ...fights(3455, "restoration", 3, true),
+    ...fights(3379, "restoration", 4, true),
+  ], [
+    parse(3470, "enhancement", 95.3176, { classID: 9 }),
+    parse(3445, "enhancement", 54.5558, { classID: 9 }),
+    parse(3497, "enhancement", 83.1795, { classID: 9 }),
+    parse(3420, "enhancement", 4.81473, { classID: 9 }),
+    parse(3445, "restoration", 74.3409, { classID: 9, role: "healer" }),
+    parse(3455, "restoration", 99.7474, { classID: 9, role: "healer" }),
+    parse(3379, "restoration", 99.55518999542258, { classID: 9, role: "healer" }),
+    parse(3455, "restoration", 36.5171, { classID: 9, role: "healer", metric: "hps" }),
+    parse(3379, "restoration", 59.896364534108784, { classID: 9, role: "healer", metric: "hps" }),
+  ], 9);
+
+  const vashnik = result.bosses.find((boss: any) => boss.encounterId === 3455);
+  const nymrissa = result.bosses.find((boss: any) => boss.encounterId === 3379);
+  assert.equal(vashnik.parseScore, 99.7);
+  assert.equal(vashnik.survivalPercentile, 50);
+  assert.equal(vashnik.score, 74.9);
+  assert.equal(nymrissa.parseScore, 99.6);
+  assert.equal(nymrissa.score, 74.8);
+  assert.equal(vashnik.specName, "restoration");
+  assert.equal(vashnik.role, "dps");
+  assert.equal(vashnik.metric, "dps");
+  // Keep the existing role parse even when another spec has a higher percentile.
+  assert.equal(result.bosses.find((boss: any) => boss.encounterId === 3445).parseScore, 54.6);
+  assert.equal(result.overall.specName, "enhancement");
+  assert.equal(result.overall.role, "dps");
+  assert.equal(result.overall.metric, "dps");
+  assert.equal(result.overall.pulls, 135);
+  assert.equal(result.overall.deaths, 0);
+  assert.equal(result.overall.parseScore, 72.9);
+  assert.equal(result.overall.score, 61.5);
+  assert.equal(result.overall.bossScores.length, 6);
+  assert.equal(result.overall.bossScores.find((boss: any) => boss.encounterId === 3455).parseScore, 99.7);
+  assert.deepEqual(resolveCcgCharacterMechanicsStatus([result.overall]), { pulls: 135, scoresReady: true, eligible: true });
+
+  const entry = (characterTierListService as any).createGeneratedEntry({
+    scope: "global", raid: { id: 53, name: "The Venomous Abyss" }, mechanicsRow: result.overall,
+    participation: { ...character, classID: 9, characterKey: String(characterId), sourceUpdatedAt: new Date() },
+    generatedAt: new Date(),
+  });
+  assert.equal(entry.parseScore, 72.9);
+  assert.equal(entry.score, 61.5);
+  assert.equal(entry.specName, "enhancement");
+  assert.equal(entry.role, "dps");
+  assert.deepEqual(entry.bossScores, result.overall.bossScores);
+  assert.equal(entry.scoreVersion, 6);
+  const snapshot = { ...entry, tierGrade: "D" as const, mythicPlusScore: null };
+  assert.equal(shouldPublishCcgCardSnapshot({ ...snapshot, scoreVersion: 5 }, snapshot), true);
+});
+
+test("off-role fallback requires the raid metric and preserves a legitimate zero parse", () => {
+  const result = build([
+    ...fights(1, "enhancement", 40), ...fights(2, "enhancement", 5), ...fights(3, "enhancement", 5),
+  ], [
+    parse(1, "enhancement", 60, { classID: 9 }),
+    parse(2, "restoration", 99, { classID: 9, role: "healer", metric: "hps" }),
+    parse(3, "restoration", 0, { classID: 9, role: "healer" }),
+  ], 9);
+  assert.equal(result.bosses.find((boss: any) => boss.encounterId === 2).parseScore, null);
+  assert.equal(result.bosses.find((boss: any) => boss.encounterId === 2).score, null);
+  assert.equal(result.bosses.find((boss: any) => boss.encounterId === 3).parseScore, 0);
+  assert.equal(result.bosses.find((boss: any) => boss.encounterId === 3).score, 25);
+  assert.equal(result.overall.parseScore, 30);
 });
 
 test("a character with only progression wipes has mechanics but cannot fabricate CCG performance", () => {

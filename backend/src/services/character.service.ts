@@ -338,7 +338,7 @@ export type CharacterProfileResponse = {
     role: string | null;
     specName: string | null;
     rankPercent: number | null;
-    score: number;
+    score: number | null;
     parseScore: number | null;
     survivalScore: number | null;
     survivalPercentile: number | null;
@@ -3332,7 +3332,7 @@ class CharacterService {
         role: row.role ?? null,
         specName: row.specName ?? null,
         rankPercent: row.rankPercent ?? null,
-        score: row.score ?? 0,
+        score: row.score ?? null,
         parseScore: row.parseScore ?? null,
         survivalScore: row.survivalScore ?? null,
         survivalPercentile: row.survivalPercentile ?? null,

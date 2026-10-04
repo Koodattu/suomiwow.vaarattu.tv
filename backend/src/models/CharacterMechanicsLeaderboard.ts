@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document } from "mongoose";
 import type { RaidIdentityConfidence, RaidIdentityMethod } from "../utils/character-raid-identity";
 
-export const CHARACTER_MECHANICS_SCORE_VERSION = 5;
+export const CHARACTER_MECHANICS_SCORE_VERSION = 6;
 
 export interface IMechanicsBossScore {
   encounterId: number;

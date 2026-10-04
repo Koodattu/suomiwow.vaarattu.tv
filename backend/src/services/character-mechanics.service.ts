@@ -691,11 +691,19 @@ class CharacterMechanicsService {
       roleEvidence.set(characterKey, roles);
     }
     const parseByBossRole = new Map<string, ParseRow>();
+    const parseByBossMetric = new Map<string, ParseRow>();
     const representativeParse = new Map<string, ParseRow>();
     for (const row of parseRows) {
       const role = tryResolveRole(row.classID, row.specName);
-      if (!role || row.metric !== (role === "healer" ? "hps" : "dps")) continue;
+      if (!role) continue;
       const characterKey = this.getCharacterKey(row.characterId);
+      const metricKey = `${characterKey}|${row.encounterId}|${row.metric}`;
+      const metricParse = parseByBossMetric.get(metricKey);
+      if (!metricParse || row.rankPercent > metricParse.rankPercent
+        || (row.rankPercent === metricParse.rankPercent && row.bestAmount > metricParse.bestAmount)) {
+        parseByBossMetric.set(metricKey, row);
+      }
+      if (row.metric !== (role === "healer" ? "hps" : "dps")) continue;
       const roles = roleEvidence.get(characterKey) ?? new Set<Role>();
       roles.add(role);
       roleEvidence.set(characterKey, roles);
@@ -734,7 +742,9 @@ class CharacterMechanicsService {
       const character = survivalBuild.characters.get(characterKey)!;
       const identity = identities.get(characterKey)!;
       const encounterId = Number(encounterIdValue);
-      const row = parseByBossRole.get(key);
+      // Off-role kills can still supply the raid metric (for example, Restoration DPS).
+      // Prefer a role-matched parse and retain the role-specific mechanics population.
+      const row = parseByBossRole.get(key) ?? parseByBossMetric.get(`${characterKey}|${encounterId}|${identity.metric}`);
       const representative = representativeParse.get(`${characterKey}|${identity.role}`);
       const survival = this.summarizeSurvivalStats(stats);
       if (survival.survivalScore === null) return [];
