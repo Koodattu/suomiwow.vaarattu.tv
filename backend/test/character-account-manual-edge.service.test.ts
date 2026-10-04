@@ -98,6 +98,7 @@ test("includes manual edges when rebuilding account groups without achievement m
   const originals = {
     characterFind: characterModel.find,
     groupBulkWrite: groupModel.bulkWrite,
+    groupFind: groupModel.find,
     groupDeleteMany: groupModel.deleteMany,
     edgeFind: edgeModel.find,
     matchFind: matchModel.find,
@@ -117,6 +118,7 @@ test("includes manual edges when rebuilding account groups without achievement m
       },
       lean: async () => [],
     });
+    groupModel.find = () => ({ select() { return this; }, lean: async () => [] });
     edgeModel.find = () => ({
       select() {
         return this;
@@ -162,6 +164,7 @@ test("includes manual edges when rebuilding account groups without achievement m
   } finally {
     characterModel.find = originals.characterFind;
     groupModel.bulkWrite = originals.groupBulkWrite;
+    groupModel.find = originals.groupFind;
     groupModel.deleteMany = originals.groupDeleteMany;
     edgeModel.find = originals.edgeFind;
     matchModel.find = originals.matchFind;

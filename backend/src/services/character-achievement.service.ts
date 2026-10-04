@@ -24,6 +24,8 @@ import {
 } from "../utils/featured-achievements";
 import logger from "../utils/logger";
 import { normalizeRealmSlug } from "../utils/realm";
+import { getWclClassIdFromBlizzardClassId } from "../utils/blizzard-character-class";
+import type { BlizzardCharacterProfile } from "./blizzard.service";
 import { resolveBlizzardCharacterIdentity } from "../utils/character-identity";
 import { createCharacterAccountPairKey, orderCharacterAccountPairIds } from "../utils/character-account-manual-edge";
 import { buildCharacterContinuityGraph } from "../utils/character-continuity";
@@ -54,6 +56,7 @@ interface BlizzardAchievementSummaryAchievement {
 }
 
 interface BlizzardAchievementSummaryResponse {
+  character?: { id?: unknown };
   total_points?: unknown;
   total_quantity?: unknown;
   achievements?: BlizzardAchievementSummaryAchievement[];
@@ -218,7 +221,7 @@ function summarizeQueueItem(item: ICharacterAchievementFetchQueue): CharacterAch
   };
 }
 
-class CharacterAchievementService {
+export class CharacterAchievementService {
   private isRunning = false;
   private isWaitingForRateLimit = false;
   private currentItem: CharacterAchievementQueueItemSummary | null = null;
@@ -659,7 +662,7 @@ class CharacterAchievementService {
   }
 
   async rebuildAccountGroups(): Promise<CharacterAccountGroupRebuildResult> {
-    const [highConfidenceEdges, manualEdges, continuityLinks] = await Promise.all([
+    const [highConfidenceEdges, manualEdges, continuityLinks, existingGroups] = await Promise.all([
       CharacterAccountMatch.find({
         signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
         confidence: "high",
@@ -672,8 +675,12 @@ class CharacterAchievementService {
       CharacterContinuityLink.find({})
         .select("sourceCharacterId targetCharacterId")
         .lean<Array<{ sourceCharacterId: mongoose.Types.ObjectId; targetCharacterId: mongoose.Types.ObjectId }>>(),
+      CharacterAccountGroup.find({ signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION })
+        .select("groupKey slug")
+        .lean<Array<{ groupKey: string; slug?: string | null }>>(),
     ]);
     const continuityGraph = buildCharacterContinuityGraph(continuityLinks);
+    const slugByGroupKey = new Map(existingGroups.map((group) => [group.groupKey, group.slug]));
 
     const parent = new Map<string, string>();
     const find = (id: string): string => {
@@ -797,7 +804,7 @@ class CharacterAchievementService {
           },
           update: {
             $set: {
-              slug: primaryMember ? this.buildAccountSlug(primaryMember.name, groupKey) : this.buildAccountSlug("account", groupKey),
+              slug: slugByGroupKey.get(groupKey) ?? this.buildAccountSlug(primaryMember?.name ?? "account", groupKey),
               displayName: primaryMember?.name ?? "Account",
               primaryCharacterId: primaryMember?._id ?? null,
               characterIds: members.map((member) => member._id),
@@ -947,8 +954,26 @@ class CharacterAchievementService {
   }
 
   private async processItem(item: ICharacterAchievementFetchQueue): Promise<ProcessOutcome> {
-    await this.waitForRateSlot();
+    const profile = await this.fetchCharacterProfile(item.region, item.realm, item.name);
+    const profileClassID = getWclClassIdFromBlizzardClassId(profile.character_class?.id);
+    if (profileClassID === null || !Number.isInteger(profile.id) || profile.id <= 0) {
+      throw new BlizzardApiError("Blizzard character profile is missing a recognized class or character ID", {
+        errorCode: "invalid_character_profile", retryable: true, permanent: false,
+      });
+    }
+    if (profileClassID !== item.classID) {
+      throw new BlizzardApiError(`Blizzard character class ${profileClassID} does not match stored class ${item.classID}`, {
+        status: 200, errorCode: "character_class_mismatch", retryable: false, permanent: true,
+      });
+    }
     const summary = await this.fetchAchievementSummary(item.region, item.realm, item.name);
+    // The name can be reused between requests; bind achievements to the profile
+    // whose class we just checked, rather than trusting the requested URL.
+    if (summary.character?.id !== profile.id) {
+      throw new BlizzardApiError("Blizzard achievement character ID does not match the checked profile", {
+        status: 200, errorCode: "achievement_character_mismatch", retryable: true, permanent: false,
+      });
+    }
     const fingerprint = this.extractFingerprintSignals(summary);
     const featuredAchievementTargets = await this.getFeaturedAchievementTargets();
     const raidAchievements = extractCompletedFeaturedAchievements(summary, featuredAchievementTargets);
@@ -1091,7 +1116,15 @@ class CharacterAchievementService {
     logger.warn(`[CharacterAchievementBackfill] Error processing ${item.name}-${item.realm}; retrying at ${retryAt.toISOString()}: ${apiError.message}`);
   }
 
-  private async fetchAchievementSummary(region: string, realm: string, name: string, retryUnauthorized = true): Promise<BlizzardAchievementSummaryResponse> {
+  async fetchCharacterProfile(region: string, realm: string, name: string): Promise<BlizzardCharacterProfile> {
+    return this.fetchCharacterData<BlizzardCharacterProfile>(region, realm, name, "");
+  }
+
+  private async fetchAchievementSummary(region: string, realm: string, name: string): Promise<BlizzardAchievementSummaryResponse> {
+    return this.fetchCharacterData<BlizzardAchievementSummaryResponse>(region, realm, name, "/achievements");
+  }
+
+  private async fetchCharacterData<T>(region: string, realm: string, name: string, path: "" | "/achievements", retryUnauthorized = true): Promise<T> {
     const token = await this.getAccessToken();
     const normalizedRegion = region.toLowerCase();
     const baseUrl = this.regionApiUrls[normalizedRegion];
@@ -1107,9 +1140,10 @@ class CharacterAchievementService {
     const realmSlug = normalizeRealmSlug(realm);
     const characterName = encodeURIComponent(name.toLowerCase());
     const namespace = `profile-${normalizedRegion}`;
-    const url = `${baseUrl}/profile/wow/character/${encodeURIComponent(realmSlug)}/${characterName}/achievements?namespace=${encodeURIComponent(namespace)}&locale=en_US`;
+    const url = `${baseUrl}/profile/wow/character/${encodeURIComponent(realmSlug)}/${characterName}${path}?namespace=${encodeURIComponent(namespace)}&locale=en_US`;
 
-    logger.info(`[API REQUEST] CharacterAchievementBackfill - GET ${baseUrl}/profile/wow/character/${realmSlug}/${name.toLowerCase()}/achievements`);
+    await this.waitForRateSlot();
+    logger.info(`[API REQUEST] CharacterAchievementBackfill - GET ${baseUrl}/profile/wow/character/${realmSlug}/${name.toLowerCase()}${path}`);
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -1119,14 +1153,14 @@ class CharacterAchievementService {
     if (response.status === 401 && retryUnauthorized) {
       await AuthToken.deleteOne({ service: "blizzard" }).catch(() => undefined);
       logger.warn("[CharacterAchievementBackfill] Blizzard token was rejected; refreshing token and retrying request once");
-      return this.fetchAchievementSummary(region, realm, name, false);
+      return this.fetchCharacterData<T>(region, realm, name, path, false);
     }
 
     if (!response.ok) {
       throw await this.toBlizzardApiError(response);
     }
 
-    return (await response.json()) as BlizzardAchievementSummaryResponse;
+    return (await response.json()) as T;
   }
 
   private async getFeaturedAchievementTargets(): Promise<FeaturedAchievementTarget[]> {
