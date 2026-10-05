@@ -68,7 +68,7 @@ import reporterScheduler from "./features/reporter/reporter-scheduler.service";
 // WORKER MODE CONFIGURATION
 // ============================================================================
 // WORKER_MODE controls what this process does:
-//   "api"    — Only serve HTTP requests (Express). No background jobs.
+//   "api"    — Serve HTTP requests and warm mechanic caches. No scheduled jobs.
 //   "worker" — Only run background jobs (scheduler, processor, cache warming).
 //              No Express server. Keeps API responsive by running heavy work
 //              in a separate process.
@@ -553,8 +553,8 @@ async function runBackgroundInitialization(): Promise<void> {
 
 /**
  * Start the server with async initialization.
- * Prepare required data and mechanic snapshots before accepting requests.
- * The remaining worker initialization runs in the background.
+ * Prepare required data before accepting requests.
+ * Mechanic cache warming and worker initialization run in the background.
  */
 const startServer = async () => {
   try {
@@ -614,15 +614,16 @@ const startServer = async () => {
     }
 
     if (isApiProcess) {
-      // Prepare every selectable mechanic before the first visitor, including in API-only mode.
-      // Persisted snapshots and shared leases avoid duplicate work during rolling restarts.
-      await runStartupTask("Warm mechanic caches", () => avoidableDamageService.warmLeaderboardCaches());
-
       app.listen(PORT, () => {
         logger.info(`[Startup] Server running on port ${PORT}`);
         logger.info(`[Startup] API available at http://localhost:${PORT}/api`);
         logger.info(`[Startup] Health check: http://localhost:${PORT}/health`);
         logger.info("[Startup] API is now accepting requests");
+
+        // Warm every mechanic after listening, including in API-only mode.
+        // Persisted snapshots remain available and shared leases prevent duplicate builds.
+        void runStartupTask("Warm mechanic caches", () => avoidableDamageService.warmLeaderboardCaches())
+          .catch((error) => logger.error("[Startup] Mechanic cache warm-up failed:", error));
       });
 
       void discordBotService.registerCommands();
@@ -673,10 +674,10 @@ const startServer = async () => {
         logger.info("[Startup] Worker initialization complete, background jobs running");
       }
     } else {
-      // API-only mode: mark ready immediately (no background init needed)
+      // API-only mode: readiness does not wait for background cache warming.
       startupState.status = "ready";
       startupState.readyAt = new Date();
-      logger.info("[Startup] API-only mode ready (no background jobs in this process)");
+      logger.info("[Startup] API-only mode ready (mechanic caches warm in the background)");
     }
   } catch (error) {
     startupState.status = "error";
