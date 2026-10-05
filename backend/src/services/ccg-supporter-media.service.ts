@@ -17,6 +17,7 @@ import logger from "../utils/logger";
 const execute = promisify(execFile);
 export const SUPPORTER_IMAGE_BYTES = 5 * 1024 * 1024;
 export const SUPPORTER_AUDIO_BYTES = 8 * 1024 * 1024;
+const SUPPORTER_IMAGE_MAX_ASPECT_RATIO = 2;
 const AUDIO_FORMATS = "mp3,wav,flac,ogg,aac,mov,matroska,webm,aiff,asf";
 const DAY = 86_400_000;
 export type SupporterMediaKind = "image" | "audio";
@@ -43,6 +44,9 @@ export async function normalizeSupporterImage(input: Buffer) {
     const metadata = await sharp(input, options).metadata();
     if (!["png", "webp"].includes(metadata.format ?? "") || (metadata.pages ?? 1) !== 1) {
       throw new CcgSupporterError(400, "media_image_format");
+    }
+    if (metadata.autoOrient.width > metadata.autoOrient.height * SUPPORTER_IMAGE_MAX_ASPECT_RATIO) {
+      throw new CcgSupporterError(400, "media_image_aspect_ratio");
     }
     const normalized = await sharp(input, options).rotate().resize(2048, 2048, { fit: "inside", withoutEnlargement: true }).webp({ quality: 85, alphaQuality: 100 }).toBuffer({ resolveWithObject: true });
     return { data: normalized.data, contentType: "image/webp", width: normalized.info.width, height: normalized.info.height };
@@ -71,6 +75,7 @@ export async function normalizeSupporterVideo(input: Buffer, directory: string) 
     const stream = videos[0];
     if (!stream || !(avif ? ["av1"] : ["vp8", "vp9", "gif"]).includes(stream.codec_name) || !(stream.width > 0 && stream.height > 0)
       || stream.width * stream.height > 40_000_000) throw new CcgSupporterError(400, "media_image_format");
+    if (stream.width > stream.height * SUPPORTER_IMAGE_MAX_ASPECT_RATIO) throw new CcgSupporterError(400, "media_image_aspect_ratio");
     const gif = stream.codec_name === "gif";
     const alphaStream = avif ? videos.find((entry) => entry.index !== stream.index && entry.codec_name === "av1"
       && entry.pix_fmt?.startsWith("gray") && entry.width === stream.width && entry.height === stream.height

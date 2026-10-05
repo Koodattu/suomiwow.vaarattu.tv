@@ -97,6 +97,65 @@ test("PNG and WebP accept opaque, translucent and invisible images while preserv
   await assert.rejects(normalizeSupporterImage(Buffer.alloc(5 * 1024 * 1024 + 1)), { code: "media_image_size" });
 });
 
+test("static artwork allows landscape art up to 2:1 and rejects wider images", async () => {
+  for (const format of ["png", "webp"] as const) {
+    for (const [width, height] of [[30, 300], [100, 100], [160, 90], [200, 100], [201, 100], [1000, 100]]) {
+      const input = await sharp({ create: { width, height, channels: 4, background: { r: 100, g: 20, b: 30, alpha: 0.5 } } })
+        .toFormat(format).toBuffer();
+      if (width > 200) await assert.rejects(normalizeSupporterImage(input), { code: "media_image_aspect_ratio" });
+      else {
+        const result = await normalizeSupporterImage(input);
+        assert.equal(result.width, width);
+        assert.equal(result.height, height);
+      }
+    }
+  }
+});
+
+test("static artwork checks the 2:1 limit after EXIF orientation", async () => {
+  for (const format of ["png", "webp"] as const) {
+    const portrait = await sharp({ create: { width: 300, height: 100, channels: 4, background: "red" } })
+      .withMetadata({ orientation: 6 }).toFormat(format).toBuffer();
+    const accepted = await normalizeSupporterImage(portrait);
+    assert.equal(accepted.width, 100);
+    assert.equal(accepted.height, 300);
+    const banner = await sharp({ create: { width: 100, height: 300, channels: 4, background: "red" } })
+      .withMetadata({ orientation: 6 }).toFormat(format).toBuffer();
+    await assert.rejects(normalizeSupporterImage(banner), { code: "media_image_aspect_ratio" });
+  }
+});
+
+test("GIF, WebM and AVIF artwork share the 2:1 width limit", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "supporter-aspect-ratio-test-"));
+  const execute = promisify(execFile);
+  t.mock.method(storage, "resolveCharacterRenderStoragePath", (key: string) => path.join(root, key));
+  try {
+    for (const format of ["gif", "webm", "avif"]) {
+      for (const width of [200, 202]) {
+        const directory = await mkdtemp(path.join(root, "case-"));
+        const source = path.join(directory, "source.png");
+        await sharp({ create: { width, height: 100, channels: 4, background: "red" } }).png().toFile(source);
+        const fixture = path.join(directory, `fixture.${format}`);
+        await execute(process.env.FFMPEG_PATH || "ffmpeg", ["-v", "error", "-i", source,
+          "-frames:v", "1", "-threads", "1", ...(format === "avif" ? ["-c:v", "libaom-av1", "-cpu-used", "8"] : []), fixture], { windowsHide: true });
+        const input = await readFile(fixture);
+        const normalized = media.prepare(new mongoose.Types.ObjectId(), "image", input);
+        if (width === 202) await assert.rejects(normalized, { code: "media_image_aspect_ratio" });
+        else {
+          const result = await normalized;
+          assert.equal(result.contentType, "video/webm");
+          assert.ok("width" in result && "height" in result);
+          assert.equal(result.width, 200);
+          assert.equal(result.height, 100);
+        }
+      }
+    }
+  } finally {
+    assert.ok(path.resolve(root).startsWith(path.resolve(os.tmpdir()) + path.sep));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("audio is decoded and converted to MP3; ten seconds and malformed files are rejected", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "supporter-audio-test-"));
   try {

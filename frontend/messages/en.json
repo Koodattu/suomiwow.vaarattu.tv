@@ -313,7 +313,7 @@
         "aiUnavailable": "AI review was unavailable.",
         "image": "Alternative image",
         "audio": "Card audio",
-        "imageLimits": "PNG / WebP / GIF / AVIF / AVIFS / WebM · up to 5 MB.",
+        "imageLimits": "PNG / WebP / GIF / AVIF / AVIFS / WebM · up to 5 MB · width no more than twice the height (2:1).",
         "audioLimits": "Under 10 seconds · up to 8 MB · admin review.",
         "preview": "Submitted alternative character image",
         "submit": "Submit for review",
@@ -426,6 +426,7 @@
       "errors": {
         "invalid_background": "Choose an available background and a position from 0 to 100.",
         "media_image_size": "Choose an image no larger than 5 MB.",
+        "media_image_aspect_ratio": "This artwork is too wide. Choose an image or animation no more than twice as wide as it is tall (2:1).",
         "media_busy": "Media processing is busy. Please try again shortly.",
         "media_audio_size": "Choose an audio file no larger than 8 MB.",
         "media_image_format": "Choose a valid, static PNG or WebP image, or GIF, AVIF, AVIFS or WebM artwork. Images and animation frames above 40 megapixels are not supported.",
