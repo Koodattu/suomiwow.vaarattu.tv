@@ -4,21 +4,14 @@
 set -e
 
 # Configuration
-PROJECT_DIR="$HOME/wow-guild-progress-tracker"
-REPO_URL="https://github.com/Koodattu/wow-guild-progress-tracker.git"
-LOCKFILE="$PROJECT_DIR/.deploy.lock"
+PROJECT_DIR="${PROJECT_DIR:-$HOME/wow-guild-progress-tracker}"
+REPO_URL="https://github.com/Koodattu/suomiwow.vaarattu.tv.git"
+# Shared with backup-db.sh. Keep the lock file: flock releases it on process exit.
+LOCKFILE="${LOCKFILE:-/tmp/wow-guild-deploy.lock}"
 COMPOSE_FILE="docker-compose.prod.yml"
-LOCK_TIMEOUT=1200
 DOCKER_BUILD_CACHE_KEEP_STORAGE="${DOCKER_BUILD_CACHE_KEEP_STORAGE:-10GB}"
 DOCKER_IMAGE_PRUNE_UNTIL="${DOCKER_IMAGE_PRUNE_UNTIL:-168h}"
-
-# --- BACKUP CONFIGURATION ---
-BACKUP_DIR="$HOME/wow-backups"
-DB_CONTAINER_NAME="wow-prog-db"
 NGINX_CONTAINER_NAME="wow-prog-nginx"
-RETENTION_DAYS=7
-MAX_BACKUPS=5
-# ----------------------------
 
 # Colors for output
 RED='\033[0;31m'
@@ -29,69 +22,6 @@ NC='\033[0m'
 log() { echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"; }
 error() { echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} $1" >&2; }
 warn() { echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1"; }
-
-check_lock() {
-    if [ -f "$LOCKFILE" ]; then
-        local lock_pid=$(cat "$LOCKFILE")
-        local lock_time=$(stat -c %Y "$LOCKFILE" 2>/dev/null || stat -f %m "$LOCKFILE" 2>/dev/null || echo 0)
-        local lock_age=$(($(date +%s) - lock_time))
-
-        if kill -0 "$lock_pid" 2>/dev/null; then
-            if [ "$lock_age" -gt "$LOCK_TIMEOUT" ]; then
-                warn "Lock file is older than $LOCK_TIMEOUT seconds. Removing stale lock."
-                rm -f "$LOCKFILE"
-            else
-                log "Another deployment is in progress (PID: $lock_pid). Exiting."
-                exit 0
-            fi
-        else
-            warn "Removing stale lock file (process $lock_pid not running)"
-            rm -f "$LOCKFILE"
-        fi
-    fi
-}
-
-create_lock() { echo $$ > "$LOCKFILE"; log "Lock acquired (PID: $$)"; }
-remove_lock() { [ -f "$LOCKFILE" ] && rm -f "$LOCKFILE" && log "Lock released"; }
-
-trap remove_lock EXIT INT TERM
-
-backup_db() {
-    log "Starting database backup..."
-
-    mkdir -p "$BACKUP_DIR"
-
-    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-    BACKUP_NAME="wow_db_backup_$TIMESTAMP.gz"
-    BACKUP_PATH="$BACKUP_DIR/$BACKUP_NAME"
-
-    # Check if container is running
-    if ! docker ps -q -f name=^/${DB_CONTAINER_NAME}$ > /dev/null; then
-        warn "Database container '$DB_CONTAINER_NAME' is not running. Skipping backup."
-        return 0
-    fi
-
-    # Run mongodump
-    log "Streaming dump to $BACKUP_PATH..."
-    docker exec "$DB_CONTAINER_NAME" mongodump --archive --gzip > "$BACKUP_PATH" || {
-        error "Database backup failed!"
-        return 1
-    }
-
-    log "Backup completed: $BACKUP_NAME"
-
-    # --- KEEP ONLY 5 LATEST ---
-    log "Cleaning up old backups (keeping latest $MAX_BACKUPS)..."
-
-    # 1. List files matching the pattern
-    # 2. Sort by modification time (oldest first)
-    # 3. head -n -$MAX_BACKUPS selects all EXCEPT the last 5
-    # 4. xargs rm deletes them
-    ls -1tr "$BACKUP_DIR"/wow_db_backup_*.gz 2>/dev/null | head -n -$MAX_BACKUPS | xargs -r rm
-
-    log "Cleanup finished. Current backups in storage:"
-    ls -lh "$BACKUP_DIR" | grep "wow_db_backup"
-}
 
 cleanup_docker() {
     log "Pruning Docker build cache, keeping up to $DOCKER_BUILD_CACHE_KEEP_STORAGE..."
@@ -134,13 +64,7 @@ deploy() {
         exit 0
     fi
 
-    log "New changes detected! Starting backup before deployment..."
-
-    # RUN BACKUP BEFORE DEPLOYING
-    backup_db || {
-        error "Deployment aborted because backup failed."
-        exit 1
-    }
+    log "New changes detected! Deploying without a database backup."
 
     log "Pulling latest changes..."
     git pull "$REPO_URL" main || { error "Failed to pull changes"; exit 1; }
@@ -166,8 +90,11 @@ deploy() {
 
 main() {
     log "=== WoW Guild Progress Tracker Auto Deploy ==="
-    check_lock
-    create_lock
+    exec 9>"$LOCKFILE"
+    if ! flock -n 9; then
+        log "A deployment or database backup is in progress. Skipping this check."
+        exit 0
+    fi
     deploy
 }
 
