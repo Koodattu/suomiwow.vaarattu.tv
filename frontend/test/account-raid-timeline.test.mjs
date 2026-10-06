@@ -6,6 +6,19 @@ const now = Date.parse("2026-01-01");
 const activity = (start, end, characterId = "one") => ({ characterId, firstSeenAt: start, lastSeenAt: end, reportCount: 4, specs: ["frost"] });
 const raid = (id, start, end, characters = []) => ({ id, name: `Raid ${id}`, expansion: "Expansion", starts: { eu: start }, ends: { eu: end }, characters });
 
+test("ignores Sporefall and Crucible of Storms before computing either calendar mode", () => {
+  const included = raid(38, "2025-01-01", "2025-06-01", [activity("2025-02-01", "2025-04-01")]);
+  const ignored = [
+    raid(22, "2019-01-01", "2019-06-01", [activity("2019-02-01", "2019-04-01")]),
+    raid(50, "2025-07-01", "2025-12-01", [activity("2025-08-01", "2025-10-01")]),
+  ];
+  for (const compress of [true, false]) {
+    const scale = createAccountTimeline([ignored[0], included, ignored[1]], "eu", compress, now);
+    assert.deepEqual(scale, createAccountTimeline([included], "eu", compress, now));
+    assert.equal(createAccountTimeline(ignored, "eu", compress, now), null);
+  }
+});
+
 test("one calendar aligns the same date across overlapping raid tiers", () => {
   const rows = [raid(1, "2025-01-01", "2025-05-01", [activity("2025-02-01", "2025-04-01")]), raid(2, "2025-03-01", "2025-06-01", [activity("2025-03-01", "2025-05-01")])];
   const scale = createAccountTimeline(rows, "EU", true, now);

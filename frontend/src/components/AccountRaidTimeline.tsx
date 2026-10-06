@@ -115,6 +115,8 @@ export default function AccountRaidTimeline({ account, getClassColor }: Props) {
   const gaps = scale?.sections.filter((section) => section.compressed) ?? [];
   const activeCount = scale?.raids.filter((raid) => raid.characters.length).length ?? 0;
   const inspectedColor = inspection?.character ? getClassColor(getClassInfoById(inspection.character.classID).name) : undefined;
+  const inspectedGuilds = inspection?.activity?.guilds ?? [];
+  const guildLabel = (guild: TimelineRaid["characters"][number]["guilds"][number]) => `${guild.name} (${formatRealmName(guild.realm)}) · ${date(guild.firstSeenAt)} – ${date(guild.lastSeenAt)} · ${t("reports", { count: guild.reportCount })}`;
   const rangeStyle = (left: number, width: number): CSSProperties => ({ left: `${left}%`, width: `${width}%` });
   const raidColor = (id: number) => `hsl(${(id * 137.508) % 360} 65% 62%)`;
 
@@ -142,8 +144,7 @@ export default function AccountRaidTimeline({ account, getClassColor }: Props) {
         </div>}
       </div>
       {!scale ? <p className={styles.empty}>{t("empty")}</p> : <>
-        <p id="account-timeline-gestures" className={styles.gestureHint}>{t("gestures")}</p>
-        <div ref={scrollRef} className={styles.scroll} role="region" aria-label={t("title")} aria-describedby="account-timeline-gestures" tabIndex={0}
+        <div ref={scrollRef} className={styles.scroll} role="region" aria-label={t("title")} tabIndex={0}
           onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={endDrag}
           onPointerLeave={(event) => { if (!drag.current?.moved) endDrag(event); }}
           onDragStart={(event) => event.preventDefault()}
@@ -172,7 +173,8 @@ export default function AccountRaidTimeline({ account, getClassColor }: Props) {
                   {ticks.filter((tick) => tick.major).map((tick) => <span key={tick.time} className={styles.guide} style={{ left: `${tick.left}%` }} />)}
                   {gaps.map((gap) => <span key={gap.start} className={styles.gap} style={rangeStyle(timelineRange(scale, gap.start, gap.end).left, timelineRange(scale, gap.start, gap.end).width)} />)}
                   {bars.map(({ raid, activity, character, left, width, lane }) => {
-                    const label = `${character.name} · ${raid.name} · ${activity.specs.map(formatSpecName).join(", ") || t("unknownSpec")} · ${date(activity.firstSeenAt)} – ${date(activity.lastSeenAt)} · ${t("reports", { count: activity.reportCount })}`;
+                    const guilds = activity.guilds ?? [];
+                    const label = `${character.name} · ${raid.name} · ${activity.specs.map(formatSpecName).join(", ") || t("unknownSpec")} · ${date(activity.firstSeenAt)} – ${date(activity.lastSeenAt)} · ${t("reports", { count: activity.reportCount })} · ${t("guilds")}: ${guilds.map(guildLabel).join("; ") || t("unknownGuild")}`;
                     return <button
                       key={`${raid.id}-${character.characterId}`}
                       type="button"
@@ -186,7 +188,11 @@ export default function AccountRaidTimeline({ account, getClassColor }: Props) {
                     ><span className={styles.barContent}>
                       {activity.specs.slice(0, 2).map((spec) => <IconImage key={spec} iconFilename={getSpecIconUrl(character.classID, spec)} alt="" width={18} height={18} />)}
                       {!activity.specs.length && <IconImage iconFilename={getClassInfoById(character.classID).iconUrl} alt="" width={18} height={18} />}
-                      <span>{character.name}</span>
+                      <span className={styles.barName}>{character.name}</span>
+                      {guilds.length > 0 && <span className={styles.barGuild} aria-hidden="true">
+                        <span>· {guilds[0].name}</span>
+                        {guilds.length > 1 && <span className={styles.guildCount}>+{guilds.length - 1}</span>}
+                      </span>}
                     </span></button>;
                   })}
                 </div>
@@ -201,9 +207,15 @@ export default function AccountRaidTimeline({ account, getClassColor }: Props) {
             {inspection.activity && <span className={styles.specs}>{inspection.activity.specs.map((spec) => <span key={spec}><IconImage iconFilename={getSpecIconUrl(inspection.character!.classID, spec)} alt="" width={16} height={16} />{formatSpecName(spec)}</span>)}{!inspection.activity.specs.length && t("unknownSpec")}</span>}
             <span>{date(inspection.activity?.firstSeenAt ?? inspection.raid.start)} – {date(inspection.activity?.lastSeenAt ?? inspection.raid.end)}</span>
             {inspection.activity && <span>{t("reports", { count: inspection.activity.reportCount })}</span>}
+            {inspection.activity && <span className={styles.guilds}>
+              <span>{t("guilds")}:</span>
+              {inspectedGuilds.length ? inspectedGuilds.map((guild) => <span key={guild.id} className={styles.guild}>
+                <Link href={`/guilds/${encodeURIComponent(guild.realm)}/${encodeURIComponent(guild.name)}`} title={guildLabel(guild)} aria-label={guildLabel(guild)}>{guild.name}</Link>
+                {inspectedGuilds.length > 1 && <span className={styles.guildDates}>{date(guild.firstSeenAt)} – {date(guild.lastSeenAt)}</span>}
+              </span>) : <span>{t("unknownGuild")}</span>}
+            </span>}
           </> : <span>{t("inspect")}</span>}
         </div>
-        <p className={styles.legend}>{t("legend")}</p>
       </>}
     </section>
   );

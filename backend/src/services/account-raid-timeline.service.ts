@@ -11,6 +11,14 @@ export type AccountRaidActivity = {
   lastSeenAt: Date;
   reportCount: number;
   specs: string[];
+  guilds: Array<{
+    id: string;
+    name: string;
+    realm: string;
+    firstSeenAt: Date;
+    lastSeenAt: Date;
+    reportCount: number;
+  }>;
 };
 
 export type AccountRaidTimeline = Array<{
@@ -26,6 +34,9 @@ export type AccountRaidTimeline = Array<{
 type Participation = {
   characterId?: mongoose.Types.ObjectId | null;
   zoneId: number;
+  reportGuildId: mongoose.Types.ObjectId;
+  reportGuildName: string;
+  reportGuildRealm: string;
   firstSeenAt: Date;
   lastSeenAt: Date;
   reportCount: number;
@@ -39,15 +50,30 @@ export function summarizeAccountRaidActivity(participation: Participation[], spe
     if (!row.characterId || row.reportCount <= 0) continue;
     const characterId = String(row.characterId);
     const characters = byRaid.get(row.zoneId) ?? new Map<string, AccountRaidActivity>();
-    const activity = characters.get(characterId);
-    if (activity) {
-      if (row.firstSeenAt < activity.firstSeenAt) activity.firstSeenAt = row.firstSeenAt;
-      if (row.lastSeenAt > activity.lastSeenAt) activity.lastSeenAt = row.lastSeenAt;
-      activity.reportCount += row.reportCount;
+    let activity = characters.get(characterId);
+    if (!activity) {
+      activity = { characterId, firstSeenAt: row.firstSeenAt, lastSeenAt: row.lastSeenAt, reportCount: 0, specs: [], guilds: [] };
+      characters.set(characterId, activity);
+    }
+    if (row.firstSeenAt < activity.firstSeenAt) activity.firstSeenAt = row.firstSeenAt;
+    if (row.lastSeenAt > activity.lastSeenAt) activity.lastSeenAt = row.lastSeenAt;
+    activity.reportCount += row.reportCount;
+
+    const guildId = String(row.reportGuildId);
+    const guild = activity.guilds.find((entry) => entry.id === guildId);
+    if (guild) {
+      if (row.firstSeenAt < guild.firstSeenAt) guild.firstSeenAt = row.firstSeenAt;
+      if (row.lastSeenAt > guild.lastSeenAt) guild.lastSeenAt = row.lastSeenAt;
+      guild.reportCount += row.reportCount;
     } else {
-      characters.set(characterId, { characterId, firstSeenAt: row.firstSeenAt, lastSeenAt: row.lastSeenAt, reportCount: row.reportCount, specs: [] });
+      activity.guilds.push({ id: guildId, name: row.reportGuildName, realm: row.reportGuildRealm, firstSeenAt: row.firstSeenAt, lastSeenAt: row.lastSeenAt, reportCount: row.reportCount });
     }
     byRaid.set(row.zoneId, characters);
+  }
+  for (const characters of byRaid.values()) {
+    for (const activity of characters.values()) {
+      activity.guilds.sort((a, b) => a.firstSeenAt.getTime() - b.firstSeenAt.getTime() || a.id.localeCompare(b.id));
+    }
   }
   for (const row of specEvidence) {
     const activity = byRaid.get(row.zoneId)?.get(String(row.characterId));
@@ -62,7 +88,7 @@ export async function getAccountRaidTimeline(characterIds: mongoose.Types.Object
   const [raids, participation, specs] = await Promise.all([
     Raid.find({ id: { $in: TRACKED_RAIDS } }).select("id name expansion iconUrl starts ends").lean(),
     CharacterRaidParticipation.find({ characterId: { $in: characterIds }, zoneId: { $in: TRACKED_RAIDS } })
-      .select("characterId zoneId firstSeenAt lastSeenAt reportCount").lean<Participation[]>(),
+      .select("characterId zoneId reportGuildId reportGuildName reportGuildRealm firstSeenAt lastSeenAt reportCount").lean<Participation[]>(),
     Ranking.aggregate<SpecEvidence>([
       { $match: { characterId: { $in: characterIds }, zoneId: { $in: TRACKED_RAIDS } } },
       { $project: { characterId: 1, zoneId: 1, specs: ["$specName", "$bestSpecName"] } },

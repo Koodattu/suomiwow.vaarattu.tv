@@ -2954,15 +2954,15 @@
       "minimumSpan": "Minimum span",
       "minimumDays": "{count}+ days",
       "allAppearances": "All appearances",
-      "gestures": "Scroll to zoom · Drag to pan · Select a bar for details",
       "noMatchingActivity": "No activity meets this minimum span. Choose All appearances to see brief visits.",
       "fit": "Fit history",
       "gap": "Inactive period compressed",
-      "inspect": "Hover or select a bar for character, spec, and raid details.",
+      "inspect": "Hover or select a bar for character, guild, spec, and raid details.",
       "empty": "No raid activity has been recorded for this account yet.",
       "unknownSpec": "Spec not recorded",
       "reports": "{count, plural, one {# report} other {# reports}}",
-      "legend": "One shared calendar. // marks compressed inactive periods. Bars span first to last recorded activity; spec icons reflect the tier’s rankings, not exact spec-switch dates."
+      "guilds": "Raided with",
+      "unknownGuild": "Guild not recorded"
     }
   },
   "raidAchievements": {

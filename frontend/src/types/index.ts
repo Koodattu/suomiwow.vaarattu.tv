@@ -3008,6 +3008,14 @@ export type AccountRaidTimeline = Array<{
     lastSeenAt: string;
     reportCount: number;
     specs: string[];
+    guilds: Array<{
+      id: string;
+      name: string;
+      realm: string;
+      firstSeenAt: string;
+      lastSeenAt: string;
+      reportCount: number;
+    }>;
   }>;
 }>;
 

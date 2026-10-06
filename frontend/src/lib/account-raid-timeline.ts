@@ -1,6 +1,7 @@
 import type { AccountRaidTimeline, CharacterAccountResponse, RegionDates } from "../types/index";
 
 const DAY = 86_400_000;
+const IGNORED_RAID_IDS = new Set([22, 50]); // Crucible of Storms, Sporefall
 type Range = { start: number; end: number };
 export type TimelineRaid = AccountRaidTimeline[number] & Range;
 export type TimelineScale = {
@@ -18,6 +19,7 @@ function timestamp(value?: string) {
 
 export function createAccountTimeline(raids: AccountRaidTimeline, region: string, compress = true, now = Date.now()): TimelineScale | null {
   const normalized = raids.flatMap((raid): TimelineRaid[] => {
+    if (IGNORED_RAID_IDS.has(raid.id)) return [];
     const observations = raid.characters.flatMap((character) => [timestamp(character.firstSeenAt), timestamp(character.lastSeenAt)])
       .filter((date): date is number => date !== null);
     const release = timestamp(raid.starts?.[region.toLowerCase() as keyof RegionDates]);

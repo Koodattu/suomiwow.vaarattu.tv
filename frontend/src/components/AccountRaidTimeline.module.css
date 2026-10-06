@@ -6,7 +6,6 @@
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
 .filter { display: flex; align-items: center; gap: 6px; margin-right: 8px; color: #94a3b8; font-size: 11px; }
 .filter select { background: #0e1420; color: #cbd5e1; border: 1px solid #273141; border-radius: 4px; padding: 5px; min-height: 30px; }
-.gestureHint { color: #64748b; font-size: 11px; margin-bottom: 6px; }
 .controls button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 5px 9px; border: 1px solid #273141; border-radius: 4px; font-size: 11px; color: #94a3b8; cursor: pointer; }
 .controls button:hover:not(:disabled) { color: #fff; border-color: #64748b; }
 .controls button:disabled { opacity: .3; cursor: default; }
@@ -33,14 +32,24 @@
 .barContent { display: flex; height: 100%; align-items: center; overflow: hidden; color: #080c13; }
 .barContent img { flex-shrink: 0; }
 .barContent > span { display: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 5px; font-size: 10px; font-weight: 600; }
-@container (min-width: 55px) { .barContent > span { display: block; } }
+.barContent > .barGuild { min-width: 0; align-items: center; gap: 4px; padding-left: 0; font-weight: 400; }
+.barGuild > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.guildCount { flex-shrink: 0; font-weight: 600; }
+@container (min-width: 55px) { .barContent > .barName { display: block; } }
+@container (min-width: 180px) {
+  .barContent > .barName { flex-shrink: 0; max-width: 45%; }
+  .barContent > .barGuild { display: flex; }
+}
 .inspection { min-height: 46px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 10px 0 5px; font-size: 12px; color: #94a3b8; }
 .inspection strong { color: #e2e8f0; font-weight: 600; }
 .inspection a { font-weight: 600; }
 .inspection a:hover { text-decoration: underline; }
 .specs, .specs > span { display: inline-flex; align-items: center; gap: 6px; }
 .specs { gap: 12px; flex-wrap: wrap; }
-.legend { color: #64748b; font-size: 11px; line-height: 1.6; margin-top: 4px; }
+.guilds { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; max-width: 100%; }
+.guild { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; min-width: 0; max-width: 100%; }
+.guild a { color: #cbd5e1; overflow-wrap: anywhere; }
+.guildDates { font-size: 10px; white-space: nowrap; }
 .empty { padding: 24px 0; color: #64748b; font-size: 13px; }
 .controls button:focus-visible, .filter select:focus-visible, .scroll:focus-visible, .inspection a:focus-visible, .raidBand:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
 @media (max-width: 640px) {

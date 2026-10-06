@@ -2954,15 +2954,15 @@
       "minimumSpan": "Vähimmäiskesto",
       "minimumDays": "{count}+ päivää",
       "allAppearances": "Kaikki havainnot",
-      "gestures": "Zoomaa vierittämällä · Siirry vetämällä · Valitse palkki nähdäksesi tiedot",
       "noMatchingActivity": "Mikään havaintojakso ei täytä vähimmäiskestoa. Näet lyhyet käynnit valitsemalla Kaikki havainnot.",
       "fit": "Sovita historia",
       "gap": "Tauko tiivistetty",
-      "inspect": "Vie osoitin palkin päälle tai valitse se nähdäksesi hahmon, spekin ja raidin tiedot.",
+      "inspect": "Vie osoitin palkin päälle tai valitse se nähdäksesi hahmon, killan, spekin ja raidin tiedot.",
       "empty": "Tälle tilille ei ole vielä kirjattu raiditoimintaa.",
       "unknownSpec": "Spekkiä ei ole kirjattu",
       "reports": "{count, plural, one {# raportti} other {# raporttia}}",
-      "legend": "Yhteinen aika-asteikko. // merkitsee tiivistettyä taukoa. Palkit ulottuvat ensimmäisestä viimeiseen kirjattuun havaintoon. Spekkikuvakkeet perustuvat tason rankingeihin, eivät spekinvaihtojen tarkkoihin ajankohtiin."
+      "guilds": "Raidannut kiltojen kanssa",
+      "unknownGuild": "Kiltaa ei ole kirjattu"
     }
   },
   "raidAchievements": {
