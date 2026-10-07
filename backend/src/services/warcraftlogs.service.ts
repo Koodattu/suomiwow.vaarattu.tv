@@ -263,6 +263,7 @@ class WarcraftLogsService {
     retryOnGatewayTimeout: boolean = false,
     serverErrorRetries: number = 0,
     tracking: WclQueryTrackingOptions = {},
+    authenticationRetried: boolean = false,
   ): Promise<T> {
     // A WCL 429 is authoritative for its credential bucket. Check shared state
     // before every request so the API and worker processes honor it together.
@@ -287,6 +288,18 @@ class WarcraftLogsService {
       body: JSON.stringify({ query, variables }),
     }, `${endpoint} API`);
 
+    if (response.status === 401 && endpoint === "client") {
+      // A delayed failure must not discard a token refreshed by another request.
+      if (this.accessToken === token) {
+        this.accessToken = null;
+        this.tokenExpiry = 0;
+      }
+      if (!authenticationRetried) {
+        logger.warn("WCL client API returned 401; refreshing authentication and retrying once");
+        return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries, tracking, true);
+      }
+    }
+
     // Handle rate limiting with retry
     if (response.status === 429) {
       const retryAfter = response.headers.get("Retry-After");
@@ -298,21 +311,21 @@ class WarcraftLogsService {
       );
       if (tracking.onRateLimit) tracking.onRateLimit();
       await rateLimitService.waitForHardLimit(endpoint);
-      return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries, tracking); // Retry the request
+      return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries, tracking, authenticationRetried); // Retry the request
     }
 
     // Handle gateway timeouts with infinite retry (only for initial fetch)
     if (retryOnGatewayTimeout && (response.status === 504 || response.statusText === "Gateway Time-out")) {
       logger.warn(`⚠️  Gateway timeout from WCL API! Retrying in 15 seconds...`);
       await new Promise((resolve) => setTimeout(resolve, 15000)); // Wait 15 seconds
-      return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries, tracking); // Retry the request
+      return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries, tracking, authenticationRetried); // Retry the request
     }
 
     if (response.status >= 500 && response.status < 600 && serverErrorRetries > 0) {
       const waitTime = (4 - serverErrorRetries) * 2000;
       logger.warn(`⚠️  WCL API ${response.status} ${response.statusText}; retrying in ${waitTime}ms (${serverErrorRetries} retries left)`);
       await new Promise((resolve) => setTimeout(resolve, waitTime));
-      return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries - 1, tracking);
+      return this.queryEndpoint<T>(endpoint, query, variables, retryOnGatewayTimeout, serverErrorRetries - 1, tracking, authenticationRetried);
     }
 
     if (!response.ok) {
