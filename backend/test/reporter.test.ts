@@ -453,7 +453,7 @@ test("Reporter writes Finnish first, translates it to English and totals both Op
     assert.equal(result.usage.inputTokens, 800);
     assert.equal(result.usage.outputTokens, 300);
     assert.equal(result.usage.totalTokens, 1_100);
-    assert.equal(REPORTER_CONFIG.promptVersion, "reporter-v6");
+    assert.equal(REPORTER_CONFIG.promptVersion, "reporter-v7");
   } finally {
     global.fetch = originalFetch;
     if (originalApiKey === undefined) delete process.env.OPENAI_API_KEY;
