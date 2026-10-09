@@ -11,7 +11,7 @@ import Raid, { RegionDates } from "../models/Raid";
 import Report from "../models/Report";
 import ReportOverride from "../models/ReportOverride";
 import ProcessorState from "../models/ProcessorState";
-import { isSameMechanicPull, mechanicClassId, mechanicIdentity, MechanicCollectionPaused } from "../utils/avoidable-damage";
+import { groupMechanicPulls, mechanicClassId, mechanicIdentity, MechanicCollectionPaused } from "../utils/avoidable-damage";
 import logger from "../utils/logger";
 import { classifyError, ErrorType } from "../utils/error-classifier";
 import { normalizeRealmSlug } from "../utils/realm";
@@ -131,7 +131,7 @@ class AvoidableDamageService {
     if (!mechanics.length) return;
     const [fights, raids, reports, existing, policies] = await Promise.all([
       Fight.find({ guildId: queue.guildId, difficulty: 5, $or: mechanics.map((entry) => ({ zoneId: entry.zoneId, encounterID: entry.encounterId })) })
-        .select("_id reportCode fightId zoneId encounterID timestamp reportStartTime fightStartTime duration isKill").sort({ timestamp: 1, reportCode: 1, fightId: 1 }).lean(),
+        .select("_id reportCode fightId zoneId encounterID timestamp reportStartTime fightStartTime duration isKill bossPercentage combatants.name combatants.server combatantInfoRosterComplete").sort({ timestamp: 1, reportCode: 1, fightId: 1 }).lean(),
       Raid.find({ id: { $in: mechanics.map((entry) => entry.zoneId) } }).select("id starts ends").lean(),
       Report.find({ guildId: queue.guildId, isOngoing: false }).select("code sourceGuildSnapshot.region").lean(),
       AvoidableDamageFight.find({ guildId: queue.guildId, $or: currentVersions(mechanics) }).select("sourceFightId mechanicKey status version").lean(),
@@ -150,14 +150,8 @@ class AvoidableDamageService {
           reportAllowedForGuild(policyByCode.get(fight.reportCode) ?? null, queue.guildId) &&
           isWithinMechanicTier(fight.reportStartTime + fight.fightStartTime, report.sourceGuildSnapshot?.region ?? guild.region, raid);
       });
-      // Same physical pull uploaded more than once: prefer an already fetched copy.
-      // Equal duration alone is never a duplicate. Only compare adjacent clock times.
-      const groups: typeof candidates[] = [];
-      for (const fight of candidates) {
-        const group = groups[groups.length - 1];
-        if (group && isSameMechanicPull(group[0], fight)) group.push(fight);
-        else groups.push([fight]);
-      }
+      // Keep one already fetched copy of each confidently matched physical pull.
+      const groups = groupMechanicPulls(candidates);
       for (const group of groups) {
         const canonical = group.find((fight) => statusByKey.get(`${fight._id}:${mechanic.key}`) === "fetched") ?? group[0];
         for (const fight of group) {
