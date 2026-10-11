@@ -4,9 +4,11 @@ import { useRef, type MouseEvent } from "react";
 import { FaExternalLinkAlt } from "react-icons/fa";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PullHistoryEntry } from "@/types";
-import { formatPercent, formatPhaseDisplay } from "@/lib/utils";
+import { formatPercent } from "@/lib/utils";
+import { formatPullProgressLabel } from "@/lib/pull-progress-label";
 
 interface PullProgressChartProps {
+  bossId: number;
   pullHistory: PullHistoryEntry[];
 }
 
@@ -18,6 +20,7 @@ type PullTooltipPayload = {
 };
 
 type PullTooltipProps = {
+  bossId: number;
   active?: boolean;
   payload?: PullTooltipPayload[];
 };
@@ -60,10 +63,9 @@ function formatDuration(seconds?: number) {
   return `${minutes}m ${remainingSeconds}s`;
 }
 
-function getProgressLabel(pull: PullHistoryEntry) {
+function getProgressLabel(pull: PullHistoryEntry, bossId: number) {
   if (pull.isKill) return "Kill";
-  if (pull.progressDisplay) return formatPhaseDisplay(pull.progressDisplay);
-  return pull.progressPercentage === null ? "-" : formatPercent(pull.progressPercentage);
+  return formatPullProgressLabel({ ...pull, bossId });
 }
 
 function hasUsableBossPercentage(pull: PullHistoryEntry): pull is PullHistoryEntry & { bossPercentage: number } {
@@ -76,7 +78,7 @@ function hasUsableBossPercentage(pull: PullHistoryEntry): pull is PullHistoryEnt
   );
 }
 
-function PullTooltip({ active, payload }: PullTooltipProps) {
+function PullTooltip({ active, payload, bossId }: PullTooltipProps) {
   const pull = payload?.[0]?.payload;
   if (!active || !pull) return null;
 
@@ -87,7 +89,7 @@ function PullTooltip({ active, payload }: PullTooltipProps) {
     <div className="min-w-44 rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-xs shadow-xl">
       <div className="mb-1 flex items-center justify-between gap-3">
         <span className="font-semibold text-white">Pull {pull.pullNumber}</span>
-        <span className={pull.isKill ? "font-semibold text-green-400" : "font-semibold text-blue-300"}>{getProgressLabel(pull)}</span>
+        <span className={pull.isKill ? "font-semibold text-green-400" : "font-semibold text-blue-300"}>{getProgressLabel(pull, bossId)}</span>
       </div>
       <div className="space-y-0.5 text-gray-400">
         {(pull.isKill || pull.progressSource === "fight") && (
@@ -126,7 +128,7 @@ function PullTooltip({ active, payload }: PullTooltipProps) {
   );
 }
 
-export default function PullProgressChart({ pullHistory }: PullProgressChartProps) {
+export default function PullProgressChart({ pullHistory, bossId }: PullProgressChartProps) {
   const activePullRef = useRef<PullHistoryEntry | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -260,7 +262,7 @@ export default function PullProgressChart({ pullHistory }: PullProgressChartProp
             width={42}
             tickFormatter={(value: number) => `${value}%`}
           />
-          <Tooltip content={<PullTooltip />} cursor={{ stroke: "#6B7280", strokeDasharray: "3 3" }} />
+          <Tooltip content={<PullTooltip bossId={bossId} />} cursor={{ stroke: "#6B7280", strokeDasharray: "3 3" }} />
           <Line
             type="linear"
             dataKey="progressPercentage"

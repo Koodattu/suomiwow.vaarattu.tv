@@ -1,4 +1,5 @@
 import type { RaidProgressSummary } from "@/types";
+import { formatPullProgressLabel } from "./pull-progress-label";
 
 export type PullProgressDisplay = {
   pulls: number;
@@ -28,7 +29,12 @@ export function getPullProgressDisplay(progress: RaidProgressSummary | null): Pu
     return {
       pulls: currentBossPulls,
       bestPull: bestPullPercent,
-      bestPullDisplay,
+      bestPullDisplay: formatPullProgressLabel({
+        bossId: progress?.currentBossId,
+        bossPercentage: progress?.bestPullBossHealth !== undefined ? progress.bestPullBossHealth : progress?.bestPullPhase?.bossHealth,
+        progressPercentage: bestPullPercent < 100 || progress?.bestPullPhase ? bestPullPercent : null,
+        phase: progress?.bestPullPhase?.phaseName || bestPullDisplay,
+      }),
       isKilledBoss: false,
     };
   }

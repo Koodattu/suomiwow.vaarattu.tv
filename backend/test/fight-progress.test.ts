@@ -1,6 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveFightProgress } from "../src/utils/fight-progress";
+import { getBestPullBossHealth, resolveFightProgress } from "../src/utils/fight-progress";
+
+test("summary health comes from the selected pull, even without phase metadata", () => {
+  assert.equal(getBestPullBossHealth({
+    bestPullReportCode: "best", bestPullFightId: 22,
+    pullHistory: [
+      { pullNumber: 1, reportCode: "other", fightId: 22, bossPercentage: 1, fightPercentage: 80, isKill: false },
+      { pullNumber: 2, reportCode: "best", fightId: 22, bossPercentage: 24.85, fightPercentage: 10.56, isKill: false },
+    ],
+  }), 24.85);
+});
+
+test("summary health uses legacy phase metadata only when the selected history entry is absent", () => {
+  const phase = { phaseId: 4, phaseName: "Stage Three", bossHealth: 24.85, fightCompletion: 10.56, displayString: "24.9% P3" };
+  assert.equal(getBestPullBossHealth({ bestPullPhase: phase }), 24.85);
+  assert.equal(getBestPullBossHealth(), null);
+  for (const invalid of [undefined, 0, -1, 155, NaN, Infinity]) {
+    assert.equal(getBestPullBossHealth({
+      bestPullReportCode: "best", bestPullFightId: 22, bestPullPhase: phase,
+      pullHistory: [{ pullNumber: 1, reportCode: "best", fightId: 22, bossPercentage: invalid, fightPercentage: 10.56, isKill: false }],
+    }), null);
+  }
+});
 
 test("resolves kills to zero regardless of reported percentages", () => {
   assert.deepEqual(resolveFightProgress({ isKill: true, fightPercentage: 42, bossPercentage: 37 }), {

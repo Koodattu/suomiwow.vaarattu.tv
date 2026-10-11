@@ -134,6 +134,7 @@ export interface BossProgress {
   bossName: string;
   kills: number;
   bestPercent: number; // Best pull: lowest resolved fight/boss progress % reached (0 = kill, 100 = no progress)
+  bestPullBossHealth?: number | null;
   pullCount: number;
   timeSpent: number;
   firstKillTime?: string;
@@ -162,6 +163,8 @@ export interface RaidProgressSummary {
   currentBossPulls: number;
   totalPulls?: number | null; // Combined pulls when every boss has logged kill data
   bestPullPercent: number;
+  currentBossId?: number;
+  bestPullBossHealth?: number | null;
   bestPullPhase?: BestPullPhase;
   lastKillTime?: string | null; // Timestamp of the most recent boss kill
   lastKilledBossPulls?: number; // Pull count for the most recently defeated boss

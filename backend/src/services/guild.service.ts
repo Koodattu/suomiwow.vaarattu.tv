@@ -41,7 +41,7 @@ import guildProfileHighlightsService from "./guild-profile-highlights.service";
 import guildLogSourceService, { getGuildLogSourceSnapshot } from "./guild-log-source.service";
 import { yieldToEventLoop } from "../utils/yield";
 import { findDuplicateFight } from "../utils/fight-deduplication";
-import { resolveFightProgress } from "../utils/fight-progress";
+import { getBestPullBossHealth, resolveFightProgress } from "../utils/fight-progress";
 
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
 
@@ -5540,6 +5540,8 @@ class GuildService {
           currentBossPulls: currentBoss?.pullCount || 0,
           totalPulls: this.getTotalPullsForSummary(p.bosses, p.totalBosses),
           bestPullPercent: currentBoss?.bestPercent || 0,
+          currentBossId: currentBoss?.bossId,
+          bestPullBossHealth: getBestPullBossHealth(currentBoss),
           bestPullPhase: currentBoss?.bestPullPhase,
           lastKillTime: lastKilledBoss?.firstKillTime || null,
           lastKilledBossPulls: lastKilledBoss?.pullCount || 0,
@@ -5691,6 +5693,7 @@ class GuildService {
 
           return {
             ...bossWithoutHistory,
+            bestPullBossHealth: getBestPullBossHealth(boss),
             bestVodLinks: vodTarget ? vodLinksByFight.get(`${vodTarget.reportCode}:${vodTarget.fightId}`) || [] : [],
           };
         }),
@@ -5726,6 +5729,7 @@ class GuildService {
 
           return {
             ...bossWithoutHistory,
+            bestPullBossHealth: getBestPullBossHealth(boss),
             bestVodLinks: vodTarget ? vodLinksByFight.get(`${vodTarget.reportCode}:${vodTarget.fightId}`) || [] : [],
           };
         }),
@@ -6232,6 +6236,8 @@ class GuildService {
         currentBossPulls: currentBoss?.pullCount || 0,
         totalPulls: this.getTotalPullsForSummary(p.bosses, p.totalBosses),
         bestPullPercent: currentBoss?.bestPercent || 0,
+        currentBossId: currentBoss?.bossId,
+        bestPullBossHealth: getBestPullBossHealth(currentBoss),
         bestPullPhase: currentBoss?.bestPullPhase,
         lastKillTime: lastKilledBoss?.firstKillTime || null,
         lastKilledBossPulls: lastKilledBoss?.pullCount || 0,
@@ -6306,6 +6312,8 @@ class GuildService {
         currentBossPulls: currentBoss?.pullCount || 0,
         totalPulls: this.getTotalPullsForSummary(p.bosses, p.totalBosses),
         bestPullPercent: currentBoss?.bestPercent || 0,
+        currentBossId: currentBoss?.bossId,
+        bestPullBossHealth: getBestPullBossHealth(currentBoss),
         bestPullPhase: currentBoss?.bestPullPhase,
         lastKillTime: lastKilledBoss?.firstKillTime || null,
         lastKilledBossPulls: lastKilledBoss?.pullCount || 0,

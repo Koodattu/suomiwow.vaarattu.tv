@@ -6,10 +6,11 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { FaDice, FaExternalLinkAlt, FaTwitch } from "react-icons/fa";
 import { Guild, RaidProgress, BossProgress, RaidInfo, Boss, WorldRankHistoryEntry, BossBestPull, RaidSchedule } from "@/types";
-import { formatTime, formatPercent, getDifficultyColor, getKillLogUrl, formatPhaseDisplay, getGuildProfileUrl, getRaiderIOGuildUrl } from "@/lib/utils";
+import { formatTime, getDifficultyColor, getKillLogUrl, getGuildProfileUrl, getRaiderIOGuildUrl } from "@/lib/utils";
 import IconImage from "./IconImage";
 import GuildCrest from "./GuildCrest";
 import PullProgressChart from "./PullProgressChart";
+import { formatBossProgressLabel, formatPullProgressLabel } from "@/lib/pull-progress-label";
 import PhaseDistributionChart from "./PhaseDistributionChart";
 import { useBossPullHistory } from "@/lib/queries";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
@@ -286,7 +287,7 @@ function WorldRankHistorySection({ history }: { history: WorldRankHistoryEntry[]
   );
 }
 
-function BestPullCards({ pulls }: { pulls: BossBestPull[] }) {
+function BestPullCards({ pulls, bossId }: { pulls: BossBestPull[]; bossId: number }) {
   if (!pulls || pulls.length === 0) return null;
 
   const sortedPulls = [...pulls].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -304,8 +305,7 @@ function BestPullCards({ pulls }: { pulls: BossBestPull[] }) {
 
   const getProgressLabel = (pull: BossBestPull) => {
     if (pull.isKill) return "Kill";
-    if (pull.progressDisplay) return formatPhaseDisplay(pull.progressDisplay);
-    return pull.progressPercentage === null ? "-" : formatPercent(pull.progressPercentage);
+    return formatPullProgressLabel({ ...pull, bossId });
   };
 
   return (
@@ -395,15 +395,15 @@ function BossPullHistoryContent({
   }
 
   if (!hasPullHistory) {
-    return <BestPullCards pulls={bestPulls} />;
+    return <BestPullCards pulls={bestPulls} bossId={bossId} />;
   }
 
   if (variant === "mobile") {
     return (
       <>
-        <PullProgressChart pullHistory={pullHistory} />
+        <PullProgressChart pullHistory={pullHistory} bossId={bossId} />
         {phaseDistribution && phaseDistribution.length > 1 && <PhaseDistributionChart phaseDistribution={phaseDistribution} />}
-        <BestPullCards pulls={bestPulls} />
+        <BestPullCards pulls={bestPulls} bossId={bossId} />
       </>
     );
   }
@@ -411,10 +411,10 @@ function BossPullHistoryContent({
   return (
     <div className="space-y-2">
       <div className={`grid grid-cols-1 gap-1.5 items-start ${phaseDistribution && phaseDistribution.length > 1 ? "xl:grid-cols-[6fr_1fr]" : ""}`}>
-        <PullProgressChart pullHistory={pullHistory} />
+        <PullProgressChart pullHistory={pullHistory} bossId={bossId} />
         {phaseDistribution && phaseDistribution.length > 1 && <PhaseDistributionChart phaseDistribution={phaseDistribution} />}
       </div>
-      <BestPullCards pulls={bestPulls} />
+      <BestPullCards pulls={bestPulls} bossId={bossId} />
     </div>
   );
 }
@@ -523,13 +523,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
             </div>
             <div className="text-center min-w-7">
               <div className={isDefeated ? "text-green-400" : "text-gray-300"}>
-                {isDefeated
-                  ? "✓"
-                  : boss.bestPullPhase?.displayString
-                    ? formatPhaseDisplay(boss.bestPullPhase.displayString)
-                    : boss.bestPercent < 100
-                      ? formatPercent(boss.bestPercent)
-                      : "-"}
+                {isDefeated ? "✓" : formatBossProgressLabel(boss)}
               </div>
               <div className="text-[9px] text-gray-500">best</div>
             </div>
@@ -593,12 +587,8 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
           <td className="px-2 md:px-4 py-2 md:py-3 text-center text-xs md:text-sm">
             {isDefeated ? (
               <span className="text-green-400">✓</span>
-            ) : boss.bestPullPhase?.displayString ? (
-              <span className="text-gray-300 font-medium">{formatPhaseDisplay(boss.bestPullPhase.displayString)}</span>
-            ) : boss.bestPercent < 100 ? (
-              <span className="text-gray-300">{formatPercent(boss.bestPercent)}</span>
             ) : (
-              <span className="text-gray-500">-</span>
+              <span className="text-gray-300 font-medium">{formatBossProgressLabel(boss)}</span>
             )}
           </td>
           <td className="px-2 md:px-4 py-2 md:py-3 text-center text-xs md:text-sm text-gray-300">{boss.timeSpent > 0 ? formatTime(boss.timeSpent) : "-"}</td>
