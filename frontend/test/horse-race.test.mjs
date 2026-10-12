@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildEntries, buildVisibleRaces } from "../src/lib/horse-race.ts";
+import { buildEntries, buildCombinedRace } from "../src/lib/horse-race.ts";
 
 function guild(id, summary = {}, boss = {}) {
   return {
@@ -54,19 +54,74 @@ test("final race retains its existing eligibility and current-boss progress", ()
   assert.deepEqual(race.finished.map((entry) => entry.id), ["cleared"]);
 });
 
-test("Show and Hide settings apply to both races, only for the current raid", () => {
-  const guilds = [guild("one")];
-  assert.deepEqual(buildVisibleRaces(guilds, 1, 1, "show").map((race) => race.target), ["final", "penultimate"]);
-  assert.deepEqual(buildVisibleRaces(guilds, 1, 1, "hide"), []);
-  assert.deepEqual(buildVisibleRaces(guilds, 1, 2, "show"), []);
-  assert.deepEqual(buildVisibleRaces(guilds, null, 1, "show"), []);
-  assert.deepEqual(buildVisibleRaces([guild("old payload", { penultimateBoss: undefined })], 1, 1, "show").map((race) => race.target), ["final"]);
+test("combined race places each guild once across start, both bosses, pit stop, and finish", () => {
+  const race = buildCombinedRace([
+    guild("waiting", { currentBossPulls: 0 }, { pullCount: 0 }),
+    guild("coiled altar", {}, { bestPercent: 40 }),
+    guild("pit stop", { bossesDefeated: 3, currentBossPulls: 0 }, { kills: 1 }),
+    guild("ulatek", { bossesDefeated: 3, bestPullPercent: 25 }, { kills: 1 }),
+    guild("cleared", { bossesDefeated: 4 }, { kills: 1 }),
+    guild("too early", {}, { eligible: false }),
+  ], 1, 1, "show");
+  assert.deepEqual(race.notStarted.map((entry) => entry.id), ["waiting"]);
+  assert.deepEqual(race.penultimate.map((entry) => entry.id), ["coiled altar"]);
+  assert.equal(race.penultimate[0].bossHealth, 40);
+  assert.deepEqual(race.pitStop.map((entry) => entry.id), ["pit stop"]);
+  assert.equal(race.pitStop[0].isFinished, false);
+  assert.deepEqual(race.final.map((entry) => entry.id), ["ulatek"]);
+  assert.equal(race.final[0].bossHealth, 25);
+  assert.deepEqual(race.finished.map((entry) => entry.id), ["cleared"]);
+  const ids = Object.values(race).flat().map((entry) => entry.id);
+  assert.equal(ids.length, 5);
+  assert.equal(new Set(ids).size, 5);
 });
 
-test("Auto independently starts and ends each boss race", () => {
-  assert.deepEqual(buildVisibleRaces([guild("one")], 1, 1, "auto"), []);
-  assert.deepEqual(buildVisibleRaces([guild("one"), guild("two")], 1, 1, "auto").map((race) => race.target), ["penultimate"]);
-  const finishers = Array.from({ length: 11 }, (_, i) => guild(`guild ${i}`, { bossesDefeated: 3 }, { kills: 1 }));
-  assert.deepEqual(buildVisibleRaces(finishers, 1, 1, "auto").map((race) => race.target), ["final"]);
-  assert.deepEqual(buildVisibleRaces([...finishers, guild("one"), guild("two"), guild("three")], 1, 1, "auto").map((race) => race.target), ["final", "penultimate"]);
+test("a guild advances from the first half through the pit stop to the finish", () => {
+  const stages = [
+    [guild("one"), "penultimate"],
+    [guild("one", { bossesDefeated: 3, currentBossPulls: 0 }, { kills: 1 }), "pitStop"],
+    [guild("one", { bossesDefeated: 3, currentBossPulls: 1, bestPullPercent: 99 }, { kills: 1 }), "final"],
+    [guild("one", { bossesDefeated: 4 }, { kills: 1 }), "finished"],
+  ];
+  for (const [entry, stage] of stages) {
+    const race = buildCombinedRace([entry], 1, 1, "show");
+    assert.equal(race[stage][0].id, "one");
+    assert.equal(Object.values(race).flat().length, 1);
+  }
+});
+
+test("known second-to-last kills wait at the pit even with incomplete aggregate progress", () => {
+  const race = buildCombinedRace([guild("one", { bossesDefeated: 2, currentBossPulls: 0 }, { kills: 1 })], 1, 1, "show");
+  assert.deepEqual(race.pitStop.map((entry) => entry.id), ["one"]);
+  assert.equal(race.finished.length, 0);
+});
+
+test("combined finish ranks use final kills and never penultimate kill order", () => {
+  const race = buildCombinedRace([
+    guild("second", { bossesDefeated: 4, lastKillTime: "2026-09-09T18:00:00Z" }, { kills: 1, firstKillTime: "2026-09-01T18:00:00Z" }),
+    guild("first", { bossesDefeated: 4, lastKillTime: "2026-09-05T18:00:00Z" }, { kills: 1, firstKillTime: "2026-09-02T18:00:00Z" }),
+  ], 1, 1, "show");
+  assert.deepEqual(race.finished.map((entry) => entry.id), ["first", "second"]);
+  assert.equal(race.pitStop.length, 0);
+});
+
+test("Show and Hide apply to the combined race, only for the current raid", () => {
+  const guilds = [guild("one")];
+  assert.ok(buildCombinedRace(guilds, 1, 1, "show"));
+  assert.equal(buildCombinedRace(guilds, 1, 1, "hide"), null);
+  assert.equal(buildCombinedRace(guilds, 1, 2, "show"), null);
+  assert.equal(buildCombinedRace(guilds, null, 1, "show"), null);
+  const oldPayload = buildCombinedRace([guild("old payload", { penultimateBoss: undefined, bossesDefeated: 3 })], 1, 1, "show");
+  assert.equal(oldPayload.penultimate.length, 0);
+  assert.equal(oldPayload.final.length, 1);
+});
+
+test("Auto counts distinct guilds and keeps the race open while either boss has contenders", () => {
+  assert.equal(buildCombinedRace([guild("one", { bossesDefeated: 3 }, { kills: 1 })], 1, 1, "auto"), null);
+  assert.ok(buildCombinedRace([guild("one"), guild("two")], 1, 1, "auto"));
+  const penultimateFinishers = Array.from({ length: 11 }, (_, i) => guild(`guild ${i}`, { bossesDefeated: 3, currentBossPulls: 0 }, { kills: 1 }));
+  assert.ok(buildCombinedRace(penultimateFinishers, 1, 1, "auto"));
+  const finishers = Array.from({ length: 11 }, (_, i) => guild(`guild ${i}`, { bossesDefeated: 4 }, { kills: 1 }));
+  assert.equal(buildCombinedRace([...finishers, guild("one"), guild("two")], 1, 1, "auto"), null);
+  assert.ok(buildCombinedRace([...finishers, guild("one"), guild("two"), guild("three")], 1, 1, "auto"));
 });

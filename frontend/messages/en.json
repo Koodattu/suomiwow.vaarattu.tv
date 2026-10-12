@@ -1,5 +1,10 @@
 {
   "horseRace": {
+    "label": "Race through the final two bosses",
+    "start": "Start",
+    "finish": "Finish",
+    "pitStop": "Pit stop",
+    "pitStopDescription": "Second-to-last boss defeated; waiting to start the final boss",
     "final": "Final boss race",
     "penultimate": "Second-to-last boss race"
   },

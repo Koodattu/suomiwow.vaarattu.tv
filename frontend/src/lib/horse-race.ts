@@ -18,14 +18,15 @@ export interface RaceEntry {
 
 type BaseRaceEntry = Omit<RaceEntry, "displayProgress" | "labelPosition">;
 
-const TRACK_MIN = 3;
-const TRACK_MAX = 97;
+const TRACK_MIN = 12;
+const TRACK_MAX = 88;
 const DENSE_GAP_THRESHOLD = 4.75;
 const EMPTY_GAP_THRESHOLD = 13;
 const DENSE_GAP_STRETCH = 0.58;
 const EMPTY_GAP_TIGHTEN = 0.1;
-const MIN_VISUAL_GAP = 2.4;
-const LABEL_COLLISION_THRESHOLD = 8;
+// Each boss now occupies half a track; leave space for alternating 80px labels.
+const MIN_VISUAL_GAP = 12;
+const LABEL_COLLISION_THRESHOLD = 24;
 const AUTO_SHOW_MIN_GUILDS = 2;
 const AUTO_HIDE_MIN_CLEARS = 11;
 const AUTO_HIDE_MAX_CONTENDERS = 2;
@@ -224,11 +225,21 @@ export function shouldShowRace(visibility: HorseRaceVisibility, contenderCount: 
   return raceHasStarted && !raceHasEnded;
 }
 
-export function buildVisibleRaces(guilds: GuildListItem[], selectedRaidId: number | null, currentRaidId: number | null, visibility: HorseRaceVisibility) {
-  if (!selectedRaidId || selectedRaidId !== currentRaidId || visibility === "hide") return [];
+// A guild occupies one stage only. Final-boss data wins once it has moved on.
+export function buildCombinedRace(guilds: GuildListItem[], selectedRaidId: number | null, currentRaidId: number | null, visibility: HorseRaceVisibility) {
+  if (!selectedRaidId || selectedRaidId !== currentRaidId || visibility === "hide") return null;
 
-  return (["final", "penultimate"] as const)
-    .filter((target) => target === "final" || guilds.some((guild) => getMythicProgress(guild, selectedRaidId)?.penultimateBoss))
-    .map((target) => ({ target, ...buildEntries(guilds, selectedRaidId, target) }))
-    .filter((race) => shouldShowRace(visibility, race.notStarted.length + race.unfinished.length, race.finished.length));
+  const penultimateRace = buildEntries(guilds, selectedRaidId, "penultimate");
+  const finalRace = buildEntries(guilds, selectedRaidId, "final");
+  const finalGuildIds = new Set([...finalRace.notStarted, ...finalRace.unfinished, ...finalRace.finished].map((entry) => entry.id));
+  const stillOnPenultimate = (entry: RaceEntry) => !finalGuildIds.has(entry.id);
+  const race = {
+    notStarted: penultimateRace.notStarted.filter(stillOnPenultimate),
+    penultimate: penultimateRace.unfinished.filter(stillOnPenultimate),
+    pitStop: [...finalRace.notStarted, ...penultimateRace.finished.filter(stillOnPenultimate)].map((entry) => ({ ...entry, isFinished: false })),
+    final: finalRace.unfinished,
+    finished: finalRace.finished,
+  };
+  const contenderCount = race.notStarted.length + race.penultimate.length + race.pitStop.length + race.final.length;
+  return shouldShowRace(visibility, contenderCount, race.finished.length) ? race : null;
 }

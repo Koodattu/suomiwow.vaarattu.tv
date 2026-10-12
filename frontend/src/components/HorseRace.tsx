@@ -9,7 +9,7 @@ import { useHorseRaceMode, HorseRaceMode } from "@/lib/horse-race-preferences";
 import { isUmaImage, UMA_IMAGES, UmaImage } from "@/lib/uma-images";
 import { GuildCrest as GuildCrestType, GuildListItem } from "@/types";
 
-import { buildEntries, buildVisibleRaces, type RaceEntry } from "@/lib/horse-race";
+import { buildCombinedRace, type RaceEntry } from "@/lib/horse-race";
 
 interface HorseRaceProps {
   guilds: GuildListItem[];
@@ -22,7 +22,7 @@ type HorseRaceDisplayMode = Exclude<HorseRaceMode, "random">;
 type RandomHorseRaceMode = HorseRaceDisplayMode;
 const FINISHED_SLOT_WIDTH = 58;
 const START_WIDTH = 34;
-const MIN_TRACK_WIDTH = 680;
+const MIN_TRACK_WIDTH = 420;
 const HORSE_RACER_SRC = "/horse/racer.png";
 const RANDOM_HORSE_RACE_MODES: RandomHorseRaceMode[] = ["crest", "japanese", "uma"];
 const EMPTY_RESERVED_UMA_IMAGES: string[] = [];
@@ -254,7 +254,6 @@ function assignUmaImages(entries: RaceEntry[], umaDeck: UmaImage[], reservedUmaI
 }
 
 export default function HorseRace({ guilds, selectedRaidId, currentRaidId, reservedUmaImages = EMPTY_RESERVED_UMA_IMAGES }: HorseRaceProps) {
-  const t = useTranslations("horseRace");
   const { mode, visibility, showCharacters, showBackground } = useHorseRaceMode();
   const [randomMode] = useState<RandomHorseRaceMode>(() => getRandomHorseRaceMode());
   const activeMode: HorseRaceDisplayMode = mode === "random" ? randomMode : mode;
@@ -266,42 +265,40 @@ export default function HorseRace({ guilds, selectedRaidId, currentRaidId, reser
     }
   }, [activeMode]);
 
-  const races = useMemo(() => buildVisibleRaces(guilds, selectedRaidId, currentRaidId, visibility), [currentRaidId, guilds, selectedRaidId, visibility]);
+  const race = useMemo(() => buildCombinedRace(guilds, selectedRaidId, currentRaidId, visibility), [currentRaidId, guilds, selectedRaidId, visibility]);
   const umaAssignments = useMemo(() => {
-    const entries = new Map(races.flatMap((race) => [...race.notStarted, ...race.unfinished, ...race.finished]).map((entry) => [entry.id, entry]));
-    return assignUmaImages([...entries.values()], umaDeck, reservedUmaImages);
-  }, [races, reservedUmaImages, umaDeck]);
+    const entries = race ? [...race.notStarted, ...race.penultimate, ...race.pitStop, ...race.final, ...race.finished] : [];
+    return assignUmaImages(entries, umaDeck, reservedUmaImages);
+  }, [race, reservedUmaImages, umaDeck]);
+
+  if (!race) return null;
 
   return (
-    <>
-      {races.map((race) => (
-        <RaceTrack
-          key={race.target}
-          race={race}
-          title={t(race.target)}
-          activeMode={activeMode}
-          showCharacters={showCharacters}
-          showBackground={showBackground}
-          umaAssignments={umaAssignments}
-          fallbackUmaImage={umaDeck[0]}
-        />
-      ))}
-    </>
+    <RaceTrack
+      race={race}
+      activeMode={activeMode}
+      showCharacters={showCharacters}
+      showBackground={showBackground}
+      umaAssignments={umaAssignments}
+      fallbackUmaImage={umaDeck[0]}
+    />
   );
 }
 
-function RaceTrack({ race, title, activeMode, showCharacters, showBackground, umaAssignments, fallbackUmaImage }: {
-  race: ReturnType<typeof buildEntries>;
-  title: string;
+function RaceTrack({ race, activeMode, showCharacters, showBackground, umaAssignments, fallbackUmaImage }: {
+  race: NonNullable<ReturnType<typeof buildCombinedRace>>;
   activeMode: HorseRaceDisplayMode;
   showCharacters: boolean;
   showBackground: boolean;
   umaAssignments: Map<string, UmaImage>;
   fallbackUmaImage: UmaImage;
 }) {
+  const t = useTranslations("horseRace");
   const startWidth = Math.max(START_WIDTH, 28 + race.notStarted.length * FINISHED_SLOT_WIDTH);
   const finishWidth = Math.max(92, 28 + race.finished.length * FINISHED_SLOT_WIDTH);
-  const minWidth = startWidth + MIN_TRACK_WIDTH + finishWidth;
+  const pitWidth = Math.max(80, 28 + race.pitStop.length * FINISHED_SLOT_WIDTH);
+  const stageMinWidth = Math.max(MIN_TRACK_WIDTH, (Math.max(race.penultimate.length, race.final.length) - 1) * 54 + 96);
+  const minWidth = startWidth + stageMinWidth * 2 + pitWidth + finishWidth;
   const raceHeight = 112;
   const trackTop = Math.floor(raceHeight / 2) - 10;
   const markerTop = trackTop - 16;
@@ -310,7 +307,7 @@ function RaceTrack({ race, title, activeMode, showCharacters, showBackground, um
   const getUmaImage = (entry: RaceEntry) => umaAssignments.get(entry.id) ?? fallbackUmaImage;
 
   return (
-    <section className="relative mt-3 mb-2 hidden px-3 md:px-4 lg:block" aria-label={title}>
+    <section className="relative mt-3 mb-2 hidden px-3 md:px-4 lg:block" aria-label={t("label")}>
       <div className={`relative ${showCharacters ? "pt-12" : ""}`}>
         {showCharacters && (
           <>
@@ -327,7 +324,7 @@ function RaceTrack({ race, title, activeMode, showCharacters, showBackground, um
         <div className="relative z-10 w-full overflow-x-auto">
           <div
             className={`grid overflow-hidden rounded-md ${showBackground ? "border border-emerald-800/60 bg-[#20301f]/75" : "border border-transparent bg-transparent"}`}
-            style={{ gridTemplateColumns: `${startWidth}px minmax(${MIN_TRACK_WIDTH}px, 1fr) ${finishWidth}px`, minWidth: `${minWidth}px`, height: `${raceHeight}px` }}
+            style={{ gridTemplateColumns: `${startWidth}px minmax(${stageMinWidth}px, 1fr) ${pitWidth}px minmax(${stageMinWidth}px, 1fr) ${finishWidth}px`, minWidth: `${minWidth}px`, height: `${raceHeight}px` }}
           >
             <div className="relative bg-emerald-950/15">
               {race.notStarted.length > 0 && (
@@ -343,7 +340,7 @@ function RaceTrack({ race, title, activeMode, showCharacters, showBackground, um
                 style={{ top: `${trackTop - 25}px`, height: "70px", writingMode: "vertical-rl", textOrientation: "mixed" }}
                 aria-hidden="true"
               >
-                Start
+                {t("start")}
               </div>
 
               {race.notStarted.map((entry, index) => (
@@ -364,32 +361,60 @@ function RaceTrack({ race, title, activeMode, showCharacters, showBackground, um
               ))}
             </div>
 
-            <div className="relative">
-              <div className="absolute inset-x-0 h-5 rounded-l-full border-y border-l border-amber-700/70 bg-[#6f4526] shadow-inner shadow-black/50" style={{ top: `${trackTop}px` }}>
-                <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-amber-200/35" />
-              </div>
-
-              {race.unfinished.map((entry, index) => (
-                <div key={entry.id}>
-                  <div
-                    className="pointer-events-none absolute flex w-[72px] -translate-x-1/2 justify-center"
-                    style={{ left: `${entry.displayProgress}%`, top: `${markerTop}px`, zIndex: 20 + index }}
-                  >
-                    <RacerLink entry={entry} mode={activeMode} title={`${entry.name}-${entry.realm}: ${getProgressLabel(entry)}`}>
-                      <div className="drop-shadow-[0_2px_5px_rgba(0,0,0,0.7)]">
-                        <RacerSprite entry={entry} mode={activeMode} umaImage={getUmaImage(entry)} />
+            {(["penultimate", "final"] as const).map((stage) => (
+              <div key={stage} className="contents">
+                {stage === "final" && (
+                  <div className="relative border-x border-amber-300/30 bg-amber-900/15" aria-label={t("pitStopDescription")}>
+                    <div className="absolute inset-x-0 h-5 border-y border-amber-300/60 bg-[#806039]" style={{ top: `${trackTop}px` }}>
+                      <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-amber-100/50" />
+                    </div>
+                    <div className="absolute inset-x-0 top-1 flex justify-center">
+                      <span className="rounded-sm border border-amber-200/60 bg-black/80 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-amber-100" title={t("pitStopDescription")}>
+                        {t("pitStop")}
+                      </span>
+                    </div>
+                    {race.pitStop.map((entry, index) => (
+                      <div key={entry.id} className="pointer-events-none absolute flex w-[58px] flex-col items-center"
+                        style={{ left: `${14 + index * FINISHED_SLOT_WIDTH}px`, top: `${markerTop}px`, zIndex: 30 + index }}>
+                        <RacerLink entry={entry} mode={activeMode} title={`${entry.name}-${entry.realm}: ${t("pitStopDescription")}`}>
+                          <div className="drop-shadow-[0_2px_5px_rgba(0,0,0,0.7)]">
+                            <RacerSprite entry={entry} mode={activeMode} umaImage={getUmaImage(entry)} />
+                          </div>
+                        </RacerLink>
+                        <div className="mt-0.5 px-1 text-center text-gray-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
+                          <ChuteGuildName entry={entry} className="text-amber-100" />
+                        </div>
                       </div>
-                    </RacerLink>
+                    ))}
                   </div>
-                  <div
-                    className="pointer-events-none absolute flex w-24 -translate-x-1/2 justify-center"
-                    style={{ left: `${entry.displayProgress}%`, top: `${entry.labelPosition === "above" ? labelAboveTop : labelBelowTop}px`, zIndex: 40 + index }}
-                  >
-                    <RaceLabel entry={entry} />
+                )}
+                <div className="relative" aria-label={t(stage)}>
+                  <div className="absolute inset-x-0 h-5 border-y border-amber-700/70 bg-[#6f4526] shadow-inner shadow-black/50" style={{ top: `${trackTop}px` }}>
+                    <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-amber-200/35" />
                   </div>
+                  {race[stage].map((entry, index) => (
+                    <div key={entry.id}>
+                      <div
+                        className="pointer-events-none absolute flex w-[72px] -translate-x-1/2 justify-center"
+                        style={{ left: `${entry.displayProgress}%`, top: `${markerTop}px`, zIndex: 20 + index }}
+                      >
+                        <RacerLink entry={entry} mode={activeMode} title={`${entry.name}-${entry.realm}: ${t(stage)} · ${getProgressLabel(entry)}`}>
+                          <div className="drop-shadow-[0_2px_5px_rgba(0,0,0,0.7)]">
+                            <RacerSprite entry={entry} mode={activeMode} umaImage={getUmaImage(entry)} />
+                          </div>
+                        </RacerLink>
+                      </div>
+                      <div
+                        className="pointer-events-none absolute flex w-20 -translate-x-1/2 justify-center"
+                        style={{ left: `${entry.displayProgress}%`, top: `${entry.labelPosition === "above" ? labelAboveTop : labelBelowTop}px`, zIndex: 40 + index }}
+                      >
+                        <RaceLabel entry={entry} className="w-20" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
 
             <div className="relative bg-yellow-950/15">
               <div
@@ -397,7 +422,7 @@ function RaceTrack({ race, title, activeMode, showCharacters, showBackground, um
                 style={{ top: `${trackTop - 27}px`, height: "74px", writingMode: "vertical-rl", textOrientation: "mixed" }}
                 aria-hidden="true"
               >
-                Finish
+                {t("finish")}
               </div>
               <div
                 className="absolute left-0 right-2 h-5 rounded-r-full border-y border-r border-amber-700/70 bg-[#6f4526] shadow-inner shadow-black/50"

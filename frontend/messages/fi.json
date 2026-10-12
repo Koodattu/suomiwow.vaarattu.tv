@@ -1,5 +1,10 @@
 {
   "horseRace": {
+    "label": "Kilpailu kahden viimeisen pomon läpi",
+    "start": "Lähtö",
+    "finish": "Maali",
+    "pitStop": "Varikko",
+    "pitStopDescription": "Toiseksi viimeinen pomo kaadettu; viimeisen pomon yritykset eivät ole vielä alkaneet",
     "final": "Viimeisen pomon kilpailu",
     "penultimate": "Toiseksi viimeisen pomon kilpailu"
   },
