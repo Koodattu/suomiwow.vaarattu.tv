@@ -1,4 +1,8 @@
 {
+  "horseRace": {
+    "final": "Final boss race",
+    "penultimate": "Second-to-last boss race"
+  },
   "analyticsLanding": {
     "eyebrow": "Analytics",
     "title": "Choose an analytics view",

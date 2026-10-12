@@ -33,6 +33,7 @@ import {
 } from "../config/guilds";
 import { filterUniqueGuilds } from "../utils/filterUniqueGuilds";
 import mongoose from "mongoose";
+import { getPenultimateBossSummary } from "../utils/horse-race";
 import logger, { getGuildLogger, releaseGuildLogger } from "../utils/logger";
 import Character from "../models/Character";
 import characterService from "./character.service";
@@ -5541,6 +5542,7 @@ class GuildService {
           totalPulls: this.getTotalPullsForSummary(p.bosses, p.totalBosses),
           bestPullPercent: currentBoss?.bestPercent || 0,
           currentBossId: currentBoss?.bossId,
+          ...(p.difficulty === "mythic" && raid ? { penultimateBoss: getPenultimateBossSummary(raid.bosses, p.bosses) } : {}),
           bestPullBossHealth: getBestPullBossHealth(currentBoss),
           bestPullPhase: currentBoss?.bestPullPhase,
           lastKillTime: lastKilledBoss?.firstKillTime || null,

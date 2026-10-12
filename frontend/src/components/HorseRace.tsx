@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import GuildCrest from "@/components/GuildCrest";
 import { formatPercent, formatPhaseDisplay } from "@/lib/utils";
-import { useHorseRaceMode, HorseRaceMode, HorseRaceVisibility } from "@/lib/horse-race-preferences";
+import { useHorseRaceMode, HorseRaceMode } from "@/lib/horse-race-preferences";
 import { isUmaImage, UMA_IMAGES, UmaImage } from "@/lib/uma-images";
-import { GuildCrest as GuildCrestType, GuildListItem, RaidProgressSummary } from "@/types";
+import { GuildCrest as GuildCrestType, GuildListItem } from "@/types";
+
+import { buildEntries, buildVisibleRaces, type RaceEntry } from "@/lib/horse-race";
 
 interface HorseRaceProps {
   guilds: GuildListItem[];
@@ -15,230 +18,19 @@ interface HorseRaceProps {
   reservedUmaImages?: string[];
 }
 
-interface RaceEntry {
-  id: string;
-  name: string;
-  realm: string;
-  faction?: string;
-  crest?: GuildCrestType;
-  horseRaceUmaImage?: string;
-  progress: RaidProgressSummary;
-  bossHealth: number;
-  trackProgress: number;
-  displayProgress: number;
-  labelPosition: "above" | "below";
-  isFinished: boolean;
-}
-
-type BaseRaceEntry = Omit<RaceEntry, "displayProgress" | "labelPosition">;
 type HorseRaceDisplayMode = Exclude<HorseRaceMode, "random">;
 type RandomHorseRaceMode = HorseRaceDisplayMode;
-
-const TRACK_MIN = 3;
-const TRACK_MAX = 97;
-const DENSE_GAP_THRESHOLD = 4.75;
-const EMPTY_GAP_THRESHOLD = 13;
-const DENSE_GAP_STRETCH = 0.58;
-const EMPTY_GAP_TIGHTEN = 0.1;
-const MIN_VISUAL_GAP = 2.4;
-const LABEL_COLLISION_THRESHOLD = 8;
 const FINISHED_SLOT_WIDTH = 58;
 const START_WIDTH = 34;
 const MIN_TRACK_WIDTH = 680;
 const HORSE_RACER_SRC = "/horse/racer.png";
 const RANDOM_HORSE_RACE_MODES: RandomHorseRaceMode[] = ["crest", "japanese", "uma"];
-const AUTO_SHOW_MIN_GUILDS = 2;
-const AUTO_HIDE_MIN_CLEARS = 11;
-const AUTO_HIDE_MAX_CONTENDERS = 2;
 const EMPTY_RESERVED_UMA_IMAGES: string[] = [];
 const tintedRacerCache = new Map<string, string>();
 let racerImagePromise: Promise<HTMLImageElement> | null = null;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
-}
-
-function getMythicProgress(guild: GuildListItem, selectedRaidId: number): RaidProgressSummary | undefined {
-  return guild.progress.find((progress) => progress.raidId === selectedRaidId && progress.difficulty === "mythic");
-}
-
-function getBossHealth(progress: RaidProgressSummary, isFinished: boolean) {
-  if (isFinished) return 0;
-  if (progress.currentBossPulls <= 0) return 100;
-  return clamp(progress.bestPullPercent, 0, 100);
-}
-
-function compareRaceOrder(a: BaseRaceEntry, b: BaseRaceEntry) {
-  if (a.isFinished && b.isFinished) {
-    const aTime = a.progress.lastKillTime ? new Date(a.progress.lastKillTime).getTime() : Number.MAX_SAFE_INTEGER;
-    const bTime = b.progress.lastKillTime ? new Date(b.progress.lastKillTime).getTime() : Number.MAX_SAFE_INTEGER;
-    if (aTime !== bTime) return aTime - bTime;
-  }
-
-  if (a.trackProgress !== b.trackProgress) return b.trackProgress - a.trackProgress;
-  return (a.progress.guildRank ?? 99999) - (b.progress.guildRank ?? 99999);
-}
-
-function compareTrackPosition(a: BaseRaceEntry, b: BaseRaceEntry) {
-  if (a.trackProgress !== b.trackProgress) return a.trackProgress - b.trackProgress;
-  return (b.progress.guildRank ?? 99999) - (a.progress.guildRank ?? 99999);
-}
-
-function getVisualTrackGap(rawGap: number) {
-  const denseStretch = Math.max(0, DENSE_GAP_THRESHOLD - rawGap) * DENSE_GAP_STRETCH;
-  const emptyTighten = Math.max(0, rawGap - EMPTY_GAP_THRESHOLD) * EMPTY_GAP_TIGHTEN;
-  return Math.max(MIN_VISUAL_GAP, rawGap + denseStretch - emptyTighten);
-}
-
-function getMaxDenseStackDepth(sortedEntries: BaseRaceEntry[]) {
-  let maxStackDepth = 1;
-  let stackDepth = 1;
-
-  for (let index = 1; index < sortedEntries.length; index += 1) {
-    if (sortedEntries[index].trackProgress - sortedEntries[index - 1].trackProgress <= DENSE_GAP_THRESHOLD) {
-      stackDepth += 1;
-      maxStackDepth = Math.max(maxStackDepth, stackDepth);
-    } else {
-      stackDepth = 1;
-    }
-  }
-
-  return maxStackDepth;
-}
-
-// Keep the race mostly linear, but borrow a little space from empty gaps so dense packs read separately.
-function spreadRaceEntries(entries: BaseRaceEntry[]): { entries: RaceEntry[]; maxStackDepth: number } {
-  if (entries.length === 0) return { entries: [], maxStackDepth: 1 };
-
-  const sortedEntries = [...entries].sort(compareTrackPosition);
-  const maxStackDepth = getMaxDenseStackDepth(sortedEntries);
-
-  if (sortedEntries.length === 1) {
-    return {
-      entries: [
-        {
-          ...sortedEntries[0],
-          displayProgress: clamp(sortedEntries[0].trackProgress, TRACK_MIN, TRACK_MAX),
-          labelPosition: "below",
-        },
-      ],
-      maxStackDepth,
-    };
-  }
-
-  const visualGaps = sortedEntries.slice(1).map((entry, index) => getVisualTrackGap(entry.trackProgress - sortedEntries[index].trackProgress));
-  const visualSpan = visualGaps.reduce((sum, gap) => sum + gap, 0);
-  const maxVisualSpan = TRACK_MAX - TRACK_MIN;
-  const scale = visualSpan > maxVisualSpan ? maxVisualSpan / visualSpan : 1;
-  const scaledGaps = visualGaps.map((gap) => gap * scale);
-  const scaledSpan = scaledGaps.reduce((sum, gap) => sum + gap, 0);
-  const rawCenter = (sortedEntries[0].trackProgress + sortedEntries[sortedEntries.length - 1].trackProgress) / 2;
-  let nextPosition = clamp(rawCenter - scaledSpan / 2, TRACK_MIN, TRACK_MAX - scaledSpan);
-
-  return {
-    entries: sortedEntries.map((entry, index) => {
-      const displayProgress = nextPosition;
-      nextPosition += scaledGaps[index] ?? 0;
-
-      return {
-        ...entry,
-        displayProgress: clamp(displayProgress, TRACK_MIN, TRACK_MAX),
-        labelPosition: "below",
-      };
-    }),
-    maxStackDepth,
-  };
-}
-
-function assignLabelPositions(entries: RaceEntry[]): RaceEntry[] {
-  const sortedEntries = [...entries].sort((a, b) => a.displayProgress - b.displayProgress);
-  const positionedEntries: RaceEntry[] = [];
-
-  for (let index = 0; index < sortedEntries.length; ) {
-    const group = [sortedEntries[index]];
-    let nextIndex = index + 1;
-
-    while (nextIndex < sortedEntries.length && sortedEntries[nextIndex].displayProgress - group[group.length - 1].displayProgress <= LABEL_COLLISION_THRESHOLD) {
-      group.push(sortedEntries[nextIndex]);
-      nextIndex += 1;
-    }
-
-    group.forEach((entry, groupIndex) => {
-      positionedEntries.push({
-        ...entry,
-        labelPosition: group.length > 1 && groupIndex % 2 === 1 ? "above" : "below",
-      });
-    });
-
-    index = nextIndex;
-  }
-
-  return positionedEntries.sort((a, b) => a.displayProgress - b.displayProgress);
-}
-
-function buildEntries(guilds: GuildListItem[], selectedRaidId: number) {
-  const entries = guilds.reduce<BaseRaceEntry[]>((result, guild) => {
-    const progress = getMythicProgress(guild, selectedRaidId);
-    if (!progress || progress.totalBosses <= 0 || progress.bossesDefeated < progress.totalBosses - 1) return result;
-
-    const isFinished = progress.bossesDefeated >= progress.totalBosses;
-    const bossHealth = getBossHealth(progress, isFinished);
-
-    result.push({
-      id: guild._id,
-      name: guild.name,
-      realm: guild.realm,
-      faction: guild.faction,
-      crest: guild.crest,
-      horseRaceUmaImage: guild.horseRaceUmaImage,
-      progress,
-      bossHealth,
-      trackProgress: 100 - bossHealth,
-      isFinished,
-    });
-
-    return result;
-  }, []);
-
-  const sortedEntries = entries.sort(compareRaceOrder);
-  const notStarted = sortedEntries.filter((entry) => !entry.isFinished && entry.progress.currentBossPulls <= 0);
-  const unfinished = sortedEntries.filter((entry) => !entry.isFinished && entry.progress.currentBossPulls > 0);
-  const finished = sortedEntries.filter((entry) => entry.isFinished);
-  const positionedUnfinished = spreadRaceEntries(unfinished);
-
-  const positionedFinished = finished.map((entry, index) => ({
-    ...entry,
-    displayProgress: 100,
-    labelPosition: "below" as const,
-    finishOrder: index,
-  }));
-
-  return {
-    notStarted: notStarted.map((entry) => ({
-      ...entry,
-      displayProgress: 0,
-      labelPosition: "below" as const,
-    })),
-    unfinished: assignLabelPositions(positionedUnfinished.entries),
-    finished: positionedFinished,
-    maxStackDepth: positionedUnfinished.maxStackDepth,
-  };
-}
-
-function shouldShowRace(visibility: HorseRaceVisibility, contenderCount: number, finishedCount: number) {
-  if (visibility === "hide") return false;
-  if (visibility === "show") return true;
-
-  const entryCount = contenderCount + finishedCount;
-  const raceHasStarted = entryCount >= AUTO_SHOW_MIN_GUILDS;
-  const raceHasEnded = finishedCount >= AUTO_HIDE_MIN_CLEARS && contenderCount <= AUTO_HIDE_MAX_CONTENDERS;
-  return raceHasStarted && !raceHasEnded;
-}
-
-function colorFromCrest(crest?: GuildCrestType, fallback = "84 168 247") {
-  const color = crest?.background?.color ?? crest?.emblem?.color;
-  if (!color) return fallback;
-  return `${Math.round(color.r)} ${Math.round(color.g)} ${Math.round(color.b)}`;
 }
 
 function colorObjectFromCrest(crest?: GuildCrestType) {
@@ -462,6 +254,7 @@ function assignUmaImages(entries: RaceEntry[], umaDeck: UmaImage[], reservedUmaI
 }
 
 export default function HorseRace({ guilds, selectedRaidId, currentRaidId, reservedUmaImages = EMPTY_RESERVED_UMA_IMAGES }: HorseRaceProps) {
+  const t = useTranslations("horseRace");
   const { mode, visibility, showCharacters, showBackground } = useHorseRaceMode();
   const [randomMode] = useState<RandomHorseRaceMode>(() => getRandomHorseRaceMode());
   const activeMode: HorseRaceDisplayMode = mode === "random" ? randomMode : mode;
@@ -473,18 +266,39 @@ export default function HorseRace({ guilds, selectedRaidId, currentRaidId, reser
     }
   }, [activeMode]);
 
-  const race = useMemo(() => {
-    if (!selectedRaidId || selectedRaidId !== currentRaidId) return { notStarted: [], unfinished: [], finished: [], maxStackDepth: 1 };
-    return buildEntries(guilds, selectedRaidId);
-  }, [currentRaidId, guilds, selectedRaidId]);
-  const umaAssignments = useMemo(() => assignUmaImages([...race.notStarted, ...race.unfinished, ...race.finished], umaDeck, reservedUmaImages), [race, reservedUmaImages, umaDeck]);
+  const races = useMemo(() => buildVisibleRaces(guilds, selectedRaidId, currentRaidId, visibility), [currentRaidId, guilds, selectedRaidId, visibility]);
+  const umaAssignments = useMemo(() => {
+    const entries = new Map(races.flatMap((race) => [...race.notStarted, ...race.unfinished, ...race.finished]).map((entry) => [entry.id, entry]));
+    return assignUmaImages([...entries.values()], umaDeck, reservedUmaImages);
+  }, [races, reservedUmaImages, umaDeck]);
 
-  const isCurrentRaid = selectedRaidId !== null && selectedRaidId === currentRaidId;
-  const contenderCount = race.notStarted.length + race.unfinished.length;
-  const finishedCount = race.finished.length;
+  return (
+    <>
+      {races.map((race) => (
+        <RaceTrack
+          key={race.target}
+          race={race}
+          title={t(race.target)}
+          activeMode={activeMode}
+          showCharacters={showCharacters}
+          showBackground={showBackground}
+          umaAssignments={umaAssignments}
+          fallbackUmaImage={umaDeck[0]}
+        />
+      ))}
+    </>
+  );
+}
 
-  if (!isCurrentRaid || !shouldShowRace(visibility, contenderCount, finishedCount)) return null;
-
+function RaceTrack({ race, title, activeMode, showCharacters, showBackground, umaAssignments, fallbackUmaImage }: {
+  race: ReturnType<typeof buildEntries>;
+  title: string;
+  activeMode: HorseRaceDisplayMode;
+  showCharacters: boolean;
+  showBackground: boolean;
+  umaAssignments: Map<string, UmaImage>;
+  fallbackUmaImage: UmaImage;
+}) {
   const startWidth = Math.max(START_WIDTH, 28 + race.notStarted.length * FINISHED_SLOT_WIDTH);
   const finishWidth = Math.max(92, 28 + race.finished.length * FINISHED_SLOT_WIDTH);
   const minWidth = startWidth + MIN_TRACK_WIDTH + finishWidth;
@@ -493,121 +307,124 @@ export default function HorseRace({ guilds, selectedRaidId, currentRaidId, reser
   const markerTop = trackTop - 16;
   const labelAboveTop = trackTop - 44;
   const labelBelowTop = trackTop + 25;
-  const getUmaImage = (entry: RaceEntry) => umaAssignments.get(entry.id) ?? umaDeck[0];
+  const getUmaImage = (entry: RaceEntry) => umaAssignments.get(entry.id) ?? fallbackUmaImage;
 
   return (
-    <section className="relative mt-3 mb-2 hidden px-3 md:px-4 lg:block" aria-label="Final boss race">
-      {showCharacters && (
-        <>
-          <div className="pointer-events-none absolute left-2 top-[-10%] z-0 flex -translate-y-1/2 items-center gap-1" aria-hidden="true">
-            <img src="/yolobolt.png" alt="" className="h-[118px] w-auto object-contain opacity-95" />
-            <div className="-ml-6 mt-2 text-[11px] font-semibold leading-3 text-purple-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">Yolobolt&apos;s Horses</div>
-          </div>
-          <div className="pointer-events-none absolute right-2 top-[-10%] z-0 flex -translate-y-1/2 items-center gap-1" aria-hidden="true">
-            <div className="z-20 -mr-7 mt-2 text-[11px] font-semibold leading-3 text-cyan-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">LakuClap Lovewatching</div>
-            <img src="/lakuclap.png" alt="" className="z-10 h-40 w-auto object-contain opacity-95" />
-          </div>
-        </>
-      )}
-      <div className="relative z-10 w-full overflow-x-auto">
-        <div
-          className={`grid overflow-hidden rounded-md ${showBackground ? "border border-emerald-800/60 bg-[#20301f]/75" : "border border-transparent bg-transparent"}`}
-          style={{ gridTemplateColumns: `${startWidth}px minmax(${MIN_TRACK_WIDTH}px, 1fr) ${finishWidth}px`, minWidth: `${minWidth}px`, height: `${raceHeight}px` }}
-        >
-          <div className="relative bg-emerald-950/15">
-            {race.notStarted.length > 0 && (
-              <div
-                className="absolute left-2 right-0 h-5 rounded-l-full border-y border-l border-amber-700/70 bg-[#6f4526] shadow-inner shadow-black/50"
-                style={{ top: `${trackTop}px` }}
-              >
-                <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-amber-200/35" />
-              </div>
-            )}
-            <div
-              className="absolute right-[-7px] z-30 flex w-5 items-center justify-center rounded-sm border border-emerald-300/50 bg-black/70 text-[8px] font-bold uppercase tracking-wide text-emerald-100 shadow shadow-black/40"
-              style={{ top: `${trackTop - 25}px`, height: "70px", writingMode: "vertical-rl", textOrientation: "mixed" }}
-              aria-hidden="true"
-            >
-              Start
+    <section className="relative mt-3 mb-2 hidden px-3 md:px-4 lg:block" aria-label={title}>
+      <h2 className="mb-1 text-center text-xs font-semibold text-gray-300">{title}</h2>
+      <div className={`relative ${showCharacters ? "pt-12" : ""}`}>
+        {showCharacters && (
+          <>
+            <div className="pointer-events-none absolute left-2 top-20 z-0 flex -translate-y-1/2 items-center gap-1" aria-hidden="true">
+              <img src="/yolobolt.png" alt="" className="h-[118px] w-auto object-contain opacity-95" />
+              <div className="-ml-6 mt-2 text-[11px] font-semibold leading-3 text-purple-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">Yolobolt&apos;s Horses</div>
             </div>
-
-            {race.notStarted.map((entry, index) => (
-              <div
-                key={entry.id}
-                className="pointer-events-none absolute flex w-[63px] flex-col items-center"
-                style={{ right: `${26 + index * FINISHED_SLOT_WIDTH}px`, top: `${markerTop}px`, zIndex: 30 + index }}
-              >
-                <RacerLink entry={entry} mode={activeMode} title={`${entry.name}-${entry.realm}: 0 pulls`}>
-                  <div className="drop-shadow-[0_2px_5px_rgba(0,0,0,0.7)]">
-                    <RacerSprite entry={entry} mode={activeMode} umaImage={getUmaImage(entry)} />
-                  </div>
-                </RacerLink>
-                <div className="mt-0.5 max-w-[63px] px-1 text-center text-gray-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
-                  <ChuteGuildName entry={entry} className="text-gray-100" />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="relative">
-            <div className="absolute inset-x-0 h-5 rounded-l-full border-y border-l border-amber-700/70 bg-[#6f4526] shadow-inner shadow-black/50" style={{ top: `${trackTop}px` }}>
-              <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-amber-200/35" />
+            <div className="pointer-events-none absolute right-2 top-20 z-0 flex -translate-y-1/2 items-center gap-1" aria-hidden="true">
+              <div className="z-20 -mr-7 mt-2 text-[11px] font-semibold leading-3 text-cyan-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">LakuClap Lovewatching</div>
+              <img src="/lakuclap.png" alt="" className="z-10 h-40 w-auto object-contain opacity-95" />
             </div>
-
-            {race.unfinished.map((entry, index) => (
-              <div key={entry.id}>
+          </>
+        )}
+        <div className="relative z-10 w-full overflow-x-auto">
+          <div
+            className={`grid overflow-hidden rounded-md ${showBackground ? "border border-emerald-800/60 bg-[#20301f]/75" : "border border-transparent bg-transparent"}`}
+            style={{ gridTemplateColumns: `${startWidth}px minmax(${MIN_TRACK_WIDTH}px, 1fr) ${finishWidth}px`, minWidth: `${minWidth}px`, height: `${raceHeight}px` }}
+          >
+            <div className="relative bg-emerald-950/15">
+              {race.notStarted.length > 0 && (
                 <div
-                  className="pointer-events-none absolute flex w-[72px] -translate-x-1/2 justify-center"
-                  style={{ left: `${entry.displayProgress}%`, top: `${markerTop}px`, zIndex: 20 + index }}
+                  className="absolute left-2 right-0 h-5 rounded-l-full border-y border-l border-amber-700/70 bg-[#6f4526] shadow-inner shadow-black/50"
+                  style={{ top: `${trackTop}px` }}
                 >
-                  <RacerLink entry={entry} mode={activeMode} title={`${entry.name}-${entry.realm}: ${getProgressLabel(entry)}`}>
+                  <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-amber-200/35" />
+                </div>
+              )}
+              <div
+                className="absolute right-[-7px] z-30 flex w-5 items-center justify-center rounded-sm border border-emerald-300/50 bg-black/70 text-[8px] font-bold uppercase tracking-wide text-emerald-100 shadow shadow-black/40"
+                style={{ top: `${trackTop - 25}px`, height: "70px", writingMode: "vertical-rl", textOrientation: "mixed" }}
+                aria-hidden="true"
+              >
+                Start
+              </div>
+
+              {race.notStarted.map((entry, index) => (
+                <div
+                  key={entry.id}
+                  className="pointer-events-none absolute flex w-[63px] flex-col items-center"
+                  style={{ right: `${26 + index * FINISHED_SLOT_WIDTH}px`, top: `${markerTop}px`, zIndex: 30 + index }}
+                >
+                  <RacerLink entry={entry} mode={activeMode} title={`${entry.name}-${entry.realm}: 0 pulls`}>
                     <div className="drop-shadow-[0_2px_5px_rgba(0,0,0,0.7)]">
                       <RacerSprite entry={entry} mode={activeMode} umaImage={getUmaImage(entry)} />
                     </div>
                   </RacerLink>
-                </div>
-                <div
-                  className="pointer-events-none absolute flex w-24 -translate-x-1/2 justify-center"
-                  style={{ left: `${entry.displayProgress}%`, top: `${entry.labelPosition === "above" ? labelAboveTop : labelBelowTop}px`, zIndex: 40 + index }}
-                >
-                  <RaceLabel entry={entry} />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="relative bg-yellow-950/15">
-            <div
-              className="absolute left-[-7] z-50 flex w-5 items-center justify-center rounded-sm border border-yellow-100/60 bg-black/80 text-[8px] font-bold uppercase tracking-wide text-yellow-100 shadow shadow-black/50"
-              style={{ top: `${trackTop - 27}px`, height: "74px", writingMode: "vertical-rl", textOrientation: "mixed" }}
-              aria-hidden="true"
-            >
-              Finish
-            </div>
-            <div
-              className="absolute left-0 right-2 h-5 rounded-r-full border-y border-r border-amber-700/70 bg-[#6f4526] shadow-inner shadow-black/50"
-              style={{ top: `${trackTop}px` }}
-            >
-              <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-amber-200/35" />
-            </div>
-
-            {race.finished.map((entry, index) => (
-              <div
-                key={entry.id}
-                className="pointer-events-none absolute flex w-[66px] flex-col items-center"
-                style={{ right: `${10 + index * FINISHED_SLOT_WIDTH}px`, top: `${markerTop}px`, zIndex: 30 + index }}
-              >
-                <RacerLink entry={entry} mode={activeMode} title={`${index + 1}. ${entry.name}-${entry.realm}: finished`}>
-                  <div className="drop-shadow-[0_2px_5px_rgba(0,0,0,0.7)]">
-                    <RacerSprite entry={entry} mode={activeMode} umaImage={getUmaImage(entry)} />
+                  <div className="mt-0.5 max-w-[63px] px-1 text-center text-gray-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
+                    <ChuteGuildName entry={entry} className="text-gray-100" />
                   </div>
-                </RacerLink>
-                <div className="mt-0.5 max-w-[66px] px-1 text-center text-[10px] font-semibold leading-1.5 text-gray-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
-                  <div>#{index + 1}</div>
-                  <ChuteGuildName entry={entry} className="text-amber-100" />
                 </div>
+              ))}
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-x-0 h-5 rounded-l-full border-y border-l border-amber-700/70 bg-[#6f4526] shadow-inner shadow-black/50" style={{ top: `${trackTop}px` }}>
+                <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-amber-200/35" />
               </div>
-            ))}
+
+              {race.unfinished.map((entry, index) => (
+                <div key={entry.id}>
+                  <div
+                    className="pointer-events-none absolute flex w-[72px] -translate-x-1/2 justify-center"
+                    style={{ left: `${entry.displayProgress}%`, top: `${markerTop}px`, zIndex: 20 + index }}
+                  >
+                    <RacerLink entry={entry} mode={activeMode} title={`${entry.name}-${entry.realm}: ${getProgressLabel(entry)}`}>
+                      <div className="drop-shadow-[0_2px_5px_rgba(0,0,0,0.7)]">
+                        <RacerSprite entry={entry} mode={activeMode} umaImage={getUmaImage(entry)} />
+                      </div>
+                    </RacerLink>
+                  </div>
+                  <div
+                    className="pointer-events-none absolute flex w-24 -translate-x-1/2 justify-center"
+                    style={{ left: `${entry.displayProgress}%`, top: `${entry.labelPosition === "above" ? labelAboveTop : labelBelowTop}px`, zIndex: 40 + index }}
+                  >
+                    <RaceLabel entry={entry} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="relative bg-yellow-950/15">
+              <div
+                className="absolute left-[-7] z-50 flex w-5 items-center justify-center rounded-sm border border-yellow-100/60 bg-black/80 text-[8px] font-bold uppercase tracking-wide text-yellow-100 shadow shadow-black/50"
+                style={{ top: `${trackTop - 27}px`, height: "74px", writingMode: "vertical-rl", textOrientation: "mixed" }}
+                aria-hidden="true"
+              >
+                Finish
+              </div>
+              <div
+                className="absolute left-0 right-2 h-5 rounded-r-full border-y border-r border-amber-700/70 bg-[#6f4526] shadow-inner shadow-black/50"
+                style={{ top: `${trackTop}px` }}
+              >
+                <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-amber-200/35" />
+              </div>
+
+              {race.finished.map((entry, index) => (
+                <div
+                  key={entry.id}
+                  className="pointer-events-none absolute flex w-[66px] flex-col items-center"
+                  style={{ right: `${10 + index * FINISHED_SLOT_WIDTH}px`, top: `${markerTop}px`, zIndex: 30 + index }}
+                >
+                  <RacerLink entry={entry} mode={activeMode} title={`${index + 1}. ${entry.name}-${entry.realm}: finished`}>
+                    <div className="drop-shadow-[0_2px_5px_rgba(0,0,0,0.7)]">
+                      <RacerSprite entry={entry} mode={activeMode} umaImage={getUmaImage(entry)} />
+                    </div>
+                  </RacerLink>
+                  <div className="mt-0.5 max-w-[66px] px-1 text-center text-[10px] font-semibold leading-1.5 text-gray-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
+                    <div>#{index + 1}</div>
+                    <ChuteGuildName entry={entry} className="text-amber-100" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

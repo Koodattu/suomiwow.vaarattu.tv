@@ -149,6 +149,17 @@ export interface BossProgress {
   lastUpdated: string;
 }
 
+export interface HorseRaceBossSummary {
+  bossId: number;
+  bossName: string;
+  eligible: boolean;
+  kills: number;
+  pullCount: number;
+  bestPercent: number;
+  bestPullPhase?: BestPullPhase;
+  firstKillTime?: string;
+}
+
 // Minimal progress for leaderboard (without detailed bosses array)
 export interface RaidProgressSummary {
   raidId: number;
@@ -164,6 +175,7 @@ export interface RaidProgressSummary {
   totalPulls?: number | null; // Combined pulls when every boss has logged kill data
   bestPullPercent: number;
   currentBossId?: number;
+  penultimateBoss?: HorseRaceBossSummary;
   bestPullBossHealth?: number | null;
   bestPullPhase?: BestPullPhase;
   lastKillTime?: string | null; // Timestamp of the most recent boss kill

@@ -1,4 +1,8 @@
 {
+  "horseRace": {
+    "final": "Viimeisen pomon kilpailu",
+    "penultimate": "Toiseksi viimeisen pomon kilpailu"
+  },
   "analyticsLanding": {
     "eyebrow": "Analytiikka",
     "title": "Valitse analytiikkanäkymä",
