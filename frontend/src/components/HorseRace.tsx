@@ -311,7 +311,6 @@ function RaceTrack({ race, title, activeMode, showCharacters, showBackground, um
 
   return (
     <section className="relative mt-3 mb-2 hidden px-3 md:px-4 lg:block" aria-label={title}>
-      <h2 className="mb-1 text-center text-xs font-semibold text-gray-300">{title}</h2>
       <div className={`relative ${showCharacters ? "pt-12" : ""}`}>
         {showCharacters && (
           <>
