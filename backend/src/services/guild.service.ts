@@ -5542,7 +5542,7 @@ class GuildService {
           totalPulls: this.getTotalPullsForSummary(p.bosses, p.totalBosses),
           bestPullPercent: currentBoss?.bestPercent || 0,
           currentBossId: currentBoss?.bossId,
-          ...(p.difficulty === "mythic" && raid ? { penultimateBoss: getPenultimateBossSummary(raid.bosses, p.bosses) } : {}),
+          ...(p.difficulty === "mythic" && raid ? { penultimateBoss: getPenultimateBossSummary(raidId, raid.bosses, p.bosses) } : {}),
           bestPullBossHealth: getBestPullBossHealth(currentBoss),
           bestPullPhase: currentBoss?.bestPullPhase,
           lastKillTime: lastKilledBoss?.firstKillTime || null,
