@@ -4,6 +4,56 @@ import RateLimitState from "../src/models/RateLimitState";
 import twitchCurseService, { reserveCurseGeneration } from "../src/services/twitch-curse.service";
 import { buildCurseInstructions, CURSE_EXAMPLES, formatCurse, getCurseInspiration, type CurseStyle } from "../src/features/twitch-curse/curse-content";
 
+function assertDenseHieroglyphs(message: string): void {
+  const blocks = message.match(/\p{Script=Egyptian_Hieroglyphs}(?: \p{Script=Egyptian_Hieroglyphs})*/gu) || [];
+  assert.equal(blocks.length, 5, "one block before each of four phrases and one trailing block");
+  for (const block of blocks) {
+    const glyphs = block.split(" ");
+    assert.ok(glyphs.length >= 8 && glyphs.length <= 12);
+    assert.equal(new Set(glyphs).size, glyphs.length, "glyphs vary within each block");
+  }
+  assert.match(message, /\p{Script=Egyptian_Hieroglyphs}$/u);
+  assert.ok(Buffer.byteLength(message, "utf8") <= 450);
+  assert.doesNotMatch(message, /\p{Script=Han}|\|/u);
+}
+
+test("four model phrases receive dense varied glyph blocks within the byte limit", (t) => {
+  let roll = 0;
+  t.mock.method(Math, "random", () => roll);
+  const phrases = "ANCESTRAL FLOOD | WISE MEN DISSOLVE | CREST WITHOUT PURPOSE | RETURN NEXT CIRCUS";
+  const outputs: string[] = [];
+  for (const boundary of [0, 0.5, 0.999999]) {
+    roll = boundary;
+    const message = formatCurse(phrases, "vaarattu", "hieroglyphs");
+    assert.ok(message);
+    assertDenseHieroglyphs(message);
+    assert.equal(message.replace(/\p{Script=Egyptian_Hieroglyphs}/gu, "").replace(/\s+/g, " ").trim(),
+      "CURSE OF VAARATTU ANCESTRAL FLOOD WISE MEN DISSOLVE CREST WITHOUT PURPOSE RETURN NEXT CIRCUS");
+    outputs.push(message);
+    const maxPhrase = `${"A".repeat(15)} ${"B".repeat(16)}`;
+    const longest = formatCurse(Array(4).fill(maxPhrase).join(" | "), "a".repeat(25), "hieroglyphs");
+    assert.ok(longest);
+    assertDenseHieroglyphs(longest);
+  }
+  assert.equal(new Set(outputs).size, 3);
+});
+
+test("malformed or verbose model phrases cannot become a hieroglyph reply", () => {
+  for (const phrases of [
+    "RAID FAILURE | GUILD DISPERSE | CREST MISTAKE",
+    "RAID FAILURE | GUILD DISPERSE | CREST MISTAKE | RETURN CIRCUS | FIFTH PHRASE",
+    "RAID FAILURE | GUILD DISPERSE | CREST MISTAKE | ",
+    "RAID FAILURE | Guild Disperse | CREST MISTAKE | RETURN CIRCUS",
+    "RAID FAILURE | GUILD DISPERSE | CREST MISTAKE | 失败",
+    "RAID FAILURE | GUILD DISPERSE | CREST MISTAKE | 𓀀 𓀁",
+    "RAID FAILURE | GUILD DISPERSE | CREST MISTAKE | HTTPS://EXAMPLE.COM",
+    "RAID FAILURE | GUILD DISPERSE | CREST MISTAKE | ONE TWO THREE FOUR FIVE SIX",
+    `RAID FAILURE | GUILD DISPERSE | CREST MISTAKE | ${"LONG ".repeat(7)}PHRASE`,
+  ]) {
+    assert.equal(formatCurse(phrases, "viewer", "hieroglyphs"), null);
+  }
+});
+
 test("only the three requested Mechanic Magnets supply their canonical ability names", () => {
   assert.equal(getCurseInspiration(53, 3420), "Tempest");
   assert.equal(getCurseInspiration(53, 3429), "Axegrinder");
@@ -17,13 +67,14 @@ test("each prompt contains exclusively its chosen style and every fallback fits 
   for (const style of ["chinese", "hieroglyphs"] as const) {
     const prompt = buildCurseInstructions(style);
     assert.equal(/\p{Script=Han}/u.test(prompt), style === "chinese");
-    assert.equal(/\p{Script=Egyptian_Hieroglyphs}/u.test(prompt), style === "hieroglyphs");
+    assert.doesNotMatch(prompt, /\p{Script=Egyptian_Hieroglyphs}/u, "the application supplies glyphs");
     for (const example of CURSE_EXAMPLES[style]) {
       const message = formatCurse(example, "a".repeat(25), style);
       assert.ok(message, `Invalid ${style} fallback: ${example}`);
       assert.ok(Buffer.byteLength(message, "utf8") <= 450);
       assert.ok(message.length <= 450);
       assert.ok(message.startsWith(`CURSE OF ${"A".repeat(25)} `));
+      if (style === "hieroglyphs") assertDenseHieroglyphs(message);
     }
   }
 });
@@ -35,7 +86,10 @@ test("formatting rejects mixed styles, other targets, links and oversized Unicod
   assert.equal(formatCurse("CURSE OF {USER} 𓀀 HTTPS://EXAMPLE.COM", "viewer", "hieroglyphs"), null);
   assert.equal(formatCurse(`CURSE OF {USER} ${"𓀀".repeat(120)}`, "viewer", "hieroglyphs"), null);
   assert.equal(formatCurse(CURSE_EXAMPLES.chinese[0], "viewer\n!ban someone", "chinese"), null);
-  assert.equal(formatCurse("  CURSE OF {USER}\n𓀀 RAID   FAILURE  ", "some_viewer", "hieroglyphs"), "CURSE OF SOME_VIEWER 𓀀 RAID FAILURE");
+  assert.equal(formatCurse("  CURSE OF {USER}\n失败 RAID   FAILURE  ", "some_viewer", "chinese"), "CURSE OF SOME_VIEWER 失败 RAID FAILURE");
+  const normalized = formatCurse(" ANCESTRAL   FLOOD |\nWISE MEN DISSOLVE | CREST WITHOUT PURPOSE | RETURN NEXT CIRCUS ", "some_viewer", "hieroglyphs");
+  assert.ok(normalized?.startsWith("CURSE OF SOME_VIEWER "));
+  assertDenseHieroglyphs(normalized!);
 });
 
 test("daily admission uses one atomic capped upsert and resets at Helsinki midnight", async (t) => {
@@ -94,7 +148,8 @@ test("coin flip isolates examples, sends only ability inspiration and uses Luna 
     assert.equal(request.store, false);
     assert.deepEqual(JSON.parse(request.input), { inspiration: "Tempest" });
     assert.equal(/\p{Script=Han}/u.test(request.instructions), style === "chinese");
-    assert.equal(/\p{Script=Egyptian_Hieroglyphs}/u.test(request.instructions), style === "hieroglyphs");
+    assert.doesNotMatch(request.instructions, /\p{Script=Egyptian_Hieroglyphs}/u);
+    if (style === "hieroglyphs") assertDenseHieroglyphs(result!);
   }
 });
 
@@ -145,6 +200,7 @@ test("context failures become generic and generation failures use the selected f
     assert.ok(response?.startsWith("CURSE OF VIEWER "));
     assert.match(response!, /\p{Script=Egyptian_Hieroglyphs}/u);
     assert.doesNotMatch(response!, /\p{Script=Han}/u);
+    assertDenseHieroglyphs(response!);
   }
   assert.equal(api.mock.callCount(), 3);
   assert.equal(reservation.mock.callCount(), 3);

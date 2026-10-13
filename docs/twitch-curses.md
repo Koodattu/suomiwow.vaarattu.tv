@@ -9,6 +9,14 @@ English/Egyptian hieroglyph copypasta. The prompt contains only that style's
 examples. Generation uses the existing `OPENAI_API_KEY`, `gpt-6-luna`, low
 reasoning, no response storage, a 15-second timeout, and no automatic retries.
 
+For the hieroglyph style, the model returns exactly four cryptic English fragments
+separated by `|`, each 2-5 words and at most 32 characters. The application adds
+the viewer heading and five blocks of 8-12 varied hieroglyphs, including a trailing
+block. Glyph density adjusts to the remaining byte budget. Curated hieroglyph
+fallbacks use the same formatter. Chinese replies alternate short English
+fragments with Chinese translations. Examples emphasize awkward, ominous prophecy
+fragments such as `MISTAKE OF CREST` rather than ordinary raid commentary.
+
 Both aliases share a five-second cooldown per channel. Existing command-enabled
 settings, channel eligibility and shared-chat deduplication still apply. A
 bot-wide cap allows 100 generation attempts per Helsinki calendar day. Admission
@@ -31,6 +39,9 @@ provide inspiration, using the canonical ability name from `avoidable-mechanics.
 | Sszorak | Tempest |
 | The Coiled Altar | Axegrinder |
 | Ula'tek | Caustic Waves |
+
+The prompt treats the ability as optional inspiration for an indirect image in
+one fragment, rather than repeating its name verbatim or always opening with it.
 
 Only the ability name is sent as dynamic context. The viewer name is substituted
 locally, and chat arguments are never sent to the model. Context lookup failures

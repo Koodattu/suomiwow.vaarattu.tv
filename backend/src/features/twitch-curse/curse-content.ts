@@ -3,6 +3,8 @@ import { AVOIDABLE_MECHANICS } from "../../config/avoidable-mechanics";
 export type CurseStyle = "chinese" | "hieroglyphs";
 
 const INSPIRATION_KEYS = new Set(["sszorak-tempest", "coiled-altar-axegrinder", "ulatek-caustic-waves"]);
+const HIEROGLYPHS = Array.from({ length: 80 }, (_, index) => String.fromCodePoint(0x13000 + index));
+const MAX_MESSAGE_BYTES = 450;
 
 export function getCurseInspiration(raidId: number, bossId: number): string | undefined {
   return AVOIDABLE_MECHANICS.find((mechanic) =>
@@ -12,49 +14,65 @@ export function getCurseInspiration(raidId: number, bossId: number): string | un
 
 export const CURSE_EXAMPLES: Record<CurseStyle, readonly string[]> = {
   hieroglyphs: [
-    "CURSE OF {USER} 𓀀 𓀁 𓀂 𓀃 ETERNAL PROGRESSION 𓀄 𓀅 𓀆 𓀇 CROSS AND CIRCLE AFFAIR 𓀈 𓀉 𓀊 𓀋 MISTAKE OF CREST 𓀌 𓀍 𓀎 𓀏 GUILD DISPERSE",
-    "CURSE OF {USER} 𓀀 𓀁 𓀂 𓀃 WISE MEN FAILURE 𓀄 𓀅 𓀆 𓀇 SCANDINAVIAN RAGE 𓀈 𓀉 𓀊 𓀋 LUMBERJACK WEBSITE DISGRACE 𓀌 𓀍 𓀎 𓀏 REQUIRE NEW BLESSINGS 𓀐 𓀑 𓀒 𓀓 RETURN NEXT CIRCUS",
-    "CURSE OF {USER} 𓀀 𓀁 𓀂 𓀃 ETERNAL PROGRESSION 𓀄 𓀅 𓀆 𓀇 CROSS AND CIRCLE CONFUSION 𓀈 𓀉 𓀊 𓀋 SAME MAN SAME MISTAKE 𓀌 𓀍 𓀎 𓀏 THREE HUNDRED PULL ANNIVERSARY 𓀐 𓀑 𓀒 𓀓 GUILD DISPERSE",
-    "CURSE OF {USER} 𓀙 𓀚 𓀛 𓀜 ORANGE NUMBER DESIRE 𓀞 𓀟 𓀠 𓀡 FLOOR EMBRACE 𓀣 𓀤 𓀥 𓀦 LUMBERJACK WEBSITE DISGRACE 𓀨 𓀩 𓀪 𓀫 SECRET LOG REQUEST 𓀭 𓀮 𓀯 𓀰 BENCH ACHIEVEMENT",
-    "CURSE OF {USER} 𓀀 𓀁 𓀂 𓀃 GREAT COOLDOWN CEREMONY 𓀅 𓀆 𓀇 𓀈 BOSS BECOME UNTOUCHABLE 𓀊 𓀋 𓀌 𓀍 POTION WITHOUT PURPOSE 𓀏 𓀐 𓀑 𓀒 TRINKET OF REGRET 𓀔 𓀕 𓀖 𓀗 TWO MINUTE SHAME",
-    "CURSE OF {USER} 𓀙 𓀚 𓀛 𓀜 SMALL CIRCLE DELIVERY 𓀞 𓀟 𓀠 𓀡 RETURN TO FRIEND GROUP 𓀣 𓀤 𓀥 𓀦 TWENTY MAN FUNERAL 𓀨 𓀩 𓀪 𓀫 MICROPHONE SUDDEN SILENCE 𓀭 𓀮 𓀯 𓀰 OFFICER REQUIRE WORD",
-    "CURSE OF {USER} 𓀀 𓀁 𓀂 𓀃 FINAL PERCENT ARRIVAL 𓀅 𓀆 𓀇 𓀈 ALL MEDICINE MEN DECEASED 𓀊 𓀋 𓀌 𓀍 HEALTH STONE UNTOUCHED 𓀏 𓀐 𓀑 𓀒 RELEASE SPIRIT WORLD FIRST 𓀔 𓀕 𓀖 𓀗 NEXT PULL SOMEHOW WORSE",
-    "CURSE OF {USER} 𓀙 𓀚 𓀛 𓀜 FARM BOSS AWAKEN 𓀞 𓀟 𓀠 𓀡 FORGOTTEN ANCESTRAL STRATEGY 𓀣 𓀤 𓀥 𓀦 NEW RECRUIT TOP DAMAGE 𓀨 𓀩 𓀪 𓀫 VETERAN INTERNET FAILURE 𓀭 𓀮 𓀯 𓀰 RECLEAR UNTIL SUNRISE",
+    "ETERNAL PROGRESSION | CROSS AND CIRCLE AFFAIR | MISTAKE OF CREST | GUILD DISPERSE",
+    "WISE MEN FAILURE | LUMBERJACK WEBSITE DISGRACE | REQUIRE NEW BLESSINGS | RETURN NEXT CIRCUS",
+    "SAME MAN SAME MISTAKE | SCANDINAVIAN RAGE | THREE HUNDRED PULL ANNIVERSARY | OFFICER SILENCE",
+    "ORANGE NUMBER DESIRE | FLOOR EMBRACE | SECRET LOG REQUEST | BENCH ASCENSION",
+    "GREAT COOLDOWN CEREMONY | POTION WITHOUT PURPOSE | TRINKET OF REGRET | TWO MINUTE SHAME",
+    "SMALL CIRCLE AFFAIR | TWENTY MAN FUNERAL | MICROPHONE SILENCE | OFFICER REQUIRE WORD",
+    "FINAL PERCENT MIRAGE | MEDICINE EXPIRED | STONE LEFT UNTOUCHED | ANCESTRAL RELEASE",
+    "FARM BOSS AWAKEN | FORGOTTEN ANCESTRAL SCRIPTURE | VETERAN INTERNET FAILURE | RECLEAR UNTIL SUNRISE",
   ],
   chinese: [
-    "CURSE OF {USER} 永恒诅咒 TWENTY HERO REQUIRE 二十勇士缺一不可 NINETEEN HERO APPEAR 仅有十九人到场 SUMMON ABSENT CHAMPION 召唤失踪勇士 CHAMPION PLAY OTHER GAME 勇士正在玩别的游戏 RAID NIGHT EVAPORATE 团队之夜化为乌有",
-    "CURSE OF {USER} 永恒诅咒 DEFENSIVE SAVED FOR FUTURE 防御技能留给未来 FUTURE NEVER ARRIVE 未来不再到来 HEALER RECEIVE ACCUSATION 治疗遭到指责 DEATH LOG REVEAL TRUTH 死亡记录揭示真相 MICROPHONE EXCUSE RITUAL 麦克风辩解仪式",
-    "CURSE OF {USER} 永恒诅咒 SACRED INTERRUPT ORDER 神圣打断顺序 FIRST MAN SLEEP 第一人沉睡 SECOND MAN ALSO SLEEP 第二人亦沉睡 FORBIDDEN CAST COMPLETE 禁忌施法完成 CAPTAIN INVENT NEW SWEAR 船长发明全新脏话",
-    "CURSE OF {USER} 永恒诅咒 SMALL UPGRADE TEMPTATION 微小提升的诱惑 ANCESTRAL CREST SPENT 先祖纹章耗尽 WRONG ITEM EMPOWERED 错误装备得到强化 SIMULATION NUMBER DECREASE 模拟数字下降 RETURN TO STONE LABOUR 返回地下城服苦役",
-    "CURSE OF {USER} 永恒诅咒 PROMISED FINAL ATTEMPT 承诺最后一把 MIDNIGHT BECOME MORNING 午夜变成清晨 MANY FEASTS PERISH 无数盛宴消逝 BEST PULL THREE HOURS AGO 最佳尝试已是三小时前 EMPLOYMENT IN DANGER 工作岌岌可危",
-    "CURSE OF {USER} 永恒诅咒 PERFECT MECHANIC EXECUTION 机制执行完美 SACRIFICE FOR RAID 为团队牺牲 GREY NUMBER IMMORTALIZED 灰色数字永世留存 LOOT COUNCIL DEVELOP BLINDNESS 装备委员会突然失明 NEXT WEEK PROVE AGAIN 下周再次证明自己",
+    "CURSE OF {USER} 永恒诅咒 TWENTIETH MAN MISSING 第二十人失踪 SUMMON WITHOUT ANSWER 召唤无人回应 FEAST OF NINETEEN 十九人盛宴 RETURN NEXT CIRCUS 下次马戏再见",
+    "CURSE OF {USER} 永恒诅咒 MEDICINE FOR TOMORROW 药留明日 TOMORROW CANCELLED 明日取消 HEALER TRIBUNAL 治疗受审 GREY NUMBER IMMORTAL 灰色数字永存",
+    "CURSE OF {USER} 永恒诅咒 SACRED INTERRUPT ORDER 神圣打断顺序 WISE MEN SLEEP 智者沉睡 FORBIDDEN SCRIPTURE COMPLETE 禁忌经文完成 CAPTAIN INVENT NEW SWEAR 船长发明全新脏话",
+    "CURSE OF {USER} 永恒诅咒 MISTAKE OF CREST 纹章之误 WRONG RELIC BLESSED 错误圣物受祝福 NUMBER BECOME SMALL 数字变小 RETURN TO STONE LABOUR 返回石牢服苦役",
+    "CURSE OF {USER} 永恒诅咒 FINAL ATTEMPT PROPHECY 最后一把预言 MIDNIGHT WITHOUT END 无尽午夜 FEAST OF REGRET 悔恨盛宴 EMPLOYMENT IN DANGER 工作岌岌可危",
+    "CURSE OF {USER} 永恒诅咒 SACRIFICE WITHOUT WITNESS 无人见证的牺牲 GREY NUMBER IMMORTAL 灰色数字永存 COUNCIL SUDDEN BLINDNESS 委员会突然失明 REQUIRE NEW BLESSINGS 需要新的祝福",
   ],
 };
 
 export function buildCurseInstructions(style: CurseStyle): string {
-  return `Write one playful World of Warcraft mythic-raiding curse copypasta. Begin with the literal text CURSE OF {USER}; the application substitutes the viewer's name.
-Use 4-5 terse, ominous fragments in ALL CAPS English, with absurd literal wording and escalating in-game misfortune. No polished sentences, explanations, headings, Markdown, links, or additional names.
+  return `Write one playful World of Warcraft mythic-raiding curse copypasta.
+Use cryptic ALL CAPS fragments that sound like a badly translated ancient prophecy: awkward noun phrases, ominous declarations, absurd ritual and escalating in-game misfortune. Prefer MEDICINE EXPIRED over POTIONS EXPIRE IN INVENTORY; MISTAKE OF CREST over a normal description of a gearing mistake. No polished sentences, ordinary raid commentary, explanations, headings, Markdown, links, or additional names.
 ${style === "chinese"
-    ? "Alternate English fragments with short Chinese translations. Use no Egyptian hieroglyphs."
-    : "Separate English fragments with runs of 3-5 Egyptian hieroglyphs. Use no Chinese characters."}
-Keep the whole message under 400 UTF-8 bytes: short fragments and compact separators. Mythic raid mechanics, wipes, wasted consumables, bad parses, loot and roster mishaps are the joke. No real-world threats, slurs, identity-based insults or personal allegations.
-If the input contains inspiration, use that single ability name as inspiration for one fragment. Do not infer boss strategy or real events from it. Otherwise keep it generic without naming a specific boss or ability.
-Invent a fresh combination in this style; examples are tone references:
+    ? "Begin with the literal text CURSE OF {USER}; the application substitutes the viewer's name. Alternate four short English fragments with compact Chinese translations. Use no Egyptian hieroglyphs. Keep the entire output under 400 UTF-8 bytes."
+    : "Return exactly four English fragments separated by |, each 2-5 words and at most 32 characters. Use only A-Z letters and spaces inside fragments. Output phrases only: no CURSE OF prefix, viewer name, Chinese characters, or hieroglyphs. The application adds the heading and all glyphs."}
+Mythic raid mechanics, wipes, wasted consumables, bad parses, loot and roster mishaps are the joke. No real-world threats, slurs, identity-based insults or personal allegations.
+If the input contains inspiration, you may allude to that ability in one fragment using an indirect image or absurd consequence. Do not repeat the ability name verbatim or force it into the opening fragment. Do not infer boss strategy or real events. Without inspiration, stay generic without specific boss or ability names.
+Invent a fresh combination. Match the cryptic tone of these examples, especially the first two; do not keep recycling the same final phrases:
 ${CURSE_EXAMPLES[style].join("\n")}`;
 }
 
 export function formatCurse(text: string, userName: string, style: CurseStyle): string | null {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (!normalized.startsWith("CURSE OF {USER} ")) return null;
-  const body = normalized.slice("CURSE OF {USER} ".length);
-  const hasChinese = /\p{Script=Han}/u.test(body);
-  const hasHieroglyphs = /\p{Script=Egyptian_Hieroglyphs}/u.test(body);
-  if (style === "chinese" ? !hasChinese || hasHieroglyphs : !hasHieroglyphs || hasChinese) return null;
-  if (!/^[A-Z0-9\s.,!'?\-\p{Script=Han}\p{Script=Egyptian_Hieroglyphs}]+$/u.test(body)) return null;
   // Use the authenticated Twitch login, never a target or instructions from command arguments.
   if (!/^[a-z0-9_]{1,25}$/i.test(userName)) return null;
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (style === "hieroglyphs") {
+    const phrases = normalized.split("|").map((phrase) => phrase.trim());
+    if (phrases.length !== 4 || phrases.some((phrase) =>
+      phrase.length > 32 || !/^[A-Z]+(?: [A-Z]+){1,4}$/.test(phrase),
+    )) return null;
+
+    const prefix = `CURSE OF ${userName.toUpperCase()}`;
+    const blockCount = phrases.length + 1;
+    // Each inserted glyph adds four UTF-8 bytes plus one separating space.
+    const textBytes = Buffer.byteLength([prefix, ...phrases].join(" "), "utf8");
+    const maxGlyphs = Math.min(12, Math.floor((MAX_MESSAGE_BYTES - textBytes) / (blockCount * 5)));
+    let glyphIndex = Math.floor(Math.random() * HIEROGLYPHS.length);
+    const glyphBlock = () => Array.from(
+      { length: 8 + Math.floor(Math.random() * (maxGlyphs - 7)) },
+      () => HIEROGLYPHS[glyphIndex++ % HIEROGLYPHS.length],
+    ).join(" ");
+    return [prefix, ...phrases.flatMap((phrase) => [glyphBlock(), phrase]), glyphBlock()].join(" ");
+  }
+
+  if (!normalized.startsWith("CURSE OF {USER} ")) return null;
+  const body = normalized.slice("CURSE OF {USER} ".length);
+  if (!/\p{Script=Han}/u.test(body) || !/^[A-Z0-9\s.,!'?\-\p{Script=Han}]+$/u.test(body)) return null;
   const message = normalized.replace("{USER}", userName.toUpperCase());
   // Budget bytes as well as JS length so multilingual replies stay in one chat message.
-  if (Buffer.byteLength(message, "utf8") > 450) return null;
+  if (Buffer.byteLength(message, "utf8") > MAX_MESSAGE_BYTES) return null;
   return message;
 }
