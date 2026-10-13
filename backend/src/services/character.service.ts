@@ -1,3 +1,4 @@
+import ingestionLeases from "./ingestion-lease.service";
 import { CURRENT_RAID_IDS, PRIMARY_RAID_ID, TRACKED_RAIDS } from "../config/guilds";
 import { compareRaidIdsByPriority } from "../utils/raidPriority";
 import { CLASSES } from "../config/classes";
@@ -867,47 +868,45 @@ class CharacterService {
 
     await this.ensureCharacterIdentityIndexes();
 
-    // Keep identity writes monotonic. Historical report processing can arrive out of order,
-    // so only the newest observation may replace the stored name and realm.
-    const character = await Character.findOneAndUpdate(
-      { wclCanonicalCharacterId: canonicalID, classID },
-      {
-        $set: {
-          classID,
-          wclProfileHidden: hidden,
-          lastMythicSeenAt: now,
-          rankingsAvailable: hidden === true ? false : null,
-          nextEligibleRefreshAt: now,
+    return ingestionLeases.write(async () => {
+      // Keep identity writes monotonic. Historical report processing can arrive out of order,
+      // so only the newest observation may replace the stored name and realm.
+      const character = await Character.findOneAndUpdate(
+        { wclCanonicalCharacterId: canonicalID, classID },
+        {
+          $set: {
+            classID,
+            wclProfileHidden: hidden,
+            lastMythicSeenAt: now,
+            rankingsAvailable: hidden === true ? false : null,
+            nextEligibleRefreshAt: now,
+          },
+          $setOnInsert: {
+            wclCanonicalCharacterId: canonicalID,
+            name,
+            realm: serverSlug,
+            region: serverRegion,
+            identityObservedAt: now,
+            guildName,
+            guildRealm,
+            guildUpdatedAt: now,
+            guildHistory: initialGuildHistory,
+          },
         },
-        $setOnInsert: {
-          wclCanonicalCharacterId: canonicalID,
-          name,
-          realm: serverSlug,
-          region: serverRegion,
-          identityObservedAt: now,
-          guildName,
-          guildRealm,
-          guildUpdatedAt: now,
-          guildHistory: initialGuildHistory,
-        },
-      },
-      { upsert: true, returnDocument: "after" },
-    );
+        { upsert: true, returnDocument: "after" },
+      );
 
-    if (!character) return;
+      if (!character) return;
 
-    await updateCharacterIdentityFromObservation(
-      character._id as mongoose.Types.ObjectId,
-      { name, realm: serverSlug, region: serverRegion },
-      now,
-    );
+      await updateCharacterIdentityFromObservation(
+        character._id as mongoose.Types.ObjectId,
+        { name, realm: serverSlug, region: serverRegion },
+        now,
+      );
 
-    // For newly-inserted documents, $setOnInsert already set guild fields — skip further work.
-    // Detect insert: guildHistory was set by $setOnInsert, so if it exists and updatedAt ≈ now,
-    // we assume this was an insert. A safer check: if guildUpdatedAt equals now (same ms).
-    // However, existing pre-migration characters won't have guildHistory at all.
-    // To keep it simple and idempotent, always run the guild update — it's a no-op if nothing changed.
-    await this.updateCharacterGuild(character._id as mongoose.Types.ObjectId, character.guildName ?? null, character.guildRealm ?? null, guildName, guildRealm, now);
+      // Always refresh guild history; the update is idempotent for new characters.
+      await this.updateCharacterGuild(character._id as mongoose.Types.ObjectId, character.guildName ?? null, character.guildRealm ?? null, guildName, guildRealm, now);
+    });
   }
 
   /**

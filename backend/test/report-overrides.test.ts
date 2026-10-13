@@ -5,6 +5,7 @@ import test, { TestContext } from "node:test";
 import mongoose from "mongoose";
 import Report from "../src/models/Report";
 import ReportOverride from "../src/models/ReportOverride";
+import ingestionLeases from "../src/services/ingestion-lease.service";
 import policyService, { normalizeReportCode, reportAllowedForGuild, ReportOverrideError } from "../src/services/report-override-policy.service";
 
 const sourceId = new mongoose.Types.ObjectId("507f1f77bcf86cd799439012");
@@ -41,11 +42,13 @@ test("a second writer cannot acquire a report already being fetched", async (t) 
     if (locked) throw Object.assign(new Error("duplicate key"), { code: 11000 });
     locked = true;
   });
-  t.mock.method(ReportOverride as any, "updateOne", async () => { locked = false; });
+  t.mock.method(ReportOverride.collection, "updateOne", async () => { locked = false; return {} as any; });
   const firstToken = await policyService.acquire(code);
   await assert.rejects(policyService.acquire(code), (error: unknown) => error instanceof ReportOverrideError && error.code === "report_busy");
   await policyService.release(code, firstToken);
-  assert.notEqual(await policyService.acquire(code), firstToken);
+  const secondToken = await policyService.acquire(code);
+  assert.notEqual(secondToken, firstToken);
+  await policyService.release(code, secondToken);
 });
 
 test("ingestion releases its lock when a rule rejects a report or the rule lookup fails", async (t) => {
@@ -88,6 +91,13 @@ test("a moved report retains its WCL source snapshot on automatic refresh", asyn
   assert.deepEqual(await policyService.sourceFields(code, { sourceGuildSnapshot: { name: "KC" } }), {});
 });
 
+function stubLeaseScope(t: TestContext) {
+  // These tests isolate report policy/persistence; real lease ownership and
+  // fencing are covered against a replica set in integration/ingestion-leases.test.ts.
+  t.mock.method(ingestionLeases, "run", async (_token: string, work: () => Promise<any>) => work());
+  t.mock.method(ingestionLeases, "track", () => undefined);
+}
+
 async function services() {
   process.env.BLIZZARD_CLIENT_ID ||= "test-client";
   process.env.BLIZZARD_CLIENT_SECRET ||= "test-secret";
@@ -114,9 +124,10 @@ test("manual import cannot bypass an exclusion or a destination assignment", asy
 });
 
 test("manual import releases the shared report lock even when its persistence fails", async (t) => {
+  stubLeaseScope(t);
   const { guild } = await services();
   const { default: Guild } = await import("../src/models/Guild");
-  t.mock.method(Guild as any, "updateOne", async () => ({ modifiedCount: 1 }));
+  t.mock.method(Guild as any, "findOneAndUpdate", async () => ({ _id: sourceId }));
   const release = t.mock.method(policyService, "release", async () => undefined);
   t.mock.method(policyService, "acquireForIngestion", async () => "manual-token");
   t.mock.method(guild, "importSpecificReportForGuildUnlocked", async () => { throw new Error("persistence failed"); });
@@ -139,6 +150,7 @@ test("normal polling does not treat excluded reports as live raids or fetch them
 });
 
 test("destination polling refreshes an assigned historical report absent from its WCL guild listing", async (t) => {
+  stubLeaseScope(t);
   const { guild } = await services();
   const { default: wcl } = await import("../src/services/warcraftlogs.service");
   const { default: Fight } = await import("../src/models/Fight");
@@ -172,6 +184,7 @@ test("destination polling refreshes an assigned historical report absent from it
 });
 
 async function correctionFixture(t: TestContext) {
+  stubLeaseScope(t);
   const { guild: guildService } = await services();
   const { default: correctionService } = await import("../src/services/report-override.service");
   const { default: Guild } = await import("../src/models/Guild");
@@ -197,7 +210,7 @@ async function correctionFixture(t: TestContext) {
   t.mock.method(policyService, "acquire", async () => "correction-token");
   const release = t.mock.method(policyService, "release", async () => undefined);
   t.mock.method(Guild as any, "find", async (filter: any) => guilds.filter((guild) => filter._id.$in.includes(String(guild._id))));
-  t.mock.method(Guild as any, "updateMany", async (filter: any) => ({ modifiedCount: filter._id.$in.length }));
+  t.mock.method(Guild as any, "findOneAndUpdate", async (filter: any) => guilds.find((guild) => String(guild._id) === filter._id));
   t.mock.method(Queue as any, "exists", async () => null);
   t.mock.method(ReportOverride as any, "findOne", () => ({ session: async () => policy }));
   t.mock.method(Report as any, "findOne", () => ({ session: async () => report, sort: () => ({ select: () => ({ lean: async () => null }) }) }));

@@ -20,6 +20,7 @@ const ReportOverrideSchema = new Schema(
     // Shared by API and worker processes so an in-flight fetch cannot undo an admin correction.
     lockToken: String,
     lockedAt: Date,
+    leaseExpiresAt: Date,
   },
   { timestamps: true },
 );

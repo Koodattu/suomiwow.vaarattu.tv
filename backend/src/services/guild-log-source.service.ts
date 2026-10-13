@@ -1,3 +1,4 @@
+import { availableGuildUpdate, availableGuildMigration, isGuildLeaseActive } from "./guild-ingestion-lease.service";
 import ReportOverride from "../models/ReportOverride";
 import mongoose from "mongoose";
 import Guild, { IGuild } from "../models/Guild";
@@ -222,9 +223,7 @@ class GuildLogSourceService {
     const guild = await Guild.findById(guildId);
     if (!guild) throw new GuildLogSourceError(404, "guild_not_found", "Guild not found");
     if (
-      guild.logSourceMigrationLockToken &&
-      guild.logSourceMigrationLockedAt &&
-      guild.logSourceMigrationLockedAt.getTime() >= Date.now() - 2 * 60 * 60 * 1000
+      isGuildLeaseActive(guild.logSourceMigrationLockToken, guild.logSourceMigrationLockedAt, guild.logSourceMigrationLeaseExpiresAt, 2 * 60 * 60 * 1000)
     ) {
       throw new GuildLogSourceError(409, "migration_blocked", "This guild is currently being migrated. Wait for the migration to finish.");
     }
@@ -268,8 +267,7 @@ class GuildLogSourceService {
   async updateSource(guildId: string, sourceId: string, input: { enabled?: boolean; syncPolicy?: GuildLogSourceSyncPolicy }): Promise<IGuildLogSource> {
     const migrationInProgress = await Guild.exists({
       _id: guildId,
-      logSourceMigrationLockToken: { $exists: true },
-      logSourceMigrationLockedAt: { $gte: new Date(Date.now() - 2 * 60 * 60 * 1000) },
+      $nor: [availableGuildMigration()],
     });
     if (migrationInProgress) {
       throw new GuildLogSourceError(409, "migration_blocked", "This guild is currently being migrated. Wait for the migration to finish.");
@@ -383,14 +381,12 @@ class GuildLogSourceService {
 
     const blockers: string[] = [];
     const warnings: string[] = [];
-    const activeUpdateCutoff = Date.now() - 60 * 60 * 1000;
-    const activeMigrationCutoff = Date.now() - 2 * 60 * 60 * 1000;
     const involvedGuilds = [sourceGuild, targetGuild];
     const activeUpdateLocks = involvedGuilds.filter(
-      (guild) => guild.wclUpdateLockToken && guild.wclUpdateStartedAt && guild.wclUpdateStartedAt.getTime() >= activeUpdateCutoff,
+      (guild) => isGuildLeaseActive(guild.wclUpdateLockToken, guild.wclUpdateStartedAt, guild.wclUpdateLeaseExpiresAt, 60 * 60 * 1000),
     ).length;
     const activeMigrationLocks = involvedGuilds.filter(
-      (guild) => guild.logSourceMigrationLockToken && guild.logSourceMigrationLockedAt && guild.logSourceMigrationLockedAt.getTime() >= activeMigrationCutoff,
+      (guild) => isGuildLeaseActive(guild.logSourceMigrationLockToken, guild.logSourceMigrationLockedAt, guild.logSourceMigrationLeaseExpiresAt, 2 * 60 * 60 * 1000),
     ).length;
     const integrityMismatches = fightOwnershipMismatches + appearanceOwnershipMismatches + reportFightMismatches + reportAppearanceMismatches;
     if (await ReportOverride.exists({ $or: [
@@ -435,8 +431,6 @@ class GuildLogSourceService {
     const session = await mongoose.startSession();
     const migrationLockToken = new mongoose.Types.ObjectId().toHexString();
     const lockStartedAt = new Date();
-    const staleUpdateLock = new Date(lockStartedAt.getTime() - 60 * 60 * 1000);
-    const staleMigrationLock = new Date(lockStartedAt.getTime() - 2 * 60 * 60 * 1000);
     const involvedGuildIds = [targetGuild._id, sourceGuild._id];
     let reportResult = { modifiedCount: 0 };
     let fightResult = { modifiedCount: 0 };
@@ -449,21 +443,11 @@ class GuildLogSourceService {
         {
           _id: { $in: involvedGuildIds },
           $and: [
-            {
-              $or: [
-                { wclUpdateLockToken: { $exists: false } },
-                { wclUpdateStartedAt: { $lt: staleUpdateLock } },
-              ],
-            },
-            {
-              $or: [
-                { logSourceMigrationLockToken: { $exists: false } },
-                { logSourceMigrationLockedAt: { $lt: staleMigrationLock } },
-              ],
-            },
+            availableGuildUpdate(),
+            availableGuildMigration(),
           ],
         },
-        { $set: { logSourceMigrationLockToken: migrationLockToken, logSourceMigrationLockedAt: lockStartedAt } },
+        { $set: { logSourceMigrationLockToken: migrationLockToken, logSourceMigrationLockedAt: lockStartedAt }, $unset: { logSourceMigrationLeaseExpiresAt: 1 } },
       );
       if (lockResult.modifiedCount !== 2) {
         throw new GuildLogSourceError(409, "migration_blocked", "The source or target guild started another update. Wait for it to finish and preview again.");

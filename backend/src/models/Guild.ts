@@ -149,8 +149,10 @@ export interface IGuild extends Document {
   lastFetched?: Date;
   wclUpdateLockToken?: string;
   wclUpdateStartedAt?: Date;
+  wclUpdateLeaseExpiresAt?: Date;
   logSourceMigrationLockToken?: string;
   logSourceMigrationLockedAt?: Date;
+  logSourceMigrationLeaseExpiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -300,8 +302,10 @@ const GuildSchema: Schema = new Schema(
     lastFetched: { type: Date },
     wclUpdateLockToken: { type: String },
     wclUpdateStartedAt: { type: Date },
+    wclUpdateLeaseExpiresAt: { type: Date },
     logSourceMigrationLockToken: { type: String },
     logSourceMigrationLockedAt: { type: Date },
+    logSourceMigrationLeaseExpiresAt: { type: Date },
   },
   {
     timestamps: true,

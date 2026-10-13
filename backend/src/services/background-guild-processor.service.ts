@@ -1,3 +1,5 @@
+import { availableGuildMigration, isGuildLeaseActive } from "./guild-ingestion-lease.service";
+import ingestionLeases from "./ingestion-lease.service";
 import reportOverridePolicy from "./report-override-policy.service";
 import avoidableDamageService from "./avoidable-damage.service";
 import { MechanicCollectionPaused } from "../utils/avoidable-damage";
@@ -253,8 +255,7 @@ class BackgroundGuildProcessor {
       try {
         const correctionInProgress = await Guild.exists({
           _id: queueItem.guildId,
-          logSourceMigrationLockToken: { $exists: true },
-          logSourceMigrationLockedAt: { $gte: new Date(Date.now() - 2 * 60 * 60 * 1000) },
+          $nor: [availableGuildMigration()],
         });
         if (correctionInProgress) {
           await GuildProcessingQueue.updateOne({ _id: queueItem._id }, { $set: { status: "pending" }, $unset: { startedAt: 1 } });
@@ -701,7 +702,7 @@ class BackgroundGuildProcessor {
       const isOngoing = !report.endTime || report.endTime === 0;
 
       // Save report metadata
-      await Report.findOneAndUpdate(
+      await ingestionLeases.writeFor(reportWriteToken, async () => Report.findOneAndUpdate(
         { code: report.code },
         {
           code: report.code,
@@ -719,7 +720,7 @@ class BackgroundGuildProcessor {
           lastProcessed: new Date(),
         },
         { upsert: true, returnDocument: "after" },
-      );
+      ));
 
       // Process fights
       if (report.fights && report.fights.length > 0) {
@@ -802,7 +803,7 @@ class BackgroundGuildProcessor {
 
           // Save fight to database
           const fightTimestamp = new Date(report.startTime + fight.startTime);
-          await Fight.findOneAndUpdate(
+          await ingestionLeases.writeFor(reportWriteToken, async () => Fight.findOneAndUpdate(
             { reportCode: report.code, fightId: fight.id },
             {
               reportCode: report.code,
@@ -832,7 +833,7 @@ class BackgroundGuildProcessor {
               timestamp: fightTimestamp,
             },
             { upsert: true, returnDocument: "after" },
-          );
+          ));
 
           fightsSaved++;
         }
@@ -1484,12 +1485,12 @@ class BackgroundGuildProcessor {
     guildLogSourceId?: mongoose.Types.ObjectId | string,
     options: { targetRaidIds?: number[]; targetMechanicKeys?: string[] } = {},
   ): Promise<IGuildProcessingQueue> {
-    const freshGuild = await Guild.findById(guild._id).select("logSourceMigrationLockToken logSourceMigrationLockedAt").lean();
+    const freshGuild = await Guild.findById(guild._id).select("logSourceMigrationLockToken logSourceMigrationLockedAt logSourceMigrationLeaseExpiresAt").lean();
     if (!freshGuild) throw new Error("Guild no longer exists");
-    const migrationLockIsFresh =
-      freshGuild.logSourceMigrationLockToken &&
-      freshGuild.logSourceMigrationLockedAt &&
-      freshGuild.logSourceMigrationLockedAt.getTime() >= Date.now() - 2 * 60 * 60 * 1000;
+    const migrationLockIsFresh = isGuildLeaseActive(
+      freshGuild.logSourceMigrationLockToken, freshGuild.logSourceMigrationLockedAt,
+      freshGuild.logSourceMigrationLeaseExpiresAt, 2 * 60 * 60 * 1000,
+    );
     if (migrationLockIsFresh) {
       throw new Error("Guild is locked while an existing guild is being converted to a log source");
     }

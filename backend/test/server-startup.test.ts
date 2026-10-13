@@ -21,6 +21,12 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
   const warmupStarted = deferred<void>();
   const warmupFinished = deferred<"completed" | "failed">();
   const backgroundFinished = deferred<void>();
+  const drain = deferred<boolean>();
+  const drainStarted = deferred<void>();
+  const exited = deferred<number>();
+  const signals = new Map<string, () => void>();
+  const lifecycle: string[] = [];
+  let signalled = false;
   const servers: Server[] = [];
   const errors: unknown[][] = [];
   let listeningWhenWarmupStarted = false;
@@ -55,6 +61,15 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
     "./config/database": noop,
     "./config/ccg": { CCG_FEATURE_ENABLED: false },
     "./services/cache.service": { initialize: noop },
+    "./services/ingestion-lease.service": {
+      beginShutdown() { lifecycle.push("reject-new-work"); },
+      async drain() {
+        assert.ok(servers.every((server) => !server.listening));
+        lifecycle.push("drain");
+        drainStarted.resolve();
+        return drain.promise;
+      },
+    },
     "./services/pickem.service": { ensureCcgRewardDefaults: noop },
     "./services/ccg-guest-persistence-migration.service": { ensurePersistentCcgGuests: noop },
     "./services/ccg-ownership-migration.service": { ensureCcgSeriesOwnershipMigration: noop },
@@ -87,12 +102,12 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
       recalculateExistingGuildStatistics: noop, migrateGuildsWarcraftLogsId: noop,
     },
     "./services/guild-log-source.service": { ensurePrimarySourcesForAllGuilds: noop },
-    "./services/scheduler.service": { start() {}, ensureGuildNetworkSnapshotOnStartup: noop },
-    "./features/reporter/reporter-scheduler.service": { start() {} },
-    "./services/background-guild-processor.service": { start() {} },
+    "./services/scheduler.service": { start() {}, stop() { lifecycle.push("stop-scheduler"); }, ensureGuildNetworkSnapshotOnStartup: noop },
+    "./features/reporter/reporter-scheduler.service": { start() {}, stop() {} },
+    "./services/background-guild-processor.service": { start() {}, stop() { lifecycle.push("stop-processor"); } },
     "./services/full-history-refresh.service": { start() {} },
-    "./services/discord-bot.service": { registerCommands: noop, startEventPublisher() {} },
-    "./services/twitch-chat-bot.service": { start() {} },
+    "./services/discord-bot.service": { registerCommands: noop, startEventPublisher() {}, stopEventPublisher() {} },
+    "./services/twitch-chat-bot.service": { start() {}, stop: noop },
     "./services/cache-warmer.service": { warmAllCaches: () => warmup.promise },
   };
   const startup = runInNewContext(compiled, {
@@ -100,8 +115,12 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
     __dirname: path.dirname(entrypoint),
     process: {
       env: { WORKER_MODE: mode, NODE_ENV: "test" },
-      on() {},
-      exit(code: number) { assert.fail(`Startup exited with ${code}: ${errors.flat().join(" ")}`); },
+      on(signal: string, handler: () => void) { signals.set(signal, handler); },
+      exit(code: number) {
+        if (!signalled) assert.fail(`Startup exited with ${code}: ${errors.flat().join(" ")}`);
+        lifecycle.push("exit");
+        exited.resolve(code);
+      },
     },
     require(name: string) {
       if (Object.prototype.hasOwnProperty.call(dependencies, name)) return dependencies[name];
@@ -113,12 +132,14 @@ function boot(t: TestContext, mode: "api" | "both", failWarmup = false) {
     warmup.resolve();
     await startup;
     if (mode === "both") await backgroundFinished.promise;
-    await Promise.all(servers.map((server) => new Promise<void>((resolve, reject) => {
+    await Promise.all(servers.filter((server) => server.listening).map((server) => new Promise<void>((resolve, reject) => {
       server.close((error) => error ? reject(error) : resolve());
     })));
   });
   return {
     startup, warmup, warmupStarted, warmupFinished, backgroundFinished, errors,
+    drain, drainStarted, exited, lifecycle,
+    signal(name: string) { signalled = true; signals.get(name)!(); },
     get warmupRuns() { return warmupRuns; },
     get listeningWhenWarmupStarted() { return listeningWhenWarmupStarted; },
     get url() { return `http://127.0.0.1:${(servers[0].address() as AddressInfo).port}`; },
@@ -168,3 +189,20 @@ test("a background mechanic warmup failure is recorded without taking the API ou
   assert.match(status.failedTasks[0].error, /fixture warmup failure/);
   assert.ok(server.errors.some((args) => String(args[0]).includes("fixture warmup failure")));
 });
+
+for (const finishes of [true, false]) {
+  test(`shutdown ${finishes ? "drains imports" : "exits after the drain budget"} before exiting`, { timeout: 5000 }, async (t) => {
+    const server = boot(t, "both");
+    await server.warmupStarted.promise;
+    server.warmup.resolve();
+    await server.backgroundFinished.promise;
+    server.signal("SIGTERM");
+    await server.drainStarted.promise;
+    assert.deepEqual(server.lifecycle, ["reject-new-work", "stop-scheduler", "stop-processor", "drain"]);
+    server.signal("SIGINT");
+    assert.equal(server.lifecycle.filter((item) => item === "drain").length, 1);
+    server.drain.resolve(finishes);
+    assert.equal(await server.exited.promise, 0);
+    assert.equal(server.lifecycle[server.lifecycle.length - 1], "exit");
+  });
+}

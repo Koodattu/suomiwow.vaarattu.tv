@@ -1,3 +1,5 @@
+import type { Server } from "node:http";
+import ingestionLeases from "./services/ingestion-lease.service";
 // Load environment variables
 import dotenv from "dotenv";
 dotenv.config();
@@ -78,6 +80,7 @@ const isApiProcess = WORKER_MODE === "api" || WORKER_MODE === "both";
 const isWorkerProcess = WORKER_MODE === "worker" || WORKER_MODE === "both";
 
 const app: Application = express();
+const httpServers: Server[] = [];
 const PORT = process.env.PORT || 3001;
 const WORKER_PORT = process.env.WORKER_PORT || 3002;
 
@@ -614,7 +617,7 @@ const startServer = async () => {
     }
 
     if (isApiProcess) {
-      app.listen(PORT, () => {
+      httpServers.push(app.listen(PORT, () => {
         logger.info(`[Startup] Server running on port ${PORT}`);
         logger.info(`[Startup] API available at http://localhost:${PORT}/api`);
         logger.info(`[Startup] Health check: http://localhost:${PORT}/health`);
@@ -624,7 +627,7 @@ const startServer = async () => {
         // Persisted snapshots remain available and shared leases prevent duplicate builds.
         void runStartupTask("Warm mechanic caches", () => avoidableDamageService.warmLeaderboardCaches())
           .catch((error) => logger.error("[Startup] Mechanic cache warm-up failed:", error));
-      });
+      }));
 
       void discordBotService.registerCommands();
     }
@@ -654,9 +657,9 @@ const startServer = async () => {
         res.json({ status: "ok", mode: "worker" });
       });
 
-      workerApp.listen(WORKER_PORT, () => {
+      httpServers.push(workerApp.listen(WORKER_PORT, () => {
         logger.info(`[Startup] Worker admin API running on port ${WORKER_PORT}`);
-      });
+      }));
     }
 
     if (isWorkerProcess) {
@@ -686,31 +689,35 @@ const startServer = async () => {
   }
 };
 
-// Handle shutdown gracefully
-process.on("SIGINT", async () => {
-  logger.info("Shutting down gracefully...");
+// Stop new acquisitions before draining existing imports. Hard exits are handled
+// by lease expiry; never release a lock while its owner may still be writing.
+let shuttingDown = false;
+async function shutdown(): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  ingestionLeases.beginShutdown();
+  for (const server of httpServers) server.close();
+  logger.info("Shutting down; draining active ingestion...");
   if (isWorkerProcess) {
     scheduler.stop();
     reporterScheduler.stop();
     backgroundGuildProcessor.stop();
     discordBotService.stopEventPublisher();
-    await twitchChatBotService.stop();
   }
+  if (!(await ingestionLeases.drain())) {
+    logger.warn("Ingestion drain timed out; unfinished leases will expire automatically");
+  }
+  if (isWorkerProcess) await twitchChatBotService.stop();
   await flushAnalytics();
   process.exit(0);
-});
-
-process.on("SIGTERM", async () => {
-  logger.info("Shutting down gracefully...");
-  if (isWorkerProcess) {
-    scheduler.stop();
-    reporterScheduler.stop();
-    backgroundGuildProcessor.stop();
-    discordBotService.stopEventPublisher();
-    await twitchChatBotService.stop();
-  }
-  await flushAnalytics();
-  process.exit(0);
-});
+}
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => {
+    void shutdown().catch((error) => {
+      logger.error("Shutdown failed; unfinished ingestion leases will expire", error);
+      process.exit(1);
+    });
+  });
+}
 
 startServer();

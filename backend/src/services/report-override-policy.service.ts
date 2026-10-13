@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import ReportOverride from "../models/ReportOverride";
 import Report from "../models/Report";
+import ingestionLeases, { availableLease, INGESTION_LEASE_MS } from "./ingestion-lease.service";
+import logger from "../utils/logger";
 
 export class ReportOverrideError extends Error {
   constructor(public statusCode: number, public code: string, message: string) {
@@ -36,30 +38,42 @@ class ReportOverridePolicyService {
   }
 
   async acquire(code: string): Promise<string> {
-    await ReportOverride.init();
-    const token = new mongoose.Types.ObjectId().toHexString();
-    try {
-      await ReportOverride.findOneAndUpdate(
-        { code, $or: [{ lockToken: { $exists: false } }, { lockedAt: { $lt: new Date(Date.now() - 2 * 60 * 60 * 1000) } }] },
-        { $set: { lockToken: token, lockedAt: new Date() }, $setOnInsert: { code } },
-        { upsert: true },
-      );
-    } catch (error) {
-      if ((error as { code?: number }).code === 11000) {
-        throw new ReportOverrideError(409, "report_busy", "This report is being updated. Try again when the update finishes.");
+    return ingestionLeases.acquiringLease(async () => {
+      await ReportOverride.init();
+      const token = new mongoose.Types.ObjectId().toHexString();
+      try {
+        await ReportOverride.findOneAndUpdate(
+          { code, ...availableLease("lockToken", "lockedAt", "leaseExpiresAt", 2 * 60 * 60 * 1000) },
+          { $set: { lockToken: token, lockedAt: new Date(), leaseExpiresAt: new Date(Date.now() + INGESTION_LEASE_MS) }, $setOnInsert: { code } },
+          { upsert: true },
+        );
+      } catch (error) {
+        if ((error as { code?: number }).code === 11000) {
+          throw new ReportOverrideError(409, "report_busy", "This report is being updated. Try again when the update finishes.");
+        }
+        throw error;
       }
-      throw error;
-    }
-    return token;
+      ingestionLeases.track({ model: ReportOverride, filter: { code }, token, tokenField: "lockToken", timeField: "lockedAt", expiryField: "leaseExpiresAt" });
+      return token;
+    });
   }
 
   async release(code: string, token: string): Promise<void> {
-    await ReportOverride.updateOne({ code, lockToken: token }, { $unset: { lockToken: 1, lockedAt: 1 } });
+    await ingestionLeases.release(token);
   }
 
-  async acquireForIngestion(code: string, guildId: unknown): Promise<string | null> {
+  async acquireForIngestion(code: string, guildId: unknown, skipBusy = false): Promise<string | null> {
     if (!(await this.allowed(code, guildId))) return null;
-    const token = await this.acquire(code);
+    let token: string;
+    try {
+      token = await this.acquire(code);
+    } catch (error) {
+      if (skipBusy && error instanceof ReportOverrideError && error.code === "report_busy") {
+        logger.info(`Report ${code} is busy; leaving it eligible for the next poll`);
+        return null;
+      }
+      throw error;
+    }
     try {
       if (await this.allowed(code, guildId)) return token;
       await this.release(code, token);

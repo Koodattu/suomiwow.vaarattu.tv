@@ -1,3 +1,5 @@
+import ingestionLeases from "./ingestion-lease.service";
+import { acquireGuildIngestionLease, isGuildLeaseActive } from "./guild-ingestion-lease.service";
 import ReportOverride from "../models/ReportOverride";
 import reportOverridePolicy, { normalizeReportCode, ReportOverrideError } from "./report-override-policy.service";
 import Guild, { IGuild, IRaidProgress, IBossProgress, IOfficialRaidProgress, type IRaidSchedule } from "../models/Guild";
@@ -1323,30 +1325,7 @@ class GuildService {
   // Fetch and update a single guild's progress
   async updateGuildProgress(guildId: string): Promise<GuildProgressUpdateResult | null> {
     const lockToken = new mongoose.Types.ObjectId().toHexString();
-    const now = new Date();
-    const staleUpdateLock = new Date(now.getTime() - 60 * 60 * 1000);
-    const staleMigrationLock = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-    const guild = await Guild.findOneAndUpdate(
-      {
-        _id: guildId,
-        $and: [
-          {
-            $or: [
-              { wclUpdateLockToken: { $exists: false } },
-              { wclUpdateStartedAt: { $lt: staleUpdateLock } },
-            ],
-          },
-          {
-            $or: [
-              { logSourceMigrationLockToken: { $exists: false } },
-              { logSourceMigrationLockedAt: { $lt: staleMigrationLock } },
-            ],
-          },
-        ],
-      },
-      { $set: { wclUpdateLockToken: lockToken, wclUpdateStartedAt: now } },
-      { returnDocument: "after" },
-    );
+    const guild = await acquireGuildIngestionLease(guildId, lockToken);
     if (!guild) {
       logger.info(`Guild ${guildId} was not updated because it is missing or already locked for processing`);
       return null;
@@ -1354,88 +1333,87 @@ class GuildService {
 
     getGuildLogger(guild.name, guild.realm).info("Updating guild progress");
 
-    try {
-      const wasCurrentlyRaiding = guild.isCurrentlyRaiding;
-      const primarySource = await guildLogSourceService.ensurePrimarySource(guild);
+    return ingestionLeases.run(lockToken, async () => {
+      try {
+        const wasCurrentlyRaiding = guild.isCurrentlyRaiding;
+        const primarySource = await ingestionLeases.write(async () => guildLogSourceService.ensurePrimarySource(guild));
 
-      // Determine if this is an initial fetch by checking if guild has any reports at all
-      const hasAnyReports = await Report.exists({ guildId: guild._id });
-      const isInitialFetch = !hasAnyReports;
+        // Determine if this is an initial fetch by checking if guild has any reports at all
+        const hasAnyReports = await Report.exists({ guildId: guild._id });
+        const isInitialFetch = !hasAnyReports;
 
-      // Fetch reports and process - scope depends on whether initial or update
-      // Note: performUpdate now handles raiding status internally
-      const hasNewData = await this.fetchAndProcessReports(guild, primarySource, isInitialFetch);
+        // Fetch reports and process - scope depends on whether initial or update
+        // Note: performUpdate now handles raiding status internally
+        const hasNewData = await this.fetchAndProcessReports(guild, primarySource, isInitialFetch);
 
-      // For initial fetch, ensure raiding status is set to false and mark as completed
-      if (isInitialFetch) {
-        guild.isCurrentlyRaiding = false;
-        guild.initialFetchCompleted = true;
-        guild.initialFetchCompletedAt = new Date();
-      } else if (hasNewData) {
-        guild.activityStatus = "active";
-      }
-
-      guild.lastFetched = new Date();
-      await guild.save();
-      await guildLogSourceService.setSourceFetchSucceeded(primarySource, {
-        warcraftlogsId: guild.warcraftlogsId,
-        lastLogEndTime: guild.lastLogEndTime,
-      });
-
-      const raidingStatusChanged = wasCurrentlyRaiding !== guild.isCurrentlyRaiding;
-      if (hasNewData || raidingStatusChanged) {
-        const invalidations = [cacheService.invalidateGuildSpecificCaches(guild.realm, guild.name)];
-        if (raidingStatusChanged) {
-          invalidations.push(cacheService.invalidate(cacheService.getGuildListKey()));
+        // For initial fetch, ensure raiding status is set to false and mark as completed
+        if (isInitialFetch) {
+          guild.isCurrentlyRaiding = false;
+          guild.initialFetchCompleted = true;
+          guild.initialFetchCompletedAt = new Date();
+        } else if (hasNewData) {
+          guild.activityStatus = "active";
         }
-        await Promise.all(invalidations);
-      }
 
-      // Update world rankings only if there was new data and only for current raid
-      if (hasNewData && isInitialFetch) {
-        // Initial fetch: update ranks for all raids with progress, then calculate guild rankings
-        await this.updateGuildWorldRankings(guildId);
-        await this.calculateGuildRankingsForAllRaids();
-      } else if (hasNewData && !isInitialFetch) {
-        // Update: only update rank for current raids if not completed
-        await this.updateCurrentRaidsWorldRanking(guildId);
-        for (const raidId of CURRENT_RAID_IDS) {
-          await this.calculateGuildRankingsForRaid(raidId);
+        guild.lastFetched = new Date();
+        await ingestionLeases.write(async () => guild.save());
+        await ingestionLeases.write(async () => guildLogSourceService.setSourceFetchSucceeded(primarySource, {
+          warcraftlogsId: guild.warcraftlogsId,
+          lastLogEndTime: guild.lastLogEndTime,
+        }));
+
+        const raidingStatusChanged = wasCurrentlyRaiding !== guild.isCurrentlyRaiding;
+        if (hasNewData || raidingStatusChanged) {
+          const invalidations = [cacheService.invalidateGuildSpecificCaches(guild.realm, guild.name)];
+          if (raidingStatusChanged) {
+            invalidations.push(cacheService.invalidate(cacheService.getGuildListKey()));
+          }
+          await Promise.all(invalidations);
         }
+
+        // Update world rankings only if there was new data and only for current raid
+        if (hasNewData && isInitialFetch) {
+          // Initial fetch: update ranks for all raids with progress, then calculate guild rankings
+          await this.updateGuildWorldRankings(guildId);
+          await this.calculateGuildRankingsForAllRaids();
+        } else if (hasNewData && !isInitialFetch) {
+          // Update: only update rank for current raids if not completed
+          await this.updateCurrentRaidsWorldRanking(guildId);
+          for (const raidId of CURRENT_RAID_IDS) {
+            await this.calculateGuildRankingsForRaid(raidId);
+          }
+        }
+
+        // Update official progression from Raider.IO (reflects in-game kills, works for private logs)
+        await this.updateOfficialProgress(guildId);
+
+        getGuildLogger(guild.name, guild.realm).info("Successfully updated guild progress");
+        return { guild, hasNewData, raidingStatusChanged, isInitialFetch };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message || error.name : "Unknown error";
+        getGuildLogger(guild.name, guild.realm).error("Error updating guild:", error);
+
+        // Classify the error for better handling
+        const { classifyError, ErrorType } = require("../utils/error-classifier");
+        const classifiedError = classifyError(errorMessage);
+
+        // If guild not found on WarcraftLogs, mark it and don't retry automatically
+        if (classifiedError.type === ErrorType.GUILD_NOT_FOUND) {
+          getGuildLogger(guild.name, guild.realm).warn("Guild not found on WarcraftLogs, marking as not_found");
+          const primarySource = await ingestionLeases.write(async () => guildLogSourceService.ensurePrimarySource(guild));
+          await ingestionLeases.write(async () => guildLogSourceService.setSourceFetchFailed(primarySource._id as mongoose.Types.ObjectId, true));
+          await ingestionLeases.write(async () => Guild.findByIdAndUpdate(guild._id, {
+            wclStatus: "not_found",
+            wclStatusUpdatedAt: new Date(),
+            $inc: { wclNotFoundCount: 1 },
+          }));
+        }
+
+        return null;
+      } finally {
+        await ingestionLeases.release(lockToken);
       }
-
-      // Update official progression from Raider.IO (reflects in-game kills, works for private logs)
-      await this.updateOfficialProgress(guildId);
-
-      getGuildLogger(guild.name, guild.realm).info("Successfully updated guild progress");
-      return { guild, hasNewData, raidingStatusChanged, isInitialFetch };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message || error.name : "Unknown error";
-      getGuildLogger(guild.name, guild.realm).error("Error updating guild:", error);
-
-      // Classify the error for better handling
-      const { classifyError, ErrorType } = require("../utils/error-classifier");
-      const classifiedError = classifyError(errorMessage);
-
-      // If guild not found on WarcraftLogs, mark it and don't retry automatically
-      if (classifiedError.type === ErrorType.GUILD_NOT_FOUND) {
-        getGuildLogger(guild.name, guild.realm).warn("Guild not found on WarcraftLogs, marking as not_found");
-        const primarySource = await guildLogSourceService.ensurePrimarySource(guild);
-        await guildLogSourceService.setSourceFetchFailed(primarySource._id as mongoose.Types.ObjectId, true);
-        await Guild.findByIdAndUpdate(guild._id, {
-          wclStatus: "not_found",
-          wclStatusUpdatedAt: new Date(),
-          $inc: { wclNotFoundCount: 1 },
-        });
-      }
-
-      return null;
-    } finally {
-      await Guild.updateOne(
-        { _id: guild._id, wclUpdateLockToken: lockToken },
-        { $unset: { wclUpdateLockToken: 1, wclUpdateStartedAt: 1 } },
-      );
-    }
+    });
   }
 
   // Fetch and log guild zone rankings for debugging
@@ -1507,14 +1485,14 @@ class GuildService {
       return;
     }
 
-    await WorldRankHistory.create({
+    await ingestionLeases.write(async () => WorldRankHistory.create({
       guildId,
       raidId,
       worldRank: progress.worldRank,
       wclWorldRank: progress.wclWorldRank,
       rioWorldRank: progress.rioWorldRank,
       recordedAt: new Date(),
-    });
+    }));
   }
 
   // Get world rank history for a guild and raid
@@ -1647,7 +1625,7 @@ class GuildService {
       this.computeBestWorldRank(raidProgress);
     }
 
-    await guild.save();
+    await ingestionLeases.write(async () => guild.save());
 
     // Record rank snapshots for current raid tier (after save so guild._id is available)
     for (const raidProgress of raidsWithProgress) {
@@ -1793,7 +1771,7 @@ class GuildService {
       if (heroicProgress) this.computeBestWorldRank(heroicProgress);
     }
 
-    await guild.save();
+    await ingestionLeases.write(async () => guild.save());
 
     // Record rank snapshots for current raid tier (after save so guild._id is available)
     for (const { raidId, mythicProgress, heroicProgress } of raidsToUpdate) {
@@ -1863,7 +1841,7 @@ class GuildService {
         guild.markModified("progress");
       }
 
-      await guild.save();
+      await ingestionLeases.write(async () => guild.save());
 
       for (const entry of updatedEntries) {
         guildLog.info(`Official progress (${entry.raidTierSlug}): ${entry.summary}`);
@@ -1898,7 +1876,7 @@ class GuildService {
         guildLog.info("Guild not found on Raider.IO or no progression data");
         guild.rioStatus = "not_found";
         guild.lastRioUpdate = new Date();
-        await guild.save();
+        await ingestionLeases.write(async () => guild.save());
         return false;
       }
 
@@ -1967,14 +1945,14 @@ class GuildService {
       guild.lastRioUpdate = new Date();
       guild.lastFetched = new Date();
       guild.markModified("progress");
-      await guild.save();
+      await ingestionLeases.write(async () => guild.save());
 
       guildLog.info(`RIO update complete: ${hasCurrentTierProgress ? "active" : "no"} current-tier progress`);
       return hasCurrentTierProgress;
     } catch (error) {
       guildLog.error("Error updating guild from Raider.IO:", error);
       guild.lastRioUpdate = new Date();
-      await guild.save();
+      await ingestionLeases.write(async () => guild.save());
       return false;
     }
   }
@@ -2114,11 +2092,11 @@ class GuildService {
     // Also clear guildRank for guilds excluded from this raid. Use targeted
     // updates instead of saving full guild documents so concurrent progress
     // updates do not trip Mongoose version conflicts.
-    await Guild.updateMany(
+    await ingestionLeases.write(async () => Guild.updateMany(
       { excludedRaidIds: raidId, "progress.raidId": raidId },
       { $set: { "progress.$[progress].guildRank": null } },
       { arrayFilters: [{ "progress.raidId": raidId }] },
-    );
+    ));
 
     // Look up raid slug for matching official progress from Raider.IO
     const raid = await Raid.findOne({ id: raidId }).lean();
@@ -2193,7 +2171,7 @@ class GuildService {
     }
 
     if (clearRankOperations.length > 0) {
-      await Guild.bulkWrite(clearRankOperations, { ordered: false });
+      await ingestionLeases.write(async () => Guild.bulkWrite(clearRankOperations, { ordered: false }));
     }
 
     if (rankEntries.length === 0) {
@@ -2297,7 +2275,7 @@ class GuildService {
 
     for (let i = 0; i < rankOperations.length; i += 100) {
       await yieldToEventLoop();
-      await Guild.bulkWrite(rankOperations.slice(i, i + 100), { ordered: false });
+      await ingestionLeases.write(async () => Guild.bulkWrite(rankOperations.slice(i, i + 100), { ordered: false }));
     }
 
     const mythicCount = sortedEntries.filter((e) => e.difficulty === "mythic").length;
@@ -2350,7 +2328,7 @@ class GuildService {
         if (guildDetails.guildData?.guild?.id) {
           source.warcraftlogsId = guildDetails.guildData.guild.id;
           guild.warcraftlogsId = source.warcraftlogsId;
-          await source.save();
+          await ingestionLeases.write(async () => source.save());
           guildLog.info(`WarcraftLogs guild ID: ${guild.warcraftlogsId}`);
 
           // Also update faction if available
@@ -2413,7 +2391,7 @@ class GuildService {
 
           // Save report metadata
           const isOngoing = !report.endTime || report.endTime === 0;
-          await Report.findOneAndUpdate(
+          await ingestionLeases.writeFor(reportWriteToken, async () => Report.findOneAndUpdate(
             { code: report.code },
             {
               code: report.code,
@@ -2431,7 +2409,7 @@ class GuildService {
               lastProcessed: new Date(),
             },
             { upsert: true, returnDocument: "after" },
-          );
+          ));
 
           totalReportsFetched++;
 
@@ -2516,7 +2494,7 @@ class GuildService {
 
               // Save fight to database
               const fightTimestamp = new Date(report.startTime + fight.startTime);
-              await Fight.findOneAndUpdate(
+              await ingestionLeases.writeFor(reportWriteToken, async () => Fight.findOneAndUpdate(
                 { reportCode: report.code, fightId: fight.id },
                 {
                   reportCode: report.code,
@@ -2546,7 +2524,7 @@ class GuildService {
                   timestamp: fightTimestamp,
                 },
                 { upsert: true, returnDocument: "after" },
-              );
+              ));
 
               // ADD CHARACTER DISCOVERY: Fetch characters for Mythic kills in current raids
               if (fight.kill && difficulty === 5 && CURRENT_RAID_IDS.includes(zoneId || 0)) {
@@ -2563,7 +2541,7 @@ class GuildService {
 
                 for (const char of rankedChars) {
                   const { guildName, guildRealm } = wclService.getPrimaryGuildInfo(char);
-                  await characterService.upsertCharacterFromReport({
+                  await ingestionLeases.run(reportWriteToken, async () => characterService.upsertCharacterFromReport({
                     canonicalID: char.canonicalID,
                     name: char.name,
                     serverSlug: char.server.slug,
@@ -2572,7 +2550,7 @@ class GuildService {
                     hidden: char.hidden,
                     guildName,
                     guildRealm,
-                  });
+                  }));
                 }
 
                 guildLog.info(`Saved ${rankedChars.length} characters from report ${report.code}`);
@@ -2678,7 +2656,7 @@ class GuildService {
         }
 
         // Update report metadata with accurate fight count
-        await Report.findOneAndUpdate(
+        await ingestionLeases.writeFor(reportWriteToken, async () => Report.findOneAndUpdate(
           { code: report.code },
           {
             code: report.code,
@@ -2696,7 +2674,7 @@ class GuildService {
             lastProcessed: new Date(),
           },
           { upsert: true, returnDocument: "after" },
-        );
+        ));
 
         // Process all fights from the report
         if (report.fights && report.fights.length > 0) {
@@ -2834,7 +2812,7 @@ class GuildService {
           }
 
           if (fightWrites.length > 0) {
-            await Fight.bulkWrite(fightWrites, { ordered: false });
+            await ingestionLeases.writeFor(reportWriteToken, async () => Fight.bulkWrite(fightWrites, { ordered: false }));
           }
 
           if (newFightsInThisReport > 0) {
@@ -2885,7 +2863,7 @@ class GuildService {
         logger.info(`[Refetch/Recent] Guild ${i + 1}/${guilds.length}: ${guild.name}`);
 
         try {
-          const primarySource = await guildLogSourceService.ensurePrimarySource(guild);
+          const primarySource = await ingestionLeases.write(async () => guildLogSourceService.ensurePrimarySource(guild));
           const recoveredFights = await this.thoroughlyRefetchNewestReports(guild, primarySource);
 
           if (recoveredFights > 0) {
@@ -3043,7 +3021,7 @@ class GuildService {
 
     // Fetch and save each report
     for (const { code } of allReportsToFetch) {
-      const reportWriteToken = await reportOverridePolicy.acquireForIngestion(code, guild._id);
+      const reportWriteToken = await reportOverridePolicy.acquireForIngestion(code, guild._id, true);
       if (!reportWriteToken) continue;
       try {
         const reportData = await wclService.getReportByCodeAllDifficulties(code);
@@ -3087,7 +3065,7 @@ class GuildService {
         }
 
         // Save report metadata with accurate fight count for later comparison
-        await Report.findOneAndUpdate(
+        await ingestionLeases.writeFor(reportWriteToken, async () => Report.findOneAndUpdate(
           { code: report.code },
           {
             code: report.code,
@@ -3105,7 +3083,7 @@ class GuildService {
             lastProcessed: new Date(),
           },
           { upsert: true, returnDocument: "after" },
-        );
+        ));
 
         // Process fights
         if (report.fights && report.fights.length > 0) {
@@ -3250,7 +3228,7 @@ class GuildService {
           }
 
           if (fightWrites.length > 0) {
-            await Fight.bulkWrite(fightWrites, { ordered: false });
+            await ingestionLeases.writeFor(reportWriteToken, async () => Fight.bulkWrite(fightWrites, { ordered: false }));
           }
 
           if (discoverReportCharacters) {
@@ -3260,7 +3238,7 @@ class GuildService {
 
               for (const char of rankedChars) {
                 const { guildName, guildRealm } = wclService.getPrimaryGuildInfo(char);
-                await characterService.upsertCharacterFromReport({
+                await ingestionLeases.run(reportWriteToken, async () => characterService.upsertCharacterFromReport({
                   canonicalID: char.canonicalID,
                   name: char.name,
                   serverSlug: char.server.slug,
@@ -3269,7 +3247,7 @@ class GuildService {
                   hidden: char.hidden,
                   guildName,
                   guildRealm,
-                });
+                }));
               }
 
               guildLog.info(`Saved ${rankedChars.length} ranking-discovery characters from report ${report.code}`);
@@ -3289,7 +3267,7 @@ class GuildService {
       await this.calculateGuildStatistics(guild, raidId, { createEvents: false });
     }
     if (historicalRaidsChanged.size) {
-      await guild.save();
+      await ingestionLeases.write(async () => guild.save());
       for (const raidId of historicalRaidsChanged) await this.calculateGuildRankingsForRaid(raidId);
     }
 
@@ -3511,14 +3489,14 @@ class GuildService {
       throw new GuildReportImportError(400, "no_tracked_fights", "Report does not contain any valid tracked raid boss fights");
     }
 
-    await ReportOverride.updateOne({ code: reportCode, "assignment.guildId": { $exists: false } }, { $set: { assignment: {
+    await ingestionLeases.write(async () => ReportOverride.updateOne({ code: reportCode, "assignment.guildId": { $exists: false } }, { $set: { assignment: {
       guildId: guildObjectId,
       reason: "Manual import",
       updatedBy: manualImportedByUserId,
       updatedAt: new Date(),
-    } } });
+    } } }));
 
-    const storedReport = await Report.findOneAndUpdate(
+    const storedReport = await ingestionLeases.write(async () => Report.findOneAndUpdate(
       { code: reportCode },
       {
         $set: reportUpdateSet,
@@ -3527,13 +3505,13 @@ class GuildService {
         },
       },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
-    );
+    ));
 
     if (!storedReport) {
       throw new GuildReportImportError(500, "invalid_report", "Failed to store report metadata");
     }
 
-    await Fight.bulkWrite(fightWrites, { ordered: false });
+    await ingestionLeases.write(async () => Fight.bulkWrite(fightWrites, { ordered: false }));
 
     return {
       reportId: (storedReport._id as mongoose.Types.ObjectId).toString(),
@@ -3554,22 +3532,12 @@ class GuildService {
     const token = await reportOverridePolicy.acquireForIngestion(code, guildId);
     if (!token) throw new ReportOverrideError(409, "report_excluded", "This report is excluded or assigned to another guild. Update its report rules first.");
     try {
-      const locked = await Guild.updateOne({
-        _id: guildId,
-        $and: [
-          { $or: [{ wclUpdateLockToken: { $exists: false } }, { wclUpdateStartedAt: { $lt: new Date(Date.now() - 60 * 60 * 1000) } }] },
-          { $or: [{ logSourceMigrationLockToken: { $exists: false } }, { logSourceMigrationLockedAt: { $lt: new Date(Date.now() - 2 * 60 * 60 * 1000) } }] },
-        ],
-      }, { $set: { wclUpdateLockToken: token, wclUpdateStartedAt: new Date() } });
-      if (!locked.modifiedCount) throw new ReportOverrideError(409, "guild_busy", "This guild is being updated. Try again after the update finishes.");
-      const result = await this.importSpecificReportForGuildUnlocked(guildId, code, importedByUserId, guildLogSourceId);
+      const locked = await acquireGuildIngestionLease(guildId, token);
+      if (!locked) throw new ReportOverrideError(409, "guild_busy", "This guild is being updated. Try again after the update finishes.");
+      const result = await ingestionLeases.run(token, () => this.importSpecificReportForGuildUnlocked(guildId, code, importedByUserId, guildLogSourceId));
       return result;
     } finally {
-      try {
-        await Guild.updateOne({ _id: guildId, wclUpdateLockToken: token }, { $unset: { wclUpdateLockToken: 1, wclUpdateStartedAt: 1 } });
-      } finally {
-        await reportOverridePolicy.release(code, token);
-      }
+      await reportOverridePolicy.release(code, token);
     }
   }
 
@@ -3586,9 +3554,7 @@ class GuildService {
       throw new GuildReportImportError(404, "guild_not_found", "Guild not found");
     }
     if (
-      guild.logSourceMigrationLockToken &&
-      guild.logSourceMigrationLockedAt &&
-      guild.logSourceMigrationLockedAt.getTime() >= Date.now() - 2 * 60 * 60 * 1000
+      isGuildLeaseActive(guild.logSourceMigrationLockToken, guild.logSourceMigrationLockedAt, guild.logSourceMigrationLeaseExpiresAt, 2 * 60 * 60 * 1000)
     ) {
       throw new GuildReportImportError(409, "report_conflict", "Guild log sources are currently being migrated. Try again after the migration finishes.");
     }
@@ -3600,7 +3566,7 @@ class GuildService {
     }
     const reportSource = guildLogSourceId
       ? await GuildLogSource.findOne({ _id: guildLogSourceId, guildId: guildObjectId })
-      : await guildLogSourceService.ensurePrimarySource(guild);
+      : await ingestionLeases.write(async () => guildLogSourceService.ensurePrimarySource(guild));
     if (!reportSource) {
       throw new GuildReportImportError(400, "invalid_report", "Choose a valid Warcraft Logs source for this guild");
     }
@@ -3618,12 +3584,12 @@ class GuildService {
       });
 
       if (existingFightCount > 0) {
-        await ReportOverride.updateOne({ code: trimmedReportCode, "assignment.guildId": { $exists: false } }, { $set: { assignment: {
+        await ingestionLeases.write(async () => ReportOverride.updateOne({ code: trimmedReportCode, "assignment.guildId": { $exists: false } }, { $set: { assignment: {
           guildId: guildObjectId,
           reason: "Manual import",
           updatedBy: this.getManualImportUserObjectId(importedByUserId),
           updatedAt: new Date(),
-        } } });
+        } } }));
         return {
           guildId: guildIdString,
           guildName: guild.name,
@@ -3681,7 +3647,7 @@ class GuildService {
     }
 
     guild.lastFetched = new Date();
-    await guild.save();
+    await ingestionLeases.write(async () => guild.save());
 
     for (const raidId of persisted.affectedRaidIds) {
       await this.calculateGuildRankingsForRaid(raidId);
@@ -4761,7 +4727,7 @@ class GuildService {
       });
 
       if (!existingKillEvent) {
-        await Event.create({
+        await ingestionLeases.write(async () => Event.create({
           type: "boss_kill",
           guildId: guild._id,
           guildName: guild.name,
@@ -4778,14 +4744,14 @@ class GuildService {
             timeSpent: newBoss.timeSpent,
           },
           timestamp: newBoss.firstKillTime || new Date(),
-        });
+        }));
 
         eventCreated = true;
 
         // Retroactively fix any best_pull events that were created in a prior cycle
         // with a timestamp at or after the kill — progress must appear before the kill
         const killTimestamp = newBoss.firstKillTime || new Date();
-        const fixedPulls = await Event.updateMany(
+        const fixedPulls = await ingestionLeases.write(async () => Event.updateMany(
           {
             type: "best_pull",
             guildId: guild._id,
@@ -4795,7 +4761,7 @@ class GuildService {
             timestamp: { $gte: killTimestamp },
           },
           { $set: { timestamp: new Date(killTimestamp.getTime() - 1000) } },
-        );
+        ));
         if (fixedPulls.modifiedCount > 0) {
           getGuildLogger(guild.name, guild.realm).info(`Fixed ${fixedPulls.modifiedCount} best_pull event(s) for ${newBoss.bossName} with timestamp after kill`);
         }
@@ -4833,7 +4799,7 @@ class GuildService {
       if (!hasEventAtOrBelowCurrent && (isFirstBestPullEvent || improvedSinceLastEvent)) {
         const bestPullTimestamp = await this.getBestPullEventTimestamp(newBoss);
 
-        await Event.create({
+        await ingestionLeases.write(async () => Event.create({
           type: "best_pull",
           guildId: guild._id,
           guildName: guild.name,
@@ -4851,7 +4817,7 @@ class GuildService {
             progressDisplay: newBoss.bestPullPhase?.displayString, // Include phase display string
           },
           timestamp: bestPullTimestamp,
-        });
+        }));
 
         eventCreated = true;
 
@@ -4904,7 +4870,7 @@ class GuildService {
           guildLog.info(`Re-kill of ${newBoss.bossName}: ${pullsBetweenKills} pulls between previous and latest kill`);
 
           if (pullsBetweenKills > 5) {
-            await Event.create({
+            await ingestionLeases.write(async () => Event.create({
               type: "reproge",
               guildId: guild._id,
               guildName: guild.name,
@@ -4920,7 +4886,7 @@ class GuildService {
                 pullCount: pullsBetweenKills,
               },
               timestamp: latestKill.timestamp,
-            });
+            }));
 
             guildLog.info(`Created reproge event for ${newBoss.bossName} (${pullsBetweenKills} pulls to re-kill)`);
             await cacheService.invalidateEventCaches();
@@ -4970,7 +4936,7 @@ class GuildService {
 
             const regressBossIconUrl = await this.getBossIconFilename(newBoss.bossName);
 
-            await Event.create({
+            await ingestionLeases.write(async () => Event.create({
               type: "regress",
               guildId: guild._id,
               guildName: guild.name,
@@ -4987,7 +4953,7 @@ class GuildService {
                 bestPercent: newBoss.bestPercent,
               },
               timestamp: new Date(),
-            });
+            }));
 
             await cacheService.invalidateEventCaches();
           }
@@ -5071,7 +5037,7 @@ class GuildService {
         const guildLog = getGuildLogger(guild.name, guild.realm);
         guildLog.info(`Creating hiatus event: ${threshold.days} days since last raid (last log: ${guild.lastLogEndTime.toISOString()})`);
 
-        await Event.create({
+        await ingestionLeases.write(async () => Event.create({
           type: "hiatus",
           guildId: guild._id,
           guildName: guild.name,
@@ -5084,7 +5050,7 @@ class GuildService {
             hiatusDays: threshold.days,
           },
           timestamp: new Date(),
-        });
+        }));
 
         await cacheService.invalidateEventCaches();
       }
