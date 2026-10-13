@@ -270,7 +270,7 @@ export const estimateBossKillPull = (target: BossPredictionTarget, rawPeers: Bos
 };
 
 class BossKillPredictionService {
-  async findMostRecentlyPulledBoss(targetGuildId: Types.ObjectId, raidIds: number[]): Promise<MostRecentlyPulledBoss | null> {
+  async findMostRecentlyPulledBoss(targetGuildId: Types.ObjectId, raidIds: number[], difficulty?: IRaidProgress["difficulty"]): Promise<MostRecentlyPulledBoss | null> {
     if (raidIds.length === 0) {
       return null;
     }
@@ -288,7 +288,7 @@ class BossKillPredictionService {
         },
       },
       { $unwind: "$progress" },
-      { $match: { "progress.raidId": { $in: raidIds } } },
+      { $match: { "progress.raidId": { $in: raidIds }, ...(difficulty ? { "progress.difficulty": difficulty } : {}) } },
       { $unwind: "$progress.bosses" },
       { $match: { "progress.bosses.kills": 0, "progress.bosses.pullCount": { $gt: 0 } } },
       {

@@ -6,8 +6,10 @@ import { compareRaidIdsByPriority } from "../utils/raidPriority";
 import logger from "../utils/logger";
 import bossKillPredictionService, { BossKillPrediction, MostRecentlyPulledBoss } from "./boss-kill-prediction.service";
 import searchService, { SearchResult } from "./search.service";
+import twitchCurseService from "./twitch-curse.service";
+import { getCurseInspiration } from "../features/twitch-curse/curse-content";
 
-export type TwitchChatCommandName = "best" | "log" | "prediction" | "search" | "commands" | "alerts";
+export type TwitchChatCommandName = "best" | "log" | "prediction" | "search" | "commands" | "alerts" | "curse";
 
 export interface ParsedTwitchChatCommand {
   name: TwitchChatCommandName;
@@ -16,6 +18,7 @@ export interface ParsedTwitchChatCommand {
 
 export interface TwitchChatCommandOptions {
   includeUrl: boolean;
+  userName?: string;
 }
 
 type GuildLookupResult = Pick<IGuild, "name" | "realm" | "region" | "isCurrentlyRaiding" | "progress" | "officialProgress"> & {
@@ -97,7 +100,7 @@ export const selectPredictionTarget = (
 class TwitchChatCommandService {
   parse(text: string): ParsedTwitchChatCommand | null {
     const trimmed = text.trim();
-    const match = /^!(best|paras|log|report|prediction|ennustus|search|commands|komennot|alerts|alertit)(?:\s+(.*))?$/i.exec(trimmed);
+    const match = /^!(best|paras|log|report|prediction|ennustus|search|commands|komennot|alerts|alertit|curse|kirous)(?:\s+(.*))?$/i.exec(trimmed);
     if (!match) {
       return null;
     }
@@ -105,6 +108,7 @@ class TwitchChatCommandService {
     const commandName = match[1].toLowerCase();
     let name: TwitchChatCommandName;
     if (commandName === "commands" || commandName === "komennot") name = "commands";
+    else if (commandName === "curse" || commandName === "kirous") name = "curse";
     else if (commandName === "alerts" || commandName === "alertit") name = "alerts";
     else if (commandName === "search") name = "search";
     else if (commandName === "log" || commandName === "report") name = "log";
@@ -118,6 +122,10 @@ class TwitchChatCommandService {
   }
 
   async handle(command: ParsedTwitchChatCommand, channelName: string, options: TwitchChatCommandOptions): Promise<string | null> {
+    if (command.name === "curse") {
+      if (!options.userName) return null;
+      return twitchCurseService.generate(options.userName, () => this.findCurseInspiration(channelName));
+    }
     if (command.name === "commands") {
       return "Commands: !best/!paras, !log/!report, !prediction/!ennustus, !search <name>. Broadcaster: !alerts <on|off>.";
     }
@@ -139,6 +147,18 @@ class TwitchChatCommandService {
     }
 
     return this.handleBest(command.args, channelName, options);
+  }
+
+  private async findCurseInspiration(channelName: string): Promise<string | undefined> {
+    const guild = await this.findGuildForChannel(channelName);
+    if (!guild) return undefined;
+    const progress = (guild.progress || []).filter((raid) =>
+      CURRENT_RAID_IDS.includes(raid.raidId) && raid.difficulty === "mythic" && raid.bossesDefeated < raid.totalBosses,
+    );
+    if (!progress.some((raid) => raid.bosses.some((boss) => boss.kills === 0 && boss.pullCount > 0))) return undefined;
+    const recent = await bossKillPredictionService.findMostRecentlyPulledBoss(guild._id, CURRENT_RAID_IDS, "mythic");
+    const target = selectPredictionTarget(progress, recent);
+    return target?.boss ? getCurseInspiration(target.progress.raidId, target.boss.bossId) : undefined;
   }
 
   private async handleSearch(query: string, options: TwitchChatCommandOptions): Promise<string> {

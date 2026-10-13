@@ -22,6 +22,22 @@ const peer = (pullCount: number, kills: number, phaseCounts: BossPredictionPhase
   phaseCounts,
 });
 
+test("recency lookup can restrict to mythic without changing prediction's default difficulty scope", async (t) => {
+  const queries: Array<Array<Record<string, any>>> = [];
+  t.mock.method(Guild, "aggregate", async (pipeline: Array<Record<string, any>>) => {
+    queries.push(pipeline);
+    return [{ raidId: 53, difficulty: "mythic", bossId: 3429 }];
+  });
+  const guildId = new Types.ObjectId();
+  await bossKillPredictionService.findMostRecentlyPulledBoss(guildId, [53]);
+  const target = await bossKillPredictionService.findMostRecentlyPulledBoss(guildId, [53], "mythic");
+  assert.equal(target?.bossId, 3429);
+  assert.ok(!queries[0].some((stage) => stage.$match?.["progress.difficulty"]));
+  const difficultyFilter = queries[1].findIndex((stage) => stage.$match?.["progress.difficulty"] === "mythic");
+  const sort = queries[1].findIndex((stage) => stage.$sort);
+  assert.ok(difficultyFilter > 0 && difficultyFilter < sort, "filter difficulty before selecting the newest boss");
+});
+
 test("uses the median of later kill samples instead of being pulled by an outlier", () => {
   const normal = estimateBossKillPull(target(), [peer(70, 1), peer(80, 1), peer(90, 1)]);
   const withOutlier = estimateBossKillPull(target(), [peer(70, 1), peer(80, 1), peer(90, 1), peer(1000, 1)]);

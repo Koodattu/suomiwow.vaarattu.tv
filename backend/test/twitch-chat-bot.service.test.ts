@@ -62,7 +62,60 @@ type TwitchChatBotServiceInternals = {
   lastInboundDiagnosticAt: number;
   userCooldowns: Map<string, number>;
   channelCommandCooldowns: Map<string, number>;
+  isOnCooldown(channelName: string, user: string, commandName: string): boolean;
 };
+
+test("curse aliases share a five-second channel cooldown without changing other command limits", (t) => {
+  const service = twitchChatBotService as unknown as TwitchChatBotServiceInternals;
+  const oldUsers = service.userCooldowns;
+  const oldChannels = service.channelCommandCooldowns;
+  service.userCooldowns = new Map();
+  service.channelCommandCooldowns = new Map();
+  t.after(() => { service.userCooldowns = oldUsers; service.channelCommandCooldowns = oldChannels; });
+  let now = 100_000;
+  t.mock.method(Date, "now", () => now);
+  assert.equal(service.isOnCooldown("channel", "alice", twitchChatCommandService.parse("!curse")!.name), false);
+  now += 4999;
+  assert.equal(service.isOnCooldown("channel", "bob", twitchChatCommandService.parse("!kirous")!.name), true);
+  now += 1;
+  assert.equal(service.isOnCooldown("channel", "alice", "curse"), false);
+  assert.equal(service.isOnCooldown("other_channel", "bob", "curse"), false);
+  assert.equal(service.isOnCooldown("channel", "charlie", "best"), false);
+  now += 5000;
+  assert.equal(service.isOnCooldown("channel", "dave", "best"), true);
+  now += 5000;
+  assert.equal(service.isOnCooldown("channel", "dave", "best"), false);
+});
+
+test("unexpected curse failures stay silent while other commands retain their error reply", async (t) => {
+  const service = twitchChatBotService as any;
+  t.mock.method(service, "isDuplicateSharedChatMessage", () => false);
+  t.mock.method(service, "recordInboundDiagnostic", () => {});
+  t.mock.method(service, "recordInboundAudit", async () => undefined);
+  t.mock.method(service, "recordCommandDiagnostic", () => {});
+  const outcomes = t.mock.method(service, "recordCommandOutcome", async () => {});
+  const errors = t.mock.method(service, "recordError", async () => {});
+  t.mock.method(service, "isChannelAllowedToChat", async () => true);
+  t.mock.method(service, "getChannelSettings", async () => ({ commandsEnabled: true }));
+  t.mock.method(service, "isOnCooldown", () => false);
+  t.mock.method(service, "getSettings", async () => ({ includeUrl: false }));
+  const reply = t.mock.method(service, "queueSay", async () => {});
+  t.mock.method(twitchChatCommandService, "handle", async () => { throw new Error("unexpected failure"); });
+
+  for (const command of ["!curse", "!kirous"]) {
+    await service.handleMessage("#testchannel", "viewer", command);
+  }
+  assert.equal(reply.mock.callCount(), 0);
+  assert.equal(errors.mock.callCount(), 2);
+  assert.deepEqual(outcomes.mock.calls.map((call: { arguments: unknown[] }) => call.arguments.slice(0, 3)), [
+    ["testchannel", "curse", "handler_failed"],
+    ["testchannel", "curse", "handler_failed"],
+  ]);
+
+  await service.handleMessage("#testchannel", "viewer", "!best");
+  assert.equal(reply.mock.callCount(), 1);
+  assert.equal(reply.mock.calls[0].arguments[1], "Command failed. Please try again.");
+});
 
 test("accepts legacy channel restrictions that predate restrictionType", async () => {
   const timestamp = new Date("2026-08-31T12:00:00.000Z");
@@ -183,7 +236,10 @@ test("audits command replies, unsupported commands, and bot mentions", async () 
     return { _id: new Types.ObjectId() };
   }) as unknown as typeof TwitchChatAuditEvent.create;
   TwitchChatAuditEvent.updateOne = (async () => ({ acknowledged: true, matchedCount: 1, modifiedCount: 1 })) as unknown as typeof TwitchChatAuditEvent.updateOne;
-  twitchChatCommandService.handle = (async () => "Test reply") as typeof twitchChatCommandService.handle;
+  twitchChatCommandService.handle = (async (_command, _channel, options) => {
+    assert.equal(options.userName, "viewer");
+    return "Test reply";
+  }) as typeof twitchChatCommandService.handle;
   service.getSettings = async () => ({
     eventPublishingEnabled: true,
     eventTypes: [],

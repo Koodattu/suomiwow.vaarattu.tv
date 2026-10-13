@@ -1080,7 +1080,7 @@ class TwitchChatBotService {
       }
 
       const settings = await this.getSettings();
-      const response = await twitchChatCommandService.handle(parsed, channelName, { includeUrl: settings.includeUrl });
+      const response = await twitchChatCommandService.handle(parsed, channelName, { includeUrl: settings.includeUrl, userName: user });
       if (response) {
         await this.queueSay(replyChannelName, response, {
           kind: "command_reply",
@@ -1099,6 +1099,8 @@ class TwitchChatBotService {
       } catch (recordingError) {
         logger.error("[TwitchBot] Failed to persist the Twitch chat command error:", recordingError);
       }
+
+      if (parsed.name === "curse") return;
 
       try {
         await this.queueSay(replyChannelName, "Command failed. Please try again.", {
@@ -1281,7 +1283,8 @@ class TwitchChatBotService {
     const lastUserCommand = this.userCooldowns.get(userKey) || 0;
     const lastChannelCommand = this.channelCommandCooldowns.get(channelKey) || 0;
 
-    if (now - lastUserCommand < 5000 || now - lastChannelCommand < 10000) {
+    const channelCooldownMs = commandName === "curse" ? 5000 : 10000;
+    if (now - lastUserCommand < 5000 || now - lastChannelCommand < channelCooldownMs) {
       return true;
     }
 
