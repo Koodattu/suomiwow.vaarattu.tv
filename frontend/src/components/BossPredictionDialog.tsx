@@ -123,23 +123,13 @@ export default function BossPredictionDialog({
                       <div className="text-3xl font-bold tabular-nums text-white">
                         {t("prediction.pullNumber", { count: numberFormat.format(data.estimate.killPull) })}
                       </div>
-                      <span
-                        className={`rounded-md px-2 py-1 text-xs font-semibold ${
-                          data.estimate.confidence === "high"
-                            ? "bg-green-500/15 text-green-300"
-                            : data.estimate.confidence === "medium"
-                              ? "bg-amber-500/15 text-amber-200"
-                              : "bg-gray-700 text-gray-300"
-                        }`}
-                      >
-                        {t("prediction.confidence", {
-                          confidence: t(`prediction.confidence${data.estimate.confidence.charAt(0).toUpperCase()}${data.estimate.confidence.slice(1)}`),
-                        })}
+                      <span className="rounded-md bg-gray-700 px-2 py-1 text-xs font-semibold text-gray-300">
+                        {t("prediction.roughEstimate")}
                       </span>
                     </div>
                     <p className="mt-2 text-sm text-blue-100">{t("prediction.remaining", { count: data.estimate.remainingPulls })}</p>
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-blue-400/15 pt-3 text-sm">
-                      <span className="text-blue-200">{t("prediction.estimatedRange")}</span>
+                      <span className="text-blue-200">{t(data.facts.method === "similar_progress" ? "prediction.peerRange" : "prediction.estimatedRange")}</span>
                       <span className="font-semibold tabular-nums text-white">
                         {t("prediction.pullRange", {
                           low: numberFormat.format(data.estimate.optimisticKillPull),
@@ -147,11 +137,27 @@ export default function BossPredictionDialog({
                         })}
                       </span>
                     </div>
+                    <p className="mt-3 text-xs leading-5 text-blue-200/80">
+                      {t(data.facts.method === "similar_progress" ? "prediction.rangeExplanation" : "prediction.fallbackExplanation")}
+                    </p>
                   </section>
 
                   <section className="rounded-xl border border-gray-800 bg-gray-950/40 p-4">
                     <h3 className="text-sm font-semibold text-gray-200">{t("prediction.factsTitle")}</h3>
+                    <p className="mt-2 text-sm leading-5 text-gray-400">
+                      {t(data.facts.method === "similar_progress"
+                        ? data.facts.usedRecentConsistency ? "prediction.historyRecent" : "prediction.historyBest"
+                        : "prediction.pullCountBasis")}
+                    </p>
                     <dl className="mt-2 divide-y divide-gray-800">
+                      {data.facts.method === "similar_progress" && (
+                        <div className="grid grid-cols-1 gap-1 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4">
+                          <dt className="text-sm text-gray-400">{t("prediction.matchedGuilds")}</dt>
+                          <dd className="text-left text-sm font-medium tabular-nums text-gray-100 sm:text-right">
+                            {numberFormat.format(data.facts.matchedGuilds)}
+                          </dd>
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 gap-1 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4">
                         <dt className="text-sm text-gray-400">{t("prediction.currentProgress")}</dt>
                         <dd className="text-left text-sm font-medium tabular-nums text-gray-100 sm:text-right">
@@ -193,7 +199,9 @@ export default function BossPredictionDialog({
                       ) : (
                         <p className="mt-1 text-sm text-gray-500">{t("prediction.noPhaseData")}</p>
                       )}
-                      {!data.facts.usedPhaseData && <p className="mt-2 text-xs leading-5 text-gray-500">{t("prediction.phaseNotUsed")}</p>}
+                      {data.facts.phaseCounts.length > 0 && !data.facts.usedPhaseData && (
+                        <p className="mt-2 text-xs leading-5 text-gray-500">{t("prediction.phaseNotUsed")}</p>
+                      )}
                     </div>
                   </section>
                 </div>

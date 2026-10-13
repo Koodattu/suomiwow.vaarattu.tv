@@ -95,6 +95,9 @@ export type BossPredictionResponse =
         progressingGuilds: number;
         medianKillPull: number | null;
         usedPhaseData: boolean;
+        method: "similar_progress" | "pull_count";
+        matchedGuilds: number;
+        usedRecentConsistency: boolean;
       };
     };
 

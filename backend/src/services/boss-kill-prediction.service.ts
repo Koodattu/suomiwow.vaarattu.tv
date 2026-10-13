@@ -1,5 +1,6 @@
-import Guild, { IRaidProgress } from "../models/Guild";
+import Guild, { IPullHistoryEntry, IRaidProgress } from "../models/Guild";
 import type { PipelineStage, Types } from "mongoose";
+import { resolveFightProgress } from "../utils/fight-progress";
 
 export interface BossPredictionPhaseCount {
   phase: string;
@@ -10,12 +11,16 @@ export interface BossPredictionSample {
   kills: number;
   pullCount: number;
   phaseCounts: BossPredictionPhaseCount[];
+  pullHistory?: BossPredictionPull[];
 }
+
+export type BossPredictionPull = Pick<IPullHistoryEntry, "pullNumber" | "fightPercentage" | "bossPercentage" | "isKill">;
 
 export interface BossPredictionTarget {
   pullCount: number;
   bestPercent: number;
   phaseCounts: BossPredictionPhaseCount[];
+  pullHistory?: BossPredictionPull[];
 }
 
 export interface BossKillPrediction {
@@ -28,6 +33,9 @@ export interface BossKillPrediction {
   medianKillPull: number | null;
   confidence: "low" | "medium" | "high";
   usedPhaseData: boolean;
+  method: "similar_progress" | "pull_count";
+  matchedGuilds: number;
+  usedRecentConsistency: boolean;
 }
 
 export interface MostRecentlyPulledBoss {
@@ -66,6 +74,9 @@ export type GuildBossPredictionResult =
         progressingGuilds: number;
         medianKillPull: number | null;
         usedPhaseData: boolean;
+        method: BossKillPrediction["method"];
+        matchedGuilds: number;
+        usedRecentConsistency: boolean;
       };
     };
 
@@ -120,152 +131,112 @@ const normalizePullCount = (value: number): number | null => {
   return Math.floor(value);
 };
 
-const getPhaseRank = (phase: string): number | null => {
-  const match = /^([PI])(\d+)$/i.exec(phase.trim());
-  if (!match) {
-    return null;
-  }
+const RECENT_PULL_WINDOW = 5;
+const MINIMUM_MATCHED_GUILDS = 3;
 
-  const phaseNumber = Number(match[2]);
-  if (!Number.isInteger(phaseNumber) || phaseNumber <= 0) {
-    return null;
-  }
+// Missing/zero wipe percentages are not evidence of a near-kill. Preserve gaps
+// so that an old good pull cannot masquerade as recent consistency.
+const getProgressHistory = (sample: { pullCount: number; pullHistory?: BossPredictionPull[] }) =>
+  (sample.pullHistory || [])
+    .filter((pull) => Number.isInteger(pull.pullNumber) && pull.pullNumber > 0 && pull.pullNumber <= sample.pullCount)
+    .sort((a, b) => a.pullNumber - b.pullNumber);
 
-  return phaseNumber * 2 - (match[1].toUpperCase() === "P" ? 1 : 0);
+const recentMedian = (history: BossPredictionPull[], end: number): number | null => {
+  const recent = history.slice(Math.max(0, end - RECENT_PULL_WINDOW + 1), end + 1);
+  if (recent.length !== RECENT_PULL_WINDOW) return null;
+  const percentages: number[] = [];
+  for (let index = 0; index < recent.length; index += 1) {
+    const pull = recent[index];
+    if (pull.isKill || (index > 0 && pull.pullNumber !== recent[index - 1].pullNumber + 1)) return null;
+    const percentage = resolveFightProgress(pull).percentage;
+    if (percentage === null) return null;
+    percentages.push(percentage);
+  }
+  return median(percentages);
 };
 
-const calculatePhaseDepth = (phaseCounts: BossPredictionPhaseCount[], minimumRank: number, maximumRank: number): number | null => {
-  if (maximumRank <= minimumRank) {
-    return null;
-  }
-
-  let weightedDepth = 0;
-  let totalCount = 0;
-
-  for (const phaseCount of phaseCounts) {
-    const rank = getPhaseRank(phaseCount.phase);
-    if (rank === null || !Number.isFinite(phaseCount.count) || phaseCount.count <= 0) {
-      continue;
+const getMatchedRemaining = (target: BossPredictionTarget, peers: BossPredictionSample[]) => {
+  const targetHistory = getProgressHistory(target);
+  const targetRecent = targetHistory[targetHistory.length - 1]?.pullNumber === target.pullCount
+    ? recentMedian(targetHistory, targetHistory.length - 1)
+    : null;
+  const remaining: number[] = [];
+  for (const peer of peers) {
+    const history = getProgressHistory(peer);
+    const kill = history.find((pull) => pull.isKill);
+    // An actual first-kill record is required, rather than assuming the stored
+    // total is complete. Only pre-kill states may serve as comparisons.
+    if (!kill || kill.pullNumber !== peer.pullCount) continue;
+    let best = 100;
+    for (let index = 0; index < history.length; index += 1) {
+      const pull = history[index];
+      if (pull.pullNumber >= kill.pullNumber) break;
+      const percentage = resolveFightProgress(pull).percentage;
+      if (percentage === null) continue;
+      best = Math.min(best, percentage);
+      if (best > target.bestPercent) continue;
+      if (targetRecent !== null) {
+        const peerRecent = recentMedian(history, index);
+        if (peerRecent === null || peerRecent > targetRecent) continue;
+      }
+      // One observation per guild: pulls from first reaching at least this
+      // best progress and recent consistency until its first kill.
+      remaining.push(kill.pullNumber - pull.pullNumber);
+      break;
     }
-
-    const count = Math.floor(phaseCount.count);
-    weightedDepth += count * ((rank - minimumRank) / (maximumRank - minimumRank));
-    totalCount += count;
   }
-
-  return totalCount > 0 ? weightedDepth / totalCount : null;
-};
-
-const getPhaseAdjustment = (
-  target: BossPredictionTarget,
-  peers: BossPredictionSample[],
-): { factor: number; usedPhaseData: boolean } => {
-  const ranks = [target, ...peers].flatMap((sample) => sample.phaseCounts.map((phaseCount) => getPhaseRank(phaseCount.phase))).filter((rank): rank is number => rank !== null);
-  if (ranks.length === 0) {
-    return { factor: 1, usedPhaseData: false };
-  }
-
-  const minimumRank = Math.min(...ranks);
-  const maximumRank = Math.max(...ranks);
-  const targetDepth = calculatePhaseDepth(target.phaseCounts, minimumRank, maximumRank);
-  const peerDepths = peers
-    .map((peer) => calculatePhaseDepth(peer.phaseCounts, minimumRank, maximumRank))
-    .filter((depth): depth is number => depth !== null);
-  const referenceDepth = median(peerDepths);
-
-  if (targetDepth === null || referenceDepth === null) {
-    return { factor: 1, usedPhaseData: false };
-  }
-
-  return {
-    factor: clamp((referenceDepth + 0.1) / (targetDepth + 0.1), 0.75, 1.25),
-    usedPhaseData: true,
-  };
+  return { remaining, usedRecentConsistency: targetRecent !== null };
 };
 
 export const estimateBossKillPull = (target: BossPredictionTarget, rawPeers: BossPredictionSample[]): BossKillPrediction | null => {
   const targetPulls = normalizePullCount(target.pullCount);
-  if (targetPulls === null) {
-    return null;
-  }
+  if (targetPulls === null) return null;
 
   const peers = rawPeers.flatMap((peer) => {
     const pullCount = normalizePullCount(peer.pullCount);
-    return pullCount === null
-      ? []
-      : [
-          {
-            kills: Number.isFinite(peer.kills) ? peer.kills : 0,
-            pullCount,
-            phaseCounts: Array.isArray(peer.phaseCounts) ? peer.phaseCounts : [],
-          },
-        ];
+    return pullCount === null ? [] : [{ ...peer, pullCount, kills: Number.isFinite(peer.kills) ? peer.kills : 0 }];
   });
   const killedPeers = peers.filter((peer) => peer.kills > 0);
-  const progressingPeers = peers.filter((peer) => peer.kills <= 0);
-  const laterKillRemaining = killedPeers.filter((peer) => peer.pullCount > targetPulls).map((peer) => peer.pullCount - targetPulls);
   const killedPullMedian = median(killedPeers.map((peer) => peer.pullCount));
-  const activeFloor = median(progressingPeers.filter((peer) => peer.pullCount > targetPulls).map((peer) => peer.pullCount - targetPulls + 1));
+  const validBest = Number.isFinite(target.bestPercent) && target.bestPercent > 0 && target.bestPercent <= 100;
+  const bestPercent = validBest ? target.bestPercent : 100;
+  const matched = validBest
+    ? getMatchedRemaining({ ...target, pullCount: targetPulls, bestPercent }, killedPeers)
+    : { remaining: [], usedRecentConsistency: false };
+  const useHistory = matched.remaining.length >= MINIMUM_MATCHED_GUILDS;
 
-  let peerRemaining = median(laterKillRemaining);
-  if (peerRemaining === null && killedPullMedian !== null) {
-    peerRemaining = Math.max(1, Math.round(killedPullMedian * 0.15));
-  }
-  if (activeFloor !== null) {
-    peerRemaining = Math.max(peerRemaining || 1, activeFloor);
-  }
-
-  const bestPercent = clamp(Number.isFinite(target.bestPercent) ? target.bestPercent : 100, 0, 100);
+  // Unfinished peers are counted for context only. Their lower bounds are not
+  // a minimum for a different guild, and their eventual kill times are unknown.
   const learnedFraction = clamp(1 - bestPercent / 100, 0.1, 0.95);
   const bestPullRemaining = Math.max(1, targetPulls / learnedFraction - targetPulls);
-  const blendPeerAndBestPull = (remainingPulls: number): number => {
-    const boundedBestPullRemaining = clamp(bestPullRemaining, remainingPulls * 0.5, remainingPulls * 2);
-    return remainingPulls * 0.75 + boundedBestPullRemaining * 0.25;
-  };
+  const laterKillRemaining = killedPeers.filter((peer) => peer.pullCount > targetPulls).map((peer) => peer.pullCount - targetPulls);
+  const peerRemaining = median(laterKillRemaining)
+    ?? (killedPullMedian === null ? null : Math.max(1, killedPullMedian * 0.15));
+  const fallbackRemaining = peerRemaining === null ? bestPullRemaining : peerRemaining * 0.75 + bestPullRemaining * 0.25;
+  const estimatedRemainingPulls = Math.ceil(useHistory ? median(matched.remaining)! : fallbackRemaining);
 
-  let rawRemaining: number;
-  if (killedPeers.length > 0 && peerRemaining !== null) {
-    rawRemaining = blendPeerAndBestPull(peerRemaining);
-  } else {
-    rawRemaining = Math.max(bestPullRemaining, activeFloor || 0, 1);
-  }
-
-  const phaseAdjustment = getPhaseAdjustment(target, peers);
-  const estimatedRemainingPulls = Math.ceil(Math.max(1, rawRemaining * phaseAdjustment.factor));
-  const killedGuilds = killedPeers.length;
-  const comparableKilledGuilds = laterKillRemaining.length;
-  const confidence = comparableKilledGuilds >= 10 ? "high" : comparableKilledGuilds >= 3 ? "medium" : "low";
-  const uncertaintyFraction = confidence === "high" ? 0.2 : confidence === "medium" ? 0.3 : 0.5;
-  const minimumRangeSpread = Math.max(1, Math.ceil(estimatedRemainingPulls * uncertaintyFraction));
-  const comparableEstimates = laterKillRemaining.map((remainingPulls) =>
-    Math.ceil(Math.max(1, blendPeerAndBestPull(Math.max(remainingPulls, activeFloor || 0)) * phaseAdjustment.factor)),
-  );
-  const sampleOptimistic = quantile(comparableEstimates, 0.25);
-  const samplePessimistic = quantile(comparableEstimates, 0.75);
-  const robustSampleMinimum = Math.max(1, Math.floor(estimatedRemainingPulls * 0.5));
-  const robustSampleMaximum = Math.max(1, Math.ceil(estimatedRemainingPulls * 2));
-  const optimisticRemainingPulls = Math.max(
-    1,
-    Math.min(
-      estimatedRemainingPulls - minimumRangeSpread,
-      sampleOptimistic === null ? estimatedRemainingPulls : clamp(sampleOptimistic, robustSampleMinimum, robustSampleMaximum),
-    ),
-  );
-  const pessimisticRemainingPulls = Math.max(
-    estimatedRemainingPulls + minimumRangeSpread,
-    samplePessimistic === null ? estimatedRemainingPulls : clamp(samplePessimistic, robustSampleMinimum, robustSampleMaximum),
-  );
+  // These are descriptive peer quartiles (or a deliberately rough fallback),
+  // not calibrated probability bounds. Never infer confidence from sample size.
+  const optimisticRemaining = useHistory
+    ? quantile(matched.remaining, 0.25)!
+    : Math.max(1, Math.floor(estimatedRemainingPulls * 0.5));
+  const pessimisticRemaining = useHistory
+    ? quantile(matched.remaining, 0.75)!
+    : Math.ceil(estimatedRemainingPulls * 1.5);
 
   return {
     estimatedKillPull: targetPulls + estimatedRemainingPulls,
     estimatedRemainingPulls,
-    optimisticKillPull: targetPulls + optimisticRemainingPulls,
-    pessimisticKillPull: targetPulls + pessimisticRemainingPulls,
-    killedGuilds,
-    progressingGuilds: progressingPeers.length,
+    optimisticKillPull: targetPulls + optimisticRemaining,
+    pessimisticKillPull: targetPulls + pessimisticRemaining,
+    killedGuilds: killedPeers.length,
+    progressingGuilds: peers.length - killedPeers.length,
     medianKillPull: killedPullMedian,
-    confidence,
-    usedPhaseData: phaseAdjustment.usedPhaseData,
+    confidence: "low",
+    usedPhaseData: false,
+    method: useHistory ? "similar_progress" : "pull_count",
+    matchedGuilds: matched.remaining.length,
+    usedRecentConsistency: useHistory && matched.usedRecentConsistency,
   };
 };
 
@@ -337,6 +308,7 @@ class BossKillPredictionService {
       {
         ...query.target,
         phaseCounts: targetSample?.phaseCounts || [],
+        pullHistory: targetSample?.pullHistory,
       },
       peers,
     );
@@ -375,6 +347,7 @@ class BossKillPredictionService {
         pullCount: target.pullCount,
         bestPercent: target.bestPercent,
         phaseCounts: target.phaseCounts,
+        pullHistory: target.pullHistory,
       },
       peers,
     );
@@ -406,6 +379,9 @@ class BossKillPredictionService {
         progressingGuilds: prediction.progressingGuilds,
         medianKillPull: prediction.medianKillPull,
         usedPhaseData: prediction.usedPhaseData,
+        method: prediction.method,
+        matchedGuilds: prediction.matchedGuilds,
+        usedRecentConsistency: prediction.usedRecentConsistency,
       },
     };
   }
@@ -502,6 +478,18 @@ class BossKillPredictionService {
           guildId: "$_id",
           kills: "$progress.bosses.kills",
           pullCount: "$progress.bosses.pullCount",
+          pullHistory: {
+            $map: {
+              input: { $ifNull: ["$progress.bosses.pullHistory", []] },
+              as: "pull",
+              in: {
+                pullNumber: "$$pull.pullNumber",
+                fightPercentage: "$$pull.fightPercentage",
+                bossPercentage: "$$pull.bossPercentage",
+                isKill: "$$pull.isKill",
+              },
+            },
+          },
           phaseCounts: {
             $map: {
               input: "$predictionPhaseNames",
