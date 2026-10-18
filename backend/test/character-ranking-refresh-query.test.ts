@@ -10,6 +10,55 @@ import Ranking from "../src/models/Ranking";
 import characterService from "../src/services/character.service";
 import rateLimitService from "../src/services/rate-limit.service";
 import wclService from "../src/services/warcraftlogs.service";
+import sift from "sift";
+
+test("nightly refresh recovers active report imports, honors cooldowns, and stays scoped across batches", async (t) => {
+  const now = Date.now();
+  const due = new Date(now - 1000);
+  const inactive = new Date("2100-01-01T00:00:00.000Z");
+  const characters = [
+    { name: "Imported", lastMythicSeenAt: null, rankingsAvailable: null, nextEligibleRefreshAt: inactive },
+    { name: "Returning", lastMythicSeenAt: new Date(0), rankingsAvailable: true, nextEligibleRefreshAt: due },
+    { name: "Retry", rankingsAvailable: false, nextEligibleRefreshAt: due },
+    { name: "Unscheduled", rankingsAvailable: null },
+    { name: "Regular", lastMythicSeenAt: new Date(now), rankingsAvailable: true, nextEligibleRefreshAt: due },
+    { name: "CoolingDown", nextEligibleRefreshAt: new Date(now + 3600000) },
+    { name: "Hidden", wclProfileHidden: true, nextEligibleRefreshAt: due },
+    { name: "Historical", lastMythicSeenAt: new Date(now), nextEligibleRefreshAt: due },
+    { name: "HeroicOnly", lastMythicSeenAt: new Date(now), nextEligibleRefreshAt: due },
+    { name: "OtherRaid", lastMythicSeenAt: new Date(now), nextEligibleRefreshAt: due },
+  ].map((row, index) => ({ _id: new mongoose.Types.ObjectId(), classID: 8, realm: "tarren-mill", region: "eu", wclCanonicalCharacterId: index + 1, ...row }));
+  const participation = characters.map((c) => ({
+    characterId: c._id,
+    zoneId: c.name === "OtherRaid" ? 46 : 53,
+    mythicReportCount: c.name === "HeroicOnly" ? 0 : 3,
+    lastSeenAt: c.name === "Historical" ? new Date(0) : new Date(now),
+  }));
+  const requestedNames: string[] = [];
+  let batches = 0;
+  // sift is Mongoose's existing MongoDB-query evaluator; evaluate the actual service
+  // filters against fixtures rather than returning characters regardless of eligibility.
+  t.mock.method(CharacterRaidParticipation, "distinct", async (_field: string, filter: any) => participation.filter(sift(filter)).map((p) => p.characterId));
+  t.mock.method(Raid, "findOne", () => ({ select: () => ({ lean: async () => ({ partitions: [{ id: 1 }] }) }) }) as any);
+  t.mock.method(Character, "countDocuments", async (filter: any) => characters.filter(sift(filter)).length);
+  t.mock.method(Character, "aggregate", (async (pipeline: any[]) => {
+    batches += 1;
+    return characters.filter(sift(pipeline[0].$match)).slice(0, 2);
+  }) as any);
+  t.mock.method(Character, "findByIdAndUpdate", (async () => ({})) as any);
+  t.mock.method(Ranking, "find", () => ({ lean: async () => [] }) as any);
+  t.mock.method(Ranking, "deleteMany", (async () => ({ deletedCount: 0 })) as any);
+  t.mock.method(rateLimitService, "getPercentUsed", () => 0);
+  t.mock.method(wclService, "query", (async (_query: string, variables: any) => {
+    requestedNames.push(variables.characterName);
+    return { characterData: { character: { hidden: false } } };
+  }) as any);
+
+  await characterService.checkAndRefreshCharacterRankings();
+
+  assert.deepEqual(requestedNames, ["Imported", "Returning", "Retry", "Unscheduled", "Regular"]);
+  assert.equal(batches, 3);
+});
 
 test("nightly ranking refresh queries all specs for every partition and only recent raid participants", async () => {
   const characterId = new mongoose.Types.ObjectId();

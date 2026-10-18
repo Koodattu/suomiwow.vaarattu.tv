@@ -3526,11 +3526,18 @@ class CharacterService {
         lastSeenAt: { $gte: cutoffDate },
       });
       const eligibleFilter: any = {
-        // Only refresh characters with stored Mythic participation in this raid.
+        // Participation is authoritative: report imports can leave character-level
+        // Mythic activity stale or unset even when the character is actively raiding.
         _id: { $in: currentRaidCharacterIds },
-        lastMythicSeenAt: { $gte: cutoffDate },
-        rankingsAvailable: { $ne: false },
-        nextEligibleRefreshAt: { $lte: new Date() },
+        wclProfileHidden: { $ne: true },
+        $or: [
+          // Empty ranking responses are retryable once their cooldown expires.
+          { nextEligibleRefreshAt: { $lte: new Date() } },
+          { nextEligibleRefreshAt: null },
+          // Historical discovery uses this sentinel until current participation
+          // is known. Admit those imports without bypassing ordinary cooldowns.
+          { rankingsAvailable: null, nextEligibleRefreshAt: new Date("2100-01-01T00:00:00.000Z") },
+        ],
       };
 
       // Count total eligible characters for progress tracking
@@ -3548,7 +3555,9 @@ class CharacterService {
 
         // Exclude already-processed characters so the query returns fresh ones
         const batchFilter =
-          processedCharacterIds.size > 0 ? { ...eligibleFilter, _id: { $nin: Array.from(processedCharacterIds).map((id) => new mongoose.Types.ObjectId(id)) } } : eligibleFilter;
+          processedCharacterIds.size > 0
+            ? { ...eligibleFilter, _id: { $in: currentRaidCharacterIds, $nin: Array.from(processedCharacterIds).map((id) => new mongoose.Types.ObjectId(id)) } }
+            : eligibleFilter;
 
         const eligibleChars = await Character.aggregate([
           { $match: batchFilter },

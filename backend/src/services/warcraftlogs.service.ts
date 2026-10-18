@@ -1,7 +1,6 @@
 import fetch from "node-fetch";
 import { addMechanicDamage, emptyDamageTotals, DamageTotals, MechanicActor, MechanicDamageEvent, MechanicFight, MechanicCollectionPaused } from "../utils/avoidable-damage";
 import logger from "../utils/logger";
-import { GUILDS_DEV, GUILDS_PROD, TrackedGuild } from "../config/guilds";
 import rateLimitService, { WCLRateLimitData, WCLRateLimitEndpoint } from "./rate-limit.service";
 import wclUserAuthService from "./warcraftlogs-user-auth.service";
 import { resolveSpecByBlizzardSpecId, slugifySpecName } from "../utils/spec";
@@ -1296,37 +1295,9 @@ class WarcraftLogsService {
       reportCode,
     };
 
-    const result = await this.query<any>(query, variables, false, 2, { estimatedPoints: 2, sampleRateLimit: true });
-
-    // Get tracked guilds based on environment
-    const trackedGuilds = process.env.NODE_ENV === "production" ? GUILDS_PROD : GUILDS_DEV;
-
-    // Filter rankedCharacters to only include those in tracked guilds
-    if (result?.reportData?.report?.rankedCharacters) {
-      result.reportData.report.rankedCharacters = result.reportData.report.rankedCharacters.filter((character: any) => {
-        // Check if the character belongs to any tracked guild or parent guild of tracked teams
-        return character.guilds?.some((guild: any) => {
-          return trackedGuilds.some((trackedGuild: TrackedGuild) => {
-            // Check direct guild match
-            const directMatch =
-              guild.name.toLowerCase() === trackedGuild.name.toLowerCase() &&
-              guild.server.slug.toLowerCase() === trackedGuild.realm.toLowerCase() &&
-              guild.server.region.slug.toLowerCase() === trackedGuild.region.toLowerCase();
-
-            // Check if character's guild is the parent guild of a tracked team
-            const parentMatch =
-              trackedGuild.parent_guild &&
-              guild.name.toLowerCase() === trackedGuild.parent_guild.toLowerCase() &&
-              guild.server.slug.toLowerCase() === trackedGuild.realm.toLowerCase() &&
-              guild.server.region.slug.toLowerCase() === trackedGuild.region.toLowerCase();
-
-            return directMatch || parentMatch;
-          });
-        });
-      });
-    }
-
-    return result;
+    // Callers already select reports from tracked guilds. Guild configuration is
+    // only seed data; filtering membership here loses UI-added guilds and guests.
+    return this.query<any>(query, variables, false, 2, { estimatedPoints: 2, sampleRateLimit: true });
   }
 
   async getFightCharacters(reportCode: string, _fightId: number) {
