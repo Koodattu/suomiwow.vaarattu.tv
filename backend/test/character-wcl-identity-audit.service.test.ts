@@ -45,7 +45,7 @@ test("canonical WCL identity audit queries by the stored canonical ID", () => {
   assert.match(query, /server\s*{/);
 });
 
-test("nightly candidate discovery includes only unaudited Armory-not-found characters", () => {
+test("explicit backfill discovery includes only unaudited Armory-not-found characters", () => {
   const pipeline = buildUncheckedWclIdentityAuditPipeline(
     "characterwclidentityaudits",
     "characterachievementfetchqueues",

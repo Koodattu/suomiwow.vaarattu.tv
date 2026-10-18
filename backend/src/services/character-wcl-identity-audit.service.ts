@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { CHARACTER_ACCOUNT_SIGNAL_VERSION } from "../config/achievement-signals";
 import { CCG_FEATURE_ENABLED } from "../config/ccg";
 import Character, { ICharacter } from "../models/Character";
+import CharacterAccountGroup from "../models/CharacterAccountGroup";
 import CharacterAchievementFetchQueue from "../models/CharacterAchievementFetchQueue";
 import CharacterMediaFetchQueue from "../models/CharacterMediaFetchQueue";
 import CharacterWclIdentityAudit, {
@@ -13,6 +14,7 @@ import { normalizeRealmSlug } from "../utils/realm";
 import logger from "../utils/logger";
 import cacheService from "./cache.service";
 import characterAchievementService from "./character-achievement.service";
+import characterContinuityService from "./character-continuity.service";
 import characterMediaService from "./character-media.service";
 import mythicPlusService from "./mythic-plus.service";
 import rateLimitService from "./rate-limit.service";
@@ -24,6 +26,8 @@ const QUEUE_TASK_NAME = "Queue Unchecked WCL Character Identities";
 const ESTIMATED_POINTS_PER_LOOKUP = 1;
 const PROCESS_LOG_INTERVAL = 50;
 const DEFAULT_NIGHTLY_CANDIDATE_LIMIT = 1000;
+const IDENTITY_RECHECK_MS = 24 * 60 * 60 * 1000;
+const RECENT_RAIDER_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 interface WclIdentityCharacter {
   id?: unknown;
@@ -53,6 +57,8 @@ interface CandidateRow {
   realm: string;
   region: string;
   lastReportSeenAt?: Date | null;
+  auditLastActivityAt?: Date;
+  auditStatus?: CharacterWclIdentityAuditStatus;
 }
 
 type AuditItemSummary = {
@@ -210,6 +216,43 @@ export function buildUncheckedWclIdentityAuditPipeline(
   ];
 }
 
+export function buildRecentRaiderIdentityAuditPipeline(
+  auditCollectionName: string,
+  characterIds: mongoose.Types.ObjectId[],
+  now: Date,
+  maxCandidates: number,
+): mongoose.PipelineStage[] {
+  return [
+    { $match: { _id: { $in: characterIds }, wclCanonicalCharacterId: { $gt: 0 }, classID: { $gt: 0 } } },
+    { $lookup: { from: auditCollectionName, localField: "_id", foreignField: "characterId", as: "identityAudit" } },
+    {
+      $match: {
+        $or: [
+          { "identityAudit.0": { $exists: false } },
+          { identityAudit: { $elemMatch: {
+            status: { $in: ["completed", "skipped", "failed"] },
+            lastActivityAt: { $lte: new Date(now.getTime() - IDENTITY_RECHECK_MS) },
+          } } },
+        ],
+        // Once a redirect and its downstream work completed, only its current
+        // character needs checking. Failed/interrupted repairs remain retryable.
+        $expr: { $not: [{ $and: [
+          { $eq: [{ $arrayElemAt: ["$identityAudit.status", 0] }, "completed"] },
+          { $eq: [{ $arrayElemAt: ["$identityAudit.identityChanged", 0] }, true] },
+          { $ne: [{ $arrayElemAt: ["$identityAudit.wclCanonicalCharacterId", 0] }, "$wclCanonicalCharacterId"] },
+        ] }] },
+      },
+    },
+    { $sort: { "identityAudit.lastActivityAt": 1, lastReportSeenAt: -1, _id: 1 } },
+    { $limit: maxCandidates },
+    { $project: {
+      _id: 1, wclCanonicalCharacterId: 1, classID: 1, name: 1, realm: 1, region: 1, lastReportSeenAt: 1,
+      auditLastActivityAt: { $arrayElemAt: ["$identityAudit.lastActivityAt", 0] },
+      auditStatus: { $arrayElemAt: ["$identityAudit.status", 0] },
+    } },
+  ];
+}
+
 export function classifyCanonicalWclIdentityResult(
   expected: { classID: number; region: string },
   character: WclIdentityCharacter | null | undefined,
@@ -311,26 +354,72 @@ export class CharacterWclIdentityAuditService {
     enqueue: CharacterWclIdentityAuditEnqueueResult;
     status: CharacterWclIdentityAuditStatusResponse;
   }> {
-    return this.triggerBackfill({ maxCandidates: DEFAULT_NIGHTLY_CANDIDATE_LIMIT });
+    await CharacterWclIdentityAudit.createIndexes();
+    const enqueue = await this.enqueueRecentRaiders();
+    const pending = await CharacterWclIdentityAudit.countDocuments({ status: "pending" });
+    const started = pending > 0 ? this.startProcessing() : false;
+    return { started, enqueue, status: await this.getStatus() };
+  }
+
+  async enqueueRecentRaiders(maxCandidates = DEFAULT_NIGHTLY_CANDIDATE_LIMIT, now = new Date()): Promise<CharacterWclIdentityAuditEnqueueResult> {
+    const limit = Number.isInteger(maxCandidates) && maxCandidates > 0 ? maxCandidates : DEFAULT_NIGHTLY_CANDIDATE_LIMIT;
+    // lastReportSeenAt is indexed. Narrow the population before any joins;
+    // historical Armory failures belong to the explicit backfill, not this job.
+    const recent = await Character.find({ lastReportSeenAt: { $gte: new Date(now.getTime() - RECENT_RAIDER_WINDOW_MS) } })
+      .select("_id classID region")
+      .lean();
+    if (recent.length === 0) return { candidates: 0, queued: 0, existing: 0, requeued: 0, limit };
+
+    const recentById = new Map(recent.map((character) => [String(character._id), character]));
+    const candidateIds = new Set(recentById.keys());
+    const groups = await CharacterAccountGroup.find({
+      signalVersion: CHARACTER_ACCOUNT_SIGNAL_VERSION,
+      characterIds: { $in: recent.map((character) => character._id) },
+    }).select("characterIds members.characterId members.classID members.region").lean();
+    for (const group of groups) {
+      const activeClasses = new Set(group.characterIds.flatMap((id) => {
+        const character = recentById.get(String(id));
+        return character ? [`${character.classID}:${normalizedText(character.region)}`] : [];
+      }));
+      for (const member of group.members) {
+        if (activeClasses.has(`${member.classID}:${normalizedText(member.region)}`)) {
+          candidateIds.add(String(member.characterId));
+        }
+      }
+    }
+    // Account membership selects possible old names only. The WCL canonical
+    // redirect and continuity checks remain the authority for combining them.
+    return this.enqueueCandidates(buildRecentRaiderIdentityAuditPipeline(
+      CharacterWclIdentityAudit.collection.name,
+      [...candidateIds].map((id) => new mongoose.Types.ObjectId(id)),
+      now,
+      limit,
+    ), limit, "Queue Recent Raider WCL Identities");
   }
 
   async enqueueUnchecked(maxCandidates?: number): Promise<CharacterWclIdentityAuditEnqueueResult> {
     const limit = Number.isInteger(maxCandidates) && Number(maxCandidates) > 0 ? Number(maxCandidates) : null;
-    const taskId = await taskTracker.start(QUEUE_TASK_NAME, { limit });
+    return this.enqueueCandidates(buildUncheckedWclIdentityAuditPipeline(
+      CharacterWclIdentityAudit.collection.name,
+      CharacterAchievementFetchQueue.collection.name,
+      CharacterMediaFetchQueue.collection.name,
+      limit ?? undefined,
+    ), limit, QUEUE_TASK_NAME);
+  }
+
+  private async enqueueCandidates(pipeline: mongoose.PipelineStage[], limit: number | null, taskName: string): Promise<CharacterWclIdentityAuditEnqueueResult> {
+    const taskId = await taskTracker.start(taskName, { limit });
     try {
-      const pipeline = buildUncheckedWclIdentityAuditPipeline(
-        CharacterWclIdentityAudit.collection.name,
-        CharacterAchievementFetchQueue.collection.name,
-        CharacterMediaFetchQueue.collection.name,
-        limit ?? undefined,
-      );
       const rows = await Character.aggregate<CandidateRow>(pipeline).allowDiskUse(true);
       const now = new Date();
       const operations: any[] = rows.map((row) => ({
         updateOne: {
-          filter: { characterId: row._id },
+          filter: {
+            characterId: row._id,
+            ...(row.auditStatus ? { status: row.auditStatus, lastActivityAt: row.auditLastActivityAt } : {}),
+          },
           update: {
-            $setOnInsert: {
+            [row.auditStatus ? "$set" : "$setOnInsert"]: {
               characterId: row._id,
               expectedWclCanonicalCharacterId: row.wclCanonicalCharacterId,
               expectedClassID: row.classID,
@@ -357,18 +446,20 @@ export class CharacterWclIdentityAuditService {
               lastActivityAt: now,
             },
           },
-          upsert: true,
+          upsert: !row.auditStatus,
         },
       }));
 
       let queued = 0;
+      let requeued = 0;
       for (let offset = 0; offset < operations.length; offset += 1000) {
         const result = await CharacterWclIdentityAudit.bulkWrite(operations.slice(offset, offset + 1000), { ordered: false });
         queued += result.upsertedCount ?? 0;
+        requeued += result.modifiedCount ?? 0;
       }
-      const result = { candidates: rows.length, queued, existing: rows.length - queued, requeued: 0, limit };
+      const result = { candidates: rows.length, queued, existing: rows.length - queued - requeued, requeued, limit };
       await taskTracker.complete(taskId, result);
-      logger.info(`[CharacterWclIdentityAudit] Queued ${queued} unchecked character(s); ${result.existing} raced with an existing audit row`);
+      logger.info(`[CharacterWclIdentityAudit] Queued ${queued} new and ${requeued} recurring character check(s); ${result.existing} raced with an existing audit row`);
       return result;
     } catch (error) {
       await taskTracker.fail(taskId, error instanceof Error ? error.message : String(error));
@@ -601,6 +692,9 @@ export class CharacterWclIdentityAuditService {
     if (!resolvedName || !resolvedRealm || !resolvedRegion || !canonicalID || !resolvedClassID) {
       throw new Error("Validated WCL identity was incomplete before application");
     }
+    if (canonicalID !== item.expectedWclCanonicalCharacterId) {
+      return this.resolveCanonicalRedirect(item, character!);
+    }
     const identityChanged = await this.applyResolvedIdentity(
       item,
       { name: resolvedName, realm: resolvedRealm, region: resolvedRegion },
@@ -622,8 +716,87 @@ export class CharacterWclIdentityAuditService {
     };
   }
 
+  private async resolveCanonicalRedirect(item: ICharacterWclIdentityAudit, alias: WclIdentityCharacter): Promise<ProcessOutcome> {
+    const skipped = (reason: string): ProcessOutcome => ({
+      status: "skipped", outcome: "invalid_response", reason, identityChanged: false,
+      wclCharacterId: toPositiveInteger(alias.id),
+      wclCanonicalCharacterId: toPositiveInteger(alias.canonicalID),
+    });
+    if (alias.hidden) return skipped("Hidden WCL aliases are not automatically combined");
+
+    // An alias retains its old name. Fetch the canonical profile before choosing
+    // a destination; never apply the alias's name to the current character.
+    await this.waitForBackgroundCapacity(`canonical redirect for ${item.sourceName}`);
+    const response = await wclService.query<WclIdentityResponse>(
+      this.buildWclQuery(), { characterId: alias.canonicalID }, false, 2,
+      { estimatedPoints: ESTIMATED_POINTS_PER_LOOKUP, sampleRateLimit: true },
+    );
+    const current = response.characterData?.character;
+    if (
+      !current || classifyCanonicalWclIdentityResult({ classID: item.expectedClassID, region: item.sourceRegion }, current) !== "resolved"
+      || current.id !== alias.canonicalID || current.canonicalID !== alias.canonicalID
+    ) return skipped("WCL canonical redirect destination could not be verified");
+    const canonicalID = Number(current.canonicalID);
+    const identity = {
+      name: current.name!.trim(), realm: normalizeRealmSlug(current.server!.slug!),
+      region: current.server!.region!.slug!.trim().toLowerCase(),
+    };
+
+    const source = await Character.findOne({
+      _id: item.characterId,
+      wclCanonicalCharacterId: item.expectedWclCanonicalCharacterId,
+      classID: item.expectedClassID,
+    }).select("name realm region firstReportSeenAt lastReportSeenAt").lean();
+    if (!source) throw new Error("Character identity changed while its WCL redirect was pending");
+
+    const target = await Character.findOneAndUpdate(
+      { wclCanonicalCharacterId: canonicalID, classID: item.expectedClassID },
+      { $setOnInsert: {
+        ...identity,
+        identityObservedAt: new Date(),
+        firstReportSeenAt: source.firstReportSeenAt,
+        lastReportSeenAt: source.lastReportSeenAt,
+      } },
+      { upsert: true, returnDocument: "after" },
+    );
+    if (!target) throw new Error("Could not store WCL canonical redirect destination");
+    if (normalizedText(target.region) !== normalizedText(item.sourceRegion)) {
+      return skipped("Stored canonical destination has a conflicting region");
+    }
+    const preview = await characterContinuityService.preview(String(target._id), source);
+    if (preview.source.id !== String(item.characterId)) return skipped("Historical character name is ambiguous");
+    const alreadyCombined = preview.blockers.includes("alreadyCombined");
+    if (!alreadyCombined && (!preview.eligible || preview.target.id !== String(target._id))) {
+      return skipped(`WCL redirect continuity blocked: ${preview.blockers.join(", ") || "destination already combined"}`);
+    }
+    if (!alreadyCombined) {
+      await characterContinuityService.create(String(target._id), source, "wcl-canonical-redirect");
+    }
+    await this.applyResolvedIdentity(
+      { characterId: target._id as mongoose.Types.ObjectId, expectedWclCanonicalCharacterId: canonicalID, expectedClassID: item.expectedClassID },
+      identity,
+      false,
+    );
+    // Repeat downstream work on retries, including when the link was committed
+    // before an interrupted run. The source records and report IDs stay intact.
+    await cacheService.invalidatePattern(/^characters:profile:/);
+    if (CCG_FEATURE_ENABLED) {
+      const { default: ccgIdentityService } = await import("./ccg-character-identity.service");
+      await ccgIdentityService.reconcileAll();
+    }
+    await characterAchievementService.rebuildAccountGroups();
+    await cacheService.invalidatePattern(/^accounts:/);
+    return {
+      status: "completed", outcome: "resolved", identityChanged: true,
+      reason: `WCL canonical redirect combined ${item.sourceName} into ${identity.name}`,
+      wclCharacterId: Number(alias.id), wclCanonicalCharacterId: canonicalID,
+      resolvedName: identity.name, resolvedRealm: identity.realm,
+      resolvedRegion: identity.region, resolvedClassID: item.expectedClassID,
+    };
+  }
+
   private async applyResolvedIdentity(
-    item: ICharacterWclIdentityAudit,
+    item: Pick<ICharacterWclIdentityAudit, "characterId" | "expectedWclCanonicalCharacterId" | "expectedClassID">,
     identity: { name: string; realm: string; region: string },
     hidden: boolean,
   ): Promise<boolean> {

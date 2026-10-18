@@ -625,8 +625,8 @@ class UpdateScheduler {
     );
 
     if (CHARACTER_WCL_IDENTITY_AUDIT_NIGHTLY_ENABLED) {
-      // NIGHTLY: Queue Armory-not-found characters that have never had their
-      // canonical WCL identity checked, then resume the persistent audit queue.
+      // NIGHTLY: Check recent raiders and same-account/class rename candidates.
+      // Discovery uses indexed activity; historical Armory backfill is explicit.
       this.scheduleCronTask(
         "character-wcl-identity-audit",
         "15 1 * * *",
@@ -634,11 +634,11 @@ class UpdateScheduler {
           try {
             const result = await characterWclIdentityAuditService.triggerNightly();
             logger.info(
-              `[Nightly/CharacterWclIdentityAudit] Queued ${result.enqueue.queued} unchecked Armory-missing character(s), `
-              + `existing=${result.enqueue.existing}, processorStarted=${result.started}`,
+              `[Nightly/CharacterWclIdentityAudit] Queued ${result.enqueue.queued} character(s), `
+              + `requeued=${result.enqueue.requeued}, existing=${result.enqueue.existing}, processorStarted=${result.started}`,
             );
           } catch (error) {
-            logger.error("[Nightly/CharacterWclIdentityAudit] Failed to queue unchecked Armory-missing characters:", error);
+            logger.error("[Nightly/CharacterWclIdentityAudit] Failed to queue character identity checks:", error);
           }
         },
       );
