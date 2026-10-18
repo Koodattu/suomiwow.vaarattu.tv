@@ -1,4 +1,4 @@
-import fetch from "node-fetch";
+import fetch, { Response } from "node-fetch";
 import logger from "../utils/logger";
 
 interface TwitchTokenResponse {
@@ -139,6 +139,31 @@ class TwitchService {
     }
   }
 
+  private async fetchWithAccessToken(url: string): Promise<Response> {
+    for (let attempt = 0; ; attempt++) {
+      const token = await this.getAccessToken();
+      logger.info(`[API REQUEST] GET ${url}`);
+      const response = await fetch(url, {
+        headers: {
+          "Client-ID": this.clientId,
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status !== 401) return response;
+
+      // A token can become invalid before its advertised expiry. Do not discard
+      // a newer token that another request has already obtained.
+      if (this.accessToken === token) {
+        this.accessToken = null;
+        this.tokenExpiresAt = 0;
+      }
+      if (attempt === 1) return response;
+      await response.text();
+      logger.warn("Twitch access token rejected; obtaining a new token and retrying once");
+    }
+  }
+
   // Check if channels are live and what game they're playing
   // Returns a Map of channel name (lowercase) to StreamStatus
   async getStreamStatus(channelNames: string[]): Promise<Map<string, StreamStatus>> {
@@ -155,19 +180,11 @@ class TwitchService {
     }
 
     try {
-      const token = await this.getAccessToken();
-
       // Twitch API supports up to 100 channels per request
       // Build query string with user_login parameters
       const queryParams = channelNames.map((name) => `user_login=${encodeURIComponent(name.toLowerCase())}`).join("&");
 
-      logger.info(`[API REQUEST] GET https://api.twitch.tv/helix/streams?${queryParams}`);
-      const response = await fetch(`https://api.twitch.tv/helix/streams?${queryParams}`, {
-        headers: {
-          "Client-ID": this.clientId,
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await this.fetchWithAccessToken(`https://api.twitch.tv/helix/streams?${queryParams}`);
 
       if (!response.ok) {
         throw new Error(`Twitch API error: ${response.status} ${response.statusText}`);
@@ -201,9 +218,8 @@ class TwitchService {
     } catch (error) {
       logger.error("Error checking Twitch stream status:", error instanceof Error ? error.message : "Unknown error");
 
-      // On error, return all channels as offline
-      channelNames.forEach((name) => statusMap.set(name.toLowerCase(), { isLive: false, isPlayingWoW: false }));
-      return statusMap;
+      // Let the scheduler fail the task without overwriting stored stream statuses.
+      throw error;
     }
   }
 
@@ -212,7 +228,6 @@ class TwitchService {
       return [];
     }
 
-    const token = await this.getAccessToken();
     const params = new URLSearchParams({
       user_id: userId,
       type: "archive",
@@ -220,13 +235,7 @@ class TwitchService {
       first: Math.min(Math.max(first, 1), 100).toString(),
     });
 
-    logger.info(`[API REQUEST] GET https://api.twitch.tv/helix/videos?${params.toString()}`);
-    const response = await fetch(`https://api.twitch.tv/helix/videos?${params.toString()}`, {
-      headers: {
-        "Client-ID": this.clientId,
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const response = await this.fetchWithAccessToken(`https://api.twitch.tv/helix/videos?${params.toString()}`);
 
     if (!response.ok) {
       throw new Error(`Twitch videos API error: ${response.status} ${response.statusText}`);
@@ -241,7 +250,6 @@ class TwitchService {
       return [];
     }
 
-    const token = await this.getAccessToken();
     const videos: TwitchVideoData[] = [];
     let cursor: string | undefined;
 
@@ -254,13 +262,7 @@ class TwitchService {
       });
       if (cursor) params.set("after", cursor);
 
-      logger.info(`[API REQUEST] GET https://api.twitch.tv/helix/videos?${params.toString()}`);
-      const response = await fetch(`https://api.twitch.tv/helix/videos?${params.toString()}`, {
-        headers: {
-          "Client-ID": this.clientId,
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await this.fetchWithAccessToken(`https://api.twitch.tv/helix/videos?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error(`Twitch videos API error: ${response.status} ${response.statusText}`);
@@ -293,20 +295,13 @@ class TwitchService {
     }
 
     const uniqueIds = Array.from(new Set(videoIds.filter(Boolean)));
-    const token = await this.getAccessToken();
 
     for (let i = 0; i < uniqueIds.length; i += 100) {
       const batch = uniqueIds.slice(i, i + 100);
       const params = new URLSearchParams();
       batch.forEach((id) => params.append("id", id));
 
-      logger.info(`[API REQUEST] GET https://api.twitch.tv/helix/videos?${params.toString()}`);
-      const response = await fetch(`https://api.twitch.tv/helix/videos?${params.toString()}`, {
-        headers: {
-          "Client-ID": this.clientId,
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await this.fetchWithAccessToken(`https://api.twitch.tv/helix/videos?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error(`Twitch videos API error: ${response.status} ${response.statusText}`);
@@ -329,20 +324,13 @@ class TwitchService {
     }
 
     const uniqueLogins = Array.from(new Set(logins.map((login) => login.trim().toLowerCase()).filter(Boolean)));
-    const token = await this.getAccessToken();
 
     for (let i = 0; i < uniqueLogins.length; i += 100) {
       const batch = uniqueLogins.slice(i, i + 100);
       const params = new URLSearchParams();
       batch.forEach((login) => params.append("login", login));
 
-      logger.info(`[API REQUEST] GET https://api.twitch.tv/helix/users?${params.toString()}`);
-      const response = await fetch(`https://api.twitch.tv/helix/users?${params.toString()}`, {
-        headers: {
-          "Client-ID": this.clientId,
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await this.fetchWithAccessToken(`https://api.twitch.tv/helix/users?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error(`Twitch users API error: ${response.status} ${response.statusText}`);
