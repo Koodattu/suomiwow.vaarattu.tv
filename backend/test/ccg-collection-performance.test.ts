@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import mongoose from "mongoose";
 import CcgCard from "../src/models/CcgCard";
+import CcgOwnership from "../src/models/CcgOwnership";
 import CcgSet from "../src/models/CcgSet";
 import CcgSeriesOwnership from "../src/models/CcgSeriesOwnership";
 import service from "../src/services/ccg.service";
@@ -60,4 +61,43 @@ test("sorted collection retains the legacy path until all matched series are mat
   const aggregate = t.mock.method(CcgSeriesOwnership, "aggregate", (() => { throw Error("unexpected aggregation"); }) as any);
   assert.equal(await (service as any).getMaterializedCollectionRows({}, {}, {}, "alphabetical", null, [], 1, 12), null);
   assert.equal(aggregate.mock.callCount(), 0);
+});
+
+for (const state of ["complete", "incomplete", "missing-finish"] as const) {
+  test(`default paging preserves fallback behavior for ${state} series`, async t => {
+    const owner = { ownerType: "user", ownerId: new mongoose.Types.ObjectId() };
+    const setId = new mongoose.Types.ObjectId();
+    const characterId = new mongoose.Types.ObjectId();
+    t.mock.method(CcgSeriesOwnership, "find", (() => ({ sort() { return this; }, skip() { return this; }, limit() { return this; }, select() { return this; }, lean: async () => [] })) as any);
+    t.mock.method(CcgSeriesOwnership, "countDocuments", (async (filter: any) => {
+      assert.deepEqual(filter.setId, { $in: [setId] });
+      assert.deepEqual(filter.characterId, { $in: [characterId] });
+      return filter.collectionReadModelVersion || state === "complete" ? 4 : 5;
+    }) as any);
+    const fallback = t.mock.method(CcgSeriesOwnership, "exists", (async (filter: any) => {
+      assert.equal(filter.collectionReadModelVersion.$ne, 1);
+      assert.equal(typeof filter.collectionReadModelIssue.$ne, "string");
+      return state === "incomplete" ? { _id: characterId } : null;
+    }) as any);
+    const result = await (service as any).getDefaultCollectionRows(owner, [setId], 2, 12, [characterId]);
+    assert.equal(fallback.mock.callCount(), state === "complete" ? 0 : 1);
+    if (state === "incomplete") assert.equal(result, null);
+    else assert.deepEqual(result, { items: [], count: [{ total: 4 }] });
+  });
+}
+
+test("page ownership and alternative lookups qualify for the partial series index", async t => {
+  const setId = new mongoose.Types.ObjectId(), characterId = new mongoose.Types.ObjectId();
+  const owner = { ownerType: "user", ownerId: new mongoose.Types.ObjectId() };
+  const find = t.mock.method(CcgOwnership, "find", ((filter: any) => {
+    assert.deepEqual(filter.setId, { $type: "objectId" });
+    assert.deepEqual(filter.characterId, { $type: "objectId" });
+    assert.deepEqual(filter.$or, [{ setId, characterId }]);
+    assert.equal(filter.ownerId, owner.ownerId);
+    return { select() { return this; }, lean: async () => [] };
+  }) as any);
+  t.mock.method(CcgCard, "find", (() => ({ sort() { return this; }, lean: async () => [] })) as any);
+  await (service as any).loadCollectionPage(owner, [{ setId, characterId, unlockedSnapshotVersions: [1] }], 1);
+  await (service as any).loadAlternativeArtUnlocks(owner, [{ setId, characterId }]);
+  assert.equal(find.mock.callCount(), 2);
 });

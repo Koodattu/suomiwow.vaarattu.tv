@@ -180,7 +180,8 @@ test("default collection falls back while an owned series still needs materializ
       select() { return this; },
       lean: async () => [],
     });
-    seriesModel.countDocuments = async () => 0;
+    // One owned series exists, but none has the current read model yet.
+    seriesModel.countDocuments = async (filter: Record<string, unknown>) => filter.collectionReadModelVersion ? 0 : 1;
     seriesModel.exists = async () => ({ _id: new mongoose.Types.ObjectId() });
 
     const rows = await (ccgService as any).getDefaultCollectionRows(

@@ -1953,7 +1953,7 @@ class CcgService {
       ...(characterIds ? { characterId: { $in: characterIds } } : {}),
       collectionReadModelVersion: CCG_COLLECTION_READ_MODEL_VERSION,
     };
-    const [seriesRows, total, unmaterialized] = await Promise.all([
+    const [seriesRows, total, allSeriesTotal] = await Promise.all([
       CcgSeriesOwnership.find(match)
         .sort({
           collectionSortGrade: 1,
@@ -1967,16 +1967,23 @@ class CcgService {
         .select("setId characterId unlockedSnapshotVersions collectionCardId")
         .lean<CcgCollectionReadSeriesRow[]>(),
       CcgSeriesOwnership.countDocuments(match),
-      CcgSeriesOwnership.exists({
+      CcgSeriesOwnership.countDocuments({
         ownerType: owner.ownerType,
         ownerId: owner.ownerId,
         setId: { $in: enabledSetIds },
         ...(characterIds ? { characterId: { $in: characterIds } } : {}),
-        collectionReadModelVersion: { $ne: CCG_COLLECTION_READ_MODEL_VERSION },
-        collectionReadModelIssue: { $ne: CCG_COLLECTION_READ_MODEL_MISSING_FINISH },
       }),
     ]);
-    if (unmaterialized) return null;
+    // Both counts can use indexes. Only inspect incomplete rows when the counts
+    // differ, instead of reading every owned series on each page turn.
+    if (allSeriesTotal !== total && await CcgSeriesOwnership.exists({
+      ownerType: owner.ownerType,
+      ownerId: owner.ownerId,
+      setId: { $in: enabledSetIds },
+      ...(characterIds ? { characterId: { $in: characterIds } } : {}),
+      collectionReadModelVersion: { $ne: CCG_COLLECTION_READ_MODEL_VERSION },
+      collectionReadModelIssue: { $ne: CCG_COLLECTION_READ_MODEL_MISSING_FINISH },
+    })) return null;
     if (seriesRows.length === 0) return { items: [], count: total > 0 ? [{ total }] : [] };
 
     return this.loadCollectionPage(owner, seriesRows, total);
@@ -1999,6 +2006,10 @@ class CcgService {
       CcgOwnership.find({
         ownerType: owner.ownerType,
         ownerId: owner.ownerId,
+        // Make the existing partial owner/series/finish index eligible for the
+        // $or lookup. Every series pair below already contains ObjectIds.
+        setId: { $type: "objectId" },
+        characterId: { $type: "objectId" },
         quantity: { $gt: 0 },
         $or: seriesFilters,
         ...(finishMatch ? { finish: finishMatch } : {}),
@@ -5494,6 +5505,8 @@ class CcgService {
     const unlocksQuery = CcgOwnership.find({
       ownerType: owner.ownerType,
       ownerId: owner.ownerId,
+      setId: { $type: "objectId" },
+      characterId: { $type: "objectId" },
       $or: seriesPairs,
       alternativeQuantity: { $gt: 0 },
     }).select("setId characterId -_id").lean();

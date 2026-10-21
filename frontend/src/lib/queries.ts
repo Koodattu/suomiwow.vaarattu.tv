@@ -639,13 +639,16 @@ export function useCcgCollectionCharacterSearch(search: string, enabled = true) 
   });
 }
 
-export function useCcgCollection(options: { page?: number; limit?: number; set?: string; grade?: string; finish?: string; search?: string; guild?: string; character?: string; characterName?: string; sort?: CcgCollectionSort; alternative?: boolean; favorite?: boolean }, enabled = true) {
-  return useQuery({
+export function ccgCollectionQueryOptions(options: Parameters<typeof api.getCcgCollection>[0] = {}) {
+  return {
     queryKey: queryKeys.ccg.collection(options),
-    queryFn: () => api.getCcgCollection(options),
-    enabled,
+    queryFn: ({ signal }: { signal: AbortSignal }) => api.getCcgCollection(options, signal),
     staleTime: 30 * 1000,
-  });
+  };
+}
+
+export function useCcgCollection(options: Parameters<typeof api.getCcgCollection>[0], enabled = true) {
+  return useQuery({ ...ccgCollectionQueryOptions(options), enabled });
 }
 
 export function useCcgOpening(openingId: string, enabled = true) {

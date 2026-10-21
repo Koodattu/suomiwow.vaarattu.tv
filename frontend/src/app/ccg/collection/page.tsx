@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions, Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { FaRegStar, FaStar } from "react-icons/fa6";
 import { LuCircleDashed, LuEye, LuEyeOff, LuFilter, LuImage, LuImages, LuRotateCcw, LuX } from "react-icons/lu";
@@ -13,10 +14,12 @@ import type {
   PointerEvent as ReactPointerEvent,
   WheelEvent as ReactWheelEvent,
 } from "react";
-import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCharacterFacet, CcgCollectionSort, CcgFinish, CcgGuildFacet, CcgTierGrade } from "@/types";
+import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCharacterFacet, CcgCollectionResponse, CcgCollectionSort, CcgFinish, CcgGuildFacet, CcgTierGrade } from "@/types";
 import { bestOwnedFinish, CCG_BASE_FINISH_ORDER } from "@/lib/ccg";
 import { playCcgSound, preloadCcgSounds } from "@/lib/ccg-audio";
-import { useCcgCatalog, useCcgCollection, useCcgCollectionCharacterSearch, useCcgCollectionGuilds, useCcgLeaderboardMe, useCcgSession, useCcgSets } from "@/lib/queries";
+import { ccgCollectionQueryOptions, useCcgCatalog, useCcgCollection, useCcgCollectionCharacterSearch, useCcgCollectionGuilds, useCcgLeaderboardMe, useCcgSession, useCcgSets } from "@/lib/queries";
+import { prefetchCcgCollectionPage, warmCcgCollectionImage } from "@/lib/ccg-collection-prefetch";
+import { getCharacterRenderImageUrl } from "@/lib/character-render";
 import { formatRealmName } from "@/lib/utils";
 import CcgShell from "@/components/ccg/CcgShell";
 import CollectibleCard from "@/components/ccg/CollectibleCard";
@@ -200,6 +203,7 @@ function CollectionCard({
   favorite,
   missing,
   onSelect,
+  onReady,
 }: {
   card: CcgCard;
   finish: CcgFinish;
@@ -208,9 +212,13 @@ function CollectionCard({
   favorite: boolean;
   missing: boolean;
   onSelect: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+  onReady: (cardId: string) => void;
 }) {
   const [ready, setReady] = useState(false);
   const markReady = useCallback(() => setReady(true), []);
+  useEffect(() => {
+    if (ready) onReady(card.id);
+  }, [ready, onReady, card.id]);
 
   return (
     <div className={styles.collectionCardSlot} aria-busy={!ready} data-card-typography-container>
@@ -234,6 +242,7 @@ function CollectionCard({
 }
 
 export default function CcgCollectionPage() {
+  const queryClient = useQueryClient();
   const t = useTranslations("ccg");
   const searchParams = useSearchParams();
   const searchParamsKey = searchParams.toString();
@@ -368,20 +377,21 @@ export default function CcgCollectionPage() {
   );
   const filtersChanged = visibility !== "owned" || alternativeOnly || favoriteOnly || Boolean(selectedCharacter || guildId || grade || finish || sort);
   const advancedFilterCount = [alternativeOnly, selectedCharacter, guildId, grade, finish].filter(Boolean).length;
+  const collectionOptions = useMemo(() => ({
+    page,
+    limit: cardsPerPage,
+    set: collectionSetSlug,
+    grade: grade || undefined,
+    finish: finish || undefined,
+    guild: guildId || undefined,
+    character: characterId || undefined,
+    characterName: selectedCharacterNameSearch || undefined,
+    sort: sort || undefined,
+    alternative: alternativeOnly || undefined,
+    favorite: favoriteOnly || undefined,
+  }), [page, cardsPerPage, collectionSetSlug, grade, finish, guildId, characterId, selectedCharacterNameSearch, sort, alternativeOnly, favoriteOnly]);
   const ownedQuery = useCcgCollection(
-    {
-      page,
-      limit: cardsPerPage,
-      set: collectionSetSlug,
-      grade: grade || undefined,
-      finish: finish || undefined,
-      guild: guildId || undefined,
-      character: characterId || undefined,
-      characterName: selectedCharacterNameSearch || undefined,
-      sort: sort || undefined,
-      alternative: alternativeOnly || undefined,
-      favorite: favoriteOnly || undefined,
-    },
+    collectionOptions,
     setSelectionReady && guildFilterReady && !showCatalog,
   );
   const catalogQuery = useCcgCatalog(collectionSetSlug, page, catalogOwnership, grade, guildId, characterId, selectedCharacterNameSearch, finish, sort, setSelectionReady && guildFilterReady && showCatalog, cardsPerPage);
@@ -389,6 +399,31 @@ export default function CcgCollectionPage() {
   const cardsData = guildFilterReady ? cardsQuery.data : undefined;
   const cardsLoading = sessionQuery.isPending || !guildFilterReady || cardsQuery.isPending;
   const cardsError = guildFilterReady && cardsQuery.isError;
+  const readyCards = useRef<{ data: CcgCollectionResponse | undefined; ids: Set<string> }>({ data: undefined, ids: new Set() });
+  const [readyPage, setReadyPage] = useState<CcgCollectionResponse>();
+  const markCardReady = useCallback((cardId: string) => {
+    if (!cardsData) return;
+    if (readyCards.current.data !== cardsData) readyCards.current = { data: cardsData, ids: new Set() };
+    readyCards.current.ids.add(cardId);
+    if (readyCards.current.ids.size === cardsData.cards.length) setReadyPage(cardsData);
+  }, [cardsData]);
+
+  useEffect(() => {
+    if (showCatalog || cardsLoading || ownedQuery.isFetching || !cardsData || readyPage !== cardsData || page >= cardsData.pages) return;
+    const controller = new AbortController();
+    // Wait for the current cards' artwork and icons, then allow a short quiet
+    // interval before preparing exactly one upcoming page.
+    const timer = window.setTimeout(() => {
+      if (document.visibilityState !== "visible") return;
+      void prefetchCcgCollectionPage(queryClient, ccgCollectionQueryOptions({ ...collectionOptions, page: page + 1 }), controller.signal, data =>
+        data.cards.flatMap(card => {
+          const alternative = bestOwnedFinish(card)?.artVariant === "alternative";
+          const source = alternative && card.alternativeArt?.characterArtPath ? card.alternativeArt.characterArtPath : card.renderUrl;
+          return source && !/\.webm(?:$|[?#])/i.test(source) ? [getCharacterRenderImageUrl(source, true)] : [];
+        }), warmCcgCollectionImage);
+    }, 150);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [cardsData, cardsLoading, collectionOptions, ownedQuery.isFetching, page, queryClient, readyPage, showCatalog]);
   const pageCountScope = JSON.stringify([setSlug, characterId, selectedCharacterNameSearch, guildId, grade, finish, sort, visibility, alternativeOnly, favoriteOnly, cardsPerPage]);
   const displayedPageCount = cardsData?.pages
     ?? (pageCountCache.scope === pageCountScope ? pageCountCache.pages : 0);
@@ -1490,6 +1525,7 @@ export default function CcgCollectionPage() {
                     <CollectionCard
                       key={`${card.id}:${card.renderUrl ?? ""}`}
                       card={card}
+                      onReady={markCardReady}
                       finish={ownedFinish?.finish ?? "standard"}
                       artVariant={ownedFinish?.artVariant ?? "standard"}
                       quantity={ownedFinish?.total}
