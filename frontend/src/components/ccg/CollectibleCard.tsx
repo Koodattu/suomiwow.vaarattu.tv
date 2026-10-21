@@ -531,6 +531,7 @@ function CollectibleCard({
           />
         ) : renderUrl ? (
           <AlphaFittedCharacterRender
+            compact={compact}
             src={renderUrl}
             className={styles.renderImage}
             fitMode={alternativeActive ? "silhouette" : "stance"}

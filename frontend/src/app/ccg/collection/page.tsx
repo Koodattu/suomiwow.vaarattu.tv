@@ -298,7 +298,7 @@ export default function CcgCollectionPage() {
   const [canScrollSetsForward, setCanScrollSetsForward] = useState(false);
   const allSetsSelected = setSlug === allSetsSlug;
   const selectedSet = sets.find((set) => set.slug === setSlug);
-  const setSelectionReady = setsQuery.isSuccess && (allSetsSelected || Boolean(selectedSet));
+  const setSelectionReady = sessionQuery.isSuccess && (!setsQuery.isSuccess || allSetsSelected || Boolean(selectedSet));
   const finishOptions = useMemo(() => {
     const order: CollectionFinishOption[] = [...CCG_BASE_FINISH_ORDER];
     const hasUniqueFinish = selectedSet
@@ -387,7 +387,7 @@ export default function CcgCollectionPage() {
   const catalogQuery = useCcgCatalog(collectionSetSlug, page, catalogOwnership, grade, guildId, characterId, selectedCharacterNameSearch, finish, sort, setSelectionReady && guildFilterReady && showCatalog, cardsPerPage);
   const cardsQuery = showCatalog ? catalogQuery : ownedQuery;
   const cardsData = guildFilterReady ? cardsQuery.data : undefined;
-  const cardsLoading = setsQuery.isPending || !guildFilterReady || cardsQuery.isPending;
+  const cardsLoading = sessionQuery.isPending || !guildFilterReady || cardsQuery.isPending;
   const cardsError = guildFilterReady && cardsQuery.isError;
   const pageCountScope = JSON.stringify([setSlug, characterId, selectedCharacterNameSearch, guildId, grade, finish, sort, visibility, alternativeOnly, favoriteOnly, cardsPerPage]);
   const displayedPageCount = cardsData?.pages

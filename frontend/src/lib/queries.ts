@@ -21,11 +21,10 @@ export function useAvoidableDamage(filters: MechanicFilters) {
     },
   });
 }
-import type { CcgActivityFilter, CcgBootstrapResponse, CcgCollectionSort, CharacterTierListRole, CompareDifficulty, EventFilters, FunGameSearchSlug } from "@/types";
+import type { CcgActivityFilter, CcgCollectionSort, CharacterTierListRole, CompareDifficulty, EventFilters, FunGameSearchSlug } from "@/types";
 
 const LIVE_STATUS_STALE_TIME = 15 * 60 * 1000;
 const LIVE_STATUS_REFETCH_INTERVAL = 15 * 60 * 1000;
-const CCG_BOOTSTRAP_QUERY_KEY = ["ccg", "bootstrap"] as const;
 
 export type CharacterTierListQueryFilters = {
   minReports?: number;
@@ -121,9 +120,8 @@ export const queryKeys = {
     leaderboardShowcase: (collectorId: string) => ["ccg", "leaderboard", "showcase", collectorId] as const,
     leaderboardRecords: ["ccg", "leaderboard", "records"] as const,
     leaderboardMe: ["ccg", "leaderboard", "me"] as const,
-    bootstrap: CCG_BOOTSTRAP_QUERY_KEY,
-    session: CCG_BOOTSTRAP_QUERY_KEY,
-    sets: CCG_BOOTSTRAP_QUERY_KEY,
+    session: ["ccg", "session"] as const,
+    sets: ["ccg", "sets"] as const,
     catalog: (setSlug: string | undefined, page: number, owned: string, grade: string, guildId: string, characterId: string, characterName: string, finish: string, sort: string, limit: number) => ["ccg", "catalog", setSlug ?? "all", page, owned, grade, guildId, characterId, characterName, finish, sort, limit] as const,
     featured: (setSlug: string) => ["ccg", "featured", setSlug] as const,
     promo: ["ccg", "promo"] as const,
@@ -528,12 +526,11 @@ export function useRaidCompare(raidId: number | null, difficulty: CompareDifficu
 export function useCcgSession(enabled = true) {
   return useQuery({
     queryKey: queryKeys.ccg.session,
-    queryFn: () => api.getCcgBootstrap(),
-    select: (bootstrap: CcgBootstrapResponse) => bootstrap.session,
+    queryFn: () => api.getCcgSession(),
     enabled,
     staleTime: 15 * 1000,
     refetchInterval: (query) => {
-      const session = query.state.data?.session;
+      const session = query.state.data;
       if (!session) return false;
       if (session.packs.totalRemaining >= session.recharge.cap) return false;
       return Math.max(1_000, new Date(session.recharge.nextAt).getTime() - Date.now() + 1_000);
@@ -587,11 +584,12 @@ export function useCcgLeaderboardMe(enabled = true) {
 }
 
 export function useCcgSets(enabled = true) {
+  // Establish the guest cookie once before issuing parallel owner-specific reads.
+  const session = useCcgSession(enabled);
   return useQuery({
     queryKey: queryKeys.ccg.sets,
-    queryFn: () => api.getCcgBootstrap(),
-    select: (bootstrap: CcgBootstrapResponse) => ({ sets: bootstrap.sets }),
-    enabled,
+    queryFn: () => api.getCcgSets(),
+    enabled: enabled && session.isSuccess,
     staleTime: 5 * 60 * 1000,
   });
 }

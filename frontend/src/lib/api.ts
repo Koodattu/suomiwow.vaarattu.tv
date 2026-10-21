@@ -175,7 +175,6 @@ import {
   CcgRedeemResult,
   CcgSession,
   CcgSet,
-  CcgBootstrapResponse,
   CcgAdminEnableResponse,
   CcgAdminSnapshotPreview,
   CcgAdminSetReadiness,
@@ -400,12 +399,6 @@ export const api = {
 
   async getCcgSession(): Promise<CcgSession> {
     const response = await fetch(`${API_URL}/api/ccg/session`, { credentials: "include" });
-    if (!response.ok) throw await buildApiError(response, "Failed to load the card vault");
-    return response.json();
-  },
-
-  async getCcgBootstrap(): Promise<CcgBootstrapResponse> {
-    const response = await fetch(`${API_URL}/api/ccg/bootstrap`, { credentials: "include" });
     if (!response.ok) throw await buildApiError(response, "Failed to load the card vault");
     return response.json();
   },

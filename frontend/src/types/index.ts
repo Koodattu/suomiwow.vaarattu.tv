@@ -2356,11 +2356,6 @@ export type CcgSession = {
   ownedFinishes: number;
 };
 
-export type CcgBootstrapResponse = {
-  session: CcgSession;
-  sets: CcgSet[];
-};
-
 export type CcgAnalytics = {
   uniqueUsers: number;
   packOpenings: number;

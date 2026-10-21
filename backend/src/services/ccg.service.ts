@@ -1140,13 +1140,15 @@ class CcgService {
       .select(CCG_PUBLIC_SET_FIELDS)
       .sort({ zoneId: 1 })
       .lean();
-    const [rows, iconByZone] = await Promise.all([
-      owner ? CcgSeriesOwnership.aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([
-        { $match: { ownerType: owner.ownerType, ownerId: owner.ownerId } },
+    // Only archived series need a latest-snapshot check. Counting the owner's
+    // series directly avoids a correlated card lookup for every owned character.
+    const archivedSeries = owner ? await CcgCard.aggregate<{ _id: { setId: mongoose.Types.ObjectId; characterId: mongoose.Types.ObjectId } }>([
+        { $match: { setId: { $in: visibleSets.map((set) => set._id) }, availabilityStatus: "archived" } },
+        { $group: { _id: { setId: "$setId", characterId: "$characterId" } } },
         {
           $lookup: {
             from: CcgCard.collection.name,
-            let: { setId: "$setId", characterId: "$characterId" },
+            let: { setId: "$_id.setId", characterId: "$_id.characterId" },
             pipeline: [
               {
                 $match: {
@@ -1165,7 +1167,17 @@ class CcgService {
             as: "cardAvailability",
           },
         },
-        { $match: { "cardAvailability.availabilityStatus": { $ne: "archived" } } },
+        { $match: { "cardAvailability.availabilityStatus": "archived" } },
+        { $project: { _id: 1 } },
+      ]) : [];
+    const [rows, iconByZone] = await Promise.all([
+      owner ? CcgSeriesOwnership.aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([
+        { $match: {
+          ownerType: owner.ownerType,
+          ownerId: owner.ownerId,
+          setId: { $in: visibleSets.map((set) => set._id) },
+          ...(archivedSeries.length ? { $nor: archivedSeries.map((row) => row._id) } : {}),
+        } },
         { $group: { _id: "$setId", count: { $sum: 1 } } },
       ]) : Promise.resolve([]),
       this.getRaidIconByZone(visibleSets.map((set) => set.zoneId)),
@@ -1967,6 +1979,16 @@ class CcgService {
     if (unmaterialized) return null;
     if (seriesRows.length === 0) return { items: [], count: total > 0 ? [{ total }] : [] };
 
+    return this.loadCollectionPage(owner, seriesRows, total);
+  }
+
+  private async loadCollectionPage(
+    owner: CcgOwner,
+    seriesRows: CcgCollectionReadSeriesRow[],
+    total: number,
+    finishMatch: ReturnType<typeof resolveCollectionFinishMatch> = null,
+  ): Promise<CcgCollectionRows | null> {
+    if (!seriesRows.length) return { items: [], count: total > 0 ? [{ total }] : [] };
     const seriesFilters = seriesRows.map((row) => ({ setId: row.setId, characterId: row.characterId }));
     const cardFilters = seriesRows.map((row) => ({
       setId: row.setId,
@@ -1979,6 +2001,7 @@ class CcgService {
         ownerId: owner.ownerId,
         quantity: { $gt: 0 },
         $or: seriesFilters,
+        ...(finishMatch ? { finish: finishMatch } : {}),
       })
         .select("setId characterId finish quantity alternativeQuantity -_id")
         .lean(),
@@ -2029,6 +2052,68 @@ class CcgService {
       });
     }
     return { items, count: [{ total }] };
+  }
+
+  private async getMaterializedCollectionRows(
+    owner: CcgOwner,
+    match: Record<string, unknown>,
+    cardMatch: Record<string, unknown>,
+    sort: CcgCollectionSort | null,
+    finishMatch: ReturnType<typeof resolveCollectionFinishMatch>,
+    communitySetIds: mongoose.Types.ObjectId[],
+    page: number,
+    limit: number,
+  ): Promise<CcgCollectionRows | null> {
+    const unmaterialized = await CcgSeriesOwnership.exists({
+      ...match,
+      collectionReadModelVersion: { $ne: CCG_COLLECTION_READ_MODEL_VERSION },
+      collectionReadModelIssue: { $ne: CCG_COLLECTION_READ_MODEL_MISSING_FINISH },
+    });
+    if (unmaterialized) return null;
+    const needsFinishes = Boolean(finishMatch) || sort === "duplicates_desc" || sort === "quality_desc" || sort === "quality_asc";
+    const result = await CcgSeriesOwnership.aggregate<{
+      items: CcgCollectionReadSeriesRow[];
+      count: Array<{ total: number }>;
+    }>([
+      { $match: { ...match, collectionReadModelVersion: CCG_COLLECTION_READ_MODEL_VERSION } },
+      // The read model points to the newest explicitly owned snapshot, not the
+      // newest published card. The equality join uses the existing _id index.
+      { $lookup: { from: CcgCard.collection.name, localField: "collectionCardId", foreignField: "_id", as: "card" } },
+      { $unwind: "$card" },
+      ...(Object.keys(cardMatch).length ? [{ $match: cardMatch }] : []),
+      ...(needsFinishes ? [
+        { $lookup: {
+          from: CcgOwnership.collection.name,
+          let: { setId: "$setId", characterId: "$characterId" },
+          pipeline: [
+            { $match: {
+              ownerType: owner.ownerType, ownerId: owner.ownerId,
+              setId: { $type: "objectId" }, characterId: { $type: "objectId" },
+              ...(finishMatch ? { finish: finishMatch } : {}),
+              $expr: { $and: [{ $eq: ["$setId", "$$setId"] }, { $eq: ["$characterId", "$$characterId"] }] },
+            } },
+            { $project: { _id: 0, finish: 1, quantity: 1 } },
+          ], as: "finishes",
+        } },
+        { $match: { "finishes.0": { $exists: true } } },
+      ] : []),
+      ...(sort ? buildCcgCollectionSortStages(sort, {
+        grade: "card.tierGrade", name: "card.name", realm: "card.realm", setNumber: "card.setNumber", id: "card._id",
+      }, {
+        duplicates: { $sum: "$finishes.quantity" },
+        quality: { $max: { $map: { input: "$finishes", as: "owned", in: buildCcgCollectionQualityRank("$$owned.finish") } } },
+        damage: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.performance", "$card.parseScore"] },
+        mechanics: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.mechanics", buildCcgRaidCardMechanicsScoreExpression("card.")] },
+        combined: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.combined", "$card.combinedScore"] },
+        mythicPlus: { $cond: [{ $in: ["$card.setId", communitySetIds] }, "$card.communityScores.mythicPlus", "$card.mythicPlusScore"] },
+      }) : [{ $sort: { collectionSortGrade: 1 as const, collectionSortSetNumber: 1 as const, collectionSortName: 1 as const, setId: 1 as const, characterId: 1 as const } }]),
+      { $facet: {
+        items: [{ $skip: (page - 1) * limit }, { $limit: limit }, { $project: { setId: 1, characterId: 1, collectionCardId: 1, unlockedSnapshotVersions: 1 } }],
+        count: [{ $count: "total" }],
+      } },
+    ]);
+    const rows = result[0];
+    return this.loadCollectionPage(owner, rows?.items ?? [], rows?.count[0]?.total ?? 0, finishMatch);
   }
 
   async getCollection(
@@ -2106,7 +2191,7 @@ class CcgService {
     const defaultRows = canUseDefaultReadModel
       ? await this.getDefaultCollectionRows(owner, sets.map((set) => set._id), page, limit, characterIds)
       : null;
-    let rows = defaultRows;
+    let rows = defaultRows ?? await this.getMaterializedCollectionRows(owner, match, cardMatch, sort, finishMatch, communitySetIds, page, limit);
     if (!rows) rows = await CcgSeriesOwnership.aggregate<{
       _id: { setId: mongoose.Types.ObjectId; characterId: mongoose.Types.ObjectId };
       totalQuantity: number;

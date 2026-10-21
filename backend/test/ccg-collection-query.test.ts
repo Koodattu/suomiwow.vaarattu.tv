@@ -11,7 +11,7 @@ import CcgSeriesOwnership from "../src/models/CcgSeriesOwnership";
 import CcgSet from "../src/models/CcgSet";
 import ccgService from "../src/services/ccg.service";
 
-test("owned collection shares finishes and intersects favorite and alternative-art series filters", async () => {
+test("legacy collection fallback shares finishes and intersects favorite and alternative-art series filters", async () => {
   const ownerId = new mongoose.Types.ObjectId();
   const raidSetId = new mongoose.Types.ObjectId();
   const communitySetId = new mongoose.Types.ObjectId();
@@ -81,6 +81,7 @@ test("owned collection shares finishes and intersects favorite and alternative-a
   const service = ccgService as any;
   const originals = {
     aggregate: seriesOwnershipModel.aggregate,
+    exists: seriesOwnershipModel.exists,
     cardFind: cardModel.find,
     collectorProfileFindOne: collectorProfileModel.findOne,
     ownershipFind: ownershipModel.find,
@@ -93,6 +94,7 @@ test("owned collection shares finishes and intersects favorite and alternative-a
   let favoriteCardFilter: Record<string, any> | null = null;
 
   try {
+    seriesOwnershipModel.exists = async () => ({ _id: new mongoose.Types.ObjectId() });
     setModel.find = () => ({
       select() { return this; },
       lean: async () => [raidSet, communitySet],
@@ -176,6 +178,7 @@ test("owned collection shares finishes and intersects favorite and alternative-a
     assert.deepEqual(result.cards[0].variants[0].ownership, result.cards[0].variants[1].ownership);
   } finally {
     seriesOwnershipModel.aggregate = originals.aggregate;
+    seriesOwnershipModel.exists = originals.exists;
     cardModel.find = originals.cardFind;
     collectorProfileModel.findOne = originals.collectorProfileFindOne;
     ownershipModel.find = originals.ownershipFind;

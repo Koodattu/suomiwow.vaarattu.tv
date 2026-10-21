@@ -7,9 +7,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { CcgBaseFinish, CcgBootstrapResponse, CcgFinish, CcgOpening, CcgSet } from "@/types";
+import type { CcgBaseFinish, CcgSession, CcgFinish, CcgOpening, CcgSet } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/lib/api";
+import { updateCcgSessionAfterOpening, updateCcgSetsAfterOpening } from "@/lib/ccg-opening-cache";
 import { CCG_BASE_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS, compareCcgPullQuality } from "@/lib/ccg";
 import {
   getCcgAnnouncerSoundSequences,
@@ -560,28 +561,13 @@ export default function CcgOpenPage() {
       setOpening(result);
       const updates = result.cacheUpdates;
       if (updates) {
-        queryClient.setQueryData<CcgBootstrapResponse>(queryKeys.ccg.bootstrap, (bootstrap) => {
-          if (!bootstrap) return bootstrap;
-          const customUpdates = new Map(updates.customQualityProtection.map((row) => [row.setSlug, row]));
-          return {
-            session: {
-              ...bootstrap.session,
-              packs: updates.packs,
-              qualityProtection: updates.qualityProtection,
-              customQualityProtection: bootstrap.session.customQualityProtection.map((row) => {
-                const update = customUpdates.get(row.setSlug);
-                return update ? { ...row, counter: update.counter } : row;
-              }),
-              ownedFinishes: bootstrap.session.ownedFinishes + updates.ownedFinishesDelta,
-            },
-            sets: bootstrap.sets.map((set) => ({
-              ...set,
-              ownedCards: set.ownedCards + (updates.ownedCardsBySetDelta[set.id] ?? 0),
-            })),
-          };
-        });
+        queryClient.setQueryData<CcgSession>(queryKeys.ccg.session, (session) => session && updateCcgSessionAfterOpening(session, updates));
+        queryClient.setQueryData<{ sets: CcgSet[] }>(queryKeys.ccg.sets, (data) => data && ({
+          sets: updateCcgSetsAfterOpening(data.sets, updates),
+        }));
       } else {
-        queryClient.invalidateQueries({ queryKey: queryKeys.ccg.bootstrap });
+        queryClient.invalidateQueries({ queryKey: queryKeys.ccg.session });
+        queryClient.invalidateQueries({ queryKey: queryKeys.ccg.sets });
       }
       queryClient.invalidateQueries({ queryKey: ["ccg", "catalog"] });
       queryClient.invalidateQueries({ queryKey: ["ccg", "collection"] });

@@ -18,6 +18,7 @@ for (const environment of ["development", "production"]) {
     ]) {
       assert.equal(getCharacterRenderProxyUrl(url), url);
       assert.equal(getCharacterRenderImageUrl(url), url);
+      assert.equal(getCharacterRenderImageUrl(url, true), url);
     }
 
     const blizzard = "https://render.worldofwarcraft.com/eu/character/realm/1/1-main-raw.png";
@@ -28,6 +29,10 @@ for (const environment of ["development", "production"]) {
       const optimized = new URL(image, "https://example.com");
       assert.equal(optimized.pathname, "/_next/image");
       assert.equal(optimized.searchParams.get("url"), proxy);
+      assert.equal(optimized.searchParams.get("w"), "3840");
+      const thumbnail = new URL(getCharacterRenderImageUrl(blizzard, true), "https://example.com");
+      assert.equal(thumbnail.searchParams.get("w"), "640");
+      assert.equal(thumbnail.searchParams.get("q"), "75");
     } else {
       assert.equal(image, proxy);
     }

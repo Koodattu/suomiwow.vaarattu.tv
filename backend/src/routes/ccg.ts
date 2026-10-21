@@ -105,6 +105,13 @@ router.get("/media/supporter/:assetId", async (req, res) => {
       const user = req.session.userId ? await User.findById(req.session.userId).select("discord.username").lean() : null;
       if (!user || !discord.isAdmin(user.discord.username)) return res.status(404).end();
     }
+    // Revalidate approval on every request, while allowing unchanged approved
+    // bytes to stay in the browser cache. Never cache private review previews.
+    if (row.status === "approved" && row.sha256) {
+      res.setHeader("Cache-Control", "private, no-cache");
+      res.setHeader("ETag", `"${row.sha256}"`);
+      if (req.fresh) return res.status(304).end();
+    }
     res.setHeader("Content-Type", row.contentType);
     res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
     return res.sendFile(resolveCharacterRenderStoragePath(row.storageKey!), { cacheControl: false, lastModified: false }, (error) => {
