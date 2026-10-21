@@ -5,6 +5,8 @@ import service from "../src/services/character-mechanics.service";
 import Fight from "../src/models/Fight";
 import CharacterMechanicsLeaderboard from "../src/models/CharacterMechanicsLeaderboard";
 import CharacterTierListEntry from "../src/models/CharacterTierListEntry";
+import CharacterRaidParticipation from "../src/models/CharacterRaidParticipation";
+import Ranking from "../src/models/Ranking";
 import characterTierListService from "../src/services/character-tierlist.service";
 import { shouldPublishCcgCardSnapshot } from "../src/utils/ccg-card-snapshot";
 import { resolveCcgCharacterMechanicsStatus } from "../src/utils/ccg-character-check";
@@ -239,7 +241,7 @@ test("fight loading includes bosses without any global kill parses and preserves
   t.mock.method(mechanics, "findReportAppearances", async () => []);
   t.mock.method(mechanics, "findCharacterAliases", async () => [character]);
   const result = await mechanics.buildSurvivalStatsFromFetchedFights(53);
-  assert.deepEqual(eligibleQuery.encounterID, { $in: [3470, 3445, 3455, 3497, 3420, 3421, 3429, 3492] });
+  assert.deepEqual(eligibleQuery.encounterID, { $in: [3470, 3445, 3455, 3497, 3420, 3421, 3429, 3492, 3379] });
   assert.deepEqual(fightQuery.encounterID, eligibleQuery.encounterID);
   assert.equal(eligibleQuery.difficulty, 5);
   assert.equal(fightQuery.deathEventsFetchStatus, "fetched");
@@ -248,6 +250,61 @@ test("fight loading includes bosses without any global kill parses and preserves
   assert.equal(result.eligibleFights, 3);
   assert.equal(result.coverage, 2 / 3);
   assert.equal(result.stats.get(`${characterId}|3420|dps`).pulls, 2);
+});
+
+test("the published mechanics build counts Nymrissa once and keeps Kith'ix out of scores and CCG eligibility", async (t) => {
+  let input = fights(3470, "demonology", 30);
+  let parses = [parse(3470, "demonology", 80)];
+  let written: any[] = [];
+  const selectFights = (query: any) => input.filter(fight => query.encounterID.$in
+    ? query.encounterID.$in.includes(fight.encounterID) : fight.encounterID === query.encounterID.$eq);
+  t.mock.method(mechanics, "ensureBuildIndexes", async () => {});
+  t.mock.method(Ranking, "aggregate", () => ({ allowDiskUse: async () => parses }) as any);
+  t.mock.method(Fight, "countDocuments", async (query: any) => selectFights(query).length);
+  t.mock.method(Fight, "find", (query: any) => {
+    const chain: any = { select: () => chain, sort: () => chain, lean: () => chain,
+      cursor: async function* () { yield* selectFights(query); } };
+    return chain;
+  });
+  t.mock.method(mechanics, "findReportRegions", async () => new Map(input.map(fight => [fight.reportCode, "EU"])));
+  t.mock.method(mechanics, "findReportAppearances", async () => []);
+  t.mock.method(mechanics, "findCharacterAliases", async () => [character]);
+  t.mock.method(CharacterRaidParticipation, "find", () => ({ select: () => ({ lean: async () => [] }) }) as any);
+  t.mock.method(CharacterMechanicsLeaderboard, "deleteMany", async () => { written = []; });
+  t.mock.method(CharacterMechanicsLeaderboard, "bulkWrite", async (operations: any[]) => {
+    written.push(...operations.map(operation => operation.replaceOne.replacement));
+  });
+  const overall = () => written.find(row => row.type === "overall");
+  await mechanics.buildZoneMechanicsLeaderboard(53);
+  assert.equal(overall().parseScore, 80);
+  assert.equal(resolveCcgCharacterMechanicsStatus([overall()]).eligible, false);
+
+  input.push(...fights(3379, "demonology", 20));
+  parses.push(parse(3379, "demonology", 20));
+  await mechanics.buildZoneMechanicsLeaderboard(53);
+  const withNymrissa = structuredClone(overall());
+  assert.equal(withNymrissa.parseScore, 50);
+  assert.equal(withNymrissa.pulls, 50);
+  assert.equal(resolveCcgCharacterMechanicsStatus([overall()]).eligible, true);
+  assert.equal(written.filter(row => row.type === "boss" && row.encounterId === 3379).length, 1);
+
+  input.push(...fights(3513, "destruction", 200, true));
+  parses.push(parse(3513, "destruction", 100));
+  const result = await mechanics.buildZoneMechanicsLeaderboard(53);
+  for (const field of ["parseScore", "survivalScore", "survivalPercentile", "score", "pulls", "deaths", "specName", "bossScores"]) {
+    assert.deepEqual(overall()[field], withNymrissa[field], `Kith'ix changed ${field}`);
+  }
+  assert.equal(result.eligibleFights, 50, "Kith'ix must not affect aggregate coverage");
+  assert.equal(written.filter(row => row.type === "boss" && row.encounterId === 3379).length, 1);
+  assert.equal(written.filter(row => row.type === "boss" && row.encounterId === 3513).length, 1);
+  const tier = (characterTierListService as any).createGeneratedEntry({
+    scope: "global", raid: { id: 53, name: "The Venomous Abyss" }, mechanicsRow: overall(),
+    participation: { ...character, characterKey: String(characterId), sourceUpdatedAt: new Date() }, generatedAt: new Date(),
+  });
+  assert.equal(tier.parseScore, 50);
+  assert.equal(tier.score, withNymrissa.score);
+  assert.deepEqual(tier.bossScores.map((boss: any) => boss.encounterId).sort(), [3379, 3470]);
+  assert.equal(tier.scoreVersion, 6, "preserving the original pool must not force replacement CCG cards");
 });
 
 test("an overall spec filter preserves all role mechanics and combined queries require a score", async (t) => {

@@ -10,6 +10,8 @@ import Raid from "../models/Raid";
 import Fight from "../models/Fight";
 import Report from "../models/Report";
 import Cache from "../models/Cache";
+import CharacterLeaderboard from "../models/CharacterLeaderboard";
+import CharacterMechanicsLeaderboard from "../models/CharacterMechanicsLeaderboard";
 import { RAID_ENCOUNTERS, isMainEncounter, raidLairs } from "../config/raid-encounters";
 
 import { buildLairRecoveryFights } from "../utils/raid-encounter-recovery";
@@ -101,7 +103,10 @@ async function main() {
   const protectedPredictionHash = await predictionFingerprint();
   const beforePickem = await pickemRankings();
   const before = new Map(guilds.map(guild => [String(guild._id), guild.progress.filter(p => p.raidId === RAID_ID).map(p => ({ difficulty: p.difficulty, killed: p.bossesDefeated, total: p.totalBosses, rank: p.guildRank }))]));
-  const report: any = { mode: apply ? "apply" : "dry-run", raidId: RAID_ID, rioCapturedAt: snapshot.capturedAt, guilds: [], missingReports: [], pickemBefore: beforePickem };
+  const report: any = { mode: apply ? "apply" : "dry-run", raidId: RAID_ID,
+    progressionEncounterIds: RAID_ENCOUNTERS[RAID_ID].main,
+    characterScoringEncounterIds: RAID_ENCOUNTERS[RAID_ID].characterScoring,
+    rioCapturedAt: snapshot.capturedAt, guilds: [], missingReports: [], pickemBefore: beforePickem };
 
   // Identify skipped encounters without inventing missing fight details or changing source records.
   const wclSnapshot = wclPath ? JSON.parse(await readFile(wclPath, "utf8")) : null;
@@ -186,6 +191,9 @@ async function main() {
   await characterService.buildCharacterLeaderboards();
   const mechanics = await mechanicsService.buildMechanicsLeaderboards([RAID_ID]);
   if (mechanics.zones.some(zone => zone.status !== "built")) throw new Error("Mechanics rebuild was skipped; keep writers stopped and resolve coverage before resuming.");
+  const excludedBossScore = { $elemMatch: { encounterId: { $nin: [...RAID_ENCOUNTERS[RAID_ID].characterScoring] } } };
+  assert(!await CharacterLeaderboard.exists({ zoneId: RAID_ID, type: "allstars", bossScores: excludedBossScore }), "AllStars includes an encounter outside the character scoring pool");
+  assert(!await CharacterMechanicsLeaderboard.exists({ zoneId: RAID_ID, type: "overall", bossScores: excludedBossScore }), "Overall mechanics includes an encounter outside the character scoring pool");
   await characterTierListService.rebuildCharacterTierLists([RAID_ID]);
   if (!await raidAnalyticsService.calculateRaidAnalytics(RAID_ID)) throw new Error("Raid analytics rebuild failed.");
   await tierListService.calculateTierLists();

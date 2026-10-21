@@ -1,4 +1,4 @@
-import { mainRaidBosses, raidLairs } from "../config/raid-encounters";
+import { isCharacterScoringEncounter, mainRaidBosses, raidLairs } from "../config/raid-encounters";
 import { Router, Request, Response } from "express";
 import Raid from "../models/Raid";
 import { TRACKED_RAIDS } from "../config/guilds";
@@ -72,11 +72,13 @@ router.get(
         name: boss.name,
         slug: boss.slug,
         iconUrl: boss.iconUrl,
+        countsForCharacterScore: isCharacterScoringEncounter(raidId, boss.id),
       }));
 
       if (req.query.includeLairs === "true") for (const lair of raidLairs(raidId)) {
         const source = raid.bosses.find(boss => boss.id === lair.id);
-        bosses.push({ id: lair.id, name: lair.name, slug: lair.slug, iconUrl: source?.iconUrl, isLair: true } as any);
+        bosses.push({ id: lair.id, name: lair.name, slug: lair.slug, iconUrl: source?.iconUrl,
+          countsForCharacterScore: isCharacterScoringEncounter(raidId, lair.id), isLair: true } as any);
       }
       res.json(bosses);
     } catch (error) {

@@ -1,15 +1,18 @@
 # Main encounters and lairs
 
 WCL zone 53 remains one source zone. `backend/src/config/raid-encounters.ts`
-defines the eight competitive encounters in progression order, Ula'tek as the
-final boss, and Nymrissa/Kith'ix as lairs. Other raids retain their existing order.
+defines the eight progression encounters in order, Ula'tek as the final boss,
+and Nymrissa/Kith'ix as lairs. A separate `characterScoring` list preserves the
+original nine-boss character scoring pool: main eight plus Nymrissa, excluding
+Kith'ix. Other raids retain their existing order and scoring membership.
 New encounters in a configured zone require an explicit membership decision.
 
 `Guild.progress` contains only main encounters. `Guild.lairProgress` holds each
 lair and difficulty under the same source raid ID. Raw raid metadata, reports,
 fights and per-boss character rankings keep their original source identities.
-Main aggregate scores, completion, raid time, guild ordering and Pick'ems exclude
-lairs. A whole-zone WCL world rank cannot break ties for the main raid; its
+Guild progression scores, completion, raid time, guild ordering and Pick'ems
+exclude lairs. Character scores include Nymrissa. A whole-zone WCL world rank
+cannot break ties for the main raid; its
 Raider.IO main-raid rank can. Existing raw WCL ranks remain stored.
 
 This is an additive field plus a data rebuild, not a new raid-ID migration.
@@ -22,19 +25,22 @@ rules. Historical finalized results remain intact.
 - Main guild standings, completion, race, comparisons and Pick'em inputs use
   eight bosses. Correcting Nymrissa can change existing scores or positions;
   adding Kith'ix cannot contribute to them.
-- Character AllStars and overall mechanics/combined scores use only main bosses.
+- Character AllStars and overall mechanics/combined scores use the main eight
+  plus Nymrissa. Survival, coverage and role/spec selection use this same pool.
   Raw WCL parse values are retained. Individual-boss leaderboards can still show
   either lair; lair mechanics require sufficient fetched fight-detail coverage.
 - Automatic character tiers inherit the corrected overall mechanics scores.
   Guild speed/efficiency tiers inherit main progress, ranks, pulls and time; the
   overall guild tier list consequently reflects the corrected raid contribution.
   Existing scoring formulas and manually arranged tier lists are not rewritten.
-- Raid analytics and character profile boss tables show the eight main bosses.
-  Guild details show lairs separately. There is no separate lair analytics page.
+- Raid analytics show the eight main bosses. Character profile and aggregate
+  leaderboard columns show nine scoring bosses. Guild details show lairs
+  separately. There is no separate lair analytics page.
 - CCG publication candidates read character tiers and rebuilt participation.
-  Fresh candidates therefore use main-boss performance, mechanics and combined
-  scores. Lair-only reports no longer qualify as raid participation. For mixed
-  reports, characters with fight IDs must appear on a retained main fight;
+  Fresh candidates therefore use the nine-boss performance, mechanics and combined
+  scores. Nymrissa reports and pulls still count toward eligibility; Kith'ix-only
+  reports do not qualify as raid participation. For mixed
+  reports, characters with fight IDs must appear on a retained scoring fight;
   appearances without fight IDs retain the existing report-level fallback.
 - Existing CCG cards retain their saved stats and grade. Pack opening uses
   published cards, not live character scores. New candidates can change grades
@@ -109,7 +115,10 @@ the backup. Do not restart production merely because guild counts were updated.
 
 Verify the second dry-run has the same ranks and counts, main totals are eight,
 both lairs are separate, and changing only lair results cannot change main
-standings or Pick'em inputs. Remove the named test container with its test
+standings or Pick'em inputs. The report records both encounter lists. Verify
+Nymrissa contributes to character scores/eligibility exactly once, and Kith'ix
+contributes to neither. Apply checks aggregate boss-score membership after the
+rebuild. Remove the named test container with its test
 volumes and delete only the verified local temporary backup directory when done.
 
 ## Production maintenance (not performed by local implementation)
@@ -142,7 +151,12 @@ volumes and delete only the verified local temporary backup directory when done.
    complete backup; old code alone would reintroduce the combined totals.
 
 
-## Local verification — 21 October 2026
+## Initial local verification — 21 October 2026
+
+This rehearsal preceded the decision to retain Nymrissa in character scoring.
+Its guild/Pick'em results remain relevant; its eight-boss character results below
+do not validate the revised nine-boss scoring policy. No production clone was
+restored again for the follow-up change.
 
 The resource-limited rehearsal restored 4,196,538 selected application documents
 with zero restore failures, plus the original Pick'em/user collections in a
@@ -175,3 +189,23 @@ Production raid data was not migrated and no code was pushed or deployed.
 Backend compilation, frontend type-checking and the production frontend build passed.
 The focused suites passed 79 backend tests and 10 frontend tests, plus the
 production-clone isolation test.
+
+## Nine-boss character scoring follow-up
+
+The follow-up keeps the eight-boss guild definition, but restores Nymrissa to
+character AllStars, mechanics, automatic character tiers, CCG candidate inputs
+and qualifying participation. Existing cards and publication rules are untouched.
+The individual boss selector retains both lairs; character aggregate columns use
+the API's explicit scoring flag instead of excluding every lair.
+
+Focused regression coverage exercises the mechanics build with Nymrissa and
+then adds Kith'ix parses/pulls, verifies separate per-boss rows without duplicate
+Nymrissa entries, checks the AllStars queries for each partition and combined
+partitions, and checks the participation pipeline and frontend column selection.
+The earlier production-clone character counts and coverage figures must not be
+presented as results of this revised rebuild.
+
+Follow-up verification passed backend compilation, frontend type-checking,
+82 focused backend tests and 12 frontend tests. These ran sequentially with
+Node heap limits of at most 1.5 GB. The updated migration was compiled but not
+applied to another production clone or to production.

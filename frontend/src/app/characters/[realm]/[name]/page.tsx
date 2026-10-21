@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
+import { characterScoringBosses } from "@/lib/raid-encounters";
 import { Boss, CharacterProfileChoice, CharacterProfileLookupResponse, CharacterProfileResponse, CharacterRaidReportsResponse, RaidInfo } from "@/types";
 import { useRaids } from "@/lib/queries";
 import { buildRaidOrderIndex, compareRaidIdsByListOrder } from "@/lib/raid-priority";
@@ -871,7 +872,7 @@ export default function CharacterProfilePage({ params }: PageProps) {
       const entries = await Promise.all(
         rankedRaidIds.map(async (zoneId) => {
           try {
-            return [zoneId, await api.getBosses(zoneId)] as const;
+            return [zoneId, characterScoringBosses(await api.getBosses(zoneId, true))] as const;
           } catch {
             return [zoneId, [] as Boss[]] as const;
           }

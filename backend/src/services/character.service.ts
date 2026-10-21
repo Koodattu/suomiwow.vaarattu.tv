@@ -1,4 +1,4 @@
-import { mainEncounterFilter, RAID_ENCOUNTERS } from "../config/raid-encounters";
+import { characterScoringEncounterFilter, RAID_ENCOUNTERS } from "../config/raid-encounters";
 import ingestionLeases from "./ingestion-lease.service";
 import { CURRENT_RAID_IDS, PRIMARY_RAID_ID, TRACKED_RAIDS } from "../config/guilds";
 import { compareRaidIdsByPriority } from "../utils/raidPriority";
@@ -2261,7 +2261,7 @@ class CharacterService {
               cond: { $switch: {
                 branches: Object.entries(RAID_ENCOUNTERS).map(([id, definition]) => ({
                   case: { $eq: ["$zoneId", Number(id)] },
-                  then: { $in: ["$$fight.encounterID", [...definition.main]] },
+                  then: { $in: ["$$fight.encounterID", [...definition.characterScoring]] },
                 })), default: true,
               } },
             } },
@@ -2272,7 +2272,7 @@ class CharacterService {
           $project: {
             _id: 0,
             code: 1,
-            mainFightIds: "$fightSequence.fightId",
+            scoringFightIds: "$fightSequence.fightId",
             hasMythicReport: {
               $anyElementTrue: {
                 $map: {
@@ -2295,7 +2295,7 @@ class CharacterService {
         { $unwind: "$appearance" },
         { $match: { $expr: { $or: [
           { $eq: [{ $size: { $ifNull: ["$appearance.rankingFightIds", []] } }, 0] },
-          { $gt: [{ $size: { $setIntersection: ["$mainFightIds", { $ifNull: ["$appearance.rankingFightIds", []] }] } }, 0] },
+          { $gt: [{ $size: { $setIntersection: ["$scoringFightIds", { $ifNull: ["$appearance.rankingFightIds", []] }] } }, 0] },
         ] } } },
         { $replaceRoot: { newRoot: { $mergeObjects: ["$appearance", { hasMythicReport: "$hasMythicReport" }] } } },
         { $match: { reportZoneId: { $gt: 0 } } },
@@ -4251,7 +4251,7 @@ class CharacterService {
           {
             $match: {
               zoneId: CURRENT_TIER_ID,
-              ...mainEncounterFilter(CURRENT_TIER_ID, "encounter.id"),
+              ...characterScoringEncounterFilter(CURRENT_TIER_ID, "encounter.id"),
               difficulty: MYTHIC_DIFFICULTY,
               partition: part,
               metric: { $ne: null },
@@ -4352,7 +4352,7 @@ class CharacterService {
         {
           $match: {
             zoneId: CURRENT_TIER_ID,
-            ...mainEncounterFilter(CURRENT_TIER_ID, "encounter.id"),
+            ...characterScoringEncounterFilter(CURRENT_TIER_ID, "encounter.id"),
             difficulty: MYTHIC_DIFFICULTY,
             metric: { $ne: null },
             $or: [{ "allStars.points": { $gt: 0 } }, { bestAmount: { $gt: 0 } }, { rankPercent: { $gt: 0 } }, { totalKills: { $gt: 0 } }],

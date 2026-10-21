@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { competitiveWorldRank, isMainEncounter, mainRaidBosses, RAID_ENCOUNTERS } from "../src/config/raid-encounters";
+import { competitiveWorldRank, isCharacterScoringEncounter, isMainEncounter, mainRaidBosses, RAID_ENCOUNTERS } from "../src/config/raid-encounters";
 import { getFinalBossSummary } from "../src/utils/horse-race";
 
 process.env.RAIDER_IO_API_KEY ||= "test";
@@ -9,6 +9,29 @@ process.env.BLIZZARD_CLIENT_SECRET ||= "test";
 
 const definition = RAID_ENCOUNTERS[53];
 const metadata = [...definition.main, ...definition.lairs.map(lair => lair.id)].map(id => ({ id, name: String(id), slug: String(id) }));
+
+test("Nymrissa remains a character-scoring encounter without becoming a progression boss", () => {
+  assert.equal(isMainEncounter(53, 3379), false);
+  assert.equal(isCharacterScoringEncounter(53, 3379), true);
+  assert.equal(isCharacterScoringEncounter(53, 3513), false);
+  assert.equal(isCharacterScoringEncounter(53, 9999), false);
+  assert.equal(isCharacterScoringEncounter(50, 9999), true);
+});
+
+test("boss API keeps progression at eight and marks the separate character scoring policy", async (t) => {
+  const { default: Raid } = await import("../src/models/Raid");
+  const { default: router } = await import("../src/routes/raids");
+  t.mock.method(Raid, "findOne", () => ({ select: async () => ({ bosses: metadata }) }) as any);
+  const handler = router.stack.find((layer: any) => layer.route?.path === "/:id/bosses")!.route!.stack.at(-1)!.handle;
+  let response: any[] = [];
+  const res: any = { json: (body: any) => { response = body; } };
+  await handler({ params: { id: "53" }, query: {} } as any, res, () => {});
+  assert.deepEqual(response.map(boss => boss.id), [3470, 3445, 3455, 3497, 3420, 3421, 3429, 3492]);
+  await handler({ params: { id: "53" }, query: { includeLairs: "true" } } as any, res, () => {});
+  assert.equal(response.length, 10);
+  assert.deepEqual(response.filter(boss => boss.countsForCharacterScore).map(boss => boss.id), [3470, 3445, 3455, 3497, 3420, 3421, 3429, 3492, 3379]);
+  assert.equal(response.find(boss => boss.id === 3379).isLair, true);
+});
 
 test("source order and newly appended encounters cannot change main membership or order", () => {
   const source = [...metadata].reverse().concat({ id: 9999, name: "Future extra", slug: "future" });

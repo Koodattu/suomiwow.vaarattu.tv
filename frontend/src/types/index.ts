@@ -497,6 +497,7 @@ export interface Event {
 
 export interface Boss {
   isLair?: boolean;
+  countsForCharacterScore?: boolean;
   id: number;
   name: string;
   slug: string;

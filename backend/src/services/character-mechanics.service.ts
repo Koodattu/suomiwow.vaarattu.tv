@@ -1,4 +1,4 @@
-import { isMainEncounter, mainEncounterFilter, raidLairs } from "../config/raid-encounters";
+import { isCharacterScoringEncounter, characterScoringEncounterFilter, raidLairs } from "../config/raid-encounters";
 import mongoose from "mongoose";
 import { MIN_CHARACTER_RAID_PULLS_FOR_RANKING_ELIGIBILITY } from "../config/character-eligibility";
 import { CURRENT_RAID_IDS } from "../config/guilds";
@@ -235,13 +235,14 @@ class CharacterMechanicsService {
       zoneId,
       Array.from(survivalBuild.characters.values(), (character) => character.characterId),
     );
-    const { bossEntries, identities } = this.buildBossEntries(zoneId, parseRows.filter(row => isMainEncounter(zoneId, row.encounterId)), survivalBuild, guildByCharacter);
+    const { bossEntries, identities } = this.buildBossEntries(zoneId, parseRows.filter(row => isCharacterScoringEncounter(zoneId, row.encounterId)), survivalBuild, guildByCharacter);
 
     this.normalizeBossSurvivalScores(bossEntries);
 
-    const overallEntries = this.buildOverallEntries(bossEntries.filter(entry => isMainEncounter(zoneId, entry.encounterId)), identities);
+    const overallEntries = this.buildOverallEntries(bossEntries, identities);
     const entries = [...bossEntries, ...overallEntries];
     for (const lair of raidLairs(zoneId)) {
+      if (isCharacterScoringEncounter(zoneId, lair.id)) continue;
       const lairSurvival = await this.buildSurvivalStatsFromFetchedFights(zoneId, lair.id);
       if (lairSurvival.coverage < MIN_RAID_FIGHT_COVERAGE) continue;
       const lairRows = this.buildBossEntries(zoneId, parseRows.filter(row => row.encounterId === lair.id), lairSurvival, guildByCharacter).bossEntries;
@@ -326,7 +327,7 @@ class CharacterMechanicsService {
     const eligibleFightQuery = {
       zoneId,
       difficulty: MYTHIC_DIFFICULTY,
-      encounterID: lairEncounterId ? { $eq: lairEncounterId } : (mainEncounterFilter(zoneId).encounterID ?? { $gt: 0 }),
+      encounterID: lairEncounterId ? { $eq: lairEncounterId } : (characterScoringEncounterFilter(zoneId).encounterID ?? { $gt: 0 }),
       reportEndTime: { $gt: 0 },
       duration: { $gt: 0 },
     };

@@ -2,6 +2,7 @@
 
 import type { Boss, CharacterRankingRow, ClassInfo } from "@/types";
 import type { ColumnDef } from "@/types/index";
+import { characterScoringBosses } from "@/lib/raid-encounters";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -483,7 +484,7 @@ function buildRankingColumns({ selectedBoss, bosses, variant, currentPage, pageS
 
   // Per-boss rankPercent columns (only in all-bosses AllStars view)
   if (!isShowingDamage && bosses.length > 0) {
-    for (const boss of bosses.filter(boss => !boss.isLair)) {
+    for (const boss of characterScoringBosses(bosses)) {
       columns.push({
         id: `boss-${boss.id}`,
         header: (
@@ -529,7 +530,7 @@ function MobileBossScores({
 
   return (
     <div className="grid grid-cols-2 gap-2">
-      {bosses.filter(boss => !boss.isLair).map((boss) => {
+      {characterScoringBosses(bosses).map((boss) => {
         const bossScore = row.bossScores?.find((b) => b.encounterId === boss.id);
         const value = isMechanics ? getMechanicsBossScoreValue(bossScore, variant) : bossScore?.rankPercent;
         const pct = value !== undefined && value !== null ? (isMechanics ? Math.round(value) : Math.floor(value)) : null;
