@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { raidDetailBosses } from "../src/lib/raid-detail-bosses.ts";
+import { raidDetailBosses, raidDetailBossNumbers } from "../src/lib/raid-detail-bosses.ts";
 
 const mainIds = [3470, 3445, 3455, 3497, 3420, 3421, 3429, 3492];
 const metadata = [...mainIds, 3379, 3513].map(id => ({ id, name: String(id), slug: String(id), isLair: !mainIds.includes(id) }));
@@ -14,6 +14,32 @@ const progress = (bosses, overrides = {}) => ({
 });
 const lair = (id, date, overrides = {}) => progress([boss(id, date)], { lairEncounterId: id, ...overrides });
 const ids = rows => rows.map(row => row.bossId);
+
+test("THPS main kills are numbered 1–8 while lairs show their overall kill positions", () => {
+  const mainKillOrder = [3470, 3497, 3445, 3455, 3420, 3421, 3429, 3492];
+  const main = progress(mainKillOrder.map((id, i) => boss(id, `2026-09-${String(i + 1).padStart(2, "0")}`, i + 1)));
+  const rows = raidDetailBosses(main, metadata, [lair(3379, "2026-09-02T12:00:00Z"), lair(3513, "2026-10-15")]);
+  const numbers = raidDetailBossNumbers(rows, metadata);
+  assert.deepEqual(rows.map(row => [row.bossId, numbers.get(row.bossId)]), [
+    [3513, "(10)"], [3492, "8"], [3429, "7"], [3421, "6"], [3420, "5"],
+    [3455, "4"], [3445, "3"], [3379, "(3)"], [3497, "2"], [3470, "1"],
+  ]);
+});
+
+test("unkilled bosses retain default order and lairs use a short dash", () => {
+  const rows = raidDetailBosses(progress([]), metadata);
+  const numbers = raidDetailBossNumbers(rows, metadata);
+  assert.deepEqual(ids(rows), [...mainIds].reverse().concat([3513, 3379]));
+  assert.deepEqual(rows.map(row => numbers.get(row.bossId)), ["8", "7", "6", "5", "4", "3", "2", "1", "-", "-"]);
+});
+
+test("partial clears number killed main bosses first without duplicate numbers for remaining bosses", () => {
+  const main = progress([boss(3470, "2026-08-25", 1), boss(3497, "2026-08-26", 2)]);
+  const rows = raidDetailBosses(main, metadata, [lair(3379, "2026-08-27")]);
+  const numbers = raidDetailBossNumbers(rows, metadata);
+  assert.deepEqual(ids(rows), [3492, 3429, 3421, 3420, 3455, 3445, 3379, 3497, 3470, 3513]);
+  assert.deepEqual(rows.map(row => numbers.get(row.bossId)), ["8", "7", "6", "5", "4", "3", "(3)", "2", "1", "-"]);
+});
 
 test("lairs share the difficulty table and killed Nymrissa follows first-kill chronology", () => {
   const main = progress([

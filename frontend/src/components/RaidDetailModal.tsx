@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { FaDice, FaExternalLinkAlt, FaTwitch } from "react-icons/fa";
 import { Guild, RaidProgress, BossProgress, RaidInfo, Boss, WorldRankHistoryEntry, BossBestPull, RaidSchedule } from "@/types";
 import { formatTime, getDifficultyColor, getKillLogUrl, getGuildProfileUrl, getRaiderIOGuildUrl } from "@/lib/utils";
-import { raidDetailBosses } from "@/lib/raid-detail-bosses";
+import { raidDetailBosses, raidDetailBossNumbers } from "@/lib/raid-detail-bosses";
 import IconImage from "./IconImage";
 import GuildCrest from "./GuildCrest";
 import PullProgressChart from "./PullProgressChart";
@@ -466,7 +466,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
   };
 
   // Mobile card component for boss
-  const MobileBossCard = ({ boss, bossNumber, difficulty }: { boss: BossProgress; bossNumber: number | undefined; difficulty: "mythic" | "heroic" }) => {
+  const MobileBossCard = ({ boss, bossNumber, difficulty }: { boss: BossProgress; bossNumber: string | undefined; difficulty: "mythic" | "heroic" }) => {
     const isDefeated = boss.kills > 0;
     const hasKillLog = boss.firstKillReportCode && boss.firstKillFightId;
     const hasBestPullLog = boss.bestPullReportCode && boss.bestPullFightId;
@@ -482,7 +482,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
       >
         <div className="flex items-center gap-2">
           {/* Boss number and icon */}
-          <span className="text-gray-500 text-xs w-4 shrink-0">{bossNumber ?? "—"}</span>
+          <span className="text-gray-500 text-xs w-6 shrink-0">{bossNumber ?? "-"}</span>
           <IconImage iconFilename={bossIconFilename} alt={`${boss.bossName} icon`} width={32} height={32} className="rounded w-8 h-8 shrink-0" />
 
           {/* Boss name and log link */}
@@ -546,7 +546,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
     );
   };
 
-  const renderBossRow = (boss: BossProgress, bossNumber: number | undefined, difficulty: "mythic" | "heroic") => {
+  const renderBossRow = (boss: BossProgress, bossNumber: string | undefined, difficulty: "mythic" | "heroic") => {
     const isDefeated = boss.kills > 0;
     const hasKillLog = boss.firstKillReportCode && boss.firstKillFightId;
     const hasBestPullLog = boss.bestPullReportCode && boss.bestPullFightId;
@@ -562,7 +562,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
           onClick={() => toggleBossExpanded(boss.bossId, difficulty)}
           title="Click to view pull progress chart"
         >
-          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-400">{bossNumber ?? "—"}</td>
+          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-400">{bossNumber ?? "-"}</td>
           <td className="px-2 md:px-4 py-2 md:py-3">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 md:gap-2">
               <IconImage iconFilename={bossIconFilename} alt={`${boss.bossName} icon`} width={32} height={32} className="rounded w-6 h-6 md:w-8 md:h-8" />
@@ -640,9 +640,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
     if (!selectedRaidId || !raids.some(raid => raid.id === selectedRaidId)) return null;
 
     const sortedBosses = raidDetailBosses(progress, bosses, guild.lairProgress);
-    const bossDisplayNumberMap = new Map(
-      bosses.filter(boss => !boss.isLair).map((boss, index) => [boss.id, index + 1]),
-    );
+    const bossDisplayNumberMap = raidDetailBossNumbers(sortedBosses, bosses);
 
     return (
       <div key={`${progress.raidId}-${progress.lairEncounterId ?? "main"}-${progress.difficulty}`} className="mb-6 md:mb-8">

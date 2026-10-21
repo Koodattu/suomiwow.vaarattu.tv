@@ -1,5 +1,20 @@
 import type { Boss, BossProgress, RaidProgress } from "../types/index";
 
+/** Number main progression separately; parentheses show a lair's overall kill position. */
+export function raidDetailBossNumbers(sortedBosses: readonly BossProgress[], bosses: readonly Boss[]): Map<number, string> {
+  const lairIds = new Set(bosses.filter(boss => boss.isLair).map(boss => boss.id));
+  const numbers = new Map<number, string>();
+  let mainPosition = 0;
+  let killPosition = 0;
+  for (const boss of [...sortedBosses].reverse()) {
+    if (boss.kills > 0) killPosition++;
+    numbers.set(boss.bossId, lairIds.has(boss.bossId)
+      ? boss.kills > 0 ? `(${killPosition})` : "-"
+      : String(++mainPosition));
+  }
+  return numbers;
+}
+
 /** Combine encounter rows for display without changing the main raid's totals. */
 export function raidDetailBosses(progress: RaidProgress, bosses: readonly Boss[], lairProgress: readonly RaidProgress[] = []): BossProgress[] {
   const encounters = new Map(progress.bosses.map(boss => [boss.bossId, boss]));
