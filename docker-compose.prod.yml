@@ -3,6 +3,11 @@ services:
     image: mongo:7
     container_name: wow-prog-db
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--wiredTigerCacheSizeGB", "1"]
     mem_limit: 2g
     ulimits:
