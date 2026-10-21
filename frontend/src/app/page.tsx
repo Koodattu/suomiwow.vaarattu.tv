@@ -135,7 +135,7 @@ function HomeContent() {
       setModalLoading(true);
 
       try {
-        const [bossProgressResponse, bosses] = await Promise.all([api.getGuildBossProgressByRealmName(guild.realm, guild.name, selectedRaidId), api.getBosses(selectedRaidId)]);
+        const [bossProgressResponse, bosses] = await Promise.all([api.getGuildBossProgressByRealmName(guild.realm, guild.name, selectedRaidId), api.getBosses(selectedRaidId, true)]);
 
         setSelectedGuildDetail({
           ...placeholderGuild,

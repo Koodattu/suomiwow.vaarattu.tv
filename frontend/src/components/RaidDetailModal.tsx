@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { FaDice, FaExternalLinkAlt, FaTwitch } from "react-icons/fa";
 import { Guild, RaidProgress, BossProgress, RaidInfo, Boss, WorldRankHistoryEntry, BossBestPull, RaidSchedule } from "@/types";
 import { formatTime, getDifficultyColor, getKillLogUrl, getGuildProfileUrl, getRaiderIOGuildUrl } from "@/lib/utils";
+import { raidDetailBosses } from "@/lib/raid-detail-bosses";
 import IconImage from "./IconImage";
 import GuildCrest from "./GuildCrest";
 import PullProgressChart from "./PullProgressChart";
@@ -446,7 +447,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
     return boss?.iconUrl;
   };
 
-  const canPredictBoss = (boss: BossProgress): boolean => isCurrentRaid && bosses.some(main => main.id === boss.bossId) && boss.kills === 0 && boss.pullCount > 0;
+  const canPredictBoss = (boss: BossProgress): boolean => isCurrentRaid && bosses.some(main => !main.isLair && main.id === boss.bossId) && boss.kills === 0 && boss.pullCount > 0;
 
   const handleBossClick = (boss: BossProgress) => {
     if (boss.kills > 0) {
@@ -465,7 +466,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
   };
 
   // Mobile card component for boss
-  const MobileBossCard = ({ boss, bossNumber, difficulty }: { boss: BossProgress; bossNumber: number; difficulty: "mythic" | "heroic" }) => {
+  const MobileBossCard = ({ boss, bossNumber, difficulty }: { boss: BossProgress; bossNumber: number | undefined; difficulty: "mythic" | "heroic" }) => {
     const isDefeated = boss.kills > 0;
     const hasKillLog = boss.firstKillReportCode && boss.firstKillFightId;
     const hasBestPullLog = boss.bestPullReportCode && boss.bestPullFightId;
@@ -481,7 +482,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
       >
         <div className="flex items-center gap-2">
           {/* Boss number and icon */}
-          <span className="text-gray-500 text-xs w-4 shrink-0">{bossNumber}</span>
+          <span className="text-gray-500 text-xs w-4 shrink-0">{bossNumber ?? "—"}</span>
           <IconImage iconFilename={bossIconFilename} alt={`${boss.bossName} icon`} width={32} height={32} className="rounded w-8 h-8 shrink-0" />
 
           {/* Boss name and log link */}
@@ -545,7 +546,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
     );
   };
 
-  const renderBossRow = (boss: BossProgress, bossNumber: number, difficulty: "mythic" | "heroic") => {
+  const renderBossRow = (boss: BossProgress, bossNumber: number | undefined, difficulty: "mythic" | "heroic") => {
     const isDefeated = boss.kills > 0;
     const hasKillLog = boss.firstKillReportCode && boss.firstKillFightId;
     const hasBestPullLog = boss.bestPullReportCode && boss.bestPullFightId;
@@ -561,7 +562,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
           onClick={() => toggleBossExpanded(boss.bossId, difficulty)}
           title="Click to view pull progress chart"
         >
-          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-400">{bossNumber}</td>
+          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-400">{bossNumber ?? "—"}</td>
           <td className="px-2 md:px-4 py-2 md:py-3">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 md:gap-2">
               <IconImage iconFilename={bossIconFilename} alt={`${boss.bossName} icon`} width={32} height={32} className="rounded w-6 h-6 md:w-8 md:h-8" />
@@ -635,74 +636,13 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
     );
   };
 
-  const renderProgressSection = (progress: RaidProgress, sectionBosses: Boss[] = bosses) => {
-    if (!selectedRaidId) return null;
+  const renderProgressSection = (progress: RaidProgress) => {
+    if (!selectedRaidId || !raids.some(raid => raid.id === selectedRaidId)) return null;
 
-    // Get the raid to know the boss order
-    const raid = raids.find((r) => r.id === selectedRaidId);
-    if (!raid) return null;
-
-    const totalBosses = sectionBosses.length;
-
-    // Create a map of bossId to its default order position (1-indexed)
-    const bossDefaultOrderMap = new Map<number, number>();
-    sectionBosses.forEach((boss, index) => {
-      bossDefaultOrderMap.set(boss.id, index + 1);
-    });
-
-    // Create a map of existing progress data
-    const progressMap = new Map<number, BossProgress>();
-    progress.bosses.forEach((boss) => {
-      progressMap.set(boss.bossId, boss);
-    });
-
-    // Merge all bosses with progress data (create placeholder for missing bosses)
-    const allBossesWithProgress: BossProgress[] = sectionBosses.map((boss) => {
-      const existingProgress = progressMap.get(boss.id);
-      if (existingProgress) {
-        return existingProgress;
-      }
-      // Create a placeholder for bosses with no progress
-      return {
-        bossId: boss.id,
-        bossName: boss.name,
-        kills: 0,
-        bestPercent: 100,
-        pullCount: 0,
-        timeSpent: 0,
-        lastUpdated: new Date().toISOString(),
-      };
-    });
-
-    // Sort bosses for display:
-    // 1. Unkilled bosses first, in reverse default order (last boss first)
-    // 2. Then killed bosses, in reverse kill order (most recent kill first)
-    const sortedBosses = [...allBossesWithProgress].sort((a, b) => {
-      const aKilled = a.kills > 0;
-      const bKilled = b.kills > 0;
-
-      // Both unkilled: sort by default order in reverse (higher bossId first)
-      if (!aKilled && !bKilled) {
-        const aOrder = bossDefaultOrderMap.get(a.bossId) || 0;
-        const bOrder = bossDefaultOrderMap.get(b.bossId) || 0;
-        return bOrder - aOrder; // Reverse order
-      }
-
-      // Unkilled bosses come before killed bosses
-      if (!aKilled) return -1;
-      if (!bKilled) return 1;
-
-      // Both killed: sort by kill order in reverse (higher killOrder first)
-      const aKillOrder = a.killOrder || 0;
-      const bKillOrder = b.killOrder || 0;
-      return bKillOrder - aKillOrder;
-    });
-
-    // Create display numbers based on sorted order: first item gets highest number
-    const bossDisplayNumberMap = new Map<number, number>();
-    sortedBosses.forEach((boss, index) => {
-      bossDisplayNumberMap.set(boss.bossId, bossDefaultOrderMap.get(boss.bossId) ?? totalBosses - index);
-    });
+    const sortedBosses = raidDetailBosses(progress, bosses, guild.lairProgress);
+    const bossDisplayNumberMap = new Map(
+      bosses.filter(boss => !boss.isLair).map((boss, index) => [boss.id, index + 1]),
+    );
 
     return (
       <div key={`${progress.raidId}-${progress.lairEncounterId ?? "main"}-${progress.difficulty}`} className="mb-6 md:mb-8">
@@ -726,7 +666,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
         {/* Mobile card view */}
         <div className="md:hidden">
           {sortedBosses.map((boss) => (
-            <MobileBossCard key={boss.bossId} boss={boss} bossNumber={bossDisplayNumberMap.get(boss.bossId)!} difficulty={progress.difficulty} />
+            <MobileBossCard key={boss.bossId} boss={boss} bossNumber={bossDisplayNumberMap.get(boss.bossId)} difficulty={progress.difficulty} />
           ))}
         </div>
 
@@ -745,7 +685,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
                 <th className="px-1 md:px-2 py-2 text-center text-xs md:text-sm font-semibold text-gray-300">{t("actions")}</th>
               </tr>
             </thead>
-            <tbody>{sortedBosses.map((boss) => renderBossRow(boss, bossDisplayNumberMap.get(boss.bossId)!, progress.difficulty))}</tbody>
+            <tbody>{sortedBosses.map((boss) => renderBossRow(boss, bossDisplayNumberMap.get(boss.bossId), progress.difficulty))}</tbody>
           </table>
         </div>
       </div>
@@ -869,15 +809,7 @@ export default function RaidDetailModal({ guild, onClose, selectedRaidId, raids,
           ) : (
             <div className="text-center py-12 text-gray-500">No progress data available for this guild yet.</div>
           )}
-          {!loading && (guild.lairProgress?.length ?? 0) > 0 && (
-            <section className="mt-6 border-t border-gray-700 pt-6" aria-label={t("lairs")}>
-              <h2 className="mb-2 text-xl font-bold text-white">{t("lairs")}</h2>
-              <p className="mb-4 text-sm text-gray-400">{t("lairsDescription")}</p>
-              {guild.lairProgress?.filter(p => p.raidId === selectedRaidId).map(progress => renderProgressSection(progress,
-                [{ id: progress.lairEncounterId!, name: progress.raidName, slug: String(progress.lairEncounterId) }],
-              ))}
-            </section>
-          )}
+
         </div>
         </div>
       </div>

@@ -384,7 +384,7 @@ export default function GuildProfilePage({ params }: PageProps) {
       setModalLoading(true);
 
       try {
-        const [bossProgressResponse, bosses] = await Promise.all([api.getGuildBossProgressByRealmName(realm, name, raidId), api.getBosses(raidId)]);
+        const [bossProgressResponse, bosses] = await Promise.all([api.getGuildBossProgressByRealmName(realm, name, raidId), api.getBosses(raidId, true)]);
 
         setSelectedGuildDetail({
           ...minimalGuild,

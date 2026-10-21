@@ -1477,8 +1477,6 @@
     }
   },
   "raidDetailModal": {
-    "lairs": "Pesät",
-    "lairsDescription": "Erilliset pomot eivät vaikuta raidin etenemiseen, sijoituksiin tai Pick’em-tuloksiin.",
     "close": "Sulje",
     "guildDetails": "Killan Tiedot",
     "raidProgress": "Raidi-edistyminen",
