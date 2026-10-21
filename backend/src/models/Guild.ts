@@ -47,6 +47,7 @@ export interface IBossProgress {
 }
 
 export interface IRaidProgress {
+  lairEncounterId?: number;
   raidId: number;
   raidName: string;
   difficulty: "mythic" | "heroic";
@@ -132,6 +133,7 @@ export interface IGuild extends Document {
   parent_guild?: string; // Parent guild name if this is a team/sub-guild
   streamers?: IStreamer[]; // Twitch streamers associated with this guild
   progress: IRaidProgress[];
+  lairProgress: IRaidProgress[];
   officialProgress?: IOfficialRaidProgress[]; // Raid progression from Raider.IO (reflects in-game kills, not log-dependent)
   raidSchedule?: IRaidSchedule; // Calculated raiding schedule for current tier
   isCurrentlyRaiding: boolean;
@@ -203,6 +205,7 @@ const RaidProgressSchema: Schema = new Schema(
   {
     raidId: { type: Number, required: true },
     raidName: { type: String, required: true },
+    lairEncounterId: { type: Number },
     difficulty: { type: String, enum: ["mythic", "heroic"], required: true },
     bossesDefeated: { type: Number, default: 0 },
     totalBosses: { type: Number, required: true },
@@ -264,6 +267,7 @@ const GuildSchema: Schema = new Schema(
     parent_guild: { type: String }, // Parent guild name if this is a team/sub-guild
     streamers: [StreamerSchema], // Twitch streamers associated with this guild
     progress: [RaidProgressSchema],
+    lairProgress: [RaidProgressSchema],
     officialProgress: [
       {
         raidTierSlug: { type: String, required: true },

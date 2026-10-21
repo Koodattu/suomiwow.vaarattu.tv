@@ -1,3 +1,4 @@
+import { mainEncounterFilter, RAID_ENCOUNTERS } from "../config/raid-encounters";
 import ingestionLeases from "./ingestion-lease.service";
 import { CURRENT_RAID_IDS, PRIMARY_RAID_ID, TRACKED_RAIDS } from "../config/guilds";
 import { compareRaidIdsByPriority } from "../utils/raidPriority";
@@ -2210,7 +2211,7 @@ class CharacterService {
 
     return updatedReports;
   }
-  async rebuildCharacterRaidParticipations(): Promise<{ deleted: number; inserted: number }> {
+  async rebuildCharacterRaidParticipations(options: { reconcileIdentities?: boolean } = {}): Promise<{ deleted: number; inserted: number }> {
     const startedAt = Date.now();
     const elapsed = () => `${((Date.now() - startedAt) / 1000).toFixed(1)}s`;
     const targetCollectionName = CharacterRaidParticipation.collection.name;
@@ -2222,15 +2223,15 @@ class CharacterService {
 
     logger.info("[CharacterRaidParticipation] Rebuilding materialized participation collection");
     logger.info("[CharacterRaidParticipation] Step 1/7: relinking multi-class canonical characters");
-    const relinkedCanonicalClasses = await this.relinkMultiClassCanonicalCharactersFromReportAppearances();
+    const relinkedCanonicalClasses = options.reconcileIdentities === false ? { relinkedGroups: 0, groups: 0, canonicalIds: 0 } : await this.relinkMultiClassCanonicalCharactersFromReportAppearances();
     logger.info(`[CharacterRaidParticipation] Step 1/7 complete (${elapsed()})`);
 
     logger.info("[CharacterRaidParticipation] Step 2/7: matching fallback report.rankings appearances");
-    const matchedFallbackAppearances = await this.matchReportRankingAppearancesToCanonicalCharacters();
+    const matchedFallbackAppearances = options.reconcileIdentities === false ? 0 : await this.matchReportRankingAppearancesToCanonicalCharacters();
     logger.info(`[CharacterRaidParticipation] Step 2/7 complete (${elapsed()})`);
 
     logger.info("[CharacterRaidParticipation] Step 3/7: reconciling rankedCharacters class IDs from report.rankings evidence");
-    const reconciledRankedCharacterClasses = await this.reconcileRankedCharacterAppearanceClassesFromReportRankings();
+    const reconciledRankedCharacterClasses = options.reconcileIdentities === false ? 0 : await this.reconcileRankedCharacterAppearanceClassesFromReportRankings();
     if (reconciledRankedCharacterClasses > 0) {
       logger.info("[CharacterRaidParticipation] Step 3/7: relinking multi-class canonical characters after class reconciliation");
       await this.relinkMultiClassCanonicalCharactersFromReportAppearances();
@@ -2238,7 +2239,7 @@ class CharacterService {
     logger.info(`[CharacterRaidParticipation] Step 3/7 complete: corrected ${reconciledRankedCharacterClasses} rankedCharacters rows (${elapsed()})`);
 
     logger.info("[CharacterRaidParticipation] Step 4/7: ensuring report zone IDs are denormalized on appearances");
-    const zoneBackfilledReports = await this.backfillAppearanceReportZoneIds();
+    const zoneBackfilledReports = options.reconcileIdentities === false ? 0 : await this.backfillAppearanceReportZoneIds();
     logger.info(`[CharacterRaidParticipation] Step 4/7 zone ID fill complete: updated ${zoneBackfilledReports} report groups (${elapsed()})`);
 
     try {
@@ -2254,9 +2255,24 @@ class CharacterService {
           },
         },
         {
+          $set: {
+            fightSequence: { $filter: {
+              input: { $ifNull: ["$fightSequence", []] }, as: "fight",
+              cond: { $switch: {
+                branches: Object.entries(RAID_ENCOUNTERS).map(([id, definition]) => ({
+                  case: { $eq: ["$zoneId", Number(id)] },
+                  then: { $in: ["$$fight.encounterID", [...definition.main]] },
+                })), default: true,
+              } },
+            } },
+          },
+        },
+        { $match: { "fightSequence.difficulty": { $in: [4, 5] } } },
+        {
           $project: {
             _id: 0,
             code: 1,
+            mainFightIds: "$fightSequence.fightId",
             hasMythicReport: {
               $anyElementTrue: {
                 $map: {
@@ -2277,6 +2293,10 @@ class CharacterService {
           },
         },
         { $unwind: "$appearance" },
+        { $match: { $expr: { $or: [
+          { $eq: [{ $size: { $ifNull: ["$appearance.rankingFightIds", []] } }, 0] },
+          { $gt: [{ $size: { $setIntersection: ["$mainFightIds", { $ifNull: ["$appearance.rankingFightIds", []] }] } }, 0] },
+        ] } } },
         { $replaceRoot: { newRoot: { $mergeObjects: ["$appearance", { hasMythicReport: "$hasMythicReport" }] } } },
         { $match: { reportZoneId: { $gt: 0 } } },
         {
@@ -4231,6 +4251,7 @@ class CharacterService {
           {
             $match: {
               zoneId: CURRENT_TIER_ID,
+              ...mainEncounterFilter(CURRENT_TIER_ID, "encounter.id"),
               difficulty: MYTHIC_DIFFICULTY,
               partition: part,
               metric: { $ne: null },
@@ -4331,6 +4352,7 @@ class CharacterService {
         {
           $match: {
             zoneId: CURRENT_TIER_ID,
+            ...mainEncounterFilter(CURRENT_TIER_ID, "encounter.id"),
             difficulty: MYTHIC_DIFFICULTY,
             metric: { $ne: null },
             $or: [{ "allStars.points": { $gt: 0 } }, { bestAmount: { $gt: 0 } }, { rankPercent: { $gt: 0 } }, { totalKills: { $gt: 0 } }],

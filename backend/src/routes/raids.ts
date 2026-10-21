@@ -1,3 +1,4 @@
+import { mainRaidBosses, raidLairs } from "../config/raid-encounters";
 import { Router, Request, Response } from "express";
 import Raid from "../models/Raid";
 import { TRACKED_RAIDS } from "../config/guilds";
@@ -52,7 +53,7 @@ router.get(
   cacheMiddleware(
     (req) => {
       const raidId = parseInt(req.params.id);
-      return cacheService.getRaidBossesKey(raidId);
+      return cacheService.getRaidBossesKey(raidId) + (req.query.includeLairs === "true" ? ":with-lairs" : "");
     },
     () => cacheService.STATIC_TTL,
   ),
@@ -66,13 +67,17 @@ router.get(
       }
 
       // Return only the bosses array without _id fields
-      const bosses = raid.bosses.map((boss: any) => ({
+      const bosses = mainRaidBosses(raidId, raid.bosses).map((boss: any) => ({
         id: boss.id,
         name: boss.name,
         slug: boss.slug,
         iconUrl: boss.iconUrl,
       }));
 
+      if (req.query.includeLairs === "true") for (const lair of raidLairs(raidId)) {
+        const source = raid.bosses.find(boss => boss.id === lair.id);
+        bosses.push({ id: lair.id, name: lair.name, slug: lair.slug, iconUrl: source?.iconUrl, isLair: true } as any);
+      }
       res.json(bosses);
     } catch (error) {
       logger.error("Error fetching raid bosses:", error);

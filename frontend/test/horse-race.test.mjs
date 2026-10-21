@@ -125,3 +125,15 @@ test("Auto counts distinct guilds and keeps the race open while either boss has 
   assert.equal(buildCombinedRace([...finishers, guild("one"), guild("two")], 1, 1, "auto"), null);
   assert.ok(buildCombinedRace([...finishers, guild("one"), guild("two"), guild("three")], 1, 1, "auto"));
 });
+
+
+test("explicit final encounter overrides kill-count shortcuts and unrelated pull data", () => {
+  const finalBoss = { bossId: 3492, bossName: "Ula'tek", eligible: true, kills: 0, pullCount: 12, bestPercent: 33 };
+  const race = buildEntries([
+    guild("on final", { bossesDefeated: 6, totalBosses: 8, currentBossPulls: 100, bestPullPercent: 2, finalBoss }),
+    guild("wrong seven", { bossesDefeated: 7, totalBosses: 8, finalBoss: { ...finalBoss, eligible: false } }),
+  ], 1, "final");
+  assert.deepEqual(race.unfinished.map(entry => entry.id), ["on final"]);
+  assert.equal(race.unfinished[0].bossHealth, 33);
+  assert.equal(race.unfinished[0].progress.currentBossPulls, 12);
+});

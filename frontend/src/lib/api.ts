@@ -1067,8 +1067,8 @@ export const api = {
     return response.json();
   },
 
-  async getBosses(raidId: number): Promise<Boss[]> {
-    const response = await fetch(`${API_URL}/api/raids/${raidId}/bosses`);
+  async getBosses(raidId: number, includeLairs = false): Promise<Boss[]> {
+    const response = await fetch(`${API_URL}/api/raids/${raidId}/bosses${includeLairs ? "?includeLairs=true" : ""}`);
     if (!response.ok) throw new Error("Failed to fetch raid bosses");
     return response.json();
   },

@@ -140,6 +140,7 @@ function HomeContent() {
         setSelectedGuildDetail({
           ...placeholderGuild,
           progress: bossProgressResponse.progress,
+          lairProgress: bossProgressResponse.lairProgress,
           worldRankHistory: bossProgressResponse.worldRankHistory,
         });
         setBossesForSelectedRaid(bosses);

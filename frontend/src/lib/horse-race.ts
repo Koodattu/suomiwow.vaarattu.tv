@@ -158,11 +158,11 @@ export function buildEntries(guilds: GuildListItem[], selectedRaidId: number, ta
     const summary = getMythicProgress(guild, selectedRaidId);
     if (!summary || summary.totalBosses <= 0) return result;
 
-    const boss = summary.penultimateBoss;
-    if (target === "penultimate" ? !boss?.eligible : summary.bossesDefeated < summary.totalBosses - 1) return result;
+    const boss = target === "penultimate" ? summary.penultimateBoss : summary.finalBoss;
+    if (boss ? !boss.eligible : target === "penultimate" || summary.bossesDefeated < summary.totalBosses - 1) return result;
 
     // Use the selected encounter's pull and kill data even after the guild moves on.
-    const progress = target === "penultimate" && boss
+    const progress = boss
       ? {
           ...summary,
           currentBossPulls: boss.pullCount,
@@ -171,7 +171,7 @@ export function buildEntries(guilds: GuildListItem[], selectedRaidId: number, ta
           lastKillTime: boss.firstKillTime,
         }
       : summary;
-    const isFinished = target === "penultimate" ? (boss?.kills ?? 0) > 0 : summary.bossesDefeated >= summary.totalBosses;
+    const isFinished = boss ? boss.kills > 0 : summary.bossesDefeated >= summary.totalBosses;
     const bossHealth = getBossHealth(progress, isFinished);
 
     result.push({

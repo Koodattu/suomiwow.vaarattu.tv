@@ -179,6 +179,7 @@ export interface RaidProgressSummary {
   bestPullPercent: number;
   currentBossId?: number;
   penultimateBoss?: HorseRaceBossSummary;
+  finalBoss?: HorseRaceBossSummary;
   bestPullBossHealth?: number | null;
   bestPullPhase?: BestPullPhase;
   lastKillTime?: string | null; // Timestamp of the most recent boss kill
@@ -193,6 +194,7 @@ export interface RaidProgressSummary {
 
 // Full progress with bosses array (for guild detail view)
 export interface RaidProgress {
+  lairEncounterId?: number;
   raidId: number;
   raidName: string;
   difficulty: "mythic" | "heroic";
@@ -443,6 +445,7 @@ export interface WorldRankHistoryEntry {
 
 export interface GuildBossProgressResponse {
   progress: RaidProgress[];
+  lairProgress?: RaidProgress[];
   worldRankHistory?: WorldRankHistoryEntry[];
 }
 
@@ -460,6 +463,7 @@ export interface Guild {
   isCurrentlyRaiding: boolean;
   lastFetched?: string;
   progress: RaidProgress[];
+  lairProgress?: RaidProgress[];
   streamers?: Streamer[]; // Twitch streamers for this guild
   raidSchedule?: RaidSchedule;
   worldRankHistory?: WorldRankHistoryEntry[];
@@ -492,6 +496,7 @@ export interface Event {
 }
 
 export interface Boss {
+  isLair?: boolean;
   id: number;
   name: string;
   slug: string;

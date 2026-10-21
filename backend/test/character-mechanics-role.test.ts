@@ -239,7 +239,8 @@ test("fight loading includes bosses without any global kill parses and preserves
   t.mock.method(mechanics, "findReportAppearances", async () => []);
   t.mock.method(mechanics, "findCharacterAliases", async () => [character]);
   const result = await mechanics.buildSurvivalStatsFromFetchedFights(53);
-  assert.deepEqual(eligibleQuery.encounterID, { $gt: 0 });
+  assert.deepEqual(eligibleQuery.encounterID, { $in: [3470, 3445, 3455, 3497, 3420, 3421, 3429, 3492] });
+  assert.deepEqual(fightQuery.encounterID, eligibleQuery.encounterID);
   assert.equal(eligibleQuery.difficulty, 5);
   assert.equal(fightQuery.deathEventsFetchStatus, "fetched");
   assert.equal(fightQuery.$or[0].combatantInfoRosterComplete, true);

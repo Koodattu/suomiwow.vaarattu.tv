@@ -1477,6 +1477,8 @@
     }
   },
   "raidDetailModal": {
+    "lairs": "Lairs",
+    "lairsDescription": "Separate encounters. These do not count toward raid progression, rankings, or Pick’ems.",
     "close": "Close",
     "guildDetails": "Guild Details",
     "raidProgress": "Raid Progress",
@@ -3080,6 +3082,7 @@
     "recomputing": "Recomputing constellation…"
   },
   "characterRankingsPage": {
+    "lair": "Lair",
     "titleAllStars": "All Star Rankings",
     "titleForBoss": "Rankings for",
     "titleMechanics": "Mechanics Percentile",

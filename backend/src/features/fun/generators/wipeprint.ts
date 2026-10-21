@@ -1,3 +1,4 @@
+import { mainRaidBosses } from "../../../config/raid-encounters";
 import { TRACKED_RAIDS } from "../../../config/guilds";
 import Guild from "../../../models/Guild";
 import Raid from "../../../models/Raid";
@@ -63,7 +64,7 @@ export async function generateWipeprintRound(): Promise<WipeprintRound> {
   ]);
 
   const allBossOptions: WipeprintBossOption[] = raids.flatMap((raid) =>
-    raid.bosses.map((boss, index) => ({
+    mainRaidBosses(raid.id, raid.bosses).map((boss, index) => ({
       key: bossKey(raid.id, boss.id),
       raidId: raid.id,
       raidName: raid.name,
@@ -73,7 +74,7 @@ export async function generateWipeprintRound(): Promise<WipeprintRound> {
       bossIconUrl: boss.iconUrl ?? null,
       raidIconUrl: raid.iconUrl ?? null,
       bossIndex: index + 1,
-      bossCount: raid.bosses.length,
+      bossCount: mainRaidBosses(raid.id, raid.bosses).length,
     })),
   );
   const optionByKey = new Map(allBossOptions.map((option) => [option.key, option]));

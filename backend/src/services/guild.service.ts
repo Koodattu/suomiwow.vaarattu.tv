@@ -1,3 +1,4 @@
+import { RAID_ENCOUNTERS, mainRaidBosses, raidLairs, competitiveWorldRank } from "../config/raid-encounters";
 import ingestionLeases from "./ingestion-lease.service";
 import { acquireGuildIngestionLease, isGuildLeaseActive } from "./guild-ingestion-lease.service";
 import ReportOverride from "../models/ReportOverride";
@@ -35,7 +36,7 @@ import {
 } from "../config/guilds";
 import { filterUniqueGuilds } from "../utils/filterUniqueGuilds";
 import mongoose from "mongoose";
-import { getPenultimateBossSummary } from "../utils/horse-race";
+import { getPenultimateBossSummary, getFinalBossSummary } from "../utils/horse-race";
 import logger, { getGuildLogger, releaseGuildLogger } from "../utils/logger";
 import Character from "../models/Character";
 import characterService from "./character.service";
@@ -153,6 +154,7 @@ interface GuildProgressUpdateResult {
 }
 
 interface CalculateGuildStatisticsOptions {
+  queueVodLinks?: boolean;
   recalculateSchedule?: boolean;
   createEvents?: boolean;
 }
@@ -528,7 +530,16 @@ class GuildService {
           name: partition.name,
         }));
 
-        await Raid.updateOne({ id: raidId }, { $set: { partitions } });
+        const encounters = zoneData.encounters;
+        const existing = Array.isArray(encounters) && encounters.length > 0 ? await Raid.findOne({ id: raidId }).lean() : null;
+        const bosses = Array.isArray(encounters) && encounters.length > 0
+          ? encounters.map((encounter: any) => ({
+              ...existing?.bosses.find(boss => boss.id === encounter.id),
+              id: encounter.id, name: encounter.name,
+              slug: encounter.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+            }))
+          : existing?.bosses;
+        await Raid.updateOne({ id: raidId }, { $set: { partitions, ...(bosses ? { bosses } : {}) } });
         result.updatedRaidIds.push(raidId);
 
         logger.info(`[Raids] Refreshed partitions for raid ${raidId} (${partitions.length} entries)`);
@@ -926,20 +937,6 @@ class GuildService {
     }
 
     logger.info(`Loaded ${validBossIds.size} valid boss encounter IDs from ${TRACKED_RAIDS.length} tracked raids`);
-    return validBossIds;
-  }
-
-  // Get valid boss encounter IDs for a specific raid
-  private async getValidBossEncounterIdsForRaid(raidId: number): Promise<Set<number>> {
-    const validBossIds = new Set<number>();
-
-    const raid = await this.getRaidData(raidId);
-    if (raid && raid.bosses) {
-      for (const boss of raid.bosses) {
-        validBossIds.add(boss.id);
-      }
-    }
-
     return validBossIds;
   }
 
@@ -1507,7 +1504,7 @@ class GuildService {
 
   // Compute the best (lowest) world rank from WCL and RaiderIO sources, and set the display fields
   private computeBestWorldRank(progress: IRaidProgress): void {
-    const wclRank = progress.wclWorldRank;
+    const wclRank = RAID_ENCOUNTERS[progress.raidId] ? undefined : progress.wclWorldRank;
     const rioRank = progress.rioWorldRank;
 
     if (wclRank && rioRank) {
@@ -1672,7 +1669,7 @@ class GuildService {
         continue;
       }
 
-      const hasCompletedMythic = mythicProgress && mythicProgress.bossesDefeated >= raidData.bosses.length;
+      const hasCompletedMythic = mythicProgress && mythicProgress.bossesDefeated >= mainRaidBosses(raidId, raidData.bosses).length;
       const hasExistingWorldRank = Boolean(
         mythicProgress?.worldRank ||
         mythicProgress?.wclWorldRank ||
@@ -1821,6 +1818,7 @@ class GuildService {
       const trackedRaids = await Raid.find({ id: { $in: TRACKED_RAIDS } }).lean();
       const updatedEntries = this.normalizeRaiderIOOfficialProgress(profile.raid_progression, trackedRaids);
       guild.officialProgress = updatedEntries;
+      this.updateLairOfficialProgress(guild, trackedRaids);
       let progressModified = false;
 
       for (const entry of updatedEntries) {
@@ -1889,6 +1887,7 @@ class GuildService {
       const trackedRaids = await Raid.find({ id: { $in: TRACKED_RAIDS } }).lean();
       const updatedOfficialEntries = this.normalizeRaiderIOOfficialProgress(progression, trackedRaids);
       guild.officialProgress = updatedOfficialEntries;
+      this.updateLairOfficialProgress(guild, trackedRaids);
 
       let hasCurrentTierProgress = false;
 
@@ -2048,6 +2047,45 @@ class GuildService {
     return normalizedEntries;
   }
 
+  /** Apply a captured provider response without fetching, saving, or publishing events. */
+  reconcileRaidOfficialProgress(guild: IGuild, raid: IRaid, progression: Record<string, RaiderIORaidTierProgress>, rankings?: any): void {
+    const slugs = new Set([raid.slug, raid.rioSlug || RAID_RIO_SLUG_OVERRIDES[raid.id], ...raidLairs(raid.id).map(lair => lair.rioSlug)]);
+    const relevant = Object.fromEntries(Object.entries(progression).filter(([slug]) => slugs.has(slug)));
+    const entries = this.normalizeRaiderIOOfficialProgress(relevant, [raid]);
+    guild.officialProgress = [...(guild.officialProgress ?? []).filter(entry => !slugs.has(entry.raidTierSlug)), ...entries];
+    for (const difficulty of ["mythic", "heroic"] as const) {
+      const official = entries.find(entry => entry.raidTierSlug === raid.slug);
+      const kills = difficulty === "mythic" ? official?.mythicBossesKilled : official?.heroicBossesKilled;
+      if (kills) this.upsertSyntheticProgress(guild, raid, difficulty, kills, mainRaidBosses(raid.id, raid.bosses).length);
+      const progress = guild.progress.find(entry => entry.raidId === raid.id && entry.difficulty === difficulty);
+      if (progress) {
+        const ranks = rankings && this.findRaiderIORaidRankings(rankings, raid.slug, raid.name, raid.rioSlug || RAID_RIO_SLUG_OVERRIDES[raid.id]);
+        progress.rioWorldRank = ranks ? this.getRaiderIOWorldRankForDifficulty(ranks, difficulty) : undefined;
+        this.computeBestWorldRank(progress);
+      }
+    }
+    this.updateLairOfficialProgress(guild, [raid]);
+  }
+
+  private updateLairOfficialProgress(guild: IGuild, raids: IRaid[]): void {
+    guild.lairProgress ??= [];
+    for (const raid of raids) for (const lair of raidLairs(raid.id)) {
+      const official = guild.officialProgress?.find(entry => entry.raidTierSlug === lair.rioSlug);
+      for (const difficulty of ["mythic", "heroic"] as const) {
+        const kills = (difficulty === "mythic" ? official?.mythicBossesKilled : official?.heroicBossesKilled) ?? 0;
+        const existing = guild.lairProgress.find(entry => entry.raidId === raid.id && entry.lairEncounterId === lair.id && entry.difficulty === difficulty);
+        if (existing) {
+          existing.bossesDefeated = Math.max(existing.bosses.filter(boss => boss.kills > 0).length, kills);
+        } else {
+          guild.lairProgress.push({ raidId: raid.id, lairEncounterId: lair.id, raidName: lair.name,
+            difficulty, bossesDefeated: kills, totalBosses: 1, bosses: [], totalTimeSpent: 0,
+            totalCombatTimeSpent: 0, progressRaidTimeSpent: 0, totalRaidTimeSpent: 0, lastUpdated: new Date() } as IRaidProgress);
+        }
+      }
+    }
+    guild.markModified("lairProgress");
+  }
+
   // Create or update a synthetic IRaidProgress entry from Raider.IO data.
   // Only updates bossesDefeated/totalBosses; preserves any existing boss-level detail from WCL.
   private upsertSyntheticProgress(guild: IGuild, raid: IRaid, difficulty: "mythic" | "heroic", bossesDefeated: number, totalBosses: number): void {
@@ -2078,11 +2116,25 @@ class GuildService {
 
   // Calculate guild rankings for a specific raid
   // Rankings are calculated per difficulty (mythic and heroic separately)
-  async calculateGuildRankingsForRaid(raidId: number): Promise<void> {
+  private getRankingCurrentBoss(raidId: number, bosses: { id: number }[], progress: IRaidProgress, effectiveKills: number) {
+    const ordered = mainRaidBosses(raidId, bosses);
+    const next = effectiveKills > progress.bossesDefeated
+      ? ordered[effectiveKills]
+      : ordered.find(boss => !progress.bosses.some(p => p.bossId === boss.id && p.kills > 0));
+    return next ? progress.bosses.find(boss => boss.bossId === next.id) : undefined;
+  }
+
+  async calculateGuildRankingsForRaid(raidId: number, previewGuilds?: IGuild[]): Promise<void> {
     logger.info(`Calculating guild rankings for raid ${raidId}...`);
 
+    // Excluded guilds must also lose stale ranks in a read-only preview.
+    if (previewGuilds) for (const guild of previewGuilds) {
+      if (guild.excludedRaidIds?.includes(raidId)) for (const progress of guild.progress) {
+        if (progress.raidId === raidId) progress.guildRank = undefined;
+      }
+    }
     // Exclude guilds that have this raid in their excludedRaidIds
-    const guilds = await Guild.find({ excludedRaidIds: { $ne: raidId } });
+    const guilds = previewGuilds?.filter(g => !g.excludedRaidIds?.includes(raidId)) ?? await Guild.find({ excludedRaidIds: { $ne: raidId } });
 
     if (guilds.length === 0) {
       logger.info("No guilds found, skipping ranking calculation");
@@ -2092,7 +2144,7 @@ class GuildService {
     // Also clear guildRank for guilds excluded from this raid. Use targeted
     // updates instead of saving full guild documents so concurrent progress
     // updates do not trip Mongoose version conflicts.
-    await ingestionLeases.write(async () => Guild.updateMany(
+    if (!previewGuilds) await ingestionLeases.write(async () => Guild.updateMany(
       { excludedRaidIds: raidId, "progress.raidId": raidId },
       { $set: { "progress.$[progress].guildRank": null } },
       { arrayFilters: [{ "progress.raidId": raidId }] },
@@ -2159,6 +2211,7 @@ class GuildService {
         const isRankedEntry =
           rankedGuildIds.has(guild._id.toString()) && rankEntries.some((e) => e.guild._id.toString() === guild._id.toString() && e.progress.difficulty === progress.difficulty);
         if (!isRankedEntry && progress.guildRank != null) {
+          progress.guildRank = undefined;
           clearRankOperations.push({
             updateOne: {
               filter: { _id: guild._id },
@@ -2170,7 +2223,7 @@ class GuildService {
       }
     }
 
-    if (clearRankOperations.length > 0) {
+    if (!previewGuilds && clearRankOperations.length > 0) {
       await ingestionLeases.write(async () => Guild.bulkWrite(clearRankOperations, { ordered: false }));
     }
 
@@ -2218,8 +2271,8 @@ class GuildService {
       // Use effectiveKills to find the current boss — when RaiderIO shows more kills
       // than WCL logs, the "next boss" is at index effectiveKills, not the first
       // WCL-unkilled boss.
-      const aCurrentBoss = a.progress.bosses[a.effectiveKills] ?? a.progress.bosses.find((boss) => boss.kills === 0);
-      const bCurrentBoss = b.progress.bosses[b.effectiveKills] ?? b.progress.bosses.find((boss) => boss.kills === 0);
+      const aCurrentBoss = this.getRankingCurrentBoss(raidId, raid?.bosses ?? [], a.progress, a.effectiveKills);
+      const bCurrentBoss = this.getRankingCurrentBoss(raidId, raid?.bosses ?? [], b.progress, b.effectiveKills);
 
       // Only compare pull progress when both guilds have meaningful pull data (pullCount > 0).
       // If a guild has no WCL pull data on the current boss (e.g. progress is from RaiderIO only),
@@ -2247,8 +2300,8 @@ class GuildService {
       }
 
       // Rule 4: World rank (from WCL API or Raider.IO fallback)
-      const aWorldRank = a.progress.worldRank ?? Infinity;
-      const bWorldRank = b.progress.worldRank ?? Infinity;
+      const aWorldRank = competitiveWorldRank(a.progress) ?? Infinity;
+      const bWorldRank = competitiveWorldRank(b.progress) ?? Infinity;
       if (aWorldRank !== bWorldRank) {
         return aWorldRank - bWorldRank; // Lower is better
       }
@@ -2261,6 +2314,8 @@ class GuildService {
     sortedEntries.forEach((entry, index) => {
       entry.progress.guildRank = index + 1;
     });
+
+    if (previewGuilds) return;
 
     // Save rank fields with targeted updates. This preserves the existing
     // ranking logic but avoids saving stale full guild documents while guild
@@ -3684,8 +3739,7 @@ class GuildService {
       }
 
       // Calculate for both difficulties
-      await this.calculateRaidStatistics(guild, raidData, "mythic", createEvents);
-      await this.calculateRaidStatistics(guild, raidData, "heroic", createEvents);
+      await this.calculateRaidGroups(guild, raidData, createEvents, options.queueVodLinks ?? true);
     } else {
       guildLog.info("Calculating statistics from database fights for all tracked raids");
 
@@ -3698,8 +3752,7 @@ class GuildService {
         }
 
         // Calculate for both difficulties
-        await this.calculateRaidStatistics(guild, raidData, "mythic", createEvents);
-        await this.calculateRaidStatistics(guild, raidData, "heroic", createEvents);
+        await this.calculateRaidGroups(guild, raidData, createEvents, options.queueVodLinks ?? true);
       }
     }
 
@@ -3729,7 +3782,7 @@ class GuildService {
       }
 
       // Get valid boss encounter IDs for this raid
-      const validBossIds = await this.getValidBossEncounterIdsForRaid(raidData.id);
+      const validBossIds = new Set(mainRaidBosses(raidData.id, raidData.bosses).map(boss => boss.id));
 
       // Get the raid's date range for the guild's region
       const guildRegion = guild.region.toLowerCase();
@@ -4051,15 +4104,39 @@ class GuildService {
     }
   }
 
+  private async calculateRaidGroups(guild: IGuild, source: IRaid, createEvents: boolean, queueVodLinks: boolean): Promise<void> {
+    const data = source.toObject ? source.toObject() : source;
+    const main = { ...data, bosses: mainRaidBosses(source.id, source.bosses) } as IRaid;
+    if (RAID_ENCOUNTERS[source.id] && main.bosses.length !== RAID_ENCOUNTERS[source.id].main.length) {
+      throw new Error(`Incomplete main encounter metadata for raid ${source.id}`);
+    }
+    for (const difficulty of ["mythic", "heroic"] as const) {
+      await this.calculateRaidStatistics(guild, main, difficulty, createEvents, undefined, queueVodLinks);
+      for (const lair of raidLairs(source.id)) {
+        const boss = source.bosses.find(boss => boss.id === lair.id) ?? lair;
+        await this.calculateRaidStatistics(guild, { ...data, name: lair.name, bosses: [boss] } as IRaid, difficulty, false, lair.id, queueVodLinks);
+      }
+    }
+    this.updateLairOfficialProgress(guild, [source]);
+    for (const progress of guild.progress.filter(entry => entry.raidId === source.id)) {
+      progress.totalBosses = main.bosses.length;
+      this.computeBestWorldRank(progress);
+    }
+  }
+
   // Calculate statistics for a specific raid and difficulty from database fights
   // IMPORTANT: This method now properly filters fights by the raid's boss encounter IDs
   // to prevent unrelated bosses from being included in the statistics
-  private async calculateRaidStatistics(guild: IGuild, raidData: IRaid, difficulty: "mythic" | "heroic", createEvents: boolean): Promise<void> {
+  private async calculateRaidStatistics(guild: IGuild, raidData: IRaid, difficulty: "mythic" | "heroic", createEvents: boolean, lairEncounterId?: number, queueVodLinks = true): Promise<void> {
+    const progressField = lairEncounterId ? "lairProgress" : "progress";
+    guild.lairProgress ??= [];
+    const progresses = guild[progressField];
+    const matches = (p: IRaidProgress) => p.raidId === raidData.id && p.difficulty === difficulty && p.lairEncounterId === lairEncounterId;
     const guildLog = getGuildLogger(guild.name, guild.realm);
     const difficultyId = difficulty === "mythic" ? DIFFICULTIES.MYTHIC : DIFFICULTIES.HEROIC;
 
     // Get valid boss encounter IDs for this specific raid
-    const validBossIds = await this.getValidBossEncounterIdsForRaid(raidData.id);
+    const validBossIds = new Set(raidData.bosses.map(boss => boss.id));
     guildLog.info(`Valid boss IDs for ${raidData.name}: ${Array.from(validBossIds).join(", ")}`);
 
     // Get all fights from database for this guild, raid, and difficulty
@@ -4077,7 +4154,7 @@ class GuildService {
     if (fights.length === 0) {
       guildLog.info(`No ${difficulty} fights found for ${raidData.name}`);
       // Clear existing progress for this raid/difficulty if it exists
-      const existingProgress = guild.progress.find((p) => p.raidId === raidData.id && p.difficulty === difficulty);
+      const existingProgress = progresses.find(matches);
       if (
         existingProgress &&
         (existingProgress.bossesDefeated > 0 ||
@@ -4091,12 +4168,14 @@ class GuildService {
         );
         existingProgress.bosses = [];
         existingProgress.bossesDefeated = 0;
+        existingProgress.totalBosses = raidData.bosses.length;
+        existingProgress.guildRank = undefined;
         existingProgress.totalTimeSpent = 0;
         existingProgress.totalCombatTimeSpent = 0;
         existingProgress.progressRaidTimeSpent = 0;
         existingProgress.totalRaidTimeSpent = 0;
         existingProgress.lastUpdated = new Date();
-        guild.markModified("progress");
+        guild.markModified(progressField);
       }
       return;
     }
@@ -4152,7 +4231,7 @@ class GuildService {
     if (filteredFights.length === 0) {
       guildLog.info(`No ${difficulty} fights remaining after date filtering for ${raidData.name}`);
       // Clear existing progress for this raid/difficulty if it exists
-      const existingProgress = guild.progress.find((p) => p.raidId === raidData.id && p.difficulty === difficulty);
+      const existingProgress = progresses.find(matches);
       if (
         existingProgress &&
         (existingProgress.bossesDefeated > 0 ||
@@ -4164,12 +4243,14 @@ class GuildService {
         guildLog.info(`Clearing stale ${difficulty} progress for ${raidData.name} after date filtering`);
         existingProgress.bosses = [];
         existingProgress.bossesDefeated = 0;
+        existingProgress.totalBosses = raidData.bosses.length;
+        existingProgress.guildRank = undefined;
         existingProgress.totalTimeSpent = 0;
         existingProgress.totalCombatTimeSpent = 0;
         existingProgress.progressRaidTimeSpent = 0;
         existingProgress.totalRaidTimeSpent = 0;
         existingProgress.lastUpdated = new Date();
-        guild.markModified("progress");
+        guild.markModified(progressField);
       }
       return;
     }
@@ -4436,12 +4517,13 @@ class GuildService {
     );
 
     // Update or create raid progress entry
-    let raidProgress = guild.progress.find((p) => p.raidId === raidData.id && p.difficulty === difficulty);
+    let raidProgress = progresses.find(matches);
 
     if (!raidProgress) {
       // Create a new progress entry
-      guild.progress.push({
+      progresses.push({
         raidId: raidData.id,
+        lairEncounterId,
         raidName: raidData.name,
         difficulty,
         bossesDefeated: 0,
@@ -4454,7 +4536,7 @@ class GuildService {
         lastUpdated: new Date(),
       } as IRaidProgress);
 
-      raidProgress = guild.progress[guild.progress.length - 1];
+      raidProgress = progresses[progresses.length - 1];
       guildLog.info(`Created new ${difficulty} progress entry for ${raidData.name}`);
     }
 
@@ -4543,6 +4625,9 @@ class GuildService {
       }
     }
 
+    const order = new Map(raidData.bosses.map((boss, index) => [boss.id, index]));
+    raidProgress.bosses.sort((a, b) => (order.get(a.bossId) ?? 0) - (order.get(b.bossId) ?? 0));
+    if (!lairEncounterId) this.computeBestWorldRank(raidProgress);
     raidProgress.bossesDefeated = defeatedCount;
     raidProgress.totalBosses = raidData.bosses.length;
     raidProgress.totalTimeSpent = totalTime;
@@ -4554,21 +4639,21 @@ class GuildService {
     guildLog.info(`Before markModified - ${difficulty} progress has ${raidProgress.bosses.length} bosses in array`);
 
     // Mark the specific progress subdocument as modified
-    const progressIndex = guild.progress.findIndex((p) => p.raidId === raidData.id && p.difficulty === difficulty);
+    const progressIndex = progresses.findIndex(matches);
     if (progressIndex !== -1) {
-      guild.markModified(`progress.${progressIndex}.bosses`);
-      guild.markModified(`progress.${progressIndex}.bossesDefeated`);
-      guild.markModified(`progress.${progressIndex}.totalTimeSpent`);
-      guild.markModified(`progress.${progressIndex}.totalCombatTimeSpent`);
-      guild.markModified(`progress.${progressIndex}.progressRaidTimeSpent`);
-      guild.markModified(`progress.${progressIndex}.totalRaidTimeSpent`);
+      guild.markModified(`${progressField}.${progressIndex}.bosses`);
+      guild.markModified(`${progressField}.${progressIndex}.bossesDefeated`);
+      guild.markModified(`${progressField}.${progressIndex}.totalTimeSpent`);
+      guild.markModified(`${progressField}.${progressIndex}.totalCombatTimeSpent`);
+      guild.markModified(`${progressField}.${progressIndex}.progressRaidTimeSpent`);
+      guild.markModified(`${progressField}.${progressIndex}.totalRaidTimeSpent`);
     }
 
     // Also mark the entire progress array as modified
-    guild.markModified("progress");
+    guild.markModified(progressField);
 
     guildLog.info(`Processed ${difficulty} progress: ${defeatedCount}/${raidData.bosses.length} bosses defeated, ${raidProgress.bosses.length} bosses tracked`);
-    await this.enqueueBestPullVodLinks(guild, raidProgress, vodCandidateFightsByBoss);
+    if (queueVodLinks) await this.enqueueBestPullVodLinks(guild, raidProgress, vodCandidateFightsByBoss);
   }
 
   // Look up a boss icon filename from the BossIcon cache
@@ -5508,14 +5593,14 @@ class GuildService {
           totalPulls: this.getTotalPullsForSummary(p.bosses, p.totalBosses),
           bestPullPercent: currentBoss?.bestPercent || 0,
           currentBossId: currentBoss?.bossId,
-          ...(p.difficulty === "mythic" && raid ? { penultimateBoss: getPenultimateBossSummary(raidId, raid.bosses, p.bosses) } : {}),
+          ...(p.difficulty === "mythic" && raid ? { penultimateBoss: getPenultimateBossSummary(raidId, raid.bosses, p.bosses), finalBoss: getFinalBossSummary(raidId, raid.bosses, p.bosses) } : {}),
           bestPullBossHealth: getBestPullBossHealth(currentBoss),
           bestPullPhase: currentBoss?.bestPullPhase,
           lastKillTime: lastKilledBoss?.firstKillTime || null,
           lastKilledBossPulls: lastKilledBoss?.pullCount || 0,
           worldRank: p.worldRank,
           worldRankColor: p.worldRankColor,
-          wclWorldRank: p.wclWorldRank,
+          wclWorldRank: RAID_ENCOUNTERS[p.raidId] ? undefined : p.wclWorldRank,
           rioWorldRank: p.rioWorldRank,
           guildRank: p.guildRank,
         };
@@ -5655,6 +5740,8 @@ class GuildService {
     const raidProgress = matchingProgress
       .map((progress) => ({
         ...progress,
+        worldRank: competitiveWorldRank(progress),
+        wclWorldRank: RAID_ENCOUNTERS[progress.raidId] ? undefined : progress.wclWorldRank,
         bosses: progress.bosses.map((boss) => {
           const { pullHistory, ...bossWithoutHistory } = boss;
           const vodTarget = this.getBossVodTarget(boss);
@@ -5673,10 +5760,10 @@ class GuildService {
   // Get detailed boss progress for a specific raid by realm and name (returns only progress array)
   // Excludes pullHistory to reduce payload size
   // For current raid tier, also includes worldRankHistory for the modal chart
-  async getGuildBossProgressForRaidByRealmName(realm: string, name: string, raidId: number): Promise<{ progress: any[]; worldRankHistory?: any[] } | null> {
+  async getGuildBossProgressForRaidByRealmName(realm: string, name: string, raidId: number): Promise<{ progress: any[]; lairProgress: any[]; worldRankHistory?: any[] } | null> {
     const guild = await Guild.findOne({ name, realm })
       .collation(CASE_INSENSITIVE_COLLATION)
-      .select("_id progress")
+      .select("_id progress lairProgress officialProgress")
       .lean();
 
     if (!guild) {
@@ -5691,6 +5778,8 @@ class GuildService {
     const raidProgress = matchingProgress
       .map((progress) => ({
         ...progress,
+        worldRank: competitiveWorldRank(progress),
+        wclWorldRank: RAID_ENCOUNTERS[progress.raidId] ? undefined : progress.wclWorldRank,
         bosses: progress.bosses.map((boss) => {
           const { pullHistory, ...bossWithoutHistory } = boss;
           const vodTarget = this.getBossVodTarget(boss);
@@ -5709,7 +5798,13 @@ class GuildService {
       worldRankHistory = await this.getWorldRankHistory(guild._id as mongoose.Types.ObjectId, raidId);
     }
 
-    return { progress: raidProgress, worldRankHistory };
+    return {
+      progress: raidProgress,
+      lairProgress: (guild.lairProgress ?? []).filter(p => p.raidId === raidId).map(p => ({
+        ...p, bosses: p.bosses.map(({ pullHistory, ...boss }) => boss),
+      })),
+      worldRankHistory: RAID_ENCOUNTERS[raidId] ? worldRankHistory?.map(row => ({ ...row, worldRank: row.rioWorldRank, wclWorldRank: undefined })).filter(row => row.worldRank) : worldRankHistory,
+    };
   }
 
   // Get pull history for a specific boss (on-demand fetching)
@@ -5721,7 +5816,7 @@ class GuildService {
       name: { $regex: new RegExp(`^${escapedName}$`, "i") }, // Case-insensitive exact match
       realm: { $regex: new RegExp(`^${escapedRealm}$`, "i") }, // Case-insensitive exact match
     })
-      .select("_id progress")
+      .select("_id progress lairProgress officialProgress")
       .lean();
 
     if (!guild) {
@@ -5729,7 +5824,7 @@ class GuildService {
     }
 
     // Find the specific raid progress (guild is already plain object from .lean())
-    const raidProgress = guild.progress.find((p: any) => p.raidId === raidId && p.difficulty === difficulty);
+    const raidProgress = [...guild.progress, ...(guild.lairProgress ?? [])].find((p: any) => p.raidId === raidId && p.difficulty === difficulty && p.bosses.some((boss: any) => boss.bossId === bossId));
 
     if (!raidProgress) {
       return null;

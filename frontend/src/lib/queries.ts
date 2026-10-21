@@ -275,8 +275,8 @@ export function useRaids() {
 
 export function useBosses(raidId: number | null) {
   return useQuery({
-    queryKey: queryKeys.raids.bosses(raidId!),
-    queryFn: () => api.getBosses(raidId!),
+    queryKey: [...queryKeys.raids.bosses(raidId!), "with-lairs"],
+    queryFn: () => api.getBosses(raidId!, true),
     enabled: raidId !== null && raidId > 0,
     staleTime: 10 * 60 * 1000, // Boss list is very slow-changing
   });

@@ -18,7 +18,7 @@ test("Season 2 raid support uses the new raid as the current default", () => {
   assert.equal(PRIMARY_RAID_ID, 53);
   assert.deepEqual(CURRENT_RAID_IDS, [53]);
   assert.equal(RAID_RIO_SLUG_OVERRIDES[53], "the-venomous-abyss");
-  assert.deepEqual(RAID_RIO_PROGRESS_SLUG_OVERRIDES[53], ["the-tidebound-grotto", "the-venomous-abyss"]);
+  assert.equal(RAID_RIO_PROGRESS_SLUG_OVERRIDES[53], undefined);
   assert.equal(RAID_RIO_RANKING_DISABLED_IDS.has(53), false);
 });
 
@@ -48,7 +48,7 @@ test("configured WCL raid IDs missing from worldData.zones are queried directly"
   ]);
 });
 
-test("Raider.IO split raid progress is aggregated into one nine-boss WCL tier", async () => {
+test("Raider.IO lair progress stays separate from the eight-boss main raid", async () => {
   const { default: guildService } = await import("../src/services/guild.service");
   const raid = {
     id: 53,
@@ -76,28 +76,29 @@ test("Raider.IO split raid progress is aggregated into one nine-boss WCL tier", 
 
   const result = (guildService as any).normalizeRaiderIOOfficialProgress(progression, [raid]);
 
-  assert.equal(result.length, 1);
+  assert.equal(result.length, 2);
+  const main = result.find((entry: any) => entry.raidTierSlug === "the-venomous-abyss");
   assert.deepEqual(
     {
-      raidTierSlug: result[0].raidTierSlug,
-      summary: result[0].summary,
-      totalBosses: result[0].totalBosses,
-      normalBossesKilled: result[0].normalBossesKilled,
-      heroicBossesKilled: result[0].heroicBossesKilled,
-      mythicBossesKilled: result[0].mythicBossesKilled,
+      raidTierSlug: main.raidTierSlug,
+      summary: main.summary,
+      totalBosses: main.totalBosses,
+      normalBossesKilled: main.normalBossesKilled,
+      heroicBossesKilled: main.heroicBossesKilled,
+      mythicBossesKilled: main.mythicBossesKilled,
     },
     {
       raidTierSlug: "the-venomous-abyss",
-      summary: "2/9 M",
-      totalBosses: 9,
-      normalBossesKilled: 6,
-      heroicBossesKilled: 4,
+      summary: "2/8 M",
+      totalBosses: 8,
+      normalBossesKilled: 5,
+      heroicBossesKilled: 3,
       mythicBossesKilled: 2,
     },
   );
 });
 
-test("a temporarily missing Raider.IO split keeps the combined nine-boss denominator", async () => {
+test("lair-only Raider.IO data does not create main-raid progress", async () => {
   const { default: guildService } = await import("../src/services/guild.service");
   const raid = {
     id: 53,
@@ -120,8 +121,8 @@ test("a temporarily missing Raider.IO split keeps the combined nine-boss denomin
     [raid],
   );
 
-  assert.equal(result.raidTierSlug, "the-venomous-abyss");
-  assert.equal(result.summary, "1/9 H");
-  assert.equal(result.totalBosses, 9);
+  assert.equal(result.raidTierSlug, "the-tidebound-grotto");
+  assert.equal(result.summary, "1/1 H");
+  assert.equal(result.totalBosses, 1);
   assert.equal(result.heroicBossesKilled, 1);
 });

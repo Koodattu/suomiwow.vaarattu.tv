@@ -1,22 +1,27 @@
+import { mainRaidBosses, RAID_ENCOUNTERS } from "../config/raid-encounters";
 import type { IBossProgress } from "../models/Guild";
 
 type RaceBossProgress = Pick<IBossProgress, "bossId" | "kills" | "pullCount" | "bestPercent" | "bestPullPhase" | "firstKillTime">;
 
-// WCL can append encounters outside progression order (Nymrissa follows Ula'tek in raid 53).
-const RACE_BOSS_OVERRIDES: Partial<Record<number, { penultimate: number; final: number }>> = {
-  53: { penultimate: 3429, final: 3492 }, // The Coiled Altar, Ula'tek
-};
-
 export function getPenultimateBossSummary(raidId: number, raidBosses: { id: number; name: string }[], bosses: RaceBossProgress[] = []) {
-  const override = RACE_BOSS_OVERRIDES[raidId];
-  const targetId = override?.penultimate ?? raidBosses[raidBosses.length - 2]?.id;
-  const finalBossId = override?.final ?? raidBosses[raidBosses.length - 1]?.id;
+  return getRaceBossSummary(raidId, raidBosses, bosses, "penultimate");
+}
+
+export function getFinalBossSummary(raidId: number, raidBosses: { id: number; name: string }[], bosses: RaceBossProgress[] = []) {
+  return getRaceBossSummary(raidId, raidBosses, bosses, "final");
+}
+
+function getRaceBossSummary(raidId: number, raidBosses: { id: number; name: string }[], bosses: RaceBossProgress[], targetType: "final" | "penultimate") {
+  raidBosses = mainRaidBosses(raidId, raidBosses);
+  const penultimateId = RAID_ENCOUNTERS[raidId]?.main[RAID_ENCOUNTERS[raidId].main.length - 2] ?? raidBosses[raidBosses.length - 2]?.id;
+  const finalBossId = RAID_ENCOUNTERS[raidId]?.final ?? raidBosses[raidBosses.length - 1]?.id;
+  const targetId = targetType === "final" ? finalBossId : penultimateId;
   const target = raidBosses.find((entry) => entry.id === targetId);
   if (!target) return undefined;
 
   const boss = bosses.find((entry) => entry.bossId === target.id);
   const hasReachedBoss = Boolean(boss && (boss.kills > 0 || boss.pullCount > 0));
-  const precedingBosses = raidBosses.filter((entry) => entry.id !== target.id && entry.id !== finalBossId);
+  const precedingBosses = raidBosses.filter((entry) => entry.id !== target.id && (targetType === "final" || entry.id !== finalBossId));
   const precedingBossesKilled = precedingBosses.every((preceding) => bosses.some((entry) => entry.bossId === preceding.id && entry.kills > 0));
 
   return {

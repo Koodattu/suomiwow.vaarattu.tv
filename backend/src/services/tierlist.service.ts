@@ -1,3 +1,4 @@
+import { mainEncounterFilter } from "../config/raid-encounters";
 import Guild, { IGuild, IGuildCrest } from "../models/Guild";
 import TierList, { IGuildTierScore, IRaidTierList } from "../models/TierList";
 import Fight from "../models/Fight";
@@ -55,7 +56,7 @@ class TierListService {
 
     try {
       // Get all guilds with their progress
-      const guilds = await Guild.find();
+      const guilds = await Guild.find().select("-progress.bosses.pullHistory -lairProgress");
 
       if (guilds.length === 0) {
         logger.info("[TierList] No guilds found, skipping calculation");
@@ -64,7 +65,7 @@ class TierListService {
 
       // Find which guilds have WarcraftLogs fight data per raid
       // Efficiency scores depend on fight data, so exclude guilds without any
-      const fightAgg = await Fight.aggregate([{ $match: { zoneId: { $in: TRACKED_RAIDS } } }, { $group: { _id: { guildId: "$guildId", zoneId: "$zoneId" } } }]);
+      const fightAgg = await Fight.aggregate([{ $match: { $or: TRACKED_RAIDS.map(raidId => ({ zoneId: raidId, ...mainEncounterFilter(raidId) })) } }, { $group: { _id: { guildId: "$guildId", zoneId: "$zoneId" } } }]);
 
       const guildsWithFights = new Map<number, Set<string>>();
       for (const doc of fightAgg) {

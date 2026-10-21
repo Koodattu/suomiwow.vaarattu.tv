@@ -483,7 +483,7 @@ function buildRankingColumns({ selectedBoss, bosses, variant, currentPage, pageS
 
   // Per-boss rankPercent columns (only in all-bosses AllStars view)
   if (!isShowingDamage && bosses.length > 0) {
-    for (const boss of bosses) {
+    for (const boss of bosses.filter(boss => !boss.isLair)) {
       columns.push({
         id: `boss-${boss.id}`,
         header: (
@@ -529,7 +529,7 @@ function MobileBossScores({
 
   return (
     <div className="grid grid-cols-2 gap-2">
-      {bosses.map((boss) => {
+      {bosses.filter(boss => !boss.isLair).map((boss) => {
         const bossScore = row.bossScores?.find((b) => b.encounterId === boss.id);
         const value = isMechanics ? getMechanicsBossScoreValue(bossScore, variant) : bossScore?.rankPercent;
         const pct = value !== undefined && value !== null ? (isMechanics ? Math.round(value) : Math.floor(value)) : null;
@@ -858,13 +858,13 @@ export function RankingTableWrapper({
                 renderButton={(boss) => (
                   <div className="flex items-center gap-2 whitespace-nowrap">
                     <IconImage iconFilename={boss?.iconUrl} alt={`${boss?.name} icon`} width={24} height={24} />
-                    {boss?.name}
+                    {boss?.name}{boss?.isLair && <span className="text-xs text-gray-400">{t("lair")}</span>}
                   </div>
                 )}
                 renderOption={(boss) => (
                   <>
                     <IconImage iconFilename={boss.iconUrl} alt={`${boss.name} icon`} width={24} height={24} />
-                    {boss.name}
+                    {boss.name}{boss.isLair && <span className="text-xs text-gray-400">{t("lair")}</span>}
                   </>
                 )}
               />

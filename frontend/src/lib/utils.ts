@@ -143,10 +143,11 @@ export function formatPhaseDisplay(displayString: string): string {
   return formatted;
 }
 
-// Pick the best (lowest) world rank from WCL and Raider.IO sources
+// Prefer the backend rank, which applies the raid's source-scope rules.
 export function getBestWorldRank(progress: { wclWorldRank?: number; rioWorldRank?: number; worldRank?: number } | null | undefined): number | undefined {
   if (!progress) return undefined;
   const { wclWorldRank, rioWorldRank, worldRank } = progress;
+  if (worldRank) return worldRank;
   if (wclWorldRank && rioWorldRank) return Math.min(wclWorldRank, rioWorldRank);
   return wclWorldRank || rioWorldRank || worldRank;
 }

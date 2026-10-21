@@ -1,3 +1,4 @@
+import { mainRaidBosses } from "../config/raid-encounters";
 import cacheService from "./cache.service";
 import guildService from "./guild.service";
 import compareService from "./compare.service";
@@ -73,7 +74,7 @@ class CacheWarmerService {
     const raid = await Raid.findOne({ id: raidId }).select("bosses -_id").lean();
     if (!raid) throw new Error(`Raid bosses not found for raid ${raidId}`);
 
-    return ((raid as any).bosses ?? []).map((boss: any) => ({
+    return mainRaidBosses<any>(raidId, (raid as any).bosses ?? []).map((boss: any) => ({
       id: boss.id,
       name: boss.name,
       slug: boss.slug,

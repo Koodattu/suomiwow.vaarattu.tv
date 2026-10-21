@@ -1282,7 +1282,7 @@ export const GUILDS_PROD: TrackedGuild[] = [
 
 // Raid zones to track (IDs only - names and encounter info come from DB)
 export const TRACKED_RAIDS = [
-  53, // The Venomous Abyss / The Tidebound Grotto
+  53, // The Venomous Abyss (source zone also contains lairs)
   50, // Sporefall
   46, // Voidspire / Dreamrift / March on Quel'Danas
   44, // Manaforge Omega
@@ -1343,9 +1343,7 @@ export const RAID_RIO_SLUG_OVERRIDES: Record<number, string> = {
 
 // Some WarcraftLogs zones are split into multiple raid tiers by Raider.IO.
 // These slugs are combined into one official progress entry for the WCL zone.
-export const RAID_RIO_PROGRESS_SLUG_OVERRIDES: Record<number, readonly string[]> = {
-  53: ["the-tidebound-grotto", "the-venomous-abyss"],
-};
+export const RAID_RIO_PROGRESS_SLUG_OVERRIDES: Record<number, readonly string[]> = {};
 
 // Raider.IO rankings use the configured primary raid slug even when progress
 // is aggregated from multiple Raider.IO raids into one WarcraftLogs zone.

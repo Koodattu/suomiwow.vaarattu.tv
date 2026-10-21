@@ -1477,6 +1477,8 @@
     }
   },
   "raidDetailModal": {
+    "lairs": "Pesät",
+    "lairsDescription": "Erilliset pomot eivät vaikuta raidin etenemiseen, sijoituksiin tai Pick’em-tuloksiin.",
     "close": "Sulje",
     "guildDetails": "Killan Tiedot",
     "raidProgress": "Raidi-edistyminen",
@@ -3080,6 +3082,7 @@
     "recomputing": "Lasketaan verkosto uudelleen…"
   },
   "characterRankingsPage": {
+    "lair": "Pesä",
     "titleAllStars": "Pistesijoitukset",
     "titleForBoss": "Vahinkosijoitukset pomolle",
     "titleMechanics": "Mekaniikkaprosentti",

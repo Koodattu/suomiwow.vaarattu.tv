@@ -1,3 +1,4 @@
+import { mainRaidBosses } from "../config/raid-encounters";
 import Guild from "../models/Guild";
 import Raid from "../models/Raid";
 import RaidAnalytics, { IRaidAnalytics, IBossAnalytics, IRaidOverallAnalytics, IGuildEntry, IDistribution, IWeeklyProgressionEntry } from "../models/RaidAnalytics";
@@ -142,6 +143,7 @@ class RaidAnalyticsService {
         return null;
       }
 
+      raid.bosses = mainRaidBosses(raidId, raid.bosses);
       const totalBosses = raid.bosses.length;
       logger.info(`[RaidAnalytics] Calculating analytics for ${raid.name} (${totalBosses} bosses)`);
 
@@ -172,6 +174,7 @@ class RaidAnalyticsService {
         let lastBossKillTime: Date | undefined;
 
         for (const boss of mythicProgress.bosses) {
+          if (!bossDataMap.has(boss.bossId)) continue;
           const bossDataList = bossDataMap.get(boss.bossId);
           if (bossDataList) {
             bossDataList.push({

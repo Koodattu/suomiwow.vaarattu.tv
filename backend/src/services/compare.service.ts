@@ -1,3 +1,4 @@
+import { mainRaidBosses, competitiveWorldRank, RAID_ENCOUNTERS } from "../config/raid-encounters";
 import Guild from "../models/Guild";
 import Raid from "../models/Raid";
 import { IGuildCrest } from "../models/Guild";
@@ -53,6 +54,7 @@ export interface RaidCompareResponse {
 class CompareService {
   async getRaidCompare(raidId: number, difficulty: CompareDifficulty = "mythic"): Promise<RaidCompareResponse | null> {
     const raid = await Raid.findOne({ id: raidId }).lean();
+    if (raid) raid.bosses = mainRaidBosses(raidId, raid.bosses);
     if (!raid) {
       return null;
     }
@@ -140,8 +142,8 @@ class CompareService {
         crest: guild.crest,
         parentGuild: guild.parent_guild,
         guildRank: progress.guildRank,
-        worldRank: progress.worldRank,
-        wclWorldRank: progress.wclWorldRank,
+        worldRank: competitiveWorldRank(progress),
+        wclWorldRank: RAID_ENCOUNTERS[raidId] ? undefined : progress.wclWorldRank,
         rioWorldRank: progress.rioWorldRank,
         totalPulls,
         totalTimeSpent: progress.totalTimeSpent ?? 0,

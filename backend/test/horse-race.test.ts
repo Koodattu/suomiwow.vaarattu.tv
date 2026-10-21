@@ -30,13 +30,13 @@ test("raid 53 tracks The Coiled Altar even with Nymrissa appended after Ula'tek"
   assert.equal(result?.bestPercent, 50.12);
 });
 
-test("raid 53 starters require all seven earlier kills, including Nymrissa but excluding Ula'tek", () => {
+test("raid 53 starters require the six earlier main bosses, independent of Nymrissa", () => {
   const earlierKills = venomousAbyssBosses.filter((entry) => entry.id !== 3429 && entry.id !== 3492).map((entry) => boss(entry.id, 1));
   const waiting = getPenultimateBossSummary(53, venomousAbyssBosses, earlierKills);
   assert.equal(waiting?.eligible, true);
   assert.equal(waiting?.pullCount, 0);
   assert.equal(waiting?.kills, 0);
-  assert.equal(getPenultimateBossSummary(53, venomousAbyssBosses, earlierKills.filter((entry) => entry.bossId !== 3379))?.eligible, false);
+  assert.equal(getPenultimateBossSummary(53, venomousAbyssBosses, earlierKills.filter((entry) => entry.bossId !== 3379))?.eligible, true);
 });
 
 test("guilds progressing Ula'tek have already finished the Coiled Altar race", () => {

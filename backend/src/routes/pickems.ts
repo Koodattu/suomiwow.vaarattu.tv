@@ -520,7 +520,7 @@ interface GuildMapEntry {
  * - name, realm, parent_guild
  * - progress[].difficulty, progress[].bossesDefeated, progress[].totalBosses, progress[].lastKillTime
  */
-async function buildRankingsFromCachedProgress(cachedGuildsByRaid: Map<number, any[]>, raidIds: number[]) {
+export async function buildRankingsFromCachedProgress(cachedGuildsByRaid: Map<number, any[]>, raidIds: number[]) {
   // Collect all guilds across all raids, deduplicating by name+realm
   const guildMap = new Map<string, GuildMapEntry>();
 
@@ -843,7 +843,7 @@ function consolidateAndRankGuilds(guildMap: Map<string, GuildMapEntry>, raidIds:
 }
 
 // Helper function to get pickem leaderboard with streak bonuses
-async function getPickemLeaderboard(pickemId: string, guildRankings: { rank: number; name: string; realm: string }[], pickem: IPickem) {
+export async function getPickemLeaderboard(pickemId: string, guildRankings: { rank: number; name: string; realm: string }[], pickem: IPickem) {
   // Get all users who have made predictions for this pickem
   const users = await User.find({ "pickems.pickemId": pickemId }).lean();
 
