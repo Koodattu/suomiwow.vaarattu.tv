@@ -1587,19 +1587,30 @@ class MythicPlusService {
     const activeSince = new Date(Date.now() - activeSinceDays * 24 * 60 * 60 * 1000);
     const profileStaleBefore = new Date(Date.now() - profileStaleHours * 60 * 60 * 1000);
     const runStaleBefore = new Date(Date.now() - runStaleHours * 60 * 60 * 1000);
-    const eligibleCharacterIds = await this.getEligibleCharacterIds();
-
-    const recentCharacters = await Character.find({
-      _id: { $in: eligibleCharacterIds },
+    // Report imports can leave Character.lastMythicSeenAt stale or unset.
+    // Use participation for both eligibility and recency, including the queue order.
+    const participation = await CharacterRaidParticipation.aggregate<{ _id: mongoose.Types.ObjectId; lastSeenAt: Date }>([
+      { $match: {
+        characterId: { $ne: null },
+        reportCount: { $gte: MIN_GUILD_RAID_REPORTS_FOR_CHARACTER_ELIGIBILITY },
+        lastSeenAt: { $gte: activeSince },
+      } },
+      { $group: { _id: "$characterId", lastSeenAt: { $max: "$lastSeenAt" } } },
+      { $sort: { lastSeenAt: -1, _id: 1 } },
+    ]);
+    const characters = await Character.find({
+      _id: { $in: participation.map((row) => row._id) },
       wclProfileHidden: { $ne: true },
-      lastMythicSeenAt: { $gte: activeSince },
     })
       .select(
         "_id wclCanonicalCharacterId name realm region classID guildName guildRealm lastMythicSeenAt identityObservedAt blizzardIdentityOverride",
       )
-      .sort({ lastMythicSeenAt: -1, lastReportSeenAt: -1, updatedAt: -1 })
-      .limit(characterLimit)
       .lean<CharacterIdentity[]>();
+    const characterById = new Map(characters.map((character) => [String(character._id), character]));
+    const recentCharacters = participation
+      .map((row) => characterById.get(String(row._id)))
+      .filter((character): character is CharacterIdentity => !!character)
+      .slice(0, characterLimit);
 
     if (recentCharacters.length === 0) {
       return {
