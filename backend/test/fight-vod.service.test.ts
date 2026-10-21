@@ -88,7 +88,7 @@ test("resolves least-recently checked VOD links fairly and retires stale no-VOD 
   }
 });
 
-test("historical VOD backfill repairs an existing pending link", async () => {
+for (const field of ["progress", "lairProgress"] as const) test(`historical VOD backfill repairs an existing pending link in ${field}`, async () => {
   const originalGuildFind = Guild.find;
   const originalFightFind = Fight.find;
   const originalVodFind = FightVodLink.find;
@@ -115,7 +115,7 @@ test("historical VOD backfill repairs an existing pending link", async () => {
     name: "Test Guild",
     realm: "test-realm",
     streamers: [{ channelName: "TestChannel", twitchUserId: "user-1" }],
-    progress: [
+    [field]: [
       {
         raidId: 53,
         difficulty: "mythic",
@@ -132,7 +132,7 @@ test("historical VOD backfill repairs an existing pending link", async () => {
   };
   let capturedUpdate: any;
 
-  Guild.find = (() => ({ select: async () => [guild] })) as unknown as typeof Guild.find;
+  Guild.find = (() => ({ select: async (fields: string) => { assert.ok(fields.includes(field)); return [guild]; } })) as unknown as typeof Guild.find;
   Fight.find = (() => {
     const query = {
       select: () => query,

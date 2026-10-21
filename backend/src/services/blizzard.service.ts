@@ -5,6 +5,7 @@ import Raid from "../models/Raid";
 import logger from "../utils/logger";
 import AsyncSemaphore from "../utils/async-semaphore";
 import iconCacheService from "./icon-cache.service";
+import cacheService from "./cache.service";
 
 interface BlizzardTokenResponse {
   access_token: string;
@@ -961,9 +962,9 @@ export class BlizzardApiClient {
    * BossIcon match looks incorrect, and re-runs the matching algorithm.
    * Updates both the BossIcon cache and the Raid document.
    */
-  public async retryMissingBossIcons(): Promise<void> {
+  public async retryMissingBossIcons(raidIds?: number[]): Promise<void> {
     try {
-      const raids = await Raid.find({});
+      const raids = await Raid.find(raidIds ? { id: { $in: raidIds } } : {});
       const bossesToRetry: { raidId: number; raidName: string; bossName: string; reason: string }[] = [];
 
       for (const raid of raids) {
@@ -1014,6 +1015,13 @@ export class BlizzardApiClient {
         return;
       }
 
+      // New encounters can arrive without a full raid sync. Refresh stale achievement
+      // metadata before matching, at most once a day while icons remain missing.
+      const lastUpdate = await AchievementUpdateLog.findOne({});
+      if (!lastUpdate || Date.now() - lastUpdate.lastFullUpdate.getTime() >= 24 * 60 * 60 * 1000) {
+        await this.updateAchievements();
+      }
+
       logger.info(`🔄 Found ${bossesToRetry.length} boss icons to re-evaluate...`);
       let matched = 0;
 
@@ -1035,6 +1043,9 @@ export class BlizzardApiClient {
           await Raid.updateOne({ id: raidId, "bosses.name": bossName }, { $unset: { "bosses.$.iconUrl": "" } });
           logger.info(`⚠️  Still no match for boss: "${bossName}" (${raidName})`);
         }
+
+        await cacheService.invalidate(cacheService.getRaidBossesKey(raidId));
+        await cacheService.invalidate(`${cacheService.getRaidBossesKey(raidId)}:with-lairs`);
 
         // Small delay to avoid rate limiting
         await new Promise((resolve) => setTimeout(resolve, 100));

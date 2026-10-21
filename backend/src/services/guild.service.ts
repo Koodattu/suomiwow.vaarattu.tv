@@ -541,6 +541,7 @@ class GuildService {
           : existing?.bosses;
         await Raid.updateOne({ id: raidId }, { $set: { partitions, ...(bosses ? { bosses } : {}) } });
         result.updatedRaidIds.push(raidId);
+        if (bosses?.some((boss: { iconUrl?: string }) => !boss.iconUrl)) await blizzardService.retryMissingBossIcons([raidId]);
 
         logger.info(`[Raids] Refreshed partitions for raid ${raidId} (${partitions.length} entries)`);
       } catch (error) {
@@ -5771,26 +5772,27 @@ class GuildService {
     }
 
     const matchingProgress = guild.progress.filter((p) => p.raidId === raidId);
-    const bossVodTargets = matchingProgress.flatMap((progress) => progress.bosses.map((boss) => this.getBossVodTarget(boss)).filter((target): target is FightVodTarget => target !== null));
+    const matchingLairs = (guild.lairProgress ?? []).filter(p => p.raidId === raidId);
+    const bossVodTargets = [...matchingProgress, ...matchingLairs].flatMap((progress) => progress.bosses.map((boss) => this.getBossVodTarget(boss)).filter((target): target is FightVodTarget => target !== null));
     const vodLinksByFight = await this.getVodLinksByFightTarget(bossVodTargets);
 
-    // Return only the progress array for the specified raid, excluding pullHistory
-    const raidProgress = matchingProgress
-      .map((progress) => ({
-        ...progress,
-        worldRank: competitiveWorldRank(progress),
-        wclWorldRank: RAID_ENCOUNTERS[progress.raidId] ? undefined : progress.wclWorldRank,
-        bosses: progress.bosses.map((boss) => {
-          const { pullHistory, ...bossWithoutHistory } = boss;
-          const vodTarget = this.getBossVodTarget(boss);
-
-          return {
-            ...bossWithoutHistory,
-            bestPullBossHealth: getBestPullBossHealth(boss),
-            bestVodLinks: vodTarget ? vodLinksByFight.get(`${vodTarget.reportCode}:${vodTarget.fightId}`) || [] : [],
-          };
-        }),
-      }));
+    const withBossMedia = (progress: (typeof matchingProgress)[number]) => ({
+      ...progress,
+      bosses: progress.bosses.map((boss) => {
+        const { pullHistory, ...bossWithoutHistory } = boss;
+        const vodTarget = this.getBossVodTarget(boss);
+        return {
+          ...bossWithoutHistory,
+          bestPullBossHealth: getBestPullBossHealth(boss),
+          bestVodLinks: vodTarget ? vodLinksByFight.get(`${vodTarget.reportCode}:${vodTarget.fightId}`) || [] : [],
+        };
+      }),
+    });
+    const raidProgress = matchingProgress.map(progress => ({
+      ...withBossMedia(progress),
+      worldRank: competitiveWorldRank(progress),
+      wclWorldRank: RAID_ENCOUNTERS[progress.raidId] ? undefined : progress.wclWorldRank,
+    }));
 
     // Include world rank history only for current raid tier
     let worldRankHistory: any[] | undefined;
@@ -5800,9 +5802,7 @@ class GuildService {
 
     return {
       progress: raidProgress,
-      lairProgress: (guild.lairProgress ?? []).filter(p => p.raidId === raidId).map(p => ({
-        ...p, bosses: p.bosses.map(({ pullHistory, ...boss }) => boss),
-      })),
+      lairProgress: matchingLairs.map(withBossMedia),
       worldRankHistory: RAID_ENCOUNTERS[raidId] ? worldRankHistory?.map(row => ({ ...row, worldRank: row.rioWorldRank, wclWorldRank: undefined })).filter(row => row.worldRank) : worldRankHistory,
     };
   }

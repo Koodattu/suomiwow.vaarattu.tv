@@ -30,6 +30,11 @@ interface StreamSnapshot {
   streamEndedAt?: Date;
 }
 
+interface BackfillScope {
+  raidId?: number;
+  bossIds?: readonly number[];
+}
+
 interface BackfillCandidate {
   guild: IGuild;
   raidProgress: IRaidProgress;
@@ -470,13 +475,15 @@ class FightVodService {
     return matches[0];
   }
 
-  private async getBackfillCandidates(guild: IGuild, cutoff: Date): Promise<BackfillCandidate[]> {
+  private async getBackfillCandidates(guild: IGuild, cutoff: Date, scope: BackfillScope = {}): Promise<BackfillCandidate[]> {
     const candidates: BackfillCandidate[] = [];
 
-    for (const raidProgress of guild.progress || []) {
+    for (const raidProgress of [...(guild.progress || []), ...(guild.lairProgress || [])]) {
+      if (scope.raidId !== undefined && raidProgress.raidId !== scope.raidId) continue;
       if (raidProgress.difficulty !== "mythic" && raidProgress.difficulty !== "heroic") continue;
 
       for (const boss of raidProgress.bosses || []) {
+        if (scope.bossIds && !scope.bossIds.includes(boss.bossId)) continue;
         const fights = await this.getRecentBestPullFights(guild._id as mongoose.Types.ObjectId, raidProgress, boss, cutoff);
         fights.forEach((fight) => {
           candidates.push({ guild, raidProgress, boss, fight });
@@ -487,7 +494,7 @@ class FightVodService {
     return candidates;
   }
 
-  async backfillRecentBestPullLinks(): Promise<FightVodBackfillResult> {
+  async backfillRecentBestPullLinks(scope: BackfillScope = {}): Promise<FightVodBackfillResult> {
     const result: FightVodBackfillResult = {
       guildsChecked: 0,
       streamersChecked: 0,
@@ -509,8 +516,8 @@ class FightVodService {
     const cutoff = new Date(now.getTime() - MAX_VOD_RETENTION_DAYS * DAY_MS);
     const guilds = await Guild.find({
       streamers: { $exists: true, $ne: [] },
-      progress: { $exists: true, $ne: [] },
-    }).select("name realm streamers progress");
+      $or: [{ progress: { $exists: true, $ne: [] } }, { lairProgress: { $exists: true, $ne: [] } }],
+    }).select("name realm streamers progress lairProgress");
 
     result.guildsChecked = guilds.length;
 
@@ -575,7 +582,7 @@ class FightVodService {
       if (streamers.length === 0) continue;
       streamers.forEach((streamer) => userIdsChecked.add(streamer.twitchUserId));
 
-      const candidates = await this.getBackfillCandidates(guild, cutoff);
+      const candidates = await this.getBackfillCandidates(guild, cutoff, scope);
 
       for (const candidate of candidates) {
         const fightStartedAt = this.getFightDate(candidate.fight);
