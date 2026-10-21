@@ -48,14 +48,17 @@ test("current-season refresh uses recent eligible participation despite stale ch
     ] }) };
   }) as any;
   CharacterMythicPlusSeasonScore.find = ((filter: any) => {
-    assert.deepEqual(filter.characterId.$in, [imported, fresh]);
+    assert.deepEqual(filter.characterId.$in, [imported, fresh, older]);
     assert.equal(filter.season, "season-mn-2");
     assert.deepEqual(filter.identityStatus, { $ne: "stale" });
-    return { select: () => ({ lean: async () => [{ characterId: fresh, fetchedAt: now, scores: { all: 0 } }] }) };
+    return { select: () => ({ lean: async () => [
+      { characterId: fresh, fetchedAt: now, scores: { all: 0 } },
+      { characterId: older, fetchedAt: new Date(now.getTime() - 2 * 86400000), scores: { all: 0 } },
+    ] }) };
   }) as any;
   service.enqueueProfileJobs = async (options: any) => {
-    assert.deepEqual(options, { characterIds: [String(imported)], refresh: true, targetSeasons: ["season-mn-2"] });
-    return { candidates: 1, queued: 0, existing: 1 };
+    assert.deepEqual(options, { characterIds: [String(imported), String(older)], refresh: true, targetSeasons: ["season-mn-2"] });
+    return { candidates: 2, queued: 0, existing: 2 };
   };
   service.enqueueSeasonProgressJobsForCharacters = async (characters: any[]) => {
     assert.deepEqual(characters, []);
@@ -63,5 +66,5 @@ test("current-season refresh uses recent eligible participation despite stale ch
   };
   const result = await service.enqueueCurrentSeasonRefreshJobs({ characterLimit: 2 });
   assert.equal(result.candidates, 2);
-  assert.equal(result.profileJobs.candidates, 1);
+  assert.equal(result.profileJobs.candidates, 2);
 });

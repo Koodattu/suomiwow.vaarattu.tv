@@ -1607,12 +1607,11 @@ class MythicPlusService {
       )
       .lean<CharacterIdentity[]>();
     const characterById = new Map(characters.map((character) => [String(character._id), character]));
-    const recentCharacters = participation
+    const activeCharacters = participation
       .map((row) => characterById.get(String(row._id)))
-      .filter((character): character is CharacterIdentity => !!character)
-      .slice(0, characterLimit);
+      .filter((character): character is CharacterIdentity => !!character);
 
-    if (recentCharacters.length === 0) {
+    if (activeCharacters.length === 0) {
       return {
         currentSeason,
         candidates: 0,
@@ -1624,7 +1623,7 @@ class MythicPlusService {
       };
     }
 
-    const characterIds = recentCharacters.map((character) => character._id);
+    const characterIds = activeCharacters.map((character) => character._id);
     const scoreRows = await CharacterMythicPlusSeasonScore.find({
       season: currentSeason,
       characterId: { $in: characterIds },
@@ -1633,6 +1632,13 @@ class MythicPlusService {
       .select("characterId scores fetchedAt")
       .lean();
     const scoreByCharacter = new Map(scoreRows.map((row: any) => [String(row.characterId), row]));
+    // Apply the limit after prioritizing missing/old scores so frequently active
+    // guilds cannot permanently crowd other eligible raiders out of the refresh.
+    const scoreFetchedAt = (character: CharacterIdentity) =>
+      toNullableDate(scoreByCharacter.get(String(character._id))?.fetchedAt)?.getTime() ?? 0;
+    const recentCharacters = activeCharacters
+      .sort((left, right) => scoreFetchedAt(left) - scoreFetchedAt(right))
+      .slice(0, characterLimit);
     const profileCandidateIds = recentCharacters
       .filter((character) => {
         const row = scoreByCharacter.get(String(character._id));
