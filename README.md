@@ -67,7 +67,7 @@ Open [http://localhost:3000](http://localhost:3000) for the app. The API runs on
 
 MongoDB must run as a replica set because collection and guest-claim flows use transactions. The included Compose setup creates a single-node `rs0` replica set automatically.
 
-For development without Docker, use Node.js 24 and MongoDB 7, install dependencies in both `backend` and `frontend`, then run `npm run dev` in each directory.
+For development without Docker, use Node.js 24.22.1 or a newer patched 24.x release and MongoDB 7, install dependencies in both `backend` and `frontend`, then run `npm run dev` in each directory. The `.nvmrc` file matches the runtime pinned in the Dockerfiles; `@types/node` only supplies TypeScript definitions and does not update Node.js.
 
 ## Configuration
 
