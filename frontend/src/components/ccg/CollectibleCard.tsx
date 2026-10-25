@@ -583,7 +583,9 @@ function CollectibleCard({
       {quantity && quantity > 1 ? <span className={styles.quantity}>×{quantity}</span> : null}
       <span className={styles.affixLayer} aria-hidden="true" />
       <span className={styles.finishLayer} aria-hidden="true" />
-      <span className={styles.materialLight} aria-hidden="true" />
+      <span className={styles.materialLight} aria-hidden="true">
+        {raidPreviewFinish ? <span className={styles.materialSweep} /> : null}
+      </span>
     </span>
   );
 
