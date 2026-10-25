@@ -9,8 +9,10 @@ const SAMPLE_FRAMES = 40;
 const ADOPT_EVERY_TICKS = 4;
 const MAX_STEP_MS = 100;
 
+type DrivenLoop = { host: HTMLElement; time: number };
+
 const hosts = new Set<HTMLElement>();
-const driven = new Map<Animation, HTMLElement>();
+const driven = new Map<Animation, DrivenLoop>();
 let enabled = true;
 let frame = 0;
 // 0 while the refresh rate is being measured, then the measured frame interval; -1 means a ~60 Hz display.
@@ -35,8 +37,12 @@ function hostOf(element: Element): HTMLElement | null {
   return null;
 }
 
-// Takes over newly started idle loops. Script-paused animations ignore animation-play-state from CSS, so the clock
-// itself holds them still while their card is paused (offscreen, hidden tab or effectsPaused).
+const forget = (event: Event) => driven.delete(event.target as Animation);
+
+// Takes over newly started idle loops. This is the only place that reads animation state: reading currentTime or
+// playState makes the browser bring all styles up to date, so reads stay out of the per-tick write loop.
+// Script-paused animations ignore animation-play-state from CSS, so the clock itself holds them still while their
+// card is paused (offscreen, hidden tab or effectsPaused).
 function adopt() {
   for (const animation of document.getAnimations()) {
     if (!(animation instanceof CSSAnimation) || driven.has(animation) || animation.playState !== "running") continue;
@@ -44,14 +50,18 @@ function adopt() {
     const target = animation.effect.target;
     const host = target ? hostOf(target) : null;
     if (!host || isPaused(host)) continue;
+    driven.set(animation, { host, time: Number(animation.currentTime ?? 0) });
     animation.pause();
-    driven.set(animation, host);
+    // CSS cancels a loop when its card's finish or hover state changes; the event arrives before the next frame's
+    // callbacks, so a cancelled loop is never written to (that would revive it as a script-owned animation).
+    animation.addEventListener("cancel", forget, { once: true });
   }
 }
 
 function release() {
-  for (const [animation, host] of driven) {
-    if (animation.playState === "paused" && host.isConnected) animation.play();
+  for (const [animation, loop] of driven) {
+    animation.removeEventListener("cancel", forget);
+    if (animation.playState === "paused" && loop.host.isConnected) animation.play();
   }
   driven.clear();
 }
@@ -79,9 +89,12 @@ function tick(now: number) {
     const step = Math.min(now - lastTick, MAX_STEP_MS);
     lastTick = now;
     if (++tickIndex % ADOPT_EVERY_TICKS === 0) adopt();
-    for (const [animation, host] of driven) {
-      if (animation.playState === "idle" || !host.isConnected) driven.delete(animation);
-      else if (!isPaused(host)) animation.currentTime = Number(animation.currentTime ?? 0) + step;
+    for (const [animation, loop] of driven) {
+      if (!loop.host.isConnected) driven.delete(animation);
+      else if (!isPaused(loop.host)) {
+        loop.time += step;
+        animation.currentTime = loop.time;
+      }
     }
   }
   frame = requestAnimationFrame(tick);
@@ -96,8 +109,8 @@ export function registerIdleAnimationHost(host: HTMLElement): () => void {
   schedule();
   return () => {
     hosts.delete(host);
-    for (const [animation, owner] of driven) {
-      if (owner === host) driven.delete(animation);
+    for (const [animation, loop] of driven) {
+      if (loop.host === host) driven.delete(animation);
     }
     if (!hosts.size && frame) {
       cancelAnimationFrame(frame);

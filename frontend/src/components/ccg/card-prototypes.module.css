@@ -282,6 +282,19 @@
   outline-offset: 5px;
 }
 
+/* Tilt is only read by the card itself and changes on every pointer move; non-inherited, it restyles the card
+   without restyling every layer inside it. */
+@property --tilt-x {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@property --tilt-y {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
 .prototypeCard {
   --lab-accent: #62d7ff;
   --lab-glow: rgba(78, 188, 255, 0.36);

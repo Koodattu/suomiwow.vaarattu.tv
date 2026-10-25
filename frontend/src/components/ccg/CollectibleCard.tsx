@@ -129,25 +129,42 @@ function mythicPlusScoreColor(value: number | null): string {
   return mythicPlusScoreColors.find(([minimum]) => value >= minimum)?.[1] ?? "#ffffff";
 }
 
+// Pointer variables go straight onto the layers that read them. Set on the card root they would restyle every
+// descendant (stats, labels, crests) on each pointer move. Tilt stays on the root as registered, non-inherited
+// properties (see card-prototypes.module.css), so it restyles only the root.
+const MATERIAL_LAYERS = [styles.finishLayer, styles.materialLight, styles.statsPanel, styles.rarityPlate, styles.affixLayer, styles.astralDepth];
+const PARALLAX_LAYERS = [styles.artworkClip, styles.renderWindow];
+
+function setOnLayers(element: HTMLElement, classNames: string[], values: [string, string][]) {
+  for (const layer of element.children) {
+    if (!classNames.some((className) => layer.classList.contains(className))) continue;
+    for (const [name, value] of values) (layer as HTMLElement).style.setProperty(name, value);
+  }
+}
+
 export function applyCardMaterial(element: HTMLElement, x: number, y: number) {
   const distance = Math.min(1, Math.hypot(x - 0.5, y - 0.5) / Math.SQRT1_2);
   element.style.setProperty("--tilt-x", `${((0.5 - y) * 7).toFixed(2)}deg`);
   element.style.setProperty("--tilt-y", `${((x - 0.5) * 8).toFixed(2)}deg`);
-  element.style.setProperty("--pointer-x", `${(x * 100).toFixed(1)}%`);
-  element.style.setProperty("--pointer-y", `${(y * 100).toFixed(1)}%`);
-  element.style.setProperty("--pointer-left", x.toFixed(3));
-  element.style.setProperty("--pointer-top", y.toFixed(3));
-  element.style.setProperty("--pointer-distance", distance.toFixed(3));
-  element.style.setProperty("--foil-x", `${(50 + (x - 0.5) * 54).toFixed(1)}%`);
-  element.style.setProperty("--foil-y", `${(50 + (y - 0.5) * 46).toFixed(1)}%`);
-  element.style.setProperty("--foil-x-reverse", `${(50 - (x - 0.5) * 76).toFixed(1)}%`);
-  element.style.setProperty("--foil-y-reverse", `${(50 - (y - 0.5) * 64).toFixed(1)}%`);
-  element.style.setProperty("--foil-angle", `${(118 + (x - 0.5) * 18 - (y - 0.5) * 10).toFixed(1)}deg`);
+  setOnLayers(element, MATERIAL_LAYERS, [
+    ["--pointer-x", `${(x * 100).toFixed(1)}%`],
+    ["--pointer-y", `${(y * 100).toFixed(1)}%`],
+    ["--pointer-left", x.toFixed(3)],
+    ["--pointer-top", y.toFixed(3)],
+    ["--pointer-distance", distance.toFixed(3)],
+    ["--foil-x", `${(50 + (x - 0.5) * 54).toFixed(1)}%`],
+    ["--foil-y", `${(50 + (y - 0.5) * 46).toFixed(1)}%`],
+    ["--foil-x-reverse", `${(50 - (x - 0.5) * 76).toFixed(1)}%`],
+    ["--foil-y-reverse", `${(50 - (y - 0.5) * 64).toFixed(1)}%`],
+    ["--foil-angle", `${(118 + (x - 0.5) * 18 - (y - 0.5) * 10).toFixed(1)}deg`],
+  ]);
   if (element.dataset.affix === "parallax" || element.dataset.affix === "soulprojection") {
-    element.style.setProperty("--parallax-background-x", `${((0.5 - x) * 19.2).toFixed(3)}%`);
-    element.style.setProperty("--parallax-background-y", `${((0.38 - y) * 6.4).toFixed(3)}%`);
-    element.style.setProperty("--parallax-character-x", `${((x - 0.5) * 1.05).toFixed(3)}%`);
-    element.style.setProperty("--parallax-character-y", `${((y - 0.38) * 0.6).toFixed(3)}%`);
+    setOnLayers(element, PARALLAX_LAYERS, [
+      ["--parallax-background-x", `${((0.5 - x) * 19.2).toFixed(3)}%`],
+      ["--parallax-background-y", `${((0.38 - y) * 6.4).toFixed(3)}%`],
+      ["--parallax-character-x", `${((x - 0.5) * 1.05).toFixed(3)}%`],
+      ["--parallax-character-y", `${((y - 0.38) * 0.6).toFixed(3)}%`],
+    ]);
   }
 }
 
