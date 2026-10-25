@@ -3291,6 +3291,11 @@
   opacity: calc(var(--raid-idle-opacity) + 0.08);
   transition-property: opacity, filter;
 }
+/* While the shared idle clock (lib/ccg-idle-clock.ts) steps the loops, keep this large blended layer composited;
+   otherwise every clock tick would redraw it instead of moving it. */
+:global(html[data-ccg-idle-clock="true"]) .prototypeCard[data-raid-preview-finish="true"] .finishLayer {
+  will-change: transform, opacity;
+}
 
 .prototypeCard[data-raid-preview-finish="true"] .finishLayer::before,
 .prototypeCard[data-raid-preview-finish="true"] .finishLayer::after {

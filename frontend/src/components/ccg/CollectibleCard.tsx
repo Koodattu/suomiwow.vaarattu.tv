@@ -7,6 +7,7 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as Reac
 import type { CcgArtVariant, CcgCard } from "@/types";
 import { CCG_CLASS_COLORS, CCG_RARITY_KEYS, isWebmArtwork } from "@/lib/ccg";
 import { getCcgBackground } from "@/lib/ccg-backgrounds";
+import { registerIdleAnimationHost } from "@/lib/ccg-idle-clock";
 import { isCcgRaidPreviewFinish, type CcgPreviewAffix, type CcgPreviewFinish } from "@/lib/ccg-preview-finishes";
 import { formatRealmName, formatSpecName, getClassInfoById, getParseColor, getSpecIconUrl } from "@/lib/utils";
 import IconImage from "@/components/IconImage";
@@ -359,6 +360,12 @@ function CollectibleCard({
       delete element.dataset.effectsAutoPaused;
       if (wrapper) delete wrapper.dataset.effectsAutoPaused;
     };
+  }, []);
+
+  useEffect(() => {
+    const wrapper = cardRef.current?.parentElement;
+    if (!wrapper) return;
+    return registerIdleAnimationHost(wrapper);
   }, []);
 
   const clearTouchTiltTimer = () => {

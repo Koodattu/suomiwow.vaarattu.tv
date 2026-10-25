@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RefObject } from "react";
 import type { CcgCard, CcgSet } from "@/types";
 import CollectibleCard, { applyCardMaterial, resetCardMaterial } from "@/components/ccg/CollectibleCard";
+import { setIdleAnimationClockEnabled } from "@/lib/ccg-idle-clock";
 import {
   CCG_STUDIO_AFFIXES,
   CCG_STUDIO_DEVELOPMENT_FINISHES,
@@ -197,6 +199,77 @@ function loadBaseline(): LabResult[] {
   }
 }
 
+// Drives a container's idle CSS animations from one clock capped at `fps` instead of the display rate.
+// Transitions (hover, tilt) are left alone so pointer response stays at full rate.
+function useCappedIdleAnimations(container: RefObject<HTMLDivElement | null>, fps: number | null) {
+  useEffect(() => {
+    const root = container.current;
+    if (!root || !fps) return;
+    const interval = 1000 / fps;
+    const driven = new Set<Animation>();
+    let last = performance.now();
+    let frame = 0;
+    const adopt = () => {
+      for (const animation of root.getAnimations({ subtree: true })) {
+        if (!(animation instanceof CSSAnimation) || driven.has(animation) || animation.playState !== "running") continue;
+        animation.pause();
+        driven.add(animation);
+      }
+    };
+    const tick = (now: number) => {
+      if (now - last >= interval - 1.5) {
+        const elapsed = now - last;
+        last = now;
+        adopt();
+        for (const animation of driven) {
+          if (animation.playState === "idle") driven.delete(animation);
+          else animation.currentTime = Number(animation.currentTime ?? 0) + elapsed;
+        }
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    adopt();
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      driven.forEach((animation) => {
+        if (animation.playState === "paused") animation.play();
+      });
+    };
+  }, [container, fps]);
+}
+
+type RateGroupProps = {
+  label: string;
+  fps: number | null;
+  cards: CcgCard[];
+  finish: CcgPreviewFinish;
+  affix: CcgPreviewAffix;
+  width: number;
+  effectsPaused: boolean;
+};
+
+function RateGroup({ label, fps, cards, finish, affix, width, effectsPaused }: RateGroupProps) {
+  const groupRef = useRef<HTMLDivElement>(null);
+  useCappedIdleAnimations(groupRef, fps);
+  return (
+    <section className="flex min-w-0 flex-1 flex-col gap-2">
+      <h2 className="text-center text-sm font-semibold text-white">{label}</h2>
+      <div ref={groupRef} className="grid content-start justify-center gap-3" style={{ gridTemplateColumns: `repeat(auto-fill, ${width}px)` }}>
+        {cards.map((card) => (
+          <CollectibleCard key={card.id} card={card} finish={finish} affix={affix} width={width} effectsPaused={effectsPaused} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const RATE_GROUPS = [
+  { label: "Display rate (browser timing)", fps: null },
+  { label: "Idle capped at 60 fps", fps: 60 },
+  { label: "Idle capped at 30 fps", fps: 30 },
+] as const;
+
 export default function EffectsLab() {
   const [finish, setFinish] = useState<CcgPreviewFinish>("standard");
   const [affix, setAffix] = useState<CcgPreviewAffix>("none");
@@ -205,6 +278,8 @@ export default function EffectsLab() {
   const [width, setWidth] = useState<number>(LAYOUTS.grid.width);
   const [hover, setHover] = useState<HoverMode>("off");
   const [effectsPaused, setEffectsPaused] = useState(false);
+  const [compareRates, setCompareRates] = useState(false);
+  const [idleClock, setIdleClock] = useState(true);
   const [frozenAt, setFrozenAt] = useState<number | null>(null);
   const [freezeSeconds, setFreezeSeconds] = useState(2);
   const [stageKey, setStageKey] = useState(0);
@@ -232,6 +307,12 @@ export default function EffectsLab() {
     const frame = requestAnimationFrame(() => setBaseline(loadBaseline()));
     return () => cancelAnimationFrame(frame);
   }, []);
+
+  // The side-by-side comparison drives its own groups, so the shared clock steps aside while it is shown.
+  useEffect(() => {
+    setIdleAnimationClockEnabled(idleClock && !compareRates);
+    return () => setIdleAnimationClockEnabled(true);
+  }, [idleClock, compareRates]);
 
   useEffect(() => {
     hoverRef.current = hover;
@@ -464,6 +545,25 @@ export default function EffectsLab() {
             <input type="checkbox" checked={effectsPaused} disabled={busy} onChange={(event) => setEffectsPaused(event.target.checked)} />
             Pause CSS animations (same as offscreen cards)
           </label>
+          <label className="col-span-2 flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={compareRates}
+              disabled={busy}
+              onChange={(event) => {
+                setCompareRates(event.target.checked);
+                if (event.target.checked) {
+                  setCount(4);
+                  setWidth(240);
+                }
+              }}
+            />
+            Compare idle frame rates side by side (display / 60 / 30)
+          </label>
+          <label className="col-span-2 flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={idleClock && !compareRates} disabled={busy || compareRates} onChange={(event) => setIdleClock(event.target.checked)} />
+            Shared idle clock (production: caps idle loops near 60 fps on high-refresh displays)
+          </label>
         </section>
 
         <section className="flex flex-col gap-2 rounded-md border border-white/10 p-3">
@@ -575,16 +675,24 @@ export default function EffectsLab() {
       </aside>
 
       <main className="h-screen flex-1 overflow-hidden p-4">
-        <div
-          key={stageKey}
-          ref={stageRef}
-          className="grid content-start justify-center gap-3"
-          style={{ gridTemplateColumns: `repeat(auto-fill, ${width}px)` }}
-        >
-          {cards.map((card) => (
-            <CollectibleCard key={card.id} card={card} finish={finish} affix={affix} width={width} effectsPaused={effectsPaused} />
-          ))}
-        </div>
+        {compareRates ? (
+          <div key={stageKey} ref={stageRef} className="flex gap-6">
+            {RATE_GROUPS.map((group) => (
+              <RateGroup key={group.label} {...group} cards={cards} finish={finish} affix={affix} width={width} effectsPaused={effectsPaused} />
+            ))}
+          </div>
+        ) : (
+          <div
+            key={stageKey}
+            ref={stageRef}
+            className="grid content-start justify-center gap-3"
+            style={{ gridTemplateColumns: `repeat(auto-fill, ${width}px)` }}
+          >
+            {cards.map((card) => (
+              <CollectibleCard key={card.id} card={card} finish={finish} affix={affix} width={width} effectsPaused={effectsPaused} />
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );
