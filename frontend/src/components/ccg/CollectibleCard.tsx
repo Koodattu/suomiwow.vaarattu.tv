@@ -328,10 +328,16 @@ function CollectibleCard({
     const element = cardRef.current;
     if (!element) return;
 
+    // The wrapper carries the idle drift, so it pauses together with the card.
+    const wrapper = element.parentElement;
     let nearViewport = true;
     const syncPausedState = () => {
-      if (!nearViewport || document.hidden) element.dataset.effectsAutoPaused = "true";
-      else delete element.dataset.effectsAutoPaused;
+      const paused = !nearViewport || document.hidden;
+      for (const target of [element, wrapper]) {
+        if (!target) continue;
+        if (paused) target.dataset.effectsAutoPaused = "true";
+        else delete target.dataset.effectsAutoPaused;
+      }
     };
     const observer = typeof IntersectionObserver === "undefined"
       ? null
@@ -351,6 +357,7 @@ function CollectibleCard({
       observer?.disconnect();
       document.removeEventListener("visibilitychange", syncPausedState);
       delete element.dataset.effectsAutoPaused;
+      if (wrapper) delete wrapper.dataset.effectsAutoPaused;
     };
   }, []);
 
@@ -580,11 +587,12 @@ function CollectibleCard({
     </span>
   );
 
-  if (!onSelect) return <span className={`${styles.cardHost} ${className}`}>{cardNode}</span>;
+  if (!onSelect) return <span className={`${styles.cardHost} ${className}`} data-effects-paused={effectsPaused ? "true" : undefined}>{cardNode}</span>;
   return (
     <button
       type="button"
       className={`${styles.cardButton} ${className}`}
+      data-effects-paused={effectsPaused ? "true" : undefined}
       onClick={(event) => {
         if (Date.now() < suppressTouchClickUntil.current) {
           event.preventDefault();

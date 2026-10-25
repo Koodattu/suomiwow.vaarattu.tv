@@ -3732,7 +3732,8 @@
 
 .leaderboardCollectorCard:hover {
   filter: brightness(1.05) drop-shadow(0 28px 42px rgba(0, 0, 0, 0.42));
-  translate: 0 -3px;
+  /* transform, not translate: the card's idle drift animates translate on this wrapper. */
+  transform: translateY(-3px);
 }
 
 .leaderboardCollectorCard:active {
