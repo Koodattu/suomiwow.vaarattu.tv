@@ -50,6 +50,7 @@ const MULTI_FAN_ROW_STEP = 0.7;
 const MULTI_FAN_ARC_DEPTH = 0.12;
 const MULTI_FAN_ANGLE_STEP = 2.1;
 const MULTI_FAN_DEAL_STAGGER_MS = 32;
+const MULTI_REVEAL_STAGGER_MS = 45;
 const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
 const fanOffsets = [24, 5, 0, 5, 24];
 const dealOffsets = [
@@ -222,6 +223,7 @@ export default function CcgOpenPage() {
   const [isDesktopOpenAnotherReady, setIsDesktopOpenAnotherReady] = useState(false);
   const [isMobileRevealAllHolding, setIsMobileRevealAllHolding] = useState(false);
   const [isMobileAutoRevealing, setIsMobileAutoRevealing] = useState(false);
+  const [isRevealCascading, setIsRevealCascading] = useState(false);
   const [activeReveal, setActiveReveal] = useState<{ index: number; x: number; y: number } | null>(null);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [viewerOriginElement, setViewerOriginElement] = useState<HTMLElement | null>(null);
@@ -244,6 +246,7 @@ export default function CcgOpenPage() {
   const mobileSummaryTimerRef = useRef<number | null>(null);
   const mobileRevealAllHoldTimerRef = useRef<number | null>(null);
   const mobileAutoRevealTimersRef = useRef<number[]>([]);
+  const revealCascadeRef = useRef<{ timers: number[]; pending: Set<number>; revealCard: (index: number) => void } | null>(null);
   const mobileRevealAllPointerActiveRef = useRef(false);
   const desktopPackActionRef = useRef<HTMLButtonElement | null>(null);
   const skipNextDesktopCardAutofocusRef = useRef(false);
@@ -502,6 +505,7 @@ export default function CcgOpenPage() {
       if (mobileSummaryTimerRef.current !== null) window.clearTimeout(mobileSummaryTimerRef.current);
       if (mobileRevealAllHoldTimerRef.current !== null) window.clearTimeout(mobileRevealAllHoldTimerRef.current);
       mobileAutoRevealTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      revealCascadeRef.current?.timers.forEach((timer) => window.clearTimeout(timer));
       qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       quipSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       announcerSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -526,6 +530,9 @@ export default function CcgOpenPage() {
     const total = opening.results.length;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const revealImmediately = opening.id === revealedRecoveryIdRef.current;
+    revealCascadeRef.current?.timers.forEach((timer) => window.clearTimeout(timer));
+    revealCascadeRef.current = null;
+    setIsRevealCascading(false);
     qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     qualitySoundTimersRef.current = [];
     quipSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -711,6 +718,7 @@ export default function CcgOpenPage() {
       void document.exitFullscreen().catch(() => undefined);
     }
     clearMobileRevealAllTimers();
+    cancelRevealCascade();
     qualitySoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     qualitySoundTimersRef.current = [];
     quipSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -845,8 +853,31 @@ export default function CcgOpenPage() {
     setRevealedCards((current) => new Set(current).add(index));
   };
 
+  const finishRevealAll = () => {
+    if (!opening) return;
+    setRevealedCards(new Set(opening.results.map((_, index) => index)));
+    setMobileAdvancedCards(new Set(opening.results.map((_, index) => index)));
+    setMobileSummaryVisible(true);
+  };
+
+  const cancelRevealCascade = () => {
+    revealCascadeRef.current?.timers.forEach((timer) => window.clearTimeout(timer));
+    revealCascadeRef.current = null;
+    setIsRevealCascading(false);
+  };
+
   const revealAll = () => {
     if (!opening || revealPhase !== "ready") return;
+    const runningCascade = revealCascadeRef.current;
+    if (runningCascade) {
+      // Pressing again mid-cascade flips the rest at once; best-card audio still due plays now.
+      runningCascade.timers.forEach((timer) => window.clearTimeout(timer));
+      [...runningCascade.pending].forEach(runningCascade.revealCard);
+      revealCascadeRef.current = null;
+      setIsRevealCascading(false);
+      finishRevealAll();
+      return;
+    }
     setActiveReveal(null);
     playRandomPackSound(CCG_CARD_SLIDE_SOUNDS, 0.32);
     const prioritizedResults = opening.results
@@ -856,18 +887,43 @@ export default function CcgOpenPage() {
     const qualityResult = prioritizedResults.find(({ result }) => (
       hasCcgQualityRevealSound(result.finish, result.card.tierGrade, result.artVariant)
     ));
-    if (qualityResult) playQualitySoundAfterFlip(qualityResult.index);
     const voiceResult = prioritizedResults.find(({ result }) => (
       result.card.quip?.audioPath
         ? getCcgPlaybackVolume("quips", 0.9) > 0
         : getCcgPlaybackVolume("announcer", 0.78) > 0
           && getCcgAnnouncerSoundSequences(locale, result.finish, result.card.tierGrade, result.artVariant).length > 0
     ));
-    if (voiceResult?.result.card.quip?.audioPath) playQuipAfterFlip(voiceResult.index);
-    else if (voiceResult) playAnnouncerAfterFlip(voiceResult.index);
-    setRevealedCards(new Set(opening.results.map((_, index) => index)));
-    setMobileAdvancedCards(new Set(opening.results.map((_, index) => index)));
-    setMobileSummaryVisible(true);
+    // Only the best card speaks, whenever it flips.
+    const playBestCardAudio = (index: number) => {
+      if (index === qualityResult?.index) playQualitySoundAfterFlip(index);
+      if (index !== voiceResult?.index) return;
+      if (voiceResult.result.card.quip?.audioPath) playQuipAfterFlip(index);
+      else playAnnouncerAfterFlip(index);
+    };
+    const unrevealed = opening.results.map((_, index) => index).filter((index) => !revealedCards.has(index));
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (openingPackCount < 2 || reducedMotion || unrevealed.length < 2) {
+      unrevealed.forEach(playBestCardAudio);
+      finishRevealAll();
+      return;
+    }
+
+    // Multi-pack openings flip one card at a time in fan order instead of all at once.
+    const pending = new Set(unrevealed);
+    const revealCard = (index: number) => {
+      pending.delete(index);
+      playBestCardAudio(index);
+      setRevealedCards((current) => new Set(current).add(index));
+    };
+    const timers = unrevealed.map((index, position) => window.setTimeout(() => {
+      revealCard(index);
+      if (pending.size > 0) return;
+      revealCascadeRef.current = null;
+      setIsRevealCascading(false);
+      finishRevealAll();
+    }, position * MULTI_REVEAL_STAGGER_MS));
+    revealCascadeRef.current = { timers, pending, revealCard };
+    setIsRevealCascading(true);
   };
 
   const stopMobileRevealAll = () => {
@@ -1618,7 +1674,7 @@ export default function CcgOpenPage() {
                         ref={(element) => {
                           cardRefs.current[index] = element;
                         }}
-                        disabled={!dealt || revealPhase !== "ready" || isPackCycling || isMobileAutoRevealing
+                        disabled={!dealt || revealPhase !== "ready" || isPackCycling || isMobileAutoRevealing || isRevealCascading
                           || (isMobileRevealViewport && !packComplete && index !== mobileActiveCardIndex)}
                         onPointerDown={(event) => startMobileCardTilt(index, event)}
                         onPointerEnter={(event) => {
