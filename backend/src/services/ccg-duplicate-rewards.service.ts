@@ -87,7 +87,10 @@ class CcgDuplicateRewardsService {
     await this.ensure(ownerId, session);
     await Account.updateOne({ ownerId }, { $inc: { revision: 1 } }, { session });
     const pairs = [...new Map(results.map(row => [key(row), { setId: row.setId, characterId: row.characterId }])).values()];
-    const owned = pairs.length ? await CcgOwnership.find({ ownerType: "user", ownerId, $or: pairs, quantity: { $gt: 0 } }).session(session).lean() : [];
+    // The $type checks let Mongo use the partial owner-series index instead of scanning every collector's rows.
+    const owned = pairs.length ? await CcgOwnership.find({
+      ownerType: "user", ownerId, setId: { $type: "objectId" }, characterId: { $type: "objectId" }, $or: pairs, quantity: { $gt: 0 },
+    }).session(session).lean() : [];
     const sets = await CcgSet.find({ _id: { $in: pairs.map(pair => pair.setId) } }).session(session).lean();
     const cards = await CcgCard.find({ _id: { $in: results.map(row => row.cardId) } }).select("creatorFinish").session(session).lean();
     const setById = new Map(sets.map(set => [String(set._id), set]));

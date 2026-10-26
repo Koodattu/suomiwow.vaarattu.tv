@@ -593,6 +593,15 @@ function throwPackOpenTransactionError(error: unknown): never {
   throw error;
 }
 
+// Restates the partial owner-series index filter so Mongo uses that index instead of the
+// global characterId index, which would read every collector's rows for the character.
+function ownedSeriesFilter(series: { setId: mongoose.Types.ObjectId; characterId: mongoose.Types.ObjectId }) {
+  return {
+    setId: { $eq: series.setId, $type: "objectId" as const },
+    characterId: { $eq: series.characterId, $type: "objectId" as const },
+  };
+}
+
 function hashGuestToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -1849,7 +1858,14 @@ class CcgService {
     const seriesPairs = cards.map((card) => ({ setId: card.setId, characterId: card.characterId }));
     const [ownership, snapshotOwnership, ownedSeriesCount] = await Promise.all([
       seriesPairs.length > 0 && !missingSeriesOnly
-        ? CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, $or: seriesPairs }).lean()
+        ? CcgOwnership.find({
+          ownerType: owner.ownerType,
+          ownerId: owner.ownerId,
+          // Matches the partial owner-series index, like the pack-opening lookup.
+          setId: { $type: "objectId" },
+          characterId: { $type: "objectId" },
+          $or: seriesPairs,
+        }).lean()
         : Promise.resolve([]),
       seriesPairs.length > 0
         ? CcgSeriesOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, $or: seriesPairs })
@@ -1967,7 +1983,7 @@ class CcgService {
         setId: card.setId,
         characterId: card.characterId,
       }).select("unlockedSnapshotVersions").lean(),
-      CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, setId: card.setId, characterId: card.characterId })
+      CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, ...ownedSeriesFilter(card) })
         .select("finish quantity alternativeQuantity -_id")
         .lean(),
       this.loadAlternativeArt([card]),
@@ -2418,7 +2434,7 @@ class CcgService {
           }).select("unlockedSnapshotVersions").lean()
         : null,
       owner
-        ? CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, setId: card.setId, characterId: card.characterId })
+        ? CcgOwnership.find({ ownerType: owner.ownerType, ownerId: owner.ownerId, ...ownedSeriesFilter(card) })
             .select("finish quantity alternativeQuantity -_id")
             .lean()
         : [],
@@ -3353,7 +3369,7 @@ class CcgService {
     if (!card || !set) throw new CcgServiceError(500, "redemption_failed", "The card reward could not be recovered");
     const owner: CcgOwner = { ownerType: "user", ownerId: userId, dateKey: getHelsinkiDateKey() };
     const [ownership, alternativeByCollector, unlockedAlternativeSeries] = await Promise.all([
-      CcgOwnership.find({ ownerType: "user", ownerId: userId, setId: card.setId, characterId: card.characterId })
+      CcgOwnership.find({ ownerType: "user", ownerId: userId, ...ownedSeriesFilter(card) })
         .select("finish quantity alternativeQuantity -_id")
         .lean(),
       this.loadAlternativeArt([card]),
@@ -3556,6 +3572,9 @@ class CcgService {
     const ownershipRows = await CcgOwnership.find({
       ownerType: owner.ownerType,
       ownerId: owner.ownerId,
+      // Matches the partial owner-series index; without these the planner scans every collector's rows per character.
+      setId: { $type: "objectId" },
+      characterId: { $type: "objectId" },
       $or: seriesPairs,
     }).session(session).lean();
     const ownedFinishesBySeries = new Map<string, Set<CcgFinish>>();
