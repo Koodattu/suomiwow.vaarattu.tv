@@ -30,6 +30,7 @@ export interface ICcgPackOpening extends Document {
   allowanceSource: CcgAllowanceSource;
   creditId?: mongoose.Types.ObjectId | null;
   idempotencyKey: string;
+  batchId?: mongoose.Types.ObjectId | null;
   poolVersion: string;
   packRuleVersion: string;
   results: ICcgPackResult[];
@@ -74,6 +75,8 @@ const CcgPackOpeningSchema = new Schema<ICcgPackOpening>(
     allowanceSource: { type: String, enum: ["daily", "recharge", "credit"], required: true },
     creditId: { type: Schema.Types.ObjectId, ref: "CcgPackCredit", default: null },
     idempotencyKey: { type: String, required: true },
+    // Packs opened together share this ID; each pack is still its own opening record.
+    batchId: { type: Schema.Types.ObjectId, default: null },
     poolVersion: { type: String, required: true },
     packRuleVersion: { type: String, required: true },
     results: { type: [ResultSchema], required: true },
@@ -91,6 +94,10 @@ const CcgPackOpeningSchema = new Schema<ICcgPackOpening>(
 CcgPackOpeningSchema.index({ ownerType: 1, ownerId: 1, idempotencyKey: 1 }, { unique: true });
 CcgPackOpeningSchema.index({ ownerType: 1, ownerId: 1, createdAt: -1 });
 CcgPackOpeningSchema.index({ claimedByUserId: 1, createdAt: -1 });
+CcgPackOpeningSchema.index(
+  { batchId: 1, _id: 1 },
+  { partialFilterExpression: { batchId: { $type: "objectId" } } },
+);
 CcgPackOpeningSchema.index({ sourceSetIds: 1, createdAt: -1 });
 CcgPackOpeningSchema.index(
   { analyticsPending: 1, createdAt: 1 },

@@ -466,6 +466,22 @@ type CcgPackOpenState = {
   ownedCardsBySetDelta: Record<string, number>;
 };
 
+const CCG_PACK_BATCH_MAX = 5;
+
+type CcgPackOpenRequest = {
+  selectionType: CcgPackSelectionType;
+  targetSetId: mongoose.Types.ObjectId | null;
+  selectedSetIds?: mongoose.Types.ObjectId[];
+};
+
+type CcgCommittedPack = {
+  opening: ICcgPackOpening;
+  cards: ICcgCard[];
+  sets: ICcgSet[];
+  alternativeArt: Map<string, CcgAlternativeArtDefinition>;
+  cacheUpdates: CcgPackOpenState;
+};
+
 type CcgCompletedCardRewards = {
   total: number;
   rewardedSeriesKeys: Set<string>;
@@ -539,6 +555,42 @@ function validateIdempotencyKey(value: unknown): string {
     throw new CcgServiceError(400, "invalid_idempotency_key", "A valid idempotency key is required");
   }
   return value;
+}
+
+function validatePackBatchCount(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 2 || value > CCG_PACK_BATCH_MAX) {
+    throw new CcgServiceError(400, "invalid_pack_count", `Open between 2 and ${CCG_PACK_BATCH_MAX} packs at once`);
+  }
+  return value;
+}
+
+function parsePackOpenRequest(body: Record<string, unknown>): CcgPackOpenRequest {
+  const targetSetId = body.setId === undefined || body.setId === null || body.setId === ""
+    ? null
+    : validateObjectId(String(body.setId), "card set ID");
+  const selectionType: CcgPackSelectionType = body.type === "supporter" ? "supporter" : targetSetId ? "raid" : "all";
+  if (selectionType === "supporter" && (targetSetId || body.setIds !== undefined)) {
+    throw new CcgServiceError(400, "invalid_pack_sets", "Supporter packs cannot contain raid sets");
+  }
+  let selectedSetIds: mongoose.Types.ObjectId[] | undefined;
+  if (body.setIds !== undefined) {
+    if (targetSetId || !Array.isArray(body.setIds) || body.setIds.length === 0 || body.setIds.length > CCG_CONFIGURED_SETS.length) {
+      throw new CcgServiceError(400, "invalid_pack_sets", "Choose at least one available raid set");
+    }
+    selectedSetIds = Array.from(new Set(body.setIds.map((id) => String(validateObjectId(String(id), "card set ID")))))
+      .map((id) => new mongoose.Types.ObjectId(id));
+  }
+  return { selectionType, targetSetId, selectedSetIds };
+}
+
+function throwPackOpenTransactionError(error: unknown): never {
+  if (isTransactionUnsupported(error)) {
+    throw new CcgServiceError(503, "transactions_unavailable", "Pack opening is temporarily unavailable while collection storage is starting");
+  }
+  if (isMongoWriteConflict(error)) {
+    throw new CcgServiceError(503, "pack_open_busy", "Another pack opening is being completed. Try again");
+  }
+  throw error;
 }
 
 function hashGuestToken(token: string): string {
@@ -3331,21 +3383,7 @@ class CcgService {
   async openPack(req: Request, res: Response, body: Record<string, unknown>): Promise<Record<string, unknown>> {
     requireFeature();
     const owner = await this.resolveOwner(req, res);
-    const targetSetId = body.setId === undefined || body.setId === null || body.setId === ""
-      ? null
-      : validateObjectId(String(body.setId), "card set ID");
-    const selectionType: CcgPackSelectionType = body.type === "supporter" ? "supporter" : targetSetId ? "raid" : "all";
-    if (selectionType === "supporter" && (targetSetId || body.setIds !== undefined)) {
-      throw new CcgServiceError(400, "invalid_pack_sets", "Supporter packs cannot contain raid sets");
-    }
-    let selectedSetIds: mongoose.Types.ObjectId[] | undefined;
-    if (body.setIds !== undefined) {
-      if (targetSetId || !Array.isArray(body.setIds) || body.setIds.length === 0 || body.setIds.length > CCG_CONFIGURED_SETS.length) {
-        throw new CcgServiceError(400, "invalid_pack_sets", "Choose at least one available raid set");
-      }
-      selectedSetIds = Array.from(new Set(body.setIds.map((id) => String(validateObjectId(String(id), "card set ID")))))
-        .map((id) => new mongoose.Types.ObjectId(id));
-    }
+    const request = parsePackOpenRequest(body);
     const idempotencyKey = validateIdempotencyKey(body.idempotencyKey);
     const existing = await CcgPackOpening.findOne({ ownerType: owner.ownerType, ownerId: owner.ownerId, idempotencyKey }).lean();
     if (existing) {
@@ -3354,256 +3392,20 @@ class CcgService {
     }
     const session = await mongoose.startSession();
     let openingId: mongoose.Types.ObjectId | null = null;
-    let committedOpening: ICcgPackOpening | null = null;
-    let committedCards: ICcgCard[] = [];
-    let committedSets: ICcgSet[] = [];
-    let committedAlternativeArt = new Map<string, CcgAlternativeArtDefinition>();
-    let cacheUpdates: CcgPackOpenState | null = null;
+    let committed: CcgCommittedPack | null = null;
 
     try {
       await retryMongoWriteConflict(() => session.withTransaction(async () => {
         openingId = null;
-        committedOpening = null;
-        committedCards = [];
-        committedSets = [];
-        committedAlternativeArt = new Map();
-        cacheUpdates = null;
+        committed = null;
         const duplicateOpening = await CcgPackOpening.findOne({ ownerType: owner.ownerType, ownerId: owner.ownerId, idempotencyKey }).session(session);
         if (duplicateOpening) {
           openingId = duplicateOpening._id;
           return;
         }
-        const allowanceSource = await this.reservePack(owner, session);
-        const applyMissingCardProtection = targetSetId !== null;
-        const pool = selectionType === "supporter" ? await this.selectSupporterPackResults(session) : await this.selectPackResults(
-          session,
-          targetSetId,
-          true,
-          applyMissingCardProtection,
-          owner,
-          selectedSetIds,
-        );
-        const candidateSelections = pool.results;
-        const candidateIds = candidateSelections.flatMap((result) => [
-          result.cardId,
-          ...result.missingCardAlternatives.map((alternative) => alternative.cardId),
-        ]);
-        const candidateCards = await CcgCard.find({
-          _id: { $in: candidateIds },
-          setId: { $in: pool.sourceSetIds },
-        }).session(session).lean();
-        const sourceSets = await CcgSet.find({ _id: { $in: pool.sourceSetIds } })
-          .select(CCG_PUBLIC_SET_FIELDS)
-          .session(session)
-          .lean();
-        const setById = new Map(sourceSets.map((set) => [String(set._id), set]));
-        const candidateCardById = new Map(candidateCards.map((card) => [String(card._id), card]));
-        if (candidateCardById.size === 0) throw new CcgServiceError(409, "pool_unavailable", "This card set has no available cards");
-        const candidateSeriesPairs = Array.from(new Map(candidateCards.map((card) => [getSeriesKey(card), {
-          setId: card.setId,
-          characterId: card.characterId,
-        }])).values());
-        const seriesOwnershipRows = await CcgSeriesOwnership.find({
-          ownerType: owner.ownerType,
-          ownerId: owner.ownerId,
-          $or: candidateSeriesPairs,
-        }).select("setId characterId unlockedSnapshotVersions").session(session).lean();
-        const ownedSnapshotVersionsBySeries = new Map(
-          seriesOwnershipRows.map((row) => [getSeriesKey(row), new Set(row.unlockedSnapshotVersions)]),
-        );
-        const alreadyOwnedSeriesKeys = new Set(ownedSnapshotVersionsBySeries.keys());
-        const selectionOwnedSeriesKeys = new Set(alreadyOwnedSeriesKeys);
-        const selected = candidateSelections.map((selection) => {
-          const primary = candidateCardById.get(String(selection.cardId));
-          if (!primary) throw new CcgServiceError(409, "pool_invalid", "The pack pool changed while this pack was opening");
-          const missingCardAlternatives = selection.missingCardAlternatives.flatMap((alternative) => {
-            const card = candidateCardById.get(String(alternative.cardId));
-            return card ? [card] : [];
-          });
-          const card = resolveMissingCardNudge(
-            primary,
-            missingCardAlternatives,
-            (candidate) => selectionOwnedSeriesKeys.has(getSeriesKey(candidate)),
-          );
-          selectionOwnedSeriesKeys.add(getSeriesKey(card));
-          return { cardId: card._id, setId: card.setId, tierGrade: card.tierGrade };
-        });
-        const cards = selected.flatMap((result) => {
-          const card = candidateCardById.get(String(result.cardId));
-          return card ? [card] : [];
-        });
-        if (cards.length !== CCG_CARDS_PER_PACK) throw new CcgServiceError(409, "pool_invalid", "The pack pool is incomplete");
-        const cardById = new Map(cards.map((card) => [String(card._id), card]));
-        const seriesPairs = Array.from(new Map(cards.map((card) => [getSeriesKey(card), {
-          setId: card.setId,
-          characterId: card.characterId,
-        }])).values());
-        const ownershipRows = await CcgOwnership.find({
-          ownerType: owner.ownerType,
-          ownerId: owner.ownerId,
-          $or: seriesPairs,
-        }).session(session).lean();
-        const ownedFinishesBySeries = new Map<string, Set<CcgFinish>>();
-        for (const row of ownershipRows) {
-          const seriesKey = getSeriesKey(row);
-          const finishes = ownedFinishesBySeries.get(seriesKey) ?? new Set<CcgFinish>();
-          finishes.add(row.finish);
-          ownedFinishesBySeries.set(seriesKey, finishes);
-        }
-        const alternativeByCollector = await this.loadAlternativeArt(cards, session);
-        const qualityProgress = await this.ensureQualityProgress(owner, session);
-        let pity = this.readFinishPity(qualityProgress);
-        const results: SelectedResult[] = [];
-        const completedCardDuplicates: Array<Pick<SelectedResult, "cardId" | "setId" | "characterId"> & { resultIndex: number }> = [];
-        for (const result of selected) {
-          const card = cardById.get(String(result.cardId));
-          if (!card) continue;
-          const seriesKey = getSeriesKey(card);
-          const cardSet = setById.get(String(card.setId));
-          if (!cardSet) throw new CcgServiceError(409, "pool_invalid", "The pack references an unavailable card set");
-          const ownedFinishes = ownedFinishesBySeries.get(seriesKey) ?? new Set<CcgFinish>();
-          const isNewCard = !ownedSnapshotVersionsBySeries.has(seriesKey);
-          const ownedSnapshotVersions = ownedSnapshotVersionsBySeries.get(seriesKey) ?? new Set<number>();
-          const customFinish = cardSet.kind === "supporter" ? card.creatorFinish ?? null : cardSet.kind === "raid" ? cardSet.customFinish?.key ?? null : null;
-          const customPityKey = cardSet.kind === "supporter" ? `supporter-${customFinish}` : cardSet.slug;
-          const finishOrder = getCcgPackFinishOrder(cardSet.kind, customFinish);
-          const activePity: CcgFinishPity = { ...pity };
-          if (customFinish) activePity[customFinish] = this.readCustomFinishPity(qualityProgress, customPityKey);
-          const rolled = rollOwnedFinish(
-            activePity,
-            ownedFinishes,
-            randomInt,
-            finishOrder,
-            customFinish
-              ? { ...CCG_FINISH_PITY_LIMITS, [customFinish]: cardSet.kind === "supporter" ? CCG_CUSTOM_FINISH_HARD_PITY : cardSet.customFinish!.hardPity }
-              : CCG_FINISH_PITY_LIMITS,
-          );
-          const finish = rolled.finish;
-          const isNewFinish = !ownedFinishes.has(finish);
-          const isNewSnapshot = !ownedSnapshotVersions.has(card.snapshotVersion);
-          const alternativeArt = alternativeByCollector.get(resolveAlternativeArtKey(card));
-          const artVariant = rollArtVariant((hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))));
-          pity = this.readFinishPity(rolled.pity);
-          if (customFinish) this.writeCustomFinishPity(qualityProgress, customPityKey, rolled.pity[customFinish] ?? 0);
-          ownedFinishes.add(finish);
-          ownedFinishesBySeries.set(seriesKey, ownedFinishes);
-          ownedSnapshotVersions.add(card.snapshotVersion);
-          ownedSnapshotVersionsBySeries.set(seriesKey, ownedSnapshotVersions);
-          if (rolled.isCompletedCardDuplicate) {
-            completedCardDuplicates.push({
-              cardId: card._id,
-              setId: card.setId,
-              characterId: card.characterId,
-              resultIndex: results.length,
-            });
-          }
-          results.push({
-            cardId: card._id,
-            setId: card.setId,
-            characterId: card.characterId,
-            snapshotVersion: card.snapshotVersion,
-            finish,
-            artVariant,
-            tierGrade: card.tierGrade,
-            isDuplicate: rolled.isDuplicate,
-            isNewCard,
-            isNewFinish,
-            isNewSnapshot,
-          });
-        }
-        if (results.length !== CCG_CARDS_PER_PACK) throw new CcgServiceError(409, "pool_invalid", "The pack pool is incomplete");
-
-        openingId = new mongoose.Types.ObjectId();
-        const ownedCardsBySetDelta = this.getOwnedCardDeltas(cards, alreadyOwnedSeriesKeys);
-        this.writeFinishPity(qualityProgress, pity);
-        await qualityProgress.save({ session });
-        const milestoneRewards = await this.addOwnership(owner, results, session);
-        const completionRewards = owner.ownerType === "user"
-          ? await this.grantCompletedCardRewards(owner.ownerId, completedCardDuplicates, session)
-          : { total: 0, rewardedSeriesKeys: new Set<string>() };
-        const duplicateRewards = completionRewards.total + milestoneRewards.reduce((sum, reward) => sum + reward.packs, 0);
-        const pendingRewardSeriesKeys = new Set(completionRewards.rewardedSeriesKeys);
-        const rewardedResultIndexes = new Set<number>();
-        for (const candidate of completedCardDuplicates) {
-          if (pendingRewardSeriesKeys.delete(getSeriesKey(candidate))) rewardedResultIndexes.add(candidate.resultIndex);
-        }
-        const shuffledResults = shufflePackResults(results.map((result, index) => ({
-          ...result,
-          bonusPackReward: rewardedResultIndexes.has(index) || Boolean(milestoneRewards[index]?.packs),
-          duplicateMilestonePacks: milestoneRewards[index]?.packs ?? 0,
-          duplicateProgress: milestoneRewards[index]?.progress,
-        })));
-        const [opening] = await CcgPackOpening.create(
-          [
-            {
-              _id: openingId,
-              ownerType: owner.ownerType,
-              ownerId: owner.ownerId,
-              selectionType,
-              targetSetId,
-              selectedSetIds,
-              sourceSetIds: pool.sourceSetIds,
-              allowanceSource: allowanceSource.source,
-              creditId: allowanceSource.creditId ?? null,
-              idempotencyKey,
-              poolVersion: pool.version,
-              packRuleVersion: CCG_PACK_RULE_VERSION,
-              results: shuffledResults,
-              duplicateRewards,
-              state: "committed",
-              analyticsPending: true,
-              dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
-            },
-          ],
-          { session },
-        );
-        await CcgLedgerEntry.create(
-          [
-            {
-              ownerType: owner.ownerType,
-              ownerId: owner.ownerId,
-              action: "pack_open",
-              idempotencyKey: `pack:${idempotencyKey}`,
-              amount: -1,
-              metadata: {
-                openingId: String(openingId),
-                selectionType,
-                targetSetId: targetSetId ? String(targetSetId) : null,
-                setIds: Array.from(new Set(results.map((result) => String(result.setId)))),
-                allowanceSource: allowanceSource.source,
-              },
-              dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
-            },
-          ],
-          { session },
-        );
-        const creditBalance = await this.getPackCreditBalance(owner, session);
-        const qualityProtection = this.readFinishPity(qualityProgress);
-        const customQualityProtection = sourceSets
-          .filter((set) => set.customFinish?.key)
-          .map((set) => {
-            const counter = this.readCustomFinishPity(qualityProgress, set.slug);
-            return {
-              setSlug: set.slug,
-              counter,
-            };
-          });
-        for (const finish of new Set(cards.filter((card) => card.supporterCharacterId && card.creatorFinish).map((card) => card.creatorFinish!))) {
-          const setSlug = `supporter-${finish}`;
-          customQualityProtection.push({ setSlug, counter: this.readCustomFinishPity(qualityProgress, setSlug) });
-        }
-        cacheUpdates = {
-          packs: this.serializePackBalances(allowanceSource.balance, creditBalance),
-          qualityProtection,
-          customQualityProtection,
-          ownedFinishesDelta: results.filter((result) => result.isNewFinish).length,
-          ownedCardsBySetDelta,
-        };
-        committedOpening = opening;
-        committedCards = cards as ICcgCard[];
-        const resultSetIds = new Set(results.map((result) => String(result.setId)));
-        committedSets = sourceSets.filter((set) => resultSetIds.has(String(set._id))) as ICcgSet[];
-        committedAlternativeArt = alternativeByCollector;
+        const pack = await this.openPackInTransaction(owner, request, idempotencyKey, null, session);
+        committed = pack;
+        openingId = pack.opening._id;
       }), {
         maxAttempts: CCG_TRANSACTION_WRITE_CONFLICT_MAX_ATTEMPTS,
         onRetry: (_error, failedAttempt, delayMs) => {
@@ -3611,38 +3413,375 @@ class CcgService {
         },
       });
     } catch (error) {
-      if (isTransactionUnsupported(error)) {
-        throw new CcgServiceError(503, "transactions_unavailable", "Pack opening is temporarily unavailable while collection storage is starting");
-      }
-      if (isMongoWriteConflict(error)) {
-        throw new CcgServiceError(503, "pack_open_busy", "Another pack opening is being completed. Try again");
-      }
-      throw error;
+      throwPackOpenTransactionError(error);
     } finally {
       await session.endSession();
     }
 
     if (!openingId) throw new CcgServiceError(500, "opening_failed", "Pack opening did not complete");
     this.enqueuePackOpeningAnalytics(openingId);
-    if (committedOpening) {
-      return {
-        ...this.serializeOpeningFromEntities(
-          committedOpening,
-          committedCards,
-          committedSets,
-          committedAlternativeArt,
-        ),
-        ...(cacheUpdates ? { cacheUpdates } : {}),
-      };
-    }
+    const committedPack = committed as CcgCommittedPack | null;
+    if (committedPack) return this.serializeCommittedPack(committedPack);
     const opening = await CcgPackOpening.findById(openingId).lean();
     if (!opening) throw new CcgServiceError(500, "opening_failed", "Pack opening could not be recovered");
     return this.serializeOpening(opening);
   }
 
+  /**
+   * Opens several packs in one transaction: either every pack opens or none do.
+   * Each pack is still a normal opening record (key `<batch key>:<n>`) sharing a batch ID,
+   * so activity, analytics, sharing and guest claims keep treating them as single packs.
+   */
+  async openPackBatch(req: Request, res: Response, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+    requireFeature();
+    const owner = await this.resolveOwner(req, res);
+    const request = parsePackOpenRequest(body);
+    const count = validatePackBatchCount(body.count);
+    const batchKey = validateIdempotencyKey(body.idempotencyKey);
+    const packKeys = Array.from({ length: count }, (_, index) => validateIdempotencyKey(`${batchKey}:${index + 1}`));
+    const existing = await this.findPackBatchReplay(owner, packKeys);
+    if (existing) return this.serializePackBatchReplay(existing);
+    const session = await mongoose.startSession();
+    let replayed: ICcgPackOpening[] | null = null;
+    let committed: CcgCommittedPack[] = [];
+
+    try {
+      await retryMongoWriteConflict(() => session.withTransaction(async () => {
+        replayed = null;
+        committed = [];
+        const duplicateBatch = await this.findPackBatchReplay(owner, packKeys, session);
+        if (duplicateBatch) {
+          replayed = duplicateBatch;
+          return;
+        }
+        const batchId = new mongoose.Types.ObjectId();
+        for (const idempotencyKey of packKeys) {
+          committed.push(await this.openPackInTransaction(owner, request, idempotencyKey, batchId, session));
+        }
+      }), {
+        maxAttempts: CCG_TRANSACTION_WRITE_CONFLICT_MAX_ATTEMPTS,
+        onRetry: (_error, failedAttempt, delayMs) => {
+          logger.warn(`[CCG] Pack batch opening hit a MongoDB write conflict; retrying transaction in ${delayMs}ms (attempt ${failedAttempt + 1}/${CCG_TRANSACTION_WRITE_CONFLICT_MAX_ATTEMPTS})`);
+        },
+      });
+    } catch (error) {
+      throwPackOpenTransactionError(error);
+    } finally {
+      await session.endSession();
+    }
+
+    const replayedBatch = replayed as ICcgPackOpening[] | null;
+    if (replayedBatch) return this.serializePackBatchReplay(replayedBatch);
+    if (committed.length !== count) throw new CcgServiceError(500, "opening_failed", "Pack opening did not complete");
+    for (const pack of committed) this.enqueuePackOpeningAnalytics(pack.opening._id);
+    return {
+      batchId: String(committed[0].opening.batchId),
+      openings: committed.map((pack) => this.serializeCommittedPack(pack)),
+    };
+  }
+
+  private async openPackInTransaction(
+    owner: CcgOwner,
+    request: CcgPackOpenRequest,
+    idempotencyKey: string,
+    batchId: mongoose.Types.ObjectId | null,
+    session: ClientSession,
+  ): Promise<CcgCommittedPack> {
+    const { selectionType, targetSetId, selectedSetIds } = request;
+    const allowanceSource = await this.reservePack(owner, session);
+    const applyMissingCardProtection = targetSetId !== null;
+    const pool = selectionType === "supporter" ? await this.selectSupporterPackResults(session) : await this.selectPackResults(
+      session,
+      targetSetId,
+      true,
+      applyMissingCardProtection,
+      owner,
+      selectedSetIds,
+    );
+    const candidateSelections = pool.results;
+    const candidateIds = candidateSelections.flatMap((result) => [
+      result.cardId,
+      ...result.missingCardAlternatives.map((alternative) => alternative.cardId),
+    ]);
+    const candidateCards = await CcgCard.find({
+      _id: { $in: candidateIds },
+      setId: { $in: pool.sourceSetIds },
+    }).session(session).lean();
+    const sourceSets = await CcgSet.find({ _id: { $in: pool.sourceSetIds } })
+      .select(CCG_PUBLIC_SET_FIELDS)
+      .session(session)
+      .lean();
+    const setById = new Map(sourceSets.map((set) => [String(set._id), set]));
+    const candidateCardById = new Map(candidateCards.map((card) => [String(card._id), card]));
+    if (candidateCardById.size === 0) throw new CcgServiceError(409, "pool_unavailable", "This card set has no available cards");
+    const candidateSeriesPairs = Array.from(new Map(candidateCards.map((card) => [getSeriesKey(card), {
+      setId: card.setId,
+      characterId: card.characterId,
+    }])).values());
+    const seriesOwnershipRows = await CcgSeriesOwnership.find({
+      ownerType: owner.ownerType,
+      ownerId: owner.ownerId,
+      $or: candidateSeriesPairs,
+    }).select("setId characterId unlockedSnapshotVersions").session(session).lean();
+    const ownedSnapshotVersionsBySeries = new Map(
+      seriesOwnershipRows.map((row) => [getSeriesKey(row), new Set(row.unlockedSnapshotVersions)]),
+    );
+    const alreadyOwnedSeriesKeys = new Set(ownedSnapshotVersionsBySeries.keys());
+    const selectionOwnedSeriesKeys = new Set(alreadyOwnedSeriesKeys);
+    const selected = candidateSelections.map((selection) => {
+      const primary = candidateCardById.get(String(selection.cardId));
+      if (!primary) throw new CcgServiceError(409, "pool_invalid", "The pack pool changed while this pack was opening");
+      const missingCardAlternatives = selection.missingCardAlternatives.flatMap((alternative) => {
+        const card = candidateCardById.get(String(alternative.cardId));
+        return card ? [card] : [];
+      });
+      const card = resolveMissingCardNudge(
+        primary,
+        missingCardAlternatives,
+        (candidate) => selectionOwnedSeriesKeys.has(getSeriesKey(candidate)),
+      );
+      selectionOwnedSeriesKeys.add(getSeriesKey(card));
+      return { cardId: card._id, setId: card.setId, tierGrade: card.tierGrade };
+    });
+    const cards = selected.flatMap((result) => {
+      const card = candidateCardById.get(String(result.cardId));
+      return card ? [card] : [];
+    });
+    if (cards.length !== CCG_CARDS_PER_PACK) throw new CcgServiceError(409, "pool_invalid", "The pack pool is incomplete");
+    const cardById = new Map(cards.map((card) => [String(card._id), card]));
+    const seriesPairs = Array.from(new Map(cards.map((card) => [getSeriesKey(card), {
+      setId: card.setId,
+      characterId: card.characterId,
+    }])).values());
+    const ownershipRows = await CcgOwnership.find({
+      ownerType: owner.ownerType,
+      ownerId: owner.ownerId,
+      $or: seriesPairs,
+    }).session(session).lean();
+    const ownedFinishesBySeries = new Map<string, Set<CcgFinish>>();
+    for (const row of ownershipRows) {
+      const seriesKey = getSeriesKey(row);
+      const finishes = ownedFinishesBySeries.get(seriesKey) ?? new Set<CcgFinish>();
+      finishes.add(row.finish);
+      ownedFinishesBySeries.set(seriesKey, finishes);
+    }
+    const alternativeByCollector = await this.loadAlternativeArt(cards, session);
+    const qualityProgress = await this.ensureQualityProgress(owner, session);
+    let pity = this.readFinishPity(qualityProgress);
+    const results: SelectedResult[] = [];
+    const completedCardDuplicates: Array<Pick<SelectedResult, "cardId" | "setId" | "characterId"> & { resultIndex: number }> = [];
+    for (const result of selected) {
+      const card = cardById.get(String(result.cardId));
+      if (!card) continue;
+      const seriesKey = getSeriesKey(card);
+      const cardSet = setById.get(String(card.setId));
+      if (!cardSet) throw new CcgServiceError(409, "pool_invalid", "The pack references an unavailable card set");
+      const ownedFinishes = ownedFinishesBySeries.get(seriesKey) ?? new Set<CcgFinish>();
+      const isNewCard = !ownedSnapshotVersionsBySeries.has(seriesKey);
+      const ownedSnapshotVersions = ownedSnapshotVersionsBySeries.get(seriesKey) ?? new Set<number>();
+      const customFinish = cardSet.kind === "supporter" ? card.creatorFinish ?? null : cardSet.kind === "raid" ? cardSet.customFinish?.key ?? null : null;
+      const customPityKey = cardSet.kind === "supporter" ? `supporter-${customFinish}` : cardSet.slug;
+      const finishOrder = getCcgPackFinishOrder(cardSet.kind, customFinish);
+      const activePity: CcgFinishPity = { ...pity };
+      if (customFinish) activePity[customFinish] = this.readCustomFinishPity(qualityProgress, customPityKey);
+      const rolled = rollOwnedFinish(
+        activePity,
+        ownedFinishes,
+        randomInt,
+        finishOrder,
+        customFinish
+          ? { ...CCG_FINISH_PITY_LIMITS, [customFinish]: cardSet.kind === "supporter" ? CCG_CUSTOM_FINISH_HARD_PITY : cardSet.customFinish!.hardPity }
+          : CCG_FINISH_PITY_LIMITS,
+      );
+      const finish = rolled.finish;
+      const isNewFinish = !ownedFinishes.has(finish);
+      const isNewSnapshot = !ownedSnapshotVersions.has(card.snapshotVersion);
+      const alternativeArt = alternativeByCollector.get(resolveAlternativeArtKey(card));
+      const artVariant = rollArtVariant((hasApplicableAlternativeArt(alternativeArt, Boolean(card.communityCharacterId))));
+      pity = this.readFinishPity(rolled.pity);
+      if (customFinish) this.writeCustomFinishPity(qualityProgress, customPityKey, rolled.pity[customFinish] ?? 0);
+      ownedFinishes.add(finish);
+      ownedFinishesBySeries.set(seriesKey, ownedFinishes);
+      ownedSnapshotVersions.add(card.snapshotVersion);
+      ownedSnapshotVersionsBySeries.set(seriesKey, ownedSnapshotVersions);
+      if (rolled.isCompletedCardDuplicate) {
+        completedCardDuplicates.push({
+          cardId: card._id,
+          setId: card.setId,
+          characterId: card.characterId,
+          resultIndex: results.length,
+        });
+      }
+      results.push({
+        cardId: card._id,
+        setId: card.setId,
+        characterId: card.characterId,
+        snapshotVersion: card.snapshotVersion,
+        finish,
+        artVariant,
+        tierGrade: card.tierGrade,
+        isDuplicate: rolled.isDuplicate,
+        isNewCard,
+        isNewFinish,
+        isNewSnapshot,
+      });
+    }
+    if (results.length !== CCG_CARDS_PER_PACK) throw new CcgServiceError(409, "pool_invalid", "The pack pool is incomplete");
+
+    const openingId = new mongoose.Types.ObjectId();
+    const ownedCardsBySetDelta = this.getOwnedCardDeltas(cards, alreadyOwnedSeriesKeys);
+    this.writeFinishPity(qualityProgress, pity);
+    await qualityProgress.save({ session });
+    const milestoneRewards = await this.addOwnership(owner, results, session);
+    const completionRewards = owner.ownerType === "user"
+      ? await this.grantCompletedCardRewards(owner.ownerId, completedCardDuplicates, session)
+      : { total: 0, rewardedSeriesKeys: new Set<string>() };
+    const duplicateRewards = completionRewards.total + milestoneRewards.reduce((sum, reward) => sum + reward.packs, 0);
+    const pendingRewardSeriesKeys = new Set(completionRewards.rewardedSeriesKeys);
+    const rewardedResultIndexes = new Set<number>();
+    for (const candidate of completedCardDuplicates) {
+      if (pendingRewardSeriesKeys.delete(getSeriesKey(candidate))) rewardedResultIndexes.add(candidate.resultIndex);
+    }
+    const shuffledResults = shufflePackResults(results.map((result, index) => ({
+      ...result,
+      bonusPackReward: rewardedResultIndexes.has(index) || Boolean(milestoneRewards[index]?.packs),
+      duplicateMilestonePacks: milestoneRewards[index]?.packs ?? 0,
+      duplicateProgress: milestoneRewards[index]?.progress,
+    })));
+    const [opening] = await CcgPackOpening.create(
+      [
+        {
+          _id: openingId,
+          ownerType: owner.ownerType,
+          ownerId: owner.ownerId,
+          selectionType,
+          targetSetId,
+          selectedSetIds,
+          sourceSetIds: pool.sourceSetIds,
+          allowanceSource: allowanceSource.source,
+          creditId: allowanceSource.creditId ?? null,
+          idempotencyKey,
+          batchId,
+          poolVersion: pool.version,
+          packRuleVersion: CCG_PACK_RULE_VERSION,
+          results: shuffledResults,
+          duplicateRewards,
+          state: "committed",
+          analyticsPending: true,
+          dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
+        },
+      ],
+      { session },
+    );
+    await CcgLedgerEntry.create(
+      [
+        {
+          ownerType: owner.ownerType,
+          ownerId: owner.ownerId,
+          action: "pack_open",
+          idempotencyKey: `pack:${idempotencyKey}`,
+          amount: -1,
+          metadata: {
+            openingId: String(openingId),
+            selectionType,
+            targetSetId: targetSetId ? String(targetSetId) : null,
+            setIds: Array.from(new Set(results.map((result) => String(result.setId)))),
+            allowanceSource: allowanceSource.source,
+          },
+          dateKey: owner.ownerType === "guest" ? owner.dateKey : null,
+        },
+      ],
+      { session },
+    );
+    const creditBalance = await this.getPackCreditBalance(owner, session);
+    const qualityProtection = this.readFinishPity(qualityProgress);
+    const customQualityProtection = sourceSets
+      .filter((set) => set.customFinish?.key)
+      .map((set) => {
+        const counter = this.readCustomFinishPity(qualityProgress, set.slug);
+        return {
+          setSlug: set.slug,
+          counter,
+        };
+      });
+    for (const finish of new Set(cards.filter((card) => card.supporterCharacterId && card.creatorFinish).map((card) => card.creatorFinish!))) {
+      const setSlug = `supporter-${finish}`;
+      customQualityProtection.push({ setSlug, counter: this.readCustomFinishPity(qualityProgress, setSlug) });
+    }
+    const cacheUpdates: CcgPackOpenState = {
+      packs: this.serializePackBalances(allowanceSource.balance, creditBalance),
+      qualityProtection,
+      customQualityProtection,
+      ownedFinishesDelta: results.filter((result) => result.isNewFinish).length,
+      ownedCardsBySetDelta,
+    };
+    const resultSetIds = new Set(results.map((result) => String(result.setId)));
+    return {
+      opening,
+      cards: cards as ICcgCard[],
+      sets: sourceSets.filter((set) => resultSetIds.has(String(set._id))) as ICcgSet[],
+      alternativeArt: alternativeByCollector,
+      cacheUpdates,
+    };
+  }
+
+  private serializeCommittedPack(pack: CcgCommittedPack): Record<string, unknown> {
+    return {
+      ...this.serializeOpeningFromEntities(pack.opening, pack.cards, pack.sets, pack.alternativeArt),
+      cacheUpdates: pack.cacheUpdates,
+    };
+  }
+
+  /** Returns a batch that already opened under these keys, or null when none of them were used. */
+  private async findPackBatchReplay(
+    owner: CcgOwner,
+    packKeys: string[],
+    session?: ClientSession,
+  ): Promise<ICcgPackOpening[] | null> {
+    const openings = await CcgPackOpening.find({
+      ownerType: owner.ownerType,
+      ownerId: owner.ownerId,
+      idempotencyKey: { $in: packKeys },
+    }).session(session ?? null).lean<ICcgPackOpening[]>();
+    if (openings.length === 0) return null;
+    const batchIds = new Set(openings.map((opening) => (opening.batchId ? String(opening.batchId) : null)));
+    if (openings.length !== packKeys.length || batchIds.size !== 1 || batchIds.has(null)) {
+      throw new CcgServiceError(409, "idempotency_conflict", "This pack request was already used for a different opening");
+    }
+    const order = new Map(packKeys.map((key, index) => [key, index]));
+    return openings.sort((left, right) => (order.get(left.idempotencyKey) ?? 0) - (order.get(right.idempotencyKey) ?? 0));
+  }
+
+  private async serializePackBatchReplay(openings: ICcgPackOpening[]): Promise<Record<string, unknown>> {
+    for (const opening of openings) this.enqueuePackOpeningAnalytics(opening._id);
+    return {
+      batchId: String(openings[0].batchId),
+      openings: await Promise.all(openings.map((opening) => this.serializeOpening(opening))),
+    };
+  }
+
+
   async getOpening(owner: CcgOwner, openingId: string): Promise<Record<string, unknown>> {
     const id = validateObjectId(openingId, "opening ID");
-    const ownershipFilter: mongoose.QueryFilter<ICcgPackOpening> = owner.ownerType === "user"
+    const opening = await CcgPackOpening.findOne({ _id: id, ...this.getOpeningOwnershipFilter(owner) }).lean();
+    if (!opening) throw new CcgServiceError(404, "opening_not_found", "Pack opening not found");
+    return this.serializeOpening(opening);
+  }
+
+  async getOpeningBatch(owner: CcgOwner, batchId: string): Promise<Record<string, unknown>> {
+    const id = validateObjectId(batchId, "opening batch ID");
+    const openings = await CcgPackOpening.find({ batchId: id, ...this.getOpeningOwnershipFilter(owner) })
+      .sort({ _id: 1 })
+      .lean<ICcgPackOpening[]>();
+    if (openings.length === 0) throw new CcgServiceError(404, "opening_not_found", "Pack opening not found");
+    return {
+      batchId: String(id),
+      openings: await Promise.all(openings.map((opening) => this.serializeOpening(opening))),
+    };
+  }
+
+  private getOpeningOwnershipFilter(owner: CcgOwner): mongoose.QueryFilter<ICcgPackOpening> {
+    return owner.ownerType === "user"
       ? {
           $or: [
             { ownerType: "user", ownerId: owner.ownerId },
@@ -3650,9 +3789,6 @@ class CcgService {
           ],
         }
       : { ownerType: "guest", ownerId: owner.ownerId };
-    const opening = await CcgPackOpening.findOne({ _id: id, ...ownershipFilter }).lean();
-    if (!opening) throw new CcgServiceError(404, "opening_not_found", "Pack opening not found");
-    return this.serializeOpening(opening);
   }
 
   async claimGuest(req: Request, body: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -5273,6 +5409,7 @@ class CcgService {
     );
     return {
       id: String(opening._id),
+      ...(opening.batchId ? { batchId: String(opening.batchId) } : {}),
       selection: selectionType === "supporter" ? { type: "supporter" } : selectionType === "raid" && selectionSetId
         ? { type: "raid", setId: String(selectionSetId) }
         : { type: "all", ...(opening.selectedSetIds?.length ? { setIds: opening.selectedSetIds.map(String) } : {}) },

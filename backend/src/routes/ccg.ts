@@ -338,9 +338,24 @@ router.post(
 );
 
 router.post(
+  "/packs/open-batch",
+  rateLimit(15, 60_000, ownerRateLimitKey),
+  asyncRoute(async (req, res) => ccgService.openPackBatch(req, res, req.body ?? {})),
+);
+
+router.post(
   "/redeem",
   rateLimit(10, 60_000),
   asyncRoute(async (req) => ccgService.redeemCode(req, req.body ?? {})),
+);
+
+router.get(
+  "/openings/batch/:batchId",
+  rateLimit(60, 60_000),
+  asyncRoute(async (req, res) => {
+    const owner = await ccgService.resolveOwner(req, res);
+    return ccgService.getOpeningBatch(owner, req.params.batchId);
+  }),
 );
 
 router.get(

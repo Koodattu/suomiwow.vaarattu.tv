@@ -2474,6 +2474,8 @@ export type CcgRedeemResult = {
 
 export type CcgOpening = {
   id: string;
+  /** Set when this pack was opened together with others in one batch. */
+  batchId?: string;
   selection: CcgPackSelection;
   sets: CcgSet[];
   allowanceSource: "daily" | "recharge" | "credit";
@@ -2499,6 +2501,11 @@ export type CcgOpening = {
     ownedFinishesDelta: number;
     ownedCardsBySetDelta: Record<string, number>;
   };
+};
+
+export type CcgOpeningBatch = {
+  batchId: string;
+  openings: CcgOpening[];
 };
 
 export type CcgShareLink = {

@@ -129,6 +129,7 @@ export const queryKeys = {
     characterSearch: (search: string) => ["ccg", "characterSearch", search] as const,
     collection: (options: Record<string, unknown>) => ["ccg", "collection", options] as const,
     opening: (openingId: string) => ["ccg", "opening", openingId] as const,
+    openingBatch: (batchId: string) => ["ccg", "openingBatch", batchId] as const,
     activity: (filter: CcgActivityFilter) => ["ccg", "activity", 6, filter] as const,
     characterCheck: (name: string, realm: string) => ["ccg", "characterCheck", name, realm] as const,
   },
@@ -656,6 +657,15 @@ export function useCcgOpening(openingId: string, enabled = true) {
     queryKey: queryKeys.ccg.opening(openingId),
     queryFn: () => api.getCcgOpening(openingId),
     enabled: enabled && Boolean(openingId),
+    staleTime: Infinity,
+  });
+}
+
+export function useCcgOpeningBatch(batchId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.ccg.openingBatch(batchId),
+    queryFn: () => api.getCcgOpeningBatch(batchId),
+    enabled: enabled && Boolean(batchId),
     staleTime: Infinity,
   });
 }

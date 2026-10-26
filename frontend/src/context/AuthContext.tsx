@@ -99,6 +99,7 @@ function clearPendingCcgClaim(): void {
 function removeOpeningFromInternalPath(path: string): string {
   const url = new URL(path, window.location.origin);
   url.searchParams.delete("opening");
+  url.searchParams.delete("batch");
   return `${url.pathname}${url.search}${url.hash}`;
 }
 

@@ -305,6 +305,13 @@
   --metal-dark: #090d13;
   --card-width: 400px;
   --card-cqw: 4px;
+  /*
+   * Edge geometry is tuned for ~332px cards, where it lines up with the scaled frame artwork.
+   * Smaller cards shrink it with the frame instead of keeping fixed sizes that leave unfinished edges.
+   */
+  --card-edge-radius: min(0.8rem, calc(var(--card-cqw) * 3.86));
+  --card-effect-inset: min(4px, calc(var(--card-cqw) * 1.2));
+  --card-art-radius: min(0.46rem, calc(var(--card-cqw) * 2.2));
   --tilt-x: 0deg;
   --tilt-y: 0deg;
   --pointer-x: 50%;
@@ -331,7 +338,7 @@
   margin: -5px;
   overflow: hidden;
   border: 5px solid transparent;
-  border-radius: calc(0.8rem + 5px);
+  border-radius: calc(var(--card-edge-radius) + 5px);
   background: #05080d;
   background-clip: padding-box;
   transform: perspective(1200px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
@@ -344,7 +351,7 @@
 .prototypeCard::before {
   position: absolute;
   inset: 5px;
-  border-radius: 0.8rem;
+  border-radius: var(--card-edge-radius);
   box-shadow:
     0 8px 8px -5px rgba(0, 0, 0, 0.64),
     0 0 6px -5px color-mix(in srgb, var(--lab-glow) 58%, transparent);
@@ -678,7 +685,7 @@
   z-index: -4;
   inset: 2.2%;
   overflow: hidden;
-  border-radius: 0.46rem;
+  border-radius: var(--card-art-radius);
 }
 
 .raidArt,
@@ -1090,7 +1097,7 @@
   z-index: 1;
   inset: 2.2%;
   overflow: hidden;
-  border-radius: 0.46rem;
+  border-radius: var(--card-art-radius);
   background:
     radial-gradient(circle at 17% 23%, rgba(235, 252, 255, 0.92) 0 0.45px, rgba(101, 218, 255, 0.28) 0.9px, transparent 1.5px),
     radial-gradient(circle at 76% 64%, rgba(255, 247, 255, 0.88) 0 0.55px, rgba(203, 145, 255, 0.24) 1px, transparent 1.75px),
@@ -1549,7 +1556,7 @@
 .materialLight {
   overflow: hidden;
   border-radius: inherit;
-  clip-path: inset(4px round calc(0.8rem - 4px));
+  clip-path: inset(var(--card-effect-inset) round calc(var(--card-edge-radius) - var(--card-effect-inset)));
   pointer-events: none;
 }
 .affixLayer {

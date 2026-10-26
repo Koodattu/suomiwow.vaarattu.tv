@@ -23,7 +23,7 @@ import {
 } from "@/lib/ccg-audio";
 import { CCG_CARD_SLIDE_SOUNDS, getCcgQualityRevealSoundFile, hasCcgQualityRevealSound } from "@/lib/ccg-reveal-audio";
 import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
-import { queryKeys, useCcgOpening, useCcgSession, useCcgSets, usePickemCcgOpportunity } from "@/lib/queries";
+import { queryKeys, useCcgOpening, useCcgOpeningBatch, useCcgSession, useCcgSets, usePickemCcgOpportunity } from "@/lib/queries";
 import IconImage from "@/components/IconImage";
 import CcgShell from "@/components/ccg/CcgShell";
 import PackBalance from "@/components/ccg/PackBalance";
@@ -41,8 +41,15 @@ const CcgPackSetPicker = dynamic(() => import("@/components/ccg/CcgPackSetPicker
 
 type RevealPhase = "idle" | "holding" | "tearing" | "dealing" | "ready";
 type PackSelection = { type?: "supporter"; setId?: string; setIds?: string[] };
-type PackRequest = PackSelection & { idempotencyKey: string };
+type PackRequest = PackSelection & { idempotencyKey: string; count: number };
 
+const MULTI_PACK_COUNT = 5;
+// Multi-pack fan geometry, in card widths (x) and card heights (y).
+const MULTI_FAN_COLUMN_STEP = 0.68;
+const MULTI_FAN_ROW_STEP = 0.7;
+const MULTI_FAN_ARC_DEPTH = 0.12;
+const MULTI_FAN_ANGLE_STEP = 2.1;
+const MULTI_FAN_DEAL_STAGGER_MS = 32;
 const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
 const fanOffsets = [24, 5, 0, 5, 24];
 const dealOffsets = [
@@ -87,6 +94,63 @@ function randomIndex(length: number): number {
   const value = new Uint32Array(1);
   window.crypto.getRandomValues(value);
   return value[0] % length;
+}
+
+// Several packs open as separate server openings; the reveal treats them as one opening keyed by the last pack.
+function combineOpenings(openings: CcgOpening[]): CcgOpening {
+  if (openings.length === 1) return openings[0];
+  const last = openings[openings.length - 1];
+  const setsById = new Map(openings.flatMap((opening) => opening.sets).map((set) => [set.id, set]));
+  const allHaveCacheUpdates = openings.every((opening) => opening.cacheUpdates);
+  const ownedCardsBySetDelta: Record<string, number> = {};
+  for (const opening of openings) {
+    for (const [setId, delta] of Object.entries(opening.cacheUpdates?.ownedCardsBySetDelta ?? {})) {
+      ownedCardsBySetDelta[setId] = (ownedCardsBySetDelta[setId] ?? 0) + delta;
+    }
+  }
+  let position = 0;
+  return {
+    ...last,
+    sets: [...setsById.values()],
+    duplicateRewards: openings.reduce((total, opening) => total + opening.duplicateRewards, 0),
+    results: openings.flatMap((opening) => opening.results.map((result) => ({ ...result, position: position++ }))),
+    cacheUpdates: allHaveCacheUpdates && last.cacheUpdates
+      ? {
+        ...last.cacheUpdates,
+        ownedFinishesDelta: openings.reduce((total, opening) => total + (opening.cacheUpdates?.ownedFinishesDelta ?? 0), 0),
+        ownedCardsBySetDelta,
+      }
+      : undefined,
+  };
+}
+
+// Lays the cards out as overlapping fanned rows, each later row covering the bottom of the one above.
+function getMultiFanLayout(total: number) {
+  const rows = total > 12 ? 2 : 1;
+  const perRow = Math.ceil(total / rows);
+  const heightUnits = (rows - 1) * MULTI_FAN_ROW_STEP + 1 + MULTI_FAN_ARC_DEPTH;
+  const slots = Array.from({ length: total }, (_, index) => {
+    const row = Math.floor(index / perRow);
+    const rowCount = row === rows - 1 ? total - perRow * (rows - 1) : perRow;
+    const column = index - row * perRow;
+    const offset = column - (rowCount - 1) / 2;
+    const spread = rowCount > 1 ? offset / ((rowCount - 1) / 2) : 0;
+    return {
+      row,
+      lastRow: row === rows - 1,
+      x: offset * MULTI_FAN_COLUMN_STEP,
+      y: row * MULTI_FAN_ROW_STEP + spread * spread * MULTI_FAN_ARC_DEPTH,
+      angle: offset * MULTI_FAN_ANGLE_STEP,
+      zIndex: row * 40 + column + 1,
+    };
+  });
+  return { heightUnits, dealFromY: (heightUnits - 1) / 2, slots };
+}
+
+// Sealed packs in a multi-pack opening reuse the single-pack card fan, centered when fewer packs opened.
+function getMultiPackFan(index: number, count: number) {
+  const fanIndex = index + Math.floor((fanAngles.length - count) / 2);
+  return { offset: index - (count - 1) / 2, angle: fanAngles[fanIndex] ?? 0, y: fanOffsets[fanIndex] ?? 0 };
 }
 
 function getPullStatusKey(result: CcgOpening["results"][number]):
@@ -143,7 +207,10 @@ export default function CcgOpenPage() {
   const [customSetIds, setCustomSetIds] = useState<string[] | null>(null);
   const [customizeSetsOpen, setCustomizeSetsOpen] = useState(false);
   const [opening, setOpening] = useState<CcgOpening | null>(null);
+  const [openingPackCount, setOpeningPackCount] = useState(1);
+  const [multiPackEnabled, setMultiPackEnabled] = useState(false);
   const [recoveryId, setRecoveryId] = useState("");
+  const [recoveryBatchId, setRecoveryBatchId] = useState("");
   const [recoveryInitialized, setRecoveryInitialized] = useState(false);
   const [revealPhase, setRevealPhase] = useState<RevealPhase>("idle");
   const [dealtCards, setDealtCards] = useState(0);
@@ -191,6 +258,7 @@ export default function CcgOpenPage() {
     suppressClick: false,
   });
   const recoveryQuery = useCcgOpening(recoveryId, !authLoading && sessionQuery.isSuccess);
+  const recoveryBatchQuery = useCcgOpeningBatch(recoveryBatchId, !authLoading && sessionQuery.isSuccess);
   const session = sessionQuery.data;
   const noPacks = session ? session.packs.totalRemaining <= 0 : false;
   const pickemOpportunityQuery = usePickemCcgOpportunity(Boolean(user) && session?.ownerType === "user" && Boolean(opening) && noPacks);
@@ -408,13 +476,18 @@ export default function CcgOpenPage() {
         // Keep the default selection when saved preferences cannot be read.
       }
     }
+    const requestedBatch = params.get("batch");
     const requestedOpening = params.get("opening");
-    if (requestedOpening && /^[a-f\d]{24}$/i.test(requestedOpening)) {
+    if (requestedBatch && /^[a-f\d]{24}$/i.test(requestedBatch)) {
+      setRecoveryBatchId(requestedBatch);
+    }
+    else if (requestedOpening && /^[a-f\d]{24}$/i.test(requestedOpening)) {
       setRecoveryId(requestedOpening);
       revealedRecoveryIdRef.current = params.get("revealed") === "true" ? requestedOpening : null;
     }
-    else if (requestedOpening) {
+    else if (requestedOpening || requestedBatch) {
       params.delete("opening");
+      params.delete("batch");
       params.delete("revealed");
       const search = params.toString();
       router.replace(`${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`, { scroll: false });
@@ -437,12 +510,15 @@ export default function CcgOpenPage() {
   );
 
   useEffect(() => {
-    const recovered = recoveryQuery.data;
-    if (!recovered || opening?.id === recovered.id) return;
+    const recoveredOpenings = recoveryBatchQuery.data?.openings ?? (recoveryQuery.data ? [recoveryQuery.data] : null);
+    if (!recoveredOpenings?.length) return;
+    const recovered = combineOpenings(recoveredOpenings);
+    if (opening?.id === recovered.id) return;
     setSelectedSetId(recovered.selection.type === "supporter" ? supporterSet?.id ?? ALL_RAIDS : recovered.selection.type === "raid" ? recovered.selection.setId : ALL_RAIDS);
     if (recovered.selection.type === "all") setCustomSetIds(recovered.selection.setIds ?? null);
+    setOpeningPackCount(recoveredOpenings.length);
     setOpening(recovered);
-  }, [opening?.id, recoveryQuery.data, supporterSet?.id]);
+  }, [opening?.id, recoveryBatchQuery.data, recoveryQuery.data, supporterSet?.id]);
 
   useEffect(() => {
     if (!opening) return;
@@ -481,22 +557,31 @@ export default function CcgOpenPage() {
     let readyTimer: number | undefined;
     const drawSoundTimers: number[] = [];
     const mobileOpening = window.matchMedia(MOBILE_REVEAL_BREAKPOINT).matches;
+    const multiPack = openingPackCount > 1;
+    const drawSoundCount = Math.min(total, 5);
+    const drawSoundSpacing = multiPack ? (total * MULTI_FAN_DEAL_STAGGER_MS) / drawSoundCount : 58;
     const holdTimer = window.setTimeout(() => {
-      playPackSound(SHUFFLE_SOUND, 0.42);
+      if (multiPack) {
+        Array.from({ length: openingPackCount }).forEach((_, index) => {
+          drawSoundTimers.push(window.setTimeout(() => playPackSound(SHUFFLE_SOUND, 0.3, 0.94 + index * 0.04), index * 95));
+        });
+      } else {
+        playPackSound(SHUFFLE_SOUND, 0.42);
+      }
       setRevealPhase("tearing");
       tearTimer = window.setTimeout(() => {
         setDealtCards(total);
-        Array.from({ length: total }).forEach((_, index) => {
-          drawSoundTimers.push(window.setTimeout(() => playPackSound(DRAW_SOUND, 0.32, [0.96, 1.02, 0.99, 1.04, 0.97][index] ?? 1), index * 58));
+        Array.from({ length: drawSoundCount }).forEach((_, index) => {
+          drawSoundTimers.push(window.setTimeout(() => playPackSound(DRAW_SOUND, 0.32, [0.96, 1.02, 0.99, 1.04, 0.97][index] ?? 1), index * drawSoundSpacing));
         });
         if (mobileOpening) {
           setRevealPhase("ready");
         } else {
           setRevealPhase("dealing");
-          readyTimer = window.setTimeout(() => setRevealPhase("ready"), 780);
+          readyTimer = window.setTimeout(() => setRevealPhase("ready"), multiPack ? 620 + total * MULTI_FAN_DEAL_STAGGER_MS : 780);
         }
-      }, 640);
-    }, 240);
+      }, multiPack ? 760 : 640);
+    }, multiPack ? 700 : 240);
 
     return () => {
       window.clearTimeout(holdTimer);
@@ -504,7 +589,7 @@ export default function CcgOpenPage() {
       if (readyTimer) window.clearTimeout(readyTimer);
       drawSoundTimers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [opening]);
+  }, [opening, openingPackCount]);
 
   useEffect(() => {
     if (revealPhase !== "ready" || revealedCards.size > 0) return;
@@ -530,13 +615,18 @@ export default function CcgOpenPage() {
 
   const mutation = useMutation({
     mutationFn: async (request: PackRequest) => {
-      const result = await api.openCcgPack({
-        idempotencyKey: request.idempotencyKey,
-        type: request.type,
-        setId: request.setId,
-        setIds: request.setIds,
-      });
-      queryClient.setQueryData(queryKeys.ccg.opening(result.id), result);
+      const packRequest = { idempotencyKey: request.idempotencyKey, type: request.type, setId: request.setId, setIds: request.setIds };
+      let openings: CcgOpening[];
+      if (request.count > 1) {
+        // The server opens every pack in one transaction, so a batch either fully opens or not at all.
+        const batch = await api.openCcgPackBatch({ ...packRequest, count: request.count });
+        queryClient.setQueryData(queryKeys.ccg.openingBatch(batch.batchId), batch);
+        openings = batch.openings;
+      } else {
+        openings = [await api.openCcgPack(packRequest)];
+      }
+      for (const opened of openings) queryClient.setQueryData(queryKeys.ccg.opening(opened.id), opened);
+      const result = combineOpenings(openings);
       const url = new URL(window.location.href);
       url.searchParams.delete("mode");
       if (result.selection.type === "supporter") url.searchParams.set("set", supporterSet?.id ?? "");
@@ -544,14 +634,21 @@ export default function CcgOpenPage() {
       else url.searchParams.delete("set");
       if (result.selection.type === "all" && result.selection.setIds) url.searchParams.set("sets", result.selection.setIds.join(","));
       else url.searchParams.delete("sets");
-      url.searchParams.set("opening", result.id);
+      if (result.batchId) {
+        url.searchParams.set("batch", result.batchId);
+        url.searchParams.delete("opening");
+      } else {
+        url.searchParams.set("opening", result.id);
+        url.searchParams.delete("batch");
+      }
       url.searchParams.delete("revealed");
       router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
-      return result;
+      return { result, packCount: openings.length };
     },
-    onSuccess: (result) => {
+    onSuccess: ({ result, packCount }) => {
       revealedRecoveryIdRef.current = null;
       setIsPackCycling(false);
+      setOpeningPackCount(packCount);
       setRevealPhase("holding");
       setDealtCards(0);
       setRevealedCards(new Set());
@@ -582,10 +679,10 @@ export default function CcgOpenPage() {
     },
   });
 
-  const submitPackOpening = (selection: PackSelection, delayMs = 0): boolean => {
+  const submitPackOpening = (selection: PackSelection, delayMs = 0, packCount = 1): boolean => {
     if (packRequestPendingRef.current) return false;
     packRequestPendingRef.current = true;
-    const request: PackRequest = { ...selection, idempotencyKey: makeIdempotencyKey() };
+    const request: PackRequest = { ...selection, idempotencyKey: makeIdempotencyKey(), count: packCount };
     if (delayMs === 0) {
       mutation.mutate(request);
     } else {
@@ -607,7 +704,8 @@ export default function CcgOpenPage() {
     || sessionQuery.isPending
     || setsQuery.isPending
     || !recoveryInitialized
-    || (Boolean(recoveryId) && recoveryQuery.isPending);
+    || (Boolean(recoveryId) && recoveryQuery.isPending)
+    || (Boolean(recoveryBatchId) && recoveryBatchQuery.isPending);
   const clearSavedOpening = () => {
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => undefined);
@@ -620,6 +718,8 @@ export default function CcgOpenPage() {
     announcerSoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     announcerSoundTimersRef.current = [];
     setOpening(null);
+    setOpeningPackCount(1);
+    setMultiPackEnabled(false);
     setRevealPhase("idle");
     setDealtCards(0);
     setRevealedCards(new Set());
@@ -632,6 +732,7 @@ export default function CcgOpenPage() {
     setViewerOriginElement(null);
     setViewerOriginBounds(null);
     setRecoveryId("");
+    setRecoveryBatchId("");
     revealedRecoveryIdRef.current = null;
   };
 
@@ -864,8 +965,15 @@ export default function CcgOpenPage() {
     }, 0);
   };
 
-  const canOpen = recoveryInitialized && !recoveryId && Boolean(session) && !queryFailed && selectedPackCardCount > 0 && !noPacks && !mutation.isPending && !customizeSetsOpen;
+  const canOpen = recoveryInitialized && !recoveryId && !recoveryBatchId && Boolean(session) && !queryFailed && selectedPackCardCount > 0 && !noPacks && !mutation.isPending && !customizeSetsOpen;
   const hasAnotherPack = Boolean(opening && session && session.packs.totalRemaining > 0);
+  const isMultiOpening = Boolean(opening) && openingPackCount > 1;
+  const multiPackAvailable = isDesktopRevealViewport && (session?.packs.totalRemaining ?? 0) >= MULTI_PACK_COUNT;
+  const multiPackActive = multiPackEnabled && multiPackAvailable;
+  const multiFanLayout = useMemo(
+    () => (isMultiOpening && opening ? getMultiFanLayout(opening.results.length) : null),
+    [isMultiOpening, opening],
+  );
   const shouldPromptGuestLogin = session?.ownerType === "guest" && !hasAnotherPack;
   const nextPackRemaining = opening && session
     ? Math.max(0, new Date(session.recharge.nextAt).getTime() - rechargeNow)
@@ -1070,11 +1178,12 @@ export default function CcgOpenPage() {
     }
     const selection: PackSelection = opening.selection.type === "supporter" ? { type: "supporter" } : opening.selection.type === "raid" ? { setId: opening.selection.setId } : { setIds: opening.selection.setIds };
     const delayMs = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 470;
-    if (!submitPackOpening(selection, delayMs)) {
+    if (!submitPackOpening(selection, delayMs, multiPackActive ? MULTI_PACK_COUNT : 1)) {
       skipNextDesktopCardAutofocusRef.current = false;
       return;
     }
     setRecoveryId("");
+    setRecoveryBatchId("");
     setActiveReveal(null);
     setIsPackCycling(true);
     resumeCcgAudio();
@@ -1333,7 +1442,7 @@ export default function CcgOpenPage() {
                         </section>
                       </div>
                     ) : null}
-                    {recoveryQuery.isError ? (
+                    {recoveryQuery.isError || recoveryBatchQuery.isError ? (
                     <div className="mt-4 rounded-md border border-amber-300/20 bg-amber-300/[0.05] p-3" role="alert">
                       <p className="text-sm leading-5 text-amber-100">{t("open.recoveryFailed")}</p>
                       <button type="button" className={`${styles.secondaryButton} mt-3 w-full`} onClick={clearSavedOpening}>
@@ -1364,47 +1473,49 @@ export default function CcgOpenPage() {
               <span aria-hidden="true" />
             </button>
 
-            <div
-              className={`${packStyles.tearSequence} ${revealPhase === "holding" ? packStyles.tearSequenceHolding : ""} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`}
-              aria-hidden="true"
-            >
-              {revealPhase === "holding" ? (
-                <span className={`${packStyles.packButton} ${packStyles.heldPack}`}>
-                  <PackBoosterVisual title={openingPackName ?? t("open.allRaids")} cardsLabel={t("landing.cards")} />
+            {!isMultiOpening ? (
+              <div
+                className={`${packStyles.tearSequence} ${revealPhase === "holding" ? packStyles.tearSequenceHolding : ""} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`}
+                aria-hidden="true"
+              >
+                {revealPhase === "holding" ? (
+                  <span className={`${packStyles.packButton} ${packStyles.heldPack}`}>
+                    <PackBoosterVisual title={openingPackName ?? t("open.allRaids")} cardsLabel={t("landing.cards")} />
+                  </span>
+                ) : null}
+                <span className={`${packStyles.tornHalf} ${packStyles.tornHalfLeft}`}>
+                  <span />
                 </span>
-              ) : null}
-              <span className={`${packStyles.tornHalf} ${packStyles.tornHalfLeft}`}>
-                <span />
-              </span>
-              <span className={`${packStyles.tornHalf} ${packStyles.tornHalfRight}`}>
-                <span />
-              </span>
-              <span className={packStyles.tearParticles}>
-                {tearParticles.map((particle, index) => (
-                  <i
-                    key={index}
-                    style={
-                      {
-                        "--particle-x": `${particle.x}px`,
-                        "--particle-y": `${particle.y}px`,
-                        "--particle-rotate": `${particle.rotate}deg`,
-                        "--particle-delay": `${particle.delay}ms`,
-                      } as CSSProperties
-                    }
-                  />
-                ))}
-              </span>
-              <span className={packStyles.tearShardOne} />
-              <span className={packStyles.tearShardTwo} />
-              <span className={packStyles.tearShardThree} />
-            </div>
+                <span className={`${packStyles.tornHalf} ${packStyles.tornHalfRight}`}>
+                  <span />
+                </span>
+                <span className={packStyles.tearParticles}>
+                  {tearParticles.map((particle, index) => (
+                    <i
+                      key={index}
+                      style={
+                        {
+                          "--particle-x": `${particle.x}px`,
+                          "--particle-y": `${particle.y}px`,
+                          "--particle-rotate": `${particle.rotate}deg`,
+                          "--particle-delay": `${particle.delay}ms`,
+                        } as CSSProperties
+                      }
+                    />
+                  ))}
+                </span>
+                <span className={packStyles.tearShardOne} />
+                <span className={packStyles.tearShardTwo} />
+                <span className={packStyles.tearShardThree} />
+              </div>
+            ) : null}
 
             <div className={`${packStyles.revealContent} ${packComplete ? packStyles.revealContentSummary : ""} ${revealPhase === "holding" || revealPhase === "tearing" ? packStyles.revealContentWaiting : ""}`}>
               <div className={packStyles.revealLead}>
-                <span>{openingPackName}</span>
+                <span>{isMultiOpening ? `${openingPackName} · ${t("open.multiPackLead", { count: openingPackCount })}` : openingPackName}</span>
                 <strong>
                   {packComplete
-                    ? t("open.allRevealed")
+                    ? isMultiOpening ? t("open.allPacksRevealed") : t("open.allRevealed")
                     : isMobileRevealViewport
                       ? mobileActiveCardRevealed ? t("open.mobileAdvancePrompt") : t("open.mobileRevealPrompt")
                       : t("open.revealPrompt")}
@@ -1412,7 +1523,42 @@ export default function CcgOpenPage() {
               </div>
 
               <div ref={cardFanScrollerRef} className={`${packStyles.cardFanScroller} ${packComplete ? packStyles.cardFanScrollerSummary : ""}`}>
-                <div className={`${packStyles.cardFan} ${packComplete ? packStyles.cardFanSummary : ""}`}>
+                <div
+                  className={`${packStyles.cardFan} ${packComplete ? packStyles.cardFanSummary : ""} ${multiFanLayout ? packStyles.multiFan : ""}`}
+                  style={multiFanLayout ? { "--multi-fan-height": multiFanLayout.heightUnits, "--multi-pack-count": openingPackCount } as CSSProperties : undefined}
+                >
+                  {multiFanLayout ? (
+                    <div
+                      className={`${packStyles.multiPackBurst} ${revealPhase === "tearing" || revealPhase === "dealing" ? packStyles.multiPackBurstTearing : ""} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`}
+                      aria-hidden="true"
+                    >
+                      {Array.from({ length: openingPackCount }, (_, index) => {
+                        const pack = getMultiPackFan(index, openingPackCount);
+                        return (
+                          <span
+                            key={index}
+                            className={packStyles.multiPackSlot}
+                            style={{
+                              "--multi-pack-index": index,
+                              "--multi-pack-offset": pack.offset,
+                              "--fan-angle": `${pack.angle}deg`,
+                              "--fan-y": `${pack.y}px`,
+                            } as CSSProperties}
+                          >
+                            <span className={`${packStyles.packButton} ${packStyles.multiHeldPack}`}>
+                              <PackBoosterVisual title={openingPackName ?? t("open.allRaids")} cardsLabel={t("landing.cards")} />
+                            </span>
+                            <i className={packStyles.multiPackFlash} />
+                            <span className={packStyles.multiPackShockwaves}>
+                              <i />
+                              <i />
+                              <i />
+                            </span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                   {opening.results.map((result, index) => {
                     const revealed = revealedCards.has(index);
                     const dealt = index < dealtCards;
@@ -1428,14 +1574,33 @@ export default function CcgOpenPage() {
                     const summaryRank = summaryRankByIndex.get(index) ?? index;
                     const sealedCardHint = `${t(`finish.${result.finish}`)} · ${t(`rarity.${CCG_RARITY_KEYS[result.card.tierGrade]}`)}`;
                     const cardBackSetName = result.card.set.raidName;
+                    const multiSlot = multiFanLayout?.slots[index];
+                    const sourcePack = multiSlot
+                      ? getMultiPackFan(Math.min(openingPackCount - 1, Math.floor((index * openingPackCount) / opening.results.length)), openingPackCount)
+                      : null;
+                    const cardGeometry: Record<string, string | number> = multiSlot && multiFanLayout && sourcePack
+                      ? {
+                        "--fan-angle": `${multiSlot.angle}deg`,
+                        "--multi-x": multiSlot.x,
+                        "--multi-y": multiSlot.y,
+                        "--multi-from-pack": sourcePack.offset,
+                        "--multi-from-angle": `${sourcePack.angle}deg`,
+                        "--multi-from-y": multiFanLayout.dealFromY,
+                        "--multi-z": multiSlot.zIndex,
+                        "--deal-delay": `${index * MULTI_FAN_DEAL_STAGGER_MS}ms`,
+                        "--pack-exit-delay": `${index * 10}ms`,
+                      }
+                      : {
+                        "--fan-angle": `${fanAngles[index] ?? 0}deg`,
+                        "--fan-y": `${fanOffsets[index] ?? 0}px`,
+                        "--deal-x": dealOffsets[index] ?? "0%",
+                        "--deal-angle": "0deg",
+                        "--deal-delay": `${index * 58}ms`,
+                        "--pack-exit-delay": `${index * 24}ms`,
+                      };
                     const cardStyle = {
                       ...getPackTheme(result.card.set),
-                      "--fan-angle": `${fanAngles[index] ?? 0}deg`,
-                      "--fan-y": `${fanOffsets[index] ?? 0}px`,
-                      "--deal-x": dealOffsets[index] ?? "0%",
-                      "--deal-angle": "0deg",
-                      "--deal-delay": `${index * 58}ms`,
-                      "--pack-exit-delay": `${index * 24}ms`,
+                      ...cardGeometry,
                       "--mobile-stack-position": mobileStackPosition,
                       "--summary-rank": summaryRank,
                     } as CSSProperties;
@@ -1449,6 +1614,7 @@ export default function CcgOpenPage() {
                         data-grade={result.card.tierGrade}
                         data-mobile-state={mobileCardState}
                         data-summary-rank={summaryRank}
+                        data-multi-row={multiSlot ? (multiSlot.lastRow ? "last" : "upper") : undefined}
                         ref={(element) => {
                           cardRefs.current[index] = element;
                         }}
@@ -1498,7 +1664,7 @@ export default function CcgOpenPage() {
                               artVariant={result.artVariant}
                               compact
                               renderPriority
-                              className={packStyles.openedCard}
+                              className={multiSlot ? `${packStyles.openedCard} ${styles.scaledCardTypography}` : packStyles.openedCard}
                               forcedPointer={activeReveal?.index === index ? activeReveal : undefined}
                               effectsPaused={!revealed || (isMobileRevealViewport && !packComplete && mobileCardState !== "active")}
                             />
@@ -1553,16 +1719,40 @@ export default function CcgOpenPage() {
                           : t("open.getPickemPacks")}
                       </Link>
                     ) : packComplete ? (
-                      <button
-                        ref={desktopPackActionRef}
-                        type="button"
-                        data-pack-action="open-another"
-                        className={styles.primaryButton}
-                        onClick={openAnotherPack}
-                        disabled={!hasAnotherPack || mutation.isPending || isPackCycling || (isDesktopRevealViewport && !isDesktopOpenAnotherReady)}
-                      >
-                        {mutation.isPending || isPackCycling ? t("open.opening") : hasAnotherPack ? t("open.openAnother") : nextPackLabel}
-                      </button>
+                      <>
+                        <button
+                          ref={desktopPackActionRef}
+                          type="button"
+                          data-pack-action="open-another"
+                          className={styles.primaryButton}
+                          onClick={openAnotherPack}
+                          disabled={!hasAnotherPack || mutation.isPending || isPackCycling || (isDesktopRevealViewport && !isDesktopOpenAnotherReady)}
+                        >
+                          {mutation.isPending || isPackCycling
+                            ? t("open.opening")
+                            : !hasAnotherPack
+                              ? nextPackLabel
+                              : multiPackActive
+                                ? t("open.openMultiple", { count: MULTI_PACK_COUNT })
+                                : t("open.openAnother")}
+                        </button>
+                        {isDesktopRevealViewport && hasAnotherPack ? (
+                          <label
+                            className={packStyles.multiPackToggle}
+                            data-disabled={!multiPackAvailable || undefined}
+                            title={multiPackAvailable ? undefined : t("open.multiPackNeedsPacks", { count: MULTI_PACK_COUNT })}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={multiPackActive}
+                              disabled={!multiPackAvailable || mutation.isPending || isPackCycling}
+                              onChange={(event) => setMultiPackEnabled(event.currentTarget.checked)}
+                            />
+                            <span className={packStyles.multiPackToggleBox} aria-hidden="true" />
+                            <span>{t("open.multiPackToggle", { count: MULTI_PACK_COUNT })}</span>
+                          </label>
+                        ) : null}
+                      </>
                     ) : null}
                   </div>
                   <div className={packStyles.revealStatusSlot}>
@@ -1621,7 +1811,7 @@ export default function CcgOpenPage() {
                     ) : null}
                   </div>
                   <div className={packStyles.revealActionSlot}>
-                    {packComplete ? (
+                    {packComplete && !isMultiOpening ? (
                       <CcgShareButton
                         key={opening.id}
                         target={{ kind: "pack", openingId: opening.id }}
@@ -1679,7 +1869,7 @@ export default function CcgOpenPage() {
               ) : null}
             </div>
             <div
-              className={`${packStyles.burstOverlay} ${revealPhase === "holding" ? packStyles.tearSequenceHolding : ""} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`}
+              className={`${packStyles.burstOverlay} ${isMultiOpening ? packStyles.multiBurstOverlay : ""} ${revealPhase === "holding" ? packStyles.tearSequenceHolding : ""} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`}
               aria-hidden="true"
             >
               <span className={packStyles.tearFlash} />

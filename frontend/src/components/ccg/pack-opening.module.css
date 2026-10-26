@@ -3773,3 +3773,354 @@
     display: none;
   }
 }
+
+/* Multi-pack opening (desktop): the packs burst in sequence, then every card deals into overlapping fanned rows. */
+/* The sealed packs sit where the single-pack cards would: same columns, size, and fan. */
+.multiPackBurst {
+  position: absolute;
+  z-index: 200;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: calc(var(--multi-pack-step) * var(--multi-pack-count) - var(--card-fan-gap));
+  grid-template-columns: repeat(var(--multi-pack-count), minmax(0, 1fr));
+  gap: var(--card-fan-gap);
+  align-items: center;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.multiPackBurst.tearSequenceComplete {
+  display: none;
+}
+
+.multiPackSlot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  transform: translateY(var(--fan-y)) rotate(var(--fan-angle));
+  animation: multiPackEnter 560ms calc(var(--multi-pack-index) * 55ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Packs are 0.66 wide-to-tall, so this width gives them the same height as a 5:7 card in the column. */
+.multiHeldPack {
+  width: 92.4%;
+  cursor: default;
+}
+
+.multiPackBurstTearing .multiHeldPack {
+  animation: multiPackBurst 440ms calc(var(--multi-pack-index) * 95ms) cubic-bezier(0.5, 0, 0.75, 0) forwards;
+}
+
+.multiPackShockwaves {
+  position: absolute;
+  z-index: 4;
+  inset: 0 3.8%;
+  pointer-events: none;
+}
+
+.multiPackShockwaves i {
+  position: absolute;
+  inset: 0;
+  border: 2px solid color-mix(in srgb, var(--pack-accent) 68%, white);
+  border-radius: 0.8rem;
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--pack-glow) 88%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--pack-glow) 70%, transparent);
+  opacity: 0;
+  transform: scale(0.42);
+}
+
+.multiPackBurstTearing .multiPackShockwaves i {
+  animation: tearShockwave 740ms calc(var(--multi-pack-index) * 95ms + 200ms) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.multiPackBurstTearing .multiPackShockwaves i:nth-child(2) {
+  border-width: 1.5px;
+  animation-delay: calc(var(--multi-pack-index) * 95ms + 280ms);
+}
+
+.multiPackBurstTearing .multiPackShockwaves i:nth-child(3) {
+  border-width: 1px;
+  animation-delay: calc(var(--multi-pack-index) * 95ms + 360ms);
+}
+
+.multiPackFlash {
+  position: absolute;
+  z-index: 5;
+  inset: -20%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    white 0 8%,
+    color-mix(in srgb, var(--pack-accent) 60%, white) 22%,
+    color-mix(in srgb, var(--pack-accent) 30%, transparent) 46%,
+    transparent 70%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.3);
+}
+
+.multiPackBurstTearing .multiPackFlash {
+  animation: multiPackFlash 300ms calc(var(--multi-pack-index) * 95ms + 180ms) ease-out forwards;
+}
+
+.multiBurstOverlay .tearFlash,
+.multiBurstOverlay .tearBurst {
+  animation-delay: 420ms;
+  animation-fill-mode: both;
+}
+
+/* Each pack throws its own rings, so the central single-pack rings stay hidden. */
+.multiBurstOverlay .tearShockwaves {
+  display: none;
+}
+
+.cardFan.multiFan {
+  --multi-card-w: clamp(8rem, min(10.2vw, 19vh), 13.5rem);
+  --multi-card-h: calc(var(--multi-card-w) * 1.4);
+  /* One single-pack card column plus its gap; resolved by children against this container. */
+  --multi-pack-step: calc((min(100cqw, 108rem) + var(--card-fan-gap)) / 5);
+  position: relative;
+  container-type: inline-size;
+  display: block;
+  width: 100%;
+  height: calc(var(--multi-card-h) * var(--multi-fan-height));
+}
+
+.multiFan .revealSlot {
+  position: absolute;
+  z-index: var(--multi-z);
+  top: 0;
+  left: 50%;
+  width: var(--multi-card-w);
+  margin-left: calc(var(--multi-card-w) / -2);
+  opacity: 0;
+  transform:
+    translate(calc(var(--multi-pack-step) * var(--multi-from-pack)), calc(var(--multi-card-h) * var(--multi-from-y)))
+    rotate(var(--multi-from-angle))
+    scale(0.85);
+  transition-property: transform, filter, opacity;
+  transition-duration: 620ms, 140ms, 220ms;
+  transition-delay: var(--deal-delay), 0ms, var(--deal-delay);
+  transition-timing-function: cubic-bezier(0.18, 0.9, 0.25, 1), cubic-bezier(0.16, 1, 0.3, 1), ease-out;
+}
+
+.multiFan .revealSlotDealt {
+  opacity: 1;
+  transform:
+    translate(calc(var(--multi-card-w) * var(--multi-x)), calc(var(--multi-card-h) * var(--multi-y)))
+    rotate(var(--fan-angle))
+    scale(1);
+}
+
+.multiFan .revealSlotReady {
+  transition-duration: 240ms, 140ms, 200ms;
+  transition-delay: 0ms, 0ms, 0ms;
+}
+
+.multiFan .revealSlotDealt:not(:disabled):hover,
+.multiFan .revealSlotDealt:not(:disabled):focus-visible {
+  z-index: 100;
+  transform:
+    translate(calc(var(--multi-card-w) * var(--multi-x)), calc(var(--multi-card-h) * (var(--multi-y) - 0.07)))
+    rotate(calc(var(--fan-angle) * 0.35))
+    scale(1.1);
+}
+
+.revealStageCycling .multiFan .revealSlotDealt {
+  opacity: 0;
+  pointer-events: none;
+  transform:
+    translate(calc(var(--multi-card-w) * var(--multi-x)), calc(var(--multi-card-h) * (var(--multi-y) - 0.06)))
+    rotate(calc(var(--fan-angle) * 0.5))
+    scale(0.97);
+  transition-property: transform, opacity;
+  transition-duration: 360ms, 320ms;
+  transition-delay: var(--pack-exit-delay), var(--pack-exit-delay);
+  transition-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+/*
+ * Card backs size their text with cqw clamps, which hit their maximums at the single-pack card width (~334px at 1920).
+ * Multi-pack cards keep those same proportions of the card width instead.
+ */
+.multiFan .sealedAura {
+  border-radius: calc(var(--multi-card-w) * 0.068);
+}
+
+.multiFan .sealedAura::before,
+.multiFan .cardBack {
+  border-radius: calc(var(--multi-card-w) * 0.052);
+}
+
+.multiFan .cardBackBrand {
+  font-size: calc(var(--multi-card-w) * 0.045);
+}
+
+.multiFan .cardBackSet {
+  font-size: calc(var(--multi-card-w) * 0.091);
+  -webkit-text-stroke-width: 0.15px;
+}
+
+.multiFan .pullStatus {
+  font-size: 0.6rem;
+}
+
+/* The next row covers the bottom of upper-row cards, so their pull status sits above the card instead. */
+.multiFan .revealSlot[data-multi-row="upper"] .pullStatus {
+  top: -1.15rem;
+  bottom: auto;
+  transform: translateY(5px);
+}
+
+.multiFan .revealSlotRevealed[data-multi-row="upper"] .pullStatus {
+  transform: translateY(0);
+}
+
+.revealActionSlot:has(> .multiPackToggle) {
+  position: relative;
+}
+
+.revealActionSlot > .multiPackToggle {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 0.85rem);
+  display: inline-flex;
+  width: auto;
+  height: auto;
+  align-items: center;
+  gap: 0.5rem;
+  color: #c6d2e3;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 720;
+  transform: translateY(-50%);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.multiPackToggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.multiPackToggleBox {
+  display: grid;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 1px solid rgba(148, 178, 226, 0.4);
+  border-radius: 0.3rem;
+  background: rgba(9, 18, 36, 0.72);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  place-items: center;
+  transition-property: background-color, border-color, box-shadow;
+  transition-duration: 140ms;
+  transition-timing-function: ease-out;
+}
+
+.multiPackToggleBox::after {
+  width: 0.32rem;
+  height: 0.6rem;
+  margin-top: -0.12rem;
+  border-right: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  content: "";
+  opacity: 0;
+  transform: rotate(45deg) scale(0.6);
+  transition-property: opacity, transform;
+  transition-duration: 120ms, 160ms;
+  transition-timing-function: ease-out, cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.multiPackToggle:hover .multiPackToggleBox {
+  border-color: rgba(198, 220, 255, 0.7);
+}
+
+.multiPackToggle input:checked + .multiPackToggleBox {
+  border-color: color-mix(in srgb, var(--pack-accent) 80%, white);
+  background: color-mix(in srgb, var(--pack-accent) 55%, #0b1a33);
+  box-shadow: 0 0 10px var(--pack-glow);
+}
+
+.multiPackToggle input:checked + .multiPackToggleBox::after {
+  opacity: 1;
+  transform: rotate(45deg) scale(1);
+}
+
+.multiPackToggle input:focus-visible + .multiPackToggleBox {
+  outline: 2px solid color-mix(in srgb, var(--pack-accent) 70%, white);
+  outline-offset: 2px;
+}
+
+.multiPackToggle[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* Packs slide out of a central stack into their columns. */
+@keyframes multiPackEnter {
+  from {
+    opacity: 0;
+    translate: calc(var(--multi-pack-step) * var(--multi-pack-offset) * -1) 8%;
+    scale: 0.8;
+  }
+}
+
+@keyframes multiPackBurst {
+  0% {
+    opacity: 1;
+    filter: brightness(1);
+    scale: 1;
+  }
+  45% {
+    filter: brightness(1.6);
+    scale: 1.08;
+  }
+  70% {
+    opacity: 1;
+    filter: brightness(2.3);
+    scale: 1.16;
+  }
+  100% {
+    opacity: 0;
+    filter: brightness(3) blur(3px);
+    scale: 1.32;
+  }
+}
+
+@keyframes multiPackFlash {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .multiPackBurst {
+    display: none;
+  }
+
+  .multiFan .revealSlot {
+    transition-duration: 1ms;
+    transition-delay: 0ms;
+  }
+
+  .revealStageCycling .multiFan .revealSlotDealt {
+    transform:
+      translate(calc(var(--multi-card-w) * var(--multi-x)), calc(var(--multi-card-h) * var(--multi-y)))
+      rotate(var(--fan-angle));
+  }
+}

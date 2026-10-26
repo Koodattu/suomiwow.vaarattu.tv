@@ -160,6 +160,7 @@ import {
   CcgArtVariant,
   CcgTierGrade,
   CcgOpening,
+  CcgOpeningBatch,
   CcgActivityFilter,
   CcgActivityResponse,
   CcgCharacterCheckResponse,
@@ -572,6 +573,25 @@ export const api = {
     });
     if (!response.ok) throw await buildApiError(response, "The pack could not be opened");
     return hydrateCcgOpening(await response.json() as CcgOpeningWire);
+  },
+
+  async openCcgPackBatch(input: { idempotencyKey: string; count: number; type?: "supporter"; setId?: string; setIds?: string[] }): Promise<CcgOpeningBatch> {
+    const response = await fetch(`${API_URL}/api/ccg/packs/open-batch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw await buildApiError(response, "The packs could not be opened");
+    const batch = await response.json() as { batchId: string; openings: CcgOpeningWire[] };
+    return { batchId: batch.batchId, openings: batch.openings.map(hydrateCcgOpening) };
+  },
+
+  async getCcgOpeningBatch(batchId: string): Promise<CcgOpeningBatch> {
+    const response = await fetch(`${API_URL}/api/ccg/openings/batch/${encodeURIComponent(batchId)}`, { credentials: "include" });
+    if (!response.ok) throw await buildApiError(response, "The pack opening could not be recovered");
+    const batch = await response.json() as { batchId: string; openings: CcgOpeningWire[] };
+    return { batchId: batch.batchId, openings: batch.openings.map(hydrateCcgOpening) };
   },
 
   async getCcgOpening(openingId: string): Promise<CcgOpening> {
