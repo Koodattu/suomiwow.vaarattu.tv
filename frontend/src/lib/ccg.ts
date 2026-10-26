@@ -1,4 +1,4 @@
-import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCustomFinish, CcgFinish, CcgRaidFinish, CcgTierGrade } from "@/types";
+import type { CcgArtVariant, CcgBaseFinish, CcgCard, CcgCustomFinish, CcgFinish, CcgOpening, CcgRaidFinish, CcgTierGrade } from "@/types";
 
 export const CCG_BASE_FINISH_ORDER: readonly CcgBaseFinish[] = ["standard", "foil", "golden", "prismatic", "holographic", "negative", "astral"];
 export const CCG_RAID_FINISHES = [
@@ -211,4 +211,32 @@ export function bestOwnedFinish(
 
 export function isWebmArtwork(path: string | null): path is string {
   return Boolean(path && /\.webm(?:$|[?#])/i.test(path));
+}
+
+// Several packs open as separate server openings; the reveal treats them as one opening keyed by the last pack.
+export function combineCcgOpenings(openings: CcgOpening[]): CcgOpening {
+  if (openings.length === 1) return openings[0];
+  const last = openings[openings.length - 1];
+  const setsById = new Map(openings.flatMap((opening) => opening.sets).map((set) => [set.id, set]));
+  const allHaveCacheUpdates = openings.every((opening) => opening.cacheUpdates);
+  const ownedCardsBySetDelta: Record<string, number> = {};
+  for (const opening of openings) {
+    for (const [setId, delta] of Object.entries(opening.cacheUpdates?.ownedCardsBySetDelta ?? {})) {
+      ownedCardsBySetDelta[setId] = (ownedCardsBySetDelta[setId] ?? 0) + delta;
+    }
+  }
+  let position = 0;
+  return {
+    ...last,
+    sets: [...setsById.values()],
+    duplicateRewards: openings.reduce((total, opening) => total + opening.duplicateRewards, 0),
+    results: openings.flatMap((opening) => opening.results.map((result) => ({ ...result, position: position++ }))),
+    cacheUpdates: allHaveCacheUpdates && last.cacheUpdates
+      ? {
+        ...last.cacheUpdates,
+        ownedFinishesDelta: openings.reduce((total, opening) => total + (opening.cacheUpdates?.ownedFinishesDelta ?? 0), 0),
+        ownedCardsBySetDelta,
+      }
+      : undefined,
+  };
 }

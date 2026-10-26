@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 import { CCG_FINISH_ORDER, CcgArtVariant, CcgFinish } from "../config/ccg";
 
-export type CcgShareKind = "card" | "pack";
+export type CcgShareKind = "card" | "pack" | "batch";
 
 export interface ICcgShare extends Document {
   publicId: string;
@@ -10,6 +10,7 @@ export interface ICcgShare extends Document {
   userId: mongoose.Types.ObjectId;
   cardId?: mongoose.Types.ObjectId | null;
   openingId?: mongoose.Types.ObjectId | null;
+  batchId?: mongoose.Types.ObjectId | null;
   finish?: CcgFinish | null;
   artVariant?: CcgArtVariant | null;
   createdAt: Date;
@@ -20,10 +21,12 @@ const CcgShareSchema = new Schema<ICcgShare>(
   {
     publicId: { type: String, required: true, unique: true, index: true },
     shortId: { type: String, unique: true, sparse: true, index: true },
-    kind: { type: String, enum: ["card", "pack"], required: true, index: true },
+    kind: { type: String, enum: ["card", "pack", "batch"], required: true, index: true },
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     cardId: { type: Schema.Types.ObjectId, ref: "CcgCard", default: null },
     openingId: { type: Schema.Types.ObjectId, ref: "CcgPackOpening", default: null },
+    // Packs opened together share one link to the whole batch.
+    batchId: { type: Schema.Types.ObjectId, default: null },
     finish: { type: String, enum: CCG_FINISH_ORDER, default: null },
     artVariant: { type: String, enum: ["standard", "alternative"], default: null },
   },
@@ -37,6 +40,10 @@ CcgShareSchema.index(
 CcgShareSchema.index(
   { kind: 1, userId: 1, openingId: 1 },
   { unique: true, partialFilterExpression: { kind: "pack" } },
+);
+CcgShareSchema.index(
+  { kind: 1, userId: 1, batchId: 1 },
+  { unique: true, partialFilterExpression: { kind: "batch" } },
 );
 
 export default mongoose.model<ICcgShare>("CcgShare", CcgShareSchema);

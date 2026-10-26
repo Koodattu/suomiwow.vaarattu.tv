@@ -332,6 +332,12 @@ router.post(
 );
 
 router.post(
+  "/shares/batch",
+  rateLimit(20, 60_000),
+  asyncRoute(async (req) => ccgService.createBatchShare(req, req.body ?? {})),
+);
+
+router.post(
   "/packs/open",
   rateLimit(60, 60_000, ownerRateLimitKey),
   asyncRoute(async (req, res) => ccgService.openPack(req, res, req.body ?? {})),

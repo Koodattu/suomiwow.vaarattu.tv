@@ -18,6 +18,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "dev:ccg-mock"],
       "port": 3100
+    },
+    {
+      "name": "frontend-ccg-mock-user",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev:ccg-mock:user"],
+      "port": 3100
     }
   ]
 }

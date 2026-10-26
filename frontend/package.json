@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "dev:ccg-mock": "node scripts/dev-ccg-mock.mjs",
+    "dev:ccg-mock:user": "node scripts/dev-ccg-mock.mjs --user",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint"
@@ -25,7 +26,8 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-icons": "^5.7.0",
-    "recharts": "3.10.1"
+    "recharts": "3.10.1",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

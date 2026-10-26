@@ -3889,13 +3889,26 @@
   height: calc(var(--multi-card-h) * var(--multi-fan-height));
 }
 
-.multiFan .revealSlot {
+/* Fan positions shared by the opening reveal and the shared batch page. */
+.multiFan .revealSlot,
+.multiFan .multiFanCard {
   position: absolute;
   z-index: var(--multi-z);
   top: 0;
   left: 50%;
   width: var(--multi-card-w);
   margin-left: calc(var(--multi-card-w) / -2);
+}
+
+/* Shared batch cards sit where the opening's dealt cards land. */
+.multiFan .multiFanCard {
+  transform:
+    translate(calc(var(--multi-card-w) * var(--multi-x)), calc(var(--multi-card-h) * var(--multi-y)))
+    rotate(var(--fan-angle));
+  transition: transform 240ms cubic-bezier(0.18, 0.9, 0.25, 1);
+}
+
+.multiFan .revealSlot {
   opacity: 0;
   transform:
     translate(calc(var(--multi-pack-step) * var(--multi-from-pack)), calc(var(--multi-card-h) * var(--multi-from-y)))
@@ -3921,7 +3934,9 @@
 }
 
 .multiFan .revealSlotDealt:not(:disabled):hover,
-.multiFan .revealSlotDealt:not(:disabled):focus-visible {
+.multiFan .revealSlotDealt:not(:disabled):focus-visible,
+.multiFan .multiFanCard:hover,
+.multiFan .multiFanCard:focus-within {
   z-index: 100;
   transform:
     translate(calc(var(--multi-card-w) * var(--multi-x)), calc(var(--multi-card-h) * (var(--multi-y) - 0.07)))
@@ -4105,6 +4120,36 @@
   100% {
     opacity: 0;
     transform: scale(1.6);
+  }
+}
+
+/* Below the desktop layout the opening never fans five packs, so a shared batch becomes one swipe row. */
+@media (max-width: 1250px) {
+  .cardFan.multiFanSwipe {
+    display: grid;
+    width: max-content;
+    height: auto;
+    container-type: normal;
+    grid-template-columns: none;
+    grid-auto-columns: minmax(18rem, 68vw);
+    grid-auto-flow: column;
+    gap: 1rem;
+    translate: none;
+  }
+
+  .multiFanSwipe .multiFanCard,
+  .multiFanSwipe .multiFanCard:is(:hover, :focus-within) {
+    position: static;
+    width: auto;
+    margin: 0;
+    scroll-snap-align: center;
+    transform: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .cardFan.multiFanSwipe {
+    grid-auto-columns: minmax(13rem, 72vw);
   }
 }
 

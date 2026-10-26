@@ -11,7 +11,7 @@ import type { CcgBaseFinish, CcgSession, CcgFinish, CcgOpening, CcgSet } from "@
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/lib/api";
 import { updateCcgSessionAfterOpening, updateCcgSetsAfterOpening } from "@/lib/ccg-opening-cache";
-import { CCG_BASE_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS, compareCcgPullQuality } from "@/lib/ccg";
+import { CCG_BASE_FINISH_ORDER, CCG_FINISH_PITY_LIMITS, CCG_RARITY_KEYS, combineCcgOpenings, compareCcgPullQuality } from "@/lib/ccg";
 import {
   getCcgAnnouncerSoundSequences,
   getCcgPlaybackVolume,
@@ -23,6 +23,7 @@ import {
 } from "@/lib/ccg-audio";
 import { CCG_CARD_SLIDE_SOUNDS, getCcgQualityRevealSoundFile, hasCcgQualityRevealSound } from "@/lib/ccg-reveal-audio";
 import { applyPackPointerMotion, resetPackMotion } from "@/lib/ccg-pack-motion";
+import { getMultiFanLayout } from "@/lib/ccg-pack-fan";
 import { queryKeys, useCcgOpening, useCcgOpeningBatch, useCcgSession, useCcgSets, usePickemCcgOpportunity } from "@/lib/queries";
 import IconImage from "@/components/IconImage";
 import CcgShell from "@/components/ccg/CcgShell";
@@ -44,13 +45,11 @@ type PackSelection = { type?: "supporter"; setId?: string; setIds?: string[] };
 type PackRequest = PackSelection & { idempotencyKey: string; count: number };
 
 const MULTI_PACK_COUNT = 5;
-// Multi-pack fan geometry, in card widths (x) and card heights (y).
-const MULTI_FAN_COLUMN_STEP = 0.68;
-const MULTI_FAN_ROW_STEP = 0.7;
-const MULTI_FAN_ARC_DEPTH = 0.12;
-const MULTI_FAN_ANGLE_STEP = 2.1;
 const MULTI_FAN_DEAL_STAGGER_MS = 32;
 const MULTI_REVEAL_STAGGER_MS = 45;
+// Each cascading card plays its own flip sound, scaled down so 25 of them stay pleasant.
+const MULTI_REVEAL_FLIP_VOLUME_MULTIPLIER = 0.5;
+const REVEAL_FLIP_VOLUME = 0.32;
 const fanAngles = [-5.5, -2.5, 0, 2.5, 5.5];
 const fanOffsets = [24, 5, 0, 5, 24];
 const dealOffsets = [
@@ -95,57 +94,6 @@ function randomIndex(length: number): number {
   const value = new Uint32Array(1);
   window.crypto.getRandomValues(value);
   return value[0] % length;
-}
-
-// Several packs open as separate server openings; the reveal treats them as one opening keyed by the last pack.
-function combineOpenings(openings: CcgOpening[]): CcgOpening {
-  if (openings.length === 1) return openings[0];
-  const last = openings[openings.length - 1];
-  const setsById = new Map(openings.flatMap((opening) => opening.sets).map((set) => [set.id, set]));
-  const allHaveCacheUpdates = openings.every((opening) => opening.cacheUpdates);
-  const ownedCardsBySetDelta: Record<string, number> = {};
-  for (const opening of openings) {
-    for (const [setId, delta] of Object.entries(opening.cacheUpdates?.ownedCardsBySetDelta ?? {})) {
-      ownedCardsBySetDelta[setId] = (ownedCardsBySetDelta[setId] ?? 0) + delta;
-    }
-  }
-  let position = 0;
-  return {
-    ...last,
-    sets: [...setsById.values()],
-    duplicateRewards: openings.reduce((total, opening) => total + opening.duplicateRewards, 0),
-    results: openings.flatMap((opening) => opening.results.map((result) => ({ ...result, position: position++ }))),
-    cacheUpdates: allHaveCacheUpdates && last.cacheUpdates
-      ? {
-        ...last.cacheUpdates,
-        ownedFinishesDelta: openings.reduce((total, opening) => total + (opening.cacheUpdates?.ownedFinishesDelta ?? 0), 0),
-        ownedCardsBySetDelta,
-      }
-      : undefined,
-  };
-}
-
-// Lays the cards out as overlapping fanned rows, each later row covering the bottom of the one above.
-function getMultiFanLayout(total: number) {
-  const rows = total > 12 ? 2 : 1;
-  const perRow = Math.ceil(total / rows);
-  const heightUnits = (rows - 1) * MULTI_FAN_ROW_STEP + 1 + MULTI_FAN_ARC_DEPTH;
-  const slots = Array.from({ length: total }, (_, index) => {
-    const row = Math.floor(index / perRow);
-    const rowCount = row === rows - 1 ? total - perRow * (rows - 1) : perRow;
-    const column = index - row * perRow;
-    const offset = column - (rowCount - 1) / 2;
-    const spread = rowCount > 1 ? offset / ((rowCount - 1) / 2) : 0;
-    return {
-      row,
-      lastRow: row === rows - 1,
-      x: offset * MULTI_FAN_COLUMN_STEP,
-      y: row * MULTI_FAN_ROW_STEP + spread * spread * MULTI_FAN_ARC_DEPTH,
-      angle: offset * MULTI_FAN_ANGLE_STEP,
-      zIndex: row * 40 + column + 1,
-    };
-  });
-  return { heightUnits, dealFromY: (heightUnits - 1) / 2, slots };
 }
 
 // Sealed packs in a multi-pack opening reuse the single-pack card fan, centered when fewer packs opened.
@@ -246,7 +194,7 @@ export default function CcgOpenPage() {
   const mobileSummaryTimerRef = useRef<number | null>(null);
   const mobileRevealAllHoldTimerRef = useRef<number | null>(null);
   const mobileAutoRevealTimersRef = useRef<number[]>([]);
-  const revealCascadeRef = useRef<{ timers: number[]; pending: Set<number>; revealCard: (index: number) => void } | null>(null);
+  const revealCascadeRef = useRef<{ timers: number[]; pending: Set<number> } | null>(null);
   const mobileRevealAllPointerActiveRef = useRef(false);
   const desktopPackActionRef = useRef<HTMLButtonElement | null>(null);
   const skipNextDesktopCardAutofocusRef = useRef(false);
@@ -516,7 +464,7 @@ export default function CcgOpenPage() {
   useEffect(() => {
     const recoveredOpenings = recoveryBatchQuery.data?.openings ?? (recoveryQuery.data ? [recoveryQuery.data] : null);
     if (!recoveredOpenings?.length) return;
-    const recovered = combineOpenings(recoveredOpenings);
+    const recovered = combineCcgOpenings(recoveredOpenings);
     if (opening?.id === recovered.id) return;
     setSelectedSetId(recovered.selection.type === "supporter" ? supporterSet?.id ?? ALL_RAIDS : recovered.selection.type === "raid" ? recovered.selection.setId : ALL_RAIDS);
     if (recovered.selection.type === "all") setCustomSetIds(recovered.selection.setIds ?? null);
@@ -633,7 +581,7 @@ export default function CcgOpenPage() {
         openings = [await api.openCcgPack(packRequest)];
       }
       for (const opened of openings) queryClient.setQueryData(queryKeys.ccg.opening(opened.id), opened);
-      const result = combineOpenings(openings);
+      const result = combineCcgOpenings(openings);
       const url = new URL(window.location.href);
       url.searchParams.delete("mode");
       if (result.selection.type === "supporter") url.searchParams.set("set", supporterSet?.id ?? "");
@@ -867,19 +815,9 @@ export default function CcgOpenPage() {
   };
 
   const revealAll = () => {
-    if (!opening || revealPhase !== "ready") return;
-    const runningCascade = revealCascadeRef.current;
-    if (runningCascade) {
-      // Pressing again mid-cascade flips the rest at once; best-card audio still due plays now.
-      runningCascade.timers.forEach((timer) => window.clearTimeout(timer));
-      [...runningCascade.pending].forEach(runningCascade.revealCard);
-      revealCascadeRef.current = null;
-      setIsRevealCascading(false);
-      finishRevealAll();
-      return;
-    }
+    // Nothing responds while a cascade runs; it always plays out.
+    if (!opening || revealPhase !== "ready" || revealCascadeRef.current) return;
     setActiveReveal(null);
-    playRandomPackSound(CCG_CARD_SLIDE_SOUNDS, 0.32);
     const prioritizedResults = opening.results
       .map((result, index) => ({ result, index }))
       .filter(({ index }) => !revealedCards.has(index))
@@ -903,6 +841,7 @@ export default function CcgOpenPage() {
     const unrevealed = opening.results.map((_, index) => index).filter((index) => !revealedCards.has(index));
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (openingPackCount < 2 || reducedMotion || unrevealed.length < 2) {
+      playRandomPackSound(CCG_CARD_SLIDE_SOUNDS, REVEAL_FLIP_VOLUME);
       unrevealed.forEach(playBestCardAudio);
       finishRevealAll();
       return;
@@ -912,6 +851,7 @@ export default function CcgOpenPage() {
     const pending = new Set(unrevealed);
     const revealCard = (index: number) => {
       pending.delete(index);
+      playRandomPackSound(CCG_CARD_SLIDE_SOUNDS, REVEAL_FLIP_VOLUME * MULTI_REVEAL_FLIP_VOLUME_MULTIPLIER);
       playBestCardAudio(index);
       setRevealedCards((current) => new Set(current).add(index));
     };
@@ -922,7 +862,7 @@ export default function CcgOpenPage() {
       setIsRevealCascading(false);
       finishRevealAll();
     }, position * MULTI_REVEAL_STAGGER_MS));
-    revealCascadeRef.current = { timers, pending, revealCard };
+    revealCascadeRef.current = { timers, pending };
     setIsRevealCascading(true);
   };
 
@@ -1846,7 +1786,7 @@ export default function CcgOpenPage() {
                           }
                           revealAll();
                         }}
-                        disabled={revealPhase !== "ready"}
+                        disabled={revealPhase !== "ready" || isRevealCascading}
                       >
                         {isMobileRevealViewport ? t("open.holdToRevealAll") : t("open.revealAll")}
                       </button>
@@ -1867,10 +1807,10 @@ export default function CcgOpenPage() {
                     ) : null}
                   </div>
                   <div className={packStyles.revealActionSlot}>
-                    {packComplete && !isMultiOpening ? (
+                    {packComplete ? (
                       <CcgShareButton
-                        key={opening.id}
-                        target={{ kind: "pack", openingId: opening.id }}
+                        key={opening.batchId ?? opening.id}
+                        target={opening.batchId ? { kind: "batch", batchId: opening.batchId } : { kind: "pack", openingId: opening.id }}
                         className={packStyles.packShareButton}
                         loginRequired={!user}
                       />

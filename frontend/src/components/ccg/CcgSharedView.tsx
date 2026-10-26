@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import type { CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { FaArrowUpRightFromSquare, FaChevronRight, FaVolumeHigh } from "react-icons/fa6";
-import type { CcgShare, CcgShareAttribution } from "@/types";
+import type { CcgOpening, CcgShare, CcgShareAttribution } from "@/types";
 import { api } from "@/lib/api";
 import { playCcgQuip } from "@/lib/ccg-audio";
-import { CCG_RARITY_KEYS } from "@/lib/ccg";
+import { CCG_RARITY_KEYS, combineCcgOpenings } from "@/lib/ccg";
+import { getMultiFanLayout } from "@/lib/ccg-pack-fan";
 import { formatRealmName } from "@/lib/utils";
 import CardViewer, { openCardViewer, type CardViewerOriginBounds } from "./CardViewer";
 import CollectibleCard from "./CollectibleCard";
@@ -117,7 +119,8 @@ function SharedCard({ share }: { share: Extract<CcgShare, { kind: "card" }> }) {
   );
 }
 
-function SharedPack({ share }: { share: Extract<CcgShare, { kind: "pack" }> }) {
+// A shared batch renders as its combined opening in the same fan as the opening reveal.
+function SharedPack({ pack, packCount, unboxedBy }: { pack: CcgOpening; packCount: number; unboxedBy: CcgShareAttribution }) {
   const t = useTranslations("ccg.share");
   const openT = useTranslations("ccg.open");
   const [viewer, setViewer] = useState<{
@@ -126,19 +129,36 @@ function SharedPack({ share }: { share: Extract<CcgShare, { kind: "pack" }> }) {
     originBounds: CardViewerOriginBounds | null;
     sharedTransition: boolean;
   } | null>(null);
-  const targetSetId = share.pack.selection.type === "raid" ? share.pack.selection.setId : null;
+  const targetSetId = pack.selection.type === "raid" ? pack.selection.setId : null;
   const primarySet = targetSetId
-    ? share.pack.sets.find((set) => set.id === targetSetId) ?? share.pack.sets[0]
-    : share.pack.sets[0];
-  const packType = share.pack.selection.type === "all"
+    ? pack.sets.find((set) => set.id === targetSetId) ?? pack.sets[0]
+    : pack.sets[0];
+  const packType = pack.selection.type === "all"
     ? openT("allRaids")
     : primarySet?.raidName;
-  const inspectedResult = viewer ? share.pack.results[viewer.index] : null;
+  const inspectedResult = viewer ? pack.results[viewer.index] : null;
+  const fanLayout = packCount > 1 ? getMultiFanLayout(pack.results.length) : null;
+  const renderCard = (result: CcgOpening["results"][number], index: number, className: string) => (
+    <CollectibleCard
+      key={`${result.card.id}:${result.position}`}
+      card={result.card}
+      finish={result.finish}
+      artVariant={result.artVariant}
+      compact
+      className={className}
+      onSelect={(event) => {
+        const originElement = event.currentTarget;
+        openCardViewer(originElement, (sharedTransition, originBounds) => {
+          setViewer({ index, originElement, originBounds, sharedTransition });
+        }, event.nativeEvent);
+      }}
+    />
+  );
   return (
     <>
       <section
         className={`${packStyles.packStage} ${styles.sharedStage}`}
-        style={getPackTheme(primarySet, share.pack.selection.type === "all")}
+        style={getPackTheme(primarySet, pack.selection.type === "all")}
         aria-labelledby="ccg-shared-pack-title"
       >
         <StageBackground />
@@ -146,29 +166,41 @@ function SharedPack({ share }: { share: Extract<CcgShare, { kind: "pack" }> }) {
           <header className={styles.sharedPackHeader}>
             <div className={styles.sharedPackType}>{packType}</div>
             <h1 id="ccg-shared-pack-title" className={styles.sharedPackTitle}>
-              <img src={share.unboxedBy.avatarUrl} alt="" />
-              <span>{t("sharedPackBy", { username: share.unboxedBy.username })}</span>
+              <img src={unboxedBy.avatarUrl} alt="" />
+              <span>{packCount > 1
+                ? t("sharedBatchBy", { username: unboxedBy.username, count: packCount })
+                : t("sharedPackBy", { username: unboxedBy.username })}</span>
             </h1>
           </header>
           <div className={styles.sharedPackScroller}>
-            <div className={styles.sharedPackCards}>
-              {share.pack.results.map((result, index) => (
-                <CollectibleCard
-                  key={`${result.card.id}:${result.position}`}
-                  card={result.card}
-                  finish={result.finish}
-                  artVariant={result.artVariant}
-                  compact
-                  className={styles.sharedPackCard}
-                  onSelect={(event) => {
-                    const originElement = event.currentTarget;
-                    openCardViewer(originElement, (sharedTransition, originBounds) => {
-                      setViewer({ index, originElement, originBounds, sharedTransition });
-                    }, event.nativeEvent);
-                  }}
-                />
-              ))}
-            </div>
+            {fanLayout ? (
+              <div
+                className={`${packStyles.cardFan} ${packStyles.multiFan} ${packStyles.multiFanSwipe}`}
+                style={{ "--multi-fan-height": fanLayout.heightUnits } as CSSProperties}
+              >
+                {pack.results.map((result, index) => {
+                  const slot = fanLayout.slots[index];
+                  return (
+                    <div
+                      key={`${result.card.id}:${result.position}`}
+                      className={packStyles.multiFanCard}
+                      style={{
+                        "--multi-x": slot.x,
+                        "--multi-y": slot.y,
+                        "--multi-z": slot.zIndex,
+                        "--fan-angle": `${slot.angle}deg`,
+                      } as CSSProperties}
+                    >
+                      {renderCard(result, index, `${styles.sharedFanCard} ${styles.scaledCardTypography}`)}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className={styles.sharedPackCards}>
+                {pack.results.map((result, index) => renderCard(result, index, styles.sharedPackCard))}
+              </div>
+            )}
           </div>
           <Link href="/ccg/open" className={`${styles.primaryButton} ${styles.sharedCta} ${styles.sharedPackCta}`}>
             {t("openPacksNow")}
@@ -192,7 +224,7 @@ function SharedPack({ share }: { share: Extract<CcgShare, { kind: "pack" }> }) {
           originBounds={viewer.originBounds}
           sharedTransition={viewer.sharedTransition}
           canShare={false}
-          footerAction={<Attribution person={share.unboxedBy} className={styles.sharedAttributionAction} />}
+          footerAction={<Attribution person={unboxedBy} className={styles.sharedAttributionAction} />}
           showFinishControls={false}
           onClose={() => setViewer(null)}
         />
@@ -222,7 +254,10 @@ export default function CcgSharedView({
     <CcgShell compact>
       <div className={styles.sharedPage}>
         {share ? (
-          share.kind === "card" ? <SharedCard share={share} /> : <SharedPack share={share} />
+          share.kind === "card" ? <SharedCard share={share} />
+            : share.kind === "batch"
+              ? <SharedPack pack={combineCcgOpenings(share.batch.openings)} packCount={share.batch.openings.length} unboxedBy={share.unboxedBy} />
+              : <SharedPack pack={share.pack} packCount={1} unboxedBy={share.unboxedBy} />
         ) : shareQuery.isPending ? (
           <div className={styles.sharedLoading} role="status">{t("loading")}</div>
         ) : (

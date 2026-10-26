@@ -15,7 +15,7 @@ type RouteContext = {
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
   const { kind, shareId } = await params;
-  if (kind !== "card" && kind !== "pack") {
+  if (kind !== "card" && kind !== "pack" && kind !== "batch") {
     return new Response("Share image not found", { status: 404 });
   }
 

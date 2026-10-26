@@ -1,5 +1,6 @@
 // Runs `next dev` against the in-memory CCG mock API, so /ccg/open works without the backend or MongoDB.
 // Usage: npm run dev:ccg-mock  ->  http://localhost:3100/ccg/open
+//        npm run dev:ccg-mock:user  ->  same, signed in as a mock collector (enables sharing)
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { startCcgMockApi } from "./ccg-mock-api.mjs";

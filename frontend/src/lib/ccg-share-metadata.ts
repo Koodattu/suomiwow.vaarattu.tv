@@ -5,7 +5,7 @@ import enMessages from "../../messages/en.json";
 import fiMessages from "../../messages/fi.json";
 import type { CcgFinish, CcgOpening, CcgShare, CcgTierGrade } from "@/types";
 import { hydrateCcgShare, type CcgShareWire } from "@/lib/ccg-wire";
-import { CCG_RARITY_KEYS, compareCcgPullQuality } from "@/lib/ccg";
+import { CCG_RARITY_KEYS, combineCcgOpenings, compareCcgPullQuality } from "@/lib/ccg";
 import {
   CCG_EMBED_IMAGE,
   CCG_EMBED_IMAGE_ALT,
@@ -25,7 +25,7 @@ const EMBED_COPY = {
   fi: fiMessages.ccg,
 } as const;
 
-function interpolate(template: string, values: Record<string, string | number>) {
+export function interpolate(template: string, values: Record<string, string | number>) {
   return template.replace(/\{(\w+)\}/g, (match, key: string) => (
     Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : match
   ));
@@ -76,6 +76,13 @@ export function getCcgPackType(pack: CcgOpening, locale: CcgEmbedLocale) {
   return primarySet?.raidName ?? EMBED_COPY[locale].share.embed.raidPack;
 }
 
+/** A shared batch reads as one opening across all of its packs. */
+export function getSharedOpening(share: Exclude<CcgShare, { kind: "card" }>): { pack: CcgOpening; packCount: number } {
+  return share.kind === "batch"
+    ? { pack: combineCcgOpenings(share.batch.openings), packCount: share.batch.openings.length }
+    : { pack: share.pack, packCount: 1 };
+}
+
 export function getBestPackResult(pack: CcgOpening) {
   return [...pack.results].sort((left, right) => (
     compareCcgPullQuality(left, right)
@@ -94,7 +101,7 @@ export async function fetchCcgShare(shareId: string): Promise<CcgShare | null> {
     const share = hydrateCcgShare(await response.json() as CcgShareWire);
     const isSupporter = share.kind === "card"
       ? share.card.card.set.kind === "supporter"
-      : share.pack.selection.type === "supporter";
+      : getSharedOpening(share).pack.selection.type === "supporter";
     if (!isSupporter) return share;
     const current = await fetch(`${apiUrl}/api/ccg/shares/${encodeURIComponent(shareId)}`, { cache: "no-store" });
     return current.ok ? hydrateCcgShare(await current.json() as CcgShareWire) : null;
@@ -122,15 +129,25 @@ function getShareCopy(share: CcgShare, locale: CcgEmbedLocale) {
     };
   }
 
-  const bestResult = getBestPackResult(share.pack);
-  const packType = getCcgPackType(share.pack, locale);
+  const { pack, packCount } = getSharedOpening(share);
+  const bestResult = getBestPackResult(pack);
+  const packType = getCcgPackType(pack, locale);
   const values = {
     username: share.unboxedBy.username,
     packType,
     finish: bestResult ? getCcgFinishLabel(locale, bestResult.finish) : "",
     rarity: bestResult ? getCcgRarityLabel(locale, bestResult.card.tierGrade) : "",
     name: bestResult?.card.name ?? "",
+    count: packCount,
+    cards: pack.results.length,
   };
+  if (share.kind === "batch") {
+    return {
+      title: interpolate(copy.batchTitle, values),
+      description: interpolate(copy.batchDescription, values),
+      imageAlt: interpolate(copy.batchAlt, values),
+    };
+  }
   return {
     title: interpolate(copy.packTitle, values),
     description: interpolate(copy.packDescription, values),

@@ -645,6 +645,17 @@ export const api = {
     return response.json();
   },
 
+  async createCcgBatchShare(batchId: string): Promise<CcgShareLink> {
+    const response = await fetch(`${API_URL}/api/ccg/shares/batch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ batchId }),
+    });
+    if (!response.ok) throw await buildApiError(response, "The pack link could not be created");
+    return response.json();
+  },
+
   async getCcgShare(shareId: string): Promise<CcgShare> {
     const response = await fetch(`${API_URL}/api/ccg/shares/${encodeURIComponent(shareId)}`);
     if (!response.ok) throw await buildApiError(response, "This shared opening could not be found");

@@ -2510,7 +2510,7 @@ export type CcgOpeningBatch = {
 
 export type CcgShareLink = {
   id: string;
-  kind: "card" | "pack";
+  kind: "card" | "pack" | "batch";
   path: string;
 };
 
@@ -2533,6 +2533,13 @@ export type CcgShare =
       createdAt: string;
       unboxedBy: CcgShareAttribution;
       pack: CcgOpening;
+    }
+  | {
+      id: string;
+      kind: "batch";
+      createdAt: string;
+      unboxedBy: CcgShareAttribution;
+      batch: CcgOpeningBatch;
     };
 
 export type CcgActivityFilter = "all" | "packs" | "codes" | "twitch";

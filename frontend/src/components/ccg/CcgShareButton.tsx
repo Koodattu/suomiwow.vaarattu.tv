@@ -9,7 +9,8 @@ import styles from "./ccg.module.css";
 
 type ShareTarget =
   | { kind: "card"; cardId: string; finish: CcgFinish; artVariant: CcgArtVariant }
-  | { kind: "pack"; openingId: string };
+  | { kind: "pack"; openingId: string }
+  | { kind: "batch"; batchId: string };
 
 async function copyText(value: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
@@ -58,7 +59,9 @@ export default function CcgShareButton({
     try {
       const link = shareLink ?? (target.kind === "card"
         ? await api.createCcgCardShare(target)
-        : await api.createCcgPackShare(target.openingId));
+        : target.kind === "batch"
+          ? await api.createCcgBatchShare(target.batchId)
+          : await api.createCcgPackShare(target.openingId));
       setShareLink(link);
       const shareUrl = new URL(link.path, window.location.origin);
       await copyText(shareUrl.toString());
@@ -71,7 +74,7 @@ export default function CcgShareButton({
     resetTimerRef.current = window.setTimeout(() => setStatus("idle"), resetDelay);
   };
 
-  const actionLabel = loginRequired ? t("loginRequired") : t(target.kind === "card" ? "card" : "pack");
+  const actionLabel = loginRequired ? t("loginRequired") : t(target.kind);
   const copiedLabel = t("copied");
   const statusLabel = status === "creating"
     ? t("creating")

@@ -8476,6 +8476,27 @@
   transform: translateY(0.9rem) rotate(4deg);
 }
 
+/* A shared batch uses the opening's multi-pack fan (pack-opening.module.css); this is the card inside each slot. */
+.sharedFanCard {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sharedFanCard > [data-ccg-card] {
+  max-width: none;
+}
+
+.sharedFanCard:focus-visible {
+  border-radius: 0.45rem;
+  outline: 2px solid #7ddcff;
+  outline-offset: 4px;
+}
+
 .sharedAttribution {
   display: flex;
   min-height: 2.75rem;

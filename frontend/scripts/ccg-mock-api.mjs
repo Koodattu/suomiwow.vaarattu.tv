@@ -6,6 +6,9 @@ import { pathToFileURL } from "node:url";
 
 const PORT = Number(process.env.CCG_MOCK_PORT || 3101);
 const STARTING_PACKS = Number(process.env.CCG_MOCK_PACKS || 99);
+// Signed-in mode (`--user` or CCG_MOCK_USER=1) unlocks sharing, which the real backend allows only for accounts.
+const MOCK_USER = process.env.CCG_MOCK_USER === "1" || process.argv.includes("--user");
+const MOCK_PROFILE = { username: "MockCollector", avatarUrl: "/ccg/alternative/character/labubu.png" };
 const LATENCY_MS = Number(process.env.CCG_MOCK_LATENCY_MS || 220);
 const CARDS_PER_PACK = 5;
 const CARDS_PER_SET = 40;
@@ -149,6 +152,8 @@ function createState() {
     processedKeys: new Map(),
     batches: new Map(),
     batchOpenings: new Map(),
+    shares: new Map(),
+    shareKeys: new Map(),
   };
 }
 
@@ -157,7 +162,7 @@ let state = createState();
 function sessionPayload() {
   const now = Date.now();
   return {
-    ownerType: "guest",
+    ownerType: MOCK_USER ? "user" : "guest",
     dateKey: new Date(now).toISOString().slice(0, 10),
     resetAt: new Date(now + 6 * 60 * 60 * 1000).toISOString(),
     packs: { regularRemaining: state.packs, bonusRemaining: 0, totalRemaining: state.packs },
@@ -298,6 +303,45 @@ function openPackBatch(body) {
   return { status: 200, payload: { batchId, openings } };
 }
 
+function createShare(kind, body) {
+  if (!MOCK_USER) return { status: 401, payload: { error: "Log in to share", code: "authentication_required" } };
+  const target = kind === "batch" ? body.batchId : kind === "card" ? body.cardId : body.openingId;
+  const exists = kind === "batch" ? state.batchOpenings.has(target)
+    : kind === "card" ? Boolean(findCard(target))
+      : state.openings.has(target);
+  if (!exists) return { status: 404, payload: { error: "Pack opening not found", code: "opening_not_found" } };
+  const key = kind === "card" ? `card:${target}:${body.finish}:${body.artVariant}` : `${kind}:${target}`;
+  let id = state.shareKeys.get(key);
+  if (!id) {
+    id = randomBytes(6).toString("base64url");
+    state.shareKeys.set(key, id);
+    state.shares.set(id, { kind, target, finish: body.finish, artVariant: body.artVariant, createdAt: new Date().toISOString() });
+  }
+  return { status: 200, payload: { id, kind, path: `/ccg/share/${id}` } };
+}
+
+function findCard(cardId) {
+  for (const cards of state.cardsBySet.values()) {
+    const card = cards.find((row) => row.id === cardId);
+    if (card) return card;
+  }
+  return null;
+}
+
+function readShare(id) {
+  const share = state.shares.get(id);
+  if (!share) return { status: 404, payload: { error: "Shared opening not found", code: "share_not_found" } };
+  const base = { id, kind: share.kind, createdAt: share.createdAt, unboxedBy: MOCK_PROFILE };
+  if (share.kind === "card") {
+    const card = findCard(share.target);
+    const set = state.sets.find((row) => row.id === card.setId);
+    return { status: 200, payload: { ...base, sets: [set], card: { card, finish: share.finish ?? "standard", artVariant: share.artVariant ?? "standard" } } };
+  }
+  return share.kind === "batch"
+    ? { status: 200, payload: { ...base, batch: { batchId: share.target, openings: state.batchOpenings.get(share.target) } } }
+    : { status: 200, payload: { ...base, pack: state.openings.get(share.target) } };
+}
+
 function readBody(request) {
   return new Promise((resolve) => {
     let raw = "";
@@ -317,7 +361,16 @@ function readBody(request) {
 async function route(request) {
   const url = new URL(request.url, `http://localhost:${PORT}`);
   const path = url.pathname;
-  if (request.method === "GET" && path === "/api/auth/me") return { status: 401, payload: { error: "Not signed in" } };
+  if (request.method === "GET" && path === "/api/auth/me") {
+    return MOCK_USER
+      ? { status: 200, payload: { discord: MOCK_PROFILE, isAdmin: false } }
+      : { status: 401, payload: { error: "Not signed in" } };
+  }
+  if (request.method === "POST" && /^\/api\/ccg\/shares\/(pack|batch|card)$/.test(path)) {
+    return createShare(path.split("/").pop(), await readBody(request));
+  }
+  const shareMatch = path.match(/^\/api\/ccg\/shares\/([A-Za-z0-9_-]+)$/);
+  if (request.method === "GET" && shareMatch) return readShare(shareMatch[1]);
   if (request.method === "GET" && path === "/api/ccg/session") return { status: 200, payload: sessionPayload() };
   if (request.method === "GET" && path === "/api/ccg/sets") return { status: 200, payload: { sets: state.sets } };
   if (request.method === "GET" && path === "/api/pickems/ccg-opportunity") return { status: 200, payload: { hasOpportunity: false, claimablePacks: 0 } };

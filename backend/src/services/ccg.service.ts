@@ -2906,6 +2906,35 @@ class CcgService {
     return this.serializeShareLink(share);
   }
 
+  async createBatchShare(req: Request, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+    requireFeature();
+    const userId = await this.requireAuthenticatedUser(req);
+    const batchId = validateObjectId(String(body.batchId ?? ""), "pack opening batch ID");
+    const ownedBatch = {
+      batchId,
+      state: "committed" as const,
+      $or: [
+        { ownerType: "user" as const, ownerId: userId },
+        { claimedByUserId: userId },
+      ],
+    };
+    if (!(await CcgPackOpening.exists(ownedBatch))) {
+      throw new CcgServiceError(404, "opening_not_found", "Pack opening not found");
+    }
+
+    // Same as single packs: shared guest openings that were claimed keep living without a guest day key.
+    await CcgPackOpening.updateMany(
+      { batchId, ownerType: "guest", claimedByUserId: userId },
+      { $set: { dateKey: null } },
+    );
+
+    const share = await this.createOrGetShare(
+      { kind: "batch", userId, batchId },
+      { kind: "batch", userId, batchId },
+    );
+    return this.serializeShareLink(share);
+  }
+
   async getShare(rawShareId: string): Promise<Record<string, unknown>> {
     requireFeature();
     const lookup = validateShareLookup(rawShareId);
@@ -2941,6 +2970,21 @@ class CcgService {
           card: this.serializeCard(card, set, alternativeByCollector.get(resolveAlternativeArtKey(card))),
           finish: share.finish,
           artVariant: share.artVariant,
+        },
+      };
+    }
+
+    if (share.kind === "batch") {
+      if (!share.batchId) throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
+      const openings = await CcgPackOpening.find({ batchId: share.batchId, state: "committed" })
+        .sort({ _id: 1 })
+        .lean<ICcgPackOpening[]>();
+      if (openings.length === 0) throw new CcgServiceError(404, "share_not_found", "Shared opening not found");
+      return {
+        ...response,
+        batch: {
+          batchId: String(share.batchId),
+          openings: await Promise.all(openings.map((opening) => this.serializeOpening(opening))),
         },
       };
     }

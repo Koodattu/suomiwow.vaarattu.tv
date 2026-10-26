@@ -71,7 +71,8 @@ export type CcgShareWire =
       sets: CcgSet[];
       card: { card: CcgCardWire; finish: CcgFinish; artVariant: CcgArtVariant };
     })
-  | (Omit<Extract<CcgShare, { kind: "pack" }>, "pack"> & { pack: CcgOpeningWire });
+  | (Omit<Extract<CcgShare, { kind: "pack" }>, "pack"> & { pack: CcgOpeningWire })
+  | (Omit<Extract<CcgShare, { kind: "batch" }>, "batch"> & { batch: { batchId: string; openings: CcgOpeningWire[] } });
 
 export type CcgRedeemResultWire = {
   code: string;
@@ -173,6 +174,7 @@ export function hydrateCcgOverlayEvent(event: CcgOverlayEventWire): CcgOverlayEv
 
 export function hydrateCcgShare(share: CcgShareWire): CcgShare {
   if (share.kind === "pack") return { ...share, pack: hydrateCcgOpening(share.pack) };
+  if (share.kind === "batch") return { ...share, batch: { batchId: share.batch.batchId, openings: share.batch.openings.map(hydrateCcgOpening) } };
   const setById = getSetMap(share.sets);
   return {
     id: share.id,

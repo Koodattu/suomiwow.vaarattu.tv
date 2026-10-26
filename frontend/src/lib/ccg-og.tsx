@@ -3,17 +3,20 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize, sep } from "node:path";
 import type { ReactNode } from "react";
-import type { CcgArtVariant, CcgCard, CcgFinish, CcgShare } from "@/types";
-import { CCG_FINISH_COLORS, CCG_RARITY_COLORS } from "@/lib/ccg";
+import sharp from "sharp";
+import type { CcgArtVariant, CcgCard, CcgOpening, CcgShare } from "@/types";
+import { CCG_FINISH_COLORS, CCG_RARITY_COLORS, compareCcgPullQuality } from "@/lib/ccg";
 import {
   getBestPackResult,
   getCcgEmbedCopy,
   getCcgFinishLabel,
   getCcgPackType,
   getCcgRarityLabel,
+  getSharedOpening,
+  interpolate,
   type CcgEmbedLocale,
 } from "@/lib/ccg-share-metadata";
-import { formatRealmName, formatSpecName, getClassInfoById } from "@/lib/utils";
+import { formatRealmName } from "@/lib/utils";
 
 const IMAGE_MIME_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -24,19 +27,13 @@ const IMAGE_MIME_TYPES: Record<string, string> = {
 
 const MAX_REMOTE_IMAGE_BYTES = 8 * 1024 * 1024;
 
-type PreparedCard = {
-  card: CcgCard;
-  finish: CcgFinish;
-  artVariant: CcgArtVariant;
-  backgroundSource: string | null;
-  renderSource: string | null;
-};
-
 function imageDataUri(bytes: Uint8Array, mimeType: string) {
   return `data:${mimeType};base64,${Buffer.from(bytes).toString("base64")}`;
 }
 
-async function loadPublicImage(path: string | null | undefined): Promise<string | null> {
+type ImageBytes = { bytes: Uint8Array; mimeType: string };
+
+async function readPublicImage(path: string | null | undefined): Promise<ImageBytes | null> {
   if (!path?.startsWith("/")) return null;
   const relativePath = normalize(path.split("?")[0].slice(1).replaceAll("/", sep));
   const publicRoot = join(process.cwd(), "public");
@@ -46,13 +43,36 @@ async function loadPublicImage(path: string | null | undefined): Promise<string 
   if (!mimeType) return null;
 
   try {
-    return imageDataUri(await readFile(absolutePath), mimeType);
+    return { bytes: await readFile(absolutePath), mimeType };
   } catch {
     return null;
   }
 }
 
-async function loadCharacterRender(url: string | null | undefined): Promise<string | null> {
+async function loadPublicImage(path: string | null | undefined): Promise<string | null> {
+  const image = await readPublicImage(path);
+  return image ? imageDataUri(image.bytes, image.mimeType) : null;
+}
+
+type TrimmedRender = { source: string; width: number; height: number };
+
+/** Cuts a character render down to the character itself so a lineup can stand everyone on one floor. */
+async function loadTrimmedCharacterRender(url: string | null | undefined): Promise<TrimmedRender | null> {
+  const image = await readCharacterRender(url);
+  if (!image) return null;
+  try {
+    const { data, info } = await sharp(image.bytes)
+      .trim()
+      .resize({ height: 640, withoutEnlargement: true })
+      .png()
+      .toBuffer({ resolveWithObject: true });
+    return { source: imageDataUri(data, "image/png"), width: info.width, height: info.height };
+  } catch {
+    return null;
+  }
+}
+
+async function readCharacterRender(url: string | null | undefined): Promise<ImageBytes | null> {
   if (!url) return null;
   if (/^\/api\/ccg\/media\/(?:assets|supporter)\/[a-f\d]{24}$/i.test(url)) {
     const apiBase = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -66,12 +86,12 @@ async function loadCharacterRender(url: string | null | undefined): Promise<stri
       if (mimeType !== "image/webp") return null;
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (bytes.byteLength > MAX_REMOTE_IMAGE_BYTES) return null;
-      return imageDataUri(bytes, mimeType);
+      return { bytes, mimeType };
     } catch {
       return null;
     }
   }
-  if (url.startsWith("/")) return loadPublicImage(url);
+  if (url.startsWith("/")) return readPublicImage(url);
 
   let parsedUrl: URL;
   try {
@@ -91,7 +111,7 @@ async function loadCharacterRender(url: string | null | undefined): Promise<stri
     if (mimeType !== "image/png" && mimeType !== "image/jpeg") return null;
     const bytes = new Uint8Array(await response.arrayBuffer());
     if (bytes.byteLength > MAX_REMOTE_IMAGE_BYTES) return null;
-    return imageDataUri(bytes, mimeType);
+    return { bytes, mimeType };
   } catch {
     return null;
   }
@@ -112,15 +132,6 @@ function getCardArt(card: CcgCard, artVariant: CcgArtVariant) {
       ? card.alternativeArt.characterArtPath
       : card.renderUrl,
   };
-}
-
-async function prepareCard(card: CcgCard, finish: CcgFinish, artVariant: CcgArtVariant): Promise<PreparedCard> {
-  const art = getCardArt(card, artVariant);
-  const [backgroundSource, renderSource] = await Promise.all([
-    loadPublicImage(art.backgroundPath),
-    loadCharacterRender(art.renderPath),
-  ]);
-  return { card, finish, artVariant, backgroundSource, renderSource };
 }
 
 function Brand({ logoSource, compact = false }: { logoSource: string | null; compact?: boolean }) {
@@ -219,224 +230,130 @@ function Pill({ children, accent, subtle = false }: { children: ReactNode; accen
   );
 }
 
-function CardFace({
-  prepared,
-  width,
-  height,
-  locale,
-  featured = false,
-}: {
-  prepared: PreparedCard;
-  width: number;
-  height: number;
-  locale: CcgEmbedLocale;
-  featured?: boolean;
-}) {
-  const { card, finish, artVariant, backgroundSource, renderSource } = prepared;
-  const compact = width < 230;
-  const finishColor = CCG_FINISH_COLORS[finish];
-  const rarityColor = CCG_RARITY_COLORS[card.tierGrade];
-  const className = getClassInfoById(card.classID).name;
-  const guild = card.guildName ? `<${card.guildName}>` : formatRealmName(card.realm);
-  const copy = getCcgEmbedCopy(locale).share.embed;
-  const availabilityLabel = card.availabilityStatus && card.availabilityStatus !== "active"
-    ? getCcgEmbedCopy(locale).availability[card.availabilityStatus]
-    : null;
+type LineupPull = {
+  result: CcgOpening["results"][number];
+  render: TrimmedRender | null;
+  featured: boolean;
+};
 
+const LINEUP_COLUMN_WIDTH = 214;
+
+/** One pull in a pack preview: the character itself on a glow in its finish colour, not a drawn card. */
+function PullFigure({ pull, locale }: { pull: LineupPull; locale: CcgEmbedLocale }) {
+  const { result, render, featured } = pull;
+  const color = CCG_FINISH_COLORS[result.finish];
+  const maxHeight = featured ? 268 : 232;
+  const scale = render ? Math.min(maxHeight / render.height, (LINEUP_COLUMN_WIDTH - 12) / render.width) : 1;
+  const imageWidth = render ? Math.round(render.width * scale) : 0;
+  const imageHeight = render ? Math.round(render.height * scale) : 0;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: LINEUP_COLUMN_WIDTH, margin: "0 4px" }}>
+      <div style={{ position: "relative", display: "flex", alignItems: "flex-end", justifyContent: "center", width: LINEUP_COLUMN_WIDTH, height: 276 }}>
+        <div
+          style={{
+            position: "absolute",
+            bottom: 14,
+            left: 22,
+            right: 22,
+            height: featured ? 226 : 190,
+            display: "flex",
+            borderRadius: 999,
+            background: `radial-gradient(ellipse at 50% 72%, ${color}${featured ? "66" : "3d"} 0%, transparent 70%)`,
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: -12,
+            left: 14,
+            right: 14,
+            height: 44,
+            display: "flex",
+            borderRadius: 999,
+            background: `radial-gradient(ellipse at 50% 50%, ${color}d9 0%, ${color}4d 42%, transparent 72%)`,
+          }}
+        />
+        {render ? (
+          <img src={render.source} alt="" width={imageWidth} height={imageHeight} style={{ position: "relative", width: imageWidth, height: imageHeight }} />
+        ) : (
+          <div style={{ position: "relative", display: "flex", width: 120, height: 200, marginBottom: 8, borderRadius: 999, background: `${color}26` }} />
+        )}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          maxWidth: LINEUP_COLUMN_WIDTH,
+          marginTop: 16,
+          color: "#ffffff",
+          fontSize: featured ? 27 : 23,
+          fontWeight: 850,
+          letterSpacing: "-0.01em",
+          overflow: "hidden",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {result.card.name}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", marginTop: 8 }}>
+        <Pill accent={color}>{getCcgFinishLabel(locale, result.finish)}</Pill>
+        <div style={{ display: "flex", marginLeft: 8, color: CCG_RARITY_COLORS[result.card.tierGrade], fontSize: 15, fontWeight: 800 }}>
+          {getCcgRarityLabel(locale, result.card.tierGrade)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const HERO_WIDTH = 400;
+const HERO_HEIGHT = 500;
+
+/** The character from a shared card, standing on a glow in its finish colour instead of a drawn card. */
+function CharacterHero({ render, color }: { render: TrimmedRender | null; color: string }) {
+  const scale = render ? Math.min((HERO_HEIGHT - 30) / render.height, (HERO_WIDTH - 20) / render.width) : 1;
+  const imageWidth = render ? Math.round(render.width * scale) : 0;
+  const imageHeight = render ? Math.round(render.height * scale) : 0;
   return (
     <div
       style={{
+        position: "absolute",
+        top: 50,
+        left: 52,
         display: "flex",
-        width,
-        height,
-        padding: compact ? 5 : 8,
-        borderRadius: compact ? 16 : 24,
-        background: `linear-gradient(145deg, ${finishColor}, #172234 46%, ${finishColor})`,
-        boxShadow: featured
-          ? `0 0 0 2px ${finishColor}, 0 22px 55px ${finishColor}55, 0 28px 60px rgba(0,0,0,.48)`
-          : "0 0 0 1px rgba(255,255,255,.12), 0 18px 42px rgba(0,0,0,.42)",
+        alignItems: "flex-end",
+        justifyContent: "center",
+        width: HERO_WIDTH,
+        height: HERO_HEIGHT,
       }}
     >
       <div
         style={{
-          position: "relative",
+          position: "absolute",
+          bottom: 30,
+          left: 30,
+          right: 30,
+          height: 420,
           display: "flex",
-          width: "100%",
-          height: "100%",
-          overflow: "hidden",
-          borderRadius: compact ? 11 : 16,
-          background: "#070b12",
-          boxShadow: "inset 0 0 0 1px rgba(255,255,255,.1)",
+          borderRadius: 999,
+          background: `radial-gradient(ellipse at 50% 70%, ${color}5c 0%, transparent 70%)`,
         }}
-      >
-        {backgroundSource ? (
-          <img
-            src={backgroundSource}
-            alt=""
-            width={width}
-            height={height}
-            style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }}
-          />
-        ) : null}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            display: "flex",
-            background: "linear-gradient(180deg, rgba(3,6,12,.2) 0%, rgba(3,6,12,.05) 43%, rgba(3,6,12,.96) 78%, #03060c 100%)",
-          }}
-        />
-        {renderSource ? (
-          <img
-            src={renderSource}
-            alt=""
-            width={width}
-            height={height}
-            style={{
-              position: "absolute",
-              top: compact ? 20 : 35,
-              left: compact ? -2 : 0,
-              width: "100%",
-              height: compact ? "72%" : "70%",
-              objectFit: "contain",
-              objectPosition: "center bottom",
-            }}
-          />
-        ) : availabilityLabel ? (
-          <div
-            style={{
-              position: "absolute",
-              top: compact ? 42 : 66,
-              left: "27%",
-              display: "flex",
-              width: "46%",
-              height: compact ? 125 : 205,
-              alignItems: "center",
-              justifyContent: "center",
-              flexDirection: "column",
-              borderRadius: 999,
-              color: card.availabilityStatus === "verification_pending" ? "#eacb82" : "#c7d0dc",
-              background: "rgba(3,9,16,.76)",
-              boxShadow: "inset 0 0 0 1px rgba(255,255,255,.12), 0 18px 42px rgba(0,0,0,.34)",
-            }}
-          >
-            <div style={{ display: "flex", fontSize: compact ? 34 : 54, opacity: 0.58 }}>◈</div>
-            <div
-              style={{
-                display: "flex",
-                maxWidth: "82%",
-                marginTop: compact ? 7 : 11,
-                fontSize: compact ? 8 : 12,
-                fontWeight: 800,
-                letterSpacing: "0.08em",
-                textAlign: "center",
-                textTransform: "uppercase",
-              }}
-            >
-              {availabilityLabel}
-            </div>
-          </div>
-        ) : null}
-
-        <div
-          style={{
-            position: "absolute",
-            top: compact ? 9 : 14,
-            left: compact ? 9 : 14,
-            right: compact ? 9 : 14,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              maxWidth: compact ? width - 55 : width - 78,
-              padding: compact ? "4px 7px" : "6px 9px",
-              borderRadius: compact ? 7 : 9,
-              color: "#f8fafc",
-              background: "rgba(2,6,12,.72)",
-              boxShadow: "inset 0 0 0 1px rgba(255,255,255,.1)",
-              fontSize: compact ? 9 : 13,
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              overflow: "hidden",
-            }}
-          >
-            {card.set.raidName}
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: compact ? 30 : 42,
-              height: compact ? 30 : 42,
-              borderRadius: compact ? 9 : 13,
-              color: "#07101c",
-              background: rarityColor,
-              boxShadow: `0 8px 24px ${rarityColor}44`,
-              fontSize: compact ? 17 : 24,
-              fontWeight: 900,
-            }}
-          >
-            {card.tierGrade}
-          </div>
-        </div>
-
-        <div
-          style={{
-            position: "absolute",
-            right: compact ? 9 : 14,
-            bottom: compact ? 74 : 117,
-            display: "flex",
-            padding: compact ? "4px 7px" : "6px 10px",
-            borderRadius: 999,
-            color: "#06101d",
-            background: finishColor,
-            fontSize: compact ? 9 : 13,
-            fontWeight: 800,
-            textTransform: "uppercase",
-          }}
-        >
-          {getCcgFinishLabel(locale, finish)}
-        </div>
-
-        <div
-          style={{
-            position: "absolute",
-            left: compact ? 11 : 17,
-            right: compact ? 11 : 17,
-            bottom: compact ? 10 : 16,
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <div style={{ display: "flex", color: "#ffffff", fontSize: compact ? 21 : 34, fontWeight: 900, lineHeight: 1 }}>
-            {card.name}
-          </div>
-          <div style={{ display: "flex", color: "#b9c6d6", fontSize: compact ? 10 : 15, marginTop: compact ? 5 : 7 }}>
-            {guild}
-          </div>
-          {!compact ? (
-            <div style={{ display: "flex", alignItems: "center", color: "#dfe7f1", fontSize: 14, marginTop: 11 }}>
-              <span>{formatSpecName(card.specName)} {className}</span>
-              <span style={{ color: "#6f829a", margin: "0 8px" }}>•</span>
-              <span style={{ color: rarityColor, fontWeight: 750 }}>{getCcgRarityLabel(locale, card.tierGrade)}</span>
-            </div>
-          ) : null}
-          {artVariant === "alternative" ? (
-            <div style={{ display: "flex", color: finishColor, fontSize: compact ? 8 : 11, fontWeight: 750, marginTop: 5, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              {copy.alternativeArt}
-            </div>
-          ) : null}
-        </div>
-      </div>
+      />
+      <div
+        style={{
+          position: "absolute",
+          bottom: -6,
+          left: 24,
+          right: 24,
+          height: 70,
+          display: "flex",
+          borderRadius: 999,
+          background: `radial-gradient(ellipse at 50% 50%, ${color}e6 0%, ${color}4d 42%, transparent 72%)`,
+        }}
+      />
+      {render ? (
+        <img src={render.source} alt="" width={imageWidth} height={imageHeight} style={{ position: "relative", width: imageWidth, height: imageHeight, marginBottom: 14 }} />
+      ) : (
+        <div style={{ position: "relative", display: "flex", width: 180, height: 340, marginBottom: 24, borderRadius: 999, background: `${color}26` }} />
+      )}
     </div>
   );
 }
@@ -556,17 +473,19 @@ export async function renderCcgShareOg(share: CcgShare, locale: CcgEmbedLocale) 
   const copy = getCcgEmbedCopy(locale).share.embed;
 
   if (share.kind === "card") {
-    const prepared = await prepareCard(share.card.card, share.card.finish, share.card.artVariant);
     const { card, finish } = share.card;
+    const art = getCardArt(card, share.card.artVariant);
+    const [backgroundSource, render] = await Promise.all([
+      loadPublicImage(art.backgroundPath),
+      loadTrimmedCharacterRender(art.renderPath),
+    ]);
     const accent = CCG_FINISH_COLORS[finish];
     const rarity = getCcgRarityLabel(locale, card.tierGrade);
     const finishLabel = getCcgFinishLabel(locale, finish);
     return (
       <RootImage>
-        <ImageBackdrop source={prepared.backgroundSource} accent={card.set.theme.accent || accent} />
-        <div style={{ position: "absolute", top: 58, left: 72, display: "flex" }}>
-          <CardFace prepared={prepared} width={350} height={490} locale={locale} featured />
-        </div>
+        <ImageBackdrop source={backgroundSource} accent={card.set.theme.accent || accent} />
+        <CharacterHero render={render} color={accent} />
         <div style={{ position: "absolute", top: 48, left: 480, right: 58, display: "flex", flexDirection: "column" }}>
           <Brand logoSource={logoSource} compact />
           <div style={{ display: "flex", color: card.set.theme.accent || accent, fontSize: 18, fontWeight: 800, letterSpacing: "0.1em", marginTop: 58, textTransform: "uppercase" }}>
@@ -595,17 +514,27 @@ export async function renderCcgShareOg(share: CcgShare, locale: CcgEmbedLocale) 
     );
   }
 
-  const bestResult = getBestPackResult(share.pack);
-  const targetSetId = share.pack.selection.type === "raid" ? share.pack.selection.setId : null;
+  const { pack, packCount } = getSharedOpening(share);
+  // A batch preview shows its five best pulls, in the order they were opened.
+  const shownResults = packCount > 1
+    ? [...pack.results]
+      .sort((left, right) => compareCcgPullQuality(left, right) || left.position - right.position)
+      .slice(0, 5)
+      .sort((left, right) => left.position - right.position)
+    : pack.results;
+  const bestResult = getBestPackResult(pack);
+  const targetSetId = pack.selection.type === "raid" ? pack.selection.setId : null;
   const primarySet = targetSetId
-    ? share.pack.sets.find((set) => set.id === targetSetId) ?? share.pack.sets[0]
-    : share.pack.sets[0];
+    ? pack.sets.find((set) => set.id === targetSetId) ?? pack.sets[0]
+    : pack.sets[0];
   const accent = primarySet?.theme.accent || "#67e8f9";
   const backgroundSource = await loadPublicImage(primarySet?.backgroundPath ?? "/ccg/general_alt_wide.png");
-  const preparedCards = await Promise.all(share.pack.results.map((result) => (
-    prepareCard(result.card, result.finish, result.artVariant)
-  )));
-  const packType = getCcgPackType(share.pack, locale);
+  const pulls: LineupPull[] = await Promise.all(shownResults.map(async (result) => ({
+    result,
+    render: await loadTrimmedCharacterRender(getCardArt(result.card, result.artVariant).renderPath),
+    featured: Boolean(bestResult && result.position === bestResult.position),
+  })));
+  const packType = getCcgPackType(pack, locale);
 
   return (
     <RootImage>
@@ -615,20 +544,12 @@ export async function renderCcgShareOg(share: CcgShare, locale: CcgEmbedLocale) 
         <div style={{ display: "flex", color: accent, fontSize: 17, fontWeight: 850, letterSpacing: "0.1em", textTransform: "uppercase" }}>{packType}</div>
         <div style={{ display: "flex", color: "#ffffff", fontSize: 39, fontWeight: 900, letterSpacing: "-0.025em", marginTop: 4 }}>{share.unboxedBy.username}</div>
       </div>
-      <div style={{ position: "absolute", top: 142, left: 53, right: 53, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-        {preparedCards.map((prepared, index) => {
-          const result = share.pack.results[index];
-          const featured = Boolean(bestResult && result.position === bestResult.position);
-          return (
-            <div key={`${prepared.card.id}:${index}`} style={{ display: "flex", marginLeft: index === 0 ? 0 : 17, marginBottom: featured ? 20 : 0 }}>
-              <CardFace prepared={prepared} width={198} height={277} locale={locale} featured={featured} />
-            </div>
-          );
-        })}
+      <div style={{ position: "absolute", top: 104, left: 30, right: 30, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+        {pulls.map((pull) => <PullFigure key={`${pull.result.card.id}:${pull.result.position}`} pull={pull} locale={locale} />)}
       </div>
       <div style={{ position: "absolute", left: 54, right: 54, bottom: 69, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center" }}>
-          <Pill accent={accent}>{copy.fiveCards}</Pill>
+          <Pill accent={accent}>{packCount > 1 ? interpolate(copy.batchCards, { count: packCount }) : copy.fiveCards}</Pill>
           {bestResult ? (
             <div style={{ display: "flex", color: "#dbe5f1", fontSize: 17, marginLeft: 14 }}>
               {copy.bestPull}: <span style={{ color: CCG_FINISH_COLORS[bestResult.finish], fontWeight: 800, marginLeft: 5 }}>{bestResult.card.name}</span>

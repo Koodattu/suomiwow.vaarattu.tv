@@ -15,7 +15,7 @@ import Balance from "../src/models/CcgPackBalance";
 import Ledger from "../src/models/CcgLedgerEntry";
 import Opening from "../src/models/CcgPackOpening";
 import QualityProgress from "../src/models/CcgQualityProgress";
-import { CCG_PACK_BALANCE_VERSION } from "../src/config/ccg";
+import { CCG_GUEST_COOKIE, CCG_PACK_BALANCE_VERSION } from "../src/config/ccg";
 
 // Dedicated disposable replica set; this suite never loads .env or deployment credentials.
 const database = `ccg_pack_batch_test_${process.pid}`;
@@ -230,4 +230,60 @@ test("the batch routes open and recover a batch for its owner only", async () =>
   assert.equal(malformed.status, 400);
   const single = await request(`/openings/${batch.openings[0].id}`);
   assert.equal(single.status, 200, "Each pack in a batch is still recoverable on its own");
+});
+
+test("a batch can be shared once and read back with all of its packs", async () => {
+  const batch = await ccg.openPackBatch(req, {} as any, { idempotencyKey: "batch-share-open", count: 5 }) as any;
+
+  const created = await request("/shares/batch", { batchId: batch.batchId });
+  assert.equal(created.status, 200);
+  const link = await created.json() as any;
+  assert.equal(link.kind, "batch");
+  assert.equal(link.path, `/ccg/share/${link.id}`);
+  const again = await (await request("/shares/batch", { batchId: batch.batchId })).json() as any;
+  assert.equal(again.id, link.id, "Sharing the same batch twice reuses its link");
+
+  const shared = await (await request(`/shares/${link.id}`)).json() as any;
+  assert.equal(shared.kind, "batch");
+  assert.equal(shared.batch.batchId, batch.batchId);
+  assert.deepEqual(shared.batch.openings.map((opening: any) => opening.id), batch.openings.map((opening: any) => opening.id));
+  assert.ok(shared.batch.openings.every((opening: any) => opening.results.length === 5));
+
+  const foreign = await request("/shares/batch", { batchId: batch.batchId }, otherId);
+  assert.equal(foreign.status, 404, "Only the owner can share a batch");
+  const anonymous = await fetch(`${url}/shares/batch`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ batchId: batch.batchId }) });
+  assert.equal(anonymous.status, 401);
+});
+
+test("a guest's batch moves to the account on first login and can then be recovered and shared", async () => {
+  let guestToken = "";
+  const guestRes = { cookie: (_name: string, value: string) => { guestToken = value; } } as any;
+  await ccg.resolveOwner({ session: {} } as any, guestRes);
+  assert.ok(guestToken, "A guest cookie is issued");
+  const guestReq = { session: {}, cookies: { [CCG_GUEST_COOKIE]: guestToken } } as any;
+
+  const single = await ccg.openPack(guestReq, guestRes, { idempotencyKey: "guest-single-pack" }) as any;
+  const batch = await ccg.openPackBatch(guestReq, guestRes, { idempotencyKey: "guest-batch-pack", count: 5 }) as any;
+  assert.equal(batch.openings.length, 5);
+
+  const newUserId = new mongoose.Types.ObjectId();
+  await User.collection.insertOne({ _id: newUserId, discord: { id: "batch-test-new", username: "Newcomer" }, pickems: [] });
+  const loginReq = { session: { userId: String(newUserId) }, cookies: { [CCG_GUEST_COOKIE]: guestToken } } as any;
+  // The open page passes the combined opening's ID, which is the batch's last pack.
+  const claim = await ccg.claimGuest(loginReq, { idempotencyKey: "guest-batch-claim", openingId: batch.openings.at(-1).id }) as any;
+  assert.equal(claim.claimed, true);
+  assert.equal(claim.cards, 30, "The single pack and all five batch packs move over");
+
+  const claimedOpenings = await Opening.find({ batchId: new mongoose.Types.ObjectId(batch.batchId) }).lean();
+  assert.equal(claimedOpenings.length, 5);
+  assert.ok(claimedOpenings.every((opening) => String(opening.claimedByUserId) === String(newUserId)));
+  assert.ok(await Opening.exists({ _id: single.id, claimedByUserId: newUserId }));
+
+  const userOwner = { ownerType: "user" as const, ownerId: newUserId, dateKey: "2026-10-26" };
+  const recovered = await ccg.getOpeningBatch(userOwner, batch.batchId) as any;
+  assert.deepEqual(recovered.openings.map((opening: any) => opening.id), batch.openings.map((opening: any) => opening.id));
+
+  const shared = await request("/shares/batch", { batchId: batch.batchId }, newUserId);
+  assert.equal(shared.status, 200, "A claimed guest batch can be shared like a claimed guest pack");
+  assert.equal(await Opening.countDocuments({ batchId: new mongoose.Types.ObjectId(batch.batchId), dateKey: null }), 5);
 });
