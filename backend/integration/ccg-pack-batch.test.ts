@@ -15,6 +15,7 @@ import Balance from "../src/models/CcgPackBalance";
 import Ledger from "../src/models/CcgLedgerEntry";
 import Opening from "../src/models/CcgPackOpening";
 import QualityProgress from "../src/models/CcgQualityProgress";
+import Ownership from "../src/models/CcgOwnership";
 import { CCG_GUEST_COOKIE, CCG_PACK_BALANCE_VERSION } from "../src/config/ccg";
 
 // Dedicated disposable replica set; this suite never loads .env or deployment credentials.
@@ -137,6 +138,54 @@ test("bad-luck protection carries across packs inside the batch", async () => {
     const rolledAstral = batch.openings[index].results.some((result: any) => result.finish === "astral");
     if (!rolledAstral) assert.equal(after, before + 5, `pack ${index + 1} continues from pack ${index}`);
   }
+});
+
+test("ownership upserts use the owner-series index and preserve existing quantities", async () => {
+  const card = await Card.findById(poolCardIds[0]).lean();
+  assert.ok(card);
+  // Many collectors own this character, but an acquisition must touch only its owner.
+  await Ownership.collection.insertMany(Array.from({ length: 300 }, () => ({
+    ownerType: "user", ownerId: new mongoose.Types.ObjectId(), cardId: card._id,
+    setId: card.setId, characterId: card.characterId, finish: "standard", quantity: 1,
+  })));
+  const originalBulkWrite = Ownership.collection.bulkWrite;
+  const filters: Record<string, any>[] = [];
+  const capture = mock.method(Ownership.collection, "bulkWrite", function (operations: any[], options: any) {
+    filters.push(...operations.map((operation) => operation.updateOne.filter));
+    return originalBulkWrite.call(Ownership.collection, operations, options);
+  });
+  try {
+    const result = { cardId: card._id, setId: card.setId, characterId: card.characterId,
+      snapshotVersion: 1, finish: "standard", artVariant: "standard" };
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await (ccg as any).addOwnership({ ownerType: "user", ownerId }, [result], session);
+        await (ccg as any).addOwnership({ ownerType: "user", ownerId }, [result], session);
+      });
+    } finally {
+      await session.endSession();
+    }
+  } finally {
+    capture.mock.restore();
+  }
+  const owned = await Ownership.find({ ownerId }).lean();
+  assert.equal(owned.length, 1, "Both acquisitions update the same ownership row");
+  assert.equal(owned[0].quantity, 2);
+  assert.equal(String(owned[0].setId), String(card.setId), "Upserts retain equality fields");
+  assert.equal(String(owned[0].characterId), String(card.characterId));
+  assert.equal(await Ownership.countDocuments({ ownerId: { $ne: ownerId }, quantity: 1 }), 300);
+  assert.equal(filters.length, 2);
+  for (const q of filters) {
+    // Explain the actual driver update without executing another acquisition.
+    const explanation = await mongoose.connection.db!.command({
+      explain: { update: Ownership.collection.name, updates: [{ q, u: { $inc: { quantity: 1 } }, upsert: true }] },
+      verbosity: "executionStats", maxTimeMS: 5000,
+    });
+    assert.match(JSON.stringify(explanation.queryPlanner.winningPlan), /ccg_ownership_owner_series_finish/);
+    assert.equal(explanation.executionStats.totalDocsExamined, 1);
+  }
+  assert.equal((await Ownership.findOne({ ownerId }).lean())?.quantity, 2, "Explain never writes");
 });
 
 test("replaying a batch key returns the same packs without spending more", async () => {

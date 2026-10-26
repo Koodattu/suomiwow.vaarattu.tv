@@ -3794,6 +3794,16 @@
   display: none;
 }
 
+/* Keep feedback visible while the previous cards and controls leave the stage. */
+.revealStagePending .revealLead {
+  opacity: 1;
+  transform: none;
+}
+
+.revealStagePending .revealSlot {
+  visibility: hidden;
+}
+
 .multiPackSlot {
   position: relative;
   display: grid;
@@ -4156,6 +4166,14 @@
 @media (prefers-reduced-motion: reduce) {
   .multiPackBurst {
     display: none;
+  }
+
+  .revealStagePending .multiPackBurst {
+    display: grid;
+  }
+
+  .revealStagePending .multiPackSlot {
+    animation: none;
   }
 
   .multiFan .revealSlot {

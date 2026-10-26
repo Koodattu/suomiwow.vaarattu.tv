@@ -190,7 +190,7 @@ export default function CcgOpenPage() {
   const packDragRef = useRef({ pointerId: -1, startX: 0, startY: 0, dragging: false, suppressClick: false });
   const sealedMotionFrame = useRef<number | null>(null);
   const pendingSealedMotion = useRef<{ element: HTMLButtonElement; x: number; y: number } | null>(null);
-  const nextPackTimerRef = useRef<number | null>(null);
+  const packRequestStartedAtRef = useRef<number | null>(null);
   const mobileSummaryTimerRef = useRef<number | null>(null);
   const mobileRevealAllHoldTimerRef = useRef<number | null>(null);
   const mobileAutoRevealTimersRef = useRef<number[]>([]);
@@ -449,7 +449,6 @@ export default function CcgOpenPage() {
   useEffect(
     () => () => {
       if (sealedMotionFrame.current !== null) cancelAnimationFrame(sealedMotionFrame.current);
-      if (nextPackTimerRef.current !== null) window.clearTimeout(nextPackTimerRef.current);
       if (mobileSummaryTimerRef.current !== null) window.clearTimeout(mobileSummaryTimerRef.current);
       if (mobileRevealAllHoldTimerRef.current !== null) window.clearTimeout(mobileRevealAllHoldTimerRef.current);
       mobileAutoRevealTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -513,6 +512,11 @@ export default function CcgOpenPage() {
     const drawSoundTimers: number[] = [];
     const mobileOpening = window.matchMedia(MOBILE_REVEAL_BREAKPOINT).matches;
     const multiPack = openingPackCount > 1;
+    // The sealed batch already entered while the request was running.
+    const holdMs = multiPack && packRequestStartedAtRef.current !== null
+      ? Math.max(0, 700 - (performance.now() - packRequestStartedAtRef.current))
+      : multiPack ? 700 : 240;
+    packRequestStartedAtRef.current = null;
     const drawSoundCount = Math.min(total, 5);
     const drawSoundSpacing = multiPack ? (total * MULTI_FAN_DEAL_STAGGER_MS) / drawSoundCount : 58;
     const holdTimer = window.setTimeout(() => {
@@ -536,7 +540,7 @@ export default function CcgOpenPage() {
           readyTimer = window.setTimeout(() => setRevealPhase("ready"), multiPack ? 620 + total * MULTI_FAN_DEAL_STAGGER_MS : 780);
         }
       }, multiPack ? 760 : 640);
-    }, multiPack ? 700 : 240);
+    }, holdMs);
 
     return () => {
       window.clearTimeout(holdTimer);
@@ -570,6 +574,7 @@ export default function CcgOpenPage() {
 
   const mutation = useMutation({
     mutationFn: async (request: PackRequest) => {
+      packRequestStartedAtRef.current = request.count > 1 ? performance.now() : null;
       const packRequest = { idempotencyKey: request.idempotencyKey, type: request.type, setId: request.setId, setIds: request.setIds };
       let openings: CcgOpening[];
       if (request.count > 1) {
@@ -626,6 +631,7 @@ export default function CcgOpenPage() {
       queryClient.invalidateQueries({ queryKey: ["ccg", "featured"] });
     },
     onError: () => {
+      packRequestStartedAtRef.current = null;
       skipNextDesktopCardAutofocusRef.current = false;
       setIsPackCycling(false);
     },
@@ -634,18 +640,11 @@ export default function CcgOpenPage() {
     },
   });
 
-  const submitPackOpening = (selection: PackSelection, delayMs = 0, packCount = 1): boolean => {
+  const submitPackOpening = (selection: PackSelection, packCount = 1): boolean => {
     if (packRequestPendingRef.current) return false;
     packRequestPendingRef.current = true;
     const request: PackRequest = { ...selection, idempotencyKey: makeIdempotencyKey(), count: packCount };
-    if (delayMs === 0) {
-      mutation.mutate(request);
-    } else {
-      nextPackTimerRef.current = window.setTimeout(() => {
-        nextPackTimerRef.current = null;
-        mutation.mutate(request);
-      }, delayMs);
-    }
+    mutation.mutate(request);
     return true;
   };
 
@@ -963,12 +962,15 @@ export default function CcgOpenPage() {
 
   const canOpen = recoveryInitialized && !recoveryId && !recoveryBatchId && Boolean(session) && !queryFailed && selectedPackCardCount > 0 && !noPacks && !mutation.isPending && !customizeSetsOpen;
   const hasAnotherPack = Boolean(opening && session && session.packs.totalRemaining > 0);
-  const isMultiOpening = Boolean(opening) && openingPackCount > 1;
+  const pendingPackCount = isPackCycling && mutation.isPending ? mutation.variables.count : 0;
+  const pendingBatch = pendingPackCount > 1;
+  const displayedPackCount = pendingBatch ? pendingPackCount : openingPackCount;
+  const isMultiOpening = Boolean(opening) && displayedPackCount > 1;
   const multiPackAvailable = isDesktopRevealViewport && (session?.packs.totalRemaining ?? 0) >= MULTI_PACK_COUNT;
   const multiPackActive = multiPackEnabled && multiPackAvailable;
   const multiFanLayout = useMemo(
-    () => (isMultiOpening && opening ? getMultiFanLayout(opening.results.length) : null),
-    [isMultiOpening, opening],
+    () => (isMultiOpening && opening ? getMultiFanLayout(pendingBatch ? pendingPackCount * 5 : opening.results.length) : null),
+    [isMultiOpening, opening, pendingBatch, pendingPackCount],
   );
   const shouldPromptGuestLogin = session?.ownerType === "guest" && !hasAnotherPack;
   const nextPackRemaining = opening && session
@@ -1173,8 +1175,7 @@ export default function CcgOpenPage() {
       return;
     }
     const selection: PackSelection = opening.selection.type === "supporter" ? { type: "supporter" } : opening.selection.type === "raid" ? { setId: opening.selection.setId } : { setIds: opening.selection.setIds };
-    const delayMs = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 470;
-    if (!submitPackOpening(selection, delayMs, multiPackActive ? MULTI_PACK_COUNT : 1)) {
+    if (!submitPackOpening(selection, multiPackActive ? MULTI_PACK_COUNT : 1)) {
       skipNextDesktopCardAutofocusRef.current = false;
       return;
     }
@@ -1457,7 +1458,7 @@ export default function CcgOpenPage() {
           </div>
         ) : (
           <section
-            className={`${packStyles.packStage} ${packStyles.revealStage} ${packComplete ? packStyles.revealStageComplete : ""} ${isMobileAutoRevealing ? packStyles.revealStageAutoRevealing : ""} ${isPackCycling ? packStyles.revealStageCycling : ""}`}
+            className={`${packStyles.packStage} ${packStyles.revealStage} ${packComplete ? packStyles.revealStageComplete : ""} ${isMobileAutoRevealing ? packStyles.revealStageAutoRevealing : ""} ${isPackCycling ? packStyles.revealStageCycling : ""} ${pendingBatch ? packStyles.revealStagePending : ""}`}
             style={stageTheme}
             aria-busy={isPackCycling || mutation.isPending || isMobileAutoRevealing}
           >
@@ -1465,7 +1466,7 @@ export default function CcgOpenPage() {
             <span className={packStyles.stageVeil} />
             <span className={packStyles.vaultRing} aria-hidden="true" />
             <span className={packStyles.vaultRingInner} aria-hidden="true" />
-            <button type="button" className={packStyles.mobileRevealExit} onClick={clearSavedOpening} aria-label={t("open.closeOpening")}>
+            <button type="button" className={packStyles.mobileRevealExit} onClick={clearSavedOpening} disabled={mutation.isPending} aria-label={t("open.closeOpening")}>
               <span aria-hidden="true" />
             </button>
 
@@ -1508,9 +1509,9 @@ export default function CcgOpenPage() {
 
             <div className={`${packStyles.revealContent} ${packComplete ? packStyles.revealContentSummary : ""} ${revealPhase === "holding" || revealPhase === "tearing" ? packStyles.revealContentWaiting : ""}`}>
               <div className={packStyles.revealLead}>
-                <span>{isMultiOpening ? `${openingPackName} · ${t("open.multiPackLead", { count: openingPackCount })}` : openingPackName}</span>
+                <span>{isMultiOpening ? `${openingPackName} · ${t("open.multiPackLead", { count: displayedPackCount })}` : openingPackName}</span>
                 <strong>
-                  {packComplete
+                  {pendingBatch ? t("open.opening") : packComplete
                     ? isMultiOpening ? t("open.allPacksRevealed") : t("open.allRevealed")
                     : isMobileRevealViewport
                       ? mobileActiveCardRevealed ? t("open.mobileAdvancePrompt") : t("open.mobileRevealPrompt")
@@ -1521,15 +1522,16 @@ export default function CcgOpenPage() {
               <div ref={cardFanScrollerRef} className={`${packStyles.cardFanScroller} ${packComplete ? packStyles.cardFanScrollerSummary : ""}`}>
                 <div
                   className={`${packStyles.cardFan} ${packComplete ? packStyles.cardFanSummary : ""} ${multiFanLayout ? packStyles.multiFan : ""}`}
-                  style={multiFanLayout ? { "--multi-fan-height": multiFanLayout.heightUnits, "--multi-pack-count": openingPackCount } as CSSProperties : undefined}
+                  style={multiFanLayout ? { "--multi-fan-height": multiFanLayout.heightUnits, "--multi-pack-count": displayedPackCount } as CSSProperties : undefined}
                 >
                   {multiFanLayout ? (
                     <div
-                      className={`${packStyles.multiPackBurst} ${revealPhase === "tearing" || revealPhase === "dealing" ? packStyles.multiPackBurstTearing : ""} ${revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`}
+                      key={mutation.variables?.idempotencyKey ?? opening.id}
+                      className={`${packStyles.multiPackBurst} ${!pendingBatch && (revealPhase === "tearing" || revealPhase === "dealing") ? packStyles.multiPackBurstTearing : ""} ${!pendingBatch && revealPhase === "ready" ? packStyles.tearSequenceComplete : ""}`}
                       aria-hidden="true"
                     >
-                      {Array.from({ length: openingPackCount }, (_, index) => {
-                        const pack = getMultiPackFan(index, openingPackCount);
+                      {Array.from({ length: displayedPackCount }, (_, index) => {
+                        const pack = getMultiPackFan(index, displayedPackCount);
                         return (
                           <span
                             key={index}
@@ -1877,7 +1879,7 @@ export default function CcgOpenPage() {
               </span>
             </div>
             <p className="sr-only" aria-live="polite">
-              {revealPhase === "ready" && revealedCards.size === 0 ? t("open.cardsReady") : revealedSummary}
+              {pendingBatch ? t("open.opening") : revealPhase === "ready" && revealedCards.size === 0 ? t("open.cardsReady") : revealedSummary}
             </p>
           </section>
         )}

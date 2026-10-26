@@ -5262,8 +5262,9 @@ class CcgService {
           filter: {
             ownerType: owner.ownerType,
             ownerId: owner.ownerId,
-            setId: row.setId,
-            characterId: row.characterId,
+            // Match the partial index explicitly, just like the ownership reads above.
+            setId: { $eq: row.setId, $type: "objectId" },
+            characterId: { $eq: row.characterId, $type: "objectId" },
             finish: row.finish,
           },
           update: {
