@@ -1,0 +1,59 @@
+{
+  "id": "prototype-series-001",
+  "build": "12.1.5.70575",
+  "createdAt": "2026-10-29T19:51:54.910Z",
+  "characters": [
+    {
+      "id": "melice",
+      "name": "Melice",
+      "realm": "Kazzak",
+      "pose": {
+        "animationId": 0,
+        "variation": 0,
+        "name": "Stand",
+        "durationMs": 2933,
+        "timeMs": 0
+      },
+      "race": "Blood Elf",
+      "characterClass": "Mage",
+      "fetchedAt": "2026-10-29T19:51:55.268Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/29/52192285-main-raw.png",
+      "model": "/figurines/prototype-series-001/melice.glb",
+      "bytes": 1095832,
+      "sha256": "29ca88909c4b2e19c39316a25b73760afca529e66da3e3d42a6e3afcb25f096e",
+      "state": "prototype-reviewed",
+      "warnings": [
+        "Failed to override texture: fileDataID does not exist in root: undefined"
+      ],
+      "validationWarnings": 0,
+      "review": "Front-view render inspected; visual parity and all equipment effects are not certified.",
+      "raceKey": "bloodElf",
+      "classKey": "mage"
+    },
+    {
+      "id": "vesipuhveli",
+      "name": "Vesipuhveli",
+      "realm": "Khadgar",
+      "pose": {
+        "animationId": 0,
+        "variation": 0,
+        "name": "Stand",
+        "durationMs": 2666,
+        "timeMs": 0
+      },
+      "race": "Tauren",
+      "characterClass": "Warrior",
+      "fetchedAt": "2026-10-29T19:51:55.446Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/khadgar/106/4652138-main-raw.png",
+      "model": "/figurines/prototype-series-001/vesipuhveli.glb",
+      "bytes": 595508,
+      "sha256": "4d4cc7030628a20795093ff2c44b5e38780ac788e7d381fc4966b55d3c65139a",
+      "state": "prototype-reviewed",
+      "warnings": [],
+      "validationWarnings": 0,
+      "review": "Front-view render inspected; visual parity and all equipment effects are not certified.",
+      "raceKey": "tauren",
+      "classKey": "warrior"
+    }
+  ]
+}

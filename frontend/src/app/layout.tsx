@@ -51,6 +51,7 @@ export default function RootLayout({
   const isCcgPage = pathname.startsWith("/ccg");
   const isCcgSharePage = pathname.startsWith("/ccg/share/");
   const isCcgOverlayPage = pathname === "/ccg/overlay";
+  const isCollectibleOpening = pathname === "/tools/collectibles";
   const isHomePage = pathname === "/";
   const robotsContent =
     pathname.startsWith("/admin") || pathname.startsWith("/profile") || pathname.startsWith("/reporter") || pathname.startsWith("/fun") || pathname.startsWith("/tools") || isCcgOverlayPage
@@ -213,9 +214,9 @@ export default function RootLayout({
         <QueryProvider>
           <AuthProvider>
             <NextIntlClientProvider locale={locale} messages={messages}>
-              {!isCcgPage && <Navigation />}
+              {!isCcgPage && !isCollectibleOpening && <Navigation />}
               {children}
-              {!isLivestreamsPage && !isNetworkAnalyticsPage && !isCcgPage && <Footer />}
+              {!isLivestreamsPage && !isNetworkAnalyticsPage && !isCcgPage && !isCollectibleOpening && <Footer />}
             </NextIntlClientProvider>
           </AuthProvider>
         </QueryProvider>
