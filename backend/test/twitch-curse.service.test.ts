@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import RateLimitState from "../src/models/RateLimitState";
+import TwitchChatAuditEvent from "../src/models/TwitchChatAuditEvent";
 import twitchCurseService, { reserveCurseGeneration } from "../src/services/twitch-curse.service";
-import { buildCurseInstructions, CURSE_EXAMPLES, formatCurse, getCurseInspiration, type CurseStyle } from "../src/features/twitch-curse/curse-content";
+import { buildCurseInstructions, CURSE_EXAMPLES, formatCurse, getCurseInspiration, getCursePhrases, selectCurseExamples, type CurseStyle } from "../src/features/twitch-curse/curse-content";
+
+function mockCurseHistory(t: TestContext, load: () => string[] = () => []) {
+  return t.mock.method(TwitchChatAuditEvent, "find", () => ({
+    sort: () => ({ limit: () => ({ select: () => ({ lean: async () => load().map((message) => ({ message })) }) }) }),
+  }));
+}
 
 function assertDenseHieroglyphs(message: string): void {
   const blocks = message.match(/\p{Script=Egyptian_Hieroglyphs}(?: \p{Script=Egyptian_Hieroglyphs})*/gu) || [];
@@ -61,6 +68,49 @@ test("only the three requested Mechanic Magnets supply their canonical ability n
   assert.equal(getCurseInspiration(46, 3183), undefined);
   assert.equal(getCurseInspiration(53, 9999), undefined);
   assert.equal(getCurseInspiration(1, 3420), undefined);
+});
+
+test("the prompt does not prescribe the phrase repeated in production", () => {
+  for (const style of ["chinese", "hieroglyphs"] as const) {
+    assert.doesNotMatch(buildCurseInstructions(style), /MEDICINE EXPIRED|especially the first two/);
+  }
+});
+
+test("history extracts normalized English phrases across both styles without viewer names", () => {
+  assert.deepEqual(getCursePhrases("CURSE OF Old_Viewer 𓀀 𓀁 MEDICINE EXPIRED! 𓀂 𓀃 LOOT WINDOW VANISH 𓀄"),
+    ["MEDICINE EXPIRED", "LOOT WINDOW VANISH"]);
+  assert.deepEqual(getCursePhrases("CURSE OF Other_Viewer 永恒诅咒 MEDICINE EXPIRED 药已过期 LOOT WINDOW VANISH 装备窗口消失"),
+    ["MEDICINE EXPIRED", "LOOT WINDOW VANISH"]);
+  assert.deepEqual(getCursePhrases("CURSE OF {USER} 永恒诅咒 MEDICINE   EXPIRED. 药已过期"), ["MEDICINE EXPIRED"]);
+  assert.deepEqual(getCursePhrases("MEDICINE EXPIRED | LOOT WINDOW VANISH"), ["MEDICINE EXPIRED", "LOOT WINDOW VANISH"]);
+});
+
+test("examples prefer unseen phrases and the oldest overlaps when the pool is exhausted", () => {
+  const examples = CURSE_EXAMPLES.hieroglyphs;
+  const recent = examples.slice(0, -1).flatMap(getCursePhrases);
+  assert.deepEqual(selectCurseExamples("hieroglyphs", recent, 1), [examples[examples.length - 1]]);
+  assert.deepEqual(selectCurseExamples("hieroglyphs", examples.flatMap(getCursePhrases), 1), [examples[examples.length - 1]]);
+  const fromOtherStyle = getCursePhrases("CURSE OF VIEWER 纹章之误 MISTAKE OF CREST 灰色数字 GREY NUMBER IMMORTAL");
+  assert.ok(selectCurseExamples("hieroglyphs", fromOtherStyle, 2).every((example) => !example.includes("MISTAKE OF CREST")));
+});
+
+test("prompts rotate two same-style examples and two distinct raid situations", (t) => {
+  let roll = 0;
+  t.mock.method(Math, "random", () => roll);
+  for (const style of ["chinese", "hieroglyphs"] as const) {
+    const prompts = [0, 0.999999].map((boundary) => {
+      roll = boundary;
+      return buildCurseInstructions(style);
+    });
+    for (const prompt of prompts) {
+      assert.equal(CURSE_EXAMPLES[style].filter((example) => prompt.includes(example)).length, 2);
+      const themes = prompt.match(/two situations: (.*?)\. Vary/)![1].split("; ");
+      assert.equal(themes.length, 2);
+      assert.equal(new Set(themes).size, 2);
+    }
+    assert.notEqual(prompts[0].split("two situations: ")[1], prompts[1].split("two situations: ")[1]);
+    assert.notEqual(prompts[0].split("sequence:\n")[1], prompts[1].split("sequence:\n")[1]);
+  }
 });
 
 test("each prompt contains exclusively its chosen style and every fallback fits Twitch's byte budget", () => {
@@ -122,7 +172,8 @@ test("cap conflicts deny admission, while database failures fail closed", async 
   await assert.rejects(reserveCurseGeneration(), /database unavailable/);
 });
 
-test("coin flip isolates examples, sends only ability inspiration and uses Luna low reasoning", async (t) => {
+test("coin flip isolates examples, sends inspiration and phrase history, and uses Luna low reasoning", async (t) => {
+  mockCurseHistory(t);
   const originalKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = "test-only";
   t.after(() => { if (originalKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = originalKey; });
@@ -146,7 +197,7 @@ test("coin flip isolates examples, sends only ability inspiration and uses Luna 
     assert.equal(request.model, "gpt-6-luna");
     assert.deepEqual(request.reasoning, { effort: "low" });
     assert.equal(request.store, false);
-    assert.deepEqual(JSON.parse(request.input), { inspiration: "Tempest" });
+    assert.deepEqual(JSON.parse(request.input), { inspiration: "Tempest", avoidPhrases: [] });
     assert.equal(/\p{Script=Han}/u.test(request.instructions), style === "chinese");
     assert.doesNotMatch(request.instructions, /\p{Script=Egyptian_Hieroglyphs}/u);
     if (style === "hieroglyphs") assertDenseHieroglyphs(result!);
@@ -154,6 +205,7 @@ test("coin flip isolates examples, sends only ability inspiration and uses Luna 
 });
 
 test("exhausted quota returns either curated style without context or API calls; missing configuration stays silent", async (t) => {
+  const history = mockCurseHistory(t);
   const originalKey = process.env.OPENAI_API_KEY;
   t.after(() => { if (originalKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = originalKey; });
   const fetchMock = t.mock.method(globalThis, "fetch", async () => { throw new Error("must not call"); });
@@ -162,6 +214,7 @@ test("exhausted quota returns either curated style without context or API calls;
   delete process.env.OPENAI_API_KEY;
   assert.equal(await twitchCurseService.generate("viewer", context), null);
   assert.equal(reservation.mock.callCount(), 0);
+  assert.equal(history.mock.callCount(), 0);
   process.env.OPENAI_API_KEY = "test-only";
   let roll = 0;
   t.mock.method(Math, "random", () => roll);
@@ -169,10 +222,11 @@ test("exhausted quota returns either curated style without context or API calls;
     roll = boundary;
     const style: CurseStyle = roll < 0.5 ? "chinese" : "hieroglyphs";
     const examples = CURSE_EXAMPLES[style];
-    assert.equal(
-      await twitchCurseService.generate("viewer", context),
-      formatCurse(examples[Math.floor(roll * examples.length)], "viewer", style),
-    );
+    const message = await twitchCurseService.generate("viewer", context);
+    assert.ok(message?.startsWith("CURSE OF VIEWER "));
+    assert.ok(examples.some((example) => getCursePhrases(example).join("|") === getCursePhrases(message!).join("|")));
+    assert.equal(/\p{Script=Han}/u.test(message!), style === "chinese");
+    if (style === "hieroglyphs") assertDenseHieroglyphs(message!);
   }
   assert.equal(reservation.mock.callCount(), 4);
   assert.equal(context.mock.callCount(), 0);
@@ -180,6 +234,7 @@ test("exhausted quota returns either curated style without context or API calls;
 });
 
 test("context failures become generic and generation failures use the selected fallback without retrying", async (t) => {
+  mockCurseHistory(t);
   const originalKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = "test-only";
   t.after(() => { if (originalKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = originalKey; });
@@ -204,5 +259,109 @@ test("context failures become generic and generation failures use the selected f
   }
   assert.equal(api.mock.callCount(), 3);
   assert.equal(reservation.mock.callCount(), 3);
-  assert.ok(requests.every((request) => request.input === "{}"));
+  assert.ok(requests.every((request) => JSON.parse(request.input).inspiration === undefined));
+  assert.ok(requests.every((request) => JSON.parse(request.input).avoidPhrases.length === 0));
+});
+
+test("recent sent phrases from either style prevent repeated generation without another API attempt", async (t) => {
+  const originalKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-only";
+  t.after(() => { if (originalKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = originalKey; });
+  const historicalReplies = [
+    { message: "CURSE OF Old_Viewer 𓀀 MEDICINE EXPIRED 𓀁 LOOT WINDOW VANISH 𓀂" },
+    { message: "CURSE OF Other_Viewer 永恒诅咒 MEDICINE EXPIRED 药已过期 PARSE OF DAMP ASH 灰烬" },
+  ];
+  t.mock.method(TwitchChatAuditEvent, "find", (filter: unknown) => {
+    assert.deepEqual(filter, {
+      direction: "outbound", kind: "command_reply", deliveryStatus: "sent", commandName: { $in: ["curse", "kirous"] },
+    });
+    return { sort: (sort: unknown) => {
+      assert.deepEqual(sort, { createdAt: -1 });
+      return { limit: (limit: number) => {
+        assert.equal(limit, 12);
+        return { select: (selection: string) => {
+          assert.equal(selection, "message -_id");
+          return { lean: async () => historicalReplies };
+        } };
+      } };
+    } };
+  });
+  const reservation = t.mock.method(RateLimitState, "findOneAndUpdate", () => ({ lean: async () => ({ pointsUsed: 1 }) }));
+  let roll = 0.25;
+  t.mock.method(Math, "random", () => roll);
+  const api = t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const request = JSON.parse(String(init.body));
+    assert.deepEqual(JSON.parse(request.input), { inspiration: "Tempest", avoidPhrases: [
+      "MEDICINE EXPIRED", "LOOT WINDOW VANISH", "PARSE OF DAMP ASH",
+    ] });
+    assert.doesNotMatch(request.input, /Old_Viewer|Other_Viewer|\p{Script=Han}|\p{Script=Egyptian_Hieroglyphs}/u);
+    const text = roll < 0.5
+      ? "CURSE OF {USER} 永恒诅咒 MEDICINE EXPIRED! 药已过期 NEW RAID CHAOS 团队混乱"
+      : "MEDICINE EXPIRED | NEW RAID CHAOS | TIMER WITHOUT MERCY | SCATTERED RAID MARKERS";
+    return new Response(JSON.stringify({ id: "test", object: "response", status: "completed", output: [{
+      type: "message", role: "assistant", content: [{ type: "output_text", text, annotations: [] }],
+    }] }), { headers: { "content-type": "application/json" } });
+  });
+  for (const boundary of [0.25, 0.75]) {
+    roll = boundary;
+    const result = await twitchCurseService.generate("viewer", async () => "Tempest");
+    assert.ok(result);
+    assert.doesNotMatch(result, /MEDICINE EXPIRED|LOOT WINDOW VANISH|PARSE OF DAMP ASH/);
+    assert.equal(/\p{Script=Han}/u.test(result), roll < 0.5);
+    if (roll >= 0.5) assertDenseHieroglyphs(result);
+  }
+  assert.equal(api.mock.callCount(), 2);
+  assert.equal(reservation.mock.callCount(), 2);
+});
+
+test("over-budget fallbacks rotate through both pools using sent history, even with fixed randomness", async (t) => {
+  const originalKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-only";
+  t.after(() => { if (originalKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = originalKey; });
+  let sentMessages: string[] = [];
+  mockCurseHistory(t, () => sentMessages.slice(0, 12));
+  t.mock.method(RateLimitState, "findOneAndUpdate", () => ({ lean: async () => { throw { code: 11000 }; } }));
+  const api = t.mock.method(globalThis, "fetch", async () => { throw new Error("must not call"); });
+  const context = t.mock.fn(async () => "Tempest");
+  let roll = 0.25;
+  t.mock.method(Math, "random", () => roll);
+  for (const style of ["chinese", "hieroglyphs"] as const) {
+    roll = style === "chinese" ? 0.25 : 0.75;
+    sentMessages = [];
+    const firstCycle = new Set<string>();
+    let previous = "";
+    for (let index = 0; index < CURSE_EXAMPLES[style].length + 2; index++) {
+      const message = await twitchCurseService.generate("viewer", context);
+      assert.ok(message);
+      const key = getCursePhrases(message).join("|");
+      assert.notEqual(key, previous, "never immediately repeat the prior fallback");
+      if (index < CURSE_EXAMPLES[style].length) firstCycle.add(key);
+      sentMessages.unshift(message);
+      previous = key;
+    }
+    assert.equal(firstCycle.size, CURSE_EXAMPLES[style].length, "use fresh examples before repeating a full curse");
+  }
+  assert.equal(api.mock.callCount(), 0);
+  assert.equal(context.mock.callCount(), 0);
+});
+
+test("a history lookup failure still allows a valid generated curse", async (t) => {
+  const originalKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-only";
+  t.after(() => { if (originalKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = originalKey; });
+  mockCurseHistory(t, () => { throw new Error("history unavailable"); });
+  t.mock.method(RateLimitState, "findOneAndUpdate", () => ({ lean: async () => ({ pointsUsed: 1 }) }));
+  t.mock.method(Math, "random", () => 0.75);
+  const text = "MARKERS WITHOUT OWNERS | INTERRUPT CHOIR SILENT | SUMMONING STONE DESERTED | REPAIR MERCHANT REJOICES";
+  const api = t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    assert.deepEqual(JSON.parse(JSON.parse(String(init.body)).input), { avoidPhrases: [] });
+    return new Response(JSON.stringify({ id: "test", object: "response", status: "completed", output: [{
+      type: "message", role: "assistant", content: [{ type: "output_text", text, annotations: [] }],
+    }] }), { headers: { "content-type": "application/json" } });
+  });
+  const message = await twitchCurseService.generate("viewer", async () => undefined);
+  assert.ok(message);
+  assert.deepEqual(getCursePhrases(message), text.split(" | "));
+  assertDenseHieroglyphs(message);
+  assert.equal(api.mock.callCount(), 1);
 });

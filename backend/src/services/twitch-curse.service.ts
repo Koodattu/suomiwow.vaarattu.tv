@@ -1,8 +1,9 @@
 import OpenAI from "openai";
 import RateLimitState from "../models/RateLimitState";
+import TwitchChatAuditEvent from "../models/TwitchChatAuditEvent";
 import { getNextHelsinkiReset } from "../utils/helsinki-time";
 import logger from "../utils/logger";
-import { buildCurseInstructions, CURSE_EXAMPLES, formatCurse, type CurseStyle } from "../features/twitch-curse/curse-content";
+import { buildCurseInstructions, formatCurse, getCursePhrases, selectCurseExamples, type CurseStyle } from "../features/twitch-curse/curse-content";
 
 const DAILY_LIMIT = 100;
 const DAILY_LIMIT_KEY = "twitch:curse:daily";
@@ -41,9 +42,21 @@ class TwitchCurseService {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey || !/^[a-z0-9_]{1,25}$/i.test(userName)) return null;
     const style: CurseStyle = Math.random() < 0.5 ? "chinese" : "hieroglyphs";
+    let recentPhrases: string[] = [];
+    try {
+      const recentReplies = await TwitchChatAuditEvent.find({
+        direction: "outbound",
+        kind: "command_reply",
+        deliveryStatus: "sent",
+        commandName: { $in: ["curse", "kirous"] },
+      }).sort({ createdAt: -1 }).limit(12).select("message -_id").lean();
+      recentPhrases = [...new Set(recentReplies.flatMap(({ message }) => getCursePhrases(message)))];
+    } catch {
+      logger.warn("[TwitchBot] Curse history unavailable; using randomized examples without history");
+    }
     const curatedFallback = () => {
-      const examples = CURSE_EXAMPLES[style];
-      return formatCurse(examples[Math.floor(Math.random() * examples.length)], userName, style);
+      const [example] = selectCurseExamples(style, recentPhrases, 1);
+      return formatCurse(example, userName, style);
     };
     if (!(await reserveCurseGeneration())) return curatedFallback();
 
@@ -61,14 +74,14 @@ class TwitchCurseService {
         reasoning: { effort: "low" },
         store: false,
         max_output_tokens: 1200,
-        instructions: buildCurseInstructions(style),
-        input: JSON.stringify(inspiration ? { inspiration } : {}),
+        instructions: buildCurseInstructions(style, recentPhrases),
+        input: JSON.stringify({ ...(inspiration ? { inspiration } : {}), avoidPhrases: recentPhrases }),
       });
       if (response.status === "completed") {
         const message = formatCurse(response.output_text, userName, style);
-        if (message) return message;
+        if (message && !getCursePhrases(message).some((phrase) => recentPhrases.includes(phrase))) return message;
       }
-      logger.warn("[TwitchBot] Curse generation returned incomplete or invalid content; using a curated curse");
+      logger.warn("[TwitchBot] Curse generation returned incomplete, invalid or repeated content; using a curated curse");
     } catch {
       // Provider errors can include request details; do not log credentials or payloads.
       logger.warn("[TwitchBot] Curse generation unavailable; using a curated curse");
