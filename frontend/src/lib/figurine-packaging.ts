@@ -3,6 +3,24 @@ import * as THREE from "three";
 // Procedural blind-box packaging: printed card stock with gold-foil stamping,
 // a printed interior, and a holographic seal sticker across the lid seam.
 export type PackagingLabels = { title: string; subtitle: string; blind: string; collect: string; contents: string; openHere: string };
+// Per-series print palette. Accent is an "r,g,b" triple used for rays, glows and cards.
+export type PackagingTheme = {
+  number: string; deep: [string, string]; back: [string, string]; side: [string, string]; lid: [string, string];
+  accent: string; glow: string; glowSoft: string; glowBright: string; window: string;
+  pale: string; paler: string; muted: string; ink: string; edge: number;
+};
+export const PACKAGING_THEMES = {
+  amethyst: {
+    number: "001", deep: ["#2a1760", "#0c1a33"], back: ["#16173a", "#0b1428"], side: ["#251660", "#0c1a33"], lid: ["#20135a", "#1a1446"],
+    accent: "160,130,255", glow: "#9a7bff", glowSoft: "#7e5cff", glowBright: "#b49bff", window: "rgba(10,6,30,.55)",
+    pale: "#cbbcff", paler: "#d9cdfa", muted: "#a99fc9", ink: "#1c1236", edge: 0x1a1640,
+  },
+  verdigris: {
+    number: "002", deep: ["#0f4a52", "#081a2c"], back: ["#0b3138", "#07141f"], side: ["#0f4f57", "#081a2c"], lid: ["#0d4650", "#0a3640"],
+    accent: "90,230,210", glow: "#3fd6c4", glowSoft: "#2bb8a8", glowBright: "#8ff5e6", window: "rgba(4,24,28,.55)",
+    pale: "#bff3ec", paler: "#d2f7f1", muted: "#8fc4bd", ink: "#082a2e", edge: 0x0c3a40,
+  },
+} satisfies Record<string, PackagingTheme>;
 export const PACKAGING_FALLBACK: Omit<PackagingLabels, "title" | "subtitle"> = { blind: "BLIND BOX", collect: "COLLECT ALL {count}", contents: "1 random figure inside · equal odds", openHere: "OPEN HERE" };
 
 // Finish map channels: R = foil emboss (bump), G = roughness, B = metalness.
@@ -83,11 +101,15 @@ function ribbon(context: CanvasRenderingContext2D, cx: number, cy: number, w: nu
   context.closePath(); context.fill();
 }
 
-function face(width: number, height: number, envMap: THREE.Texture, paint: (print: Print, sheet: Sheet) => void) {
-  const w = Math.round(width * PX), h = Math.round(height * PX);
+function face(width: number, height: number, envMap: THREE.Texture, paint: (print: Print, sheet: Sheet) => void, density = PX) {
+  // Paint at full scale and let the canvas transform shrink it, so layouts stay resolution-independent.
+  const w = Math.round(width * density), h = Math.round(height * density), full = { w: Math.round(width * PX), h: Math.round(height * PX) };
   const colorCanvas = canvas(w, h), finishCanvas = canvas(w, h);
   const print = { color: colorCanvas.getContext("2d")!, finish: finishCanvas.getContext("2d")!, w, h };
-  const draw = (sheet: Sheet) => { print.finish.fillStyle = PAPER; print.finish.fillRect(0, 0, w, h); paint(print, sheet); };
+  const draw = (sheet: Sheet) => {
+    for (const context of [print.color, print.finish]) context.setTransform(w / full.w, 0, 0, h / full.h, 0, 0);
+    print.finish.fillStyle = PAPER; print.finish.fillRect(0, 0, full.w, full.h); paint({ ...print, ...full }, sheet);
+  };
   draw(null);
   const map = new THREE.CanvasTexture(colorCanvas); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
   const finish = new THREE.CanvasTexture(finishCanvas); finish.anisotropy = 8;
@@ -96,17 +118,17 @@ function face(width: number, height: number, envMap: THREE.Texture, paint: (prin
   return { material, repaint };
 }
 
-const front = (labels: PackagingLabels, count: number) => (print: Print, sheet: Sheet) => {
+const front = (labels: PackagingLabels, count: number, theme: PackagingTheme) => (print: Print, sheet: Sheet) => {
   const { color, w, h } = print;
-  backdrop(print, "#2a1760", "#0c1a33", 11);
+  backdrop(print, theme.deep[0], theme.deep[1], 11);
   color.save(); color.translate(w / 2, h * 0.47);
-  for (let i = 0; i < 32; i++) { color.rotate(Math.PI / 16); color.fillStyle = i % 2 ? "rgba(255,255,255,.035)" : "rgba(170,140,255,.06)"; color.beginPath(); color.moveTo(0, 0); color.lineTo(-40, -h); color.lineTo(40, -h); color.fill(); }
+  for (let i = 0; i < 32; i++) { color.rotate(Math.PI / 16); color.fillStyle = i % 2 ? "rgba(255,255,255,.035)" : `rgba(${theme.accent},.06)`; color.beginPath(); color.moveTo(0, 0); color.lineTo(-40, -h); color.lineTo(40, -h); color.fill(); }
   color.restore();
   const glow = color.createRadialGradient(w / 2, h * 0.47, 0, w / 2, h * 0.47, w * 0.48);
-  glow.addColorStop(0, "rgba(150,110,255,.55)"); glow.addColorStop(1, "rgba(150,110,255,0)");
+  glow.addColorStop(0, `rgba(${theme.accent},.55)`); glow.addColorStop(1, `rgba(${theme.accent},0)`);
   color.fillStyle = glow; color.fillRect(0, 0, w, h);
   border(print);
-  color.fillStyle = "#cbbcff"; text(color, labels.subtitle, w / 2, 96, 22, { font: "system-ui, sans-serif", weight: 600, spacing: 5, maxWidth: w - 160 });
+  color.fillStyle = theme.pale; text(color, labels.subtitle, w / 2, 96, 22, { font: "system-ui, sans-serif", weight: 600, spacing: 5, maxWidth: w - 160 });
   foil(print, (context) => { text(context, labels.title, w / 2, 176, 78, { weight: 700, spacing: 3, maxWidth: w - 120 }); context.fillRect(w / 2 - 210, 232, 420, 3); });
   // Arched window with the mystery silhouette.
   const left = w * 0.2, right = w * 0.8, archTop = 300, archBottom = h * 0.74;
@@ -115,25 +137,25 @@ const front = (labels: PackagingLabels, count: number) => (print: Print, sheet: 
   const crowd = archBottom - archTop;
   if (sheet && count > 4) {
     // Four smaller figures behind, one large one in front: who will it be?
-    color.shadowColor = "#7e5cff"; color.shadowBlur = 30; color.globalAlpha = 0.85;
+    color.shadowColor = theme.glowSoft; color.shadowBlur = 30; color.globalAlpha = 0.85;
     [[-0.3, 1], [0.3, 2], [-0.14, 3], [0.14, 4]].forEach(([dx, index]) => figure(color, sheet, (index * 5) % count, w / 2 + dx * (right - left) * 1.15, archBottom - 6, crowd * 0.6));
-    color.globalAlpha = 1; color.shadowBlur = 50; color.shadowColor = "#b49bff";
+    color.globalAlpha = 1; color.shadowBlur = 50; color.shadowColor = theme.glowBright;
     figure(color, sheet, 0, w / 2, archBottom + 4, crowd * 0.86);
-  } else { color.shadowColor = "#9a7bff"; color.shadowBlur = 50; color.fillStyle = "#05070f"; hero(color, w / 2, archTop + 70, crowd * 0.98); }
+  } else { color.shadowColor = theme.glow; color.shadowBlur = 50; color.fillStyle = "#05070f"; hero(color, w / 2, archTop + 70, crowd * 0.98); }
   color.restore();
   foil(print, (context) => { context.lineWidth = 9; arch(context); context.stroke(); context.lineWidth = 3; context.beginPath(); context.arc(w / 2, archTop + (right - left) / 2, (right - left) / 2 + 18, Math.PI * 1.08, Math.PI * 1.92); context.stroke(); });
   foil(print, (context) => text(context, "?", w / 2, h * 0.5, 420, { weight: 700 }));
   foil(print, (context) => ribbon(context, w / 2, h * 0.8, w * 0.56, 100));
-  color.fillStyle = "#1c1236"; text(color, labels.blind, w / 2, h * 0.8 + 4, 50, { weight: 700, spacing: 10, maxWidth: w * 0.52 });
-  color.fillStyle = "#d9cdfa"; text(color, labels.contents, w / 2, h * 0.875, 24, { font: "system-ui, sans-serif", weight: 500, spacing: 1, maxWidth: w - 200 });
+  color.fillStyle = theme.ink; text(color, labels.blind, w / 2, h * 0.8 + 4, 50, { weight: 700, spacing: 10, maxWidth: w * 0.52 });
+  color.fillStyle = theme.paler; text(color, labels.contents, w / 2, h * 0.875, 24, { font: "system-ui, sans-serif", weight: 500, spacing: 1, maxWidth: w - 200 });
   foil(print, (context) => { context.beginPath(); context.arc(w - 140, h - 140, 72, 0, Math.PI * 2); context.fill(); });
-  color.fillStyle = "#1c1236"; text(color, `1/${count}`, w - 140, h - 140, 46, { weight: 700 });
-  foil(print, (context) => text(context, "001", 140, h - 140, 40, { weight: 700, spacing: 4 }));
+  color.fillStyle = theme.ink; text(color, `1/${count}`, w - 140, h - 140, 46, { weight: 700 });
+  foil(print, (context) => text(context, theme.number, 140, h - 140, 40, { weight: 700, spacing: 4 }));
 };
 
-const back = (labels: PackagingLabels, lineup: string[]) => (print: Print, sheet: Sheet) => {
+const back = (labels: PackagingLabels, lineup: string[], theme: PackagingTheme) => (print: Print, sheet: Sheet) => {
   const { color, w, h } = print;
-  backdrop(print, "#16173a", "#0b1428", 23);
+  backdrop(print, theme.back[0], theme.back[1], 23);
   border(print);
   foil(print, (context) => text(context, labels.collect.replace("{count}", String(lineup.length)), w / 2, 120, 56, { weight: 700, spacing: 4, maxWidth: w - 140 }));
   const cols = 4, cellW = (w - 150) / cols, cellH = 196, gap = 12, startY = 190;
@@ -141,26 +163,26 @@ const back = (labels: PackagingLabels, lineup: string[]) => (print: Print, sheet
     const row = Math.floor(index / cols), inRow = Math.min(cols, lineup.length - row * cols);
     const x = (w - inRow * cellW) / 2 + (index % cols) * cellW + gap / 2, y = startY + row * (cellH + gap);
     const cardW = cellW - gap;
-    roundedRect(color, x, y, cardW, cellH, 14); color.fillStyle = "rgba(160,130,255,.12)"; color.fill();
+    roundedRect(color, x, y, cardW, cellH, 14); color.fillStyle = `rgba(${theme.accent},.12)`; color.fill();
     color.save(); roundedRect(color, x, y, cardW, cellH, 14); color.clip();
-    color.shadowColor = "#9a7bff"; color.shadowBlur = 18; color.fillStyle = "#06080f"; figure(color, sheet, index, x + cardW / 2, y + cellH - 46, cellH - 60); color.restore();
+    color.shadowColor = theme.glow; color.shadowBlur = 18; color.fillStyle = "#06080f"; figure(color, sheet, index, x + cardW / 2, y + cellH - 46, cellH - 60); color.restore();
     foil(print, (context) => { context.lineWidth = 2; roundedRect(context, x, y, cardW, cellH, 14); context.stroke(); });
-    color.fillStyle = "#e9e1ff"; text(color, name, x + cardW / 2, y + cellH - 24, 22, { font: "system-ui, sans-serif", weight: 600, maxWidth: cardW - 16 });
+    color.fillStyle = theme.paler; text(color, name, x + cardW / 2, y + cellH - 24, 22, { font: "system-ui, sans-serif", weight: 600, maxWidth: cardW - 16 });
   });
   const barcodeY = h - 230, next = random(7);
   color.fillStyle = "#f4efe4"; color.fillRect(80, barcodeY, 280, 130);
   color.fillStyle = "#111";
   for (let x = 96; x < 344;) { const bar = 2 + Math.floor(next() * 4); if (next() > 0.4) color.fillRect(x, barcodeY + 14, bar, 86); x += bar + 2; }
   text(color, "6 420017 001174", 220, barcodeY + 114, 16, { font: "monospace", weight: 500, spacing: 2 });
-  color.fillStyle = "#a99fc9"; color.textAlign = "left";
+  color.fillStyle = theme.muted; color.textAlign = "left";
   color.font = "500 19px system-ui, sans-serif"; color.textAlign = "left"; color.letterSpacing = "0px";
   [labels.contents, "Collectible figure · Not a toy for children under 3", "Series 001 · Community edition"].forEach((line, index) => color.fillText(line, 400, barcodeY + 30 + index * 34, w - 480));
   foil(print, (context) => text(context, labels.title, w - 210, h - 72, 30, { weight: 700, spacing: 2, maxWidth: 300 }));
 };
 
-const side = (labels: PackagingLabels, members: number[]) => (print: Print, sheet: Sheet) => {
+const side = (labels: PackagingLabels, members: number[], theme: PackagingTheme) => (print: Print, sheet: Sheet) => {
   const { color, w, h } = print;
-  backdrop(print, "#251660", "#0c1a33", 37);
+  backdrop(print, theme.side[0], theme.side[1], 37);
   color.save(); color.fillStyle = "rgba(255,255,255,.05)"; color.font = "700 64px Georgia, serif"; color.textAlign = "center";
   for (let y = 0; y < h + 100; y += 110) for (let x = (y / 110) % 2 ? 0 : 60; x < w + 100; x += 120) { color.save(); color.translate(x, y); color.rotate(-0.25); color.fillText("?", 0, 0); color.restore(); }
   color.restore();
@@ -169,17 +191,17 @@ const side = (labels: PackagingLabels, members: number[]) => (print: Print, shee
   const perRow = Math.ceil(members.length / 2), slot = (w - 120) / Math.max(1, perRow);
   members.forEach((index, i) => {
     const row = Math.floor(i / perRow), cx = 60 + slot * (i % perRow + 0.5), base = h * (row ? 0.79 : 0.55);
-    color.save(); color.shadowColor = "#9a7bff"; color.shadowBlur = 22; color.fillStyle = "#06080f";
+    color.save(); color.shadowColor = theme.glow; color.shadowBlur = 22; color.fillStyle = "#06080f";
     figure(color, sheet, index, cx, base, h * 0.21); color.restore();
   });
   foil(print, (context) => { context.fillRect(70, h * 0.555, w - 140, 3); context.fillRect(70, h * 0.795, w - 140, 3); });
   foil(print, (context) => text(context, labels.title, w / 2, h * 0.865, 52, { weight: 700, spacing: 4, maxWidth: w - 120 }));
-  color.fillStyle = "#cbbcff"; text(color, labels.blind, w / 2, h * 0.915, 26, { font: "system-ui, sans-serif", weight: 700, spacing: 8, maxWidth: w - 140 });
+  color.fillStyle = theme.pale; text(color, labels.blind, w / 2, h * 0.915, 26, { font: "system-ui, sans-serif", weight: 700, spacing: 8, maxWidth: w - 140 });
 };
 
-const lid = (labels: PackagingLabels) => (print: Print) => {
+const lid = (labels: PackagingLabels, theme: PackagingTheme) => (print: Print) => {
   const { color, w, h } = print;
-  backdrop(print, "#20135a", "#1a1446", 41);
+  backdrop(print, theme.lid[0], theme.lid[1], 41);
   border(print);
   foil(print, (context) => {
     context.save(); context.translate(w / 2, h * 0.4); context.lineWidth = 4;
@@ -309,24 +331,33 @@ export type BlindBoxParts = {
   stop: () => void;
 };
 
-// Builds the box inside `parent`. Walls hinge on their bottom edges (front, back, left, right).
-export function buildBlindBox(parent: THREE.Group, { width, depth, height, bottom, labels, lineup, envMap, silhouettes }: {
-  width: number; depth: number; height: number; bottom: number; labels: PackagingLabels; lineup: string[]; envMap: THREE.Texture;
-  // URL of the baked silhouette sheet; the print is repainted with it once it loads.
-  silhouettes?: string;
-}): BlindBoxParts {
-  const t = 0.028;
-  const edge = new THREE.MeshStandardMaterial({ color: 0x1a1640, roughness: 0.6 });
+export type BoxDesign = { labels: PackagingLabels; lineup: string[]; theme: PackagingTheme; silhouettes?: string };
+export const BOX_SIZE = { width: 2.05, depth: 1.8, height: 2.75 };
+
+// The five printed faces plus card edge and interior. `density` is canvas pixels per world unit.
+export function createBoxPrints({ labels, lineup, theme, silhouettes }: BoxDesign, envMap: THREE.Texture, density = PX) {
+  const { width, depth, height } = BOX_SIZE;
+  const edge = new THREE.MeshStandardMaterial({ color: theme.edge, roughness: 0.6 });
   const inside = interior(labels.title);
   const members = lineup.map((_, index) => index), half = Math.ceil(members.length / 2);
-  const printed = [front(labels, lineup.length), back(labels, lineup), side(labels, members.slice(0, half)), side(labels, members.slice(half)), lid(labels)]
-    .map((paint, index) => face(index === 4 ? width : index > 1 ? depth : width, index === 4 ? depth : height, envMap, paint));
-  const [frontPrint, backPrint, leftPrint, rightPrint, lidPrint] = printed.map(({ material }) => material);
+  const printed = [front(labels, lineup.length, theme), back(labels, lineup, theme), side(labels, members.slice(0, half), theme), side(labels, members.slice(half), theme), lid(labels, theme)]
+    .map((paint, index) => face(index === 4 ? width : index > 1 ? depth : width, index === 4 ? depth : height, envMap, paint, density));
+  const [front_, back_, left, right, top] = printed.map(({ material }) => material);
   let cancelled = false;
+  // The print is repainted with the baked silhouette sheet once it loads.
   if (silhouettes) {
     const sheet = new Image(); sheet.src = silhouettes;
     sheet.decode().then(() => { if (!cancelled) printed.slice(0, 4).forEach(({ repaint }) => repaint(sheet)); }, () => undefined);
   }
+  return { front: front_, back: back_, left, right, lid: top, edge, inside, stop: () => { cancelled = true; } };
+}
+
+// Builds the box inside `parent`. Walls hinge on their bottom edges (front, back, left, right).
+export function buildBlindBox(parent: THREE.Group, { bottom, design, envMap }: { bottom: number; design: BoxDesign; envMap: THREE.Texture }): BlindBoxParts {
+  const { width, depth, height } = BOX_SIZE, { labels } = design;
+  const t = 0.028;
+  const prints = createBoxPrints(design, envMap);
+  const { edge, inside, front: frontPrint, back: backPrint, left: leftPrint, right: rightPrint, lid: lidPrint } = prints;
   // BoxGeometry material order: +x, -x, +y, -y, +z (outside), -z (inside).
   const wall = (w: number, x: number, z: number, ry: number, print: THREE.Material) => {
     // YXZ order: tilting about local x always swings the wall outward, whatever its facing.
@@ -347,5 +378,5 @@ export function buildBlindBox(parent: THREE.Group, { width, depth, height, botto
   const tape = tearTape(parent, { depth, height, bottom, lid: t, label: labels.openHere, envMap });
   const materials = [edge, inside, frontPrint, backPrint, leftPrint, rightPrint, lidPrint];
   materials.forEach((material) => { material.transparent = true; });
-  return { walls, lidPivot, tape, thickness: t, meshes: [...walls.map(({ mesh }) => mesh), floor, lidMesh], materials, stop: () => { cancelled = true; } };
+  return { walls, lidPivot, tape, thickness: t, meshes: [...walls.map(({ mesh }) => mesh), floor, lidMesh], materials, stop: prints.stop };
 }

@@ -115,3 +115,15 @@
 .error { color: #ffb9b0; padding: 14px 18px; border: 1px solid #78413c; background: #382221; margin-bottom: 20px; border-radius: 6px; }
 @media (max-width: 900px) { .workbench { grid-template-columns: 1fr; } .portrait { height: 340px; } .nextStep { flex-wrap: wrap; } .nextStep > div { min-width: 220px; } }
 @media (max-width: 540px) { .lab { padding: 28px 14px 50px; } .header { display: block; } .badge { display: inline-block; margin-top: 18px; } .lookup { gap: 12px; padding: 16px; } .region { padding-top: 0; } .toolbar { flex-wrap: wrap; } .stage { height: 370px; } .panelHeading { padding: 16px; } .tag { font-size: 9px; } }
+.backChip { position: absolute; z-index: 3; top: max(22px, env(safe-area-inset-top)); left: 20px; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 14px; border: 1px solid #3a3426; border-radius: 6px; background: #0d141ecc; color: #d9c79f; font-size: 12px; letter-spacing: .08em; cursor: pointer; transition: color .15s, border-color .15s, transform .15s; }
+.backChip:hover:enabled { color: #fff3da; border-color: #776241; transform: translateX(-2px); }
+.backChip:disabled { opacity: .4; cursor: default; }
+.backChip:focus-visible { outline: 2px solid #f5ddb4; outline-offset: 3px; }
+.worldHint { color: #cdbf9f; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; text-shadow: 0 2px 12px #000; animation: identityIn .5s ease-out both; }
+.worldChips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 14px; }
+.showcaseHud .worldChips button { min-width: 0; min-height: 40px; padding: 9px 18px; background: #0d141ecc; font-size: 12px; letter-spacing: .06em; }
+.newBadge { display: inline-block; margin-bottom: 10px; padding: 4px 12px; border-radius: 999px; background: linear-gradient(90deg, #f3d892, #c6994b); color: #1c1236; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; animation: badgePop .6s .2s cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes badgePop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
+.showcase[data-view="viewer"] .revealIdentity h1, .showcase[data-view="viewer"] .revealIdentity p { animation: identityIn .6s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .newBadge, .worldHint, .backChip { animation: none; transition: none; } }
+@media (max-width: 600px) { .backChip { left: 14px; top: 16px; } .worldHint { font-size: 11px; letter-spacing: .1em; } }

@@ -276,3 +276,26 @@ cat-form identity and midpoint sample. The final contact sheet is
 `.codex-runtime/figurine-research/series-002/series-002-final.png`; the cat and
 Abiw also have individual comparison renders. The local container and temporary
 snapshot replay helpers are stopped.
+
+## Collectibles world
+
+`/tools/collectibles` is one 3D scene with five views and a camera that flies between them:
+main menu (overview), shop (a stall with every series' boxes), opening (the pedestal),
+collection (a case with a slot per figure) and viewer (an owned figure on the pedestal).
+There are no navigation buttons: tap any visible station (shop, case, pedestal) to go there,
+a series stack to open it, an owned figure to inspect it, and empty ground or sky to step
+back. Dragging sideways on the menu slides the camera. Keyboard: Esc back, S shop,
+C collection, 1-9 pick a series, Enter opens the sealed box. The only button is
+"New blind box" after a reveal (plus the sound toggle).
+Series are registered in `frontend/src/lib/figurine-series.ts` with a box print theme
+(`PACKAGING_THEMES` in `figurine-packaging.ts`). Series 002 uses the verdigris theme.
+
+The collection is session-only (`sessionStorage`, `figurine-collection.ts`): figure key to
+times opened; nothing is sent anywhere. Unowned figures show as black silhouettes from the
+baked sheet; owned ones show a portrait rendered from their model (captured on reveal, or
+regenerated from the model file after a reload).
+
+World textures in `frontend/public/figurines/world/` (Elwynn cobblestone and grass, cloud and
+nebula sky layers) were exported from game data with the local wow.export worker's texture
+job (`kind: "textures"` in `src/worker.js`; provenance in `source.json`). Like the models,
+they are game assets for this development-only page.

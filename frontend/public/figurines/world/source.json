@@ -1,0 +1,80 @@
+{
+  "state": "complete",
+  "id": "textures-world-001",
+  "build": {
+    "Region": "eu",
+    "BuildConfig": "d718abcc42604d8efbd35aecfa5bb75b",
+    "CDNConfig": "9529b048134c5f9375bbe754b8edc5ef",
+    "KeyRing": "3ca57fe7319a297346440e4d2a03a0cd",
+    "BuildId": "70575",
+    "VersionsName": "12.1.5.70575",
+    "ProductConfig": "53020d32e1a25648c8e1eafd5771935f",
+    "Product": "wow"
+  },
+  "exporterVersion": "0.2.19",
+  "workerSha256": "e85ec6349b5940a51eabdf309230c77e29c3da17400a1f897e85e0e21c71ccfc",
+  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "startupMs": 18129,
+  "kind": "textures",
+  "textures": [
+    {
+      "name": "floor-cobble",
+      "file": "tileset/elwynn/elwynncobblestonebase.blp",
+      "fileDataID": 187099,
+      "width": 256,
+      "height": 256
+    },
+    {
+      "name": "floor-cobble-dark",
+      "file": "tileset/elwynn/elwynncobblestonedarker.blp",
+      "fileDataID": 187102,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "grass",
+      "file": "tileset/elwynn/elwynngrassbase.blp",
+      "fileDataID": 187126,
+      "width": 256,
+      "height": 256
+    },
+    {
+      "name": "clouds",
+      "file": "environments/stars/gorgrond_clouds01.blp",
+      "fileDataID": 987149,
+      "width": 512,
+      "height": 512
+    },
+    {
+      "name": "clouds-night",
+      "file": "environments/stars/gorgrond_cloudsmask01_night.blp",
+      "fileDataID": 987150,
+      "width": 256,
+      "height": 512
+    },
+    {
+      "name": "nebula",
+      "file": "environments/stars/nebula01.blp",
+      "fileDataID": 130581,
+      "width": 512,
+      "height": 256
+    },
+    {
+      "name": "loadscreen-ek",
+      "file": "interface/glues/loadingscreens/loadscreeneasternkingdom.blp",
+      "fileDataID": 131839,
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "name": "skybox-diremaul",
+      "file": "environments/stars/diremaulskybox.blp",
+      "fileDataID": 130496,
+      "width": 256,
+      "height": 256
+    }
+  ],
+  "searched": 0,
+  "durationMs": 2241,
+  "warnings": []
+}
