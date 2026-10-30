@@ -21,14 +21,15 @@
       "fetchedAt": "2026-10-29T21:03:49.436Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/60/211303484-main-raw.png",
       "model": "/figurines/community-001/roidy.glb",
-      "bytes": 1974580,
-      "sha256": "0437438f5b617b945b769d2aecdb2d7684e18e4bfee68c8b1832546b7485be2a",
+      "bytes": 1907044,
+      "sha256": "007cc1a83756a5774758b0439d719ff927dcc84e71e23d58650914d9b70dc298",
       "source": "sources/roidy.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "haranir",
-      "classKey": "mage"
+      "classKey": "mage",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "yolobolt",
@@ -47,14 +48,15 @@
       "fetchedAt": "2026-10-29T21:03:49.665Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/115/87645299-main-raw.png",
       "model": "/figurines/community-001/yolobolt.glb",
-      "bytes": 943896,
-      "sha256": "813ea5ce15ce3b7442bb74f80a9d1f0e4f32f740782699f61e4847cc8be2712c",
+      "bytes": 1026116,
+      "sha256": "41259138fdfcbb8066bc015fa497c1520d3f38b39be9e171d7d8d425ca3ea6c0",
       "source": "sources/yolobolt.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "orc",
-      "classKey": "warlock"
+      "classKey": "warlock",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "laku",
@@ -99,8 +101,8 @@
       "fetchedAt": "2026-10-29T21:03:50.086Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/29/52192285-main-raw.png",
       "model": "/figurines/community-001/melice.glb",
-      "bytes": 1313908,
-      "sha256": "866a561163a46f0c0198eedbdbefbb7bd7cfe27637e74df8220423fe28b60b68",
+      "bytes": 1362860,
+      "sha256": "4e730014a07f71ea568a03c9997b8804e39676a1322af3d48a515cc2e3cab8aa",
       "source": "sources/melice.json",
       "state": "needs-review",
       "warnings": [
@@ -108,7 +110,8 @@
       ],
       "validationWarnings": 0,
       "raceKey": "bloodElf",
-      "classKey": "mage"
+      "classKey": "mage",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "vesipuhveli",
@@ -153,14 +156,15 @@
       "fetchedAt": "2026-10-29T21:03:50.351Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/103/195808615-main-raw.png",
       "model": "/figurines/community-001/turrilol.glb",
-      "bytes": 1339008,
-      "sha256": "8cb9281f99acf2edf7b926feb9b8921c68e431e56d5362c8f6c463cb08dc5b3d",
+      "bytes": 1365388,
+      "sha256": "6118a60b05c688c56e4e160df400e3dddb9503d592f94b40de0e0e624e0f25fd",
       "source": "sources/turrilol.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "vulpera",
-      "classKey": "hunter"
+      "classKey": "hunter",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "karstinen",
@@ -261,14 +265,15 @@
       "fetchedAt": "2026-10-29T21:03:50.827Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/189/167342525-main-raw.png",
       "model": "/figurines/community-001/suursmurffi.glb",
-      "bytes": 582748,
-      "sha256": "bb2d115209f109d4ad94bf76774ba69ce469f7bd1309fa9f687993171eb44b18",
+      "bytes": 594264,
+      "sha256": "1508b06d20d5c67ac1c97229a7546996167307008c77ed417323332b1341b3fe",
       "source": "sources/suursmurffi.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "tauren",
-      "classKey": "priest"
+      "classKey": "priest",
+      "authoringSeries": "community-repairs-002"
     },
     {
       "id": "rmp",
@@ -313,8 +318,8 @@
       "fetchedAt": "2026-10-29T21:03:51.086Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/83/217316691-main-raw.png",
       "model": "/figurines/community-001/rhagy.glb",
-      "bytes": 1818732,
-      "sha256": "cbc7ce1ee359f9f2d81cdb051fb674a7c485600340a119921cb3b10ab4b8b5be",
+      "bytes": 1837568,
+      "sha256": "97afde6f8639a12877692d36ac05d8ce48c94f649a653b7d61068c343d82e536",
       "source": "sources/rhagy.json",
       "state": "needs-review",
       "warnings": [
@@ -322,7 +327,8 @@
       ],
       "validationWarnings": 0,
       "raceKey": "human",
-      "classKey": "deathKnight"
+      "classKey": "deathKnight",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "boxx",
@@ -420,14 +426,15 @@
       "fetchedAt": "2026-10-29T21:03:51.501Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/64/211370048-main-raw.png",
       "model": "/figurines/community-001/ovelakettu.glb",
-      "bytes": 565120,
-      "sha256": "09e612083f3dc864143d1af0defbae3fb9a92e15e6c72d88d9c6faadc24c7117",
+      "bytes": 582140,
+      "sha256": "4e907fd480af5f4a0bf659f17a3542a00445d76da1b210e53b1ee6f8211d9bf5",
       "source": "sources/ovelakettu.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "bloodElf",
-      "classKey": "rogue"
+      "classKey": "rogue",
+      "authoringSeries": "community-repairs-001"
     }
   ],
   "compression": {

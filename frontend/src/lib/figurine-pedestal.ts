@@ -119,7 +119,7 @@ export function buildPedestal(parent: THREE.Object3D, { envMap, title, series, c
   meshes.forEach((mesh) => { mesh.receiveShadow = true; group.add(mesh); });
   body.castShadow = true;
   return {
-    group,
+    group, body,
     // `glow` drives the inlay light; `spin` turns the rune ring (radians).
     update(glow: number, spin: number) {
       emblemMaterial.emissiveIntensity = ringMaterial.emissiveIntensity = glow;

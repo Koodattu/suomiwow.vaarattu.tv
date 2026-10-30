@@ -26,7 +26,7 @@
 .showcaseHud button:focus-visible { outline: 2px solid #f5ddb4; outline-offset: 5px; }
 .revealIdentity { min-height: 0; max-width: 620px; text-shadow: 0 2px 18px #080d15; }
 .revealIdentity h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(24px, 4vw, 40px); line-height: 1.1; letter-spacing: -.025em; }
-.revealIdentity p { margin-top: 10px; font-size: 12px; color: #a3b0bd; }
+.revealIdentity p { margin-top: 4px; font-size: 12px; color: #a3b0bd; }
 .showcaseHint { font-size: 10px; color: #758292; letter-spacing: .06em; margin: 0; }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .showcaseHud button.tapHint { min-width: 0; min-height: 44px; padding: 10px 18px; background: none; border: 0; color: #dccaa2; font-size: 11px; letter-spacing: .28em; text-transform: uppercase; animation: hintPulse 2.4s ease-in-out infinite; }
@@ -41,7 +41,7 @@
 .soundToggle:focus-visible { outline: 2px solid #f5ddb4; outline-offset: 3px; }
 .showcase :is(.revealIdentity, .showcaseHint) { transition: opacity .4s ease; }
 .showcase[data-phase="revealed"] .revealIdentity h1 { animation: nameIn .95s cubic-bezier(.2, .75, .2, 1) both; }
-.showcase[data-phase="revealed"] .revealIdentity h1::after { content: ""; display: block; width: 140px; height: 1px; margin: 12px auto 0; background: linear-gradient(90deg, transparent, #e2c492, transparent); animation: ruleIn .9s .3s ease-out both; }
+.showcase[data-phase="revealed"] .revealIdentity h1::after { content: ""; display: block; width: 140px; height: 1px; margin: 6px auto 0; background: linear-gradient(90deg, transparent, #e2c492, transparent); animation: ruleIn .9s .3s ease-out both; }
 .showcase[data-phase="revealed"] .revealIdentity p { animation: identityIn .6s .45s ease-out both; }
 @keyframes nameIn { from { opacity: 0; letter-spacing: .3em; filter: blur(10px); color: #fff6df; text-shadow: 0 0 28px #ffd88a; } 60% { opacity: 1; } to { opacity: 1; letter-spacing: -.025em; filter: blur(0); } }
 @keyframes ruleIn { from { opacity: 0; transform: scaleX(0); } to { opacity: 1; transform: scaleX(1); } }
@@ -127,3 +127,24 @@
 .showcase[data-view="viewer"] .revealIdentity h1, .showcase[data-view="viewer"] .revealIdentity p { animation: identityIn .6s ease-out both; }
 @media (prefers-reduced-motion: reduce) { .newBadge, .worldHint, .backChip { animation: none; transition: none; } }
 @media (max-width: 600px) { .backChip { left: 14px; top: 16px; } .worldHint { font-size: 11px; letter-spacing: .1em; } }
+/* Start-up loader over the world: fades out once scenery, boxes, sounds and portraits are ready. */
+.worldLoader { position: absolute; inset: 0; z-index: 5; display: grid; place-content: center; justify-items: center; gap: 14px; background: radial-gradient(circle at 50% 45%, #1b2a22, #070b0d 70%); color: #e9d9b0; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; transition: opacity .6s ease, visibility .6s; }
+.worldLoader[data-done="true"] { opacity: 0; visibility: hidden; pointer-events: none; }
+.worldLoaderBar { width: min(260px, 60vw); height: 3px; border-radius: 2px; background: rgba(233, 217, 176, .15); overflow: hidden; }
+.worldLoaderBar i { display: block; height: 100%; background: linear-gradient(90deg, #b98a3f, #f1d48a); transition: width .3s ease; }
+@media (prefers-reduced-motion: reduce) { .worldLoader, .worldLoaderBar i { transition: none; } }
+/* World sound menu: a quiet icon-and-label button that opens volume and voice-line settings. */
+.soundMenu { position: absolute; z-index: 4; top: max(16px, env(safe-area-inset-top)); right: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.soundButton { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 6px 8px; border: 0; border-radius: 6px; background: none; color: rgba(238, 226, 200, .62); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; text-shadow: 0 1px 8px rgba(0, 0, 0, .7); cursor: pointer; transition: color .15s; }
+.soundButton svg { filter: drop-shadow(0 1px 4px rgba(0, 0, 0, .6)); }
+.soundButton:hover, .soundButton[aria-expanded="true"] { color: #f3e3bf; }
+.soundButton:focus-visible, .soundSwitch:focus-visible { outline: 2px solid #f5ddb4; outline-offset: 2px; }
+.soundPanel { width: 236px; display: grid; gap: 14px; padding: 14px; border: 1px solid rgba(214, 187, 134, .26); border-radius: 8px; background: rgba(12, 16, 22, .86); backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0, 0, 0, .35); color: #e9dcc0; font-size: 12px; animation: identityIn .18s ease-out both; }
+.soundRow { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 10px; }
+.soundRow input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: #d6bb86; cursor: pointer; }
+.soundRow[data-off="true"] > span, .soundRow[data-off="true"] input { opacity: .45; }
+.soundSwitch { position: relative; width: 34px; height: 20px; padding: 0; border: 1px solid rgba(214, 187, 134, .4); border-radius: 999px; background: rgba(255, 255, 255, .08); cursor: pointer; transition: background .15s; }
+.soundSwitch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #8d8574; transition: transform .15s, background .15s; }
+.soundSwitch[aria-checked="true"] { background: rgba(214, 187, 134, .32); }
+.soundSwitch[aria-checked="true"]::after { transform: translateX(14px); background: #f1d48a; }
+@media (prefers-reduced-motion: reduce) { .soundPanel { animation: none; } .soundButton, .soundSwitch, .soundSwitch::after { transition: none; } }

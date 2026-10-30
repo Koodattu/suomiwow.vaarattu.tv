@@ -8,14 +8,15 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { resolveModelResource } from "@/lib/figurine-lab";
-import { CHARGE_CUES, CHARGE_SECONDS, ENTRANCE_CUES, REVEAL_CUES, cuesBetween, figurineCharge, figurineEntrance, figurineReveal, type FigurineCue } from "@/lib/figurine-reveal";
+import { CHARGE_CUES, CHARGE_SECONDS, ENTRANCE_CUES, HITSTOP_SECONDS, LAND_AT, REVEAL_CUES, cuesBetween, figurineCharge, figurineEntrance, figurineReveal, type FigurineCue } from "@/lib/figurine-reveal";
 import { playFigurineCue, startFigurineLoop, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { figurineSupport, restoreFigurineMaterials } from "@/lib/figurine-materials";
-import { PACKAGING_FALLBACK, PACKAGING_THEMES, buildBlindBox, type BlindBoxParts, type BoxDesign, type PackagingLabels } from "@/lib/figurine-packaging";
-import { buildWorld, labelSprite, placeStation, viewPose, type WorldView } from "@/lib/figurine-world";
+import { PACKAGING_FALLBACK, PACKAGING_THEMES, SILHOUETTE, buildBlindBox, type BlindBoxParts, type BoxDesign, type PackagingLabels } from "@/lib/figurine-packaging";
+import { buildWorld, placeStation, viewPose, type WorldView } from "@/lib/figurine-world";
 import { buildShop, type ShopLabels } from "@/lib/figurine-shop";
-import { buildCase } from "@/lib/figurine-case";
-import { buildPedestal } from "@/lib/figurine-pedestal";
+import { buildCase, type CaseLabels } from "@/lib/figurine-case";
+import { buildPedestal, PEDESTAL_TOP } from "@/lib/figurine-pedestal";
+import { hoverOutline } from "@/lib/figurine-glow";
 import styles from "./figurine-lab.module.css";
 
 export type { WorldView };
@@ -23,7 +24,7 @@ export type { WorldView };
 export type StageSeries = { id: string; number: string; theme: keyof typeof PACKAGING_THEMES; silhouettes: string; keys: string[]; names: string[]; models: string[] };
 export type StageWorld = {
   series: StageSeries[]; collection: Readonly<Record<string, number>>;
-  labels: ShopLabels & { shop: string; collection: string; open: string; header: (number: string) => string };
+  labels: ShopLabels & CaseLabels;
 };
 type StageLabels = { loading: string; ready: string; empty: string; error: string; webgl: string; box: string; boxTitle: string; boxSubtitle: string; series?: string; packaging?: Omit<PackagingLabels, "title" | "subtitle"> };
 
@@ -76,7 +77,7 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const NO_LINEUP: string[] = [];
 const random = (min: number, max: number) => min + Math.random() * (max - min);
 
-export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, immersive = false, gallery = false }: {
+export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false }: {
   files: File[]; boxMode: boolean; open: boolean; rotate: boolean; labels: StageLabels;
   // Character names printed in the "collect all" grid on the back of the box.
   lineup?: string[];
@@ -84,6 +85,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   silhouettes?: string;
   // Class key of the drawn figure; picks its landing signature sound.
   signature?: string;
+  // The drawn figure's CCG card quip, said after it lands.
+  quip?: { file: string; gain: number };
   // World mode (immersive): which station the camera is at, the series whose box is on the
   // pedestal, every series for the shop and case, and the key of the figure in `files`.
   view?: WorldView;
@@ -103,25 +106,37 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   onBoxTap?: () => void;
   onStatus?: (status: "loading" | "ready" | "empty" | "error" | "webgl") => void;
   onRevealed?: () => void;
+  // World mode: start-up loading (scenery, every series' box, owned figures' portraits, shaders).
+  onLoaded?: () => void;
+  onProgress?: (fraction: number) => void;
+  // Bumped each time a series is picked: the box drops onto the pedestal again once the camera arrives.
+  arrival?: number;
+  // World mode: the figure `files` holds and the one the view wants; the viewer shows the
+  // loaded model only when they match, never the box's figure while another one loads.
+  filesFor?: string | null;
+  showing?: string | null;
+  // World mode: false while the start-up loader covers the scene; the opening shot waits for it.
+  ready?: boolean;
   immersive?: boolean;
   gallery?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, view, figureKey });
-  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, view, figureKey }; }, [boxMode, open, charging, interactive, round, rotate, signature, view, figureKey]);
+  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready });
+  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready }; }, [boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready]);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error" | "webgl">("empty");
   const [filename, setFilename] = useState("");
-  const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure });
-  useEffect(() => { callbacks.current = { onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure }; });
+  const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress });
+  useEffect(() => { callbacks.current = { onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress }; });
   useEffect(() => { callbacks.current.onStatus?.(status); }, [status]);
   // The packaging is rebuilt only when its printed text changes, not on every new labels object.
   const packagingKey = JSON.stringify(labels.packaging ?? null), lineupKey = lineup.join("|");
   const labelsRef = useRef(labels), lineupRef = useRef(lineup), silhouettesRef = useRef(silhouettes), worldRef = useRef(world), seriesRef = useRef(series);
   useEffect(() => { labelsRef.current = labels; lineupRef.current = lineup; silhouettesRef.current = silhouettes; worldRef.current = world; seriesRef.current = series; });
   // Lets later prop changes reach the running scene without rebuilding the renderer.
-  const api = useRef<{ rebuildBox: () => void; setCollection: (collection: Readonly<Record<string, number>>) => void } | null>(null);
+  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: Readonly<Record<string, number>>) => void } | null>(null);
   const loaderState = useRef<{ load: (files: File[]) => void } | null>(null);
-  const filesRef = useRef(files);
+  const filesRef = useRef(files), filesForRef = useRef(filesFor);
+  filesForRef.current = filesFor;
   useEffect(() => { filesRef.current = files; loaderState.current?.load(files); }, [files]);
 
   useEffect(() => {
@@ -142,25 +157,48 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     element.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(36, 1, 0.4, 140);
-    camera.position.set(gallery ? 2.3 : immersive ? 3.2 : 4.2, gallery ? 2.5 : 3, gallery ? 6 : immersive ? 7.8 : 6);
+    // The world's home shot faces the pedestal head-on, with the shop and the case at either side.
+    camera.position.set(gallery ? 2.3 : immersive ? 0.6 : 4.2, gallery ? 2.5 : immersive ? 3.6 : 3, gallery ? 6 : immersive ? 9.6 : 6);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.5, 0); controls.enableDamping = true;
     controls.minDistance = 3; controls.maxDistance = 15;
     controls.maxPolarAngle = Math.PI * 0.53;
     controls.enablePan = !immersive;
     controls.autoRotateSpeed = 0.65;
+    // Auto-rotation yields to the user: it stops on grab and, a while after release, eases back in.
+    // Negative turns the camera rightwards, carrying on the opening shot's sweep.
+    const AUTO_ROTATE_SPEED = -0.6, AUTO_ROTATE_DELAY = 2.5; // about 3.4° a second
+    let userOrbit = { holding: false, released: -Infinity }, autoRotate = 0;
+    controls.addEventListener("start", () => { userOrbit = { holding: true, released: -Infinity }; autoRotate = 0; });
+    controls.addEventListener("end", () => { userOrbit = { holding: false, released: performance.now() }; });
     const homeOffset = camera.position.clone().sub(controls.target);
     let framing = 1;
-    scene.add(new THREE.HemisphereLight(0xe0efff, 0x333048, 3));
-    const keyLight = new THREE.DirectionalLight(0xffe2b0, 4); keyLight.position.set(4, 6, 5); scene.add(keyLight);
+    // The world is an afternoon clearing: sky fill, a warm sun whose shadow covers the plaza and
+    // both stations (one map, so trees, stalls and the box all shade the ground), and a cool rim.
+    // The lab keeps its studio lights.
+    scene.add(immersive ? new THREE.HemisphereLight(0xd6e6ff, 0x5b5236, 1.3) : new THREE.HemisphereLight(0xe0efff, 0x333048, 3));
+    const keyLight = new THREE.DirectionalLight(immersive ? 0xffe4bd : 0xffe2b0, immersive ? 3.4 : 4); scene.add(keyLight, keyLight.target);
+    if (immersive) keyLight.position.set(-16, 24, 18); else keyLight.position.set(4, 6, 5);
     keyLight.castShadow = immersive;
-    keyLight.shadow.mapSize.set(1024, 1024); keyLight.shadow.radius = 5; keyLight.shadow.bias = -0.0004; keyLight.shadow.normalBias = 0.02;
-    Object.assign(keyLight.shadow.camera, { left: -3, right: 3, top: 3.2, bottom: -2.4, near: 2, far: 16 });
-    const rim = new THREE.DirectionalLight(0x69bbff, 3); rim.position.set(-4, 4, -3); scene.add(rim);
-    if (immersive) { buildWorld(scene); scene.fog = new THREE.FogExp2(0x1f1c36, 0.02); }
+    if (immersive) keyLight.target.position.set(0, 0, -2);
+    keyLight.shadow.mapSize.set(2048, 2048); keyLight.shadow.radius = 4; keyLight.shadow.bias = -0.0005; keyLight.shadow.normalBias = 0.035;
+    Object.assign(keyLight.shadow.camera, { left: -17, right: 17, top: 17, bottom: -17, near: 5, far: 75 });
+    const rim = new THREE.DirectionalLight(immersive ? 0xa9cfff : 0x69bbff, immersive ? 1 : 3); rim.position.set(-4, 4, -3); scene.add(rim);
+    // Image-based fill from the painted sky shades every prop and figure without extra lights.
+    let skyLight: THREE.WebGLRenderTarget | null = null;
+    const updateSkyLight = () => {
+      if (!scenery || disposed) return;
+      const generator = new THREE.PMREMGenerator(renderer), skyScene = new THREE.Scene();
+      skyScene.add(new THREE.Mesh(scenery.sky.geometry, scenery.sky.material));
+      const next = generator.fromScene(skyScene, 0, 0.1, 100); generator.dispose();
+      skyLight?.dispose(); skyLight = next; scene.environment = next.texture;
+    };
+    const scenery = immersive ? buildWorld(scene, { onSky: updateSkyLight }) : null;
+    if (immersive) { scene.fog = new THREE.FogExp2(0xc3d5e6, 0.0115); scene.environmentIntensity = 0.55; }
     const modelRoot = new THREE.Group(); scene.add(modelRoot);
     const box = new THREE.Group(); scene.add(box);
-    const width = 2.05, depth = 1.8, height = 2.75, bottom = 0.18;
+    // The box rests just on the pedestal top; its idle float only ever lifts it.
+    const width = 2.05, depth = 1.8, height = 2.75, bottom = PEDESTAL_TOP + 0.003;
     // Neutral studio reflections for the foil and holographic seal only, so figure lighting is unchanged.
     const pmrem = new THREE.PMREMGenerator(renderer);
     const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; pmrem.dispose();
@@ -182,29 +220,59 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     }) : null;
     const cabinet = caseGroup && worldSetup?.series.length ? buildCase(caseGroup, {
       series: worldSetup.series.map((entry) => ({ id: entry.id, number: entry.number, accent: accentOf(entry), silhouettes: entry.silhouettes, keys: entry.keys })),
-      header: worldSetup.labels.header,
+      labels: worldSetup.labels, envMap: environment,
     }) : null;
-    // Floating station names, shown on the main menu.
-    const stationLabels = worldSetup && shopGroup && caseGroup ? [
-      [labelSprite(worldSetup.labels.shop), shopGroup, new THREE.Vector3(0, 5.5, 1)],
-      [labelSprite(worldSetup.labels.collection), caseGroup, new THREE.Vector3(0, 5.8, 0.6)],
-      [labelSprite(worldSetup.labels.open), pedestal.group, new THREE.Vector3(0, 4.4, 0)],
-    ] as const : [];
-    const labelViews: WorldView[] = ["shop", "gallery", "opening"];
-    stationLabels.forEach(([sprite, parent, at]) => { sprite.position.copy(at); parent.add(sprite); });
+    // Stations glow faintly under the pointer; their own textures light up, so prints stay legible.
+    const glowing = new Map<WorldView, THREE.MeshStandardMaterial[]>();
+    for (const [group, view] of [[shopGroup, "shop"], [caseGroup, "gallery"]] as const) {
+      const materials = new Set<THREE.MeshStandardMaterial>();
+      group?.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        for (const material of Array.isArray(object.material) ? object.material : [object.material])
+          if (material instanceof THREE.MeshStandardMaterial && material.map && !material.emissiveMap) materials.add(material);
+      });
+      materials.forEach((material) => { material.emissiveMap = material.map; material.emissive.set(0xffe2b8); material.emissiveIntensity = 0; });
+      glowing.set(view, [...materials]);
+    }
+    let stationGlow = { shop: 0, gallery: 0, opening: 0 };
+    // Outer glows on hover: each series' boxes, each station's frame, and the pedestal with its box.
+    const GOLD_GLOW = 0xffcf7a;
+    const stackOutlines = new Map([...(shop?.boxes ?? [])].map(([id, meshes]) => [id, hoverOutline(meshes, PACKAGING_THEMES[worldSetup?.series.find((entry) => entry.id === id)?.theme ?? "amethyst"].glow, 0.03)]));
+    const stationOutlines = { shop: shop ? hoverOutline(shop.frame, GOLD_GLOW, 0.035) : null, gallery: cabinet ? hoverOutline(cabinet.frame, GOLD_GLOW, 0.035) : null };
+    const pedestalOutline = immersive ? hoverOutline([pedestal.body], GOLD_GLOW, 0.035) : null;
+    let boxOutline: ReturnType<typeof hoverOutline> | null = null;
     // Portraits of owned figures for the case, rendered once per figure into small targets.
     const portraits = new Map<string, THREE.WebGLRenderTarget>();
     const portraitScene = new THREE.Scene();
     portraitScene.add(new THREE.HemisphereLight(0xe0efff, 0x333048, 3));
     const portraitKey = new THREE.DirectionalLight(0xffe2b0, 4); portraitKey.position.set(4, 6, 5); portraitScene.add(portraitKey);
-    const portraitCamera = new THREE.PerspectiveCamera(24, 240 / 432, 0.1, 50); portraitCamera.position.set(0, 1.5, 7.2); portraitCamera.lookAt(0, 1.4, 0);
+    const portraitCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 60); portraitCamera.position.set(0, 1.5, 20);
+    const solid = new THREE.Box3(), part = new THREE.Box3();
+    const compileTarget = new THREE.WebGLRenderTarget(1, 1); compileTarget.texture.colorSpace = THREE.SRGBColorSpace;
     const capture = (object: THREE.Object3D, key: string) => {
-      const target = new THREE.WebGLRenderTarget(240, 432, { samples: 4 }); target.texture.colorSpace = THREE.SRGBColorSpace;
+      const target = new THREE.WebGLRenderTarget(Math.round(432 * SILHOUETTE.w / SILHOUETTE.h), 432, { samples: 4 }); target.texture.colorSpace = THREE.SRGBColorSpace;
       const parent = object.parent, alpha = renderer.getClearAlpha();
       portraitScene.add(object);
+      // Matches scripts/bake-figurine-silhouettes.mjs: solid surfaces only, 6 px headroom and side margins per cell.
+      object.updateMatrixWorld(true); solid.makeEmpty();
+      object.traverse((mesh) => {
+        if (!(mesh instanceof THREE.Mesh) || !mesh.visible) return;
+        const materials: THREE.Material[] = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        if (materials.some((material) => material.blending !== THREE.NormalBlending)) return;
+        if (mesh instanceof THREE.SkinnedMesh) { mesh.computeBoundingBox(); part.copy(mesh.boundingBox!); }
+        else { mesh.geometry.computeBoundingBox(); part.copy(mesh.geometry.boundingBox!); }
+        solid.union(part.applyMatrix4(mesh.matrixWorld));
+      });
+      if (solid.isEmpty()) solid.setFromObject(object);
+      const { w: cellW, h: cellH } = SILHOUETTE;
+      let frameH = (solid.max.y - PEDESTAL_TOP) * cellH / (cellH - 6), frameW = frameH * cellW / cellH;
+      if (solid.max.x - solid.min.x > frameW * (cellW - 12) / cellW) { frameW = (solid.max.x - solid.min.x) * cellW / (cellW - 12); frameH = frameW * cellH / cellW; }
+      const centreX = (solid.min.x + solid.max.x) / 2;
+      Object.assign(portraitCamera, { left: centreX - frameW / 2, right: centreX + frameW / 2, bottom: PEDESTAL_TOP, top: PEDESTAL_TOP + frameH });
+      portraitCamera.position.set(0, 0, 20); portraitCamera.updateProjectionMatrix();
       renderer.setRenderTarget(target); renderer.setClearAlpha(0); renderer.clear(); renderer.render(portraitScene, portraitCamera);
       renderer.setRenderTarget(null); renderer.setClearAlpha(alpha);
-      parent?.add(object);
+      if (parent) parent.add(object); else portraitScene.remove(object);
       portraits.get(key)?.dispose(); portraits.set(key, target);
       cabinet?.setSlot(key, "owned", target.texture);
     };
@@ -235,31 +303,48 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           got++;
           const portrait = portraits.get(key);
           if (portrait) cabinet?.setSlot(key, "owned", portrait.texture);
-          else { cabinet?.setSlot(key, "pending"); if (!portraitQueue.includes(key)) portraitQueue.push(key); }
+          else { cabinet?.setSlot(key, "pending"); if (!portraitQueue.includes(key) && !(key === state.current.figureKey && model)) portraitQueue.push(key); }
         }
-        shop?.setCollected(entry.id, got);
+        shop?.setCollected(entry.id, got); cabinet?.setCollected(entry.id, got);
       }
     };
-    // The packaging lives in its own group so another series' box can replace it in place.
-    let packagingGroup = new THREE.Group(); box.add(packagingGroup);
+    // Every series' box is built once and kept: switching series swaps which one is shown, so the
+    // print textures are never repainted or re-uploaded mid-game. Print text changes rebuild them all.
+    type Packaging = { group: THREE.Group; parts: BlindBoxParts; outline: ReturnType<typeof hoverOutline> | null };
+    const packagings = new Map<string, Packaging>();
     let walls!: BlindBoxParts["walls"], lidPivot!: THREE.Group, tape!: BlindBoxParts["tape"], thickness = 0;
-    let boxMeshes: THREE.Mesh[] = [], packaging: THREE.Material[] = [], stopPackaging = () => {};
+    let boxMeshes: THREE.Mesh[] = [], packaging: THREE.Material[] = [];
+    const packagingFor = (entry?: StageSeries) => {
+      const key = entry?.id ?? "lab", cached = packagings.get(key);
+      if (cached) return cached;
+      const group = new THREE.Group(); group.visible = false; box.add(group);
+      const parts = buildBlindBox(group, { bottom, design: designOf(entry), envMap: environment });
+      parts.tape.mesh.castShadow = immersive;
+      parts.meshes.forEach((mesh) => { mesh.castShadow = immersive; });
+      // The tape lights up on its own when hovered.
+      parts.tape.material.emissiveMap = parts.tape.material.map; parts.tape.material.emissive.set(0xffe2a8); parts.tape.material.emissiveIntensity = 0;
+      const made = { group, parts, outline: immersive ? hoverOutline(parts.meshes, 0xffcf7a, 0.03) : null };
+      packagings.set(key, made);
+      return made;
+    };
+    const clearPackagings = () => {
+      sheen.removeFromParent();
+      packagings.forEach(({ group, parts, outline }) => { parts.stop(); outline?.dispose(); box.remove(group); disposeObject(group); });
+      packagings.clear();
+    };
     const mountBox = () => {
-      if (packagingGroup.children.length) {
-        sheen.removeFromParent(); stopPackaging();
-        box.remove(packagingGroup); disposeObject(packagingGroup);
-        packagingGroup = new THREE.Group(); box.add(packagingGroup);
-      }
-      ({ walls, lidPivot, tape, thickness, meshes: boxMeshes, materials: packaging, stop: stopPackaging } = buildBlindBox(packagingGroup, { bottom, design: designOf(selectedSeries()), envMap: environment }));
-      tape.mesh.castShadow = immersive;
-      boxMeshes.forEach((mesh) => { mesh.castShadow = immersive; });
+      const shown = packagingFor(selectedSeries());
+      packagings.forEach((entry) => { entry.group.visible = entry === shown; });
+      ({ walls, lidPivot, tape, thickness, meshes: boxMeshes, materials: packaging } = shown.parts);
+      boxOutline = shown.outline;
       walls[0].pivot.add(sheen); sheen.position.set(0, height / 2, thickness / 2 + 0.003);
-      packagingOpacity = 1;
+      // Force the next opacity write: this box's materials may have been left faded.
+      packagingOpacity = Number.NaN;
     };
     // Soft contact shadow that grounds the box, then shrinks under the figure.
     const contactMaterial = new THREE.MeshBasicMaterial({ map: radial([[0, "rgba(255,255,255,.9)"], [0.5, "rgba(255,255,255,.45)"], [1, "rgba(255,255,255,0)"]], false), color: 0x000000, transparent: true, depthWrite: false, opacity: 0 });
     const contact = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), contactMaterial);
-    contact.rotation.x = -Math.PI / 2; contact.position.y = 0.168; contact.visible = immersive; scene.add(contact);
+    contact.rotation.x = -Math.PI / 2; contact.position.y = PEDESTAL_TOP + 0.001; contact.visible = immersive; scene.add(contact);
     // Light leaking from under the lid, a periodic sheen across the print, and the reveal effects.
     const glowMap = radial([[0, "#fff"], [0.25, "rgba(255,255,255,.55)"], [1, "#000"]]);
     const seamMaterial = additive(null, 0xffd58a);
@@ -280,6 +365,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const sheenMaterial = additive(sheenMap, 0xffe7b8);
     const sheen = new THREE.Mesh(new THREE.PlaneGeometry(width, height), sheenMaterial);
     let packagingOpacity = 1;
+    worldSetup?.series.forEach((entry) => packagingFor(entry));
     mountBox();
     const beamMap = canvasTexture(4, 128, (context) => {
       const gradient = context.createLinearGradient(0, 0, 0, 128);
@@ -294,11 +380,11 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const ringMap = radial([[0, "#000"], [0.72, "#000"], [0.88, "#fff"], [1, "#000"]]);
     const shockwave = () => {
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), additive(ringMap, 0xffe0a0));
-      mesh.rotation.x = -Math.PI / 2; mesh.position.y = 0.175; scene.add(mesh); return mesh;
+      mesh.rotation.x = -Math.PI / 2; mesh.position.y = PEDESTAL_TOP + 0.0016; scene.add(mesh); return mesh;
     };
     const burstRing = shockwave(), landRing = shockwave();
     const discMaterial = additive(glowMap, 0xffd28a);
-    const disc = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), discMaterial); disc.rotation.x = -Math.PI / 2; disc.position.y = 0.17; scene.add(disc);
+    const disc = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), discMaterial); disc.rotation.x = -Math.PI / 2; disc.position.y = PEDESTAL_TOP + 0.0013; scene.add(disc);
     const glow = new THREE.PointLight(0xffd9a0, 0, 7); glow.position.set(0, 1.8, 0); scene.add(glow);
     // Figure silhouette: an unlit copy that fades to reveal the real materials.
     const silhouetteMaterial = new THREE.MeshBasicMaterial({ color: 0xfff0cf, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
@@ -403,10 +489,12 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       root.scale.multiplyScalar(scale);
       root.position.x -= support.x * scale;
       root.position.z -= support.z * scale;
-      root.position.y = 0.18 - support.y * scale;
+      root.position.y = PEDESTAL_TOP - support.y * scale;
       return root;
     };
+    let loadedFor: string | null = null;
     const load = async (selected: File[]) => {
+      const loading = filesForRef.current; loadedFor = null;
       const current = ++generation;
       mixer?.stopAllAction(); mixer = null;
       if (silhouette) { modelRoot.remove(silhouette); silhouette = null; }
@@ -429,7 +517,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         const rootPath = paths[selected.indexOf(roots[0])];
         const gltf = await loader.loadAsync(rootPath);
         if (disposed || generation !== current) { disposeObject(gltf.scene); return; }
-        model = prepareModel(gltf.scene);
+        model = prepareModel(gltf.scene); loadedFor = loading;
         modelRoot.add(model);
         displayClock = 0;
         const textures = new Set<THREE.Texture>();
@@ -437,6 +525,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           if (!(object instanceof THREE.Mesh)) return;
           const sources: THREE.Material[] = Array.isArray(object.material) ? object.material : [object.material];
           object.castShadow = immersive && sources.every((material) => !material.transparent);
+          object.receiveShadow = immersive;
           sources.forEach((material) => Object.values(material).forEach((value) => { if (value instanceof THREE.Texture) textures.add(value); }));
         });
         if (immersive) {
@@ -455,6 +544,14 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         // Upload textures and compile shaders now, while the box is still charging, not on the burst frame.
         textures.forEach((texture) => renderer.initTexture(texture));
         await precompile();
+        // Also its portrait shaders, used when it joins the case. Portraits render off-screen, which
+        // selects different shader variants (no tone mapping), so compile with a target bound.
+        if (immersive && cabinet) {
+          renderer.setRenderTarget(compileTarget);
+          const compiled = renderer.compileAsync(model, portraitCamera, portraitScene).catch(() => undefined);
+          renderer.setRenderTarget(null);
+          await compiled;
+        }
         if (disposed || generation !== current) return;
         setStatus("ready");
       } catch { if (!disposed && generation === current) setStatus("error"); }
@@ -468,9 +565,31 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       revealed.forEach((object) => { object.visible = false; });
       return ready;
     };
-    void precompile();
-    api.current = { rebuildBox: () => { mountBox(); void precompile(); }, setCollection };
+    updateSkyLight(); void precompile();
+    api.current = {
+      rebuildBox: () => { clearPackagings(); worldRef.current?.series.forEach((entry) => packagingFor(entry)); mountBox(); void precompile(); },
+      showBox: () => mountBox(),
+      setCollection,
+    };
     if (worldSetup) setCollection(worldSetup.collection);
+    if (immersive && scenery) void (async () => {
+      const portraitsQueued = Math.max(1, portraitQueue.length);
+      const report = (sceneryDone: boolean) => callbacks.current.onProgress?.((sceneryDone ? 0.35 : 0) + 0.55 * (1 - portraitQueue.length / portraitsQueued));
+      report(false);
+      void pumpPortraits();
+      await scenery.ready; report(true);
+      while (!disposed && (portraitQueue.length || portraitBusy)) { report(true); await new Promise((resolve) => setTimeout(resolve, 60)); }
+      // Upload every texture now (hidden boxes included), or the first look at one stalls a frame.
+      const textures = new Set<THREE.Texture>();
+      scene.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        for (const material of Array.isArray(object.material) ? object.material : [object.material])
+          for (const value of Object.values(material)) if (value instanceof THREE.Texture) textures.add(value);
+      });
+      textures.forEach((texture) => renderer.initTexture(texture));
+      await precompile();
+      if (!disposed) { callbacks.current.onProgress?.(1); callbacks.current.onLoaded?.(); }
+    })();
     loaderState.current = { load: (selected) => { void load(selected); } };
     void load(filesRef.current);
     const resize = new ResizeObserver(() => {
@@ -483,7 +602,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let last = performance.now(), reveal = 0, notifiedReveal = false;
     // Immersive clocks advance only while the tab is visible; cue cursors start at -1 so zero-time cues fire.
-    let idle = 0, entrance = 0, charge = 0, burst = 0, bursting = false;
+    let idle = 0, entrance = 0, charge = 0, burst = 0, bursting = false, hitstop = 0;
     let entranceCue = -1, chargeCue = -1, burstCue = -1;
     let hum: (() => void) | null = null;
     let orbitOffset: THREE.Vector3 | null = null;
@@ -498,16 +617,21 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     // Releasing early sticks it back down. Tapping the box only wiggles the tab; other drags orbit.
     const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
     type Grab = { id: number; x: number; y: number; from: number; axis: THREE.Vector2; moved: boolean };
-    let grab: Grab | null = null, hovering = false, hover = 0;
+    let grab: Grab | null = null, hovering = false, hoverTape = false, hover = 0, tapeGlow = 0;
     let peel = 0, peelTarget = 0, peelSpeed = 0, released = 0, ready = false, nudge = 0;
     let peelSound: ReturnType<typeof startFigurineLoop> | null = null;
+    // Grab the box anywhere off the tape to lift and shake it: it trails the finger on a spring,
+    // leans with its speed, and every sharp change of direction rattles the figure inside.
+    let shake: { id: number; x: number; y: number; scale: number; moved: boolean } | null = null;
+    const held = new THREE.Vector2(), heldVelocity = new THREE.Vector2(), heldTarget = new THREE.Vector2(), heldPrevious = new THREE.Vector2(), heldAccel = new THREE.Vector2(), heldRight = new THREE.Vector3();
+    let rattleCooldown = 0;
     const grabPoint = new THREE.Vector3(), plane = new THREE.Plane(), toward = new THREE.Vector3(), screen = new THREE.Vector3();
     const aim = (event: PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.set((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1);
       raycaster.setFromCamera(pointer, camera);
     };
-    const hits = (objects: THREE.Object3D[]) => box.visible && raycaster.intersectObjects(objects, false).length > 0;
+    const hits = (objects: THREE.Object3D[]) => box.visible && raycaster.intersectObjects(objects, true).length > 0;
     const toScreen = (local: THREE.Vector3) => {
       screen.copy(local); box.localToWorld(screen).project(camera);
       const rect = renderer.domElement.getBoundingClientRect();
@@ -517,20 +641,51 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     // The world is the interface: tap a station to go there, a series to open it, an owned figure
     // to inspect it, and empty ground or sky to step back. The target must match on release.
     type Pick = { kind: "station"; view: WorldView } | { kind: "series"; id: string } | { kind: "figure"; key: string } | { kind: "back" };
-    let press: { x: number; y: number; pick: Pick | null; pan: number } | null = null, menuPan = 0, menuPanTarget = 0;
+    let press: { x: number; y: number; pick: Pick | null; yaw: number; pitch: number; panX: number; panY: number } | null = null;
+    // Station shots: the shop turns a little (yaw, pitch); the collection pans across (panX, panY). Both zoom.
+    const look = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 }, lookTarget = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 };
+    const panning = () => state.current.view === "gallery";
+    // World units per pixel at the station's target, for panning that keeps pace with the pointer.
+    const unitsPerPixel = () => 2 * camera.position.distanceTo(controls.target) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / renderer.domElement.clientHeight;
+    const pan = (dx: number, dy: number, from: { panX: number; panY: number }) => {
+      const scale = unitsPerPixel();
+      lookTarget.panX = THREE.MathUtils.clamp(from.panX - dx * scale, -2.6, 2.6);
+      lookTarget.panY = THREE.MathUtils.clamp(from.panY + dy * scale, -1.6, 1.6);
+    };
+    let looking: { id: number; x: number; y: number; yaw: number; pitch: number; panX: number; panY: number } | null = null;
+    const lookLimits = () => ({ yaw: 0.35, pitch: 0.15, near: panning() ? 0.35 : 0.6, far: 1.3 });
+    const directed = () => immersive && !flight && (state.current.view === "shop" || state.current.view === "gallery");
+    const steer = (dx: number, dy: number, from: { yaw: number; pitch: number }) => {
+      const limits = lookLimits(), size = renderer.domElement;
+      lookTarget.yaw = THREE.MathUtils.clamp(from.yaw - dx / size.clientWidth * 1.8, -limits.yaw, limits.yaw);
+      lookTarget.pitch = THREE.MathUtils.clamp(from.pitch + dy / size.clientHeight * 0.9, -limits.pitch, limits.pitch);
+    };
+    controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
+    const onWheel = (event: WheelEvent) => {
+      if (!directed()) return;
+      event.preventDefault();
+      const limits = lookLimits();
+      lookTarget.zoom = THREE.MathUtils.clamp(lookTarget.zoom * Math.exp(event.deltaY * 0.0012), limits.near, limits.far);
+    };
     let hoveredSeries: string | null = null, hoveredFigure: string | null = null, hoveredStation: WorldView | null = null;
     // Not while a box is mid-opening: the burst owns the camera.
     const navigable = () => !state.current.charging && (!state.current.open || notifiedReveal);
     const pickAt = (): Pick | null => {
       const view = state.current.view;
-      if (flight || !immersive || !navigable()) return null;
-      const roots: [THREE.Object3D | null, WorldView][] = [[shopGroup, "shop"], [caseGroup, "gallery"], [box, "opening"], [pedestal.group, "opening"], [modelRoot, "opening"]];
-      const hit = raycaster.intersectObjects(roots.map(([root]) => root).filter((root): root is THREE.Object3D => !!root && root.visible), true)[0];
-      if (!hit) return view === "menu" ? null : { kind: "back" };
+      if ((flight && flight.t < 0.6) || !immersive || !navigable()) return null;
+      // Only the stations are targets; glows and sprites never block what is behind them.
+      const roots: [THREE.Object3D | null, WorldView][] = [[shopGroup, "shop"], [caseGroup, "gallery"]];
+      const hit = raycaster.intersectObjects(roots.map(([root]) => root).filter((root): root is THREE.Object3D => !!root && root.visible), true)
+        .find(({ object }) => !(object instanceof THREE.Sprite) && !(object instanceof THREE.Points));
+      // Empty ground steps back from a station; at the centre (home) it does nothing.
+      if (!hit) return view === "shop" || view === "gallery" ? { kind: "back" } : null;
       let station: WorldView | null = null;
       for (let object: THREE.Object3D | null = hit.object; object && !station; object = object.parent) station = roots.find(([root]) => root === object)?.[1] ?? null;
-      if (view === "shop" && station === "shop") { const stack = raycaster.intersectObjects(shop?.picks ?? [], false)[0]; return stack ? { kind: "series", id: stack.object.userData.series } : null; }
-      if (view === "gallery" && station === "gallery") { const card = raycaster.intersectObjects(cabinet?.picks ?? [], false)[0]; return card ? { kind: "figure", key: card.object.userData.figure } : null; }
+      // Boxes and figures can be picked straight from the hub, not only from their station.
+      if (station === "shop") { const stack = raycaster.intersectObjects(shop?.picks ?? [], false)[0]; if (stack) return { kind: "series", id: stack.object.userData.series }; }
+      if (station === "gallery") { const card = raycaster.intersectObjects(cabinet?.picks ?? [], false)[0]; if (card) return { kind: "figure", key: card.object.userData.figure }; }
+      // Tapping the station you are at (off its items) steps back to the hub.
+      if (station === view) return { kind: "back" };
       // The pedestal hosts both the opening and the viewer; tapping it there does nothing.
       if (station === "opening" && (view === "opening" || view === "viewer")) return null;
       return station ? { kind: "station", view: station } : null;
@@ -539,6 +694,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     let figureNudge: { key: string; time: number } | null = null;
     const onPointerDown = (event: PointerEvent) => {
       if (!immersive) return;
+      if (introClock < INTRO_SECONDS && state.current.ready) { introClock = INTRO_SECONDS; controls.enabled = true; }
       aim(event);
       if (tappable() && hits([tape.mesh, tape.hit])) {
         // Claim the gesture before OrbitControls sees it.
@@ -551,8 +707,23 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         renderer.domElement.style.cursor = "grabbing";
         return;
       }
-      if (tappable() && hits(boxMeshes)) { unlockFigurineAudio(); playFigurineCue("tap"); nudge = 1; return; }
-      press = { x: event.clientX, y: event.clientY, pick: pickAt(), pan: menuPanTarget };
+      if (tappable() && hits(boxMeshes)) {
+        event.stopImmediatePropagation(); controls.enabled = false;
+        try { renderer.domElement.setPointerCapture(event.pointerId); } catch { /* pointer no longer active */ }
+        unlockFigurineAudio();
+        // World units per screen pixel at the box, so the box keeps pace with the finger.
+        const distance = camera.position.distanceTo(box.getWorldPosition(screen));
+        shake = { id: event.pointerId, x: event.clientX, y: event.clientY, scale: 2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / renderer.domElement.clientHeight, moved: false };
+        renderer.domElement.style.cursor = "grabbing";
+        return;
+      }
+      if (event.button === 1 && directed()) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        looking = { id: event.pointerId, x: event.clientX, y: event.clientY, yaw: lookTarget.yaw, pitch: lookTarget.pitch, panX: lookTarget.panX, panY: lookTarget.panY };
+        return;
+      }
+      if (event.button !== 0) return;
+      press = { x: event.clientX, y: event.clientY, pick: pickAt(), yaw: lookTarget.yaw, pitch: lookTarget.pitch, panX: lookTarget.panX, panY: lookTarget.panY };
     };
     const onPointerMove = (event: PointerEvent) => {
       aim(event);
@@ -562,25 +733,36 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         peelTarget = THREE.MathUtils.clamp(grab.from + (dx * grab.axis.x + dy * grab.axis.y) / grab.axis.lengthSq(), 0, 1.04);
         return;
       }
-      // Dragging across the menu slides the camera between the stations.
-      if (event.buttons && press && state.current.view === "menu" && !flight) {
-        menuPanTarget = THREE.MathUtils.clamp(press.pan - (event.clientX - press.x) / renderer.domElement.clientWidth * 2.2, -1, 1);
+      if (shake && event.pointerId === shake.id) {
+        const dx = event.clientX - shake.x, dy = event.clientY - shake.y;
+        if (Math.hypot(dx, dy) > 6) shake.moved = true;
+        // Lifted, not pushed through the pedestal; it slides a little either way.
+        heldTarget.set(THREE.MathUtils.clamp(dx * shake.scale, -0.55, 0.55), THREE.MathUtils.clamp(-dy * shake.scale, 0, 0.9));
         return;
       }
+      if (looking && event.pointerId === looking.id) {
+        if (directed()) (panning() ? pan : steer)(event.clientX - looking.x, event.clientY - looking.y, looking);
+        return;
+      }
+      // Dragging across the collection slides along it.
+      if (event.buttons && press && panning() && directed()) { pan(event.clientX - press.x, event.clientY - press.y, press); return; }
       if (event.buttons || !immersive) return;
       const pick = event.pointerType === "mouse" ? pickAt() : null;
       hoveredSeries = pick?.kind === "series" ? pick.id : null;
       hoveredStation = pick?.kind === "station" ? pick.view : null;
       const figure = pick?.kind === "figure" ? pick.key : null;
       if (figure !== hoveredFigure) { hoveredFigure = figure; callbacks.current.onHoverFigure?.(figure); }
-      hovering = tappable() && event.pointerType === "mouse" && hits([tape.mesh, tape.hit, ...boxMeshes]);
+      hoverTape = tappable() && event.pointerType === "mouse" && hits([tape.mesh, tape.hit]);
+      hovering = hoverTape || (tappable() && event.pointerType === "mouse" && hits(boxMeshes));
       renderer.domElement.style.cursor = hovering ? "grab" : pick && pick.kind !== "back" ? "pointer" : "";
     };
     const letGo = (event: PointerEvent) => {
+      if (looking && event.pointerId === looking.id) { looking = null; return; }
       if (press) {
         aim(event);
         const pick = pickAt(), moved = Math.hypot(event.clientX - press.x, event.clientY - press.y) > 10;
-        if (!moved && samePick(pick, press.pick) && pick) {
+        // A press made while the camera was still settling counts with what is under the finger now.
+        if (!moved && pick && (samePick(pick, press.pick) || (!press.pick && pick.kind !== "back"))) {
           unlockFigurineAudio();
           if (pick.kind === "station") callbacks.current.onNavigate?.(pick.view);
           else if (pick.kind === "back") callbacks.current.onBack?.();
@@ -591,6 +773,13 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         press = null;
         return;
       }
+      if (shake && event.pointerId === shake.id) {
+        // A tap without a drag gives the box a little jiggle and a single rattle.
+        if (!shake.moved) { nudge = 1; playFigurineCue("tap"); playFigurineCue("rattle", { intensity: 0.45 }); }
+        shake = null; heldTarget.set(0, 0);
+        renderer.domElement.style.cursor = "";
+        return;
+      }
       if (!grab || event.pointerId !== grab.id) return;
       const opened = peelTarget >= 0.97 && tappable();
       if (!grab.moved) nudge = 1;
@@ -599,22 +788,30 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       if (opened) { released = peel; callbacks.current.onBoxTap?.(); }
       else { peelTarget = 0; if (peel > 0.05) released = -1; }
     };
-    const onPointerLeave = () => { hovering = false; press = null; hoveredSeries = null; hoveredStation = null; if (!grab) renderer.domElement.style.cursor = ""; };
+    const onPointerLeave = () => { hovering = hoverTape = false; press = null; hoveredSeries = null; hoveredStation = null; if (!grab) renderer.domElement.style.cursor = ""; };
     renderer.domElement.addEventListener("pointerdown", onPointerDown, { capture: true });
     renderer.domElement.addEventListener("pointerup", letGo);
     renderer.domElement.addEventListener("pointercancel", letGo);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("pointerleave", onPointerLeave);
+    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
     const homeTarget = controls.target.clone();
     // Camera director: flies between station poses; the opening view keeps its own cinematic camera.
     let flight: { from: THREE.Vector3; fromTarget: THREE.Vector3; t: number } | null = null;
     let currentView: WorldView = state.current.view, displayClock = 0;
     if (immersive && currentView !== "opening") {
-      const start = viewPose(currentView, framing, { offset: homeOffset, target: homeTarget });
+      const start = viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, camera.aspect);
       camera.position.copy(start.position); controls.target.copy(start.target);
     }
+    const FLIGHT_SECONDS = 0.95, INTRO_SECONDS = 3;
+    // Opening shot, once the loader lifts: from wide, high and centred, the camera zooms in while
+    // drifting right, settling just right of head-on; auto-rotation carries the drift on.
+    // Any press ends it where it is and hands the camera to the user.
+    let introClock = immersive && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : INTRO_SECONDS;
+    let centreShot: { position: THREE.Vector3; target: THREE.Vector3 } | null = null;
     const ease = (t: number) => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
-    let seenRound = state.current.round;
+    // A picked box waits out part of the camera's flight (hidden), then drops in to land as it arrives.
+    let seenRound = state.current.round, seenArrival = state.current.arrival, dropDelay = -1;
     // Drop resolution if frames stay slow; isolated hitches are ignored.
     let frameTime = 0, frameCount = 0, settle = 0;
     const stopHum = () => { hum?.(); hum = null; };
@@ -624,6 +821,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       if (document.hidden) return;
       const current = state.current;
       settle += delta;
+      scenery?.update(now / 1000);
       if (settle > 2 && elapsed < 0.1) {
         frameTime += elapsed; frameCount++;
         if (frameCount === 90) {
@@ -632,13 +830,23 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         }
       }
       if (immersive && current.view !== currentView) {
-        flight = { from: camera.position.clone(), fromTarget: controls.target.clone(), t: 0 };
-        currentView = current.view; displayClock = 0; press = null; menuPan = menuPanTarget = 0; grab = null; peelSound?.stop(); peelSound = null;
-        if (!reducedMotion.matches) playFigurineCue("whoosh");
+        // Between the box and an inspected figure the camera stays where the user left it.
+        const centre = (view: WorldView) => view === "opening" || view === "viewer";
+        const flying = !(centre(current.view) && centre(currentView));
+        // Leaving the centre remembers its camera, so coming back lands where the user left it.
+        if (flying && centre(currentView) && !orbitOffset) centreShot = { position: camera.position.clone(), target: controls.target.clone() };
+        if (flying) flight = { from: camera.position.clone(), fromTarget: controls.target.clone(), t: 0 };
+        currentView = current.view; displayClock = 0; press = null; looking = null; Object.assign(lookTarget, { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 }); Object.assign(look, lookTarget); grab = null; shake = null; heldTarget.set(0, 0); peelSound?.stop(); peelSound = null;
+        if (flying && !reducedMotion.matches) playFigurineCue("whoosh");
       }
+      if (current.arrival !== seenArrival) {
+        seenArrival = current.arrival;
+        if (immersive && !current.charging && !current.open) dropDelay = flight ? FLIGHT_SECONDS * 0.45 : 0;
+      }
+      if (dropDelay >= 0 && (dropDelay -= delta) < 0) { entrance = 0; entranceCue = -1; peel = peelTarget = released = 0; ready = false; }
       if (current.round !== seenRound) {
         seenRound = current.round;
-        if (immersive && current.view === "opening" && !flight && !current.charging && !current.open) { entrance = 0; entranceCue = -1; peel = peelTarget = released = 0; ready = false; controls.target.copy(homeTarget); camera.position.copy(homeOffset).multiplyScalar(framing).add(homeTarget); }
+        if (immersive && !current.charging && !current.open) { entrance = 0; entranceCue = -1; peel = peelTarget = released = 0; ready = false; }
       }
       const reduced = reducedMotion.matches;
       const target = current.open ? 1 : 0;
@@ -649,7 +857,12 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       if (!active) { charge = burst = 0; bursting = false; chargeCue = burstCue = -1; notifiedReveal = false; stopHum(); }
       const startBurst = active && current.open && !bursting && (reduced || charge >= CHARGE_SECONDS);
       if (startBurst) { bursting = true; burst = 0; stopHum(); if (reduced) playFigurineCue("land"); }
-      else if (bursting) burst += delta;
+      else if (bursting) {
+        // Hit-stop: the reveal holds for a beat on touchdown, so the landing reads as heavy.
+        if (hitstop > 0) hitstop -= delta;
+        else if (!reduced && burst < LAND_AT && burst + delta >= LAND_AT) { burst = LAND_AT; hitstop = HITSTOP_SECONDS; }
+        else burst += delta;
+      }
       else if (active) charge += delta;
       if (immersive) entrance += delta;
       const intro = figurineEntrance(entrance, reduced);
@@ -664,24 +877,49 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           if (build.ready && !hum) hum = playFigurineCue("hum", { loop: true });
         }
         if (bursting) {
-          for (const { cue } of cuesBetween(REVEAL_CUES, burstCue, burst)) { playFigurineCue(cue, { signature: current.signature }); emit(cue); }
+          for (const { cue } of cuesBetween(REVEAL_CUES, burstCue, burst)) { playFigurineCue(cue, { signature: current.signature, quip: current.quip, intensity: cue === "fanfare" && current.quip ? 0.45 : 1 }); emit(cue); }
           burstCue = burst;
         }
       }
 
       const finished = immersive ? bursting && motion.complete : reveal > 0.99;
-      if (current.open && finished && !notifiedReveal) {
+      const landed = immersive ? bursting && burst >= LAND_AT + 0.12 : finished;
+      if (current.open && landed && !notifiedReveal) {
         notifiedReveal = true; callbacks.current.onRevealed?.();
-        if (model && current.figureKey && cabinet) capture(model, current.figureKey);
+        // The case portrait waits for an idle moment, so the reveal's last frame never stalls.
+        if (model && current.figureKey && cabinet) {
+          const figure = model, key = current.figureKey;
+          const later = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 400));
+          later(() => { if (!disposed && model === figure) capture(figure, key); }, { timeout: 1500 });
+        }
       }
       if (immersive) {
         const building = active && !bursting;
         const tremble = building ? build.tremble * 0.014 : 0, knock = building ? build.knock : 0;
-        box.visible = current.boxMode && (!bursting || motion.boxOpacity > 0.001);
-        hover = THREE.MathUtils.damp(hover, (hovering || grab) && current.interactive ? 1 : 0, 10, delta);
+        box.visible = current.boxMode && dropDelay < 0 && (!bursting || motion.boxOpacity > 0.001);
+        hover = THREE.MathUtils.damp(hover, (hovering || grab || shake) && current.interactive ? 1 : 0, 10, delta);
+        if (!current.interactive || active) { shake = null; heldTarget.set(0, 0); }
+        // Stiff and lagging while held, so quick strokes overshoot; looser and bouncier once let go.
+        const stiffness = shake ? 260 : 150, damping = shake ? 15 : 9;
+        heldVelocity.x += ((heldTarget.x - held.x) * stiffness - heldVelocity.x * damping) * delta;
+        heldVelocity.y += ((heldTarget.y - held.y) * stiffness - heldVelocity.y * damping) * delta;
+        held.addScaledVector(heldVelocity, delta);
+        if (held.y < 0) { held.y = 0; if (heldVelocity.y < -1.2) { playFigurineCue("rattle", { intensity: Math.min(1, -heldVelocity.y / 5) }); navigator.vibrate?.(10); } heldVelocity.y *= -0.25; }
+        // Hard braking (a reversal or a sudden stop) throws the figure against the wall.
+        const was = heldPrevious.length();
+        const braking = was > 0.8 ? -heldAccel.copy(heldVelocity).sub(heldPrevious).dot(heldPrevious) / (was * Math.max(delta, 1e-3)) : 0;
+        rattleCooldown -= delta;
+        if (shake && rattleCooldown <= 0 && braking > 22) {
+          playFigurineCue("rattle", { intensity: Math.min(1, 0.3 + braking / 80) }); navigator.vibrate?.(8);
+          rattleCooldown = random(0.08, 0.14);
+        }
+        heldPrevious.copy(heldVelocity);
+        // Slide along the camera's right, so sideways on screen is sideways in the world.
+        heldRight.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
         const jolt = building ? build.jolt : 0;
-        box.position.y = intro.drop + (active ? 0 : Math.sin(idle * 1.4) * 0.035) + knock * 0.075 + hover * 0.04 + jolt * 0.05;
-        box.rotation.set(tremble * Math.sin(idle * 57) - jolt * 0.03, active || grab ? 0 : Math.sin(idle * 0.45) * 0.05, build.knockSide * knock * 0.04 + tremble * Math.cos(idle * 61));
+        box.position.set(heldRight.x * held.x, intro.drop + knock * 0.075 + hover * 0.04 + jolt * 0.05 + held.y, heldRight.z * held.x);
+        const lean = THREE.MathUtils.clamp(-heldVelocity.x * 0.05, -0.3, 0.3), pitch = THREE.MathUtils.clamp(heldVelocity.y * 0.03, -0.15, 0.15);
+        box.rotation.set(tremble * Math.sin(idle * 57) - jolt * 0.03 + pitch * heldRight.x + lean * heldRight.z * -1, active || grab || shake ? 0 : Math.sin(idle * 0.45) * 0.05, build.knockSide * knock * 0.04 + tremble * Math.cos(idle * 61) + lean * heldRight.x + pitch * heldRight.z);
         box.scale.set(1 + 0.035 * intro.squash, 1 - 0.07 * intro.squash, 1 + 0.035 * intro.squash);
         const unfold = bursting ? motion.unfold * Math.PI * 0.52 : 0;
         walls.forEach(({ pivot }) => { pivot.rotation.x = unfold; });
@@ -727,8 +965,11 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         sheenMap.offset.x = 1.1 - 2.2 * sweep;
         modelRoot.visible = bursting && model !== null;
         const lifted = bursting ? Math.min(1, motion.lift / 0.75) : 0;
-        contact.scale.setScalar(bursting ? THREE.MathUtils.lerp(3.2, 2.2 + lifted * 0.8, Math.min(1, burst / 0.5)) : 3.4 - intro.drop * 0.3);
-        contactMaterial.opacity = (bursting ? 0.5 * (1 - lifted * 0.7) : 0.6 * Math.max(0, 1 - intro.drop / 3.4)) * (1 - (bursting ? motion.flash : 0));
+        // The contact shadow stays under a lifted box, fading and tightening as it rises.
+        const airborne = intro.drop + held.y * 2.4;
+        contact.position.set(box.position.x, contact.position.y, box.position.z);
+        contact.scale.setScalar(bursting ? THREE.MathUtils.lerp(3.2, 2.2 + lifted * 0.8, Math.min(1, burst / 0.5)) : 3.4 - airborne * 0.3);
+        contactMaterial.opacity = (bursting ? 0.5 * (1 - lifted * 0.7) : 0.6 * Math.max(0, 1 - airborne / 3.4)) * (1 - (bursting ? motion.flash : 0));
         modelRoot.position.y = bursting ? motion.lift : 0;
         modelRoot.scale.setScalar(motion.figureScale);
         modelRoot.rotation.y = bursting ? motion.spin : 0;
@@ -750,7 +991,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         // The rune ring breathes at rest, brightens with the peel, spins up through the charge and flares on landing.
         spin += delta * (0.04 + tension * 0.25 + (building ? build.build * 1.3 : 0) + beamLevel * 0.7);
         pedestal.update(0.22 + 0.08 * Math.sin(idle * 1.6) + tension * 0.6 + (building ? build.build * 1.2 + knock * 0.5 : 0)
-          + flashLevel * 2.2 + beamLevel * 0.5 + plinthGlow * 2.4 + (finished ? 0.2 : 0), spin);
+          + flashLevel * 2.2 + beamLevel * 0.5 + plinthGlow * 2.4 + (finished ? 0.2 : 0) + stationGlow.opening * 0.8, spin);
         glow.intensity = building ? build.seam * 6 : beamLevel * 14 + flashLevel * 24;
         // Motes swirl in during the build-up and are blown outward by the burst.
         const pull = building ? build.build * 0.6 : -0.45 * flashLevel;
@@ -775,26 +1016,33 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         if (current.view === "viewer") {
           displayClock += delta;
           box.visible = false;
-          modelRoot.visible = model !== null; modelRoot.position.y = 0; modelRoot.scale.setScalar(1); modelRoot.rotation.y = 0;
+          modelRoot.visible = model !== null && (!current.showing || loadedFor === current.showing); modelRoot.position.y = 0; modelRoot.scale.setScalar(1); modelRoot.rotation.y = 0;
           silhouetteMaterial.opacity = reduced ? 0 : Math.max(0, 1 - displayClock / 0.8);
           contact.scale.setScalar(2.2); contactMaterial.opacity = model ? 0.45 : 0;
           beam.visible = core.visible = flash.visible = false;
         }
-        const menu = current.view === "menu" && !flight;
-        stationLabels.forEach(([sprite], index) => {
-          const station = labelViews[index], here = station === current.view || (station === "opening" && current.view === "viewer");
-          const shown = flight ? 0 : menu ? 1 : !here && navigable() ? 0.55 : 0;
-          sprite.material.opacity = THREE.MathUtils.damp(sprite.material.opacity, shown, 6, delta);
-          const grow = THREE.MathUtils.damp(sprite.scale.y / 0.8, hoveredStation === station ? 1.18 : 1, 10, delta);
-          sprite.scale.set(3.2 * grow, 0.8 * grow, 1);
-          sprite.position.y += Math.sin(idle * 1.5 + index) * 0.002;
-          sprite.visible = sprite.material.opacity > 0.01;
-        });
-        shop?.update(current.view === "shop" ? hoveredSeries : null, delta, idle);
+        for (const [group, extent] of [[shopGroup, { x: 3.3, back: -1.1, front: 1.8 }], [caseGroup, { x: 3.1, back: -0.5, front: 0.5 }]] as const) {
+          if (!group) continue;
+          const local = group.worldToLocal(screen.copy(camera.position)), margin = 1.6;
+          const near = Math.abs(local.x) < extent.x + margin && local.z > extent.back - margin && local.z < extent.front + margin && local.y < 6;
+          group.visible = flight !== null || (current.view !== "opening" && current.view !== "viewer") || !(near || (local.z < extent.back && local.length() < 16));
+        }
+        shop?.update(hoveredSeries, delta, idle);
         if (figureNudge) { figureNudge.time += delta; if (figureNudge.time > 0.5) figureNudge = null; }
-        cabinet?.update(current.view === "gallery" ? hoveredFigure : null, delta);
+        cabinet?.update(hoveredFigure, delta);
+        stationGlow = { shop: THREE.MathUtils.damp(stationGlow.shop, hoveredStation === "shop" ? 1 : 0, 9, delta), gallery: THREE.MathUtils.damp(stationGlow.gallery, hoveredStation === "gallery" ? 1 : 0, 9, delta), opening: THREE.MathUtils.damp(stationGlow.opening, hoveredStation === "opening" ? 1 : 0, 9, delta) };
+        glowing.forEach((materials, view) => materials.forEach((material) => { material.emissiveIntensity = stationGlow[view as "shop" | "gallery"] * 0.07; }));
+        stackOutlines.forEach((outline, id) => outline.update(hoveredSeries === id ? 1 : 0, delta));
+        stationOutlines.shop?.update(hoveredStation === "shop" ? 1 : 0, delta);
+        stationOutlines.gallery?.update(hoveredStation === "gallery" ? 1 : 0, delta);
+        pedestalOutline?.update(hoveredStation === "opening" ? 1 : 0, delta);
+        boxOutline?.update(hoveredStation === "opening" || (hovering && !hoverTape && !grab) || shake ? 1 : 0, delta);
+        // An invitation to grab: it fades once the peel starts.
+        tapeGlow = THREE.MathUtils.damp(tapeGlow, hoverTape && !shake && !grab ? 1 : 0, 12, delta);
+        tape.material.emissiveIntensity = tapeGlow * 0.3;
+        tape.glowStrength.value = tapeGlow * tape.material.opacity; tape.glow.visible = tape.glowStrength.value > 0.01;
         if (figureNudge) cabinet?.picks.find((card) => card.userData.figure === figureNudge?.key)?.rotation.set(0, 0, Math.sin(figureNudge.time * 40) * 0.12 * (1 - figureNudge.time / 0.5));
-        if (current.view === "gallery" && !portraitBusy) void pumpPortraits();
+        if (!portraitBusy && portraitQueue.length) void pumpPortraits();
       } else {
         box.visible = current.boxMode;
         modelRoot.visible = !current.boxMode || reveal > 0.02;
@@ -809,10 +1057,20 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         beam.visible = core.visible = flash.visible = burstRing.visible = landRing.visible = false;
         pedestal.update(0.25 + reveal * 0.6, idle * 0.04);
       }
-      menuPan = THREE.MathUtils.damp(menuPan, menuPanTarget, 7, delta);
-      const destination = immersive ? viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, menuPan) : null;
+      for (const key of ["yaw", "pitch", "zoom", "panX", "panY"] as const) look[key] = THREE.MathUtils.damp(look[key], lookTarget[key], 9, delta);
+      const destination = !immersive ? null : (currentView === "opening" || currentView === "viewer") && centreShot
+        ? { position: centreShot.position.clone(), target: centreShot.target.clone() } : viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, camera.aspect);
+      if (destination && currentView !== "opening" && currentView !== "viewer") {
+        // The look-around turns the shot about its target: yaw around up, pitch around the shot's right.
+        const offset = destination.position.clone().sub(destination.target);
+        const right = screen.set(offset.z, 0, -offset.x).normalize();
+        offset.applyAxisAngle(Y_AXIS, look.yaw).applyAxisAngle(right.applyAxisAngle(Y_AXIS, look.yaw), -look.pitch).multiplyScalar(look.zoom);
+        destination.position.copy(destination.target).add(offset);
+        const across = screen.set(offset.z, 0, -offset.x).normalize().multiplyScalar(look.panX);
+        destination.target.add(across).y += look.panY; destination.position.add(across).y += look.panY;
+      }
       if (flight && destination) {
-        flight.t = reduced ? 1 : Math.min(1, flight.t + delta / 1.3);
+        flight.t = reduced ? 1 : Math.min(1, flight.t + Math.min(elapsed, 0.1) / FLIGHT_SECONDS);
         const t = ease(flight.t);
         camera.position.lerpVectors(flight.from, destination.position, t);
         camera.position.y += Math.sin(Math.PI * t) * 1.6;
@@ -825,20 +1083,35 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       } else if (!immersive || currentView === "opening") {
         controls.target.y = THREE.MathUtils.damp(controls.target.y, immersive ? 1.5 + (bursting ? motion.lift * 0.6 : 0) : current.boxMode && current.open ? 2.1 : 1.5, 4, delta);
       }
+      const introducing = immersive && introClock < INTRO_SECONDS && currentView === "opening" && !flight;
+      if (introducing) {
+        if (current.ready) introClock += Math.min(elapsed, 0.1);
+        const rest = 1 - ease(Math.min(1, introClock / INTRO_SECONDS));
+        camera.position.copy(homeOffset).multiplyScalar(framing * (1 + 1.6 * rest)).applyAxisAngle(Y_AXIS, 0.35 * (1 - rest)).add(homeTarget);
+        camera.position.y += 4 * rest;
+        controls.target.copy(homeTarget);
+      }
       // Cinematic camera: dolly in while charging, pull back and drift around the reveal, then hand back to orbit controls.
       const cinematic = immersive && currentView === "opening" && !flight && active && !reduced && !finished;
       if (cinematic) {
         orbitOffset ??= camera.position.clone().sub(controls.target);
         camera.position.copy(orbitOffset).applyAxisAngle(Y_AXIS, bursting ? motion.orbit : 0).multiplyScalar(bursting ? motion.zoom : build.zoom).add(controls.target);
       } else orbitOffset = null;
-      const orbiting = !immersive || (!flight && (currentView === "viewer" || (currentView === "opening" && (!active || finished))));
-      controls.autoRotate = current.rotate && !reduced && (!immersive || (!flight && (currentView === "viewer" || (currentView === "opening" && finished))));
-      controls.enabled = orbiting && !grab;
+      const orbiting = !immersive || (!flight && !introducing && (currentView === "viewer" || (currentView === "opening" && (!active || finished))));
+      // The home shot turns slowly, but holds still while the pointer is on the box or it is in hand.
+      const wantsRotation = current.rotate && !reduced && (!immersive || (!flight && !introducing && !hovering && !grab && !shake && (currentView === "viewer" || (currentView === "opening" && (!active || finished)))));
+      const rested = !userOrbit.holding && now - userOrbit.released > AUTO_ROTATE_DELAY * 1000;
+      autoRotate = wantsRotation && rested ? Math.min(1, autoRotate + delta * 0.45) : 0;
+      controls.autoRotate = autoRotate > 0;
+      controls.autoRotateSpeed = AUTO_ROTATE_SPEED * autoRotate * autoRotate * (3 - 2 * autoRotate);
+      controls.enabled = orbiting && !grab && !shake;
       // update() clamps to the orbit distance limits even when disabled; station shots sit farther out.
-      controls.maxDistance = orbiting ? 15 : Infinity;
-      controls.update(); if (!reduced) mixer?.update(delta);
-      const shake = cinematic ? (bursting ? motion.shake : build.knock * 0.3) : 0;
-      if (shake > 0) camera.position.add(velocity.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(shake * 0.13));
+      // Never snaps a camera already farther out (after the opening shot) back in.
+      controls.maxDistance = orbiting ? Math.max(15, camera.position.distanceTo(controls.target)) : Infinity;
+      // Timed by the frame delta, so auto-rotation turns at the same speed on any refresh rate.
+      controls.update(delta); if (!reduced) mixer?.update(delta);
+      const cameraShake = cinematic ? (bursting ? motion.shake : build.knock * 0.3) : 0;
+      if (cameraShake > 0) camera.position.add(velocity.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(cameraShake * 0.13));
       renderer.render(scene, camera);
     });
     return () => {
@@ -846,13 +1119,16 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       peelSound?.stop();
       renderer.domElement.removeEventListener("pointerdown", onPointerDown, { capture: true }); renderer.domElement.removeEventListener("pointerup", letGo);
       renderer.domElement.removeEventListener("pointercancel", letGo);
-      renderer.domElement.removeEventListener("pointermove", onPointerMove); renderer.domElement.removeEventListener("pointerleave", onPointerLeave);
-      renderer.setAnimationLoop(null); resize.disconnect(); controls.dispose(); mixer?.stopAllAction();
-      disposeObject(scene); environment.dispose(); stopPackaging(); shop?.stop(); portraits.forEach((target) => target.dispose()); api.current = null; pendingUrls.forEach((url) => URL.revokeObjectURL(url)); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
+      renderer.domElement.removeEventListener("pointermove", onPointerMove); renderer.domElement.removeEventListener("pointerleave", onPointerLeave); renderer.domElement.removeEventListener("wheel", onWheel);
+      renderer.setAnimationLoop(null); resize.disconnect(); skyLight?.dispose(); controls.dispose(); mixer?.stopAllAction();
+      packagings.forEach(({ parts }) => parts.stop()); disposeObject(scene); environment.dispose(); shop?.stop(); portraits.forEach((target) => target.dispose()); compileTarget.dispose(); api.current = null; pendingUrls.forEach((url) => URL.revokeObjectURL(url)); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
     };
   }, [labels.boxTitle, labels.boxSubtitle, labels.series, immersive, gallery]);
-  // A different series or print text swaps the box in place.
-  useEffect(() => { api.current?.rebuildBox(); }, [packagingKey, lineupKey, silhouettes, series]);
+  // Another series swaps in its prebuilt box; changed print text rebuilds them. The first run of
+  // each effect matches what the scene was built with, so it is skipped.
+  const printKey = `${packagingKey}|${lineupKey}|${silhouettes}`, builtPrint = useRef(printKey), shownSeries = useRef(series);
+  useEffect(() => { if (builtPrint.current !== printKey) { builtPrint.current = printKey; api.current?.rebuildBox(); } }, [printKey]);
+  useEffect(() => { if (shownSeries.current !== series) { shownSeries.current = series; api.current?.showBox(); } }, [series]);
   const collection = world?.collection;
   useEffect(() => { if (collection) api.current?.setCollection(collection); }, [collection]);
 

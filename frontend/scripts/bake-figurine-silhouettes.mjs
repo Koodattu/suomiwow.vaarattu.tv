@@ -7,7 +7,8 @@ import { deflateSync } from "node:zlib";
 import { Matrix4, Quaternion, Vector3 } from "three";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 
-const CELL_W = 200, CELL_H = 360, PAD = 6, SUPERSAMPLE = 3, COLUMNS = 8;
+// Cells are wide enough that almost every pose is fitted by height, so figures share one height.
+const CELL_W = 280, CELL_H = 360, PAD = 6, SUPERSAMPLE = 3, COLUMNS = 8;
 const catalogPath = new URL(process.argv[2] ?? "../src/data/figurines/community-001.json", import.meta.url);
 const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
 const publicDir = new URL("../public", import.meta.url);

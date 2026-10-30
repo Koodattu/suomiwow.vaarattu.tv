@@ -249,9 +249,20 @@ down if released early, chimes when fully free, and opens only on release. The
 "Pull the tape to open" hint does the same from a keyboard. Opening rips the tape
 away and starts a 2.4-second build-up while the drawn model loads: music swell,
 knocks, seam light. The burst layers an orchestral/choir hit and a sub boom over
-the cardboard pop; a choir carries the figure up. On landing, a per-class
-signature (`class-<classKey>-a|b.mp3`, all 13 classes) plays over the impact,
-followed by a fanfare. The pedestal (`frontend/src/lib/figurine-pedestal.ts`) has a
+the cardboard pop; a choir carries the figure up. Every figure lands with the same
+impact (`land-a…d`: a punchy knock over a synthesized sub thump, 95 Hz falling to ~42) and
+the reveal freezes for 70 ms (hit-stop) while the camera kicks in; its class signature (`class-<classKey>-a|b.mp3`, all 13
+classes) follows 80 ms later, then a fanfare. A figure whose CCG card has a quip then says it
+(`/ccg/audio/quips`, mapped per figure in `frontend/src/data/figurines/quips.json` with a
+gain that levels the clips), with the fanfare ducked under the voice. Supporter-card media is
+not used. The CCG stores which clip belongs to which card in its database
+(`CcgAlternativeArt.quipAudioFilename`); the map here was matched by name, so a quip saved
+under another filename needs adding by hand. Each play picks a random variant and
+nudges its speed slightly, except the music bed, riser and hum, which stay at pitch.
+Before opening, grab the box anywhere off the tape to lift and shake it; it trails
+the pointer on a spring and every hard change of direction plays a soft, low thunk
+of the bagged figure against the cardboard (`rattle-a…e`, low-passed so nothing
+clicks). The pedestal (`frontend/src/lib/figurine-pedestal.ts`) has a
 rune ring with one notch per character whose inlay glows and spins with the build-up. The burst then unfolds the box, the figure rises
 as a glowing silhouette, takes its colors and lands on the disc. The timeline and
 its sound cues live in `frontend/src/lib/figurine-reveal.ts`; the immersive stage
@@ -277,25 +288,100 @@ cat-form identity and midpoint sample. The final contact sheet is
 Abiw also have individual comparison renders. The local container and temporary
 snapshot replay helpers are stopped.
 
+## Appearance repair audit (2026-10-30)
+
+Audited the back geometry/materials of all 32 figures and rendered both complete
+lineups from behind. Eleven classic cloaks were incorrectly using the character
+atlas: Yolobolt, Melice, Turrilol, Suursmurffi, Rhagy, Ovelakettu, Hirvihotline,
+Tonza, Jampton, Mightyhuu and Kuurankukká. The exporter now resolves their standalone
+type-2 cloak texture even when the item has no separate model. Separate back
+attachments were also inspected; their equipment textures were already bound.
+
+External customization meshes now retain their character texture types.
+Morinicar's horn decorations also respect `RelatedChrCustomizationChoiceID`;
+previously all 19 horn variants were enabled simultaneously. Dracthyr wing color
+composites remain intact. Chipi's boot display uses a negative foot-geoset selector,
+which must preserve bare feet rather than hide them; her toes now match the Armory
+reference. Zetabeach's ground anchor uses visible paw/toe-weighted vertices instead
+of transparent hock fur below the soles. The viewer also uses `PEDESTAL_TOP`
+instead of an offset that left a small shared gap.
+
+Seventeen figures were regenerated from frozen appearance snapshots in
+`community-repairs-001` and `community-repairs-002`. Each updated catalog entry
+records its batch via `authoringSeries`; original batches remain available.
+Both silhouette sheets were rebuilt. Texture quality is unchanged (WebP 89,
+2048-pixel cap). Current totals: box 1 is 14,472,972 bytes; box 2 is 17,742,120
+bytes. Morinicar is now 2,202,032 bytes with the unwanted horn geometry removed.
+
+Verification: all 17 rebuilt GLBs passed decoded validation without warnings;
+all 32 served model hashes match their catalogs. All 35 exporter tests, 23
+figurine frontend tests, TypeScript and targeted ESLint checks passed. Browser
+inspection confirms Chipi's exposed feet. Review images are under
+`.codex-runtime/figurine-research/cape-repair/` (`box-1-backs.png`,
+`box-2-backs.png`, `chipi-fixed.png`, `morinicar-fixed.png`, `chipi-browser.png`).
+These remain development models pending release art approval; the independent
+Blender renders do not reproduce the viewer's additive effects exactly.
+
 ## Collectibles world
 
-`/tools/collectibles` is one 3D scene with five views and a camera that flies between them:
-main menu (overview), shop (a stall with every series' boxes), opening (the pedestal),
-collection (a case with a slot per figure) and viewer (an owned figure on the pedestal).
-There are no navigation buttons: tap any visible station (shop, case, pedestal) to go there,
-a series stack to open it, an owned figure to inspect it, and empty ground or sky to step
-back. Dragging sideways on the menu slides the camera. Keyboard: Esc back, S shop,
-C collection, 1-9 pick a series, Enter opens the sealed box. The only button is
-"New blind box" after a reveal (plus the sound toggle).
+`/tools/collectibles` is one 3D scene with a home and two stations. Home is the centre: the
+pedestal, seen head-on with the shop and the case at either side, holding either a sealed box
+(opening) or an inspected figure (viewer). Both share one camera, so swapping between a box
+and a figure never moves it, and returning from a station lands where the camera was left.
+The stations are the shop (a stall with every series' boxes) and the collection (a lit cubby
+cabinet, one 4×4 grid per series); the camera flies there and back in under a second.
+There are no labels and no buttons: tap a station to go there, a series' boxes to get a box,
+an owned figure to inspect it, and empty ground or the station you are at to come back. From
+home, boxes and figures can be tapped straight in the background stations. A picked box drops
+onto the pedestal with its thud, timed to land as the camera arrives. After a reveal, the next
+box comes from the shop. Hovered stacks, stations and figures get an outer glow
+(`figurine-glow.ts`: an additive back-face shell for props, a blurred-alpha halo for figure
+cards). At home the camera orbits all the way round (left or middle drag) and zooms; the shop and the
+case hide while the camera is close to them or behind them, so the orbit never clips into
+them. In the shop the middle button turns the shot; in the collection dragging pans across
+the case and the wheel zooms in close. Auto-rotation is slow, stops while you hold the camera
+and eases back in 2.5 s after you let go. Hovered figures in the case get a soft halo and keep
+their size. Station shots back off until the station's width fits the
+screen, so phones see the whole stall. Keyboard: Esc back, S shop, C collection, 1-9 pick a
+series (in the shop), Enter opens the sealed box. The figure's name and details appear as it
+lands. The only button is the sound toggle.
 Series are registered in `frontend/src/lib/figurine-series.ts` with a box print theme
 (`PACKAGING_THEMES` in `figurine-packaging.ts`). Series 002 uses the verdigris theme.
 
 The collection is session-only (`sessionStorage`, `figurine-collection.ts`): figure key to
 times opened; nothing is sent anywhere. Unowned figures show as black silhouettes from the
 baked sheet; owned ones show a portrait rendered from their model (captured on reveal, or
-regenerated from the model file after a reload).
+regenerated from the model file after a reload). Portraits use the silhouette sheet's
+framing (orthographic, feet on the bottom edge), so both stand on the cubby floor. Sheet cells
+are 280×360 so nearly every pose is fitted by height and figures share one height.
 
 World textures in `frontend/public/figurines/world/` (Elwynn cobblestone and grass, cloud and
 nebula sky layers) were exported from game data with the local wow.export worker's texture
 job (`kind: "textures"` in `src/worker.js`; provenance in `source.json`). Like the models,
-they are game assets for this development-only page.
+they are game assets for this development-only page. The clearing around the plaza uses
+Elwynn Forest doodads (canopy trees, bushes, rocks, stumps, hay, lamp posts) from the
+worker's model job (`kind: "models"`, `{ models: [{ name, file }] }`; provenance in
+`source-models.json`). They were optimized with `worker/optimizer` after stripping their
+skeletons: the site draws them as static instanced meshes, and quantizing a skinned mesh
+moves its scale into the inverse bind matrices. Placement is seeded in
+`frontend/src/lib/figurine-forest.ts`; the camera side of the ring stays open. The grass
+and cobbles blend in Elwynn dirt through painted masks (a worn rim and a path into the
+woods). Where the path leaves the plaza is a small market (`marketLayout`): a human tent, the
+Duskwood wagon, a signpost, crates, barrels and produce tables. No faction banners: the
+market takes no side.
+
+Loading happens once, behind a start-up screen: scenery models, every series' box (all
+built up front and swapped on series change, never rebuilt), every texture uploaded, all
+sounds downloaded (decoded on the first tap), portraits of every owned figure, and shaders
+compiled. The figure inside each sealed box is drawn when the box arrives and preloaded
+while it waits, so opening goes straight into the build-up; its case portrait shaders are
+compiled with an off-screen target bound (portraits skip tone mapping, a different shader
+variant) and the portrait renders at the next idle moment. Picking a series always drops its
+box onto the pedestal with the thud once the camera arrives. Hovering the tape lights the
+tape; hovering the rest of the box outlines the box.
+
+The world is lit as an afternoon: a painted day sky (its PMREM is the scene environment, so
+props and figures pick up soft sky shading), a warm sun whose single 2048 shadow map covers the
+plaza and both stations (trees, stalls, props, the box and figures cast; figures self-shadow),
+light haze fog and dimmed lantern glows. The box rests on the pedestal; its contact shadow and
+glow planes lie between the two so they never cut across the box walls.

@@ -48,14 +48,15 @@
       "fetchedAt": "2026-10-29T21:26:59.040Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/stormreaver/128/172573568-main-raw.png",
       "model": "/figurines/community-002/eppugrip.glb",
-      "bytes": 2035996,
-      "sha256": "a9af17447c02ef53be12b53e8d5a4cc6fe46e42f5f0ba203c09d05b3411ff247",
+      "bytes": 2012908,
+      "sha256": "53393b21a620e6beac7d43d7012015f3bc605bb798f54729515bdd084217c4ea",
       "source": "sources/eppugrip.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "dracthyr",
-      "classKey": "priest"
+      "classKey": "priest",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "zetabeach",
@@ -75,7 +76,7 @@
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/stormreaver/243/178141939-main-raw.png",
       "model": "/figurines/community-002/zetabeach.glb",
       "bytes": 269056,
-      "sha256": "1fadff9f4d3ec4f8d3a75fd8dcb68b0e28bd310394f8687d348229c812f4e94a",
+      "sha256": "49023900244f824ad5c811d05a446ebb08b3e5a9400705578c7db2be0a7b1857",
       "source": "sources/zetabeach.json",
       "state": "needs-review",
       "warnings": [],
@@ -88,7 +89,8 @@
         "choiceName": "Ghost of the Pridemother (Green)",
         "displayId": 66783,
         "modelFileDataId": 1273833
-      }
+      },
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "np",
@@ -133,14 +135,15 @@
       "fetchedAt": "2026-10-29T21:26:59.579Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/203/210710987-main-raw.png",
       "model": "/figurines/community-002/zetacmi.glb",
-      "bytes": 2086404,
-      "sha256": "f4bcf17f003680385b8267d16892c7a0ec64034d5f40f7f6545e3e031fe72d71",
+      "bytes": 2031584,
+      "sha256": "ef299123b752d4c9036441503b79fae8897f0455f8412f6b53b750c750296395",
       "source": "sources/zetacmi.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "dracthyr",
-      "classKey": "priest"
+      "classKey": "priest",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "hirvihotline",
@@ -159,14 +162,15 @@
       "fetchedAt": "2026-10-29T21:26:59.782Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/stormreaver/34/183738658-main-raw.png",
       "model": "/figurines/community-002/hirvihotline.glb",
-      "bytes": 1221124,
-      "sha256": "da3a67b93193b6aa0f16e4b70242f15c159f9fa12489a9b7e5518ac3ed227fe0",
+      "bytes": 1165920,
+      "sha256": "a5f2d6f17892b3145abf11c3a2e7e2811a46c2c5bd5b8229a20ef8c6e63bbf42",
       "source": "sources/hirvihotline.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "haranir",
-      "classKey": "hunter"
+      "classKey": "hunter",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "tonza",
@@ -185,14 +189,15 @@
       "fetchedAt": "2026-10-29T21:26:59.916Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/die-silberne-hand/103/181244263-main-raw.png",
       "model": "/figurines/community-002/tonza.glb",
-      "bytes": 685428,
-      "sha256": "a8cc08158116df4d2fd42f709a758afa8b7dcd9a378eb5c1e7d3c2b8cb9920ba",
+      "bytes": 700480,
+      "sha256": "eeb5bc0d50b14d18fef20311a52d7153a10162d312afa75b1a79d1b0000a952a",
       "source": "sources/tonza.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "human",
-      "classKey": "deathKnight"
+      "classKey": "deathKnight",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "thrusbard",
@@ -237,14 +242,15 @@
       "fetchedAt": "2026-10-29T21:27:00.210Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/150/219450518-main-raw.png",
       "model": "/figurines/community-002/jampton.glb",
-      "bytes": 939228,
-      "sha256": "cb07af5b036c0687f0857430eca4cec2ebca4b920d0d88b740db9ec3049c8a2e",
+      "bytes": 966432,
+      "sha256": "4b54619d032ca5ee7080fb0e6b3946d6684a6f27ca6603d203c22d10546417b2",
       "source": "sources/jampton.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "dwarf",
-      "classKey": "paladin"
+      "classKey": "paladin",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "morinicar",
@@ -263,14 +269,15 @@
       "fetchedAt": "2026-10-29T21:27:00.338Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/118/206811510-main-raw.png",
       "model": "/figurines/community-002/morinicar.glb",
-      "bytes": 2451912,
-      "sha256": "16f8174c4003ecec6b380b7a6cbd9ddd7b96a4f11fd7a6365ec9d3043ef66587",
+      "bytes": 2202032,
+      "sha256": "dbce876dba9db9c7cc16677f8a80d6a0989fa9e4d6f3b72be4326369c1431ee4",
       "source": "sources/morinicar.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "dracthyr",
-      "classKey": "evoker"
+      "classKey": "evoker",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "mightyhuu",
@@ -289,14 +296,15 @@
       "fetchedAt": "2026-10-29T21:27:00.475Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/80/219493712-main-raw.png",
       "model": "/figurines/community-002/mightyhuu.glb",
-      "bytes": 1675704,
-      "sha256": "226efae29a87d28993878fbc63aea3f5793d046f57ac3831d19eb1b73c28dd42",
+      "bytes": 1744696,
+      "sha256": "d1e689d902249acea22e3d08504f809011bcc3f2e3260e645c69194866f25ed3",
       "source": "sources/mightyhuu.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "dwarf",
-      "classKey": "hunter"
+      "classKey": "hunter",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "kuurankukka",
@@ -315,14 +323,15 @@
       "fetchedAt": "2026-10-29T21:27:00.601Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/twisting-nether/18/150640658-main-raw.png",
       "model": "/figurines/community-002/kuurankukka.glb",
-      "bytes": 1194900,
-      "sha256": "57a2df72caa7cccea627bc8705efbc8460c5a529272c408c5c79ace2591a21aa",
+      "bytes": 1201772,
+      "sha256": "95fd9e5278242e7ba458bee2ac68de1cf8cdbeabc28397f77477ea2f5f00d431",
       "source": "sources/kuurankukka.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "bloodElf",
-      "classKey": "paladin"
+      "classKey": "paladin",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "ragge",
@@ -367,14 +376,15 @@
       "fetchedAt": "2026-10-29T21:27:00.956Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/stormreaver/117/189509237-main-raw.png",
       "model": "/figurines/community-002/chipi.glb",
-      "bytes": 746588,
-      "sha256": "85668e6cf896b35bd38a4535db46d4ec1ba18ce4ae87d0e245f9314f502a4de7",
+      "bytes": 753544,
+      "sha256": "d528cd8bc7ce5bbc38d5a3416c8207ce821396757f1c4e2745467842d6c16bcb",
       "source": "sources/chipi.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "bloodElf",
-      "classKey": "paladin"
+      "classKey": "paladin",
+      "authoringSeries": "community-repairs-001"
     },
     {
       "id": "preazhy",

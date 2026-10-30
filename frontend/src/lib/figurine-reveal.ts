@@ -8,8 +8,8 @@ const easeOutBack = (value: number) => { const t = clamp01(value) - 1; return 1 
 const arc = (value: number) => { const t = clamp01(value); return t >= 1 ? 0 : Math.sin(Math.PI * t); };
 const pulse = (time: number, at: number, length: number) => time < at || time >= at + length ? 0 : (1 - (time - at) / length) ** 2;
 
-export type FigurineCue = "tap" | "peel" | "stick" | "ready" | "rip" | "music" | "knock" | "riser" | "hum"
-  | "burst" | "hit" | "boom" | "whoosh" | "choir" | "rise" | "sparkle" | "land" | "signature" | "fanfare" | "drop";
+export type FigurineCue = "tap" | "peel" | "stick" | "ready" | "rattle" | "rip" | "music" | "knock" | "riser" | "hum"
+  | "burst" | "hit" | "boom" | "whoosh" | "choir" | "rise" | "sparkle" | "land" | "signature" | "fanfare" | "quip" | "drop";
 export type TimedCue = { at: number; cue: FigurineCue };
 // Cues whose time falls in (previous, current]; start each clock at -1 so cues at zero fire.
 export const cuesBetween = (cues: readonly TimedCue[], previous: number, current: number) => cues.filter(({ at }) => at > previous && at <= current);
@@ -41,13 +41,16 @@ export function figurineCharge(seconds: number) {
 // Seconds after the burst, paused with the tab. Every transform is absolute
 // so repeated openings cannot accumulate offsets on the figure or packaging.
 export const LAND_AT = 2.2;
+// How long the reveal freezes on touchdown.
+export const HITSTOP_SECONDS = 0.07;
 export const REVEAL_SECONDS = 3;
 export const REVEAL_CUES: readonly TimedCue[] = [
   // The hit resolves the music swell on the burst; the choir carries the silhouette up the beam.
   { at: 0, cue: "burst" }, { at: 0, cue: "hit" }, { at: 0, cue: "boom" }, { at: 0.08, cue: "whoosh" },
   { at: 0.12, cue: "rise" }, { at: 0.18, cue: "choir" }, { at: 0.95, cue: "sparkle" },
-  // The figure's class signature owns the touchdown; the fanfare follows a beat later.
-  { at: LAND_AT, cue: "land" }, { at: LAND_AT, cue: "signature" }, { at: LAND_AT + 0.35, cue: "fanfare" },
+  // Every figure lands with the same heavy thud; its class signature rides just behind it, then the fanfare.
+  // Figures with a CCG card quip say their line right after; the fanfare ducks under it.
+  { at: LAND_AT, cue: "land" }, { at: LAND_AT + 0.08, cue: "signature" }, { at: LAND_AT + 0.35, cue: "fanfare" }, { at: LAND_AT + 0.45, cue: "quip" },
 ];
 const PEAK = 0.75;
 export function figurineReveal(seconds: number, reducedMotion = false) {
@@ -72,7 +75,8 @@ export function figurineReveal(seconds: number, reducedMotion = false) {
     landRing: time >= LAND_AT && time < LAND_AT + 0.75 ? (time - LAND_AT) / 0.75 : 0,
     shake: reducedMotion ? 0 : Math.max(0.6 * pulse(time, 0, 0.35), pulse(time, LAND_AT, 0.4)),
     plinthGlow: pulse(time, LAND_AT, 0.75),
-    zoom: 0.9 + 0.16 * easeOut(time) - 0.06 * smooth((time - 1.6) / 1.2),
+    // The camera kicks in on touchdown and settles back.
+    zoom: 0.9 + 0.16 * easeOut(time) - 0.06 * smooth((time - 1.6) / 1.2) - 0.045 * pulse(time, LAND_AT, 0.45),
     orbit: 0.24 * smooth(time / REVEAL_SECONDS),
     complete: time >= REVEAL_SECONDS,
   };

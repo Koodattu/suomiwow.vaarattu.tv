@@ -30,8 +30,8 @@ const random = (seed: number) => () => { seed = (seed + 0x6d2b79f5) | 0; let t =
 
 type Print = { color: CanvasRenderingContext2D; finish: CanvasRenderingContext2D; w: number; h: number };
 type Sheet = HTMLImageElement | null;
-// Layout of scripts/bake-figurine-silhouettes.mjs: catalog order, 8 columns of 200×360 cells, feet on the bottom edge.
-const SILHOUETTE = { columns: 8, w: 200, h: 360 };
+// Layout of scripts/bake-figurine-silhouettes.mjs: catalog order, 8 columns of 280×360 cells, feet on the bottom edge.
+export const SILHOUETTE = { columns: 8, w: 280, h: 360 };
 function canvas(w: number, h: number) {
   const element = document.createElement("canvas");
   element.width = w; element.height = h;
@@ -247,6 +247,8 @@ function tapeTexture(label: string) {
 
 export type TearTape = {
   group: THREE.Group; mesh: THREE.Mesh; hit: THREE.Mesh; material: THREE.MeshPhysicalMaterial;
+  // Hover glow around the tape; set `glow.visible` and `glowStrength.value` (0..1).
+  glow: THREE.Mesh; glowStrength: { value: number };
   // Path ends in the parent's space: the pull tab, and where the tape ends on the lid.
   start: THREE.Vector3; end: THREE.Vector3;
   // Lifts the first `amount` (0..1) of the tape, aimed at `toward` (parent space) or straight out.
@@ -273,12 +275,42 @@ function tearTape(parent: THREE.Group, { depth, height, bottom, lid, label, envM
   const map = tapeTexture(label);
   const material = new THREE.MeshPhysicalMaterial({ map, side: THREE.DoubleSide, transparent: true, metalness: 0.35, roughness: 0.28, iridescence: 1, iridescenceIOR: 2.1, iridescenceThicknessRange: [120, 900], clearcoat: 1, clearcoatRoughness: 0.1, envMap, envMapIntensity: 1.2, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const group = new THREE.Group(); parent.add(group);
-  const mesh = new THREE.Mesh(geometry, material); mesh.frustumCulled = false; group.add(mesh);
-  // A generous invisible grab area around the pull tab.
-  const hit = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.6), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
-  hit.position.set(0, y0 + 0.2, z + 0.02); group.add(hit);
+  const mesh = new THREE.Mesh(geometry, material); mesh.frustumCulled = false; mesh.renderOrder = 2; group.add(mesh);
+  // An invisible grab area a little wider than the tape, reaching below the pull tab.
+  const hitMaterial = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+  const hit = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.75), hitMaterial);
+  hit.position.set(0, y0 + 0.225, z + 0.02); group.add(hit);
+  const strip = new THREE.Mesh(new THREE.PlaneGeometry(0.36, rise - 0.6), hitMaterial);
+  strip.position.set(0, y0 + 0.6 + (rise - 0.6) / 2, z + 0.02); hit.attach(strip);
+  // The glow is a wider band traced from the same points every peel, so it bends with the tape;
+  // it runs a margin past both ends and fades out across its edges and ends.
+  const MARGIN = 0.04, glowRows = rows + 2, glowPositions = new Float32Array(glowRows * 6), glowUvs = new Float32Array(glowRows * 4), glowIndices: number[] = [];
+  for (let i = 0; i < glowRows; i++) {
+    const end = i === 0 || i === glowRows - 1 ? 0 : 1; glowUvs.set([0, end, 1, end], i * 4);
+    if (i < glowRows - 1) glowIndices.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+  }
+  const glowGeometry = new THREE.BufferGeometry();
+  glowGeometry.setAttribute("position", new THREE.BufferAttribute(glowPositions, 3));
+  glowGeometry.setAttribute("uv", new THREE.BufferAttribute(glowUvs, 2));
+  glowGeometry.setIndex(glowIndices);
+  const glowStrength = { value: 0 }, inner = (w / 2) / (w / 2 + MARGIN);
+  const glow = new THREE.Mesh(glowGeometry, new THREE.ShaderMaterial({
+    uniforms: { strength: glowStrength, color: { value: new THREE.Color(0xffd27a) } },
+    vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+    fragmentShader: `uniform float strength; uniform vec3 color; varying vec2 vUv;
+void main() {
+  float across = abs(vUv.x - 0.5) * 2.0;
+  float edge = 1.0 - smoothstep(${inner.toFixed(3)}, 1.0, across);
+  gl_FragColor = vec4(color * strength * edge * edge * vUv.y * 0.75, 1.0);
+}`,
+    side: THREE.DoubleSide, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+    // In front of the print, behind the tape (which draws after it).
+    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+  }));
+  // Drawn after the walls (it writes no depth, so they would cover it) and before the tape.
+  glow.frustumCulled = false; glow.visible = false; glow.renderOrder = 1; glow.raycast = () => {}; group.add(glow);
   const point = new THREE.Vector3(), anchor = new THREE.Vector3(), direction = new THREE.Vector3();
-  const tip = new THREE.Vector3(), bend = new THREE.Vector3();
+  const tip = new THREE.Vector3(), bend = new THREE.Vector3(), past = new THREE.Vector3();
   // Points above the walls belong to the lid, which hinges on its back edge.
   const hingeY = bottom + height, hingeZ = -depth / 2;
   const onLid = (out: THREE.Vector3, tilt: number) => {
@@ -310,13 +342,20 @@ function tearTape(parent: THREE.Group, { depth, height, bottom, lid, label, envM
         point.copy(anchor).multiplyScalar((1 - s) ** 2).addScaledVector(bend, 2 * (1 - s) * s).addScaledVector(tip, s * s);
       } else point.copy(anchor).addScaledVector(direction, front - u).addScaledVector(normal, 0.012 * Math.min(1, (front - u) / 0.06));
       positions.set([point.x - w / 2, point.y, point.z, point.x + w / 2, point.y, point.z], i * 6);
+      glowPositions.set([point.x - w / 2 - MARGIN, point.y, point.z, point.x + w / 2 + MARGIN, point.y, point.z], (i + 1) * 6);
     }
+    // End caps: one row a margin beyond each end, along the strip.
+    for (const [cap, from, toward] of [[0, 1, 2], [glowRows - 1, glowRows - 2, glowRows - 3]]) {
+      past.fromArray(glowPositions, from * 6).sub(point.fromArray(glowPositions, toward * 6)).normalize().multiplyScalar(MARGIN);
+      for (let k = 0; k < 6; k++) glowPositions[cap * 6 + k] = glowPositions[from * 6 + k] + past.getComponent(k % 3);
+    }
+    glowGeometry.attributes.position.needsUpdate = true;
     geometry.attributes.position.needsUpdate = true;
     geometry.computeVertexNormals(); geometry.computeBoundingSphere();
     return anchor;
   };
   peel(0);
-  return { group, mesh, hit, material, start: at(0, new THREE.Vector3()), end: at(length, new THREE.Vector3()), peel };
+  return { group, mesh, hit, material, glow, glowStrength, start: at(0, new THREE.Vector3()), end: at(length, new THREE.Vector3()), peel };
 }
 
 export type BlindBoxParts = {
@@ -370,7 +409,9 @@ export function buildBlindBox(parent: THREE.Group, { bottom, design, envMap }: {
     wall(width, 0, depth / 2 - t / 2, 0, frontPrint), wall(width, 0, -depth / 2 + t / 2, Math.PI, backPrint),
     wall(depth - 2 * t, -width / 2 + t / 2, 0, -Math.PI / 2, leftPrint), wall(depth - 2 * t, width / 2 - t / 2, 0, Math.PI / 2, rightPrint),
   ];
-  const floor = new THREE.Mesh(new THREE.BoxGeometry(width, t, depth), [edge, edge, inside, edge, edge, edge]);
+  // Fitted inside the walls: a full-size floor shares the walls' outer faces along the bottom
+  // edge, and the two z-fight into a flickering strip.
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(width - 2 * t - 0.002, t, depth - 2 * t - 0.002), [edge, edge, inside, edge, edge, edge]);
   floor.position.y = bottom + t / 2; parent.add(floor);
   const lidPivot = new THREE.Group(); parent.add(lidPivot);
   const lidMesh = new THREE.Mesh(new THREE.BoxGeometry(width + 0.012, t, depth + 0.012), [edge, edge, lidPrint, inside, edge, edge]);
