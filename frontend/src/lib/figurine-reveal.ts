@@ -8,7 +8,7 @@ const easeOutBack = (value: number) => { const t = clamp01(value) - 1; return 1 
 const arc = (value: number) => { const t = clamp01(value); return t >= 1 ? 0 : Math.sin(Math.PI * t); };
 const pulse = (time: number, at: number, length: number) => time < at || time >= at + length ? 0 : (1 - (time - at) / length) ** 2;
 
-export type FigurineCue = "tap" | "peel" | "stick" | "ready" | "rip" | "music" | "knock" | "riser" | "hum"
+export type FigurineCue = "tap" | "peel" | "stick" | "ready" | "rattle" | "rip" | "music" | "knock" | "riser" | "hum"
   | "burst" | "hit" | "boom" | "whoosh" | "choir" | "rise" | "sparkle" | "land" | "signature" | "fanfare" | "drop";
 export type TimedCue = { at: number; cue: FigurineCue };
 // Cues whose time falls in (previous, current]; start each clock at -1 so cues at zero fire.
@@ -46,8 +46,8 @@ export const REVEAL_CUES: readonly TimedCue[] = [
   // The hit resolves the music swell on the burst; the choir carries the silhouette up the beam.
   { at: 0, cue: "burst" }, { at: 0, cue: "hit" }, { at: 0, cue: "boom" }, { at: 0.08, cue: "whoosh" },
   { at: 0.12, cue: "rise" }, { at: 0.18, cue: "choir" }, { at: 0.95, cue: "sparkle" },
-  // The figure's class signature owns the touchdown; the fanfare follows a beat later.
-  { at: LAND_AT, cue: "land" }, { at: LAND_AT, cue: "signature" }, { at: LAND_AT + 0.35, cue: "fanfare" },
+  // Every figure lands with the same heavy thud; its class signature rides just behind it, then the fanfare.
+  { at: LAND_AT, cue: "land" }, { at: LAND_AT + 0.08, cue: "signature" }, { at: LAND_AT + 0.35, cue: "fanfare" },
 ];
 const PEAK = 0.75;
 export function figurineReveal(seconds: number, reducedMotion = false) {

@@ -1,16 +1,18 @@
 import * as THREE from "three";
+import { buildForest, forestLayout, swayMaterial } from "@/lib/figurine-forest";
 
 // The collectibles world: a painted sky bubble over a stone plaza, with the opening pedestal
 // at the centre, the shop to the left and the collection case to the right.
 export type WorldView = "menu" | "shop" | "opening" | "gallery" | "viewer";
+// Set wide and angled toward the hub camera, so neither station shot catches the pedestal.
 export const STATIONS = {
-  shop: { position: new THREE.Vector3(-6.2, 0, -4.4), rotation: 0.62 },
-  gallery: { position: new THREE.Vector3(6.2, 0, -4.4), rotation: -0.62 },
+  shop: { position: new THREE.Vector3(-7.6, 0, -5.2), rotation: 0.45 },
+  gallery: { position: new THREE.Vector3(7.6, 0, -5.2), rotation: -0.45 },
 };
 // Classic game textures (Elwynn cobbles and grass, sky layers) exported with the local wow.export
 // worker; the painted fallbacks show until they load. Provenance: /figurines/world/source.json.
-export const WORLD_TEXTURES = { cobble: "/figurines/world/floor-cobble.png", grass: "/figurines/world/grass.png", clouds: "/figurines/world/clouds.jpg", nebula: "/figurines/world/nebula.png" };
-const PLAZA_RADIUS = 14.5;
+export const WORLD_TEXTURES = { cobble: "/figurines/world/floor-cobble.png", grass: "/figurines/world/grass.png", dirt: "/figurines/world/dirt.png", clouds: "/figurines/world/clouds.jpg", nebula: "/figurines/world/nebula.png" };
+const PLAZA_RADIUS = 14.5, LAMP_HEAD = 3.9;
 const loadImage = (url: string) => new Promise<HTMLImageElement | null>((resolve) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = () => resolve(null); image.src = url; });
 
 const random = (seed: number) => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -87,6 +89,49 @@ function paintedSky(layers: { clouds?: HTMLImageElement | null; nebula?: HTMLIma
   return element;
 }
 
+// Where worn earth shows through the grass, in ground-disc UV space (canvas top is the far side):
+// a scuffed ring around the plaza, a path leaving it into the woods and loose patches.
+function dirtMask(groundRadius: number, plazaRadius: number, plaza = false) {
+  const size = 1024, [element, context] = canvas(size, size), next = random(plaza ? 8 : 5);
+  const at = (x: number, z: number) => [(x / groundRadius + 1) / 2 * size, (z / groundRadius + 1) / 2 * size] as const;
+  const scale = size / 2 / groundRadius;
+  context.fillStyle = "#000"; context.fillRect(0, 0, size, size);
+  const blot = (x: number, z: number, radius: number, strength: number) => {
+    const [cx, cy] = at(x, z), r = radius * scale, gradient = context.createRadialGradient(cx, cy, 0, cx, cy, r);
+    gradient.addColorStop(0, `rgba(255,255,255,${strength})`); gradient.addColorStop(1, "rgba(255,255,255,0)");
+    context.fillStyle = gradient; context.fillRect(cx - r, cy - r, r * 2, r * 2);
+  };
+  if (plaza) {
+    // Cobbles worn to earth along the rim and in a few scuffs, never under the pedestal.
+    for (let i = 0; i < 160; i++) { const angle = next() * Math.PI * 2, radius = plazaRadius - 2.6 + next() * 2.6; blot(Math.sin(angle) * radius, Math.cos(angle) * radius, 0.5 + next() * 1.3, 0.25 + next() * 0.45); }
+    for (let i = 0; i < 45; i++) { const angle = next() * Math.PI * 2, radius = 3.4 + next() * (plazaRadius - 5); blot(Math.sin(angle) * radius, Math.cos(angle) * radius, 0.4 + next() * 1.1, 0.12 + next() * 0.3); }
+    for (let d = plazaRadius - 3; d < plazaRadius; d += 0.4) blot(Math.sin(d * 0.21) * 2.2 + Math.sin(d * 0.07) * 3, -d, 1.3, 0.4);
+    const texture = new THREE.CanvasTexture(element); texture.colorSpace = THREE.NoColorSpace;
+    return texture;
+  }
+  for (let i = 0; i < 220; i++) { const angle = next() * Math.PI * 2, radius = plazaRadius - 0.6 + next() * 3.2; blot(Math.sin(angle) * radius, Math.cos(angle) * radius, 0.8 + next() * 1.6, 0.35 + next() * 0.4); }
+  // The path winds away from the plaza at the back.
+  for (let d = plazaRadius - 1; d < groundRadius; d += 0.5) { const sway = Math.sin(d * 0.21) * 2.2 + Math.sin(d * 0.07) * 3; blot(sway, -d, 1.5 + next() * 0.7, 0.55); }
+  for (let i = 0; i < 70; i++) { const angle = next() * Math.PI * 2, radius = plazaRadius + 3 + next() * (groundRadius - plazaRadius - 3); blot(Math.sin(angle) * radius, Math.cos(angle) * radius, 1 + next() * 3, 0.15 + next() * 0.35); }
+  const texture = new THREE.CanvasTexture(element); texture.colorSpace = THREE.NoColorSpace;
+  return texture;
+}
+// Blends a second ground texture into a material through a mask in the mesh's base UVs.
+function blendGround(material: THREE.MeshStandardMaterial, mask: THREE.Texture, repeat: number) {
+  const uniforms = { dirtMap: { value: null as THREE.Texture | null }, dirtMask: { value: mask }, dirtRepeat: { value: repeat } };
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.fragmentShader = `uniform sampler2D dirtMap; uniform sampler2D dirtMask; uniform float dirtRepeat;\n${shader.fragmentShader}`.replace("#include <map_fragment>", `#include <map_fragment>
+      #ifdef USE_MAP
+        vec2 groundUv = vMapUv / dirtRepeat;
+        float worn = smoothstep(0.08, 0.75, texture2D(dirtMask, groundUv).r);
+        diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(dirtMap, vMapUv * 0.8).rgb * vec3(0.62, 0.56, 0.48), worn);
+      #endif`);
+  };
+  material.customProgramCacheKey = () => `figurine-ground-${repeat}`;
+  return (texture: THREE.Texture) => { uniforms.dirtMap.value = texture; material.needsUpdate = true; };
+}
+
 function textureFrom(source: HTMLCanvasElement, repeat?: number) {
   const texture = new THREE.CanvasTexture(source); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
   if (repeat) { texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(repeat, repeat); }
@@ -100,16 +145,6 @@ function upgrade(material: THREE.MeshBasicMaterial | THREE.MeshStandardMaterial,
     if (neutral) material.color.set(0x8c9a80);
     material.map?.dispose(); material.map = texture; material.needsUpdate = true;
   }, undefined, () => undefined);
-}
-
-export function labelSprite(text: string, accent = "#e9cf94") {
-  const [element, context] = canvas(512, 128);
-  context.font = "600 54px Georgia, serif"; context.textAlign = "center"; context.textBaseline = "middle";
-  context.shadowColor = "rgba(0,0,0,.85)"; context.shadowBlur = 18; context.fillStyle = accent;
-  context.letterSpacing = "10px"; context.fillText(text.toUpperCase(), 256, 64, 480);
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: textureFrom(element), transparent: true, depthWrite: false, opacity: 0 }));
-  sprite.scale.set(3.2, 0.8, 1);
-  return sprite;
 }
 
 export function buildWorld(scene: THREE.Scene) {
@@ -128,34 +163,37 @@ export function buildWorld(scene: THREE.Scene) {
   const grass = new THREE.Mesh(new THREE.CircleGeometry(46, 96), grassMaterial);
   grass.rotation.x = -Math.PI / 2; grass.position.y = -0.03; grass.receiveShadow = true; grass.renderOrder = -0.5; group.add(grass);
   upgrade(grassMaterial, WORLD_TEXTURES.grass, 70, true);
+  // Worn dirt only blends in once both textures exist; until then the grass is plain.
+  const setDirt = blendGround(grassMaterial, dirtMask(46, PLAZA_RADIUS), 70);
+  new THREE.TextureLoader().load(WORLD_TEXTURES.dirt, (texture) => {
+    texture.colorSpace = THREE.SRGBColorSpace; texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.anisotropy = 8;
+    setDirt(texture); setPlazaDirt(texture);
+  }, undefined, () => undefined);
   const [fadeCanvas, fade] = canvas(256, 256);
   const edge = fade.createRadialGradient(128, 128, 0, 128, 128, 128);
   edge.addColorStop(0, "#fff"); edge.addColorStop(0.86, "#fff"); edge.addColorStop(1, "#000");
   fade.fillStyle = edge; fade.fillRect(0, 0, 256, 256);
-  const plazaMaterial = new THREE.MeshStandardMaterial({ map: textureFrom(paintedCobbles(), 11), alphaMap: new THREE.CanvasTexture(fadeCanvas), transparent: true, roughness: 0.92, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+  const plazaMaterial = new THREE.MeshStandardMaterial({ color: 0xd8d0c2, map: textureFrom(paintedCobbles(), 11), alphaMap: new THREE.CanvasTexture(fadeCanvas), transparent: true, roughness: 0.92, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
   const plaza = new THREE.Mesh(new THREE.CircleGeometry(PLAZA_RADIUS, 96), plazaMaterial);
   // Transparent for its soft edge, so it must draw before every other transparent object
   // (fading box walls, glows); otherwise they clip it and the grass shows through.
   plaza.rotation.x = -Math.PI / 2; plaza.position.y = -0.015; plaza.receiveShadow = true; plaza.renderOrder = -0.4; group.add(plaza);
   upgrade(plazaMaterial, WORLD_TEXTURES.cobble, 16);
-  // A ring of lamp posts: cheap geometry, an emissive bulb and an additive glow each.
+  const setPlazaDirt = blendGround(plazaMaterial, dirtMask(PLAZA_RADIUS, PLAZA_RADIUS, true), 16);
+  // The forest clearing and its lamp posts, each lamp with an additive glow.
+  const wind = { value: 0 };
+  const forest = buildForest(group, forestLayout(PLAZA_RADIUS), (material) => swayMaterial(material, wind));
   const glowCanvas = canvas(64, 64);
   const halo = glowCanvas[1].createRadialGradient(32, 32, 0, 32, 32, 32);
   halo.addColorStop(0, "rgba(255,214,150,1)"); halo.addColorStop(0.3, "rgba(255,190,110,.4)"); halo.addColorStop(1, "rgba(255,170,90,0)");
   glowCanvas[1].fillStyle = halo; glowCanvas[1].fillRect(0, 0, 64, 64);
   const glowMap = textureFrom(glowCanvas[0]);
-  const iron = new THREE.MeshStandardMaterial({ color: 0x1a1a22, roughness: 0.6, metalness: 0.6 });
-  const bulb = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
-  const post = new THREE.CylinderGeometry(0.06, 0.09, 3.2, 8), lantern = new THREE.OctahedronGeometry(0.18, 0);
   for (let i = 0; i < 10; i++) {
     const angle = (i + 0.5) / 10 * Math.PI * 2, radius = PLAZA_RADIUS - 0.8;
-    const lamp = new THREE.Group(); lamp.position.set(Math.sin(angle) * radius, 0, Math.cos(angle) * radius); group.add(lamp);
-    const pole = new THREE.Mesh(post, iron); pole.position.y = 1.6; pole.castShadow = false; lamp.add(pole);
-    const light = new THREE.Mesh(lantern, bulb); light.position.y = 3.3; lamp.add(light);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-    glow.position.y = 3.3; glow.scale.setScalar(1.6); lamp.add(glow);
+    glow.position.set(Math.sin(angle) * radius, LAMP_HEAD, Math.cos(angle) * radius); glow.scale.setScalar(1.8); group.add(glow);
   }
-  return { group };
+  return { group, ready: forest.ready, update(time: number) { wind.value = time; } };
 }
 
 // Places a station group in the world.
@@ -167,18 +205,20 @@ export function placeStation(scene: THREE.Scene, station: keyof typeof STATIONS)
 }
 
 // Camera pose for each view. `framing` (>= 1) backs off on portrait screens; `pan` (-1..1)
-// slides the menu shot toward the shop or the case.
-export function viewPose(view: WorldView, framing: number, home: { offset: THREE.Vector3; target: THREE.Vector3 }, pan = 0) {
+// slides the menu shot toward the shop or the case; narrow screens pull the menu shot back.
+export function viewPose(view: WorldView, framing: number, home: { offset: THREE.Vector3; target: THREE.Vector3 }, pan = 0, aspect = 16 / 9) {
   const pose = (target: THREE.Vector3, offset: THREE.Vector3, scale = framing) => ({ target, position: offset.multiplyScalar(scale).add(target) });
-  const station = (name: keyof typeof STATIONS, offset: THREE.Vector3, height: number) => {
+  // Stations back off until their full width fits the screen (36° vertical field of view).
+  const station = (name: keyof typeof STATIONS, offset: THREE.Vector3, height: number, width: number) => {
     const { position, rotation } = STATIONS[name];
     const target = new THREE.Vector3(0, height, 0).add(position);
-    return pose(target, offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation));
+    const fit = width / 2 / (Math.tan(THREE.MathUtils.degToRad(18)) * aspect) / offset.length();
+    return pose(target, offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation), THREE.MathUtils.clamp(fit, framing, 2.3));
   };
   switch (view) {
-    case "menu": return pose(new THREE.Vector3(pan * 5.8, 1.6, -2.6), new THREE.Vector3(0, 7.6, 20.5), Math.min(2, framing ** 1.2));
-    case "shop": return station("shop", new THREE.Vector3(0, 1.6, 8.8), 1.9);
-    case "gallery": return station("gallery", new THREE.Vector3(0, 1.1, 10.4), 2.45);
+    case "menu": return pose(new THREE.Vector3(pan * 7, 1.6, -2.6), new THREE.Vector3(0, 7.6, 20.5), Math.min(2, Math.max(1, 1.5 / aspect)));
+    case "shop": return station("shop", new THREE.Vector3(0, 1.3, 9.4), 2.45, 6.6);
+    case "gallery": return station("gallery", new THREE.Vector3(0, 0.9, 9.2), 2.55, 6.6);
     case "viewer": return pose(home.target.clone(), new THREE.Vector3(2.4, 0.8, 6.2));
     default: return pose(home.target.clone(), home.offset.clone());
   }

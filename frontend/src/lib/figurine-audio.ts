@@ -1,28 +1,33 @@
 import type { FigurineCue } from "@/lib/figurine-reveal";
 
 // Generated with ElevenLabs sound effects and mastered offline (trimmed to the
-// transient, loudness-matched); volumes here only balance the mix.
-const FIGURINE_SOUNDS: Record<FigurineCue, { files: readonly string[]; volume: number; jitter?: number }> = {
+// transient, loudness-matched); volumes here only balance the mix. Every play picks a random
+// variant and nudges its speed by up to `jitter`, so repeats never sound identical. The music
+// bed, riser and hum stay at pitch so they keep resolving into the hit.
+export const FIGURINE_SOUNDS: Record<FigurineCue, { files: readonly string[]; volume: number; jitter?: number }> = {
   tap: { files: ["tap-a", "tap-b"], volume: 0.45, jitter: 0.06 },
+  // A bagged vinyl figure bumping thin cardboard: dull, low thumps, low-passed so nothing clicks.
+  rattle: { files: ["rattle-a", "rattle-b", "rattle-c", "rattle-d", "rattle-e"], volume: 0.8, jitter: 0.06 },
   rip: { files: ["rip-a", "rip-b"], volume: 0.85, jitter: 0.04 },
   music: { files: ["music-a", "music-b"], volume: 0.55 },
   knock: { files: ["knock-a", "knock-b", "knock-c"], volume: 0.7, jitter: 0.08 },
   riser: { files: ["riser-a", "riser-b"], volume: 0.32 },
-  hum: { files: ["hum"], volume: 0.45 },
+  hum: { files: ["hum", "hum-b"], volume: 0.45 },
   peel: { files: ["peel-a", "peel-b"], volume: 0.7 },
   stick: { files: ["stick-a", "stick-b"], volume: 0.6, jitter: 0.06 },
-  ready: { files: ["ready-a", "ready-b"], volume: 0.5 },
-  burst: { files: ["burst-a", "burst-b"], volume: 0.75 },
-  hit: { files: ["hit-a", "hit-b"], volume: 0.85 },
-  boom: { files: ["boom-a"], volume: 0.8 },
+  ready: { files: ["ready-a", "ready-b"], volume: 0.5, jitter: 0.03 },
+  burst: { files: ["burst-a", "burst-b"], volume: 0.75, jitter: 0.03 },
+  hit: { files: ["hit-a", "hit-b"], volume: 0.85, jitter: 0.03 },
+  boom: { files: ["boom-a", "boom-b", "boom-c"], volume: 0.8, jitter: 0.04 },
   whoosh: { files: ["whoosh-a", "whoosh-b"], volume: 0.45, jitter: 0.05 },
-  choir: { files: ["choir-a", "choir-b"], volume: 0.5 },
-  rise: { files: ["rise-a", "rise-b"], volume: 0.25 },
-  sparkle: { files: ["sparkle-a", "sparkle-b"], volume: 0.45 },
-  land: { files: ["land-a", "land-b"], volume: 0.75 },
+  choir: { files: ["choir-a", "choir-b"], volume: 0.5, jitter: 0.02 },
+  rise: { files: ["rise-a", "rise-b"], volume: 0.25, jitter: 0.03 },
+  sparkle: { files: ["sparkle-a", "sparkle-b"], volume: 0.45, jitter: 0.04 },
+  // One heavy, neutral thud for every figure; the class signature plays under it.
+  land: { files: ["land-a", "land-b", "land-c"], volume: 1, jitter: 0.04 },
   // Per-class files are chosen at play time from the drawn figure's class.
-  signature: { files: [], volume: 0.85 },
-  fanfare: { files: ["fanfare-a", "fanfare-b", "fanfare-c"], volume: 0.6 },
+  signature: { files: [], volume: 0.6, jitter: 0.03 },
+  fanfare: { files: ["fanfare-a", "fanfare-b", "fanfare-c"], volume: 0.6, jitter: 0.02 },
   drop: { files: ["drop-a", "drop-b"], volume: 0.6, jitter: 0.04 },
 };
 const sourceFor = (file: string) => `/figurines/audio/${file}.mp3`;

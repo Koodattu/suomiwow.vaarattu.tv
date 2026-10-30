@@ -40,3 +40,13 @@ test("both series have unique figures, translations, silhouettes and class sound
   }
   for (const file of ["floor-cobble.png", "grass.png", "clouds.jpg", "nebula.png", "source.json"]) await access(new URL(`../public/figurines/world/${file}`, import.meta.url));
 });
+
+test("every sound cue has variants on disk; the landing thud and the shaken-box thunks vary most", async () => {
+  const { FIGURINE_SOUNDS } = await import("../src/lib/figurine-audio.ts");
+  for (const [cue, { files }] of Object.entries(FIGURINE_SOUNDS)) {
+    if (cue !== "signature") assert.ok(files.length >= 1, cue);
+    for (const file of files) await access(new URL(`../public/figurines/audio/${file}.mp3`, import.meta.url));
+  }
+  assert.ok(FIGURINE_SOUNDS.land.files.length >= 3);
+  assert.ok(FIGURINE_SOUNDS.rattle.files.length >= 3);
+});

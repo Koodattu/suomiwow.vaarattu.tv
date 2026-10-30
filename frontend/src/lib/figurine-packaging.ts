@@ -274,9 +274,12 @@ function tearTape(parent: THREE.Group, { depth, height, bottom, lid, label, envM
   const material = new THREE.MeshPhysicalMaterial({ map, side: THREE.DoubleSide, transparent: true, metalness: 0.35, roughness: 0.28, iridescence: 1, iridescenceIOR: 2.1, iridescenceThicknessRange: [120, 900], clearcoat: 1, clearcoatRoughness: 0.1, envMap, envMapIntensity: 1.2, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const group = new THREE.Group(); parent.add(group);
   const mesh = new THREE.Mesh(geometry, material); mesh.frustumCulled = false; group.add(mesh);
-  // A generous invisible grab area around the pull tab.
-  const hit = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.6), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
-  hit.position.set(0, y0 + 0.2, z + 0.02); group.add(hit);
+  // A generous invisible grab area: wide around the pull tab and below it, narrower up the rest of the strip.
+  const hitMaterial = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+  const hit = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.95), hitMaterial);
+  hit.position.set(0, y0 + 0.155, z + 0.02); group.add(hit);
+  const strip = new THREE.Mesh(new THREE.PlaneGeometry(0.55, rise - 0.6), hitMaterial);
+  strip.position.set(0, y0 + 0.6 + (rise - 0.6) / 2, z + 0.02); hit.attach(strip);
   const point = new THREE.Vector3(), anchor = new THREE.Vector3(), direction = new THREE.Vector3();
   const tip = new THREE.Vector3(), bend = new THREE.Vector3();
   // Points above the walls belong to the lid, which hinges on its back edge.

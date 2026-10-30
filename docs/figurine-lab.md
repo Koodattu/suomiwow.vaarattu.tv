@@ -249,9 +249,14 @@ down if released early, chimes when fully free, and opens only on release. The
 "Pull the tape to open" hint does the same from a keyboard. Opening rips the tape
 away and starts a 2.4-second build-up while the drawn model loads: music swell,
 knocks, seam light. The burst layers an orchestral/choir hit and a sub boom over
-the cardboard pop; a choir carries the figure up. On landing, a per-class
-signature (`class-<classKey>-a|b.mp3`, all 13 classes) plays over the impact,
-followed by a fanfare. The pedestal (`frontend/src/lib/figurine-pedestal.ts`) has a
+the cardboard pop; a choir carries the figure up. Every figure lands with the same
+heavy thud (`land-a|b|c`); its class signature (`class-<classKey>-a|b.mp3`, all 13
+classes) follows 80 ms later, then a fanfare. Each play picks a random variant and
+nudges its speed slightly, except the music bed, riser and hum, which stay at pitch.
+Before opening, grab the box anywhere off the tape to lift and shake it; it trails
+the pointer on a spring and every hard change of direction plays a soft, low thunk
+of the bagged figure against the cardboard (`rattle-a…e`, low-passed so nothing
+clicks). The pedestal (`frontend/src/lib/figurine-pedestal.ts`) has a
 rune ring with one notch per character whose inlay glows and spins with the build-up. The burst then unfolds the box, the figure rises
 as a glowing silhouette, takes its colors and lands on the disc. The timeline and
 its sound cues live in `frontend/src/lib/figurine-reveal.ts`; the immersive stage
@@ -277,14 +282,51 @@ cat-form identity and midpoint sample. The final contact sheet is
 Abiw also have individual comparison renders. The local container and temporary
 snapshot replay helpers are stopped.
 
+## Appearance repair audit (2026-10-30)
+
+Audited the back geometry/materials of all 32 figures and rendered both complete
+lineups from behind. Eleven classic cloaks were incorrectly using the character
+atlas: Yolobolt, Melice, Turrilol, Suursmurffi, Rhagy, Ovelakettu, Hirvihotline,
+Tonza, Jampton, Mightyhuu and Kuurankukká. The exporter now resolves their standalone
+type-2 cloak texture even when the item has no separate model. Separate back
+attachments were also inspected; their equipment textures were already bound.
+
+External customization meshes now retain their character texture types.
+Morinicar's horn decorations also respect `RelatedChrCustomizationChoiceID`;
+previously all 19 horn variants were enabled simultaneously. Dracthyr wing color
+composites remain intact. Chipi's boot display uses a negative foot-geoset selector,
+which must preserve bare feet rather than hide them; her toes now match the Armory
+reference. Zetabeach's ground anchor uses visible paw/toe-weighted vertices instead
+of transparent hock fur below the soles. The viewer also uses `PEDESTAL_TOP`
+instead of an offset that left a small shared gap.
+
+Seventeen figures were regenerated from frozen appearance snapshots in
+`community-repairs-001` and `community-repairs-002`. Each updated catalog entry
+records its batch via `authoringSeries`; original batches remain available.
+Both silhouette sheets were rebuilt. Texture quality is unchanged (WebP 89,
+2048-pixel cap). Current totals: box 1 is 14,472,972 bytes; box 2 is 17,742,120
+bytes. Morinicar is now 2,202,032 bytes with the unwanted horn geometry removed.
+
+Verification: all 17 rebuilt GLBs passed decoded validation without warnings;
+all 32 served model hashes match their catalogs. All 35 exporter tests, 23
+figurine frontend tests, TypeScript and targeted ESLint checks passed. Browser
+inspection confirms Chipi's exposed feet. Review images are under
+`.codex-runtime/figurine-research/cape-repair/` (`box-1-backs.png`,
+`box-2-backs.png`, `chipi-fixed.png`, `morinicar-fixed.png`, `chipi-browser.png`).
+These remain development models pending release art approval; the independent
+Blender renders do not reproduce the viewer's additive effects exactly.
+
 ## Collectibles world
 
 `/tools/collectibles` is one 3D scene with five views and a camera that flies between them:
 main menu (overview), shop (a stall with every series' boxes), opening (the pedestal),
-collection (a case with a slot per figure) and viewer (an owned figure on the pedestal).
-There are no navigation buttons: tap any visible station (shop, case, pedestal) to go there,
-a series stack to open it, an owned figure to inspect it, and empty ground or sky to step
-back. Dragging sideways on the menu slides the camera. Keyboard: Esc back, S shop,
+collection (a lit cubby cabinet, one 4×4 grid per series) and viewer (an owned figure on
+the pedestal). There are no labels and no navigation buttons: tap any visible station (shop,
+case, pedestal) to go there, a series' boxes to open one, an owned figure to inspect it, and
+empty ground or sky to step back. Boxes and figures can be picked straight from the main
+menu; stations glow faintly under the pointer, and "back" returns to where the pick was
+made. Station shots back off until the station's width fits the screen, so phones see the
+whole stall. Dragging sideways on the menu slides the camera. Keyboard: Esc back, S shop,
 C collection, 1-9 pick a series, Enter opens the sealed box. The only button is
 "New blind box" after a reveal (plus the sound toggle).
 Series are registered in `frontend/src/lib/figurine-series.ts` with a box print theme
@@ -293,9 +335,18 @@ Series are registered in `frontend/src/lib/figurine-series.ts` with a box print 
 The collection is session-only (`sessionStorage`, `figurine-collection.ts`): figure key to
 times opened; nothing is sent anywhere. Unowned figures show as black silhouettes from the
 baked sheet; owned ones show a portrait rendered from their model (captured on reveal, or
-regenerated from the model file after a reload).
+regenerated from the model file after a reload). Portraits use the silhouette sheet's
+framing (orthographic, feet on the bottom edge), so both stand on the cubby floor.
 
 World textures in `frontend/public/figurines/world/` (Elwynn cobblestone and grass, cloud and
 nebula sky layers) were exported from game data with the local wow.export worker's texture
 job (`kind: "textures"` in `src/worker.js`; provenance in `source.json`). Like the models,
-they are game assets for this development-only page.
+they are game assets for this development-only page. The clearing around the plaza uses
+Elwynn Forest doodads (canopy trees, bushes, rocks, stumps, hay, lamp posts) from the
+worker's model job (`kind: "models"`, `{ models: [{ name, file }] }`; provenance in
+`source-models.json`). They were optimized with `worker/optimizer` after stripping their
+skeletons: the site draws them as static instanced meshes, and quantizing a skinned mesh
+moves its scale into the inverse bind matrices. Placement is seeded in
+`frontend/src/lib/figurine-forest.ts`; the camera side of the ring stays open. The grass
+and cobbles blend in Elwynn dirt through painted masks (a worn rim and a path into the
+woods).

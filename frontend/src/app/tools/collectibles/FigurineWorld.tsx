@@ -6,13 +6,13 @@ import { useTranslations } from "next-intl";
 import { boxReducer, chooseFigure, initialBox } from "@/lib/figurine-box";
 import { getFigurineAudioMuted, preloadFigurineSignature, setFigurineAudioMuted, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { addToCollection, emptyCollection, readCollection, subscribeCollection } from "@/lib/figurine-collection";
-import { FIGURINE_SERIES, TOTAL_FIGURES, figureKey, findFigure, findSeries, type FigurineCharacter } from "@/lib/figurine-series";
+import { FIGURINE_SERIES, figureKey, findFigure, findSeries, type FigurineCharacter } from "@/lib/figurine-series";
 import type { StageWorld, WorldView } from "../figurine-lab/FigurineStage";
 import styles from "../figurine-lab/figurine-lab.module.css";
 
 const FigurineStage = dynamic(() => import("../figurine-lab/FigurineStage"), { ssr: false });
 const pad = (number: number) => String(number).padStart(3, "0");
-// Where "back" leads from each view.
+// Where "back" leads from each view, unless the view was entered from somewhere else.
 const PARENT: Record<WorldView, WorldView | null> = { menu: null, shop: "menu", opening: "shop", gallery: "menu", viewer: "gallery" };
 
 export default function FigurineWorld() {
@@ -25,6 +25,8 @@ export default function FigurineWorld() {
   const [hovered, setHovered] = useState<string | null>(null);
   const [opened, setOpened] = useState<{ key: string; count: number } | null>(null);
   const [webglUnavailable, setWebglUnavailable] = useState(false);
+  // Boxes and figures can be picked straight from the hub, so "back" returns to where they were picked.
+  const [origin, setOrigin] = useState<Partial<Record<WorldView, WorldView>>>({});
   const [muted, setMuted] = useState(false);
   useEffect(() => { setMuted(getFigurineAudioMuted()); }, []);
   const collection = useSyncExternalStore(subscribeCollection, readCollection, emptyCollection);
@@ -58,14 +60,16 @@ export default function FigurineWorld() {
     if (next !== "opening" && (state.phase === "revealed" || state.phase === "error")) { setOpened(null); dispatch({ type: "reset" }); }
     if (next !== "viewer") setInspected(null);
     setHovered(null);
+    if ((next === "opening" || next === "viewer") && next !== view) setOrigin((current) => ({ ...current, [next]: view === "viewer" ? "menu" : view }));
     setView(next);
-  }, [state.phase]);
-  const back = useCallback(() => { const parent = PARENT[view]; if (parent && state.phase !== "loading" && state.phase !== "opening") navigate(parent); }, [view, state.phase, navigate]);
+  }, [state.phase, view]);
+  const back = useCallback(() => { const parent = origin[view] ?? PARENT[view]; if (parent && state.phase !== "loading" && state.phase !== "opening") navigate(parent); }, [view, state.phase, navigate, origin]);
   useEffect(() => { action.current?.focus({ preventScroll: true }); }, [view, state.phase, state.round]);
 
   function pickSeries(id: string) {
     unlockFigurineAudio();
     if (id !== seriesId || state.phase === "revealed" || state.phase === "error") { setOpened(null); dispatch({ type: "reset" }); }
+    if (view !== "opening") setOrigin((current) => ({ ...current, opening: view === "viewer" ? "menu" : view }));
     setSeriesId(id); setView("opening");
   }
   function open() {
@@ -79,7 +83,7 @@ export default function FigurineWorld() {
     if (drawn) { const key = figureKey(series.id, drawn.id); setOpened({ key, count: addToCollection(key) }); }
   }
   function another() { unlockFigurineAudio(); setOpened(null); setFiles([]); dispatch({ type: "reset" }); }
-  function inspect(key: string) { if (state.phase === "revealed" || state.phase === "error") { setOpened(null); dispatch({ type: "reset" }); } setInspected(key); setView("viewer"); }
+  function inspect(key: string) { if (state.phase === "revealed" || state.phase === "error") { setOpened(null); dispatch({ type: "reset" }); } setInspected(key); if (view !== "viewer") setOrigin((current) => ({ ...current, viewer: view })); setView("viewer"); }
   // Navigation is in the world; the keyboard mirrors it: Esc back, S shop, C collection,
   // number keys pick a series, Enter opens the sealed box.
   const onKey = useRef<(event: KeyboardEvent) => void>(() => {});
@@ -101,7 +105,6 @@ export default function FigurineWorld() {
   }, []);
   function toggleSound() { unlockFigurineAudio(); setFigurineAudioMuted(!muted); setMuted(!muted); }
 
-  const got = Object.keys(collection).length;
   const world: StageWorld = useMemo(() => ({
     collection,
     series: FIGURINE_SERIES.map((entry) => ({
@@ -110,9 +113,8 @@ export default function FigurineWorld() {
       names: entry.characters.map((character) => character.name), models: entry.characters.map((character) => character.model),
     })),
     labels: {
-      shop: t("navShop"), collection: t("navCollection"), open: t("navOpen"), sign: t("navShop"), free: t("shopFree"),
-      series: (number) => t("seriesName", { number }), figures: (count) => t("seriesFigures", { count }),
-      collected: (owned, total) => t("seriesCollected", { got: owned, total }), header: (number) => t("seriesName", { number }),
+      sign: t("navShop"), series: (number) => t("seriesName", { number }),
+      collected: (owned, total) => t("seriesCollected", { got: owned, total }),
     },
   }), [collection, t]);
   const packaging = useMemo(() => ({ blind: t("boxBlind"), collect: t("boxCollect", { count: series.characters.length }), contents: t("boxContents"), openHere: t("boxOpenHere") }), [t, series.characters.length]);
@@ -120,10 +122,6 @@ export default function FigurineWorld() {
   const hoveredFigure = hovered ? findFigure(hovered) : null;
 
   return <main className={styles.showcase} data-phase={state.phase} data-view={view}>
-    <header className={styles.showcaseHeader}>
-      <span>{t("boxTitle")}</span>
-      <p>{view === "menu" ? t("worldTagline") : view === "shop" ? t("navShop") : view === "gallery" || view === "viewer" ? t("collectionCount", { got, total: TOTAL_FIGURES }) : t("seriesName", { number: pad(series.number) })}</p>
-    </header>
     <button type="button" className={styles.soundToggle} aria-pressed={!muted} onClick={toggleSound}>
       <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />{muted ? <path d="m16 9.5 5 5m0-5-5 5" /> : <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />}</svg>
       <span>{t(muted ? "soundOff" : "soundOn")}</span>
@@ -142,9 +140,8 @@ export default function FigurineWorld() {
           <h1>{drawn.name}</h1><p>{label(drawn)}</p>
         </> : view === "opening" && state.phase === "error" ? <><h1>{t("drawErrorTitle")}</h1><p>{t(webglUnavailable ? "webglError" : "drawError")}</p></>
           : view === "viewer" && viewing ? <><h1>{viewing.character.name}</h1><p>{label(viewing.character)}</p><p className={styles.showcaseHint}>{t("inspectFigure")}</p></>
-          : view === "gallery" ? <p className={styles.worldHint}>{hoveredFigure ? (collection[hovered!] ? hoveredFigure.character.name : t("notCollected")) : t("galleryHint")}</p>
-          : view === "menu" ? <p className={styles.worldHint}>{t("menuHint")}</p>
-          : view === "shop" ? <p className={styles.worldHint}>{t("shopHint")}</p>
+          : (view === "gallery" || view === "menu") && hoveredFigure ? <p className={styles.worldHint}>{collection[hovered!] ? hoveredFigure.character.name : t("notCollected")}</p>
+          : view === "gallery" || view === "menu" || view === "shop" ? null
           : <span className={styles.srOnly}>{t(state.phase === "loading" ? "drawLoading" : state.phase === "opening" ? "drawOpening" : "mysteryTitle")}</span>}
       </div>
       {view === "opening" && state.phase === "sealed" && <p className={styles.worldHint}>{t("pullToOpen")}</p>}

@@ -1,0 +1,122 @@
+{
+  "note": "Doodads optimized with worker/optimizer (meshopt, WebP max 512px); dirt.png from the texture job.",
+  "models": {
+    "state": "complete",
+    "id": "world-models-002",
+    "build": {
+      "Region": "eu",
+      "BuildConfig": "d718abcc42604d8efbd35aecfa5bb75b",
+      "CDNConfig": "9529b048134c5f9375bbe754b8edc5ef",
+      "KeyRing": "3ca57fe7319a297346440e4d2a03a0cd",
+      "BuildId": "70575",
+      "VersionsName": "12.1.5.70575",
+      "ProductConfig": "53020d32e1a25648c8e1eafd5771935f",
+      "Product": "wow"
+    },
+    "exporterVersion": "0.2.19",
+    "workerSha256": "41037cbcac6fd69f63d43f8f29014992a2d3c389d89619f579e21533737770c1",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "startupMs": 22963,
+    "kind": "models",
+    "models": [
+      {
+        "name": "tree-canopy-02",
+        "file": "world/azeroth/elwynn/passivedoodads/trees/elwynntreecanopy02.m2",
+        "fileDataID": 189928,
+        "bytes": 1221520
+      },
+      {
+        "name": "tree-canopyless-01",
+        "file": "world/azeroth/elwynn/passivedoodads/trees/canopylesstree01.m2",
+        "fileDataID": 189919,
+        "bytes": 229140
+      },
+      {
+        "name": "bush-01",
+        "file": "world/azeroth/elwynn/passivedoodads/bush/elwynnbush01.m2",
+        "fileDataID": 189692,
+        "bytes": 49360
+      },
+      {
+        "name": "bush-06",
+        "file": "world/azeroth/elwynn/passivedoodads/bush/elwynnbush06.m2",
+        "fileDataID": 189697,
+        "bytes": 50380
+      },
+      {
+        "name": "rock-1",
+        "file": "world/azeroth/elwynn/passivedoodads/detail/elwynnrock1/elwynnrock1.m2",
+        "fileDataID": 189768,
+        "bytes": 24168
+      },
+      {
+        "name": "rock-2",
+        "file": "world/azeroth/elwynn/passivedoodads/detail/elwynnrock2/elwynnrock2.m2",
+        "fileDataID": 189770,
+        "bytes": 23792
+      },
+      {
+        "name": "lamppost",
+        "file": "world/azeroth/elwynn/passivedoodads/lamppost/lamppost.m2",
+        "fileDataID": 189825,
+        "bytes": 37728
+      },
+      {
+        "name": "stump-01",
+        "file": "world/azeroth/elwynn/passivedoodads/trees/stumps/elwynntreestump01.m2",
+        "fileDataID": 189939,
+        "bytes": 23348
+      },
+      {
+        "name": "haystack-01",
+        "file": "world/azeroth/elwynn/passivedoodads/haystacks/haystack01.m2",
+        "fileDataID": 189810,
+        "bytes": 17412
+      }
+    ],
+    "searched": 0
+  },
+  "textures": {
+    "state": "complete",
+    "id": "world-textures-002",
+    "build": {
+      "Region": "eu",
+      "BuildConfig": "d718abcc42604d8efbd35aecfa5bb75b",
+      "CDNConfig": "9529b048134c5f9375bbe754b8edc5ef",
+      "KeyRing": "3ca57fe7319a297346440e4d2a03a0cd",
+      "BuildId": "70575",
+      "VersionsName": "12.1.5.70575",
+      "ProductConfig": "53020d32e1a25648c8e1eafd5771935f",
+      "Product": "wow"
+    },
+    "exporterVersion": "0.2.19",
+    "workerSha256": "41037cbcac6fd69f63d43f8f29014992a2d3c389d89619f579e21533737770c1",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "startupMs": 22963,
+    "kind": "textures",
+    "textures": [
+      {
+        "name": "dirt",
+        "file": "tileset/elwynn/elwynndirtbase2.blp",
+        "fileDataID": 187114,
+        "width": 256,
+        "height": 256
+      },
+      {
+        "name": "gravel",
+        "file": "tileset/elwynn/elwynnrockgravel.blp",
+        "fileDataID": 187140,
+        "width": 256,
+        "height": 256
+      },
+      {
+        "name": "tree-dirt",
+        "file": "tileset/elwynn/elwynntreedirtbase.blp",
+        "fileDataID": 187142,
+        "width": 128,
+        "height": 128
+      }
+    ],
+    "searched": 0
+  }
+}

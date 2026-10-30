@@ -36,18 +36,17 @@ function stripes() {
   return map;
 }
 
-function signTexture(title: string, line: string) {
+function signTexture(title: string) {
   const [element, context] = canvas(1024, 256);
   context.fillStyle = "#2a1a10"; context.fillRect(0, 0, 1024, 256);
   context.strokeStyle = "#c9a565"; context.lineWidth = 10; context.strokeRect(14, 14, 996, 228);
   context.fillStyle = "#f1d48a"; context.textAlign = "center"; context.textBaseline = "middle";
-  context.font = "700 110px Georgia, serif"; context.letterSpacing = "18px"; context.fillText(title.toUpperCase(), 512, 112, 940);
-  context.font = "600 34px system-ui, sans-serif"; context.letterSpacing = "6px"; context.fillStyle = "#d9c49a"; context.fillText(line.toUpperCase(), 512, 200, 900);
+  context.font = "700 120px Georgia, serif"; context.letterSpacing = "18px"; context.fillText(title.toUpperCase(), 512, 134, 940);
   return texture(element);
 }
 
 export type ShopSeries = { id: string; design: BoxDesign; count: number; accent: string };
-export type ShopLabels = { sign: string; free: string; series: (number: string) => string; figures: (count: number) => string; collected: (got: number, total: number) => string };
+export type ShopLabels = { sign: string; series: (number: string) => string; collected: (got: number, total: number) => string };
 
 export function buildShop(parent: THREE.Group, { series, envMap, labels }: { series: ShopSeries[]; envMap: THREE.Texture; labels: ShopLabels }) {
   const wood = new THREE.MeshStandardMaterial({ map: woodTexture(7), roughness: 0.75 });
@@ -63,10 +62,11 @@ export function buildShop(parent: THREE.Group, { series, envMap, labels }: { ser
   for (const x of [-2.95, 2.95]) for (const z of [1.5, -0.85]) add(post, darkWood, x, 1.95, z);
   const canopy = add(new THREE.PlaneGeometry(6.4, 2.7), new THREE.MeshStandardMaterial({ map: stripes(), roughness: 0.9, side: THREE.DoubleSide }), 0, 3.95, 0.35);
   canopy.rotation.x = -Math.PI / 2 + 0.32;
-  const sign = add(new THREE.BoxGeometry(2.8, 0.7, 0.07), [darkWood, darkWood, darkWood, darkWood, new THREE.MeshStandardMaterial({ map: signTexture(labels.sign, labels.free), roughness: 0.6 }), darkWood], 0, 4.5, 1.55);
+  const sign = add(new THREE.BoxGeometry(2.8, 0.7, 0.07), [darkWood, darkWood, darkWood, darkWood, new THREE.MeshStandardMaterial({ map: signTexture(labels.sign), roughness: 0.6 }), darkWood], 0, 4.5, 1.55);
   sign.castShadow = false;
 
   const picks: THREE.Mesh[] = [];
+  const hidden = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
   const stacks = series.map((entry, index) => {
     const prints = createBoxPrints(entry.design, envMap, 150);
     const s = 0.24, w = BOX_SIZE.width * s, h = BOX_SIZE.height * s, d = BOX_SIZE.depth * s;
@@ -86,10 +86,9 @@ export function buildShop(parent: THREE.Group, { series, envMap, labels }: { ser
       plaque.fillStyle = "#1b120c"; plaque.fillRect(0, 0, 768, 224);
       plaque.strokeStyle = entry.accent; plaque.lineWidth = 8; plaque.strokeRect(10, 10, 748, 204);
       plaque.textAlign = "center"; plaque.textBaseline = "middle";
-      plaque.fillStyle = "#f1d48a"; plaque.font = "700 64px Georgia, serif"; plaque.letterSpacing = "8px"; plaque.fillText(labels.series(entry.design.theme.number), 384, 70, 700);
-      plaque.fillStyle = "#e6d6b5"; plaque.font = "600 30px system-ui, sans-serif"; plaque.letterSpacing = "3px";
-      plaque.fillText(`${labels.figures(entry.count)} · ${labels.free}`.toUpperCase(), 384, 134, 700);
-      plaque.fillStyle = entry.accent; plaque.fillText(labels.collected(got, entry.count).toUpperCase(), 384, 182, 700);
+      plaque.fillStyle = "#f1d48a"; plaque.font = "700 64px Georgia, serif"; plaque.letterSpacing = "8px"; plaque.fillText(labels.series(entry.design.theme.number), 384, 88, 700);
+      plaque.font = "600 34px system-ui, sans-serif"; plaque.letterSpacing = "4px";
+      plaque.fillStyle = entry.accent; plaque.fillText(labels.collected(got, entry.count).toUpperCase(), 384, 162, 700);
       plaqueMap.needsUpdate = true;
     };
     paint(0);
@@ -101,8 +100,11 @@ export function buildShop(parent: THREE.Group, { series, envMap, labels }: { ser
     glowCanvas[1].fillStyle = gradient; glowCanvas[1].fillRect(0, 0, 64, 64);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture(glowCanvas[0]), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
     glow.position.set(0, 1.7, 0.9); glow.scale.set(2.6, 2.2, 1); stack.add(glow);
-    const pick = new THREE.Mesh(new THREE.BoxGeometry(2.5, 3.4, 2.6), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
-    pick.position.set(0, 1.7, 0.3); pick.userData.series = entry.id; stack.add(pick); picks.push(pick);
+    for (const [w, h2, d2, y, z] of [[1.75, 3 * h + 0.12, d + 0.2, 1.13 + 1.5 * h, 0.9], [2.1, 1.7, 0.6, 2.55, -0.6]]) {
+      const pick = new THREE.Mesh(new THREE.BoxGeometry(w, h2, d2), hidden);
+      pick.position.set(0, y, z); pick.userData.series = entry.id; stack.add(pick); picks.push(pick);
+    }
+    sign.userData.series = entry.id; picks.push(sign);
     return { id: entry.id, lift, glow, paint, hover: 0, stop: prints.stop };
   });
 
