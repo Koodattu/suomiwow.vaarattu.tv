@@ -3,7 +3,8 @@ import { buildForest, forestLayout, marketLayout, swayMaterial } from "@/lib/fig
 
 // The collectibles world: a painted sky bubble over a stone plaza, with the opening pedestal
 // at the centre, the shop to the left and the collection case to the right.
-export type WorldView = "menu" | "shop" | "opening" | "gallery" | "viewer";
+// The centre (the pedestal, with a box or an inspected figure) is home; the shop and the case are stations.
+export type WorldView = "shop" | "opening" | "gallery" | "viewer";
 // Set wide and angled toward the hub camera, so neither station shot catches the pedestal.
 export const STATIONS = {
   shop: { position: new THREE.Vector3(-7.6, 0, -5.2), rotation: 0.45 },
@@ -202,8 +203,8 @@ export function placeStation(scene: THREE.Scene, station: keyof typeof STATIONS)
   return group;
 }
 
-// Camera pose for each view. `framing` (>= 1) backs off on portrait screens; narrow screens
-// pull the menu shot back.
+// Camera pose for each view. `framing` (>= 1) backs off on portrait screens; both centre views
+// share the home shot.
 export function viewPose(view: WorldView, framing: number, home: { offset: THREE.Vector3; target: THREE.Vector3 }, aspect = 16 / 9) {
   const pose = (target: THREE.Vector3, offset: THREE.Vector3, scale = framing) => ({ target, position: offset.multiplyScalar(scale).add(target) });
   // Stations back off until their full width fits the screen (36° vertical field of view).
@@ -214,10 +215,8 @@ export function viewPose(view: WorldView, framing: number, home: { offset: THREE
     return pose(target, offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation), THREE.MathUtils.clamp(fit, framing, 2.3));
   };
   switch (view) {
-    case "menu": return pose(new THREE.Vector3(0, 1.6, -2.6), new THREE.Vector3(0, 7.6, 20.5), Math.min(2, Math.max(1, 1.5 / aspect)));
     case "shop": return station("shop", new THREE.Vector3(0, 1.3, 9.4), 2.45, 6.6);
     case "gallery": return station("gallery", new THREE.Vector3(0, 0.9, 9.2), 2.55, 6.6);
-    case "viewer": return pose(home.target.clone(), new THREE.Vector3(2.4, 0.8, 6.2));
     default: return pose(home.target.clone(), home.offset.clone());
   }
 }

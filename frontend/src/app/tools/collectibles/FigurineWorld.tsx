@@ -12,20 +12,23 @@ import styles from "../figurine-lab/figurine-lab.module.css";
 
 const FigurineStage = dynamic(() => import("../figurine-lab/FigurineStage"), { ssr: false });
 const pad = (number: number) => String(number).padStart(3, "0");
-// Where "back" leads from each view, unless the view was entered from somewhere else.
-const PARENT: Record<WorldView, WorldView | null> = { menu: null, shop: "menu", opening: "shop", gallery: "menu", viewer: "gallery" };
+// Where "back" leads: stations return to the centre (to whichever of its views they were left from).
+const PARENT: Record<WorldView, WorldView | null> = { shop: "opening", gallery: "opening", opening: null, viewer: "opening" };
+const atCentre = (view: WorldView) => view === "opening" || view === "viewer";
 
 export default function FigurineWorld() {
   const t = useTranslations("figurineLab");
-  const [view, setView] = useState<WorldView>("menu");
+  const [view, setView] = useState<WorldView>("opening");
   const [seriesId, setSeriesId] = useState(FIGURINE_SERIES[0].id);
   const [state, dispatch] = useReducer(boxReducer, initialBox);
   const [files, setFiles] = useState<File[]>([]);
+  // Which figure `files` holds (its model URL), so the stage never shows one figure in another's place.
+  const [filesFor, setFilesFor] = useState<string | null>(null);
   const [inspected, setInspected] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [opened, setOpened] = useState<{ key: string; count: number } | null>(null);
   const [webglUnavailable, setWebglUnavailable] = useState(false);
-  // Boxes and figures can be picked straight from the hub, so "back" returns to where they were picked.
+  // Stations remember which centre view they were entered from.
   const [origin, setOrigin] = useState<Partial<Record<WorldView, WorldView>>>({});
   const [muted, setMuted] = useState(false);
   useEffect(() => { setMuted(getFigurineAudioMuted()); }, []);
@@ -51,9 +54,9 @@ export default function FigurineWorld() {
   // Recently fetched figure files, so stepping into the viewer and back does not download again.
   const fetched = useRef(new Map<string, File>());
   useEffect(() => {
-    if (!wanted) { setFiles([]); setModel("idle"); return; }
+    if (!wanted) { setFiles([]); setFilesFor(null); setModel("idle"); return; }
     const remembered = fetched.current.get(wanted.model);
-    if (remembered) { setFiles([remembered]); setModel("loading"); return; }
+    if (remembered) { setFiles([remembered]); setFilesFor(wanted.model); setModel("loading"); return; }
     const controller = new AbortController();
     setModel("loading");
     const fail = () => { setModel("failed"); if (viewRef.current !== "viewer") dispatch({ type: "failed" }); };
@@ -68,7 +71,7 @@ export default function FigurineWorld() {
         const file = new File([blob], "collectible.glb");
         fetched.current.set(wanted.model, file);
         if (fetched.current.size > 6) fetched.current.delete(fetched.current.keys().next().value!);
-        setFiles([file]);
+        setFiles([file]); setFilesFor(wanted.model);
       } catch { if (!controller.signal.aborted) fail(); }
       finally { window.clearTimeout(timeout); }
     })();
@@ -92,7 +95,7 @@ export default function FigurineWorld() {
     if (next !== "opening" && (state.phase === "revealed" || state.phase === "error")) { setOpened(null); dispatch({ type: "reset" }); }
     if (next !== "viewer") setInspected(null);
     setHovered(null);
-    if ((next === "opening" || next === "viewer") && next !== view) setOrigin((current) => ({ ...current, [next]: view === "viewer" ? "menu" : view }));
+    if ((next === "shop" || next === "gallery") && atCentre(view)) setOrigin((current) => ({ ...current, [next]: view }));
     setView(next);
   }, [state.phase, view]);
   const back = useCallback(() => { const parent = origin[view] ?? PARENT[view]; if (parent && state.phase !== "loading" && state.phase !== "opening") navigate(parent); }, [view, state.phase, navigate, origin]);
@@ -101,7 +104,6 @@ export default function FigurineWorld() {
   function pickSeries(id: string) {
     unlockFigurineAudio();
     if (id !== seriesId || state.phase === "revealed" || state.phase === "error") { setOpened(null); dispatch({ type: "reset" }); }
-    if (view !== "opening") setOrigin((current) => ({ ...current, opening: view === "viewer" ? "menu" : view }));
     setSeriesId(id); setView("opening"); setArrival((current) => current + 1);
   }
   function open() {
@@ -115,8 +117,7 @@ export default function FigurineWorld() {
     dispatch({ type: "revealed" });
     if (drawn) { const key = figureKey(series.id, drawn.id); setOpened({ key, count: addToCollection(key) }); }
   }
-  function another() { unlockFigurineAudio(); setOpened(null); dispatch({ type: "reset" }); }
-  function inspect(key: string) { if (state.phase === "revealed" || state.phase === "error") { setOpened(null); dispatch({ type: "reset" }); } setInspected(key); if (view !== "viewer") setOrigin((current) => ({ ...current, viewer: view })); setView("viewer"); }
+  function inspect(key: string) { if (state.phase === "revealed" || state.phase === "error") { setOpened(null); dispatch({ type: "reset" }); } setInspected(key); setView("viewer"); }
   // Navigation is in the world; the keyboard mirrors it: Esc back, S shop, C collection,
   // number keys pick a series, Enter opens the sealed box.
   const onKey = useRef<(event: KeyboardEvent) => void>(() => {});
@@ -125,8 +126,8 @@ export default function FigurineWorld() {
       if (event.altKey || event.ctrlKey || event.metaKey || event.target instanceof HTMLInputElement) return;
       const key = event.key.toLowerCase();
       if (key === "escape" || key === "backspace") back();
-      else if (view === "menu" && key === "s") navigate("shop");
-      else if (view === "menu" && key === "c") navigate("gallery");
+      else if (atCentre(view) && key === "s") navigate("shop");
+      else if (atCentre(view) && key === "c") navigate("gallery");
       else if (view === "shop" && /^[1-9]$/.test(key) && FIGURINE_SERIES[Number(key) - 1]) pickSeries(FIGURINE_SERIES[Number(key) - 1].id);
       else if (view === "opening" && state.phase === "sealed" && !webglUnavailable && (key === "enter" || key === " ") && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); open(); }
     };
@@ -159,7 +160,7 @@ export default function FigurineWorld() {
       <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />{muted ? <path d="m16 9.5 5 5m0-5-5 5" /> : <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />}</svg>
       <span>{t(muted ? "soundOff" : "soundOn")}</span>
     </button>
-    <FigurineStage immersive files={files} boxMode open={view !== "viewer" && (state.phase === "opening" || state.phase === "revealed")} charging={state.phase === "loading"}
+    <FigurineStage immersive files={files} filesFor={filesFor} showing={wanted?.model ?? null} boxMode open={view !== "viewer" && (state.phase === "opening" || state.phase === "revealed")} charging={state.phase === "loading"}
       interactive={view === "opening" && state.phase === "sealed" && !webglUnavailable} round={state.round} onBoxTap={open} rotate={view === "viewer"}
       view={view} series={series.id} world={world} figureKey={drawn ? figureKey(series.id, drawn.id) : undefined}
       onNavigate={navigate} onBack={back} onPickSeries={pickSeries} onInspect={inspect} onHoverFigure={setHovered}
@@ -182,17 +183,16 @@ export default function FigurineWorld() {
           <h1>{drawn.name}</h1><p>{label(drawn)}</p>
         </> : view === "opening" && state.phase === "error" ? <><h1>{t("drawErrorTitle")}</h1><p>{t(webglUnavailable ? "webglError" : "drawError")}</p></>
           : view === "viewer" && viewing ? <><h1>{viewing.character.name}</h1><p>{label(viewing.character)}</p><p className={styles.showcaseHint}>{t("inspectFigure")}</p></>
-          : (view === "gallery" || view === "menu") && hoveredFigure ? <p className={styles.worldHint}>{collection[hovered!] ? hoveredFigure.character.name : t("notCollected")}</p>
-          : view === "gallery" || view === "menu" || view === "shop" ? null
+          : (view === "gallery" || (view === "opening" && state.phase === "sealed")) && hoveredFigure ? <p className={styles.worldHint}>{collection[hovered!] ? hoveredFigure.character.name : t("notCollected")}</p>
+          : view === "gallery" || view === "shop" ? null
           : <span className={styles.srOnly}>{t(state.phase === "loading" ? "drawLoading" : state.phase === "opening" ? "drawOpening" : "mysteryTitle")}</span>}
       </div>
       {view === "opening" && state.phase === "sealed" && <p className={styles.worldHint}>{t("pullToOpen")}</p>}
       {view === "opening" && state.phase === "error" && <div className={styles.drawActions}>
         <button ref={action} className={styles.primary} onClick={() => { unlockFigurineAudio(); setFiles([]); dispatch({ type: "retry" }); }}>{t("retryBox")}</button>
       </div>}
-      {view === "opening" && state.phase === "revealed" && <button ref={action} type="button" className={styles.newBox} onClick={another}>{t("anotherBox")}</button>}
-      {view !== "menu" && view !== "opening" && <p className={styles.showcaseHint}>{t("tapAwayHint")}</p>}
-      {view === "viewer" && !files.length && <p className={styles.showcaseHint}>{t("worldLoading")}</p>}
+      {(view === "shop" || view === "gallery") && <p className={styles.showcaseHint}>{t("tapAwayHint")}</p>}
+      {view === "viewer" && (!files.length || filesFor !== wanted?.model) && <p className={styles.showcaseHint}>{t("worldLoading")}</p>}
     </div>
   </main>;
 }

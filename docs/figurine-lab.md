@@ -319,20 +319,24 @@ Blender renders do not reproduce the viewer's additive effects exactly.
 
 ## Collectibles world
 
-`/tools/collectibles` is one 3D scene with five views and a camera that flies between them:
-main menu (overview), shop (a stall with every series' boxes), opening (the pedestal),
-collection (a lit cubby cabinet, one 4×4 grid per series) and viewer (an owned figure on
-the pedestal). There are no labels and no navigation buttons: tap any visible station (shop,
-case, pedestal) to go there, a series' boxes to open one, an owned figure to inspect it, and
-empty ground or sky to step back (or tap the station you are at). Boxes and figures can be
-picked straight from the main menu. Hovered stacks, stations, the pedestal and figures get an
-outer glow (`figurine-glow.ts`: an additive back-face shell for props, a blurred-alpha halo for
-figure cards), and "back" returns to where the pick was made. Dragging on the hub turns the
-camera around the plaza; the middle button turns every view and the wheel zooms every view.
-Auto-rotation stops while you hold the camera and eases back in 2.5 s after you let go. Station shots back off until the station's width fits the screen, so phones see the
-whole stall. Dragging sideways on the menu slides the camera. Keyboard: Esc back, S shop,
-C collection, 1-9 pick a series, Enter opens the sealed box. The only button is
-"New blind box" after a reveal (plus the sound toggle).
+`/tools/collectibles` is one 3D scene with a home and two stations. Home is the centre: the
+pedestal, seen head-on with the shop and the case at either side, holding either a sealed box
+(opening) or an inspected figure (viewer). Both share one camera, so swapping between a box
+and a figure never moves it, and returning from a station lands where the camera was left.
+The stations are the shop (a stall with every series' boxes) and the collection (a lit cubby
+cabinet, one 4×4 grid per series); the camera flies there and back in under a second.
+There are no labels and no buttons: tap a station to go there, a series' boxes to get a box,
+an owned figure to inspect it, and empty ground or the station you are at to come back. From
+home, boxes and figures can be tapped straight in the background stations. A picked box drops
+onto the pedestal with its thud, timed to land as the camera arrives. After a reveal, the next
+box comes from the shop. Hovered stacks, stations and figures get an outer glow
+(`figurine-glow.ts`: an additive back-face shell for props, a blurred-alpha halo for figure
+cards). At home the camera orbits (left or middle drag) and zooms; at stations the middle button
+turns the shot and the wheel zooms. Auto-rotation stops while you hold the camera and eases
+back in 2.5 s after you let go. Station shots back off until the station's width fits the
+screen, so phones see the whole stall. Keyboard: Esc back, S shop, C collection, 1-9 pick a
+series (in the shop), Enter opens the sealed box. The figure's name and details appear as it
+lands. The only button is the sound toggle.
 Series are registered in `frontend/src/lib/figurine-series.ts` with a box print theme
 (`PACKAGING_THEMES` in `figurine-packaging.ts`). Series 002 uses the verdigris theme.
 

@@ -26,7 +26,7 @@
 .showcaseHud button:focus-visible { outline: 2px solid #f5ddb4; outline-offset: 5px; }
 .revealIdentity { min-height: 0; max-width: 620px; text-shadow: 0 2px 18px #080d15; }
 .revealIdentity h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(24px, 4vw, 40px); line-height: 1.1; letter-spacing: -.025em; }
-.revealIdentity p { margin-top: 10px; font-size: 12px; color: #a3b0bd; }
+.revealIdentity p { margin-top: 4px; font-size: 12px; color: #a3b0bd; }
 .showcaseHint { font-size: 10px; color: #758292; letter-spacing: .06em; margin: 0; }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .showcaseHud button.tapHint { min-width: 0; min-height: 44px; padding: 10px 18px; background: none; border: 0; color: #dccaa2; font-size: 11px; letter-spacing: .28em; text-transform: uppercase; animation: hintPulse 2.4s ease-in-out infinite; }
@@ -41,7 +41,7 @@
 .soundToggle:focus-visible { outline: 2px solid #f5ddb4; outline-offset: 3px; }
 .showcase :is(.revealIdentity, .showcaseHint) { transition: opacity .4s ease; }
 .showcase[data-phase="revealed"] .revealIdentity h1 { animation: nameIn .95s cubic-bezier(.2, .75, .2, 1) both; }
-.showcase[data-phase="revealed"] .revealIdentity h1::after { content: ""; display: block; width: 140px; height: 1px; margin: 12px auto 0; background: linear-gradient(90deg, transparent, #e2c492, transparent); animation: ruleIn .9s .3s ease-out both; }
+.showcase[data-phase="revealed"] .revealIdentity h1::after { content: ""; display: block; width: 140px; height: 1px; margin: 6px auto 0; background: linear-gradient(90deg, transparent, #e2c492, transparent); animation: ruleIn .9s .3s ease-out both; }
 .showcase[data-phase="revealed"] .revealIdentity p { animation: identityIn .6s .45s ease-out both; }
 @keyframes nameIn { from { opacity: 0; letter-spacing: .3em; filter: blur(10px); color: #fff6df; text-shadow: 0 0 28px #ffd88a; } 60% { opacity: 1; } to { opacity: 1; letter-spacing: -.025em; filter: blur(0); } }
 @keyframes ruleIn { from { opacity: 0; transform: scaleX(0); } to { opacity: 1; transform: scaleX(1); } }
