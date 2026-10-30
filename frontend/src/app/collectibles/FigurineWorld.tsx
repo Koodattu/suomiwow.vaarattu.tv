@@ -2,16 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
+import Image from "next/image";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { boxReducer, chooseFigure, initialBox } from "@/lib/figurine-box";
 import { prefetchFigurineAudio, preloadFigurineSignature, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { addToCollection, emptyCollection, readCollection, subscribeCollection } from "@/lib/figurine-collection";
 import { ALL_QUIPS, FIGURINE_SERIES, figureKey, figureQuip, findFigure, findSeries, type FigurineCharacter } from "@/lib/figurine-series";
-import type { StageWorld, WorldView } from "../figurine-lab/FigurineStage";
-import styles from "../figurine-lab/figurine-lab.module.css";
+import type { StageWorld, WorldView } from "@/app/tools/figurine-lab/FigurineStage";
+import styles from "@/app/tools/figurine-lab/figurine-lab.module.css";
 import SoundMenu from "./SoundMenu";
 
-const FigurineStage = dynamic(() => import("../figurine-lab/FigurineStage"), { ssr: false });
+const FigurineStage = dynamic(() => import("@/app/tools/figurine-lab/FigurineStage"), { ssr: false });
 const pad = (number: number) => String(number).padStart(3, "0");
 // Where "back" leads: stations return to the centre (to whichever of its views they were left from).
 const PARENT: Record<WorldView, WorldView | null> = { shop: "opening", gallery: "opening", opening: null, viewer: "opening" };
@@ -19,6 +21,7 @@ const atCentre = (view: WorldView) => view === "opening" || view === "viewer";
 
 export default function FigurineWorld() {
   const t = useTranslations("figurineLab");
+  const nav = useTranslations("ccg.nav");
   const [view, setView] = useState<WorldView>("opening");
   const [seriesId, setSeriesId] = useState(FIGURINE_SERIES[0].id);
   const [state, dispatch] = useReducer(boxReducer, initialBox);
@@ -128,7 +131,7 @@ export default function FigurineWorld() {
       else if (atCentre(view) && key === "s") navigate("shop");
       else if (atCentre(view) && key === "c") navigate("gallery");
       else if (view === "shop" && /^[1-9]$/.test(key) && FIGURINE_SERIES[Number(key) - 1]) pickSeries(FIGURINE_SERIES[Number(key) - 1].id);
-      else if (view === "opening" && state.phase === "sealed" && !webglUnavailable && (key === "enter" || key === " ") && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); open(); }
+      else if (view === "opening" && state.phase === "sealed" && !webglUnavailable && (key === "enter" || key === " ") && !(event.target instanceof Element && event.target.closest("button, a"))) { event.preventDefault(); open(); }
     };
   });
   useEffect(() => {
@@ -154,6 +157,9 @@ export default function FigurineWorld() {
   const hoveredFigure = hovered ? findFigure(hovered) : null;
 
   return <main className={styles.showcase} data-phase={state.phase} data-view={view}>
+    <Link href="/" className={styles.worldHomeLink} aria-label={nav("backToMain")}>
+      <Image src="/logo.png" alt="SuomiWoW" width={112} height={51} priority />
+    </Link>
     <SoundMenu />
     <FigurineStage immersive files={files} filesFor={filesFor} showing={wanted?.model ?? null} boxMode open={view !== "viewer" && (state.phase === "opening" || state.phase === "revealed")} charging={state.phase === "loading"}
       interactive={view === "opening" && state.phase === "sealed" && !webglUnavailable} round={state.round} onBoxTap={open} rotate={view === "viewer" || view === "opening"} ready={revealedWorld}

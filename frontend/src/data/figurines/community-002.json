@@ -39,7 +39,7 @@
         "animationId": 67,
         "variation": 0,
         "name": "EmoteWave",
-        "durationMs": 2500,
+        "durationMs": 2667,
         "timeMs": 700
       },
       "weapons": "sheathed",
@@ -48,15 +48,19 @@
       "fetchedAt": "2026-10-29T21:26:59.040Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/stormreaver/128/172573568-main-raw.png",
       "model": "/figurines/community-002/eppugrip.glb",
-      "bytes": 2012908,
-      "sha256": "53393b21a620e6beac7d43d7012015f3bc605bb798f54729515bdd084217c4ea",
+      "bytes": 875404,
+      "sha256": "2e70f1c679a9c940bafd56edae58bf287344f72011e6784719cfb98f2d8414a9",
       "source": "sources/eppugrip.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "dracthyr",
       "classKey": "priest",
-      "authoringSeries": "community-repairs-001"
+      "authoringSeries": "community-visage-001",
+      "form": {
+        "type": "visage",
+        "modelFileDataId": 4220448
+      }
     },
     {
       "id": "zetabeach",
@@ -126,7 +130,7 @@
         "animationId": 68,
         "variation": 0,
         "name": "EmoteCheer",
-        "durationMs": 2000,
+        "durationMs": 2334,
         "timeMs": 700
       },
       "weapons": "sheathed",
@@ -135,15 +139,19 @@
       "fetchedAt": "2026-10-29T21:26:59.579Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/203/210710987-main-raw.png",
       "model": "/figurines/community-002/zetacmi.glb",
-      "bytes": 2031584,
-      "sha256": "ef299123b752d4c9036441503b79fae8897f0455f8412f6b53b750c750296395",
+      "bytes": 1367568,
+      "sha256": "a215f7b459da47f4c9f3594c13b08b65719d02a8c0000a0a7a0dcf3621e4c2da",
       "source": "sources/zetacmi.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "dracthyr",
       "classKey": "priest",
-      "authoringSeries": "community-repairs-001"
+      "authoringSeries": "community-visage-001",
+      "form": {
+        "type": "visage",
+        "modelFileDataId": 4220448
+      }
     },
     {
       "id": "hirvihotline",
@@ -387,56 +395,58 @@
       "authoringSeries": "community-repairs-001"
     },
     {
-      "id": "preazhy",
-      "name": "Preazhy",
-      "realm": "Draenor",
+      "id": "rookiheal",
+      "name": "Röökiheal",
+      "realm": "Kazzak",
       "pose": {
-        "animationId": 97,
+        "animationId": 83,
         "variation": 0,
-        "name": "SitGround",
-        "durationMs": 1833,
-        "timeMs": 750
+        "name": "EmoteShy",
+        "durationMs": 3167,
+        "timeMs": 1500
       },
       "weapons": "sheathed",
       "race": "Night Elf",
-      "characterClass": "Druid",
-      "fetchedAt": "2026-10-29T21:27:01.087Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/draenor/92/179370844-main-raw.png",
-      "model": "/figurines/community-002/preazhy.glb",
-      "bytes": 736304,
-      "sha256": "1e8ea3e6be4982388b6ed69b66d1e752452d97d53446854fb2c81db0a04fe11c",
-      "source": "sources/preazhy.json",
+      "characterClass": "Priest",
+      "fetchedAt": "2026-10-30T14:35:12.707Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/75/215402571-main-raw.png",
+      "model": "/figurines/community-002/rookiheal.glb",
+      "bytes": 1172720,
+      "sha256": "41a795f5d070a6a8fcb2318d51863d9024ad1281e096e299b23d8cd5e3286bd2",
+      "source": "sources/rookiheal.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
+      "authoringSeries": "community-roster-refresh-001",
       "raceKey": "nightElf",
-      "classKey": "druid"
+      "classKey": "priest"
     },
     {
-      "id": "mullinmallin",
-      "name": "Mullinmallin",
-      "realm": "Kazzak",
+      "id": "galardodric",
+      "name": "Galardodric",
+      "realm": "Outland",
       "pose": {
-        "animationId": 82,
+        "animationId": 70,
         "variation": 0,
-        "name": "EmoteFlex",
-        "durationMs": 2533,
-        "timeMs": 900
+        "name": "EmoteLaugh",
+        "durationMs": 3000,
+        "timeMs": 1100
       },
-      "weapons": "held",
-      "race": "Nightborne",
-      "characterClass": "Warrior",
-      "fetchedAt": "2026-10-29T21:27:01.259Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/82/212741202-main-raw.png",
-      "model": "/figurines/community-002/mullinmallin.glb",
-      "bytes": 690488,
-      "sha256": "22e028ada4a756fc2b8516a7fc7887e09cddada68626c1cd2f4058454b1f9675",
-      "source": "sources/mullinmallin.json",
+      "weapons": "sheathed",
+      "race": "Void Elf",
+      "characterClass": "Warlock",
+      "fetchedAt": "2026-10-30T14:35:12.702Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/139/128489355-main-raw.png",
+      "model": "/figurines/community-002/galardodric.glb",
+      "bytes": 562028,
+      "sha256": "c98085ff92043d6384dabd68604343cefeed151d6d4d0a10779726084148ead3",
+      "source": "sources/galardodric.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
-      "raceKey": "nightborne",
-      "classKey": "warrior"
+      "authoringSeries": "community-roster-refresh-002",
+      "raceKey": "voidElf",
+      "classKey": "warlock"
     }
   ],
   "compression": {

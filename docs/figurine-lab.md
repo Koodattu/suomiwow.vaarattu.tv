@@ -1,15 +1,16 @@
 # Local collectible prototypes
 
-All three pages are development-only:
-- `/tools/collectibles`: focused blind-box opening and figure reveal.
-- `/tools/collectibles/gallery`: one entry per character, pose/time, weapon state,
+The game is available by direct link only while it is a work in progress:
+- `/collectibles`: focused blind-box opening and figure reveal, with an image-only
+  SuomiWoW logo in the top left that returns to the main site.
+- `/collectibles/gallery`: development-only; one entry per character, pose/time, weapon state,
   size, and orbit controls. At most six nearby previews use GPU contexts.
-- `/tools/figurine-lab`: EU lookup, Blizzard reference image, appearance JSON,
+- `/tools/figurine-lab`: development-only; EU lookup, Blizzard reference image, appearance JSON,
   local GLB/glTF import, and the original workbench.
 
 Start the frontend with its normal `npm run dev` and supported Node version.
-The pages and `/api/figurine-lab/character` return 404 outside development.
-There are no navigation entries or production configuration changes.
+The gallery, workbench, and `/api/figurine-lab/character` return 404 outside development.
+Collectibles has no public navigation entries or sitemap entry and uses `noindex, nofollow`.
 
 ## Current series
 
@@ -22,22 +23,45 @@ There are 16 unique characters, including Ovelakettu–Kazzak (Chipiepew was dro
 | --- | --- | --- |
 | Röidy–Kazzak | Cheer, 900 ms | Held |
 | Yolobolt–Kazzak | Roar, 1200 ms | Held |
-| Laku–Stormreaver | SitGround, 750 ms | Sheathed |
-| Melice–Kazzak | Laugh, 1100 ms | Sheathed |
+| Laku–Stormreaver | WALean01, 0 ms | Hidden |
+| Jannu–Kazzak | Point, 900 ms | Sheathed |
 | Vesipuhveli–Khadgar | Flex, 1000 ms | Sheathed |
 | Turrilol–Kazzak | Dance, 2500 ms | Sheathed |
 | Karstinen–Tarren Mill | Salute, 800 ms | Sheathed |
-| Manfromsand–Stormreaver | Point, 900 ms | Sheathed |
+| Kahvishock–Kazzak | Roar, 1000 ms | Sheathed |
 | Stablol–Kazzak | Rude, 900 ms | Sheathed |
 | Suursmurffi–Kazzak | Shy, 1800 ms | Sheathed |
 | Rmp–Outland | Lean, 2000 ms | Sheathed |
-| Rhagy–Kazzak | Roar, 1400 ms | Sheathed |
-| Boxx–Stormreaver | Cheer, 400 ms | Sheathed |
+| Violetmw–Kazzak | Wave, 800 ms | Sheathed |
+| Shippyboi–Outland | Salute, 800 ms | Sheathed |
 | Abiw–Kazzak | Flex, 1000 ms | Sheathed |
 | Chipie–Stormreaver | Kiss, 900 ms | Sheathed |
 | Ovelakettu–Kazzak | Lean, 1600 ms | Sheathed |
 
+The 2026-10-30 roster refresh replaces Rhagy, Preazhy, Mullinmallin,
+Manfromsand, Melice, and Boxx with Violetmw, Röökiheal, Galardodric,
+Kahvishock, Jannu, and Shippyboi respectively, retaining their box and slot.
+There are still 16 figures in each box. Frozen appearances and exports are in
+`community-roster-refresh-001` and `community-roster-refresh-002`; each new
+catalog entry identifies its batch. All six use sheathed weapons. Röökiheal
+uses Shy at 1500 ms; Galardodric uses Laugh at 1100 ms. The first-box poses are
+listed above. Both silhouette sheets and canonical authoring recipes match
+this roster. Retired models are removed from the active public asset folders;
+historical authoring batches remain intact.
+
+All six replacement GLBs passed decoded validation with zero errors/warnings,
+and front/back Blender renders were checked against their Armory references.
+Texture settings remain WebP 89 with a 2048-pixel cap. Box 1 now totals
+13,916,292 bytes; box 2 totals 16,248,556 bytes. Review renders are under
+`.codex-runtime/roster-update/`. Full WoW particle/shader parity remains outside
+the current exporter; Blender also differs from the web viewer's additive effects.
+
 These are static poses baked from game animations, not animated character rigs.
+Laku's updated batch is `community-laku-lean-002`: WALean01 (1260, variation 0)
+at 0 ms, with the weapon completely hidden and hands open. It reuses the frozen
+appearance snapshot; the 556,224-byte model passed decoded validation with no
+errors or warnings, and front/back Blender renders confirm the pose and absent
+weapon. The first box's silhouette sheet was rebuilt with this pose.
 The box/reveal animation runs independently. Each draw is uniform with replacement;
 loading and opening lock the result, retry keeps the chosen character, and reset
 conceals it. Identity appears after the figure lands on the disc. Reduced motion
@@ -61,7 +85,7 @@ decoded geometry, saves provenance, and stops the container. It requires several
 GB during authoring. No exporter runs on the VM.
 
 Each selection entry has `id`, EU `name`/`realm`, `pose`
-(`animationId`, `variation`, `timeMs`), and `weapons: "held" | "sheathed"`.
+(`animationId`, `variation`, `timeMs`), and `weapons: "held" | "sheathed" | "hidden"`.
 Use a new authoring series ID for each batch; builds never overwrite old series.
 Current source snapshots and full export records are retained under
 `E:\Projektit\wow.export\worker\data\series\community-posed-005`.
@@ -165,11 +189,11 @@ Blender front/back checks verified Röidy's fitted cloak/boots and frozen poses.
 These are reviewed prototypes, not a guarantee of parity for every WoW item,
 shader, race, or pose. Funko-style proportions are not implemented.
 
-## Upcoming box 2
+## Box 2
 
 The separate catalog is `frontend/src/data/figurines/community-002.json`, with
 models under `frontend/public/figurines/community-002/`. Its `releaseState` is
-`upcoming`; neither the opening page nor the gallery imports it. The exporter
+`upcoming`; both boxes are registered in the current collectible prototype. The exporter
 recipe is `E:\Projektit\wow.export\worker\series.community-002.json`. The catalog's
 `authoringSeries` identifies the frozen batch with full appearance snapshots,
 export details, compression results, and validation reports.
@@ -195,8 +219,8 @@ first box. No database records were changed.
 | Kuurankukká | Twisting Nether | Kiss | Sheathed |
 | Raggè | Twisting Nether | Sit | Sheathed |
 | Chipi | Stormreaver | Wave | Sheathed |
-| Preazhy | Draenor | Sit | Sheathed |
-| Mullinmallin | Kazzak | Flex | Held |
+| Röökiheal | Kazzak | Shy | Sheathed |
+| Galardodric | Outland | Laugh | Sheathed |
 
 Chipi is a paladin, distinct from Chipie the priest retained in box 1. Chipiepew
 is excluded from both catalogs and removed from the first authoring recipe;
@@ -290,6 +314,20 @@ snapshot replay helpers are stopped.
 
 ## Appearance repair audit (2026-10-30)
 
+Collectible form policy: non-Evoker Dracthyr default to their humanoid visage;
+Evokers default to their Dracthyr form. This is resolved from race/class in the
+local exporter, so future series inherit it without name-specific rules. A recipe
+entry can explicitly set `"form": "dracthyr"` or `"form": "visage"` to override
+the default for that character. Other races and the existing druid cat selection
+are unaffected. Export provenance records the resolved form and model file ID.
+
+Eppugrip and Zetacmi in box 2 were rebuilt from their frozen appearances in
+`community-visage-001`, preserving transmog and emotes. Both exports retain all
+26 selected visage customizations, have zero export/validation warnings, and
+were visually checked in Blender. Their compressed models are 875,404 and
+1,367,568 bytes respectively. Their collection silhouettes were regenerated;
+Morinicar remains in Dracthyr form as an Evoker.
+
 Audited the back geometry/materials of all 32 figures and rendered both complete
 lineups from behind. Eleven classic cloaks were incorrectly using the character
 atlas: Yolobolt, Melice, Turrilol, Suursmurffi, Rhagy, Ovelakettu, Hirvihotline,
@@ -324,7 +362,7 @@ Blender renders do not reproduce the viewer's additive effects exactly.
 
 ## Collectibles world
 
-`/tools/collectibles` is one 3D scene with a home and two stations. Home is the centre: the
+`/collectibles` is one 3D scene with a home and two stations. Home is the centre: the
 pedestal, seen head-on with the shop and the case at either side, holding either a sealed box
 (opening) or an inspected figure (viewer). Both share one camera, so swapping between a box
 and a figure never moves it, and returning from a station lands where the camera was left.

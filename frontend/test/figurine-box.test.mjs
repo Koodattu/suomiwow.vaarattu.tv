@@ -103,11 +103,12 @@ test("catalog serves complete embedded GLBs below the 2 MB per-character budget"
 test("the series retains the requested poses and weapon placement", async () => {
   const catalog = JSON.parse(await readFile(new URL("../src/data/figurines/community-001.json", import.meta.url)));
   assert.equal(catalog.characters.find(c => c.id === "stablol").weapons, "sheathed");
-  for (const [id, animationId, weapons] of [["roidy", 68, "held"], ["yolobolt", 74, "held"], ["laku", 97, "sheathed"], ["suursmurffi", 83, "sheathed"], ["turrilol", 69, "sheathed"], ["ovelakettu", 1260, "sheathed"]]) {
+  for (const [id, animationId, weapons, timeMs] of [["roidy", 68, "held", 900], ["yolobolt", 74, "held", 1200], ["laku", 1260, "hidden", 0], ["suursmurffi", 83, "sheathed", 1800], ["turrilol", 69, "sheathed", 2500], ["ovelakettu", 1260, "sheathed", 1600]]) {
     const figure = catalog.characters.find(c => c.id === id);
     assert.equal(figure.pose.animationId, animationId);
     assert.equal(figure.weapons, weapons);
-    assert.ok(figure.pose.timeMs > 0 && figure.pose.timeMs < figure.pose.durationMs);
+    assert.equal(figure.pose.timeMs, timeMs);
+    assert.ok(figure.pose.timeMs < figure.pose.durationMs);
   }
 });
 

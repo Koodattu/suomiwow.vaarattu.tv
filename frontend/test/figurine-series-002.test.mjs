@@ -27,6 +27,17 @@ test("upcoming box 2 contains 16 distinct characters and intact posed models at 
   assert.equal(cat.pose.animationId, 69);
   assert.equal(cat.pose.timeMs, cat.pose.durationMs / 2);
 
+  // These priests use their selected humanoid appearance; Morinicar stays an Evoker dragon.
+  for (const id of ["eppugrip", "zetacmi"]) {
+    const character = series.characters.find((entry) => entry.id === id);
+    assert.equal(character.form.type, "visage", id);
+    assert.equal(character.form.modelFileDataId, 4220448, id);
+    const bytes = await readFile(new URL(`../public${character.model}`, import.meta.url));
+    const gltf = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString());
+    assert.ok(gltf.nodes.some((node) => node.name === "dracthyrfemale"), id);
+  }
+  assert.notEqual(series.characters.find((entry) => entry.id === "morinicar").form?.type, "visage");
+
   for (const entry of series.characters) {
     assert.match(entry.model, /^\/figurines\/community-002\/[a-z-]+\.glb$/);
     assert.ok(entry.pose.timeMs > 0 && entry.pose.timeMs < entry.pose.durationMs, entry.id);

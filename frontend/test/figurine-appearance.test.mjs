@@ -23,7 +23,7 @@ test("every visible classic cape uses its standalone cloak texture", async () =>
       }
     }
   }
-  assert.deepEqual(capes.sort(), ["yolobolt", "melice", "turrilol", "suursmurffi", "rhagy", "ovelakettu", "hirvihotline", "tonza", "jampton", "mightyhuu", "kuurankukka"].sort());
+  assert.deepEqual(capes.sort(), ["yolobolt", "turrilol", "suursmurffi", "ovelakettu", "hirvihotline", "tonza", "jampton", "mightyhuu", "kuurankukka", "violetmw", "rookiheal", "shippyboi"].sort());
 });
 
 test("Chipi retains exposed feet alongside her boot collection mesh", async () => {
