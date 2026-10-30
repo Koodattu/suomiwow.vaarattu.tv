@@ -107,7 +107,7 @@ export function buildCase(parent: THREE.Group, { series, labels, envMap }: { ser
       const row = ROWS - 1 - Math.floor(slot / COLUMNS), column = slot % COLUMNS;
       const floor = BASE + FRAME + row * (CELL_H + FRAME), x = centre - SECTION_W / 2 + FRAME + CELL_W / 2 + column * (CELL_W + FRAME);
       const cell = sheet.clone();
-      cell.repeat.set(1 / SHEET_COLUMNS, 0.5); cell.offset.set((slot % SHEET_COLUMNS) / SHEET_COLUMNS, 1 - (Math.floor(slot / SHEET_COLUMNS) + 1) * 0.5);
+      cell.repeat.set(1 / SHEET_COLUMNS, 1 / SILHOUETTE.rows); cell.offset.set((slot % SHEET_COLUMNS) / SHEET_COLUMNS, 1 - (Math.floor(slot / SHEET_COLUMNS) + 1) / SILHOUETTE.rows);
       const material = new THREE.MeshBasicMaterial({ map: cell, color: 0x000000, transparent: true, alphaTest: 0.35 });
       const card = new THREE.Mesh(cardGeometry, material);
       card.position.set(x, floor, 0.02); card.userData.figure = key; parent.add(card);

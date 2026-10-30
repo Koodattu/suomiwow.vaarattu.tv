@@ -17,6 +17,7 @@ import { buildShop, type ShopLabels } from "@/lib/figurine-shop";
 import { buildCase, type CaseLabels } from "@/lib/figurine-case";
 import { buildPedestal, PEDESTAL_TOP } from "@/lib/figurine-pedestal";
 import { hoverOutline } from "@/lib/figurine-glow";
+import { warmFigurineScene } from "@/lib/figurine-warmup";
 import styles from "./figurine-lab.module.css";
 
 export type { WorldView };
@@ -166,8 +167,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     controls.enablePan = !immersive;
     controls.autoRotateSpeed = 0.65;
     // Auto-rotation yields to the user: it stops on grab and, a while after release, eases back in.
-    // Negative turns the camera rightwards, carrying on the opening shot's sweep.
-    const AUTO_ROTATE_SPEED = -0.6, AUTO_ROTATE_DELAY = 2.5; // about 3.4° a second
+    // Positive turns the camera leftwards.
+    const AUTO_ROTATE_SPEED = 0.6, AUTO_ROTATE_DELAY = 2.5; // about 3.4° a second
     let userOrbit = { holding: false, released: -Infinity }, autoRotate = 0;
     controls.addEventListener("start", () => { userOrbit = { holding: true, released: -Infinity }; autoRotate = 0; });
     controls.addEventListener("end", () => { userOrbit = { holding: false, released: performance.now() }; });
@@ -222,6 +223,11 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       series: worldSetup.series.map((entry) => ({ id: entry.id, number: entry.number, accent: accentOf(entry), silhouettes: entry.silhouettes, keys: entry.keys })),
       labels: worldSetup.labels, envMap: environment,
     }) : null;
+    // Camera occlusion hides station meshes, but must not change the scene's light count:
+    // removing a light recompiles every lit material during the opening camera sweep.
+    const stationLights: THREE.Light[] = [];
+    caseGroup?.traverse((object) => { if (object instanceof THREE.Light) stationLights.push(object); });
+    stationLights.forEach((light) => scene.attach(light));
     // Stations glow faintly under the pointer; their own textures light up, so prints stay legible.
     const glowing = new Map<WorldView, THREE.MeshStandardMaterial[]>();
     for (const [group, view] of [[shopGroup, "shop"], [caseGroup, "gallery"]] as const) {
@@ -274,7 +280,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       renderer.setRenderTarget(null); renderer.setClearAlpha(alpha);
       if (parent) parent.add(object); else portraitScene.remove(object);
       portraits.get(key)?.dispose(); portraits.set(key, target);
-      cabinet?.setSlot(key, "owned", target.texture);
+      // A sealed box can prepare its portrait without revealing an uncollected figure.
+      if (owned[key]) cabinet?.setSlot(key, "owned", target.texture);
     };
     let owned: Readonly<Record<string, number>> = {};
     const portraitQueue: string[] = [];
@@ -541,23 +548,19 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         }
         const idle = gltf.animations.find((clip) => /stand|idle/i.test(clip.name));
         if (idle) { mixer = new THREE.AnimationMixer(model); mixer.clipAction(idle).play(); }
-        // Upload textures and compile shaders now, while the box is still charging, not on the burst frame.
+        // Prepare the actual first draws while sealed, including the collection portrait.
         textures.forEach((texture) => renderer.initTexture(texture));
-        await precompile();
-        // Also its portrait shaders, used when it joins the case. Portraits render off-screen, which
-        // selects different shader variants (no tone mapping), so compile with a target bound.
-        if (immersive && cabinet) {
-          renderer.setRenderTarget(compileTarget);
-          const compiled = renderer.compileAsync(model, portraitCamera, portraitScene).catch(() => undefined);
-          renderer.setRenderTarget(null);
-          await compiled;
+        if (immersive && cabinet && loading) {
+          const entry = worldRef.current?.series.find((entry) => entry.models.includes(loading));
+          const key = entry?.keys[entry.models.indexOf(loading)];
+          if (key && !portraits.has(key)) capture(model, key);
         }
-        if (disposed || generation !== current) return;
+        if (!await warmFigurineScene(renderer, scene, camera, compileTarget, () => !disposed && generation === current)) return;
         setStatus("ready");
       } catch { if (!disposed && generation === current) setStatus("error"); }
       finally { objects.forEach((url) => { URL.revokeObjectURL(url); pendingUrls.delete(url); }); }
     };
-    // compile() skips hidden objects, so briefly reveal everything the reveal will show.
+    // Include hidden lights as well as the materials of the reveal effects.
     const precompile = () => {
       const revealed: THREE.Object3D[] = [];
       scene.traverse((object) => { if (!object.visible) { revealed.push(object); object.visible = true; } });
@@ -587,7 +590,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           for (const value of Object.values(material)) if (value instanceof THREE.Texture) textures.add(value);
       });
       textures.forEach((texture) => renderer.initTexture(texture));
-      await precompile();
+      await warmFigurineScene(renderer, scene, camera, compileTarget, () => !disposed);
       if (!disposed) { callbacks.current.onProgress?.(1); callbacks.current.onLoaded?.(); }
     })();
     loaderState.current = { load: (selected) => { void load(selected); } };
@@ -886,12 +889,6 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const landed = immersive ? bursting && burst >= LAND_AT + 0.12 : finished;
       if (current.open && landed && !notifiedReveal) {
         notifiedReveal = true; callbacks.current.onRevealed?.();
-        // The case portrait waits for an idle moment, so the reveal's last frame never stalls.
-        if (model && current.figureKey && cabinet) {
-          const figure = model, key = current.figureKey;
-          const later = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 400));
-          later(() => { if (!disposed && model === figure) capture(figure, key); }, { timeout: 1500 });
-        }
       }
       if (immersive) {
         const building = active && !bursting;

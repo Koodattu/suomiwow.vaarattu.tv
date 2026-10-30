@@ -31,7 +31,7 @@ const random = (seed: number) => () => { seed = (seed + 0x6d2b79f5) | 0; let t =
 type Print = { color: CanvasRenderingContext2D; finish: CanvasRenderingContext2D; w: number; h: number };
 type Sheet = HTMLImageElement | null;
 // Layout of scripts/bake-figurine-silhouettes.mjs: catalog order, 8 columns of 280×360 cells, feet on the bottom edge.
-export const SILHOUETTE = { columns: 8, w: 280, h: 360 };
+export const SILHOUETTE = { columns: 8, rows: 2, w: 280, h: 360 };
 function canvas(w: number, h: number) {
   const element = document.createElement("canvas");
   element.width = w; element.height = h;
@@ -74,8 +74,10 @@ function hero(context: CanvasRenderingContext2D, cx: number, top: number, size: 
 // A baked character silhouette, bottom-centred at (cx, base); falls back to the generic figure until the sheet loads.
 function figure(context: CanvasRenderingContext2D, sheet: Sheet, index: number, cx: number, base: number, height: number) {
   if (!sheet) { hero(context, cx, base - height, height); return; }
-  const width = height * SILHOUETTE.w / SILHOUETTE.h;
-  context.drawImage(sheet, (index % SILHOUETTE.columns) * SILHOUETTE.w, Math.floor(index / SILHOUETTE.columns) * SILHOUETTE.h, SILHOUETTE.w, SILHOUETTE.h, cx - width / 2, base - height, width, height);
+  // Crop the loaded atlas, including older cached sheets with narrower cells.
+  const cellW = sheet.naturalWidth / SILHOUETTE.columns, cellH = sheet.naturalHeight / SILHOUETTE.rows;
+  const width = height * cellW / cellH;
+  context.drawImage(sheet, (index % SILHOUETTE.columns) * cellW, Math.floor(index / SILHOUETTE.columns) * cellH, cellW, cellH, cx - width / 2, base - height, width, height);
 }
 function roundedRect(context: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   context.beginPath(); context.roundRect(x, y, w, h, r);
