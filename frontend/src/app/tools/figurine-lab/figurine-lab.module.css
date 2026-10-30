@@ -133,3 +133,18 @@
 .worldLoaderBar { width: min(260px, 60vw); height: 3px; border-radius: 2px; background: rgba(233, 217, 176, .15); overflow: hidden; }
 .worldLoaderBar i { display: block; height: 100%; background: linear-gradient(90deg, #b98a3f, #f1d48a); transition: width .3s ease; }
 @media (prefers-reduced-motion: reduce) { .worldLoader, .worldLoaderBar i { transition: none; } }
+/* World sound menu: a quiet icon-and-label button that opens volume and voice-line settings. */
+.soundMenu { position: absolute; z-index: 4; top: max(16px, env(safe-area-inset-top)); right: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.soundButton { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 6px 8px; border: 0; border-radius: 6px; background: none; color: rgba(238, 226, 200, .62); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; text-shadow: 0 1px 8px rgba(0, 0, 0, .7); cursor: pointer; transition: color .15s; }
+.soundButton svg { filter: drop-shadow(0 1px 4px rgba(0, 0, 0, .6)); }
+.soundButton:hover, .soundButton[aria-expanded="true"] { color: #f3e3bf; }
+.soundButton:focus-visible, .soundSwitch:focus-visible { outline: 2px solid #f5ddb4; outline-offset: 2px; }
+.soundPanel { width: 236px; display: grid; gap: 14px; padding: 14px; border: 1px solid rgba(214, 187, 134, .26); border-radius: 8px; background: rgba(12, 16, 22, .86); backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0, 0, 0, .35); color: #e9dcc0; font-size: 12px; animation: identityIn .18s ease-out both; }
+.soundRow { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 10px; }
+.soundRow input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: #d6bb86; cursor: pointer; }
+.soundRow[data-off="true"] > span, .soundRow[data-off="true"] input { opacity: .45; }
+.soundSwitch { position: relative; width: 34px; height: 20px; padding: 0; border: 1px solid rgba(214, 187, 134, .4); border-radius: 999px; background: rgba(255, 255, 255, .08); cursor: pointer; transition: background .15s; }
+.soundSwitch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #8d8574; transition: transform .15s, background .15s; }
+.soundSwitch[aria-checked="true"] { background: rgba(214, 187, 134, .32); }
+.soundSwitch[aria-checked="true"]::after { transform: translateX(14px); background: #f1d48a; }
+@media (prefers-reduced-motion: reduce) { .soundPanel { animation: none; } .soundButton, .soundSwitch, .soundSwitch::after { transition: none; } }

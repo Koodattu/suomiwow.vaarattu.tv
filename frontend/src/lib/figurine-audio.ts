@@ -42,8 +42,10 @@ const MAX_LATENCY_MS = 220;
 const LOOP_TRIM = 0.05;
 
 export const FIGURINE_AUDIO_MUTED_KEY = "suomiwow-figurine-audio-muted";
+const FIGURINE_AUDIO_SETTINGS_KEY = "suomiwow-figurine-audio-settings";
 let context: AudioContext | null = null;
-let master: GainNode | null = null;
+// Everything plays into `master`; quips go through their own bus first, so they can be set apart.
+let master: GainNode | null = null, quipBus: GainNode | null = null;
 const buffers = new Map<string, Promise<AudioBuffer | null>>();
 // Downloaded file bytes, kept so decoding never waits on the network (and survives a new context).
 const downloads = new Map<string, Promise<ArrayBuffer | null>>();
@@ -66,14 +68,34 @@ export function prefetchFigurineAudio(classKeys: readonly string[], quipFiles: r
   return Promise.all(files.map((file) => download(file).then(() => onProgress?.(++done / files.length)))).then(() => undefined);
 }
 
-export function getFigurineAudioMuted(): boolean {
-  try { return window.localStorage.getItem(FIGURINE_AUDIO_MUTED_KEY) === "1"; } catch { return false; }
+// Volumes are 0..1 slider positions; gains follow their square, closer to how loudness is heard.
+export type FigurineAudioSettings = { muted: boolean; volume: number; quipsMuted: boolean; quipVolume: number };
+export function getFigurineAudioSettings(): FigurineAudioSettings {
+  const unit = (value: unknown) => typeof value === "number" && value >= 0 && value <= 1 ? value : 1;
+  try {
+    const stored: Partial<Record<keyof FigurineAudioSettings, unknown>> | null = JSON.parse(window.localStorage.getItem(FIGURINE_AUDIO_SETTINGS_KEY) ?? "null");
+    // The earlier mute-only preference still counts until settings are saved.
+    const muted = typeof stored?.muted === "boolean" ? stored.muted : window.localStorage.getItem(FIGURINE_AUDIO_MUTED_KEY) === "1";
+    return { muted, volume: unit(stored?.volume), quipsMuted: stored?.quipsMuted === true, quipVolume: unit(stored?.quipVolume) };
+  } catch { return { muted: false, volume: 1, quipsMuted: false, quipVolume: 1 }; }
+}
+function applySettings({ muted, volume, quipsMuted, quipVolume }: FigurineAudioSettings) {
+  if (!context || !master || !quipBus) return;
+  master.gain.setTargetAtTime(muted ? 0 : volume ** 2, context.currentTime, 0.03);
+  quipBus.gain.setTargetAtTime(quipsMuted ? 0 : quipVolume ** 2, context.currentTime, 0.03);
+}
+export function setFigurineAudioSettings(next: Partial<FigurineAudioSettings>): FigurineAudioSettings {
+  const settings = { ...getFigurineAudioSettings(), ...next };
+  try {
+    window.localStorage.setItem(FIGURINE_AUDIO_SETTINGS_KEY, JSON.stringify(settings));
+    window.localStorage.setItem(FIGURINE_AUDIO_MUTED_KEY, settings.muted ? "1" : "0");
+  } catch { /* preferences are optional */ }
+  applySettings(settings);
+  return settings;
 }
 
-export function setFigurineAudioMuted(muted: boolean): void {
-  try { window.localStorage.setItem(FIGURINE_AUDIO_MUTED_KEY, muted ? "1" : "0"); } catch { /* preference is optional */ }
-  if (context && master) master.gain.setTargetAtTime(muted ? 0 : 1, context.currentTime, 0.03);
-}
+export function getFigurineAudioMuted(): boolean { return getFigurineAudioSettings().muted; }
+export function setFigurineAudioMuted(muted: boolean): void { setFigurineAudioSettings({ muted }); }
 
 function load(file: string): Promise<AudioBuffer | null> {
   const cached = buffers.get(file);
@@ -95,9 +117,10 @@ export function unlockFigurineAudio(): void {
     const limiter = context.createDynamicsCompressor();
     limiter.threshold.value = -6; limiter.knee.value = 6; limiter.ratio.value = 12;
     limiter.attack.value = 0.002; limiter.release.value = 0.15;
-    master = context.createGain();
-    master.gain.value = getFigurineAudioMuted() ? 0 : 1;
+    master = context.createGain(); master.gain.value = 0;
     master.connect(limiter).connect(context.destination);
+    quipBus = context.createGain(); quipBus.gain.value = 0; quipBus.connect(master);
+    applySettings(getFigurineAudioSettings());
     buffers.clear();
     Object.values(FIGURINE_SOUNDS).forEach(({ files }) => files.forEach((file) => void load(file)));
   }
@@ -115,8 +138,8 @@ export function preloadFigurineSignature(classKey: string, quipFile?: string): v
 export function playFigurineCue(cue: FigurineCue, { loop = false, intensity = 1, signature, quip }: { loop?: boolean; intensity?: number; signature?: string; quip?: { file: string; gain: number } } = {}): () => void {
   let stopped = false;
   let stop = () => { stopped = true; };
-  if (!context || !master) return () => stop();
-  const audio = context, output = master;
+  if (!context || !master || !quipBus) return () => stop();
+  const audio = context, output = cue === "quip" ? quipBus : master;
   const sound = FIGURINE_SOUNDS[cue];
   const quipFile = cue === "quip" && quip ? quipSource(quip.file) : null;
   const files = cue === "signature" ? signatureFiles(signature) : cue === "quip" ? (quipFile ? [quipFile] : []) : sound.files;

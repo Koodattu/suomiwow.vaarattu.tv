@@ -4,11 +4,12 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncE
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { boxReducer, chooseFigure, initialBox } from "@/lib/figurine-box";
-import { getFigurineAudioMuted, prefetchFigurineAudio, preloadFigurineSignature, setFigurineAudioMuted, unlockFigurineAudio } from "@/lib/figurine-audio";
+import { prefetchFigurineAudio, preloadFigurineSignature, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { addToCollection, emptyCollection, readCollection, subscribeCollection } from "@/lib/figurine-collection";
 import { ALL_QUIPS, FIGURINE_SERIES, figureKey, figureQuip, findFigure, findSeries, type FigurineCharacter } from "@/lib/figurine-series";
 import type { StageWorld, WorldView } from "../figurine-lab/FigurineStage";
 import styles from "../figurine-lab/figurine-lab.module.css";
+import SoundMenu from "./SoundMenu";
 
 const FigurineStage = dynamic(() => import("../figurine-lab/FigurineStage"), { ssr: false });
 const pad = (number: number) => String(number).padStart(3, "0");
@@ -30,8 +31,6 @@ export default function FigurineWorld() {
   const [webglUnavailable, setWebglUnavailable] = useState(false);
   // Stations remember which centre view they were entered from.
   const [origin, setOrigin] = useState<Partial<Record<WorldView, WorldView>>>({});
-  const [muted, setMuted] = useState(false);
-  useEffect(() => { setMuted(getFigurineAudioMuted()); }, []);
   const collection = useSyncExternalStore(subscribeCollection, readCollection, emptyCollection);
   const action = useRef<HTMLButtonElement>(null);
   const viewRef = useRef(view);
@@ -137,7 +136,6 @@ export default function FigurineWorld() {
     window.addEventListener("keydown", listener);
     return () => window.removeEventListener("keydown", listener);
   }, []);
-  function toggleSound() { unlockFigurineAudio(); setFigurineAudioMuted(!muted); setMuted(!muted); }
 
   const world: StageWorld = useMemo(() => ({
     collection,
@@ -156,10 +154,7 @@ export default function FigurineWorld() {
   const hoveredFigure = hovered ? findFigure(hovered) : null;
 
   return <main className={styles.showcase} data-phase={state.phase} data-view={view}>
-    <button type="button" className={styles.soundToggle} aria-pressed={!muted} onClick={toggleSound}>
-      <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />{muted ? <path d="m16 9.5 5 5m0-5-5 5" /> : <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />}</svg>
-      <span>{t(muted ? "soundOff" : "soundOn")}</span>
-    </button>
+    <SoundMenu />
     <FigurineStage immersive files={files} filesFor={filesFor} showing={wanted?.model ?? null} boxMode open={view !== "viewer" && (state.phase === "opening" || state.phase === "revealed")} charging={state.phase === "loading"}
       interactive={view === "opening" && state.phase === "sealed" && !webglUnavailable} round={state.round} onBoxTap={open} rotate={view === "viewer" || view === "opening"} ready={revealedWorld}
       view={view} series={series.id} world={world} figureKey={drawn ? figureKey(series.id, drawn.id) : undefined}
