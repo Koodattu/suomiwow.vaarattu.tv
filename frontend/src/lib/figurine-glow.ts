@@ -65,7 +65,7 @@ void main() {
     float angle = float(i) * 0.5236 + float(ring) * 0.26;
     sum += alphaAt(uv + vec2(cos(angle) * aspect, sin(angle)) * float(ring) * 0.022);
   }
-  gl_FragColor = vec4(color * strength * (sum / 36.0) * (1.0 - alphaAt(uv)) * 2.2, 1.0);
+  gl_FragColor = vec4(color * strength * (sum / 36.0) * (1.0 - alphaAt(uv)) * 0.8, 1.0);
 }`,
     transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
   });

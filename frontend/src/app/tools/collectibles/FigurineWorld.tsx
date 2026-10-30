@@ -161,7 +161,7 @@ export default function FigurineWorld() {
       <span>{t(muted ? "soundOff" : "soundOn")}</span>
     </button>
     <FigurineStage immersive files={files} filesFor={filesFor} showing={wanted?.model ?? null} boxMode open={view !== "viewer" && (state.phase === "opening" || state.phase === "revealed")} charging={state.phase === "loading"}
-      interactive={view === "opening" && state.phase === "sealed" && !webglUnavailable} round={state.round} onBoxTap={open} rotate={view === "viewer"}
+      interactive={view === "opening" && state.phase === "sealed" && !webglUnavailable} round={state.round} onBoxTap={open} rotate={view === "viewer" || view === "opening"} ready={revealedWorld}
       view={view} series={series.id} world={world} figureKey={drawn ? figureKey(series.id, drawn.id) : undefined}
       onNavigate={navigate} onBack={back} onPickSeries={pickSeries} onInspect={inspect} onHoverFigure={setHovered}
       onStatus={(status) => {

@@ -331,9 +331,12 @@ home, boxes and figures can be tapped straight in the background stations. A pic
 onto the pedestal with its thud, timed to land as the camera arrives. After a reveal, the next
 box comes from the shop. Hovered stacks, stations and figures get an outer glow
 (`figurine-glow.ts`: an additive back-face shell for props, a blurred-alpha halo for figure
-cards). At home the camera orbits (left or middle drag) and zooms; at stations the middle button
-turns the shot and the wheel zooms. Auto-rotation stops while you hold the camera and eases
-back in 2.5 s after you let go. Station shots back off until the station's width fits the
+cards). At home the camera orbits all the way round (left or middle drag) and zooms; the shop and the
+case hide while the camera is close to them or behind them, so the orbit never clips into
+them. In the shop the middle button turns the shot; in the collection dragging pans across
+the case and the wheel zooms in close. Auto-rotation is slow, stops while you hold the camera
+and eases back in 2.5 s after you let go. Hovered figures in the case get a soft halo and keep
+their size. Station shots back off until the station's width fits the
 screen, so phones see the whole stall. Keyboard: Esc back, S shop, C collection, 1-9 pick a
 series (in the shop), Enter opens the sealed box. The figure's name and details appear as it
 lands. The only button is the sound toggle.

@@ -77,7 +77,7 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const NO_LINEUP: string[] = [];
 const random = (min: number, max: number) => min + Math.random() * (max - min);
 
-export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, immersive = false, gallery = false }: {
+export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, immersive = false, gallery = false }: {
   files: File[]; boxMode: boolean; open: boolean; rotate: boolean; labels: StageLabels;
   // Character names printed in the "collect all" grid on the back of the box.
   lineup?: string[];
@@ -113,12 +113,14 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   // loaded model only when they match, never the box's figure while another one loads.
   filesFor?: string | null;
   showing?: string | null;
+  // World mode: false while the start-up loader covers the scene; the opening shot waits for it.
+  ready?: boolean;
   immersive?: boolean;
   gallery?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, view, figureKey, arrival, showing });
-  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, view, figureKey, arrival, showing }; }, [boxMode, open, charging, interactive, round, rotate, signature, view, figureKey, arrival, showing]);
+  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, view, figureKey, arrival, showing, ready });
+  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, view, figureKey, arrival, showing, ready }; }, [boxMode, open, charging, interactive, round, rotate, signature, view, figureKey, arrival, showing, ready]);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error" | "webgl">("empty");
   const [filename, setFilename] = useState("");
   const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress });
@@ -161,13 +163,9 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     controls.maxPolarAngle = Math.PI * 0.53;
     controls.enablePan = !immersive;
     controls.autoRotateSpeed = 0.65;
-    // The shop and the case stand about as far out as the home camera, so the world orbit keeps to
-    // the front arc; auto-rotation turns back at its ends instead of stopping there.
-    const ORBIT_ARC = 1.2;
-    if (immersive) { controls.minAzimuthAngle = -ORBIT_ARC; controls.maxAzimuthAngle = ORBIT_ARC; }
-    let sweep = 1;
     // Auto-rotation yields to the user: it stops on grab and, a while after release, eases back in.
-    const AUTO_ROTATE_SPEED = 0.65, AUTO_ROTATE_DELAY = 2.5;
+    // Negative turns the camera rightwards, carrying on the opening shot's sweep.
+    const AUTO_ROTATE_SPEED = -0.6, AUTO_ROTATE_DELAY = 2.5; // about 3.4° a second
     let userOrbit = { holding: false, released: -Infinity }, autoRotate = 0;
     controls.addEventListener("start", () => { userOrbit = { holding: true, released: -Infinity }; autoRotate = 0; });
     controls.addEventListener("end", () => { userOrbit = { holding: false, released: performance.now() }; });
@@ -641,10 +639,19 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     // The world is the interface: tap a station to go there, a series to open it, an owned figure
     // to inspect it, and empty ground or sky to step back. The target must match on release.
     type Pick = { kind: "station"; view: WorldView } | { kind: "series"; id: string } | { kind: "figure"; key: string } | { kind: "back" };
-    let press: { x: number; y: number; pick: Pick | null; yaw: number; pitch: number } | null = null;
-    const look = { yaw: 0, pitch: 0, zoom: 1 }, lookTarget = { yaw: 0, pitch: 0, zoom: 1 };
-    let looking: { id: number; x: number; y: number; yaw: number; pitch: number } | null = null;
-    const lookLimits = () => ({ yaw: 0.35, pitch: 0.15, near: 0.6, far: 1.3 });
+    let press: { x: number; y: number; pick: Pick | null; yaw: number; pitch: number; panX: number; panY: number } | null = null;
+    // Station shots: the shop turns a little (yaw, pitch); the collection pans across (panX, panY). Both zoom.
+    const look = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 }, lookTarget = { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 };
+    const panning = () => state.current.view === "gallery";
+    // World units per pixel at the station's target, for panning that keeps pace with the pointer.
+    const unitsPerPixel = () => 2 * camera.position.distanceTo(controls.target) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / renderer.domElement.clientHeight;
+    const pan = (dx: number, dy: number, from: { panX: number; panY: number }) => {
+      const scale = unitsPerPixel();
+      lookTarget.panX = THREE.MathUtils.clamp(from.panX - dx * scale, -2.6, 2.6);
+      lookTarget.panY = THREE.MathUtils.clamp(from.panY + dy * scale, -1.6, 1.6);
+    };
+    let looking: { id: number; x: number; y: number; yaw: number; pitch: number; panX: number; panY: number } | null = null;
+    const lookLimits = () => ({ yaw: 0.35, pitch: 0.15, near: panning() ? 0.35 : 0.6, far: 1.3 });
     const directed = () => immersive && !flight && (state.current.view === "shop" || state.current.view === "gallery");
     const steer = (dx: number, dy: number, from: { yaw: number; pitch: number }) => {
       const limits = lookLimits(), size = renderer.domElement;
@@ -685,6 +692,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     let figureNudge: { key: string; time: number } | null = null;
     const onPointerDown = (event: PointerEvent) => {
       if (!immersive) return;
+      if (introClock < INTRO_SECONDS && state.current.ready) { introClock = INTRO_SECONDS; controls.enabled = true; }
       aim(event);
       if (tappable() && hits([tape.mesh, tape.hit])) {
         // Claim the gesture before OrbitControls sees it.
@@ -709,11 +717,11 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       }
       if (event.button === 1 && directed()) {
         event.preventDefault(); event.stopImmediatePropagation();
-        looking = { id: event.pointerId, x: event.clientX, y: event.clientY, yaw: lookTarget.yaw, pitch: lookTarget.pitch };
+        looking = { id: event.pointerId, x: event.clientX, y: event.clientY, yaw: lookTarget.yaw, pitch: lookTarget.pitch, panX: lookTarget.panX, panY: lookTarget.panY };
         return;
       }
       if (event.button !== 0) return;
-      press = { x: event.clientX, y: event.clientY, pick: pickAt(), yaw: lookTarget.yaw, pitch: lookTarget.pitch };
+      press = { x: event.clientX, y: event.clientY, pick: pickAt(), yaw: lookTarget.yaw, pitch: lookTarget.pitch, panX: lookTarget.panX, panY: lookTarget.panY };
     };
     const onPointerMove = (event: PointerEvent) => {
       aim(event);
@@ -730,7 +738,12 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         heldTarget.set(THREE.MathUtils.clamp(dx * shake.scale, -0.55, 0.55), THREE.MathUtils.clamp(-dy * shake.scale, 0, 0.9));
         return;
       }
-      if (looking && event.pointerId === looking.id) { if (directed()) steer(event.clientX - looking.x, event.clientY - looking.y, looking); return; }
+      if (looking && event.pointerId === looking.id) {
+        if (directed()) (panning() ? pan : steer)(event.clientX - looking.x, event.clientY - looking.y, looking);
+        return;
+      }
+      // Dragging across the collection slides along it.
+      if (event.buttons && press && panning() && directed()) { pan(event.clientX - press.x, event.clientY - press.y, press); return; }
       if (event.buttons || !immersive) return;
       const pick = event.pointerType === "mouse" ? pickAt() : null;
       hoveredSeries = pick?.kind === "series" ? pick.id : null;
@@ -788,7 +801,11 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const start = viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, camera.aspect);
       camera.position.copy(start.position); controls.target.copy(start.target);
     }
-    const FLIGHT_SECONDS = 0.95;
+    const FLIGHT_SECONDS = 0.95, INTRO_SECONDS = 3;
+    // Opening shot, once the loader lifts: from wide, high and centred, the camera zooms in while
+    // drifting right, settling just right of head-on; auto-rotation carries the drift on.
+    // Any press ends it where it is and hands the camera to the user.
+    let introClock = immersive && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : INTRO_SECONDS;
     let centreShot: { position: THREE.Vector3; target: THREE.Vector3 } | null = null;
     const ease = (t: number) => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
     // A picked box waits out part of the camera's flight (hidden), then drops in to land as it arrives.
@@ -817,7 +834,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         // Leaving the centre remembers its camera, so coming back lands where the user left it.
         if (flying && centre(currentView) && !orbitOffset) centreShot = { position: camera.position.clone(), target: controls.target.clone() };
         if (flying) flight = { from: camera.position.clone(), fromTarget: controls.target.clone(), t: 0 };
-        currentView = current.view; displayClock = 0; press = null; looking = null; Object.assign(lookTarget, { yaw: 0, pitch: 0, zoom: 1 }); Object.assign(look, lookTarget); grab = null; shake = null; heldTarget.set(0, 0); peelSound?.stop(); peelSound = null;
+        currentView = current.view; displayClock = 0; press = null; looking = null; Object.assign(lookTarget, { yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 }); Object.assign(look, lookTarget); grab = null; shake = null; heldTarget.set(0, 0); peelSound?.stop(); peelSound = null;
         if (flying && !reducedMotion.matches) playFigurineCue("whoosh");
       }
       if (current.arrival !== seenArrival) {
@@ -1002,6 +1019,12 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           contact.scale.setScalar(2.2); contactMaterial.opacity = model ? 0.45 : 0;
           beam.visible = core.visible = flash.visible = false;
         }
+        for (const [group, extent] of [[shopGroup, { x: 3.3, back: -1.1, front: 1.8 }], [caseGroup, { x: 3.1, back: -0.5, front: 0.5 }]] as const) {
+          if (!group) continue;
+          const local = group.worldToLocal(screen.copy(camera.position)), margin = 1.6;
+          const near = Math.abs(local.x) < extent.x + margin && local.z > extent.back - margin && local.z < extent.front + margin && local.y < 6;
+          group.visible = flight !== null || (current.view !== "opening" && current.view !== "viewer") || !(near || (local.z < extent.back && local.length() < 16));
+        }
         shop?.update(hoveredSeries, delta, idle);
         if (figureNudge) { figureNudge.time += delta; if (figureNudge.time > 0.5) figureNudge = null; }
         cabinet?.update(hoveredFigure, delta);
@@ -1032,7 +1055,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         beam.visible = core.visible = flash.visible = burstRing.visible = landRing.visible = false;
         pedestal.update(0.25 + reveal * 0.6, idle * 0.04);
       }
-      for (const key of ["yaw", "pitch", "zoom"] as const) look[key] = THREE.MathUtils.damp(look[key], lookTarget[key], 7, delta);
+      for (const key of ["yaw", "pitch", "zoom", "panX", "panY"] as const) look[key] = THREE.MathUtils.damp(look[key], lookTarget[key], 9, delta);
       const destination = !immersive ? null : (currentView === "opening" || currentView === "viewer") && centreShot
         ? { position: centreShot.position.clone(), target: centreShot.target.clone() } : viewPose(currentView, framing, { offset: homeOffset, target: homeTarget }, camera.aspect);
       if (destination && currentView !== "opening" && currentView !== "viewer") {
@@ -1041,6 +1064,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         const right = screen.set(offset.z, 0, -offset.x).normalize();
         offset.applyAxisAngle(Y_AXIS, look.yaw).applyAxisAngle(right.applyAxisAngle(Y_AXIS, look.yaw), -look.pitch).multiplyScalar(look.zoom);
         destination.position.copy(destination.target).add(offset);
+        const across = screen.set(offset.z, 0, -offset.x).normalize().multiplyScalar(look.panX);
+        destination.target.add(across).y += look.panY; destination.position.add(across).y += look.panY;
       }
       if (flight && destination) {
         flight.t = reduced ? 1 : Math.min(1, flight.t + Math.min(elapsed, 0.1) / FLIGHT_SECONDS);
@@ -1056,23 +1081,33 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       } else if (!immersive || currentView === "opening") {
         controls.target.y = THREE.MathUtils.damp(controls.target.y, immersive ? 1.5 + (bursting ? motion.lift * 0.6 : 0) : current.boxMode && current.open ? 2.1 : 1.5, 4, delta);
       }
+      const introducing = immersive && introClock < INTRO_SECONDS && currentView === "opening" && !flight;
+      if (introducing) {
+        if (current.ready) introClock += Math.min(elapsed, 0.1);
+        const rest = 1 - ease(Math.min(1, introClock / INTRO_SECONDS));
+        camera.position.copy(homeOffset).multiplyScalar(framing * (1 + 1.6 * rest)).applyAxisAngle(Y_AXIS, 0.35 * (1 - rest)).add(homeTarget);
+        camera.position.y += 4 * rest;
+        controls.target.copy(homeTarget);
+      }
       // Cinematic camera: dolly in while charging, pull back and drift around the reveal, then hand back to orbit controls.
       const cinematic = immersive && currentView === "opening" && !flight && active && !reduced && !finished;
       if (cinematic) {
         orbitOffset ??= camera.position.clone().sub(controls.target);
         camera.position.copy(orbitOffset).applyAxisAngle(Y_AXIS, bursting ? motion.orbit : 0).multiplyScalar(bursting ? motion.zoom : build.zoom).add(controls.target);
       } else orbitOffset = null;
-      const orbiting = !immersive || (!flight && (currentView === "viewer" || (currentView === "opening" && (!active || finished))));
-      const wantsRotation = current.rotate && !reduced && (!immersive || (!flight && (currentView === "viewer" || (currentView === "opening" && finished))));
+      const orbiting = !immersive || (!flight && !introducing && (currentView === "viewer" || (currentView === "opening" && (!active || finished))));
+      // The home shot turns slowly, but holds still while the pointer is on the box or it is in hand.
+      const wantsRotation = current.rotate && !reduced && (!immersive || (!flight && !introducing && !hovering && !grab && !shake && (currentView === "viewer" || (currentView === "opening" && (!active || finished)))));
       const rested = !userOrbit.holding && now - userOrbit.released > AUTO_ROTATE_DELAY * 1000;
       autoRotate = wantsRotation && rested ? Math.min(1, autoRotate + delta * 0.45) : 0;
       controls.autoRotate = autoRotate > 0;
-      if (immersive && Math.abs(controls.getAzimuthalAngle()) > ORBIT_ARC - 0.02) sweep = Math.sign(controls.getAzimuthalAngle()); // a positive speed lowers the azimuth
-      controls.autoRotateSpeed = sweep * AUTO_ROTATE_SPEED * autoRotate * autoRotate * (3 - 2 * autoRotate);
+      controls.autoRotateSpeed = AUTO_ROTATE_SPEED * autoRotate * autoRotate * (3 - 2 * autoRotate);
       controls.enabled = orbiting && !grab && !shake;
       // update() clamps to the orbit distance limits even when disabled; station shots sit farther out.
-      controls.maxDistance = orbiting ? 15 : Infinity;
-      controls.update(); if (!reduced) mixer?.update(delta);
+      // Never snaps a camera already farther out (after the opening shot) back in.
+      controls.maxDistance = orbiting ? Math.max(15, camera.position.distanceTo(controls.target)) : Infinity;
+      // Timed by the frame delta, so auto-rotation turns at the same speed on any refresh rate.
+      controls.update(delta); if (!reduced) mixer?.update(delta);
       const cameraShake = cinematic ? (bursting ? motion.shake : build.knock * 0.3) : 0;
       if (cameraShake > 0) camera.position.add(velocity.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(cameraShake * 0.13));
       renderer.render(scene, camera);

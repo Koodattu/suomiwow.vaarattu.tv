@@ -72,7 +72,7 @@ export function buildCase(parent: THREE.Group, { series, labels, envMap }: { ser
   frame.push(add(new THREE.BoxGeometry(total + 0.14, 0.12, DEPTH + 0.16), wood, 0, BASE + GRID_H + 0.06, 0));
   // Clear front panels: reflections only, never a tap target.
   const glass = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.07, roughness: 0.04, metalness: 0, envMap, envMapIntensity: 2.2, depthWrite: false });
-  const slots = new Map<string, { card: THREE.Mesh; material: THREE.MeshBasicMaterial; cell: THREE.Texture; shadow: THREE.MeshBasicMaterial; hover: number }>();
+  const slots = new Map<string, { card: THREE.Mesh; material: THREE.MeshBasicMaterial; cell: THREE.Texture; shadow: THREE.MeshBasicMaterial }>();
   const plaques = new Map<string, { paint: (title: string, count: string) => void; number: string; total: number }>();
   const picks: THREE.Mesh[] = [];
   const cardGeometry = new THREE.PlaneGeometry(CARD_W, CARD_H).translate(0, CARD_H / 2, 0);
@@ -113,7 +113,7 @@ export function buildCase(parent: THREE.Group, { series, labels, envMap }: { ser
       card.position.set(x, floor, 0.02); card.userData.figure = key; parent.add(card);
       const shadow = new THREE.MeshBasicMaterial({ map: shadowMap, transparent: true, opacity: 0.35, depthWrite: false });
       const blob = new THREE.Mesh(shadowGeometry, shadow); blob.position.set(x, floor + 0.002, 0.04); blob.raycast = () => {}; parent.add(blob);
-      slots.set(key, { card, material, cell, shadow, hover: 0 });
+      slots.set(key, { card, material, cell, shadow });
       picks.push(card);
     });
   });
@@ -138,10 +138,7 @@ export function buildCase(parent: THREE.Group, { series, labels, envMap }: { ser
       sign?.paint(labels.series(sign.number), labels.collected(got, sign.total));
     },
     update(hovered: string | null, delta: number) {
-      slots.forEach((slot, key) => {
-        slot.hover = THREE.MathUtils.damp(slot.hover, key === hovered ? 1 : 0, 12, delta);
-        slot.card.scale.setScalar(1 + slot.hover * 0.1);
-      });
+      // Figures stay their size under the pointer; only the halo marks them.
       glow.update(hovered ? slots.get(hovered)?.card ?? null : null, 1, delta);
     },
   };
