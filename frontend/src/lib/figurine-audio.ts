@@ -23,8 +23,9 @@ export const FIGURINE_SOUNDS: Record<FigurineCue, { files: readonly string[]; vo
   choir: { files: ["choir-a", "choir-b"], volume: 0.5, jitter: 0.02 },
   rise: { files: ["rise-a", "rise-b"], volume: 0.25, jitter: 0.03 },
   sparkle: { files: ["sparkle-a", "sparkle-b"], volume: 0.45, jitter: 0.04 },
-  // One heavy, neutral thud for every figure; the class signature plays under it.
-  land: { files: ["land-a", "land-b", "land-c"], volume: 1, jitter: 0.04 },
+  // One heavy, neutral impact for every figure: a punchy knock layered over a synthesized sub
+  // thump (95 Hz falling to ~42), under a short hit-stop. The class signature follows it.
+  land: { files: ["land-a", "land-b", "land-c", "land-d"], volume: 1, jitter: 0.03 },
   // Per-class files are chosen at play time from the drawn figure's class.
   signature: { files: [], volume: 0.6, jitter: 0.03 },
   fanfare: { files: ["fanfare-a", "fanfare-b", "fanfare-c"], volume: 0.6, jitter: 0.02 },
@@ -40,6 +41,25 @@ export const FIGURINE_AUDIO_MUTED_KEY = "suomiwow-figurine-audio-muted";
 let context: AudioContext | null = null;
 let master: GainNode | null = null;
 const buffers = new Map<string, Promise<AudioBuffer | null>>();
+// Downloaded file bytes, kept so decoding never waits on the network (and survives a new context).
+const downloads = new Map<string, Promise<ArrayBuffer | null>>();
+function download(file: string): Promise<ArrayBuffer | null> {
+  let pending = downloads.get(file);
+  if (!pending) {
+    pending = fetch(sourceFor(file)).then((response) => { if (!response.ok) throw new Error("Sound unavailable"); return response.arrayBuffer(); })
+      .catch(() => { downloads.delete(file); return null; });
+    downloads.set(file, pending);
+  }
+  return pending;
+}
+
+// Downloads every cue's variants and the given classes' signatures, reporting progress (0..1).
+// Needs no user gesture: decoding waits for the audio context that the first tap creates.
+export function prefetchFigurineAudio(classKeys: readonly string[], onProgress?: (fraction: number) => void): Promise<void> {
+  const files = [...new Set([...Object.values(FIGURINE_SOUNDS).flatMap(({ files }) => files), ...classKeys.flatMap(signatureFiles)])];
+  let done = 0;
+  return Promise.all(files.map((file) => download(file).then(() => onProgress?.(++done / files.length)))).then(() => undefined);
+}
 
 export function getFigurineAudioMuted(): boolean {
   try { return window.localStorage.getItem(FIGURINE_AUDIO_MUTED_KEY) === "1"; } catch { return false; }
@@ -54,9 +74,9 @@ function load(file: string): Promise<AudioBuffer | null> {
   const cached = buffers.get(file);
   if (cached || !context) return cached ?? Promise.resolve(null);
   const audio = context;
-  const pending = fetch(sourceFor(file))
-    .then((response) => { if (!response.ok) throw new Error("Sound unavailable"); return response.arrayBuffer(); })
-    .then((data) => audio.decodeAudioData(data))
+  // decodeAudioData detaches its input, so it gets a copy and the download stays reusable.
+  const pending = download(file)
+    .then((data) => { if (!data) throw new Error("Sound unavailable"); return audio.decodeAudioData(data.slice(0)); })
     .catch(() => { buffers.delete(file); return null; });
   buffers.set(file, pending);
   return pending;

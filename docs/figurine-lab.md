@@ -250,7 +250,8 @@ down if released early, chimes when fully free, and opens only on release. The
 away and starts a 2.4-second build-up while the drawn model loads: music swell,
 knocks, seam light. The burst layers an orchestral/choir hit and a sub boom over
 the cardboard pop; a choir carries the figure up. Every figure lands with the same
-heavy thud (`land-a|b|c`); its class signature (`class-<classKey>-a|b.mp3`, all 13
+impact (`land-a…d`: a punchy knock over a synthesized sub thump, 95 Hz falling to ~42) and
+the reveal freezes for 70 ms (hit-stop) while the camera kicks in; its class signature (`class-<classKey>-a|b.mp3`, all 13
 classes) follows 80 ms later, then a fanfare. Each play picks a random variant and
 nudges its speed slightly, except the music bed, riser and hum, which stay at pitch.
 Before opening, grab the box anywhere off the tape to lift and shake it; it trails
@@ -323,9 +324,12 @@ main menu (overview), shop (a stall with every series' boxes), opening (the pede
 collection (a lit cubby cabinet, one 4×4 grid per series) and viewer (an owned figure on
 the pedestal). There are no labels and no navigation buttons: tap any visible station (shop,
 case, pedestal) to go there, a series' boxes to open one, an owned figure to inspect it, and
-empty ground or sky to step back. Boxes and figures can be picked straight from the main
-menu; stations glow faintly under the pointer, and "back" returns to where the pick was
-made. Station shots back off until the station's width fits the screen, so phones see the
+empty ground or sky to step back (or tap the station you are at). Boxes and figures can be
+picked straight from the main menu. Hovered stacks, stations, the pedestal and figures get an
+outer glow (`figurine-glow.ts`: an additive back-face shell for props, a blurred-alpha halo for
+figure cards), and "back" returns to where the pick was made. Dragging on the hub turns the
+camera around the plaza; the middle button turns every view and the wheel zooms every view.
+Auto-rotation stops while you hold the camera and eases back in 2.5 s after you let go. Station shots back off until the station's width fits the screen, so phones see the
 whole stall. Dragging sideways on the menu slides the camera. Keyboard: Esc back, S shop,
 C collection, 1-9 pick a series, Enter opens the sealed box. The only button is
 "New blind box" after a reveal (plus the sound toggle).
@@ -336,7 +340,8 @@ The collection is session-only (`sessionStorage`, `figurine-collection.ts`): fig
 times opened; nothing is sent anywhere. Unowned figures show as black silhouettes from the
 baked sheet; owned ones show a portrait rendered from their model (captured on reveal, or
 regenerated from the model file after a reload). Portraits use the silhouette sheet's
-framing (orthographic, feet on the bottom edge), so both stand on the cubby floor.
+framing (orthographic, feet on the bottom edge), so both stand on the cubby floor. Sheet cells
+are 280×360 so nearly every pose is fitted by height and figures share one height.
 
 World textures in `frontend/public/figurines/world/` (Elwynn cobblestone and grass, cloud and
 nebula sky layers) were exported from game data with the local wow.export worker's texture
@@ -349,4 +354,22 @@ skeletons: the site draws them as static instanced meshes, and quantizing a skin
 moves its scale into the inverse bind matrices. Placement is seeded in
 `frontend/src/lib/figurine-forest.ts`; the camera side of the ring stays open. The grass
 and cobbles blend in Elwynn dirt through painted masks (a worn rim and a path into the
-woods).
+woods). Where the path leaves the plaza is a small market (`marketLayout`): a human tent, the
+Duskwood wagon, a signpost, crates, barrels and produce tables. No faction banners: the
+market takes no side.
+
+Loading happens once, behind a start-up screen: scenery models, every series' box (all
+built up front and swapped on series change, never rebuilt), every texture uploaded, all
+sounds downloaded (decoded on the first tap), portraits of every owned figure, and shaders
+compiled. The figure inside each sealed box is drawn when the box arrives and preloaded
+while it waits, so opening goes straight into the build-up; its case portrait shaders are
+compiled with an off-screen target bound (portraits skip tone mapping, a different shader
+variant) and the portrait renders at the next idle moment. Picking a series always drops its
+box onto the pedestal with the thud once the camera arrives. Hovering the tape lights the
+tape; hovering the rest of the box outlines the box.
+
+The world is lit as an afternoon: a painted day sky (its PMREM is the scene environment, so
+props and figures pick up soft sky shading), a warm sun whose single 2048 shadow map covers the
+plaza and both stations (trees, stalls, props, the box and figures cast; figures self-shadow),
+light haze fog and dimmed lantern glows. The box rests on the pedestal; its contact shadow and
+glow planes lie between the two so they never cut across the box walls.

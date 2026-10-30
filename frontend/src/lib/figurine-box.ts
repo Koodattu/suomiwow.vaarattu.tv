@@ -1,5 +1,6 @@
 export type BoxState = { phase: "sealed" | "loading" | "opening" | "revealed" | "error"; selected: number | null; round: number };
-export type BoxAction = { type: "open"; selected: number } | { type: "loaded" | "revealed" | "failed" | "reset" | "retry" };
+// `ready`: the drawn figure was preloaded while the box was sealed, so opening skips straight to it.
+export type BoxAction = { type: "open"; selected: number; ready?: boolean } | { type: "loaded" | "revealed" | "failed" | "reset" | "retry" };
 export const initialBox: BoxState = { phase: "sealed", selected: null, round: 0 };
 
 export function chooseFigure(count: number, random: number): number {
@@ -9,7 +10,7 @@ export function chooseFigure(count: number, random: number): number {
 
 export function boxReducer(state: BoxState, action: BoxAction): BoxState {
   switch (action.type) {
-    case "open": return state.phase === "sealed" ? { ...state, phase: "loading", selected: action.selected } : state;
+    case "open": return state.phase === "sealed" ? { ...state, phase: action.ready ? "opening" : "loading", selected: action.selected } : state;
     case "loaded": return state.phase === "loading" ? { ...state, phase: "opening" } : state;
     case "revealed": return state.phase === "opening" ? { ...state, phase: "revealed" } : state;
     case "failed": return state.phase === "loading" || state.phase === "opening" ? { ...state, phase: "error" } : state;

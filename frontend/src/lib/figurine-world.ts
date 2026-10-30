@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { buildForest, forestLayout, swayMaterial } from "@/lib/figurine-forest";
+import { buildForest, forestLayout, marketLayout, swayMaterial } from "@/lib/figurine-forest";
 
 // The collectibles world: a painted sky bubble over a stone plaza, with the opening pedestal
 // at the centre, the shop to the left and the collection case to the right.
@@ -11,7 +11,9 @@ export const STATIONS = {
 };
 // Classic game textures (Elwynn cobbles and grass, sky layers) exported with the local wow.export
 // worker; the painted fallbacks show until they load. Provenance: /figurines/world/source.json.
-export const WORLD_TEXTURES = { cobble: "/figurines/world/floor-cobble.png", grass: "/figurines/world/grass.png", dirt: "/figurines/world/dirt.png", clouds: "/figurines/world/clouds.jpg", nebula: "/figurines/world/nebula.png" };
+export const WORLD_TEXTURES = { cobble: "/figurines/world/floor-cobble.png", grass: "/figurines/world/grass.png", dirt: "/figurines/world/dirt.png", clouds: "/figurines/world/clouds.jpg" };
+// Canvas x of the painted sun: the direction the stage's key light shines from (-x, +z).
+const SUN_X = 277;
 const PLAZA_RADIUS = 14.5, LAMP_HEAD = 3.9;
 const loadImage = (url: string) => new Promise<HTMLImageElement | null>((resolve) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = () => resolve(null); image.src = url; });
 
@@ -46,41 +48,34 @@ function paintedCobbles() {
   return element;
 }
 
-// Twilight sky: gradient, stars, a nebula, cloud banks, a moon and a distant mountain ridge.
-// Game cloud and nebula textures are screened in when available.
-function paintedSky(layers: { clouds?: HTMLImageElement | null; nebula?: HTMLImageElement | null } = {}, target?: HTMLCanvasElement) {
+// Late-afternoon sky: blue overhead warming to a golden haze at the horizon, a low sun on the
+// light's side, soft cloud banks (with the game cloud layer screened in) and blue-green hills.
+// The horizon sits on the canvas midline; x runs around the sphere from -x through +z.
+function paintedSky(layers: { clouds?: HTMLImageElement | null } = {}, target?: HTMLCanvasElement) {
   const element = target ?? canvas(2048, 1024)[0], context = element.getContext("2d")!, next = random(9);
   const gradient = context.createLinearGradient(0, 0, 0, 1024);
-  [[0, "#05060f"], [0.28, "#131a3a"], [0.44, "#2b2a5c"], [0.5, "#5a4170"], [0.53, "#2a2340"], [1, "#0b0d18"]].forEach(([at, color]) => gradient.addColorStop(at as number, color as string));
+  [[0, "#2f63b0"], [0.28, "#5f93d4"], [0.43, "#a8c8e8"], [0.49, "#f1dcb2"], [0.52, "#c9d3c0"], [1, "#56623f"]].forEach(([at, color]) => gradient.addColorStop(at as number, color as string));
   context.fillStyle = gradient; context.fillRect(0, 0, 2048, 1024);
-  for (let i = 0; i < 900; i++) {
-    const y = next() ** 1.6 * 470;
-    context.globalAlpha = (1 - y / 470) * (0.3 + next() * 0.7); context.fillStyle = "#fff";
-    context.fillRect(next() * 2048, y, next() < 0.1 ? 2 : 1, next() < 0.1 ? 2 : 1);
+  for (const [x, y, radius, stops] of [[SUN_X, 370, 300, [[0, "rgba(255,248,226,1)"], [0.07, "rgba(255,244,214,.95)"], [0.2, "rgba(255,228,180,.4)"], [1, "rgba(255,210,150,0)"]]]] as [number, number, number, [number, string][]][]) {
+    const glow = context.createRadialGradient(x, y, 0, x, y, radius);
+    stops.forEach(([at, color]) => glow.addColorStop(at, color));
+    context.fillStyle = glow; context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
   }
-  context.globalAlpha = 1;
-  if (layers.nebula) {
-    context.save(); context.globalCompositeOperation = "screen"; context.globalAlpha = 0.85;
-    context.drawImage(layers.nebula, 260, 40, 820, 410); context.restore();
+  for (let i = 0; i < 60; i++) {
+    const x = next() * 2048, y = 160 + next() * 330, w = 160 + next() * 340, h = 16 + next() * 38;
+    const warm = y > 400 ? 1 : 0, cloud = context.createRadialGradient(x, y, 0, x, y, w / 2);
+    cloud.addColorStop(0, `rgba(255,${246 - warm * 16},${236 - warm * 36},${0.18 + next() * 0.3})`); cloud.addColorStop(1, "rgba(255,255,255,0)");
+    context.save(); context.translate(x, y); context.scale(1, h / (w / 2)); context.translate(-x, -y); context.fillStyle = cloud; context.fillRect(x - w / 2, y - w / 2, w, w); context.restore();
   }
   if (layers.clouds) {
     context.save(); context.globalCompositeOperation = "screen";
-    for (const [y, height, alpha] of [[250, 140, 0.12], [340, 150, 0.2], [420, 90, 0.26]] as [number, number, number][]) {
+    for (const [y, height, alpha] of [[170, 160, 0.3], [290, 150, 0.35], [400, 90, 0.3]] as [number, number, number][]) {
       context.globalAlpha = alpha;
       for (let x = 0; x < 2048; x += 512) context.drawImage(layers.clouds, x, y, 512, height);
     }
     context.restore();
   }
-  const moon = context.createRadialGradient(1500, 250, 0, 1500, 250, 140);
-  moon.addColorStop(0, "rgba(255,244,214,1)"); moon.addColorStop(0.25, "rgba(255,236,196,.95)"); moon.addColorStop(0.32, "rgba(200,190,255,.25)"); moon.addColorStop(1, "rgba(120,110,220,0)");
-  context.fillStyle = moon; context.fillRect(1300, 50, 400, 400);
-  for (let i = 0; i < 46; i++) {
-    const x = next() * 2048, y = 300 + next() * 160, w = 140 + next() * 260, h = 18 + next() * 30;
-    const cloud = context.createRadialGradient(x, y, 0, x, y, w / 2);
-    cloud.addColorStop(0, `rgba(${150 + next() * 60},${120 + next() * 50},${190 + next() * 40},${0.08 + next() * 0.12})`); cloud.addColorStop(1, "rgba(0,0,0,0)");
-    context.save(); context.translate(x, y); context.scale(1, h / (w / 2)); context.translate(-x, -y); context.fillStyle = cloud; context.fillRect(x - w / 2, y - w / 2, w, w); context.restore();
-  }
-  for (const [base, color, roughness] of [[505, "#1d1830", 60], [515, "#120f20", 34]] as [number, string, number][]) {
+  for (const [base, color, roughness] of [[505, "#6f8b8a", 60], [515, "#4d6a55", 34]] as [number, string, number][]) {
     context.fillStyle = color; context.beginPath(); context.moveTo(0, 1024);
     let y = base;
     for (let x = 0; x <= 2048; x += 16) { y = Math.max(base - 90, Math.min(base + 10, y + (next() - 0.52) * roughness)); context.lineTo(x, y); }
@@ -147,14 +142,16 @@ function upgrade(material: THREE.MeshBasicMaterial | THREE.MeshStandardMaterial,
   }, undefined, () => undefined);
 }
 
-export function buildWorld(scene: THREE.Scene) {
+// `onSky` runs whenever the sky texture is repainted, so lighting baked from it can follow.
+export function buildWorld(scene: THREE.Scene, { onSky }: { onSky?: () => void } = {}) {
   const group = new THREE.Group(); scene.add(group);
   const skyCanvas = paintedSky();
   const skyMaterial = new THREE.MeshBasicMaterial({ map: textureFrom(skyCanvas), side: THREE.BackSide, fog: false, depthWrite: false });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(48, 48, 24), skyMaterial); sky.renderOrder = -1; group.add(sky);
-  void Promise.all([loadImage(WORLD_TEXTURES.clouds), loadImage(WORLD_TEXTURES.nebula)]).then(([clouds, nebula]) => {
-    if (!clouds && !nebula) return;
-    paintedSky({ clouds, nebula }, skyCanvas); if (skyMaterial.map) skyMaterial.map.needsUpdate = true;
+  void loadImage(WORLD_TEXTURES.clouds).then((clouds) => {
+    if (!clouds) return;
+    paintedSky({ clouds }, skyCanvas); if (skyMaterial.map) skyMaterial.map.needsUpdate = true;
+    onSky?.();
   });
   // Elwynn grass to the horizon, with a cobbled plaza whose edge fades into it.
   // The grass is drawn first and writes no depth, so the plaza above it can never z-fight with it,
@@ -182,7 +179,7 @@ export function buildWorld(scene: THREE.Scene) {
   const setPlazaDirt = blendGround(plazaMaterial, dirtMask(PLAZA_RADIUS, PLAZA_RADIUS, true), 16);
   // The forest clearing and its lamp posts, each lamp with an additive glow.
   const wind = { value: 0 };
-  const forest = buildForest(group, forestLayout(PLAZA_RADIUS), (material) => swayMaterial(material, wind));
+  const forest = buildForest(group, forestLayout(PLAZA_RADIUS, 11, marketLayout()), (material) => swayMaterial(material, wind));
   const glowCanvas = canvas(64, 64);
   const halo = glowCanvas[1].createRadialGradient(32, 32, 0, 32, 32, 32);
   halo.addColorStop(0, "rgba(255,214,150,1)"); halo.addColorStop(0.3, "rgba(255,190,110,.4)"); halo.addColorStop(1, "rgba(255,170,90,0)");
@@ -190,10 +187,11 @@ export function buildWorld(scene: THREE.Scene) {
   const glowMap = textureFrom(glowCanvas[0]);
   for (let i = 0; i < 10; i++) {
     const angle = (i + 0.5) / 10 * Math.PI * 2, radius = PLAZA_RADIUS - 0.8;
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    // Lit lanterns read faintly in daylight.
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
     glow.position.set(Math.sin(angle) * radius, LAMP_HEAD, Math.cos(angle) * radius); glow.scale.setScalar(1.8); group.add(glow);
   }
-  return { group, ready: forest.ready, update(time: number) { wind.value = time; } };
+  return { group, sky, ready: forest.ready, update(time: number) { wind.value = time; } };
 }
 
 // Places a station group in the world.
@@ -204,9 +202,9 @@ export function placeStation(scene: THREE.Scene, station: keyof typeof STATIONS)
   return group;
 }
 
-// Camera pose for each view. `framing` (>= 1) backs off on portrait screens; `pan` (-1..1)
-// slides the menu shot toward the shop or the case; narrow screens pull the menu shot back.
-export function viewPose(view: WorldView, framing: number, home: { offset: THREE.Vector3; target: THREE.Vector3 }, pan = 0, aspect = 16 / 9) {
+// Camera pose for each view. `framing` (>= 1) backs off on portrait screens; narrow screens
+// pull the menu shot back.
+export function viewPose(view: WorldView, framing: number, home: { offset: THREE.Vector3; target: THREE.Vector3 }, aspect = 16 / 9) {
   const pose = (target: THREE.Vector3, offset: THREE.Vector3, scale = framing) => ({ target, position: offset.multiplyScalar(scale).add(target) });
   // Stations back off until their full width fits the screen (36° vertical field of view).
   const station = (name: keyof typeof STATIONS, offset: THREE.Vector3, height: number, width: number) => {
@@ -216,7 +214,7 @@ export function viewPose(view: WorldView, framing: number, home: { offset: THREE
     return pose(target, offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation), THREE.MathUtils.clamp(fit, framing, 2.3));
   };
   switch (view) {
-    case "menu": return pose(new THREE.Vector3(pan * 7, 1.6, -2.6), new THREE.Vector3(0, 7.6, 20.5), Math.min(2, Math.max(1, 1.5 / aspect)));
+    case "menu": return pose(new THREE.Vector3(0, 1.6, -2.6), new THREE.Vector3(0, 7.6, 20.5), Math.min(2, Math.max(1, 1.5 / aspect)));
     case "shop": return station("shop", new THREE.Vector3(0, 1.3, 9.4), 2.45, 6.6);
     case "gallery": return station("gallery", new THREE.Vector3(0, 0.9, 9.2), 2.55, 6.6);
     case "viewer": return pose(home.target.clone(), new THREE.Vector3(2.4, 0.8, 6.2));

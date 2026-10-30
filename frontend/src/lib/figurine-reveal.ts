@@ -41,6 +41,8 @@ export function figurineCharge(seconds: number) {
 // Seconds after the burst, paused with the tab. Every transform is absolute
 // so repeated openings cannot accumulate offsets on the figure or packaging.
 export const LAND_AT = 2.2;
+// How long the reveal freezes on touchdown.
+export const HITSTOP_SECONDS = 0.07;
 export const REVEAL_SECONDS = 3;
 export const REVEAL_CUES: readonly TimedCue[] = [
   // The hit resolves the music swell on the burst; the choir carries the silhouette up the beam.
@@ -72,7 +74,8 @@ export function figurineReveal(seconds: number, reducedMotion = false) {
     landRing: time >= LAND_AT && time < LAND_AT + 0.75 ? (time - LAND_AT) / 0.75 : 0,
     shake: reducedMotion ? 0 : Math.max(0.6 * pulse(time, 0, 0.35), pulse(time, LAND_AT, 0.4)),
     plinthGlow: pulse(time, LAND_AT, 0.75),
-    zoom: 0.9 + 0.16 * easeOut(time) - 0.06 * smooth((time - 1.6) / 1.2),
+    // The camera kicks in on touchdown and settles back.
+    zoom: 0.9 + 0.16 * easeOut(time) - 0.06 * smooth((time - 1.6) / 1.2) - 0.045 * pulse(time, LAND_AT, 0.45),
     orbit: 0.24 * smooth(time / REVEAL_SECONDS),
     complete: time >= REVEAL_SECONDS,
   };

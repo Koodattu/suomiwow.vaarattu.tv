@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncE
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { boxReducer, chooseFigure, initialBox } from "@/lib/figurine-box";
-import { getFigurineAudioMuted, preloadFigurineSignature, setFigurineAudioMuted, unlockFigurineAudio } from "@/lib/figurine-audio";
+import { getFigurineAudioMuted, prefetchFigurineAudio, preloadFigurineSignature, setFigurineAudioMuted, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { addToCollection, emptyCollection, readCollection, subscribeCollection } from "@/lib/figurine-collection";
 import { FIGURINE_SERIES, figureKey, findFigure, findSeries, type FigurineCharacter } from "@/lib/figurine-series";
 import type { StageWorld, WorldView } from "../figurine-lab/FigurineStage";
@@ -31,28 +31,60 @@ export default function FigurineWorld() {
   useEffect(() => { setMuted(getFigurineAudioMuted()); }, []);
   const collection = useSyncExternalStore(subscribeCollection, readCollection, emptyCollection);
   const action = useRef<HTMLButtonElement>(null);
+  const viewRef = useRef(view);
+  useEffect(() => { viewRef.current = view; }, [view]);
 
   const series = findSeries(seriesId);
+  // The figure inside each sealed box is drawn as the box arrives and preloaded while it waits,
+  // so opening never stalls on a download or parse.
+  const [draw, setDraw] = useState<{ series: string; round: number; index: number } | null>(null);
+  useEffect(() => {
+    if (state.phase === "sealed") setDraw((current) => current?.series === seriesId && current.round === state.round ? current : { series: seriesId, round: state.round, index: chooseFigure(findSeries(seriesId).characters.length, Math.random()) });
+  }, [seriesId, state.round, state.phase]);
+  const sealedDraw = draw?.series === seriesId && draw.round === state.round ? draw.index : null;
   const drawn = state.selected === null ? null : series.characters[state.selected];
   const viewing = inspected ? findFigure(inspected) : null;
-  // The stage loads whichever figure the current view shows: the inspected one, or the one being opened.
-  const wanted: FigurineCharacter | null = view === "viewer" ? viewing?.character ?? null : drawn;
+  // The stage loads whichever figure the current view shows: the inspected one, or the box's.
+  const wanted: FigurineCharacter | null = view === "viewer" ? viewing?.character ?? null : drawn ?? (sealedDraw === null ? null : series.characters[sealedDraw]);
+  const [model, setModel] = useState<"idle" | "loading" | "ready" | "failed">("idle");
+  const [refetch, setRefetch] = useState(0);
+  // Recently fetched figure files, so stepping into the viewer and back does not download again.
+  const fetched = useRef(new Map<string, File>());
   useEffect(() => {
-    if (!wanted) { setFiles([]); return; }
+    if (!wanted) { setFiles([]); setModel("idle"); return; }
+    const remembered = fetched.current.get(wanted.model);
+    if (remembered) { setFiles([remembered]); setModel("loading"); return; }
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => { if (view !== "viewer") dispatch({ type: "failed" }); controller.abort(); }, 30_000);
+    setModel("loading");
+    const fail = () => { setModel("failed"); if (viewRef.current !== "viewer") dispatch({ type: "failed" }); };
+    const timeout = window.setTimeout(() => { fail(); controller.abort(); }, 30_000);
     void (async () => {
       try {
         const response = await fetch(wanted.model, { signal: controller.signal });
         if (!response.ok) throw new Error("Model unavailable");
         const blob = await response.blob();
         if (blob.size !== wanted.bytes) throw new Error("Incomplete model");
-        if (!controller.signal.aborted) setFiles([new File([blob], "collectible.glb")]);
-      } catch { if (!controller.signal.aborted && view !== "viewer") dispatch({ type: "failed" }); }
+        if (controller.signal.aborted) return;
+        const file = new File([blob], "collectible.glb");
+        fetched.current.set(wanted.model, file);
+        if (fetched.current.size > 6) fetched.current.delete(fetched.current.keys().next().value!);
+        setFiles([file]);
+      } catch { if (!controller.signal.aborted) fail(); }
       finally { window.clearTimeout(timeout); }
     })();
     return () => { window.clearTimeout(timeout); controller.abort(); };
-  }, [wanted, state.round, view]);
+  }, [wanted, state.round, refetch]);
+
+  // Start-up loading: the stage's scenery, boxes, portraits and shaders, every sound, and the first box's figure.
+  const [stageProgress, setStageProgress] = useState(0), [stageLoaded, setStageLoaded] = useState(false), [audioProgress, setAudioProgress] = useState(0);
+  useEffect(() => { void prefetchFigurineAudio([...new Set(FIGURINE_SERIES.flatMap((entry) => entry.characters.map((character) => character.classKey)))], setAudioProgress).then(() => setAudioProgress(1)); }, []);
+  const figureSettled = model === "ready" || model === "failed" || (sealedDraw === null && view !== "viewer");
+  const loaded = stageLoaded && audioProgress >= 1 && figureSettled;
+  const [revealedWorld, setRevealedWorld] = useState(false);
+  useEffect(() => { if (loaded || webglUnavailable) setRevealedWorld(true); }, [loaded, webglUnavailable]);
+  const progress = Math.round(100 * (0.6 * stageProgress + 0.25 * audioProgress + 0.15 * (figureSettled ? 1 : 0)));
+  // Each series pick drops its box onto the pedestal again.
+  const [arrival, setArrival] = useState(0);
 
   const navigate = useCallback((next: WorldView) => {
     unlockFigurineAudio();
@@ -70,19 +102,20 @@ export default function FigurineWorld() {
     unlockFigurineAudio();
     if (id !== seriesId || state.phase === "revealed" || state.phase === "error") { setOpened(null); dispatch({ type: "reset" }); }
     if (view !== "opening") setOrigin((current) => ({ ...current, opening: view === "viewer" ? "menu" : view }));
-    setSeriesId(id); setView("opening");
+    setSeriesId(id); setView("opening"); setArrival((current) => current + 1);
   }
   function open() {
     unlockFigurineAudio();
-    const selected = chooseFigure(series.characters.length, Math.random());
+    const selected = sealedDraw ?? chooseFigure(series.characters.length, Math.random());
     preloadFigurineSignature(series.characters[selected].classKey);
-    dispatch({ type: "open", selected });
+    if (model === "failed") setRefetch((current) => current + 1);
+    dispatch({ type: "open", selected, ready: sealedDraw !== null && model === "ready" });
   }
   function revealed() {
     dispatch({ type: "revealed" });
     if (drawn) { const key = figureKey(series.id, drawn.id); setOpened({ key, count: addToCollection(key) }); }
   }
-  function another() { unlockFigurineAudio(); setOpened(null); setFiles([]); dispatch({ type: "reset" }); }
+  function another() { unlockFigurineAudio(); setOpened(null); dispatch({ type: "reset" }); }
   function inspect(key: string) { if (state.phase === "revealed" || state.phase === "error") { setOpened(null); dispatch({ type: "reset" }); } setInspected(key); if (view !== "viewer") setOrigin((current) => ({ ...current, viewer: view })); setView("viewer"); }
   // Navigation is in the world; the keyboard mirrors it: Esc back, S shop, C collection,
   // number keys pick a series, Enter opens the sealed box.
@@ -130,9 +163,18 @@ export default function FigurineWorld() {
       interactive={view === "opening" && state.phase === "sealed" && !webglUnavailable} round={state.round} onBoxTap={open} rotate={view === "viewer"}
       view={view} series={series.id} world={world} figureKey={drawn ? figureKey(series.id, drawn.id) : undefined}
       onNavigate={navigate} onBack={back} onPickSeries={pickSeries} onInspect={inspect} onHoverFigure={setHovered}
-      onStatus={(status) => { setWebglUnavailable(status === "webgl"); if (status === "ready") dispatch({ type: "loaded" }); else if ((status === "error" || status === "webgl") && view !== "viewer") dispatch({ type: "failed" }); }}
+      onStatus={(status) => {
+        setWebglUnavailable(status === "webgl");
+        if (status === "ready") { setModel("ready"); dispatch({ type: "loaded" }); }
+        else if (status === "error" || status === "webgl") { setModel("failed"); if (view !== "viewer") dispatch({ type: "failed" }); }
+      }}
+      onProgress={setStageProgress} onLoaded={() => setStageLoaded(true)} arrival={arrival}
       onRevealed={revealed} signature={drawn?.classKey}
       labels={{ loading: t("modelLoading"), ready: t("modelReady"), empty: t("modelEmpty"), error: t("modelError"), webgl: t("webglError"), box: t("boxStatus"), boxTitle: t("boxTitle"), boxSubtitle: t("boxSubtitle"), series: t("navCollection"), packaging }} />
+    <div className={styles.worldLoader} data-done={revealedWorld} role="status" aria-hidden={revealedWorld}>
+      <span>{t("worldPreparing")}</span>
+      <div className={styles.worldLoaderBar}><i style={{ width: `${progress}%` }} /></div>
+    </div>
     <div className={styles.showcaseHud}>
       <div className={styles.revealIdentity} aria-live="polite" aria-atomic="true">
         {view === "opening" && state.phase === "revealed" && drawn ? <>

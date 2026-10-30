@@ -121,3 +121,8 @@ test("every catalog race and class is translated in both maintained locales", as
     }
   }
 });
+
+test("a box whose figure was preloaded while sealed opens straight into the reveal", () => {
+  assert.deepEqual(boxReducer(initialBox, { type: "open", selected: 3, ready: true }), { phase: "opening", selected: 3, round: 0 });
+  assert.equal(boxReducer(initialBox, { type: "open", selected: 3 }).phase, "loading");
+});

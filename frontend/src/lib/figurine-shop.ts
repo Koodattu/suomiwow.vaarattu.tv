@@ -54,12 +54,14 @@ export function buildShop(parent: THREE.Group, { series, envMap, labels }: { ser
   const add = (geometry: THREE.BufferGeometry, material: THREE.Material | THREE.Material[], x: number, y: number, z: number, shadow = true) => {
     const mesh = new THREE.Mesh(geometry, material); mesh.position.set(x, y, z); mesh.castShadow = mesh.receiveShadow = shadow; parent.add(mesh); return mesh;
   };
-  add(new THREE.BoxGeometry(5.6, 1.05, 1.1), wood, 0, 0.525, 0.9);
-  add(new THREE.BoxGeometry(5.9, 0.08, 1.3), darkWood, 0, 1.09, 0.9);
-  add(new THREE.BoxGeometry(6, 3.5, 0.15), wood, 0, 1.75, -0.95);
-  for (const y of [1.75, 2.65]) add(new THREE.BoxGeometry(5.8, 0.07, 0.55), darkWood, 0, y, -0.62);
+  // The stall's solid frame, which glows when the shop is hovered.
+  const frame = [
+    add(new THREE.BoxGeometry(5.6, 1.05, 1.1), wood, 0, 0.525, 0.9), add(new THREE.BoxGeometry(5.9, 0.08, 1.3), darkWood, 0, 1.09, 0.9),
+    add(new THREE.BoxGeometry(6, 3.5, 0.15), wood, 0, 1.75, -0.95),
+  ];
+  for (const y of [1.75, 2.65]) frame.push(add(new THREE.BoxGeometry(5.8, 0.07, 0.55), darkWood, 0, y, -0.62));
   const post = new THREE.CylinderGeometry(0.07, 0.08, 3.9, 8);
-  for (const x of [-2.95, 2.95]) for (const z of [1.5, -0.85]) add(post, darkWood, x, 1.95, z);
+  for (const x of [-2.95, 2.95]) for (const z of [1.5, -0.85]) frame.push(add(post, darkWood, x, 1.95, z));
   const canopy = add(new THREE.PlaneGeometry(6.4, 2.7), new THREE.MeshStandardMaterial({ map: stripes(), roughness: 0.9, side: THREE.DoubleSide }), 0, 3.95, 0.35);
   canopy.rotation.x = -Math.PI / 2 + 0.32;
   const sign = add(new THREE.BoxGeometry(2.8, 0.7, 0.07), [darkWood, darkWood, darkWood, darkWood, new THREE.MeshStandardMaterial({ map: signTexture(labels.sign), roughness: 0.6 }), darkWood], 0, 4.5, 1.55);
@@ -75,8 +77,9 @@ export function buildShop(parent: THREE.Group, { series, envMap, labels }: { ser
     const faces = [prints.right, prints.left, prints.lid, prints.edge, prints.front, prints.back];
     const stack = new THREE.Group(); stack.position.set(index === 0 ? -1.45 : 1.45, 0, 0); parent.add(stack);
     const lift = new THREE.Group(); stack.add(lift);
+    const boxes: THREE.Mesh[] = [];
     const place = (group: THREE.Group, x: number, y: number, z: number, yaw: number) => {
-      const boxMesh = new THREE.Mesh(geometry, faces); boxMesh.position.set(x, y + h / 2, z); boxMesh.rotation.y = yaw; boxMesh.castShadow = true; group.add(boxMesh);
+      const boxMesh = new THREE.Mesh(geometry, faces); boxMesh.position.set(x, y + h / 2, z); boxMesh.rotation.y = yaw; boxMesh.castShadow = true; group.add(boxMesh); boxes.push(boxMesh);
     };
     [[-0.52, 0], [0, 0], [0.52, 0], [-0.26, 1], [0.26, 1], [0, 2]].forEach(([x, row], i) => place(lift, x, 1.13 + row * h, 0.9, (i % 3 - 1) * 0.06));
     for (const y of [1.785, 2.685]) [-0.75, -0.25, 0.25, 0.75].forEach((x, i) => place(stack, x, y, -0.6, (i % 2 ? 1 : -1) * 0.08));
@@ -105,11 +108,12 @@ export function buildShop(parent: THREE.Group, { series, envMap, labels }: { ser
       pick.position.set(0, y, z); pick.userData.series = entry.id; stack.add(pick); picks.push(pick);
     }
     sign.userData.series = entry.id; picks.push(sign);
-    return { id: entry.id, lift, glow, paint, hover: 0, stop: prints.stop };
+    return { id: entry.id, lift, glow, paint, hover: 0, boxes, stop: prints.stop };
   });
 
   return {
-    picks,
+    picks, frame,
+    boxes: new Map(stacks.map((stack) => [stack.id, stack.boxes])),
     setCollected(id: string, got: number) { stacks.find((stack) => stack.id === id)?.paint(got); },
     update(hovered: string | null, delta: number, time: number) {
       for (const stack of stacks) {

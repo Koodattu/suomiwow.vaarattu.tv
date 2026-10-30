@@ -127,3 +127,9 @@
 .showcase[data-view="viewer"] .revealIdentity h1, .showcase[data-view="viewer"] .revealIdentity p { animation: identityIn .6s ease-out both; }
 @media (prefers-reduced-motion: reduce) { .newBadge, .worldHint, .backChip { animation: none; transition: none; } }
 @media (max-width: 600px) { .backChip { left: 14px; top: 16px; } .worldHint { font-size: 11px; letter-spacing: .1em; } }
+/* Start-up loader over the world: fades out once scenery, boxes, sounds and portraits are ready. */
+.worldLoader { position: absolute; inset: 0; z-index: 5; display: grid; place-content: center; justify-items: center; gap: 14px; background: radial-gradient(circle at 50% 45%, #1b2a22, #070b0d 70%); color: #e9d9b0; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; transition: opacity .6s ease, visibility .6s; }
+.worldLoader[data-done="true"] { opacity: 0; visibility: hidden; pointer-events: none; }
+.worldLoaderBar { width: min(260px, 60vw); height: 3px; border-radius: 2px; background: rgba(233, 217, 176, .15); overflow: hidden; }
+.worldLoaderBar i { display: block; height: 100%; background: linear-gradient(90deg, #b98a3f, #f1d48a); transition: width .3s ease; }
+@media (prefers-reduced-motion: reduce) { .worldLoader, .worldLoaderBar i { transition: none; } }

@@ -6,6 +6,8 @@ import { restoreFigurineMaterials } from "@/lib/figurine-materials";
 // The clearing around the plaza: Elwynn Forest doodads exported with the local wow.export worker
 // (provenance: /figurines/world/source-models.json), scattered from a fixed seed and drawn as one
 // instanced mesh per model part. The camera side stays open so the hub shot is never blocked.
+// Bump MODEL_VERSION when the files change: browsers keep the old ones otherwise.
+const MODEL_VERSION = 2;
 export const FOREST_MODELS = {
   tree: "/figurines/world/models/tree-canopy-02.glb",
   bareTree: "/figurines/world/models/tree-canopyless-01.glb",
@@ -16,34 +18,74 @@ export const FOREST_MODELS = {
   stump: "/figurines/world/models/stump-01.glb",
   haystack: "/figurines/world/models/haystack-01.glb",
   lamp: "/figurines/world/models/lamppost.glb",
+  tent: "/figurines/world/models/tent.glb",
+  wagon: "/figurines/world/models/wagon.glb",
+  table: "/figurines/world/models/table.glb",
+  crate: "/figurines/world/models/crate.glb",
+  barrel: "/figurines/world/models/barrel.glb",
+  signpost: "/figurines/world/models/signpost.glb",
+  lantern: "/figurines/world/models/lantern.glb",
+  cheese: "/figurines/world/models/cheese.glb",
+  fruit: "/figurines/world/models/fruit.glb",
+  bread: "/figurines/world/models/bread.glb",
 } as const;
 export type ForestModel = keyof typeof FOREST_MODELS;
 // World-unit heights; a figure on the pedestal stands 2.5.
 const HEIGHTS: Record<ForestModel, [number, number]> = {
   tree: [11, 16], bareTree: [10, 14], bush: [1.6, 2.6], bushSmall: [1, 1.7], rock: [0.3, 0.5], rockSmall: [0.2, 0.35],
   stump: [0.8, 1.1], haystack: [2.2, 2.6], lamp: [4.4, 4.4],
+  tent: [4.6, 4.6], wagon: [4, 4], table: [1.05, 1.05], crate: [0.75, 0.95], barrel: [1, 1.15],
+  signpost: [3, 3], lantern: [0.55, 0.55], cheese: [0.22, 0.26], fruit: [0.34, 0.34], bread: [0.16, 0.2],
 };
-export type Placement = { model: ForestModel; x: number; z: number; yaw: number; size: number };
+// `y` lifts an item onto a table or a stack. Casters throw shadows from the sun.
+export type Placement = { model: ForestModel; x: number; z: number; yaw: number; size: number; y?: number };
+const CASTERS = new Set<ForestModel>(["tree", "bareTree", "bush", "stump", "haystack", "lamp", "tent", "wagon", "table", "crate", "barrel", "signpost"]);
+// WoW models face +x; this yaw turns one at (x, z) toward the plaza centre.
+const facingCentre = (x: number, z: number) => Math.atan2(z, -x);
+
+// A small Elwynn market where the path leaves the plaza: a tent and a wagon flanking it, a
+// signpost at the entrance (no faction banners: the market takes no side), stock piled by the stall and the case, and two tables
+// of produce at the front corners.
+export function marketLayout(): Placement[] {
+  const at = (model: ForestModel, x: number, z: number, extra: Partial<Placement> = {}): Placement => ({ model, x, z, yaw: facingCentre(x, z), size: 0.5, ...extra });
+  const table = (x: number, z: number) => {
+    const top = 1.03, yaw = facingCentre(x, z), c = Math.cos(yaw), s = Math.sin(yaw);
+    // Items in the table's own frame (along its facing, across it), rotated into the world.
+    const on = (model: ForestModel, along: number, across: number, size = 0.5) => at(model, x + along * c + across * s, z - along * s + across * c, { y: top, yaw: yaw + across * 2, size });
+    return [at("table", x, z), on("cheese", 0.35, -0.9), on("cheese", 0.1, -0.55, 0.9), on("bread", -0.3, 0.1), on("bread", -0.2, 0.4, 0.2), on("fruit", 0.2, 0.75), on("lantern", -0.4, -1.3)];
+  };
+  return [
+    at("tent", -5.6, -18.2), at("wagon", 6.4, -18.4),
+    at("signpost", 2.6, -15.6, { yaw: 2.2 }), at("crate", -5.2, -14.2, { yaw: 0.5 }), at("barrel", 5.4, -14.5),
+    at("crate", -11, -2.2, { yaw: 0.3 }), at("crate", -11.7, -1.3, { yaw: -0.2, size: 0.2 }), at("crate", -11.1, -2.1, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -10.6, -0.6),
+    at("barrel", 11.3, -2.1), at("barrel", 11.9, -1), at("crate", 11.1, -0.2, { yaw: 1.1 }),
+    ...table(-10.6, 4.6), ...table(10.9, 4.2),
+  ];
+}
+// True if (x, z) is clear of the market's footprints.
+const clearOf = (spots: Placement[], x: number, z: number) => spots.every((spot) => Math.hypot(spot.x - x, spot.z - z) > (spot.model === "tent" || spot.model === "wagon" ? 6 : 2));
 
 const seeded = (seed: number) => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 // Angle 0 points at the hub camera (+z); the forest path leaves the plaza at angle π.
 const OPEN_FRONT = 0.78, PATH_ANGLE = Math.PI, PATH_HALF = 0.13;
 const angularGap = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 
-export function forestLayout(plazaRadius: number, seed = 11): Placement[] {
+export function forestLayout(plazaRadius: number, seed = 11, market: Placement[] = []): Placement[] {
   const next = seeded(seed), placements: Placement[] = [];
   const ring = (count: number, inner: number, outer: number, models: ForestModel[], open: number, path = PATH_HALF) => {
     for (let i = 0; i < count; i++) {
       // Even spread around the ring with jitter, so there are no bald patches.
       const angle = (i + next() * 0.8) / count * Math.PI * 2, radius = inner + next() * (outer - inner);
-      if (angularGap(angle, 0) < open || angularGap(angle, PATH_ANGLE) < path * (20 / radius)) continue;
-      placements.push({ model: models[Math.floor(next() * models.length)], x: Math.sin(angle) * radius, z: Math.cos(angle) * radius, yaw: next() * Math.PI * 2, size: next() });
+      const x = Math.sin(angle) * radius, z = Math.cos(angle) * radius, model = models[Math.floor(next() * models.length)], yaw = next() * Math.PI * 2, size = next();
+      if (angularGap(angle, 0) < open || angularGap(angle, PATH_ANGLE) < path * (20 / radius) || !clearOf(market, x, z)) continue;
+      placements.push({ model, x, z, yaw, size });
     }
   };
   ring(24, plazaRadius + 8, plazaRadius + 13, ["tree", "tree", "tree", "bareTree"], OPEN_FRONT);
   ring(32, plazaRadius + 15, plazaRadius + 24, ["tree", "tree", "bareTree"], OPEN_FRONT * 0.7);
   ring(30, plazaRadius + 0.8, plazaRadius + 5, ["bush", "bush", "bushSmall", "rock", "rockSmall"], OPEN_FRONT * 0.75, PATH_HALF * 1.6);
   ring(8, plazaRadius + 2, plazaRadius + 6, ["stump", "rock"], OPEN_FRONT, PATH_HALF * 2);
+  placements.push(...market);
   // Hay by the shop side of the clearing.
   for (const [angle, radius] of [[-1.15, plazaRadius + 1.6], [-1.32, plazaRadius + 2.4]]) placements.push({ model: "haystack", x: Math.sin(angle) * radius, z: Math.cos(angle) * radius, yaw: next() * 6.28, size: next() });
   // Lamp posts around the plaza rim.
@@ -64,7 +106,7 @@ export function buildForest(parent: THREE.Object3D, placements: Placement[], onS
   placements.forEach((placement) => byModel.set(placement.model, [...(byModel.get(placement.model) ?? []), placement]));
   const loads = [...byModel].map(async ([model, spots]) => {
     try {
-      const gltf = await loader.loadAsync(FOREST_MODELS[model]);
+      const gltf = await loader.loadAsync(`${FOREST_MODELS[model]}?v=${MODEL_VERSION}`);
       restoreFigurineMaterials(gltf.scene);
       gltf.scene.updateMatrixWorld(true);
       const bounds = new THREE.Box3().setFromObject(gltf.scene), [low, high] = HEIGHTS[model];
@@ -74,11 +116,11 @@ export function buildForest(parent: THREE.Object3D, placements: Placement[], onS
         const instances = new THREE.InstancedMesh(object.geometry, object.material, spots.length);
         spots.forEach((spot, index) => {
           const scale = (low + (high - low) * spot.size) * unit;
-          place.compose(new THREE.Vector3(spot.x, -bounds.min.y * scale - 0.02, spot.z), quaternion.setFromAxisAngle(up, spot.yaw), new THREE.Vector3(scale, scale, scale));
+          place.compose(new THREE.Vector3(spot.x, (spot.y ?? 0) - bounds.min.y * scale - 0.02, spot.z), quaternion.setFromAxisAngle(up, spot.yaw), new THREE.Vector3(scale, scale, scale));
           instances.setMatrixAt(index, matrix.multiplyMatrices(place, object.matrixWorld));
         });
         instances.computeBoundingSphere();
-        instances.receiveShadow = model === "lamp" || model === "haystack";
+        instances.castShadow = CASTERS.has(model); instances.receiveShadow = model !== "tree" && model !== "bareTree";
         if (model === "tree" || model === "bareTree" || model === "bush") (Array.isArray(object.material) ? object.material : [object.material]).forEach((material) => onSway?.(material));
         group.add(instances);
       });

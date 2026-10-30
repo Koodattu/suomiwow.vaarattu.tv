@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { woodTexture } from "@/lib/figurine-shop";
+import { cardGlow } from "@/lib/figurine-glow";
+import { SILHOUETTE } from "@/lib/figurine-packaging";
 
 // Collection display: a lit cubby cabinet with one 4×4 grid per series, like the acrylic display
 // boxes blind-box collectors use. Unowned figures stand as pitch-black silhouettes; owned ones
@@ -7,9 +9,9 @@ import { woodTexture } from "@/lib/figurine-shop";
 export type CaseSeries = { id: string; number: string; accent: string; silhouettes: string; keys: string[] };
 export type CaseLabels = { series: (number: string) => string; collected: (got: number, total: number) => string };
 export type SlotState = "locked" | "pending" | "owned";
-const COLUMNS = 4, ROWS = 4, SHEET_COLUMNS = 8;
-// Cubby interior, divider thickness and depth; cards keep the 200×360 silhouette cell aspect.
-const CELL_W = 0.62, CELL_H = 0.92, FRAME = 0.05, DEPTH = 0.5, CARD_H = 0.78, CARD_W = CARD_H * 200 / 360;
+const COLUMNS = 4, ROWS = 4, SHEET_COLUMNS = SILHOUETTE.columns;
+// Cubby interior, divider thickness and depth; cards keep the silhouette cell's aspect.
+const CELL_W = 0.64, CELL_H = 0.92, FRAME = 0.05, DEPTH = 0.5, CARD_H = 0.78, CARD_W = CARD_H * SILHOUETTE.w / SILHOUETTE.h;
 const SECTION_W = COLUMNS * CELL_W + (COLUMNS + 1) * FRAME, GRID_H = ROWS * CELL_H + (ROWS + 1) * FRAME;
 const BASE = 0.55, PILLAR = 0.16;
 export const CASE_HEIGHT = BASE + GRID_H + 0.12;
@@ -64,10 +66,10 @@ export function buildCase(parent: THREE.Group, { series, labels, envMap }: { ser
     const mesh = new THREE.Mesh(geometry, material); mesh.position.set(x, y, z); mesh.castShadow = mesh.receiveShadow = shadow; parent.add(mesh); return mesh;
   };
   // Wooden base cabinet with a gold trim line, the lacquered carcass on top and a cornice.
-  add(new THREE.BoxGeometry(total + 0.1, BASE, DEPTH + 0.2), wood, 0, BASE / 2, 0);
+  const frame = [add(new THREE.BoxGeometry(total + 0.1, BASE, DEPTH + 0.2), wood, 0, BASE / 2, 0)];
   add(new THREE.BoxGeometry(total + 0.12, 0.025, 0.02), gold, 0, BASE - 0.04, DEPTH / 2 + 0.11, false);
   add(new THREE.BoxGeometry(total, GRID_H, 0.04), lacquer, 0, BASE + GRID_H / 2, -DEPTH / 2 - 0.02);
-  add(new THREE.BoxGeometry(total + 0.14, 0.12, DEPTH + 0.16), wood, 0, BASE + GRID_H + 0.06, 0);
+  frame.push(add(new THREE.BoxGeometry(total + 0.14, 0.12, DEPTH + 0.16), wood, 0, BASE + GRID_H + 0.06, 0));
   // Clear front panels: reflections only, never a tap target.
   const glass = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.07, roughness: 0.04, metalness: 0, envMap, envMapIntensity: 2.2, depthWrite: false });
   const slots = new Map<string, { card: THREE.Mesh; material: THREE.MeshBasicMaterial; cell: THREE.Texture; shadow: THREE.MeshBasicMaterial; hover: number }>();
@@ -79,7 +81,7 @@ export function buildCase(parent: THREE.Group, { series, labels, envMap }: { ser
   blot.addColorStop(0, "rgba(0,0,0,.85)"); blot.addColorStop(1, "rgba(0,0,0,0)");
   shadowContext.setTransform(1, 0, 0, 0.5, 0, 8); shadowContext.fillStyle = blot; shadowContext.fillRect(0, 0, 64, 64);
   const shadowMap = new THREE.CanvasTexture(shadowCanvas), shadowGeometry = new THREE.PlaneGeometry(0.42, 0.16).rotateX(-Math.PI / 2);
-  for (let pillar = 0; pillar <= series.length; pillar++) add(new THREE.BoxGeometry(PILLAR, GRID_H, DEPTH + 0.04), lacquer, -total / 2 + PILLAR / 2 + pillar * (SECTION_W + PILLAR), BASE + GRID_H / 2, 0);
+  for (let pillar = 0; pillar <= series.length; pillar++) frame.push(add(new THREE.BoxGeometry(PILLAR, GRID_H, DEPTH + 0.04), lacquer, -total / 2 + PILLAR / 2 + pillar * (SECTION_W + PILLAR), BASE + GRID_H / 2, 0));
   series.forEach((entry, index) => {
     const centre = -total / 2 + PILLAR + SECTION_W / 2 + index * (SECTION_W + PILLAR);
     const back = new THREE.Mesh(new THREE.PlaneGeometry(SECTION_W, GRID_H), new THREE.MeshBasicMaterial({ map: backPanel(entry.accent) }));
@@ -115,10 +117,11 @@ export function buildCase(parent: THREE.Group, { series, labels, envMap }: { ser
       picks.push(card);
     });
   });
+  const glow = cardGlow(CARD_W, CARD_H, 0xffd98a); parent.add(glow.mesh);
   const lamp = new THREE.PointLight(0xffd8a0, 3, 7, 1.6); lamp.position.set(0, CASE_HEIGHT - 0.4, 1.6); parent.add(lamp);
 
   return {
-    picks,
+    picks, frame,
     setSlot(key: string, state: SlotState, portrait?: THREE.Texture) {
       const slot = slots.get(key);
       if (!slot) return;
@@ -139,6 +142,7 @@ export function buildCase(parent: THREE.Group, { series, labels, envMap }: { ser
         slot.hover = THREE.MathUtils.damp(slot.hover, key === hovered ? 1 : 0, 12, delta);
         slot.card.scale.setScalar(1 + slot.hover * 0.1);
       });
+      glow.update(hovered ? slots.get(hovered)?.card ?? null : null, 1, delta);
     },
   };
 }
