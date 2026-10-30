@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { getFigurineAudioSettings, setFigurineAudioSettings, unlockFigurineAudio, type FigurineAudioSettings } from "@/lib/figurine-audio";
-import styles from "../figurine-lab/figurine-lab.module.css";
+import styles from "@/app/tools/figurine-lab/figurine-lab.module.css";
 
 // Saved settings as an external store: read once on the client, none during server rendering.
 const listeners = new Set<() => void>();

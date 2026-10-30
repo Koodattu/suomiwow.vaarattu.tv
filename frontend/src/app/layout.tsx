@@ -51,10 +51,11 @@ export default function RootLayout({
   const isCcgPage = pathname.startsWith("/ccg");
   const isCcgSharePage = pathname.startsWith("/ccg/share/");
   const isCcgOverlayPage = pathname === "/ccg/overlay";
-  const isCollectibleOpening = pathname === "/tools/collectibles";
+  const isCollectibleOpening = pathname === "/collectibles";
+  const isCollectiblesPage = isCollectibleOpening || pathname.startsWith("/collectibles/");
   const isHomePage = pathname === "/";
   const robotsContent =
-    pathname.startsWith("/admin") || pathname.startsWith("/profile") || pathname.startsWith("/reporter") || pathname.startsWith("/fun") || pathname.startsWith("/tools") || isCcgOverlayPage
+    pathname.startsWith("/admin") || pathname.startsWith("/profile") || pathname.startsWith("/reporter") || pathname.startsWith("/fun") || pathname.startsWith("/tools") || isCollectiblesPage || isCcgOverlayPage
       ? "noindex, nofollow"
       : "index, follow";
   const [locale, setLocale] = useState<Locale>("en");

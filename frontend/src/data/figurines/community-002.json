@@ -39,7 +39,7 @@
         "animationId": 67,
         "variation": 0,
         "name": "EmoteWave",
-        "durationMs": 2500,
+        "durationMs": 2667,
         "timeMs": 700
       },
       "weapons": "sheathed",
@@ -48,15 +48,19 @@
       "fetchedAt": "2026-10-29T21:26:59.040Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/stormreaver/128/172573568-main-raw.png",
       "model": "/figurines/community-002/eppugrip.glb",
-      "bytes": 2012908,
-      "sha256": "53393b21a620e6beac7d43d7012015f3bc605bb798f54729515bdd084217c4ea",
+      "bytes": 875404,
+      "sha256": "2e70f1c679a9c940bafd56edae58bf287344f72011e6784719cfb98f2d8414a9",
       "source": "sources/eppugrip.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "dracthyr",
       "classKey": "priest",
-      "authoringSeries": "community-repairs-001"
+      "authoringSeries": "community-visage-001",
+      "form": {
+        "type": "visage",
+        "modelFileDataId": 4220448
+      }
     },
     {
       "id": "zetabeach",
@@ -126,7 +130,7 @@
         "animationId": 68,
         "variation": 0,
         "name": "EmoteCheer",
-        "durationMs": 2000,
+        "durationMs": 2334,
         "timeMs": 700
       },
       "weapons": "sheathed",
@@ -135,15 +139,19 @@
       "fetchedAt": "2026-10-29T21:26:59.579Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/203/210710987-main-raw.png",
       "model": "/figurines/community-002/zetacmi.glb",
-      "bytes": 2031584,
-      "sha256": "ef299123b752d4c9036441503b79fae8897f0455f8412f6b53b750c750296395",
+      "bytes": 1367568,
+      "sha256": "a215f7b459da47f4c9f3594c13b08b65719d02a8c0000a0a7a0dcf3621e4c2da",
       "source": "sources/zetacmi.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "dracthyr",
       "classKey": "priest",
-      "authoringSeries": "community-repairs-001"
+      "authoringSeries": "community-visage-001",
+      "form": {
+        "type": "visage",
+        "modelFileDataId": 4220448
+      }
     },
     {
       "id": "hirvihotline",

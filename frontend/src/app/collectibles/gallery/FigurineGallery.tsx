@@ -5,9 +5,9 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import catalog from "@/data/figurines/community-001.json";
-import styles from "../../figurine-lab/figurine-lab.module.css";
+import styles from "@/app/tools/figurine-lab/figurine-lab.module.css";
 
-const FigurineStage = dynamic(() => import("../../figurine-lab/FigurineStage"), { ssr: false });
+const FigurineStage = dynamic(() => import("@/app/tools/figurine-lab/FigurineStage"), { ssr: false });
 type Figure = (typeof catalog.characters)[number];
 
 function Preview({ figure }: { figure: Figure }) {
@@ -56,7 +56,7 @@ export default function FigurineGallery() {
     return () => observer.disconnect();
   }, []);
   return <main className={styles.gallery}>
-    <header className={styles.header}><div><p className={styles.eyebrow}>{t("localOnly")}</p><h1>{t("galleryTitle")}</h1><p className={styles.intro}>{t("galleryIntro", { count: catalog.characters.length })}</p></div><Link href="/tools/collectibles">{t("openBox")}</Link></header>
+    <header className={styles.header}><div><p className={styles.eyebrow}>{t("localOnly")}</p><h1>{t("galleryTitle")}</h1><p className={styles.intro}>{t("galleryIntro", { count: catalog.characters.length })}</p></div><Link href="/collectibles">{t("openBox")}</Link></header>
     <div ref={grid} className={styles.galleryGrid}>
       {catalog.characters.map((figure) => <article key={figure.id} data-figure={figure.id} className={styles.galleryCard}>
         {visible.includes(figure.id) ? <Preview key={figure.sha256} figure={figure} /> : <div className={styles.galleryPlaceholder}>{t("galleryScroll")}</div>}

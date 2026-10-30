@@ -1,15 +1,16 @@
 # Local collectible prototypes
 
-All three pages are development-only:
-- `/tools/collectibles`: focused blind-box opening and figure reveal.
-- `/tools/collectibles/gallery`: one entry per character, pose/time, weapon state,
+The game is available by direct link only while it is a work in progress:
+- `/collectibles`: focused blind-box opening and figure reveal, with an image-only
+  SuomiWoW logo in the top left that returns to the main site.
+- `/collectibles/gallery`: development-only; one entry per character, pose/time, weapon state,
   size, and orbit controls. At most six nearby previews use GPU contexts.
-- `/tools/figurine-lab`: EU lookup, Blizzard reference image, appearance JSON,
+- `/tools/figurine-lab`: development-only; EU lookup, Blizzard reference image, appearance JSON,
   local GLB/glTF import, and the original workbench.
 
 Start the frontend with its normal `npm run dev` and supported Node version.
-The pages and `/api/figurine-lab/character` return 404 outside development.
-There are no navigation entries or production configuration changes.
+The gallery, workbench, and `/api/figurine-lab/character` return 404 outside development.
+Collectibles has no public navigation entries or sitemap entry and uses `noindex, nofollow`.
 
 ## Current series
 
@@ -290,6 +291,20 @@ snapshot replay helpers are stopped.
 
 ## Appearance repair audit (2026-10-30)
 
+Collectible form policy: non-Evoker Dracthyr default to their humanoid visage;
+Evokers default to their Dracthyr form. This is resolved from race/class in the
+local exporter, so future series inherit it without name-specific rules. A recipe
+entry can explicitly set `"form": "dracthyr"` or `"form": "visage"` to override
+the default for that character. Other races and the existing druid cat selection
+are unaffected. Export provenance records the resolved form and model file ID.
+
+Eppugrip and Zetacmi in box 2 were rebuilt from their frozen appearances in
+`community-visage-001`, preserving transmog and emotes. Both exports retain all
+26 selected visage customizations, have zero export/validation warnings, and
+were visually checked in Blender. Their compressed models are 875,404 and
+1,367,568 bytes respectively. Their collection silhouettes were regenerated;
+Morinicar remains in Dracthyr form as an Evoker.
+
 Audited the back geometry/materials of all 32 figures and rendered both complete
 lineups from behind. Eleven classic cloaks were incorrectly using the character
 atlas: Yolobolt, Melice, Turrilol, Suursmurffi, Rhagy, Ovelakettu, Hirvihotline,
@@ -324,7 +339,7 @@ Blender renders do not reproduce the viewer's additive effects exactly.
 
 ## Collectibles world
 
-`/tools/collectibles` is one 3D scene with a home and two stations. Home is the centre: the
+`/collectibles` is one 3D scene with a home and two stations. Home is the centre: the
 pedestal, seen head-on with the shop and the case at either side, holding either a sealed box
 (opening) or an inspected figure (viewer). Both share one camera, so swapping between a box
 and a figure never moves it, and returning from a station lands where the camera was left.

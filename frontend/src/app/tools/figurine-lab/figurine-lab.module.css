@@ -11,6 +11,12 @@
 @media (max-width: 980px) { .galleryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 620px) { .gallery { padding: 30px 14px; } .galleryGrid { grid-template-columns: 1fr; } .gallery .header { display: flex; flex-direction: column; } }
 .showcase { height: 100svh; min-height: 560px; overflow: hidden; position: relative; isolation: isolate; color: #eee8dc; background: #080d15; }
+.worldHomeLink { position: absolute; z-index: 6; top: max(16px, env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); display: inline-flex; align-items: center; min-height: 44px; transition: opacity 150ms ease, transform 120ms ease; }
+.worldHomeLink img { width: 112px; height: auto; }
+.worldHomeLink:hover { opacity: .86; }
+.worldHomeLink:focus-visible { border-radius: .3rem; outline: 2px solid #7ddcff; outline-offset: 3px; }
+.worldHomeLink:active { transform: scale(.96); }
+@media (prefers-reduced-motion: reduce) { .worldHomeLink { transition: none; } }
 .showcaseHeader { position: absolute; top: max(28px, env(safe-area-inset-top)); left: 0; width: 100%; z-index: 2; text-align: center; pointer-events: none; }
 .showcaseHeader > span { color: #e2c492; font-family: Georgia, serif; font-size: 16px; letter-spacing: .32em; }
 .showcaseHeader p { margin-top: 9px; color: #82909f; font-size: 10px; text-transform: uppercase; letter-spacing: .2em; }
