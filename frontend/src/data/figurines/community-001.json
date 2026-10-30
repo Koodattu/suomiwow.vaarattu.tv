@@ -63,26 +63,27 @@
       "name": "Laku",
       "realm": "Stormreaver",
       "pose": {
-        "animationId": 97,
+        "animationId": 1260,
         "variation": 0,
-        "name": "SitGround",
-        "durationMs": 2000,
-        "timeMs": 750
+        "name": "WALean01",
+        "durationMs": 6000,
+        "timeMs": 0
       },
-      "weapons": "sheathed",
+      "weapons": "hidden",
       "race": "Pandaren",
       "characterClass": "Mage",
       "fetchedAt": "2026-10-29T21:03:49.872Z",
       "referenceImage": "https://render.worldofwarcraft.com/eu/character/stormreaver/117/186501237-main-raw.png",
       "model": "/figurines/community-001/laku.glb",
-      "bytes": 646028,
-      "sha256": "cda665cdf3641a637fa0df5cce48c0ec1e1cec858fae2e5c285f122628b7a471",
+      "bytes": 556224,
+      "sha256": "89ba0dc53f83853b324cf5cdd209ee7ab4bf9111f0fa69f3fe4769983d27c4a5",
       "source": "sources/laku.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
       "raceKey": "pandaren",
-      "classKey": "mage"
+      "classKey": "mage",
+      "authoringSeries": "community-laku-lean-002"
     },
     {
       "id": "melice",

@@ -23,7 +23,7 @@ There are 16 unique characters, including Ovelakettu–Kazzak (Chipiepew was dro
 | --- | --- | --- |
 | Röidy–Kazzak | Cheer, 900 ms | Held |
 | Yolobolt–Kazzak | Roar, 1200 ms | Held |
-| Laku–Stormreaver | SitGround, 750 ms | Sheathed |
+| Laku–Stormreaver | WALean01, 0 ms | Hidden |
 | Melice–Kazzak | Laugh, 1100 ms | Sheathed |
 | Vesipuhveli–Khadgar | Flex, 1000 ms | Sheathed |
 | Turrilol–Kazzak | Dance, 2500 ms | Sheathed |
@@ -39,6 +39,11 @@ There are 16 unique characters, including Ovelakettu–Kazzak (Chipiepew was dro
 | Ovelakettu–Kazzak | Lean, 1600 ms | Sheathed |
 
 These are static poses baked from game animations, not animated character rigs.
+Laku's updated batch is `community-laku-lean-002`: WALean01 (1260, variation 0)
+at 0 ms, with the weapon completely hidden and hands open. It reuses the frozen
+appearance snapshot; the 556,224-byte model passed decoded validation with no
+errors or warnings, and front/back Blender renders confirm the pose and absent
+weapon. The first box's silhouette sheet was rebuilt with this pose.
 The box/reveal animation runs independently. Each draw is uniform with replacement;
 loading and opening lock the result, retry keeps the chosen character, and reset
 conceals it. Identity appears after the figure lands on the disc. Reduced motion
@@ -62,7 +67,7 @@ decoded geometry, saves provenance, and stops the container. It requires several
 GB during authoring. No exporter runs on the VM.
 
 Each selection entry has `id`, EU `name`/`realm`, `pose`
-(`animationId`, `variation`, `timeMs`), and `weapons: "held" | "sheathed"`.
+(`animationId`, `variation`, `timeMs`), and `weapons: "held" | "sheathed" | "hidden"`.
 Use a new authoring series ID for each batch; builds never overwrite old series.
 Current source snapshots and full export records are retained under
 `E:\Projektit\wow.export\worker\data\series\community-posed-005`.
