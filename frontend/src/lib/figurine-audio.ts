@@ -29,9 +29,13 @@ export const FIGURINE_SOUNDS: Record<FigurineCue, { files: readonly string[]; vo
   // Per-class files are chosen at play time from the drawn figure's class.
   signature: { files: [], volume: 0.6, jitter: 0.03 },
   fanfare: { files: ["fanfare-a", "fanfare-b", "fanfare-c"], volume: 0.6, jitter: 0.02 },
+  // The drawn figure's CCG card quip, chosen at play time; never pitch-shifted.
+  quip: { files: [], volume: 1 },
   drop: { files: ["drop-a", "drop-b"], volume: 0.6, jitter: 0.04 },
 };
-const sourceFor = (file: string) => `/figurines/audio/${file}.mp3`;
+// Cue files live in /figurines/audio; quips are full paths into the CCG's quip folder.
+const sourceFor = (file: string) => file.startsWith("/") ? file : `/figurines/audio/${file}.mp3`;
+export const quipSource = (file: string) => /^[a-zA-Z0-9][a-zA-Z0-9 _.()-]*\.mp3$/.test(file) ? `/ccg/audio/quips/${encodeURIComponent(file)}` : null;
 const signatureFiles = (classKey?: string) => classKey && /^[a-zA-Z]+$/.test(classKey) ? [`class-${classKey}-a`, `class-${classKey}-b`] : [];
 // A cue that cannot start on time is dropped instead of playing out of sync.
 const MAX_LATENCY_MS = 220;
@@ -55,8 +59,9 @@ function download(file: string): Promise<ArrayBuffer | null> {
 
 // Downloads every cue's variants and the given classes' signatures, reporting progress (0..1).
 // Needs no user gesture: decoding waits for the audio context that the first tap creates.
-export function prefetchFigurineAudio(classKeys: readonly string[], onProgress?: (fraction: number) => void): Promise<void> {
-  const files = [...new Set([...Object.values(FIGURINE_SOUNDS).flatMap(({ files }) => files), ...classKeys.flatMap(signatureFiles)])];
+export function prefetchFigurineAudio(classKeys: readonly string[], quipFiles: readonly string[], onProgress?: (fraction: number) => void): Promise<void> {
+  const quips = quipFiles.map(quipSource).filter((source): source is string => source !== null);
+  const files = [...new Set([...Object.values(FIGURINE_SOUNDS).flatMap(({ files }) => files), ...classKeys.flatMap(signatureFiles), ...quips])];
   let done = 0;
   return Promise.all(files.map((file) => download(file).then(() => onProgress?.(++done / files.length)))).then(() => undefined);
 }
@@ -99,18 +104,23 @@ export function unlockFigurineAudio(): void {
   if (context.state === "suspended") void context.resume().catch(() => undefined);
 }
 
-// Loads the drawn figure's landing signature during the build-up.
-export function preloadFigurineSignature(classKey: string): void {
-  if (context) signatureFiles(classKey).forEach((file) => void load(file));
+// Loads the drawn figure's landing signature (and its quip, if any) during the build-up.
+export function preloadFigurineSignature(classKey: string, quipFile?: string): void {
+  if (!context) return;
+  signatureFiles(classKey).forEach((file) => void load(file));
+  const quip = quipFile ? quipSource(quipFile) : null;
+  if (quip) void load(quip);
 }
 
-export function playFigurineCue(cue: FigurineCue, { loop = false, intensity = 1, signature }: { loop?: boolean; intensity?: number; signature?: string } = {}): () => void {
+export function playFigurineCue(cue: FigurineCue, { loop = false, intensity = 1, signature, quip }: { loop?: boolean; intensity?: number; signature?: string; quip?: { file: string; gain: number } } = {}): () => void {
   let stopped = false;
   let stop = () => { stopped = true; };
   if (!context || !master) return () => stop();
   const audio = context, output = master;
   const sound = FIGURINE_SOUNDS[cue];
-  const files = cue === "signature" ? signatureFiles(signature) : sound.files;
+  const quipFile = cue === "quip" && quip ? quipSource(quip.file) : null;
+  const files = cue === "signature" ? signatureFiles(signature) : cue === "quip" ? (quipFile ? [quipFile] : []) : sound.files;
+  if (cue === "quip" && quip) intensity *= 10 ** (quip.gain / 20);
   if (!files.length) return () => stop();
   const file = files[Math.floor(Math.random() * files.length)];
   const requested = performance.now();

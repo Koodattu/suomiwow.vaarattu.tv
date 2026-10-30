@@ -77,7 +77,7 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const NO_LINEUP: string[] = [];
 const random = (min: number, max: number) => min + Math.random() * (max - min);
 
-export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, immersive = false, gallery = false }: {
+export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false }: {
   files: File[]; boxMode: boolean; open: boolean; rotate: boolean; labels: StageLabels;
   // Character names printed in the "collect all" grid on the back of the box.
   lineup?: string[];
@@ -85,6 +85,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   silhouettes?: string;
   // Class key of the drawn figure; picks its landing signature sound.
   signature?: string;
+  // The drawn figure's CCG card quip, said after it lands.
+  quip?: { file: string; gain: number };
   // World mode (immersive): which station the camera is at, the series whose box is on the
   // pedestal, every series for the shop and case, and the key of the figure in `files`.
   view?: WorldView;
@@ -119,8 +121,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   gallery?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, view, figureKey, arrival, showing, ready });
-  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, view, figureKey, arrival, showing, ready }; }, [boxMode, open, charging, interactive, round, rotate, signature, view, figureKey, arrival, showing, ready]);
+  const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready });
+  useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready }; }, [boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready]);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error" | "webgl">("empty");
   const [filename, setFilename] = useState("");
   const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress });
@@ -875,7 +877,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
           if (build.ready && !hum) hum = playFigurineCue("hum", { loop: true });
         }
         if (bursting) {
-          for (const { cue } of cuesBetween(REVEAL_CUES, burstCue, burst)) { playFigurineCue(cue, { signature: current.signature }); emit(cue); }
+          for (const { cue } of cuesBetween(REVEAL_CUES, burstCue, burst)) { playFigurineCue(cue, { signature: current.signature, quip: current.quip, intensity: cue === "fanfare" && current.quip ? 0.45 : 1 }); emit(cue); }
           burstCue = burst;
         }
       }

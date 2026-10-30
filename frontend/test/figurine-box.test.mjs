@@ -39,7 +39,7 @@ test("the charge builds to the burst and its cues fire once in order", () => {
   assert.equal(figurineCharge(1).ripFly, 1);
   let previous = -1; const fired = [];
   for (let time = 0; time <= REVEAL_SECONDS; time += 1 / 60) { fired.push(...cuesBetween(REVEAL_CUES, previous, time).map(({ cue }) => cue)); previous = time; }
-  assert.deepEqual(fired, ["burst", "hit", "boom", "whoosh", "rise", "choir", "sparkle", "land", "signature", "fanfare"]);
+  assert.deepEqual(fired, ["burst", "hit", "boom", "whoosh", "rise", "choir", "sparkle", "land", "signature", "fanfare", "quip"]);
   assert.ok(figurineEntrance(0).drop > 3);
   assert.equal(figurineEntrance(ENTRANCE_SECONDS).drop, 0);
   assert.equal(figurineEntrance(ENTRANCE_SECONDS).squash, 0);

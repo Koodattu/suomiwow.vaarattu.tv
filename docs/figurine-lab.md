@@ -252,7 +252,12 @@ knocks, seam light. The burst layers an orchestral/choir hit and a sub boom over
 the cardboard pop; a choir carries the figure up. Every figure lands with the same
 impact (`land-a…d`: a punchy knock over a synthesized sub thump, 95 Hz falling to ~42) and
 the reveal freezes for 70 ms (hit-stop) while the camera kicks in; its class signature (`class-<classKey>-a|b.mp3`, all 13
-classes) follows 80 ms later, then a fanfare. Each play picks a random variant and
+classes) follows 80 ms later, then a fanfare. A figure whose CCG card has a quip then says it
+(`/ccg/audio/quips`, mapped per figure in `frontend/src/data/figurines/quips.json` with a
+gain that levels the clips), with the fanfare ducked under the voice. Supporter-card media is
+not used. The CCG stores which clip belongs to which card in its database
+(`CcgAlternativeArt.quipAudioFilename`); the map here was matched by name, so a quip saved
+under another filename needs adding by hand. Each play picks a random variant and
 nudges its speed slightly, except the music bed, riser and hum, which stay at pitch.
 Before opening, grab the box anywhere off the tape to lift and shake it; it trails
 the pointer on a spring and every hard change of direction plays a soft, low thunk

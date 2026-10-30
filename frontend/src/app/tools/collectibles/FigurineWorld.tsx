@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { boxReducer, chooseFigure, initialBox } from "@/lib/figurine-box";
 import { getFigurineAudioMuted, prefetchFigurineAudio, preloadFigurineSignature, setFigurineAudioMuted, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { addToCollection, emptyCollection, readCollection, subscribeCollection } from "@/lib/figurine-collection";
-import { FIGURINE_SERIES, figureKey, findFigure, findSeries, type FigurineCharacter } from "@/lib/figurine-series";
+import { ALL_QUIPS, FIGURINE_SERIES, figureKey, figureQuip, findFigure, findSeries, type FigurineCharacter } from "@/lib/figurine-series";
 import type { StageWorld, WorldView } from "../figurine-lab/FigurineStage";
 import styles from "../figurine-lab/figurine-lab.module.css";
 
@@ -80,7 +80,7 @@ export default function FigurineWorld() {
 
   // Start-up loading: the stage's scenery, boxes, portraits and shaders, every sound, and the first box's figure.
   const [stageProgress, setStageProgress] = useState(0), [stageLoaded, setStageLoaded] = useState(false), [audioProgress, setAudioProgress] = useState(0);
-  useEffect(() => { void prefetchFigurineAudio([...new Set(FIGURINE_SERIES.flatMap((entry) => entry.characters.map((character) => character.classKey)))], setAudioProgress).then(() => setAudioProgress(1)); }, []);
+  useEffect(() => { void prefetchFigurineAudio([...new Set(FIGURINE_SERIES.flatMap((entry) => entry.characters.map((character) => character.classKey)))], ALL_QUIPS.map(({ file }) => file), setAudioProgress).then(() => setAudioProgress(1)); }, []);
   const figureSettled = model === "ready" || model === "failed" || (sealedDraw === null && view !== "viewer");
   const loaded = stageLoaded && audioProgress >= 1 && figureSettled;
   const [revealedWorld, setRevealedWorld] = useState(false);
@@ -109,7 +109,7 @@ export default function FigurineWorld() {
   function open() {
     unlockFigurineAudio();
     const selected = sealedDraw ?? chooseFigure(series.characters.length, Math.random());
-    preloadFigurineSignature(series.characters[selected].classKey);
+    preloadFigurineSignature(series.characters[selected].classKey, figureQuip(figureKey(series.id, series.characters[selected].id))?.file);
     if (model === "failed") setRefetch((current) => current + 1);
     dispatch({ type: "open", selected, ready: sealedDraw !== null && model === "ready" });
   }
@@ -170,7 +170,7 @@ export default function FigurineWorld() {
         else if (status === "error" || status === "webgl") { setModel("failed"); if (view !== "viewer") dispatch({ type: "failed" }); }
       }}
       onProgress={setStageProgress} onLoaded={() => setStageLoaded(true)} arrival={arrival}
-      onRevealed={revealed} signature={drawn?.classKey}
+      onRevealed={revealed} signature={drawn?.classKey} quip={drawn ? figureQuip(figureKey(series.id, drawn.id)) : undefined}
       labels={{ loading: t("modelLoading"), ready: t("modelReady"), empty: t("modelEmpty"), error: t("modelError"), webgl: t("webglError"), box: t("boxStatus"), boxTitle: t("boxTitle"), boxSubtitle: t("boxSubtitle"), series: t("navCollection"), packaging }} />
     <div className={styles.worldLoader} data-done={revealedWorld} role="status" aria-hidden={revealedWorld}>
       <span>{t("worldPreparing")}</span>

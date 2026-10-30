@@ -1,0 +1,57 @@
+{
+  "note": "Figure key to its CCG card quip in /ccg/audio/quips. gain (dB) levels the clips to about -19 dB mean volume. Röidy, Abiw and Kuurankukka use clips named after other things (vaarattu, wiba, haltron).",
+  "quips": {
+    "community-001:laku": {
+      "file": "lakuclap.mp3",
+      "gain": 0.7
+    },
+    "community-001:karstinen": {
+      "file": "karstinen.mp3",
+      "gain": 6.3
+    },
+    "community-001:stablol": {
+      "file": "stablol.mp3",
+      "gain": 1.8
+    },
+    "community-001:rmp": {
+      "file": "rmp.mp3",
+      "gain": 4.2
+    },
+    "community-001:chipie": {
+      "file": "chipie.mp3",
+      "gain": -4.4
+    },
+    "community-001:ovelakettu": {
+      "file": "ovelakettu.mp3",
+      "gain": 3.5
+    },
+    "community-002:tonza": {
+      "file": "tonza.mp3",
+      "gain": -2.3
+    },
+    "community-002:thrusbard": {
+      "file": "thrusbard.mp3",
+      "gain": 5.2
+    },
+    "community-002:jampton": {
+      "file": "jampton.mp3",
+      "gain": 1.1
+    },
+    "community-002:chipi": {
+      "file": "chipichipi.mp3",
+      "gain": -0.7
+    },
+    "community-001:roidy": {
+      "file": "vaarattu.mp3",
+      "gain": 3.7
+    },
+    "community-001:abiw": {
+      "file": "wiba.mp3",
+      "gain": 3.6
+    },
+    "community-002:kuurankukka": {
+      "file": "haltron.mp3",
+      "gain": 5.7
+    }
+  }
+}
