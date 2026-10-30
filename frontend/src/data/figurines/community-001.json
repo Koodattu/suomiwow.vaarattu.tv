@@ -86,33 +86,31 @@
       "authoringSeries": "community-laku-lean-002"
     },
     {
-      "id": "melice",
-      "name": "Melice",
+      "id": "jannu",
+      "name": "Jannu",
       "realm": "Kazzak",
       "pose": {
-        "animationId": 70,
+        "animationId": 84,
         "variation": 0,
-        "name": "EmoteLaugh",
-        "durationMs": 2467,
-        "timeMs": 1100
+        "name": "EmotePoint",
+        "durationMs": 1500,
+        "timeMs": 900
       },
       "weapons": "sheathed",
       "race": "Blood Elf",
-      "characterClass": "Mage",
-      "fetchedAt": "2026-10-29T21:03:50.086Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/29/52192285-main-raw.png",
-      "model": "/figurines/community-001/melice.glb",
-      "bytes": 1362860,
-      "sha256": "4e730014a07f71ea568a03c9997b8804e39676a1322af3d48a515cc2e3cab8aa",
-      "source": "sources/melice.json",
+      "characterClass": "Rogue",
+      "fetchedAt": "2026-10-30T14:35:12.701Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/110/187944302-main-raw.png",
+      "model": "/figurines/community-001/jannu.glb",
+      "bytes": 1005840,
+      "sha256": "573d8190d01c1e5dff8e226343deff4ad41583ee42c0bb8f18ea77029a2b0942",
+      "source": "sources/jannu.json",
       "state": "needs-review",
-      "warnings": [
-        "Failed to override texture: fileDataID does not exist in root: undefined"
-      ],
+      "warnings": [],
       "validationWarnings": 0,
+      "authoringSeries": "community-roster-refresh-001",
       "raceKey": "bloodElf",
-      "classKey": "mage",
-      "authoringSeries": "community-repairs-001"
+      "classKey": "rogue"
     },
     {
       "id": "vesipuhveli",
@@ -194,32 +192,31 @@
       "classKey": "hunter"
     },
     {
-      "id": "manfromsand",
-      "name": "Manfromsand",
-      "realm": "Stormreaver",
+      "id": "kahvishock",
+      "name": "Kahvishock",
+      "realm": "Kazzak",
       "pose": {
-        "animationId": 84,
+        "animationId": 74,
         "variation": 0,
-        "name": "EmotePoint",
+        "name": "EmoteRoar",
         "durationMs": 3000,
-        "timeMs": 900
+        "timeMs": 1000
       },
       "weapons": "sheathed",
-      "race": "Dwarf",
-      "characterClass": "Monk",
-      "fetchedAt": "2026-10-29T21:03:50.602Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/stormreaver/215/187328983-main-raw.png",
-      "model": "/figurines/community-001/manfromsand.glb",
-      "bytes": 569436,
-      "sha256": "b136384a92d168e63e20cfa2886cf2c1f1c21e52b0c0e66e68bf4516f80cd933",
-      "source": "sources/manfromsand.json",
+      "race": "Orc",
+      "characterClass": "Shaman",
+      "fetchedAt": "2026-10-30T14:35:12.718Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/196/219998916-main-raw.png",
+      "model": "/figurines/community-001/kahvishock.glb",
+      "bytes": 1355868,
+      "sha256": "8afeae5c1bd043e541d04d99f5981eabce2227371047e7cde0e862be8517f46a",
+      "source": "sources/kahvishock.json",
       "state": "needs-review",
-      "warnings": [
-        "Failed to override texture: fileDataID does not exist in root: undefined"
-      ],
+      "warnings": [],
       "validationWarnings": 0,
-      "raceKey": "dwarf",
-      "classKey": "monk"
+      "authoringSeries": "community-roster-refresh-002",
+      "raceKey": "orc",
+      "classKey": "shaman"
     },
     {
       "id": "stablol",
@@ -303,59 +300,58 @@
       "classKey": "rogue"
     },
     {
-      "id": "rhagy",
-      "name": "Rhagy",
+      "id": "violetmw",
+      "name": "Violetmw",
       "realm": "Kazzak",
       "pose": {
-        "animationId": 74,
+        "animationId": 67,
         "variation": 0,
-        "name": "EmoteRoar",
-        "durationMs": 3333,
-        "timeMs": 1400
+        "name": "EmoteWave",
+        "durationMs": 2000,
+        "timeMs": 800
       },
       "weapons": "sheathed",
-      "race": "Human",
-      "characterClass": "Death Knight",
-      "fetchedAt": "2026-10-29T21:03:51.086Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/83/217316691-main-raw.png",
-      "model": "/figurines/community-001/rhagy.glb",
-      "bytes": 1837568,
-      "sha256": "97afde6f8639a12877692d36ac05d8ce48c94f649a653b7d61068c343d82e536",
-      "source": "sources/rhagy.json",
-      "state": "needs-review",
-      "warnings": [
-        "Failed to override texture: fileDataID does not exist in root: undefined"
-      ],
-      "validationWarnings": 0,
-      "raceKey": "human",
-      "classKey": "deathKnight",
-      "authoringSeries": "community-repairs-001"
-    },
-    {
-      "id": "boxx",
-      "name": "Boxx",
-      "realm": "Stormreaver",
-      "pose": {
-        "animationId": 68,
-        "variation": 0,
-        "name": "EmoteCheer",
-        "durationMs": 800,
-        "timeMs": 400
-      },
-      "weapons": "sheathed",
-      "race": "Night Elf",
-      "characterClass": "Warrior",
-      "fetchedAt": "2026-10-29T21:03:51.203Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/stormreaver/126/180689278-main-raw.png",
-      "model": "/figurines/community-001/boxx.glb",
-      "bytes": 410536,
-      "sha256": "dd39cfd3df0ab871d47a50ae7c6a99dae2b5743ec6cb4f4cb97d0bbd32bd79dd",
-      "source": "sources/boxx.json",
+      "race": "Dwarf",
+      "characterClass": "Monk",
+      "fetchedAt": "2026-10-30T14:35:12.704Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/224/217311456-main-raw.png",
+      "model": "/figurines/community-001/violetmw.glb",
+      "bytes": 834084,
+      "sha256": "a6240ad1e47174d80f6a4da3f7644c543e35d1b5526df9d7b70a0426bd22d158",
+      "source": "sources/violetmw.json",
       "state": "needs-review",
       "warnings": [],
       "validationWarnings": 0,
-      "raceKey": "nightElf",
-      "classKey": "warrior"
+      "authoringSeries": "community-roster-refresh-001",
+      "raceKey": "dwarf",
+      "classKey": "monk"
+    },
+    {
+      "id": "shippyboi",
+      "name": "Shippyboi",
+      "realm": "Outland",
+      "pose": {
+        "animationId": 113,
+        "variation": 0,
+        "name": "EmoteSalute",
+        "durationMs": 1667,
+        "timeMs": 800
+      },
+      "weapons": "sheathed",
+      "race": "Dark Iron Dwarf",
+      "characterClass": "Shaman",
+      "fetchedAt": "2026-10-30T14:35:12.696Z",
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/72/169951816-main-raw.png",
+      "model": "/figurines/community-001/shippyboi.glb",
+      "bytes": 517732,
+      "sha256": "3af779a7e9d7d9c1579cc042086baa77f0e4168f7de9a3fcdc7b20b9b83ca25b",
+      "source": "sources/shippyboi.json",
+      "state": "needs-review",
+      "warnings": [],
+      "validationWarnings": 0,
+      "authoringSeries": "community-roster-refresh-002",
+      "raceKey": "darkIronDwarf",
+      "classKey": "shaman"
     },
     {
       "id": "abiw",

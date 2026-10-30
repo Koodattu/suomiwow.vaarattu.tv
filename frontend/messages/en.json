@@ -81,7 +81,9 @@
       "dwarf": "Dwarf",
       "nightElf": "Night Elf",
       "human": "Human",
-      "highmountainTauren": "Highmountain Tauren"
+      "highmountainTauren": "Highmountain Tauren",
+      "darkIronDwarf": "Dark Iron Dwarf",
+      "voidElf": "Void Elf"
     },
     "classes": {
       "druid": "Druid",

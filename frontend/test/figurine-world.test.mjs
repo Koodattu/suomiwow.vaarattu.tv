@@ -23,6 +23,22 @@ test("both series have unique figures, translations, silhouettes and class sound
   const keys = catalogs.flatMap((catalog) => catalog.characters.map((character) => `${catalog.id}:${character.id}`));
   assert.equal(keys.length, 32);
   assert.equal(new Set(keys).size, 32);
+  const characters = catalogs.flatMap((catalog) => catalog.characters);
+  for (const removed of ["rhagy", "preazhy", "mullinmallin", "manfromsand", "melice", "boxx"]) {
+    assert.ok(!characters.some((character) => character.id === removed), removed);
+  }
+  for (const [id, name, realm, characterClass, race] of [
+    ["violetmw", "Violetmw", "Kazzak", "Monk", "Dwarf"],
+    ["rookiheal", "Röökiheal", "Kazzak", "Priest", "Night Elf"],
+    ["galardodric", "Galardodric", "Outland", "Warlock", "Void Elf"],
+    ["kahvishock", "Kahvishock", "Kazzak", "Shaman", "Orc"],
+    ["jannu", "Jannu", "Kazzak", "Rogue", "Blood Elf"],
+    ["shippyboi", "Shippyboi", "Outland", "Shaman", "Dark Iron Dwarf"],
+  ]) {
+    const character = characters.find((entry) => entry.id === id);
+    assert.ok(character, id);
+    assert.deepEqual([character.name, character.realm, character.characterClass, character.race], [name, realm, characterClass, race]);
+  }
   for (const locale of ["en", "fi"]) {
     const messages = JSON.parse(await readFile(new URL(`../messages/${locale}.json`, import.meta.url))).figurineLab;
     for (const character of catalogs.flatMap((catalog) => catalog.characters)) {

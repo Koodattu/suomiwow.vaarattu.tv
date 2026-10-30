@@ -24,19 +24,37 @@ There are 16 unique characters, including Ovelakettu–Kazzak (Chipiepew was dro
 | Röidy–Kazzak | Cheer, 900 ms | Held |
 | Yolobolt–Kazzak | Roar, 1200 ms | Held |
 | Laku–Stormreaver | WALean01, 0 ms | Hidden |
-| Melice–Kazzak | Laugh, 1100 ms | Sheathed |
+| Jannu–Kazzak | Point, 900 ms | Sheathed |
 | Vesipuhveli–Khadgar | Flex, 1000 ms | Sheathed |
 | Turrilol–Kazzak | Dance, 2500 ms | Sheathed |
 | Karstinen–Tarren Mill | Salute, 800 ms | Sheathed |
-| Manfromsand–Stormreaver | Point, 900 ms | Sheathed |
+| Kahvishock–Kazzak | Roar, 1000 ms | Sheathed |
 | Stablol–Kazzak | Rude, 900 ms | Sheathed |
 | Suursmurffi–Kazzak | Shy, 1800 ms | Sheathed |
 | Rmp–Outland | Lean, 2000 ms | Sheathed |
-| Rhagy–Kazzak | Roar, 1400 ms | Sheathed |
-| Boxx–Stormreaver | Cheer, 400 ms | Sheathed |
+| Violetmw–Kazzak | Wave, 800 ms | Sheathed |
+| Shippyboi–Outland | Salute, 800 ms | Sheathed |
 | Abiw–Kazzak | Flex, 1000 ms | Sheathed |
 | Chipie–Stormreaver | Kiss, 900 ms | Sheathed |
 | Ovelakettu–Kazzak | Lean, 1600 ms | Sheathed |
+
+The 2026-10-30 roster refresh replaces Rhagy, Preazhy, Mullinmallin,
+Manfromsand, Melice, and Boxx with Violetmw, Röökiheal, Galardodric,
+Kahvishock, Jannu, and Shippyboi respectively, retaining their box and slot.
+There are still 16 figures in each box. Frozen appearances and exports are in
+`community-roster-refresh-001` and `community-roster-refresh-002`; each new
+catalog entry identifies its batch. All six use sheathed weapons. Röökiheal
+uses Shy at 1500 ms; Galardodric uses Laugh at 1100 ms. The first-box poses are
+listed above. Both silhouette sheets and canonical authoring recipes match
+this roster. Retired models are removed from the active public asset folders;
+historical authoring batches remain intact.
+
+All six replacement GLBs passed decoded validation with zero errors/warnings,
+and front/back Blender renders were checked against their Armory references.
+Texture settings remain WebP 89 with a 2048-pixel cap. Box 1 now totals
+13,916,292 bytes; box 2 totals 16,248,556 bytes. Review renders are under
+`.codex-runtime/roster-update/`. Full WoW particle/shader parity remains outside
+the current exporter; Blender also differs from the web viewer's additive effects.
 
 These are static poses baked from game animations, not animated character rigs.
 Laku's updated batch is `community-laku-lean-002`: WALean01 (1260, variation 0)
@@ -171,11 +189,11 @@ Blender front/back checks verified Röidy's fitted cloak/boots and frozen poses.
 These are reviewed prototypes, not a guarantee of parity for every WoW item,
 shader, race, or pose. Funko-style proportions are not implemented.
 
-## Upcoming box 2
+## Box 2
 
 The separate catalog is `frontend/src/data/figurines/community-002.json`, with
 models under `frontend/public/figurines/community-002/`. Its `releaseState` is
-`upcoming`; neither the opening page nor the gallery imports it. The exporter
+`upcoming`; both boxes are registered in the current collectible prototype. The exporter
 recipe is `E:\Projektit\wow.export\worker\series.community-002.json`. The catalog's
 `authoringSeries` identifies the frozen batch with full appearance snapshots,
 export details, compression results, and validation reports.
@@ -201,8 +219,8 @@ first box. No database records were changed.
 | Kuurankukká | Twisting Nether | Kiss | Sheathed |
 | Raggè | Twisting Nether | Sit | Sheathed |
 | Chipi | Stormreaver | Wave | Sheathed |
-| Preazhy | Draenor | Sit | Sheathed |
-| Mullinmallin | Kazzak | Flex | Held |
+| Röökiheal | Kazzak | Shy | Sheathed |
+| Galardodric | Outland | Laugh | Sheathed |
 
 Chipi is a paladin, distinct from Chipie the priest retained in box 1. Chipiepew
 is excluded from both catalogs and removed from the first authoring recipe;
