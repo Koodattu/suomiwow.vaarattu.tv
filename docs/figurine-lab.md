@@ -411,7 +411,7 @@ completed series' shelf turns gold.
 ### Qualities, recycler and trade-up
 
 Every box rolls a quality with its figure (`rollQuality`, `figurine-collection.ts`):
-standard, golden (8 %) or galaxy (2 %), prototype odds kept generous for testing. The
+standard (89 %), golden (10 %, 1 in 10) or galaxy (1 %, 1 in 100). The
 finishes (`figurine-finish.ts`) are swapped onto the figure's own meshes: golden is polished
 metal with the paint's light and shade kept as engraving, galaxy a screen-fixed nebula with
 twinkling stars and a violet rim. Both reflect a neutral studio environment, not the green sky.
@@ -633,3 +633,73 @@ Exporter regression coverage includes gender-only regions, independent underwear
 rules, both texture combiners, UV transforms and overlapping effect faces.
 Series 000 is still unreleased; these files were not registered in the website
 catalog or copied into public assets.
+
+## Series 000 enabled in the local collectibles world (2026-10-31)
+
+The repaired batch `secret-000-repair-001` is now registered in
+`frontend/src/data/figurines/community-000.json`, with all sixteen compressed
+GLBs in `frontend/public/figurines/community-000/` and a freshly baked silhouette
+atlas. Each catalog entry records its byte size and SHA-256. `RELEASED_SERIES`
+includes the secret figures for draws, inspection and the recycler;
+`FIGURINE_SERIES` remains the public shop roster. No shop entry, announcement or
+number-key shortcut was added for Series 000. Its repaired files retain the
+approved texture quality, including Tonzidan's 2.67 MB GLB.
+
+A printed amber Series 000 box now sits inside the marked broken barrel beside
+the collection cabinet. A measured cavity anchor in barrel.glb (-0.022, 0.296,
+-0.088) positions it inside the upright barrel; whole-mesh bounds incorrectly
+include fallen staves outside it. The world box is scaled to 65% to clear the
+inward broken wood, with its centre at about y=0.315 and its lid at y=0.53.
+The broken opening faces away from the plaza. Both the box and that barrel can select the
+series; nearer props still block selection. Its print is reused for the newly
+unlocked shelf and recycler output. The shelf stays hidden until the first
+secret figure is received, then appears above Series 001 with all sixteen slots.
+The game uses the existing session collection persistence.
+
+Play verification: selecting the visible barrel box brought Series 000 to the
+pedestal, opening it revealed Valopallo, and its shelf immediately appeared at
+the top with 1/16 collected. Targeted tests verify asset hashes/sizes, bilingual
+race/class labels, public-shop exclusion, picking/occlusion and shelf unlocks.
+TypeScript and targeted ESLint pass. This is a local website change, not a
+production deployment; the earlier deferred/review-only notes above are history.
+
+The browser play check also confirmed that reloading retains Series 000's top
+shelf and 1/16 count, and clicking the owned Valopallo opens the normal figure
+viewer. The pre-opening shelf had no Series 000 row. Twenty targeted figurine
+checks pass, including both maintained locales and every shipped model hash.
+
+## Lightforged rune export repair (2026-10-31)
+
+Valotettu's white forehead rectangle came from the body exporter retaining only
+the first input of a two-texture `Combiners_Mod_Mod` material. Body submesh 88
+uses the rune atlas twice, with distinct UVs and a scrolling first-layer transform.
+The static-pose exporter now bakes supported fixed-texture body effects through
+the same mask/UV-transform baker as equipment. The rune remains visible; it is
+not removed or replaced with a character-specific transparency workaround.
+
+`secret-000-face-repair-002` replaces only Valotettu's shipped GLB (998,992 bytes),
+with an updated catalog hash and cache-versioned URL. It is byte-identical to the
+visually reviewed repair. glTF validation reports zero errors and warnings.
+The lab comparison against the original export confirms the white square is gone.
+Other shader families, replacement-texture body effects and animated desktop
+exports retain their prior behavior; this fix does not promise complete WoW shader parity.
+
+Draenei and Lightforged Draenei labels exist in both English and Finnish, following
+the existing convention of English in-game race names. The catalog regression
+check now covers race/class labels for all three released series, not only Series 000.
+
+Valotettu's subsequent pose update is `secret-000-valotettu-rude-001`:
+EmoteRude (73), variation 0, 53 ms, weapons sheathed. The 998,672-byte GLB,
+catalog hash/cache version and Series 000 silhouette atlas are updated together.
+The forehead rune fix remains in this export; validation has zero errors/warnings.
+
+Timing clarification: the intended value was wow.export **frame 53**, not 53 ms.
+The final batch is `secret-000-valotettu-rude-frame53-001`, EmoteRude at 883 ms
+(rounded from `53 / floor(4.667 * 60) * 4667`), weapons sheathed. The shipped
+999,264-byte model and silhouette atlas replace the earlier 53 ms version.
+
+`secret-000-bow-rude-001` updates three more Series 000 poses: Röi uses AttackBow
+(46) at 100 ms with the bow drawn, Jousivakio uses ReadyBow (29) at 700 ms with
+the bow drawn, and Syöpä uses EmoteRude (73) at frame 53 (883 ms), weapon sheathed.
+All three were inspected in the frontend lab. Their GLBs, catalog pose metadata,
+hashes/cache versions and the shelf silhouette atlas are updated together.

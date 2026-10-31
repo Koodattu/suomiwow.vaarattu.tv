@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { boxReducer, chooseFigure, initialBox } from "@/lib/figurine-box";
 import { prefetchFigurineAudio, preloadFigurineSignature, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { MACHINE_SLOTS, addToCollection, bestQuality, changeCollection, copiesOf, emptyCollection, machineChanges, machineOutcome, readCollection, rollQuality, spare, subscribeCollection, trayGroups, type FigurineQuality, type MachineItem, type MachineOutcome } from "@/lib/figurine-collection";
-import { ALL_QUIPS, FIGURINE_SERIES, UPCOMING_SERIES, SECRET_SERIES, figureKey, figureQuip, findFigure, type FigurineCharacter } from "@/lib/figurine-series";
+import { ALL_QUIPS, FIGURINE_SERIES, RELEASED_SERIES, UPCOMING_SERIES, SECRET_SERIES, figureKey, figureQuip, findFigure, type FigurineCharacter } from "@/lib/figurine-series";
 import type { Outpost, StageMachine, StageWorld, WorldView } from "@/app/tools/figurine-lab/FigurineStage";
 import type { MachinePick } from "@/lib/figurine-machine";
 import styles from "@/app/tools/figurine-lab/figurine-lab.module.css";
@@ -22,7 +22,7 @@ const atCentre = (view: WorldView) => view === "opening" || view === "viewer";
 const STATION_VIEWS: WorldView[] = ["shop", "gallery", "machine"];
 // Every series in shop order: released ones first, then the announced ones.
 const ALL_SERIES = [...FIGURINE_SERIES.map((entry) => entry.id), ...UPCOMING_SERIES.map((entry) => entry.id)];
-const CATALOG_ORDER = FIGURINE_SERIES.flatMap((entry) => entry.characters.map((character) => figureKey(entry.id, character.id)));
+const CATALOG_ORDER = RELEASED_SERIES.flatMap((entry) => entry.characters.map((character) => figureKey(entry.id, character.id)));
 const seriesNumber = (id: string) => [...FIGURINE_SERIES, ...UPCOMING_SERIES, SECRET_SERIES].find((entry) => entry.id === id)?.number ?? 0;
 
 export default function FigurineWorld() {
@@ -47,12 +47,12 @@ export default function FigurineWorld() {
   useEffect(() => { viewRef.current = view; }, [view]);
 
   // An announced series' box can be picked and shaken but never opened: it has no figures yet.
-  const series = FIGURINE_SERIES.find((entry) => entry.id === seriesId) ?? null;
+  const series = RELEASED_SERIES.find((entry) => entry.id === seriesId) ?? null;
   // The figure inside each sealed box (and its finish) is drawn as the box arrives and preloaded
   // while it waits, so opening never stalls on a download or parse.
   const [draw, setDraw] = useState<{ series: string; round: number; index: number; quality: FigurineQuality } | null>(null);
   useEffect(() => {
-    const drawing = FIGURINE_SERIES.find((entry) => entry.id === seriesId);
+    const drawing = RELEASED_SERIES.find((entry) => entry.id === seriesId);
     if (state.phase === "sealed" && drawing) setDraw((current) => current?.series === seriesId && current.round === state.round ? current : { series: seriesId, round: state.round, index: chooseFigure(drawing.characters.length, Math.random()), quality: rollQuality(Math.random()) });
   }, [seriesId, state.round, state.phase]);
   const currentDraw = series && draw?.series === seriesId && draw.round === state.round ? draw : null;
@@ -205,7 +205,7 @@ export default function FigurineWorld() {
   const world: StageWorld = useMemo(() => ({
     collection,
     series: [
-      { id: SECRET_SERIES.id, number: pad(SECRET_SERIES.number), hue: SECRET_SERIES.hue, hidden: true, released: false, keys: [], names: Array.from({ length: SECRET_SERIES.size }, () => "?"), models: [] },
+      { id: SECRET_SERIES.id, number: pad(SECRET_SERIES.number), hue: SECRET_SERIES.hue, hidden: true, released: true, silhouettes: SECRET_SERIES.silhouettes, keys: SECRET_SERIES.characters.map((character) => figureKey(SECRET_SERIES.id, character.id)), names: SECRET_SERIES.characters.map((character) => character.name), models: SECRET_SERIES.characters.map((character) => character.model) },
       ...FIGURINE_SERIES.map((entry) => ({
         id: entry.id, number: pad(entry.number), theme: entry.theme, released: true, silhouettes: entry.silhouettes,
         keys: entry.characters.map((character) => figureKey(entry.id, character.id)),

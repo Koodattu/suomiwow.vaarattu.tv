@@ -31,11 +31,19 @@ test("the session collection counts copies per figure and quality and ignores ma
   assert.equal(addToCollection("community-001:laku", "standard", { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } }), 1);
 });
 
-test("box qualities roll by their odds and are rarer the finer they are", () => {
+test("each box rolls 1% galaxy, 10% golden and 89% standard", () => {
   assert.equal(rollQuality(0), "galaxy");
+  assert.equal(rollQuality(0.009999), "galaxy");
+  assert.equal(rollQuality(0.01), "golden");
   assert.equal(rollQuality(0.05), "golden");
+  assert.equal(rollQuality(0.109999), "golden");
+  assert.equal(rollQuality(0.11), "standard");
   assert.equal(rollQuality(0.5), "standard");
   assert.equal(rollQuality(0.9999), "standard");
+  const counts = { standard: 0, golden: 0, galaxy: 0 };
+  // Evenly spaced rolls verify the full distribution without a flaky random sample.
+  for (let i = 0; i < 10000; i++) counts[rollQuality((i + 0.5) / 10000)]++;
+  assert.deepEqual(counts, { standard: 8900, golden: 1000, galaxy: 100 });
   for (const bad of [-0.1, 1, Number.NaN]) assert.throws(() => rollQuality(bad));
 });
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { registerHooks } from "node:module";
 import * as THREE from "three";
@@ -16,7 +17,7 @@ registerHooks({
     return next(url, context);
   },
 });
-const { FIGURINE_SERIES, UPCOMING_SERIES, SECRET_SERIES, TOTAL_FIGURES } = await import("../src/lib/figurine-series.ts");
+const { FIGURINE_SERIES, UPCOMING_SERIES, SECRET_SERIES, RELEASED_SERIES, findFigure, TOTAL_FIGURES } = await import("../src/lib/figurine-series.ts");
 const { buildForest, marketLayout } = await import("../src/lib/figurine-forest.ts");
 const { collectionShelves, parseCollection } = await import("../src/lib/figurine-collection.ts");
 const { buildCase } = await import("../src/lib/figurine-case.ts");
@@ -57,15 +58,33 @@ test("replacing a cabinet frees its resources without disposing shared box print
   assert.equal(root.children.length, 0);
 });
 
-test("Series 000 keeps the exact requested roster but never enters public series or draw pools", async () => {
+test("Series 000 is drawable and inspectable with verified assets but absent from the public shop", async () => {
   const draft = JSON.parse(await readFile(new URL("../src/data/figurines/community-000.json", import.meta.url)));
   const names = ["Röiza", "Tonzidan", "Valopallo", "Pajatso", "Syöpä", "Valoja", "Rmxqa", "Röi", "Öitä", "Valotettu", "Syttyykö", "Jousivakio", "Tahto", "Muoto", "Dalarian", "Taivaallinen"];
   assert.deepEqual(draft.characters.map(({ name }) => name), names);
   assert.deepEqual(draft.characters.map(({ realm }) => realm), names.map((_, i) => i < 9 ? "Kazzak" : "Outland"));
   assert.equal(new Set(draft.characters.map(({ id }) => id)).size, 16);
-  assert.equal(draft.releaseState, "awaiting-models");
-  assert.ok(draft.characters.every((entry) => !entry.model && !entry.bytes));
-  assert.deepEqual(SECRET_SERIES, { id: "community-000", number: 0, hue: 36, size: 16, hidden: true });
+  assert.equal(draft.releaseState, "released");
+  assert.equal(SECRET_SERIES.hidden, true);
+  assert.equal(SECRET_SERIES.hue, 36);
+  assert.equal(SECRET_SERIES.characters.length, 16);
+  assert.ok(RELEASED_SERIES.includes(SECRET_SERIES));
+  for (const entry of draft.characters) {
+    const bytes = await readFile(new URL(`../public${entry.model}`, import.meta.url));
+    assert.equal(bytes.length, entry.bytes);
+    assert.equal(bytes.toString("ascii", 0, 4), "glTF");
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), entry.sha256);
+    assert.equal(findFigure(`community-000:${entry.id}`)?.character.name, entry.name);
+  }
+  for (const locale of ["en", "fi"]) {
+    const messages = JSON.parse(await readFile(new URL(`../messages/${locale}.json`, import.meta.url))).figurineLab;
+    for (const entry of RELEASED_SERIES.flatMap(series => series.characters)) {
+      assert.ok(messages.races[entry.raceKey], `${locale}: ${entry.raceKey}`);
+      assert.ok(messages.classes[entry.classKey], `${locale}: ${entry.classKey}`);
+    }
+  }
+  const atlas = await readFile(new URL("../public/figurines/community-000/silhouettes.png", import.meta.url));
+  assert.deepEqual([atlas.readUInt32BE(16), atlas.readUInt32BE(20)], [2240, 720]);
   assert.ok(![...FIGURINE_SERIES, ...UPCOMING_SERIES].some(({ id }) => id === draft.id));
   assert.equal(TOTAL_FIGURES, 32);
 });
@@ -87,10 +106,37 @@ test("only the marked barrel instance reveals Series 000 and foreground props bl
     aim(spot);
     assert.equal(forest.pickSecret(ray)?.id ?? null, spot.secretSeries ?? null);
   }
+  const box = new THREE.Mesh(new THREE.BoxGeometry(.49, .66, .43), new THREE.MeshBasicMaterial());
+  await forest.mountSecretBox(secret.secretSeries, box);
+  assert.equal(box.parent, forest.group);
+  assert.ok(Math.hypot(box.position.x - secret.x, box.position.z - secret.z) < .15);
+  assert.ok(box.position.y - .33 * box.scale.y > 0 && box.position.y + .33 * box.scale.y < 1.075);
+  // The exposed box itself is a valid target too, not only the instanced wood.
+  box.position.y = 1.2; scene.updateMatrixWorld(true); aim(secret);
+  assert.equal(ray.intersectObject(forest.group, true)[0].object, box);
+  assert.equal(forest.pickSecret(ray)?.id, secret.secretSeries);
   const blocker = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 2), new THREE.MeshBasicMaterial());
   blocker.position.set(secret.x, 3, secret.z); forest.group.add(blocker); scene.updateMatrixWorld(true);
   aim(secret);
   assert.equal(forest.pickSecret(ray), null);
   aim({ x: 100, z: 100 });
   assert.equal(forest.pickSecret(ray), null);
+});
+
+test("the concealed box uses the measured cavity rather than bounds skewed by fallen staves", async (t) => {
+  const original = GLTFLoader.prototype.loadAsync;
+  t.after(() => { GLTFLoader.prototype.loadAsync = original; });
+  GLTFLoader.prototype.loadAsync = async () => ({ scene: new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1).translate(-0.25, 0.5, -0.6), new THREE.MeshBasicMaterial(),
+  ) });
+  const spot = marketLayout().find(({ secretSeries }) => secretSeries);
+  const forest = buildForest(new THREE.Scene(), [spot]), box = new THREE.Object3D();
+  await forest.mountSecretBox(spot.secretSeries, box);
+  const expected = new THREE.Vector3(-0.022 * 1.075, 0.296 * 1.075 - .02, -0.088 * 1.075)
+    .applyAxisAngle(new THREE.Vector3(0, 1, 0), spot.yaw).add(new THREE.Vector3(spot.x, 0, spot.z));
+  assert.ok(box.position.distanceTo(expected) < 1e-6);
+  assert.equal(box.scale.x, .65);
+  assert.ok(box.position.y + 0.33 * box.scale.y < 0.6, "box lid stays well below the tall rim");
+  const opening = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), spot.yaw);
+  assert.ok(opening.dot(new THREE.Vector3(spot.x, 0, spot.z).normalize()) > 0.99);
 });

@@ -2,8 +2,8 @@
 // one quality trade up to the next in the recycler.
 export const QUALITIES = ["standard", "golden", "galaxy"] as const;
 export type FigurineQuality = (typeof QUALITIES)[number];
-// Chance per box. Prototype odds: generous, so the finishes show up while testing.
-export const QUALITY_ODDS: Readonly<Record<Exclude<FigurineQuality, "standard">, number>> = { golden: 0.08, galaxy: 0.02 };
+// Mutually exclusive chances per box; the remaining 89% are standard.
+export const QUALITY_ODDS: Readonly<Record<Exclude<FigurineQuality, "standard">, number>> = { golden: 0.1, galaxy: 0.01 };
 
 export const isQuality = (value: unknown): value is FigurineQuality => QUALITIES.includes(value as FigurineQuality);
 export const qualityRank = (quality: FigurineQuality) => QUALITIES.indexOf(quality);

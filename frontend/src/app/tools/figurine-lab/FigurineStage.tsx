@@ -11,7 +11,7 @@ import { resolveModelResource } from "@/lib/figurine-lab";
 import { CHARGE_CUES, CHARGE_SECONDS, ENTRANCE_CUES, HITSTOP_SECONDS, LAND_AT, REVEAL_CUES, cuesBetween, figurineCharge, figurineEntrance, figurineReveal, type FigurineCue } from "@/lib/figurine-reveal";
 import { playFigurineCue, startFigurineLoop, unlockFigurineAudio } from "@/lib/figurine-audio";
 import { figurineSupport, restoreFigurineMaterials } from "@/lib/figurine-materials";
-import { PACKAGING_FALLBACK, PACKAGING_THEMES, SILHOUETTE, buildBlindBox, seriesTheme, type BlindBoxParts, type BoxDesign, type PackagingLabels } from "@/lib/figurine-packaging";
+import { PACKAGING_FALLBACK, PACKAGING_THEMES, SILHOUETTE, BOX_SIZE, createBoxPrints, buildBlindBox, seriesTheme, type BlindBoxParts, type BoxDesign, type PackagingLabels } from "@/lib/figurine-packaging";
 import { STATIONS, buildWorld, placeStation, viewPose, type Outpost, type WorldView } from "@/lib/figurine-world";
 import { buildShop, type ShopLabels } from "@/lib/figurine-shop";
 import { buildCase, type CaseLabels } from "@/lib/figurine-case";
@@ -245,11 +245,27 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       series: publicSeries.map((entry) => ({ id: entry.id, number: entry.number, count: entry.released ? entry.keys.length : 16, accent: accentOf(entry), design: designOf(entry), released: entry.released })),
       envMap: environment, labels: worldSetup.labels,
     }) : null;
+    // Physical secret boxes stay in their barrels; copies also decorate unlocked shelves.
+    const secretBoxes = new Map<string, THREE.Mesh>();
+    const secretPrints = (worldSetup?.series.filter((entry) => entry.hidden) ?? []).map((entry) => {
+      const prints = createBoxPrints(designOf(entry), environment, 150);
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(BOX_SIZE.width * 0.24, BOX_SIZE.height * 0.24, BOX_SIZE.depth * 0.24),
+        [prints.right, prints.left, prints.lid, prints.edge, prints.front, prints.back]);
+      mesh.castShadow = mesh.receiveShadow = true;
+      secretBoxes.set(entry.id, mesh); scenery?.mountSecretBox(entry.id, mesh);
+      return prints;
+    });
+    const boxCopy = (id: string) => {
+      const source = secretBoxes.get(id);
+      if (!source) return shop?.boxCopy(id) ?? null;
+      const copy = new THREE.Mesh(source.geometry, source.material); copy.castShadow = true;
+      return copy;
+    };
     // Secret shelves unlock only after an opening adds a figure to the collection.
     let shelved = collectionShelves(worldSetup?.series ?? [], worldSetup?.collection ?? {});
     const caseContents = new THREE.Group(); caseGroup?.add(caseContents);
     const makeCase = () => caseGroup && worldSetup && shelved.length ? buildCase(caseContents, {
-      series: shelved.map((entry) => ({ id: entry.id, number: entry.number, accent: accentOf(entry), silhouettes: entry.silhouettes, keys: entry.keys, released: entry.released, box: shop?.boxCopy(entry.id) ?? null })),
+      series: shelved.map((entry) => ({ id: entry.id, number: entry.number, accent: accentOf(entry), silhouettes: entry.silhouettes, keys: entry.keys, released: entry.released, box: boxCopy(entry.id) })),
       labels: worldSetup.labels, envMap: environment,
     }) : null;
     let cabinet = makeCase();
@@ -397,7 +413,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       if (next.run !== machineRun) {
         machineRun = next.run;
         const made = next.output;
-        if (made) recycler.run(made.kind === "box" ? { kind: "box", box: shop?.boxCopy(made.series) ?? null } : { kind: "figure", card: card(made) }, (cue) => {
+        if (made) recycler.run(made.kind === "box" ? { kind: "box", box: boxCopy(made.series) } : { kind: "figure", card: card(made) }, (cue) => {
           if (cue === "pull") playFigurineCue("knock");
           else if (cue === "clank") playFigurineCue("knock", { intensity: random(0.35, 0.7) });
           else if (cue === "drop") { playFigurineCue("drop"); playFigurineCue("rattle", { intensity: 0.5 }); }
@@ -1231,7 +1247,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       renderer.domElement.removeEventListener("pointercancel", letGo);
       renderer.domElement.removeEventListener("pointermove", onPointerMove); renderer.domElement.removeEventListener("pointerleave", onPointerLeave); renderer.domElement.removeEventListener("wheel", onWheel);
       renderer.setAnimationLoop(null); resize.disconnect(); skyLight?.dispose(); controls.dispose(); mixer?.stopAllAction();
-      packagings.forEach(({ parts }) => parts.stop()); releaseFinishes(modelRoot); disposeObject(scene); environment.dispose(); shop?.stop(); portraits.forEach((target) => target.dispose()); compileTarget.dispose(); api.current = null; pendingUrls.forEach((url) => URL.revokeObjectURL(url)); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
+      packagings.forEach(({ parts }) => parts.stop()); releaseFinishes(modelRoot); disposeObject(scene); environment.dispose(); shop?.stop(); secretPrints.forEach((prints) => prints.stop()); portraits.forEach((target) => target.dispose()); compileTarget.dispose(); api.current = null; pendingUrls.forEach((url) => URL.revokeObjectURL(url)); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
     };
   }, [labels.boxTitle, labels.boxSubtitle, labels.series, immersive, gallery]);
   // Another series swaps in its prebuilt box; changed print text rebuilds them. The first run of

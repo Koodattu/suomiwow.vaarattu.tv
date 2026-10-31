@@ -3,7 +3,7 @@
   "title": "Secret Series 000",
   "number": 0,
   "region": "eu",
-  "releaseState": "awaiting-models",
+  "releaseState": "released",
   "hidden": true,
   "hue": 36,
   "discovery": "collection-right-barrel",
@@ -15,13 +15,20 @@
       "pose": {
         "animationId": 82,
         "variation": 0,
+        "name": "EmoteFlex",
+        "durationMs": 3333,
         "timeMs": 39
       },
       "weapons": "sheathed",
       "race": "Draenei",
       "characterClass": "Death Knight",
       "fetchedAt": "2026-10-31T12:17:41.897Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/232/211317992-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/232/211317992-main-raw.png",
+      "model": "/figurines/community-000/roiza.glb",
+      "bytes": 1461960,
+      "sha256": "478c509824c4d00b46d6c6e3bcb38b8039345194874df15ede20ae301c866e23",
+      "raceKey": "draenei",
+      "classKey": "deathKnight"
     },
     {
       "id": "tonzidan",
@@ -30,13 +37,20 @@
       "pose": {
         "animationId": 74,
         "variation": 0,
+        "name": "EmoteRoar",
+        "durationMs": 2067,
         "timeMs": 700
       },
       "weapons": "held",
       "race": "Night Elf",
       "characterClass": "Demon Hunter",
       "fetchedAt": "2026-10-31T12:17:42.111Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/88/211913048-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/88/211913048-main-raw.png",
+      "model": "/figurines/community-000/tonzidan.glb",
+      "bytes": 2674732,
+      "sha256": "84b71df7bccb103775568f624a33582004e74c20b49891c694b8cc15031876ff",
+      "raceKey": "nightElf",
+      "classKey": "demonHunter"
     },
     {
       "id": "valopallo",
@@ -45,13 +59,20 @@
       "pose": {
         "animationId": 73,
         "variation": 0,
+        "name": "EmoteRude",
+        "durationMs": 1333,
         "timeMs": 53
       },
       "weapons": "sheathed",
       "race": "Human",
       "characterClass": "Paladin",
       "fetchedAt": "2026-10-31T12:17:42.238Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/137/210830217-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/137/210830217-main-raw.png",
+      "model": "/figurines/community-000/valopallo.glb",
+      "bytes": 929828,
+      "sha256": "ae1e15de40edb9a1aaabb7493d12c2582635c9075791d844605da17b82a6bb16",
+      "raceKey": "human",
+      "classKey": "paladin"
     },
     {
       "id": "pajatso",
@@ -60,28 +81,43 @@
       "pose": {
         "animationId": 66,
         "variation": 0,
+        "name": "EmoteBow",
+        "durationMs": 2133,
         "timeMs": 700
       },
       "weapons": "sheathed",
       "race": "Draenei",
       "characterClass": "Shaman",
       "fetchedAt": "2026-10-31T12:17:42.352Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/115/213005171-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/115/213005171-main-raw.png",
+      "model": "/figurines/community-000/pajatso.glb",
+      "bytes": 1738344,
+      "sha256": "ae6c6141a065e279b107e41f5f0ead504ac7f4eb9cbb325a3774d9aa540028a4",
+      "raceKey": "draenei",
+      "classKey": "shaman"
     },
     {
       "id": "syopa",
       "name": "Syöpä",
       "realm": "Kazzak",
       "pose": {
-        "animationId": 64,
+        "animationId": 73,
         "variation": 0,
-        "timeMs": 700
+        "name": "EmoteRude",
+        "durationMs": 4667,
+        "timeMs": 883
       },
       "weapons": "sheathed",
       "race": "Draenei",
       "characterClass": "Warlock",
       "fetchedAt": "2026-10-31T12:17:42.464Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/79/211913039-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/79/211913039-main-raw.png",
+      "model": "/figurines/community-000/syopa.glb?v=12a8f29ef620",
+      "bytes": 865708,
+      "sha256": "12a8f29ef6204a24ef0bd0175696fbd7057996a392e7ae38b25b469c8fcc33dc",
+      "raceKey": "draenei",
+      "classKey": "warlock",
+      "authoringSeries": "secret-000-bow-rude-001"
     },
     {
       "id": "valoja",
@@ -90,13 +126,20 @@
       "pose": {
         "animationId": 67,
         "variation": 0,
+        "name": "EmoteWave",
+        "durationMs": 2000,
         "timeMs": 700
       },
       "weapons": "sheathed",
       "race": "Night Elf",
       "characterClass": "Priest",
       "fetchedAt": "2026-10-31T12:17:42.583Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/109/211317869-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/109/211317869-main-raw.png",
+      "model": "/figurines/community-000/valoja.glb",
+      "bytes": 514908,
+      "sha256": "e38cb34e1b367ff1e0878d6f5fe2b0bc966701e1a6dc989e817043ed6d526902",
+      "raceKey": "nightElf",
+      "classKey": "priest"
     },
     {
       "id": "rmxqa",
@@ -105,28 +148,43 @@
       "pose": {
         "animationId": 68,
         "variation": 0,
+        "name": "EmoteCheer",
+        "durationMs": 800,
         "timeMs": 700
       },
       "weapons": "sheathed",
       "race": "Night Elf",
       "characterClass": "Demon Hunter",
       "fetchedAt": "2026-10-31T12:17:42.742Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/244/222482164-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/244/222482164-main-raw.png",
+      "model": "/figurines/community-000/rmxqa.glb",
+      "bytes": 1299852,
+      "sha256": "c665045c66ddd9cd59b3706266dd21da2981f1e036b167fe31efa4f69f432e83",
+      "raceKey": "nightElf",
+      "classKey": "demonHunter"
     },
     {
       "id": "roi",
       "name": "Röi",
       "realm": "Kazzak",
       "pose": {
-        "animationId": 74,
+        "animationId": 46,
         "variation": 0,
-        "timeMs": 700
+        "name": "AttackBow",
+        "durationMs": 333,
+        "timeMs": 100
       },
       "weapons": "held",
       "race": "Blood Elf",
       "characterClass": "Hunter",
       "fetchedAt": "2026-10-31T12:17:42.932Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/198/145973190-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/198/145973190-main-raw.png",
+      "model": "/figurines/community-000/roi.glb?v=04122a88cb37",
+      "bytes": 851092,
+      "sha256": "04122a88cb37a4d023e755f1a4ab21429d0b8f9a3e4089c3234d59dada753aa0",
+      "raceKey": "bloodElf",
+      "classKey": "hunter",
+      "authoringSeries": "secret-000-bow-rude-001"
     },
     {
       "id": "oita",
@@ -135,28 +193,43 @@
       "pose": {
         "animationId": 26,
         "variation": 0,
+        "name": "Ready1H",
+        "durationMs": 1000,
         "timeMs": 700
       },
       "weapons": "held",
       "race": "Night Elf",
       "characterClass": "Warrior",
       "fetchedAt": "2026-10-31T12:17:43.089Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/205/217550285-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/kazzak/205/217550285-main-raw.png",
+      "model": "/figurines/community-000/oita.glb",
+      "bytes": 708352,
+      "sha256": "ae381592582635a3355fcd9df370247693de1ae9d4492aef68c025bf77350d65",
+      "raceKey": "nightElf",
+      "classKey": "warrior"
     },
     {
       "id": "valotettu",
       "name": "Valotettu",
       "realm": "Outland",
       "pose": {
-        "animationId": 67,
+        "animationId": 73,
         "variation": 0,
-        "timeMs": 700
+        "name": "EmoteRude",
+        "durationMs": 4667,
+        "timeMs": 883
       },
       "weapons": "sheathed",
       "race": "Lightforged Draenei",
       "characterClass": "Paladin",
       "fetchedAt": "2026-10-31T12:17:43.210Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/161/86574753-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/161/86574753-main-raw.png",
+      "model": "/figurines/community-000/valotettu.glb?v=59f35e04a2b4",
+      "bytes": 999264,
+      "sha256": "59f35e04a2b45e17554d3eaa163e9fe7eacbe4f2ad86cfcb9addcf8e90759a64",
+      "raceKey": "lightforgedDraenei",
+      "classKey": "paladin",
+      "authoringSeries": "secret-000-valotettu-rude-frame53-001"
     },
     {
       "id": "syttyyko",
@@ -165,28 +238,43 @@
       "pose": {
         "animationId": 68,
         "variation": 0,
+        "name": "EmoteCheer",
+        "durationMs": 2334,
         "timeMs": 700
       },
       "weapons": "sheathed",
       "race": "Human",
       "characterClass": "Mage",
       "fetchedAt": "2026-10-31T12:17:43.311Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/106/86793578-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/106/86793578-main-raw.png",
+      "model": "/figurines/community-000/syttyyko.glb",
+      "bytes": 790408,
+      "sha256": "2ad4e607de1fb49adcf71ea2c598a39664ef10e9d4cca4d93156cef4d03c397f",
+      "raceKey": "human",
+      "classKey": "mage"
     },
     {
       "id": "jousivakio",
       "name": "Jousivakio",
       "realm": "Outland",
       "pose": {
-        "animationId": 69,
+        "animationId": 29,
         "variation": 0,
+        "name": "ReadyBow",
+        "durationMs": 2666,
         "timeMs": 700
       },
-      "weapons": "sheathed",
+      "weapons": "held",
       "race": "Night Elf",
       "characterClass": "Hunter",
       "fetchedAt": "2026-10-31T12:17:43.431Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/76/87483980-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/76/87483980-main-raw.png",
+      "model": "/figurines/community-000/jousivakio.glb?v=d284dedd7ada",
+      "bytes": 642712,
+      "sha256": "d284dedd7ada1bbba2094237ae3b9b71ace9b90b5c9611f4bca308d7e5ec66bc",
+      "raceKey": "nightElf",
+      "classKey": "hunter",
+      "authoringSeries": "secret-000-bow-rude-001"
     },
     {
       "id": "tahto",
@@ -195,13 +283,20 @@
       "pose": {
         "animationId": 66,
         "variation": 0,
+        "name": "EmoteBow",
+        "durationMs": 2333,
         "timeMs": 700
       },
       "weapons": "sheathed",
       "race": "Night Elf",
       "characterClass": "Demon Hunter",
       "fetchedAt": "2026-10-31T12:17:43.555Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/46/142296622-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/46/142296622-main-raw.png",
+      "model": "/figurines/community-000/tahto.glb",
+      "bytes": 1433872,
+      "sha256": "a053f3813b70c63c5fdf84cbe9fa74b97d38bf8e70fd0a0ae74b1079ca63e1d9",
+      "raceKey": "nightElf",
+      "classKey": "demonHunter"
     },
     {
       "id": "muoto",
@@ -210,13 +305,20 @@
       "pose": {
         "animationId": 64,
         "variation": 0,
+        "name": "EmoteTalkExclamation",
+        "durationMs": 2066,
         "timeMs": 700
       },
       "weapons": "sheathed",
       "race": "Night Elf",
       "characterClass": "Druid",
       "fetchedAt": "2026-10-31T12:17:43.680Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/94/101827166-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/94/101827166-main-raw.png",
+      "model": "/figurines/community-000/muoto.glb",
+      "bytes": 434060,
+      "sha256": "0ed9255ee7d10139a73bd6d7486e1b1e2a1c7aa50711cd4c8af45f314da6c717",
+      "raceKey": "nightElf",
+      "classKey": "druid"
     },
     {
       "id": "dalarian",
@@ -225,13 +327,20 @@
       "pose": {
         "animationId": 74,
         "variation": 0,
+        "name": "EmoteRoar",
+        "durationMs": 2167,
         "timeMs": 700
       },
       "weapons": "held",
       "race": "Draenei",
       "characterClass": "Death Knight",
       "fetchedAt": "2026-10-31T12:17:43.783Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/104/102565224-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/104/102565224-main-raw.png",
+      "model": "/figurines/community-000/dalarian.glb",
+      "bytes": 526072,
+      "sha256": "37bd08bbf550ea38bf9739711b5458114f7a98b3b272519b02fd9e1a2f7acdaa",
+      "raceKey": "draenei",
+      "classKey": "deathKnight"
     },
     {
       "id": "taivaallinen",
@@ -240,13 +349,22 @@
       "pose": {
         "animationId": 67,
         "variation": 0,
+        "name": "EmoteWave",
+        "durationMs": 2667,
         "timeMs": 700
       },
       "weapons": "sheathed",
       "race": "Human",
       "characterClass": "Priest",
       "fetchedAt": "2026-10-31T12:17:43.877Z",
-      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/99/88319075-main-raw.png"
+      "referenceImage": "https://render.worldofwarcraft.com/eu/character/outland/99/88319075-main-raw.png",
+      "model": "/figurines/community-000/taivaallinen.glb",
+      "bytes": 325912,
+      "sha256": "0f4e266414dad5d9b56f8eea96b8f5db10eaf13a543d70bc2b031f31e29e6230",
+      "raceKey": "human",
+      "classKey": "priest"
     }
-  ]
+  ],
+  "authoringSeries": "secret-000-repair-001",
+  "build": "12.1.5.70575"
 }
