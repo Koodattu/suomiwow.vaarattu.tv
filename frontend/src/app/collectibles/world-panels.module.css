@@ -92,9 +92,27 @@
 .board li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 6px; background: rgba(255, 255, 255, .05); font-size: 13px; }
 .board li b { color: #d6bb86; font-weight: 600; text-align: right; }
 
+/* Daily stations: what an action brought, the streak, claims, and banked rewards. */
+.result { margin: 0; padding: 10px 12px; border: 1px solid #8a7550; border-radius: 8px; background: rgba(214, 187, 134, .12); color: #fff3da; font-size: 14px; line-height: 1.4; animation: resultIn .5s cubic-bezier(.2, 1.4, .4, 1) both; }
+.result b { color: #ffd77a; }
+@keyframes resultIn { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+.streak li { display: flex; flex-direction: column; gap: 2px; }
+.streak li small { font-size: 8px; letter-spacing: .04em; }
+.streak li[data-done="true"] { background: linear-gradient(#e2bd6a, #9c7430); color: #2c1d08; }
+.claim { justify-self: end; min-height: 30px; padding: 4px 12px; border: 1px solid #dec799; border-radius: 6px; background: #d6bb86; color: #1b1b20; font-size: 12px; cursor: pointer; animation: hintPulse 1.8s ease-in-out infinite; }
+@keyframes hintPulse { 50% { box-shadow: 0 0 14px rgba(255, 210, 120, .5); } }
+.claimed { justify-self: end; color: #8f9aa7; font-size: 12px; }
+.quest[data-done="true"] > span:first-child { color: #fff3da; }
+.boons, .hudBoons { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.boons span, .hudBoons span { padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, .07); color: #e9dfc9; font-size: 12px; }
+.boons span[data-quality="golden"], .hudBoons span[data-quality="golden"] { background: linear-gradient(90deg, #ffe7a3, #e0a93a); color: #3a2506; }
+.boons span[data-quality="galaxy"], .hudBoons span[data-quality="galaxy"] { background: linear-gradient(90deg, #2a1660, #6d3fd8, #2b7fd8); color: #f1e9ff; }
+.hudBoons { position: absolute; z-index: 3; top: max(24px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); pointer-events: none; justify-content: center; }
+.hudBoons span { background: rgba(10, 16, 26, .78); border: 1px solid #4d4230; }
+
 @media (max-width: 700px) {
   .panel, .panel[data-wide="true"] { top: auto; left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); width: auto; max-height: 52svh; animation-name: sheetIn; }
   @keyframes sheetIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
   .showcase { grid-template-columns: repeat(4, 1fr); gap: 6px; }
 }
-@media (prefers-reduced-motion: reduce) { .panel, .slot[data-placing="true"] { animation: none; } .card { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .panel, .slot[data-placing="true"], .result, .claim { animation: none; } .card { transition: none; } }

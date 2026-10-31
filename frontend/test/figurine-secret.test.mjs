@@ -77,7 +77,7 @@ test("only the marked barrel instance reveals Series 000 and foreground props bl
   const spots = marketLayout().filter(({ model }) => model === "barrel");
   assert.equal(spots.filter(({ secretSeries }) => secretSeries).length, 1);
   const secret = spots.find(({ secretSeries }) => secretSeries);
-  assert.deepEqual([secret.x, secret.z, secret.secretSeries], [11.8, -14, "community-000"]);
+  assert.deepEqual([secret.x, secret.z, secret.secretSeries], [19.4, -10.8, "community-000"]);
   const scene = new THREE.Scene(), forest = buildForest(scene, spots);
   await forest.ready;
   scene.updateMatrixWorld(true);

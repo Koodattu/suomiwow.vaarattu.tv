@@ -28,11 +28,14 @@ test("all collectible and world GLBs use embedded ETC1S with mipmaps and bounded
 
 test("baked box textures have GPU-compatible dimensions throughout their mip chains", async () => {
   const manifest = JSON.parse(await fs.readFile(new URL("../src/data/figurines/packaging.json", import.meta.url)));
-  const files = new Set(Object.values(manifest.designs).flatMap(sizes => Object.values(sizes).flatMap(maps => Object.values(maps))));
-  for (const file of files) {
+  const files = new Map(Object.values(manifest.designs).flatMap(sizes => Object.entries(sizes).flatMap(([density,maps]) => Object.values(maps).map(file => [file,density]))));
+  for (const [file,density] of files) {
     const bytes = await fs.readFile(new URL(`../public/figurines/packaging/${file}`, import.meta.url));
     const width = bytes.readUInt32LE(20), height = bytes.readUInt32LE(24), levels = bytes.readUInt32LE(40);
-    assert.equal(bytes.readUInt32LE(44), 1, `${file}: ETC1S`);
+    const closeUp = density === "500";
+    assert.equal(bytes.readUInt32LE(44), closeUp ? 2 : 1, `${file}: close-up Zstd / shelf BasisLZ`);
+    const descriptor = bytes.readUInt32LE(48);
+    assert.equal(bytes[descriptor + 12], closeUp ? 166 : 163, `${file}: close-up UASTC / shelf ETC1S`);
     assert.equal(levels, Math.floor(Math.log2(Math.max(width, height))) + 1, file);
     for (let level = 0; level < levels; level++) {
       for (const dimension of [Math.max(1, width >> level), Math.max(1, height >> level)]) {

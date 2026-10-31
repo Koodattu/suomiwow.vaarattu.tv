@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type CSSProperties } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { QUALITIES, SHOWCASE_SLOTS, acquiredId, bestQuality, copiesOf, showcaseFigure, type FigurineCollection, type FigurineQuality, type FigurineRecords, type MachineItem } from "@/lib/figurine-collection";
+import { FISH, QUALITIES, SHOWCASE_SLOTS, acquiredId, bestQuality, canSpin, copiesOf, crateReward, crateState, dailyCatchReady, questBoard, showcaseFigure, type Catch, type FigurineCollection, type FigurineQuality, type FigurineRecords, type MachineItem, type Reward } from "@/lib/figurine-collection";
 import { findFigure } from "@/lib/figurine-series";
 import { portraitStyle } from "@/lib/figurine-portraits";
 import type { Station } from "@/lib/figurine-world";
@@ -13,10 +13,14 @@ import styles from "./world-panels.module.css";
 // in view beside or above them. Stations not open yet show what they will do.
 export type PanelSeries = { id: string; number: string; released: boolean; hidden?: boolean; keys: string[] };
 export type MachinePanel = { kind: "recycler" | "forge"; slots: MachineItem[]; groups: (MachineItem & { spare: number })[]; onPick: (item: MachineItem) => void; onClear: () => void };
+// What a station's last action brought, shown once its animation has played.
+export type PanelResult = { station: "crate"; day: number; reward: Reward } | { station: "wheel"; reward: Reward; figure?: MachineItem } | { station: "pond"; caught: Catch; figure?: MachineItem };
+// The daily stations' actions, and whether one is playing now.
+export type PanelActions = { busy: boolean; result: PanelResult | null; now: Date; onCrate: () => void; onSpin: () => void; onCast: () => void; onClaim: (id: string) => void };
 type Props = {
   view: Station; collection: FigurineCollection; records: FigurineRecords; series: PanelSeries[];
   onClose: () => void; onInspect: (key: string, quality: FigurineQuality) => void; onShowcase: (slot: number, item: MachineItem | null) => void;
-  machine?: MachinePanel;
+  machine?: MachinePanel; actions: PanelActions;
 };
 
 // A figure's baked portrait, finished like its quality: gold toned, or a nebula through its outline.
@@ -150,7 +154,20 @@ function MachinePicker({ machine, series }: Props & { machine: MachinePanel }) {
 }
 
 // Stations not open yet: what they will do, and a look at it with what this session already knows.
-function Placeholder({ view, collection, records, series }: Props) {
+// A reward in words: boxes banked, a boost, a figure.
+function useRewardText() {
+  const t = useTranslations("figurineLab");
+  return (reward: Reward, figure?: MachineItem) => [
+    reward.boxes ? t("world.rewards.boxes", { count: reward.boxes }) : null,
+    reward.boost ? t("world.rewards.boost", { quality: t(`quality.${reward.boost}`) }) : null,
+    figure ? t("world.rewards.figure", { name: findFigure(figure.key)?.character.name ?? "" }) : null,
+  ].filter(Boolean).join(" · ");
+}
+
+function Placeholder({ view, collection, records, series, actions }: Props) {
+  const rewardText = useRewardText();
+  const { busy, result, now } = actions;
+  const shown = result && result.station === view && !busy ? result : null;
   const t = useTranslations("figurineLab");
   const format = useFormatter();
   const owned = Object.keys(collection);
@@ -159,16 +176,31 @@ function Placeholder({ view, collection, records, series }: Props) {
   const soon = <button type="button" className={styles.primary} disabled>{t("comingSoon")}</button>;
   const firstAt = (quality: FigurineQuality) => Object.entries(records.acquired).filter(([id]) => id.endsWith(`|${quality}`)).map(([, at]) => at).sort()[0];
   const date = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium" });
-  if (view === "crate") return <>
-    <p className={styles.note}>{t("world.crate.body")}</p>
-    <ol className={styles.streak}>{Array.from({ length: 7 }, (_, day) => <li key={day} data-today={day === 0}>{t("world.crate.day", { day: day + 1 })}</li>)}</ol>
-    {soon}
-  </>;
-  if (view === "wheel") return <>
-    <p className={styles.note}>{t("world.wheel.body")}</p>
-    <ul className={styles.prizes}>{(["box", "double", "golden", "galaxy", "surprise"] as const).map((prize) => <li key={prize} data-prize={prize}>{t(`world.wheel.prizes.${prize}`)}</li>)}</ul>
-    {soon}
-  </>;
+  if (view === "crate") {
+    const state = crateState(records, now);
+    return <>
+      <p className={styles.note}>{t("world.crate.body")}</p>
+      <ol className={styles.streak}>{Array.from({ length: 7 }, (_, index) => {
+        const day = index + 1, opened = state.ready ? day < state.day : day <= state.day;
+        return <li key={day} data-done={opened} data-today={state.ready && day === state.day}>{t("world.crate.day", { day })}{day === 7 && <small>{t("world.crate.day7")}</small>}</li>;
+      })}</ol>
+      {shown?.station === "crate" && <p className={styles.result}>{t("world.crate.got", { day: shown.day, reward: rewardText(shown.reward) })}</p>}
+      {state.ready
+        ? <button type="button" className={styles.primary} disabled={busy} onClick={actions.onCrate}>{t("world.crate.open")} · {rewardText(crateReward(state.day))}</button>
+        : <p className={styles.meta}>{t("world.crate.opened", { day: state.day >= 7 ? 1 : state.day + 1 })}</p>}
+      <Boons records={records} />
+    </>;
+  }
+  if (view === "wheel") {
+    const ready = canSpin(records, now);
+    return <>
+      <p className={styles.note}>{t("world.wheel.body")}</p>
+      <ul className={styles.prizes}>{(["box1", "box2", "box3", "golden", "galaxy", "figure"] as const).map((prize) => <li key={prize} data-prize={prize}>{t(`world.wheel.prizes.${prize}`)}</li>)}</ul>
+      {shown?.station === "wheel" && <p className={styles.result}>{t("world.wheel.won", { prize: rewardText(shown.reward, shown.figure) })}</p>}
+      {ready ? <button type="button" className={styles.primary} disabled={busy} onClick={actions.onSpin}>{t("world.wheel.spin")}</button> : <p className={styles.meta}>{busy ? "…" : t("world.wheel.spun")}</p>}
+      <Boons records={records} />
+    </>;
+  }
   if (view === "mail") return <form className={styles.form} onSubmit={(event) => event.preventDefault()}>
     <p className={styles.note}>{t("world.mail.body")}</p>
     <label>{t("world.mail.figure")}<select defaultValue=""><option value="" disabled>{t("world.mail.choose")}</option>{owned.map((key) => <option key={key} value={key}>{findFigure(key)?.character.name ?? key}</option>)}</select></label>
@@ -177,24 +209,20 @@ function Placeholder({ view, collection, records, series }: Props) {
     <button type="submit" className={styles.primary} disabled>{t("world.mail.send")} · {t("comingSoon")}</button>
   </form>;
   if (view === "quests") {
-    const { opened, recycled, tradedUp } = records.stats;
-    const galaxy = count("galaxy") > 0 ? 1 : 0;
-    const quests = {
-      daily: [["open3", opened, 3, 1], ["recycle1", recycled, 1, 1], ["tradeUp1", tradedUp, 1, 1]],
-      weekly: [["open20", opened, 20, 3], ["recycle5", recycled, 5, 2], ["tradeUp3", tradedUp, 3, 2]],
-      monthly: [["open60", opened, 60, 8], ["galaxy", galaxy, 1, 5], ["series", complete ? 1 : 0, 1, 5]],
-    } as const;
+    const board = questBoard(records, complete, now);
     return <>
       <p className={styles.note}>{t("world.quests.body")}</p>
-      {(Object.keys(quests) as (keyof typeof quests)[]).map((period) => <section key={period} className={styles.quests}>
+      {(["daily", "weekly", "monthly"] as const).map((period) => <section key={period} className={styles.quests}>
         <h3>{t(`world.quests.${period}`)}</h3>
-        {quests[period].map(([id, progress, goal, reward]) => <div key={id} className={styles.quest}>
-          <span>{t(`world.quests.items.${id}`)}</span>
-          <span className={styles.bar}><i style={{ width: `${Math.min(1, progress / goal) * 100}%` }} /></span>
-          <small>{Math.min(progress, goal)}/{goal} · {t("world.quests.reward", { count: reward })}</small>
+        {board.filter((quest) => quest.period === period).map((quest) => <div key={quest.id} className={styles.quest} data-done={quest.done}>
+          <span>{t(`world.quests.items.${quest.id}`)}</span>
+          {quest.claimed ? <em className={styles.claimed}>{t("world.quests.claimed")}</em>
+            : quest.done ? <button type="button" className={styles.claim} onClick={() => actions.onClaim(quest.id)}>{t("world.quests.claim")}</button>
+            : <span className={styles.bar}><i style={{ width: `${quest.progress / quest.goal * 100}%` }} /></span>}
+          <small>{quest.progress}/{quest.goal} · {t("world.quests.reward", { count: quest.reward })}</small>
         </div>)}
       </section>)}
-      {soon}
+      <Boons records={records} />
     </>;
   }
   if (view === "feed") return <>
@@ -202,7 +230,7 @@ function Placeholder({ view, collection, records, series }: Props) {
     {records.feed.length ? <ul className={styles.feed}>{records.feed.map((pull) => <li key={`${pull.at}|${pull.key}`}>
       <Portrait figureKey={pull.key} quality={pull.quality} className={styles.feedPortrait} />
       <div><b>{findFigure(pull.key)?.character.name}</b><span data-quality={pull.quality}>{t(`quality.${pull.quality}`)}</span>
-        <small>{t("world.feed.you")} · {t(pull.source === "forge" ? "world.feed.fromForge" : "world.feed.fromBox")} · {format.relativeTime(new Date(pull.at))}</small></div>
+        <small>{t("world.feed.you")} · {t(`world.feed.${({ box: "fromBox", forge: "fromForge", wheel: "fromWheel", pond: "fromPond" } as const)[pull.source]}`)} · {format.relativeTime(new Date(pull.at))}</small></div>
     </li>)}</ul> : <p className={styles.meta}>{t("world.feed.empty")}</p>}
   </>;
   if (view === "fame") {
@@ -221,6 +249,26 @@ function Placeholder({ view, collection, records, series }: Props) {
       <li key={id}><span>{t(`world.leaderboard.items.${id}`)}</span><b>{t("world.leaderboard.you")} · {value}</b></li>)}</ul>
     <p className={styles.meta}>{t("world.leaderboard.signIn")}</p>
   </>;
-  if (view === "pond") return <><p className={styles.note}>{t("world.pond.body")}</p><button type="button" className={styles.primary} disabled>{t("world.pond.cast")} · {t("comingSoon")}</button></>;
+  if (view === "pond") {
+    const daily = dailyCatchReady(records, now);
+    return <>
+      <p className={styles.note}>{t("world.pond.body")}</p>
+      {daily && <p className={styles.meta}>{t("world.pond.dailyReady")}</p>}
+      {shown?.station === "pond" && <p className={styles.result}>{shown.caught.kind === "daily"
+        ? t("world.pond.daily", { name: shown.figure ? findFigure(shown.figure.key)?.character.name ?? "" : "" })
+        : <>{t("world.pond.fish", { name: FISH[shown.caught.fish].name, weight: shown.caught.weight })}{shown.caught.best && <b> · {t("world.pond.best")}</b>}</>}</p>}
+      <button type="button" className={styles.primary} disabled={busy} onClick={actions.onCast}>{t(result?.station === "pond" ? "world.pond.castAgain" : "world.pond.cast")}</button>
+      {records.stats.fish > 0 && <p className={styles.meta}>{records.catches.best > 0 ? t("world.pond.tally", { count: records.stats.fish, best: records.catches.best }) : t("world.pond.caught", { count: records.stats.fish })}</p>}
+    </>;
+  }
   return <><p className={styles.note}>{t("world.trading.body")}</p>{soon}</>;
+}
+
+function Boons({ records }: { records: FigurineRecords }) {
+  const t = useTranslations("figurineLab");
+  if (!records.boons.boxes && !records.boons.boost) return null;
+  return <p className={styles.boons}>
+    {records.boons.boxes > 0 && <span>{t("world.rewards.banked", { count: records.boons.boxes })}</span>}
+    {records.boons.boost && <span data-quality={records.boons.boost}>{t("world.rewards.boostNext", { quality: t(`quality.${records.boons.boost}`) })}</span>}
+  </p>;
 }

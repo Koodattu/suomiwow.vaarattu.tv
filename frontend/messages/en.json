@@ -178,20 +178,26 @@
         "clear": "Clear"
       },
       "crate": {
-        "body": "A free blind box every day. Come back days in a row for a streak bonus: the seventh day's crate has a better golden chance.",
+        "body": "A free box every day. Come back days in a row: the seventh day's crate also guarantees a golden roll.",
         "day": "Day {day}",
-        "open": "Open today's crate"
+        "open": "Open today's crate",
+        "opened": "Opened. Come back tomorrow for day {day}.",
+        "got": "Day {day}: {reward}",
+        "day7": "Golden roll"
       },
       "wheel": {
-        "body": "One free spin a day for a prize.",
+        "body": "One free spin a day.",
         "spin": "Spin",
         "prizes": {
-          "box": "Extra box",
-          "double": "Two boxes",
-          "golden": "Golden roll",
-          "galaxy": "Galaxy roll",
-          "surprise": "Surprise"
-        }
+          "box1": "+1 box",
+          "box2": "+2 boxes",
+          "box3": "+3 boxes",
+          "golden": "a golden boost",
+          "galaxy": "a galaxy boost",
+          "figure": "a random figure"
+        },
+        "spun": "Spun for today. The wheel turns again tomorrow.",
+        "won": "You won {prize}"
       },
       "mail": {
         "body": "Send a figure to a guildmate, with a note.",
@@ -219,15 +225,21 @@
           "tradeUp3": "Trade up 3 times",
           "open60": "Open 60 boxes",
           "galaxy": "Pull a galaxy figure",
-          "series": "Complete a series"
-        }
+          "series": "Complete a series",
+          "spin1": "Spin the wheel",
+          "fish3": "Catch 3 fish",
+          "crates5": "Open 5 daily crates"
+        },
+        "claimed": "Claimed"
       },
       "feed": {
         "body": "The newest golden and galaxy pulls.",
         "empty": "No golden or galaxy pulls yet. Keep opening!",
         "you": "You",
         "fromBox": "from a box",
-        "fromForge": "traded up"
+        "fromForge": "traded up",
+        "fromWheel": "from the wheel",
+        "fromPond": "from the pond"
       },
       "fame": {
         "body": "The first collectors to reach each milestone, with their name, picture and date.",
@@ -256,8 +268,23 @@
         "body": "Trade figures with other players: offer yours, ask for theirs, and both accept."
       },
       "pond": {
-        "body": "Cast once a day for a blind box and a figure. After that, fish just for fun.",
-        "cast": "Cast"
+        "body": "The day's first cast brings up a box and a figure. After that, fish for fun.",
+        "cast": "Cast",
+        "castAgain": "Cast again",
+        "dailyReady": "Today's first cast is waiting.",
+        "daily": "Today's catch: a box and {name}!",
+        "fish": "{name}, {weight} lb",
+        "best": "Your biggest yet!",
+        "caught": "Fish caught: {count}",
+        "tally": "Fish caught: {count} · Biggest: {best} lb"
+      },
+      "rewards": {
+        "boxes": "{count, plural, one {# box} other {# boxes}}",
+        "boost": "{quality} boost",
+        "figure": "{name} joins your collection",
+        "banked": "Boxes banked ×{count}",
+        "boostNext": "Next box: {quality} or better",
+        "bankedHint": "Banked boxes are for when boxes become limited."
       }
     },
     "tradedUp": "Traded up!",

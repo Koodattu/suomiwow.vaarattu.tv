@@ -1,4 +1,4 @@
-// Bake the existing localized artwork in Chrome, then encode it offline as ETC1S.
+// Bake localized artwork in Chrome: ETC1S for shelves, UASTC for close-up print detail.
 // node scripts/bake-figurine-boxes.mjs <toktx.exe> <work-directory> [port]
 import http from "node:http";
 import fs from "node:fs/promises";
@@ -28,21 +28,22 @@ for(const locale of ["en","fi"]) {
   const text=JSON.parse(await fs.readFile(path.join(frontend,`messages/${locale}.json`))).figurineLab;
   for(const entry of series) designs.push({locale,id:entry.id,number:entry.number,theme:entry.theme,hue:entry.hue,lineup:entry.characters?.map(c=>c.name)??Array(entry.size).fill("?"),silhouettes:entry.silhouettes,labels:{title:text.boxTitle,subtitle:text.boxSubtitle,blind:text.boxBlind,collect:text.boxCollect.replace("{count}",String(entry.characters?.length??entry.size)),contents:text.boxContents,openHere:text.boxOpenHere}});
 }
-const manifest={version:1,codec:"ETC1S",designs:{}};
+const manifest={version:2,codecs:{150:"ETC1S",500:"UASTC"},designs:{}};
 const run=promisify(execFile), encoding=new Map();
-async function encode(png,color) {
+async function encode(png,color,codec) {
   // BC-compressed mip chains need valid block dimensions at every level in WebGL.
   // Canvas sizes follow world units and are often odd (e.g. 1025 × 1375).
   const {width,height}=await sharp(png).metadata();
   const powerOfTwo=value=>2**Math.round(Math.log2(value));
   png=await sharp(png).resize(powerOfTwo(width),powerOfTwo(height),{fit:"fill"}).png().toBuffer();
-  const key=createHash("sha256").update(png).update(color?"srgb":"linear").digest("hex");
+  const key=createHash("sha256").update(png).update(color?"srgb":"linear").update(codec==="uastc"?"uastc-q2-z9":"").digest("hex");
   const name=`${key.slice(0,20)}.ktx2`, filename=path.join(output,name);
   if(!encoding.has(key))encoding.set(key,(async()=>{
     try {await fs.access(filename);}catch(error){
       if(error.code!=="ENOENT")throw error;
       const source=path.join(work,`${key}.png`);await fs.writeFile(source,png);
-      await run(encoder,["--t2","--encode","etc1s","--qlevel","255","--clevel","2","--genmipmap","--lower_left_maps_to_s0t0","--assign_oetf",color?"srgb":"linear","--threads","4",filename,source]);
+      const quality=codec==="uastc"?["--uastc_quality","2","--zcmp","9"]:["--qlevel","255","--clevel","2"];
+      await run(encoder,["--t2","--encode",codec,...quality,"--genmipmap","--lower_left_maps_to_s0t0","--assign_oetf",color?"srgb":"linear","--threads","4",filename,source]);
     }
     return name;
   })());
@@ -58,7 +59,7 @@ http.createServer(async(req,res)=>{
       const {key,density,maps}=JSON.parse(Buffer.concat(chunks).toString());
       if(![150,500].includes(density)||typeof key!=="string")throw new Error("Invalid bake");
       const encoded={};
-      for(const [name,data] of Object.entries(maps))encoded[name]=await encode(Buffer.from(data.split(",")[1],"base64"),!name.endsWith("-finish"));
+      for(const [name,data] of Object.entries(maps))encoded[name]=await encode(Buffer.from(data.split(",")[1],"base64"),!name.endsWith("-finish"),density===500?"uastc":"etc1s");
       (manifest.designs[key]??={})[density]=encoded;
       // Publish the manifest only when the whole bake is ready; development HMR must not
       // briefly lose existing designs and fall back to painting them at runtime.

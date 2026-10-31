@@ -178,20 +178,26 @@
         "clear": "Tyhjennä"
       },
       "crate": {
-        "body": "Ilmainen yllätyslaatikko joka päivä. Tule monena päivänä peräkkäin putkibonuksen vuoksi: seitsemännen päivän arkussa on parempi kultamahdollisuus.",
+        "body": "Ilmainen laatikko joka päivä. Tule päivittäin: seitsemännen päivän arkku takaa myös kultaheiton.",
         "day": "Päivä {day}",
-        "open": "Avaa päivän arkku"
+        "open": "Avaa päivän arkku",
+        "opened": "Avattu. Tule huomenna päivälle {day}.",
+        "got": "Päivä {day}: {reward}",
+        "day7": "Kultaheitto"
       },
       "wheel": {
         "body": "Yksi ilmainen pyöräytys päivässä.",
         "spin": "Pyöräytä",
         "prizes": {
-          "box": "Lisälaatikko",
-          "double": "Kaksi laatikkoa",
-          "golden": "Kultaheitto",
-          "galaxy": "Galaksiheitto",
-          "surprise": "Yllätys"
-        }
+          "box1": "+1 laatikko",
+          "box2": "+2 laatikkoa",
+          "box3": "+3 laatikkoa",
+          "golden": "kultatehostus",
+          "galaxy": "galaksitehostus",
+          "figure": "satunnainen hahmo"
+        },
+        "spun": "Pyöräytetty tänään. Pyörä pyörii taas huomenna.",
+        "won": "Voitit: {prize}"
       },
       "mail": {
         "body": "Lähetä hahmo kiltakaverille viestin kera.",
@@ -219,15 +225,21 @@
           "tradeUp3": "Jalosta 3 kertaa",
           "open60": "Avaa 60 laatikkoa",
           "galaxy": "Vedä galaksihahmo",
-          "series": "Täydennä sarja"
-        }
+          "series": "Täydennä sarja",
+          "spin1": "Pyöräytä onnenpyörää",
+          "fish3": "Nappaa 3 kalaa",
+          "crates5": "Avaa 5 päivän arkkua"
+        },
+        "claimed": "Lunastettu"
       },
       "feed": {
         "body": "Tuoreimmat kulta- ja galaksivedot.",
         "empty": "Ei vielä kulta- tai galaksivetoja. Jatka avaamista!",
         "you": "Sinä",
         "fromBox": "laatikosta",
-        "fromForge": "jalostettu"
+        "fromForge": "jalostettu",
+        "fromWheel": "onnenpyörästä",
+        "fromPond": "lammesta"
       },
       "fame": {
         "body": "Ensimmäiset keräilijät kussakin virstanpylväässä: nimi, kuva ja päivä.",
@@ -256,8 +268,23 @@
         "body": "Vaihda hahmoja muiden pelaajien kanssa: tarjoa omaasi, pyydä heidän omaansa, ja molemmat hyväksyvät."
       },
       "pond": {
-        "body": "Heitä kerran päivässä saadaksesi yllätyslaatikon ja hahmon. Sen jälkeen voit kalastaa huvin vuoksi.",
-        "cast": "Heitä"
+        "body": "Päivän ensimmäinen heitto nostaa laatikon ja hahmon. Sen jälkeen voit kalastaa huvikseen.",
+        "cast": "Heitä",
+        "castAgain": "Heitä uudelleen",
+        "dailyReady": "Päivän ensimmäinen heitto odottaa.",
+        "daily": "Päivän saalis: laatikko ja {name}!",
+        "fish": "{name}, {weight} lb",
+        "best": "Suurin tähän asti!",
+        "caught": "Kaloja: {count}",
+        "tally": "Kaloja: {count} · Suurin: {best} lb"
+      },
+      "rewards": {
+        "boxes": "{count, plural, one {# laatikko} other {# laatikkoa}}",
+        "boost": "{quality}-tehostus",
+        "figure": "{name} liittyy kokoelmaasi",
+        "banked": "Laatikoita säästössä ×{count}",
+        "boostNext": "Seuraava laatikko: vähintään {quality}",
+        "bankedHint": "Säästetyt laatikot ovat sitä varten, kun laatikoita rajoitetaan."
       }
     },
     "tradedUp": "Paranneltu!",

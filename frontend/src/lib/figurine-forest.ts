@@ -57,16 +57,33 @@ export function marketLayout(): Placement[] {
     return [at("table", x, z), on("cheese", 0.35, -0.9), on("cheese", 0.1, -0.55, 0.9), on("bread", -0.3, 0.1), on("bread", -0.2, 0.4, 0.2), on("fruit", 0.2, 0.75), on("lantern", -0.4, -1.3)];
   };
   return [
-    at("tent", -6.6, -23), at("wagon", 7.2, -23.2),
-    at("signpost", 2.6, -19.6, { yaw: 2.2 }), at("crate", -4.6, -20.4, { yaw: 0.5 }), at("barrel", 4.9, -20.6),
-    at("crate", -11.8, -14, { yaw: 0.3 }), at("crate", -12.6, -13.1, { yaw: -0.2, size: 0.2 }), at("crate", -11.9, -13.9, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -11, -14.9),
-    // The broken opening faces local -z; turn it outward from the plaza.
-    at("barrel", 11.8, -14, { yaw: Math.atan2(-11.8, 14), secretSeries: "community-000" }), at("barrel", 12.6, -13.2), at("crate", 11, -14.9, { yaw: 1.1 }),
-    ...table(-10.2, -21), ...table(10.6, -20.8),
+    at("tent", -7.4, -23.8), at("wagon", 12.2, -24.8, { yaw: 2.6 }),
+    at("signpost", -2.6, -24.2, { yaw: 1.2 }), at("crate", -3.6, -21.2, { yaw: 0.5 }), at("crate", -4.2, -20.4, { yaw: -0.3, size: 0.2 }), at("barrel", 5.2, -23.4),
+    at("haystack", -13.6, -21.4, { yaw: 0.8, size: 0.4 }), at("haystack", -14.8, -19.8, { yaw: 2.1, size: 0.7 }),
+    // Stock behind the tinkers' yard.
+    at("crate", -19.8, -8.4, { yaw: 0.3 }), at("crate", -20.6, -7.5, { yaw: -0.2, size: 0.2 }), at("crate", -19.9, -8.3, { y: 0.86, yaw: 0.9, size: 0.1 }), at("barrel", -19, -9.4),
+    // Behind the scholars' bookcase. The broken opening faces local -z; turn it outward.
+    at("barrel", 19.4, -10.8, { yaw: Math.atan2(-19.4, 10.8), secretSeries: "community-000" }), at("barrel", 20.2, -9.8), at("crate", 18.6, -11.8, { yaw: 1.1 }),
+    ...table(-11.6, -18.8), ...table(6.6, -26.4),
   ];
 }
 // True if (x, z) is clear of the market's footprints.
 const clearOf = (spots: Placement[], x: number, z: number) => spots.every((spot) => Math.hypot(spot.x - x, spot.z - z) > (spot.model === "tent" || spot.model === "wagon" ? 6 : 2));
+// Trees, bushes and rocks inside the clearing, between the neighbourhoods, so the facilities stand
+// among woods rather than round an empty ring.
+export function groveLayout(): Placement[] {
+  const tree = (x: number, z: number, size: number, model: ForestModel = "tree"): Placement => ({ model, x, z, yaw: x * 1.7 + z, size });
+  const low = (model: ForestModel, x: number, z: number, size = 0.5): Placement => ({ model, x, z, yaw: x * 2.3 - z, size });
+  return [
+    tree(-11.6, -10.4, 0.1), tree(13, -12.6, 0.25), tree(-21.6, 9.8, 0.4), tree(22.4, 7.4, 0.3, "bareTree"), tree(-10.6, 22.2, 0.2),
+    tree(-22.4, -12.4, 0.5), tree(22.8, -15.8, 0.35), tree(-17.4, 19.8, 0.15, "bareTree"),
+    low("bush", -12.8, -7.8, 0.7), low("bushSmall", -12.6, -12.8), low("bush", 11.4, -13.8, 0.4), low("bushSmall", 18.8, 3.2, 0.3),
+    low("bush", -14.4, 9.8, 0.5), low("rock", -9.2, 18.6, 0.6), low("rockSmall", -8.6, 19.4), low("bush", 7.2, 21.2, 0.8),
+    low("stump", 20.2, -4.6, 0.4), low("rock", -19.6, 3.2, 0.5), low("bushSmall", 4.8, -18.2, 0.2), low("rock", 17.4, 11.8, 0.4),
+  ];
+}
+// Open ground the woods keep clear of: every station, and the paths.
+export type Keep = [number, number, number];
 
 const seeded = (seed: number) => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 // Angle 0 points at the hub camera (+z); the forest path leaves the plaza at angle π.
@@ -74,19 +91,20 @@ const PATH_ANGLE = Math.PI, PATH_HALF = 0.13;
 // The opening shot starts 2.6 times as far out as the home camera and swings in from up to 0.35 rad
 // round: nothing tall stands in that lane short of its starting point. The fishing pond lies in it.
 const LANE = { from: -0.15, to: 0.6, radius: 29 };
-export const POND = { x: 0, z: 22.5, radius: 4.2 };
+export const POND = { x: 13.6, z: 19.4, radius: 4.2 };
 const nearPond = (x: number, z: number) => Math.hypot(x - POND.x, z - POND.z) < POND.radius + 3.5;
 const inLane = (angle: number, radius: number) => radius < LANE.radius && Math.atan2(Math.sin(angle), Math.cos(angle)) > LANE.from && Math.atan2(Math.sin(angle), Math.cos(angle)) < LANE.to;
 const angularGap = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 
-export function forestLayout(plazaRadius: number, seed = 11, market: Placement[] = [], lamps: [number, number][] = []): Placement[] {
+export function forestLayout(plazaRadius: number, seed = 11, market: Placement[] = [], lamps: [number, number][] = [], keep: Keep[] = []): Placement[] {
+  const kept = (x: number, z: number) => keep.some(([kx, kz, radius]) => Math.hypot(x - kx, z - kz) < radius);
   const next = seeded(seed), placements: Placement[] = [];
   const ring = (count: number, inner: number, outer: number, models: ForestModel[], lane: boolean, path = PATH_HALF) => {
     for (let i = 0; i < count; i++) {
       // Even spread around the ring with jitter, so there are no bald patches.
       const angle = (i + next() * 0.8) / count * Math.PI * 2, radius = inner + next() * (outer - inner);
       const x = Math.sin(angle) * radius, z = Math.cos(angle) * radius, model = models[Math.floor(next() * models.length)], yaw = next() * Math.PI * 2, size = next();
-      if ((lane && inLane(angle, radius)) || angularGap(angle, PATH_ANGLE) < path * (20 / radius) || !clearOf(market, x, z) || nearPond(x, z)) continue;
+      if ((lane && inLane(angle, radius)) || angularGap(angle, PATH_ANGLE) < path * (20 / radius) || !clearOf(market, x, z) || nearPond(x, z) || kept(x, z)) continue;
       placements.push({ model, x, z, yaw, size });
     }
   };
@@ -98,8 +116,7 @@ export function forestLayout(plazaRadius: number, seed = 11, market: Placement[]
   ring(56, plazaRadius + 0.8, plazaRadius + 5, ["bush", "bush", "bushSmall", "rock", "rockSmall"], false, PATH_HALF * 1.6);
   ring(14, plazaRadius + 2, plazaRadius + 6, ["stump", "rock"], false, PATH_HALF * 2);
   placements.push(...market);
-  // Hay behind the stock piled between the shop and the recycler.
-  for (const [angle, radius] of [[-2.2, plazaRadius + 1.9], [-2.02, plazaRadius + 2.7]]) placements.push({ model: "haystack", x: Math.sin(angle) * radius, z: Math.cos(angle) * radius, yaw: next() * 6.28, size: next() });
+  placements.push(...groveLayout());
   for (const [x, z] of lamps) placements.push({ model: "lamp", x, z, yaw: facingCentre(x, z) + Math.PI / 2, size: 0.5 });
   return placements;
 }

@@ -18,7 +18,7 @@ import { PACKAGING_FALLBACK, PACKAGING_THEMES, BOX_SIZE, createBoxPrints, buildB
 import { STATIONS, STATION_SPECS, WORLD_FOG, buildWorld, isStation, placeStation, viewPose, type Station, type WorldView } from "@/lib/figurine-world";
 import { buildShop, type ShopLabels } from "@/lib/figurine-shop";
 import { buildForge, buildRecycler, type MachineCue, type MachinePick } from "@/lib/figurine-machine";
-import { buildFacility, type Facility } from "@/lib/figurine-facilities";
+import { buildFacility, type ActionCue, type Facility, type FacilityAction } from "@/lib/figurine-facilities";
 import { buildStatues } from "@/lib/figurine-statues";
 import { portraitAtlas } from "@/lib/figurine-portraits";
 import { propPlacer } from "@/lib/figurine-props";
@@ -39,6 +39,8 @@ export type StageWorld = {
   labels: ShopLabels;
   // The showcase: the figure on each numbered statue spot round the plaza, or null.
   showcase: ({ key: string; quality: FigurineQuality } | null)[];
+  // The daily crate's streak: days opened, and today's day while it is still to open.
+  streak: { opened: number; today: number | null };
 };
 // A machine (the recycler or the forge) as the page drives it: the loaded slots, the display, and
 // each run (a new `run` number plays it, making `output`).
@@ -83,7 +85,7 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const NO_LINEUP: string[] = [];
 const random = (min: number, max: number) => min + Math.random() * (max - min);
 
-export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machines, onMachine, onMachineDone, onIntroDone, onHoverStation }: {
+export default function FigurineStage({ files, boxMode, open, charging = false, interactive = false, round = 0, rotate, labels, lineup = NO_LINEUP, silhouettes, signature, view = "opening", series, world, figureKey, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onStatus, onRevealed, onBoxTap, onLoaded, onProgress, arrival = 0, filesFor = null, showing = null, ready = true, quip, immersive = false, gallery = false, quality = "standard", locked = false, machines, onMachine, onMachineDone, onIntroDone, onHoverStation, action, onActionDone }: {
   files: File[]; boxMode: boolean; open: boolean; rotate: boolean; labels: StageLabels;
   // Character names printed in the "collect all" grid on the back of the box.
   lineup?: string[];
@@ -136,20 +138,23 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   onIntroDone?: () => void;
   // World mode: the station under the pointer, to name it; null when none.
   onHoverStation?: (station: Station | null) => void;
+  // World mode: a facility acting something out (a new `run` plays it); onActionDone(run) when it ends.
+  action?: { run: number; station: Facility; action: FacilityAction } | null;
+  onActionDone?: (run: number) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const state = useRef({ boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked });
   useEffect(() => { state.current = { boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked }; }, [boxMode, open, charging, interactive, round, rotate, signature, quip, view, figureKey, arrival, showing, ready, quality, locked]);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error" | "webgl">("empty");
   const [filename, setFilename] = useState("");
-  const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onIntroDone, onHoverStation });
-  useEffect(() => { callbacks.current = { onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onIntroDone, onHoverStation }; });
+  const callbacks = useRef({ onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onIntroDone, onHoverStation, onActionDone });
+  useEffect(() => { callbacks.current = { onStatus, onRevealed, onBoxTap, onNavigate, onBack, onPickSeries, onInspect, onHoverFigure, onLoaded, onProgress, onMachine, onMachineDone, onIntroDone, onHoverStation, onActionDone }; });
   // The packaging is rebuilt only when its printed text changes, not on every new labels object.
   const packagingKey = JSON.stringify(labels.packaging ?? null), lineupKey = lineup.join("|");
   const labelsRef = useRef(labels), lineupRef = useRef(lineup), silhouettesRef = useRef(silhouettes), worldRef = useRef(world), seriesRef = useRef(series), machinesRef = useRef(machines);
   useEffect(() => { labelsRef.current = labels; lineupRef.current = lineup; silhouettesRef.current = silhouettes; worldRef.current = world; seriesRef.current = series; machinesRef.current = machines; });
   // Lets later prop changes reach the running scene without rebuilding the renderer.
-  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachines: (machines: Partial<Record<FigurineMachine, StageMachine>>) => void; setShowcase: (showcase: StageWorld["showcase"]) => void } | null>(null);
+  const api = useRef<{ rebuildBox: () => void; showBox: () => void; setCollection: (collection: FigurineCollection) => void; setMachines: (machines: Partial<Record<FigurineMachine, StageMachine>>) => void; setShowcase: (showcase: StageWorld["showcase"]) => void; setStreak: (opened: number, today: number | null) => void; act: (action: { run: number; station: Facility; action: FacilityAction }) => void } | null>(null);
   const loaderState = useRef<{ load: (files: File[]) => void } | null>(null);
   const filesRef = useRef(files), filesForRef = useRef(filesFor);
   filesForRef.current = filesFor;
@@ -273,7 +278,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
     const facilities = worldSetup ? FACILITIES.flatMap((kind) => groups[kind] ? [{ kind, ...buildFacility(groups[kind]!, kind, { placeProp, envMap: environment }) }] : []) : [];
     // The showcase's statues load their figures like the pedestal does, one at a time.
     const statueLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(ktx2Loader);
-    const statues = immersive && worldSetup ? buildStatues(scene, { finishEnv: environment, load: async (url) => (await statueLoader.loadAsync(url)).scene }) : null;
+    const statues = immersive && worldSetup ? buildStatues(scene, { finishEnv: environment, load: (url) => statueLoader.loadAsync(url) }) : null;
     // Machine cards show the baked portrait sheets.
     const portraitCards = portraitAtlas();
     // Camera occlusion hides station meshes, but must not change the scene's light count:
@@ -320,6 +325,8 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       const found = entry && figureOf(entry.key);
       return found?.url && entry ? { url: found.url, quality: entry.quality } : null;
     }));
+    // The last facility action played, so a re-render never plays it twice.
+    let actedRun = 0;
     // Each machine shows its cards with their portraits and plays new runs.
     const machineRuns: Record<FigurineMachine, number> = { recycler: machinesRef.current?.recycler?.run ?? 0, forge: machinesRef.current?.forge?.run ?? 0 };
     const machineCue = (kind: FigurineMachine) => (cue: MachineCue) => {
@@ -644,8 +651,22 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
       rebuildBox: () => { clearPackagings(); worldRef.current?.series.forEach((entry) => { if (entry.released) packagingFor(entry); }); mountBox(); void precompile(); },
       showBox: () => preparePackaging(mountBox()),
       setCollection, setMachines, setShowcase,
+      setStreak: (opened, today) => facilities.forEach((facility) => facility.setStreak(opened, today)),
+      act: ({ run, station, action: next }) => {
+        if (run === actedRun) return;
+        actedRun = run;
+        const facility = facilities.find((entry) => entry.kind === station);
+        const sound = (cue: ActionCue) => {
+          if (cue === "tick") playFigurineCue("tap", { intensity: 0.35 });
+          else if (cue === "splash" || cue === "bite") playFigurineCue("drop", { intensity: cue === "bite" ? 0.4 : 0.7 });
+          else if (cue === "catch") { playFigurineCue("whoosh"); playFigurineCue("sparkle"); }
+          else { playFigurineCue("burst", { intensity: 0.6 }); playFigurineCue("sparkle"); }
+        };
+        const done = () => callbacks.current.onActionDone?.(run);
+        if (facility) facility.act(next, sound, done); else done();
+      },
     };
-    if (worldSetup) { setCollection(worldSetup.collection); setShowcase(worldSetup.showcase); }
+    if (worldSetup) { setCollection(worldSetup.collection); setShowcase(worldSetup.showcase); facilities.forEach((facility) => facility.setStreak(worldSetup.streak.opened, worldSetup.streak.today)); }
     if (machinesRef.current) setMachines(machinesRef.current);
     if (immersive && scenery) void (async () => {
       callbacks.current.onProgress?.(0.1);
@@ -1105,6 +1126,7 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
         }
         shop?.update(hoveredSeries, delta, idle);
         facilities.forEach((facility) => facility.update(delta, idle));
+        if (!reduced) statues?.update(delta);
         for (const station of Object.keys(stationGlow) as (keyof typeof stationGlow)[]) stationGlow[station] = THREE.MathUtils.damp(stationGlow[station], hoveredStation === station ? 1 : 0, 9, delta);
         glowing.forEach((materials, view) => materials.forEach((material) => { material.emissiveIntensity = stationGlow[view] * 0.07; }));
         stackOutlines.forEach((outline, id) => outline.update(hoveredSeries === id ? 1 : 0, delta));
@@ -1220,6 +1242,9 @@ export default function FigurineStage({ files, boxMode, open, charging = false, 
   useEffect(() => { if (collection) api.current?.setCollection(collection); }, [collection]);
   const showcase = world?.showcase;
   useEffect(() => { if (showcase) api.current?.setShowcase(showcase); }, [showcase]);
+  const streakOpened = world?.streak.opened, streakToday = world?.streak.today;
+  useEffect(() => { if (streakOpened !== undefined) api.current?.setStreak(streakOpened, streakToday ?? null); }, [streakOpened, streakToday]);
+  useEffect(() => { if (action) api.current?.act(action); }, [action]);
   useEffect(() => { if (machines) api.current?.setMachines(machines); }, [machines]);
 
   return <div className={`${styles.stageWrap} ${immersive ? styles.immersiveStage : ""} ${gallery ? styles.galleryStage : ""}`}>

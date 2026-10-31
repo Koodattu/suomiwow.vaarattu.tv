@@ -368,25 +368,46 @@ camera, so swapping between a box and a figure never moves it, and returning fro
 where the camera was left. The opening shot flies in from far out and plays to its end before
 the world takes any input (taps, drags or keys).
 
-The plaza sits in a forest clearing, and its facilities stand about it the way a market town's
-would (`STATION_SPECS` in `figurine-world.ts`, each with a position and a slight turn from facing
-the centre): the shop and the collection at the back, the trading post, mailbox and daily crate
-where the path leaves for the market, the recycler and the trade-up forge to either side, the
-lucky wheel, leaderboards, hall of fame, quest board and scrying ball here and there, and the
-fishing pond out past the plaza behind the home camera. Nothing is signposted: each facility is
-its game props (`figurine-facilities.ts`), there to be found. Pointing at one names it in the
-HUD; tapping one flies the camera there and opens its panel (`WorldPanels.tsx`), docked right on
-wide screens or as a bottom sheet on phones, with the station framed beside or above it. Tap
-empty ground, the panel's close button or Esc to come back. Keyboard: S shop, C collection,
-M recycler, U trade-up forge, 1-9 pick a series (in the shop), Enter opens the sealed box.
+The world is a forest clearing laid out like a market village (`figurine-world.ts`). A small
+cobbled square with a ragged edge holds the pedestal; worn dirt paths (`PATHS`) lead off it to
+neighbourhoods among the trees, each standing on its own trodden ground (`PATCHES`): the market at
+the back (the shop, the trading post, the mailbox, and the daily crate by the wagon), a tinkers'
+yard to the west (the recycler and the forge), a scholars' corner to the east (the collection,
+the scrying ball, the quest board), the fair to the south-west (the lucky wheel, the leaderboards
+and the hall of fame), and the fishing pond down its own path to the south-east. Each station has
+a position and a point it faces (`STATION_SPECS`), mostly its path or the square. Trees, bushes
+and rocks stand between the neighbourhoods (`groveLayout` in `figurine-forest.ts`); the woods keep
+clear of every station and path. Nothing is signposted: each facility is its game props
+(`figurine-facilities.ts`), there to be found. Pointing at one names it in the HUD; tapping one
+flies the camera there and opens its panel (`WorldPanels.tsx`), docked right on wide screens or
+as a bottom sheet on phones, with the station framed beside or above it. Tap empty ground, the
+panel's close button or Esc to come back. Keyboard: S shop, C collection, M recycler, U trade-up
+forge, Q quests, W lucky wheel, F fishing pond, D daily crate, 1-9 pick a series (in the shop),
+Enter opens the sealed box. `test/figurine-layout.test.mjs` checks that no station, figure, lamp,
+tree or market prop stands in another station or in its camera's line of sight (wide enough for
+a phone's backed-off shot).
 
-Open stations: the shop, the collection, the recycler and the forge. The others show what they
-will do, with what the session already knows: the daily crate (a free box a day, a seven-day
-streak), the lucky wheel (a daily spin), the gifting post (figure, recipient, message), the quest
-giver (daily, weekly and monthly quests with progress from the session's counters), the latest
-pulls (the ten newest golden and galaxy pulls), the hall of fame (firsts, with yours dated), the
-leaderboards (your counts) and the fishing pond (a daily catch of a box and a figure). Trading,
-gifting, firsts and boards need the collection on the server and Discord sign-in.
+Working stations: the shop, the collection, the recycler and the forge, and the daily ones
+(rules in `figurine-collection.ts`, tested in `test/figurine-rewards.test.mjs`; days, weeks and
+months go by the player's own clock):
+
+- The daily crate: open it once a day for a box. Days in a row build a streak to seven, shown on
+  the board above it; the seventh day's crate also guarantees a golden roll, then it starts over.
+  A missed day starts over too. The chest hops and bursts with gold.
+- The lucky wheel: one spin a day. It turns five times and stops on one of eight weighted prizes
+  (1, 2 or 3 boxes, a golden or a rare galaxy boost, or a random figure).
+- The fishing pond: the day's first cast brings up a box and a random figure; after that, casts
+  land classic Azeroth fish of fair weights, with a running count and the biggest catch. The rod
+  casts, the bobber plops, dips at the bite, and the catch leaps out.
+- The quest giver: daily, weekly and monthly quests (open boxes, recycle, trade up, spin, fish,
+  open crates, pull a galaxy, complete a series), counted from each period's start; a finished
+  quest is claimed for boxes.
+
+A reward lands once its animation has played. Boxes are banked (shown in the HUD and the panels)
+for when boxes become limited; a boost lifts the next box opened to at least that quality, and is
+spent by it. A figure prize joins the collection and, when golden or galaxy, the pull feed. Still
+placeholders: the trading post, the gifting post, the hall of fame and the leaderboards (they need
+the collection on the server and Discord sign-in) and the latest pulls (this session's own).
 
 Series are registered in `frontend/src/lib/figurine-series.ts` with a box print theme
 (`PACKAGING_THEMES` in `figurine-packaging.ts`). Series 002 uses the verdigris theme.
@@ -414,8 +435,10 @@ in a browser and saves the sheet back. Re-bake after a model or pose changes and
 `PORTRAIT_VERSION` in `figurine-portraits.ts`.
 
 The showcase holds sixteen figures. Each stands in the world at its own spot (`STATUE_SPOTS`):
-beside the stalls, at the path, by the market, on the pond's bank, out at the plaza's edge, at
-a person's height and with the quality's finish, loaded one at a time (`figurine-statues.ts`).
+browsing at the market, about the yard and the scholars' corner, at the fair, on the pond's bank.
+They are full size (the same body height as on the pedestal), with their quality's finish and
+their idle animation when the model has one, each started at its own point so neighbours never
+move in step, and load one at a time (`figurine-statues.ts`).
 A figure is on one spot only; placing it again moves it, and a spot whose figure is no longer
 owned at that quality shows the finest copy left, or nothing.
 
@@ -879,6 +902,11 @@ Boxes use baked artwork for Series 000, 001 and 002, plus one shared gray design
 for unreleased series. English and Finnish produce eight localized designs.
 The shelf tier uses small textures; the close-up artwork is repainted at twice
 the source density and encoded at 2048 × 2048, with 1024 × 1024 finish masks.
+Close-up textures use UASTC quality 2 with Zstd level 9; shelves remain ETC1S.
+ETC1S introduced visible blocks along the close-up foil and emboss mask edges,
+even at 2K. A same-camera, same-lighting comparison against the source PNG
+confirmed that UASTC preserves those edges substantially better. The compressed
+GPU footprint stays the same on an 8-bpp target; download sizes increase.
 All baked images use power-of-two dimensions so every compressed
 mip uploads correctly in WebGL. Odd canvas dimensions caused black boxes on the
 BC7 path even though the KTX2 files themselves were valid.

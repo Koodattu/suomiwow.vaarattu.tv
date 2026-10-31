@@ -10,7 +10,7 @@ registerHooks({
   },
 });
 const { STATIONS, STATION_SPECS, STATUE_SPOTS, LAMP_SPOTS, PLAZA_RADIUS, viewPose } = await import("../src/lib/figurine-world.ts");
-const { forestLayout, marketLayout } = await import("../src/lib/figurine-forest.ts");
+const { forestLayout, groveLayout, marketLayout } = await import("../src/lib/figurine-forest.ts");
 
 const PLAZA = PLAZA_RADIUS;
 const stations = Object.entries(STATIONS);
@@ -21,13 +21,12 @@ const inside = (name, point, margin = 0) => {
   return Math.abs(local.x) < spec.width / 2 + margin && local.z > spec.back - margin && local.z < spec.front + margin;
 };
 
-test("thirteen stations stand about the pedestal, roughly facing it, with the fishing pond beyond the plaza", () => {
+test("thirteen stations stand in neighbourhoods about the square, each turned toward it", () => {
   assert.equal(stations.length, 13);
   for (const [name, { position, rotation }] of stations) {
     const facing = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation);
-    assert.ok(facing.dot(position.clone().negate().normalize()) > 0.9, `${name} looks toward the centre`);
-    if (name === "pond") assert.ok(position.length() > PLAZA, "the pond lies outside the plaza");
-    else assert.ok(position.length() > 9 && position.length() < 20, `${name} stands about the plaza`);
+    assert.ok(facing.dot(position.clone().negate().normalize()) > 0.3, `${name} turns its back on the square`);
+    assert.ok(position.length() > 11 && position.length() < PLAZA + 4, `${name} stands about the square`);
   }
   // Neighbours keep a gap: no station's front corners stand inside another station.
   for (const [a] of stations) for (const [b, { position, rotation }] of stations) if (a !== b) {
@@ -43,16 +42,21 @@ test("showcase figures, lamps and market stock stand clear of every station and 
   assert.deepEqual(STATUE_SPOTS.map(({ number }) => number), Array.from({ length: 16 }, (_, index) => index + 1));
   const lamps = LAMP_SPOTS.map(([x, z]) => new THREE.Vector3(x, 0, z));
   const market = marketLayout().map(({ x, z }) => new THREE.Vector3(x, 0, z));
-  // The strip in front of a station that its camera looks down.
-  const inShot = (name, point) => {
+  const grove = groveLayout().map(({ x, z, model }) => ({ model, point: new THREE.Vector3(x, 0, z) }));
+  // The strip in front of a station that its camera looks down; a phone's shot backs off far.
+  const inShot = (name, point, width = 0.9, depth = 5) => {
     const { position, rotation } = STATIONS[name], spec = STATION_SPECS[name];
     const local = point.clone().sub(position).applyAxisAngle(new THREE.Vector3(0, 1, 0), -rotation);
-    return Math.abs(local.x) < 0.9 && local.z > spec.front && local.z < spec.front + 5;
+    return Math.abs(local.x) < width && local.z > spec.front && local.z < spec.front + depth;
   };
   for (const [name] of stations) {
-    for (const spot of STATUE_SPOTS) { assert.ok(!inside(name, spot.position, 0.6), `figure ${spot.number} stands in ${name}`); assert.ok(!inShot(name, spot.position), `figure ${spot.number} blocks ${name}'s shot`); }
+    for (const spot of STATUE_SPOTS) { assert.ok(!inside(name, spot.position, 0.6), `figure ${spot.number} stands in ${name}`); assert.ok(!inShot(name, spot.position, 1.6, 10), `figure ${spot.number} blocks ${name}'s shot`); }
     for (const lamp of lamps) { assert.ok(!inside(name, lamp, 0.4), `a lamp stands in ${name}`); assert.ok(!inShot(name, lamp), `a lamp blocks ${name}'s shot`); }
     for (const prop of market) assert.ok(!inside(name, prop, 0.5), `market stock stands in ${name}`);
+    for (const { model, point } of grove) {
+      assert.ok(!inside(name, point, model === "tree" || model === "bareTree" ? 1.6 : 0.5), `a ${model} grows in ${name}`);
+      assert.ok(!inShot(name, point), `a ${model} blocks ${name}'s shot`);
+    }
   }
   for (const spot of STATUE_SPOTS) {
     for (const prop of [...market, ...lamps]) assert.ok(prop.distanceTo(spot.position) > 1.3, `figure ${spot.number} is crowded`);
