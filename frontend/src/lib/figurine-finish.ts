@@ -4,7 +4,7 @@ import type { FigurineQuality } from "@/lib/figurine-collection";
 // Finishes for the rarer qualities, swapped onto a figure's own meshes:
 // golden is polished metal that keeps the paint's light and shade as engraving; galaxy is a window
 // into a drifting nebula with twinkling stars, fixed to the view, and a violet rim.
-// Glows and other blended effect surfaces keep their own look.
+// Original finishes leave glows alone; lab alternatives recolour source-tagged additive effects.
 export const FINISH_TIME = { value: 0 };
 type FinishRecord = { original: THREE.Material | THREE.Material[]; finishes: Map<string, THREE.Material | THREE.Material[]> };
 const records = new WeakMap<THREE.Mesh, FinishRecord>();
@@ -45,6 +45,31 @@ vec3 finishGalaxy( vec2 p, float t ) {
 `;
 
 function finishMaterial(source: THREE.Material, quality: Exclude<FigurineQuality, "standard">, envMap: THREE.Texture | null, preserveArmor: boolean): THREE.Material {
+  const effect = source.userData.wowM2;
+  if (preserveArmor && source instanceof THREE.MeshBasicMaterial && effect?.version === 1 && [3, 4].includes(effect.blendingMode)) {
+    // Keep the exporter's additive blend, alpha and depth settings. These are light cards,
+    // not solid armour: replacing them with metal would expose their rectangular geometry.
+    const glow = source.clone();
+    glow.onBeforeCompile = (shader) => {
+      shader.uniforms.finishTime = FINISH_TIME;
+      shader.vertexShader = `varying vec3 vFinishViewPosition;\n${shader.vertexShader}`
+        .replace("#include <project_vertex>", "#include <project_vertex>\nvFinishViewPosition = -mvPosition.xyz;");
+      shader.fragmentShader = `varying vec3 vFinishViewPosition;\n${quality === "galaxy" ? GALAXY : ""}\n${shader.fragmentShader}`
+        .replace("#include <map_fragment>", `
+          #include <map_fragment>
+          // Preserve the light mask, including true black, without retaining its old hue.
+          float glowStrength = max( diffuseColor.r, max( diffuseColor.g, diffuseColor.b ) );
+          ${quality === "golden" ? `
+            vec3 glowTint = mix( vec3( 1.0, 0.42, 0.07 ), vec3( 1.0, 0.88, 0.5 ), smoothstep( 0.3, 1.0, glowStrength ) );
+          ` : `
+            vec2 sky = isOrthographic ? vFinishViewPosition.xy * 1.1 : vFinishViewPosition.xy / max( vFinishViewPosition.z, 0.1 ) * 7.0;
+            vec3 glowTint = vec3( 0.12, 0.08, 0.3 ) + finishGalaxy( sky * 1.35, finishTime ) * 1.8;
+          `}
+          diffuseColor.rgb = glowTint * glowStrength;`);
+    };
+    glow.customProgramCacheKey = () => `figurine-lab-glow-${quality}`;
+    return glow;
+  }
   if (source.blending !== THREE.NormalBlending) return source;
   const map = (source as THREE.MeshStandardMaterial).map ?? null;
   const shared = { map, envMap, transparent: source.transparent, opacity: source.opacity, alphaTest: source.alphaTest, side: source.side, depthWrite: source.depthWrite };
